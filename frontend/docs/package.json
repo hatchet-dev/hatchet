@@ -25,6 +25,7 @@
   "dependencies": {
     "@octokit/rest": "^21.0.2",
     "autoprefixer": "^10.4.17",
+    "dotenv": "^16.4.5",
     "next": "^14.1.0",
     "nextra": "^2.13.2",
     "nextra-theme-docs": "^2.13.2",

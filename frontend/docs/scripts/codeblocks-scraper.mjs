@@ -1,18 +1,74 @@
 import { Octokit } from "@octokit/rest";
 import { promises as fs } from "fs";
+import dotenv from 'dotenv';
+dotenv.config();
 
-const links = [
-  "https://raw.githubusercontent.com/TranquilVarun/hatchet-python-delimeters/delimeters/examples/concurrency_limit/worker.py",
+const rawLinks = [
+  "https://raw.githubusercontent.com/TranquilVarun/hatchet-python-delimeters/main/examples/simple/worker.py",
+  "https://raw.githubusercontent.com/TranquilVarun/hatchet-delimeters/main/examples/simple/main.go",
+  "https://raw.githubusercontent.com/TranquilVarun/hatchet-typescript-delimeters/main/src/examples/simple-worker.ts",
+  "https://raw.githubusercontent.com/TranquilVarun/hatchet-python-delimeters/main/examples/concurrency_limit/worker.py",
+  "https://raw.githubusercontent.com/TranquilVarun/hatchet-typescript-delimeters/main/src/examples/concurrency/group-round-robin/concurrency-worker.ts",
+  "https://raw.githubusercontent.com/TranquilVarun/hatchet-python-delimeters/main/examples/concurrency_limit/worker.py",
+  "https://raw.githubusercontent.com/TranquilVarun/hatchet-delimeters/main/examples/limit-concurrency/cancel-in-progress/main.go",
+  "https://raw.githubusercontent.com/TranquilVarun/hatchet-typescript-delimeters/main/src/examples/concurrency/cancel-in-progress/concurrency-worker.ts",
+  "https://raw.githubusercontent.com/TranquilVarun/hatchet-python-delimeters/main/examples/concurrency_limit_rr/worker.py",
+  "https://raw.githubusercontent.com/TranquilVarun/hatchet-delimeters/main/examples/limit-concurrency/group-round-robin/main.go",
+  "https://raw.githubusercontent.com/TranquilVarun/hatchet-typescript-delimeters/main/src/examples/concurrency/group-round-robin/concurrency-worker.ts",
+  "https://raw.githubusercontent.com/TranquilVarun/hatchet-python-delimeters/main/examples/simple/worker.py",
+  "https://raw.githubusercontent.com/TranquilVarun/hatchet-delimeters/main/examples/simple/main.go",
+  "https://raw.githubusercontent.com/TranquilVarun/hatchet-typescript-delimeters/main/src/examples/simple-worker.ts",
+  "https://raw.githubusercontent.com/TranquilVarun/hatchet-python-delimeters/main/examples/simple/worker.py",
+  "https://raw.githubusercontent.com/TranquilVarun/hatchet-delimeters/main/examples/simple/main.go",
+  "https://raw.githubusercontent.com/TranquilVarun/hatchet-typescript-delimeters/main/src/examples/simple-worker.ts",
+  "https://raw.githubusercontent.com/TranquilVarun/hatchet-python-delimeters/main/examples/timeout/worker.py",
+  "https://raw.githubusercontent.com/TranquilVarun/hatchet-python-delimeters/main/examples/timeout/worker.py",
+  "https://raw.githubusercontent.com/TranquilVarun/hatchet-python-delimeters/main/examples/timeout/worker.py",
+  "https://raw.githubusercontent.com/TranquilVarun/hatchet-python-delimeters/main/examples/timeout/worker.py",
+  "https://raw.githubusercontent.com/TranquilVarun/hatchet-python-delimeters/main/examples/timeout/worker.py",
+  "https://raw.githubusercontent.com/TranquilVarun/hatchet-python-delimeters/main/examples/timeout/worker.py",
+  "https://raw.githubusercontent.com/TranquilVarun/hatchet-python-delimeters/main/examples/on_failure/worker.py",
+  "https://raw.githubusercontent.com/TranquilVarun/hatchet-delimeters/main/examples/on-failure/main.go",
+  "https://raw.githubusercontent.com/TranquilVarun/hatchet-typescript-delimeters/main/src/examples/on-failure.ts",
+  "https://raw.githubusercontent.com/TranquilVarun/hatchet-python-delimeters/main/examples/manual_trigger/stream.py",
+  "https://raw.githubusercontent.com/TranquilVarun/hatchet-typescript-delimeters/main/src/examples/manual-trigger.ts",
+  "https://raw.githubusercontent.com/TranquilVarun/hatchet-python-delimeters/main/examples/fanout/stream.py",
+  "https://raw.githubusercontent.com/TranquilVarun/hatchet-delimeters/main/examples/stream-event-by-meta/main.go",
+  "https://raw.githubusercontent.com/TranquilVarun/hatchet-typescript-delimeters/main/src/examples/stream-by-additional-meta.ts",
+  "https://raw.githubusercontent.com/TranquilVarun/hatchet-python-delimeters/main/examples/rate_limit/worker.py",
+  "https://raw.githubusercontent.com/TranquilVarun/hatchet-delimeters/main/examples/rate-limit/main.go",
+  "https://raw.githubusercontent.com/TranquilVarun/hatchet-typescript-delimeters/main/src/examples/rate-limit/worker.ts",
+  "https://raw.githubusercontent.com/TranquilVarun/hatchet-delimeters/main/examples/rate-limit/main.go",
+  "https://raw.githubusercontent.com/TranquilVarun/hatchet-typescript-delimeters/main/src/examples/rate-limit/worker.ts",
+  "https://raw.githubusercontent.com/TranquilVarun/hatchet-python-delimeters/main/examples/sticky-workers/worker.py",
+  "https://raw.githubusercontent.com/TranquilVarun/hatchet-delimeters/main/examples/assignment-sticky/run.go",
+  "https://raw.githubusercontent.com/TranquilVarun/hatchet-typescript-delimeters/main/src/examples/sticky-worker.ts",
+  "https://raw.githubusercontent.com/TranquilVarun/hatchet-python-delimeters/main/examples/sticky-workers/worker.py",
+  "https://raw.githubusercontent.com/TranquilVarun/hatchet-delimeters/main/examples/assignment-sticky/run.go",
+  "https://raw.githubusercontent.com/TranquilVarun/hatchet-typescript-delimeters/main/src/examples/sticky-worker.ts",
+  "https://raw.githubusercontent.com/TranquilVarun/hatchet-python-delimeters/main/examples/affinity-workers/worker.py",
+  "https://raw.githubusercontent.com/TranquilVarun/hatchet-delimeters/main/examples/assignment-affinity/run.go",
+  "https://raw.githubusercontent.com/TranquilVarun/hatchet-typescript-delimeters/main/src/examples/affinity-workers.ts",
+  "https://raw.githubusercontent.com/TranquilVarun/hatchet-python-delimeters/main/examples/affinity-workers/worker.py",
+  "https://raw.githubusercontent.com/TranquilVarun/hatchet-delimeters/main/examples/assignment-affinity/run.go",
+  "https://raw.githubusercontent.com/TranquilVarun/hatchet-typescript-delimeters/main/src/examples/affinity-workers.ts",
+  "https://raw.githubusercontent.com/TranquilVarun/hatchet-python-delimeters/main/examples/affinity-workers/worker.py",
+  "https://raw.githubusercontent.com/TranquilVarun/hatchet-delimeters/main/examples/assignment-affinity/run.go",
+  "https://raw.githubusercontent.com/TranquilVarun/hatchet-typescript-delimeters/main/src/examples/affinity-workers.ts",
+  "https://raw.githubusercontent.com/TranquilVarun/hatchet-python-delimeters/main/examples/cancellation/worker.py",
+  "https://raw.githubusercontent.com/TranquilVarun/hatchet-delimeters/main/examples/cancellation/run.go"
 ];
+
+const links = [...new Set(rawLinks)];
 
 const commentSyntax = {
   Python: "#",
   Typescript: "//",
-  Go: "//",
+  Golang: "//",
 };
 
 const octokit = new Octokit({
-  auth: process.env.GITHUB_PAT,
+  auth: process.env.GITHUB_TOKEN,
 });
 
 async function scrapeGitHubCode() {
@@ -20,12 +76,10 @@ async function scrapeGitHubCode() {
   for (const link of links) {
     try {
       const urlParts = link.split('/');
-      console.log("urlParts:", urlParts);
       const owner = urlParts[3];
       const repo = urlParts[4];
       const branch = urlParts[5];
       const path = urlParts.slice(6).join('/');
-      console.log("owner:", owner, "repo:", repo, "branch:", branch, "path:", path);
       
       const response = await octokit.repos.getContent({
         owner,
@@ -35,7 +89,6 @@ async function scrapeGitHubCode() {
       });
 
       const content = Buffer.from(response.data.content, 'base64').toString();
-      console.log("Content:", content);
       
       const lines = content.split("\n");
       const languageLine = lines[0].trim();
@@ -53,12 +106,10 @@ async function scrapeGitHubCode() {
           `${comment}START\\s+(.+?)\\s*\\n([\\s\\S]*?)\\n\\s*${comment}END`,
           "g"
         );
-        console.log("blockRegex:", blockRegex);
         
         let blockMatch;
         let matchFound = false;
         while ((blockMatch = blockRegex.exec(content)) !== null) {
-          console.log("blockMatch:", blockMatch);
           matchFound = true;
           const [, blockName, code] = blockMatch;
           result[language].push({
@@ -87,7 +138,10 @@ async function scrapeGitHubCode() {
 
 async function main() {
   const scrapedData = await scrapeGitHubCode();
-  console.log("Scraped data:", JSON.stringify(scrapedData, null, 2));
+  if (scrapedData.Golang) {
+    scrapedData.Go = scrapedData.Golang;
+    delete scrapedData.Golang;
+  }
   await fs.writeFile("codeblocks.json", JSON.stringify(scrapedData, null, 2));
   console.log("Code blocks have been scraped and saved to codeblocks.json");
 }
