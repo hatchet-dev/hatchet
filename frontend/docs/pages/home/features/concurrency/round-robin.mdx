@@ -1,5 +1,6 @@
 import { Tabs } from "nextra/components";
 import UniversalTabs from "../../../../components/UniversalTabs"
+import CodeCell from "../../../../components/CodeCell"
 
 # The GROUP_ROUND_ROBIN Concurrency Limit Strategy in Hatchet
 
@@ -33,82 +34,13 @@ To use the `GROUP_ROUND_ROBIN` concurrency limit strategy, define a `concurrency
 
 <UniversalTabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
-
-```python
-from hatchet_sdk import ConcurrencyLimitStrategy
-
-@hatchet.workflow(on_events=["concurrency-test"])
-class ConcurrencyDemoWorkflow:
-    @hatchet.concurrency(max_runs=10, limit_strategy=ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN)
-    def concurrency(self, context) -> str:
-        return context.workflow_input()["user_id"]
-
-    @hatchet.step()
-    def step1(self, context):
-        print("executed step1")
-        pass
-```
-
+    <CodeCell language="Python" blockName="concurrency_group_red_robin"/>
   </Tabs.Tab>
   <Tabs.Tab>
-
-```typescript
-export const concurrencyDemoWorkflow: Workflow = {
-  id: "my-workflow",
-  description: "My workflow with GROUP_ROUND_ROBIN concurrency control",
-  on: {
-    event: "concurrency-test",
-  },
-  steps: [
-    // ...
-  ],
-  concurrency: {
-    name: "my-workflow-concurrency",
-    maxRuns: 10,
-    limitStrategy: ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
-    key: (ctx) => ctx.workflowInput().userId,
-  },
-};
-```
-
+    <CodeCell language="Typescript" blockName="concurrency_group_red_robin"/>
   </Tabs.Tab>
   <Tabs.Tab>
-
-```go
-import (
-  "github.com/hatchet-dev/hatchet/pkg/client/types"
-  "github.com/hatchet-dev/hatchet/pkg/worker"
-)
-
-type MyUser struct {
-  UserId string `json:"user_id"`
-}
-
-func getConcurrencyKey(ctx worker.HatchetContext) (string, error) {
-    event := &MyUser{}
-    err := ctx.WorkflowInput(event)
-
-    if err != nil {
-        return "", err
-    }
-
-    return event.UserId, nil
-}
-
-err = w.RegisterWorkflow(
-    &worker.WorkflowJob{
-        Name: "concurrency-limit-per-user",
-        On: worker.Events("concurrency-test-event"),
-        Description: "This limits concurrency to 1 run at a time per user.",
-        Concurrency: worker.Concurrency(getConcurrencyKey).MaxRuns(10).LimitStrategy(types.GroupRoundRobin),
-        Steps: []*worker.WorkflowStep{
-            // your steps here...
-        },
-    },
-)
-
-```
-
+    <CodeCell language="Go" blockName="concurrency_group_red_robin"/>
   </Tabs.Tab>
 </UniversalTabs>
 

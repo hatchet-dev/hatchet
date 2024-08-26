@@ -37,26 +37,13 @@ In addition to setting concurrency limits at the workflow level, you can also co
 
 <UniversalTabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
-    <CodeCell language="Python" blockName="setting-concurrency"/>
-  </Tabs.Tab>
-  ```python
-  test = "waffle"
-  ```
-  <Tabs.Tab>
-```typescript
-const worker = hatchet.worker("my-worker", {
-  maxRuns: 5,
-});
-```
+    <CodeCell language="Python" blockName="setting-concurrency-on-workers"/>
   </Tabs.Tab>
   <Tabs.Tab>
-```go
-w, err := worker.NewWorker(
-    worker.WithClient(c),
-    worker.WithMaxRuns(5),
-    worker.WithName("my-worker")
-)
-```
+    <CodeCell language="Typescript" blockName="setting-concurrency-on-workers"/>
+  </Tabs.Tab>
+  <Tabs.Tab>
+    <CodeCell language="Go" blockName="setting-concurrency-on-workers"/>
   </Tabs.Tab>
 </UniversalTabs>
 

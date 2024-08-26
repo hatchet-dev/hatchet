@@ -1,5 +1,6 @@
 import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
 import UniversalTabs from "../../../components/UniversalTabs"
+import CodeCell from "../../../components/CodeCell"
 
 # Timeouts in Hatchet
 
@@ -34,11 +35,7 @@ To specify a timeout for an entire workflow, you can set the `Schedule Timeout` 
 
 <UniversalTabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
-```python
-@hatchet.workflow(schedule_timeout="2m")
-class TimeoutWorkflow:
-  # ...
-```
+    <CodeCell language="Python" blockName="scheduling-timeouts"/>
   </Tabs.Tab>
   <Tabs.Tab>
 ```typescript
@@ -51,19 +48,7 @@ const myWorkflow: Workflow = {
 ```
   </Tabs.Tab>
   <Tabs.Tab>
-```go
-cleanup, err := run(events, worker.WorkflowJob{
-  Name: "timeout",
-  Description: "timeout",
-  ScheduleTimeout: "2m",
-  Steps: []*worker.WorkflowStep{
-    worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
-      time.Sleep(time.Second * 60)
-      return nil, nil
-    }).SetName("step-one")
-  },
-})
-```
+    <CodeCell language="Go" blockName="scheduling-timeouts"/>
   </Tabs.Tab>
 </UniversalTabs>
 
@@ -75,17 +60,7 @@ To specify a timeout for an individual step, you can set the `timeout` property 
 
 <UniversalTabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
-```python
-@hatchet.step(timeout="30s")
-def timeout(self, context):
-    try:
-        print("started step2")
-        time.sleep(5)
-        print("finished step2")
-    except Exception as e:
-        print("caught an exception: " + str(e))
-        raise e
-```
+    <CodeCell language="Python" blockName="step-timeouts"/>
   </Tabs.Tab>
   <Tabs.Tab>
 ```typescript
@@ -131,16 +106,7 @@ For example:
 
 <UniversalTabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
-```python
-@hatchet.step(timeout="30s")
-def timeout(self, context):
-    time.sleep(20)
-    context.refresh_timeout("15s")
-    time.sleep(10)
-    return {
-      step1: "step1 results!"
-    }
-```
+    <CodeCell language="Python" blockName="refreshing-timeouts"/>
   </Tabs.Tab>
   <Tabs.Tab>
 ```typescript
@@ -157,22 +123,7 @@ const myStep: CreateStep<any, any> = {
 ```
   </Tabs.Tab>
   <Tabs.Tab>
-```go
-worker.WorkflowJob{
-		Name: "timeout",
-		Description: "timeout",
-		Steps: []*worker.WorkflowStep{
-			worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
-				time.Sleep(time.Second * 20)
-				ctx.RefreshTimeout("15s")
-        time.Sleep(time.Second * 10)
-        return return &stepOneOutput{
-					Message: "step1 results!",
-				}, nil
-			}).SetName("step-one").SetTimeout("30s"),
-    },
-}
-```
+    <CodeCell language="Go" blockName="scheduling-timeouts"/>
   </Tabs.Tab>
 </UniversalTabs>
 

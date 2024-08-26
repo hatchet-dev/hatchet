@@ -1,5 +1,6 @@
 import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
 import UniversalTabs from "../../../../components/UniversalTabs"
+import CodeCell from "../../../../components/CodeCell"
 
 # Retry Strategies in Hatchet: Simple Step Retry
 
@@ -22,35 +23,13 @@ To enable retries for a step in your workflow, simply add the `retries` property
 
 <UniversalTabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
-```python
-@hatchet.step(timeout='30s', retries=3)
-def step1(self, context: Context):
-    pass
-```
+    <CodeCell language="Python" blockName="how-to-use-step-level-retries"/>
   </Tabs.Tab>
   <Tabs.Tab>
-
-```typescript
-import { CreateStepSchema } from "@hatchet-dev/typescript-sdk";
-
-const step1: z.infer<typeof CreateStepSchema> = {
-  name: "step1",
-  timeout: "30s",
-  retries: 3,
-};
-```
-
+    <CodeCell language="Typescript" blockName="how-to-use-step-level-retries"/>
   </Tabs.Tab>
   <Tabs.Tab>
-
-```go
-Steps: []*worker.WorkflowStep{
-  worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
-    continue
-  }).SetName("step1").SetRetries(3).SetTimeout("30s"),
-},
-```
-
+    <CodeCell language="Go" blockName="how-to-use-step-level-retries"/>
   </Tabs.Tab>
 </UniversalTabs>
 
@@ -72,39 +51,13 @@ If you need to access the current retry count within a step, you can use the `re
 
 <UniversalTabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
-
-```python
-@hatchet.step(timeout='2s', retries=3)
-def step1(self, context: Context):
-    retry_count = context.retry_count()
-    print(f"Retry count: {retry_count}")
-    raise Exception("Step failed")
-```
-
+    <CodeCell language="Python" blockName="how-to-use-step-level-retries"/>
   </Tabs.Tab>
   <Tabs.Tab>
-
-```typescript
-async function step(context: Context) {
-  const retryCount = context.retryCount();
-  console.log(`Retry count: ${retryCount}`);
-  throw new Error("Step failed");
-}
-```
-
+    <CodeCell language="Typescript" blockName="how-to-use-step-level-retries"/>
   </Tabs.Tab>
   <Tabs.Tab>
-
-```go
-func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
-  count := ctx.RetryCount()
-
-  return &stepOneOutput{
-  Message: "Count is: " + strconv.Itoa(count),
-  }, nil
-}
-```
-
+    <CodeCell language="Go" blockName="how-to-use-step-level-retries"/>
   </Tabs.Tab>
 </UniversalTabs>
 

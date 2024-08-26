@@ -1,5 +1,6 @@
 import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
 import UniversalTabs from "../../../components/UniversalTabs"
+import CodeCell from "../../../components/CodeCell"
 
 # Workers in Hatchet
 
@@ -23,55 +24,13 @@ To utilize workers effectively, you need to register your workflows with the wor
 
 <UniversalTabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
-```python
-workflow = MyWorkflow()
-worker = hatchet.worker('test-worker', max_runs=4)
-worker.register_workflow(workflow)
-worker.start()
-```
+    <CodeCell language="Python" blockName="registering_workflows_starting_workers"/>
   </Tabs.Tab>
   <Tabs.Tab>
-```typescript
-async function main() {
-  const worker = await hatchet.worker('example-worker');
-  await worker.registerWorkflow(workflow);
-  worker.start();
-}
-
-main();
-
-````
+    <CodeCell language="Typescript" blockName="registering_workflows_starting_workers"/>
   </Tabs.Tab>
   <Tabs.Tab>
-```go
-client, err := client.New(
-    client.InitWorkflows(),
-    client.WithWorkflows([]*types.Workflow{
-        &slackWorkflowFile,
-    }),
-)
-if err != nil {
-    panic(err)
-}
-
-worker, err := worker.NewWorker(
-    worker.WithClient(
-        client,
-    ),
-    worker.WithIntegration(
-        slackInt,
-    ),
-)
-if err != nil {
-    panic(err)
-}
-
-interruptCtx, cancel := cmdutils.InterruptContextFromChan(cmdutils.InterruptChan())
-defer cancel()
-
-go worker.Start()
-````
-
+    <CodeCell language="Go" blockName="registering_workflows_starting_workers"/>
   </Tabs.Tab>
 </UniversalTabs>
 
