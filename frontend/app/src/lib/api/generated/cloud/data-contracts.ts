@@ -166,7 +166,7 @@ export interface ManagedWorkerRuntimeConfig {
   /** The amount of memory in MB to use for the worker */
   memoryMb: number;
   /** The region that the worker is deployed to */
-  region: string;
+  region: ManagedWorkerRegion;
 }
 
 export enum ManagedWorkerEventStatus {
@@ -219,6 +219,42 @@ export interface CreateBuildStepRequest {
   dockerfilePath: string;
 }
 
+export enum ManagedWorkerRegion {
+  Ams = "ams",
+  Arn = "arn",
+  Atl = "atl",
+  Bog = "bog",
+  Bos = "bos",
+  Cdg = "cdg",
+  Den = "den",
+  Dfw = "dfw",
+  Ewr = "ewr",
+  Eze = "eze",
+  Gdl = "gdl",
+  Gig = "gig",
+  Gru = "gru",
+  Hkg = "hkg",
+  Iad = "iad",
+  Jnb = "jnb",
+  Lax = "lax",
+  Lhr = "lhr",
+  Mad = "mad",
+  Mia = "mia",
+  Nrt = "nrt",
+  Ord = "ord",
+  Otp = "otp",
+  Phx = "phx",
+  Qro = "qro",
+  Scl = "scl",
+  Sea = "sea",
+  Sin = "sin",
+  Sjc = "sjc",
+  Syd = "syd",
+  Waw = "waw",
+  Yul = "yul",
+  Yyz = "yyz",
+}
+
 export interface CreateManagedWorkerRuntimeConfigRequest {
   /**
    * @min 0
@@ -228,7 +264,7 @@ export interface CreateManagedWorkerRuntimeConfigRequest {
   /** A map of environment variables to set for the worker */
   envVars: Record<string, string>;
   /** The region to deploy the worker to */
-  region?: string;
+  region?: ManagedWorkerRegion;
   /** The kind of CPU to use for the worker */
   cpuKind: string;
   /**

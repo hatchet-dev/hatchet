@@ -378,9 +378,16 @@ export default function UpdateWorkerForm({
               </div>
               <Label htmlFor="region">Region</Label>
               <Select
-                value={region}
+                value={region?.toString()}
                 onValueChange={(value) => {
-                  setValue('runtimeConfig.region', value);
+                  // find the region object from the value
+                  const region = regions.find((i) => i.value === value);
+
+                  if (!region) {
+                    return;
+                  }
+
+                  setValue('runtimeConfig.region', region.value);
                 }}
               >
                 <SelectTrigger className="w-fit">
