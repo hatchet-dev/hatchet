@@ -94,6 +94,141 @@ export const machineTypes = [
   },
 ];
 
+export const regions = [
+  {
+    name: 'Amsterdam, Netherlands',
+    value: 'ams',
+  },
+  {
+    name: 'Stockholm, Sweden',
+    value: 'arn',
+  },
+  {
+    name: 'Atlanta, Georgia (US)',
+    value: 'atl',
+  },
+  {
+    name: 'Bogotá, Colombia',
+    value: 'bog',
+  },
+  {
+    name: 'Boston, Massachusetts (US)',
+    value: 'bos',
+  },
+  {
+    name: 'Paris, France',
+    value: 'cdg',
+  },
+  {
+    name: 'Denver, Colorado (US)',
+    value: 'den',
+  },
+  {
+    name: 'Dallas, Texas (US)',
+    value: 'dfw',
+  },
+  {
+    name: 'Secaucus, NJ (US)',
+    value: 'ewr',
+  },
+  {
+    name: 'Ezeiza, Argentina',
+    value: 'eze',
+  },
+  {
+    name: 'Guadalajara, Mexico',
+    value: 'gdl',
+  },
+  {
+    name: 'Rio de Janeiro, Brazil',
+    value: 'gig',
+  },
+  {
+    name: 'Sao Paulo, Brazil',
+    value: 'gru',
+  },
+  {
+    name: 'Hong Kong, Hong Kong',
+    value: 'hkg',
+  },
+  {
+    name: 'Ashburn, Virginia (US)',
+    value: 'iad',
+  },
+  {
+    name: 'Johannesburg, South Africa',
+    value: 'jnb',
+  },
+  {
+    name: 'Los Angeles, California (US)',
+    value: 'lax',
+  },
+  {
+    name: 'London, United Kingdom',
+    value: 'lhr',
+  },
+  {
+    name: 'Madrid, Spain',
+    value: 'mad',
+  },
+  {
+    name: 'Miami, Florida (US)',
+    value: 'mia',
+  },
+  {
+    name: 'Tokyo, Japan',
+    value: 'nrt',
+  },
+  {
+    name: 'Chicago, Illinois (US)',
+    value: 'ord',
+  },
+  {
+    name: 'Bucharest, Romania',
+    value: 'otp',
+  },
+  {
+    name: 'Phoenix, Arizona (US)',
+    value: 'phx',
+  },
+  {
+    name: 'Querétaro, Mexico',
+    value: 'qro',
+  },
+  {
+    name: 'Santiago, Chile',
+    value: 'scl',
+  },
+  {
+    name: 'Seattle, Washington (US)',
+    value: 'sea',
+  },
+  {
+    name: 'Singapore, Singapore',
+    value: 'sin',
+  },
+  {
+    name: 'San Jose, California (US)',
+    value: 'sjc',
+  },
+  {
+    name: 'Sydney, Australia',
+    value: 'syd',
+  },
+  {
+    name: 'Warsaw, Poland',
+    value: 'waw',
+  },
+  {
+    name: 'Montreal, Canada',
+    value: 'yul',
+  },
+  {
+    name: 'Toronto, Canada',
+    value: 'yyz',
+  },
+];
+
 export const createOrUpdateManagedWorkerSchema = z.object({
   name: z.string(),
   buildConfig: z.object({
@@ -114,6 +249,7 @@ export const createOrUpdateManagedWorkerSchema = z.object({
     cpuKind: z.string(),
     cpus: z.number(),
     memoryMb: z.number(),
+    region: z.string().optional(),
   }),
 });
 
@@ -151,6 +287,7 @@ export default function CreateWorkerForm({
         cpus: 1,
         memoryMb: 1024,
         envVars: {},
+        region: 'sea',
       },
     },
   });
@@ -159,6 +296,7 @@ export default function CreateWorkerForm({
     '1 CPU, 1 GB RAM (shared CPU)',
   );
 
+  const region = watch('runtimeConfig.region');
   const installation = watch('buildConfig.githubInstallationId');
   const repoOwner = watch('buildConfig.githubRepositoryOwner');
   const repoName = watch('buildConfig.githubRepositoryName');
@@ -451,6 +589,24 @@ export default function CreateWorkerForm({
             <div className="text-sm text-muted-foreground">
               Configure the runtime settings for this worker.
             </div>
+            <Label htmlFor="region">Region</Label>
+            <Select
+              value={region}
+              onValueChange={(value) => {
+                setValue('runtimeConfig.region', value);
+              }}
+            >
+              <SelectTrigger className="w-fit">
+                <SelectValue id="region" placeholder="Choose region" />
+              </SelectTrigger>
+              <SelectContent>
+                {regions.map((i) => (
+                  <SelectItem key={i.value} value={i.value}>
+                    {i.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Label htmlFor="numReplicas">Number of replicas</Label>
             <Controller
               control={control}

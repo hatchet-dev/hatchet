@@ -165,6 +165,8 @@ export interface ManagedWorkerRuntimeConfig {
   cpus: number;
   /** The amount of memory in MB to use for the worker */
   memoryMb: number;
+  /** The region that the worker is deployed to */
+  region: string;
 }
 
 export enum ManagedWorkerEventStatus {
@@ -220,16 +222,26 @@ export interface CreateBuildStepRequest {
 export interface CreateManagedWorkerRuntimeConfigRequest {
   /**
    * @min 0
-   * @max 16
+   * @max 1000
    */
   numReplicas: number;
   /** A map of environment variables to set for the worker */
   envVars: Record<string, string>;
+  /** The region to deploy the worker to */
+  region?: string;
   /** The kind of CPU to use for the worker */
   cpuKind: string;
-  /** The number of CPUs to use for the worker */
+  /**
+   * The number of CPUs to use for the worker
+   * @min 1
+   * @max 64
+   */
   cpus: number;
-  /** The amount of memory in MB to use for the worker */
+  /**
+   * The amount of memory in MB to use for the worker
+   * @min 1024
+   * @max 65536
+   */
   memoryMb: number;
 }
 

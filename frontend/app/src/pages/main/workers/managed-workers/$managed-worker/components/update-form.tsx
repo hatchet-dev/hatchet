@@ -23,6 +23,7 @@ import {
   getRepoOwner,
   getRepoOwnerName,
   machineTypes,
+  regions,
 } from '../../create/components/create-worker-form';
 import { ManagedWorker } from '@/lib/api/generated/cloud/data-contracts';
 import {
@@ -79,6 +80,7 @@ export default function UpdateWorkerForm({
         cpus: managedWorker.runtimeConfig.cpus,
         memoryMb: managedWorker.runtimeConfig.memoryMb,
         envVars: managedWorker.runtimeConfig.envVars,
+        region: managedWorker.runtimeConfig.region,
       },
     },
   });
@@ -87,6 +89,7 @@ export default function UpdateWorkerForm({
     '1 CPU, 1 GB RAM (shared CPU)',
   );
 
+  const region = watch('runtimeConfig.region');
   const installation = watch('buildConfig.githubInstallationId');
   const repoOwner = watch('buildConfig.githubRepositoryOwner');
   const repoName = watch('buildConfig.githubRepositoryName');
@@ -373,6 +376,24 @@ export default function UpdateWorkerForm({
               <div className="text-sm text-muted-foreground">
                 Configure the runtime settings for this worker.
               </div>
+              <Label htmlFor="region">Region</Label>
+              <Select
+                value={region}
+                onValueChange={(value) => {
+                  setValue('runtimeConfig.region', value);
+                }}
+              >
+                <SelectTrigger className="w-fit">
+                  <SelectValue id="region" placeholder="Choose region" />
+                </SelectTrigger>
+                <SelectContent>
+                  {regions.map((i) => (
+                    <SelectItem key={i.value} value={i.value}>
+                      {i.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <Label htmlFor="numReplicas">Number of replicas</Label>
               <Controller
                 control={control}
