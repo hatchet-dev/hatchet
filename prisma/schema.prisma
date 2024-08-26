@@ -1223,7 +1223,7 @@ model StepRun {
 
   order BigInt @default(autoincrement()) @db.BigInt
 
-  queue String @default("default")
+  queue    String @default("default")
   priority Int?
 
   // the worker assigned to this job
