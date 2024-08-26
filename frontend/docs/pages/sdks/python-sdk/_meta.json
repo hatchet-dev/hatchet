@@ -24,6 +24,11 @@
   "run-workflow-events": "Event-Triggered Workflows",
   "run-workflow-cron": "Cron Workflows",
   "run-workflow-schedule": "Scheduled Workflows",
+  "--- Workflow Options": {
+    "type": "separator",
+    "title": "Workflow Options"
+  },
+  "priority": "Setting Workflow Priority",
   "--- Getting Workflow Results": {
     "type": "separator",
     "title": "Getting Workflow Results"
