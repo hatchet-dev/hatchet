@@ -240,13 +240,13 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	})
 
 	populatorMW.RegisterGetter("workflow-run", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
-		workflowRun, err := config.APIRepository.WorkflowRun().GetWorkflowRunById(parentId, id)
+		workflowRun, err := config.APIRepository.WorkflowRun().GetWorkflowRunById(context.Background(), parentId, id)
 
 		if err != nil {
 			return nil, "", err
 		}
 
-		return workflowRun, workflowRun.TenantID, nil
+		return workflowRun, sqlchelpers.UUIDToStr(workflowRun.TenantId), nil
 	})
 
 	populatorMW.RegisterGetter("step-run", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
@@ -256,7 +256,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 			return nil, "", err
 		}
 
-		return stepRun, stepRun.TenantID, nil
+		return stepRun, sqlchelpers.UUIDToStr(stepRun.TenantId), nil
 	})
 
 	populatorMW.RegisterGetter("event", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {

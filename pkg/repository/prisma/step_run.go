@@ -46,37 +46,31 @@ func NewStepRunAPIRepository(client *db.PrismaClient, pool *pgxpool.Pool, v vali
 	}
 }
 
-func (s *stepRunAPIRepository) GetStepRunById(tenantId, stepRunId string) (*db.StepRunModel, error) {
-	return s.client.StepRun.FindFirst(
-		db.StepRun.ID.Equals(stepRunId),
-		db.StepRun.DeletedAt.IsNull(),
-	).With(
-		db.StepRun.Children.Fetch(),
-		db.StepRun.ChildWorkflowRuns.Fetch(),
-		db.StepRun.Parents.Fetch().With(
-			db.StepRun.Step.Fetch(),
-		),
-		db.StepRun.Step.Fetch().With(
-			db.Step.Job.Fetch(),
-			db.Step.Action.Fetch(),
-		),
-		db.StepRun.JobRun.Fetch().With(
-			db.JobRun.LookupData.Fetch(),
-			db.JobRun.WorkflowRun.Fetch(),
-		),
-		db.StepRun.Ticker.Fetch(),
-	).Exec(context.Background())
-}
+func (s *stepRunAPIRepository) GetStepRunById(tenantId, stepRunId string) (*dbsqlc.StepRun, error) {
+	return s.queries.GetStepRun(context.Background(), s.pool, dbsqlc.GetStepRunParams{
+		ID:       sqlchelpers.UUIDFromStr(stepRunId),
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+	})
 
-func (s *stepRunAPIRepository) GetFirstArchivedStepRunResult(tenantId, stepRunId string) (*db.StepRunResultArchiveModel, error) {
-	return s.client.StepRunResultArchive.FindFirst(
-		db.StepRunResultArchive.StepRunID.Equals(stepRunId),
-		db.StepRunResultArchive.StepRun.Where(
-			db.StepRun.TenantID.Equals(tenantId),
-		),
-	).OrderBy(
-		db.StepRunResultArchive.Order.Order(db.ASC),
-	).Exec(context.Background())
+	// return s.client.StepRun.FindFirst(
+	// 	db.StepRun.ID.Equals(stepRunId),
+	// 	db.StepRun.DeletedAt.IsNull(),
+	// ).With(
+	// 	db.StepRun.Children.Fetch(),
+	// 	db.StepRun.ChildWorkflowRuns.Fetch(),
+	// 	db.StepRun.Parents.Fetch().With(
+	// 		db.StepRun.Step.Fetch(),
+	// 	),
+	// 	db.StepRun.Step.Fetch().With(
+	// 		db.Step.Job.Fetch(),
+	// 		db.Step.Action.Fetch(),
+	// 	),
+	// 	db.StepRun.JobRun.Fetch().With(
+	// 		db.JobRun.LookupData.Fetch(),
+	// 		db.JobRun.WorkflowRun.Fetch(),
+	// 	),
+	// 	db.StepRun.Ticker.Fetch(),
+	// ).Exec(context.Background())
 }
 
 func (s *stepRunAPIRepository) ListStepRunEvents(stepRunId string, opts *repository.ListStepRunEventOpts) (*repository.ListStepRunEventResult, error) {
@@ -1388,6 +1382,19 @@ func (s *stepRunEngineRepository) PreflightCheckReplayStepRun(ctx context.Contex
 
 	if len(childStepRuns) > 0 {
 		return repository.ErrPreflightReplayChildStepRunNotInFinalState
+	}
+
+	count, err := s.queries.HasActiveWorkersForActionId(ctx, s.pool, dbsqlc.HasActiveWorkersForActionIdParams{
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Actionid: stepRun.ActionId,
+	})
+
+	if err != nil {
+		return fmt.Errorf("could not count active workers for action id: %w", err)
+	}
+
+	if count == 0 {
+		return repository.ErrNoWorkerAvailable
 	}
 
 	return nil

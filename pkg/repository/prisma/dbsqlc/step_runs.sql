@@ -1087,3 +1087,17 @@ WHERE
     "id" IN (SELECT "id" FROM deleted_with_limit)
 RETURNING
     (SELECT has_more FROM has_more) as has_more;
+
+-- name: HasActiveWorkersForActionId :one
+SELECT
+    COUNT(DISTINCT "Worker"."id") AS "total"
+FROM
+    "Worker" w
+JOIN
+    "_ActionToWorker" ON "Worker"."id" = "_ActionToWorker"."B"
+WHERE
+    w."tenantId" = @tenantId::uuid
+    AND "_ActionToWorker"."A" = @actionId::text
+    AND w."isActive" = true
+    AND w."lastHeartbeatAt" < NOW() - INTERVAL '6 seconds'
+LIMIT 1;

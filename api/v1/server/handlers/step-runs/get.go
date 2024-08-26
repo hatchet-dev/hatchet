@@ -7,11 +7,11 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 )
 
 func (t *StepRunService) StepRunGet(ctx echo.Context, request gen.StepRunGetRequestObject) (gen.StepRunGetResponseObject, error) {
-	stepRun := ctx.Get("step-run").(*db.StepRunModel)
+	stepRun := ctx.Get("step-run").(*dbsqlc.StepRun)
 
 	res, err := transformers.ToStepRun(stepRun)
 

@@ -139,9 +139,7 @@ var ErrPreflightReplayStepRunNotInFinalState = fmt.Errorf("step run is not in a 
 var ErrPreflightReplayChildStepRunNotInFinalState = fmt.Errorf("child step run is not in a final state")
 
 type StepRunAPIRepository interface {
-	GetStepRunById(tenantId, stepRunId string) (*db.StepRunModel, error)
-
-	GetFirstArchivedStepRunResult(tenantId, stepRunId string) (*db.StepRunResultArchiveModel, error)
+	GetStepRunById(tenantId, stepRunId string) (*dbsqlc.StepRun, error)
 
 	ListStepRunEvents(stepRunId string, opts *ListStepRunEventOpts) (*ListStepRunEventResult, error)
 

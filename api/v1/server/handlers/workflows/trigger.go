@@ -15,6 +15,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 )
 
 func (t *WorkflowService) WorkflowRunCreate(ctx echo.Context, request gen.WorkflowRunCreateRequestObject) (gen.WorkflowRunCreateResponseObject, error) {
@@ -98,7 +99,10 @@ func (t *WorkflowService) WorkflowRunCreate(ctx echo.Context, request gen.Workfl
 	err = t.config.MessageQueue.AddMessage(
 		ctx.Request().Context(),
 		msgqueue.WORKFLOW_PROCESSING_QUEUE,
-		tasktypes.WorkflowRunQueuedToTask(workflowRun.TenantID, workflowRun.ID),
+		tasktypes.WorkflowRunQueuedToTask(
+			sqlchelpers.UUIDToStr(workflowRun.TenantId),
+			sqlchelpers.UUIDToStr(workflowRun.ID),
+		),
 	)
 
 	if err != nil {

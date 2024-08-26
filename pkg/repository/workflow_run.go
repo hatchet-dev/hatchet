@@ -373,7 +373,7 @@ type WorkflowRunMetricsCountOpts struct {
 }
 
 type WorkflowRunAPIRepository interface {
-	RegisterCreateCallback(callback Callback[*db.WorkflowRunModel])
+	RegisterCreateCallback(callback Callback[*dbsqlc.WorkflowRun])
 
 	// ListWorkflowRuns returns workflow runs for a given workflow version id.
 	ListWorkflowRuns(ctx context.Context, tenantId string, opts *ListWorkflowRunsOpts) (*ListWorkflowRunsResult, error)
@@ -384,10 +384,10 @@ type WorkflowRunAPIRepository interface {
 	GetWorkflowRunInputData(tenantId, workflowRunId string) (map[string]interface{}, error)
 
 	// CreateNewWorkflowRun creates a new workflow run for a workflow version.
-	CreateNewWorkflowRun(ctx context.Context, tenantId string, opts *CreateWorkflowRunOpts) (*db.WorkflowRunModel, error)
+	CreateNewWorkflowRun(ctx context.Context, tenantId string, opts *CreateWorkflowRunOpts) (*dbsqlc.WorkflowRun, error)
 
 	// GetWorkflowRunById returns a workflow run by id.
-	GetWorkflowRunById(tenantId, runId string) (*db.WorkflowRunModel, error)
+	GetWorkflowRunById(ctx context.Context, tenantId, runId string) (*dbsqlc.WorkflowRun, error)
 }
 
 var (

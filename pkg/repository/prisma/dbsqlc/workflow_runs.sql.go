@@ -859,6 +859,46 @@ func (q *Queries) GetWorkflowRunAdditionalMeta(ctx context.Context, db DBTX, arg
 	return &i, err
 }
 
+const getWorkflowRunById = `-- name: GetWorkflowRunById :one
+SELECT "createdAt", "updatedAt", "deletedAt", "tenantId", "workflowVersionId", status, error, "startedAt", "finishedAt", "concurrencyGroupId", "displayName", id, "childIndex", "childKey", "parentId", "parentStepRunId", "additionalMetadata", duration
+FROM
+    "WorkflowRun"
+WHERE
+    "id" = $1::uuid AND
+    "tenantId" = $2::uuid
+`
+
+type GetWorkflowRunByIdParams struct {
+	Workflowrunid pgtype.UUID `json:"workflowrunid"`
+	Tenantid      pgtype.UUID `json:"tenantid"`
+}
+
+func (q *Queries) GetWorkflowRunById(ctx context.Context, db DBTX, arg GetWorkflowRunByIdParams) (*WorkflowRun, error) {
+	row := db.QueryRow(ctx, getWorkflowRunById, arg.Workflowrunid, arg.Tenantid)
+	var i WorkflowRun
+	err := row.Scan(
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.TenantId,
+		&i.WorkflowVersionId,
+		&i.Status,
+		&i.Error,
+		&i.StartedAt,
+		&i.FinishedAt,
+		&i.ConcurrencyGroupId,
+		&i.DisplayName,
+		&i.ID,
+		&i.ChildIndex,
+		&i.ChildKey,
+		&i.ParentId,
+		&i.ParentStepRunId,
+		&i.AdditionalMetadata,
+		&i.Duration,
+	)
+	return &i, err
+}
+
 const getWorkflowRunInput = `-- name: GetWorkflowRunInput :one
 SELECT jld."data" AS lookupData
 FROM "JobRun" jr

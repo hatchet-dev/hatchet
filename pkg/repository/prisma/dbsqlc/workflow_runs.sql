@@ -887,3 +887,11 @@ FROM "JobRun" jr
 JOIN "JobRunLookupData" jld ON jr."id" = jld."jobRunId"
 WHERE jld."data" ? 'input' AND jr."workflowRunId" = @workflowRunId::uuid
 LIMIT 1;
+
+-- name: GetWorkflowRunById :one
+SELECT *
+FROM
+    "WorkflowRun"
+WHERE
+    "id" = @workflowRunId::uuid AND
+    "tenantId" = @tenantId::uuid;

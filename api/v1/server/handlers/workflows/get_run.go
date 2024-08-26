@@ -5,11 +5,11 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 )
 
 func (t *WorkflowService) WorkflowRunGet(ctx echo.Context, request gen.WorkflowRunGetRequestObject) (gen.WorkflowRunGetResponseObject, error) {
-	run := ctx.Get("workflow-run").(*db.WorkflowRunModel)
+	run := ctx.Get("workflow-run").(*dbsqlc.WorkflowRun)
 
 	resp, err := transformers.ToWorkflowRun(run)
 

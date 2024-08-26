@@ -1088,6 +1088,33 @@ func (q *Queries) GetWorkerLabels(ctx context.Context, db DBTX, workerid pgtype.
 	return items, nil
 }
 
+const hasActiveWorkersForActionId = `-- name: HasActiveWorkersForActionId :one
+SELECT
+    COUNT(DISTINCT "Worker"."id") AS "total"
+FROM
+    "Worker" w
+JOIN
+    "_ActionToWorker" ON "Worker"."id" = "_ActionToWorker"."B"
+WHERE
+    w."tenantId" = $1::uuid
+    AND "_ActionToWorker"."A" = $2::text
+    AND w."isActive" = true
+    AND w."lastHeartbeatAt" < NOW() - INTERVAL '6 seconds'
+LIMIT 1
+`
+
+type HasActiveWorkersForActionIdParams struct {
+	Tenantid pgtype.UUID `json:"tenantid"`
+	Actionid string      `json:"actionid"`
+}
+
+func (q *Queries) HasActiveWorkersForActionId(ctx context.Context, db DBTX, arg HasActiveWorkersForActionIdParams) (int64, error) {
+	row := db.QueryRow(ctx, hasActiveWorkersForActionId, arg.Tenantid, arg.Actionid)
+	var total int64
+	err := row.Scan(&total)
+	return total, err
+}
+
 const listNonFinalChildStepRuns = `-- name: ListNonFinalChildStepRuns :many
 WITH RECURSIVE currStepRun AS (
     SELECT id, "createdAt", "updatedAt", "deletedAt", "tenantId", "jobRunId", "stepId", "order", "workerId", "tickerId", status, input, output, "requeueAfter", "scheduleTimeoutAt", error, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError", "inputSchema", "callerFiles", "gitRepoBranch", "retryCount", "semaphoreReleased", queue

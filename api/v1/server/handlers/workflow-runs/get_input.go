@@ -9,9 +9,8 @@ import (
 
 func (t *WorkflowRunsService) WorkflowRunGetInput(ctx echo.Context, request gen.WorkflowRunGetInputRequestObject) (gen.WorkflowRunGetInputResponseObject, error) {
 	tenant := ctx.Get("tenant").(*db.TenantModel)
-	run := ctx.Get("workflow-run").(*db.WorkflowRunModel)
 
-	input, err := t.config.APIRepository.WorkflowRun().GetWorkflowRunInputData(tenant.ID, run.ID)
+	input, err := t.config.APIRepository.WorkflowRun().GetWorkflowRunInputData(tenant.ID, request.WorkflowRun.String())
 
 	if err != nil {
 		return nil, err
