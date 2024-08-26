@@ -360,6 +360,7 @@ CREATE TABLE "StepRun" (
     "retryCount" INTEGER NOT NULL DEFAULT 0,
     "semaphoreReleased" BOOLEAN NOT NULL DEFAULT false,
     "queue" TEXT NOT NULL DEFAULT 'default',
+    "priority" INTEGER,
 
     CONSTRAINT "StepRun_pkey" PRIMARY KEY ("id")
 );
@@ -725,6 +726,7 @@ CREATE TABLE "WorkflowRun" (
     "parentStepRunId" UUID,
     "additionalMetadata" JSONB,
     "duration" INTEGER,
+    "priority" INTEGER,
 
     CONSTRAINT "WorkflowRun_pkey" PRIMARY KEY ("id")
 );
@@ -838,6 +840,7 @@ CREATE TABLE "WorkflowVersion" (
     "onFailureJobId" UUID,
     "sticky" "StickyStrategy",
     "kind" "WorkflowKind" NOT NULL DEFAULT 'DAG',
+    "defaultPriority" INTEGER,
 
     CONSTRAINT "WorkflowVersion_pkey" PRIMARY KEY ("id")
 );

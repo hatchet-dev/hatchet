@@ -1074,6 +1074,7 @@ type StepRun struct {
 	RetryCount        int32            `json:"retryCount"`
 	SemaphoreReleased bool             `json:"semaphoreReleased"`
 	Queue             string           `json:"queue"`
+	Priority          pgtype.Int4      `json:"priority"`
 }
 
 type StepRunEvent struct {
@@ -1369,6 +1370,7 @@ type WorkflowRun struct {
 	ParentStepRunId    pgtype.UUID       `json:"parentStepRunId"`
 	AdditionalMetadata []byte            `json:"additionalMetadata"`
 	Duration           pgtype.Int4       `json:"duration"`
+	Priority           pgtype.Int4       `json:"priority"`
 }
 
 type WorkflowRunDedupe struct {
@@ -1466,4 +1468,5 @@ type WorkflowVersion struct {
 	OnFailureJobId  pgtype.UUID        `json:"onFailureJobId"`
 	Sticky          NullStickyStrategy `json:"sticky"`
 	Kind            WorkflowKind       `json:"kind"`
+	DefaultPriority pgtype.Int4        `json:"defaultPriority"`
 }
