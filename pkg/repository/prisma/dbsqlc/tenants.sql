@@ -205,7 +205,7 @@ GROUP BY
 
 -- name: CreateControllerPartition :one
 INSERT INTO "ControllerPartition" ("id", "createdAt", "lastHeartbeat")
-VALUES (sqlc.arg('id')::text, NOW(), NOW())
+VALUES (gen_random_uuid()::text, NOW(), NOW())
 ON CONFLICT DO NOTHING
 RETURNING *;
 
@@ -287,7 +287,7 @@ WHERE "id" IN (SELECT "id" FROM inactive_partitions);
 
 -- name: CreateTenantWorkerPartition :one
 INSERT INTO "TenantWorkerPartition" ("id", "createdAt", "lastHeartbeat")
-VALUES (sqlc.arg('id')::text, NOW(), NOW())
+VALUES (gen_random_uuid()::text, NOW(), NOW())
 ON CONFLICT DO NOTHING
 RETURNING *;
 
