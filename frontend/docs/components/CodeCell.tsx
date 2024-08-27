@@ -30,13 +30,10 @@ const CodeCell = ({ language, blockName, runnable = false }) => {
     fetchCode();
   }, [language, blockName]);
 
+  console.log(html);
+
   return (
-    <pre>
-      <code
-        className="p-4 rounded-lg overflow-x-auto"
-        dangerouslySetInnerHTML={{ __html: html }}
-      />
-    </pre>
+    <div dangerouslySetInnerHTML={{ __html: html }}></div>
   );
 };
 

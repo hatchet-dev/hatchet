@@ -118,6 +118,12 @@ html.dark .nextra-code-block pre {
   background-color: #1e293b !important;
 }
 
+.shiki {
+  padding: 15px !important;
+  border-radius: 10px !important;
+  background-color: #1e293b !important;
+}
+
 /* Base dark mode styles */
 html.dark main {
   background-color: #020817;

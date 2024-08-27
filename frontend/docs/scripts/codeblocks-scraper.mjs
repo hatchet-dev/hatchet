@@ -1,6 +1,6 @@
 import { Octokit } from "@octokit/rest";
 import { promises as fs } from "fs";
-import dotenv from 'dotenv';
+import dotenv from "dotenv";
 dotenv.config();
 
 const rawLinks = [
@@ -8,6 +8,7 @@ const rawLinks = [
   "https://raw.githubusercontent.com/TranquilVarun/hatchet-delimeters/main/examples/simple/main.go",
   "https://raw.githubusercontent.com/TranquilVarun/hatchet-typescript-delimeters/main/src/examples/simple-worker.ts",
   "https://raw.githubusercontent.com/TranquilVarun/hatchet-python-delimeters/main/examples/concurrency_limit/worker.py",
+  "https://raw.githubusercontent.com/TranquilVarun/hatchet-delimeters/main/examples/limit-concurrency/group-round-robin/main.go",
   "https://raw.githubusercontent.com/TranquilVarun/hatchet-typescript-delimeters/main/src/examples/concurrency/group-round-robin/concurrency-worker.ts",
   "https://raw.githubusercontent.com/TranquilVarun/hatchet-python-delimeters/main/examples/concurrency_limit/worker.py",
   "https://raw.githubusercontent.com/TranquilVarun/hatchet-delimeters/main/examples/limit-concurrency/cancel-in-progress/main.go",
@@ -22,11 +23,10 @@ const rawLinks = [
   "https://raw.githubusercontent.com/TranquilVarun/hatchet-delimeters/main/examples/simple/main.go",
   "https://raw.githubusercontent.com/TranquilVarun/hatchet-typescript-delimeters/main/src/examples/simple-worker.ts",
   "https://raw.githubusercontent.com/TranquilVarun/hatchet-python-delimeters/main/examples/timeout/worker.py",
+  "https://raw.githubusercontent.com/TranquilVarun/hatchet-delimeters/main/examples/timeout/main.go",
   "https://raw.githubusercontent.com/TranquilVarun/hatchet-python-delimeters/main/examples/timeout/worker.py",
   "https://raw.githubusercontent.com/TranquilVarun/hatchet-python-delimeters/main/examples/timeout/worker.py",
-  "https://raw.githubusercontent.com/TranquilVarun/hatchet-python-delimeters/main/examples/timeout/worker.py",
-  "https://raw.githubusercontent.com/TranquilVarun/hatchet-python-delimeters/main/examples/timeout/worker.py",
-  "https://raw.githubusercontent.com/TranquilVarun/hatchet-python-delimeters/main/examples/timeout/worker.py",
+  "https://raw.githubusercontent.com/TranquilVarun/hatchet-delimeters/main/examples/timeout/main.go",
   "https://raw.githubusercontent.com/TranquilVarun/hatchet-python-delimeters/main/examples/on_failure/worker.py",
   "https://raw.githubusercontent.com/TranquilVarun/hatchet-delimeters/main/examples/on-failure/main.go",
   "https://raw.githubusercontent.com/TranquilVarun/hatchet-typescript-delimeters/main/src/examples/on-failure.ts",
@@ -56,7 +56,7 @@ const rawLinks = [
   "https://raw.githubusercontent.com/TranquilVarun/hatchet-delimeters/main/examples/assignment-affinity/run.go",
   "https://raw.githubusercontent.com/TranquilVarun/hatchet-typescript-delimeters/main/src/examples/affinity-workers.ts",
   "https://raw.githubusercontent.com/TranquilVarun/hatchet-python-delimeters/main/examples/cancellation/worker.py",
-  "https://raw.githubusercontent.com/TranquilVarun/hatchet-delimeters/main/examples/cancellation/run.go"
+  "https://raw.githubusercontent.com/TranquilVarun/hatchet-delimeters/main/examples/cancellation/run.go",
 ];
 
 const links = [...new Set(rawLinks)];
@@ -75,12 +75,12 @@ async function scrapeGitHubCode() {
   const result = {};
   for (const link of links) {
     try {
-      const urlParts = link.split('/');
+      const urlParts = link.split("/");
       const owner = urlParts[3];
       const repo = urlParts[4];
       const branch = urlParts[5];
-      const path = urlParts.slice(6).join('/');
-      
+      const path = urlParts.slice(6).join("/");
+
       const response = await octokit.repos.getContent({
         owner,
         repo,
@@ -88,15 +88,15 @@ async function scrapeGitHubCode() {
         ref: branch,
       });
 
-      const content = Buffer.from(response.data.content, 'base64').toString();
-      
+      const content = Buffer.from(response.data.content, "base64").toString();
+
       const lines = content.split("\n");
       const languageLine = lines[0].trim();
       const language = Object.keys(commentSyntax).find(
         (lang) =>
           languageLine.replace(/\s+/g, "") === `${commentSyntax[lang]}${lang}`
       );
-      
+
       if (language) {
         if (!result[language]) {
           result[language] = [];
@@ -106,19 +106,30 @@ async function scrapeGitHubCode() {
           `${comment}START\\s+(.+?)\\s*\\n([\\s\\S]*?)\\n\\s*${comment}END`,
           "g"
         );
-        
+
         let blockMatch;
         let matchFound = false;
         while ((blockMatch = blockRegex.exec(content)) !== null) {
           matchFound = true;
           const [, blockName, code] = blockMatch;
+          const codeLines = code.split("\n");
+          const minIndent = Math.min(
+            ...codeLines
+              .filter((line) => line.trim().length > 0)
+              .map((line) => line.match(/^\s*/)[0].length)
+          );
+          const trimmedCode = codeLines
+            .map((line) => line.slice(minIndent))
+            .join("\n")
+            .trim();
+
           result[language].push({
             blockName: blockName.trim(),
-            code: code.trim(),
+            code: trimmedCode,
             source: link,
           });
         }
-        
+
         if (!matchFound) {
           console.log("No blocks found in the content.");
         }

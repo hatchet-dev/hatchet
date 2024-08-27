@@ -7,7 +7,7 @@
     },
     {
       "blockName": "registering_workflows_starting_workers",
-      "code": "workflow = MyWorkflow()\n    worker = hatchet.worker(\"test-worker\", max_runs=1)\n    worker.register_workflow(workflow)\n    worker.start()",
+      "code": "workflow = MyWorkflow()\nworker = hatchet.worker(\"test-worker\", max_runs=1)\nworker.register_workflow(workflow)\nworker.start()",
       "source": "https://raw.githubusercontent.com/TranquilVarun/hatchet-python-delimeters/main/examples/simple/worker.py"
     },
     {
@@ -32,7 +32,7 @@
     },
     {
       "blockName": "step-timeouts",
-      "code": "@hatchet.step(timeout=\"4s\")\n    def step1(self, context: Context):\n        time.sleep(5)\n        return {\"status\": \"success\"}",
+      "code": "@hatchet.step(timeout=\"4s\")\ndef step1(self, context: Context):\n    time.sleep(5)\n    return {\"status\": \"success\"}",
       "source": "https://raw.githubusercontent.com/TranquilVarun/hatchet-python-delimeters/main/examples/timeout/worker.py"
     },
     {
@@ -82,7 +82,7 @@
     },
     {
       "blockName": "specifying-worker-labels",
-      "code": "worker = hatchet.worker(\n        \"affinity-worker\",\n        max_runs=10,\n        labels={\n            \"model\": \"fancy-ai-model-v2\",\n            \"memory\": 512,\n        },\n    )",
+      "code": "worker = hatchet.worker(\n    \"affinity-worker\",\n    max_runs=10,\n    labels={\n        \"model\": \"fancy-ai-model-v2\",\n        \"memory\": 512,\n    },\n)",
       "source": "https://raw.githubusercontent.com/TranquilVarun/hatchet-python-delimeters/main/examples/affinity-workers/worker.py"
     },
     {
@@ -164,20 +164,30 @@
     },
     {
       "blockName": "specifying-worker-labels",
-      "code": "const worker1 = await hatchet.worker('affinity-worker-1', {\n    labels: {\n      model: 'abc',\n      memory: 1024,\n    },\n  });",
+      "code": "const worker1 = await hatchet.worker('affinity-worker-1', {\n  labels: {\n    model: 'abc',\n    memory: 1024,\n  },\n});",
       "source": "https://raw.githubusercontent.com/TranquilVarun/hatchet-typescript-delimeters/main/src/examples/affinity-workers.ts"
     }
   ],
   "Go": [
     {
       "blockName": "how-to-use-step-level-retries",
-      "code": "err := godotenv.Load()\n\tif err != nil {\n\t\tpanic(err)\n\t}\n\n\tevents := make(chan string, 50)\n\tinterrupt := cmdutils.InterruptChan()\n\n\tcleanup, err := run(events)\n\tif err != nil {\n\t\tpanic(err)\n\t}\n\n\t<-interrupt\n\n\tif err := cleanup(); err != nil {\n\t\tpanic(fmt.Errorf(\"error cleaning up: %w\", err))\n\t}",
+      "code": "err := godotenv.Load()\nif err != nil {\n\tpanic(err)\n}\n\nevents := make(chan string, 50)\ninterrupt := cmdutils.InterruptChan()\n\ncleanup, err := run(events)\nif err != nil {\n\tpanic(err)\n}\n\n<-interrupt\n\nif err := cleanup(); err != nil {\n\tpanic(fmt.Errorf(\"error cleaning up: %w\", err))\n}",
       "source": "https://raw.githubusercontent.com/TranquilVarun/hatchet-delimeters/main/examples/simple/main.go"
     },
     {
       "blockName": "registering_workflows_starting_workers",
-      "code": "c, err := client.New()\n\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"error creating client: %w\", err)\n\t}\n\n\tw, err := worker.NewWorker(\n\t\tworker.WithClient(\n\t\t\tc,\n\t\t),\n\t)\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"error creating worker: %w\", err)\n\t}\n\n\ttestSvc := w.NewService(\"test\")\n\n\terr = testSvc.RegisterWorkflow(\n\t\t&worker.WorkflowJob{\n\t\t\tOn:          worker.Events(\"user:create:simple\"),\n\t\t\tName:        \"simple\",\n\t\t\tDescription: \"This runs after an update to the user model.\",\n\t\t\tConcurrency: worker.Concurrency(getConcurrencyKey),\n\t\t\tSteps: []*worker.WorkflowStep{\n\t\t\t\tworker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {\n\t\t\t\t\tinput := &userCreateEvent{}\n\n\t\t\t\t\terr = ctx.WorkflowInput(input)\n\n\t\t\t\t\tif err != nil {\n\t\t\t\t\t\treturn nil, err\n\t\t\t\t\t}\n\n\t\t\t\t\tlog.Printf(\"step-one\")\n\t\t\t\t\tevents <- \"step-one\"\n\n\t\t\t\t\treturn &stepOneOutput{\n\t\t\t\t\t\tMessage: \"Username is: \" + input.Username,\n\t\t\t\t\t}, nil\n\t\t\t\t},\n\t\t\t\t).SetName(\"step-one\"),\n\t\t\t\tworker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {\n\t\t\t\t\tinput := &stepOneOutput{}\n\t\t\t\t\terr = ctx.StepOutput(\"step-one\", input)\n\n\t\t\t\t\tif err != nil {\n\t\t\t\t\t\treturn nil, err\n\t\t\t\t\t}\n\n\t\t\t\t\tlog.Printf(\"step-two\")\n\t\t\t\t\tevents <- \"step-two\"\n\n\t\t\t\t\treturn &stepOneOutput{\n\t\t\t\t\t\tMessage: \"Above message is: \" + input.Message,\n\t\t\t\t\t}, nil\n\t\t\t\t}).SetName(\"step-two\").AddParents(\"step-one\"),\n\t\t\t},\n\t\t},\n\t)\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"error registering workflow: %w\", err)\n\t}\n\n\tgo func() {\n\t\ttestEvent := userCreateEvent{\n\t\t\tUsername: \"echo-test\",\n\t\t\tUserID:   \"1234\",\n\t\t\tData: map[string]string{\n\t\t\t\t\"test\": \"test\",\n\t\t\t},\n\t\t}\n\n\t\tlog.Printf(\"pushing event user:create:simple\")\n\t\t// push an event\n\t\terr := c.Event().Push(\n\t\t\tcontext.Background(),\n\t\t\t\"user:create:simple\",\n\t\t\ttestEvent,\n\t\t\tclient.WithEventMetadata(map[string]string{\n\t\t\t\t\"hello\": \"world\",\n\t\t\t}),\n\t\t)\n\t\tif err != nil {\n\t\t\tpanic(fmt.Errorf(\"error pushing event: %w\", err))\n\t\t}\n\t}()\n\n\tcleanup, err := w.Start()\n\tif err != nil {\n\t\tpanic(err)\n\t}\n\n\treturn cleanup, nil",
+      "code": "c, err := client.New()\n\nif err != nil {\n\treturn nil, fmt.Errorf(\"error creating client: %w\", err)\n}\n\nw, err := worker.NewWorker(\n\tworker.WithClient(\n\t\tc,\n\t),\n)\nif err != nil {\n\treturn nil, fmt.Errorf(\"error creating worker: %w\", err)\n}\n\ntestSvc := w.NewService(\"test\")\n\nerr = testSvc.RegisterWorkflow(\n\t&worker.WorkflowJob{\n\t\tOn:          worker.Events(\"user:create:simple\"),\n\t\tName:        \"simple\",\n\t\tDescription: \"This runs after an update to the user model.\",\n\t\tConcurrency: worker.Concurrency(getConcurrencyKey),\n\t\tSteps: []*worker.WorkflowStep{\n\t\t\tworker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {\n\t\t\t\tinput := &userCreateEvent{}\n\n\t\t\t\terr = ctx.WorkflowInput(input)\n\n\t\t\t\tif err != nil {\n\t\t\t\t\treturn nil, err\n\t\t\t\t}\n\n\t\t\t\tlog.Printf(\"step-one\")\n\t\t\t\tevents <- \"step-one\"\n\n\t\t\t\treturn &stepOneOutput{\n\t\t\t\t\tMessage: \"Username is: \" + input.Username,\n\t\t\t\t}, nil\n\t\t\t},\n\t\t\t).SetName(\"step-one\"),\n\t\t\tworker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {\n\t\t\t\tinput := &stepOneOutput{}\n\t\t\t\terr = ctx.StepOutput(\"step-one\", input)\n\n\t\t\t\tif err != nil {\n\t\t\t\t\treturn nil, err\n\t\t\t\t}\n\n\t\t\t\tlog.Printf(\"step-two\")\n\t\t\t\tevents <- \"step-two\"\n\n\t\t\t\treturn &stepOneOutput{\n\t\t\t\t\tMessage: \"Above message is: \" + input.Message,\n\t\t\t\t}, nil\n\t\t\t}).SetName(\"step-two\").AddParents(\"step-one\"),\n\t\t},\n\t},\n)\nif err != nil {\n\treturn nil, fmt.Errorf(\"error registering workflow: %w\", err)\n}\n\ngo func() {\n\ttestEvent := userCreateEvent{\n\t\tUsername: \"echo-test\",\n\t\tUserID:   \"1234\",\n\t\tData: map[string]string{\n\t\t\t\"test\": \"test\",\n\t\t},\n\t}\n\n\tlog.Printf(\"pushing event user:create:simple\")\n\t// push an event\n\terr := c.Event().Push(\n\t\tcontext.Background(),\n\t\t\"user:create:simple\",\n\t\ttestEvent,\n\t\tclient.WithEventMetadata(map[string]string{\n\t\t\t\"hello\": \"world\",\n\t\t}),\n\t)\n\tif err != nil {\n\t\tpanic(fmt.Errorf(\"error pushing event: %w\", err))\n\t}\n}()\n\ncleanup, err := w.Start()\nif err != nil {\n\tpanic(err)\n}\n\nreturn cleanup, nil",
       "source": "https://raw.githubusercontent.com/TranquilVarun/hatchet-delimeters/main/examples/simple/main.go"
+    },
+    {
+      "blockName": "setting-concurrency-on-workers",
+      "code": "w, err := worker.NewWorker(\n\tworker.WithClient(\n\t\tc,\n\t),\n)",
+      "source": "https://raw.githubusercontent.com/TranquilVarun/hatchet-delimeters/main/examples/limit-concurrency/group-round-robin/main.go"
+    },
+    {
+      "blockName": "concurrency_group_red_robin",
+      "code": "err = testSvc.On(\n\tworker.Events(\"concurrency-test-event-rr\"),\n\t&worker.WorkflowJob{\n\t\tName:        \"concurrency-limit-round-robin\",\n\t\tDescription: \"This limits concurrency to 2 runs at a time.\",\n\t\tConcurrency: worker.Concurrency(getConcurrencyKey).MaxRuns(2).LimitStrategy(types.GroupRoundRobin),\n\t\tSteps: []*worker.WorkflowStep{\n\t\t\tworker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {\n\t\t\t\tinput := &concurrencyLimitEvent{}\n\n\t\t\t\terr = ctx.WorkflowInput(input)\n\n\t\t\t\tif err != nil {\n\t\t\t\t\treturn nil, fmt.Errorf(\"error getting input: %w\", err)\n\t\t\t\t}\n\n\t\t\t\tfmt.Println(\"received event\", input.UserId)\n\n\t\t\t\ttime.Sleep(5 * time.Second)\n\n\t\t\t\tfmt.Println(\"processed event\", input.UserId)\n\n\t\t\t\treturn nil, nil\n\t\t\t},\n\t\t\t).SetName(\"step-one\"),\n\t\t},\n\t},\n)",
+      "source": "https://raw.githubusercontent.com/TranquilVarun/hatchet-delimeters/main/examples/limit-concurrency/group-round-robin/main.go"
     },
     {
       "blockName": "concurrency_cancel_in_progress",
@@ -185,14 +195,9 @@
       "source": "https://raw.githubusercontent.com/TranquilVarun/hatchet-delimeters/main/examples/limit-concurrency/cancel-in-progress/main.go"
     },
     {
-      "blockName": "setting-concurrency-on-workers",
-      "code": "w, err := worker.NewWorker(\n\t\tworker.WithClient(\n\t\t\tc,\n\t\t),\n\t)",
-      "source": "https://raw.githubusercontent.com/TranquilVarun/hatchet-delimeters/main/examples/limit-concurrency/group-round-robin/main.go"
-    },
-    {
-      "blockName": "concurrency_group_red_robin",
-      "code": "err = testSvc.On(\n\t\tworker.Events(\"concurrency-test-event-rr\"),\n\t\t&worker.WorkflowJob{\n\t\t\tName:        \"concurrency-limit-round-robin\",\n\t\t\tDescription: \"This limits concurrency to 2 runs at a time.\",\n\t\t\tConcurrency: worker.Concurrency(getConcurrencyKey).MaxRuns(2).LimitStrategy(types.GroupRoundRobin),\n\t\t\tSteps: []*worker.WorkflowStep{\n\t\t\t\tworker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {\n\t\t\t\t\tinput := &concurrencyLimitEvent{}\n\n\t\t\t\t\terr = ctx.WorkflowInput(input)\n\n\t\t\t\t\tif err != nil {\n\t\t\t\t\t\treturn nil, fmt.Errorf(\"error getting input: %w\", err)\n\t\t\t\t\t}\n\n\t\t\t\t\tfmt.Println(\"received event\", input.UserId)\n\n\t\t\t\t\ttime.Sleep(5 * time.Second)\n\n\t\t\t\t\tfmt.Println(\"processed event\", input.UserId)\n\n\t\t\t\t\treturn nil, nil\n\t\t\t\t},\n\t\t\t\t).SetName(\"step-one\"),\n\t\t\t},\n\t\t},\n\t)",
-      "source": "https://raw.githubusercontent.com/TranquilVarun/hatchet-delimeters/main/examples/limit-concurrency/group-round-robin/main.go"
+      "blockName": "scheduling-timeouts",
+      "code": "events := make(chan string, 50)\ncleanup, err := run(events, worker.WorkflowJob{\n\tName:        \"timeout\",\n\tDescription: \"timeout\",\n\tSteps: []*worker.WorkflowStep{\n\t\tworker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {\n\t\t\ttime.Sleep(time.Second * 60)\n\t\t\treturn nil, nil\n\t\t}).SetName(\"step-one\").SetTimeout(\"10s\"),\n\t},\n})",
+      "source": "https://raw.githubusercontent.com/TranquilVarun/hatchet-delimeters/main/examples/timeout/main.go"
     },
     {
       "blockName": "defining-an-on-failure-step",
@@ -201,37 +206,37 @@
     },
     {
       "blockName": "streaming-by-additional-metadata",
-      "code": "// Generate a random number between 1 and 100\n\tstreamKey := \"streamKey\"\n\tstreamValue := fmt.Sprintf(\"stream-event-%d\", rand.Intn(100)+1)\n\n\t_, err = c.Admin().RunWorkflow(\"stream-event-workflow\", &streamEventInput{\n\t\tIndex: 0,\n\t},\n\t\tclient.WithRunMetadata(map[string]interface{}{\n\t\t\tstreamKey: streamValue,\n\t\t}),\n\t)\n\n\tif err != nil {\n\t\tpanic(err)\n\t}\n\n\terr = c.Subscribe().StreamByAdditionalMetadata(interruptCtx, streamKey, streamValue, func(event client.StreamEvent) error {\n\t\tfmt.Println(string(event.Message))\n\t\treturn nil\n\t})\n\n\tif err != nil {\n\t\tpanic(err)\n\t}",
+      "code": "// Generate a random number between 1 and 100\nstreamKey := \"streamKey\"\nstreamValue := fmt.Sprintf(\"stream-event-%d\", rand.Intn(100)+1)\n\n_, err = c.Admin().RunWorkflow(\"stream-event-workflow\", &streamEventInput{\n\tIndex: 0,\n},\n\tclient.WithRunMetadata(map[string]interface{}{\n\t\tstreamKey: streamValue,\n\t}),\n)\n\nif err != nil {\n\tpanic(err)\n}\n\nerr = c.Subscribe().StreamByAdditionalMetadata(interruptCtx, streamKey, streamValue, func(event client.StreamEvent) error {\n\tfmt.Println(string(event.Message))\n\treturn nil\n})\n\nif err != nil {\n\tpanic(err)\n}",
       "source": "https://raw.githubusercontent.com/TranquilVarun/hatchet-delimeters/main/examples/stream-event-by-meta/main.go"
     },
     {
       "blockName": "declaring-global-limits",
-      "code": "err = c.Admin().PutRateLimit(\"api1\", &types.RateLimitOpts{\n\t\tMax:      3,\n\t\tDuration: \"day\",\n\t})",
+      "code": "err = c.Admin().PutRateLimit(\"api1\", &types.RateLimitOpts{\n\tMax:      3,\n\tDuration: \"day\",\n})",
       "source": "https://raw.githubusercontent.com/TranquilVarun/hatchet-delimeters/main/examples/rate-limit/main.go"
     },
     {
       "blockName": "consuming-rate-limits",
-      "code": "err = w.On(\n\t\tworker.NoTrigger(),\n\t\t&worker.WorkflowJob{\n\t\t\tName:        \"rate-limit-workflow\",\n\t\t\tDescription: \"This illustrates rate limiting.\",\n\t\t\tSteps: []*worker.WorkflowStep{\n\t\t\t\tworker.Fn(StepOne).SetName(\"step-one\").SetRateLimit(\n\t\t\t\t\tworker.RateLimit{\n\t\t\t\t\t\tUnits: 1,\n\t\t\t\t\t\tKey:   \"api1\",\n\t\t\t\t\t},\n\t\t\t\t),\n\t\t\t},\n\t\t},\n\t)",
+      "code": "err = w.On(\n\tworker.NoTrigger(),\n\t&worker.WorkflowJob{\n\t\tName:        \"rate-limit-workflow\",\n\t\tDescription: \"This illustrates rate limiting.\",\n\t\tSteps: []*worker.WorkflowStep{\n\t\t\tworker.Fn(StepOne).SetName(\"step-one\").SetRateLimit(\n\t\t\t\tworker.RateLimit{\n\t\t\t\t\tUnits: 1,\n\t\t\t\t\tKey:   \"api1\",\n\t\t\t\t},\n\t\t\t),\n\t\t},\n\t},\n)",
       "source": "https://raw.githubusercontent.com/TranquilVarun/hatchet-delimeters/main/examples/rate-limit/main.go"
     },
     {
       "blockName": "setting-sticky-assignment",
-      "code": "err = w.RegisterWorkflow(\n\t\t&worker.WorkflowJob{\n\t\t\tOn:             worker.Events(\"user:create:sticky\"),\n\t\t\tName:           \"sticky\",\n\t\t\tDescription:    \"sticky\",\n\t\t\tStickyStrategy: types.StickyStrategyPtr(types.StickyStrategy_SOFT),\n\t\t\tSteps: []*worker.WorkflowStep{\n\t\t\t\tworker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {\n\n\t\t\t\t\tsticky := true\n\n\t\t\t\t\t_, err = ctx.SpawnWorkflow(\"step-one\", nil, &worker.SpawnWorkflowOpts{\n\t\t\t\t\t\tSticky: &sticky,\n\t\t\t\t\t})\n\n\t\t\t\t\tif err != nil {\n\t\t\t\t\t\treturn nil, fmt.Errorf(\"error spawning workflow: %w\", err)\n\t\t\t\t\t}\n\n\t\t\t\t\treturn &stepOneOutput{\n\t\t\t\t\t\tMessage: ctx.Worker().ID(),\n\t\t\t\t\t}, nil\n\t\t\t\t}).SetName(\"step-one\"),\n\t\t\t\tworker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {\n\t\t\t\t\treturn &stepOneOutput{\n\t\t\t\t\t\tMessage: ctx.Worker().ID(),\n\t\t\t\t\t}, nil\n\t\t\t\t}).SetName(\"step-two\"),\n\t\t\t\tworker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {\n\t\t\t\t\treturn &stepOneOutput{\n\t\t\t\t\t\tMessage: ctx.Worker().ID(),\n\t\t\t\t\t}, nil\n\t\t\t\t}).SetName(\"step-three\").AddParents(\"step-one\", \"step-two\"),\n\t\t\t},\n\t\t},\n\t)",
+      "code": "err = w.RegisterWorkflow(\n\t&worker.WorkflowJob{\n\t\tOn:             worker.Events(\"user:create:sticky\"),\n\t\tName:           \"sticky\",\n\t\tDescription:    \"sticky\",\n\t\tStickyStrategy: types.StickyStrategyPtr(types.StickyStrategy_SOFT),\n\t\tSteps: []*worker.WorkflowStep{\n\t\t\tworker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {\n\n\t\t\t\tsticky := true\n\n\t\t\t\t_, err = ctx.SpawnWorkflow(\"step-one\", nil, &worker.SpawnWorkflowOpts{\n\t\t\t\t\tSticky: &sticky,\n\t\t\t\t})\n\n\t\t\t\tif err != nil {\n\t\t\t\t\treturn nil, fmt.Errorf(\"error spawning workflow: %w\", err)\n\t\t\t\t}\n\n\t\t\t\treturn &stepOneOutput{\n\t\t\t\t\tMessage: ctx.Worker().ID(),\n\t\t\t\t}, nil\n\t\t\t}).SetName(\"step-one\"),\n\t\t\tworker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {\n\t\t\t\treturn &stepOneOutput{\n\t\t\t\t\tMessage: ctx.Worker().ID(),\n\t\t\t\t}, nil\n\t\t\t}).SetName(\"step-two\"),\n\t\t\tworker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {\n\t\t\t\treturn &stepOneOutput{\n\t\t\t\t\tMessage: ctx.Worker().ID(),\n\t\t\t\t}, nil\n\t\t\t}).SetName(\"step-three\").AddParents(\"step-one\", \"step-two\"),\n\t\t},\n\t},\n)",
       "source": "https://raw.githubusercontent.com/TranquilVarun/hatchet-delimeters/main/examples/assignment-sticky/run.go"
     },
     {
       "blockName": "specifying-worker-labels",
-      "code": "w, err := worker.NewWorker(\n\t\tworker.WithClient(\n\t\t\tc,\n\t\t),\n\t\tworker.WithLabels(map[string]interface{}{\n\t\t\t\"model\":  \"fancy-ai-model-v2\",\n\t\t\t\"memory\": 512,\n\t\t}),\n\t)",
+      "code": "w, err := worker.NewWorker(\n\tworker.WithClient(\n\t\tc,\n\t),\n\tworker.WithLabels(map[string]interface{}{\n\t\t\"model\":  \"fancy-ai-model-v2\",\n\t\t\"memory\": 512,\n\t}),\n)",
       "source": "https://raw.githubusercontent.com/TranquilVarun/hatchet-delimeters/main/examples/assignment-affinity/run.go"
     },
     {
       "blockName": "specifying-step-desired-labels",
-      "code": "err = w.RegisterWorkflow(\n\t\t&worker.WorkflowJob{\n\t\t\tOn:          worker.Events(\"user:create:affinity\"),\n\t\t\tName:        \"affinity\",\n\t\t\tDescription: \"affinity\",\n\t\t\tSteps: []*worker.WorkflowStep{\n\t\t\t\tworker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {\n\n\t\t\t\t\tmodel := ctx.Worker().GetLabels()[\"model\"]\n\n\t\t\t\t\tif model != \"fancy-ai-model-v3\" {\n\t\t\t\t\t\tctx.Worker().UpsertLabels(map[string]interface{}{\n\t\t\t\t\t\t\t\"model\": nil,\n\t\t\t\t\t\t})\n\t\t\t\t\t\t// Do something to load the model\n\t\t\t\t\t\tctx.Worker().UpsertLabels(map[string]interface{}{\n\t\t\t\t\t\t\t\"model\": \"fancy-ai-model-v3\",\n\t\t\t\t\t\t})\n\t\t\t\t\t}\n\n\t\t\t\t\treturn &stepOneOutput{\n\t\t\t\t\t\tMessage: ctx.Worker().ID(),\n\t\t\t\t\t}, nil\n\t\t\t\t}).\n\t\t\t\t\tSetName(\"step-one\").\n\t\t\t\t\tSetDesiredLabels(map[string]*types.DesiredWorkerLabel{\n\t\t\t\t\t\t\"model\": {\n\t\t\t\t\t\t\tValue:  \"fancy-ai-model-v3\",\n\t\t\t\t\t\t\tWeight: 10,\n\t\t\t\t\t\t},\n\t\t\t\t\t\t\"memory\": {\n\t\t\t\t\t\t\tValue:      512,\n\t\t\t\t\t\t\tRequired:   true,\n\t\t\t\t\t\t\tComparator: types.ComparatorPtr(types.WorkerLabelComparator_GREATER_THAN),\n\t\t\t\t\t\t},\n\t\t\t\t\t}),\n\t\t\t},\n\t\t},\n\t)",
+      "code": "err = w.RegisterWorkflow(\n\t&worker.WorkflowJob{\n\t\tOn:          worker.Events(\"user:create:affinity\"),\n\t\tName:        \"affinity\",\n\t\tDescription: \"affinity\",\n\t\tSteps: []*worker.WorkflowStep{\n\t\t\tworker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {\n\n\t\t\t\tmodel := ctx.Worker().GetLabels()[\"model\"]\n\n\t\t\t\tif model != \"fancy-ai-model-v3\" {\n\t\t\t\t\tctx.Worker().UpsertLabels(map[string]interface{}{\n\t\t\t\t\t\t\"model\": nil,\n\t\t\t\t\t})\n\t\t\t\t\t// Do something to load the model\n\t\t\t\t\tctx.Worker().UpsertLabels(map[string]interface{}{\n\t\t\t\t\t\t\"model\": \"fancy-ai-model-v3\",\n\t\t\t\t\t})\n\t\t\t\t}\n\n\t\t\t\treturn &stepOneOutput{\n\t\t\t\t\tMessage: ctx.Worker().ID(),\n\t\t\t\t}, nil\n\t\t\t}).\n\t\t\t\tSetName(\"step-one\").\n\t\t\t\tSetDesiredLabels(map[string]*types.DesiredWorkerLabel{\n\t\t\t\t\t\"model\": {\n\t\t\t\t\t\tValue:  \"fancy-ai-model-v3\",\n\t\t\t\t\t\tWeight: 10,\n\t\t\t\t\t},\n\t\t\t\t\t\"memory\": {\n\t\t\t\t\t\tValue:      512,\n\t\t\t\t\t\tRequired:   true,\n\t\t\t\t\t\tComparator: types.ComparatorPtr(types.WorkerLabelComparator_GREATER_THAN),\n\t\t\t\t\t},\n\t\t\t\t}),\n\t\t},\n\t},\n)",
       "source": "https://raw.githubusercontent.com/TranquilVarun/hatchet-delimeters/main/examples/assignment-affinity/run.go"
     },
     {
       "blockName": "cancellation-mechanisms",
-      "code": "err = w.RegisterWorkflow(\n\t\t&worker.WorkflowJob{\n\t\t\tOn:          worker.Events(\"user:create:cancellation\"),\n\t\t\tName:        \"cancellation\",\n\t\t\tDescription: \"cancellation\",\n\t\t\tConcurrency: worker.Concurrency(func(ctx worker.HatchetContext) (string, error) {\n\t\t\t\treturn \"concurrency:1\", nil\n\t\t\t}).MaxRuns(1).LimitStrategy(types.CancelInProgress),\n\t\t\tSteps: []*worker.WorkflowStep{\n\t\t\t\tworker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {\n\t\t\t\t\tselect {\n\t\t\t\t\tcase <-ctx.Done():\n\t\t\t\t\t\tevents <- \"done\"\n\t\t\t\t\t\tlog.Printf(\"context cancelled\")\n\t\t\t\t\t\treturn nil, nil\n\t\t\t\t\tcase <-time.After(30 * time.Second):\n\t\t\t\t\t\tlog.Printf(\"workflow never cancelled\")\n\t\t\t\t\t\treturn &stepOneOutput{\n\t\t\t\t\t\t\tMessage: \"done\",\n\t\t\t\t\t\t}, nil\n\t\t\t\t\t}\n\t\t\t\t}).SetName(\"step-one\"),\n\t\t\t},\n\t\t},\n\t)",
+      "code": "err = w.RegisterWorkflow(\n\t&worker.WorkflowJob{\n\t\tOn:          worker.Events(\"user:create:cancellation\"),\n\t\tName:        \"cancellation\",\n\t\tDescription: \"cancellation\",\n\t\tConcurrency: worker.Concurrency(func(ctx worker.HatchetContext) (string, error) {\n\t\t\treturn \"concurrency:1\", nil\n\t\t}).MaxRuns(1).LimitStrategy(types.CancelInProgress),\n\t\tSteps: []*worker.WorkflowStep{\n\t\t\tworker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {\n\t\t\t\tselect {\n\t\t\t\tcase <-ctx.Done():\n\t\t\t\t\tevents <- \"done\"\n\t\t\t\t\tlog.Printf(\"context cancelled\")\n\t\t\t\t\treturn nil, nil\n\t\t\t\tcase <-time.After(30 * time.Second):\n\t\t\t\t\tlog.Printf(\"workflow never cancelled\")\n\t\t\t\t\treturn &stepOneOutput{\n\t\t\t\t\t\tMessage: \"done\",\n\t\t\t\t\t}, nil\n\t\t\t\t}\n\t\t\t}).SetName(\"step-one\"),\n\t\t},\n\t},\n)",
       "source": "https://raw.githubusercontent.com/TranquilVarun/hatchet-delimeters/main/examples/cancellation/run.go"
     }
   ]
