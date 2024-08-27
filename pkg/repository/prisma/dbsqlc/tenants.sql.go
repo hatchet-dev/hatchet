@@ -35,7 +35,7 @@ func (q *Queries) ControllerPartitionHeartbeat(ctx context.Context, db DBTX, con
 
 const createControllerPartition = `-- name: CreateControllerPartition :one
 INSERT INTO "ControllerPartition" ("id", "createdAt", "lastHeartbeat")
-VALUES (gen_random_uuid(), NOW(), NOW())
+VALUES (gen_random_uuid()::text, NOW(), NOW())
 ON CONFLICT DO NOTHING
 RETURNING id, "createdAt", "updatedAt", "lastHeartbeat"
 `
@@ -138,7 +138,7 @@ func (q *Queries) CreateTenantAlertingSettings(ctx context.Context, db DBTX, ten
 
 const createTenantWorkerPartition = `-- name: CreateTenantWorkerPartition :one
 INSERT INTO "TenantWorkerPartition" ("id", "createdAt", "lastHeartbeat")
-VALUES (gen_random_uuid(), NOW(), NOW())
+VALUES (gen_random_uuid()::text, NOW(), NOW())
 ON CONFLICT DO NOTHING
 RETURNING id, "createdAt", "updatedAt", "lastHeartbeat"
 `
