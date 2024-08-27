@@ -6,8 +6,6 @@ import (
 	"os"
 	"time"
 
-	"golang.org/x/sync/errgroup"
-
 	"github.com/hatchet-dev/hatchet/internal/services/admin"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/events"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/jobs"
@@ -24,6 +22,8 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
+
+	"golang.org/x/sync/errgroup"
 )
 
 type Teardown struct {
@@ -240,7 +240,7 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig) ([]Teardown, er
 		})
 	}
 
-	if sc.HasService("retention") {
+	if sc.HasService("retention") && sc.EnableDataRetention {
 		rc, err := retention.New(
 			retention.WithAlerter(sc.Alerter),
 			retention.WithRepository(sc.EngineRepository),

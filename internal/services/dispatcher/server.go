@@ -37,6 +37,8 @@ type subscribedWorker struct {
 
 	// finished is used to signal closure of a client subscribing goroutine
 	finished chan<- bool
+
+	sendMu sync.Mutex
 }
 
 func (worker *subscribedWorker) StartStepRun(
@@ -89,6 +91,9 @@ func (worker *subscribedWorker) StartStepRun(
 		action.ParentWorkflowRunId = &parentId
 	}
 
+	worker.sendMu.Lock()
+	defer worker.sendMu.Unlock()
+
 	return worker.stream.Send(action)
 }
 
@@ -103,6 +108,9 @@ func (worker *subscribedWorker) StartGroupKeyAction(
 	inputData := getGroupKeyRun.GetGroupKeyRun.Input
 	workflowRunId := sqlchelpers.UUIDToStr(getGroupKeyRun.WorkflowRunId)
 	getGroupKeyRunId := sqlchelpers.UUIDToStr(getGroupKeyRun.GetGroupKeyRun.ID)
+
+	worker.sendMu.Lock()
+	defer worker.sendMu.Unlock()
 
 	return worker.stream.Send(&contracts.AssignedAction{
 		TenantId:         tenantId,
@@ -121,6 +129,9 @@ func (worker *subscribedWorker) CancelStepRun(
 ) error {
 	ctx, span := telemetry.NewSpan(ctx, "cancel-step-run") // nolint:ineffassign
 	defer span.End()
+
+	worker.sendMu.Lock()
+	defer worker.sendMu.Unlock()
 
 	return worker.stream.Send(&contracts.AssignedAction{
 		TenantId:      tenantId,
@@ -153,6 +164,7 @@ func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.Worker
 		Name:         request.WorkerName,
 		Actions:      request.Actions,
 		Services:     svcs,
+		WebhookId:    request.WebhookId,
 	}
 
 	if request.MaxRuns != nil {
@@ -451,17 +463,14 @@ func (s *DispatcherImpl) Heartbeat(ctx context.Context, req *contracts.Heartbeat
 	// if we haven't seen the dispatcher for 6 seconds (one interval plus latency), reject the heartbeat as the client
 	// should reconnect
 	if worker.DispatcherLastHeartbeatAt.Time.Before(time.Now().Add(-6 * time.Second)) {
-		return nil, status.Errorf(codes.FailedPrecondition, "Heartbeat rejected, worker stream for %s is not active", req.WorkerId)
+		return nil, status.Errorf(codes.FailedPrecondition, "Heartbeat rejected: dispatcher latency: %s, %s", req.WorkerId, sqlchelpers.UUIDToStr(worker.DispatcherId))
 	}
 
 	if worker.LastListenerEstablished.Valid && !worker.IsActive {
-		return nil, status.Errorf(codes.FailedPrecondition, "Heartbeat rejected, worker stream for %s is not active", req.WorkerId)
+		return nil, status.Errorf(codes.FailedPrecondition, "Heartbeat rejected: worker stream is not active: %s", req.WorkerId)
 	}
 
-	_, err = s.repo.Worker().UpdateWorker(ctx, tenantId, req.WorkerId, &repository.UpdateWorkerOpts{
-		// use the system time for heartbeat
-		LastHeartbeatAt: &heartbeatAt,
-	})
+	err = s.repo.Worker().UpdateWorkerHeartbeat(ctx, tenantId, req.WorkerId, heartbeatAt)
 
 	if err != nil {
 		return nil, err
@@ -488,10 +497,6 @@ func (s *DispatcherImpl) ReleaseSlot(ctx context.Context, req *contracts.Release
 }
 
 func (s *DispatcherImpl) SubscribeToWorkflowEvents(request *contracts.SubscribeToWorkflowEventsRequest, stream contracts.Dispatcher_SubscribeToWorkflowEventsServer) error {
-
-	fmt.Println("SubscribeToWorkflowEvents")
-	fmt.Println(request)
-
 	if request.WorkflowRunId != nil {
 		return s.subscribeToWorkflowEventsByWorkflowRunId(*request.WorkflowRunId, stream)
 	} else if request.AdditionalMetaKey != nil && request.AdditionalMetaValue != nil {
@@ -520,7 +525,8 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByAdditionalMeta(key string, v
 
 	// Keep track of active workflow run IDs
 	activeRunIds := make(map[string]struct{})
-	var mu sync.Mutex // Mutex to protect activeRunIds
+	var mu sync.Mutex     // Mutex to protect activeRunIds
+	var sendMu sync.Mutex // Mutex to protect sending messages
 
 	f := func(task *msgqueue.Message) error {
 		wg.Add(1)
@@ -536,8 +542,10 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByAdditionalMeta(key string, v
 					return false, nil
 				}
 
-				if e.ResourceType != contracts.ResourceType_RESOURCE_TYPE_WORKFLOW_RUN &&
-					e.EventType != contracts.ResourceEventType_RESOURCE_EVENT_TYPE_COMPLETED {
+				isWorkflowRunCompletedEvent := e.ResourceType == contracts.ResourceType_RESOURCE_TYPE_WORKFLOW_RUN &&
+					e.EventType == contracts.ResourceEventType_RESOURCE_EVENT_TYPE_COMPLETED
+
+				if !isWorkflowRunCompletedEvent {
 					// Add the run ID to active runs
 					activeRunIds[e.WorkflowRunId] = struct{}{}
 				} else {
@@ -556,12 +564,14 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByAdditionalMeta(key string, v
 		if err != nil {
 			s.l.Error().Err(err).Msgf("could not convert task to workflow event")
 			return nil
-		} else if e == nil {
+		} else if e == nil || e.WorkflowRunId == "" {
 			return nil
 		}
 
 		// send the task to the client
+		sendMu.Lock()
 		err = stream.Send(e)
+		sendMu.Unlock()
 
 		if err != nil {
 			cancel() // FIXME is this necessary?
@@ -626,6 +636,8 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunId(workflowRunId 
 
 	wg := sync.WaitGroup{}
 
+	sendMu := sync.Mutex{}
+
 	f := func(task *msgqueue.Message) error {
 		wg.Add(1)
 		defer wg.Done()
@@ -640,7 +652,9 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunId(workflowRunId 
 		}
 
 		// send the task to the client
+		sendMu.Lock()
 		err = stream.Send(e)
+		sendMu.Unlock()
 
 		if err != nil {
 			cancel() // FIXME is this necessary?
@@ -718,7 +732,7 @@ func (s *sendTimeFilter) canSend() bool {
 	}
 
 	go func() {
-		time.Sleep(time.Second - 10*time.Millisecond)
+		time.Sleep(10 * time.Millisecond)
 		s.mu.Unlock()
 	}()
 
@@ -747,10 +761,13 @@ func (s *DispatcherImpl) SubscribeToWorkflowRuns(server contracts.Dispatcher_Sub
 	}
 
 	wg := sync.WaitGroup{}
+	sendMu := sync.Mutex{}
 
 	sendEvent := func(e *contracts.WorkflowRunEvent) error {
 		// send the task to the client
+		sendMu.Lock()
 		err := server.Send(e)
+		sendMu.Unlock()
 
 		if err != nil {
 			cancel() // FIXME is this necessary?

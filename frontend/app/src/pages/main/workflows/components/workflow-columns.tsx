@@ -22,36 +22,6 @@ export const columns: ColumnDef<Workflow>[] = [
     enableHiding: false,
   },
   {
-    accessorKey: 'lastRun',
-    header: ({ column }) => (
-      <DataTableColumnHeader
-        column={column}
-        title="Last Run"
-        className="whitespace-nowrap"
-      />
-    ),
-    sortingFn: (a, b) => {
-      const dateA = a.original.lastRun?.metadata.createdAt
-        ? new Date(a.original.lastRun.metadata.createdAt)
-        : null;
-      const dateB = b.original.lastRun?.metadata.createdAt
-        ? new Date(b.original.lastRun.metadata.createdAt)
-        : null;
-      return dateA && dateB ? dateA.getTime() - dateB.getTime() : 0;
-    },
-    cell: ({ row }) => {
-      return (
-        <div className="whitespace-nowrap">
-          {row.original.lastRun?.metadata.createdAt && (
-            <RelativeDate date={row.original.lastRun?.metadata.createdAt} />
-          )}
-        </div>
-      );
-    },
-    enableSorting: true,
-    enableHiding: true,
-  },
-  {
     accessorKey: 'createdAt',
     header: ({ column }) => (
       <DataTableColumnHeader

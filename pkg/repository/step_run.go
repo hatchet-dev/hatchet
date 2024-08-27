@@ -148,12 +148,21 @@ type StepRunAPIRepository interface {
 	ListStepRunArchives(tenantId, stepRunId string, opts *ListStepRunArchivesOpts) (*ListStepRunArchivesResult, error)
 }
 
+type QueuedStepRun struct {
+	StepRunId    string
+	WorkerId     string
+	DispatcherId string
+}
+
+type QueueStepRunsResult struct {
+	Queued             []QueuedStepRun
+	SchedulingTimedOut []string
+	Continue           bool
+}
+
 type StepRunEngineRepository interface {
 	// ListStepRunsForWorkflowRun returns a list of step runs for a workflow run.
 	ListStepRuns(ctx context.Context, tenantId string, opts *ListStepRunsOpts) ([]*dbsqlc.GetStepRunForEngineRow, error)
-
-	// ListStepRunsToRequeue returns a list of step runs which are in a requeueable state.
-	ListStepRunsToRequeue(ctx context.Context, tenantId string) ([]*dbsqlc.GetStepRunForEngineRow, error)
 
 	// ListStepRunsToReassign returns a list of step runs which are in a reassignable state.
 	ListStepRunsToReassign(ctx context.Context, tenantId string) ([]*dbsqlc.GetStepRunForEngineRow, error)
@@ -179,8 +188,6 @@ type StepRunEngineRepository interface {
 
 	UpdateStepRunInputSchema(ctx context.Context, tenantId, stepRunId string, schema []byte) ([]byte, error)
 
-	AssignStepRunToWorker(ctx context.Context, stepRun *dbsqlc.GetStepRunForEngineRow) (workerId string, dispatcherId string, err error)
-
 	UnassignStepRunFromWorker(ctx context.Context, tenantId, stepRunId string) error
 
 	GetStepRunForEngine(ctx context.Context, tenantId, stepRunId string) (*dbsqlc.GetStepRunForEngineRow, error)
@@ -192,6 +199,8 @@ type StepRunEngineRepository interface {
 	// QueueStepRun is like UpdateStepRun, except that it will only update the step run if it is in
 	// a pending state.
 	QueueStepRun(ctx context.Context, tenantId, stepRunId string, opts *UpdateStepRunOpts) (*dbsqlc.GetStepRunForEngineRow, error)
+
+	QueueStepRuns(ctx context.Context, tenantId string) (QueueStepRunsResult, error)
 
 	ListStartableStepRuns(ctx context.Context, tenantId, jobRunId string, parentStepRunId *string) ([]*dbsqlc.GetStepRunForEngineRow, error)
 

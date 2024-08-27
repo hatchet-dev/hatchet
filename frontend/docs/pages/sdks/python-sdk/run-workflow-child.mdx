@@ -50,7 +50,7 @@ if __name__ == "__main__":
 
 The `spawn_workflow` method takes the following parameters:
 
-- `workflow_name` (**required**): The name of the workflow to trigger. If you have not overriden the workflow name in the `hatchet.workflow` decorator, this should match the name of the workflow class.
+- `workflow_name` (**required**): The name of the workflow to trigger. If you have not overridden the workflow name in the `hatchet.workflow` decorator, this should match the name of the workflow class.
 - `input` (**required**): The input to pass to the child workflow.
 - `key` (**optional**): A caching key for the child workflow. If this is not set, the child workflow will be cached on the index that it was triggered at. The cache is used on retries of the parent workflow so that child workflows which were already triggered are skipped.
 

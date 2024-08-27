@@ -133,6 +133,7 @@ StepRunStatus:
     - SUCCEEDED
     - FAILED
     - CANCELLED
+    - CANCELLING
 
 JobRunStatus:
   type: string

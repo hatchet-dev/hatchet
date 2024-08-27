@@ -57,15 +57,15 @@ func (w *workflowRunAPIRepository) RegisterCreateCallback(callback repository.Ca
 	w.callbacks = append(w.callbacks, callback)
 }
 
-func (w *workflowRunAPIRepository) ListWorkflowRuns(tenantId string, opts *repository.ListWorkflowRunsOpts) (*repository.ListWorkflowRunsResult, error) {
+func (w *workflowRunAPIRepository) ListWorkflowRuns(ctx context.Context, tenantId string, opts *repository.ListWorkflowRunsOpts) (*repository.ListWorkflowRunsResult, error) {
 	if err := w.v.Validate(opts); err != nil {
 		return nil, err
 	}
 
-	return listWorkflowRuns(context.Background(), w.pool, w.queries, w.l, tenantId, opts)
+	return listWorkflowRuns(ctx, w.pool, w.queries, w.l, tenantId, opts)
 }
 
-func (w *workflowRunAPIRepository) WorkflowRunMetricsCount(tenantId string, opts *repository.WorkflowRunsMetricsOpts) (*dbsqlc.WorkflowRunsMetricsCountRow, error) {
+func (w *workflowRunAPIRepository) WorkflowRunMetricsCount(ctx context.Context, tenantId string, opts *repository.WorkflowRunsMetricsOpts) (*dbsqlc.WorkflowRunsMetricsCountRow, error) {
 	if err := w.v.Validate(opts); err != nil {
 		return nil, err
 	}
@@ -536,6 +536,11 @@ func listWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbsqlc.Q
 		queryParams.CreatedAfter = sqlchelpers.TimestampFromTime(*opts.CreatedAfter)
 	}
 
+	if opts.CreatedBefore != nil {
+		countParams.CreatedBefore = sqlchelpers.TimestampFromTime(*opts.CreatedBefore)
+		queryParams.CreatedBefore = sqlchelpers.TimestampFromTime(*opts.CreatedBefore)
+	}
+
 	if opts.FinishedAfter != nil {
 		countParams.FinishedAfter = sqlchelpers.TimestampFromTime(*opts.FinishedAfter)
 		queryParams.FinishedAfter = sqlchelpers.TimestampFromTime(*opts.FinishedAfter)
@@ -624,6 +629,14 @@ func workflowRunMetricsCount(ctx context.Context, pool *pgxpool.Pool, queries *d
 		queryParams.EventId = pgEventId
 	}
 
+	if opts.CreatedAfter != nil {
+		queryParams.CreatedAfter = sqlchelpers.TimestampFromTime(*opts.CreatedAfter)
+	}
+
+	if opts.CreatedBefore != nil {
+		queryParams.CreatedBefore = sqlchelpers.TimestampFromTime(*opts.CreatedBefore)
+	}
+
 	if opts.AdditionalMetadata != nil {
 		additionalMetadataBytes, err := json.Marshal(opts.AdditionalMetadata)
 		if err != nil {
@@ -708,6 +721,13 @@ func createNewWorkflowRun(ctx context.Context, pool *pgxpool.Pool, queries *dbsq
 					dedupeStr := fmt.Sprintf("%d", dedupeInt)
 					opts.DedupeValue = &dedupeStr
 				}
+			}
+		}
+
+		if opts.Priority != nil {
+			createParams.Priority = pgtype.Int4{
+				Int32: *opts.Priority,
+				Valid: true,
 			}
 		}
 
@@ -871,17 +891,46 @@ func createNewWorkflowRun(ctx context.Context, pool *pgxpool.Pool, queries *dbsq
 				return nil, err
 			}
 
-			err = queries.CreateStepRuns(
+			// list steps for the job
+			steps, err := queries.ListStepsForJob(
 				tx1Ctx,
 				tx,
-				dbsqlc.CreateStepRunsParams{
-					Jobrunid: jobRunId,
-					Tenantid: pgTenantId,
-				},
+				jobRunId,
 			)
 
 			if err != nil {
 				return nil, err
+			}
+
+			for _, step := range steps {
+				err = queries.UpsertQueue(
+					tx1Ctx,
+					tx,
+					dbsqlc.UpsertQueueParams{
+						Tenantid: pgTenantId,
+						Name:     step.ActionId,
+					},
+				)
+
+				if err != nil {
+					return nil, err
+				}
+
+				err = queries.CreateStepRun(
+					tx1Ctx,
+					tx,
+					dbsqlc.CreateStepRunParams{
+						Tenantid: createParams.Tenantid,
+						Jobrunid: jobRunId,
+						Stepid:   step.ID,
+						Queue:    sqlchelpers.TextFromStr(step.ActionId),
+						Priority: createParams.Priority,
+					},
+				)
+
+				if err != nil {
+					return nil, err
+				}
 			}
 
 			// link all step runs with correct parents/children

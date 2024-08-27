@@ -183,7 +183,6 @@ func (rc *RetentionControllerImpl) Start() (func() error, error) {
 		cancel()
 		return nil, fmt.Errorf("could not delete expired job runs: %w", err)
 	}
-
 	rc.s.Start()
 
 	cleanup := func() error {

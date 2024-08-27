@@ -51,9 +51,11 @@ WHERE
         tickers."lastHeartbeatAt" > sqlc.narg('lastHeartbeatAfter')::timestamp
     );
 
--- name: DeleteTicker :one
-DELETE FROM
-    "Ticker" as tickers
+-- name: DeactivateTicker :one
+UPDATE
+    "Ticker" t
+SET
+    "isActive" = false
 WHERE
     "id" = sqlc.arg('id')::uuid
 RETURNING *;
@@ -74,7 +76,7 @@ WITH getGroupKeyRunsToTimeout AS (
     FROM
         "GetGroupKeyRun" as getGroupKeyRun
     WHERE
-        ("status" = 'RUNNING' OR "status" = 'ASSIGNED')
+        "status" = ANY(ARRAY['RUNNING', 'ASSIGNED']::"StepRunStatus"[])
         AND "timeoutAt" < NOW()
         AND "deletedAt" IS NULL
         AND (

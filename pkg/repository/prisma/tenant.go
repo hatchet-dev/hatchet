@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
@@ -298,6 +299,16 @@ func (r *tenantEngineRepository) GetTenantByID(ctx context.Context, tenantId str
 	return cache.MakeCacheable[dbsqlc.Tenant](r.cache, tenantId, func() (*dbsqlc.Tenant, error) {
 		return r.queries.GetTenantByID(ctx, r.pool, sqlchelpers.UUIDFromStr(tenantId))
 	})
+}
+
+func (r *tenantEngineRepository) UpdatePartitionHeartbeat(ctx context.Context, partitionId string) error {
+	_, err := r.queries.ControllerPartitionHeartbeat(ctx, r.pool, partitionId)
+
+	if err == pgx.ErrNoRows {
+		return nil
+	}
+
+	return err
 }
 
 func (r *tenantEngineRepository) ListTenantsByControllerPartition(ctx context.Context, controllerPartitionId string) ([]*dbsqlc.Tenant, error) {

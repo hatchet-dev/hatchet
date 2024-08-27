@@ -70,6 +70,7 @@ import {
   WebhookWorkerCreated,
   WebhookWorkerCreateRequest,
   WebhookWorkerListResponse,
+  WebhookWorkerRequestListResponse,
   Worker,
   WorkerList,
   Workflow,
@@ -1330,6 +1331,18 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
        * @example ["key1:value1","key2:value2"]
        */
       additionalMetadata?: string[];
+      /**
+       * The time after the workflow run was created
+       * @format date-time
+       * @example "2021-01-01T00:00:00Z"
+       */
+      createdAfter?: string;
+      /**
+       * The time before the workflow run was created
+       * @format date-time
+       * @example "2021-01-01T00:00:00Z"
+       */
+      createdBefore?: string;
       /** The order by field */
       orderByField?: WorkflowRunOrderByField;
       /** The order by direction */
@@ -1409,6 +1422,18 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
        * @example ["key1:value1","key2:value2"]
        */
       additionalMetadata?: string[];
+      /**
+       * The time after the workflow run was created
+       * @format date-time
+       * @example "2021-01-01T00:00:00Z"
+       */
+      createdAfter?: string;
+      /**
+       * The time before the workflow run was created
+       * @format date-time
+       * @example "2021-01-01T00:00:00Z"
+       */
+      createdBefore?: string;
     },
     params: RequestParams = {},
   ) =>
@@ -1552,10 +1577,18 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @request GET:/api/v1/workers/{worker}
    * @secure
    */
-  workerGet = (worker: string, params: RequestParams = {}) =>
+  workerGet = (
+    worker: string,
+    query?: {
+      /** Filter recent by failed */
+      recentFailed?: boolean;
+    },
+    params: RequestParams = {},
+  ) =>
     this.request<Worker, APIErrors>({
       path: `/api/v1/workers/${worker}`,
       method: 'GET',
+      query: query,
       secure: true,
       format: 'json',
       ...params,
@@ -1607,6 +1640,22 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       path: `/api/v1/webhook-workers/${webhook}`,
       method: 'DELETE',
       secure: true,
+      ...params,
+    });
+  /**
+   * @description Lists all requests for a webhook
+   *
+   * @name WebhookRequestsList
+   * @summary List webhook requests
+   * @request GET:/api/v1/webhook-workers/{webhook}/requests
+   * @secure
+   */
+  webhookRequestsList = (webhook: string, params: RequestParams = {}) =>
+    this.request<WebhookWorkerRequestListResponse, APIErrors>({
+      path: `/api/v1/webhook-workers/${webhook}/requests`,
+      method: 'GET',
+      secure: true,
+      format: 'json',
       ...params,
     });
   /**

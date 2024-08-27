@@ -419,6 +419,22 @@ workflowRuns:
           type: array
           items:
             type: string
+      - description: The time after the workflow run was created
+        in: query
+        name: createdAfter
+        example: "2021-01-01T00:00:00Z"
+        required: false
+        schema:
+          type: string
+          format: date-time
+      - description: The time before the workflow run was created
+        in: query
+        name: createdBefore
+        example: "2021-01-01T00:00:00Z"
+        required: false
+        schema:
+          type: string
+          format: date-time
       - description: The order by field
         in: query
         name: orderByField
@@ -513,6 +529,22 @@ workflowRunsMetrics:
           type: array
           items:
             type: string
+      - description: The time after the workflow run was created
+        in: query
+        name: createdAfter
+        example: "2021-01-01T00:00:00Z"
+        required: false
+        schema:
+          type: string
+          format: date-time
+      - description: The time before the workflow run was created
+        in: query
+        name: createdBefore
+        example: "2021-01-01T00:00:00Z"
+        required: false
+        schema:
+          type: string
+          format: date-time
     responses:
       "200":
         content:

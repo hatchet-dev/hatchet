@@ -35,8 +35,6 @@ const (
 	EVENT_PROCESSING_QUEUE    staticQueue = "event_processing_queue_v2"
 	JOB_PROCESSING_QUEUE      staticQueue = "job_processing_queue_v2"
 	WORKFLOW_PROCESSING_QUEUE staticQueue = "workflow_processing_queue_v2"
-	DISPATCHER_POOL_QUEUE     staticQueue = "dispatcher_pool_queue_v2"
-	SCHEDULING_QUEUE          staticQueue = "scheduling_queue_v2"
 )
 
 func (s staticQueue) Name() string {
@@ -95,6 +93,10 @@ func QueueTypeFromDispatcherID(d string) consumerQueue {
 
 func QueueTypeFromTickerID(t string) consumerQueue {
 	return consumerQueue(t)
+}
+
+func QueueTypeFromPartitionID(p string) consumerQueue {
+	return consumerQueue(p)
 }
 
 type fanoutQueue struct {

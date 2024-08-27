@@ -17,13 +17,13 @@ CREATE TYPE "LimitResource" AS ENUM ('WORKFLOW_RUN', 'EVENT', 'WORKER', 'CRON', 
 CREATE TYPE "LogLineLevel" AS ENUM ('DEBUG', 'INFO', 'WARN', 'ERROR');
 
 -- CreateEnum
-CREATE TYPE "StepRunEventReason" AS ENUM ('REQUEUED_NO_WORKER', 'REQUEUED_RATE_LIMIT', 'SCHEDULING_TIMED_OUT', 'ASSIGNED', 'STARTED', 'FINISHED', 'FAILED', 'RETRYING', 'CANCELLED', 'TIMED_OUT', 'REASSIGNED', 'SLOT_RELEASED', 'TIMEOUT_REFRESHED', 'RETRIED_BY_USER');
+CREATE TYPE "StepRunEventReason" AS ENUM ('REQUEUED_NO_WORKER', 'REQUEUED_RATE_LIMIT', 'SCHEDULING_TIMED_OUT', 'ASSIGNED', 'STARTED', 'FINISHED', 'FAILED', 'RETRYING', 'CANCELLED', 'TIMED_OUT', 'REASSIGNED', 'SLOT_RELEASED', 'TIMEOUT_REFRESHED', 'RETRIED_BY_USER', 'SENT_TO_WORKER');
 
 -- CreateEnum
 CREATE TYPE "StepRunEventSeverity" AS ENUM ('INFO', 'WARNING', 'CRITICAL');
 
 -- CreateEnum
-CREATE TYPE "StepRunStatus" AS ENUM ('PENDING', 'PENDING_ASSIGNMENT', 'ASSIGNED', 'RUNNING', 'SUCCEEDED', 'FAILED', 'CANCELLED');
+CREATE TYPE "StepRunStatus" AS ENUM ('PENDING', 'PENDING_ASSIGNMENT', 'ASSIGNED', 'RUNNING', 'SUCCEEDED', 'FAILED', 'CANCELLED', 'CANCELLING');
 
 -- CreateEnum
 CREATE TYPE "StickyStrategy" AS ENUM ('SOFT', 'HARD');
@@ -38,7 +38,13 @@ CREATE TYPE "TenantResourceLimitAlertType" AS ENUM ('Alarm', 'Exhausted');
 CREATE TYPE "VcsProvider" AS ENUM ('GITHUB');
 
 -- CreateEnum
+CREATE TYPE "WebhookWorkerRequestMethod" AS ENUM ('GET', 'POST', 'PUT');
+
+-- CreateEnum
 CREATE TYPE "WorkerLabelComparator" AS ENUM ('EQUAL', 'NOT_EQUAL', 'GREATER_THAN', 'GREATER_THAN_OR_EQUAL', 'LESS_THAN', 'LESS_THAN_OR_EQUAL');
+
+-- CreateEnum
+CREATE TYPE "WorkerType" AS ENUM ('WEBHOOK', 'MANAGED', 'SELFHOSTED');
 
 -- CreateEnum
 CREATE TYPE "WorkflowKind" AS ENUM ('FUNCTION', 'DURABLE', 'DAG');
@@ -199,6 +205,33 @@ CREATE TABLE "LogLine" (
 );
 
 -- CreateTable
+CREATE TABLE "Queue" (
+    "id" BIGSERIAL NOT NULL,
+    "tenantId" UUID NOT NULL,
+    "name" TEXT NOT NULL,
+
+    CONSTRAINT "Queue_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "QueueItem" (
+    "id" BIGSERIAL NOT NULL,
+    "stepRunId" UUID,
+    "stepId" UUID,
+    "actionId" TEXT,
+    "scheduleTimeoutAt" TIMESTAMP(3),
+    "stepTimeout" TEXT,
+    "priority" INTEGER NOT NULL DEFAULT 1,
+    "isQueued" BOOLEAN NOT NULL,
+    "tenantId" UUID NOT NULL,
+    "queue" TEXT NOT NULL,
+    "sticky" "StickyStrategy",
+    "desiredWorkerId" UUID,
+
+    CONSTRAINT "QueueItem_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "RateLimit" (
     "tenantId" UUID NOT NULL,
     "key" TEXT NOT NULL,
@@ -326,6 +359,8 @@ CREATE TABLE "StepRun" (
     "gitRepoBranch" TEXT,
     "retryCount" INTEGER NOT NULL DEFAULT 0,
     "semaphoreReleased" BOOLEAN NOT NULL DEFAULT false,
+    "queue" TEXT NOT NULL DEFAULT 'default',
+    "priority" INTEGER,
 
     CONSTRAINT "StepRun_pkey" PRIMARY KEY ("id")
 );
@@ -578,6 +613,17 @@ CREATE TABLE "WebhookWorker" (
 );
 
 -- CreateTable
+CREATE TABLE "WebhookWorkerRequest" (
+    "id" UUID NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "webhookWorkerId" UUID NOT NULL,
+    "method" "WebhookWorkerRequestMethod" NOT NULL,
+    "statusCode" INTEGER NOT NULL,
+
+    CONSTRAINT "WebhookWorkerRequest_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "WebhookWorkerWorkflow" (
     "id" UUID NOT NULL,
     "webhookWorkerId" UUID NOT NULL,
@@ -600,6 +646,8 @@ CREATE TABLE "Worker" (
     "isActive" BOOLEAN NOT NULL DEFAULT false,
     "lastListenerEstablished" TIMESTAMP(3),
     "isPaused" BOOLEAN NOT NULL DEFAULT false,
+    "type" "WorkerType" NOT NULL DEFAULT 'SELFHOSTED',
+    "webhookId" UUID,
 
     CONSTRAINT "Worker_pkey" PRIMARY KEY ("id")
 );
@@ -678,6 +726,7 @@ CREATE TABLE "WorkflowRun" (
     "parentStepRunId" UUID,
     "additionalMetadata" JSONB,
     "duration" INTEGER,
+    "priority" INTEGER,
 
     CONSTRAINT "WorkflowRun_pkey" PRIMARY KEY ("id")
 );
@@ -791,6 +840,7 @@ CREATE TABLE "WorkflowVersion" (
     "onFailureJobId" UUID,
     "sticky" "StickyStrategy",
     "kind" "WorkflowKind" NOT NULL DEFAULT 'DAG',
+    "defaultPriority" INTEGER,
 
     CONSTRAINT "WorkflowVersion_pkey" PRIMARY KEY ("id")
 );
@@ -853,10 +903,25 @@ CREATE INDEX "Event_tenantId_createdAt_idx" ON "Event"("tenantId" ASC, "createdA
 CREATE INDEX "Event_tenantId_idx" ON "Event"("tenantId" ASC);
 
 -- CreateIndex
+CREATE INDEX "GetGroupKeyRun_createdAt_idx" ON "GetGroupKeyRun"("createdAt" ASC);
+
+-- CreateIndex
 CREATE INDEX "GetGroupKeyRun_deletedAt_idx" ON "GetGroupKeyRun"("deletedAt" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "GetGroupKeyRun_id_key" ON "GetGroupKeyRun"("id" ASC);
+
+-- CreateIndex
+CREATE INDEX "GetGroupKeyRun_status_deletedAt_timeoutAt_idx" ON "GetGroupKeyRun"("status" ASC, "deletedAt" ASC, "timeoutAt" ASC);
+
+-- CreateIndex
+CREATE INDEX "GetGroupKeyRun_tenantId_deletedAt_status_idx" ON "GetGroupKeyRun"("tenantId" ASC, "deletedAt" ASC, "status" ASC);
+
+-- CreateIndex
+CREATE INDEX "GetGroupKeyRun_tenantId_idx" ON "GetGroupKeyRun"("tenantId" ASC);
+
+-- CreateIndex
+CREATE INDEX "GetGroupKeyRun_workerId_idx" ON "GetGroupKeyRun"("workerId" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "GetGroupKeyRun_workflowRunId_key" ON "GetGroupKeyRun"("workflowRunId" ASC);
@@ -884,6 +949,12 @@ CREATE UNIQUE INDEX "JobRunLookupData_jobRunId_key" ON "JobRunLookupData"("jobRu
 
 -- CreateIndex
 CREATE UNIQUE INDEX "JobRunLookupData_jobRunId_tenantId_key" ON "JobRunLookupData"("jobRunId" ASC, "tenantId" ASC);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Queue_tenantId_name_key" ON "Queue"("tenantId" ASC, "name" ASC);
+
+-- CreateIndex
+CREATE INDEX "QueueItem_isQueued_priority_tenantId_queue_id_idx_2" ON "QueueItem"("isQueued" ASC, "tenantId" ASC, "queue" ASC, "priority" DESC, "id" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "RateLimit_tenantId_key_key" ON "RateLimit"("tenantId" ASC, "key" ASC);
@@ -1045,6 +1116,9 @@ CREATE UNIQUE INDEX "WebhookWorker_id_key" ON "WebhookWorker"("id" ASC);
 CREATE UNIQUE INDEX "WebhookWorker_url_key" ON "WebhookWorker"("url" ASC);
 
 -- CreateIndex
+CREATE UNIQUE INDEX "WebhookWorkerRequest_id_key" ON "WebhookWorkerRequest"("id" ASC);
+
+-- CreateIndex
 CREATE UNIQUE INDEX "WebhookWorkerWorkflow_id_key" ON "WebhookWorkerWorkflow"("id" ASC);
 
 -- CreateIndex
@@ -1052,6 +1126,9 @@ CREATE UNIQUE INDEX "WebhookWorkerWorkflow_webhookWorkerId_workflowId_key" ON "W
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Worker_id_key" ON "Worker"("id" ASC);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Worker_webhookId_key" ON "Worker"("webhookId" ASC);
 
 -- CreateIndex
 CREATE INDEX "WorkerLabel_workerId_idx" ON "WorkerLabel"("workerId" ASC);
@@ -1372,6 +1449,9 @@ ALTER TABLE "WebhookWorker" ADD CONSTRAINT "WebhookWorker_tenantId_fkey" FOREIGN
 ALTER TABLE "WebhookWorker" ADD CONSTRAINT "WebhookWorker_tokenId_fkey" FOREIGN KEY ("tokenId") REFERENCES "APIToken"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "WebhookWorkerRequest" ADD CONSTRAINT "WebhookWorkerRequest_webhookWorkerId_fkey" FOREIGN KEY ("webhookWorkerId") REFERENCES "WebhookWorker"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "WebhookWorkerWorkflow" ADD CONSTRAINT "WebhookWorkerWorkflow_webhookWorkerId_fkey" FOREIGN KEY ("webhookWorkerId") REFERENCES "WebhookWorker"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -1382,6 +1462,9 @@ ALTER TABLE "Worker" ADD CONSTRAINT "Worker_dispatcherId_fkey" FOREIGN KEY ("dis
 
 -- AddForeignKey
 ALTER TABLE "Worker" ADD CONSTRAINT "Worker_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Worker" ADD CONSTRAINT "Worker_webhookId_fkey" FOREIGN KEY ("webhookId") REFERENCES "WebhookWorker"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "WorkerLabel" ADD CONSTRAINT "WorkerLabel_workerId_fkey" FOREIGN KEY ("workerId") REFERENCES "Worker"("id") ON DELETE CASCADE ON UPDATE CASCADE;

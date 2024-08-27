@@ -91,6 +91,7 @@ const (
 const (
 	StepRunStatusASSIGNED          StepRunStatus = "ASSIGNED"
 	StepRunStatusCANCELLED         StepRunStatus = "CANCELLED"
+	StepRunStatusCANCELLING        StepRunStatus = "CANCELLING"
 	StepRunStatusFAILED            StepRunStatus = "FAILED"
 	StepRunStatusPENDING           StepRunStatus = "PENDING"
 	StepRunStatusPENDINGASSIGNMENT StepRunStatus = "PENDING_ASSIGNMENT"
@@ -119,6 +120,13 @@ const (
 	ACTIVE   WorkerStatus = "ACTIVE"
 	INACTIVE WorkerStatus = "INACTIVE"
 	PAUSED   WorkerStatus = "PAUSED"
+)
+
+// Defines values for WorkerType.
+const (
+	MANAGED    WorkerType = "MANAGED"
+	SELFHOSTED WorkerType = "SELFHOSTED"
+	WEBHOOK    WorkerType = "WEBHOOK"
 )
 
 // Defines values for WorkflowConcurrencyLimitStrategy.
@@ -484,6 +492,18 @@ type QueueMetrics struct {
 	NumRunning int `json:"numRunning"`
 }
 
+// RecentStepRuns defines model for RecentStepRuns.
+type RecentStepRuns struct {
+	// ActionId The action id.
+	ActionId      string             `json:"actionId"`
+	CancelledAt   *time.Time         `json:"cancelledAt,omitempty"`
+	FinishedAt    *time.Time         `json:"finishedAt,omitempty"`
+	Metadata      APIResourceMeta    `json:"metadata"`
+	StartedAt     *time.Time         `json:"startedAt,omitempty"`
+	Status        StepRunStatus      `json:"status"`
+	WorkflowRunId openapi_types.UUID `json:"workflowRunId"`
+}
+
 // RejectInviteRequest defines model for RejectInviteRequest.
 type RejectInviteRequest struct {
 	Invite string `json:"invite" validate:"required,uuid"`
@@ -520,6 +540,28 @@ type SNSIntegration struct {
 
 	// TopicArn The Amazon Resource Name (ARN) of the SNS topic.
 	TopicArn string `json:"topicArn"`
+}
+
+// SemaphoreSlots defines model for SemaphoreSlots.
+type SemaphoreSlots struct {
+	// ActionId The action id.
+	ActionId *string `json:"actionId,omitempty"`
+
+	// Slot The slot name.
+	Slot openapi_types.UUID `json:"slot"`
+
+	// StartedAt The time this slot was started.
+	StartedAt *time.Time     `json:"startedAt,omitempty"`
+	Status    *StepRunStatus `json:"status,omitempty"`
+
+	// StepRunId The step run id.
+	StepRunId *openapi_types.UUID `json:"stepRunId,omitempty"`
+
+	// TimeoutAt The time this slot will timeout.
+	TimeoutAt *time.Time `json:"timeoutAt,omitempty"`
+
+	// WorkflowRunId The workflow run id.
+	WorkflowRunId *openapi_types.UUID `json:"workflowRunId,omitempty"`
 }
 
 // SlackWebhook defines model for SlackWebhook.
@@ -921,6 +963,25 @@ type WebhookWorkerListResponse struct {
 	Rows       *[]WebhookWorker    `json:"rows,omitempty"`
 }
 
+// WebhookWorkerRequest defines model for WebhookWorkerRequest.
+type WebhookWorkerRequest struct {
+	// CreatedAt The date and time the request was created.
+	CreatedAt time.Time                  `json:"created_at"`
+	Method    WebhookWorkerRequestMethod `json:"method"`
+
+	// StatusCode The HTTP status code of the response.
+	StatusCode int `json:"statusCode"`
+}
+
+// WebhookWorkerRequestListResponse defines model for WebhookWorkerRequestListResponse.
+type WebhookWorkerRequestListResponse struct {
+	// Requests The list of webhook requests.
+	Requests *[]WebhookWorkerRequest `json:"requests,omitempty"`
+}
+
+// WebhookWorkerRequestMethod defines model for WebhookWorkerRequestMethod.
+type WebhookWorkerRequestMethod = interface{}
+
 // Worker defines model for Worker.
 type Worker struct {
 	// Actions The actions this worker can perform.
@@ -948,15 +1009,28 @@ type Worker struct {
 	// Name The name of the worker.
 	Name string `json:"name"`
 
-	// RecentStepRuns The recent step runs for this worker.
-	RecentStepRuns *[]StepRun `json:"recentStepRuns,omitempty"`
+	// RecentStepRuns The recent step runs for the worker.
+	RecentStepRuns *[]RecentStepRuns `json:"recentStepRuns,omitempty"`
+
+	// Slots The semaphore slot state for the worker.
+	Slots *[]SemaphoreSlots `json:"slots,omitempty"`
 
 	// Status The status of the worker.
 	Status *WorkerStatus `json:"status,omitempty"`
+	Type   WorkerType    `json:"type"`
+
+	// WebhookId The webhook ID for the worker.
+	WebhookId *openapi_types.UUID `json:"webhookId,omitempty"`
+
+	// WebhookUrl The webhook URL for the worker.
+	WebhookUrl *string `json:"webhookUrl,omitempty"`
 }
 
 // WorkerStatus The status of the worker.
 type WorkerStatus string
+
+// WorkerType defines model for Worker.Type.
+type WorkerType string
 
 // WorkerLabel defines model for WorkerLabel.
 type WorkerLabel struct {
@@ -981,7 +1055,6 @@ type Workflow struct {
 
 	// Jobs The jobs of the workflow.
 	Jobs     *[]Job          `json:"jobs,omitempty"`
-	LastRun  *WorkflowRun    `json:"lastRun,omitempty"`
 	Metadata APIResourceMeta `json:"metadata"`
 
 	// Name The name of the workflow.
@@ -1268,6 +1341,12 @@ type WorkflowRunListParams struct {
 	// AdditionalMetadata A list of metadata key value pairs to filter by
 	AdditionalMetadata *[]string `form:"additionalMetadata,omitempty" json:"additionalMetadata,omitempty"`
 
+	// CreatedAfter The time after the workflow run was created
+	CreatedAfter *time.Time `form:"createdAfter,omitempty" json:"createdAfter,omitempty"`
+
+	// CreatedBefore The time before the workflow run was created
+	CreatedBefore *time.Time `form:"createdBefore,omitempty" json:"createdBefore,omitempty"`
+
 	// OrderByField The order by field
 	OrderByField *WorkflowRunOrderByField `form:"orderByField,omitempty" json:"orderByField,omitempty"`
 
@@ -1291,6 +1370,18 @@ type WorkflowRunGetMetricsParams struct {
 
 	// AdditionalMetadata A list of metadata key value pairs to filter by
 	AdditionalMetadata *[]string `form:"additionalMetadata,omitempty" json:"additionalMetadata,omitempty"`
+
+	// CreatedAfter The time after the workflow run was created
+	CreatedAfter *time.Time `form:"createdAfter,omitempty" json:"createdAfter,omitempty"`
+
+	// CreatedBefore The time before the workflow run was created
+	CreatedBefore *time.Time `form:"createdBefore,omitempty" json:"createdBefore,omitempty"`
+}
+
+// WorkerGetParams defines parameters for WorkerGet.
+type WorkerGetParams struct {
+	// RecentFailed Filter recent by failed
+	RecentFailed *bool `form:"recentFailed,omitempty" json:"recentFailed,omitempty"`
 }
 
 // WorkflowGetMetricsParams defines parameters for WorkflowGetMetrics.
@@ -1692,8 +1783,11 @@ type ClientInterface interface {
 	// WebhookDelete request
 	WebhookDelete(ctx context.Context, webhook openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// WebhookRequestsList request
+	WebhookRequestsList(ctx context.Context, webhook openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// WorkerGet request
-	WorkerGet(ctx context.Context, worker openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+	WorkerGet(ctx context.Context, worker openapi_types.UUID, params *WorkerGetParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// WorkerUpdateWithBody request with any body
 	WorkerUpdateWithBody(ctx context.Context, worker openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -2744,8 +2838,20 @@ func (c *Client) WebhookDelete(ctx context.Context, webhook openapi_types.UUID, 
 	return c.Client.Do(req)
 }
 
-func (c *Client) WorkerGet(ctx context.Context, worker openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewWorkerGetRequest(c.Server, worker)
+func (c *Client) WebhookRequestsList(ctx context.Context, webhook openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWebhookRequestsListRequest(c.Server, webhook)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) WorkerGet(ctx context.Context, worker openapi_types.UUID, params *WorkerGetParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWorkerGetRequest(c.Server, worker, params)
 	if err != nil {
 		return nil, err
 	}
@@ -5284,6 +5390,38 @@ func NewWorkflowRunListRequest(server string, tenant openapi_types.UUID, params 
 
 		}
 
+		if params.CreatedAfter != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "createdAfter", runtime.ParamLocationQuery, *params.CreatedAfter); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.CreatedBefore != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "createdBefore", runtime.ParamLocationQuery, *params.CreatedBefore); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
 		if params.OrderByField != nil {
 
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "orderByField", runtime.ParamLocationQuery, *params.OrderByField); err != nil {
@@ -5423,6 +5561,38 @@ func NewWorkflowRunGetMetricsRequest(server string, tenant openapi_types.UUID, p
 		if params.AdditionalMetadata != nil {
 
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "additionalMetadata", runtime.ParamLocationQuery, *params.AdditionalMetadata); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.CreatedAfter != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "createdAfter", runtime.ParamLocationQuery, *params.CreatedAfter); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.CreatedBefore != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "createdBefore", runtime.ParamLocationQuery, *params.CreatedBefore); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err
@@ -5924,8 +6094,42 @@ func NewWebhookDeleteRequest(server string, webhook openapi_types.UUID) (*http.R
 	return req, nil
 }
 
+// NewWebhookRequestsListRequest generates requests for WebhookRequestsList
+func NewWebhookRequestsListRequest(server string, webhook openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "webhook", runtime.ParamLocationPath, webhook)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/webhook-workers/%s/requests", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewWorkerGetRequest generates requests for WorkerGet
-func NewWorkerGetRequest(server string, worker openapi_types.UUID) (*http.Request, error) {
+func NewWorkerGetRequest(server string, worker openapi_types.UUID, params *WorkerGetParams) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -5948,6 +6152,28 @@ func NewWorkerGetRequest(server string, worker openapi_types.UUID) (*http.Reques
 	queryURL, err := serverURL.Parse(operationPath)
 	if err != nil {
 		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.RecentFailed != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "recentFailed", runtime.ParamLocationQuery, *params.RecentFailed); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
 	}
 
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
@@ -6639,8 +6865,11 @@ type ClientWithResponsesInterface interface {
 	// WebhookDeleteWithResponse request
 	WebhookDeleteWithResponse(ctx context.Context, webhook openapi_types.UUID, reqEditors ...RequestEditorFn) (*WebhookDeleteResponse, error)
 
+	// WebhookRequestsListWithResponse request
+	WebhookRequestsListWithResponse(ctx context.Context, webhook openapi_types.UUID, reqEditors ...RequestEditorFn) (*WebhookRequestsListResponse, error)
+
 	// WorkerGetWithResponse request
-	WorkerGetWithResponse(ctx context.Context, worker openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkerGetResponse, error)
+	WorkerGetWithResponse(ctx context.Context, worker openapi_types.UUID, params *WorkerGetParams, reqEditors ...RequestEditorFn) (*WorkerGetResponse, error)
 
 	// WorkerUpdateWithBodyWithResponse request with any body
 	WorkerUpdateWithBodyWithResponse(ctx context.Context, worker openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WorkerUpdateResponse, error)
@@ -8243,6 +8472,31 @@ func (r WebhookDeleteResponse) StatusCode() int {
 	return 0
 }
 
+type WebhookRequestsListResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *WebhookWorkerRequestListResponse
+	JSON400      *APIErrors
+	JSON401      *APIErrors
+	JSON405      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r WebhookRequestsListResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r WebhookRequestsListResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type WorkerGetResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -9211,9 +9465,18 @@ func (c *ClientWithResponses) WebhookDeleteWithResponse(ctx context.Context, web
 	return ParseWebhookDeleteResponse(rsp)
 }
 
+// WebhookRequestsListWithResponse request returning *WebhookRequestsListResponse
+func (c *ClientWithResponses) WebhookRequestsListWithResponse(ctx context.Context, webhook openapi_types.UUID, reqEditors ...RequestEditorFn) (*WebhookRequestsListResponse, error) {
+	rsp, err := c.WebhookRequestsList(ctx, webhook, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseWebhookRequestsListResponse(rsp)
+}
+
 // WorkerGetWithResponse request returning *WorkerGetResponse
-func (c *ClientWithResponses) WorkerGetWithResponse(ctx context.Context, worker openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkerGetResponse, error) {
-	rsp, err := c.WorkerGet(ctx, worker, reqEditors...)
+func (c *ClientWithResponses) WorkerGetWithResponse(ctx context.Context, worker openapi_types.UUID, params *WorkerGetParams, reqEditors ...RequestEditorFn) (*WorkerGetResponse, error) {
+	rsp, err := c.WorkerGet(ctx, worker, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -11802,6 +12065,53 @@ func ParseWebhookDeleteResponse(rsp *http.Response) (*WebhookDeleteResponse, err
 	}
 
 	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 405:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON405 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseWebhookRequestsListResponse parses an HTTP response from a WebhookRequestsListWithResponse call
+func ParseWebhookRequestsListResponse(rsp *http.Response) (*WebhookRequestsListResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &WebhookRequestsListResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest WebhookWorkerRequestListResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
 		var dest APIErrors
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {

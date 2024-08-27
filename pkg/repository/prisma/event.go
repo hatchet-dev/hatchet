@@ -41,7 +41,7 @@ func NewEventAPIRepository(client *db.PrismaClient, pool *pgxpool.Pool, v valida
 	}
 }
 
-func (r *eventAPIRepository) ListEvents(tenantId string, opts *repository.ListEventOpts) (*repository.ListEventResult, error) {
+func (r *eventAPIRepository) ListEvents(ctx context.Context, tenantId string, opts *repository.ListEventOpts) (*repository.ListEventResult, error) {
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
@@ -123,7 +123,7 @@ func (r *eventAPIRepository) ListEvents(tenantId string, opts *repository.ListEv
 
 	defer deferRollback(context.Background(), r.l, tx.Rollback)
 
-	events, err := r.queries.ListEvents(context.Background(), tx, queryParams)
+	events, err := r.queries.ListEvents(ctx, tx, queryParams)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -133,7 +133,7 @@ func (r *eventAPIRepository) ListEvents(tenantId string, opts *repository.ListEv
 		}
 	}
 
-	count, err := r.queries.CountEvents(context.Background(), tx, countParams)
+	count, err := r.queries.CountEvents(ctx, tx, countParams)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -143,7 +143,7 @@ func (r *eventAPIRepository) ListEvents(tenantId string, opts *repository.ListEv
 		}
 	}
 
-	err = tx.Commit(context.Background())
+	err = tx.Commit(ctx)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not commit transaction: %w", err)

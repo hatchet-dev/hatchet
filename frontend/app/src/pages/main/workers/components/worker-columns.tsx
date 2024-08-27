@@ -28,9 +28,22 @@ export const columns: ColumnDef<Worker>[] = [
     cell: ({ row }) => (
       <Link to={`/workers/${row.original.metadata.id}`}>
         <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">
-          {row.original.name}
+          {row.original.webhookUrl || row.original.name}
         </div>
       </Link>
+    ),
+    enableSorting: false,
+    enableHiding: false,
+  },
+  {
+    accessorKey: 'type',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Type" />
+    ),
+    cell: ({ row }) => (
+      <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">
+        {row.original.type}
+      </div>
     ),
     enableSorting: false,
     enableHiding: false,

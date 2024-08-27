@@ -42,6 +42,7 @@ type GetActionListenerRequest struct {
 	Actions    []string
 	MaxRuns    *int
 	Labels     map[string]interface{}
+	WebhookId  *string
 }
 
 // ActionPayload unmarshals the action payload into the target. It also validates the resulting target.
@@ -204,6 +205,7 @@ func (d *dispatcherClientImpl) newActionListener(ctx context.Context, req *GetAc
 		WorkerName: req.WorkerName,
 		Actions:    req.Actions,
 		Services:   req.Services,
+		WebhookId:  req.WebhookId,
 	}
 
 	if req.Labels != nil {

@@ -41,35 +41,44 @@ func NewWorkerAPIRepository(client *db.PrismaClient, pool *pgxpool.Pool, v valid
 	}
 }
 
-func (w *workerAPIRepository) GetWorkerById(workerId string) (*db.WorkerModel, error) {
-	return w.client.Worker.FindUnique(
-		db.Worker.ID.Equals(workerId),
-	).With(
-		db.Worker.Dispatcher.Fetch(),
-		db.Worker.Actions.Fetch(),
-		db.Worker.Slots.Fetch(),
-	).Exec(context.Background())
+func (w *workerAPIRepository) GetWorkerById(workerId string) (*dbsqlc.GetWorkerByIdRow, error) {
+	return w.queries.GetWorkerById(context.Background(), w.pool, sqlchelpers.UUIDFromStr(workerId))
 }
 
-func (w *workerAPIRepository) ListRecentWorkerStepRuns(tenantId, workerId string) ([]db.StepRunModel, error) {
-	return w.client.StepRun.FindMany(
-		db.StepRun.WorkerID.Equals(workerId),
-		db.StepRun.TenantID.Equals(tenantId),
-	).Take(10).OrderBy(
-		db.StepRun.CreatedAt.Order(db.SortOrderDesc),
-	).With(
-		db.StepRun.Children.Fetch(),
-		db.StepRun.Parents.Fetch(),
-		db.StepRun.JobRun.Fetch().With(
-			db.JobRun.WorkflowRun.Fetch(),
-		),
-		db.StepRun.Step.Fetch().With(
-			db.Step.Job.Fetch().With(
-				db.Job.Workflow.Fetch(),
-			),
-			db.Step.Action.Fetch(),
-		),
-	).Exec(context.Background())
+func (w *workerAPIRepository) GetWorkerActionsByWorkerId(tenantid, workerId string) ([]pgtype.Text, error) {
+	return w.queries.GetWorkerActionsByWorkerId(context.Background(), w.pool, dbsqlc.GetWorkerActionsByWorkerIdParams{
+		Workerid: sqlchelpers.UUIDFromStr(workerId),
+		Tenantid: sqlchelpers.UUIDFromStr(tenantid),
+	})
+}
+
+func (w *workerAPIRepository) ListWorkerState(tenantId, workerId string, failed bool) ([]*dbsqlc.ListSemaphoreSlotsWithStateForWorkerRow, []*dbsqlc.ListRecentStepRunsForWorkerRow, error) {
+	slots, err := w.queries.ListSemaphoreSlotsWithStateForWorker(context.Background(), w.pool, dbsqlc.ListSemaphoreSlotsWithStateForWorkerParams{
+		Workerid: sqlchelpers.UUIDFromStr(workerId),
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+	})
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not list worker slot state: %w", err)
+	}
+
+	var statuses = []string{"SUCCEEDED", "FAILED", "CANCELLED"}
+
+	if failed {
+		statuses = []string{"FAILED", "CANCELLED"}
+	}
+
+	recent, err := w.queries.ListRecentStepRunsForWorker(context.Background(), w.pool, dbsqlc.ListRecentStepRunsForWorkerParams{
+		Workerid: sqlchelpers.UUIDFromStr(workerId),
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Statuses: statuses,
+	})
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not list worker recent step runs: %w", err)
+	}
+
+	return slots, recent, nil
 }
 
 func (r *workerAPIRepository) ListWorkers(tenantId string, opts *repository.ListWorkersOpts) ([]*dbsqlc.ListWorkersWithStepCountRow, error) {
@@ -203,6 +212,20 @@ func (w *workerEngineRepository) CreateNewWorker(ctx context.Context, tenantId s
 			Name:         opts.Name,
 		}
 
+		// Default to self hosted
+		createParams.Type = dbsqlc.NullWorkerType{
+			WorkerType: dbsqlc.WorkerTypeSELFHOSTED,
+			Valid:      true,
+		}
+
+		if opts.WebhookId != nil {
+			createParams.WebhookId = sqlchelpers.UUIDFromStr(*opts.WebhookId)
+			createParams.Type = dbsqlc.NullWorkerType{
+				WorkerType: dbsqlc.WorkerTypeWEBHOOK,
+				Valid:      true,
+			}
+		}
+
 		if opts.MaxRuns != nil {
 			createParams.MaxRuns = pgtype.Int4{
 				Int32: int32(*opts.MaxRuns),
@@ -215,22 +238,42 @@ func (w *workerEngineRepository) CreateNewWorker(ctx context.Context, tenantId s
 			}
 		}
 
-		worker, err := w.queries.CreateWorker(ctx, tx, createParams)
+		var worker *dbsqlc.Worker
 
-		if err != nil {
-			return nil, nil, fmt.Errorf("could not create worker: %w", err)
+		// HACK upsert webhook worker
+		if opts.WebhookId != nil {
+			worker, err = w.queries.GetWorkerByWebhookId(ctx, tx, dbsqlc.GetWorkerByWebhookIdParams{
+				Webhookid: createParams.WebhookId,
+				Tenantid:  pgTenantId,
+			})
+
+			if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+				return nil, nil, fmt.Errorf("could not get worker: %w", err)
+			}
+
+			if errors.Is(err, pgx.ErrNoRows) {
+				worker = nil
+			}
 		}
 
-		err = w.queries.StubWorkerSemaphoreSlots(ctx, tx, dbsqlc.StubWorkerSemaphoreSlotsParams{
-			Workerid: worker.ID,
-			MaxRuns: pgtype.Int4{
-				Int32: worker.MaxRuns,
-				Valid: true,
-			},
-		})
+		if worker == nil {
+			worker, err = w.queries.CreateWorker(ctx, tx, createParams)
 
-		if err != nil {
-			return nil, nil, fmt.Errorf("could not stub worker semaphore slots: %w", err)
+			if err != nil {
+				return nil, nil, fmt.Errorf("could not create worker: %w", err)
+			}
+
+			err = w.queries.StubWorkerSemaphoreSlots(ctx, tx, dbsqlc.StubWorkerSemaphoreSlotsParams{
+				Workerid: worker.ID,
+				MaxRuns: pgtype.Int4{
+					Int32: worker.MaxRuns,
+					Valid: true,
+				},
+			})
+
+			if err != nil {
+				return nil, nil, fmt.Errorf("could not stub worker semaphore slots: %w", err)
+			}
 		}
 
 		svcUUIDs := make([]pgtype.UUID, len(opts.Services))
@@ -293,6 +336,8 @@ func (w *workerEngineRepository) CreateNewWorker(ctx context.Context, tenantId s
 	})
 }
 
+// UpdateWorker updates a worker in the repository.
+// It will only update the worker if there is no lock on the worker, else it will skip.
 func (w *workerEngineRepository) UpdateWorker(ctx context.Context, tenantId, workerId string, opts *repository.UpdateWorkerOpts) (*dbsqlc.Worker, error) {
 	if err := w.v.Validate(opts); err != nil {
 		return nil, err
@@ -368,14 +413,28 @@ func (w *workerEngineRepository) UpdateWorker(ctx context.Context, tenantId, wor
 	return worker, nil
 }
 
+func (w *workerEngineRepository) UpdateWorkerHeartbeat(ctx context.Context, tenantId, workerId string, lastHeartbeat time.Time) error {
+
+	_, err := w.queries.UpdateWorkerHeartbeat(ctx, w.pool, dbsqlc.UpdateWorkerHeartbeatParams{
+		ID:              sqlchelpers.UUIDFromStr(workerId),
+		LastHeartbeatAt: sqlchelpers.TimestampFromTime(lastHeartbeat),
+	})
+
+	if err != nil && err != pgx.ErrNoRows {
+		return fmt.Errorf("could not update worker heartbeat: %w", err)
+	}
+
+	return nil
+}
+
 func (w *workerEngineRepository) DeleteWorker(ctx context.Context, tenantId, workerId string) error {
 	_, err := w.queries.DeleteWorker(ctx, w.pool, sqlchelpers.UUIDFromStr(workerId))
 
 	return err
 }
 
-func (w *workerEngineRepository) UpdateWorkersByName(ctx context.Context, params dbsqlc.UpdateWorkersByNameParams) error {
-	_, err := w.queries.UpdateWorkersByName(ctx, w.pool, params)
+func (w *workerEngineRepository) UpdateWorkersByWebhookId(ctx context.Context, params dbsqlc.UpdateWorkersByWebhookIdParams) error {
+	_, err := w.queries.UpdateWorkersByWebhookId(ctx, w.pool, params)
 	return err
 }
 

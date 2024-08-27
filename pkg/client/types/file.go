@@ -131,7 +131,7 @@ func ParseYAML(ctx context.Context, yamlBytes []byte) (Workflow, error) {
 
 	err := yaml.Unmarshal(yamlBytes, &workflowFile)
 	if err != nil {
-		return workflowFile, fmt.Errorf("error unmarshaling workflow yaml: %w", err)
+		return workflowFile, fmt.Errorf("error unmarshalling workflow yaml: %w", err)
 	}
 
 	return workflowFile, nil

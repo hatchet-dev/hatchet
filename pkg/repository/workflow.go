@@ -51,6 +51,9 @@ type CreateWorkflowVersionOpts struct {
 
 	// (optional) the workflow kind
 	Kind *string `validate:"omitempty,oneof=FUNCTION DURABLE DAG"`
+
+	// (optional) the default priority for steps in the workflow (1-3)
+	DefaultPriority *int32 `validate:"omitempty,min=1,max=3"`
 }
 
 type CreateWorkflowConcurrencyOpts struct {
@@ -168,19 +171,10 @@ type ListWorkflowsOpts struct {
 
 	// (optional) number of workflows to return
 	Limit *int
-
-	// (optional) the event key to filter by
-	EventKey *string
-}
-
-type ListWorkflowsRow struct {
-	*db.WorkflowModel
-
-	LatestRun *db.WorkflowRunModel
 }
 
 type ListWorkflowsResult struct {
-	Rows  []*ListWorkflowsRow
+	Rows  []*dbsqlc.Workflow
 	Count int
 }
 

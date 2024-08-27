@@ -5,11 +5,47 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 )
+
+func ToSlotState(slots []*dbsqlc.ListSemaphoreSlotsWithStateForWorkerRow) *[]gen.SemaphoreSlots {
+	resp := make([]gen.SemaphoreSlots, len(slots))
+
+	for i := range slots {
+		slot := slots[i]
+
+		slotId := uuid.MustParse(sqlchelpers.UUIDToStr(slot.Slot))
+
+		var stepRunId uuid.UUID
+
+		if slot.StepRunId.Valid {
+			stepRunId = uuid.MustParse(sqlchelpers.UUIDToStr(slot.StepRunId))
+		}
+
+		var workflowRunId uuid.UUID
+
+		if slot.WorkflowRunId.Valid {
+			workflowRunId = uuid.MustParse(sqlchelpers.UUIDToStr(slot.WorkflowRunId))
+		}
+
+		resp[i] = gen.SemaphoreSlots{
+			Slot:          slotId,
+			StepRunId:     &stepRunId,
+			Status:        (*gen.StepRunStatus)(&slot.Status.StepRunStatus),
+			ActionId:      &slot.ActionId.String,
+			WorkflowRunId: &workflowRunId,
+			TimeoutAt:     &slot.TimeoutAt.Time,
+			StartedAt:     &slot.StartedAt.Time,
+		}
+	}
+
+	return &resp
+}
 
 func ToWorkerLabels(labels []*dbsqlc.ListWorkerLabelsRow) *[]gen.WorkerLabel {
 	resp := make([]gen.WorkerLabel, len(labels))
@@ -98,7 +134,7 @@ func ToWorker(worker *db.WorkerModel) *gen.Worker {
 	return res
 }
 
-func ToWorkerSqlc(worker *dbsqlc.Worker, slots *int) *gen.Worker {
+func ToWorkerSqlc(worker *dbsqlc.Worker, slots *int, webhookUrl *string, actions []pgtype.Text) *gen.Worker {
 
 	dispatcherId := uuid.MustParse(pgUUIDToStr(worker.DispatcherId))
 
@@ -123,14 +159,31 @@ func ToWorkerSqlc(worker *dbsqlc.Worker, slots *int) *gen.Worker {
 	res := &gen.Worker{
 		Metadata:      *toAPIMetadata(pgUUIDToStr(worker.ID), worker.CreatedAt.Time, worker.UpdatedAt.Time),
 		Name:          worker.Name,
+		Type:          gen.WorkerType(worker.Type),
 		Status:        &status,
 		DispatcherId:  &dispatcherId,
 		MaxRuns:       &maxRuns,
 		AvailableRuns: &availableRuns,
+		WebhookUrl:    webhookUrl,
+	}
+
+	if worker.WebhookId.Valid {
+		wid := uuid.MustParse(pgUUIDToStr(worker.WebhookId))
+		res.WebhookId = &wid
 	}
 
 	if !worker.LastHeartbeatAt.Time.IsZero() {
 		res.LastHeartbeatAt = &worker.LastHeartbeatAt.Time
+	}
+
+	if actions != nil {
+		apiActions := make([]string, len(actions))
+
+		for i := range actions {
+			apiActions[i] = actions[i].String
+		}
+
+		res.Actions = &apiActions
 	}
 
 	return res

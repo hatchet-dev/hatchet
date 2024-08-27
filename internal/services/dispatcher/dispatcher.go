@@ -464,6 +464,18 @@ func (d *DispatcherImpl) handleStepRunAssignedTask(ctx context.Context, task *ms
 		return fmt.Errorf("could not get step run: %w", err)
 	}
 
+	// if the step run has a job run in a non-running state, we should not send it to the worker
+	if stepRun.JobRunStatus != dbsqlc.JobRunStatusRUNNING {
+		d.l.Warn().Msgf("step run %s is not in a running state, ignoring", payload.StepRunId)
+		return nil
+	}
+
+	// if the step run is not in an assigned state, we should not send it to the worker
+	if stepRun.SRStatus != dbsqlc.StepRunStatusASSIGNED {
+		d.l.Warn().Msgf("step run %s is not in an assigned state, ignoring", payload.StepRunId)
+		return nil
+	}
+
 	data, err := d.repo.StepRun().GetStepRunDataForEngine(ctx, metadata.TenantId, payload.StepRunId)
 
 	if err != nil {
@@ -486,6 +498,14 @@ func (d *DispatcherImpl) handleStepRunAssignedTask(ctx context.Context, task *ms
 	}
 
 	if success {
+		defer d.repo.StepRun().DeferredStepRunEvent(
+			stepRun.SRID,
+			dbsqlc.StepRunEventReasonSENTTOWORKER,
+			dbsqlc.StepRunEventSeverityINFO,
+			"Sent step run to the assigned worker",
+			nil,
+		)
+
 		return nil
 	}
 

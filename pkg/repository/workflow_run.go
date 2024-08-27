@@ -57,6 +57,9 @@ type CreateWorkflowRunOpts struct {
 
 	// (optional) the deduplication value for the workflow run
 	DedupeValue *string `validate:"omitempty"`
+
+	// (optional) the priority of the workflow run
+	Priority *int32 `validate:"omitempty,min=1,max=3"`
 }
 
 type CreateGroupKeyRunOpts struct {
@@ -291,6 +294,9 @@ type ListWorkflowRunsOpts struct {
 	// (optional) a time after which the run was created
 	CreatedAfter *time.Time
 
+	// (optional) a time before which the run was created
+	CreatedBefore *time.Time
+
 	// (optional) a time before which the run was finished
 	FinishedAfter *time.Time
 
@@ -316,6 +322,12 @@ type WorkflowRunsMetricsOpts struct {
 
 	// (optional) exact metadata to filter by
 	AdditionalMetadata map[string]interface{} `validate:"omitempty"`
+
+	// (optional) the time the workflow run was created before
+	CreatedBefore *time.Time `validate:"omitempty"`
+
+	// (optional) the time the workflow run was created after
+	CreatedAfter *time.Time `validate:"omitempty"`
 }
 
 type ListWorkflowRunsResult struct {
@@ -367,10 +379,10 @@ type WorkflowRunAPIRepository interface {
 	RegisterCreateCallback(callback Callback[*db.WorkflowRunModel])
 
 	// ListWorkflowRuns returns workflow runs for a given workflow version id.
-	ListWorkflowRuns(tenantId string, opts *ListWorkflowRunsOpts) (*ListWorkflowRunsResult, error)
+	ListWorkflowRuns(ctx context.Context, tenantId string, opts *ListWorkflowRunsOpts) (*ListWorkflowRunsResult, error)
 
 	// Counts by status
-	WorkflowRunMetricsCount(tenantId string, opts *WorkflowRunsMetricsOpts) (*dbsqlc.WorkflowRunsMetricsCountRow, error)
+	WorkflowRunMetricsCount(ctx context.Context, tenantId string, opts *WorkflowRunsMetricsOpts) (*dbsqlc.WorkflowRunsMetricsCountRow, error)
 
 	GetWorkflowRunInputData(tenantId, workflowRunId string) (map[string]interface{}, error)
 

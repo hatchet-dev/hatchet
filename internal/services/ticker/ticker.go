@@ -311,7 +311,7 @@ func (t *TickerImpl) Start() (func() error, error) {
 		defer deleteCancel()
 
 		// delete the ticker
-		err = t.repo.Ticker().Delete(deleteCtx, t.tickerId)
+		err = t.repo.Ticker().DeactivateTicker(deleteCtx, t.tickerId)
 
 		if err != nil {
 			t.l.Err(err).Msg("could not delete ticker")
@@ -406,8 +406,9 @@ func (t *TickerImpl) runWorkerSemaphoreSlotResolver(ctx context.Context) func() 
 		g := new(errgroup.Group)
 
 		for i := range tenants {
+			tenant := tenants[i]
 			g.Go(func() error {
-				return t.runWorkerSemaphoreSlotResolverTenant(ctx, tenants[i])
+				return t.runWorkerSemaphoreSlotResolverTenant(ctx, tenant)
 			})
 		}
 
