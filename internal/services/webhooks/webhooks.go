@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hatchet-dev/hatchet/internal/services/controllers/partition"
 	"github.com/hatchet-dev/hatchet/internal/whrequest"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
@@ -23,16 +24,16 @@ type WebhooksController struct {
 	sc                  *server.ServerConfig
 	registeredWorkerIds map[string]bool
 	cleanups            map[string]func() error
-	partitionId         string
+	p                   *partition.Partition
 	mu                  sync.Mutex // Add a mutex for concurrent map access
 }
 
-func New(sc *server.ServerConfig, partitionId string) *WebhooksController {
+func New(sc *server.ServerConfig, p *partition.Partition) *WebhooksController {
 	return &WebhooksController{
 		sc:                  sc,
 		registeredWorkerIds: map[string]bool{},
 		cleanups:            map[string]func() error{},
-		partitionId:         partitionId,
+		p:                   p,
 	}
 }
 
@@ -70,7 +71,7 @@ func (c *WebhooksController) Start() (func() error, error) {
 }
 
 func (c *WebhooksController) check() error {
-	wws, err := c.sc.EngineRepository.WebhookWorker().ListWebhookWorkersByPartitionId(context.Background(), c.partitionId)
+	wws, err := c.sc.EngineRepository.WebhookWorker().ListWebhookWorkersByPartitionId(context.Background(), c.p.GetWorkerPartitionId())
 
 	if err != nil {
 		return fmt.Errorf("could not get webhook workers: %w", err)

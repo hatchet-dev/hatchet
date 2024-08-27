@@ -45,6 +45,15 @@ WHERE
     p."id" = sqlc.arg('controllerPartitionId')::text
 RETURNING *;
 
+-- name: WorkerPartitionHeartbeat :one
+UPDATE
+    "TenantWorkerPartition" p
+SET
+    "lastHeartbeat" = NOW()
+WHERE
+    p."id" = sqlc.arg('workerPartitionId')::text
+RETURNING *;
+
 -- name: ListTenantsByControllerPartitionId :many
 SELECT
     *

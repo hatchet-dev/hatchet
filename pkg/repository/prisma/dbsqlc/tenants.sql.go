@@ -815,3 +815,25 @@ func (q *Queries) UpdateTenantAlertingSettings(ctx context.Context, db DBTX, arg
 	)
 	return &i, err
 }
+
+const workerPartitionHeartbeat = `-- name: WorkerPartitionHeartbeat :one
+UPDATE
+    "TenantWorkerPartition" p
+SET
+    "lastHeartbeat" = NOW()
+WHERE
+    p."id" = $1::text
+RETURNING id, "createdAt", "updatedAt", "lastHeartbeat"
+`
+
+func (q *Queries) WorkerPartitionHeartbeat(ctx context.Context, db DBTX, workerpartitionid string) (*TenantWorkerPartition, error) {
+	row := db.QueryRow(ctx, workerPartitionHeartbeat, workerpartitionid)
+	var i TenantWorkerPartition
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.LastHeartbeat,
+	)
+	return &i, err
+}

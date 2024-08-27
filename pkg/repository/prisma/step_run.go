@@ -1179,7 +1179,7 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, tenantId st
 		timedOutStepRunsStr[i] = sqlchelpers.UUIDToStr(id)
 	}
 
-	defer printQueueDebugInfo(s.l, queues, queueItems, duplicates, cancelled, plan, slots, startedAt)
+	defer printQueueDebugInfo(s.l, tenantId, queues, queueItems, duplicates, cancelled, plan, slots, startedAt)
 
 	return repository.QueueStepRunsResult{
 		Queued:             plan.QueuedStepRuns,
@@ -2105,10 +2105,12 @@ type debugInfo struct {
 	NumDuplicates         int    `json:"num_duplicates"`
 	NumCancelled          int    `json:"num_cancelled"`
 	TotalDuration         string `json:"total_duration"`
+	TenantId              string `json:"tenant_id"`
 }
 
 func printQueueDebugInfo(
 	l *zerolog.Logger,
+	tenantId string,
 	queues []*dbsqlc.Queue,
 	queueItems []*scheduling.QueueItemWithOrder,
 	duplicates []*scheduling.QueueItemWithOrder,
@@ -2121,6 +2123,7 @@ func printQueueDebugInfo(
 
 	// pretty-print json with 2 spaces
 	debugInfo := debugInfo{
+		TenantId:              tenantId,
 		NumQueues:             len(queues),
 		TotalStepRuns:         len(queueItems),
 		TotalStepRunsAssigned: len(plan.StepRunIds),

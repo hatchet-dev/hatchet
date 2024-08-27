@@ -301,14 +301,42 @@ func (r *tenantEngineRepository) GetTenantByID(ctx context.Context, tenantId str
 	})
 }
 
-func (r *tenantEngineRepository) UpdatePartitionHeartbeat(ctx context.Context, partitionId string) error {
+func (r *tenantEngineRepository) UpdateControllerPartitionHeartbeat(ctx context.Context, partitionId string) (string, error) {
 	_, err := r.queries.ControllerPartitionHeartbeat(ctx, r.pool, partitionId)
 
 	if err == pgx.ErrNoRows {
-		return nil
+		// create a new partition
+		newPartitionId := uuid.New().String()
+
+		_, err := r.queries.CreateControllerPartition(ctx, r.pool, newPartitionId)
+
+		if err != nil {
+			return "", err
+		}
+
+		return newPartitionId, nil
 	}
 
-	return err
+	return partitionId, err
+}
+
+func (r *tenantEngineRepository) UpdateWorkerPartitionHeartbeat(ctx context.Context, partitionId string) (string, error) {
+	_, err := r.queries.WorkerPartitionHeartbeat(ctx, r.pool, partitionId)
+
+	if err == pgx.ErrNoRows {
+		// create a new partition
+		newPartitionId := uuid.New().String()
+
+		_, err := r.queries.CreateTenantWorkerPartition(ctx, r.pool, newPartitionId)
+
+		if err != nil {
+			return "", err
+		}
+
+		return newPartitionId, nil
+	}
+
+	return partitionId, err
 }
 
 func (r *tenantEngineRepository) ListTenantsByControllerPartition(ctx context.Context, controllerPartitionId string) ([]*dbsqlc.Tenant, error) {
@@ -327,9 +355,10 @@ func (r *tenantEngineRepository) ListTenantsByWorkerPartition(ctx context.Contex
 	return r.queries.ListTenantsByTenantWorkerPartitionId(ctx, r.pool, workerPartitionId)
 }
 
-func (r *tenantEngineRepository) CreateControllerPartition(ctx context.Context, id string) error {
+func (r *tenantEngineRepository) CreateControllerPartition(ctx context.Context) (string, error) {
+	id := uuid.New().String()
 	_, err := r.queries.CreateControllerPartition(ctx, r.pool, id)
-	return err
+	return id, err
 }
 
 func (r *tenantEngineRepository) DeleteControllerPartition(ctx context.Context, id string) error {
@@ -345,9 +374,10 @@ func (r *tenantEngineRepository) RebalanceInactiveControllerPartitions(ctx conte
 	return r.queries.RebalanceInactiveControllerPartitions(ctx, r.pool)
 }
 
-func (r *tenantEngineRepository) CreateTenantWorkerPartition(ctx context.Context, id string) error {
+func (r *tenantEngineRepository) CreateTenantWorkerPartition(ctx context.Context) (string, error) {
+	id := uuid.New().String()
 	_, err := r.queries.CreateTenantWorkerPartition(ctx, r.pool, id)
-	return err
+	return id, err
 }
 
 func (r *tenantEngineRepository) DeleteTenantWorkerPartition(ctx context.Context, id string) error {
