@@ -16,7 +16,8 @@ import (
 type Partition struct {
 	controllerPartitionId string
 	workerPartitionId     string
-	s                     gocron.Scheduler
+	controllerScheduler   gocron.Scheduler
+	workerScheduler       gocron.Scheduler
 	repo                  repository.TenantEngineRepository
 	l                     *zerolog.Logger
 
@@ -25,16 +26,23 @@ type Partition struct {
 }
 
 func NewPartition(l *zerolog.Logger, repo repository.TenantEngineRepository) (*Partition, error) {
-	s, err := gocron.NewScheduler(gocron.WithLocation(time.UTC))
+	s1, err := gocron.NewScheduler(gocron.WithLocation(time.UTC))
+
+	if err != nil {
+		return nil, err
+	}
+
+	s2, err := gocron.NewScheduler(gocron.WithLocation(time.UTC))
 
 	if err != nil {
 		return nil, err
 	}
 
 	return &Partition{
-		repo: repo,
-		l:    l,
-		s:    s,
+		repo:                repo,
+		l:                   l,
+		controllerScheduler: s1,
+		workerScheduler:     s2,
 	}, nil
 }
 
@@ -47,7 +55,19 @@ func (p *Partition) GetWorkerPartitionId() string {
 }
 
 func (p *Partition) Shutdown() error {
-	return p.s.Shutdown()
+	err := p.controllerScheduler.Shutdown()
+
+	if err != nil {
+		return fmt.Errorf("could not shutdown controller scheduler: %w", err)
+	}
+
+	err = p.workerScheduler.Shutdown()
+
+	if err != nil {
+		return fmt.Errorf("could not shutdown worker scheduler: %w", err)
+	}
+
+	return nil
 }
 
 func (p *Partition) StartControllerPartition(ctx context.Context) (func() error, error) {
@@ -58,12 +78,6 @@ func (p *Partition) StartControllerPartition(ctx context.Context) (func() error,
 	}
 
 	cleanup := func() error {
-		err := p.s.Shutdown()
-
-		if err != nil {
-			return fmt.Errorf("could not shutdown scheduler: %w", err)
-		}
-
 		deleteCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
@@ -79,7 +93,7 @@ func (p *Partition) StartControllerPartition(ctx context.Context) (func() error,
 	p.controllerPartitionId = partitionId
 
 	// start the schedules
-	_, err = p.s.NewJob(
+	_, err = p.controllerScheduler.NewJob(
 		gocron.DurationJob(time.Second*20),
 		gocron.NewTask(
 			p.runControllerPartitionHeartbeat(ctx), // nolint: errcheck
@@ -91,7 +105,7 @@ func (p *Partition) StartControllerPartition(ctx context.Context) (func() error,
 	}
 
 	// rebalance partitions 10 seconds after startup
-	_, err = p.s.NewJob(
+	_, err = p.controllerScheduler.NewJob(
 		gocron.OneTimeJob(
 			gocron.OneTimeJobStartDateTime(time.Now().Add(time.Second*10)),
 		),
@@ -106,7 +120,7 @@ func (p *Partition) StartControllerPartition(ctx context.Context) (func() error,
 		return nil, fmt.Errorf("could not create rebalance all controller partitions job: %w", err)
 	}
 
-	_, err = p.s.NewJob(
+	_, err = p.controllerScheduler.NewJob(
 		gocron.DurationJob(time.Minute*1),
 		gocron.NewTask(
 			func() {
@@ -119,7 +133,7 @@ func (p *Partition) StartControllerPartition(ctx context.Context) (func() error,
 		return nil, fmt.Errorf("could not create rebalance inactive controller partitions job: %w", err)
 	}
 
-	p.s.Start()
+	p.controllerScheduler.Start()
 
 	return cleanup, nil
 }
@@ -164,12 +178,6 @@ func (p *Partition) StartTenantWorkerPartition(ctx context.Context) (func() erro
 	p.workerPartitionId = partitionId
 
 	cleanup := func() error {
-		err := p.s.Shutdown()
-
-		if err != nil {
-			return fmt.Errorf("could not shutdown scheduler: %w", err)
-		}
-
 		deleteCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
@@ -183,7 +191,7 @@ func (p *Partition) StartTenantWorkerPartition(ctx context.Context) (func() erro
 	}
 
 	// start the schedules
-	_, err = p.s.NewJob(
+	_, err = p.workerScheduler.NewJob(
 		gocron.DurationJob(time.Second*20),
 		gocron.NewTask(
 			p.runTenantWorkerPartitionHeartbeat(ctx), // nolint: errcheck
@@ -195,7 +203,7 @@ func (p *Partition) StartTenantWorkerPartition(ctx context.Context) (func() erro
 	}
 
 	// rebalance partitions 30 seconds after startup
-	_, err = p.s.NewJob(
+	_, err = p.workerScheduler.NewJob(
 		gocron.OneTimeJob(
 			gocron.OneTimeJobStartDateTime(time.Now().Add(time.Second*30)),
 		),
@@ -210,7 +218,7 @@ func (p *Partition) StartTenantWorkerPartition(ctx context.Context) (func() erro
 		return nil, fmt.Errorf("could not create rebalance all tenant worker partitions job: %w", err)
 	}
 
-	_, err = p.s.NewJob(
+	_, err = p.workerScheduler.NewJob(
 		gocron.DurationJob(time.Minute*1),
 		gocron.NewTask(
 			func() {
@@ -223,7 +231,7 @@ func (p *Partition) StartTenantWorkerPartition(ctx context.Context) (func() erro
 		return nil, fmt.Errorf("could not create rebalance inactive tenant worker partitions job: %w", err)
 	}
 
-	p.s.Start()
+	p.workerScheduler.Start()
 
 	return cleanup, nil
 }
