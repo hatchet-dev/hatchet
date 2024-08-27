@@ -1,5 +1,6 @@
 import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
 import UniversalTabs from "../../../components/UniversalTabs"
+import CodeCell from "../../../components/CodeCell"
 
 # Streaming in Hatchet
 
@@ -30,36 +31,12 @@ Here's an example of how to create a listener:
 
 <UniversalTabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
-
-```python
-async def listen_for_files():
-    workflowRunId = hatchet.admin.run_workflow("ManualTriggerWorkflow", {"test": "test"})
-    listener = hatchet.listener.stream(workflowRunId)
-
-    async for event in listener:
-        # Filter and transform event data here
-        data = json.dumps({
-            "type": event.type,
-            "messageId": workflowRunId
-        })
-        print("data: " + data + "\n\n")
-
-```
-
+    <CodeCell language="Python" blockName="listeners"/>
   </Tabs.Tab>
   <Tabs.Tab>
-
-```typescript copy
-async function listen_for_files() {
-  const workflowRunId = await hatchet.admin.run_workflow("simple-workflow", {});
-  const stream = await hatchet.listener.stream(workflowRunId);
-  for await (const event of stream) {
-    console.log("event received", event);
-  }
-}
-```
-
+    <CodeCell language="Typescript" blockName="listeners"/>
   </Tabs.Tab>
+  <Tabs.Tab>
 ```go copy
 workflowRunId, err := c.Admin().RunWorkflow("stream-event-workflow", &streamEventInput{
   Index: 0,
@@ -80,6 +57,7 @@ panic(err)
 }
 
 ````
+</Tabs.Tab>
 </UniversalTabs>
 
 ## Streaming from a Step Context

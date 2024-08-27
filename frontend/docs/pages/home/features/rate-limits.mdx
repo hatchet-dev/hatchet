@@ -1,5 +1,6 @@
 import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
 import UniversalTabs from "../../../components/UniversalTabs"
+import CodeCell from "../../../components/CodeCell"
 
 # Rate Limiting Step Runs in Hatchet
 
@@ -22,22 +23,13 @@ It is recommended to specify multiple keys for different rate limits in your app
 
 <UniversalTabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
-```python
-hatchet.admin.put_rate_limit('example-limit', 10, RateLimitDuration.MINUTE)
-```
+    <CodeCell language="Python" blockName="declaring-global-limits"/>
   </Tabs.Tab>
   <Tabs.Tab>
-```typescript
-await hatchet.admin.put_rate_limit('test-limit', 1, RateLimitDuration.MINUTE);
-```
+    <CodeCell language="Typescript" blockName="declaring-global-limits"/>
   </Tabs.Tab>
   <Tabs.Tab>
-```go
-err = c.Admin().PutRateLimit("example-limit", &types.RateLimitOpts{
-    Max:      3,
-    Duration: "minute",
-})
-```
+    <CodeCell language="Go" blockName="declaring-global-limits"/>
   </Tabs.Tab>
 </UniversalTabs>
 
@@ -57,40 +49,10 @@ def step1(self, context: Context):
 ```
   </Tabs.Tab>
   <Tabs.Tab>
-```typescript
-const workflow: Workflow = {
-  // ... the rest of the workflow definition
-  steps: [
-    {
-      name: 'step1',
-      rate_limits: [{ key: 'example-limit', units: 1 }],
-      run: async (ctx) => {
-        console.log('starting step1 with the following input', ctx.workflowInput());
-        return { step1: 'step1 results!' };
-      },
-    },
-  ],
-};
-```
+    <CodeCell language="Typescript" blockName="consuming-rate-limits"/>
   </Tabs.Tab>
   <Tabs.Tab>
-```go
-err = w.RegisterWorkflow(
-    &worker.WorkflowJob{
-        Name: "rate-limit-workflow",
-        Description: "This illustrates rate limiting.",
-        On: worker.NoTrigger(),
-        Steps: []*worker.WorkflowStep{
-            worker.Fn(StepOne).SetName("step-one").SetRateLimit(
-                worker.RateLimit{
-                    Units: 1,
-                    Key:   "example-limit",
-                },
-            ),
-        },
-    },
-)
-```
+    <CodeCell language="Go" blockName="consuming-rate-limits"/>
   </Tabs.Tab>
 </UniversalTabs>
 
