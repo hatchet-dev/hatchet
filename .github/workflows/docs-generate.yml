@@ -1,0 +1,42 @@
+name: Generate Go Docs on SDK Update
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'api/v1/server/oas/gen/**'
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    permissions: write-all
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Generate Docs
+        run: |
+          go install github.com/princjef/gomarkdoc/cmd/gomarkdoc@latest
+          export PATH=$PATH:$(go env GOPATH)/bin
+          gomarkdoc --output frontend/docs/gen/go/docs.md ./api/v1/server/oas/gen
+
+          # Commit the changes
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
+          git checkout -b feat/actions/generate-go-docs
+          git add .
+          git commit -m "feat: generate Go Docs"
+
+      - name: Push changes
+        uses: ad-m/github-push-action@master
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch: feat/actions/generate-go-docs
+      
+      - name: create pull request
+        run: gh pr create -B main -H feat/actions/generate-go-docs --title 'Generate Go Docs' --body 'This PR generates Go Docs for updated openapi spec.'
+        env:
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
