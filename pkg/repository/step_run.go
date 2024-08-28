@@ -202,6 +202,8 @@ type StepRunEngineRepository interface {
 
 	QueueStepRuns(ctx context.Context, tenantId string) (QueueStepRunsResult, error)
 
+	CleanupQueueItems(ctx context.Context, tenantId string) error
+
 	ListStartableStepRuns(ctx context.Context, tenantId, jobRunId string, parentStepRunId *string) ([]*dbsqlc.GetStepRunForEngineRow, error)
 
 	ArchiveStepRunResult(ctx context.Context, tenantId, stepRunId string) error
