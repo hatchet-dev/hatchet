@@ -122,6 +122,13 @@ const (
 	PAUSED   WorkerStatus = "PAUSED"
 )
 
+// Defines values for WorkerType.
+const (
+	MANAGED    WorkerType = "MANAGED"
+	SELFHOSTED WorkerType = "SELFHOSTED"
+	WEBHOOK    WorkerType = "WEBHOOK"
+)
+
 // Defines values for WorkflowConcurrencyLimitStrategy.
 const (
 	CANCELINPROGRESS WorkflowConcurrencyLimitStrategy = "CANCEL_IN_PROGRESS"
@@ -956,6 +963,25 @@ type WebhookWorkerListResponse struct {
 	Rows       *[]WebhookWorker    `json:"rows,omitempty"`
 }
 
+// WebhookWorkerRequest defines model for WebhookWorkerRequest.
+type WebhookWorkerRequest struct {
+	// CreatedAt The date and time the request was created.
+	CreatedAt time.Time                  `json:"created_at"`
+	Method    WebhookWorkerRequestMethod `json:"method"`
+
+	// StatusCode The HTTP status code of the response.
+	StatusCode int `json:"statusCode"`
+}
+
+// WebhookWorkerRequestListResponse defines model for WebhookWorkerRequestListResponse.
+type WebhookWorkerRequestListResponse struct {
+	// Requests The list of webhook requests.
+	Requests *[]WebhookWorkerRequest `json:"requests,omitempty"`
+}
+
+// WebhookWorkerRequestMethod defines model for WebhookWorkerRequestMethod.
+type WebhookWorkerRequestMethod = interface{}
+
 // Worker defines model for Worker.
 type Worker struct {
 	// Actions The actions this worker can perform.
@@ -991,10 +1017,20 @@ type Worker struct {
 
 	// Status The status of the worker.
 	Status *WorkerStatus `json:"status,omitempty"`
+	Type   WorkerType    `json:"type"`
+
+	// WebhookId The webhook ID for the worker.
+	WebhookId *openapi_types.UUID `json:"webhookId,omitempty"`
+
+	// WebhookUrl The webhook URL for the worker.
+	WebhookUrl *string `json:"webhookUrl,omitempty"`
 }
 
 // WorkerStatus The status of the worker.
 type WorkerStatus string
+
+// WorkerType defines model for Worker.Type.
+type WorkerType string
 
 // WorkerLabel defines model for WorkerLabel.
 type WorkerLabel struct {
@@ -1746,6 +1782,9 @@ type ClientInterface interface {
 
 	// WebhookDelete request
 	WebhookDelete(ctx context.Context, webhook openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// WebhookRequestsList request
+	WebhookRequestsList(ctx context.Context, webhook openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// WorkerGet request
 	WorkerGet(ctx context.Context, worker openapi_types.UUID, params *WorkerGetParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -2789,6 +2828,18 @@ func (c *Client) UserUpdateSlackOauthCallback(ctx context.Context, reqEditors ..
 
 func (c *Client) WebhookDelete(ctx context.Context, webhook openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewWebhookDeleteRequest(c.Server, webhook)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) WebhookRequestsList(ctx context.Context, webhook openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWebhookRequestsListRequest(c.Server, webhook)
 	if err != nil {
 		return nil, err
 	}
@@ -6043,6 +6094,40 @@ func NewWebhookDeleteRequest(server string, webhook openapi_types.UUID) (*http.R
 	return req, nil
 }
 
+// NewWebhookRequestsListRequest generates requests for WebhookRequestsList
+func NewWebhookRequestsListRequest(server string, webhook openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "webhook", runtime.ParamLocationPath, webhook)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/webhook-workers/%s/requests", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewWorkerGetRequest generates requests for WorkerGet
 func NewWorkerGetRequest(server string, worker openapi_types.UUID, params *WorkerGetParams) (*http.Request, error) {
 	var err error
@@ -6779,6 +6864,9 @@ type ClientWithResponsesInterface interface {
 
 	// WebhookDeleteWithResponse request
 	WebhookDeleteWithResponse(ctx context.Context, webhook openapi_types.UUID, reqEditors ...RequestEditorFn) (*WebhookDeleteResponse, error)
+
+	// WebhookRequestsListWithResponse request
+	WebhookRequestsListWithResponse(ctx context.Context, webhook openapi_types.UUID, reqEditors ...RequestEditorFn) (*WebhookRequestsListResponse, error)
 
 	// WorkerGetWithResponse request
 	WorkerGetWithResponse(ctx context.Context, worker openapi_types.UUID, params *WorkerGetParams, reqEditors ...RequestEditorFn) (*WorkerGetResponse, error)
@@ -8384,6 +8472,31 @@ func (r WebhookDeleteResponse) StatusCode() int {
 	return 0
 }
 
+type WebhookRequestsListResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *WebhookWorkerRequestListResponse
+	JSON400      *APIErrors
+	JSON401      *APIErrors
+	JSON405      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r WebhookRequestsListResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r WebhookRequestsListResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type WorkerGetResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -9350,6 +9463,15 @@ func (c *ClientWithResponses) WebhookDeleteWithResponse(ctx context.Context, web
 		return nil, err
 	}
 	return ParseWebhookDeleteResponse(rsp)
+}
+
+// WebhookRequestsListWithResponse request returning *WebhookRequestsListResponse
+func (c *ClientWithResponses) WebhookRequestsListWithResponse(ctx context.Context, webhook openapi_types.UUID, reqEditors ...RequestEditorFn) (*WebhookRequestsListResponse, error) {
+	rsp, err := c.WebhookRequestsList(ctx, webhook, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseWebhookRequestsListResponse(rsp)
 }
 
 // WorkerGetWithResponse request returning *WorkerGetResponse
@@ -11943,6 +12065,53 @@ func ParseWebhookDeleteResponse(rsp *http.Response) (*WebhookDeleteResponse, err
 	}
 
 	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 405:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON405 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseWebhookRequestsListResponse parses an HTTP response from a WebhookRequestsListWithResponse call
+func ParseWebhookRequestsListResponse(rsp *http.Response) (*WebhookRequestsListResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &WebhookRequestsListResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest WebhookWorkerRequestListResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
 		var dest APIErrors
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {

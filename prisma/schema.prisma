@@ -110,6 +110,31 @@ model WebhookWorker {
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 
   webhookWorkerWorkflows WebhookWorkerWorkflow[]
+
+  worker Worker?
+
+  requests WebhookWorkerRequest[]
+}
+
+enum WebhookWorkerRequestMethod {
+  GET
+  POST
+  PUT
+}
+
+model WebhookWorkerRequest {
+  id        String   @id @unique @default(uuid()) @db.Uuid
+  createdAt DateTime @default(now())
+
+  // the parent webhook worker
+  webhookWorker   WebhookWorker @relation(fields: [webhookWorkerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  webhookWorkerId String        @db.Uuid
+
+  // the request method
+  method WebhookWorkerRequestMethod
+
+  // the request status code
+  statusCode Int
 }
 
 model WebhookWorkerWorkflow {
@@ -526,6 +551,9 @@ model WorkflowVersion {
   // the default amount of time to wait while scheduling a step run
   scheduleTimeout String @default("5m")
 
+  // default priority for the workflow
+  defaultPriority Int?
+
   @@index([deletedAt])
 }
 
@@ -908,6 +936,9 @@ model WorkflowRun {
   // the duration of the run (ms)
   duration Int?
 
+  // priority of the workflow run
+  priority Int?
+
   // a list of dependents for this workflow run
   children          WorkflowRun[]                 @relation("WorkflowRunChild")
   scheduledChildren WorkflowTriggerScheduledRef[]
@@ -1192,7 +1223,8 @@ model StepRun {
 
   order BigInt @default(autoincrement()) @db.BigInt
 
-  queue String @default("default")
+  queue    String @default("default")
+  priority Int?
 
   // the worker assigned to this job
   worker   Worker? @relation(fields: [workerId], references: [id])
@@ -1467,12 +1499,20 @@ model WorkerLabel {
   @@index([workerId])
 }
 
+enum WorkerType {
+  WEBHOOK
+  MANAGED
+  SELFHOSTED
+}
+
 model Worker {
   // base fields
   id        String    @id @unique @default(uuid()) @db.Uuid
   createdAt DateTime  @default(now())
   updatedAt DateTime  @default(now()) @updatedAt
   deletedAt DateTime?
+
+  type WorkerType @default(SELFHOSTED)
 
   labels WorkerLabel[]
 
@@ -1512,6 +1552,9 @@ model Worker {
   groupKeyRuns GetGroupKeyRun[]
 
   slots WorkerSemaphoreSlot[]
+
+  webhook   WebhookWorker? @relation(fields: [webhookId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  webhookId String?        @unique @db.Uuid
 
   // DEPRECATED in v_0_30_1, replaced with slots and will be removed in a future release
   semaphore WorkerSemaphore? // FIXME remove this in a few releases from v_0_30_1

@@ -1,9 +1,13 @@
 -- name: ListWorkersWithStepCount :many
 SELECT
     sqlc.embed(workers),
+    ww."url" AS "webhookUrl",
+    ww."id" AS "webhookId",
     (SELECT COUNT(*) FROM "WorkerSemaphoreSlot" wss WHERE wss."workerId" = workers."id" AND wss."stepRunId" IS NOT NULL) AS "slots"
 FROM
     "Worker" workers
+LEFT JOIN
+    "WebhookWorker" ww ON workers."webhookId" = ww."id"
 WHERE
     workers."tenantId" = @tenantId
     AND (
@@ -29,7 +33,34 @@ WHERE
         ))
     )
 GROUP BY
-    workers."id";
+    workers."id", ww."url", ww."id";
+
+-- name: GetWorkerById :one
+SELECT
+    sqlc.embed(w),
+    ww."url" AS "webhookUrl",
+    (
+        SELECT COUNT(*)
+        FROM "WorkerSemaphoreSlot"
+        WHERE "workerId" = w.id AND "stepRunId" IS NOT NULL
+    ) AS filled_slots
+FROM
+    "Worker" w
+LEFT JOIN
+    "WebhookWorker" ww ON w."webhookId" = ww."id"
+WHERE
+    w."id" = @id::uuid;
+
+-- name: GetWorkerActionsByWorkerId :many
+SELECT
+    a."actionId" AS actionId
+FROM "Worker" w
+LEFT JOIN "_ActionToWorker" aw ON w.id = aw."B"
+LEFT JOIN "Action" a ON aw."A" = a.id
+WHERE
+    a."tenantId" = @tenantId::uuid AND
+    w."id" = @workerId::uuid;
+
 
 -- name: StubWorkerSemaphoreSlots :exec
 INSERT INTO "WorkerSemaphoreSlot" ("id", "workerId")
@@ -112,7 +143,9 @@ INSERT INTO "Worker" (
     "tenantId",
     "name",
     "dispatcherId",
-    "maxRuns"
+    "maxRuns",
+    "webhookId",
+    "type"
 ) VALUES (
     gen_random_uuid(),
     CURRENT_TIMESTAMP,
@@ -120,8 +153,19 @@ INSERT INTO "Worker" (
     @tenantId::uuid,
     @name::text,
     @dispatcherId::uuid,
-    sqlc.narg('maxRuns')::int
+    sqlc.narg('maxRuns')::int,
+    sqlc.narg('webhookId')::uuid,
+    sqlc.narg('type')::"WorkerType"
 ) RETURNING *;
+
+-- name: GetWorkerByWebhookId :one
+SELECT
+    *
+FROM
+    "Worker"
+WHERE
+    "webhookId" = @webhookId::uuid
+    AND "tenantId" = @tenantId::uuid;
 
 -- name: UpdateWorkerHeartbeat :one
 UPDATE
@@ -233,12 +277,12 @@ WHERE
   "id" = @id::uuid
 RETURNING *;
 
--- name: UpdateWorkersByName :many
+-- name: UpdateWorkersByWebhookId :many
 UPDATE "Worker"
 SET "isActive" = @isActive::boolean
 WHERE
   "tenantId" = @tenantId::uuid AND
-  "name" = @name::text
+  "webhookId" = @webhookId::uuid
 RETURNING *;
 
 -- name: UpdateWorkerActiveStatus :one

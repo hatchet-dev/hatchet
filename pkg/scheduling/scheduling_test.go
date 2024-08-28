@@ -1,6 +1,7 @@
 package scheduling
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -156,7 +157,7 @@ func TestGeneratePlan(t *testing.T) {
 			name: "GeneratePlan_Affinity_Soft",
 			args: args{
 				fixtureArgs:   "./fixtures/affinity_soft.json",
-				fixtureResult: "./fixtures/affinity_output.json",
+				fixtureResult: "./fixtures/affinity_soft_output.json",
 				noTimeout:     true,
 			},
 			want: func(s SchedulePlan, fixtureResult string) bool {
@@ -175,7 +176,7 @@ func TestGeneratePlan(t *testing.T) {
 			name: "GeneratePlan_Affinity_Hard",
 			args: args{
 				fixtureArgs:   "./fixtures/affinity_hard.json",
-				fixtureResult: "./fixtures/affinity_output.json",
+				fixtureResult: "./fixtures/affinity_hard_output.json",
 				noTimeout:     true,
 			},
 			want: func(s SchedulePlan, fixtureResult string) bool {
@@ -229,6 +230,25 @@ func TestGeneratePlan(t *testing.T) {
 			wantErr: assert.NoError,
 		},
 		{
+			name: "GeneratePlan_Sticky_Hard_No_Desired",
+			args: args{
+				fixtureArgs:   "./fixtures/sticky_hard_no_desired.json",
+				fixtureResult: "./fixtures/sticky_hard_no_desired_output.json",
+				noTimeout:     true,
+			},
+			want: func(s SchedulePlan, fixtureResult string) bool {
+				// DumpResults(s, "sticky_hard_output.json")
+
+				assert, err := assertResult(s, fixtureResult)
+				if err != nil {
+					fmt.Println(err)
+				}
+
+				return assert
+			},
+			wantErr: assert.NoError,
+		},
+		{
 			name: "GeneratePlan_TimedOut",
 			args: args{
 				fixtureArgs:   "./fixtures/simple_plan.json",
@@ -258,6 +278,7 @@ func TestGeneratePlan(t *testing.T) {
 			}
 
 			got, err := GeneratePlan(
+				context.Background(),
 				fixtureData.Slots,
 				fixtureData.UniqueActionsArr,
 				fixtureData.QueueItems,
@@ -284,6 +305,7 @@ func BenchmarkGeneratePlan(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		_, _ = GeneratePlan(
+			context.Background(),
 			fixtureData.Slots,
 			fixtureData.UniqueActionsArr,
 			fixtureData.QueueItems,

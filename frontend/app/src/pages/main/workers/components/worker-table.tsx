@@ -24,6 +24,7 @@ import { BiCard, BiTable } from 'react-icons/bi';
 import { WorkerStatus, isHealthy } from '../$worker';
 import { ColumnFiltersState } from '@tanstack/react-table';
 import RelativeDate from '@/components/molecules/relative-date';
+import { Badge } from '@/components/ui/badge';
 
 export function WorkersTable() {
   const { tenant } = useOutletContext<TenantContextType>();
@@ -98,9 +99,14 @@ export function WorkersTable() {
       className="border overflow-hidden shadow rounded-lg"
     >
       <div className="px-4 py-5 sm:p-6">
-        <h3 className="text-lg leading-6 font-medium text-foreground flex flex-row items-center justify-between">
-          <Link to={`/workers/${data.metadata?.id}`}>{data.name}</Link>
+        <div className="flex flex-row items-center justify-between mb-2">
+          <Badge variant="secondary">{data.type}</Badge>{' '}
           <WorkerStatus status={data.status} health={isHealthy(data)} />
+        </div>
+        <h3 className="text-lg leading-6 font-medium text-foreground">
+          <Link to={`/workers/${data.metadata?.id}`}>
+            {data.webhookUrl || data.name}
+          </Link>
         </h3>
         <p className="mt-1 max-w-2xl text-sm text-gray-700 dark:text-gray-300">
           Started <RelativeDate date={data.metadata?.createdAt} />

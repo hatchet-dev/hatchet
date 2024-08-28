@@ -13,6 +13,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/integrations/alerting"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
+	"github.com/hatchet-dev/hatchet/internal/services/controllers/partition"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
@@ -36,19 +37,19 @@ type WorkflowsControllerImpl struct {
 	s             gocron.Scheduler
 	tenantAlerter *alerting.TenantAlertManager
 	a             *hatcheterrors.Wrapped
-	partitionId   string
+	p             *partition.Partition
 }
 
 type WorkflowsControllerOpt func(*WorkflowsControllerOpts)
 
 type WorkflowsControllerOpts struct {
-	mq          msgqueue.MessageQueue
-	l           *zerolog.Logger
-	repo        repository.EngineRepository
-	dv          datautils.DataDecoderValidator
-	ta          *alerting.TenantAlertManager
-	alerter     hatcheterrors.Alerter
-	partitionId string
+	mq      msgqueue.MessageQueue
+	l       *zerolog.Logger
+	repo    repository.EngineRepository
+	dv      datautils.DataDecoderValidator
+	ta      *alerting.TenantAlertManager
+	alerter hatcheterrors.Alerter
+	p       *partition.Partition
 }
 
 func defaultWorkflowsControllerOpts() *WorkflowsControllerOpts {
@@ -98,9 +99,9 @@ func WithTenantAlerter(ta *alerting.TenantAlertManager) WorkflowsControllerOpt {
 	}
 }
 
-func WithPartitionId(partitionId string) WorkflowsControllerOpt {
+func WithPartition(p *partition.Partition) WorkflowsControllerOpt {
 	return func(opts *WorkflowsControllerOpts) {
-		opts.partitionId = partitionId
+		opts.p = p
 	}
 }
 
@@ -123,8 +124,8 @@ func New(fs ...WorkflowsControllerOpt) (*WorkflowsControllerImpl, error) {
 		return nil, fmt.Errorf("tenant alerter is required. use WithTenantAlerter")
 	}
 
-	if opts.partitionId == "" {
-		return nil, fmt.Errorf("partition ID is required. use WithPartitionId")
+	if opts.p == nil {
+		return nil, fmt.Errorf("partition is required. use WithPartition")
 	}
 
 	s, err := gocron.NewScheduler(gocron.WithLocation(time.UTC))
@@ -147,7 +148,7 @@ func New(fs ...WorkflowsControllerOpt) (*WorkflowsControllerImpl, error) {
 		s:             s,
 		tenantAlerter: opts.ta,
 		a:             a,
-		partitionId:   opts.partitionId,
+		p:             opts.p,
 	}, nil
 }
 

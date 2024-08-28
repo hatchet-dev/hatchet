@@ -67,6 +67,7 @@ SELECT
     sr."gitRepoBranch" AS "SR_gitRepoBranch",
     sr."retryCount" AS "SR_retryCount",
     sr."semaphoreReleased" AS "SR_semaphoreReleased",
+    sr."priority" AS "SR_priority",
     -- TODO: everything below this line is cacheable and should be moved to a separate query
     jr."id" AS "jobRunId",
     s."id" AS "stepId",
@@ -408,7 +409,6 @@ step_runs_to_reassign AS (
     WHERE
         "workerId" = ANY(SELECT "id" FROM inactive_workers)
         AND "stepRunId" IS NOT NULL
-    FOR UPDATE SKIP LOCKED
 ),
 update_semaphore_steps AS (
     UPDATE "WorkerSemaphoreSlot" wss
@@ -423,13 +423,15 @@ step_runs_with_data AS (
         sr."scheduleTimeoutAt",
         s."actionId",
         s."id" AS "stepId",
-        s."timeout" AS "stepTimeout"
+        s."timeout" AS "stepTimeout",
+        s."scheduleTimeout" AS "scheduleTimeout"
     FROM
         "StepRun" sr
     JOIN
         "Step" s ON sr."stepId" = s."id"
     WHERE
         sr."id" = ANY(SELECT "stepRunId" FROM step_runs_to_reassign)
+    FOR UPDATE SKIP LOCKED
 ),
 inserted_queue_items AS (
     INSERT INTO "QueueItem" (
@@ -447,9 +449,7 @@ inserted_queue_items AS (
         srs."id",
         srs."stepId",
         srs."actionId",
-        -- FIXME: this should be configurable. It doesn't make sense to use the existing scheduleTimeoutAt
-        -- as we might be well past that time.
-        NOW() + INTERVAL '5 minutes',
+        CURRENT_TIMESTAMP + COALESCE(convert_duration_to_interval(srs."scheduleTimeout"), INTERVAL '5 minutes'),
         srs."stepTimeout",
         -- Queue with priority 4 so that reassignment gets highest priority
         4,
@@ -458,6 +458,16 @@ inserted_queue_items AS (
         srs."actionId"
     FROM
         step_runs_with_data srs
+),
+updated_step_runs AS (
+    UPDATE "StepRun" sr
+    SET
+        "status" = 'PENDING_ASSIGNMENT',
+        "scheduleTimeoutAt" = CURRENT_TIMESTAMP + COALESCE(convert_duration_to_interval(srs."scheduleTimeout"), INTERVAL '5 minutes'),
+        "updatedAt" = CURRENT_TIMESTAMP
+    FROM step_runs_with_data srs
+    WHERE sr."id" = srs."id"
+    RETURNING sr."id"
 )
 SELECT
     srs."id"
@@ -608,7 +618,7 @@ WITH already_assigned_step_runs AS (
     ) AS input
     WHERE
         sr."id" = input."id"
-    RETURNING input."id", input."slotId"
+    RETURNING input."id", input."slotId", input."workerId"
 )
 UPDATE
     "WorkerSemaphoreSlot" wss
@@ -617,7 +627,16 @@ SET
 FROM updated_step_runs
 WHERE
     wss."id" = updated_step_runs."slotId"
-RETURNING wss."id";
+RETURNING updated_step_runs."id"::uuid, updated_step_runs."workerId"::uuid;
+
+-- name: GetCancelledStepRuns :many
+SELECT
+    "id"
+FROM
+    "StepRun"
+WHERE
+    "id" = ANY(@stepRunIds::uuid[])
+    AND "status" != 'PENDING_ASSIGNMENT';
 
 -- name: BulkMarkStepRunsAsCancelling :many
 UPDATE

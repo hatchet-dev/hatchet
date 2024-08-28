@@ -164,6 +164,7 @@ func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.Worker
 		Name:         request.WorkerName,
 		Actions:      request.Actions,
 		Services:     svcs,
+		WebhookId:    request.WebhookId,
 	}
 
 	if request.MaxRuns != nil {
@@ -496,10 +497,6 @@ func (s *DispatcherImpl) ReleaseSlot(ctx context.Context, req *contracts.Release
 }
 
 func (s *DispatcherImpl) SubscribeToWorkflowEvents(request *contracts.SubscribeToWorkflowEventsRequest, stream contracts.Dispatcher_SubscribeToWorkflowEventsServer) error {
-
-	fmt.Println("SubscribeToWorkflowEvents")
-	fmt.Println(request)
-
 	if request.WorkflowRunId != nil {
 		return s.subscribeToWorkflowEventsByWorkflowRunId(*request.WorkflowRunId, stream)
 	} else if request.AdditionalMetaKey != nil && request.AdditionalMetaValue != nil {
@@ -513,8 +510,6 @@ func (s *DispatcherImpl) SubscribeToWorkflowEvents(request *contracts.SubscribeT
 func (s *DispatcherImpl) subscribeToWorkflowEventsByAdditionalMeta(key string, value string, stream contracts.Dispatcher_SubscribeToWorkflowEventsServer) error {
 	tenant := stream.Context().Value("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
-
-	s.l.Error().Msgf("Received subscribe request for additional meta key-value: {%s: %s}", key, value)
 
 	q, err := msgqueue.TenantEventConsumerQueue(tenantId)
 	if err != nil {
@@ -545,8 +540,10 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByAdditionalMeta(key string, v
 					return false, nil
 				}
 
-				if e.ResourceType != contracts.ResourceType_RESOURCE_TYPE_WORKFLOW_RUN &&
-					e.EventType != contracts.ResourceEventType_RESOURCE_EVENT_TYPE_COMPLETED {
+				isWorkflowRunCompletedEvent := e.ResourceType == contracts.ResourceType_RESOURCE_TYPE_WORKFLOW_RUN &&
+					e.EventType == contracts.ResourceEventType_RESOURCE_EVENT_TYPE_COMPLETED
+
+				if !isWorkflowRunCompletedEvent {
 					// Add the run ID to active runs
 					activeRunIds[e.WorkflowRunId] = struct{}{}
 				} else {
@@ -565,7 +562,7 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByAdditionalMeta(key string, v
 		if err != nil {
 			s.l.Error().Err(err).Msgf("could not convert task to workflow event")
 			return nil
-		} else if e == nil {
+		} else if e == nil || e.WorkflowRunId == "" {
 			return nil
 		}
 

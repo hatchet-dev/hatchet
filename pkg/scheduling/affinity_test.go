@@ -76,6 +76,13 @@ func TestComputeWeight(t *testing.T) {
 			name: "No match for a required returns -1",
 			desiredLabels: []*dbsqlc.GetDesiredLabelsRow{
 				{
+					Key:        "memory",
+					Comparator: dbsqlc.WorkerLabelComparatorEQUAL,
+					StrValue:   sqlchelpers.TextFromStr("100"),
+					Weight:     15,
+					Required:   false,
+				},
+				{
 					Key:        "region",
 					Comparator: dbsqlc.WorkerLabelComparatorEQUAL,
 					StrValue:   sqlchelpers.TextFromStr("us-west"),

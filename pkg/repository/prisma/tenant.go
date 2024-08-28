@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
@@ -300,9 +301,37 @@ func (r *tenantEngineRepository) GetTenantByID(ctx context.Context, tenantId str
 	})
 }
 
-func (r *tenantEngineRepository) UpdatePartitionHeartbeat(ctx context.Context, partitionId string) error {
-	_, err := r.queries.ControllerPartitionHeartbeat(ctx, r.pool, partitionId)
-	return err
+func (r *tenantEngineRepository) UpdateControllerPartitionHeartbeat(ctx context.Context, partitionId string) (string, error) {
+	partition, err := r.queries.ControllerPartitionHeartbeat(ctx, r.pool, partitionId)
+
+	if err == pgx.ErrNoRows {
+		// create a new partition
+		partition, err := r.queries.CreateControllerPartition(ctx, r.pool)
+
+		if err != nil {
+			return "", err
+		}
+
+		return partition.ID, nil
+	}
+
+	return partition.ID, err
+}
+
+func (r *tenantEngineRepository) UpdateWorkerPartitionHeartbeat(ctx context.Context, partitionId string) (string, error) {
+	partition, err := r.queries.WorkerPartitionHeartbeat(ctx, r.pool, partitionId)
+
+	if err == pgx.ErrNoRows {
+		partition, err := r.queries.CreateTenantWorkerPartition(ctx, r.pool)
+
+		if err != nil {
+			return "", err
+		}
+
+		return partition.ID, nil
+	}
+
+	return partition.ID, err
 }
 
 func (r *tenantEngineRepository) ListTenantsByControllerPartition(ctx context.Context, controllerPartitionId string) ([]*dbsqlc.Tenant, error) {
@@ -321,9 +350,14 @@ func (r *tenantEngineRepository) ListTenantsByWorkerPartition(ctx context.Contex
 	return r.queries.ListTenantsByTenantWorkerPartitionId(ctx, r.pool, workerPartitionId)
 }
 
-func (r *tenantEngineRepository) CreateControllerPartition(ctx context.Context, id string) error {
-	_, err := r.queries.CreateControllerPartition(ctx, r.pool, id)
-	return err
+func (r *tenantEngineRepository) CreateControllerPartition(ctx context.Context) (string, error) {
+	partition, err := r.queries.CreateControllerPartition(ctx, r.pool)
+
+	if err != nil {
+		return "", err
+	}
+
+	return partition.ID, nil
 }
 
 func (r *tenantEngineRepository) DeleteControllerPartition(ctx context.Context, id string) error {
@@ -339,9 +373,14 @@ func (r *tenantEngineRepository) RebalanceInactiveControllerPartitions(ctx conte
 	return r.queries.RebalanceInactiveControllerPartitions(ctx, r.pool)
 }
 
-func (r *tenantEngineRepository) CreateTenantWorkerPartition(ctx context.Context, id string) error {
-	_, err := r.queries.CreateTenantWorkerPartition(ctx, r.pool, id)
-	return err
+func (r *tenantEngineRepository) CreateTenantWorkerPartition(ctx context.Context) (string, error) {
+	partition, err := r.queries.CreateTenantWorkerPartition(ctx, r.pool)
+
+	if err != nil {
+		return "", err
+	}
+
+	return partition.ID, nil
 }
 
 func (r *tenantEngineRepository) DeleteTenantWorkerPartition(ctx context.Context, id string) error {
