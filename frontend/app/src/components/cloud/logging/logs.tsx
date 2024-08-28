@@ -8,8 +8,12 @@ const convert = new AnsiToHtml({
   bg: 'transparent',
 });
 
+export interface ExtendedLogLine extends LogLine {
+  badge?: React.ReactNode;
+}
+
 type LogProps = {
-  logs: LogLine[];
+  logs: ExtendedLogLine[];
   onTopReached: () => void;
   onBottomReached: () => void;
 };
@@ -117,6 +121,10 @@ const LoggingComponent: React.FC<LogProps> = ({
           },
         ];
 
+  const sortedLogs = [...showLogs].sort(
+    (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
+  );
+
   return (
     <div
       className="relative w-full mx-auto overflow-y-auto p-6 text-indigo-300 font-mono text-xs rounded-md max-h-[25rem] min-h-[25rem] bg-muted"
@@ -128,7 +136,7 @@ const LoggingComponent: React.FC<LogProps> = ({
           Refreshing...
         </div>
       )}
-      {showLogs.map((log, i) => {
+      {sortedLogs.map((log, i) => {
         const sanitizedHtml = DOMPurify.sanitize(convert.toHtml(log.line), {
           USE_PROFILES: { html: true },
         });
@@ -141,6 +149,7 @@ const LoggingComponent: React.FC<LogProps> = ({
             className="pb-2 break-all overflow-x-hidden"
             id={'log' + i}
           >
+            {log.badge}
             <span className="text-gray-500 mr-2 ml--2">
               {new Date(log.timestamp)
                 .toLocaleString('sv', options)

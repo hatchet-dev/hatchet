@@ -151,7 +151,7 @@ WITH already_assigned_step_runs AS (
     ) AS input
     WHERE
         sr."id" = input."id"
-    RETURNING input."id", input."slotId"
+    RETURNING input."id", input."slotId", input."workerId"
 )
 UPDATE
     "WorkerSemaphoreSlot" wss
@@ -160,7 +160,7 @@ SET
 FROM updated_step_runs
 WHERE
     wss."id" = updated_step_runs."slotId"
-RETURNING wss."id"
+RETURNING updated_step_runs."id"::uuid, updated_step_runs."workerId"::uuid
 `
 
 type BulkAssignStepRunsToWorkersParams struct {
@@ -170,7 +170,12 @@ type BulkAssignStepRunsToWorkersParams struct {
 	Workerids       []pgtype.UUID `json:"workerids"`
 }
 
-func (q *Queries) BulkAssignStepRunsToWorkers(ctx context.Context, db DBTX, arg BulkAssignStepRunsToWorkersParams) ([]pgtype.UUID, error) {
+type BulkAssignStepRunsToWorkersRow struct {
+	UpdatedStepRunsID       pgtype.UUID `json:"updated_step_runs_id"`
+	UpdatedStepRunsWorkerId pgtype.UUID `json:"updated_step_runs_workerId"`
+}
+
+func (q *Queries) BulkAssignStepRunsToWorkers(ctx context.Context, db DBTX, arg BulkAssignStepRunsToWorkersParams) ([]*BulkAssignStepRunsToWorkersRow, error) {
 	rows, err := db.Query(ctx, bulkAssignStepRunsToWorkers,
 		arg.Steprunids,
 		arg.Slotids,
@@ -181,13 +186,13 @@ func (q *Queries) BulkAssignStepRunsToWorkers(ctx context.Context, db DBTX, arg 
 		return nil, err
 	}
 	defer rows.Close()
-	var items []pgtype.UUID
+	var items []*BulkAssignStepRunsToWorkersRow
 	for rows.Next() {
-		var id pgtype.UUID
-		if err := rows.Scan(&id); err != nil {
+		var i BulkAssignStepRunsToWorkersRow
+		if err := rows.Scan(&i.UpdatedStepRunsID, &i.UpdatedStepRunsWorkerId); err != nil {
 			return nil, err
 		}
-		items = append(items, id)
+		items = append(items, &i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -509,6 +514,36 @@ func (q *Queries) CreateStepRunEvent(ctx context.Context, db DBTX, arg CreateSte
 	return err
 }
 
+const getCancelledStepRuns = `-- name: GetCancelledStepRuns :many
+SELECT
+    "id"
+FROM
+    "StepRun"
+WHERE
+    "id" = ANY($1::uuid[])
+    AND "status" != 'PENDING_ASSIGNMENT'
+`
+
+func (q *Queries) GetCancelledStepRuns(ctx context.Context, db DBTX, steprunids []pgtype.UUID) ([]pgtype.UUID, error) {
+	rows, err := db.Query(ctx, getCancelledStepRuns, steprunids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []pgtype.UUID
+	for rows.Next() {
+		var id pgtype.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getDesiredLabels = `-- name: GetDesiredLabels :many
 SELECT
     "key",
@@ -561,7 +596,7 @@ func (q *Queries) GetDesiredLabels(ctx context.Context, db DBTX, stepid pgtype.U
 
 const getLaterStepRunsForReplay = `-- name: GetLaterStepRunsForReplay :many
 WITH RECURSIVE currStepRun AS (
-    SELECT id, "createdAt", "updatedAt", "deletedAt", "tenantId", "jobRunId", "stepId", "order", "workerId", "tickerId", status, input, output, "requeueAfter", "scheduleTimeoutAt", error, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError", "inputSchema", "callerFiles", "gitRepoBranch", "retryCount", "semaphoreReleased", queue
+    SELECT id, "createdAt", "updatedAt", "deletedAt", "tenantId", "jobRunId", "stepId", "order", "workerId", "tickerId", status, input, output, "requeueAfter", "scheduleTimeoutAt", error, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError", "inputSchema", "callerFiles", "gitRepoBranch", "retryCount", "semaphoreReleased", queue, priority
     FROM "StepRun"
     WHERE
         "id" = $2::uuid AND
@@ -580,7 +615,7 @@ WITH RECURSIVE currStepRun AS (
     JOIN childStepRuns csr ON sro."A" = csr."id"
 )
 SELECT
-    sr.id, sr."createdAt", sr."updatedAt", sr."deletedAt", sr."tenantId", sr."jobRunId", sr."stepId", sr."order", sr."workerId", sr."tickerId", sr.status, sr.input, sr.output, sr."requeueAfter", sr."scheduleTimeoutAt", sr.error, sr."startedAt", sr."finishedAt", sr."timeoutAt", sr."cancelledAt", sr."cancelledReason", sr."cancelledError", sr."inputSchema", sr."callerFiles", sr."gitRepoBranch", sr."retryCount", sr."semaphoreReleased", sr.queue
+    sr.id, sr."createdAt", sr."updatedAt", sr."deletedAt", sr."tenantId", sr."jobRunId", sr."stepId", sr."order", sr."workerId", sr."tickerId", sr.status, sr.input, sr.output, sr."requeueAfter", sr."scheduleTimeoutAt", sr.error, sr."startedAt", sr."finishedAt", sr."timeoutAt", sr."cancelledAt", sr."cancelledReason", sr."cancelledError", sr."inputSchema", sr."callerFiles", sr."gitRepoBranch", sr."retryCount", sr."semaphoreReleased", sr.queue, sr.priority
 FROM
     "StepRun" sr
 JOIN
@@ -632,6 +667,7 @@ func (q *Queries) GetLaterStepRunsForReplay(ctx context.Context, db DBTX, arg Ge
 			&i.RetryCount,
 			&i.SemaphoreReleased,
 			&i.Queue,
+			&i.Priority,
 		); err != nil {
 			return nil, err
 		}
@@ -711,7 +747,7 @@ func (q *Queries) GetStepDesiredWorkerLabels(ctx context.Context, db DBTX, stepi
 
 const getStepRun = `-- name: GetStepRun :one
 SELECT
-    "StepRun".id, "StepRun"."createdAt", "StepRun"."updatedAt", "StepRun"."deletedAt", "StepRun"."tenantId", "StepRun"."jobRunId", "StepRun"."stepId", "StepRun"."order", "StepRun"."workerId", "StepRun"."tickerId", "StepRun".status, "StepRun".input, "StepRun".output, "StepRun"."requeueAfter", "StepRun"."scheduleTimeoutAt", "StepRun".error, "StepRun"."startedAt", "StepRun"."finishedAt", "StepRun"."timeoutAt", "StepRun"."cancelledAt", "StepRun"."cancelledReason", "StepRun"."cancelledError", "StepRun"."inputSchema", "StepRun"."callerFiles", "StepRun"."gitRepoBranch", "StepRun"."retryCount", "StepRun"."semaphoreReleased", "StepRun".queue
+    "StepRun".id, "StepRun"."createdAt", "StepRun"."updatedAt", "StepRun"."deletedAt", "StepRun"."tenantId", "StepRun"."jobRunId", "StepRun"."stepId", "StepRun"."order", "StepRun"."workerId", "StepRun"."tickerId", "StepRun".status, "StepRun".input, "StepRun".output, "StepRun"."requeueAfter", "StepRun"."scheduleTimeoutAt", "StepRun".error, "StepRun"."startedAt", "StepRun"."finishedAt", "StepRun"."timeoutAt", "StepRun"."cancelledAt", "StepRun"."cancelledReason", "StepRun"."cancelledError", "StepRun"."inputSchema", "StepRun"."callerFiles", "StepRun"."gitRepoBranch", "StepRun"."retryCount", "StepRun"."semaphoreReleased", "StepRun".queue, "StepRun".priority
 FROM
     "StepRun"
 WHERE
@@ -757,6 +793,7 @@ func (q *Queries) GetStepRun(ctx context.Context, db DBTX, arg GetStepRunParams)
 		&i.RetryCount,
 		&i.SemaphoreReleased,
 		&i.Queue,
+		&i.Priority,
 	)
 	return &i, err
 }
@@ -842,6 +879,7 @@ SELECT
     sr."gitRepoBranch" AS "SR_gitRepoBranch",
     sr."retryCount" AS "SR_retryCount",
     sr."semaphoreReleased" AS "SR_semaphoreReleased",
+    sr."priority" AS "SR_priority",
     -- TODO: everything below this line is cacheable and should be moved to a separate query
     jr."id" AS "jobRunId",
     s."id" AS "stepId",
@@ -909,6 +947,7 @@ type GetStepRunForEngineRow struct {
 	SRGitRepoBranch     pgtype.Text        `json:"SR_gitRepoBranch"`
 	SRRetryCount        int32              `json:"SR_retryCount"`
 	SRSemaphoreReleased bool               `json:"SR_semaphoreReleased"`
+	SRPriority          pgtype.Int4        `json:"SR_priority"`
 	JobRunId            pgtype.UUID        `json:"jobRunId"`
 	StepId              pgtype.UUID        `json:"stepId"`
 	StepRetries         int32              `json:"stepRetries"`
@@ -959,6 +998,7 @@ func (q *Queries) GetStepRunForEngine(ctx context.Context, db DBTX, arg GetStepR
 			&i.SRGitRepoBranch,
 			&i.SRRetryCount,
 			&i.SRSemaphoreReleased,
+			&i.SRPriority,
 			&i.JobRunId,
 			&i.StepId,
 			&i.StepRetries,
@@ -1055,7 +1095,7 @@ func (q *Queries) GetWorkerLabels(ctx context.Context, db DBTX, workerid pgtype.
 
 const listNonFinalChildStepRuns = `-- name: ListNonFinalChildStepRuns :many
 WITH RECURSIVE currStepRun AS (
-    SELECT id, "createdAt", "updatedAt", "deletedAt", "tenantId", "jobRunId", "stepId", "order", "workerId", "tickerId", status, input, output, "requeueAfter", "scheduleTimeoutAt", error, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError", "inputSchema", "callerFiles", "gitRepoBranch", "retryCount", "semaphoreReleased", queue
+    SELECT id, "createdAt", "updatedAt", "deletedAt", "tenantId", "jobRunId", "stepId", "order", "workerId", "tickerId", status, input, output, "requeueAfter", "scheduleTimeoutAt", error, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError", "inputSchema", "callerFiles", "gitRepoBranch", "retryCount", "semaphoreReleased", queue, priority
     FROM "StepRun"
     WHERE
         "id" = $2::uuid AND
@@ -1075,7 +1115,7 @@ WITH RECURSIVE currStepRun AS (
     JOIN childStepRuns csr ON sro."A" = csr."id"
 )
 SELECT
-    sr.id, sr."createdAt", sr."updatedAt", sr."deletedAt", sr."tenantId", sr."jobRunId", sr."stepId", sr."order", sr."workerId", sr."tickerId", sr.status, sr.input, sr.output, sr."requeueAfter", sr."scheduleTimeoutAt", sr.error, sr."startedAt", sr."finishedAt", sr."timeoutAt", sr."cancelledAt", sr."cancelledReason", sr."cancelledError", sr."inputSchema", sr."callerFiles", sr."gitRepoBranch", sr."retryCount", sr."semaphoreReleased", sr.queue
+    sr.id, sr."createdAt", sr."updatedAt", sr."deletedAt", sr."tenantId", sr."jobRunId", sr."stepId", sr."order", sr."workerId", sr."tickerId", sr.status, sr.input, sr.output, sr."requeueAfter", sr."scheduleTimeoutAt", sr.error, sr."startedAt", sr."finishedAt", sr."timeoutAt", sr."cancelledAt", sr."cancelledReason", sr."cancelledError", sr."inputSchema", sr."callerFiles", sr."gitRepoBranch", sr."retryCount", sr."semaphoreReleased", sr.queue, sr.priority
 FROM
     "StepRun" sr
 JOIN
@@ -1130,6 +1170,7 @@ func (q *Queries) ListNonFinalChildStepRuns(ctx context.Context, db DBTX, arg Li
 			&i.RetryCount,
 			&i.SemaphoreReleased,
 			&i.Queue,
+			&i.Priority,
 		); err != nil {
 			return nil, err
 		}
@@ -1484,7 +1525,6 @@ step_runs_to_reassign AS (
     WHERE
         "workerId" = ANY(SELECT "id" FROM inactive_workers)
         AND "stepRunId" IS NOT NULL
-    FOR UPDATE SKIP LOCKED
 ),
 update_semaphore_steps AS (
     UPDATE "WorkerSemaphoreSlot" wss
@@ -1499,13 +1539,15 @@ step_runs_with_data AS (
         sr."scheduleTimeoutAt",
         s."actionId",
         s."id" AS "stepId",
-        s."timeout" AS "stepTimeout"
+        s."timeout" AS "stepTimeout",
+        s."scheduleTimeout" AS "scheduleTimeout"
     FROM
         "StepRun" sr
     JOIN
         "Step" s ON sr."stepId" = s."id"
     WHERE
         sr."id" = ANY(SELECT "stepRunId" FROM step_runs_to_reassign)
+    FOR UPDATE SKIP LOCKED
 ),
 inserted_queue_items AS (
     INSERT INTO "QueueItem" (
@@ -1523,9 +1565,7 @@ inserted_queue_items AS (
         srs."id",
         srs."stepId",
         srs."actionId",
-        -- FIXME: this should be configurable. It doesn't make sense to use the existing scheduleTimeoutAt
-        -- as we might be well past that time.
-        NOW() + INTERVAL '5 minutes',
+        CURRENT_TIMESTAMP + COALESCE(convert_duration_to_interval(srs."scheduleTimeout"), INTERVAL '5 minutes'),
         srs."stepTimeout",
         -- Queue with priority 4 so that reassignment gets highest priority
         4,
@@ -1534,6 +1574,16 @@ inserted_queue_items AS (
         srs."actionId"
     FROM
         step_runs_with_data srs
+),
+updated_step_runs AS (
+    UPDATE "StepRun" sr
+    SET
+        "status" = 'PENDING_ASSIGNMENT',
+        "scheduleTimeoutAt" = CURRENT_TIMESTAMP + COALESCE(convert_duration_to_interval(srs."scheduleTimeout"), INTERVAL '5 minutes'),
+        "updatedAt" = CURRENT_TIMESTAMP
+    FROM step_runs_with_data srs
+    WHERE sr."id" = srs."id"
+    RETURNING sr."id"
 )
 SELECT
     srs."id"
@@ -1605,7 +1655,7 @@ SET
 WHERE
     "id" = $2::uuid AND
     "tenantId" = $3::uuid
-RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "jobRunId", "stepId", "order", "workerId", "tickerId", status, input, output, "requeueAfter", "scheduleTimeoutAt", error, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError", "inputSchema", "callerFiles", "gitRepoBranch", "retryCount", "semaphoreReleased", queue
+RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "jobRunId", "stepId", "order", "workerId", "tickerId", status, input, output, "requeueAfter", "scheduleTimeoutAt", error, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError", "inputSchema", "callerFiles", "gitRepoBranch", "retryCount", "semaphoreReleased", queue, priority
 `
 
 type RefreshTimeoutByParams struct {
@@ -1646,6 +1696,7 @@ func (q *Queries) RefreshTimeoutBy(ctx context.Context, db DBTX, arg RefreshTime
 		&i.RetryCount,
 		&i.SemaphoreReleased,
 		&i.Queue,
+		&i.Priority,
 	)
 	return &i, err
 }
@@ -1718,7 +1769,7 @@ func (q *Queries) ReplayStepRunResetJobRun(ctx context.Context, db DBTX, jobruni
 
 const replayStepRunResetLaterStepRuns = `-- name: ReplayStepRunResetLaterStepRuns :many
 WITH RECURSIVE currStepRun AS (
-    SELECT id, "createdAt", "updatedAt", "deletedAt", "tenantId", "jobRunId", "stepId", "order", "workerId", "tickerId", status, input, output, "requeueAfter", "scheduleTimeoutAt", error, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError", "inputSchema", "callerFiles", "gitRepoBranch", "retryCount", "semaphoreReleased", queue
+    SELECT id, "createdAt", "updatedAt", "deletedAt", "tenantId", "jobRunId", "stepId", "order", "workerId", "tickerId", status, input, output, "requeueAfter", "scheduleTimeoutAt", error, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError", "inputSchema", "callerFiles", "gitRepoBranch", "retryCount", "semaphoreReleased", queue, priority
     FROM "StepRun"
     WHERE
         "id" = $2::uuid AND
@@ -1753,7 +1804,7 @@ FROM
 WHERE
     sr."id" = csr."id" AND
     sr."tenantId" = $1::uuid
-RETURNING sr.id, sr."createdAt", sr."updatedAt", sr."deletedAt", sr."tenantId", sr."jobRunId", sr."stepId", sr."order", sr."workerId", sr."tickerId", sr.status, sr.input, sr.output, sr."requeueAfter", sr."scheduleTimeoutAt", sr.error, sr."startedAt", sr."finishedAt", sr."timeoutAt", sr."cancelledAt", sr."cancelledReason", sr."cancelledError", sr."inputSchema", sr."callerFiles", sr."gitRepoBranch", sr."retryCount", sr."semaphoreReleased", sr.queue
+RETURNING sr.id, sr."createdAt", sr."updatedAt", sr."deletedAt", sr."tenantId", sr."jobRunId", sr."stepId", sr."order", sr."workerId", sr."tickerId", sr.status, sr.input, sr.output, sr."requeueAfter", sr."scheduleTimeoutAt", sr.error, sr."startedAt", sr."finishedAt", sr."timeoutAt", sr."cancelledAt", sr."cancelledReason", sr."cancelledError", sr."inputSchema", sr."callerFiles", sr."gitRepoBranch", sr."retryCount", sr."semaphoreReleased", sr.queue, sr.priority
 `
 
 type ReplayStepRunResetLaterStepRunsParams struct {
@@ -1799,6 +1850,7 @@ func (q *Queries) ReplayStepRunResetLaterStepRuns(ctx context.Context, db DBTX, 
 			&i.RetryCount,
 			&i.SemaphoreReleased,
 			&i.Queue,
+			&i.Priority,
 		); err != nil {
 			return nil, err
 		}
@@ -1821,7 +1873,7 @@ SET
     "duration" = NULL
 WHERE
     "id" =  $1::uuid
-RETURNING "createdAt", "updatedAt", "deletedAt", "tenantId", "workflowVersionId", status, error, "startedAt", "finishedAt", "concurrencyGroupId", "displayName", id, "childIndex", "childKey", "parentId", "parentStepRunId", "additionalMetadata", duration
+RETURNING "createdAt", "updatedAt", "deletedAt", "tenantId", "workflowVersionId", status, error, "startedAt", "finishedAt", "concurrencyGroupId", "displayName", id, "childIndex", "childKey", "parentId", "parentStepRunId", "additionalMetadata", duration, priority
 `
 
 func (q *Queries) ReplayStepRunResetWorkflowRun(ctx context.Context, db DBTX, workflowrunid pgtype.UUID) (*WorkflowRun, error) {
@@ -1846,6 +1898,7 @@ func (q *Queries) ReplayStepRunResetWorkflowRun(ctx context.Context, db DBTX, wo
 		&i.ParentStepRunId,
 		&i.AdditionalMetadata,
 		&i.Duration,
+		&i.Priority,
 	)
 	return &i, err
 }
@@ -1866,7 +1919,7 @@ SET
 WHERE
     sr."id" = ANY($1::uuid[]) AND
     sr."tenantId" = $2::uuid
-RETURNING sr.id, sr."createdAt", sr."updatedAt", sr."deletedAt", sr."tenantId", sr."jobRunId", sr."stepId", sr."order", sr."workerId", sr."tickerId", sr.status, sr.input, sr.output, sr."requeueAfter", sr."scheduleTimeoutAt", sr.error, sr."startedAt", sr."finishedAt", sr."timeoutAt", sr."cancelledAt", sr."cancelledReason", sr."cancelledError", sr."inputSchema", sr."callerFiles", sr."gitRepoBranch", sr."retryCount", sr."semaphoreReleased", sr.queue
+RETURNING sr.id, sr."createdAt", sr."updatedAt", sr."deletedAt", sr."tenantId", sr."jobRunId", sr."stepId", sr."order", sr."workerId", sr."tickerId", sr.status, sr.input, sr.output, sr."requeueAfter", sr."scheduleTimeoutAt", sr.error, sr."startedAt", sr."finishedAt", sr."timeoutAt", sr."cancelledAt", sr."cancelledReason", sr."cancelledError", sr."inputSchema", sr."callerFiles", sr."gitRepoBranch", sr."retryCount", sr."semaphoreReleased", sr.queue, sr.priority
 `
 
 type ResetStepRunsByIdsParams struct {
@@ -1912,6 +1965,7 @@ func (q *Queries) ResetStepRunsByIds(ctx context.Context, db DBTX, arg ResetStep
 			&i.RetryCount,
 			&i.SemaphoreReleased,
 			&i.Queue,
+			&i.Priority,
 		); err != nil {
 			return nil, err
 		}
@@ -1925,7 +1979,7 @@ func (q *Queries) ResetStepRunsByIds(ctx context.Context, db DBTX, arg ResetStep
 
 const resolveLaterStepRuns = `-- name: ResolveLaterStepRuns :many
 WITH RECURSIVE currStepRun AS (
-  SELECT id, "createdAt", "updatedAt", "deletedAt", "tenantId", "jobRunId", "stepId", "order", "workerId", "tickerId", status, input, output, "requeueAfter", "scheduleTimeoutAt", error, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError", "inputSchema", "callerFiles", "gitRepoBranch", "retryCount", "semaphoreReleased", queue
+  SELECT id, "createdAt", "updatedAt", "deletedAt", "tenantId", "jobRunId", "stepId", "order", "workerId", "tickerId", status, input, output, "requeueAfter", "scheduleTimeoutAt", error, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError", "inputSchema", "callerFiles", "gitRepoBranch", "retryCount", "semaphoreReleased", queue, priority
   FROM "StepRun"
   WHERE
     "id" = $2::uuid AND
@@ -1966,7 +2020,7 @@ FROM
 WHERE
     sr."id" = csr."id" AND
     sr."tenantId" = $1::uuid
-RETURNING sr.id, sr."createdAt", sr."updatedAt", sr."deletedAt", sr."tenantId", sr."jobRunId", sr."stepId", sr."order", sr."workerId", sr."tickerId", sr.status, sr.input, sr.output, sr."requeueAfter", sr."scheduleTimeoutAt", sr.error, sr."startedAt", sr."finishedAt", sr."timeoutAt", sr."cancelledAt", sr."cancelledReason", sr."cancelledError", sr."inputSchema", sr."callerFiles", sr."gitRepoBranch", sr."retryCount", sr."semaphoreReleased", sr.queue
+RETURNING sr.id, sr."createdAt", sr."updatedAt", sr."deletedAt", sr."tenantId", sr."jobRunId", sr."stepId", sr."order", sr."workerId", sr."tickerId", sr.status, sr.input, sr.output, sr."requeueAfter", sr."scheduleTimeoutAt", sr.error, sr."startedAt", sr."finishedAt", sr."timeoutAt", sr."cancelledAt", sr."cancelledReason", sr."cancelledError", sr."inputSchema", sr."callerFiles", sr."gitRepoBranch", sr."retryCount", sr."semaphoreReleased", sr.queue, sr.priority
 `
 
 type ResolveLaterStepRunsParams struct {
@@ -2012,6 +2066,7 @@ func (q *Queries) ResolveLaterStepRuns(ctx context.Context, db DBTX, arg Resolve
 			&i.RetryCount,
 			&i.SemaphoreReleased,
 			&i.Queue,
+			&i.Priority,
 		); err != nil {
 			return nil, err
 		}
@@ -2031,7 +2086,7 @@ SET
 WHERE
     "id" = $1::uuid AND
     "tenantId" = $2::uuid
-RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "jobRunId", "stepId", "order", "workerId", "tickerId", status, input, output, "requeueAfter", "scheduleTimeoutAt", error, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError", "inputSchema", "callerFiles", "gitRepoBranch", "retryCount", "semaphoreReleased", queue
+RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "jobRunId", "stepId", "order", "workerId", "tickerId", status, input, output, "requeueAfter", "scheduleTimeoutAt", error, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError", "inputSchema", "callerFiles", "gitRepoBranch", "retryCount", "semaphoreReleased", queue, priority
 `
 
 type UnlinkStepRunFromWorkerParams struct {
@@ -2071,6 +2126,7 @@ func (q *Queries) UnlinkStepRunFromWorker(ctx context.Context, db DBTX, arg Unli
 		&i.RetryCount,
 		&i.SemaphoreReleased,
 		&i.Queue,
+		&i.Priority,
 	)
 	return &i, err
 }
@@ -2124,7 +2180,7 @@ SET
 WHERE
   "id" = $14::uuid AND
   "tenantId" = $15::uuid
-RETURNING "StepRun".id, "StepRun"."createdAt", "StepRun"."updatedAt", "StepRun"."deletedAt", "StepRun"."tenantId", "StepRun"."jobRunId", "StepRun"."stepId", "StepRun"."order", "StepRun"."workerId", "StepRun"."tickerId", "StepRun".status, "StepRun".input, "StepRun".output, "StepRun"."requeueAfter", "StepRun"."scheduleTimeoutAt", "StepRun".error, "StepRun"."startedAt", "StepRun"."finishedAt", "StepRun"."timeoutAt", "StepRun"."cancelledAt", "StepRun"."cancelledReason", "StepRun"."cancelledError", "StepRun"."inputSchema", "StepRun"."callerFiles", "StepRun"."gitRepoBranch", "StepRun"."retryCount", "StepRun"."semaphoreReleased", "StepRun".queue
+RETURNING "StepRun".id, "StepRun"."createdAt", "StepRun"."updatedAt", "StepRun"."deletedAt", "StepRun"."tenantId", "StepRun"."jobRunId", "StepRun"."stepId", "StepRun"."order", "StepRun"."workerId", "StepRun"."tickerId", "StepRun".status, "StepRun".input, "StepRun".output, "StepRun"."requeueAfter", "StepRun"."scheduleTimeoutAt", "StepRun".error, "StepRun"."startedAt", "StepRun"."finishedAt", "StepRun"."timeoutAt", "StepRun"."cancelledAt", "StepRun"."cancelledReason", "StepRun"."cancelledError", "StepRun"."inputSchema", "StepRun"."callerFiles", "StepRun"."gitRepoBranch", "StepRun"."retryCount", "StepRun"."semaphoreReleased", "StepRun".queue, "StepRun".priority
 `
 
 type UpdateStepRunParams struct {
@@ -2193,6 +2249,7 @@ func (q *Queries) UpdateStepRun(ctx context.Context, db DBTX, arg UpdateStepRunP
 		&i.RetryCount,
 		&i.SemaphoreReleased,
 		&i.Queue,
+		&i.Priority,
 	)
 	return &i, err
 }

@@ -448,7 +448,8 @@ INSERT INTO "WorkflowRun" (
     "childKey",
     "parentId",
     "parentStepRunId",
-    "additionalMetadata"
+    "additionalMetadata",
+    "priority"
 ) VALUES (
     COALESCE(sqlc.narg('id')::uuid, gen_random_uuid()),
     CURRENT_TIMESTAMP,
@@ -465,7 +466,8 @@ INSERT INTO "WorkflowRun" (
     sqlc.narg('childKey')::text,
     sqlc.narg('parentId')::uuid,
     sqlc.narg('parentStepRunId')::uuid,
-    @additionalMetadata::jsonb
+    @additionalMetadata::jsonb,
+    sqlc.narg('priority')::int
 ) RETURNING *;
 
 -- name: CreateWorkflowRunDedupe :one
@@ -671,7 +673,8 @@ INSERT INTO "StepRun" (
     "stepId",
     "status",
     "requeueAfter",
-    "queue"
+    "queue",
+    "priority"
 )
 SELECT
     gen_random_uuid(),
@@ -682,7 +685,8 @@ SELECT
     @stepId::uuid,
     'PENDING', -- default status
     CURRENT_TIMESTAMP + INTERVAL '5 seconds',
-    sqlc.narg('queue')::text;
+    sqlc.narg('queue')::text,
+    sqlc.narg('priority')::int;
 
 -- name: ListStepsForJob :many
 WITH job_id AS (

@@ -161,6 +161,16 @@ const routes: RouteObject[] = [
                   }),
               },
               {
+                path: '/workers',
+                lazy: async () => {
+                  return {
+                    loader: function () {
+                      return redirect('/workers/all');
+                    },
+                  };
+                },
+              },
+              {
                 path: '/workers/all',
                 lazy: async () =>
                   import('./pages/main/workers').then((res) => {
@@ -168,6 +178,17 @@ const routes: RouteObject[] = [
                       Component: res.default,
                     };
                   }),
+              },
+              {
+                path: '/workers/webhook',
+                lazy: async () =>
+                  import('./pages/main/workers/webhooks/index.tsx').then(
+                    (res) => {
+                      return {
+                        Component: res.default,
+                      };
+                    },
+                  ),
               },
               {
                 path: '/workers/:worker',
@@ -239,17 +260,6 @@ const routes: RouteObject[] = [
                       Component: res.default,
                     };
                   }),
-              },
-              {
-                path: '/tenant-settings/webhooks',
-                lazy: async () =>
-                  import('./pages/main/tenant-settings/webhooks').then(
-                    (res) => {
-                      return {
-                        Component: res.default,
-                      };
-                    },
-                  ),
               },
               {
                 path: '/tenant-settings/members',

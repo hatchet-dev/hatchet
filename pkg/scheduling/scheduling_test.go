@@ -157,7 +157,7 @@ func TestGeneratePlan(t *testing.T) {
 			name: "GeneratePlan_Affinity_Soft",
 			args: args{
 				fixtureArgs:   "./fixtures/affinity_soft.json",
-				fixtureResult: "./fixtures/affinity_output.json",
+				fixtureResult: "./fixtures/affinity_soft_output.json",
 				noTimeout:     true,
 			},
 			want: func(s SchedulePlan, fixtureResult string) bool {
@@ -176,7 +176,7 @@ func TestGeneratePlan(t *testing.T) {
 			name: "GeneratePlan_Affinity_Hard",
 			args: args{
 				fixtureArgs:   "./fixtures/affinity_hard.json",
-				fixtureResult: "./fixtures/affinity_output.json",
+				fixtureResult: "./fixtures/affinity_hard_output.json",
 				noTimeout:     true,
 			},
 			want: func(s SchedulePlan, fixtureResult string) bool {
@@ -215,6 +215,25 @@ func TestGeneratePlan(t *testing.T) {
 			args: args{
 				fixtureArgs:   "./fixtures/sticky_hard.json",
 				fixtureResult: "./fixtures/sticky_hard_output.json",
+				noTimeout:     true,
+			},
+			want: func(s SchedulePlan, fixtureResult string) bool {
+				// DumpResults(s, "sticky_hard_output.json")
+
+				assert, err := assertResult(s, fixtureResult)
+				if err != nil {
+					fmt.Println(err)
+				}
+
+				return assert
+			},
+			wantErr: assert.NoError,
+		},
+		{
+			name: "GeneratePlan_Sticky_Hard_No_Desired",
+			args: args{
+				fixtureArgs:   "./fixtures/sticky_hard_no_desired.json",
+				fixtureResult: "./fixtures/sticky_hard_no_desired_output.json",
 				noTimeout:     true,
 			},
 			want: func(s SchedulePlan, fixtureResult string) bool {

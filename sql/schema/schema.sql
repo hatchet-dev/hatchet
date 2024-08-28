@@ -38,7 +38,13 @@ CREATE TYPE "TenantResourceLimitAlertType" AS ENUM ('Alarm', 'Exhausted');
 CREATE TYPE "VcsProvider" AS ENUM ('GITHUB');
 
 -- CreateEnum
+CREATE TYPE "WebhookWorkerRequestMethod" AS ENUM ('GET', 'POST', 'PUT');
+
+-- CreateEnum
 CREATE TYPE "WorkerLabelComparator" AS ENUM ('EQUAL', 'NOT_EQUAL', 'GREATER_THAN', 'GREATER_THAN_OR_EQUAL', 'LESS_THAN', 'LESS_THAN_OR_EQUAL');
+
+-- CreateEnum
+CREATE TYPE "WorkerType" AS ENUM ('WEBHOOK', 'MANAGED', 'SELFHOSTED');
 
 -- CreateEnum
 CREATE TYPE "WorkflowKind" AS ENUM ('FUNCTION', 'DURABLE', 'DAG');
@@ -354,6 +360,7 @@ CREATE TABLE "StepRun" (
     "retryCount" INTEGER NOT NULL DEFAULT 0,
     "semaphoreReleased" BOOLEAN NOT NULL DEFAULT false,
     "queue" TEXT NOT NULL DEFAULT 'default',
+    "priority" INTEGER,
 
     CONSTRAINT "StepRun_pkey" PRIMARY KEY ("id")
 );
@@ -606,6 +613,17 @@ CREATE TABLE "WebhookWorker" (
 );
 
 -- CreateTable
+CREATE TABLE "WebhookWorkerRequest" (
+    "id" UUID NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "webhookWorkerId" UUID NOT NULL,
+    "method" "WebhookWorkerRequestMethod" NOT NULL,
+    "statusCode" INTEGER NOT NULL,
+
+    CONSTRAINT "WebhookWorkerRequest_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "WebhookWorkerWorkflow" (
     "id" UUID NOT NULL,
     "webhookWorkerId" UUID NOT NULL,
@@ -628,6 +646,8 @@ CREATE TABLE "Worker" (
     "isActive" BOOLEAN NOT NULL DEFAULT false,
     "lastListenerEstablished" TIMESTAMP(3),
     "isPaused" BOOLEAN NOT NULL DEFAULT false,
+    "type" "WorkerType" NOT NULL DEFAULT 'SELFHOSTED',
+    "webhookId" UUID,
 
     CONSTRAINT "Worker_pkey" PRIMARY KEY ("id")
 );
@@ -706,6 +726,7 @@ CREATE TABLE "WorkflowRun" (
     "parentStepRunId" UUID,
     "additionalMetadata" JSONB,
     "duration" INTEGER,
+    "priority" INTEGER,
 
     CONSTRAINT "WorkflowRun_pkey" PRIMARY KEY ("id")
 );
@@ -819,6 +840,7 @@ CREATE TABLE "WorkflowVersion" (
     "onFailureJobId" UUID,
     "sticky" "StickyStrategy",
     "kind" "WorkflowKind" NOT NULL DEFAULT 'DAG',
+    "defaultPriority" INTEGER,
 
     CONSTRAINT "WorkflowVersion_pkey" PRIMARY KEY ("id")
 );
@@ -932,7 +954,7 @@ CREATE UNIQUE INDEX "JobRunLookupData_jobRunId_tenantId_key" ON "JobRunLookupDat
 CREATE UNIQUE INDEX "Queue_tenantId_name_key" ON "Queue"("tenantId" ASC, "name" ASC);
 
 -- CreateIndex
-CREATE INDEX "QueueItem_isQueued_priority_tenantId_queue_id_idx" ON "QueueItem"("isQueued" ASC, "priority" ASC, "tenantId" ASC, "queue" ASC, "id" ASC);
+CREATE INDEX "QueueItem_isQueued_priority_tenantId_queue_id_idx_2" ON "QueueItem"("isQueued" ASC, "tenantId" ASC, "queue" ASC, "priority" DESC, "id" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "RateLimit_tenantId_key_key" ON "RateLimit"("tenantId" ASC, "key" ASC);
@@ -1094,6 +1116,9 @@ CREATE UNIQUE INDEX "WebhookWorker_id_key" ON "WebhookWorker"("id" ASC);
 CREATE UNIQUE INDEX "WebhookWorker_url_key" ON "WebhookWorker"("url" ASC);
 
 -- CreateIndex
+CREATE UNIQUE INDEX "WebhookWorkerRequest_id_key" ON "WebhookWorkerRequest"("id" ASC);
+
+-- CreateIndex
 CREATE UNIQUE INDEX "WebhookWorkerWorkflow_id_key" ON "WebhookWorkerWorkflow"("id" ASC);
 
 -- CreateIndex
@@ -1101,6 +1126,9 @@ CREATE UNIQUE INDEX "WebhookWorkerWorkflow_webhookWorkerId_workflowId_key" ON "W
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Worker_id_key" ON "Worker"("id" ASC);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Worker_webhookId_key" ON "Worker"("webhookId" ASC);
 
 -- CreateIndex
 CREATE INDEX "WorkerLabel_workerId_idx" ON "WorkerLabel"("workerId" ASC);
@@ -1421,6 +1449,9 @@ ALTER TABLE "WebhookWorker" ADD CONSTRAINT "WebhookWorker_tenantId_fkey" FOREIGN
 ALTER TABLE "WebhookWorker" ADD CONSTRAINT "WebhookWorker_tokenId_fkey" FOREIGN KEY ("tokenId") REFERENCES "APIToken"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "WebhookWorkerRequest" ADD CONSTRAINT "WebhookWorkerRequest_webhookWorkerId_fkey" FOREIGN KEY ("webhookWorkerId") REFERENCES "WebhookWorker"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "WebhookWorkerWorkflow" ADD CONSTRAINT "WebhookWorkerWorkflow_webhookWorkerId_fkey" FOREIGN KEY ("webhookWorkerId") REFERENCES "WebhookWorker"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -1431,6 +1462,9 @@ ALTER TABLE "Worker" ADD CONSTRAINT "Worker_dispatcherId_fkey" FOREIGN KEY ("dis
 
 -- AddForeignKey
 ALTER TABLE "Worker" ADD CONSTRAINT "Worker_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Worker" ADD CONSTRAINT "Worker_webhookId_fkey" FOREIGN KEY ("webhookId") REFERENCES "WebhookWorker"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "WorkerLabel" ADD CONSTRAINT "WorkerLabel_workerId_fkey" FOREIGN KEY ("workerId") REFERENCES "Worker"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -1551,3 +1585,9 @@ ALTER TABLE "_WorkflowToWorkflowTag" ADD CONSTRAINT "_WorkflowToWorkflowTag_A_fk
 
 -- AddForeignKey
 ALTER TABLE "_WorkflowToWorkflowTag" ADD CONSTRAINT "_WorkflowToWorkflowTag_B_fkey" FOREIGN KEY ("B") REFERENCES "WorkflowTag"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- NOTE: this is a SQL script file that contains the constraints for the database
+-- it is needed because prisma does not support constraints yet
+
+-- Modify "QueueItem" table
+ALTER TABLE "QueueItem" ADD CONSTRAINT "QueueItem_priority_check" CHECK ("priority" >= 1 AND "priority" <= 4);

@@ -6,6 +6,14 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 )
 
+func ToWebhookWorkerRequest(webhookWorker *dbsqlc.WebhookWorkerRequest) *gen.WebhookWorkerRequest {
+	return &gen.WebhookWorkerRequest{
+		CreatedAt:  webhookWorker.CreatedAt.Time,
+		Method:     webhookWorker.Method,
+		StatusCode: int(webhookWorker.StatusCode),
+	}
+}
+
 func ToWebhookWorker(webhookWorker *dbsqlc.WebhookWorker) *gen.WebhookWorker {
 	return &gen.WebhookWorker{
 		Metadata: *toAPIMetadata(

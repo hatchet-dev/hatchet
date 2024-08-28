@@ -42,6 +42,7 @@ message CreateWorkflowVersionOpts {
     optional CreateWorkflowJobOpts on_failure_job = 11; // (optional) the job to run on failure
     optional StickyStrategy sticky = 12; // (optional) the sticky strategy for assigning steps to workers
     optional WorkflowKind kind = 13; // (optional) the kind of workflow
+    optional int32 default_priority = 14; // (optional) the priority of the workflow
 }
 
 enum ConcurrencyLimitStrategy {
@@ -194,6 +195,9 @@ message TriggerWorkflowRequest {
     // (optional) desired worker id for the workflow run,
     // requires the workflow definition to have a sticky strategy
     optional string desired_worker_id = 8;
+
+    // (optional) override for the priority of the workflow steps, will set all steps to this priority
+    optional int32 priority = 9;
 }
 
 message TriggerWorkflowResponse {

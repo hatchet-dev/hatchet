@@ -8,9 +8,15 @@ type Props = {
   text: string;
   className?: string;
   withText?: boolean;
+  onCopy?: () => void;
 };
 
-const CopyToClipboard: React.FC<Props> = ({ text, className, withText }) => {
+const CopyToClipboard: React.FC<Props> = ({
+  text,
+  className,
+  withText,
+  onCopy,
+}) => {
   const [successCopy, setSuccessCopy] = useState(false);
 
   return (
@@ -25,7 +31,8 @@ const CopyToClipboard: React.FC<Props> = ({ text, className, withText }) => {
       onClick={() => {
         navigator.clipboard.writeText(text);
         setSuccessCopy(true);
-
+        // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+        onCopy && onCopy();
         setTimeout(() => {
           setSuccessCopy(false);
         }, 2000);

@@ -18,6 +18,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
 import { Step, Steps } from '@/components/ui/steps';
 import EnvGroupArray, { KeyValueType } from '@/components/ui/envvar';
+import { ManagedWorkerRegion } from '@/lib/api/generated/cloud/data-contracts';
 
 export const machineTypes = [
   {
@@ -94,6 +95,141 @@ export const machineTypes = [
   },
 ];
 
+export const regions = [
+  {
+    name: 'Amsterdam, Netherlands',
+    value: ManagedWorkerRegion.Ams,
+  },
+  {
+    name: 'Stockholm, Sweden',
+    value: ManagedWorkerRegion.Arn,
+  },
+  {
+    name: 'Atlanta, Georgia (US)',
+    value: ManagedWorkerRegion.Atl,
+  },
+  {
+    name: 'Bogotá, Colombia',
+    value: ManagedWorkerRegion.Bog,
+  },
+  {
+    name: 'Boston, Massachusetts (US)',
+    value: ManagedWorkerRegion.Bos,
+  },
+  {
+    name: 'Paris, France',
+    value: ManagedWorkerRegion.Cdg,
+  },
+  {
+    name: 'Denver, Colorado (US)',
+    value: ManagedWorkerRegion.Den,
+  },
+  {
+    name: 'Dallas, Texas (US)',
+    value: ManagedWorkerRegion.Dfw,
+  },
+  {
+    name: 'Secaucus, NJ (US)',
+    value: ManagedWorkerRegion.Ewr,
+  },
+  {
+    name: 'Ezeiza, Argentina',
+    value: ManagedWorkerRegion.Eze,
+  },
+  {
+    name: 'Guadalajara, Mexico',
+    value: ManagedWorkerRegion.Gdl,
+  },
+  {
+    name: 'Rio de Janeiro, Brazil',
+    value: ManagedWorkerRegion.Gig,
+  },
+  {
+    name: 'Sao Paulo, Brazil',
+    value: ManagedWorkerRegion.Gru,
+  },
+  {
+    name: 'Hong Kong, Hong Kong',
+    value: ManagedWorkerRegion.Hkg,
+  },
+  {
+    name: 'Ashburn, Virginia (US)',
+    value: ManagedWorkerRegion.Iad,
+  },
+  {
+    name: 'Johannesburg, South Africa',
+    value: ManagedWorkerRegion.Jnb,
+  },
+  {
+    name: 'Los Angeles, California (US)',
+    value: ManagedWorkerRegion.Lax,
+  },
+  {
+    name: 'London, United Kingdom',
+    value: ManagedWorkerRegion.Lhr,
+  },
+  {
+    name: 'Madrid, Spain',
+    value: ManagedWorkerRegion.Mad,
+  },
+  {
+    name: 'Miami, Florida (US)',
+    value: ManagedWorkerRegion.Mia,
+  },
+  {
+    name: 'Tokyo, Japan',
+    value: ManagedWorkerRegion.Nrt,
+  },
+  {
+    name: 'Chicago, Illinois (US)',
+    value: ManagedWorkerRegion.Ord,
+  },
+  {
+    name: 'Bucharest, Romania',
+    value: ManagedWorkerRegion.Otp,
+  },
+  {
+    name: 'Phoenix, Arizona (US)',
+    value: ManagedWorkerRegion.Phx,
+  },
+  {
+    name: 'Querétaro, Mexico',
+    value: ManagedWorkerRegion.Qro,
+  },
+  {
+    name: 'Santiago, Chile',
+    value: ManagedWorkerRegion.Scl,
+  },
+  {
+    name: 'Seattle, Washington (US)',
+    value: ManagedWorkerRegion.Sea,
+  },
+  {
+    name: 'Singapore, Singapore',
+    value: ManagedWorkerRegion.Sin,
+  },
+  {
+    name: 'San Jose, California (US)',
+    value: ManagedWorkerRegion.Sjc,
+  },
+  {
+    name: 'Sydney, Australia',
+    value: ManagedWorkerRegion.Syd,
+  },
+  {
+    name: 'Warsaw, Poland',
+    value: ManagedWorkerRegion.Waw,
+  },
+  {
+    name: 'Montreal, Canada',
+    value: ManagedWorkerRegion.Yul,
+  },
+  {
+    name: 'Toronto, Canada',
+    value: ManagedWorkerRegion.Yyz,
+  },
+];
+
 export const createOrUpdateManagedWorkerSchema = z.object({
   name: z.string(),
   buildConfig: z.object({
@@ -114,6 +250,7 @@ export const createOrUpdateManagedWorkerSchema = z.object({
     cpuKind: z.string(),
     cpus: z.number(),
     memoryMb: z.number(),
+    region: z.nativeEnum(ManagedWorkerRegion).optional(),
   }),
 });
 
@@ -151,6 +288,7 @@ export default function CreateWorkerForm({
         cpus: 1,
         memoryMb: 1024,
         envVars: {},
+        region: ManagedWorkerRegion.Sea,
       },
     },
   });
@@ -159,6 +297,7 @@ export default function CreateWorkerForm({
     '1 CPU, 1 GB RAM (shared CPU)',
   );
 
+  const region = watch('runtimeConfig.region');
   const installation = watch('buildConfig.githubInstallationId');
   const repoOwner = watch('buildConfig.githubRepositoryOwner');
   const repoName = watch('buildConfig.githubRepositoryName');
@@ -451,6 +590,31 @@ export default function CreateWorkerForm({
             <div className="text-sm text-muted-foreground">
               Configure the runtime settings for this worker.
             </div>
+            <Label htmlFor="region">Region</Label>
+            <Select
+              value={region?.toString()}
+              onValueChange={(value) => {
+                // find the region object from the value
+                const region = regions.find((i) => i.value === value);
+
+                if (!region) {
+                  return;
+                }
+
+                setValue('runtimeConfig.region', region.value);
+              }}
+            >
+              <SelectTrigger className="w-fit">
+                <SelectValue id="region" placeholder="Choose region" />
+              </SelectTrigger>
+              <SelectContent>
+                {regions.map((i) => (
+                  <SelectItem key={i.value} value={i.value}>
+                    {i.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Label htmlFor="numReplicas">Number of replicas</Label>
             <Controller
               control={control}

@@ -38,11 +38,6 @@ func NewWorkerStateManager(
 		for workerId, worker := range workers {
 			weight := ComputeWeight(desired, worker.labels)
 
-			// skip workers that are not a match (i.e. required)
-			if weight < 0 {
-				continue
-			}
-
 			// cache the weight on the worker
 			workers[workerId].AddStepWeight(stepId, weight)
 
@@ -87,7 +82,7 @@ func (wm *WorkerStateManager) AttemptAssignSlot(qi *QueueItemWithOrder) *dbsqlc.
 			return nil
 		}
 
-		if qi.Sticky.StickyStrategy == dbsqlc.StickyStrategyHARD {
+		if qi.DesiredWorkerId.Valid && qi.Sticky.StickyStrategy == dbsqlc.StickyStrategyHARD {
 			// if we have a HARD sticky worker and we can't find it then return nil
 			// to indicate that we can't assign the slot
 			return nil

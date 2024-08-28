@@ -12,6 +12,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
+	"github.com/hatchet-dev/hatchet/internal/services/controllers/partition"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
@@ -20,40 +21,40 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 )
 
-type Partition struct {
-	mq          msgqueue.MessageQueue
-	l           *zerolog.Logger
-	repo        repository.EngineRepository
-	dv          datautils.DataDecoderValidator
-	s           gocron.Scheduler
-	a           *hatcheterrors.Wrapped
-	partitionId string
+type queue struct {
+	mq   msgqueue.MessageQueue
+	l    *zerolog.Logger
+	repo repository.EngineRepository
+	dv   datautils.DataDecoderValidator
+	s    gocron.Scheduler
+	a    *hatcheterrors.Wrapped
+	p    *partition.Partition
 
 	tenantOperations sync.Map
 }
 
-func NewPartition(
+func newQueue(
 	mq msgqueue.MessageQueue,
 	l *zerolog.Logger,
 	repo repository.EngineRepository,
 	dv datautils.DataDecoderValidator,
 	a *hatcheterrors.Wrapped,
-	partitionId string,
-) (*Partition, error) {
+	p *partition.Partition,
+) (*queue, error) {
 	s, err := gocron.NewScheduler(gocron.WithLocation(time.UTC))
 
 	if err != nil {
 		return nil, fmt.Errorf("could not create scheduler: %w", err)
 	}
 
-	return &Partition{
-		mq:          mq,
-		l:           l,
-		repo:        repo,
-		dv:          dv,
-		s:           s,
-		a:           a,
-		partitionId: partitionId,
+	return &queue{
+		mq:   mq,
+		l:    l,
+		repo: repo,
+		dv:   dv,
+		s:    s,
+		a:    a,
+		p:    p,
 	}, nil
 }
 
@@ -132,15 +133,15 @@ func (o *operation) getContinue() bool {
 	return o.shouldContinue
 }
 
-func (p *Partition) Start() (func() error, error) {
+func (q *queue) Start() (func() error, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	wg := sync.WaitGroup{}
 
-	_, err := p.s.NewJob(
+	_, err := q.s.NewJob(
 		gocron.DurationJob(time.Second*1),
 		gocron.NewTask(
-			p.runTenantQueues(ctx),
+			q.runTenantQueues(ctx),
 		),
 	)
 
@@ -149,22 +150,22 @@ func (p *Partition) Start() (func() error, error) {
 		return nil, fmt.Errorf("could not schedule step run reassign: %w", err)
 	}
 
-	p.s.Start()
+	q.s.Start()
 
 	f := func(task *msgqueue.Message) error {
 		wg.Add(1)
 		defer wg.Done()
 
-		err := p.handleTask(context.Background(), task)
+		err := q.handleTask(context.Background(), task)
 		if err != nil {
-			p.l.Error().Err(err).Msg("could not handle job task")
-			return p.a.WrapErr(fmt.Errorf("could not handle job task: %w", err), map[string]interface{}{"task_id": task.ID}) // nolint: errcheck
+			q.l.Error().Err(err).Msg("could not handle job task")
+			return q.a.WrapErr(fmt.Errorf("could not handle job task: %w", err), map[string]interface{}{"task_id": task.ID}) // nolint: errcheck
 		}
 
 		return nil
 	}
 
-	cleanupQueue, err := p.mq.Subscribe(msgqueue.QueueTypeFromPartitionID(p.partitionId), f, msgqueue.NoOpHook)
+	cleanupQueue, err := q.mq.Subscribe(msgqueue.QueueTypeFromPartitionID(q.p.GetControllerPartitionId()), f, msgqueue.NoOpHook)
 
 	if err != nil {
 		cancel()
@@ -178,7 +179,7 @@ func (p *Partition) Start() (func() error, error) {
 			return fmt.Errorf("could not cleanup job processing queue: %w", err)
 		}
 
-		if err := p.s.Shutdown(); err != nil {
+		if err := q.s.Shutdown(); err != nil {
 			return fmt.Errorf("could not shutdown scheduler: %w", err)
 		}
 
@@ -190,10 +191,10 @@ func (p *Partition) Start() (func() error, error) {
 	return cleanup, nil
 }
 
-func (p *Partition) handleTask(ctx context.Context, task *msgqueue.Message) (err error) {
+func (q *queue) handleTask(ctx context.Context, task *msgqueue.Message) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			recoverErr := recoveryutils.RecoverWithAlert(p.l, p.a, r)
+			recoverErr := recoveryutils.RecoverWithAlert(q.l, q.a, r)
 
 			if recoverErr != nil {
 				err = recoverErr
@@ -202,44 +203,44 @@ func (p *Partition) handleTask(ctx context.Context, task *msgqueue.Message) (err
 	}()
 
 	if task.ID == "check-tenant-queue" {
-		return p.handleCheckQueue(ctx, task)
+		return q.handleCheckQueue(ctx, task)
 	}
 
 	return fmt.Errorf("unknown task: %s", task.ID)
 }
 
-func (p *Partition) handleCheckQueue(ctx context.Context, task *msgqueue.Message) error {
+func (q *queue) handleCheckQueue(ctx context.Context, task *msgqueue.Message) error {
 	_, span := telemetry.NewSpanWithCarrier(ctx, "handle-check-queue", task.OtelCarrier)
 	defer span.End()
 
 	metadata := tasktypes.CheckTenantQueueMetadata{}
 
-	err := p.dv.DecodeAndValidate(task.Metadata, &metadata)
+	err := q.dv.DecodeAndValidate(task.Metadata, &metadata)
 
 	if err != nil {
 		return fmt.Errorf("could not decode check queue metadata: %w", err)
 	}
 
 	// if this tenant is registered, then we should check the queue
-	if opInt, ok := p.tenantOperations.Load(metadata.TenantId); ok {
+	if opInt, ok := q.tenantOperations.Load(metadata.TenantId); ok {
 		op := opInt.(*operation)
 
 		op.setContinue(true)
-		op.run(p.l, p.scheduleStepRuns)
+		op.run(q.l, q.scheduleStepRuns)
 	}
 
 	return nil
 }
 
-func (p *Partition) runTenantQueues(ctx context.Context) func() {
+func (q *queue) runTenantQueues(ctx context.Context) func() {
 	return func() {
-		p.l.Debug().Msgf("partition: checking step run requeue")
+		q.l.Debug().Msgf("partition: checking step run requeue")
 
 		// list all tenants
-		tenants, err := p.repo.Tenant().ListTenantsByControllerPartition(ctx, p.partitionId)
+		tenants, err := q.repo.Tenant().ListTenantsByControllerPartition(ctx, q.p.GetControllerPartitionId())
 
 		if err != nil {
-			p.l.Err(err).Msg("could not list tenants")
+			q.l.Err(err).Msg("could not list tenants")
 			return
 		}
 
@@ -248,31 +249,31 @@ func (p *Partition) runTenantQueues(ctx context.Context) func() {
 
 			var op *operation
 
-			opInt, ok := p.tenantOperations.Load(tenantId)
+			opInt, ok := q.tenantOperations.Load(tenantId)
 
 			if !ok {
 				op = &operation{
 					tenantId: tenantId,
 				}
 
-				p.tenantOperations.Store(tenantId, op)
+				q.tenantOperations.Store(tenantId, op)
 			} else {
 				op = opInt.(*operation)
 			}
 
-			op.run(p.l, p.scheduleStepRuns)
+			op.run(q.l, q.scheduleStepRuns)
 		}
 	}
 }
 
-func (p *Partition) scheduleStepRuns(ctx context.Context, tenantId string) (bool, error) {
+func (q *queue) scheduleStepRuns(ctx context.Context, tenantId string) (bool, error) {
 	ctx, span := telemetry.NewSpan(ctx, "schedule-step-runs")
 	defer span.End()
 
 	dbCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	queueResults, err := p.repo.StepRun().QueueStepRuns(dbCtx, tenantId)
+	queueResults, err := q.repo.StepRun().QueueStepRuns(dbCtx, tenantId)
 
 	if err != nil {
 		return false, fmt.Errorf("could not queue step runs: %w", err)
@@ -280,7 +281,7 @@ func (p *Partition) scheduleStepRuns(ctx context.Context, tenantId string) (bool
 
 	for _, queueResult := range queueResults.Queued {
 		// send a task to the dispatcher
-		innerErr := p.mq.AddMessage(
+		innerErr := q.mq.AddMessage(
 			ctx,
 			msgqueue.QueueTypeFromDispatcherID(queueResult.DispatcherId),
 			stepRunAssignedTask(tenantId, queueResult.StepRunId, queueResult.WorkerId, queueResult.DispatcherId),
@@ -292,7 +293,7 @@ func (p *Partition) scheduleStepRuns(ctx context.Context, tenantId string) (bool
 	}
 
 	for _, toCancel := range queueResults.SchedulingTimedOut {
-		innerErr := p.mq.AddMessage(
+		innerErr := q.mq.AddMessage(
 			ctx,
 			msgqueue.JOB_PROCESSING_QUEUE,
 			getStepRunCancelTask(

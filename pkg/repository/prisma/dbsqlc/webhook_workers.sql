@@ -24,8 +24,46 @@ SELECT *
 FROM "WebhookWorker"
 WHERE "tenantId" = @tenantId::uuid AND "deleted" = false;
 
+-- name: ListWebhookWorkerRequests :many
+SELECT *
+FROM "WebhookWorkerRequest"
+WHERE "webhookWorkerId" = @webhookWorkerId::uuid
+ORDER BY "createdAt" DESC
+LIMIT 50;
 
--- name: UpsertWebhookWorker :one
+-- name: InsertWebhookWorkerRequest :exec
+WITH delete_old AS (
+    -- Delete old requests
+    DELETE FROM "WebhookWorkerRequest"
+    WHERE "webhookWorkerId" = @webhookWorkerId::uuid
+    AND "createdAt" < NOW() - INTERVAL '15 minutes'
+)
+INSERT INTO "WebhookWorkerRequest" (
+    "id",
+    "createdAt",
+    "webhookWorkerId",
+    "method",
+    "statusCode"
+) VALUES (
+    gen_random_uuid(),
+    CURRENT_TIMESTAMP,
+    @webhookWorkerId::uuid,
+    @method::"WebhookWorkerRequestMethod",
+    @statusCode::integer
+);
+
+-- name: UpdateWebhookWorkerToken :one
+UPDATE "WebhookWorker"
+SET
+    "updatedAt" = CURRENT_TIMESTAMP,
+    "tokenValue" = COALESCE(sqlc.narg('tokenValue')::text, "tokenValue"),
+    "tokenId" = COALESCE(sqlc.narg('tokenId')::uuid, "tokenId")
+WHERE
+    "id" = @id::uuid
+    AND "tenantId" = @tenantId::uuid
+RETURNING *;
+
+-- name: CreateWebhookWorker :one
 INSERT INTO "WebhookWorker" (
     "id",
     "createdAt",
@@ -50,20 +88,19 @@ VALUES (
     sqlc.narg('tokenValue')::text,
     coalesce(sqlc.narg('deleted')::boolean, false)
 )
-ON CONFLICT ("url") DO
-UPDATE
-SET
-    "tokenId" = coalesce(sqlc.narg('tokenId')::uuid, excluded."tokenId"),
-    "tokenValue" = coalesce(sqlc.narg('tokenValue')::text, excluded."tokenValue"),
-    "name" = coalesce(sqlc.narg('name')::text, excluded."name"),
-    "secret" = coalesce(sqlc.narg('secret')::text, excluded."secret"),
-    "url" = coalesce(sqlc.narg('url')::text, excluded."url"),
-    "deleted" = coalesce(sqlc.narg('deleted')::boolean, excluded."deleted")
 RETURNING *;
 
--- name: DeleteWebhookWorker :exec
+-- name: SoftDeleteWebhookWorker :exec
 UPDATE "WebhookWorker"
-SET "deleted" = true
+SET
+  "deleted" = true,
+  "updatedAt" = CURRENT_TIMESTAMP
 WHERE
   "id" = @id::uuid
-  and "tenantId" = @tenantId::uuid;
+  AND "tenantId" = @tenantId::uuid;
+
+-- name: HardDeleteWebhookWorker :exec
+DELETE FROM "WebhookWorker"
+WHERE
+  "id" = @id::uuid
+  AND "tenantId" = @tenantId::uuid;

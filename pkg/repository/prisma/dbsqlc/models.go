@@ -588,6 +588,49 @@ func (ns NullVcsProvider) Value() (driver.Value, error) {
 	return string(ns.VcsProvider), nil
 }
 
+type WebhookWorkerRequestMethod string
+
+const (
+	WebhookWorkerRequestMethodGET  WebhookWorkerRequestMethod = "GET"
+	WebhookWorkerRequestMethodPOST WebhookWorkerRequestMethod = "POST"
+	WebhookWorkerRequestMethodPUT  WebhookWorkerRequestMethod = "PUT"
+)
+
+func (e *WebhookWorkerRequestMethod) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = WebhookWorkerRequestMethod(s)
+	case string:
+		*e = WebhookWorkerRequestMethod(s)
+	default:
+		return fmt.Errorf("unsupported scan type for WebhookWorkerRequestMethod: %T", src)
+	}
+	return nil
+}
+
+type NullWebhookWorkerRequestMethod struct {
+	WebhookWorkerRequestMethod WebhookWorkerRequestMethod `json:"WebhookWorkerRequestMethod"`
+	Valid                      bool                       `json:"valid"` // Valid is true if WebhookWorkerRequestMethod is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullWebhookWorkerRequestMethod) Scan(value interface{}) error {
+	if value == nil {
+		ns.WebhookWorkerRequestMethod, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.WebhookWorkerRequestMethod.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullWebhookWorkerRequestMethod) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.WebhookWorkerRequestMethod), nil
+}
+
 type WorkerLabelComparator string
 
 const (
@@ -632,6 +675,49 @@ func (ns NullWorkerLabelComparator) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.WorkerLabelComparator), nil
+}
+
+type WorkerType string
+
+const (
+	WorkerTypeWEBHOOK    WorkerType = "WEBHOOK"
+	WorkerTypeMANAGED    WorkerType = "MANAGED"
+	WorkerTypeSELFHOSTED WorkerType = "SELFHOSTED"
+)
+
+func (e *WorkerType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = WorkerType(s)
+	case string:
+		*e = WorkerType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for WorkerType: %T", src)
+	}
+	return nil
+}
+
+type NullWorkerType struct {
+	WorkerType WorkerType `json:"WorkerType"`
+	Valid      bool       `json:"valid"` // Valid is true if WorkerType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullWorkerType) Scan(value interface{}) error {
+	if value == nil {
+		ns.WorkerType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.WorkerType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullWorkerType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.WorkerType), nil
 }
 
 type WorkflowKind string
@@ -988,6 +1074,7 @@ type StepRun struct {
 	RetryCount        int32            `json:"retryCount"`
 	SemaphoreReleased bool             `json:"semaphoreReleased"`
 	Queue             string           `json:"queue"`
+	Priority          pgtype.Int4      `json:"priority"`
 }
 
 type StepRunEvent struct {
@@ -1192,6 +1279,14 @@ type WebhookWorker struct {
 	TenantId   pgtype.UUID      `json:"tenantId"`
 }
 
+type WebhookWorkerRequest struct {
+	ID              pgtype.UUID                `json:"id"`
+	CreatedAt       pgtype.Timestamp           `json:"createdAt"`
+	WebhookWorkerId pgtype.UUID                `json:"webhookWorkerId"`
+	Method          WebhookWorkerRequestMethod `json:"method"`
+	StatusCode      int32                      `json:"statusCode"`
+}
+
 type WebhookWorkerWorkflow struct {
 	ID              pgtype.UUID `json:"id"`
 	WebhookWorkerId pgtype.UUID `json:"webhookWorkerId"`
@@ -1211,6 +1306,8 @@ type Worker struct {
 	IsActive                bool             `json:"isActive"`
 	LastListenerEstablished pgtype.Timestamp `json:"lastListenerEstablished"`
 	IsPaused                bool             `json:"isPaused"`
+	Type                    WorkerType       `json:"type"`
+	WebhookId               pgtype.UUID      `json:"webhookId"`
 }
 
 type WorkerLabel struct {
@@ -1273,6 +1370,7 @@ type WorkflowRun struct {
 	ParentStepRunId    pgtype.UUID       `json:"parentStepRunId"`
 	AdditionalMetadata []byte            `json:"additionalMetadata"`
 	Duration           pgtype.Int4       `json:"duration"`
+	Priority           pgtype.Int4       `json:"priority"`
 }
 
 type WorkflowRunDedupe struct {
@@ -1370,4 +1468,5 @@ type WorkflowVersion struct {
 	OnFailureJobId  pgtype.UUID        `json:"onFailureJobId"`
 	Sticky          NullStickyStrategy `json:"sticky"`
 	Kind            WorkflowKind       `json:"kind"`
+	DefaultPriority pgtype.Int4        `json:"defaultPriority"`
 }

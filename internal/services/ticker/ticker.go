@@ -14,6 +14,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/integrations/alerting"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
+	"github.com/hatchet-dev/hatchet/internal/services/controllers/partition"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
@@ -41,7 +42,7 @@ type TickerImpl struct {
 
 	tickerId string
 
-	partitionId string
+	p *partition.Partition
 }
 
 type TickerOpt func(*TickerOpts)
@@ -57,7 +58,7 @@ type TickerOpts struct {
 
 	dv datautils.DataDecoderValidator
 
-	partitionId string
+	p *partition.Partition
 }
 
 func defaultTickerOpts() *TickerOpts {
@@ -99,9 +100,9 @@ func WithTenantAlerter(ta *alerting.TenantAlertManager) TickerOpt {
 	}
 }
 
-func WithPartitionId(pid string) TickerOpt {
+func WithPartition(p *partition.Partition) TickerOpt {
 	return func(opts *TickerOpts) {
-		opts.partitionId = pid
+		opts.p = p
 	}
 }
 
@@ -128,8 +129,8 @@ func New(fs ...TickerOpt) (*TickerImpl, error) {
 		return nil, fmt.Errorf("tenant alerter is required. use WithTenantAlerter")
 	}
 
-	if opts.partitionId == "" {
-		return nil, fmt.Errorf("partition id is required. use WithPartitionId")
+	if opts.p == nil {
+		return nil, fmt.Errorf("partition is required. use WithPartition")
 	}
 
 	newLogger := opts.l.With().Str("service", "ticker").Logger()
@@ -150,7 +151,7 @@ func New(fs ...TickerOpt) (*TickerImpl, error) {
 		dv:           opts.dv,
 		tickerId:     opts.tickerId,
 		ta:           opts.ta,
-		partitionId:  opts.partitionId,
+		p:            opts.p,
 	}, nil
 }
 
@@ -396,7 +397,7 @@ func (t *TickerImpl) runWorkerSemaphoreSlotResolver(ctx context.Context) func() 
 		t.l.Debug().Msgf("ticker: resolving orphaned worker semaphore slots")
 
 		// list all tenants
-		tenants, err := t.repo.Tenant().ListTenantsByControllerPartition(ctx, t.partitionId)
+		tenants, err := t.repo.Tenant().ListTenantsByControllerPartition(ctx, t.p.GetControllerPartitionId())
 
 		if err != nil {
 			t.l.Err(err).Msg("could not list tenants")

@@ -65,7 +65,7 @@ func init() {
 		&skip,
 		"skip",
 		[]string{},
-		"a list of steps to skip. possible values are \"certs\"",
+		"a list of steps to skip. possible values are \"certs\", \"keys\", or \"seed\"",
 	)
 
 	quickstartCmd.PersistentFlags().BoolVar(

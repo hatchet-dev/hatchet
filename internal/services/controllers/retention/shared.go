@@ -23,7 +23,7 @@ func GetDataRetentionExpiredTime(duration string) (time.Time, error) {
 func (wc *RetentionControllerImpl) ForTenants(ctx context.Context, f func(ctx context.Context, tenant dbsqlc.Tenant) error) error {
 
 	// list all tenants
-	tenants, err := wc.repo.Tenant().ListTenantsByControllerPartition(ctx, wc.partitionId)
+	tenants, err := wc.repo.Tenant().ListTenantsByControllerPartition(ctx, wc.p.GetControllerPartitionId())
 
 	if err != nil {
 		return fmt.Errorf("could not list tenants: %w", err)
