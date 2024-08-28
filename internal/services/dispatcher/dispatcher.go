@@ -360,7 +360,7 @@ func (d *DispatcherImpl) handleTask(ctx context.Context, task *msgqueue.Message)
 }
 
 func (d *DispatcherImpl) handleGroupKeyActionAssignedTask(ctx context.Context, task *msgqueue.Message) error {
-	ctx, span := telemetry.NewSpan(ctx, "group-key-action-assigned")
+	ctx, span := telemetry.NewSpanWithCarrier(ctx, "group-key-action-assigned", task.OtelCarrier)
 	defer span.End()
 
 	payload := tasktypes.GroupKeyActionAssignedTaskPayload{}
@@ -427,7 +427,7 @@ func (d *DispatcherImpl) handleGroupKeyActionAssignedTask(ctx context.Context, t
 }
 
 func (d *DispatcherImpl) handleStepRunAssignedTask(ctx context.Context, task *msgqueue.Message) error {
-	ctx, span := telemetry.NewSpan(ctx, "step-run-assigned")
+	ctx, span := telemetry.NewSpanWithCarrier(ctx, "step-run-assigned", task.OtelCarrier)
 	defer span.End()
 
 	payload := tasktypes.StepRunAssignedTaskPayload{}
@@ -528,7 +528,7 @@ func (d *DispatcherImpl) handleStepRunAssignedTask(ctx context.Context, task *ms
 }
 
 func (d *DispatcherImpl) handleStepRunCancelled(ctx context.Context, task *msgqueue.Message) error {
-	ctx, span := telemetry.NewSpan(ctx, "step-run-cancelled")
+	ctx, span := telemetry.NewSpanWithCarrier(ctx, "step-run-cancelled", task.OtelCarrier)
 	defer span.End()
 
 	payload := tasktypes.StepRunCancelledTaskPayload{}

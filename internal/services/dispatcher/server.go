@@ -511,8 +511,6 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByAdditionalMeta(key string, v
 	tenant := stream.Context().Value("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
-	s.l.Error().Msgf("Received subscribe request for additional meta key-value: {%s: %s}", key, value)
-
 	q, err := msgqueue.TenantEventConsumerQueue(tenantId)
 	if err != nil {
 		return err

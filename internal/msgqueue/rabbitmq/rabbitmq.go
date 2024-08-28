@@ -15,6 +15,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
+	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/random"
 )
@@ -185,6 +186,11 @@ func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl) {
 
 // AddMessage adds a msg to the queue.
 func (t *MessageQueueImpl) AddMessage(ctx context.Context, q msgqueue.Queue, msg *msgqueue.Message) error {
+	// inject otel carrier into the message
+	if msg.OtelCarrier == nil {
+		msg.OtelCarrier = telemetry.GetCarrier(ctx)
+	}
+
 	t.msgs <- &msgWithQueue{
 		Message: msg,
 		q:       q,

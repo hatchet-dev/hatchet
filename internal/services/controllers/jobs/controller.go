@@ -285,7 +285,7 @@ func (ec *JobsControllerImpl) handleTask(ctx context.Context, task *msgqueue.Mes
 }
 
 func (ec *JobsControllerImpl) handleJobRunQueued(ctx context.Context, task *msgqueue.Message) error {
-	ctx, span := telemetry.NewSpan(ctx, "handle-job-run-queued")
+	ctx, span := telemetry.NewSpanWithCarrier(ctx, "handle-job-run-queued", task.OtelCarrier)
 	defer span.End()
 
 	payload := tasktypes.JobRunQueuedTaskPayload{}
@@ -340,7 +340,7 @@ func (ec *JobsControllerImpl) handleJobRunQueued(ctx context.Context, task *msgq
 }
 
 func (ec *JobsControllerImpl) handleJobRunCancelled(ctx context.Context, task *msgqueue.Message) error {
-	ctx, span := telemetry.NewSpan(ctx, "handle-job-run-cancelled")
+	ctx, span := telemetry.NewSpanWithCarrier(ctx, "handle-job-run-cancelled", task.OtelCarrier)
 	defer span.End()
 
 	payload := tasktypes.JobRunCancelledTaskPayload{}
@@ -397,7 +397,7 @@ func (ec *JobsControllerImpl) handleJobRunCancelled(ctx context.Context, task *m
 }
 
 func (ec *JobsControllerImpl) handleStepRunRetry(ctx context.Context, task *msgqueue.Message) error {
-	ctx, span := telemetry.NewSpan(ctx, "handle-step-run-retry")
+	ctx, span := telemetry.NewSpanWithCarrier(ctx, "handle-step-run-retry", task.OtelCarrier)
 	defer span.End()
 
 	payload := tasktypes.StepRunRetryTaskPayload{}
@@ -469,7 +469,7 @@ func (ec *JobsControllerImpl) handleStepRunRetry(ctx context.Context, task *msgq
 // handleStepRunReplay replays a step run from scratch - it resets the workflow run state, job run state, and
 // all cancelled step runs which are children of the step run being replayed.
 func (ec *JobsControllerImpl) handleStepRunReplay(ctx context.Context, task *msgqueue.Message) error {
-	ctx, span := telemetry.NewSpan(ctx, "handle-step-run-replay")
+	ctx, span := telemetry.NewSpanWithCarrier(ctx, "handle-step-run-replay", task.OtelCarrier)
 	defer span.End()
 
 	payload := tasktypes.StepRunReplayTaskPayload{}
@@ -593,7 +593,7 @@ func (ec *JobsControllerImpl) handleStepRunReplay(ctx context.Context, task *msg
 }
 
 func (ec *JobsControllerImpl) handleStepRunQueued(ctx context.Context, task *msgqueue.Message) error {
-	ctx, span := telemetry.NewSpan(ctx, "handle-step-run-queued")
+	ctx, span := telemetry.NewSpanWithCarrier(ctx, "handle-step-run-queued", task.OtelCarrier)
 	defer span.End()
 
 	payload := tasktypes.StepRunTaskPayload{}
@@ -934,7 +934,7 @@ func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId, stepId
 }
 
 func (ec *JobsControllerImpl) handleStepRunStarted(ctx context.Context, task *msgqueue.Message) error {
-	ctx, span := telemetry.NewSpan(ctx, "handle-step-run-started")
+	ctx, span := telemetry.NewSpanWithCarrier(ctx, "handle-step-run-started", task.OtelCarrier)
 	defer span.End()
 
 	payload := tasktypes.StepRunStartedTaskPayload{}
@@ -980,7 +980,7 @@ func (ec *JobsControllerImpl) handleStepRunStarted(ctx context.Context, task *ms
 }
 
 func (ec *JobsControllerImpl) handleStepRunFinished(ctx context.Context, task *msgqueue.Message) error {
-	ctx, span := telemetry.NewSpan(ctx, "handle-step-run-finished")
+	ctx, span := telemetry.NewSpanWithCarrier(ctx, "handle-step-run-finished", task.OtelCarrier)
 	defer span.End()
 
 	payload := tasktypes.StepRunFinishedTaskPayload{}
@@ -1072,7 +1072,7 @@ func (ec *JobsControllerImpl) handleStepRunFinished(ctx context.Context, task *m
 }
 
 func (ec *JobsControllerImpl) handleStepRunFailed(ctx context.Context, task *msgqueue.Message) error {
-	ctx, span := telemetry.NewSpan(ctx, "handle-step-run-failed")
+	ctx, span := telemetry.NewSpanWithCarrier(ctx, "handle-step-run-failed", task.OtelCarrier)
 	defer span.End()
 
 	payload := tasktypes.StepRunFailedTaskPayload{}
@@ -1202,7 +1202,7 @@ func (ec *JobsControllerImpl) failStepRun(ctx context.Context, tenantId, stepRun
 }
 
 func (ec *JobsControllerImpl) handleStepRunTimedOut(ctx context.Context, task *msgqueue.Message) error {
-	ctx, span := telemetry.NewSpan(ctx, "handle-step-run-timed-out")
+	ctx, span := telemetry.NewSpanWithCarrier(ctx, "handle-step-run-timed-out", task.OtelCarrier)
 	defer span.End()
 
 	payload := tasktypes.StepRunTimedOutTaskPayload{}
@@ -1224,7 +1224,7 @@ func (ec *JobsControllerImpl) handleStepRunTimedOut(ctx context.Context, task *m
 }
 
 func (ec *JobsControllerImpl) handleStepRunCancel(ctx context.Context, task *msgqueue.Message) error {
-	ctx, span := telemetry.NewSpan(ctx, "handle-step-run-cancel")
+	ctx, span := telemetry.NewSpanWithCarrier(ctx, "handle-step-run-cancel", task.OtelCarrier)
 	defer span.End()
 
 	payload := tasktypes.StepRunCancelTaskPayload{}
