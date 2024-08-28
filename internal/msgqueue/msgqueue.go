@@ -130,6 +130,9 @@ type Message struct {
 
 	// RetryDelay is the delay between retries.
 	RetryDelay int `json:"retry_delay"`
+
+	// OtelCarrier is the OpenTelemetry carrier for the task.
+	OtelCarrier map[string]string `json:"otel_carrier"`
 }
 
 func (t *Message) TenantID() string {

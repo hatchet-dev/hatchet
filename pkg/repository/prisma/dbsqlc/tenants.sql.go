@@ -35,13 +35,13 @@ func (q *Queries) ControllerPartitionHeartbeat(ctx context.Context, db DBTX, con
 
 const createControllerPartition = `-- name: CreateControllerPartition :one
 INSERT INTO "ControllerPartition" ("id", "createdAt", "lastHeartbeat")
-VALUES ($1::text, NOW(), NOW())
+VALUES (gen_random_uuid()::text, NOW(), NOW())
 ON CONFLICT DO NOTHING
 RETURNING id, "createdAt", "updatedAt", "lastHeartbeat"
 `
 
-func (q *Queries) CreateControllerPartition(ctx context.Context, db DBTX, id string) (*ControllerPartition, error) {
-	row := db.QueryRow(ctx, createControllerPartition, id)
+func (q *Queries) CreateControllerPartition(ctx context.Context, db DBTX) (*ControllerPartition, error) {
+	row := db.QueryRow(ctx, createControllerPartition)
 	var i ControllerPartition
 	err := row.Scan(
 		&i.ID,
@@ -138,13 +138,13 @@ func (q *Queries) CreateTenantAlertingSettings(ctx context.Context, db DBTX, ten
 
 const createTenantWorkerPartition = `-- name: CreateTenantWorkerPartition :one
 INSERT INTO "TenantWorkerPartition" ("id", "createdAt", "lastHeartbeat")
-VALUES ($1::text, NOW(), NOW())
+VALUES (gen_random_uuid()::text, NOW(), NOW())
 ON CONFLICT DO NOTHING
 RETURNING id, "createdAt", "updatedAt", "lastHeartbeat"
 `
 
-func (q *Queries) CreateTenantWorkerPartition(ctx context.Context, db DBTX, id string) (*TenantWorkerPartition, error) {
-	row := db.QueryRow(ctx, createTenantWorkerPartition, id)
+func (q *Queries) CreateTenantWorkerPartition(ctx context.Context, db DBTX) (*TenantWorkerPartition, error) {
+	row := db.QueryRow(ctx, createTenantWorkerPartition)
 	var i TenantWorkerPartition
 	err := row.Scan(
 		&i.ID,
@@ -812,6 +812,28 @@ func (q *Queries) UpdateTenantAlertingSettings(ctx context.Context, db DBTX, arg
 		&i.EnableExpiringTokenAlerts,
 		&i.EnableWorkflowRunFailureAlerts,
 		&i.EnableTenantResourceLimitAlerts,
+	)
+	return &i, err
+}
+
+const workerPartitionHeartbeat = `-- name: WorkerPartitionHeartbeat :one
+UPDATE
+    "TenantWorkerPartition" p
+SET
+    "lastHeartbeat" = NOW()
+WHERE
+    p."id" = $1::text
+RETURNING id, "createdAt", "updatedAt", "lastHeartbeat"
+`
+
+func (q *Queries) WorkerPartitionHeartbeat(ctx context.Context, db DBTX, workerpartitionid string) (*TenantWorkerPartition, error) {
+	row := db.QueryRow(ctx, workerPartitionHeartbeat, workerpartitionid)
+	var i TenantWorkerPartition
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.LastHeartbeat,
 	)
 	return &i, err
 }
