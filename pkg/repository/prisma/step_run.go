@@ -1192,6 +1192,75 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, tenantId st
 	}, nil
 }
 
+func (s *stepRunEngineRepository) CleanupQueueItems(ctx context.Context, tenantId string) error {
+	// setup telemetry
+	ctx, span := telemetry.NewSpan(ctx, "cleanup-queue-items-database")
+	defer span.End()
+
+	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
+
+	// get the min and max queue items
+	minMax, err := s.queries.GetMinMaxProcessedQueueItems(ctx, s.pool, pgTenantId)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil
+		}
+
+		return fmt.Errorf("could not get min max processed queue items: %w", err)
+	}
+
+	if minMax == nil {
+		return nil
+	}
+
+	minId := minMax.MinId
+	maxId := minMax.MaxId
+
+	if maxId == 0 {
+		return nil
+	}
+
+	// iterate until we have no more queue items to process
+	var batchSize int64 = 1000
+	var currBatch int64
+
+	for {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+
+		currBatch++
+
+		currMax := minId + batchSize*currBatch
+
+		if currMax > maxId {
+			currMax = maxId
+		}
+
+		// get the next batch of queue items
+		err := s.queries.CleanupQueueItems(ctx, s.pool, dbsqlc.CleanupQueueItemsParams{
+			Minid:    minId,
+			Maxid:    minId + batchSize*currBatch,
+			Tenantid: pgTenantId,
+		})
+
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return nil
+			}
+
+			return fmt.Errorf("could not cleanup queue items: %w", err)
+		}
+
+		if currMax == maxId {
+			break
+		}
+	}
+
+	return nil
+}
+
 func (s *stepRunEngineRepository) UpdateStepRun(ctx context.Context, tenantId, stepRunId string, opts *repository.UpdateStepRunOpts) (*dbsqlc.GetStepRunForEngineRow, *repository.StepRunUpdateInfo, error) {
 	ctx, span := telemetry.NewSpan(ctx, "update-step-run")
 	defer span.End()

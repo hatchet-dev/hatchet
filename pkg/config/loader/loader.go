@@ -410,6 +410,7 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 		Email:                  emailSvc,
 		TenantAlerter:          alerting.New(dc.EngineRepository, encryptionSvc, cf.Runtime.ServerURL, emailSvc),
 		AdditionalOAuthConfigs: additionalOAuthConfigs,
+		EnableDataRetention:    cf.EnableDataRetention,
 	}, nil
 }
 

@@ -146,7 +146,7 @@ func (rc *RetentionControllerImpl) Start() (func() error, error) {
 
 	if err != nil {
 		cancel()
-		return nil, fmt.Errorf("could not delete expired workflow runs: %w", err)
+		return nil, fmt.Errorf("could not set up runDeleteExpiredWorkflowRuns: %w", err)
 	}
 
 	_, err = rc.s.NewJob(
@@ -158,7 +158,7 @@ func (rc *RetentionControllerImpl) Start() (func() error, error) {
 
 	if err != nil {
 		cancel()
-		return nil, fmt.Errorf("could not delete expired events: %w", err)
+		return nil, fmt.Errorf("could not set up runDeleteExpiredEvents: %w", err)
 	}
 
 	_, err = rc.s.NewJob(
@@ -170,7 +170,19 @@ func (rc *RetentionControllerImpl) Start() (func() error, error) {
 
 	if err != nil {
 		cancel()
-		return nil, fmt.Errorf("could not delete expired step runs: %w", err)
+		return nil, fmt.Errorf("could not set up runDeleteExpiredStepRuns: %w", err)
+	}
+
+	_, err = rc.s.NewJob(
+		gocron.DurationJob(interval),
+		gocron.NewTask(
+			rc.runDeleteQueueItems(ctx),
+		),
+	)
+
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("could not set up runDeleteQueueItems: %w", err)
 	}
 
 	_, err = rc.s.NewJob(
@@ -182,7 +194,7 @@ func (rc *RetentionControllerImpl) Start() (func() error, error) {
 
 	if err != nil {
 		cancel()
-		return nil, fmt.Errorf("could not delete expired job runs: %w", err)
+		return nil, fmt.Errorf("could not set up runDeleteExpiredJobRuns: %w", err)
 	}
 	rc.s.Start()
 
