@@ -1,6 +1,15 @@
+import Docsnavigator from "./components/blocks/docsnavigator.tsx";
+import FeaturesNavigator from "./components/blocks/featuresnavigator.tsx";
+
 # Introduction to Hatchet
 
 Welcome to the Hatchet User Guide! Hatchet is a distributed, fault-tolerant task queue designed to solve scaling problems like **concurrency**, **fairness**, and **rate limiting**. Instead of managing your own task queue or pub/sub system, you can use Hatchet to distribute your functions between a set of workers with minimal configuration/infrastructure.
+
+## Quick Starts
+<Docsnavigator />
+
+## Explore Features
+<FeaturesNavigator />
 
 ## Concepts
 
@@ -10,25 +19,12 @@ Hatchet is an orchestrator, which means it manages the execution of your workflo
 
 **What is a workflow?**
 
-The term `workflow` tends to be overloaded, so let's make things more clear - in Hatchet, a workflow is a set of functions which are executed in response to an external trigger (an event, schedule, or API call). For example, if you'd like to send notifications to a user after they've signed up, you could create a workflow for that.
+The term workflow tends to be overloaded, so let's make things more clear - in Hatchet, a workflow is a set of functions which are executed in response to an external trigger (an event, schedule, or API call). For example, if you'd like to send notifications to a user after they've signed up, you could create a workflow for that.
 
 **Why is that useful?**
 
-Instead of processing background tasks and functions in your application handlers, which can lead to complex code, hard-to-debug errors, and resource contention, you can distribute these workflows between a set of `workers`. Workers are long-running processes which listen for events, and execute the functions defined in your workflows.
+Instead of processing background tasks and functions in your application handlers, which can lead to complex code, hard-to-debug errors, and resource contention, you can distribute these workflows between a set of workers. Workers are long-running processes which listen for events, and execute the functions defined in your workflows.
 
 **A managed queue**
 
 Hatchet is built on top of a low-latency queue, which means it can handle real-time interactions and mission-critical tasks. This is particularly useful if you're building a real-time application, or if you're running tasks which need to be completed quickly. It can scale to millions of queued tasks and can handle hundreds of tasks per second. We are continuously working to improve our throughput and latency.
-
-## Quick Starts
-
-We have a number of quick start tutorials for getting up and running quickly with Hatchet:
-
-- [Hatchet Cloud Quickstart](hatchet-cloud-quickstart)
-- [Hatchet Self-Hosted Quickstarts](https://docs.hatchet.run/self-hosting)
-
-We also have a number of guides for getting started with the Hatchet SDKs:
-
-- [Go SDK Quickstart](https://github.com/hatchet-dev/hatchet-go-quickstart)
-- [Python SDK Quickstart](https://github.com/hatchet-dev/hatchet-python-quickstart)
-- [Typescript SDK Quickstart](https://github.com/hatchet-dev/hatchet-typescript-quickstart)
