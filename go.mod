@@ -5,7 +5,7 @@ go 1.22.0
 toolchain go1.22.3
 
 require (
-	github.com/Masterminds/semver/v3 v3.2.1
+	github.com/Masterminds/semver/v3 v3.3.0
 	github.com/creasty/defaults v1.8.0
 	github.com/fatih/color v1.17.0
 	github.com/getkin/kin-openapi v0.127.0
