@@ -165,6 +165,8 @@ export interface ManagedWorkerRuntimeConfig {
   cpus: number;
   /** The amount of memory in MB to use for the worker */
   memoryMb: number;
+  /** The region that the worker is deployed to */
+  region: ManagedWorkerRegion;
 }
 
 export enum ManagedWorkerEventStatus {
@@ -217,19 +219,65 @@ export interface CreateBuildStepRequest {
   dockerfilePath: string;
 }
 
+export enum ManagedWorkerRegion {
+  Ams = "ams",
+  Arn = "arn",
+  Atl = "atl",
+  Bog = "bog",
+  Bos = "bos",
+  Cdg = "cdg",
+  Den = "den",
+  Dfw = "dfw",
+  Ewr = "ewr",
+  Eze = "eze",
+  Gdl = "gdl",
+  Gig = "gig",
+  Gru = "gru",
+  Hkg = "hkg",
+  Iad = "iad",
+  Jnb = "jnb",
+  Lax = "lax",
+  Lhr = "lhr",
+  Mad = "mad",
+  Mia = "mia",
+  Nrt = "nrt",
+  Ord = "ord",
+  Otp = "otp",
+  Phx = "phx",
+  Qro = "qro",
+  Scl = "scl",
+  Sea = "sea",
+  Sin = "sin",
+  Sjc = "sjc",
+  Syd = "syd",
+  Waw = "waw",
+  Yul = "yul",
+  Yyz = "yyz",
+}
+
 export interface CreateManagedWorkerRuntimeConfigRequest {
   /**
    * @min 0
-   * @max 16
+   * @max 1000
    */
   numReplicas: number;
   /** A map of environment variables to set for the worker */
   envVars: Record<string, string>;
+  /** The region to deploy the worker to */
+  region?: ManagedWorkerRegion;
   /** The kind of CPU to use for the worker */
   cpuKind: string;
-  /** The number of CPUs to use for the worker */
+  /**
+   * The number of CPUs to use for the worker
+   * @min 1
+   * @max 64
+   */
   cpus: number;
-  /** The amount of memory in MB to use for the worker */
+  /**
+   * The amount of memory in MB to use for the worker
+   * @min 1024
+   * @max 65536
+   */
   memoryMb: number;
 }
 
