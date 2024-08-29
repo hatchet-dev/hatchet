@@ -1,5 +1,5 @@
 import React from "react";
-import { IconProps } from "./_icon-props";
+import IconProps from "./icon-props";
 
 function ShieldCheck(props: IconProps & { size: number }) {
   const fill = props.fill || "currentColor";

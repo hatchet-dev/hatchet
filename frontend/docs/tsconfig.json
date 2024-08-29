@@ -13,8 +13,12 @@
     "moduleResolution": "node",
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "jsx": "preserve", 
+    "jsx": "preserve",
+    "paths": {
+      "@components/*": ["./components/*"],
+      "@lib/*": ["./lib/*"],
+    }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx"],
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules"],
 }

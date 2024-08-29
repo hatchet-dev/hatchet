@@ -1,5 +1,5 @@
 import React from "react";
-import { IconProps } from "./_icon-props";
+import IconProps from "./icon-props";
 
 function ChartBarTrendUp(props: IconProps) {
   const fill = props.fill || "currentColor";
