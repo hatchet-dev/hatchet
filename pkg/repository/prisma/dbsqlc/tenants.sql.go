@@ -18,7 +18,7 @@ SET
     "lastHeartbeat" = NOW()
 WHERE
     p."id" = $1::text
-RETURNING id, "createdAt", "updatedAt", "lastHeartbeat"
+RETURNING id, "createdAt", "updatedAt", "lastHeartbeat", name
 `
 
 func (q *Queries) ControllerPartitionHeartbeat(ctx context.Context, db DBTX, controllerpartitionid string) (*ControllerPartition, error) {
@@ -29,25 +29,27 @@ func (q *Queries) ControllerPartitionHeartbeat(ctx context.Context, db DBTX, con
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.LastHeartbeat,
+		&i.Name,
 	)
 	return &i, err
 }
 
 const createControllerPartition = `-- name: CreateControllerPartition :one
-INSERT INTO "ControllerPartition" ("id", "createdAt", "lastHeartbeat")
-VALUES (gen_random_uuid()::text, NOW(), NOW())
+INSERT INTO "ControllerPartition" ("id", "createdAt", "lastHeartbeat", "name")
+VALUES (gen_random_uuid()::text, NOW(), NOW(), $1::text)
 ON CONFLICT DO NOTHING
-RETURNING id, "createdAt", "updatedAt", "lastHeartbeat"
+RETURNING id, "createdAt", "updatedAt", "lastHeartbeat", name
 `
 
-func (q *Queries) CreateControllerPartition(ctx context.Context, db DBTX) (*ControllerPartition, error) {
-	row := db.QueryRow(ctx, createControllerPartition)
+func (q *Queries) CreateControllerPartition(ctx context.Context, db DBTX, name pgtype.Text) (*ControllerPartition, error) {
+	row := db.QueryRow(ctx, createControllerPartition, name)
 	var i ControllerPartition
 	err := row.Scan(
 		&i.ID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.LastHeartbeat,
+		&i.Name,
 	)
 	return &i, err
 }
@@ -137,20 +139,21 @@ func (q *Queries) CreateTenantAlertingSettings(ctx context.Context, db DBTX, ten
 }
 
 const createTenantWorkerPartition = `-- name: CreateTenantWorkerPartition :one
-INSERT INTO "TenantWorkerPartition" ("id", "createdAt", "lastHeartbeat")
-VALUES (gen_random_uuid()::text, NOW(), NOW())
+INSERT INTO "TenantWorkerPartition" ("id", "createdAt", "lastHeartbeat", "name")
+VALUES (gen_random_uuid()::text, NOW(), NOW(), $1::text)
 ON CONFLICT DO NOTHING
-RETURNING id, "createdAt", "updatedAt", "lastHeartbeat"
+RETURNING id, "createdAt", "updatedAt", "lastHeartbeat", name
 `
 
-func (q *Queries) CreateTenantWorkerPartition(ctx context.Context, db DBTX) (*TenantWorkerPartition, error) {
-	row := db.QueryRow(ctx, createTenantWorkerPartition)
+func (q *Queries) CreateTenantWorkerPartition(ctx context.Context, db DBTX, name pgtype.Text) (*TenantWorkerPartition, error) {
+	row := db.QueryRow(ctx, createTenantWorkerPartition, name)
 	var i TenantWorkerPartition
 	err := row.Scan(
 		&i.ID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.LastHeartbeat,
+		&i.Name,
 	)
 	return &i, err
 }
@@ -158,7 +161,7 @@ func (q *Queries) CreateTenantWorkerPartition(ctx context.Context, db DBTX) (*Te
 const deleteControllerPartition = `-- name: DeleteControllerPartition :one
 DELETE FROM "ControllerPartition"
 WHERE "id" = $1::text
-RETURNING id, "createdAt", "updatedAt", "lastHeartbeat"
+RETURNING id, "createdAt", "updatedAt", "lastHeartbeat", name
 `
 
 func (q *Queries) DeleteControllerPartition(ctx context.Context, db DBTX, id string) (*ControllerPartition, error) {
@@ -169,6 +172,7 @@ func (q *Queries) DeleteControllerPartition(ctx context.Context, db DBTX, id str
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.LastHeartbeat,
+		&i.Name,
 	)
 	return &i, err
 }
@@ -176,7 +180,7 @@ func (q *Queries) DeleteControllerPartition(ctx context.Context, db DBTX, id str
 const deleteTenantWorkerPartition = `-- name: DeleteTenantWorkerPartition :one
 DELETE FROM "TenantWorkerPartition"
 WHERE "id" = $1::text
-RETURNING id, "createdAt", "updatedAt", "lastHeartbeat"
+RETURNING id, "createdAt", "updatedAt", "lastHeartbeat", name
 `
 
 func (q *Queries) DeleteTenantWorkerPartition(ctx context.Context, db DBTX, id string) (*TenantWorkerPartition, error) {
@@ -187,6 +191,7 @@ func (q *Queries) DeleteTenantWorkerPartition(ctx context.Context, db DBTX, id s
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.LastHeartbeat,
+		&i.Name,
 	)
 	return &i, err
 }
@@ -823,7 +828,7 @@ SET
     "lastHeartbeat" = NOW()
 WHERE
     p."id" = $1::text
-RETURNING id, "createdAt", "updatedAt", "lastHeartbeat"
+RETURNING id, "createdAt", "updatedAt", "lastHeartbeat", name
 `
 
 func (q *Queries) WorkerPartitionHeartbeat(ctx context.Context, db DBTX, workerpartitionid string) (*TenantWorkerPartition, error) {
@@ -834,6 +839,7 @@ func (q *Queries) WorkerPartitionHeartbeat(ctx context.Context, db DBTX, workerp
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.LastHeartbeat,
+		&i.Name,
 	)
 	return &i, err
 }

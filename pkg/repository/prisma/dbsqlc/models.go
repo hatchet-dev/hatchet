@@ -837,6 +837,7 @@ type ControllerPartition struct {
 	CreatedAt     pgtype.Timestamp `json:"createdAt"`
 	UpdatedAt     pgtype.Timestamp `json:"updatedAt"`
 	LastHeartbeat pgtype.Timestamp `json:"lastHeartbeat"`
+	Name          pgtype.Text      `json:"name"`
 }
 
 type Dispatcher struct {
@@ -1220,6 +1221,7 @@ type TenantWorkerPartition struct {
 	CreatedAt     pgtype.Timestamp `json:"createdAt"`
 	UpdatedAt     pgtype.Timestamp `json:"updatedAt"`
 	LastHeartbeat pgtype.Timestamp `json:"lastHeartbeat"`
+	Name          pgtype.Text      `json:"name"`
 }
 
 type Ticker struct {

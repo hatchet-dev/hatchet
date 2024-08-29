@@ -2,6 +2,7 @@ package prisma
 
 import (
 	"context"
+	"errors"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -176,7 +177,7 @@ func (r *tenantAlertingEngineRepository) GetTenantAlertingSettings(ctx context.C
 		emails, err := r.queries.GetMemberEmailGroup(ctx, tx, pgTenantId)
 
 		if err != nil {
-			if err == pgx.ErrNoRows {
+			if errors.Is(err, pgx.ErrNoRows) {
 				r.l.Warn().Err(err).Msg("No valid member email group found for tenant")
 			} else {
 				return nil, err
