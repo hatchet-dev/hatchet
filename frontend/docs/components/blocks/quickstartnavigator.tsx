@@ -4,34 +4,33 @@ import { SiGo, SiPython } from "react-icons/si";
 import { BiLogoTypescript } from "react-icons/bi";
 import CardBlock from "./card-block";
 
-export default function DocsNavigator() {
+export default function QuickstartNavigator() {
   return (
     <section>
       <div className="relative max-w-full mx-auto">
         <CardBlock
-          title="SDK References"
-          description="Reference APIs for integrating Hatchet into your application."
+          title="SDK Quickstarts"
+          description=""
           items={[
             {
               icon: <SiPython size={18} />,
-              title: "Python SDK",
+              title: "Python Quickstart",
               description:
-                "Learn how to integrate Hatchet with your Python applications.",
-              link: "/sdks/python-sdk",
+                "Get up and running quickly with our Python quickstart.",
+              link: "https://github.com/hatchet-dev/hatchet-python-quickstart",
             },
             {
               icon: <BiLogoTypescript size={22} />,
               title: "Typescript SDK",
               description:
-                "Learn how to integrate Hatchet with your Python applications.",
-              link: "/sdks/typescript-sdk",
+                "Get up and running quickly with our Typescript quickstart.",
+              link: "https://github.com/hatchet-dev/hatchet-typescript-quickstart",
             },
             {
               icon: <SiGo size={22} />,
               title: "Go SDK",
-              description:
-                "Learn how to integrate Hatchet with your Go applications.",
-              link: "/sdks/go-sdk",
+              description: "Get up and running quickly with our Go quickstart.",
+              link: "https://github.com/hatchet-dev/hatchet-go-quickstart",
             },
           ]}
         />

@@ -2,7 +2,6 @@ import React from "react";
 import Particles from "../particles";
 import { HighlighterItem } from "../highlighter";
 import { cn } from "@lib/utils";
-import Link from "next/link";
 
 export default function CardBlock({
   title,
@@ -49,14 +48,13 @@ function Card({
 }) {
   return (
     <HighlighterItem>
-      <Link
+      <a
         className={cn(
           "block cursor-pointer relative h-full rounded-[inherit] z-20 overflow-hidden border",
           "bg-slate-100 hover:border-indigo-600/70 hover:shadow-slate-600/25 border-slate-200",
           "dark:bg-slate-900 dark:opacity-75 dark:hover:border-indigo-600/70 dark:hover:shadow dark:hover:shadow-indigo-600/25 dark:border-slate-700"
         )}
         href={link}
-        passHref
       >
         {/* Particles animation */}
         <Particles
@@ -83,7 +81,7 @@ function Card({
             </div>
           </div>
         </div>
-      </Link>
+      </a>
     </HighlighterItem>
   );
 }

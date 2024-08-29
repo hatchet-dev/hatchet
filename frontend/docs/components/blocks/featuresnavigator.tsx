@@ -20,8 +20,8 @@ export default function FeaturesNavigator() {
     <section>
       <div className="relative max-w-full mx-auto">
         <CardBlock
-          title="Explore Hatchet's Features"
-          description="Discover the powerful features Hatchet offers to enhance your workflow management."
+          title="features"
+          description="Discover all of Hatchet's features."
           items={[
             {
               icon: <ChartBarTrendUp />,

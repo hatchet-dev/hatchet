@@ -1,17 +1,10 @@
 import Docsnavigator from "@components/blocks/docsnavigator.tsx";
+import QuickstartNavigator from "@components/blocks/quickstartnavigator.tsx";
 import FeaturesNavigator from "@components/blocks/featuresnavigator.tsx";
 
 # Introduction to Hatchet
 
 Welcome to the Hatchet User Guide! Hatchet is a distributed, fault-tolerant task queue designed to solve scaling problems like **concurrency**, **fairness**, and **rate limiting**. Instead of managing your own task queue or pub/sub system, you can use Hatchet to distribute your functions between a set of workers with minimal configuration/infrastructure.
-
-## Quick Starts
-
-<Docsnavigator />
-
-## Explore Features
-
-<FeaturesNavigator />
 
 ## Concepts
 
@@ -30,3 +23,19 @@ Instead of processing background tasks and functions in your application handler
 **A managed queue**
 
 Hatchet is built on top of a low-latency queue, which means it can handle real-time interactions and mission-critical tasks. This is particularly useful if you're building a real-time application, or if you're running tasks which need to be completed quickly. It can scale to millions of queued tasks and can handle hundreds of tasks per second. We are continuously working to improve our throughput and latency.
+
+## Resources
+
+### Quick Start
+
+Get up and running on Hatchet quickly by forking our quickstart repositories. These quickstarts can be run locally or connected to Hatchet Cloud.
+
+<QuickstartNavigator />
+
+### Features
+
+<FeaturesNavigator />
+
+### SDK References
+
+<Docsnavigator />
