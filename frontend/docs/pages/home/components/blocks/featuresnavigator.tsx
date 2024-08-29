@@ -15,7 +15,6 @@ import HalfDottedCirclePlay from "../atoms/icons/half-dotted-circle-play";
 import EyeOpen from "../atoms/icons/eye-open";
 import CardBlock from "./card-block";
 
-
 export default function FeaturesNavigator() {
   return (
     <section>

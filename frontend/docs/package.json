@@ -24,6 +24,7 @@
   "homepage": "https://github.com/shuding/nextra-docs-template#readme",
   "dependencies": {
     "autoprefixer": "^10.4.17",
+    "clsx": "^2.1.1",
     "next": "^14.1.0",
     "nextra": "^2.13.2",
     "nextra-theme-docs": "^2.13.2",

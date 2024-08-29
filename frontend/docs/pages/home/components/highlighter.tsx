@@ -23,7 +23,9 @@ export default function Highlighter({
   useEffect(() => {
     containerRef.current &&
       setBoxes(
-        Array.from(containerRef.current.children).map((el) => el as HTMLElement)
+        Array.from(containerRef.current.children).map(
+          (el) => el as HTMLElement,
+        ),
       );
   }, []);
 
