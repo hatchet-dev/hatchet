@@ -798,7 +798,7 @@ func UniqueSet[T any](i []T, keyFunc func(T) string) map[string]struct{} {
 	return set
 }
 
-func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, tenantId string) (repository.QueueStepRunsResult, error) {
+func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, ql *zerolog.Logger, tenantId string) (repository.QueueStepRunsResult, error) {
 	ctx, span := telemetry.NewSpan(ctx, "queue-step-runs-database")
 	defer span.End()
 
@@ -1183,7 +1183,7 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, tenantId st
 		timedOutStepRunsStr[i] = sqlchelpers.UUIDToStr(id)
 	}
 
-	defer printQueueDebugInfo(s.l, tenantId, queues, queueItems, duplicates, cancelled, plan, slots, startedAt)
+	defer printQueueDebugInfo(ql, tenantId, queues, queueItems, duplicates, cancelled, plan, slots, startedAt)
 
 	return repository.QueueStepRunsResult{
 		Queued:             plan.QueuedStepRuns,

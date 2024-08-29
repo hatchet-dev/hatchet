@@ -21,6 +21,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/internal/telemetry/servertel"
+	"github.com/hatchet-dev/hatchet/pkg/config/shared"
 	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
@@ -34,13 +35,15 @@ type JobsController interface {
 }
 
 type JobsControllerImpl struct {
-	mq   msgqueue.MessageQueue
-	l    *zerolog.Logger
-	repo repository.EngineRepository
-	dv   datautils.DataDecoderValidator
-	s    gocron.Scheduler
-	a    *hatcheterrors.Wrapped
-	p    *partition.Partition
+	mq             msgqueue.MessageQueue
+	l              *zerolog.Logger
+	queueLogger    *zerolog.Logger
+	pgxStatsLogger *zerolog.Logger
+	repo           repository.EngineRepository
+	dv             datautils.DataDecoderValidator
+	s              gocron.Scheduler
+	a              *hatcheterrors.Wrapped
+	p              *partition.Partition
 
 	reassignMutexes sync.Map
 	timeoutMutexes  sync.Map
@@ -49,22 +52,29 @@ type JobsControllerImpl struct {
 type JobsControllerOpt func(*JobsControllerOpts)
 
 type JobsControllerOpts struct {
-	mq      msgqueue.MessageQueue
-	l       *zerolog.Logger
-	repo    repository.EngineRepository
-	dv      datautils.DataDecoderValidator
-	alerter hatcheterrors.Alerter
-	p       *partition.Partition
+	mq             msgqueue.MessageQueue
+	l              *zerolog.Logger
+	repo           repository.EngineRepository
+	dv             datautils.DataDecoderValidator
+	alerter        hatcheterrors.Alerter
+	p              *partition.Partition
+	queueLogger    *zerolog.Logger
+	pgxStatsLogger *zerolog.Logger
 }
 
 func defaultJobsControllerOpts() *JobsControllerOpts {
-	logger := logger.NewDefaultLogger("jobs-controller")
+	l := logger.NewDefaultLogger("jobs-controller")
 	alerter := hatcheterrors.NoOpAlerter{}
 
+	queueLogger := logger.NewDefaultLogger("queue")
+	pgxStatsLogger := logger.NewDefaultLogger("pgx-stats")
+
 	return &JobsControllerOpts{
-		l:       &logger,
-		dv:      datautils.NewDataDecoderValidator(),
-		alerter: alerter,
+		l:              &l,
+		dv:             datautils.NewDataDecoderValidator(),
+		alerter:        alerter,
+		queueLogger:    &queueLogger,
+		pgxStatsLogger: &pgxStatsLogger,
 	}
 }
 
@@ -77,6 +87,20 @@ func WithMessageQueue(mq msgqueue.MessageQueue) JobsControllerOpt {
 func WithLogger(l *zerolog.Logger) JobsControllerOpt {
 	return func(opts *JobsControllerOpts) {
 		opts.l = l
+	}
+}
+
+func WithQueueLoggerConfig(lc *shared.LoggerConfigFile) JobsControllerOpt {
+	return func(opts *JobsControllerOpts) {
+		l := logger.NewStdErr(lc, "queue")
+		opts.queueLogger = &l
+	}
+}
+
+func WithPgxStatsLoggerConfig(lc *shared.LoggerConfigFile) JobsControllerOpt {
+	return func(opts *JobsControllerOpts) {
+		l := logger.NewStdErr(lc, "pgx-stats")
+		opts.pgxStatsLogger = &l
 	}
 }
 
@@ -136,13 +160,15 @@ func New(fs ...JobsControllerOpt) (*JobsControllerImpl, error) {
 	a.WithData(map[string]interface{}{"service": "jobs-controller"})
 
 	return &JobsControllerImpl{
-		mq:   opts.mq,
-		l:    opts.l,
-		repo: opts.repo,
-		dv:   opts.dv,
-		s:    s,
-		a:    a,
-		p:    opts.p,
+		mq:             opts.mq,
+		l:              opts.l,
+		queueLogger:    opts.queueLogger,
+		pgxStatsLogger: opts.pgxStatsLogger,
+		repo:           opts.repo,
+		dv:             opts.dv,
+		s:              s,
+		a:              a,
+		p:              opts.p,
 	}, nil
 }
 
@@ -211,7 +237,7 @@ func (jc *JobsControllerImpl) Start() (func() error, error) {
 		return nil, fmt.Errorf("could not subscribe to job processing queue: %w", err)
 	}
 
-	q, err := newQueue(jc.mq, jc.l, jc.repo, jc.dv, jc.a, jc.p)
+	q, err := newQueue(jc.mq, jc.l, jc.queueLogger, jc.repo, jc.dv, jc.a, jc.p)
 
 	if err != nil {
 		cancel()
@@ -618,26 +644,23 @@ func (jc *JobsControllerImpl) runPgStat() func() {
 	return func() {
 		s := jc.repo.Health().PgStat()
 
-		jc.l.Debug().Msg(fmt.Sprintf(
-			"Stat{\n"+
-				" Total Connections: %d\n"+
-				"  Constructing: %d\n"+
-				"  Acquired: %d\n"+
-				"  Idle: %d\n"+
-				"  Max: %d\n"+
-				"  Acquire Duration: %s\n"+
-				"  Empty Acquire Count: %d\n"+
-				"  Canceled Acquire Count: %d\n"+
-				"}",
-			s.TotalConns(),
-			s.ConstructingConns(),
-			s.AcquireCount(),
-			s.IdleConns(),
-			s.MaxConns(),
-			s.AcquireDuration(),
-			s.EmptyAcquireCount(),
-			s.CanceledAcquireCount(),
-		))
+		jc.pgxStatsLogger.Info().Int32(
+			"total_connections", s.TotalConns(),
+		).Int32(
+			"constructing_connections", s.ConstructingConns(),
+		).Int64(
+			"acquired_connections", s.AcquireCount(),
+		).Int32(
+			"idle_connections", s.IdleConns(),
+		).Int32(
+			"max_connections", s.MaxConns(),
+		).Dur(
+			"acquire_duration", s.AcquireDuration(),
+		).Int64(
+			"empty_acquire_count", s.EmptyAcquireCount(),
+		).Int64(
+			"canceled_acquire_count", s.CanceledAcquireCount(),
+		).Msg("pgx stats")
 	}
 }
 
