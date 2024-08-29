@@ -798,7 +798,9 @@ func UniqueSet[T any](i []T, keyFunc func(T) string) map[string]struct{} {
 	return set
 }
 
-func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, ql *zerolog.Logger, tenantId string) (repository.QueueStepRunsResult, error) {
+func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, qlp *zerolog.Logger, tenantId string) (repository.QueueStepRunsResult, error) {
+	ql := qlp.With().Str("tenant_id", tenantId).Logger()
+
 	ctx, span := telemetry.NewSpan(ctx, "queue-step-runs-database")
 	defer span.End()
 
@@ -843,6 +845,7 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, ql *zerolog
 	}
 
 	if len(queues) == 0 {
+		ql.Debug().Msg("no queues found")
 		return emptyRes, nil
 	}
 
@@ -855,6 +858,7 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, ql *zerolog
 	for _, queue := range queues {
 		// check whether we have exhausted rate limits for this queue
 		if s.exhaustedRLCache.IsExhausted(tenantId, queue.Name) {
+			ql.Debug().Msgf("queue %s is rate limited, skipping queueing", queue.Name)
 			continue
 		}
 
@@ -891,6 +895,7 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, ql *zerolog
 	// TODO: verify whether this is multithreaded and if it is, whether thread safe
 	results.Query(func(i int, qi []*dbsqlc.QueueItem, err error) {
 		if err != nil {
+			ql.Err(err).Msg("could not list queue items")
 			return
 		}
 
@@ -915,6 +920,7 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, ql *zerolog
 	}
 
 	if len(queueItems) == 0 {
+		ql.Debug().Msg("no queue items found")
 		return emptyRes, nil
 	}
 
@@ -2182,7 +2188,7 @@ type debugInfo struct {
 }
 
 func printQueueDebugInfo(
-	l *zerolog.Logger,
+	l zerolog.Logger,
 	tenantId string,
 	queues []*dbsqlc.Queue,
 	queueItems []*scheduling.QueueItemWithOrder,
