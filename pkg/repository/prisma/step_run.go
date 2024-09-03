@@ -2183,8 +2183,6 @@ func (r *stepRunEngineRepository) prepareTx(ctx context.Context, timeoutMs int) 
 		return nil, nil, err
 	}
 
-	defer deferRollback(ctx, r.l, tx.Rollback)
-
 	// set tx timeout to 5 seconds to avoid deadlocks
 	_, err = tx.Exec(ctx, fmt.Sprintf("SET statement_timeout=%d", timeoutMs))
 
