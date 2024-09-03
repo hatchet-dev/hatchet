@@ -1344,13 +1344,13 @@ func (s *stepRunEngineRepository) ReplayStepRun(ctx context.Context, tenantId, s
 	var stepRun *dbsqlc.GetStepRunForEngineRow
 
 	err = deadlockRetry(s.l, func() error {
-		tx, err := s.pool.Begin(ctx)
+		tx, rollback, err := s.prepareTx(ctx, 5000)
 
 		if err != nil {
 			return err
 		}
 
-		defer deferRollback(ctx, s.l, tx.Rollback)
+		defer rollback()
 
 		innerStepRun, err := s.getStepRunForEngineTx(ctx, tx, tenantId, stepRunId)
 
@@ -1594,13 +1594,13 @@ func (s *stepRunEngineRepository) QueueStepRun(ctx context.Context, tenantId, st
 	var isNotPending bool
 
 	retrierErr := deadlockRetry(s.l, func() error {
-		tx, err := s.pool.Begin(ctx)
+		tx, rollback, err := s.prepareTx(ctx, 5000)
 
 		if err != nil {
 			return err
 		}
 
-		defer deferRollback(ctx, s.l, tx.Rollback)
+		defer rollback()
 
 		// get the step run and make sure it's still in pending
 		innerStepRun, err := s.getStepRunForEngineTx(ctx, tx, tenantId, stepRunId)
@@ -1919,13 +1919,13 @@ func (s *stepRunEngineRepository) ResolveRelatedStatuses(
 	tenantId pgtype.UUID,
 	stepRunId pgtype.UUID,
 ) (*repository.StepRunUpdateInfo, error) {
-	tx, err := s.pool.Begin(ctx)
+	tx, rollback, err := s.prepareTx(ctx, 5000)
 
 	if err != nil {
 		return nil, err
 	}
 
-	defer deferRollback(ctx, s.l, tx.Rollback)
+	defer rollback()
 
 	ctx, span := telemetry.NewSpan(ctx, "update-step-run-extra") // nolint:ineffassign
 	defer span.End()
