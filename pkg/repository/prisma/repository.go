@@ -276,7 +276,7 @@ func (r *engineRepository) WebhookWorker() repository.WebhookWorkerEngineReposit
 	return r.webhookWorker
 }
 
-func NewEngineRepository(pool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ...PrismaRepositoryOpt) repository.EngineRepository {
+func NewEngineRepository(pool *pgxpool.Pool, queuePool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ...PrismaRepositoryOpt) repository.EngineRepository {
 	opts := defaultPrismaRepositoryOpts()
 
 	for _, f := range fs {
@@ -297,7 +297,7 @@ func NewEngineRepository(pool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ..
 		event:          NewEventEngineRepository(pool, opts.v, opts.l, opts.metered),
 		getGroupKeyRun: NewGetGroupKeyRunRepository(pool, opts.v, opts.l),
 		jobRun:         NewJobRunEngineRepository(pool, opts.v, opts.l),
-		stepRun:        NewStepRunEngineRepository(pool, opts.v, opts.l, cf),
+		stepRun:        NewStepRunEngineRepository(queuePool, opts.v, opts.l, cf),
 		tenant:         NewTenantEngineRepository(pool, opts.v, opts.l, opts.cache),
 		tenantAlerting: NewTenantAlertingEngineRepository(pool, opts.v, opts.l, opts.cache),
 		ticker:         NewTickerRepository(pool, opts.v, opts.l),
