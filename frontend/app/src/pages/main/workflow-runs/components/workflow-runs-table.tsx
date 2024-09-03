@@ -59,49 +59,10 @@ export interface WorkflowRunsTableProps {
   filterVisibility?: { [key: string]: boolean };
   refetchInterval?: number;
 }
-type MetricsChartProps = {
-  sample: SampleStream;
-  normalizer?: (value: number) => number;
-  yLabel: string;
-  tooltipFormat?: (d: number) => string;
-};
 
-function MetricsChart({
-  sample,
-  normalizer,
-  yLabel,
-  tooltipFormat,
-}: MetricsChartProps) {
-  const { parentRef, width, height } = useParentSize({ debounceTime: 150 });
-
-  const values: MetricValue[] = useMemo(
-    () =>
-      (sample.values || [])
-        .filter((v) => v !== undefined)
-        .map((v) => {
-          return {
-            date: new Date(v[0] * 1000),
-            value: normalizer ? normalizer(parseFloat(v[1])) : parseFloat(v[1]),
-          };
-        }),
-    [sample, normalizer],
-  );
-
-  return (
-    <div
-      ref={parentRef}
-      className="w-full max-h-[25rem] min-h-[25rem] ml-8 px-14"
-    >
-      <AreaChart
-        hideBottomAxis={false}
-        data={values}
-        width={width}
-        height={height}
-        yLabel={yLabel}
-        tooltipFormat={tooltipFormat}
-      />
-    </div>
-  );
+interface MinuteEntry {
+  date: Date;
+  value: number;
 }
 
 export function WorkflowRunsTable({
@@ -118,7 +79,10 @@ export function WorkflowRunsTable({
 
   const [timeRange, setTimeRange] = useAtom(lastTimeRangeAtom);
   const [createdAfter, setCreatedAfter] = useState<string | undefined>(
-    new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+    new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
+  );
+  const [createdBefore, setCreatedBefore] = useState<string | undefined>(
+    new Date(Date.now()).toISOString(),
   );
 
   const [sorting, setSorting] = useState<SortingState>(() => {
@@ -278,19 +242,63 @@ export function WorkflowRunsTable({
 
 
 
+
+
+
+ const generateMinuteEntries =  (startDate: Date, endDate: Date): MinuteEntry[] =>  {
+  const entries: MinuteEntry[] = [];
+  let currentDate = new Date(startDate.setSeconds(0));
+
+  while (currentDate <= endDate) {
+    entries.push({
+      date: new Date(currentDate),
+      value: 0
+    });
+
+    // Move to the next minute
+    currentDate.setMinutes(currentDate.getMinutes() + 1);
+  }
+
+  return entries;
+}
+
+const GetWorkflowChart: React.FC = () => {
+
+const minuteEntries = generateMinuteEntries(
+  createdAfter ? new Date(createdAfter) : new Date(),
+  createdBefore ? new Date(createdBefore) : new Date()
+);
+
+
 const workflowRunEventsMetricsQuery = useQuery({
-  ...queries.workflowRuns.eventMetrics(tenant.metadata.id, {}),
+  ...queries.workflowRuns.eventMetrics(tenant.metadata.id, {createdAfter, createdBefore}),
   refetchInterval,
 });
 
-const getWorkflowChart = () => {
-  let data = workflowRunEventsMetricsQuery.data?.results?.map((d) => {
+  let data = useMemo(()=> {
+  if (workflowRunEventsMetricsQuery.data && workflowRunEventsMetricsQuery.data['results'] && workflowRunEventsMetricsQuery.data['results'].length > 0 && workflowRunEventsMetricsQuery.data['results'][workflowRunEventsMetricsQuery.data['results']?.length - 1] ) {
+    console.log(workflowRunEventsMetricsQuery.data['results'][workflowRunEventsMetricsQuery.data['results']?.length - 1].SUCCEEDED);
+  }
+  const data = workflowRunEventsMetricsQuery.data?.results?.map((d) => {
     return { date: d.time ? new Date(d.time) : new Date(), value: d.SUCCEEDED || 0 };
   });
 
+
+  (data || []).forEach((entry) => {
+    const found = minuteEntries.find((m) => Math.floor(m.date.getTime() / 1000)   === Math.floor(entry.date.getTime() / 1000) );
+    if (found) {
+      found.value = entry.value;
+    }
+  })
+
+  return data
+
+}, [workflowRunEventsMetricsQuery.data]);
+
+
   if (data) {
-    console.log(JSON.stringify(data));
-    return <AreaChart data={data} width={1000} height={500}
+
+    return <AreaChart data={minuteEntries} width={1000} height={500}
     />;
   }
 }
@@ -466,7 +474,11 @@ const getWorkflowChart = () => {
 
   return (
     <>
-      <div className="flex flex-row justify-between items-center break">{getWorkflowChart()}</div>
+      <div className="flex flex-row justify-between items-center my-16">{
+
+      <GetWorkflowChart />
+
+      }</div>
 
       <div className="flex flex-row justify-between items-center my-4">
 

@@ -1116,6 +1116,12 @@ type WorkflowRunEventsMetricsCounts struct {
 	} `json:"results,omitempty"`
 }
 
+// WorkflowRunEventsMetricsCountsRequest defines model for WorkflowRunEventsMetricsCountsRequest.
+type WorkflowRunEventsMetricsCountsRequest struct {
+	CreatedAfter  *time.Time `json:"createdAfter,omitempty"`
+	CreatedBefore *time.Time `json:"createdBefore,omitempty"`
+}
+
 // WorkflowRunList defines model for WorkflowRunList.
 type WorkflowRunList struct {
 	Pagination *PaginationResponse `json:"pagination,omitempty"`
@@ -1453,6 +1459,9 @@ type WorkflowRunUpdateReplayJSONRequestBody = ReplayWorkflowRunsRequest
 // WorkflowRunCancelJSONRequestBody defines body for WorkflowRunCancel for application/json ContentType.
 type WorkflowRunCancelJSONRequestBody = WorkflowRunsCancelRequest
 
+// WorkflowRunEventsGetMetricsJSONRequestBody defines body for WorkflowRunEventsGetMetrics for application/json ContentType.
+type WorkflowRunEventsGetMetricsJSONRequestBody = WorkflowRunEventsMetricsCountsRequest
+
 // TenantInviteAcceptJSONRequestBody defines body for TenantInviteAccept for application/json ContentType.
 type TenantInviteAcceptJSONRequestBody = AcceptInviteRequest
 
@@ -1725,8 +1734,10 @@ type ClientInterface interface {
 	// WorkflowRunList request
 	WorkflowRunList(ctx context.Context, tenant openapi_types.UUID, params *WorkflowRunListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// WorkflowRunEventsGetMetrics request
-	WorkflowRunEventsGetMetrics(ctx context.Context, tenant openapi_types.UUID, params *WorkflowRunEventsGetMetricsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// WorkflowRunEventsGetMetricsWithBody request with any body
+	WorkflowRunEventsGetMetricsWithBody(ctx context.Context, tenant openapi_types.UUID, params *WorkflowRunEventsGetMetricsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	WorkflowRunEventsGetMetrics(ctx context.Context, tenant openapi_types.UUID, params *WorkflowRunEventsGetMetricsParams, body WorkflowRunEventsGetMetricsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// WorkflowRunGetMetrics request
 	WorkflowRunGetMetrics(ctx context.Context, tenant openapi_types.UUID, params *WorkflowRunGetMetricsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -2586,8 +2597,20 @@ func (c *Client) WorkflowRunList(ctx context.Context, tenant openapi_types.UUID,
 	return c.Client.Do(req)
 }
 
-func (c *Client) WorkflowRunEventsGetMetrics(ctx context.Context, tenant openapi_types.UUID, params *WorkflowRunEventsGetMetricsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewWorkflowRunEventsGetMetricsRequest(c.Server, tenant, params)
+func (c *Client) WorkflowRunEventsGetMetricsWithBody(ctx context.Context, tenant openapi_types.UUID, params *WorkflowRunEventsGetMetricsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWorkflowRunEventsGetMetricsRequestWithBody(c.Server, tenant, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) WorkflowRunEventsGetMetrics(ctx context.Context, tenant openapi_types.UUID, params *WorkflowRunEventsGetMetricsParams, body WorkflowRunEventsGetMetricsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWorkflowRunEventsGetMetricsRequest(c.Server, tenant, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -5465,8 +5488,19 @@ func NewWorkflowRunListRequest(server string, tenant openapi_types.UUID, params 
 	return req, nil
 }
 
-// NewWorkflowRunEventsGetMetricsRequest generates requests for WorkflowRunEventsGetMetrics
-func NewWorkflowRunEventsGetMetricsRequest(server string, tenant openapi_types.UUID, params *WorkflowRunEventsGetMetricsParams) (*http.Request, error) {
+// NewWorkflowRunEventsGetMetricsRequest calls the generic WorkflowRunEventsGetMetrics builder with application/json body
+func NewWorkflowRunEventsGetMetricsRequest(server string, tenant openapi_types.UUID, params *WorkflowRunEventsGetMetricsParams, body WorkflowRunEventsGetMetricsJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewWorkflowRunEventsGetMetricsRequestWithBody(server, tenant, params, "application/json", bodyReader)
+}
+
+// NewWorkflowRunEventsGetMetricsRequestWithBody generates requests for WorkflowRunEventsGetMetrics with any type of body
+func NewWorkflowRunEventsGetMetricsRequestWithBody(server string, tenant openapi_types.UUID, params *WorkflowRunEventsGetMetricsParams, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -5529,10 +5563,12 @@ func NewWorkflowRunEventsGetMetricsRequest(server string, tenant openapi_types.U
 		queryURL.RawQuery = queryValues.Encode()
 	}
 
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	req, err := http.NewRequest("GET", queryURL.String(), body)
 	if err != nil {
 		return nil, err
 	}
+
+	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -6845,8 +6881,10 @@ type ClientWithResponsesInterface interface {
 	// WorkflowRunListWithResponse request
 	WorkflowRunListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *WorkflowRunListParams, reqEditors ...RequestEditorFn) (*WorkflowRunListResponse, error)
 
-	// WorkflowRunEventsGetMetricsWithResponse request
-	WorkflowRunEventsGetMetricsWithResponse(ctx context.Context, tenant openapi_types.UUID, params *WorkflowRunEventsGetMetricsParams, reqEditors ...RequestEditorFn) (*WorkflowRunEventsGetMetricsResponse, error)
+	// WorkflowRunEventsGetMetricsWithBodyWithResponse request with any body
+	WorkflowRunEventsGetMetricsWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, params *WorkflowRunEventsGetMetricsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WorkflowRunEventsGetMetricsResponse, error)
+
+	WorkflowRunEventsGetMetricsWithResponse(ctx context.Context, tenant openapi_types.UUID, params *WorkflowRunEventsGetMetricsParams, body WorkflowRunEventsGetMetricsJSONRequestBody, reqEditors ...RequestEditorFn) (*WorkflowRunEventsGetMetricsResponse, error)
 
 	// WorkflowRunGetMetricsWithResponse request
 	WorkflowRunGetMetricsWithResponse(ctx context.Context, tenant openapi_types.UUID, params *WorkflowRunGetMetricsParams, reqEditors ...RequestEditorFn) (*WorkflowRunGetMetricsResponse, error)
@@ -9318,9 +9356,17 @@ func (c *ClientWithResponses) WorkflowRunListWithResponse(ctx context.Context, t
 	return ParseWorkflowRunListResponse(rsp)
 }
 
-// WorkflowRunEventsGetMetricsWithResponse request returning *WorkflowRunEventsGetMetricsResponse
-func (c *ClientWithResponses) WorkflowRunEventsGetMetricsWithResponse(ctx context.Context, tenant openapi_types.UUID, params *WorkflowRunEventsGetMetricsParams, reqEditors ...RequestEditorFn) (*WorkflowRunEventsGetMetricsResponse, error) {
-	rsp, err := c.WorkflowRunEventsGetMetrics(ctx, tenant, params, reqEditors...)
+// WorkflowRunEventsGetMetricsWithBodyWithResponse request with arbitrary body returning *WorkflowRunEventsGetMetricsResponse
+func (c *ClientWithResponses) WorkflowRunEventsGetMetricsWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, params *WorkflowRunEventsGetMetricsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WorkflowRunEventsGetMetricsResponse, error) {
+	rsp, err := c.WorkflowRunEventsGetMetricsWithBody(ctx, tenant, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseWorkflowRunEventsGetMetricsResponse(rsp)
+}
+
+func (c *ClientWithResponses) WorkflowRunEventsGetMetricsWithResponse(ctx context.Context, tenant openapi_types.UUID, params *WorkflowRunEventsGetMetricsParams, body WorkflowRunEventsGetMetricsJSONRequestBody, reqEditors ...RequestEditorFn) (*WorkflowRunEventsGetMetricsResponse, error) {
+	rsp, err := c.WorkflowRunEventsGetMetrics(ctx, tenant, params, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}

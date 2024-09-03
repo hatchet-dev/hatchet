@@ -79,6 +79,7 @@ import {
   WorkflowMetrics,
   WorkflowRun,
   WorkflowRunEventsMetricsCounts,
+  WorkflowRunEventsMetricsCountsRequest,
   WorkflowRunList,
   WorkflowRunOrderByDirection,
   WorkflowRunOrderByField,
@@ -1456,6 +1457,7 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    */
   workflowRunEventsGetMetrics = (
     tenant: string,
+    data: WorkflowRunEventsMetricsCountsRequest,
     query?: {
       /**
        * The time after the workflow run was created
@@ -1476,7 +1478,9 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       path: `/api/v1/tenants/${tenant}/workflows/runs/event/metrics`,
       method: 'GET',
       query: query,
+      body: data,
       secure: true,
+      type: ContentType.Json,
       format: 'json',
       ...params,
     });

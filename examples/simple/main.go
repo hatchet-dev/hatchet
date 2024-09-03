@@ -76,7 +76,7 @@ func run(events chan<- string) (func() error, error) {
 			On:          worker.Events("user:create:simple"),
 			Name:        "simple",
 			Description: "This runs after an update to the user model.",
-			Concurrency: worker.Concurrency(getConcurrencyKey),
+			// Concurrency: worker.Concurrency(getConcurrencyKey),
 			Steps: []*worker.WorkflowStep{
 				worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
 					input := &userCreateEvent{}

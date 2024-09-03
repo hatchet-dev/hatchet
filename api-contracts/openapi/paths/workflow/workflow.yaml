@@ -598,6 +598,11 @@ workflowRunEventsMetricsCounts:
         schema:
           type: string
           format: date-time
+    requestBody:
+      content:
+        application/json:
+          schema:
+            $ref: "../../components/schemas/_index.yaml#/WorkflowRunEventsMetricsCountsRequest"
     responses:
       "200":
         content:

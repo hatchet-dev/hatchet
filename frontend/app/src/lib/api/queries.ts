@@ -2,7 +2,7 @@ import { createQueryKeyStore } from '@lukemorales/query-key-factory';
 
 import api, { cloudApi } from './api';
 import invariant from 'tiny-invariant';
-import { WebhookWorkerCreateRequest, WorkflowRunEventsMetricsCounts } from '.';
+import { WebhookWorkerCreateRequest, WorkflowRunEventsMetricsCounts, WorkflowRunEventsMetricsCountsRequest } from '.';
 
 type ListEventQuery = Parameters<typeof api.eventList>[1];
 type ListLogLineQuery = Parameters<typeof api.logLineList>[1];
@@ -188,10 +188,11 @@ export const queries = createQueryKeyStore({
       queryFn: async () =>
         (await api.workflowRunGetMetrics(tenant, query)).data,
     }),
-    eventMetrics: (tenant: string, query: WorkflowRunEventsMetricsCounts) => ({
+
+    eventMetrics: (tenant: string, params: WorkflowRunEventsMetricsCountsRequest) => ({
       queryKey: ['workflow-run:event-metrics', tenant],
       queryFn: async () =>
-        (await api.workflowRunEventsGetMetrics(tenant)).data,
+        (await api.workflowRunEventsGetMetrics(tenant,{},params)).data,
     }),
   },
   stepRuns: {

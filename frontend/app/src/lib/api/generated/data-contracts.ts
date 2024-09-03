@@ -698,6 +698,13 @@ export interface WorkflowRunsCancelRequest {
   workflowRunIds: string[];
 }
 
+export interface WorkflowRunEventsMetricsCountsRequest {
+  /** @format date-time */
+  createdAfter?: string;
+  /** @format date-time */
+  createdBefore?: string;
+}
+
 export interface WorkflowRunEventsMetricsCounts {
   results?: {
     /** @format date-time */

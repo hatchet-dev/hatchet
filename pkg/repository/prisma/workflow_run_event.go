@@ -62,6 +62,48 @@ func (r *workflowRunEventEngineRepository) CreateQueuedWorkflowRunEvent(ctx cont
 	return nil
 }
 
+func (r *workflowRunEventEngineRepository) CreateFailedWorkflowRunEvent(ctx context.Context, tenantId string, workflowRunId string) error {
+
+	_, err := r.queries.CreateWorkflowRunEvent(ctx, r.pool, dbsqlc.CreateWorkflowRunEventParams{
+		TenantId:      sqlchelpers.UUIDFromStr(tenantId),
+		WorkflowRunId: sqlchelpers.UUIDFromStr(workflowRunId),
+		EventType:     dbsqlc.WorkflowRunEventTypeFAILED,
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (r *workflowRunEventEngineRepository) CreatePendingWorkflowRunEvent(ctx context.Context, tenantId string, workflowRunId string) error {
+
+	_, err := r.queries.CreateWorkflowRunEvent(ctx, r.pool, dbsqlc.CreateWorkflowRunEventParams{
+		TenantId:      sqlchelpers.UUIDFromStr(tenantId),
+		WorkflowRunId: sqlchelpers.UUIDFromStr(workflowRunId),
+		EventType:     dbsqlc.WorkflowRunEventTypePENDING,
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (r *workflowRunEventEngineRepository) CreateRunningWorkflowRunEvent(ctx context.Context, tenantId string, workflowRunId string) error {
+
+	_, err := r.queries.CreateWorkflowRunEvent(ctx, r.pool, dbsqlc.CreateWorkflowRunEventParams{
+		TenantId:      sqlchelpers.UUIDFromStr(tenantId),
+		WorkflowRunId: sqlchelpers.UUIDFromStr(workflowRunId),
+		EventType:     dbsqlc.WorkflowRunEventTypeRUNNING,
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (r *workflowRunEventEngineRepository) GetWorkflowRunEventMetrics(ctx context.Context, tenantId string, startTimestamp *time.Time, endTimestamp *time.Time) ([]*dbsqlc.WorkflowRunEventsMetricsRow, error) {
 
 	rows, err := r.queries.WorkflowRunEventsMetrics(ctx, r.pool, dbsqlc.WorkflowRunEventsMetricsParams{

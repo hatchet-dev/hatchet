@@ -123,6 +123,16 @@ WorkflowRunsMetrics:
       type: object
       $ref: "#/WorkflowRunsMetricsCounts"
 
+WorkflowRunEventsMetricsCountsRequest:
+  type: object
+  properties:
+    createdAfter:
+      type: string
+      format: date-time
+    createdBefore:
+      type: string
+      format: date-time
+
 WorkflowRunEventsMetricsCounts:
   type: object
   properties:
@@ -146,9 +156,6 @@ WorkflowRunEventsMetricsCounts:
             type: integer
           QUEUE_DEPTH:
             type: integer
-
-
-
 
 StepRunStatus:
   type: string

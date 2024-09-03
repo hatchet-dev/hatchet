@@ -46,6 +46,13 @@ func (wc *WorkflowsControllerImpl) handleWorkflowRunQueued(ctx context.Context, 
 		return fmt.Errorf("could not get job run: %w", err)
 	}
 
+	defer func() {
+		wreErr := wc.repo.WorkflowRunEvent().CreateQueuedWorkflowRunEvent(ctx, metadata.TenantId, payload.WorkflowRunId)
+		if wreErr != nil {
+			wc.l.Warn().Msgf("could not create queued workflow run event for tenantID %s and WorkflowRunId %s : %e", metadata.TenantId, payload.WorkflowRunId, wreErr)
+		}
+	}()
+
 	workflowRunId := sqlchelpers.UUIDToStr(workflowRun.WorkflowRun.ID)
 
 	servertel.WithWorkflowRunModel(span, workflowRun)
