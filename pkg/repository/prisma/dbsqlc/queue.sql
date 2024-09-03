@@ -49,6 +49,24 @@ VALUES
         sqlc.narg('desiredWorkerId')::uuid
     );
 
+-- name: GetMinMaxProcessedQueueItems :one
+SELECT
+    COALESCE(MIN("id"), 0)::bigint AS "minId",
+    COALESCE(MAX("id"), 0)::bigint AS "maxId"
+FROM
+    "QueueItem"
+WHERE
+    "isQueued" = 'f'
+    AND "tenantId" = @tenantId::uuid;
+
+-- name: CleanupQueueItems :exec
+DELETE FROM "QueueItem"
+WHERE "isQueued" = 'f'
+AND
+    "id" >= @minId::bigint
+    AND "id" <= @maxId::bigint
+    AND "tenantId" = @tenantId::uuid;
+
 -- name: ListQueueItems :batchmany
 SELECT
     *

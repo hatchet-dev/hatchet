@@ -792,7 +792,12 @@ func UniqueSet[T any](i []T, keyFunc func(T) string) map[string]struct{} {
 	return set
 }
 
-func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, tenantId string) (repository.QueueStepRunsResult, error) {
+func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, qlp *zerolog.Logger, tenantId string) (repository.QueueStepRunsResult, error) {
+	ql := qlp.With().Str("tenant_id", tenantId).Logger()
+
+	ctx, span := telemetry.NewSpan(ctx, "queue-step-runs-database")
+	defer span.End()
+
 	startedAt := time.Now().UTC()
 
 	emptyRes := repository.QueueStepRunsResult{
@@ -834,6 +839,7 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, tenantId st
 	}
 
 	if len(queues) == 0 {
+		ql.Debug().Msg("no queues found")
 		return emptyRes, nil
 	}
 
@@ -846,6 +852,7 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, tenantId st
 	for _, queue := range queues {
 		// check whether we have exhausted rate limits for this queue
 		if s.exhaustedRLCache.IsExhausted(tenantId, queue.Name) {
+			ql.Debug().Msgf("queue %s is rate limited, skipping queueing", queue.Name)
 			continue
 		}
 
@@ -882,6 +889,7 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, tenantId st
 	// TODO: verify whether this is multithreaded and if it is, whether thread safe
 	results.Query(func(i int, qi []*dbsqlc.QueueItem, err error) {
 		if err != nil {
+			ql.Err(err).Msg("could not list queue items")
 			return
 		}
 
@@ -906,6 +914,7 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, tenantId st
 	}
 
 	if len(queueItems) == 0 {
+		ql.Debug().Msg("no queue items found")
 		return emptyRes, nil
 	}
 
@@ -1042,6 +1051,7 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, tenantId st
 	}
 
 	plan, err := scheduling.GeneratePlan(
+		ctx,
 		slots,
 		uniqueActionsArr,
 		queueItems,
@@ -1173,13 +1183,82 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, tenantId st
 		timedOutStepRunsStr[i] = sqlchelpers.UUIDToStr(id)
 	}
 
-	defer printQueueDebugInfo(s.l, queues, queueItems, duplicates, cancelled, plan, slots, startedAt)
+	defer printQueueDebugInfo(ql, tenantId, queues, queueItems, duplicates, cancelled, plan, slots, startedAt)
 
 	return repository.QueueStepRunsResult{
 		Queued:             plan.QueuedStepRuns,
 		SchedulingTimedOut: timedOutStepRunsStr,
 		Continue:           plan.ShouldContinue,
 	}, nil
+}
+
+func (s *stepRunEngineRepository) CleanupQueueItems(ctx context.Context, tenantId string) error {
+	// setup telemetry
+	ctx, span := telemetry.NewSpan(ctx, "cleanup-queue-items-database")
+	defer span.End()
+
+	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
+
+	// get the min and max queue items
+	minMax, err := s.queries.GetMinMaxProcessedQueueItems(ctx, s.pool, pgTenantId)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil
+		}
+
+		return fmt.Errorf("could not get min max processed queue items: %w", err)
+	}
+
+	if minMax == nil {
+		return nil
+	}
+
+	minId := minMax.MinId
+	maxId := minMax.MaxId
+
+	if maxId == 0 {
+		return nil
+	}
+
+	// iterate until we have no more queue items to process
+	var batchSize int64 = 1000
+	var currBatch int64
+
+	for {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+
+		currBatch++
+
+		currMax := minId + batchSize*currBatch
+
+		if currMax > maxId {
+			currMax = maxId
+		}
+
+		// get the next batch of queue items
+		err := s.queries.CleanupQueueItems(ctx, s.pool, dbsqlc.CleanupQueueItemsParams{
+			Minid:    minId,
+			Maxid:    minId + batchSize*currBatch,
+			Tenantid: pgTenantId,
+		})
+
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return nil
+			}
+
+			return fmt.Errorf("could not cleanup queue items: %w", err)
+		}
+
+		if currMax == maxId {
+			break
+		}
+	}
+
+	return nil
 }
 
 func (s *stepRunEngineRepository) UpdateStepRun(ctx context.Context, tenantId, stepRunId string, opts *repository.UpdateStepRunOpts) (*dbsqlc.GetStepRunForEngineRow, *repository.StepRunUpdateInfo, error) {
@@ -1753,6 +1832,10 @@ func (s *stepRunEngineRepository) updateStepRunCore(
 		updateParams.Status.StepRunStatus == dbsqlc.StepRunStatusPENDINGASSIGNMENT {
 		priority := 1
 
+		if innerStepRun.SRPriority.Valid {
+			priority = int(innerStepRun.SRPriority.Int32)
+		}
+
 		// if the step run is a retry, set the priority to 4
 		if innerStepRun.SRRetryCount > 0 || (updateParams.RetryCount.Valid && updateParams.RetryCount.Int32 > 0) {
 			priority = 4
@@ -2108,10 +2191,12 @@ type debugInfo struct {
 	NumDuplicates         int    `json:"num_duplicates"`
 	NumCancelled          int    `json:"num_cancelled"`
 	TotalDuration         string `json:"total_duration"`
+	TenantId              string `json:"tenant_id"`
 }
 
 func printQueueDebugInfo(
-	l *zerolog.Logger,
+	l zerolog.Logger,
+	tenantId string,
 	queues []*dbsqlc.Queue,
 	queueItems []*scheduling.QueueItemWithOrder,
 	duplicates []*scheduling.QueueItemWithOrder,
@@ -2124,6 +2209,7 @@ func printQueueDebugInfo(
 
 	// pretty-print json with 2 spaces
 	debugInfo := debugInfo{
+		TenantId:              tenantId,
 		NumQueues:             len(queues),
 		TotalStepRuns:         len(queueItems),
 		TotalStepRunsAssigned: len(plan.StepRunIds),

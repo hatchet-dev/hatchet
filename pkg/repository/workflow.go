@@ -51,6 +51,9 @@ type CreateWorkflowVersionOpts struct {
 
 	// (optional) the workflow kind
 	Kind *string `validate:"omitempty,oneof=FUNCTION DURABLE DAG"`
+
+	// (optional) the default priority for steps in the workflow (1-3)
+	DefaultPriority *int32 `validate:"omitempty,min=1,max=3"`
 }
 
 type CreateWorkflowConcurrencyOpts struct {

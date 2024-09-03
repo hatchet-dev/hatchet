@@ -159,6 +159,9 @@ model ControllerPartition {
   // lastHeartbeat is used for rebalancing partitions
   lastHeartbeat DateTime?
 
+  // name of the partition
+  name String?
+
   tenants Tenant[]
 }
 
@@ -169,6 +172,9 @@ model TenantWorkerPartition {
 
   // lastHeartbeat is used for rebalancing partitions
   lastHeartbeat DateTime?
+
+  // name of the partition
+  name String?
 
   tenants Tenant[]
 }
@@ -550,6 +556,9 @@ model WorkflowVersion {
 
   // the default amount of time to wait while scheduling a step run
   scheduleTimeout String @default("5m")
+
+  // default priority for the workflow
+  defaultPriority Int?
 
   @@index([deletedAt])
 }
@@ -933,6 +942,9 @@ model WorkflowRun {
   // the duration of the run (ms)
   duration Int?
 
+  // priority of the workflow run
+  priority Int?
+
   // a list of dependents for this workflow run
   children          WorkflowRun[]                 @relation("WorkflowRunChild")
   scheduledChildren WorkflowTriggerScheduledRef[]
@@ -1217,7 +1229,8 @@ model StepRun {
 
   order BigInt @default(autoincrement()) @db.BigInt
 
-  queue String @default("default")
+  queue    String @default("default")
+  priority Int?
 
   // the worker assigned to this job
   worker   Worker? @relation(fields: [workerId], references: [id])

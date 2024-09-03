@@ -10,6 +10,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/integrations/alerting"
+	"github.com/hatchet-dev/hatchet/internal/services/controllers/partition"
 	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
@@ -26,18 +27,18 @@ type RetentionControllerImpl struct {
 	s             gocron.Scheduler
 	tenantAlerter *alerting.TenantAlertManager
 	a             *hatcheterrors.Wrapped
-	partitionId   string
+	p             *partition.Partition
 }
 
 type RetentionControllerOpt func(*RetentionControllerOpts)
 
 type RetentionControllerOpts struct {
-	l           *zerolog.Logger
-	repo        repository.EngineRepository
-	dv          datautils.DataDecoderValidator
-	ta          *alerting.TenantAlertManager
-	alerter     hatcheterrors.Alerter
-	partitionId string
+	l       *zerolog.Logger
+	repo    repository.EngineRepository
+	dv      datautils.DataDecoderValidator
+	ta      *alerting.TenantAlertManager
+	alerter hatcheterrors.Alerter
+	p       *partition.Partition
 }
 
 func defaultRetentionControllerOpts() *RetentionControllerOpts {
@@ -81,9 +82,9 @@ func WithTenantAlerter(ta *alerting.TenantAlertManager) RetentionControllerOpt {
 	}
 }
 
-func WithPartitionId(partitionId string) RetentionControllerOpt {
+func WithPartition(p *partition.Partition) RetentionControllerOpt {
 	return func(opts *RetentionControllerOpts) {
-		opts.partitionId = partitionId
+		opts.p = p
 	}
 }
 
@@ -102,8 +103,8 @@ func New(fs ...RetentionControllerOpt) (*RetentionControllerImpl, error) {
 		return nil, fmt.Errorf("tenant alerter is required. use WithTenantAlerter")
 	}
 
-	if opts.partitionId == "" {
-		return nil, fmt.Errorf("partition ID is required. use WithPartitionId")
+	if opts.p == nil {
+		return nil, fmt.Errorf("partition is required. use WithPartition")
 	}
 
 	s, err := gocron.NewScheduler(gocron.WithLocation(time.UTC))
@@ -125,7 +126,7 @@ func New(fs ...RetentionControllerOpt) (*RetentionControllerImpl, error) {
 		s:             s,
 		tenantAlerter: opts.ta,
 		a:             a,
-		partitionId:   opts.partitionId,
+		p:             opts.p,
 	}, nil
 }
 
@@ -145,7 +146,7 @@ func (rc *RetentionControllerImpl) Start() (func() error, error) {
 
 	if err != nil {
 		cancel()
-		return nil, fmt.Errorf("could not delete expired workflow runs: %w", err)
+		return nil, fmt.Errorf("could not set up runDeleteExpiredWorkflowRuns: %w", err)
 	}
 
 	_, err = rc.s.NewJob(
@@ -157,7 +158,7 @@ func (rc *RetentionControllerImpl) Start() (func() error, error) {
 
 	if err != nil {
 		cancel()
-		return nil, fmt.Errorf("could not delete expired events: %w", err)
+		return nil, fmt.Errorf("could not set up runDeleteExpiredEvents: %w", err)
 	}
 
 	_, err = rc.s.NewJob(
@@ -169,7 +170,19 @@ func (rc *RetentionControllerImpl) Start() (func() error, error) {
 
 	if err != nil {
 		cancel()
-		return nil, fmt.Errorf("could not delete expired step runs: %w", err)
+		return nil, fmt.Errorf("could not set up runDeleteExpiredStepRuns: %w", err)
+	}
+
+	_, err = rc.s.NewJob(
+		gocron.DurationJob(interval),
+		gocron.NewTask(
+			rc.runDeleteQueueItems(ctx),
+		),
+	)
+
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("could not set up runDeleteQueueItems: %w", err)
 	}
 
 	_, err = rc.s.NewJob(
@@ -181,7 +194,7 @@ func (rc *RetentionControllerImpl) Start() (func() error, error) {
 
 	if err != nil {
 		cancel()
-		return nil, fmt.Errorf("could not delete expired job runs: %w", err)
+		return nil, fmt.Errorf("could not set up runDeleteExpiredJobRuns: %w", err)
 	}
 	rc.s.Start()
 

@@ -45,6 +45,15 @@ WHERE
     p."id" = sqlc.arg('controllerPartitionId')::text
 RETURNING *;
 
+-- name: WorkerPartitionHeartbeat :one
+UPDATE
+    "TenantWorkerPartition" p
+SET
+    "lastHeartbeat" = NOW()
+WHERE
+    p."id" = sqlc.arg('workerPartitionId')::text
+RETURNING *;
+
 -- name: ListTenantsByControllerPartitionId :many
 SELECT
     *
@@ -195,8 +204,8 @@ GROUP BY
     runs."workflowId";
 
 -- name: CreateControllerPartition :one
-INSERT INTO "ControllerPartition" ("id", "createdAt", "lastHeartbeat")
-VALUES (sqlc.arg('id')::text, NOW(), NOW())
+INSERT INTO "ControllerPartition" ("id", "createdAt", "lastHeartbeat", "name")
+VALUES (gen_random_uuid()::text, NOW(), NOW(), sqlc.narg('name')::text)
 ON CONFLICT DO NOTHING
 RETURNING *;
 
@@ -277,8 +286,8 @@ DELETE FROM "ControllerPartition"
 WHERE "id" IN (SELECT "id" FROM inactive_partitions);
 
 -- name: CreateTenantWorkerPartition :one
-INSERT INTO "TenantWorkerPartition" ("id", "createdAt", "lastHeartbeat")
-VALUES (sqlc.arg('id')::text, NOW(), NOW())
+INSERT INTO "TenantWorkerPartition" ("id", "createdAt", "lastHeartbeat", "name")
+VALUES (gen_random_uuid()::text, NOW(), NOW(), sqlc.narg('name')::text)
 ON CONFLICT DO NOTHING
 RETURNING *;
 

@@ -8,6 +8,8 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 
+	"github.com/rs/zerolog"
+
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -198,7 +200,9 @@ type StepRunEngineRepository interface {
 	// a pending state.
 	QueueStepRun(ctx context.Context, tenantId, stepRunId string, opts *UpdateStepRunOpts) (*dbsqlc.GetStepRunForEngineRow, error)
 
-	QueueStepRuns(ctx context.Context, tenantId string) (QueueStepRunsResult, error)
+	QueueStepRuns(ctx context.Context, ql *zerolog.Logger, tenantId string) (QueueStepRunsResult, error)
+
+	CleanupQueueItems(ctx context.Context, tenantId string) error
 
 	ListStartableStepRuns(ctx context.Context, tenantId, jobRunId string, parentStepRunId *string) ([]*dbsqlc.GetStepRunForEngineRow, error)
 

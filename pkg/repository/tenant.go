@@ -108,12 +108,14 @@ type TenantEngineRepository interface {
 	// ListTenantsByPartition lists all tenants in the given partition
 	ListTenantsByControllerPartition(ctx context.Context, controllerPartitionId string) ([]*dbsqlc.Tenant, error)
 
-	UpdatePartitionHeartbeat(ctx context.Context, partitionId string) error
-
 	ListTenantsByWorkerPartition(ctx context.Context, workerPartitionId string) ([]*dbsqlc.Tenant, error)
 
 	// CreateEnginePartition creates a new partition for tenants within the engine
-	CreateControllerPartition(ctx context.Context, id string) error
+	CreateControllerPartition(ctx context.Context) (string, error)
+
+	// UpdateControllerPartitionHeartbeat updates the heartbeat for the given partition. If the partition no longer exists,
+	// it creates a new partition and returns the new partition id. Otherwise, it returns the existing partition id.
+	UpdateControllerPartitionHeartbeat(ctx context.Context, partitionId string) (string, error)
 
 	DeleteControllerPartition(ctx context.Context, id string) error
 
@@ -121,7 +123,9 @@ type TenantEngineRepository interface {
 
 	RebalanceInactiveControllerPartitions(ctx context.Context) error
 
-	CreateTenantWorkerPartition(ctx context.Context, id string) error
+	CreateTenantWorkerPartition(ctx context.Context) (string, error)
+
+	UpdateWorkerPartitionHeartbeat(ctx context.Context, partitionId string) (string, error)
 
 	DeleteTenantWorkerPartition(ctx context.Context, id string) error
 

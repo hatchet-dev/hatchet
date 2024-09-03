@@ -57,6 +57,9 @@ type CreateWorkflowRunOpts struct {
 
 	// (optional) the deduplication value for the workflow run
 	DedupeValue *string `validate:"omitempty"`
+
+	// (optional) the priority of the workflow run
+	Priority *int32 `validate:"omitempty,min=1,max=3"`
 }
 
 type CreateGroupKeyRunOpts struct {

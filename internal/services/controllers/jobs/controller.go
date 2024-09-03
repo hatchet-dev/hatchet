@@ -15,11 +15,13 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/datautils/merge"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
+	"github.com/hatchet-dev/hatchet/internal/services/controllers/partition"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/defaults"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/internal/telemetry/servertel"
+	"github.com/hatchet-dev/hatchet/pkg/config/shared"
 	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
@@ -33,13 +35,15 @@ type JobsController interface {
 }
 
 type JobsControllerImpl struct {
-	mq          msgqueue.MessageQueue
-	l           *zerolog.Logger
-	repo        repository.EngineRepository
-	dv          datautils.DataDecoderValidator
-	s           gocron.Scheduler
-	a           *hatcheterrors.Wrapped
-	partitionId string
+	mq             msgqueue.MessageQueue
+	l              *zerolog.Logger
+	queueLogger    *zerolog.Logger
+	pgxStatsLogger *zerolog.Logger
+	repo           repository.EngineRepository
+	dv             datautils.DataDecoderValidator
+	s              gocron.Scheduler
+	a              *hatcheterrors.Wrapped
+	p              *partition.Partition
 
 	reassignMutexes sync.Map
 	timeoutMutexes  sync.Map
@@ -48,22 +52,29 @@ type JobsControllerImpl struct {
 type JobsControllerOpt func(*JobsControllerOpts)
 
 type JobsControllerOpts struct {
-	mq          msgqueue.MessageQueue
-	l           *zerolog.Logger
-	repo        repository.EngineRepository
-	dv          datautils.DataDecoderValidator
-	alerter     hatcheterrors.Alerter
-	partitionId string
+	mq             msgqueue.MessageQueue
+	l              *zerolog.Logger
+	repo           repository.EngineRepository
+	dv             datautils.DataDecoderValidator
+	alerter        hatcheterrors.Alerter
+	p              *partition.Partition
+	queueLogger    *zerolog.Logger
+	pgxStatsLogger *zerolog.Logger
 }
 
 func defaultJobsControllerOpts() *JobsControllerOpts {
-	logger := logger.NewDefaultLogger("jobs-controller")
+	l := logger.NewDefaultLogger("jobs-controller")
 	alerter := hatcheterrors.NoOpAlerter{}
 
+	queueLogger := logger.NewDefaultLogger("queue")
+	pgxStatsLogger := logger.NewDefaultLogger("pgx-stats")
+
 	return &JobsControllerOpts{
-		l:       &logger,
-		dv:      datautils.NewDataDecoderValidator(),
-		alerter: alerter,
+		l:              &l,
+		dv:             datautils.NewDataDecoderValidator(),
+		alerter:        alerter,
+		queueLogger:    &queueLogger,
+		pgxStatsLogger: &pgxStatsLogger,
 	}
 }
 
@@ -79,6 +90,20 @@ func WithLogger(l *zerolog.Logger) JobsControllerOpt {
 	}
 }
 
+func WithQueueLoggerConfig(lc *shared.LoggerConfigFile) JobsControllerOpt {
+	return func(opts *JobsControllerOpts) {
+		l := logger.NewStdErr(lc, "queue")
+		opts.queueLogger = &l
+	}
+}
+
+func WithPgxStatsLoggerConfig(lc *shared.LoggerConfigFile) JobsControllerOpt {
+	return func(opts *JobsControllerOpts) {
+		l := logger.NewStdErr(lc, "pgx-stats")
+		opts.pgxStatsLogger = &l
+	}
+}
+
 func WithAlerter(a hatcheterrors.Alerter) JobsControllerOpt {
 	return func(opts *JobsControllerOpts) {
 		opts.alerter = a
@@ -91,9 +116,9 @@ func WithRepository(r repository.EngineRepository) JobsControllerOpt {
 	}
 }
 
-func WithPartitionId(pid string) JobsControllerOpt {
+func WithPartition(p *partition.Partition) JobsControllerOpt {
 	return func(opts *JobsControllerOpts) {
-		opts.partitionId = pid
+		opts.p = p
 	}
 }
 
@@ -118,8 +143,8 @@ func New(fs ...JobsControllerOpt) (*JobsControllerImpl, error) {
 		return nil, fmt.Errorf("repository is required. use WithRepository")
 	}
 
-	if opts.partitionId == "" {
-		return nil, errors.New("partition id is required. use WithPartitionId")
+	if opts.p == nil {
+		return nil, errors.New("partition is required. use WithPartition")
 	}
 
 	newLogger := opts.l.With().Str("service", "jobs-controller").Logger()
@@ -135,13 +160,15 @@ func New(fs ...JobsControllerOpt) (*JobsControllerImpl, error) {
 	a.WithData(map[string]interface{}{"service": "jobs-controller"})
 
 	return &JobsControllerImpl{
-		mq:          opts.mq,
-		l:           opts.l,
-		repo:        opts.repo,
-		dv:          opts.dv,
-		s:           s,
-		a:           a,
-		partitionId: opts.partitionId,
+		mq:             opts.mq,
+		l:              opts.l,
+		queueLogger:    opts.queueLogger,
+		pgxStatsLogger: opts.pgxStatsLogger,
+		repo:           opts.repo,
+		dv:             opts.dv,
+		s:              s,
+		a:              a,
+		p:              opts.p,
 	}, nil
 }
 
@@ -152,20 +179,7 @@ func (jc *JobsControllerImpl) Start() (func() error, error) {
 
 	startedAt := time.Now()
 
-	// TODO - make this configurable
 	_, err := jc.s.NewJob(
-		gocron.DurationJob(time.Second*20),
-		gocron.NewTask(
-			jc.runPartitionHeartbeat(ctx),
-		),
-	)
-
-	if err != nil {
-		cancel()
-		return nil, fmt.Errorf("could not schedule step run requeue: %w", err)
-	}
-
-	_, err = jc.s.NewJob(
 		gocron.DurationJob(time.Second*15),
 		gocron.NewTask(
 			jc.runPgStat(),
@@ -223,14 +237,14 @@ func (jc *JobsControllerImpl) Start() (func() error, error) {
 		return nil, fmt.Errorf("could not subscribe to job processing queue: %w", err)
 	}
 
-	p, err := NewPartition(jc.mq, jc.l, jc.repo, jc.dv, jc.a, jc.partitionId)
+	q, err := newQueue(jc.mq, jc.l, jc.queueLogger, jc.repo, jc.dv, jc.a, jc.p)
 
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("could not create partition: %w", err)
 	}
 
-	partitionCleanup, err := p.Start()
+	partitionCleanup, err := q.Start()
 
 	if err != nil {
 		cancel()
@@ -297,7 +311,7 @@ func (ec *JobsControllerImpl) handleTask(ctx context.Context, task *msgqueue.Mes
 }
 
 func (ec *JobsControllerImpl) handleJobRunQueued(ctx context.Context, task *msgqueue.Message) error {
-	ctx, span := telemetry.NewSpan(ctx, "handle-job-run-queued")
+	ctx, span := telemetry.NewSpanWithCarrier(ctx, "handle-job-run-queued", task.OtelCarrier)
 	defer span.End()
 
 	payload := tasktypes.JobRunQueuedTaskPayload{}
@@ -352,7 +366,7 @@ func (ec *JobsControllerImpl) handleJobRunQueued(ctx context.Context, task *msgq
 }
 
 func (ec *JobsControllerImpl) handleJobRunCancelled(ctx context.Context, task *msgqueue.Message) error {
-	ctx, span := telemetry.NewSpan(ctx, "handle-job-run-cancelled")
+	ctx, span := telemetry.NewSpanWithCarrier(ctx, "handle-job-run-cancelled", task.OtelCarrier)
 	defer span.End()
 
 	payload := tasktypes.JobRunCancelledTaskPayload{}
@@ -409,7 +423,7 @@ func (ec *JobsControllerImpl) handleJobRunCancelled(ctx context.Context, task *m
 }
 
 func (ec *JobsControllerImpl) handleStepRunRetry(ctx context.Context, task *msgqueue.Message) error {
-	ctx, span := telemetry.NewSpan(ctx, "handle-step-run-retry")
+	ctx, span := telemetry.NewSpanWithCarrier(ctx, "handle-step-run-retry", task.OtelCarrier)
 	defer span.End()
 
 	payload := tasktypes.StepRunRetryTaskPayload{}
@@ -481,7 +495,7 @@ func (ec *JobsControllerImpl) handleStepRunRetry(ctx context.Context, task *msgq
 // handleStepRunReplay replays a step run from scratch - it resets the workflow run state, job run state, and
 // all cancelled step runs which are children of the step run being replayed.
 func (ec *JobsControllerImpl) handleStepRunReplay(ctx context.Context, task *msgqueue.Message) error {
-	ctx, span := telemetry.NewSpan(ctx, "handle-step-run-replay")
+	ctx, span := telemetry.NewSpanWithCarrier(ctx, "handle-step-run-replay", task.OtelCarrier)
 	defer span.End()
 
 	payload := tasktypes.StepRunReplayTaskPayload{}
@@ -605,7 +619,7 @@ func (ec *JobsControllerImpl) handleStepRunReplay(ctx context.Context, task *msg
 }
 
 func (ec *JobsControllerImpl) handleStepRunQueued(ctx context.Context, task *msgqueue.Message) error {
-	ctx, span := telemetry.NewSpan(ctx, "handle-step-run-queued")
+	ctx, span := telemetry.NewSpanWithCarrier(ctx, "handle-step-run-queued", task.OtelCarrier)
 	defer span.End()
 
 	payload := tasktypes.StepRunTaskPayload{}
@@ -630,44 +644,24 @@ func (jc *JobsControllerImpl) runPgStat() func() {
 	return func() {
 		s := jc.repo.Health().PgStat()
 
-		jc.l.Warn().Msg(fmt.Sprintf(
-			"Stat{\n"+
-				" Total Connections: %d\n"+
-				"  Constructing: %d\n"+
-				"  Acquired: %d\n"+
-				"  Idle: %d\n"+
-				"  Max: %d\n"+
-				"  Acquire Duration: %s\n"+
-				"  Empty Acquire Count: %d\n"+
-				"  Canceled Acquire Count: %d\n"+
-				"}",
-			s.TotalConns(),
-			s.ConstructingConns(),
-			s.AcquireCount(),
-			s.IdleConns(),
-			s.MaxConns(),
-			s.AcquireDuration(),
-			s.EmptyAcquireCount(),
-			s.CanceledAcquireCount(),
-		))
+		jc.pgxStatsLogger.Info().Int32(
+			"total_connections", s.TotalConns(),
+		).Int32(
+			"constructing_connections", s.ConstructingConns(),
+		).Int64(
+			"acquired_connections", s.AcquireCount(),
+		).Int32(
+			"idle_connections", s.IdleConns(),
+		).Int32(
+			"max_connections", s.MaxConns(),
+		).Dur(
+			"acquire_duration", s.AcquireDuration(),
+		).Int64(
+			"empty_acquire_count", s.EmptyAcquireCount(),
+		).Int64(
+			"canceled_acquire_count", s.CanceledAcquireCount(),
+		).Msg("pgx stats")
 	}
-}
-
-func (jc *JobsControllerImpl) runPartitionHeartbeat(ctx context.Context) func() {
-	return func() {
-		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-		defer cancel()
-
-		ctx, span := telemetry.NewSpan(ctx, "run-partition-heartbeat")
-		defer span.End()
-
-		err := jc.repo.Tenant().UpdatePartitionHeartbeat(ctx, jc.partitionId)
-
-		if err != nil {
-			jc.l.Err(err).Msg("could not heartbeat partition")
-		}
-	}
-
 }
 
 func MakeBatched[T any](batchSize int, things []T, fn func(group []T) error) error {
@@ -703,7 +697,7 @@ func (jc *JobsControllerImpl) runStepRunReassign(ctx context.Context, startedAt 
 		jc.l.Debug().Msgf("jobs controller: checking step run reassignment")
 
 		// list all tenants
-		tenants, err := jc.repo.Tenant().ListTenantsByControllerPartition(ctx, jc.partitionId)
+		tenants, err := jc.repo.Tenant().ListTenantsByControllerPartition(ctx, jc.p.GetControllerPartitionId())
 
 		if err != nil {
 			jc.l.Err(err).Msg("could not list tenants")
@@ -765,7 +759,7 @@ func (jc *JobsControllerImpl) runStepRunTimeout(ctx context.Context) func() {
 		jc.l.Debug().Msgf("jobs controller: running step run timeout")
 
 		// list all tenants
-		tenants, err := jc.repo.Tenant().ListTenantsByControllerPartition(ctx, jc.partitionId)
+		tenants, err := jc.repo.Tenant().ListTenantsByControllerPartition(ctx, jc.p.GetControllerPartitionId())
 
 		if err != nil {
 			jc.l.Err(err).Msg("could not list tenants")
@@ -963,7 +957,7 @@ func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId, stepId
 }
 
 func (ec *JobsControllerImpl) handleStepRunStarted(ctx context.Context, task *msgqueue.Message) error {
-	ctx, span := telemetry.NewSpan(ctx, "handle-step-run-started")
+	ctx, span := telemetry.NewSpanWithCarrier(ctx, "handle-step-run-started", task.OtelCarrier)
 	defer span.End()
 
 	payload := tasktypes.StepRunStartedTaskPayload{}
@@ -1009,7 +1003,7 @@ func (ec *JobsControllerImpl) handleStepRunStarted(ctx context.Context, task *ms
 }
 
 func (ec *JobsControllerImpl) handleStepRunFinished(ctx context.Context, task *msgqueue.Message) error {
-	ctx, span := telemetry.NewSpan(ctx, "handle-step-run-finished")
+	ctx, span := telemetry.NewSpanWithCarrier(ctx, "handle-step-run-finished", task.OtelCarrier)
 	defer span.End()
 
 	payload := tasktypes.StepRunFinishedTaskPayload{}
@@ -1101,7 +1095,7 @@ func (ec *JobsControllerImpl) handleStepRunFinished(ctx context.Context, task *m
 }
 
 func (ec *JobsControllerImpl) handleStepRunFailed(ctx context.Context, task *msgqueue.Message) error {
-	ctx, span := telemetry.NewSpan(ctx, "handle-step-run-failed")
+	ctx, span := telemetry.NewSpanWithCarrier(ctx, "handle-step-run-failed", task.OtelCarrier)
 	defer span.End()
 
 	payload := tasktypes.StepRunFailedTaskPayload{}
@@ -1231,7 +1225,7 @@ func (ec *JobsControllerImpl) failStepRun(ctx context.Context, tenantId, stepRun
 }
 
 func (ec *JobsControllerImpl) handleStepRunTimedOut(ctx context.Context, task *msgqueue.Message) error {
-	ctx, span := telemetry.NewSpan(ctx, "handle-step-run-timed-out")
+	ctx, span := telemetry.NewSpanWithCarrier(ctx, "handle-step-run-timed-out", task.OtelCarrier)
 	defer span.End()
 
 	payload := tasktypes.StepRunTimedOutTaskPayload{}
@@ -1253,7 +1247,7 @@ func (ec *JobsControllerImpl) handleStepRunTimedOut(ctx context.Context, task *m
 }
 
 func (ec *JobsControllerImpl) handleStepRunCancel(ctx context.Context, task *msgqueue.Message) error {
-	ctx, span := telemetry.NewSpan(ctx, "handle-step-run-cancel")
+	ctx, span := telemetry.NewSpanWithCarrier(ctx, "handle-step-run-cancel", task.OtelCarrier)
 	defer span.End()
 
 	payload := tasktypes.StepRunCancelTaskPayload{}

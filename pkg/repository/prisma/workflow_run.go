@@ -722,6 +722,13 @@ func createNewWorkflowRun(ctx context.Context, pool *pgxpool.Pool, queries *dbsq
 			}
 		}
 
+		if opts.Priority != nil {
+			createParams.Priority = pgtype.Int4{
+				Int32: *opts.Priority,
+				Valid: true,
+			}
+		}
+
 		// create the dedupe value
 		if opts.DedupeValue != nil {
 			_, err = queries.CreateWorkflowRunDedupe(
@@ -915,6 +922,7 @@ func createNewWorkflowRun(ctx context.Context, pool *pgxpool.Pool, queries *dbsq
 						Jobrunid: jobRunId,
 						Stepid:   step.ID,
 						Queue:    sqlchelpers.TextFromStr(step.ActionId),
+						Priority: createParams.Priority,
 					},
 				)
 

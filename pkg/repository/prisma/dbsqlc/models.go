@@ -837,6 +837,7 @@ type ControllerPartition struct {
 	CreatedAt     pgtype.Timestamp `json:"createdAt"`
 	UpdatedAt     pgtype.Timestamp `json:"updatedAt"`
 	LastHeartbeat pgtype.Timestamp `json:"lastHeartbeat"`
+	Name          pgtype.Text      `json:"name"`
 }
 
 type Dispatcher struct {
@@ -1074,6 +1075,7 @@ type StepRun struct {
 	RetryCount        int32            `json:"retryCount"`
 	SemaphoreReleased bool             `json:"semaphoreReleased"`
 	Queue             string           `json:"queue"`
+	Priority          pgtype.Int4      `json:"priority"`
 }
 
 type StepRunEvent struct {
@@ -1219,6 +1221,7 @@ type TenantWorkerPartition struct {
 	CreatedAt     pgtype.Timestamp `json:"createdAt"`
 	UpdatedAt     pgtype.Timestamp `json:"updatedAt"`
 	LastHeartbeat pgtype.Timestamp `json:"lastHeartbeat"`
+	Name          pgtype.Text      `json:"name"`
 }
 
 type Ticker struct {
@@ -1369,6 +1372,7 @@ type WorkflowRun struct {
 	ParentStepRunId    pgtype.UUID       `json:"parentStepRunId"`
 	AdditionalMetadata []byte            `json:"additionalMetadata"`
 	Duration           pgtype.Int4       `json:"duration"`
+	Priority           pgtype.Int4       `json:"priority"`
 }
 
 type WorkflowRunDedupe struct {
@@ -1466,4 +1470,5 @@ type WorkflowVersion struct {
 	OnFailureJobId  pgtype.UUID        `json:"onFailureJobId"`
 	Sticky          NullStickyStrategy `json:"sticky"`
 	Kind            WorkflowKind       `json:"kind"`
+	DefaultPriority pgtype.Int4        `json:"defaultPriority"`
 }

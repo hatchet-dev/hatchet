@@ -3,7 +3,9 @@ package prisma
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"os"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -301,14 +303,80 @@ func (r *tenantEngineRepository) GetTenantByID(ctx context.Context, tenantId str
 	})
 }
 
-func (r *tenantEngineRepository) UpdatePartitionHeartbeat(ctx context.Context, partitionId string) error {
-	_, err := r.queries.ControllerPartitionHeartbeat(ctx, r.pool, partitionId)
+func (r *tenantEngineRepository) UpdateControllerPartitionHeartbeat(ctx context.Context, partitionId string) (string, error) {
+	tx, err := r.pool.Begin(ctx)
 
-	if err == pgx.ErrNoRows {
-		return nil
+	if err != nil {
+		return "", err
 	}
 
-	return err
+	defer deferRollback(ctx, r.l, tx.Rollback)
+
+	// set tx timeout to 5 seconds to avoid deadlocks
+	_, err = tx.Exec(ctx, "SET statement_timeout=5000")
+
+	if err != nil {
+		return "", err
+	}
+
+	partition, err := r.queries.ControllerPartitionHeartbeat(ctx, tx, partitionId)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			// create a new partition
+			partition, err = r.queries.CreateControllerPartition(ctx, tx, getPartitionName())
+
+			if err != nil {
+				return "", err
+			}
+		} else {
+			return "", err
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return "", err
+	}
+
+	return partition.ID, nil
+}
+
+func (r *tenantEngineRepository) UpdateWorkerPartitionHeartbeat(ctx context.Context, partitionId string) (string, error) {
+	tx, err := r.pool.Begin(ctx)
+
+	if err != nil {
+		return "", err
+	}
+
+	defer deferRollback(ctx, r.l, tx.Rollback)
+
+	// set tx timeout to 5 seconds to avoid deadlocks
+	_, err = tx.Exec(ctx, "SET statement_timeout=5000")
+
+	if err != nil {
+		return "", err
+	}
+
+	partition, err := r.queries.WorkerPartitionHeartbeat(ctx, tx, partitionId)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			// create a new partition
+			partition, err = r.queries.CreateTenantWorkerPartition(ctx, tx, getPartitionName())
+
+			if err != nil {
+				return "", err
+			}
+		} else {
+			return "", err
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return "", err
+	}
+
+	return partition.ID, nil
 }
 
 func (r *tenantEngineRepository) ListTenantsByControllerPartition(ctx context.Context, controllerPartitionId string) ([]*dbsqlc.Tenant, error) {
@@ -327,9 +395,15 @@ func (r *tenantEngineRepository) ListTenantsByWorkerPartition(ctx context.Contex
 	return r.queries.ListTenantsByTenantWorkerPartitionId(ctx, r.pool, workerPartitionId)
 }
 
-func (r *tenantEngineRepository) CreateControllerPartition(ctx context.Context, id string) error {
-	_, err := r.queries.CreateControllerPartition(ctx, r.pool, id)
-	return err
+func (r *tenantEngineRepository) CreateControllerPartition(ctx context.Context) (string, error) {
+
+	partition, err := r.queries.CreateControllerPartition(ctx, r.pool, getPartitionName())
+
+	if err != nil {
+		return "", err
+	}
+
+	return partition.ID, nil
 }
 
 func (r *tenantEngineRepository) DeleteControllerPartition(ctx context.Context, id string) error {
@@ -345,9 +419,14 @@ func (r *tenantEngineRepository) RebalanceInactiveControllerPartitions(ctx conte
 	return r.queries.RebalanceInactiveControllerPartitions(ctx, r.pool)
 }
 
-func (r *tenantEngineRepository) CreateTenantWorkerPartition(ctx context.Context, id string) error {
-	_, err := r.queries.CreateTenantWorkerPartition(ctx, r.pool, id)
-	return err
+func (r *tenantEngineRepository) CreateTenantWorkerPartition(ctx context.Context) (string, error) {
+	partition, err := r.queries.CreateTenantWorkerPartition(ctx, r.pool, getPartitionName())
+
+	if err != nil {
+		return "", err
+	}
+
+	return partition.ID, nil
 }
 
 func (r *tenantEngineRepository) DeleteTenantWorkerPartition(ctx context.Context, id string) error {
@@ -361,4 +440,14 @@ func (r *tenantEngineRepository) RebalanceAllTenantWorkerPartitions(ctx context.
 
 func (r *tenantEngineRepository) RebalanceInactiveTenantWorkerPartitions(ctx context.Context) error {
 	return r.queries.RebalanceInactiveTenantWorkerPartitions(ctx, r.pool)
+}
+
+func getPartitionName() pgtype.Text {
+	hostname, ok := os.LookupEnv("HOSTNAME")
+
+	if !ok || hostname == "" {
+		return pgtype.Text{}
+	}
+
+	return sqlchelpers.TextFromStr(hostname)
 }

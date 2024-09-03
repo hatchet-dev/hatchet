@@ -139,24 +139,26 @@ func runK8sQuickstart() error {
 	if k8sConfigResourceType == "secret" {
 		secret, err := clientset.CoreV1().Secrets(namespace).Get(context.Background(), k8sQuickstartConfigName, metav1.GetOptions{})
 
-		if err != nil && !errors.IsNotFound(err) {
+		switch {
+		case err != nil && !errors.IsNotFound(err):
 			return fmt.Errorf("error getting secret: %w", err)
-		} else if err != nil {
+		case err != nil:
 			exists = false
 			c = newFromSecret(nil, k8sQuickstartConfigName)
-		} else {
+		default:
 			exists = secret != nil
 			c = newFromSecret(secret, k8sQuickstartConfigName)
 		}
 	} else {
 		configMap, err := clientset.CoreV1().ConfigMaps(namespace).Get(context.Background(), k8sQuickstartConfigName, metav1.GetOptions{})
 
-		if err != nil && !errors.IsNotFound(err) {
+		switch {
+		case err != nil && !errors.IsNotFound(err):
 			return fmt.Errorf("error getting configmap: %w", err)
-		} else if err != nil {
+		case err != nil:
 			exists = false
 			c = newFromConfigMap(nil, k8sQuickstartConfigName)
-		} else {
+		default:
 			exists = configMap != nil
 			c = newFromConfigMap(configMap, k8sQuickstartConfigName)
 		}
@@ -270,24 +272,26 @@ func runCreateWorkerToken() error {
 	if k8sConfigResourceType == "secret" {
 		secret, err := clientset.CoreV1().Secrets(namespace).Get(context.Background(), k8sClientConfigName, metav1.GetOptions{})
 
-		if err != nil && !errors.IsNotFound(err) {
-			return err
-		} else if err != nil {
+		switch {
+		case err != nil && !errors.IsNotFound(err):
+			return fmt.Errorf("error getting secret: %w", err)
+		case err != nil:
 			exists = false
 			c = newFromSecret(nil, k8sClientConfigName)
-		} else {
+		default:
 			exists = secret != nil
 			c = newFromSecret(secret, k8sClientConfigName)
 		}
 	} else {
 		configMap, err := clientset.CoreV1().ConfigMaps(namespace).Get(context.Background(), k8sClientConfigName, metav1.GetOptions{})
 
-		if err != nil && !errors.IsNotFound(err) {
-			return err
-		} else if err != nil {
+		switch {
+		case err != nil && !errors.IsNotFound(err):
+			return fmt.Errorf("error getting configmap: %w", err)
+		case err != nil:
 			exists = false
 			c = newFromConfigMap(nil, k8sClientConfigName)
-		} else {
+		default:
 			exists = configMap != nil
 			c = newFromConfigMap(configMap, k8sClientConfigName)
 		}

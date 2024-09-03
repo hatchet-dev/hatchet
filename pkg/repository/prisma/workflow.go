@@ -519,11 +519,21 @@ func (r *workflowEngineRepository) createWorkflowVersionTxs(ctx context.Context,
 		return "", err
 	}
 
+	var defaultPriority pgtype.Int4
+
+	if opts.DefaultPriority != nil {
+		defaultPriority = pgtype.Int4{
+			Valid: true,
+			Int32: *opts.DefaultPriority,
+		}
+	}
+
 	createParams := dbsqlc.CreateWorkflowVersionParams{
-		ID:         sqlchelpers.UUIDFromStr(workflowVersionId),
-		Checksum:   cs,
-		Version:    version,
-		Workflowid: workflowId,
+		ID:              sqlchelpers.UUIDFromStr(workflowVersionId),
+		Checksum:        cs,
+		Version:         version,
+		Workflowid:      workflowId,
+		DefaultPriority: defaultPriority,
 	}
 
 	if opts.ScheduleTimeout != nil {
