@@ -44,10 +44,8 @@ import {
 import { useAtom } from 'jotai';
 import { lastTimeRangeAtom } from '@/lib/atoms';
 import { Skeleton } from '@/components/ui/skeleton';
-import { SampleStream } from '@/lib/api/generated/cloud/data-contracts';
 import { useParentSize } from '@visx/responsive';
-import AreaChart, { formatPercentTooltip, MetricValue } from '@/components/molecules/brush-chart/area-chart';
-import { time } from 'console';
+import AreaChart from '@/components/molecules/brush-chart/area-chart';
 
 export interface WorkflowRunsTableProps {
   createdAfter?: string;
@@ -238,70 +236,75 @@ export function WorkflowRunsTable({
     refetchInterval,
   });
 
+  const generateMinuteEntries = (
+    startDate: Date,
+    endDate: Date,
+  ): MinuteEntry[] => {
+    const entries: MinuteEntry[] = [];
+    const currentDate = new Date(startDate.setSeconds(0));
 
+    while (currentDate <= endDate) {
+      entries.push({
+        date: new Date(currentDate),
+        value: 0,
+      });
 
+      // Move to the next minute
+      currentDate.setMinutes(currentDate.getMinutes() + 1);
+    }
 
+    return entries;
+  };
 
+  const GetWorkflowChart: React.FC = () => {
+    const { parentRef, width, height } = useParentSize({ debounceTime: 150 });
 
-
-
- const generateMinuteEntries =  (startDate: Date, endDate: Date): MinuteEntry[] =>  {
-  const entries: MinuteEntry[] = [];
-  let currentDate = new Date(startDate.setSeconds(0));
-
-  while (currentDate <= endDate) {
-    entries.push({
-      date: new Date(currentDate),
-      value: 0
+    const workflowRunEventsMetricsQuery = useQuery({
+      ...queries.workflowRuns.eventMetrics(tenant.metadata.id, {
+        createdAfter,
+        createdBefore,
+      }),
+      refetchInterval,
     });
 
-    // Move to the next minute
-    currentDate.setMinutes(currentDate.getMinutes() + 1);
-  }
+    const data = useMemo(() => {
+      const minuteEntries = generateMinuteEntries(
+        createdAfter ? new Date(createdAfter) : new Date(),
+        createdBefore ? new Date(createdBefore) : new Date(),
+      );
+      const data = workflowRunEventsMetricsQuery.data?.results?.map((d) => {
+        return {
+          date: d.time ? new Date(d.time) : new Date(),
+          value: d.SUCCEEDED || 0,
+        };
+      });
 
-  return entries;
-}
+      minuteEntries.forEach((entry) => {
+        const found = data?.find(
+          (m) =>
+            Math.floor(m.date.getTime() / 1000) ===
+            Math.floor(entry.date.getTime() / 1000),
+        );
+        if (found) {
+          entry.value = found.value;
+        }
+      });
 
-const GetWorkflowChart: React.FC = () => {
+      return minuteEntries;
+    }, [workflowRunEventsMetricsQuery.data]);
 
-const minuteEntries = generateMinuteEntries(
-  createdAfter ? new Date(createdAfter) : new Date(),
-  createdBefore ? new Date(createdBefore) : new Date()
-);
-
-
-const workflowRunEventsMetricsQuery = useQuery({
-  ...queries.workflowRuns.eventMetrics(tenant.metadata.id, {createdAfter, createdBefore}),
-  refetchInterval,
-});
-
-  let data = useMemo(()=> {
-  if (workflowRunEventsMetricsQuery.data && workflowRunEventsMetricsQuery.data['results'] && workflowRunEventsMetricsQuery.data['results'].length > 0 && workflowRunEventsMetricsQuery.data['results'][workflowRunEventsMetricsQuery.data['results']?.length - 1] ) {
-    console.log(workflowRunEventsMetricsQuery.data['results'][workflowRunEventsMetricsQuery.data['results']?.length - 1].SUCCEEDED);
-  }
-  const data = workflowRunEventsMetricsQuery.data?.results?.map((d) => {
-    return { date: d.time ? new Date(d.time) : new Date(), value: d.SUCCEEDED || 0 };
-  });
-
-
-  (data || []).forEach((entry) => {
-    const found = minuteEntries.find((m) => Math.floor(m.date.getTime() / 1000)   === Math.floor(entry.date.getTime() / 1000) );
-    if (found) {
-      found.value = entry.value;
+    if (data) {
+      console.log(data);
+      return (
+        <div
+          ref={parentRef}
+          className="w-full max-h-[25rem] min-h-[25rem] ml-8 px-14"
+        >
+          <AreaChart kind="bar" data={data} width={width} height={height} />
+        </div>
+      );
     }
-  })
-
-  return data
-
-}, [workflowRunEventsMetricsQuery.data]);
-
-
-  if (data) {
-
-    return <AreaChart data={minuteEntries} width={1000} height={500}
-    />;
-  }
-}
+  };
 
   const {
     data: workflowKeys,
@@ -474,18 +477,12 @@ const workflowRunEventsMetricsQuery = useQuery({
 
   return (
     <>
-      <div className="flex flex-row justify-between items-center my-16">{
-
-      <GetWorkflowChart />
-
-      }</div>
+      <div className="flex flex-row justify-between items-center my-16">
+        {<GetWorkflowChart />}
+      </div>
 
       <div className="flex flex-row justify-between items-center my-4">
-
-
         {metricsQuery.data ? (
-
-
           <WorkflowRunsMetricsView
             metrics={metricsQuery.data}
             onClick={(status) => {

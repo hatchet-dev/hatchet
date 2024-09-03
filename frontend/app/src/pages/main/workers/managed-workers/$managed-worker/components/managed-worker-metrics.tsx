@@ -210,6 +210,7 @@ function MetricsChart({
       className="w-full max-h-[25rem] min-h-[25rem] ml-8 px-14"
     >
       <AreaChart
+        kind="area"
         hideBottomAxis={false}
         data={values}
         width={width}
@@ -230,6 +231,7 @@ function MetricsPlaceholder({ start, end }: { start: Date; end: Date }) {
       className="w-full max-h-[25rem] min-h-[25rem] ml-8 px-14"
     >
       <AreaChart
+        kind="area"
         hideBottomAxis={true}
         hideLeftAxis={true}
         data={[]}
