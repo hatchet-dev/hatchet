@@ -69,7 +69,6 @@ type operation struct {
 	isRunning      bool
 	tenantId       string
 	lastRun        time.Time
-	lastSchedule   time.Time
 }
 
 func (o *operation) run(l *zerolog.Logger, ql *zerolog.Logger, scheduler func(context.Context, string) (bool, error)) {
@@ -85,9 +84,6 @@ func (o *operation) run(l *zerolog.Logger, ql *zerolog.Logger, scheduler func(co
 		}()
 
 		f := func() {
-			ql.Info().Str("tenant_id", o.tenantId).TimeDiff("last_schedule", time.Now(), o.lastSchedule).Msg("running scheduling")
-			o.lastSchedule = time.Now()
-
 			o.setContinue(false)
 
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -269,9 +265,8 @@ func (q *queue) runTenantQueues(ctx context.Context) func() {
 
 			if !ok {
 				op = &operation{
-					tenantId:     tenantId,
-					lastRun:      time.Now(),
-					lastSchedule: time.Now(),
+					tenantId: tenantId,
+					lastRun:  time.Now(),
 				}
 
 				q.tenantOperations.Store(tenantId, op)
