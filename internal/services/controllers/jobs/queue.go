@@ -77,12 +77,11 @@ func (o *operation) run(l *zerolog.Logger, ql *zerolog.Logger, scheduler func(co
 		return
 	}
 
-	ql.Info().Str("tenant_id", o.tenantId).TimeDiff("last_run", time.Now(), o.lastRun).Msg("running tenant queue")
-	o.setRunning(true)
+	o.setRunning(true, ql)
 
 	go func() {
 		defer func() {
-			o.setRunning(false)
+			o.setRunning(false, ql)
 		}()
 
 		f := func() {
@@ -116,11 +115,13 @@ func (o *operation) run(l *zerolog.Logger, ql *zerolog.Logger, scheduler func(co
 	}()
 }
 
-func (o *operation) setRunning(isRunning bool) {
+func (o *operation) setRunning(isRunning bool, ql *zerolog.Logger) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 
 	if isRunning {
+		ql.Info().Str("tenant_id", o.tenantId).TimeDiff("last_run", time.Now(), o.lastRun).Msg("running tenant queue")
+
 		o.lastRun = time.Now()
 	}
 
