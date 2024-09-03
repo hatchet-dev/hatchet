@@ -698,6 +698,19 @@ export interface WorkflowRunsCancelRequest {
   workflowRunIds: string[];
 }
 
+export interface WorkflowRunEventsMetricsCounts {
+  results?: {
+    /** @format date-time */
+    time?: string;
+    PENDING?: number;
+    RUNNING?: number;
+    SUCCEEDED?: number;
+    FAILED?: number;
+    QUEUED?: number;
+    QUEUE_DEPTH?: number;
+  }[];
+}
+
 export enum JobRunStatus {
   PENDING = 'PENDING',
   RUNNING = 'RUNNING',

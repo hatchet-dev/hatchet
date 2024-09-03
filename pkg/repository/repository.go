@@ -38,6 +38,7 @@ type EngineRepository interface {
 	Worker() WorkerEngineRepository
 	Workflow() WorkflowEngineRepository
 	WorkflowRun() WorkflowRunEngineRepository
+	WorkflowRunEvent() WorkflowRunEventEngineRepository
 	StreamEvent() StreamEventsEngineRepository
 	Log() LogsEngineRepository
 	RateLimit() RateLimitEngineRepository

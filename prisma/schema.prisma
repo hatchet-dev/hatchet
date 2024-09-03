@@ -7,6 +7,7 @@ generator go {
   provider         = "go run github.com/steebchen/prisma-client-go"
   output           = "../pkg/repository/prisma/db"
   disableGitignore = true
+  previewFeatures  = ["views"]
 }
 
 model User {
@@ -178,6 +179,7 @@ model Tenant {
 
   events              Event[]
   workflows           Workflow[]
+  workflowRunEvents   WorkflowRunEvent[]
   jobs                Job[]
   steps               Step[]
   triggers            WorkflowTriggers[]
@@ -894,6 +896,8 @@ model WorkflowRun {
 
   jobRuns JobRun[]
 
+  workflowRunEvents WorkflowRunEvent[]
+
   triggeredBy WorkflowRunTriggeredBy?
 
   sticky WorkflowRunStickyState?
@@ -939,6 +943,44 @@ model WorkflowRun {
   @@index([status])
   @@index([deletedAt])
 }
+
+enum WorkflowRunEventType {
+  PENDING
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  RETRIED
+  FAILED
+  QUEUE_DEPTH
+}
+
+model WorkflowRunEvent {
+  id        String   @default(uuid()) @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  tenantId  String   @db.Uuid
+
+  workflowRun   WorkflowRun @relation(fields: [workflowRunId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  workflowRunId String      @db.Uuid
+
+  eventType WorkflowRunEventType
+
+  @@id([id, createdAt])
+  // "WorkflowRunEvent_createdAt_idx" btree ("createdAt" DESC)
+  @@index(createdAt(sort: Desc))
+}
+
+// view WorkflowRunEventView {
+//   minute        DateTime @db.Timestamptz(3)
+//   tenantId      String   @db.Uuid
+//   pending_count BigInt
+//   running_count BigInt
+//   retried_count BigInt
+//   failed_count  BigInt
+//   queue_depth   BigInt
+
+//   @@id([tenantId, minute])
+// }
 
 model WorkflowRunDedupe {
   id        BigInt   @unique @default(autoincrement()) @db.BigInt

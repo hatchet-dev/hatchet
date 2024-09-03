@@ -720,6 +720,53 @@ func (ns NullWorkflowKind) Value() (driver.Value, error) {
 	return string(ns.WorkflowKind), nil
 }
 
+type WorkflowRunEventType string
+
+const (
+	WorkflowRunEventTypePENDING    WorkflowRunEventType = "PENDING"
+	WorkflowRunEventTypeQUEUED     WorkflowRunEventType = "QUEUED"
+	WorkflowRunEventTypeRUNNING    WorkflowRunEventType = "RUNNING"
+	WorkflowRunEventTypeSUCCEEDED  WorkflowRunEventType = "SUCCEEDED"
+	WorkflowRunEventTypeRETRIED    WorkflowRunEventType = "RETRIED"
+	WorkflowRunEventTypeFAILED     WorkflowRunEventType = "FAILED"
+	WorkflowRunEventTypeQUEUEDEPTH WorkflowRunEventType = "QUEUE_DEPTH"
+)
+
+func (e *WorkflowRunEventType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = WorkflowRunEventType(s)
+	case string:
+		*e = WorkflowRunEventType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for WorkflowRunEventType: %T", src)
+	}
+	return nil
+}
+
+type NullWorkflowRunEventType struct {
+	WorkflowRunEventType WorkflowRunEventType `json:"WorkflowRunEventType"`
+	Valid                bool                 `json:"valid"` // Valid is true if WorkflowRunEventType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullWorkflowRunEventType) Scan(value interface{}) error {
+	if value == nil {
+		ns.WorkflowRunEventType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.WorkflowRunEventType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullWorkflowRunEventType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.WorkflowRunEventType), nil
+}
+
 type WorkflowRunStatus string
 
 const (
@@ -1328,6 +1375,26 @@ type WorkflowRunDedupe struct {
 	WorkflowId    pgtype.UUID      `json:"workflowId"`
 	WorkflowRunId pgtype.UUID      `json:"workflowRunId"`
 	Value         string           `json:"value"`
+}
+
+type WorkflowRunEvent struct {
+	ID            pgtype.UUID          `json:"id"`
+	CreatedAt     pgtype.Timestamptz   `json:"createdAt"`
+	TenantId      pgtype.UUID          `json:"tenantId"`
+	WorkflowRunId pgtype.UUID          `json:"workflowRunId"`
+	EventType     WorkflowRunEventType `json:"eventType"`
+}
+
+type WorkflowRunEventView struct {
+	Minute         interface{} `json:"minute"`
+	TenantId       pgtype.UUID `json:"tenantId"`
+	PendingCount   int64       `json:"pending_count"`
+	QueuedCount    int64       `json:"queued_count"`
+	RunningCount   int64       `json:"running_count"`
+	SucceededCount int64       `json:"succeeded_count"`
+	RetriedCount   int64       `json:"retried_count"`
+	FailedCount    int64       `json:"failed_count"`
+	QueueDepth     int64       `json:"queue_depth"`
 }
 
 type WorkflowRunStickyState struct {

@@ -117,6 +117,15 @@ func (wc *WorkflowsControllerImpl) handleWorkflowRunFinished(ctx context.Context
 
 	workflowRunId := sqlchelpers.UUIDToStr(workflowRun.WorkflowRun.ID)
 
+	defer func() {
+		wreErr := wc.repo.WorkflowRunEvent().CreateSucceededWorkflowRunEvent(
+			ctx, metadata.TenantId, workflowRunId)
+
+		if wreErr != nil {
+			wc.l.Warn().Msgf("could not create succeeded workflow run event for tenantID %s and WorkflowRunId %s : %e", metadata.TenantId, workflowRunId, wreErr)
+		}
+	}()
+
 	servertel.WithWorkflowRunModel(span, workflowRun)
 
 	wc.l.Info().Msgf("finishing workflow run %s", workflowRunId)

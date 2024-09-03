@@ -47,6 +47,9 @@ CREATE TYPE "WorkerType" AS ENUM ('WEBHOOK', 'MANAGED', 'SELFHOSTED');
 CREATE TYPE "WorkflowKind" AS ENUM ('FUNCTION', 'DURABLE', 'DAG');
 
 -- CreateEnum
+CREATE TYPE "WorkflowRunEventType" AS ENUM ('PENDING', 'QUEUED', 'RUNNING', 'SUCCEEDED', 'RETRIED', 'FAILED', 'QUEUE_DEPTH');
+
+-- CreateEnum
 CREATE TYPE "WorkflowRunStatus" AS ENUM ('PENDING', 'RUNNING', 'SUCCEEDED', 'FAILED', 'QUEUED');
 
 -- CreateTable
@@ -727,6 +730,17 @@ CREATE TABLE "WorkflowRunDedupe" (
 );
 
 -- CreateTable
+CREATE TABLE "WorkflowRunEvent" (
+    "id" UUID NOT NULL,
+    "createdAt" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "tenantId" UUID NOT NULL,
+    "workflowRunId" UUID NOT NULL,
+    "eventType" "WorkflowRunEventType" NOT NULL,
+
+    CONSTRAINT "WorkflowRunEvent_pkey" PRIMARY KEY ("id","createdAt")
+);
+
+-- CreateTable
 CREATE TABLE "WorkflowRunStickyState" (
     "id" BIGSERIAL NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -1180,6 +1194,9 @@ CREATE INDEX "WorkflowRunDedupe_tenantId_value_idx" ON "WorkflowRunDedupe"("tena
 CREATE UNIQUE INDEX "WorkflowRunDedupe_tenantId_workflowId_value_key" ON "WorkflowRunDedupe"("tenantId" ASC, "workflowId" ASC, "value" ASC);
 
 -- CreateIndex
+CREATE INDEX "WorkflowRunEvent_createdAt_idx" ON "WorkflowRunEvent"("createdAt" DESC);
+
+-- CreateIndex
 CREATE UNIQUE INDEX "WorkflowRunStickyState_workflowRunId_key" ON "WorkflowRunStickyState"("workflowRunId" ASC);
 
 -- CreateIndex
@@ -1480,6 +1497,12 @@ ALTER TABLE "WorkflowRun" ADD CONSTRAINT "WorkflowRun_workflowVersionId_fkey" FO
 ALTER TABLE "WorkflowRunDedupe" ADD CONSTRAINT "WorkflowRunDedupe_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "WorkflowRunEvent" ADD CONSTRAINT "WorkflowRunEvent_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "WorkflowRunEvent" ADD CONSTRAINT "WorkflowRunEvent_workflowRunId_fkey" FOREIGN KEY ("workflowRunId") REFERENCES "WorkflowRun"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "WorkflowRunStickyState" ADD CONSTRAINT "WorkflowRunStickyState_workflowRunId_fkey" FOREIGN KEY ("workflowRunId") REFERENCES "WorkflowRun"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -1568,3 +1591,21 @@ ALTER TABLE "_WorkflowToWorkflowTag" ADD CONSTRAINT "_WorkflowToWorkflowTag_B_fk
 
 -- Modify "QueueItem" table
 ALTER TABLE "QueueItem" ADD CONSTRAINT "QueueItem_priority_check" CHECK ("priority" >= 1 AND "priority" <= 4);
+
+
+
+-- CREATE TABLE "WorkflowRunEventView" (
+--     "minute" TIMESTAMPTZ NOT NULL,
+--     "tenantId" UUID NOT NULL,
+--     "pending_count" INT NOT NULL,
+--     "queued_count" INT NOT NULL,
+--     "running_count" INT NOT NULL,
+--     "succeeded_count" INT NOT NULL,
+--     "retried_count" INT NOT NULL,
+--     "failed_count" INT NOT NULL,
+--     "queue_depth" INT NOT NULL,
+--     PRIMARY KEY ("minute", "tenantId")
+-- );
+
+
+-- SELECT * from create_hypertable('"WorkflowRunEvent"', by_range('createdAt',  INTERVAL '1 minute'));

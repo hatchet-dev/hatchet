@@ -123,6 +123,33 @@ WorkflowRunsMetrics:
       type: object
       $ref: "#/WorkflowRunsMetricsCounts"
 
+WorkflowRunEventsMetricsCounts:
+  type: object
+  properties:
+    results:
+      type: array
+      items:
+        type: object
+        properties:
+          time:
+            type: string
+            format: date-time
+          PENDING:
+            type: integer
+          RUNNING:
+            type: integer
+          SUCCEEDED:
+            type: integer
+          FAILED:
+            type: integer
+          QUEUED:
+            type: integer
+          QUEUE_DEPTH:
+            type: integer
+
+
+
+
 StepRunStatus:
   type: string
   enum:

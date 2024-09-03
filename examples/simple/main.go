@@ -28,7 +28,13 @@ func main() {
 		panic(err)
 	}
 
-	events := make(chan string, 50)
+	events := make(chan string, 50000000)
+
+	go func() {
+		for event := range events {
+			log.Printf("event: %s", event)
+		}
+	}()
 	interrupt := cmdutils.InterruptChan()
 
 	cleanup, err := run(events)
@@ -110,31 +116,35 @@ func run(events chan<- string) (func() error, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error registering workflow: %w", err)
 	}
-
 	go func() {
-		testEvent := userCreateEvent{
-			Username: "echo-test",
-			UserID:   "1234",
-			Data: map[string]string{
-				"test": "test",
-			},
-		}
+		numEvents := 10000
 
-		log.Printf("pushing event user:create:simple")
-		// push an event
-		err := c.Event().Push(
-			context.Background(),
-			"user:create:simple",
-			testEvent,
-			client.WithEventMetadata(map[string]string{
-				"hello": "world",
-			}),
-		)
-		if err != nil {
-			panic(fmt.Errorf("error pushing event: %w", err))
+		for i := 0; i < numEvents; i++ {
+
+			testEvent := userCreateEvent{
+				Username: "echo-test",
+				UserID:   "1234",
+				Data: map[string]string{
+					"test": "test",
+				},
+			}
+
+			log.Printf("pushing event user:create:simple")
+			// push an event
+			err := c.Event().Push(
+				context.Background(),
+				"user:create:simple",
+				testEvent,
+				client.WithEventMetadata(map[string]string{
+					"hello": "world",
+				}),
+			)
+			if err != nil {
+				panic(fmt.Errorf("error pushing event: %w", err))
+			}
+
 		}
 	}()
-
 	cleanup, err := w.Start()
 	if err != nil {
 		panic(err)

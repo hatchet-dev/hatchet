@@ -23,6 +23,7 @@ sql:
       - security_check.sql
       - webhook_workers.sql
       - queue.sql
+      - workflow_run_events.sql
     schema:
       - schema.sql
     strict_order_by: false

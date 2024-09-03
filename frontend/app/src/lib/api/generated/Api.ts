@@ -78,6 +78,7 @@ import {
   WorkflowList,
   WorkflowMetrics,
   WorkflowRun,
+  WorkflowRunEventsMetricsCounts,
   WorkflowRunList,
   WorkflowRunOrderByDirection,
   WorkflowRunOrderByField,
@@ -1438,6 +1439,41 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   ) =>
     this.request<WorkflowRunsMetrics, APIErrors>({
       path: `/api/v1/tenants/${tenant}/workflows/runs/metrics`,
+      method: 'GET',
+      query: query,
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Get a minute by minute breakdown of workflow run metrics for a tenant
+   *
+   * @tags Workflow
+   * @name WorkflowRunEventsGetMetrics
+   * @summary Get workflow runs
+   * @request GET:/api/v1/tenants/{tenant}/workflows/runs/event/metrics
+   * @secure
+   */
+  workflowRunEventsGetMetrics = (
+    tenant: string,
+    query?: {
+      /**
+       * The time after the workflow run was created
+       * @format date-time
+       * @example "2021-01-01T00:00:00Z"
+       */
+      createdAfter?: string;
+      /**
+       * The time before the workflow run was created
+       * @format date-time
+       * @example "2021-01-01T00:00:00Z"
+       */
+      createdBefore?: string;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<WorkflowRunEventsMetricsCounts, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/workflows/runs/event/metrics`,
       method: 'GET',
       query: query,
       secure: true,

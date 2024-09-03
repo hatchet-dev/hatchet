@@ -44,6 +44,10 @@ import {
 import { useAtom } from 'jotai';
 import { lastTimeRangeAtom } from '@/lib/atoms';
 import { Skeleton } from '@/components/ui/skeleton';
+import { SampleStream } from '@/lib/api/generated/cloud/data-contracts';
+import { useParentSize } from '@visx/responsive';
+import AreaChart, { formatPercentTooltip, MetricValue } from '@/components/molecules/brush-chart/area-chart';
+import { time } from 'console';
 
 export interface WorkflowRunsTableProps {
   createdAfter?: string;
@@ -54,6 +58,50 @@ export interface WorkflowRunsTableProps {
   initColumnVisibility?: VisibilityState;
   filterVisibility?: { [key: string]: boolean };
   refetchInterval?: number;
+}
+type MetricsChartProps = {
+  sample: SampleStream;
+  normalizer?: (value: number) => number;
+  yLabel: string;
+  tooltipFormat?: (d: number) => string;
+};
+
+function MetricsChart({
+  sample,
+  normalizer,
+  yLabel,
+  tooltipFormat,
+}: MetricsChartProps) {
+  const { parentRef, width, height } = useParentSize({ debounceTime: 150 });
+
+  const values: MetricValue[] = useMemo(
+    () =>
+      (sample.values || [])
+        .filter((v) => v !== undefined)
+        .map((v) => {
+          return {
+            date: new Date(v[0] * 1000),
+            value: normalizer ? normalizer(parseFloat(v[1])) : parseFloat(v[1]),
+          };
+        }),
+    [sample, normalizer],
+  );
+
+  return (
+    <div
+      ref={parentRef}
+      className="w-full max-h-[25rem] min-h-[25rem] ml-8 px-14"
+    >
+      <AreaChart
+        hideBottomAxis={false}
+        data={values}
+        width={width}
+        height={height}
+        yLabel={yLabel}
+        tooltipFormat={tooltipFormat}
+      />
+    </div>
+  );
 }
 
 export function WorkflowRunsTable({
@@ -226,6 +274,27 @@ export function WorkflowRunsTable({
     refetchInterval,
   });
 
+
+
+
+
+const workflowRunEventsMetricsQuery = useQuery({
+  ...queries.workflowRuns.eventMetrics(tenant.metadata.id, {}),
+  refetchInterval,
+});
+
+const getWorkflowChart = () => {
+  let data = workflowRunEventsMetricsQuery.data?.results?.map((d) => {
+    return { date: d.time ? new Date(d.time) : new Date(), value: d.SUCCEEDED || 0 };
+  });
+
+  if (data) {
+    console.log(JSON.stringify(data));
+    return <AreaChart data={data} width={1000} height={500}
+    />;
+  }
+}
+
   const {
     data: workflowKeys,
     isLoading: workflowKeysIsLoading,
@@ -397,8 +466,14 @@ export function WorkflowRunsTable({
 
   return (
     <>
+      <div className="flex flex-row justify-between items-center break">{getWorkflowChart()}</div>
+
       <div className="flex flex-row justify-between items-center my-4">
+
+
         {metricsQuery.data ? (
+
+
           <WorkflowRunsMetricsView
             metrics={metricsQuery.data}
             onClick={(status) => {

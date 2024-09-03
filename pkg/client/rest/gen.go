@@ -1103,6 +1103,19 @@ type WorkflowRun struct {
 	WorkflowVersionId  string                  `json:"workflowVersionId"`
 }
 
+// WorkflowRunEventsMetricsCounts defines model for WorkflowRunEventsMetricsCounts.
+type WorkflowRunEventsMetricsCounts struct {
+	Results *[]struct {
+		FAILED     *int       `json:"FAILED,omitempty"`
+		PENDING    *int       `json:"PENDING,omitempty"`
+		QUEUED     *int       `json:"QUEUED,omitempty"`
+		QUEUEDEPTH *int       `json:"QUEUE_DEPTH,omitempty"`
+		RUNNING    *int       `json:"RUNNING,omitempty"`
+		SUCCEEDED  *int       `json:"SUCCEEDED,omitempty"`
+		Time       *time.Time `json:"time,omitempty"`
+	} `json:"results,omitempty"`
+}
+
 // WorkflowRunList defines model for WorkflowRunList.
 type WorkflowRunList struct {
 	Pagination *PaginationResponse `json:"pagination,omitempty"`
@@ -1330,6 +1343,15 @@ type WorkflowRunListParams struct {
 
 	// OrderByDirection The order by direction
 	OrderByDirection *WorkflowRunOrderByDirection `form:"orderByDirection,omitempty" json:"orderByDirection,omitempty"`
+}
+
+// WorkflowRunEventsGetMetricsParams defines parameters for WorkflowRunEventsGetMetrics.
+type WorkflowRunEventsGetMetricsParams struct {
+	// CreatedAfter The time after the workflow run was created
+	CreatedAfter *time.Time `form:"createdAfter,omitempty" json:"createdAfter,omitempty"`
+
+	// CreatedBefore The time before the workflow run was created
+	CreatedBefore *time.Time `form:"createdBefore,omitempty" json:"createdBefore,omitempty"`
 }
 
 // WorkflowRunGetMetricsParams defines parameters for WorkflowRunGetMetrics.
@@ -1702,6 +1724,9 @@ type ClientInterface interface {
 
 	// WorkflowRunList request
 	WorkflowRunList(ctx context.Context, tenant openapi_types.UUID, params *WorkflowRunListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// WorkflowRunEventsGetMetrics request
+	WorkflowRunEventsGetMetrics(ctx context.Context, tenant openapi_types.UUID, params *WorkflowRunEventsGetMetricsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// WorkflowRunGetMetrics request
 	WorkflowRunGetMetrics(ctx context.Context, tenant openapi_types.UUID, params *WorkflowRunGetMetricsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -2551,6 +2576,18 @@ func (c *Client) WorkflowRunCancel(ctx context.Context, tenant openapi_types.UUI
 
 func (c *Client) WorkflowRunList(ctx context.Context, tenant openapi_types.UUID, params *WorkflowRunListParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewWorkflowRunListRequest(c.Server, tenant, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) WorkflowRunEventsGetMetrics(ctx context.Context, tenant openapi_types.UUID, params *WorkflowRunEventsGetMetricsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWorkflowRunEventsGetMetricsRequest(c.Server, tenant, params)
 	if err != nil {
 		return nil, err
 	}
@@ -5428,6 +5465,78 @@ func NewWorkflowRunListRequest(server string, tenant openapi_types.UUID, params 
 	return req, nil
 }
 
+// NewWorkflowRunEventsGetMetricsRequest generates requests for WorkflowRunEventsGetMetrics
+func NewWorkflowRunEventsGetMetricsRequest(server string, tenant openapi_types.UUID, params *WorkflowRunEventsGetMetricsParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/tenants/%s/workflows/runs/event/metrics", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.CreatedAfter != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "createdAfter", runtime.ParamLocationQuery, *params.CreatedAfter); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.CreatedBefore != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "createdBefore", runtime.ParamLocationQuery, *params.CreatedBefore); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewWorkflowRunGetMetricsRequest generates requests for WorkflowRunGetMetrics
 func NewWorkflowRunGetMetricsRequest(server string, tenant openapi_types.UUID, params *WorkflowRunGetMetricsParams) (*http.Request, error) {
 	var err error
@@ -6736,6 +6845,9 @@ type ClientWithResponsesInterface interface {
 	// WorkflowRunListWithResponse request
 	WorkflowRunListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *WorkflowRunListParams, reqEditors ...RequestEditorFn) (*WorkflowRunListResponse, error)
 
+	// WorkflowRunEventsGetMetricsWithResponse request
+	WorkflowRunEventsGetMetricsWithResponse(ctx context.Context, tenant openapi_types.UUID, params *WorkflowRunEventsGetMetricsParams, reqEditors ...RequestEditorFn) (*WorkflowRunEventsGetMetricsResponse, error)
+
 	// WorkflowRunGetMetricsWithResponse request
 	WorkflowRunGetMetricsWithResponse(ctx context.Context, tenant openapi_types.UUID, params *WorkflowRunGetMetricsParams, reqEditors ...RequestEditorFn) (*WorkflowRunGetMetricsResponse, error)
 
@@ -8026,6 +8138,30 @@ func (r WorkflowRunListResponse) StatusCode() int {
 	return 0
 }
 
+type WorkflowRunEventsGetMetricsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *WorkflowRunEventsMetricsCounts
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r WorkflowRunEventsGetMetricsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r WorkflowRunEventsGetMetricsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type WorkflowRunGetMetricsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -9180,6 +9316,15 @@ func (c *ClientWithResponses) WorkflowRunListWithResponse(ctx context.Context, t
 		return nil, err
 	}
 	return ParseWorkflowRunListResponse(rsp)
+}
+
+// WorkflowRunEventsGetMetricsWithResponse request returning *WorkflowRunEventsGetMetricsResponse
+func (c *ClientWithResponses) WorkflowRunEventsGetMetricsWithResponse(ctx context.Context, tenant openapi_types.UUID, params *WorkflowRunEventsGetMetricsParams, reqEditors ...RequestEditorFn) (*WorkflowRunEventsGetMetricsResponse, error) {
+	rsp, err := c.WorkflowRunEventsGetMetrics(ctx, tenant, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseWorkflowRunEventsGetMetricsResponse(rsp)
 }
 
 // WorkflowRunGetMetricsWithResponse request returning *WorkflowRunGetMetricsResponse
@@ -11418,6 +11563,46 @@ func ParseWorkflowRunListResponse(rsp *http.Response) (*WorkflowRunListResponse,
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest WorkflowRunList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseWorkflowRunEventsGetMetricsResponse parses an HTTP response from a WorkflowRunEventsGetMetricsWithResponse call
+func ParseWorkflowRunEventsGetMetricsResponse(rsp *http.Response) (*WorkflowRunEventsGetMetricsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &WorkflowRunEventsGetMetricsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest WorkflowRunEventsMetricsCounts
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

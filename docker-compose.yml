@@ -1,7 +1,7 @@
 version: "3.8"
 services:
   postgres:
-    image: postgres:15.6
+    image: timescale/timescaledb-ha:pg15
     command: postgres -c 'max_connections=200'
     restart: always
     environment:

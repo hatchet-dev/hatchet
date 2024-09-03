@@ -189,23 +189,24 @@ func (r *apiRepository) WebhookWorker() repository.WebhookWorkerRepository {
 }
 
 type engineRepository struct {
-	health         repository.HealthRepository
-	apiToken       repository.EngineTokenRepository
-	dispatcher     repository.DispatcherEngineRepository
-	event          repository.EventEngineRepository
-	getGroupKeyRun repository.GetGroupKeyRunEngineRepository
-	jobRun         repository.JobRunEngineRepository
-	stepRun        repository.StepRunEngineRepository
-	tenant         repository.TenantEngineRepository
-	tenantAlerting repository.TenantAlertingEngineRepository
-	ticker         repository.TickerEngineRepository
-	worker         repository.WorkerEngineRepository
-	workflow       repository.WorkflowEngineRepository
-	workflowRun    repository.WorkflowRunEngineRepository
-	streamEvent    repository.StreamEventsEngineRepository
-	log            repository.LogsEngineRepository
-	rateLimit      repository.RateLimitEngineRepository
-	webhookWorker  repository.WebhookWorkerEngineRepository
+	health           repository.HealthRepository
+	apiToken         repository.EngineTokenRepository
+	dispatcher       repository.DispatcherEngineRepository
+	event            repository.EventEngineRepository
+	getGroupKeyRun   repository.GetGroupKeyRunEngineRepository
+	jobRun           repository.JobRunEngineRepository
+	stepRun          repository.StepRunEngineRepository
+	tenant           repository.TenantEngineRepository
+	tenantAlerting   repository.TenantAlertingEngineRepository
+	ticker           repository.TickerEngineRepository
+	worker           repository.WorkerEngineRepository
+	workflow         repository.WorkflowEngineRepository
+	workflowRun      repository.WorkflowRunEngineRepository
+	streamEvent      repository.StreamEventsEngineRepository
+	log              repository.LogsEngineRepository
+	rateLimit        repository.RateLimitEngineRepository
+	webhookWorker    repository.WebhookWorkerEngineRepository
+	workflowRunEvent repository.WorkflowRunEventEngineRepository
 }
 
 func (r *engineRepository) Health() repository.HealthRepository {
@@ -256,6 +257,10 @@ func (r *engineRepository) Workflow() repository.WorkflowEngineRepository {
 	return r.workflow
 }
 
+func (r *engineRepository) WorkflowRunEvent() repository.WorkflowRunEventEngineRepository {
+	return r.workflowRunEvent
+}
+
 func (r *engineRepository) WorkflowRun() repository.WorkflowRunEngineRepository {
 	return r.workflowRun
 }
@@ -291,23 +296,24 @@ func NewEngineRepository(pool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ..
 	}
 
 	return &engineRepository{
-		health:         NewHealthEngineRepository(pool),
-		apiToken:       NewEngineTokenRepository(pool, opts.v, opts.l, opts.cache),
-		dispatcher:     NewDispatcherRepository(pool, opts.v, opts.l),
-		event:          NewEventEngineRepository(pool, opts.v, opts.l, opts.metered),
-		getGroupKeyRun: NewGetGroupKeyRunRepository(pool, opts.v, opts.l),
-		jobRun:         NewJobRunEngineRepository(pool, opts.v, opts.l),
-		stepRun:        NewStepRunEngineRepository(pool, opts.v, opts.l, cf),
-		tenant:         NewTenantEngineRepository(pool, opts.v, opts.l, opts.cache),
-		tenantAlerting: NewTenantAlertingEngineRepository(pool, opts.v, opts.l, opts.cache),
-		ticker:         NewTickerRepository(pool, opts.v, opts.l),
-		worker:         NewWorkerEngineRepository(pool, opts.v, opts.l, opts.metered),
-		workflow:       NewWorkflowEngineRepository(pool, opts.v, opts.l, opts.metered),
-		workflowRun:    NewWorkflowRunEngineRepository(pool, opts.v, opts.l, opts.metered),
-		streamEvent:    NewStreamEventsEngineRepository(pool, opts.v, opts.l),
-		log:            NewLogEngineRepository(pool, opts.v, opts.l),
-		rateLimit:      NewRateLimitEngineRepository(pool, opts.v, opts.l),
-		webhookWorker:  NewWebhookWorkerEngineRepository(pool, opts.v, opts.l),
+		health:           NewHealthEngineRepository(pool),
+		apiToken:         NewEngineTokenRepository(pool, opts.v, opts.l, opts.cache),
+		dispatcher:       NewDispatcherRepository(pool, opts.v, opts.l),
+		event:            NewEventEngineRepository(pool, opts.v, opts.l, opts.metered),
+		getGroupKeyRun:   NewGetGroupKeyRunRepository(pool, opts.v, opts.l),
+		jobRun:           NewJobRunEngineRepository(pool, opts.v, opts.l),
+		stepRun:          NewStepRunEngineRepository(pool, opts.v, opts.l, cf),
+		tenant:           NewTenantEngineRepository(pool, opts.v, opts.l, opts.cache),
+		tenantAlerting:   NewTenantAlertingEngineRepository(pool, opts.v, opts.l, opts.cache),
+		ticker:           NewTickerRepository(pool, opts.v, opts.l),
+		worker:           NewWorkerEngineRepository(pool, opts.v, opts.l, opts.metered),
+		workflow:         NewWorkflowEngineRepository(pool, opts.v, opts.l, opts.metered),
+		workflowRun:      NewWorkflowRunEngineRepository(pool, opts.v, opts.l, opts.metered),
+		streamEvent:      NewStreamEventsEngineRepository(pool, opts.v, opts.l),
+		log:              NewLogEngineRepository(pool, opts.v, opts.l),
+		rateLimit:        NewRateLimitEngineRepository(pool, opts.v, opts.l),
+		webhookWorker:    NewWebhookWorkerEngineRepository(pool, opts.v, opts.l),
+		workflowRunEvent: NewWorkflowRunEventEngineRepository(pool, opts.v, opts.l, opts.metered),
 	}
 }
 

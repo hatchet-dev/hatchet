@@ -148,6 +148,8 @@ WorkflowKindList:
   $ref: "./workflow_run.yaml#/WorkflowKindList"
 WorkflowRunsCancelRequest:
   $ref: "./workflow_run.yaml#/WorkflowRunsCancelRequest"
+WorkflowRunEventsMetricsCounts:
+  $ref: "./workflow_run.yaml#/WorkflowRunEventsMetricsCounts"
 JobRunStatus:
   $ref: "./workflow_run.yaml#/JobRunStatus"
 StepRunStatus:
