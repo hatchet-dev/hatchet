@@ -622,8 +622,11 @@ FROM (
         "workerId",
         "count"
     FROM
-        unnest(@workerIds::uuid[]) AS "workerId",
-        unnest(@counts::int[]) AS "count"
+        (
+            SELECT
+                unnest(@workerIds::uuid[]) AS "workerId",
+                unnest(@counts::int[]) AS "count"
+        ) AS subquery
     ) AS input
 WHERE
     wsc."workerId" = input."workerId";

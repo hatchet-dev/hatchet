@@ -2380,8 +2380,11 @@ FROM (
         "workerId",
         "count"
     FROM
-        unnest($1::uuid[]) AS "workerId",
-        unnest($2::int[]) AS "count"
+        (
+            SELECT
+                unnest($1::uuid[]) AS "workerId",
+                unnest($2::int[]) AS "count"
+        ) AS subquery
     ) AS input
 WHERE
     wsc."workerId" = input."workerId"

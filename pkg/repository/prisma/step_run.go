@@ -847,6 +847,8 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, qlp *zerolo
 		return emptyRes, fmt.Errorf("could not list queues: %w", err)
 	}
 
+	listQueuesFinishedAt := time.Now().UTC()
+
 	if len(queues) == 0 {
 		ql.Debug().Msg("no queues found")
 		return emptyRes, nil
@@ -1221,11 +1223,6 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, qlp *zerolo
 		workerToCounts[sqlchelpers.UUIDToStr(workerId)]--
 	}
 
-	// print the counts for debugging
-	for workerId, count := range workerToCounts {
-		ql.Error().Msgf("worker %s has %d slots remaining", workerId, count)
-	}
-
 	startUpdateCountTime := time.Now()
 
 	updateCountParams := dbsqlc.UpdateWorkerSemaphoreCountsParams{
@@ -1306,7 +1303,7 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, qlp *zerolo
 		timedOutStepRunsStr[i] = sqlchelpers.UUIDToStr(id)
 	}
 
-	defer printQueueDebugInfo(ql, tenantId, queues, queueItems, duplicates, cancelled, plan, slots, startedAt, durationListQueueItems, finishedProcessTime, finishedAssignTime, finishUpdateCountTime, finishQueueTime)
+	defer printQueueDebugInfo(ql, tenantId, queues, queueItems, duplicates, cancelled, plan, slots, startedAt, listQueuesFinishedAt.Sub(startedAt), durationListQueueItems, finishedProcessTime, finishedAssignTime, finishUpdateCountTime, finishQueueTime)
 
 	return repository.QueueStepRunsResult{
 		Queued:             plan.QueuedStepRuns,
@@ -2302,6 +2299,7 @@ type debugInfo struct {
 	NumDuplicates                      int    `json:"num_duplicates"`
 	NumCancelled                       int    `json:"num_cancelled"`
 	TotalDuration                      string `json:"total_duration"`
+	DurationListQueues                 string `json:"duration_list_queues"`
 	DurationListQueueItems             string `json:"duration_list_queue_items"`
 	DurationProcessSemaphoreQueueItems string `json:"duration_process_semaphore_queue_items"`
 	DurationAssignQueueItems           string `json:"duration_assign_queue_items"`
@@ -2320,6 +2318,7 @@ func printQueueDebugInfo(
 	plan scheduling.SchedulePlan,
 	slots []*scheduling.Slot,
 	startedAt time.Time,
+	durationListQueues time.Duration,
 	durationListQueueItems time.Duration,
 	durationProcessSemaphoreQueueItems time.Duration,
 	durationAssignQueueItems time.Duration,
@@ -2338,6 +2337,7 @@ func printQueueDebugInfo(
 		NumDuplicates:                      len(duplicates),
 		NumCancelled:                       len(cancelled),
 		TotalDuration:                      duration.String(),
+		DurationListQueues:                 durationListQueues.String(),
 		DurationListQueueItems:             durationListQueueItems.String(),
 		DurationProcessSemaphoreQueueItems: durationProcessSemaphoreQueueItems.String(),
 		DurationAssignQueueItems:           durationAssignQueueItems.String(),
