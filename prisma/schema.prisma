@@ -1353,6 +1353,19 @@ model QueueItem {
   @@index([isQueued, tenantId, queue, priority(sort: Desc), id], name: "QueueItem_isQueued_priority_tenantId_queue_id_idx_2")
 }
 
+model WorkerSemaphoreQueueItem {
+  id BigInt @id @default(autoincrement()) @db.BigInt
+
+  // optional params which are specific to step runs
+  stepRunId   String  @db.Uuid
+  workerId    String  @db.Uuid
+  retryCount  Int
+  isProcessed Boolean
+
+  @@unique([stepRunId, workerId, retryCount])
+  @@index([isProcessed, workerId, id])
+}
+
 enum StepRunEventReason {
   REQUEUED_NO_WORKER
   REQUEUED_RATE_LIMIT
@@ -1559,6 +1572,9 @@ model Worker {
 
   slots WorkerSemaphoreSlot[]
 
+  semaphoreCount WorkerSemaphoreCount?
+  assignedEvents WorkerAssignEvent[]
+
   webhook   WebhookWorker? @relation(fields: [webhookId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   webhookId String?        @unique @db.Uuid
 
@@ -1586,6 +1602,29 @@ model WorkerSemaphoreSlot {
   // the parent step run
   stepRun   StepRun? @relation(fields: [stepRunId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   stepRunId String?  @unique @db.Uuid
+
+  @@index([workerId])
+}
+
+model WorkerSemaphoreCount {
+  // the parent semaphore
+  worker   Worker @relation(fields: [workerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  workerId String @id @unique @db.Uuid
+
+  // the count of the semaphore
+  count Int
+
+  @@index([workerId])
+}
+
+model WorkerAssignEvent {
+  id BigInt @id @default(autoincrement()) @db.BigInt
+
+  // the parent worker
+  worker   Worker @relation(fields: [workerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  workerId String @db.Uuid
+
+  assignedStepRuns Json?
 
   @@index([workerId])
 }

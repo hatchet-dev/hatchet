@@ -96,3 +96,27 @@ SET
     "isQueued" = false
 WHERE
     qi."id" = ANY(@ids::bigint[]);
+
+-- name: ListWorkerSemaphoreQueueItems :many
+SELECT
+    *
+FROM
+    "WorkerSemaphoreQueueItem" qi
+WHERE
+    "isProcessed" = false
+    AND "workerId" = ANY(@workerIds::uuid[])
+    AND (
+        sqlc.narg('gtId')::bigint IS NULL OR
+        qi."id" >= sqlc.narg('gtId')::bigint
+    )
+ORDER BY
+    qi."id" ASC
+FOR UPDATE SKIP LOCKED;
+
+-- name: MarkWorkerSemaphoreQueueItemsProcessed :exec
+UPDATE
+    "WorkerSemaphoreQueueItem" qi
+SET
+    "isProcessed" = true
+WHERE
+    qi."id" = ANY(@ids::bigint[]);

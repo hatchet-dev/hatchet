@@ -263,6 +263,15 @@ func (w *workerEngineRepository) CreateNewWorker(ctx context.Context, tenantId s
 				return nil, nil, fmt.Errorf("could not create worker: %w", err)
 			}
 
+			err = w.queries.CreateWorkerCount(ctx, tx, dbsqlc.CreateWorkerCountParams{
+				Workerid: worker.ID,
+				MaxRuns:  createParams.MaxRuns,
+			})
+
+			if err != nil {
+				return nil, nil, fmt.Errorf("could not create worker count: %w", err)
+			}
+
 			err = w.queries.StubWorkerSemaphoreSlots(ctx, tx, dbsqlc.StubWorkerSemaphoreSlotsParams{
 				Workerid: worker.ID,
 				MaxRuns: pgtype.Int4{

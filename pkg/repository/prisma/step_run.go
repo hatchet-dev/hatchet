@@ -506,9 +506,10 @@ func (s *stepRunEngineRepository) ReleaseStepRunSemaphore(ctx context.Context, t
 			return fmt.Errorf("could not create step run event: %w", err)
 		}
 
-		_, err = s.queries.ReleaseWorkerSemaphoreSlot(ctx, tx, dbsqlc.ReleaseWorkerSemaphoreSlotParams{
-			Steprunid: stepRun.SRID,
-			Tenantid:  stepRun.SRTenantId,
+		err = s.queries.ReleaseWorkerSemaphoreSlot(ctx, tx, dbsqlc.ReleaseWorkerSemaphoreSlotParams{
+			Steprunid:  stepRun.SRID,
+			Tenantid:   stepRun.SRTenantId,
+			Retrycount: stepRun.SRRetryCount,
 		})
 
 		if err != nil {
@@ -753,9 +754,11 @@ func (s *stepRunEngineRepository) UnassignStepRunFromWorker(ctx context.Context,
 
 		defer deferRollback(ctx, s.l, tx.Rollback)
 
-		_, err = s.queries.ReleaseWorkerSemaphoreSlot(ctx, tx, dbsqlc.ReleaseWorkerSemaphoreSlotParams{
+		err = s.queries.ReleaseWorkerSemaphoreSlot(ctx, tx, dbsqlc.ReleaseWorkerSemaphoreSlotParams{
 			Steprunid: pgStepRunId,
 			Tenantid:  pgTenantId,
+			// TODO: get actual retry count here
+			Retrycount: 0,
 		})
 
 		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
@@ -924,6 +927,8 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, qlp *zerolo
 		return emptyRes, nil
 	}
 
+	durationListQueueItems := time.Since(startedAt)
+
 	var duplicates []*scheduling.QueueItemWithOrder
 	var cancelled []*scheduling.QueueItemWithOrder
 
@@ -1011,13 +1016,88 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, qlp *zerolo
 		}
 	}
 
-	slots, err := s.queries.ListSemaphoreSlotsToAssign(ctx, tx, dbsqlc.ListSemaphoreSlotsToAssignParams{
-		Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
+	// list workers to assign
+	workers, err := s.queries.GetWorkerDispatcherActions(ctx, tx, dbsqlc.GetWorkerDispatcherActionsParams{
+		Tenantid:  pgTenantId,
 		Actionids: uniqueActionsArr,
 	})
 
 	if err != nil {
-		return emptyRes, fmt.Errorf("could not list semaphore slots to assign: %w", err)
+		return emptyRes, fmt.Errorf("could not get worker dispatcher actions: %w", err)
+	}
+
+	workerIds := make([]pgtype.UUID, 0, len(workers))
+
+	for _, worker := range workers {
+		workerIds = append(workerIds, worker.ID)
+	}
+
+	// join workers with counts
+	workerCounts, err := s.queries.GetWorkerSemaphoreCounts(ctx, tx, workerIds)
+
+	if err != nil {
+		return emptyRes, fmt.Errorf("could not get worker semaphore counts: %w", err)
+	}
+
+	// process unprocessed semaphore queue items
+	startProcessTime := time.Now()
+
+	semQueueItems, err := s.queries.ListWorkerSemaphoreQueueItems(ctx, tx, dbsqlc.ListWorkerSemaphoreQueueItemsParams{
+		Workerids: workerIds,
+		// TODO: add gt id to this query
+	})
+
+	if err != nil {
+		return emptyRes, fmt.Errorf("could not list worker semaphore queue items: %w", err)
+	}
+
+	workerToCounts := make(map[string]int)
+
+	for _, worker := range workerCounts {
+		workerToCounts[sqlchelpers.UUIDToStr(worker.WorkerId)] = int(worker.Count)
+	}
+
+	// append the semaphore queue items to the worker counts
+	for _, item := range semQueueItems {
+		workerToCounts[sqlchelpers.UUIDToStr(item.WorkerId)]++
+	}
+
+	processedSemQueueItems := make([]int64, 0)
+
+	for _, item := range semQueueItems {
+		processedSemQueueItems = append(processedSemQueueItems, item.ID)
+	}
+
+	// update the processed semaphore queue items
+	err = s.queries.MarkWorkerSemaphoreQueueItemsProcessed(ctx, tx, processedSemQueueItems)
+
+	if err != nil {
+		return emptyRes, fmt.Errorf("could not mark worker semaphore queue items processed: %w", err)
+	}
+
+	finishedProcessTime := time.Since(startProcessTime)
+
+	slots := make([]*scheduling.Slot, 0)
+
+	for _, worker := range workers {
+		workerId := sqlchelpers.UUIDToStr(worker.ID)
+		dispatcherId := sqlchelpers.UUIDToStr(worker.DispatcherId)
+		actionId := worker.ActionId
+
+		count, ok := workerToCounts[workerId]
+
+		if !ok {
+			continue
+		}
+
+		for i := 0; i < count; i++ {
+			slots = append(slots, &scheduling.Slot{
+				ID:           fmt.Sprintf("%s-%d", workerId, i),
+				WorkerId:     workerId,
+				DispatcherId: dispatcherId,
+				ActionId:     actionId,
+			})
+		}
 	}
 
 	// GET UNIQUE STEP IDS
@@ -1043,8 +1123,8 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, qlp *zerolo
 
 	if hasDesired {
 		// GET UNIQUE WORKER LABELS
-		workerIdSet := UniqueSet(slots, func(x *dbsqlc.ListSemaphoreSlotsToAssignRow) string {
-			return sqlchelpers.UUIDToStr(x.WorkerId)
+		workerIdSet := UniqueSet(slots, func(x *scheduling.Slot) string {
+			return x.WorkerId
 		})
 
 		for workerId := range workerIdSet {
@@ -1122,16 +1202,49 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, qlp *zerolo
 		}
 	}()
 
-	_, err = s.queries.BulkAssignStepRunsToWorkers(ctx, tx, dbsqlc.BulkAssignStepRunsToWorkersParams{
+	startAssignTime := time.Now()
+
+	_, err = s.queries.UpdateStepRunsToAssigned(ctx, tx, dbsqlc.UpdateStepRunsToAssignedParams{
 		Steprunids:      plan.StepRunIds,
-		Stepruntimeouts: plan.StepRunTimeouts,
-		Slotids:         plan.SlotIds,
 		Workerids:       plan.WorkerIds,
+		Stepruntimeouts: plan.StepRunTimeouts,
 	})
 
 	if err != nil {
 		return emptyRes, fmt.Errorf("could not bulk assign step runs to workers: %w", err)
 	}
+
+	finishedAssignTime := time.Since(startAssignTime)
+
+	// track the counts
+	for _, workerId := range plan.WorkerIds {
+		workerToCounts[sqlchelpers.UUIDToStr(workerId)]--
+	}
+
+	// print the counts for debugging
+	for workerId, count := range workerToCounts {
+		ql.Error().Msgf("worker %s has %d slots remaining", workerId, count)
+	}
+
+	startUpdateCountTime := time.Now()
+
+	updateCountParams := dbsqlc.UpdateWorkerSemaphoreCountsParams{
+		Workerids: make([]pgtype.UUID, 0, len(workerToCounts)),
+		Counts:    make([]int32, 0, len(workerToCounts)),
+	}
+
+	for workerId, count := range workerToCounts {
+		updateCountParams.Workerids = append(updateCountParams.Workerids, sqlchelpers.UUIDFromStr(workerId))
+		updateCountParams.Counts = append(updateCountParams.Counts, int32(count))
+	}
+
+	err = s.queries.UpdateWorkerSemaphoreCounts(ctx, tx, updateCountParams)
+
+	if err != nil {
+		return emptyRes, fmt.Errorf("could not update worker semaphore counts: %w", err)
+	}
+
+	finishUpdateCountTime := time.Since(startUpdateCountTime)
 
 	popItems := plan.QueuedItems
 
@@ -1148,6 +1261,8 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, qlp *zerolo
 		popItems = append(popItems, item.QueueItem.ID)
 	}
 
+	startQueueTime := time.Now()
+
 	err = s.queries.BulkQueueItems(ctx, tx, popItems)
 
 	if err != nil {
@@ -1162,6 +1277,8 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, qlp *zerolo
 			return emptyRes, fmt.Errorf("could not bulk mark step runs as cancelling: %w", err)
 		}
 	}
+
+	finishQueueTime := time.Since(startQueueTime)
 
 	err = tx.Commit(ctx)
 
@@ -1189,7 +1306,7 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, qlp *zerolo
 		timedOutStepRunsStr[i] = sqlchelpers.UUIDToStr(id)
 	}
 
-	defer printQueueDebugInfo(ql, tenantId, queues, queueItems, duplicates, cancelled, plan, slots, startedAt)
+	defer printQueueDebugInfo(ql, tenantId, queues, queueItems, duplicates, cancelled, plan, slots, startedAt, durationListQueueItems, finishedProcessTime, finishedAssignTime, finishUpdateCountTime, finishQueueTime)
 
 	return repository.QueueStepRunsResult{
 		Queued:             plan.QueuedStepRuns,
@@ -1897,9 +2014,10 @@ func (s *stepRunEngineRepository) updateStepRunCore(
 		// we must have actually updated the status to a different state
 		string(innerStepRun.SRStatus) != string(updateStepRun.Status) {
 
-		_, err = s.queries.ReleaseWorkerSemaphoreSlot(ctx, tx, dbsqlc.ReleaseWorkerSemaphoreSlotParams{
-			Steprunid: updateStepRun.ID,
-			Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
+		err = s.queries.ReleaseWorkerSemaphoreSlot(ctx, tx, dbsqlc.ReleaseWorkerSemaphoreSlotParams{
+			Steprunid:  updateStepRun.ID,
+			Tenantid:   sqlchelpers.UUIDFromStr(tenantId),
+			Retrycount: innerStepRun.SRRetryCount,
 		})
 
 		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
@@ -2177,14 +2295,19 @@ func removeDuplicates(qis []*scheduling.QueueItemWithOrder) ([]*scheduling.Queue
 }
 
 type debugInfo struct {
-	NumQueues             int    `json:"num_queues"`
-	TotalStepRuns         int    `json:"total_step_runs"`
-	TotalStepRunsAssigned int    `json:"total_step_runs_assigned"`
-	TotalSlots            int    `json:"total_slots"`
-	NumDuplicates         int    `json:"num_duplicates"`
-	NumCancelled          int    `json:"num_cancelled"`
-	TotalDuration         string `json:"total_duration"`
-	TenantId              string `json:"tenant_id"`
+	NumQueues                          int    `json:"num_queues"`
+	TotalStepRuns                      int    `json:"total_step_runs"`
+	TotalStepRunsAssigned              int    `json:"total_step_runs_assigned"`
+	TotalSlots                         int    `json:"total_slots"`
+	NumDuplicates                      int    `json:"num_duplicates"`
+	NumCancelled                       int    `json:"num_cancelled"`
+	TotalDuration                      string `json:"total_duration"`
+	DurationListQueueItems             string `json:"duration_list_queue_items"`
+	DurationProcessSemaphoreQueueItems string `json:"duration_process_semaphore_queue_items"`
+	DurationAssignQueueItems           string `json:"duration_assign_queue_items"`
+	DurationUpdateSemaphoreCounts      string `json:"duration_update_semaphore_counts"`
+	DurationPopQueueItems              string `json:"duration_pop_queue_items"`
+	TenantId                           string `json:"tenant_id"`
 }
 
 func printQueueDebugInfo(
@@ -2195,21 +2318,31 @@ func printQueueDebugInfo(
 	duplicates []*scheduling.QueueItemWithOrder,
 	cancelled []*scheduling.QueueItemWithOrder,
 	plan scheduling.SchedulePlan,
-	slots []*dbsqlc.ListSemaphoreSlotsToAssignRow,
+	slots []*scheduling.Slot,
 	startedAt time.Time,
+	durationListQueueItems time.Duration,
+	durationProcessSemaphoreQueueItems time.Duration,
+	durationAssignQueueItems time.Duration,
+	durationUpdateSemaphoreCounts time.Duration,
+	durationPopQueueItems time.Duration,
 ) {
 	duration := time.Since(startedAt)
 
 	// pretty-print json with 2 spaces
 	debugInfo := debugInfo{
-		TenantId:              tenantId,
-		NumQueues:             len(queues),
-		TotalStepRuns:         len(queueItems),
-		TotalStepRunsAssigned: len(plan.StepRunIds),
-		TotalSlots:            len(slots),
-		NumDuplicates:         len(duplicates),
-		NumCancelled:          len(cancelled),
-		TotalDuration:         duration.String(),
+		TenantId:                           tenantId,
+		NumQueues:                          len(queues),
+		TotalStepRuns:                      len(queueItems),
+		TotalStepRunsAssigned:              len(plan.StepRunIds),
+		TotalSlots:                         len(slots),
+		NumDuplicates:                      len(duplicates),
+		NumCancelled:                       len(cancelled),
+		TotalDuration:                      duration.String(),
+		DurationListQueueItems:             durationListQueueItems.String(),
+		DurationProcessSemaphoreQueueItems: durationProcessSemaphoreQueueItems.String(),
+		DurationAssignQueueItems:           durationAssignQueueItems.String(),
+		DurationUpdateSemaphoreCounts:      durationUpdateSemaphoreCounts.String(),
+		DurationPopQueueItems:              durationPopQueueItems.String(),
 	}
 
 	debugInfoBytes, err := json.MarshalIndent(debugInfo, "", "  ")
@@ -2223,6 +2356,6 @@ func printQueueDebugInfo(
 	if duration > 100*time.Millisecond {
 		l.Warn().Msgf("queue duration was greater than 100ms: %s", string(debugInfoBytes))
 	} else {
-		l.Debug().Msgf("queue debug information: %s", string(debugInfoBytes))
+		l.Warn().Msgf("queue debug information: %s", string(debugInfoBytes))
 	}
 }

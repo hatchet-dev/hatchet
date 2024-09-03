@@ -499,17 +499,27 @@ WHERE
     "tenantId" = @tenantId::uuid
 RETURNING *;
 
--- name: ReleaseWorkerSemaphoreSlot :one
+-- name: ReleaseWorkerSemaphoreSlot :exec
 WITH step_run as (
   SELECT "workerId"
   FROM "StepRun"
   WHERE "id" = @stepRunId::uuid AND "tenantId" = @tenantId::uuid
 )
-UPDATE "WorkerSemaphoreSlot"
-    SET "stepRunId" = NULL
-WHERE "stepRunId" = @stepRunId::uuid
-  AND "workerId" = (SELECT "workerId" FROM step_run)
-RETURNING *;
+INSERT INTO
+    "WorkerSemaphoreQueueItem" (
+        "workerId",
+        "stepRunId",
+        "isProcessed",
+        "retryCount"
+    )
+SELECT
+    sr."workerId",
+    @stepRunId::uuid,
+    false,
+    @retryCount::int
+FROM step_run sr
+WHERE sr."workerId" IS NOT NULL
+ON CONFLICT DO NOTHING;
 
 -- name: CheckWorker :one
 SELECT
@@ -565,69 +575,84 @@ WHERE
     wss."stepRunId" IS NULL
 FOR UPDATE SKIP LOCKED;
 
--- name: BulkAssignStepRunsToWorkers :many
-WITH already_assigned_step_runs AS (
-    SELECT
-        input."id",
-        wss."id" AS "slotId"
-    FROM
-        (
-            SELECT
-                unnest(@stepRunIds::uuid[]) AS "id"
-        ) AS input
-    JOIN
-        "WorkerSemaphoreSlot" wss ON input."id" = wss."stepRunId"
-), already_assigned_slots AS (
-    SELECT
-        wss."id"
-    FROM
-        (
-            SELECT
-                unnest(@slotIds::uuid[]) AS "id"
-        ) AS input
-    JOIN
-        "WorkerSemaphoreSlot" wss ON input."id" = wss."id"
-    WHERE
-        wss."stepRunId" IS NOT NULL
-), updated_step_runs AS (
-    UPDATE
-        "StepRun" sr
-    SET
-        "status" = 'ASSIGNED',
-        "workerId" = input."workerId",
-        "tickerId" = NULL,
-        "updatedAt" = CURRENT_TIMESTAMP,
-        "timeoutAt" = CURRENT_TIMESTAMP + convert_duration_to_interval(input."stepTimeout")
-    FROM (
-        SELECT
-            "id",
-            "stepTimeout",
-            "workerId",
-            "slotId"
-        FROM
-            (
-                SELECT
-                    unnest(@stepRunIds::uuid[]) AS "id",
-                    unnest(@stepRunTimeouts::text[]) AS "stepTimeout",
-                    unnest(@workerIds::uuid[]) AS "workerId",
-                    unnest(@slotIds::uuid[]) AS "slotId"
-            ) AS subquery
-        WHERE
-            "id" NOT IN (SELECT "id" FROM already_assigned_step_runs)
-            AND "slotId" NOT IN (SELECT "id" FROM already_assigned_slots)
-    ) AS input
-    WHERE
-        sr."id" = input."id"
-    RETURNING input."id", input."slotId", input."workerId"
-)
-UPDATE
-    "WorkerSemaphoreSlot" wss
-SET
-    "stepRunId" = updated_step_runs."id"
-FROM updated_step_runs
+-- name: GetWorkerSemaphoreCounts :many
+SELECT
+    "workerId",
+    "count"
+FROM
+    "WorkerSemaphoreCount"
 WHERE
-    wss."id" = updated_step_runs."slotId"
-RETURNING updated_step_runs."id"::uuid, updated_step_runs."workerId"::uuid;
+    "workerId" = ANY(@workers::uuid[]);
+
+-- name: GetWorkerDispatcherActions :many
+WITH actions AS (
+    SELECT
+        "id",
+        "actionId"
+    FROM
+        "Action"
+    WHERE
+        "tenantId" = @tenantId::uuid AND
+        "actionId" = ANY(@actionIds::text[])
+)
+SELECT
+    w."id",
+    a."actionId",
+    w."dispatcherId"
+FROM
+    "Worker" w
+JOIN
+    "_ActionToWorker" atw ON w."id" = atw."B"
+JOIN
+    actions a ON atw."A" = a."id"
+WHERE
+    w."tenantId" = @tenantId::uuid
+    AND w."dispatcherId" IS NOT NULL
+    AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+    AND w."isActive" = true
+    AND w."isPaused" = false;
+
+-- name: UpdateWorkerSemaphoreCounts :exec
+UPDATE
+    "WorkerSemaphoreCount" wsc
+SET
+    "count" = input."count"
+FROM (
+    SELECT
+        "workerId",
+        "count"
+    FROM
+        unnest(@workerIds::uuid[]) AS "workerId",
+        unnest(@counts::int[]) AS "count"
+    ) AS input
+WHERE
+    wsc."workerId" = input."workerId";
+
+-- name: UpdateStepRunsToAssigned :many
+UPDATE
+    "StepRun" sr
+SET
+    "status" = 'ASSIGNED',
+    "workerId" = input."workerId",
+    "tickerId" = NULL,
+    "updatedAt" = CURRENT_TIMESTAMP,
+    "timeoutAt" = CURRENT_TIMESTAMP + convert_duration_to_interval(input."stepTimeout")
+FROM (
+    SELECT
+        "id",
+        "stepTimeout",
+        "workerId"
+    FROM
+        (
+            SELECT
+                unnest(@stepRunIds::uuid[]) AS "id",
+                unnest(@stepRunTimeouts::text[]) AS "stepTimeout",
+                unnest(@workerIds::uuid[]) AS "workerId"
+        ) AS subquery
+) AS input
+WHERE
+    sr."id" = input."id"
+RETURNING input."id", input."workerId";
 
 -- name: GetCancelledStepRuns :many
 SELECT

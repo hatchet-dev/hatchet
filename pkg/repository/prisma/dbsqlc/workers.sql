@@ -158,6 +158,12 @@ INSERT INTO "Worker" (
     sqlc.narg('type')::"WorkerType"
 ) RETURNING *;
 
+-- name: CreateWorkerCount :exec
+INSERT INTO
+    "WorkerSemaphoreCount" ("workerId", "count")
+VALUES
+    (@workerId::uuid, sqlc.narg('maxRuns')::int);
+
 -- name: GetWorkerByWebhookId :one
 SELECT
     *

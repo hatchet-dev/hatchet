@@ -655,6 +655,15 @@ CREATE TABLE "Worker" (
 );
 
 -- CreateTable
+CREATE TABLE "WorkerAssignEvent" (
+    "id" BIGSERIAL NOT NULL,
+    "workerId" UUID NOT NULL,
+    "assignedStepRuns" JSONB,
+
+    CONSTRAINT "WorkerAssignEvent_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "WorkerLabel" (
     "id" BIGSERIAL NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -671,6 +680,25 @@ CREATE TABLE "WorkerLabel" (
 CREATE TABLE "WorkerSemaphore" (
     "workerId" UUID NOT NULL,
     "slots" INTEGER NOT NULL
+);
+
+-- CreateTable
+CREATE TABLE "WorkerSemaphoreCount" (
+    "workerId" UUID NOT NULL,
+    "count" INTEGER NOT NULL,
+
+    CONSTRAINT "WorkerSemaphoreCount_pkey" PRIMARY KEY ("workerId")
+);
+
+-- CreateTable
+CREATE TABLE "WorkerSemaphoreQueueItem" (
+    "id" BIGSERIAL NOT NULL,
+    "stepRunId" UUID NOT NULL,
+    "workerId" UUID NOT NULL,
+    "retryCount" INTEGER NOT NULL,
+    "isProcessed" BOOLEAN NOT NULL,
+
+    CONSTRAINT "WorkerSemaphoreQueueItem_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -1133,6 +1161,9 @@ CREATE UNIQUE INDEX "Worker_id_key" ON "Worker"("id" ASC);
 CREATE UNIQUE INDEX "Worker_webhookId_key" ON "Worker"("webhookId" ASC);
 
 -- CreateIndex
+CREATE INDEX "WorkerAssignEvent_workerId_idx" ON "WorkerAssignEvent"("workerId" ASC);
+
+-- CreateIndex
 CREATE INDEX "WorkerLabel_workerId_idx" ON "WorkerLabel"("workerId" ASC);
 
 -- CreateIndex
@@ -1140,6 +1171,18 @@ CREATE UNIQUE INDEX "WorkerLabel_workerId_key_key" ON "WorkerLabel"("workerId" A
 
 -- CreateIndex
 CREATE UNIQUE INDEX "WorkerSemaphore_workerId_key" ON "WorkerSemaphore"("workerId" ASC);
+
+-- CreateIndex
+CREATE INDEX "WorkerSemaphoreCount_workerId_idx" ON "WorkerSemaphoreCount"("workerId" ASC);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "WorkerSemaphoreCount_workerId_key" ON "WorkerSemaphoreCount"("workerId" ASC);
+
+-- CreateIndex
+CREATE INDEX "WorkerSemaphoreQueueItem_isProcessed_workerId_id_idx" ON "WorkerSemaphoreQueueItem"("isProcessed" ASC, "workerId" ASC, "id" ASC);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "WorkerSemaphoreQueueItem_stepRunId_workerId_retryCount_key" ON "WorkerSemaphoreQueueItem"("stepRunId" ASC, "workerId" ASC, "retryCount" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "WorkerSemaphoreSlot_id_key" ON "WorkerSemaphoreSlot"("id" ASC);
@@ -1469,10 +1512,16 @@ ALTER TABLE "Worker" ADD CONSTRAINT "Worker_tenantId_fkey" FOREIGN KEY ("tenantI
 ALTER TABLE "Worker" ADD CONSTRAINT "Worker_webhookId_fkey" FOREIGN KEY ("webhookId") REFERENCES "WebhookWorker"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "WorkerAssignEvent" ADD CONSTRAINT "WorkerAssignEvent_workerId_fkey" FOREIGN KEY ("workerId") REFERENCES "Worker"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "WorkerLabel" ADD CONSTRAINT "WorkerLabel_workerId_fkey" FOREIGN KEY ("workerId") REFERENCES "Worker"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "WorkerSemaphore" ADD CONSTRAINT "WorkerSemaphore_workerId_fkey" FOREIGN KEY ("workerId") REFERENCES "Worker"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "WorkerSemaphoreCount" ADD CONSTRAINT "WorkerSemaphoreCount_workerId_fkey" FOREIGN KEY ("workerId") REFERENCES "Worker"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "WorkerSemaphoreSlot" ADD CONSTRAINT "WorkerSemaphoreSlot_stepRunId_fkey" FOREIGN KEY ("stepRunId") REFERENCES "StepRun"("id") ON DELETE CASCADE ON UPDATE CASCADE;

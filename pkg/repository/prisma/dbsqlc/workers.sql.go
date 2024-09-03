@@ -73,6 +73,23 @@ func (q *Queries) CreateWorker(ctx context.Context, db DBTX, arg CreateWorkerPar
 	return &i, err
 }
 
+const createWorkerCount = `-- name: CreateWorkerCount :exec
+INSERT INTO
+    "WorkerSemaphoreCount" ("workerId", "count")
+VALUES
+    ($1::uuid, $2::int)
+`
+
+type CreateWorkerCountParams struct {
+	Workerid pgtype.UUID `json:"workerid"`
+	MaxRuns  pgtype.Int4 `json:"maxRuns"`
+}
+
+func (q *Queries) CreateWorkerCount(ctx context.Context, db DBTX, arg CreateWorkerCountParams) error {
+	_, err := db.Exec(ctx, createWorkerCount, arg.Workerid, arg.MaxRuns)
+	return err
+}
+
 const deleteWorker = `-- name: DeleteWorker :one
 DELETE FROM
   "Worker"

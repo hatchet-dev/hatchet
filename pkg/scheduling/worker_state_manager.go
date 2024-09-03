@@ -12,7 +12,7 @@ type WorkerStateManager struct {
 }
 
 func NewWorkerStateManager(
-	slots []*dbsqlc.ListSemaphoreSlotsToAssignRow,
+	slots []*Slot,
 	workerLabels map[string][]*dbsqlc.GetWorkerLabelsRow,
 	stepDesiredLabels map[string][]*dbsqlc.GetDesiredLabelsRow,
 ) *WorkerStateManager {
@@ -22,7 +22,7 @@ func NewWorkerStateManager(
 
 	// initialize worker states
 	for _, slot := range slots {
-		workerId := sqlchelpers.UUIDToStr(slot.WorkerId)
+		workerId := slot.WorkerId
 
 		if _, ok := workers[workerId]; !ok {
 			workers[workerId] = NewWorkerState(
@@ -30,7 +30,7 @@ func NewWorkerStateManager(
 				workerLabels[workerId],
 			)
 		}
-		workers[sqlchelpers.UUIDToStr(slot.WorkerId)].AddSlot(slot)
+		workers[workerId].AddSlot(slot)
 	}
 
 	// compute affinity weights
@@ -69,7 +69,7 @@ func (wm *WorkerStateManager) HasEligibleWorkers(stepId string) bool {
 	return len(wm.workers) > 0
 }
 
-func (wm *WorkerStateManager) AttemptAssignSlot(qi *QueueItemWithOrder) *dbsqlc.ListSemaphoreSlotsToAssignRow {
+func (wm *WorkerStateManager) AttemptAssignSlot(qi *QueueItemWithOrder) *Slot {
 
 	// STICKY WORKERS
 	if qi.Sticky.Valid {
@@ -128,7 +128,7 @@ func (wm *WorkerStateManager) AttemptAssignSlot(qi *QueueItemWithOrder) *dbsqlc.
 	return nil
 }
 
-func (wm *WorkerStateManager) attemptAssignToWorker(worker *WorkerState, qi *QueueItemWithOrder) *dbsqlc.ListSemaphoreSlotsToAssignRow {
+func (wm *WorkerStateManager) attemptAssignToWorker(worker *WorkerState, qi *QueueItemWithOrder) *Slot {
 	slot, isEmpty := worker.AssignSlot(qi)
 
 	if slot == nil {

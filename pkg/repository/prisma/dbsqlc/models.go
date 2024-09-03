@@ -1312,6 +1312,12 @@ type Worker struct {
 	WebhookId               pgtype.UUID      `json:"webhookId"`
 }
 
+type WorkerAssignEvent struct {
+	ID               int64       `json:"id"`
+	WorkerId         pgtype.UUID `json:"workerId"`
+	AssignedStepRuns []byte      `json:"assignedStepRuns"`
+}
+
 type WorkerLabel struct {
 	ID        int64            `json:"id"`
 	CreatedAt pgtype.Timestamp `json:"createdAt"`
@@ -1325,6 +1331,19 @@ type WorkerLabel struct {
 type WorkerSemaphore struct {
 	WorkerId pgtype.UUID `json:"workerId"`
 	Slots    int32       `json:"slots"`
+}
+
+type WorkerSemaphoreCount struct {
+	WorkerId pgtype.UUID `json:"workerId"`
+	Count    int32       `json:"count"`
+}
+
+type WorkerSemaphoreQueueItem struct {
+	ID          int64       `json:"id"`
+	StepRunId   pgtype.UUID `json:"stepRunId"`
+	WorkerId    pgtype.UUID `json:"workerId"`
+	RetryCount  int32       `json:"retryCount"`
+	IsProcessed bool        `json:"isProcessed"`
 }
 
 type WorkerSemaphoreSlot struct {

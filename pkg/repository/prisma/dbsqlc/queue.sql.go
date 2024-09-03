@@ -157,6 +157,68 @@ func (q *Queries) ListQueues(ctx context.Context, db DBTX, tenantid pgtype.UUID)
 	return items, nil
 }
 
+const listWorkerSemaphoreQueueItems = `-- name: ListWorkerSemaphoreQueueItems :many
+SELECT
+    id, "stepRunId", "workerId", "retryCount", "isProcessed"
+FROM
+    "WorkerSemaphoreQueueItem" qi
+WHERE
+    "isProcessed" = false
+    AND "workerId" = ANY($1::uuid[])
+    AND (
+        $2::bigint IS NULL OR
+        qi."id" >= $2::bigint
+    )
+ORDER BY
+    qi."id" ASC
+FOR UPDATE SKIP LOCKED
+`
+
+type ListWorkerSemaphoreQueueItemsParams struct {
+	Workerids []pgtype.UUID `json:"workerids"`
+	GtId      pgtype.Int8   `json:"gtId"`
+}
+
+func (q *Queries) ListWorkerSemaphoreQueueItems(ctx context.Context, db DBTX, arg ListWorkerSemaphoreQueueItemsParams) ([]*WorkerSemaphoreQueueItem, error) {
+	rows, err := db.Query(ctx, listWorkerSemaphoreQueueItems, arg.Workerids, arg.GtId)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*WorkerSemaphoreQueueItem
+	for rows.Next() {
+		var i WorkerSemaphoreQueueItem
+		if err := rows.Scan(
+			&i.ID,
+			&i.StepRunId,
+			&i.WorkerId,
+			&i.RetryCount,
+			&i.IsProcessed,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const markWorkerSemaphoreQueueItemsProcessed = `-- name: MarkWorkerSemaphoreQueueItemsProcessed :exec
+UPDATE
+    "WorkerSemaphoreQueueItem" qi
+SET
+    "isProcessed" = true
+WHERE
+    qi."id" = ANY($1::bigint[])
+`
+
+func (q *Queries) MarkWorkerSemaphoreQueueItemsProcessed(ctx context.Context, db DBTX, ids []int64) error {
+	_, err := db.Exec(ctx, markWorkerSemaphoreQueueItemsProcessed, ids)
+	return err
+}
+
 const upsertQueue = `-- name: UpsertQueue :exec
 INSERT INTO
     "Queue" (
