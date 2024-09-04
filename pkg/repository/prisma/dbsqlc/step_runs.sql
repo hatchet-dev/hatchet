@@ -403,17 +403,10 @@ WITH inactive_workers AS (
         AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
 ),
 step_runs_to_reassign AS (
-    SELECT "stepRunId"
-    FROM "WorkerSemaphoreSlot"
+    SELECT "id", "workerId", "retryCount"
+    FROM "StepRun"
     WHERE
         "workerId" = ANY(SELECT "id" FROM inactive_workers)
-        AND "stepRunId" IS NOT NULL
-),
-update_semaphore_steps AS (
-    UPDATE "WorkerSemaphoreSlot" wss
-    SET "stepRunId" = NULL
-    FROM step_runs_to_reassign
-    WHERE wss."stepRunId" = step_runs_to_reassign."stepRunId"
 ),
 step_runs_with_data AS (
     SELECT
@@ -429,7 +422,7 @@ step_runs_with_data AS (
     JOIN
         "Step" s ON sr."stepId" = s."id"
     WHERE
-        sr."id" = ANY(SELECT "stepRunId" FROM step_runs_to_reassign)
+        sr."id" = ANY(SELECT "id" FROM step_runs_to_reassign)
     FOR UPDATE SKIP LOCKED
 ),
 inserted_queue_items AS (
@@ -463,15 +456,18 @@ updated_step_runs AS (
     SET
         "status" = 'PENDING_ASSIGNMENT',
         "scheduleTimeoutAt" = CURRENT_TIMESTAMP + COALESCE(convert_duration_to_interval(srs."scheduleTimeout"), INTERVAL '5 minutes'),
-        "updatedAt" = CURRENT_TIMESTAMP
+        "updatedAt" = CURRENT_TIMESTAMP,
+        "workerId" = NULL
     FROM step_runs_with_data srs
     WHERE sr."id" = srs."id"
     RETURNING sr."id"
 )
 SELECT
-    srs."id"
+    srtr."id",
+    srtr."workerId",
+    srtr."retryCount"
 FROM
-    step_runs_with_data srs;
+    step_runs_to_reassign srtr;
 
 -- name: ListStepRunsToTimeout :many
 SELECT "id"

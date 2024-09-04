@@ -324,7 +324,7 @@ func (s *stepRunEngineRepository) ListStepRuns(ctx context.Context, tenantId str
 	return res, err
 }
 
-func (s *stepRunEngineRepository) ListStepRunsToReassign(ctx context.Context, tenantId string) ([]*dbsqlc.GetStepRunForEngineRow, error) {
+func (s *stepRunEngineRepository) ListStepRunsToReassign(ctx context.Context, tenantId string) ([]string, error) {
 	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
 
 	tx, err := s.pool.Begin(ctx)
@@ -336,16 +336,26 @@ func (s *stepRunEngineRepository) ListStepRunsToReassign(ctx context.Context, te
 	defer deferRollback(ctx, s.l, tx.Rollback)
 
 	// get the step run and make sure it's still in pending
-	stepRunIds, err := s.queries.ListStepRunsToReassign(ctx, tx, pgTenantId)
+	stepRunReassign, err := s.queries.ListStepRunsToReassign(ctx, tx, pgTenantId)
 
 	if err != nil {
 		return nil, err
 	}
 
-	stepRuns, err := s.queries.GetStepRunForEngine(ctx, tx, dbsqlc.GetStepRunForEngineParams{
-		Ids:      stepRunIds,
-		TenantId: pgTenantId,
-	})
+	stepRunIds := make([]pgtype.UUID, len(stepRunReassign))
+	stepRunIdsStr := make([]string, len(stepRunReassign))
+	workerIds := make([]pgtype.UUID, len(stepRunReassign))
+	retryCounts := make([]int32, len(stepRunReassign))
+
+	for i, sr := range stepRunReassign {
+		stepRunIds[i] = sr.ID
+		stepRunIdsStr[i] = sqlchelpers.UUIDToStr(sr.ID)
+		workerIds[i] = sr.WorkerId
+		retryCounts[i] = sr.RetryCount
+	}
+
+	// release the semaphore slot
+	err = s.bulkReleaseWorkerSemaphoreQueueItems(ctx, tx, tenantId, workerIds, stepRunIds, retryCounts)
 
 	if err != nil {
 		return nil, err
@@ -357,13 +367,13 @@ func (s *stepRunEngineRepository) ListStepRunsToReassign(ctx context.Context, te
 		return nil, err
 	}
 
-	messages := make([]string, len(stepRuns))
-	reasons := make([]dbsqlc.StepRunEventReason, len(stepRuns))
-	severities := make([]dbsqlc.StepRunEventSeverity, len(stepRuns))
-	data := make([]map[string]interface{}, len(stepRuns))
+	messages := make([]string, len(stepRunIds))
+	reasons := make([]dbsqlc.StepRunEventReason, len(stepRunIds))
+	severities := make([]dbsqlc.StepRunEventSeverity, len(stepRunIds))
+	data := make([]map[string]interface{}, len(stepRunIds))
 
-	for i := range stepRuns {
-		workerId := sqlchelpers.UUIDToStr(stepRuns[i].SRWorkerId)
+	for i := range stepRunIds {
+		workerId := sqlchelpers.UUIDToStr(workerIds[i])
 		messages[i] = "Worker has become inactive"
 		reasons[i] = dbsqlc.StepRunEventReasonREASSIGNED
 		severities[i] = dbsqlc.StepRunEventSeverityCRITICAL
@@ -382,7 +392,7 @@ func (s *stepRunEngineRepository) ListStepRunsToReassign(ctx context.Context, te
 		data,
 	)
 
-	return stepRuns, nil
+	return stepRunIdsStr, nil
 }
 
 func (s *stepRunEngineRepository) ListStepRunsToTimeout(ctx context.Context, tenantId string) ([]*dbsqlc.GetStepRunForEngineRow, error) {
