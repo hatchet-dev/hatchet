@@ -1353,17 +1353,27 @@ model QueueItem {
   @@index([isQueued, tenantId, queue, priority(sort: Desc), id], name: "QueueItem_isQueued_priority_tenantId_queue_id_idx_2")
 }
 
-model WorkerSemaphoreQueueItem {
+enum InternalQueue {
+  WORKER_SEMAPHORE_COUNT
+  STEP_RUN_UPDATE
+}
+
+model InternalQueueItem {
   id BigInt @id @default(autoincrement()) @db.BigInt
 
-  // optional params which are specific to step runs
-  stepRunId   String  @db.Uuid
-  workerId    String  @db.Uuid
-  retryCount  Int
-  isProcessed Boolean
+  queue    InternalQueue
+  isQueued Boolean
+  data     Json?
 
-  @@unique([stepRunId, workerId, retryCount])
-  @@index([isProcessed, workerId, id])
+  tenantId String @db.Uuid
+
+  // ALTER TABLE "InternalQueueItem" ADD CONSTRAINT "InternalQueueItem_priority_check" CHECK ("priority" >= 1 AND "priority" <= 4);
+  priority Int @default(1) // custom migration to set this between 1 and 4
+
+  uniqueKey String?
+
+  @@unique([tenantId, queue, uniqueKey])
+  @@index([isQueued, tenantId, queue, priority(sort: Desc), id])
 }
 
 enum StepRunEventReason {
@@ -1626,7 +1636,7 @@ model WorkerAssignEvent {
 
   assignedStepRuns Json?
 
-  @@index([workerId])
+  @@index([workerId, id(order: Desc)])
 }
 
 model Service {

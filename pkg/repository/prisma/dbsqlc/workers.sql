@@ -3,7 +3,7 @@ SELECT
     sqlc.embed(workers),
     ww."url" AS "webhookUrl",
     ww."id" AS "webhookId",
-    (SELECT COUNT(*) FROM "WorkerSemaphoreSlot" wss WHERE wss."workerId" = workers."id" AND wss."stepRunId" IS NOT NULL) AS "slots"
+    (SELECT COUNT(*) FROM "StepRun" sr WHERE sr."workerId" = workers."id" AND sr."tenantId" = @tenantId) AS "slots"
 FROM
     "Worker" workers
 LEFT JOIN
@@ -70,38 +70,9 @@ FROM generate_series(1, sqlc.narg('maxRuns')::int);
 
 -- name: ListSemaphoreSlotsWithStateForWorker :many
 SELECT
-    wss."id" as "slot",
     sr."id" AS "stepRunId",
     sr."status" AS "status",
     s."actionId",
-    sr."timeoutAt" AS "timeoutAt",
-    sr."startedAt" AS "startedAt",
-    jr."workflowRunId" AS "workflowRunId"
-FROM
-    "WorkerSemaphoreSlot" wss
-JOIN
-    "Worker" w ON wss."workerId" = w."id"
-LEFT JOIN
-    "StepRun" sr ON wss."stepRunId" = sr."id"
-LEFT JOIN
-    "JobRun" jr ON sr."jobRunId" = jr."id"
-LEFT JOIN
-	"Step" s ON sr."stepId" = s."id"
-WHERE
-    wss."workerId" = @workerId::uuid AND
-    w."tenantId" = @tenantId::uuid
-ORDER BY
-    wss."id" ASC;
-
--- name: ListRecentStepRunsForWorker :many
-SELECT
-    sr."id" AS "id",
-	s."actionId",
-    sr."status" AS "status",
-    sr."createdAt" AS "createdAt",
-    sr."updatedAt" AS "updatedAt",
-    sr."finishedAt" AS "finishedAt",
-    sr."cancelledAt" AS "cancelledAt",
     sr."timeoutAt" AS "timeoutAt",
     sr."startedAt" AS "startedAt",
     jr."workflowRunId" AS "workflowRunId"
@@ -110,14 +81,22 @@ FROM
 JOIN
     "JobRun" jr ON sr."jobRunId" = jr."id"
 JOIN
-	"Step" s ON sr."stepId" = s."id"
+    "Step" s ON sr."stepId" = s."id"
 WHERE
     sr."workerId" = @workerId::uuid
-    and sr."status" = ANY(cast(sqlc.narg('statuses')::text[] as "StepRunStatus"[]))
-    AND sr."tenantId" = @tenantId::uuid
-ORDER BY
-    sr."startedAt" DESC
-LIMIT 15;
+    AND sr."tenantId" = @tenantId::uuid;
+
+-- name: ListRecentAssignedEventsForWorker :many
+SELECT
+    "workerId",
+    "assignedStepRuns"
+FROM
+    "WorkerAssignEvent"
+WHERE
+    "workerId" = @workerId::uuid
+ORDER BY "id" DESC
+LIMIT
+    COALESCE(sqlc.narg('limit')::int, 100);
 
 -- name: GetWorkerForEngine :one
 SELECT
@@ -336,3 +315,38 @@ SET
     "intValue" = sqlc.narg('intValue')::int,
     "strValue" = sqlc.narg('strValue')::text
 RETURNING *;
+
+-- name: DeleteOldWorkers :one
+WITH for_delete AS (
+    SELECT
+        "id"
+    FROM "Worker" w
+    WHERE
+        w."tenantId" = @tenantId::uuid AND
+        w."lastHeartbeatAt" < @lastHeartbeatBefore::timestamp
+    LIMIT sqlc.arg('limit') + 1
+), expired_with_limit AS (
+    SELECT
+        for_delete."id" as "id"
+    FROM for_delete
+    LIMIT sqlc.arg('limit')
+), has_more AS (
+    SELECT
+        CASE
+            WHEN COUNT(*) > sqlc.arg('limit') THEN TRUE
+            ELSE FALSE
+        END as has_more
+    FROM for_delete
+), delete_slots AS (
+    DELETE FROM "WorkerSemaphoreSlot" wss
+    WHERE wss."workerId" IN (SELECT "id" FROM expired_with_limit)
+    RETURNING wss."id"
+), delete_events AS (
+    DELETE FROM "WorkerAssignEvent" wae
+    WHERE wae."workerId" IN (SELECT "id" FROM expired_with_limit)
+    RETURNING wae."id"
+)
+DELETE FROM "Worker" w
+WHERE w."id" IN (SELECT "id" FROM expired_with_limit)
+RETURNING
+    (SELECT has_more FROM has_more) as has_more;

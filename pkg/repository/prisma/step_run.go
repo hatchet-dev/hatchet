@@ -506,23 +506,10 @@ func (s *stepRunEngineRepository) ReleaseStepRunSemaphore(ctx context.Context, t
 			return fmt.Errorf("could not create step run event: %w", err)
 		}
 
-		err = s.queries.ReleaseWorkerSemaphoreSlot(ctx, tx, dbsqlc.ReleaseWorkerSemaphoreSlotParams{
-			Steprunid:  stepRun.SRID,
-			Tenantid:   stepRun.SRTenantId,
-			Retrycount: stepRun.SRRetryCount,
-		})
+		err = s.releaseWorkerSemaphoreSlot(ctx, tx, tenantId, stepRunId, int(stepRun.SRRetryCount))
 
 		if err != nil {
 			return fmt.Errorf("could not release worker semaphore slot: %w", err)
-		}
-
-		_, err = s.queries.UnlinkStepRunFromWorker(ctx, tx, dbsqlc.UnlinkStepRunFromWorkerParams{
-			Steprunid: stepRun.SRID,
-			Tenantid:  stepRun.SRTenantId,
-		})
-
-		if err != nil {
-			return fmt.Errorf("could not unlink step run from worker: %w", err)
 		}
 
 		// Update the Step Run to release the semaphore
@@ -604,6 +591,7 @@ func (s *stepRunEngineRepository) bulkStepRunsAssigned(
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
+	workerIdToStepRunIds := make(map[string][]string)
 	messages := make([]string, len(stepRunIds))
 	reasons := make([]dbsqlc.StepRunEventReason, len(stepRunIds))
 	severities := make([]dbsqlc.StepRunEventSeverity, len(stepRunIds))
@@ -611,10 +599,49 @@ func (s *stepRunEngineRepository) bulkStepRunsAssigned(
 
 	for i := range stepRunIds {
 		workerId := sqlchelpers.UUIDToStr(workerIds[i])
+
+		if _, ok := workerIdToStepRunIds[workerId]; !ok {
+			workerIdToStepRunIds[workerId] = make([]string, 0)
+		}
+
+		workerIdToStepRunIds[workerId] = append(workerIdToStepRunIds[workerId], sqlchelpers.UUIDToStr(stepRunIds[i]))
 		messages[i] = fmt.Sprintf("Assigned to worker %s", workerId)
 		reasons[i] = dbsqlc.StepRunEventReasonASSIGNED
 		severities[i] = dbsqlc.StepRunEventSeverityINFO
 		data[i] = map[string]interface{}{"worker_id": workerId}
+	}
+
+	orderedWorkerIds := make([]pgtype.UUID, 0)
+	assignedStepRuns := make([][]byte, 0)
+
+	for workerId, stepRunIds := range workerIdToStepRunIds {
+		orderedWorkerIds = append(orderedWorkerIds, sqlchelpers.UUIDFromStr(workerId))
+		assignedStepRunsBytes, _ := json.Marshal(stepRunIds) // nolint: errcheck
+		assignedStepRuns = append(assignedStepRuns, assignedStepRunsBytes)
+	}
+
+	tx, err := s.pool.Begin(ctx)
+
+	if err != nil {
+		s.l.Err(err).Msg("could not begin transaction")
+		return
+	}
+
+	defer deferRollback(ctx, s.l, tx.Rollback)
+
+	err = s.queries.CreateWorkerAssignEvents(ctx, tx, dbsqlc.CreateWorkerAssignEventsParams{
+		Workerids:        orderedWorkerIds,
+		Assignedstepruns: assignedStepRuns,
+	})
+
+	if err != nil {
+		s.l.Err(err).Msg("could not create worker assign events")
+		return
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		s.l.Err(err).Msg("could not commit transaction")
+		return
 	}
 
 	deferredBulkStepRunEvents(
@@ -754,26 +781,7 @@ func (s *stepRunEngineRepository) UnassignStepRunFromWorker(ctx context.Context,
 
 		defer deferRollback(ctx, s.l, tx.Rollback)
 
-		err = s.queries.ReleaseWorkerSemaphoreSlot(ctx, tx, dbsqlc.ReleaseWorkerSemaphoreSlotParams{
-			Steprunid: pgStepRunId,
-			Tenantid:  pgTenantId,
-			// TODO: get actual retry count here
-			Retrycount: 0,
-		})
-
-		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-			return fmt.Errorf("could not release previous worker semaphore: %w", err)
-		}
-
-		_, err = s.queries.UnlinkStepRunFromWorker(ctx, tx, dbsqlc.UnlinkStepRunFromWorkerParams{
-			Steprunid: pgStepRunId,
-			Tenantid:  pgTenantId,
-		})
-
-		if err != nil {
-			return fmt.Errorf("could not unlink step run from worker: %w", err)
-		}
-		_, err = s.queries.UpdateStepRun(ctx, tx, dbsqlc.UpdateStepRunParams{
+		updateStepRun, err := s.queries.UpdateStepRun(ctx, tx, dbsqlc.UpdateStepRunParams{
 			ID:       pgStepRunId,
 			Tenantid: pgTenantId,
 			Status: dbsqlc.NullStepRunStatus{
@@ -784,6 +792,12 @@ func (s *stepRunEngineRepository) UnassignStepRunFromWorker(ctx context.Context,
 
 		if err != nil {
 			return fmt.Errorf("could not update step run status: %w", err)
+		}
+
+		err = s.releaseWorkerSemaphoreSlot(ctx, tx, tenantId, sqlchelpers.UUIDToStr(updateStepRun.ID), int(updateStepRun.RetryCount))
+
+		if err != nil {
+			return fmt.Errorf("could not release previous worker semaphore: %w", err)
 		}
 
 		return tx.Commit(ctx)
@@ -1041,43 +1055,11 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, qlp *zerolo
 		return emptyRes, fmt.Errorf("could not get worker semaphore counts: %w", err)
 	}
 
-	// process unprocessed semaphore queue items
-	startProcessTime := time.Now()
-
-	semQueueItems, err := s.queries.ListWorkerSemaphoreQueueItems(ctx, tx, dbsqlc.ListWorkerSemaphoreQueueItemsParams{
-		Workerids: workerIds,
-		// TODO: add gt id to this query
-	})
-
-	if err != nil {
-		return emptyRes, fmt.Errorf("could not list worker semaphore queue items: %w", err)
-	}
-
 	workerToCounts := make(map[string]int)
 
 	for _, worker := range workerCounts {
 		workerToCounts[sqlchelpers.UUIDToStr(worker.WorkerId)] = int(worker.Count)
 	}
-
-	// append the semaphore queue items to the worker counts
-	for _, item := range semQueueItems {
-		workerToCounts[sqlchelpers.UUIDToStr(item.WorkerId)]++
-	}
-
-	processedSemQueueItems := make([]int64, 0)
-
-	for _, item := range semQueueItems {
-		processedSemQueueItems = append(processedSemQueueItems, item.ID)
-	}
-
-	// update the processed semaphore queue items
-	err = s.queries.MarkWorkerSemaphoreQueueItemsProcessed(ctx, tx, processedSemQueueItems)
-
-	if err != nil {
-		return emptyRes, fmt.Errorf("could not mark worker semaphore queue items processed: %w", err)
-	}
-
-	finishedProcessTime := time.Since(startProcessTime)
 
 	slots := make([]*scheduling.Slot, 0)
 
@@ -1279,13 +1261,13 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, qlp *zerolo
 
 	err = tx.Commit(ctx)
 
-	defer s.bulkStepRunsAssigned(plan.StepRunIds, plan.WorkerIds)
-	defer s.bulkStepRunsUnassigned(plan.UnassignedStepRunIds)
-	defer s.bulkStepRunsRateLimited(plan.RateLimitedStepRuns)
-
 	if err != nil {
 		return emptyRes, fmt.Errorf("could not commit transaction: %w", err)
 	}
+
+	defer s.bulkStepRunsAssigned(plan.StepRunIds, plan.WorkerIds)
+	defer s.bulkStepRunsUnassigned(plan.UnassignedStepRunIds)
+	defer s.bulkStepRunsRateLimited(plan.RateLimitedStepRuns)
 
 	// update the cache with the min queued id
 	for name, qiId := range plan.MinQueuedIds {
@@ -1303,13 +1285,116 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, qlp *zerolo
 		timedOutStepRunsStr[i] = sqlchelpers.UUIDToStr(id)
 	}
 
-	defer printQueueDebugInfo(ql, tenantId, queues, queueItems, duplicates, cancelled, plan, slots, startedAt, listQueuesFinishedAt.Sub(startedAt), durationListQueueItems, finishedProcessTime, finishedAssignTime, finishUpdateCountTime, finishQueueTime)
+	defer printQueueDebugInfo(ql, tenantId, queues, queueItems, duplicates, cancelled, plan, slots, startedAt, listQueuesFinishedAt.Sub(startedAt), durationListQueueItems, finishedAssignTime, finishUpdateCountTime, finishQueueTime)
 
 	return repository.QueueStepRunsResult{
 		Queued:             plan.QueuedStepRuns,
 		SchedulingTimedOut: timedOutStepRunsStr,
 		Continue:           plan.ShouldContinue,
 	}, nil
+}
+
+func (s *stepRunEngineRepository) UpdateWorkerSemaphoreCounts(ctx context.Context, qlp *zerolog.Logger, tenantId string) (bool, error) {
+	ctx, span := telemetry.NewSpan(ctx, "update-worker-semaphore-counts-database")
+	defer span.End()
+
+	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
+
+	limit := 100
+
+	tx, err := s.pool.Begin(ctx)
+
+	if err != nil {
+		return false, err
+	}
+
+	defer deferRollback(ctx, s.l, tx.Rollback)
+
+	// list queues
+	queueItems, err := s.queries.ListInternalQueueItems(ctx, tx, dbsqlc.ListInternalQueueItemsParams{
+		Tenantid: pgTenantId,
+		Queue:    dbsqlc.InternalQueueWORKERSEMAPHORECOUNT,
+		Limit: pgtype.Int4{
+			Int32: int32(limit),
+			Valid: true,
+		},
+	})
+
+	if err != nil {
+		return false, fmt.Errorf("could not list queues: %w", err)
+	}
+
+	data, err := internalQueueItemDataToWorkerSemaphoreQueueData(queueItems)
+
+	if err != nil {
+		return false, fmt.Errorf("could not convert internal queue item data to worker semaphore queue data: %w", err)
+	}
+
+	uniqueWorkerIds := make(map[string]bool)
+
+	for _, item := range data {
+		uniqueWorkerIds[item.WorkerId] = true
+	}
+
+	workerIds := make([]pgtype.UUID, 0, len(uniqueWorkerIds))
+
+	for workerId := range uniqueWorkerIds {
+		workerIds = append(workerIds, sqlchelpers.UUIDFromStr(workerId))
+	}
+
+	workerCounts, err := s.queries.GetWorkerSemaphoreCounts(ctx, tx, workerIds)
+
+	if err != nil {
+		return false, fmt.Errorf("could not get worker semaphore counts: %w", err)
+	}
+
+	workerToCounts := make(map[string]int)
+
+	for _, worker := range workerCounts {
+		workerToCounts[sqlchelpers.UUIDToStr(worker.WorkerId)] = int(worker.Count)
+	}
+
+	// append the semaphore queue items to the worker counts
+	for _, item := range data {
+		workerToCounts[item.WorkerId] += item.Inc
+	}
+
+	qiIds := make([]int64, 0, len(data))
+
+	for _, item := range queueItems {
+		qiIds = append(qiIds, item.ID)
+	}
+
+	// update the processed semaphore queue items
+	err = s.queries.MarkInternalQueueItemsProcessed(ctx, tx, qiIds)
+
+	if err != nil {
+		return false, fmt.Errorf("could not mark worker semaphore queue items processed: %w", err)
+	}
+
+	updateCountParams := dbsqlc.UpdateWorkerSemaphoreCountsParams{
+		Workerids: make([]pgtype.UUID, 0, len(workerToCounts)),
+		Counts:    make([]int32, 0, len(workerToCounts)),
+	}
+
+	for workerId, count := range workerToCounts {
+		updateCountParams.Workerids = append(updateCountParams.Workerids, sqlchelpers.UUIDFromStr(workerId))
+		updateCountParams.Counts = append(updateCountParams.Counts, int32(count))
+	}
+
+	err = s.queries.UpdateWorkerSemaphoreCounts(ctx, tx, updateCountParams)
+
+	if err != nil {
+		return false, fmt.Errorf("could not update worker semaphore counts: %w", err)
+	}
+
+	err = tx.Commit(ctx)
+
+	if err != nil {
+		return false, fmt.Errorf("could not commit transaction: %w", err)
+	}
+
+	return len(queueItems) == limit, nil
 }
 
 func (s *stepRunEngineRepository) CleanupQueueItems(ctx context.Context, tenantId string) error {
@@ -1360,6 +1445,75 @@ func (s *stepRunEngineRepository) CleanupQueueItems(ctx context.Context, tenantI
 
 		// get the next batch of queue items
 		err := s.queries.CleanupQueueItems(ctx, s.pool, dbsqlc.CleanupQueueItemsParams{
+			Minid:    minId,
+			Maxid:    minId + batchSize*currBatch,
+			Tenantid: pgTenantId,
+		})
+
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return nil
+			}
+
+			return fmt.Errorf("could not cleanup queue items: %w", err)
+		}
+
+		if currMax == maxId {
+			break
+		}
+	}
+
+	return nil
+}
+
+func (s *stepRunEngineRepository) CleanupInternalQueueItems(ctx context.Context, tenantId string) error {
+	// setup telemetry
+	ctx, span := telemetry.NewSpan(ctx, "cleanup-internal-queue-items-database")
+	defer span.End()
+
+	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
+
+	// get the min and max queue items
+	minMax, err := s.queries.GetMinMaxProcessedInternalQueueItems(ctx, s.pool, pgTenantId)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil
+		}
+
+		return fmt.Errorf("could not get min max processed queue items: %w", err)
+	}
+
+	if minMax == nil {
+		return nil
+	}
+
+	minId := minMax.MinId
+	maxId := minMax.MaxId
+
+	if maxId == 0 {
+		return nil
+	}
+
+	// iterate until we have no more queue items to process
+	var batchSize int64 = 1000
+	var currBatch int64
+
+	for {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+
+		currBatch++
+
+		currMax := minId + batchSize*currBatch
+
+		if currMax > maxId {
+			currMax = maxId
+		}
+
+		// get the next batch of queue items
+		err := s.queries.CleanupInternalQueueItems(ctx, s.pool, dbsqlc.CleanupInternalQueueItemsParams{
 			Minid:    minId,
 			Maxid:    minId + batchSize*currBatch,
 			Tenantid: pgTenantId,
@@ -1581,19 +1735,6 @@ func (s *stepRunEngineRepository) PreflightCheckReplayStepRun(ctx context.Contex
 
 	if len(childStepRuns) > 0 {
 		return repository.ErrPreflightReplayChildStepRunNotInFinalState
-	}
-
-	return nil
-}
-
-func (s *stepRunEngineRepository) UnlinkStepRunFromWorker(ctx context.Context, tenantId, stepRunId string) error {
-	_, err := s.queries.UnlinkStepRunFromWorker(ctx, s.pool, dbsqlc.UnlinkStepRunFromWorkerParams{
-		Steprunid: sqlchelpers.UUIDFromStr(stepRunId),
-		Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
-	})
-
-	if err != nil {
-		return fmt.Errorf("could not unlink step run from worker: %w", err)
 	}
 
 	return nil
@@ -2011,13 +2152,9 @@ func (s *stepRunEngineRepository) updateStepRunCore(
 		// we must have actually updated the status to a different state
 		string(innerStepRun.SRStatus) != string(updateStepRun.Status) {
 
-		err = s.queries.ReleaseWorkerSemaphoreSlot(ctx, tx, dbsqlc.ReleaseWorkerSemaphoreSlotParams{
-			Steprunid:  updateStepRun.ID,
-			Tenantid:   sqlchelpers.UUIDFromStr(tenantId),
-			Retrycount: innerStepRun.SRRetryCount,
-		})
+		err = s.releaseWorkerSemaphoreSlot(ctx, tx, tenantId, sqlchelpers.UUIDToStr(updateStepRun.ID), int(innerStepRun.SRRetryCount))
 
-		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		if err != nil {
 			return nil, fmt.Errorf("could not release worker semaphore: %w", err)
 		}
 	}
@@ -2271,6 +2408,136 @@ func (s *stepRunEngineRepository) removeCancelledStepRuns(ctx context.Context, t
 	return remaining, cancelled, nil
 }
 
+func (s *stepRunEngineRepository) releaseWorkerSemaphoreSlot(ctx context.Context, tx pgx.Tx, tenantId, stepRunId string, retryCount int) error {
+	oldWorkerId, err := s.queries.UpdateStepRunUnsetWorkerId(ctx, tx, dbsqlc.UpdateStepRunUnsetWorkerIdParams{
+		Steprunid: sqlchelpers.UUIDFromStr(stepRunId),
+		Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
+	})
+
+	if err != nil {
+		return err
+	}
+
+	if oldWorkerId.Valid {
+		// add to internal queue
+		err = s.bulkReleaseWorkerSemaphoreQueueItems(
+			ctx,
+			tx,
+			tenantId,
+			[]pgtype.UUID{oldWorkerId},
+			[]pgtype.UUID{sqlchelpers.UUIDFromStr(stepRunId)},
+			[]int32{int32(retryCount)},
+		)
+
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+type workerSemaphoreQueueData struct {
+	WorkerId  string `json:"worker_id"`
+	StepRunId string `json:"step_run_id"`
+
+	// Inc is what to increment the semaphore count by (-1 for assignment, 1 for release)
+	Inc int `json:"inc"`
+}
+
+func (s *stepRunEngineRepository) bulkReleaseWorkerSemaphoreQueueItems(
+	ctx context.Context,
+	tx pgx.Tx,
+	tenantId string,
+	workerIds []pgtype.UUID,
+	stepRunIds []pgtype.UUID,
+	retryCounts []int32,
+) error {
+	// if length of workerIds and stepRunIds is not the same, return an error
+	if len(workerIds) != len(stepRunIds) {
+		return fmt.Errorf("workerIds and stepRunIds must be the same length")
+	}
+
+	insertData := make([]any, len(workerIds))
+	uniqueKeys := make([]string, len(workerIds))
+
+	for i, workerId := range workerIds {
+		insertData[i] = workerSemaphoreQueueData{
+			WorkerId:  sqlchelpers.UUIDToStr(workerId),
+			StepRunId: sqlchelpers.UUIDToStr(stepRunIds[i]),
+			Inc:       1,
+		}
+
+		uniqueKeys[i] = fmt.Sprintf(
+			"%s:%d:release",
+			sqlchelpers.UUIDToStr(stepRunIds[i]),
+			retryCounts[i],
+		)
+	}
+
+	return s.bulkInsertInternalQueueItem(
+		ctx,
+		tx,
+		tenantId,
+		dbsqlc.InternalQueueWORKERSEMAPHORECOUNT,
+		insertData,
+		uniqueKeys,
+	)
+}
+
+func internalQueueItemDataToWorkerSemaphoreQueueData(items []*dbsqlc.InternalQueueItem) ([]workerSemaphoreQueueData, error) {
+	res := make([]workerSemaphoreQueueData, len(items))
+
+	for i, item := range items {
+		var data workerSemaphoreQueueData
+
+		err := json.Unmarshal(item.Data, &data)
+
+		if err != nil {
+			return nil, err
+		}
+
+		res[i] = data
+	}
+
+	return res, nil
+}
+
+func (s *stepRunEngineRepository) bulkInsertInternalQueueItem(
+	ctx context.Context,
+	tx pgx.Tx,
+	tenantId string,
+	queue dbsqlc.InternalQueue,
+	data []any,
+	uniqueKeys []string,
+) error {
+	// construct bytes for the data
+	insertData := make([][]byte, len(data))
+
+	for i, d := range data {
+		b, err := json.Marshal(d)
+
+		if err != nil {
+			return err
+		}
+
+		insertData[i] = b
+	}
+
+	err := s.queries.CreateInternalQueueItemsBulk(ctx, tx, dbsqlc.CreateInternalQueueItemsBulkParams{
+		Tenantid:   sqlchelpers.UUIDFromStr(tenantId),
+		Queue:      queue,
+		Datas:      insertData,
+		Uniquekeys: uniqueKeys,
+	})
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // removes duplicates from a slice of queue items by step run id
 func removeDuplicates(qis []*scheduling.QueueItemWithOrder) ([]*scheduling.QueueItemWithOrder, []*scheduling.QueueItemWithOrder) {
 	encountered := map[string]bool{}
@@ -2303,7 +2570,6 @@ type debugInfo struct {
 	DurationListQueueItems             string `json:"duration_list_queue_items"`
 	DurationProcessSemaphoreQueueItems string `json:"duration_process_semaphore_queue_items"`
 	DurationAssignQueueItems           string `json:"duration_assign_queue_items"`
-	DurationUpdateSemaphoreCounts      string `json:"duration_update_semaphore_counts"`
 	DurationPopQueueItems              string `json:"duration_pop_queue_items"`
 	TenantId                           string `json:"tenant_id"`
 }
@@ -2322,7 +2588,6 @@ func printQueueDebugInfo(
 	durationListQueueItems time.Duration,
 	durationProcessSemaphoreQueueItems time.Duration,
 	durationAssignQueueItems time.Duration,
-	durationUpdateSemaphoreCounts time.Duration,
 	durationPopQueueItems time.Duration,
 ) {
 	duration := time.Since(startedAt)
@@ -2341,7 +2606,6 @@ func printQueueDebugInfo(
 		DurationListQueueItems:             durationListQueueItems.String(),
 		DurationProcessSemaphoreQueueItems: durationProcessSemaphoreQueueItems.String(),
 		DurationAssignQueueItems:           durationAssignQueueItems.String(),
-		DurationUpdateSemaphoreCounts:      durationUpdateSemaphoreCounts.String(),
 		DurationPopQueueItems:              durationPopQueueItems.String(),
 	}
 
@@ -2356,6 +2620,6 @@ func printQueueDebugInfo(
 	if duration > 100*time.Millisecond {
 		l.Warn().Msgf("queue duration was greater than 100ms: %s", string(debugInfoBytes))
 	} else {
-		l.Warn().Msgf("queue debug information: %s", string(debugInfoBytes))
+		l.Debug().Msgf("queue debug information: %s", string(debugInfoBytes))
 	}
 }

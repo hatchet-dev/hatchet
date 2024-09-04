@@ -67,6 +67,24 @@ AND
     AND "id" <= @maxId::bigint
     AND "tenantId" = @tenantId::uuid;
 
+-- name: GetMinMaxProcessedInternalQueueItems :one
+SELECT
+    COALESCE(MIN("id"), 0)::bigint AS "minId",
+    COALESCE(MAX("id"), 0)::bigint AS "maxId"
+FROM
+    "InternalQueueItem"
+WHERE
+    "isQueued" = 'f'
+    AND "tenantId" = @tenantId::uuid;
+
+-- name: CleanupInternalQueueItems :exec
+DELETE FROM "InternalQueueItem"
+WHERE "isQueued" = 'f'
+AND
+    "id" >= @minId::bigint
+    AND "id" <= @maxId::bigint
+    AND "tenantId" = @tenantId::uuid;
+
 -- name: ListQueueItems :batchmany
 SELECT
     *
@@ -97,26 +115,56 @@ SET
 WHERE
     qi."id" = ANY(@ids::bigint[]);
 
--- name: ListWorkerSemaphoreQueueItems :many
+-- name: ListInternalQueueItems :many
 SELECT
     *
 FROM
-    "WorkerSemaphoreQueueItem" qi
+    "InternalQueueItem" qi
 WHERE
-    "isProcessed" = false
-    AND "workerId" = ANY(@workerIds::uuid[])
+    qi."isQueued" = true
+    AND qi."tenantId" = @tenantId::uuid
+    AND qi."queue" = @queue::"InternalQueue"
     AND (
         sqlc.narg('gtId')::bigint IS NULL OR
         qi."id" >= sqlc.narg('gtId')::bigint
     )
+    -- Added to ensure that the index is used
+    AND qi."priority" >= 1 AND qi."priority" <= 4
 ORDER BY
+    qi."priority" DESC,
     qi."id" ASC
+LIMIT
+    COALESCE(sqlc.narg('limit')::integer, 100)
 FOR UPDATE SKIP LOCKED;
 
--- name: MarkWorkerSemaphoreQueueItemsProcessed :exec
+-- name: MarkInternalQueueItemsProcessed :exec
 UPDATE
-    "WorkerSemaphoreQueueItem" qi
+    "InternalQueueItem" qi
 SET
-    "isProcessed" = true
+    "isQueued" = false
 WHERE
     qi."id" = ANY(@ids::bigint[]);
+
+-- name: CreateInternalQueueItemsBulk :exec
+INSERT INTO
+    "InternalQueueItem" (
+        "queue",
+        "isQueued",
+        "data",
+        "tenantId",
+        "priority",
+        "uniqueKey"
+    )
+SELECT
+    @queue::"InternalQueue",
+    true,
+    input."data",
+    @tenantId::uuid,
+    1,
+    input."uniqueKey"
+FROM (
+    SELECT
+        unnest(@datas::json[]) AS "data",
+        unnest(@uniqueKeys::text[]) AS "uniqueKey"
+) AS input
+ON CONFLICT DO NOTHING;

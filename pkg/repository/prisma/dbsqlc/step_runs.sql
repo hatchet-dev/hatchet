@@ -226,16 +226,6 @@ WHERE
   "tenantId" = @tenantId::uuid
 RETURNING "StepRun".*;
 
--- name: UnlinkStepRunFromWorker :one
-UPDATE
-    "StepRun"
-SET
-    "workerId" = NULL
-WHERE
-    "id" = @stepRunId::uuid AND
-    "tenantId" = @tenantId::uuid
-RETURNING *;
-
 -- name: ResolveLaterStepRuns :many
 WITH RECURSIVE currStepRun AS (
   SELECT *
@@ -499,27 +489,25 @@ WHERE
     "tenantId" = @tenantId::uuid
 RETURNING *;
 
--- name: ReleaseWorkerSemaphoreSlot :exec
-WITH step_run as (
-  SELECT "workerId"
-  FROM "StepRun"
-  WHERE "id" = @stepRunId::uuid AND "tenantId" = @tenantId::uuid
-)
-INSERT INTO
-    "WorkerSemaphoreQueueItem" (
-        "workerId",
-        "stepRunId",
-        "isProcessed",
-        "retryCount"
-    )
-SELECT
-    sr."workerId",
-    @stepRunId::uuid,
-    false,
-    @retryCount::int
-FROM step_run sr
-WHERE sr."workerId" IS NOT NULL
-ON CONFLICT DO NOTHING;
+-- name: UpdateStepRunUnsetWorkerId :one
+UPDATE "StepRun" newsr
+SET
+    "workerId" = NULL
+FROM
+    (
+        SELECT
+            "id",
+            "workerId"
+        FROM
+            "StepRun"
+        WHERE
+            "id" = @stepRunId::uuid AND
+            "tenantId" = @tenantId::uuid
+    ) AS oldsr
+WHERE
+    newsr."id" = oldsr."id"
+-- return whether old worker id was set
+RETURNING oldsr."workerId";
 
 -- name: CheckWorker :one
 SELECT
@@ -630,6 +618,21 @@ FROM (
     ) AS input
 WHERE
     wsc."workerId" = input."workerId";
+
+-- name: CreateWorkerAssignEvents :exec
+INSERT INTO "WorkerAssignEvent" (
+    "workerId",
+    "assignedStepRuns"
+)
+SELECT
+    input."workerId",
+    input."assignedStepRuns"
+FROM (
+    SELECT
+        unnest(@workerIds::uuid[]) AS "workerId",
+        unnest(@assignedStepRuns::jsonb[]) AS "assignedStepRuns"
+    ) AS input
+RETURNING *;
 
 -- name: UpdateStepRunsToAssigned :many
 UPDATE

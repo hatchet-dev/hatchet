@@ -545,23 +545,20 @@ type SNSIntegration struct {
 // SemaphoreSlots defines model for SemaphoreSlots.
 type SemaphoreSlots struct {
 	// ActionId The action id.
-	ActionId *string `json:"actionId,omitempty"`
-
-	// Slot The slot name.
-	Slot openapi_types.UUID `json:"slot"`
+	ActionId string `json:"actionId"`
 
 	// StartedAt The time this slot was started.
-	StartedAt *time.Time     `json:"startedAt,omitempty"`
-	Status    *StepRunStatus `json:"status,omitempty"`
+	StartedAt *time.Time    `json:"startedAt,omitempty"`
+	Status    StepRunStatus `json:"status"`
 
 	// StepRunId The step run id.
-	StepRunId *openapi_types.UUID `json:"stepRunId,omitempty"`
+	StepRunId openapi_types.UUID `json:"stepRunId"`
 
 	// TimeoutAt The time this slot will timeout.
 	TimeoutAt *time.Time `json:"timeoutAt,omitempty"`
 
 	// WorkflowRunId The workflow run id.
-	WorkflowRunId *openapi_types.UUID `json:"workflowRunId,omitempty"`
+	WorkflowRunId openapi_types.UUID `json:"workflowRunId"`
 }
 
 // SlackWebhook defines model for SlackWebhook.
@@ -1378,12 +1375,6 @@ type WorkflowRunGetMetricsParams struct {
 	CreatedBefore *time.Time `form:"createdBefore,omitempty" json:"createdBefore,omitempty"`
 }
 
-// WorkerGetParams defines parameters for WorkerGet.
-type WorkerGetParams struct {
-	// RecentFailed Filter recent by failed
-	RecentFailed *bool `form:"recentFailed,omitempty" json:"recentFailed,omitempty"`
-}
-
 // WorkflowGetMetricsParams defines parameters for WorkflowGetMetrics.
 type WorkflowGetMetricsParams struct {
 	// Status A status of workflow run statuses to filter by
@@ -1787,7 +1778,7 @@ type ClientInterface interface {
 	WebhookRequestsList(ctx context.Context, webhook openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// WorkerGet request
-	WorkerGet(ctx context.Context, worker openapi_types.UUID, params *WorkerGetParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+	WorkerGet(ctx context.Context, worker openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// WorkerUpdateWithBody request with any body
 	WorkerUpdateWithBody(ctx context.Context, worker openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -2850,8 +2841,8 @@ func (c *Client) WebhookRequestsList(ctx context.Context, webhook openapi_types.
 	return c.Client.Do(req)
 }
 
-func (c *Client) WorkerGet(ctx context.Context, worker openapi_types.UUID, params *WorkerGetParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewWorkerGetRequest(c.Server, worker, params)
+func (c *Client) WorkerGet(ctx context.Context, worker openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWorkerGetRequest(c.Server, worker)
 	if err != nil {
 		return nil, err
 	}
@@ -6129,7 +6120,7 @@ func NewWebhookRequestsListRequest(server string, webhook openapi_types.UUID) (*
 }
 
 // NewWorkerGetRequest generates requests for WorkerGet
-func NewWorkerGetRequest(server string, worker openapi_types.UUID, params *WorkerGetParams) (*http.Request, error) {
+func NewWorkerGetRequest(server string, worker openapi_types.UUID) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -6152,28 +6143,6 @@ func NewWorkerGetRequest(server string, worker openapi_types.UUID, params *Worke
 	queryURL, err := serverURL.Parse(operationPath)
 	if err != nil {
 		return nil, err
-	}
-
-	if params != nil {
-		queryValues := queryURL.Query()
-
-		if params.RecentFailed != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "recentFailed", runtime.ParamLocationQuery, *params.RecentFailed); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		queryURL.RawQuery = queryValues.Encode()
 	}
 
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
@@ -6869,7 +6838,7 @@ type ClientWithResponsesInterface interface {
 	WebhookRequestsListWithResponse(ctx context.Context, webhook openapi_types.UUID, reqEditors ...RequestEditorFn) (*WebhookRequestsListResponse, error)
 
 	// WorkerGetWithResponse request
-	WorkerGetWithResponse(ctx context.Context, worker openapi_types.UUID, params *WorkerGetParams, reqEditors ...RequestEditorFn) (*WorkerGetResponse, error)
+	WorkerGetWithResponse(ctx context.Context, worker openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkerGetResponse, error)
 
 	// WorkerUpdateWithBodyWithResponse request with any body
 	WorkerUpdateWithBodyWithResponse(ctx context.Context, worker openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WorkerUpdateResponse, error)
@@ -9475,8 +9444,8 @@ func (c *ClientWithResponses) WebhookRequestsListWithResponse(ctx context.Contex
 }
 
 // WorkerGetWithResponse request returning *WorkerGetResponse
-func (c *ClientWithResponses) WorkerGetWithResponse(ctx context.Context, worker openapi_types.UUID, params *WorkerGetParams, reqEditors ...RequestEditorFn) (*WorkerGetResponse, error) {
-	rsp, err := c.WorkerGet(ctx, worker, params, reqEditors...)
+func (c *ClientWithResponses) WorkerGetWithResponse(ctx context.Context, worker openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkerGetResponse, error) {
+	rsp, err := c.WorkerGet(ctx, worker, reqEditors...)
 	if err != nil {
 		return nil, err
 	}

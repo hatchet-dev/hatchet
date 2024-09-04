@@ -176,6 +176,18 @@ func (rc *RetentionControllerImpl) Start() (func() error, error) {
 	_, err = rc.s.NewJob(
 		gocron.DurationJob(interval),
 		gocron.NewTask(
+			rc.runDeleteOldWorkers(ctx),
+		),
+	)
+
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("could not set up runDeleteOldWorkers: %w", err)
+	}
+
+	_, err = rc.s.NewJob(
+		gocron.DurationJob(interval),
+		gocron.NewTask(
 			rc.runDeleteQueueItems(ctx),
 		),
 	)
@@ -183,6 +195,18 @@ func (rc *RetentionControllerImpl) Start() (func() error, error) {
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("could not set up runDeleteQueueItems: %w", err)
+	}
+
+	_, err = rc.s.NewJob(
+		gocron.DurationJob(interval),
+		gocron.NewTask(
+			rc.runDeleteInternalQueueItems(ctx),
+		),
+	)
+
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("could not set up runDeleteInternalQueueItems: %w", err)
 	}
 
 	_, err = rc.s.NewJob(

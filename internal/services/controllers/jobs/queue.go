@@ -33,7 +33,8 @@ type queue struct {
 	// a custom queue logger
 	ql *zerolog.Logger
 
-	tenantOperations sync.Map
+	tenantQueueOperations     sync.Map
+	tenantWorkerSemOperations sync.Map
 }
 
 func newQueue(
@@ -165,6 +166,18 @@ func (q *queue) Start() (func() error, error) {
 		return nil, fmt.Errorf("could not schedule step run reassign: %w", err)
 	}
 
+	_, err = q.s.NewJob(
+		gocron.DurationJob(time.Second*1),
+		gocron.NewTask(
+			q.runTenantWorkerSemaphores(ctx),
+		),
+	)
+
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("could not schedule worker semaphore update: %w", err)
+	}
+
 	q.s.Start()
 
 	f := func(task *msgqueue.Message) error {
@@ -237,11 +250,18 @@ func (q *queue) handleCheckQueue(ctx context.Context, task *msgqueue.Message) er
 	}
 
 	// if this tenant is registered, then we should check the queue
-	if opInt, ok := q.tenantOperations.Load(metadata.TenantId); ok {
+	if opInt, ok := q.tenantQueueOperations.Load(metadata.TenantId); ok {
 		op := opInt.(*operation)
 
 		op.setContinue(true)
 		op.run(q.l, q.ql, q.scheduleStepRuns)
+	}
+
+	if opInt, ok := q.tenantWorkerSemOperations.Load(metadata.TenantId); ok {
+		op := opInt.(*operation)
+
+		op.setContinue(true)
+		op.run(q.l, q.ql, q.processWorkerSemaphores)
 	}
 
 	return nil
@@ -264,7 +284,7 @@ func (q *queue) runTenantQueues(ctx context.Context) func() {
 
 			var op *operation
 
-			opInt, ok := q.tenantOperations.Load(tenantId)
+			opInt, ok := q.tenantQueueOperations.Load(tenantId)
 
 			if !ok {
 				op = &operation{
@@ -273,7 +293,7 @@ func (q *queue) runTenantQueues(ctx context.Context) func() {
 					lastSchedule: time.Now(),
 				}
 
-				q.tenantOperations.Store(tenantId, op)
+				q.tenantQueueOperations.Store(tenantId, op)
 			} else {
 				op = opInt.(*operation)
 			}
@@ -326,6 +346,58 @@ func (q *queue) scheduleStepRuns(ctx context.Context, tenantId string) (bool, er
 	}
 
 	return queueResults.Continue, err
+}
+
+func (q *queue) runTenantWorkerSemaphores(ctx context.Context) func() {
+	return func() {
+		q.l.Debug().Msgf("partition: updating worker semaphore counts")
+
+		// list all tenants
+		tenants, err := q.repo.Tenant().ListTenantsByControllerPartition(ctx, q.p.GetControllerPartitionId())
+
+		if err != nil {
+			q.l.Err(err).Msg("could not list tenants")
+			return
+		}
+
+		for i := range tenants {
+			tenantId := sqlchelpers.UUIDToStr(tenants[i].ID)
+
+			var op *operation
+
+			opInt, ok := q.tenantWorkerSemOperations.Load(tenantId)
+
+			if !ok {
+				op = &operation{
+					tenantId:     tenantId,
+					lastRun:      time.Now(),
+					lastSchedule: time.Now(),
+				}
+
+				q.tenantWorkerSemOperations.Store(tenantId, op)
+			} else {
+				op = opInt.(*operation)
+			}
+
+			op.run(q.l, q.ql, q.processWorkerSemaphores)
+		}
+	}
+}
+
+func (q *queue) processWorkerSemaphores(ctx context.Context, tenantId string) (bool, error) {
+	ctx, span := telemetry.NewSpan(ctx, "process-worker-semaphores")
+	defer span.End()
+
+	dbCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	shouldContinue, err := q.repo.StepRun().UpdateWorkerSemaphoreCounts(dbCtx, q.ql, tenantId)
+
+	if err != nil {
+		return false, fmt.Errorf("could not queue step runs: %w", err)
+	}
+
+	return shouldContinue, nil
 }
 
 func getStepRunCancelTask(tenantId, stepRunId, reason string) *msgqueue.Message {

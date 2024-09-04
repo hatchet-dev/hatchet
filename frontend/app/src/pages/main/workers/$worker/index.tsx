@@ -28,8 +28,6 @@ import WorkerSlotGrid from './components/slot-grid';
 import { useState } from 'react';
 import { DataTable } from '@/components/molecules/data-table/data-table';
 import { columns } from './components/step-runs-columns';
-import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
 import { RecentWebhookRequests } from '../webhooks/components/recent-webhook-requests';
 export const isHealthy = (worker?: Worker) => {
   const reasons = [];
@@ -100,10 +98,8 @@ export default function ExpandedWorkflowRun() {
   const params = useParams();
   invariant(params.worker);
 
-  const [filterFailed, setFilterFailed] = useState(false);
-
   const workerQuery = useQuery({
-    ...queries.workers.get(params.worker, { recentFailed: filterFailed }),
+    ...queries.workers.get(params.worker),
     refetchInterval: 3000,
   });
 
@@ -119,9 +115,7 @@ export default function ExpandedWorkflowRun() {
       (await api.workerUpdate(worker!.metadata.id, data)).data,
     onSuccess: async () => {
       await queryClient.invalidateQueries({
-        queryKey: queries.workers.get(worker!.metadata.id, {
-          recentFailed: filterFailed,
-        }).queryKey,
+        queryKey: queries.workers.get(worker!.metadata.id).queryKey,
       });
     },
     onError: handleApiError,
@@ -232,19 +226,6 @@ export default function ExpandedWorkflowRun() {
           <h3 className="text-xl font-bold leading-tight text-foreground">
             Recent Step Runs
           </h3>
-
-          <div className="flex flex-row items-center gap-2">
-            <Label htmlFor="sa" className="text-sm">
-              Filter Failed{' '}
-            </Label>
-            <Switch
-              id="sa"
-              checked={filterFailed}
-              onClick={async () => {
-                setFilterFailed((x) => !x);
-              }}
-            />
-          </div>
         </div>
         <DataTable
           isLoading={workerQuery.isLoading}

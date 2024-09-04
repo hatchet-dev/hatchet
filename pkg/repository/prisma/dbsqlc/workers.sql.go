@@ -90,6 +90,55 @@ func (q *Queries) CreateWorkerCount(ctx context.Context, db DBTX, arg CreateWork
 	return err
 }
 
+const deleteOldWorkers = `-- name: DeleteOldWorkers :one
+WITH for_delete AS (
+    SELECT
+        "id"
+    FROM "Worker" w
+    WHERE
+        w."tenantId" = $1::uuid AND
+        w."lastHeartbeatAt" < $2::timestamp
+    LIMIT $3 + 1
+), expired_with_limit AS (
+    SELECT
+        for_delete."id" as "id"
+    FROM for_delete
+    LIMIT $3
+), has_more AS (
+    SELECT
+        CASE
+            WHEN COUNT(*) > $3 THEN TRUE
+            ELSE FALSE
+        END as has_more
+    FROM for_delete
+), delete_slots AS (
+    DELETE FROM "WorkerSemaphoreSlot" wss
+    WHERE wss."workerId" IN (SELECT "id" FROM expired_with_limit)
+    RETURNING wss."id"
+), delete_events AS (
+    DELETE FROM "WorkerAssignEvent" wae
+    WHERE wae."workerId" IN (SELECT "id" FROM expired_with_limit)
+    RETURNING wae."id"
+)
+DELETE FROM "Worker" w
+WHERE w."id" IN (SELECT "id" FROM expired_with_limit)
+RETURNING
+    (SELECT has_more FROM has_more) as has_more
+`
+
+type DeleteOldWorkersParams struct {
+	Tenantid            pgtype.UUID      `json:"tenantid"`
+	Lastheartbeatbefore pgtype.Timestamp `json:"lastheartbeatbefore"`
+	Limit               interface{}      `json:"limit"`
+}
+
+func (q *Queries) DeleteOldWorkers(ctx context.Context, db DBTX, arg DeleteOldWorkersParams) (bool, error) {
+	row := db.QueryRow(ctx, deleteOldWorkers, arg.Tenantid, arg.Lastheartbeatbefore, arg.Limit)
+	var has_more bool
+	err := row.Scan(&has_more)
+	return has_more, err
+}
+
 const deleteWorker = `-- name: DeleteWorker :one
 DELETE FROM
   "Worker"
@@ -327,73 +376,39 @@ func (q *Queries) LinkServicesToWorker(ctx context.Context, db DBTX, arg LinkSer
 	return err
 }
 
-const listRecentStepRunsForWorker = `-- name: ListRecentStepRunsForWorker :many
+const listRecentAssignedEventsForWorker = `-- name: ListRecentAssignedEventsForWorker :many
 SELECT
-    sr."id" AS "id",
-	s."actionId",
-    sr."status" AS "status",
-    sr."createdAt" AS "createdAt",
-    sr."updatedAt" AS "updatedAt",
-    sr."finishedAt" AS "finishedAt",
-    sr."cancelledAt" AS "cancelledAt",
-    sr."timeoutAt" AS "timeoutAt",
-    sr."startedAt" AS "startedAt",
-    jr."workflowRunId" AS "workflowRunId"
+    "workerId",
+    "assignedStepRuns"
 FROM
-    "StepRun" sr
-JOIN
-    "JobRun" jr ON sr."jobRunId" = jr."id"
-JOIN
-	"Step" s ON sr."stepId" = s."id"
+    "WorkerAssignEvent"
 WHERE
-    sr."workerId" = $1::uuid
-    and sr."status" = ANY(cast($2::text[] as "StepRunStatus"[]))
-    AND sr."tenantId" = $3::uuid
-ORDER BY
-    sr."startedAt" DESC
-LIMIT 15
+    "workerId" = $1::uuid
+ORDER BY "id" DESC
+LIMIT
+    COALESCE($2::int, 100)
 `
 
-type ListRecentStepRunsForWorkerParams struct {
+type ListRecentAssignedEventsForWorkerParams struct {
 	Workerid pgtype.UUID `json:"workerid"`
-	Statuses []string    `json:"statuses"`
-	Tenantid pgtype.UUID `json:"tenantid"`
+	Limit    pgtype.Int4 `json:"limit"`
 }
 
-type ListRecentStepRunsForWorkerRow struct {
-	ID            pgtype.UUID      `json:"id"`
-	ActionId      string           `json:"actionId"`
-	Status        StepRunStatus    `json:"status"`
-	CreatedAt     pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt     pgtype.Timestamp `json:"updatedAt"`
-	FinishedAt    pgtype.Timestamp `json:"finishedAt"`
-	CancelledAt   pgtype.Timestamp `json:"cancelledAt"`
-	TimeoutAt     pgtype.Timestamp `json:"timeoutAt"`
-	StartedAt     pgtype.Timestamp `json:"startedAt"`
-	WorkflowRunId pgtype.UUID      `json:"workflowRunId"`
+type ListRecentAssignedEventsForWorkerRow struct {
+	WorkerId         pgtype.UUID `json:"workerId"`
+	AssignedStepRuns []byte      `json:"assignedStepRuns"`
 }
 
-func (q *Queries) ListRecentStepRunsForWorker(ctx context.Context, db DBTX, arg ListRecentStepRunsForWorkerParams) ([]*ListRecentStepRunsForWorkerRow, error) {
-	rows, err := db.Query(ctx, listRecentStepRunsForWorker, arg.Workerid, arg.Statuses, arg.Tenantid)
+func (q *Queries) ListRecentAssignedEventsForWorker(ctx context.Context, db DBTX, arg ListRecentAssignedEventsForWorkerParams) ([]*ListRecentAssignedEventsForWorkerRow, error) {
+	rows, err := db.Query(ctx, listRecentAssignedEventsForWorker, arg.Workerid, arg.Limit)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*ListRecentStepRunsForWorkerRow
+	var items []*ListRecentAssignedEventsForWorkerRow
 	for rows.Next() {
-		var i ListRecentStepRunsForWorkerRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.ActionId,
-			&i.Status,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.FinishedAt,
-			&i.CancelledAt,
-			&i.TimeoutAt,
-			&i.StartedAt,
-			&i.WorkflowRunId,
-		); err != nil {
+		var i ListRecentAssignedEventsForWorkerRow
+		if err := rows.Scan(&i.WorkerId, &i.AssignedStepRuns); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)
@@ -406,7 +421,6 @@ func (q *Queries) ListRecentStepRunsForWorker(ctx context.Context, db DBTX, arg 
 
 const listSemaphoreSlotsWithStateForWorker = `-- name: ListSemaphoreSlotsWithStateForWorker :many
 SELECT
-    wss."id" as "slot",
     sr."id" AS "stepRunId",
     sr."status" AS "status",
     s."actionId",
@@ -414,20 +428,14 @@ SELECT
     sr."startedAt" AS "startedAt",
     jr."workflowRunId" AS "workflowRunId"
 FROM
-    "WorkerSemaphoreSlot" wss
+    "StepRun" sr
 JOIN
-    "Worker" w ON wss."workerId" = w."id"
-LEFT JOIN
-    "StepRun" sr ON wss."stepRunId" = sr."id"
-LEFT JOIN
     "JobRun" jr ON sr."jobRunId" = jr."id"
-LEFT JOIN
-	"Step" s ON sr."stepId" = s."id"
+JOIN
+    "Step" s ON sr."stepId" = s."id"
 WHERE
-    wss."workerId" = $1::uuid AND
-    w."tenantId" = $2::uuid
-ORDER BY
-    wss."id" ASC
+    sr."workerId" = $1::uuid
+    AND sr."tenantId" = $2::uuid
 `
 
 type ListSemaphoreSlotsWithStateForWorkerParams struct {
@@ -436,13 +444,12 @@ type ListSemaphoreSlotsWithStateForWorkerParams struct {
 }
 
 type ListSemaphoreSlotsWithStateForWorkerRow struct {
-	Slot          pgtype.UUID       `json:"slot"`
-	StepRunId     pgtype.UUID       `json:"stepRunId"`
-	Status        NullStepRunStatus `json:"status"`
-	ActionId      pgtype.Text       `json:"actionId"`
-	TimeoutAt     pgtype.Timestamp  `json:"timeoutAt"`
-	StartedAt     pgtype.Timestamp  `json:"startedAt"`
-	WorkflowRunId pgtype.UUID       `json:"workflowRunId"`
+	StepRunId     pgtype.UUID      `json:"stepRunId"`
+	Status        StepRunStatus    `json:"status"`
+	ActionId      string           `json:"actionId"`
+	TimeoutAt     pgtype.Timestamp `json:"timeoutAt"`
+	StartedAt     pgtype.Timestamp `json:"startedAt"`
+	WorkflowRunId pgtype.UUID      `json:"workflowRunId"`
 }
 
 func (q *Queries) ListSemaphoreSlotsWithStateForWorker(ctx context.Context, db DBTX, arg ListSemaphoreSlotsWithStateForWorkerParams) ([]*ListSemaphoreSlotsWithStateForWorkerRow, error) {
@@ -455,7 +462,6 @@ func (q *Queries) ListSemaphoreSlotsWithStateForWorker(ctx context.Context, db D
 	for rows.Next() {
 		var i ListSemaphoreSlotsWithStateForWorkerRow
 		if err := rows.Scan(
-			&i.Slot,
 			&i.StepRunId,
 			&i.Status,
 			&i.ActionId,
@@ -526,7 +532,7 @@ SELECT
     workers.id, workers."createdAt", workers."updatedAt", workers."deletedAt", workers."tenantId", workers."lastHeartbeatAt", workers.name, workers."dispatcherId", workers."maxRuns", workers."isActive", workers."lastListenerEstablished", workers."isPaused", workers.type, workers."webhookId",
     ww."url" AS "webhookUrl",
     ww."id" AS "webhookId",
-    (SELECT COUNT(*) FROM "WorkerSemaphoreSlot" wss WHERE wss."workerId" = workers."id" AND wss."stepRunId" IS NOT NULL) AS "slots"
+    (SELECT COUNT(*) FROM "StepRun" sr WHERE sr."workerId" = workers."id" AND sr."tenantId" = $1) AS "slots"
 FROM
     "Worker" workers
 LEFT JOIN

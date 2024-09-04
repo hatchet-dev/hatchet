@@ -55,6 +55,48 @@ func (ns NullConcurrencyLimitStrategy) Value() (driver.Value, error) {
 	return string(ns.ConcurrencyLimitStrategy), nil
 }
 
+type InternalQueue string
+
+const (
+	InternalQueueWORKERSEMAPHORECOUNT InternalQueue = "WORKER_SEMAPHORE_COUNT"
+	InternalQueueSTEPRUNUPDATE        InternalQueue = "STEP_RUN_UPDATE"
+)
+
+func (e *InternalQueue) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = InternalQueue(s)
+	case string:
+		*e = InternalQueue(s)
+	default:
+		return fmt.Errorf("unsupported scan type for InternalQueue: %T", src)
+	}
+	return nil
+}
+
+type NullInternalQueue struct {
+	InternalQueue InternalQueue `json:"InternalQueue"`
+	Valid         bool          `json:"valid"` // Valid is true if InternalQueue is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullInternalQueue) Scan(value interface{}) error {
+	if value == nil {
+		ns.InternalQueue, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.InternalQueue.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullInternalQueue) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.InternalQueue), nil
+}
+
 type InviteLinkStatus string
 
 const (
@@ -884,6 +926,16 @@ type GetGroupKeyRun struct {
 	ScheduleTimeoutAt pgtype.Timestamp `json:"scheduleTimeoutAt"`
 }
 
+type InternalQueueItem struct {
+	ID        int64         `json:"id"`
+	Queue     InternalQueue `json:"queue"`
+	IsQueued  bool          `json:"isQueued"`
+	Data      []byte        `json:"data"`
+	TenantId  pgtype.UUID   `json:"tenantId"`
+	Priority  int32         `json:"priority"`
+	UniqueKey pgtype.Text   `json:"uniqueKey"`
+}
+
 type Job struct {
 	ID                pgtype.UUID      `json:"id"`
 	CreatedAt         pgtype.Timestamp `json:"createdAt"`
@@ -1336,14 +1388,6 @@ type WorkerSemaphore struct {
 type WorkerSemaphoreCount struct {
 	WorkerId pgtype.UUID `json:"workerId"`
 	Count    int32       `json:"count"`
-}
-
-type WorkerSemaphoreQueueItem struct {
-	ID          int64       `json:"id"`
-	StepRunId   pgtype.UUID `json:"stepRunId"`
-	WorkerId    pgtype.UUID `json:"workerId"`
-	RetryCount  int32       `json:"retryCount"`
-	IsProcessed bool        `json:"isProcessed"`
 }
 
 type WorkerSemaphoreSlot struct {

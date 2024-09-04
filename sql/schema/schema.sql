@@ -2,6 +2,9 @@
 CREATE TYPE "ConcurrencyLimitStrategy" AS ENUM ('CANCEL_IN_PROGRESS', 'DROP_NEWEST', 'QUEUE_NEWEST', 'GROUP_ROUND_ROBIN');
 
 -- CreateEnum
+CREATE TYPE "InternalQueue" AS ENUM ('WORKER_SEMAPHORE_COUNT', 'STEP_RUN_UPDATE');
+
+-- CreateEnum
 CREATE TYPE "InviteLinkStatus" AS ENUM ('PENDING', 'ACCEPTED', 'REJECTED');
 
 -- CreateEnum
@@ -139,6 +142,19 @@ CREATE TABLE "GetGroupKeyRun" (
     "scheduleTimeoutAt" TIMESTAMP(3),
 
     CONSTRAINT "GetGroupKeyRun_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "InternalQueueItem" (
+    "id" BIGSERIAL NOT NULL,
+    "queue" "InternalQueue" NOT NULL,
+    "isQueued" BOOLEAN NOT NULL,
+    "data" JSONB,
+    "tenantId" UUID NOT NULL,
+    "priority" INTEGER NOT NULL DEFAULT 1,
+    "uniqueKey" TEXT,
+
+    CONSTRAINT "InternalQueueItem_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -691,17 +707,6 @@ CREATE TABLE "WorkerSemaphoreCount" (
 );
 
 -- CreateTable
-CREATE TABLE "WorkerSemaphoreQueueItem" (
-    "id" BIGSERIAL NOT NULL,
-    "stepRunId" UUID NOT NULL,
-    "workerId" UUID NOT NULL,
-    "retryCount" INTEGER NOT NULL,
-    "isProcessed" BOOLEAN NOT NULL,
-
-    CONSTRAINT "WorkerSemaphoreQueueItem_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
 CREATE TABLE "WorkerSemaphoreSlot" (
     "id" UUID NOT NULL,
     "workerId" UUID NOT NULL,
@@ -957,6 +962,12 @@ CREATE INDEX "GetGroupKeyRun_workerId_idx" ON "GetGroupKeyRun"("workerId" ASC);
 CREATE UNIQUE INDEX "GetGroupKeyRun_workflowRunId_key" ON "GetGroupKeyRun"("workflowRunId" ASC);
 
 -- CreateIndex
+CREATE INDEX "InternalQueueItem_isQueued_tenantId_queue_priority_id_idx" ON "InternalQueueItem"("isQueued" ASC, "tenantId" ASC, "queue" ASC, "priority" DESC, "id" ASC);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "InternalQueueItem_tenantId_queue_uniqueKey_key" ON "InternalQueueItem"("tenantId" ASC, "queue" ASC, "uniqueKey" ASC);
+
+-- CreateIndex
 CREATE UNIQUE INDEX "Job_id_key" ON "Job"("id" ASC);
 
 -- CreateIndex
@@ -1161,7 +1172,7 @@ CREATE UNIQUE INDEX "Worker_id_key" ON "Worker"("id" ASC);
 CREATE UNIQUE INDEX "Worker_webhookId_key" ON "Worker"("webhookId" ASC);
 
 -- CreateIndex
-CREATE INDEX "WorkerAssignEvent_workerId_idx" ON "WorkerAssignEvent"("workerId" ASC);
+CREATE INDEX "WorkerAssignEvent_workerId_id_idx" ON "WorkerAssignEvent"("workerId" ASC, "id" ASC);
 
 -- CreateIndex
 CREATE INDEX "WorkerLabel_workerId_idx" ON "WorkerLabel"("workerId" ASC);
@@ -1177,12 +1188,6 @@ CREATE INDEX "WorkerSemaphoreCount_workerId_idx" ON "WorkerSemaphoreCount"("work
 
 -- CreateIndex
 CREATE UNIQUE INDEX "WorkerSemaphoreCount_workerId_key" ON "WorkerSemaphoreCount"("workerId" ASC);
-
--- CreateIndex
-CREATE INDEX "WorkerSemaphoreQueueItem_isProcessed_workerId_id_idx" ON "WorkerSemaphoreQueueItem"("isProcessed" ASC, "workerId" ASC, "id" ASC);
-
--- CreateIndex
-CREATE UNIQUE INDEX "WorkerSemaphoreQueueItem_stepRunId_workerId_retryCount_key" ON "WorkerSemaphoreQueueItem"("stepRunId" ASC, "workerId" ASC, "retryCount" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "WorkerSemaphoreSlot_id_key" ON "WorkerSemaphoreSlot"("id" ASC);
@@ -1642,3 +1647,6 @@ ALTER TABLE "_WorkflowToWorkflowTag" ADD CONSTRAINT "_WorkflowToWorkflowTag_B_fk
 
 -- Modify "QueueItem" table
 ALTER TABLE "QueueItem" ADD CONSTRAINT "QueueItem_priority_check" CHECK ("priority" >= 1 AND "priority" <= 4);
+
+-- Modify "InternalQueueItem" table
+ALTER TABLE "InternalQueueItem" ADD CONSTRAINT "InternalQueueItem_priority_check" CHECK ("priority" >= 1 AND "priority" <= 4);

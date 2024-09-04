@@ -180,8 +180,6 @@ type StepRunEngineRepository interface {
 
 	CreateStepRunEvent(ctx context.Context, tenantId, stepRunId string, opts CreateStepRunEventOpts) error
 
-	UnlinkStepRunFromWorker(ctx context.Context, tenantId, stepRunId string) error
-
 	ReleaseStepRunSemaphore(ctx context.Context, tenantId, stepRunId string) error
 
 	// UpdateStepRunOverridesData updates the overrides data field in the input for a step run. This returns the input
@@ -202,9 +200,13 @@ type StepRunEngineRepository interface {
 	// a pending state.
 	QueueStepRun(ctx context.Context, tenantId, stepRunId string, opts *UpdateStepRunOpts) (*dbsqlc.GetStepRunForEngineRow, error)
 
+	UpdateWorkerSemaphoreCounts(ctx context.Context, qlp *zerolog.Logger, tenantId string) (bool, error)
+
 	QueueStepRuns(ctx context.Context, ql *zerolog.Logger, tenantId string) (QueueStepRunsResult, error)
 
 	CleanupQueueItems(ctx context.Context, tenantId string) error
+
+	CleanupInternalQueueItems(ctx context.Context, tenantId string) error
 
 	ListStartableStepRuns(ctx context.Context, tenantId, jobRunId string, parentStepRunId *string) ([]*dbsqlc.GetStepRunForEngineRow, error)
 
