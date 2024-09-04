@@ -468,13 +468,13 @@ var genericRetry = func(l *zerolog.Event, maxRetries int, f func() error, msg st
 
 func (s *stepRunEngineRepository) ReleaseStepRunSemaphore(ctx context.Context, tenantId, stepRunId string) error {
 	return deadlockRetry(s.l, func() error {
-		tx, err := s.pool.Begin(ctx)
+		tx, rollback, err := s.prepareTx(ctx, 5000)
 
 		if err != nil {
 			return err
 		}
 
-		defer deferRollback(ctx, s.l, tx.Rollback)
+		defer rollback()
 
 		stepRun, err := s.getStepRunForEngineTx(context.Background(), tx, tenantId, stepRunId)
 
@@ -1612,13 +1612,13 @@ func (s *stepRunEngineRepository) ReplayStepRun(ctx context.Context, tenantId, s
 	var stepRun *dbsqlc.GetStepRunForEngineRow
 
 	err = deadlockRetry(s.l, func() error {
-		tx, err := s.pool.Begin(ctx)
+		tx, rollback, err := s.prepareTx(ctx, 5000)
 
 		if err != nil {
 			return err
 		}
 
-		defer deferRollback(ctx, s.l, tx.Rollback)
+		defer rollback()
 
 		innerStepRun, err := s.getStepRunForEngineTx(ctx, tx, tenantId, stepRunId)
 
@@ -1849,13 +1849,13 @@ func (s *stepRunEngineRepository) QueueStepRun(ctx context.Context, tenantId, st
 	var isNotPending bool
 
 	retrierErr := deadlockRetry(s.l, func() error {
-		tx, err := s.pool.Begin(ctx)
+		tx, rollback, err := s.prepareTx(ctx, 5000)
 
 		if err != nil {
 			return err
 		}
 
-		defer deferRollback(ctx, s.l, tx.Rollback)
+		defer rollback()
 
 		// get the step run and make sure it's still in pending
 		innerStepRun, err := s.getStepRunForEngineTx(ctx, tx, tenantId, stepRunId)
@@ -2171,13 +2171,13 @@ func (s *stepRunEngineRepository) ResolveRelatedStatuses(
 	tenantId pgtype.UUID,
 	stepRunId pgtype.UUID,
 ) (*repository.StepRunUpdateInfo, error) {
-	tx, err := s.pool.Begin(ctx)
+	tx, rollback, err := s.prepareTx(ctx, 5000)
 
 	if err != nil {
 		return nil, err
 	}
 
-	defer deferRollback(ctx, s.l, tx.Rollback)
+	defer rollback()
 
 	ctx, span := telemetry.NewSpan(ctx, "update-step-run-extra") // nolint:ineffassign
 	defer span.End()
@@ -2558,6 +2558,25 @@ func removeDuplicates(qis []*scheduling.QueueItemWithOrder) ([]*scheduling.Queue
 	return result, duplicates
 }
 
+func (r *stepRunEngineRepository) prepareTx(ctx context.Context, timeoutMs int) (pgx.Tx, func(), error) {
+	tx, err := r.pool.Begin(ctx)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// set tx timeout to 5 seconds to avoid deadlocks
+	_, err = tx.Exec(ctx, fmt.Sprintf("SET statement_timeout=%d", timeoutMs))
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return tx, func() {
+		deferRollback(ctx, r.l, tx.Rollback)
+	}, nil
+}
+
 type debugInfo struct {
 	NumQueues                          int    `json:"num_queues"`
 	TotalStepRuns                      int    `json:"total_step_runs"`
@@ -2592,34 +2611,39 @@ func printQueueDebugInfo(
 ) {
 	duration := time.Since(startedAt)
 
-	// pretty-print json with 2 spaces
-	debugInfo := debugInfo{
-		TenantId:                           tenantId,
-		NumQueues:                          len(queues),
-		TotalStepRuns:                      len(queueItems),
-		TotalStepRunsAssigned:              len(plan.StepRunIds),
-		TotalSlots:                         len(slots),
-		NumDuplicates:                      len(duplicates),
-		NumCancelled:                       len(cancelled),
-		TotalDuration:                      duration.String(),
-		DurationListQueues:                 durationListQueues.String(),
-		DurationListQueueItems:             durationListQueueItems.String(),
-		DurationProcessSemaphoreQueueItems: durationProcessSemaphoreQueueItems.String(),
-		DurationAssignQueueItems:           durationAssignQueueItems.String(),
-		DurationPopQueueItems:              durationPopQueueItems.String(),
-	}
+	e := l.Debug()
+	msg := "queue debug information"
 
-	debugInfoBytes, err := json.MarshalIndent(debugInfo, "", "  ")
-
-	if err != nil {
-		l.Warn().Err(err).Msg("could not marshal debug info")
-		return
-	}
-
-	// if the duration is greater than 100 milliseconds, log the debug info
 	if duration > 100*time.Millisecond {
-		l.Warn().Msgf("queue duration was greater than 100ms: %s", string(debugInfoBytes))
-	} else {
-		l.Debug().Msgf("queue debug information: %s", string(debugInfoBytes))
+		e = l.Warn()
+		msg = "queue duration was greater than 100ms"
 	}
+
+	e.Str(
+		"tenant_id", tenantId,
+	).Int(
+		"num_queues", len(queues),
+	).Int(
+		"total_step_runs", len(queueItems),
+	).Int(
+		"total_step_runs_assigned", len(plan.StepRunIds),
+	).Int(
+		"total_slots", len(slots),
+	).Int(
+		"num_duplicates", len(duplicates),
+	).Int(
+		"num_cancelled", len(cancelled),
+	).Dur(
+		"total_duration", duration,
+	).Dur(
+		"duration_list_queues", durationListQueues,
+	).Dur(
+		"duration_list_queue_items", durationListQueueItems,
+	).Dur(
+		"duration_process_semaphore_queue_items", durationProcessSemaphoreQueueItems,
+	).Dur(
+		"duration_assign_queue_items", durationAssignQueueItems,
+	).Dur(
+		"duration_pop_queue_items", durationPopQueueItems,
+	).Msg(msg)
 }
