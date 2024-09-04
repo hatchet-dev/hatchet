@@ -337,6 +337,7 @@ func (ec *JobsControllerImpl) handleJobRunQueued(ctx context.Context, task *msgq
 
 	// list the step runs which are startable
 	startableStepRuns, err := ec.repo.StepRun().ListStartableStepRuns(ctx, metadata.TenantId, payload.JobRunId, nil)
+
 	if err != nil {
 		return fmt.Errorf("could not list startable step runs: %w", err)
 	}
@@ -453,36 +454,36 @@ func (ec *JobsControllerImpl) handleStepRunRetry(ctx context.Context, task *msgq
 		return fmt.Errorf("could not get step run: %w", err)
 	}
 
-	data, err := ec.repo.StepRun().GetStepRunDataForEngine(ctx, metadata.TenantId, payload.StepRunId)
+	// data, err := ec.repo.StepRun().GetStepRunDataForEngine(ctx, metadata.TenantId, payload.StepRunId)
 
-	if err != nil {
-		return fmt.Errorf("could not get step run data: %w", err)
-	}
+	// if err != nil {
+	// 	return fmt.Errorf("could not get step run data: %w", err)
+	// }
 
-	inputBytes := data.Input
-	retryCount := int(stepRun.SRRetryCount) + 1
+	// inputBytes := data.Input
+	// retryCount := int(stepRun.SRRetryCount) + 1
 
 	// update step run
-	_, _, err = ec.repo.StepRun().UpdateStepRun(
-		ctx,
-		metadata.TenantId,
-		sqlchelpers.UUIDToStr(stepRun.SRID),
-		&repository.UpdateStepRunOpts{
-			Input:      inputBytes,
-			Status:     repository.StepRunStatusPtr(db.StepRunStatusPending),
-			IsRerun:    true,
-			RetryCount: &retryCount,
-			Event: &repository.CreateStepRunEventOpts{
-				EventReason: repository.StepRunEventReasonPtr(dbsqlc.StepRunEventReasonRETRYING),
-				EventMessage: repository.StringPtr(
-					fmt.Sprintf("Retrying step run. This is retry %d / %d", retryCount, stepRun.StepRetries),
-				)},
-		},
-	)
+	// _, _, err = ec.repo.StepRun().UpdateStepRun(
+	// 	ctx,
+	// 	metadata.TenantId,
+	// 	sqlchelpers.UUIDToStr(stepRun.SRID),
+	// 	&repository.UpdateStepRunOpts{
+	// 		Input:      inputBytes,
+	// 		Status:     repository.StepRunStatusPtr(db.StepRunStatusPending),
+	// 		IsRerun:    true,
+	// 		RetryCount: &retryCount,
+	// 		Event: &repository.CreateStepRunEventOpts{
+	// 			EventReason: repository.StepRunEventReasonPtr(dbsqlc.StepRunEventReasonRETRYING),
+	// 			EventMessage: repository.StringPtr(
+	// 				fmt.Sprintf("Retrying step run. This is retry %d / %d", retryCount, stepRun.StepRetries),
+	// 			)},
+	// 	},
+	// )
 
-	if err != nil {
-		return fmt.Errorf("could not update step run: %w", err)
-	}
+	// if err != nil {
+	// 	return fmt.Errorf("could not update step run: %w", err)
+	// }
 
 	// send a task to the taskqueue
 	return ec.mq.AddMessage(
@@ -973,22 +974,21 @@ func (ec *JobsControllerImpl) handleStepRunStarted(ctx context.Context, task *ms
 		return fmt.Errorf("could not parse started at: %w", err)
 	}
 
-	stepRun, updateInfo, err := ec.repo.StepRun().UpdateStepRun(ctx, metadata.TenantId, payload.StepRunId, &repository.UpdateStepRunOpts{
-		StartedAt: &startedAt,
-		Status:    repository.StepRunStatusPtr(db.StepRunStatusRunning),
-		Event: &repository.CreateStepRunEventOpts{
-			EventReason: repository.StepRunEventReasonPtr(dbsqlc.StepRunEventReasonSTARTED),
-			EventMessage: repository.StringPtr(
-				fmt.Sprintf("Step run started running on %s", startedAt.Format(time.RFC1123)),
-			),
-		},
-	})
+	err = ec.repo.StepRun().StepRunStarted(ctx, metadata.TenantId, payload.StepRunId, startedAt)
+
+	// TODO: write event somehow
+	// Event: &repository.CreateStepRunEventOpts{
+	// 	EventReason: repository.StepRunEventReasonPtr(dbsqlc.StepRunEventReasonSTARTED),
+	// 	EventMessage: repository.StringPtr(
+	// 		fmt.Sprintf("Step run started running on %s", startedAt.Format(time.RFC1123)),
+	// 	),
+	// },
 
 	if err != nil {
 		return fmt.Errorf("could not update step run: %w", err)
 	}
 
-	defer ec.handleStepRunUpdateInfo(stepRun, updateInfo)
+	// defer ec.handleStepRunUpdateInfo(stepRun, updateInfo)
 
 	return nil
 }
@@ -1025,22 +1025,29 @@ func (ec *JobsControllerImpl) handleStepRunFinished(ctx context.Context, task *m
 		stepOutput = []byte(payload.StepOutputData)
 	}
 
-	stepRun, updateInfo, err := ec.repo.StepRun().UpdateStepRun(ctx, metadata.TenantId, payload.StepRunId, &repository.UpdateStepRunOpts{
-		FinishedAt: &finishedAt,
-		Status:     repository.StepRunStatusPtr(db.StepRunStatusSucceeded),
-		Output:     stepOutput,
-		Event: &repository.CreateStepRunEventOpts{
-			EventReason: repository.StepRunEventReasonPtr(dbsqlc.StepRunEventReasonFINISHED),
-			EventMessage: repository.StringPtr(
-				fmt.Sprintf("Step run finished on %s", finishedAt.Format(time.RFC1123)),
-			)},
-	})
+	// TODO: write event somehow
+	err = ec.repo.StepRun().StepRunSucceeded(ctx, metadata.TenantId, payload.StepRunId, finishedAt, stepOutput)
 
 	if err != nil {
 		return fmt.Errorf("could not update step run: %w", err)
 	}
 
-	defer ec.handleStepRunUpdateInfo(stepRun, updateInfo)
+	// stepRun, updateInfo, err := ec.repo.StepRun().UpdateStepRun(ctx, metadata.TenantId, payload.StepRunId, &repository.UpdateStepRunOpts{
+	// 	FinishedAt: &finishedAt,
+	// 	Status:     repository.StepRunStatusPtr(db.StepRunStatusSucceeded),
+	// 	Output:     stepOutput,
+	// 	Event: &repository.CreateStepRunEventOpts{
+	// 		EventReason: repository.StepRunEventReasonPtr(dbsqlc.StepRunEventReasonFINISHED),
+	// 		EventMessage: repository.StringPtr(
+	// 			fmt.Sprintf("Step run finished on %s", finishedAt.Format(time.RFC1123)),
+	// 		)},
+	// })
+
+	// if err != nil {
+	// 	return fmt.Errorf("could not update step run: %w", err)
+	// }
+
+	// defer ec.handleStepRunUpdateInfo(stepRun, updateInfo)
 
 	// recheck the tenant queue
 	tenant, err := ec.repo.Tenant().GetTenantByID(ctx, metadata.TenantId)
@@ -1061,6 +1068,12 @@ func (ec *JobsControllerImpl) handleStepRunFinished(ctx context.Context, task *m
 		}
 	}
 
+	stepRun, err := ec.repo.StepRun().GetStepRunForEngine(ctx, metadata.TenantId, payload.StepRunId)
+
+	if err != nil {
+		return fmt.Errorf("could not get step run: %w", err)
+	}
+
 	// queue the next step runs
 	jobRunId := sqlchelpers.UUIDToStr(stepRun.JobRunId)
 	stepRunId := sqlchelpers.UUIDToStr(stepRun.SRID)
@@ -1070,6 +1083,8 @@ func (ec *JobsControllerImpl) handleStepRunFinished(ctx context.Context, task *m
 	if err != nil {
 		return fmt.Errorf("could not list startable step runs: %w", err)
 	}
+
+	fmt.Println("nextStepRuns", nextStepRuns)
 
 	for _, nextStepRun := range nextStepRuns {
 		nextStepId := sqlchelpers.UUIDToStr(nextStepRun.StepId)
@@ -1124,12 +1139,6 @@ func (ec *JobsControllerImpl) failStepRun(ctx context.Context, tenantId, stepRun
 
 	status := db.StepRunStatusFailed
 
-	if shouldRetry {
-		status = db.StepRunStatusPending
-	}
-
-	scheduleTimeoutAt := getScheduleTimeout(stepRun)
-
 	eventMessage := fmt.Sprintf("Step run failed on %s", failedAt.Format(time.RFC1123))
 
 	eventReason := dbsqlc.StepRunEventReasonFAILED
@@ -1145,23 +1154,33 @@ func (ec *JobsControllerImpl) failStepRun(ctx context.Context, tenantId, stepRun
 		eventMessage += "."
 	}
 
-	stepRun, updateInfo, err := ec.repo.StepRun().UpdateStepRun(ctx, tenantId, stepRunId, &repository.UpdateStepRunOpts{
-		FinishedAt:        &failedAt,
-		Error:             &errorReason,
-		Status:            repository.StepRunStatusPtr(status),
-		ScheduleTimeoutAt: &scheduleTimeoutAt,
-		Event: &repository.CreateStepRunEventOpts{
-			EventReason:   repository.StepRunEventReasonPtr(eventReason),
-			EventMessage:  repository.StringPtr(eventMessage),
-			EventSeverity: repository.StepRunEventSeverityPtr(dbsqlc.StepRunEventSeverityCRITICAL),
-		},
-	})
+	if shouldRetry {
+		status = db.StepRunStatusPending
+		scheduleTimeoutAt := getScheduleTimeout(stepRun)
 
-	if err != nil {
-		return fmt.Errorf("could not update step run: %w", err)
+		_, err := ec.repo.StepRun().QueueStepRun(ctx, tenantId, stepRunId, &repository.UpdateStepRunOpts{
+			FinishedAt:        &failedAt,
+			Error:             &errorReason,
+			Status:            repository.StepRunStatusPtr(status),
+			ScheduleTimeoutAt: &scheduleTimeoutAt,
+			Event: &repository.CreateStepRunEventOpts{
+				EventReason:   repository.StepRunEventReasonPtr(eventReason),
+				EventMessage:  repository.StringPtr(eventMessage),
+				EventSeverity: repository.StepRunEventSeverityPtr(dbsqlc.StepRunEventSeverityCRITICAL),
+			},
+		})
+
+		if err != nil {
+			return fmt.Errorf("could not queue step run: %w", err)
+		}
+
+		// send a task to the taskqueue
+		return ec.mq.AddMessage(
+			ctx,
+			msgqueue.JOB_PROCESSING_QUEUE,
+			tasktypes.StepRunRetryToTask(stepRun, nil),
+		)
 	}
-
-	defer ec.handleStepRunUpdateInfo(stepRun, updateInfo)
 
 	attemptCancel := false
 
@@ -1201,15 +1220,6 @@ func (ec *JobsControllerImpl) failStepRun(ctx context.Context, tenantId, stepRun
 		if err != nil {
 			return fmt.Errorf("could not add job assigned task to task queue: %w", err)
 		}
-	}
-
-	if shouldRetry {
-		// send a task to the taskqueue
-		return ec.mq.AddMessage(
-			ctx,
-			msgqueue.JOB_PROCESSING_QUEUE,
-			tasktypes.StepRunRetryToTask(stepRun, nil),
-		)
 	}
 
 	return nil
@@ -1266,24 +1276,36 @@ func (ec *JobsControllerImpl) cancelStepRun(ctx context.Context, tenantId, stepR
 	// cancel current step run
 	now := time.Now().UTC()
 
-	stepRun, updateInfo, err := ec.repo.StepRun().UpdateStepRun(ctx, tenantId, stepRunId, &repository.UpdateStepRunOpts{
-		CancelledAt:     &now,
-		CancelledReason: repository.StringPtr(reason),
-		Status:          repository.StepRunStatusPtr(db.StepRunStatusCancelled),
-		Event: &repository.CreateStepRunEventOpts{
-			EventReason: repository.StepRunEventReasonPtr(dbsqlc.StepRunEventReasonCANCELLED),
-			EventMessage: repository.StringPtr(
-				fmt.Sprintf("Step run was cancelled on %s for the following reason: %s", now.Format(time.RFC1123), reason),
-			),
-			EventSeverity: repository.StepRunEventSeverityPtr(dbsqlc.StepRunEventSeverityWARNING),
-		},
-	})
+	err := ec.repo.StepRun().StepRunCancelled(ctx, tenantId, stepRunId, now, reason)
 
 	if err != nil {
-		return fmt.Errorf("could not update step run: %w", err)
+		return fmt.Errorf("could not cancel step run: %w", err)
 	}
 
-	defer ec.handleStepRunUpdateInfo(stepRun, updateInfo)
+	stepRun, err := ec.repo.StepRun().GetStepRunForEngine(ctx, tenantId, stepRunId)
+
+	if err != nil {
+		return fmt.Errorf("could not get step run: %w", err)
+	}
+
+	// stepRun, updateInfo, err := ec.repo.StepRun().UpdateStepRun(ctx, tenantId, stepRunId, &repository.UpdateStepRunOpts{
+	// 	CancelledAt:     &now,
+	// 	CancelledReason: repository.StringPtr(reason),
+	// 	Status:          repository.StepRunStatusPtr(db.StepRunStatusCancelled),
+	// 	Event: &repository.CreateStepRunEventOpts{
+	// 		EventReason: repository.StepRunEventReasonPtr(dbsqlc.StepRunEventReasonCANCELLED),
+	// 		EventMessage: repository.StringPtr(
+	// 			fmt.Sprintf("Step run was cancelled on %s for the following reason: %s", now.Format(time.RFC1123), reason),
+	// 		),
+	// 		EventSeverity: repository.StepRunEventSeverityPtr(dbsqlc.StepRunEventSeverityWARNING),
+	// 	},
+	// })
+
+	// if err != nil {
+	// 	return fmt.Errorf("could not update step run: %w", err)
+	// }
+
+	// defer ec.handleStepRunUpdateInfo(stepRun, updateInfo)
 
 	if !stepRun.SRWorkerId.Valid {
 		// this is not a fatal error
@@ -1317,30 +1339,6 @@ func (ec *JobsControllerImpl) cancelStepRun(ctx context.Context, tenantId, stepR
 	}
 
 	return nil
-}
-
-func (ec *JobsControllerImpl) handleStepRunUpdateInfo(stepRun *dbsqlc.GetStepRunForEngineRow, updateInfo *repository.StepRunUpdateInfo) {
-	defer func() {
-		if r := recover(); r != nil {
-			recoveryutils.RecoverWithAlert(ec.l, ec.a, r) // nolint:errcheck
-		}
-	}()
-
-	if updateInfo.WorkflowRunFinalState && stepRun.JobKind == dbsqlc.JobKindDEFAULT {
-		err := ec.mq.AddMessage(
-			context.Background(),
-			msgqueue.WORKFLOW_PROCESSING_QUEUE,
-			tasktypes.WorkflowRunFinishedToTask(
-				sqlchelpers.UUIDToStr(stepRun.SRTenantId),
-				updateInfo.WorkflowRunId,
-				updateInfo.WorkflowRunStatus,
-			),
-		)
-
-		if err != nil {
-			ec.l.Error().Err(err).Msg("could not add workflow run finished task to task queue")
-		}
-	}
 }
 
 func stepRunAssignedTask(tenantId, stepRunId, workerId, dispatcherId string) *msgqueue.Message {

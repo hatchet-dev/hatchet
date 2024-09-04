@@ -72,38 +72,29 @@ INSERT INTO
         "isQueued",
         "data",
         "tenantId",
-        "priority",
-        "uniqueKey"
+        "priority"
     )
 SELECT
     $1::"InternalQueue",
     true,
     input."data",
     $2::uuid,
-    1,
-    input."uniqueKey"
+    1
 FROM (
     SELECT
-        unnest($3::json[]) AS "data",
-        unnest($4::text[]) AS "uniqueKey"
+        unnest($3::json[]) AS "data"
 ) AS input
 ON CONFLICT DO NOTHING
 `
 
 type CreateInternalQueueItemsBulkParams struct {
-	Queue      InternalQueue `json:"queue"`
-	Tenantid   pgtype.UUID   `json:"tenantid"`
-	Datas      [][]byte      `json:"datas"`
-	Uniquekeys []string      `json:"uniquekeys"`
+	Queue    InternalQueue `json:"queue"`
+	Tenantid pgtype.UUID   `json:"tenantid"`
+	Datas    [][]byte      `json:"datas"`
 }
 
 func (q *Queries) CreateInternalQueueItemsBulk(ctx context.Context, db DBTX, arg CreateInternalQueueItemsBulkParams) error {
-	_, err := db.Exec(ctx, createInternalQueueItemsBulk,
-		arg.Queue,
-		arg.Tenantid,
-		arg.Datas,
-		arg.Uniquekeys,
-	)
+	_, err := db.Exec(ctx, createInternalQueueItemsBulk, arg.Queue, arg.Tenantid, arg.Datas)
 	return err
 }
 
@@ -163,6 +154,48 @@ func (q *Queries) CreateQueueItem(ctx context.Context, db DBTX, arg CreateQueueI
 		arg.Queue,
 		arg.Sticky,
 		arg.DesiredWorkerId,
+	)
+	return err
+}
+
+const createUniqueInternalQueueItemsBulk = `-- name: CreateUniqueInternalQueueItemsBulk :exec
+INSERT INTO
+    "InternalQueueItem" (
+        "queue",
+        "isQueued",
+        "data",
+        "tenantId",
+        "priority",
+        "uniqueKey"
+    )
+SELECT
+    $1::"InternalQueue",
+    true,
+    input."data",
+    $2::uuid,
+    1,
+    input."uniqueKey"
+FROM (
+    SELECT
+        unnest($3::json[]) AS "data",
+        unnest($4::text[]) AS "uniqueKey"
+) AS input
+ON CONFLICT DO NOTHING
+`
+
+type CreateUniqueInternalQueueItemsBulkParams struct {
+	Queue      InternalQueue `json:"queue"`
+	Tenantid   pgtype.UUID   `json:"tenantid"`
+	Datas      [][]byte      `json:"datas"`
+	Uniquekeys []string      `json:"uniquekeys"`
+}
+
+func (q *Queries) CreateUniqueInternalQueueItemsBulk(ctx context.Context, db DBTX, arg CreateUniqueInternalQueueItemsBulkParams) error {
+	_, err := db.Exec(ctx, createUniqueInternalQueueItemsBulk,
+		arg.Queue,
+		arg.Tenantid,
+		arg.Datas,
+		arg.Uniquekeys,
 	)
 	return err
 }

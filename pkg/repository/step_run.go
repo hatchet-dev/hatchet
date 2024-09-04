@@ -102,7 +102,6 @@ var ErrRateLimitExceeded = fmt.Errorf("rate limit exceeded")
 var ErrStepRunIsNotAssigned = fmt.Errorf("step run is not assigned")
 
 type StepRunUpdateInfo struct {
-	JobRunFinalState      bool
 	WorkflowRunFinalState bool
 	WorkflowRunId         string
 	WorkflowRunStatus     string
@@ -162,6 +161,11 @@ type QueueStepRunsResult struct {
 	Continue           bool
 }
 
+type ProcessStepRunUpdatesResult struct {
+	CompletedWorkflowRuns []*dbsqlc.ResolveWorkflowRunStatusRow
+	Continue              bool
+}
+
 type StepRunEngineRepository interface {
 	// ListStepRunsForWorkflowRun returns a list of step runs for a workflow run.
 	ListStepRuns(ctx context.Context, tenantId string, opts *ListStepRunsOpts) ([]*dbsqlc.GetStepRunForEngineRow, error)
@@ -171,7 +175,13 @@ type StepRunEngineRepository interface {
 
 	ListStepRunsToTimeout(ctx context.Context, tenantId string) ([]*dbsqlc.GetStepRunForEngineRow, error)
 
-	UpdateStepRun(ctx context.Context, tenantId, stepRunId string, opts *UpdateStepRunOpts) (*dbsqlc.GetStepRunForEngineRow, *StepRunUpdateInfo, error)
+	StepRunStarted(ctx context.Context, tenantId, stepRunId string, startedAt time.Time) error
+
+	StepRunSucceeded(ctx context.Context, tenantId, stepRunId string, finishedAt time.Time, output []byte) error
+
+	StepRunCancelled(ctx context.Context, tenantId, stepRunId string, cancelledAt time.Time, cancelledReason string) error
+
+	StepRunFailed(ctx context.Context, tenantId, stepRunId string, failedAt time.Time, errStr string) error
 
 	ReplayStepRun(ctx context.Context, tenantId, stepRunId string, opts *UpdateStepRunOpts) (*dbsqlc.GetStepRunForEngineRow, error)
 
@@ -202,6 +212,8 @@ type StepRunEngineRepository interface {
 
 	UpdateWorkerSemaphoreCounts(ctx context.Context, qlp *zerolog.Logger, tenantId string) (bool, error)
 
+	ProcessStepRunUpdates(ctx context.Context, qlp *zerolog.Logger, tenantId string) (ProcessStepRunUpdatesResult, error)
+
 	QueueStepRuns(ctx context.Context, ql *zerolog.Logger, tenantId string) (QueueStepRunsResult, error)
 
 	CleanupQueueItems(ctx context.Context, tenantId string) error
@@ -214,7 +226,7 @@ type StepRunEngineRepository interface {
 
 	RefreshTimeoutBy(ctx context.Context, tenantId, stepRunId string, opts RefreshTimeoutBy) (*dbsqlc.StepRun, error)
 
-	ResolveRelatedStatuses(ctx context.Context, tenantId pgtype.UUID, stepRunId pgtype.UUID) (*StepRunUpdateInfo, error)
+	// ResolveRelatedStatuses(ctx context.Context, tenantId pgtype.UUID, stepRunId pgtype.UUID) (*StepRunUpdateInfo, error)
 
 	DeferredStepRunEvent(
 		stepRunId pgtype.UUID,

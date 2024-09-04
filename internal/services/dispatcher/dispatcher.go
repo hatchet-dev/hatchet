@@ -465,10 +465,11 @@ func (d *DispatcherImpl) handleStepRunAssignedTask(ctx context.Context, task *ms
 	}
 
 	// if the step run has a job run in a non-running state, we should not send it to the worker
-	if stepRun.JobRunStatus != dbsqlc.JobRunStatusRUNNING {
-		d.l.Warn().Msgf("step run %s is not in a running state, ignoring", payload.StepRunId)
-		return nil
-	}
+	// TODO: figure out what to do here
+	// if stepRun.JobRunStatus != dbsqlc.JobRunStatusRUNNING {
+	// 	d.l.Warn().Msgf("job run %s is not in a running state, ignoring", payload.StepRunId)
+	// 	return nil
+	// }
 
 	// if the step run is not in an assigned state, we should not send it to the worker
 	if stepRun.SRStatus != dbsqlc.StepRunStatusASSIGNED {

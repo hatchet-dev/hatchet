@@ -518,7 +518,7 @@ func (q *Queries) GetDesiredLabels(ctx context.Context, db DBTX, stepid pgtype.U
 	return items, nil
 }
 
-const getLaterStepRunsForReplay = `-- name: GetLaterStepRunsForReplay :many
+const getLaterStepRuns = `-- name: GetLaterStepRuns :many
 WITH RECURSIVE currStepRun AS (
     SELECT id, "createdAt", "updatedAt", "deletedAt", "tenantId", "jobRunId", "stepId", "order", "workerId", "tickerId", status, input, output, "requeueAfter", "scheduleTimeoutAt", error, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError", "inputSchema", "callerFiles", "gitRepoBranch", "retryCount", "semaphoreReleased", queue, priority
     FROM "StepRun"
@@ -548,13 +548,13 @@ WHERE
     sr."tenantId" = $1::uuid
 `
 
-type GetLaterStepRunsForReplayParams struct {
+type GetLaterStepRunsParams struct {
 	Tenantid  pgtype.UUID `json:"tenantid"`
 	Steprunid pgtype.UUID `json:"steprunid"`
 }
 
-func (q *Queries) GetLaterStepRunsForReplay(ctx context.Context, db DBTX, arg GetLaterStepRunsForReplayParams) ([]*StepRun, error) {
-	rows, err := db.Query(ctx, getLaterStepRunsForReplay, arg.Tenantid, arg.Steprunid)
+func (q *Queries) GetLaterStepRuns(ctx context.Context, db DBTX, arg GetLaterStepRunsParams) ([]*StepRun, error) {
+	rows, err := db.Query(ctx, getLaterStepRuns, arg.Tenantid, arg.Steprunid)
 	if err != nil {
 		return nil, err
 	}
@@ -1107,6 +1107,45 @@ func (q *Queries) GetWorkerSemaphoreCounts(ctx context.Context, db DBTX, workers
 	return items, nil
 }
 
+const listInitialStepRuns = `-- name: ListInitialStepRuns :many
+SELECT
+    DISTINCT ON (child_run."id")
+    child_run."id" AS "id"
+FROM
+    "StepRun" AS child_run
+JOIN
+    "JobRun" AS job_run ON child_run."jobRunId" = job_run."id"
+LEFT JOIN
+    "_StepRunOrder" AS step_run_order ON step_run_order."B" = child_run."id"
+WHERE
+    child_run."jobRunId" = $1::uuid
+    AND child_run."deletedAt" IS NULL
+    AND job_run."deletedAt" IS NULL
+    AND child_run."status" = 'PENDING'
+    AND job_run."status" = 'RUNNING'
+    AND step_run_order."A" IS NULL
+`
+
+func (q *Queries) ListInitialStepRuns(ctx context.Context, db DBTX, jobrunid pgtype.UUID) ([]pgtype.UUID, error) {
+	rows, err := db.Query(ctx, listInitialStepRuns, jobrunid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []pgtype.UUID
+	for rows.Next() {
+		var id pgtype.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listNonFinalChildStepRuns = `-- name: ListNonFinalChildStepRuns :many
 WITH RECURSIVE currStepRun AS (
     SELECT id, "createdAt", "updatedAt", "deletedAt", "tenantId", "jobRunId", "stepId", "order", "workerId", "tickerId", status, input, output, "requeueAfter", "scheduleTimeoutAt", error, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError", "inputSchema", "callerFiles", "gitRepoBranch", "retryCount", "semaphoreReleased", queue, priority
@@ -1296,30 +1335,26 @@ WHERE
     AND job_run."deletedAt" IS NULL
     AND child_run."status" = 'PENDING'
     AND job_run."status" = 'RUNNING'
-    -- case on whether parentStepRunId is null
-    AND (
-        ($2::uuid IS NULL AND step_run_order."A" IS NULL) OR
-        (
-            step_run_order."A" = $2::uuid
-            AND NOT EXISTS (
-                SELECT 1
-                FROM "_StepRunOrder" AS parent_order
-                JOIN "StepRun" AS parent_run ON parent_order."A" = parent_run."id"
-                WHERE
-                    parent_order."B" = child_run."id"
-                    AND parent_run."status" != 'SUCCEEDED'
-            )
-        )
+    -- we look for whether the step run is startable ASSUMING that succeededParentStepRunId has succeeded,
+    -- so we are making sure that all other parent step runs have succeeded
+    AND NOT EXISTS (
+        SELECT 1
+        FROM "_StepRunOrder" AS parent_order
+        JOIN "StepRun" AS parent_run ON parent_order."A" = parent_run."id"
+        WHERE
+            parent_order."B" = child_run."id"
+            AND parent_run."id" != $2::uuid
+            AND parent_run."status" != 'SUCCEEDED'
     )
 `
 
 type ListStartableStepRunsParams struct {
-	Jobrunid        pgtype.UUID `json:"jobrunid"`
-	ParentStepRunId pgtype.UUID `json:"parentStepRunId"`
+	Jobrunid                 pgtype.UUID `json:"jobrunid"`
+	SucceededParentStepRunId pgtype.UUID `json:"succeededParentStepRunId"`
 }
 
 func (q *Queries) ListStartableStepRuns(ctx context.Context, db DBTX, arg ListStartableStepRunsParams) ([]pgtype.UUID, error) {
-	rows, err := db.Query(ctx, listStartableStepRuns, arg.Jobrunid, arg.ParentStepRunId)
+	rows, err := db.Query(ctx, listStartableStepRuns, arg.Jobrunid, arg.SucceededParentStepRunId)
 	if err != nil {
 		return nil, err
 	}
@@ -1655,6 +1690,62 @@ func (q *Queries) ListStepRunsToTimeout(ctx context.Context, db DBTX, tenantid p
 	return items, nil
 }
 
+const manualReleaseSemaphore = `-- name: ManualReleaseSemaphore :exec
+UPDATE
+    "StepRun"
+SET
+    "semaphoreReleased" = true,
+    "workerId" = NULL
+WHERE
+    "id" = $1::uuid AND
+    "tenantId" = $2::uuid
+`
+
+type ManualReleaseSemaphoreParams struct {
+	Steprunid pgtype.UUID `json:"steprunid"`
+	Tenantid  pgtype.UUID `json:"tenantid"`
+}
+
+func (q *Queries) ManualReleaseSemaphore(ctx context.Context, db DBTX, arg ManualReleaseSemaphoreParams) error {
+	_, err := db.Exec(ctx, manualReleaseSemaphore, arg.Steprunid, arg.Tenantid)
+	return err
+}
+
+const queueStepRun = `-- name: QueueStepRun :exec
+UPDATE
+    "StepRun"
+SET
+    "finishedAt" = NULL,
+    "status" = 'PENDING_ASSIGNMENT',
+    "input" = COALESCE($1::jsonb, "input"),
+    "output" = NULL,
+    "error" = NULL,
+    "cancelledAt" = NULL,
+    "cancelledReason" = NULL,
+    "retryCount" = COALESCE($2::int, "retryCount"),
+    "semaphoreReleased" = false
+WHERE
+  "id" = $3::uuid AND
+  "tenantId" = $4::uuid
+`
+
+type QueueStepRunParams struct {
+	Input      []byte      `json:"input"`
+	RetryCount pgtype.Int4 `json:"retryCount"`
+	ID         pgtype.UUID `json:"id"`
+	Tenantid   pgtype.UUID `json:"tenantid"`
+}
+
+func (q *Queries) QueueStepRun(ctx context.Context, db DBTX, arg QueueStepRunParams) error {
+	_, err := db.Exec(ctx, queueStepRun,
+		arg.Input,
+		arg.RetryCount,
+		arg.ID,
+		arg.Tenantid,
+	)
+	return err
+}
+
 const refreshTimeoutBy = `-- name: RefreshTimeoutBy :one
 UPDATE
     "StepRun" sr
@@ -1971,8 +2062,8 @@ WITH RECURSIVE currStepRun AS (
   SELECT id, "createdAt", "updatedAt", "deletedAt", "tenantId", "jobRunId", "stepId", "order", "workerId", "tickerId", status, input, output, "requeueAfter", "scheduleTimeoutAt", error, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError", "inputSchema", "callerFiles", "gitRepoBranch", "retryCount", "semaphoreReleased", queue, priority
   FROM "StepRun"
   WHERE
-    "id" = $2::uuid AND
-    "tenantId" = $1::uuid
+    "id" = $3::uuid AND
+    "tenantId" = $2::uuid
 ), childStepRuns AS (
   SELECT sr."id", sr."status"
   FROM "StepRun" sr
@@ -1992,33 +2083,34 @@ SET  "status" = CASE
     -- When the step is in a final state, it cannot be updated
     WHEN sr."status" IN ('SUCCEEDED', 'FAILED', 'CANCELLED') THEN sr."status"
     -- When the given step run has failed or been cancelled, then all child step runs are cancelled
-    WHEN (SELECT "status" FROM currStepRun) IN ('FAILED', 'CANCELLED') THEN 'CANCELLED'
+    WHEN $1::"StepRunStatus" IN ('FAILED', 'CANCELLED') THEN 'CANCELLED'
     ELSE sr."status"
     END,
     -- When the previous step run timed out, the cancelled reason is set
     "cancelledReason" = CASE
     -- When the step is in a final state, it cannot be updated
     WHEN sr."status" IN ('SUCCEEDED', 'FAILED', 'CANCELLED') THEN sr."cancelledReason"
-    WHEN (SELECT "status" FROM currStepRun) = 'CANCELLED' AND (SELECT "cancelledReason" FROM currStepRun) = 'TIMED_OUT'::text THEN 'PREVIOUS_STEP_TIMED_OUT'
-    WHEN (SELECT "status" FROM currStepRun) = 'FAILED' THEN 'PREVIOUS_STEP_FAILED'
-    WHEN (SELECT "status" FROM currStepRun) = 'CANCELLED' THEN 'PREVIOUS_STEP_CANCELLED'
+    WHEN $1::"StepRunStatus" = 'CANCELLED' AND (SELECT "cancelledReason" FROM currStepRun) = 'TIMED_OUT'::text THEN 'PREVIOUS_STEP_TIMED_OUT'
+    WHEN $1::"StepRunStatus" = 'FAILED' THEN 'PREVIOUS_STEP_FAILED'
+    WHEN $1::"StepRunStatus" = 'CANCELLED' THEN 'PREVIOUS_STEP_CANCELLED'
     ELSE NULL
     END
 FROM
     childStepRuns csr
 WHERE
     sr."id" = csr."id" AND
-    sr."tenantId" = $1::uuid
+    sr."tenantId" = $2::uuid
 RETURNING sr.id, sr."createdAt", sr."updatedAt", sr."deletedAt", sr."tenantId", sr."jobRunId", sr."stepId", sr."order", sr."workerId", sr."tickerId", sr.status, sr.input, sr.output, sr."requeueAfter", sr."scheduleTimeoutAt", sr.error, sr."startedAt", sr."finishedAt", sr."timeoutAt", sr."cancelledAt", sr."cancelledReason", sr."cancelledError", sr."inputSchema", sr."callerFiles", sr."gitRepoBranch", sr."retryCount", sr."semaphoreReleased", sr.queue, sr.priority
 `
 
 type ResolveLaterStepRunsParams struct {
-	Tenantid  pgtype.UUID `json:"tenantid"`
-	Steprunid pgtype.UUID `json:"steprunid"`
+	Status    StepRunStatus `json:"status"`
+	Tenantid  pgtype.UUID   `json:"tenantid"`
+	Steprunid pgtype.UUID   `json:"steprunid"`
 }
 
 func (q *Queries) ResolveLaterStepRuns(ctx context.Context, db DBTX, arg ResolveLaterStepRunsParams) ([]*StepRun, error) {
-	rows, err := db.Query(ctx, resolveLaterStepRuns, arg.Tenantid, arg.Steprunid)
+	rows, err := db.Query(ctx, resolveLaterStepRuns, arg.Status, arg.Tenantid, arg.Steprunid)
 	if err != nil {
 		return nil, err
 	}
@@ -2065,129 +2157,6 @@ func (q *Queries) ResolveLaterStepRuns(ctx context.Context, db DBTX, arg Resolve
 		return nil, err
 	}
 	return items, nil
-}
-
-const updateStepRun = `-- name: UpdateStepRun :one
-UPDATE
-    "StepRun"
-SET
-    "requeueAfter" = COALESCE($1::timestamp, "requeueAfter"),
-    "scheduleTimeoutAt" = CASE
-        -- if this is a rerun, we clear the scheduleTimeoutAt
-        WHEN $2::boolean THEN NULL
-        ELSE COALESCE($3::timestamp, "scheduleTimeoutAt")
-    END,
-    "startedAt" = COALESCE($4::timestamp, "startedAt"),
-    "finishedAt" = CASE
-        -- if this is a rerun, we clear the finishedAt
-        WHEN $2::boolean THEN NULL
-        ELSE  COALESCE($5::timestamp, "finishedAt")
-    END,
-    "status" = CASE
-        -- if this is a rerun, we permit status updates
-        WHEN $2::boolean THEN COALESCE($6, "status")
-        -- Final states are final, cannot be updated
-        WHEN "status" IN ('SUCCEEDED', 'FAILED', 'CANCELLED') THEN "status"
-        ELSE COALESCE($6, "status")
-    END,
-    "input" = COALESCE($7::jsonb, "input"),
-    "output" = CASE
-        -- if this is a rerun, we clear the output
-        WHEN $2::boolean THEN NULL
-        ELSE COALESCE($8::jsonb, "output")
-    END,
-    "error" = CASE
-        -- if this is a rerun, we clear the error
-        WHEN $2::boolean THEN NULL
-        ELSE COALESCE($9::text, "error")
-    END,
-    "cancelledAt" = CASE
-        -- if this is a rerun, we clear the cancelledAt
-        WHEN $2::boolean THEN NULL
-        ELSE COALESCE($10::timestamp, "cancelledAt")
-    END,
-    "cancelledReason" = CASE
-        -- if this is a rerun, we clear the cancelledReason
-        WHEN $2::boolean THEN NULL
-        ELSE COALESCE($11::text, "cancelledReason")
-    END,
-    "retryCount" = COALESCE($12::int, "retryCount"),
-    "semaphoreReleased" = COALESCE($13::boolean, "semaphoreReleased")
-WHERE
-  "id" = $14::uuid AND
-  "tenantId" = $15::uuid
-RETURNING "StepRun".id, "StepRun"."createdAt", "StepRun"."updatedAt", "StepRun"."deletedAt", "StepRun"."tenantId", "StepRun"."jobRunId", "StepRun"."stepId", "StepRun"."order", "StepRun"."workerId", "StepRun"."tickerId", "StepRun".status, "StepRun".input, "StepRun".output, "StepRun"."requeueAfter", "StepRun"."scheduleTimeoutAt", "StepRun".error, "StepRun"."startedAt", "StepRun"."finishedAt", "StepRun"."timeoutAt", "StepRun"."cancelledAt", "StepRun"."cancelledReason", "StepRun"."cancelledError", "StepRun"."inputSchema", "StepRun"."callerFiles", "StepRun"."gitRepoBranch", "StepRun"."retryCount", "StepRun"."semaphoreReleased", "StepRun".queue, "StepRun".priority
-`
-
-type UpdateStepRunParams struct {
-	RequeueAfter      pgtype.Timestamp  `json:"requeueAfter"`
-	Rerun             pgtype.Bool       `json:"rerun"`
-	ScheduleTimeoutAt pgtype.Timestamp  `json:"scheduleTimeoutAt"`
-	StartedAt         pgtype.Timestamp  `json:"startedAt"`
-	FinishedAt        pgtype.Timestamp  `json:"finishedAt"`
-	Status            NullStepRunStatus `json:"status"`
-	Input             []byte            `json:"input"`
-	Output            []byte            `json:"output"`
-	Error             pgtype.Text       `json:"error"`
-	CancelledAt       pgtype.Timestamp  `json:"cancelledAt"`
-	CancelledReason   pgtype.Text       `json:"cancelledReason"`
-	RetryCount        pgtype.Int4       `json:"retryCount"`
-	SemaphoreReleased pgtype.Bool       `json:"semaphoreReleased"`
-	ID                pgtype.UUID       `json:"id"`
-	Tenantid          pgtype.UUID       `json:"tenantid"`
-}
-
-func (q *Queries) UpdateStepRun(ctx context.Context, db DBTX, arg UpdateStepRunParams) (*StepRun, error) {
-	row := db.QueryRow(ctx, updateStepRun,
-		arg.RequeueAfter,
-		arg.Rerun,
-		arg.ScheduleTimeoutAt,
-		arg.StartedAt,
-		arg.FinishedAt,
-		arg.Status,
-		arg.Input,
-		arg.Output,
-		arg.Error,
-		arg.CancelledAt,
-		arg.CancelledReason,
-		arg.RetryCount,
-		arg.SemaphoreReleased,
-		arg.ID,
-		arg.Tenantid,
-	)
-	var i StepRun
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.DeletedAt,
-		&i.TenantId,
-		&i.JobRunId,
-		&i.StepId,
-		&i.Order,
-		&i.WorkerId,
-		&i.TickerId,
-		&i.Status,
-		&i.Input,
-		&i.Output,
-		&i.RequeueAfter,
-		&i.ScheduleTimeoutAt,
-		&i.Error,
-		&i.StartedAt,
-		&i.FinishedAt,
-		&i.TimeoutAt,
-		&i.CancelledAt,
-		&i.CancelledReason,
-		&i.CancelledError,
-		&i.InputSchema,
-		&i.CallerFiles,
-		&i.GitRepoBranch,
-		&i.RetryCount,
-		&i.SemaphoreReleased,
-		&i.Queue,
-		&i.Priority,
-	)
-	return &i, err
 }
 
 const updateStepRunInputSchema = `-- name: UpdateStepRunInputSchema :one

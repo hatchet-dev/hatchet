@@ -145,7 +145,7 @@ SET
 WHERE
     qi."id" = ANY(@ids::bigint[]);
 
--- name: CreateInternalQueueItemsBulk :exec
+-- name: CreateUniqueInternalQueueItemsBulk :exec
 INSERT INTO
     "InternalQueueItem" (
         "queue",
@@ -166,5 +166,26 @@ FROM (
     SELECT
         unnest(@datas::json[]) AS "data",
         unnest(@uniqueKeys::text[]) AS "uniqueKey"
+) AS input
+ON CONFLICT DO NOTHING;
+
+-- name: CreateInternalQueueItemsBulk :exec
+INSERT INTO
+    "InternalQueueItem" (
+        "queue",
+        "isQueued",
+        "data",
+        "tenantId",
+        "priority"
+    )
+SELECT
+    @queue::"InternalQueue",
+    true,
+    input."data",
+    @tenantId::uuid,
+    1
+FROM (
+    SELECT
+        unnest(@datas::json[]) AS "data"
 ) AS input
 ON CONFLICT DO NOTHING;

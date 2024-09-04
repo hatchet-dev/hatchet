@@ -106,6 +106,24 @@ WHERE
         sr."tenantId" = sqlc.narg('tenantId')::uuid
     );
 
+-- name: ListInitialStepRuns :many
+SELECT
+    DISTINCT ON (child_run."id")
+    child_run."id" AS "id"
+FROM
+    "StepRun" AS child_run
+JOIN
+    "JobRun" AS job_run ON child_run."jobRunId" = job_run."id"
+LEFT JOIN
+    "_StepRunOrder" AS step_run_order ON step_run_order."B" = child_run."id"
+WHERE
+    child_run."jobRunId" = @jobRunId::uuid
+    AND child_run."deletedAt" IS NULL
+    AND job_run."deletedAt" IS NULL
+    AND child_run."status" = 'PENDING'
+    AND job_run."status" = 'RUNNING'
+    AND step_run_order."A" IS NULL;
+
 -- name: ListStartableStepRuns :many
 WITH job_run AS (
     SELECT "status", "deletedAt"
@@ -127,20 +145,16 @@ WHERE
     AND job_run."deletedAt" IS NULL
     AND child_run."status" = 'PENDING'
     AND job_run."status" = 'RUNNING'
-    -- case on whether parentStepRunId is null
-    AND (
-        (sqlc.narg('parentStepRunId')::uuid IS NULL AND step_run_order."A" IS NULL) OR
-        (
-            step_run_order."A" = sqlc.narg('parentStepRunId')::uuid
-            AND NOT EXISTS (
-                SELECT 1
-                FROM "_StepRunOrder" AS parent_order
-                JOIN "StepRun" AS parent_run ON parent_order."A" = parent_run."id"
-                WHERE
-                    parent_order."B" = child_run."id"
-                    AND parent_run."status" != 'SUCCEEDED'
-            )
-        )
+    -- we look for whether the step run is startable ASSUMING that succeededParentStepRunId has succeeded,
+    -- so we are making sure that all other parent step runs have succeeded
+    AND NOT EXISTS (
+        SELECT 1
+        FROM "_StepRunOrder" AS parent_order
+        JOIN "StepRun" AS parent_run ON parent_order."A" = parent_run."id"
+        WHERE
+            parent_order."B" = child_run."id"
+            AND parent_run."id" != sqlc.arg('succeededParentStepRunId')::uuid
+            AND parent_run."status" != 'SUCCEEDED'
     );
 
 -- name: ListStepRuns :many
@@ -175,56 +189,51 @@ WHERE
         "StepRun"."tickerId" = sqlc.narg('tickerId')::uuid
     );
 
--- name: UpdateStepRun :one
+-- name: QueueStepRun :exec
 UPDATE
     "StepRun"
 SET
-    "requeueAfter" = COALESCE(sqlc.narg('requeueAfter')::timestamp, "requeueAfter"),
-    "scheduleTimeoutAt" = CASE
-        -- if this is a rerun, we clear the scheduleTimeoutAt
-        WHEN sqlc.narg('rerun')::boolean THEN NULL
-        ELSE COALESCE(sqlc.narg('scheduleTimeoutAt')::timestamp, "scheduleTimeoutAt")
-    END,
+    "finishedAt" = NULL,
+    "status" = 'PENDING_ASSIGNMENT',
+    "input" = COALESCE(sqlc.narg('input')::jsonb, "input"),
+    "output" = NULL,
+    "error" = NULL,
+    "cancelledAt" = NULL,
+    "cancelledReason" = NULL,
+    "retryCount" = COALESCE(sqlc.narg('retryCount')::int, "retryCount"),
+    "semaphoreReleased" = false
+WHERE
+  "id" = @id::uuid AND
+  "tenantId" = @tenantId::uuid;
+
+-- name: ManualReleaseSemaphore :exec
+UPDATE
+    "StepRun"
+SET
+    "semaphoreReleased" = true,
+    "workerId" = NULL
+WHERE
+    "id" = @stepRunId::uuid AND
+    "tenantId" = @tenantId::uuid;
+
+-- name: UpdateStepRunBatch :batchexec
+UPDATE
+    "StepRun"
+SET
     "startedAt" = COALESCE(sqlc.narg('startedAt')::timestamp, "startedAt"),
-    "finishedAt" = CASE
-        -- if this is a rerun, we clear the finishedAt
-        WHEN sqlc.narg('rerun')::boolean THEN NULL
-        ELSE  COALESCE(sqlc.narg('finishedAt')::timestamp, "finishedAt")
-    END,
+    "finishedAt" = COALESCE(sqlc.narg('finishedAt')::timestamp, "finishedAt"),
     "status" = CASE
-        -- if this is a rerun, we permit status updates
-        WHEN sqlc.narg('rerun')::boolean THEN COALESCE(sqlc.narg('status'), "status")
         -- Final states are final, cannot be updated
         WHEN "status" IN ('SUCCEEDED', 'FAILED', 'CANCELLED') THEN "status"
         ELSE COALESCE(sqlc.narg('status'), "status")
     END,
-    "input" = COALESCE(sqlc.narg('input')::jsonb, "input"),
-    "output" = CASE
-        -- if this is a rerun, we clear the output
-        WHEN sqlc.narg('rerun')::boolean THEN NULL
-        ELSE COALESCE(sqlc.narg('output')::jsonb, "output")
-    END,
-    "error" = CASE
-        -- if this is a rerun, we clear the error
-        WHEN sqlc.narg('rerun')::boolean THEN NULL
-        ELSE COALESCE(sqlc.narg('error')::text, "error")
-    END,
-    "cancelledAt" = CASE
-        -- if this is a rerun, we clear the cancelledAt
-        WHEN sqlc.narg('rerun')::boolean THEN NULL
-        ELSE COALESCE(sqlc.narg('cancelledAt')::timestamp, "cancelledAt")
-    END,
-    "cancelledReason" = CASE
-        -- if this is a rerun, we clear the cancelledReason
-        WHEN sqlc.narg('rerun')::boolean THEN NULL
-        ELSE COALESCE(sqlc.narg('cancelledReason')::text, "cancelledReason")
-    END,
-    "retryCount" = COALESCE(sqlc.narg('retryCount')::int, "retryCount"),
-    "semaphoreReleased" = COALESCE(sqlc.narg('semaphoreReleased')::boolean, "semaphoreReleased")
+    "output" = COALESCE(sqlc.narg('output')::jsonb, "output"),
+    "error" = COALESCE(sqlc.narg('error')::text, "error"),
+    "cancelledAt" = COALESCE(sqlc.narg('cancelledAt')::timestamp, "cancelledAt"),
+    "cancelledReason" = COALESCE(sqlc.narg('cancelledReason')::text, "cancelledReason")
 WHERE
   "id" = @id::uuid AND
-  "tenantId" = @tenantId::uuid
-RETURNING "StepRun".*;
+  "tenantId" = @tenantId::uuid;
 
 -- name: ResolveLaterStepRuns :many
 WITH RECURSIVE currStepRun AS (
@@ -252,16 +261,16 @@ SET  "status" = CASE
     -- When the step is in a final state, it cannot be updated
     WHEN sr."status" IN ('SUCCEEDED', 'FAILED', 'CANCELLED') THEN sr."status"
     -- When the given step run has failed or been cancelled, then all child step runs are cancelled
-    WHEN (SELECT "status" FROM currStepRun) IN ('FAILED', 'CANCELLED') THEN 'CANCELLED'
+    WHEN @status::"StepRunStatus" IN ('FAILED', 'CANCELLED') THEN 'CANCELLED'
     ELSE sr."status"
     END,
     -- When the previous step run timed out, the cancelled reason is set
     "cancelledReason" = CASE
     -- When the step is in a final state, it cannot be updated
     WHEN sr."status" IN ('SUCCEEDED', 'FAILED', 'CANCELLED') THEN sr."cancelledReason"
-    WHEN (SELECT "status" FROM currStepRun) = 'CANCELLED' AND (SELECT "cancelledReason" FROM currStepRun) = 'TIMED_OUT'::text THEN 'PREVIOUS_STEP_TIMED_OUT'
-    WHEN (SELECT "status" FROM currStepRun) = 'FAILED' THEN 'PREVIOUS_STEP_FAILED'
-    WHEN (SELECT "status" FROM currStepRun) = 'CANCELLED' THEN 'PREVIOUS_STEP_CANCELLED'
+    WHEN @status::"StepRunStatus" = 'CANCELLED' AND (SELECT "cancelledReason" FROM currStepRun) = 'TIMED_OUT'::text THEN 'PREVIOUS_STEP_TIMED_OUT'
+    WHEN @status::"StepRunStatus" = 'FAILED' THEN 'PREVIOUS_STEP_FAILED'
+    WHEN @status::"StepRunStatus" = 'CANCELLED' THEN 'PREVIOUS_STEP_CANCELLED'
     ELSE NULL
     END
 FROM
@@ -920,7 +929,7 @@ WHERE
     "id" = @jobRunId::uuid
 RETURNING *;
 
--- name: GetLaterStepRunsForReplay :many
+-- name: GetLaterStepRuns :many
 WITH RECURSIVE currStepRun AS (
     SELECT *
     FROM "StepRun"
