@@ -83,7 +83,7 @@ func (t *WorkflowService) WorkflowRunCreate(ctx echo.Context, request gen.Workfl
 		return nil, err
 	}
 
-	workflowRun, err := t.config.APIRepository.WorkflowRun().CreateNewWorkflowRun(ctx.Request().Context(), tenant.ID, createOpts)
+	createdWorkflowRun, err := t.config.APIRepository.WorkflowRun().CreateNewWorkflowRun(ctx.Request().Context(), tenant.ID, createOpts)
 
 	if err == metered.ErrResourceExhausted {
 		return gen.WorkflowRunCreate429JSONResponse(
@@ -100,8 +100,8 @@ func (t *WorkflowService) WorkflowRunCreate(ctx echo.Context, request gen.Workfl
 		ctx.Request().Context(),
 		msgqueue.WORKFLOW_PROCESSING_QUEUE,
 		tasktypes.WorkflowRunQueuedToTask(
-			sqlchelpers.UUIDToStr(workflowRun.TenantId),
-			sqlchelpers.UUIDToStr(workflowRun.ID),
+			sqlchelpers.UUIDToStr(createdWorkflowRun.TenantId),
+			sqlchelpers.UUIDToStr(createdWorkflowRun.ID),
 		),
 	)
 
@@ -109,7 +109,13 @@ func (t *WorkflowService) WorkflowRunCreate(ctx echo.Context, request gen.Workfl
 		return nil, fmt.Errorf("could not add workflow run to queue: %w", err)
 	}
 
-	res, err := transformers.ToWorkflowRun(workflowRun)
+	workflowRun, err := t.config.APIRepository.WorkflowRun().GetWorkflowRunById(ctx.Request().Context(), tenant.ID, sqlchelpers.UUIDToStr(createdWorkflowRun.ID))
+
+	if err != nil {
+		return nil, fmt.Errorf("could not get workflow run: %w", err)
+	}
+
+	res, err := transformers.ToWorkflowRun(workflowRun, nil, nil)
 
 	if err != nil {
 		return nil, err

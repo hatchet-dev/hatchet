@@ -1088,6 +1088,7 @@ type StepRunEvent struct {
 	Message       string               `json:"message"`
 	Count         int32                `json:"count"`
 	Data          []byte               `json:"data"`
+	JobRunId      pgtype.UUID          `json:"jobRunId"`
 }
 
 type StepRunOrder struct {

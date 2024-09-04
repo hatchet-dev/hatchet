@@ -8,12 +8,89 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 )
 
-func ToWorkflowRun(run *dbsqlc.WorkflowRun) (*gen.WorkflowRun, error) {
+func ToWorkflowRunState(
+	run *dbsqlc.GetWorkflowRunByIdRow,
+	jobs []*dbsqlc.ListJobRunsForWorkflowRunFullRow,
+	steps []*dbsqlc.GetStepsForJobsRow,
+) *gen.WorkflowRunState {
+	res := &gen.WorkflowRunState{
+		Metadata: *toAPIMetadata(
+			sqlchelpers.UUIDToStr(run.ID),
+			run.CreatedAt.Time,
+			run.UpdatedAt.Time,
+		),
+		TenantId:   sqlchelpers.UUIDToStr(run.TenantId),
+		StartedAt:  &run.StartedAt.Time,
+		FinishedAt: &run.FinishedAt.Time,
+		Error:      &run.Error.String,
+		Status:     gen.WorkflowRunStatus(run.Status),
+	}
+
+	if jobs != nil {
+		jobRuns := make([]gen.JobRun, 0)
+
+		for _, jobRun := range jobs {
+			jobRunCp := *jobRun
+			jobRuns = append(jobRuns, *ToJobRun(&jobRunCp, steps))
+		}
+
+		res.JobRuns = &jobRuns
+	}
+
+	return res
+}
+
+func ToWorkflowRunShape(
+	run *dbsqlc.GetWorkflowRunByIdRow,
+	version *dbsqlc.GetWorkflowVersionByIdRow,
+	jobs []*dbsqlc.ListJobRunsForWorkflowRunFullRow,
+	steps []*dbsqlc.GetStepsForJobsRow,
+) *gen.WorkflowRunShape {
+	res := &gen.WorkflowRunShape{
+		Metadata: *toAPIMetadata(
+			sqlchelpers.UUIDToStr(run.ID),
+			run.CreatedAt.Time,
+			run.UpdatedAt.Time,
+		),
+		TenantId:          sqlchelpers.UUIDToStr(run.TenantId),
+		WorkflowVersionId: sqlchelpers.UUIDToStr(run.WorkflowVersionId),
+		DisplayName:       &run.DisplayName.String,
+		StartedAt:         &run.StartedAt.Time,
+		FinishedAt:        &run.FinishedAt.Time,
+		Error:             &run.Error.String,
+		Status:            gen.WorkflowRunStatus(run.Status),
+	}
+
+	if version != nil {
+		res.WorkflowVersion = ToWorkflowVersion(&version.WorkflowVersion, &version.Workflow)
+	}
+
+	res.TriggeredBy = *ToWorkflowRunTriggeredBy(&run.WorkflowRunTriggeredBy)
+
+	if jobs != nil {
+		jobRuns := make([]gen.JobRun, 0)
+
+		for _, jobRun := range jobs {
+			jobRunCp := *jobRun
+			jobRuns = append(jobRuns, *ToJobRun(&jobRunCp, steps))
+
+		}
+
+		res.JobRuns = &jobRuns
+	}
+
+	return res
+}
+
+func ToWorkflowRun(
+	run *dbsqlc.GetWorkflowRunByIdRow,
+	jobs []*dbsqlc.ListJobRunsForWorkflowRunFullRow,
+	steps []*dbsqlc.GetStepsForJobsRow,
+) (*gen.WorkflowRun, error) {
 	res := &gen.WorkflowRun{
 		Metadata: *toAPIMetadata(
 			sqlchelpers.UUIDToStr(run.ID),
@@ -29,45 +106,30 @@ func ToWorkflowRun(run *dbsqlc.WorkflowRun) (*gen.WorkflowRun, error) {
 		Error:             &run.Error.String,
 	}
 
-	//
-	// if run.RelationsWorkflowRun.TriggeredBy != nil {
-	// 	if triggeredBy, ok := run.TriggeredBy(); ok {
-	// 		res.TriggeredBy = *ToWorkflowRunTriggeredBy(triggeredBy)
-	// 	}
-	// }
+	res.TriggeredBy = *ToWorkflowRunTriggeredBy(&run.WorkflowRunTriggeredBy)
 
-	// if run.RelationsWorkflowRun.WorkflowVersion != nil {
-	// 	workflowVersion := run.WorkflowVersion()
+	if run.WorkflowVersionId.Valid {
+		res.WorkflowVersion = ToWorkflowVersion(&run.WorkflowVersion, &run.Workflow)
+	}
 
-	// 	resWorkflowVersion, err := ToWorkflowVersion(nil, workflowVersion)
+	if jobs != nil {
+		jobRuns := make([]gen.JobRun, 0)
 
-	// 	if err != nil {
-	// 		return nil, err
-	// 	}
+		for _, jobRun := range jobs {
+			jobRunCp := *jobRun
+			jobRuns = append(jobRuns, *ToJobRun(&jobRunCp, steps))
+		}
 
-	// 	res.WorkflowVersion = resWorkflowVersion
-	// }
-
-	// if run.RelationsWorkflowRun.JobRuns != nil {
-	// 	jobRuns := make([]gen.JobRun, 0)
-
-	// 	for _, jobRun := range run.JobRuns() {
-	// 		jobRunCp := jobRun
-	// 		genJobRun, err := ToJobRun(&jobRunCp)
-
-	// 		if err != nil {
-	// 			return nil, err
-	// 		}
-	// 		jobRuns = append(jobRuns, *genJobRun)
-	// 	}
-
-	// 	res.JobRuns = &jobRuns
-	// }
+		res.JobRuns = &jobRuns
+	}
 
 	return res, nil
 }
 
-func ToJobRun(jobRun *dbsqlc.JobRun) (*gen.JobRun, error) {
+func ToJobRun(
+	jobRun *dbsqlc.ListJobRunsForWorkflowRunFullRow,
+	steps []*dbsqlc.GetStepsForJobsRow,
+) *gen.JobRun {
 	res := &gen.JobRun{
 		Metadata: *toAPIMetadata(
 			sqlchelpers.UUIDToStr(jobRun.ID),
@@ -86,15 +148,7 @@ func ToJobRun(jobRun *dbsqlc.JobRun) (*gen.JobRun, error) {
 		TimeoutAt:       &jobRun.TimeoutAt.Time,
 	}
 
-	// if jobRun.RelationsJobRun.Job != nil {
-	// 	var err error
-	// 	job := jobRun.Job()
-	// 	res.Job, err = ToJob(job)
-
-	// 	if err != nil {
-	// 		return nil, err
-	// 	}
-	// }
+	res.Job = ToJob(&jobRun.Job, steps)
 
 	// if jobRun.RelationsJobRun.WorkflowRun != nil {
 	// 	var err error
@@ -130,7 +184,7 @@ func ToJobRun(jobRun *dbsqlc.JobRun) (*gen.JobRun, error) {
 	// 	res.StepRuns = &stepRuns
 	// }
 
-	return res, nil
+	return res
 }
 
 func ToStepRun(stepRun *dbsqlc.StepRun) (*gen.StepRun, error) {
@@ -276,20 +330,27 @@ func getEpochFromTime(t time.Time) *int {
 	return &epoch
 }
 
-func ToWorkflowRunTriggeredBy(triggeredBy *db.WorkflowRunTriggeredByModel) *gen.WorkflowRunTriggeredBy {
+func ToWorkflowRunTriggeredBy(triggeredBy *dbsqlc.WorkflowRunTriggeredBy) *gen.WorkflowRunTriggeredBy {
 	res := &gen.WorkflowRunTriggeredBy{
-		Metadata: *toAPIMetadata(triggeredBy.ID, triggeredBy.CreatedAt, triggeredBy.UpdatedAt),
-		ParentId: triggeredBy.ParentID,
+		Metadata: *toAPIMetadata(sqlchelpers.UUIDToStr(triggeredBy.ID), triggeredBy.CreatedAt.Time, triggeredBy.UpdatedAt.Time),
+		ParentId: sqlchelpers.UUIDToStr(triggeredBy.ParentId),
 	}
 
-	if event, ok := triggeredBy.Event(); ok {
-		res.EventId = &event.ID
-		res.Event = ToEvent(event)
-	}
+	// TODO
+	// if triggeredBy.EventId.Valid {
+	// 	res.EventId = &event.ID
+	// 	res.Event = ToEvent(event)
+	// }
 
-	if cron, ok := triggeredBy.Cron(); ok {
-		res.CronSchedule = &cron.Cron
-	}
+	// if triggeredBy.CronSchedule.Valid {
+	// 	res.CronSchedule = &cron.Cron
+	// 	res.CronSchedule = &triggeredBy.CronSchedule.String
+	// }
+
+	// if triggeredBy.ScheduledId.Valid {
+	// 	res.ScheduledId = &scheduled.ID
+	// 	res.Scheduled = ToScheduled(scheduled)
+	// }
 
 	return res
 }

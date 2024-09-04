@@ -31,7 +31,7 @@ func (t *WorkflowService) WorkflowVersionGet(ctx echo.Context, request gen.Workf
 		workflowVersionId = versions[0].ID
 	}
 
-	workflowVersion, err := t.config.APIRepository.Workflow().GetWorkflowVersionById(tenant.ID, workflowVersionId)
+	res, err := t.config.APIRepository.Workflow().GetWorkflowVersionById(tenant.ID, workflowVersionId)
 
 	if err != nil {
 		if errors.Is(err, db.ErrNotFound) {
@@ -43,11 +43,7 @@ func (t *WorkflowService) WorkflowVersionGet(ctx echo.Context, request gen.Workf
 		return nil, err
 	}
 
-	resp, err := transformers.ToWorkflowVersion(workflow, workflowVersion)
-
-	if err != nil {
-		return nil, err
-	}
+	resp := transformers.ToWorkflowVersion(&res.WorkflowVersion, &res.Workflow)
 
 	return gen.WorkflowVersionGet200JSONResponse(*resp), nil
 }

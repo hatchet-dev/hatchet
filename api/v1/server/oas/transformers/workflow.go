@@ -4,11 +4,10 @@ import (
 	"context"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
-	"github.com/hatchet-dev/hatchet/internal/services/shared/defaults"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 )
 
 func ToWorkflow(workflow *db.WorkflowModel) (*gen.Workflow, error) {
@@ -66,99 +65,90 @@ func ToWorkflowVersionMeta(version *db.WorkflowVersionModel) *gen.WorkflowVersio
 	return res
 }
 
-func ToWorkflowVersion(workflow *db.WorkflowModel, version *db.WorkflowVersionModel) (*gen.WorkflowVersion, error) {
+func ToWorkflowVersion(version *dbsqlc.WorkflowVersion, workflow *dbsqlc.Workflow) *gen.WorkflowVersion {
 	res := &gen.WorkflowVersion{
-		Metadata:   *toAPIMetadata(version.ID, version.CreatedAt, version.UpdatedAt),
-		WorkflowId: version.WorkflowID,
-		Order:      int32(version.Order),
+		Metadata: *toAPIMetadata(
+			sqlchelpers.UUIDToStr(version.ID),
+			version.CreatedAt.Time,
+			version.UpdatedAt.Time,
+		),
+		WorkflowId:      sqlchelpers.UUIDToStr(version.WorkflowId),
+		Order:           int32(version.Order),
+		Version:         version.Version.String,
+		ScheduleTimeout: &version.ScheduleTimeout,
 	}
 
-	if setVersion, ok := version.Version(); ok {
-		res.Version = setVersion
+	if version.WorkflowId.Valid {
+		res.Workflow = ToWorkflowFromSQLC(workflow)
 	}
 
-	res.ScheduleTimeout = &version.ScheduleTimeout
+	// if version.RelationsWorkflowVersion.Jobs != nil {
+	// 	if jobs := version.Jobs(); jobs != nil {
+	// 		apiJobs := make([]gen.Job, len(jobs))
 
-	if version.RelationsWorkflowVersion.Jobs != nil {
-		if jobs := version.Jobs(); jobs != nil {
-			apiJobs := make([]gen.Job, len(jobs))
+	// 		for i, job := range jobs {
+	// 			jobCp := job
+	// 			apiJob, err := ToJob(&jobCp)
 
-			for i, job := range jobs {
-				jobCp := job
-				apiJob, err := ToJob(&jobCp)
+	// 			if err != nil {
+	// 				return nil, err
+	// 			}
+	// 			apiJobs[i] = *apiJob
+	// 		}
 
-				if err != nil {
-					return nil, err
-				}
-				apiJobs[i] = *apiJob
-			}
+	// 		res.Jobs = &apiJobs
+	// 	}
+	// }
 
-			res.Jobs = &apiJobs
-		}
-	}
+	// if version.RelationsWorkflowVersion.Concurrency != nil {
+	// 	if concurrency, ok := version.Concurrency(); ok {
+	// 		apiConcurrency, err := ToWorkflowVersionConcurrency(concurrency)
 
-	if version.RelationsWorkflowVersion.Concurrency != nil {
-		if concurrency, ok := version.Concurrency(); ok {
-			apiConcurrency, err := ToWorkflowVersionConcurrency(concurrency)
+	// 		if err != nil {
+	// 			return nil, err
+	// 		}
 
-			if err != nil {
-				return nil, err
-			}
+	// 		res.Concurrency = apiConcurrency
+	// 	}
+	// }
 
-			res.Concurrency = apiConcurrency
-		}
-	}
+	// if version.RelationsWorkflowVersion.Triggers != nil {
+	// 	if triggers, ok := version.Triggers(); ok && triggers != nil {
+	// 		triggersResp := gen.WorkflowTriggers{}
 
-	if version.RelationsWorkflowVersion.Triggers != nil {
-		if triggers, ok := version.Triggers(); ok && triggers != nil {
-			triggersResp := gen.WorkflowTriggers{}
+	// 		if crons := triggers.Crons(); len(crons) > 0 {
+	// 			genCrons := make([]gen.WorkflowTriggerCronRef, len(crons))
 
-			if crons := triggers.Crons(); len(crons) > 0 {
-				genCrons := make([]gen.WorkflowTriggerCronRef, len(crons))
+	// 			for i, cron := range crons {
+	// 				cronCp := cron
+	// 				genCrons[i] = gen.WorkflowTriggerCronRef{
+	// 					Cron:     &cronCp.Cron,
+	// 					ParentId: &cronCp.ParentID,
+	// 				}
+	// 			}
 
-				for i, cron := range crons {
-					cronCp := cron
-					genCrons[i] = gen.WorkflowTriggerCronRef{
-						Cron:     &cronCp.Cron,
-						ParentId: &cronCp.ParentID,
-					}
-				}
+	// 			triggersResp.Crons = &genCrons
+	// 		}
 
-				triggersResp.Crons = &genCrons
-			}
+	// 		if events := triggers.Events(); len(events) > 0 {
+	// 			genEvents := make([]gen.WorkflowTriggerEventRef, len(events))
 
-			if events := triggers.Events(); len(events) > 0 {
-				genEvents := make([]gen.WorkflowTriggerEventRef, len(events))
+	// 			for i, event := range events {
+	// 				eventCp := event
+	// 				genEvents[i] = gen.WorkflowTriggerEventRef{
+	// 					EventKey: &eventCp.EventKey,
+	// 					ParentId: &eventCp.ParentID,
+	// 				}
+	// 			}
 
-				for i, event := range events {
-					eventCp := event
-					genEvents[i] = gen.WorkflowTriggerEventRef{
-						EventKey: &eventCp.EventKey,
-						ParentId: &eventCp.ParentID,
-					}
-				}
+	// 			triggersResp.Events = &genEvents
+	// 		}
 
-				triggersResp.Events = &genEvents
-			}
+	// 		res.Triggers = &triggersResp
+	// 	}
+	// }
 
-			res.Triggers = &triggersResp
-		}
-	}
-
-	if workflow == nil {
-		workflow = version.RelationsWorkflowVersion.Workflow
-	}
-
-	if workflow != nil {
-		var err error
-		res.Workflow, err = ToWorkflow(workflow)
-
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return res, nil
+	return res
 }
 
 func ToWorkflowVersionConcurrency(concurrency *db.WorkflowConcurrencyModel) (*gen.WorkflowConcurrency, error) {
@@ -249,73 +239,57 @@ func ToWorkflowYAMLBytes(workflow *db.WorkflowModel, version *db.WorkflowVersion
 	return types.ToYAML(context.Background(), res)
 }
 
-func ToJob(job *db.JobModel) (*gen.Job, error) {
+func ToJob(job *dbsqlc.Job, steps []*dbsqlc.GetStepsForJobsRow) *gen.Job {
 	res := &gen.Job{
-		Metadata:  *toAPIMetadata(job.ID, job.CreatedAt, job.UpdatedAt),
-		Name:      job.Name,
-		TenantId:  job.TenantID,
-		VersionId: job.WorkflowVersionID,
+		Metadata: *toAPIMetadata(
+			sqlchelpers.UUIDToStr(job.ID),
+			job.CreatedAt.Time,
+			job.UpdatedAt.Time,
+		),
+		Name:        job.Name,
+		TenantId:    sqlchelpers.UUIDToStr(job.TenantId),
+		VersionId:   sqlchelpers.UUIDToStr(job.WorkflowVersionId),
+		Description: &job.Description.String,
+		Timeout:     &job.Timeout.String,
 	}
 
-	if description, ok := job.Description(); ok {
-		res.Description = &description
-	}
+	apiSteps := make([]gen.Step, 0)
 
-	if timeout, ok := job.Timeout(); ok {
-		res.Timeout = &timeout
-	} else {
-		res.Timeout = repository.StringPtr(defaults.DefaultJobRunTimeout)
-	}
-
-	if steps := job.Steps(); steps != nil {
-		apiSteps := make([]gen.Step, 0)
-
-		for _, step := range steps {
-			stepCp := step
-			apiSteps = append(apiSteps, *ToStep(&stepCp))
+	for _, step := range steps {
+		stepCp := step
+		if stepCp.Step.JobId == job.ID {
+			apiSteps = append(apiSteps, *ToStep(&stepCp.Step, stepCp.Parents))
 		}
-
-		res.Steps = apiSteps
 	}
 
-	return res, nil
+	res.Steps = apiSteps
+
+	return res
 }
 
-func ToStep(step *db.StepModel) *gen.Step {
+func ToStep(step *dbsqlc.Step, parents []pgtype.UUID) *gen.Step {
 	res := &gen.Step{
-		Metadata: *toAPIMetadata(step.ID, step.CreatedAt, step.UpdatedAt),
-		Action:   step.ActionID,
-		JobId:    step.JobID,
-		TenantId: step.TenantID,
+		Metadata: *toAPIMetadata(
+			sqlchelpers.UUIDToStr(step.ID),
+			step.CreatedAt.Time,
+			step.UpdatedAt.Time,
+		),
+		Action:     step.ActionId,
+		JobId:      sqlchelpers.UUIDToStr(step.JobId),
+		TenantId:   sqlchelpers.UUIDToStr(step.TenantId),
+		ReadableId: step.ReadableId.String,
+		Timeout:    &step.Timeout.String,
 	}
 
-	if readableId, ok := step.ReadableID(); ok {
-		res.ReadableId = readableId
+	parentStr := make([]string, 0)
+
+	for i := range parents {
+		parentStr = append(parentStr, sqlchelpers.UUIDToStr(parents[i]))
 	}
 
-	if timeout, ok := step.Timeout(); ok {
-		res.Timeout = &timeout
-	} else {
-		res.Timeout = repository.StringPtr(defaults.DefaultStepRunTimeout)
-	}
-
-	parents := []string{}
-
-	if step.RelationsStep.Parents != nil {
-		for _, parent := range step.Parents() {
-			parents = append(parents, parent.ID)
-		}
-	}
-
-	res.Parents = &parents
+	res.Parents = &parentStr
 
 	children := []string{}
-
-	if step.RelationsStep.Children != nil {
-		for _, child := range step.Children() {
-			children = append(children, child.ID)
-		}
-	}
 
 	res.Children = &children
 

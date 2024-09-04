@@ -114,34 +114,25 @@ func (r *workflowAPIRepository) ListWorkflows(tenantId string, opts *repository.
 	return res, nil
 }
 
-func (r *workflowAPIRepository) GetWorkflowById(workflowId string) (*db.WorkflowModel, error) {
-	return r.client.Workflow.FindFirst(
-		db.Workflow.ID.Equals(workflowId),
-		db.Workflow.DeletedAt.IsNull(),
-	).With(
-		defaultWorkflowPopulator()...,
-	).Exec(context.Background())
+func (r *workflowAPIRepository) GetWorkflowById(ctx context.Context, tenantId, workflowId string) (*dbsqlc.Workflow, error) {
+	return r.queries.GetWorkflowById(context.Background(), r.pool, dbsqlc.GetWorkflowByIdParams{
+		ID:       sqlchelpers.UUIDFromStr(workflowId),
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+	})
+
+	// r.client.Workflow.FindFirst(
+	// 	db.Workflow.ID.Equals(workflowId),
+	// 	db.Workflow.DeletedAt.IsNull(),
+	// ).With(
+	// 	defaultWorkflowPopulator()...,
+	// ).Exec(context.Background())
 }
 
-func (r *workflowAPIRepository) GetWorkflowByName(tenantId, workflowName string) (*db.WorkflowModel, error) {
-	return r.client.Workflow.FindFirst(
-		db.Workflow.TenantIDName(
-			db.Workflow.TenantID.Equals(tenantId),
-			db.Workflow.Name.Equals(workflowName),
-		),
-		db.Workflow.DeletedAt.IsNull(),
-	).With(
-		defaultWorkflowPopulator()...,
-	).Exec(context.Background())
-}
-
-func (r *workflowAPIRepository) GetWorkflowVersionById(tenantId, workflowVersionId string) (*db.WorkflowVersionModel, error) {
-	return r.client.WorkflowVersion.FindFirst(
-		db.WorkflowVersion.ID.Equals(workflowVersionId),
-		db.WorkflowVersion.DeletedAt.IsNull(),
-	).With(
-		defaultWorkflowVersionPopulator()...,
-	).Exec(context.Background())
+func (r *workflowAPIRepository) GetWorkflowVersionById(tenantId, workflowVersionId string) (*dbsqlc.GetWorkflowVersionByIdRow, error) {
+	return r.queries.GetWorkflowVersionById(context.Background(), r.pool, dbsqlc.GetWorkflowVersionByIdParams{
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		ID:       sqlchelpers.UUIDFromStr(workflowVersionId),
+	})
 }
 
 func (r *workflowAPIRepository) DeleteWorkflow(tenantId, workflowId string) (*dbsqlc.Workflow, error) {

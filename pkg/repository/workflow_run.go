@@ -390,7 +390,9 @@ type WorkflowRunAPIRepository interface {
 	CreateNewWorkflowRun(ctx context.Context, tenantId string, opts *CreateWorkflowRunOpts) (*dbsqlc.WorkflowRun, error)
 
 	// GetWorkflowRunById returns a workflow run by id.
-	GetWorkflowRunById(ctx context.Context, tenantId, runId string) (*dbsqlc.WorkflowRun, error)
+	GetWorkflowRunById(ctx context.Context, tenantId, runId string) (*dbsqlc.GetWorkflowRunByIdRow, error)
+
+	GetStepsForJobs(ctx context.Context, tenantId string, jobIds []string) ([]*dbsqlc.GetStepsForJobsRow, error)
 }
 
 var (

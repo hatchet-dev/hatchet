@@ -730,6 +730,7 @@ WITH input_values AS (
         CURRENT_TIMESTAMP AS "timeFirstSeen",
         CURRENT_TIMESTAMP AS "timeLastSeen",
         @stepRunId::uuid AS "stepRunId",
+        @jobRunid::uuid AS "jobRunId",
         @reason::"StepRunEventReason" AS "reason",
         @severity::"StepRunEventSeverity" AS "severity",
         @message::text AS "message",

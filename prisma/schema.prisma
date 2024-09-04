@@ -1135,6 +1135,8 @@ model JobRun {
 
   stepRuns StepRun[]
 
+  stepRunEvents StepRunEvent[]
+
   // the run status
   status JobRunStatus @default(PENDING)
 
@@ -1382,6 +1384,9 @@ model StepRunEvent {
   id            BigInt   @unique @default(autoincrement()) @db.BigInt
   timeFirstSeen DateTime @default(now())
   timeLastSeen  DateTime @default(now())
+
+  jobRun  JobRun? @relation(fields: [jobRunId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  jobRunId String? @db.Uuid
 
   // the parent step run
   stepRun   StepRun @relation(fields: [stepRunId], references: [id], onDelete: Cascade, onUpdate: Cascade)

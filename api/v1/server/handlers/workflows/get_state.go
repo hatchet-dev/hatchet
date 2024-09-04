@@ -9,7 +9,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 )
 
-func (t *WorkflowService) WorkflowRunGet(ctx echo.Context, request gen.WorkflowRunGetRequestObject) (gen.WorkflowRunGetResponseObject, error) {
+func (t *WorkflowService) WorkflowRunGetState(ctx echo.Context, request gen.WorkflowRunGetStateRequestObject) (gen.WorkflowRunGetStateResponseObject, error) {
 	run := ctx.Get("workflow-run").(*dbsqlc.GetWorkflowRunByIdRow)
 
 	jobs, err := t.config.APIRepository.JobRun().ListJobRunByWorkflowRunId(
@@ -22,13 +22,7 @@ func (t *WorkflowService) WorkflowRunGet(ctx echo.Context, request gen.WorkflowR
 		return nil, err
 	}
 
-	resp, err := transformers.ToWorkflowRun(run, jobs, nil)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return gen.WorkflowRunGet200JSONResponse(
-		*resp,
+	return gen.WorkflowRunGetState200JSONResponse(
+		*transformers.ToWorkflowRunState(run, jobs, nil),
 	), nil
 }

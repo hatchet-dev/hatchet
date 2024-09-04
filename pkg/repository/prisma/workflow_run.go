@@ -125,10 +125,23 @@ func (w *workflowRunAPIRepository) CreateNewWorkflowRun(ctx context.Context, ten
 	})
 }
 
-func (w *workflowRunAPIRepository) GetWorkflowRunById(ctx context.Context, tenantId, id string) (*dbsqlc.WorkflowRun, error) {
+func (w *workflowRunAPIRepository) GetWorkflowRunById(ctx context.Context, tenantId, id string) (*dbsqlc.GetWorkflowRunByIdRow, error) {
 	return w.queries.GetWorkflowRunById(ctx, w.pool, dbsqlc.GetWorkflowRunByIdParams{
 		Tenantid:      sqlchelpers.UUIDFromStr(tenantId),
 		Workflowrunid: sqlchelpers.UUIDFromStr(id),
+	})
+}
+
+func (w *workflowRunAPIRepository) GetStepsForJobs(ctx context.Context, tenantId string, jobIds []string) ([]*dbsqlc.GetStepsForJobsRow, error) {
+	jobIdsPg := make([]pgtype.UUID, len(jobIds))
+
+	for i := range jobIds {
+		jobIdsPg[i] = sqlchelpers.UUIDFromStr(jobIds[i])
+	}
+
+	return w.queries.GetStepsForJobs(ctx, w.pool, dbsqlc.GetStepsForJobsParams{
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Jobids:   jobIdsPg,
 	})
 }
 

@@ -613,6 +613,105 @@ workflowRun:
     summary: Get workflow run
     tags:
       - Workflow
+workflowRunShape:
+  get:
+    x-resources: ["tenant", "workflow-run"]
+    description: Get a workflow run for a tenant
+    operationId: workflow-run:get:shape
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The workflow run id
+        in: path
+        name: workflow-run
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/WorkflowRunShape"
+        description: Successfully retrieved the workflow run
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+    summary: Get workflow run
+    tags:
+      - Workflow
+workflowRunState:
+  get:
+    x-resources: ["tenant", "workflow-run"]
+    description: Get a workflow run for a tenant
+    operationId: workflow-run:get:state
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The workflow run id
+        in: path
+        name: workflow-run
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: eventsAfter
+        in: query
+        name: eventsAfter
+        required: false
+        schema:
+          type: string
+          format: date-time
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/WorkflowRunState"
+        description: Successfully retrieved the workflow run
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+    summary: Get workflow run
+    tags:
+      - Workflow
 getMetrics:
   get:
     x-resources: ["tenant", "workflow"]

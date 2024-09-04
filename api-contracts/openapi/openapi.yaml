@@ -114,8 +114,6 @@ paths:
     $ref: "./paths/workflow/workflow.yaml#/workflowVersion"
   /api/v1/workflows/{workflow}/trigger:
     $ref: "./paths/workflow/workflow.yaml#/triggerWorkflow"
-  /api/v1/workflows/{workflow}/versions/definition:
-    $ref: "./paths/workflow/workflow.yaml#/workflowVersionDefinition"
   /api/v1/workflows/{workflow}/metrics:
     $ref: "./paths/workflow/workflow.yaml#/getMetrics"
   /api/v1/step-runs/{step-run}/logs:
@@ -132,6 +130,10 @@ paths:
     $ref: "./paths/workflow/workflow.yaml#/workflowRunsMetrics"
   /api/v1/tenants/{tenant}/workflow-runs/{workflow-run}:
     $ref: "./paths/workflow/workflow.yaml#/workflowRun"
+  /api/v1/tenants/{tenant}/workflow-runs/{workflow-run}/shape:
+    $ref: "./paths/workflow/workflow.yaml#/workflowRunShape"
+  /api/v1/tenants/{tenant}/workflow-runs/{workflow-run}/state:
+    $ref: "./paths/workflow/workflow.yaml#/workflowRunState"
   /api/v1/tenants/{tenant}/step-runs/{step-run}:
     $ref: "./paths/step-run/step-run.yaml#/stepRunScoped"
   /api/v1/tenants/{tenant}/step-runs/{step-run}/rerun:
@@ -150,5 +152,5 @@ paths:
     $ref: "./paths/webhook-worker/webhook-worker.yaml#/webhookworker"
   /api/v1/webhook-workers/{webhook}/requests:
     $ref: "./paths/webhook-worker/webhook-worker.yaml#/webhookworkerRequests"
-  /api/v1/workflow-runs/{workflow-run}/input:
+  /api/v1/tenants/{tenant}/workflow-runs/{workflow-run}/input:
     $ref: "./paths/workflow-run/workflow-run.yaml#/getWorkflowRunInput"

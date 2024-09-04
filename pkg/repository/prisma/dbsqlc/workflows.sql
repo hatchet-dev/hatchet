@@ -464,3 +464,27 @@ SET
     "deletedAt" = CURRENT_TIMESTAMP
 WHERE "id" = @id::uuid
 RETURNING *;
+
+-- name: GetWorkflowVersionById :one
+SELECT
+    sqlc.embed(wv),
+    sqlc.embed(w)
+FROM
+    "WorkflowVersion" as wv
+JOIN
+    "Workflow" as w ON wv."workflowId" = w."id"
+WHERE
+    wv."id" = @id::uuid AND
+    w."tenantId" = @tenantId::uuid AND
+    wv."deletedAt" IS NULL;
+
+
+-- name: GetWorkflowById :one
+SELECT
+    *
+FROM
+    "Workflow" as w
+WHERE
+    w."id" = @id::uuid AND
+    w."tenantId" = @tenantId::uuid AND
+    w."deletedAt" IS NULL;

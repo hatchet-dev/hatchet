@@ -126,6 +126,26 @@ FROM
 WHERE
     jr."workflowRunId" = @workflowRunId::uuid;
 
+-- name: ListJobRunsForWorkflowRunFull :many
+WITH steps AS (
+    SELECT
+        "id",
+        "jobId",
+        "status"
+    FROM
+        "JobRun" jr
+    WHERE
+        jr."workflowRunId" = @workflowRunId::uuid
+)
+SELECT
+    jr.*,
+    sqlc.embed(j)
+FROM "JobRun" jr
+JOIN "Job" j
+    ON jr."jobId" = j."id"
+WHERE jr."workflowRunId" = @workflowRunId::uuid
+    AND jr."tenantId" = @tenantId::uuid;
+
 -- name: GetJobRunByWorkflowRunIdAndJobId :one
 SELECT
     "id",

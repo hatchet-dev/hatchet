@@ -713,6 +713,37 @@ func (q *Queries) CreateWorkflowVersion(ctx context.Context, db DBTX, arg Create
 	return &i, err
 }
 
+const getWorkflowById = `-- name: GetWorkflowById :one
+SELECT
+    id, "createdAt", "updatedAt", "deletedAt", "tenantId", name, description
+FROM
+    "Workflow" as w
+WHERE
+    w."id" = $1::uuid AND
+    w."tenantId" = $2::uuid AND
+    w."deletedAt" IS NULL
+`
+
+type GetWorkflowByIdParams struct {
+	ID       pgtype.UUID `json:"id"`
+	Tenantid pgtype.UUID `json:"tenantid"`
+}
+
+func (q *Queries) GetWorkflowById(ctx context.Context, db DBTX, arg GetWorkflowByIdParams) (*Workflow, error) {
+	row := db.QueryRow(ctx, getWorkflowById, arg.ID, arg.Tenantid)
+	var i Workflow
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.TenantId,
+		&i.Name,
+		&i.Description,
+	)
+	return &i, err
+}
+
 const getWorkflowByName = `-- name: GetWorkflowByName :one
 SELECT
     id, "createdAt", "updatedAt", "deletedAt", "tenantId", name, description
@@ -762,6 +793,58 @@ func (q *Queries) GetWorkflowLatestVersion(ctx context.Context, db DBTX, workflo
 	var id pgtype.UUID
 	err := row.Scan(&id)
 	return id, err
+}
+
+const getWorkflowVersionById = `-- name: GetWorkflowVersionById :one
+SELECT
+    wv.id, wv."createdAt", wv."updatedAt", wv."deletedAt", wv.version, wv."order", wv."workflowId", wv.checksum, wv."scheduleTimeout", wv."onFailureJobId", wv.sticky, wv.kind, wv."defaultPriority",
+    w.id, w."createdAt", w."updatedAt", w."deletedAt", w."tenantId", w.name, w.description
+FROM
+    "WorkflowVersion" as wv
+JOIN
+    "Workflow" as w ON wv."workflowId" = w."id"
+WHERE
+    wv."id" = $1::uuid AND
+    w."tenantId" = $2::uuid AND
+    wv."deletedAt" IS NULL
+`
+
+type GetWorkflowVersionByIdParams struct {
+	ID       pgtype.UUID `json:"id"`
+	Tenantid pgtype.UUID `json:"tenantid"`
+}
+
+type GetWorkflowVersionByIdRow struct {
+	WorkflowVersion WorkflowVersion `json:"workflow_version"`
+	Workflow        Workflow        `json:"workflow"`
+}
+
+func (q *Queries) GetWorkflowVersionById(ctx context.Context, db DBTX, arg GetWorkflowVersionByIdParams) (*GetWorkflowVersionByIdRow, error) {
+	row := db.QueryRow(ctx, getWorkflowVersionById, arg.ID, arg.Tenantid)
+	var i GetWorkflowVersionByIdRow
+	err := row.Scan(
+		&i.WorkflowVersion.ID,
+		&i.WorkflowVersion.CreatedAt,
+		&i.WorkflowVersion.UpdatedAt,
+		&i.WorkflowVersion.DeletedAt,
+		&i.WorkflowVersion.Version,
+		&i.WorkflowVersion.Order,
+		&i.WorkflowVersion.WorkflowId,
+		&i.WorkflowVersion.Checksum,
+		&i.WorkflowVersion.ScheduleTimeout,
+		&i.WorkflowVersion.OnFailureJobId,
+		&i.WorkflowVersion.Sticky,
+		&i.WorkflowVersion.Kind,
+		&i.WorkflowVersion.DefaultPriority,
+		&i.Workflow.ID,
+		&i.Workflow.CreatedAt,
+		&i.Workflow.UpdatedAt,
+		&i.Workflow.DeletedAt,
+		&i.Workflow.TenantId,
+		&i.Workflow.Name,
+		&i.Workflow.Description,
+	)
+	return &i, err
 }
 
 const getWorkflowVersionForEngine = `-- name: GetWorkflowVersionForEngine :many

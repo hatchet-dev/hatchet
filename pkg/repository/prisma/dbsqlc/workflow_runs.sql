@@ -893,9 +893,45 @@ WHERE jld."data" ? 'input' AND jr."workflowRunId" = @workflowRunId::uuid
 LIMIT 1;
 
 -- name: GetWorkflowRunById :one
+SELECT
+    r.*,
+    sqlc.embed(wv),
+    sqlc.embed(w),
+    sqlc.embed(tb)
+FROM
+    "WorkflowRun" r
+JOIN
+    "WorkflowVersion" as wv ON
+        r."workflowVersionId" = wv."id"
+JOIN "Workflow" as w ON
+    wv."workflowId" = w."id"
+JOIN "WorkflowRunTriggeredBy" as tb ON
+    r."id" = tb."parentId"
+WHERE
+    r."id" = @workflowRunId::uuid AND
+    r."tenantId" = @tenantId::uuid;
+
+-- name: GetWorkflowRunTrigger :one
 SELECT *
 FROM
-    "WorkflowRun"
+    "WorkflowRunTriggeredBy"
 WHERE
-    "id" = @workflowRunId::uuid AND
+    "parentId" = @runId::uuid AND
     "tenantId" = @tenantId::uuid;
+
+
+-- name: GetStepsForJobs :many
+SELECT
+	j."id" as "jobId",
+    sqlc.embed(s),
+    (
+        SELECT array_agg(so."A")::uuid[]  -- Casting the array_agg result to uuid[]
+        FROM "_StepOrder" so
+        WHERE so."B" = s."id"
+    ) AS "parents"
+FROM "Job" j
+JOIN "Step" s ON s."jobId" = j."id"
+WHERE
+    j."id" = ANY(@jobIds::uuid[])
+    AND j."tenantId" = @tenantId::uuid
+    AND j."deletedAt" IS NULL;

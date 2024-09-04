@@ -231,7 +231,7 @@ updated AS (
             ORDER BY "id" DESC
             LIMIT 1
         )
-    RETURNING "StepRunEvent".id, "StepRunEvent"."timeFirstSeen", "StepRunEvent"."timeLastSeen", "StepRunEvent"."stepRunId", "StepRunEvent".reason, "StepRunEvent".severity, "StepRunEvent".message, "StepRunEvent".count, "StepRunEvent".data
+    RETURNING "StepRunEvent".id, "StepRunEvent"."timeFirstSeen", "StepRunEvent"."timeLastSeen", "StepRunEvent"."stepRunId", "StepRunEvent".reason, "StepRunEvent".severity, "StepRunEvent".message, "StepRunEvent".count, "StepRunEvent".data, "StepRunEvent"."jobRunId"
 )
 INSERT INTO "StepRunEvent" (
     "timeFirstSeen",
@@ -443,11 +443,12 @@ WITH input_values AS (
         CURRENT_TIMESTAMP AS "timeFirstSeen",
         CURRENT_TIMESTAMP AS "timeLastSeen",
         $1::uuid AS "stepRunId",
-        $2::"StepRunEventReason" AS "reason",
-        $3::"StepRunEventSeverity" AS "severity",
-        $4::text AS "message",
+        $2::uuid AS "jobRunId",
+        $3::"StepRunEventReason" AS "reason",
+        $4::"StepRunEventSeverity" AS "severity",
+        $5::text AS "message",
         1 AS "count",
-        $5::jsonb AS "data"
+        $6::jsonb AS "data"
 ),
 updated AS (
     UPDATE "StepRunEvent"
@@ -468,7 +469,7 @@ updated AS (
             ORDER BY "id" DESC
             LIMIT 1
         )
-    RETURNING "StepRunEvent".id, "StepRunEvent"."timeFirstSeen", "StepRunEvent"."timeLastSeen", "StepRunEvent"."stepRunId", "StepRunEvent".reason, "StepRunEvent".severity, "StepRunEvent".message, "StepRunEvent".count, "StepRunEvent".data
+    RETURNING "StepRunEvent".id, "StepRunEvent"."timeFirstSeen", "StepRunEvent"."timeLastSeen", "StepRunEvent"."stepRunId", "StepRunEvent".reason, "StepRunEvent".severity, "StepRunEvent".message, "StepRunEvent".count, "StepRunEvent".data, "StepRunEvent"."jobRunId"
 )
 INSERT INTO "StepRunEvent" (
     "timeFirstSeen",
@@ -497,6 +498,7 @@ WHERE NOT EXISTS (
 
 type CreateStepRunEventParams struct {
 	Steprunid pgtype.UUID          `json:"steprunid"`
+	Jobrunid  pgtype.UUID          `json:"jobrunid"`
 	Reason    StepRunEventReason   `json:"reason"`
 	Severity  StepRunEventSeverity `json:"severity"`
 	Message   string               `json:"message"`
@@ -506,6 +508,7 @@ type CreateStepRunEventParams struct {
 func (q *Queries) CreateStepRunEvent(ctx context.Context, db DBTX, arg CreateStepRunEventParams) error {
 	_, err := db.Exec(ctx, createStepRunEvent,
 		arg.Steprunid,
+		arg.Jobrunid,
 		arg.Reason,
 		arg.Severity,
 		arg.Message,
@@ -1420,7 +1423,7 @@ func (q *Queries) ListStepRunArchives(ctx context.Context, db DBTX, arg ListStep
 
 const listStepRunEvents = `-- name: ListStepRunEvents :many
 SELECT
-    id, "timeFirstSeen", "timeLastSeen", "stepRunId", reason, severity, message, count, data
+    id, "timeFirstSeen", "timeLastSeen", "stepRunId", reason, severity, message, count, data, "jobRunId"
 FROM
     "StepRunEvent"
 WHERE
@@ -1458,6 +1461,7 @@ func (q *Queries) ListStepRunEvents(ctx context.Context, db DBTX, arg ListStepRu
 			&i.Message,
 			&i.Count,
 			&i.Data,
+			&i.JobRunId,
 		); err != nil {
 			return nil, err
 		}

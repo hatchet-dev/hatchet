@@ -83,11 +83,12 @@ import {
   WorkflowRunOrderByDirection,
   WorkflowRunOrderByField,
   WorkflowRunsCancelRequest,
+  WorkflowRunShape,
   WorkflowRunsMetrics,
+  WorkflowRunState,
   WorkflowRunStatus,
   WorkflowRunStatusList,
   WorkflowVersion,
-  WorkflowVersionDefinition,
 } from './data-contracts';
 import { ContentType, HttpClient, RequestParams } from './http-client';
 
@@ -1109,36 +1110,6 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       ...params,
     });
   /**
-   * @description Get a workflow version definition for a tenant
-   *
-   * @tags Workflow
-   * @name WorkflowVersionGetDefinition
-   * @summary Get workflow version definition
-   * @request GET:/api/v1/workflows/{workflow}/versions/definition
-   * @secure
-   */
-  workflowVersionGetDefinition = (
-    workflow: string,
-    query?: {
-      /**
-       * The workflow version. If not supplied, the latest version is fetched.
-       * @format uuid
-       * @minLength 36
-       * @maxLength 36
-       */
-      version?: string;
-    },
-    params: RequestParams = {},
-  ) =>
-    this.request<WorkflowVersionDefinition, APIErrors>({
-      path: `/api/v1/workflows/${workflow}/versions/definition`,
-      method: 'GET',
-      query: query,
-      secure: true,
-      format: 'json',
-      ...params,
-    });
-  /**
    * @description Get the metrics for a workflow version
    *
    * @tags Workflow
@@ -1463,6 +1434,52 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       ...params,
     });
   /**
+   * @description Get a workflow run for a tenant
+   *
+   * @tags Workflow
+   * @name WorkflowRunGetShape
+   * @summary Get workflow run
+   * @request GET:/api/v1/tenants/{tenant}/workflow-runs/{workflow-run}/shape
+   * @secure
+   */
+  workflowRunGetShape = (tenant: string, workflowRun: string, params: RequestParams = {}) =>
+    this.request<WorkflowRunShape, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/workflow-runs/${workflowRun}/shape`,
+      method: 'GET',
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Get a workflow run for a tenant
+   *
+   * @tags Workflow
+   * @name WorkflowRunGetState
+   * @summary Get workflow run
+   * @request GET:/api/v1/tenants/{tenant}/workflow-runs/{workflow-run}/state
+   * @secure
+   */
+  workflowRunGetState = (
+    tenant: string,
+    workflowRun: string,
+    query?: {
+      /**
+       * eventsAfter
+       * @format date-time
+       */
+      eventsAfter?: string;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<WorkflowRunState, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/workflow-runs/${workflowRun}/state`,
+      method: 'GET',
+      query: query,
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
    * @description Get a step run by id
    *
    * @tags Step Run
@@ -1664,12 +1681,12 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @tags Workflow Runs
    * @name WorkflowRunGetInput
    * @summary Get workflow run input
-   * @request GET:/api/v1/workflow-runs/{workflow-run}/input
+   * @request GET:/api/v1/tenants/{tenant}/workflow-runs/{workflow-run}/input
    * @secure
    */
-  workflowRunGetInput = (workflowRun: string, params: RequestParams = {}) =>
+  workflowRunGetInput = (tenant: string, workflowRun: string, params: RequestParams = {}) =>
     this.request<Record<string, any>, APIErrors>({
-      path: `/api/v1/workflow-runs/${workflowRun}/input`,
+      path: `/api/v1/tenants/${tenant}/workflow-runs/${workflowRun}/input`,
       method: 'GET',
       secure: true,
       format: 'json',

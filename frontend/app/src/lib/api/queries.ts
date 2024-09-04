@@ -160,20 +160,30 @@ export const queries = createQueryKeyStore({
           })
         ).data,
     }),
-    getDefinition: (workflow: string, version?: string) => ({
-      queryKey: ['workflow-version:get:definition', workflow, version],
-      queryFn: async () =>
-        (
-          await api.workflowVersionGetDefinition(workflow, {
-            version: version,
-          })
-        ).data,
-    }),
+    // getDefinition: (workflow: string, version?: string) => ({
+    //   queryKey: ['workflow-version:get:definition', workflow, version],
+    //   queryFn: async () =>
+    //     (
+    //       await api.workflowVersionGetDefinition(workflow, {
+    //         version: version,
+    //       })
+    //     ).data,
+    // }),
   },
   workflowRuns: {
     list: (tenant: string, query: ListWorkflowRunsQuery) => ({
       queryKey: ['workflow-run:list', tenant, query],
       queryFn: async () => (await api.workflowRunList(tenant, query)).data,
+    }),
+    shape: (tenant: string, workflowRun: string) => ({
+      queryKey: ['workflow-run:get:shape', tenant, workflowRun],
+      queryFn: async () =>
+        (await api.workflowRunGetShape(tenant, workflowRun)).data,
+    }),
+    state: (tenant: string, workflowRun: string) => ({
+      queryKey: ['workflow-run:get:state', tenant, workflowRun],
+      queryFn: async () =>
+        (await api.workflowRunGetState(tenant, workflowRun)).data,
     }),
     get: (tenant: string, workflowRun: string) => ({
       queryKey: ['workflow-run:get', tenant, workflowRun],
@@ -181,7 +191,8 @@ export const queries = createQueryKeyStore({
     }),
     getInput: (tenant: string, workflowRun: string) => ({
       queryKey: ['workflow-run:get:input', tenant, workflowRun],
-      queryFn: async () => (await api.workflowRunGetInput(workflowRun)).data,
+      queryFn: async () =>
+        (await api.workflowRunGetInput(tenant, workflowRun)).data,
     }),
     metrics: (tenant: string, query: WorkflowRunMetrics) => ({
       queryKey: ['workflow-run:metrics', tenant, query],
