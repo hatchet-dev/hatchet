@@ -45,11 +45,10 @@ func (wc *WorkflowsControllerImpl) handleWorkflowRunQueued(ctx context.Context, 
 	if err != nil {
 		return fmt.Errorf("could not get job run: %w", err)
 	}
-
 	defer func() {
-		wreErr := wc.repo.WorkflowRunEvent().CreateQueuedWorkflowRunEvent(ctx, metadata.TenantId, payload.WorkflowRunId)
+		wreErr := wc.repo.WorkflowRunEvent().CreateRunningWorkflowRunEvent(ctx, metadata.TenantId, payload.WorkflowRunId)
 		if wreErr != nil {
-			wc.l.Warn().Msgf("could not create queued workflow run event for tenantID %s and WorkflowRunId %s : %e", metadata.TenantId, payload.WorkflowRunId, wreErr)
+			wc.l.Warn().Msgf("could not create running workflow run event for tenantID %s and WorkflowRunId %s : %e", metadata.TenantId, payload.WorkflowRunId, wreErr)
 		}
 	}()
 
@@ -123,13 +122,24 @@ func (wc *WorkflowsControllerImpl) handleWorkflowRunFinished(ctx context.Context
 	}
 
 	workflowRunId := sqlchelpers.UUIDToStr(workflowRun.WorkflowRun.ID)
-
 	defer func() {
-		wreErr := wc.repo.WorkflowRunEvent().CreateSucceededWorkflowRunEvent(
-			ctx, metadata.TenantId, workflowRunId)
+		if workflowRun.WorkflowRun.Status == dbsqlc.WorkflowRunStatusSUCCEEDED {
 
-		if wreErr != nil {
-			wc.l.Warn().Msgf("could not create succeeded workflow run event for tenantID %s and WorkflowRunId %s : %e", metadata.TenantId, workflowRunId, wreErr)
+			wreErr := wc.repo.WorkflowRunEvent().CreateSucceededWorkflowRunEvent(
+				ctx, metadata.TenantId, workflowRunId)
+
+			if wreErr != nil {
+				wc.l.Warn().Msgf("could not create succeeded workflow run event for tenantID %s and WorkflowRunId %s : %e", metadata.TenantId, workflowRunId, wreErr)
+			}
+
+		} else if workflowRun.WorkflowRun.Status == dbsqlc.WorkflowRunStatusFAILED {
+
+			wreErr := wc.repo.WorkflowRunEvent().CreateFailedWorkflowRunEvent(
+				ctx, metadata.TenantId, workflowRunId)
+
+			if wreErr != nil {
+				wc.l.Warn().Msgf("could not create failed workflow run event for tenantID %s and WorkflowRunId %s : %e", metadata.TenantId, workflowRunId, wreErr)
+			}
 		}
 	}()
 

@@ -46,6 +46,7 @@ import { lastTimeRangeAtom } from '@/lib/atoms';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useParentSize } from '@visx/responsive';
 import AreaChart from '@/components/molecules/brush-chart/area-chart';
+import MultiBarChart from '@/components/molecules/brush-chart/multi-bar-chart';
 
 export interface WorkflowRunsTableProps {
   createdAfter?: string;
@@ -61,6 +62,7 @@ export interface WorkflowRunsTableProps {
 interface MinuteEntry {
   date: Date;
   value: number;
+  type : string;
 }
 
 export function WorkflowRunsTable({
@@ -247,6 +249,23 @@ export function WorkflowRunsTable({
       entries.push({
         date: new Date(currentDate),
         value: 0,
+        type: 'SUCCEEDED',
+
+
+      });
+      entries.push({
+        date: new Date(currentDate),
+        value: 0,
+        type: 'FAILED',
+
+
+      });
+      entries.push({
+        date: new Date(currentDate),
+        value: 0,
+        type: 'RUNNING',
+
+
       });
 
       // Move to the next minute
@@ -268,25 +287,45 @@ export function WorkflowRunsTable({
     });
 
     const data = useMemo(() => {
+      console.log(workflowRunEventsMetricsQuery.data);
       const minuteEntries = generateMinuteEntries(
         createdAfter ? new Date(createdAfter) : new Date(),
         createdBefore ? new Date(createdBefore) : new Date(),
       );
       const data = workflowRunEventsMetricsQuery.data?.results?.map((d) => {
-        return {
-          date: d.time ? new Date(d.time) : new Date(),
-          value: d.SUCCEEDED || 0,
-        };
-      });
+        if (d.SUCCEEDED) {
+          return {
+            date: d.time ? new Date(d.time) : new Date(),
+            value : d.SUCCEEDED,
+            type : 'SUCCEEDED',
+        }
+      }
+        if (d.FAILED) {
+          return {
+            date: d.time ? new Date(d.time) : new Date(),
+            value : d.FAILED,
+            type : 'FAILED',
+        }
+      }
+        if (d.RUNNING) {
+          return {
+            date: d.time ? new Date(d.time) : new Date(),
+            value : d.RUNNING,
+            type : 'RUNNING',
+        }
+
+      }});
 
       minuteEntries.forEach((entry) => {
         const found = data?.find(
           (m) =>
+            m &&
             Math.floor(m.date.getTime() / 1000) ===
-            Math.floor(entry.date.getTime() / 1000),
+            Math.floor(entry.date.getTime() / 1000) && m.type === entry.type,
         );
         if (found) {
-          entry.value = found.value;
+          entry.value = found.value || 0;
+
         }
       });
 
@@ -294,13 +333,13 @@ export function WorkflowRunsTable({
     }, [workflowRunEventsMetricsQuery.data]);
 
     if (data) {
-      console.log(data);
+      // console.log(data);
       return (
         <div
           ref={parentRef}
           className="w-full max-h-[25rem] min-h-[25rem] ml-8 px-14"
         >
-          <AreaChart kind="bar" data={data} width={width} height={height} />
+          <MultiBarChart kind="bar" data={data} width={width} height={height} />
         </div>
       );
     }

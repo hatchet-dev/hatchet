@@ -114,6 +114,5 @@ func (r *workflowRunEventEngineRepository) GetWorkflowRunEventMetrics(ctx contex
 	if err != nil {
 		return nil, err
 	}
-
 	return rows, nil
 }
