@@ -365,9 +365,8 @@ func (q *queue) runTenantWorkerSemaphores(ctx context.Context) func() {
 
 			if !ok {
 				op = &operation{
-					tenantId:     tenantId,
-					lastRun:      time.Now(),
-					lastSchedule: time.Now(),
+					tenantId: tenantId,
+					lastRun:  time.Now(),
 				}
 
 				q.tenantWorkerSemOperations.Store(tenantId, op)
