@@ -25,6 +25,26 @@ func (q *Queries) BulkQueueItems(ctx context.Context, db DBTX, ids []int64) erro
 	return err
 }
 
+const cleanupQueueItems = `-- name: CleanupQueueItems :exec
+DELETE FROM "QueueItem"
+WHERE "isQueued" = 'f'
+AND
+    "id" >= $1::bigint
+    AND "id" <= $2::bigint
+    AND "tenantId" = $3::uuid
+`
+
+type CleanupQueueItemsParams struct {
+	Minid    int64       `json:"minid"`
+	Maxid    int64       `json:"maxid"`
+	Tenantid pgtype.UUID `json:"tenantid"`
+}
+
+func (q *Queries) CleanupQueueItems(ctx context.Context, db DBTX, arg CleanupQueueItemsParams) error {
+	_, err := db.Exec(ctx, cleanupQueueItems, arg.Minid, arg.Maxid, arg.Tenantid)
+	return err
+}
+
 const createQueueItem = `-- name: CreateQueueItem :exec
 INSERT INTO
     "QueueItem" (
@@ -83,6 +103,29 @@ func (q *Queries) CreateQueueItem(ctx context.Context, db DBTX, arg CreateQueueI
 		arg.DesiredWorkerId,
 	)
 	return err
+}
+
+const getMinMaxProcessedQueueItems = `-- name: GetMinMaxProcessedQueueItems :one
+SELECT
+    COALESCE(MIN("id"), 0)::bigint AS "minId",
+    COALESCE(MAX("id"), 0)::bigint AS "maxId"
+FROM
+    "QueueItem"
+WHERE
+    "isQueued" = 'f'
+    AND "tenantId" = $1::uuid
+`
+
+type GetMinMaxProcessedQueueItemsRow struct {
+	MinId int64 `json:"minId"`
+	MaxId int64 `json:"maxId"`
+}
+
+func (q *Queries) GetMinMaxProcessedQueueItems(ctx context.Context, db DBTX, tenantid pgtype.UUID) (*GetMinMaxProcessedQueueItemsRow, error) {
+	row := db.QueryRow(ctx, getMinMaxProcessedQueueItems, tenantid)
+	var i GetMinMaxProcessedQueueItemsRow
+	err := row.Scan(&i.MinId, &i.MaxId)
+	return &i, err
 }
 
 const listQueues = `-- name: ListQueues :many

@@ -151,14 +151,26 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile, runtime *server.Co
 		return nil, err
 	}
 
+	queueConfig, err := pgxpool.ParseConfig(databaseUrl)
+
+	if err != nil {
+		return nil, err
+	}
+
 	if cf.LogQueries {
 		config.ConnConfig.Tracer = &tracelog.TraceLog{
+			Logger:   pgxzero.NewLogger(l),
+			LogLevel: tracelog.LogLevelDebug,
+		}
+
+		queueConfig.ConnConfig.Tracer = &tracelog.TraceLog{
 			Logger:   pgxzero.NewLogger(l),
 			LogLevel: tracelog.LogLevelDebug,
 		}
 	}
 
 	config.ConnConfig.Tracer = otelpgx.NewTracer()
+	queueConfig.ConnConfig.Tracer = otelpgx.NewTracer()
 
 	if cf.MaxConns != 0 {
 		config.MaxConns = int32(cf.MaxConns)
@@ -168,7 +180,22 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile, runtime *server.Co
 		config.MinConns = int32(cf.MinConns)
 	}
 
+	if cf.MaxQueueConns != 0 {
+		queueConfig.MaxConns = int32(cf.MaxQueueConns)
+	}
+
+	if cf.MinQueueConns != 0 {
+		queueConfig.MinConns = int32(cf.MinQueueConns)
+	}
+
 	pool, err := pgxpool.NewWithConfig(context.Background(), config)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not connect to database: %w", err)
+	}
+
+	queuePool, err := pgxpool.NewWithConfig(context.Background(), queueConfig)
+
 	if err != nil {
 		return nil, fmt.Errorf("could not connect to database: %w", err)
 	}
@@ -186,8 +213,9 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile, runtime *server.Co
 			return c.Prisma.Disconnect()
 		},
 		Pool:                  pool,
+		QueuePool:             queuePool,
 		APIRepository:         prisma.NewAPIRepository(c, pool, prisma.WithLogger(&l), prisma.WithCache(ch), prisma.WithMetered(meter)),
-		EngineRepository:      prisma.NewEngineRepository(pool, runtime, prisma.WithLogger(&l), prisma.WithCache(ch), prisma.WithMetered(meter)),
+		EngineRepository:      prisma.NewEngineRepository(pool, queuePool, runtime, prisma.WithLogger(&l), prisma.WithCache(ch), prisma.WithMetered(meter)),
 		EntitlementRepository: entitlementRepo,
 		Seed:                  cf.Seed,
 	}, nil
@@ -410,6 +438,8 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 		Email:                  emailSvc,
 		TenantAlerter:          alerting.New(dc.EngineRepository, encryptionSvc, cf.Runtime.ServerURL, emailSvc),
 		AdditionalOAuthConfigs: additionalOAuthConfigs,
+		AdditionalLoggers:      cf.AdditionalLoggers,
+		EnableDataRetention:    cf.EnableDataRetention,
 	}, nil
 }
 

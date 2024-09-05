@@ -159,6 +159,9 @@ model ControllerPartition {
   // lastHeartbeat is used for rebalancing partitions
   lastHeartbeat DateTime?
 
+  // name of the partition
+  name String?
+
   tenants Tenant[]
 }
 
@@ -169,6 +172,9 @@ model TenantWorkerPartition {
 
   // lastHeartbeat is used for rebalancing partitions
   lastHeartbeat DateTime?
+
+  // name of the partition
+  name String?
 
   tenants Tenant[]
 }

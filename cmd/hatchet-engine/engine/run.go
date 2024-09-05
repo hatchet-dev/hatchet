@@ -204,6 +204,8 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig) ([]Teardown, er
 			jobs.WithRepository(sc.EngineRepository),
 			jobs.WithLogger(sc.Logger),
 			jobs.WithPartition(p),
+			jobs.WithQueueLoggerConfig(&sc.AdditionalLoggers.Queue),
+			jobs.WithPgxStatsLoggerConfig(&sc.AdditionalLoggers.PgxStats),
 		)
 
 		if err != nil {

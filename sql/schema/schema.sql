@@ -83,6 +83,7 @@ CREATE TABLE "ControllerPartition" (
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "lastHeartbeat" TIMESTAMP(3),
+    "name" TEXT,
 
     CONSTRAINT "ControllerPartition_pkey" PRIMARY KEY ("id")
 );
@@ -535,6 +536,7 @@ CREATE TABLE "TenantWorkerPartition" (
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "lastHeartbeat" TIMESTAMP(3),
+    "name" TEXT,
 
     CONSTRAINT "TenantWorkerPartition_pkey" PRIMARY KEY ("id")
 );

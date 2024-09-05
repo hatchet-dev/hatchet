@@ -30,12 +30,16 @@ type queue struct {
 	a    *hatcheterrors.Wrapped
 	p    *partition.Partition
 
+	// a custom queue logger
+	ql *zerolog.Logger
+
 	tenantOperations sync.Map
 }
 
 func newQueue(
 	mq msgqueue.MessageQueue,
 	l *zerolog.Logger,
+	ql *zerolog.Logger,
 	repo repository.EngineRepository,
 	dv datautils.DataDecoderValidator,
 	a *hatcheterrors.Wrapped,
@@ -55,6 +59,7 @@ func newQueue(
 		s:    s,
 		a:    a,
 		p:    p,
+		ql:   ql,
 	}, nil
 }
 
@@ -63,18 +68,19 @@ type operation struct {
 	shouldContinue bool
 	isRunning      bool
 	tenantId       string
+	lastRun        time.Time
 }
 
-func (o *operation) run(l *zerolog.Logger, scheduler func(context.Context, string) (bool, error)) {
+func (o *operation) run(l *zerolog.Logger, ql *zerolog.Logger, scheduler func(context.Context, string) (bool, error)) {
 	if o.getRunning() {
 		return
 	}
 
-	o.setRunning(true)
+	o.setRunning(true, ql)
 
 	go func() {
 		defer func() {
-			o.setRunning(false)
+			o.setRunning(false, ql)
 		}()
 
 		f := func() {
@@ -105,9 +111,15 @@ func (o *operation) run(l *zerolog.Logger, scheduler func(context.Context, strin
 	}()
 }
 
-func (o *operation) setRunning(isRunning bool) {
+func (o *operation) setRunning(isRunning bool, ql *zerolog.Logger) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
+
+	if isRunning {
+		ql.Info().Str("tenant_id", o.tenantId).TimeDiff("last_run", time.Now(), o.lastRun).Msg("running tenant queue")
+
+		o.lastRun = time.Now()
+	}
 
 	o.isRunning = isRunning
 }
@@ -226,7 +238,7 @@ func (q *queue) handleCheckQueue(ctx context.Context, task *msgqueue.Message) er
 		op := opInt.(*operation)
 
 		op.setContinue(true)
-		op.run(q.l, q.scheduleStepRuns)
+		op.run(q.l, q.ql, q.scheduleStepRuns)
 	}
 
 	return nil
@@ -254,6 +266,7 @@ func (q *queue) runTenantQueues(ctx context.Context) func() {
 			if !ok {
 				op = &operation{
 					tenantId: tenantId,
+					lastRun:  time.Now(),
 				}
 
 				q.tenantOperations.Store(tenantId, op)
@@ -261,7 +274,7 @@ func (q *queue) runTenantQueues(ctx context.Context) func() {
 				op = opInt.(*operation)
 			}
 
-			op.run(q.l, q.scheduleStepRuns)
+			op.run(q.l, q.ql, q.scheduleStepRuns)
 		}
 	}
 }
@@ -273,7 +286,7 @@ func (q *queue) scheduleStepRuns(ctx context.Context, tenantId string) (bool, er
 	dbCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	queueResults, err := q.repo.StepRun().QueueStepRuns(dbCtx, tenantId)
+	queueResults, err := q.repo.StepRun().QueueStepRuns(dbCtx, q.ql, tenantId)
 
 	if err != nil {
 		return false, fmt.Errorf("could not queue step runs: %w", err)
