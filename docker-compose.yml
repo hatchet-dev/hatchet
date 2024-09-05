@@ -1,4 +1,3 @@
-version: "3.8"
 services:
   postgres:
     image: postgres:15.6
@@ -15,11 +14,12 @@ services:
     volumes:
       - hatchet_postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready", "-d", "hatchet"]
+      test: pg_isready -U hatchet
       interval: 10s
       timeout: 10s
       retries: 5
       start_period: 10s
+    shm_size: 4g
   rabbitmq:
     image: "rabbitmq:3-management"
     hostname: "rabbitmq"
