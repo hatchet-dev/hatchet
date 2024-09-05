@@ -730,6 +730,90 @@ func (q *Queries) GetScheduledChildWorkflowRun(ctx context.Context, db DBTX, arg
 	return &i, err
 }
 
+const getStepRunsForJobRuns = `-- name: GetStepRunsForJobRuns :many
+SELECT
+	sr."id",
+	sr."createdAt",
+	sr."updatedAt",
+	sr."status",
+    sr."jobRunId",
+    sr."stepId",
+    sr."tenantId",
+    sr."startedAt",
+    sr."finishedAt",
+    sr."cancelledAt",
+    sr."cancelledError",
+    sr."cancelledReason",
+    sr."timeoutAt",
+    sr."error",
+    sr."workerId"
+FROM "StepRun" sr
+WHERE
+	sr."jobRunId" = ANY($1::uuid[])
+    AND sr."tenantId" = $2::uuid
+    AND sr."deletedAt" IS NULL
+ORDER BY sr."order" DESC
+`
+
+type GetStepRunsForJobRunsParams struct {
+	Jobids   []pgtype.UUID `json:"jobids"`
+	Tenantid pgtype.UUID   `json:"tenantid"`
+}
+
+type GetStepRunsForJobRunsRow struct {
+	ID              pgtype.UUID      `json:"id"`
+	CreatedAt       pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt       pgtype.Timestamp `json:"updatedAt"`
+	Status          StepRunStatus    `json:"status"`
+	JobRunId        pgtype.UUID      `json:"jobRunId"`
+	StepId          pgtype.UUID      `json:"stepId"`
+	TenantId        pgtype.UUID      `json:"tenantId"`
+	StartedAt       pgtype.Timestamp `json:"startedAt"`
+	FinishedAt      pgtype.Timestamp `json:"finishedAt"`
+	CancelledAt     pgtype.Timestamp `json:"cancelledAt"`
+	CancelledError  pgtype.Text      `json:"cancelledError"`
+	CancelledReason pgtype.Text      `json:"cancelledReason"`
+	TimeoutAt       pgtype.Timestamp `json:"timeoutAt"`
+	Error           pgtype.Text      `json:"error"`
+	WorkerId        pgtype.UUID      `json:"workerId"`
+}
+
+func (q *Queries) GetStepRunsForJobRuns(ctx context.Context, db DBTX, arg GetStepRunsForJobRunsParams) ([]*GetStepRunsForJobRunsRow, error) {
+	rows, err := db.Query(ctx, getStepRunsForJobRuns, arg.Jobids, arg.Tenantid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*GetStepRunsForJobRunsRow
+	for rows.Next() {
+		var i GetStepRunsForJobRunsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Status,
+			&i.JobRunId,
+			&i.StepId,
+			&i.TenantId,
+			&i.StartedAt,
+			&i.FinishedAt,
+			&i.CancelledAt,
+			&i.CancelledError,
+			&i.CancelledReason,
+			&i.TimeoutAt,
+			&i.Error,
+			&i.WorkerId,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getStepsForJobs = `-- name: GetStepsForJobs :many
 SELECT
 	j."id" as "jobId",

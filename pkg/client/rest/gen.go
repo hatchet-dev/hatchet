@@ -1157,22 +1157,6 @@ type WorkflowRunShape struct {
 	WorkflowVersionId  string                  `json:"workflowVersionId"`
 }
 
-// WorkflowRunState defines model for WorkflowRunState.
-type WorkflowRunState struct {
-	AdditionalMetadata *map[string]interface{} `json:"additionalMetadata,omitempty"`
-	Duration           *int                    `json:"duration,omitempty"`
-	Error              *string                 `json:"error,omitempty"`
-	FinishedAt         *time.Time              `json:"finishedAt,omitempty"`
-	Input              *map[string]interface{} `json:"input,omitempty"`
-	JobRuns            *[]JobRun               `json:"jobRuns,omitempty"`
-	Metadata           APIResourceMeta         `json:"metadata"`
-	ParentId           *openapi_types.UUID     `json:"parentId,omitempty"`
-	ParentStepRunId    *openapi_types.UUID     `json:"parentStepRunId,omitempty"`
-	StartedAt          *time.Time              `json:"startedAt,omitempty"`
-	Status             WorkflowRunStatus       `json:"status"`
-	TenantId           string                  `json:"tenantId"`
-}
-
 // WorkflowRunStatus defines model for WorkflowRunStatus.
 type WorkflowRunStatus string
 
@@ -1342,10 +1326,10 @@ type TenantGetQueueMetricsParams struct {
 	AdditionalMetadata *[]string `form:"additionalMetadata,omitempty" json:"additionalMetadata,omitempty"`
 }
 
-// WorkflowRunGetStateParams defines parameters for WorkflowRunGetState.
-type WorkflowRunGetStateParams struct {
-	// EventsAfter eventsAfter
-	EventsAfter *time.Time `form:"eventsAfter,omitempty" json:"eventsAfter,omitempty"`
+// WorkflowRunListStepRunEventsParams defines parameters for WorkflowRunListStepRunEvents.
+type WorkflowRunListStepRunEventsParams struct {
+	// LastId Last ID of the last event
+	LastId *int32 `form:"lastId,omitempty" json:"lastId,omitempty"`
 }
 
 // WorkflowRunListParams defines parameters for WorkflowRunList.
@@ -1750,8 +1734,8 @@ type ClientInterface interface {
 	// WorkflowRunGetShape request
 	WorkflowRunGetShape(ctx context.Context, tenant openapi_types.UUID, workflowRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// WorkflowRunGetState request
-	WorkflowRunGetState(ctx context.Context, tenant openapi_types.UUID, workflowRun openapi_types.UUID, params *WorkflowRunGetStateParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// WorkflowRunListStepRunEvents request
+	WorkflowRunListStepRunEvents(ctx context.Context, tenant openapi_types.UUID, workflowRun openapi_types.UUID, params *WorkflowRunListStepRunEventsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// WorkflowList request
 	WorkflowList(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -2595,8 +2579,8 @@ func (c *Client) WorkflowRunGetShape(ctx context.Context, tenant openapi_types.U
 	return c.Client.Do(req)
 }
 
-func (c *Client) WorkflowRunGetState(ctx context.Context, tenant openapi_types.UUID, workflowRun openapi_types.UUID, params *WorkflowRunGetStateParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewWorkflowRunGetStateRequest(c.Server, tenant, workflowRun, params)
+func (c *Client) WorkflowRunListStepRunEvents(ctx context.Context, tenant openapi_types.UUID, workflowRun openapi_types.UUID, params *WorkflowRunListStepRunEventsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWorkflowRunListStepRunEventsRequest(c.Server, tenant, workflowRun, params)
 	if err != nil {
 		return nil, err
 	}
@@ -5263,8 +5247,8 @@ func NewWorkflowRunGetShapeRequest(server string, tenant openapi_types.UUID, wor
 	return req, nil
 }
 
-// NewWorkflowRunGetStateRequest generates requests for WorkflowRunGetState
-func NewWorkflowRunGetStateRequest(server string, tenant openapi_types.UUID, workflowRun openapi_types.UUID, params *WorkflowRunGetStateParams) (*http.Request, error) {
+// NewWorkflowRunListStepRunEventsRequest generates requests for WorkflowRunListStepRunEvents
+func NewWorkflowRunListStepRunEventsRequest(server string, tenant openapi_types.UUID, workflowRun openapi_types.UUID, params *WorkflowRunListStepRunEventsParams) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -5286,7 +5270,7 @@ func NewWorkflowRunGetStateRequest(server string, tenant openapi_types.UUID, wor
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/tenants/%s/workflow-runs/%s/state", pathParam0, pathParam1)
+	operationPath := fmt.Sprintf("/api/v1/tenants/%s/workflow-runs/%s/step-run-events", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -5299,9 +5283,9 @@ func NewWorkflowRunGetStateRequest(server string, tenant openapi_types.UUID, wor
 	if params != nil {
 		queryValues := queryURL.Query()
 
-		if params.EventsAfter != nil {
+		if params.LastId != nil {
 
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "eventsAfter", runtime.ParamLocationQuery, *params.EventsAfter); err != nil {
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "lastId", runtime.ParamLocationQuery, *params.LastId); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err
@@ -6902,8 +6886,8 @@ type ClientWithResponsesInterface interface {
 	// WorkflowRunGetShapeWithResponse request
 	WorkflowRunGetShapeWithResponse(ctx context.Context, tenant openapi_types.UUID, workflowRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkflowRunGetShapeResponse, error)
 
-	// WorkflowRunGetStateWithResponse request
-	WorkflowRunGetStateWithResponse(ctx context.Context, tenant openapi_types.UUID, workflowRun openapi_types.UUID, params *WorkflowRunGetStateParams, reqEditors ...RequestEditorFn) (*WorkflowRunGetStateResponse, error)
+	// WorkflowRunListStepRunEventsWithResponse request
+	WorkflowRunListStepRunEventsWithResponse(ctx context.Context, tenant openapi_types.UUID, workflowRun openapi_types.UUID, params *WorkflowRunListStepRunEventsParams, reqEditors ...RequestEditorFn) (*WorkflowRunListStepRunEventsResponse, error)
 
 	// WorkflowListWithResponse request
 	WorkflowListWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkflowListResponse, error)
@@ -8178,16 +8162,17 @@ func (r WorkflowRunGetShapeResponse) StatusCode() int {
 	return 0
 }
 
-type WorkflowRunGetStateResponse struct {
+type WorkflowRunListStepRunEventsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *WorkflowRunState
+	JSON200      *StepRunEventList
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON404      *APIErrors
 }
 
 // Status returns HTTPResponse.Status
-func (r WorkflowRunGetStateResponse) Status() string {
+func (r WorkflowRunListStepRunEventsResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -8195,7 +8180,7 @@ func (r WorkflowRunGetStateResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r WorkflowRunGetStateResponse) StatusCode() int {
+func (r WorkflowRunListStepRunEventsResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -9390,13 +9375,13 @@ func (c *ClientWithResponses) WorkflowRunGetShapeWithResponse(ctx context.Contex
 	return ParseWorkflowRunGetShapeResponse(rsp)
 }
 
-// WorkflowRunGetStateWithResponse request returning *WorkflowRunGetStateResponse
-func (c *ClientWithResponses) WorkflowRunGetStateWithResponse(ctx context.Context, tenant openapi_types.UUID, workflowRun openapi_types.UUID, params *WorkflowRunGetStateParams, reqEditors ...RequestEditorFn) (*WorkflowRunGetStateResponse, error) {
-	rsp, err := c.WorkflowRunGetState(ctx, tenant, workflowRun, params, reqEditors...)
+// WorkflowRunListStepRunEventsWithResponse request returning *WorkflowRunListStepRunEventsResponse
+func (c *ClientWithResponses) WorkflowRunListStepRunEventsWithResponse(ctx context.Context, tenant openapi_types.UUID, workflowRun openapi_types.UUID, params *WorkflowRunListStepRunEventsParams, reqEditors ...RequestEditorFn) (*WorkflowRunListStepRunEventsResponse, error) {
+	rsp, err := c.WorkflowRunListStepRunEvents(ctx, tenant, workflowRun, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseWorkflowRunGetStateResponse(rsp)
+	return ParseWorkflowRunListStepRunEventsResponse(rsp)
 }
 
 // WorkflowListWithResponse request returning *WorkflowListResponse
@@ -11650,22 +11635,22 @@ func ParseWorkflowRunGetShapeResponse(rsp *http.Response) (*WorkflowRunGetShapeR
 	return response, nil
 }
 
-// ParseWorkflowRunGetStateResponse parses an HTTP response from a WorkflowRunGetStateWithResponse call
-func ParseWorkflowRunGetStateResponse(rsp *http.Response) (*WorkflowRunGetStateResponse, error) {
+// ParseWorkflowRunListStepRunEventsResponse parses an HTTP response from a WorkflowRunListStepRunEventsWithResponse call
+func ParseWorkflowRunListStepRunEventsResponse(rsp *http.Response) (*WorkflowRunListStepRunEventsResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &WorkflowRunGetStateResponse{
+	response := &WorkflowRunListStepRunEventsResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest WorkflowRunState
+		var dest StepRunEventList
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -11684,6 +11669,13 @@ func ParseWorkflowRunGetStateResponse(rsp *http.Response) (*WorkflowRunGetStateR
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	}
 

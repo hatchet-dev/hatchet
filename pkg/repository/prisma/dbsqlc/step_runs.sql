@@ -861,6 +861,24 @@ OFFSET
 LIMIT
     COALESCE(sqlc.narg('limit'), 50);
 
+
+-- name: ListStepRunEventsByWorkflowRunId :many
+SELECT
+    sre.*
+FROM
+    "StepRunEvent" sre
+JOIN
+    "StepRun" sr ON sr."id" = sre."stepRunId"
+JOIN
+    "JobRun" jr ON jr."id" = sr."jobRunId"
+WHERE
+    jr."workflowRunId" = @workflowRunId::uuid
+    AND jr."tenantId" = @tenantId::uuid
+    AND sre."id" > COALESCE(sqlc.narg('lastId'), 0)
+    -- / TODO ID > Last ID
+ORDER BY
+    sre."id" DESC;
+
 -- name: ReplayStepRunResetWorkflowRun :one
 UPDATE
     "WorkflowRun"

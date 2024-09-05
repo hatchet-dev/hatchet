@@ -116,13 +116,7 @@ func (t *StepRunService) StepRunUpdateRerun(ctx echo.Context, request gen.StepRu
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	res, err := transformers.ToStepRun(stepRun)
-
-	if err != nil {
-		return nil, fmt.Errorf("could not transform step run: %w", err)
-	}
-
 	return gen.StepRunUpdateRerun200JSONResponse(
-		*res,
+		*transformers.ToStepRunFull(stepRun),
 	), nil
 }

@@ -145,6 +145,19 @@ func (w *workflowRunAPIRepository) GetStepsForJobs(ctx context.Context, tenantId
 	})
 }
 
+func (w *workflowRunAPIRepository) GetStepRunsForJobRuns(ctx context.Context, tenantId string, jobRunIds []string) ([]*dbsqlc.GetStepRunsForJobRunsRow, error) {
+	jobRunIdsPg := make([]pgtype.UUID, len(jobRunIds))
+
+	for i := range jobRunIds {
+		jobRunIdsPg[i] = sqlchelpers.UUIDFromStr(jobRunIds[i])
+	}
+
+	return w.queries.GetStepRunsForJobRuns(ctx, w.pool, dbsqlc.GetStepRunsForJobRunsParams{
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Jobids:   jobRunIdsPg,
+	})
+}
+
 type workflowRunEngineRepository struct {
 	pool    *pgxpool.Pool
 	v       validator.Validator

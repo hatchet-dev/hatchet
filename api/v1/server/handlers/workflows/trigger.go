@@ -115,7 +115,7 @@ func (t *WorkflowService) WorkflowRunCreate(ctx echo.Context, request gen.Workfl
 		return nil, fmt.Errorf("could not get workflow run: %w", err)
 	}
 
-	res, err := transformers.ToWorkflowRun(workflowRun, nil, nil)
+	res, err := transformers.ToWorkflowRun(workflowRun, nil, nil, nil)
 
 	if err != nil {
 		return nil, err

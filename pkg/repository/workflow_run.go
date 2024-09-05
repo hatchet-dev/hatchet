@@ -393,6 +393,8 @@ type WorkflowRunAPIRepository interface {
 	GetWorkflowRunById(ctx context.Context, tenantId, runId string) (*dbsqlc.GetWorkflowRunByIdRow, error)
 
 	GetStepsForJobs(ctx context.Context, tenantId string, jobIds []string) ([]*dbsqlc.GetStepsForJobsRow, error)
+
+	GetStepRunsForJobRuns(ctx context.Context, tenantId string, jobRunIds []string) ([]*dbsqlc.GetStepRunsForJobRunsRow, error)
 }
 
 var (

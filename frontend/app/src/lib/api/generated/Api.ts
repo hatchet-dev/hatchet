@@ -85,7 +85,6 @@ import {
   WorkflowRunsCancelRequest,
   WorkflowRunShape,
   WorkflowRunsMetrics,
-  WorkflowRunState,
   WorkflowRunStatus,
   WorkflowRunStatusList,
   WorkflowVersion,
@@ -1211,6 +1210,35 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       ...params,
     });
   /**
+   * @description List events for all step runs for a workflow run
+   *
+   * @tags Step Run
+   * @name WorkflowRunListStepRunEvents
+   * @summary List events for all step runs for a workflow run
+   * @request GET:/api/v1/tenants/{tenant}/workflow-runs/{workflow-run}/step-run-events
+   * @secure
+   */
+  workflowRunListStepRunEvents = (
+    tenant: string,
+    workflowRun: string,
+    query?: {
+      /**
+       * Last ID of the last event
+       * @format int32
+       */
+      lastId?: number;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<StepRunEventList, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/workflow-runs/${workflowRun}/step-run-events`,
+      method: 'GET',
+      query: query,
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
    * @description List archives for a step run
    *
    * @tags Step Run
@@ -1446,35 +1474,6 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
     this.request<WorkflowRunShape, APIErrors>({
       path: `/api/v1/tenants/${tenant}/workflow-runs/${workflowRun}/shape`,
       method: 'GET',
-      secure: true,
-      format: 'json',
-      ...params,
-    });
-  /**
-   * @description Get a workflow run for a tenant
-   *
-   * @tags Workflow
-   * @name WorkflowRunGetState
-   * @summary Get workflow run
-   * @request GET:/api/v1/tenants/{tenant}/workflow-runs/{workflow-run}/state
-   * @secure
-   */
-  workflowRunGetState = (
-    tenant: string,
-    workflowRun: string,
-    query?: {
-      /**
-       * eventsAfter
-       * @format date-time
-       */
-      eventsAfter?: string;
-    },
-    params: RequestParams = {},
-  ) =>
-    this.request<WorkflowRunState, APIErrors>({
-      path: `/api/v1/tenants/${tenant}/workflow-runs/${workflowRun}/state`,
-      method: 'GET',
-      query: query,
       secure: true,
       format: 'json',
       ...params,

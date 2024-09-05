@@ -120,6 +120,8 @@ paths:
     $ref: "./paths/log/log.yaml#/withStepRun"
   /api/v1/step-runs/{step-run}/events:
     $ref: "./paths/step-run/step-run.yaml#/listEvents"
+  /api/v1/tenants/{tenant}/workflow-runs/{workflow-run}/step-run-events:
+    $ref: "./paths/step-run/step-run.yaml#/listStepRunEventsForWorkflowRun"
   /api/v1/step-runs/{step-run}/archives:
     $ref: "./paths/step-run/step-run.yaml#/listArchives"
   /api/v1/tenants/{tenant}/workflows/runs:
@@ -132,8 +134,6 @@ paths:
     $ref: "./paths/workflow/workflow.yaml#/workflowRun"
   /api/v1/tenants/{tenant}/workflow-runs/{workflow-run}/shape:
     $ref: "./paths/workflow/workflow.yaml#/workflowRunShape"
-  /api/v1/tenants/{tenant}/workflow-runs/{workflow-run}/state:
-    $ref: "./paths/workflow/workflow.yaml#/workflowRunState"
   /api/v1/tenants/{tenant}/step-runs/{step-run}:
     $ref: "./paths/step-run/step-run.yaml#/stepRunScoped"
   /api/v1/tenants/{tenant}/step-runs/{step-run}/rerun:

@@ -22,7 +22,7 @@ func (t *WorkflowService) WorkflowRunGet(ctx echo.Context, request gen.WorkflowR
 		return nil, err
 	}
 
-	resp, err := transformers.ToWorkflowRun(run, jobs, nil)
+	resp, err := transformers.ToWorkflowRun(run, jobs, nil, nil)
 
 	if err != nil {
 		return nil, err

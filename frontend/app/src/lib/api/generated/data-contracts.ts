@@ -671,36 +671,6 @@ export interface WorkflowRunShape {
   additionalMetadata?: Record<string, any>;
 }
 
-export interface WorkflowRunState {
-  metadata: APIResourceMeta;
-  tenantId: string;
-  status: WorkflowRunStatus;
-  jobRuns?: JobRun[];
-  input?: Record<string, any>;
-  error?: string;
-  /** @format date-time */
-  startedAt?: string;
-  /** @format date-time */
-  finishedAt?: string;
-  /** @example 1000 */
-  duration?: number;
-  /**
-   * @format uuid
-   * @minLength 36
-   * @maxLength 36
-   * @example "bb214807-246e-43a5-a25d-41761d1cff9e"
-   */
-  parentId?: string;
-  /**
-   * @format uuid
-   * @minLength 36
-   * @maxLength 36
-   * @example "bb214807-246e-43a5-a25d-41761d1cff9e"
-   */
-  parentStepRunId?: string;
-  additionalMetadata?: Record<string, any>;
-}
-
 export interface ReplayWorkflowRunsRequest {
   /** @maxLength 500 */
   workflowRunIds: string[];

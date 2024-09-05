@@ -935,3 +935,27 @@ WHERE
     j."id" = ANY(@jobIds::uuid[])
     AND j."tenantId" = @tenantId::uuid
     AND j."deletedAt" IS NULL;
+
+-- name: GetStepRunsForJobRuns :many
+SELECT
+	sr."id",
+	sr."createdAt",
+	sr."updatedAt",
+	sr."status",
+    sr."jobRunId",
+    sr."stepId",
+    sr."tenantId",
+    sr."startedAt",
+    sr."finishedAt",
+    sr."cancelledAt",
+    sr."cancelledError",
+    sr."cancelledReason",
+    sr."timeoutAt",
+    sr."error",
+    sr."workerId"
+FROM "StepRun" sr
+WHERE
+	sr."jobRunId" = ANY(@jobIds::uuid[])
+    AND sr."tenantId" = @tenantId::uuid
+    AND sr."deletedAt" IS NULL
+ORDER BY sr."order" DESC;

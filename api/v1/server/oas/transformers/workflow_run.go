@@ -12,43 +12,12 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 )
 
-func ToWorkflowRunState(
-	run *dbsqlc.GetWorkflowRunByIdRow,
-	jobs []*dbsqlc.ListJobRunsForWorkflowRunFullRow,
-	steps []*dbsqlc.GetStepsForJobsRow,
-) *gen.WorkflowRunState {
-	res := &gen.WorkflowRunState{
-		Metadata: *toAPIMetadata(
-			sqlchelpers.UUIDToStr(run.ID),
-			run.CreatedAt.Time,
-			run.UpdatedAt.Time,
-		),
-		TenantId:   sqlchelpers.UUIDToStr(run.TenantId),
-		StartedAt:  &run.StartedAt.Time,
-		FinishedAt: &run.FinishedAt.Time,
-		Error:      &run.Error.String,
-		Status:     gen.WorkflowRunStatus(run.Status),
-	}
-
-	if jobs != nil {
-		jobRuns := make([]gen.JobRun, 0)
-
-		for _, jobRun := range jobs {
-			jobRunCp := *jobRun
-			jobRuns = append(jobRuns, *ToJobRun(&jobRunCp, steps))
-		}
-
-		res.JobRuns = &jobRuns
-	}
-
-	return res
-}
-
 func ToWorkflowRunShape(
 	run *dbsqlc.GetWorkflowRunByIdRow,
 	version *dbsqlc.GetWorkflowVersionByIdRow,
 	jobs []*dbsqlc.ListJobRunsForWorkflowRunFullRow,
 	steps []*dbsqlc.GetStepsForJobsRow,
+	stepRuns []*dbsqlc.GetStepRunsForJobRunsRow,
 ) *gen.WorkflowRunShape {
 	res := &gen.WorkflowRunShape{
 		Metadata: *toAPIMetadata(
@@ -76,7 +45,7 @@ func ToWorkflowRunShape(
 
 		for _, jobRun := range jobs {
 			jobRunCp := *jobRun
-			jobRuns = append(jobRuns, *ToJobRun(&jobRunCp, steps))
+			jobRuns = append(jobRuns, *ToJobRun(&jobRunCp, steps, stepRuns))
 
 		}
 
@@ -90,6 +59,7 @@ func ToWorkflowRun(
 	run *dbsqlc.GetWorkflowRunByIdRow,
 	jobs []*dbsqlc.ListJobRunsForWorkflowRunFullRow,
 	steps []*dbsqlc.GetStepsForJobsRow,
+	stepRuns []*dbsqlc.GetStepRunsForJobRunsRow,
 ) (*gen.WorkflowRun, error) {
 	res := &gen.WorkflowRun{
 		Metadata: *toAPIMetadata(
@@ -117,7 +87,7 @@ func ToWorkflowRun(
 
 		for _, jobRun := range jobs {
 			jobRunCp := *jobRun
-			jobRuns = append(jobRuns, *ToJobRun(&jobRunCp, steps))
+			jobRuns = append(jobRuns, *ToJobRun(&jobRunCp, steps, stepRuns))
 		}
 
 		res.JobRuns = &jobRuns
@@ -129,6 +99,7 @@ func ToWorkflowRun(
 func ToJobRun(
 	jobRun *dbsqlc.ListJobRunsForWorkflowRunFullRow,
 	steps []*dbsqlc.GetStepsForJobsRow,
+	stepRuns []*dbsqlc.GetStepRunsForJobRunsRow,
 ) *gen.JobRun {
 	res := &gen.JobRun{
 		Metadata: *toAPIMetadata(
@@ -150,44 +121,25 @@ func ToJobRun(
 
 	res.Job = ToJob(&jobRun.Job, steps)
 
-	// if jobRun.RelationsJobRun.WorkflowRun != nil {
-	// 	var err error
-	// 	workflowRun := jobRun.WorkflowRun()
-	// 	res.WorkflowRun, err = ToWorkflowRun(workflowRun)
+	resStepRuns := make([]gen.StepRun, 0)
 
-	// 	if err != nil {
-	// 		return nil, err
-	// 	}
-	// }
+	for _, stepRun := range stepRuns {
 
-	// if stepRuns := jobRun.StepRuns; stepRuns != nil {
+		if stepRun.JobRunId != jobRun.ID {
+			continue
+		}
 
-	// 	orderedStepRuns := stepRuns
+		stepRunCp := stepRun
+		genStepRun := ToStepRun(stepRunCp)
+		resStepRuns = append(resStepRuns, *genStepRun)
+	}
 
-	// 	sort.SliceStable(orderedStepRuns, func(i, j int) bool {
-	// 		return orderedStepRuns[i].Order < orderedStepRuns[j].Order
-	// 	})
-
-	// 	stepRuns := make([]gen.StepRun, 0)
-
-	// 	for _, stepRun := range orderedStepRuns {
-	// 		stepRunCp := stepRun
-	// 		genStepRun, err := ToStepRun(&stepRunCp)
-
-	// 		if err != nil {
-	// 			return nil, err
-	// 		}
-
-	// 		stepRuns = append(stepRuns, *genStepRun)
-	// 	}
-
-	// 	res.StepRuns = &stepRuns
-	// }
+	res.StepRuns = &resStepRuns
 
 	return res
 }
 
-func ToStepRun(stepRun *dbsqlc.StepRun) (*gen.StepRun, error) {
+func ToStepRunFull(stepRun *dbsqlc.StepRun) *gen.StepRun {
 	res := &gen.StepRun{
 		Metadata: *toAPIMetadata(
 			sqlchelpers.UUIDToStr(stepRun.ID),
@@ -212,41 +164,37 @@ func ToStepRun(stepRun *dbsqlc.StepRun) (*gen.StepRun, error) {
 		res.WorkerId = &workerId
 	}
 
-	// if stepRun.RelationsStepRun.Step != nil {
-	// 	step := stepRun.Step()
+	// TODO input/output
 
-	// 	res.Step = ToStep(step)
-	// }
+	return res
+}
 
-	// if stepRun.RelationsStepRun.ChildWorkflowRuns != nil {
-	// 	childWorkflowRuns := make([]string, 0)
+func ToStepRun(stepRun *dbsqlc.GetStepRunsForJobRunsRow) *gen.StepRun {
+	res := &gen.StepRun{
+		Metadata: *toAPIMetadata(
+			sqlchelpers.UUIDToStr(stepRun.ID),
+			stepRun.CreatedAt.Time,
+			stepRun.UpdatedAt.Time,
+		),
+		Status:          gen.StepRunStatus(stepRun.Status),
+		StepId:          sqlchelpers.UUIDToStr(stepRun.StepId),
+		TenantId:        sqlchelpers.UUIDToStr(stepRun.TenantId),
+		JobRunId:        sqlchelpers.UUIDToStr(stepRun.JobRunId),
+		StartedAt:       &stepRun.StartedAt.Time,
+		FinishedAt:      &stepRun.FinishedAt.Time,
+		CancelledAt:     &stepRun.CancelledAt.Time,
+		CancelledError:  &stepRun.CancelledError.String,
+		CancelledReason: &stepRun.CancelledReason.String,
+		TimeoutAt:       &stepRun.TimeoutAt.Time,
+		Error:           &stepRun.Error.String,
+	}
 
-	// 	for _, childWorkflowRun := range stepRun.ChildWorkflowRuns() {
-	// 		childWorkflowRuns = append(childWorkflowRuns, childWorkflowRun.ID)
-	// 	}
+	if stepRun.WorkerId.Valid {
+		workerId := sqlchelpers.UUIDToStr(stepRun.WorkerId)
+		res.WorkerId = &workerId
+	}
 
-	// 	res.ChildWorkflowRuns = &childWorkflowRuns
-	// }
-
-	// if inputData, ok := stepRun.Input(); ok {
-	// 	res.Input = repository.StringPtr(string(json.RawMessage(inputData)))
-	// }
-
-	// if outputData, ok := stepRun.Output(); ok {
-	// 	res.Output = repository.StringPtr(string(json.RawMessage(outputData)))
-	// }
-
-	// if jobRun := stepRun.RelationsStepRun.JobRun; jobRun != nil {
-	// 	var err error
-
-	// 	res.JobRun, err = ToJobRun(jobRun)
-
-	// 	if err != nil {
-	// 		return nil, err
-	// 	}
-	// }
-
-	return res, nil
+	return res
 }
 
 func ToRecentStepRun(stepRun *dbsqlc.ListRecentStepRunsForWorkerRow) (*gen.RecentStepRuns, error) {

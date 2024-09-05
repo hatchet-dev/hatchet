@@ -9,9 +9,8 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import StepRunNode, { StepRunNodeProps } from './step-run-node';
-import { StepRun, StepRunStatus, WorkflowRun } from '@/lib/api';
+import { StepRun, StepRunStatus, WorkflowRunShape } from '@/lib/api';
 import dagre from 'dagre';
-import invariant from 'tiny-invariant';
 import { useTheme } from '@/components/theme-provider';
 
 const initBgColorDark = '#050c1c';
@@ -29,7 +28,7 @@ const WorkflowRunVisualizer = ({
   selectedStepRun,
   setSelectedStepRun,
 }: {
-  workflowRun: WorkflowRun;
+  workflowRun: WorkflowRunShape;
   selectedStepRun?: StepRun;
   setSelectedStepRun: (stepRun: StepRun) => void;
 }) => {
@@ -42,43 +41,30 @@ const WorkflowRunVisualizer = ({
 
   useEffect(() => {
     const stepEdges =
-      workflowRun.jobRuns
-        ?.map((job) => {
-          return (job.stepRuns || [])
-            .map((stepRun: StepRun) => {
-              invariant(stepRun.step, 'has step');
-
-              return (
-                stepRun.step.parents
-                  ?.map((parent) => {
-                    invariant(stepRun.step, 'has step');
-
-                    return {
-                      id: `${parent}-${stepRun.step.metadata.id}`,
-                      source: parent,
-                      target: stepRun.step.metadata.id,
-                      animated: stepRun.status === StepRunStatus.RUNNING,
-                      markerEnd: {
-                        type: MarkerType.ArrowClosed,
-                      },
-                    };
-                  })
-                  .flat() || []
-              );
-            })
-            .flat();
-        })
-        .flat() || [];
+      workflowRun.jobRuns?.flatMap((job) =>
+        (job.stepRuns || [])
+          .filter((stepRun) => stepRun.step)
+          .flatMap((stepRun: StepRun) =>
+            (stepRun.step?.parents || []).map((parent) => ({
+              id: `${parent}-${stepRun.step?.metadata.id}`,
+              source: parent,
+              target: stepRun.step?.metadata.id,
+              animated: stepRun.status === StepRunStatus.RUNNING,
+              markerEnd: {
+                type: MarkerType.ArrowClosed,
+              },
+            })),
+          ),
+      ) || [];
 
     const stepNodes =
-      workflowRun.jobRuns
-        ?.map((jobRun) => {
-          return (jobRun.stepRuns || []).map((stepRun) => {
-            invariant(stepRun.step, 'has step');
-            const hasChild = stepEdges.some((edge) => {
-              invariant(stepRun.step, 'has step');
-              return edge?.source === stepRun.step.metadata.id;
-            });
+      workflowRun.jobRuns?.flatMap((jobRun) =>
+        (jobRun.stepRuns || [])
+          .filter((stepRun) => stepRun.step)
+          .map((stepRun) => {
+            const hasChild = stepEdges.some(
+              (edge) => edge?.source === stepRun.step?.metadata.id,
+            );
             const hasParent =
               stepRun.step?.parents?.length && stepRun.step.parents.length > 0;
 
@@ -107,9 +93,8 @@ const WorkflowRunVisualizer = ({
               position: { x: 0, y: 0 }, // positioning gets set by dagre later
               data,
             };
-          });
-        })
-        .flat() || [];
+          }),
+      ) || [];
 
     setNodes(stepNodes);
     setEdges(stepEdges);

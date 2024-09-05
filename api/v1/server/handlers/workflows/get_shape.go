@@ -18,7 +18,7 @@ func (t *WorkflowService) WorkflowRunGetShape(ctx echo.Context, request gen.Work
 	reqCtx, cancel := context.WithTimeout(ctx.Request().Context(), 5*time.Second)
 	defer cancel()
 
-	jobs, err := t.config.APIRepository.JobRun().ListJobRunByWorkflowRunId(
+	jobRuns, err := t.config.APIRepository.JobRun().ListJobRunByWorkflowRunId(
 		reqCtx,
 		sqlchelpers.UUIDToStr(run.TenantId),
 		sqlchelpers.UUIDToStr(run.ID),
@@ -37,12 +37,15 @@ func (t *WorkflowService) WorkflowRunGetShape(ctx echo.Context, request gen.Work
 		return nil, err
 	}
 
-	jobIds := make([]string, len(jobs))
+	jobIds := make([]string, len(jobRuns))
+	jobRunIds := make([]string, len(jobRuns))
 
-	for i := range jobs {
-		jobIds[i] = sqlchelpers.UUIDToStr(jobs[i].JobId)
+	for i := range jobRuns {
+		jobIds[i] = sqlchelpers.UUIDToStr(jobRuns[i].JobId)
+		jobRunIds[i] = sqlchelpers.UUIDToStr(jobRuns[i].ID)
 	}
 
+	// Shape of DAG
 	steps, err := t.config.APIRepository.WorkflowRun().GetStepsForJobs(
 		reqCtx,
 		sqlchelpers.UUIDToStr(run.TenantId),
@@ -53,12 +56,25 @@ func (t *WorkflowService) WorkflowRunGetShape(ctx echo.Context, request gen.Work
 		return nil, err
 	}
 
+	// step runs
+
+	stepRuns, err := t.config.APIRepository.WorkflowRun().GetStepRunsForJobRuns(
+		reqCtx,
+		sqlchelpers.UUIDToStr(run.TenantId),
+		jobRunIds,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
 	return gen.WorkflowRunGetShape200JSONResponse(
 		*transformers.ToWorkflowRunShape(
 			run,
 			workflowVersion,
-			jobs,
+			jobRuns,
 			steps,
+			stepRuns,
 		),
 	), nil
 }

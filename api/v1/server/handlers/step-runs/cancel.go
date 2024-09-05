@@ -70,13 +70,7 @@ func (t *StepRunService) StepRunUpdateCancel(ctx echo.Context, request gen.StepR
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	res, err := transformers.ToStepRun(stepRun)
-
-	if err != nil {
-		return nil, fmt.Errorf("could not transform step run: %w", err)
-	}
-
 	return gen.StepRunUpdateCancel200JSONResponse(
-		*res,
+		*transformers.ToStepRunFull(stepRun),
 	), nil
 }

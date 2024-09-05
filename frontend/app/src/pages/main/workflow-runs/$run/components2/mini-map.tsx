@@ -1,11 +1,15 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react';
-import { Step } from '@/lib/api';
+import { Step, StepRun } from '@/lib/api';
 
 interface MiniMapProps {
   steps?: Step[];
+  stepRuns?: StepRun[];
 }
 
-export const MiniMap: React.FC<MiniMapProps> = ({ steps = [] }) => {
+export const MiniMap: React.FC<MiniMapProps> = ({
+  steps = [],
+  stepRuns = [],
+}) => {
   const [hoveredStepId, setHoveredStepId] = useState<string | null>(null);
   const [lines, setLines] = useState<
     { x1: number; y1: number; x2: number; y2: number }[]
@@ -96,6 +100,19 @@ export const MiniMap: React.FC<MiniMapProps> = ({ steps = [] }) => {
     }
   }, [hoveredStepId, steps]);
 
+  const normalizedStepRunsByStepId = useMemo(() => {
+    return steps.reduce(
+      (acc, step) => {
+        const stepRun = stepRuns?.find((sr) => sr.stepId === step.metadata.id);
+        if (stepRun) {
+          acc[step.metadata.id] = stepRun;
+        }
+        return acc;
+      },
+      {} as Record<string, StepRun>,
+    );
+  }, [steps, stepRuns]);
+
   return (
     <div
       ref={containerRef}
@@ -134,6 +151,11 @@ export const MiniMap: React.FC<MiniMapProps> = ({ steps = [] }) => {
               onMouseLeave={() => setHoveredStepId(null)}
             >
               {step.readableId}
+              {normalizedStepRunsByStepId[step.metadata.id] && (
+                <div className="text-xs text-gray-500">
+                  {normalizedStepRunsByStepId[step.metadata.id].status}
+                </div>
+              )}
             </div>
           ))}
         </div>

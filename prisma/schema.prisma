@@ -1389,8 +1389,21 @@ model StepRunEvent {
   jobRunId String? @db.Uuid
 
   // the parent step run
-  stepRun   StepRun @relation(fields: [stepRunId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  stepRunId String  @db.Uuid
+  stepRun   StepRun? @relation(fields: [stepRunId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  stepRunId String?  @db.Uuid
+  // the parent step run
+  groupKeyRun   GetGroupKeyRun? @relation(fields: [stepRunId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  stepRunId String?  @db.Uuid
+  // the parent step run
+  workflowRun   WorkflowRun? @relation(fields: [stepRunId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  stepRunId String?  @db.Uuid
+
+
+  JobRun   JobRun? @relation(fields: [stepRunId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  stepRunId String?  @db.Uuid
+
+
+  Type Enum
 
   // the event reason
   reason StepRunEventReason
@@ -1404,7 +1417,9 @@ model StepRunEvent {
 
   data Json?
 
-  @@index([stepRunId])
+  // id - timeFirstSeen uniue index
+
+  @@index([stepRunId])  // only on wfr id
 }
 
 model StepRunResultArchive {

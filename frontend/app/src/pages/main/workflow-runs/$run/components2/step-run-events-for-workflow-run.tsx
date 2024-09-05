@@ -3,9 +3,10 @@ import {
   StepRunEvent,
   StepRunEventReason,
   StepRunEventSeverity,
-  StepRunStatus,
   StepRunArchive,
   queries,
+  WorkflowRunShape,
+  Step,
 } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -30,71 +31,72 @@ import {
   mapSemaphoreExtra,
 } from './step-runs-worker-label-columns';
 import { DataTable } from '@/components/molecules/data-table/data-table';
+import { Badge } from '@/components/ui/badge';
 
-export function StepRunEvents({ stepRun }: { stepRun: StepRun | undefined }) {
-  const getLogsQuery = useQuery({
-    ...queries.stepRuns.listEvents(stepRun?.metadata.id || ''),
-    enabled: !!stepRun,
+export function StepRunEvents({
+  workflowRun,
+}: {
+  workflowRun: WorkflowRunShape;
+}) {
+  // TODO update only new things lastId
+  const eventsQuery = useQuery({
+    ...queries.workflowRuns.listStepRunEvents(
+      workflowRun.tenantId,
+      workflowRun.metadata.id,
+    ),
     refetchInterval: () => {
-      if (stepRun?.status === StepRunStatus.RUNNING) {
-        return 1000;
-      }
+      // if (workflowRun.status === StepRunStatus.RUNNING) {
+      //   return 1000;
+      // }
 
-      return 5000;
+      return 1000;
     },
   });
 
-  const getArchivesQuery = useQuery({
-    ...queries.stepRuns.listArchives(stepRun?.metadata.id || ''),
-    enabled: !!stepRun,
-    refetchInterval: () => {
-      if (stepRun?.status === StepRunStatus.RUNNING) {
-        return 1000;
-      }
+  const stepRuns = useMemo(() => {
+    return (
+      workflowRun.jobRuns?.flatMap((jr) => jr.stepRuns).filter((x) => !!x) ||
+      ([] as StepRun[])
+    );
+  }, [workflowRun]);
 
-      return 5000;
-    },
-  });
+  const steps = useMemo(() => {
+    return (
+      (
+        workflowRun.jobRuns
+          ?.flatMap((jr) => jr.job?.steps)
+          .filter((x) => !!x) || ([] as Step[])
+      ).flatMap((x) => x) || ([] as Step[])
+    );
+  }, [workflowRun]);
 
-  const combinedEvents = useMemo(() => {
-    const events = getLogsQuery.data?.rows || [];
-    const stub = createStepRunArchive(stepRun!, 0);
-
-    const archives = getArchivesQuery.data?.rows || [];
-
-    const combined = [
-      ...events.map((event) => ({
-        type: 'event',
-        data: event,
-        time: event.timeLastSeen,
-      })),
-      ...archives.map((archive) => ({
-        type: 'archive',
-        data: archive,
-        time: archive.createdAt,
-      })),
-    ];
-
-    return [
-      {
-        type: 'archive',
-        data: stub,
-        time: stub.createdAt,
+  const normalizedStepRunsByStepRunId = useMemo(() => {
+    return stepRuns.reduce(
+      (acc, stepRun) => {
+        acc[stepRun.metadata.id] = stepRun;
+        return acc;
       },
-      ...combined.sort(
-        (a, b) => new Date(b.time).getTime() - new Date(a.time).getTime(),
-      ),
-    ];
-  }, [getLogsQuery.data?.rows, getArchivesQuery.data?.rows, stepRun]);
+      {} as Record<string, StepRun>,
+    );
+  }, [stepRuns]);
 
-  if (!stepRun) {
-    return <Spinner />;
-  }
+  const normalizedStepsByStepRunId = useMemo(() => {
+    return stepRuns.reduce(
+      (acc, stepRun) => {
+        const step = steps?.find((s) => s.metadata.id === stepRun.stepId);
+        if (step) {
+          acc[stepRun.metadata.id] = step;
+        }
+        return acc;
+      },
+      {} as Record<string, Step>,
+    );
+  }, [steps, stepRuns]);
 
   return (
-    <div className="overflow-y-auto max-h-[400px] flex flex-col gap-2">
-      {(getLogsQuery.isLoading || getArchivesQuery.isLoading) && <Spinner />}
-      {combinedEvents.length === 0 && (
+    <div className="flex flex-col gap-2">
+      {eventsQuery.isLoading && <Spinner />}
+      {eventsQuery.data?.rows?.length === 0 && (
         <Card className="bg-muted/30 h-[400px]">
           <CardHeader>
             <CardTitle className="tracking-wide text-sm">
@@ -103,28 +105,35 @@ export function StepRunEvents({ stepRun }: { stepRun: StepRun | undefined }) {
           </CardHeader>
         </Card>
       )}
-      {combinedEvents.map((item, index) =>
-        item.type === 'event' ? (
-          <StepRunEventCard key={index} event={item.data as StepRunEvent} />
-        ) : (
-          <StepRunArchiveCard
-            key={index}
-            archive={item.data as StepRunArchive}
-          />
-        ),
-      )}
+      {eventsQuery.data?.rows?.map((item, index) => (
+        <StepRunEventCard
+          key={index}
+          event={item}
+          stepRun={normalizedStepRunsByStepRunId[item.stepRunId]}
+          step={normalizedStepsByStepRunId[item.stepRunId]}
+        />
+      ))}
     </div>
   );
 }
 
-function StepRunEventCard({ event }: { event: StepRunEvent }) {
+function StepRunEventCard({
+  event,
+  stepRun,
+  step,
+}: {
+  event: StepRunEvent;
+  stepRun?: StepRun;
+  step?: Step;
+}) {
   return (
     <Card className=" bg-muted/30">
       <CardHeader>
         <div className="flex flex-row justify-between items-center text-sm">
           <div className="flex flex-row justify-between gap-3 items-center">
             <EventIndicator severity={event.severity} />
-            <CardTitle className="tracking-wide text-sm">
+            <CardTitle className="tracking-wide text-sm flex flex-row gap-4">
+              <Badge>{step?.readableId}</Badge>
               {getTitleFromReason(event.reason, event.message)}
             </CardTitle>
           </div>

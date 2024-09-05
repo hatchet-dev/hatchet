@@ -126,8 +126,6 @@ WorkflowRun:
   $ref: "./workflow_run.yaml#/WorkflowRun"
 WorkflowRunShape:
   $ref: "./workflow_run.yaml#/WorkflowRunShape"
-WorkflowRunState:
-  $ref: "./workflow_run.yaml#/WorkflowRunState"
 ReplayWorkflowRunsRequest:
   $ref: "./workflow_run.yaml#/ReplayWorkflowRunsRequest"
 ReplayWorkflowRunsResponse:

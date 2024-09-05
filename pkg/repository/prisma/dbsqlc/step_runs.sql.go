@@ -1473,6 +1473,61 @@ func (q *Queries) ListStepRunEvents(ctx context.Context, db DBTX, arg ListStepRu
 	return items, nil
 }
 
+const listStepRunEventsByWorkflowRunId = `-- name: ListStepRunEventsByWorkflowRunId :many
+SELECT
+    sre.id, sre."timeFirstSeen", sre."timeLastSeen", sre."stepRunId", sre.reason, sre.severity, sre.message, sre.count, sre.data, sre."jobRunId"
+FROM
+    "StepRunEvent" sre
+JOIN
+    "StepRun" sr ON sr."id" = sre."stepRunId"
+JOIN
+    "JobRun" jr ON jr."id" = sr."jobRunId"
+WHERE
+    jr."workflowRunId" = $1::uuid
+    AND jr."tenantId" = $2::uuid
+    AND sre."id" > COALESCE($3, 0)
+    -- / TODO ID > Last ID
+ORDER BY
+    sre."id" DESC
+`
+
+type ListStepRunEventsByWorkflowRunIdParams struct {
+	Workflowrunid pgtype.UUID `json:"workflowrunid"`
+	Tenantid      pgtype.UUID `json:"tenantid"`
+	LastId        pgtype.Int8 `json:"lastId"`
+}
+
+func (q *Queries) ListStepRunEventsByWorkflowRunId(ctx context.Context, db DBTX, arg ListStepRunEventsByWorkflowRunIdParams) ([]*StepRunEvent, error) {
+	rows, err := db.Query(ctx, listStepRunEventsByWorkflowRunId, arg.Workflowrunid, arg.Tenantid, arg.LastId)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*StepRunEvent
+	for rows.Next() {
+		var i StepRunEvent
+		if err := rows.Scan(
+			&i.ID,
+			&i.TimeFirstSeen,
+			&i.TimeLastSeen,
+			&i.StepRunId,
+			&i.Reason,
+			&i.Severity,
+			&i.Message,
+			&i.Count,
+			&i.Data,
+			&i.JobRunId,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listStepRuns = `-- name: ListStepRuns :many
 SELECT
     DISTINCT ON ("StepRun"."id")

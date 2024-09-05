@@ -180,11 +180,6 @@ export const queries = createQueryKeyStore({
       queryFn: async () =>
         (await api.workflowRunGetShape(tenant, workflowRun)).data,
     }),
-    state: (tenant: string, workflowRun: string) => ({
-      queryKey: ['workflow-run:get:state', tenant, workflowRun],
-      queryFn: async () =>
-        (await api.workflowRunGetState(tenant, workflowRun)).data,
-    }),
     get: (tenant: string, workflowRun: string) => ({
       queryKey: ['workflow-run:get', tenant, workflowRun],
       queryFn: async () => (await api.workflowRunGet(tenant, workflowRun)).data,
@@ -198,6 +193,11 @@ export const queries = createQueryKeyStore({
       queryKey: ['workflow-run:metrics', tenant, query],
       queryFn: async () =>
         (await api.workflowRunGetMetrics(tenant, query)).data,
+    }),
+    listStepRunEvents: (tenantId: string, workflowRun: string) => ({
+      queryKey: ['workflow-run:list:step-run-events', workflowRun],
+      queryFn: async () =>
+        (await api.workflowRunListStepRunEvents(tenantId, workflowRun)).data,
     }),
   },
   stepRuns: {
