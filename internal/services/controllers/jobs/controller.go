@@ -1179,26 +1179,27 @@ func (ec *JobsControllerImpl) cancelStepRun(ctx context.Context, tenantId, stepR
 	// cancel current step run
 	now := time.Now().UTC()
 
-	err := ec.repo.StepRun().StepRunCancelled(ctx, tenantId, stepRunId, now, reason)
-
-	if err != nil {
-		return fmt.Errorf("could not cancel step run: %w", err)
-	}
-
-	stepRun, err := ec.repo.StepRun().GetStepRunForEngine(ctx, tenantId, stepRunId)
+	// get the old step run to figure out the worker and dispatcher id, before we update the step run
+	oldStepRun, err := ec.repo.StepRun().GetStepRunForEngine(ctx, tenantId, stepRunId)
 
 	if err != nil {
 		return fmt.Errorf("could not get step run: %w", err)
 	}
 
-	if !stepRun.SRWorkerId.Valid {
+	err = ec.repo.StepRun().StepRunCancelled(ctx, tenantId, stepRunId, now, reason)
+
+	if err != nil {
+		return fmt.Errorf("could not cancel step run: %w", err)
+	}
+
+	if !oldStepRun.SRWorkerId.Valid {
 		// this is not a fatal error
 		ec.l.Debug().Msgf("step run %s has no worker id, skipping cancellation", stepRunId)
 
 		return nil
 	}
 
-	workerId := sqlchelpers.UUIDToStr(stepRun.SRWorkerId)
+	workerId := sqlchelpers.UUIDToStr(oldStepRun.SRWorkerId)
 
 	worker, err := ec.repo.Worker().GetWorkerForEngine(ctx, tenantId, workerId)
 
@@ -1214,7 +1215,7 @@ func (ec *JobsControllerImpl) cancelStepRun(ctx context.Context, tenantId, stepR
 		ctx,
 		msgqueue.QueueTypeFromDispatcherID(dispatcherId),
 		stepRunCancelledTask(tenantId, stepRunId, workerId, dispatcherId, reason,
-			sqlchelpers.UUIDToStr(stepRun.WorkflowRunId), &stepRun.StepRetries, &stepRun.SRRetryCount,
+			sqlchelpers.UUIDToStr(oldStepRun.WorkflowRunId), &oldStepRun.StepRetries, &oldStepRun.SRRetryCount,
 		),
 	)
 
