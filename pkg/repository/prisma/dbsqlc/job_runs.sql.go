@@ -139,7 +139,11 @@ WITH stepRuns AS (
         sum(case when runs."status" = 'CANCELLED' then 1 else 0 end) AS cancelledRuns
     FROM "StepRun" as runs
     WHERE
-        "id" = ANY($2::uuid[]) AND
+        "jobRunId" = ANY(
+            SELECT "jobRunId"
+            FROM "StepRun"
+            WHERE "id" = ANY($2::uuid[])
+        ) AND
         "tenantId" = $1::uuid
     GROUP BY runs."jobRunId"
 )

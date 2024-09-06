@@ -200,7 +200,10 @@ SET
     "error" = NULL,
     "cancelledAt" = NULL,
     "cancelledReason" = NULL,
-    "retryCount" = COALESCE(sqlc.narg('retryCount')::int, "retryCount"),
+    "retryCount" = CASE
+        WHEN sqlc.narg('isRetry')::boolean IS NOT NULL THEN "retryCount" + 1
+        ELSE "retryCount"
+    END,
     "semaphoreReleased" = false
 WHERE
   "id" = @id::uuid AND
@@ -230,7 +233,12 @@ SET
     "output" = COALESCE(sqlc.narg('output')::jsonb, "output"),
     "error" = COALESCE(sqlc.narg('error')::text, "error"),
     "cancelledAt" = COALESCE(sqlc.narg('cancelledAt')::timestamp, "cancelledAt"),
-    "cancelledReason" = COALESCE(sqlc.narg('cancelledReason')::text, "cancelledReason")
+    "cancelledReason" = COALESCE(sqlc.narg('cancelledReason')::text, "cancelledReason"),
+    "workerId" = CASE
+        -- If in a final state, remove the worker ID
+        WHEN sqlc.narg('status') IS NOT NULL AND "status" IN ('SUCCEEDED', 'FAILED', 'CANCELLED', 'CANCELLING') THEN NULL
+        ELSE "workerId"
+    END
 WHERE
   "id" = @id::uuid AND
   "tenantId" = @tenantId::uuid;
@@ -406,7 +414,8 @@ step_runs_to_reassign AS (
     SELECT "id", "workerId", "retryCount"
     FROM "StepRun"
     WHERE
-        "workerId" = ANY(SELECT "id" FROM inactive_workers)
+        "workerId" = ANY(SELECT "id" FROM inactive_workers) AND
+        ("status" = 'ASSIGNED' OR "status" = 'RUNNING')
 ),
 step_runs_with_data AS (
     SELECT
@@ -502,7 +511,8 @@ FROM
     (
         SELECT
             "id",
-            "workerId"
+            "workerId",
+            "retryCount"
         FROM
             "StepRun"
         WHERE
@@ -512,7 +522,7 @@ FROM
 WHERE
     newsr."id" = oldsr."id"
 -- return whether old worker id was set
-RETURNING oldsr."workerId";
+RETURNING oldsr."workerId", oldsr."retryCount";
 
 -- name: CheckWorker :one
 SELECT
@@ -569,13 +579,33 @@ WHERE
 FOR UPDATE SKIP LOCKED;
 
 -- name: GetWorkerSemaphoreCounts :many
+WITH workers AS (
+    SELECT
+        "id"
+    FROM
+        "Worker"
+    WHERE
+        "tenantId" = @tenantId::uuid
+        AND
+        (
+            (
+                "lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+                AND "isActive" = true
+                AND "isPaused" = false
+            ) OR
+            (
+                sqlc.narg('workerIds')::uuid[] IS NOT NULL AND
+                "id" = ANY(sqlc.narg('workerIds')::uuid[])
+            )
+        )
+)
 SELECT
     "workerId",
     "count"
 FROM
     "WorkerSemaphoreCount"
 WHERE
-    "workerId" = ANY(@workers::uuid[]);
+    "workerId" = ANY(SELECT "id" FROM workers);
 
 -- name: GetWorkerDispatcherActions :many
 WITH actions AS (
@@ -665,14 +695,14 @@ WHERE
     sr."id" = input."id"
 RETURNING input."id", input."workerId";
 
--- name: GetCancelledStepRuns :many
+-- name: GetFinalizedStepRuns :many
 SELECT
-    "id"
+    "id", "status"
 FROM
     "StepRun"
 WHERE
     "id" = ANY(@stepRunIds::uuid[])
-    AND "status" != 'PENDING_ASSIGNMENT';
+    AND "status" = ANY(ARRAY['SUCCEEDED', 'FAILED', 'CANCELLED', 'CANCELLING']::"StepRunStatus"[]);
 
 -- name: BulkMarkStepRunsAsCancelling :many
 UPDATE
@@ -954,7 +984,7 @@ JOIN
 WHERE
     sr."tenantId" = @tenantId::uuid;
 
--- name: ReplayStepRunResetLaterStepRuns :many
+-- name: ReplayStepRunResetStepRuns :many
 WITH RECURSIVE currStepRun AS (
     SELECT *
     FROM "StepRun"
@@ -985,12 +1015,19 @@ SET
     "error" = NULL,
     "cancelledAt" = NULL,
     "cancelledReason" = NULL,
-    "input" = NULL
+    "input" = CASE
+        WHEN sr."id" = @stepRunId::uuid THEN COALESCE(sqlc.narg('input')::jsonb, "input")
+        ELSE NULL
+    END,
+    "retryCount" = 0
 FROM
     childStepRuns csr
 WHERE
-    sr."id" = csr."id" AND
-    sr."tenantId" = @tenantId::uuid
+    sr."tenantId" = @tenantId::uuid AND
+    (
+        sr."id" = csr."id" OR
+        sr."id" = @stepRunId::uuid
+    )
 RETURNING sr.*;
 
 -- name: ResetStepRunsByIds :many
@@ -1005,7 +1042,8 @@ SET
     "error" = NULL,
     "cancelledAt" = NULL,
     "cancelledReason" = NULL,
-    "input" = NULL
+    "input" = NULL,
+    "retryCount" = 0
 WHERE
     sr."id" = ANY(@ids::uuid[]) AND
     sr."tenantId" = @tenantId::uuid

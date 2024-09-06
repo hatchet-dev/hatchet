@@ -131,7 +131,12 @@ SET
     "output" = COALESCE($4::jsonb, "output"),
     "error" = COALESCE($5::text, "error"),
     "cancelledAt" = COALESCE($6::timestamp, "cancelledAt"),
-    "cancelledReason" = COALESCE($7::text, "cancelledReason")
+    "cancelledReason" = COALESCE($7::text, "cancelledReason"),
+    "workerId" = CASE
+        -- If in a final state, remove the worker ID
+        WHEN $3 IS NOT NULL AND "status" IN ('SUCCEEDED', 'FAILED', 'CANCELLED', 'CANCELLING') THEN NULL
+        ELSE "workerId"
+    END
 WHERE
   "id" = $8::uuid AND
   "tenantId" = $9::uuid

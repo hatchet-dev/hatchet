@@ -1417,7 +1417,11 @@ WITH jobRuns AS (
     FROM "JobRun" as runs
     JOIN "Job" as job ON runs."jobId" = job."id"
     WHERE
-        runs."id" = ANY($1::uuid[]) AND
+        runs."workflowRunId" = ANY(
+            SELECT "workflowRunId"
+            FROM "JobRun"
+            WHERE "id" = ANY($1::uuid[])
+        ) AND
         runs."deletedAt" IS NULL AND
         runs."tenantId" = $2::uuid AND
         -- we should not include onFailure jobs in the calculation

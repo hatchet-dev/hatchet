@@ -131,7 +131,7 @@ func ToWorker(worker *db.WorkerModel) *gen.Worker {
 	return res
 }
 
-func ToWorkerSqlc(worker *dbsqlc.Worker, slots *int, webhookUrl *string, actions []pgtype.Text) *gen.Worker {
+func ToWorkerSqlc(worker *dbsqlc.Worker, remainingSlots *int, webhookUrl *string, actions []pgtype.Text) *gen.Worker {
 
 	dispatcherId := uuid.MustParse(pgUUIDToStr(worker.DispatcherId))
 
@@ -149,8 +149,8 @@ func ToWorkerSqlc(worker *dbsqlc.Worker, slots *int, webhookUrl *string, actions
 
 	var availableRuns int
 
-	if slots != nil {
-		availableRuns = maxRuns - *slots
+	if remainingSlots != nil {
+		availableRuns = *remainingSlots
 	}
 
 	res := &gen.Worker{

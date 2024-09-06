@@ -438,36 +438,6 @@ func (q *Queries) CreateWorkerAssignEvents(ctx context.Context, db DBTX, arg Cre
 	return err
 }
 
-const getCancelledStepRuns = `-- name: GetCancelledStepRuns :many
-SELECT
-    "id"
-FROM
-    "StepRun"
-WHERE
-    "id" = ANY($1::uuid[])
-    AND "status" != 'PENDING_ASSIGNMENT'
-`
-
-func (q *Queries) GetCancelledStepRuns(ctx context.Context, db DBTX, steprunids []pgtype.UUID) ([]pgtype.UUID, error) {
-	rows, err := db.Query(ctx, getCancelledStepRuns, steprunids)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []pgtype.UUID
-	for rows.Next() {
-		var id pgtype.UUID
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		items = append(items, id)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const getDesiredLabels = `-- name: GetDesiredLabels :many
 SELECT
     "key",
@@ -508,6 +478,41 @@ func (q *Queries) GetDesiredLabels(ctx context.Context, db DBTX, stepid pgtype.U
 			&i.Weight,
 			&i.Comparator,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getFinalizedStepRuns = `-- name: GetFinalizedStepRuns :many
+SELECT
+    "id", "status"
+FROM
+    "StepRun"
+WHERE
+    "id" = ANY($1::uuid[])
+    AND "status" = ANY(ARRAY['SUCCEEDED', 'FAILED', 'CANCELLED', 'CANCELLING']::"StepRunStatus"[])
+`
+
+type GetFinalizedStepRunsRow struct {
+	ID     pgtype.UUID   `json:"id"`
+	Status StepRunStatus `json:"status"`
+}
+
+func (q *Queries) GetFinalizedStepRuns(ctx context.Context, db DBTX, steprunids []pgtype.UUID) ([]*GetFinalizedStepRunsRow, error) {
+	rows, err := db.Query(ctx, getFinalizedStepRuns, steprunids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*GetFinalizedStepRunsRow
+	for rows.Next() {
+		var i GetFinalizedStepRunsRow
+		if err := rows.Scan(&i.ID, &i.Status); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)
@@ -1078,17 +1083,42 @@ func (q *Queries) GetWorkerLabels(ctx context.Context, db DBTX, workerid pgtype.
 }
 
 const getWorkerSemaphoreCounts = `-- name: GetWorkerSemaphoreCounts :many
+WITH workers AS (
+    SELECT
+        "id"
+    FROM
+        "Worker"
+    WHERE
+        "tenantId" = $1::uuid
+        AND
+        (
+            (
+                "lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+                AND "isActive" = true
+                AND "isPaused" = false
+            ) OR
+            (
+                $2::uuid[] IS NOT NULL AND
+                "id" = ANY($2::uuid[])
+            )
+        )
+)
 SELECT
     "workerId",
     "count"
 FROM
     "WorkerSemaphoreCount"
 WHERE
-    "workerId" = ANY($1::uuid[])
+    "workerId" = ANY(SELECT "id" FROM workers)
 `
 
-func (q *Queries) GetWorkerSemaphoreCounts(ctx context.Context, db DBTX, workers []pgtype.UUID) ([]*WorkerSemaphoreCount, error) {
-	rows, err := db.Query(ctx, getWorkerSemaphoreCounts, workers)
+type GetWorkerSemaphoreCountsParams struct {
+	Tenantid  pgtype.UUID   `json:"tenantid"`
+	WorkerIds []pgtype.UUID `json:"workerIds"`
+}
+
+func (q *Queries) GetWorkerSemaphoreCounts(ctx context.Context, db DBTX, arg GetWorkerSemaphoreCountsParams) ([]*WorkerSemaphoreCount, error) {
+	rows, err := db.Query(ctx, getWorkerSemaphoreCounts, arg.Tenantid, arg.WorkerIds)
 	if err != nil {
 		return nil, err
 	}
@@ -1572,7 +1602,8 @@ step_runs_to_reassign AS (
     SELECT "id", "workerId", "retryCount"
     FROM "StepRun"
     WHERE
-        "workerId" = ANY(SELECT "id" FROM inactive_workers)
+        "workerId" = ANY(SELECT "id" FROM inactive_workers) AND
+        ("status" = 'ASSIGNED' OR "status" = 'RUNNING')
 ),
 step_runs_with_data AS (
     SELECT
@@ -1724,7 +1755,10 @@ SET
     "error" = NULL,
     "cancelledAt" = NULL,
     "cancelledReason" = NULL,
-    "retryCount" = COALESCE($2::int, "retryCount"),
+    "retryCount" = CASE
+        WHEN $2::boolean IS NOT NULL THEN "retryCount" + 1
+        ELSE "retryCount"
+    END,
     "semaphoreReleased" = false
 WHERE
   "id" = $3::uuid AND
@@ -1732,16 +1766,16 @@ WHERE
 `
 
 type QueueStepRunParams struct {
-	Input      []byte      `json:"input"`
-	RetryCount pgtype.Int4 `json:"retryCount"`
-	ID         pgtype.UUID `json:"id"`
-	Tenantid   pgtype.UUID `json:"tenantid"`
+	Input    []byte      `json:"input"`
+	IsRetry  pgtype.Bool `json:"isRetry"`
+	ID       pgtype.UUID `json:"id"`
+	Tenantid pgtype.UUID `json:"tenantid"`
 }
 
 func (q *Queries) QueueStepRun(ctx context.Context, db DBTX, arg QueueStepRunParams) error {
 	_, err := db.Exec(ctx, queueStepRun,
 		arg.Input,
-		arg.RetryCount,
+		arg.IsRetry,
 		arg.ID,
 		arg.Tenantid,
 	)
@@ -1849,13 +1883,13 @@ func (q *Queries) ReplayStepRunResetJobRun(ctx context.Context, db DBTX, jobruni
 	return &i, err
 }
 
-const replayStepRunResetLaterStepRuns = `-- name: ReplayStepRunResetLaterStepRuns :many
+const replayStepRunResetStepRuns = `-- name: ReplayStepRunResetStepRuns :many
 WITH RECURSIVE currStepRun AS (
     SELECT id, "createdAt", "updatedAt", "deletedAt", "tenantId", "jobRunId", "stepId", "order", "workerId", "tickerId", status, input, output, "requeueAfter", "scheduleTimeoutAt", error, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError", "inputSchema", "callerFiles", "gitRepoBranch", "retryCount", "semaphoreReleased", queue, priority
     FROM "StepRun"
     WHERE
-        "id" = $2::uuid AND
-        "tenantId" = $1::uuid
+        "id" = $1::uuid AND
+        "tenantId" = $3::uuid
 ), childStepRuns AS (
     SELECT sr."id", sr."status"
     FROM "StepRun" sr
@@ -1880,22 +1914,30 @@ SET
     "error" = NULL,
     "cancelledAt" = NULL,
     "cancelledReason" = NULL,
-    "input" = NULL
+    "input" = CASE
+        WHEN sr."id" = $1::uuid THEN COALESCE($2::jsonb, "input")
+        ELSE NULL
+    END,
+    "retryCount" = 0
 FROM
     childStepRuns csr
 WHERE
-    sr."id" = csr."id" AND
-    sr."tenantId" = $1::uuid
+    sr."tenantId" = $3::uuid AND
+    (
+        sr."id" = csr."id" OR
+        sr."id" = $1::uuid
+    )
 RETURNING sr.id, sr."createdAt", sr."updatedAt", sr."deletedAt", sr."tenantId", sr."jobRunId", sr."stepId", sr."order", sr."workerId", sr."tickerId", sr.status, sr.input, sr.output, sr."requeueAfter", sr."scheduleTimeoutAt", sr.error, sr."startedAt", sr."finishedAt", sr."timeoutAt", sr."cancelledAt", sr."cancelledReason", sr."cancelledError", sr."inputSchema", sr."callerFiles", sr."gitRepoBranch", sr."retryCount", sr."semaphoreReleased", sr.queue, sr.priority
 `
 
-type ReplayStepRunResetLaterStepRunsParams struct {
-	Tenantid  pgtype.UUID `json:"tenantid"`
+type ReplayStepRunResetStepRunsParams struct {
 	Steprunid pgtype.UUID `json:"steprunid"`
+	Input     []byte      `json:"input"`
+	Tenantid  pgtype.UUID `json:"tenantid"`
 }
 
-func (q *Queries) ReplayStepRunResetLaterStepRuns(ctx context.Context, db DBTX, arg ReplayStepRunResetLaterStepRunsParams) ([]*StepRun, error) {
-	rows, err := db.Query(ctx, replayStepRunResetLaterStepRuns, arg.Tenantid, arg.Steprunid)
+func (q *Queries) ReplayStepRunResetStepRuns(ctx context.Context, db DBTX, arg ReplayStepRunResetStepRunsParams) ([]*StepRun, error) {
+	rows, err := db.Query(ctx, replayStepRunResetStepRuns, arg.Steprunid, arg.Input, arg.Tenantid)
 	if err != nil {
 		return nil, err
 	}
@@ -1997,7 +2039,8 @@ SET
     "error" = NULL,
     "cancelledAt" = NULL,
     "cancelledReason" = NULL,
-    "input" = NULL
+    "input" = NULL,
+    "retryCount" = 0
 WHERE
     sr."id" = ANY($1::uuid[]) AND
     sr."tenantId" = $2::uuid
@@ -2230,7 +2273,8 @@ FROM
     (
         SELECT
             "id",
-            "workerId"
+            "workerId",
+            "retryCount"
         FROM
             "StepRun"
         WHERE
@@ -2239,7 +2283,7 @@ FROM
     ) AS oldsr
 WHERE
     newsr."id" = oldsr."id"
-RETURNING oldsr."workerId"
+RETURNING oldsr."workerId", oldsr."retryCount"
 `
 
 type UpdateStepRunUnsetWorkerIdParams struct {
@@ -2247,12 +2291,17 @@ type UpdateStepRunUnsetWorkerIdParams struct {
 	Tenantid  pgtype.UUID `json:"tenantid"`
 }
 
+type UpdateStepRunUnsetWorkerIdRow struct {
+	WorkerId   pgtype.UUID `json:"workerId"`
+	RetryCount int32       `json:"retryCount"`
+}
+
 // return whether old worker id was set
-func (q *Queries) UpdateStepRunUnsetWorkerId(ctx context.Context, db DBTX, arg UpdateStepRunUnsetWorkerIdParams) (pgtype.UUID, error) {
+func (q *Queries) UpdateStepRunUnsetWorkerId(ctx context.Context, db DBTX, arg UpdateStepRunUnsetWorkerIdParams) (*UpdateStepRunUnsetWorkerIdRow, error) {
 	row := db.QueryRow(ctx, updateStepRunUnsetWorkerId, arg.Steprunid, arg.Tenantid)
-	var workerId pgtype.UUID
-	err := row.Scan(&workerId)
-	return workerId, err
+	var i UpdateStepRunUnsetWorkerIdRow
+	err := row.Scan(&i.WorkerId, &i.RetryCount)
+	return &i, err
 }
 
 const updateStepRunsToAssigned = `-- name: UpdateStepRunsToAssigned :many
