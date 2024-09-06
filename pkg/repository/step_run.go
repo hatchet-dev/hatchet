@@ -201,8 +201,6 @@ type StepRunEngineRepository interface {
 
 	RefreshTimeoutBy(ctx context.Context, tenantId, stepRunId string, opts RefreshTimeoutBy) (*dbsqlc.StepRun, error)
 
-	// ResolveRelatedStatuses(ctx context.Context, tenantId pgtype.UUID, stepRunId pgtype.UUID) (*StepRunUpdateInfo, error)
-
 	DeferredStepRunEvent(
 		tenantId, stepRunId string,
 		opts CreateStepRunEventOpts,
