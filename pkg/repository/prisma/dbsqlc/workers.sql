@@ -1,11 +1,13 @@
--- name: ListWorkersWithStepCount :many
+-- name: ListWorkersWithSlotCount :many
 SELECT
     sqlc.embed(workers),
     ww."url" AS "webhookUrl",
     ww."id" AS "webhookId",
-    (SELECT COUNT(*) FROM "StepRun" sr WHERE sr."workerId" = workers."id" AND sr."tenantId" = @tenantId) AS "slots"
+    wsc."count" AS "remainingSlots"
 FROM
     "Worker" workers
+JOIN
+    "WorkerSemaphoreCount" wsc ON workers."id" = wsc."workerId"
 LEFT JOIN
     "WebhookWorker" ww ON workers."webhookId" = ww."id"
 WHERE
@@ -33,7 +35,7 @@ WHERE
         ))
     )
 GROUP BY
-    workers."id", ww."url", ww."id";
+    workers."id", ww."url", ww."id", wsc."count";
 
 -- name: GetWorkerById :one
 SELECT

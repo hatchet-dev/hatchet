@@ -69,7 +69,7 @@ type ApiUpdateWorkerOpts struct {
 
 type WorkerAPIRepository interface {
 	// ListWorkers lists workers for the tenant
-	ListWorkers(tenantId string, opts *ListWorkersOpts) ([]*dbsqlc.ListWorkersWithStepCountRow, error)
+	ListWorkers(tenantId string, opts *ListWorkersOpts) ([]*dbsqlc.ListWorkersWithSlotCountRow, error)
 
 	// ListRecentWorkerStepRuns lists recent step runs for a given worker
 	ListWorkerState(tenantId, workerId string, maxRuns int) ([]*dbsqlc.ListSemaphoreSlotsWithStateForWorkerRow, []*dbsqlc.GetStepRunForEngineRow, error)

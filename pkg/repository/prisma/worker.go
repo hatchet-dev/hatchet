@@ -119,14 +119,14 @@ func (w *workerAPIRepository) ListWorkerState(tenantId, workerId string, maxRuns
 	return slots, recent, nil
 }
 
-func (r *workerAPIRepository) ListWorkers(tenantId string, opts *repository.ListWorkersOpts) ([]*dbsqlc.ListWorkersWithStepCountRow, error) {
+func (r *workerAPIRepository) ListWorkers(tenantId string, opts *repository.ListWorkersOpts) ([]*dbsqlc.ListWorkersWithSlotCountRow, error) {
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
 
 	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
 
-	queryParams := dbsqlc.ListWorkersWithStepCountParams{
+	queryParams := dbsqlc.ListWorkersWithSlotCountParams{
 		Tenantid: pgTenantId,
 	}
 
@@ -153,11 +153,11 @@ func (r *workerAPIRepository) ListWorkers(tenantId string, opts *repository.List
 
 	defer deferRollback(context.Background(), r.l, tx.Rollback)
 
-	workers, err := r.queries.ListWorkersWithStepCount(context.Background(), tx, queryParams)
+	workers, err := r.queries.ListWorkersWithSlotCount(context.Background(), tx, queryParams)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			workers = make([]*dbsqlc.ListWorkersWithStepCountRow, 0)
+			workers = make([]*dbsqlc.ListWorkersWithSlotCountRow, 0)
 		} else {
 			return nil, fmt.Errorf("could not list workers: %w", err)
 		}

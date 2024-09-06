@@ -527,14 +527,16 @@ func (q *Queries) ListWorkerLabels(ctx context.Context, db DBTX, workerid pgtype
 	return items, nil
 }
 
-const listWorkersWithStepCount = `-- name: ListWorkersWithStepCount :many
+const listWorkersWithSlotCount = `-- name: ListWorkersWithSlotCount :many
 SELECT
     workers.id, workers."createdAt", workers."updatedAt", workers."deletedAt", workers."tenantId", workers."lastHeartbeatAt", workers.name, workers."dispatcherId", workers."maxRuns", workers."isActive", workers."lastListenerEstablished", workers."isPaused", workers.type, workers."webhookId",
     ww."url" AS "webhookUrl",
     ww."id" AS "webhookId",
-    (SELECT COUNT(*) FROM "StepRun" sr WHERE sr."workerId" = workers."id" AND sr."tenantId" = $1) AS "slots"
+    wsc."count" AS "remainingSlots"
 FROM
     "Worker" workers
+JOIN
+    "WorkerSemaphoreCount" wsc ON workers."id" = wsc."workerId"
 LEFT JOIN
     "WebhookWorker" ww ON workers."webhookId" = ww."id"
 WHERE
@@ -562,25 +564,25 @@ WHERE
         ))
     )
 GROUP BY
-    workers."id", ww."url", ww."id"
+    workers."id", ww."url", ww."id", wsc."count"
 `
 
-type ListWorkersWithStepCountParams struct {
+type ListWorkersWithSlotCountParams struct {
 	Tenantid           pgtype.UUID      `json:"tenantid"`
 	ActionId           pgtype.Text      `json:"actionId"`
 	LastHeartbeatAfter pgtype.Timestamp `json:"lastHeartbeatAfter"`
 	Assignable         pgtype.Bool      `json:"assignable"`
 }
 
-type ListWorkersWithStepCountRow struct {
-	Worker     Worker      `json:"worker"`
-	WebhookUrl pgtype.Text `json:"webhookUrl"`
-	WebhookId  pgtype.UUID `json:"webhookId"`
-	Slots      int64       `json:"slots"`
+type ListWorkersWithSlotCountRow struct {
+	Worker         Worker      `json:"worker"`
+	WebhookUrl     pgtype.Text `json:"webhookUrl"`
+	WebhookId      pgtype.UUID `json:"webhookId"`
+	RemainingSlots int32       `json:"remainingSlots"`
 }
 
-func (q *Queries) ListWorkersWithStepCount(ctx context.Context, db DBTX, arg ListWorkersWithStepCountParams) ([]*ListWorkersWithStepCountRow, error) {
-	rows, err := db.Query(ctx, listWorkersWithStepCount,
+func (q *Queries) ListWorkersWithSlotCount(ctx context.Context, db DBTX, arg ListWorkersWithSlotCountParams) ([]*ListWorkersWithSlotCountRow, error) {
+	rows, err := db.Query(ctx, listWorkersWithSlotCount,
 		arg.Tenantid,
 		arg.ActionId,
 		arg.LastHeartbeatAfter,
@@ -590,9 +592,9 @@ func (q *Queries) ListWorkersWithStepCount(ctx context.Context, db DBTX, arg Lis
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*ListWorkersWithStepCountRow
+	var items []*ListWorkersWithSlotCountRow
 	for rows.Next() {
-		var i ListWorkersWithStepCountRow
+		var i ListWorkersWithSlotCountRow
 		if err := rows.Scan(
 			&i.Worker.ID,
 			&i.Worker.CreatedAt,
@@ -610,7 +612,7 @@ func (q *Queries) ListWorkersWithStepCount(ctx context.Context, db DBTX, arg Lis
 			&i.Worker.WebhookId,
 			&i.WebhookUrl,
 			&i.WebhookId,
-			&i.Slots,
+			&i.RemainingSlots,
 		); err != nil {
 			return nil, err
 		}

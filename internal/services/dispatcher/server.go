@@ -504,7 +504,7 @@ func (s *DispatcherImpl) ReleaseSlot(ctx context.Context, req *contracts.Release
 		return nil, fmt.Errorf("step run id is required")
 	}
 
-	err := s.repo.StepRun().ReleaseStepRunSemaphore(ctx, tenantId, req.StepRunId)
+	err := s.repo.StepRun().ReleaseStepRunSemaphore(ctx, tenantId, req.StepRunId, true)
 
 	if err != nil {
 		return nil, err

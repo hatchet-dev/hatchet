@@ -35,6 +35,7 @@ type queue struct {
 
 	tenantQueueOperations     sync.Map
 	tenantWorkerSemOperations sync.Map
+	updateStepRunOperations   sync.Map
 }
 
 func newQueue(
@@ -70,6 +71,11 @@ type operation struct {
 	isRunning      bool
 	tenantId       string
 	lastRun        time.Time
+}
+
+func (o *operation) runOrContinue(l *zerolog.Logger, ql *zerolog.Logger, scheduler func(context.Context, string) (bool, error)) {
+	o.setContinue(true)
+	o.run(l, ql, scheduler)
 }
 
 func (o *operation) run(l *zerolog.Logger, ql *zerolog.Logger, scheduler func(context.Context, string) (bool, error)) {
@@ -175,6 +181,18 @@ func (q *queue) Start() (func() error, error) {
 		return nil, fmt.Errorf("could not schedule worker semaphore update: %w", err)
 	}
 
+	_, err = q.s.NewJob(
+		gocron.DurationJob(time.Second*1),
+		gocron.NewTask(
+			q.runTenantUpdateStepRuns(ctx),
+		),
+	)
+
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("could not schedule step run update: %w", err)
+	}
+
 	q.s.Start()
 
 	f := func(task *msgqueue.Message) error {
@@ -250,15 +268,19 @@ func (q *queue) handleCheckQueue(ctx context.Context, task *msgqueue.Message) er
 	if opInt, ok := q.tenantQueueOperations.Load(metadata.TenantId); ok {
 		op := opInt.(*operation)
 
-		op.setContinue(true)
-		op.run(q.l, q.ql, q.scheduleStepRuns)
+		op.runOrContinue(q.l, q.ql, q.scheduleStepRuns)
 	}
 
 	if opInt, ok := q.tenantWorkerSemOperations.Load(metadata.TenantId); ok {
 		op := opInt.(*operation)
 
-		op.setContinue(true)
-		op.run(q.l, q.ql, q.processWorkerSemaphores)
+		op.runOrContinue(q.l, q.ql, q.processWorkerSemaphores)
+	}
+
+	if opInt, ok := q.updateStepRunOperations.Load(metadata.TenantId); ok {
+		op := opInt.(*operation)
+
+		op.runOrContinue(q.l, q.ql, q.processStepRunUpdates)
 	}
 
 	return nil
@@ -312,6 +334,11 @@ func (q *queue) scheduleStepRuns(ctx context.Context, tenantId string) (bool, er
 		return false, fmt.Errorf("could not queue step runs: %w", err)
 	}
 
+	// if we've assigned work, we should run the worker semaphore operation
+	if len(queueResults.Queued) > 0 {
+		q.getWorkerSemaphoreOperation(tenantId).runOrContinue(q.l, q.ql, q.processWorkerSemaphores)
+	}
+
 	for _, queueResult := range queueResults.Queued {
 		// send a task to the dispatcher
 		innerErr := q.mq.AddMessage(
@@ -359,24 +386,39 @@ func (q *queue) runTenantWorkerSemaphores(ctx context.Context) func() {
 		for i := range tenants {
 			tenantId := sqlchelpers.UUIDToStr(tenants[i].ID)
 
-			var op *operation
-
-			opInt, ok := q.tenantWorkerSemOperations.Load(tenantId)
-
-			if !ok {
-				op = &operation{
-					tenantId: tenantId,
-					lastRun:  time.Now(),
-				}
-
-				q.tenantWorkerSemOperations.Store(tenantId, op)
-			} else {
-				op = opInt.(*operation)
-			}
-
-			op.run(q.l, q.ql, q.processWorkerSemaphores)
+			q.getWorkerSemaphoreOperation(tenantId).run(q.l, q.ql, q.processWorkerSemaphores)
 		}
 	}
+}
+
+func (q *queue) getQueueOperation(tenantId string) *operation {
+	op, ok := q.tenantQueueOperations.Load(tenantId)
+
+	if !ok {
+		op = &operation{
+			tenantId: tenantId,
+			lastRun:  time.Now(),
+		}
+
+		q.tenantQueueOperations.Store(tenantId, op)
+	}
+
+	return op.(*operation)
+}
+
+func (q *queue) getWorkerSemaphoreOperation(tenantId string) *operation {
+	op, ok := q.tenantWorkerSemOperations.Load(tenantId)
+
+	if !ok {
+		op = &operation{
+			tenantId: tenantId,
+			lastRun:  time.Now(),
+		}
+
+		q.tenantWorkerSemOperations.Store(tenantId, op)
+	}
+
+	return op.(*operation)
 }
 
 func (q *queue) processWorkerSemaphores(ctx context.Context, tenantId string) (bool, error) {
@@ -386,13 +428,88 @@ func (q *queue) processWorkerSemaphores(ctx context.Context, tenantId string) (b
 	dbCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	shouldContinue, err := q.repo.StepRun().UpdateWorkerSemaphoreCounts(dbCtx, q.ql, tenantId)
+	shouldContinue, didReleaseSlots, err := q.repo.StepRun().UpdateWorkerSemaphoreCounts(dbCtx, q.ql, tenantId)
 
 	if err != nil {
-		return false, fmt.Errorf("could not queue step runs: %w", err)
+		return false, fmt.Errorf("could not process worker semaphores: %w", err)
+	}
+
+	if didReleaseSlots {
+		q.getQueueOperation(tenantId).runOrContinue(q.l, q.ql, q.scheduleStepRuns)
 	}
 
 	return shouldContinue, nil
+}
+
+func (q *queue) runTenantUpdateStepRuns(ctx context.Context) func() {
+	return func() {
+		q.l.Debug().Msgf("partition: updating step run statuses")
+
+		// list all tenants
+		tenants, err := q.repo.Tenant().ListTenantsByControllerPartition(ctx, q.p.GetControllerPartitionId())
+
+		if err != nil {
+			q.l.Err(err).Msg("could not list tenants")
+			return
+		}
+
+		for i := range tenants {
+			tenantId := sqlchelpers.UUIDToStr(tenants[i].ID)
+
+			var op *operation
+
+			opInt, ok := q.updateStepRunOperations.Load(tenantId)
+
+			if !ok {
+				op = &operation{
+					tenantId: tenantId,
+					lastRun:  time.Now(),
+				}
+
+				q.updateStepRunOperations.Store(tenantId, op)
+			} else {
+				op = opInt.(*operation)
+			}
+
+			op.run(q.l, q.ql, q.processStepRunUpdates)
+		}
+	}
+}
+
+func (q *queue) processStepRunUpdates(ctx context.Context, tenantId string) (bool, error) {
+	ctx, span := telemetry.NewSpan(ctx, "process-worker-semaphores")
+	defer span.End()
+
+	dbCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	res, err := q.repo.StepRun().ProcessStepRunUpdates(dbCtx, q.ql, tenantId)
+
+	if err != nil {
+		return false, fmt.Errorf("could not process step run updates: %w", err)
+	}
+
+	// for all finished workflow runs, send a message
+	for _, finished := range res.CompletedWorkflowRuns {
+		workflowRunId := sqlchelpers.UUIDToStr(finished.ID)
+		status := string(finished.Status)
+
+		err := q.mq.AddMessage(
+			context.Background(),
+			msgqueue.WORKFLOW_PROCESSING_QUEUE,
+			tasktypes.WorkflowRunFinishedToTask(
+				tenantId,
+				workflowRunId,
+				status,
+			),
+		)
+
+		if err != nil {
+			q.l.Error().Err(err).Msg("could not add workflow run finished task to task queue")
+		}
+	}
+
+	return res.Continue, nil
 }
 
 func getStepRunCancelTask(tenantId, stepRunId, reason string) *msgqueue.Message {
