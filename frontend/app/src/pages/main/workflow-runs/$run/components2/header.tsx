@@ -32,8 +32,6 @@ const RunDetailHeader: React.FC<RunDetailHeaderProps> = ({
 
   const [displayName, runId] = useMemo(() => {
     const parts = data?.displayName?.split('-');
-
-    console.log('parts', parts);
     if (!parts) {
       return [null, null];
     }

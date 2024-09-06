@@ -1,14 +1,61 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react';
-import { Step, StepRun } from '@/lib/api';
+import { Step, StepRun, StepRunStatus } from '@/lib/api';
+import { cn } from '@/lib/utils';
+import { IconType } from 'react-icons';
+import {
+  BiHourglass,
+  BiPlay,
+  BiCheck,
+  BiX,
+  BiBlock,
+  BiPause,
+} from 'react-icons/bi';
+
+const statusAnimations: Record<StepRunStatus, string> = {
+  [StepRunStatus.PENDING]: 'animate-pulse',
+  [StepRunStatus.PENDING_ASSIGNMENT]: 'animate-pulse',
+  [StepRunStatus.ASSIGNED]: 'animate-bounce',
+  [StepRunStatus.RUNNING]: 'animate-spin',
+  [StepRunStatus.SUCCEEDED]: '',
+  [StepRunStatus.FAILED]: '',
+  [StepRunStatus.CANCELLED]: '',
+  [StepRunStatus.CANCELLING]: 'animate-pulse',
+};
+
+const statusColors: Record<StepRunStatus, string> = {
+  [StepRunStatus.PENDING]: 'bg-gray-300',
+  [StepRunStatus.PENDING_ASSIGNMENT]: 'bg-yellow-300',
+  [StepRunStatus.ASSIGNED]: 'bg-blue-300',
+  [StepRunStatus.RUNNING]: 'bg-blue-500',
+  [StepRunStatus.SUCCEEDED]: 'bg-green-500',
+  [StepRunStatus.FAILED]: 'bg-red-500',
+  [StepRunStatus.CANCELLED]: 'bg-gray-500',
+  [StepRunStatus.CANCELLING]: 'bg-orange-500',
+};
+
+const statusIcons: Record<StepRunStatus, IconType> = {
+  [StepRunStatus.PENDING]: BiHourglass,
+  [StepRunStatus.PENDING_ASSIGNMENT]: BiHourglass,
+  [StepRunStatus.ASSIGNED]: BiPlay,
+  [StepRunStatus.RUNNING]: BiHourglass, // Using hourglass for running as there's no direct spinning icon
+  [StepRunStatus.SUCCEEDED]: BiCheck,
+  [StepRunStatus.FAILED]: BiX,
+  [StepRunStatus.CANCELLED]: BiBlock,
+  [StepRunStatus.CANCELLING]: BiPause,
+};
 
 interface MiniMapProps {
   steps?: Step[];
   stepRuns?: StepRun[];
+  selectedStepRunId?: string;
+  onClick: (stepRunId?: string) => void;
 }
 
 export const MiniMap: React.FC<MiniMapProps> = ({
   steps = [],
   stepRuns = [],
+  selectedStepRunId,
+  onClick,
 }) => {
   const [hoveredStepId, setHoveredStepId] = useState<string | null>(null);
   const [lines, setLines] = useState<
@@ -116,7 +163,7 @@ export const MiniMap: React.FC<MiniMapProps> = ({
   return (
     <div
       ref={containerRef}
-      className="flex overflow-x-auto p-4 bg-gray-100 rounded-lg relative"
+      className="flex flex-row overflow-x-auto p-4 bg-gray-100 rounded-lg relative gap-1"
     >
       <svg className="absolute top-0 left-0 w-full h-full pointer-events-none">
         {lines.map((line, index) => (
@@ -134,30 +181,54 @@ export const MiniMap: React.FC<MiniMapProps> = ({
       {columns.map((column, colIndex) => (
         <div
           key={colIndex}
-          className="flex flex-col items-center mx-2 first:ml-0 last:mr-0"
+          className="flex flex-col items-center justify-start h-full"
+          style={{
+            width: `${100 / columns.length}%`,
+            minWidth: '100px', // Minimum width for readability
+          }}
         >
-          {column.map((step) => (
-            <div
-              key={step.metadata.id}
-              data-step-id={step.metadata.id}
-              className={`
-                bg-white shadow-md rounded-lg p-3 mb-3 w-32 text-center text-sm text-gray-800
-                transition-all duration-300 ease-in-out
-                ${isParentOfHovered(step) ? 'ring-2 ring-blue-500' : ''}
-                ${hoveredStepId === step.metadata.id ? 'ring-2 ring-blue-500' : ''}
-                hover:shadow-lg hover:scale-105
-              `}
-              onMouseEnter={() => setHoveredStepId(step.metadata.id)}
-              onMouseLeave={() => setHoveredStepId(null)}
-            >
-              {step.readableId}
-              {normalizedStepRunsByStepId[step.metadata.id] && (
-                <div className="text-xs text-gray-500">
-                  {normalizedStepRunsByStepId[step.metadata.id].status}
+          {column.map((step, stepIndex) => {
+            const stepRun = normalizedStepRunsByStepId[step.metadata.id];
+            const status = stepRun?.status || StepRunStatus.PENDING;
+            const StatusIcon = statusIcons[status];
+            return (
+              <div
+                key={step.metadata.id}
+                data-step-id={step.metadata.id}
+                className={cn(
+                  `shadow-md rounded-lg p-1 mb-1 w-full text-xs text-gray-800`,
+                  `transition-all duration-300 ease-in-out`,
+                  `hover:shadow-lg hover:scale-105`,
+                  `cursor-pointer`,
+                  `flex flex-row items-center justify-start`,
+                  statusColors[status],
+                  isParentOfHovered(step) ? 'ring-2 ring-blue-500' : '',
+                  hoveredStepId === step.metadata.id
+                    ? 'ring-2 ring-blue-500'
+                    : '',
+                  stepRun?.metadata.id === selectedStepRunId
+                    ? 'ring-2 ring-blue-500'
+                    : '',
+                )}
+                style={{
+                  height: '20px', // Fixed height for each step
+                  opacity:
+                    !selectedStepRunId ||
+                    stepRun?.metadata.id === selectedStepRunId
+                      ? 1
+                      : 0.4,
+                }}
+                onMouseEnter={() => setHoveredStepId(step.metadata.id)}
+                onMouseLeave={() => setHoveredStepId(null)}
+                onClick={() => onClick(stepRun?.metadata.id)}
+              >
+                <StatusIcon className={cn('mr-1', statusAnimations[status])} />
+                <div className="truncate flex-grow">
+                  {step.readableId} ({status})
                 </div>
-              )}
-            </div>
-          ))}
+              </div>
+            );
+          })}
         </div>
       ))}
     </div>

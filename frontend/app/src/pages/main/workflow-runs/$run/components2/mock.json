@@ -1,0 +1,339 @@
+{
+    "displayName": "DagWorkflow-5Eenat",
+    "error": "",
+    "finishedAt": "2024-09-06T15:00:00.000Z",
+    "jobRuns": [
+        {
+            "cancelledAt": "0001-01-01T00:00:00Z",
+            "cancelledError": "",
+            "cancelledReason": "",
+            "finishedAt": "2024-09-06T15:00:00.000Z",
+            "job": {
+                "description": "",
+                "metadata": {
+                    "createdAt": "2024-09-03T20:25:14.129Z",
+                    "id": "fc9b4042-0042-4b4c-aa55-61c60cd3ed6e",
+                    "updatedAt": "2024-09-03T20:25:14.129Z"
+                },
+                "name": "DagWorkflow",
+                "steps": [
+                    {
+                        "action": "dagworkflow:step1",
+                        "children": [],
+                        "jobId": "fc9b4042-0042-4b4c-aa55-61c60cd3ed6e",
+                        "metadata": {
+                            "createdAt": "2024-09-03T20:25:14.129Z",
+                            "id": "cfb55dd0-281d-466e-90ee-63df27ac1c2e",
+                            "updatedAt": "2024-09-03T20:25:14.129Z"
+                        },
+                        "parents": [],
+                        "readableId": "step1",
+                        "tenantId": "707d0855-80ab-4e1f-a156-f1c4546cbf52",
+                        "timeout": "5s"
+                    },
+                    {
+                        "action": "dagworkflow:step2",
+                        "children": [],
+                        "jobId": "fc9b4042-0042-4b4c-aa55-61c60cd3ed6e",
+                        "metadata": {
+                            "createdAt": "2024-09-03T20:25:14.129Z",
+                            "id": "b453c29d-d499-4968-8f2e-62bb16e22b97",
+                            "updatedAt": "2024-09-03T20:25:14.129Z"
+                        },
+                        "parents": [],
+                        "readableId": "step2",
+                        "tenantId": "707d0855-80ab-4e1f-a156-f1c4546cbf52",
+                        "timeout": "5s"
+                    },
+                    {
+                        "action": "dagworkflow:step3",
+                        "children": [],
+                        "jobId": "fc9b4042-0042-4b4c-aa55-61c60cd3ed6e",
+                        "metadata": {
+                            "createdAt": "2024-09-03T20:25:14.129Z",
+                            "id": "9a1ec69d-e7a3-4e74-851d-134786c810b8",
+                            "updatedAt": "2024-09-03T20:25:14.129Z"
+                        },
+                        "parents": [
+                            "cfb55dd0-281d-466e-90ee-63df27ac1c2e",
+                            "b453c29d-d499-4968-8f2e-62bb16e22b97"
+                        ],
+                        "readableId": "step3",
+                        "tenantId": "707d0855-80ab-4e1f-a156-f1c4546cbf52",
+                        "timeout": "60s"
+                    },
+                    {
+                        "action": "dagworkflow:step4",
+                        "children": [],
+                        "jobId": "fc9b4042-0042-4b4c-aa55-61c60cd3ed6e",
+                        "metadata": {
+                            "createdAt": "2024-09-03T20:25:14.129Z",
+                            "id": "aa45f32b-261c-4dde-a2b7-6cd24a1e6f04",
+                            "updatedAt": "2024-09-03T20:25:14.129Z"
+                        },
+                        "parents": [
+                            "cfb55dd0-281d-466e-90ee-63df27ac1c2e",
+                            "9a1ec69d-e7a3-4e74-851d-134786c810b8"
+                        ],
+                        "readableId": "step4",
+                        "tenantId": "707d0855-80ab-4e1f-a156-f1c4546cbf52",
+                        "timeout": "60s"
+                    },
+                    {
+                        "action": "dagworkflow:step5",
+                        "children": [],
+                        "jobId": "fc9b4042-0042-4b4c-aa55-61c60cd3ed6e",
+                        "metadata": {
+                            "createdAt": "2024-09-03T20:25:14.129Z",
+                            "id": "step5-id",
+                            "updatedAt": "2024-09-03T20:25:14.129Z"
+                        },
+                        "parents": [],
+                        "readableId": "step5",
+                        "tenantId": "707d0855-80ab-4e1f-a156-f1c4546cbf52",
+                        "timeout": "5s"
+                    },
+                    {
+                        "action": "dagworkflow:step6",
+                        "children": [],
+                        "jobId": "fc9b4042-0042-4b4c-aa55-61c60cd3ed6e",
+                        "metadata": {
+                            "createdAt": "2024-09-03T20:25:14.129Z",
+                            "id": "step6-id",
+                            "updatedAt": "2024-09-03T20:25:14.129Z"
+                        },
+                        "parents": [],
+                        "readableId": "step6",
+                        "tenantId": "707d0855-80ab-4e1f-a156-f1c4546cbf52",
+                        "timeout": "5s"
+                    },
+                    {
+                        "action": "dagworkflow:step7",
+                        "children": [],
+                        "jobId": "fc9b4042-0042-4b4c-aa55-61c60cd3ed6e",
+                        "metadata": {
+                            "createdAt": "2024-09-03T20:25:14.129Z",
+                            "id": "step7-id",
+                            "updatedAt": "2024-09-03T20:25:14.129Z"
+                        },
+                        "parents": [],
+                        "readableId": "step7",
+                        "tenantId": "707d0855-80ab-4e1f-a156-f1c4546cbf52",
+                        "timeout": "5s"
+                    },
+                    {
+                        "action": "dagworkflow:step8",
+                        "children": [],
+                        "jobId": "fc9b4042-0042-4b4c-aa55-61c60cd3ed6e",
+                        "metadata": {
+                            "createdAt": "2024-09-03T20:25:14.129Z",
+                            "id": "step8-id",
+                            "updatedAt": "2024-09-03T20:25:14.129Z"
+                        },
+                        "parents": [],
+                        "readableId": "step8",
+                        "tenantId": "707d0855-80ab-4e1f-a156-f1c4546cbf52",
+                        "timeout": "5s"
+                    }
+                ],
+                "tenantId": "707d0855-80ab-4e1f-a156-f1c4546cbf52",
+                "timeout": "",
+                "versionId": "3859ce8b-0cd2-48ca-bf87-4996eb3b98c8"
+            },
+            "jobId": "fc9b4042-0042-4b4c-aa55-61c60cd3ed6e",
+            "metadata": {
+                "createdAt": "2024-09-03T21:11:41.239Z",
+                "id": "ecb2fd29-ceb9-4b16-b60c-81b543401927",
+                "updatedAt": "2024-09-06T15:00:00.000Z"
+            },
+            "startedAt": "2024-09-06T14:30:00.000Z",
+            "status": "SUCCEEDED",
+            "stepRuns": [
+                {
+                    "cancelledAt": "0001-01-01T00:00:00Z",
+                    "cancelledError": "",
+                    "cancelledReason": "",
+                    "error": "",
+                    "finishedAt": "0001-01-01T00:00:00Z",
+                    "jobRunId": "ecb2fd29-ceb9-4b16-b60c-81b543401927",
+                    "metadata": {
+                        "createdAt": "2024-09-03T21:11:41.239Z",
+                        "id": "c85cb1ee-fe48-4941-8959-a4ff483c6fa8",
+                        "updatedAt": "2024-09-03T21:21:41.59Z"
+                    },
+                    "startedAt": "0001-01-01T00:00:00Z",
+                    "status": "PENDING",
+                    "stepId": "cfb55dd0-281d-466e-90ee-63df27ac1c2e",
+                    "tenantId": "707d0855-80ab-4e1f-a156-f1c4546cbf52",
+                    "timeoutAt": "0001-01-01T00:00:00Z"
+                },
+                {
+                    "cancelledAt": "0001-01-01T00:00:00Z",
+                    "cancelledError": "",
+                    "cancelledReason": "",
+                    "error": "",
+                    "finishedAt": "0001-01-01T00:00:00Z",
+                    "jobRunId": "ecb2fd29-ceb9-4b16-b60c-81b543401927",
+                    "metadata": {
+                        "createdAt": "2024-09-03T21:11:41.239Z",
+                        "id": "0030bd47-c10d-4a4e-82cd-e1cf83627cf4",
+                        "updatedAt": "2024-09-03T21:21:41.59Z"
+                    },
+                    "startedAt": "0001-01-01T00:00:00Z",
+                    "status": "PENDING_ASSIGNMENT",
+                    "stepId": "b453c29d-d499-4968-8f2e-62bb16e22b97",
+                    "tenantId": "707d0855-80ab-4e1f-a156-f1c4546cbf52",
+                    "timeoutAt": "0001-01-01T00:00:00Z"
+                },
+                {
+                    "cancelledAt": "0001-01-01T00:00:00Z",
+                    "cancelledError": "",
+                    "cancelledReason": "",
+                    "error": "",
+                    "finishedAt": "0001-01-01T00:00:00Z",
+                    "jobRunId": "ecb2fd29-ceb9-4b16-b60c-81b543401927",
+                    "metadata": {
+                        "createdAt": "2024-09-03T21:11:41.239Z",
+                        "id": "39ff3b0f-0a4d-4c74-8f9b-7b1d73eeafd2",
+                        "updatedAt": "2024-09-03T21:11:41.239Z"
+                    },
+                    "startedAt": "0001-01-01T00:00:00Z",
+                    "status": "ASSIGNED",
+                    "stepId": "9a1ec69d-e7a3-4e74-851d-134786c810b8",
+                    "tenantId": "707d0855-80ab-4e1f-a156-f1c4546cbf52",
+                    "timeoutAt": "0001-01-01T00:00:00Z"
+                },
+                {
+                    "cancelledAt": "0001-01-01T00:00:00Z",
+                    "cancelledError": "",
+                    "cancelledReason": "",
+                    "error": "",
+                    "finishedAt": "0001-01-01T00:00:00Z",
+                    "jobRunId": "ecb2fd29-ceb9-4b16-b60c-81b543401927",
+                    "metadata": {
+                        "createdAt": "2024-09-03T21:11:41.239Z",
+                        "id": "4c9bf057-e8bc-40a2-aeda-f031dcc2278a",
+                        "updatedAt": "2024-09-03T21:11:41.239Z"
+                    },
+                    "startedAt": "2024-09-06T14:35:00.000Z",
+                    "status": "RUNNING",
+                    "stepId": "aa45f32b-261c-4dde-a2b7-6cd24a1e6f04",
+                    "tenantId": "707d0855-80ab-4e1f-a156-f1c4546cbf52",
+                    "timeoutAt": "0001-01-01T00:00:00Z"
+                },
+                {
+                    "cancelledAt": "0001-01-01T00:00:00Z",
+                    "cancelledError": "",
+                    "cancelledReason": "",
+                    "error": "",
+                    "finishedAt": "2024-09-06T14:40:00.000Z",
+                    "jobRunId": "ecb2fd29-ceb9-4b16-b60c-81b543401927",
+                    "metadata": {
+                        "createdAt": "2024-09-03T21:11:41.239Z",
+                        "id": "steprun5-id",
+                        "updatedAt": "2024-09-06T14:40:00.000Z"
+                    },
+                    "startedAt": "2024-09-06T14:35:00.000Z",
+                    "status": "SUCCEEDED",
+                    "stepId": "step5-id",
+                    "tenantId": "707d0855-80ab-4e1f-a156-f1c4546cbf52",
+                    "timeoutAt": "0001-01-01T00:00:00Z"
+                },
+                {
+                    "cancelledAt": "0001-01-01T00:00:00Z",
+                    "cancelledError": "",
+                    "cancelledReason": "",
+                    "error": "Mock error occurred",
+                    "finishedAt": "2024-09-06T14:45:00.000Z",
+                    "jobRunId": "ecb2fd29-ceb9-4b16-b60c-81b543401927",
+                    "metadata": {
+                        "createdAt": "2024-09-03T21:11:41.239Z",
+                        "id": "steprun6-id",
+                        "updatedAt": "2024-09-06T14:45:00.000Z"
+                    },
+                    "startedAt": "2024-09-06T14:40:00.000Z",
+                    "status": "FAILED",
+                    "stepId": "step6-id",
+                    "tenantId": "707d0855-80ab-4e1f-a156-f1c4546cbf52",
+                    "timeoutAt": "0001-01-01T00:00:00Z"
+                },
+                {
+                    "cancelledAt": "2024-09-06T14:55:00.000Z",
+                    "cancelledError": "",
+                    "cancelledReason": "CANCELLED_BY_USER",
+                    "error": "",
+                    "finishedAt": "2024-09-06T14:55:00.000Z",
+                    "jobRunId": "ecb2fd29-ceb9-4b16-b60c-81b543401927",
+                    "metadata": {
+                        "createdAt": "2024-09-03T21:11:41.239Z",
+                        "id": "steprun7-id",
+                        "updatedAt": "2024-09-06T14:55:00.000Z"
+                    },
+                    "startedAt": "2024-09-06T14:50:00.000Z",
+                    "status": "CANCELLED",
+                    "stepId": "step7-id",
+                    "tenantId": "707d0855-80ab-4e1f-a156-f1c4546cbf52",
+                    "timeoutAt": "0001-01-01T00:00:00Z"
+                },
+                {
+                    "cancelledAt": "0001-01-01T00:00:00Z",
+                    "cancelledError": "",
+                    "cancelledReason": "",
+                    "error": "",
+                    "finishedAt": "0001-01-01T00:00:00Z",
+                    "jobRunId": "ecb2fd29-ceb9-4b16-b60c-81b543401927",
+                    "metadata": {
+                        "createdAt": "2024-09-03T21:11:41.239Z",
+                        "id": "steprun8-id",
+                        "updatedAt": "2024-09-06T14:55:00.000Z"
+                    },
+                    "startedAt": "2024-09-06T14:50:00.000Z",
+                    "status": "CANCELLING",
+                    "stepId": "step8-id",
+                    "tenantId": "707d0855-80ab-4e1f-a156-f1c4546cbf52",
+                    "timeoutAt": "0001-01-01T00:00:00Z"
+                }
+            ],
+            "tenantId": "707d0855-80ab-4e1f-a156-f1c4546cbf52",
+            "timeoutAt": "0001-01-01T00:00:00Z",
+            "workflowRunId": "35a1d542-d3bb-46b8-a29a-dd9f5f8dcd9c"
+        }
+    ],
+    "metadata": {
+        "createdAt": "2024-09-03T21:11:41.239Z",
+        "id": "35a1d542-d3bb-46b8-a29a-dd9f5f8dcd9c",
+        "updatedAt": "2024-09-06T15:00:00.000Z"
+    },
+    "startedAt": "2024-09-06T14:30:00.000Z",
+    "status": "SUCCEEDED",
+    "tenantId": "707d0855-80ab-4e1f-a156-f1c4546cbf52",
+    "triggeredBy": {
+        "metadata": {
+            "createdAt": "2024-09-03T21:11:41.239Z",
+            "id": "8bf66802-4fbf-46f1-ad70-86a8ea79f278",
+            "updatedAt": "2024-09-03T21:11:41.239Z"
+        },
+        "parentId": "35a1d542-d3bb-46b8-a29a-dd9f5f8dcd9c"
+    },
+    "workflowVersion": {
+        "metadata": {
+            "createdAt": "2024-09-03T20:25:14.129Z",
+            "id": "3859ce8b-0cd2-48ca-bf87-4996eb3b98c8",
+            "updatedAt": "2024-09-03T20:25:14.129Z"
+        },
+        "order": 4,
+        "scheduleTimeout": "10m",
+        "version": "",
+        "workflow": {
+            "description": "",
+            "metadata": {
+                "createdAt": "2024-09-03T20:25:14.129Z",
+                "id": "1900548b-304d-44ab-8b6a-e870bc4e5805",
+                "updatedAt": "2024-09-03T20:25:14.129Z"
+            },
+            "name": "DagWorkflow"
+        },
+        "workflowId": "1900548b-304d-44ab-8b6a-e870bc4e5805"
+    },
+    "workflowVersionId": "3859ce8b-0cd2-48ca-bf87-4996eb3b98c8"
+}

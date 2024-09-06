@@ -35,8 +35,12 @@ import { Badge } from '@/components/ui/badge';
 
 export function StepRunEvents({
   workflowRun,
+  filteredStepRunId,
+  onClick,
 }: {
   workflowRun: WorkflowRunShape;
+  filteredStepRunId?: string;
+  onClick: (stepRunId?: string) => void;
 }) {
   // TODO update only new things lastId
   const eventsQuery = useQuery({
@@ -52,6 +56,16 @@ export function StepRunEvents({
       return 1000;
     },
   });
+
+  const filteredEvents = useMemo(() => {
+    if (!filteredStepRunId) {
+      return eventsQuery.data?.rows || [];
+    }
+
+    return eventsQuery.data?.rows?.filter(
+      (x) => x.stepRunId === filteredStepRunId,
+    );
+  }, [eventsQuery.data, filteredStepRunId]);
 
   const stepRuns = useMemo(() => {
     return (
@@ -105,12 +119,13 @@ export function StepRunEvents({
           </CardHeader>
         </Card>
       )}
-      {eventsQuery.data?.rows?.map((item, index) => (
+      {filteredEvents?.map((item, index) => (
         <StepRunEventCard
           key={index}
           event={item}
           stepRun={normalizedStepRunsByStepRunId[item.stepRunId]}
           step={normalizedStepsByStepRunId[item.stepRunId]}
+          onClick={onClick}
         />
       ))}
     </div>
@@ -121,19 +136,26 @@ function StepRunEventCard({
   event,
   stepRun,
   step,
+  onClick,
 }: {
   event: StepRunEvent;
   stepRun?: StepRun;
   step?: Step;
+  onClick: (stepRunId?: string) => void;
 }) {
   return (
-    <Card className=" bg-muted/30">
+    <Card className="bg-muted/30">
       <CardHeader>
         <div className="flex flex-row justify-between items-center text-sm">
           <div className="flex flex-row justify-between gap-3 items-center">
             <EventIndicator severity={event.severity} />
             <CardTitle className="tracking-wide text-sm flex flex-row gap-4">
-              <Badge>{step?.readableId}</Badge>
+              <Badge
+                className="cursor-pointer"
+                onClick={() => onClick(stepRun?.metadata.id)}
+              >
+                {step?.readableId}
+              </Badge>
               {getTitleFromReason(event.reason, event.message)}
             </CardTitle>
           </div>
