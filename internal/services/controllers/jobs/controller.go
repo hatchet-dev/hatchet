@@ -519,15 +519,6 @@ func (ec *JobsControllerImpl) handleStepRunReplay(ctx context.Context, task *msg
 		return fmt.Errorf("could not archive step run result: %w", err)
 	}
 
-	// Unlink the step run from its existing worker. This is necessary because automatic retries increment the
-	// worker semaphore on failure/cancellation, but in this case we don't want to increment the semaphore.
-	// FIXME: this is very far decoupled from the actual worker logic, and should be refactored.
-	err = ec.repo.StepRun().UnlinkStepRunFromWorker(ctx, metadata.TenantId, payload.StepRunId)
-
-	if err != nil {
-		return fmt.Errorf("could not unlink step run from worker: %w", err)
-	}
-
 	stepRun, err := ec.repo.StepRun().GetStepRunForEngine(ctx, metadata.TenantId, payload.StepRunId)
 
 	if err != nil {

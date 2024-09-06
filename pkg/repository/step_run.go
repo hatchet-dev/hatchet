@@ -167,7 +167,7 @@ type StepRunEngineRepository interface {
 	ListStepRuns(ctx context.Context, tenantId string, opts *ListStepRunsOpts) ([]*dbsqlc.GetStepRunForEngineRow, error)
 
 	// ListStepRunsToReassign returns a list of step runs which are in a reassignable state.
-	ListStepRunsToReassign(ctx context.Context, tenantId string) ([]*dbsqlc.GetStepRunForEngineRow, error)
+	ListStepRunsToReassign(ctx context.Context, tenantId string) ([]string, error)
 
 	ListStepRunsToTimeout(ctx context.Context, tenantId string) ([]*dbsqlc.GetStepRunForEngineRow, error)
 
@@ -179,8 +179,6 @@ type StepRunEngineRepository interface {
 	PreflightCheckReplayStepRun(ctx context.Context, tenantId, stepRunId string) error
 
 	CreateStepRunEvent(ctx context.Context, tenantId, stepRunId string, opts CreateStepRunEventOpts) error
-
-	UnlinkStepRunFromWorker(ctx context.Context, tenantId, stepRunId string) error
 
 	ReleaseStepRunSemaphore(ctx context.Context, tenantId, stepRunId string) error
 
@@ -202,9 +200,13 @@ type StepRunEngineRepository interface {
 	// a pending state.
 	QueueStepRun(ctx context.Context, tenantId, stepRunId string, opts *UpdateStepRunOpts) (*dbsqlc.GetStepRunForEngineRow, error)
 
+	UpdateWorkerSemaphoreCounts(ctx context.Context, qlp *zerolog.Logger, tenantId string) (bool, error)
+
 	QueueStepRuns(ctx context.Context, ql *zerolog.Logger, tenantId string) (QueueStepRunsResult, error)
 
 	CleanupQueueItems(ctx context.Context, tenantId string) error
+
+	CleanupInternalQueueItems(ctx context.Context, tenantId string) error
 
 	ListStartableStepRuns(ctx context.Context, tenantId, jobRunId string, parentStepRunId *string) ([]*dbsqlc.GetStepRunForEngineRow, error)
 

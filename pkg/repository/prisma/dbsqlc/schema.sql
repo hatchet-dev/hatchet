@@ -2,6 +2,9 @@
 CREATE TYPE "ConcurrencyLimitStrategy" AS ENUM ('CANCEL_IN_PROGRESS', 'DROP_NEWEST', 'QUEUE_NEWEST', 'GROUP_ROUND_ROBIN');
 
 -- CreateEnum
+CREATE TYPE "InternalQueue" AS ENUM ('WORKER_SEMAPHORE_COUNT', 'STEP_RUN_UPDATE');
+
+-- CreateEnum
 CREATE TYPE "InviteLinkStatus" AS ENUM ('PENDING', 'ACCEPTED', 'REJECTED');
 
 -- CreateEnum
@@ -139,6 +142,19 @@ CREATE TABLE "GetGroupKeyRun" (
     "scheduleTimeoutAt" TIMESTAMP(3),
 
     CONSTRAINT "GetGroupKeyRun_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "InternalQueueItem" (
+    "id" BIGSERIAL NOT NULL,
+    "queue" "InternalQueue" NOT NULL,
+    "isQueued" BOOLEAN NOT NULL,
+    "data" JSONB,
+    "tenantId" UUID NOT NULL,
+    "priority" INTEGER NOT NULL DEFAULT 1,
+    "uniqueKey" TEXT,
+
+    CONSTRAINT "InternalQueueItem_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -655,6 +671,15 @@ CREATE TABLE "Worker" (
 );
 
 -- CreateTable
+CREATE TABLE "WorkerAssignEvent" (
+    "id" BIGSERIAL NOT NULL,
+    "workerId" UUID NOT NULL,
+    "assignedStepRuns" JSONB,
+
+    CONSTRAINT "WorkerAssignEvent_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "WorkerLabel" (
     "id" BIGSERIAL NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -671,6 +696,14 @@ CREATE TABLE "WorkerLabel" (
 CREATE TABLE "WorkerSemaphore" (
     "workerId" UUID NOT NULL,
     "slots" INTEGER NOT NULL
+);
+
+-- CreateTable
+CREATE TABLE "WorkerSemaphoreCount" (
+    "workerId" UUID NOT NULL,
+    "count" INTEGER NOT NULL,
+
+    CONSTRAINT "WorkerSemaphoreCount_pkey" PRIMARY KEY ("workerId")
 );
 
 -- CreateTable
@@ -929,6 +962,12 @@ CREATE INDEX "GetGroupKeyRun_workerId_idx" ON "GetGroupKeyRun"("workerId" ASC);
 CREATE UNIQUE INDEX "GetGroupKeyRun_workflowRunId_key" ON "GetGroupKeyRun"("workflowRunId" ASC);
 
 -- CreateIndex
+CREATE INDEX "InternalQueueItem_isQueued_tenantId_queue_priority_id_idx" ON "InternalQueueItem"("isQueued" ASC, "tenantId" ASC, "queue" ASC, "priority" DESC, "id" ASC);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "InternalQueueItem_tenantId_queue_uniqueKey_key" ON "InternalQueueItem"("tenantId" ASC, "queue" ASC, "uniqueKey" ASC);
+
+-- CreateIndex
 CREATE UNIQUE INDEX "Job_id_key" ON "Job"("id" ASC);
 
 -- CreateIndex
@@ -1133,6 +1172,9 @@ CREATE UNIQUE INDEX "Worker_id_key" ON "Worker"("id" ASC);
 CREATE UNIQUE INDEX "Worker_webhookId_key" ON "Worker"("webhookId" ASC);
 
 -- CreateIndex
+CREATE INDEX "WorkerAssignEvent_workerId_id_idx" ON "WorkerAssignEvent"("workerId" ASC, "id" ASC);
+
+-- CreateIndex
 CREATE INDEX "WorkerLabel_workerId_idx" ON "WorkerLabel"("workerId" ASC);
 
 -- CreateIndex
@@ -1140,6 +1182,12 @@ CREATE UNIQUE INDEX "WorkerLabel_workerId_key_key" ON "WorkerLabel"("workerId" A
 
 -- CreateIndex
 CREATE UNIQUE INDEX "WorkerSemaphore_workerId_key" ON "WorkerSemaphore"("workerId" ASC);
+
+-- CreateIndex
+CREATE INDEX "WorkerSemaphoreCount_workerId_idx" ON "WorkerSemaphoreCount"("workerId" ASC);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "WorkerSemaphoreCount_workerId_key" ON "WorkerSemaphoreCount"("workerId" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "WorkerSemaphoreSlot_id_key" ON "WorkerSemaphoreSlot"("id" ASC);
@@ -1469,10 +1517,16 @@ ALTER TABLE "Worker" ADD CONSTRAINT "Worker_tenantId_fkey" FOREIGN KEY ("tenantI
 ALTER TABLE "Worker" ADD CONSTRAINT "Worker_webhookId_fkey" FOREIGN KEY ("webhookId") REFERENCES "WebhookWorker"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "WorkerAssignEvent" ADD CONSTRAINT "WorkerAssignEvent_workerId_fkey" FOREIGN KEY ("workerId") REFERENCES "Worker"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "WorkerLabel" ADD CONSTRAINT "WorkerLabel_workerId_fkey" FOREIGN KEY ("workerId") REFERENCES "Worker"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "WorkerSemaphore" ADD CONSTRAINT "WorkerSemaphore_workerId_fkey" FOREIGN KEY ("workerId") REFERENCES "Worker"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "WorkerSemaphoreCount" ADD CONSTRAINT "WorkerSemaphoreCount_workerId_fkey" FOREIGN KEY ("workerId") REFERENCES "Worker"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "WorkerSemaphoreSlot" ADD CONSTRAINT "WorkerSemaphoreSlot_stepRunId_fkey" FOREIGN KEY ("stepRunId") REFERENCES "StepRun"("id") ON DELETE CASCADE ON UPDATE CASCADE;

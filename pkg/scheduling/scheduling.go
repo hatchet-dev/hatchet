@@ -18,9 +18,16 @@ type QueueItemWithOrder struct {
 	Order int
 }
 
+type Slot struct {
+	ID           string
+	WorkerId     string
+	DispatcherId string
+	ActionId     string
+}
+
 func GeneratePlan(
 	ctx context.Context,
-	slots []*dbsqlc.ListSemaphoreSlotsToAssignRow,
+	slots []*Slot,
 	uniqueActionsArr []string,
 	queueItems []*QueueItemWithOrder,
 	stepRateUnits map[string]map[string]int32,
@@ -34,7 +41,7 @@ func GeneratePlan(
 	plan := SchedulePlan{
 		StepRunIds:             make([]pgtype.UUID, 0),
 		StepRunTimeouts:        make([]string, 0),
-		SlotIds:                make([]pgtype.UUID, 0),
+		SlotIds:                make([]string, 0),
 		WorkerIds:              make([]pgtype.UUID, 0),
 		UnassignedStepRunIds:   make([]pgtype.UUID, 0),
 		RateLimitedStepRuns:    make([]pgtype.UUID, 0),

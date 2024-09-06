@@ -19,7 +19,7 @@ func (rc *RetentionControllerImpl) runDeleteQueueItems(ctx context.Context) func
 		err := rc.ForTenants(ctx, rc.runDeleteQueueItemsTenant)
 
 		if err != nil {
-			rc.l.Err(err).Msg("could not run delete expired job runs")
+			rc.l.Err(err).Msg("could not run delete queue items")
 		}
 	}
 }
@@ -30,4 +30,27 @@ func (rc *RetentionControllerImpl) runDeleteQueueItemsTenant(ctx context.Context
 
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 	return rc.repo.StepRun().CleanupQueueItems(ctx, tenantId)
+}
+
+func (rc *RetentionControllerImpl) runDeleteInternalQueueItems(ctx context.Context) func() {
+	return func() {
+		ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
+		defer cancel()
+
+		rc.l.Debug().Msgf("retention controller: deleting internal queue items")
+
+		err := rc.ForTenants(ctx, rc.runDeleteInternalQueueItemsTenant)
+
+		if err != nil {
+			rc.l.Err(err).Msg("could not run delete internal queue items")
+		}
+	}
+}
+
+func (rc *RetentionControllerImpl) runDeleteInternalQueueItemsTenant(ctx context.Context, tenant dbsqlc.Tenant) error {
+	ctx, span := telemetry.NewSpan(ctx, "delete-internal-queue-items-tenant")
+	defer span.End()
+
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	return rc.repo.StepRun().CleanupInternalQueueItems(ctx, tenantId)
 }

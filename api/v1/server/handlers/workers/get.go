@@ -12,16 +12,11 @@ import (
 func (t *WorkerService) WorkerGet(ctx echo.Context, request gen.WorkerGetRequestObject) (gen.WorkerGetResponseObject, error) {
 	worker := ctx.Get("worker").(*dbsqlc.GetWorkerByIdRow)
 
-	recentFailFilter := false
-
-	if request.Params.RecentFailed != nil {
-		recentFailFilter = *request.Params.RecentFailed
-	}
-
 	slotState, recent, err := t.config.APIRepository.Worker().ListWorkerState(
 		sqlchelpers.UUIDToStr(worker.Worker.TenantId),
 		sqlchelpers.UUIDToStr(worker.Worker.ID),
-		recentFailFilter)
+		int(worker.Worker.MaxRuns),
+	)
 
 	if err != nil {
 		return nil, err
