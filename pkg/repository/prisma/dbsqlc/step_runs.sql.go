@@ -1348,7 +1348,10 @@ const listStartableStepRuns = `-- name: ListStartableStepRuns :many
 WITH job_run AS (
     SELECT "status", "deletedAt"
     FROM "JobRun"
-    WHERE "id" = $1::uuid
+    WHERE
+        "id" = $1::uuid
+        AND "status" = 'RUNNING'
+        AND "deletedAt" IS NULL
 )
 SELECT
     DISTINCT ON (child_run."id")
@@ -1361,10 +1364,7 @@ JOIN
     job_run ON true
 WHERE
     child_run."jobRunId" = $1::uuid
-    AND child_run."deletedAt" IS NULL
-    AND job_run."deletedAt" IS NULL
     AND child_run."status" = 'PENDING'
-    AND job_run."status" = 'RUNNING'
     -- we look for whether the step run is startable ASSUMING that succeededParentStepRunId has succeeded,
     -- so we are making sure that all other parent step runs have succeeded
     AND NOT EXISTS (
