@@ -1143,16 +1143,11 @@ SELECT
     child_run."id" AS "id"
 FROM
     "StepRun" AS child_run
-JOIN
-    "JobRun" AS job_run ON child_run."jobRunId" = job_run."id"
 LEFT JOIN
     "_StepRunOrder" AS step_run_order ON step_run_order."B" = child_run."id"
 WHERE
     child_run."jobRunId" = $1::uuid
-    AND child_run."deletedAt" IS NULL
-    AND job_run."deletedAt" IS NULL
     AND child_run."status" = 'PENDING'
-    AND job_run."status" = 'RUNNING'
     AND step_run_order."A" IS NULL
 `
 
