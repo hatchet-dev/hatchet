@@ -71,6 +71,7 @@ type operation struct {
 	isRunning      bool
 	tenantId       string
 	lastRun        time.Time
+	description    string
 }
 
 func (o *operation) runOrContinue(l *zerolog.Logger, ql *zerolog.Logger, scheduler func(context.Context, string) (bool, error)) {
@@ -79,11 +80,9 @@ func (o *operation) runOrContinue(l *zerolog.Logger, ql *zerolog.Logger, schedul
 }
 
 func (o *operation) run(l *zerolog.Logger, ql *zerolog.Logger, scheduler func(context.Context, string) (bool, error)) {
-	if o.getRunning() {
+	if !o.setRunning(true, ql) {
 		return
 	}
-
-	o.setRunning(true, ql)
 
 	go func() {
 		defer func() {
@@ -118,24 +117,25 @@ func (o *operation) run(l *zerolog.Logger, ql *zerolog.Logger, scheduler func(co
 	}()
 }
 
-func (o *operation) setRunning(isRunning bool, ql *zerolog.Logger) {
+// setRunning sets the running state of the operation and returns true if the state was changed,
+// false if the state was not changed.
+func (o *operation) setRunning(isRunning bool, ql *zerolog.Logger) bool {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 
+	if isRunning == o.isRunning {
+		return false
+	}
+
 	if isRunning {
-		ql.Info().Str("tenant_id", o.tenantId).TimeDiff("last_run", time.Now(), o.lastRun).Msg("running tenant queue")
+		ql.Info().Str("tenant_id", o.tenantId).TimeDiff("last_run", time.Now(), o.lastRun).Msg(o.description)
 
 		o.lastRun = time.Now()
 	}
 
 	o.isRunning = isRunning
-}
 
-func (o *operation) getRunning() bool {
-	o.mu.RLock()
-	defer o.mu.RUnlock()
-
-	return o.isRunning
+	return true
 }
 
 func (o *operation) setContinue(shouldContinue bool) {
@@ -301,22 +301,7 @@ func (q *queue) runTenantQueues(ctx context.Context) func() {
 		for i := range tenants {
 			tenantId := sqlchelpers.UUIDToStr(tenants[i].ID)
 
-			var op *operation
-
-			opInt, ok := q.tenantQueueOperations.Load(tenantId)
-
-			if !ok {
-				op = &operation{
-					tenantId: tenantId,
-					lastRun:  time.Now(),
-				}
-
-				q.tenantQueueOperations.Store(tenantId, op)
-			} else {
-				op = opInt.(*operation)
-			}
-
-			op.run(q.l, q.ql, q.scheduleStepRuns)
+			q.getQueueOperation(tenantId).run(q.l, q.ql, q.scheduleStepRuns)
 		}
 	}
 }
@@ -396,8 +381,9 @@ func (q *queue) getQueueOperation(tenantId string) *operation {
 
 	if !ok {
 		op = &operation{
-			tenantId: tenantId,
-			lastRun:  time.Now(),
+			tenantId:    tenantId,
+			lastRun:     time.Now(),
+			description: "scheduling step runs",
 		}
 
 		q.tenantQueueOperations.Store(tenantId, op)
@@ -411,11 +397,28 @@ func (q *queue) getWorkerSemaphoreOperation(tenantId string) *operation {
 
 	if !ok {
 		op = &operation{
-			tenantId: tenantId,
-			lastRun:  time.Now(),
+			tenantId:    tenantId,
+			lastRun:     time.Now(),
+			description: "updating worker semaphores",
 		}
 
 		q.tenantWorkerSemOperations.Store(tenantId, op)
+	}
+
+	return op.(*operation)
+}
+
+func (q *queue) getUpdateStepRunOperation(tenantId string) *operation {
+	op, ok := q.updateStepRunOperations.Load(tenantId)
+
+	if !ok {
+		op = &operation{
+			tenantId:    tenantId,
+			lastRun:     time.Now(),
+			description: "updating step runs",
+		}
+
+		q.updateStepRunOperations.Store(tenantId, op)
 	}
 
 	return op.(*operation)
@@ -456,22 +459,7 @@ func (q *queue) runTenantUpdateStepRuns(ctx context.Context) func() {
 		for i := range tenants {
 			tenantId := sqlchelpers.UUIDToStr(tenants[i].ID)
 
-			var op *operation
-
-			opInt, ok := q.updateStepRunOperations.Load(tenantId)
-
-			if !ok {
-				op = &operation{
-					tenantId: tenantId,
-					lastRun:  time.Now(),
-				}
-
-				q.updateStepRunOperations.Store(tenantId, op)
-			} else {
-				op = opInt.(*operation)
-			}
-
-			op.run(q.l, q.ql, q.processStepRunUpdates)
+			q.getUpdateStepRunOperation(tenantId).run(q.l, q.ql, q.processStepRunUpdates)
 		}
 	}
 }
