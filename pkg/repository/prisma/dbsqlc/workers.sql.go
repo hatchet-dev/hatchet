@@ -90,6 +90,44 @@ func (q *Queries) CreateWorkerCount(ctx context.Context, db DBTX, arg CreateWork
 	return err
 }
 
+const deleteOldWorkerAssignEvents = `-- name: DeleteOldWorkerAssignEvents :one
+WITH for_delete AS (
+    SELECT
+        "id"
+    FROM "WorkerAssignEvent" wae
+    WHERE
+        wae."workerId" = $1::uuid
+    ORDER BY wae."id" DESC
+    OFFSET $2::int
+    LIMIT $3::int + 1
+), has_more AS (
+    SELECT
+        CASE
+            WHEN COUNT(*) > $3 THEN TRUE
+            ELSE FALSE
+        END as has_more
+    FROM for_delete
+)
+DELETE FROM "WorkerAssignEvent" wae
+WHERE wae."id" IN (SELECT "id" FROM for_delete)
+RETURNING
+    (SELECT has_more FROM has_more) as has_more
+`
+
+type DeleteOldWorkerAssignEventsParams struct {
+	Workerid pgtype.UUID `json:"workerid"`
+	MaxRuns  int32       `json:"maxRuns"`
+	Limit    int32       `json:"limit"`
+}
+
+// delete worker assign events outside of the first <maxRuns> events for a worker
+func (q *Queries) DeleteOldWorkerAssignEvents(ctx context.Context, db DBTX, arg DeleteOldWorkerAssignEventsParams) (bool, error) {
+	row := db.QueryRow(ctx, deleteOldWorkerAssignEvents, arg.Workerid, arg.MaxRuns, arg.Limit)
+	var has_more bool
+	err := row.Scan(&has_more)
+	return has_more, err
+}
+
 const deleteOldWorkers = `-- name: DeleteOldWorkers :one
 WITH for_delete AS (
     SELECT
@@ -209,13 +247,11 @@ const getWorkerById = `-- name: GetWorkerById :one
 SELECT
     w.id, w."createdAt", w."updatedAt", w."deletedAt", w."tenantId", w."lastHeartbeatAt", w.name, w."dispatcherId", w."maxRuns", w."isActive", w."lastListenerEstablished", w."isPaused", w.type, w."webhookId",
     ww."url" AS "webhookUrl",
-    (
-        SELECT COUNT(*)
-        FROM "WorkerSemaphoreSlot"
-        WHERE "workerId" = w.id AND "stepRunId" IS NOT NULL
-    ) AS filled_slots
+    wsc."count" AS "remainingSlots"
 FROM
     "Worker" w
+JOIN
+    "WorkerSemaphoreCount" wsc ON w."id" = wsc."workerId"
 LEFT JOIN
     "WebhookWorker" ww ON w."webhookId" = ww."id"
 WHERE
@@ -223,9 +259,9 @@ WHERE
 `
 
 type GetWorkerByIdRow struct {
-	Worker      Worker      `json:"worker"`
-	WebhookUrl  pgtype.Text `json:"webhookUrl"`
-	FilledSlots int64       `json:"filled_slots"`
+	Worker         Worker      `json:"worker"`
+	WebhookUrl     pgtype.Text `json:"webhookUrl"`
+	RemainingSlots int32       `json:"remainingSlots"`
 }
 
 func (q *Queries) GetWorkerById(ctx context.Context, db DBTX, id pgtype.UUID) (*GetWorkerByIdRow, error) {
@@ -247,7 +283,7 @@ func (q *Queries) GetWorkerById(ctx context.Context, db DBTX, id pgtype.UUID) (*
 		&i.Worker.Type,
 		&i.Worker.WebhookId,
 		&i.WebhookUrl,
-		&i.FilledSlots,
+		&i.RemainingSlots,
 	)
 	return &i, err
 }
@@ -436,11 +472,17 @@ JOIN
 WHERE
     sr."workerId" = $1::uuid
     AND sr."tenantId" = $2::uuid
+    AND sr."status" IN ('RUNNING', 'ASSIGNED')
+ORDER BY
+    sr."createdAt" DESC
+LIMIT
+    COALESCE($3::int, 100)
 `
 
 type ListSemaphoreSlotsWithStateForWorkerParams struct {
 	Workerid pgtype.UUID `json:"workerid"`
 	Tenantid pgtype.UUID `json:"tenantid"`
+	Limit    pgtype.Int4 `json:"limit"`
 }
 
 type ListSemaphoreSlotsWithStateForWorkerRow struct {
@@ -453,7 +495,7 @@ type ListSemaphoreSlotsWithStateForWorkerRow struct {
 }
 
 func (q *Queries) ListSemaphoreSlotsWithStateForWorker(ctx context.Context, db DBTX, arg ListSemaphoreSlotsWithStateForWorkerParams) ([]*ListSemaphoreSlotsWithStateForWorkerRow, error) {
-	rows, err := db.Query(ctx, listSemaphoreSlotsWithStateForWorker, arg.Workerid, arg.Tenantid)
+	rows, err := db.Query(ctx, listSemaphoreSlotsWithStateForWorker, arg.Workerid, arg.Tenantid, arg.Limit)
 	if err != nil {
 		return nil, err
 	}
