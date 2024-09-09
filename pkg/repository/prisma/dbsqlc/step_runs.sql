@@ -226,9 +226,21 @@ SET
         ELSE COALESCE(sqlc.narg('status'), "status")
     END,
     "output" = COALESCE(sqlc.narg('output')::jsonb, "output"),
-    "error" = COALESCE(sqlc.narg('error')::text, "error"),
-    "cancelledAt" = COALESCE(sqlc.narg('cancelledAt')::timestamp, "cancelledAt"),
-    "cancelledReason" = COALESCE(sqlc.narg('cancelledReason')::text, "cancelledReason"),
+    "error" = CASE
+        -- Final states are final, cannot be updated
+        WHEN "status" IN ('SUCCEEDED', 'FAILED', 'CANCELLED') THEN "error"
+        ELSE COALESCE(sqlc.narg('error')::text, "error")
+    END,
+    "cancelledAt" = CASE
+        -- Final states are final, cannot be updated
+        WHEN "status" IN ('SUCCEEDED', 'FAILED', 'CANCELLED') THEN "cancelledAt"
+        ELSE COALESCE(sqlc.narg('cancelledAt')::timestamp, "cancelledAt")
+    END,
+    "cancelledReason" = CASE
+        -- Final states are final, cannot be updated
+        WHEN "status" IN ('SUCCEEDED', 'FAILED', 'CANCELLED') THEN "cancelledReason"
+        ELSE COALESCE(sqlc.narg('cancelledReason')::text, "cancelledReason")
+    END,
     "workerId" = CASE
         -- If in a final state, remove the worker ID
         WHEN sqlc.narg('status') IS NOT NULL AND "status" IN ('SUCCEEDED', 'FAILED', 'CANCELLED', 'CANCELLING') THEN NULL
@@ -240,7 +252,7 @@ WHERE
 
 -- name: ResolveLaterStepRuns :many
 WITH RECURSIVE currStepRun AS (
-  SELECT *
+  SELECT "id", "status", "cancelledReason"
   FROM "StepRun"
   WHERE
     "id" = @stepRunId::uuid AND

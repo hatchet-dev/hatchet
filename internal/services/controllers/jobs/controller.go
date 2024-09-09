@@ -1193,7 +1193,7 @@ func (ec *JobsControllerImpl) cancelStepRun(ctx context.Context, tenantId, stepR
 
 	if !oldStepRun.SRWorkerId.Valid {
 		// this is not a fatal error
-		ec.l.Debug().Msgf("step run %s has no worker id, skipping cancellation", stepRunId)
+		ec.l.Debug().Msgf("step run %s has no worker id, skipping send of cancellation", stepRunId)
 
 		return nil
 	}
