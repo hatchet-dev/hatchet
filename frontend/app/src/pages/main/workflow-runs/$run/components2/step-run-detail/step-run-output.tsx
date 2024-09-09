@@ -1,6 +1,17 @@
+import RelativeDate from '@/components/molecules/relative-date';
 import { Alert, AlertTitle } from '@/components/ui/alert';
 import { StepRun, StepRunStatus, WorkflowRunShape } from '@/lib/api';
 import React from 'react';
+
+const readableReason = (reason?: string): string => {
+  return reason
+    ? reason
+        .toLowerCase()
+        .split('_')
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ')
+    : '';
+};
 
 type StepRunOutputProps = {
   stepRun: StepRun;
@@ -10,10 +21,12 @@ type StepRunOutputProps = {
 const StepRunOutputCancelled = ({ stepRun }: StepRunOutputProps) => {
   return (
     <Alert variant="warn">
-      <AlertTitle>Cancelled</AlertTitle>
+      <AlertTitle>
+        {readableReason(stepRun.cancelledReason) || 'Cancelled'}
+      </AlertTitle>
       <pre>{stepRun.cancelledAt}</pre>
+      <RelativeDate date={stepRun.cancelledAt} />
       <pre>{stepRun.cancelledError}</pre>
-      <pre>{stepRun.cancelledReason}</pre>
     </Alert>
   );
 };
@@ -23,6 +36,7 @@ const StepRunOutputPending = ({ stepRun }: StepRunOutputProps) => {
     <Alert variant="info">
       <AlertTitle>Pending</AlertTitle>
       <pre>Waiting to start...</pre>
+      {stepRun.parents}
     </Alert>
   );
 };
