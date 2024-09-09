@@ -69,7 +69,7 @@ func (wc *RetentionControllerImpl) runDeleteOldWorkersTenant(ctx context.Context
 		hasMore, err := wc.repo.Worker().DeleteOldWorkers(ctx, tenantId, lastHeartbeatBefore)
 
 		if err != nil {
-			return fmt.Errorf("could not delete expired events: %w", err)
+			return fmt.Errorf("could not delete old workers: %w", err)
 		}
 
 		if !hasMore {
@@ -90,7 +90,7 @@ func (wc *RetentionControllerImpl) runDeleteOldWorkerAssignEventsTenant(ctx cont
 	err := wc.repo.Worker().DeleteOldWorkerEvents(ctx, tenantId, lastHeartbeatAfter)
 
 	if err != nil {
-		return fmt.Errorf("could not delete expired events: %w", err)
+		return fmt.Errorf("could not delete expired worker assign events: %w", err)
 	}
 
 	return nil
