@@ -668,3 +668,50 @@ getMetrics:
     summary: Get workflow metrics
     tags:
       - Workflow
+
+workflowWorkersCount:
+  get:
+    x-resources: ["tenant", "workflow"]
+    description: Get a count of the workers available for workflow
+    operationId: workflow:get:workers-count
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The workflow id
+        in: path
+        name: workflow
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/WorkflowWorkersCount"
+        description: Successfully retrieved the workflow worker count
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+    summary: Get workflow worker count
+    tags:
+      - Workflow

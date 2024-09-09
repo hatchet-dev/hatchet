@@ -832,6 +832,56 @@ func (q *Queries) GetWorkflowVersionForEngine(ctx context.Context, db DBTX, arg 
 	return items, nil
 }
 
+const getWorkflowWorkerCount = `-- name: GetWorkflowWorkerCount :one
+WITH UniqueWorkers AS (
+    SELECT DISTINCT wss."id" AS slotId, w."id" AS wokerId, w."maxRuns" AS maxRuns
+    FROM "Worker" w
+    JOIN "_ActionToWorker" atw ON w."id" = atw."B"
+    JOIN "Action" a ON atw."A" = a."id"
+    JOIN "Step" s ON a."actionId" = s."actionId"
+    JOIN "Job" j ON s."jobId" = j."id"
+    JOIN "WorkflowVersion" workflowVersion ON j."workflowVersionId" = workflowVersion."id"
+    JOIN "WorkerSemaphoreSlot" wss ON w."id" = wss."workerId"
+    WHERE
+        w."tenantId" = $1::uuid
+        AND workflowVersion."deletedAt" IS NULL
+        AND w."deletedAt" IS NULL
+        AND w."dispatcherId" IS NOT NULL
+        AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+        AND w."isActive" = true
+        AND w."isPaused" = false
+        AND workflowVersion."workflowId" = $2::uuid
+        AND wss."stepRunId" IS NULL
+),
+    workers as ( Select SUM("maxRuns") as maxR from "Worker" where "id" in (select wokerId from UniqueWorkers)),
+    slots as (
+SELECT
+    COUNT(uw.slotId) AS freeSlotCount
+FROM UniqueWorkers uw)
+
+SELECT
+    maxR as totalCount,
+    freeSlotCount as freeCount
+FROM workers, slots
+`
+
+type GetWorkflowWorkerCountParams struct {
+	Tenantid   pgtype.UUID `json:"tenantid"`
+	Workflowid pgtype.UUID `json:"workflowid"`
+}
+
+type GetWorkflowWorkerCountRow struct {
+	Totalcount int64 `json:"totalcount"`
+	Freecount  int64 `json:"freecount"`
+}
+
+func (q *Queries) GetWorkflowWorkerCount(ctx context.Context, db DBTX, arg GetWorkflowWorkerCountParams) (*GetWorkflowWorkerCountRow, error) {
+	row := db.QueryRow(ctx, getWorkflowWorkerCount, arg.Tenantid, arg.Workflowid)
+	var i GetWorkflowWorkerCountRow
+	err := row.Scan(&i.Totalcount, &i.Freecount)
+	return &i, err
+}
+
 const linkOnFailureJob = `-- name: LinkOnFailureJob :one
 UPDATE "WorkflowVersion"
 SET "onFailureJobId" = $1::uuid

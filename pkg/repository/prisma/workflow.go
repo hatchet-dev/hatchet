@@ -504,6 +504,22 @@ func (r *workflowEngineRepository) ListWorkflowsForEvent(ctx context.Context, te
 	return workflows, nil
 }
 
+func (r *workflowAPIRepository) GetWorkflowWorkerCount(tenantId, workflowId string) (int, int, error) {
+	params := dbsqlc.GetWorkflowWorkerCountParams{
+		Tenantid:   sqlchelpers.UUIDFromStr(tenantId),
+		Workflowid: sqlchelpers.UUIDFromStr(workflowId),
+	}
+
+	results, err := r.queries.GetWorkflowWorkerCount(context.Background(), r.pool, params)
+
+	if err != nil {
+		return 0, 0, err
+	}
+
+	return int(results.Freecount), int(results.Totalcount), nil
+
+}
+
 func (r *workflowEngineRepository) createWorkflowVersionTxs(ctx context.Context, tx pgx.Tx, tenantId, workflowId pgtype.UUID, opts *repository.CreateWorkflowVersionOpts) (string, error) {
 	workflowVersionId := uuid.New().String()
 

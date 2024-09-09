@@ -88,6 +88,7 @@ import {
   WorkflowRunStatusList,
   WorkflowVersion,
   WorkflowVersionDefinition,
+  WorkflowWorkersCount,
 } from './data-contracts';
 import { ContentType, HttpClient, RequestParams } from './http-client';
 
@@ -1268,6 +1269,23 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       path: `/api/v1/step-runs/${stepRun}/archives`,
       method: 'GET',
       query: query,
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Get a count of the workers available for workflow
+   *
+   * @tags Workflow
+   * @name WorkflowGetWorkersCount
+   * @summary Get workflow worker count
+   * @request GET:/api/v1/tenants/{tenant}/workflows/{workflow}/worker-count
+   * @secure
+   */
+  workflowGetWorkersCount = (tenant: string, workflow: string, params: RequestParams = {}) =>
+    this.request<WorkflowWorkersCount, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/workflows/${workflow}/worker-count`,
+      method: 'GET',
       secure: true,
       format: 'json',
       ...params,

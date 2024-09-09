@@ -235,6 +235,9 @@ type WorkflowAPIRepository interface {
 
 	// GetWorkflowVersionMetrics returns the metrics for a given workflow version.
 	GetWorkflowMetrics(tenantId, workflowId string, opts *GetWorkflowMetricsOpts) (*WorkflowMetrics, error)
+
+	// GetWorkflowWorkerCount returns the number of workers for a given workflow.
+	GetWorkflowWorkerCount(tenantId, workflowId string) (int, int, error)
 }
 
 type WorkflowEngineRepository interface {

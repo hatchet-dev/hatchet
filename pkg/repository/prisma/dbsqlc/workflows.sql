@@ -464,3 +464,35 @@ SET
     "deletedAt" = CURRENT_TIMESTAMP
 WHERE "id" = @id::uuid
 RETURNING *;
+
+-- name: GetWorkflowWorkerCount :one
+WITH UniqueWorkers AS (
+    SELECT DISTINCT wss."id" AS slotId, w."id" AS wokerId, w."maxRuns" AS maxRuns
+    FROM "Worker" w
+    JOIN "_ActionToWorker" atw ON w."id" = atw."B"
+    JOIN "Action" a ON atw."A" = a."id"
+    JOIN "Step" s ON a."actionId" = s."actionId"
+    JOIN "Job" j ON s."jobId" = j."id"
+    JOIN "WorkflowVersion" workflowVersion ON j."workflowVersionId" = workflowVersion."id"
+    JOIN "WorkerSemaphoreSlot" wss ON w."id" = wss."workerId"
+    WHERE
+        w."tenantId" = @tenantId::uuid
+        AND workflowVersion."deletedAt" IS NULL
+        AND w."deletedAt" IS NULL
+        AND w."dispatcherId" IS NOT NULL
+        AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+        AND w."isActive" = true
+        AND w."isPaused" = false
+        AND workflowVersion."workflowId" = @workflowId::uuid
+        AND wss."stepRunId" IS NULL
+),
+    workers as ( Select SUM("maxRuns") as maxR from "Worker" where "id" in (select wokerId from UniqueWorkers)),
+    slots as (
+SELECT
+    COUNT(uw.slotId) AS freeSlotCount
+FROM UniqueWorkers uw)
+
+SELECT
+    maxR as totalCount,
+    freeSlotCount as freeCount
+FROM workers, slots;

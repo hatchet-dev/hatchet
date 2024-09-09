@@ -603,6 +603,12 @@ export interface Step {
   parents?: string[];
 }
 
+export interface WorkflowWorkersCount {
+  freeCount?: number;
+  maxCount?: number;
+  workflowRunId?: string;
+}
+
 export interface WorkflowRun {
   metadata: APIResourceMeta;
   tenantId: string;
