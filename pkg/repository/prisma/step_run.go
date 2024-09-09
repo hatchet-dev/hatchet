@@ -1377,6 +1377,10 @@ func (s *stepRunEngineRepository) ProcessStepRunUpdates(ctx context.Context, qlp
 
 	limit := 100
 
+	if s.cf.SingleQueueLimit != 0 {
+		limit = s.cf.SingleQueueLimit * 4 // we call update step run 4x
+	}
+
 	tx, err := s.pool.Begin(ctx)
 
 	if err != nil {
@@ -1413,6 +1417,7 @@ func (s *stepRunEngineRepository) ProcessStepRunUpdates(ctx context.Context, qlp
 	eventSeverities := make([]dbsqlc.StepRunEventSeverity, 0, len(data))
 	eventMessages := make([]string, 0, len(data))
 	eventData := make([]map[string]interface{}, 0, len(data))
+	dedupe := make(map[string]bool)
 
 	for _, item := range data {
 		stepRunId := sqlchelpers.UUIDFromStr(item.StepRunId)
@@ -1421,6 +1426,14 @@ func (s *stepRunEngineRepository) ProcessStepRunUpdates(ctx context.Context, qlp
 			if item.Event.EventMessage == nil || item.Event.EventReason == nil {
 				continue
 			}
+
+			dedupeKey := fmt.Sprintf("EVENT-%s-%s", item.StepRunId, *item.Event.EventReason)
+
+			if _, ok := dedupe[dedupeKey]; ok {
+				continue
+			}
+
+			dedupe[dedupeKey] = true
 
 			eventStepRunIds = append(eventStepRunIds, stepRunId)
 			eventMessages = append(eventMessages, *item.Event.EventMessage)
@@ -1439,6 +1452,14 @@ func (s *stepRunEngineRepository) ProcessStepRunUpdates(ctx context.Context, qlp
 			}
 
 			continue
+		} else if item.Status != nil {
+			dedupeKey := fmt.Sprintf("SR-%s-%s", item.StepRunId, *item.Status)
+
+			if _, ok := dedupe[dedupeKey]; ok {
+				continue
+			}
+
+			dedupe[dedupeKey] = true
 		}
 
 		stepRunIds = append(stepRunIds, stepRunId)
@@ -1823,32 +1844,41 @@ func (s *stepRunEngineRepository) StepRunCancelled(ctx context.Context, tenantId
 		return fmt.Errorf("could not release worker semaphore queue items: %w", err)
 	}
 
-	// write a queue item that the step run has failed
-	err = insertStepRunQueueItem(
-		ctx,
-		tx,
-		s.queries,
-		tenantId,
-		updateStepRunQueueData{
-			StepRunId:       stepRunId,
-			CancelledAt:     &cancelledAt,
-			CancelledReason: &cancelledReason,
-			Status:          &cancelled,
-		},
-	)
+	// check that the step run is not in a final state
+	stepRun, err := s.getStepRunForEngineTx(ctx, tx, tenantId, stepRunId)
 
 	if err != nil {
-		return fmt.Errorf("could not insert step run queue item: %w", err)
+		return fmt.Errorf("could not get step run: %w", err)
 	}
 
-	_, err = s.queries.ResolveLaterStepRuns(ctx, tx, dbsqlc.ResolveLaterStepRunsParams{
-		Steprunid: sqlchelpers.UUIDFromStr(stepRunId),
-		Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
-		Status:    dbsqlc.StepRunStatusCANCELLED,
-	})
+	if !repository.IsFinalStepRunStatus(stepRun.SRStatus) {
+		// write a queue item that the step run has failed
+		err = insertStepRunQueueItem(
+			ctx,
+			tx,
+			s.queries,
+			tenantId,
+			updateStepRunQueueData{
+				StepRunId:       stepRunId,
+				CancelledAt:     &cancelledAt,
+				CancelledReason: &cancelledReason,
+				Status:          &cancelled,
+			},
+		)
 
-	if err != nil {
-		return fmt.Errorf("could not resolve later step runs: %w", err)
+		if err != nil {
+			return fmt.Errorf("could not insert step run queue item: %w", err)
+		}
+
+		_, err = s.queries.ResolveLaterStepRuns(ctx, tx, dbsqlc.ResolveLaterStepRunsParams{
+			Steprunid: sqlchelpers.UUIDFromStr(stepRunId),
+			Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
+			Status:    dbsqlc.StepRunStatusCANCELLED,
+		})
+
+		if err != nil {
+			return fmt.Errorf("could not resolve later step runs: %w", err)
+		}
 	}
 
 	if err := tx.Commit(ctx); err != nil {
@@ -1879,32 +1909,41 @@ func (s *stepRunEngineRepository) StepRunFailed(ctx context.Context, tenantId, s
 		return fmt.Errorf("could not release worker semaphore queue items: %w", err)
 	}
 
-	// write a queue item that the step run has failed
-	err = insertStepRunQueueItem(
-		ctx,
-		tx,
-		s.queries,
-		tenantId,
-		updateStepRunQueueData{
-			StepRunId:  stepRunId,
-			FinishedAt: &failedAt,
-			Error:      &errStr,
-			Status:     &failed,
-		},
-	)
+	// check that the step run is not in a final state
+	stepRun, err := s.getStepRunForEngineTx(ctx, tx, tenantId, stepRunId)
 
 	if err != nil {
-		return fmt.Errorf("could not insert step run queue item: %w", err)
+		return fmt.Errorf("could not get step run: %w", err)
 	}
 
-	_, err = s.queries.ResolveLaterStepRuns(ctx, tx, dbsqlc.ResolveLaterStepRunsParams{
-		Steprunid: sqlchelpers.UUIDFromStr(stepRunId),
-		Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
-		Status:    dbsqlc.StepRunStatusFAILED,
-	})
+	if !repository.IsFinalStepRunStatus(stepRun.SRStatus) {
+		// write a queue item that the step run has failed
+		err = insertStepRunQueueItem(
+			ctx,
+			tx,
+			s.queries,
+			tenantId,
+			updateStepRunQueueData{
+				StepRunId:  stepRunId,
+				FinishedAt: &failedAt,
+				Error:      &errStr,
+				Status:     &failed,
+			},
+		)
 
-	if err != nil {
-		return fmt.Errorf("could not resolve later step runs: %w", err)
+		if err != nil {
+			return fmt.Errorf("could not insert step run queue item: %w", err)
+		}
+
+		_, err = s.queries.ResolveLaterStepRuns(ctx, tx, dbsqlc.ResolveLaterStepRunsParams{
+			Steprunid: sqlchelpers.UUIDFromStr(stepRunId),
+			Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
+			Status:    dbsqlc.StepRunStatusFAILED,
+		})
+
+		if err != nil {
+			return fmt.Errorf("could not resolve later step runs: %w", err)
+		}
 	}
 
 	if err := tx.Commit(ctx); err != nil {
