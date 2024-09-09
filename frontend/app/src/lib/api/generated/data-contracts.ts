@@ -895,17 +895,12 @@ export interface WorkerList {
 
 export interface SemaphoreSlots {
   /**
-   * The slot name.
-   * @format uuid
-   */
-  slot: string;
-  /**
    * The step run id.
    * @format uuid
    */
-  stepRunId?: string;
+  stepRunId: string;
   /** The action id. */
-  actionId?: string;
+  actionId: string;
   /**
    * The time this slot was started.
    * @format date-time
@@ -920,8 +915,8 @@ export interface SemaphoreSlots {
    * The workflow run id.
    * @format uuid
    */
-  workflowRunId?: string;
-  status?: StepRunStatus;
+  workflowRunId: string;
+  status: StepRunStatus;
 }
 
 export interface RecentStepRuns {

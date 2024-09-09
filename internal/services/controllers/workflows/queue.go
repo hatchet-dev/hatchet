@@ -280,7 +280,7 @@ func (wc *WorkflowsControllerImpl) queueWorkflowRunJobs(ctx context.Context, wor
 		jobRunId := sqlchelpers.UUIDToStr(jobRuns[i].ID)
 
 		err := wc.mq.AddMessage(
-			context.Background(),
+			ctx,
 			msgqueue.JOB_PROCESSING_QUEUE,
 			tasktypes.JobRunQueuedToTask(tenantId, jobRunId),
 		)

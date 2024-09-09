@@ -27,7 +27,7 @@ export function AdditionalMetadata({ metadata }: { metadata: object }) {
                 className="mr-2 truncate cursor-default font-normal"
                 variant="secondary"
               >
-                {`${key}: ${JSON.stringify(value).substring(0, 10)}${value.length > 10 ? '...' : ''}`}
+                {`${key}: ${getValueString(value)}`}
               </Badge>
             </TooltipTrigger>
             <TooltipContent>
@@ -65,3 +65,13 @@ export function AdditionalMetadata({ metadata }: { metadata: object }) {
     </div>
   );
 }
+
+const getValueString = (value: any) => {
+  const res = JSON.stringify(value).substring(0, 10);
+
+  if (value && value?.length > 10) {
+    return `${res}...`;
+  }
+
+  return res;
+};

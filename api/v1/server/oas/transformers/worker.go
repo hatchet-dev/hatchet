@@ -19,8 +19,6 @@ func ToSlotState(slots []*dbsqlc.ListSemaphoreSlotsWithStateForWorkerRow) *[]gen
 	for i := range slots {
 		slot := slots[i]
 
-		slotId := uuid.MustParse(sqlchelpers.UUIDToStr(slot.Slot))
-
 		var stepRunId uuid.UUID
 
 		if slot.StepRunId.Valid {
@@ -34,11 +32,10 @@ func ToSlotState(slots []*dbsqlc.ListSemaphoreSlotsWithStateForWorkerRow) *[]gen
 		}
 
 		resp[i] = gen.SemaphoreSlots{
-			Slot:          slotId,
-			StepRunId:     &stepRunId,
-			Status:        (*gen.StepRunStatus)(&slot.Status.StepRunStatus),
-			ActionId:      &slot.ActionId.String,
-			WorkflowRunId: &workflowRunId,
+			StepRunId:     stepRunId,
+			Status:        gen.StepRunStatus(slot.Status),
+			ActionId:      slot.ActionId,
+			WorkflowRunId: workflowRunId,
 			TimeoutAt:     &slot.TimeoutAt.Time,
 			StartedAt:     &slot.StartedAt.Time,
 		}
@@ -134,7 +131,7 @@ func ToWorker(worker *db.WorkerModel) *gen.Worker {
 	return res
 }
 
-func ToWorkerSqlc(worker *dbsqlc.Worker, slots *int, webhookUrl *string, actions []pgtype.Text) *gen.Worker {
+func ToWorkerSqlc(worker *dbsqlc.Worker, remainingSlots *int, webhookUrl *string, actions []pgtype.Text) *gen.Worker {
 
 	dispatcherId := uuid.MustParse(pgUUIDToStr(worker.DispatcherId))
 
@@ -152,8 +149,8 @@ func ToWorkerSqlc(worker *dbsqlc.Worker, slots *int, webhookUrl *string, actions
 
 	var availableRuns int
 
-	if slots != nil {
-		availableRuns = maxRuns - *slots
+	if remainingSlots != nil {
+		availableRuns = *remainingSlots
 	}
 
 	res := &gen.Worker{

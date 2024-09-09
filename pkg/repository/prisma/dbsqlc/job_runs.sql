@@ -4,21 +4,24 @@ SET "status" = @status::"JobRunStatus"
 WHERE "id" = @id::uuid AND "tenantId" = @tenantId::uuid
 RETURNING *;
 
--- name: ResolveJobRunStatus :one
+-- name: ResolveJobRunStatus :many
 WITH stepRuns AS (
-    SELECT sum(case when runs."status" IN ('PENDING', 'PENDING_ASSIGNMENT') then 1 else 0 end) AS pendingRuns,
+    SELECT
+        runs."jobRunId",
+        sum(case when runs."status" IN ('PENDING', 'PENDING_ASSIGNMENT') then 1 else 0 end) AS pendingRuns,
         sum(case when runs."status" IN ('RUNNING', 'ASSIGNED') then 1 else 0 end) AS runningRuns,
         sum(case when runs."status" = 'SUCCEEDED' then 1 else 0 end) AS succeededRuns,
         sum(case when runs."status" = 'FAILED' then 1 else 0 end) AS failedRuns,
         sum(case when runs."status" = 'CANCELLED' then 1 else 0 end) AS cancelledRuns
     FROM "StepRun" as runs
     WHERE
-        "jobRunId" = (
+        "jobRunId" = ANY(
             SELECT "jobRunId"
             FROM "StepRun"
-            WHERE "id" = @stepRunId::uuid
+            WHERE "id" = ANY(@stepRunIds::uuid[])
         ) AND
         "tenantId" = @tenantId::uuid
+    GROUP BY runs."jobRunId"
 )
 UPDATE "JobRun"
 SET "status" = CASE
@@ -51,12 +54,10 @@ END, "startedAt" = CASE
     ELSE "startedAt"
 END
 FROM stepRuns s
-WHERE "id" = (
-    SELECT "jobRunId"
-    FROM "StepRun"
-    WHERE "id" = @stepRunId::uuid
-) AND "tenantId" = @tenantId::uuid
-RETURNING "JobRun".*;
+WHERE
+    "id" = s."jobRunId"
+    AND "tenantId" = @tenantId::uuid
+RETURNING "JobRun"."id";
 
 -- name: UpsertJobRunLookupData :exec
 INSERT INTO "JobRunLookupData" (

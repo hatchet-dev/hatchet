@@ -241,14 +241,9 @@ export const queries = createQueryKeyStore({
       queryKey: ['worker:list', tenant],
       queryFn: async () => (await api.workerList(tenant)).data,
     }),
-    get: (
-      worker: string,
-      query: {
-        recentFailed: boolean;
-      },
-    ) => ({
-      queryKey: ['worker:get', worker, query.recentFailed],
-      queryFn: async () => (await api.workerGet(worker, query)).data,
+    get: (worker: string) => ({
+      queryKey: ['worker:get', worker],
+      queryFn: async () => (await api.workerGet(worker)).data,
     }),
   },
   github: {

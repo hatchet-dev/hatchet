@@ -197,16 +197,15 @@ func ToStepRun(stepRun *dbsqlc.GetStepRunsForJobRunsRow) *gen.StepRun {
 	return res
 }
 
-func ToRecentStepRun(stepRun *dbsqlc.ListRecentStepRunsForWorkerRow) (*gen.RecentStepRuns, error) {
-
+func ToRecentStepRun(stepRun *dbsqlc.GetStepRunForEngineRow) (*gen.RecentStepRuns, error) {
 	workflowRunId := uuid.MustParse(sqlchelpers.UUIDToStr(stepRun.WorkflowRunId))
 
 	res := &gen.RecentStepRuns{
-		Metadata:      *toAPIMetadata(sqlchelpers.UUIDToStr(stepRun.ID), stepRun.CreatedAt.Time, stepRun.UpdatedAt.Time),
-		Status:        gen.StepRunStatus(stepRun.Status),
-		StartedAt:     &stepRun.StartedAt.Time,
-		FinishedAt:    &stepRun.FinishedAt.Time,
-		CancelledAt:   &stepRun.CancelledAt.Time,
+		Metadata:      *toAPIMetadata(sqlchelpers.UUIDToStr(stepRun.SRID), stepRun.SRCreatedAt.Time, stepRun.SRUpdatedAt.Time),
+		Status:        gen.StepRunStatus(stepRun.SRStatus),
+		StartedAt:     &stepRun.SRStartedAt.Time,
+		FinishedAt:    &stepRun.SRFinishedAt.Time,
+		CancelledAt:   &stepRun.SRCancelledAt.Time,
 		ActionId:      stepRun.ActionId,
 		WorkflowRunId: workflowRunId,
 	}

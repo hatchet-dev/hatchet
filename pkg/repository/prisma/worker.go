@@ -2,6 +2,7 @@ package prisma
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -52,26 +53,67 @@ func (w *workerAPIRepository) GetWorkerActionsByWorkerId(tenantid, workerId stri
 	})
 }
 
-func (w *workerAPIRepository) ListWorkerState(tenantId, workerId string, failed bool) ([]*dbsqlc.ListSemaphoreSlotsWithStateForWorkerRow, []*dbsqlc.ListRecentStepRunsForWorkerRow, error) {
+func (w *workerAPIRepository) ListWorkerState(tenantId, workerId string, maxRuns int) ([]*dbsqlc.ListSemaphoreSlotsWithStateForWorkerRow, []*dbsqlc.GetStepRunForEngineRow, error) {
 	slots, err := w.queries.ListSemaphoreSlotsWithStateForWorker(context.Background(), w.pool, dbsqlc.ListSemaphoreSlotsWithStateForWorkerParams{
 		Workerid: sqlchelpers.UUIDFromStr(workerId),
 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Limit: pgtype.Int4{
+			Int32: int32(maxRuns),
+			Valid: true,
+		},
 	})
 
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not list worker slot state: %w", err)
 	}
 
-	var statuses = []string{"SUCCEEDED", "FAILED", "CANCELLED"}
+	// get recent assignment events
+	assignedEvents, err := w.queries.ListRecentAssignedEventsForWorker(context.Background(), w.pool, dbsqlc.ListRecentAssignedEventsForWorkerParams{
+		Workerid: sqlchelpers.UUIDFromStr(workerId),
+		Limit: pgtype.Int4{
+			Int32: int32(maxRuns),
+			Valid: true,
+		},
+	})
 
-	if failed {
-		statuses = []string{"FAILED", "CANCELLED"}
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not list worker recent assigned events: %w", err)
 	}
 
-	recent, err := w.queries.ListRecentStepRunsForWorker(context.Background(), w.pool, dbsqlc.ListRecentStepRunsForWorkerParams{
-		Workerid: sqlchelpers.UUIDFromStr(workerId),
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
-		Statuses: statuses,
+	// construct unique array of recent step run ids
+	uniqueStepRunIds := make(map[string]bool)
+
+	for _, event := range assignedEvents {
+		// unmarshal to string array
+		var stepRunIds []string
+
+		if err := json.Unmarshal(event.AssignedStepRuns, &stepRunIds); err != nil {
+			return nil, nil, fmt.Errorf("could not unmarshal assigned step runs: %w", err)
+		}
+
+		for _, stepRunId := range stepRunIds {
+			if _, ok := uniqueStepRunIds[stepRunId]; ok {
+				continue
+			}
+
+			// just do 20 for now
+			if len(uniqueStepRunIds) > 20 {
+				break
+			}
+
+			uniqueStepRunIds[stepRunId] = true
+		}
+	}
+
+	stepRunIds := make([]pgtype.UUID, 0, len(uniqueStepRunIds))
+
+	for stepRunId := range uniqueStepRunIds {
+		stepRunIds = append(stepRunIds, sqlchelpers.UUIDFromStr(stepRunId))
+	}
+
+	recent, err := w.queries.GetStepRunForEngine(context.Background(), w.pool, dbsqlc.GetStepRunForEngineParams{
+		Ids:      stepRunIds,
+		TenantId: sqlchelpers.UUIDFromStr(tenantId),
 	})
 
 	if err != nil {
@@ -81,14 +123,14 @@ func (w *workerAPIRepository) ListWorkerState(tenantId, workerId string, failed 
 	return slots, recent, nil
 }
 
-func (r *workerAPIRepository) ListWorkers(tenantId string, opts *repository.ListWorkersOpts) ([]*dbsqlc.ListWorkersWithStepCountRow, error) {
+func (r *workerAPIRepository) ListWorkers(tenantId string, opts *repository.ListWorkersOpts) ([]*dbsqlc.ListWorkersWithSlotCountRow, error) {
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
 
 	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
 
-	queryParams := dbsqlc.ListWorkersWithStepCountParams{
+	queryParams := dbsqlc.ListWorkersWithSlotCountParams{
 		Tenantid: pgTenantId,
 	}
 
@@ -115,11 +157,11 @@ func (r *workerAPIRepository) ListWorkers(tenantId string, opts *repository.List
 
 	defer deferRollback(context.Background(), r.l, tx.Rollback)
 
-	workers, err := r.queries.ListWorkersWithStepCount(context.Background(), tx, queryParams)
+	workers, err := r.queries.ListWorkersWithSlotCount(context.Background(), tx, queryParams)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			workers = make([]*dbsqlc.ListWorkersWithStepCountRow, 0)
+			workers = make([]*dbsqlc.ListWorkersWithSlotCountRow, 0)
 		} else {
 			return nil, fmt.Errorf("could not list workers: %w", err)
 		}
@@ -261,6 +303,15 @@ func (w *workerEngineRepository) CreateNewWorker(ctx context.Context, tenantId s
 
 			if err != nil {
 				return nil, nil, fmt.Errorf("could not create worker: %w", err)
+			}
+
+			err = w.queries.CreateWorkerCount(ctx, tx, dbsqlc.CreateWorkerCountParams{
+				Workerid: worker.ID,
+				MaxRuns:  createParams.MaxRuns,
+			})
+
+			if err != nil {
+				return nil, nil, fmt.Errorf("could not create worker count: %w", err)
 			}
 
 			err = w.queries.StubWorkerSemaphoreSlots(ctx, tx, dbsqlc.StubWorkerSemaphoreSlotsParams{
@@ -497,4 +548,65 @@ func (w *workerEngineRepository) UpsertWorkerLabels(ctx context.Context, workerI
 	}
 
 	return affinities, nil
+}
+
+func (r *workerEngineRepository) DeleteOldWorkers(ctx context.Context, tenantId string, lastHeartbeatBefore time.Time) (bool, error) {
+	hasMore, err := r.queries.DeleteOldWorkers(ctx, r.pool, dbsqlc.DeleteOldWorkersParams{
+		Tenantid:            sqlchelpers.UUIDFromStr(tenantId),
+		Lastheartbeatbefore: sqlchelpers.TimestampFromTime(lastHeartbeatBefore),
+		Limit:               20,
+	})
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, nil
+		}
+
+		return false, err
+	}
+
+	return hasMore, nil
+}
+
+func (r *workerEngineRepository) DeleteOldWorkerEvents(ctx context.Context, tenantId string, lastHeartbeatAfter time.Time) error {
+	// list workers
+	workers, err := r.queries.ListWorkersWithSlotCount(ctx, r.pool, dbsqlc.ListWorkersWithSlotCountParams{
+		Tenantid:           sqlchelpers.UUIDFromStr(tenantId),
+		LastHeartbeatAfter: sqlchelpers.TimestampFromTime(lastHeartbeatAfter),
+	})
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil
+		}
+
+		return err
+	}
+
+	for _, worker := range workers {
+		hasMore := true
+
+		for hasMore {
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+
+			// delete worker events
+			hasMore, err = r.queries.DeleteOldWorkerAssignEvents(ctx, r.pool, dbsqlc.DeleteOldWorkerAssignEventsParams{
+				Workerid: worker.Worker.ID,
+				MaxRuns:  worker.Worker.MaxRuns,
+				Limit:    100,
+			})
+
+			if err != nil {
+				if errors.Is(err, pgx.ErrNoRows) {
+					break
+				}
+
+				return fmt.Errorf("could not delete old worker events: %w", err)
+			}
+		}
+	}
+
+	return nil
 }

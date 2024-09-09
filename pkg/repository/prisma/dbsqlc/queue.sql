@@ -67,6 +67,24 @@ AND
     AND "id" <= @maxId::bigint
     AND "tenantId" = @tenantId::uuid;
 
+-- name: GetMinMaxProcessedInternalQueueItems :one
+SELECT
+    COALESCE(MIN("id"), 0)::bigint AS "minId",
+    COALESCE(MAX("id"), 0)::bigint AS "maxId"
+FROM
+    "InternalQueueItem"
+WHERE
+    "isQueued" = 'f'
+    AND "tenantId" = @tenantId::uuid;
+
+-- name: CleanupInternalQueueItems :exec
+DELETE FROM "InternalQueueItem"
+WHERE "isQueued" = 'f'
+AND
+    "id" >= @minId::bigint
+    AND "id" <= @maxId::bigint
+    AND "tenantId" = @tenantId::uuid;
+
 -- name: ListQueueItems :batchmany
 SELECT
     *
@@ -96,3 +114,78 @@ SET
     "isQueued" = false
 WHERE
     qi."id" = ANY(@ids::bigint[]);
+
+-- name: ListInternalQueueItems :many
+SELECT
+    *
+FROM
+    "InternalQueueItem" qi
+WHERE
+    qi."isQueued" = true
+    AND qi."tenantId" = @tenantId::uuid
+    AND qi."queue" = @queue::"InternalQueue"
+    AND (
+        sqlc.narg('gtId')::bigint IS NULL OR
+        qi."id" >= sqlc.narg('gtId')::bigint
+    )
+    -- Added to ensure that the index is used
+    AND qi."priority" >= 1 AND qi."priority" <= 4
+ORDER BY
+    qi."priority" DESC,
+    qi."id" ASC
+LIMIT
+    COALESCE(sqlc.narg('limit')::integer, 100)
+FOR UPDATE SKIP LOCKED;
+
+-- name: MarkInternalQueueItemsProcessed :exec
+UPDATE
+    "InternalQueueItem" qi
+SET
+    "isQueued" = false
+WHERE
+    qi."id" = ANY(@ids::bigint[]);
+
+-- name: CreateUniqueInternalQueueItemsBulk :exec
+INSERT INTO
+    "InternalQueueItem" (
+        "queue",
+        "isQueued",
+        "data",
+        "tenantId",
+        "priority",
+        "uniqueKey"
+    )
+SELECT
+    @queue::"InternalQueue",
+    true,
+    input."data",
+    @tenantId::uuid,
+    1,
+    input."uniqueKey"
+FROM (
+    SELECT
+        unnest(@datas::json[]) AS "data",
+        unnest(@uniqueKeys::text[]) AS "uniqueKey"
+) AS input
+ON CONFLICT DO NOTHING;
+
+-- name: CreateInternalQueueItemsBulk :exec
+INSERT INTO
+    "InternalQueueItem" (
+        "queue",
+        "isQueued",
+        "data",
+        "tenantId",
+        "priority"
+    )
+SELECT
+    @queue::"InternalQueue",
+    true,
+    input."data",
+    @tenantId::uuid,
+    1
+FROM (
+    SELECT
+        unnest(@datas::json[]) AS "data"
+) AS input
+ON CONFLICT DO NOTHING;

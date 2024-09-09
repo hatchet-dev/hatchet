@@ -15,10 +15,6 @@ WorkerLabel:
 
 SemaphoreSlots:
   properties:
-    slot:
-      type: string
-      description: The slot name.
-      format: uuid
     stepRunId:
       type: string
       description: The step run id.
@@ -41,7 +37,10 @@ SemaphoreSlots:
     status:
       $ref: "./_index.yaml#/StepRunStatus"
   required:
-    - slot
+    - stepRunId
+    - actionId
+    - workflowRunId
+    - status
 
 RecentStepRuns:
   properties:

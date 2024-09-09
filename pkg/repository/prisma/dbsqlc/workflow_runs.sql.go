@@ -1693,9 +1693,11 @@ func (q *Queries) ReplayWorkflowRunResetJobRun(ctx context.Context, db DBTX, job
 	return &i, err
 }
 
-const resolveWorkflowRunStatus = `-- name: ResolveWorkflowRunStatus :one
+const resolveWorkflowRunStatus = `-- name: ResolveWorkflowRunStatus :many
 WITH jobRuns AS (
-    SELECT sum(case when runs."status" = 'PENDING' then 1 else 0 end) AS pendingRuns,
+    SELECT
+        runs."workflowRunId",
+        sum(case when runs."status" = 'PENDING' then 1 else 0 end) AS pendingRuns,
         sum(case when runs."status" = 'RUNNING' then 1 else 0 end) AS runningRuns,
         sum(case when runs."status" = 'SUCCEEDED' then 1 else 0 end) AS succeededRuns,
         sum(case when runs."status" = 'FAILED' then 1 else 0 end) AS failedRuns,
@@ -1703,94 +1705,96 @@ WITH jobRuns AS (
     FROM "JobRun" as runs
     JOIN "Job" as job ON runs."jobId" = job."id"
     WHERE
-        "workflowRunId" = (
+        runs."workflowRunId" = ANY(
             SELECT "workflowRunId"
             FROM "JobRun"
-            WHERE "id" = $1::uuid
+            WHERE "id" = ANY($1::uuid[])
         ) AND
         runs."deletedAt" IS NULL AND
         runs."tenantId" = $2::uuid AND
         -- we should not include onFailure jobs in the calculation
         job."kind" = 'DEFAULT'
+    GROUP BY runs."workflowRunId"
+), updated_workflow_runs AS (
+    UPDATE "WorkflowRun" wr
+    SET "status" = CASE
+        -- Final states are final, cannot be updated
+        WHEN "status" IN ('SUCCEEDED', 'FAILED') THEN "status"
+        -- We check for running first, because if a job run is running, then the workflow is running
+        WHEN j.runningRuns > 0 THEN 'RUNNING'
+        -- When at least one job run has failed or been cancelled, then the workflow is failed
+        WHEN j.failedRuns > 0 OR j.cancelledRuns > 0 THEN 'FAILED'
+        -- When all job runs have succeeded, then the workflow is succeeded
+        WHEN j.succeededRuns > 0 AND j.pendingRuns = 0 AND j.runningRuns = 0 AND j.failedRuns = 0 AND j.cancelledRuns = 0 THEN 'SUCCEEDED'
+        ELSE "status"
+    END,
+    "finishedAt" = CASE
+        -- Final states are final, cannot be updated
+        WHEN "finishedAt" IS NOT NULL THEN "finishedAt"
+        -- We check for running first, because if a job run is running, then the workflow is not finished
+        WHEN j.runningRuns > 0 THEN NULL
+        -- When one job run has failed or been cancelled, then the workflow is failed
+        WHEN j.failedRuns > 0 OR j.cancelledRuns > 0 OR j.succeededRuns > 0 THEN NOW()
+        ELSE "finishedAt"
+    END,
+    "startedAt" = CASE
+        -- Started at is final, cannot be changed
+        WHEN "startedAt" IS NOT NULL THEN "startedAt"
+        -- If a job is running or in a final state, then the workflow has started
+        WHEN j.runningRuns > 0 OR j.succeededRuns > 0 OR j.failedRuns > 0 OR j.cancelledRuns > 0 THEN NOW()
+        ELSE "startedAt"
+    END,
+    "duration" = CASE
+        -- duration is final, cannot be changed
+        WHEN "duration" IS NOT NULL THEN "duration"
+        -- We check for running first, because if a job run is running, then the workflow is not finished
+        WHEN j.runningRuns > 0 THEN NULL
+        -- When one job run has failed or been cancelled, then the workflow is failed
+        WHEN j.failedRuns > 0 OR j.cancelledRuns > 0 OR j.succeededRuns > 0 THEN
+                        EXTRACT(EPOCH FROM (NOW() - "startedAt")) * 1000
+        ELSE "duration"
+    END
+    FROM
+        jobRuns j
+    WHERE
+        wr."id" = j."workflowRunId"
+        AND "tenantId" = $2::uuid
+    RETURNING wr."id", wr."status"
 )
-UPDATE "WorkflowRun"
-SET "status" = CASE
-    -- Final states are final, cannot be updated
-    WHEN "status" IN ('SUCCEEDED', 'FAILED') THEN "status"
-    -- We check for running first, because if a job run is running, then the workflow is running
-    WHEN j.runningRuns > 0 THEN 'RUNNING'
-    -- When at least one job run has failed or been cancelled, then the workflow is failed
-    WHEN j.failedRuns > 0 OR j.cancelledRuns > 0 THEN 'FAILED'
-    -- When all job runs have succeeded, then the workflow is succeeded
-    WHEN j.succeededRuns > 0 AND j.pendingRuns = 0 AND j.runningRuns = 0 AND j.failedRuns = 0 AND j.cancelledRuns = 0 THEN 'SUCCEEDED'
-    ELSE "status"
-END,
-"finishedAt" = CASE
-    -- Final states are final, cannot be updated
-    WHEN "finishedAt" IS NOT NULL THEN "finishedAt"
-    -- We check for running first, because if a job run is running, then the workflow is not finished
-    WHEN j.runningRuns > 0 THEN NULL
-    -- When one job run has failed or been cancelled, then the workflow is failed
-    WHEN j.failedRuns > 0 OR j.cancelledRuns > 0 OR j.succeededRuns > 0 THEN NOW()
-    ELSE "finishedAt"
-END,
-"startedAt" = CASE
-    -- Started at is final, cannot be changed
-    WHEN "startedAt" IS NOT NULL THEN "startedAt"
-    -- If a job is running or in a final state, then the workflow has started
-    WHEN j.runningRuns > 0 OR j.succeededRuns > 0 OR j.failedRuns > 0 OR j.cancelledRuns > 0 THEN NOW()
-    ELSE "startedAt"
-END,
-"duration" = CASE
-    -- duration is final, cannot be changed
-    WHEN "duration" IS NOT NULL THEN "duration"
-    -- We check for running first, because if a job run is running, then the workflow is not finished
-    WHEN j.runningRuns > 0 THEN NULL
-    -- When one job run has failed or been cancelled, then the workflow is failed
-    WHEN j.failedRuns > 0 OR j.cancelledRuns > 0 OR j.succeededRuns > 0 THEN
-                    EXTRACT(EPOCH FROM (NOW() - "startedAt")) * 1000
-    ELSE "duration"
-END
-FROM
-    jobRuns j
-WHERE "id" = (
-    SELECT "workflowRunId"
-    FROM "JobRun"
-    WHERE "id" = $1::uuid
-) AND "tenantId" = $2::uuid
-RETURNING "WorkflowRun"."createdAt", "WorkflowRun"."updatedAt", "WorkflowRun"."deletedAt", "WorkflowRun"."tenantId", "WorkflowRun"."workflowVersionId", "WorkflowRun".status, "WorkflowRun".error, "WorkflowRun"."startedAt", "WorkflowRun"."finishedAt", "WorkflowRun"."concurrencyGroupId", "WorkflowRun"."displayName", "WorkflowRun".id, "WorkflowRun"."childIndex", "WorkflowRun"."childKey", "WorkflowRun"."parentId", "WorkflowRun"."parentStepRunId", "WorkflowRun"."additionalMetadata", "WorkflowRun".duration, "WorkflowRun".priority
+SELECT DISTINCT "id", "status"
+FROM updated_workflow_runs
+WHERE "status" IN ('SUCCEEDED', 'FAILED')
 `
 
 type ResolveWorkflowRunStatusParams struct {
-	Jobrunid pgtype.UUID `json:"jobrunid"`
-	Tenantid pgtype.UUID `json:"tenantid"`
+	Jobrunids []pgtype.UUID `json:"jobrunids"`
+	Tenantid  pgtype.UUID   `json:"tenantid"`
 }
 
-func (q *Queries) ResolveWorkflowRunStatus(ctx context.Context, db DBTX, arg ResolveWorkflowRunStatusParams) (*WorkflowRun, error) {
-	row := db.QueryRow(ctx, resolveWorkflowRunStatus, arg.Jobrunid, arg.Tenantid)
-	var i WorkflowRun
-	err := row.Scan(
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.DeletedAt,
-		&i.TenantId,
-		&i.WorkflowVersionId,
-		&i.Status,
-		&i.Error,
-		&i.StartedAt,
-		&i.FinishedAt,
-		&i.ConcurrencyGroupId,
-		&i.DisplayName,
-		&i.ID,
-		&i.ChildIndex,
-		&i.ChildKey,
-		&i.ParentId,
-		&i.ParentStepRunId,
-		&i.AdditionalMetadata,
-		&i.Duration,
-		&i.Priority,
-	)
-	return &i, err
+type ResolveWorkflowRunStatusRow struct {
+	ID     pgtype.UUID       `json:"id"`
+	Status WorkflowRunStatus `json:"status"`
+}
+
+// Return distinct workflow run ids in a final state
+func (q *Queries) ResolveWorkflowRunStatus(ctx context.Context, db DBTX, arg ResolveWorkflowRunStatusParams) ([]*ResolveWorkflowRunStatusRow, error) {
+	rows, err := db.Query(ctx, resolveWorkflowRunStatus, arg.Jobrunids, arg.Tenantid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ResolveWorkflowRunStatusRow
+	for rows.Next() {
+		var i ResolveWorkflowRunStatusRow
+		if err := rows.Scan(&i.ID, &i.Status); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const softDeleteExpiredWorkflowRunsWithDependencies = `-- name: SoftDeleteExpiredWorkflowRunsWithDependencies :one

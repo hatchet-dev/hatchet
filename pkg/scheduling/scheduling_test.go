@@ -15,7 +15,7 @@ import (
 )
 
 type args struct {
-	Slots             []*dbsqlc.ListSemaphoreSlotsToAssignRow
+	Slots             []*Slot
 	UniqueActionsArr  []string
 	QueueItems        []*QueueItemWithOrder
 	WorkerLabels      map[string][]*dbsqlc.GetWorkerLabelsRow
