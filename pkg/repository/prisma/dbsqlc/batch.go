@@ -143,11 +143,6 @@ SET
         -- Final states are final, cannot be updated
         WHEN "status" IN ('SUCCEEDED', 'FAILED', 'CANCELLED') THEN "cancelledReason"
         ELSE COALESCE($7::text, "cancelledReason")
-    END,
-    "workerId" = CASE
-        -- If in a final state, remove the worker ID
-        WHEN $3 IS NOT NULL AND "status" IN ('SUCCEEDED', 'FAILED', 'CANCELLED', 'CANCELLING') THEN NULL
-        ELSE "workerId"
     END
 WHERE
   "id" = $8::uuid AND

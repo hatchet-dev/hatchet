@@ -1722,8 +1722,8 @@ const manualReleaseSemaphore = `-- name: ManualReleaseSemaphore :exec
 UPDATE
     "StepRun"
 SET
-    "semaphoreReleased" = true,
-    "workerId" = NULL
+    -- note that workerId has already been set to NULL
+    "semaphoreReleased" = true
 WHERE
     "id" = $1::uuid AND
     "tenantId" = $2::uuid
