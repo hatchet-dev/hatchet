@@ -43,7 +43,7 @@ func (t *WorkerService) WorkerGet(ctx echo.Context, request gen.WorkerGetRequest
 		respStepRuns[i] = *genStepRun
 	}
 
-	slots := int(worker.FilledSlots)
+	slots := int(worker.RemainingSlots)
 
 	workerResp := *transformers.ToWorkerSqlc(&worker.Worker, &slots, &worker.WebhookUrl.String, actions)
 

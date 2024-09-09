@@ -41,13 +41,11 @@ GROUP BY
 SELECT
     sqlc.embed(w),
     ww."url" AS "webhookUrl",
-    (
-        SELECT COUNT(*)
-        FROM "WorkerSemaphoreSlot"
-        WHERE "workerId" = w.id AND "stepRunId" IS NOT NULL
-    ) AS filled_slots
+    wsc."count" AS "remainingSlots"
 FROM
     "Worker" w
+JOIN
+    "WorkerSemaphoreCount" wsc ON w."id" = wsc."workerId"
 LEFT JOIN
     "WebhookWorker" ww ON w."webhookId" = ww."id"
 WHERE
@@ -86,7 +84,12 @@ JOIN
     "Step" s ON sr."stepId" = s."id"
 WHERE
     sr."workerId" = @workerId::uuid
-    AND sr."tenantId" = @tenantId::uuid;
+    AND sr."tenantId" = @tenantId::uuid
+    AND sr."status" IN ('RUNNING', 'ASSIGNED')
+ORDER BY
+    sr."createdAt" DESC
+LIMIT
+    COALESCE(sqlc.narg('limit')::int, 100);
 
 -- name: ListRecentAssignedEventsForWorker :many
 SELECT
@@ -350,5 +353,29 @@ WITH for_delete AS (
 )
 DELETE FROM "Worker" w
 WHERE w."id" IN (SELECT "id" FROM expired_with_limit)
+RETURNING
+    (SELECT has_more FROM has_more) as has_more;
+
+-- name: DeleteOldWorkerAssignEvents :one
+-- delete worker assign events outside of the first <maxRuns> events for a worker
+WITH for_delete AS (
+    SELECT
+        "id"
+    FROM "WorkerAssignEvent" wae
+    WHERE
+        wae."workerId" = @workerId::uuid
+    ORDER BY wae."id" DESC
+    OFFSET sqlc.arg('maxRuns')::int
+    LIMIT sqlc.arg('limit')::int + 1
+), has_more AS (
+    SELECT
+        CASE
+            WHEN COUNT(*) > sqlc.arg('limit') THEN TRUE
+            ELSE FALSE
+        END as has_more
+    FROM for_delete
+)
+DELETE FROM "WorkerAssignEvent" wae
+WHERE wae."id" IN (SELECT "id" FROM for_delete)
 RETURNING
     (SELECT has_more FROM has_more) as has_more;
