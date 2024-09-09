@@ -387,7 +387,7 @@ CREATE TABLE "StepRunEvent" (
     "id" BIGSERIAL NOT NULL,
     "timeFirstSeen" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "timeLastSeen" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "stepRunId" UUID NOT NULL,
+    "stepRunId" UUID,
     "reason" "StepRunEventReason" NOT NULL,
     "severity" "StepRunEventSeverity" NOT NULL,
     "message" TEXT NOT NULL,

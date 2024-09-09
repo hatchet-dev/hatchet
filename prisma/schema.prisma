@@ -1408,7 +1408,7 @@ model StepRunEvent {
   timeFirstSeen DateTime @default(now())
   timeLastSeen  DateTime @default(now())
 
-  jobRun  JobRun? @relation(fields: [jobRunId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  jobRun   JobRun? @relation(fields: [jobRunId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   jobRunId String? @db.Uuid
 
   // the parent step run
@@ -1429,7 +1429,7 @@ model StepRunEvent {
 
   // id - timeFirstSeen uniue index
 
-  @@index([stepRunId])  // only on wfr id
+  @@index([stepRunId]) // only on wfr id
 }
 
 model StepRunResultArchive {
