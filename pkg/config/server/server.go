@@ -45,6 +45,8 @@ type ServerConfigFile struct {
 
 	Logger shared.LoggerConfigFile `mapstructure:"logger" json:"logger,omitempty"`
 
+	AdditionalLoggers ConfigFileAdditionalLoggers `mapstructure:"additionalLoggers" json:"additionalLoggers,omitempty"`
+
 	OpenTelemetry shared.OpenTelemetryConfigFile `mapstructure:"otel" json:"otel,omitempty"`
 
 	SecurityCheck SecurityCheckConfigFile `mapstructure:"securityCheck" json:"securityCheck,omitempty"`
@@ -52,6 +54,14 @@ type ServerConfigFile struct {
 	TenantAlerting ConfigFileTenantAlerting `mapstructure:"tenantAlerting" json:"tenantAlerting,omitempty"`
 
 	Email ConfigFileEmail `mapstructure:"email" json:"email,omitempty"`
+}
+
+type ConfigFileAdditionalLoggers struct {
+	// Queue is a custom logger config for the queue service
+	Queue shared.LoggerConfigFile `mapstructure:"queue" json:"queue,omitempty"`
+
+	// PgxStats is a custom logger config for the pgx stats service
+	PgxStats shared.LoggerConfigFile `mapstructure:"pgxStats" json:"pgxStats,omitempty"`
 }
 
 // General server runtime options
@@ -339,6 +349,8 @@ type ServerConfig struct {
 
 	Logger *zerolog.Logger
 
+	AdditionalLoggers ConfigFileAdditionalLoggers
+
 	TLSConfig *tls.Config
 
 	SessionStore *cookie.UserSessionStore
@@ -479,6 +491,12 @@ func BindAllEnv(v *viper.Viper) {
 	// logger options
 	_ = v.BindEnv("logger.level", "SERVER_LOGGER_LEVEL")
 	_ = v.BindEnv("logger.format", "SERVER_LOGGER_FORMAT")
+
+	// additional logger options
+	_ = v.BindEnv("additionalLoggers.queue.level", "SERVER_ADDITIONAL_LOGGERS_QUEUE_LEVEL")
+	_ = v.BindEnv("additionalLoggers.queue.format", "SERVER_ADDITIONAL_LOGGERS_QUEUE_FORMAT")
+	_ = v.BindEnv("additionalLoggers.pgxStats.level", "SERVER_ADDITIONAL_LOGGERS_PGXSTATS_LEVEL")
+	_ = v.BindEnv("additionalLoggers.pgxStats.format", "SERVER_ADDITIONAL_LOGGERS_PGXSTATS_FORMAT")
 
 	// otel options
 	_ = v.BindEnv("otel.serviceName", "SERVER_OTEL_SERVICE_NAME")

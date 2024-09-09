@@ -25,6 +25,79 @@ func (q *Queries) BulkQueueItems(ctx context.Context, db DBTX, ids []int64) erro
 	return err
 }
 
+const cleanupInternalQueueItems = `-- name: CleanupInternalQueueItems :exec
+DELETE FROM "InternalQueueItem"
+WHERE "isQueued" = 'f'
+AND
+    "id" >= $1::bigint
+    AND "id" <= $2::bigint
+    AND "tenantId" = $3::uuid
+`
+
+type CleanupInternalQueueItemsParams struct {
+	Minid    int64       `json:"minid"`
+	Maxid    int64       `json:"maxid"`
+	Tenantid pgtype.UUID `json:"tenantid"`
+}
+
+func (q *Queries) CleanupInternalQueueItems(ctx context.Context, db DBTX, arg CleanupInternalQueueItemsParams) error {
+	_, err := db.Exec(ctx, cleanupInternalQueueItems, arg.Minid, arg.Maxid, arg.Tenantid)
+	return err
+}
+
+const cleanupQueueItems = `-- name: CleanupQueueItems :exec
+DELETE FROM "QueueItem"
+WHERE "isQueued" = 'f'
+AND
+    "id" >= $1::bigint
+    AND "id" <= $2::bigint
+    AND "tenantId" = $3::uuid
+`
+
+type CleanupQueueItemsParams struct {
+	Minid    int64       `json:"minid"`
+	Maxid    int64       `json:"maxid"`
+	Tenantid pgtype.UUID `json:"tenantid"`
+}
+
+func (q *Queries) CleanupQueueItems(ctx context.Context, db DBTX, arg CleanupQueueItemsParams) error {
+	_, err := db.Exec(ctx, cleanupQueueItems, arg.Minid, arg.Maxid, arg.Tenantid)
+	return err
+}
+
+const createInternalQueueItemsBulk = `-- name: CreateInternalQueueItemsBulk :exec
+INSERT INTO
+    "InternalQueueItem" (
+        "queue",
+        "isQueued",
+        "data",
+        "tenantId",
+        "priority"
+    )
+SELECT
+    $1::"InternalQueue",
+    true,
+    input."data",
+    $2::uuid,
+    1
+FROM (
+    SELECT
+        unnest($3::json[]) AS "data"
+) AS input
+ON CONFLICT DO NOTHING
+`
+
+type CreateInternalQueueItemsBulkParams struct {
+	Queue    InternalQueue `json:"queue"`
+	Tenantid pgtype.UUID   `json:"tenantid"`
+	Datas    [][]byte      `json:"datas"`
+}
+
+func (q *Queries) CreateInternalQueueItemsBulk(ctx context.Context, db DBTX, arg CreateInternalQueueItemsBulkParams) error {
+	_, err := db.Exec(ctx, createInternalQueueItemsBulk, arg.Queue, arg.Tenantid, arg.Datas)
+	return err
+}
+
 const createQueueItem = `-- name: CreateQueueItem :exec
 INSERT INTO
     "QueueItem" (
@@ -85,6 +158,157 @@ func (q *Queries) CreateQueueItem(ctx context.Context, db DBTX, arg CreateQueueI
 	return err
 }
 
+const createUniqueInternalQueueItemsBulk = `-- name: CreateUniqueInternalQueueItemsBulk :exec
+INSERT INTO
+    "InternalQueueItem" (
+        "queue",
+        "isQueued",
+        "data",
+        "tenantId",
+        "priority",
+        "uniqueKey"
+    )
+SELECT
+    $1::"InternalQueue",
+    true,
+    input."data",
+    $2::uuid,
+    1,
+    input."uniqueKey"
+FROM (
+    SELECT
+        unnest($3::json[]) AS "data",
+        unnest($4::text[]) AS "uniqueKey"
+) AS input
+ON CONFLICT DO NOTHING
+`
+
+type CreateUniqueInternalQueueItemsBulkParams struct {
+	Queue      InternalQueue `json:"queue"`
+	Tenantid   pgtype.UUID   `json:"tenantid"`
+	Datas      [][]byte      `json:"datas"`
+	Uniquekeys []string      `json:"uniquekeys"`
+}
+
+func (q *Queries) CreateUniqueInternalQueueItemsBulk(ctx context.Context, db DBTX, arg CreateUniqueInternalQueueItemsBulkParams) error {
+	_, err := db.Exec(ctx, createUniqueInternalQueueItemsBulk,
+		arg.Queue,
+		arg.Tenantid,
+		arg.Datas,
+		arg.Uniquekeys,
+	)
+	return err
+}
+
+const getMinMaxProcessedInternalQueueItems = `-- name: GetMinMaxProcessedInternalQueueItems :one
+SELECT
+    COALESCE(MIN("id"), 0)::bigint AS "minId",
+    COALESCE(MAX("id"), 0)::bigint AS "maxId"
+FROM
+    "InternalQueueItem"
+WHERE
+    "isQueued" = 'f'
+    AND "tenantId" = $1::uuid
+`
+
+type GetMinMaxProcessedInternalQueueItemsRow struct {
+	MinId int64 `json:"minId"`
+	MaxId int64 `json:"maxId"`
+}
+
+func (q *Queries) GetMinMaxProcessedInternalQueueItems(ctx context.Context, db DBTX, tenantid pgtype.UUID) (*GetMinMaxProcessedInternalQueueItemsRow, error) {
+	row := db.QueryRow(ctx, getMinMaxProcessedInternalQueueItems, tenantid)
+	var i GetMinMaxProcessedInternalQueueItemsRow
+	err := row.Scan(&i.MinId, &i.MaxId)
+	return &i, err
+}
+
+const getMinMaxProcessedQueueItems = `-- name: GetMinMaxProcessedQueueItems :one
+SELECT
+    COALESCE(MIN("id"), 0)::bigint AS "minId",
+    COALESCE(MAX("id"), 0)::bigint AS "maxId"
+FROM
+    "QueueItem"
+WHERE
+    "isQueued" = 'f'
+    AND "tenantId" = $1::uuid
+`
+
+type GetMinMaxProcessedQueueItemsRow struct {
+	MinId int64 `json:"minId"`
+	MaxId int64 `json:"maxId"`
+}
+
+func (q *Queries) GetMinMaxProcessedQueueItems(ctx context.Context, db DBTX, tenantid pgtype.UUID) (*GetMinMaxProcessedQueueItemsRow, error) {
+	row := db.QueryRow(ctx, getMinMaxProcessedQueueItems, tenantid)
+	var i GetMinMaxProcessedQueueItemsRow
+	err := row.Scan(&i.MinId, &i.MaxId)
+	return &i, err
+}
+
+const listInternalQueueItems = `-- name: ListInternalQueueItems :many
+SELECT
+    id, queue, "isQueued", data, "tenantId", priority, "uniqueKey"
+FROM
+    "InternalQueueItem" qi
+WHERE
+    qi."isQueued" = true
+    AND qi."tenantId" = $1::uuid
+    AND qi."queue" = $2::"InternalQueue"
+    AND (
+        $3::bigint IS NULL OR
+        qi."id" >= $3::bigint
+    )
+    -- Added to ensure that the index is used
+    AND qi."priority" >= 1 AND qi."priority" <= 4
+ORDER BY
+    qi."priority" DESC,
+    qi."id" ASC
+LIMIT
+    COALESCE($4::integer, 100)
+FOR UPDATE SKIP LOCKED
+`
+
+type ListInternalQueueItemsParams struct {
+	Tenantid pgtype.UUID   `json:"tenantid"`
+	Queue    InternalQueue `json:"queue"`
+	GtId     pgtype.Int8   `json:"gtId"`
+	Limit    pgtype.Int4   `json:"limit"`
+}
+
+func (q *Queries) ListInternalQueueItems(ctx context.Context, db DBTX, arg ListInternalQueueItemsParams) ([]*InternalQueueItem, error) {
+	rows, err := db.Query(ctx, listInternalQueueItems,
+		arg.Tenantid,
+		arg.Queue,
+		arg.GtId,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*InternalQueueItem
+	for rows.Next() {
+		var i InternalQueueItem
+		if err := rows.Scan(
+			&i.ID,
+			&i.Queue,
+			&i.IsQueued,
+			&i.Data,
+			&i.TenantId,
+			&i.Priority,
+			&i.UniqueKey,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listQueues = `-- name: ListQueues :many
 SELECT
     id, "tenantId", name
@@ -112,6 +336,20 @@ func (q *Queries) ListQueues(ctx context.Context, db DBTX, tenantid pgtype.UUID)
 		return nil, err
 	}
 	return items, nil
+}
+
+const markInternalQueueItemsProcessed = `-- name: MarkInternalQueueItemsProcessed :exec
+UPDATE
+    "InternalQueueItem" qi
+SET
+    "isQueued" = false
+WHERE
+    qi."id" = ANY($1::bigint[])
+`
+
+func (q *Queries) MarkInternalQueueItemsProcessed(ctx context.Context, db DBTX, ids []int64) error {
+	_, err := db.Exec(ctx, markInternalQueueItemsProcessed, ids)
+	return err
 }
 
 const upsertQueue = `-- name: UpsertQueue :exec

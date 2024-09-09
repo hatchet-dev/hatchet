@@ -1,6 +1,9 @@
 package scheduling
 
 import (
+	"fmt"
+	"sort"
+
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 )
@@ -12,7 +15,7 @@ type WorkerStateManager struct {
 }
 
 func NewWorkerStateManager(
-	slots []*dbsqlc.ListSemaphoreSlotsToAssignRow,
+	slots []*Slot,
 	workerLabels map[string][]*dbsqlc.GetWorkerLabelsRow,
 	stepDesiredLabels map[string][]*dbsqlc.GetDesiredLabelsRow,
 ) *WorkerStateManager {
@@ -22,7 +25,7 @@ func NewWorkerStateManager(
 
 	// initialize worker states
 	for _, slot := range slots {
-		workerId := sqlchelpers.UUIDToStr(slot.WorkerId)
+		workerId := slot.WorkerId
 
 		if _, ok := workers[workerId]; !ok {
 			workers[workerId] = NewWorkerState(
@@ -30,11 +33,15 @@ func NewWorkerStateManager(
 				workerLabels[workerId],
 			)
 		}
-		workers[sqlchelpers.UUIDToStr(slot.WorkerId)].AddSlot(slot)
+		workers[workerId].AddSlot(slot)
 	}
 
 	// compute affinity weights
 	for stepId, desired := range stepDesiredLabels {
+		if len(desired) == 0 {
+			continue
+		}
+
 		for workerId, worker := range workers {
 			weight := ComputeWeight(desired, worker.labels)
 
@@ -69,10 +76,11 @@ func (wm *WorkerStateManager) HasEligibleWorkers(stepId string) bool {
 	return len(wm.workers) > 0
 }
 
-func (wm *WorkerStateManager) AttemptAssignSlot(qi *QueueItemWithOrder) *dbsqlc.ListSemaphoreSlotsToAssignRow {
+func (wm *WorkerStateManager) AttemptAssignSlot(qi *QueueItemWithOrder) *Slot {
 
 	// STICKY WORKERS
 	if qi.Sticky.Valid {
+		fmt.Println("STICKY WORKER")
 		if worker, ok := wm.workers[sqlchelpers.UUIDToStr(qi.DesiredWorkerId)]; ok {
 			slot := wm.attemptAssignToWorker(worker, qi)
 
@@ -90,7 +98,8 @@ func (wm *WorkerStateManager) AttemptAssignSlot(qi *QueueItemWithOrder) *dbsqlc.
 	} // if we reached this with sticky we'll try to find an alternative worker
 
 	// AFFINITY WORKERS
-	if workers, ok := wm.workerStepWeights[sqlchelpers.UUIDToStr(qi.StepId)]; ok {
+	if workers, ok := wm.workerStepWeights[sqlchelpers.UUIDToStr(qi.StepId)]; ok && len(workers) > 0 {
+		fmt.Println("AFFINITY WORKER", workers)
 		for _, workerWW := range workers {
 
 			worker := wm.workers[workerWW.WorkerId]
@@ -113,10 +122,11 @@ func (wm *WorkerStateManager) AttemptAssignSlot(qi *QueueItemWithOrder) *dbsqlc.
 	}
 
 	// DEFAULT STRATEGY
-	workers := wm.workers
-	for _, worker := range workers {
+	workers := wm.getWorkersSortedBySlots()
 
-		slot := wm.attemptAssignToWorker(worker, qi)
+	for _, worker := range workers {
+		workerCp := worker
+		slot := wm.attemptAssignToWorker(workerCp, qi)
 
 		if slot == nil {
 			continue
@@ -128,7 +138,7 @@ func (wm *WorkerStateManager) AttemptAssignSlot(qi *QueueItemWithOrder) *dbsqlc.
 	return nil
 }
 
-func (wm *WorkerStateManager) attemptAssignToWorker(worker *WorkerState, qi *QueueItemWithOrder) *dbsqlc.ListSemaphoreSlotsToAssignRow {
+func (wm *WorkerStateManager) attemptAssignToWorker(worker *WorkerState, qi *QueueItemWithOrder) *Slot {
 	slot, isEmpty := worker.AssignSlot(qi)
 
 	if slot == nil {
@@ -151,4 +161,19 @@ func (wm *WorkerStateManager) DropWorker(workerId string) {
 
 	// cleanup the step weights
 	// TODO
+}
+
+func (wm *WorkerStateManager) getWorkersSortedBySlots() []*WorkerState {
+	workers := make([]*WorkerState, 0, len(wm.workers))
+
+	for _, worker := range wm.workers {
+		workers = append(workers, worker)
+	}
+
+	// sort the workers by the number of slots, descending
+	sort.SliceStable(workers, func(i, j int) bool {
+		return len(workers[i].slots) > len(workers[j].slots)
+	})
+
+	return workers
 }

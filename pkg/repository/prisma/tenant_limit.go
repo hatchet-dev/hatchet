@@ -2,6 +2,7 @@ package prisma
 
 import (
 	"context"
+	"errors"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -215,7 +216,7 @@ func (t *tenantLimitRepository) CanCreate(ctx context.Context, resource dbsqlc.L
 		},
 	})
 
-	if err == pgx.ErrNoRows {
+	if err != nil && errors.Is(err, pgx.ErrNoRows) {
 		t.l.Warn().Msgf("no %s tenant limit found, creating default limit", string(resource))
 
 		err = t.SelectOrInsertTenantLimits(ctx, tenantId, nil)
@@ -225,9 +226,7 @@ func (t *tenantLimitRepository) CanCreate(ctx context.Context, resource dbsqlc.L
 		}
 
 		return true, 0, nil
-	}
-
-	if err != nil {
+	} else if err != nil {
 		return false, 0, err
 	}
 

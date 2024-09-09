@@ -352,7 +352,8 @@ func (s *workflowRunEngineRepository) ReplayWorkflowRun(ctx context.Context, ten
 
 		// archive each of the step run results
 		for _, stepRunId := range stepRuns {
-			err = archiveStepRunResult(ctx, s.queries, tx, tenantId, sqlchelpers.UUIDToStr(stepRunId))
+			stepRunIdStr := sqlchelpers.UUIDToStr(stepRunId)
+			err = archiveStepRunResult(ctx, s.queries, tx, tenantId, stepRunIdStr)
 
 			if err != nil {
 				return fmt.Errorf("error archiving step run result: %w", err)
@@ -373,16 +374,20 @@ func (s *workflowRunEngineRepository) ReplayWorkflowRun(ctx context.Context, ten
 			}
 
 			// create a deferred event for each of these step runs
+			sev := dbsqlc.StepRunEventSeverityINFO
+			reason := dbsqlc.StepRunEventReasonRETRIEDBYUSER
+
 			defer deferredStepRunEvent(
-				ctx,
 				s.l,
 				s.pool,
 				s.queries,
-				stepRunId,
-				dbsqlc.StepRunEventReasonRETRIEDBYUSER,
-				dbsqlc.StepRunEventSeverityINFO,
-				"Workflow run was replayed, resetting step run result",
-				nil,
+				tenantId,
+				stepRunIdStr,
+				repository.CreateStepRunEventOpts{
+					EventMessage:  repository.StringPtr("Workflow run was replayed, resetting step run result"),
+					EventSeverity: &sev,
+					EventReason:   &reason,
+				},
 			)
 		}
 

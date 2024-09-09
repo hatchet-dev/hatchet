@@ -465,15 +465,18 @@ func (d *DispatcherImpl) handleStepRunAssignedTask(ctx context.Context, task *ms
 	}
 
 	// if the step run has a job run in a non-running state, we should not send it to the worker
-	if stepRun.JobRunStatus != dbsqlc.JobRunStatusRUNNING {
-		d.l.Warn().Msgf("step run %s is not in a running state, ignoring", payload.StepRunId)
-		return nil
+	if repository.IsFinalJobRunStatus(stepRun.JobRunStatus) {
+		d.l.Warn().Msgf("job run %s is in a final state %s, ignoring", sqlchelpers.UUIDToStr(stepRun.JobRunId), string(stepRun.JobRunStatus))
+
+		// release the semaphore
+		return d.repo.StepRun().ReleaseStepRunSemaphore(ctx, metadata.TenantId, payload.StepRunId, false)
 	}
 
-	// if the step run is not in an assigned state, we should not send it to the worker
-	if stepRun.SRStatus != dbsqlc.StepRunStatusASSIGNED {
-		d.l.Warn().Msgf("step run %s is not in an assigned state, ignoring", payload.StepRunId)
-		return nil
+	// if the step run is in a final state, we should not send it to the worker
+	if repository.IsFinalStepRunStatus(stepRun.SRStatus) {
+		d.l.Warn().Msgf("step run %s is in a final state %s, ignoring", payload.StepRunId, string(stepRun.SRStatus))
+
+		return d.repo.StepRun().ReleaseStepRunSemaphore(ctx, metadata.TenantId, payload.StepRunId, false)
 	}
 
 	data, err := d.repo.StepRun().GetStepRunDataForEngine(ctx, metadata.TenantId, payload.StepRunId)
@@ -499,29 +502,35 @@ func (d *DispatcherImpl) handleStepRunAssignedTask(ctx context.Context, task *ms
 
 	if success {
 		defer d.repo.StepRun().DeferredStepRunEvent(
-			stepRun.SRID,
-			dbsqlc.StepRunEventReasonSENTTOWORKER,
-			dbsqlc.StepRunEventSeverityINFO,
-			"Sent step run to the assigned worker",
-			nil,
+			metadata.TenantId,
+			sqlchelpers.UUIDToStr(stepRun.SRID),
+			repository.CreateStepRunEventOpts{
+				EventMessage:  repository.StringPtr("Sent step run to the assigned worker"),
+				EventReason:   repository.StepRunEventReasonPtr(dbsqlc.StepRunEventReasonSENTTOWORKER),
+				EventSeverity: repository.StepRunEventSeverityPtr(dbsqlc.StepRunEventSeverityINFO),
+			},
 		)
 
 		return nil
 	}
 
 	defer d.repo.StepRun().DeferredStepRunEvent(
-		stepRun.SRID,
-		dbsqlc.StepRunEventReasonREASSIGNED,
-		dbsqlc.StepRunEventSeverityWARNING,
-		"Could not send step run to assigned worker",
-		nil,
+		metadata.TenantId,
+		sqlchelpers.UUIDToStr(stepRun.SRID),
+		repository.CreateStepRunEventOpts{
+			EventMessage:  repository.StringPtr("Could not send step run to assigned worker"),
+			EventReason:   repository.StepRunEventReasonPtr(dbsqlc.StepRunEventReasonREASSIGNED),
+			EventSeverity: repository.StepRunEventSeverityPtr(dbsqlc.StepRunEventSeverityWARNING),
+		},
 	)
 
-	// we were unable to send the step run to any worker, revert the step run to pending assignment
-	err = d.repo.StepRun().UnassignStepRunFromWorker(ctx, metadata.TenantId, sqlchelpers.UUIDToStr(stepRun.SRID))
+	// we were unable to send the step run to any worker, requeue the step run with an internal retry
+	_, err = d.repo.StepRun().QueueStepRun(ctx, metadata.TenantId, sqlchelpers.UUIDToStr(stepRun.SRID), &repository.QueueStepRunOpts{
+		IsInternalRetry: true,
+	})
 
 	if err != nil {
-		multiErr = multierror.Append(multiErr, fmt.Errorf("💥 could not revert step run: %w", err))
+		multiErr = multierror.Append(multiErr, fmt.Errorf("💥 could not requeue step run in dispatcher: %w", err))
 	}
 
 	return multiErr

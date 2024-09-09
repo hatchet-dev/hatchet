@@ -69,10 +69,10 @@ type ApiUpdateWorkerOpts struct {
 
 type WorkerAPIRepository interface {
 	// ListWorkers lists workers for the tenant
-	ListWorkers(tenantId string, opts *ListWorkersOpts) ([]*dbsqlc.ListWorkersWithStepCountRow, error)
+	ListWorkers(tenantId string, opts *ListWorkersOpts) ([]*dbsqlc.ListWorkersWithSlotCountRow, error)
 
 	// ListRecentWorkerStepRuns lists recent step runs for a given worker
-	ListWorkerState(tenantId, workerId string, failed bool) ([]*dbsqlc.ListSemaphoreSlotsWithStateForWorkerRow, []*dbsqlc.ListRecentStepRunsForWorkerRow, error)
+	ListWorkerState(tenantId, workerId string, maxRuns int) ([]*dbsqlc.ListSemaphoreSlotsWithStateForWorkerRow, []*dbsqlc.GetStepRunForEngineRow, error)
 
 	// GetWorkerActionsByWorkerId returns a list of actions for a worker
 	GetWorkerActionsByWorkerId(tenantid, workerId string) ([]pgtype.Text, error)
@@ -111,4 +111,8 @@ type WorkerEngineRepository interface {
 	UpdateWorkerActiveStatus(ctx context.Context, tenantId, workerId string, isActive bool, timestamp time.Time) (*dbsqlc.Worker, error)
 
 	UpsertWorkerLabels(ctx context.Context, workerId pgtype.UUID, opts []UpsertWorkerLabelOpts) ([]*dbsqlc.WorkerLabel, error)
+
+	DeleteOldWorkers(ctx context.Context, tenantId string, lastHeartbeatBefore time.Time) (bool, error)
+
+	DeleteOldWorkerEvents(ctx context.Context, tenantId string, lastHeartbeatAfter time.Time) error
 }

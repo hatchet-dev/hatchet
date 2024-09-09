@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc/codes"
@@ -277,6 +278,10 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 		})
 
 		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return nil
+			}
+
 			s.l.Error().Err(err).Msgf("could not update worker %s dispatcher", request.WorkerId)
 			return err
 		}
@@ -322,6 +327,10 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 					})
 
 					if err != nil {
+						if errors.Is(err, pgx.ErrNoRows) {
+							return
+						}
+
 						s.l.Error().Err(err).Msgf("could not update worker %s heartbeat", request.WorkerId)
 						return
 					}
@@ -372,6 +381,10 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 		})
 
 		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return nil
+			}
+
 			s.l.Error().Err(err).Msgf("could not update worker %s dispatcher", request.WorkerId)
 			return err
 		}
@@ -382,6 +395,10 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 	_, err = s.repo.Worker().UpdateWorkerActiveStatus(ctx, tenantId, request.WorkerId, true, sessionEstablished)
 
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil
+		}
+
 		lastSessionEstablished := "NULL"
 
 		if worker.LastListenerEstablished.Valid {
@@ -487,7 +504,7 @@ func (s *DispatcherImpl) ReleaseSlot(ctx context.Context, req *contracts.Release
 		return nil, fmt.Errorf("step run id is required")
 	}
 
-	err := s.repo.StepRun().ReleaseStepRunSemaphore(ctx, tenantId, req.StepRunId)
+	err := s.repo.StepRun().ReleaseStepRunSemaphore(ctx, tenantId, req.StepRunId, true)
 
 	if err != nil {
 		return nil, err
