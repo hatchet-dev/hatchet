@@ -97,9 +97,9 @@ func ToWorkflowVersion(
 
 	// res.Jobs = &apiJobs
 
-	apiConcurrency := ToWorkflowVersionConcurrency(concurrency)
-
-	res.Concurrency = apiConcurrency
+	if concurrency != nil {
+		res.Concurrency = ToWorkflowVersionConcurrency(concurrency)
+	}
 
 	triggersResp := gen.WorkflowTriggers{}
 
