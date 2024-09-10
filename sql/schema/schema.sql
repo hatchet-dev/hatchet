@@ -387,13 +387,12 @@ CREATE TABLE "StepRunEvent" (
     "id" BIGSERIAL NOT NULL,
     "timeFirstSeen" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "timeLastSeen" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "stepRunId" UUID,
+    "stepRunId" UUID NOT NULL,
     "reason" "StepRunEventReason" NOT NULL,
     "severity" "StepRunEventSeverity" NOT NULL,
     "message" TEXT NOT NULL,
     "count" INTEGER NOT NULL,
-    "data" JSONB,
-    "jobRunId" UUID
+    "data" JSONB
 );
 
 -- CreateTable
@@ -1435,9 +1434,6 @@ ALTER TABLE "StepRun" ADD CONSTRAINT "StepRun_tickerId_fkey" FOREIGN KEY ("ticke
 
 -- AddForeignKey
 ALTER TABLE "StepRun" ADD CONSTRAINT "StepRun_workerId_fkey" FOREIGN KEY ("workerId") REFERENCES "Worker"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "StepRunEvent" ADD CONSTRAINT "StepRunEvent_jobRunId_fkey" FOREIGN KEY ("jobRunId") REFERENCES "JobRun"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "StepRunEvent" ADD CONSTRAINT "StepRunEvent_stepRunId_fkey" FOREIGN KEY ("stepRunId") REFERENCES "StepRun"("id") ON DELETE CASCADE ON UPDATE CASCADE;
