@@ -23,7 +23,8 @@ func IsFinalStepRunStatus(status dbsqlc.StepRunStatus) bool {
 	return status != dbsqlc.StepRunStatusPENDING &&
 		status != dbsqlc.StepRunStatusPENDINGASSIGNMENT &&
 		status != dbsqlc.StepRunStatusASSIGNED &&
-		status != dbsqlc.StepRunStatusRUNNING
+		status != dbsqlc.StepRunStatusRUNNING &&
+		status != dbsqlc.StepRunStatusCANCELLING
 }
 
 func IsFinalJobRunStatus(status dbsqlc.JobRunStatus) bool {

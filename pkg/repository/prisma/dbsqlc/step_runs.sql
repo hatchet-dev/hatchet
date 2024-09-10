@@ -208,8 +208,8 @@ WHERE
 UPDATE
     "StepRun"
 SET
-    "semaphoreReleased" = true,
-    "workerId" = NULL
+    -- note that workerId has already been set to NULL
+    "semaphoreReleased" = true
 WHERE
     "id" = @stepRunId::uuid AND
     "tenantId" = @tenantId::uuid;
@@ -223,6 +223,8 @@ SET
     "status" = CASE
         -- Final states are final, cannot be updated
         WHEN "status" IN ('SUCCEEDED', 'FAILED', 'CANCELLED') THEN "status"
+        -- We cannot go from cancelling to a non-final state
+        WHEN "status" = 'CANCELLING' AND COALESCE(sqlc.narg('status'), "status") NOT IN ('SUCCEEDED', 'FAILED', 'CANCELLED') THEN 'CANCELLING'
         ELSE COALESCE(sqlc.narg('status'), "status")
     END,
     "output" = COALESCE(sqlc.narg('output')::jsonb, "output"),
@@ -240,11 +242,6 @@ SET
         -- Final states are final, cannot be updated
         WHEN "status" IN ('SUCCEEDED', 'FAILED', 'CANCELLED') THEN "cancelledReason"
         ELSE COALESCE(sqlc.narg('cancelledReason')::text, "cancelledReason")
-    END,
-    "workerId" = CASE
-        -- If in a final state, remove the worker ID
-        WHEN sqlc.narg('status') IS NOT NULL AND "status" IN ('SUCCEEDED', 'FAILED', 'CANCELLED', 'CANCELLING') THEN NULL
-        ELSE "workerId"
     END
 WHERE
   "id" = @id::uuid AND

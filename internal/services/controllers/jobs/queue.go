@@ -72,6 +72,7 @@ type operation struct {
 	tenantId       string
 	lastRun        time.Time
 	description    string
+	timeout        time.Duration
 }
 
 func (o *operation) runOrContinue(l *zerolog.Logger, ql *zerolog.Logger, scheduler func(context.Context, string) (bool, error)) {
@@ -92,13 +93,13 @@ func (o *operation) run(l *zerolog.Logger, ql *zerolog.Logger, scheduler func(co
 		f := func() {
 			o.setContinue(false)
 
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), o.timeout)
 			defer cancel()
 
 			shouldContinue, err := scheduler(ctx, o.tenantId)
 
 			if err != nil {
-				l.Err(err).Msgf("could not schedule step runs for tenant")
+				l.Err(err).Msgf("could not %s", o.description)
 				return
 			}
 
@@ -384,6 +385,7 @@ func (q *queue) getQueueOperation(tenantId string) *operation {
 			tenantId:    tenantId,
 			lastRun:     time.Now(),
 			description: "scheduling step runs",
+			timeout:     30 * time.Second,
 		}
 
 		q.tenantQueueOperations.Store(tenantId, op)
@@ -400,6 +402,7 @@ func (q *queue) getWorkerSemaphoreOperation(tenantId string) *operation {
 			tenantId:    tenantId,
 			lastRun:     time.Now(),
 			description: "updating worker semaphores",
+			timeout:     30 * time.Second,
 		}
 
 		q.tenantWorkerSemOperations.Store(tenantId, op)
@@ -416,6 +419,7 @@ func (q *queue) getUpdateStepRunOperation(tenantId string) *operation {
 			tenantId:    tenantId,
 			lastRun:     time.Now(),
 			description: "updating step runs",
+			timeout:     300 * time.Second,
 		}
 
 		q.updateStepRunOperations.Store(tenantId, op)
@@ -468,7 +472,7 @@ func (q *queue) processStepRunUpdates(ctx context.Context, tenantId string) (boo
 	ctx, span := telemetry.NewSpan(ctx, "process-worker-semaphores")
 	defer span.End()
 
-	dbCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	dbCtx, cancel := context.WithTimeout(ctx, 300*time.Second)
 	defer cancel()
 
 	res, err := q.repo.StepRun().ProcessStepRunUpdates(dbCtx, q.ql, tenantId)

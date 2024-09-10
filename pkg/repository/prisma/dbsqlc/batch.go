@@ -126,6 +126,8 @@ SET
     "status" = CASE
         -- Final states are final, cannot be updated
         WHEN "status" IN ('SUCCEEDED', 'FAILED', 'CANCELLED') THEN "status"
+        -- We cannot go from cancelling to a non-final state
+        WHEN "status" = 'CANCELLING' AND COALESCE($3, "status") NOT IN ('SUCCEEDED', 'FAILED', 'CANCELLED') THEN 'CANCELLING'
         ELSE COALESCE($3, "status")
     END,
     "output" = COALESCE($4::jsonb, "output"),
@@ -143,11 +145,6 @@ SET
         -- Final states are final, cannot be updated
         WHEN "status" IN ('SUCCEEDED', 'FAILED', 'CANCELLED') THEN "cancelledReason"
         ELSE COALESCE($7::text, "cancelledReason")
-    END,
-    "workerId" = CASE
-        -- If in a final state, remove the worker ID
-        WHEN $3 IS NOT NULL AND "status" IN ('SUCCEEDED', 'FAILED', 'CANCELLED', 'CANCELLING') THEN NULL
-        ELSE "workerId"
     END
 WHERE
   "id" = $8::uuid AND
