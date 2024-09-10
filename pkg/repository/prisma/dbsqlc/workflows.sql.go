@@ -834,14 +834,13 @@ func (q *Queries) GetWorkflowVersionForEngine(ctx context.Context, db DBTX, arg 
 
 const getWorkflowWorkerCount = `-- name: GetWorkflowWorkerCount :one
 WITH UniqueWorkers AS (
-    SELECT DISTINCT wss."id" AS slotId, w."id" AS wokerId, w."maxRuns" AS maxRuns
+    SELECT DISTINCT w."id" AS workerId
     FROM "Worker" w
     JOIN "_ActionToWorker" atw ON w."id" = atw."B"
     JOIN "Action" a ON atw."A" = a."id"
     JOIN "Step" s ON a."actionId" = s."actionId"
     JOIN "Job" j ON s."jobId" = j."id"
     JOIN "WorkflowVersion" workflowVersion ON j."workflowVersionId" = workflowVersion."id"
-    JOIN "WorkerSemaphoreSlot" wss ON w."id" = wss."workerId"
     WHERE
         w."tenantId" = $1::uuid
         AND workflowVersion."deletedAt" IS NULL
@@ -851,17 +850,16 @@ WITH UniqueWorkers AS (
         AND w."isActive" = true
         AND w."isPaused" = false
         AND workflowVersion."workflowId" = $2::uuid
-        AND wss."stepRunId" IS NULL
+
 ),
-    workers as ( Select SUM("maxRuns") as maxR from "Worker" where "id" in (select wokerId from UniqueWorkers)),
+    workers as ( Select SUM("maxRuns") as maxR from "Worker" where "id" in (select workerId from UniqueWorkers)),
     slots as (
 SELECT
-    COUNT(uw.slotId) AS freeSlotCount
-FROM UniqueWorkers uw)
+    SUM("count") as freeSlotCount from "WorkerSemaphoreCount" where "workerId" in (select workerId from UniqueWorkers) )
 
 SELECT
-    maxR as totalCount,
-    freeSlotCount as freeCount
+    COALESCE(maxR,0) as totalCount,
+    COALESCE(freeSlotCount,0) as freeCount
 FROM workers, slots
 `
 
