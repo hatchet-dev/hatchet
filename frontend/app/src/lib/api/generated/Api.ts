@@ -1361,7 +1361,7 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   /**
    * @description Replays a list of workflow runs.
    *
-   * @tags Workflow Runs
+   * @tags Workflow Run
    * @name WorkflowRunUpdateReplay
    * @summary Replay workflow runs
    * @request POST:/api/v1/tenants/{tenant}/workflow-runs/replay
@@ -1653,7 +1653,7 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   /**
    * @description Get the input for a workflow run.
    *
-   * @tags Workflow Runs
+   * @tags Workflow Run
    * @name WorkflowRunGetInput
    * @summary Get workflow run input
    * @request GET:/api/v1/workflow-runs/{workflow-run}/input

@@ -47,7 +47,7 @@ replayWorkflowRuns:
         description: Resource limit exceeded
     summary: Replay workflow runs
     tags:
-      - Workflow Runs
+      - Workflow Run
 getWorkflowRunInput:
   get:
     x-resources: ["tenant", "workflow-run"]
@@ -91,4 +91,4 @@ getWorkflowRunInput:
         description: Workflow run not found
     summary: Get workflow run input
     tags:
-      - Workflow Runs
+      - Workflow Run
