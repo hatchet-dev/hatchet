@@ -16,6 +16,10 @@ export default function WorkflowGeneralSettings({
       <ScheduleTimeoutSettings workflow={workflow} />
       <h3 className="text-lg font-semibold my-4">Concurrency</h3>
       <ConcurrencySettings workflow={workflow} />
+      <h3 className="text-lg font-semibold my-4">Sticky Strategy</h3>
+      <StickyStrategy workflow={workflow} />
+      <h3 className="text-lg font-semibold my-4">Default Priority</h3>
+      <DefaultPriority workflow={workflow} />
     </>
   );
 }
@@ -118,6 +122,40 @@ function ConcurrencySettings({ workflow }: { workflow: WorkflowVersion }) {
         The strategy to use when the maximum number of concurrency runs is
         reached.
       </div>
+    </div>
+  );
+}
+
+function StickyStrategy({ workflow }: { workflow: WorkflowVersion }) {
+  if (!workflow.sticky) {
+    return (
+      <div className="text-[0.8rem] text-gray-700 dark:text-gray-300">
+        There is no sticky strategy set for this workflow.
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      <Label>Strategy</Label>
+      <Input disabled value={workflow.sticky} />
+    </div>
+  );
+}
+
+function DefaultPriority({ workflow }: { workflow: WorkflowVersion }) {
+  if (!workflow.sticky) {
+    return (
+      <div className="text-[0.8rem] text-gray-700 dark:text-gray-300">
+        There is no default priority set for this workflow.
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      <Label>Default Priority</Label>
+      <Input disabled value={workflow.defaultPriority} />
     </div>
   );
 }

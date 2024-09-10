@@ -55,9 +55,9 @@ func ToWorkflowVersion(
 	version *dbsqlc.WorkflowVersion,
 	workflow *dbsqlc.Workflow,
 	concurrency *dbsqlc.WorkflowConcurrency,
-	crons *dbsqlc.WorkflowTriggerCronRef,
-	events *dbsqlc.WorkflowTriggerEventRef,
-	schedules *dbsqlc.WorkflowTriggerScheduledRef,
+	crons []*dbsqlc.WorkflowTriggerCronRef,
+	events []*dbsqlc.WorkflowTriggerEventRef,
+	schedules []*dbsqlc.WorkflowTriggerScheduledRef,
 ) *gen.WorkflowVersion {
 	res := &gen.WorkflowVersion{
 		Metadata: *toAPIMetadata(
@@ -69,7 +69,19 @@ func ToWorkflowVersion(
 		Order:           int32(version.Order),
 		Version:         version.Version.String,
 		ScheduleTimeout: &version.ScheduleTimeout,
+		DefaultPriority: &version.DefaultPriority.Int32,
 	}
+
+	var stickyStrategy string
+
+	switch version.Sticky.StickyStrategy {
+	case dbsqlc.StickyStrategyHARD:
+		stickyStrategy = "hard"
+	case dbsqlc.StickyStrategySOFT:
+		stickyStrategy = "soft"
+	}
+
+	res.Sticky = &stickyStrategy
 
 	if version.WorkflowId.Valid {
 		res.Workflow = ToWorkflowFromSQLC(workflow)
@@ -93,25 +105,21 @@ func ToWorkflowVersion(
 
 	genCrons := make([]gen.WorkflowTriggerCronRef, 0)
 
-	// for i, cron := range crons {
-	if crons != nil {
-		cronCp := crons
-		if cronCp.ParentId.Valid {
-			parentId := sqlchelpers.UUIDToStr(cronCp.ParentId)
-			genCrons = append(genCrons, gen.WorkflowTriggerCronRef{
-				Cron:     &cronCp.Cron,
-				ParentId: &parentId,
-			})
-		}
+	for _, cron := range crons {
+		cronCp := cron
+		parentId := sqlchelpers.UUIDToStr(cronCp.ParentId)
+		genCrons = append(genCrons, gen.WorkflowTriggerCronRef{
+			Cron:     &cronCp.Cron,
+			ParentId: &parentId,
+		})
 	}
 
 	triggersResp.Crons = &genCrons
 
 	genEvents := make([]gen.WorkflowTriggerEventRef, 0)
 
-	// for i, event := range events {
-	if events != nil {
-		eventCp := events
+	for _, event := range events {
+		eventCp := event
 		if eventCp.ParentId.Valid {
 			parentId := sqlchelpers.UUIDToStr(eventCp.ParentId)
 			genEvents = append(genEvents, gen.WorkflowTriggerEventRef{

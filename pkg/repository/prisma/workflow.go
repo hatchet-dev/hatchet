@@ -119,18 +119,56 @@ func (r *workflowAPIRepository) GetWorkflowById(ctx context.Context, workflowId 
 
 }
 
-func (r *workflowAPIRepository) GetWorkflowVersionById(tenantId, workflowVersionId string) (*dbsqlc.GetWorkflowVersionByIdRow, error) {
+func (r *workflowAPIRepository) GetWorkflowVersionById(tenantId, workflowVersionId string) (
+	*dbsqlc.GetWorkflowVersionByIdRow,
+	[]*dbsqlc.WorkflowTriggerCronRef,
+	[]*dbsqlc.WorkflowTriggerEventRef,
+	[]*dbsqlc.WorkflowTriggerScheduledRef,
+	error,
+) {
+	pgWorkflowVersionId := sqlchelpers.UUIDFromStr(workflowVersionId)
+
 	row, err := r.queries.GetWorkflowVersionById(
 		context.Background(),
 		r.pool,
-		sqlchelpers.UUIDFromStr(workflowVersionId),
+		pgWorkflowVersionId,
 	)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch workflow version: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("failed to fetch workflow version: %w", err)
 	}
 
-	return row, nil
+	crons, err := r.queries.GetWorkflowVersionCronTriggerRefs(
+		context.Background(),
+		r.pool,
+		pgWorkflowVersionId,
+	)
+
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("failed to fetch cron triggers: %w", err)
+	}
+
+	events, err := r.queries.GetWorkflowVersionEventTriggerRefs(
+		context.Background(),
+		r.pool,
+		pgWorkflowVersionId,
+	)
+
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("failed to fetch event triggers: %w", err)
+	}
+
+	scheduled, err := r.queries.GetWorkflowVersionScheduleTriggerRefs(
+		context.Background(),
+		r.pool,
+		pgWorkflowVersionId,
+	)
+
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("failed to fetch scheduled triggers: %w", err)
+	}
+
+	return row, crons, events, scheduled, nil
 }
 
 func (r *workflowAPIRepository) DeleteWorkflow(tenantId, workflowId string) (*dbsqlc.Workflow, error) {

@@ -42,7 +42,7 @@ func (t *WorkflowService) WorkflowVersionGet(ctx echo.Context, request gen.Workf
 		workflowVersionId = sqlchelpers.UUIDToStr(row.WorkflowVersionId)
 	}
 
-	row, err := t.config.APIRepository.Workflow().GetWorkflowVersionById(tenant.ID, workflowVersionId)
+	row, crons, events, scheduleT, err := t.config.APIRepository.Workflow().GetWorkflowVersionById(tenant.ID, workflowVersionId)
 
 	if err != nil {
 		if errors.Is(err, db.ErrNotFound) {
@@ -58,9 +58,9 @@ func (t *WorkflowService) WorkflowVersionGet(ctx echo.Context, request gen.Workf
 		&row.WorkflowVersion,
 		&workflow.Workflow,
 		&row.WorkflowConcurrency,
-		nil,
-		nil,
-		nil,
+		crons,
+		events,
+		scheduleT,
 	)
 
 	return gen.WorkflowVersionGet200JSONResponse(*resp), nil

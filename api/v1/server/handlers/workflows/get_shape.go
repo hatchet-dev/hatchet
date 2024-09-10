@@ -28,7 +28,7 @@ func (t *WorkflowService) WorkflowRunGetShape(ctx echo.Context, request gen.Work
 		return nil, err
 	}
 
-	workflowVersion, err := t.config.APIRepository.Workflow().GetWorkflowVersionById(
+	workflowVersion, _, _, _, err := t.config.APIRepository.Workflow().GetWorkflowVersionById(
 		sqlchelpers.UUIDToStr(run.TenantId),
 		sqlchelpers.UUIDToStr(run.WorkflowVersionId),
 	)

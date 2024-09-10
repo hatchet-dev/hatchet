@@ -18,7 +18,7 @@ func (t *WorkflowService) WorkflowGet(ctx echo.Context, request gen.WorkflowGetR
 		return gen.WorkflowGet404JSONResponse(gen.APIErrors{}), nil
 	}
 
-	version, err := t.config.APIRepository.Workflow().GetWorkflowVersionById(tenant.ID, sqlchelpers.UUIDToStr(workflow.WorkflowVersionId))
+	version, _, _, _, err := t.config.APIRepository.Workflow().GetWorkflowVersionById(tenant.ID, sqlchelpers.UUIDToStr(workflow.WorkflowVersionId))
 
 	if err != nil {
 		return nil, err

@@ -535,6 +535,13 @@ export interface WorkflowVersion {
   /** @format int32 */
   order: number;
   workflowId: string;
+  /** The sticky strategy of the workflow. */
+  sticky?: string;
+  /**
+   * The default priority of the workflow.
+   * @format int32
+   */
+  defaultPriority?: number;
   workflow?: Workflow;
   concurrency?: WorkflowConcurrency;
   triggers?: WorkflowTriggers;
