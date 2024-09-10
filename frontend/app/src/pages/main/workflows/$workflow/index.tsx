@@ -111,11 +111,8 @@ export default function ExpandedWorkflow() {
           </div>
         )}
         <div className="flex flex-row justify-start items-center mt-4"></div>
-        <Tabs defaultValue="overview">
+        <Tabs defaultValue="runs">
           <TabsList layout="underlined">
-            <TabsTrigger variant="underlined" value="overview">
-              Overview
-            </TabsTrigger>
             <TabsTrigger variant="underlined" value="runs">
               Runs
             </TabsTrigger>
@@ -123,15 +120,6 @@ export default function ExpandedWorkflow() {
               Settings
             </TabsTrigger>
           </TabsList>
-          <TabsContent value="overview">
-            <h3 className="text-xl font-bold leading-tight text-foreground mt-4">
-              Workflow Definition
-            </h3>
-            <Separator className="my-4" />
-            <div className="w-full h-[400px]">
-              {/* <WorkflowVisualizer workflow={version} /> */}
-            </div>
-          </TabsContent>
           <TabsContent value="runs">
             <h3 className="text-xl font-bold leading-tight text-foreground mt-4">
               Recent Runs
