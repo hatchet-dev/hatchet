@@ -13,6 +13,10 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
+const (
+	heartbeatTimeout = time.Second * 5
+)
+
 type Partition struct {
 	controllerPartitionId string
 	workerPartitionId     string
@@ -66,6 +70,9 @@ func (p *Partition) Shutdown() error {
 	if err != nil {
 		return fmt.Errorf("could not shutdown worker scheduler: %w", err)
 	}
+
+	// wait for heartbeat timeout duration
+	time.Sleep(heartbeatTimeout)
 
 	return nil
 }
@@ -147,7 +154,7 @@ func (p *Partition) runControllerPartitionHeartbeat(ctx context.Context) func() 
 
 		defer p.controllerMu.Unlock()
 
-		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		ctx, cancel := context.WithTimeout(ctx, heartbeatTimeout)
 		defer cancel()
 
 		ctx, span := telemetry.NewSpan(ctx, "run-partition-heartbeat")
@@ -245,7 +252,7 @@ func (p *Partition) runTenantWorkerPartitionHeartbeat(ctx context.Context) func(
 
 		defer p.workerMu.Unlock()
 
-		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		ctx, cancel := context.WithTimeout(ctx, heartbeatTimeout)
 		defer cancel()
 
 		ctx, span := telemetry.NewSpan(ctx, "run-partition-heartbeat")
