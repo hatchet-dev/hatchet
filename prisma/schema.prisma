@@ -1376,6 +1376,26 @@ model InternalQueueItem {
   @@index([isQueued, tenantId, queue, priority(sort: Desc), id])
 }
 
+model TimeoutQueueItem {
+  id BigInt @id @default(autoincrement()) @db.BigInt
+
+  // the parent step run
+  stepRunId String @db.Uuid
+
+  retryCount Int
+
+  // the time the step run times out due to a scheduling timeout (no workers available)
+  timeoutAt DateTime
+
+  // the parent tenant
+  tenantId String @db.Uuid
+
+  isQueued Boolean
+
+  @@unique([stepRunId, retryCount])
+  @@index([tenantId, isQueued, timeoutAt])
+}
+
 enum StepRunEventReason {
   REQUEUED_NO_WORKER
   REQUEUED_RATE_LIMIT

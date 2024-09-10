@@ -1284,6 +1284,15 @@ type Ticker struct {
 	IsActive        bool             `json:"isActive"`
 }
 
+type TimeoutQueueItem struct {
+	ID         int64            `json:"id"`
+	StepRunId  pgtype.UUID      `json:"stepRunId"`
+	RetryCount int32            `json:"retryCount"`
+	TimeoutAt  pgtype.Timestamp `json:"timeoutAt"`
+	TenantId   pgtype.UUID      `json:"tenantId"`
+	IsQueued   bool             `json:"isQueued"`
+}
+
 type User struct {
 	ID            pgtype.UUID      `json:"id"`
 	CreatedAt     pgtype.Timestamp `json:"createdAt"`

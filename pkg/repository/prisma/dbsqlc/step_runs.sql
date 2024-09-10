@@ -214,38 +214,86 @@ WHERE
     "id" = @stepRunId::uuid AND
     "tenantId" = @tenantId::uuid;
 
--- name: UpdateStepRunBatch :batchexec
+-- name: BulkStartStepRun :exec
 UPDATE
     "StepRun"
 SET
-    "startedAt" = COALESCE(sqlc.narg('startedAt')::timestamp, "startedAt"),
-    "finishedAt" = COALESCE(sqlc.narg('finishedAt')::timestamp, "finishedAt"),
+    "status" = CASE
+        -- Final states are final, cannot be updated, and we cannot go from cancelling to a non-final state
+        WHEN "status" IN ('SUCCEEDED', 'FAILED', 'CANCELLED', 'CANCELLING') THEN "status"
+        ELSE 'RUNNING'
+    END,
+    "startedAt" = input."startedAt"
+FROM (
+    SELECT
+        unnest(@stepRunIds::uuid[]) AS "id",
+        unnest(@startedAts::timestamp[]) AS "startedAt"
+    ) AS input
+WHERE
+    "StepRun"."id" = input."id";
+
+-- name: BulkFinishStepRun :exec
+UPDATE
+    "StepRun"
+SET
+    "status" = CASE
+        WHEN "status" IN ('SUCCEEDED', 'FAILED', 'CANCELLED') THEN "status"
+        ELSE 'SUCCEEDED'
+    END,
+    "finishedAt" = input."finishedAt",
+    "output" = input."output"::jsonb
+FROM (
+    SELECT
+        unnest(@stepRunIds::uuid[]) AS "id",
+        unnest(@finishedAts::timestamp[]) AS "finishedAt",
+        unnest(@outputs::jsonb[]) AS "output"
+    ) AS input
+WHERE
+    "StepRun"."id" = input."id";
+
+-- name: BulkCancelStepRun :exec
+UPDATE
+    "StepRun"
+SET
     "status" = CASE
         -- Final states are final, cannot be updated
         WHEN "status" IN ('SUCCEEDED', 'FAILED', 'CANCELLED') THEN "status"
-        -- We cannot go from cancelling to a non-final state
-        WHEN "status" = 'CANCELLING' AND COALESCE(sqlc.narg('status'), "status") NOT IN ('SUCCEEDED', 'FAILED', 'CANCELLED') THEN 'CANCELLING'
-        ELSE COALESCE(sqlc.narg('status'), "status")
+        ELSE 'CANCELLED'
     END,
-    "output" = COALESCE(sqlc.narg('output')::jsonb, "output"),
-    "error" = CASE
-        -- Final states are final, cannot be updated
-        WHEN "status" IN ('SUCCEEDED', 'FAILED', 'CANCELLED') THEN "error"
-        ELSE COALESCE(sqlc.narg('error')::text, "error")
-    END,
-    "cancelledAt" = CASE
-        -- Final states are final, cannot be updated
-        WHEN "status" IN ('SUCCEEDED', 'FAILED', 'CANCELLED') THEN "cancelledAt"
-        ELSE COALESCE(sqlc.narg('cancelledAt')::timestamp, "cancelledAt")
-    END,
-    "cancelledReason" = CASE
-        -- Final states are final, cannot be updated
-        WHEN "status" IN ('SUCCEEDED', 'FAILED', 'CANCELLED') THEN "cancelledReason"
-        ELSE COALESCE(sqlc.narg('cancelledReason')::text, "cancelledReason")
-    END
+    "finishedAt" = input."finishedAt",
+    "cancelledAt" = input."cancelledAt",
+    "cancelledReason" = input."cancelledReason",
+    "cancelledError" = input."cancelledError"
+FROM (
+    SELECT
+        unnest(@stepRunIds::uuid[]) AS "id",
+        unnest(@finishedAts::timestamp[]) AS "finishedAt",
+        unnest(@cancelledAts::timestamp[]) AS "cancelledAt",
+        unnest(@cancelledReasons::text[]) AS "cancelledReason",
+        unnest(@cancelledErrors::text[]) AS "cancelledError"
+) AS input
 WHERE
-  "id" = @id::uuid AND
-  "tenantId" = @tenantId::uuid;
+    "StepRun"."id" = input."id";
+
+-- name: BulkFailStepRun :exec
+UPDATE
+    "StepRun"
+SET
+    "status" = CASE
+        -- Final states are final, cannot be updated
+        WHEN "status" IN ('SUCCEEDED', 'FAILED', 'CANCELLED') THEN "status"
+        ELSE 'FAILED'
+    END,
+    "finishedAt" = input."finishedAt",
+    "error" = input."error"::text
+FROM (
+    SELECT
+        unnest(@stepRunIds::uuid[]) AS "id",
+        unnest(@finishedAts::timestamp[]) AS "finishedAt",
+        unnest(@errors::text[]) AS "error"
+    ) AS input
+WHERE
+    "StepRun"."id" = input."id";
 
 -- name: ResolveLaterStepRuns :many
 WITH RECURSIVE currStepRun AS (
@@ -418,8 +466,7 @@ step_runs_to_reassign AS (
     SELECT "id", "workerId", "retryCount"
     FROM "StepRun"
     WHERE
-        "workerId" = ANY(SELECT "id" FROM inactive_workers) AND
-        ("status" = 'ASSIGNED' OR "status" = 'RUNNING')
+        "workerId" = ANY(SELECT "id" FROM inactive_workers)
 ),
 step_runs_with_data AS (
     SELECT
@@ -673,16 +720,8 @@ FROM (
     ) AS input
 RETURNING *;
 
--- name: UpdateStepRunsToAssigned :many
-UPDATE
-    "StepRun" sr
-SET
-    "status" = 'ASSIGNED',
-    "workerId" = input."workerId",
-    "tickerId" = NULL,
-    "updatedAt" = CURRENT_TIMESTAMP,
-    "timeoutAt" = CURRENT_TIMESTAMP + convert_duration_to_interval(input."stepTimeout")
-FROM (
+-- name: UpdateStepRunsToAssigned :exec
+WITH input AS (
     SELECT
         "id",
         "stepTimeout",
@@ -694,10 +733,38 @@ FROM (
                 unnest(@stepRunTimeouts::text[]) AS "stepTimeout",
                 unnest(@workerIds::uuid[]) AS "workerId"
         ) AS subquery
-) AS input
-WHERE
-    sr."id" = input."id"
-RETURNING input."id", input."workerId";
+), updated_step_runs AS (
+    UPDATE
+        "StepRun" sr
+    SET
+        "status" = 'ASSIGNED',
+        "workerId" = input."workerId",
+        "tickerId" = NULL,
+        "updatedAt" = CURRENT_TIMESTAMP,
+        "timeoutAt" = CURRENT_TIMESTAMP + convert_duration_to_interval(input."stepTimeout")
+    FROM input
+    WHERE
+        sr."id" = input."id"
+    RETURNING sr."id", sr."retryCount", sr."tenantId", sr."timeoutAt"
+)
+-- bulk insert into timeout queue items
+INSERT INTO
+    "TimeoutQueueItem" (
+        "stepRunId",
+        "retryCount",
+        "timeoutAt",
+        "tenantId",
+        "isQueued"
+    )
+SELECT
+    sr."id",
+    sr."retryCount",
+    sr."timeoutAt",
+    sr."tenantId",
+    true
+FROM
+    updated_step_runs sr
+ON CONFLICT DO NOTHING;
 
 -- name: GetFinalizedStepRuns :many
 SELECT
