@@ -230,14 +230,13 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	})
 
 	populatorMW.RegisterGetter("workflow", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
-		// TODO this is probabably broken
-		workflow, err := config.APIRepository.Workflow().GetWorkflowById(context.Background(), parentId, id)
+		workflow, err := config.APIRepository.Workflow().GetWorkflowById(context.Background(), id)
 
 		if err != nil {
 			return nil, "", err
 		}
 
-		return workflow, sqlchelpers.UUIDToStr(workflow.TenantId), nil
+		return workflow, sqlchelpers.UUIDToStr(workflow.Workflow.TenantId), nil
 	})
 
 	populatorMW.RegisterGetter("workflow-run", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {

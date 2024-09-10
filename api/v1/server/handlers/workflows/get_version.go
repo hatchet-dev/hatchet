@@ -2,6 +2,7 @@ package workflows
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/labstack/echo/v4"
 
@@ -9,29 +10,39 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 )
 
 func (t *WorkflowService) WorkflowVersionGet(ctx echo.Context, request gen.WorkflowVersionGetRequestObject) (gen.WorkflowVersionGetResponseObject, error) {
 	tenant := ctx.Get("tenant").(*db.TenantModel)
-	workflow := ctx.Get("workflow").(*db.WorkflowModel)
+	workflow := ctx.Get("workflow").(*dbsqlc.GetWorkflowByIdRow)
 
 	var workflowVersionId string
 
 	if request.Params.Version != nil {
 		workflowVersionId = request.Params.Version.String()
 	} else {
-		versions := workflow.Versions()
+		row, err := t.config.APIRepository.Workflow().GetWorkflowById(
+			ctx.Request().Context(),
+			sqlchelpers.UUIDToStr(workflow.Workflow.ID),
+		)
 
-		if len(versions) == 0 {
-			return gen.WorkflowVersionGet400JSONResponse(
-				apierrors.NewAPIErrors("workflow has no versions"),
-			), nil
+		if err != nil {
+			if errors.Is(err, db.ErrNotFound) {
+				return gen.WorkflowVersionGet404JSONResponse(
+					apierrors.NewAPIErrors("workflow not found"),
+				), nil
+			}
+
+			return nil, err
+
 		}
 
-		workflowVersionId = versions[0].ID
+		workflowVersionId = sqlchelpers.UUIDToStr(row.WorkflowVersionId)
 	}
 
-	res, err := t.config.APIRepository.Workflow().GetWorkflowVersionById(tenant.ID, workflowVersionId)
+	row, err := t.config.APIRepository.Workflow().GetWorkflowVersionById(tenant.ID, workflowVersionId)
 
 	if err != nil {
 		if errors.Is(err, db.ErrNotFound) {
@@ -40,10 +51,17 @@ func (t *WorkflowService) WorkflowVersionGet(ctx echo.Context, request gen.Workf
 			), nil
 		}
 
-		return nil, err
+		return nil, fmt.Errorf("error fetching version: %s", err)
 	}
 
-	resp := transformers.ToWorkflowVersion(&res.WorkflowVersion, &res.Workflow)
+	resp := transformers.ToWorkflowVersion(
+		&row.WorkflowVersion,
+		&workflow.Workflow,
+		&row.WorkflowConcurrency,
+		nil,
+		nil,
+		nil,
+	)
 
 	return gen.WorkflowVersionGet200JSONResponse(*resp), nil
 }

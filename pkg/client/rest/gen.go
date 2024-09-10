@@ -8705,6 +8705,7 @@ type WorkflowGetResponse struct {
 	JSON200      *Workflow
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON404      *APIErrors
 }
 
 // Status returns HTTPResponse.Status
@@ -12515,6 +12516,13 @@ func ParseWorkflowGetResponse(rsp *http.Response) (*WorkflowGetResponse, error) 
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	}
 

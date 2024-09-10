@@ -35,7 +35,8 @@ func ToWorkflowRunShape(
 	}
 
 	if version != nil {
-		res.WorkflowVersion = ToWorkflowVersion(&version.WorkflowVersion, &version.Workflow)
+		// TODO concurrency
+		res.WorkflowVersion = ToWorkflowVersion(&version.WorkflowVersion, &version.Workflow, nil, nil, nil, nil)
 	}
 
 	res.TriggeredBy = *ToWorkflowRunTriggeredBy(&run.WorkflowRunTriggeredBy)
@@ -79,7 +80,7 @@ func ToWorkflowRun(
 	res.TriggeredBy = *ToWorkflowRunTriggeredBy(&run.WorkflowRunTriggeredBy)
 
 	if run.WorkflowVersionId.Valid {
-		res.WorkflowVersion = ToWorkflowVersion(&run.WorkflowVersion, &run.Workflow)
+		res.WorkflowVersion = ToWorkflowVersion(&run.WorkflowVersion, &run.Workflow, nil, nil, nil, nil)
 	}
 
 	if jobs != nil {

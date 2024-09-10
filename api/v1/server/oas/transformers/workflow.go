@@ -12,69 +12,60 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 )
 
-func ToWorkflow(workflow *db.WorkflowModel) (*gen.Workflow, error) {
+func ToWorkflow(
+	workflow *dbsqlc.Workflow,
+	version *dbsqlc.WorkflowVersion,
+) *gen.Workflow {
 	res := &gen.Workflow{
-		Metadata: *toAPIMetadata(workflow.ID, workflow.CreatedAt, workflow.UpdatedAt),
-		Name:     workflow.Name,
+		Metadata: *toAPIMetadata(
+			sqlchelpers.UUIDToStr(workflow.ID),
+			workflow.CreatedAt.Time,
+			workflow.UpdatedAt.Time,
+		),
+		Name: workflow.Name,
 	}
 
-	if description, ok := workflow.Description(); ok {
-		res.Description = &description
-	}
+	res.Description = &workflow.Description.String
 
-	if workflow.RelationsWorkflow.Tags != nil {
-		if tags := workflow.Tags(); tags != nil {
-			apiTags := make([]gen.WorkflowTag, len(tags))
-
-			for i, tag := range tags {
-				apiTags[i] = gen.WorkflowTag{
-					Name:  tag.Name,
-					Color: tag.Color,
-				}
-			}
-
-			res.Tags = &apiTags
-		}
-	}
-
-	if workflow.RelationsWorkflow.Versions != nil {
-		if versions := workflow.Versions(); versions != nil {
-			apiVersions := make([]gen.WorkflowVersionMeta, len(versions))
-
-			for i, version := range versions {
-				versionCp := version
-				apiVersions[i] = *ToWorkflowVersionMeta(&versionCp)
-			}
-
-			res.Versions = &apiVersions
-		}
-	}
-
-	return res, nil
-}
-
-func ToWorkflowVersionMeta(version *db.WorkflowVersionModel) *gen.WorkflowVersionMeta {
-	res := &gen.WorkflowVersionMeta{
-		Metadata:   *toAPIMetadata(version.ID, version.CreatedAt, version.UpdatedAt),
-		WorkflowId: version.WorkflowID,
-		Order:      int32(version.Order),
-	}
-
-	if setVersion, ok := version.Version(); ok {
-		res.Version = setVersion
+	if version != nil {
+		apiVersions := make([]gen.WorkflowVersionMeta, 1)
+		apiVersions = append(apiVersions, *ToWorkflowVersionMeta(version, workflow))
+		res.Versions = &apiVersions
 	}
 
 	return res
 }
 
-func ToWorkflowVersion(version *dbsqlc.WorkflowVersion, workflow *dbsqlc.Workflow) *gen.WorkflowVersion {
+func ToWorkflowVersionMeta(version *dbsqlc.WorkflowVersion, workflow *dbsqlc.Workflow) *gen.WorkflowVersionMeta {
+	res := &gen.WorkflowVersionMeta{
+		Metadata: *toAPIMetadata(
+			sqlchelpers.UUIDToStr(version.ID),
+			version.CreatedAt.Time,
+			version.UpdatedAt.Time,
+		),
+		WorkflowId: sqlchelpers.UUIDToStr(version.WorkflowId),
+		Order:      int32(version.Order),
+		Version:    version.Version.String,
+	}
+
+	return res
+}
+
+func ToWorkflowVersion(
+	version *dbsqlc.WorkflowVersion,
+	workflow *dbsqlc.Workflow,
+	concurrency *dbsqlc.WorkflowConcurrency,
+	crons *dbsqlc.WorkflowTriggerCronRef,
+	events *dbsqlc.WorkflowTriggerEventRef,
+	schedules *dbsqlc.WorkflowTriggerScheduledRef,
+) *gen.WorkflowVersion {
 	res := &gen.WorkflowVersion{
 		Metadata: *toAPIMetadata(
 			sqlchelpers.UUIDToStr(version.ID),
 			version.CreatedAt.Time,
 			version.UpdatedAt.Time,
 		),
-		WorkflowId:      sqlchelpers.UUIDToStr(version.WorkflowId),
+		// WorkflowId:      sqlchelpers.UUIDToStr(version.WorkflowId),
 		Order:           int32(version.Order),
 		Version:         version.Version.String,
 		ScheduleTimeout: &version.ScheduleTimeout,
@@ -84,86 +75,67 @@ func ToWorkflowVersion(version *dbsqlc.WorkflowVersion, workflow *dbsqlc.Workflo
 		res.Workflow = ToWorkflowFromSQLC(workflow)
 	}
 
-	// if version.RelationsWorkflowVersion.Jobs != nil {
-	// 	if jobs := version.Jobs(); jobs != nil {
-	// 		apiJobs := make([]gen.Job, len(jobs))
+	// apiJobs := make([]gen.Job, len(jobs))
 
-	// 		for i, job := range jobs {
-	// 			jobCp := job
-	// 			apiJob, err := ToJob(&jobCp)
-
-	// 			if err != nil {
-	// 				return nil, err
-	// 			}
-	// 			apiJobs[i] = *apiJob
-	// 		}
-
-	// 		res.Jobs = &apiJobs
-	// 	}
+	// for i, job := range jobs {
+	// 	jobCp := job
+	// 	apiJob := ToJob(&jobCp)
+	// 	apiJobs[i] = *apiJob
 	// }
 
-	// if version.RelationsWorkflowVersion.Concurrency != nil {
-	// 	if concurrency, ok := version.Concurrency(); ok {
-	// 		apiConcurrency, err := ToWorkflowVersionConcurrency(concurrency)
+	// res.Jobs = &apiJobs
 
-	// 		if err != nil {
-	// 			return nil, err
-	// 		}
+	apiConcurrency := ToWorkflowVersionConcurrency(concurrency)
 
-	// 		res.Concurrency = apiConcurrency
-	// 	}
-	// }
+	res.Concurrency = apiConcurrency
 
-	// if version.RelationsWorkflowVersion.Triggers != nil {
-	// 	if triggers, ok := version.Triggers(); ok && triggers != nil {
-	// 		triggersResp := gen.WorkflowTriggers{}
+	triggersResp := gen.WorkflowTriggers{}
 
-	// 		if crons := triggers.Crons(); len(crons) > 0 {
-	// 			genCrons := make([]gen.WorkflowTriggerCronRef, len(crons))
+	genCrons := make([]gen.WorkflowTriggerCronRef, 0)
 
-	// 			for i, cron := range crons {
-	// 				cronCp := cron
-	// 				genCrons[i] = gen.WorkflowTriggerCronRef{
-	// 					Cron:     &cronCp.Cron,
-	// 					ParentId: &cronCp.ParentID,
-	// 				}
-	// 			}
+	// for i, cron := range crons {
+	if crons != nil {
+		cronCp := crons
+		if cronCp.ParentId.Valid {
+			parentId := sqlchelpers.UUIDToStr(cronCp.ParentId)
+			genCrons = append(genCrons, gen.WorkflowTriggerCronRef{
+				Cron:     &cronCp.Cron,
+				ParentId: &parentId,
+			})
+		}
+	}
 
-	// 			triggersResp.Crons = &genCrons
-	// 		}
+	triggersResp.Crons = &genCrons
 
-	// 		if events := triggers.Events(); len(events) > 0 {
-	// 			genEvents := make([]gen.WorkflowTriggerEventRef, len(events))
+	genEvents := make([]gen.WorkflowTriggerEventRef, 0)
 
-	// 			for i, event := range events {
-	// 				eventCp := event
-	// 				genEvents[i] = gen.WorkflowTriggerEventRef{
-	// 					EventKey: &eventCp.EventKey,
-	// 					ParentId: &eventCp.ParentID,
-	// 				}
-	// 			}
+	// for i, event := range events {
+	if events != nil {
+		eventCp := events
+		if eventCp.ParentId.Valid {
+			parentId := sqlchelpers.UUIDToStr(eventCp.ParentId)
+			genEvents = append(genEvents, gen.WorkflowTriggerEventRef{
+				EventKey: &eventCp.EventKey,
+				ParentId: &parentId,
+			})
+		}
+	}
 
-	// 			triggersResp.Events = &genEvents
-	// 		}
+	triggersResp.Events = &genEvents
 
-	// 		res.Triggers = &triggersResp
-	// 	}
-	// }
+	res.Triggers = &triggersResp
 
 	return res
 }
 
-func ToWorkflowVersionConcurrency(concurrency *db.WorkflowConcurrencyModel) (*gen.WorkflowConcurrency, error) {
+func ToWorkflowVersionConcurrency(concurrency *dbsqlc.WorkflowConcurrency) *gen.WorkflowConcurrency {
 	res := &gen.WorkflowConcurrency{
-		MaxRuns:       int32(concurrency.MaxRuns),
-		LimitStrategy: gen.WorkflowConcurrencyLimitStrategy(concurrency.LimitStrategy),
+		MaxRuns:             concurrency.MaxRuns,
+		LimitStrategy:       gen.WorkflowConcurrencyLimitStrategy(concurrency.LimitStrategy),
+		GetConcurrencyGroup: sqlchelpers.UUIDToStr(concurrency.GetConcurrencyGroupId),
 	}
 
-	if getGroup, ok := concurrency.GetConcurrencyGroup(); ok {
-		res.GetConcurrencyGroup = getGroup.ActionID
-	}
-
-	return res, nil
+	return res
 }
 
 func ToWorkflowYAMLBytes(workflow *db.WorkflowModel, version *db.WorkflowVersionModel) ([]byte, error) {
@@ -303,18 +275,6 @@ func ToWorkflowFromSQLC(row *dbsqlc.Workflow) *gen.Workflow {
 		Metadata:    *toAPIMetadata(pgUUIDToStr(row.ID), row.CreatedAt.Time, row.UpdatedAt.Time),
 		Name:        row.Name,
 		Description: &row.Description.String,
-	}
-
-	return res
-}
-
-func ToWorkflowVersionMetaFromSQLC(row *dbsqlc.WorkflowVersion, workflow *gen.Workflow) *gen.WorkflowVersionMeta {
-	res := &gen.WorkflowVersionMeta{
-		Metadata:   *toAPIMetadata(pgUUIDToStr(row.ID), row.CreatedAt.Time, row.UpdatedAt.Time),
-		Version:    row.Version.String,
-		WorkflowId: pgUUIDToStr(row.WorkflowId),
-		Order:      int32(row.Order),
-		Workflow:   workflow,
 	}
 
 	return res

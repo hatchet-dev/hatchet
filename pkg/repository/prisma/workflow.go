@@ -114,25 +114,23 @@ func (r *workflowAPIRepository) ListWorkflows(tenantId string, opts *repository.
 	return res, nil
 }
 
-func (r *workflowAPIRepository) GetWorkflowById(ctx context.Context, tenantId, workflowId string) (*dbsqlc.Workflow, error) {
-	return r.queries.GetWorkflowById(context.Background(), r.pool, dbsqlc.GetWorkflowByIdParams{
-		ID:       sqlchelpers.UUIDFromStr(workflowId),
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
-	})
+func (r *workflowAPIRepository) GetWorkflowById(ctx context.Context, workflowId string) (*dbsqlc.GetWorkflowByIdRow, error) {
+	return r.queries.GetWorkflowById(context.Background(), r.pool, sqlchelpers.UUIDFromStr(workflowId))
 
-	// r.client.Workflow.FindFirst(
-	// 	db.Workflow.ID.Equals(workflowId),
-	// 	db.Workflow.DeletedAt.IsNull(),
-	// ).With(
-	// 	defaultWorkflowPopulator()...,
-	// ).Exec(context.Background())
 }
 
 func (r *workflowAPIRepository) GetWorkflowVersionById(tenantId, workflowVersionId string) (*dbsqlc.GetWorkflowVersionByIdRow, error) {
-	return r.queries.GetWorkflowVersionById(context.Background(), r.pool, dbsqlc.GetWorkflowVersionByIdParams{
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
-		ID:       sqlchelpers.UUIDFromStr(workflowVersionId),
-	})
+	row, err := r.queries.GetWorkflowVersionById(
+		context.Background(),
+		r.pool,
+		sqlchelpers.UUIDFromStr(workflowVersionId),
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch workflow version: %w", err)
+	}
+
+	return row, nil
 }
 
 func (r *workflowAPIRepository) DeleteWorkflow(tenantId, workflowId string) (*dbsqlc.Workflow, error) {

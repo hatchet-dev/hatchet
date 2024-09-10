@@ -6313,6 +6313,15 @@ func (response WorkflowGet403JSONResponse) VisitWorkflowGetResponse(w http.Respo
 	return json.NewEncoder(w).Encode(response)
 }
 
+type WorkflowGet404JSONResponse APIErrors
+
+func (response WorkflowGet404JSONResponse) VisitWorkflowGetResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type WorkflowGetMetricsRequestObject struct {
 	Workflow openapi_types.UUID `json:"workflow"`
 	Params   WorkflowGetMetricsParams
@@ -8825,12 +8834,12 @@ var swaggerSpec = []string{
 	"iqQ7WJGUk59DRdKeoi835jgQeHaxt2RTmZxczzHiCHV+v3Nn+Wb9hYIFapap9K22q2PPHS31XWxRWx5V",
 	"vMn+cClcaLjc4BTmWKCQj1Fbs4NN8XbrBC8RmLhj6vXOFAhuUR+4J0mHVbcHJJjVXJvUEjJv9WZoeQNW",
 	"KUNA6dyoq+pL7Q6Jsu0V8nXkNQ5Zx2lmThMMsQqzLZwmPItH1bpysIT0mjNOGTst7KIi/aS+QtRWz5v3",
-	"bSwjCWBXTGlLxZQuLLWTBLFqFLNM1Th2OrlUdHTihBYq1+6xwfqTQ5bMCOkOBHMSyPIk3nAmOOV30h0q",
-	"J3IqMn6AGeapyFa2aJHPuQvcYciz4zUU1lCGYfkiDGbAplmSpyzrrwBBbpQVFNbpN/hcAuY1ZMSKyWOC",
-	"9Lr8sV05lktZa3PF9RsSXCRD02mdT/GaN/CAF8PH5eozuz+ttpOS69rALvve8I5dZeGcUgcMe6IwKoGY",
-	"KJ5C2LuD7CVwW254Ifh33IIWZKDtaptHlBdKcG7XpnZ9v6L0olxXavp1ReLOvcAj5WBDoe2mJ2JbiGYh",
-	"G7BryXwpdZzE8u+88Ruyt/4KcnnDUk5s6oqqYCfvdkoFLEhxWRVwMWBkAkEGMxUw0jOGkMDsQcqDPIv8",
-	"E99/+f7y/wMAAP//hYG6SOqdAQA=",
+	"bSwjCWBXTGlLxZQuLLWTBLFqFLNM1Th2OrlUdHTihBYq1+6xwfqTQ5bMCOl467V5S089WZ6xGk4ip6xS",
+	"Shfl9FHFPA8wwzwB2sqMLbJId4EnDdl9vHLDGoo/LF/6wQzYNEvylOUaFiDIjbKCwjr9Bp9LwLyGZFox",
+	"ZU2QXpe1tosCS+3KxgQXydB0WufJvOYNPODF8HG5qtDuD7rtpOS6NrDLvje8YxdoOKfUAcOeKMdKICaK",
+	"pxD27iB7f9yWkV4I/h232wUZaLva5unmhcKf27XkXV/NKL1j1xW4fl2RuHPv/kg52FDeu+lh2haiWcgG",
+	"7FqoX0odJ7H8O2/8hqy8v4Jc3rCUE5u6oirYybudUgELUlxWBVwMU5lAkMFMhan0jIErMHuQ8iDPIv/E",
+	"91++v/z/AAAA//+aWsDQYJ4BAA==",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

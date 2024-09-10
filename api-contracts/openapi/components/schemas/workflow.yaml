@@ -86,6 +86,8 @@ WorkflowVersion:
       format: int32
     workflowId:
       type: string
+
+    # TODO kind, default priority, sticky,
     workflow:
       $ref: "#/Workflow"
     concurrency:

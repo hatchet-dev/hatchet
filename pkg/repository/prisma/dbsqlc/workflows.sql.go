@@ -715,31 +715,36 @@ func (q *Queries) CreateWorkflowVersion(ctx context.Context, db DBTX, arg Create
 
 const getWorkflowById = `-- name: GetWorkflowById :one
 SELECT
-    id, "createdAt", "updatedAt", "deletedAt", "tenantId", name, description
+    w.id, w."createdAt", w."updatedAt", w."deletedAt", w."tenantId", w.name, w.description,
+    wv."id" as "workflowVersionId"
 FROM
     "Workflow" as w
+LEFT JOIN "WorkflowVersion" as wv ON w."id" = wv."workflowId"
 WHERE
     w."id" = $1::uuid AND
-    w."tenantId" = $2::uuid AND
     w."deletedAt" IS NULL
+ORDER BY
+    wv."order" DESC
+LIMIT 1
 `
 
-type GetWorkflowByIdParams struct {
-	ID       pgtype.UUID `json:"id"`
-	Tenantid pgtype.UUID `json:"tenantid"`
+type GetWorkflowByIdRow struct {
+	Workflow          Workflow    `json:"workflow"`
+	WorkflowVersionId pgtype.UUID `json:"workflowVersionId"`
 }
 
-func (q *Queries) GetWorkflowById(ctx context.Context, db DBTX, arg GetWorkflowByIdParams) (*Workflow, error) {
-	row := db.QueryRow(ctx, getWorkflowById, arg.ID, arg.Tenantid)
-	var i Workflow
+func (q *Queries) GetWorkflowById(ctx context.Context, db DBTX, id pgtype.UUID) (*GetWorkflowByIdRow, error) {
+	row := db.QueryRow(ctx, getWorkflowById, id)
+	var i GetWorkflowByIdRow
 	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.DeletedAt,
-		&i.TenantId,
-		&i.Name,
-		&i.Description,
+		&i.Workflow.ID,
+		&i.Workflow.CreatedAt,
+		&i.Workflow.UpdatedAt,
+		&i.Workflow.DeletedAt,
+		&i.Workflow.TenantId,
+		&i.Workflow.Name,
+		&i.Workflow.Description,
+		&i.WorkflowVersionId,
 	)
 	return &i, err
 }
@@ -798,29 +803,33 @@ func (q *Queries) GetWorkflowLatestVersion(ctx context.Context, db DBTX, workflo
 const getWorkflowVersionById = `-- name: GetWorkflowVersionById :one
 SELECT
     wv.id, wv."createdAt", wv."updatedAt", wv."deletedAt", wv.version, wv."order", wv."workflowId", wv.checksum, wv."scheduleTimeout", wv."onFailureJobId", wv.sticky, wv.kind, wv."defaultPriority",
-    w.id, w."createdAt", w."updatedAt", w."deletedAt", w."tenantId", w.name, w.description
+    w.id, w."createdAt", w."updatedAt", w."deletedAt", w."tenantId", w.name, w.description,
+    wc.id, wc."createdAt", wc."updatedAt", wc."workflowVersionId", wc."getConcurrencyGroupId", wc."maxRuns", wc."limitStrategy"
+    -- sqlc.embed(wter),
+    -- sqlc.embed(wtc)
+    -- sqlc.embed(wts)
 FROM
     "WorkflowVersion" as wv
-JOIN
-    "Workflow" as w ON wv."workflowId" = w."id"
+JOIN "Workflow" as w on w."id" = wv."workflowId"
+LEFT JOIN "WorkflowConcurrency" as wc ON wc."workflowVersionId" = wv."id"
+LEFT JOIN "WorkflowTriggers" as wt ON wt."workflowVersionId" = wv."id"
+LEFT JOIN "WorkflowTriggerEventRef" as wter ON wter."parentId" = wt."id"
+LEFT JOIN "WorkflowTriggerCronRef" as wtc ON wtc."parentId" = wt."id"
 WHERE
     wv."id" = $1::uuid AND
-    w."tenantId" = $2::uuid AND
     wv."deletedAt" IS NULL
+LIMIT 1
 `
 
-type GetWorkflowVersionByIdParams struct {
-	ID       pgtype.UUID `json:"id"`
-	Tenantid pgtype.UUID `json:"tenantid"`
-}
-
 type GetWorkflowVersionByIdRow struct {
-	WorkflowVersion WorkflowVersion `json:"workflow_version"`
-	Workflow        Workflow        `json:"workflow"`
+	WorkflowVersion     WorkflowVersion     `json:"workflow_version"`
+	Workflow            Workflow            `json:"workflow"`
+	WorkflowConcurrency WorkflowConcurrency `json:"workflow_concurrency"`
 }
 
-func (q *Queries) GetWorkflowVersionById(ctx context.Context, db DBTX, arg GetWorkflowVersionByIdParams) (*GetWorkflowVersionByIdRow, error) {
-	row := db.QueryRow(ctx, getWorkflowVersionById, arg.ID, arg.Tenantid)
+// LEFT JOIN "WorkflowTriggerScheduledRef" as wts ON wts."parentId" = wt."id"
+func (q *Queries) GetWorkflowVersionById(ctx context.Context, db DBTX, id pgtype.UUID) (*GetWorkflowVersionByIdRow, error) {
+	row := db.QueryRow(ctx, getWorkflowVersionById, id)
 	var i GetWorkflowVersionByIdRow
 	err := row.Scan(
 		&i.WorkflowVersion.ID,
@@ -843,6 +852,13 @@ func (q *Queries) GetWorkflowVersionById(ctx context.Context, db DBTX, arg GetWo
 		&i.Workflow.TenantId,
 		&i.Workflow.Name,
 		&i.Workflow.Description,
+		&i.WorkflowConcurrency.ID,
+		&i.WorkflowConcurrency.CreatedAt,
+		&i.WorkflowConcurrency.UpdatedAt,
+		&i.WorkflowConcurrency.WorkflowVersionId,
+		&i.WorkflowConcurrency.GetConcurrencyGroupId,
+		&i.WorkflowConcurrency.MaxRuns,
+		&i.WorkflowConcurrency.LimitStrategy,
 	)
 	return &i, err
 }

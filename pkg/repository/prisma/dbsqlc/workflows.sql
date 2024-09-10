@@ -468,23 +468,35 @@ RETURNING *;
 -- name: GetWorkflowVersionById :one
 SELECT
     sqlc.embed(wv),
-    sqlc.embed(w)
+    sqlc.embed(w),
+    sqlc.embed(wc)
+    -- sqlc.embed(wter),
+    -- sqlc.embed(wtc)
+    -- sqlc.embed(wts)
 FROM
     "WorkflowVersion" as wv
-JOIN
-    "Workflow" as w ON wv."workflowId" = w."id"
+JOIN "Workflow" as w on w."id" = wv."workflowId"
+LEFT JOIN "WorkflowConcurrency" as wc ON wc."workflowVersionId" = wv."id"
+LEFT JOIN "WorkflowTriggers" as wt ON wt."workflowVersionId" = wv."id"
+LEFT JOIN "WorkflowTriggerEventRef" as wter ON wter."parentId" = wt."id"
+LEFT JOIN "WorkflowTriggerCronRef" as wtc ON wtc."parentId" = wt."id"
+-- LEFT JOIN "WorkflowTriggerScheduledRef" as wts ON wts."parentId" = wt."id"
 WHERE
     wv."id" = @id::uuid AND
-    w."tenantId" = @tenantId::uuid AND
-    wv."deletedAt" IS NULL;
+    wv."deletedAt" IS NULL
+LIMIT 1;
 
 
 -- name: GetWorkflowById :one
 SELECT
-    *
+    sqlc.embed(w),
+    wv."id" as "workflowVersionId"
 FROM
     "Workflow" as w
+LEFT JOIN "WorkflowVersion" as wv ON w."id" = wv."workflowId"
 WHERE
     w."id" = @id::uuid AND
-    w."tenantId" = @tenantId::uuid AND
-    w."deletedAt" IS NULL;
+    w."deletedAt" IS NULL
+ORDER BY
+    wv."order" DESC
+LIMIT 1;

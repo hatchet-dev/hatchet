@@ -15,27 +15,27 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 )
 
 func (t *WorkflowService) WorkflowRunCreate(ctx echo.Context, request gen.WorkflowRunCreateRequestObject) (gen.WorkflowRunCreateResponseObject, error) {
 	tenant := ctx.Get("tenant").(*db.TenantModel)
-	workflow := ctx.Get("workflow").(*db.WorkflowModel)
+	workflow := ctx.Get("workflow").(*dbsqlc.GetWorkflowByIdRow)
 
 	var workflowVersionId string
 
 	if request.Params.Version != nil {
 		workflowVersionId = request.Params.Version.String()
 	} else {
-		versions := workflow.Versions()
 
-		if len(versions) == 0 {
+		if !workflow.WorkflowVersionId.Valid {
 			return gen.WorkflowRunCreate400JSONResponse(
 				apierrors.NewAPIErrors("workflow has no versions"),
 			), nil
 		}
 
-		workflowVersionId = versions[0].ID
+		workflowVersionId = sqlchelpers.UUIDToStr(workflow.WorkflowVersionId)
 	}
 
 	workflowVersion, err := t.config.EngineRepository.Workflow().GetWorkflowVersionById(ctx.Request().Context(), tenant.ID, workflowVersionId)

@@ -220,11 +220,11 @@ type WorkflowAPIRepository interface {
 	ListWorkflows(tenantId string, opts *ListWorkflowsOpts) (*ListWorkflowsResult, error)
 
 	// GetWorkflowById returns a workflow by its name. It will return db.ErrNotFound if the workflow does not exist.
-	GetWorkflowById(context context.Context, tenantId, workflowId string) (*dbsqlc.Workflow, error)
+	GetWorkflowById(context context.Context, workflowId string) (*dbsqlc.GetWorkflowByIdRow, error)
 
 	// GetWorkflowVersionById returns a workflow version by its id. It will return db.ErrNotFound if the workflow
 	// version does not exist.
-	GetWorkflowVersionById(tenantId, workflowId string) (*dbsqlc.GetWorkflowVersionByIdRow, error)
+	GetWorkflowVersionById(tenantId, workflowVersionId string) (*dbsqlc.GetWorkflowVersionByIdRow, error)
 
 	// DeleteWorkflow deletes a workflow for a given tenant.
 	DeleteWorkflow(tenantId, workflowId string) (*dbsqlc.Workflow, error)
