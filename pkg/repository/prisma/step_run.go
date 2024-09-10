@@ -482,7 +482,7 @@ var genericRetry = func(l *zerolog.Event, maxRetries int, f func() error, msg st
 
 func (s *stepRunEngineRepository) ReleaseStepRunSemaphore(ctx context.Context, tenantId, stepRunId string, isUserTriggered bool) error {
 	return deadlockRetry(s.l, func() error {
-		tx, rollback, err := s.prepareTx(ctx, 5000)
+		tx, commit, rollback, err := s.prepareTx(ctx, 5000)
 
 		if err != nil {
 			return err
@@ -539,7 +539,7 @@ func (s *stepRunEngineRepository) ReleaseStepRunSemaphore(ctx context.Context, t
 			}
 		}
 
-		return tx.Commit(ctx)
+		return commit(ctx)
 	})
 }
 
@@ -1366,6 +1366,9 @@ func (s *stepRunEngineRepository) updateWorkerSemaphoreCountsTx(ctx context.Cont
 }
 
 func (s *stepRunEngineRepository) ProcessStepRunUpdates(ctx context.Context, qlp *zerolog.Logger, tenantId string) (repository.ProcessStepRunUpdatesResult, error) {
+	ql := qlp.With().Str("tenant_id", tenantId).Logger()
+	startedAt := time.Now().UTC()
+
 	emptyRes := repository.ProcessStepRunUpdatesResult{
 		Continue: false,
 	}
@@ -1555,6 +1558,10 @@ func (s *stepRunEngineRepository) ProcessStepRunUpdates(ctx context.Context, qlp
 		return emptyRes, fmt.Errorf("could not update step runs: %w", err)
 	}
 
+	durationUpdateStepRuns := time.Since(startedAt)
+
+	startResolveJobRunStatus := time.Now()
+
 	// update the job runs and workflow runs as well
 	jobRunIds, err := s.queries.ResolveJobRunStatus(ctx, tx, dbsqlc.ResolveJobRunStatusParams{
 		Steprunids: stepRunIds,
@@ -1565,6 +1572,10 @@ func (s *stepRunEngineRepository) ProcessStepRunUpdates(ctx context.Context, qlp
 		return emptyRes, fmt.Errorf("could not resolve job run status: %w", err)
 	}
 
+	durationResolveJobRunStatus := time.Since(startResolveJobRunStatus)
+
+	startResolveWorkflowRuns := time.Now()
+
 	completedWorkflowRuns, err := s.queries.ResolveWorkflowRunStatus(ctx, tx, dbsqlc.ResolveWorkflowRunStatusParams{
 		Jobrunids: jobRunIds,
 		Tenantid:  pgTenantId,
@@ -1574,11 +1585,15 @@ func (s *stepRunEngineRepository) ProcessStepRunUpdates(ctx context.Context, qlp
 		return emptyRes, fmt.Errorf("could not resolve workflow run status: %w", err)
 	}
 
+	durationResolveWorkflowRuns := time.Since(startResolveWorkflowRuns)
+
 	qiIds := make([]int64, 0, len(data))
 
 	for _, item := range queueItems {
 		qiIds = append(qiIds, item.ID)
 	}
+
+	startMarkQueueItemsProcessed := time.Now()
 
 	// update the processed semaphore queue items
 	err = s.queries.MarkInternalQueueItemsProcessed(ctx, tx, qiIds)
@@ -1587,14 +1602,22 @@ func (s *stepRunEngineRepository) ProcessStepRunUpdates(ctx context.Context, qlp
 		return emptyRes, fmt.Errorf("could not mark worker semaphore queue items processed: %w", err)
 	}
 
+	durationMarkQueueItemsProcessed := time.Since(startMarkQueueItemsProcessed)
+
+	startRunEvents := time.Now()
+
 	// NOTE: actually not deferred
 	deferredBulkStepRunEvents(ctx, s.l, tx, s.queries, eventStepRunIds, eventReasons, eventSeverities, eventMessages, eventData)
+
+	durationRunEvents := time.Since(startRunEvents)
 
 	err = tx.Commit(ctx)
 
 	if err != nil {
 		return emptyRes, fmt.Errorf("could not commit transaction: %w", err)
 	}
+
+	defer printProcessStepRunUpdateInfo(ql, tenantId, startedAt, len(stepRunIds), durationUpdateStepRuns, durationResolveJobRunStatus, durationResolveWorkflowRuns, durationMarkQueueItemsProcessed, durationRunEvents)
 
 	return repository.ProcessStepRunUpdatesResult{
 		CompletedWorkflowRuns: completedWorkflowRuns,
@@ -1957,7 +1980,7 @@ func (s *stepRunEngineRepository) ReplayStepRun(ctx context.Context, tenantId, s
 	ctx, span := telemetry.NewSpan(ctx, "replay-step-run")
 	defer span.End()
 
-	tx, rollback, err := s.prepareTx(ctx, 5000)
+	tx, commit, rollback, err := s.prepareTx(ctx, 5000)
 
 	if err != nil {
 		return nil, err
@@ -2073,7 +2096,7 @@ func (s *stepRunEngineRepository) ReplayStepRun(ctx context.Context, tenantId, s
 		return nil, err
 	}
 
-	err = tx.Commit(ctx)
+	err = commit(ctx)
 
 	if err != nil {
 		return nil, err
@@ -2207,7 +2230,7 @@ func (s *stepRunEngineRepository) QueueStepRun(ctx context.Context, tenantId, st
 		return nil, err
 	}
 
-	tx, rollback, err := s.prepareTx(ctx, 5000)
+	tx, commit, rollback, err := s.prepareTx(ctx, 5000)
 
 	if err != nil {
 		return nil, err
@@ -2280,7 +2303,7 @@ func (s *stepRunEngineRepository) QueueStepRun(ctx context.Context, tenantId, st
 		return nil, fmt.Errorf("could not create queue item: %w", err)
 	}
 
-	if err := tx.Commit(ctx); err != nil {
+	if err := commit(ctx); err != nil {
 		return nil, err
 	}
 
@@ -2769,23 +2792,36 @@ func removeDuplicates(qis []*scheduling.QueueItemWithOrder) ([]*scheduling.Queue
 	return result, duplicates
 }
 
-func (r *stepRunEngineRepository) prepareTx(ctx context.Context, timeoutMs int) (pgx.Tx, func(), error) {
+func (r *stepRunEngineRepository) prepareTx(ctx context.Context, timeoutMs int) (pgx.Tx, func(context.Context) error, func(), error) {
 	tx, err := r.pool.Begin(ctx)
 
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
+	}
+
+	commit := func(ctx context.Context) error {
+		// reset statement timeout
+		_, err = tx.Exec(ctx, "SET statement_timeout=0")
+
+		if err != nil {
+			return err
+		}
+
+		return tx.Commit(ctx)
+	}
+
+	rollback := func() {
+		deferRollback(ctx, r.l, tx.Rollback)
 	}
 
 	// set tx timeout to 5 seconds to avoid deadlocks
 	_, err = tx.Exec(ctx, fmt.Sprintf("SET statement_timeout=%d", timeoutMs))
 
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
-	return tx, func() {
-		deferRollback(ctx, r.l, tx.Rollback)
-	}, nil
+	return tx, commit, rollback, nil
 }
 
 func printQueueDebugInfo(
@@ -2840,6 +2876,46 @@ func printQueueDebugInfo(
 		"duration_assign_queue_items", durationAssignQueueItems,
 	).Dur(
 		"duration_pop_queue_items", durationPopQueueItems,
+	).Msg(msg)
+}
+
+func printProcessStepRunUpdateInfo(
+	l zerolog.Logger,
+	tenantId string,
+	startedAt time.Time,
+	numStepRuns int,
+	durationUpdateStepRuns time.Duration,
+	durationResolveJobRuns time.Duration,
+	durationResolveWorkflowRuns time.Duration,
+	durationMarkQueueItemsProcessed time.Duration,
+	durationWriteStepRunEvents time.Duration,
+) {
+	duration := time.Since(startedAt)
+
+	e := l.Debug()
+	msg := "process step run updates debug information"
+
+	if duration > 100*time.Millisecond {
+		e = l.Warn()
+		msg = fmt.Sprintf("process step run updates duration was longer than 100ms (%s) for %d step runs", duration, numStepRuns)
+	}
+
+	e.Str(
+		"tenant_id", tenantId,
+	).Int(
+		"num_step_runs", numStepRuns,
+	).Dur(
+		"total_duration", duration,
+	).Dur(
+		"duration_update_step_runs", durationUpdateStepRuns,
+	).Dur(
+		"duration_resolve_job_runs", durationResolveJobRuns,
+	).Dur(
+		"duration_resolve_workflow_runs", durationResolveWorkflowRuns,
+	).Dur(
+		"duration_mark_queue_items_processed", durationMarkQueueItemsProcessed,
+	).Dur(
+		"duration_write_step_run_events", durationWriteStepRunEvents,
 	).Msg(msg)
 }
 
