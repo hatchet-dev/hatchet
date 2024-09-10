@@ -11,7 +11,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hashicorp/go-multierror"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -409,8 +408,16 @@ func (s *stepRunEngineRepository) ListStepRunsToTimeout(ctx context.Context, ten
 
 	defer deferRollback(ctx, s.l, tx.Rollback)
 
+	limit := 100
+
 	// get the step run and make sure it's still in pending
-	stepRunIds, err := s.queries.ListStepRunsToTimeout(ctx, tx, pgTenantId)
+	stepRunIds, err := s.queries.PopTimeoutQueueItems(ctx, tx, dbsqlc.PopTimeoutQueueItemsParams{
+		Tenantid: pgTenantId,
+		Limit: pgtype.Int4{
+			Int32: int32(limit),
+			Valid: true,
+		},
+	})
 
 	if err != nil {
 		return nil, err
@@ -1151,7 +1158,7 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, qlp *zerolo
 		return emptyRes, fmt.Errorf("could not bulk assign worker semaphore queue items: %w", err)
 	}
 
-	_, err = s.queries.UpdateStepRunsToAssigned(ctx, tx, dbsqlc.UpdateStepRunsToAssignedParams{
+	err = s.queries.UpdateStepRunsToAssigned(ctx, tx, dbsqlc.UpdateStepRunsToAssignedParams{
 		Steprunids:      plan.StepRunIds,
 		Workerids:       plan.WorkerIds,
 		Stepruntimeouts: plan.StepRunTimeouts,
@@ -1419,8 +1426,11 @@ func (s *stepRunEngineRepository) ProcessStepRunUpdates(ctx context.Context, qlp
 		return emptyRes, fmt.Errorf("could not convert internal queue item data to worker semaphore queue data: %w", err)
 	}
 
-	// process the data by preparing a batch exec on UpdateStepRun
-	params := make([]dbsqlc.UpdateStepRunBatchParams, 0, len(data))
+	startParams := dbsqlc.BulkStartStepRunParams{}
+	failParams := dbsqlc.BulkFailStepRunParams{}
+	cancelParams := dbsqlc.BulkCancelStepRunParams{}
+	finishParams := dbsqlc.BulkFinishStepRunParams{}
+
 	stepRunIds := make([]pgtype.UUID, 0, len(data))
 	eventReasons := make([]dbsqlc.StepRunEventReason, 0, len(data))
 	eventStepRunIds := make([]pgtype.UUID, 0, len(data))
@@ -1462,107 +1472,92 @@ func (s *stepRunEngineRepository) ProcessStepRunUpdates(ctx context.Context, qlp
 			}
 
 			continue
-		} else if item.Status != nil {
-			dedupeKey := fmt.Sprintf("SR-%s-%s", item.StepRunId, *item.Status)
+		}
 
-			if _, ok := dedupe[dedupeKey]; ok {
-				continue
-			}
-
-			dedupe[dedupeKey] = true
+		if item.Status == nil {
+			continue
 		}
 
 		stepRunIds = append(stepRunIds, stepRunId)
-		updateParam := dbsqlc.UpdateStepRunBatchParams{
-			ID:       stepRunId,
-			Tenantid: pgTenantId,
-		}
 
-		if item.Status != nil {
-			updateParam.Status = dbsqlc.NullStepRunStatus{
-				StepRunStatus: dbsqlc.StepRunStatus(*item.Status),
-				Valid:         true,
+		switch dbsqlc.StepRunStatus(*item.Status) {
+		case dbsqlc.StepRunStatusRUNNING:
+			startParams.Steprunids = append(startParams.Steprunids, stepRunId)
+			startParams.Startedats = append(startParams.Startedats, sqlchelpers.TimestampFromTime(*item.StartedAt))
+			eventStepRunIds = append(eventStepRunIds, stepRunId)
+			eventReasons = append(eventReasons, dbsqlc.StepRunEventReasonSTARTED)
+			eventSeverities = append(eventSeverities, dbsqlc.StepRunEventSeverityINFO)
+			eventMessages = append(eventMessages, fmt.Sprintf("Step run started at %s", item.StartedAt.Format(time.RFC1123)))
+			eventData = append(eventData, map[string]interface{}{})
+		case dbsqlc.StepRunStatusFAILED:
+			failParams.Steprunids = append(failParams.Steprunids, stepRunId)
+			failParams.Finishedats = append(failParams.Finishedats, sqlchelpers.TimestampFromTime(*item.FinishedAt))
+			failParams.Errors = append(failParams.Errors, *item.Error)
+
+			eventStepRunIds = append(eventStepRunIds, stepRunId)
+			eventMessage := fmt.Sprintf("Step run failed on %s", item.FinishedAt.Format(time.RFC1123))
+			eventReason := dbsqlc.StepRunEventReasonFAILED
+
+			if item.Error != nil && *item.Error == "TIMED_OUT" {
+				eventReason = dbsqlc.StepRunEventReasonTIMEDOUT
+				eventMessage = "Step exceeded timeout duration"
 			}
 
-			switch dbsqlc.StepRunStatus(*item.Status) {
-			case dbsqlc.StepRunStatusSUCCEEDED:
-				eventStepRunIds = append(eventStepRunIds, stepRunId)
-				eventReasons = append(eventReasons, dbsqlc.StepRunEventReasonFINISHED)
-				eventSeverities = append(eventSeverities, dbsqlc.StepRunEventSeverityINFO)
-				eventMessages = append(eventMessages, fmt.Sprintf("Step run finished at %s", item.FinishedAt.Format(time.RFC1123)))
-				eventData = append(eventData, map[string]interface{}{})
-			case dbsqlc.StepRunStatusRUNNING:
-				eventStepRunIds = append(eventStepRunIds, stepRunId)
-				eventReasons = append(eventReasons, dbsqlc.StepRunEventReasonSTARTED)
-				eventSeverities = append(eventSeverities, dbsqlc.StepRunEventSeverityINFO)
-				eventMessages = append(eventMessages, fmt.Sprintf("Step run started at %s", item.StartedAt.Format(time.RFC1123)))
-				eventData = append(eventData, map[string]interface{}{})
-			case dbsqlc.StepRunStatusFAILED:
-				eventStepRunIds = append(eventStepRunIds, stepRunId)
-				eventMessage := fmt.Sprintf("Step run failed on %s", item.FinishedAt.Format(time.RFC1123))
-				eventReason := dbsqlc.StepRunEventReasonFAILED
-
-				if item.Error != nil && *item.Error == "TIMED_OUT" {
-					eventReason = dbsqlc.StepRunEventReasonTIMEDOUT
-					eventMessage = "Step exceeded timeout duration"
-				}
-
-				eventReasons = append(eventReasons, eventReason)
-				eventSeverities = append(eventSeverities, dbsqlc.StepRunEventSeverityCRITICAL)
-				eventMessages = append(eventMessages, eventMessage)
-				eventData = append(eventData, map[string]interface{}{})
-			case dbsqlc.StepRunStatusCANCELLED:
-				eventStepRunIds = append(eventStepRunIds, stepRunId)
-				eventReasons = append(eventReasons, dbsqlc.StepRunEventReasonCANCELLED)
-				eventSeverities = append(eventSeverities, dbsqlc.StepRunEventSeverityWARNING)
-				eventMessages = append(eventMessages, fmt.Sprintf("Step run was cancelled on %s for the following reason: %s", item.CancelledAt.Format(time.RFC1123), *item.CancelledReason))
-				eventData = append(eventData, map[string]interface{}{})
-			}
+			eventReasons = append(eventReasons, eventReason)
+			eventSeverities = append(eventSeverities, dbsqlc.StepRunEventSeverityCRITICAL)
+			eventMessages = append(eventMessages, eventMessage)
+			eventData = append(eventData, map[string]interface{}{})
+		case dbsqlc.StepRunStatusCANCELLED:
+			cancelParams.Steprunids = append(cancelParams.Steprunids, stepRunId)
+			cancelParams.Cancelledats = append(cancelParams.Cancelledats, sqlchelpers.TimestampFromTime(*item.CancelledAt))
+			cancelParams.Cancelledreasons = append(cancelParams.Cancelledreasons, *item.CancelledReason)
+			eventStepRunIds = append(eventStepRunIds, stepRunId)
+			eventReasons = append(eventReasons, dbsqlc.StepRunEventReasonCANCELLED)
+			eventSeverities = append(eventSeverities, dbsqlc.StepRunEventSeverityWARNING)
+			eventMessages = append(eventMessages, fmt.Sprintf("Step run was cancelled on %s for the following reason: %s", item.CancelledAt.Format(time.RFC1123), *item.CancelledReason))
+			eventData = append(eventData, map[string]interface{}{})
+		case dbsqlc.StepRunStatusSUCCEEDED:
+			finishParams.Steprunids = append(finishParams.Steprunids, stepRunId)
+			finishParams.Finishedats = append(finishParams.Finishedats, sqlchelpers.TimestampFromTime(*item.FinishedAt))
+			finishParams.Outputs = append(finishParams.Outputs, item.Output)
+			eventStepRunIds = append(eventStepRunIds, stepRunId)
+			eventReasons = append(eventReasons, dbsqlc.StepRunEventReasonFINISHED)
+			eventSeverities = append(eventSeverities, dbsqlc.StepRunEventSeverityINFO)
+			eventMessages = append(eventMessages, fmt.Sprintf("Step run finished at %s", item.FinishedAt.Format(time.RFC1123)))
+			eventData = append(eventData, map[string]interface{}{})
 		}
-
-		if item.StartedAt != nil {
-			updateParam.StartedAt = sqlchelpers.TimestampFromTime(*item.StartedAt)
-		}
-
-		if item.FinishedAt != nil {
-			updateParam.FinishedAt = sqlchelpers.TimestampFromTime(*item.FinishedAt)
-		}
-
-		if item.Error != nil {
-			updateParam.Error = pgtype.Text{
-				String: *item.Error,
-				Valid:  true,
-			}
-		}
-
-		if item.CancelledAt != nil {
-			updateParam.CancelledAt = sqlchelpers.TimestampFromTime(*item.CancelledAt)
-		}
-
-		if item.CancelledReason != nil {
-			updateParam.CancelledReason = pgtype.Text{
-				String: *item.CancelledReason,
-				Valid:  true,
-			}
-		}
-
-		if item.Output != nil {
-			updateParam.Output = item.Output
-		}
-
-		params = append(params, updateParam)
 	}
 
-	err = nil
+	if len(startParams.Steprunids) > 0 {
+		err = s.queries.BulkStartStepRun(ctx, tx, startParams)
 
-	s.queries.UpdateStepRunBatch(ctx, tx, params).Exec(func(i int, innerErr error) {
-		if innerErr != nil {
-			err = multierror.Append(err, fmt.Errorf("could not update step run batch: %w", innerErr))
+		if err != nil {
+			return emptyRes, fmt.Errorf("could not start step runs: %w", err)
 		}
-	})
+	}
 
-	if err != nil {
-		return emptyRes, fmt.Errorf("could not update step runs: %w", err)
+	if len(failParams.Steprunids) > 0 {
+		err = s.queries.BulkFailStepRun(ctx, tx, failParams)
+
+		if err != nil {
+			return emptyRes, fmt.Errorf("could not fail step runs: %w", err)
+		}
+	}
+
+	if len(cancelParams.Steprunids) > 0 {
+		err = s.queries.BulkCancelStepRun(ctx, tx, cancelParams)
+
+		if err != nil {
+			return emptyRes, fmt.Errorf("could not cancel step runs: %w", err)
+		}
+	}
+
+	if len(finishParams.Steprunids) > 0 {
+		err = s.queries.BulkFinishStepRun(ctx, tx, finishParams)
+
+		if err != nil {
+			return emptyRes, fmt.Errorf("could not finish step runs: %w", err)
+		}
 	}
 
 	durationUpdateStepRuns := time.Since(startedAt)
@@ -2558,6 +2553,15 @@ func (s *stepRunEngineRepository) releaseWorkerSemaphoreSlot(ctx context.Context
 	oldWorkerIdAndRetryCount, err := s.queries.UpdateStepRunUnsetWorkerId(ctx, tx, dbsqlc.UpdateStepRunUnsetWorkerIdParams{
 		Steprunid: sqlchelpers.UUIDFromStr(stepRunId),
 		Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
+	})
+
+	if err != nil {
+		return err
+	}
+
+	err = s.queries.RemoveTimeoutQueueItem(ctx, tx, dbsqlc.RemoveTimeoutQueueItemParams{
+		Steprunid:  sqlchelpers.UUIDFromStr(stepRunId),
+		Retrycount: oldWorkerIdAndRetryCount.RetryCount,
 	})
 
 	if err != nil {

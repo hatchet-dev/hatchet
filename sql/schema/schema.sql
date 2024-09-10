@@ -569,6 +569,18 @@ CREATE TABLE "Ticker" (
 );
 
 -- CreateTable
+CREATE TABLE "TimeoutQueueItem" (
+    "id" BIGSERIAL NOT NULL,
+    "stepRunId" UUID NOT NULL,
+    "retryCount" INTEGER NOT NULL,
+    "timeoutAt" TIMESTAMP(3) NOT NULL,
+    "tenantId" UUID NOT NULL,
+    "isQueued" BOOLEAN NOT NULL,
+
+    CONSTRAINT "TimeoutQueueItem_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "User" (
     "id" UUID NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -1128,6 +1140,12 @@ CREATE UNIQUE INDEX "TenantWorkerPartition_id_key" ON "TenantWorkerPartition"("i
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Ticker_id_key" ON "Ticker"("id" ASC);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "TimeoutQueueItem_stepRunId_retryCount_key" ON "TimeoutQueueItem"("stepRunId" ASC, "retryCount" ASC);
+
+-- CreateIndex
+CREATE INDEX "TimeoutQueueItem_tenantId_isQueued_timeoutAt_idx" ON "TimeoutQueueItem"("tenantId" ASC, "isQueued" ASC, "timeoutAt" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "User_email_key" ON "User"("email" ASC);

@@ -98,6 +98,50 @@ func (q *Queries) ArchiveStepRunResultFromStepRun(ctx context.Context, db DBTX, 
 	return &i, err
 }
 
+const bulkCancelStepRun = `-- name: BulkCancelStepRun :exec
+UPDATE
+    "StepRun"
+SET
+    "status" = CASE
+        -- Final states are final, cannot be updated
+        WHEN "status" IN ('SUCCEEDED', 'FAILED', 'CANCELLED') THEN "status"
+        ELSE 'CANCELLED'
+    END,
+    "finishedAt" = input."finishedAt",
+    "cancelledAt" = input."cancelledAt",
+    "cancelledReason" = input."cancelledReason",
+    "cancelledError" = input."cancelledError"
+FROM (
+    SELECT
+        unnest($1::uuid[]) AS "id",
+        unnest($2::timestamp[]) AS "finishedAt",
+        unnest($3::timestamp[]) AS "cancelledAt",
+        unnest($4::text[]) AS "cancelledReason",
+        unnest($5::text[]) AS "cancelledError"
+) AS input
+WHERE
+    "StepRun"."id" = input."id"
+`
+
+type BulkCancelStepRunParams struct {
+	Steprunids       []pgtype.UUID      `json:"steprunids"`
+	Finishedats      []pgtype.Timestamp `json:"finishedats"`
+	Cancelledats     []pgtype.Timestamp `json:"cancelledats"`
+	Cancelledreasons []string           `json:"cancelledreasons"`
+	Cancellederrors  []string           `json:"cancellederrors"`
+}
+
+func (q *Queries) BulkCancelStepRun(ctx context.Context, db DBTX, arg BulkCancelStepRunParams) error {
+	_, err := db.Exec(ctx, bulkCancelStepRun,
+		arg.Steprunids,
+		arg.Finishedats,
+		arg.Cancelledats,
+		arg.Cancelledreasons,
+		arg.Cancellederrors,
+	)
+	return err
+}
+
 const bulkCreateStepRunEvent = `-- name: BulkCreateStepRunEvent :exec
 WITH input_values AS (
     SELECT
@@ -175,6 +219,69 @@ func (q *Queries) BulkCreateStepRunEvent(ctx context.Context, db DBTX, arg BulkC
 	return err
 }
 
+const bulkFailStepRun = `-- name: BulkFailStepRun :exec
+UPDATE
+    "StepRun"
+SET
+    "status" = CASE
+        -- Final states are final, cannot be updated
+        WHEN "status" IN ('SUCCEEDED', 'FAILED', 'CANCELLED') THEN "status"
+        ELSE 'FAILED'
+    END,
+    "finishedAt" = input."finishedAt",
+    "error" = input."error"::text
+FROM (
+    SELECT
+        unnest($1::uuid[]) AS "id",
+        unnest($2::timestamp[]) AS "finishedAt",
+        unnest($3::text[]) AS "error"
+    ) AS input
+WHERE
+    "StepRun"."id" = input."id"
+`
+
+type BulkFailStepRunParams struct {
+	Steprunids  []pgtype.UUID      `json:"steprunids"`
+	Finishedats []pgtype.Timestamp `json:"finishedats"`
+	Errors      []string           `json:"errors"`
+}
+
+func (q *Queries) BulkFailStepRun(ctx context.Context, db DBTX, arg BulkFailStepRunParams) error {
+	_, err := db.Exec(ctx, bulkFailStepRun, arg.Steprunids, arg.Finishedats, arg.Errors)
+	return err
+}
+
+const bulkFinishStepRun = `-- name: BulkFinishStepRun :exec
+UPDATE
+    "StepRun"
+SET
+    "status" = CASE
+        WHEN "status" IN ('SUCCEEDED', 'FAILED', 'CANCELLED') THEN "status"
+        ELSE 'SUCCEEDED'
+    END,
+    "finishedAt" = input."finishedAt",
+    "output" = input."output"::jsonb
+FROM (
+    SELECT
+        unnest($1::uuid[]) AS "id",
+        unnest($2::timestamp[]) AS "finishedAt",
+        unnest($3::jsonb[]) AS "output"
+    ) AS input
+WHERE
+    "StepRun"."id" = input."id"
+`
+
+type BulkFinishStepRunParams struct {
+	Steprunids  []pgtype.UUID      `json:"steprunids"`
+	Finishedats []pgtype.Timestamp `json:"finishedats"`
+	Outputs     [][]byte           `json:"outputs"`
+}
+
+func (q *Queries) BulkFinishStepRun(ctx context.Context, db DBTX, arg BulkFinishStepRunParams) error {
+	_, err := db.Exec(ctx, bulkFinishStepRun, arg.Steprunids, arg.Finishedats, arg.Outputs)
+	return err
+}
+
 const bulkMarkStepRunsAsCancelling = `-- name: BulkMarkStepRunsAsCancelling :many
 UPDATE
     "StepRun" sr
@@ -208,6 +315,35 @@ func (q *Queries) BulkMarkStepRunsAsCancelling(ctx context.Context, db DBTX, ste
 		return nil, err
 	}
 	return items, nil
+}
+
+const bulkStartStepRun = `-- name: BulkStartStepRun :exec
+UPDATE
+    "StepRun"
+SET
+    "status" = CASE
+        -- Final states are final, cannot be updated, and we cannot go from cancelling to a non-final state
+        WHEN "status" IN ('SUCCEEDED', 'FAILED', 'CANCELLED', 'CANCELLING') THEN "status"
+        ELSE 'RUNNING'
+    END,
+    "startedAt" = input."startedAt"
+FROM (
+    SELECT
+        unnest($1::uuid[]) AS "id",
+        unnest($2::timestamp[]) AS "startedAt"
+    ) AS input
+WHERE
+    "StepRun"."id" = input."id"
+`
+
+type BulkStartStepRunParams struct {
+	Steprunids []pgtype.UUID      `json:"steprunids"`
+	Startedats []pgtype.Timestamp `json:"startedats"`
+}
+
+func (q *Queries) BulkStartStepRun(ctx context.Context, db DBTX, arg BulkStartStepRunParams) error {
+	_, err := db.Exec(ctx, bulkStartStepRun, arg.Steprunids, arg.Startedats)
+	return err
 }
 
 const checkWorker = `-- name: CheckWorker :one
@@ -1597,8 +1733,7 @@ step_runs_to_reassign AS (
     SELECT "id", "workerId", "retryCount"
     FROM "StepRun"
     WHERE
-        "workerId" = ANY(SELECT "id" FROM inactive_workers) AND
-        ("status" = 'ASSIGNED' OR "status" = 'RUNNING')
+        "workerId" = ANY(SELECT "id" FROM inactive_workers)
 ),
 step_runs_with_data AS (
     SELECT
@@ -2299,16 +2434,8 @@ func (q *Queries) UpdateStepRunUnsetWorkerId(ctx context.Context, db DBTX, arg U
 	return &i, err
 }
 
-const updateStepRunsToAssigned = `-- name: UpdateStepRunsToAssigned :many
-UPDATE
-    "StepRun" sr
-SET
-    "status" = 'ASSIGNED',
-    "workerId" = input."workerId",
-    "tickerId" = NULL,
-    "updatedAt" = CURRENT_TIMESTAMP,
-    "timeoutAt" = CURRENT_TIMESTAMP + convert_duration_to_interval(input."stepTimeout")
-FROM (
+const updateStepRunsToAssigned = `-- name: UpdateStepRunsToAssigned :exec
+WITH input AS (
     SELECT
         "id",
         "stepTimeout",
@@ -2320,10 +2447,37 @@ FROM (
                 unnest($2::text[]) AS "stepTimeout",
                 unnest($3::uuid[]) AS "workerId"
         ) AS subquery
-) AS input
-WHERE
-    sr."id" = input."id"
-RETURNING input."id", input."workerId"
+), updated_step_runs AS (
+    UPDATE
+        "StepRun" sr
+    SET
+        "status" = 'ASSIGNED',
+        "workerId" = input."workerId",
+        "tickerId" = NULL,
+        "updatedAt" = CURRENT_TIMESTAMP,
+        "timeoutAt" = CURRENT_TIMESTAMP + convert_duration_to_interval(input."stepTimeout")
+    FROM input
+    WHERE
+        sr."id" = input."id"
+    RETURNING sr."id", sr."retryCount", sr."tenantId", sr."timeoutAt"
+)
+INSERT INTO
+    "TimeoutQueueItem" (
+        "stepRunId",
+        "retryCount",
+        "timeoutAt",
+        "tenantId",
+        "isQueued"
+    )
+SELECT
+    sr."id",
+    sr."retryCount",
+    sr."timeoutAt",
+    sr."tenantId",
+    true
+FROM
+    updated_step_runs sr
+ON CONFLICT DO NOTHING
 `
 
 type UpdateStepRunsToAssignedParams struct {
@@ -2332,29 +2486,10 @@ type UpdateStepRunsToAssignedParams struct {
 	Workerids       []pgtype.UUID `json:"workerids"`
 }
 
-type UpdateStepRunsToAssignedRow struct {
-	ID       interface{} `json:"id"`
-	WorkerId interface{} `json:"workerId"`
-}
-
-func (q *Queries) UpdateStepRunsToAssigned(ctx context.Context, db DBTX, arg UpdateStepRunsToAssignedParams) ([]*UpdateStepRunsToAssignedRow, error) {
-	rows, err := db.Query(ctx, updateStepRunsToAssigned, arg.Steprunids, arg.Stepruntimeouts, arg.Workerids)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []*UpdateStepRunsToAssignedRow
-	for rows.Next() {
-		var i UpdateStepRunsToAssignedRow
-		if err := rows.Scan(&i.ID, &i.WorkerId); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
+// bulk insert into timeout queue items
+func (q *Queries) UpdateStepRunsToAssigned(ctx context.Context, db DBTX, arg UpdateStepRunsToAssignedParams) error {
+	_, err := db.Exec(ctx, updateStepRunsToAssigned, arg.Steprunids, arg.Stepruntimeouts, arg.Workerids)
+	return err
 }
 
 const updateWorkerSemaphoreCounts = `-- name: UpdateWorkerSemaphoreCounts :exec

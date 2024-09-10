@@ -189,3 +189,73 @@ FROM (
         unnest(@datas::json[]) AS "data"
 ) AS input
 ON CONFLICT DO NOTHING;
+
+-- name: CreateTimeoutQueueItem :exec
+INSERT INTO
+    "InternalQueueItem" (
+        "stepRunId",
+        "retryCount",
+        "timeoutAt",
+        "tenantId",
+        "isQueued"
+    )
+SELECT
+    @stepRunId::uuid,
+    @retryCount::integer,
+    @timeoutAt::timestamp,
+    @tenantId::uuid,
+    true
+ON CONFLICT DO NOTHING;
+
+-- name: PopTimeoutQueueItems :many
+WITH qis AS (
+    SELECT
+        "id",
+        "stepRunId"
+    FROM
+        "TimeoutQueueItem"
+    WHERE
+        "isQueued" = true
+        AND "tenantId" = @tenantId::uuid
+        AND "timeoutAt" <= NOW()
+    ORDER BY
+        "timeoutAt" ASC
+    LIMIT
+        COALESCE(sqlc.narg('limit')::integer, 100)
+    FOR UPDATE SKIP LOCKED
+)
+UPDATE
+    "TimeoutQueueItem" qi
+SET
+    "isQueued" = false
+FROM
+    qis
+WHERE
+    qi."id" = qis."id"
+RETURNING
+    qis."stepRunId" AS "stepRunId";
+
+-- name: RemoveTimeoutQueueItem :exec
+DELETE FROM
+    "TimeoutQueueItem"
+WHERE
+    "stepRunId" = @stepRunId::uuid
+    AND "retryCount" = @retryCount::integer;
+
+-- name: GetMinMaxProcessedTimeoutQueueItems :one
+SELECT
+    COALESCE(MIN("id"), 0)::bigint AS "minId",
+    COALESCE(MAX("id"), 0)::bigint AS "maxId"
+FROM
+    "TimeoutQueueItem"
+WHERE
+    "isQueued" = 'f'
+    AND "tenantId" = @tenantId::uuid;
+
+-- name: CleanupTimeoutQueueItems :exec
+DELETE FROM "TimeoutQueueItem"
+WHERE "isQueued" = 'f'
+AND
+    "id" >= @minId::bigint
+    AND "id" <= @maxId::bigint
+    AND "tenantId" = @tenantId::uuid;
