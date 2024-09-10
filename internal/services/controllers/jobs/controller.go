@@ -771,8 +771,8 @@ func (ec *JobsControllerImpl) runStepRunTimeoutTenant(ctx context.Context, tenan
 		scheduleCtx, span := telemetry.NewSpan(scheduleCtx, "handle-step-run-timeout-step-run")
 		defer span.End()
 
-		for i := range stepRuns {
-			stepRunCp := stepRuns[i]
+		for i := range group {
+			stepRunCp := group[i]
 
 			defer span.End()
 
@@ -1086,8 +1086,10 @@ func (ec *JobsControllerImpl) failStepRun(ctx context.Context, tenantId, stepRun
 
 	if !stepRun.SRWorkerId.Valid {
 		// this is not a fatal error
-		ec.l.Warn().Msgf("step run %s has no worker id, skipping cancellation", stepRunId)
+		ec.l.Warn().Msgf("[failStepRun] step run %s has no worker id, skipping cancellation", stepRunId)
 		attemptCancel = false
+	} else {
+		ec.l.Info().Msgf("[failStepRun] step run %s has a worker id, cancelling", stepRunId)
 	}
 
 	// Attempt to cancel the previous running step run
@@ -1193,10 +1195,12 @@ func (ec *JobsControllerImpl) cancelStepRun(ctx context.Context, tenantId, stepR
 
 	if !oldStepRun.SRWorkerId.Valid {
 		// this is not a fatal error
-		ec.l.Debug().Msgf("step run %s has no worker id, skipping send of cancellation", stepRunId)
+		ec.l.Warn().Msgf("[cancelStepRun] step run %s has no worker id, skipping send of cancellation", stepRunId)
 
 		return nil
 	}
+
+	ec.l.Info().Msgf("[cancelStepRun] step run %s has a worker id, sending cancellation", stepRunId)
 
 	workerId := sqlchelpers.UUIDToStr(oldStepRun.SRWorkerId)
 

@@ -416,6 +416,13 @@ func (s *stepRunEngineRepository) ListStepRunsToTimeout(ctx context.Context, ten
 		return nil, err
 	}
 
+	// mark the step runs as cancelling
+	_, err = s.queries.BulkMarkStepRunsAsCancelling(ctx, tx, stepRunIds)
+
+	if err != nil {
+		return nil, err
+	}
+
 	stepRuns, err := s.queries.GetStepRunForEngine(ctx, tx, dbsqlc.GetStepRunForEngineParams{
 		Ids:      stepRunIds,
 		TenantId: pgTenantId,

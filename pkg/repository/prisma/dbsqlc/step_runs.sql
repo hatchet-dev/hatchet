@@ -223,6 +223,8 @@ SET
     "status" = CASE
         -- Final states are final, cannot be updated
         WHEN "status" IN ('SUCCEEDED', 'FAILED', 'CANCELLED') THEN "status"
+        -- We cannot go from cancelling to a non-final state
+        WHEN "status" = 'CANCELLING' AND COALESCE(sqlc.narg('status'), "status") NOT IN ('SUCCEEDED', 'FAILED', 'CANCELLED') THEN 'CANCELLING'
         ELSE COALESCE(sqlc.narg('status'), "status")
     END,
     "output" = COALESCE(sqlc.narg('output')::jsonb, "output"),
