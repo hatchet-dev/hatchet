@@ -23,7 +23,6 @@ WITH for_delete AS (
         jrld2."data" IS NOT NULL
     ORDER BY jr2."deletedAt" ASC
     LIMIT $2 + 1
-    FOR UPDATE SKIP LOCKED
 ),
 deleted_with_limit AS (
     SELECT
