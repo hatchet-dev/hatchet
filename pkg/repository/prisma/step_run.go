@@ -499,7 +499,7 @@ var genericRetry = func(l *zerolog.Event, maxRetries int, f func() error, msg st
 
 func (s *stepRunEngineRepository) ReleaseStepRunSemaphore(ctx context.Context, tenantId, stepRunId string, isUserTriggered bool) error {
 	return deadlockRetry(s.l, func() error {
-		tx, commit, rollback, err := s.prepareTx(ctx, 5000)
+		tx, commit, rollback, err := prepareTx(ctx, s.pool, s.l, 5000)
 
 		if err != nil {
 			return err
@@ -819,11 +819,11 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, qlp *zerolo
 
 	defer deferRollback(ctx, s.l, tx.Rollback)
 
-	// _, err = tx.Exec(ctx, "SET TRANSACTION ISOLATION LEVEL SERIALIZABLE")
+	_, err = tx.Exec(ctx, "SET TRANSACTION ISOLATION LEVEL SERIALIZABLE")
 
-	// if err != nil {
-	// 	return emptyRes, fmt.Errorf("could not set transaction isolation level: %w", err)
-	// }
+	if err != nil {
+		return emptyRes, fmt.Errorf("could not set transaction isolation level: %w", err)
+	}
 
 	// list queues
 	queues, err := s.queries.ListQueues(ctx, tx, pgTenantId)
@@ -1424,13 +1424,13 @@ func (s *stepRunEngineRepository) ProcessStepRunUpdates(ctx context.Context, qlp
 		limit = s.cf.SingleQueueLimit * 4 // we call update step run 4x
 	}
 
-	tx, err := s.pool.Begin(ctx)
+	tx, commit, rollback, err := prepareTx(ctx, s.pool, s.l, 25000)
 
 	if err != nil {
 		return emptyRes, err
 	}
 
-	defer deferRollback(ctx, s.l, tx.Rollback)
+	defer rollback()
 
 	// list queues
 	queueItems, err := s.queries.ListInternalQueueItems(ctx, tx, dbsqlc.ListInternalQueueItemsParams{
@@ -1639,7 +1639,7 @@ func (s *stepRunEngineRepository) ProcessStepRunUpdates(ctx context.Context, qlp
 
 	durationRunEvents := time.Since(startRunEvents)
 
-	err = tx.Commit(ctx)
+	err = commit(ctx)
 
 	if err != nil {
 		return emptyRes, fmt.Errorf("could not commit transaction: %w", err)
@@ -2008,7 +2008,7 @@ func (s *stepRunEngineRepository) ReplayStepRun(ctx context.Context, tenantId, s
 	ctx, span := telemetry.NewSpan(ctx, "replay-step-run")
 	defer span.End()
 
-	tx, commit, rollback, err := s.prepareTx(ctx, 5000)
+	tx, commit, rollback, err := prepareTx(ctx, s.pool, s.l, 5000)
 
 	if err != nil {
 		return nil, err
@@ -2258,7 +2258,7 @@ func (s *stepRunEngineRepository) QueueStepRun(ctx context.Context, tenantId, st
 		return nil, err
 	}
 
-	tx, commit, rollback, err := s.prepareTx(ctx, 5000)
+	tx, commit, rollback, err := prepareTx(ctx, s.pool, s.l, 5000)
 
 	if err != nil {
 		return nil, err
@@ -2853,8 +2853,8 @@ func removeDuplicates(qis []*scheduling.QueueItemWithOrder) ([]*scheduling.Queue
 	return result, duplicates
 }
 
-func (r *stepRunEngineRepository) prepareTx(ctx context.Context, timeoutMs int) (pgx.Tx, func(context.Context) error, func(), error) {
-	tx, err := r.pool.Begin(ctx)
+func prepareTx(ctx context.Context, pool *pgxpool.Pool, l *zerolog.Logger, timeoutMs int) (pgx.Tx, func(context.Context) error, func(), error) {
+	tx, err := pool.Begin(ctx)
 
 	if err != nil {
 		return nil, nil, nil, err
@@ -2872,7 +2872,7 @@ func (r *stepRunEngineRepository) prepareTx(ctx context.Context, timeoutMs int) 
 	}
 
 	rollback := func() {
-		deferRollback(ctx, r.l, tx.Rollback)
+		deferRollback(ctx, l, tx.Rollback)
 	}
 
 	// set tx timeout to 5 seconds to avoid deadlocks
