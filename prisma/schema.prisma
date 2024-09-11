@@ -1614,19 +1614,8 @@ model Worker {
 
   assignedEvents WorkerAssignEvent[]
 
-  webhook         WebhookWorker?   @relation(fields: [webhookId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  webhookId       String?          @unique @db.Uuid
-  WorkerSemaphore WorkerSemaphore?
-}
-
-// DEPRECATED in v_0_30_1, replaced with slots and will be removed in a future release
-// FIXME remove in a future release
-model WorkerSemaphore {
-  // the parent worker
-  worker   Worker @relation(fields: [workerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  workerId String @unique @db.Uuid
-  // keeps track of maxRuns - runningRuns on the worker
-  slots    Int
+  webhook   WebhookWorker? @relation(fields: [webhookId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  webhookId String?        @unique @db.Uuid
 }
 
 model WorkerAssignEvent {

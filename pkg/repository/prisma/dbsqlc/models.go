@@ -1396,11 +1396,6 @@ type WorkerLabel struct {
 	IntValue  pgtype.Int4      `json:"intValue"`
 }
 
-type WorkerSemaphore struct {
-	WorkerId pgtype.UUID `json:"workerId"`
-	Slots    int32       `json:"slots"`
-}
-
 type Workflow struct {
 	ID          pgtype.UUID      `json:"id"`
 	CreatedAt   pgtype.Timestamp `json:"createdAt"`
