@@ -819,11 +819,11 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, qlp *zerolo
 
 	defer deferRollback(ctx, s.l, tx.Rollback)
 
-	_, err = tx.Exec(ctx, "SET TRANSACTION ISOLATION LEVEL SERIALIZABLE")
+	// _, err = tx.Exec(ctx, "SET TRANSACTION ISOLATION LEVEL SERIALIZABLE")
 
-	if err != nil {
-		return emptyRes, fmt.Errorf("could not set transaction isolation level: %w", err)
-	}
+	// if err != nil {
+	// 	return emptyRes, fmt.Errorf("could not set transaction isolation level: %w", err)
+	// }
 
 	// list queues
 	queues, err := s.queries.ListQueues(ctx, tx, pgTenantId)
