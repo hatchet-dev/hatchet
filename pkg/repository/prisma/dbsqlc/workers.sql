@@ -78,15 +78,16 @@ SELECT
     sr."startedAt" AS "startedAt",
     jr."workflowRunId" AS "workflowRunId"
 FROM
-    "StepRun" sr
+    "SemaphoreQueueItem" sqi
+JOIN
+    "StepRun" sr ON sr."id" = sqi."stepRunId"
 JOIN
     "JobRun" jr ON sr."jobRunId" = jr."id"
 JOIN
     "Step" s ON sr."stepId" = s."id"
 WHERE
-    sr."workerId" = @workerId::uuid
-    AND sr."tenantId" = @tenantId::uuid
-    AND sr."status" IN ('RUNNING', 'ASSIGNED')
+    sqi."tenantId" = @tenantId::uuid
+    AND sqi."workerId" = @workerId::uuid
 ORDER BY
     sr."createdAt" DESC
 LIMIT

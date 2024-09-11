@@ -447,15 +447,16 @@ SELECT
     sr."startedAt" AS "startedAt",
     jr."workflowRunId" AS "workflowRunId"
 FROM
-    "StepRun" sr
+    "SemaphoreQueueItem" sqi
+JOIN
+    "StepRun" sr ON sr."id" = sqi."stepRunId"
 JOIN
     "JobRun" jr ON sr."jobRunId" = jr."id"
 JOIN
     "Step" s ON sr."stepId" = s."id"
 WHERE
-    sr."workerId" = $1::uuid
-    AND sr."tenantId" = $2::uuid
-    AND sr."status" IN ('RUNNING', 'ASSIGNED')
+    sqi."tenantId" = $1::uuid
+    AND sqi."workerId" = $2::uuid
 ORDER BY
     sr."createdAt" DESC
 LIMIT
@@ -463,8 +464,8 @@ LIMIT
 `
 
 type ListSemaphoreSlotsWithStateForWorkerParams struct {
-	Workerid pgtype.UUID `json:"workerid"`
 	Tenantid pgtype.UUID `json:"tenantid"`
+	Workerid pgtype.UUID `json:"workerid"`
 	Limit    pgtype.Int4 `json:"limit"`
 }
 
@@ -478,7 +479,7 @@ type ListSemaphoreSlotsWithStateForWorkerRow struct {
 }
 
 func (q *Queries) ListSemaphoreSlotsWithStateForWorker(ctx context.Context, db DBTX, arg ListSemaphoreSlotsWithStateForWorkerParams) ([]*ListSemaphoreSlotsWithStateForWorkerRow, error) {
-	rows, err := db.Query(ctx, listSemaphoreSlotsWithStateForWorker, arg.Workerid, arg.Tenantid, arg.Limit)
+	rows, err := db.Query(ctx, listSemaphoreSlotsWithStateForWorker, arg.Tenantid, arg.Workerid, arg.Limit)
 	if err != nil {
 		return nil, err
 	}
