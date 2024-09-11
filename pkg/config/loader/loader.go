@@ -331,7 +331,8 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 	}
 
 	auth := server.AuthConfig{
-		ConfigFile: cf.Auth,
+		RestrictedEmailDomains: getStrArr(cf.Auth.RestrictedEmailDomains),
+		ConfigFile:             cf.Auth,
 	}
 
 	if cf.Auth.Google.Enabled {

@@ -155,6 +155,11 @@ jobs:
           SERVER_ENCRYPTION_JWT_PRIVATE_KEYSET_FILE=./hack/dev/encryption-keys/private_ec256.key
           SERVER_ENCRYPTION_JWT_PUBLIC_KEYSET_FILE=./hack/dev/encryption-keys/public_ec256.key
 
+          SERVER_LOGGER_LEVEL=warn
+          SERVER_LOGGER_FORMAT=console
+          DATABASE_LOGGER_LEVEL=warn
+          DATABASE_LOGGER_FORMAT=console
+
           DATABASE_URL='postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet'
           SERVER_PORT=8080
           SERVER_URL=http://localhost:8080
@@ -236,6 +241,10 @@ jobs:
           SERVER_AUTH_COOKIE_DOMAIN=app.dev.hatchet-tools.com
           SERVER_AUTH_COOKIE_INSECURE=false
           SERVER_AUTH_SET_EMAIL_VERIFIED=true
+          SERVER_LOGGER_LEVEL=warn
+          SERVER_LOGGER_FORMAT=console
+          DATABASE_LOGGER_LEVEL=warn
+          DATABASE_LOGGER_FORMAT=console
           EOF
 
       - name: Generate
