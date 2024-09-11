@@ -1030,6 +1030,13 @@ type SecurityCheckIdent struct {
 	ID pgtype.UUID `json:"id"`
 }
 
+type SemaphoreQueueItem struct {
+	ID        int64       `json:"id"`
+	StepRunId pgtype.UUID `json:"stepRunId"`
+	WorkerId  pgtype.UUID `json:"workerId"`
+	TenantId  pgtype.UUID `json:"tenantId"`
+}
+
 type Service struct {
 	ID          pgtype.UUID      `json:"id"`
 	CreatedAt   pgtype.Timestamp `json:"createdAt"`

@@ -247,7 +247,13 @@ const getWorkerById = `-- name: GetWorkerById :one
 SELECT
     w.id, w."createdAt", w."updatedAt", w."deletedAt", w."tenantId", w."lastHeartbeatAt", w.name, w."dispatcherId", w."maxRuns", w."isActive", w."lastListenerEstablished", w."isPaused", w.type, w."webhookId",
     ww."url" AS "webhookUrl",
-    wsc."count" AS "remainingSlots"
+    w."maxRuns" - (
+        SELECT COUNT(*)
+        FROM "SemaphoreQueueItem" sqi
+        WHERE
+            sqi."tenantId" = w."tenantId" AND
+            sqi."workerId" = w."id"
+    ) AS "remainingSlots"
 FROM
     "Worker" w
 JOIN
@@ -574,11 +580,15 @@ SELECT
     workers.id, workers."createdAt", workers."updatedAt", workers."deletedAt", workers."tenantId", workers."lastHeartbeatAt", workers.name, workers."dispatcherId", workers."maxRuns", workers."isActive", workers."lastListenerEstablished", workers."isPaused", workers.type, workers."webhookId",
     ww."url" AS "webhookUrl",
     ww."id" AS "webhookId",
-    wsc."count" AS "remainingSlots"
+    workers."maxRuns" - (
+        SELECT COUNT(*)
+        FROM "SemaphoreQueueItem" sqi
+        WHERE
+            sqi."tenantId" = workers."tenantId" AND
+            sqi."workerId" = workers."id"
+    ) AS "remainingSlots"
 FROM
     "Worker" workers
-JOIN
-    "WorkerSemaphoreCount" wsc ON workers."id" = wsc."workerId"
 LEFT JOIN
     "WebhookWorker" ww ON workers."webhookId" = ww."id"
 WHERE
@@ -606,7 +616,7 @@ WHERE
         ))
     )
 GROUP BY
-    workers."id", ww."url", ww."id", wsc."count"
+    workers."id", ww."url", ww."id"
 `
 
 type ListWorkersWithSlotCountParams struct {

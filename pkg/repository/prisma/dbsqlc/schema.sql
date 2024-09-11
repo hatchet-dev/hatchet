@@ -277,6 +277,16 @@ CREATE TABLE "SecurityCheckIdent" (
 );
 
 -- CreateTable
+CREATE TABLE "SemaphoreQueueItem" (
+    "id" BIGSERIAL NOT NULL,
+    "stepRunId" UUID NOT NULL,
+    "workerId" UUID NOT NULL,
+    "tenantId" UUID NOT NULL,
+
+    CONSTRAINT "SemaphoreQueueItem_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "Service" (
     "id" UUID NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -1020,6 +1030,12 @@ CREATE UNIQUE INDEX "SNSIntegration_tenantId_topicArn_key" ON "SNSIntegration"("
 
 -- CreateIndex
 CREATE UNIQUE INDEX "SecurityCheckIdent_id_key" ON "SecurityCheckIdent"("id" ASC);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "SemaphoreQueueItem_stepRunId_workerId_key" ON "SemaphoreQueueItem"("stepRunId" ASC, "workerId" ASC);
+
+-- CreateIndex
+CREATE INDEX "SemaphoreQueueItem_tenantId_workerId_idx" ON "SemaphoreQueueItem"("tenantId" ASC, "workerId" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Service_id_key" ON "Service"("id" ASC);

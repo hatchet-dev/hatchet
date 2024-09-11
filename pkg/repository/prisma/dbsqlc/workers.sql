@@ -3,11 +3,15 @@ SELECT
     sqlc.embed(workers),
     ww."url" AS "webhookUrl",
     ww."id" AS "webhookId",
-    wsc."count" AS "remainingSlots"
+    workers."maxRuns" - (
+        SELECT COUNT(*)
+        FROM "SemaphoreQueueItem" sqi
+        WHERE
+            sqi."tenantId" = workers."tenantId" AND
+            sqi."workerId" = workers."id"
+    ) AS "remainingSlots"
 FROM
     "Worker" workers
-JOIN
-    "WorkerSemaphoreCount" wsc ON workers."id" = wsc."workerId"
 LEFT JOIN
     "WebhookWorker" ww ON workers."webhookId" = ww."id"
 WHERE
@@ -35,13 +39,19 @@ WHERE
         ))
     )
 GROUP BY
-    workers."id", ww."url", ww."id", wsc."count";
+    workers."id", ww."url", ww."id";
 
 -- name: GetWorkerById :one
 SELECT
     sqlc.embed(w),
     ww."url" AS "webhookUrl",
-    wsc."count" AS "remainingSlots"
+    w."maxRuns" - (
+        SELECT COUNT(*)
+        FROM "SemaphoreQueueItem" sqi
+        WHERE
+            sqi."tenantId" = w."tenantId" AND
+            sqi."workerId" = w."id"
+    ) AS "remainingSlots"
 FROM
     "Worker" w
 JOIN

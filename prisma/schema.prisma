@@ -1396,6 +1396,20 @@ model TimeoutQueueItem {
   @@index([tenantId, isQueued, timeoutAt])
 }
 
+model SemaphoreQueueItem {
+  id BigInt @id @default(autoincrement()) @db.BigInt
+
+  // the parent step run
+  stepRunId String @db.Uuid
+  workerId  String @db.Uuid
+
+  // the parent tenant
+  tenantId String @db.Uuid
+
+  @@unique([stepRunId, workerId])
+  @@index([tenantId, workerId])
+}
+
 enum StepRunEventReason {
   REQUEUED_NO_WORKER
   REQUEUED_RATE_LIMIT

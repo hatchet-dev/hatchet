@@ -149,15 +149,7 @@ func (r *workerAPIRepository) ListWorkers(tenantId string, opts *repository.List
 		}
 	}
 
-	tx, err := r.pool.Begin(context.Background())
-
-	if err != nil {
-		return nil, err
-	}
-
-	defer deferRollback(context.Background(), r.l, tx.Rollback)
-
-	workers, err := r.queries.ListWorkersWithSlotCount(context.Background(), tx, queryParams)
+	workers, err := r.queries.ListWorkersWithSlotCount(context.Background(), r.pool, queryParams)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -165,12 +157,6 @@ func (r *workerAPIRepository) ListWorkers(tenantId string, opts *repository.List
 		} else {
 			return nil, fmt.Errorf("could not list workers: %w", err)
 		}
-	}
-
-	err = tx.Commit(context.Background())
-
-	if err != nil {
-		return nil, fmt.Errorf("could not commit transaction: %w", err)
 	}
 
 	return workers, nil

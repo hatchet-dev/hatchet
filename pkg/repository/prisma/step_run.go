@@ -357,7 +357,10 @@ func (s *stepRunEngineRepository) ListStepRunsToReassign(ctx context.Context, te
 	}
 
 	// release the semaphore slot
-	err = s.bulkReleaseWorkerSemaphoreQueueItems(ctx, tx, tenantId, workerIds, stepRunIds, retryCounts)
+	err = s.queries.BulkReleaseSemaphoreQueueItems(ctx, tx, dbsqlc.BulkReleaseSemaphoreQueueItemsParams{
+		Workerids:  workerIds,
+		Steprunids: stepRunIds,
+	})
 
 	if err != nil {
 		return nil, err
@@ -1006,13 +1009,26 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, qlp *zerolo
 		return emptyRes, fmt.Errorf("could not get worker dispatcher actions: %w", err)
 	}
 
-	workerIds := make([]string, 0, len(workers))
+	workerIds := make([]pgtype.UUID, 0, len(workers))
 
 	for _, worker := range workers {
-		workerIds = append(workerIds, sqlchelpers.UUIDToStr(worker.ID))
+		workerIds = append(workerIds, worker.ID)
 	}
 
-	workersToCounts := s.cachedWorkerCounts.get(tenantId, workerIds)
+	availableSlots, err := s.queries.ListAvailableSlotsForWorkers(ctx, tx, dbsqlc.ListAvailableSlotsForWorkersParams{
+		Tenantid:  pgTenantId,
+		Workerids: workerIds,
+	})
+
+	if err != nil {
+		return emptyRes, fmt.Errorf("could not list available slots for workers: %w", err)
+	}
+
+	workersToCounts := make(map[string]int)
+
+	for _, worker := range availableSlots {
+		workersToCounts[sqlchelpers.UUIDToStr(worker.ID)] = int(worker.AvailableSlots)
+	}
 
 	slots := make([]*scheduling.Slot, 0)
 
@@ -1150,9 +1166,13 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, qlp *zerolo
 	}
 
 	// update the assigned worker counts
-	s.cachedWorkerCounts.storeUnprocessedAssigns(tenantId, numAssigns)
+	// s.cachedWorkerCounts.storeUnprocessedAssigns(tenantId, numAssigns)
 
-	err = s.bulkAssignWorkerSemaphoreQueueItems(ctx, tx, tenantId, plan.WorkerIds, plan.StepRunIds)
+	err = s.queries.CreateSemaphoreQueueItemsBulk(ctx, tx, dbsqlc.CreateSemaphoreQueueItemsBulkParams{
+		Tenantid:   pgTenantId,
+		Steprunids: plan.StepRunIds,
+		Workerids:  plan.WorkerIds,
+	})
 
 	if err != nil {
 		return emptyRes, fmt.Errorf("could not bulk assign worker semaphore queue items: %w", err)
@@ -1239,145 +1259,145 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, qlp *zerolo
 	}, nil
 }
 
-func (s *stepRunEngineRepository) UpdateWorkerSemaphoreCounts(ctx context.Context, qlp *zerolog.Logger, tenantId string) (bool, bool, error) {
-	ctx, span := telemetry.NewSpan(ctx, "update-worker-semaphore-counts-database")
-	defer span.End()
+// func (s *stepRunEngineRepository) UpdateWorkerSemaphoreCounts(ctx context.Context, qlp *zerolog.Logger, tenantId string) (bool, bool, error) {
+// 	ctx, span := telemetry.NewSpan(ctx, "update-worker-semaphore-counts-database")
+// 	defer span.End()
 
-	tx, err := s.pool.Begin(ctx)
+// 	tx, err := s.pool.Begin(ctx)
 
-	if err != nil {
-		return false, false, err
-	}
+// 	if err != nil {
+// 		return false, false, err
+// 	}
 
-	defer deferRollback(ctx, s.l, tx.Rollback)
+// 	defer deferRollback(ctx, s.l, tx.Rollback)
 
-	shouldContinue, didReleaseSlots, err := s.updateWorkerSemaphoreCountsTx(ctx, tx, tenantId)
+// 	shouldContinue, didReleaseSlots, err := s.updateWorkerSemaphoreCountsTx(ctx, tx, tenantId)
 
-	if err != nil {
-		return false, false, fmt.Errorf("could not update worker semaphore counts: %w", err)
-	}
+// 	if err != nil {
+// 		return false, false, fmt.Errorf("could not update worker semaphore counts: %w", err)
+// 	}
 
-	err = tx.Commit(ctx)
+// 	err = tx.Commit(ctx)
 
-	if err != nil {
-		return false, false, fmt.Errorf("could not commit transaction: %w", err)
-	}
+// 	if err != nil {
+// 		return false, false, fmt.Errorf("could not commit transaction: %w", err)
+// 	}
 
-	return shouldContinue, didReleaseSlots, nil
-}
+// 	return shouldContinue, didReleaseSlots, nil
+// }
 
-func (s *stepRunEngineRepository) updateWorkerSemaphoreCountsTx(ctx context.Context, tx pgx.Tx, tenantId string) (bool, bool, error) {
-	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
+// func (s *stepRunEngineRepository) updateWorkerSemaphoreCountsTx(ctx context.Context, tx pgx.Tx, tenantId string) (bool, bool, error) {
+// 	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
 
-	limit := 200
+// 	limit := 200
 
-	if s.cf.SingleQueueLimit != 0 {
-		limit = s.cf.SingleQueueLimit * 2 // we're assigning and releasing slots, so we need to double the limit
-	}
+// 	if s.cf.SingleQueueLimit != 0 {
+// 		limit = s.cf.SingleQueueLimit * 2 // we're assigning and releasing slots, so we need to double the limit
+// 	}
 
-	pgLimit := pgtype.Int4{
-		Int32: int32(limit),
-		Valid: true,
-	}
+// 	pgLimit := pgtype.Int4{
+// 		Int32: int32(limit),
+// 		Valid: true,
+// 	}
 
-	// list queues
-	queueItems, err := s.queries.ListInternalQueueItems(ctx, tx, dbsqlc.ListInternalQueueItemsParams{
-		Tenantid: pgTenantId,
-		Queue:    dbsqlc.InternalQueueWORKERSEMAPHORECOUNT,
-		Limit:    pgLimit,
-	})
+// 	// list queues
+// 	queueItems, err := s.queries.ListInternalQueueItems(ctx, tx, dbsqlc.ListInternalQueueItemsParams{
+// 		Tenantid: pgTenantId,
+// 		Queue:    dbsqlc.InternalQueueWORKERSEMAPHORECOUNT,
+// 		Limit:    pgLimit,
+// 	})
 
-	if err != nil {
-		return false, false, fmt.Errorf("could not list queues: %w", err)
-	}
+// 	if err != nil {
+// 		return false, false, fmt.Errorf("could not list queues: %w", err)
+// 	}
 
-	data, err := toQueueItemData[workerSemaphoreQueueData](queueItems)
+// 	data, err := toQueueItemData[workerSemaphoreQueueData](queueItems)
 
-	if err != nil {
-		return false, false, fmt.Errorf("could not convert internal queue item data to worker semaphore queue data: %w", err)
-	}
+// 	if err != nil {
+// 		return false, false, fmt.Errorf("could not convert internal queue item data to worker semaphore queue data: %w", err)
+// 	}
 
-	uniqueWorkerIds := make(map[string]bool)
+// 	uniqueWorkerIds := make(map[string]bool)
 
-	for _, item := range data {
-		uniqueWorkerIds[item.WorkerId] = true
-	}
+// 	for _, item := range data {
+// 		uniqueWorkerIds[item.WorkerId] = true
+// 	}
 
-	workerIds := make([]pgtype.UUID, 0, len(uniqueWorkerIds))
+// 	workerIds := make([]pgtype.UUID, 0, len(uniqueWorkerIds))
 
-	for workerId := range uniqueWorkerIds {
-		workerIds = append(workerIds, sqlchelpers.UUIDFromStr(workerId))
-	}
+// 	for workerId := range uniqueWorkerIds {
+// 		workerIds = append(workerIds, sqlchelpers.UUIDFromStr(workerId))
+// 	}
 
-	workerCounts, err := s.queries.GetWorkerSemaphoreCounts(ctx, tx, dbsqlc.GetWorkerSemaphoreCountsParams{
-		Tenantid:  pgTenantId,
-		WorkerIds: workerIds,
-	})
+// 	workerCounts, err := s.queries.GetWorkerSemaphoreCounts(ctx, tx, dbsqlc.GetWorkerSemaphoreCountsParams{
+// 		Tenantid:  pgTenantId,
+// 		WorkerIds: workerIds,
+// 	})
 
-	if err != nil {
-		return false, false, fmt.Errorf("could not get worker semaphore counts: %w", err)
-	}
+// 	if err != nil {
+// 		return false, false, fmt.Errorf("could not get worker semaphore counts: %w", err)
+// 	}
 
-	workersToCounts := make(map[string]int)
+// 	workersToCounts := make(map[string]int)
 
-	for _, worker := range workerCounts {
-		workersToCounts[sqlchelpers.UUIDToStr(worker.WorkerId)] = int(worker.Count)
-	}
+// 	for _, worker := range workerCounts {
+// 		workersToCounts[sqlchelpers.UUIDToStr(worker.WorkerId)] = int(worker.Count)
+// 	}
 
-	processedAssigns := make(map[string]int)
-	didReleaseSlots := false
+// 	processedAssigns := make(map[string]int)
+// 	didReleaseSlots := false
 
-	// append the semaphore queue items to the worker counts
-	for _, item := range data {
-		workersToCounts[item.WorkerId] += item.Inc
+// 	// append the semaphore queue items to the worker counts
+// 	for _, item := range data {
+// 		workersToCounts[item.WorkerId] += item.Inc
 
-		if item.Inc < 0 {
-			processedAssigns[item.WorkerId]++
-		}
+// 		if item.Inc < 0 {
+// 			processedAssigns[item.WorkerId]++
+// 		}
 
-		if item.Inc > 0 {
-			didReleaseSlots = true
-		}
-	}
+// 		if item.Inc > 0 {
+// 			didReleaseSlots = true
+// 		}
+// 	}
 
-	qiIds := make([]int64, 0, len(data))
+// 	qiIds := make([]int64, 0, len(data))
 
-	for _, item := range queueItems {
-		qiIds = append(qiIds, item.ID)
-	}
+// 	for _, item := range queueItems {
+// 		qiIds = append(qiIds, item.ID)
+// 	}
 
-	// update the processed semaphore queue items
-	err = s.queries.MarkInternalQueueItemsProcessed(ctx, tx, qiIds)
+// 	// update the processed semaphore queue items
+// 	err = s.queries.MarkInternalQueueItemsProcessed(ctx, tx, qiIds)
 
-	if err != nil {
-		return false, false, fmt.Errorf("could not mark worker semaphore queue items processed: %w", err)
-	}
+// 	if err != nil {
+// 		return false, false, fmt.Errorf("could not mark worker semaphore queue items processed: %w", err)
+// 	}
 
-	updateCountParams := dbsqlc.UpdateWorkerSemaphoreCountsParams{
-		Workerids: make([]pgtype.UUID, 0, len(workersToCounts)),
-		Counts:    make([]int32, 0, len(workersToCounts)),
-	}
+// 	updateCountParams := dbsqlc.UpdateWorkerSemaphoreCountsParams{
+// 		Workerids: make([]pgtype.UUID, 0, len(workersToCounts)),
+// 		Counts:    make([]int32, 0, len(workersToCounts)),
+// 	}
 
-	for workerId, count := range workersToCounts {
-		updateCountParams.Workerids = append(updateCountParams.Workerids, sqlchelpers.UUIDFromStr(workerId))
-		updateCountParams.Counts = append(updateCountParams.Counts, int32(count))
+// 	for workerId, count := range workersToCounts {
+// 		updateCountParams.Workerids = append(updateCountParams.Workerids, sqlchelpers.UUIDFromStr(workerId))
+// 		updateCountParams.Counts = append(updateCountParams.Counts, int32(count))
 
-		// if count is negative, print a warning
-		if count < 0 {
-			s.l.Warn().Msgf("worker %s has a negative count: %d", workerId, count)
-		}
-	}
+// 		// if count is negative, print a warning
+// 		if count < 0 {
+// 			s.l.Warn().Msgf("worker %s has a negative count: %d", workerId, count)
+// 		}
+// 	}
 
-	err = s.queries.UpdateWorkerSemaphoreCounts(ctx, tx, updateCountParams)
+// 	err = s.queries.UpdateWorkerSemaphoreCounts(ctx, tx, updateCountParams)
 
-	if err != nil {
-		return false, false, fmt.Errorf("could not update worker semaphore counts: %w", err)
-	}
+// 	if err != nil {
+// 		return false, false, fmt.Errorf("could not update worker semaphore counts: %w", err)
+// 	}
 
-	s.cachedWorkerCounts.store(tenantId, workersToCounts, processedAssigns)
+// 	// s.cachedWorkerCounts.store(tenantId, workersToCounts, processedAssigns)
 
-	return len(queueItems) == limit, didReleaseSlots, nil
-}
+// 	return len(queueItems) == limit, didReleaseSlots, nil
+// }
 
 func (s *stepRunEngineRepository) ProcessStepRunUpdates(ctx context.Context, qlp *zerolog.Logger, tenantId string) (repository.ProcessStepRunUpdatesResult, error) {
 	ql := qlp.With().Str("tenant_id", tenantId).Logger()
@@ -2568,99 +2588,123 @@ func (s *stepRunEngineRepository) releaseWorkerSemaphoreSlot(ctx context.Context
 		return err
 	}
 
-	if oldWorkerIdAndRetryCount.WorkerId.Valid {
-		// add to internal queue
-		err = s.bulkReleaseWorkerSemaphoreQueueItems(
-			ctx,
-			tx,
-			tenantId,
-			[]pgtype.UUID{oldWorkerIdAndRetryCount.WorkerId},
-			[]pgtype.UUID{sqlchelpers.UUIDFromStr(stepRunId)},
-			[]int32{oldWorkerIdAndRetryCount.RetryCount},
-		)
-
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return s.queries.RemoveSemaphoreQueueItem(ctx, tx, dbsqlc.RemoveSemaphoreQueueItemParams{
+		Steprunid: sqlchelpers.UUIDFromStr(stepRunId),
+		Workerid:  oldWorkerIdAndRetryCount.WorkerId,
+	})
 }
 
-type workerSemaphoreQueueData struct {
-	WorkerId  string `json:"worker_id"`
-	StepRunId string `json:"step_run_id"`
+// type workerSemaphoreQueueData struct {
+// 	WorkerId  string `json:"worker_id"`
+// 	StepRunId string `json:"step_run_id"`
 
-	// Inc is what to increment the semaphore count by (-1 for assignment, 1 for release)
-	Inc int `json:"inc"`
-}
+// 	// Inc is what to increment the semaphore count by (-1 for assignment, 1 for release)
+// 	Inc int `json:"inc"`
+// }
 
-func (s *stepRunEngineRepository) bulkAssignWorkerSemaphoreQueueItems(
-	ctx context.Context,
-	tx pgx.Tx,
-	tenantId string,
-	workerIds []pgtype.UUID,
-	stepRunIds []pgtype.UUID,
-) error {
-	insertData := make([]any, len(stepRunIds))
+// func (s *stepRunEngineRepository) bulkAssignWorkerSemaphoreQueueItems(
+// 	ctx context.Context,
+// 	tx pgx.Tx,
+// 	tenantId string,
+// 	workerIds []pgtype.UUID,
+// 	stepRunIds []pgtype.UUID,
+// ) error {
+// 	insertData := make([]any, len(stepRunIds))
 
-	for i, stepRunId := range stepRunIds {
-		insertData[i] = workerSemaphoreQueueData{
-			WorkerId:  sqlchelpers.UUIDToStr(workerIds[i]),
-			StepRunId: sqlchelpers.UUIDToStr(stepRunId),
-			Inc:       -1,
-		}
-	}
+// 	for i, stepRunId := range stepRunIds {
+// 		insertData[i] = workerSemaphoreQueueData{
+// 			WorkerId:  sqlchelpers.UUIDToStr(workerIds[i]),
+// 			StepRunId: sqlchelpers.UUIDToStr(stepRunId),
+// 			Inc:       -1,
+// 		}
+// 	}
 
-	return bulkInsertInternalQueueItem(
-		ctx,
-		tx,
-		s.queries,
-		tenantId,
-		dbsqlc.InternalQueueWORKERSEMAPHORECOUNT,
-		insertData,
-	)
-}
+// 	err := s.queries.CreateSemaphoreQueueItemsBulk(ctx, dbtx, dbsqlc.CreateSemaphoreQueueItemsBulkParams{
+// 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+// 		Queue:    queue,
+// 		Datas:    insertData,
+// 	})
 
-func (s *stepRunEngineRepository) bulkReleaseWorkerSemaphoreQueueItems(
-	ctx context.Context,
-	tx pgx.Tx,
-	tenantId string,
-	workerIds []pgtype.UUID,
-	stepRunIds []pgtype.UUID,
-	retryCounts []int32,
-) error {
-	// if length of workerIds and stepRunIds is not the same, return an error
-	if len(workerIds) != len(stepRunIds) {
-		return fmt.Errorf("workerIds and stepRunIds must be the same length")
-	}
+// 	if err != nil {
+// 		return err
+// 	}
 
-	insertData := make([]any, len(workerIds))
-	uniqueKeys := make([]string, len(workerIds))
+// 	return bulkInsertInternalQueueItem(
+// 		ctx,
+// 		tx,
+// 		s.queries,
+// 		tenantId,
+// 		dbsqlc.InternalQueueWORKERSEMAPHORECOUNT,
+// 		insertData,
+// 	)
+// }
 
-	for i, workerId := range workerIds {
-		insertData[i] = workerSemaphoreQueueData{
-			WorkerId:  sqlchelpers.UUIDToStr(workerId),
-			StepRunId: sqlchelpers.UUIDToStr(stepRunIds[i]),
-			Inc:       1,
-		}
+// func (s *stepRunEngineRepository) bulkAssignWorkerSemaphoreQueueItems(
+// 	ctx context.Context,
+// 	tx pgx.Tx,
+// 	tenantId string,
+// 	workerIds []pgtype.UUID,
+// 	stepRunIds []pgtype.UUID,
+// ) error {
+// 	insertData := make([]any, len(stepRunIds))
 
-		uniqueKeys[i] = fmt.Sprintf(
-			"%s:%d:release",
-			sqlchelpers.UUIDToStr(stepRunIds[i]),
-			retryCounts[i],
-		)
-	}
+// 	for i, stepRunId := range stepRunIds {
+// 		insertData[i] = workerSemaphoreQueueData{
+// 			WorkerId:  sqlchelpers.UUIDToStr(workerIds[i]),
+// 			StepRunId: sqlchelpers.UUIDToStr(stepRunId),
+// 			Inc:       -1,
+// 		}
+// 	}
 
-	return s.bulkInsertUniqueInternalQueueItem(
-		ctx,
-		tx,
-		tenantId,
-		dbsqlc.InternalQueueWORKERSEMAPHORECOUNT,
-		insertData,
-		uniqueKeys,
-	)
-}
+// 	return bulkInsertInternalQueueItem(
+// 		ctx,
+// 		tx,
+// 		s.queries,
+// 		tenantId,
+// 		dbsqlc.InternalQueueWORKERSEMAPHORECOUNT,
+// 		insertData,
+// 	)
+// }
+
+// func (s *stepRunEngineRepository) bulkReleaseWorkerSemaphoreQueueItems(
+// 	ctx context.Context,
+// 	tx pgx.Tx,
+// 	tenantId string,
+// 	workerIds []pgtype.UUID,
+// 	stepRunIds []pgtype.UUID,
+// 	retryCounts []int32,
+// ) error {
+// 	// if length of workerIds and stepRunIds is not the same, return an error
+// 	if len(workerIds) != len(stepRunIds) {
+// 		return fmt.Errorf("workerIds and stepRunIds must be the same length")
+// 	}
+
+// 	insertData := make([]any, len(workerIds))
+// 	uniqueKeys := make([]string, len(workerIds))
+
+// 	for i, workerId := range workerIds {
+// 		insertData[i] = workerSemaphoreQueueData{
+// 			WorkerId:  sqlchelpers.UUIDToStr(workerId),
+// 			StepRunId: sqlchelpers.UUIDToStr(stepRunIds[i]),
+// 			Inc:       1,
+// 		}
+
+// 		uniqueKeys[i] = fmt.Sprintf(
+// 			"%s:%d:release",
+// 			sqlchelpers.UUIDToStr(stepRunIds[i]),
+// 			retryCounts[i],
+// 		)
+// 	}
+
+// 	return s.bulkInsertUniqueInternalQueueItem(
+// 		ctx,
+// 		tx,
+// 		tenantId,
+// 		dbsqlc.InternalQueueWORKERSEMAPHORECOUNT,
+// 		insertData,
+// 		uniqueKeys,
+// 	)
+// }
 
 func toQueueItemData[d any](items []*dbsqlc.InternalQueueItem) ([]d, error) {
 	res := make([]d, len(items))
