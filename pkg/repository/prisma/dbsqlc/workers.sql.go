@@ -73,23 +73,6 @@ func (q *Queries) CreateWorker(ctx context.Context, db DBTX, arg CreateWorkerPar
 	return &i, err
 }
 
-const createWorkerCount = `-- name: CreateWorkerCount :exec
-INSERT INTO
-    "WorkerSemaphoreCount" ("workerId", "count")
-VALUES
-    ($1::uuid, $2::int)
-`
-
-type CreateWorkerCountParams struct {
-	Workerid pgtype.UUID `json:"workerid"`
-	MaxRuns  pgtype.Int4 `json:"maxRuns"`
-}
-
-func (q *Queries) CreateWorkerCount(ctx context.Context, db DBTX, arg CreateWorkerCountParams) error {
-	_, err := db.Exec(ctx, createWorkerCount, arg.Workerid, arg.MaxRuns)
-	return err
-}
-
 const deleteOldWorkerAssignEvents = `-- name: DeleteOldWorkerAssignEvents :one
 WITH for_delete AS (
     SELECT
@@ -149,10 +132,6 @@ WITH for_delete AS (
             ELSE FALSE
         END as has_more
     FROM for_delete
-), delete_slots AS (
-    DELETE FROM "WorkerSemaphoreSlot" wss
-    WHERE wss."workerId" IN (SELECT "id" FROM expired_with_limit)
-    RETURNING wss."id"
 ), delete_events AS (
     DELETE FROM "WorkerAssignEvent" wae
     WHERE wae."workerId" IN (SELECT "id" FROM expired_with_limit)
@@ -256,8 +235,6 @@ SELECT
     ) AS "remainingSlots"
 FROM
     "Worker" w
-JOIN
-    "WorkerSemaphoreCount" wsc ON w."id" = wsc."workerId"
 LEFT JOIN
     "WebhookWorker" ww ON w."webhookId" = ww."id"
 WHERE
@@ -674,72 +651,6 @@ func (q *Queries) ListWorkersWithSlotCount(ctx context.Context, db DBTX, arg Lis
 		return nil, err
 	}
 	return items, nil
-}
-
-const resolveWorkerSemaphoreSlots = `-- name: ResolveWorkerSemaphoreSlots :one
-WITH to_count AS (
-    SELECT
-        wss."id"
-    FROM
-        "Worker" w
-    LEFT JOIN
-        "WorkerSemaphoreSlot" wss ON w."id" = wss."workerId" AND wss."stepRunId" IS NOT NULL
-    JOIN "StepRun" sr ON wss."stepRunId" = sr."id" AND sr."status" NOT IN ('RUNNING', 'ASSIGNED') AND sr."tenantId" = $1::uuid
-    WHERE
-        w."tenantId" = $1::uuid
-        AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
-        -- necessary because isActive is set to false immediately when the stream closes
-        AND w."isActive" = true
-        AND w."isPaused" = false
-    LIMIT 21
-),
-to_resolve AS (
-    SELECT id FROM to_count LIMIT 20
-),
-update_result AS (
-    UPDATE "WorkerSemaphoreSlot" wss
-    SET "stepRunId" = null
-    WHERE wss."id" IN (SELECT "id" FROM to_resolve)
-    RETURNING wss."id"
-)
-SELECT
-	CASE
-		WHEN COUNT(*) > 0 THEN TRUE
-		ELSE FALSE
-	END AS "hasResolved",
-	CASE
-		WHEN COUNT(*) > 10 THEN TRUE
-		ELSE FALSE
-	END AS "hasMore"
-FROM to_count
-`
-
-type ResolveWorkerSemaphoreSlotsRow struct {
-	HasResolved bool `json:"hasResolved"`
-	HasMore     bool `json:"hasMore"`
-}
-
-func (q *Queries) ResolveWorkerSemaphoreSlots(ctx context.Context, db DBTX, tenantid pgtype.UUID) (*ResolveWorkerSemaphoreSlotsRow, error) {
-	row := db.QueryRow(ctx, resolveWorkerSemaphoreSlots, tenantid)
-	var i ResolveWorkerSemaphoreSlotsRow
-	err := row.Scan(&i.HasResolved, &i.HasMore)
-	return &i, err
-}
-
-const stubWorkerSemaphoreSlots = `-- name: StubWorkerSemaphoreSlots :exec
-INSERT INTO "WorkerSemaphoreSlot" ("id", "workerId")
-SELECT gen_random_uuid(), $1::uuid
-FROM generate_series(1, $2::int)
-`
-
-type StubWorkerSemaphoreSlotsParams struct {
-	Workerid pgtype.UUID `json:"workerid"`
-	MaxRuns  pgtype.Int4 `json:"maxRuns"`
-}
-
-func (q *Queries) StubWorkerSemaphoreSlots(ctx context.Context, db DBTX, arg StubWorkerSemaphoreSlotsParams) error {
-	_, err := db.Exec(ctx, stubWorkerSemaphoreSlots, arg.Workerid, arg.MaxRuns)
-	return err
 }
 
 const updateWorker = `-- name: UpdateWorker :one

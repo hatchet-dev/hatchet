@@ -1401,17 +1401,6 @@ type WorkerSemaphore struct {
 	Slots    int32       `json:"slots"`
 }
 
-type WorkerSemaphoreCount struct {
-	WorkerId pgtype.UUID `json:"workerId"`
-	Count    int32       `json:"count"`
-}
-
-type WorkerSemaphoreSlot struct {
-	ID        pgtype.UUID `json:"id"`
-	WorkerId  pgtype.UUID `json:"workerId"`
-	StepRunId pgtype.UUID `json:"stepRunId"`
-}
-
 type Workflow struct {
 	ID          pgtype.UUID      `json:"id"`
 	CreatedAt   pgtype.Timestamp `json:"createdAt"`

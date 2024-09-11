@@ -290,27 +290,6 @@ func (w *workerEngineRepository) CreateNewWorker(ctx context.Context, tenantId s
 			if err != nil {
 				return nil, nil, fmt.Errorf("could not create worker: %w", err)
 			}
-
-			err = w.queries.CreateWorkerCount(ctx, tx, dbsqlc.CreateWorkerCountParams{
-				Workerid: worker.ID,
-				MaxRuns:  createParams.MaxRuns,
-			})
-
-			if err != nil {
-				return nil, nil, fmt.Errorf("could not create worker count: %w", err)
-			}
-
-			err = w.queries.StubWorkerSemaphoreSlots(ctx, tx, dbsqlc.StubWorkerSemaphoreSlotsParams{
-				Workerid: worker.ID,
-				MaxRuns: pgtype.Int4{
-					Int32: worker.MaxRuns,
-					Valid: true,
-				},
-			})
-
-			if err != nil {
-				return nil, nil, fmt.Errorf("could not stub worker semaphore slots: %w", err)
-			}
 		}
 
 		svcUUIDs := make([]pgtype.UUID, len(opts.Services))
@@ -473,10 +452,6 @@ func (w *workerEngineRepository) DeleteWorker(ctx context.Context, tenantId, wor
 func (w *workerEngineRepository) UpdateWorkersByWebhookId(ctx context.Context, params dbsqlc.UpdateWorkersByWebhookIdParams) error {
 	_, err := w.queries.UpdateWorkersByWebhookId(ctx, w.pool, params)
 	return err
-}
-
-func (w *workerEngineRepository) ResolveWorkerSemaphoreSlots(ctx context.Context, tenantId pgtype.UUID) (*dbsqlc.ResolveWorkerSemaphoreSlotsRow, error) {
-	return w.queries.ResolveWorkerSemaphoreSlots(ctx, w.pool, tenantId)
 }
 
 func (w *workerEngineRepository) UpdateWorkerActiveStatus(ctx context.Context, tenantId, workerId string, isActive bool, timestamp time.Time) (*dbsqlc.Worker, error) {
