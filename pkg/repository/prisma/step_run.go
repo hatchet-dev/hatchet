@@ -329,13 +329,13 @@ func (s *stepRunEngineRepository) ListStepRuns(ctx context.Context, tenantId str
 func (s *stepRunEngineRepository) ListStepRunsToReassign(ctx context.Context, tenantId string) ([]string, error) {
 	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
 
-	tx, err := s.pool.Begin(ctx)
+	tx, commit, rollback, err := prepareTx(ctx, s.pool, s.l, 5000)
 
 	if err != nil {
 		return nil, err
 	}
 
-	defer deferRollback(ctx, s.l, tx.Rollback)
+	defer rollback()
 
 	// get the step run and make sure it's still in pending
 	stepRunReassign, err := s.queries.ListStepRunsToReassign(ctx, tx, pgTenantId)
@@ -366,7 +366,7 @@ func (s *stepRunEngineRepository) ListStepRunsToReassign(ctx context.Context, te
 		return nil, err
 	}
 
-	err = tx.Commit(ctx)
+	err = commit(ctx)
 
 	if err != nil {
 		return nil, err
