@@ -383,7 +383,6 @@ WITH for_delete AS (
         (sr2."input" IS NOT NULL OR sr2."output" IS NOT NULL OR sr2."error" IS NOT NULL)
     ORDER BY "deletedAt" ASC
     LIMIT $2 + 1
-    FOR UPDATE SKIP LOCKED
 ),
 deleted_with_limit AS (
     SELECT
@@ -742,46 +741,6 @@ func (q *Queries) GetLaterStepRuns(ctx context.Context, db DBTX, arg GetLaterSte
 		return nil, err
 	}
 	return items, nil
-}
-
-const getMaxRunsLimit = `-- name: GetMaxRunsLimit :one
-WITH valid_workers AS (
-    SELECT
-        w."id",
-        COALESCE(w."maxRuns", 100) - COUNT(wss."id") AS "remainingSlots"
-    FROM
-        "Worker" w
-    LEFT JOIN
-        "WorkerSemaphoreSlot" wss ON w."id" = wss."workerId" AND wss."stepRunId" IS NOT NULL
-    WHERE
-        w."tenantId" = $1::uuid
-        AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
-        -- necessary because isActive is set to false immediately when the stream closes
-        AND w."isActive" = true
-        AND w."isPaused" = false
-    GROUP BY
-        w."id", w."maxRuns"
-    HAVING
-        COALESCE(w."maxRuns", 100) - COUNT(wss."stepRunId") > 0
-),
-total_max_runs AS (
-    SELECT
-        SUM("remainingSlots") AS "totalMaxRuns"
-    FROM
-        valid_workers
-)
-SELECT
-    GREATEST("totalMaxRuns", 100)::int AS "limitMaxRuns"
-FROM
-    total_max_runs
-`
-
-// Count the total number of maxRuns - runningStepRuns across all workers
-func (q *Queries) GetMaxRunsLimit(ctx context.Context, db DBTX, tenantid pgtype.UUID) (int32, error) {
-	row := db.QueryRow(ctx, getMaxRunsLimit, tenantid)
-	var limitMaxRuns int32
-	err := row.Scan(&limitMaxRuns)
-	return limitMaxRuns, err
 }
 
 const getStepDesiredWorkerLabels = `-- name: GetStepDesiredWorkerLabels :one
@@ -1218,61 +1177,6 @@ func (q *Queries) GetWorkerLabels(ctx context.Context, db DBTX, workerid pgtype.
 	return items, nil
 }
 
-const getWorkerSemaphoreCounts = `-- name: GetWorkerSemaphoreCounts :many
-WITH workers AS (
-    SELECT
-        "id"
-    FROM
-        "Worker"
-    WHERE
-        "tenantId" = $1::uuid
-        AND
-        (
-            (
-                "lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
-                AND "isActive" = true
-                AND "isPaused" = false
-            ) OR
-            (
-                $2::uuid[] IS NOT NULL AND
-                "id" = ANY($2::uuid[])
-            )
-        )
-)
-SELECT
-    "workerId",
-    "count"
-FROM
-    "WorkerSemaphoreCount"
-WHERE
-    "workerId" = ANY(SELECT "id" FROM workers)
-`
-
-type GetWorkerSemaphoreCountsParams struct {
-	Tenantid  pgtype.UUID   `json:"tenantid"`
-	WorkerIds []pgtype.UUID `json:"workerIds"`
-}
-
-func (q *Queries) GetWorkerSemaphoreCounts(ctx context.Context, db DBTX, arg GetWorkerSemaphoreCountsParams) ([]*WorkerSemaphoreCount, error) {
-	rows, err := db.Query(ctx, getWorkerSemaphoreCounts, arg.Tenantid, arg.WorkerIds)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []*WorkerSemaphoreCount
-	for rows.Next() {
-		var i WorkerSemaphoreCount
-		if err := rows.Scan(&i.WorkerId, &i.Count); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listInitialStepRuns = `-- name: ListInitialStepRuns :many
 SELECT
     DISTINCT ON (child_run."id")
@@ -1385,85 +1289,6 @@ func (q *Queries) ListNonFinalChildStepRuns(ctx context.Context, db DBTX, arg Li
 			&i.SemaphoreReleased,
 			&i.Queue,
 			&i.Priority,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listSemaphoreSlotsToAssign = `-- name: ListSemaphoreSlotsToAssign :many
-WITH actions AS (
-    SELECT
-        "id",
-        "actionId"
-    FROM
-        "Action"
-    WHERE
-        "tenantId" = $1::uuid AND
-        "actionId" = ANY($2::text[])
-), valid_workers AS (
-    SELECT
-        w."id",
-        a."actionId",
-        w."dispatcherId"
-    FROM
-        "Worker" w
-    JOIN
-        "_ActionToWorker" atw ON w."id" = atw."B"
-    JOIN
-        actions a ON atw."A" = a."id"
-    WHERE
-        w."tenantId" = $1::uuid
-        AND w."dispatcherId" IS NOT NULL
-        AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
-        AND w."isActive" = true
-        AND w."isPaused" = false
-)
-SELECT
-    wss."id",
-    vw."id" AS "workerId",
-    vw."dispatcherId",
-    vw."actionId"
-FROM
-    "WorkerSemaphoreSlot" wss
-JOIN
-    valid_workers vw ON wss."workerId" = vw."id"
-WHERE
-    wss."stepRunId" IS NULL
-FOR UPDATE SKIP LOCKED
-`
-
-type ListSemaphoreSlotsToAssignParams struct {
-	Tenantid  pgtype.UUID `json:"tenantid"`
-	Actionids []string    `json:"actionids"`
-}
-
-type ListSemaphoreSlotsToAssignRow struct {
-	ID           pgtype.UUID `json:"id"`
-	WorkerId     pgtype.UUID `json:"workerId"`
-	DispatcherId pgtype.UUID `json:"dispatcherId"`
-	ActionId     string      `json:"actionId"`
-}
-
-func (q *Queries) ListSemaphoreSlotsToAssign(ctx context.Context, db DBTX, arg ListSemaphoreSlotsToAssignParams) ([]*ListSemaphoreSlotsToAssignRow, error) {
-	rows, err := db.Query(ctx, listSemaphoreSlotsToAssign, arg.Tenantid, arg.Actionids)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []*ListSemaphoreSlotsToAssignRow
-	for rows.Next() {
-		var i ListSemaphoreSlotsToAssignRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.WorkerId,
-			&i.DispatcherId,
-			&i.ActionId,
 		); err != nil {
 			return nil, err
 		}
@@ -1750,7 +1575,6 @@ step_runs_with_data AS (
         "Step" s ON sr."stepId" = s."id"
     WHERE
         sr."id" = ANY(SELECT "id" FROM step_runs_to_reassign)
-    FOR UPDATE SKIP LOCKED
 ),
 inserted_queue_items AS (
     INSERT INTO "QueueItem" (
@@ -2489,36 +2313,6 @@ type UpdateStepRunsToAssignedParams struct {
 // bulk insert into timeout queue items
 func (q *Queries) UpdateStepRunsToAssigned(ctx context.Context, db DBTX, arg UpdateStepRunsToAssignedParams) error {
 	_, err := db.Exec(ctx, updateStepRunsToAssigned, arg.Steprunids, arg.Stepruntimeouts, arg.Workerids)
-	return err
-}
-
-const updateWorkerSemaphoreCounts = `-- name: UpdateWorkerSemaphoreCounts :exec
-UPDATE
-    "WorkerSemaphoreCount" wsc
-SET
-    "count" = input."count"
-FROM (
-    SELECT
-        "workerId",
-        "count"
-    FROM
-        (
-            SELECT
-                unnest($1::uuid[]) AS "workerId",
-                unnest($2::int[]) AS "count"
-        ) AS subquery
-    ) AS input
-WHERE
-    wsc."workerId" = input."workerId"
-`
-
-type UpdateWorkerSemaphoreCountsParams struct {
-	Workerids []pgtype.UUID `json:"workerids"`
-	Counts    []int32       `json:"counts"`
-}
-
-func (q *Queries) UpdateWorkerSemaphoreCounts(ctx context.Context, db DBTX, arg UpdateWorkerSemaphoreCountsParams) error {
-	_, err := db.Exec(ctx, updateWorkerSemaphoreCounts, arg.Workerids, arg.Counts)
 	return err
 }
 

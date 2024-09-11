@@ -1030,6 +1030,13 @@ type SecurityCheckIdent struct {
 	ID pgtype.UUID `json:"id"`
 }
 
+type SemaphoreQueueItem struct {
+	ID        int64       `json:"id"`
+	StepRunId pgtype.UUID `json:"stepRunId"`
+	WorkerId  pgtype.UUID `json:"workerId"`
+	TenantId  pgtype.UUID `json:"tenantId"`
+}
+
 type Service struct {
 	ID          pgtype.UUID      `json:"id"`
 	CreatedAt   pgtype.Timestamp `json:"createdAt"`
@@ -1387,22 +1394,6 @@ type WorkerLabel struct {
 	Key       string           `json:"key"`
 	StrValue  pgtype.Text      `json:"strValue"`
 	IntValue  pgtype.Int4      `json:"intValue"`
-}
-
-type WorkerSemaphore struct {
-	WorkerId pgtype.UUID `json:"workerId"`
-	Slots    int32       `json:"slots"`
-}
-
-type WorkerSemaphoreCount struct {
-	WorkerId pgtype.UUID `json:"workerId"`
-	Count    int32       `json:"count"`
-}
-
-type WorkerSemaphoreSlot struct {
-	ID        pgtype.UUID `json:"id"`
-	WorkerId  pgtype.UUID `json:"workerId"`
-	StepRunId pgtype.UUID `json:"stepRunId"`
 }
 
 type Workflow struct {

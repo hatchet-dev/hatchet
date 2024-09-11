@@ -670,13 +670,13 @@ func createNewWorkflowRun(ctx context.Context, pool *pgxpool.Pool, queries *dbsq
 		// begin a transaction
 		workflowRunId := uuid.New().String()
 
-		tx, err := pool.Begin(tx1Ctx)
+		tx, commit, rollback, err := prepareTx(tx1Ctx, pool, l, 15000)
 
 		if err != nil {
 			return nil, err
 		}
 
-		defer deferRollback(ctx, l, tx.Rollback)
+		defer rollback()
 
 		pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
 
@@ -950,7 +950,7 @@ func createNewWorkflowRun(ctx context.Context, pool *pgxpool.Pool, queries *dbsq
 			}
 		}
 
-		err = tx.Commit(tx1Ctx)
+		err = commit(tx1Ctx)
 
 		if err != nil {
 			// check unique violation again on commit, to account for inserts which were uncommitted
