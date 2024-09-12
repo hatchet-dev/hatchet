@@ -907,6 +907,8 @@ func createNewWorkflowRun(ctx context.Context, pool *pgxpool.Pool, queries *dbsq
 				return nil, err
 			}
 
+			stepRunIds := make([]pgtype.UUID, 0)
+
 			for _, step := range steps {
 				err = queries.UpsertQueue(
 					tx1Ctx,
@@ -921,7 +923,7 @@ func createNewWorkflowRun(ctx context.Context, pool *pgxpool.Pool, queries *dbsq
 					return nil, err
 				}
 
-				err = queries.CreateStepRun(
+				stepRunId, err := queries.CreateStepRun(
 					tx1Ctx,
 					tx,
 					dbsqlc.CreateStepRunParams{
@@ -936,13 +938,15 @@ func createNewWorkflowRun(ctx context.Context, pool *pgxpool.Pool, queries *dbsq
 				if err != nil {
 					return nil, err
 				}
+
+				stepRunIds = append(stepRunIds, stepRunId)
 			}
 
 			// link all step runs with correct parents/children
 			err = queries.LinkStepRunParents(
 				tx1Ctx,
 				tx,
-				jobRunId,
+				stepRunIds,
 			)
 
 			if err != nil {

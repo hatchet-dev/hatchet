@@ -669,7 +669,7 @@ INSERT INTO "JobRunLookupData" (
     )
 ) RETURNING *;
 
--- name: CreateStepRun :exec
+-- name: CreateStepRun :one
 INSERT INTO "StepRun" (
     "id",
     "createdAt",
@@ -692,7 +692,8 @@ SELECT
     'PENDING', -- default status
     CURRENT_TIMESTAMP + INTERVAL '5 seconds',
     sqlc.narg('queue')::text,
-    sqlc.narg('priority')::int;
+    sqlc.narg('priority')::int
+RETURNING "id";
 
 -- name: ListStepsForJob :many
 WITH job_id AS (
@@ -709,6 +710,11 @@ WHERE
     s."jobId" = job_id."jobId";
 
 -- name: LinkStepRunParents :exec
+WITH step_runs AS (
+    SELECT "id", "stepId"
+    FROM "StepRun"
+    WHERE "id" = ANY(@stepRunIds::uuid[])
+)
 INSERT INTO "_StepRunOrder" ("A", "B")
 SELECT
     parent_run."id" AS "A",
@@ -716,9 +722,9 @@ SELECT
 FROM
     "_StepOrder" AS step_order
 JOIN
-    "StepRun" AS parent_run ON parent_run."stepId" = step_order."A" AND parent_run."jobRunId" = @jobRunId::uuid
+    step_runs AS parent_run ON parent_run."stepId" = step_order."A"
 JOIN
-    "StepRun" AS child_run ON child_run."stepId" = step_order."B" AND child_run."jobRunId" = @jobRunId::uuid;
+    step_runs AS child_run ON child_run."stepId" = step_order."B";
 
 -- name: GetWorkflowRun :many
 SELECT
