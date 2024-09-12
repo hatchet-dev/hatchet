@@ -98,7 +98,7 @@ func (o *operation) run(l *zerolog.Logger, ql *zerolog.Logger, scheduler func(co
 			shouldContinue, err := scheduler(ctx, o.tenantId)
 
 			if err != nil {
-				l.Err(err).Msgf("could not %s", o.description)
+				l.Err(err).Msgf("could not %s for %s", o.description, o.tenantId)
 				return
 			}
 
