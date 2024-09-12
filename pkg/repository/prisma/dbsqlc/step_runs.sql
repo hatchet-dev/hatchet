@@ -883,10 +883,33 @@ SET
     "updatedAt" = CURRENT_TIMESTAMP,
     "startedAt" = NULL,
     "finishedAt" = NULL,
-    "duration" = NULL
+    "duration" = NULL,
+    "concurrencyGroupId" = NULL,
+    "error" = NULL
 WHERE
     "id" =  @workflowRunId::uuid
 RETURNING *;
+
+
+-- name: ReplayWorkflowRunResetGetGroupKeyRun :one
+UPDATE
+    "GetGroupKeyRun"
+SET
+    "status" = 'PENDING',
+    "scheduleTimeoutAt" = NULL,
+    "finishedAt" = NULL,
+    "startedAt" = NULL,
+    "timeoutAt" = NULL,
+    "output" = NULL,
+    "error" = NULL,
+    "cancelledAt" = NULL,
+    "cancelledReason" = NULL,
+    "cancelledError" = NULL,
+    "input" = NULL
+WHERE
+    "workflowRunId" = @workflowRunId::uuid
+RETURNING *;
+
 
 -- name: ReplayStepRunResetJobRun :one
 UPDATE

@@ -1948,7 +1948,9 @@ SET
     "updatedAt" = CURRENT_TIMESTAMP,
     "startedAt" = NULL,
     "finishedAt" = NULL,
-    "duration" = NULL
+    "duration" = NULL,
+    "concurrencyGroupId" = NULL,
+    "error" = NULL
 WHERE
     "id" =  $1::uuid
 RETURNING "createdAt", "updatedAt", "deletedAt", "tenantId", "workflowVersionId", status, error, "startedAt", "finishedAt", "concurrencyGroupId", "displayName", id, "childIndex", "childKey", "parentId", "parentStepRunId", "additionalMetadata", duration, priority
@@ -1977,6 +1979,54 @@ func (q *Queries) ReplayStepRunResetWorkflowRun(ctx context.Context, db DBTX, wo
 		&i.AdditionalMetadata,
 		&i.Duration,
 		&i.Priority,
+	)
+	return &i, err
+}
+
+const replayWorkflowRunResetGetGroupKeyRun = `-- name: ReplayWorkflowRunResetGetGroupKeyRun :one
+UPDATE
+    "GetGroupKeyRun"
+SET
+    "status" = 'PENDING',
+    "scheduleTimeoutAt" = NULL,
+    "finishedAt" = NULL,
+    "startedAt" = NULL,
+    "timeoutAt" = NULL,
+    "output" = NULL,
+    "error" = NULL,
+    "cancelledAt" = NULL,
+    "cancelledReason" = NULL,
+    "cancelledError" = NULL,
+    "input" = NULL
+WHERE
+    "workflowRunId" = $1::uuid
+RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "workerId", "tickerId", status, input, output, "requeueAfter", error, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError", "workflowRunId", "scheduleTimeoutAt"
+`
+
+func (q *Queries) ReplayWorkflowRunResetGetGroupKeyRun(ctx context.Context, db DBTX, workflowrunid pgtype.UUID) (*GetGroupKeyRun, error) {
+	row := db.QueryRow(ctx, replayWorkflowRunResetGetGroupKeyRun, workflowrunid)
+	var i GetGroupKeyRun
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.TenantId,
+		&i.WorkerId,
+		&i.TickerId,
+		&i.Status,
+		&i.Input,
+		&i.Output,
+		&i.RequeueAfter,
+		&i.Error,
+		&i.StartedAt,
+		&i.FinishedAt,
+		&i.TimeoutAt,
+		&i.CancelledAt,
+		&i.CancelledReason,
+		&i.CancelledError,
+		&i.WorkflowRunId,
+		&i.ScheduleTimeoutAt,
 	)
 	return &i, err
 }
