@@ -331,7 +331,7 @@ func (q *Queries) CreateJobRuns(ctx context.Context, db DBTX, arg CreateJobRunsP
 	return items, nil
 }
 
-const createStepRun = `-- name: CreateStepRun :exec
+const createStepRun = `-- name: CreateStepRun :one
 INSERT INTO "StepRun" (
     "id",
     "createdAt",
@@ -355,6 +355,7 @@ SELECT
     CURRENT_TIMESTAMP + INTERVAL '5 seconds',
     $4::text,
     $5::int
+RETURNING "id"
 `
 
 type CreateStepRunParams struct {
@@ -365,15 +366,17 @@ type CreateStepRunParams struct {
 	Priority pgtype.Int4 `json:"priority"`
 }
 
-func (q *Queries) CreateStepRun(ctx context.Context, db DBTX, arg CreateStepRunParams) error {
-	_, err := db.Exec(ctx, createStepRun,
+func (q *Queries) CreateStepRun(ctx context.Context, db DBTX, arg CreateStepRunParams) (pgtype.UUID, error) {
+	row := db.QueryRow(ctx, createStepRun,
 		arg.Tenantid,
 		arg.Jobrunid,
 		arg.Stepid,
 		arg.Queue,
 		arg.Priority,
 	)
-	return err
+	var id pgtype.UUID
+	err := row.Scan(&id)
+	return id, err
 }
 
 const createWorkflowRun = `-- name: CreateWorkflowRun :one
@@ -918,6 +921,11 @@ func (q *Queries) GetWorkflowRunStickyStateForUpdate(ctx context.Context, db DBT
 }
 
 const linkStepRunParents = `-- name: LinkStepRunParents :exec
+WITH step_runs AS (
+    SELECT "id", "stepId"
+    FROM "StepRun"
+    WHERE "id" = ANY($1::uuid[])
+)
 INSERT INTO "_StepRunOrder" ("A", "B")
 SELECT
     parent_run."id" AS "A",
@@ -925,13 +933,13 @@ SELECT
 FROM
     "_StepOrder" AS step_order
 JOIN
-    "StepRun" AS parent_run ON parent_run."stepId" = step_order."A" AND parent_run."jobRunId" = $1::uuid
+    step_runs AS parent_run ON parent_run."stepId" = step_order."A"
 JOIN
-    "StepRun" AS child_run ON child_run."stepId" = step_order."B" AND child_run."jobRunId" = $1::uuid
+    step_runs AS child_run ON child_run."stepId" = step_order."B"
 `
 
-func (q *Queries) LinkStepRunParents(ctx context.Context, db DBTX, jobrunid pgtype.UUID) error {
-	_, err := db.Exec(ctx, linkStepRunParents, jobrunid)
+func (q *Queries) LinkStepRunParents(ctx context.Context, db DBTX, steprunids []pgtype.UUID) error {
+	_, err := db.Exec(ctx, linkStepRunParents, steprunids)
 	return err
 }
 
