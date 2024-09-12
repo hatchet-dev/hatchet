@@ -420,38 +420,6 @@ SELECT
 FROM step_run_data
 RETURNING *;
 
--- name: GetMaxRunsLimit :one
-WITH valid_workers AS (
-    SELECT
-        w."id",
-        COALESCE(w."maxRuns", 100) - COUNT(wss."id") AS "remainingSlots"
-    FROM
-        "Worker" w
-    LEFT JOIN
-        "WorkerSemaphoreSlot" wss ON w."id" = wss."workerId" AND wss."stepRunId" IS NOT NULL
-    WHERE
-        w."tenantId" = @tenantId::uuid
-        AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
-        -- necessary because isActive is set to false immediately when the stream closes
-        AND w."isActive" = true
-        AND w."isPaused" = false
-    GROUP BY
-        w."id", w."maxRuns"
-    HAVING
-        COALESCE(w."maxRuns", 100) - COUNT(wss."stepRunId") > 0
-),
--- Count the total number of maxRuns - runningStepRuns across all workers
-total_max_runs AS (
-    SELECT
-        SUM("remainingSlots") AS "totalMaxRuns"
-    FROM
-        valid_workers
-)
-SELECT
-    GREATEST("totalMaxRuns", 100)::int AS "limitMaxRuns"
-FROM
-    total_max_runs;
-
 -- name: ListStepRunsToReassign :many
 WITH inactive_workers AS (
     SELECT
@@ -483,7 +451,6 @@ step_runs_with_data AS (
         "Step" s ON sr."stepId" = s."id"
     WHERE
         sr."id" = ANY(SELECT "id" FROM step_runs_to_reassign)
-    FOR UPDATE SKIP LOCKED
 ),
 inserted_queue_items AS (
     INSERT INTO "QueueItem" (
@@ -588,76 +555,6 @@ WHERE
     AND "lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
     AND "id" = @workerId::uuid;
 
--- name: ListSemaphoreSlotsToAssign :many
-WITH actions AS (
-    SELECT
-        "id",
-        "actionId"
-    FROM
-        "Action"
-    WHERE
-        "tenantId" = @tenantId::uuid AND
-        "actionId" = ANY(@actionIds::text[])
-), valid_workers AS (
-    SELECT
-        w."id",
-        a."actionId",
-        w."dispatcherId"
-    FROM
-        "Worker" w
-    JOIN
-        "_ActionToWorker" atw ON w."id" = atw."B"
-    JOIN
-        actions a ON atw."A" = a."id"
-    WHERE
-        w."tenantId" = @tenantId::uuid
-        AND w."dispatcherId" IS NOT NULL
-        AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
-        AND w."isActive" = true
-        AND w."isPaused" = false
-)
-SELECT
-    wss."id",
-    vw."id" AS "workerId",
-    vw."dispatcherId",
-    vw."actionId"
-FROM
-    "WorkerSemaphoreSlot" wss
-JOIN
-    valid_workers vw ON wss."workerId" = vw."id"
-WHERE
-    wss."stepRunId" IS NULL
-FOR UPDATE SKIP LOCKED;
-
--- name: GetWorkerSemaphoreCounts :many
-WITH workers AS (
-    SELECT
-        "id"
-    FROM
-        "Worker"
-    WHERE
-        "tenantId" = @tenantId::uuid
-        AND
-        (
-            (
-                "lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
-                AND "isActive" = true
-                AND "isPaused" = false
-            ) OR
-            (
-                sqlc.narg('workerIds')::uuid[] IS NOT NULL AND
-                "id" = ANY(sqlc.narg('workerIds')::uuid[])
-            )
-        )
-)
-SELECT
-    "workerId",
-    "count"
-FROM
-    "WorkerSemaphoreCount"
-WHERE
-    "workerId" = ANY(SELECT "id" FROM workers);
-
 -- name: GetWorkerDispatcherActions :many
 WITH actions AS (
     SELECT
@@ -685,25 +582,6 @@ WHERE
     AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
     AND w."isActive" = true
     AND w."isPaused" = false;
-
--- name: UpdateWorkerSemaphoreCounts :exec
-UPDATE
-    "WorkerSemaphoreCount" wsc
-SET
-    "count" = input."count"
-FROM (
-    SELECT
-        "workerId",
-        "count"
-    FROM
-        (
-            SELECT
-                unnest(@workerIds::uuid[]) AS "workerId",
-                unnest(@counts::int[]) AS "count"
-        ) AS subquery
-    ) AS input
-WHERE
-    wsc."workerId" = input."workerId";
 
 -- name: CreateWorkerAssignEvents :exec
 INSERT INTO "WorkerAssignEvent" (
@@ -1210,7 +1088,6 @@ WITH for_delete AS (
         (sr2."input" IS NOT NULL OR sr2."output" IS NOT NULL OR sr2."error" IS NOT NULL)
     ORDER BY "deletedAt" ASC
     LIMIT sqlc.arg('limit') + 1
-    FOR UPDATE SKIP LOCKED
 ),
 deleted_with_limit AS (
     SELECT
