@@ -735,7 +735,8 @@ SELECT
     -- waiting on https://github.com/sqlc-dev/sqlc/pull/2858 for nullable fields
     wc."limitStrategy" as "concurrencyLimitStrategy",
     wc."maxRuns" as "concurrencyMaxRuns",
-    groupKeyRun."id" as "getGroupKeyRunId"
+    groupKeyRun."id" as "getGroupKeyRunId",
+    workflow."isPaused" as "isPaused"
 FROM
     "WorkflowRun" as runs
 LEFT JOIN
@@ -752,7 +753,6 @@ WHERE
     runs."deletedAt" IS NULL AND
     workflowVersion."deletedAt" IS NULL AND
     workflow."deletedAt" IS NULL AND
-    workflow."isPaused" = FALSE AND
     runs."id" = ANY(@ids::uuid[]) AND
     runs."tenantId" = @tenantId::uuid;
 

@@ -46,6 +46,10 @@ func (wc *WorkflowsControllerImpl) handleWorkflowRunQueued(ctx context.Context, 
 		return fmt.Errorf("could not get job run: %w", err)
 	}
 
+	if workflowRun.IsPaused.Valid && workflowRun.IsPaused.Bool {
+		return nil
+	}
+
 	workflowRunId := sqlchelpers.UUIDToStr(workflowRun.WorkflowRun.ID)
 
 	servertel.WithWorkflowRunModel(span, workflowRun)
@@ -575,6 +579,10 @@ func (wc *WorkflowsControllerImpl) queueByCancelInProgress(ctx context.Context, 
 				return fmt.Errorf("could not get workflow run: %w", err)
 			}
 
+			if workflowRun.IsPaused.Valid && workflowRun.IsPaused.Bool {
+				return nil
+			}
+
 			return wc.queueWorkflowRunJobs(ctx, workflowRun)
 		})
 	}
@@ -616,6 +624,10 @@ func (wc *WorkflowsControllerImpl) queueByGroupRoundRobin(ctx context.Context, t
 
 			if err != nil {
 				return fmt.Errorf("could not get workflow run: %w", err)
+			}
+
+			if workflowRun.IsPaused.Valid && workflowRun.IsPaused.Bool {
+				return nil
 			}
 
 			return wc.queueWorkflowRunJobs(ctx, workflowRun)

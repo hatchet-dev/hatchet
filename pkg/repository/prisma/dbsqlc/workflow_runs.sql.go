@@ -742,7 +742,8 @@ SELECT
     -- waiting on https://github.com/sqlc-dev/sqlc/pull/2858 for nullable fields
     wc."limitStrategy" as "concurrencyLimitStrategy",
     wc."maxRuns" as "concurrencyMaxRuns",
-    groupKeyRun."id" as "getGroupKeyRunId"
+    groupKeyRun."id" as "getGroupKeyRunId",
+    workflow."isPaused" as "isPaused"
 FROM
     "WorkflowRun" as runs
 LEFT JOIN
@@ -759,7 +760,6 @@ WHERE
     runs."deletedAt" IS NULL AND
     workflowVersion."deletedAt" IS NULL AND
     workflow."deletedAt" IS NULL AND
-    workflow."isPaused" = FALSE AND
     runs."id" = ANY($1::uuid[]) AND
     runs."tenantId" = $2::uuid
 `
@@ -777,6 +777,7 @@ type GetWorkflowRunRow struct {
 	ConcurrencyLimitStrategy NullConcurrencyLimitStrategy `json:"concurrencyLimitStrategy"`
 	ConcurrencyMaxRuns       pgtype.Int4                  `json:"concurrencyMaxRuns"`
 	GetGroupKeyRunId         pgtype.UUID                  `json:"getGroupKeyRunId"`
+	IsPaused                 pgtype.Bool                  `json:"isPaused"`
 }
 
 func (q *Queries) GetWorkflowRun(ctx context.Context, db DBTX, arg GetWorkflowRunParams) ([]*GetWorkflowRunRow, error) {
@@ -836,6 +837,7 @@ func (q *Queries) GetWorkflowRun(ctx context.Context, db DBTX, arg GetWorkflowRu
 			&i.ConcurrencyLimitStrategy,
 			&i.ConcurrencyMaxRuns,
 			&i.GetGroupKeyRunId,
+			&i.IsPaused,
 		); err != nil {
 			return nil, err
 		}
