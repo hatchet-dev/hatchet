@@ -98,6 +98,8 @@ EventList:
   $ref: "./event.yaml#/EventList"
 ReplayEventRequest:
   $ref: "./event.yaml#/ReplayEventRequest"
+CancelEventRequest:
+  $ref: "./event.yaml#/CancelEventRequest"
 Workflow:
   $ref: "./workflow.yaml#/Workflow"
 WorkflowConcurrency:

@@ -45,6 +45,7 @@ import { Loading } from '@/components/ui/loading.tsx';
 import { TenantContextType } from '@/lib/outlet';
 import RelativeDate from '@/components/molecules/relative-date';
 import { CreateEventForm } from './components/create-event-form';
+import { BiX } from 'react-icons/bi';
 
 export default function Events() {
   return (
@@ -255,6 +256,17 @@ function EventsTable() {
     refetchInterval: 2000,
   });
 
+  const cancelEventsMutation = useMutation({
+    mutationKey: ['event:update:cancel', tenant.metadata.id],
+    mutationFn: async (data: ReplayEventRequest) => {
+      await api.eventUpdateCancel(tenant.metadata.id, data);
+    },
+    onSuccess: () => {
+      refetch();
+    },
+    onError: handleApiError,
+  });
+
   const replayEventsMutation = useMutation({
     mutationKey: ['event:update:replay', tenant.metadata.id],
     mutationFn: async (data: ReplayEventRequest) => {
@@ -346,6 +358,21 @@ function EventsTable() {
   });
 
   const actions = [
+    <Button
+      key="cancel"
+      disabled={Object.keys(rowSelection).length === 0}
+      variant={Object.keys(rowSelection).length === 0 ? 'outline' : 'default'}
+      size="sm"
+      className="h-8 px-2 lg:px-3 gap-2"
+      onClick={() => {
+        cancelEventsMutation.mutate({
+          eventIds: Object.keys(rowSelection),
+        });
+      }}
+    >
+      <BiX className="h-4 w-4" />
+      Cancel
+    </Button>,
     <Button
       key="replay"
       disabled={Object.keys(rowSelection).length === 0}

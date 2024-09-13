@@ -285,3 +285,62 @@ replayEvents:
     summary: Replay events
     tags:
       - Event
+
+cancelEvents:
+  post:
+    x-resources: ["tenant"]
+    description: Cancels all runs for a list of events.
+    operationId: event:update:cancel
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    requestBody:
+      content:
+        application/json:
+          schema:
+            $ref: "../../components/schemas/_index.yaml#/CancelEventRequest"
+      description: The event ids to replay
+      required: true
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                workflowRunIds:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+                    minLength: 36
+                    maxLength: 36
+        description: Successfully canceled runs for the events
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+      "429":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Resource limit exceeded
+    summary: Replay events
+    tags:
+      - Event
