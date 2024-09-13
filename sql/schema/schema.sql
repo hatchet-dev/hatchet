@@ -723,6 +723,7 @@ CREATE TABLE "Workflow" (
     "tenantId" UUID NOT NULL,
     "name" TEXT NOT NULL,
     "description" TEXT,
+    "isPaused" BOOLEAN DEFAULT false,
 
     CONSTRAINT "Workflow_pkey" PRIMARY KEY ("id")
 );

@@ -483,6 +483,8 @@ model Workflow {
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   tenantId String @db.Uuid
 
+  isPaused Boolean? @default(false)
+
   // the workflow name
   name String
 

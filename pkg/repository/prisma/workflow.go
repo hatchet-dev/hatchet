@@ -114,6 +114,33 @@ func (r *workflowAPIRepository) ListWorkflows(tenantId string, opts *repository.
 	return res, nil
 }
 
+func (r *workflowAPIRepository) UpdateWorkflow(tenantId, workflowId string, opts *repository.UpdateWorkflowOpts) (*dbsqlc.Workflow, error) {
+	if err := r.v.Validate(opts); err != nil {
+		return nil, err
+	}
+
+	pgWorkflowId := sqlchelpers.UUIDFromStr(workflowId)
+
+	params := dbsqlc.UpdateWorkflowParams{
+		ID: pgWorkflowId,
+	}
+
+	if opts.IsPaused != nil {
+		params.IsPaused = pgtype.Bool{
+			Valid: true,
+			Bool:  *opts.IsPaused,
+		}
+	}
+
+	workflow, err := r.queries.UpdateWorkflow(context.Background(), r.pool, params)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return workflow, nil
+}
+
 func (r *workflowAPIRepository) GetWorkflowById(workflowId string) (*db.WorkflowModel, error) {
 	return r.client.Workflow.FindFirst(
 		db.Workflow.ID.Equals(workflowId),

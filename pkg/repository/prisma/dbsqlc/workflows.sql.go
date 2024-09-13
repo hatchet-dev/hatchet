@@ -420,7 +420,7 @@ INSERT INTO "Workflow" (
     $5::uuid,
     $6::text,
     $7::text
-) RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", name, description
+) RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", name, description, "isPaused"
 `
 
 type CreateWorkflowParams struct {
@@ -452,6 +452,7 @@ func (q *Queries) CreateWorkflow(ctx context.Context, db DBTX, arg CreateWorkflo
 		&i.TenantId,
 		&i.Name,
 		&i.Description,
+		&i.IsPaused,
 	)
 	return &i, err
 }
@@ -715,7 +716,7 @@ func (q *Queries) CreateWorkflowVersion(ctx context.Context, db DBTX, arg Create
 
 const getWorkflowByName = `-- name: GetWorkflowByName :one
 SELECT
-    id, "createdAt", "updatedAt", "deletedAt", "tenantId", name, description
+    id, "createdAt", "updatedAt", "deletedAt", "tenantId", name, description, "isPaused"
 FROM
     "Workflow" as workflows
 WHERE
@@ -740,6 +741,7 @@ func (q *Queries) GetWorkflowByName(ctx context.Context, db DBTX, arg GetWorkflo
 		&i.TenantId,
 		&i.Name,
 		&i.Description,
+		&i.IsPaused,
 	)
 	return &i, err
 }
@@ -867,7 +869,7 @@ func (q *Queries) LinkOnFailureJob(ctx context.Context, db DBTX, arg LinkOnFailu
 
 const listWorkflows = `-- name: ListWorkflows :many
 SELECT
-    workflows.id, workflows."createdAt", workflows."updatedAt", workflows."deletedAt", workflows."tenantId", workflows.name, workflows.description
+    workflows.id, workflows."createdAt", workflows."updatedAt", workflows."deletedAt", workflows."tenantId", workflows.name, workflows.description, workflows."isPaused"
 FROM
     "Workflow" as workflows
 WHERE
@@ -915,6 +917,7 @@ func (q *Queries) ListWorkflows(ctx context.Context, db DBTX, arg ListWorkflowsP
 			&i.Workflow.TenantId,
 			&i.Workflow.Name,
 			&i.Workflow.Description,
+			&i.Workflow.IsPaused,
 		); err != nil {
 			return nil, err
 		}
@@ -1084,7 +1087,7 @@ SET
     "name" = "name" || '-' || gen_random_uuid(),
     "deletedAt" = CURRENT_TIMESTAMP
 WHERE "id" = $1::uuid
-RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", name, description
+RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", name, description, "isPaused"
 `
 
 func (q *Queries) SoftDeleteWorkflow(ctx context.Context, db DBTX, id pgtype.UUID) (*Workflow, error) {
@@ -1098,6 +1101,37 @@ func (q *Queries) SoftDeleteWorkflow(ctx context.Context, db DBTX, id pgtype.UUI
 		&i.TenantId,
 		&i.Name,
 		&i.Description,
+		&i.IsPaused,
+	)
+	return &i, err
+}
+
+const updateWorkflow = `-- name: UpdateWorkflow :one
+UPDATE "Workflow"
+SET
+    "updatedAt" = CURRENT_TIMESTAMP,
+    "isPaused" = coalesce($1::boolean, "isPaused")
+WHERE "id" = $2::uuid
+RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", name, description, "isPaused"
+`
+
+type UpdateWorkflowParams struct {
+	IsPaused pgtype.Bool `json:"isPaused"`
+	ID       pgtype.UUID `json:"id"`
+}
+
+func (q *Queries) UpdateWorkflow(ctx context.Context, db DBTX, arg UpdateWorkflowParams) (*Workflow, error) {
+	row := db.QueryRow(ctx, updateWorkflow, arg.IsPaused, arg.ID)
+	var i Workflow
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.TenantId,
+		&i.Name,
+		&i.Description,
+		&i.IsPaused,
 	)
 	return &i, err
 }

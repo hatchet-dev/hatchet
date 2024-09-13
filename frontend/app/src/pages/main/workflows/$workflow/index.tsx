@@ -1,5 +1,9 @@
 import { Separator } from '@/components/ui/separator';
-import api, { Workflow, WorkflowVersion } from '@/lib/api';
+import api, {
+  Workflow,
+  WorkflowUpdateRequest,
+  WorkflowVersion,
+} from '@/lib/api';
 import { useMutation } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
 import {
@@ -26,6 +30,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import WorkflowGeneralSettings from './components/workflow-general-settings';
 import { WorkflowRunsTable } from '../../workflow-runs/components/workflow-runs-table';
 import { ConfirmDialog } from '@/components/molecules/confirm-dialog';
+import { DropdownMenu } from '@/components/ui/dropdown-menu';
+import { DropdownMenuTrigger } from '@radix-ui/react-dropdown-menu';
 
 type WorkflowWithVersion = {
   workflow: Workflow;
@@ -76,6 +82,22 @@ export default function ExpandedWorkflow() {
   const loaderData = useLoaderData() as Awaited<ReturnType<typeof loader>>;
   const navigate = useNavigate();
 
+  const updateWorkflowMutation = useMutation({
+    mutationKey: ['workflow:update', loaderData?.workflow.metadata.id],
+    mutationFn: async (data: WorkflowUpdateRequest) => {
+      const res = await api.workflowUpdate(loaderData!.workflow.metadata.id, {
+        ...data,
+      });
+
+      return res.data;
+    },
+    onSuccess: () => {
+      // TODO this will conflict with wip changes
+      // HACK to reload the page since we're using the legacy loader model
+      window.location.reload();
+    },
+  });
+
   const deleteWorkflowMutation = useMutation({
     mutationKey: ['workflow:delete', loaderData?.workflow.metadata.id],
     mutationFn: async () => {
@@ -119,9 +141,39 @@ export default function ExpandedWorkflow() {
             )}
           </div>
           <WorkflowTags tags={workflow.tags || []} />
-          <Button className="text-sm" onClick={() => setTriggerWorkflow(true)}>
-            Trigger Workflow
-          </Button>
+          <div className="flex flex-row gap-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger>
+                {workflow.isPaused ? (
+                  <Badge
+                    variant="inProgress"
+                    className="px-4"
+                    onClick={() => {
+                      updateWorkflowMutation.mutate({ isPaused: false });
+                    }}
+                  >
+                    Paused
+                  </Badge>
+                ) : (
+                  <Badge
+                    variant="successful"
+                    className="px-4"
+                    onClick={() => {
+                      updateWorkflowMutation.mutate({ isPaused: true });
+                    }}
+                  >
+                    Active
+                  </Badge>
+                )}
+              </DropdownMenuTrigger>
+            </DropdownMenu>
+            <Button
+              className="text-sm"
+              onClick={() => setTriggerWorkflow(true)}
+            >
+              Trigger Workflow
+            </Button>
+          </div>
           <TriggerWorkflowForm
             show={triggerWorkflow}
             workflow={workflow}

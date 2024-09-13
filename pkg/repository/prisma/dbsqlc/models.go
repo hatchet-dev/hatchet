@@ -1404,6 +1404,7 @@ type Workflow struct {
 	TenantId    pgtype.UUID      `json:"tenantId"`
 	Name        string           `json:"name"`
 	Description pgtype.Text      `json:"description"`
+	IsPaused    pgtype.Bool      `json:"isPaused"`
 }
 
 type WorkflowConcurrency struct {

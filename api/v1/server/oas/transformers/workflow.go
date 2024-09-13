@@ -17,6 +17,10 @@ func ToWorkflow(workflow *db.WorkflowModel) (*gen.Workflow, error) {
 		Name:     workflow.Name,
 	}
 
+	if isPaused, ok := workflow.IsPaused(); ok {
+		res.IsPaused = &isPaused
+	}
+
 	if description, ok := workflow.Description(); ok {
 		res.Description = &description
 	}
@@ -327,6 +331,7 @@ func ToWorkflowFromSQLC(row *dbsqlc.Workflow) *gen.Workflow {
 		Metadata:    *toAPIMetadata(pgUUIDToStr(row.ID), row.CreatedAt.Time, row.UpdatedAt.Time),
 		Name:        row.Name,
 		Description: &row.Description.String,
+		IsPaused:    &row.IsPaused.Bool,
 	}
 
 	return res

@@ -464,3 +464,11 @@ SET
     "deletedAt" = CURRENT_TIMESTAMP
 WHERE "id" = @id::uuid
 RETURNING *;
+
+-- name: UpdateWorkflow :one
+UPDATE "Workflow"
+SET
+    "updatedAt" = CURRENT_TIMESTAMP,
+    "isPaused" = coalesce(sqlc.narg('isPaused')::boolean, "isPaused")
+WHERE "id" = @id::uuid
+RETURNING *;

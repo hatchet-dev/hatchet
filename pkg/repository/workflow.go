@@ -216,6 +216,11 @@ type GetWorkflowMetricsOpts struct {
 	Status *string `validate:"omitnil,oneof=PENDING QUEUED RUNNING SUCCEEDED FAILED"`
 }
 
+type UpdateWorkflowOpts struct {
+	// (optional) is paused -- if true, the workflow will not be scheduled
+	IsPaused *bool
+}
+
 type WorkflowAPIRepository interface {
 	// ListWorkflows returns all workflows for a given tenant.
 	ListWorkflows(tenantId string, opts *ListWorkflowsOpts) (*ListWorkflowsResult, error)
@@ -235,6 +240,9 @@ type WorkflowAPIRepository interface {
 
 	// GetWorkflowVersionMetrics returns the metrics for a given workflow version.
 	GetWorkflowMetrics(tenantId, workflowId string, opts *GetWorkflowMetricsOpts) (*WorkflowMetrics, error)
+
+	// UpdateWorkflow updates a workflow for a given tenant.
+	UpdateWorkflow(tenantId, workflowId string, opts *UpdateWorkflowOpts) (*dbsqlc.Workflow, error)
 }
 
 type WorkflowEngineRepository interface {

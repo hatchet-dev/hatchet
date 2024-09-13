@@ -23,6 +23,7 @@ import {
 import { SortingState, VisibilityState } from '@tanstack/react-table';
 import { BiCard, BiTable } from 'react-icons/bi';
 import RelativeDate from '@/components/molecules/relative-date';
+import { Badge } from '@/components/ui/badge';
 
 export function WorkflowTable() {
   const { tenant } = useOutletContext<TenantContextType>();
@@ -95,6 +96,11 @@ export function WorkflowTable() {
           <br /> */}
           Created at <RelativeDate date={data.metadata?.createdAt} />
         </p>
+        {data.isPaused ? (
+          <Badge variant="inProgress">Paused</Badge>
+        ) : (
+          <Badge variant="successful">Active</Badge>
+        )}
       </div>
       <div className="px-4 py-4 sm:px-6">
         <div className="text-sm text-background-secondary">

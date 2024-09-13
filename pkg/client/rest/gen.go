@@ -1050,6 +1050,9 @@ type Workflow struct {
 	// Description The description of the workflow.
 	Description *string `json:"description,omitempty"`
 
+	// IsPaused Whether the workflow is paused.
+	IsPaused *bool `json:"isPaused,omitempty"`
+
 	// Jobs The jobs of the workflow.
 	Jobs     *[]Job          `json:"jobs,omitempty"`
 	Metadata APIResourceMeta `json:"metadata"`
@@ -1197,6 +1200,12 @@ type WorkflowTriggers struct {
 	Metadata          *APIResourceMeta           `json:"metadata,omitempty"`
 	TenantId          *string                    `json:"tenant_id,omitempty"`
 	WorkflowVersionId *string                    `json:"workflow_version_id,omitempty"`
+}
+
+// WorkflowUpdateRequest defines model for WorkflowUpdateRequest.
+type WorkflowUpdateRequest struct {
+	// IsPaused Whether the workflow is paused.
+	IsPaused *bool `json:"isPaused,omitempty"`
 }
 
 // WorkflowVersion defines model for WorkflowVersion.
@@ -1461,6 +1470,9 @@ type UserCreateJSONRequestBody = UserRegisterRequest
 
 // WorkerUpdateJSONRequestBody defines body for WorkerUpdate for application/json ContentType.
 type WorkerUpdateJSONRequestBody = UpdateWorkerRequest
+
+// WorkflowUpdateJSONRequestBody defines body for WorkflowUpdate for application/json ContentType.
+type WorkflowUpdateJSONRequestBody = WorkflowUpdateRequest
 
 // WorkflowRunCreateJSONRequestBody defines body for WorkflowRunCreate for application/json ContentType.
 type WorkflowRunCreateJSONRequestBody = TriggerWorkflowRunRequest
@@ -1793,6 +1805,11 @@ type ClientInterface interface {
 
 	// WorkflowGet request
 	WorkflowGet(ctx context.Context, workflow openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// WorkflowUpdateWithBody request with any body
+	WorkflowUpdateWithBody(ctx context.Context, workflow openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	WorkflowUpdate(ctx context.Context, workflow openapi_types.UUID, body WorkflowUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// WorkflowGetMetrics request
 	WorkflowGetMetrics(ctx context.Context, workflow openapi_types.UUID, params *WorkflowGetMetricsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -2903,6 +2920,30 @@ func (c *Client) WorkflowDelete(ctx context.Context, workflow openapi_types.UUID
 
 func (c *Client) WorkflowGet(ctx context.Context, workflow openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewWorkflowGetRequest(c.Server, workflow)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) WorkflowUpdateWithBody(ctx context.Context, workflow openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWorkflowUpdateRequestWithBody(c.Server, workflow, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) WorkflowUpdate(ctx context.Context, workflow openapi_types.UUID, body WorkflowUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWorkflowUpdateRequest(c.Server, workflow, body)
 	if err != nil {
 		return nil, err
 	}
@@ -6302,6 +6343,53 @@ func NewWorkflowGetRequest(server string, workflow openapi_types.UUID) (*http.Re
 	return req, nil
 }
 
+// NewWorkflowUpdateRequest calls the generic WorkflowUpdate builder with application/json body
+func NewWorkflowUpdateRequest(server string, workflow openapi_types.UUID, body WorkflowUpdateJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewWorkflowUpdateRequestWithBody(server, workflow, "application/json", bodyReader)
+}
+
+// NewWorkflowUpdateRequestWithBody generates requests for WorkflowUpdate with any type of body
+func NewWorkflowUpdateRequestWithBody(server string, workflow openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "workflow", runtime.ParamLocationPath, workflow)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/workflows/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PATCH", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewWorkflowGetMetricsRequest generates requests for WorkflowGetMetrics
 func NewWorkflowGetMetricsRequest(server string, workflow openapi_types.UUID, params *WorkflowGetMetricsParams) (*http.Request, error) {
 	var err error
@@ -6853,6 +6941,11 @@ type ClientWithResponsesInterface interface {
 
 	// WorkflowGetWithResponse request
 	WorkflowGetWithResponse(ctx context.Context, workflow openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkflowGetResponse, error)
+
+	// WorkflowUpdateWithBodyWithResponse request with any body
+	WorkflowUpdateWithBodyWithResponse(ctx context.Context, workflow openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WorkflowUpdateResponse, error)
+
+	WorkflowUpdateWithResponse(ctx context.Context, workflow openapi_types.UUID, body WorkflowUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*WorkflowUpdateResponse, error)
 
 	// WorkflowGetMetricsWithResponse request
 	WorkflowGetMetricsWithResponse(ctx context.Context, workflow openapi_types.UUID, params *WorkflowGetMetricsParams, reqEditors ...RequestEditorFn) (*WorkflowGetMetricsResponse, error)
@@ -8587,6 +8680,30 @@ func (r WorkflowGetResponse) StatusCode() int {
 	return 0
 }
 
+type WorkflowUpdateResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Workflow
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r WorkflowUpdateResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r WorkflowUpdateResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type WorkflowGetMetricsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -9494,6 +9611,23 @@ func (c *ClientWithResponses) WorkflowGetWithResponse(ctx context.Context, workf
 		return nil, err
 	}
 	return ParseWorkflowGetResponse(rsp)
+}
+
+// WorkflowUpdateWithBodyWithResponse request with arbitrary body returning *WorkflowUpdateResponse
+func (c *ClientWithResponses) WorkflowUpdateWithBodyWithResponse(ctx context.Context, workflow openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WorkflowUpdateResponse, error) {
+	rsp, err := c.WorkflowUpdateWithBody(ctx, workflow, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseWorkflowUpdateResponse(rsp)
+}
+
+func (c *ClientWithResponses) WorkflowUpdateWithResponse(ctx context.Context, workflow openapi_types.UUID, body WorkflowUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*WorkflowUpdateResponse, error) {
+	rsp, err := c.WorkflowUpdate(ctx, workflow, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseWorkflowUpdateResponse(rsp)
 }
 
 // WorkflowGetMetricsWithResponse request returning *WorkflowGetMetricsResponse
@@ -12283,6 +12417,46 @@ func ParseWorkflowGetResponse(rsp *http.Response) (*WorkflowGetResponse, error) 
 	}
 
 	response := &WorkflowGetResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Workflow
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseWorkflowUpdateResponse parses an HTTP response from a WorkflowUpdateWithResponse call
+func ParseWorkflowUpdateResponse(rsp *http.Response) (*WorkflowUpdateResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &WorkflowUpdateResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
