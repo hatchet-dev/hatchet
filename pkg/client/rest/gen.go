@@ -1298,6 +1298,9 @@ type EventListParams struct {
 
 	// AdditionalMetadata A list of metadata key value pairs to filter by
 	AdditionalMetadata *[]string `form:"additionalMetadata,omitempty" json:"additionalMetadata,omitempty"`
+
+	// EventIds A list of event ids to filter by
+	EventIds *[]openapi_types.UUID `form:"eventIds,omitempty" json:"eventIds,omitempty"`
 }
 
 // TenantGetQueueMetricsParams defines parameters for TenantGetQueueMetrics.
@@ -4089,6 +4092,22 @@ func NewEventListRequest(server string, tenant openapi_types.UUID, params *Event
 		if params.AdditionalMetadata != nil {
 
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "additionalMetadata", runtime.ParamLocationQuery, *params.AdditionalMetadata); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.EventIds != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "eventIds", runtime.ParamLocationQuery, *params.EventIds); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err

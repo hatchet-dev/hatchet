@@ -17,6 +17,7 @@ export enum ToolbarType {
   Checkbox = 'checkbox',
   Radio = 'radio',
   KeyValue = 'key-value',
+  Array = 'array',
 }
 
 export type ToolbarFilters = {

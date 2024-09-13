@@ -25,6 +25,10 @@ WITH events AS (
         events."tenantId" = $1 AND
         events."deletedAt" IS NULL AND
         (
+            sqlc.narg('event_ids')::uuid[] IS NULL OR
+            events."id" = ANY(sqlc.narg('event_ids')::uuid[])
+        ) AND
+        (
             sqlc.narg('keys')::text[] IS NULL OR
             events."key" = ANY(sqlc.narg('keys')::text[])
         ) AND
@@ -95,6 +99,10 @@ WITH filtered_events AS (
     WHERE
         events."tenantId" = $1 AND
         events."deletedAt" IS NULL AND
+        (
+            sqlc.narg('event_ids')::uuid[] IS NULL OR
+            events."id" = ANY(sqlc.narg('event_ids')::uuid[])
+        ) AND
         (
             sqlc.narg('keys')::text[] IS NULL OR
             events."key" = ANY(sqlc.narg('keys')::text[])

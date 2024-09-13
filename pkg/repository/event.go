@@ -55,6 +55,9 @@ type ListEventOpts struct {
 
 	// (optional) the event metadata
 	AdditionalMetadata []byte
+
+	// (optional) event ids to filter by
+	Ids []string
 }
 
 type ListEventResult struct {

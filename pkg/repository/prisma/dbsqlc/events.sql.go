@@ -76,29 +76,33 @@ WITH events AS (
         events."tenantId" = $1 AND
         events."deletedAt" IS NULL AND
         (
-            $2::text[] IS NULL OR
-            events."key" = ANY($2::text[])
+            $2::uuid[] IS NULL OR
+            events."id" = ANY($2::uuid[])
         ) AND
         (
-            $3::jsonb IS NULL OR
-            events."additionalMetadata" @> $3::jsonb
+            $3::text[] IS NULL OR
+            events."key" = ANY($3::text[])
         ) AND
         (
-            ($4::text[])::uuid[] IS NULL OR
-            (workflow."id" = ANY($4::text[]::uuid[]))
+            $4::jsonb IS NULL OR
+            events."additionalMetadata" @> $4::jsonb
         ) AND
         (
-            $5::text IS NULL OR
-            workflow.name like concat('%', $5::text, '%') OR
-            jsonb_path_exists(events."data", cast(concat('$.** ? (@.type() == "string" && @ like_regex "', $5::text, '")') as jsonpath))
+            ($5::text[])::uuid[] IS NULL OR
+            (workflow."id" = ANY($5::text[]::uuid[]))
         ) AND
         (
-            $6::text[] IS NULL OR
-            "status" = ANY(cast($6::text[] as "WorkflowRunStatus"[]))
+            $6::text IS NULL OR
+            workflow.name like concat('%', $6::text, '%') OR
+            jsonb_path_exists(events."data", cast(concat('$.** ? (@.type() == "string" && @ like_regex "', $6::text, '")') as jsonpath))
+        ) AND
+        (
+            $7::text[] IS NULL OR
+            "status" = ANY(cast($7::text[] as "WorkflowRunStatus"[]))
         )
     ORDER BY
-        case when $7 = 'createdAt ASC' THEN events."createdAt" END ASC ,
-        case when $7 = 'createdAt DESC' then events."createdAt" END DESC
+        case when $8 = 'createdAt ASC' THEN events."createdAt" END ASC ,
+        case when $8 = 'createdAt DESC' then events."createdAt" END DESC
     LIMIT 10000
 )
 SELECT
@@ -108,18 +112,20 @@ FROM
 `
 
 type CountEventsParams struct {
-	TenantId           pgtype.UUID `json:"tenantId"`
-	Keys               []string    `json:"keys"`
-	AdditionalMetadata []byte      `json:"additionalMetadata"`
-	Workflows          []string    `json:"workflows"`
-	Search             pgtype.Text `json:"search"`
-	Statuses           []string    `json:"statuses"`
-	Orderby            interface{} `json:"orderby"`
+	TenantId           pgtype.UUID   `json:"tenantId"`
+	EventIds           []pgtype.UUID `json:"event_ids"`
+	Keys               []string      `json:"keys"`
+	AdditionalMetadata []byte        `json:"additionalMetadata"`
+	Workflows          []string      `json:"workflows"`
+	Search             pgtype.Text   `json:"search"`
+	Statuses           []string      `json:"statuses"`
+	Orderby            interface{}   `json:"orderby"`
 }
 
 func (q *Queries) CountEvents(ctx context.Context, db DBTX, arg CountEventsParams) (int64, error) {
 	row := db.QueryRow(ctx, countEvents,
 		arg.TenantId,
+		arg.EventIds,
 		arg.Keys,
 		arg.AdditionalMetadata,
 		arg.Workflows,
@@ -280,34 +286,38 @@ WITH filtered_events AS (
         events."tenantId" = $1 AND
         events."deletedAt" IS NULL AND
         (
-            $3::text[] IS NULL OR
-            events."key" = ANY($3::text[])
+            $3::uuid[] IS NULL OR
+            events."id" = ANY($3::uuid[])
         ) AND
         (
-            $4::jsonb IS NULL OR
-            events."additionalMetadata" @> $4::jsonb
+            $4::text[] IS NULL OR
+            events."key" = ANY($4::text[])
         ) AND
         (
-            ($5::text[])::uuid[] IS NULL OR
-            (workflow."id" = ANY($5::text[]::uuid[]))
+            $5::jsonb IS NULL OR
+            events."additionalMetadata" @> $5::jsonb
         ) AND
         (
-            $6::text IS NULL OR
-            workflow.name like concat('%', $6::text, '%') OR
-            jsonb_path_exists(events."data", cast(concat('$.** ? (@.type() == "string" && @ like_regex "', $6::text, '")') as jsonpath))
+            ($6::text[])::uuid[] IS NULL OR
+            (workflow."id" = ANY($6::text[]::uuid[]))
         ) AND
         (
-            $7::text[] IS NULL OR
-            runs."status" = ANY(cast($7::text[] as "WorkflowRunStatus"[]))
+            $7::text IS NULL OR
+            workflow.name like concat('%', $7::text, '%') OR
+            jsonb_path_exists(events."data", cast(concat('$.** ? (@.type() == "string" && @ like_regex "', $7::text, '")') as jsonpath))
+        ) AND
+        (
+            $8::text[] IS NULL OR
+            runs."status" = ANY(cast($8::text[] as "WorkflowRunStatus"[]))
         )
     GROUP BY events."id"
     ORDER BY
         case when $2 = 'createdAt ASC' THEN MAX(events."createdAt") END ASC,
         case when $2 = 'createdAt DESC' then MAX(events."createdAt") END DESC
     OFFSET
-        COALESCE($8, 0)
+        COALESCE($9, 0)
     LIMIT
-        COALESCE($9, 50)
+        COALESCE($10, 50)
 ),
 event_run_counts AS (
     SELECT
@@ -347,15 +357,16 @@ ORDER BY
 `
 
 type ListEventsParams struct {
-	TenantId           pgtype.UUID `json:"tenantId"`
-	Orderby            interface{} `json:"orderby"`
-	Keys               []string    `json:"keys"`
-	AdditionalMetadata []byte      `json:"additionalMetadata"`
-	Workflows          []string    `json:"workflows"`
-	Search             pgtype.Text `json:"search"`
-	Statuses           []string    `json:"statuses"`
-	Offset             interface{} `json:"offset"`
-	Limit              interface{} `json:"limit"`
+	TenantId           pgtype.UUID   `json:"tenantId"`
+	Orderby            interface{}   `json:"orderby"`
+	EventIds           []pgtype.UUID `json:"event_ids"`
+	Keys               []string      `json:"keys"`
+	AdditionalMetadata []byte        `json:"additionalMetadata"`
+	Workflows          []string      `json:"workflows"`
+	Search             pgtype.Text   `json:"search"`
+	Statuses           []string      `json:"statuses"`
+	Offset             interface{}   `json:"offset"`
+	Limit              interface{}   `json:"limit"`
 }
 
 type ListEventsRow struct {
@@ -371,6 +382,7 @@ func (q *Queries) ListEvents(ctx context.Context, db DBTX, arg ListEventsParams)
 	rows, err := db.Query(ctx, listEvents,
 		arg.TenantId,
 		arg.Orderby,
+		arg.EventIds,
 		arg.Keys,
 		arg.AdditionalMetadata,
 		arg.Workflows,

@@ -854,6 +854,8 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
        * @example ["key1:value1","key2:value2"]
        */
       additionalMetadata?: string[];
+      /** A list of event ids to filter by */
+      eventIds?: string[];
     },
     params: RequestParams = {},
   ) =>

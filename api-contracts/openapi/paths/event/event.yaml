@@ -76,6 +76,17 @@ withTenant:
           type: array
           items:
             type: string
+      - description: A list of event ids to filter by
+        in: query
+        name: eventIds
+        required: false
+        schema:
+          type: array
+          items:
+            type: string
+            format: uuid
+            minLength: 36
+            maxLength: 36
     responses:
       "200":
         content:
