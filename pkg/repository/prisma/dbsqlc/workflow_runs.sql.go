@@ -759,6 +759,7 @@ WHERE
     runs."deletedAt" IS NULL AND
     workflowVersion."deletedAt" IS NULL AND
     workflow."deletedAt" IS NULL AND
+    workflow."isPaused" = FALSE AND
     runs."id" = ANY($1::uuid[]) AND
     runs."tenantId" = $2::uuid
 `
