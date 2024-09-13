@@ -1085,6 +1085,10 @@ WHERE
     workflowVersion."deletedAt" IS NULL AND
     workflow."deletedAt" IS NULL AND
     (
+        $2::uuid IS NULL OR
+        events."id" = $2::uuid
+    ) AND
+    (
         $6::uuid[] IS NULL OR
         runs."id" = ANY($6::uuid[])
     ) AND
