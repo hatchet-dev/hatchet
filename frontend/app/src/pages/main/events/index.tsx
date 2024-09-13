@@ -116,7 +116,9 @@ function EventsTable() {
     }
     return [];
   });
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
+    EventId: false,
+  });
 
   const [pagination, setPagination] = useState<PaginationState>(() => {
     const pageIndex = Number(searchParams.get('pageIndex')) || 0;
@@ -204,6 +206,16 @@ function EventsTable() {
     return filter?.value as Array<WorkflowRunStatus>;
   }, [columnFilters]);
 
+  const eventIds = useMemo(() => {
+    const filter = columnFilters.find((filter) => filter.id === 'EventId');
+
+    if (!filter) {
+      return;
+    }
+
+    return filter?.value as Array<string>;
+  }, [columnFilters]);
+
   const AdditionalMetadataFilter = useMemo(() => {
     const filter = columnFilters.find((filter) => filter.id === 'Metadata');
 
@@ -238,6 +250,7 @@ function EventsTable() {
       search,
       statuses,
       additionalMetadata: AdditionalMetadataFilter,
+      eventIds: eventIds,
     }),
     refetchInterval: 2000,
   });
@@ -430,6 +443,11 @@ function EventsTable() {
             columnId: 'Metadata',
             title: 'Metadata',
             type: ToolbarType.KeyValue,
+          },
+          {
+            columnId: 'EventId',
+            title: 'Event Id',
+            type: ToolbarType.Array,
           },
         ]}
         showColumnToggle={true}

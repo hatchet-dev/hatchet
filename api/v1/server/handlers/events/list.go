@@ -93,6 +93,12 @@ func (t *EventService) EventList(ctx echo.Context, request gen.EventListRequestO
 
 	if request.Params.EventIds != nil {
 		eventIds := make([]string, len(*request.Params.EventIds))
+
+		for i, id := range *request.Params.EventIds {
+			idCp := id
+			eventIds[i] = idCp.String()
+		}
+
 		listOpts.Ids = eventIds
 	}
 
