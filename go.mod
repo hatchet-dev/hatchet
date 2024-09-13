@@ -39,9 +39,9 @@ require (
 	go.uber.org/goleak v1.3.0
 	golang.org/x/exp v0.0.0-20240613232115-7f521ea00fb8
 	google.golang.org/api v0.196.0
-	k8s.io/api v0.31.0
-	k8s.io/apimachinery v0.31.0
-	k8s.io/client-go v0.31.0
+	k8s.io/api v0.31.1
+	k8s.io/apimachinery v0.31.1
+	k8s.io/client-go v0.31.1
 	sigs.k8s.io/yaml v1.4.0
 )
 
