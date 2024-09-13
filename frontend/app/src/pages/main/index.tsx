@@ -120,16 +120,16 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
               <SidebarButtonPrimary
                 key={1}
                 onNavLinkClick={onNavLinkClick}
-                to="/events"
-                name="Events"
-                icon={<QueueListIcon className="mr-2 h-4 w-4" />}
+                to="/workflow-runs"
+                name="Workflow Runs"
+                icon={<AdjustmentsHorizontalIcon className="mr-2 h-4 w-4" />}
               />
               <SidebarButtonPrimary
                 key={2}
                 onNavLinkClick={onNavLinkClick}
-                to="/workflow-runs"
-                name="Workflow Runs"
-                icon={<AdjustmentsHorizontalIcon className="mr-2 h-4 w-4" />}
+                to="/events"
+                name="Events"
+                icon={<QueueListIcon className="mr-2 h-4 w-4" />}
               />
             </div>
           </div>
