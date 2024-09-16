@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/breadcrumb';
 import { formatDuration } from '@/lib/utils';
 import RelativeDate from '@/components/molecules/relative-date';
+import { useToast } from '@/components/ui/use-toast';
 
 interface RunDetailHeaderProps {
   data?: WorkflowRunShape;
@@ -46,10 +47,19 @@ const RunDetailHeader: React.FC<RunDetailHeaderProps> = ({
   const { tenant } = useOutletContext<TenantContextType>();
   invariant(tenant);
 
+  const { toast } = useToast();
+
   const { handleApiError } = useApiError({});
 
   const cancelWorkflowRunMutation = useMutation({
     mutationKey: ['workflow-run:cancel', data?.tenantId, data?.metadata.id],
+    onMutate: () => {
+      toast({
+        title: 'Cancelling workflow run...',
+        duration: 3000,
+        position: 'top-right',
+      });
+    },
     mutationFn: async () => {
       const tenantId = data?.tenantId;
       const workflowRunId = data?.metadata.id;
@@ -68,6 +78,13 @@ const RunDetailHeader: React.FC<RunDetailHeaderProps> = ({
 
   const replayWorkflowRunsMutation = useMutation({
     mutationKey: ['workflow-run:update:replay', tenant.metadata.id],
+    onMutate: () => {
+      toast({
+        title: 'Replaying workflow run...',
+        duration: 3000,
+        position: 'top-right',
+      });
+    },
     mutationFn: async () => {
       if (!data) {
         return;
