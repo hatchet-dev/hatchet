@@ -8,11 +8,11 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 )
 
 func (t *StepRunService) StepRunListArchives(ctx echo.Context, request gen.StepRunListArchivesRequestObject) (gen.StepRunListArchivesResponseObject, error) {
-	stepRun := ctx.Get("step-run").(*db.StepRunModel)
+	stepRun := ctx.Get("step-run").(*repository.GetStepRunFull)
 
 	limit := 1000
 	offset := 0
@@ -32,7 +32,11 @@ func (t *StepRunService) StepRunListArchives(ctx echo.Context, request gen.StepR
 		listOpts.Offset = &offset
 	}
 
-	listRes, err := t.config.APIRepository.StepRun().ListStepRunArchives(stepRun.TenantID, stepRun.ID, listOpts)
+	listRes, err := t.config.APIRepository.StepRun().ListStepRunArchives(
+		sqlchelpers.UUIDToStr(stepRun.TenantId),
+		sqlchelpers.UUIDToStr(stepRun.ID),
+		listOpts,
+	)
 
 	if err != nil {
 		return nil, err

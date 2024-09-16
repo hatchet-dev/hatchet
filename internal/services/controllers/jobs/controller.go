@@ -440,7 +440,7 @@ func (ec *JobsControllerImpl) handleStepRunRetry(ctx context.Context, task *msgq
 		return fmt.Errorf("could not decode job task metadata: %w", err)
 	}
 
-	err = ec.repo.StepRun().ArchiveStepRunResult(ctx, metadata.TenantId, payload.StepRunId)
+	err = ec.repo.StepRun().ArchiveStepRunResult(ctx, metadata.TenantId, payload.StepRunId, payload.Error)
 
 	if err != nil {
 		return fmt.Errorf("could not archive step run result: %w", err)
@@ -486,7 +486,7 @@ func (ec *JobsControllerImpl) handleStepRunReplay(ctx context.Context, task *msg
 		return fmt.Errorf("could not decode job task metadata: %w", err)
 	}
 
-	err = ec.repo.StepRun().ArchiveStepRunResult(ctx, metadata.TenantId, payload.StepRunId)
+	err = ec.repo.StepRun().ArchiveStepRunResult(ctx, metadata.TenantId, payload.StepRunId, nil)
 
 	if err != nil {
 		return fmt.Errorf("could not archive step run result: %w", err)
@@ -975,33 +975,6 @@ func (ec *JobsControllerImpl) handleStepRunFinished(ctx context.Context, task *m
 	// recheck the tenant queue
 	ec.checkTenantQueue(ctx, metadata.TenantId)
 
-	stepRun, err := ec.repo.StepRun().GetStepRunForEngine(ctx, metadata.TenantId, payload.StepRunId)
-
-	if err != nil {
-		return fmt.Errorf("could not get step run: %w", err)
-	}
-
-	// queue the next step runs
-	jobRunId := sqlchelpers.UUIDToStr(stepRun.JobRunId)
-	stepRunId := sqlchelpers.UUIDToStr(stepRun.SRID)
-
-	nextStepRuns, err := ec.repo.StepRun().ListStartableStepRuns(ctx, metadata.TenantId, jobRunId, &stepRunId)
-
-	if err != nil {
-		return fmt.Errorf("could not list startable step runs: %w", err)
-	}
-
-	for _, nextStepRun := range nextStepRuns {
-		nextStepId := sqlchelpers.UUIDToStr(nextStepRun.StepId)
-		nextStepRunId := sqlchelpers.UUIDToStr(nextStepRun.SRID)
-
-		err = ec.queueStepRun(ctx, metadata.TenantId, nextStepId, nextStepRunId, false)
-
-		if err != nil {
-			return fmt.Errorf("could not queue next step run: %w", err)
-		}
-	}
-
 	return nil
 }
 
@@ -1061,13 +1034,16 @@ func (ec *JobsControllerImpl) failStepRun(ctx context.Context, tenantId, stepRun
 			EventReason:   repository.StepRunEventReasonPtr(eventReason),
 			EventMessage:  repository.StringPtr(eventMessage),
 			EventSeverity: repository.StepRunEventSeverityPtr(dbsqlc.StepRunEventSeverityCRITICAL),
+			EventData: map[string]interface{}{
+				"retry_count": stepRun.SRRetryCount,
+			},
 		})
 
 		// send a task to the taskqueue
 		return ec.mq.AddMessage(
 			ctx,
 			msgqueue.JOB_PROCESSING_QUEUE,
-			tasktypes.StepRunRetryToTask(stepRun, nil),
+			tasktypes.StepRunRetryToTask(stepRun, nil, errorReason),
 		)
 	}
 

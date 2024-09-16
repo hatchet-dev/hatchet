@@ -11,7 +11,6 @@ import { PlayIcon } from '@radix-ui/react-icons';
 import { StepRunOutput } from './step-run-output';
 import { StepRunInputs } from './step-run-inputs';
 import { Loading } from '@/components/ui/loading';
-import { StepStatusDetails } from '..';
 import {
   TooltipProvider,
   Tooltip,
@@ -346,14 +345,15 @@ export function StepRunPlayground({
                   <StepRunOutput
                     output={output}
                     isLoading={isLoading}
-                    errors={
-                      [
-                        ...errors,
-                        stepRun.error || stepRun.cancelledReason
-                          ? StepStatusDetails({ stepRun })
-                          : undefined,
-                      ].filter((e) => !!e) as string[]
-                    }
+                    errors={[]}
+                    // errors={
+                    //   [
+                    //     ...errors,
+                    //     stepRun.error || stepRun.cancelledReason
+                    //       ? StepStatusDetails({ stepRun })
+                    //       : undefined,
+                    //   ].filter((e) => !!e) as string[]
+                    // }
                   />
                 </TabsContent>
                 <TabsContent value="logs">

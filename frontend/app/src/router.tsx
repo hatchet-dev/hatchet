@@ -138,7 +138,6 @@ const routes: RouteObject[] = [
                   import('./pages/main/workflows/$workflow').then((res) => {
                     return {
                       Component: res.default,
-                      loader: res.loader,
                     };
                   }),
               },

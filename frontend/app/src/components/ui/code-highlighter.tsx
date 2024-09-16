@@ -24,6 +24,7 @@ export function CodeHighlighter({
   language,
   className,
   maxHeight,
+  minHeight,
   maxWidth,
   copy,
   wrapLines = true,
@@ -34,6 +35,7 @@ export function CodeHighlighter({
   language: string;
   className?: string;
   maxHeight?: string;
+  minHeight?: string;
   maxWidth?: string;
   copy?: boolean;
   wrapLines?: boolean;
@@ -43,13 +45,13 @@ export function CodeHighlighter({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   return (
-    <div className={cn(className, 'w-full h-fit relative')}>
+    <div className={cn('w-full h-fit relative bg-muted rounded-lg', className)}>
       <div
         role="button"
         tabIndex={0}
         onKeyDown={() => textareaRef.current?.focus()}
         onClick={() => textareaRef.current?.focus()}
-        className="relative flex bg-muted rounded-lg"
+        className="relative flex"
       >
         {setCode && (
           <textarea
@@ -71,6 +73,7 @@ export function CodeHighlighter({
             cursor: setCode ? 'pointer' : 'default',
             borderRadius: '0.5rem',
             maxHeight: maxHeight,
+            minHeight: minHeight,
             maxWidth: maxWidth,
             fontFamily:
               "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",

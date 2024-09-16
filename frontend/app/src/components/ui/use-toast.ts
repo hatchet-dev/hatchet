@@ -6,11 +6,20 @@ import type { ToastActionElement, ToastProps } from '@/components/ui/toast';
 const TOAST_LIMIT = 1;
 const TOAST_REMOVE_DELAY = 1000000;
 
+// Add this type definition
+export type ToastPosition =
+  | 'top-left'
+  | 'top-right'
+  | 'bottom-left'
+  | 'bottom-right';
+
+// Modify the existing ToasterToast type
 type ToasterToast = ToastProps & {
   id: string;
   title?: React.ReactNode;
   description?: React.ReactNode;
   action?: ToastActionElement;
+  position?: ToastPosition;
 };
 
 const actionTypes = {
@@ -135,9 +144,10 @@ function dispatch(action: Action) {
   });
 }
 
+// Modify the Toast type
 type Toast = Omit<ToasterToast, 'id'>;
 
-function toast({ ...props }: Toast) {
+function toast({ position = 'bottom-right', ...props }: Toast) {
   const id = genId();
 
   const update = (props: ToasterToast) =>
@@ -152,6 +162,7 @@ function toast({ ...props }: Toast) {
     toast: {
       ...props,
       id,
+      position,
       open: true,
       onOpenChange: (open) => {
         if (!open) {

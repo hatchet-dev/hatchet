@@ -114,34 +114,61 @@ func (r *workflowAPIRepository) ListWorkflows(tenantId string, opts *repository.
 	return res, nil
 }
 
-func (r *workflowAPIRepository) GetWorkflowById(workflowId string) (*db.WorkflowModel, error) {
-	return r.client.Workflow.FindFirst(
-		db.Workflow.ID.Equals(workflowId),
-		db.Workflow.DeletedAt.IsNull(),
-	).With(
-		defaultWorkflowPopulator()...,
-	).Exec(context.Background())
+func (r *workflowAPIRepository) GetWorkflowById(ctx context.Context, workflowId string) (*dbsqlc.GetWorkflowByIdRow, error) {
+	return r.queries.GetWorkflowById(context.Background(), r.pool, sqlchelpers.UUIDFromStr(workflowId))
+
 }
 
-func (r *workflowAPIRepository) GetWorkflowByName(tenantId, workflowName string) (*db.WorkflowModel, error) {
-	return r.client.Workflow.FindFirst(
-		db.Workflow.TenantIDName(
-			db.Workflow.TenantID.Equals(tenantId),
-			db.Workflow.Name.Equals(workflowName),
-		),
-		db.Workflow.DeletedAt.IsNull(),
-	).With(
-		defaultWorkflowPopulator()...,
-	).Exec(context.Background())
-}
+func (r *workflowAPIRepository) GetWorkflowVersionById(tenantId, workflowVersionId string) (
+	*dbsqlc.GetWorkflowVersionByIdRow,
+	[]*dbsqlc.WorkflowTriggerCronRef,
+	[]*dbsqlc.WorkflowTriggerEventRef,
+	[]*dbsqlc.WorkflowTriggerScheduledRef,
+	error,
+) {
+	pgWorkflowVersionId := sqlchelpers.UUIDFromStr(workflowVersionId)
 
-func (r *workflowAPIRepository) GetWorkflowVersionById(tenantId, workflowVersionId string) (*db.WorkflowVersionModel, error) {
-	return r.client.WorkflowVersion.FindFirst(
-		db.WorkflowVersion.ID.Equals(workflowVersionId),
-		db.WorkflowVersion.DeletedAt.IsNull(),
-	).With(
-		defaultWorkflowVersionPopulator()...,
-	).Exec(context.Background())
+	row, err := r.queries.GetWorkflowVersionById(
+		context.Background(),
+		r.pool,
+		pgWorkflowVersionId,
+	)
+
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("failed to fetch workflow version: %w", err)
+	}
+
+	crons, err := r.queries.GetWorkflowVersionCronTriggerRefs(
+		context.Background(),
+		r.pool,
+		pgWorkflowVersionId,
+	)
+
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("failed to fetch cron triggers: %w", err)
+	}
+
+	events, err := r.queries.GetWorkflowVersionEventTriggerRefs(
+		context.Background(),
+		r.pool,
+		pgWorkflowVersionId,
+	)
+
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("failed to fetch event triggers: %w", err)
+	}
+
+	scheduled, err := r.queries.GetWorkflowVersionScheduleTriggerRefs(
+		context.Background(),
+		r.pool,
+		pgWorkflowVersionId,
+	)
+
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("failed to fetch scheduled triggers: %w", err)
+	}
+
+	return row, crons, events, scheduled, nil
 }
 
 func (r *workflowAPIRepository) DeleteWorkflow(tenantId, workflowId string) (*dbsqlc.Workflow, error) {
