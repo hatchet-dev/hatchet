@@ -29,10 +29,16 @@ func ToWorkflowRunShape(
 		TenantId:          sqlchelpers.UUIDToStr(run.TenantId),
 		WorkflowVersionId: sqlchelpers.UUIDToStr(run.WorkflowVersionId),
 		DisplayName:       &run.DisplayName.String,
-		StartedAt:         &run.StartedAt.Time,
-		FinishedAt:        &run.FinishedAt.Time,
 		Error:             &run.Error.String,
 		Status:            gen.WorkflowRunStatus(run.Status),
+	}
+
+	if run.StartedAt.Valid {
+		res.StartedAt = &run.StartedAt.Time
+	}
+
+	if run.FinishedAt.Valid {
+		res.FinishedAt = &run.FinishedAt.Time
 	}
 
 	if run.Duration.Valid {
@@ -80,10 +86,18 @@ func ToWorkflowRun(
 		Status:            gen.WorkflowRunStatus(run.Status),
 		WorkflowVersionId: sqlchelpers.UUIDToStr(run.WorkflowVersionId),
 		DisplayName:       &run.DisplayName.String,
-		StartedAt:         &run.StartedAt.Time,
-		FinishedAt:        &run.FinishedAt.Time,
-		Error:             &run.Error.String,
+		// StartedAt:         &run.StartedAt.Time,
+		// FinishedAt:        &run.FinishedAt.Time,
+		Error: &run.Error.String,
 	}
+
+	// if run.StartedAt.Valid {
+	// 	res.StartedAt = &run.StartedAt.Time
+	// }
+
+	// if run.FinishedAt.Valid {
+	// 	res.FinishedAt = &run.FinishedAt.Time
+	// }
 
 	res.TriggeredBy = *ToWorkflowRunTriggeredBy(run.ParentId, &run.WorkflowRunTriggeredBy)
 

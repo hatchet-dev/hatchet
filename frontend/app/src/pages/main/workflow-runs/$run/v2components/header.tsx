@@ -174,6 +174,13 @@ export default RunDetailHeader;
 const RunSummary: React.FC<{ data: WorkflowRunShape }> = ({ data }) => {
   const timings = [];
 
+  timings.push(
+    <div key="created" className="text-sm text-muted-foreground">
+      {'Created '}
+      <RelativeDate date={data.metadata.createdAt} />
+    </div>,
+  );
+
   if (data.startedAt) {
     timings.push(
       <div key="created" className="text-sm text-muted-foreground">
