@@ -417,6 +417,7 @@ func (q *queue) processStepRunUpdates(ctx context.Context, tenantId string) (boo
 
 			if err != nil {
 				q.l.Error().Err(err).Msg("could not list startable step runs")
+				continue
 			}
 
 			for _, nextStepRun := range nextStepRuns {

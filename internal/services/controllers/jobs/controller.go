@@ -972,6 +972,30 @@ func (ec *JobsControllerImpl) handleStepRunFinished(ctx context.Context, task *m
 		return fmt.Errorf("could not update step run: %w", err)
 	}
 
+	stepRun, err := ec.repo.StepRun().GetStepRunForEngine(ctx, metadata.TenantId, payload.StepRunId)
+
+	if err != nil {
+		return fmt.Errorf("could not get step run: %w", err)
+	}
+
+	nextStepRuns, err := ec.repo.StepRun().ListStartableStepRuns(ctx, metadata.TenantId, sqlchelpers.UUIDToStr(stepRun.JobRunId), &payload.StepRunId)
+
+	if err != nil {
+		ec.l.Error().Err(err).Msg("could not list startable step runs")
+	} else {
+		for _, nextStepRun := range nextStepRuns {
+			err := ec.mq.AddMessage(
+				context.Background(),
+				msgqueue.JOB_PROCESSING_QUEUE,
+				tasktypes.StepRunQueuedToTask(nextStepRun),
+			)
+
+			if err != nil {
+				ec.l.Error().Err(err).Msg("could not queue next step run")
+			}
+		}
+	}
+
 	// recheck the tenant queue
 	ec.checkTenantQueue(ctx, metadata.TenantId)
 

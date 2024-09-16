@@ -44,6 +44,8 @@ type CreateStepRunEventOpts struct {
 
 	EventSeverity *dbsqlc.StepRunEventSeverity
 
+	Timestamp *time.Time
+
 	EventData map[string]interface{}
 }
 
