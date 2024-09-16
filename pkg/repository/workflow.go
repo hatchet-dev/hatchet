@@ -7,7 +7,6 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/digest"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 )
 
@@ -221,14 +220,15 @@ type WorkflowAPIRepository interface {
 	ListWorkflows(tenantId string, opts *ListWorkflowsOpts) (*ListWorkflowsResult, error)
 
 	// GetWorkflowById returns a workflow by its name. It will return db.ErrNotFound if the workflow does not exist.
-	GetWorkflowById(workflowId string) (*db.WorkflowModel, error)
-
-	// GetWorkflowByName returns a workflow by its name. It will return db.ErrNotFound if the workflow does not exist.
-	GetWorkflowByName(tenantId, workflowName string) (*db.WorkflowModel, error)
+	GetWorkflowById(context context.Context, workflowId string) (*dbsqlc.GetWorkflowByIdRow, error)
 
 	// GetWorkflowVersionById returns a workflow version by its id. It will return db.ErrNotFound if the workflow
 	// version does not exist.
-	GetWorkflowVersionById(tenantId, workflowId string) (*db.WorkflowVersionModel, error)
+	GetWorkflowVersionById(tenantId, workflowVersionId string) (*dbsqlc.GetWorkflowVersionByIdRow,
+		[]*dbsqlc.WorkflowTriggerCronRef,
+		[]*dbsqlc.WorkflowTriggerEventRef,
+		[]*dbsqlc.WorkflowTriggerScheduledRef,
+		error)
 
 	// DeleteWorkflow deletes a workflow for a given tenant.
 	DeleteWorkflow(tenantId, workflowId string) (*dbsqlc.Workflow, error)

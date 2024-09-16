@@ -28,6 +28,8 @@ type JobRunAPIRepository interface {
 	// SetJobRunStatusRunning resets the status of a job run to a RUNNING status. This is useful if a step
 	// run is being manually replayed, but shouldn't be used by most callers.
 	SetJobRunStatusRunning(tenantId, jobRunId string) error
+
+	ListJobRunByWorkflowRunId(ctx context.Context, tenantId, WorkflowRunId string) ([]*dbsqlc.ListJobRunsForWorkflowRunFullRow, error)
 }
 
 type JobRunEngineRepository interface {

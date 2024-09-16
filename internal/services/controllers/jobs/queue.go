@@ -18,6 +18,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 )
 
@@ -398,6 +399,44 @@ func (q *queue) processStepRunUpdates(ctx context.Context, tenantId string) (boo
 
 	if err != nil {
 		return false, fmt.Errorf("could not process step run updates: %w", err)
+	}
+
+	// for all succeeded step runs, check for startable child step runs
+	err = MakeBatched(20, res.SucceededStepRuns, func(group []*dbsqlc.GetStepRunForEngineRow) error {
+		for _, stepRun := range group {
+			if stepRun.SRChildCount == 0 {
+				continue
+			}
+
+			// queue the next step runs
+			tenantId := sqlchelpers.UUIDToStr(stepRun.SRTenantId)
+			jobRunId := sqlchelpers.UUIDToStr(stepRun.JobRunId)
+			stepRunId := sqlchelpers.UUIDToStr(stepRun.SRID)
+
+			nextStepRuns, err := q.repo.StepRun().ListStartableStepRuns(ctx, tenantId, jobRunId, &stepRunId)
+
+			if err != nil {
+				q.l.Error().Err(err).Msg("could not list startable step runs")
+			}
+
+			for _, nextStepRun := range nextStepRuns {
+				err := q.mq.AddMessage(
+					context.Background(),
+					msgqueue.JOB_PROCESSING_QUEUE,
+					tasktypes.StepRunQueuedToTask(nextStepRun),
+				)
+
+				if err != nil {
+					q.l.Error().Err(err).Msg("could not queue next step run")
+				}
+			}
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return false, fmt.Errorf("could not process succeeded step runs: %w", err)
 	}
 
 	// for all finished workflow runs, send a message

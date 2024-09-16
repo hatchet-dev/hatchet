@@ -539,6 +539,13 @@ export interface WorkflowVersion {
   /** @format int32 */
   order: number;
   workflowId: string;
+  /** The sticky strategy of the workflow. */
+  sticky?: string;
+  /**
+   * The default priority of the workflow.
+   * @format int32
+   */
+  defaultPriority?: number;
   workflow?: Workflow;
   concurrency?: WorkflowConcurrency;
   triggers?: WorkflowTriggers;
@@ -610,6 +617,41 @@ export interface Step {
 export interface WorkflowRun {
   metadata: APIResourceMeta;
   tenantId: string;
+  workflowVersionId: string;
+  workflowVersion?: WorkflowVersion;
+  status: WorkflowRunStatus;
+  displayName?: string;
+  jobRuns?: JobRun[];
+  triggeredBy: WorkflowRunTriggeredBy;
+  input?: Record<string, any>;
+  error?: string;
+  /** @format date-time */
+  startedAt?: string;
+  /** @format date-time */
+  finishedAt?: string;
+  /** @example 1000 */
+  duration?: number;
+  /**
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   * @example "bb214807-246e-43a5-a25d-41761d1cff9e"
+   */
+  parentId?: string;
+  /**
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   * @example "bb214807-246e-43a5-a25d-41761d1cff9e"
+   */
+  parentStepRunId?: string;
+  additionalMetadata?: Record<string, any>;
+}
+
+export interface WorkflowRunShape {
+  metadata: APIResourceMeta;
+  tenantId: string;
+  workflowId?: string;
   workflowVersionId: string;
   workflowVersion?: WorkflowVersion;
   status: WorkflowRunStatus;
@@ -746,9 +788,8 @@ export interface JobRun {
 
 export interface WorkflowRunTriggeredBy {
   metadata: APIResourceMeta;
-  parentId: string;
+  parentWorkflowRunId?: string;
   eventId?: string;
-  event?: Event;
   cronParentId?: string;
   cronSchedule?: string;
 }
@@ -760,7 +801,7 @@ export interface StepRun {
   jobRun?: JobRun;
   stepId: string;
   step?: Step;
-  children?: string[];
+  childWorkflowsCount?: number;
   parents?: string[];
   childWorkflowRuns?: string[];
   workerId?: string;
@@ -837,6 +878,7 @@ export interface StepRunArchive {
   /** @format date-time */
   startedAt?: string;
   error?: string;
+  retryCount: number;
   /** @format date-time */
   createdAt: string;
   startedAtEpoch?: number;

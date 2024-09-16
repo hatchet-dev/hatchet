@@ -309,5 +309,6 @@ function createStepRunArchive(stepRun: StepRun, order: number): StepRunArchive {
     cancelledAtEpoch: stepRun.cancelledAtEpoch,
     cancelledReason: stepRun.cancelledReason,
     cancelledError: stepRun.cancelledError,
+    retryCount: 0,
   };
 }

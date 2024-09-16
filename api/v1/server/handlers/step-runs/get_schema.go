@@ -8,17 +8,17 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/internal/schema"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
 func (t *StepRunService) StepRunGetSchema(ctx echo.Context, request gen.StepRunGetSchemaRequestObject) (gen.StepRunGetSchemaResponseObject, error) {
-	stepRun := ctx.Get("step-run").(*db.StepRunModel)
+	stepRun := ctx.Get("step-run").(*repository.GetStepRunFull)
 
 	var res map[string]interface{}
 
-	input, ok := stepRun.Input()
+	input := stepRun.Input
 
-	if ok {
+	if input != nil {
 		schemaBytes, err := schema.SchemaBytesFromBytes(input)
 
 		if err != nil {

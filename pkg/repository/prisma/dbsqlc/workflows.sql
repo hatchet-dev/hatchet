@@ -464,3 +464,61 @@ SET
     "deletedAt" = CURRENT_TIMESTAMP
 WHERE "id" = @id::uuid
 RETURNING *;
+
+-- name: GetWorkflowVersionCronTriggerRefs :many
+SELECT
+    wtc.*
+FROM
+    "WorkflowTriggerCronRef" as wtc
+JOIN "WorkflowTriggers" as wt ON wt."id" = wtc."parentId"
+WHERE
+    wt."workflowVersionId" = @workflowVersionId::uuid;
+
+-- name: GetWorkflowVersionEventTriggerRefs :many
+SELECT
+    wtc.*
+FROM
+    "WorkflowTriggerEventRef" as wtc
+JOIN "WorkflowTriggers" as wt ON wt."id" = wtc."parentId"
+WHERE
+    wt."workflowVersionId" = @workflowVersionId::uuid;
+
+-- name: GetWorkflowVersionScheduleTriggerRefs :many
+SELECT
+    wtc.*
+FROM
+    "WorkflowTriggerScheduledRef" as wtc
+JOIN "WorkflowTriggers" as wt ON wt."id" = wtc."parentId"
+WHERE
+    wt."workflowVersionId" = @workflowVersionId::uuid;
+
+-- name: GetWorkflowVersionById :one
+SELECT
+    sqlc.embed(wv),
+    sqlc.embed(w),
+    wc."id" as "concurrencyId",
+    wc."maxRuns" as "concurrencyMaxRuns",
+    wc."getConcurrencyGroupId" as "concurrencyGroupId",
+    wc."limitStrategy" as "concurrencyLimitStrategy"
+FROM
+    "WorkflowVersion" as wv
+JOIN "Workflow" as w on w."id" = wv."workflowId"
+LEFT JOIN "WorkflowConcurrency" as wc ON wc."workflowVersionId" = wv."id"
+WHERE
+    wv."id" = @id::uuid AND
+    wv."deletedAt" IS NULL
+LIMIT 1;
+
+-- name: GetWorkflowById :one
+SELECT
+    sqlc.embed(w),
+    wv."id" as "workflowVersionId"
+FROM
+    "Workflow" as w
+LEFT JOIN "WorkflowVersion" as wv ON w."id" = wv."workflowId"
+WHERE
+    w."id" = @id::uuid AND
+    w."deletedAt" IS NULL
+ORDER BY
+    wv."order" DESC
+LIMIT 1;

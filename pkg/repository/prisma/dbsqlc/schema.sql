@@ -278,12 +278,11 @@ CREATE TABLE "SecurityCheckIdent" (
 
 -- CreateTable
 CREATE TABLE "SemaphoreQueueItem" (
-    "id" BIGSERIAL NOT NULL,
     "stepRunId" UUID NOT NULL,
     "workerId" UUID NOT NULL,
     "tenantId" UUID NOT NULL,
 
-    CONSTRAINT "SemaphoreQueueItem_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "SemaphoreQueueItem_pkey" PRIMARY KEY ("stepRunId")
 );
 
 -- CreateTable
@@ -422,6 +421,7 @@ CREATE TABLE "StepRunResultArchive" (
     "cancelledAt" TIMESTAMP(3),
     "cancelledReason" TEXT,
     "cancelledError" TEXT,
+    "retryCount" INTEGER NOT NULL DEFAULT 0,
 
     CONSTRAINT "StepRunResultArchive_pkey" PRIMARY KEY ("id")
 );
@@ -1009,7 +1009,7 @@ CREATE UNIQUE INDEX "SNSIntegration_tenantId_topicArn_key" ON "SNSIntegration"("
 CREATE UNIQUE INDEX "SecurityCheckIdent_id_key" ON "SecurityCheckIdent"("id" ASC);
 
 -- CreateIndex
-CREATE UNIQUE INDEX "SemaphoreQueueItem_stepRunId_workerId_key" ON "SemaphoreQueueItem"("stepRunId" ASC, "workerId" ASC);
+CREATE UNIQUE INDEX "SemaphoreQueueItem_stepRunId_key" ON "SemaphoreQueueItem"("stepRunId" ASC);
 
 -- CreateIndex
 CREATE INDEX "SemaphoreQueueItem_tenantId_workerId_idx" ON "SemaphoreQueueItem"("tenantId" ASC, "workerId" ASC);
@@ -1057,9 +1057,6 @@ CREATE INDEX "StepRun_id_tenantId_idx" ON "StepRun"("id" ASC, "tenantId" ASC);
 CREATE INDEX "StepRun_jobRunId_status_idx" ON "StepRun"("jobRunId" ASC, "status" ASC);
 
 -- CreateIndex
-CREATE INDEX "StepRun_jobRunId_status_tenantId_idx" ON "StepRun"("jobRunId" ASC, "status" ASC, "tenantId" ASC);
-
--- CreateIndex
 CREATE INDEX "StepRun_jobRunId_tenantId_order_idx" ON "StepRun"("jobRunId" ASC, "tenantId" ASC, "order" ASC);
 
 -- CreateIndex
@@ -1067,9 +1064,6 @@ CREATE INDEX "StepRun_stepId_idx" ON "StepRun"("stepId" ASC);
 
 -- CreateIndex
 CREATE INDEX "StepRun_tenantId_idx" ON "StepRun"("tenantId" ASC);
-
--- CreateIndex
-CREATE INDEX "StepRun_tenantId_status_timeoutAt_idx" ON "StepRun"("tenantId" ASC, "status" ASC, "timeoutAt" ASC);
 
 -- CreateIndex
 CREATE INDEX "StepRun_workerId_idx" ON "StepRun"("workerId" ASC);

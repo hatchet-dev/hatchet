@@ -5,8 +5,7 @@ FROM
     "StepRun"
 WHERE
     "id" = @id::uuid AND
-    "deletedAt" IS NULL AND
-    "tenantId" = @tenantId::uuid;
+    "deletedAt" IS NULL;
 
 -- name: GetStepRunDataForEngine :one
 SELECT
@@ -43,6 +42,19 @@ WHERE sr."id" = @stepRunId::uuid
 AND sr."tenantId" = @tenantId::uuid;
 
 -- name: GetStepRunForEngine :many
+WITH child_count AS (
+    SELECT
+        COUNT(*) AS "childCount",
+        sr."id" AS "id"
+    FROM
+        "StepRun" sr
+    LEFT JOIN
+        "_StepRunOrder" AS step_run_order ON sr."id" = step_run_order."A"
+    WHERE
+        sr."id" = ANY(@ids::uuid[])
+    GROUP BY
+        sr."id"
+)
 SELECT
     DISTINCT ON (sr."id")
     sr."id" AS "SR_id",
@@ -52,7 +64,7 @@ SELECT
     sr."tenantId" AS "SR_tenantId",
     sr."queue" AS "SR_queue",
     sr."order" AS "SR_order",
-    sr."workerId" AS "SR_workerId",
+    sqi."workerId" AS "SR_workerId",
     sr."tickerId" AS "SR_tickerId",
     sr."status" AS "SR_status",
     sr."requeueAfter" AS "SR_requeueAfter",
@@ -68,6 +80,7 @@ SELECT
     sr."retryCount" AS "SR_retryCount",
     sr."semaphoreReleased" AS "SR_semaphoreReleased",
     sr."priority" AS "SR_priority",
+    cc."childCount" AS "SR_childCount",
     -- TODO: everything below this line is cacheable and should be moved to a separate query
     jr."id" AS "jobRunId",
     s."id" AS "stepId",
@@ -88,6 +101,8 @@ SELECT
 FROM
     "StepRun" sr
 JOIN
+    child_count cc ON sr."id" = cc."id"
+JOIN
     "Step" s ON sr."stepId" = s."id"
 JOIN
     "Action" a ON s."actionId" = a."actionId" AND s."tenantId" = a."tenantId"
@@ -95,6 +110,8 @@ JOIN
     "JobRun" jr ON sr."jobRunId" = jr."id"
 JOIN
     "Job" j ON jr."jobId" = j."id"
+LEFT JOIN
+    "SemaphoreQueueItem" sqi ON sr."id" = sqi."stepRunId"
 LEFT JOIN
     "WorkflowRunStickyState" sticky ON jr."workflowRunId" = sticky."workflowRunId"
 WHERE
@@ -208,7 +225,7 @@ WHERE
 UPDATE
     "StepRun"
 SET
-    -- note that workerId has already been set to NULL
+    -- note that workerId has already been removed via SemaphoreQueueItem
     "semaphoreReleased" = true
 WHERE
     "id" = @stepRunId::uuid AND
@@ -370,6 +387,7 @@ WITH step_run_data AS (
         "createdAt",
         "updatedAt",
         "deletedAt",
+        "retryCount",
         "order",
         "input",
         "output",
@@ -392,6 +410,7 @@ INSERT INTO "StepRunResultArchive" (
     "updatedAt",
     "deletedAt",
     "stepRunId",
+    "retryCount",
     "input",
     "output",
     "error",
@@ -408,9 +427,10 @@ SELECT
     CURRENT_TIMESTAMP,
     step_run_data."deletedAt",
     step_run_data.step_run_id,
+    step_run_data."retryCount",
     step_run_data."input",
     step_run_data."output",
-    step_run_data."error",
+    COALESCE(sqlc.narg('error')::text, step_run_data."error"),
     step_run_data."startedAt",
     step_run_data."finishedAt",
     step_run_data."timeoutAt",
@@ -421,36 +441,38 @@ FROM step_run_data
 RETURNING *;
 
 -- name: ListStepRunsToReassign :many
-WITH inactive_workers AS (
-    SELECT
-        w."id"
-    FROM
-        "Worker" w
-    WHERE
-        w."tenantId" = @tenantId::uuid
-        AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
-),
-step_runs_to_reassign AS (
-    SELECT "id", "workerId", "retryCount"
-    FROM "StepRun"
-    WHERE
-        "workerId" = ANY(SELECT "id" FROM inactive_workers)
-),
-step_runs_with_data AS (
+WITH step_runs_to_reassign AS (
     SELECT
         sr."id",
         sr."tenantId",
         sr."scheduleTimeoutAt",
+        sr."retryCount",
+        sqi."workerId",
         s."actionId",
         s."id" AS "stepId",
         s."timeout" AS "stepTimeout",
         s."scheduleTimeout" AS "scheduleTimeout"
     FROM
-        "StepRun" sr
+        "Worker" w
+    LEFT JOIN
+        "SemaphoreQueueItem" sqi ON w."id" = sqi."workerId"
+    JOIN
+        "StepRun" sr ON sr."id" = sqi."stepRunId"
     JOIN
         "Step" s ON sr."stepId" = s."id"
     WHERE
-        sr."id" = ANY(SELECT "id" FROM step_runs_to_reassign)
+        w."tenantId" = @tenantId::uuid
+        AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
+),
+deleted_sqis AS (
+    DELETE FROM
+        "SemaphoreQueueItem" sqi
+    -- delete when step run id AND worker id tuples match
+    USING
+        step_runs_to_reassign srs
+    WHERE
+        sqi."stepRunId" = srs."id"
+        AND sqi."workerId" = srs."workerId"
 ),
 inserted_queue_items AS (
     INSERT INTO "QueueItem" (
@@ -476,25 +498,24 @@ inserted_queue_items AS (
         srs."tenantId",
         srs."actionId"
     FROM
-        step_runs_with_data srs
+        step_runs_to_reassign srs
 ),
 updated_step_runs AS (
     UPDATE "StepRun" sr
     SET
         "status" = 'PENDING_ASSIGNMENT',
         "scheduleTimeoutAt" = CURRENT_TIMESTAMP + COALESCE(convert_duration_to_interval(srs."scheduleTimeout"), INTERVAL '5 minutes'),
-        "updatedAt" = CURRENT_TIMESTAMP,
-        "workerId" = NULL
-    FROM step_runs_with_data srs
+        "updatedAt" = CURRENT_TIMESTAMP
+    FROM step_runs_to_reassign srs
     WHERE sr."id" = srs."id"
     RETURNING sr."id"
 )
 SELECT
-    srtr."id",
-    srtr."workerId",
-    srtr."retryCount"
+    srs."id",
+    srs."workerId",
+    srs."retryCount"
 FROM
-    step_runs_to_reassign srtr;
+    step_runs_to_reassign srs;
 
 -- name: ListStepRunsToTimeout :many
 SELECT "id"
@@ -522,25 +543,28 @@ WHERE
 RETURNING *;
 
 -- name: UpdateStepRunUnsetWorkerId :one
-UPDATE "StepRun" newsr
-SET
-    "workerId" = NULL
+WITH oldsr AS (
+    SELECT
+        "id",
+        "workerId",
+        "retryCount"
+    FROM
+        "StepRun"
+    WHERE
+        "id" = @stepRunId::uuid AND
+        "tenantId" = @tenantId::uuid
+), deleted_sqi AS (
+    DELETE FROM
+        "SemaphoreQueueItem" sqi
+    WHERE
+        sqi."stepRunId" = @stepRunId::uuid
+    RETURNING sqi."workerId"
+)
+SELECT
+    deleted_sqi."workerId" AS "workerId",
+    oldsr."retryCount" AS "retryCount"
 FROM
-    (
-        SELECT
-            "id",
-            "workerId",
-            "retryCount"
-        FROM
-            "StepRun"
-        WHERE
-            "id" = @stepRunId::uuid AND
-            "tenantId" = @tenantId::uuid
-    ) AS oldsr
-WHERE
-    newsr."id" = oldsr."id"
--- return whether old worker id was set
-RETURNING oldsr."workerId", oldsr."retryCount";
+    deleted_sqi, oldsr;
 
 -- name: CheckWorker :one
 SELECT
@@ -612,18 +636,31 @@ WITH input AS (
                 unnest(@workerIds::uuid[]) AS "workerId"
         ) AS subquery
 ), updated_step_runs AS (
-    UPDATE
-        "StepRun" sr
+    SELECT
+        sr."id",
+        sr."retryCount",
+        sr."tenantId",
+        CURRENT_TIMESTAMP + convert_duration_to_interval(input."stepTimeout") AS "timeoutAt"
+    FROM
+        input
+    JOIN
+        "StepRun" sr ON sr."id" = input."id"
+), assignments AS (
+    INSERT INTO "SemaphoreQueueItem" (
+        "stepRunId",
+        "workerId",
+        "tenantId"
+    )
+    SELECT
+        input."id",
+        input."workerId",
+        @tenantId::uuid
+    FROM
+        input
+    -- conflicting step run id should update workerId
+    ON CONFLICT ("stepRunId") DO UPDATE
     SET
-        "status" = 'ASSIGNED',
-        "workerId" = input."workerId",
-        "tickerId" = NULL,
-        "updatedAt" = CURRENT_TIMESTAMP,
-        "timeoutAt" = CURRENT_TIMESTAMP + convert_duration_to_interval(input."stepTimeout")
-    FROM input
-    WHERE
-        sr."id" = input."id"
-    RETURNING sr."id", sr."retryCount", sr."tenantId", sr."timeoutAt"
+        "workerId" = EXCLUDED."workerId"
 )
 -- bulk insert into timeout queue items
 INSERT INTO
@@ -674,11 +711,12 @@ SELECT
     "intValue",
     "required",
     "weight",
-    "comparator"
+    "comparator",
+    "stepId"
 FROM
     "StepDesiredWorkerLabel"
 WHERE
-    "stepId" = @stepId::uuid;
+    "stepId" = ANY(@stepIds::uuid[]);
 
 -- name: GetWorkerLabels :many
 SELECT
@@ -745,6 +783,7 @@ WITH input_values AS (
         CURRENT_TIMESTAMP AS "timeFirstSeen",
         CURRENT_TIMESTAMP AS "timeLastSeen",
         @stepRunId::uuid AS "stepRunId",
+        @jobRunid::uuid AS "jobRunId",
         @reason::"StepRunEventReason" AS "reason",
         @severity::"StepRunEventSeverity" AS "severity",
         @message::text AS "message",
@@ -874,6 +913,24 @@ OFFSET
     COALESCE(sqlc.narg('offset'), 0)
 LIMIT
     COALESCE(sqlc.narg('limit'), 50);
+
+
+-- name: ListStepRunEventsByWorkflowRunId :many
+SELECT
+    sre.*
+FROM
+    "StepRunEvent" sre
+JOIN
+    "StepRun" sr ON sr."id" = sre."stepRunId"
+JOIN
+    "JobRun" jr ON jr."id" = sr."jobRunId"
+WHERE
+    jr."workflowRunId" = @workflowRunId::uuid
+    AND jr."tenantId" = @tenantId::uuid
+    AND sre."id" > COALESCE(sqlc.narg('lastId'), 0)
+    -- / TODO ID > Last ID
+ORDER BY
+    sre."id" DESC;
 
 -- name: ReplayStepRunResetWorkflowRun :one
 UPDATE
@@ -1043,7 +1100,7 @@ WHERE
     "StepRun"."tenantId" = @tenantId::uuid AND
     "StepRun"."deletedAt" IS NULL
 ORDER BY
-    "StepRunResultArchive"."createdAt"
+    "StepRunResultArchive"."createdAt" DESC
 OFFSET
     COALESCE(sqlc.narg('offset'), 0)
 LIMIT
@@ -1110,3 +1167,28 @@ WHERE
     "id" IN (SELECT "id" FROM deleted_with_limit)
 RETURNING
     (SELECT has_more FROM has_more) as has_more;
+
+-- name: HasActiveWorkersForActionId :one
+SELECT
+    COUNT(DISTINCT w."id") AS "total"
+FROM
+    "Worker" w
+JOIN
+    "_ActionToWorker" atw ON w."id" = atw."B"
+JOIN
+    "Action" a ON atw."A" = a."id"
+WHERE
+    w."tenantId" = @tenantId::uuid
+    AND a."actionId" = @actionId::text
+    AND w."isActive" = true
+    AND w."lastHeartbeatAt" > NOW() - INTERVAL '6 seconds';
+
+-- name: ListChildWorkflowRunIds :many
+SELECT
+    "id"
+FROM
+    "WorkflowRun"
+WHERE
+    "parentStepRunId" = @stepRun::uuid
+    AND "tenantId" = @tenantId::uuid
+    AND "deletedAt" IS NULL;

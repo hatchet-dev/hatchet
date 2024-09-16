@@ -75,7 +75,9 @@ const RelativeDate: React.FC<RelativeDateProps> = ({
             <TimeAgo datetime={formattedDate} />
           )}
         </TooltipTrigger>
-        <TooltipContent>{formattedDate.toLocaleString()}</TooltipContent>
+        <TooltipContent className="z-[80]">
+          {formattedDate.toLocaleString()}
+        </TooltipContent>
       </Tooltip>
     </TooltipProvider>
   );

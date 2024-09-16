@@ -39,6 +39,15 @@ func (j *jobRunAPIRepository) SetJobRunStatusRunning(tenantId, jobRunId string) 
 	return setJobRunStatusRunning(context.Background(), j.pool, j.queries, j.l, tenantId, jobRunId)
 }
 
+func (j *jobRunAPIRepository) ListJobRunByWorkflowRunId(ctx context.Context, tenantId, workflowRunId string) ([]*dbsqlc.ListJobRunsForWorkflowRunFullRow, error) {
+	return j.queries.ListJobRunsForWorkflowRunFull(ctx, j.pool,
+		dbsqlc.ListJobRunsForWorkflowRunFullParams{
+			Tenantid:      sqlchelpers.UUIDFromStr(tenantId),
+			Workflowrunid: sqlchelpers.UUIDFromStr(workflowRunId),
+		},
+	)
+}
+
 type jobRunEngineRepository struct {
 	pool    *pgxpool.Pool
 	v       validator.Validator

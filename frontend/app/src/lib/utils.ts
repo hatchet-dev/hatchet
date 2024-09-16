@@ -141,23 +141,17 @@ export function timeFrom(time: string | number, secondTime?: string | number) {
   return tfn;
 }
 
-export function formatDuration(duration: number) {
-  const milliseconds = duration % 1000;
-  const seconds = Math.round(duration / 1000);
-  const minutes = Math.round(seconds / 60);
-  const hours = Math.round(minutes / 60);
-
-  if (seconds == 0 && hours == 0 && minutes == 0) {
-    return `${milliseconds}ms`;
+export function formatDuration(ms: number): string {
+  if (ms < 1000) {
+    return `${ms}ms`;
+  } else if (ms < 60000) {
+    return `${(ms / 1000).toFixed(1)}s`;
+  } else if (ms < 3600000) {
+    return `${Math.floor(ms / 60000)}m ${Math.floor((ms % 60000) / 1000)}s`;
+  } else {
+    const hours = Math.floor(ms / 3600000);
+    const minutes = Math.floor((ms % 3600000) / 60000);
+    const seconds = Math.floor((ms % 60000) / 1000);
+    return `${hours}h ${minutes}m ${seconds}s`;
   }
-
-  if (hours > 0) {
-    return `${hours}h ${minutes % 60}m`;
-  }
-
-  if (minutes > 0) {
-    return `${minutes}m ${seconds % 60}s`;
-  }
-
-  return `${seconds}s`;
 }

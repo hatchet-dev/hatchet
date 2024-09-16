@@ -11,23 +11,32 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
+	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 )
 
 func (t *StepRunService) StepRunUpdateCancel(ctx echo.Context, request gen.StepRunUpdateCancelRequestObject) (gen.StepRunUpdateCancelResponseObject, error) {
 	tenant := ctx.Get("tenant").(*db.TenantModel)
-	stepRun := ctx.Get("step-run").(*db.StepRunModel)
+	stepRun := ctx.Get("step-run").(*repository.GetStepRunFull)
 
 	// check to see if the step run is in a running or pending state
 	status := stepRun.Status
 
-	if status == db.StepRunStatusFailed || status == db.StepRunStatusCancelled || status == db.StepRunStatusSucceeded {
+	canCancel := status == dbsqlc.StepRunStatusRUNNING || status == dbsqlc.StepRunStatusPENDING
+
+	if !canCancel {
 		return gen.StepRunUpdateCancel400JSONResponse(
 			apierrors.NewAPIErrors("step run is not in a running or pending state"),
 		), nil
 	}
 
-	engineStepRun, err := t.config.EngineRepository.StepRun().GetStepRunForEngine(ctx.Request().Context(), tenant.ID, stepRun.ID)
+	engineStepRun, err := t.config.EngineRepository.StepRun().GetStepRunForEngine(
+		ctx.Request().Context(),
+		tenant.ID,
+		sqlchelpers.UUIDToStr(stepRun.ID),
+	)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not get step run for engine: %w", err)
@@ -48,7 +57,7 @@ func (t *StepRunService) StepRunUpdateCancel(ctx echo.Context, request gen.StepR
 
 	// wait for a short period of time
 	for i := 0; i < 5; i++ {
-		newStepRun, err := t.config.APIRepository.StepRun().GetStepRunById(tenant.ID, stepRun.ID)
+		newStepRun, err := t.config.APIRepository.StepRun().GetStepRunById(sqlchelpers.UUIDToStr(stepRun.ID))
 
 		if err != nil {
 			return nil, fmt.Errorf("could not get step run: %w", err)
@@ -62,13 +71,7 @@ func (t *StepRunService) StepRunUpdateCancel(ctx echo.Context, request gen.StepR
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	res, err := transformers.ToStepRun(stepRun)
-
-	if err != nil {
-		return nil, fmt.Errorf("could not transform step run: %w", err)
-	}
-
 	return gen.StepRunUpdateCancel200JSONResponse(
-		*res,
+		*transformers.ToStepRunFull(stepRun),
 	), nil
 }

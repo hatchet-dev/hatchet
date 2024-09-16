@@ -261,6 +261,66 @@ listEvents:
     summary: List events for step run
     tags:
       - Step Run
+
+listStepRunEventsForWorkflowRun:
+  get:
+    x-resources: ["tenant"]
+    description: List events for all step runs for a workflow run
+    operationId: workflow-run:list:step-run-events
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The workflow run id
+        in: path
+        name: workflow-run
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: Last ID of the last event
+        in: query
+        name: lastId
+        required: false
+        schema:
+          type: integer
+          format: int32
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/StepRunEventList"
+        description: Successfully retrieved the events
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+      "404":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: The step run was not found
+    summary: List events for all step runs for a workflow run
+    tags:
+      - Step Run
 listArchives:
   get:
     x-resources: ["tenant", "step-run"]

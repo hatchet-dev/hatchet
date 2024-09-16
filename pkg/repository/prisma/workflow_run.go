@@ -33,7 +33,7 @@ type workflowRunAPIRepository struct {
 	l       *zerolog.Logger
 	m       *metered.Metered
 
-	callbacks []repository.Callback[*db.WorkflowRunModel]
+	callbacks []repository.Callback[*dbsqlc.WorkflowRun]
 }
 
 func NewWorkflowRunRepository(client *db.PrismaClient, pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, m *metered.Metered) repository.WorkflowRunAPIRepository {
@@ -49,9 +49,9 @@ func NewWorkflowRunRepository(client *db.PrismaClient, pool *pgxpool.Pool, v val
 	}
 }
 
-func (w *workflowRunAPIRepository) RegisterCreateCallback(callback repository.Callback[*db.WorkflowRunModel]) {
+func (w *workflowRunAPIRepository) RegisterCreateCallback(callback repository.Callback[*dbsqlc.WorkflowRun]) {
 	if w.callbacks == nil {
-		w.callbacks = make([]repository.Callback[*db.WorkflowRunModel], 0)
+		w.callbacks = make([]repository.Callback[*dbsqlc.WorkflowRun], 0)
 	}
 
 	w.callbacks = append(w.callbacks, callback)
@@ -93,45 +93,104 @@ func (w *workflowRunAPIRepository) GetWorkflowRunInputData(tenantId, workflowRun
 	return lookupData.Input, nil
 }
 
-func (w *workflowRunAPIRepository) CreateNewWorkflowRun(ctx context.Context, tenantId string, opts *repository.CreateWorkflowRunOpts) (*db.WorkflowRunModel, error) {
-	return metered.MakeMetered(ctx, w.m, dbsqlc.LimitResourceWORKFLOWRUN, tenantId, func() (*string, *db.WorkflowRunModel, error) {
+func (w *workflowRunAPIRepository) CreateNewWorkflowRun(ctx context.Context, tenantId string, opts *repository.CreateWorkflowRunOpts) (*dbsqlc.WorkflowRun, error) {
+	return metered.MakeMetered(ctx, w.m, dbsqlc.LimitResourceWORKFLOWRUN, tenantId, func() (*string, *dbsqlc.WorkflowRun, error) {
 		if err := w.v.Validate(opts); err != nil {
 			return nil, nil, err
 		}
 
-		workflowRunId, err := createNewWorkflowRun(ctx, w.pool, w.queries, w.l, tenantId, opts)
+		workflowRun, err := createNewWorkflowRun(ctx, w.pool, w.queries, w.l, tenantId, opts)
 
 		if err != nil {
 			return nil, nil, err
 		}
 
-		id := sqlchelpers.UUIDToStr(workflowRunId.ID)
+		id := sqlchelpers.UUIDToStr(workflowRun.ID)
 
-		res, err := w.client.WorkflowRun.FindUnique(
-			db.WorkflowRun.ID.Equals(id),
-		).With(
-			defaultWorkflowRunPopulator()...,
-		).Exec(context.Background())
+		// res, err := w.client.WorkflowRun.FindUnique(
+		// 	db.WorkflowRun.ID.Equals(id),
+		// ).With(
+		// 	defaultWorkflowRunPopulator()...,
+		// ).Exec(context.Background())
 
-		if err != nil {
-			return nil, nil, err
-		}
+		// if err != nil {
+		// 	return nil, nil, err
+		// }
 
 		for _, cb := range w.callbacks {
-			cb.Do(res) // nolint: errcheck
+			cb.Do(workflowRun) // nolint: errcheck
 		}
 
-		return &res.ID, res, nil
+		return &id, workflowRun, nil
 	})
 }
 
-func (w *workflowRunAPIRepository) GetWorkflowRunById(tenantId, id string) (*db.WorkflowRunModel, error) {
-	return w.client.WorkflowRun.FindFirst(
-		db.WorkflowRun.ID.Equals(id),
-		db.WorkflowRun.DeletedAt.IsNull(),
-	).With(
-		defaultWorkflowRunPopulator()...,
-	).Exec(context.Background())
+func (w *workflowRunAPIRepository) GetWorkflowRunById(ctx context.Context, tenantId, id string) (*dbsqlc.GetWorkflowRunByIdRow, error) {
+	return w.queries.GetWorkflowRunById(ctx, w.pool, dbsqlc.GetWorkflowRunByIdParams{
+		Tenantid:      sqlchelpers.UUIDFromStr(tenantId),
+		Workflowrunid: sqlchelpers.UUIDFromStr(id),
+	})
+}
+
+func (w *workflowRunAPIRepository) GetStepsForJobs(ctx context.Context, tenantId string, jobIds []string) ([]*dbsqlc.GetStepsForJobsRow, error) {
+	jobIdsPg := make([]pgtype.UUID, len(jobIds))
+
+	for i := range jobIds {
+		jobIdsPg[i] = sqlchelpers.UUIDFromStr(jobIds[i])
+	}
+
+	return w.queries.GetStepsForJobs(ctx, w.pool, dbsqlc.GetStepsForJobsParams{
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Jobids:   jobIdsPg,
+	})
+}
+
+func (w *workflowRunAPIRepository) GetStepRunsForJobRuns(ctx context.Context, tenantId string, jobRunIds []string) ([]*repository.StepRunForJobRun, error) {
+	jobRunIdsPg := make([]pgtype.UUID, len(jobRunIds))
+
+	for i := range jobRunIds {
+		jobRunIdsPg[i] = sqlchelpers.UUIDFromStr(jobRunIds[i])
+	}
+
+	stepRuns, err := w.queries.GetStepRunsForJobRuns(ctx, w.pool, dbsqlc.GetStepRunsForJobRunsParams{
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Jobids:   jobRunIdsPg,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	stepRunIds := make([]pgtype.UUID, len(stepRuns))
+
+	for i, stepRun := range stepRuns {
+		stepRunIds[i] = stepRun.ID
+	}
+
+	childCounts, err := w.queries.ListChildWorkflowRunCounts(ctx, w.pool, stepRunIds)
+
+	if err != nil {
+		return nil, err
+	}
+
+	stepRunIdToChildCount := make(map[string]int)
+
+	for _, childCount := range childCounts {
+		stepRunIdToChildCount[sqlchelpers.UUIDToStr(childCount.ParentStepRunId)] = int(childCount.Count)
+	}
+
+	res := make([]*repository.StepRunForJobRun, len(stepRuns))
+
+	for i, stepRun := range stepRuns {
+		childCount := stepRunIdToChildCount[sqlchelpers.UUIDToStr(stepRun.ID)]
+
+		res[i] = &repository.StepRunForJobRun{
+			GetStepRunsForJobRunsRow: stepRun,
+			ChildWorkflowsCount:      childCount,
+		}
+	}
+
+	return res, nil
 }
 
 type workflowRunEngineRepository struct {
@@ -353,7 +412,7 @@ func (s *workflowRunEngineRepository) ReplayWorkflowRun(ctx context.Context, ten
 		// archive each of the step run results
 		for _, stepRunId := range stepRuns {
 			stepRunIdStr := sqlchelpers.UUIDToStr(stepRunId)
-			err = archiveStepRunResult(ctx, s.queries, tx, tenantId, stepRunIdStr)
+			err = archiveStepRunResult(ctx, s.queries, tx, tenantId, stepRunIdStr, nil)
 
 			if err != nil {
 				return fmt.Errorf("error archiving step run result: %w", err)
