@@ -398,6 +398,7 @@ func (s *stepRunEngineRepository) ListStepRunsToReassign(ctx context.Context, te
 	}
 
 	messages := make([]string, len(stepRunIds))
+	timeSeen := make([]pgtype.Timestamp, len(stepRunIds))
 	reasons := make([]dbsqlc.StepRunEventReason, len(stepRunIds))
 	severities := make([]dbsqlc.StepRunEventSeverity, len(stepRunIds))
 	data := make([]map[string]interface{}, len(stepRunIds))
@@ -407,6 +408,7 @@ func (s *stepRunEngineRepository) ListStepRunsToReassign(ctx context.Context, te
 		messages[i] = "Worker has become inactive"
 		reasons[i] = dbsqlc.StepRunEventReasonREASSIGNED
 		severities[i] = dbsqlc.StepRunEventSeverityCRITICAL
+		timeSeen[i] = sqlchelpers.TimestampFromTime(time.Now().UTC())
 		data[i] = map[string]interface{}{"worker_id": workerId}
 	}
 
@@ -416,6 +418,7 @@ func (s *stepRunEngineRepository) ListStepRunsToReassign(ctx context.Context, te
 		s.pool,
 		s.queries,
 		stepRunIds,
+		timeSeen,
 		reasons,
 		severities,
 		messages,
@@ -634,6 +637,7 @@ func (s *stepRunEngineRepository) bulkStepRunsAssigned(
 
 	workerIdToStepRunIds := make(map[string][]string)
 	messages := make([]string, len(stepRunIds))
+	timeSeen := make([]pgtype.Timestamp, len(stepRunIds))
 	reasons := make([]dbsqlc.StepRunEventReason, len(stepRunIds))
 	severities := make([]dbsqlc.StepRunEventSeverity, len(stepRunIds))
 	data := make([]map[string]interface{}, len(stepRunIds))
@@ -647,6 +651,7 @@ func (s *stepRunEngineRepository) bulkStepRunsAssigned(
 
 		workerIdToStepRunIds[workerId] = append(workerIdToStepRunIds[workerId], sqlchelpers.UUIDToStr(stepRunIds[i]))
 		messages[i] = fmt.Sprintf("Assigned to worker %s", workerId)
+		timeSeen[i] = sqlchelpers.TimestampFromTime(time.Now().UTC())
 		reasons[i] = dbsqlc.StepRunEventReasonASSIGNED
 		severities[i] = dbsqlc.StepRunEventSeverityINFO
 		data[i] = map[string]interface{}{"worker_id": workerId}
@@ -676,6 +681,7 @@ func (s *stepRunEngineRepository) bulkStepRunsAssigned(
 		s.pool,
 		s.queries,
 		stepRunIds,
+		timeSeen,
 		reasons,
 		severities,
 		messages,
@@ -690,6 +696,7 @@ func (s *stepRunEngineRepository) bulkStepRunsUnassigned(
 	defer cancel()
 
 	messages := make([]string, len(stepRunIds))
+	timeSeen := make([]pgtype.Timestamp, len(stepRunIds))
 	reasons := make([]dbsqlc.StepRunEventReason, len(stepRunIds))
 	severities := make([]dbsqlc.StepRunEventSeverity, len(stepRunIds))
 	data := make([]map[string]interface{}, len(stepRunIds))
@@ -698,6 +705,7 @@ func (s *stepRunEngineRepository) bulkStepRunsUnassigned(
 		messages[i] = "No worker available"
 		reasons[i] = dbsqlc.StepRunEventReasonREQUEUEDNOWORKER
 		severities[i] = dbsqlc.StepRunEventSeverityWARNING
+		timeSeen[i] = sqlchelpers.TimestampFromTime(time.Now().UTC())
 		// TODO: semaphore extra data
 		data[i] = map[string]interface{}{}
 	}
@@ -708,6 +716,7 @@ func (s *stepRunEngineRepository) bulkStepRunsUnassigned(
 		s.pool,
 		s.queries,
 		stepRunIds,
+		timeSeen,
 		reasons,
 		severities,
 		messages,
@@ -722,6 +731,7 @@ func (s *stepRunEngineRepository) bulkStepRunsRateLimited(
 	defer cancel()
 
 	messages := make([]string, len(stepRunIds))
+	timeSeen := make([]pgtype.Timestamp, len(stepRunIds))
 	reasons := make([]dbsqlc.StepRunEventReason, len(stepRunIds))
 	severities := make([]dbsqlc.StepRunEventSeverity, len(stepRunIds))
 	data := make([]map[string]interface{}, len(stepRunIds))
@@ -730,6 +740,7 @@ func (s *stepRunEngineRepository) bulkStepRunsRateLimited(
 		messages[i] = "Rate limit exceeded"
 		reasons[i] = dbsqlc.StepRunEventReasonREQUEUEDRATELIMIT
 		severities[i] = dbsqlc.StepRunEventSeverityWARNING
+		timeSeen[i] = sqlchelpers.TimestampFromTime(time.Now().UTC())
 		// TODO: semaphore extra data
 		data[i] = map[string]interface{}{}
 	}
@@ -740,6 +751,7 @@ func (s *stepRunEngineRepository) bulkStepRunsRateLimited(
 		s.pool,
 		s.queries,
 		stepRunIds,
+		timeSeen,
 		reasons,
 		severities,
 		messages,
@@ -753,6 +765,7 @@ func deferredBulkStepRunEvents(
 	dbtx dbsqlc.DBTX,
 	queries *dbsqlc.Queries,
 	stepRunIds []pgtype.UUID,
+	timeSeen []pgtype.Timestamp,
 	reasons []dbsqlc.StepRunEventReason,
 	severities []dbsqlc.StepRunEventSeverity,
 	messages []string,
@@ -787,6 +800,7 @@ func deferredBulkStepRunEvents(
 		Severities: inputSeverities,
 		Messages:   messages,
 		Data:       inputData,
+		Timeseen:   timeSeen,
 	})
 
 	if err != nil {
@@ -1374,6 +1388,7 @@ func (s *stepRunEngineRepository) ProcessStepRunUpdates(ctx context.Context, qlp
 	finishParams := dbsqlc.BulkFinishStepRunParams{}
 
 	stepRunIds := make([]pgtype.UUID, 0, len(data))
+	eventTimeSeen := make([]pgtype.Timestamp, 0, len(data))
 	eventReasons := make([]dbsqlc.StepRunEventReason, 0, len(data))
 	eventStepRunIds := make([]pgtype.UUID, 0, len(data))
 	eventSeverities := make([]dbsqlc.StepRunEventSeverity, 0, len(data))
@@ -1413,6 +1428,12 @@ func (s *stepRunEngineRepository) ProcessStepRunUpdates(ctx context.Context, qlp
 				eventData = append(eventData, map[string]interface{}{})
 			}
 
+			if item.Event.Timestamp != nil {
+				eventTimeSeen = append(eventTimeSeen, sqlchelpers.TimestampFromTime(*item.Event.Timestamp))
+			} else {
+				eventTimeSeen = append(eventTimeSeen, sqlchelpers.TimestampFromTime(time.Now().UTC()))
+			}
+
 			continue
 		}
 
@@ -1427,6 +1448,7 @@ func (s *stepRunEngineRepository) ProcessStepRunUpdates(ctx context.Context, qlp
 			startParams.Steprunids = append(startParams.Steprunids, stepRunId)
 			startParams.Startedats = append(startParams.Startedats, sqlchelpers.TimestampFromTime(*item.StartedAt))
 			eventStepRunIds = append(eventStepRunIds, stepRunId)
+			eventTimeSeen = append(eventTimeSeen, sqlchelpers.TimestampFromTime(*item.StartedAt))
 			eventReasons = append(eventReasons, dbsqlc.StepRunEventReasonSTARTED)
 			eventSeverities = append(eventSeverities, dbsqlc.StepRunEventSeverityINFO)
 			eventMessages = append(eventMessages, fmt.Sprintf("Step run started at %s", item.StartedAt.Format(time.RFC1123)))
@@ -1434,6 +1456,7 @@ func (s *stepRunEngineRepository) ProcessStepRunUpdates(ctx context.Context, qlp
 		case dbsqlc.StepRunStatusFAILED:
 			failParams.Steprunids = append(failParams.Steprunids, stepRunId)
 			failParams.Finishedats = append(failParams.Finishedats, sqlchelpers.TimestampFromTime(*item.FinishedAt))
+			eventTimeSeen = append(eventTimeSeen, sqlchelpers.TimestampFromTime(*item.FinishedAt))
 			failParams.Errors = append(failParams.Errors, *item.Error)
 
 			eventStepRunIds = append(eventStepRunIds, stepRunId)
@@ -1454,6 +1477,7 @@ func (s *stepRunEngineRepository) ProcessStepRunUpdates(ctx context.Context, qlp
 		case dbsqlc.StepRunStatusCANCELLED:
 			cancelParams.Steprunids = append(cancelParams.Steprunids, stepRunId)
 			cancelParams.Cancelledats = append(cancelParams.Cancelledats, sqlchelpers.TimestampFromTime(*item.CancelledAt))
+			eventTimeSeen = append(eventTimeSeen, sqlchelpers.TimestampFromTime(*item.CancelledAt))
 			cancelParams.Cancelledreasons = append(cancelParams.Cancelledreasons, *item.CancelledReason)
 			eventStepRunIds = append(eventStepRunIds, stepRunId)
 			eventReasons = append(eventReasons, dbsqlc.StepRunEventReasonCANCELLED)
@@ -1463,6 +1487,7 @@ func (s *stepRunEngineRepository) ProcessStepRunUpdates(ctx context.Context, qlp
 		case dbsqlc.StepRunStatusSUCCEEDED:
 			finishParams.Steprunids = append(finishParams.Steprunids, stepRunId)
 			finishParams.Finishedats = append(finishParams.Finishedats, sqlchelpers.TimestampFromTime(*item.FinishedAt))
+			eventTimeSeen = append(eventTimeSeen, sqlchelpers.TimestampFromTime(*item.FinishedAt))
 			finishParams.Outputs = append(finishParams.Outputs, item.Output)
 			eventStepRunIds = append(eventStepRunIds, stepRunId)
 			eventReasons = append(eventReasons, dbsqlc.StepRunEventReasonFINISHED)
@@ -1562,7 +1587,7 @@ func (s *stepRunEngineRepository) ProcessStepRunUpdates(ctx context.Context, qlp
 	startRunEvents := time.Now()
 
 	// NOTE: actually not deferred
-	deferredBulkStepRunEvents(ctx, s.l, tx, s.queries, eventStepRunIds, eventReasons, eventSeverities, eventMessages, eventData)
+	deferredBulkStepRunEvents(ctx, s.l, tx, s.queries, eventStepRunIds, eventTimeSeen, eventReasons, eventSeverities, eventMessages, eventData)
 
 	durationRunEvents := time.Since(startRunEvents)
 
