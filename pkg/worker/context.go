@@ -247,8 +247,9 @@ func (h *hatchetContext) inc() {
 }
 
 type SpawnWorkflowOpts struct {
-	Key    *string
-	Sticky *bool
+	Key                *string
+	Sticky             *bool
+	AdditionalMetadata *map[string]string
 }
 
 func (h *hatchetContext) saveOrLoadListener() (*client.WorkflowRunsListener, error) {
@@ -299,11 +300,12 @@ func (h *hatchetContext) SpawnWorkflow(workflowName string, input any, opts *Spa
 		workflowName,
 		input,
 		&client.ChildWorkflowOpts{
-			ParentId:        h.WorkflowRunId(),
-			ParentStepRunId: h.StepRunId(),
-			ChildIndex:      h.index(),
-			ChildKey:        opts.Key,
-			DesiredWorkerId: desiredWorker,
+			ParentId:           h.WorkflowRunId(),
+			ParentStepRunId:    h.StepRunId(),
+			ChildIndex:         h.index(),
+			ChildKey:           opts.Key,
+			DesiredWorkerId:    desiredWorker,
+			AdditionalMetadata: opts.AdditionalMetadata,
 		},
 	)
 
