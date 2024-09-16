@@ -259,6 +259,11 @@ type AcceptInviteRequest struct {
 	Invite string `json:"invite" validate:"required,uuid"`
 }
 
+// CancelEventRequest defines model for CancelEventRequest.
+type CancelEventRequest struct {
+	EventIds []openapi_types.UUID `json:"eventIds"`
+}
+
 // CreateAPITokenRequest defines model for CreateAPITokenRequest.
 type CreateAPITokenRequest struct {
 	// ExpiresIn The duration for which the token is valid.
@@ -1319,6 +1324,9 @@ type EventListParams struct {
 
 	// AdditionalMetadata A list of metadata key value pairs to filter by
 	AdditionalMetadata *[]string `form:"additionalMetadata,omitempty" json:"additionalMetadata,omitempty"`
+
+	// EventIds A list of event ids to filter by
+	EventIds *[]openapi_types.UUID `form:"eventIds,omitempty" json:"eventIds,omitempty"`
 }
 
 // TenantGetQueueMetricsParams defines parameters for TenantGetQueueMetrics.
@@ -1440,6 +1448,9 @@ type ApiTokenCreateJSONRequestBody = CreateAPITokenRequest
 
 // EventCreateJSONRequestBody defines body for EventCreate for application/json ContentType.
 type EventCreateJSONRequestBody = CreateEventRequest
+
+// EventUpdateCancelJSONRequestBody defines body for EventUpdateCancel for application/json ContentType.
+type EventUpdateCancelJSONRequestBody = CancelEventRequest
 
 // EventUpdateReplayJSONRequestBody defines body for EventUpdateReplay for application/json ContentType.
 type EventUpdateReplayJSONRequestBody = ReplayEventRequest
@@ -1645,6 +1656,11 @@ type ClientInterface interface {
 	EventCreateWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	EventCreate(ctx context.Context, tenant openapi_types.UUID, body EventCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// EventUpdateCancelWithBody request with any body
+	EventUpdateCancelWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	EventUpdateCancel(ctx context.Context, tenant openapi_types.UUID, body EventUpdateCancelJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// EventKeyList request
 	EventKeyList(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -2198,6 +2214,30 @@ func (c *Client) EventCreateWithBody(ctx context.Context, tenant openapi_types.U
 
 func (c *Client) EventCreate(ctx context.Context, tenant openapi_types.UUID, body EventCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewEventCreateRequest(c.Server, tenant, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) EventUpdateCancelWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewEventUpdateCancelRequestWithBody(c.Server, tenant, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) EventUpdateCancel(ctx context.Context, tenant openapi_types.UUID, body EventUpdateCancelJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewEventUpdateCancelRequest(c.Server, tenant, body)
 	if err != nil {
 		return nil, err
 	}
@@ -4187,6 +4227,22 @@ func NewEventListRequest(server string, tenant openapi_types.UUID, params *Event
 
 		}
 
+		if params.EventIds != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "eventIds", runtime.ParamLocationQuery, *params.EventIds); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
 		queryURL.RawQuery = queryValues.Encode()
 	}
 
@@ -4226,6 +4282,53 @@ func NewEventCreateRequestWithBody(server string, tenant openapi_types.UUID, con
 	}
 
 	operationPath := fmt.Sprintf("/api/v1/tenants/%s/events", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewEventUpdateCancelRequest calls the generic EventUpdateCancel builder with application/json body
+func NewEventUpdateCancelRequest(server string, tenant openapi_types.UUID, body EventUpdateCancelJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewEventUpdateCancelRequestWithBody(server, tenant, "application/json", bodyReader)
+}
+
+// NewEventUpdateCancelRequestWithBody generates requests for EventUpdateCancel with any type of body
+func NewEventUpdateCancelRequestWithBody(server string, tenant openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/tenants/%s/events/cancel", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -6825,6 +6928,11 @@ type ClientWithResponsesInterface interface {
 
 	EventCreateWithResponse(ctx context.Context, tenant openapi_types.UUID, body EventCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*EventCreateResponse, error)
 
+	// EventUpdateCancelWithBodyWithResponse request with any body
+	EventUpdateCancelWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*EventUpdateCancelResponse, error)
+
+	EventUpdateCancelWithResponse(ctx context.Context, tenant openapi_types.UUID, body EventUpdateCancelJSONRequestBody, reqEditors ...RequestEditorFn) (*EventUpdateCancelResponse, error)
+
 	// EventKeyListWithResponse request
 	EventKeyListWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*EventKeyListResponse, error)
 
@@ -7601,6 +7709,33 @@ func (r EventCreateResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r EventCreateResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type EventUpdateCancelResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		WorkflowRunIds *[]openapi_types.UUID `json:"workflowRunIds,omitempty"`
+	}
+	JSON400 *APIErrors
+	JSON403 *APIErrors
+	JSON429 *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r EventUpdateCancelResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r EventUpdateCancelResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -9156,6 +9291,23 @@ func (c *ClientWithResponses) EventCreateWithResponse(ctx context.Context, tenan
 	return ParseEventCreateResponse(rsp)
 }
 
+// EventUpdateCancelWithBodyWithResponse request with arbitrary body returning *EventUpdateCancelResponse
+func (c *ClientWithResponses) EventUpdateCancelWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*EventUpdateCancelResponse, error) {
+	rsp, err := c.EventUpdateCancelWithBody(ctx, tenant, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseEventUpdateCancelResponse(rsp)
+}
+
+func (c *ClientWithResponses) EventUpdateCancelWithResponse(ctx context.Context, tenant openapi_types.UUID, body EventUpdateCancelJSONRequestBody, reqEditors ...RequestEditorFn) (*EventUpdateCancelResponse, error) {
+	rsp, err := c.EventUpdateCancel(ctx, tenant, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseEventUpdateCancelResponse(rsp)
+}
+
 // EventKeyListWithResponse request returning *EventKeyListResponse
 func (c *ClientWithResponses) EventKeyListWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*EventKeyListResponse, error) {
 	rsp, err := c.EventKeyList(ctx, tenant, reqEditors...)
@@ -10660,6 +10812,55 @@ func ParseEventCreateResponse(rsp *http.Response) (*EventCreateResponse, error) 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest Event
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseEventUpdateCancelResponse parses an HTTP response from a EventUpdateCancelWithResponse call
+func ParseEventUpdateCancelResponse(rsp *http.Response) (*EventUpdateCancelResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &EventUpdateCancelResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			WorkflowRunIds *[]openapi_types.UUID `json:"workflowRunIds,omitempty"`
+		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

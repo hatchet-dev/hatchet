@@ -43,7 +43,12 @@ const keyValuePairSchema = z.object({
   value: z.string().min(1, 'Value is required'),
 });
 
+const arrayInputSchema = z.object({
+  values: z.string().min(1, 'At least one value is required'),
+});
+
 type KeyValuePair = z.infer<typeof keyValuePairSchema>;
+type ArrayInput = z.infer<typeof arrayInputSchema>;
 
 export function DataTableFacetedFilter<TData, TValue>({
   column,
@@ -53,13 +58,22 @@ export function DataTableFacetedFilter<TData, TValue>({
 }: DataTableFacetedFilterProps<TData, TValue>) {
   const selectedValues = new Set(column?.getFilterValue() as string[]);
 
-  const { register, handleSubmit, reset } = useForm<KeyValuePair>({
-    resolver: zodResolver(keyValuePairSchema),
-    defaultValues: { key: '', value: '' },
+  const { register, handleSubmit, reset } = useForm<KeyValuePair | ArrayInput>({
+    resolver: zodResolver(
+      type === ToolbarType.KeyValue ? keyValuePairSchema : arrayInputSchema,
+    ),
+    defaultValues:
+      type === ToolbarType.KeyValue ? { key: '', value: '' } : { values: '' },
   });
 
-  const onSubmit = (data: KeyValuePair) => {
-    selectedValues.add(`${data.key}:${data.value}`);
+  const onSubmit = (data: KeyValuePair | ArrayInput) => {
+    if ('key' in data) {
+      selectedValues.add(`${data.key}:${data.value}`);
+    } else {
+      data.values
+        .split(',')
+        .forEach((value) => selectedValues.add(value.trim()));
+    }
     const filterValues = Array.from(selectedValues);
     column?.setFilterValue(filterValues.length ? filterValues : undefined);
     reset();
@@ -94,7 +108,7 @@ export function DataTableFacetedFilter<TData, TValue>({
                   >
                     {selectedValues.size} selected
                   </Badge>
-                ) : type === ToolbarType.KeyValue ? (
+                ) : (
                   Array.from(selectedValues).map((option, index) => (
                     <Badge
                       key={index}
@@ -112,26 +126,6 @@ export function DataTableFacetedFilter<TData, TValue>({
                       </Button>
                     </Badge>
                   ))
-                ) : (
-                  options
-                    ?.filter((option) => selectedValues.has(option.value))
-                    .map((option) => (
-                      <Badge
-                        key={option.value}
-                        variant="secondary"
-                        className="rounded-sm px-1 font-normal flex items-center space-x-1"
-                      >
-                        {option.label}
-                        <Button
-                          variant="ghost"
-                          size="xs"
-                          className="ml-2"
-                          onClick={() => handleRemove(option.value)}
-                        >
-                          <BiX className="h-3 w-3" />
-                        </Button>
-                      </Badge>
-                    ))
                 )}
               </div>
             </>
@@ -139,7 +133,7 @@ export function DataTableFacetedFilter<TData, TValue>({
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[300px] p-2" align="start">
-        {type === ToolbarType.KeyValue && (
+        {[ToolbarType.Array, ToolbarType.KeyValue].includes(type) && (
           <div>
             <div className="">
               {Array.from(selectedValues).map((filter, index) => (
@@ -161,34 +155,43 @@ export function DataTableFacetedFilter<TData, TValue>({
               ))}
             </div>
             <form onSubmit={handleSubmit(onSubmit)}>
-              <div className="flex items-center space-x-2 mb-2">
-                <Input
-                  type="text"
-                  placeholder="Key"
-                  {...register('key')}
-                  className="flex-1"
-                />
-                <Input
-                  type="text"
-                  placeholder="Value"
-                  {...register('value')}
-                  className="flex-1"
-                />
-              </div>
+              {type === ToolbarType.KeyValue ? (
+                <div className="flex items-center space-x-2 mb-2">
+                  <Input
+                    type="text"
+                    placeholder="Key"
+                    {...register('key')}
+                    className="flex-1"
+                  />
+                  <Input
+                    type="text"
+                    placeholder="Value"
+                    {...register('value')}
+                    className="flex-1"
+                  />
+                </div>
+              ) : (
+                <div className="mb-2">
+                  <Input
+                    type="text"
+                    placeholder="Enter values (comma-separated)"
+                    {...register('values')}
+                    className="w-full"
+                  />
+                </div>
+              )}
               <Button type="submit" className="w-full" size="sm">
                 Add {title} Filter
               </Button>
               {selectedValues.size > 0 && (
-                <>
-                  <Button
-                    onClick={() => column?.setFilterValue(undefined)}
-                    className="w-full mt-2"
-                    size="sm"
-                    variant={'ghost'}
-                  >
-                    Reset
-                  </Button>
-                </>
+                <Button
+                  onClick={() => column?.setFilterValue(undefined)}
+                  className="w-full mt-2"
+                  size="sm"
+                  variant={'ghost'}
+                >
+                  Reset
+                </Button>
               )}
             </form>
           </div>

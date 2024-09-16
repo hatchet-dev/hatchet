@@ -72,7 +72,7 @@ const routes: RouteObject[] = [
             lazy: async () => {
               return {
                 loader: function () {
-                  return redirect('/events');
+                  return redirect('/workflow-runs');
                 },
               };
             },

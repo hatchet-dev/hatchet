@@ -14,6 +14,7 @@ import {
   APIError,
   APIErrors,
   APIMeta,
+  CancelEventRequest,
   CreateAPITokenRequest,
   CreateAPITokenResponse,
   CreateEventRequest,
@@ -854,6 +855,8 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
        * @example ["key1:value1","key2:value2"]
        */
       additionalMetadata?: string[];
+      /** A list of event ids to filter by */
+      eventIds?: string[];
     },
     params: RequestParams = {},
   ) =>
@@ -896,6 +899,30 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   eventUpdateReplay = (tenant: string, data: ReplayEventRequest, params: RequestParams = {}) =>
     this.request<EventList, APIErrors>({
       path: `/api/v1/tenants/${tenant}/events/replay`,
+      method: 'POST',
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Cancels all runs for a list of events.
+   *
+   * @tags Event
+   * @name EventUpdateCancel
+   * @summary Replay events
+   * @request POST:/api/v1/tenants/{tenant}/events/cancel
+   * @secure
+   */
+  eventUpdateCancel = (tenant: string, data: CancelEventRequest, params: RequestParams = {}) =>
+    this.request<
+      {
+        workflowRunIds?: string[];
+      },
+      APIErrors
+    >({
+      path: `/api/v1/tenants/${tenant}/events/cancel`,
       method: 'POST',
       body: data,
       secure: true,

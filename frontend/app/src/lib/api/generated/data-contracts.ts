@@ -493,6 +493,10 @@ export interface ReplayEventRequest {
   eventIds: string[];
 }
 
+export interface CancelEventRequest {
+  eventIds: string[];
+}
+
 export interface Workflow {
   metadata: APIResourceMeta;
   /** The name of the workflow. */

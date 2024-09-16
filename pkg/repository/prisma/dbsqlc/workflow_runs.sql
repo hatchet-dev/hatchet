@@ -177,6 +177,10 @@ WHERE
     workflowVersion."deletedAt" IS NULL AND
     workflow."deletedAt" IS NULL AND
     (
+        sqlc.narg('eventId')::uuid IS NULL OR
+        events."id" = sqlc.narg('eventId')::uuid
+    ) AND
+    (
         sqlc.narg('ids')::uuid[] IS NULL OR
         runs."id" = ANY(sqlc.narg('ids')::uuid[])
     ) AND

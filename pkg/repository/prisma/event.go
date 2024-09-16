@@ -62,6 +62,16 @@ func (r *eventAPIRepository) ListEvents(ctx context.Context, tenantId string, op
 		TenantId: *pgTenantId,
 	}
 
+	if opts.Ids != nil {
+		queryParams.EventIds = make([]pgtype.UUID, len(opts.Ids))
+		countParams.EventIds = make([]pgtype.UUID, len(opts.Ids))
+
+		for i := range opts.Ids {
+			queryParams.EventIds[i] = sqlchelpers.UUIDFromStr(opts.Ids[i])
+			countParams.EventIds[i] = sqlchelpers.UUIDFromStr(opts.Ids[i])
+		}
+	}
+
 	if opts.Search != nil {
 		queryParams.Search = sqlchelpers.TextFromStr(*opts.Search)
 		countParams.Search = sqlchelpers.TextFromStr(*opts.Search)
