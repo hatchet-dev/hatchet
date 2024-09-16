@@ -8,11 +8,11 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/internal/schema"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
 func (t *StepRunService) StepRunGetSchema(ctx echo.Context, request gen.StepRunGetSchemaRequestObject) (gen.StepRunGetSchemaResponseObject, error) {
-	stepRun := ctx.Get("step-run").(*dbsqlc.StepRun)
+	stepRun := ctx.Get("step-run").(*repository.GetStepRunFull)
 
 	var res map[string]interface{}
 

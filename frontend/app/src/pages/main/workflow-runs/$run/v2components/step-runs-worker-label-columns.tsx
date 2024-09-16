@@ -97,7 +97,7 @@ function LabelStatus({
   );
 }
 
-export const columns: ColumnDef<SemaphoreExtra>[] = [
+export const semaphoreExtraColumns: ColumnDef<SemaphoreExtra>[] = [
   {
     accessorKey: 'key',
     header: ({ column }) => (

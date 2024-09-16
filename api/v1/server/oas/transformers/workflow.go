@@ -51,10 +51,17 @@ func ToWorkflowVersionMeta(version *dbsqlc.WorkflowVersion, workflow *dbsqlc.Wor
 	return res
 }
 
+type WorkflowConcurrency struct {
+	ID                    pgtype.UUID
+	GetConcurrencyGroupId pgtype.UUID
+	MaxRuns               pgtype.Int4
+	LimitStrategy         dbsqlc.NullConcurrencyLimitStrategy
+}
+
 func ToWorkflowVersion(
 	version *dbsqlc.WorkflowVersion,
 	workflow *dbsqlc.Workflow,
-	concurrency *dbsqlc.WorkflowConcurrency,
+	concurrency *WorkflowConcurrency,
 	crons []*dbsqlc.WorkflowTriggerCronRef,
 	events []*dbsqlc.WorkflowTriggerEventRef,
 	schedules []*dbsqlc.WorkflowTriggerScheduledRef,
@@ -136,10 +143,10 @@ func ToWorkflowVersion(
 	return res
 }
 
-func ToWorkflowVersionConcurrency(concurrency *dbsqlc.WorkflowConcurrency) *gen.WorkflowConcurrency {
+func ToWorkflowVersionConcurrency(concurrency *WorkflowConcurrency) *gen.WorkflowConcurrency {
 	res := &gen.WorkflowConcurrency{
-		MaxRuns:             concurrency.MaxRuns,
-		LimitStrategy:       gen.WorkflowConcurrencyLimitStrategy(concurrency.LimitStrategy),
+		MaxRuns:             concurrency.MaxRuns.Int32,
+		LimitStrategy:       gen.WorkflowConcurrencyLimitStrategy(concurrency.LimitStrategy.ConcurrencyLimitStrategy),
 		GetConcurrencyGroup: sqlchelpers.UUIDToStr(concurrency.GetConcurrencyGroupId),
 	}
 

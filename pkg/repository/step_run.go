@@ -112,6 +112,11 @@ type ListStepRunArchivesResult struct {
 	Count int
 }
 
+type GetStepRunFull struct {
+	*dbsqlc.StepRun
+	ChildWorkflowRuns []string
+}
+
 type RefreshTimeoutBy struct {
 	IncrementTimeoutBy string `validate:"required,duration"`
 }
@@ -120,7 +125,7 @@ var ErrPreflightReplayStepRunNotInFinalState = fmt.Errorf("step run is not in a 
 var ErrPreflightReplayChildStepRunNotInFinalState = fmt.Errorf("child step run is not in a final state")
 
 type StepRunAPIRepository interface {
-	GetStepRunById(tenantId, stepRunId string) (*dbsqlc.StepRun, error)
+	GetStepRunById(stepRunId string) (*GetStepRunFull, error)
 
 	ListStepRunEvents(stepRunId string, opts *ListStepRunEventOpts) (*ListStepRunEventResult, error)
 
@@ -196,7 +201,7 @@ type StepRunEngineRepository interface {
 
 	ListStartableStepRuns(ctx context.Context, tenantId, jobRunId string, parentStepRunId *string) ([]*dbsqlc.GetStepRunForEngineRow, error)
 
-	ArchiveStepRunResult(ctx context.Context, tenantId, stepRunId string) error
+	ArchiveStepRunResult(ctx context.Context, tenantId, stepRunId string, err *string) error
 
 	RefreshTimeoutBy(ctx context.Context, tenantId, stepRunId string, opts RefreshTimeoutBy) (*dbsqlc.StepRun, error)
 

@@ -57,7 +57,12 @@ func (t *WorkflowService) WorkflowVersionGet(ctx echo.Context, request gen.Workf
 	resp := transformers.ToWorkflowVersion(
 		&row.WorkflowVersion,
 		&workflow.Workflow,
-		&row.WorkflowConcurrency,
+		&transformers.WorkflowConcurrency{
+			ID:                    row.ConcurrencyId,
+			GetConcurrencyGroupId: row.ConcurrencyGroupId,
+			MaxRuns:               row.ConcurrencyMaxRuns,
+			LimitStrategy:         row.ConcurrencyLimitStrategy,
+		},
 		crons,
 		events,
 		scheduleT,

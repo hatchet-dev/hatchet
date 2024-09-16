@@ -804,7 +804,10 @@ const getWorkflowVersionById = `-- name: GetWorkflowVersionById :one
 SELECT
     wv.id, wv."createdAt", wv."updatedAt", wv."deletedAt", wv.version, wv."order", wv."workflowId", wv.checksum, wv."scheduleTimeout", wv."onFailureJobId", wv.sticky, wv.kind, wv."defaultPriority",
     w.id, w."createdAt", w."updatedAt", w."deletedAt", w."tenantId", w.name, w.description,
-    wc.id, wc."createdAt", wc."updatedAt", wc."workflowVersionId", wc."getConcurrencyGroupId", wc."maxRuns", wc."limitStrategy"
+    wc."id" as "concurrencyId",
+    wc."maxRuns" as "concurrencyMaxRuns",
+    wc."getConcurrencyGroupId" as "concurrencyGroupId",
+    wc."limitStrategy" as "concurrencyLimitStrategy"
 FROM
     "WorkflowVersion" as wv
 JOIN "Workflow" as w on w."id" = wv."workflowId"
@@ -816,9 +819,12 @@ LIMIT 1
 `
 
 type GetWorkflowVersionByIdRow struct {
-	WorkflowVersion     WorkflowVersion     `json:"workflow_version"`
-	Workflow            Workflow            `json:"workflow"`
-	WorkflowConcurrency WorkflowConcurrency `json:"workflow_concurrency"`
+	WorkflowVersion          WorkflowVersion              `json:"workflow_version"`
+	Workflow                 Workflow                     `json:"workflow"`
+	ConcurrencyId            pgtype.UUID                  `json:"concurrencyId"`
+	ConcurrencyMaxRuns       pgtype.Int4                  `json:"concurrencyMaxRuns"`
+	ConcurrencyGroupId       pgtype.UUID                  `json:"concurrencyGroupId"`
+	ConcurrencyLimitStrategy NullConcurrencyLimitStrategy `json:"concurrencyLimitStrategy"`
 }
 
 func (q *Queries) GetWorkflowVersionById(ctx context.Context, db DBTX, id pgtype.UUID) (*GetWorkflowVersionByIdRow, error) {
@@ -845,13 +851,10 @@ func (q *Queries) GetWorkflowVersionById(ctx context.Context, db DBTX, id pgtype
 		&i.Workflow.TenantId,
 		&i.Workflow.Name,
 		&i.Workflow.Description,
-		&i.WorkflowConcurrency.ID,
-		&i.WorkflowConcurrency.CreatedAt,
-		&i.WorkflowConcurrency.UpdatedAt,
-		&i.WorkflowConcurrency.WorkflowVersionId,
-		&i.WorkflowConcurrency.GetConcurrencyGroupId,
-		&i.WorkflowConcurrency.MaxRuns,
-		&i.WorkflowConcurrency.LimitStrategy,
+		&i.ConcurrencyId,
+		&i.ConcurrencyMaxRuns,
+		&i.ConcurrencyGroupId,
+		&i.ConcurrencyLimitStrategy,
 	)
 	return &i, err
 }

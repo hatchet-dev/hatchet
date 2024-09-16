@@ -1031,7 +1031,6 @@ type SecurityCheckIdent struct {
 }
 
 type SemaphoreQueueItem struct {
-	ID        int64       `json:"id"`
 	StepRunId pgtype.UUID `json:"stepRunId"`
 	WorkerId  pgtype.UUID `json:"workerId"`
 	TenantId  pgtype.UUID `json:"tenantId"`
@@ -1170,6 +1169,7 @@ type StepRunResultArchive struct {
 	CancelledAt     pgtype.Timestamp `json:"cancelledAt"`
 	CancelledReason pgtype.Text      `json:"cancelledReason"`
 	CancelledError  pgtype.Text      `json:"cancelledError"`
+	RetryCount      int32            `json:"retryCount"`
 }
 
 type StreamEvent struct {

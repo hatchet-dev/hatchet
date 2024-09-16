@@ -16,13 +16,12 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 )
 
 func (t *StepRunService) StepRunUpdateRerun(ctx echo.Context, request gen.StepRunUpdateRerunRequestObject) (gen.StepRunUpdateRerunResponseObject, error) {
 	tenant := ctx.Get("tenant").(*db.TenantModel)
-	stepRun := ctx.Get("step-run").(*dbsqlc.StepRun)
+	stepRun := ctx.Get("step-run").(*repository.GetStepRunFull)
 
 	// preflight check to verify step run status and worker availability
 	err := t.config.EngineRepository.StepRun().PreflightCheckReplayStepRun(
@@ -100,16 +99,17 @@ func (t *StepRunService) StepRunUpdateRerun(ctx echo.Context, request gen.StepRu
 		return nil, fmt.Errorf("could not add step queued task to task queue: %w", err)
 	}
 
+	var result *repository.GetStepRunFull
+
 	// wait for a short period of time
 	for i := 0; i < 5; i++ {
-		newStepRun, err := t.config.APIRepository.StepRun().GetStepRunById(tenant.ID, sqlchelpers.UUIDToStr(stepRun.ID))
+		result, err = t.config.APIRepository.StepRun().GetStepRunById(sqlchelpers.UUIDToStr(stepRun.ID))
 
 		if err != nil {
 			return nil, fmt.Errorf("could not get step run: %w", err)
 		}
 
-		if newStepRun.Status != stepRun.Status {
-			stepRun = newStepRun
+		if result.Status != stepRun.Status {
 			break
 		}
 
@@ -117,6 +117,6 @@ func (t *StepRunService) StepRunUpdateRerun(ctx echo.Context, request gen.StepRu
 	}
 
 	return gen.StepRunUpdateRerun200JSONResponse(
-		*transformers.ToStepRunFull(stepRun),
+		*transformers.ToStepRunFull(result),
 	), nil
 }

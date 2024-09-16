@@ -938,6 +938,23 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       ...params,
     });
   /**
+   * @description Get an event.
+   *
+   * @tags Event
+   * @name EventGet
+   * @summary Get event data
+   * @request GET:/api/v1/events/{event}
+   * @secure
+   */
+  eventGet = (event: string, params: RequestParams = {}) =>
+    this.request<Event, APIErrors>({
+      path: `/api/v1/events/${event}`,
+      method: 'GET',
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
    * @description Get the data for an event.
    *
    * @tags Event

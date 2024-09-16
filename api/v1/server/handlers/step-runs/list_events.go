@@ -8,12 +8,11 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 )
 
 func (t *StepRunService) StepRunListEvents(ctx echo.Context, request gen.StepRunListEventsRequestObject) (gen.StepRunListEventsResponseObject, error) {
-	stepRun := ctx.Get("step-run").(*dbsqlc.StepRun)
+	stepRun := ctx.Get("step-run").(*repository.GetStepRunFull)
 
 	limit := 1000
 	offset := 0

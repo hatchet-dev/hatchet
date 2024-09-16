@@ -496,7 +496,10 @@ WHERE
 SELECT
     sqlc.embed(wv),
     sqlc.embed(w),
-    sqlc.embed(wc)
+    wc."id" as "concurrencyId",
+    wc."maxRuns" as "concurrencyMaxRuns",
+    wc."getConcurrencyGroupId" as "concurrencyGroupId",
+    wc."limitStrategy" as "concurrencyLimitStrategy"
 FROM
     "WorkflowVersion" as wv
 JOIN "Workflow" as w on w."id" = wv."workflowId"
@@ -505,7 +508,6 @@ WHERE
     wv."id" = @id::uuid AND
     wv."deletedAt" IS NULL
 LIMIT 1;
-
 
 -- name: GetWorkflowById :one
 SELECT

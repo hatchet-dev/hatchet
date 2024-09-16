@@ -145,17 +145,52 @@ func (w *workflowRunAPIRepository) GetStepsForJobs(ctx context.Context, tenantId
 	})
 }
 
-func (w *workflowRunAPIRepository) GetStepRunsForJobRuns(ctx context.Context, tenantId string, jobRunIds []string) ([]*dbsqlc.GetStepRunsForJobRunsRow, error) {
+func (w *workflowRunAPIRepository) GetStepRunsForJobRuns(ctx context.Context, tenantId string, jobRunIds []string) ([]*repository.StepRunForJobRun, error) {
 	jobRunIdsPg := make([]pgtype.UUID, len(jobRunIds))
 
 	for i := range jobRunIds {
 		jobRunIdsPg[i] = sqlchelpers.UUIDFromStr(jobRunIds[i])
 	}
 
-	return w.queries.GetStepRunsForJobRuns(ctx, w.pool, dbsqlc.GetStepRunsForJobRunsParams{
+	stepRuns, err := w.queries.GetStepRunsForJobRuns(ctx, w.pool, dbsqlc.GetStepRunsForJobRunsParams{
 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
 		Jobids:   jobRunIdsPg,
 	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	stepRunIds := make([]pgtype.UUID, len(stepRuns))
+
+	for i, stepRun := range stepRuns {
+		stepRunIds[i] = stepRun.ID
+	}
+
+	childCounts, err := w.queries.ListChildWorkflowRunCounts(ctx, w.pool, stepRunIds)
+
+	if err != nil {
+		return nil, err
+	}
+
+	stepRunIdToChildCount := make(map[string]int)
+
+	for _, childCount := range childCounts {
+		stepRunIdToChildCount[sqlchelpers.UUIDToStr(childCount.ParentStepRunId)] = int(childCount.Count)
+	}
+
+	res := make([]*repository.StepRunForJobRun, len(stepRuns))
+
+	for i, stepRun := range stepRuns {
+		childCount := stepRunIdToChildCount[sqlchelpers.UUIDToStr(stepRun.ID)]
+
+		res[i] = &repository.StepRunForJobRun{
+			GetStepRunsForJobRunsRow: stepRun,
+			ChildWorkflowsCount:      childCount,
+		}
+	}
+
+	return res, nil
 }
 
 type workflowRunEngineRepository struct {
@@ -377,7 +412,7 @@ func (s *workflowRunEngineRepository) ReplayWorkflowRun(ctx context.Context, ten
 		// archive each of the step run results
 		for _, stepRunId := range stepRuns {
 			stepRunIdStr := sqlchelpers.UUIDToStr(stepRunId)
-			err = archiveStepRunResult(ctx, s.queries, tx, tenantId, stepRunIdStr)
+			err = archiveStepRunResult(ctx, s.queries, tx, tenantId, stepRunIdStr, nil)
 
 			if err != nil {
 				return fmt.Errorf("error archiving step run result: %w", err)

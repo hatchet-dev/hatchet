@@ -3,16 +3,17 @@ import { TenantContextType } from '@/lib/outlet';
 import { useQuery } from '@tanstack/react-query';
 import { useOutletContext, useParams } from 'react-router-dom';
 import invariant from 'tiny-invariant';
-import RunDetailHeader from './components2/header';
-import { WorkflowRunInputDialog } from './components2/workflow-run-input';
+import RunDetailHeader from './v2components/header';
+import { WorkflowRunInputDialog } from './v2components/workflow-run-input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { StepRunEvents } from './components2/step-run-events-for-workflow-run';
-import { useState } from 'react';
-import { MiniMap } from './components2/mini-map';
-import { Sheet, SheetContent, SheetHeader } from '@/components/ui/sheet';
-import StepRunDetail from './components2/step-run-detail/step-run-detail';
-
-// import mock from './components2/mock.json';
+import { StepRunEvents } from './v2components/step-run-events-for-workflow-run';
+import { useEffect, useState } from 'react';
+import { MiniMap } from './v2components/mini-map';
+import { Sheet, SheetContent } from '@/components/ui/sheet';
+import StepRunDetail, {
+  TabOption,
+} from './v2components/step-run-detail/step-run-detail';
+import { Separator } from '@/components/ui/separator';
 
 export const WORKFLOW_RUN_TERMINAL_STATUSES = [
   WorkflowRunStatus.CANCELLED,
@@ -21,7 +22,9 @@ export const WORKFLOW_RUN_TERMINAL_STATUSES = [
 ];
 
 interface WorkflowRunSidebarState {
+  workflowRunId?: string;
   stepRunId?: string;
+  defaultOpenTab?: TabOption;
 }
 
 export default function ExpandedWorkflowRun() {
@@ -38,41 +41,36 @@ export default function ExpandedWorkflowRun() {
     refetchInterval: 1000,
   });
 
-  // const shape = {
-  //   isLoading: false,
-  //   refetch: () => undefined,
-  //   data: mock as unknown as WorkflowRunShape,
-  // };
+  useEffect(() => {
+    if (
+      sidebarState?.workflowRunId &&
+      params.run &&
+      params.run !== sidebarState?.workflowRunId
+    ) {
+      setSidebarState(undefined);
+    }
+  }, [params.run, sidebarState]);
 
   return (
-    <>
-      <div className="p-8">
+    <div className="flex-grow h-full w-full">
+      <div className="mx-auto max-w-7xl pt-2 px-4 sm:px-6 lg:px-8">
         <RunDetailHeader
           loading={shape.isLoading}
           data={shape.data}
           refetch={() => shape.refetch()}
         />
-        {/* <div className="h-4" />
-      <h2 className="text-lg font-semibold">Triggered By</h2>
-      TODO -- trigger, timing
-      <div className="h-4" />
-      <h2 className="text-lg font-semibold">Errors</h2>
-      <Alert variant="destructive" title="Error">
-      TODO -- on failure & error aggregation
-      </Alert>
-      <div className="h-4" /> */}
-        <div className="h-4" />
+        <Separator className="my-4" />
         {shape.data?.jobRuns?.map(({ job, stepRuns }, idx) => (
           <MiniMap
             steps={job?.steps}
             stepRuns={stepRuns}
             key={idx}
             selectedStepRunId={sidebarState?.stepRunId}
-            onClick={(stepRunId) =>
+            onClick={(stepRunId, defaultOpenTab?: TabOption) =>
               setSidebarState(
                 stepRunId == sidebarState?.stepRunId
                   ? undefined
-                  : { stepRunId },
+                  : { stepRunId, defaultOpenTab, workflowRunId: params.run },
               )
             }
           />
@@ -80,7 +78,12 @@ export default function ExpandedWorkflowRun() {
         <div className="h-4" />
         <Tabs defaultValue="activity">
           <TabsList layout="underlined">
-            <TabsTrigger value="activity">Activity</TabsTrigger>
+            <TabsTrigger variant="underlined" value="activity">
+              Activity
+            </TabsTrigger>
+            <TabsTrigger variant="underlined" value="input">
+              Input
+            </TabsTrigger>
             {/* <TabsTrigger value="logs">App Logs</TabsTrigger> */}
           </TabsList>
           <TabsContent value="activity">
@@ -88,24 +91,21 @@ export default function ExpandedWorkflowRun() {
             {!shape.isLoading && shape.data && (
               <StepRunEvents
                 workflowRun={shape.data}
-                filteredStepRunId={sidebarState?.stepRunId}
                 onClick={(stepRunId) =>
                   setSidebarState(
                     stepRunId == sidebarState?.stepRunId
                       ? undefined
-                      : { stepRunId },
+                      : { stepRunId, workflowRunId: params.run },
                   )
                 }
               />
             )}
           </TabsContent>
-          {/* <TabsContent value="logs">App Logs</TabsContent> */}
+          <TabsContent value="input">
+            {shape.data && <WorkflowRunInputDialog run={shape.data} />}
+          </TabsContent>
         </Tabs>
-        <div className="h-4" />
-        <h2 className="text-lg font-semibold">Workflow Run Input</h2>
-        {shape.data && <WorkflowRunInputDialog run={shape.data} />}
       </div>
-      {/* TODO drawer for mobile */}
       {shape.data && (
         <Sheet
           open={!!sidebarState}
@@ -113,18 +113,17 @@ export default function ExpandedWorkflowRun() {
             open ? undefined : setSidebarState(undefined)
           }
         >
-          <SheetContent>
-            <SheetHeader>
-              {sidebarState?.stepRunId && (
-                <StepRunDetail
-                  stepRunId={sidebarState?.stepRunId}
-                  workflowRun={shape.data}
-                />
-              )}
-            </SheetHeader>
+          <SheetContent className="w-fit min-w-[56rem] max-w-4xl sm:max-w-2xl z-[60]">
+            {sidebarState?.stepRunId && (
+              <StepRunDetail
+                stepRunId={sidebarState?.stepRunId}
+                workflowRun={shape.data}
+                defaultOpenTab={sidebarState?.defaultOpenTab}
+              />
+            )}
           </SheetContent>
         </Sheet>
       )}
-    </>
+    </div>
   );
 }

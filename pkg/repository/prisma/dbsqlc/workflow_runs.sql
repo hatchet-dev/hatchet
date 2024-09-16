@@ -942,6 +942,17 @@ WHERE
     AND j."tenantId" = @tenantId::uuid
     AND j."deletedAt" IS NULL;
 
+-- name: ListChildWorkflowRunCounts :many
+SELECT
+    wr."parentStepRunId",
+    COUNT(wr."id") as "count"
+FROM
+    "WorkflowRun" wr
+WHERE
+    wr."parentStepRunId" = ANY(@stepRunIds::uuid[])
+GROUP BY
+    wr."parentStepRunId";
+
 -- name: GetStepRunsForJobRuns :many
 SELECT
 	sr."id",

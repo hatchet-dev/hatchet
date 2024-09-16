@@ -10,13 +10,12 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 )
 
 func (t *LogService) LogLineList(ctx echo.Context, request gen.LogLineListRequestObject) (gen.LogLineListResponseObject, error) {
 	tenant := ctx.Get("tenant").(*db.TenantModel)
-	stepRun := ctx.Get("step-run").(*dbsqlc.StepRun)
+	stepRun := ctx.Get("step-run").(*repository.GetStepRunFull)
 
 	limit := 1000
 	offset := 0

@@ -135,6 +135,8 @@ type StepRunRetryTaskPayload struct {
 	StepRunId     string `json:"step_run_id" validate:"required,uuid"`
 	JobRunId      string `json:"job_run_id" validate:"required,uuid"`
 
+	Error *string `json:"error,omitempty"`
+
 	// optional - if not provided, the step run will be retried with the same input
 	InputData string `json:"input_data,omitempty"`
 
@@ -161,7 +163,7 @@ type StepRunReplayTaskMetadata struct {
 	TenantId string `json:"tenant_id" validate:"required,uuid"`
 }
 
-func StepRunRetryToTask(stepRun *dbsqlc.GetStepRunForEngineRow, inputData []byte) *msgqueue.Message {
+func StepRunRetryToTask(stepRun *dbsqlc.GetStepRunForEngineRow, inputData []byte, err string) *msgqueue.Message {
 	jobRunId := sqlchelpers.UUIDToStr(stepRun.JobRunId)
 	stepRunId := sqlchelpers.UUIDToStr(stepRun.SRID)
 	tenantId := sqlchelpers.UUIDToStr(stepRun.SRTenantId)
@@ -171,6 +173,7 @@ func StepRunRetryToTask(stepRun *dbsqlc.GetStepRunForEngineRow, inputData []byte
 		WorkflowRunId: workflowRunId,
 		JobRunId:      jobRunId,
 		StepRunId:     stepRunId,
+		Error:         &err,
 		InputData:     string(inputData),
 		StepRetries:   &stepRun.StepRetries,
 		RetryCount:    &stepRun.SRRetryCount,

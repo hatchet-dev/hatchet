@@ -647,6 +647,7 @@ export interface WorkflowRun {
 export interface WorkflowRunShape {
   metadata: APIResourceMeta;
   tenantId: string;
+  workflowId?: string;
   workflowVersionId: string;
   workflowVersion?: WorkflowVersion;
   status: WorkflowRunStatus;
@@ -783,9 +784,8 @@ export interface JobRun {
 
 export interface WorkflowRunTriggeredBy {
   metadata: APIResourceMeta;
-  parentId: string;
+  parentWorkflowRunId?: string;
   eventId?: string;
-  event?: Event;
   cronParentId?: string;
   cronSchedule?: string;
 }
@@ -797,7 +797,7 @@ export interface StepRun {
   jobRun?: JobRun;
   stepId: string;
   step?: Step;
-  children?: string[];
+  childWorkflowsCount?: number;
   parents?: string[];
   childWorkflowRuns?: string[];
   workerId?: string;
@@ -874,6 +874,7 @@ export interface StepRunArchive {
   /** @format date-time */
   startedAt?: string;
   error?: string;
+  retryCount: number;
   /** @format date-time */
   createdAt: string;
   startedAtEpoch?: number;

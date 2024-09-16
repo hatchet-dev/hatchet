@@ -231,6 +231,10 @@ export const queries = createQueryKeyStore({
       queryKey: ['event-keys:list', tenant],
       queryFn: async () => (await api.eventKeyList(tenant)).data,
     }),
+    get: (event: string) => ({
+      queryKey: ['event:get', event],
+      queryFn: async () => (await api.eventGet(event)).data,
+    }),
     getData: (event: string) => ({
       queryKey: ['event-data:get', event],
       queryFn: async () => (await api.eventDataGet(event)).data,

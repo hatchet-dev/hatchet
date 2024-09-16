@@ -1282,6 +1282,43 @@ func (q *Queries) ListActiveQueuedWorkflowVersions(ctx context.Context, db DBTX)
 	return items, nil
 }
 
+const listChildWorkflowRunCounts = `-- name: ListChildWorkflowRunCounts :many
+SELECT
+    wr."parentStepRunId",
+    COUNT(wr."id") as "count"
+FROM
+    "WorkflowRun" wr
+WHERE
+    wr."parentStepRunId" = ANY($1::uuid[])
+GROUP BY
+    wr."parentStepRunId"
+`
+
+type ListChildWorkflowRunCountsRow struct {
+	ParentStepRunId pgtype.UUID `json:"parentStepRunId"`
+	Count           int64       `json:"count"`
+}
+
+func (q *Queries) ListChildWorkflowRunCounts(ctx context.Context, db DBTX, steprunids []pgtype.UUID) ([]*ListChildWorkflowRunCountsRow, error) {
+	rows, err := db.Query(ctx, listChildWorkflowRunCounts, steprunids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListChildWorkflowRunCountsRow
+	for rows.Next() {
+		var i ListChildWorkflowRunCountsRow
+		if err := rows.Scan(&i.ParentStepRunId, &i.Count); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listStepsForJob = `-- name: ListStepsForJob :many
 WITH job_id AS (
     SELECT "jobId"

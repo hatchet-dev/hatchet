@@ -598,32 +598,32 @@ type Step struct {
 
 // StepRun defines model for StepRun.
 type StepRun struct {
-	CancelledAt       *time.Time              `json:"cancelledAt,omitempty"`
-	CancelledAtEpoch  *int                    `json:"cancelledAtEpoch,omitempty"`
-	CancelledError    *string                 `json:"cancelledError,omitempty"`
-	CancelledReason   *string                 `json:"cancelledReason,omitempty"`
-	ChildWorkflowRuns *[]string               `json:"childWorkflowRuns,omitempty"`
-	Children          *[]string               `json:"children,omitempty"`
-	Error             *string                 `json:"error,omitempty"`
-	FinishedAt        *time.Time              `json:"finishedAt,omitempty"`
-	FinishedAtEpoch   *int                    `json:"finishedAtEpoch,omitempty"`
-	Input             *string                 `json:"input,omitempty"`
-	JobRun            *JobRun                 `json:"jobRun,omitempty"`
-	JobRunId          string                  `json:"jobRunId"`
-	Metadata          APIResourceMeta         `json:"metadata"`
-	Output            *string                 `json:"output,omitempty"`
-	Parents           *[]string               `json:"parents,omitempty"`
-	RequeueAfter      *time.Time              `json:"requeueAfter,omitempty"`
-	Result            *map[string]interface{} `json:"result,omitempty"`
-	StartedAt         *time.Time              `json:"startedAt,omitempty"`
-	StartedAtEpoch    *int                    `json:"startedAtEpoch,omitempty"`
-	Status            StepRunStatus           `json:"status"`
-	Step              *Step                   `json:"step,omitempty"`
-	StepId            string                  `json:"stepId"`
-	TenantId          string                  `json:"tenantId"`
-	TimeoutAt         *time.Time              `json:"timeoutAt,omitempty"`
-	TimeoutAtEpoch    *int                    `json:"timeoutAtEpoch,omitempty"`
-	WorkerId          *string                 `json:"workerId,omitempty"`
+	CancelledAt         *time.Time              `json:"cancelledAt,omitempty"`
+	CancelledAtEpoch    *int                    `json:"cancelledAtEpoch,omitempty"`
+	CancelledError      *string                 `json:"cancelledError,omitempty"`
+	CancelledReason     *string                 `json:"cancelledReason,omitempty"`
+	ChildWorkflowRuns   *[]string               `json:"childWorkflowRuns,omitempty"`
+	ChildWorkflowsCount *int                    `json:"childWorkflowsCount,omitempty"`
+	Error               *string                 `json:"error,omitempty"`
+	FinishedAt          *time.Time              `json:"finishedAt,omitempty"`
+	FinishedAtEpoch     *int                    `json:"finishedAtEpoch,omitempty"`
+	Input               *string                 `json:"input,omitempty"`
+	JobRun              *JobRun                 `json:"jobRun,omitempty"`
+	JobRunId            string                  `json:"jobRunId"`
+	Metadata            APIResourceMeta         `json:"metadata"`
+	Output              *string                 `json:"output,omitempty"`
+	Parents             *[]string               `json:"parents,omitempty"`
+	RequeueAfter        *time.Time              `json:"requeueAfter,omitempty"`
+	Result              *map[string]interface{} `json:"result,omitempty"`
+	StartedAt           *time.Time              `json:"startedAt,omitempty"`
+	StartedAtEpoch      *int                    `json:"startedAtEpoch,omitempty"`
+	Status              StepRunStatus           `json:"status"`
+	Step                *Step                   `json:"step,omitempty"`
+	StepId              string                  `json:"stepId"`
+	TenantId            string                  `json:"tenantId"`
+	TimeoutAt           *time.Time              `json:"timeoutAt,omitempty"`
+	TimeoutAtEpoch      *int                    `json:"timeoutAtEpoch,omitempty"`
+	WorkerId            *string                 `json:"workerId,omitempty"`
 }
 
 // StepRunArchive defines model for StepRunArchive.
@@ -639,6 +639,7 @@ type StepRunArchive struct {
 	Input            *string    `json:"input,omitempty"`
 	Order            int        `json:"order"`
 	Output           *string    `json:"output,omitempty"`
+	RetryCount       int        `json:"retryCount"`
 	StartedAt        *time.Time `json:"startedAt,omitempty"`
 	StartedAtEpoch   *int       `json:"startedAtEpoch,omitempty"`
 	StepRunId        string     `json:"stepRunId"`
@@ -1150,6 +1151,7 @@ type WorkflowRunShape struct {
 	Status             WorkflowRunStatus       `json:"status"`
 	TenantId           string                  `json:"tenantId"`
 	TriggeredBy        WorkflowRunTriggeredBy  `json:"triggeredBy"`
+	WorkflowId         *string                 `json:"workflowId,omitempty"`
 	WorkflowVersion    *WorkflowVersion        `json:"workflowVersion,omitempty"`
 	WorkflowVersionId  string                  `json:"workflowVersionId"`
 }
@@ -1162,12 +1164,11 @@ type WorkflowRunStatusList = []WorkflowRunStatus
 
 // WorkflowRunTriggeredBy defines model for WorkflowRunTriggeredBy.
 type WorkflowRunTriggeredBy struct {
-	CronParentId *string         `json:"cronParentId,omitempty"`
-	CronSchedule *string         `json:"cronSchedule,omitempty"`
-	Event        *Event          `json:"event,omitempty"`
-	EventId      *string         `json:"eventId,omitempty"`
-	Metadata     APIResourceMeta `json:"metadata"`
-	ParentId     string          `json:"parentId"`
+	CronParentId        *string         `json:"cronParentId,omitempty"`
+	CronSchedule        *string         `json:"cronSchedule,omitempty"`
+	EventId             *string         `json:"eventId,omitempty"`
+	Metadata            APIResourceMeta `json:"metadata"`
+	ParentWorkflowRunId *string         `json:"parentWorkflowRunId,omitempty"`
 }
 
 // WorkflowRunsCancelRequest defines model for WorkflowRunsCancelRequest.
@@ -1578,6 +1579,9 @@ type ClientInterface interface {
 	// CloudMetadataGet request
 	CloudMetadataGet(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// EventGet request
+	EventGet(ctx context.Context, event openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// EventDataGet request
 	EventDataGet(ctx context.Context, event openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -1906,6 +1910,18 @@ func (c *Client) ApiTokenUpdateRevoke(ctx context.Context, apiToken openapi_type
 
 func (c *Client) CloudMetadataGet(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewCloudMetadataGetRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) EventGet(ctx context.Context, event openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewEventGetRequest(c.Server, event)
 	if err != nil {
 		return nil, err
 	}
@@ -3187,6 +3203,40 @@ func NewCloudMetadataGetRequest(server string) (*http.Request, error) {
 	}
 
 	operationPath := fmt.Sprintf("/api/v1/cloud/metadata")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewEventGetRequest generates requests for EventGet
+func NewEventGetRequest(server string, event openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "event", runtime.ParamLocationPath, event)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/events/%s", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -6708,6 +6758,9 @@ type ClientWithResponsesInterface interface {
 	// CloudMetadataGetWithResponse request
 	CloudMetadataGetWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*CloudMetadataGetResponse, error)
 
+	// EventGetWithResponse request
+	EventGetWithResponse(ctx context.Context, event openapi_types.UUID, reqEditors ...RequestEditorFn) (*EventGetResponse, error)
+
 	// EventDataGetWithResponse request
 	EventDataGetWithResponse(ctx context.Context, event openapi_types.UUID, reqEditors ...RequestEditorFn) (*EventDataGetResponse, error)
 
@@ -7091,6 +7144,30 @@ func (r CloudMetadataGetResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r CloudMetadataGetResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type EventGetResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Event
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r EventGetResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r EventGetResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -8868,6 +8945,15 @@ func (c *ClientWithResponses) CloudMetadataGetWithResponse(ctx context.Context, 
 	return ParseCloudMetadataGetResponse(rsp)
 }
 
+// EventGetWithResponse request returning *EventGetResponse
+func (c *ClientWithResponses) EventGetWithResponse(ctx context.Context, event openapi_types.UUID, reqEditors ...RequestEditorFn) (*EventGetResponse, error) {
+	rsp, err := c.EventGet(ctx, event, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseEventGetResponse(rsp)
+}
+
 // EventDataGetWithResponse request returning *EventDataGetResponse
 func (c *ClientWithResponses) EventDataGetWithResponse(ctx context.Context, event openapi_types.UUID, reqEditors ...RequestEditorFn) (*EventDataGetResponse, error) {
 	rsp, err := c.EventDataGet(ctx, event, reqEditors...)
@@ -9832,6 +9918,46 @@ func ParseCloudMetadataGetResponse(rsp *http.Response) (*CloudMetadataGetRespons
 			return nil, err
 		}
 		response.JSON400 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseEventGetResponse parses an HTTP response from a EventGetWithResponse call
+func ParseEventGetResponse(rsp *http.Response) (*EventGetResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &EventGetResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Event
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
 
 	}
 

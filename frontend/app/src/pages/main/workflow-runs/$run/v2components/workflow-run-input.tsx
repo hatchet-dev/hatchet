@@ -1,4 +1,4 @@
-import { CodeEditor } from '@/components/ui/code-editor';
+import { CodeHighlighter } from '@/components/ui/code-highlighter';
 import { Loading } from '@/components/ui/loading';
 import { WorkflowRun, queries } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
@@ -19,13 +19,10 @@ export function WorkflowRunInputDialog({ run }: { run: WorkflowRun }) {
   const input = getInputQuery.data;
 
   return (
-    <>
-      <CodeEditor
-        language="json"
-        className="my-4"
-        height="400px"
-        code={JSON.stringify(input, null, 2)}
-      />
-    </>
+    <CodeHighlighter
+      className="my-4"
+      language="json"
+      code={JSON.stringify(input, null, 2)}
+    />
   );
 }

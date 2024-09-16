@@ -99,6 +99,8 @@ WorkflowRunShape:
       $ref: "./metadata.yaml#/APIResourceMeta"
     tenantId:
       type: string
+    workflowId:
+      type: string
     workflowVersionId:
       type: string
     workflowVersion:
@@ -246,19 +248,16 @@ WorkflowRunTriggeredBy:
   properties:
     metadata:
       $ref: "./metadata.yaml#/APIResourceMeta"
-    parentId:
+    parentWorkflowRunId:
       type: string
     eventId:
       type: string
-    event:
-      $ref: "./_index.yaml#/Event"
     cronParentId:
       type: string
     cronSchedule:
       type: string
   required:
     - metadata
-    - parentId
 
 JobRun:
   type: object
@@ -323,10 +322,8 @@ StepRun:
       type: string
     step:
       $ref: "./_index.yaml#/Step"
-    children:
-      type: array
-      items:
-        type: string
+    childWorkflowsCount:
+      type: integer
     parents:
       type: array
       items:
@@ -464,6 +461,8 @@ StepRunArchive:
       format: date-time
     error:
       type: string
+    retryCount:
+      type: integer
     createdAt:
       type: string
       format: date-time
@@ -490,6 +489,7 @@ StepRunArchive:
       type: string
   required:
     - stepRunId
+    - retryCount
     - order
     - createdAt
 
