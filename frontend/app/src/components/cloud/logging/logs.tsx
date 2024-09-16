@@ -83,7 +83,7 @@ const LoggingComponent: React.FC<LogProps> = ({
         }
       }
     }, 250);
-  }, [containerRef, firstMount]);
+  }, [containerRef, firstMount, autoScroll]);
 
   useEffect(() => {
     if (refreshing) {
