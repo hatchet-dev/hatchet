@@ -397,6 +397,13 @@ func (s *workflowRunEngineRepository) ReplayWorkflowRun(ctx context.Context, ten
 			}
 		}
 
+		// reset concurrency key
+		_, err = s.queries.ReplayWorkflowRunResetGetGroupKeyRun(ctx, tx, pgWorkflowRunId)
+
+		if err != nil {
+			return fmt.Errorf("error resetting get group key run: %w", err)
+		}
+
 		// get all step runs for the workflow
 		stepRuns, err := s.queries.ListStepRuns(ctx, tx, dbsqlc.ListStepRunsParams{
 			TenantId: sqlchelpers.UUIDFromStr(tenantId),
