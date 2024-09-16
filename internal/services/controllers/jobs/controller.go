@@ -975,33 +975,6 @@ func (ec *JobsControllerImpl) handleStepRunFinished(ctx context.Context, task *m
 	// recheck the tenant queue
 	ec.checkTenantQueue(ctx, metadata.TenantId)
 
-	stepRun, err := ec.repo.StepRun().GetStepRunForEngine(ctx, metadata.TenantId, payload.StepRunId)
-
-	if err != nil {
-		return fmt.Errorf("could not get step run: %w", err)
-	}
-
-	// queue the next step runs
-	jobRunId := sqlchelpers.UUIDToStr(stepRun.JobRunId)
-	stepRunId := sqlchelpers.UUIDToStr(stepRun.SRID)
-
-	nextStepRuns, err := ec.repo.StepRun().ListStartableStepRuns(ctx, metadata.TenantId, jobRunId, &stepRunId)
-
-	if err != nil {
-		return fmt.Errorf("could not list startable step runs: %w", err)
-	}
-
-	for _, nextStepRun := range nextStepRuns {
-		nextStepId := sqlchelpers.UUIDToStr(nextStepRun.StepId)
-		nextStepRunId := sqlchelpers.UUIDToStr(nextStepRun.SRID)
-
-		err = ec.queueStepRun(ctx, metadata.TenantId, nextStepId, nextStepRunId, false)
-
-		if err != nil {
-			return fmt.Errorf("could not queue next step run: %w", err)
-		}
-	}
-
 	return nil
 }
 

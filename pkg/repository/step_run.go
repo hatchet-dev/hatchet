@@ -147,6 +147,7 @@ type QueueStepRunsResult struct {
 }
 
 type ProcessStepRunUpdatesResult struct {
+	SucceededStepRuns     []*dbsqlc.GetStepRunForEngineRow
 	CompletedWorkflowRuns []*dbsqlc.ResolveWorkflowRunStatusRow
 	Continue              bool
 }

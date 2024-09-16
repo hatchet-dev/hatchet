@@ -889,6 +889,19 @@ func (q *Queries) GetStepRunDataForEngine(ctx context.Context, db DBTX, arg GetS
 }
 
 const getStepRunForEngine = `-- name: GetStepRunForEngine :many
+WITH child_count AS (
+    SELECT
+        COUNT(*) AS "childCount",
+        sr."id" AS "id"
+    FROM
+        "StepRun" sr
+    LEFT JOIN
+        "_StepRunOrder" AS step_run_order ON sr."id" = step_run_order."A"
+    WHERE
+        sr."id" = ANY($1::uuid[])
+    GROUP BY
+        sr."id"
+)
 SELECT
     DISTINCT ON (sr."id")
     sr."id" AS "SR_id",
@@ -914,6 +927,7 @@ SELECT
     sr."retryCount" AS "SR_retryCount",
     sr."semaphoreReleased" AS "SR_semaphoreReleased",
     sr."priority" AS "SR_priority",
+    cc."childCount" AS "SR_childCount",
     -- TODO: everything below this line is cacheable and should be moved to a separate query
     jr."id" AS "jobRunId",
     s."id" AS "stepId",
@@ -933,6 +947,8 @@ SELECT
     sticky."desiredWorkerId" AS "desiredWorkerId"
 FROM
     "StepRun" sr
+JOIN
+    child_count cc ON sr."id" = cc."id"
 JOIN
     "Step" s ON sr."stepId" = s."id"
 JOIN
@@ -984,6 +1000,7 @@ type GetStepRunForEngineRow struct {
 	SRRetryCount        int32              `json:"SR_retryCount"`
 	SRSemaphoreReleased bool               `json:"SR_semaphoreReleased"`
 	SRPriority          pgtype.Int4        `json:"SR_priority"`
+	SRChildCount        int64              `json:"SR_childCount"`
 	JobRunId            pgtype.UUID        `json:"jobRunId"`
 	StepId              pgtype.UUID        `json:"stepId"`
 	StepRetries         int32              `json:"stepRetries"`
@@ -1035,6 +1052,7 @@ func (q *Queries) GetStepRunForEngine(ctx context.Context, db DBTX, arg GetStepR
 			&i.SRRetryCount,
 			&i.SRSemaphoreReleased,
 			&i.SRPriority,
+			&i.SRChildCount,
 			&i.JobRunId,
 			&i.StepId,
 			&i.StepRetries,
