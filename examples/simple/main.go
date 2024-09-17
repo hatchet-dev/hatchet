@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"time"
 
 	"github.com/joho/godotenv"
 
@@ -29,10 +28,10 @@ func main() {
 		panic(err)
 	}
 
-	// events := make(chan string, 500000)
+	events := make(chan string, 50)
 	interrupt := cmdutils.InterruptChan()
 
-	cleanup, err := run()
+	cleanup, err := run(events)
 	if err != nil {
 		panic(err)
 	}
@@ -48,7 +47,7 @@ func getConcurrencyKey(ctx worker.HatchetContext) (string, error) {
 	return "user-create", nil
 }
 
-func run() (func() error, error) {
+func run(events chan<- string) (func() error, error) {
 	c, err := client.New()
 
 	if err != nil {
@@ -71,7 +70,7 @@ func run() (func() error, error) {
 			On:          worker.Events("user:create:simple"),
 			Name:        "simple",
 			Description: "This runs after an update to the user model.",
-			// Concurrency: worker.Concurrency(getConcurrencyKey),
+			Concurrency: worker.Concurrency(getConcurrencyKey),
 			Steps: []*worker.WorkflowStep{
 				worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
 					input := &userCreateEvent{}
@@ -83,13 +82,28 @@ func run() (func() error, error) {
 					}
 
 					log.Printf("step-one")
-					time.Sleep(30 * time.Second)
+					events <- "step-one"
 
 					return &stepOneOutput{
 						Message: "Username is: " + input.Username,
 					}, nil
 				},
 				).SetName("step-one"),
+				worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
+					input := &stepOneOutput{}
+					err = ctx.StepOutput("step-one", input)
+
+					if err != nil {
+						return nil, err
+					}
+
+					log.Printf("step-two")
+					events <- "step-two"
+
+					return &stepOneOutput{
+						Message: "Above message is: " + input.Message,
+					}, nil
+				}).SetName("step-two").AddParents("step-one"),
 			},
 		},
 	)
@@ -97,35 +111,28 @@ func run() (func() error, error) {
 		return nil, fmt.Errorf("error registering workflow: %w", err)
 	}
 
-	// do  this 1000 times
-
 	go func() {
-		for i := 0; i < 10000; i++ {
-			testEvent := userCreateEvent{
-				Username: "echo-test",
-				UserID:   "1234",
-				Data: map[string]string{
-					"test": "test",
-				},
-			}
-
-			log.Printf("pushing event user:create:simple")
-			// push an event
-			err := c.Event().Push(
-				context.Background(),
-				"user:create:simple",
-				testEvent,
-				client.WithEventMetadata(map[string]string{
-					"hello": "world",
-				}),
-			)
-			if err != nil {
-				panic(fmt.Errorf("error pushing event: %w", err))
-			}
-
-			time.Sleep(10 * time.Millisecond)
+		testEvent := userCreateEvent{
+			Username: "echo-test",
+			UserID:   "1234",
+			Data: map[string]string{
+				"test": "test",
+			},
 		}
 
+		log.Printf("pushing event user:create:simple")
+		// push an event
+		err := c.Event().Push(
+			context.Background(),
+			"user:create:simple",
+			testEvent,
+			client.WithEventMetadata(map[string]string{
+				"hello": "world",
+			}),
+		)
+		if err != nil {
+			panic(fmt.Errorf("error pushing event: %w", err))
+		}
 	}()
 
 	cleanup, err := w.Start()
