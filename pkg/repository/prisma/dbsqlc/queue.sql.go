@@ -65,6 +65,26 @@ func (q *Queries) CleanupQueueItems(ctx context.Context, db DBTX, arg CleanupQue
 	return err
 }
 
+const cleanupTimeoutQueueItems = `-- name: CleanupTimeoutQueueItems :exec
+DELETE FROM "TimeoutQueueItem"
+WHERE "isQueued" = 'f'
+AND
+    "id" >= $1::bigint
+    AND "id" <= $2::bigint
+    AND "tenantId" = $3::uuid
+`
+
+type CleanupTimeoutQueueItemsParams struct {
+	Minid    int64       `json:"minid"`
+	Maxid    int64       `json:"maxid"`
+	Tenantid pgtype.UUID `json:"tenantid"`
+}
+
+func (q *Queries) CleanupTimeoutQueueItems(ctx context.Context, db DBTX, arg CleanupTimeoutQueueItemsParams) error {
+	_, err := db.Exec(ctx, cleanupTimeoutQueueItems, arg.Minid, arg.Maxid, arg.Tenantid)
+	return err
+}
+
 const createInternalQueueItemsBulk = `-- name: CreateInternalQueueItemsBulk :exec
 INSERT INTO
     "InternalQueueItem" (
@@ -158,6 +178,41 @@ func (q *Queries) CreateQueueItem(ctx context.Context, db DBTX, arg CreateQueueI
 	return err
 }
 
+const createTimeoutQueueItem = `-- name: CreateTimeoutQueueItem :exec
+INSERT INTO
+    "InternalQueueItem" (
+        "stepRunId",
+        "retryCount",
+        "timeoutAt",
+        "tenantId",
+        "isQueued"
+    )
+SELECT
+    $1::uuid,
+    $2::integer,
+    $3::timestamp,
+    $4::uuid,
+    true
+ON CONFLICT DO NOTHING
+`
+
+type CreateTimeoutQueueItemParams struct {
+	Steprunid  pgtype.UUID      `json:"steprunid"`
+	Retrycount int32            `json:"retrycount"`
+	Timeoutat  pgtype.Timestamp `json:"timeoutat"`
+	Tenantid   pgtype.UUID      `json:"tenantid"`
+}
+
+func (q *Queries) CreateTimeoutQueueItem(ctx context.Context, db DBTX, arg CreateTimeoutQueueItemParams) error {
+	_, err := db.Exec(ctx, createTimeoutQueueItem,
+		arg.Steprunid,
+		arg.Retrycount,
+		arg.Timeoutat,
+		arg.Tenantid,
+	)
+	return err
+}
+
 const createUniqueInternalQueueItemsBulk = `-- name: CreateUniqueInternalQueueItemsBulk :exec
 INSERT INTO
     "InternalQueueItem" (
@@ -244,6 +299,91 @@ func (q *Queries) GetMinMaxProcessedQueueItems(ctx context.Context, db DBTX, ten
 	var i GetMinMaxProcessedQueueItemsRow
 	err := row.Scan(&i.MinId, &i.MaxId)
 	return &i, err
+}
+
+const getMinMaxProcessedTimeoutQueueItems = `-- name: GetMinMaxProcessedTimeoutQueueItems :one
+SELECT
+    COALESCE(MIN("id"), 0)::bigint AS "minId",
+    COALESCE(MAX("id"), 0)::bigint AS "maxId"
+FROM
+    "TimeoutQueueItem"
+WHERE
+    "isQueued" = 'f'
+    AND "tenantId" = $1::uuid
+`
+
+type GetMinMaxProcessedTimeoutQueueItemsRow struct {
+	MinId int64 `json:"minId"`
+	MaxId int64 `json:"maxId"`
+}
+
+func (q *Queries) GetMinMaxProcessedTimeoutQueueItems(ctx context.Context, db DBTX, tenantid pgtype.UUID) (*GetMinMaxProcessedTimeoutQueueItemsRow, error) {
+	row := db.QueryRow(ctx, getMinMaxProcessedTimeoutQueueItems, tenantid)
+	var i GetMinMaxProcessedTimeoutQueueItemsRow
+	err := row.Scan(&i.MinId, &i.MaxId)
+	return &i, err
+}
+
+const listAvailableSlotsForWorkers = `-- name: ListAvailableSlotsForWorkers :many
+WITH worker_max_runs AS (
+    SELECT
+        "id",
+        "maxRuns"
+    FROM
+        "Worker"
+    WHERE
+        "tenantId" = $1::uuid
+        AND "id" = ANY($2::uuid[])
+), worker_filled_slots AS (
+    SELECT
+        "workerId",
+        COUNT("stepRunId") AS "filledSlots"
+    FROM
+        "SemaphoreQueueItem"
+    WHERE
+        "tenantId" = $1::uuid
+        AND "workerId" = ANY($2::uuid[])
+    GROUP BY
+        "workerId"
+)
+SELECT
+    wmr."id",
+    wmr."maxRuns" - COALESCE(wfs."filledSlots", 0) AS "availableSlots"
+FROM
+    worker_max_runs wmr
+LEFT JOIN
+    worker_filled_slots wfs ON wmr."id" = wfs."workerId"
+`
+
+type ListAvailableSlotsForWorkersParams struct {
+	Tenantid  pgtype.UUID   `json:"tenantid"`
+	Workerids []pgtype.UUID `json:"workerids"`
+}
+
+type ListAvailableSlotsForWorkersRow struct {
+	ID             pgtype.UUID `json:"id"`
+	AvailableSlots int32       `json:"availableSlots"`
+}
+
+// subtract the filled slots from the max runs to get the available slots
+func (q *Queries) ListAvailableSlotsForWorkers(ctx context.Context, db DBTX, arg ListAvailableSlotsForWorkersParams) ([]*ListAvailableSlotsForWorkersRow, error) {
+	rows, err := db.Query(ctx, listAvailableSlotsForWorkers, arg.Tenantid, arg.Workerids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListAvailableSlotsForWorkersRow
+	for rows.Next() {
+		var i ListAvailableSlotsForWorkersRow
+		if err := rows.Scan(&i.ID, &i.AvailableSlots); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listInternalQueueItems = `-- name: ListInternalQueueItems :many
@@ -349,6 +489,78 @@ WHERE
 
 func (q *Queries) MarkInternalQueueItemsProcessed(ctx context.Context, db DBTX, ids []int64) error {
 	_, err := db.Exec(ctx, markInternalQueueItemsProcessed, ids)
+	return err
+}
+
+const popTimeoutQueueItems = `-- name: PopTimeoutQueueItems :many
+WITH qis AS (
+    SELECT
+        "id",
+        "stepRunId"
+    FROM
+        "TimeoutQueueItem"
+    WHERE
+        "isQueued" = true
+        AND "tenantId" = $1::uuid
+        AND "timeoutAt" <= NOW()
+    ORDER BY
+        "timeoutAt" ASC
+    LIMIT
+        COALESCE($2::integer, 100)
+    FOR UPDATE SKIP LOCKED
+)
+UPDATE
+    "TimeoutQueueItem" qi
+SET
+    "isQueued" = false
+FROM
+    qis
+WHERE
+    qi."id" = qis."id"
+RETURNING
+    qis."stepRunId" AS "stepRunId"
+`
+
+type PopTimeoutQueueItemsParams struct {
+	Tenantid pgtype.UUID `json:"tenantid"`
+	Limit    pgtype.Int4 `json:"limit"`
+}
+
+func (q *Queries) PopTimeoutQueueItems(ctx context.Context, db DBTX, arg PopTimeoutQueueItemsParams) ([]pgtype.UUID, error) {
+	rows, err := db.Query(ctx, popTimeoutQueueItems, arg.Tenantid, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []pgtype.UUID
+	for rows.Next() {
+		var stepRunId pgtype.UUID
+		if err := rows.Scan(&stepRunId); err != nil {
+			return nil, err
+		}
+		items = append(items, stepRunId)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const removeTimeoutQueueItem = `-- name: RemoveTimeoutQueueItem :exec
+DELETE FROM
+    "TimeoutQueueItem"
+WHERE
+    "stepRunId" = $1::uuid
+    AND "retryCount" = $2::integer
+`
+
+type RemoveTimeoutQueueItemParams struct {
+	Steprunid  pgtype.UUID `json:"steprunid"`
+	Retrycount int32       `json:"retrycount"`
+}
+
+func (q *Queries) RemoveTimeoutQueueItem(ctx context.Context, db DBTX, arg RemoveTimeoutQueueItemParams) error {
+	_, err := db.Exec(ctx, removeTimeoutQueueItem, arg.Steprunid, arg.Retrycount)
 	return err
 }
 

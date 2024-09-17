@@ -223,7 +223,8 @@ type EncryptionConfigFileCloudKMS struct {
 
 type ConfigFileAuth struct {
 	// RestrictedEmailDomains sets the restricted email domains for the instance.
-	RestrictedEmailDomains []string `mapstructure:"restrictedEmailDomains" json:"restrictedEmailDomains,omitempty"`
+	// NOTE: do not use this on the server from the config file.
+	RestrictedEmailDomains string `mapstructure:"restrictedEmailDomains" json:"restrictedEmailDomains,omitempty"`
 
 	// BasedAuthEnabled controls whether email and password-based login is enabled for this
 	// Hatchet instance
@@ -302,6 +303,8 @@ type PostmarkConfigFile struct {
 }
 
 type AuthConfig struct {
+	RestrictedEmailDomains []string
+
 	ConfigFile ConfigFileAuth
 
 	GoogleOAuthConfig *oauth2.Config

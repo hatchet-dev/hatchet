@@ -1291,8 +1291,6 @@ model StepRun {
   // if the semaphore was released prior to terminal state
   semaphoreReleased Boolean @default(false)
 
-  semaphoreSlot WorkerSemaphoreSlot?
-
   archivedResults StepRunResultArchive[]
 
   streamEvents StreamEvent[]
@@ -1314,10 +1312,8 @@ model StepRun {
   @@index([id, tenantId])
   // index for ResolveJobRunStatus, ResolveLaterStepRuns, and LinkStepRunParents
   @@index([jobRunId, tenantId, order])
-  // index for ListStepRunsToReassign
-  @@index([jobRunId, status, tenantId])
-  // index for PollStepRuns
-  @@index([tenantId, status, timeoutAt])
+  // NOTE: custom index on "StepRun_jobRunId_status_tenantId_idx" set manually in migrations
+  // deletedAt index
   @@index([deletedAt])
 }
 
@@ -1376,6 +1372,36 @@ model InternalQueueItem {
   @@index([isQueued, tenantId, queue, priority(sort: Desc), id])
 }
 
+model TimeoutQueueItem {
+  id BigInt @id @default(autoincrement()) @db.BigInt
+
+  // the parent step run
+  stepRunId String @db.Uuid
+
+  retryCount Int
+
+  // the time the step run times out due to a scheduling timeout (no workers available)
+  timeoutAt DateTime
+
+  // the parent tenant
+  tenantId String @db.Uuid
+
+  isQueued Boolean
+
+  @@unique([stepRunId, retryCount])
+  @@index([tenantId, isQueued, timeoutAt])
+}
+
+model SemaphoreQueueItem {
+  stepRunId String @id @unique @db.Uuid
+  workerId  String @db.Uuid
+
+  // the parent tenant
+  tenantId String @db.Uuid
+
+  @@index([tenantId, workerId])
+}
+
 enum StepRunEventReason {
   REQUEUED_NO_WORKER
   REQUEUED_RATE_LIMIT
@@ -1422,7 +1448,9 @@ model StepRunEvent {
 
   data Json?
 
-  @@index([stepRunId])
+  // id - timeFirstSeen uniue index
+
+  @@index([stepRunId]) // only on wfr id
 }
 
 model StepRunResultArchive {
@@ -1434,6 +1462,8 @@ model StepRunResultArchive {
   // the parent step run
   stepRun   StepRun @relation(fields: [stepRunId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   stepRunId String  @db.Uuid
+
+  retryCount Int @default(0)
 
   order BigInt @default(autoincrement()) @db.BigInt
 
@@ -1580,51 +1610,10 @@ model Worker {
   // the runs which retrieve the group keys
   groupKeyRuns GetGroupKeyRun[]
 
-  slots WorkerSemaphoreSlot[]
-
-  semaphoreCount WorkerSemaphoreCount?
   assignedEvents WorkerAssignEvent[]
 
   webhook   WebhookWorker? @relation(fields: [webhookId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   webhookId String?        @unique @db.Uuid
-
-  // DEPRECATED in v_0_30_1, replaced with slots and will be removed in a future release
-  semaphore WorkerSemaphore? // FIXME remove this in a few releases from v_0_30_1
-}
-
-// DEPRECATED in v_0_30_1, replaced with slots and will be removed in a future release
-// FIXME remove in a future release
-model WorkerSemaphore {
-  // the parent worker
-  worker   Worker @relation(fields: [workerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  workerId String @unique @db.Uuid
-  // keeps track of maxRuns - runningRuns on the worker
-  slots    Int
-}
-
-model WorkerSemaphoreSlot {
-  id String @id @unique @default(uuid()) @db.Uuid
-
-  // the parent semaphore
-  worker   Worker @relation(fields: [workerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  workerId String @db.Uuid
-
-  // the parent step run
-  stepRun   StepRun? @relation(fields: [stepRunId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  stepRunId String?  @unique @db.Uuid
-
-  @@index([workerId])
-}
-
-model WorkerSemaphoreCount {
-  // the parent semaphore
-  worker   Worker @relation(fields: [workerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  workerId String @id @unique @db.Uuid
-
-  // the count of the semaphore
-  count Int
-
-  @@index([workerId])
 }
 
 model WorkerAssignEvent {

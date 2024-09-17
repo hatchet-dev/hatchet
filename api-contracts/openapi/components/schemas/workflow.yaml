@@ -86,6 +86,13 @@ WorkflowVersion:
       format: int32
     workflowId:
       type: string
+    sticky:
+      type: string
+      description: The sticky strategy of the workflow.
+    defaultPriority:
+      type: integer
+      format: int32
+      description: The default priority of the workflow.
     workflow:
       $ref: "#/Workflow"
     concurrency:

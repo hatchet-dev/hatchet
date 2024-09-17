@@ -18,6 +18,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 )
 
@@ -33,9 +34,8 @@ type queue struct {
 	// a custom queue logger
 	ql *zerolog.Logger
 
-	tenantQueueOperations     sync.Map
-	tenantWorkerSemOperations sync.Map
-	updateStepRunOperations   sync.Map
+	tenantQueueOperations   sync.Map
+	updateStepRunOperations sync.Map
 }
 
 func newQueue(
@@ -72,6 +72,7 @@ type operation struct {
 	tenantId       string
 	lastRun        time.Time
 	description    string
+	timeout        time.Duration
 }
 
 func (o *operation) runOrContinue(l *zerolog.Logger, ql *zerolog.Logger, scheduler func(context.Context, string) (bool, error)) {
@@ -92,13 +93,13 @@ func (o *operation) run(l *zerolog.Logger, ql *zerolog.Logger, scheduler func(co
 		f := func() {
 			o.setContinue(false)
 
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), o.timeout)
 			defer cancel()
 
 			shouldContinue, err := scheduler(ctx, o.tenantId)
 
 			if err != nil {
-				l.Err(err).Msgf("could not schedule step runs for tenant")
+				l.Err(err).Msgf("could not %s", o.description)
 				return
 			}
 
@@ -167,18 +168,6 @@ func (q *queue) Start() (func() error, error) {
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("could not schedule step run reassign: %w", err)
-	}
-
-	_, err = q.s.NewJob(
-		gocron.DurationJob(time.Second*1),
-		gocron.NewTask(
-			q.runTenantWorkerSemaphores(ctx),
-		),
-	)
-
-	if err != nil {
-		cancel()
-		return nil, fmt.Errorf("could not schedule worker semaphore update: %w", err)
 	}
 
 	_, err = q.s.NewJob(
@@ -271,12 +260,6 @@ func (q *queue) handleCheckQueue(ctx context.Context, task *msgqueue.Message) er
 		op.runOrContinue(q.l, q.ql, q.scheduleStepRuns)
 	}
 
-	if opInt, ok := q.tenantWorkerSemOperations.Load(metadata.TenantId); ok {
-		op := opInt.(*operation)
-
-		op.runOrContinue(q.l, q.ql, q.processWorkerSemaphores)
-	}
-
 	if opInt, ok := q.updateStepRunOperations.Load(metadata.TenantId); ok {
 		op := opInt.(*operation)
 
@@ -319,11 +302,6 @@ func (q *queue) scheduleStepRuns(ctx context.Context, tenantId string) (bool, er
 		return false, fmt.Errorf("could not queue step runs: %w", err)
 	}
 
-	// if we've assigned work, we should run the worker semaphore operation
-	if len(queueResults.Queued) > 0 {
-		q.getWorkerSemaphoreOperation(tenantId).runOrContinue(q.l, q.ql, q.processWorkerSemaphores)
-	}
-
 	for _, queueResult := range queueResults.Queued {
 		// send a task to the dispatcher
 		innerErr := q.mq.AddMessage(
@@ -356,26 +334,6 @@ func (q *queue) scheduleStepRuns(ctx context.Context, tenantId string) (bool, er
 	return queueResults.Continue, err
 }
 
-func (q *queue) runTenantWorkerSemaphores(ctx context.Context) func() {
-	return func() {
-		q.l.Debug().Msgf("partition: updating worker semaphore counts")
-
-		// list all tenants
-		tenants, err := q.repo.Tenant().ListTenantsByControllerPartition(ctx, q.p.GetControllerPartitionId())
-
-		if err != nil {
-			q.l.Err(err).Msg("could not list tenants")
-			return
-		}
-
-		for i := range tenants {
-			tenantId := sqlchelpers.UUIDToStr(tenants[i].ID)
-
-			q.getWorkerSemaphoreOperation(tenantId).run(q.l, q.ql, q.processWorkerSemaphores)
-		}
-	}
-}
-
 func (q *queue) getQueueOperation(tenantId string) *operation {
 	op, ok := q.tenantQueueOperations.Load(tenantId)
 
@@ -384,25 +342,10 @@ func (q *queue) getQueueOperation(tenantId string) *operation {
 			tenantId:    tenantId,
 			lastRun:     time.Now(),
 			description: "scheduling step runs",
+			timeout:     30 * time.Second,
 		}
 
 		q.tenantQueueOperations.Store(tenantId, op)
-	}
-
-	return op.(*operation)
-}
-
-func (q *queue) getWorkerSemaphoreOperation(tenantId string) *operation {
-	op, ok := q.tenantWorkerSemOperations.Load(tenantId)
-
-	if !ok {
-		op = &operation{
-			tenantId:    tenantId,
-			lastRun:     time.Now(),
-			description: "updating worker semaphores",
-		}
-
-		q.tenantWorkerSemOperations.Store(tenantId, op)
 	}
 
 	return op.(*operation)
@@ -416,32 +359,13 @@ func (q *queue) getUpdateStepRunOperation(tenantId string) *operation {
 			tenantId:    tenantId,
 			lastRun:     time.Now(),
 			description: "updating step runs",
+			timeout:     300 * time.Second,
 		}
 
 		q.updateStepRunOperations.Store(tenantId, op)
 	}
 
 	return op.(*operation)
-}
-
-func (q *queue) processWorkerSemaphores(ctx context.Context, tenantId string) (bool, error) {
-	ctx, span := telemetry.NewSpan(ctx, "process-worker-semaphores")
-	defer span.End()
-
-	dbCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
-
-	shouldContinue, didReleaseSlots, err := q.repo.StepRun().UpdateWorkerSemaphoreCounts(dbCtx, q.ql, tenantId)
-
-	if err != nil {
-		return false, fmt.Errorf("could not process worker semaphores: %w", err)
-	}
-
-	if didReleaseSlots {
-		q.getQueueOperation(tenantId).runOrContinue(q.l, q.ql, q.scheduleStepRuns)
-	}
-
-	return shouldContinue, nil
 }
 
 func (q *queue) runTenantUpdateStepRuns(ctx context.Context) func() {
@@ -468,13 +392,52 @@ func (q *queue) processStepRunUpdates(ctx context.Context, tenantId string) (boo
 	ctx, span := telemetry.NewSpan(ctx, "process-worker-semaphores")
 	defer span.End()
 
-	dbCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	dbCtx, cancel := context.WithTimeout(ctx, 300*time.Second)
 	defer cancel()
 
 	res, err := q.repo.StepRun().ProcessStepRunUpdates(dbCtx, q.ql, tenantId)
 
 	if err != nil {
 		return false, fmt.Errorf("could not process step run updates: %w", err)
+	}
+
+	// for all succeeded step runs, check for startable child step runs
+	err = MakeBatched(20, res.SucceededStepRuns, func(group []*dbsqlc.GetStepRunForEngineRow) error {
+		for _, stepRun := range group {
+			if stepRun.SRChildCount == 0 {
+				continue
+			}
+
+			// queue the next step runs
+			tenantId := sqlchelpers.UUIDToStr(stepRun.SRTenantId)
+			jobRunId := sqlchelpers.UUIDToStr(stepRun.JobRunId)
+			stepRunId := sqlchelpers.UUIDToStr(stepRun.SRID)
+
+			nextStepRuns, err := q.repo.StepRun().ListStartableStepRuns(ctx, tenantId, jobRunId, &stepRunId)
+
+			if err != nil {
+				q.l.Error().Err(err).Msg("could not list startable step runs")
+				continue
+			}
+
+			for _, nextStepRun := range nextStepRuns {
+				err := q.mq.AddMessage(
+					context.Background(),
+					msgqueue.JOB_PROCESSING_QUEUE,
+					tasktypes.StepRunQueuedToTask(nextStepRun),
+				)
+
+				if err != nil {
+					q.l.Error().Err(err).Msg("could not queue next step run")
+				}
+			}
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return false, fmt.Errorf("could not process succeeded step runs: %w", err)
 	}
 
 	// for all finished workflow runs, send a message

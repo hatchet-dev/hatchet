@@ -48,7 +48,7 @@ func (t *WorkerService) WorkerGet(ctx echo.Context, request gen.WorkerGetRequest
 	workerResp := *transformers.ToWorkerSqlc(&worker.Worker, &slots, &worker.WebhookUrl.String, actions)
 
 	workerResp.RecentStepRuns = &respStepRuns
-	workerResp.Slots = transformers.ToSlotState(slotState)
+	workerResp.Slots = transformers.ToSlotState(slotState, slots)
 
 	affinity, err := t.config.APIRepository.Worker().ListWorkerLabels(
 		sqlchelpers.UUIDToStr(worker.Worker.TenantId),

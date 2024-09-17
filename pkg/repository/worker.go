@@ -106,8 +106,6 @@ type WorkerEngineRepository interface {
 
 	GetWorkerForEngine(ctx context.Context, tenantId, workerId string) (*dbsqlc.GetWorkerForEngineRow, error)
 
-	ResolveWorkerSemaphoreSlots(ctx context.Context, tenantId pgtype.UUID) (*dbsqlc.ResolveWorkerSemaphoreSlotsRow, error)
-
 	UpdateWorkerActiveStatus(ctx context.Context, tenantId, workerId string, isActive bool, timestamp time.Time) (*dbsqlc.Worker, error)
 
 	UpsertWorkerLabels(ctx context.Context, workerId pgtype.UUID, opts []UpsertWorkerLabelOpts) ([]*dbsqlc.WorkerLabel, error)

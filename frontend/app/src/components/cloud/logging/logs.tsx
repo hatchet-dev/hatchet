@@ -1,21 +1,25 @@
 import React, { useEffect, useRef, useState } from 'react';
 import AnsiToHtml from 'ansi-to-html';
 import DOMPurify from 'dompurify';
-import { LogLine } from '@/lib/api/generated/cloud/data-contracts';
 
 const convert = new AnsiToHtml({
   newline: true,
   bg: 'transparent',
 });
 
-export interface ExtendedLogLine extends LogLine {
+export interface ExtendedLogLine {
   badge?: React.ReactNode;
+  /** @format date-time */
+  timestamp?: string;
+  instance?: string;
+  line: string;
 }
 
 type LogProps = {
   logs: ExtendedLogLine[];
   onTopReached: () => void;
   onBottomReached: () => void;
+  autoScroll?: boolean;
 };
 
 const options: Intl.DateTimeFormatOptions = {
@@ -31,6 +35,7 @@ const LoggingComponent: React.FC<LogProps> = ({
   logs,
   onTopReached,
   onBottomReached,
+  autoScroll = true,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -68,7 +73,7 @@ const LoggingComponent: React.FC<LogProps> = ({
       const container = containerRef.current;
 
       if (container && container.scrollHeight > container.clientHeight) {
-        if (firstMount) {
+        if (firstMount && autoScroll) {
           container.scrollTo({
             top: container.scrollHeight,
             behavior: 'smooth',
@@ -78,7 +83,7 @@ const LoggingComponent: React.FC<LogProps> = ({
         }
       }
     }, 250);
-  }, [containerRef, firstMount]);
+  }, [containerRef, firstMount, autoScroll]);
 
   useEffect(() => {
     if (refreshing) {
@@ -90,6 +95,10 @@ const LoggingComponent: React.FC<LogProps> = ({
   }, [refreshing]);
 
   useEffect(() => {
+    if (!autoScroll) {
+      return;
+    }
+
     const container = containerRef.current;
     if (!container) {
       return;
@@ -108,7 +117,7 @@ const LoggingComponent: React.FC<LogProps> = ({
     } else {
       container.scrollTo({ top: currentScrollHeight, behavior: 'smooth' });
     }
-  }, [logs]);
+  }, [logs, autoScroll]);
 
   const showLogs =
     logs.length > 0
@@ -121,13 +130,17 @@ const LoggingComponent: React.FC<LogProps> = ({
           },
         ];
 
-  const sortedLogs = [...showLogs].sort(
-    (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
-  );
+  const sortedLogs = [...showLogs].sort((a, b) => {
+    if (!a.timestamp || !b.timestamp) {
+      return 0;
+    }
+
+    return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
+  });
 
   return (
     <div
-      className="relative w-full mx-auto overflow-y-auto p-6 text-indigo-300 font-mono text-xs rounded-md max-h-[25rem] min-h-[25rem] bg-muted"
+      className="w-full mx-auto overflow-y-auto p-6 text-indigo-300 font-mono text-xs rounded-md max-h-[25rem] min-h-[25rem] bg-muted"
       ref={containerRef}
       onScroll={handleScroll}
     >
@@ -150,13 +163,17 @@ const LoggingComponent: React.FC<LogProps> = ({
             id={'log' + i}
           >
             {log.badge}
-            <span className="text-gray-500 mr-2 ml--2">
-              {new Date(log.timestamp)
-                .toLocaleString('sv', options)
-                .replace(',', '.')
-                .replace(' ', 'T')}
-            </span>
-            <span className="text-white mr-2 ml--2">{log.instance}</span>
+            {log.timestamp && (
+              <span className="text-gray-500 mr-2 ml--2">
+                {new Date(log.timestamp)
+                  .toLocaleString('sv', options)
+                  .replace(',', '.')
+                  .replace(' ', 'T')}
+              </span>
+            )}
+            {log.instance && (
+              <span className="text-white mr-2 ml--2">{log.instance}</span>
+            )}
             <span
               dangerouslySetInnerHTML={{
                 __html: sanitizedHtml,

@@ -431,7 +431,7 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 
 			_, err = s.repo.Worker().UpdateWorkerActiveStatus(ctx, tenantId, request.WorkerId, false, sessionEstablished)
 
-			if err != nil {
+			if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 				s.l.Error().Err(err).Msgf("could not update worker %s active status to false due to worker stream closing (session established %s)", request.WorkerId, sessionEstablished.String())
 				return err
 			}
@@ -445,7 +445,7 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 
 			_, err = s.repo.Worker().UpdateWorkerActiveStatus(ctx, tenantId, request.WorkerId, false, sessionEstablished)
 
-			if err != nil {
+			if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 				s.l.Error().Err(err).Msgf("could not update worker %s active status due to worker disconnecting (session established %s)", request.WorkerId, sessionEstablished.String())
 				return err
 			}
@@ -1555,22 +1555,22 @@ func (s *DispatcherImpl) isMatchingWorkflowRun(task *msgqueue.Message, workflowR
 }
 
 func (s *DispatcherImpl) toWorkflowRunEvent(tenantId string, workflowRuns []*dbsqlc.ListWorkflowRunsRow) ([]*contracts.WorkflowRunEvent, error) {
-	workflowRunIds := make([]string, 0)
+	finalWorkflowRuns := make([]*dbsqlc.ListWorkflowRunsRow, 0)
 
 	for _, workflowRun := range workflowRuns {
-		if workflowRun.WorkflowRun.Status != dbsqlc.WorkflowRunStatusFAILED && workflowRun.WorkflowRun.Status != dbsqlc.WorkflowRunStatusSUCCEEDED {
+		wrCopy := workflowRun
+
+		if !repository.IsFinalWorkflowRunStatus(wrCopy.WorkflowRun.Status) {
 			continue
 		}
 
-		workflowRunId := sqlchelpers.UUIDToStr(workflowRun.WorkflowRun.ID)
-
-		workflowRunIds = append(workflowRunIds, workflowRunId)
+		finalWorkflowRuns = append(finalWorkflowRuns, wrCopy)
 	}
 
 	res := make([]*contracts.WorkflowRunEvent, 0)
 
 	// get step run results for each workflow run
-	mappedStepRunResults, err := s.getStepResultsForWorkflowRun(tenantId, workflowRunIds)
+	mappedStepRunResults, err := s.getStepResultsForWorkflowRun(tenantId, finalWorkflowRuns)
 
 	if err != nil {
 		return nil, err
@@ -1588,7 +1588,18 @@ func (s *DispatcherImpl) toWorkflowRunEvent(tenantId string, workflowRuns []*dbs
 	return res, nil
 }
 
-func (s *DispatcherImpl) getStepResultsForWorkflowRun(tenantId string, workflowRunIds []string) (map[string][]*contracts.StepRunResult, error) {
+func (s *DispatcherImpl) getStepResultsForWorkflowRun(tenantId string, workflowRuns []*dbsqlc.ListWorkflowRunsRow) (map[string][]*contracts.StepRunResult, error) {
+	workflowRunIds := make([]string, 0)
+	workflowRunToOnFailureJobIds := make(map[string]string)
+
+	for _, workflowRun := range workflowRuns {
+		workflowRunIds = append(workflowRunIds, sqlchelpers.UUIDToStr(workflowRun.WorkflowRun.ID))
+
+		if workflowRun.WorkflowVersion.OnFailureJobId.Valid {
+			workflowRunToOnFailureJobIds[sqlchelpers.UUIDToStr(workflowRun.WorkflowRun.ID)] = sqlchelpers.UUIDToStr(workflowRun.WorkflowVersion.OnFailureJobId)
+		}
+	}
+
 	stepRuns, err := s.repo.StepRun().ListStepRuns(context.Background(), tenantId, &repository.ListStepRunsOpts{
 		WorkflowRunIds: workflowRunIds,
 	})
@@ -1605,6 +1616,16 @@ func (s *DispatcherImpl) getStepResultsForWorkflowRun(tenantId string, workflowR
 
 		if err != nil {
 			return nil, fmt.Errorf("could not get step run data for %s, %e", sqlchelpers.UUIDToStr(stepRun.SRID), err)
+		}
+
+		workflowRunId := sqlchelpers.UUIDToStr(stepRun.WorkflowRunId)
+		jobId := sqlchelpers.UUIDToStr(stepRun.JobId)
+
+		hasError := data.Error.Valid || stepRun.SRCancelledReason.Valid
+		isOnFailureJob := workflowRunToOnFailureJobIds[workflowRunId] == jobId
+
+		if hasError && isOnFailureJob {
+			continue
 		}
 
 		resStepRun := &contracts.StepRunResult{
@@ -1625,8 +1646,6 @@ func (s *DispatcherImpl) getStepResultsForWorkflowRun(tenantId string, workflowR
 		if data.Output != nil {
 			resStepRun.Output = repository.StringPtr(string(data.Output))
 		}
-
-		workflowRunId := sqlchelpers.UUIDToStr(stepRun.WorkflowRunId)
 
 		if currResults, ok := res[workflowRunId]; ok {
 			res[workflowRunId] = append(currResults, resStepRun)

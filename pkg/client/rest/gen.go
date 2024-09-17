@@ -259,6 +259,11 @@ type AcceptInviteRequest struct {
 	Invite string `json:"invite" validate:"required,uuid"`
 }
 
+// CancelEventRequest defines model for CancelEventRequest.
+type CancelEventRequest struct {
+	EventIds []openapi_types.UUID `json:"eventIds"`
+}
+
 // CreateAPITokenRequest defines model for CreateAPITokenRequest.
 type CreateAPITokenRequest struct {
 	// ExpiresIn The duration for which the token is valid.
@@ -598,32 +603,32 @@ type Step struct {
 
 // StepRun defines model for StepRun.
 type StepRun struct {
-	CancelledAt       *time.Time              `json:"cancelledAt,omitempty"`
-	CancelledAtEpoch  *int                    `json:"cancelledAtEpoch,omitempty"`
-	CancelledError    *string                 `json:"cancelledError,omitempty"`
-	CancelledReason   *string                 `json:"cancelledReason,omitempty"`
-	ChildWorkflowRuns *[]string               `json:"childWorkflowRuns,omitempty"`
-	Children          *[]string               `json:"children,omitempty"`
-	Error             *string                 `json:"error,omitempty"`
-	FinishedAt        *time.Time              `json:"finishedAt,omitempty"`
-	FinishedAtEpoch   *int                    `json:"finishedAtEpoch,omitempty"`
-	Input             *string                 `json:"input,omitempty"`
-	JobRun            *JobRun                 `json:"jobRun,omitempty"`
-	JobRunId          string                  `json:"jobRunId"`
-	Metadata          APIResourceMeta         `json:"metadata"`
-	Output            *string                 `json:"output,omitempty"`
-	Parents           *[]string               `json:"parents,omitempty"`
-	RequeueAfter      *time.Time              `json:"requeueAfter,omitempty"`
-	Result            *map[string]interface{} `json:"result,omitempty"`
-	StartedAt         *time.Time              `json:"startedAt,omitempty"`
-	StartedAtEpoch    *int                    `json:"startedAtEpoch,omitempty"`
-	Status            StepRunStatus           `json:"status"`
-	Step              *Step                   `json:"step,omitempty"`
-	StepId            string                  `json:"stepId"`
-	TenantId          string                  `json:"tenantId"`
-	TimeoutAt         *time.Time              `json:"timeoutAt,omitempty"`
-	TimeoutAtEpoch    *int                    `json:"timeoutAtEpoch,omitempty"`
-	WorkerId          *string                 `json:"workerId,omitempty"`
+	CancelledAt         *time.Time              `json:"cancelledAt,omitempty"`
+	CancelledAtEpoch    *int                    `json:"cancelledAtEpoch,omitempty"`
+	CancelledError      *string                 `json:"cancelledError,omitempty"`
+	CancelledReason     *string                 `json:"cancelledReason,omitempty"`
+	ChildWorkflowRuns   *[]string               `json:"childWorkflowRuns,omitempty"`
+	ChildWorkflowsCount *int                    `json:"childWorkflowsCount,omitempty"`
+	Error               *string                 `json:"error,omitempty"`
+	FinishedAt          *time.Time              `json:"finishedAt,omitempty"`
+	FinishedAtEpoch     *int                    `json:"finishedAtEpoch,omitempty"`
+	Input               *string                 `json:"input,omitempty"`
+	JobRun              *JobRun                 `json:"jobRun,omitempty"`
+	JobRunId            string                  `json:"jobRunId"`
+	Metadata            APIResourceMeta         `json:"metadata"`
+	Output              *string                 `json:"output,omitempty"`
+	Parents             *[]string               `json:"parents,omitempty"`
+	RequeueAfter        *time.Time              `json:"requeueAfter,omitempty"`
+	Result              *map[string]interface{} `json:"result,omitempty"`
+	StartedAt           *time.Time              `json:"startedAt,omitempty"`
+	StartedAtEpoch      *int                    `json:"startedAtEpoch,omitempty"`
+	Status              StepRunStatus           `json:"status"`
+	Step                *Step                   `json:"step,omitempty"`
+	StepId              string                  `json:"stepId"`
+	TenantId            string                  `json:"tenantId"`
+	TimeoutAt           *time.Time              `json:"timeoutAt,omitempty"`
+	TimeoutAtEpoch      *int                    `json:"timeoutAtEpoch,omitempty"`
+	WorkerId            *string                 `json:"workerId,omitempty"`
 }
 
 // StepRunArchive defines model for StepRunArchive.
@@ -639,6 +644,7 @@ type StepRunArchive struct {
 	Input            *string    `json:"input,omitempty"`
 	Order            int        `json:"order"`
 	Output           *string    `json:"output,omitempty"`
+	RetryCount       int        `json:"retryCount"`
 	StartedAt        *time.Time `json:"startedAt,omitempty"`
 	StartedAtEpoch   *int       `json:"startedAtEpoch,omitempty"`
 	StepRunId        string     `json:"stepRunId"`
@@ -1134,6 +1140,27 @@ type WorkflowRunOrderByDirection string
 // WorkflowRunOrderByField defines model for WorkflowRunOrderByField.
 type WorkflowRunOrderByField string
 
+// WorkflowRunShape defines model for WorkflowRunShape.
+type WorkflowRunShape struct {
+	AdditionalMetadata *map[string]interface{} `json:"additionalMetadata,omitempty"`
+	DisplayName        *string                 `json:"displayName,omitempty"`
+	Duration           *int                    `json:"duration,omitempty"`
+	Error              *string                 `json:"error,omitempty"`
+	FinishedAt         *time.Time              `json:"finishedAt,omitempty"`
+	Input              *map[string]interface{} `json:"input,omitempty"`
+	JobRuns            *[]JobRun               `json:"jobRuns,omitempty"`
+	Metadata           APIResourceMeta         `json:"metadata"`
+	ParentId           *openapi_types.UUID     `json:"parentId,omitempty"`
+	ParentStepRunId    *openapi_types.UUID     `json:"parentStepRunId,omitempty"`
+	StartedAt          *time.Time              `json:"startedAt,omitempty"`
+	Status             WorkflowRunStatus       `json:"status"`
+	TenantId           string                  `json:"tenantId"`
+	TriggeredBy        WorkflowRunTriggeredBy  `json:"triggeredBy"`
+	WorkflowId         *string                 `json:"workflowId,omitempty"`
+	WorkflowVersion    *WorkflowVersion        `json:"workflowVersion,omitempty"`
+	WorkflowVersionId  string                  `json:"workflowVersionId"`
+}
+
 // WorkflowRunStatus defines model for WorkflowRunStatus.
 type WorkflowRunStatus string
 
@@ -1142,12 +1169,11 @@ type WorkflowRunStatusList = []WorkflowRunStatus
 
 // WorkflowRunTriggeredBy defines model for WorkflowRunTriggeredBy.
 type WorkflowRunTriggeredBy struct {
-	CronParentId *string         `json:"cronParentId,omitempty"`
-	CronSchedule *string         `json:"cronSchedule,omitempty"`
-	Event        *Event          `json:"event,omitempty"`
-	EventId      *string         `json:"eventId,omitempty"`
-	Metadata     APIResourceMeta `json:"metadata"`
-	ParentId     string          `json:"parentId"`
+	CronParentId        *string         `json:"cronParentId,omitempty"`
+	CronSchedule        *string         `json:"cronSchedule,omitempty"`
+	EventId             *string         `json:"eventId,omitempty"`
+	Metadata            APIResourceMeta `json:"metadata"`
+	ParentWorkflowRunId *string         `json:"parentWorkflowRunId,omitempty"`
 }
 
 // WorkflowRunsCancelRequest defines model for WorkflowRunsCancelRequest.
@@ -1201,23 +1227,23 @@ type WorkflowTriggers struct {
 
 // WorkflowVersion defines model for WorkflowVersion.
 type WorkflowVersion struct {
-	Concurrency     *WorkflowConcurrency `json:"concurrency,omitempty"`
-	Jobs            *[]Job               `json:"jobs,omitempty"`
-	Metadata        APIResourceMeta      `json:"metadata"`
-	Order           int32                `json:"order"`
-	ScheduleTimeout *string              `json:"scheduleTimeout,omitempty"`
-	Triggers        *WorkflowTriggers    `json:"triggers,omitempty"`
+	Concurrency *WorkflowConcurrency `json:"concurrency,omitempty"`
+
+	// DefaultPriority The default priority of the workflow.
+	DefaultPriority *int32          `json:"defaultPriority,omitempty"`
+	Jobs            *[]Job          `json:"jobs,omitempty"`
+	Metadata        APIResourceMeta `json:"metadata"`
+	Order           int32           `json:"order"`
+	ScheduleTimeout *string         `json:"scheduleTimeout,omitempty"`
+
+	// Sticky The sticky strategy of the workflow.
+	Sticky   *string           `json:"sticky,omitempty"`
+	Triggers *WorkflowTriggers `json:"triggers,omitempty"`
 
 	// Version The version of the workflow.
 	Version    string    `json:"version"`
 	Workflow   *Workflow `json:"workflow,omitempty"`
 	WorkflowId string    `json:"workflowId"`
-}
-
-// WorkflowVersionDefinition defines model for WorkflowVersionDefinition.
-type WorkflowVersionDefinition struct {
-	// RawDefinition The raw YAML definition of the workflow.
-	RawDefinition string `json:"rawDefinition"`
 }
 
 // WorkflowVersionMeta defines model for WorkflowVersionMeta.
@@ -1305,6 +1331,9 @@ type EventListParams struct {
 
 	// AdditionalMetadata A list of metadata key value pairs to filter by
 	AdditionalMetadata *[]string `form:"additionalMetadata,omitempty" json:"additionalMetadata,omitempty"`
+
+	// EventIds A list of event ids to filter by
+	EventIds *[]openapi_types.UUID `form:"eventIds,omitempty" json:"eventIds,omitempty"`
 }
 
 // TenantGetQueueMetricsParams defines parameters for TenantGetQueueMetrics.
@@ -1314,6 +1343,12 @@ type TenantGetQueueMetricsParams struct {
 
 	// AdditionalMetadata A list of metadata key value pairs to filter by
 	AdditionalMetadata *[]string `form:"additionalMetadata,omitempty" json:"additionalMetadata,omitempty"`
+}
+
+// WorkflowRunListStepRunEventsParams defines parameters for WorkflowRunListStepRunEvents.
+type WorkflowRunListStepRunEventsParams struct {
+	// LastId Last ID of the last event
+	LastId *int32 `form:"lastId,omitempty" json:"lastId,omitempty"`
 }
 
 // WorkflowRunListParams defines parameters for WorkflowRunList.
@@ -1403,12 +1438,6 @@ type WorkflowVersionGetParams struct {
 	Version *openapi_types.UUID `form:"version,omitempty" json:"version,omitempty"`
 }
 
-// WorkflowVersionGetDefinitionParams defines parameters for WorkflowVersionGetDefinition.
-type WorkflowVersionGetDefinitionParams struct {
-	// Version The workflow version. If not supplied, the latest version is fetched.
-	Version *openapi_types.UUID `form:"version,omitempty" json:"version,omitempty"`
-}
-
 // AlertEmailGroupUpdateJSONRequestBody defines body for AlertEmailGroupUpdate for application/json ContentType.
 type AlertEmailGroupUpdateJSONRequestBody = UpdateTenantAlertEmailGroupRequest
 
@@ -1426,6 +1455,9 @@ type ApiTokenCreateJSONRequestBody = CreateAPITokenRequest
 
 // EventCreateJSONRequestBody defines body for EventCreate for application/json ContentType.
 type EventCreateJSONRequestBody = CreateEventRequest
+
+// EventUpdateCancelJSONRequestBody defines body for EventUpdateCancel for application/json ContentType.
+type EventUpdateCancelJSONRequestBody = CancelEventRequest
 
 // EventUpdateReplayJSONRequestBody defines body for EventUpdateReplay for application/json ContentType.
 type EventUpdateReplayJSONRequestBody = ReplayEventRequest
@@ -1565,6 +1597,9 @@ type ClientInterface interface {
 	// CloudMetadataGet request
 	CloudMetadataGet(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// EventGet request
+	EventGet(ctx context.Context, event openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// EventDataGet request
 	EventDataGet(ctx context.Context, event openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -1628,6 +1663,11 @@ type ClientInterface interface {
 	EventCreateWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	EventCreate(ctx context.Context, tenant openapi_types.UUID, body EventCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// EventUpdateCancelWithBody request with any body
+	EventUpdateCancelWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	EventUpdateCancel(ctx context.Context, tenant openapi_types.UUID, body EventUpdateCancelJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// EventKeyList request
 	EventKeyList(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -1712,6 +1752,15 @@ type ClientInterface interface {
 	// WorkflowRunGet request
 	WorkflowRunGet(ctx context.Context, tenant openapi_types.UUID, workflowRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// WorkflowRunGetInput request
+	WorkflowRunGetInput(ctx context.Context, tenant openapi_types.UUID, workflowRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// WorkflowRunGetShape request
+	WorkflowRunGetShape(ctx context.Context, tenant openapi_types.UUID, workflowRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// WorkflowRunListStepRunEvents request
+	WorkflowRunListStepRunEvents(ctx context.Context, tenant openapi_types.UUID, workflowRun openapi_types.UUID, params *WorkflowRunListStepRunEventsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// WorkflowList request
 	WorkflowList(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -1795,9 +1844,6 @@ type ClientInterface interface {
 
 	WorkerUpdate(ctx context.Context, worker openapi_types.UUID, body WorkerUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// WorkflowRunGetInput request
-	WorkflowRunGetInput(ctx context.Context, workflowRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
-
 	// WorkflowDelete request
 	WorkflowDelete(ctx context.Context, workflow openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -1814,9 +1860,6 @@ type ClientInterface interface {
 
 	// WorkflowVersionGet request
 	WorkflowVersionGet(ctx context.Context, workflow openapi_types.UUID, params *WorkflowVersionGetParams, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// WorkflowVersionGetDefinition request
-	WorkflowVersionGetDefinition(ctx context.Context, workflow openapi_types.UUID, params *WorkflowVersionGetDefinitionParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 }
 
 func (c *Client) LivenessGet(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -1893,6 +1936,18 @@ func (c *Client) ApiTokenUpdateRevoke(ctx context.Context, apiToken openapi_type
 
 func (c *Client) CloudMetadataGet(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewCloudMetadataGetRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) EventGet(ctx context.Context, event openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewEventGetRequest(c.Server, event)
 	if err != nil {
 		return nil, err
 	}
@@ -2169,6 +2224,30 @@ func (c *Client) EventCreateWithBody(ctx context.Context, tenant openapi_types.U
 
 func (c *Client) EventCreate(ctx context.Context, tenant openapi_types.UUID, body EventCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewEventCreateRequest(c.Server, tenant, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) EventUpdateCancelWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewEventUpdateCancelRequestWithBody(c.Server, tenant, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) EventUpdateCancel(ctx context.Context, tenant openapi_types.UUID, body EventUpdateCancelJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewEventUpdateCancelRequest(c.Server, tenant, body)
 	if err != nil {
 		return nil, err
 	}
@@ -2539,6 +2618,42 @@ func (c *Client) WorkflowRunGet(ctx context.Context, tenant openapi_types.UUID, 
 	return c.Client.Do(req)
 }
 
+func (c *Client) WorkflowRunGetInput(ctx context.Context, tenant openapi_types.UUID, workflowRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWorkflowRunGetInputRequest(c.Server, tenant, workflowRun)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) WorkflowRunGetShape(ctx context.Context, tenant openapi_types.UUID, workflowRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWorkflowRunGetShapeRequest(c.Server, tenant, workflowRun)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) WorkflowRunListStepRunEvents(ctx context.Context, tenant openapi_types.UUID, workflowRun openapi_types.UUID, params *WorkflowRunListStepRunEventsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWorkflowRunListStepRunEventsRequest(c.Server, tenant, workflowRun, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) WorkflowList(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewWorkflowListRequest(c.Server, tenant)
 	if err != nil {
@@ -2899,18 +3014,6 @@ func (c *Client) WorkerUpdate(ctx context.Context, worker openapi_types.UUID, bo
 	return c.Client.Do(req)
 }
 
-func (c *Client) WorkflowRunGetInput(ctx context.Context, workflowRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewWorkflowRunGetInputRequest(c.Server, workflowRun)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
 func (c *Client) WorkflowDelete(ctx context.Context, workflow openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewWorkflowDeleteRequest(c.Server, workflow)
 	if err != nil {
@@ -2973,18 +3076,6 @@ func (c *Client) WorkflowRunCreate(ctx context.Context, workflow openapi_types.U
 
 func (c *Client) WorkflowVersionGet(ctx context.Context, workflow openapi_types.UUID, params *WorkflowVersionGetParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewWorkflowVersionGetRequest(c.Server, workflow, params)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) WorkflowVersionGetDefinition(ctx context.Context, workflow openapi_types.UUID, params *WorkflowVersionGetDefinitionParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewWorkflowVersionGetDefinitionRequest(c.Server, workflow, params)
 	if err != nil {
 		return nil, err
 	}
@@ -3174,6 +3265,40 @@ func NewCloudMetadataGetRequest(server string) (*http.Request, error) {
 	}
 
 	operationPath := fmt.Sprintf("/api/v1/cloud/metadata")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewEventGetRequest generates requests for EventGet
+func NewEventGetRequest(server string, event openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "event", runtime.ParamLocationPath, event)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/events/%s", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -4124,6 +4249,22 @@ func NewEventListRequest(server string, tenant openapi_types.UUID, params *Event
 
 		}
 
+		if params.EventIds != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "eventIds", runtime.ParamLocationQuery, *params.EventIds); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
 		queryURL.RawQuery = queryValues.Encode()
 	}
 
@@ -4163,6 +4304,53 @@ func NewEventCreateRequestWithBody(server string, tenant openapi_types.UUID, con
 	}
 
 	operationPath := fmt.Sprintf("/api/v1/tenants/%s/events", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewEventUpdateCancelRequest calls the generic EventUpdateCancel builder with application/json body
+func NewEventUpdateCancelRequest(server string, tenant openapi_types.UUID, body EventUpdateCancelJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewEventUpdateCancelRequestWithBody(server, tenant, "application/json", bodyReader)
+}
+
+// NewEventUpdateCancelRequestWithBody generates requests for EventUpdateCancel with any type of body
+func NewEventUpdateCancelRequestWithBody(server string, tenant openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/tenants/%s/events/cancel", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -5139,6 +5327,151 @@ func NewWorkflowRunGetRequest(server string, tenant openapi_types.UUID, workflow
 	queryURL, err := serverURL.Parse(operationPath)
 	if err != nil {
 		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewWorkflowRunGetInputRequest generates requests for WorkflowRunGetInput
+func NewWorkflowRunGetInputRequest(server string, tenant openapi_types.UUID, workflowRun openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "workflow-run", runtime.ParamLocationPath, workflowRun)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/tenants/%s/workflow-runs/%s/input", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewWorkflowRunGetShapeRequest generates requests for WorkflowRunGetShape
+func NewWorkflowRunGetShapeRequest(server string, tenant openapi_types.UUID, workflowRun openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "workflow-run", runtime.ParamLocationPath, workflowRun)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/tenants/%s/workflow-runs/%s/shape", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewWorkflowRunListStepRunEventsRequest generates requests for WorkflowRunListStepRunEvents
+func NewWorkflowRunListStepRunEventsRequest(server string, tenant openapi_types.UUID, workflowRun openapi_types.UUID, params *WorkflowRunListStepRunEventsParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "workflow-run", runtime.ParamLocationPath, workflowRun)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/tenants/%s/workflow-runs/%s/step-run-events", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.LastId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "lastId", runtime.ParamLocationQuery, *params.LastId); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
 	}
 
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
@@ -6263,40 +6596,6 @@ func NewWorkerUpdateRequestWithBody(server string, worker openapi_types.UUID, co
 	return req, nil
 }
 
-// NewWorkflowRunGetInputRequest generates requests for WorkflowRunGetInput
-func NewWorkflowRunGetInputRequest(server string, workflowRun openapi_types.UUID) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "workflow-run", runtime.ParamLocationPath, workflowRun)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/workflow-runs/%s/input", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
 // NewWorkflowDeleteRequest generates requests for WorkflowDelete
 func NewWorkflowDeleteRequest(server string, workflow openapi_types.UUID) (*http.Request, error) {
 	var err error
@@ -6562,62 +6861,6 @@ func NewWorkflowVersionGetRequest(server string, workflow openapi_types.UUID, pa
 	return req, nil
 }
 
-// NewWorkflowVersionGetDefinitionRequest generates requests for WorkflowVersionGetDefinition
-func NewWorkflowVersionGetDefinitionRequest(server string, workflow openapi_types.UUID, params *WorkflowVersionGetDefinitionParams) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "workflow", runtime.ParamLocationPath, workflow)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/workflows/%s/versions/definition", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	if params != nil {
-		queryValues := queryURL.Query()
-
-		if params.Version != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "version", runtime.ParamLocationQuery, *params.Version); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		queryURL.RawQuery = queryValues.Encode()
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
 func (c *Client) applyEditors(ctx context.Context, req *http.Request, additionalEditors []RequestEditorFn) error {
 	for _, r := range c.RequestEditors {
 		if err := r(ctx, req); err != nil {
@@ -6680,6 +6923,9 @@ type ClientWithResponsesInterface interface {
 
 	// CloudMetadataGetWithResponse request
 	CloudMetadataGetWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*CloudMetadataGetResponse, error)
+
+	// EventGetWithResponse request
+	EventGetWithResponse(ctx context.Context, event openapi_types.UUID, reqEditors ...RequestEditorFn) (*EventGetResponse, error)
 
 	// EventDataGetWithResponse request
 	EventDataGetWithResponse(ctx context.Context, event openapi_types.UUID, reqEditors ...RequestEditorFn) (*EventDataGetResponse, error)
@@ -6744,6 +6990,11 @@ type ClientWithResponsesInterface interface {
 	EventCreateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*EventCreateResponse, error)
 
 	EventCreateWithResponse(ctx context.Context, tenant openapi_types.UUID, body EventCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*EventCreateResponse, error)
+
+	// EventUpdateCancelWithBodyWithResponse request with any body
+	EventUpdateCancelWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*EventUpdateCancelResponse, error)
+
+	EventUpdateCancelWithResponse(ctx context.Context, tenant openapi_types.UUID, body EventUpdateCancelJSONRequestBody, reqEditors ...RequestEditorFn) (*EventUpdateCancelResponse, error)
 
 	// EventKeyListWithResponse request
 	EventKeyListWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*EventKeyListResponse, error)
@@ -6828,6 +7079,15 @@ type ClientWithResponsesInterface interface {
 	// WorkflowRunGetWithResponse request
 	WorkflowRunGetWithResponse(ctx context.Context, tenant openapi_types.UUID, workflowRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkflowRunGetResponse, error)
 
+	// WorkflowRunGetInputWithResponse request
+	WorkflowRunGetInputWithResponse(ctx context.Context, tenant openapi_types.UUID, workflowRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkflowRunGetInputResponse, error)
+
+	// WorkflowRunGetShapeWithResponse request
+	WorkflowRunGetShapeWithResponse(ctx context.Context, tenant openapi_types.UUID, workflowRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkflowRunGetShapeResponse, error)
+
+	// WorkflowRunListStepRunEventsWithResponse request
+	WorkflowRunListStepRunEventsWithResponse(ctx context.Context, tenant openapi_types.UUID, workflowRun openapi_types.UUID, params *WorkflowRunListStepRunEventsParams, reqEditors ...RequestEditorFn) (*WorkflowRunListStepRunEventsResponse, error)
+
 	// WorkflowListWithResponse request
 	WorkflowListWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkflowListResponse, error)
 
@@ -6911,9 +7171,6 @@ type ClientWithResponsesInterface interface {
 
 	WorkerUpdateWithResponse(ctx context.Context, worker openapi_types.UUID, body WorkerUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*WorkerUpdateResponse, error)
 
-	// WorkflowRunGetInputWithResponse request
-	WorkflowRunGetInputWithResponse(ctx context.Context, workflowRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkflowRunGetInputResponse, error)
-
 	// WorkflowDeleteWithResponse request
 	WorkflowDeleteWithResponse(ctx context.Context, workflow openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkflowDeleteResponse, error)
 
@@ -6930,9 +7187,6 @@ type ClientWithResponsesInterface interface {
 
 	// WorkflowVersionGetWithResponse request
 	WorkflowVersionGetWithResponse(ctx context.Context, workflow openapi_types.UUID, params *WorkflowVersionGetParams, reqEditors ...RequestEditorFn) (*WorkflowVersionGetResponse, error)
-
-	// WorkflowVersionGetDefinitionWithResponse request
-	WorkflowVersionGetDefinitionWithResponse(ctx context.Context, workflow openapi_types.UUID, params *WorkflowVersionGetDefinitionParams, reqEditors ...RequestEditorFn) (*WorkflowVersionGetDefinitionResponse, error)
 }
 
 type LivenessGetResponse struct {
@@ -7064,6 +7318,30 @@ func (r CloudMetadataGetResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r CloudMetadataGetResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type EventGetResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Event
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r EventGetResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r EventGetResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -7497,6 +7775,33 @@ func (r EventCreateResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r EventCreateResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type EventUpdateCancelResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		WorkflowRunIds *[]openapi_types.UUID `json:"workflowRunIds,omitempty"`
+	}
+	JSON400 *APIErrors
+	JSON403 *APIErrors
+	JSON429 *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r EventUpdateCancelResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r EventUpdateCancelResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -8061,6 +8366,80 @@ func (r WorkflowRunGetResponse) StatusCode() int {
 	return 0
 }
 
+type WorkflowRunGetInputResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *map[string]interface{}
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON404      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r WorkflowRunGetInputResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r WorkflowRunGetInputResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type WorkflowRunGetShapeResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *WorkflowRunShape
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r WorkflowRunGetShapeResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r WorkflowRunGetShapeResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type WorkflowRunListStepRunEventsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *StepRunEventList
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON404      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r WorkflowRunListStepRunEventsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r WorkflowRunListStepRunEventsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type WorkflowListResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -8604,31 +8983,6 @@ func (r WorkerUpdateResponse) StatusCode() int {
 	return 0
 }
 
-type WorkflowRunGetInputResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *map[string]interface{}
-	JSON400      *APIErrors
-	JSON403      *APIErrors
-	JSON404      *APIErrors
-}
-
-// Status returns HTTPResponse.Status
-func (r WorkflowRunGetInputResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r WorkflowRunGetInputResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
 type WorkflowDeleteResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -8659,6 +9013,7 @@ type WorkflowGetResponse struct {
 	JSON200      *Workflow
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON404      *APIErrors
 }
 
 // Status returns HTTPResponse.Status
@@ -8753,31 +9108,6 @@ func (r WorkflowVersionGetResponse) StatusCode() int {
 	return 0
 }
 
-type WorkflowVersionGetDefinitionResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *WorkflowVersionDefinition
-	JSON400      *APIErrors
-	JSON403      *APIErrors
-	JSON404      *APIErrors
-}
-
-// Status returns HTTPResponse.Status
-func (r WorkflowVersionGetDefinitionResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r WorkflowVersionGetDefinitionResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
 // LivenessGetWithResponse request returning *LivenessGetResponse
 func (c *ClientWithResponses) LivenessGetWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*LivenessGetResponse, error) {
 	rsp, err := c.LivenessGet(ctx, reqEditors...)
@@ -8838,6 +9168,15 @@ func (c *ClientWithResponses) CloudMetadataGetWithResponse(ctx context.Context, 
 		return nil, err
 	}
 	return ParseCloudMetadataGetResponse(rsp)
+}
+
+// EventGetWithResponse request returning *EventGetResponse
+func (c *ClientWithResponses) EventGetWithResponse(ctx context.Context, event openapi_types.UUID, reqEditors ...RequestEditorFn) (*EventGetResponse, error) {
+	rsp, err := c.EventGet(ctx, event, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseEventGetResponse(rsp)
 }
 
 // EventDataGetWithResponse request returning *EventDataGetResponse
@@ -9040,6 +9379,23 @@ func (c *ClientWithResponses) EventCreateWithResponse(ctx context.Context, tenan
 		return nil, err
 	}
 	return ParseEventCreateResponse(rsp)
+}
+
+// EventUpdateCancelWithBodyWithResponse request with arbitrary body returning *EventUpdateCancelResponse
+func (c *ClientWithResponses) EventUpdateCancelWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*EventUpdateCancelResponse, error) {
+	rsp, err := c.EventUpdateCancelWithBody(ctx, tenant, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseEventUpdateCancelResponse(rsp)
+}
+
+func (c *ClientWithResponses) EventUpdateCancelWithResponse(ctx context.Context, tenant openapi_types.UUID, body EventUpdateCancelJSONRequestBody, reqEditors ...RequestEditorFn) (*EventUpdateCancelResponse, error) {
+	rsp, err := c.EventUpdateCancel(ctx, tenant, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseEventUpdateCancelResponse(rsp)
 }
 
 // EventKeyListWithResponse request returning *EventKeyListResponse
@@ -9305,6 +9661,33 @@ func (c *ClientWithResponses) WorkflowRunGetWithResponse(ctx context.Context, te
 	return ParseWorkflowRunGetResponse(rsp)
 }
 
+// WorkflowRunGetInputWithResponse request returning *WorkflowRunGetInputResponse
+func (c *ClientWithResponses) WorkflowRunGetInputWithResponse(ctx context.Context, tenant openapi_types.UUID, workflowRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkflowRunGetInputResponse, error) {
+	rsp, err := c.WorkflowRunGetInput(ctx, tenant, workflowRun, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseWorkflowRunGetInputResponse(rsp)
+}
+
+// WorkflowRunGetShapeWithResponse request returning *WorkflowRunGetShapeResponse
+func (c *ClientWithResponses) WorkflowRunGetShapeWithResponse(ctx context.Context, tenant openapi_types.UUID, workflowRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkflowRunGetShapeResponse, error) {
+	rsp, err := c.WorkflowRunGetShape(ctx, tenant, workflowRun, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseWorkflowRunGetShapeResponse(rsp)
+}
+
+// WorkflowRunListStepRunEventsWithResponse request returning *WorkflowRunListStepRunEventsResponse
+func (c *ClientWithResponses) WorkflowRunListStepRunEventsWithResponse(ctx context.Context, tenant openapi_types.UUID, workflowRun openapi_types.UUID, params *WorkflowRunListStepRunEventsParams, reqEditors ...RequestEditorFn) (*WorkflowRunListStepRunEventsResponse, error) {
+	rsp, err := c.WorkflowRunListStepRunEvents(ctx, tenant, workflowRun, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseWorkflowRunListStepRunEventsResponse(rsp)
+}
+
 // WorkflowListWithResponse request returning *WorkflowListResponse
 func (c *ClientWithResponses) WorkflowListWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkflowListResponse, error) {
 	rsp, err := c.WorkflowList(ctx, tenant, reqEditors...)
@@ -9568,15 +9951,6 @@ func (c *ClientWithResponses) WorkerUpdateWithResponse(ctx context.Context, work
 	return ParseWorkerUpdateResponse(rsp)
 }
 
-// WorkflowRunGetInputWithResponse request returning *WorkflowRunGetInputResponse
-func (c *ClientWithResponses) WorkflowRunGetInputWithResponse(ctx context.Context, workflowRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkflowRunGetInputResponse, error) {
-	rsp, err := c.WorkflowRunGetInput(ctx, workflowRun, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseWorkflowRunGetInputResponse(rsp)
-}
-
 // WorkflowDeleteWithResponse request returning *WorkflowDeleteResponse
 func (c *ClientWithResponses) WorkflowDeleteWithResponse(ctx context.Context, workflow openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkflowDeleteResponse, error) {
 	rsp, err := c.WorkflowDelete(ctx, workflow, reqEditors...)
@@ -9628,15 +10002,6 @@ func (c *ClientWithResponses) WorkflowVersionGetWithResponse(ctx context.Context
 		return nil, err
 	}
 	return ParseWorkflowVersionGetResponse(rsp)
-}
-
-// WorkflowVersionGetDefinitionWithResponse request returning *WorkflowVersionGetDefinitionResponse
-func (c *ClientWithResponses) WorkflowVersionGetDefinitionWithResponse(ctx context.Context, workflow openapi_types.UUID, params *WorkflowVersionGetDefinitionParams, reqEditors ...RequestEditorFn) (*WorkflowVersionGetDefinitionResponse, error) {
-	rsp, err := c.WorkflowVersionGetDefinition(ctx, workflow, params, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseWorkflowVersionGetDefinitionResponse(rsp)
 }
 
 // ParseLivenessGetResponse parses an HTTP response from a LivenessGetWithResponse call
@@ -9804,6 +10169,46 @@ func ParseCloudMetadataGetResponse(rsp *http.Response) (*CloudMetadataGetRespons
 			return nil, err
 		}
 		response.JSON400 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseEventGetResponse parses an HTTP response from a EventGetWithResponse call
+func ParseEventGetResponse(rsp *http.Response) (*EventGetResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &EventGetResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Event
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
 
 	}
 
@@ -10506,6 +10911,55 @@ func ParseEventCreateResponse(rsp *http.Response) (*EventCreateResponse, error) 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest Event
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseEventUpdateCancelResponse parses an HTTP response from a EventUpdateCancelWithResponse call
+func ParseEventUpdateCancelResponse(rsp *http.Response) (*EventUpdateCancelResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &EventUpdateCancelResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			WorkflowRunIds *[]openapi_types.UUID `json:"workflowRunIds,omitempty"`
+		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -11496,6 +11950,140 @@ func ParseWorkflowRunGetResponse(rsp *http.Response) (*WorkflowRunGetResponse, e
 	return response, nil
 }
 
+// ParseWorkflowRunGetInputResponse parses an HTTP response from a WorkflowRunGetInputWithResponse call
+func ParseWorkflowRunGetInputResponse(rsp *http.Response) (*WorkflowRunGetInputResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &WorkflowRunGetInputResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest map[string]interface{}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseWorkflowRunGetShapeResponse parses an HTTP response from a WorkflowRunGetShapeWithResponse call
+func ParseWorkflowRunGetShapeResponse(rsp *http.Response) (*WorkflowRunGetShapeResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &WorkflowRunGetShapeResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest WorkflowRunShape
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseWorkflowRunListStepRunEventsResponse parses an HTTP response from a WorkflowRunListStepRunEventsWithResponse call
+func ParseWorkflowRunListStepRunEventsResponse(rsp *http.Response) (*WorkflowRunListStepRunEventsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &WorkflowRunListStepRunEventsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest StepRunEventList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseWorkflowListResponse parses an HTTP response from a WorkflowListWithResponse call
 func ParseWorkflowListResponse(rsp *http.Response) (*WorkflowListResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -12326,53 +12914,6 @@ func ParseWorkerUpdateResponse(rsp *http.Response) (*WorkerUpdateResponse, error
 	return response, nil
 }
 
-// ParseWorkflowRunGetInputResponse parses an HTTP response from a WorkflowRunGetInputWithResponse call
-func ParseWorkflowRunGetInputResponse(rsp *http.Response) (*WorkflowRunGetInputResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &WorkflowRunGetInputResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest map[string]interface{}
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest APIErrors
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest APIErrors
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest APIErrors
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	}
-
-	return response, nil
-}
-
 // ParseWorkflowDeleteResponse parses an HTTP response from a WorkflowDeleteWithResponse call
 func ParseWorkflowDeleteResponse(rsp *http.Response) (*WorkflowDeleteResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -12447,6 +12988,13 @@ func ParseWorkflowGetResponse(rsp *http.Response) (*WorkflowGetResponse, error) 
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	}
 
@@ -12570,53 +13118,6 @@ func ParseWorkflowVersionGetResponse(rsp *http.Response) (*WorkflowVersionGetRes
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest WorkflowVersion
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest APIErrors
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest APIErrors
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest APIErrors
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseWorkflowVersionGetDefinitionResponse parses an HTTP response from a WorkflowVersionGetDefinitionWithResponse call
-func ParseWorkflowVersionGetDefinitionResponse(rsp *http.Response) (*WorkflowVersionGetDefinitionResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &WorkflowVersionGetDefinitionResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest WorkflowVersionDefinition
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

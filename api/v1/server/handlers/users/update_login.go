@@ -29,6 +29,12 @@ func (u *UserService) UserUpdateLogin(ctx echo.Context, request gen.UserUpdateLo
 		return gen.UserUpdateLogin400JSONResponse(*apiErrors), nil
 	}
 
+	if err := u.checkUserRestrictionsForEmail(u.config, string(request.Body.Email)); err != nil {
+		return gen.UserUpdateLogin401JSONResponse(
+			apierrors.NewAPIErrors("Email is not in the restricted domain group."),
+		), nil
+	}
+
 	// determine if the user exists before attempting to write the user
 	existingUser, err := u.config.APIRepository.User().GetUserByEmail(string(request.Body.Email))
 	if err != nil {

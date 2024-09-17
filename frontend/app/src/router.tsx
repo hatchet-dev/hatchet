@@ -72,7 +72,7 @@ const routes: RouteObject[] = [
             lazy: async () => {
               return {
                 loader: function () {
-                  return redirect('/events');
+                  return redirect('/workflow-runs');
                 },
               };
             },
@@ -138,7 +138,6 @@ const routes: RouteObject[] = [
                   import('./pages/main/workflows/$workflow').then((res) => {
                     return {
                       Component: res.default,
-                      loader: res.loader,
                     };
                   }),
               },

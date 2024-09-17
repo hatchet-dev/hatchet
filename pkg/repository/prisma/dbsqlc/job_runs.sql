@@ -127,6 +127,26 @@ FROM
 WHERE
     jr."workflowRunId" = @workflowRunId::uuid;
 
+-- name: ListJobRunsForWorkflowRunFull :many
+WITH steps AS (
+    SELECT
+        "id",
+        "jobId",
+        "status"
+    FROM
+        "JobRun" jr
+    WHERE
+        jr."workflowRunId" = @workflowRunId::uuid
+)
+SELECT
+    jr.*,
+    sqlc.embed(j)
+FROM "JobRun" jr
+JOIN "Job" j
+    ON jr."jobId" = j."id"
+WHERE jr."workflowRunId" = @workflowRunId::uuid
+    AND jr."tenantId" = @tenantId::uuid;
+
 -- name: GetJobRunByWorkflowRunIdAndJobId :one
 SELECT
     "id",
@@ -151,7 +171,6 @@ WITH for_delete AS (
         jrld2."data" IS NOT NULL
     ORDER BY jr2."deletedAt" ASC
     LIMIT sqlc.arg('limit') + 1
-    FOR UPDATE SKIP LOCKED
 ),
 deleted_with_limit AS (
     SELECT

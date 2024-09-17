@@ -76,6 +76,17 @@ withTenant:
           type: array
           items:
             type: string
+      - description: A list of event ids to filter by
+        in: query
+        name: eventIds
+        required: false
+        schema:
+          type: array
+          items:
+            type: string
+            format: uuid
+            minLength: 36
+            maxLength: 36
     responses:
       "200":
         content:
@@ -145,6 +156,44 @@ withTenant:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Resource limit exceeded
     summary: Create event
+    tags:
+      - Event
+
+withEvent:
+  get:
+    x-resources: ["tenant", "event"]
+    description: Get an event.
+    operationId: event:get
+    parameters:
+      - description: The event id
+        in: path
+        name: event
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/Event"
+        description: Successfully retrieved the event data
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+    summary: Get event data
     tags:
       - Event
 
@@ -253,6 +302,65 @@ replayEvents:
             schema:
               $ref: "../../components/schemas/_index.yaml#/EventList"
         description: Successfully replayed the events
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+      "429":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Resource limit exceeded
+    summary: Replay events
+    tags:
+      - Event
+
+cancelEvents:
+  post:
+    x-resources: ["tenant"]
+    description: Cancels all runs for a list of events.
+    operationId: event:update:cancel
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    requestBody:
+      content:
+        application/json:
+          schema:
+            $ref: "../../components/schemas/_index.yaml#/CancelEventRequest"
+      description: The event ids to replay
+      required: true
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                workflowRunIds:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+                    minLength: 36
+                    maxLength: 36
+        description: Successfully canceled runs for the events
       "400":
         content:
           application/json:

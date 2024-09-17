@@ -98,6 +98,8 @@ EventList:
   $ref: "./event.yaml#/EventList"
 ReplayEventRequest:
   $ref: "./event.yaml#/ReplayEventRequest"
+CancelEventRequest:
+  $ref: "./event.yaml#/CancelEventRequest"
 Workflow:
   $ref: "./workflow.yaml#/Workflow"
 WorkflowConcurrency:
@@ -126,6 +128,8 @@ WorkflowWorkersCount:
   $ref: "./workflow.yaml#/WorkflowWorkersCount"
 WorkflowRun:
   $ref: "./workflow_run.yaml#/WorkflowRun"
+WorkflowRunShape:
+  $ref: "./workflow_run.yaml#/WorkflowRunShape"
 ReplayWorkflowRunsRequest:
   $ref: "./workflow_run.yaml#/ReplayWorkflowRunsRequest"
 ReplayWorkflowRunsResponse:

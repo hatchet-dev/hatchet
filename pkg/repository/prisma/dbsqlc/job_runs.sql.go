@@ -23,7 +23,6 @@ WITH for_delete AS (
         jrld2."data" IS NOT NULL
     ORDER BY jr2."deletedAt" ASC
     LIMIT $2 + 1
-    FOR UPDATE SKIP LOCKED
 ),
 deleted_with_limit AS (
     SELECT
@@ -118,6 +117,99 @@ func (q *Queries) ListJobRunsForWorkflowRun(ctx context.Context, db DBTX, workfl
 	for rows.Next() {
 		var i ListJobRunsForWorkflowRunRow
 		if err := rows.Scan(&i.ID, &i.JobId); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listJobRunsForWorkflowRunFull = `-- name: ListJobRunsForWorkflowRunFull :many
+WITH steps AS (
+    SELECT
+        "id",
+        "jobId",
+        "status"
+    FROM
+        "JobRun" jr
+    WHERE
+        jr."workflowRunId" = $1::uuid
+)
+SELECT
+    jr.id, jr."createdAt", jr."updatedAt", jr."deletedAt", jr."tenantId", jr."jobId", jr."tickerId", jr.status, jr.result, jr."startedAt", jr."finishedAt", jr."timeoutAt", jr."cancelledAt", jr."cancelledReason", jr."cancelledError", jr."workflowRunId",
+    j.id, j."createdAt", j."updatedAt", j."deletedAt", j."tenantId", j."workflowVersionId", j.name, j.description, j.timeout, j.kind
+FROM "JobRun" jr
+JOIN "Job" j
+    ON jr."jobId" = j."id"
+WHERE jr."workflowRunId" = $1::uuid
+    AND jr."tenantId" = $2::uuid
+`
+
+type ListJobRunsForWorkflowRunFullParams struct {
+	Workflowrunid pgtype.UUID `json:"workflowrunid"`
+	Tenantid      pgtype.UUID `json:"tenantid"`
+}
+
+type ListJobRunsForWorkflowRunFullRow struct {
+	ID              pgtype.UUID      `json:"id"`
+	CreatedAt       pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt       pgtype.Timestamp `json:"updatedAt"`
+	DeletedAt       pgtype.Timestamp `json:"deletedAt"`
+	TenantId        pgtype.UUID      `json:"tenantId"`
+	JobId           pgtype.UUID      `json:"jobId"`
+	TickerId        pgtype.UUID      `json:"tickerId"`
+	Status          JobRunStatus     `json:"status"`
+	Result          []byte           `json:"result"`
+	StartedAt       pgtype.Timestamp `json:"startedAt"`
+	FinishedAt      pgtype.Timestamp `json:"finishedAt"`
+	TimeoutAt       pgtype.Timestamp `json:"timeoutAt"`
+	CancelledAt     pgtype.Timestamp `json:"cancelledAt"`
+	CancelledReason pgtype.Text      `json:"cancelledReason"`
+	CancelledError  pgtype.Text      `json:"cancelledError"`
+	WorkflowRunId   pgtype.UUID      `json:"workflowRunId"`
+	Job             Job              `json:"job"`
+}
+
+func (q *Queries) ListJobRunsForWorkflowRunFull(ctx context.Context, db DBTX, arg ListJobRunsForWorkflowRunFullParams) ([]*ListJobRunsForWorkflowRunFullRow, error) {
+	rows, err := db.Query(ctx, listJobRunsForWorkflowRunFull, arg.Workflowrunid, arg.Tenantid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListJobRunsForWorkflowRunFullRow
+	for rows.Next() {
+		var i ListJobRunsForWorkflowRunFullRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.TenantId,
+			&i.JobId,
+			&i.TickerId,
+			&i.Status,
+			&i.Result,
+			&i.StartedAt,
+			&i.FinishedAt,
+			&i.TimeoutAt,
+			&i.CancelledAt,
+			&i.CancelledReason,
+			&i.CancelledError,
+			&i.WorkflowRunId,
+			&i.Job.ID,
+			&i.Job.CreatedAt,
+			&i.Job.UpdatedAt,
+			&i.Job.DeletedAt,
+			&i.Job.TenantId,
+			&i.Job.WorkflowVersionId,
+			&i.Job.Name,
+			&i.Job.Description,
+			&i.Job.Timeout,
+			&i.Job.Kind,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)

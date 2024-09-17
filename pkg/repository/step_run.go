@@ -23,7 +23,8 @@ func IsFinalStepRunStatus(status dbsqlc.StepRunStatus) bool {
 	return status != dbsqlc.StepRunStatusPENDING &&
 		status != dbsqlc.StepRunStatusPENDINGASSIGNMENT &&
 		status != dbsqlc.StepRunStatusASSIGNED &&
-		status != dbsqlc.StepRunStatusRUNNING
+		status != dbsqlc.StepRunStatusRUNNING &&
+		status != dbsqlc.StepRunStatusCANCELLING
 }
 
 func IsFinalJobRunStatus(status dbsqlc.JobRunStatus) bool {
@@ -42,6 +43,8 @@ type CreateStepRunEventOpts struct {
 	EventReason *dbsqlc.StepRunEventReason
 
 	EventSeverity *dbsqlc.StepRunEventSeverity
+
+	Timestamp *time.Time
 
 	EventData map[string]interface{}
 }
@@ -111,6 +114,11 @@ type ListStepRunArchivesResult struct {
 	Count int
 }
 
+type GetStepRunFull struct {
+	*dbsqlc.StepRun
+	ChildWorkflowRuns []string
+}
+
 type RefreshTimeoutBy struct {
 	IncrementTimeoutBy string `validate:"required,duration"`
 }
@@ -119,11 +127,11 @@ var ErrPreflightReplayStepRunNotInFinalState = fmt.Errorf("step run is not in a 
 var ErrPreflightReplayChildStepRunNotInFinalState = fmt.Errorf("child step run is not in a final state")
 
 type StepRunAPIRepository interface {
-	GetStepRunById(tenantId, stepRunId string) (*db.StepRunModel, error)
-
-	GetFirstArchivedStepRunResult(tenantId, stepRunId string) (*db.StepRunResultArchiveModel, error)
+	GetStepRunById(stepRunId string) (*GetStepRunFull, error)
 
 	ListStepRunEvents(stepRunId string, opts *ListStepRunEventOpts) (*ListStepRunEventResult, error)
+
+	ListStepRunEventsByWorkflowRunId(ctx context.Context, tenantId, workflowRunId string, lastId *int32) (*ListStepRunEventResult, error)
 
 	ListStepRunArchives(tenantId, stepRunId string, opts *ListStepRunArchivesOpts) (*ListStepRunArchivesResult, error)
 }
@@ -141,6 +149,7 @@ type QueueStepRunsResult struct {
 }
 
 type ProcessStepRunUpdatesResult struct {
+	SucceededStepRuns     []*dbsqlc.GetStepRunForEngineRow
 	CompletedWorkflowRuns []*dbsqlc.ResolveWorkflowRunStatusRow
 	Continue              bool
 }
@@ -185,8 +194,6 @@ type StepRunEngineRepository interface {
 	// a pending state.
 	QueueStepRun(ctx context.Context, tenantId, stepRunId string, opts *QueueStepRunOpts) (*dbsqlc.GetStepRunForEngineRow, error)
 
-	UpdateWorkerSemaphoreCounts(ctx context.Context, qlp *zerolog.Logger, tenantId string) (shouldContinue bool, releasedSlots bool, err error)
-
 	ProcessStepRunUpdates(ctx context.Context, qlp *zerolog.Logger, tenantId string) (ProcessStepRunUpdatesResult, error)
 
 	QueueStepRuns(ctx context.Context, ql *zerolog.Logger, tenantId string) (QueueStepRunsResult, error)
@@ -197,7 +204,7 @@ type StepRunEngineRepository interface {
 
 	ListStartableStepRuns(ctx context.Context, tenantId, jobRunId string, parentStepRunId *string) ([]*dbsqlc.GetStepRunForEngineRow, error)
 
-	ArchiveStepRunResult(ctx context.Context, tenantId, stepRunId string) error
+	ArchiveStepRunResult(ctx context.Context, tenantId, stepRunId string, err *string) error
 
 	RefreshTimeoutBy(ctx context.Context, tenantId, stepRunId string, opts RefreshTimeoutBy) (*dbsqlc.StepRun, error)
 

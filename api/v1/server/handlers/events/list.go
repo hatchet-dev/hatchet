@@ -91,6 +91,17 @@ func (t *EventService) EventList(ctx echo.Context, request gen.EventListRequestO
 		listOpts.AdditionalMetadata = additionalMetadataBytes
 	}
 
+	if request.Params.EventIds != nil {
+		eventIds := make([]string, len(*request.Params.EventIds))
+
+		for i, id := range *request.Params.EventIds {
+			idCp := id
+			eventIds[i] = idCp.String()
+		}
+
+		listOpts.Ids = eventIds
+	}
+
 	dbCtx, cancel := context.WithTimeout(ctx.Request().Context(), 30*time.Second)
 	defer cancel()
 

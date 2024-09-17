@@ -177,6 +177,10 @@ WHERE
     workflowVersion."deletedAt" IS NULL AND
     workflow."deletedAt" IS NULL AND
     (
+        sqlc.narg('eventId')::uuid IS NULL OR
+        events."id" = sqlc.narg('eventId')::uuid
+    ) AND
+    (
         sqlc.narg('ids')::uuid[] IS NULL OR
         runs."id" = ANY(sqlc.narg('ids')::uuid[])
     ) AND
@@ -669,7 +673,7 @@ INSERT INTO "JobRunLookupData" (
     )
 ) RETURNING *;
 
--- name: CreateStepRun :exec
+-- name: CreateStepRun :one
 INSERT INTO "StepRun" (
     "id",
     "createdAt",
@@ -692,7 +696,8 @@ SELECT
     'PENDING', -- default status
     CURRENT_TIMESTAMP + INTERVAL '5 seconds',
     sqlc.narg('queue')::text,
-    sqlc.narg('priority')::int;
+    sqlc.narg('priority')::int
+RETURNING "id";
 
 -- name: ListStepsForJob :many
 WITH job_id AS (
@@ -709,6 +714,11 @@ WHERE
     s."jobId" = job_id."jobId";
 
 -- name: LinkStepRunParents :exec
+WITH step_runs AS (
+    SELECT "id", "stepId"
+    FROM "StepRun"
+    WHERE "id" = ANY(@stepRunIds::uuid[])
+)
 INSERT INTO "_StepRunOrder" ("A", "B")
 SELECT
     parent_run."id" AS "A",
@@ -716,9 +726,9 @@ SELECT
 FROM
     "_StepOrder" AS step_order
 JOIN
-    "StepRun" AS parent_run ON parent_run."stepId" = step_order."A" AND parent_run."jobRunId" = @jobRunId::uuid
+    step_runs AS parent_run ON parent_run."stepId" = step_order."A"
 JOIN
-    "StepRun" AS child_run ON child_run."stepId" = step_order."B" AND child_run."jobRunId" = @jobRunId::uuid;
+    step_runs AS child_run ON child_run."stepId" = step_order."B";
 
 -- name: GetWorkflowRun :many
 SELECT
@@ -897,3 +907,82 @@ FROM "JobRun" jr
 JOIN "JobRunLookupData" jld ON jr."id" = jld."jobRunId"
 WHERE jld."data" ? 'input' AND jr."workflowRunId" = @workflowRunId::uuid
 LIMIT 1;
+
+-- name: GetWorkflowRunById :one
+SELECT
+    r.*,
+    sqlc.embed(wv),
+    sqlc.embed(w),
+    sqlc.embed(tb)
+FROM
+    "WorkflowRun" r
+JOIN
+    "WorkflowVersion" as wv ON
+        r."workflowVersionId" = wv."id"
+JOIN "Workflow" as w ON
+    wv."workflowId" = w."id"
+JOIN "WorkflowRunTriggeredBy" as tb ON
+    r."id" = tb."parentId"
+WHERE
+    r."id" = @workflowRunId::uuid AND
+    r."tenantId" = @tenantId::uuid;
+
+-- name: GetWorkflowRunTrigger :one
+SELECT *
+FROM
+    "WorkflowRunTriggeredBy"
+WHERE
+    "parentId" = @runId::uuid AND
+    "tenantId" = @tenantId::uuid;
+
+
+-- name: GetStepsForJobs :many
+SELECT
+	j."id" as "jobId",
+    sqlc.embed(s),
+    (
+        SELECT array_agg(so."A")::uuid[]  -- Casting the array_agg result to uuid[]
+        FROM "_StepOrder" so
+        WHERE so."B" = s."id"
+    ) AS "parents"
+FROM "Job" j
+JOIN "Step" s ON s."jobId" = j."id"
+WHERE
+    j."id" = ANY(@jobIds::uuid[])
+    AND j."tenantId" = @tenantId::uuid
+    AND j."deletedAt" IS NULL;
+
+-- name: ListChildWorkflowRunCounts :many
+SELECT
+    wr."parentStepRunId",
+    COUNT(wr."id") as "count"
+FROM
+    "WorkflowRun" wr
+WHERE
+    wr."parentStepRunId" = ANY(@stepRunIds::uuid[])
+GROUP BY
+    wr."parentStepRunId";
+
+-- name: GetStepRunsForJobRuns :many
+SELECT
+	sr."id",
+	sr."createdAt",
+	sr."updatedAt",
+	sr."status",
+    sr."jobRunId",
+    sr."stepId",
+    sr."tenantId",
+    sr."startedAt",
+    sr."finishedAt",
+    sr."cancelledAt",
+    sr."cancelledError",
+    sr."cancelledReason",
+    sr."timeoutAt",
+    sr."error",
+    sr."workerId"
+FROM "StepRun" sr
+WHERE
+	sr."jobRunId" = ANY(@jobIds::uuid[])
+    AND sr."tenantId" = @tenantId::uuid
+    AND sr."deletedAt" IS NULL
+ORDER BY sr."order" DESC;
