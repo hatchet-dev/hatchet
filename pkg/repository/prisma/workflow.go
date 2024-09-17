@@ -543,7 +543,7 @@ func (r *workflowAPIRepository) GetWorkflowWorkerCount(tenantId, workflowId stri
 		return 0, 0, err
 	}
 
-	return int(results.Freecount), int(results.Totalcount), nil
+	return int(results.Freeslotcount), int(results.Totalslotcount), nil
 
 }
 

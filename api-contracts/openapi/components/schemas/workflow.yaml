@@ -276,9 +276,9 @@ WorkflowMetrics:
 WorkflowWorkersCount:
   type: object
   properties:
-    freeCount:
+    freeSlotCount:
       type: integer
-    maxCount:
+    maxSlotCount:
       type: integer
     workflowRunId:
       type: string

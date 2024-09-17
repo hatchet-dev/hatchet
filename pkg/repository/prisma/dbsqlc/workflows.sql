@@ -492,11 +492,11 @@ workers AS (
 slots AS (
     SELECT COUNT(*) AS usedSlotCount
     FROM "SemaphoreQueueItem" sqi
-    AND sqi."workerId" IN (SELECT workerId FROM UniqueWorkers)
+    WHERE sqi."workerId" IN (SELECT workerId FROM UniqueWorkers)
 )
 SELECT
-    COALESCE(maxR, 0) AS totalCount,
-    COALESCE(maxR, 0)  - COALESCE(usedSlotCount, 0) AS freeCount
+    COALESCE(maxR, 0) AS totalSlotCount,
+    COALESCE(maxR, 0)  - COALESCE(usedSlotCount, 0) AS freeSlotCount
 FROM workers, slots;
 
 -- name: GetWorkflowVersionCronTriggerRefs :many

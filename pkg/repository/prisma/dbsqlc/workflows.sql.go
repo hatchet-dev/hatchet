@@ -1060,12 +1060,11 @@ workers AS (
 slots AS (
     SELECT COUNT(*) AS usedSlotCount
     FROM "SemaphoreQueueItem" sqi
-    WHERE sqi."tenantId" = $1::uuid
-    AND sqi."workerId" IN (SELECT workerId FROM UniqueWorkers)
+    WHERE sqi."workerId" IN (SELECT workerId FROM UniqueWorkers)
 )
 SELECT
-    COALESCE(maxR, 0) AS totalCount,
-    COALESCE(maxR, 0)  - COALESCE(usedSlotCount, 0) AS freeCount
+    COALESCE(maxR, 0) AS totalSlotCount,
+    COALESCE(maxR, 0)  - COALESCE(usedSlotCount, 0) AS freeSlotCount
 FROM workers, slots
 `
 
@@ -1075,14 +1074,14 @@ type GetWorkflowWorkerCountParams struct {
 }
 
 type GetWorkflowWorkerCountRow struct {
-	Totalcount int64 `json:"totalcount"`
-	Freecount  int32 `json:"freecount"`
+	Totalslotcount int64 `json:"totalslotcount"`
+	Freeslotcount  int32 `json:"freeslotcount"`
 }
 
 func (q *Queries) GetWorkflowWorkerCount(ctx context.Context, db DBTX, arg GetWorkflowWorkerCountParams) (*GetWorkflowWorkerCountRow, error) {
 	row := db.QueryRow(ctx, getWorkflowWorkerCount, arg.Tenantid, arg.Workflowid)
 	var i GetWorkflowWorkerCountRow
-	err := row.Scan(&i.Totalcount, &i.Freecount)
+	err := row.Scan(&i.Totalslotcount, &i.Freeslotcount)
 	return &i, err
 }
 

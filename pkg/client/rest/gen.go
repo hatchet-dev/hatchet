@@ -1259,8 +1259,8 @@ type WorkflowVersionMeta struct {
 
 // WorkflowWorkersCount defines model for WorkflowWorkersCount.
 type WorkflowWorkersCount struct {
-	FreeCount     *int    `json:"freeCount,omitempty"`
-	MaxCount      *int    `json:"maxCount,omitempty"`
+	FreeSlotCount *int    `json:"freeSlotCount,omitempty"`
+	MaxSlotCount  *int    `json:"maxSlotCount,omitempty"`
 	WorkflowRunId *string `json:"workflowRunId,omitempty"`
 }
 

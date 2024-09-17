@@ -615,8 +615,8 @@ export interface Step {
 }
 
 export interface WorkflowWorkersCount {
-  freeCount?: number;
-  maxCount?: number;
+  freeSlotCount?: number;
+  maxSlotCount?: number;
   workflowRunId?: string;
 }
 
