@@ -161,7 +161,7 @@ func (w *workflowRunAPIRepository) GetStepRunsForJobRuns(ctx context.Context, te
 		return nil, err
 	}
 
-	stepRunIds := make([]pgtype.UUID, len(stepRuns))
+	stepRunIds := make([]int64, len(stepRuns))
 
 	for i, stepRun := range stepRuns {
 		stepRunIds[i] = stepRun.ID
@@ -173,16 +173,16 @@ func (w *workflowRunAPIRepository) GetStepRunsForJobRuns(ctx context.Context, te
 		return nil, err
 	}
 
-	stepRunIdToChildCount := make(map[string]int)
+	stepRunIdToChildCount := make(map[int64]int)
 
 	for _, childCount := range childCounts {
-		stepRunIdToChildCount[sqlchelpers.UUIDToStr(childCount.ParentStepRunId)] = int(childCount.Count)
+		stepRunIdToChildCount[childCount.ParentStepRunId.Int64] = int(childCount.Count)
 	}
 
 	res := make([]*repository.StepRunForJobRun, len(stepRuns))
 
 	for i, stepRun := range stepRuns {
-		childCount := stepRunIdToChildCount[sqlchelpers.UUIDToStr(stepRun.ID)]
+		childCount := stepRunIdToChildCount[stepRun.ID]
 
 		res[i] = &repository.StepRunForJobRun{
 			GetStepRunsForJobRunsRow: stepRun,
@@ -258,10 +258,10 @@ func (w *workflowRunEngineRepository) ListWorkflowRuns(ctx context.Context, tena
 	return listWorkflowRuns(ctx, w.pool, w.queries, w.l, tenantId, opts)
 }
 
-func (w *workflowRunEngineRepository) GetChildWorkflowRun(ctx context.Context, parentId, parentStepRunId string, childIndex int, childkey *string) (*dbsqlc.WorkflowRun, error) {
+func (w *workflowRunEngineRepository) GetChildWorkflowRun(ctx context.Context, parentId string, parentStepRunId int64, childIndex int, childkey *string) (*dbsqlc.WorkflowRun, error) {
 	params := dbsqlc.GetChildWorkflowRunParams{
 		Parentid:        sqlchelpers.UUIDFromStr(parentId),
-		Parentsteprunid: sqlchelpers.UUIDFromStr(parentStepRunId),
+		Parentsteprunid: parentStepRunId,
 		Childindex: pgtype.Int4{
 			Int32: int32(childIndex),
 			Valid: true,
@@ -275,10 +275,10 @@ func (w *workflowRunEngineRepository) GetChildWorkflowRun(ctx context.Context, p
 	return w.queries.GetChildWorkflowRun(ctx, w.pool, params)
 }
 
-func (w *workflowRunEngineRepository) GetScheduledChildWorkflowRun(ctx context.Context, parentId, parentStepRunId string, childIndex int, childkey *string) (*dbsqlc.WorkflowTriggerScheduledRef, error) {
+func (w *workflowRunEngineRepository) GetScheduledChildWorkflowRun(ctx context.Context, parentId string, parentStepRunId int64, childIndex int, childkey *string) (*dbsqlc.WorkflowTriggerScheduledRef, error) {
 	params := dbsqlc.GetScheduledChildWorkflowRunParams{
 		Parentid:        sqlchelpers.UUIDFromStr(parentId),
-		Parentsteprunid: sqlchelpers.UUIDFromStr(parentStepRunId),
+		Parentsteprunid: parentStepRunId,
 		Childindex: pgtype.Int4{
 			Int32: int32(childIndex),
 			Valid: true,
@@ -405,7 +405,7 @@ func (s *workflowRunEngineRepository) ReplayWorkflowRun(ctx context.Context, ten
 		}
 
 		// get all step runs for the workflow
-		stepRuns, err := s.queries.ListStepRuns(ctx, tx, dbsqlc.ListStepRunsParams{
+		stepRunIds, err := s.queries.ListStepRuns(ctx, tx, dbsqlc.ListStepRunsParams{
 			TenantId: sqlchelpers.UUIDFromStr(tenantId),
 			WorkflowRunIds: []pgtype.UUID{
 				sqlchelpers.UUIDFromStr(workflowRunId),
@@ -417,9 +417,9 @@ func (s *workflowRunEngineRepository) ReplayWorkflowRun(ctx context.Context, ten
 		}
 
 		// archive each of the step run results
-		for _, stepRunId := range stepRuns {
-			stepRunIdStr := sqlchelpers.UUIDToStr(stepRunId)
-			err = archiveStepRunResult(ctx, s.queries, tx, tenantId, stepRunIdStr, nil)
+		for _, stepRunId := range stepRunIds {
+
+			err = archiveStepRunResult(ctx, s.queries, tx, tenantId, stepRunId, nil)
 
 			if err != nil {
 				return fmt.Errorf("error archiving step run result: %w", err)
@@ -448,7 +448,7 @@ func (s *workflowRunEngineRepository) ReplayWorkflowRun(ctx context.Context, ten
 				s.pool,
 				s.queries,
 				tenantId,
-				stepRunIdStr,
+				stepRunId,
 				repository.CreateStepRunEventOpts{
 					EventMessage:  repository.StringPtr("Workflow run was replayed, resetting step run result"),
 					EventSeverity: &sev,
@@ -459,8 +459,8 @@ func (s *workflowRunEngineRepository) ReplayWorkflowRun(ctx context.Context, ten
 
 		// reset all later step runs to a pending state
 		_, err = s.queries.ResetStepRunsByIds(ctx, tx, dbsqlc.ResetStepRunsByIdsParams{
-			Tenantid: sqlchelpers.UUIDFromStr(tenantId),
-			Ids:      stepRuns,
+			Tenantid:   sqlchelpers.UUIDFromStr(tenantId),
+			Steprunids: stepRunIds,
 		})
 
 		if err != nil {
@@ -772,7 +772,10 @@ func createNewWorkflowRun(ctx context.Context, pool *pgxpool.Pool, queries *dbsq
 		}
 
 		if opts.ParentStepRunId != nil {
-			createParams.ParentStepRunId = sqlchelpers.UUIDFromStr(*opts.ParentStepRunId)
+			createParams.ParentStepRunId = pgtype.Int8{
+				Int64: *opts.ParentStepRunId,
+				Valid: true,
+			}
 		}
 
 		if opts.AdditionalMetadata != nil {
@@ -973,7 +976,7 @@ func createNewWorkflowRun(ctx context.Context, pool *pgxpool.Pool, queries *dbsq
 				return nil, err
 			}
 
-			stepRunIds := make([]pgtype.UUID, 0)
+			stepRunIds := make([]int64, 0)
 
 			for _, step := range steps {
 				err = queries.UpsertQueue(
@@ -1042,37 +1045,6 @@ func createNewWorkflowRun(ctx context.Context, pool *pgxpool.Pool, queries *dbsq
 	}
 
 	return sqlcWorkflowRun, nil
-}
-
-func defaultWorkflowRunPopulator() []db.WorkflowRunRelationWith {
-	return []db.WorkflowRunRelationWith{
-		db.WorkflowRun.WorkflowVersion.Fetch().With(
-			db.WorkflowVersion.Workflow.Fetch(),
-			db.WorkflowVersion.Concurrency.Fetch().With(
-				db.WorkflowConcurrency.GetConcurrencyGroup.Fetch(),
-			),
-		),
-		db.WorkflowRun.GetGroupKeyRun.Fetch(),
-		db.WorkflowRun.TriggeredBy.Fetch().With(
-			db.WorkflowRunTriggeredBy.Event.Fetch(),
-			db.WorkflowRunTriggeredBy.Cron.Fetch(),
-		),
-		db.WorkflowRun.JobRuns.Fetch().With(
-			db.JobRun.Job.Fetch().With(
-				db.Job.Steps.Fetch().With(
-					db.Step.Action.Fetch(),
-					db.Step.Parents.Fetch(),
-				),
-			),
-			db.JobRun.StepRuns.Fetch().With(
-				db.StepRun.ChildWorkflowRuns.Fetch(),
-				db.StepRun.Step.Fetch().With(
-					db.Step.Action.Fetch(),
-					db.Step.Parents.Fetch(),
-				),
-			),
-		),
-	}
 }
 
 func isUniqueViolationOnDedupe(err error) bool {

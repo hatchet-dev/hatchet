@@ -65,7 +65,7 @@ func (worker *subscribedWorker) StartStepRun(
 		JobName:       stepRun.JobName,
 		JobRunId:      sqlchelpers.UUIDToStr(stepRun.JobRunId),
 		StepId:        sqlchelpers.UUIDToStr(stepRun.StepId),
-		StepRunId:     sqlchelpers.UUIDToStr(stepRun.SRID),
+		StepRunId:     strconv.FormatInt(stepRun.SRID, 10),
 		ActionType:    contracts.ActionType_START_STEP_RUN,
 		ActionId:      stepRun.ActionId,
 		ActionPayload: string(inputBytes),
@@ -140,7 +140,7 @@ func (worker *subscribedWorker) CancelStepRun(
 		JobName:       stepRun.JobName,
 		JobRunId:      sqlchelpers.UUIDToStr(stepRun.JobRunId),
 		StepId:        sqlchelpers.UUIDToStr(stepRun.StepId),
-		StepRunId:     sqlchelpers.UUIDToStr(stepRun.SRID),
+		StepRunId:     strconv.FormatInt(stepRun.SRID, 10),
 		ActionType:    contracts.ActionType_CANCEL_STEP_RUN,
 		StepName:      stepRun.StepReadableId.String,
 		WorkflowRunId: sqlchelpers.UUIDToStr(stepRun.WorkflowRunId),
@@ -504,7 +504,14 @@ func (s *DispatcherImpl) ReleaseSlot(ctx context.Context, req *contracts.Release
 		return nil, fmt.Errorf("step run id is required")
 	}
 
-	err := s.repo.StepRun().ReleaseStepRunSemaphore(ctx, tenantId, req.StepRunId, true)
+	// NOTE: this is a temporary fix to convert the string step run id to an int64
+	stepRunId, err := strconv.ParseInt(req.StepRunId, 10, 64)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not convert step run id to int64: %w", err)
+	}
+
+	err = s.repo.StepRun().ReleaseStepRunSemaphore(ctx, tenantId, stepRunId, true)
 
 	if err != nil {
 		return nil, err
@@ -981,7 +988,14 @@ func (s *DispatcherImpl) PutOverridesData(ctx context.Context, request *contract
 		opts.CallerFile = &request.CallerFilename
 	}
 
-	_, err := s.repo.StepRun().UpdateStepRunOverridesData(ctx, tenantId, request.StepRunId, opts)
+	// NOTE: this is a temporary fix to convert the string step run id to an int64
+	stepRunId, err := strconv.ParseInt(request.StepRunId, 10, 64)
+
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = s.repo.StepRun().UpdateStepRunOverridesData(ctx, tenantId, stepRunId, opts)
 
 	if err != nil {
 		return nil, err
@@ -1017,7 +1031,14 @@ func (d *DispatcherImpl) RefreshTimeout(ctx context.Context, request *contracts.
 		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", apiErrors.String())
 	}
 
-	stepRun, err := d.repo.StepRun().RefreshTimeoutBy(ctx, tenantId, request.StepRunId, opts)
+	// NOTE: this is a temporary fix to convert the string step run id to an int64
+	stepRunId, err := strconv.ParseInt(request.StepRunId, 10, 64)
+
+	if err != nil {
+		return nil, err
+	}
+
+	stepRun, err := d.repo.StepRun().RefreshTimeoutBy(ctx, tenantId, stepRunId, opts)
 
 	if err != nil {
 		return nil, err
@@ -1042,7 +1063,14 @@ func (s *DispatcherImpl) handleStepRunStarted(ctx context.Context, request *cont
 
 	startedAt := request.EventTimestamp.AsTime()
 
-	sr, err := s.repo.StepRun().GetStepRunForEngine(ctx, tenantId, request.StepRunId)
+	// NOTE: this is a temporary fix to convert the string step run id to an int64
+	stepRunId, err := strconv.ParseInt(request.StepRunId, 10, 64)
+
+	if err != nil {
+		return nil, err
+	}
+
+	sr, err := s.repo.StepRun().GetStepRunForEngine(ctx, tenantId, stepRunId)
 
 	if err != nil {
 		return nil, err
@@ -1105,7 +1133,14 @@ func (s *DispatcherImpl) handleStepRunCompleted(ctx context.Context, request *co
 
 	finishedAt := request.EventTimestamp.AsTime()
 
-	meta, err := s.repo.StepRun().GetStepRunMetaForEngine(ctx, tenantId, request.StepRunId)
+	// NOTE: this is a temporary fix to convert the string step run id to an int64
+	stepRunId, err := strconv.ParseInt(request.StepRunId, 10, 64)
+
+	if err != nil {
+		return nil, err
+	}
+
+	meta, err := s.repo.StepRun().GetStepRunMetaForEngine(ctx, tenantId, stepRunId)
 
 	if err != nil {
 		return nil, err
@@ -1150,7 +1185,14 @@ func (s *DispatcherImpl) handleStepRunFailed(ctx context.Context, request *contr
 
 	failedAt := request.EventTimestamp.AsTime()
 
-	meta, err := s.repo.StepRun().GetStepRunMetaForEngine(ctx, tenantId, request.StepRunId)
+	// NOTE: this is a temporary fix to convert the string step run id to an int64
+	stepRunId, err := strconv.ParseInt(request.StepRunId, 10, 64)
+
+	if err != nil {
+		return nil, err
+	}
+
+	meta, err := s.repo.StepRun().GetStepRunMetaForEngine(ctx, tenantId, stepRunId)
 
 	if err != nil {
 		return nil, err
@@ -1363,7 +1405,7 @@ func (s *DispatcherImpl) taskToWorkflowEvent(task *msgqueue.Message, tenantId st
 			return nil, err
 		}
 		workflowEvent.WorkflowRunId = payload.WorkflowRunId
-		stepRunId = payload.StepRunId
+		stepRunId = strconv.FormatInt(payload.StepRunId, 10)
 		workflowEvent.ResourceType = contracts.ResourceType_RESOURCE_TYPE_STEP_RUN
 		workflowEvent.ResourceId = stepRunId
 		workflowEvent.EventType = contracts.ResourceEventType_RESOURCE_EVENT_TYPE_CANCELLED
@@ -1612,10 +1654,10 @@ func (s *DispatcherImpl) getStepResultsForWorkflowRun(tenantId string, workflowR
 
 	for _, stepRun := range stepRuns {
 
-		data, err := s.repo.StepRun().GetStepRunDataForEngine(context.Background(), tenantId, sqlchelpers.UUIDToStr(stepRun.SRID))
+		data, err := s.repo.StepRun().GetStepRunDataForEngine(context.Background(), tenantId, stepRun.SRID)
 
 		if err != nil {
-			return nil, fmt.Errorf("could not get step run data for %s, %e", sqlchelpers.UUIDToStr(stepRun.SRID), err)
+			return nil, fmt.Errorf("could not get step run data for %d, %e", stepRun.SRID, err)
 		}
 
 		workflowRunId := sqlchelpers.UUIDToStr(stepRun.WorkflowRunId)
@@ -1629,7 +1671,7 @@ func (s *DispatcherImpl) getStepResultsForWorkflowRun(tenantId string, workflowR
 		}
 
 		resStepRun := &contracts.StepRunResult{
-			StepRunId:      sqlchelpers.UUIDToStr(stepRun.SRID),
+			StepRunId:      strconv.FormatInt(stepRun.SRID, 10),
 			StepReadableId: stepRun.StepReadableId.String,
 			JobRunId:       sqlchelpers.UUIDToStr(stepRun.JobRunId),
 		}

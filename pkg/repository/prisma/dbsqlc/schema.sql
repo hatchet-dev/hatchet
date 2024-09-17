@@ -213,10 +213,10 @@ CREATE TABLE "LogLine" (
     "id" BIGSERIAL NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "tenantId" UUID NOT NULL,
-    "stepRunId" UUID,
     "message" TEXT NOT NULL,
     "level" "LogLineLevel" NOT NULL DEFAULT 'INFO',
     "metadata" JSONB,
+    "stepRunId" BIGINT,
 
     CONSTRAINT "LogLine_pkey" PRIMARY KEY ("id")
 );
@@ -233,7 +233,6 @@ CREATE TABLE "Queue" (
 -- CreateTable
 CREATE TABLE "QueueItem" (
     "id" BIGSERIAL NOT NULL,
-    "stepRunId" UUID,
     "stepId" UUID,
     "actionId" TEXT,
     "scheduleTimeoutAt" TIMESTAMP(3),
@@ -244,6 +243,7 @@ CREATE TABLE "QueueItem" (
     "queue" TEXT NOT NULL,
     "sticky" "StickyStrategy",
     "desiredWorkerId" UUID,
+    "stepRunId" BIGINT,
 
     CONSTRAINT "QueueItem_pkey" PRIMARY KEY ("id")
 );
@@ -358,7 +358,6 @@ CREATE TABLE "StepRateLimit" (
 
 -- CreateTable
 CREATE TABLE "StepRun" (
-    "id" UUID NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "deletedAt" TIMESTAMP(3),
@@ -367,7 +366,6 @@ CREATE TABLE "StepRun" (
     "stepId" UUID NOT NULL,
     "order" BIGSERIAL NOT NULL,
     "workerId" UUID,
-    "tickerId" UUID,
     "status" "StepRunStatus" NOT NULL DEFAULT 'PENDING',
     "input" JSONB,
     "output" JSONB,
@@ -387,6 +385,8 @@ CREATE TABLE "StepRun" (
     "semaphoreReleased" BOOLEAN NOT NULL DEFAULT false,
     "queue" TEXT NOT NULL DEFAULT 'default',
     "priority" INTEGER,
+    "id_uuid" UUID NOT NULL,
+    "id" BIGSERIAL NOT NULL,
 
     CONSTRAINT "StepRun_pkey" PRIMARY KEY ("id")
 );
@@ -396,12 +396,12 @@ CREATE TABLE "StepRunEvent" (
     "id" BIGSERIAL NOT NULL,
     "timeFirstSeen" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "timeLastSeen" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "stepRunId" UUID NOT NULL,
     "reason" "StepRunEventReason" NOT NULL,
     "severity" "StepRunEventSeverity" NOT NULL,
     "message" TEXT NOT NULL,
     "count" INTEGER NOT NULL,
-    "data" JSONB
+    "data" JSONB,
+    "stepRunId" BIGINT NOT NULL
 );
 
 -- CreateTable
@@ -410,7 +410,6 @@ CREATE TABLE "StepRunResultArchive" (
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "deletedAt" TIMESTAMP(3),
-    "stepRunId" UUID NOT NULL,
     "order" BIGSERIAL NOT NULL,
     "input" JSONB,
     "output" JSONB,
@@ -422,6 +421,7 @@ CREATE TABLE "StepRunResultArchive" (
     "cancelledReason" TEXT,
     "cancelledError" TEXT,
     "retryCount" INTEGER NOT NULL DEFAULT 0,
+    "stepRunId" BIGINT NOT NULL,
 
     CONSTRAINT "StepRunResultArchive_pkey" PRIMARY KEY ("id")
 );
@@ -431,9 +431,9 @@ CREATE TABLE "StreamEvent" (
     "id" BIGSERIAL NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "tenantId" UUID NOT NULL,
-    "stepRunId" UUID,
     "message" BYTEA NOT NULL,
     "metadata" JSONB,
+    "stepRunId" BIGINT,
 
     CONSTRAINT "StreamEvent_pkey" PRIMARY KEY ("id")
 );
@@ -581,11 +581,11 @@ CREATE TABLE "Ticker" (
 -- CreateTable
 CREATE TABLE "TimeoutQueueItem" (
     "id" BIGSERIAL NOT NULL,
-    "stepRunId" UUID NOT NULL,
     "retryCount" INTEGER NOT NULL,
     "timeoutAt" TIMESTAMP(3) NOT NULL,
     "tenantId" UUID NOT NULL,
     "isQueued" BOOLEAN NOT NULL,
+    "stepRunId" BIGINT NOT NULL,
 
     CONSTRAINT "TimeoutQueueItem_pkey" PRIMARY KEY ("id")
 );
@@ -757,10 +757,10 @@ CREATE TABLE "WorkflowRun" (
     "childIndex" INTEGER,
     "childKey" TEXT,
     "parentId" UUID,
-    "parentStepRunId" UUID,
     "additionalMetadata" JSONB,
     "duration" INTEGER,
     "priority" INTEGER,
+    "parentStepRunId" BIGINT,
 
     CONSTRAINT "WorkflowRun_pkey" PRIMARY KEY ("id")
 );
@@ -842,8 +842,8 @@ CREATE TABLE "WorkflowTriggerScheduledRef" (
     "input" JSONB,
     "childIndex" INTEGER,
     "childKey" TEXT,
-    "parentStepRunId" UUID,
     "parentWorkflowRunId" UUID,
+    "parentStepRunId" BIGINT,
 
     CONSTRAINT "WorkflowTriggerScheduledRef_pkey" PRIMARY KEY ("id")
 );
@@ -899,8 +899,8 @@ CREATE TABLE "_StepOrder" (
 
 -- CreateTable
 CREATE TABLE "_StepRunOrder" (
-    "A" UUID NOT NULL,
-    "B" UUID NOT NULL
+    "A" BIGINT NOT NULL,
+    "B" BIGINT NOT NULL
 );
 
 -- CreateTable
@@ -1048,9 +1048,6 @@ CREATE INDEX "StepRun_createdAt_idx" ON "StepRun"("createdAt" ASC);
 CREATE INDEX "StepRun_deletedAt_idx" ON "StepRun"("deletedAt" ASC);
 
 -- CreateIndex
-CREATE UNIQUE INDEX "StepRun_id_key" ON "StepRun"("id" ASC);
-
--- CreateIndex
 CREATE INDEX "StepRun_id_tenantId_idx" ON "StepRun"("id" ASC, "tenantId" ASC);
 
 -- CreateIndex
@@ -1076,6 +1073,12 @@ CREATE INDEX "StepRunEvent_stepRunId_idx" ON "StepRunEvent"("stepRunId" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "StepRunResultArchive_id_key" ON "StepRunResultArchive"("id" ASC);
+
+-- CreateIndex
+CREATE INDEX "StepRunResultArchive_stepRunId_idx" ON "StepRunResultArchive"("stepRunId" ASC);
+
+-- CreateIndex
+CREATE INDEX "StreamEvent_stepRunId_idx" ON "StreamEvent"("stepRunId" ASC);
 
 -- CreateIndex
 CREATE INDEX "Tenant_controllerPartitionId_idx" ON "Tenant"("controllerPartitionId" ASC);
@@ -1408,28 +1411,7 @@ ALTER TABLE "StepRateLimit" ADD CONSTRAINT "StepRateLimit_tenantId_fkey" FOREIGN
 ALTER TABLE "StepRateLimit" ADD CONSTRAINT "StepRateLimit_tenantId_rateLimitKey_fkey" FOREIGN KEY ("tenantId", "rateLimitKey") REFERENCES "RateLimit"("tenantId", "key") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "StepRun" ADD CONSTRAINT "StepRun_jobRunId_fkey" FOREIGN KEY ("jobRunId") REFERENCES "JobRun"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "StepRun" ADD CONSTRAINT "StepRun_stepId_fkey" FOREIGN KEY ("stepId") REFERENCES "Step"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "StepRun" ADD CONSTRAINT "StepRun_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "StepRun" ADD CONSTRAINT "StepRun_tickerId_fkey" FOREIGN KEY ("tickerId") REFERENCES "Ticker"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "StepRun" ADD CONSTRAINT "StepRun_workerId_fkey" FOREIGN KEY ("workerId") REFERENCES "Worker"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "StepRunEvent" ADD CONSTRAINT "StepRunEvent_stepRunId_fkey" FOREIGN KEY ("stepRunId") REFERENCES "StepRun"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "StepRunResultArchive" ADD CONSTRAINT "StepRunResultArchive_stepRunId_fkey" FOREIGN KEY ("stepRunId") REFERENCES "StepRun"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "StreamEvent" ADD CONSTRAINT "StreamEvent_stepRunId_fkey" FOREIGN KEY ("stepRunId") REFERENCES "StepRun"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "StreamEvent" ADD CONSTRAINT "StreamEvent_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -1522,9 +1504,6 @@ ALTER TABLE "WorkflowConcurrency" ADD CONSTRAINT "WorkflowConcurrency_workflowVe
 ALTER TABLE "WorkflowRun" ADD CONSTRAINT "WorkflowRun_parentId_fkey" FOREIGN KEY ("parentId") REFERENCES "WorkflowRun"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "WorkflowRun" ADD CONSTRAINT "WorkflowRun_parentStepRunId_fkey" FOREIGN KEY ("parentStepRunId") REFERENCES "StepRun"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "WorkflowRun" ADD CONSTRAINT "WorkflowRun_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -1565,9 +1544,6 @@ ALTER TABLE "WorkflowTriggerEventRef" ADD CONSTRAINT "WorkflowTriggerEventRef_pa
 
 -- AddForeignKey
 ALTER TABLE "WorkflowTriggerScheduledRef" ADD CONSTRAINT "WorkflowTriggerScheduledRef_parentId_fkey" FOREIGN KEY ("parentId") REFERENCES "WorkflowVersion"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "WorkflowTriggerScheduledRef" ADD CONSTRAINT "WorkflowTriggerScheduledRef_parentStepRunId_fkey" FOREIGN KEY ("parentStepRunId") REFERENCES "StepRun"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "WorkflowTriggerScheduledRef" ADD CONSTRAINT "WorkflowTriggerScheduledRef_parentWorkflowRunId_fkey" FOREIGN KEY ("parentWorkflowRunId") REFERENCES "WorkflowRun"("id") ON DELETE SET NULL ON UPDATE CASCADE;

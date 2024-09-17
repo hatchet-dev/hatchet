@@ -12,7 +12,7 @@ type RateLimit struct {
 	currUnitsConsumed int32
 	maxUnits          int32
 	nextRefill        time.Time
-	stepRunIdsToUnits map[string]int32
+	stepRunIdsToUnits map[int64]int32
 	mu                sync.Mutex
 }
 
@@ -21,7 +21,7 @@ func NewRateLimit(key string, rl *dbsqlc.ListRateLimitsForTenantRow) *RateLimit 
 		key:               key,
 		maxUnits:          rl.Value,
 		nextRefill:        rl.NextRefillAt.Time,
-		stepRunIdsToUnits: make(map[string]int32),
+		stepRunIdsToUnits: make(map[int64]int32),
 	}
 }
 
@@ -37,7 +37,7 @@ func (rl *RateLimit) NextRefill() time.Time {
 	return rl.nextRefill
 }
 
-func (rl *RateLimit) AddStepRunId(stepRunId string, units int32) bool {
+func (rl *RateLimit) AddStepRunId(stepRunId int64, units int32) bool {
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
 
@@ -52,14 +52,14 @@ func (rl *RateLimit) AddStepRunId(stepRunId string, units int32) bool {
 	return true
 }
 
-func (rl *RateLimit) Rollback(stepRunId string) {
+func (rl *RateLimit) Rollback(stepRunId int64) {
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
 
 	rl.rollback(stepRunId)
 }
 
-func (rl *RateLimit) rollback(stepRunId string) {
+func (rl *RateLimit) rollback(stepRunId int64) {
 	if units, ok := rl.stepRunIdsToUnits[stepRunId]; ok {
 		rl.currUnitsConsumed -= units
 		delete(rl.stepRunIdsToUnits, stepRunId)

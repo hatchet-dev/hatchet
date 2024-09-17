@@ -91,8 +91,15 @@ func (i *IngestorImpl) PutStreamEvent(ctx context.Context, req *contracts.PutStr
 		metadata = []byte(req.Metadata)
 	}
 
+	// NOTE: this is a temporary fix to convert the string step run id to an int64
+	stepRunId, err := strconv.ParseInt(req.StepRunId, 10, 64)
+
+	if err != nil {
+		return nil, err
+	}
+
 	opts := repository.CreateStreamEventOpts{
-		StepRunId: req.StepRunId,
+		StepRunId: stepRunId,
 		CreatedAt: createdAt,
 		Message:   req.Message,
 		Metadata:  metadata,
@@ -102,7 +109,7 @@ func (i *IngestorImpl) PutStreamEvent(ctx context.Context, req *contracts.PutStr
 		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
 	}
 
-	meta, err := i.streamEventRepository.GetStreamEventMeta(ctx, tenantId, req.StepRunId)
+	meta, err := i.streamEventRepository.GetStreamEventMeta(ctx, tenantId, stepRunId)
 
 	if err != nil {
 		return nil, err
@@ -189,7 +196,7 @@ func streamEventToTask(e *dbsqlc.StreamEvent, workflowRunId string, retryCount *
 
 	payloadTyped := tasktypes.StepRunStreamEventTaskPayload{
 		WorkflowRunId: workflowRunId,
-		StepRunId:     sqlchelpers.UUIDToStr(e.StepRunId),
+		StepRunId:     strconv.FormatInt(e.StepRunId.Int64, 10),
 		CreatedAt:     e.CreatedAt.Time.String(),
 		StreamEventId: strconv.FormatInt(e.ID, 10),
 		RetryCount:    retryCount,

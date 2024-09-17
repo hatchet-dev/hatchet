@@ -4,7 +4,7 @@ SELECT
 FROM
     "StepRun"
 WHERE
-    "id" = @id::uuid AND
+    "id" = @id::BIGINT AND
     "deletedAt" IS NULL;
 
 -- name: GetStepRunDataForEngine :one
@@ -27,7 +27,7 @@ JOIN
     -- Take advantage of composite index on "JobRun"("workflowRunId", "tenantId")
     "WorkflowRun" wr ON jr."workflowRunId" = wr."id" AND wr."tenantId" = @tenantId::uuid
 WHERE
-    sr."id" = @id::uuid AND
+    sr."id" = @id::BIGINT AND
     sr."tenantId" = @tenantId::uuid;
 
 -- name: GetStepRunMeta :one
@@ -38,7 +38,7 @@ SELECT
 FROM "StepRun" sr
 JOIN "Step" s ON sr."stepId" = s."id"
 JOIN "JobRun" jr ON sr."jobRunId" = jr."id"
-WHERE sr."id" = @stepRunId::uuid
+WHERE sr."id" = @stepRunId::BIGINT
 AND sr."tenantId" = @tenantId::uuid;
 
 -- name: GetStepRunForEngine :many
@@ -51,7 +51,7 @@ WITH child_count AS (
     LEFT JOIN
         "_StepRunOrder" AS step_run_order ON sr."id" = step_run_order."A"
     WHERE
-        sr."id" = ANY(@ids::uuid[])
+        sr."id" = ANY(@ids::BIGINT[])
     GROUP BY
         sr."id"
 )
@@ -65,7 +65,6 @@ SELECT
     sr."queue" AS "SR_queue",
     sr."order" AS "SR_order",
     sqi."workerId" AS "SR_workerId",
-    sr."tickerId" AS "SR_tickerId",
     sr."status" AS "SR_status",
     sr."requeueAfter" AS "SR_requeueAfter",
     sr."scheduleTimeoutAt" AS "SR_scheduleTimeoutAt",
@@ -115,7 +114,7 @@ LEFT JOIN
 LEFT JOIN
     "WorkflowRunStickyState" sticky ON jr."workflowRunId" = sticky."workflowRunId"
 WHERE
-    sr."id" = ANY(@ids::uuid[]) AND
+    sr."id" = ANY(@ids::BIGINT[]) AND
     sr."deletedAt" IS NULL AND
     jr."deletedAt" IS NULL AND
     (
@@ -165,7 +164,7 @@ WHERE
         JOIN "StepRun" AS parent_run ON parent_order."A" = parent_run."id"
         WHERE
             parent_order."B" = child_run."id"
-            AND parent_run."id" != sqlc.arg('succeededParentStepRunId')::uuid
+            AND parent_run."id" != sqlc.arg('succeededParentStepRunId')::BIGINT
             AND parent_run."status" != 'SUCCEEDED'
     );
 
@@ -218,7 +217,7 @@ SET
     END,
     "semaphoreReleased" = false
 WHERE
-  "id" = @id::uuid AND
+  "id" = @id::BIGINT AND
   "tenantId" = @tenantId::uuid;
 
 -- name: ManualReleaseSemaphore :exec
@@ -228,7 +227,7 @@ SET
     -- note that workerId has already been removed via SemaphoreQueueItem
     "semaphoreReleased" = true
 WHERE
-    "id" = @stepRunId::uuid AND
+    "id" = @stepRunId::BIGINT AND
     "tenantId" = @tenantId::uuid;
 
 -- name: BulkStartStepRun :exec
@@ -243,7 +242,7 @@ SET
     "startedAt" = input."startedAt"
 FROM (
     SELECT
-        unnest(@stepRunIds::uuid[]) AS "id",
+        unnest(@stepRunIds::BIGINT[]) AS "id",
         unnest(@startedAts::timestamp[]) AS "startedAt"
     ) AS input
 WHERE
@@ -261,7 +260,7 @@ SET
     "output" = input."output"::jsonb
 FROM (
     SELECT
-        unnest(@stepRunIds::uuid[]) AS "id",
+        unnest(@stepRunIds::BIGINT[]) AS "id",
         unnest(@finishedAts::timestamp[]) AS "finishedAt",
         unnest(@outputs::jsonb[]) AS "output"
     ) AS input
@@ -283,7 +282,7 @@ SET
     "cancelledError" = input."cancelledError"
 FROM (
     SELECT
-        unnest(@stepRunIds::uuid[]) AS "id",
+        unnest(@stepRunIds::BIGINT[]) AS "id",
         unnest(@finishedAts::timestamp[]) AS "finishedAt",
         unnest(@cancelledAts::timestamp[]) AS "cancelledAt",
         unnest(@cancelledReasons::text[]) AS "cancelledReason",
@@ -305,7 +304,7 @@ SET
     "error" = input."error"::text
 FROM (
     SELECT
-        unnest(@stepRunIds::uuid[]) AS "id",
+        unnest(@stepRunIds::BIGINT[]) AS "id",
         unnest(@finishedAts::timestamp[]) AS "finishedAt",
         unnest(@errors::text[]) AS "error"
     ) AS input
@@ -317,7 +316,7 @@ WITH RECURSIVE currStepRun AS (
   SELECT "id", "status", "cancelledReason"
   FROM "StepRun"
   WHERE
-    "id" = @stepRunId::uuid AND
+    "id" = @stepRunId::BIGINT AND
     "tenantId" = @tenantId::uuid
 ), childStepRuns AS (
   SELECT sr."id", sr."status"
@@ -366,7 +365,7 @@ SET
     "callerFiles" = jsonb_set("callerFiles", @overridesKey::text[], to_jsonb(@callerFile::text), true)
 WHERE
     sr."tenantId" = @tenantId::uuid AND
-    sr."id" = @stepRunId::uuid
+    sr."id" = @stepRunId::BIGINT
 RETURNING "input";
 
 -- name: UpdateStepRunInputSchema :one
@@ -377,7 +376,7 @@ SET
     "updatedAt" = CURRENT_TIMESTAMP
 WHERE
     sr."tenantId" = @tenantId::uuid AND
-    sr."id" = @stepRunId::uuid
+    sr."id" = @stepRunId::BIGINT
 RETURNING "inputSchema";
 
 -- name: ArchiveStepRunResultFromStepRun :one
@@ -400,7 +399,7 @@ WITH step_run_data AS (
         "cancelledError"
     FROM "StepRun"
     WHERE
-        "id" = @stepRunId::uuid
+        "id" = @stepRunId::BIGINT
         AND "tenantId" = @tenantId::uuid
         AND "deletedAt" IS NULL
 )
@@ -538,7 +537,7 @@ SET
         END,
     "updatedAt" = CURRENT_TIMESTAMP
 WHERE
-    "id" = @stepRunId::uuid AND
+    "id" = @stepRunId::BIGINT AND
     "tenantId" = @tenantId::uuid
 RETURNING *;
 
@@ -551,13 +550,13 @@ WITH oldsr AS (
     FROM
         "StepRun"
     WHERE
-        "id" = @stepRunId::uuid AND
+        "id" = @stepRunId::BIGINT AND
         "tenantId" = @tenantId::uuid
 ), deleted_sqi AS (
     DELETE FROM
         "SemaphoreQueueItem" sqi
     WHERE
-        sqi."stepRunId" = @stepRunId::uuid
+        sqi."stepRunId" = @stepRunId::BIGINT
     RETURNING sqi."workerId"
 )
 SELECT
@@ -631,7 +630,7 @@ WITH input AS (
     FROM
         (
             SELECT
-                unnest(@stepRunIds::uuid[]) AS "id",
+                unnest(@stepRunIds::BIGINT[]) AS "id",
                 unnest(@stepRunTimeouts::text[]) AS "stepTimeout",
                 unnest(@workerIds::uuid[]) AS "workerId"
         ) AS subquery
@@ -687,7 +686,7 @@ SELECT
 FROM
     "StepRun"
 WHERE
-    "id" = ANY(@stepRunIds::uuid[])
+    "id" = ANY(@stepRunIds::BIGINT[])
     AND "status" = ANY(ARRAY['SUCCEEDED', 'FAILED', 'CANCELLED', 'CANCELLING']::"StepRunStatus"[]);
 
 -- name: BulkMarkStepRunsAsCancelling :many
@@ -698,7 +697,7 @@ SET
     "updatedAt" = CURRENT_TIMESTAMP
 FROM (
     SELECT
-        unnest(@stepRunIds::uuid[]) AS "id"
+        unnest(@stepRunIds::BIGINT[]) AS "id"
     ) AS input
 WHERE
     sr."id" = input."id"
@@ -782,7 +781,7 @@ WITH input_values AS (
     SELECT
         CURRENT_TIMESTAMP AS "timeFirstSeen",
         CURRENT_TIMESTAMP AS "timeLastSeen",
-        @stepRunId::uuid AS "stepRunId",
+        @stepRunId::BIGINT AS "stepRunId",
         @jobRunid::uuid AS "jobRunId",
         @reason::"StepRunEventReason" AS "reason",
         @severity::"StepRunEventSeverity" AS "severity",
@@ -840,7 +839,7 @@ WITH input_values AS (
     SELECT
         unnest(@timeSeen::timestamp[]) AS "timeFirstSeen",
         unnest(@timeSeen::timestamp[]) AS "timeLastSeen",
-        unnest(@stepRunIds::uuid[]) AS "stepRunId",
+        unnest(@stepRunIds::BIGINT[]) AS "stepRunId",
         unnest(cast(@reasons::text[] as"StepRunEventReason"[])) AS "reason",
         unnest(cast(@severities::text[] as "StepRunEventSeverity"[])) AS "severity",
         unnest(@messages::text[]) AS "message",
@@ -898,7 +897,7 @@ SELECT
 FROM
     "StepRunEvent"
 WHERE
-    "stepRunId" = @stepRunId::uuid;
+    "stepRunId" = @stepRunId::BIGINT;
 
 -- name: ListStepRunEvents :many
 SELECT
@@ -906,7 +905,7 @@ SELECT
 FROM
     "StepRunEvent"
 WHERE
-    "stepRunId" = @stepRunId::uuid
+    "stepRunId" = @stepRunId::BIGINT
 ORDER BY
     "id" DESC
 OFFSET
@@ -989,7 +988,7 @@ WITH RECURSIVE currStepRun AS (
     SELECT *
     FROM "StepRun"
     WHERE
-        "id" = @stepRunId::uuid AND
+        "id" = @stepRunId::BIGINT AND
         "tenantId" = @tenantId::uuid
 ), childStepRuns AS (
     SELECT sr."id", sr."status"
@@ -1018,7 +1017,7 @@ WITH RECURSIVE currStepRun AS (
     SELECT *
     FROM "StepRun"
     WHERE
-        "id" = @stepRunId::uuid AND
+        "id" = @stepRunId::BIGINT AND
         "tenantId" = @tenantId::uuid
 ), childStepRuns AS (
     SELECT sr."id", sr."status"
@@ -1045,7 +1044,7 @@ SET
     "cancelledAt" = NULL,
     "cancelledReason" = NULL,
     "input" = CASE
-        WHEN sr."id" = @stepRunId::uuid THEN COALESCE(sqlc.narg('input')::jsonb, "input")
+        WHEN sr."id" = @stepRunId::BIGINT THEN COALESCE(sqlc.narg('input')::jsonb, "input")
         ELSE NULL
     END,
     "retryCount" = 0
@@ -1055,7 +1054,7 @@ WHERE
     sr."tenantId" = @tenantId::uuid AND
     (
         sr."id" = csr."id" OR
-        sr."id" = @stepRunId::uuid
+        sr."id" = @stepRunId::BIGINT
     )
 RETURNING sr.*;
 
@@ -1074,7 +1073,7 @@ SET
     "input" = NULL,
     "retryCount" = 0
 WHERE
-    sr."id" = ANY(@ids::uuid[]) AND
+    sr."id" = ANY(@stepRunIds::BIGINT[]) AND
     sr."tenantId" = @tenantId::uuid
 RETURNING sr.*;
 
@@ -1083,7 +1082,7 @@ WITH RECURSIVE currStepRun AS (
     SELECT *
     FROM "StepRun"
     WHERE
-        "id" = @stepRunId::uuid AND
+        "id" = @stepRunId::BIGINT AND
         "tenantId" = @tenantId::uuid
 ), childStepRuns AS (
     SELECT sr."id", sr."status"
@@ -1119,7 +1118,7 @@ FROM
 JOIN
     "StepRun" ON "StepRunResultArchive"."stepRunId" = "StepRun"."id"
 WHERE
-    "StepRunResultArchive"."stepRunId" = @stepRunId::uuid AND
+    "StepRunResultArchive"."stepRunId" = @stepRunId::BIGINT AND
     "StepRun"."tenantId" = @tenantId::uuid AND
     "StepRun"."deletedAt" IS NULL
 ORDER BY
@@ -1135,7 +1134,7 @@ SELECT
 FROM
     "StepRunResultArchive"
 WHERE
-    "stepRunId" = @stepRunId::uuid;
+    "stepRunId" = @stepRunId::BIGINT;
 
 
 -- name: ClearStepRunPayloadData :one
@@ -1212,6 +1211,6 @@ SELECT
 FROM
     "WorkflowRun"
 WHERE
-    "parentStepRunId" = @stepRun::uuid
+    "parentStepRunId" = @stepRunId::BIGINT
     AND "tenantId" = @tenantId::uuid
     AND "deletedAt" IS NULL;

@@ -237,7 +237,7 @@ type APIResourceMeta struct {
 	// CreatedAt the time that this resource was created
 	CreatedAt time.Time `json:"createdAt"`
 
-	// Id the id of this resource, in UUID format
+	// Id the id of this resource, uuid or int
 	Id string `json:"id"`
 
 	// UpdatedAt the time that this resource was last updated
@@ -557,7 +557,7 @@ type SemaphoreSlots struct {
 	Status    StepRunStatus `json:"status"`
 
 	// StepRunId The step run id.
-	StepRunId openapi_types.UUID `json:"stepRunId"`
+	StepRunId int `json:"stepRunId"`
 
 	// TimeoutAt The time this slot will timeout.
 	TimeoutAt *time.Time `json:"timeoutAt,omitempty"`

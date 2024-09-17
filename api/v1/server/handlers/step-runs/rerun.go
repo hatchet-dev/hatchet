@@ -16,7 +16,6 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 )
 
 func (t *StepRunService) StepRunUpdateRerun(ctx echo.Context, request gen.StepRunUpdateRerunRequestObject) (gen.StepRunUpdateRerunResponseObject, error) {
@@ -27,7 +26,7 @@ func (t *StepRunService) StepRunUpdateRerun(ctx echo.Context, request gen.StepRu
 	err := t.config.EngineRepository.StepRun().PreflightCheckReplayStepRun(
 		ctx.Request().Context(),
 		tenant.ID,
-		sqlchelpers.UUIDToStr(stepRun.ID),
+		stepRun.ID,
 	)
 
 	if err != nil {
@@ -81,7 +80,7 @@ func (t *StepRunService) StepRunUpdateRerun(ctx echo.Context, request gen.StepRu
 	engineStepRun, err := t.config.EngineRepository.StepRun().GetStepRunForEngine(
 		ctx.Request().Context(),
 		tenant.ID,
-		sqlchelpers.UUIDToStr(stepRun.ID),
+		stepRun.ID,
 	)
 
 	if err != nil {
@@ -103,7 +102,7 @@ func (t *StepRunService) StepRunUpdateRerun(ctx echo.Context, request gen.StepRu
 
 	// wait for a short period of time
 	for i := 0; i < 5; i++ {
-		result, err = t.config.APIRepository.StepRun().GetStepRunById(sqlchelpers.UUIDToStr(stepRun.ID))
+		result, err = t.config.APIRepository.StepRun().GetStepRunById(stepRun.ID)
 
 		if err != nil {
 			return nil, fmt.Errorf("could not get step run: %w", err)

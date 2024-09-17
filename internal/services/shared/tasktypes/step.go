@@ -1,6 +1,8 @@
 package tasktypes
 
 import (
+	"strconv"
+
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
@@ -36,7 +38,7 @@ type StepRunAssignedTaskMetadata struct {
 
 type StepRunCancelledTaskPayload struct {
 	WorkflowRunId   string `json:"workflow_run_id" validate:"required,uuid"`
-	StepRunId       string `json:"step_run_id" validate:"required,uuid"`
+	StepRunId       int64  `json:"step_run_id" validate:"required,uuid"`
 	WorkerId        string `json:"worker_id" validate:"required,uuid"`
 	CancelledReason string `json:"cancelled_reason" validate:"required"`
 	StepRetries     *int32 `json:"step_retries,omitempty"`
@@ -57,7 +59,7 @@ type StepRunRequeueTaskMetadata struct {
 }
 
 type StepRunCancelTaskPayload struct {
-	StepRunId       string `json:"step_run_id" validate:"required,uuid"`
+	StepRunId       int64  `json:"step_run_id" validate:"required,uuid"`
 	CancelledReason string `json:"cancelled_reason" validate:"required"`
 	StepRetries     *int32 `json:"step_retries,omitempty"`
 	RetryCount      *int32 `json:"retry_count,omitempty"`
@@ -165,7 +167,7 @@ type StepRunReplayTaskMetadata struct {
 
 func StepRunRetryToTask(stepRun *dbsqlc.GetStepRunForEngineRow, inputData []byte, err string) *msgqueue.Message {
 	jobRunId := sqlchelpers.UUIDToStr(stepRun.JobRunId)
-	stepRunId := sqlchelpers.UUIDToStr(stepRun.SRID)
+	stepRunId := strconv.Itoa(int(stepRun.SRID))
 	tenantId := sqlchelpers.UUIDToStr(stepRun.SRTenantId)
 	workflowRunId := sqlchelpers.UUIDToStr(stepRun.WorkflowRunId)
 
@@ -193,7 +195,7 @@ func StepRunRetryToTask(stepRun *dbsqlc.GetStepRunForEngineRow, inputData []byte
 
 func StepRunReplayToTask(stepRun *dbsqlc.GetStepRunForEngineRow, inputData []byte) *msgqueue.Message {
 	jobRunId := sqlchelpers.UUIDToStr(stepRun.JobRunId)
-	stepRunId := sqlchelpers.UUIDToStr(stepRun.SRID)
+	stepRunId := strconv.Itoa(int(stepRun.SRID))
 	tenantId := sqlchelpers.UUIDToStr(stepRun.SRTenantId)
 	workflowRunId := sqlchelpers.UUIDToStr(stepRun.WorkflowRunId)
 
@@ -219,11 +221,10 @@ func StepRunReplayToTask(stepRun *dbsqlc.GetStepRunForEngineRow, inputData []byt
 }
 
 func StepRunCancelToTask(stepRun *dbsqlc.GetStepRunForEngineRow, reason string) *msgqueue.Message {
-	stepRunId := sqlchelpers.UUIDToStr(stepRun.SRID)
 	tenantId := sqlchelpers.UUIDToStr(stepRun.SRTenantId)
 
 	payload, _ := datautils.ToJSONMap(StepRunCancelTaskPayload{
-		StepRunId:       stepRunId,
+		StepRunId:       stepRun.SRID,
 		CancelledReason: reason,
 		StepRetries:     &stepRun.StepRetries,
 		RetryCount:      &stepRun.SRRetryCount,
@@ -245,7 +246,7 @@ func StepRunQueuedToTask(stepRun *dbsqlc.GetStepRunForEngineRow) *msgqueue.Messa
 	payload, _ := datautils.ToJSONMap(StepRunTaskPayload{
 		WorkflowRunId: sqlchelpers.UUIDToStr(stepRun.WorkflowRunId),
 		JobRunId:      sqlchelpers.UUIDToStr(stepRun.JobRunId),
-		StepRunId:     sqlchelpers.UUIDToStr(stepRun.SRID),
+		StepRunId:     strconv.Itoa(int(stepRun.SRID)),
 		StepRetries:   &stepRun.StepRetries,
 		RetryCount:    &stepRun.SRRetryCount,
 	})

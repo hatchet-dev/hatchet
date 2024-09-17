@@ -248,7 +248,7 @@ INSERT INTO "WorkflowTriggerScheduledRef" (
     $1::uuid,
     unnest($2::timestamp[]),
     $3::jsonb
-) RETURNING id, "parentId", "triggerAt", "tickerId", input, "childIndex", "childKey", "parentStepRunId", "parentWorkflowRunId"
+) RETURNING id, "parentId", "triggerAt", "tickerId", input, "childIndex", "childKey", "parentWorkflowRunId", "parentStepRunId"
 `
 
 type CreateSchedulesParams struct {
@@ -274,8 +274,8 @@ func (q *Queries) CreateSchedules(ctx context.Context, db DBTX, arg CreateSchedu
 			&i.Input,
 			&i.ChildIndex,
 			&i.ChildKey,
-			&i.ParentStepRunId,
 			&i.ParentWorkflowRunId,
+			&i.ParentStepRunId,
 		); err != nil {
 			return nil, err
 		}
@@ -575,7 +575,7 @@ INSERT INTO "WorkflowTriggerScheduledRef" (
     $2::timestamp,
     NULL, -- or provide a tickerId if applicable
     NULL -- or provide input if applicable
-) RETURNING id, "parentId", "triggerAt", "tickerId", input, "childIndex", "childKey", "parentStepRunId", "parentWorkflowRunId"
+) RETURNING id, "parentId", "triggerAt", "tickerId", input, "childIndex", "childKey", "parentWorkflowRunId", "parentStepRunId"
 `
 
 type CreateWorkflowTriggerScheduledRefParams struct {
@@ -594,8 +594,8 @@ func (q *Queries) CreateWorkflowTriggerScheduledRef(ctx context.Context, db DBTX
 		&i.Input,
 		&i.ChildIndex,
 		&i.ChildKey,
-		&i.ParentStepRunId,
 		&i.ParentWorkflowRunId,
+		&i.ParentStepRunId,
 	)
 	return &i, err
 }
@@ -995,7 +995,7 @@ func (q *Queries) GetWorkflowVersionForEngine(ctx context.Context, db DBTX, arg 
 
 const getWorkflowVersionScheduleTriggerRefs = `-- name: GetWorkflowVersionScheduleTriggerRefs :many
 SELECT
-    wtc.id, wtc."parentId", wtc."triggerAt", wtc."tickerId", wtc.input, wtc."childIndex", wtc."childKey", wtc."parentStepRunId", wtc."parentWorkflowRunId"
+    wtc.id, wtc."parentId", wtc."triggerAt", wtc."tickerId", wtc.input, wtc."childIndex", wtc."childKey", wtc."parentWorkflowRunId", wtc."parentStepRunId"
 FROM
     "WorkflowTriggerScheduledRef" as wtc
 JOIN "WorkflowTriggers" as wt ON wt."id" = wtc."parentId"
@@ -1020,8 +1020,8 @@ func (q *Queries) GetWorkflowVersionScheduleTriggerRefs(ctx context.Context, db 
 			&i.Input,
 			&i.ChildIndex,
 			&i.ChildKey,
-			&i.ParentStepRunId,
 			&i.ParentWorkflowRunId,
+			&i.ParentStepRunId,
 		); err != nil {
 			return nil, err
 		}
@@ -1180,7 +1180,7 @@ func (q *Queries) ListWorkflowsForEvent(ctx context.Context, db DBTX, arg ListWo
 
 const listWorkflowsLatestRuns = `-- name: ListWorkflowsLatestRuns :many
 SELECT
-    DISTINCT ON (workflow."id") runs."createdAt", runs."updatedAt", runs."deletedAt", runs."tenantId", runs."workflowVersionId", runs.status, runs.error, runs."startedAt", runs."finishedAt", runs."concurrencyGroupId", runs."displayName", runs.id, runs."childIndex", runs."childKey", runs."parentId", runs."parentStepRunId", runs."additionalMetadata", runs.duration, runs.priority, workflow."id" as "workflowId"
+    DISTINCT ON (workflow."id") runs."createdAt", runs."updatedAt", runs."deletedAt", runs."tenantId", runs."workflowVersionId", runs.status, runs.error, runs."startedAt", runs."finishedAt", runs."concurrencyGroupId", runs."displayName", runs.id, runs."childIndex", runs."childKey", runs."parentId", runs."additionalMetadata", runs.duration, runs.priority, runs."parentStepRunId", workflow."id" as "workflowId"
 FROM
     "WorkflowRun" as runs
 LEFT JOIN
@@ -1257,10 +1257,10 @@ func (q *Queries) ListWorkflowsLatestRuns(ctx context.Context, db DBTX, arg List
 			&i.WorkflowRun.ChildIndex,
 			&i.WorkflowRun.ChildKey,
 			&i.WorkflowRun.ParentId,
-			&i.WorkflowRun.ParentStepRunId,
 			&i.WorkflowRun.AdditionalMetadata,
 			&i.WorkflowRun.Duration,
 			&i.WorkflowRun.Priority,
+			&i.WorkflowRun.ParentStepRunId,
 			&i.WorkflowId,
 		); err != nil {
 			return nil, err

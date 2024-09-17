@@ -16,14 +16,14 @@ SELECT COUNT(*) AS total
 FROM "LogLine"
 WHERE
   "tenantId" = $1::uuid AND
-  ($2::uuid IS NULL OR "stepRunId" = $2::uuid) AND
+  ($2::BIGINT IS NULL OR "stepRunId" = $2::BIGINT) AND
   ($3::text IS NULL OR "message" LIKE concat('%', $3::text, '%')) AND
   ($4::"LogLineLevel"[] IS NULL OR "level" = ANY($4::"LogLineLevel"[]))
 `
 
 type CountLogLinesParams struct {
 	Tenantid  pgtype.UUID    `json:"tenantid"`
-	StepRunId pgtype.UUID    `json:"stepRunId"`
+	StepRunId pgtype.Int8    `json:"stepRunId"`
 	Search    pgtype.Text    `json:"search"`
 	Levels    []LogLineLevel `json:"levels"`
 }
@@ -59,7 +59,7 @@ SELECT
 FROM "StepRun"
 WHERE "StepRun"."id" = $3::uuid
 AND "StepRun"."tenantId" = $2::uuid
-RETURNING id, "createdAt", "tenantId", "stepRunId", message, level, metadata
+RETURNING id, "createdAt", "tenantId", message, level, metadata, "stepRunId"
 `
 
 type CreateLogLineParams struct {
@@ -85,19 +85,19 @@ func (q *Queries) CreateLogLine(ctx context.Context, db DBTX, arg CreateLogLineP
 		&i.ID,
 		&i.CreatedAt,
 		&i.TenantId,
-		&i.StepRunId,
 		&i.Message,
 		&i.Level,
 		&i.Metadata,
+		&i.StepRunId,
 	)
 	return &i, err
 }
 
 const listLogLines = `-- name: ListLogLines :many
-SELECT id, "createdAt", "tenantId", "stepRunId", message, level, metadata FROM "LogLine"
+SELECT id, "createdAt", "tenantId", message, level, metadata, "stepRunId" FROM "LogLine"
 WHERE
   "tenantId" = $1::uuid AND
-  ($2::uuid IS NULL OR "stepRunId" = $2::uuid) AND
+  ($2::BIGINT IS NULL OR "stepRunId" = $2::BIGINT) AND
   ($3::text IS NULL OR "message" LIKE concat('%', $3::text, '%')) AND
   ($4::"LogLineLevel"[] IS NULL OR "level" = ANY($4::"LogLineLevel"[]))
 ORDER BY
@@ -112,7 +112,7 @@ OFFSET COALESCE($6, 0)
 
 type ListLogLinesParams struct {
 	Tenantid  pgtype.UUID    `json:"tenantid"`
-	StepRunId pgtype.UUID    `json:"stepRunId"`
+	StepRunId pgtype.Int8    `json:"stepRunId"`
 	Search    pgtype.Text    `json:"search"`
 	Levels    []LogLineLevel `json:"levels"`
 	OrderBy   pgtype.Text    `json:"orderBy"`
@@ -141,10 +141,10 @@ func (q *Queries) ListLogLines(ctx context.Context, db DBTX, arg ListLogLinesPar
 			&i.ID,
 			&i.CreatedAt,
 			&i.TenantId,
-			&i.StepRunId,
 			&i.Message,
 			&i.Level,
 			&i.Metadata,
+			&i.StepRunId,
 		); err != nil {
 			return nil, err
 		}

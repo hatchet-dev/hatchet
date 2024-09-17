@@ -155,7 +155,7 @@ func (t *TickerImpl) runScheduledWorkflow(tenantId, workflowVersionId, scheduled
 
 			fs = append(fs, repository.WithParent(
 				sqlchelpers.UUIDToStr(scheduled.ParentWorkflowRunId),
-				sqlchelpers.UUIDToStr(scheduled.ParentStepRunId),
+				scheduled.ParentStepRunId.Int64,
 				int(scheduled.ChildIndex.Int32),
 				childKey,
 				nil,

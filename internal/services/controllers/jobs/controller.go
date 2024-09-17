@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"sync"
 	"time"
 
@@ -440,13 +441,20 @@ func (ec *JobsControllerImpl) handleStepRunRetry(ctx context.Context, task *msgq
 		return fmt.Errorf("could not decode job task metadata: %w", err)
 	}
 
-	err = ec.repo.StepRun().ArchiveStepRunResult(ctx, metadata.TenantId, payload.StepRunId, payload.Error)
+	// NOTE: this is a temporary fix to convert the string step run id to an int64
+	stepRunId, err := strconv.ParseInt(payload.StepRunId, 10, 64)
+
+	if err != nil {
+		return fmt.Errorf("could not parse step run id: %w", err)
+	}
+
+	err = ec.repo.StepRun().ArchiveStepRunResult(ctx, metadata.TenantId, stepRunId, payload.Error)
 
 	if err != nil {
 		return fmt.Errorf("could not archive step run result: %w", err)
 	}
 
-	stepRun, err := ec.repo.StepRun().GetStepRunForEngine(ctx, metadata.TenantId, payload.StepRunId)
+	stepRun, err := ec.repo.StepRun().GetStepRunForEngine(ctx, metadata.TenantId, stepRunId)
 
 	if err != nil {
 		return fmt.Errorf("could not get step run: %w", err)
@@ -455,14 +463,14 @@ func (ec *JobsControllerImpl) handleStepRunRetry(ctx context.Context, task *msgq
 	retryCount := int(stepRun.SRRetryCount) + 1
 
 	// write an event
-	defer ec.repo.StepRun().DeferredStepRunEvent(metadata.TenantId, sqlchelpers.UUIDToStr(stepRun.SRID), repository.CreateStepRunEventOpts{
+	defer ec.repo.StepRun().DeferredStepRunEvent(metadata.TenantId, stepRun.SRID, repository.CreateStepRunEventOpts{
 		EventReason: repository.StepRunEventReasonPtr(dbsqlc.StepRunEventReasonRETRYING),
 		EventMessage: repository.StringPtr(
 			fmt.Sprintf("Retrying step run. This is retry %d / %d", retryCount, stepRun.StepRetries),
 		),
 	})
 
-	return ec.queueStepRun(ctx, metadata.TenantId, sqlchelpers.UUIDToStr(stepRun.StepId), sqlchelpers.UUIDToStr(stepRun.SRID), true)
+	return ec.queueStepRun(ctx, metadata.TenantId, sqlchelpers.UUIDToStr(stepRun.StepId), stepRun.SRID, true)
 }
 
 // handleStepRunReplay replays a step run from scratch - it resets the workflow run state, job run state, and
@@ -486,19 +494,26 @@ func (ec *JobsControllerImpl) handleStepRunReplay(ctx context.Context, task *msg
 		return fmt.Errorf("could not decode job task metadata: %w", err)
 	}
 
-	err = ec.repo.StepRun().ArchiveStepRunResult(ctx, metadata.TenantId, payload.StepRunId, nil)
+	// NOTE: this is a temporary fix to convert the string step run id to an int64
+	stepRunId, err := strconv.ParseInt(payload.StepRunId, 10, 64)
+
+	if err != nil {
+		return fmt.Errorf("could not parse step run id: %w", err)
+	}
+
+	err = ec.repo.StepRun().ArchiveStepRunResult(ctx, metadata.TenantId, stepRunId, nil)
 
 	if err != nil {
 		return fmt.Errorf("could not archive step run result: %w", err)
 	}
 
-	stepRun, err := ec.repo.StepRun().GetStepRunForEngine(ctx, metadata.TenantId, payload.StepRunId)
+	stepRun, err := ec.repo.StepRun().GetStepRunForEngine(ctx, metadata.TenantId, stepRunId)
 
 	if err != nil {
 		return fmt.Errorf("could not get step run: %w", err)
 	}
 
-	data, err := ec.repo.StepRun().GetStepRunDataForEngine(ctx, metadata.TenantId, payload.StepRunId)
+	data, err := ec.repo.StepRun().GetStepRunDataForEngine(ctx, metadata.TenantId, stepRunId)
 
 	if err != nil {
 		return fmt.Errorf("could not get step run data: %w", err)
@@ -552,7 +567,7 @@ func (ec *JobsControllerImpl) handleStepRunReplay(ctx context.Context, task *msg
 	_, err = ec.repo.StepRun().ReplayStepRun(
 		ctx,
 		metadata.TenantId,
-		sqlchelpers.UUIDToStr(stepRun.SRID),
+		stepRunId,
 		inputBytes,
 	)
 
@@ -560,7 +575,7 @@ func (ec *JobsControllerImpl) handleStepRunReplay(ctx context.Context, task *msg
 		return fmt.Errorf("could not update step run for replay: %w", err)
 	}
 
-	return ec.queueStepRun(ctx, metadata.TenantId, sqlchelpers.UUIDToStr(stepRun.StepId), sqlchelpers.UUIDToStr(stepRun.SRID), true)
+	return ec.queueStepRun(ctx, metadata.TenantId, sqlchelpers.UUIDToStr(stepRun.StepId), stepRun.SRID, true)
 }
 
 func (ec *JobsControllerImpl) handleStepRunQueued(ctx context.Context, task *msgqueue.Message) error {
@@ -588,7 +603,14 @@ func (ec *JobsControllerImpl) handleStepRunQueued(ctx context.Context, task *msg
 		isRetry = true
 	}
 
-	return ec.queueStepRun(ctx, metadata.TenantId, metadata.StepId, payload.StepRunId, isRetry)
+	// NOTE: this is a temporary fix to convert the string step run id to an int64
+	stepRunId, err := strconv.ParseInt(payload.StepRunId, 10, 64)
+
+	if err != nil {
+		return fmt.Errorf("could not parse step run id: %w", err)
+	}
+
+	return ec.queueStepRun(ctx, metadata.TenantId, metadata.StepId, stepRunId, isRetry)
 }
 
 func (jc *JobsControllerImpl) runPgStat() func() {
@@ -776,9 +798,7 @@ func (ec *JobsControllerImpl) runStepRunTimeoutTenant(ctx context.Context, tenan
 
 			defer span.End()
 
-			stepRunId := sqlchelpers.UUIDToStr(stepRunCp.SRID)
-
-			err = ec.failStepRun(scheduleCtx, tenantId, stepRunId, "TIMED_OUT", time.Now().UTC())
+			err = ec.failStepRun(scheduleCtx, tenantId, stepRunCp.SRID, "TIMED_OUT", time.Now().UTC())
 			if err != nil {
 				return err
 			}
@@ -788,7 +808,7 @@ func (ec *JobsControllerImpl) runStepRunTimeoutTenant(ctx context.Context, tenan
 	})
 }
 
-func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId, stepId, stepRunId string, isRetry bool) error {
+func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId string, stepId string, stepRunId int64, isRetry bool) error {
 	ctx, span := telemetry.NewSpan(ctx, "queue-step-run")
 	defer span.End()
 
@@ -865,7 +885,7 @@ func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId, stepId
 
 	if err != nil {
 		if errors.Is(err, repository.ErrStepRunIsNotPending) {
-			ec.l.Debug().Msgf("step run %s is not pending, skipping scheduling", stepRunId)
+			ec.l.Debug().Msgf("step run %d is not pending, skipping scheduling", stepRunId)
 			return nil
 		}
 
@@ -925,7 +945,14 @@ func (ec *JobsControllerImpl) handleStepRunStarted(ctx context.Context, task *ms
 		return fmt.Errorf("could not parse started at: %w", err)
 	}
 
-	err = ec.repo.StepRun().StepRunStarted(ctx, metadata.TenantId, payload.StepRunId, startedAt)
+	// NOTE: this is a temporary fix to convert the string step run id to an int64
+	stepRunId, err := strconv.ParseInt(payload.StepRunId, 10, 64)
+
+	if err != nil {
+		return fmt.Errorf("could not parse step run id: %w", err)
+	}
+
+	err = ec.repo.StepRun().StepRunStarted(ctx, metadata.TenantId, stepRunId, startedAt)
 
 	if err != nil {
 		return fmt.Errorf("could not update step run: %w", err)
@@ -966,19 +993,31 @@ func (ec *JobsControllerImpl) handleStepRunFinished(ctx context.Context, task *m
 		stepOutput = []byte(payload.StepOutputData)
 	}
 
-	err = ec.repo.StepRun().StepRunSucceeded(ctx, metadata.TenantId, payload.StepRunId, finishedAt, stepOutput)
+	// NOTE: this is a temporary fix to convert the string step run id to an int64
+	stepRunId, err := strconv.ParseInt(payload.StepRunId, 10, 64)
+
+	if err != nil {
+		return fmt.Errorf("could not parse step run id: %w", err)
+	}
+
+	err = ec.repo.StepRun().StepRunSucceeded(ctx, metadata.TenantId, stepRunId, finishedAt, stepOutput)
 
 	if err != nil {
 		return fmt.Errorf("could not update step run: %w", err)
 	}
 
-	stepRun, err := ec.repo.StepRun().GetStepRunForEngine(ctx, metadata.TenantId, payload.StepRunId)
+	stepRun, err := ec.repo.StepRun().GetStepRunForEngine(ctx, metadata.TenantId, stepRunId)
 
 	if err != nil {
 		return fmt.Errorf("could not get step run: %w", err)
 	}
 
-	nextStepRuns, err := ec.repo.StepRun().ListStartableStepRuns(ctx, metadata.TenantId, sqlchelpers.UUIDToStr(stepRun.JobRunId), &payload.StepRunId)
+	nextStepRuns, err := ec.repo.StepRun().ListStartableStepRuns(
+		ctx,
+		metadata.TenantId,
+		sqlchelpers.UUIDToStr(stepRun.JobRunId),
+		&stepRunId,
+	)
 
 	if err != nil {
 		ec.l.Error().Err(err).Msg("could not list startable step runs")
@@ -1026,10 +1065,17 @@ func (ec *JobsControllerImpl) handleStepRunFailed(ctx context.Context, task *msg
 		return fmt.Errorf("could not parse failed at: %w", err)
 	}
 
-	return ec.failStepRun(ctx, metadata.TenantId, payload.StepRunId, payload.Error, failedAt)
+	// NOTE: this is a temporary fix to handle the case where the step run id is a string
+	stepRunId, err := strconv.ParseInt(payload.StepRunId, 10, 64)
+
+	if err != nil {
+		return fmt.Errorf("could not parse step run id: %w", err)
+	}
+
+	return ec.failStepRun(ctx, metadata.TenantId, stepRunId, payload.Error, failedAt)
 }
 
-func (ec *JobsControllerImpl) failStepRun(ctx context.Context, tenantId, stepRunId, errorReason string, failedAt time.Time) error {
+func (ec *JobsControllerImpl) failStepRun(ctx context.Context, tenantId string, stepRunId int64, errorReason string, failedAt time.Time) error {
 	stepRun, err := ec.repo.StepRun().GetStepRunForEngine(ctx, tenantId, stepRunId)
 
 	if err != nil {
@@ -1086,10 +1132,10 @@ func (ec *JobsControllerImpl) failStepRun(ctx context.Context, tenantId, stepRun
 
 	if !stepRun.SRWorkerId.Valid {
 		// this is not a fatal error
-		ec.l.Warn().Msgf("[failStepRun] step run %s has no worker id, skipping cancellation", stepRunId)
+		ec.l.Warn().Msgf("[failStepRun] step run %d has no worker id, skipping cancellation", stepRunId)
 		attemptCancel = false
 	} else {
-		ec.l.Info().Msgf("[failStepRun] step run %s has a worker id, cancelling", stepRunId)
+		ec.l.Info().Msgf("[failStepRun] step run %d has a worker id, cancelling", stepRunId)
 	}
 
 	// Attempt to cancel the previous running step run
@@ -1148,7 +1194,14 @@ func (ec *JobsControllerImpl) handleStepRunTimedOut(ctx context.Context, task *m
 		return fmt.Errorf("could not decode step run timed out task metadata: %w", err)
 	}
 
-	return ec.failStepRun(ctx, metadata.TenantId, payload.StepRunId, "TIMED_OUT", time.Now().UTC())
+	// NOTE: this is a temporary fix to convert the string step run id to an int64
+	stepRunId, err := strconv.ParseInt(payload.StepRunId, 10, 64)
+
+	if err != nil {
+		return fmt.Errorf("could not parse step run id: %w", err)
+	}
+
+	return ec.failStepRun(ctx, metadata.TenantId, stepRunId, "TIMED_OUT", time.Now().UTC())
 }
 
 func (ec *JobsControllerImpl) handleStepRunCancel(ctx context.Context, task *msgqueue.Message) error {
@@ -1173,7 +1226,7 @@ func (ec *JobsControllerImpl) handleStepRunCancel(ctx context.Context, task *msg
 	return ec.cancelStepRun(ctx, metadata.TenantId, payload.StepRunId, payload.CancelledReason)
 }
 
-func (ec *JobsControllerImpl) cancelStepRun(ctx context.Context, tenantId, stepRunId, reason string) error {
+func (ec *JobsControllerImpl) cancelStepRun(ctx context.Context, tenantId string, stepRunId int64, reason string) error {
 	ctx, span := telemetry.NewSpan(ctx, "cancel-step-run")
 	defer span.End()
 
@@ -1195,12 +1248,12 @@ func (ec *JobsControllerImpl) cancelStepRun(ctx context.Context, tenantId, stepR
 
 	if !oldStepRun.SRWorkerId.Valid {
 		// this is not a fatal error
-		ec.l.Warn().Msgf("[cancelStepRun] step run %s has no worker id, skipping send of cancellation", stepRunId)
+		ec.l.Warn().Msgf("[cancelStepRun] step run %d has no worker id, skipping send of cancellation", stepRunId)
 
 		return nil
 	}
 
-	ec.l.Info().Msgf("[cancelStepRun] step run %s has a worker id, sending cancellation", stepRunId)
+	ec.l.Info().Msgf("[cancelStepRun] step run %d has a worker id, sending cancellation", stepRunId)
 
 	workerId := sqlchelpers.UUIDToStr(oldStepRun.SRWorkerId)
 
@@ -1229,9 +1282,9 @@ func (ec *JobsControllerImpl) cancelStepRun(ctx context.Context, tenantId, stepR
 	return nil
 }
 
-func stepRunAssignedTask(tenantId, stepRunId, workerId, dispatcherId string) *msgqueue.Message {
+func stepRunAssignedTask(tenantId string, stepRunId int64, workerId, dispatcherId string) *msgqueue.Message {
 	payload, _ := datautils.ToJSONMap(tasktypes.StepRunAssignedTaskPayload{
-		StepRunId: stepRunId,
+		StepRunId: strconv.FormatInt(stepRunId, 10),
 		WorkerId:  workerId,
 	})
 
@@ -1248,7 +1301,7 @@ func stepRunAssignedTask(tenantId, stepRunId, workerId, dispatcherId string) *ms
 	}
 }
 
-func stepRunCancelledTask(tenantId, stepRunId, workerId, dispatcherId, cancelledReason string, runId string, retries *int32, retryCount *int32) *msgqueue.Message {
+func stepRunCancelledTask(tenantId string, stepRunId int64, workerId, dispatcherId, cancelledReason string, runId string, retries *int32, retryCount *int32) *msgqueue.Message {
 	payload, _ := datautils.ToJSONMap(tasktypes.StepRunCancelledTaskPayload{
 		WorkflowRunId:   runId,
 		StepRunId:       stepRunId,

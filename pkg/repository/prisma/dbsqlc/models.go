@@ -982,10 +982,10 @@ type LogLine struct {
 	ID        int64            `json:"id"`
 	CreatedAt pgtype.Timestamp `json:"createdAt"`
 	TenantId  pgtype.UUID      `json:"tenantId"`
-	StepRunId pgtype.UUID      `json:"stepRunId"`
 	Message   string           `json:"message"`
 	Level     LogLineLevel     `json:"level"`
 	Metadata  []byte           `json:"metadata"`
+	StepRunId pgtype.Int8      `json:"stepRunId"`
 }
 
 type Queue struct {
@@ -996,7 +996,6 @@ type Queue struct {
 
 type QueueItem struct {
 	ID                int64              `json:"id"`
-	StepRunId         pgtype.UUID        `json:"stepRunId"`
 	StepId            pgtype.UUID        `json:"stepId"`
 	ActionId          pgtype.Text        `json:"actionId"`
 	ScheduleTimeoutAt pgtype.Timestamp   `json:"scheduleTimeoutAt"`
@@ -1007,6 +1006,7 @@ type QueueItem struct {
 	Queue             string             `json:"queue"`
 	Sticky            NullStickyStrategy `json:"sticky"`
 	DesiredWorkerId   pgtype.UUID        `json:"desiredWorkerId"`
+	StepRunId         pgtype.Int8        `json:"stepRunId"`
 }
 
 type RateLimit struct {
@@ -1105,7 +1105,6 @@ type StepRateLimit struct {
 }
 
 type StepRun struct {
-	ID                pgtype.UUID      `json:"id"`
 	CreatedAt         pgtype.Timestamp `json:"createdAt"`
 	UpdatedAt         pgtype.Timestamp `json:"updatedAt"`
 	DeletedAt         pgtype.Timestamp `json:"deletedAt"`
@@ -1114,7 +1113,6 @@ type StepRun struct {
 	StepId            pgtype.UUID      `json:"stepId"`
 	Order             int64            `json:"order"`
 	WorkerId          pgtype.UUID      `json:"workerId"`
-	TickerId          pgtype.UUID      `json:"tickerId"`
 	Status            StepRunStatus    `json:"status"`
 	Input             []byte           `json:"input"`
 	Output            []byte           `json:"output"`
@@ -1134,23 +1132,25 @@ type StepRun struct {
 	SemaphoreReleased bool             `json:"semaphoreReleased"`
 	Queue             string           `json:"queue"`
 	Priority          pgtype.Int4      `json:"priority"`
+	IDUuid            pgtype.UUID      `json:"id_uuid"`
+	ID                int64            `json:"id"`
 }
 
 type StepRunEvent struct {
 	ID            int64                `json:"id"`
 	TimeFirstSeen pgtype.Timestamp     `json:"timeFirstSeen"`
 	TimeLastSeen  pgtype.Timestamp     `json:"timeLastSeen"`
-	StepRunId     pgtype.UUID          `json:"stepRunId"`
 	Reason        StepRunEventReason   `json:"reason"`
 	Severity      StepRunEventSeverity `json:"severity"`
 	Message       string               `json:"message"`
 	Count         int32                `json:"count"`
 	Data          []byte               `json:"data"`
+	StepRunId     int64                `json:"stepRunId"`
 }
 
 type StepRunOrder struct {
-	A pgtype.UUID `json:"A"`
-	B pgtype.UUID `json:"B"`
+	A int64 `json:"A"`
+	B int64 `json:"B"`
 }
 
 type StepRunResultArchive struct {
@@ -1158,7 +1158,6 @@ type StepRunResultArchive struct {
 	CreatedAt       pgtype.Timestamp `json:"createdAt"`
 	UpdatedAt       pgtype.Timestamp `json:"updatedAt"`
 	DeletedAt       pgtype.Timestamp `json:"deletedAt"`
-	StepRunId       pgtype.UUID      `json:"stepRunId"`
 	Order           int64            `json:"order"`
 	Input           []byte           `json:"input"`
 	Output          []byte           `json:"output"`
@@ -1170,15 +1169,16 @@ type StepRunResultArchive struct {
 	CancelledReason pgtype.Text      `json:"cancelledReason"`
 	CancelledError  pgtype.Text      `json:"cancelledError"`
 	RetryCount      int32            `json:"retryCount"`
+	StepRunId       int64            `json:"stepRunId"`
 }
 
 type StreamEvent struct {
 	ID        int64            `json:"id"`
 	CreatedAt pgtype.Timestamp `json:"createdAt"`
 	TenantId  pgtype.UUID      `json:"tenantId"`
-	StepRunId pgtype.UUID      `json:"stepRunId"`
 	Message   []byte           `json:"message"`
 	Metadata  []byte           `json:"metadata"`
+	StepRunId pgtype.Int8      `json:"stepRunId"`
 }
 
 type Tenant struct {
@@ -1293,11 +1293,11 @@ type Ticker struct {
 
 type TimeoutQueueItem struct {
 	ID         int64            `json:"id"`
-	StepRunId  pgtype.UUID      `json:"stepRunId"`
 	RetryCount int32            `json:"retryCount"`
 	TimeoutAt  pgtype.Timestamp `json:"timeoutAt"`
 	TenantId   pgtype.UUID      `json:"tenantId"`
 	IsQueued   bool             `json:"isQueued"`
+	StepRunId  int64            `json:"stepRunId"`
 }
 
 type User struct {
@@ -1432,10 +1432,10 @@ type WorkflowRun struct {
 	ChildIndex         pgtype.Int4       `json:"childIndex"`
 	ChildKey           pgtype.Text       `json:"childKey"`
 	ParentId           pgtype.UUID       `json:"parentId"`
-	ParentStepRunId    pgtype.UUID       `json:"parentStepRunId"`
 	AdditionalMetadata []byte            `json:"additionalMetadata"`
 	Duration           pgtype.Int4       `json:"duration"`
 	Priority           pgtype.Int4       `json:"priority"`
+	ParentStepRunId    pgtype.Int8       `json:"parentStepRunId"`
 }
 
 type WorkflowRunDedupe struct {
@@ -1507,8 +1507,8 @@ type WorkflowTriggerScheduledRef struct {
 	Input               []byte           `json:"input"`
 	ChildIndex          pgtype.Int4      `json:"childIndex"`
 	ChildKey            pgtype.Text      `json:"childKey"`
-	ParentStepRunId     pgtype.UUID      `json:"parentStepRunId"`
 	ParentWorkflowRunId pgtype.UUID      `json:"parentWorkflowRunId"`
+	ParentStepRunId     pgtype.Int8      `json:"parentStepRunId"`
 }
 
 type WorkflowTriggers struct {

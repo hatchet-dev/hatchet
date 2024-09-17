@@ -31,7 +31,7 @@ WITH step_run_data AS (
         "cancelledError"
     FROM "StepRun"
     WHERE
-        "id" = $3::uuid
+        "id" = $3::BIGINT
         AND "tenantId" = $4::uuid
         AND "deletedAt" IS NULL
 )
@@ -69,13 +69,13 @@ SELECT
     step_run_data."cancelledReason",
     step_run_data."cancelledError"
 FROM step_run_data
-RETURNING id, "createdAt", "updatedAt", "deletedAt", "stepRunId", "order", input, output, error, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError", "retryCount"
+RETURNING id, "createdAt", "updatedAt", "deletedAt", "order", input, output, error, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError", "retryCount", "stepRunId"
 `
 
 type ArchiveStepRunResultFromStepRunParams struct {
 	ID        pgtype.UUID `json:"id"`
 	Error     pgtype.Text `json:"error"`
-	Steprunid pgtype.UUID `json:"steprunid"`
+	Steprunid int64       `json:"steprunid"`
 	Tenantid  pgtype.UUID `json:"tenantid"`
 }
 
@@ -92,7 +92,6 @@ func (q *Queries) ArchiveStepRunResultFromStepRun(ctx context.Context, db DBTX, 
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
-		&i.StepRunId,
 		&i.Order,
 		&i.Input,
 		&i.Output,
@@ -104,6 +103,7 @@ func (q *Queries) ArchiveStepRunResultFromStepRun(ctx context.Context, db DBTX, 
 		&i.CancelledReason,
 		&i.CancelledError,
 		&i.RetryCount,
+		&i.StepRunId,
 	)
 	return &i, err
 }
@@ -123,7 +123,7 @@ SET
     "cancelledError" = input."cancelledError"
 FROM (
     SELECT
-        unnest($1::uuid[]) AS "id",
+        unnest($1::BIGINT[]) AS "id",
         unnest($2::timestamp[]) AS "finishedAt",
         unnest($3::timestamp[]) AS "cancelledAt",
         unnest($4::text[]) AS "cancelledReason",
@@ -134,7 +134,7 @@ WHERE
 `
 
 type BulkCancelStepRunParams struct {
-	Steprunids       []pgtype.UUID      `json:"steprunids"`
+	Steprunids       []int64            `json:"steprunids"`
 	Finishedats      []pgtype.Timestamp `json:"finishedats"`
 	Cancelledats     []pgtype.Timestamp `json:"cancelledats"`
 	Cancelledreasons []string           `json:"cancelledreasons"`
@@ -157,7 +157,7 @@ WITH input_values AS (
     SELECT
         unnest($1::timestamp[]) AS "timeFirstSeen",
         unnest($1::timestamp[]) AS "timeLastSeen",
-        unnest($2::uuid[]) AS "stepRunId",
+        unnest($2::BIGINT[]) AS "stepRunId",
         unnest(cast($3::text[] as"StepRunEventReason"[])) AS "reason",
         unnest(cast($4::text[] as "StepRunEventSeverity"[])) AS "severity",
         unnest($5::text[]) AS "message",
@@ -183,7 +183,7 @@ updated AS (
             ORDER BY "id" DESC
             LIMIT 1
         )
-    RETURNING "StepRunEvent".id, "StepRunEvent"."timeFirstSeen", "StepRunEvent"."timeLastSeen", "StepRunEvent"."stepRunId", "StepRunEvent".reason, "StepRunEvent".severity, "StepRunEvent".message, "StepRunEvent".count, "StepRunEvent".data
+    RETURNING "StepRunEvent".id, "StepRunEvent"."timeFirstSeen", "StepRunEvent"."timeLastSeen", "StepRunEvent".reason, "StepRunEvent".severity, "StepRunEvent".message, "StepRunEvent".count, "StepRunEvent".data, "StepRunEvent"."stepRunId"
 )
 INSERT INTO "StepRunEvent" (
     "timeFirstSeen",
@@ -212,7 +212,7 @@ WHERE NOT EXISTS (
 
 type BulkCreateStepRunEventParams struct {
 	Timeseen   []pgtype.Timestamp `json:"timeseen"`
-	Steprunids []pgtype.UUID      `json:"steprunids"`
+	Steprunids []int64            `json:"steprunids"`
 	Reasons    []string           `json:"reasons"`
 	Severities []string           `json:"severities"`
 	Messages   []string           `json:"messages"`
@@ -244,7 +244,7 @@ SET
     "error" = input."error"::text
 FROM (
     SELECT
-        unnest($1::uuid[]) AS "id",
+        unnest($1::BIGINT[]) AS "id",
         unnest($2::timestamp[]) AS "finishedAt",
         unnest($3::text[]) AS "error"
     ) AS input
@@ -253,7 +253,7 @@ WHERE
 `
 
 type BulkFailStepRunParams struct {
-	Steprunids  []pgtype.UUID      `json:"steprunids"`
+	Steprunids  []int64            `json:"steprunids"`
 	Finishedats []pgtype.Timestamp `json:"finishedats"`
 	Errors      []string           `json:"errors"`
 }
@@ -275,7 +275,7 @@ SET
     "output" = input."output"::jsonb
 FROM (
     SELECT
-        unnest($1::uuid[]) AS "id",
+        unnest($1::BIGINT[]) AS "id",
         unnest($2::timestamp[]) AS "finishedAt",
         unnest($3::jsonb[]) AS "output"
     ) AS input
@@ -284,7 +284,7 @@ WHERE
 `
 
 type BulkFinishStepRunParams struct {
-	Steprunids  []pgtype.UUID      `json:"steprunids"`
+	Steprunids  []int64            `json:"steprunids"`
 	Finishedats []pgtype.Timestamp `json:"finishedats"`
 	Outputs     [][]byte           `json:"outputs"`
 }
@@ -302,22 +302,22 @@ SET
     "updatedAt" = CURRENT_TIMESTAMP
 FROM (
     SELECT
-        unnest($1::uuid[]) AS "id"
+        unnest($1::BIGINT[]) AS "id"
     ) AS input
 WHERE
     sr."id" = input."id"
 RETURNING sr."id"
 `
 
-func (q *Queries) BulkMarkStepRunsAsCancelling(ctx context.Context, db DBTX, steprunids []pgtype.UUID) ([]pgtype.UUID, error) {
+func (q *Queries) BulkMarkStepRunsAsCancelling(ctx context.Context, db DBTX, steprunids []int64) ([]int64, error) {
 	rows, err := db.Query(ctx, bulkMarkStepRunsAsCancelling, steprunids)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []pgtype.UUID
+	var items []int64
 	for rows.Next() {
-		var id pgtype.UUID
+		var id int64
 		if err := rows.Scan(&id); err != nil {
 			return nil, err
 		}
@@ -341,7 +341,7 @@ SET
     "startedAt" = input."startedAt"
 FROM (
     SELECT
-        unnest($1::uuid[]) AS "id",
+        unnest($1::BIGINT[]) AS "id",
         unnest($2::timestamp[]) AS "startedAt"
     ) AS input
 WHERE
@@ -349,7 +349,7 @@ WHERE
 `
 
 type BulkStartStepRunParams struct {
-	Steprunids []pgtype.UUID      `json:"steprunids"`
+	Steprunids []int64            `json:"steprunids"`
 	Startedats []pgtype.Timestamp `json:"startedats"`
 }
 
@@ -456,10 +456,10 @@ SELECT
 FROM
     "StepRunResultArchive"
 WHERE
-    "stepRunId" = $1::uuid
+    "stepRunId" = $1::BIGINT
 `
 
-func (q *Queries) CountStepRunArchives(ctx context.Context, db DBTX, steprunid pgtype.UUID) (int64, error) {
+func (q *Queries) CountStepRunArchives(ctx context.Context, db DBTX, steprunid int64) (int64, error) {
 	row := db.QueryRow(ctx, countStepRunArchives, steprunid)
 	var total int64
 	err := row.Scan(&total)
@@ -472,10 +472,10 @@ SELECT
 FROM
     "StepRunEvent"
 WHERE
-    "stepRunId" = $1::uuid
+    "stepRunId" = $1::BIGINT
 `
 
-func (q *Queries) CountStepRunEvents(ctx context.Context, db DBTX, steprunid pgtype.UUID) (int64, error) {
+func (q *Queries) CountStepRunEvents(ctx context.Context, db DBTX, steprunid int64) (int64, error) {
 	row := db.QueryRow(ctx, countStepRunEvents, steprunid)
 	var total int64
 	err := row.Scan(&total)
@@ -487,7 +487,7 @@ WITH input_values AS (
     SELECT
         CURRENT_TIMESTAMP AS "timeFirstSeen",
         CURRENT_TIMESTAMP AS "timeLastSeen",
-        $1::uuid AS "stepRunId",
+        $1::BIGINT AS "stepRunId",
         $2::uuid AS "jobRunId",
         $3::"StepRunEventReason" AS "reason",
         $4::"StepRunEventSeverity" AS "severity",
@@ -514,7 +514,7 @@ updated AS (
             ORDER BY "id" DESC
             LIMIT 1
         )
-    RETURNING "StepRunEvent".id, "StepRunEvent"."timeFirstSeen", "StepRunEvent"."timeLastSeen", "StepRunEvent"."stepRunId", "StepRunEvent".reason, "StepRunEvent".severity, "StepRunEvent".message, "StepRunEvent".count, "StepRunEvent".data
+    RETURNING "StepRunEvent".id, "StepRunEvent"."timeFirstSeen", "StepRunEvent"."timeLastSeen", "StepRunEvent".reason, "StepRunEvent".severity, "StepRunEvent".message, "StepRunEvent".count, "StepRunEvent".data, "StepRunEvent"."stepRunId"
 )
 INSERT INTO "StepRunEvent" (
     "timeFirstSeen",
@@ -542,7 +542,7 @@ WHERE NOT EXISTS (
 `
 
 type CreateStepRunEventParams struct {
-	Steprunid pgtype.UUID          `json:"steprunid"`
+	Steprunid int64                `json:"steprunid"`
 	Jobrunid  pgtype.UUID          `json:"jobrunid"`
 	Reason    StepRunEventReason   `json:"reason"`
 	Severity  StepRunEventSeverity `json:"severity"`
@@ -647,16 +647,16 @@ SELECT
 FROM
     "StepRun"
 WHERE
-    "id" = ANY($1::uuid[])
+    "id" = ANY($1::BIGINT[])
     AND "status" = ANY(ARRAY['SUCCEEDED', 'FAILED', 'CANCELLED', 'CANCELLING']::"StepRunStatus"[])
 `
 
 type GetFinalizedStepRunsRow struct {
-	ID     pgtype.UUID   `json:"id"`
+	ID     int64         `json:"id"`
 	Status StepRunStatus `json:"status"`
 }
 
-func (q *Queries) GetFinalizedStepRuns(ctx context.Context, db DBTX, steprunids []pgtype.UUID) ([]*GetFinalizedStepRunsRow, error) {
+func (q *Queries) GetFinalizedStepRuns(ctx context.Context, db DBTX, steprunids []int64) ([]*GetFinalizedStepRunsRow, error) {
 	rows, err := db.Query(ctx, getFinalizedStepRuns, steprunids)
 	if err != nil {
 		return nil, err
@@ -678,10 +678,10 @@ func (q *Queries) GetFinalizedStepRuns(ctx context.Context, db DBTX, steprunids 
 
 const getLaterStepRuns = `-- name: GetLaterStepRuns :many
 WITH RECURSIVE currStepRun AS (
-    SELECT id, "createdAt", "updatedAt", "deletedAt", "tenantId", "jobRunId", "stepId", "order", "workerId", "tickerId", status, input, output, "requeueAfter", "scheduleTimeoutAt", error, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError", "inputSchema", "callerFiles", "gitRepoBranch", "retryCount", "semaphoreReleased", queue, priority
+    SELECT "createdAt", "updatedAt", "deletedAt", "tenantId", "jobRunId", "stepId", "order", "workerId", status, input, output, "requeueAfter", "scheduleTimeoutAt", error, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError", "inputSchema", "callerFiles", "gitRepoBranch", "retryCount", "semaphoreReleased", queue, priority, id_uuid, id
     FROM "StepRun"
     WHERE
-        "id" = $2::uuid AND
+        "id" = $2::BIGINT AND
         "tenantId" = $1::uuid
 ), childStepRuns AS (
     SELECT sr."id", sr."status"
@@ -697,7 +697,7 @@ WITH RECURSIVE currStepRun AS (
     JOIN childStepRuns csr ON sro."A" = csr."id"
 )
 SELECT
-    sr.id, sr."createdAt", sr."updatedAt", sr."deletedAt", sr."tenantId", sr."jobRunId", sr."stepId", sr."order", sr."workerId", sr."tickerId", sr.status, sr.input, sr.output, sr."requeueAfter", sr."scheduleTimeoutAt", sr.error, sr."startedAt", sr."finishedAt", sr."timeoutAt", sr."cancelledAt", sr."cancelledReason", sr."cancelledError", sr."inputSchema", sr."callerFiles", sr."gitRepoBranch", sr."retryCount", sr."semaphoreReleased", sr.queue, sr.priority
+    sr."createdAt", sr."updatedAt", sr."deletedAt", sr."tenantId", sr."jobRunId", sr."stepId", sr."order", sr."workerId", sr.status, sr.input, sr.output, sr."requeueAfter", sr."scheduleTimeoutAt", sr.error, sr."startedAt", sr."finishedAt", sr."timeoutAt", sr."cancelledAt", sr."cancelledReason", sr."cancelledError", sr."inputSchema", sr."callerFiles", sr."gitRepoBranch", sr."retryCount", sr."semaphoreReleased", sr.queue, sr.priority, sr.id_uuid, sr.id
 FROM
     "StepRun" sr
 JOIN
@@ -708,7 +708,7 @@ WHERE
 
 type GetLaterStepRunsParams struct {
 	Tenantid  pgtype.UUID `json:"tenantid"`
-	Steprunid pgtype.UUID `json:"steprunid"`
+	Steprunid int64       `json:"steprunid"`
 }
 
 func (q *Queries) GetLaterStepRuns(ctx context.Context, db DBTX, arg GetLaterStepRunsParams) ([]*StepRun, error) {
@@ -721,7 +721,6 @@ func (q *Queries) GetLaterStepRuns(ctx context.Context, db DBTX, arg GetLaterSte
 	for rows.Next() {
 		var i StepRun
 		if err := rows.Scan(
-			&i.ID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.DeletedAt,
@@ -730,7 +729,6 @@ func (q *Queries) GetLaterStepRuns(ctx context.Context, db DBTX, arg GetLaterSte
 			&i.StepId,
 			&i.Order,
 			&i.WorkerId,
-			&i.TickerId,
 			&i.Status,
 			&i.Input,
 			&i.Output,
@@ -750,6 +748,8 @@ func (q *Queries) GetLaterStepRuns(ctx context.Context, db DBTX, arg GetLaterSte
 			&i.SemaphoreReleased,
 			&i.Queue,
 			&i.Priority,
+			&i.IDUuid,
+			&i.ID,
 		); err != nil {
 			return nil, err
 		}
@@ -789,19 +789,18 @@ func (q *Queries) GetStepDesiredWorkerLabels(ctx context.Context, db DBTX, stepi
 
 const getStepRun = `-- name: GetStepRun :one
 SELECT
-    "StepRun".id, "StepRun"."createdAt", "StepRun"."updatedAt", "StepRun"."deletedAt", "StepRun"."tenantId", "StepRun"."jobRunId", "StepRun"."stepId", "StepRun"."order", "StepRun"."workerId", "StepRun"."tickerId", "StepRun".status, "StepRun".input, "StepRun".output, "StepRun"."requeueAfter", "StepRun"."scheduleTimeoutAt", "StepRun".error, "StepRun"."startedAt", "StepRun"."finishedAt", "StepRun"."timeoutAt", "StepRun"."cancelledAt", "StepRun"."cancelledReason", "StepRun"."cancelledError", "StepRun"."inputSchema", "StepRun"."callerFiles", "StepRun"."gitRepoBranch", "StepRun"."retryCount", "StepRun"."semaphoreReleased", "StepRun".queue, "StepRun".priority
+    "StepRun"."createdAt", "StepRun"."updatedAt", "StepRun"."deletedAt", "StepRun"."tenantId", "StepRun"."jobRunId", "StepRun"."stepId", "StepRun"."order", "StepRun"."workerId", "StepRun".status, "StepRun".input, "StepRun".output, "StepRun"."requeueAfter", "StepRun"."scheduleTimeoutAt", "StepRun".error, "StepRun"."startedAt", "StepRun"."finishedAt", "StepRun"."timeoutAt", "StepRun"."cancelledAt", "StepRun"."cancelledReason", "StepRun"."cancelledError", "StepRun"."inputSchema", "StepRun"."callerFiles", "StepRun"."gitRepoBranch", "StepRun"."retryCount", "StepRun"."semaphoreReleased", "StepRun".queue, "StepRun".priority, "StepRun".id_uuid, "StepRun".id
 FROM
     "StepRun"
 WHERE
-    "id" = $1::uuid AND
+    "id" = $1::BIGINT AND
     "deletedAt" IS NULL
 `
 
-func (q *Queries) GetStepRun(ctx context.Context, db DBTX, id pgtype.UUID) (*StepRun, error) {
+func (q *Queries) GetStepRun(ctx context.Context, db DBTX, id int64) (*StepRun, error) {
 	row := db.QueryRow(ctx, getStepRun, id)
 	var i StepRun
 	err := row.Scan(
-		&i.ID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
@@ -810,7 +809,6 @@ func (q *Queries) GetStepRun(ctx context.Context, db DBTX, id pgtype.UUID) (*Ste
 		&i.StepId,
 		&i.Order,
 		&i.WorkerId,
-		&i.TickerId,
 		&i.Status,
 		&i.Input,
 		&i.Output,
@@ -830,6 +828,8 @@ func (q *Queries) GetStepRun(ctx context.Context, db DBTX, id pgtype.UUID) (*Ste
 		&i.SemaphoreReleased,
 		&i.Queue,
 		&i.Priority,
+		&i.IDUuid,
+		&i.ID,
 	)
 	return &i, err
 }
@@ -854,13 +854,13 @@ JOIN
     -- Take advantage of composite index on "JobRun"("workflowRunId", "tenantId")
     "WorkflowRun" wr ON jr."workflowRunId" = wr."id" AND wr."tenantId" = $1::uuid
 WHERE
-    sr."id" = $2::uuid AND
+    sr."id" = $2::BIGINT AND
     sr."tenantId" = $1::uuid
 `
 
 type GetStepRunDataForEngineParams struct {
 	Tenantid pgtype.UUID `json:"tenantid"`
-	ID       pgtype.UUID `json:"id"`
+	ID       int64       `json:"id"`
 }
 
 type GetStepRunDataForEngineRow struct {
@@ -900,7 +900,7 @@ WITH child_count AS (
     LEFT JOIN
         "_StepRunOrder" AS step_run_order ON sr."id" = step_run_order."A"
     WHERE
-        sr."id" = ANY($1::uuid[])
+        sr."id" = ANY($1::BIGINT[])
     GROUP BY
         sr."id"
 )
@@ -914,7 +914,6 @@ SELECT
     sr."queue" AS "SR_queue",
     sr."order" AS "SR_order",
     sqi."workerId" AS "SR_workerId",
-    sr."tickerId" AS "SR_tickerId",
     sr."status" AS "SR_status",
     sr."requeueAfter" AS "SR_requeueAfter",
     sr."scheduleTimeoutAt" AS "SR_scheduleTimeoutAt",
@@ -964,7 +963,7 @@ LEFT JOIN
 LEFT JOIN
     "WorkflowRunStickyState" sticky ON jr."workflowRunId" = sticky."workflowRunId"
 WHERE
-    sr."id" = ANY($1::uuid[]) AND
+    sr."id" = ANY($1::BIGINT[]) AND
     sr."deletedAt" IS NULL AND
     jr."deletedAt" IS NULL AND
     (
@@ -974,12 +973,12 @@ WHERE
 `
 
 type GetStepRunForEngineParams struct {
-	Ids      []pgtype.UUID `json:"ids"`
-	TenantId pgtype.UUID   `json:"tenantId"`
+	Ids      []int64     `json:"ids"`
+	TenantId pgtype.UUID `json:"tenantId"`
 }
 
 type GetStepRunForEngineRow struct {
-	SRID                pgtype.UUID        `json:"SR_id"`
+	SRID                int64              `json:"SR_id"`
 	SRCreatedAt         pgtype.Timestamp   `json:"SR_createdAt"`
 	SRUpdatedAt         pgtype.Timestamp   `json:"SR_updatedAt"`
 	SRDeletedAt         pgtype.Timestamp   `json:"SR_deletedAt"`
@@ -987,7 +986,6 @@ type GetStepRunForEngineRow struct {
 	SRQueue             string             `json:"SR_queue"`
 	SROrder             int64              `json:"SR_order"`
 	SRWorkerId          pgtype.UUID        `json:"SR_workerId"`
-	SRTickerId          pgtype.UUID        `json:"SR_tickerId"`
 	SRStatus            StepRunStatus      `json:"SR_status"`
 	SRRequeueAfter      pgtype.Timestamp   `json:"SR_requeueAfter"`
 	SRScheduleTimeoutAt pgtype.Timestamp   `json:"SR_scheduleTimeoutAt"`
@@ -1039,7 +1037,6 @@ func (q *Queries) GetStepRunForEngine(ctx context.Context, db DBTX, arg GetStepR
 			&i.SRQueue,
 			&i.SROrder,
 			&i.SRWorkerId,
-			&i.SRTickerId,
 			&i.SRStatus,
 			&i.SRRequeueAfter,
 			&i.SRScheduleTimeoutAt,
@@ -1090,12 +1087,12 @@ SELECT
 FROM "StepRun" sr
 JOIN "Step" s ON sr."stepId" = s."id"
 JOIN "JobRun" jr ON sr."jobRunId" = jr."id"
-WHERE sr."id" = $1::uuid
+WHERE sr."id" = $1::BIGINT
 AND sr."tenantId" = $2::uuid
 `
 
 type GetStepRunMetaParams struct {
-	Steprunid pgtype.UUID `json:"steprunid"`
+	Steprunid int64       `json:"steprunid"`
 	Tenantid  pgtype.UUID `json:"tenantid"`
 }
 
@@ -1243,18 +1240,18 @@ SELECT
 FROM
     "WorkflowRun"
 WHERE
-    "parentStepRunId" = $1::uuid
+    "parentStepRunId" = $1::BIGINT
     AND "tenantId" = $2::uuid
     AND "deletedAt" IS NULL
 `
 
 type ListChildWorkflowRunIdsParams struct {
-	Steprun  pgtype.UUID `json:"steprun"`
-	Tenantid pgtype.UUID `json:"tenantid"`
+	Steprunid int64       `json:"steprunid"`
+	Tenantid  pgtype.UUID `json:"tenantid"`
 }
 
 func (q *Queries) ListChildWorkflowRunIds(ctx context.Context, db DBTX, arg ListChildWorkflowRunIdsParams) ([]pgtype.UUID, error) {
-	rows, err := db.Query(ctx, listChildWorkflowRunIds, arg.Steprun, arg.Tenantid)
+	rows, err := db.Query(ctx, listChildWorkflowRunIds, arg.Steprunid, arg.Tenantid)
 	if err != nil {
 		return nil, err
 	}
@@ -1287,15 +1284,15 @@ WHERE
     AND step_run_order."A" IS NULL
 `
 
-func (q *Queries) ListInitialStepRuns(ctx context.Context, db DBTX, jobrunid pgtype.UUID) ([]pgtype.UUID, error) {
+func (q *Queries) ListInitialStepRuns(ctx context.Context, db DBTX, jobrunid pgtype.UUID) ([]int64, error) {
 	rows, err := db.Query(ctx, listInitialStepRuns, jobrunid)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []pgtype.UUID
+	var items []int64
 	for rows.Next() {
-		var id pgtype.UUID
+		var id int64
 		if err := rows.Scan(&id); err != nil {
 			return nil, err
 		}
@@ -1309,10 +1306,10 @@ func (q *Queries) ListInitialStepRuns(ctx context.Context, db DBTX, jobrunid pgt
 
 const listNonFinalChildStepRuns = `-- name: ListNonFinalChildStepRuns :many
 WITH RECURSIVE currStepRun AS (
-    SELECT id, "createdAt", "updatedAt", "deletedAt", "tenantId", "jobRunId", "stepId", "order", "workerId", "tickerId", status, input, output, "requeueAfter", "scheduleTimeoutAt", error, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError", "inputSchema", "callerFiles", "gitRepoBranch", "retryCount", "semaphoreReleased", queue, priority
+    SELECT "createdAt", "updatedAt", "deletedAt", "tenantId", "jobRunId", "stepId", "order", "workerId", status, input, output, "requeueAfter", "scheduleTimeoutAt", error, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError", "inputSchema", "callerFiles", "gitRepoBranch", "retryCount", "semaphoreReleased", queue, priority, id_uuid, id
     FROM "StepRun"
     WHERE
-        "id" = $2::uuid AND
+        "id" = $2::BIGINT AND
         "tenantId" = $1::uuid
 ), childStepRuns AS (
     SELECT sr."id", sr."status"
@@ -1329,7 +1326,7 @@ WITH RECURSIVE currStepRun AS (
     JOIN childStepRuns csr ON sro."A" = csr."id"
 )
 SELECT
-    sr.id, sr."createdAt", sr."updatedAt", sr."deletedAt", sr."tenantId", sr."jobRunId", sr."stepId", sr."order", sr."workerId", sr."tickerId", sr.status, sr.input, sr.output, sr."requeueAfter", sr."scheduleTimeoutAt", sr.error, sr."startedAt", sr."finishedAt", sr."timeoutAt", sr."cancelledAt", sr."cancelledReason", sr."cancelledError", sr."inputSchema", sr."callerFiles", sr."gitRepoBranch", sr."retryCount", sr."semaphoreReleased", sr.queue, sr.priority
+    sr."createdAt", sr."updatedAt", sr."deletedAt", sr."tenantId", sr."jobRunId", sr."stepId", sr."order", sr."workerId", sr.status, sr.input, sr.output, sr."requeueAfter", sr."scheduleTimeoutAt", sr.error, sr."startedAt", sr."finishedAt", sr."timeoutAt", sr."cancelledAt", sr."cancelledReason", sr."cancelledError", sr."inputSchema", sr."callerFiles", sr."gitRepoBranch", sr."retryCount", sr."semaphoreReleased", sr.queue, sr.priority, sr.id_uuid, sr.id
 FROM
     "StepRun" sr
 JOIN
@@ -1342,7 +1339,7 @@ WHERE
 
 type ListNonFinalChildStepRunsParams struct {
 	Tenantid  pgtype.UUID `json:"tenantid"`
-	Steprunid pgtype.UUID `json:"steprunid"`
+	Steprunid int64       `json:"steprunid"`
 }
 
 // Select all child step runs that are not in a final state
@@ -1356,7 +1353,6 @@ func (q *Queries) ListNonFinalChildStepRuns(ctx context.Context, db DBTX, arg Li
 	for rows.Next() {
 		var i StepRun
 		if err := rows.Scan(
-			&i.ID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.DeletedAt,
@@ -1365,7 +1361,6 @@ func (q *Queries) ListNonFinalChildStepRuns(ctx context.Context, db DBTX, arg Li
 			&i.StepId,
 			&i.Order,
 			&i.WorkerId,
-			&i.TickerId,
 			&i.Status,
 			&i.Input,
 			&i.Output,
@@ -1385,6 +1380,8 @@ func (q *Queries) ListNonFinalChildStepRuns(ctx context.Context, db DBTX, arg Li
 			&i.SemaphoreReleased,
 			&i.Queue,
 			&i.Priority,
+			&i.IDUuid,
+			&i.ID,
 		); err != nil {
 			return nil, err
 		}
@@ -1425,25 +1422,25 @@ WHERE
         JOIN "StepRun" AS parent_run ON parent_order."A" = parent_run."id"
         WHERE
             parent_order."B" = child_run."id"
-            AND parent_run."id" != $2::uuid
+            AND parent_run."id" != $2::BIGINT
             AND parent_run."status" != 'SUCCEEDED'
     )
 `
 
 type ListStartableStepRunsParams struct {
 	Jobrunid                 pgtype.UUID `json:"jobrunid"`
-	SucceededParentStepRunId pgtype.UUID `json:"succeededParentStepRunId"`
+	SucceededParentStepRunId int64       `json:"succeededParentStepRunId"`
 }
 
-func (q *Queries) ListStartableStepRuns(ctx context.Context, db DBTX, arg ListStartableStepRunsParams) ([]pgtype.UUID, error) {
+func (q *Queries) ListStartableStepRuns(ctx context.Context, db DBTX, arg ListStartableStepRunsParams) ([]int64, error) {
 	rows, err := db.Query(ctx, listStartableStepRuns, arg.Jobrunid, arg.SucceededParentStepRunId)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []pgtype.UUID
+	var items []int64
 	for rows.Next() {
-		var id pgtype.UUID
+		var id int64
 		if err := rows.Scan(&id); err != nil {
 			return nil, err
 		}
@@ -1457,13 +1454,13 @@ func (q *Queries) ListStartableStepRuns(ctx context.Context, db DBTX, arg ListSt
 
 const listStepRunArchives = `-- name: ListStepRunArchives :many
 SELECT
-    "StepRunResultArchive".id, "StepRunResultArchive"."createdAt", "StepRunResultArchive"."updatedAt", "StepRunResultArchive"."deletedAt", "StepRunResultArchive"."stepRunId", "StepRunResultArchive"."order", "StepRunResultArchive".input, "StepRunResultArchive".output, "StepRunResultArchive".error, "StepRunResultArchive"."startedAt", "StepRunResultArchive"."finishedAt", "StepRunResultArchive"."timeoutAt", "StepRunResultArchive"."cancelledAt", "StepRunResultArchive"."cancelledReason", "StepRunResultArchive"."cancelledError", "StepRunResultArchive"."retryCount"
+    "StepRunResultArchive".id, "StepRunResultArchive"."createdAt", "StepRunResultArchive"."updatedAt", "StepRunResultArchive"."deletedAt", "StepRunResultArchive"."order", "StepRunResultArchive".input, "StepRunResultArchive".output, "StepRunResultArchive".error, "StepRunResultArchive"."startedAt", "StepRunResultArchive"."finishedAt", "StepRunResultArchive"."timeoutAt", "StepRunResultArchive"."cancelledAt", "StepRunResultArchive"."cancelledReason", "StepRunResultArchive"."cancelledError", "StepRunResultArchive"."retryCount", "StepRunResultArchive"."stepRunId"
 FROM
     "StepRunResultArchive"
 JOIN
     "StepRun" ON "StepRunResultArchive"."stepRunId" = "StepRun"."id"
 WHERE
-    "StepRunResultArchive"."stepRunId" = $1::uuid AND
+    "StepRunResultArchive"."stepRunId" = $1::BIGINT AND
     "StepRun"."tenantId" = $2::uuid AND
     "StepRun"."deletedAt" IS NULL
 ORDER BY
@@ -1475,7 +1472,7 @@ LIMIT
 `
 
 type ListStepRunArchivesParams struct {
-	Steprunid pgtype.UUID `json:"steprunid"`
+	Steprunid int64       `json:"steprunid"`
 	Tenantid  pgtype.UUID `json:"tenantid"`
 	Offset    interface{} `json:"offset"`
 	Limit     interface{} `json:"limit"`
@@ -1500,7 +1497,6 @@ func (q *Queries) ListStepRunArchives(ctx context.Context, db DBTX, arg ListStep
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.DeletedAt,
-			&i.StepRunId,
 			&i.Order,
 			&i.Input,
 			&i.Output,
@@ -1512,6 +1508,7 @@ func (q *Queries) ListStepRunArchives(ctx context.Context, db DBTX, arg ListStep
 			&i.CancelledReason,
 			&i.CancelledError,
 			&i.RetryCount,
+			&i.StepRunId,
 		); err != nil {
 			return nil, err
 		}
@@ -1525,11 +1522,11 @@ func (q *Queries) ListStepRunArchives(ctx context.Context, db DBTX, arg ListStep
 
 const listStepRunEvents = `-- name: ListStepRunEvents :many
 SELECT
-    id, "timeFirstSeen", "timeLastSeen", "stepRunId", reason, severity, message, count, data
+    id, "timeFirstSeen", "timeLastSeen", reason, severity, message, count, data, "stepRunId"
 FROM
     "StepRunEvent"
 WHERE
-    "stepRunId" = $1::uuid
+    "stepRunId" = $1::BIGINT
 ORDER BY
     "id" DESC
 OFFSET
@@ -1539,7 +1536,7 @@ LIMIT
 `
 
 type ListStepRunEventsParams struct {
-	Steprunid pgtype.UUID `json:"steprunid"`
+	Steprunid int64       `json:"steprunid"`
 	Offset    interface{} `json:"offset"`
 	Limit     interface{} `json:"limit"`
 }
@@ -1557,12 +1554,12 @@ func (q *Queries) ListStepRunEvents(ctx context.Context, db DBTX, arg ListStepRu
 			&i.ID,
 			&i.TimeFirstSeen,
 			&i.TimeLastSeen,
-			&i.StepRunId,
 			&i.Reason,
 			&i.Severity,
 			&i.Message,
 			&i.Count,
 			&i.Data,
+			&i.StepRunId,
 		); err != nil {
 			return nil, err
 		}
@@ -1576,7 +1573,7 @@ func (q *Queries) ListStepRunEvents(ctx context.Context, db DBTX, arg ListStepRu
 
 const listStepRunEventsByWorkflowRunId = `-- name: ListStepRunEventsByWorkflowRunId :many
 SELECT
-    sre.id, sre."timeFirstSeen", sre."timeLastSeen", sre."stepRunId", sre.reason, sre.severity, sre.message, sre.count, sre.data
+    sre.id, sre."timeFirstSeen", sre."timeLastSeen", sre.reason, sre.severity, sre.message, sre.count, sre.data, sre."stepRunId"
 FROM
     "StepRunEvent" sre
 JOIN
@@ -1611,12 +1608,12 @@ func (q *Queries) ListStepRunEventsByWorkflowRunId(ctx context.Context, db DBTX,
 			&i.ID,
 			&i.TimeFirstSeen,
 			&i.TimeLastSeen,
-			&i.StepRunId,
 			&i.Reason,
 			&i.Severity,
 			&i.Message,
 			&i.Count,
 			&i.Data,
+			&i.StepRunId,
 		); err != nil {
 			return nil, err
 		}
@@ -1669,7 +1666,7 @@ type ListStepRunsParams struct {
 	TickerId       pgtype.UUID       `json:"tickerId"`
 }
 
-func (q *Queries) ListStepRuns(ctx context.Context, db DBTX, arg ListStepRunsParams) ([]pgtype.UUID, error) {
+func (q *Queries) ListStepRuns(ctx context.Context, db DBTX, arg ListStepRunsParams) ([]int64, error) {
 	rows, err := db.Query(ctx, listStepRuns,
 		arg.TenantId,
 		arg.Status,
@@ -1681,9 +1678,9 @@ func (q *Queries) ListStepRuns(ctx context.Context, db DBTX, arg ListStepRunsPar
 		return nil, err
 	}
 	defer rows.Close()
-	var items []pgtype.UUID
+	var items []int64
 	for rows.Next() {
-		var id pgtype.UUID
+		var id int64
 		if err := rows.Scan(&id); err != nil {
 			return nil, err
 		}
@@ -1774,7 +1771,7 @@ FROM
 `
 
 type ListStepRunsToReassignRow struct {
-	ID         pgtype.UUID `json:"id"`
+	ID         int64       `json:"id"`
 	WorkerId   pgtype.UUID `json:"workerId"`
 	RetryCount int32       `json:"retryCount"`
 }
@@ -1809,15 +1806,15 @@ WHERE
 LIMIT 100
 `
 
-func (q *Queries) ListStepRunsToTimeout(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]pgtype.UUID, error) {
+func (q *Queries) ListStepRunsToTimeout(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]int64, error) {
 	rows, err := db.Query(ctx, listStepRunsToTimeout, tenantid)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []pgtype.UUID
+	var items []int64
 	for rows.Next() {
-		var id pgtype.UUID
+		var id int64
 		if err := rows.Scan(&id); err != nil {
 			return nil, err
 		}
@@ -1836,12 +1833,12 @@ SET
     -- note that workerId has already been removed via SemaphoreQueueItem
     "semaphoreReleased" = true
 WHERE
-    "id" = $1::uuid AND
+    "id" = $1::BIGINT AND
     "tenantId" = $2::uuid
 `
 
 type ManualReleaseSemaphoreParams struct {
-	Steprunid pgtype.UUID `json:"steprunid"`
+	Steprunid int64       `json:"steprunid"`
 	Tenantid  pgtype.UUID `json:"tenantid"`
 }
 
@@ -1867,14 +1864,14 @@ SET
     END,
     "semaphoreReleased" = false
 WHERE
-  "id" = $3::uuid AND
+  "id" = $3::BIGINT AND
   "tenantId" = $4::uuid
 `
 
 type QueueStepRunParams struct {
 	Input    []byte      `json:"input"`
 	IsRetry  pgtype.Bool `json:"isRetry"`
-	ID       pgtype.UUID `json:"id"`
+	ID       int64       `json:"id"`
 	Tenantid pgtype.UUID `json:"tenantid"`
 }
 
@@ -1900,14 +1897,14 @@ SET
         END,
     "updatedAt" = CURRENT_TIMESTAMP
 WHERE
-    "id" = $2::uuid AND
+    "id" = $2::BIGINT AND
     "tenantId" = $3::uuid
-RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "jobRunId", "stepId", "order", "workerId", "tickerId", status, input, output, "requeueAfter", "scheduleTimeoutAt", error, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError", "inputSchema", "callerFiles", "gitRepoBranch", "retryCount", "semaphoreReleased", queue, priority
+RETURNING "createdAt", "updatedAt", "deletedAt", "tenantId", "jobRunId", "stepId", "order", "workerId", status, input, output, "requeueAfter", "scheduleTimeoutAt", error, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError", "inputSchema", "callerFiles", "gitRepoBranch", "retryCount", "semaphoreReleased", queue, priority, id_uuid, id
 `
 
 type RefreshTimeoutByParams struct {
 	IncrementTimeoutBy pgtype.Text `json:"incrementTimeoutBy"`
-	Steprunid          pgtype.UUID `json:"steprunid"`
+	Steprunid          int64       `json:"steprunid"`
 	Tenantid           pgtype.UUID `json:"tenantid"`
 }
 
@@ -1915,7 +1912,6 @@ func (q *Queries) RefreshTimeoutBy(ctx context.Context, db DBTX, arg RefreshTime
 	row := db.QueryRow(ctx, refreshTimeoutBy, arg.IncrementTimeoutBy, arg.Steprunid, arg.Tenantid)
 	var i StepRun
 	err := row.Scan(
-		&i.ID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
@@ -1924,7 +1920,6 @@ func (q *Queries) RefreshTimeoutBy(ctx context.Context, db DBTX, arg RefreshTime
 		&i.StepId,
 		&i.Order,
 		&i.WorkerId,
-		&i.TickerId,
 		&i.Status,
 		&i.Input,
 		&i.Output,
@@ -1944,6 +1939,8 @@ func (q *Queries) RefreshTimeoutBy(ctx context.Context, db DBTX, arg RefreshTime
 		&i.SemaphoreReleased,
 		&i.Queue,
 		&i.Priority,
+		&i.IDUuid,
+		&i.ID,
 	)
 	return &i, err
 }
@@ -1991,10 +1988,10 @@ func (q *Queries) ReplayStepRunResetJobRun(ctx context.Context, db DBTX, jobruni
 
 const replayStepRunResetStepRuns = `-- name: ReplayStepRunResetStepRuns :many
 WITH RECURSIVE currStepRun AS (
-    SELECT id, "createdAt", "updatedAt", "deletedAt", "tenantId", "jobRunId", "stepId", "order", "workerId", "tickerId", status, input, output, "requeueAfter", "scheduleTimeoutAt", error, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError", "inputSchema", "callerFiles", "gitRepoBranch", "retryCount", "semaphoreReleased", queue, priority
+    SELECT "createdAt", "updatedAt", "deletedAt", "tenantId", "jobRunId", "stepId", "order", "workerId", status, input, output, "requeueAfter", "scheduleTimeoutAt", error, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError", "inputSchema", "callerFiles", "gitRepoBranch", "retryCount", "semaphoreReleased", queue, priority, id_uuid, id
     FROM "StepRun"
     WHERE
-        "id" = $1::uuid AND
+        "id" = $1::BIGINT AND
         "tenantId" = $3::uuid
 ), childStepRuns AS (
     SELECT sr."id", sr."status"
@@ -2021,7 +2018,7 @@ SET
     "cancelledAt" = NULL,
     "cancelledReason" = NULL,
     "input" = CASE
-        WHEN sr."id" = $1::uuid THEN COALESCE($2::jsonb, "input")
+        WHEN sr."id" = $1::BIGINT THEN COALESCE($2::jsonb, "input")
         ELSE NULL
     END,
     "retryCount" = 0
@@ -2031,13 +2028,13 @@ WHERE
     sr."tenantId" = $3::uuid AND
     (
         sr."id" = csr."id" OR
-        sr."id" = $1::uuid
+        sr."id" = $1::BIGINT
     )
-RETURNING sr.id, sr."createdAt", sr."updatedAt", sr."deletedAt", sr."tenantId", sr."jobRunId", sr."stepId", sr."order", sr."workerId", sr."tickerId", sr.status, sr.input, sr.output, sr."requeueAfter", sr."scheduleTimeoutAt", sr.error, sr."startedAt", sr."finishedAt", sr."timeoutAt", sr."cancelledAt", sr."cancelledReason", sr."cancelledError", sr."inputSchema", sr."callerFiles", sr."gitRepoBranch", sr."retryCount", sr."semaphoreReleased", sr.queue, sr.priority
+RETURNING sr."createdAt", sr."updatedAt", sr."deletedAt", sr."tenantId", sr."jobRunId", sr."stepId", sr."order", sr."workerId", sr.status, sr.input, sr.output, sr."requeueAfter", sr."scheduleTimeoutAt", sr.error, sr."startedAt", sr."finishedAt", sr."timeoutAt", sr."cancelledAt", sr."cancelledReason", sr."cancelledError", sr."inputSchema", sr."callerFiles", sr."gitRepoBranch", sr."retryCount", sr."semaphoreReleased", sr.queue, sr.priority, sr.id_uuid, sr.id
 `
 
 type ReplayStepRunResetStepRunsParams struct {
-	Steprunid pgtype.UUID `json:"steprunid"`
+	Steprunid int64       `json:"steprunid"`
 	Input     []byte      `json:"input"`
 	Tenantid  pgtype.UUID `json:"tenantid"`
 }
@@ -2052,7 +2049,6 @@ func (q *Queries) ReplayStepRunResetStepRuns(ctx context.Context, db DBTX, arg R
 	for rows.Next() {
 		var i StepRun
 		if err := rows.Scan(
-			&i.ID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.DeletedAt,
@@ -2061,7 +2057,6 @@ func (q *Queries) ReplayStepRunResetStepRuns(ctx context.Context, db DBTX, arg R
 			&i.StepId,
 			&i.Order,
 			&i.WorkerId,
-			&i.TickerId,
 			&i.Status,
 			&i.Input,
 			&i.Output,
@@ -2081,6 +2076,8 @@ func (q *Queries) ReplayStepRunResetStepRuns(ctx context.Context, db DBTX, arg R
 			&i.SemaphoreReleased,
 			&i.Queue,
 			&i.Priority,
+			&i.IDUuid,
+			&i.ID,
 		); err != nil {
 			return nil, err
 		}
@@ -2105,7 +2102,7 @@ SET
     "error" = NULL
 WHERE
     "id" =  $1::uuid
-RETURNING "createdAt", "updatedAt", "deletedAt", "tenantId", "workflowVersionId", status, error, "startedAt", "finishedAt", "concurrencyGroupId", "displayName", id, "childIndex", "childKey", "parentId", "parentStepRunId", "additionalMetadata", duration, priority
+RETURNING "createdAt", "updatedAt", "deletedAt", "tenantId", "workflowVersionId", status, error, "startedAt", "finishedAt", "concurrencyGroupId", "displayName", id, "childIndex", "childKey", "parentId", "additionalMetadata", duration, priority, "parentStepRunId"
 `
 
 func (q *Queries) ReplayStepRunResetWorkflowRun(ctx context.Context, db DBTX, workflowrunid pgtype.UUID) (*WorkflowRun, error) {
@@ -2127,10 +2124,10 @@ func (q *Queries) ReplayStepRunResetWorkflowRun(ctx context.Context, db DBTX, wo
 		&i.ChildIndex,
 		&i.ChildKey,
 		&i.ParentId,
-		&i.ParentStepRunId,
 		&i.AdditionalMetadata,
 		&i.Duration,
 		&i.Priority,
+		&i.ParentStepRunId,
 	)
 	return &i, err
 }
@@ -2198,18 +2195,18 @@ SET
     "input" = NULL,
     "retryCount" = 0
 WHERE
-    sr."id" = ANY($1::uuid[]) AND
+    sr."id" = ANY($1::BIGINT[]) AND
     sr."tenantId" = $2::uuid
-RETURNING sr.id, sr."createdAt", sr."updatedAt", sr."deletedAt", sr."tenantId", sr."jobRunId", sr."stepId", sr."order", sr."workerId", sr."tickerId", sr.status, sr.input, sr.output, sr."requeueAfter", sr."scheduleTimeoutAt", sr.error, sr."startedAt", sr."finishedAt", sr."timeoutAt", sr."cancelledAt", sr."cancelledReason", sr."cancelledError", sr."inputSchema", sr."callerFiles", sr."gitRepoBranch", sr."retryCount", sr."semaphoreReleased", sr.queue, sr.priority
+RETURNING sr."createdAt", sr."updatedAt", sr."deletedAt", sr."tenantId", sr."jobRunId", sr."stepId", sr."order", sr."workerId", sr.status, sr.input, sr.output, sr."requeueAfter", sr."scheduleTimeoutAt", sr.error, sr."startedAt", sr."finishedAt", sr."timeoutAt", sr."cancelledAt", sr."cancelledReason", sr."cancelledError", sr."inputSchema", sr."callerFiles", sr."gitRepoBranch", sr."retryCount", sr."semaphoreReleased", sr.queue, sr.priority, sr.id_uuid, sr.id
 `
 
 type ResetStepRunsByIdsParams struct {
-	Ids      []pgtype.UUID `json:"ids"`
-	Tenantid pgtype.UUID   `json:"tenantid"`
+	Steprunids []int64     `json:"steprunids"`
+	Tenantid   pgtype.UUID `json:"tenantid"`
 }
 
 func (q *Queries) ResetStepRunsByIds(ctx context.Context, db DBTX, arg ResetStepRunsByIdsParams) ([]*StepRun, error) {
-	rows, err := db.Query(ctx, resetStepRunsByIds, arg.Ids, arg.Tenantid)
+	rows, err := db.Query(ctx, resetStepRunsByIds, arg.Steprunids, arg.Tenantid)
 	if err != nil {
 		return nil, err
 	}
@@ -2218,7 +2215,6 @@ func (q *Queries) ResetStepRunsByIds(ctx context.Context, db DBTX, arg ResetStep
 	for rows.Next() {
 		var i StepRun
 		if err := rows.Scan(
-			&i.ID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.DeletedAt,
@@ -2227,7 +2223,6 @@ func (q *Queries) ResetStepRunsByIds(ctx context.Context, db DBTX, arg ResetStep
 			&i.StepId,
 			&i.Order,
 			&i.WorkerId,
-			&i.TickerId,
 			&i.Status,
 			&i.Input,
 			&i.Output,
@@ -2247,6 +2242,8 @@ func (q *Queries) ResetStepRunsByIds(ctx context.Context, db DBTX, arg ResetStep
 			&i.SemaphoreReleased,
 			&i.Queue,
 			&i.Priority,
+			&i.IDUuid,
+			&i.ID,
 		); err != nil {
 			return nil, err
 		}
@@ -2263,7 +2260,7 @@ WITH RECURSIVE currStepRun AS (
   SELECT "id", "status", "cancelledReason"
   FROM "StepRun"
   WHERE
-    "id" = $3::uuid AND
+    "id" = $3::BIGINT AND
     "tenantId" = $2::uuid
 ), childStepRuns AS (
   SELECT sr."id", sr."status"
@@ -2301,13 +2298,13 @@ FROM
 WHERE
     sr."id" = csr."id" AND
     sr."tenantId" = $2::uuid
-RETURNING sr.id, sr."createdAt", sr."updatedAt", sr."deletedAt", sr."tenantId", sr."jobRunId", sr."stepId", sr."order", sr."workerId", sr."tickerId", sr.status, sr.input, sr.output, sr."requeueAfter", sr."scheduleTimeoutAt", sr.error, sr."startedAt", sr."finishedAt", sr."timeoutAt", sr."cancelledAt", sr."cancelledReason", sr."cancelledError", sr."inputSchema", sr."callerFiles", sr."gitRepoBranch", sr."retryCount", sr."semaphoreReleased", sr.queue, sr.priority
+RETURNING sr."createdAt", sr."updatedAt", sr."deletedAt", sr."tenantId", sr."jobRunId", sr."stepId", sr."order", sr."workerId", sr.status, sr.input, sr.output, sr."requeueAfter", sr."scheduleTimeoutAt", sr.error, sr."startedAt", sr."finishedAt", sr."timeoutAt", sr."cancelledAt", sr."cancelledReason", sr."cancelledError", sr."inputSchema", sr."callerFiles", sr."gitRepoBranch", sr."retryCount", sr."semaphoreReleased", sr.queue, sr.priority, sr.id_uuid, sr.id
 `
 
 type ResolveLaterStepRunsParams struct {
 	Status    StepRunStatus `json:"status"`
 	Tenantid  pgtype.UUID   `json:"tenantid"`
-	Steprunid pgtype.UUID   `json:"steprunid"`
+	Steprunid int64         `json:"steprunid"`
 }
 
 func (q *Queries) ResolveLaterStepRuns(ctx context.Context, db DBTX, arg ResolveLaterStepRunsParams) ([]*StepRun, error) {
@@ -2320,7 +2317,6 @@ func (q *Queries) ResolveLaterStepRuns(ctx context.Context, db DBTX, arg Resolve
 	for rows.Next() {
 		var i StepRun
 		if err := rows.Scan(
-			&i.ID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.DeletedAt,
@@ -2329,7 +2325,6 @@ func (q *Queries) ResolveLaterStepRuns(ctx context.Context, db DBTX, arg Resolve
 			&i.StepId,
 			&i.Order,
 			&i.WorkerId,
-			&i.TickerId,
 			&i.Status,
 			&i.Input,
 			&i.Output,
@@ -2349,6 +2344,8 @@ func (q *Queries) ResolveLaterStepRuns(ctx context.Context, db DBTX, arg Resolve
 			&i.SemaphoreReleased,
 			&i.Queue,
 			&i.Priority,
+			&i.IDUuid,
+			&i.ID,
 		); err != nil {
 			return nil, err
 		}
@@ -2368,14 +2365,14 @@ SET
     "updatedAt" = CURRENT_TIMESTAMP
 WHERE
     sr."tenantId" = $2::uuid AND
-    sr."id" = $3::uuid
+    sr."id" = $3::BIGINT
 RETURNING "inputSchema"
 `
 
 type UpdateStepRunInputSchemaParams struct {
 	InputSchema []byte      `json:"inputSchema"`
 	Tenantid    pgtype.UUID `json:"tenantid"`
-	Steprunid   pgtype.UUID `json:"steprunid"`
+	Steprunid   int64       `json:"steprunid"`
 }
 
 func (q *Queries) UpdateStepRunInputSchema(ctx context.Context, db DBTX, arg UpdateStepRunInputSchemaParams) ([]byte, error) {
@@ -2394,7 +2391,7 @@ SET
     "callerFiles" = jsonb_set("callerFiles", $3::text[], to_jsonb($4::text), true)
 WHERE
     sr."tenantId" = $5::uuid AND
-    sr."id" = $6::uuid
+    sr."id" = $6::BIGINT
 RETURNING "input"
 `
 
@@ -2404,7 +2401,7 @@ type UpdateStepRunOverridesDataParams struct {
 	Overrideskey []string    `json:"overrideskey"`
 	Callerfile   string      `json:"callerfile"`
 	Tenantid     pgtype.UUID `json:"tenantid"`
-	Steprunid    pgtype.UUID `json:"steprunid"`
+	Steprunid    int64       `json:"steprunid"`
 }
 
 func (q *Queries) UpdateStepRunOverridesData(ctx context.Context, db DBTX, arg UpdateStepRunOverridesDataParams) ([]byte, error) {
@@ -2430,13 +2427,13 @@ WITH oldsr AS (
     FROM
         "StepRun"
     WHERE
-        "id" = $1::uuid AND
+        "id" = $1::BIGINT AND
         "tenantId" = $2::uuid
 ), deleted_sqi AS (
     DELETE FROM
         "SemaphoreQueueItem" sqi
     WHERE
-        sqi."stepRunId" = $1::uuid
+        sqi."stepRunId" = $1::BIGINT
     RETURNING sqi."workerId"
 )
 SELECT
@@ -2447,7 +2444,7 @@ FROM
 `
 
 type UpdateStepRunUnsetWorkerIdParams struct {
-	Steprunid pgtype.UUID `json:"steprunid"`
+	Steprunid int64       `json:"steprunid"`
 	Tenantid  pgtype.UUID `json:"tenantid"`
 }
 
@@ -2472,7 +2469,7 @@ WITH input AS (
     FROM
         (
             SELECT
-                unnest($1::uuid[]) AS "id",
+                unnest($1::BIGINT[]) AS "id",
                 unnest($2::text[]) AS "stepTimeout",
                 unnest($3::uuid[]) AS "workerId"
         ) AS subquery
@@ -2523,7 +2520,7 @@ ON CONFLICT DO NOTHING
 `
 
 type UpdateStepRunsToAssignedParams struct {
-	Steprunids      []pgtype.UUID `json:"steprunids"`
+	Steprunids      []int64       `json:"steprunids"`
 	Stepruntimeouts []string      `json:"stepruntimeouts"`
 	Workerids       []pgtype.UUID `json:"workerids"`
 	Tenantid        pgtype.UUID   `json:"tenantid"`

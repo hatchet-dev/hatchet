@@ -35,7 +35,7 @@ type ListLogsOpts struct {
 	Levels []string `validate:"omitnil,dive,oneof=INFO ERROR WARN DEBUG"`
 
 	// (optional) a step run id to filter by
-	StepRunId *string `validate:"omitempty,uuid"`
+	StepRunId *int64 `validate:"omitempty,uuid"`
 
 	// (optional) a search query
 	Search *string

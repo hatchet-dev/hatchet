@@ -127,24 +127,24 @@ var ErrPreflightReplayStepRunNotInFinalState = fmt.Errorf("step run is not in a 
 var ErrPreflightReplayChildStepRunNotInFinalState = fmt.Errorf("child step run is not in a final state")
 
 type StepRunAPIRepository interface {
-	GetStepRunById(stepRunId string) (*GetStepRunFull, error)
+	GetStepRunById(stepRunId int64) (*GetStepRunFull, error)
 
-	ListStepRunEvents(stepRunId string, opts *ListStepRunEventOpts) (*ListStepRunEventResult, error)
+	ListStepRunEvents(stepRunId int64, opts *ListStepRunEventOpts) (*ListStepRunEventResult, error)
 
 	ListStepRunEventsByWorkflowRunId(ctx context.Context, tenantId, workflowRunId string, lastId *int32) (*ListStepRunEventResult, error)
 
-	ListStepRunArchives(tenantId, stepRunId string, opts *ListStepRunArchivesOpts) (*ListStepRunArchivesResult, error)
+	ListStepRunArchives(tenantId string, stepRunId int64, opts *ListStepRunArchivesOpts) (*ListStepRunArchivesResult, error)
 }
 
 type QueuedStepRun struct {
-	StepRunId    string
+	StepRunId    int64
 	WorkerId     string
 	DispatcherId string
 }
 
 type QueueStepRunsResult struct {
 	Queued             []QueuedStepRun
-	SchedulingTimedOut []string
+	SchedulingTimedOut []int64
 	Continue           bool
 }
 
@@ -159,40 +159,40 @@ type StepRunEngineRepository interface {
 	ListStepRuns(ctx context.Context, tenantId string, opts *ListStepRunsOpts) ([]*dbsqlc.GetStepRunForEngineRow, error)
 
 	// ListStepRunsToReassign returns a list of step runs which are in a reassignable state.
-	ListStepRunsToReassign(ctx context.Context, tenantId string) ([]string, error)
+	ListStepRunsToReassign(ctx context.Context, tenantId string) ([]int64, error)
 
 	ListStepRunsToTimeout(ctx context.Context, tenantId string) ([]*dbsqlc.GetStepRunForEngineRow, error)
 
-	StepRunStarted(ctx context.Context, tenantId, stepRunId string, startedAt time.Time) error
+	StepRunStarted(ctx context.Context, tenantId string, stepRunId int64, startedAt time.Time) error
 
-	StepRunSucceeded(ctx context.Context, tenantId, stepRunId string, finishedAt time.Time, output []byte) error
+	StepRunSucceeded(ctx context.Context, tenantId string, stepRunId int64, finishedAt time.Time, output []byte) error
 
-	StepRunCancelled(ctx context.Context, tenantId, stepRunId string, cancelledAt time.Time, cancelledReason string) error
+	StepRunCancelled(ctx context.Context, tenantId string, stepRunId int64, cancelledAt time.Time, cancelledReason string) error
 
-	StepRunFailed(ctx context.Context, tenantId, stepRunId string, failedAt time.Time, errStr string) error
+	StepRunFailed(ctx context.Context, tenantId string, stepRunId int64, failedAt time.Time, errStr string) error
 
-	ReplayStepRun(ctx context.Context, tenantId, stepRunId string, input []byte) (*dbsqlc.GetStepRunForEngineRow, error)
+	ReplayStepRun(ctx context.Context, tenantId string, stepRunId int64, input []byte) (*dbsqlc.GetStepRunForEngineRow, error)
 
 	// PreflightCheckReplayStepRun checks if a step run can be replayed. If it can, it will return nil.
-	PreflightCheckReplayStepRun(ctx context.Context, tenantId, stepRunId string) error
+	PreflightCheckReplayStepRun(ctx context.Context, tenantId string, stepRunId int64) error
 
-	ReleaseStepRunSemaphore(ctx context.Context, tenantId, stepRunId string, isUserTriggered bool) error
+	ReleaseStepRunSemaphore(ctx context.Context, tenantId string, stepRunId int64, isUserTriggered bool) error
 
 	// UpdateStepRunOverridesData updates the overrides data field in the input for a step run. This returns the input
 	// bytes.
-	UpdateStepRunOverridesData(ctx context.Context, tenantId, stepRunId string, opts *UpdateStepRunOverridesDataOpts) ([]byte, error)
+	UpdateStepRunOverridesData(ctx context.Context, tenantId string, stepRunId int64, opts *UpdateStepRunOverridesDataOpts) ([]byte, error)
 
-	UpdateStepRunInputSchema(ctx context.Context, tenantId, stepRunId string, schema []byte) ([]byte, error)
+	UpdateStepRunInputSchema(ctx context.Context, tenantId string, stepRunId int64, schema []byte) ([]byte, error)
 
-	GetStepRunForEngine(ctx context.Context, tenantId, stepRunId string) (*dbsqlc.GetStepRunForEngineRow, error)
+	GetStepRunForEngine(ctx context.Context, tenantId string, stepRunId int64) (*dbsqlc.GetStepRunForEngineRow, error)
 
-	GetStepRunDataForEngine(ctx context.Context, tenantId, stepRunId string) (*dbsqlc.GetStepRunDataForEngineRow, error)
+	GetStepRunDataForEngine(ctx context.Context, tenantId string, stepRunId int64) (*dbsqlc.GetStepRunDataForEngineRow, error)
 
-	GetStepRunMetaForEngine(ctx context.Context, tenantId, stepRunId string) (*dbsqlc.GetStepRunMetaRow, error)
+	GetStepRunMetaForEngine(ctx context.Context, tenantId string, stepRunId int64) (*dbsqlc.GetStepRunMetaRow, error)
 
 	// QueueStepRun is like UpdateStepRun, except that it will only update the step run if it is in
 	// a pending state.
-	QueueStepRun(ctx context.Context, tenantId, stepRunId string, opts *QueueStepRunOpts) (*dbsqlc.GetStepRunForEngineRow, error)
+	QueueStepRun(ctx context.Context, tenantId string, stepRunId int64, opts *QueueStepRunOpts) (*dbsqlc.GetStepRunForEngineRow, error)
 
 	ProcessStepRunUpdates(ctx context.Context, qlp *zerolog.Logger, tenantId string) (ProcessStepRunUpdatesResult, error)
 
@@ -202,14 +202,14 @@ type StepRunEngineRepository interface {
 
 	CleanupInternalQueueItems(ctx context.Context, tenantId string) error
 
-	ListStartableStepRuns(ctx context.Context, tenantId, jobRunId string, parentStepRunId *string) ([]*dbsqlc.GetStepRunForEngineRow, error)
+	ListStartableStepRuns(ctx context.Context, tenantId, jobRunId string, parentStepRunId *int64) ([]*dbsqlc.GetStepRunForEngineRow, error)
 
-	ArchiveStepRunResult(ctx context.Context, tenantId, stepRunId string, err *string) error
+	ArchiveStepRunResult(ctx context.Context, tenantId string, stepRunId int64, err *string) error
 
-	RefreshTimeoutBy(ctx context.Context, tenantId, stepRunId string, opts RefreshTimeoutBy) (*dbsqlc.StepRun, error)
+	RefreshTimeoutBy(ctx context.Context, tenantId string, stepRunId int64, opts RefreshTimeoutBy) (*dbsqlc.StepRun, error)
 
 	DeferredStepRunEvent(
-		tenantId, stepRunId string,
+		tenantId string, stepRunId int64,
 		opts CreateStepRunEventOpts,
 	)
 

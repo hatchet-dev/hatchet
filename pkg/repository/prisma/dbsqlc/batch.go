@@ -19,7 +19,7 @@ var (
 
 const listQueueItems = `-- name: ListQueueItems :batchmany
 SELECT
-    id, "stepRunId", "stepId", "actionId", "scheduleTimeoutAt", "stepTimeout", priority, "isQueued", "tenantId", queue, sticky, "desiredWorkerId"
+    id, "stepId", "actionId", "scheduleTimeoutAt", "stepTimeout", priority, "isQueued", "tenantId", queue, sticky, "desiredWorkerId", "stepRunId"
 FROM
     "QueueItem" qi
 WHERE
@@ -88,7 +88,6 @@ func (b *ListQueueItemsBatchResults) Query(f func(int, []*QueueItem, error)) {
 				var i QueueItem
 				if err := rows.Scan(
 					&i.ID,
-					&i.StepRunId,
 					&i.StepId,
 					&i.ActionId,
 					&i.ScheduleTimeoutAt,
@@ -99,6 +98,7 @@ func (b *ListQueueItemsBatchResults) Query(f func(int, []*QueueItem, error)) {
 					&i.Queue,
 					&i.Sticky,
 					&i.DesiredWorkerId,
+					&i.StepRunId,
 				); err != nil {
 					return err
 				}

@@ -366,7 +366,7 @@ type CreateStepRunParams struct {
 	Priority pgtype.Int4 `json:"priority"`
 }
 
-func (q *Queries) CreateStepRun(ctx context.Context, db DBTX, arg CreateStepRunParams) (pgtype.UUID, error) {
+func (q *Queries) CreateStepRun(ctx context.Context, db DBTX, arg CreateStepRunParams) (int64, error) {
 	row := db.QueryRow(ctx, createStepRun,
 		arg.Tenantid,
 		arg.Jobrunid,
@@ -374,7 +374,7 @@ func (q *Queries) CreateStepRun(ctx context.Context, db DBTX, arg CreateStepRunP
 		arg.Queue,
 		arg.Priority,
 	)
-	var id pgtype.UUID
+	var id int64
 	err := row.Scan(&id)
 	return id, err
 }
@@ -413,10 +413,10 @@ INSERT INTO "WorkflowRun" (
     $5::int,
     $6::text,
     $7::uuid,
-    $8::uuid,
+    $8::BIGINT,
     $9::jsonb,
     $10::int
-) RETURNING "createdAt", "updatedAt", "deletedAt", "tenantId", "workflowVersionId", status, error, "startedAt", "finishedAt", "concurrencyGroupId", "displayName", id, "childIndex", "childKey", "parentId", "parentStepRunId", "additionalMetadata", duration, priority
+) RETURNING "createdAt", "updatedAt", "deletedAt", "tenantId", "workflowVersionId", status, error, "startedAt", "finishedAt", "concurrencyGroupId", "displayName", id, "childIndex", "childKey", "parentId", "additionalMetadata", duration, priority, "parentStepRunId"
 `
 
 type CreateWorkflowRunParams struct {
@@ -427,7 +427,7 @@ type CreateWorkflowRunParams struct {
 	ChildIndex         pgtype.Int4 `json:"childIndex"`
 	ChildKey           pgtype.Text `json:"childKey"`
 	ParentId           pgtype.UUID `json:"parentId"`
-	ParentStepRunId    pgtype.UUID `json:"parentStepRunId"`
+	ParentStepRunId    pgtype.Int8 `json:"parentStepRunId"`
 	Additionalmetadata []byte      `json:"additionalmetadata"`
 	Priority           pgtype.Int4 `json:"priority"`
 }
@@ -462,10 +462,10 @@ func (q *Queries) CreateWorkflowRun(ctx context.Context, db DBTX, arg CreateWork
 		&i.ChildIndex,
 		&i.ChildKey,
 		&i.ParentId,
-		&i.ParentStepRunId,
 		&i.AdditionalMetadata,
 		&i.Duration,
 		&i.Priority,
+		&i.ParentStepRunId,
 	)
 	return &i, err
 }
@@ -636,13 +636,13 @@ func (q *Queries) CreateWorkflowRunTriggeredBy(ctx context.Context, db DBTX, arg
 
 const getChildWorkflowRun = `-- name: GetChildWorkflowRun :one
 SELECT
-    "createdAt", "updatedAt", "deletedAt", "tenantId", "workflowVersionId", status, error, "startedAt", "finishedAt", "concurrencyGroupId", "displayName", id, "childIndex", "childKey", "parentId", "parentStepRunId", "additionalMetadata", duration, priority
+    "createdAt", "updatedAt", "deletedAt", "tenantId", "workflowVersionId", status, error, "startedAt", "finishedAt", "concurrencyGroupId", "displayName", id, "childIndex", "childKey", "parentId", "additionalMetadata", duration, priority, "parentStepRunId"
 FROM
     "WorkflowRun"
 WHERE
     "parentId" = $1::uuid AND
     "deletedAt" IS NULL AND
-    "parentStepRunId" = $2::uuid AND
+    "parentStepRunId" = $2::BIGINT AND
     (
         -- if childKey is set, use that
         ($3::text IS NULL AND "childIndex" = $4) OR
@@ -652,7 +652,7 @@ WHERE
 
 type GetChildWorkflowRunParams struct {
 	Parentid        pgtype.UUID `json:"parentid"`
-	Parentsteprunid pgtype.UUID `json:"parentsteprunid"`
+	Parentsteprunid int64       `json:"parentsteprunid"`
 	ChildKey        pgtype.Text `json:"childKey"`
 	Childindex      pgtype.Int4 `json:"childindex"`
 }
@@ -681,22 +681,22 @@ func (q *Queries) GetChildWorkflowRun(ctx context.Context, db DBTX, arg GetChild
 		&i.ChildIndex,
 		&i.ChildKey,
 		&i.ParentId,
-		&i.ParentStepRunId,
 		&i.AdditionalMetadata,
 		&i.Duration,
 		&i.Priority,
+		&i.ParentStepRunId,
 	)
 	return &i, err
 }
 
 const getScheduledChildWorkflowRun = `-- name: GetScheduledChildWorkflowRun :one
 SELECT
-    id, "parentId", "triggerAt", "tickerId", input, "childIndex", "childKey", "parentStepRunId", "parentWorkflowRunId"
+    id, "parentId", "triggerAt", "tickerId", input, "childIndex", "childKey", "parentWorkflowRunId", "parentStepRunId"
 FROM
     "WorkflowTriggerScheduledRef"
 WHERE
     "parentId" = $1::uuid AND
-    "parentStepRunId" = $2::uuid AND
+    "parentStepRunId" = $2::BIGINT AND
     (
         -- if childKey is set, use that
         ($3::text IS NULL AND "childIndex" = $4) OR
@@ -706,7 +706,7 @@ WHERE
 
 type GetScheduledChildWorkflowRunParams struct {
 	Parentid        pgtype.UUID `json:"parentid"`
-	Parentsteprunid pgtype.UUID `json:"parentsteprunid"`
+	Parentsteprunid int64       `json:"parentsteprunid"`
 	ChildKey        pgtype.Text `json:"childKey"`
 	Childindex      pgtype.Int4 `json:"childindex"`
 }
@@ -727,8 +727,8 @@ func (q *Queries) GetScheduledChildWorkflowRun(ctx context.Context, db DBTX, arg
 		&i.Input,
 		&i.ChildIndex,
 		&i.ChildKey,
-		&i.ParentStepRunId,
 		&i.ParentWorkflowRunId,
+		&i.ParentStepRunId,
 	)
 	return &i, err
 }
@@ -764,7 +764,7 @@ type GetStepRunsForJobRunsParams struct {
 }
 
 type GetStepRunsForJobRunsRow struct {
-	ID              pgtype.UUID      `json:"id"`
+	ID              int64            `json:"id"`
 	CreatedAt       pgtype.Timestamp `json:"createdAt"`
 	UpdatedAt       pgtype.Timestamp `json:"updatedAt"`
 	Status          StepRunStatus    `json:"status"`
@@ -882,7 +882,7 @@ func (q *Queries) GetStepsForJobs(ctx context.Context, db DBTX, arg GetStepsForJ
 
 const getWorkflowRun = `-- name: GetWorkflowRun :many
 SELECT
-    runs."createdAt", runs."updatedAt", runs."deletedAt", runs."tenantId", runs."workflowVersionId", runs.status, runs.error, runs."startedAt", runs."finishedAt", runs."concurrencyGroupId", runs."displayName", runs.id, runs."childIndex", runs."childKey", runs."parentId", runs."parentStepRunId", runs."additionalMetadata", runs.duration, runs.priority,
+    runs."createdAt", runs."updatedAt", runs."deletedAt", runs."tenantId", runs."workflowVersionId", runs.status, runs.error, runs."startedAt", runs."finishedAt", runs."concurrencyGroupId", runs."displayName", runs.id, runs."childIndex", runs."childKey", runs."parentId", runs."additionalMetadata", runs.duration, runs.priority, runs."parentStepRunId",
     runtriggers.id, runtriggers."createdAt", runtriggers."updatedAt", runtriggers."deletedAt", runtriggers."tenantId", runtriggers."eventId", runtriggers."cronParentId", runtriggers."cronSchedule", runtriggers."scheduledId", runtriggers.input, runtriggers."parentId",
     workflowversion.id, workflowversion."createdAt", workflowversion."updatedAt", workflowversion."deletedAt", workflowversion.version, workflowversion."order", workflowversion."workflowId", workflowversion.checksum, workflowversion."scheduleTimeout", workflowversion."onFailureJobId", workflowversion.sticky, workflowversion.kind, workflowversion."defaultPriority",
     workflow."name" as "workflowName",
@@ -950,10 +950,10 @@ func (q *Queries) GetWorkflowRun(ctx context.Context, db DBTX, arg GetWorkflowRu
 			&i.WorkflowRun.ChildIndex,
 			&i.WorkflowRun.ChildKey,
 			&i.WorkflowRun.ParentId,
-			&i.WorkflowRun.ParentStepRunId,
 			&i.WorkflowRun.AdditionalMetadata,
 			&i.WorkflowRun.Duration,
 			&i.WorkflowRun.Priority,
+			&i.WorkflowRun.ParentStepRunId,
 			&i.WorkflowRunTriggeredBy.ID,
 			&i.WorkflowRunTriggeredBy.CreatedAt,
 			&i.WorkflowRunTriggeredBy.UpdatedAt,
@@ -1023,7 +1023,7 @@ func (q *Queries) GetWorkflowRunAdditionalMeta(ctx context.Context, db DBTX, arg
 
 const getWorkflowRunById = `-- name: GetWorkflowRunById :one
 SELECT
-    r."createdAt", r."updatedAt", r."deletedAt", r."tenantId", r."workflowVersionId", r.status, r.error, r."startedAt", r."finishedAt", r."concurrencyGroupId", r."displayName", r.id, r."childIndex", r."childKey", r."parentId", r."parentStepRunId", r."additionalMetadata", r.duration, r.priority,
+    r."createdAt", r."updatedAt", r."deletedAt", r."tenantId", r."workflowVersionId", r.status, r.error, r."startedAt", r."finishedAt", r."concurrencyGroupId", r."displayName", r.id, r."childIndex", r."childKey", r."parentId", r."additionalMetadata", r.duration, r.priority, r."parentStepRunId",
     wv.id, wv."createdAt", wv."updatedAt", wv."deletedAt", wv.version, wv."order", wv."workflowId", wv.checksum, wv."scheduleTimeout", wv."onFailureJobId", wv.sticky, wv.kind, wv."defaultPriority",
     w.id, w."createdAt", w."updatedAt", w."deletedAt", w."tenantId", w.name, w.description,
     tb.id, tb."createdAt", tb."updatedAt", tb."deletedAt", tb."tenantId", tb."eventId", tb."cronParentId", tb."cronSchedule", tb."scheduledId", tb.input, tb."parentId"
@@ -1062,10 +1062,10 @@ type GetWorkflowRunByIdRow struct {
 	ChildIndex             pgtype.Int4            `json:"childIndex"`
 	ChildKey               pgtype.Text            `json:"childKey"`
 	ParentId               pgtype.UUID            `json:"parentId"`
-	ParentStepRunId        pgtype.UUID            `json:"parentStepRunId"`
 	AdditionalMetadata     []byte                 `json:"additionalMetadata"`
 	Duration               pgtype.Int4            `json:"duration"`
 	Priority               pgtype.Int4            `json:"priority"`
+	ParentStepRunId        pgtype.Int8            `json:"parentStepRunId"`
 	WorkflowVersion        WorkflowVersion        `json:"workflow_version"`
 	Workflow               Workflow               `json:"workflow"`
 	WorkflowRunTriggeredBy WorkflowRunTriggeredBy `json:"workflow_run_triggered_by"`
@@ -1090,10 +1090,10 @@ func (q *Queries) GetWorkflowRunById(ctx context.Context, db DBTX, arg GetWorkfl
 		&i.ChildIndex,
 		&i.ChildKey,
 		&i.ParentId,
-		&i.ParentStepRunId,
 		&i.AdditionalMetadata,
 		&i.Duration,
 		&i.Priority,
+		&i.ParentStepRunId,
 		&i.WorkflowVersion.ID,
 		&i.WorkflowVersion.CreatedAt,
 		&i.WorkflowVersion.UpdatedAt,
@@ -1212,7 +1212,7 @@ const linkStepRunParents = `-- name: LinkStepRunParents :exec
 WITH step_runs AS (
     SELECT "id", "stepId"
     FROM "StepRun"
-    WHERE "id" = ANY($1::uuid[])
+    WHERE "id" = ANY($1::BIGINT[])
 )
 INSERT INTO "_StepRunOrder" ("A", "B")
 SELECT
@@ -1226,7 +1226,7 @@ JOIN
     step_runs AS child_run ON child_run."stepId" = step_order."B"
 `
 
-func (q *Queries) LinkStepRunParents(ctx context.Context, db DBTX, steprunids []pgtype.UUID) error {
+func (q *Queries) LinkStepRunParents(ctx context.Context, db DBTX, steprunids []int64) error {
 	_, err := db.Exec(ctx, linkStepRunParents, steprunids)
 	return err
 }
@@ -1297,17 +1297,17 @@ SELECT
 FROM
     "WorkflowRun" wr
 WHERE
-    wr."parentStepRunId" = ANY($1::uuid[])
+    wr."parentStepRunId" = ANY($1::BIGINT[])
 GROUP BY
     wr."parentStepRunId"
 `
 
 type ListChildWorkflowRunCountsRow struct {
-	ParentStepRunId pgtype.UUID `json:"parentStepRunId"`
+	ParentStepRunId pgtype.Int8 `json:"parentStepRunId"`
 	Count           int64       `json:"count"`
 }
 
-func (q *Queries) ListChildWorkflowRunCounts(ctx context.Context, db DBTX, steprunids []pgtype.UUID) ([]*ListChildWorkflowRunCountsRow, error) {
+func (q *Queries) ListChildWorkflowRunCounts(ctx context.Context, db DBTX, steprunids []int64) ([]*ListChildWorkflowRunCountsRow, error) {
 	rows, err := db.Query(ctx, listChildWorkflowRunCounts, steprunids)
 	if err != nil {
 		return nil, err
@@ -1369,7 +1369,7 @@ func (q *Queries) ListStepsForJob(ctx context.Context, db DBTX, jobrunid pgtype.
 
 const listWorkflowRuns = `-- name: ListWorkflowRuns :many
 SELECT
-    runs."createdAt", runs."updatedAt", runs."deletedAt", runs."tenantId", runs."workflowVersionId", runs.status, runs.error, runs."startedAt", runs."finishedAt", runs."concurrencyGroupId", runs."displayName", runs.id, runs."childIndex", runs."childKey", runs."parentId", runs."parentStepRunId", runs."additionalMetadata", runs.duration, runs.priority,
+    runs."createdAt", runs."updatedAt", runs."deletedAt", runs."tenantId", runs."workflowVersionId", runs.status, runs.error, runs."startedAt", runs."finishedAt", runs."concurrencyGroupId", runs."displayName", runs.id, runs."childIndex", runs."childKey", runs."parentId", runs."additionalMetadata", runs.duration, runs.priority, runs."parentStepRunId",
     workflow.id, workflow."createdAt", workflow."updatedAt", workflow."deletedAt", workflow."tenantId", workflow.name, workflow.description,
     runtriggers.id, runtriggers."createdAt", runtriggers."updatedAt", runtriggers."deletedAt", runtriggers."tenantId", runtriggers."eventId", runtriggers."cronParentId", runtriggers."cronSchedule", runtriggers."scheduledId", runtriggers.input, runtriggers."parentId",
     workflowversion.id, workflowversion."createdAt", workflowversion."updatedAt", workflowversion."deletedAt", workflowversion.version, workflowversion."order", workflowversion."workflowId", workflowversion.checksum, workflowversion."scheduleTimeout", workflowversion."onFailureJobId", workflowversion.sticky, workflowversion.kind, workflowversion."defaultPriority",
@@ -1539,10 +1539,10 @@ func (q *Queries) ListWorkflowRuns(ctx context.Context, db DBTX, arg ListWorkflo
 			&i.WorkflowRun.ChildIndex,
 			&i.WorkflowRun.ChildKey,
 			&i.WorkflowRun.ParentId,
-			&i.WorkflowRun.ParentStepRunId,
 			&i.WorkflowRun.AdditionalMetadata,
 			&i.WorkflowRun.Duration,
 			&i.WorkflowRun.Priority,
+			&i.WorkflowRun.ParentStepRunId,
 			&i.Workflow.ID,
 			&i.Workflow.CreatedAt,
 			&i.Workflow.UpdatedAt,
@@ -1650,7 +1650,7 @@ WHERE
     "WorkflowRun".id = eligible_runs.id AND
     "WorkflowRun"."status" = 'QUEUED'
 RETURNING
-    "WorkflowRun"."createdAt", "WorkflowRun"."updatedAt", "WorkflowRun"."deletedAt", "WorkflowRun"."tenantId", "WorkflowRun"."workflowVersionId", "WorkflowRun".status, "WorkflowRun".error, "WorkflowRun"."startedAt", "WorkflowRun"."finishedAt", "WorkflowRun"."concurrencyGroupId", "WorkflowRun"."displayName", "WorkflowRun".id, "WorkflowRun"."childIndex", "WorkflowRun"."childKey", "WorkflowRun"."parentId", "WorkflowRun"."parentStepRunId", "WorkflowRun"."additionalMetadata", "WorkflowRun".duration, "WorkflowRun".priority
+    "WorkflowRun"."createdAt", "WorkflowRun"."updatedAt", "WorkflowRun"."deletedAt", "WorkflowRun"."tenantId", "WorkflowRun"."workflowVersionId", "WorkflowRun".status, "WorkflowRun".error, "WorkflowRun"."startedAt", "WorkflowRun"."finishedAt", "WorkflowRun"."concurrencyGroupId", "WorkflowRun"."displayName", "WorkflowRun".id, "WorkflowRun"."childIndex", "WorkflowRun"."childKey", "WorkflowRun"."parentId", "WorkflowRun"."additionalMetadata", "WorkflowRun".duration, "WorkflowRun".priority, "WorkflowRun"."parentStepRunId"
 `
 
 type PopWorkflowRunsRoundRobinParams struct {
@@ -1684,10 +1684,10 @@ func (q *Queries) PopWorkflowRunsRoundRobin(ctx context.Context, db DBTX, arg Po
 			&i.ChildIndex,
 			&i.ChildKey,
 			&i.ParentId,
-			&i.ParentStepRunId,
 			&i.AdditionalMetadata,
 			&i.Duration,
 			&i.Priority,
+			&i.ParentStepRunId,
 		); err != nil {
 			return nil, err
 		}
@@ -1947,7 +1947,7 @@ SET
 WHERE
     "tenantId" = $5::uuid AND
     "id" = ANY($6::uuid[])
-RETURNING "WorkflowRun"."createdAt", "WorkflowRun"."updatedAt", "WorkflowRun"."deletedAt", "WorkflowRun"."tenantId", "WorkflowRun"."workflowVersionId", "WorkflowRun".status, "WorkflowRun".error, "WorkflowRun"."startedAt", "WorkflowRun"."finishedAt", "WorkflowRun"."concurrencyGroupId", "WorkflowRun"."displayName", "WorkflowRun".id, "WorkflowRun"."childIndex", "WorkflowRun"."childKey", "WorkflowRun"."parentId", "WorkflowRun"."parentStepRunId", "WorkflowRun"."additionalMetadata", "WorkflowRun".duration, "WorkflowRun".priority
+RETURNING "WorkflowRun"."createdAt", "WorkflowRun"."updatedAt", "WorkflowRun"."deletedAt", "WorkflowRun"."tenantId", "WorkflowRun"."workflowVersionId", "WorkflowRun".status, "WorkflowRun".error, "WorkflowRun"."startedAt", "WorkflowRun"."finishedAt", "WorkflowRun"."concurrencyGroupId", "WorkflowRun"."displayName", "WorkflowRun".id, "WorkflowRun"."childIndex", "WorkflowRun"."childKey", "WorkflowRun"."parentId", "WorkflowRun"."additionalMetadata", "WorkflowRun".duration, "WorkflowRun".priority, "WorkflowRun"."parentStepRunId"
 `
 
 type UpdateManyWorkflowRunParams struct {
@@ -1991,10 +1991,10 @@ func (q *Queries) UpdateManyWorkflowRun(ctx context.Context, db DBTX, arg Update
 			&i.ChildIndex,
 			&i.ChildKey,
 			&i.ParentId,
-			&i.ParentStepRunId,
 			&i.AdditionalMetadata,
 			&i.Duration,
 			&i.Priority,
+			&i.ParentStepRunId,
 		); err != nil {
 			return nil, err
 		}
@@ -2024,7 +2024,7 @@ SET
 WHERE
     "id" = $5::uuid AND
     "tenantId" = $6::uuid
-RETURNING "WorkflowRun"."createdAt", "WorkflowRun"."updatedAt", "WorkflowRun"."deletedAt", "WorkflowRun"."tenantId", "WorkflowRun"."workflowVersionId", "WorkflowRun".status, "WorkflowRun".error, "WorkflowRun"."startedAt", "WorkflowRun"."finishedAt", "WorkflowRun"."concurrencyGroupId", "WorkflowRun"."displayName", "WorkflowRun".id, "WorkflowRun"."childIndex", "WorkflowRun"."childKey", "WorkflowRun"."parentId", "WorkflowRun"."parentStepRunId", "WorkflowRun"."additionalMetadata", "WorkflowRun".duration, "WorkflowRun".priority
+RETURNING "WorkflowRun"."createdAt", "WorkflowRun"."updatedAt", "WorkflowRun"."deletedAt", "WorkflowRun"."tenantId", "WorkflowRun"."workflowVersionId", "WorkflowRun".status, "WorkflowRun".error, "WorkflowRun"."startedAt", "WorkflowRun"."finishedAt", "WorkflowRun"."concurrencyGroupId", "WorkflowRun"."displayName", "WorkflowRun".id, "WorkflowRun"."childIndex", "WorkflowRun"."childKey", "WorkflowRun"."parentId", "WorkflowRun"."additionalMetadata", "WorkflowRun".duration, "WorkflowRun".priority, "WorkflowRun"."parentStepRunId"
 `
 
 type UpdateWorkflowRunParams struct {
@@ -2062,10 +2062,10 @@ func (q *Queries) UpdateWorkflowRun(ctx context.Context, db DBTX, arg UpdateWork
 		&i.ChildIndex,
 		&i.ChildKey,
 		&i.ParentId,
-		&i.ParentStepRunId,
 		&i.AdditionalMetadata,
 		&i.Duration,
 		&i.Priority,
+		&i.ParentStepRunId,
 	)
 	return &i, err
 }
@@ -2108,7 +2108,7 @@ FROM
 WHERE
 workflowRun."id" = groupKeyRun."workflowRunId" AND
 workflowRun."tenantId" = $1::uuid
-RETURNING workflowrun."createdAt", workflowrun."updatedAt", workflowrun."deletedAt", workflowrun."tenantId", workflowrun."workflowVersionId", workflowrun.status, workflowrun.error, workflowrun."startedAt", workflowrun."finishedAt", workflowrun."concurrencyGroupId", workflowrun."displayName", workflowrun.id, workflowrun."childIndex", workflowrun."childKey", workflowrun."parentId", workflowrun."parentStepRunId", workflowrun."additionalMetadata", workflowrun.duration, workflowrun.priority
+RETURNING workflowrun."createdAt", workflowrun."updatedAt", workflowrun."deletedAt", workflowrun."tenantId", workflowrun."workflowVersionId", workflowrun.status, workflowrun.error, workflowrun."startedAt", workflowrun."finishedAt", workflowrun."concurrencyGroupId", workflowrun."displayName", workflowrun.id, workflowrun."childIndex", workflowrun."childKey", workflowrun."parentId", workflowrun."additionalMetadata", workflowrun.duration, workflowrun.priority, workflowrun."parentStepRunId"
 `
 
 type UpdateWorkflowRunGroupKeyParams struct {
@@ -2135,10 +2135,10 @@ func (q *Queries) UpdateWorkflowRunGroupKey(ctx context.Context, db DBTX, arg Up
 		&i.ChildIndex,
 		&i.ChildKey,
 		&i.ParentId,
-		&i.ParentStepRunId,
 		&i.AdditionalMetadata,
 		&i.Duration,
 		&i.Priority,
+		&i.ParentStepRunId,
 	)
 	return &i, err
 }

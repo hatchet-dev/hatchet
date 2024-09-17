@@ -16,9 +16,8 @@ WorkerLabel:
 SemaphoreSlots:
   properties:
     stepRunId:
-      type: string
+      type: integer
       description: The step run id.
-      format: uuid
     actionId:
       type: string
       description: The action id.

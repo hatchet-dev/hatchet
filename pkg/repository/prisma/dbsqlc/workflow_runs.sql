@@ -475,7 +475,7 @@ INSERT INTO "WorkflowRun" (
     sqlc.narg('childIndex')::int,
     sqlc.narg('childKey')::text,
     sqlc.narg('parentId')::uuid,
-    sqlc.narg('parentStepRunId')::uuid,
+    sqlc.narg('parentStepRunId')::BIGINT,
     @additionalMetadata::jsonb,
     sqlc.narg('priority')::int
 ) RETURNING *;
@@ -717,7 +717,7 @@ WHERE
 WITH step_runs AS (
     SELECT "id", "stepId"
     FROM "StepRun"
-    WHERE "id" = ANY(@stepRunIds::uuid[])
+    WHERE "id" = ANY(@stepRunIds::BIGINT[])
 )
 INSERT INTO "_StepRunOrder" ("A", "B")
 SELECT
@@ -768,7 +768,7 @@ FROM
 WHERE
     "parentId" = @parentId::uuid AND
     "deletedAt" IS NULL AND
-    "parentStepRunId" = @parentStepRunId::uuid AND
+    "parentStepRunId" = @parentStepRunId::BIGINT AND
     (
         -- if childKey is set, use that
         (sqlc.narg('childKey')::text IS NULL AND "childIndex" = @childIndex) OR
@@ -782,7 +782,7 @@ FROM
     "WorkflowTriggerScheduledRef"
 WHERE
     "parentId" = @parentId::uuid AND
-    "parentStepRunId" = @parentStepRunId::uuid AND
+    "parentStepRunId" = @parentStepRunId::BIGINT AND
     (
         -- if childKey is set, use that
         (sqlc.narg('childKey')::text IS NULL AND "childIndex" = @childIndex) OR
@@ -959,7 +959,7 @@ SELECT
 FROM
     "WorkflowRun" wr
 WHERE
-    wr."parentStepRunId" = ANY(@stepRunIds::uuid[])
+    wr."parentStepRunId" = ANY(@stepRunIds::BIGINT[])
 GROUP BY
     wr."parentStepRunId";
 

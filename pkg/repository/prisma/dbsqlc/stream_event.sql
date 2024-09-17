@@ -6,7 +6,7 @@ SELECT
 FROM "StepRun" sr
 JOIN "Step" s ON sr."stepId" = s."id"
 JOIN "JobRun" jr ON sr."jobRunId" = jr."id"
-WHERE sr."id" = @stepRunId::uuid
+WHERE sr."id" = @stepRunId::BIGINT
 AND sr."tenantId" = @tenantId::uuid;
 
 -- name: CreateStreamEvent :one
@@ -20,11 +20,11 @@ INSERT INTO "StreamEvent" (
 SELECT
     coalesce(sqlc.narg('createdAt')::timestamp, now()),
     @tenantId::uuid,
-    @stepRunId::uuid,
+    @stepRunId::BIGINT,
     @message::bytea,
     coalesce(sqlc.narg('metadata')::jsonb, '{}'::jsonb)
 FROM "StepRun"
-WHERE "StepRun"."id" = @stepRunId::uuid
+WHERE "StepRun"."id" = @stepRunId::BIGINT
 AND "StepRun"."tenantId" = @tenantId::uuid
 RETURNING *;
 

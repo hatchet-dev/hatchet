@@ -33,9 +33,9 @@ func NewStreamEventsEngineRepository(pool *pgxpool.Pool, v validator.Validator, 
 	}
 }
 
-func (r *streamEventEngineRepository) GetStreamEventMeta(ctx context.Context, tenantId string, stepRunId string) (*dbsqlc.GetStreamEventMetaRow, error) {
+func (r *streamEventEngineRepository) GetStreamEventMeta(ctx context.Context, tenantId string, stepRunId int64) (*dbsqlc.GetStreamEventMetaRow, error) {
 	return r.queries.GetStreamEventMeta(ctx, r.pool, dbsqlc.GetStreamEventMetaParams{
-		Steprunid: sqlchelpers.UUIDFromStr(stepRunId),
+		Steprunid: stepRunId,
 		Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
 	})
 }
@@ -54,7 +54,7 @@ func (r *streamEventEngineRepository) PutStreamEvent(ctx context.Context, tenant
 	createParams := dbsqlc.CreateStreamEventParams{
 		Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
 		Message:   message,
-		Steprunid: sqlchelpers.UUIDFromStr(opts.StepRunId),
+		Steprunid: opts.StepRunId,
 	}
 
 	if opts.CreatedAt != nil {

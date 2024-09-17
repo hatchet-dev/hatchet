@@ -234,7 +234,7 @@ WITH stepRuns AS (
         "jobRunId" = ANY(
             SELECT "jobRunId"
             FROM "StepRun"
-            WHERE "id" = ANY($2::uuid[])
+            WHERE "id" = ANY($2::BIGINT[])
         ) AND
         "tenantId" = $1::uuid
     GROUP BY runs."jobRunId"
@@ -277,8 +277,8 @@ RETURNING "JobRun"."id"
 `
 
 type ResolveJobRunStatusParams struct {
-	Tenantid   pgtype.UUID   `json:"tenantid"`
-	Steprunids []pgtype.UUID `json:"steprunids"`
+	Tenantid   pgtype.UUID `json:"tenantid"`
+	Steprunids []int64     `json:"steprunids"`
 }
 
 func (q *Queries) ResolveJobRunStatus(ctx context.Context, db DBTX, arg ResolveJobRunStatusParams) ([]pgtype.UUID, error) {
@@ -308,7 +308,7 @@ WITH readable_id AS (
     WHERE "id" = (
         SELECT "stepId"
         FROM "StepRun"
-        WHERE "id" = $2::uuid
+        WHERE "id" = $2::BIGINT
     )
 )
 UPDATE "JobRunLookupData"
@@ -334,14 +334,14 @@ WHERE
     "jobRunId" = (
         SELECT "jobRunId"
         FROM "StepRun"
-        WHERE "id" = $2::uuid
+        WHERE "id" = $2::BIGINT
     )
     AND "tenantId" = $3::uuid
 `
 
 type UpdateJobRunLookupDataWithStepRunParams struct {
 	Jsondata  []byte      `json:"jsondata"`
-	Steprunid pgtype.UUID `json:"steprunid"`
+	Steprunid int64       `json:"steprunid"`
 	Tenantid  pgtype.UUID `json:"tenantid"`
 }
 

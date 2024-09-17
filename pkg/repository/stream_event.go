@@ -9,7 +9,7 @@ import (
 
 type CreateStreamEventOpts struct {
 	// The step run id
-	StepRunId string `validate:"required,uuid"`
+	StepRunId int64 `validate:"required"`
 
 	// (optional) The time when the StreamEvent was created.
 	CreatedAt *time.Time
@@ -32,5 +32,5 @@ type StreamEventsEngineRepository interface {
 	CleanupStreamEvents(ctx context.Context) error
 
 	// GetStreamEventMeta
-	GetStreamEventMeta(ctx context.Context, tenantId string, stepRunId string) (*dbsqlc.GetStreamEventMetaRow, error)
+	GetStreamEventMeta(ctx context.Context, tenantId string, stepRunId int64) (*dbsqlc.GetStreamEventMetaRow, error)
 }

@@ -41,7 +41,7 @@ type CreateWorkflowRunOpts struct {
 	ParentId *string `validate:"omitempty,uuid"`
 
 	// (optional) the parent step run id which this workflow run was triggered from
-	ParentStepRunId *string `validate:"omitempty,uuid"`
+	ParentStepRunId *int64 `validate:"omitempty"`
 
 	// (optional) the child key of the workflow run, if this is a child run of a different workflow
 	ChildKey *string
@@ -70,7 +70,8 @@ type CreateGroupKeyRunOpts struct {
 type CreateWorkflowRunOpt func(*CreateWorkflowRunOpts)
 
 func WithParent(
-	parentId, parentStepRunId string,
+	parentId string,
+	parentStepRunId int64,
 	childIndex int,
 	childKey *string,
 	additionalMetadata map[string]interface{},
@@ -125,7 +126,8 @@ func GetCreateWorkflowRunOptsFromManual(
 func GetCreateWorkflowRunOptsFromParent(
 	workflowVersion *dbsqlc.GetWorkflowVersionForEngineRow,
 	input []byte,
-	parentId, parentStepRunId string,
+	parentId string,
+	parentStepRunId int64,
 	childIndex int,
 	childKey *string,
 	additionalMetadata map[string]interface{},
@@ -420,9 +422,9 @@ type WorkflowRunEngineRepository interface {
 	// ListWorkflowRuns returns workflow runs for a given workflow version id.
 	ListWorkflowRuns(ctx context.Context, tenantId string, opts *ListWorkflowRunsOpts) (*ListWorkflowRunsResult, error)
 
-	GetChildWorkflowRun(ctx context.Context, parentId, parentStepRunId string, childIndex int, childkey *string) (*dbsqlc.WorkflowRun, error)
+	GetChildWorkflowRun(ctx context.Context, parentId string, parentStepRunId int64, childIndex int, childkey *string) (*dbsqlc.WorkflowRun, error)
 
-	GetScheduledChildWorkflowRun(ctx context.Context, parentId, parentStepRunId string, childIndex int, childkey *string) (*dbsqlc.WorkflowTriggerScheduledRef, error)
+	GetScheduledChildWorkflowRun(ctx context.Context, parentId string, parentStepRunId int64, childIndex int, childkey *string) (*dbsqlc.WorkflowTriggerScheduledRef, error)
 
 	PopWorkflowRunsRoundRobin(ctx context.Context, tenantId, workflowId string, maxRuns int) ([]*dbsqlc.WorkflowRun, error)
 

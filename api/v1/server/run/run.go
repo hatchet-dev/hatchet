@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/labstack/echo/v4"
@@ -250,7 +251,15 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	})
 
 	populatorMW.RegisterGetter("step-run", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
-		stepRun, err := config.APIRepository.StepRun().GetStepRunById(id)
+
+		// NOTE: this is a temporary fix to convert the string step run id to an int64
+		stepRunId, err := strconv.ParseInt(id, 10, 64)
+
+		if err != nil {
+			return nil, "", fmt.Errorf("could not parse step run id: %w", err)
+		}
+
+		stepRun, err := config.APIRepository.StepRun().GetStepRunById(stepRunId)
 
 		if err != nil {
 			return nil, "", err

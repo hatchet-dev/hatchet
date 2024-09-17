@@ -214,7 +214,6 @@ model Tenant {
   workflowRunTriggers WorkflowRunTriggeredBy[]
   jobRuns             JobRun[]
   jobRunLookupDatas   JobRunLookupData[]
-  stepRuns            StepRun[]
   workers             Worker[]
   members             TenantMember[]
   workflowTags        WorkflowTag[]
@@ -678,8 +677,7 @@ model WorkflowTriggerScheduledRef {
   parentWorkflowRun   WorkflowRun? @relation(fields: [parentWorkflowRunId], references: [id])
   parentWorkflowRunId String?      @db.Uuid
 
-  parentStepRun   StepRun? @relation(fields: [parentStepRunId], references: [id])
-  parentStepRunId String?  @db.Uuid
+  parentStepRunId BigInt?  @db.BigInt // TODO migrate the parent data
 
   // if this is a child workflow run, the index of the child
   childIndex Int?
@@ -821,9 +819,6 @@ model Step {
   // a list of dependencies for this step
   parents Step[] @relation("StepOrder")
 
-  // a list of runs for this step
-  stepRuns StepRun[]
-
   // the default amount of time to wait while scheduling a step run
   scheduleTimeout String @default("5m")
 
@@ -953,8 +948,7 @@ model WorkflowRun {
   parent   WorkflowRun? @relation("WorkflowRunChild", fields: [parentId], references: [id])
   parentId String?      @db.Uuid
 
-  parentStepRun   StepRun? @relation(fields: [parentStepRunId], references: [id])
-  parentStepRunId String?  @db.Uuid
+  parentStepRunId BigInt?  @db.BigInt // TODO migrate the parent data
 
   // if this is a child workflow run, the index of the child
   childIndex Int?
@@ -1133,8 +1127,6 @@ model JobRun {
   ticker   Ticker? @relation(fields: [tickerId], references: [id])
   tickerId String? @db.Uuid
 
-  stepRuns StepRun[]
-
   // the run status
   status JobRunStatus @default(PENDING)
 
@@ -1204,21 +1196,21 @@ enum StepRunStatus {
 
 model StepRun {
   // base fields
-  id        String    @id @unique @default(uuid()) @db.Uuid
+  id_uuid        String    @default(uuid()) @db.Uuid
+
+  id       BigInt    @id @default(autoincrement()) @db.BigInt
+
   createdAt DateTime  @default(now())
   updatedAt DateTime  @default(now()) @updatedAt
   deletedAt DateTime?
 
   // the parent tenant
-  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   tenantId String @db.Uuid
 
   // the parent job run
-  jobRun   JobRun @relation(fields: [jobRunId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   jobRunId String @db.Uuid
 
   // the parent step
-  step   Step   @relation(fields: [stepId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   stepId String @db.Uuid
 
   // a list of dependents for this step
@@ -1237,8 +1229,8 @@ model StepRun {
   workerId String? @db.Uuid
 
   // the assigned ticker
-  ticker   Ticker? @relation(fields: [tickerId], references: [id])
-  tickerId String? @db.Uuid
+  // ticker   Ticker? @relation(fields: [tickerId], references: [id])
+  // tickerId String? @db.Uuid
 
   // the run status
   status StepRunStatus @default(PENDING)
@@ -1291,15 +1283,7 @@ model StepRun {
   // if the semaphore was released prior to terminal state
   semaphoreReleased Boolean @default(false)
 
-  archivedResults StepRunResultArchive[]
-
-  streamEvents StreamEvent[]
   logs         LogLine[]
-
-  childWorkflowRuns WorkflowRun[]
-  childSchedules    WorkflowTriggerScheduledRef[]
-
-  events StepRunEvent[]
 
   @@index([tenantId])
   @@index([workerId])
@@ -1330,7 +1314,7 @@ model QueueItem {
   id BigInt @id @default(autoincrement()) @db.BigInt
 
   // optional params which are specific to step runs
-  stepRunId         String?   @db.Uuid
+  stepRunId         BigInt?   @db.BigInt
   stepId            String?   @db.Uuid
   actionId          String?
   scheduleTimeoutAt DateTime?
@@ -1376,7 +1360,7 @@ model TimeoutQueueItem {
   id BigInt @id @default(autoincrement()) @db.BigInt
 
   // the parent step run
-  stepRunId String @db.Uuid
+  stepRunId BigInt @db.BigInt
 
   retryCount Int
 
@@ -1393,7 +1377,7 @@ model TimeoutQueueItem {
 }
 
 model SemaphoreQueueItem {
-  stepRunId String @id @unique @db.Uuid
+  stepRunId String @id @unique @db.Uuid // TODO: change this to BigInt
   workerId  String @db.Uuid
 
   // the parent tenant
@@ -1433,8 +1417,7 @@ model StepRunEvent {
   timeLastSeen  DateTime @default(now())
 
   // the parent step run
-  stepRun   StepRun @relation(fields: [stepRunId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  stepRunId String  @db.Uuid
+  stepRunId BigInt @db.BigInt
 
   // the event reason
   reason StepRunEventReason
@@ -1460,8 +1443,7 @@ model StepRunResultArchive {
   deletedAt DateTime?
 
   // the parent step run
-  stepRun   StepRun @relation(fields: [stepRunId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  stepRunId String  @db.Uuid
+  stepRunId BigInt @db.BigInt
 
   retryCount Int @default(0)
 
@@ -1493,6 +1475,8 @@ model StepRunResultArchive {
 
   // errors while cancelling the run
   cancelledError String?
+
+  @@index([stepRunId])
 }
 
 model Dispatcher {
@@ -1525,7 +1509,6 @@ model Ticker {
   isActive Boolean @default(true)
 
   jobRuns      JobRun[]
-  stepRuns     StepRun[]
   crons        WorkflowTriggerCronRef[]
   scheduled    WorkflowTriggerScheduledRef[]
   groupKeyRuns GetGroupKeyRun[]
@@ -1728,7 +1711,7 @@ model LogLine {
 
   // the step run id this log is associated with
   stepRun   StepRun? @relation(fields: [stepRunId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  stepRunId String?  @db.Uuid
+  stepRunId BigInt?  @db.BigInt
 
   // the log line message
   message String
@@ -1750,14 +1733,15 @@ model StreamEvent {
   tenantId String @db.Uuid
 
   // the step run id this stream event is associated with
-  stepRun   StepRun? @relation(fields: [stepRunId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  stepRunId String?  @db.Uuid
+  stepRunId BigInt? @db.BigInt
 
   // the stream event bytes
   message Bytes
 
   // (optional) the stream event metadata
   metadata Json?
+
+  @@index([stepRunId])
 }
 
 model SNSIntegration {
