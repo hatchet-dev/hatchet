@@ -1065,7 +1065,7 @@ slots AS (
 )
 SELECT
     COALESCE(maxR, 0) AS totalCount,
-    maxR - COALESCE(usedSlotCount, 0) AS freeCount
+    COALESCE(maxR, 0)  - COALESCE(usedSlotCount, 0) AS freeCount
 FROM workers, slots
 `
 
