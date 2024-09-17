@@ -1,8 +1,7 @@
 module github.com/hatchet-dev/hatchet
 
 go 1.22.0
-
-toolchain go1.22.3
+toolchain go1.23.1
 
 require (
 	github.com/Masterminds/semver/v3 v3.3.0
@@ -12,7 +11,7 @@ require (
 	github.com/go-co-op/gocron/v2 v2.12.0
 	github.com/google/go-github/v57 v57.0.0
 	github.com/gorilla/securecookie v1.1.2
-	github.com/gorilla/sessions v1.3.0
+	github.com/gorilla/sessions v1.4.0
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/hatchet-dev/timediff v0.0.4
