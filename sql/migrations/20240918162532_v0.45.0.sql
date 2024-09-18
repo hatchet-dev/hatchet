@@ -14,5 +14,3 @@ ALTER TABLE "StepRunEvent" DROP CONSTRAINT "StepRunEvent_stepRunId_fkey", ALTER 
 CREATE INDEX "StepRunEvent_workflowRunId_idx" ON "StepRunEvent" ("workflowRunId");
 -- Modify "WorkflowConcurrency" table
 ALTER TABLE "WorkflowConcurrency" ADD COLUMN "concurrencyGroupExpression" text NULL;
--- Create index "WorkflowRun_parentStepRunId" to table: "WorkflowRun"
-CREATE INDEX "WorkflowRun_parentStepRunId" ON "WorkflowRun" ("parentStepRunId");
