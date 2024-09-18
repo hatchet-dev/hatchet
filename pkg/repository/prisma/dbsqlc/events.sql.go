@@ -201,6 +201,18 @@ func (q *Queries) CreateEvent(ctx context.Context, db DBTX, arg CreateEventParam
 	return &i, err
 }
 
+type CreateEventsParams struct {
+	ID                 pgtype.UUID      `json:"id"`
+	CreatedAt          pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt          pgtype.Timestamp `json:"updatedAt"`
+	DeletedAt          pgtype.Timestamp `json:"deletedAt"`
+	Key                string           `json:"key"`
+	TenantId           pgtype.UUID      `json:"tenantId"`
+	ReplayedFromId     pgtype.UUID      `json:"replayedFromId"`
+	Data               []byte           `json:"data"`
+	AdditionalMetadata []byte           `json:"additionalMetadata"`
+}
+
 const getEventForEngine = `-- name: GetEventForEngine :one
 SELECT
     id, "createdAt", "updatedAt", "deletedAt", key, "tenantId", "replayedFromId", data, "additionalMetadata"
@@ -258,6 +270,43 @@ func (q *Queries) GetEventsForRange(ctx context.Context, db DBTX) ([]*GetEventsF
 	for rows.Next() {
 		var i GetEventsForRangeRow
 		if err := rows.Scan(&i.EventHour, &i.EventCount); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getInsertedEvents = `-- name: GetInsertedEvents :many
+
+SELECT id, "createdAt", "updatedAt", "deletedAt", key, "tenantId", "replayedFromId", data, "additionalMetadata" FROM "Event"
+WHERE xmin::text = (txid_current() % (2^32)::bigint)::text
+ORDER BY id
+`
+
+func (q *Queries) GetInsertedEvents(ctx context.Context, db DBTX) ([]*Event, error) {
+	rows, err := db.Query(ctx, getInsertedEvents)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*Event
+	for rows.Next() {
+		var i Event
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.Key,
+			&i.TenantId,
+			&i.ReplayedFromId,
+			&i.Data,
+			&i.AdditionalMetadata,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)

@@ -283,6 +283,74 @@ func (r *eventEngineRepository) CreateEvent(ctx context.Context, opts *repositor
 		return &id, e, nil
 	})
 }
+func (r *eventEngineRepository) BulkCreateEvent(ctx context.Context, opts *repository.BulkCreateEventOpts) ([]*dbsqlc.Event, error) {
+	// return metered.MakeMetered(ctx, r.m, dbsqlc.LimitResourceEVENT, opts.TenantId, func() (*string, []*dbsqlc.Event, error) {
+
+	ctx, span := telemetry.NewSpan(ctx, "db-bulk-create-event")
+	defer span.End()
+
+	if err := r.v.Validate(opts); err != nil {
+		return nil, err
+	}
+	params := make([]dbsqlc.CreateEventsParams, len(opts.Events))
+
+	for i, event := range opts.Events {
+
+		params[i] = dbsqlc.CreateEventsParams{
+			ID:                 sqlchelpers.UUIDFromStr(uuid.New().String()),
+			Key:                event.Key,
+			TenantId:           sqlchelpers.UUIDFromStr(event.TenantId),
+			Data:               event.Data,
+			AdditionalMetadata: event.AdditionalMetadata,
+		}
+
+		if event.ReplayedEvent != nil {
+			params[i].ReplayedFromId = sqlchelpers.UUIDFromStr(*event.ReplayedEvent)
+		}
+	}
+
+	// start a transaction
+	tx, err := r.pool.Begin(ctx)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer deferRollback(ctx, r.l, tx.Rollback)
+
+	insertCount, err := r.queries.CreateEvents(
+		ctx,
+		tx,
+		params,
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not create event: %w", err)
+	}
+
+	r.l.Info().Msgf("inserted %d events", insertCount)
+
+	events, err := r.queries.GetInsertedEvents(ctx, tx)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not get inserted events: %w", err)
+	}
+	err = tx.Commit(ctx)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not commit transaction: %w", err)
+	}
+
+	for _, e := range events {
+
+		for _, cb := range r.callbacks {
+			cb.Do(e) // nolint: errcheck
+		}
+	}
+
+	return events, nil
+	// })
+}
 
 func (r *eventEngineRepository) ListEventsByIds(ctx context.Context, tenantId string, ids []string) ([]*dbsqlc.Event, error) {
 	pgIds := make([]pgtype.UUID, len(ids))

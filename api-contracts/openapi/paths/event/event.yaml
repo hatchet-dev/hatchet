@@ -159,6 +159,59 @@ withTenant:
     tags:
       - Event
 
+
+bulkCreateEvents:
+  post:
+    x-resources: ["tenant"]
+    description: Bulk creates new events.
+    operationId: event:bulk:create
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    requestBody:
+      content:
+        application/json:
+          schema:
+            $ref: "../../components/schemas/_index.yaml#/BulkCreateEventRequest"
+      description: The events to create
+      required: true
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/Events"
+        description: Successfully created the events
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+      "429":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Resource limit exceeded
+    summary: Bulk Create events
+    tags:
+      - Event
+
+
 withEvent:
   get:
     x-resources: ["tenant", "event"]

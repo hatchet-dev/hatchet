@@ -420,6 +420,14 @@ export interface Event {
   additionalMetadata?: object;
 }
 
+export interface Events {
+  metadata: APIResourceMeta;
+  /** The events. */
+  events: Event[];
+  /** The pagination information. */
+  pagination: PaginationResponse;
+}
+
 export interface EventData {
   /** The data for the event (JSON bytes). */
   data: string;
@@ -432,6 +440,10 @@ export interface CreateEventRequest {
   data: object;
   /** Additional metadata for the event. */
   additionalMetadata?: object;
+}
+
+export interface BulkCreateEventRequest {
+  events: CreateEventRequest[];
 }
 
 export interface EventWorkflowRunSummary {

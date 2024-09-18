@@ -7,6 +7,8 @@ import "google/protobuf/timestamp.proto";
 service EventsService {
     rpc Push(PushEventRequest) returns (Event) {}
 
+    rpc BulkPush(BulkPushEventRequest) returns (Events) {}
+
     rpc ReplaySingleEvent(ReplayEventRequest) returns (Event) {}
 
     rpc PutLog(PutLogRequest) returns (PutLogResponse) {}
@@ -33,6 +35,10 @@ message Event {
     // the payload for the event
     optional string additionalMetadata = 6;
 
+}
+
+message Events {
+    repeated Event events = 1;
 }
 
 message PutLogRequest {
@@ -69,6 +75,11 @@ message PutStreamEventRequest {
 }
 
 message PutStreamEventResponse {}
+
+
+message BulkPushEventRequest {
+    repeated PushEventRequest events = 1;
+}
 
 message PushEventRequest {
     // the key for the event

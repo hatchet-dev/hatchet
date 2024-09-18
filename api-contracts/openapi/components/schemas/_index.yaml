@@ -76,10 +76,14 @@ UpdateTenantRequest:
   $ref: "./tenant.yaml#/UpdateTenantRequest"
 Event:
   $ref: "./event.yaml#/Event"
+Events:
+  $ref: "./event.yaml#/Events"
 EventData:
   $ref: "./event.yaml#/EventData"
 CreateEventRequest:
   $ref: "./event.yaml#/CreateEventRequest"
+BulkCreateEventRequest:
+  $ref: "./event.yaml#/BulkCreateEventRequest"
 EventWorkflowRunSummary:
   $ref: "./event.yaml#/EventWorkflowRunSummary"
 EventOrderByField:
