@@ -838,8 +838,8 @@ WHERE NOT EXISTS (
 -- name: BulkCreateStepRunEvent :exec
 WITH input_values AS (
     SELECT
-        CURRENT_TIMESTAMP AS "timeFirstSeen",
-        CURRENT_TIMESTAMP AS "timeLastSeen",
+        unnest(@timeSeen::timestamp[]) AS "timeFirstSeen",
+        unnest(@timeSeen::timestamp[]) AS "timeLastSeen",
         unnest(@stepRunIds::uuid[]) AS "stepRunId",
         unnest(cast(@reasons::text[] as"StepRunEventReason"[])) AS "reason",
         unnest(cast(@severities::text[] as "StepRunEventSeverity"[])) AS "severity",
@@ -850,7 +850,7 @@ WITH input_values AS (
 updated AS (
     UPDATE "StepRunEvent"
     SET
-        "timeLastSeen" = CURRENT_TIMESTAMP,
+        "timeLastSeen" = input_values."timeLastSeen",
         "message" = input_values."message",
         "count" = "StepRunEvent"."count" + 1,
         "data" = input_values."data"

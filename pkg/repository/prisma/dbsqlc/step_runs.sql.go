@@ -155,19 +155,19 @@ func (q *Queries) BulkCancelStepRun(ctx context.Context, db DBTX, arg BulkCancel
 const bulkCreateStepRunEvent = `-- name: BulkCreateStepRunEvent :exec
 WITH input_values AS (
     SELECT
-        CURRENT_TIMESTAMP AS "timeFirstSeen",
-        CURRENT_TIMESTAMP AS "timeLastSeen",
-        unnest($1::uuid[]) AS "stepRunId",
-        unnest(cast($2::text[] as"StepRunEventReason"[])) AS "reason",
-        unnest(cast($3::text[] as "StepRunEventSeverity"[])) AS "severity",
-        unnest($4::text[]) AS "message",
+        unnest($1::timestamp[]) AS "timeFirstSeen",
+        unnest($1::timestamp[]) AS "timeLastSeen",
+        unnest($2::uuid[]) AS "stepRunId",
+        unnest(cast($3::text[] as"StepRunEventReason"[])) AS "reason",
+        unnest(cast($4::text[] as "StepRunEventSeverity"[])) AS "severity",
+        unnest($5::text[]) AS "message",
         1 AS "count",
-        unnest($5::jsonb[]) AS "data"
+        unnest($6::jsonb[]) AS "data"
 ),
 updated AS (
     UPDATE "StepRunEvent"
     SET
-        "timeLastSeen" = CURRENT_TIMESTAMP,
+        "timeLastSeen" = input_values."timeLastSeen",
         "message" = input_values."message",
         "count" = "StepRunEvent"."count" + 1,
         "data" = input_values."data"
@@ -211,15 +211,17 @@ WHERE NOT EXISTS (
 `
 
 type BulkCreateStepRunEventParams struct {
-	Steprunids []pgtype.UUID `json:"steprunids"`
-	Reasons    []string      `json:"reasons"`
-	Severities []string      `json:"severities"`
-	Messages   []string      `json:"messages"`
-	Data       [][]byte      `json:"data"`
+	Timeseen   []pgtype.Timestamp `json:"timeseen"`
+	Steprunids []pgtype.UUID      `json:"steprunids"`
+	Reasons    []string           `json:"reasons"`
+	Severities []string           `json:"severities"`
+	Messages   []string           `json:"messages"`
+	Data       [][]byte           `json:"data"`
 }
 
 func (q *Queries) BulkCreateStepRunEvent(ctx context.Context, db DBTX, arg BulkCreateStepRunEventParams) error {
 	_, err := db.Exec(ctx, bulkCreateStepRunEvent,
+		arg.Timeseen,
 		arg.Steprunids,
 		arg.Reasons,
 		arg.Severities,
