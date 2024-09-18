@@ -1,7 +1,7 @@
 {
   "StepRunIds": [
-    "16fa711e-c03e-435c-88d9-62adf1591d98",
-    "064e787a-6cfd-4f82-8b6d-d8031459fdee"
+    24,
+    6
   ],
   "StepRunTimeouts": [
     "60s",
@@ -18,12 +18,12 @@
   "UnassignedStepRunIds": [],
   "QueuedStepRuns": [
     {
-      "StepRunId": "16fa711e-c03e-435c-88d9-62adf1591d98",
+      "StepRunId": 24,
       "WorkerId": "aaaaaaaa-43db-4b5f-876a-c6c71f4d52aa",
       "DispatcherId": "9994a9eb-430d-46da-934d-d9dd953cfd21"
     },
     {
-      "StepRunId": "064e787a-6cfd-4f82-8b6d-d8031459fdee",
+      "StepRunId": 6,
       "WorkerId": "bbbbbbbb-43db-4b5f-876a-c6c71f4d52aa",
       "DispatcherId": "9994a9eb-430d-46da-934d-d9dd953cfd21"
     }
