@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"strconv"
 	"strings"
 	"time"
 
@@ -75,8 +76,14 @@ func (t *WorkflowService) WorkflowRunList(ctx echo.Context, request gen.Workflow
 	}
 
 	if request.Params.ParentStepRunId != nil {
-		parentStepRunIdStr := request.Params.ParentStepRunId.String()
-		listOpts.ParentStepRunId = &parentStepRunIdStr
+
+		parentStepRunIdInt, err := strconv.ParseInt(*request.Params.ParentStepRunId, 10, 64)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not parse step run id: %w", err)
+		}
+
+		listOpts.ParentStepRunId = &parentStepRunIdInt
 	}
 
 	if request.Params.Statuses != nil {

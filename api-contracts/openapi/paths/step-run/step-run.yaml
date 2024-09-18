@@ -19,8 +19,7 @@ stepRunScoped:
         required: true
         schema:
           type: string
-          format: uuid
-          minLength: 36
+          minLength: 0
           maxLength: 36
     responses:
       "200":
@@ -72,8 +71,7 @@ rerunStepRun:
         required: true
         schema:
           type: string
-          format: uuid
-          minLength: 36
+          minLength: 0
           maxLength: 36
     requestBody:
       content:
@@ -126,8 +124,7 @@ cancelStepRun:
         required: true
         schema:
           type: string
-          format: uuid
-          minLength: 36
+          minLength: 0
           maxLength: 36
     responses:
       "200":
@@ -173,8 +170,7 @@ getSchema:
         required: true
         schema:
           type: string
-          format: uuid
-          minLength: 36
+          minLength: 0
           maxLength: 36
     responses:
       "200":
@@ -216,8 +212,7 @@ listEvents:
         required: true
         schema:
           type: string
-          format: uuid
-          minLength: 36
+          minLength: 0
           maxLength: 36
       - description: The number to skip
         in: query
@@ -333,8 +328,7 @@ listArchives:
         required: true
         schema:
           type: string
-          format: uuid
-          minLength: 36
+          minLength: 0
           maxLength: 36
       - description: The number to skip
         in: query

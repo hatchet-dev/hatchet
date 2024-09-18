@@ -278,9 +278,9 @@ CREATE TABLE "SecurityCheckIdent" (
 
 -- CreateTable
 CREATE TABLE "SemaphoreQueueItem" (
-    "stepRunId" UUID NOT NULL,
     "workerId" UUID NOT NULL,
     "tenantId" UUID NOT NULL,
+    "stepRunId" BIGINT NOT NULL,
 
     CONSTRAINT "SemaphoreQueueItem_pkey" PRIMARY KEY ("stepRunId")
 );
@@ -1009,9 +1009,6 @@ CREATE UNIQUE INDEX "SNSIntegration_tenantId_topicArn_key" ON "SNSIntegration"("
 CREATE UNIQUE INDEX "SecurityCheckIdent_id_key" ON "SecurityCheckIdent"("id" ASC);
 
 -- CreateIndex
-CREATE UNIQUE INDEX "SemaphoreQueueItem_stepRunId_key" ON "SemaphoreQueueItem"("stepRunId" ASC);
-
--- CreateIndex
 CREATE INDEX "SemaphoreQueueItem_tenantId_workerId_idx" ON "SemaphoreQueueItem"("tenantId" ASC, "workerId" ASC);
 
 -- CreateIndex
@@ -1046,9 +1043,6 @@ CREATE INDEX "StepRun_createdAt_idx" ON "StepRun"("createdAt" ASC);
 
 -- CreateIndex
 CREATE INDEX "StepRun_deletedAt_idx" ON "StepRun"("deletedAt" ASC);
-
--- CreateIndex
-CREATE INDEX "StepRun_id_tenantId_idx" ON "StepRun"("id" ASC, "tenantId" ASC);
 
 -- CreateIndex
 CREATE INDEX "StepRun_jobRunId_status_idx" ON "StepRun"("jobRunId" ASC, "status" ASC);

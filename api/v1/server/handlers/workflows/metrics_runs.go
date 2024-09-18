@@ -3,6 +3,7 @@ package workflows
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -43,8 +44,14 @@ func (t *WorkflowService) WorkflowRunGetMetrics(ctx echo.Context, request gen.Wo
 	}
 
 	if request.Params.ParentStepRunId != nil {
-		parentStepRunIdStr := request.Params.ParentStepRunId.String()
-		listOpts.ParentStepRunId = &parentStepRunIdStr
+
+		parentStepRunIdInt, err := strconv.ParseInt(*request.Params.ParentStepRunId, 10, 64)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not parse step run id: %w", err)
+		}
+
+		listOpts.ParentStepRunId = &parentStepRunIdInt
 	}
 
 	if request.Params.AdditionalMetadata != nil {

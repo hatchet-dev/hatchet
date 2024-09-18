@@ -48,8 +48,8 @@ WITH runs AS (
             runs."parentId" = sqlc.narg('parentId')::uuid
         ) AND
         (
-            sqlc.narg('parentStepRunId')::uuid IS NULL OR
-            runs."parentStepRunId" = sqlc.narg('parentStepRunId')::uuid
+            sqlc.narg('parentStepRunId')::BIGINT IS NULL OR
+            runs."parentStepRunId" = sqlc.narg('parentStepRunId')::BIGINT
         ) AND
         (
             sqlc.narg('groupKey')::text IS NULL OR
@@ -122,8 +122,8 @@ WHERE
         runs."parentId" = sqlc.narg('parentId')::uuid
     ) AND
     (
-        sqlc.narg('parentStepRunId')::uuid IS NULL OR
-        runs."parentStepRunId" = sqlc.narg('parentStepRunId')::uuid
+        sqlc.narg('parentStepRunId')::BIGINT IS NULL OR
+        runs."parentStepRunId" = sqlc.narg('parentStepRunId')::BIGINT
     ) AND
     (
         sqlc.narg('additionalMetadata')::jsonb IS NULL OR
@@ -193,8 +193,8 @@ WHERE
         runs."parentId" = sqlc.narg('parentId')::uuid
     ) AND
     (
-        sqlc.narg('parentStepRunId')::uuid IS NULL OR
-        runs."parentStepRunId" = sqlc.narg('parentStepRunId')::uuid
+        sqlc.narg('parentStepRunId')::BIGINT IS NULL OR
+        runs."parentStepRunId" = sqlc.narg('parentStepRunId')::BIGINT
     ) AND
     (
         sqlc.narg('groupKey')::text IS NULL OR
@@ -675,7 +675,6 @@ INSERT INTO "JobRunLookupData" (
 
 -- name: CreateStepRun :one
 INSERT INTO "StepRun" (
-    "id",
     "createdAt",
     "updatedAt",
     "tenantId",
@@ -687,7 +686,6 @@ INSERT INTO "StepRun" (
     "priority"
 )
 SELECT
-    gen_random_uuid(),
     CURRENT_TIMESTAMP,
     CURRENT_TIMESTAMP,
     @tenantId::uuid,

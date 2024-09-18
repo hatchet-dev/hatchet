@@ -1652,10 +1652,6 @@ WHERE
         $4::uuid IS NULL OR
         "StepRun"."jobRunId" = $4::uuid
     )
-    AND (
-        $5::uuid IS NULL OR
-        "StepRun"."tickerId" = $5::uuid
-    )
 `
 
 type ListStepRunsParams struct {
@@ -1663,7 +1659,6 @@ type ListStepRunsParams struct {
 	Status         NullStepRunStatus `json:"status"`
 	WorkflowRunIds []pgtype.UUID     `json:"workflowRunIds"`
 	JobRunId       pgtype.UUID       `json:"jobRunId"`
-	TickerId       pgtype.UUID       `json:"tickerId"`
 }
 
 func (q *Queries) ListStepRuns(ctx context.Context, db DBTX, arg ListStepRunsParams) ([]int64, error) {
@@ -1672,7 +1667,6 @@ func (q *Queries) ListStepRuns(ctx context.Context, db DBTX, arg ListStepRunsPar
 		arg.Status,
 		arg.WorkflowRunIds,
 		arg.JobRunId,
-		arg.TickerId,
 	)
 	if err != nil {
 		return nil, err

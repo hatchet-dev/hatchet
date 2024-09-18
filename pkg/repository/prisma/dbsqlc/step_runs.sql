@@ -194,10 +194,6 @@ WHERE
     AND (
         sqlc.narg('jobRunId')::uuid IS NULL OR
         "StepRun"."jobRunId" = sqlc.narg('jobRunId')::uuid
-    )
-    AND (
-        sqlc.narg('tickerId')::uuid IS NULL OR
-        "StepRun"."tickerId" = sqlc.narg('tickerId')::uuid
     );
 
 -- name: QueueStepRun :exec

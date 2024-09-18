@@ -677,7 +677,7 @@ model WorkflowTriggerScheduledRef {
   parentWorkflowRun   WorkflowRun? @relation(fields: [parentWorkflowRunId], references: [id])
   parentWorkflowRunId String?      @db.Uuid
 
-  parentStepRunId BigInt?  @db.BigInt // TODO migrate the parent data
+  parentStepRunId BigInt? @db.BigInt // TODO migrate the parent data
 
   // if this is a child workflow run, the index of the child
   childIndex Int?
@@ -948,7 +948,7 @@ model WorkflowRun {
   parent   WorkflowRun? @relation("WorkflowRunChild", fields: [parentId], references: [id])
   parentId String?      @db.Uuid
 
-  parentStepRunId BigInt?  @db.BigInt // TODO migrate the parent data
+  parentStepRunId BigInt? @db.BigInt // TODO migrate the parent data
 
   // if this is a child workflow run, the index of the child
   childIndex Int?
@@ -1196,9 +1196,9 @@ enum StepRunStatus {
 
 model StepRun {
   // base fields
-  id_uuid        String    @default(uuid()) @db.Uuid
+  id_uuid String @default(uuid()) @db.Uuid
 
-  id       BigInt    @id @default(autoincrement()) @db.BigInt
+  id BigInt @id @default(autoincrement()) @db.BigInt
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @default(now()) @updatedAt
@@ -1283,7 +1283,7 @@ model StepRun {
   // if the semaphore was released prior to terminal state
   semaphoreReleased Boolean @default(false)
 
-  logs         LogLine[]
+  logs LogLine[]
 
   @@index([tenantId])
   @@index([workerId])
@@ -1292,8 +1292,6 @@ model StepRun {
   @@index([stepId])
   // index for ListStartableStepRuns
   @@index([jobRunId, status])
-  // index for ResolveLaterStepRuns
-  @@index([id, tenantId])
   // index for ResolveJobRunStatus, ResolveLaterStepRuns, and LinkStepRunParents
   @@index([jobRunId, tenantId, order])
   // NOTE: custom index on "StepRun_jobRunId_status_tenantId_idx" set manually in migrations
@@ -1377,7 +1375,7 @@ model TimeoutQueueItem {
 }
 
 model SemaphoreQueueItem {
-  stepRunId String @id @unique @db.Uuid // TODO: change this to BigInt
+  stepRunId BigInt @id @db.BigInt // TODO: change this to BigInt
   workerId  String @db.Uuid
 
   // the parent tenant

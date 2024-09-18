@@ -10,8 +10,7 @@ withStepRun:
         required: true
         schema:
           type: string
-          format: uuid
-          minLength: 36
+          minLength: 0
           maxLength: 36
       - description: The number to skip
         in: query

@@ -1031,9 +1031,9 @@ type SecurityCheckIdent struct {
 }
 
 type SemaphoreQueueItem struct {
-	StepRunId pgtype.UUID `json:"stepRunId"`
 	WorkerId  pgtype.UUID `json:"workerId"`
 	TenantId  pgtype.UUID `json:"tenantId"`
+	StepRunId int64       `json:"stepRunId"`
 }
 
 type Service struct {

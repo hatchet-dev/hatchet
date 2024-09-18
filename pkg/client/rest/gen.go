@@ -1362,7 +1362,7 @@ type WorkflowRunListParams struct {
 	ParentWorkflowRunId *openapi_types.UUID `form:"parentWorkflowRunId,omitempty" json:"parentWorkflowRunId,omitempty"`
 
 	// ParentStepRunId The parent step run id
-	ParentStepRunId *openapi_types.UUID `form:"parentStepRunId,omitempty" json:"parentStepRunId,omitempty"`
+	ParentStepRunId *string `form:"parentStepRunId,omitempty" json:"parentStepRunId,omitempty"`
 
 	// Statuses A list of workflow run statuses to filter by
 	Statuses *WorkflowRunStatusList `form:"statuses,omitempty" json:"statuses,omitempty"`
@@ -1398,7 +1398,7 @@ type WorkflowRunGetMetricsParams struct {
 	ParentWorkflowRunId *openapi_types.UUID `form:"parentWorkflowRunId,omitempty" json:"parentWorkflowRunId,omitempty"`
 
 	// ParentStepRunId The parent step run id
-	ParentStepRunId *openapi_types.UUID `form:"parentStepRunId,omitempty" json:"parentStepRunId,omitempty"`
+	ParentStepRunId *string `form:"parentStepRunId,omitempty" json:"parentStepRunId,omitempty"`
 
 	// AdditionalMetadata A list of metadata key value pairs to filter by
 	AdditionalMetadata *[]string `form:"additionalMetadata,omitempty" json:"additionalMetadata,omitempty"`
@@ -1612,13 +1612,13 @@ type ClientInterface interface {
 	SnsUpdate(ctx context.Context, tenant openapi_types.UUID, event string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// StepRunListArchives request
-	StepRunListArchives(ctx context.Context, stepRun openapi_types.UUID, params *StepRunListArchivesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+	StepRunListArchives(ctx context.Context, stepRun string, params *StepRunListArchivesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// StepRunListEvents request
-	StepRunListEvents(ctx context.Context, stepRun openapi_types.UUID, params *StepRunListEventsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+	StepRunListEvents(ctx context.Context, stepRun string, params *StepRunListEventsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// LogLineList request
-	LogLineList(ctx context.Context, stepRun openapi_types.UUID, params *LogLineListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+	LogLineList(ctx context.Context, stepRun string, params *LogLineListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// TenantCreateWithBody request with any body
 	TenantCreateWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -1713,18 +1713,18 @@ type ClientInterface interface {
 	SnsCreate(ctx context.Context, tenant openapi_types.UUID, body SnsCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// StepRunGet request
-	StepRunGet(ctx context.Context, tenant openapi_types.UUID, stepRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+	StepRunGet(ctx context.Context, tenant openapi_types.UUID, stepRun string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// StepRunUpdateCancel request
-	StepRunUpdateCancel(ctx context.Context, tenant openapi_types.UUID, stepRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+	StepRunUpdateCancel(ctx context.Context, tenant openapi_types.UUID, stepRun string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// StepRunUpdateRerunWithBody request with any body
-	StepRunUpdateRerunWithBody(ctx context.Context, tenant openapi_types.UUID, stepRun openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	StepRunUpdateRerunWithBody(ctx context.Context, tenant openapi_types.UUID, stepRun string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	StepRunUpdateRerun(ctx context.Context, tenant openapi_types.UUID, stepRun openapi_types.UUID, body StepRunUpdateRerunJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	StepRunUpdateRerun(ctx context.Context, tenant openapi_types.UUID, stepRun string, body StepRunUpdateRerunJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// StepRunGetSchema request
-	StepRunGetSchema(ctx context.Context, tenant openapi_types.UUID, stepRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+	StepRunGetSchema(ctx context.Context, tenant openapi_types.UUID, stepRun string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// WebhookList request
 	WebhookList(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -2020,7 +2020,7 @@ func (c *Client) SnsUpdate(ctx context.Context, tenant openapi_types.UUID, event
 	return c.Client.Do(req)
 }
 
-func (c *Client) StepRunListArchives(ctx context.Context, stepRun openapi_types.UUID, params *StepRunListArchivesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+func (c *Client) StepRunListArchives(ctx context.Context, stepRun string, params *StepRunListArchivesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewStepRunListArchivesRequest(c.Server, stepRun, params)
 	if err != nil {
 		return nil, err
@@ -2032,7 +2032,7 @@ func (c *Client) StepRunListArchives(ctx context.Context, stepRun openapi_types.
 	return c.Client.Do(req)
 }
 
-func (c *Client) StepRunListEvents(ctx context.Context, stepRun openapi_types.UUID, params *StepRunListEventsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+func (c *Client) StepRunListEvents(ctx context.Context, stepRun string, params *StepRunListEventsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewStepRunListEventsRequest(c.Server, stepRun, params)
 	if err != nil {
 		return nil, err
@@ -2044,7 +2044,7 @@ func (c *Client) StepRunListEvents(ctx context.Context, stepRun openapi_types.UU
 	return c.Client.Do(req)
 }
 
-func (c *Client) LogLineList(ctx context.Context, stepRun openapi_types.UUID, params *LogLineListParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+func (c *Client) LogLineList(ctx context.Context, stepRun string, params *LogLineListParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewLogLineListRequest(c.Server, stepRun, params)
 	if err != nil {
 		return nil, err
@@ -2464,7 +2464,7 @@ func (c *Client) SnsCreate(ctx context.Context, tenant openapi_types.UUID, body 
 	return c.Client.Do(req)
 }
 
-func (c *Client) StepRunGet(ctx context.Context, tenant openapi_types.UUID, stepRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+func (c *Client) StepRunGet(ctx context.Context, tenant openapi_types.UUID, stepRun string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewStepRunGetRequest(c.Server, tenant, stepRun)
 	if err != nil {
 		return nil, err
@@ -2476,7 +2476,7 @@ func (c *Client) StepRunGet(ctx context.Context, tenant openapi_types.UUID, step
 	return c.Client.Do(req)
 }
 
-func (c *Client) StepRunUpdateCancel(ctx context.Context, tenant openapi_types.UUID, stepRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+func (c *Client) StepRunUpdateCancel(ctx context.Context, tenant openapi_types.UUID, stepRun string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewStepRunUpdateCancelRequest(c.Server, tenant, stepRun)
 	if err != nil {
 		return nil, err
@@ -2488,7 +2488,7 @@ func (c *Client) StepRunUpdateCancel(ctx context.Context, tenant openapi_types.U
 	return c.Client.Do(req)
 }
 
-func (c *Client) StepRunUpdateRerunWithBody(ctx context.Context, tenant openapi_types.UUID, stepRun openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+func (c *Client) StepRunUpdateRerunWithBody(ctx context.Context, tenant openapi_types.UUID, stepRun string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewStepRunUpdateRerunRequestWithBody(c.Server, tenant, stepRun, contentType, body)
 	if err != nil {
 		return nil, err
@@ -2500,7 +2500,7 @@ func (c *Client) StepRunUpdateRerunWithBody(ctx context.Context, tenant openapi_
 	return c.Client.Do(req)
 }
 
-func (c *Client) StepRunUpdateRerun(ctx context.Context, tenant openapi_types.UUID, stepRun openapi_types.UUID, body StepRunUpdateRerunJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+func (c *Client) StepRunUpdateRerun(ctx context.Context, tenant openapi_types.UUID, stepRun string, body StepRunUpdateRerunJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewStepRunUpdateRerunRequest(c.Server, tenant, stepRun, body)
 	if err != nil {
 		return nil, err
@@ -2512,7 +2512,7 @@ func (c *Client) StepRunUpdateRerun(ctx context.Context, tenant openapi_types.UU
 	return c.Client.Do(req)
 }
 
-func (c *Client) StepRunGetSchema(ctx context.Context, tenant openapi_types.UUID, stepRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+func (c *Client) StepRunGetSchema(ctx context.Context, tenant openapi_types.UUID, stepRun string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewStepRunGetSchemaRequest(c.Server, tenant, stepRun)
 	if err != nil {
 		return nil, err
@@ -3492,7 +3492,7 @@ func NewSnsUpdateRequest(server string, tenant openapi_types.UUID, event string)
 }
 
 // NewStepRunListArchivesRequest generates requests for StepRunListArchives
-func NewStepRunListArchivesRequest(server string, stepRun openapi_types.UUID, params *StepRunListArchivesParams) (*http.Request, error) {
+func NewStepRunListArchivesRequest(server string, stepRun string, params *StepRunListArchivesParams) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -3564,7 +3564,7 @@ func NewStepRunListArchivesRequest(server string, stepRun openapi_types.UUID, pa
 }
 
 // NewStepRunListEventsRequest generates requests for StepRunListEvents
-func NewStepRunListEventsRequest(server string, stepRun openapi_types.UUID, params *StepRunListEventsParams) (*http.Request, error) {
+func NewStepRunListEventsRequest(server string, stepRun string, params *StepRunListEventsParams) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -3636,7 +3636,7 @@ func NewStepRunListEventsRequest(server string, stepRun openapi_types.UUID, para
 }
 
 // NewLogLineListRequest generates requests for LogLineList
-func NewLogLineListRequest(server string, stepRun openapi_types.UUID, params *LogLineListParams) (*http.Request, error) {
+func NewLogLineListRequest(server string, stepRun string, params *LogLineListParams) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -4936,7 +4936,7 @@ func NewSnsCreateRequestWithBody(server string, tenant openapi_types.UUID, conte
 }
 
 // NewStepRunGetRequest generates requests for StepRunGet
-func NewStepRunGetRequest(server string, tenant openapi_types.UUID, stepRun openapi_types.UUID) (*http.Request, error) {
+func NewStepRunGetRequest(server string, tenant openapi_types.UUID, stepRun string) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -4977,7 +4977,7 @@ func NewStepRunGetRequest(server string, tenant openapi_types.UUID, stepRun open
 }
 
 // NewStepRunUpdateCancelRequest generates requests for StepRunUpdateCancel
-func NewStepRunUpdateCancelRequest(server string, tenant openapi_types.UUID, stepRun openapi_types.UUID) (*http.Request, error) {
+func NewStepRunUpdateCancelRequest(server string, tenant openapi_types.UUID, stepRun string) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -5018,7 +5018,7 @@ func NewStepRunUpdateCancelRequest(server string, tenant openapi_types.UUID, ste
 }
 
 // NewStepRunUpdateRerunRequest calls the generic StepRunUpdateRerun builder with application/json body
-func NewStepRunUpdateRerunRequest(server string, tenant openapi_types.UUID, stepRun openapi_types.UUID, body StepRunUpdateRerunJSONRequestBody) (*http.Request, error) {
+func NewStepRunUpdateRerunRequest(server string, tenant openapi_types.UUID, stepRun string, body StepRunUpdateRerunJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
@@ -5029,7 +5029,7 @@ func NewStepRunUpdateRerunRequest(server string, tenant openapi_types.UUID, step
 }
 
 // NewStepRunUpdateRerunRequestWithBody generates requests for StepRunUpdateRerun with any type of body
-func NewStepRunUpdateRerunRequestWithBody(server string, tenant openapi_types.UUID, stepRun openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
+func NewStepRunUpdateRerunRequestWithBody(server string, tenant openapi_types.UUID, stepRun string, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -5072,7 +5072,7 @@ func NewStepRunUpdateRerunRequestWithBody(server string, tenant openapi_types.UU
 }
 
 // NewStepRunGetSchemaRequest generates requests for StepRunGetSchema
-func NewStepRunGetSchemaRequest(server string, tenant openapi_types.UUID, stepRun openapi_types.UUID) (*http.Request, error) {
+func NewStepRunGetSchemaRequest(server string, tenant openapi_types.UUID, stepRun string) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -6883,13 +6883,13 @@ type ClientWithResponsesInterface interface {
 	SnsUpdateWithResponse(ctx context.Context, tenant openapi_types.UUID, event string, reqEditors ...RequestEditorFn) (*SnsUpdateResponse, error)
 
 	// StepRunListArchivesWithResponse request
-	StepRunListArchivesWithResponse(ctx context.Context, stepRun openapi_types.UUID, params *StepRunListArchivesParams, reqEditors ...RequestEditorFn) (*StepRunListArchivesResponse, error)
+	StepRunListArchivesWithResponse(ctx context.Context, stepRun string, params *StepRunListArchivesParams, reqEditors ...RequestEditorFn) (*StepRunListArchivesResponse, error)
 
 	// StepRunListEventsWithResponse request
-	StepRunListEventsWithResponse(ctx context.Context, stepRun openapi_types.UUID, params *StepRunListEventsParams, reqEditors ...RequestEditorFn) (*StepRunListEventsResponse, error)
+	StepRunListEventsWithResponse(ctx context.Context, stepRun string, params *StepRunListEventsParams, reqEditors ...RequestEditorFn) (*StepRunListEventsResponse, error)
 
 	// LogLineListWithResponse request
-	LogLineListWithResponse(ctx context.Context, stepRun openapi_types.UUID, params *LogLineListParams, reqEditors ...RequestEditorFn) (*LogLineListResponse, error)
+	LogLineListWithResponse(ctx context.Context, stepRun string, params *LogLineListParams, reqEditors ...RequestEditorFn) (*LogLineListResponse, error)
 
 	// TenantCreateWithBodyWithResponse request with any body
 	TenantCreateWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*TenantCreateResponse, error)
@@ -6984,18 +6984,18 @@ type ClientWithResponsesInterface interface {
 	SnsCreateWithResponse(ctx context.Context, tenant openapi_types.UUID, body SnsCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*SnsCreateResponse, error)
 
 	// StepRunGetWithResponse request
-	StepRunGetWithResponse(ctx context.Context, tenant openapi_types.UUID, stepRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*StepRunGetResponse, error)
+	StepRunGetWithResponse(ctx context.Context, tenant openapi_types.UUID, stepRun string, reqEditors ...RequestEditorFn) (*StepRunGetResponse, error)
 
 	// StepRunUpdateCancelWithResponse request
-	StepRunUpdateCancelWithResponse(ctx context.Context, tenant openapi_types.UUID, stepRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*StepRunUpdateCancelResponse, error)
+	StepRunUpdateCancelWithResponse(ctx context.Context, tenant openapi_types.UUID, stepRun string, reqEditors ...RequestEditorFn) (*StepRunUpdateCancelResponse, error)
 
 	// StepRunUpdateRerunWithBodyWithResponse request with any body
-	StepRunUpdateRerunWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, stepRun openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*StepRunUpdateRerunResponse, error)
+	StepRunUpdateRerunWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, stepRun string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*StepRunUpdateRerunResponse, error)
 
-	StepRunUpdateRerunWithResponse(ctx context.Context, tenant openapi_types.UUID, stepRun openapi_types.UUID, body StepRunUpdateRerunJSONRequestBody, reqEditors ...RequestEditorFn) (*StepRunUpdateRerunResponse, error)
+	StepRunUpdateRerunWithResponse(ctx context.Context, tenant openapi_types.UUID, stepRun string, body StepRunUpdateRerunJSONRequestBody, reqEditors ...RequestEditorFn) (*StepRunUpdateRerunResponse, error)
 
 	// StepRunGetSchemaWithResponse request
-	StepRunGetSchemaWithResponse(ctx context.Context, tenant openapi_types.UUID, stepRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*StepRunGetSchemaResponse, error)
+	StepRunGetSchemaWithResponse(ctx context.Context, tenant openapi_types.UUID, stepRun string, reqEditors ...RequestEditorFn) (*StepRunGetSchemaResponse, error)
 
 	// WebhookListWithResponse request
 	WebhookListWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*WebhookListResponse, error)
@@ -9144,7 +9144,7 @@ func (c *ClientWithResponses) SnsUpdateWithResponse(ctx context.Context, tenant 
 }
 
 // StepRunListArchivesWithResponse request returning *StepRunListArchivesResponse
-func (c *ClientWithResponses) StepRunListArchivesWithResponse(ctx context.Context, stepRun openapi_types.UUID, params *StepRunListArchivesParams, reqEditors ...RequestEditorFn) (*StepRunListArchivesResponse, error) {
+func (c *ClientWithResponses) StepRunListArchivesWithResponse(ctx context.Context, stepRun string, params *StepRunListArchivesParams, reqEditors ...RequestEditorFn) (*StepRunListArchivesResponse, error) {
 	rsp, err := c.StepRunListArchives(ctx, stepRun, params, reqEditors...)
 	if err != nil {
 		return nil, err
@@ -9153,7 +9153,7 @@ func (c *ClientWithResponses) StepRunListArchivesWithResponse(ctx context.Contex
 }
 
 // StepRunListEventsWithResponse request returning *StepRunListEventsResponse
-func (c *ClientWithResponses) StepRunListEventsWithResponse(ctx context.Context, stepRun openapi_types.UUID, params *StepRunListEventsParams, reqEditors ...RequestEditorFn) (*StepRunListEventsResponse, error) {
+func (c *ClientWithResponses) StepRunListEventsWithResponse(ctx context.Context, stepRun string, params *StepRunListEventsParams, reqEditors ...RequestEditorFn) (*StepRunListEventsResponse, error) {
 	rsp, err := c.StepRunListEvents(ctx, stepRun, params, reqEditors...)
 	if err != nil {
 		return nil, err
@@ -9162,7 +9162,7 @@ func (c *ClientWithResponses) StepRunListEventsWithResponse(ctx context.Context,
 }
 
 // LogLineListWithResponse request returning *LogLineListResponse
-func (c *ClientWithResponses) LogLineListWithResponse(ctx context.Context, stepRun openapi_types.UUID, params *LogLineListParams, reqEditors ...RequestEditorFn) (*LogLineListResponse, error) {
+func (c *ClientWithResponses) LogLineListWithResponse(ctx context.Context, stepRun string, params *LogLineListParams, reqEditors ...RequestEditorFn) (*LogLineListResponse, error) {
 	rsp, err := c.LogLineList(ctx, stepRun, params, reqEditors...)
 	if err != nil {
 		return nil, err
@@ -9467,7 +9467,7 @@ func (c *ClientWithResponses) SnsCreateWithResponse(ctx context.Context, tenant 
 }
 
 // StepRunGetWithResponse request returning *StepRunGetResponse
-func (c *ClientWithResponses) StepRunGetWithResponse(ctx context.Context, tenant openapi_types.UUID, stepRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*StepRunGetResponse, error) {
+func (c *ClientWithResponses) StepRunGetWithResponse(ctx context.Context, tenant openapi_types.UUID, stepRun string, reqEditors ...RequestEditorFn) (*StepRunGetResponse, error) {
 	rsp, err := c.StepRunGet(ctx, tenant, stepRun, reqEditors...)
 	if err != nil {
 		return nil, err
@@ -9476,7 +9476,7 @@ func (c *ClientWithResponses) StepRunGetWithResponse(ctx context.Context, tenant
 }
 
 // StepRunUpdateCancelWithResponse request returning *StepRunUpdateCancelResponse
-func (c *ClientWithResponses) StepRunUpdateCancelWithResponse(ctx context.Context, tenant openapi_types.UUID, stepRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*StepRunUpdateCancelResponse, error) {
+func (c *ClientWithResponses) StepRunUpdateCancelWithResponse(ctx context.Context, tenant openapi_types.UUID, stepRun string, reqEditors ...RequestEditorFn) (*StepRunUpdateCancelResponse, error) {
 	rsp, err := c.StepRunUpdateCancel(ctx, tenant, stepRun, reqEditors...)
 	if err != nil {
 		return nil, err
@@ -9485,7 +9485,7 @@ func (c *ClientWithResponses) StepRunUpdateCancelWithResponse(ctx context.Contex
 }
 
 // StepRunUpdateRerunWithBodyWithResponse request with arbitrary body returning *StepRunUpdateRerunResponse
-func (c *ClientWithResponses) StepRunUpdateRerunWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, stepRun openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*StepRunUpdateRerunResponse, error) {
+func (c *ClientWithResponses) StepRunUpdateRerunWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, stepRun string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*StepRunUpdateRerunResponse, error) {
 	rsp, err := c.StepRunUpdateRerunWithBody(ctx, tenant, stepRun, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
@@ -9493,7 +9493,7 @@ func (c *ClientWithResponses) StepRunUpdateRerunWithBodyWithResponse(ctx context
 	return ParseStepRunUpdateRerunResponse(rsp)
 }
 
-func (c *ClientWithResponses) StepRunUpdateRerunWithResponse(ctx context.Context, tenant openapi_types.UUID, stepRun openapi_types.UUID, body StepRunUpdateRerunJSONRequestBody, reqEditors ...RequestEditorFn) (*StepRunUpdateRerunResponse, error) {
+func (c *ClientWithResponses) StepRunUpdateRerunWithResponse(ctx context.Context, tenant openapi_types.UUID, stepRun string, body StepRunUpdateRerunJSONRequestBody, reqEditors ...RequestEditorFn) (*StepRunUpdateRerunResponse, error) {
 	rsp, err := c.StepRunUpdateRerun(ctx, tenant, stepRun, body, reqEditors...)
 	if err != nil {
 		return nil, err
@@ -9502,7 +9502,7 @@ func (c *ClientWithResponses) StepRunUpdateRerunWithResponse(ctx context.Context
 }
 
 // StepRunGetSchemaWithResponse request returning *StepRunGetSchemaResponse
-func (c *ClientWithResponses) StepRunGetSchemaWithResponse(ctx context.Context, tenant openapi_types.UUID, stepRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*StepRunGetSchemaResponse, error) {
+func (c *ClientWithResponses) StepRunGetSchemaWithResponse(ctx context.Context, tenant openapi_types.UUID, stepRun string, reqEditors ...RequestEditorFn) (*StepRunGetSchemaResponse, error) {
 	rsp, err := c.StepRunGetSchema(ctx, tenant, stepRun, reqEditors...)
 	if err != nil {
 		return nil, err

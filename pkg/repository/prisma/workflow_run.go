@@ -562,10 +562,12 @@ func listWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbsqlc.Q
 	}
 
 	if opts.ParentStepRunId != nil {
-		pgParentStepRunId := sqlchelpers.UUIDFromStr(*opts.ParentStepRunId)
-
-		queryParams.ParentStepRunId = pgParentStepRunId
-		countParams.ParentStepRunId = pgParentStepRunId
+		parentStepRunId := pgtype.Int8{
+			Int64: *opts.ParentStepRunId,
+			Valid: true,
+		}
+		queryParams.ParentStepRunId = parentStepRunId
+		countParams.ParentStepRunId = parentStepRunId
 	}
 
 	if opts.EventId != nil {
@@ -689,9 +691,10 @@ func workflowRunMetricsCount(ctx context.Context, pool *pgxpool.Pool, queries *d
 	}
 
 	if opts.ParentStepRunId != nil {
-		pgParentStepRunId := sqlchelpers.UUIDFromStr(*opts.ParentStepRunId)
-
-		queryParams.ParentStepRunId = pgParentStepRunId
+		queryParams.ParentStepRunId = pgtype.Int8{
+			Int64: *opts.ParentStepRunId,
+			Valid: true,
+		}
 	}
 
 	if opts.EventId != nil {

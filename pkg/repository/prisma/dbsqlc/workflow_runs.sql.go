@@ -61,8 +61,8 @@ WITH runs AS (
             runs."parentId" = $8::uuid
         ) AND
         (
-            $9::uuid IS NULL OR
-            runs."parentStepRunId" = $9::uuid
+            $9::BIGINT IS NULL OR
+            runs."parentStepRunId" = $9::BIGINT
         ) AND
         (
             $10::text IS NULL OR
@@ -105,7 +105,7 @@ type CountWorkflowRunsParams struct {
 	Ids                []pgtype.UUID    `json:"ids"`
 	AdditionalMetadata []byte           `json:"additionalMetadata"`
 	ParentId           pgtype.UUID      `json:"parentId"`
-	ParentStepRunId    pgtype.UUID      `json:"parentStepRunId"`
+	ParentStepRunId    pgtype.Int8      `json:"parentStepRunId"`
 	GroupKey           pgtype.Text      `json:"groupKey"`
 	Statuses           []string         `json:"statuses"`
 	CreatedAfter       pgtype.Timestamp `json:"createdAfter"`
@@ -333,7 +333,6 @@ func (q *Queries) CreateJobRuns(ctx context.Context, db DBTX, arg CreateJobRunsP
 
 const createStepRun = `-- name: CreateStepRun :one
 INSERT INTO "StepRun" (
-    "id",
     "createdAt",
     "updatedAt",
     "tenantId",
@@ -345,7 +344,6 @@ INSERT INTO "StepRun" (
     "priority"
 )
 SELECT
-    gen_random_uuid(),
     CURRENT_TIMESTAMP,
     CURRENT_TIMESTAMP,
     $1::uuid,
@@ -1426,8 +1424,8 @@ WHERE
         runs."parentId" = $8::uuid
     ) AND
     (
-        $9::uuid IS NULL OR
-        runs."parentStepRunId" = $9::uuid
+        $9::BIGINT IS NULL OR
+        runs."parentStepRunId" = $9::BIGINT
     ) AND
     (
         $10::text IS NULL OR
@@ -1474,7 +1472,7 @@ type ListWorkflowRunsParams struct {
 	Ids                []pgtype.UUID    `json:"ids"`
 	AdditionalMetadata []byte           `json:"additionalMetadata"`
 	ParentId           pgtype.UUID      `json:"parentId"`
-	ParentStepRunId    pgtype.UUID      `json:"parentStepRunId"`
+	ParentStepRunId    pgtype.Int8      `json:"parentStepRunId"`
 	GroupKey           pgtype.Text      `json:"groupKey"`
 	Statuses           []string         `json:"statuses"`
 	CreatedAfter       pgtype.Timestamp `json:"createdAfter"`
@@ -2204,8 +2202,8 @@ WHERE
         runs."parentId" = $5::uuid
     ) AND
     (
-        $6::uuid IS NULL OR
-        runs."parentStepRunId" = $6::uuid
+        $6::BIGINT IS NULL OR
+        runs."parentStepRunId" = $6::BIGINT
     ) AND
     (
         $7::jsonb IS NULL OR
@@ -2223,7 +2221,7 @@ type WorkflowRunsMetricsCountParams struct {
 	CreatedBefore      pgtype.Timestamp `json:"createdBefore"`
 	WorkflowId         pgtype.UUID      `json:"workflowId"`
 	ParentId           pgtype.UUID      `json:"parentId"`
-	ParentStepRunId    pgtype.UUID      `json:"parentStepRunId"`
+	ParentStepRunId    pgtype.Int8      `json:"parentStepRunId"`
 	AdditionalMetadata []byte           `json:"additionalMetadata"`
 	EventId            pgtype.UUID      `json:"eventId"`
 }

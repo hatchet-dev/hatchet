@@ -278,7 +278,6 @@ func (s *stepRunEngineRepository) ListRunningStepRunsForTicker(ctx context.Conte
 			StepRunStatus: dbsqlc.StepRunStatusRUNNING,
 			Valid:         true,
 		},
-		TickerId: sqlchelpers.UUIDFromStr(tickerId),
 	})
 
 	if err != nil {

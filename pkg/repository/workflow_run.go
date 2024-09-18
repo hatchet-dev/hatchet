@@ -267,7 +267,7 @@ type ListWorkflowRunsOpts struct {
 	ParentId *string `validate:"omitempty,uuid"`
 
 	// (optional) the parent step run id
-	ParentStepRunId *string `validate:"omitempty,uuid"`
+	ParentStepRunId *int64 `validate:"omitempty"`
 
 	// (optional) the event id that triggered the workflow run
 	EventId *string `validate:"omitempty,uuid"`
@@ -317,7 +317,7 @@ type WorkflowRunsMetricsOpts struct {
 	ParentId *string `validate:"omitempty,uuid"`
 
 	// (optional) the parent step run id
-	ParentStepRunId *string `validate:"omitempty,uuid"`
+	ParentStepRunId *int64 `validate:"omitempty,uuid"`
 
 	// (optional) the event id that triggered the workflow run
 	EventId *string `validate:"omitempty,uuid"`
