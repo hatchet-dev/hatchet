@@ -638,7 +638,7 @@ func (s *workflowRunEngineRepository) UpdateWorkflowRunFromGroupKeyEval(ctx cont
 		return fmt.Errorf("could not update workflow run group key from expr: %w", err)
 	}
 
-	defer insertWorkfowRunQueueItem( // nolint: errcheck
+	defer insertWorkflowRunQueueItem( // nolint: errcheck
 		ctx,
 		s.pool,
 		s.queries,
@@ -1211,7 +1211,7 @@ func isUniqueViolationOnDedupe(err error) bool {
 		strings.Contains(err.Error(), "SQLSTATE 23505")
 }
 
-func insertWorkfowRunQueueItem(
+func insertWorkflowRunQueueItem(
 	ctx context.Context,
 	dbtx dbsqlc.DBTX,
 	queries *dbsqlc.Queries,
