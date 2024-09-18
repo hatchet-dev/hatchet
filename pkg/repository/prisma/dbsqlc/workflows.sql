@@ -146,15 +146,17 @@ INSERT INTO "WorkflowConcurrency" (
     "workflowVersionId",
     "getConcurrencyGroupId",
     "maxRuns",
-    "limitStrategy"
+    "limitStrategy",
+    "concurrencyGroupExpression"
 ) VALUES (
     @id::uuid,
     coalesce(sqlc.narg('createdAt')::timestamp, CURRENT_TIMESTAMP),
     coalesce(sqlc.narg('updatedAt')::timestamp, CURRENT_TIMESTAMP),
     @workflowVersionId::uuid,
-    @getConcurrencyGroupId::uuid,
+    sqlc.narg('getConcurrencyGroupId')::uuid,
     coalesce(sqlc.narg('maxRuns')::integer, 1),
-    coalesce(sqlc.narg('limitStrategy')::"ConcurrencyLimitStrategy", 'CANCEL_IN_PROGRESS')
+    coalesce(sqlc.narg('limitStrategy')::"ConcurrencyLimitStrategy", 'CANCEL_IN_PROGRESS'),
+    sqlc.narg('concurrencyGroupExpression')::text
 ) RETURNING *;
 
 -- name: CreateJob :one
@@ -364,7 +366,9 @@ SELECT
     sqlc.embed(workflowVersions),
     w."name" as "workflowName",
     wc."limitStrategy" as "concurrencyLimitStrategy",
-    wc."maxRuns" as "concurrencyMaxRuns"
+    wc."maxRuns" as "concurrencyMaxRuns",
+    wc."getConcurrencyGroupId" as "concurrencyGroupId",
+    wc."concurrencyGroupExpression" as "concurrencyGroupExpression"
 FROM
     "WorkflowVersion" as workflowVersions
 JOIN

@@ -64,20 +64,22 @@ const (
 
 // Defines values for StepRunEventReason.
 const (
-	StepRunEventReasonASSIGNED           StepRunEventReason = "ASSIGNED"
-	StepRunEventReasonCANCELLED          StepRunEventReason = "CANCELLED"
-	StepRunEventReasonFAILED             StepRunEventReason = "FAILED"
-	StepRunEventReasonFINISHED           StepRunEventReason = "FINISHED"
-	StepRunEventReasonREASSIGNED         StepRunEventReason = "REASSIGNED"
-	StepRunEventReasonREQUEUEDNOWORKER   StepRunEventReason = "REQUEUED_NO_WORKER"
-	StepRunEventReasonREQUEUEDRATELIMIT  StepRunEventReason = "REQUEUED_RATE_LIMIT"
-	StepRunEventReasonRETRIEDBYUSER      StepRunEventReason = "RETRIED_BY_USER"
-	StepRunEventReasonRETRYING           StepRunEventReason = "RETRYING"
-	StepRunEventReasonSCHEDULINGTIMEDOUT StepRunEventReason = "SCHEDULING_TIMED_OUT"
-	StepRunEventReasonSLOTRELEASED       StepRunEventReason = "SLOT_RELEASED"
-	StepRunEventReasonSTARTED            StepRunEventReason = "STARTED"
-	StepRunEventReasonTIMEDOUT           StepRunEventReason = "TIMED_OUT"
-	StepRunEventReasonTIMEOUTREFRESHED   StepRunEventReason = "TIMEOUT_REFRESHED"
+	StepRunEventReasonASSIGNED                     StepRunEventReason = "ASSIGNED"
+	StepRunEventReasonCANCELLED                    StepRunEventReason = "CANCELLED"
+	StepRunEventReasonFAILED                       StepRunEventReason = "FAILED"
+	StepRunEventReasonFINISHED                     StepRunEventReason = "FINISHED"
+	StepRunEventReasonREASSIGNED                   StepRunEventReason = "REASSIGNED"
+	StepRunEventReasonREQUEUEDNOWORKER             StepRunEventReason = "REQUEUED_NO_WORKER"
+	StepRunEventReasonREQUEUEDRATELIMIT            StepRunEventReason = "REQUEUED_RATE_LIMIT"
+	StepRunEventReasonRETRIEDBYUSER                StepRunEventReason = "RETRIED_BY_USER"
+	StepRunEventReasonRETRYING                     StepRunEventReason = "RETRYING"
+	StepRunEventReasonSCHEDULINGTIMEDOUT           StepRunEventReason = "SCHEDULING_TIMED_OUT"
+	StepRunEventReasonSLOTRELEASED                 StepRunEventReason = "SLOT_RELEASED"
+	StepRunEventReasonSTARTED                      StepRunEventReason = "STARTED"
+	StepRunEventReasonTIMEDOUT                     StepRunEventReason = "TIMED_OUT"
+	StepRunEventReasonTIMEOUTREFRESHED             StepRunEventReason = "TIMEOUT_REFRESHED"
+	StepRunEventReasonWORKFLOWRUNGROUPKEYFAILED    StepRunEventReason = "WORKFLOW_RUN_GROUP_KEY_FAILED"
+	StepRunEventReasonWORKFLOWRUNGROUPKEYSUCCEEDED StepRunEventReason = "WORKFLOW_RUN_GROUP_KEY_SUCCEEDED"
 )
 
 // Defines values for StepRunEventSeverity.
@@ -666,9 +668,10 @@ type StepRunEvent struct {
 	Message       string                  `json:"message"`
 	Reason        StepRunEventReason      `json:"reason"`
 	Severity      StepRunEventSeverity    `json:"severity"`
-	StepRunId     string                  `json:"stepRunId"`
+	StepRunId     *string                 `json:"stepRunId,omitempty"`
 	TimeFirstSeen time.Time               `json:"timeFirstSeen"`
 	TimeLastSeen  time.Time               `json:"timeLastSeen"`
+	WorkflowRunId *string                 `json:"workflowRunId,omitempty"`
 }
 
 // StepRunEventList defines model for StepRunEventList.

@@ -183,7 +183,7 @@ updated AS (
             ORDER BY "id" DESC
             LIMIT 1
         )
-    RETURNING "StepRunEvent".id, "StepRunEvent"."timeFirstSeen", "StepRunEvent"."timeLastSeen", "StepRunEvent"."stepRunId", "StepRunEvent".reason, "StepRunEvent".severity, "StepRunEvent".message, "StepRunEvent".count, "StepRunEvent".data
+    RETURNING "StepRunEvent".id, "StepRunEvent"."timeFirstSeen", "StepRunEvent"."timeLastSeen", "StepRunEvent"."stepRunId", "StepRunEvent".reason, "StepRunEvent".severity, "StepRunEvent".message, "StepRunEvent".count, "StepRunEvent".data, "StepRunEvent"."workflowRunId"
 )
 INSERT INTO "StepRunEvent" (
     "timeFirstSeen",
@@ -514,7 +514,7 @@ updated AS (
             ORDER BY "id" DESC
             LIMIT 1
         )
-    RETURNING "StepRunEvent".id, "StepRunEvent"."timeFirstSeen", "StepRunEvent"."timeLastSeen", "StepRunEvent"."stepRunId", "StepRunEvent".reason, "StepRunEvent".severity, "StepRunEvent".message, "StepRunEvent".count, "StepRunEvent".data
+    RETURNING "StepRunEvent".id, "StepRunEvent"."timeFirstSeen", "StepRunEvent"."timeLastSeen", "StepRunEvent"."stepRunId", "StepRunEvent".reason, "StepRunEvent".severity, "StepRunEvent".message, "StepRunEvent".count, "StepRunEvent".data, "StepRunEvent"."workflowRunId"
 )
 INSERT INTO "StepRunEvent" (
     "timeFirstSeen",
@@ -1525,7 +1525,7 @@ func (q *Queries) ListStepRunArchives(ctx context.Context, db DBTX, arg ListStep
 
 const listStepRunEvents = `-- name: ListStepRunEvents :many
 SELECT
-    id, "timeFirstSeen", "timeLastSeen", "stepRunId", reason, severity, message, count, data
+    id, "timeFirstSeen", "timeLastSeen", "stepRunId", reason, severity, message, count, data, "workflowRunId"
 FROM
     "StepRunEvent"
 WHERE
@@ -1563,6 +1563,7 @@ func (q *Queries) ListStepRunEvents(ctx context.Context, db DBTX, arg ListStepRu
 			&i.Message,
 			&i.Count,
 			&i.Data,
+			&i.WorkflowRunId,
 		); err != nil {
 			return nil, err
 		}
@@ -1576,7 +1577,7 @@ func (q *Queries) ListStepRunEvents(ctx context.Context, db DBTX, arg ListStepRu
 
 const listStepRunEventsByWorkflowRunId = `-- name: ListStepRunEventsByWorkflowRunId :many
 SELECT
-    sre.id, sre."timeFirstSeen", sre."timeLastSeen", sre."stepRunId", sre.reason, sre.severity, sre.message, sre.count, sre.data
+    sre.id, sre."timeFirstSeen", sre."timeLastSeen", sre."stepRunId", sre.reason, sre.severity, sre.message, sre.count, sre.data, sre."workflowRunId"
 FROM
     "StepRunEvent" sre
 JOIN
@@ -1617,6 +1618,7 @@ func (q *Queries) ListStepRunEventsByWorkflowRunId(ctx context.Context, db DBTX,
 			&i.Message,
 			&i.Count,
 			&i.Data,
+			&i.WorkflowRunId,
 		); err != nil {
 			return nil, err
 		}

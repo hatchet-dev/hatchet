@@ -593,6 +593,9 @@ model WorkflowConcurrency {
   getConcurrencyGroup   Action? @relation(fields: [getConcurrencyGroupId], references: [id])
   getConcurrencyGroupId String? @db.Uuid
 
+  // A CEL expression for getting the concurrency group based on the input to the workflow.
+  concurrencyGroupExpression String?
+
   // the maximum number of concurrent workflow runs
   maxRuns Int @default(1)
 
@@ -1299,8 +1302,6 @@ model StepRun {
   childWorkflowRuns WorkflowRun[]
   childSchedules    WorkflowTriggerScheduledRef[]
 
-  events StepRunEvent[]
-
   @@index([tenantId])
   @@index([workerId])
   @@index([createdAt])
@@ -1352,6 +1353,7 @@ model QueueItem {
 enum InternalQueue {
   WORKER_SEMAPHORE_COUNT
   STEP_RUN_UPDATE
+  WORKFLOW_RUN_UPDATE
 }
 
 model InternalQueueItem {
@@ -1419,6 +1421,10 @@ enum StepRunEventReason {
   CANCELLED
   TIMEOUT_REFRESHED
   SLOT_RELEASED
+
+  // NOTE: not actually step run events, but the table is currently named StepRunEvent
+  WORKFLOW_RUN_GROUP_KEY_SUCCEEDED
+  WORKFLOW_RUN_GROUP_KEY_FAILED
 }
 
 enum StepRunEventSeverity {
@@ -1433,8 +1439,10 @@ model StepRunEvent {
   timeLastSeen  DateTime @default(now())
 
   // the parent step run
-  stepRun   StepRun @relation(fields: [stepRunId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  stepRunId String  @db.Uuid
+  stepRunId String? @db.Uuid
+
+  // the parent workflow run
+  workflowRunId String? @db.Uuid
 
   // the event reason
   reason StepRunEventReason
@@ -1448,9 +1456,8 @@ model StepRunEvent {
 
   data Json?
 
-  // id - timeFirstSeen uniue index
-
-  @@index([stepRunId]) // only on wfr id
+  @@index([stepRunId])
+  @@index([workflowRunId])
 }
 
 model StepRunResultArchive {

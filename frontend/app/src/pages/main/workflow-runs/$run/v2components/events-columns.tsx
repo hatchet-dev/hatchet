@@ -52,20 +52,25 @@ export const columns = ({
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title="Task" />
       ),
-      cell: ({ row }) => (
-        <div className="min-w-[120px] max-w-[180px]">
-          <Badge
-            className="cursor-pointer text-xs font-mono py-1 bg-[#ffffff] dark:bg-[#050c1c] border-[#050c1c] dark:border-gray-400"
-            variant="outline"
-            onClick={() => onRowClick(row.original)}
-          >
-            <ArrowLeftEndOnRectangleIcon className="w-4 h-4 mr-1" />
-            <div className="truncate max-w-[150px]">
-              {row.original.step?.readableId}
-            </div>
-          </Badge>
-        </div>
-      ),
+      cell: ({ row }) => {
+        if (!row.original.stepRun) {
+          return null;
+        }
+        return (
+          <div className="min-w-[120px] max-w-[180px]">
+            <Badge
+              className="cursor-pointer text-xs font-mono py-1 bg-[#ffffff] dark:bg-[#050c1c] border-[#050c1c] dark:border-gray-400"
+              variant="outline"
+              onClick={() => onRowClick(row.original)}
+            >
+              <ArrowLeftEndOnRectangleIcon className="w-4 h-4 mr-1" />
+              <div className="truncate max-w-[150px]">
+                {row.original.step?.readableId}
+              </div>
+            </Badge>
+          </div>
+        );
+      },
       enableSorting: false,
       enableHiding: false,
     });
@@ -171,6 +176,9 @@ const REASON_TO_TITLE: Record<StepRunEventReason, string> = {
   [StepRunEventReason.TIMED_OUT]: 'Execution timed out',
   [StepRunEventReason.SLOT_RELEASED]: 'Slot released',
   [StepRunEventReason.RETRIED_BY_USER]: 'Replayed by user',
+  [StepRunEventReason.WORKFLOW_RUN_GROUP_KEY_SUCCEEDED]:
+    'Successfully got group key',
+  [StepRunEventReason.WORKFLOW_RUN_GROUP_KEY_FAILED]: 'Failed to get group key',
 };
 
 function getTitleFromReason(reason: StepRunEventReason, message: string) {

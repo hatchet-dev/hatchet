@@ -11,6 +11,85 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const bulkCreateWorkflowRunEvent = `-- name: BulkCreateWorkflowRunEvent :exec
+WITH input_values AS (
+    SELECT
+        unnest($1::timestamp[]) AS "timeFirstSeen",
+        unnest($1::timestamp[]) AS "timeLastSeen",
+        unnest($2::uuid[]) AS "workflowRunId",
+        unnest(cast($3::text[] as"StepRunEventReason"[])) AS "reason",
+        unnest(cast($4::text[] as "StepRunEventSeverity"[])) AS "severity",
+        unnest($5::text[]) AS "message",
+        1 AS "count",
+        unnest($6::jsonb[]) AS "data"
+),
+updated AS (
+    UPDATE "StepRunEvent"
+    SET
+        "timeLastSeen" = input_values."timeLastSeen",
+        "message" = input_values."message",
+        "count" = "StepRunEvent"."count" + 1,
+        "data" = input_values."data"
+    FROM input_values
+    WHERE
+        "StepRunEvent"."workflowRunId" = input_values."workflowRunId"
+        AND "StepRunEvent"."reason" = input_values."reason"
+        AND "StepRunEvent"."severity" = input_values."severity"
+        AND "StepRunEvent"."id" = (
+            SELECT "id"
+            FROM "StepRunEvent"
+            WHERE "workflowRunId" = input_values."workflowRunId"
+            ORDER BY "id" DESC
+            LIMIT 1
+        )
+    RETURNING "StepRunEvent".id, "StepRunEvent"."timeFirstSeen", "StepRunEvent"."timeLastSeen", "StepRunEvent"."stepRunId", "StepRunEvent".reason, "StepRunEvent".severity, "StepRunEvent".message, "StepRunEvent".count, "StepRunEvent".data, "StepRunEvent"."workflowRunId"
+)
+INSERT INTO "StepRunEvent" (
+    "timeFirstSeen",
+    "timeLastSeen",
+    "workflowRunId",
+    "reason",
+    "severity",
+    "message",
+    "count",
+    "data"
+)
+SELECT
+    "timeFirstSeen",
+    "timeLastSeen",
+    "workflowRunId",
+    "reason",
+    "severity",
+    "message",
+    "count",
+    "data"
+FROM input_values
+WHERE NOT EXISTS (
+    SELECT 1 FROM updated WHERE "workflowRunId" = input_values."workflowRunId"
+)
+`
+
+type BulkCreateWorkflowRunEventParams struct {
+	Timeseen       []pgtype.Timestamp `json:"timeseen"`
+	Workflowrunids []pgtype.UUID      `json:"workflowrunids"`
+	Reasons        []string           `json:"reasons"`
+	Severities     []string           `json:"severities"`
+	Messages       []string           `json:"messages"`
+	Data           [][]byte           `json:"data"`
+}
+
+func (q *Queries) BulkCreateWorkflowRunEvent(ctx context.Context, db DBTX, arg BulkCreateWorkflowRunEventParams) error {
+	_, err := db.Exec(ctx, bulkCreateWorkflowRunEvent,
+		arg.Timeseen,
+		arg.Workflowrunids,
+		arg.Reasons,
+		arg.Severities,
+		arg.Messages,
+		arg.Data,
+	)
+	return err
+}
+
 const countWorkflowRuns = `-- name: CountWorkflowRuns :one
 WITH runs AS (
     SELECT runs."id", runs."createdAt"
@@ -889,6 +968,7 @@ SELECT
     -- waiting on https://github.com/sqlc-dev/sqlc/pull/2858 for nullable fields
     wc."limitStrategy" as "concurrencyLimitStrategy",
     wc."maxRuns" as "concurrencyMaxRuns",
+    wc."concurrencyGroupExpression" as "concurrencyGroupExpression",
     groupKeyRun."id" as "getGroupKeyRunId"
 FROM
     "WorkflowRun" as runs
@@ -916,13 +996,14 @@ type GetWorkflowRunParams struct {
 }
 
 type GetWorkflowRunRow struct {
-	WorkflowRun              WorkflowRun                  `json:"workflow_run"`
-	WorkflowRunTriggeredBy   WorkflowRunTriggeredBy       `json:"workflow_run_triggered_by"`
-	WorkflowVersion          WorkflowVersion              `json:"workflow_version"`
-	WorkflowName             pgtype.Text                  `json:"workflowName"`
-	ConcurrencyLimitStrategy NullConcurrencyLimitStrategy `json:"concurrencyLimitStrategy"`
-	ConcurrencyMaxRuns       pgtype.Int4                  `json:"concurrencyMaxRuns"`
-	GetGroupKeyRunId         pgtype.UUID                  `json:"getGroupKeyRunId"`
+	WorkflowRun                WorkflowRun                  `json:"workflow_run"`
+	WorkflowRunTriggeredBy     WorkflowRunTriggeredBy       `json:"workflow_run_triggered_by"`
+	WorkflowVersion            WorkflowVersion              `json:"workflow_version"`
+	WorkflowName               pgtype.Text                  `json:"workflowName"`
+	ConcurrencyLimitStrategy   NullConcurrencyLimitStrategy `json:"concurrencyLimitStrategy"`
+	ConcurrencyMaxRuns         pgtype.Int4                  `json:"concurrencyMaxRuns"`
+	ConcurrencyGroupExpression pgtype.Text                  `json:"concurrencyGroupExpression"`
+	GetGroupKeyRunId           pgtype.UUID                  `json:"getGroupKeyRunId"`
 }
 
 func (q *Queries) GetWorkflowRun(ctx context.Context, db DBTX, arg GetWorkflowRunParams) ([]*GetWorkflowRunRow, error) {
@@ -981,6 +1062,7 @@ func (q *Queries) GetWorkflowRun(ctx context.Context, db DBTX, arg GetWorkflowRu
 			&i.WorkflowName,
 			&i.ConcurrencyLimitStrategy,
 			&i.ConcurrencyMaxRuns,
+			&i.ConcurrencyGroupExpression,
 			&i.GetGroupKeyRunId,
 		); err != nil {
 			return nil, err
@@ -1357,6 +1439,48 @@ func (q *Queries) ListStepsForJob(ctx context.Context, db DBTX, jobrunid pgtype.
 	for rows.Next() {
 		var i ListStepsForJobRow
 		if err := rows.Scan(&i.ID, &i.ActionId); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWorkflowRunEventsByWorkflowRunId = `-- name: ListWorkflowRunEventsByWorkflowRunId :many
+SELECT
+    sre.id, sre."timeFirstSeen", sre."timeLastSeen", sre."stepRunId", sre.reason, sre.severity, sre.message, sre.count, sre.data, sre."workflowRunId"
+FROM
+    "StepRunEvent" sre
+WHERE
+    sre."workflowRunId" = $1::uuid
+ORDER BY
+    sre."id" DESC
+`
+
+func (q *Queries) ListWorkflowRunEventsByWorkflowRunId(ctx context.Context, db DBTX, workflowrunid pgtype.UUID) ([]*StepRunEvent, error) {
+	rows, err := db.Query(ctx, listWorkflowRunEventsByWorkflowRunId, workflowrunid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*StepRunEvent
+	for rows.Next() {
+		var i StepRunEvent
+		if err := rows.Scan(
+			&i.ID,
+			&i.TimeFirstSeen,
+			&i.TimeLastSeen,
+			&i.StepRunId,
+			&i.Reason,
+			&i.Severity,
+			&i.Message,
+			&i.Count,
+			&i.Data,
+			&i.WorkflowRunId,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)
@@ -2070,7 +2194,45 @@ func (q *Queries) UpdateWorkflowRun(ctx context.Context, db DBTX, arg UpdateWork
 	return &i, err
 }
 
-const updateWorkflowRunGroupKey = `-- name: UpdateWorkflowRunGroupKey :one
+const updateWorkflowRunGroupKeyFromExpr = `-- name: UpdateWorkflowRunGroupKeyFromExpr :one
+UPDATE "WorkflowRun" wr
+SET "error" = CASE
+    -- Final states are final, cannot be updated. We also can't move out of a queued state
+    WHEN "status" IN ('SUCCEEDED', 'FAILED', 'QUEUED') THEN "error"
+    WHEN $1::text IS NOT NULL THEN $1::text
+    ELSE "error"
+END,
+"status" = CASE
+    -- Final states are final, cannot be updated. We also can't move out of a queued state
+    WHEN "status" IN ('SUCCEEDED', 'FAILED', 'QUEUED') THEN "status"
+    -- When the concurrency expression errored, then the workflow is failed
+    WHEN $1::text IS NOT NULL THEN 'FAILED'
+    -- When the expression evaluated successfully, then queue the workflow run
+    ELSE 'QUEUED'
+END,
+"concurrencyGroupId" = CASE
+    WHEN $2::text IS NOT NULL THEN $2::text
+    ELSE "concurrencyGroupId"
+END
+WHERE
+    wr."id" = $3::uuid
+RETURNING wr."id"
+`
+
+type UpdateWorkflowRunGroupKeyFromExprParams struct {
+	Error              pgtype.Text `json:"error"`
+	ConcurrencyGroupId pgtype.Text `json:"concurrencyGroupId"`
+	Workflowrunid      pgtype.UUID `json:"workflowrunid"`
+}
+
+func (q *Queries) UpdateWorkflowRunGroupKeyFromExpr(ctx context.Context, db DBTX, arg UpdateWorkflowRunGroupKeyFromExprParams) (pgtype.UUID, error) {
+	row := db.QueryRow(ctx, updateWorkflowRunGroupKeyFromExpr, arg.Error, arg.ConcurrencyGroupId, arg.Workflowrunid)
+	var id pgtype.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
+const updateWorkflowRunGroupKeyFromRun = `-- name: UpdateWorkflowRunGroupKeyFromRun :one
 WITH groupKeyRun AS (
     SELECT "id", "status" as groupKeyRunStatus, "output", "workflowRunId"
     FROM "GetGroupKeyRun" as groupKeyRun
@@ -2111,13 +2273,13 @@ workflowRun."tenantId" = $1::uuid
 RETURNING workflowrun."createdAt", workflowrun."updatedAt", workflowrun."deletedAt", workflowrun."tenantId", workflowrun."workflowVersionId", workflowrun.status, workflowrun.error, workflowrun."startedAt", workflowrun."finishedAt", workflowrun."concurrencyGroupId", workflowrun."displayName", workflowrun.id, workflowrun."childIndex", workflowrun."childKey", workflowrun."parentId", workflowrun."parentStepRunId", workflowrun."additionalMetadata", workflowrun.duration, workflowrun.priority
 `
 
-type UpdateWorkflowRunGroupKeyParams struct {
+type UpdateWorkflowRunGroupKeyFromRunParams struct {
 	Tenantid      pgtype.UUID `json:"tenantid"`
 	Groupkeyrunid pgtype.UUID `json:"groupkeyrunid"`
 }
 
-func (q *Queries) UpdateWorkflowRunGroupKey(ctx context.Context, db DBTX, arg UpdateWorkflowRunGroupKeyParams) (*WorkflowRun, error) {
-	row := db.QueryRow(ctx, updateWorkflowRunGroupKey, arg.Tenantid, arg.Groupkeyrunid)
+func (q *Queries) UpdateWorkflowRunGroupKeyFromRun(ctx context.Context, db DBTX, arg UpdateWorkflowRunGroupKeyFromRunParams) (*WorkflowRun, error) {
+	row := db.QueryRow(ctx, updateWorkflowRunGroupKeyFromRun, arg.Tenantid, arg.Groupkeyrunid)
 	var i WorkflowRun
 	err := row.Scan(
 		&i.CreatedAt,

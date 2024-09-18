@@ -155,11 +155,21 @@ func (s *stepRunAPIRepository) ListStepRunEventsByWorkflowRunId(ctx context.Cont
 		}
 	}
 
-	events, err := s.queries.ListStepRunEventsByWorkflowRunId(context.Background(), tx, listParams)
+	allEvents, err := s.queries.ListWorkflowRunEventsByWorkflowRunId(ctx, tx, sqlchelpers.UUIDFromStr(workflowRunId))
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			events = make([]*dbsqlc.StepRunEvent, 0)
+			allEvents = make([]*dbsqlc.StepRunEvent, 0)
+		} else {
+			return nil, fmt.Errorf("could not list workflow run events: %w", err)
+		}
+	}
+
+	srEvents, err := s.queries.ListStepRunEventsByWorkflowRunId(context.Background(), tx, listParams)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			srEvents = make([]*dbsqlc.StepRunEvent, 0)
 		} else {
 			return nil, fmt.Errorf("could not list step run events: %w", err)
 		}
@@ -171,8 +181,15 @@ func (s *stepRunAPIRepository) ListStepRunEventsByWorkflowRunId(ctx context.Cont
 		return nil, fmt.Errorf("could not commit transaction: %w", err)
 	}
 
+	allEvents = append(allEvents, srEvents...)
+
+	// sort all events by id asc
+	sort.Slice(allEvents, func(i, j int) bool {
+		return allEvents[i].ID > allEvents[j].ID
+	})
+
 	return &repository.ListStepRunEventResult{
-		Rows: events,
+		Rows: allEvents,
 	}, nil
 }
 
@@ -412,7 +429,7 @@ func (s *stepRunEngineRepository) ListStepRunsToReassign(ctx context.Context, te
 		data[i] = map[string]interface{}{"worker_id": workerId}
 	}
 
-	deferredBulkStepRunEvents(
+	bulkStepRunEvents(
 		ctx,
 		s.l,
 		s.pool,
@@ -629,6 +646,7 @@ func deferredStepRunEvent(
 }
 
 func (s *stepRunEngineRepository) bulkStepRunsAssigned(
+	assignedAt time.Time,
 	stepRunIds []pgtype.UUID,
 	workerIds []pgtype.UUID,
 ) {
@@ -651,7 +669,7 @@ func (s *stepRunEngineRepository) bulkStepRunsAssigned(
 
 		workerIdToStepRunIds[workerId] = append(workerIdToStepRunIds[workerId], sqlchelpers.UUIDToStr(stepRunIds[i]))
 		messages[i] = fmt.Sprintf("Assigned to worker %s", workerId)
-		timeSeen[i] = sqlchelpers.TimestampFromTime(time.Now().UTC())
+		timeSeen[i] = sqlchelpers.TimestampFromTime(assignedAt)
 		reasons[i] = dbsqlc.StepRunEventReasonASSIGNED
 		severities[i] = dbsqlc.StepRunEventSeverityINFO
 		data[i] = map[string]interface{}{"worker_id": workerId}
@@ -675,7 +693,7 @@ func (s *stepRunEngineRepository) bulkStepRunsAssigned(
 		s.l.Err(err).Msg("could not create worker assign events")
 	}
 
-	deferredBulkStepRunEvents(
+	bulkStepRunEvents(
 		ctx,
 		s.l,
 		s.pool,
@@ -710,7 +728,7 @@ func (s *stepRunEngineRepository) bulkStepRunsUnassigned(
 		data[i] = map[string]interface{}{}
 	}
 
-	deferredBulkStepRunEvents(
+	bulkStepRunEvents(
 		ctx,
 		s.l,
 		s.pool,
@@ -745,7 +763,7 @@ func (s *stepRunEngineRepository) bulkStepRunsRateLimited(
 		data[i] = map[string]interface{}{}
 	}
 
-	deferredBulkStepRunEvents(
+	bulkStepRunEvents(
 		ctx,
 		s.l,
 		s.pool,
@@ -759,7 +777,7 @@ func (s *stepRunEngineRepository) bulkStepRunsRateLimited(
 	)
 }
 
-func deferredBulkStepRunEvents(
+func bulkStepRunEvents(
 	ctx context.Context,
 	l *zerolog.Logger,
 	dbtx dbsqlc.DBTX,
@@ -1286,7 +1304,7 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, qlp *zerolo
 		return emptyRes, fmt.Errorf("could not commit transaction: %w", err)
 	}
 
-	defer s.bulkStepRunsAssigned(plan.StepRunIds, plan.WorkerIds)
+	defer s.bulkStepRunsAssigned(time.Now().UTC(), plan.StepRunIds, plan.WorkerIds)
 	defer s.bulkStepRunsUnassigned(plan.UnassignedStepRunIds)
 	defer s.bulkStepRunsRateLimited(plan.RateLimitedStepRuns)
 
@@ -1587,7 +1605,7 @@ func (s *stepRunEngineRepository) ProcessStepRunUpdates(ctx context.Context, qlp
 	startRunEvents := time.Now()
 
 	// NOTE: actually not deferred
-	deferredBulkStepRunEvents(ctx, s.l, tx, s.queries, eventStepRunIds, eventTimeSeen, eventReasons, eventSeverities, eventMessages, eventData)
+	bulkStepRunEvents(ctx, s.l, tx, s.queries, eventStepRunIds, eventTimeSeen, eventReasons, eventSeverities, eventMessages, eventData)
 
 	durationRunEvents := time.Since(startRunEvents)
 

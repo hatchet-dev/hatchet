@@ -73,7 +73,7 @@ func (w *workflowRunAPIRepository) WorkflowRunMetricsCount(ctx context.Context, 
 	return workflowRunMetricsCount(context.Background(), w.pool, w.queries, tenantId, opts)
 }
 
-func (w *workflowRunAPIRepository) GetWorkflowRunInputData(tenantId, workflowRunId string) (map[string]interface{}, error) {
+func (w *workflowRunEngineRepository) GetWorkflowRunInputData(tenantId, workflowRunId string) (map[string]interface{}, error) {
 	lookupData := datautils.JobRunLookupData{}
 
 	jsonBytes, err := w.queries.GetWorkflowRunInput(
@@ -107,22 +107,125 @@ func (w *workflowRunAPIRepository) CreateNewWorkflowRun(ctx context.Context, ten
 
 		id := sqlchelpers.UUIDToStr(workflowRun.ID)
 
-		// res, err := w.client.WorkflowRun.FindUnique(
-		// 	db.WorkflowRun.ID.Equals(id),
-		// ).With(
-		// 	defaultWorkflowRunPopulator()...,
-		// ).Exec(context.Background())
-
-		// if err != nil {
-		// 	return nil, nil, err
-		// }
-
 		for _, cb := range w.callbacks {
 			cb.Do(workflowRun) // nolint: errcheck
 		}
 
 		return &id, workflowRun, nil
 	})
+}
+
+type updateWorkflowRunQueueData struct {
+	WorkflowRunId string `json:"workflow_run_id"`
+
+	Event *repository.CreateStepRunEventOpts `json:"event,omitempty"`
+}
+
+func (w *workflowRunEngineRepository) ProcessWorkflowRunUpdates(ctx context.Context, tenantId string) (bool, error) {
+	ctx, span := telemetry.NewSpan(ctx, "process-workflow-run-updates-database")
+	defer span.End()
+
+	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
+
+	limit := 100
+
+	tx, commit, rollback, err := prepareTx(ctx, w.pool, w.l, 25000)
+
+	if err != nil {
+		return false, err
+	}
+
+	defer rollback()
+
+	// list queues
+	queueItems, err := w.queries.ListInternalQueueItems(ctx, tx, dbsqlc.ListInternalQueueItemsParams{
+		Tenantid: pgTenantId,
+		Queue:    dbsqlc.InternalQueueWORKFLOWRUNUPDATE,
+		Limit: pgtype.Int4{
+			Int32: int32(limit),
+			Valid: true,
+		},
+	})
+
+	if err != nil {
+		return false, fmt.Errorf("could not list internal queue items: %w", err)
+	}
+
+	data, err := toQueueItemData[updateWorkflowRunQueueData](queueItems)
+
+	if err != nil {
+		return false, fmt.Errorf("could not convert internal queue item data to worker semaphore queue data: %w", err)
+	}
+
+	eventTimeSeen := make([]pgtype.Timestamp, 0, len(data))
+	eventReasons := make([]dbsqlc.StepRunEventReason, 0, len(data))
+	eventWorkflowRunIds := make([]pgtype.UUID, 0, len(data))
+	eventSeverities := make([]dbsqlc.StepRunEventSeverity, 0, len(data))
+	eventMessages := make([]string, 0, len(data))
+	eventData := make([]map[string]interface{}, 0, len(data))
+	dedupe := make(map[string]bool)
+
+	for _, item := range data {
+		workflowRunId := sqlchelpers.UUIDFromStr(item.WorkflowRunId)
+
+		if item.Event.EventMessage == nil || item.Event.EventReason == nil {
+			continue
+		}
+
+		dedupeKey := fmt.Sprintf("EVENT-%s-%s", item.WorkflowRunId, *item.Event.EventReason)
+
+		if _, ok := dedupe[dedupeKey]; ok {
+			continue
+		}
+
+		dedupe[dedupeKey] = true
+
+		eventWorkflowRunIds = append(eventWorkflowRunIds, workflowRunId)
+		eventMessages = append(eventMessages, *item.Event.EventMessage)
+		eventReasons = append(eventReasons, *item.Event.EventReason)
+
+		if item.Event.EventSeverity != nil {
+			eventSeverities = append(eventSeverities, *item.Event.EventSeverity)
+		} else {
+			eventSeverities = append(eventSeverities, dbsqlc.StepRunEventSeverityINFO)
+		}
+
+		if item.Event.EventData != nil {
+			eventData = append(eventData, item.Event.EventData)
+		} else {
+			eventData = append(eventData, map[string]interface{}{})
+		}
+
+		if item.Event.Timestamp != nil {
+			eventTimeSeen = append(eventTimeSeen, sqlchelpers.TimestampFromTime(*item.Event.Timestamp))
+		} else {
+			eventTimeSeen = append(eventTimeSeen, sqlchelpers.TimestampFromTime(time.Now().UTC()))
+		}
+	}
+
+	qiIds := make([]int64, 0, len(data))
+
+	for _, item := range queueItems {
+		qiIds = append(qiIds, item.ID)
+	}
+
+	// update the processed semaphore queue items
+	err = w.queries.MarkInternalQueueItemsProcessed(ctx, tx, qiIds)
+
+	if err != nil {
+		return false, fmt.Errorf("could not mark worker semaphore queue items processed: %w", err)
+	}
+
+	// NOTE: actually not deferred
+	bulkWorkflowRunEvents(ctx, w.l, tx, w.queries, eventWorkflowRunIds, eventTimeSeen, eventReasons, eventSeverities, eventMessages, eventData)
+
+	err = commit(ctx)
+
+	if err != nil {
+		return false, fmt.Errorf("could not commit transaction: %w", err)
+	}
+
+	return len(queueItems) == limit, nil
 }
 
 func (w *workflowRunAPIRepository) GetWorkflowRunById(ctx context.Context, tenantId, id string) (*dbsqlc.GetWorkflowRunByIdRow, error) {
@@ -492,6 +595,61 @@ func (s *workflowRunEngineRepository) ReplayWorkflowRun(ctx context.Context, ten
 	}
 
 	return workflowRuns[0], nil
+}
+
+func (s *workflowRunEngineRepository) UpdateWorkflowRunFromGroupKeyEval(ctx context.Context, tenantId, workflowRunId string, opts *repository.UpdateWorkflowRunFromGroupKeyEvalOpts) error {
+	if err := s.v.Validate(opts); err != nil {
+		return err
+	}
+
+	pgWorkflowRunId := sqlchelpers.UUIDFromStr(workflowRunId)
+
+	updateParams := dbsqlc.UpdateWorkflowRunGroupKeyFromExprParams{
+		Workflowrunid: pgWorkflowRunId,
+	}
+
+	eventParams := repository.CreateStepRunEventOpts{}
+
+	if opts.GroupKey != nil {
+		updateParams.ConcurrencyGroupId = sqlchelpers.TextFromStr(*opts.GroupKey)
+
+		now := time.Now().UTC()
+
+		eventParams.EventReason = repository.StepRunEventReasonPtr(dbsqlc.StepRunEventReasonWORKFLOWRUNGROUPKEYSUCCEEDED)
+		eventParams.EventSeverity = repository.StepRunEventSeverityPtr(dbsqlc.StepRunEventSeverityINFO)
+		eventParams.EventMessage = repository.StringPtr(fmt.Sprintf("Workflow run group key evaluated as %s", *opts.GroupKey))
+		eventParams.Timestamp = &now
+	}
+
+	if opts.Error != nil {
+		updateParams.Error = sqlchelpers.TextFromStr(*opts.Error)
+
+		now := time.Now().UTC()
+
+		eventParams.EventReason = repository.StepRunEventReasonPtr(dbsqlc.StepRunEventReasonWORKFLOWRUNGROUPKEYFAILED)
+		eventParams.EventSeverity = repository.StepRunEventSeverityPtr(dbsqlc.StepRunEventSeverityCRITICAL)
+		eventParams.EventMessage = repository.StringPtr(fmt.Sprintf("Error evaluating workflow run group key: %s", *opts.Error))
+		eventParams.Timestamp = &now
+	}
+
+	_, err := s.queries.UpdateWorkflowRunGroupKeyFromExpr(ctx, s.pool, updateParams)
+
+	if err != nil {
+		return fmt.Errorf("could not update workflow run group key from expr: %w", err)
+	}
+
+	defer insertWorkfowRunQueueItem( // nolint: errcheck
+		ctx,
+		s.pool,
+		s.queries,
+		tenantId,
+		updateWorkflowRunQueueData{
+			WorkflowRunId: workflowRunId,
+			Event:         &eventParams,
+		},
+	)
+
+	return nil
 }
 
 func listWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbsqlc.Queries, l *zerolog.Logger, tenantId string, opts *repository.ListWorkflowRunsOpts) (*repository.ListWorkflowRunsResult, error) {
@@ -1044,37 +1202,6 @@ func createNewWorkflowRun(ctx context.Context, pool *pgxpool.Pool, queries *dbsq
 	return sqlcWorkflowRun, nil
 }
 
-func defaultWorkflowRunPopulator() []db.WorkflowRunRelationWith {
-	return []db.WorkflowRunRelationWith{
-		db.WorkflowRun.WorkflowVersion.Fetch().With(
-			db.WorkflowVersion.Workflow.Fetch(),
-			db.WorkflowVersion.Concurrency.Fetch().With(
-				db.WorkflowConcurrency.GetConcurrencyGroup.Fetch(),
-			),
-		),
-		db.WorkflowRun.GetGroupKeyRun.Fetch(),
-		db.WorkflowRun.TriggeredBy.Fetch().With(
-			db.WorkflowRunTriggeredBy.Event.Fetch(),
-			db.WorkflowRunTriggeredBy.Cron.Fetch(),
-		),
-		db.WorkflowRun.JobRuns.Fetch().With(
-			db.JobRun.Job.Fetch().With(
-				db.Job.Steps.Fetch().With(
-					db.Step.Action.Fetch(),
-					db.Step.Parents.Fetch(),
-				),
-			),
-			db.JobRun.StepRuns.Fetch().With(
-				db.StepRun.ChildWorkflowRuns.Fetch(),
-				db.StepRun.Step.Fetch().With(
-					db.Step.Action.Fetch(),
-					db.Step.Parents.Fetch(),
-				),
-			),
-		),
-	}
-}
-
 func isUniqueViolationOnDedupe(err error) bool {
 	if err == nil {
 		return false
@@ -1082,4 +1209,73 @@ func isUniqueViolationOnDedupe(err error) bool {
 
 	return strings.Contains(err.Error(), "WorkflowRunDedupe_tenantId_workflowId_value_key") &&
 		strings.Contains(err.Error(), "SQLSTATE 23505")
+}
+
+func insertWorkfowRunQueueItem(
+	ctx context.Context,
+	dbtx dbsqlc.DBTX,
+	queries *dbsqlc.Queries,
+	tenantId string,
+	data updateWorkflowRunQueueData,
+) error {
+	insertData := make([]any, 1)
+	insertData[0] = data
+
+	return bulkInsertInternalQueueItem(
+		ctx,
+		dbtx,
+		queries,
+		tenantId,
+		dbsqlc.InternalQueueWORKFLOWRUNUPDATE,
+		insertData,
+	)
+}
+
+func bulkWorkflowRunEvents(
+	ctx context.Context,
+	l *zerolog.Logger,
+	dbtx dbsqlc.DBTX,
+	queries *dbsqlc.Queries,
+	workflowRunIds []pgtype.UUID,
+	timeSeen []pgtype.Timestamp,
+	reasons []dbsqlc.StepRunEventReason,
+	severities []dbsqlc.StepRunEventSeverity,
+	messages []string,
+	data []map[string]interface{},
+) {
+	inputData := [][]byte{}
+	inputReasons := []string{}
+	inputSeverities := []string{}
+
+	for _, d := range data {
+		dataBytes, err := json.Marshal(d)
+
+		if err != nil {
+			l.Err(err).Msg("could not marshal deferred step run event data")
+			return
+		}
+
+		inputData = append(inputData, dataBytes)
+	}
+
+	for _, r := range reasons {
+		inputReasons = append(inputReasons, string(r))
+	}
+
+	for _, s := range severities {
+		inputSeverities = append(inputSeverities, string(s))
+	}
+
+	err := queries.BulkCreateWorkflowRunEvent(ctx, dbtx, dbsqlc.BulkCreateWorkflowRunEventParams{
+		Workflowrunids: workflowRunIds,
+		Reasons:        inputReasons,
+		Severities:     inputSeverities,
+		Messages:       messages,
+		Data:           inputData,
+		Timeseen:       timeSeen,
+	})
+
+	if err != nil {
+		l.Err(err).Msg("could not create deferred step run event")
+	}
 }

@@ -501,6 +501,7 @@ func (d *DispatcherImpl) handleStepRunAssignedTask(ctx context.Context, task *ms
 	}
 
 	if success {
+		now := time.Now().UTC()
 		defer d.repo.StepRun().DeferredStepRunEvent(
 			metadata.TenantId,
 			sqlchelpers.UUIDToStr(stepRun.SRID),
@@ -508,6 +509,7 @@ func (d *DispatcherImpl) handleStepRunAssignedTask(ctx context.Context, task *ms
 				EventMessage:  repository.StringPtr("Sent step run to the assigned worker"),
 				EventReason:   repository.StepRunEventReasonPtr(dbsqlc.StepRunEventReasonSENTTOWORKER),
 				EventSeverity: repository.StepRunEventSeverityPtr(dbsqlc.StepRunEventSeverityINFO),
+				Timestamp:     &now,
 			},
 		)
 
