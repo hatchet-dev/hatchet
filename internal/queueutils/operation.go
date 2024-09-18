@@ -2,7 +2,6 @@ package queueutils
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"time"
 
@@ -63,7 +62,6 @@ func (o *SerialOperation) Run(ql *zerolog.Logger) {
 
 		for o.getContinue() {
 			f()
-			fmt.Println(o.getContinue())
 		}
 	}()
 }

@@ -104,8 +104,6 @@ func (p *CELParser) ParseAndEvalWorkflowString(workflowExp string, in WorkflowSt
 		return "", err
 	}
 
-	fmt.Println("IN IS", in)
-
 	var inMap map[string]interface{} = in
 
 	out, _, err := prg.Eval(inMap)
