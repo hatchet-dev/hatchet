@@ -113,9 +113,9 @@ ALTER TABLE "_StepRunOrder" RENAME COLUMN "B_bigint" TO "B";
 ALTER TABLE "StepRun" RENAME COLUMN "id" TO "id_uuid";
 ALTER TABLE "StepRun" RENAME COLUMN "id_bigint" TO "id";
 
-ALTER TABLE "StepRun" ALTER COLUMN "id_uuid" DROP NOT NULL;
 
 ALTER TABLE "StepRun" DROP CONSTRAINT IF EXISTS "StepRun_pkey";
+ALTER TABLE "StepRun" ALTER COLUMN "id_uuid" DROP NOT NULL;
 ALTER TABLE "StepRun" ADD PRIMARY KEY ("id");
 ALTER TABLE "StepRun" ALTER COLUMN "id" SET DEFAULT nextval('"StepRun_id_seq"');
 
