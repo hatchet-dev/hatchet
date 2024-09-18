@@ -1196,7 +1196,7 @@ enum StepRunStatus {
 
 model StepRun {
   // base fields
-  id_uuid String @default(uuid()) @db.Uuid
+  id_uuid String? @db.Uuid
 
   id BigInt @id @default(autoincrement()) @db.BigInt
 

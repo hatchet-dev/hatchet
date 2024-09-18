@@ -385,7 +385,7 @@ CREATE TABLE "StepRun" (
     "semaphoreReleased" BOOLEAN NOT NULL DEFAULT false,
     "queue" TEXT NOT NULL DEFAULT 'default',
     "priority" INTEGER,
-    "id_uuid" UUID NOT NULL,
+    "id_uuid" UUID,
     "id" BIGSERIAL NOT NULL,
 
     CONSTRAINT "StepRun_pkey" PRIMARY KEY ("id")
