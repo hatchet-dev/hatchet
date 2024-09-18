@@ -454,7 +454,7 @@ FROM
     active_scheduled_workflows
 WHERE
     scheduledWorkflows."id" = active_scheduled_workflows."id"
-RETURNING scheduledworkflows.id, scheduledworkflows."parentId", scheduledworkflows."triggerAt", scheduledworkflows."tickerId", scheduledworkflows.input, scheduledworkflows."childIndex", scheduledworkflows."childKey", scheduledworkflows."parentStepRunId", scheduledworkflows."parentWorkflowRunId", active_scheduled_workflows."workflowVersionId", active_scheduled_workflows."tenantId"
+RETURNING scheduledworkflows.id, scheduledworkflows."parentId", scheduledworkflows."triggerAt", scheduledworkflows."tickerId", scheduledworkflows.input, scheduledworkflows."childIndex", scheduledworkflows."childKey", scheduledworkflows."parentWorkflowRunId", scheduledworkflows."parentStepRunId", active_scheduled_workflows."workflowVersionId", active_scheduled_workflows."tenantId"
 `
 
 type PollScheduledWorkflowsRow struct {
@@ -465,8 +465,8 @@ type PollScheduledWorkflowsRow struct {
 	Input               []byte           `json:"input"`
 	ChildIndex          pgtype.Int4      `json:"childIndex"`
 	ChildKey            pgtype.Text      `json:"childKey"`
-	ParentStepRunId     pgtype.UUID      `json:"parentStepRunId"`
 	ParentWorkflowRunId pgtype.UUID      `json:"parentWorkflowRunId"`
+	ParentStepRunId     pgtype.Int8      `json:"parentStepRunId"`
 	WorkflowVersionId   pgtype.UUID      `json:"workflowVersionId"`
 	TenantId            pgtype.UUID      `json:"tenantId"`
 }
@@ -490,8 +490,8 @@ func (q *Queries) PollScheduledWorkflows(ctx context.Context, db DBTX, tickerid 
 			&i.Input,
 			&i.ChildIndex,
 			&i.ChildKey,
-			&i.ParentStepRunId,
 			&i.ParentWorkflowRunId,
+			&i.ParentStepRunId,
 			&i.WorkflowVersionId,
 			&i.TenantId,
 		); err != nil {
@@ -719,7 +719,7 @@ WHERE
 `
 
 type PollUnresolvedFailedStepRunsRow struct {
-	ID       pgtype.UUID `json:"id"`
+	ID       int64       `json:"id"`
 	TenantId pgtype.UUID `json:"tenantId"`
 }
 

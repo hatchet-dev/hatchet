@@ -922,38 +922,3 @@ func (r *workflowEngineRepository) createJobTx(ctx context.Context, tx pgx.Tx, t
 
 	return jobId, nil
 }
-
-func defaultWorkflowPopulator() []db.WorkflowRelationWith {
-	return []db.WorkflowRelationWith{
-		db.Workflow.Tags.Fetch(),
-		db.Workflow.Versions.Fetch().OrderBy(
-			db.WorkflowVersion.Order.Order(db.SortOrderDesc),
-		).With(
-			defaultWorkflowVersionPopulator()...,
-		),
-	}
-}
-
-func defaultWorkflowVersionPopulator() []db.WorkflowVersionRelationWith {
-	return []db.WorkflowVersionRelationWith{
-		db.WorkflowVersion.Workflow.Fetch(),
-		db.WorkflowVersion.Triggers.Fetch().With(
-			db.WorkflowTriggers.Events.Fetch(),
-			db.WorkflowTriggers.Crons.Fetch().With(
-				db.WorkflowTriggerCronRef.Ticker.Fetch(),
-			),
-		),
-		db.WorkflowVersion.Concurrency.Fetch().With(
-			db.WorkflowConcurrency.GetConcurrencyGroup.Fetch(),
-		),
-		db.WorkflowVersion.Jobs.Fetch().With(
-			db.Job.Steps.Fetch().With(
-				db.Step.Action.Fetch(),
-				db.Step.Parents.Fetch(),
-			),
-		),
-		db.WorkflowVersion.Scheduled.Fetch().With(
-			db.WorkflowTriggerScheduledRef.Ticker.Fetch(),
-		),
-	}
-}

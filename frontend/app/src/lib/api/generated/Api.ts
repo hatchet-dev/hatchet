@@ -1360,8 +1360,7 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       parentWorkflowRunId?: string;
       /**
        * The parent step run id
-       * @format uuid
-       * @minLength 36
+       * @minLength 0
        * @maxLength 36
        */
       parentStepRunId?: string;
@@ -1455,8 +1454,7 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       parentWorkflowRunId?: string;
       /**
        * The parent step run id
-       * @format uuid
-       * @minLength 36
+       * @minLength 0
        * @maxLength 36
        */
       parentStepRunId?: string;

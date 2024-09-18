@@ -81,11 +81,11 @@ func (w *workerAPIRepository) ListWorkerState(tenantId, workerId string, maxRuns
 	}
 
 	// construct unique array of recent step run ids
-	uniqueStepRunIds := make(map[string]bool)
+	uniqueStepRunIds := make(map[int64]bool)
 
 	for _, event := range assignedEvents {
 		// unmarshal to string array
-		var stepRunIds []string
+		var stepRunIds []int64
 
 		if err := json.Unmarshal(event.AssignedStepRuns, &stepRunIds); err != nil {
 			return nil, nil, fmt.Errorf("could not unmarshal assigned step runs: %w", err)
@@ -105,10 +105,10 @@ func (w *workerAPIRepository) ListWorkerState(tenantId, workerId string, maxRuns
 		}
 	}
 
-	stepRunIds := make([]pgtype.UUID, 0, len(uniqueStepRunIds))
+	stepRunIds := make([]int64, 0, len(uniqueStepRunIds))
 
 	for stepRunId := range uniqueStepRunIds {
-		stepRunIds = append(stepRunIds, sqlchelpers.UUIDFromStr(stepRunId))
+		stepRunIds = append(stepRunIds, stepRunId)
 	}
 
 	recent, err := w.queries.GetStepRunForEngine(context.Background(), w.pool, dbsqlc.GetStepRunForEngineParams{

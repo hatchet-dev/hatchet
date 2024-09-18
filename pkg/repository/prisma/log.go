@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 
@@ -64,8 +65,12 @@ func (r *logAPIRepository) ListLogLines(tenantId string, opts *repository.ListLo
 	}
 
 	if opts.StepRunId != nil {
-		queryParams.StepRunId = sqlchelpers.UUIDFromStr(*opts.StepRunId)
-		countParams.StepRunId = sqlchelpers.UUIDFromStr(*opts.StepRunId)
+		pgStepRunId := pgtype.Int8{
+			Int64: *opts.StepRunId,
+			Valid: true,
+		}
+		queryParams.StepRunId = pgStepRunId
+		countParams.StepRunId = pgStepRunId
 	}
 
 	if opts.Levels != nil {

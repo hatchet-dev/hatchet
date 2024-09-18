@@ -103,7 +103,7 @@ APIResourceMeta:
   properties:
     id:
       type: string
-      description: "the id of this resource, in UUID format"
+      description: "the id of this resource, uuid or int"
       example: bb214807-246e-43a5-a25d-41761d1cff9e
       minLength: 0
       maxLength: 36

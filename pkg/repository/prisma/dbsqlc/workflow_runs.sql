@@ -48,8 +48,8 @@ WITH runs AS (
             runs."parentId" = sqlc.narg('parentId')::uuid
         ) AND
         (
-            sqlc.narg('parentStepRunId')::uuid IS NULL OR
-            runs."parentStepRunId" = sqlc.narg('parentStepRunId')::uuid
+            sqlc.narg('parentStepRunId')::BIGINT IS NULL OR
+            runs."parentStepRunId" = sqlc.narg('parentStepRunId')::BIGINT
         ) AND
         (
             sqlc.narg('groupKey')::text IS NULL OR
@@ -122,8 +122,8 @@ WHERE
         runs."parentId" = sqlc.narg('parentId')::uuid
     ) AND
     (
-        sqlc.narg('parentStepRunId')::uuid IS NULL OR
-        runs."parentStepRunId" = sqlc.narg('parentStepRunId')::uuid
+        sqlc.narg('parentStepRunId')::BIGINT IS NULL OR
+        runs."parentStepRunId" = sqlc.narg('parentStepRunId')::BIGINT
     ) AND
     (
         sqlc.narg('additionalMetadata')::jsonb IS NULL OR
@@ -193,8 +193,8 @@ WHERE
         runs."parentId" = sqlc.narg('parentId')::uuid
     ) AND
     (
-        sqlc.narg('parentStepRunId')::uuid IS NULL OR
-        runs."parentStepRunId" = sqlc.narg('parentStepRunId')::uuid
+        sqlc.narg('parentStepRunId')::BIGINT IS NULL OR
+        runs."parentStepRunId" = sqlc.narg('parentStepRunId')::BIGINT
     ) AND
     (
         sqlc.narg('groupKey')::text IS NULL OR
@@ -475,7 +475,7 @@ INSERT INTO "WorkflowRun" (
     sqlc.narg('childIndex')::int,
     sqlc.narg('childKey')::text,
     sqlc.narg('parentId')::uuid,
-    sqlc.narg('parentStepRunId')::uuid,
+    sqlc.narg('parentStepRunId')::BIGINT,
     @additionalMetadata::jsonb,
     sqlc.narg('priority')::int
 ) RETURNING *;
@@ -675,7 +675,6 @@ INSERT INTO "JobRunLookupData" (
 
 -- name: CreateStepRun :one
 INSERT INTO "StepRun" (
-    "id",
     "createdAt",
     "updatedAt",
     "tenantId",
@@ -687,7 +686,6 @@ INSERT INTO "StepRun" (
     "priority"
 )
 SELECT
-    gen_random_uuid(),
     CURRENT_TIMESTAMP,
     CURRENT_TIMESTAMP,
     @tenantId::uuid,
@@ -717,7 +715,7 @@ WHERE
 WITH step_runs AS (
     SELECT "id", "stepId"
     FROM "StepRun"
-    WHERE "id" = ANY(@stepRunIds::uuid[])
+    WHERE "id" = ANY(@stepRunIds::BIGINT[])
 )
 INSERT INTO "_StepRunOrder" ("A", "B")
 SELECT
@@ -768,7 +766,7 @@ FROM
 WHERE
     "parentId" = @parentId::uuid AND
     "deletedAt" IS NULL AND
-    "parentStepRunId" = @parentStepRunId::uuid AND
+    "parentStepRunId" = @parentStepRunId::BIGINT AND
     (
         -- if childKey is set, use that
         (sqlc.narg('childKey')::text IS NULL AND "childIndex" = @childIndex) OR
@@ -782,7 +780,7 @@ FROM
     "WorkflowTriggerScheduledRef"
 WHERE
     "parentId" = @parentId::uuid AND
-    "parentStepRunId" = @parentStepRunId::uuid AND
+    "parentStepRunId" = @parentStepRunId::BIGINT AND
     (
         -- if childKey is set, use that
         (sqlc.narg('childKey')::text IS NULL AND "childIndex" = @childIndex) OR
@@ -959,7 +957,7 @@ SELECT
 FROM
     "WorkflowRun" wr
 WHERE
-    wr."parentStepRunId" = ANY(@stepRunIds::uuid[])
+    wr."parentStepRunId" = ANY(@stepRunIds::BIGINT[])
 GROUP BY
     wr."parentStepRunId";
 

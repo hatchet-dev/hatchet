@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -47,10 +48,21 @@ func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.T
 			)
 		}
 
+		var parentStepRunIdPtr *int64
+
+		if req.ParentStepRunId != nil {
+			parentStepRunId, err := strconv.ParseInt(*req.ParentStepRunId, 10, 64)
+			parentStepRunIdPtr = &parentStepRunId
+
+			if err != nil {
+				return nil, fmt.Errorf("could not parse parent step run id: %w", err)
+			}
+		}
+
 		workflowRun, err := a.repo.WorkflowRun().GetChildWorkflowRun(
 			createContext,
 			*req.ParentId,
-			*req.ParentStepRunId,
+			*parentStepRunIdPtr,
 			int(*req.ChildIndex),
 			req.ChildKey,
 		)
@@ -129,12 +141,24 @@ func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.T
 			}
 		}
 
+		var parentStepRunIdPtr *int64
+
+		if req.ParentStepRunId != nil {
+
+			parentStepRunId, err := strconv.ParseInt(*req.ParentStepRunId, 10, 64)
+			parentStepRunIdPtr = &parentStepRunId
+
+			if err != nil {
+				return nil, fmt.Errorf("could not parse parent step run id: %w", err)
+			}
+		}
+
 		createOpts, err = repository.GetCreateWorkflowRunOptsFromParent(
 			workflowVersion,
 			[]byte(req.Input),
 			// we have already checked for nil values above
 			*req.ParentId,
-			*req.ParentStepRunId,
+			*parentStepRunIdPtr,
 			int(*req.ChildIndex),
 			req.ChildKey,
 			additionalMetadata,
@@ -340,10 +364,21 @@ func (a *AdminServiceImpl) ScheduleWorkflow(ctx context.Context, req *contracts.
 			)
 		}
 
+		var parentStepRunIdPtr *int64
+
+		if req.ParentStepRunId != nil {
+			parentStepRunId, err := strconv.ParseInt(*req.ParentStepRunId, 10, 64)
+			parentStepRunIdPtr = &parentStepRunId
+
+			if err != nil {
+				return nil, fmt.Errorf("could not parse parent step run id: %w", err)
+			}
+		}
+
 		existing, err := a.repo.WorkflowRun().GetScheduledChildWorkflowRun(
 			ctx,
 			*req.ParentId,
-			*req.ParentStepRunId,
+			*parentStepRunIdPtr,
 			int(*req.ChildIndex),
 			req.ChildKey,
 		)

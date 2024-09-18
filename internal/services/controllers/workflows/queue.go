@@ -647,13 +647,12 @@ func (wc *WorkflowsControllerImpl) cancelWorkflowRun(ctx context.Context, tenant
 
 	for i := range stepRuns {
 		stepRunCp := stepRuns[i]
-		stepRunId := sqlchelpers.UUIDToStr(stepRunCp.SRID)
 
 		errGroup.Go(func() error {
 			return wc.mq.AddMessage(
 				context.Background(),
 				msgqueue.JOB_PROCESSING_QUEUE,
-				getStepRunCancelTask(tenantId, stepRunId, "CANCELLED_BY_CONCURRENCY_LIMIT"),
+				getStepRunCancelTask(tenantId, stepRunCp.SRID, "CANCELLED_BY_CONCURRENCY_LIMIT"),
 			)
 		})
 	}
@@ -680,7 +679,7 @@ func getGroupActionTask(tenantId, workflowRunId, workerId, dispatcherId string) 
 	}
 }
 
-func getStepRunCancelTask(tenantId, stepRunId, reason string) *msgqueue.Message {
+func getStepRunCancelTask(tenantId string, stepRunId int64, reason string) *msgqueue.Message {
 	payload, _ := datautils.ToJSONMap(tasktypes.StepRunCancelTaskPayload{
 		StepRunId:       stepRunId,
 		CancelledReason: reason,

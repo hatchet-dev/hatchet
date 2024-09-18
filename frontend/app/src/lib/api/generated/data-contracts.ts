@@ -124,7 +124,7 @@ export interface PaginationResponse {
 
 export interface APIResourceMeta {
   /**
-   * the id of this resource, in UUID format
+   * the id of this resource, uuid or int
    * @minLength 0
    * @maxLength 36
    * @example "bb214807-246e-43a5-a25d-41761d1cff9e"
@@ -906,11 +906,8 @@ export interface WorkerList {
 }
 
 export interface SemaphoreSlots {
-  /**
-   * The step run id.
-   * @format uuid
-   */
-  stepRunId: string;
+  /** The step run id. */
+  stepRunId: number;
   /** The action id. */
   actionId: string;
   /**

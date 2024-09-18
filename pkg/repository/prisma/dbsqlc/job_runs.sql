@@ -18,7 +18,7 @@ WITH stepRuns AS (
         "jobRunId" = ANY(
             SELECT "jobRunId"
             FROM "StepRun"
-            WHERE "id" = ANY(@stepRunIds::uuid[])
+            WHERE "id" = ANY(@stepRunIds::BIGINT[])
         ) AND
         "tenantId" = @tenantId::uuid
     GROUP BY runs."jobRunId"
@@ -88,7 +88,7 @@ WITH readable_id AS (
     WHERE "id" = (
         SELECT "stepId"
         FROM "StepRun"
-        WHERE "id" = @stepRunId::uuid
+        WHERE "id" = @stepRunId::BIGINT
     )
 )
 UPDATE "JobRunLookupData"
@@ -114,7 +114,7 @@ WHERE
     "jobRunId" = (
         SELECT "jobRunId"
         FROM "StepRun"
-        WHERE "id" = @stepRunId::uuid
+        WHERE "id" = @stepRunId::BIGINT
     )
     AND "tenantId" = @tenantId::uuid;
 

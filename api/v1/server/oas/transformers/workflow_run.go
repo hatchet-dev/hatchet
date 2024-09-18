@@ -2,6 +2,7 @@ package transformers
 
 import (
 	"encoding/json"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -165,7 +166,7 @@ func ToJobRun(
 func ToStepRunFull(stepRun *repository.GetStepRunFull) *gen.StepRun {
 	res := &gen.StepRun{
 		Metadata: *toAPIMetadata(
-			sqlchelpers.UUIDToStr(stepRun.ID),
+			strconv.Itoa(int(stepRun.ID)),
 			stepRun.CreatedAt.Time,
 			stepRun.UpdatedAt.Time,
 		),
@@ -235,7 +236,7 @@ func ToStepRunFull(stepRun *repository.GetStepRunFull) *gen.StepRun {
 func ToStepRun(stepRun *repository.StepRunForJobRun) *gen.StepRun {
 	res := &gen.StepRun{
 		Metadata: *toAPIMetadata(
-			sqlchelpers.UUIDToStr(stepRun.ID),
+			strconv.Itoa(int(stepRun.ID)),
 			stepRun.CreatedAt.Time,
 			stepRun.UpdatedAt.Time,
 		),
@@ -291,9 +292,8 @@ func ToStepRun(stepRun *repository.StepRunForJobRun) *gen.StepRun {
 
 func ToRecentStepRun(stepRun *dbsqlc.GetStepRunForEngineRow) (*gen.RecentStepRuns, error) {
 	workflowRunId := uuid.MustParse(sqlchelpers.UUIDToStr(stepRun.WorkflowRunId))
-
 	res := &gen.RecentStepRuns{
-		Metadata:      *toAPIMetadata(sqlchelpers.UUIDToStr(stepRun.SRID), stepRun.SRCreatedAt.Time, stepRun.SRUpdatedAt.Time),
+		Metadata:      *toAPIMetadata(strconv.Itoa(int(stepRun.SRID)), stepRun.SRCreatedAt.Time, stepRun.SRUpdatedAt.Time),
 		Status:        gen.StepRunStatus(stepRun.SRStatus),
 		StartedAt:     &stepRun.SRStartedAt.Time,
 		FinishedAt:    &stepRun.SRFinishedAt.Time,
@@ -310,7 +310,7 @@ func ToStepRunEvent(stepRunEvent *dbsqlc.StepRunEvent) *gen.StepRunEvent {
 		Id:            int(stepRunEvent.ID),
 		TimeFirstSeen: stepRunEvent.TimeFirstSeen.Time,
 		TimeLastSeen:  stepRunEvent.TimeLastSeen.Time,
-		StepRunId:     sqlchelpers.UUIDToStr(stepRunEvent.StepRunId),
+		StepRunId:     strconv.FormatInt(stepRunEvent.StepRunId, 10),
 		Severity:      gen.StepRunEventSeverity(stepRunEvent.Severity),
 		Reason:        gen.StepRunEventReason(stepRunEvent.Reason),
 		Message:       stepRunEvent.Message,
@@ -331,7 +331,7 @@ func ToStepRunEvent(stepRunEvent *dbsqlc.StepRunEvent) *gen.StepRunEvent {
 func ToStepRunArchive(stepRunArchive *dbsqlc.StepRunResultArchive) *gen.StepRunArchive {
 	res := &gen.StepRunArchive{
 		CreatedAt:  stepRunArchive.CreatedAt.Time,
-		StepRunId:  sqlchelpers.UUIDToStr(stepRunArchive.StepRunId),
+		StepRunId:  strconv.FormatInt(stepRunArchive.StepRunId, 10),
 		RetryCount: int(stepRunArchive.RetryCount),
 		Order:      int(stepRunArchive.Order),
 		Input:      byteSliceToStringPointer(stepRunArchive.Input),

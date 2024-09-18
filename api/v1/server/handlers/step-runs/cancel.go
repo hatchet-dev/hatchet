@@ -14,7 +14,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 )
 
 func (t *StepRunService) StepRunUpdateCancel(ctx echo.Context, request gen.StepRunUpdateCancelRequestObject) (gen.StepRunUpdateCancelResponseObject, error) {
@@ -35,7 +34,7 @@ func (t *StepRunService) StepRunUpdateCancel(ctx echo.Context, request gen.StepR
 	engineStepRun, err := t.config.EngineRepository.StepRun().GetStepRunForEngine(
 		ctx.Request().Context(),
 		tenant.ID,
-		sqlchelpers.UUIDToStr(stepRun.ID),
+		stepRun.ID,
 	)
 
 	if err != nil {
@@ -57,7 +56,7 @@ func (t *StepRunService) StepRunUpdateCancel(ctx echo.Context, request gen.StepR
 
 	// wait for a short period of time
 	for i := 0; i < 5; i++ {
-		newStepRun, err := t.config.APIRepository.StepRun().GetStepRunById(sqlchelpers.UUIDToStr(stepRun.ID))
+		newStepRun, err := t.config.APIRepository.StepRun().GetStepRunById(stepRun.ID)
 
 		if err != nil {
 			return nil, fmt.Errorf("could not get step run: %w", err)

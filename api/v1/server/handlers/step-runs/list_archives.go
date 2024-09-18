@@ -34,7 +34,7 @@ func (t *StepRunService) StepRunListArchives(ctx echo.Context, request gen.StepR
 
 	listRes, err := t.config.APIRepository.StepRun().ListStepRunArchives(
 		sqlchelpers.UUIDToStr(stepRun.TenantId),
-		sqlchelpers.UUIDToStr(stepRun.ID),
+		stepRun.ID,
 		listOpts,
 	)
 

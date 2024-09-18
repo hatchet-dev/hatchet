@@ -102,8 +102,12 @@ func run(events chan<- string) (func() error, error) {
 
 		for _, stepRun := range stepRuns {
 			stepRunID := stepRun.ID
-			log.Printf("cancelling step run id: %s", stepRunID)
-			res, err := c.API().StepRunUpdateCancelWithResponse(context.Background(), uuid.MustParse(c.TenantId()), uuid.MustParse(stepRunID))
+			log.Printf("cancelling step run id: %d", stepRunID)
+			res, err := c.API().StepRunUpdateCancelWithResponse(
+				context.Background(),
+				uuid.MustParse(c.TenantId()),
+				fmt.Sprint(stepRunID),
+			)
 			if err != nil {
 				panic(fmt.Errorf("error cancelling step run: %w", err))
 			}

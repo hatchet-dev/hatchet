@@ -55,7 +55,7 @@ type TickerEngineRepository interface {
 	// AddJobRun(tickerId string, jobRun *db.JobRunModel) (*db.TickerModel, error)
 
 	// // AddStepRun assigns a step run to a ticker.
-	// AddStepRun(tickerId, stepRunId string) (*db.TickerModel, error)
+	// AddStepRun(tickerId, stepRunId int64) (*db.TickerModel, error)
 
 	// // AddGetGroupKeyRun assigns a get group key run to a ticker.
 	// AddGetGroupKeyRun(tickerId, getGroupKeyRunId string) (*db.TickerModel, error)

@@ -23,7 +23,7 @@ RETURNING *;
 SELECT * FROM "LogLine"
 WHERE
   "tenantId" = @tenantId::uuid AND
-  (sqlc.narg('stepRunId')::uuid IS NULL OR "stepRunId" = sqlc.narg('stepRunId')::uuid) AND
+  (sqlc.narg('stepRunId')::BIGINT IS NULL OR "stepRunId" = sqlc.narg('stepRunId')::BIGINT) AND
   (sqlc.narg('search')::text IS NULL OR "message" LIKE concat('%', sqlc.narg('search')::text, '%')) AND
   (sqlc.narg('levels')::"LogLineLevel"[] IS NULL OR "level" = ANY(sqlc.narg('levels')::"LogLineLevel"[]))
 ORDER BY
@@ -40,6 +40,6 @@ SELECT COUNT(*) AS total
 FROM "LogLine"
 WHERE
   "tenantId" = @tenantId::uuid AND
-  (sqlc.narg('stepRunId')::uuid IS NULL OR "stepRunId" = sqlc.narg('stepRunId')::uuid) AND
+  (sqlc.narg('stepRunId')::BIGINT IS NULL OR "stepRunId" = sqlc.narg('stepRunId')::BIGINT) AND
   (sqlc.narg('search')::text IS NULL OR "message" LIKE concat('%', sqlc.narg('search')::text, '%')) AND
   (sqlc.narg('levels')::"LogLineLevel"[] IS NULL OR "level" = ANY(sqlc.narg('levels')::"LogLineLevel"[]));

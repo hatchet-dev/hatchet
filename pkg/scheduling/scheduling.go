@@ -39,14 +39,14 @@ func GeneratePlan(
 	defer span.End()
 
 	plan := SchedulePlan{
-		StepRunIds:             make([]pgtype.UUID, 0),
+		StepRunIds:             make([]int64, 0),
 		StepRunTimeouts:        make([]string, 0),
 		SlotIds:                make([]string, 0),
 		WorkerIds:              make([]pgtype.UUID, 0),
-		UnassignedStepRunIds:   make([]pgtype.UUID, 0),
-		RateLimitedStepRuns:    make([]pgtype.UUID, 0),
+		UnassignedStepRunIds:   make([]int64, 0),
+		RateLimitedStepRuns:    make([]int64, 0),
 		QueuedStepRuns:         make([]repository.QueuedStepRun, 0),
-		TimedOutStepRuns:       make([]pgtype.UUID, 0),
+		TimedOutStepRuns:       make([]int64, 0),
 		QueuedItems:            make([]int64, 0),
 		MinQueuedIds:           make(map[string]int64),
 		ShouldContinue:         false,
@@ -101,7 +101,7 @@ func GeneratePlan(
 			continue
 		}
 
-		stepRunId := sqlchelpers.UUIDToStr(qi.StepRunId)
+		stepRunId := qi.StepRunId.Int64
 		isRateLimited := false
 
 		// check if we're rate limited

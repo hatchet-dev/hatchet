@@ -34,19 +34,19 @@ INSERT INTO "StreamEvent" (
 SELECT
     coalesce($1::timestamp, now()),
     $2::uuid,
-    $3::uuid,
+    $3::BIGINT,
     $4::bytea,
     coalesce($5::jsonb, '{}'::jsonb)
 FROM "StepRun"
-WHERE "StepRun"."id" = $3::uuid
+WHERE "StepRun"."id" = $3::BIGINT
 AND "StepRun"."tenantId" = $2::uuid
-RETURNING id, "createdAt", "tenantId", "stepRunId", message, metadata
+RETURNING id, "createdAt", "tenantId", message, metadata, "stepRunId"
 `
 
 type CreateStreamEventParams struct {
 	CreatedAt pgtype.Timestamp `json:"createdAt"`
 	Tenantid  pgtype.UUID      `json:"tenantid"`
-	Steprunid pgtype.UUID      `json:"steprunid"`
+	Steprunid int64            `json:"steprunid"`
 	Message   []byte           `json:"message"`
 	Metadata  []byte           `json:"metadata"`
 }
@@ -64,15 +64,15 @@ func (q *Queries) CreateStreamEvent(ctx context.Context, db DBTX, arg CreateStre
 		&i.ID,
 		&i.CreatedAt,
 		&i.TenantId,
-		&i.StepRunId,
 		&i.Message,
 		&i.Metadata,
+		&i.StepRunId,
 	)
 	return &i, err
 }
 
 const getStreamEvent = `-- name: GetStreamEvent :one
-SELECT id, "createdAt", "tenantId", "stepRunId", message, metadata FROM "StreamEvent"
+SELECT id, "createdAt", "tenantId", message, metadata, "stepRunId" FROM "StreamEvent"
 WHERE
   "tenantId" = $1::uuid AND
   "id" = $2::bigint
@@ -90,9 +90,9 @@ func (q *Queries) GetStreamEvent(ctx context.Context, db DBTX, arg GetStreamEven
 		&i.ID,
 		&i.CreatedAt,
 		&i.TenantId,
-		&i.StepRunId,
 		&i.Message,
 		&i.Metadata,
+		&i.StepRunId,
 	)
 	return &i, err
 }
@@ -105,12 +105,12 @@ SELECT
 FROM "StepRun" sr
 JOIN "Step" s ON sr."stepId" = s."id"
 JOIN "JobRun" jr ON sr."jobRunId" = jr."id"
-WHERE sr."id" = $1::uuid
+WHERE sr."id" = $1::BIGINT
 AND sr."tenantId" = $2::uuid
 `
 
 type GetStreamEventMetaParams struct {
-	Steprunid pgtype.UUID `json:"steprunid"`
+	Steprunid int64       `json:"steprunid"`
 	Tenantid  pgtype.UUID `json:"tenantid"`
 }
 

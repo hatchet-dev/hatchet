@@ -1,6 +1,8 @@
 package tasktypes
 
 import (
+	"strconv"
+
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
@@ -9,7 +11,7 @@ import (
 
 type StepRunTaskPayload struct {
 	WorkflowRunId string `json:"workflow_run_id" validate:"required,uuid"`
-	StepRunId     string `json:"step_run_id" validate:"required,uuid"`
+	StepRunId     string `json:"step_run_id" validate:"required"`
 	JobRunId      string `json:"job_run_id" validate:"required,uuid"`
 	StepRetries   *int32 `json:"step_retries,omitempty"`
 	RetryCount    *int32 `json:"retry_count,omitempty"`
@@ -25,7 +27,7 @@ type StepRunTaskMetadata struct {
 }
 
 type StepRunAssignedTaskPayload struct {
-	StepRunId string `json:"step_run_id" validate:"required,uuid"`
+	StepRunId string `json:"step_run_id" validate:"required"`
 	WorkerId  string `json:"worker_id" validate:"required,uuid"`
 }
 
@@ -36,7 +38,7 @@ type StepRunAssignedTaskMetadata struct {
 
 type StepRunCancelledTaskPayload struct {
 	WorkflowRunId   string `json:"workflow_run_id" validate:"required,uuid"`
-	StepRunId       string `json:"step_run_id" validate:"required,uuid"`
+	StepRunId       int64  `json:"step_run_id" validate:"required"`
 	WorkerId        string `json:"worker_id" validate:"required,uuid"`
 	CancelledReason string `json:"cancelled_reason" validate:"required"`
 	StepRetries     *int32 `json:"step_retries,omitempty"`
@@ -57,7 +59,7 @@ type StepRunRequeueTaskMetadata struct {
 }
 
 type StepRunCancelTaskPayload struct {
-	StepRunId       string `json:"step_run_id" validate:"required,uuid"`
+	StepRunId       int64  `json:"step_run_id" validate:"required"`
 	CancelledReason string `json:"cancelled_reason" validate:"required"`
 	StepRetries     *int32 `json:"step_retries,omitempty"`
 	RetryCount      *int32 `json:"retry_count,omitempty"`
@@ -69,7 +71,7 @@ type StepRunCancelTaskMetadata struct {
 
 type StepRunStartedTaskPayload struct {
 	WorkflowRunId string `json:"workflow_run_id" validate:"required,uuid"`
-	StepRunId     string `json:"step_run_id" validate:"required,uuid"`
+	StepRunId     string `json:"step_run_id" validate:"required"`
 	StartedAt     string `json:"started_at" validate:"required"`
 	StepRetries   *int32 `json:"step_retries,omitempty"`
 	RetryCount    *int32 `json:"retry_count,omitempty"`
@@ -81,7 +83,7 @@ type StepRunStartedTaskMetadata struct {
 
 type StepRunFinishedTaskPayload struct {
 	WorkflowRunId  string `json:"workflow_run_id" validate:"required,uuid"`
-	StepRunId      string `json:"step_run_id" validate:"required,uuid"`
+	StepRunId      string `json:"step_run_id" validate:"required"`
 	FinishedAt     string `json:"finished_at" validate:"required"`
 	StepOutputData string `json:"step_output_data"`
 	StepRetries    *int32 `json:"step_retries,omitempty"`
@@ -94,7 +96,7 @@ type StepRunFinishedTaskMetadata struct {
 
 type StepRunStreamEventTaskPayload struct {
 	WorkflowRunId string `json:"workflow_run_id" validate:"required,uuid"`
-	StepRunId     string `json:"step_run_id" validate:"required,uuid"`
+	StepRunId     string `json:"step_run_id" validate:"required"`
 	CreatedAt     string `json:"created_at" validate:"required"`
 	StreamEventId string `json:"stream_event_id"`
 	StepRetries   *int32 `json:"step_retries,omitempty"`
@@ -108,7 +110,7 @@ type StepRunStreamEventTaskMetadata struct {
 
 type StepRunFailedTaskPayload struct {
 	WorkflowRunId string `json:"workflow_run_id" validate:"required,uuid"`
-	StepRunId     string `json:"step_run_id" validate:"required,uuid"`
+	StepRunId     string `json:"step_run_id" validate:"required"`
 	FailedAt      string `json:"failed_at" validate:"required"`
 	Error         string `json:"error" validate:"required"`
 	StepRetries   *int32 `json:"step_retries,omitempty"`
@@ -121,7 +123,7 @@ type StepRunFailedTaskMetadata struct {
 
 type StepRunTimedOutTaskPayload struct {
 	WorkflowRunId string `json:"workflow_run_id" validate:"required,uuid"`
-	StepRunId     string `json:"step_run_id" validate:"required,uuid"`
+	StepRunId     string `json:"step_run_id" validate:"required"`
 	StepRetries   *int32 `json:"step_retries,omitempty"`
 	RetryCount    *int32 `json:"retry_count,omitempty"`
 }
@@ -132,7 +134,7 @@ type StepRunTimedOutTaskMetadata struct {
 
 type StepRunRetryTaskPayload struct {
 	WorkflowRunId string `json:"workflow_run_id" validate:"required,uuid"`
-	StepRunId     string `json:"step_run_id" validate:"required,uuid"`
+	StepRunId     string `json:"step_run_id" validate:"required"`
 	JobRunId      string `json:"job_run_id" validate:"required,uuid"`
 
 	Error *string `json:"error,omitempty"`
@@ -150,7 +152,7 @@ type StepRunRetryTaskMetadata struct {
 
 type StepRunReplayTaskPayload struct {
 	WorkflowRunId string `json:"workflow_run_id" validate:"required,uuid"`
-	StepRunId     string `json:"step_run_id" validate:"required,uuid"`
+	StepRunId     string `json:"step_run_id" validate:"required"`
 	JobRunId      string `json:"job_run_id" validate:"required,uuid"`
 
 	// optional - if not provided, the step run will be retried with the same input
@@ -165,7 +167,7 @@ type StepRunReplayTaskMetadata struct {
 
 func StepRunRetryToTask(stepRun *dbsqlc.GetStepRunForEngineRow, inputData []byte, err string) *msgqueue.Message {
 	jobRunId := sqlchelpers.UUIDToStr(stepRun.JobRunId)
-	stepRunId := sqlchelpers.UUIDToStr(stepRun.SRID)
+	stepRunId := strconv.Itoa(int(stepRun.SRID))
 	tenantId := sqlchelpers.UUIDToStr(stepRun.SRTenantId)
 	workflowRunId := sqlchelpers.UUIDToStr(stepRun.WorkflowRunId)
 
@@ -193,7 +195,7 @@ func StepRunRetryToTask(stepRun *dbsqlc.GetStepRunForEngineRow, inputData []byte
 
 func StepRunReplayToTask(stepRun *dbsqlc.GetStepRunForEngineRow, inputData []byte) *msgqueue.Message {
 	jobRunId := sqlchelpers.UUIDToStr(stepRun.JobRunId)
-	stepRunId := sqlchelpers.UUIDToStr(stepRun.SRID)
+	stepRunId := strconv.Itoa(int(stepRun.SRID))
 	tenantId := sqlchelpers.UUIDToStr(stepRun.SRTenantId)
 	workflowRunId := sqlchelpers.UUIDToStr(stepRun.WorkflowRunId)
 
@@ -219,11 +221,10 @@ func StepRunReplayToTask(stepRun *dbsqlc.GetStepRunForEngineRow, inputData []byt
 }
 
 func StepRunCancelToTask(stepRun *dbsqlc.GetStepRunForEngineRow, reason string) *msgqueue.Message {
-	stepRunId := sqlchelpers.UUIDToStr(stepRun.SRID)
 	tenantId := sqlchelpers.UUIDToStr(stepRun.SRTenantId)
 
 	payload, _ := datautils.ToJSONMap(StepRunCancelTaskPayload{
-		StepRunId:       stepRunId,
+		StepRunId:       stepRun.SRID,
 		CancelledReason: reason,
 		StepRetries:     &stepRun.StepRetries,
 		RetryCount:      &stepRun.SRRetryCount,
@@ -245,7 +246,7 @@ func StepRunQueuedToTask(stepRun *dbsqlc.GetStepRunForEngineRow) *msgqueue.Messa
 	payload, _ := datautils.ToJSONMap(StepRunTaskPayload{
 		WorkflowRunId: sqlchelpers.UUIDToStr(stepRun.WorkflowRunId),
 		JobRunId:      sqlchelpers.UUIDToStr(stepRun.JobRunId),
-		StepRunId:     sqlchelpers.UUIDToStr(stepRun.SRID),
+		StepRunId:     strconv.Itoa(int(stepRun.SRID)),
 		StepRetries:   &stepRun.StepRetries,
 		RetryCount:    &stepRun.SRRetryCount,
 	})

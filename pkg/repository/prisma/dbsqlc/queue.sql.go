@@ -135,7 +135,7 @@ INSERT INTO
     )
 VALUES
     (
-        $1::uuid,
+        $1::BIGINT,
         $2::uuid,
         $3::text,
         $4::timestamp,
@@ -150,7 +150,7 @@ VALUES
 `
 
 type CreateQueueItemParams struct {
-	StepRunId         pgtype.UUID        `json:"stepRunId"`
+	StepRunId         pgtype.Int8        `json:"stepRunId"`
 	StepId            pgtype.UUID        `json:"stepId"`
 	ActionId          pgtype.Text        `json:"actionId"`
 	ScheduleTimeoutAt pgtype.Timestamp   `json:"scheduleTimeoutAt"`
@@ -188,7 +188,7 @@ INSERT INTO
         "isQueued"
     )
 SELECT
-    $1::uuid,
+    $1::BIGINT,
     $2::integer,
     $3::timestamp,
     $4::uuid,
@@ -197,7 +197,7 @@ ON CONFLICT DO NOTHING
 `
 
 type CreateTimeoutQueueItemParams struct {
-	Steprunid  pgtype.UUID      `json:"steprunid"`
+	Steprunid  int64            `json:"steprunid"`
 	Retrycount int32            `json:"retrycount"`
 	Timeoutat  pgtype.Timestamp `json:"timeoutat"`
 	Tenantid   pgtype.UUID      `json:"tenantid"`
@@ -526,15 +526,15 @@ type PopTimeoutQueueItemsParams struct {
 	Limit    pgtype.Int4 `json:"limit"`
 }
 
-func (q *Queries) PopTimeoutQueueItems(ctx context.Context, db DBTX, arg PopTimeoutQueueItemsParams) ([]pgtype.UUID, error) {
+func (q *Queries) PopTimeoutQueueItems(ctx context.Context, db DBTX, arg PopTimeoutQueueItemsParams) ([]int64, error) {
 	rows, err := db.Query(ctx, popTimeoutQueueItems, arg.Tenantid, arg.Limit)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []pgtype.UUID
+	var items []int64
 	for rows.Next() {
-		var stepRunId pgtype.UUID
+		var stepRunId int64
 		if err := rows.Scan(&stepRunId); err != nil {
 			return nil, err
 		}
@@ -550,13 +550,13 @@ const removeTimeoutQueueItem = `-- name: RemoveTimeoutQueueItem :exec
 DELETE FROM
     "TimeoutQueueItem"
 WHERE
-    "stepRunId" = $1::uuid
+    "stepRunId" = $1::BIGINT
     AND "retryCount" = $2::integer
 `
 
 type RemoveTimeoutQueueItemParams struct {
-	Steprunid  pgtype.UUID `json:"steprunid"`
-	Retrycount int32       `json:"retrycount"`
+	Steprunid  int64 `json:"steprunid"`
+	Retrycount int32 `json:"retrycount"`
 }
 
 func (q *Queries) RemoveTimeoutQueueItem(ctx context.Context, db DBTX, arg RemoveTimeoutQueueItemParams) error {

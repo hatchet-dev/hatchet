@@ -45,10 +45,10 @@ func TenantId(tenantId pgtype.UUID) telemetry.AttributeKV {
 	}
 }
 
-func StepRunId(stepRunId pgtype.UUID) telemetry.AttributeKV {
+func StepRunId(stepRunId int64) telemetry.AttributeKV {
 	return telemetry.AttributeKV{
 		Key:   "stepRunId",
-		Value: sqlchelpers.UUIDToStr(stepRunId),
+		Value: stepRunId,
 	}
 }
 

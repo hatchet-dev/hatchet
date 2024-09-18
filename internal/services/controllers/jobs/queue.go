@@ -411,7 +411,7 @@ func (q *queue) processStepRunUpdates(ctx context.Context, tenantId string) (boo
 			// queue the next step runs
 			tenantId := sqlchelpers.UUIDToStr(stepRun.SRTenantId)
 			jobRunId := sqlchelpers.UUIDToStr(stepRun.JobRunId)
-			stepRunId := sqlchelpers.UUIDToStr(stepRun.SRID)
+			stepRunId := stepRun.SRID
 
 			nextStepRuns, err := q.repo.StepRun().ListStartableStepRuns(ctx, tenantId, jobRunId, &stepRunId)
 
@@ -463,7 +463,7 @@ func (q *queue) processStepRunUpdates(ctx context.Context, tenantId string) (boo
 	return res.Continue, nil
 }
 
-func getStepRunCancelTask(tenantId, stepRunId, reason string) *msgqueue.Message {
+func getStepRunCancelTask(tenantId string, stepRunId int64, reason string) *msgqueue.Message {
 	payload, _ := datautils.ToJSONMap(tasktypes.StepRunCancelTaskPayload{
 		StepRunId:       stepRunId,
 		CancelledReason: reason,

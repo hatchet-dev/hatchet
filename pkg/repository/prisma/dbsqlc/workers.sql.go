@@ -470,7 +470,7 @@ type ListSemaphoreSlotsWithStateForWorkerParams struct {
 }
 
 type ListSemaphoreSlotsWithStateForWorkerRow struct {
-	StepRunId     pgtype.UUID      `json:"stepRunId"`
+	StepRunId     int64            `json:"stepRunId"`
 	Status        StepRunStatus    `json:"status"`
 	ActionId      string           `json:"actionId"`
 	TimeoutAt     pgtype.Timestamp `json:"timeoutAt"`

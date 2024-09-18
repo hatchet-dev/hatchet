@@ -36,7 +36,7 @@ INSERT INTO
     )
 VALUES
     (
-        sqlc.narg('stepRunId')::uuid,
+        sqlc.narg('stepRunId')::BIGINT,
         sqlc.narg('stepId')::uuid,
         sqlc.narg('actionId')::text,
         sqlc.narg('scheduleTimeoutAt')::timestamp,
@@ -200,7 +200,7 @@ INSERT INTO
         "isQueued"
     )
 SELECT
-    @stepRunId::uuid,
+    @stepRunId::BIGINT,
     @retryCount::integer,
     @timeoutAt::timestamp,
     @tenantId::uuid,
@@ -239,7 +239,7 @@ RETURNING
 DELETE FROM
     "TimeoutQueueItem"
 WHERE
-    "stepRunId" = @stepRunId::uuid
+    "stepRunId" = @stepRunId::BIGINT
     AND "retryCount" = @retryCount::integer;
 
 -- name: GetMinMaxProcessedTimeoutQueueItems :one

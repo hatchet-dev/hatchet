@@ -401,8 +401,7 @@ workflowRuns:
         required: false
         schema:
           type: string
-          format: uuid
-          minLength: 36
+          minLength: 0
           maxLength: 36
       - description: A list of workflow run statuses to filter by
         in: query
@@ -523,8 +522,7 @@ workflowRunsMetrics:
         required: false
         schema:
           type: string
-          format: uuid
-          minLength: 36
+          minLength: 0
           maxLength: 36
       - description: A list of metadata key value pairs to filter by
         in: query

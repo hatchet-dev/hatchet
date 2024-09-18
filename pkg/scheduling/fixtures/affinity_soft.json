@@ -13,13 +13,13 @@
       "actionId": "child:process2"
     },
     {
-      "id":       "aed946be-43db-4b5f-876a-c6c71f4d52aa",
+      "id": "aed946be-43db-4b5f-876a-c6c71f4d52aa",
       "workerId": "bbbbbbbb-43db-4b5f-876a-c6c71f4d52aa",
       "dispatcherId": "9994a9eb-430d-46da-934d-d9dd953cfd21",
       "actionId": "child:process2"
     },
     {
-      "id":       "e2c744b8-43db-4b5f-876a-c6c71f4d52aa",
+      "id": "e2c744b8-43db-4b5f-876a-c6c71f4d52aa",
       "workerId": "bbbbbbbb-43db-4b5f-876a-c6c71f4d52aa",
       "dispatcherId": "9994a9eb-430d-46da-934d-d9dd953cfd21",
       "actionId": "child:process2"
@@ -31,7 +31,7 @@
   "QueueItems": [
     {
       "id": 137295,
-      "stepRunId": "16fa711e-c03e-435c-88d9-62adf1591d98",
+      "stepRunId": 24,
       "stepId": "29fae13a-6672-48cb-9aed-3b0bf481f570",
       "actionId": "child:process2",
       "scheduleTimeoutAt": "2024-08-07T19:43:30.692Z",
@@ -43,7 +43,7 @@
     },
     {
       "id": 152259,
-      "stepRunId": "064e787a-6cfd-4f82-8b6d-d8031459fdee",
+      "stepRunId": 6,
       "stepId": "e2c744b8-bebb-4b05-8292-d2ce36f27928",
       "actionId": "child:process2",
       "scheduleTimeoutAt": "2024-08-07T21:12:49.56Z",
@@ -69,23 +69,23 @@
     ]
   },
   "StepDesiredLabels": {
-      "29fae13a-6672-48cb-9aed-3b0bf481f570": [
-          {
-            "Key": "MODEL",
-            "Comparator": "EQUAL",
-            "StrValue": "A",
-            "Required": false,
-            "Weight": 1
-          }
-        ],
-      "e2c744b8-bebb-4b05-8292-d2ce36f27928": [
-          {
-            "Key": "MODEL",
-            "Comparator": "EQUAL",
-            "StrValue": "B",
-            "Required": false,
-            "Weight": 1
-          }
-        ]
-    }
+    "29fae13a-6672-48cb-9aed-3b0bf481f570": [
+      {
+        "Key": "MODEL",
+        "Comparator": "EQUAL",
+        "StrValue": "A",
+        "Required": false,
+        "Weight": 1
+      }
+    ],
+    "e2c744b8-bebb-4b05-8292-d2ce36f27928": [
+      {
+        "Key": "MODEL",
+        "Comparator": "EQUAL",
+        "StrValue": "B",
+        "Required": false,
+        "Weight": 1
+      }
+    ]
+  }
 }

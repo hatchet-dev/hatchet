@@ -94,9 +94,7 @@ func verifyStepRuns(prisma *db.PrismaClient, event string, tenantId string, jobR
 	).With(
 		db.Event.WorkflowRuns.Fetch().With(
 			db.WorkflowRunTriggeredBy.Parent.Fetch().With(
-				db.WorkflowRun.JobRuns.Fetch().With(
-					db.JobRun.StepRuns.Fetch(),
-				),
+				db.WorkflowRun.JobRuns.Fetch(),
 			),
 		),
 	).Exec(context.Background())
@@ -120,7 +118,15 @@ func verifyStepRuns(prisma *db.PrismaClient, event string, tenantId string, jobR
 				if jobRuns.Status != jobRunStatus {
 					panic(fmt.Errorf("expected job run to be %s, got %s", jobRunStatus, jobRuns.Status))
 				}
-				for _, stepRun := range jobRuns.StepRuns() {
+
+				stepRuns, err := prisma.StepRun.FindMany(
+					db.StepRun.JobRunID.Equals(jobRuns.ID),
+				).Exec(context.Background())
+				if err != nil {
+					panic(fmt.Errorf("error finding step runs: %w", err))
+				}
+
+				for _, stepRun := range stepRuns {
 					if stepRun.Status != stepRunStatus {
 						panic(fmt.Errorf("expected step run to be %s, got %s", stepRunStatus, stepRun.Status))
 					}

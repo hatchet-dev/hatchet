@@ -71,12 +71,11 @@ func run(done chan<- string, job worker.WorkflowJob) (func() error, error) {
 		).With(
 			db.Event.WorkflowRuns.Fetch().With(
 				db.WorkflowRunTriggeredBy.Parent.Fetch().With(
-					db.WorkflowRun.JobRuns.Fetch().With(
-						db.JobRun.StepRuns.Fetch(),
-					),
+					db.WorkflowRun.JobRuns.Fetch(),
 				),
 			),
 		).Exec(context.Background())
+
 		if err != nil {
 			panic(fmt.Errorf("error finding events: %w", err))
 		}
@@ -84,7 +83,14 @@ func run(done chan<- string, job worker.WorkflowJob) (func() error, error) {
 		for _, event := range events {
 			for _, workflowRun := range event.WorkflowRuns() {
 				for _, jobRuns := range workflowRun.Parent().JobRuns() {
-					for _, stepRun := range jobRuns.StepRuns() {
+					stepRuns, err := client.StepRun.FindMany(
+						db.StepRun.JobRunID.Equals(jobRuns.ID),
+					).Exec(context.Background())
+					if err != nil {
+						panic(fmt.Errorf("error finding step runs: %w", err))
+					}
+
+					for _, stepRun := range stepRuns {
 						if stepRun.Status != db.StepRunStatusFailed {
 							panic(fmt.Errorf("expected step run to be failed, got %s", stepRun.Status))
 						}
