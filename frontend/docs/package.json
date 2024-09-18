@@ -5,7 +5,7 @@
   "packageManager": "pnpm@9.1.1",
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "node ./scripts/codeblocks-scraper.mjs && next build",
     "start": "next start",
     "lint:check": "npm run prettier:check",
     "lint:fix": "npm run prettier:fix",
@@ -23,7 +23,9 @@
   },
   "homepage": "https://github.com/shuding/nextra-docs-template#readme",
   "dependencies": {
+    "@octokit/rest": "^21.0.2",
     "autoprefixer": "^10.4.17",
+    "dotenv": "^16.4.5",
     "next": "^14.1.0",
     "nextra": "^2.13.2",
     "nextra-theme-docs": "^2.13.2",
@@ -32,12 +34,14 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-lottie-player": "^2.0.0",
+    "react-markdown": "^9.0.1",
     "react-tweet": "^3.2.0",
     "tailwindcss": "^3.4.1"
   },
   "devDependencies": {
     "@types/node": "18.11.10",
     "prettier": "^3.2.5",
+    "shiki": "^1.14.1",
     "typescript": "^4.9.3"
   }
 }

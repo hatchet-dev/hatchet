@@ -1,4 +1,6 @@
 import { Tabs } from "nextra/components";
+import UniversalTabs from "../../../components/UniversalTabs"
+import CodeCell from "../../../components/CodeCell"
 
 # Cancellation in Hatchet Workflows
 
@@ -10,7 +12,7 @@ When a workflow is canceled, Hatchet sends a cancellation signal to all the curr
 
 {/* TODO Python */}
 
-<Tabs items={['Typescript', 'Go']}>
+<UniversalTabs items={['Typescript', 'Go']}>
 <Tabs.Tab>
 
 Hatchet uses the standard `AbortController` and `AbortSignal` interfaces from Node.js to handle cancellation. Each step in a workflow has access to a `context.controller` property, which is an instance of `AbortController`. The `AbortController` provides a way to signal cancellation to the step and any asynchronous operations it may be performing.
@@ -86,40 +88,10 @@ Hatchet uses the standard `context.WithCancel` way of creating a context and pas
 
 Here's an example of how to check for cancellation in a step:
 
-```go
-w.RegisterWorkflow(
-    &worker.WorkflowJob{
-        Name: "post-user-sign-up",
-        On: worker.Event("user:created"),
-        Description: "Workflow that executes after a user signs up.",
-        Timeout: "60s",
-        Steps: []*worker.WorkflowStep{
-            {
-                Function: func(ctx context.Context) error {
-                  stepDone := make(chan struct{})
-                  go func() {
-                    // Step business logic
-                    // ...
-                    done <- struct{}{}
-                  }()
-                  select {
-                    case <- ctx.Done():
-                      // The step has been canceled
-                      // Perform any necessary cleanup or termination logic
-                      return
-                    case <- stepDone:
-                      // Workflow step finished executing
-                      return
-                  }
-                },
-            },
-        },
-    },
-)
-```
+<CodeCell language="Go" blockName="cancellation-mechanisms"/>
 
 </Tabs.Tab>
-</Tabs>
+</UniversalTabs>
 
 ## Cancellation Best Practices
 

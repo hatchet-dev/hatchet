@@ -1,4 +1,6 @@
 import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
+import UniversalTabs from "../../../components/UniversalTabs"
+import CodeCell from "../../../components/CodeCell"
 
 # Streaming in Hatchet
 
@@ -27,38 +29,14 @@ Listeners are used to subscribe to the event stream for a specific workflow run.
 
 Here's an example of how to create a listener:
 
-<Tabs items={['Python', 'Typescript', 'Go']}>
+<UniversalTabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
-
-```python
-async def listen_for_files():
-    workflowRunId = hatchet.admin.run_workflow("ManualTriggerWorkflow", {"test": "test"})
-    listener = hatchet.listener.stream(workflowRunId)
-
-    async for event in listener:
-        # Filter and transform event data here
-        data = json.dumps({
-            "type": event.type,
-            "messageId": workflowRunId
-        })
-        print("data: " + data + "\n\n")
-
-```
-
+    <CodeCell language="Python" blockName="listeners"/>
   </Tabs.Tab>
   <Tabs.Tab>
-
-```typescript copy
-async function listen_for_files() {
-  const workflowRunId = await hatchet.admin.run_workflow("simple-workflow", {});
-  const stream = await hatchet.listener.stream(workflowRunId);
-  for await (const event of stream) {
-    console.log("event received", event);
-  }
-}
-```
-
+    <CodeCell language="Typescript" blockName="listeners"/>
   </Tabs.Tab>
+  <Tabs.Tab>
 ```go copy
 workflowRunId, err := c.Admin().RunWorkflow("stream-event-workflow", &streamEventInput{
   Index: 0,
@@ -79,13 +57,14 @@ panic(err)
 }
 
 ````
-</Tabs>
+</Tabs.Tab>
+</UniversalTabs>
 
 ## Streaming from a Step Context
 
 You can also stream events from a specific step context, enabling you to stream arbitrary events, progress, intermediate inference, or debugging information from a step.
 
-<Tabs items={['Python', 'Typescript']}>
+<UniversalTabs items={['Python', 'Typescript']}>
   <Tabs.Tab>
 
 ```python
@@ -110,7 +89,7 @@ async function step1(ctx: Context) {
 ```
 
   </Tabs.Tab>
-</Tabs>
+</UniversalTabs>
 
 ### Streaming Files
 
@@ -118,7 +97,7 @@ Hatchet supports streaming base64 encoded files as part of the event payload, al
 
 To stream a file from a step context, encode the file data as base64 and stream it as a payload:
 
-<Tabs items={['Python', 'Typescript']}>
+<UniversalTabs items={['Python', 'Typescript']}>
   <Tabs.Tab>
 
 ```python
@@ -174,11 +153,11 @@ async function step1(ctx: Context) {
 ```
 
   </Tabs.Tab>
-</Tabs>
+</UniversalTabs>
 
 For the listener, decode the base64-encoded payload and write it to a file:
 
-<Tabs items={['Python', 'Typescript']}>
+<UniversalTabs items={['Python', 'Typescript']}>
   <Tabs.Tab>
 
 ```python
@@ -244,7 +223,7 @@ for await (const event of listener) {
 ```
 
 </Tabs.Tab>
-</Tabs>
+</UniversalTabs>
 
 ## Streaming by Additional Metadata
 
@@ -254,7 +233,7 @@ Since additinoal metadata is propegated from parent to child workflows, this can
 
 Here's an example of how to create a listener:
 
-<Tabs items={['Python', 'Typescript', 'Go']}>
+<UniversalTabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
 
 ```python
@@ -348,7 +327,7 @@ err = c.Subscribe().StreamByAdditionalMetadata(interruptCtx, streamKey, streamVa
 ```
 
 </Tabs.Tab>
-</Tabs>
+</UniversalTabs>
 
 ## Consuming Streams on Frontend
 

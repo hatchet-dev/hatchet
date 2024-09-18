@@ -1,4 +1,6 @@
 import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
+import UniversalTabs from "../../../components/UniversalTabs"
+import CodeCell from "../../../components/CodeCell"
 
 # Additional Metadata
 
@@ -10,47 +12,20 @@ You can attach additional metadata when pushing events or triggering workflow ru
 
 <Tabs items={['Event Push', 'Workflow Run Trigger']}>
   <Tabs.Tab>
-<Tabs items={['Python', 'Typescript', 'Go']}>
+<UniversalTabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
-```python
-hatchet.event.push("user:create", {'userId': '1234'}, options={
-  "additional_metadata": {
-    "source": "api" # Arbitrary key-value pair
-  }
-})
-```
+    <CodeCell language="Python" blockName="streaming-by-additional-metadata"/>
   </Tabs.Tab>
   <Tabs.Tab>
-```typescript
-hatchet.event.push(
-  'user:create',
-  {
-    test: 'test',
-  },
-  {
-    additionalMetadata: {
-      source: 'api', // Arbitrary key-value pair
-    },
-  }
-);
-```
+    <CodeCell language="Typescript" blockName="streaming-by-additional-metadata"/>
   </Tabs.Tab>
   <Tabs.Tab>
-```go
-err := c.Event().Push(
-    context.Background(),
-    "user:create",
-    testEvent,
-    client.WithEventMetadata(map[string]string{
-        "source": "api", // Arbitrary key-value pair
-    }),
-)
-```
+    <CodeCell language="Go" blockName="streaming-by-additional-metadata"/>
   </Tabs.Tab>
-</Tabs>
+</UniversalTabs>
   </Tabs.Tab>
   <Tabs.Tab>
-<Tabs items={['Python', 'Typescript', 'Go']}>
+<UniversalTabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
 ```python
 workflowRunId = hatchet.admin.run_workflow(
@@ -92,7 +67,7 @@ workflowRunId, err := c.Admin().RunWorkflow(
 )
 ```
   </Tabs.Tab>
-</Tabs>
+</UniversalTabs>
   </Tabs.Tab>
 </Tabs>
 
