@@ -111,5 +111,11 @@ func (p *CELParser) ParseAndEvalWorkflowString(workflowExp string, in WorkflowSt
 		return "", err
 	}
 
-	return out.Value().(string), nil
+	// Switch on the type of the output.
+	switch out.Type() {
+	case types.StringType:
+		return out.Value().(string), nil
+	default:
+		return "", fmt.Errorf("output must evaluate to a string: got %s", out.Type().TypeName())
+	}
 }
