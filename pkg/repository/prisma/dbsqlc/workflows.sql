@@ -146,15 +146,17 @@ INSERT INTO "WorkflowConcurrency" (
     "workflowVersionId",
     "getConcurrencyGroupId",
     "maxRuns",
-    "limitStrategy"
+    "limitStrategy",
+    "concurrencyGroupExpression"
 ) VALUES (
-    @id::uuid,
+    gen_random_uuid(),
     coalesce(sqlc.narg('createdAt')::timestamp, CURRENT_TIMESTAMP),
     coalesce(sqlc.narg('updatedAt')::timestamp, CURRENT_TIMESTAMP),
     @workflowVersionId::uuid,
-    @getConcurrencyGroupId::uuid,
+    sqlc.narg('getConcurrencyGroupId')::uuid,
     coalesce(sqlc.narg('maxRuns')::integer, 1),
-    coalesce(sqlc.narg('limitStrategy')::"ConcurrencyLimitStrategy", 'CANCEL_IN_PROGRESS')
+    coalesce(sqlc.narg('limitStrategy')::"ConcurrencyLimitStrategy", 'CANCEL_IN_PROGRESS'),
+    sqlc.narg('concurrencyGroupExpression')::text
 ) RETURNING *;
 
 -- name: CreateJob :one
@@ -364,7 +366,9 @@ SELECT
     sqlc.embed(workflowVersions),
     w."name" as "workflowName",
     wc."limitStrategy" as "concurrencyLimitStrategy",
-    wc."maxRuns" as "concurrencyMaxRuns"
+    wc."maxRuns" as "concurrencyMaxRuns",
+    wc."getConcurrencyGroupId" as "concurrencyGroupId",
+    wc."concurrencyGroupExpression" as "concurrencyGroupExpression"
 FROM
     "WorkflowVersion" as workflowVersions
 JOIN
@@ -464,6 +468,40 @@ SET
     "deletedAt" = CURRENT_TIMESTAMP
 WHERE "id" = @id::uuid
 RETURNING *;
+
+-- name: GetWorkflowWorkerCount :one
+WITH UniqueWorkers AS (
+    SELECT DISTINCT w."id" AS workerId
+    FROM "Worker" w
+    JOIN "_ActionToWorker" atw ON w."id" = atw."B"
+    JOIN "Action" a ON atw."A" = a."id"
+    JOIN "Step" s ON a."actionId" = s."actionId"
+    JOIN "Job" j ON s."jobId" = j."id"
+    JOIN "WorkflowVersion" workflowVersion ON j."workflowVersionId" = workflowVersion."id"
+    WHERE
+        w."tenantId" = @tenantId::uuid
+        AND workflowVersion."deletedAt" IS NULL
+        AND w."deletedAt" IS NULL
+        AND w."dispatcherId" IS NOT NULL
+        AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+        AND w."isActive" = true
+        AND w."isPaused" = false
+        AND workflowVersion."workflowId" = @workflowId::uuid
+),
+workers AS (
+    SELECT SUM("maxRuns") AS maxR
+    FROM "Worker"
+    WHERE "id" IN (SELECT workerId FROM UniqueWorkers)
+),
+slots AS (
+    SELECT COUNT(*) AS usedSlotCount
+    FROM "SemaphoreQueueItem" sqi
+    WHERE sqi."workerId" IN (SELECT workerId FROM UniqueWorkers)
+)
+SELECT
+    COALESCE(maxR, 0) AS totalSlotCount,
+    COALESCE(maxR, 0)  - COALESCE(usedSlotCount, 0) AS freeSlotCount
+FROM workers, slots;
 
 -- name: GetWorkflowVersionCronTriggerRefs :many
 SELECT

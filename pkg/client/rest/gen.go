@@ -64,20 +64,22 @@ const (
 
 // Defines values for StepRunEventReason.
 const (
-	StepRunEventReasonASSIGNED           StepRunEventReason = "ASSIGNED"
-	StepRunEventReasonCANCELLED          StepRunEventReason = "CANCELLED"
-	StepRunEventReasonFAILED             StepRunEventReason = "FAILED"
-	StepRunEventReasonFINISHED           StepRunEventReason = "FINISHED"
-	StepRunEventReasonREASSIGNED         StepRunEventReason = "REASSIGNED"
-	StepRunEventReasonREQUEUEDNOWORKER   StepRunEventReason = "REQUEUED_NO_WORKER"
-	StepRunEventReasonREQUEUEDRATELIMIT  StepRunEventReason = "REQUEUED_RATE_LIMIT"
-	StepRunEventReasonRETRIEDBYUSER      StepRunEventReason = "RETRIED_BY_USER"
-	StepRunEventReasonRETRYING           StepRunEventReason = "RETRYING"
-	StepRunEventReasonSCHEDULINGTIMEDOUT StepRunEventReason = "SCHEDULING_TIMED_OUT"
-	StepRunEventReasonSLOTRELEASED       StepRunEventReason = "SLOT_RELEASED"
-	StepRunEventReasonSTARTED            StepRunEventReason = "STARTED"
-	StepRunEventReasonTIMEDOUT           StepRunEventReason = "TIMED_OUT"
-	StepRunEventReasonTIMEOUTREFRESHED   StepRunEventReason = "TIMEOUT_REFRESHED"
+	StepRunEventReasonASSIGNED                     StepRunEventReason = "ASSIGNED"
+	StepRunEventReasonCANCELLED                    StepRunEventReason = "CANCELLED"
+	StepRunEventReasonFAILED                       StepRunEventReason = "FAILED"
+	StepRunEventReasonFINISHED                     StepRunEventReason = "FINISHED"
+	StepRunEventReasonREASSIGNED                   StepRunEventReason = "REASSIGNED"
+	StepRunEventReasonREQUEUEDNOWORKER             StepRunEventReason = "REQUEUED_NO_WORKER"
+	StepRunEventReasonREQUEUEDRATELIMIT            StepRunEventReason = "REQUEUED_RATE_LIMIT"
+	StepRunEventReasonRETRIEDBYUSER                StepRunEventReason = "RETRIED_BY_USER"
+	StepRunEventReasonRETRYING                     StepRunEventReason = "RETRYING"
+	StepRunEventReasonSCHEDULINGTIMEDOUT           StepRunEventReason = "SCHEDULING_TIMED_OUT"
+	StepRunEventReasonSLOTRELEASED                 StepRunEventReason = "SLOT_RELEASED"
+	StepRunEventReasonSTARTED                      StepRunEventReason = "STARTED"
+	StepRunEventReasonTIMEDOUT                     StepRunEventReason = "TIMED_OUT"
+	StepRunEventReasonTIMEOUTREFRESHED             StepRunEventReason = "TIMEOUT_REFRESHED"
+	StepRunEventReasonWORKFLOWRUNGROUPKEYFAILED    StepRunEventReason = "WORKFLOW_RUN_GROUP_KEY_FAILED"
+	StepRunEventReasonWORKFLOWRUNGROUPKEYSUCCEEDED StepRunEventReason = "WORKFLOW_RUN_GROUP_KEY_SUCCEEDED"
 )
 
 // Defines values for StepRunEventSeverity.
@@ -679,9 +681,10 @@ type StepRunEvent struct {
 	Message       string                  `json:"message"`
 	Reason        StepRunEventReason      `json:"reason"`
 	Severity      StepRunEventSeverity    `json:"severity"`
-	StepRunId     string                  `json:"stepRunId"`
+	StepRunId     *string                 `json:"stepRunId,omitempty"`
 	TimeFirstSeen time.Time               `json:"timeFirstSeen"`
 	TimeLastSeen  time.Time               `json:"timeLastSeen"`
+	WorkflowRunId *string                 `json:"workflowRunId,omitempty"`
 }
 
 // StepRunEventList defines model for StepRunEventList.
@@ -1270,6 +1273,13 @@ type WorkflowVersionMeta struct {
 	WorkflowId string    `json:"workflowId"`
 }
 
+// WorkflowWorkersCount defines model for WorkflowWorkersCount.
+type WorkflowWorkersCount struct {
+	FreeSlotCount *int    `json:"freeSlotCount,omitempty"`
+	MaxSlotCount  *int    `json:"maxSlotCount,omitempty"`
+	WorkflowRunId *string `json:"workflowRunId,omitempty"`
+}
+
 // StepRunListArchivesParams defines parameters for StepRunListArchives.
 type StepRunListArchivesParams struct {
 	// Offset The number to skip
@@ -1788,6 +1798,9 @@ type ClientInterface interface {
 
 	// WorkflowRunGetMetrics request
 	WorkflowRunGetMetrics(ctx context.Context, tenant openapi_types.UUID, params *WorkflowRunGetMetricsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// WorkflowGetWorkersCount request
+	WorkflowGetWorkersCount(ctx context.Context, tenant openapi_types.UUID, workflow openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// UserGetCurrent request
 	UserGetCurrent(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -2739,6 +2752,18 @@ func (c *Client) WorkflowRunList(ctx context.Context, tenant openapi_types.UUID,
 
 func (c *Client) WorkflowRunGetMetrics(ctx context.Context, tenant openapi_types.UUID, params *WorkflowRunGetMetricsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewWorkflowRunGetMetricsRequest(c.Server, tenant, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) WorkflowGetWorkersCount(ctx context.Context, tenant openapi_types.UUID, workflow openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWorkflowGetWorkersCountRequest(c.Server, tenant, workflow)
 	if err != nil {
 		return nil, err
 	}
@@ -6033,6 +6058,47 @@ func NewWorkflowRunGetMetricsRequest(server string, tenant openapi_types.UUID, p
 	return req, nil
 }
 
+// NewWorkflowGetWorkersCountRequest generates requests for WorkflowGetWorkersCount
+func NewWorkflowGetWorkersCountRequest(server string, tenant openapi_types.UUID, workflow openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "workflow", runtime.ParamLocationPath, workflow)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/tenants/%s/workflows/%s/worker-count", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewUserGetCurrentRequest generates requests for UserGetCurrent
 func NewUserGetCurrentRequest(server string) (*http.Request, error) {
 	var err error
@@ -7135,6 +7201,9 @@ type ClientWithResponsesInterface interface {
 
 	// WorkflowRunGetMetricsWithResponse request
 	WorkflowRunGetMetricsWithResponse(ctx context.Context, tenant openapi_types.UUID, params *WorkflowRunGetMetricsParams, reqEditors ...RequestEditorFn) (*WorkflowRunGetMetricsResponse, error)
+
+	// WorkflowGetWorkersCountWithResponse request
+	WorkflowGetWorkersCountWithResponse(ctx context.Context, tenant openapi_types.UUID, workflow openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkflowGetWorkersCountResponse, error)
 
 	// UserGetCurrentWithResponse request
 	UserGetCurrentWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*UserGetCurrentResponse, error)
@@ -8594,6 +8663,30 @@ func (r WorkflowRunGetMetricsResponse) StatusCode() int {
 	return 0
 }
 
+type WorkflowGetWorkersCountResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *WorkflowWorkersCount
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r WorkflowGetWorkersCountResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r WorkflowGetWorkersCountResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type UserGetCurrentResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -9779,6 +9872,15 @@ func (c *ClientWithResponses) WorkflowRunGetMetricsWithResponse(ctx context.Cont
 		return nil, err
 	}
 	return ParseWorkflowRunGetMetricsResponse(rsp)
+}
+
+// WorkflowGetWorkersCountWithResponse request returning *WorkflowGetWorkersCountResponse
+func (c *ClientWithResponses) WorkflowGetWorkersCountWithResponse(ctx context.Context, tenant openapi_types.UUID, workflow openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkflowGetWorkersCountResponse, error) {
+	rsp, err := c.WorkflowGetWorkersCount(ctx, tenant, workflow, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseWorkflowGetWorkersCountResponse(rsp)
 }
 
 // UserGetCurrentWithResponse request returning *UserGetCurrentResponse
@@ -12309,6 +12411,46 @@ func ParseWorkflowRunGetMetricsResponse(rsp *http.Response) (*WorkflowRunGetMetr
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest WorkflowRunsMetrics
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseWorkflowGetWorkersCountResponse parses an HTTP response from a WorkflowGetWorkersCountWithResponse call
+func ParseWorkflowGetWorkersCountResponse(rsp *http.Response) (*WorkflowGetWorkersCountResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &WorkflowGetWorkersCountResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest WorkflowWorkersCount
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

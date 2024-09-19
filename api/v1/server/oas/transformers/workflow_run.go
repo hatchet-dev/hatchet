@@ -310,11 +310,20 @@ func ToStepRunEvent(stepRunEvent *dbsqlc.StepRunEvent) *gen.StepRunEvent {
 		Id:            int(stepRunEvent.ID),
 		TimeFirstSeen: stepRunEvent.TimeFirstSeen.Time,
 		TimeLastSeen:  stepRunEvent.TimeLastSeen.Time,
-		StepRunId:     sqlchelpers.UUIDToStr(stepRunEvent.StepRunId),
 		Severity:      gen.StepRunEventSeverity(stepRunEvent.Severity),
 		Reason:        gen.StepRunEventReason(stepRunEvent.Reason),
 		Message:       stepRunEvent.Message,
 		Count:         int(stepRunEvent.Count),
+	}
+
+	if stepRunEvent.StepRunId.Valid {
+		srId := sqlchelpers.UUIDToStr(stepRunEvent.StepRunId)
+		res.StepRunId = &srId
+	}
+
+	if stepRunEvent.WorkflowRunId.Valid {
+		wrId := sqlchelpers.UUIDToStr(stepRunEvent.WorkflowRunId)
+		res.WorkflowRunId = &wrId
 	}
 
 	if stepRunEvent.Data != nil {

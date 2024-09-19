@@ -130,6 +130,8 @@ paths:
     $ref: "./paths/step-run/step-run.yaml#/listStepRunEventsForWorkflowRun"
   /api/v1/step-runs/{step-run}/archives:
     $ref: "./paths/step-run/step-run.yaml#/listArchives"
+  /api/v1/tenants/{tenant}/workflows/{workflow}/worker-count:
+    $ref: "./paths/workflow/workflow.yaml#/workflowWorkersCount"
   /api/v1/tenants/{tenant}/workflows/runs:
     $ref: "./paths/workflow/workflow.yaml#/workflowRuns"
   /api/v1/tenants/{tenant}/workflow-runs/replay:

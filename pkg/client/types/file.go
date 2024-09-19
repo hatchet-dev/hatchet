@@ -48,7 +48,9 @@ const (
 )
 
 type WorkflowConcurrency struct {
-	ActionID string `yaml:"action,omitempty"`
+	ActionID *string `yaml:"action,omitempty"`
+
+	Expression *string `yaml:"expression,omitempty"`
 
 	MaxRuns int32 `yaml:"maxRuns,omitempty"`
 

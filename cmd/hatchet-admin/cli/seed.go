@@ -150,7 +150,7 @@ func seedDev(repo repository.EngineRepository, tenantId string) error {
 				},
 			},
 			Concurrency: &repository.CreateWorkflowConcurrencyOpts{
-				Action: "test:concurrency",
+				Action: repository.StringPtr("test:concurrency"),
 			},
 			Jobs: []repository.CreateWorkflowJobOpts{
 				{

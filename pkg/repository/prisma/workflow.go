@@ -531,6 +531,22 @@ func (r *workflowEngineRepository) ListWorkflowsForEvent(ctx context.Context, te
 	return workflows, nil
 }
 
+func (r *workflowAPIRepository) GetWorkflowWorkerCount(tenantId, workflowId string) (int, int, error) {
+	params := dbsqlc.GetWorkflowWorkerCountParams{
+		Tenantid:   sqlchelpers.UUIDFromStr(tenantId),
+		Workflowid: sqlchelpers.UUIDFromStr(workflowId),
+	}
+
+	results, err := r.queries.GetWorkflowWorkerCount(context.Background(), r.pool, params)
+
+	if err != nil {
+		return 0, 0, err
+	}
+
+	return int(results.Freeslotcount), int(results.Totalslotcount), nil
+
+}
+
 func (r *workflowEngineRepository) createWorkflowVersionTxs(ctx context.Context, tx pgx.Tx, tenantId, workflowId pgtype.UUID, opts *repository.CreateWorkflowVersionOpts) (string, error) {
 	workflowVersionId := uuid.New().String()
 
@@ -593,24 +609,30 @@ func (r *workflowEngineRepository) createWorkflowVersionTxs(ctx context.Context,
 
 	// create concurrency group
 	if opts.Concurrency != nil {
-		// upsert the action
-		action, err := r.queries.UpsertAction(
-			ctx,
-			tx,
-			dbsqlc.UpsertActionParams{
-				Action:   opts.Concurrency.Action,
-				Tenantid: tenantId,
-			},
-		)
-
-		if err != nil {
-			return "", fmt.Errorf("could not upsert action: %w", err)
+		params := dbsqlc.CreateWorkflowConcurrencyParams{
+			Workflowversionid: sqlcWorkflowVersion.ID,
 		}
 
-		params := dbsqlc.CreateWorkflowConcurrencyParams{
-			ID:                    sqlchelpers.UUIDFromStr(uuid.New().String()),
-			Workflowversionid:     sqlcWorkflowVersion.ID,
-			Getconcurrencygroupid: action.ID,
+		// upsert the action
+		if opts.Concurrency.Action != nil {
+			action, err := r.queries.UpsertAction(
+				ctx,
+				tx,
+				dbsqlc.UpsertActionParams{
+					Action:   *opts.Concurrency.Action,
+					Tenantid: tenantId,
+				},
+			)
+
+			if err != nil {
+				return "", fmt.Errorf("could not upsert action: %w", err)
+			}
+
+			params.GetConcurrencyGroupId = action.ID
+		}
+
+		if opts.Concurrency.Expression != nil {
+			params.ConcurrencyGroupExpression = sqlchelpers.TextFromStr(*opts.Concurrency.Expression)
 		}
 
 		if opts.Concurrency.MaxRuns != nil {

@@ -111,7 +111,7 @@ func (s *getGroupKeyRunRepository) UpdateGetGroupKeyRun(ctx context.Context, ten
 		Tenantid: pgTenantId,
 	}
 
-	updateWorkflowRunParams := dbsqlc.UpdateWorkflowRunGroupKeyParams{
+	updateWorkflowRunParams := dbsqlc.UpdateWorkflowRunGroupKeyFromRunParams{
 		Tenantid:      pgTenantId,
 		Groupkeyrunid: sqlchelpers.UUIDFromStr(getGroupKeyRunId),
 	}
@@ -174,7 +174,7 @@ func (s *getGroupKeyRunRepository) UpdateGetGroupKeyRun(ctx context.Context, ten
 
 	// only update workflow run if status or output has changed
 	if opts.Status != nil || opts.Output != nil {
-		_, err = s.queries.UpdateWorkflowRunGroupKey(ctx, tx, updateWorkflowRunParams)
+		_, err = s.queries.UpdateWorkflowRunGroupKeyFromRun(ctx, tx, updateWorkflowRunParams)
 
 		if err != nil {
 			return nil, fmt.Errorf("could not resolve workflow run status from get group key run: %w", err)

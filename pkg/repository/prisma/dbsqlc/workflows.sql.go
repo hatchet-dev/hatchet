@@ -464,37 +464,39 @@ INSERT INTO "WorkflowConcurrency" (
     "workflowVersionId",
     "getConcurrencyGroupId",
     "maxRuns",
-    "limitStrategy"
+    "limitStrategy",
+    "concurrencyGroupExpression"
 ) VALUES (
-    $1::uuid,
+    gen_random_uuid(),
+    coalesce($1::timestamp, CURRENT_TIMESTAMP),
     coalesce($2::timestamp, CURRENT_TIMESTAMP),
-    coalesce($3::timestamp, CURRENT_TIMESTAMP),
+    $3::uuid,
     $4::uuid,
-    $5::uuid,
-    coalesce($6::integer, 1),
-    coalesce($7::"ConcurrencyLimitStrategy", 'CANCEL_IN_PROGRESS')
-) RETURNING id, "createdAt", "updatedAt", "workflowVersionId", "getConcurrencyGroupId", "maxRuns", "limitStrategy"
+    coalesce($5::integer, 1),
+    coalesce($6::"ConcurrencyLimitStrategy", 'CANCEL_IN_PROGRESS'),
+    $7::text
+) RETURNING id, "createdAt", "updatedAt", "workflowVersionId", "getConcurrencyGroupId", "maxRuns", "limitStrategy", "concurrencyGroupExpression"
 `
 
 type CreateWorkflowConcurrencyParams struct {
-	ID                    pgtype.UUID                  `json:"id"`
-	CreatedAt             pgtype.Timestamp             `json:"createdAt"`
-	UpdatedAt             pgtype.Timestamp             `json:"updatedAt"`
-	Workflowversionid     pgtype.UUID                  `json:"workflowversionid"`
-	Getconcurrencygroupid pgtype.UUID                  `json:"getconcurrencygroupid"`
-	MaxRuns               pgtype.Int4                  `json:"maxRuns"`
-	LimitStrategy         NullConcurrencyLimitStrategy `json:"limitStrategy"`
+	CreatedAt                  pgtype.Timestamp             `json:"createdAt"`
+	UpdatedAt                  pgtype.Timestamp             `json:"updatedAt"`
+	Workflowversionid          pgtype.UUID                  `json:"workflowversionid"`
+	GetConcurrencyGroupId      pgtype.UUID                  `json:"getConcurrencyGroupId"`
+	MaxRuns                    pgtype.Int4                  `json:"maxRuns"`
+	LimitStrategy              NullConcurrencyLimitStrategy `json:"limitStrategy"`
+	ConcurrencyGroupExpression pgtype.Text                  `json:"concurrencyGroupExpression"`
 }
 
 func (q *Queries) CreateWorkflowConcurrency(ctx context.Context, db DBTX, arg CreateWorkflowConcurrencyParams) (*WorkflowConcurrency, error) {
 	row := db.QueryRow(ctx, createWorkflowConcurrency,
-		arg.ID,
 		arg.CreatedAt,
 		arg.UpdatedAt,
 		arg.Workflowversionid,
-		arg.Getconcurrencygroupid,
+		arg.GetConcurrencyGroupId,
 		arg.MaxRuns,
 		arg.LimitStrategy,
+		arg.ConcurrencyGroupExpression,
 	)
 	var i WorkflowConcurrency
 	err := row.Scan(
@@ -505,6 +507,7 @@ func (q *Queries) CreateWorkflowConcurrency(ctx context.Context, db DBTX, arg Cr
 		&i.GetConcurrencyGroupId,
 		&i.MaxRuns,
 		&i.LimitStrategy,
+		&i.ConcurrencyGroupExpression,
 	)
 	return &i, err
 }
@@ -930,7 +933,9 @@ SELECT
     workflowversions.id, workflowversions."createdAt", workflowversions."updatedAt", workflowversions."deletedAt", workflowversions.version, workflowversions."order", workflowversions."workflowId", workflowversions.checksum, workflowversions."scheduleTimeout", workflowversions."onFailureJobId", workflowversions.sticky, workflowversions.kind, workflowversions."defaultPriority",
     w."name" as "workflowName",
     wc."limitStrategy" as "concurrencyLimitStrategy",
-    wc."maxRuns" as "concurrencyMaxRuns"
+    wc."maxRuns" as "concurrencyMaxRuns",
+    wc."getConcurrencyGroupId" as "concurrencyGroupId",
+    wc."concurrencyGroupExpression" as "concurrencyGroupExpression"
 FROM
     "WorkflowVersion" as workflowVersions
 JOIN
@@ -950,10 +955,12 @@ type GetWorkflowVersionForEngineParams struct {
 }
 
 type GetWorkflowVersionForEngineRow struct {
-	WorkflowVersion          WorkflowVersion              `json:"workflow_version"`
-	WorkflowName             string                       `json:"workflowName"`
-	ConcurrencyLimitStrategy NullConcurrencyLimitStrategy `json:"concurrencyLimitStrategy"`
-	ConcurrencyMaxRuns       pgtype.Int4                  `json:"concurrencyMaxRuns"`
+	WorkflowVersion            WorkflowVersion              `json:"workflow_version"`
+	WorkflowName               string                       `json:"workflowName"`
+	ConcurrencyLimitStrategy   NullConcurrencyLimitStrategy `json:"concurrencyLimitStrategy"`
+	ConcurrencyMaxRuns         pgtype.Int4                  `json:"concurrencyMaxRuns"`
+	ConcurrencyGroupId         pgtype.UUID                  `json:"concurrencyGroupId"`
+	ConcurrencyGroupExpression pgtype.Text                  `json:"concurrencyGroupExpression"`
 }
 
 func (q *Queries) GetWorkflowVersionForEngine(ctx context.Context, db DBTX, arg GetWorkflowVersionForEngineParams) ([]*GetWorkflowVersionForEngineRow, error) {
@@ -982,6 +989,8 @@ func (q *Queries) GetWorkflowVersionForEngine(ctx context.Context, db DBTX, arg 
 			&i.WorkflowName,
 			&i.ConcurrencyLimitStrategy,
 			&i.ConcurrencyMaxRuns,
+			&i.ConcurrencyGroupId,
+			&i.ConcurrencyGroupExpression,
 		); err != nil {
 			return nil, err
 		}
@@ -1031,6 +1040,58 @@ func (q *Queries) GetWorkflowVersionScheduleTriggerRefs(ctx context.Context, db 
 		return nil, err
 	}
 	return items, nil
+}
+
+const getWorkflowWorkerCount = `-- name: GetWorkflowWorkerCount :one
+WITH UniqueWorkers AS (
+    SELECT DISTINCT w."id" AS workerId
+    FROM "Worker" w
+    JOIN "_ActionToWorker" atw ON w."id" = atw."B"
+    JOIN "Action" a ON atw."A" = a."id"
+    JOIN "Step" s ON a."actionId" = s."actionId"
+    JOIN "Job" j ON s."jobId" = j."id"
+    JOIN "WorkflowVersion" workflowVersion ON j."workflowVersionId" = workflowVersion."id"
+    WHERE
+        w."tenantId" = $1::uuid
+        AND workflowVersion."deletedAt" IS NULL
+        AND w."deletedAt" IS NULL
+        AND w."dispatcherId" IS NOT NULL
+        AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+        AND w."isActive" = true
+        AND w."isPaused" = false
+        AND workflowVersion."workflowId" = $2::uuid
+),
+workers AS (
+    SELECT SUM("maxRuns") AS maxR
+    FROM "Worker"
+    WHERE "id" IN (SELECT workerId FROM UniqueWorkers)
+),
+slots AS (
+    SELECT COUNT(*) AS usedSlotCount
+    FROM "SemaphoreQueueItem" sqi
+    WHERE sqi."workerId" IN (SELECT workerId FROM UniqueWorkers)
+)
+SELECT
+    COALESCE(maxR, 0) AS totalSlotCount,
+    COALESCE(maxR, 0)  - COALESCE(usedSlotCount, 0) AS freeSlotCount
+FROM workers, slots
+`
+
+type GetWorkflowWorkerCountParams struct {
+	Tenantid   pgtype.UUID `json:"tenantid"`
+	Workflowid pgtype.UUID `json:"workflowid"`
+}
+
+type GetWorkflowWorkerCountRow struct {
+	Totalslotcount int64 `json:"totalslotcount"`
+	Freeslotcount  int32 `json:"freeslotcount"`
+}
+
+func (q *Queries) GetWorkflowWorkerCount(ctx context.Context, db DBTX, arg GetWorkflowWorkerCountParams) (*GetWorkflowWorkerCountRow, error) {
+	row := db.QueryRow(ctx, getWorkflowWorkerCount, arg.Tenantid, arg.Workflowid)
+	var i GetWorkflowWorkerCountRow
+	err := row.Scan(&i.Totalslotcount, &i.Freeslotcount)
+	return &i, err
 }
 
 const linkOnFailureJob = `-- name: LinkOnFailureJob :one

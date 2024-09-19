@@ -19,6 +19,7 @@ const (
 	ActionIDErr    = "Invalid action ID. Action IDs must be in the format <integrationId>:<verb>"
 	CronErr        = "Invalid cron expression"
 	DurationErr    = "Invalid duration. Durations must be in the format <number><unit>, where unit is one of: 's', 'm', 'h'"
+	CELExprErr     = "Invalid CEL expression"
 )
 
 type APIErrors gen.APIErrors
@@ -132,6 +133,8 @@ func getErrorStr(errObj *ValidationErrObject) string {
 		return errObj.SafeExternalError(CronErr)
 	case "duration":
 		return errObj.SafeExternalError(DurationErr)
+	case "celworkflowrunstr":
+		return errObj.SafeExternalError(CELExprErr)
 	default:
 		return errObj.SafeExternalError("")
 	}

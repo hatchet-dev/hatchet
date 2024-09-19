@@ -864,8 +864,8 @@ func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId, stepId
 	_, err = ec.repo.StepRun().QueueStepRun(ctx, tenantId, stepRunId, queueOpts)
 
 	if err != nil {
-		if errors.Is(err, repository.ErrStepRunIsNotPending) {
-			ec.l.Debug().Msgf("step run %s is not pending, skipping scheduling", stepRunId)
+		if errors.Is(err, repository.ErrAlreadyQueued) {
+			ec.l.Debug().Msgf("step run %s is already queued, skipping scheduling", stepRunId)
 			return nil
 		}
 
