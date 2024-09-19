@@ -19,11 +19,12 @@ import (
 )
 
 type ChildWorkflowOpts struct {
-	ParentId        string
-	ParentStepRunId string
-	ChildIndex      int
-	ChildKey        *string
-	DesiredWorkerId *string
+	ParentId           string
+	ParentStepRunId    string
+	ChildIndex         int
+	ChildKey           *string
+	DesiredWorkerId    *string
+	AdditionalMetadata *map[string]string
 }
 
 type AdminClient interface {
@@ -226,14 +227,21 @@ func (a *adminClientImpl) RunChildWorkflow(workflowName string, input interface{
 
 	childIndex := int32(opts.ChildIndex)
 
+	metadataBytes, err := json.Marshal(opts.AdditionalMetadata)
+	if err != nil {
+		return "", fmt.Errorf("could not marshal additional metadata: %w", err)
+	}
+	metadata := string(metadataBytes)
+
 	res, err := a.client.TriggerWorkflow(a.ctx.newContext(context.Background()), &admincontracts.TriggerWorkflowRequest{
-		Name:            workflowName,
-		Input:           string(inputBytes),
-		ParentId:        &opts.ParentId,
-		ParentStepRunId: &opts.ParentStepRunId,
-		ChildIndex:      &childIndex,
-		ChildKey:        opts.ChildKey,
-		DesiredWorkerId: opts.DesiredWorkerId,
+		Name:               workflowName,
+		Input:              string(inputBytes),
+		ParentId:           &opts.ParentId,
+		ParentStepRunId:    &opts.ParentStepRunId,
+		ChildIndex:         &childIndex,
+		ChildKey:           opts.ChildKey,
+		DesiredWorkerId:    opts.DesiredWorkerId,
+		AdditionalMetadata: &metadata,
 	})
 
 	if err != nil {
