@@ -2295,7 +2295,7 @@ func (s *stepRunEngineRepository) QueueStepRun(ctx context.Context, tenantId, st
 	}
 
 	// if this is not a retry, and the step run is already in a pending assignment state, this is a no-op
-	if !opts.IsRetry && innerStepRun.SRStatus == dbsqlc.StepRunStatusPENDINGASSIGNMENT {
+	if !opts.IsRetry && !opts.IsInternalRetry && innerStepRun.SRStatus == dbsqlc.StepRunStatusPENDINGASSIGNMENT {
 		return nil, repository.ErrAlreadyQueued
 	}
 
