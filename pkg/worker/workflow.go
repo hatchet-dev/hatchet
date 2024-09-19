@@ -157,8 +157,15 @@ type WorkflowJob struct {
 
 type WorkflowConcurrency struct {
 	fn            GetWorkflowConcurrencyGroupFn
+	expr          *string
 	maxRuns       *int32
 	limitStrategy *types.WorkflowConcurrencyLimitStrategy
+}
+
+func Expression(expr string) *WorkflowConcurrency {
+	return &WorkflowConcurrency{
+		expr: &expr,
+	}
 }
 
 func Concurrency(fn GetWorkflowConcurrencyGroupFn) *WorkflowConcurrency {
@@ -206,8 +213,15 @@ func (j *WorkflowJob) ToWorkflow(svcName string, namespace string) types.Workflo
 	}
 
 	if j.Concurrency != nil {
-		w.Concurrency = &types.WorkflowConcurrency{
-			ActionID: "concurrency:" + getFnName(j.Concurrency.fn), // TODO this should also be namespaced
+		w.Concurrency = &types.WorkflowConcurrency{}
+
+		if j.Concurrency.fn != nil {
+			actionId := "concurrency:" + getFnName(j.Concurrency.fn)
+			w.Concurrency.ActionID = &actionId // TODO this should also be namespaced
+		}
+
+		if j.Concurrency.expr != nil {
+			w.Concurrency.Expression = j.Concurrency.expr
 		}
 
 		if j.Concurrency.maxRuns != nil {
@@ -259,7 +273,7 @@ func (j *WorkflowJob) ToActionMap(svcName string) map[string]any {
 		res[actionId] = step.Function
 	}
 
-	if j.Concurrency != nil {
+	if j.Concurrency != nil && j.Concurrency.fn != nil {
 		res["concurrency:"+getFnName(j.Concurrency.fn)] = j.Concurrency.fn
 	}
 

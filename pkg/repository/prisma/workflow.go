@@ -593,24 +593,30 @@ func (r *workflowEngineRepository) createWorkflowVersionTxs(ctx context.Context,
 
 	// create concurrency group
 	if opts.Concurrency != nil {
-		// upsert the action
-		action, err := r.queries.UpsertAction(
-			ctx,
-			tx,
-			dbsqlc.UpsertActionParams{
-				Action:   opts.Concurrency.Action,
-				Tenantid: tenantId,
-			},
-		)
-
-		if err != nil {
-			return "", fmt.Errorf("could not upsert action: %w", err)
+		params := dbsqlc.CreateWorkflowConcurrencyParams{
+			Workflowversionid: sqlcWorkflowVersion.ID,
 		}
 
-		params := dbsqlc.CreateWorkflowConcurrencyParams{
-			ID:                    sqlchelpers.UUIDFromStr(uuid.New().String()),
-			Workflowversionid:     sqlcWorkflowVersion.ID,
-			Getconcurrencygroupid: action.ID,
+		// upsert the action
+		if opts.Concurrency.Action != nil {
+			action, err := r.queries.UpsertAction(
+				ctx,
+				tx,
+				dbsqlc.UpsertActionParams{
+					Action:   *opts.Concurrency.Action,
+					Tenantid: tenantId,
+				},
+			)
+
+			if err != nil {
+				return "", fmt.Errorf("could not upsert action: %w", err)
+			}
+
+			params.GetConcurrencyGroupId = action.ID
+		}
+
+		if opts.Concurrency.Expression != nil {
+			params.ConcurrencyGroupExpression = sqlchelpers.TextFromStr(*opts.Concurrency.Expression)
 		}
 
 		if opts.Concurrency.MaxRuns != nil {
