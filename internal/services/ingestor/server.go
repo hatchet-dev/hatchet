@@ -55,15 +55,15 @@ func (i *IngestorImpl) BulkPush(ctx context.Context, req *contracts.BulkPushEven
 
 	events := make([]*repository.CreateEventOpts, 0)
 
-	for _, req := range req.Events {
+	for _, e := range req.Events {
 		var additionalMeta []byte
-		if req.AdditionalMetadata != nil {
-			additionalMeta = []byte(*req.AdditionalMetadata)
+		if e.AdditionalMetadata != nil {
+			additionalMeta = []byte(*e.AdditionalMetadata)
 		}
 		events = append(events, &repository.CreateEventOpts{
 			TenantId:           tenantId,
-			Key:                req.Key,
-			Data:               []byte(req.Payload),
+			Key:                e.Key,
+			Data:               []byte(e.Payload),
 			AdditionalMetadata: additionalMeta,
 		})
 	}
@@ -77,7 +77,14 @@ func (i *IngestorImpl) BulkPush(ctx context.Context, req *contracts.BulkPushEven
 		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
 	}
 
-	createdEvents, err := i.BulkIngestEvent(ctx, events)
+	for _, e := range opts.Events {
+
+		if err := i.v.Validate(e); err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "Invalid request: events failing validation %s", err)
+		}
+	}
+
+	createdEvents, err := i.BulkIngestEvent(ctx, tenantId, events)
 
 	if err == metered.ErrResourceExhausted {
 		return nil, status.Errorf(codes.ResourceExhausted, "resource exhausted: event limit exceeded for tenant")

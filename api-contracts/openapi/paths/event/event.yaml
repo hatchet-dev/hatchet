@@ -164,7 +164,7 @@ bulkCreateEvents:
   post:
     x-resources: ["tenant"]
     description: Bulk creates new events.
-    operationId: event:bulk:create
+    operationId: event:create:bulk
     parameters:
       - description: The tenant id
         in: path
@@ -187,7 +187,7 @@ bulkCreateEvents:
         content:
           application/json:
             schema:
-              $ref: "../../components/schemas/_index.yaml#/Events"
+              $ref: "../../components/schemas/_index.yaml#/BulkCreateEventResponse"
         description: Successfully created the events
       "400":
         content:

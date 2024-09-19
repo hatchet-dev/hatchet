@@ -85,24 +85,19 @@ INSERT INTO "Event" (
 -- name: CreateEvents :copyfrom
 INSERT INTO "Event" (
     "id",
-    "createdAt",
-    "updatedAt",
-    "deletedAt",
     "key",
     "tenantId",
     "replayedFromId",
     "data",
     "additionalMetadata"
+
 ) VALUES (
     $1,
     $2,
     $3,
     $4,
     $5,
-    $6,
-    $7,
-    $8,
-    $9
+    $6
 );
 
 

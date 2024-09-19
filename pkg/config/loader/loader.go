@@ -418,6 +418,7 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 		}
 		return nil
 	}
+	cf.Runtime.EnforceLimits = true
 
 	return cleanup, &server.ServerConfig{
 		Alerter:                alerter,

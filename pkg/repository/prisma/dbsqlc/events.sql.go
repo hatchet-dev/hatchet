@@ -202,15 +202,12 @@ func (q *Queries) CreateEvent(ctx context.Context, db DBTX, arg CreateEventParam
 }
 
 type CreateEventsParams struct {
-	ID                 pgtype.UUID      `json:"id"`
-	CreatedAt          pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt          pgtype.Timestamp `json:"updatedAt"`
-	DeletedAt          pgtype.Timestamp `json:"deletedAt"`
-	Key                string           `json:"key"`
-	TenantId           pgtype.UUID      `json:"tenantId"`
-	ReplayedFromId     pgtype.UUID      `json:"replayedFromId"`
-	Data               []byte           `json:"data"`
-	AdditionalMetadata []byte           `json:"additionalMetadata"`
+	ID                 pgtype.UUID `json:"id"`
+	Key                string      `json:"key"`
+	TenantId           pgtype.UUID `json:"tenantId"`
+	ReplayedFromId     pgtype.UUID `json:"replayedFromId"`
+	Data               []byte      `json:"data"`
+	AdditionalMetadata []byte      `json:"additionalMetadata"`
 }
 
 const getEventForEngine = `-- name: GetEventForEngine :one

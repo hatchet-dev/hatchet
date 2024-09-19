@@ -78,7 +78,7 @@ SET
         WHEN ("customValueMeter" = true OR ("window" IS NOT NULL AND "window" != '' AND NOW() - "lastRefill" >= "window"::INTERVAL)) THEN
             0 -- Refill to 0 since the window has passed
         ELSE
-            "value" + 1 -- Increment the current value within the window
+            "value" + @numResources -- Increment the current value within the window by the number of resources
     END,
     "lastRefill" = CASE
         WHEN ("window" IS NOT NULL AND "window" != '' AND NOW() - "lastRefill" >= "window"::INTERVAL) THEN

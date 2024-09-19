@@ -78,6 +78,7 @@ message PutStreamEventResponse {}
 
 
 message BulkPushEventRequest {
+
     repeated PushEventRequest events = 1;
 }
 

@@ -13,7 +13,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
 )
 
-func (t *EventService) EventBulkCreate(ctx echo.Context, request gen.EventBulkCreateRequestObject) (gen.EventBulkCreateResponseObject, error) {
+func (t *EventService) EventCreateBulk(ctx echo.Context, request gen.EventCreateBulkRequestObject) (gen.EventCreateBulkResponseObject, error) {
 	tenant := ctx.Get("tenant").(*db.TenantModel)
 
 	eventOpts := make([]*repository.CreateEventOpts, len(request.Body.Events))
@@ -42,21 +42,21 @@ func (t *EventService) EventBulkCreate(ctx echo.Context, request gen.EventBulkCr
 			AdditionalMetadata: additionalMetadata,
 		}
 	}
-	events, err := t.config.Ingestor.BulkIngestEvent(ctx.Request().Context(), eventOpts)
+	events, err := t.config.Ingestor.BulkIngestEvent(ctx.Request().Context(), tenant.ID, eventOpts)
 
 	if err != nil {
 
 		if err == metered.ErrResourceExhausted {
-			return gen.EventBulkCreate429JSONResponse(
+			return gen.EventCreateBulk429JSONResponse(
 				apierrors.NewAPIErrors("Event limit exceeded"),
 			), nil
 		}
 
-		return gen.EventBulkCreate400JSONResponse{}, err
+		return gen.EventCreateBulk400JSONResponse{}, err
 
 	}
 
-	return gen.EventBulkCreate200JSONResponse{
+	return gen.EventCreateBulk200JSONResponse{
 		Events: transformers.ToEventList(events)}, nil
 
 }

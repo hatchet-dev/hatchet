@@ -128,7 +128,7 @@ SET
         WHEN ("customValueMeter" = true OR ("window" IS NOT NULL AND "window" != '' AND NOW() - "lastRefill" >= "window"::INTERVAL)) THEN
             0 -- Refill to 0 since the window has passed
         ELSE
-            "value" + 1 -- Increment the current value within the window
+            "value" + $1 -- Increment the current value within the window by the number of resources
     END,
     "lastRefill" = CASE
         WHEN ("window" IS NOT NULL AND "window" != '' AND NOW() - "lastRefill" >= "window"::INTERVAL) THEN
@@ -136,18 +136,19 @@ SET
         ELSE
             "lastRefill" -- Keep the lastRefill unchanged if within the window
     END
-WHERE "tenantId" = $1::uuid
-    AND "resource" = $2::"LimitResource"
+WHERE "tenantId" = $2::uuid
+    AND "resource" = $3::"LimitResource"
 RETURNING id, "createdAt", "updatedAt", resource, "tenantId", "limitValue", "alarmValue", value, "window", "lastRefill", "customValueMeter"
 `
 
 type MeterTenantResourceParams struct {
-	Tenantid pgtype.UUID       `json:"tenantid"`
-	Resource NullLimitResource `json:"resource"`
+	Numresources int32             `json:"numresources"`
+	Tenantid     pgtype.UUID       `json:"tenantid"`
+	Resource     NullLimitResource `json:"resource"`
 }
 
 func (q *Queries) MeterTenantResource(ctx context.Context, db DBTX, arg MeterTenantResourceParams) (*TenantResourceLimit, error) {
-	row := db.QueryRow(ctx, meterTenantResource, arg.Tenantid, arg.Resource)
+	row := db.QueryRow(ctx, meterTenantResource, arg.Numresources, arg.Tenantid, arg.Resource)
 	var i TenantResourceLimit
 	err := row.Scan(
 		&i.ID,

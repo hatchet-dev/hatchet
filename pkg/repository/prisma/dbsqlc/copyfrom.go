@@ -30,9 +30,6 @@ func (r *iteratorForCreateEvents) Next() bool {
 func (r iteratorForCreateEvents) Values() ([]interface{}, error) {
 	return []interface{}{
 		r.rows[0].ID,
-		r.rows[0].CreatedAt,
-		r.rows[0].UpdatedAt,
-		r.rows[0].DeletedAt,
 		r.rows[0].Key,
 		r.rows[0].TenantId,
 		r.rows[0].ReplayedFromId,
@@ -46,5 +43,5 @@ func (r iteratorForCreateEvents) Err() error {
 }
 
 func (q *Queries) CreateEvents(ctx context.Context, db DBTX, arg []CreateEventsParams) (int64, error) {
-	return db.CopyFrom(ctx, []string{"Event"}, []string{"id", "createdAt", "updatedAt", "deletedAt", "key", "tenantId", "replayedFromId", "data", "additionalMetadata"}, &iteratorForCreateEvents{rows: arg})
+	return db.CopyFrom(ctx, []string{"Event"}, []string{"id", "key", "tenantId", "replayedFromId", "data", "additionalMetadata"}, &iteratorForCreateEvents{rows: arg})
 }

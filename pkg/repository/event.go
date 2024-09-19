@@ -70,6 +70,10 @@ type ListEventResult struct {
 	Count int
 }
 
+type BulkCreateEventResult struct {
+	Events []*dbsqlc.Event
+}
+
 type EventAPIRepository interface {
 	// ListEvents returns all events for a given tenant.
 	ListEvents(ctx context.Context, tenantId string, opts *ListEventOpts) (*ListEventResult, error)
@@ -91,7 +95,7 @@ type EventEngineRepository interface {
 	CreateEvent(ctx context.Context, opts *CreateEventOpts) (*dbsqlc.Event, error)
 
 	// CreateEvent creates a new event for a given tenant.
-	BulkCreateEvent(ctx context.Context, opts *BulkCreateEventOpts) ([]*dbsqlc.Event, error)
+	BulkCreateEvent(ctx context.Context, opts *BulkCreateEventOpts) (*BulkCreateEventResult, error)
 
 	// GetEventForEngine returns an event for the engine by id.
 	GetEventForEngine(ctx context.Context, tenantId, id string) (*dbsqlc.Event, error)

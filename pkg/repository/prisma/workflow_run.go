@@ -94,7 +94,7 @@ func (w *workflowRunAPIRepository) GetWorkflowRunInputData(tenantId, workflowRun
 }
 
 func (w *workflowRunAPIRepository) CreateNewWorkflowRun(ctx context.Context, tenantId string, opts *repository.CreateWorkflowRunOpts) (*dbsqlc.WorkflowRun, error) {
-	return metered.MakeMetered(ctx, w.m, dbsqlc.LimitResourceWORKFLOWRUN, tenantId, func() (*string, *dbsqlc.WorkflowRun, error) {
+	return metered.MakeMetered(ctx, w.m, dbsqlc.LimitResourceWORKFLOWRUN, tenantId, 1, func() (*string, *dbsqlc.WorkflowRun, error) {
 		if err := w.v.Validate(opts); err != nil {
 			return nil, nil, err
 		}
@@ -302,7 +302,7 @@ func (w *workflowRunEngineRepository) PopWorkflowRunsRoundRobin(ctx context.Cont
 
 func (w *workflowRunEngineRepository) CreateNewWorkflowRun(ctx context.Context, tenantId string, opts *repository.CreateWorkflowRunOpts) (string, error) {
 
-	wfr, err := metered.MakeMetered(ctx, w.m, dbsqlc.LimitResourceWORKFLOWRUN, tenantId, func() (*string, *dbsqlc.WorkflowRun, error) {
+	wfr, err := metered.MakeMetered(ctx, w.m, dbsqlc.LimitResourceWORKFLOWRUN, tenantId, 1, func() (*string, *dbsqlc.WorkflowRun, error) {
 
 		if err := w.v.Validate(opts); err != nil {
 			return nil, nil, err
