@@ -13,6 +13,7 @@ const workflow: Workflow = {
     event: "concurrency:create",
   },
   concurrency: {
+    expression: "'default'",
     maxRuns: 1,
     limitStrategy: ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
   },
