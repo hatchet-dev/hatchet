@@ -27,9 +27,9 @@ type EventClient interface {
 }
 
 type EventWithMetadata struct {
-	Event    interface{}       `json:"event"`
-	Metadata map[string]string `json:"metadata"`
-	Key      string            `json:"key"`
+	Event              interface{}       `json:"event"`
+	AdditionalMetadata map[string]string `json:"metadata"`
+	Key                string            `json:"key"`
 }
 
 type eventClientImpl struct {
@@ -115,7 +115,7 @@ func (a *eventClientImpl) BulkPush(ctx context.Context, payload []EventWithMetad
 		if err != nil {
 			return err
 		}
-		eMetadata, err := json.Marshal(p.Metadata)
+		eMetadata, err := json.Marshal(p.AdditionalMetadata)
 		if err != nil {
 			return err
 		}

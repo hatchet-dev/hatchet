@@ -98,9 +98,9 @@ func run() (func() error, error) {
 			},
 		}
 		events = append(events, client.EventWithMetadata{
-			Event:    testEvent,
-			Metadata: map[string]string{"hello": "world " + fmt.Sprint(i)},
-			Key:      "user:create:bulk",
+			Event:              testEvent,
+			AdditionalMetadata: map[string]string{"hello": "world " + fmt.Sprint(i)},
+			Key:                "user:create:bulk",
 		})
 	}
 
