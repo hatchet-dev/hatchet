@@ -124,6 +124,8 @@ Job:
   $ref: "./workflow.yaml#/Job"
 Step:
   $ref: "./workflow.yaml#/Step"
+WorkflowWorkersCount:
+  $ref: "./workflow.yaml#/WorkflowWorkersCount"
 WorkflowRun:
   $ref: "./workflow_run.yaml#/WorkflowRun"
 WorkflowRunShape:

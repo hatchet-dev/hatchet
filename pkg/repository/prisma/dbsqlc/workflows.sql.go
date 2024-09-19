@@ -1042,6 +1042,58 @@ func (q *Queries) GetWorkflowVersionScheduleTriggerRefs(ctx context.Context, db 
 	return items, nil
 }
 
+const getWorkflowWorkerCount = `-- name: GetWorkflowWorkerCount :one
+WITH UniqueWorkers AS (
+    SELECT DISTINCT w."id" AS workerId
+    FROM "Worker" w
+    JOIN "_ActionToWorker" atw ON w."id" = atw."B"
+    JOIN "Action" a ON atw."A" = a."id"
+    JOIN "Step" s ON a."actionId" = s."actionId"
+    JOIN "Job" j ON s."jobId" = j."id"
+    JOIN "WorkflowVersion" workflowVersion ON j."workflowVersionId" = workflowVersion."id"
+    WHERE
+        w."tenantId" = $1::uuid
+        AND workflowVersion."deletedAt" IS NULL
+        AND w."deletedAt" IS NULL
+        AND w."dispatcherId" IS NOT NULL
+        AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+        AND w."isActive" = true
+        AND w."isPaused" = false
+        AND workflowVersion."workflowId" = $2::uuid
+),
+workers AS (
+    SELECT SUM("maxRuns") AS maxR
+    FROM "Worker"
+    WHERE "id" IN (SELECT workerId FROM UniqueWorkers)
+),
+slots AS (
+    SELECT COUNT(*) AS usedSlotCount
+    FROM "SemaphoreQueueItem" sqi
+    WHERE sqi."workerId" IN (SELECT workerId FROM UniqueWorkers)
+)
+SELECT
+    COALESCE(maxR, 0) AS totalSlotCount,
+    COALESCE(maxR, 0)  - COALESCE(usedSlotCount, 0) AS freeSlotCount
+FROM workers, slots
+`
+
+type GetWorkflowWorkerCountParams struct {
+	Tenantid   pgtype.UUID `json:"tenantid"`
+	Workflowid pgtype.UUID `json:"workflowid"`
+}
+
+type GetWorkflowWorkerCountRow struct {
+	Totalslotcount int64 `json:"totalslotcount"`
+	Freeslotcount  int32 `json:"freeslotcount"`
+}
+
+func (q *Queries) GetWorkflowWorkerCount(ctx context.Context, db DBTX, arg GetWorkflowWorkerCountParams) (*GetWorkflowWorkerCountRow, error) {
+	row := db.QueryRow(ctx, getWorkflowWorkerCount, arg.Tenantid, arg.Workflowid)
+	var i GetWorkflowWorkerCountRow
+	err := row.Scan(&i.Totalslotcount, &i.Freeslotcount)
+	return &i, err
+}
+
 const linkOnFailureJob = `-- name: LinkOnFailureJob :one
 UPDATE "WorkflowVersion"
 SET "onFailureJobId" = $1::uuid

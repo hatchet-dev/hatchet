@@ -469,6 +469,40 @@ SET
 WHERE "id" = @id::uuid
 RETURNING *;
 
+-- name: GetWorkflowWorkerCount :one
+WITH UniqueWorkers AS (
+    SELECT DISTINCT w."id" AS workerId
+    FROM "Worker" w
+    JOIN "_ActionToWorker" atw ON w."id" = atw."B"
+    JOIN "Action" a ON atw."A" = a."id"
+    JOIN "Step" s ON a."actionId" = s."actionId"
+    JOIN "Job" j ON s."jobId" = j."id"
+    JOIN "WorkflowVersion" workflowVersion ON j."workflowVersionId" = workflowVersion."id"
+    WHERE
+        w."tenantId" = @tenantId::uuid
+        AND workflowVersion."deletedAt" IS NULL
+        AND w."deletedAt" IS NULL
+        AND w."dispatcherId" IS NOT NULL
+        AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+        AND w."isActive" = true
+        AND w."isPaused" = false
+        AND workflowVersion."workflowId" = @workflowId::uuid
+),
+workers AS (
+    SELECT SUM("maxRuns") AS maxR
+    FROM "Worker"
+    WHERE "id" IN (SELECT workerId FROM UniqueWorkers)
+),
+slots AS (
+    SELECT COUNT(*) AS usedSlotCount
+    FROM "SemaphoreQueueItem" sqi
+    WHERE sqi."workerId" IN (SELECT workerId FROM UniqueWorkers)
+)
+SELECT
+    COALESCE(maxR, 0) AS totalSlotCount,
+    COALESCE(maxR, 0)  - COALESCE(usedSlotCount, 0) AS freeSlotCount
+FROM workers, slots;
+
 -- name: GetWorkflowVersionCronTriggerRefs :many
 SELECT
     wtc.*
