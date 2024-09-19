@@ -53,9 +53,10 @@ enum ConcurrencyLimitStrategy {
 }
 
 message WorkflowConcurrencyOpts {
-    string action = 1; // (required) the action id for getting the concurrency group
-    int32 max_runs = 2; // (optional) the maximum number of concurrent workflow runs, default 1
-    ConcurrencyLimitStrategy limit_strategy = 3; // (optional) the strategy to use when the concurrency limit is reached, default CANCEL_IN_PROGRESS
+    optional string action = 1; // (optional) the action id for getting the concurrency group
+    optional int32 max_runs = 2; // (optional) the maximum number of concurrent workflow runs, default 1
+    optional ConcurrencyLimitStrategy limit_strategy = 3; // (optional) the strategy to use when the concurrency limit is reached, default CANCEL_IN_PROGRESS
+    optional string expression = 4; // (optional) the expression to use for concurrency
 }
 
 // CreateWorkflowJobOpts represents options to create a workflow job.

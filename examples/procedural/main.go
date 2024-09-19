@@ -81,7 +81,11 @@ func run(events chan<- string) (func() error, error) {
 								Index: i,
 							}
 
-							childWorkflow, err := ctx.SpawnWorkflow("procedural-child-workflow", childInput, &worker.SpawnWorkflowOpts{})
+							childWorkflow, err := ctx.SpawnWorkflow("procedural-child-workflow", childInput, &worker.SpawnWorkflowOpts{
+								AdditionalMetadata: &map[string]string{
+									"childKey": "childValue",
+								},
+							})
 
 							if err != nil {
 								return nil, err

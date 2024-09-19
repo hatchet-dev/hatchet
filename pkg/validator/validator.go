@@ -10,6 +10,7 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
 
+	"github.com/hatchet-dev/hatchet/internal/cel"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 )
 
@@ -19,6 +20,8 @@ var CronRegex = regexp.MustCompile(`(@(annually|yearly|monthly|weekly|daily|hour
 
 func newValidator() *validator.Validate {
 	validate := validator.New()
+
+	celParser := cel.NewCELParser()
 
 	_ = validate.RegisterValidation("hatchetName", func(fl validator.FieldLevel) bool {
 		return NameRegex.MatchString(fl.Field().String())
@@ -58,6 +61,12 @@ func newValidator() *validator.Validate {
 
 	_ = validate.RegisterValidation("duration", func(fl validator.FieldLevel) bool {
 		_, err := time.ParseDuration(fl.Field().String())
+
+		return err == nil
+	})
+
+	_ = validate.RegisterValidation("celworkflowrunstr", func(fl validator.FieldLevel) bool {
+		_, err := celParser.ParseWorkflowString(fl.Field().String())
 
 		return err == nil
 	})

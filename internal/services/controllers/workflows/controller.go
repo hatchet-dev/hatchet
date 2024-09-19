@@ -10,9 +10,11 @@ import (
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/hatchet-dev/hatchet/internal/cel"
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/integrations/alerting"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
+	"github.com/hatchet-dev/hatchet/internal/queueutils"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/partition"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
@@ -30,14 +32,16 @@ type WorkflowsController interface {
 }
 
 type WorkflowsControllerImpl struct {
-	mq            msgqueue.MessageQueue
-	l             *zerolog.Logger
-	repo          repository.EngineRepository
-	dv            datautils.DataDecoderValidator
-	s             gocron.Scheduler
-	tenantAlerter *alerting.TenantAlertManager
-	a             *hatcheterrors.Wrapped
-	p             *partition.Partition
+	mq                       msgqueue.MessageQueue
+	l                        *zerolog.Logger
+	repo                     repository.EngineRepository
+	dv                       datautils.DataDecoderValidator
+	s                        gocron.Scheduler
+	tenantAlerter            *alerting.TenantAlertManager
+	a                        *hatcheterrors.Wrapped
+	p                        *partition.Partition
+	celParser                *cel.CELParser
+	processWorkflowEventsOps *queueutils.OperationPool
 }
 
 type WorkflowsControllerOpt func(*WorkflowsControllerOpts)
@@ -140,7 +144,7 @@ func New(fs ...WorkflowsControllerOpt) (*WorkflowsControllerImpl, error) {
 	a := hatcheterrors.NewWrapped(opts.alerter)
 	a.WithData(map[string]interface{}{"service": "workflows-controller"})
 
-	return &WorkflowsControllerImpl{
+	w := &WorkflowsControllerImpl{
 		mq:            opts.mq,
 		l:             opts.l,
 		repo:          opts.repo,
@@ -149,7 +153,12 @@ func New(fs ...WorkflowsControllerOpt) (*WorkflowsControllerImpl, error) {
 		tenantAlerter: opts.ta,
 		a:             a,
 		p:             opts.p,
-	}, nil
+		celParser:     cel.NewCELParser(),
+	}
+
+	w.processWorkflowEventsOps = queueutils.NewOperationPool(w.l, time.Second*5, "process workflow events", w.processWorkflowEvents)
+
+	return w, nil
 }
 
 func (wc *WorkflowsControllerImpl) Start() (func() error, error) {
@@ -193,6 +202,18 @@ func (wc *WorkflowsControllerImpl) Start() (func() error, error) {
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("could not poll active queues: %w", err)
+	}
+
+	_, err = wc.s.NewJob(
+		gocron.DurationJob(time.Second*1),
+		gocron.NewTask(
+			wc.runTenantProcessWorkflowRunEvents(ctx),
+		),
+	)
+
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("could not schedule process workflow run events: %w", err)
 	}
 
 	wc.s.Start()
@@ -530,4 +551,40 @@ func (wc *WorkflowsControllerImpl) cancelGetGroupKeyRun(ctx context.Context, ten
 	}
 
 	return wc.cancelWorkflowRunJobs(ctx, workflowRun)
+}
+
+func (wc *WorkflowsControllerImpl) runTenantProcessWorkflowRunEvents(ctx context.Context) func() {
+	return func() {
+		wc.l.Debug().Msgf("partition: processing workflow run events")
+
+		// list all tenants
+		tenants, err := wc.repo.Tenant().ListTenantsByControllerPartition(ctx, wc.p.GetControllerPartitionId())
+
+		if err != nil {
+			wc.l.Err(err).Msg("could not list tenants")
+			return
+		}
+
+		for i := range tenants {
+			tenantId := sqlchelpers.UUIDToStr(tenants[i].ID)
+
+			wc.processWorkflowEventsOps.RunOrContinue(tenantId)
+		}
+	}
+}
+
+func (wc *WorkflowsControllerImpl) processWorkflowEvents(ctx context.Context, tenantId string) (bool, error) {
+	ctx, span := telemetry.NewSpan(ctx, "process-workflow-events")
+	defer span.End()
+
+	dbCtx, cancel := context.WithTimeout(ctx, 300*time.Second)
+	defer cancel()
+
+	res, err := wc.repo.WorkflowRun().ProcessWorkflowRunUpdates(dbCtx, tenantId)
+
+	if err != nil {
+		return false, fmt.Errorf("could not process step run updates: %w", err)
+	}
+
+	return res, nil
 }

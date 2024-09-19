@@ -19,11 +19,12 @@ import (
 )
 
 type ChildWorkflowOpts struct {
-	ParentId        string
-	ParentStepRunId string
-	ChildIndex      int
-	ChildKey        *string
-	DesiredWorkerId *string
+	ParentId           string
+	ParentStepRunId    string
+	ChildIndex         int
+	ChildKey           *string
+	DesiredWorkerId    *string
+	AdditionalMetadata *map[string]string
 }
 
 type AdminClient interface {
@@ -226,14 +227,21 @@ func (a *adminClientImpl) RunChildWorkflow(workflowName string, input interface{
 
 	childIndex := int32(opts.ChildIndex)
 
+	metadataBytes, err := json.Marshal(opts.AdditionalMetadata)
+	if err != nil {
+		return "", fmt.Errorf("could not marshal additional metadata: %w", err)
+	}
+	metadata := string(metadataBytes)
+
 	res, err := a.client.TriggerWorkflow(a.ctx.newContext(context.Background()), &admincontracts.TriggerWorkflowRequest{
-		Name:            workflowName,
-		Input:           string(inputBytes),
-		ParentId:        &opts.ParentId,
-		ParentStepRunId: &opts.ParentStepRunId,
-		ChildIndex:      &childIndex,
-		ChildKey:        opts.ChildKey,
-		DesiredWorkerId: opts.DesiredWorkerId,
+		Name:               workflowName,
+		Input:              string(inputBytes),
+		ParentId:           &opts.ParentId,
+		ParentStepRunId:    &opts.ParentStepRunId,
+		ChildIndex:         &childIndex,
+		ChildKey:           opts.ChildKey,
+		DesiredWorkerId:    opts.DesiredWorkerId,
+		AdditionalMetadata: &metadata,
 	})
 
 	if err != nil {
@@ -295,21 +303,27 @@ func (a *adminClientImpl) getPutRequest(workflow *types.Workflow) (*admincontrac
 
 	if workflow.Concurrency != nil {
 		opts.Concurrency = &admincontracts.WorkflowConcurrencyOpts{
-			Action: workflow.Concurrency.ActionID,
+			Action:     workflow.Concurrency.ActionID,
+			Expression: workflow.Concurrency.Expression,
 		}
+
+		var limitStrat admincontracts.ConcurrencyLimitStrategy
 
 		switch workflow.Concurrency.LimitStrategy {
 		case types.CancelInProgress:
-			opts.Concurrency.LimitStrategy = admincontracts.ConcurrencyLimitStrategy_CANCEL_IN_PROGRESS
+			limitStrat = admincontracts.ConcurrencyLimitStrategy_CANCEL_IN_PROGRESS
 		case types.GroupRoundRobin:
-			opts.Concurrency.LimitStrategy = admincontracts.ConcurrencyLimitStrategy_GROUP_ROUND_ROBIN
+			limitStrat = admincontracts.ConcurrencyLimitStrategy_GROUP_ROUND_ROBIN
 		default:
-			opts.Concurrency.LimitStrategy = admincontracts.ConcurrencyLimitStrategy_CANCEL_IN_PROGRESS
+			limitStrat = admincontracts.ConcurrencyLimitStrategy_CANCEL_IN_PROGRESS
 		}
+
+		opts.Concurrency.LimitStrategy = &limitStrat
 
 		// TODO: should be a pointer because users might want to set maxRuns temporarily for disabling
 		if workflow.Concurrency.MaxRuns != 0 {
-			opts.Concurrency.MaxRuns = workflow.Concurrency.MaxRuns
+			maxRuns := workflow.Concurrency.MaxRuns
+			opts.Concurrency.MaxRuns = &maxRuns
 		}
 	}
 

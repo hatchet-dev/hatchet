@@ -56,14 +56,17 @@ type CreateWorkflowVersionOpts struct {
 }
 
 type CreateWorkflowConcurrencyOpts struct {
-	// (required) the action id for getting the concurrency group
-	Action string `validate:"required,actionId"`
+	// (optional) the action id for getting the concurrency group
+	Action *string `validate:"omitempty,actionId"`
 
 	// (optional) the maximum number of concurrent workflow runs, default 1
 	MaxRuns *int32
 
 	// (optional) the strategy to use when the concurrency limit is reached, default CANCEL_IN_PROGRESS
 	LimitStrategy *string `validate:"omitnil,oneof=CANCEL_IN_PROGRESS DROP_NEWEST QUEUE_NEWEST GROUP_ROUND_ROBIN"`
+
+	// (optional) a concurrency expression for evaluating the concurrency key
+	Expression *string `validate:"omitempty,celworkflowrunstr"`
 }
 
 func (o *CreateWorkflowVersionOpts) Checksum() (string, error) {

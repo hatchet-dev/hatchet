@@ -849,6 +849,8 @@ export enum StepRunEventReason {
   TIMED_OUT = 'TIMED_OUT',
   SLOT_RELEASED = 'SLOT_RELEASED',
   RETRIED_BY_USER = 'RETRIED_BY_USER',
+  WORKFLOW_RUN_GROUP_KEY_SUCCEEDED = 'WORKFLOW_RUN_GROUP_KEY_SUCCEEDED',
+  WORKFLOW_RUN_GROUP_KEY_FAILED = 'WORKFLOW_RUN_GROUP_KEY_FAILED',
 }
 
 export enum StepRunEventSeverity {
@@ -863,7 +865,8 @@ export interface StepRunEvent {
   timeFirstSeen: string;
   /** @format date-time */
   timeLastSeen: string;
-  stepRunId: string;
+  stepRunId?: string;
+  workflowRunId?: string;
   reason: StepRunEventReason;
   severity: StepRunEventSeverity;
   message: string;

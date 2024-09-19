@@ -500,6 +500,8 @@ func (d *DispatcherImpl) handleStepRunAssignedTask(ctx context.Context, task *ms
 		}
 	}
 
+	now := time.Now().UTC()
+
 	if success {
 		defer d.repo.StepRun().DeferredStepRunEvent(
 			metadata.TenantId,
@@ -508,6 +510,8 @@ func (d *DispatcherImpl) handleStepRunAssignedTask(ctx context.Context, task *ms
 				EventMessage:  repository.StringPtr("Sent step run to the assigned worker"),
 				EventReason:   repository.StepRunEventReasonPtr(dbsqlc.StepRunEventReasonSENTTOWORKER),
 				EventSeverity: repository.StepRunEventSeverityPtr(dbsqlc.StepRunEventSeverityINFO),
+				Timestamp:     &now,
+				EventData:     map[string]interface{}{"worker_id": payload.WorkerId},
 			},
 		)
 
@@ -521,6 +525,8 @@ func (d *DispatcherImpl) handleStepRunAssignedTask(ctx context.Context, task *ms
 			EventMessage:  repository.StringPtr("Could not send step run to assigned worker"),
 			EventReason:   repository.StepRunEventReasonPtr(dbsqlc.StepRunEventReasonREASSIGNED),
 			EventSeverity: repository.StepRunEventSeverityPtr(dbsqlc.StepRunEventSeverityWARNING),
+			Timestamp:     &now,
+			EventData:     map[string]interface{}{"worker_id": payload.WorkerId},
 		},
 	)
 
@@ -529,7 +535,7 @@ func (d *DispatcherImpl) handleStepRunAssignedTask(ctx context.Context, task *ms
 		IsInternalRetry: true,
 	})
 
-	if err != nil {
+	if err != nil && !errors.Is(err, repository.ErrAlreadyRunning) {
 		multiErr = multierror.Append(multiErr, fmt.Errorf("💥 could not requeue step run in dispatcher: %w", err))
 	}
 
