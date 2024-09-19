@@ -467,19 +467,18 @@ INSERT INTO "WorkflowConcurrency" (
     "limitStrategy",
     "concurrencyGroupExpression"
 ) VALUES (
-    $1::uuid,
+    gen_random_uuid(),
+    coalesce($1::timestamp, CURRENT_TIMESTAMP),
     coalesce($2::timestamp, CURRENT_TIMESTAMP),
-    coalesce($3::timestamp, CURRENT_TIMESTAMP),
+    $3::uuid,
     $4::uuid,
-    $5::uuid,
-    coalesce($6::integer, 1),
-    coalesce($7::"ConcurrencyLimitStrategy", 'CANCEL_IN_PROGRESS'),
-    $8::text
+    coalesce($5::integer, 1),
+    coalesce($6::"ConcurrencyLimitStrategy", 'CANCEL_IN_PROGRESS'),
+    $7::text
 ) RETURNING id, "createdAt", "updatedAt", "workflowVersionId", "getConcurrencyGroupId", "maxRuns", "limitStrategy", "concurrencyGroupExpression"
 `
 
 type CreateWorkflowConcurrencyParams struct {
-	ID                         pgtype.UUID                  `json:"id"`
 	CreatedAt                  pgtype.Timestamp             `json:"createdAt"`
 	UpdatedAt                  pgtype.Timestamp             `json:"updatedAt"`
 	Workflowversionid          pgtype.UUID                  `json:"workflowversionid"`
@@ -491,7 +490,6 @@ type CreateWorkflowConcurrencyParams struct {
 
 func (q *Queries) CreateWorkflowConcurrency(ctx context.Context, db DBTX, arg CreateWorkflowConcurrencyParams) (*WorkflowConcurrency, error) {
 	row := db.QueryRow(ctx, createWorkflowConcurrency,
-		arg.ID,
 		arg.CreatedAt,
 		arg.UpdatedAt,
 		arg.Workflowversionid,

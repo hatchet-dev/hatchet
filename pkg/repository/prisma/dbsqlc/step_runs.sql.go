@@ -1731,6 +1731,16 @@ deleted_sqis AS (
         sqi."stepRunId" = srs."id"
         AND sqi."workerId" = srs."workerId"
 ),
+deleted_tqis AS (
+    DELETE FROM
+        "TimeoutQueueItem" tqi
+    -- delete when step run id AND retry count tuples match
+    USING
+        step_runs_to_reassign srs
+    WHERE
+        tqi."stepRunId" = srs."id"
+        AND tqi."retryCount" = srs."retryCount"
+),
 inserted_queue_items AS (
     INSERT INTO "QueueItem" (
         "stepRunId",
@@ -2427,7 +2437,6 @@ const updateStepRunUnsetWorkerId = `-- name: UpdateStepRunUnsetWorkerId :one
 WITH oldsr AS (
     SELECT
         "id",
-        "workerId",
         "retryCount"
     FROM
         "StepRun"

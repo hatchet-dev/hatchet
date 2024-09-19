@@ -594,7 +594,6 @@ func (r *workflowEngineRepository) createWorkflowVersionTxs(ctx context.Context,
 	// create concurrency group
 	if opts.Concurrency != nil {
 		params := dbsqlc.CreateWorkflowConcurrencyParams{
-			ID:                sqlchelpers.UUIDFromStr(uuid.New().String()),
 			Workflowversionid: sqlcWorkflowVersion.ID,
 		}
 

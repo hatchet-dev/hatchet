@@ -149,7 +149,7 @@ INSERT INTO "WorkflowConcurrency" (
     "limitStrategy",
     "concurrencyGroupExpression"
 ) VALUES (
-    @id::uuid,
+    gen_random_uuid(),
     coalesce(sqlc.narg('createdAt')::timestamp, CURRENT_TIMESTAMP),
     coalesce(sqlc.narg('updatedAt')::timestamp, CURRENT_TIMESTAMP),
     @workflowVersionId::uuid,

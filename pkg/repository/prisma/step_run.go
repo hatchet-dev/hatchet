@@ -2287,6 +2287,18 @@ func (s *stepRunEngineRepository) QueueStepRun(ctx context.Context, tenantId, st
 		return nil, err
 	}
 
+	// if this is an internal retry, and the step run is in a running or final state, this is a no-op. The internal retry
+	// may have be delayed (for example, timing out when sending the action to the worker), while the system
+	// may have already reassigned the step run to another.
+	if opts.IsInternalRetry && (repository.IsFinalStepRunStatus(innerStepRun.SRStatus) || innerStepRun.SRStatus == dbsqlc.StepRunStatusRUNNING) {
+		return nil, repository.ErrAlreadyRunning
+	}
+
+	// if this is not a retry, and the step run is already in a pending assignment state, this is a no-op
+	if !opts.IsRetry && innerStepRun.SRStatus == dbsqlc.StepRunStatusPENDINGASSIGNMENT {
+		return nil, repository.ErrAlreadyQueued
+	}
+
 	err = s.queries.QueueStepRun(ctx, tx, queueParams)
 
 	if err != nil {
