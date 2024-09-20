@@ -787,6 +787,40 @@ func (q *Queries) GetStepDesiredWorkerLabels(ctx context.Context, db DBTX, stepi
 	return desired_labels, err
 }
 
+const getStepExpressions = `-- name: GetStepExpressions :many
+SELECT
+    key, "stepId", expression, kind
+FROM
+    "StepExpression"
+WHERE
+    "stepId" = $1::uuid
+`
+
+func (q *Queries) GetStepExpressions(ctx context.Context, db DBTX, stepid pgtype.UUID) ([]*StepExpression, error) {
+	rows, err := db.Query(ctx, getStepExpressions, stepid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*StepExpression
+	for rows.Next() {
+		var i StepExpression
+		if err := rows.Scan(
+			&i.Key,
+			&i.StepId,
+			&i.Expression,
+			&i.Kind,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getStepRun = `-- name: GetStepRun :one
 SELECT
     "StepRun".id, "StepRun"."createdAt", "StepRun"."updatedAt", "StepRun"."deletedAt", "StepRun"."tenantId", "StepRun"."jobRunId", "StepRun"."stepId", "StepRun"."order", "StepRun"."workerId", "StepRun"."tickerId", "StepRun".status, "StepRun".input, "StepRun".output, "StepRun"."requeueAfter", "StepRun"."scheduleTimeoutAt", "StepRun".error, "StepRun"."startedAt", "StepRun"."finishedAt", "StepRun"."timeoutAt", "StepRun"."cancelledAt", "StepRun"."cancelledReason", "StepRun"."cancelledError", "StepRun"."inputSchema", "StepRun"."callerFiles", "StepRun"."gitRepoBranch", "StepRun"."retryCount", "StepRun"."semaphoreReleased", "StepRun".queue, "StepRun".priority

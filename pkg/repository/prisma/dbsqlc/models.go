@@ -317,6 +317,91 @@ func (ns NullLogLineLevel) Value() (driver.Value, error) {
 	return string(ns.LogLineLevel), nil
 }
 
+type StepExpressionKind string
+
+const (
+	StepExpressionKindDYNAMICRATELIMITKEY   StepExpressionKind = "DYNAMIC_RATE_LIMIT_KEY"
+	StepExpressionKindDYNAMICRATELIMITVALUE StepExpressionKind = "DYNAMIC_RATE_LIMIT_VALUE"
+	StepExpressionKindDYNAMICRATELIMITUNITS StepExpressionKind = "DYNAMIC_RATE_LIMIT_UNITS"
+)
+
+func (e *StepExpressionKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = StepExpressionKind(s)
+	case string:
+		*e = StepExpressionKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for StepExpressionKind: %T", src)
+	}
+	return nil
+}
+
+type NullStepExpressionKind struct {
+	StepExpressionKind StepExpressionKind `json:"StepExpressionKind"`
+	Valid              bool               `json:"valid"` // Valid is true if StepExpressionKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullStepExpressionKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.StepExpressionKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.StepExpressionKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullStepExpressionKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.StepExpressionKind), nil
+}
+
+type StepRateLimitKind string
+
+const (
+	StepRateLimitKindDEFAULT StepRateLimitKind = "DEFAULT"
+	StepRateLimitKindDYNAMIC StepRateLimitKind = "DYNAMIC"
+)
+
+func (e *StepRateLimitKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = StepRateLimitKind(s)
+	case string:
+		*e = StepRateLimitKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for StepRateLimitKind: %T", src)
+	}
+	return nil
+}
+
+type NullStepRateLimitKind struct {
+	StepRateLimitKind StepRateLimitKind `json:"StepRateLimitKind"`
+	Valid             bool              `json:"valid"` // Valid is true if StepRateLimitKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullStepRateLimitKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.StepRateLimitKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.StepRateLimitKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullStepRateLimitKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.StepRateLimitKind), nil
+}
+
 type StepRunEventReason string
 
 const (
@@ -1095,16 +1180,24 @@ type StepDesiredWorkerLabel struct {
 	Weight     int32                 `json:"weight"`
 }
 
+type StepExpression struct {
+	Key        string             `json:"key"`
+	StepId     pgtype.UUID        `json:"stepId"`
+	Expression string             `json:"expression"`
+	Kind       StepExpressionKind `json:"kind"`
+}
+
 type StepOrder struct {
 	A pgtype.UUID `json:"A"`
 	B pgtype.UUID `json:"B"`
 }
 
 type StepRateLimit struct {
-	Units        int32       `json:"units"`
-	StepId       pgtype.UUID `json:"stepId"`
-	RateLimitKey string      `json:"rateLimitKey"`
-	TenantId     pgtype.UUID `json:"tenantId"`
+	Units        int32             `json:"units"`
+	StepId       pgtype.UUID       `json:"stepId"`
+	RateLimitKey string            `json:"rateLimitKey"`
+	TenantId     pgtype.UUID       `json:"tenantId"`
+	Kind         StepRateLimitKind `json:"kind"`
 }
 
 type StepRun struct {
@@ -1150,6 +1243,14 @@ type StepRunEvent struct {
 	Count         int32                `json:"count"`
 	Data          []byte               `json:"data"`
 	WorkflowRunId pgtype.UUID          `json:"workflowRunId"`
+}
+
+type StepRunExpressionEval struct {
+	Key       string             `json:"key"`
+	StepRunId pgtype.UUID        `json:"stepRunId"`
+	ValueStr  pgtype.Text        `json:"valueStr"`
+	ValueInt  pgtype.Int4        `json:"valueInt"`
+	Kind      StepExpressionKind `json:"kind"`
 }
 
 type StepRunOrder struct {

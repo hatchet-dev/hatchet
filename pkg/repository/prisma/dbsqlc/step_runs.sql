@@ -30,6 +30,14 @@ WHERE
     sr."id" = @id::uuid AND
     sr."tenantId" = @tenantId::uuid;
 
+-- name: GetStepExpressions :many
+SELECT
+    *
+FROM
+    "StepExpression"
+WHERE
+    "stepId" = @stepId::uuid;
+
 -- name: GetStepRunMeta :one
 SELECT
     jr."workflowRunId" AS "workflowRunId",

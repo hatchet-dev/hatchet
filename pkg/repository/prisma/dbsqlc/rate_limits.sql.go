@@ -69,7 +69,7 @@ func (q *Queries) BulkUpdateRateLimits(ctx context.Context, db DBTX, arg BulkUpd
 
 const listRateLimitsForSteps = `-- name: ListRateLimitsForSteps :many
 SELECT
-    units, "stepId", "rateLimitKey", "tenantId"
+    units, "stepId", "rateLimitKey", "tenantId", kind
 FROM
     "StepRateLimit" srl
 WHERE
@@ -96,6 +96,7 @@ func (q *Queries) ListRateLimitsForSteps(ctx context.Context, db DBTX, arg ListR
 			&i.StepId,
 			&i.RateLimitKey,
 			&i.TenantId,
+			&i.Kind,
 		); err != nil {
 			return nil, err
 		}

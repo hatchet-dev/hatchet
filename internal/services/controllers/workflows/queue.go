@@ -138,7 +138,7 @@ func (wc *WorkflowsControllerImpl) evalWorkflowRunConcurrency(ctx context.Contex
 		}
 	}
 
-	concurrencyGroupId, err := wc.celParser.ParseAndEvalWorkflowString(expr, cel.NewWorkflowStringInput(
+	concurrencyGroupId, err := wc.celParser.ParseAndEvalWorkflowString(expr, cel.NewInput(
 		cel.WithInput(input),
 		cel.WithAdditionalMetadata(addMeta),
 		cel.WithWorkflowRunID(workflowRunId),

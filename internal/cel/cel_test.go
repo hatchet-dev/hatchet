@@ -15,13 +15,13 @@ func TestCELParser(t *testing.T) {
 
 	tests := []struct {
 		expression  string
-		input       cel.WorkflowStringInput
+		input       cel.Input
 		expected    string
 		expectError bool
 	}{
 		{
 			expression: `has(input.custom.value) ? input.custom.value : "default"`,
-			input: cel.NewWorkflowStringInput(
+			input: cel.NewInput(
 				cel.WithInput(map[string]interface{}{
 					"custom": map[string]interface{}{
 						"value": "actual value",
@@ -33,7 +33,7 @@ func TestCELParser(t *testing.T) {
 		},
 		{
 			expression: `has(input.custom) ? input.custom.value : "default"`,
-			input: cel.NewWorkflowStringInput(
+			input: cel.NewInput(
 				cel.WithInput(map[string]interface{}{}),
 			),
 			expected:    "default",
@@ -41,7 +41,7 @@ func TestCELParser(t *testing.T) {
 		},
 		{
 			expression: `checksum(input.custom.value)`,
-			input: cel.NewWorkflowStringInput(
+			input: cel.NewInput(
 				cel.WithInput(map[string]interface{}{
 					"custom": map[string]interface{}{
 						"value": "checksum this",
@@ -53,7 +53,7 @@ func TestCELParser(t *testing.T) {
 		},
 		{
 			expression: `input.custom.value + workflow_run_id`,
-			input: cel.NewWorkflowStringInput(
+			input: cel.NewInput(
 				cel.WithInput(map[string]interface{}{
 					"custom": map[string]interface{}{
 						"value": "concatenate ",
@@ -66,13 +66,13 @@ func TestCELParser(t *testing.T) {
 		},
 		{
 			expression:  `checksum(input.missing_key)`, // Should throw an error due to missing key
-			input:       cel.NewWorkflowStringInput(),
+			input:       cel.NewInput(),
 			expected:    "",
 			expectError: true,
 		},
 		{
 			expression:  `input.custom.value + 1234`, // Invalid expression (mismatched types), expecting error
-			input:       cel.NewWorkflowStringInput(),
+			input:       cel.NewInput(),
 			expected:    "",
 			expectError: true,
 		},

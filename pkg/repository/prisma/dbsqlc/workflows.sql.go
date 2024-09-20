@@ -376,7 +376,7 @@ INSERT INTO "StepRateLimit" (
     $2::uuid,
     $3::text,
     $4::uuid
-) RETURNING units, "stepId", "rateLimitKey", "tenantId"
+) RETURNING units, "stepId", "rateLimitKey", "tenantId", kind
 `
 
 type CreateStepRateLimitParams struct {
@@ -399,6 +399,7 @@ func (q *Queries) CreateStepRateLimit(ctx context.Context, db DBTX, arg CreateSt
 		&i.StepId,
 		&i.RateLimitKey,
 		&i.TenantId,
+		&i.Kind,
 	)
 	return &i, err
 }
