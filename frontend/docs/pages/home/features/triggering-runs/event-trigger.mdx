@@ -111,9 +111,9 @@ Hatchet supports various event sources that can trigger workflows. Some common e
 
 ### Internal Events
 
- Hatchet allows you to generate internal events using our SDKs from within your existing APIs. For example, you can push an event when a specific user request is made.
+Hatchet allows you to generate internal events using our SDKs from within your existing APIs. For example, you can push an event when a specific user request is made.
 
- Here is an example of how to push a single event:
+Here is an example of how to push a single event:
 
 <Tabs items={['Python', 'Typescript', 'Golang']}>
   <Tabs.Tab>
@@ -123,12 +123,13 @@ from hatchet_sdk import Hatchet
 hatchet = Hatchet()
 
 hatchet.client.event.push(
-    "user:create",
-    {
-        "test": "test"
-    }
+"user:create",
+{
+"test": "test"
+}
 )
-```
+
+````
   </Tabs.Tab>
   <Tabs.Tab>
 ```typescript
@@ -139,7 +140,8 @@ const hatchet = Hatchet.init();
 hatchet.event.push("user:create", {
   test: "test",
 });
-```
+````
+
   </Tabs.Tab>
   <Tabs.Tab>
 ```go
@@ -148,17 +150,18 @@ c, err := client.New(
 )
 
 if err != nil {
-  panic(err)
+panic(err)
 }
 
 c.Event().Push(
-  context.Background(),
-  "test-called",
-  &events.TestEvent{
-    Name: "testing",
-  },
+context.Background(),
+"test-called",
+&events.TestEvent{
+Name: "testing",
+},
 )
-```
+
+````
   </Tabs.Tab>
 </Tabs>
 
@@ -194,7 +197,8 @@ result =
 hatchet.client.event.bulk_push(
     events
 )
-```
+````
+
   </Tabs.Tab>
   <Tabs.Tab>
 ```typescript
@@ -203,24 +207,23 @@ import Hatchet from "@hatchet-dev/typescript-sdk";
 const hatchet = Hatchet.init();
 
 const events = [
-  {
-    payload: { test: 'test1' },
-    additionalMetadata: { user_id: 'user1', source: 'test' },
-  },
-  {
-    payload: { test: 'test2' },
-    additionalMetadata: { user_id: 'user2', source: 'test' },
-  },
-  {
-    payload: { test: 'test3' },
-    additionalMetadata: { user_id: 'user3', source: 'test' },
-  },
+{
+payload: { test: 'test1' },
+additionalMetadata: { user_id: 'user1', source: 'test' },
+},
+{
+payload: { test: 'test2' },
+additionalMetadata: { user_id: 'user2', source: 'test' },
+},
+{
+payload: { test: 'test3' },
+additionalMetadata: { user_id: 'user3', source: 'test' },
+},
 ];
 
-
-
 hatchet.event.bulkPush('user:create:bulk', events);
-```
+
+````
   </Tabs.Tab>
   <Tabs.Tab>
 ```go
@@ -253,7 +256,8 @@ c.Event().BulkPush(
   context.Background(),
   events,
 )
-```
+````
+
   </Tabs.Tab>
 </Tabs>
 
