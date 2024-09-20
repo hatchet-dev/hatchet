@@ -101,7 +101,9 @@ func (wc *WorkflowsControllerImpl) handleWorkflowRunQueued(ctx context.Context, 
 			return wc.cancelWorkflowRunJobs(ctx, workflowRun)
 		}
 
-		return wc.bumpQueue(ctx, metadata.TenantId, sqlchelpers.UUIDToStr(workflowRun.WorkflowVersion.ID), groupKey)
+		wc.checkTenantQueue(ctx, metadata.TenantId)
+
+		return nil
 	} else if workflowRun.ConcurrencyLimitStrategy.Valid {
 		return fmt.Errorf("workflow run %s has concurrency settings but no group key run", workflowRunId)
 	}
@@ -248,31 +250,7 @@ func (wc *WorkflowsControllerImpl) handleWorkflowRunFinished(ctx context.Context
 		}
 	}
 
-	if workflowRun.ConcurrencyLimitStrategy.Valid {
-		wc.l.Info().Msgf("workflow %s has concurrency settings", workflowRunId)
-
-		switch workflowRun.ConcurrencyLimitStrategy.ConcurrencyLimitStrategy {
-		case dbsqlc.ConcurrencyLimitStrategyGROUPROUNDROBIN:
-			err = wc.queueByGroupRoundRobin(
-				ctx,
-				metadata.TenantId,
-				// FIXME: use some kind of autoconverter, if we add fields in the future we might not populate
-				// them properly
-				&dbsqlc.GetWorkflowVersionForEngineRow{
-					WorkflowVersion:          workflowRun.WorkflowVersion,
-					WorkflowName:             workflowRun.WorkflowName.String,
-					ConcurrencyLimitStrategy: workflowRun.ConcurrencyLimitStrategy,
-					ConcurrencyMaxRuns:       workflowRun.ConcurrencyMaxRuns,
-				},
-			)
-		default:
-			return nil
-		}
-
-		if err != nil {
-			return fmt.Errorf("could not queue workflow runs: %w", err)
-		}
-	}
+	wc.checkTenantQueue(ctx, metadata.TenantId)
 
 	return nil
 }

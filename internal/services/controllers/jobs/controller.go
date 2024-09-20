@@ -889,7 +889,7 @@ func (ec *JobsControllerImpl) checkTenantQueue(ctx context.Context, tenantId str
 	if tenant.ControllerPartitionId.Valid {
 		err = ec.mq.AddMessage(
 			ctx,
-			msgqueue.QueueTypeFromPartitionID(tenant.ControllerPartitionId.String),
+			msgqueue.QueueTypeFromPartitionIDAndController(tenant.ControllerPartitionId.String, msgqueue.JobController),
 			tasktypes.CheckTenantQueueToTask(tenantId),
 		)
 
