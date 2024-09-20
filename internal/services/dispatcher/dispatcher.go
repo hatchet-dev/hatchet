@@ -37,13 +37,14 @@ type Dispatcher interface {
 type DispatcherImpl struct {
 	contracts.UnimplementedDispatcherServer
 
-	s     gocron.Scheduler
-	mq    msgqueue.MessageQueue
-	l     *zerolog.Logger
-	dv    datautils.DataDecoderValidator
-	v     validator.Validator
-	repo  repository.EngineRepository
-	cache cache.Cacheable
+	s           gocron.Scheduler
+	mq          msgqueue.MessageQueue
+	heavyReadMQ msgqueue.MessageQueue
+	l           *zerolog.Logger
+	dv          datautils.DataDecoderValidator
+	v           validator.Validator
+	repo        repository.EngineRepository
+	cache       cache.Cacheable
 
 	entitlements repository.EntitlementsRepository
 
@@ -239,6 +240,9 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 
 func (d *DispatcherImpl) Start() (func() error, error) {
 	ctx, cancel := context.WithCancel(context.Background())
+	mqCleanup, heavyReadMQ := d.mq.Clone()
+
+	d.heavyReadMQ = heavyReadMQ
 
 	// register the dispatcher by creating a new dispatcher in the database
 	dispatcher, err := d.repo.Dispatcher().CreateNewDispatcher(ctx, &repository.CreateDispatcherOpts{
@@ -291,6 +295,10 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 	cleanup := func() error {
 		d.l.Debug().Msgf("dispatcher is shutting down...")
 		cancel()
+
+		if err := mqCleanup(); err != nil {
+			return fmt.Errorf("could not cleanup queue: %w", err)
+		}
 
 		if err := cleanupQueue(); err != nil {
 			return fmt.Errorf("could not cleanup queue: %w", err)
