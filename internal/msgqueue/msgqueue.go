@@ -95,8 +95,13 @@ func QueueTypeFromTickerID(t string) consumerQueue {
 	return consumerQueue(t)
 }
 
-func QueueTypeFromPartitionID(p string) consumerQueue {
-	return consumerQueue(p)
+const (
+	JobController      = "job"
+	WorkflowController = "workflow"
+)
+
+func QueueTypeFromPartitionIDAndController(p, controller string) consumerQueue {
+	return consumerQueue(fmt.Sprintf("%s_%s", p, controller))
 }
 
 type fanoutQueue struct {

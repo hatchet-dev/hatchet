@@ -115,7 +115,7 @@ func (q *queue) Start() (func() error, error) {
 		return nil
 	}
 
-	cleanupQueue, err := q.mq.Subscribe(msgqueue.QueueTypeFromPartitionID(q.p.GetControllerPartitionId()), f, msgqueue.NoOpHook)
+	cleanupQueue, err := q.mq.Subscribe(msgqueue.QueueTypeFromPartitionIDAndController(q.p.GetControllerPartitionId(), msgqueue.JobController), f, msgqueue.NoOpHook)
 
 	if err != nil {
 		cancel()

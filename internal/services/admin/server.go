@@ -466,7 +466,7 @@ func getCreateWorkflowOpts(req *contracts.PutWorkflowRequest) (*repository.Creat
 
 		var limitStrategy *string
 
-		if req.Opts.Concurrency.LimitStrategy.String() != "" {
+		if req.Opts.Concurrency.LimitStrategy != nil && req.Opts.Concurrency.LimitStrategy.String() != "" {
 			limitStrategy = repository.StringPtr(req.Opts.Concurrency.LimitStrategy.String())
 		}
 

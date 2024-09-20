@@ -614,6 +614,12 @@ export interface Step {
   parents?: string[];
 }
 
+export interface WorkflowWorkersCount {
+  freeSlotCount?: number;
+  maxSlotCount?: number;
+  workflowRunId?: string;
+}
+
 export interface WorkflowRun {
   metadata: APIResourceMeta;
   tenantId: string;

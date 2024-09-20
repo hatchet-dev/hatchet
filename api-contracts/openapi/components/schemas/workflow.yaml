@@ -272,3 +272,15 @@ WorkflowMetrics:
     groupKeyCount:
       type: integer
       description: The total number of concurrency group keys.
+
+WorkflowWorkersCount:
+  type: object
+  properties:
+    freeSlotCount:
+      type: integer
+    maxSlotCount:
+      type: integer
+    workflowRunId:
+      type: string
+  required:
+    - count

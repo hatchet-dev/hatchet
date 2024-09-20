@@ -1324,7 +1324,9 @@ WITH QueuedRuns AS (
     FROM "WorkflowRun" wr
     JOIN "WorkflowVersion" wv ON wv."id" = wr."workflowVersionId"
     JOIN "Workflow" w ON w."id" = wv."workflowId"
-    WHERE wr."status" = 'QUEUED'
+    WHERE
+        wr."tenantId" = $1::uuid
+        AND wr."status" = 'QUEUED'
 		AND wr."concurrencyGroupId" IS NOT NULL
     ORDER BY wr."workflowVersionId"
 )
@@ -1346,8 +1348,8 @@ type ListActiveQueuedWorkflowVersionsRow struct {
 	ConcurrencyGroupId pgtype.Text       `json:"concurrencyGroupId"`
 }
 
-func (q *Queries) ListActiveQueuedWorkflowVersions(ctx context.Context, db DBTX) ([]*ListActiveQueuedWorkflowVersionsRow, error) {
-	rows, err := db.Query(ctx, listActiveQueuedWorkflowVersions)
+func (q *Queries) ListActiveQueuedWorkflowVersions(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]*ListActiveQueuedWorkflowVersionsRow, error) {
+	rows, err := db.Query(ctx, listActiveQueuedWorkflowVersions, tenantid)
 	if err != nil {
 		return nil, err
 	}
