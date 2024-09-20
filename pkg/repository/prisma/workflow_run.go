@@ -396,11 +396,31 @@ func (w *workflowRunEngineRepository) GetScheduledChildWorkflowRun(ctx context.C
 }
 
 func (w *workflowRunEngineRepository) PopWorkflowRunsRoundRobin(ctx context.Context, tenantId, workflowId string, maxRuns int) ([]*dbsqlc.WorkflowRun, error) {
-	return w.queries.PopWorkflowRunsRoundRobin(ctx, w.pool, dbsqlc.PopWorkflowRunsRoundRobinParams{
+	tx, commit, rollback, err := prepareTx(ctx, w.pool, w.l, 15000)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer rollback()
+
+	res, err := w.queries.PopWorkflowRunsRoundRobin(ctx, tx, dbsqlc.PopWorkflowRunsRoundRobinParams{
 		Maxruns:    int32(maxRuns),
 		Tenantid:   sqlchelpers.UUIDFromStr(tenantId),
 		Workflowid: sqlchelpers.UUIDFromStr(workflowId),
 	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	err = commit(ctx)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return res, nil
 }
 
 func (w *workflowRunEngineRepository) CreateNewWorkflowRun(ctx context.Context, tenantId string, opts *repository.CreateWorkflowRunOpts) (string, error) {
@@ -435,8 +455,8 @@ func (w *workflowRunEngineRepository) CreateNewWorkflowRun(ctx context.Context, 
 	return id, nil
 }
 
-func (w *workflowRunEngineRepository) ListActiveQueuedWorkflowVersions(ctx context.Context) ([]*dbsqlc.ListActiveQueuedWorkflowVersionsRow, error) {
-	return w.queries.ListActiveQueuedWorkflowVersions(ctx, w.pool)
+func (w *workflowRunEngineRepository) ListActiveQueuedWorkflowVersions(ctx context.Context, tenantId string) ([]*dbsqlc.ListActiveQueuedWorkflowVersionsRow, error) {
+	return w.queries.ListActiveQueuedWorkflowVersions(ctx, w.pool, sqlchelpers.UUIDFromStr(tenantId))
 }
 
 func (w *workflowRunEngineRepository) SoftDeleteExpiredWorkflowRuns(ctx context.Context, tenantId string, statuses []dbsqlc.WorkflowRunStatus, before time.Time) (bool, error) {
