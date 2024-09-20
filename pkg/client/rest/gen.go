@@ -269,9 +269,8 @@ type BulkCreateEventRequest struct {
 // BulkCreateEventResponse defines model for BulkCreateEventResponse.
 type BulkCreateEventResponse struct {
 	// Events The events.
-	Events     []Event            `json:"events"`
-	Metadata   APIResourceMeta    `json:"metadata"`
-	Pagination PaginationResponse `json:"pagination"`
+	Events   []Event         `json:"events"`
+	Metadata APIResourceMeta `json:"metadata"`
 }
 
 // CancelEventRequest defines model for CancelEventRequest.

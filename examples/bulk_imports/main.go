@@ -27,14 +27,10 @@ func main() {
 		panic(err)
 	}
 
-	// interrupt := cmdutils.InterruptChan()
-
 	_, err = run()
 	if err != nil {
 		panic(err)
 	}
-
-	// <-interrupt
 
 }
 
@@ -86,8 +82,6 @@ func run() (func() error, error) {
 	}
 
 	var events []client.EventWithMetadata
-
-	// 20000 times to test the bulk push
 
 	for i := 0; i < 20000; i++ {
 		testEvent := userCreateEvent{

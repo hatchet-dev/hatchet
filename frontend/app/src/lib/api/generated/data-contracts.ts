@@ -442,8 +442,6 @@ export interface BulkCreateEventResponse {
   metadata: APIResourceMeta;
   /** The events. */
   events: Event[];
-  /** The pagination information. */
-  pagination: PaginationResponse;
 }
 
 export interface EventWorkflowRunSummary {
