@@ -190,6 +190,10 @@ func (t *MessageQueueImpl) Clone() (func() error, msgqueue.MessageQueue) {
 	return New(t.configFs...)
 }
 
+func (t *MessageQueueImpl) SetQOS(prefetchCount int) {
+	t.qos = prefetchCount
+}
+
 // AddMessage adds a msg to the queue.
 func (t *MessageQueueImpl) AddMessage(ctx context.Context, q msgqueue.Queue, msg *msgqueue.Message) error {
 	// inject otel carrier into the message

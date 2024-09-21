@@ -162,6 +162,9 @@ type MessageQueue interface {
 	// Clone copies the message queue with a new instance.
 	Clone() (func() error, MessageQueue)
 
+	// SetQOS sets the quality of service for the message queue.
+	SetQOS(prefetchCount int)
+
 	// AddMessage adds a task to the queue
 	AddMessage(ctx context.Context, queue Queue, task *Message) error
 

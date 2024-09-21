@@ -241,6 +241,7 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 func (d *DispatcherImpl) Start() (func() error, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	mqCleanup, heavyReadMQ := d.mq.Clone()
+	heavyReadMQ.SetQOS(1000)
 
 	d.heavyReadMQ = heavyReadMQ
 
