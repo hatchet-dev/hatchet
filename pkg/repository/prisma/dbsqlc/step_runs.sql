@@ -537,20 +537,37 @@ WHERE
 LIMIT 100;
 
 -- name: RefreshTimeoutBy :one
-UPDATE
-    "StepRun" sr
+WITH step_run AS (
+    SELECT
+        "id",
+        "retryCount",
+        "tenantId"
+    FROM
+        "StepRun"
+    WHERE
+        "id" = @stepRunId::uuid AND
+        "tenantId" = @tenantId::uuid
+)
+INSERT INTO
+    "TimeoutQueueItem" (
+        "stepRunId",
+        "retryCount",
+        "timeoutAt",
+        "tenantId",
+        "isQueued"
+    )
+SELECT
+    sr."id",
+    sr."retryCount",
+    NOW() + convert_duration_to_interval(sqlc.narg('incrementTimeoutBy')::text),
+    sr."tenantId",
+    true
+FROM
+    step_run sr
+ON CONFLICT ("stepRunId", "retryCount") DO UPDATE
 SET
-    "timeoutAt" = CASE
-        -- Only update timeoutAt if the step run is currently in RUNNING status
-        WHEN sr."status" = 'RUNNING' THEN
-            COALESCE(sr."timeoutAt", CURRENT_TIMESTAMP) + convert_duration_to_interval(sqlc.narg('incrementTimeoutBy')::text)
-            ELSE sr."timeoutAt"
-        END,
-    "updatedAt" = CURRENT_TIMESTAMP
-WHERE
-    "id" = @stepRunId::uuid AND
-    "tenantId" = @tenantId::uuid
-RETURNING *;
+    "timeoutAt" = "TimeoutQueueItem"."timeoutAt" + convert_duration_to_interval(sqlc.narg('incrementTimeoutBy')::text)
+RETURNING "TimeoutQueueItem"."timeoutAt";
 
 -- name: UpdateStepRunUnsetWorkerId :one
 WITH oldsr AS (
@@ -688,7 +705,9 @@ SELECT
     true
 FROM
     updated_step_runs sr
-ON CONFLICT DO NOTHING;
+ON CONFLICT ("stepRunId", "retryCount") DO UPDATE
+SET
+    "timeoutAt" = EXCLUDED."timeoutAt";
 
 -- name: GetFinalizedStepRuns :many
 SELECT
