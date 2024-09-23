@@ -943,7 +943,7 @@ model WorkflowRun {
   finishedAt DateTime?
 
   // the duration of the run (ms)
-  duration Int?
+  duration BigInt? @db.BigInt
 
   // priority of the workflow run
   priority Int?
