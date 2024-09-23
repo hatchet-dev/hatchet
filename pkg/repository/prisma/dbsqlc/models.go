@@ -1439,7 +1439,7 @@ type WorkflowRun struct {
 	ParentId           pgtype.UUID       `json:"parentId"`
 	ParentStepRunId    pgtype.UUID       `json:"parentStepRunId"`
 	AdditionalMetadata []byte            `json:"additionalMetadata"`
-	Duration           pgtype.Int4       `json:"duration"`
+	Duration           pgtype.Int8       `json:"duration"`
 	Priority           pgtype.Int4       `json:"priority"`
 }
 
