@@ -14,6 +14,8 @@ import {
   APIError,
   APIErrors,
   APIMeta,
+  BulkCreateEventRequest,
+  BulkCreateEventResponse,
   CancelEventRequest,
   CreateAPITokenRequest,
   CreateAPITokenResponse,
@@ -881,6 +883,25 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   eventCreate = (tenant: string, data: CreateEventRequest, params: RequestParams = {}) =>
     this.request<Event, APIErrors>({
       path: `/api/v1/tenants/${tenant}/events`,
+      method: 'POST',
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Bulk creates new events.
+   *
+   * @tags Event
+   * @name EventCreateBulk
+   * @summary Bulk Create events
+   * @request POST:/api/v1/tenants/{tenant}/events/bulk
+   * @secure
+   */
+  eventCreateBulk = (tenant: string, data: BulkCreateEventRequest, params: RequestParams = {}) =>
+    this.request<BulkCreateEventResponse, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/events/bulk`,
       method: 'POST',
       body: data,
       secure: true,

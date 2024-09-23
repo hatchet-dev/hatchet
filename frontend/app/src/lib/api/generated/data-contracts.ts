@@ -434,6 +434,16 @@ export interface CreateEventRequest {
   additionalMetadata?: object;
 }
 
+export interface BulkCreateEventRequest {
+  events: CreateEventRequest[];
+}
+
+export interface BulkCreateEventResponse {
+  metadata: APIResourceMeta;
+  /** The events. */
+  events: Event[];
+}
+
 export interface EventWorkflowRunSummary {
   /**
    * The number of pending runs.

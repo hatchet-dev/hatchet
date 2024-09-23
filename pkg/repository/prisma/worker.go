@@ -219,7 +219,7 @@ func (w *workerEngineRepository) GetWorkerForEngine(ctx context.Context, tenantI
 }
 
 func (w *workerEngineRepository) CreateNewWorker(ctx context.Context, tenantId string, opts *repository.CreateWorkerOpts) (*dbsqlc.Worker, error) {
-	return metered.MakeMetered(ctx, w.m, dbsqlc.LimitResourceWORKER, tenantId, func() (*string, *dbsqlc.Worker, error) {
+	return metered.MakeMetered(ctx, w.m, dbsqlc.LimitResourceWORKER, tenantId, 1, func() (*string, *dbsqlc.Worker, error) {
 		if err := w.v.Validate(opts); err != nil {
 			return nil, nil, err
 		}

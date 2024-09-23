@@ -22,6 +22,19 @@ Event:
     - key
     - tenantId
 
+Events:
+  properties:
+    metadata:
+      $ref: "./metadata.yaml#/APIResourceMeta"
+    events:
+      type: array
+      items:
+        $ref: "#/Event"
+      description: The events.
+  required:
+    - metadata
+    - events
+
 EventData:
   properties:
     data:
@@ -44,6 +57,15 @@ CreateEventRequest:
   required:
     - key
     - data
+
+BulkCreateEventRequest:
+  properties:
+    events:
+      type: array
+      items:
+        $ref: "#/CreateEventRequest"
+  required:
+    - events
 
 ReplayEventRequest:
   properties:
