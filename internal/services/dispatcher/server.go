@@ -754,6 +754,22 @@ func (s *sendTimeFilter) canSend() bool {
 	return true
 }
 
+func calculateResultsSize(results []*contracts.StepRunResult) int64 {
+	var totalSize int64
+
+	for _, result := range results {
+		// Size of the struct fields
+		if result != nil {
+			// Assuming StepRunResult has fields like ID, Status, Output, etc.
+			// Adjust these based on the actual struct definition
+			totalSize += int64(len(*result.Output))
+			// Add sizes of other fields...
+		}
+	}
+
+	return totalSize
+}
+
 // SubscribeToWorkflowEvents registers workflow events with the dispatcher
 func (s *DispatcherImpl) SubscribeToWorkflowRuns(server contracts.Dispatcher_SubscribeToWorkflowRunsServer) error {
 	tenant := server.Context().Value("tenant").(*dbsqlc.Tenant)
@@ -779,6 +795,12 @@ func (s *DispatcherImpl) SubscribeToWorkflowRuns(server contracts.Dispatcher_Sub
 	sendMu := sync.Mutex{}
 
 	sendEvent := func(e *contracts.WorkflowRunEvent) error {
+
+		if calculateResultsSize(e.Results) > 3*1024*1024 {
+			s.l.Warn().Msgf("results size for workflow run %s exceeds 3MB", e.WorkflowRunId)
+			e.Results = nil
+		}
+
 		// send the task to the client
 		sendMu.Lock()
 		err := server.Send(e)
@@ -786,7 +808,7 @@ func (s *DispatcherImpl) SubscribeToWorkflowRuns(server contracts.Dispatcher_Sub
 
 		if err != nil {
 			cancel() // FIXME is this necessary?
-			s.l.Error().Err(err).Msgf("could not send workflow event to client")
+			s.l.Error().Err(err).Msgf("could not subscribe to workflow events for run %s", e.WorkflowRunId)
 			return err
 		}
 

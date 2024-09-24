@@ -86,18 +86,10 @@ func ToWorkflowRun(
 		Status:            gen.WorkflowRunStatus(run.Status),
 		WorkflowVersionId: sqlchelpers.UUIDToStr(run.WorkflowVersionId),
 		DisplayName:       &run.DisplayName.String,
-		// StartedAt:         &run.StartedAt.Time,
-		// FinishedAt:        &run.FinishedAt.Time,
-		Error: &run.Error.String,
+		StartedAt:         &run.StartedAt.Time,
+		FinishedAt:        &run.FinishedAt.Time,
+		Error:             &run.Error.String,
 	}
-
-	// if run.StartedAt.Valid {
-	// 	res.StartedAt = &run.StartedAt.Time
-	// }
-
-	// if run.FinishedAt.Valid {
-	// 	res.FinishedAt = &run.FinishedAt.Time
-	// }
 
 	res.TriggeredBy = *ToWorkflowRunTriggeredBy(run.ParentId, &run.WorkflowRunTriggeredBy)
 
@@ -124,6 +116,7 @@ func ToJobRun(
 	steps []*dbsqlc.GetStepsForJobsRow,
 	stepRuns []*repository.StepRunForJobRun,
 ) *gen.JobRun {
+
 	res := &gen.JobRun{
 		Metadata: *toAPIMetadata(
 			sqlchelpers.UUIDToStr(jobRun.ID),
@@ -244,6 +237,7 @@ func ToStepRun(stepRun *repository.StepRunForJobRun) *gen.StepRun {
 		TenantId:            sqlchelpers.UUIDToStr(stepRun.TenantId),
 		JobRunId:            sqlchelpers.UUIDToStr(stepRun.JobRunId),
 		ChildWorkflowsCount: &stepRun.ChildWorkflowsCount,
+		Output:              byteSliceToStringPointer(stepRun.Output),
 	}
 
 	if stepRun.CancelledError.Valid {
