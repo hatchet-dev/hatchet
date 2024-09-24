@@ -56,6 +56,19 @@ export interface WorkflowRunsTableProps {
   refetchInterval?: number;
 }
 
+const getCreatedAfterFromTimeRange = (timeRange?: string) => {
+  switch (timeRange) {
+    case '1h':
+      return new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    case '6h':
+      return new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
+    case '1d':
+      return new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    case '7d':
+      return new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  }
+};
+
 export function WorkflowRunsTable({
   workflowId,
   initColumnVisibility = {},
@@ -70,8 +83,16 @@ export function WorkflowRunsTable({
 
   const [timeRange, setTimeRange] = useAtom(lastTimeRangeAtom);
   const [createdAfter, setCreatedAfter] = useState<string | undefined>(
-    new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+    getCreatedAfterFromTimeRange(timeRange) ||
+      new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
   );
+
+  // whenever the time range changes, update the createdAfter date
+  useEffect(() => {
+    if (timeRange) {
+      setCreatedAfter(getCreatedAfterFromTimeRange(timeRange));
+    }
+  }, [timeRange, setCreatedAfter]);
 
   const [sorting, setSorting] = useState<SortingState>(() => {
     const sortParam = searchParams.get('sort');
@@ -430,35 +451,7 @@ export function WorkflowRunsTable({
         ) : (
           <Skeleton className="max-w-[800px] w-[40vw] h-8" />
         )}
-        <Select
-          value={timeRange}
-          onValueChange={(value) => {
-            setTimeRange(value);
-
-            switch (value) {
-              case '1h':
-                setCreatedAfter(
-                  new Date(Date.now() - 60 * 60 * 1000).toISOString(),
-                );
-                break;
-              case '6h':
-                setCreatedAfter(
-                  new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
-                );
-                break;
-              case '1d':
-                setCreatedAfter(
-                  new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-                );
-                break;
-              case '7d':
-                setCreatedAfter(
-                  new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-                );
-                break;
-            }
-          }}
-        >
+        <Select value={timeRange} onValueChange={setTimeRange}>
           <SelectTrigger className="w-fit">
             <SelectValue id="timerange" placeholder="Choose time range" />
           </SelectTrigger>
