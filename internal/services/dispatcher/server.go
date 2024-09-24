@@ -11,7 +11,6 @@ import (
 	"strconv"
 	"sync"
 	"time"
-	"unsafe"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -759,9 +758,6 @@ func calculateResultsSize(results []*contracts.StepRunResult) int64 {
 	var totalSize int64
 
 	for _, result := range results {
-		// Size of the pointer
-		totalSize += int64(unsafe.Sizeof(result))
-
 		// Size of the struct fields
 		if result != nil {
 			// Assuming StepRunResult has fields like ID, Status, Output, etc.
