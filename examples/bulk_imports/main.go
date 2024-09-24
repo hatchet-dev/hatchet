@@ -85,7 +85,7 @@ func run() (func() error, error) {
 		return nil, fmt.Errorf("error registering workflow: %w", err)
 	}
 
-	var events []client.EventWithMetadata
+	var events []client.EventWithAdditionalMetadata
 
 	// 20000 times to test the bulk push
 
@@ -97,10 +97,10 @@ func run() (func() error, error) {
 				"test": "test " + fmt.Sprint(i),
 			},
 		}
-		events = append(events, client.EventWithMetadata{
-			Event:    testEvent,
-			Metadata: map[string]string{"hello": "world " + fmt.Sprint(i)},
-			Key:      "user:create:bulk",
+		events = append(events, client.EventWithAdditionalMetadata{
+			Event:              testEvent,
+			AdditionalMetadata: map[string]string{"hello": "world " + fmt.Sprint(i)},
+			Key:                "user:create:bulk",
 		})
 	}
 

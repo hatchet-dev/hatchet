@@ -61,6 +61,8 @@ func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.T
 			}
 		}
 
+		// if we find a matching workflow run, we return the id and stop triggering the workflow
+
 		if err == nil && workflowRun != nil {
 			return &contracts.TriggerWorkflowResponse{
 				WorkflowRunId: sqlchelpers.UUIDToStr(workflowRun.ID),
@@ -168,6 +170,8 @@ func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.T
 		createOpts.Priority = req.Priority
 	}
 
+	// this is what is really happening we are creating WorkflowRuns
+
 	workflowRunId, err := a.repo.WorkflowRun().CreateNewWorkflowRun(createContext, tenantId, createOpts)
 
 	dedupeTarget := repository.ErrDedupeValueExists{}
@@ -202,6 +206,70 @@ func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.T
 		WorkflowRunId: workflowRunId,
 	}, nil
 }
+
+// func (a *AdminServiceImpl) BulkTriggerWorkflow(ctx context.Context, req *contracts.BulkTriggerWorkflowRequest) (*contracts.BulkTriggerWorkflowResponse, error) {
+// 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
+// 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+
+// 	createContext, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+// 	defer cancel()
+
+// 	var workflowRuns []*contracts.TriggerWorkflowResponse
+
+// 	if len(req.Workflows) == 0 {
+// 		return &contracts.BulkTriggerWorkflowResponse{}, status.Error(codes.InvalidArgument, "no workflows provided")
+// 	}
+
+// 	parentId := req.Workflows[0].ParentId
+
+// 	// every workflow in the bulk trigger request should have the same parent id, either nil or the same value
+// 	for _, workflow := range req.Workflows {
+// 		if parentId != workflow.ParentId {
+// 			return nil, status.Error(
+// 				codes.InvalidArgument,
+// 				"all workflows in the bulk trigger request must have the same parent id",
+// 			)
+// 		}
+// 	}
+
+// 	if parentId != nil {
+// 		for _, workflow := range req.Workflows {
+// 			if workflow.ParentStepRunId == nil {
+// 				return nil, status.Error(
+// 					codes.InvalidArgument,
+// 					"parent step run id is required when parent id is provided",
+// 				)
+// 			}
+
+// 			if workflow.ChildIndex == nil {
+// 				return nil, status.Error(
+// 					codes.InvalidArgument,
+// 					"child index is required when parent id is provided",
+// 				)
+// 			}
+
+// 			workflowRun, err := a.repo.WorkflowRun().GetChildWorkflowRun(
+// 				createContext,
+// 				*parentId,
+// 				*workflow.ParentStepRunId,
+// 				int(*workflow.ChildIndex),
+// 				workflow.ChildKey,
+// 			)
+
+// 			if err != nil {
+// 				if !errors.Is(err, pgx.ErrNoRows) {
+// 					return nil, fmt.Errorf("could not get child workflow run: %w", err)
+// 				}
+// 			}
+
+// 			if err == nil && workflowRun != nil {
+// 				workflowRuns = append(workflowRuns, &contracts.TriggerWorkflowResponse{
+// 					WorkflowRunId: sqlchelpers.UUIDToStr(workflowRun.ID),
+// 				})
+// 			}
+// 		}
+
+// }
 
 func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWorkflowRequest) (*contracts.WorkflowVersion, error) {
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)

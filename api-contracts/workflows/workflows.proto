@@ -9,6 +9,7 @@ service WorkflowService {
     rpc PutWorkflow(PutWorkflowRequest) returns (WorkflowVersion);
     rpc ScheduleWorkflow(ScheduleWorkflowRequest) returns (WorkflowVersion);
     rpc TriggerWorkflow(TriggerWorkflowRequest) returns (TriggerWorkflowResponse);
+    rpc BulkTriggerWorkflow(BulkTriggerWorkflowRequest) returns (BulkTriggerWorkflowResponse);
     rpc PutRateLimit(PutRateLimitRequest) returns (PutRateLimitResponse);
 }
 
@@ -165,6 +166,14 @@ message WorkflowTriggerEventRef {
 message WorkflowTriggerCronRef {
     string parent_id = 1;
     string cron = 2;
+}
+
+message BulkTriggerWorkflowRequest {
+    repeated TriggerWorkflowRequest workflows = 1;
+}
+
+message BulkTriggerWorkflowResponse {
+    repeated string workflow_run_ids = 1;
 }
 
 message TriggerWorkflowRequest {

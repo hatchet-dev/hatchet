@@ -331,6 +331,144 @@ func (q *Queries) CreateJobRuns(ctx context.Context, db DBTX, arg CreateJobRunsP
 	return items, nil
 }
 
+const createMultipleWorkflowRunDedupes = `-- name: CreateMultipleWorkflowRunDedupes :many
+WITH workflow_ids AS (
+    SELECT w."id", wv."id" as workflow_version_id
+    FROM "Workflow" w
+    JOIN "WorkflowVersion" wv ON wv."workflowId" = w."id"
+    WHERE wv."id" = ANY($4::uuid[])
+)
+INSERT INTO "WorkflowRunDedupe" (
+    "createdAt",
+    "updatedAt",
+    "tenantId",
+    "workflowId",
+    "workflowRunId",
+    "value"
+)
+SELECT
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP,
+    $1::uuid,
+    workflow_ids."id",
+    UNNEST($2::uuid[]),
+    UNNEST($3::text[])
+FROM workflow_ids
+JOIN UNNEST($4::uuid[]) AS wv(workflow_version_id)
+    ON workflow_ids.workflow_version_id = wv.workflow_version_id
+RETURNING id, "createdAt", "updatedAt", "tenantId", "workflowId", "workflowRunId", value
+`
+
+type CreateMultipleWorkflowRunDedupesParams struct {
+	Tenantid           pgtype.UUID   `json:"tenantid"`
+	Workflowrunids     []pgtype.UUID `json:"workflowrunids"`
+	Values             []string      `json:"values"`
+	Workflowversionids []pgtype.UUID `json:"workflowversionids"`
+}
+
+func (q *Queries) CreateMultipleWorkflowRunDedupes(ctx context.Context, db DBTX, arg CreateMultipleWorkflowRunDedupesParams) ([]*WorkflowRunDedupe, error) {
+	rows, err := db.Query(ctx, createMultipleWorkflowRunDedupes,
+		arg.Tenantid,
+		arg.Workflowrunids,
+		arg.Values,
+		arg.Workflowversionids,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*WorkflowRunDedupe
+	for rows.Next() {
+		var i WorkflowRunDedupe
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.TenantId,
+			&i.WorkflowId,
+			&i.WorkflowRunId,
+			&i.Value,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const createMultipleWorkflowRunStickyStates = `-- name: CreateMultipleWorkflowRunStickyStates :many
+WITH workflow_version AS (
+    SELECT
+        "id" AS workflow_version_id,
+        "sticky"
+    FROM "WorkflowVersion"
+    WHERE "id" = ANY($4::uuid[])
+)
+INSERT INTO "WorkflowRunStickyState" (
+    "createdAt",
+    "updatedAt",
+    "tenantId",
+    "workflowRunId",
+    "desiredWorkerId",
+    "strategy"
+)
+SELECT
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP,
+    $1::uuid,
+    UNNEST($2::uuid[]),
+    UNNEST($3::uuid[]),
+    workflow_version."sticky"
+FROM workflow_version
+JOIN UNNEST($4::uuid[]) AS wv(workflow_version_id)
+    ON workflow_version.workflow_version_id = wv.workflow_version_id
+WHERE workflow_version."sticky" IS NOT NULL
+RETURNING id, "createdAt", "updatedAt", "tenantId", "workflowRunId", "desiredWorkerId", strategy
+`
+
+type CreateMultipleWorkflowRunStickyStatesParams struct {
+	Tenantid           pgtype.UUID   `json:"tenantid"`
+	Workflowrunids     []pgtype.UUID `json:"workflowrunids"`
+	Desiredworkerids   []pgtype.UUID `json:"desiredworkerids"`
+	Workflowversionids []pgtype.UUID `json:"workflowversionids"`
+}
+
+func (q *Queries) CreateMultipleWorkflowRunStickyStates(ctx context.Context, db DBTX, arg CreateMultipleWorkflowRunStickyStatesParams) ([]*WorkflowRunStickyState, error) {
+	rows, err := db.Query(ctx, createMultipleWorkflowRunStickyStates,
+		arg.Tenantid,
+		arg.Workflowrunids,
+		arg.Desiredworkerids,
+		arg.Workflowversionids,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*WorkflowRunStickyState
+	for rows.Next() {
+		var i WorkflowRunStickyState
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.TenantId,
+			&i.WorkflowRunId,
+			&i.DesiredWorkerId,
+			&i.Strategy,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const createStepRun = `-- name: CreateStepRun :one
 INSERT INTO "StepRun" (
     "id",
@@ -634,6 +772,20 @@ func (q *Queries) CreateWorkflowRunTriggeredBy(ctx context.Context, db DBTX, arg
 	return &i, err
 }
 
+type CreateWorkflowRunsParams struct {
+	ID                 pgtype.UUID       `json:"id"`
+	DisplayName        pgtype.Text       `json:"displayName"`
+	TenantId           pgtype.UUID       `json:"tenantId"`
+	WorkflowVersionId  pgtype.UUID       `json:"workflowVersionId"`
+	Status             WorkflowRunStatus `json:"status"`
+	ChildIndex         pgtype.Int4       `json:"childIndex"`
+	ChildKey           pgtype.Text       `json:"childKey"`
+	ParentId           pgtype.UUID       `json:"parentId"`
+	ParentStepRunId    pgtype.UUID       `json:"parentStepRunId"`
+	AdditionalMetadata []byte            `json:"additionalMetadata"`
+	Priority           pgtype.Int4       `json:"priority"`
+}
+
 const getChildWorkflowRun = `-- name: GetChildWorkflowRun :one
 SELECT
     "createdAt", "updatedAt", "deletedAt", "tenantId", "workflowVersionId", status, error, "startedAt", "finishedAt", "concurrencyGroupId", "displayName", id, "childIndex", "childKey", "parentId", "parentStepRunId", "additionalMetadata", duration, priority
@@ -687,6 +839,53 @@ func (q *Queries) GetChildWorkflowRun(ctx context.Context, db DBTX, arg GetChild
 		&i.Priority,
 	)
 	return &i, err
+}
+
+const getInsertedWorkflowRuns = `-- name: GetInsertedWorkflowRuns :many
+
+SELECT "createdAt", "updatedAt", "deletedAt", "tenantId", "workflowVersionId", status, error, "startedAt", "finishedAt", "concurrencyGroupId", "displayName", id, "childIndex", "childKey", "parentId", "parentStepRunId", "additionalMetadata", duration, priority FROM "WorkflowRun"
+WHERE xmin::text = (txid_current() % (2^32)::bigint)::text
+ORDER BY id
+`
+
+func (q *Queries) GetInsertedWorkflowRuns(ctx context.Context, db DBTX) ([]*WorkflowRun, error) {
+	rows, err := db.Query(ctx, getInsertedWorkflowRuns)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*WorkflowRun
+	for rows.Next() {
+		var i WorkflowRun
+		if err := rows.Scan(
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.TenantId,
+			&i.WorkflowVersionId,
+			&i.Status,
+			&i.Error,
+			&i.StartedAt,
+			&i.FinishedAt,
+			&i.ConcurrencyGroupId,
+			&i.DisplayName,
+			&i.ID,
+			&i.ChildIndex,
+			&i.ChildKey,
+			&i.ParentId,
+			&i.ParentStepRunId,
+			&i.AdditionalMetadata,
+			&i.Duration,
+			&i.Priority,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getScheduledChildWorkflowRun = `-- name: GetScheduledChildWorkflowRun :one

@@ -26,12 +26,20 @@ type ChildWorkflowOpts struct {
 	DesiredWorkerId *string
 }
 
+type Workflow struct {
+	Name  string
+	Input interface{}
+	// opts  *RunOptFunc
+}
+
 type AdminClient interface {
 	PutWorkflow(workflow *types.Workflow, opts ...PutOptFunc) error
 	ScheduleWorkflow(workflowName string, opts ...ScheduleOptFunc) error
 
 	// RunWorkflow triggers a workflow run and returns the run id
 	RunWorkflow(workflowName string, input interface{}, opts ...RunOptFunc) (string, error)
+
+	// BulkRunWorkflow(workflows []*Workflow) ([]string, error)
 
 	RunChildWorkflow(workflowName string, input interface{}, opts *ChildWorkflowOpts) (string, error)
 
@@ -211,6 +219,22 @@ func (a *adminClientImpl) RunWorkflow(workflowName string, input interface{}, op
 	}
 
 	return res.WorkflowRunId, nil
+}
+
+func (a *adminClientImpl) BulkRunWorkflow(triggerWorkflowRequests []*admincontracts.TriggerWorkflowRequest) ([]string, error) {
+
+	r := admincontracts.BulkTriggerWorkflowRequest{
+		Workflows: triggerWorkflowRequests,
+	}
+
+	res, err := a.client.BulkTriggerWorkflow(a.ctx.newContext(context.Background()), &r)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not bulk trigger workflows: %w", err)
+	}
+
+	return res.WorkflowRunIds, nil
+
 }
 
 func (a *adminClientImpl) RunChildWorkflow(workflowName string, input interface{}, opts *ChildWorkflowOpts) (string, error) {

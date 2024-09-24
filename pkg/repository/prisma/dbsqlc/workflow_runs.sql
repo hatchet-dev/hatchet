@@ -480,6 +480,43 @@ INSERT INTO "WorkflowRun" (
     sqlc.narg('priority')::int
 ) RETURNING *;
 
+
+-- name: CreateWorkflowRuns :copyfrom
+INSERT INTO "WorkflowRun" (
+    "id",
+    "displayName",
+    "tenantId",
+    "workflowVersionId",
+    "status",
+    "childIndex",
+    "childKey",
+    "parentId",
+    "parentStepRunId",
+    "additionalMetadata",
+    "priority"
+) VALUES (
+    $1,
+    $2,
+    $3,
+    $4,
+    $5,
+    $6,
+    $7,
+    $8,
+    $9,
+    $10,
+    $11
+
+);
+
+
+-- name: GetInsertedWorkflowRuns :many
+
+SELECT * FROM "WorkflowRun"
+WHERE xmin::text = (txid_current() % (2^32)::bigint)::text
+ORDER BY id;
+
+
 -- name: CreateWorkflowRunDedupe :one
 WITH workflow_id AS (
     SELECT w."id" FROM "Workflow" w
@@ -501,6 +538,34 @@ INSERT INTO "WorkflowRunDedupe" (
     @workflowRunId::uuid,
     sqlc.narg('value')::text
 ) RETURNING *;
+
+-- name: CreateMultipleWorkflowRunDedupes :many
+WITH workflow_ids AS (
+    SELECT w."id", wv."id" as workflow_version_id
+    FROM "Workflow" w
+    JOIN "WorkflowVersion" wv ON wv."workflowId" = w."id"
+    WHERE wv."id" = ANY(@workflowVersionIds::uuid[])
+)
+INSERT INTO "WorkflowRunDedupe" (
+    "createdAt",
+    "updatedAt",
+    "tenantId",
+    "workflowId",
+    "workflowRunId",
+    "value"
+)
+SELECT
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP,
+    @tenantId::uuid,
+    workflow_ids."id",
+    UNNEST(@workflowRunIds::uuid[]),
+    UNNEST(@values::text[])
+FROM workflow_ids
+JOIN UNNEST(@workflowVersionIds::uuid[]) AS wv(workflow_version_id)
+    ON workflow_ids.workflow_version_id = wv.workflow_version_id
+RETURNING *;
+
 
 -- name: CreateWorkflowRunStickyState :one
 WITH workflow_version AS (
@@ -524,6 +589,35 @@ SELECT
     sqlc.narg('desiredWorkerId')::uuid,
     workflow_version."sticky"
 FROM workflow_version
+WHERE workflow_version."sticky" IS NOT NULL
+RETURNING *;
+
+-- name: CreateMultipleWorkflowRunStickyStates :many
+WITH workflow_version AS (
+    SELECT
+        "id" AS workflow_version_id,
+        "sticky"
+    FROM "WorkflowVersion"
+    WHERE "id" = ANY(@workflowVersionIds::uuid[])
+)
+INSERT INTO "WorkflowRunStickyState" (
+    "createdAt",
+    "updatedAt",
+    "tenantId",
+    "workflowRunId",
+    "desiredWorkerId",
+    "strategy"
+)
+SELECT
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP,
+    @tenantId::uuid,
+    UNNEST(@workflowRunIds::uuid[]),
+    UNNEST(@desiredWorkerIds::uuid[]),
+    workflow_version."sticky"
+FROM workflow_version
+JOIN UNNEST(@workflowVersionIds::uuid[]) AS wv(workflow_version_id)
+    ON workflow_version.workflow_version_id = wv.workflow_version_id
 WHERE workflow_version."sticky" IS NOT NULL
 RETURNING *;
 
