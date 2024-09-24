@@ -376,7 +376,7 @@ type WorkflowRunMetricsCountOpts struct {
 }
 
 type StepRunForJobRun struct {
-	*dbsqlc.GetStepRunsForJobRunsRow
+	*dbsqlc.GetStepRunsForJobRunsWithOutputRow
 	ChildWorkflowsCount int
 }
 

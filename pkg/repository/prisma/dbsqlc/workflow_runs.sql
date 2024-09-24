@@ -990,7 +990,10 @@ WHERE
 GROUP BY
     wr."parentStepRunId";
 
--- name: GetStepRunsForJobRuns :many
+
+-- We grab the output for each step run here which could potentially be very large
+
+-- name: GetStepRunsForJobRunsWithOutput :many
 SELECT
 	sr."id",
 	sr."createdAt",
