@@ -602,7 +602,7 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByAdditionalMeta(key string, v
 	}
 
 	// subscribe to the task queue for the tenant
-	cleanupQueue, err := s.mq.Subscribe(q, msgqueue.NoOpHook, f)
+	cleanupQueue, err := s.heavyReadMQ.Subscribe(q, msgqueue.NoOpHook, f)
 
 	if err != nil {
 		return err
@@ -685,7 +685,7 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunId(workflowRunId 
 	}
 
 	// subscribe to the task queue for the tenant
-	cleanupQueue, err := s.mq.Subscribe(q, msgqueue.NoOpHook, f)
+	cleanupQueue, err := s.heavyReadMQ.Subscribe(q, msgqueue.NoOpHook, f)
 
 	if err != nil {
 		return err
@@ -879,7 +879,7 @@ func (s *DispatcherImpl) SubscribeToWorkflowRuns(server contracts.Dispatcher_Sub
 	}
 
 	// subscribe to the task queue for the tenant
-	cleanupQueue, err := s.mq.Subscribe(q, msgqueue.NoOpHook, f)
+	cleanupQueue, err := s.heavyReadMQ.Subscribe(q, msgqueue.NoOpHook, f)
 
 	if err != nil {
 		return err
