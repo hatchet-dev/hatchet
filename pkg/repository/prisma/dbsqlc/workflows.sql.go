@@ -365,25 +365,61 @@ func (q *Queries) CreateStep(ctx context.Context, db DBTX, arg CreateStepParams)
 	return &i, err
 }
 
+const createStepExpressions = `-- name: CreateStepExpressions :exec
+INSERT INTO "StepExpression" (
+    "key",
+    "stepId",
+    "expression",
+    "kind"
+) VALUES (
+    unnest($1::text[]),
+    $2::uuid,
+    unnest($3::text[]),
+    unnest(cast($4::text[] as"StepExpressionKind"[]))
+) ON CONFLICT ("key", "stepId", "kind") DO UPDATE
+SET
+    "expression" = EXCLUDED."expression"
+`
+
+type CreateStepExpressionsParams struct {
+	Keys        []string    `json:"keys"`
+	Stepid      pgtype.UUID `json:"stepid"`
+	Expressions []string    `json:"expressions"`
+	Kinds       []string    `json:"kinds"`
+}
+
+func (q *Queries) CreateStepExpressions(ctx context.Context, db DBTX, arg CreateStepExpressionsParams) error {
+	_, err := db.Exec(ctx, createStepExpressions,
+		arg.Keys,
+		arg.Stepid,
+		arg.Expressions,
+		arg.Kinds,
+	)
+	return err
+}
+
 const createStepRateLimit = `-- name: CreateStepRateLimit :one
 INSERT INTO "StepRateLimit" (
     "units",
     "stepId",
     "rateLimitKey",
-    "tenantId"
+    "tenantId",
+    "kind"
 ) VALUES (
     $1::integer,
     $2::uuid,
     $3::text,
-    $4::uuid
+    $4::uuid,
+    $5
 ) RETURNING units, "stepId", "rateLimitKey", "tenantId", kind
 `
 
 type CreateStepRateLimitParams struct {
-	Units        int32       `json:"units"`
-	Stepid       pgtype.UUID `json:"stepid"`
-	Ratelimitkey string      `json:"ratelimitkey"`
-	Tenantid     pgtype.UUID `json:"tenantid"`
+	Units        int32             `json:"units"`
+	Stepid       pgtype.UUID       `json:"stepid"`
+	Ratelimitkey string            `json:"ratelimitkey"`
+	Tenantid     pgtype.UUID       `json:"tenantid"`
+	Kind         StepRateLimitKind `json:"kind"`
 }
 
 func (q *Queries) CreateStepRateLimit(ctx context.Context, db DBTX, arg CreateStepRateLimitParams) (*StepRateLimit, error) {
@@ -392,6 +428,7 @@ func (q *Queries) CreateStepRateLimit(ctx context.Context, db DBTX, arg CreateSt
 		arg.Stepid,
 		arg.Ratelimitkey,
 		arg.Tenantid,
+		arg.Kind,
 	)
 	var i StepRateLimit
 	err := row.Scan(

@@ -117,7 +117,11 @@ message CreateWorkflowStepOpts {
 
 message CreateStepRateLimit {
     string key = 1; // (required) the key for the rate limit
-    int32 units = 2; // (required) the number of units this step consumes
+    optional int32 units = 2; // (required) the number of units this step consumes
+    optional string key_expr = 3; // (optional) a CEL expression for determining the rate limit key
+    optional string units_expr = 4; // (optional) a CEL expression for determining the number of units consumed
+    optional string limit_values_expr = 5; // (optional) a CEL expression for determining the total amount of rate limit units
+    optional RateLimitDuration duration = 6; // (optional) the default rate limit window to use for dynamic rate limits
 }
 
 // ListWorkflowsRequest is the request for ListWorkflows.

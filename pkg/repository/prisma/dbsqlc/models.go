@@ -320,9 +320,10 @@ func (ns NullLogLineLevel) Value() (driver.Value, error) {
 type StepExpressionKind string
 
 const (
-	StepExpressionKindDYNAMICRATELIMITKEY   StepExpressionKind = "DYNAMIC_RATE_LIMIT_KEY"
-	StepExpressionKindDYNAMICRATELIMITVALUE StepExpressionKind = "DYNAMIC_RATE_LIMIT_VALUE"
-	StepExpressionKindDYNAMICRATELIMITUNITS StepExpressionKind = "DYNAMIC_RATE_LIMIT_UNITS"
+	StepExpressionKindDYNAMICRATELIMITKEY    StepExpressionKind = "DYNAMIC_RATE_LIMIT_KEY"
+	StepExpressionKindDYNAMICRATELIMITVALUE  StepExpressionKind = "DYNAMIC_RATE_LIMIT_VALUE"
+	StepExpressionKindDYNAMICRATELIMITUNITS  StepExpressionKind = "DYNAMIC_RATE_LIMIT_UNITS"
+	StepExpressionKindDYNAMICRATELIMITWINDOW StepExpressionKind = "DYNAMIC_RATE_LIMIT_WINDOW"
 )
 
 func (e *StepExpressionKind) Scan(src interface{}) error {
@@ -422,6 +423,7 @@ const (
 	StepRunEventReasonSENTTOWORKER                 StepRunEventReason = "SENT_TO_WORKER"
 	StepRunEventReasonWORKFLOWRUNGROUPKEYSUCCEEDED StepRunEventReason = "WORKFLOW_RUN_GROUP_KEY_SUCCEEDED"
 	StepRunEventReasonWORKFLOWRUNGROUPKEYFAILED    StepRunEventReason = "WORKFLOW_RUN_GROUP_KEY_FAILED"
+	StepRunEventReasonRATELIMITERROR               StepRunEventReason = "RATE_LIMIT_ERROR"
 )
 
 func (e *StepRunEventReason) Scan(src interface{}) error {

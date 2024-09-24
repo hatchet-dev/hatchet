@@ -923,16 +923,82 @@ func (r *workflowEngineRepository) createJobTx(ctx context.Context, tx pgx.Tx, t
 		}
 
 		if len(stepOpts.RateLimits) > 0 {
+			createStepExprParams := dbsqlc.CreateStepExpressionsParams{
+				Stepid: sqlchelpers.UUIDFromStr(stepId),
+			}
+
 			for _, rateLimit := range stepOpts.RateLimits {
-				_, err := r.queries.CreateStepRateLimit(
+				// if ANY of the step expressions are not nil, we create ALL options as expressions, but with static
+				// keys for any nil expressions.
+				if rateLimit.KeyExpr != nil || rateLimit.LimitExpr != nil || rateLimit.UnitsExpr != nil {
+					var keyExpr, limitExpr, unitsExpr string
+
+					// FIXME: move all these double quotes to a shared CEL method
+					durationExpr := `"MINUTE"`
+
+					if rateLimit.Duration != nil {
+						durationExpr = fmt.Sprintf(`"%s"`, *rateLimit.Duration)
+					}
+
+					if rateLimit.KeyExpr != nil {
+						keyExpr = *rateLimit.KeyExpr
+					} else {
+						keyExpr = fmt.Sprintf(`"%s"`, rateLimit.Key)
+					}
+
+					if rateLimit.UnitsExpr != nil {
+						unitsExpr = *rateLimit.UnitsExpr
+					} else {
+						unitsExpr = fmt.Sprintf(`%d`, *rateLimit.Units)
+					}
+
+					// create the key expression
+					createStepExprParams.Kinds = append(createStepExprParams.Kinds, string(dbsqlc.StepExpressionKindDYNAMICRATELIMITKEY))
+					createStepExprParams.Keys = append(createStepExprParams.Keys, rateLimit.Key)
+					createStepExprParams.Expressions = append(createStepExprParams.Expressions, keyExpr)
+
+					// create the limit value expression, if it's set
+					if rateLimit.LimitExpr != nil {
+						limitExpr = *rateLimit.LimitExpr
+
+						createStepExprParams.Kinds = append(createStepExprParams.Kinds, string(dbsqlc.StepExpressionKindDYNAMICRATELIMITVALUE))
+						createStepExprParams.Keys = append(createStepExprParams.Keys, rateLimit.Key)
+						createStepExprParams.Expressions = append(createStepExprParams.Expressions, limitExpr)
+					}
+
+					// create the units value expression
+					createStepExprParams.Kinds = append(createStepExprParams.Kinds, string(dbsqlc.StepExpressionKindDYNAMICRATELIMITUNITS))
+					createStepExprParams.Keys = append(createStepExprParams.Keys, rateLimit.Key)
+					createStepExprParams.Expressions = append(createStepExprParams.Expressions, unitsExpr)
+
+					// create the durations expression (dunno why we're calling it window in some places)
+					createStepExprParams.Kinds = append(createStepExprParams.Kinds, string(dbsqlc.StepExpressionKindDYNAMICRATELIMITWINDOW))
+					createStepExprParams.Keys = append(createStepExprParams.Keys, rateLimit.Key)
+					createStepExprParams.Expressions = append(createStepExprParams.Expressions, durationExpr)
+				} else {
+					_, err := r.queries.CreateStepRateLimit(
+						ctx,
+						tx,
+						dbsqlc.CreateStepRateLimitParams{
+							Stepid:       sqlchelpers.UUIDFromStr(stepId),
+							Ratelimitkey: rateLimit.Key,
+							Units:        int32(*rateLimit.Units), // nolint: gosec
+							Tenantid:     tenantId,
+							Kind:         dbsqlc.StepRateLimitKindDEFAULT,
+						},
+					)
+
+					if err != nil {
+						return "", err
+					}
+				}
+			}
+
+			if len(createStepExprParams.Kinds) > 0 {
+				err := r.queries.CreateStepExpressions(
 					ctx,
 					tx,
-					dbsqlc.CreateStepRateLimitParams{
-						Stepid:       sqlchelpers.UUIDFromStr(stepId),
-						Ratelimitkey: rateLimit.Key,
-						Units:        int32(rateLimit.Units),
-						Tenantid:     tenantId,
-					},
+					createStepExprParams,
 				)
 
 				if err != nil {
@@ -943,39 +1009,4 @@ func (r *workflowEngineRepository) createJobTx(ctx context.Context, tx pgx.Tx, t
 	}
 
 	return jobId, nil
-}
-
-func defaultWorkflowPopulator() []db.WorkflowRelationWith {
-	return []db.WorkflowRelationWith{
-		db.Workflow.Tags.Fetch(),
-		db.Workflow.Versions.Fetch().OrderBy(
-			db.WorkflowVersion.Order.Order(db.SortOrderDesc),
-		).With(
-			defaultWorkflowVersionPopulator()...,
-		),
-	}
-}
-
-func defaultWorkflowVersionPopulator() []db.WorkflowVersionRelationWith {
-	return []db.WorkflowVersionRelationWith{
-		db.WorkflowVersion.Workflow.Fetch(),
-		db.WorkflowVersion.Triggers.Fetch().With(
-			db.WorkflowTriggers.Events.Fetch(),
-			db.WorkflowTriggers.Crons.Fetch().With(
-				db.WorkflowTriggerCronRef.Ticker.Fetch(),
-			),
-		),
-		db.WorkflowVersion.Concurrency.Fetch().With(
-			db.WorkflowConcurrency.GetConcurrencyGroup.Fetch(),
-		),
-		db.WorkflowVersion.Jobs.Fetch().With(
-			db.Job.Steps.Fetch().With(
-				db.Step.Action.Fetch(),
-				db.Step.Parents.Fetch(),
-			),
-		),
-		db.WorkflowVersion.Scheduled.Fetch().With(
-			db.WorkflowTriggerScheduledRef.Ticker.Fetch(),
-		),
-	}
 }

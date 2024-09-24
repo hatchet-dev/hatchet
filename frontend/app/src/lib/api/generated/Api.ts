@@ -39,6 +39,9 @@ import {
   LogLineOrderByDirection,
   LogLineOrderByField,
   LogLineSearch,
+  RateLimitList,
+  RateLimitOrderByDirection,
+  RateLimitOrderByField,
   RejectInviteRequest,
   ReplayEventRequest,
   ReplayWorkflowRunsRequest,
@@ -928,6 +931,45 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       body: data,
       secure: true,
       type: ContentType.Json,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Lists all rate limits for a tenant.
+   *
+   * @tags Rate Limits
+   * @name RateLimitList
+   * @summary List rate limits
+   * @request GET:/api/v1/tenants/{tenant}/rate-limits
+   * @secure
+   */
+  rateLimitList = (
+    tenant: string,
+    query?: {
+      /**
+       * The number to skip
+       * @format int64
+       */
+      offset?: number;
+      /**
+       * The number to limit by
+       * @format int64
+       */
+      limit?: number;
+      /** The search query to filter for */
+      search?: string;
+      /** What to order by */
+      orderByField?: RateLimitOrderByField;
+      /** The order direction */
+      orderByDirection?: RateLimitOrderByDirection;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<RateLimitList, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/rate-limits`,
+      method: 'GET',
+      query: query,
+      secure: true,
       format: 'json',
       ...params,
     });

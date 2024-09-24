@@ -100,7 +100,7 @@ func NewAPIRepository(client *db.PrismaClient, pool *pgxpool.Pool, fs ...PrismaR
 		workflowRun:    NewWorkflowRunRepository(client, pool, opts.v, opts.l, opts.metered),
 		jobRun:         NewJobRunAPIRepository(client, pool, opts.v, opts.l),
 		stepRun:        NewStepRunAPIRepository(client, pool, opts.v, opts.l),
-		step:           NewStepRepository(client, opts.v),
+		step:           NewStepRepository(pool, opts.v, opts.l),
 		slack:          NewSlackRepository(client, opts.v),
 		sns:            NewSNSRepository(client, opts.v),
 		worker:         NewWorkerAPIRepository(client, pool, opts.v, opts.l, opts.metered),
@@ -195,6 +195,7 @@ type engineRepository struct {
 	event          repository.EventEngineRepository
 	getGroupKeyRun repository.GetGroupKeyRunEngineRepository
 	jobRun         repository.JobRunEngineRepository
+	step           repository.StepRepository
 	stepRun        repository.StepRunEngineRepository
 	tenant         repository.TenantEngineRepository
 	tenantAlerting repository.TenantAlertingEngineRepository
@@ -234,6 +235,10 @@ func (r *engineRepository) JobRun() repository.JobRunEngineRepository {
 
 func (r *engineRepository) StepRun() repository.StepRunEngineRepository {
 	return r.stepRun
+}
+
+func (r *engineRepository) Step() repository.StepRepository {
+	return r.step
 }
 
 func (r *engineRepository) Tenant() repository.TenantEngineRepository {
@@ -298,6 +303,7 @@ func NewEngineRepository(pool *pgxpool.Pool, queuePool *pgxpool.Pool, cf *server
 		getGroupKeyRun: NewGetGroupKeyRunRepository(pool, opts.v, opts.l),
 		jobRun:         NewJobRunEngineRepository(pool, opts.v, opts.l),
 		stepRun:        NewStepRunEngineRepository(queuePool, opts.v, opts.l, cf),
+		step:           NewStepRepository(pool, opts.v, opts.l),
 		tenant:         NewTenantEngineRepository(pool, opts.v, opts.l, opts.cache),
 		tenantAlerting: NewTenantAlertingEngineRepository(pool, opts.v, opts.l, opts.cache),
 		ticker:         NewTickerRepository(pool, opts.v, opts.l),

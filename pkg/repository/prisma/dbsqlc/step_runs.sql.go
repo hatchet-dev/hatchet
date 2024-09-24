@@ -562,6 +562,74 @@ func (q *Queries) CreateStepRunEvent(ctx context.Context, db DBTX, arg CreateSte
 	return err
 }
 
+const createStepRunExpressionEvalInts = `-- name: CreateStepRunExpressionEvalInts :exec
+INSERT INTO "StepRunExpressionEval" (
+    "key",
+    "stepRunId",
+    "valueInt",
+    "kind"
+) VALUES (
+    unnest($1::text[]),
+    $2::uuid,
+    unnest($3::int[]),
+    unnest(cast($4::text[] as"StepExpressionKind"[]))
+) ON CONFLICT ("key", "stepRunId", "kind") DO UPDATE
+SET
+    "valueStr" = EXCLUDED."valueStr",
+    "valueInt" = EXCLUDED."valueInt"
+`
+
+type CreateStepRunExpressionEvalIntsParams struct {
+	Keys      []string    `json:"keys"`
+	Steprunid pgtype.UUID `json:"steprunid"`
+	Valuesint []int32     `json:"valuesint"`
+	Kinds     []string    `json:"kinds"`
+}
+
+func (q *Queries) CreateStepRunExpressionEvalInts(ctx context.Context, db DBTX, arg CreateStepRunExpressionEvalIntsParams) error {
+	_, err := db.Exec(ctx, createStepRunExpressionEvalInts,
+		arg.Keys,
+		arg.Steprunid,
+		arg.Valuesint,
+		arg.Kinds,
+	)
+	return err
+}
+
+const createStepRunExpressionEvalStrs = `-- name: CreateStepRunExpressionEvalStrs :exec
+INSERT INTO "StepRunExpressionEval" (
+    "key",
+    "stepRunId",
+    "valueStr",
+    "kind"
+) VALUES (
+    unnest($1::text[]),
+    $2::uuid,
+    unnest($3::text[]),
+    unnest(cast($4::text[] as"StepExpressionKind"[]))
+) ON CONFLICT ("key", "stepRunId", "kind") DO UPDATE
+SET
+    "valueStr" = EXCLUDED."valueStr",
+    "valueInt" = EXCLUDED."valueInt"
+`
+
+type CreateStepRunExpressionEvalStrsParams struct {
+	Keys      []string    `json:"keys"`
+	Steprunid pgtype.UUID `json:"steprunid"`
+	Valuesstr []string    `json:"valuesstr"`
+	Kinds     []string    `json:"kinds"`
+}
+
+func (q *Queries) CreateStepRunExpressionEvalStrs(ctx context.Context, db DBTX, arg CreateStepRunExpressionEvalStrsParams) error {
+	_, err := db.Exec(ctx, createStepRunExpressionEvalStrs,
+		arg.Keys,
+		arg.Steprunid,
+		arg.Valuesstr,
+		arg.Kinds,
+	)
+	return err
+}
+
 const createWorkerAssignEvents = `-- name: CreateWorkerAssignEvents :exec
 INSERT INTO "WorkerAssignEvent" (
     "workerId",
@@ -869,6 +937,21 @@ func (q *Queries) GetStepRun(ctx context.Context, db DBTX, id pgtype.UUID) (*Ste
 }
 
 const getStepRunDataForEngine = `-- name: GetStepRunDataForEngine :one
+WITH expr_count AS (
+    SELECT
+        COUNT(*) AS "exprCount",
+        sr."id" AS "id"
+    FROM
+        "StepRun" sr
+    JOIN
+        "Step" s ON sr."stepId" = s."id"
+    JOIN
+        "StepExpression" se ON s."id" = se."stepId"
+    WHERE
+        sr."id" = $2::uuid
+    GROUP BY
+        sr."id"
+)
 SELECT
     sr."input",
     sr."output",
@@ -877,7 +960,8 @@ SELECT
     wr."additionalMetadata",
     wr."childIndex",
     wr."childKey",
-    wr."parentId"
+    wr."parentId",
+    COALESCE(ec."exprCount", 0) AS "exprCount"
 FROM
     "StepRun" sr
 JOIN
@@ -887,6 +971,8 @@ JOIN
 JOIN
     -- Take advantage of composite index on "JobRun"("workflowRunId", "tenantId")
     "WorkflowRun" wr ON jr."workflowRunId" = wr."id" AND wr."tenantId" = $1::uuid
+LEFT JOIN
+    expr_count ec ON sr."id" = ec."id"
 WHERE
     sr."id" = $2::uuid AND
     sr."tenantId" = $1::uuid
@@ -906,6 +992,7 @@ type GetStepRunDataForEngineRow struct {
 	ChildIndex         pgtype.Int4 `json:"childIndex"`
 	ChildKey           pgtype.Text `json:"childKey"`
 	ParentId           pgtype.UUID `json:"parentId"`
+	ExprCount          int64       `json:"exprCount"`
 }
 
 func (q *Queries) GetStepRunDataForEngine(ctx context.Context, db DBTX, arg GetStepRunDataForEngineParams) (*GetStepRunDataForEngineRow, error) {
@@ -920,6 +1007,7 @@ func (q *Queries) GetStepRunDataForEngine(ctx context.Context, db DBTX, arg GetS
 		&i.ChildIndex,
 		&i.ChildKey,
 		&i.ParentId,
+		&i.ExprCount,
 	)
 	return &i, err
 }
@@ -935,6 +1023,7 @@ WITH child_count AS (
         "_StepRunOrder" AS step_run_order ON sr."id" = step_run_order."A"
     WHERE
         sr."id" = ANY($1::uuid[])
+        AND step_run_order IS NOT NULL
     GROUP BY
         sr."id"
 )
@@ -963,7 +1052,7 @@ SELECT
     sr."retryCount" AS "SR_retryCount",
     sr."semaphoreReleased" AS "SR_semaphoreReleased",
     sr."priority" AS "SR_priority",
-    cc."childCount" AS "SR_childCount",
+    COALESCE(cc."childCount", 0) AS "SR_childCount",
     -- TODO: everything below this line is cacheable and should be moved to a separate query
     jr."id" AS "jobRunId",
     s."id" AS "stepId",
@@ -983,7 +1072,7 @@ SELECT
     sticky."desiredWorkerId" AS "desiredWorkerId"
 FROM
     "StepRun" sr
-JOIN
+LEFT JOIN
     child_count cc ON sr."id" = cc."id"
 JOIN
     "Step" s ON sr."stepId" = s."id"
@@ -1653,6 +1742,41 @@ func (q *Queries) ListStepRunEventsByWorkflowRunId(ctx context.Context, db DBTX,
 			&i.Count,
 			&i.Data,
 			&i.WorkflowRunId,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listStepRunExpressionEvals = `-- name: ListStepRunExpressionEvals :many
+SELECT
+    key, "stepRunId", "valueStr", "valueInt", kind
+FROM
+    "StepRunExpressionEval" sre
+WHERE
+    "stepRunId" = ANY($1::uuid[])
+`
+
+func (q *Queries) ListStepRunExpressionEvals(ctx context.Context, db DBTX, steprunids []pgtype.UUID) ([]*StepRunExpressionEval, error) {
+	rows, err := db.Query(ctx, listStepRunExpressionEvals, steprunids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*StepRunExpressionEval
+	for rows.Next() {
+		var i StepRunExpressionEval
+		if err := rows.Scan(
+			&i.Key,
+			&i.StepRunId,
+			&i.ValueStr,
+			&i.ValueInt,
+			&i.Kind,
 		); err != nil {
 			return nil, err
 		}

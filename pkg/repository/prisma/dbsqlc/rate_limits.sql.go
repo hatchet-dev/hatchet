@@ -67,6 +67,47 @@ func (q *Queries) BulkUpdateRateLimits(ctx context.Context, db DBTX, arg BulkUpd
 	return items, nil
 }
 
+const countRateLimits = `-- name: CountRateLimits :one
+WITH rate_limits AS (
+    SELECT
+        rl."key"
+    FROM
+        "RateLimit" rl
+    WHERE
+        rl."tenantId" = $1::uuid
+        AND (
+            $2::text IS NULL OR
+            rl."key" like concat('%', $2::text, '%')
+        )
+    ORDER BY
+        case when $3 = 'key ASC' THEN rl."key" END ASC,
+        case when $3 = 'key DESC' THEN rl."key" END DESC,
+        case when $3 = 'value ASC' THEN rl."value" END ASC,
+        case when $3 = 'value DESC' THEN rl."value" END DESC,
+        case when $3 = 'limitValue ASC' THEN rl."limitValue" END ASC,
+        case when $3 = 'limitValue DESC' THEN rl."limitValue" END DESC,
+        rl."key" ASC
+    LIMIT 10000
+)
+SELECT
+    count(rate_limits) AS total
+FROM
+    rate_limits
+`
+
+type CountRateLimitsParams struct {
+	Tenantid pgtype.UUID `json:"tenantid"`
+	Search   pgtype.Text `json:"search"`
+	Orderby  interface{} `json:"orderby"`
+}
+
+func (q *Queries) CountRateLimits(ctx context.Context, db DBTX, arg CountRateLimitsParams) (int64, error) {
+	row := db.QueryRow(ctx, countRateLimits, arg.Tenantid, arg.Search, arg.Orderby)
+	var total int64
+	err := row.Scan(&total)
+	return total, err
+}
+
 const listRateLimitsForSteps = `-- name: ListRateLimitsForSteps :many
 SELECT
     units, "stepId", "rateLimitKey", "tenantId", kind
@@ -108,7 +149,98 @@ func (q *Queries) ListRateLimitsForSteps(ctx context.Context, db DBTX, arg ListR
 	return items, nil
 }
 
-const listRateLimitsForTenant = `-- name: ListRateLimitsForTenant :many
+const listRateLimitsForTenantNoMutate = `-- name: ListRateLimitsForTenantNoMutate :many
+SELECT
+    "tenantId",
+    "key",
+    "limitValue",
+    (CASE
+        WHEN NOW() - rl."lastRefill" >= rl."window"::INTERVAL THEN
+            get_refill_value(rl)
+        ELSE
+            rl."value"
+    END)::int AS "value",
+    "window",
+    (CASE
+        WHEN NOW() - rl."lastRefill" >= rl."window"::INTERVAL THEN
+            CURRENT_TIMESTAMP
+        ELSE
+            rl."lastRefill"
+    END)::timestamp AS "lastRefill"
+FROM
+    "RateLimit" rl
+WHERE
+    "tenantId" = $1::uuid
+    AND (
+        $2::text IS NULL OR
+        rl."key" like concat('%', $2::text, '%')
+    )
+ORDER BY
+    case when $3 = 'key ASC' THEN rl."key" END ASC,
+    case when $3 = 'key DESC' THEN rl."key" END DESC,
+    case when $3 = 'value ASC' THEN rl."value" END ASC,
+    case when $3 = 'value DESC' THEN rl."value" END DESC,
+    case when $3 = 'limitValue ASC' THEN rl."limitValue" END ASC,
+    case when $3 = 'limitValue DESC' THEN rl."limitValue" END DESC,
+    rl."key" ASC
+OFFSET
+    COALESCE($4, 0)
+LIMIT
+    COALESCE($5, 50)
+`
+
+type ListRateLimitsForTenantNoMutateParams struct {
+	Tenantid pgtype.UUID `json:"tenantid"`
+	Search   pgtype.Text `json:"search"`
+	Orderby  interface{} `json:"orderby"`
+	Offset   interface{} `json:"offset"`
+	Limit    interface{} `json:"limit"`
+}
+
+type ListRateLimitsForTenantNoMutateRow struct {
+	TenantId   pgtype.UUID      `json:"tenantId"`
+	Key        string           `json:"key"`
+	LimitValue int32            `json:"limitValue"`
+	Value      int32            `json:"value"`
+	Window     string           `json:"window"`
+	LastRefill pgtype.Timestamp `json:"lastRefill"`
+}
+
+// Returns the same results as ListRateLimitsForTenantWithMutate but does not update the rate limit values
+func (q *Queries) ListRateLimitsForTenantNoMutate(ctx context.Context, db DBTX, arg ListRateLimitsForTenantNoMutateParams) ([]*ListRateLimitsForTenantNoMutateRow, error) {
+	rows, err := db.Query(ctx, listRateLimitsForTenantNoMutate,
+		arg.Tenantid,
+		arg.Search,
+		arg.Orderby,
+		arg.Offset,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListRateLimitsForTenantNoMutateRow
+	for rows.Next() {
+		var i ListRateLimitsForTenantNoMutateRow
+		if err := rows.Scan(
+			&i.TenantId,
+			&i.Key,
+			&i.LimitValue,
+			&i.Value,
+			&i.Window,
+			&i.LastRefill,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listRateLimitsForTenantWithMutate = `-- name: ListRateLimitsForTenantWithMutate :many
 WITH refill AS (
     UPDATE
         "RateLimit" rl
@@ -137,7 +269,7 @@ FROM
     refill
 `
 
-type ListRateLimitsForTenantRow struct {
+type ListRateLimitsForTenantWithMutateRow struct {
 	TenantId     pgtype.UUID      `json:"tenantId"`
 	Key          string           `json:"key"`
 	LimitValue   int32            `json:"limitValue"`
@@ -147,15 +279,15 @@ type ListRateLimitsForTenantRow struct {
 	NextRefillAt pgtype.Timestamp `json:"nextRefillAt"`
 }
 
-func (q *Queries) ListRateLimitsForTenant(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]*ListRateLimitsForTenantRow, error) {
-	rows, err := db.Query(ctx, listRateLimitsForTenant, tenantid)
+func (q *Queries) ListRateLimitsForTenantWithMutate(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]*ListRateLimitsForTenantWithMutateRow, error) {
+	rows, err := db.Query(ctx, listRateLimitsForTenantWithMutate, tenantid)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*ListRateLimitsForTenantRow
+	var items []*ListRateLimitsForTenantWithMutateRow
 	for rows.Next() {
-		var i ListRateLimitsForTenantRow
+		var i ListRateLimitsForTenantWithMutateRow
 		if err := rows.Scan(
 			&i.TenantId,
 			&i.Key,
@@ -190,7 +322,8 @@ INSERT INTO "RateLimit" (
     COALESCE($4::text, '1 minute')
 ) ON CONFLICT ("tenantId", "key") DO UPDATE SET
     "limitValue" = $3::int,
-    "window" = COALESCE($4::text, '1 minute')
+    "window" = COALESCE($4::text, '1 minute'),
+    "value" = CASE WHEN EXCLUDED."limitValue" < "RateLimit"."value" THEN EXCLUDED."limitValue" ELSE "RateLimit"."value" END
 RETURNING "tenantId", key, "limitValue", value, "window", "lastRefill"
 `
 
@@ -218,4 +351,49 @@ func (q *Queries) UpsertRateLimit(ctx context.Context, db DBTX, arg UpsertRateLi
 		&i.LastRefill,
 	)
 	return &i, err
+}
+
+const upsertRateLimitsBulk = `-- name: UpsertRateLimitsBulk :exec
+WITH input_values AS (
+    SELECT
+        unnest($2::text[]) AS "key",
+        unnest($3::int[]) AS "limitValue",
+        unnest($4::text[]) AS "window"
+)
+INSERT INTO "RateLimit" (
+    "tenantId",
+    "key",
+    "limitValue",
+    "value",
+    "window"
+)
+SELECT
+    $1::uuid,
+    iv."key",
+    iv."limitValue",
+    iv."limitValue",
+    iv."window"
+FROM
+    input_values iv
+ON CONFLICT ("tenantId", "key") DO UPDATE SET
+    "limitValue" = EXCLUDED."limitValue",
+    "window" = EXCLUDED."window",
+    "value" = CASE WHEN EXCLUDED."limitValue" < "RateLimit"."value" THEN EXCLUDED."limitValue" ELSE "RateLimit"."value" END
+`
+
+type UpsertRateLimitsBulkParams struct {
+	Tenantid    pgtype.UUID `json:"tenantid"`
+	Keys        []string    `json:"keys"`
+	Limitvalues []int32     `json:"limitvalues"`
+	Windows     []string    `json:"windows"`
+}
+
+func (q *Queries) UpsertRateLimitsBulk(ctx context.Context, db DBTX, arg UpsertRateLimitsBulkParams) error {
+	_, err := db.Exec(ctx, upsertRateLimitsBulk,
+		arg.Tenantid,
+		arg.Keys,
+		arg.Limitvalues,
+		arg.Windows,
+	)
+	return err
 }

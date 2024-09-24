@@ -12,6 +12,7 @@ import (
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/hatchet-dev/hatchet/internal/cel"
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/datautils/merge"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
@@ -42,6 +43,7 @@ type JobsControllerImpl struct {
 	s              gocron.Scheduler
 	a              *hatcheterrors.Wrapped
 	p              *partition.Partition
+	celParser      *cel.CELParser
 
 	reassignMutexes sync.Map
 	timeoutMutexes  sync.Map
@@ -167,6 +169,7 @@ func New(fs ...JobsControllerOpt) (*JobsControllerImpl, error) {
 		s:              s,
 		a:              a,
 		p:              opts.p,
+		celParser:      cel.NewCELParser(),
 	}, nil
 }
 
@@ -817,6 +820,8 @@ func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId, stepId
 		IsRetry: isRetry,
 	}
 
+	inputDataBytes := data.Input
+
 	// If the step run input is not set, then we should set it. This will be set upstream if we've rerun
 	// the step run manually with new inputs. It will not be set when the step is automatically queued.
 	if in := data.Input; len(in) == 0 || string(in) == "{}" {
@@ -850,13 +855,68 @@ func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId, stepId
 				Overrides:   map[string]interface{}{},
 			}
 
-			inputDataBytes, err := json.Marshal(inputData)
+			inputDataBytes, err = json.Marshal(inputData)
 
 			if err != nil {
 				return ec.a.WrapErr(fmt.Errorf("could not convert input data to json: %w", err), errData)
 			}
 
 			queueOpts.Input = inputDataBytes
+		}
+	}
+
+	// if the step has a non-zero expression count, then we evaluate expressions and add them to queueOpts
+	if data.ExprCount > 0 {
+		expressions, err := ec.repo.Step().ListStepExpressions(ctx, sqlchelpers.UUIDToStr(stepRun.StepId))
+
+		if err != nil {
+			return ec.a.WrapErr(fmt.Errorf("could not list step expressions: %w", err), errData)
+		}
+
+		additionalMeta := map[string]interface{}{}
+
+		// parse the additional metadata
+		if data.AdditionalMetadata != nil {
+			err = json.Unmarshal(data.AdditionalMetadata, &additionalMeta)
+
+			if err != nil {
+				return ec.a.WrapErr(fmt.Errorf("could not unmarshal additional metadata: %w", err), errData)
+			}
+		}
+
+		parsedInputData := datautils.StepRunData{}
+
+		err = json.Unmarshal(inputDataBytes, &parsedInputData)
+
+		if err != nil {
+			return ec.a.WrapErr(fmt.Errorf("could not unmarshal input data: %w", err), errData)
+		}
+
+		// construct the input data for the CEL expressions
+		input := cel.NewInput(
+			cel.WithAdditionalMetadata(additionalMeta),
+			cel.WithInput(parsedInputData.Input),
+			cel.WithParents(parsedInputData.Parents),
+		)
+
+		queueOpts.ExpressionEvals = make([]repository.CreateExpressionEvalOpt, 0)
+
+		for _, expression := range expressions {
+			// evaluate the expression
+			res, err := ec.celParser.ParseAndEvalStepRun(expression.Expression, input)
+
+			// if we encounter an error here, the step run should fail with this error
+			if err != nil {
+				return ec.failStepRun(ctx, tenantId, stepRunId, err.Error(), time.Now())
+			}
+
+			// set the evaluated expression in queueOpts
+			queueOpts.ExpressionEvals = append(queueOpts.ExpressionEvals, repository.CreateExpressionEvalOpt{
+				Key:      expression.Key,
+				ValueStr: res.String,
+				ValueInt: res.Int,
+				Kind:     expression.Kind,
+			})
 		}
 	}
 

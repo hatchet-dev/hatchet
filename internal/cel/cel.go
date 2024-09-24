@@ -56,7 +56,7 @@ func NewCELParser() *CELParser {
 		cel.Declarations(
 			decls.NewVar("input", decls.NewMapType(decls.String, decls.Dyn)),
 			decls.NewVar("additional_metadata", decls.NewMapType(decls.String, decls.Dyn)),
-			decls.NewVar("parents", decls.NewMapType(decls.String, decls.Dyn)),
+			decls.NewVar("parents", decls.NewMapType(decls.String, decls.NewMapType(decls.String, decls.Dyn))),
 			decls.NewVar("workflow_run_id", decls.String),
 			checksumDecl,
 		),
@@ -79,7 +79,7 @@ func WithInput(input map[string]interface{}) InputOpts {
 	}
 }
 
-func WithParents(parents map[string]interface{}) InputOpts {
+func WithParents(parents map[string]map[string]interface{}) InputOpts {
 	return func(w Input) {
 		w["parents"] = parents
 	}
@@ -186,8 +186,12 @@ func (p *CELParser) ParseAndEvalStepRun(stepRunExpr string, in Input) (*StepRunO
 		i := int(out.Value().(int64))
 		res.Int = &i
 		res.Type = StepRunOutTypeInt
+	case cel.DoubleType:
+		i := int(out.Value().(float64))
+		res.Int = &i
+		res.Type = StepRunOutTypeInt
 	default:
-		return nil, fmt.Errorf("unsupported type: %s", out.Type())
+		return nil, fmt.Errorf("output must evaluate to a string or integer: got %s", out.Type().TypeName())
 	}
 
 	return res, nil

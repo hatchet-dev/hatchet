@@ -1216,6 +1216,7 @@ enum StepExpressionKind {
   DYNAMIC_RATE_LIMIT_KEY
   DYNAMIC_RATE_LIMIT_VALUE
   DYNAMIC_RATE_LIMIT_UNITS
+  DYNAMIC_RATE_LIMIT_WINDOW
 }
 
 model StepExpression {
@@ -1224,7 +1225,7 @@ model StepExpression {
   expression String
   kind       StepExpressionKind
 
-  @@id([key, stepId])
+  @@id([key, stepId, kind])
 }
 
 // StepRunExpressionEval is an evaluated expression for a step run
@@ -1237,7 +1238,7 @@ model StepRunExpressionEval {
 
   kind StepExpressionKind
 
-  @@id([key, stepRunId])
+  @@id([key, stepRunId, kind])
 }
 
 model StepRun {
@@ -1442,6 +1443,7 @@ model SemaphoreQueueItem {
 enum StepRunEventReason {
   REQUEUED_NO_WORKER
   REQUEUED_RATE_LIMIT
+  RATE_LIMIT_ERROR
   SCHEDULING_TIMED_OUT
   TIMED_OUT
   REASSIGNED

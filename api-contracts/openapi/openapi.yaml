@@ -98,6 +98,8 @@ paths:
     $ref: "./paths/event/event.yaml#/replayEvents"
   /api/v1/tenants/{tenant}/events/cancel:
     $ref: "./paths/event/event.yaml#/cancelEvents"
+  /api/v1/tenants/{tenant}/rate-limits:
+    $ref: "./paths/rate-limits/rate_limits.yaml#/withTenant"
   /api/v1/tenants/{tenant}/members:
     $ref: "./paths/tenant/tenant.yaml#/members"
   /api/v1/tenants/{tenant}/members/{member}:
