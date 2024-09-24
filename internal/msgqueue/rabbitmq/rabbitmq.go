@@ -41,6 +41,7 @@ type MessageQueueImpl struct {
 	sessions chan chan session
 	msgs     chan *msgWithQueue
 	identity string
+	configFs []MessageQueueImplOpt
 
 	qos int
 
@@ -108,6 +109,7 @@ func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl) {
 		identity: identity(),
 		l:        opts.l,
 		qos:      opts.qos,
+		configFs: fs,
 	}
 
 	constructor := func(context.Context) (*amqp.Connection, error) {
@@ -182,6 +184,14 @@ func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl) {
 	}
 
 	return cleanup, t
+}
+
+func (t *MessageQueueImpl) Clone() (func() error, msgqueue.MessageQueue) {
+	return New(t.configFs...)
+}
+
+func (t *MessageQueueImpl) SetQOS(prefetchCount int) {
+	t.qos = prefetchCount
 }
 
 // AddMessage adds a msg to the queue.
