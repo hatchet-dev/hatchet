@@ -759,7 +759,7 @@ func calculateResultsSize(results []*contracts.StepRunResult) int64 {
 
 	for _, result := range results {
 		// Size of the struct fields
-		if result != nil {
+		if result != nil && result.Output != nil {
 			// Assuming StepRunResult has fields like ID, Status, Output, etc.
 			// Adjust these based on the actual struct definition
 			totalSize += int64(len(*result.Output))
