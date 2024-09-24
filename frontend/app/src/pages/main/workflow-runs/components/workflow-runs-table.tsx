@@ -44,6 +44,14 @@ import {
 import { useAtom } from 'jotai';
 import { lastTimeRangeAtom } from '@/lib/atoms';
 import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { CodeHighlighter } from '@/components/ui/code-highlighter';
+import { Separator } from '@/components/ui/separator';
 
 export interface WorkflowRunsTableProps {
   createdAfter?: string;
@@ -80,6 +88,8 @@ export function WorkflowRunsTable({
   const [searchParams, setSearchParams] = useSearchParams();
   const { tenant } = useOutletContext<TenantContextType>();
   invariant(tenant);
+
+  const [viewQueueMetrics, setViewQueueMetrics] = useState(false);
 
   const [timeRange, setTimeRange] = useAtom(lastTimeRangeAtom);
   const [createdAfter, setCreatedAfter] = useState<string | undefined>(
@@ -247,6 +257,11 @@ export function WorkflowRunsTable({
     refetchInterval,
   });
 
+  const tenantMetricsQuery = useQuery({
+    ...queries.metrics.get(tenant.metadata.id),
+    refetchInterval,
+  });
+
   const {
     data: workflowKeys,
     isLoading: workflowKeysIsLoading,
@@ -361,6 +376,7 @@ export function WorkflowRunsTable({
 
   const refetch = () => {
     listWorkflowRunsQuery.refetch();
+    tenantMetricsQuery.refetch();
     metricsQuery.refetch();
   };
 
@@ -418,10 +434,39 @@ export function WorkflowRunsTable({
 
   return (
     <>
+      <Dialog
+        open={viewQueueMetrics}
+        onOpenChange={(open) => {
+          if (!open) {
+            setViewQueueMetrics(false);
+          }
+        }}
+      >
+        <DialogContent className="w-fit max-w-[80%] min-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Queue Metrics</DialogTitle>
+          </DialogHeader>
+          <Separator />
+          {tenantMetricsQuery.data?.queues && (
+            <CodeHighlighter
+              language="json"
+              code={JSON.stringify(
+                tenantMetricsQuery.data?.queues || '{}',
+                null,
+                2,
+              )}
+            />
+          )}
+          {tenantMetricsQuery.isLoading && <Skeleton className="w-full h-36" />}
+        </DialogContent>
+      </Dialog>
       <div className="flex flex-row justify-between items-center my-4">
         {metricsQuery.data ? (
           <WorkflowRunsMetricsView
             metrics={metricsQuery.data}
+            onViewQueueMetricsClick={() => {
+              setViewQueueMetrics(true);
+            }}
             onClick={(status) => {
               setColumnFilters((prev) => {
                 const statusFilter = prev.find(

@@ -49,6 +49,18 @@ VALUES
         sqlc.narg('desiredWorkerId')::uuid
     );
 
+-- name: GetQueuedCounts :many
+SELECT
+    "queue",
+    COUNT(*) AS "count"
+FROM
+    "QueueItem" qi
+WHERE
+    qi."isQueued" = true
+    AND qi."tenantId" = @tenantId::uuid
+GROUP BY
+    qi."queue";
+
 -- name: GetMinMaxProcessedQueueItems :one
 SELECT
     COALESCE(MIN("id"), 0)::bigint AS "minId",
