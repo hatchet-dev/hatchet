@@ -828,7 +828,8 @@ SELECT
     sr."cancelledReason",
     sr."timeoutAt",
     sr."error",
-    sr."workerId"
+    sr."workerId",
+    sr."output"
 FROM "StepRun" sr
 WHERE
 	sr."jobRunId" = ANY($1::uuid[])
@@ -858,6 +859,7 @@ type GetStepRunsForJobRunsRow struct {
 	TimeoutAt       pgtype.Timestamp `json:"timeoutAt"`
 	Error           pgtype.Text      `json:"error"`
 	WorkerId        pgtype.UUID      `json:"workerId"`
+	Output          []byte           `json:"output"`
 }
 
 func (q *Queries) GetStepRunsForJobRuns(ctx context.Context, db DBTX, arg GetStepRunsForJobRunsParams) ([]*GetStepRunsForJobRunsRow, error) {
@@ -885,6 +887,7 @@ func (q *Queries) GetStepRunsForJobRuns(ctx context.Context, db DBTX, arg GetSte
 			&i.TimeoutAt,
 			&i.Error,
 			&i.WorkerId,
+			&i.Output,
 		); err != nil {
 			return nil, err
 		}

@@ -124,6 +124,7 @@ func ToJobRun(
 	steps []*dbsqlc.GetStepsForJobsRow,
 	stepRuns []*repository.StepRunForJobRun,
 ) *gen.JobRun {
+
 	res := &gen.JobRun{
 		Metadata: *toAPIMetadata(
 			sqlchelpers.UUIDToStr(jobRun.ID),
@@ -244,6 +245,7 @@ func ToStepRun(stepRun *repository.StepRunForJobRun) *gen.StepRun {
 		TenantId:            sqlchelpers.UUIDToStr(stepRun.TenantId),
 		JobRunId:            sqlchelpers.UUIDToStr(stepRun.JobRunId),
 		ChildWorkflowsCount: &stepRun.ChildWorkflowsCount,
+		Output:              byteSliceToStringPointer(stepRun.Output),
 	}
 
 	if stepRun.CancelledError.Valid {

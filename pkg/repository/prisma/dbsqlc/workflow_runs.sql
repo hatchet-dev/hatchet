@@ -1006,7 +1006,8 @@ SELECT
     sr."cancelledReason",
     sr."timeoutAt",
     sr."error",
-    sr."workerId"
+    sr."workerId",
+    sr."output"
 FROM "StepRun" sr
 WHERE
 	sr."jobRunId" = ANY(@jobIds::uuid[])
