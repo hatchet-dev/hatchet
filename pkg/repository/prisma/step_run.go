@@ -1353,6 +1353,26 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, qlp *zerolo
 	}, nil
 }
 
+func (s *stepRunEngineRepository) GetQueueCounts(ctx context.Context, tenantId string) (map[string]int, error) {
+	counts, err := s.queries.GetQueuedCounts(ctx, s.pool, sqlchelpers.UUIDFromStr(tenantId))
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return map[string]int{}, nil
+		}
+
+		return nil, err
+	}
+
+	res := make(map[string]int)
+
+	for _, count := range counts {
+		res[count.Queue] = int(count.Count)
+	}
+
+	return res, nil
+}
+
 func (s *stepRunEngineRepository) ProcessStepRunUpdates(ctx context.Context, qlp *zerolog.Logger, tenantId string) (repository.ProcessStepRunUpdatesResult, error) {
 	ql := qlp.With().Str("tenant_id", tenantId).Logger()
 	startedAt := time.Now().UTC()

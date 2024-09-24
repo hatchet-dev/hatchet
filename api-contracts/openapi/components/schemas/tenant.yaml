@@ -331,3 +331,7 @@ TenantQueueMetrics:
       type: object
       additionalProperties:
         $ref: "#/QueueMetrics"
+    queues:
+      type: object
+      additionalProperties:
+        type: integer
