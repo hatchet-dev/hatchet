@@ -1017,15 +1017,15 @@ func (d *DispatcherImpl) RefreshTimeout(ctx context.Context, request *contracts.
 		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", apiErrors.String())
 	}
 
-	stepRun, err := d.repo.StepRun().RefreshTimeoutBy(ctx, tenantId, request.StepRunId, opts)
+	pgTimeoutAt, err := d.repo.StepRun().RefreshTimeoutBy(ctx, tenantId, request.StepRunId, opts)
 
 	if err != nil {
 		return nil, err
 	}
 
 	timeoutAt := &timestamppb.Timestamp{
-		Seconds: stepRun.TimeoutAt.Time.Unix(),
-		Nanos:   int32(stepRun.TimeoutAt.Time.Nanosecond()),
+		Seconds: pgTimeoutAt.Time.Unix(),
+		Nanos:   int32(pgTimeoutAt.Time.Nanosecond()), // nolint:gosec
 	}
 
 	return &contracts.RefreshTimeoutResponse{

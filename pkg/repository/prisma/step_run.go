@@ -2689,7 +2689,7 @@ func sleepWithJitter(min, max time.Duration) {
 	}
 }
 
-func (s *stepRunEngineRepository) RefreshTimeoutBy(ctx context.Context, tenantId, stepRunId string, opts repository.RefreshTimeoutBy) (*dbsqlc.StepRun, error) {
+func (s *stepRunEngineRepository) RefreshTimeoutBy(ctx context.Context, tenantId, stepRunId string, opts repository.RefreshTimeoutBy) (pgtype.Timestamp, error) {
 	stepRunUUID := sqlchelpers.UUIDFromStr(stepRunId)
 	tenantUUID := sqlchelpers.UUIDFromStr(tenantId)
 
@@ -2698,17 +2698,29 @@ func (s *stepRunEngineRepository) RefreshTimeoutBy(ctx context.Context, tenantId
 	err := s.v.Validate(opts)
 
 	if err != nil {
-		return nil, err
+		return pgtype.Timestamp{}, err
 	}
 
-	res, err := s.queries.RefreshTimeoutBy(ctx, s.pool, dbsqlc.RefreshTimeoutByParams{
+	tx, commit, rollback, err := prepareTx(ctx, s.pool, s.l, 5000)
+
+	if err != nil {
+		return pgtype.Timestamp{}, err
+	}
+
+	defer rollback()
+
+	res, err := s.queries.RefreshTimeoutBy(ctx, tx, dbsqlc.RefreshTimeoutByParams{
 		Steprunid:          stepRunUUID,
 		Tenantid:           tenantUUID,
 		IncrementTimeoutBy: sqlchelpers.TextFromStr(incrementTimeoutBy),
 	})
 
 	if err != nil {
-		return nil, err
+		return pgtype.Timestamp{}, err
+	}
+
+	if err := commit(ctx); err != nil {
+		return pgtype.Timestamp{}, err
 	}
 
 	sev := dbsqlc.StepRunEventSeverityINFO

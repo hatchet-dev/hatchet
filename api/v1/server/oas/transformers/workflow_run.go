@@ -42,7 +42,7 @@ func ToWorkflowRunShape(
 	}
 
 	if run.Duration.Valid {
-		duration := int(run.Duration.Int32)
+		duration := int(run.Duration.Int64)
 		res.Duration = &duration
 	}
 
@@ -469,7 +469,7 @@ func ToWorkflowRunFromSQLC(row *dbsqlc.ListWorkflowRunsRow) *gen.WorkflowRun {
 	var duration int
 
 	if run.Duration.Valid {
-		duration = int(run.Duration.Int32)
+		duration = int(run.Duration.Int64)
 	}
 
 	res := &gen.WorkflowRun{

@@ -789,7 +789,7 @@ CREATE TABLE "WorkflowRun" (
     "parentId" UUID,
     "parentStepRunId" UUID,
     "additionalMetadata" JSONB,
-    "duration" INTEGER,
+    "duration" BIGINT,
     "priority" INTEGER,
 
     CONSTRAINT "WorkflowRun_pkey" PRIMARY KEY ("id")

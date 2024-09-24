@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/google/uuid"
@@ -243,7 +244,7 @@ func (r *eventEngineRepository) GetEventForEngine(ctx context.Context, tenantId,
 }
 
 func (r *eventEngineRepository) CreateEvent(ctx context.Context, opts *repository.CreateEventOpts) (*dbsqlc.Event, error) {
-	return metered.MakeMetered(ctx, r.m, dbsqlc.LimitResourceEVENT, opts.TenantId, func() (*string, *dbsqlc.Event, error) {
+	return metered.MakeMetered(ctx, r.m, dbsqlc.LimitResourceEVENT, opts.TenantId, 1, func() (*string, *dbsqlc.Event, error) {
 
 		ctx, span := telemetry.NewSpan(ctx, "db-create-event")
 		defer span.End()
@@ -281,6 +282,93 @@ func (r *eventEngineRepository) CreateEvent(ctx context.Context, opts *repositor
 		id := sqlchelpers.UUIDToStr(e.ID)
 
 		return &id, e, nil
+	})
+}
+func (r *eventEngineRepository) BulkCreateEvent(ctx context.Context, opts *repository.BulkCreateEventOpts) (*repository.BulkCreateEventResult, error) {
+
+	numberOfResources := len(opts.Events)
+	if numberOfResources < math.MinInt32 || numberOfResources > math.MaxInt32 {
+		return nil, fmt.Errorf("number of resources is out of range")
+	}
+
+	return metered.MakeMetered(ctx, r.m, dbsqlc.LimitResourceEVENT, opts.TenantId, int32(numberOfResources), func() (*string, *repository.BulkCreateEventResult, error) {
+
+		ctx, span := telemetry.NewSpan(ctx, "db-bulk-create-event")
+		defer span.End()
+
+		if err := r.v.Validate(opts); err != nil {
+			return nil, nil, err
+		}
+		params := make([]dbsqlc.CreateEventsParams, len(opts.Events))
+
+		for i, event := range opts.Events {
+
+			params[i] = dbsqlc.CreateEventsParams{
+				ID:                 sqlchelpers.UUIDFromStr(uuid.New().String()),
+				Key:                event.Key,
+				TenantId:           sqlchelpers.UUIDFromStr(event.TenantId),
+				Data:               event.Data,
+				AdditionalMetadata: event.AdditionalMetadata,
+			}
+
+			if event.ReplayedEvent != nil {
+				params[i].ReplayedFromId = sqlchelpers.UUIDFromStr(*event.ReplayedEvent)
+			}
+
+		}
+
+		// start a transaction
+		tx, err := r.pool.Begin(ctx)
+
+		if err != nil {
+			return nil, nil, err
+		}
+
+		defer deferRollback(ctx, r.l, tx.Rollback)
+
+		insertCount, err := r.queries.CreateEvents(
+			ctx,
+			tx,
+			params,
+		)
+
+		if err != nil {
+			return nil, nil, fmt.Errorf("could not create events: %w", err)
+		}
+
+		r.l.Info().Msgf("inserted %d events", insertCount)
+
+		events, err := r.queries.GetInsertedEvents(ctx, tx)
+
+		if err != nil {
+			return nil, nil, fmt.Errorf("could not retrieve inserted events: %w", err)
+		}
+		err = tx.Commit(ctx)
+
+		if err != nil {
+			return nil, nil, fmt.Errorf("could not commit transaction: %w", err)
+		}
+
+		var returnString string
+
+		for _, e := range events {
+
+			for _, cb := range r.callbacks {
+				err = cb.Do(e)
+				if err != nil {
+					return nil, nil, fmt.Errorf("could not execute callback: %w", err)
+				}
+			}
+
+		}
+
+		if len(events) > 0 {
+
+			returnString = sqlchelpers.UUIDToStr(events[0].ID)
+		}
+
+		// TODO is this return string important?
+		return &returnString, &repository.BulkCreateEventResult{Events: events}, nil
 	})
 }
 

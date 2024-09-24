@@ -8,6 +8,8 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 
+	"github.com/jackc/pgx/v5/pgtype"
+
 	"github.com/rs/zerolog"
 )
 
@@ -216,7 +218,7 @@ type StepRunEngineRepository interface {
 
 	ArchiveStepRunResult(ctx context.Context, tenantId, stepRunId string, err *string) error
 
-	RefreshTimeoutBy(ctx context.Context, tenantId, stepRunId string, opts RefreshTimeoutBy) (*dbsqlc.StepRun, error)
+	RefreshTimeoutBy(ctx context.Context, tenantId, stepRunId string, opts RefreshTimeoutBy) (pgtype.Timestamp, error)
 
 	DeferredStepRunEvent(
 		tenantId, stepRunId string,

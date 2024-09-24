@@ -80,6 +80,10 @@ EventData:
   $ref: "./event.yaml#/EventData"
 CreateEventRequest:
   $ref: "./event.yaml#/CreateEventRequest"
+BulkCreateEventRequest:
+  $ref: "./event.yaml#/BulkCreateEventRequest"
+BulkCreateEventResponse:
+  $ref: "./event.yaml#/Events"
 EventWorkflowRunSummary:
   $ref: "./event.yaml#/EventWorkflowRunSummary"
 EventOrderByField:

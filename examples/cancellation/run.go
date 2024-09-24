@@ -9,7 +9,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/hatchet-dev/hatchet/pkg/client"
-	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 )
@@ -34,9 +33,6 @@ func run(events chan<- string) (func() error, error) {
 			On:          worker.Events("user:create:cancellation"),
 			Name:        "cancellation",
 			Description: "cancellation",
-			Concurrency: worker.Concurrency(func(ctx worker.HatchetContext) (string, error) {
-				return "concurrency:1", nil
-			}).MaxRuns(1).LimitStrategy(types.CancelInProgress),
 			Steps: []*worker.WorkflowStep{
 				worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
 					select {
@@ -98,6 +94,10 @@ func run(events chan<- string) (func() error, error) {
 		).Exec(context.Background())
 		if err != nil {
 			panic(fmt.Errorf("error finding step runs: %w", err))
+		}
+
+		if len(stepRuns) == 0 {
+			panic(fmt.Errorf("no step runs to cancel"))
 		}
 
 		for _, stepRun := range stepRuns {

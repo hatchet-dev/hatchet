@@ -274,6 +274,18 @@ type AcceptInviteRequest struct {
 	Invite string `json:"invite" validate:"required,uuid"`
 }
 
+// BulkCreateEventRequest defines model for BulkCreateEventRequest.
+type BulkCreateEventRequest struct {
+	Events []CreateEventRequest `json:"events"`
+}
+
+// BulkCreateEventResponse defines model for BulkCreateEventResponse.
+type BulkCreateEventResponse struct {
+	// Events The events.
+	Events   []Event         `json:"events"`
+	Metadata APIResourceMeta `json:"metadata"`
+}
+
 // CancelEventRequest defines model for CancelEventRequest.
 type CancelEventRequest struct {
 	EventIds []openapi_types.UUID `json:"eventIds"`
@@ -1523,6 +1535,9 @@ type ApiTokenCreateJSONRequestBody = CreateAPITokenRequest
 // EventCreateJSONRequestBody defines body for EventCreate for application/json ContentType.
 type EventCreateJSONRequestBody = CreateEventRequest
 
+// EventCreateBulkJSONRequestBody defines body for EventCreateBulk for application/json ContentType.
+type EventCreateBulkJSONRequestBody = BulkCreateEventRequest
+
 // EventUpdateCancelJSONRequestBody defines body for EventUpdateCancel for application/json ContentType.
 type EventUpdateCancelJSONRequestBody = CancelEventRequest
 
@@ -1730,6 +1745,11 @@ type ClientInterface interface {
 	EventCreateWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	EventCreate(ctx context.Context, tenant openapi_types.UUID, body EventCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// EventCreateBulkWithBody request with any body
+	EventCreateBulkWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	EventCreateBulk(ctx context.Context, tenant openapi_types.UUID, body EventCreateBulkJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// EventUpdateCancelWithBody request with any body
 	EventUpdateCancelWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -2294,6 +2314,30 @@ func (c *Client) EventCreateWithBody(ctx context.Context, tenant openapi_types.U
 
 func (c *Client) EventCreate(ctx context.Context, tenant openapi_types.UUID, body EventCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewEventCreateRequest(c.Server, tenant, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) EventCreateBulkWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewEventCreateBulkRequestWithBody(c.Server, tenant, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) EventCreateBulk(ctx context.Context, tenant openapi_types.UUID, body EventCreateBulkJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewEventCreateBulkRequest(c.Server, tenant, body)
 	if err != nil {
 		return nil, err
 	}
@@ -4386,6 +4430,53 @@ func NewEventCreateRequestWithBody(server string, tenant openapi_types.UUID, con
 	}
 
 	operationPath := fmt.Sprintf("/api/v1/tenants/%s/events", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewEventCreateBulkRequest calls the generic EventCreateBulk builder with application/json body
+func NewEventCreateBulkRequest(server string, tenant openapi_types.UUID, body EventCreateBulkJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewEventCreateBulkRequestWithBody(server, tenant, "application/json", bodyReader)
+}
+
+// NewEventCreateBulkRequestWithBody generates requests for EventCreateBulk with any type of body
+func NewEventCreateBulkRequestWithBody(server string, tenant openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/tenants/%s/events/bulk", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -7193,6 +7284,11 @@ type ClientWithResponsesInterface interface {
 
 	EventCreateWithResponse(ctx context.Context, tenant openapi_types.UUID, body EventCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*EventCreateResponse, error)
 
+	// EventCreateBulkWithBodyWithResponse request with any body
+	EventCreateBulkWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*EventCreateBulkResponse, error)
+
+	EventCreateBulkWithResponse(ctx context.Context, tenant openapi_types.UUID, body EventCreateBulkJSONRequestBody, reqEditors ...RequestEditorFn) (*EventCreateBulkResponse, error)
+
 	// EventUpdateCancelWithBodyWithResponse request with any body
 	EventUpdateCancelWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*EventUpdateCancelResponse, error)
 
@@ -7980,6 +8076,31 @@ func (r EventCreateResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r EventCreateResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type EventCreateBulkResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *BulkCreateEventResponse
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON429      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r EventCreateBulkResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r EventCreateBulkResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -9610,6 +9731,23 @@ func (c *ClientWithResponses) EventCreateWithResponse(ctx context.Context, tenan
 	return ParseEventCreateResponse(rsp)
 }
 
+// EventCreateBulkWithBodyWithResponse request with arbitrary body returning *EventCreateBulkResponse
+func (c *ClientWithResponses) EventCreateBulkWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*EventCreateBulkResponse, error) {
+	rsp, err := c.EventCreateBulkWithBody(ctx, tenant, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseEventCreateBulkResponse(rsp)
+}
+
+func (c *ClientWithResponses) EventCreateBulkWithResponse(ctx context.Context, tenant openapi_types.UUID, body EventCreateBulkJSONRequestBody, reqEditors ...RequestEditorFn) (*EventCreateBulkResponse, error) {
+	rsp, err := c.EventCreateBulk(ctx, tenant, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseEventCreateBulkResponse(rsp)
+}
+
 // EventUpdateCancelWithBodyWithResponse request with arbitrary body returning *EventUpdateCancelResponse
 func (c *ClientWithResponses) EventUpdateCancelWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*EventUpdateCancelResponse, error) {
 	rsp, err := c.EventUpdateCancelWithBody(ctx, tenant, contentType, body, reqEditors...)
@@ -11149,6 +11287,53 @@ func ParseEventCreateResponse(rsp *http.Response) (*EventCreateResponse, error) 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest Event
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseEventCreateBulkResponse parses an HTTP response from a EventCreateBulkWithResponse call
+func ParseEventCreateBulkResponse(rsp *http.Response) (*EventCreateBulkResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &EventCreateBulkResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest BulkCreateEventResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
