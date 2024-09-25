@@ -44,6 +44,14 @@ import {
 import { useAtom } from 'jotai';
 import { lastTimeRangeAtom } from '@/lib/atoms';
 import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { CodeHighlighter } from '@/components/ui/code-highlighter';
+import { Separator } from '@/components/ui/separator';
 
 export interface WorkflowRunsTableProps {
   createdAfter?: string;
@@ -55,6 +63,19 @@ export interface WorkflowRunsTableProps {
   filterVisibility?: { [key: string]: boolean };
   refetchInterval?: number;
 }
+
+const getCreatedAfterFromTimeRange = (timeRange?: string) => {
+  switch (timeRange) {
+    case '1h':
+      return new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    case '6h':
+      return new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
+    case '1d':
+      return new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    case '7d':
+      return new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  }
+};
 
 export function WorkflowRunsTable({
   workflowId,
@@ -68,10 +89,20 @@ export function WorkflowRunsTable({
   const { tenant } = useOutletContext<TenantContextType>();
   invariant(tenant);
 
+  const [viewQueueMetrics, setViewQueueMetrics] = useState(false);
+
   const [timeRange, setTimeRange] = useAtom(lastTimeRangeAtom);
   const [createdAfter, setCreatedAfter] = useState<string | undefined>(
-    new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+    getCreatedAfterFromTimeRange(timeRange) ||
+      new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
   );
+
+  // whenever the time range changes, update the createdAfter date
+  useEffect(() => {
+    if (timeRange) {
+      setCreatedAfter(getCreatedAfterFromTimeRange(timeRange));
+    }
+  }, [timeRange, setCreatedAfter]);
 
   const [sorting, setSorting] = useState<SortingState>(() => {
     const sortParam = searchParams.get('sort');
@@ -226,6 +257,11 @@ export function WorkflowRunsTable({
     refetchInterval,
   });
 
+  const tenantMetricsQuery = useQuery({
+    ...queries.metrics.get(tenant.metadata.id),
+    refetchInterval,
+  });
+
   const {
     data: workflowKeys,
     isLoading: workflowKeysIsLoading,
@@ -340,6 +376,7 @@ export function WorkflowRunsTable({
 
   const refetch = () => {
     listWorkflowRunsQuery.refetch();
+    tenantMetricsQuery.refetch();
     metricsQuery.refetch();
   };
 
@@ -397,10 +434,39 @@ export function WorkflowRunsTable({
 
   return (
     <>
+      <Dialog
+        open={viewQueueMetrics}
+        onOpenChange={(open) => {
+          if (!open) {
+            setViewQueueMetrics(false);
+          }
+        }}
+      >
+        <DialogContent className="w-fit max-w-[80%] min-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Queue Metrics</DialogTitle>
+          </DialogHeader>
+          <Separator />
+          {tenantMetricsQuery.data?.queues && (
+            <CodeHighlighter
+              language="json"
+              code={JSON.stringify(
+                tenantMetricsQuery.data?.queues || '{}',
+                null,
+                2,
+              )}
+            />
+          )}
+          {tenantMetricsQuery.isLoading && <Skeleton className="w-full h-36" />}
+        </DialogContent>
+      </Dialog>
       <div className="flex flex-row justify-between items-center my-4">
         {metricsQuery.data ? (
           <WorkflowRunsMetricsView
             metrics={metricsQuery.data}
+            onViewQueueMetricsClick={() => {
+              setViewQueueMetrics(true);
+            }}
             onClick={(status) => {
               setColumnFilters((prev) => {
                 const statusFilter = prev.find(
@@ -430,35 +496,7 @@ export function WorkflowRunsTable({
         ) : (
           <Skeleton className="max-w-[800px] w-[40vw] h-8" />
         )}
-        <Select
-          value={timeRange}
-          onValueChange={(value) => {
-            setTimeRange(value);
-
-            switch (value) {
-              case '1h':
-                setCreatedAfter(
-                  new Date(Date.now() - 60 * 60 * 1000).toISOString(),
-                );
-                break;
-              case '6h':
-                setCreatedAfter(
-                  new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
-                );
-                break;
-              case '1d':
-                setCreatedAfter(
-                  new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-                );
-                break;
-              case '7d':
-                setCreatedAfter(
-                  new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-                );
-                break;
-            }
-          }}
-        >
+        <Select value={timeRange} onValueChange={setTimeRange}>
           <SelectTrigger className="w-fit">
             <SelectValue id="timerange" placeholder="Choose time range" />
           </SelectTrigger>

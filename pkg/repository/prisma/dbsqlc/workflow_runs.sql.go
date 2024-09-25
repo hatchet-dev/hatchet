@@ -812,7 +812,8 @@ func (q *Queries) GetScheduledChildWorkflowRun(ctx context.Context, db DBTX, arg
 	return &i, err
 }
 
-const getStepRunsForJobRuns = `-- name: GetStepRunsForJobRuns :many
+const getStepRunsForJobRunsWithOutput = `-- name: GetStepRunsForJobRunsWithOutput :many
+
 SELECT
 	sr."id",
 	sr."createdAt",
@@ -828,7 +829,8 @@ SELECT
     sr."cancelledReason",
     sr."timeoutAt",
     sr."error",
-    sr."workerId"
+    sr."workerId",
+    sr."output"
 FROM "StepRun" sr
 WHERE
 	sr."jobRunId" = ANY($1::uuid[])
@@ -837,12 +839,12 @@ WHERE
 ORDER BY sr."order" DESC
 `
 
-type GetStepRunsForJobRunsParams struct {
+type GetStepRunsForJobRunsWithOutputParams struct {
 	Jobids   []pgtype.UUID `json:"jobids"`
 	Tenantid pgtype.UUID   `json:"tenantid"`
 }
 
-type GetStepRunsForJobRunsRow struct {
+type GetStepRunsForJobRunsWithOutputRow struct {
 	ID              pgtype.UUID      `json:"id"`
 	CreatedAt       pgtype.Timestamp `json:"createdAt"`
 	UpdatedAt       pgtype.Timestamp `json:"updatedAt"`
@@ -858,17 +860,19 @@ type GetStepRunsForJobRunsRow struct {
 	TimeoutAt       pgtype.Timestamp `json:"timeoutAt"`
 	Error           pgtype.Text      `json:"error"`
 	WorkerId        pgtype.UUID      `json:"workerId"`
+	Output          []byte           `json:"output"`
 }
 
-func (q *Queries) GetStepRunsForJobRuns(ctx context.Context, db DBTX, arg GetStepRunsForJobRunsParams) ([]*GetStepRunsForJobRunsRow, error) {
-	rows, err := db.Query(ctx, getStepRunsForJobRuns, arg.Jobids, arg.Tenantid)
+// We grab the output for each step run here which could potentially be very large
+func (q *Queries) GetStepRunsForJobRunsWithOutput(ctx context.Context, db DBTX, arg GetStepRunsForJobRunsWithOutputParams) ([]*GetStepRunsForJobRunsWithOutputRow, error) {
+	rows, err := db.Query(ctx, getStepRunsForJobRunsWithOutput, arg.Jobids, arg.Tenantid)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*GetStepRunsForJobRunsRow
+	var items []*GetStepRunsForJobRunsWithOutputRow
 	for rows.Next() {
-		var i GetStepRunsForJobRunsRow
+		var i GetStepRunsForJobRunsWithOutputRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.CreatedAt,
@@ -885,6 +889,7 @@ func (q *Queries) GetStepRunsForJobRuns(ctx context.Context, db DBTX, arg GetSte
 			&i.TimeoutAt,
 			&i.Error,
 			&i.WorkerId,
+			&i.Output,
 		); err != nil {
 			return nil, err
 		}

@@ -206,6 +206,8 @@ type StepRunEngineRepository interface {
 	// a pending state.
 	QueueStepRun(ctx context.Context, tenantId, stepRunId string, opts *QueueStepRunOpts) (*dbsqlc.GetStepRunForEngineRow, error)
 
+	GetQueueCounts(ctx context.Context, tenantId string) (map[string]int, error)
+
 	ProcessStepRunUpdates(ctx context.Context, qlp *zerolog.Logger, tenantId string) (ProcessStepRunUpdatesResult, error)
 
 	QueueStepRuns(ctx context.Context, ql *zerolog.Logger, tenantId string) (QueueStepRunsResult, error)

@@ -357,6 +357,7 @@ export interface TenantQueueMetrics {
   /** The total queue metrics. */
   total?: QueueMetrics;
   workflow?: Record<string, QueueMetrics>;
+  queues?: Record<string, number>;
 }
 
 export interface AcceptInviteRequest {
