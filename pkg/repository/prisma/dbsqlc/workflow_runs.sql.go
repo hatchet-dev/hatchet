@@ -1939,9 +1939,9 @@ WITH jobRuns AS (
     WHERE
         wr."id" = j."workflowRunId"
         AND "tenantId" = $2::uuid
-    RETURNING wr."id", wr."status"
+    RETURNING wr."id", wr."status", wr."tenantId"
 )
-SELECT DISTINCT "id", "status"
+SELECT DISTINCT "id", "status", "tenantId"
 FROM updated_workflow_runs
 WHERE "status" IN ('SUCCEEDED', 'FAILED')
 `
@@ -1952,8 +1952,9 @@ type ResolveWorkflowRunStatusParams struct {
 }
 
 type ResolveWorkflowRunStatusRow struct {
-	ID     pgtype.UUID       `json:"id"`
-	Status WorkflowRunStatus `json:"status"`
+	ID       pgtype.UUID       `json:"id"`
+	Status   WorkflowRunStatus `json:"status"`
+	TenantId pgtype.UUID       `json:"tenantId"`
 }
 
 // Return distinct workflow run ids in a final state
@@ -1966,7 +1967,7 @@ func (q *Queries) ResolveWorkflowRunStatus(ctx context.Context, db DBTX, arg Res
 	var items []*ResolveWorkflowRunStatusRow
 	for rows.Next() {
 		var i ResolveWorkflowRunStatusRow
-		if err := rows.Scan(&i.ID, &i.Status); err != nil {
+		if err := rows.Scan(&i.ID, &i.Status, &i.TenantId); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)

@@ -424,10 +424,10 @@ WITH jobRuns AS (
     WHERE
         wr."id" = j."workflowRunId"
         AND "tenantId" = @tenantId::uuid
-    RETURNING wr."id", wr."status"
+    RETURNING wr."id", wr."status", wr."tenantId"
 )
 -- Return distinct workflow run ids in a final state
-SELECT DISTINCT "id", "status"
+SELECT DISTINCT "id", "status", "tenantId"
 FROM updated_workflow_runs
 WHERE "status" IN ('SUCCEEDED', 'FAILED');
 
