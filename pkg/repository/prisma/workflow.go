@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 
+	"github.com/hatchet-dev/hatchet/internal/cel"
 	"github.com/hatchet-dev/hatchet/internal/dagutils"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
@@ -933,23 +934,22 @@ func (r *workflowEngineRepository) createJobTx(ctx context.Context, tx pgx.Tx, t
 				if rateLimit.KeyExpr != nil || rateLimit.LimitExpr != nil || rateLimit.UnitsExpr != nil {
 					var keyExpr, limitExpr, unitsExpr string
 
-					// FIXME: move all these double quotes to a shared CEL method
-					durationExpr := `"MINUTE"`
+					windowExpr := cel.Str("MINUTE")
 
 					if rateLimit.Duration != nil {
-						durationExpr = fmt.Sprintf(`"%s"`, *rateLimit.Duration)
+						windowExpr = fmt.Sprintf(`"%s"`, *rateLimit.Duration)
 					}
 
 					if rateLimit.KeyExpr != nil {
 						keyExpr = *rateLimit.KeyExpr
 					} else {
-						keyExpr = fmt.Sprintf(`"%s"`, rateLimit.Key)
+						keyExpr = cel.Str(rateLimit.Key)
 					}
 
 					if rateLimit.UnitsExpr != nil {
 						unitsExpr = *rateLimit.UnitsExpr
 					} else {
-						unitsExpr = fmt.Sprintf(`%d`, *rateLimit.Units)
+						unitsExpr = cel.Int(*rateLimit.Units)
 					}
 
 					// create the key expression
@@ -971,10 +971,10 @@ func (r *workflowEngineRepository) createJobTx(ctx context.Context, tx pgx.Tx, t
 					createStepExprParams.Keys = append(createStepExprParams.Keys, rateLimit.Key)
 					createStepExprParams.Expressions = append(createStepExprParams.Expressions, unitsExpr)
 
-					// create the durations expression (dunno why we're calling it window in some places)
+					// create the window expression
 					createStepExprParams.Kinds = append(createStepExprParams.Kinds, string(dbsqlc.StepExpressionKindDYNAMICRATELIMITWINDOW))
 					createStepExprParams.Keys = append(createStepExprParams.Keys, rateLimit.Key)
-					createStepExprParams.Expressions = append(createStepExprParams.Expressions, durationExpr)
+					createStepExprParams.Expressions = append(createStepExprParams.Expressions, windowExpr)
 				} else {
 					_, err := r.queries.CreateStepRateLimit(
 						ctx,

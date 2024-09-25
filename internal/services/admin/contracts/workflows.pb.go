@@ -830,7 +830,7 @@ type CreateStepRateLimit struct {
 	unknownFields protoimpl.UnknownFields
 
 	Key             string             `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`                                                        // (required) the key for the rate limit
-	Units           *int32             `protobuf:"varint,2,opt,name=units,proto3,oneof" json:"units,omitempty"`                                             // (required) the number of units this step consumes
+	Units           *int32             `protobuf:"varint,2,opt,name=units,proto3,oneof" json:"units,omitempty"`                                             // (optional) the number of units this step consumes
 	KeyExpr         *string            `protobuf:"bytes,3,opt,name=key_expr,json=keyExpr,proto3,oneof" json:"key_expr,omitempty"`                           // (optional) a CEL expression for determining the rate limit key
 	UnitsExpr       *string            `protobuf:"bytes,4,opt,name=units_expr,json=unitsExpr,proto3,oneof" json:"units_expr,omitempty"`                     // (optional) a CEL expression for determining the number of units consumed
 	LimitValuesExpr *string            `protobuf:"bytes,5,opt,name=limit_values_expr,json=limitValuesExpr,proto3,oneof" json:"limit_values_expr,omitempty"` // (optional) a CEL expression for determining the total amount of rate limit units
