@@ -1,3 +1,4 @@
+//Golang
 package main
 
 import (
@@ -82,7 +83,7 @@ func main() {
 	if err != nil {
 		panic(fmt.Errorf("error cleaning up: %w", err))
 	}
-
+	//START streaming-by-additional-metadata
 	// Generate a random number between 1 and 100
 	streamKey := "streamKey"
 	streamValue := fmt.Sprintf("stream-event-%d", rand.Intn(100)+1)
@@ -107,4 +108,5 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	//END streaming-by-additional-metadata
 }

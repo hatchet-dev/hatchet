@@ -1,3 +1,4 @@
+//Golang
 package main
 
 import (
@@ -25,7 +26,7 @@ func run() (func() error, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error creating worker: %w", err)
 	}
-
+	//START setting-sticky-assignment
 	err = w.RegisterWorkflow(
 		&worker.WorkflowJob{
 			On:             worker.Events("user:create:sticky"),
@@ -62,6 +63,7 @@ func run() (func() error, error) {
 			},
 		},
 	)
+	//END setting-sticky-assignment
 	if err != nil {
 		return nil, fmt.Errorf("error registering workflow: %w", err)
 	}

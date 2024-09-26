@@ -1,3 +1,4 @@
+//Golang
 package main
 
 import (
@@ -23,6 +24,7 @@ type stepOneOutput struct {
 }
 
 func main() {
+	//START how-to-use-step-level-retries
 	err := godotenv.Load()
 	if err != nil {
 		panic(err)
@@ -41,6 +43,7 @@ func main() {
 	if err := cleanup(); err != nil {
 		panic(fmt.Errorf("error cleaning up: %w", err))
 	}
+	//END how-to-use-step-level-retries
 }
 
 func getConcurrencyKey(ctx worker.HatchetContext) (string, error) {
@@ -48,6 +51,7 @@ func getConcurrencyKey(ctx worker.HatchetContext) (string, error) {
 }
 
 func run(events chan<- string) (func() error, error) {
+	//START registering_workflows_starting_workers
 	c, err := client.New()
 
 	if err != nil {
@@ -141,4 +145,5 @@ func run(events chan<- string) (func() error, error) {
 	}
 
 	return cleanup, nil
+	//END registering_workflows_starting_workers
 }

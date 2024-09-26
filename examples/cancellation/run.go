@@ -1,3 +1,4 @@
+//Golang
 package main
 
 import (
@@ -27,7 +28,7 @@ func run(events chan<- string) (func() error, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error creating worker: %w", err)
 	}
-
+	//START cancellation-mechanisms
 	err = w.RegisterWorkflow(
 		&worker.WorkflowJob{
 			On:          worker.Events("user:create:cancellation"),
@@ -50,6 +51,7 @@ func run(events chan<- string) (func() error, error) {
 			},
 		},
 	)
+	//END cancellation-mechanisms
 	if err != nil {
 		return nil, fmt.Errorf("error registering workflow: %w", err)
 	}

@@ -1,3 +1,4 @@
+//Golang
 package main
 
 import (
@@ -24,7 +25,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-
+	//START scheduling-timeouts
 	events := make(chan string, 50)
 	cleanup, err := run(events, worker.WorkflowJob{
 		Name:        "timeout",
@@ -36,6 +37,7 @@ func main() {
 			}).SetName("step-one").SetTimeout("10s"),
 		},
 	})
+	//END scheduling-timeouts
 	if err != nil {
 		panic(err)
 	}
