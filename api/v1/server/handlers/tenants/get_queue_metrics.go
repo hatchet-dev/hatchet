@@ -44,6 +44,12 @@ func (t *TenantService) TenantGetQueueMetrics(ctx echo.Context, request gen.Tena
 		return nil, err
 	}
 
+	stepRunQueueCounts, err := t.config.EngineRepository.StepRun().GetQueueCounts(ctx.Request().Context(), tenant.ID)
+
+	if err != nil {
+		return nil, err
+	}
+
 	respWorkflowMap := make(map[string]gen.QueueMetrics, len(metrics.ByWorkflowId))
 
 	for k, v := range metrics.ByWorkflowId {
@@ -61,6 +67,7 @@ func (t *TenantService) TenantGetQueueMetrics(ctx echo.Context, request gen.Tena
 			NumRunning: metrics.Total.Running,
 		},
 		Workflow: &respWorkflowMap,
+		Queues:   &stepRunQueueCounts,
 	}
 
 	return gen.TenantGetQueueMetrics200JSONResponse(resp), nil

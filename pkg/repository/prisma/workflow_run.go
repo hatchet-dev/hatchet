@@ -255,7 +255,7 @@ func (w *workflowRunAPIRepository) GetStepRunsForJobRuns(ctx context.Context, te
 		jobRunIdsPg[i] = sqlchelpers.UUIDFromStr(jobRunIds[i])
 	}
 
-	stepRuns, err := w.queries.GetStepRunsForJobRuns(ctx, w.pool, dbsqlc.GetStepRunsForJobRunsParams{
+	stepRuns, err := w.queries.GetStepRunsForJobRunsWithOutput(ctx, w.pool, dbsqlc.GetStepRunsForJobRunsWithOutputParams{
 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
 		Jobids:   jobRunIdsPg,
 	})
@@ -288,8 +288,8 @@ func (w *workflowRunAPIRepository) GetStepRunsForJobRuns(ctx context.Context, te
 		childCount := stepRunIdToChildCount[sqlchelpers.UUIDToStr(stepRun.ID)]
 
 		res[i] = &repository.StepRunForJobRun{
-			GetStepRunsForJobRunsRow: stepRun,
-			ChildWorkflowsCount:      childCount,
+			GetStepRunsForJobRunsWithOutputRow: stepRun,
+			ChildWorkflowsCount:                childCount,
 		}
 	}
 

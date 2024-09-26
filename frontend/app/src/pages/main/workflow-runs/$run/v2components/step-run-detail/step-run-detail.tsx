@@ -93,7 +93,7 @@ const StepRunDetail: React.FC<StepRunDetailProps> = ({
         stepRun?.tenantId,
         stepRun?.metadata.id,
         {
-          input: input,
+          input,
         },
       );
 
@@ -180,9 +180,7 @@ const StepRunDetail: React.FC<StepRunDetailProps> = ({
               return;
             }
 
-            rerunStepMutation.mutate({
-              input: parsedInput,
-            });
+            rerunStepMutation.mutate(parsedInput);
           }}
         >
           <ArrowPathIcon className="w-4 h-4" />

@@ -794,6 +794,7 @@ type TenantMemberRole string
 
 // TenantQueueMetrics defines model for TenantQueueMetrics.
 type TenantQueueMetrics struct {
+	Queues   *map[string]int          `json:"queues,omitempty"`
 	Total    *QueueMetrics            `json:"total,omitempty"`
 	Workflow *map[string]QueueMetrics `json:"workflow,omitempty"`
 }
