@@ -10,6 +10,8 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type CreateWorkflowRunOpts struct {
@@ -423,6 +425,7 @@ type UpdateWorkflowRunFromGroupKeyEvalOpts struct {
 
 type WorkflowRunEngineRepository interface {
 	RegisterCreateCallback(callback Callback[*dbsqlc.WorkflowRun])
+	RegisterQueuedCallback(callback Callback[pgtype.UUID])
 
 	// ListWorkflowRuns returns workflow runs for a given workflow version id.
 	ListWorkflowRuns(ctx context.Context, tenantId string, opts *ListWorkflowRunsOpts) (*ListWorkflowRunsResult, error)
