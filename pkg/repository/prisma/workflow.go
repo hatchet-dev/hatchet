@@ -989,7 +989,7 @@ func (r *workflowEngineRepository) createJobTx(ctx context.Context, tx pgx.Tx, t
 					)
 
 					if err != nil {
-						return "", err
+						return "", fmt.Errorf("could not create step rate limit: %w", err)
 					}
 				}
 			}
