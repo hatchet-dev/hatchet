@@ -37,14 +37,14 @@ type Dispatcher interface {
 type DispatcherImpl struct {
 	contracts.UnimplementedDispatcherServer
 
-	s           gocron.Scheduler
-	mq          msgqueue.MessageQueue
-	heavyReadMQ msgqueue.MessageQueue
-	l           *zerolog.Logger
-	dv          datautils.DataDecoderValidator
-	v           validator.Validator
-	repo        repository.EngineRepository
-	cache       cache.Cacheable
+	s            gocron.Scheduler
+	mq           msgqueue.MessageQueue
+	sharedReader *msgqueue.SharedTenantReader
+	l            *zerolog.Logger
+	dv           datautils.DataDecoderValidator
+	v            validator.Validator
+	repo         repository.EngineRepository
+	cache        cache.Cacheable
 
 	entitlements repository.EntitlementsRepository
 
@@ -243,7 +243,7 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 	mqCleanup, heavyReadMQ := d.mq.Clone()
 	heavyReadMQ.SetQOS(1000)
 
-	d.heavyReadMQ = heavyReadMQ
+	d.sharedReader = msgqueue.NewSharedTenantReader(heavyReadMQ)
 
 	// register the dispatcher by creating a new dispatcher in the database
 	dispatcher, err := d.repo.Dispatcher().CreateNewDispatcher(ctx, &repository.CreateDispatcherOpts{
