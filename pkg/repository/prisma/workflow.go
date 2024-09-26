@@ -984,7 +984,7 @@ func (r *workflowEngineRepository) createJobTx(ctx context.Context, tx pgx.Tx, t
 							Ratelimitkey: rateLimit.Key,
 							Units:        int32(*rateLimit.Units), // nolint: gosec
 							Tenantid:     tenantId,
-							Kind:         dbsqlc.StepRateLimitKindDEFAULT,
+							Kind:         dbsqlc.StepRateLimitKindSTATIC,
 						},
 					)
 

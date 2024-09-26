@@ -5,9 +5,9 @@ ALTER TYPE "StepRunEventReason" ADD VALUE 'RATE_LIMIT_ERROR';
 -- Create enum type "StepExpressionKind"
 CREATE TYPE "StepExpressionKind" AS ENUM ('DYNAMIC_RATE_LIMIT_KEY', 'DYNAMIC_RATE_LIMIT_VALUE', 'DYNAMIC_RATE_LIMIT_UNITS', 'DYNAMIC_RATE_LIMIT_WINDOW');
 -- Create enum type "StepRateLimitKind"
-CREATE TYPE "StepRateLimitKind" AS ENUM ('DEFAULT', 'DYNAMIC');
+CREATE TYPE "StepRateLimitKind" AS ENUM ('STATIC', 'DYNAMIC');
 -- Modify "StepRateLimit" table
-ALTER TABLE "StepRateLimit" DROP CONSTRAINT "StepRateLimit_stepId_fkey", ADD COLUMN "kind" "StepRateLimitKind" NOT NULL DEFAULT 'DEFAULT';
+ALTER TABLE "StepRateLimit" DROP CONSTRAINT "StepRateLimit_stepId_fkey", ADD COLUMN "kind" "StepRateLimitKind" NOT NULL DEFAULT 'STATIC';
 -- Create index "idx_workflowrun_concurrency" to table: "WorkflowRun"
 CREATE INDEX CONCURRENTLY IF NOT EXISTS "idx_workflowrun_concurrency" ON "WorkflowRun" ("concurrencyGroupId", "createdAt");
 -- Create index "idx_workflowrun_main" to table: "WorkflowRun"

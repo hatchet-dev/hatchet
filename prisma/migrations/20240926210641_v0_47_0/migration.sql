@@ -1,5 +1,5 @@
 -- CreateEnum
-CREATE TYPE "StepRateLimitKind" AS ENUM ('DEFAULT', 'DYNAMIC');
+CREATE TYPE "StepRateLimitKind" AS ENUM ('STATIC', 'DYNAMIC');
 
 -- CreateEnum
 CREATE TYPE "StepExpressionKind" AS ENUM ('DYNAMIC_RATE_LIMIT_KEY', 'DYNAMIC_RATE_LIMIT_VALUE', 'DYNAMIC_RATE_LIMIT_UNITS', 'DYNAMIC_RATE_LIMIT_WINDOW');
@@ -11,7 +11,7 @@ ALTER TYPE "StepRunEventReason" ADD VALUE 'RATE_LIMIT_ERROR';
 ALTER TABLE "StepRateLimit" DROP CONSTRAINT "StepRateLimit_stepId_fkey";
 
 -- AlterTable
-ALTER TABLE "StepRateLimit" ADD COLUMN     "kind" "StepRateLimitKind" NOT NULL DEFAULT 'DEFAULT';
+ALTER TABLE "StepRateLimit" ADD COLUMN     "kind" "StepRateLimitKind" NOT NULL DEFAULT 'STATIC';
 
 -- CreateTable
 CREATE TABLE "StepExpression" (

@@ -364,7 +364,7 @@ func (ns NullStepExpressionKind) Value() (driver.Value, error) {
 type StepRateLimitKind string
 
 const (
-	StepRateLimitKindDEFAULT StepRateLimitKind = "DEFAULT"
+	StepRateLimitKindSTATIC  StepRateLimitKind = "STATIC"
 	StepRateLimitKindDYNAMIC StepRateLimitKind = "DYNAMIC"
 )
 

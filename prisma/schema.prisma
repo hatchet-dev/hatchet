@@ -837,8 +837,8 @@ model Step {
 }
 
 enum StepRateLimitKind {
-  // DEFAULT rate limits are assigned to every step run
-  DEFAULT
+  // STATIC rate limits are assigned to every step run belonging to these steps
+  STATIC
 
   // DYNAMIC rate limits are assigned to specific step runs
   DYNAMIC
@@ -852,7 +852,7 @@ model StepRateLimit {
   rateLimit    RateLimit @relation(fields: [tenantId, rateLimitKey], references: [tenantId, key])
   rateLimitKey String
 
-  kind StepRateLimitKind @default(DEFAULT)
+  kind StepRateLimitKind @default(STATIC)
 
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   tenantId String @db.Uuid
