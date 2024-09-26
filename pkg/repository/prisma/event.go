@@ -371,6 +371,85 @@ func (r *eventEngineRepository) BulkCreateEvent(ctx context.Context, opts *repos
 		return &returnString, &repository.BulkCreateEventResult{Events: events}, nil
 	})
 }
+func (r *eventEngineRepository) BulkCreateEventSharedTenant(ctx context.Context, opts *repository.BulkCreateEventSharedTenantOpts) (*repository.BulkCreateEventResult, error) {
+
+	// need to do the metering beforehand
+	numberOfResources := len(opts.Events)
+	if numberOfResources < math.MinInt32 || numberOfResources > math.MaxInt32 {
+		return nil, fmt.Errorf("number of resources is out of range")
+	}
+
+	ctx, span := telemetry.NewSpan(ctx, "db-bulk-create-event-shared-tenant")
+	defer span.End()
+
+	if err := r.v.Validate(opts); err != nil {
+		return nil, err
+	}
+	params := make([]dbsqlc.CreateEventsParams, len(opts.Events))
+
+	for i, event := range opts.Events {
+
+		params[i] = dbsqlc.CreateEventsParams{
+			ID:                 sqlchelpers.UUIDFromStr(uuid.New().String()),
+			Key:                event.Key,
+			TenantId:           sqlchelpers.UUIDFromStr(event.TenantId),
+			Data:               event.Data,
+			AdditionalMetadata: event.AdditionalMetadata,
+		}
+
+		if event.ReplayedEvent != nil {
+			params[i].ReplayedFromId = sqlchelpers.UUIDFromStr(*event.ReplayedEvent)
+		}
+
+	}
+
+	// start a transaction
+	tx, err := r.pool.Begin(ctx)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer deferRollback(ctx, r.l, tx.Rollback)
+
+	insertCount, err := r.queries.CreateEvents(
+		ctx,
+		tx,
+		params,
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not create events: %w", err)
+	}
+
+	r.l.Info().Msgf("inserted %d events", insertCount)
+
+	events, err := r.queries.GetInsertedEvents(ctx, tx)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not retrieve inserted events: %w", err)
+	}
+	err = tx.Commit(ctx)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not commit transaction: %w", err)
+	}
+
+	for _, e := range events {
+
+		for _, cb := range r.callbacks {
+			err = cb.Do(e)
+			if err != nil {
+				return nil, fmt.Errorf("could not execute callback: %w", err)
+			}
+		}
+
+	}
+
+	// TODO is this return string important?
+	return &repository.BulkCreateEventResult{Events: events}, nil
+
+}
 
 func (r *eventEngineRepository) ListEventsByIds(ctx context.Context, tenantId string, ids []string) ([]*dbsqlc.Event, error) {
 	pgIds := make([]pgtype.UUID, len(ids))

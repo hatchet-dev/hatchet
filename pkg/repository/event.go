@@ -13,6 +13,10 @@ type BulkCreateEventOpts struct {
 	Events   []*CreateEventOpts
 }
 
+type BulkCreateEventSharedTenantOpts struct {
+	Events []*CreateEventOpts
+}
+
 type CreateEventOpts struct {
 	// (required) the tenant id
 	TenantId string `validate:"required,uuid"`
@@ -96,6 +100,8 @@ type EventEngineRepository interface {
 
 	// CreateEvent creates a new event for a given tenant.
 	BulkCreateEvent(ctx context.Context, opts *BulkCreateEventOpts) (*BulkCreateEventResult, error)
+
+	BulkCreateEventSharedTenant(ctx context.Context, opts *BulkCreateEventSharedTenantOpts) (*BulkCreateEventResult, error)
 
 	// GetEventForEngine returns an event for the engine by id.
 	GetEventForEngine(ctx context.Context, tenantId, id string) (*dbsqlc.Event, error)

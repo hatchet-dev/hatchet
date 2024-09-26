@@ -3,6 +3,7 @@ package ingestor
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
@@ -21,6 +22,7 @@ type Ingestor interface {
 	IngestEvent(ctx context.Context, tenantId, eventName string, data []byte, metadata []byte) (*dbsqlc.Event, error)
 	BulkIngestEvent(ctx context.Context, tenantID string, eventOpts []*repository.CreateEventOpts) ([]*dbsqlc.Event, error)
 	IngestReplayedEvent(ctx context.Context, tenantId string, replayedEvent *dbsqlc.Event) (*dbsqlc.Event, error)
+	StartBuffer(ctx context.Context)
 }
 
 type IngestorOptFunc func(*IngestorOpts)
@@ -31,6 +33,7 @@ type IngestorOpts struct {
 	logRepository          repository.LogsEngineRepository
 	entitlementsRepository repository.EntitlementsRepository
 	mq                     msgqueue.MessageQueue
+	buff                   IngestBuf
 }
 
 func WithEventRepository(r repository.EventEngineRepository) IngestorOptFunc {
@@ -63,8 +66,31 @@ func WithMessageQueue(mq msgqueue.MessageQueue) IngestorOptFunc {
 	}
 }
 
+func WithBufferIngestor(b IngestBuf) IngestorOptFunc {
+	return func(opts *IngestorOpts) {
+		opts.buff = b
+	}
+}
+
 func defaultIngestorOpts() *IngestorOpts {
-	return &IngestorOpts{}
+	return &IngestorOpts{
+
+		buff: IngestBuf{
+			maxCapacity: 1000,
+			flushPeriod: 100 * time.Millisecond,
+		},
+	}
+}
+
+func (i *IngestorImpl) buffEvent(eventOps *repository.CreateEventOpts) (chan *flushResponse, error) {
+
+	doneChan := make(chan *flushResponse, 200)
+
+	i.buff.eventOpsChan <- &eventBuffWrapper{
+		eventOps: eventOps,
+		doneChan: doneChan,
+	}
+	return doneChan, nil
 }
 
 type IngestorImpl struct {
@@ -75,8 +101,9 @@ type IngestorImpl struct {
 	streamEventRepository  repository.StreamEventsEngineRepository
 	entitlementsRepository repository.EntitlementsRepository
 
-	mq msgqueue.MessageQueue
-	v  validator.Validator
+	mq   msgqueue.MessageQueue
+	v    validator.Validator
+	buff IngestBuf
 }
 
 func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
@@ -114,36 +141,50 @@ func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
 }
 
 func (i *IngestorImpl) IngestEvent(ctx context.Context, tenantId, key string, data []byte, metadata []byte) (*dbsqlc.Event, error) {
-	ctx, span := telemetry.NewSpan(ctx, "ingest-event")
+	_, span := telemetry.NewSpan(ctx, "ingest-event")
 	defer span.End()
 
-	event, err := i.eventRepository.CreateEvent(ctx, &repository.CreateEventOpts{
+	eventOps := &repository.CreateEventOpts{
 		TenantId:           tenantId,
 		Key:                key,
 		Data:               data,
 		AdditionalMetadata: metadata,
-	})
-
-	if err == metered.ErrResourceExhausted {
-		return nil, metered.ErrResourceExhausted
 	}
 
+	doneChan, err := i.buffEvent(eventOps)
 	if err != nil {
-		return nil, fmt.Errorf("could not create event: %w", err)
+		return nil, err
 	}
 
-	telemetry.WithAttributes(span, telemetry.AttributeKV{
-		Key:   "event_id",
-		Value: event.ID,
-	})
+	// fmt.Println("============================================  Waiting for response")
+	select {
+	case <-time.After(10 * time.Second):
+		return nil, fmt.Errorf("timed out waiting for response from done channel")
+	case flushResponse := <-doneChan:
 
-	err = i.mq.AddMessage(context.Background(), msgqueue.EVENT_PROCESSING_QUEUE, eventToTask(event))
+		err = flushResponse.err
+		if err == metered.ErrResourceExhausted {
+			return nil, metered.ErrResourceExhausted
+		}
 
-	if err != nil {
-		return nil, fmt.Errorf("could not add event to task queue: %w", err)
+		if err != nil {
+			return nil, fmt.Errorf("could not create event: %w", err)
+		}
+
+		event := flushResponse.event
+		// telemetry.WithAttributes(span, telemetry.AttributeKV{
+		// 	Key:   "event_id",
+		// 	Value: event.ID,
+		// })
+
+		err = i.mq.AddMessage(context.Background(), msgqueue.EVENT_PROCESSING_QUEUE, eventToTask(event))
+
+		if err != nil {
+			return nil, fmt.Errorf("could not add event to task queue: %w", err)
+		}
+
+		return event, nil
 	}
-
-	return event, nil
 }
 
 func (i *IngestorImpl) BulkIngestEvent(ctx context.Context, tenantId string, eventOpts []*repository.CreateEventOpts) ([]*dbsqlc.Event, error) {

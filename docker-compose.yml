@@ -2,7 +2,7 @@ version: "3.8"
 services:
   postgres:
     image: postgres:15.6
-    command: postgres -c 'max_connections=200'
+    command: postgres -c 'max_connections=1000'
     restart: always
     environment:
       - POSTGRES_USER=hatchet
