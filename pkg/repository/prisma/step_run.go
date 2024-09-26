@@ -1647,7 +1647,7 @@ func (s *stepRunEngineRepository) ProcessStepRunUpdates(ctx context.Context, qlp
 	for _, cb := range s.callbacks {
 		for _, wr := range completedWorkflowRuns {
 			wrCp := wr
-			cb.Do(wrCp) // nolint: errcheck
+			cb.Do(s.l, tenantId, wrCp)
 		}
 	}
 

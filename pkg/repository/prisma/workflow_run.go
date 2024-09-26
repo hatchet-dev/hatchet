@@ -108,7 +108,7 @@ func (w *workflowRunAPIRepository) CreateNewWorkflowRun(ctx context.Context, ten
 		id := sqlchelpers.UUIDToStr(workflowRun.ID)
 
 		for _, cb := range w.createCallbacks {
-			cb.Do(workflowRun) // nolint: errcheck
+			cb.Do(w.l, tenantId, workflowRun)
 		}
 
 		return &id, workflowRun, nil
@@ -456,7 +456,7 @@ func (w *workflowRunEngineRepository) CreateNewWorkflowRun(ctx context.Context, 
 	}
 
 	for _, cb := range w.createCallbacks {
-		cb.Do(wfr) // nolint: errcheck
+		cb.Do(w.l, tenantId, wfr)
 	}
 
 	id := sqlchelpers.UUIDToStr(wfr.ID)
@@ -668,7 +668,7 @@ func (s *workflowRunEngineRepository) UpdateWorkflowRunFromGroupKeyEval(ctx cont
 	}
 
 	for _, cb := range s.queuedCallbacks {
-		cb.Do(pgWorkflowRunId) // nolint: errcheck
+		cb.Do(s.l, tenantId, pgWorkflowRunId)
 	}
 
 	defer insertWorkflowRunQueueItem( // nolint: errcheck

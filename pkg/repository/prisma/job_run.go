@@ -54,7 +54,7 @@ func (j *jobRunAPIRepository) SetJobRunStatusRunning(tenantId, jobRunId string) 
 	}
 
 	for _, cb := range j.wrRunningCallbacks {
-		cb.Do(*wrId) // nolint: errcheck
+		cb.Do(j.l, tenantId, *wrId)
 	}
 
 	return nil
@@ -105,7 +105,7 @@ func (j *jobRunEngineRepository) SetJobRunStatusRunning(ctx context.Context, ten
 	}
 
 	for _, cb := range j.wrRunningCallbacks {
-		cb.Do(*wrId) // nolint: errcheck
+		cb.Do(j.l, tenantId, *wrId)
 	}
 
 	return nil
