@@ -38,7 +38,9 @@ func (s *SharedTenantReader) Subscribe(tenantId string, postAck AckHook) (func()
 
 	t.counter++
 
-	t.fs.Store(t.counter, postAck)
+	subId := t.counter
+
+	t.fs.Store(subId, postAck)
 
 	if !t.isRunning {
 		t.isRunning = true
@@ -75,6 +77,8 @@ func (s *SharedTenantReader) Subscribe(tenantId string, postAck AckHook) (func()
 	return func() error {
 		t.mu.Lock()
 		defer t.mu.Unlock()
+
+		t.fs.Delete(subId)
 
 		if lenSyncMap(t.fs) == 0 {
 			// shut down the subscription
