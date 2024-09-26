@@ -5,6 +5,7 @@ import invariant from 'tiny-invariant';
 import { WebhookWorkerCreateRequest } from '.';
 
 type ListEventQuery = Parameters<typeof api.eventList>[1];
+type ListRateLimitsQuery = Parameters<typeof api.rateLimitList>[1];
 type ListLogLineQuery = Parameters<typeof api.logLineList>[1];
 type ListWorkflowRunsQuery = Parameters<typeof api.workflowRunList>[1];
 export type ListCloudLogsQuery = Parameters<typeof cloudApi.logList>[1];
@@ -244,6 +245,12 @@ export const queries = createQueryKeyStore({
     getData: (event: string) => ({
       queryKey: ['event-data:get', event],
       queryFn: async () => (await api.eventDataGet(event)).data,
+    }),
+  },
+  rate_limits: {
+    list: (tenant: string, query: ListRateLimitsQuery) => ({
+      queryKey: ['rate-limits:list', tenant, query],
+      queryFn: async () => (await api.rateLimitList(tenant, query)).data,
     }),
   },
   workers: {

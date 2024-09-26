@@ -830,22 +830,29 @@ model Step {
   // the default amount of time to wait while scheduling a step run
   scheduleTimeout String @default("5m")
 
-  rateLimits StepRateLimit[]
-
   workerLabels StepDesiredWorkerLabel[]
 
   // readable ids are unique per job
   @@unique([jobId, readableId])
 }
 
+enum StepRateLimitKind {
+  // STATIC rate limits are assigned to every step run belonging to these steps
+  STATIC
+
+  // DYNAMIC rate limits are assigned to specific step runs
+  DYNAMIC
+}
+
 model StepRateLimit {
   units Int
 
-  step   Step   @relation(fields: [stepId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   stepId String @db.Uuid
 
   rateLimit    RateLimit @relation(fields: [tenantId, rateLimitKey], references: [tenantId, key])
   rateLimitKey String
+
+  kind StepRateLimitKind @default(STATIC)
 
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   tenantId String @db.Uuid
@@ -1205,6 +1212,35 @@ enum StepRunStatus {
   CANCELLED
 }
 
+enum StepExpressionKind {
+  DYNAMIC_RATE_LIMIT_KEY
+  DYNAMIC_RATE_LIMIT_VALUE
+  DYNAMIC_RATE_LIMIT_UNITS
+  DYNAMIC_RATE_LIMIT_WINDOW
+}
+
+model StepExpression {
+  key        String
+  stepId     String             @db.Uuid
+  expression String
+  kind       StepExpressionKind
+
+  @@id([key, stepId, kind])
+}
+
+// StepRunExpressionEval is an evaluated expression for a step run
+model StepRunExpressionEval {
+  key       String
+  stepRunId String @db.Uuid
+
+  valueStr String?
+  valueInt Int?
+
+  kind StepExpressionKind
+
+  @@id([key, stepRunId, kind])
+}
+
 model StepRun {
   // base fields
   id        String    @id @unique @default(uuid()) @db.Uuid
@@ -1407,6 +1443,7 @@ model SemaphoreQueueItem {
 enum StepRunEventReason {
   REQUEUED_NO_WORKER
   REQUEUED_RATE_LIMIT
+  RATE_LIMIT_ERROR
   SCHEDULING_TIMED_OUT
   TIMED_OUT
   REASSIGNED

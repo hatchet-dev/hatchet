@@ -3,10 +3,7 @@
     "16fa711e-c03e-435c-88d9-62adf1591d98",
     "064e787a-6cfd-4f82-8b6d-d8031459fdee"
   ],
-  "StepRunTimeouts": [
-    "60s",
-    "60s"
-  ],
+  "StepRunTimeouts": ["60s", "60s"],
   "SlotIds": [
     "8cf68f09-b914-4f31-9777-8082b751a2d4",
     "aed946be-43db-4b5f-876a-c6c71f4d52aa"
@@ -29,12 +26,8 @@
     }
   ],
   "TimedOutStepRuns": [],
-  "RateLimitedStepRuns": [],
-  "RateLimitedQueues": {},
-  "QueuedItems": [
-    137295,
-    152259
-  ],
+  "RateLimitedStepRuns": {},
+  "QueuedItems": [137295, 152259],
   "ShouldContinue": true,
   "MinQueuedIds": {},
   "RateLimitUnitsConsumed": {}
