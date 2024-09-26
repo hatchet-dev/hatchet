@@ -1402,6 +1402,12 @@ type WorkflowRunListParams struct {
 	// CreatedBefore The time before the workflow run was created
 	CreatedBefore *time.Time `form:"createdBefore,omitempty" json:"createdBefore,omitempty"`
 
+	// FinishedAfter The time after the workflow run was finished
+	FinishedAfter *time.Time `form:"finishedAfter,omitempty" json:"finishedAfter,omitempty"`
+
+	// FinishedBefore The time before the workflow run was finished
+	FinishedBefore *time.Time `form:"finishedBefore,omitempty" json:"finishedBefore,omitempty"`
+
 	// OrderByField The order by field
 	OrderByField *WorkflowRunOrderByField `form:"orderByField,omitempty" json:"orderByField,omitempty"`
 
@@ -5850,6 +5856,38 @@ func NewWorkflowRunListRequest(server string, tenant openapi_types.UUID, params 
 		if params.CreatedBefore != nil {
 
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "createdBefore", runtime.ParamLocationQuery, *params.CreatedBefore); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.FinishedAfter != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "finishedAfter", runtime.ParamLocationQuery, *params.FinishedAfter); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.FinishedBefore != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "finishedBefore", runtime.ParamLocationQuery, *params.FinishedBefore); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err
