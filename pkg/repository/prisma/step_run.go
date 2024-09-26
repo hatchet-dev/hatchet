@@ -1441,8 +1441,6 @@ func (s *stepRunEngineRepository) getStepRunRateLimits(ctx context.Context, dbtx
 		upsertRateLimitBulkParams.Keys = append(upsertRateLimitBulkParams.Keys, key)
 		upsertRateLimitBulkParams.Windows = append(upsertRateLimitBulkParams.Windows, getWindowParamFromDurString(duration))
 		upsertRateLimitBulkParams.Limitvalues = append(upsertRateLimitBulkParams.Limitvalues, int32(limitValue)) // nolint: gosec
-
-		fmt.Println("UPSERTING RATE LIMIT", key, duration, limitValue)
 	}
 
 	defer bulkStepRunEvents(
@@ -1492,11 +1490,6 @@ func (s *stepRunEngineRepository) getStepRunRateLimits(ctx context.Context, dbtx
 
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not list rate limits for tenant: %w", err)
-	}
-
-	// print rate limits for tenant
-	for _, row := range rateLimitsForTenant {
-		fmt.Println("RATE LIMIT FOR TENANT", row.Key, row.Window, row.LimitValue, row.Value, row.LastRefill.Time.String())
 	}
 
 	mapRateLimitsForTenant := make(map[string]*dbsqlc.ListRateLimitsForTenantWithMutateRow)

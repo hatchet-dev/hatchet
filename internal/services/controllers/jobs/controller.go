@@ -907,7 +907,11 @@ func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId, stepId
 
 			// if we encounter an error here, the step run should fail with this error
 			if err != nil {
-				return ec.failStepRun(ctx, tenantId, stepRunId, err.Error(), time.Now())
+				return ec.failStepRun(ctx, tenantId, stepRunId, fmt.Sprintf("Could not parse step expression: %s", err.Error()), time.Now())
+			}
+
+			if err := ec.celParser.CheckStepRunOutAgainstKnown(res, expression.Kind); err != nil {
+				return ec.failStepRun(ctx, tenantId, stepRunId, fmt.Sprintf("Could not parse step expression: %s", err.Error()), time.Now())
 			}
 
 			// set the evaluated expression in queueOpts
