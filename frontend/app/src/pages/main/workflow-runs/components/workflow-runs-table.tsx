@@ -29,6 +29,7 @@ import { Button } from '@/components/ui/button';
 import {
   ArrowPathIcon,
   ArrowPathRoundedSquareIcon,
+  XCircleIcon,
   XMarkIcon,
 } from '@heroicons/react/24/outline';
 import { WorkflowRunsMetricsView } from './workflow-runs-metrics';
@@ -52,6 +53,12 @@ import {
 } from '@/components/ui/dialog';
 import { CodeHighlighter } from '@/components/ui/code-highlighter';
 import { Separator } from '@/components/ui/separator';
+import {
+  DataPoint,
+  ZoomableChart,
+} from '@/components/molecules/charts/zoomable';
+import { DateTimePicker } from '@/components/molecules/time-picker/date-time-picker';
+import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
 
 export interface WorkflowRunsTableProps {
   createdAfter?: string;
@@ -89,20 +96,58 @@ export function WorkflowRunsTable({
   const { tenant } = useOutletContext<TenantContextType>();
   invariant(tenant);
 
+  const cloudMeta = useCloudApiMeta();
+
   const [viewQueueMetrics, setViewQueueMetrics] = useState(false);
 
-  const [timeRange, setTimeRange] = useAtom(lastTimeRangeAtom);
+  const [defaultTimeRange, setDefaultTimeRange] = useAtom(lastTimeRangeAtom);
+
+  // customTimeRange does not get set in the atom,
+  const [customTimeRange, setCustomTimeRange] = useState<string[] | undefined>(
+    () => {
+      const timeRangeParam = searchParams.get('customTimeRange');
+      if (timeRangeParam) {
+        return timeRangeParam.split(',').map((param) => {
+          return new Date(param).toISOString();
+        });
+      }
+      return undefined;
+    },
+  );
+
   const [createdAfter, setCreatedAfter] = useState<string | undefined>(
-    getCreatedAfterFromTimeRange(timeRange) ||
+    getCreatedAfterFromTimeRange(defaultTimeRange) ||
       new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
   );
 
+  const [finishedBefore, setFinishedBefore] = useState<string | undefined>();
+
+  // create a timer which updates the createdAfter date every minute
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (customTimeRange) {
+        return;
+      }
+
+      setCreatedAfter(
+        getCreatedAfterFromTimeRange(defaultTimeRange) ||
+          new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+      );
+    }, 60 * 1000);
+
+    return () => clearInterval(interval);
+  }, [defaultTimeRange, customTimeRange]);
+
   // whenever the time range changes, update the createdAfter date
   useEffect(() => {
-    if (timeRange) {
-      setCreatedAfter(getCreatedAfterFromTimeRange(timeRange));
+    if (customTimeRange && customTimeRange.length === 2) {
+      setCreatedAfter(customTimeRange[0]);
+      setFinishedBefore(customTimeRange[1]);
+    } else if (defaultTimeRange) {
+      setCreatedAfter(getCreatedAfterFromTimeRange(defaultTimeRange));
+      setFinishedBefore(undefined);
     }
-  }, [timeRange, setCreatedAfter]);
+  }, [defaultTimeRange, customTimeRange, setCreatedAfter]);
 
   const [sorting, setSorting] = useState<SortingState>(() => {
     const sortParam = searchParams.get('sort');
@@ -150,10 +195,23 @@ export function WorkflowRunsTable({
     newSearchParams.set('pageIndex', pagination.pageIndex.toString());
     newSearchParams.set('pageSize', pagination.pageSize.toString());
 
+    if (customTimeRange && customTimeRange.length === 2) {
+      newSearchParams.set('customTimeRange', customTimeRange?.join(','));
+    } else {
+      newSearchParams.delete('customTimeRange');
+    }
+
     if (newSearchParams.toString() !== searchParams.toString()) {
       setSearchParams(newSearchParams, { replace: true });
     }
-  }, [sorting, columnFilters, pagination, setSearchParams, searchParams]);
+  }, [
+    sorting,
+    columnFilters,
+    pagination,
+    customTimeRange,
+    setSearchParams,
+    searchParams,
+  ]);
 
   const [pageSize, setPageSize] = useState<number>(50);
 
@@ -242,6 +300,7 @@ export function WorkflowRunsTable({
       orderByField,
       additionalMetadata: AdditionalMetadataFilter,
       createdAfter,
+      finishedBefore,
     }),
     refetchInterval,
   });
@@ -460,6 +519,76 @@ export function WorkflowRunsTable({
           {tenantMetricsQuery.isLoading && <Skeleton className="w-full h-36" />}
         </DialogContent>
       </Dialog>
+
+      <div className="flex flex-row justify-end items-center my-4 gap-2">
+        {customTimeRange && [
+          <Button
+            key="clear"
+            onClick={() => {
+              setCustomTimeRange(undefined);
+            }}
+            variant="outline"
+            size="sm"
+            className="text-xs h-9 py-2"
+          >
+            <XCircleIcon className="h-[18px] w-[18px] mr-2" />
+            Clear
+          </Button>,
+          <DateTimePicker
+            key="after"
+            label="After"
+            date={createdAfter ? new Date(createdAfter) : undefined}
+            setDate={(date) => {
+              setCreatedAfter(date?.toISOString());
+            }}
+          />,
+          <DateTimePicker
+            key="before"
+            label="Before"
+            date={finishedBefore ? new Date(finishedBefore) : undefined}
+            setDate={(date) => {
+              setFinishedBefore(date?.toISOString());
+            }}
+          />,
+        ]}
+        <Select
+          value={customTimeRange ? 'custom' : defaultTimeRange}
+          onValueChange={(value) => {
+            if (value !== 'custom') {
+              setDefaultTimeRange(value);
+              setCustomTimeRange(undefined);
+            } else {
+              setCustomTimeRange([
+                getCreatedAfterFromTimeRange(value) ||
+                  new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+                new Date().toISOString(),
+              ]);
+            }
+          }}
+        >
+          <SelectTrigger className="w-fit">
+            <SelectValue id="timerange" placeholder="Choose time range" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="1h">1 hour</SelectItem>
+            <SelectItem value="6h">6 hours</SelectItem>
+            <SelectItem value="1d">1 day</SelectItem>
+            <SelectItem value="7d">7 days</SelectItem>
+            <SelectItem value="custom">Custom</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      {cloudMeta && cloudMeta.data?.metricsEnabled && (
+        <GetWorkflowChart
+          tenantId={tenant.metadata.id}
+          createdAfter={createdAfter}
+          zoom={(createdAfter, createdBefore) => {
+            setCustomTimeRange([createdAfter, createdBefore]);
+          }}
+          finishedBefore={finishedBefore}
+          refetchInterval={refetchInterval}
+        />
+      )}
       <div className="flex flex-row justify-between items-center my-4">
         {metricsQuery.data ? (
           <WorkflowRunsMetricsView
@@ -496,17 +625,6 @@ export function WorkflowRunsTable({
         ) : (
           <Skeleton className="max-w-[800px] w-[40vw] h-8" />
         )}
-        <Select value={timeRange} onValueChange={setTimeRange}>
-          <SelectTrigger className="w-fit">
-            <SelectValue id="timerange" placeholder="Choose time range" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="1h">1 hour</SelectItem>
-            <SelectItem value="6h">6 hours</SelectItem>
-            <SelectItem value="1d">1 day</SelectItem>
-            <SelectItem value="7d">7 days</SelectItem>
-          </SelectContent>
-        </Select>
       </div>
       <DataTable
         emptyState={<>No workflow runs found with the given filters.</>}
@@ -533,3 +651,55 @@ export function WorkflowRunsTable({
     </>
   );
 }
+
+const GetWorkflowChart = ({
+  tenantId,
+  createdAfter,
+  finishedBefore,
+  refetchInterval,
+  zoom,
+}: {
+  tenantId: string;
+  createdAfter?: string;
+  finishedBefore?: string;
+  refetchInterval?: number;
+  zoom: (startTime: string, endTime: string) => void;
+}) => {
+  const workflowRunEventsMetricsQuery = useQuery({
+    ...queries.cloud.workflowRunMetrics(tenantId, {
+      createdAfter,
+      finishedBefore,
+    }),
+    refetchInterval,
+  });
+
+  if (workflowRunEventsMetricsQuery.isLoading) {
+    return <Skeleton className="w-full h-36" />;
+  }
+
+  if (!workflowRunEventsMetricsQuery.data) {
+    return null;
+  }
+
+  return (
+    <div className="">
+      <ZoomableChart
+        data={
+          workflowRunEventsMetricsQuery.data?.results?.map(
+            (result): DataPoint<'SUCCEEDED' | 'FAILED'> => ({
+              date: result.time,
+              SUCCEEDED: result.SUCCEEDED,
+              FAILED: result.FAILED,
+            }),
+          ) || []
+        }
+        colors={{
+          SUCCEEDED: 'rgb(34 197 94 / 0.5)',
+          FAILED: 'hsl(var(--destructive))',
+        }}
+        zoom={zoom}
+        showYAxis={false}
+      />
+    </div>
+  );
+};

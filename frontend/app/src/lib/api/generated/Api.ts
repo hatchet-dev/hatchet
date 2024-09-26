@@ -1425,6 +1425,18 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
        * @example "2021-01-01T00:00:00Z"
        */
       createdBefore?: string;
+      /**
+       * The time after the workflow run was finished
+       * @format date-time
+       * @example "2021-01-01T00:00:00Z"
+       */
+      finishedAfter?: string;
+      /**
+       * The time before the workflow run was finished
+       * @format date-time
+       * @example "2021-01-01T00:00:00Z"
+       */
+      finishedBefore?: string;
       /** The order by field */
       orderByField?: WorkflowRunOrderByField;
       /** The order by direction */
