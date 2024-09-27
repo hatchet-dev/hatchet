@@ -82,6 +82,17 @@ func defaultIngestorOpts() *IngestorOpts {
 	}
 }
 
+func (i *IngestorImpl) StartBuffer(ctx context.Context) {
+	fmt.Println("============================================  Starting buffer")
+
+	i.buff.maxCapacity = 1000
+	i.buff.flushPeriod = 100 * time.Millisecond
+	// TODO config this capacity correctly
+	i.buff.eventOpsChan = make(chan *eventBuffWrapper, 2*i.buff.maxCapacity)
+	i.buff.BulkCreateFunc = i.eventRepository.BulkCreateEventSharedTenant
+	i.buff.Start(ctx)
+}
+
 func (i *IngestorImpl) buffEvent(eventOps *repository.CreateEventOpts) (chan *flushResponse, error) {
 
 	doneChan := make(chan *flushResponse, 200)

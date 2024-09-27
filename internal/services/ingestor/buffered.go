@@ -47,11 +47,11 @@ func (b *IngestBuf) buffEventWorker(ctx context.Context) {
 			// buff is full flush to BulkCreateEvent
 		case <-time.After(time.Until(b.lastFlush.Add(b.flushPeriod))):
 			if len(b.internalArr) > 0 {
-				fmt.Println("===========================Time is up and we have at least one event")
+				// fmt.Println("===========================Time is up and we have at least one event")
 				b.flush()
 			} else {
 				b.lastFlush = time.Now()
-				fmt.Println("Time is up and we have no events")
+				// fmt.Println("Time is up and we have no events")
 
 			}
 		case <-ctx.Done():
@@ -121,10 +121,4 @@ func (b *IngestBuf) flush() {
 
 func (b *IngestBuf) Start(ctx context.Context) {
 	go b.buffEventWorker(ctx)
-}
-func (i *IngestorImpl) StartBuffer(ctx context.Context) {
-	fmt.Println("============================================  Starting buffer")
-	i.buff.eventOpsChan = make(chan *eventBuffWrapper, 2*i.buff.maxCapacity)
-	i.buff.BulkCreateFunc = i.eventRepository.BulkCreateEventSharedTenant
-	i.buff.Start(ctx)
 }
