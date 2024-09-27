@@ -20,6 +20,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
@@ -255,24 +256,26 @@ func (s *stepRunAPIRepository) ListStepRunArchives(tenantId string, stepRunId st
 }
 
 type stepRunEngineRepository struct {
-	pool               *pgxpool.Pool
-	v                  validator.Validator
-	l                  *zerolog.Logger
-	queries            *dbsqlc.Queries
-	cf                 *server.ConfigFileRuntime
-	cachedMinQueuedIds sync.Map
-	callbacks          []repository.Callback[*dbsqlc.ResolveWorkflowRunStatusRow]
+	pool                     *pgxpool.Pool
+	v                        validator.Validator
+	l                        *zerolog.Logger
+	queries                  *dbsqlc.Queries
+	cf                       *server.ConfigFileRuntime
+	cachedMinQueuedIds       sync.Map
+	cachedStepIdHasRateLimit *cache.Cache
+	callbacks                []repository.Callback[*dbsqlc.ResolveWorkflowRunStatusRow]
 }
 
-func NewStepRunEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, cf *server.ConfigFileRuntime) repository.StepRunEngineRepository {
+func NewStepRunEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, cf *server.ConfigFileRuntime, rlCache *cache.Cache) repository.StepRunEngineRepository {
 	queries := dbsqlc.New()
 
 	return &stepRunEngineRepository{
-		pool:    pool,
-		v:       v,
-		l:       l,
-		queries: queries,
-		cf:      cf,
+		pool:                     pool,
+		v:                        v,
+		l:                        l,
+		queries:                  queries,
+		cf:                       cf,
+		cachedStepIdHasRateLimit: rlCache,
 	}
 }
 
@@ -1313,6 +1316,7 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, qlp *zerolo
 func (s *stepRunEngineRepository) getStepRunRateLimits(ctx context.Context, dbtx dbsqlc.DBTX, tenantId string, queueItems []*scheduling.QueueItemWithOrder) (map[string]map[string]int32, map[string]*dbsqlc.ListRateLimitsForTenantWithMutateRow, error) {
 	stepRunIds := make([]pgtype.UUID, 0, len(queueItems))
 	stepIds := make([]pgtype.UUID, 0, len(queueItems))
+	stepsWithRateLimits := make(map[string]bool)
 
 	for _, item := range queueItems {
 		stepRunIds = append(stepRunIds, item.StepRunId)
@@ -1320,15 +1324,32 @@ func (s *stepRunEngineRepository) getStepRunRateLimits(ctx context.Context, dbtx
 	}
 
 	stepIdToStepRuns := make(map[string][]string)
+	stepRunIdToStepId := make(map[string]string)
 
 	for i, stepRunId := range stepRunIds {
 		stepId := sqlchelpers.UUIDToStr(stepIds[i])
+		stepRunIdStr := sqlchelpers.UUIDToStr(stepRunId)
 
 		if _, ok := stepIdToStepRuns[stepId]; !ok {
 			stepIdToStepRuns[stepId] = make([]string, 0)
 		}
 
-		stepIdToStepRuns[stepId] = append(stepIdToStepRuns[stepId], sqlchelpers.UUIDToStr(stepRunId))
+		stepIdToStepRuns[stepId] = append(stepIdToStepRuns[stepId], stepRunIdStr)
+		stepRunIdToStepId[stepRunIdStr] = stepId
+	}
+
+	// check if we have any rate limits for these step ids
+	skipRateLimiting := true
+
+	for stepIdStr := range stepIdToStepRuns {
+		if hasRateLimit, ok := s.cachedStepIdHasRateLimit.Get(stepIdStr); !ok || hasRateLimit.(bool) {
+			skipRateLimiting = false
+			break
+		}
+	}
+
+	if skipRateLimiting {
+		return nil, nil, nil
 	}
 
 	// get all step run expression evals which correspond to rate limits, grouped by step run id
@@ -1348,6 +1369,8 @@ func (s *stepRunEngineRepository) getStepRunRateLimits(ctx context.Context, dbtx
 		// Only append if this is a key expression. Note that we have a uniqueness constraint on
 		// the stepRunId, kind, and key, so we will not insert duplicate values into the array.
 		if eval.Kind == dbsqlc.StepExpressionKindDYNAMICRATELIMITKEY {
+			stepsWithRateLimits[stepRunIdToStepId[stepRunId]] = true
+
 			k := eval.ValueStr.String
 
 			if _, ok := stepRunToKeys[stepRunId]; !ok {
@@ -1465,17 +1488,27 @@ func (s *stepRunEngineRepository) getStepRunRateLimits(ctx context.Context, dbtx
 		errData,
 	)
 
-	// upsert all rate limits based on the keys, limit values, and durations
-	err = s.queries.UpsertRateLimitsBulk(ctx, dbtx, upsertRateLimitBulkParams)
+	var stepRateLimits []*dbsqlc.StepRateLimit
 
-	if err != nil {
-		return nil, nil, fmt.Errorf("could not bulk upsert dynamic rate limits: %w", err)
+	if len(upsertRateLimitBulkParams.Keys) > 0 {
+		// upsert all rate limits based on the keys, limit values, and durations
+		err = s.queries.UpsertRateLimitsBulk(ctx, dbtx, upsertRateLimitBulkParams)
+
+		if err != nil {
+			return nil, nil, fmt.Errorf("could not bulk upsert dynamic rate limits: %w", err)
+		}
 	}
 
 	// get all existing static rate limits for steps to the mapping, mapping back from step ids to step run ids
-	stepRateLimits, err := s.queries.ListRateLimitsForSteps(ctx, dbtx, dbsqlc.ListRateLimitsForStepsParams{
+	uniqueStepIds := make([]pgtype.UUID, 0, len(stepIdToStepRuns))
+
+	for stepId := range stepIdToStepRuns {
+		uniqueStepIds = append(uniqueStepIds, sqlchelpers.UUIDFromStr(stepId))
+	}
+
+	stepRateLimits, err = s.queries.ListRateLimitsForSteps(ctx, dbtx, dbsqlc.ListRateLimitsForStepsParams{
 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
-		Stepids:  stepIds,
+		Stepids:  uniqueStepIds,
 	})
 
 	if err != nil {
@@ -1483,6 +1516,7 @@ func (s *stepRunEngineRepository) getStepRunRateLimits(ctx context.Context, dbtx
 	}
 
 	for _, row := range stepRateLimits {
+		stepsWithRateLimits[sqlchelpers.UUIDToStr(row.StepId)] = true
 		stepId := sqlchelpers.UUIDToStr(row.StepId)
 		stepRuns := stepIdToStepRuns[stepId]
 
@@ -1505,6 +1539,12 @@ func (s *stepRunEngineRepository) getStepRunRateLimits(ctx context.Context, dbtx
 
 	for _, row := range rateLimitsForTenant {
 		mapRateLimitsForTenant[row.Key] = row
+	}
+
+	// store all step ids in the cache, so we can skip rate limiting for steps without rate limits
+	for stepId := range stepIdToStepRuns {
+		hasRateLimit := stepsWithRateLimits[stepId]
+		s.cachedStepIdHasRateLimit.Set(stepId, hasRateLimit)
 	}
 
 	return stepRunToKeyToUnits, mapRateLimitsForTenant, nil
