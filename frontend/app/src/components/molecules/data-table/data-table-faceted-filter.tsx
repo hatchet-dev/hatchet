@@ -115,7 +115,8 @@ export function DataTableFacetedFilter<TData, TValue>({
                       variant="secondary"
                       className="rounded-sm px-1 font-normal flex items-center space-x-1"
                     >
-                      {option}
+                      {options?.find(({ value }) => value == option)?.label ||
+                        option}
                       <Button
                         variant="ghost"
                         size="xs"
