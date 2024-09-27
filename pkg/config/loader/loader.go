@@ -268,7 +268,6 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 			return nil, nil, fmt.Errorf("could not create ingestor: %w", err)
 		}
 	}
-	ing.StartBuffer(context.Background())
 
 	var alerter errors.Alerter
 

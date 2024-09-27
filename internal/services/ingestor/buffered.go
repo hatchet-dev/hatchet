@@ -10,21 +10,33 @@ import (
 )
 
 type IngestBuf struct {
-	maxCapacity    int
-	flushPeriod    time.Duration
-	eventOpsChan   chan *eventBuffWrapper
-	lastFlush      time.Time
-	internalArr    []*eventBuffWrapper
-	sizeOfData     int
-	BulkCreateFunc func(ctx context.Context, opts *repository.BulkCreateEventSharedTenantOpts) (*repository.BulkCreateEventResult, error)
+	maxCapacity        int           // max number of events to hold in buffer before we flush
+	flushPeriod        time.Duration // max time to hold events in buffer before we flush
+	eventOpsChan       chan *eventBuffWrapper
+	lastFlush          time.Time
+	internalArr        []*eventBuffWrapper
+	sizeOfData         int // size of data in buffer
+	maxDataSizeInQueue int // max number of bytes to hold in buffer before we flush
+	BulkCreateFunc     func(ctx context.Context, opts *repository.BulkCreateEventSharedTenantOpts) (*repository.BulkCreateEventResult, error)
+}
+
+func NewIngestBuffer(maxCapacity int, flushPeriod time.Duration, maxDataSizeInQueue int, bulkCreateFunc func(ctx context.Context, opts *repository.BulkCreateEventSharedTenantOpts) (*repository.BulkCreateEventResult, error)) *IngestBuf {
+	return &IngestBuf{
+		maxCapacity:        maxCapacity,
+		flushPeriod:        flushPeriod,
+		eventOpsChan:       make(chan *eventBuffWrapper, maxCapacity*2),
+		lastFlush:          time.Now(),
+		internalArr:        make([]*eventBuffWrapper, 0),
+		sizeOfData:         0,
+		maxDataSizeInQueue: maxDataSizeInQueue,
+		BulkCreateFunc:     bulkCreateFunc,
+	}
 }
 
 type eventBuffWrapper struct {
 	eventOps *repository.CreateEventOpts
 	doneChan chan *flushResponse
 }
-
-const MAX_SIZE = 1000000
 
 func (b *IngestBuf) buffEventWorker(ctx context.Context) {
 	for {
@@ -35,25 +47,17 @@ func (b *IngestBuf) buffEventWorker(ctx context.Context) {
 			b.sizeOfData += len(e.eventOps.AdditionalMetadata)
 
 			if len(b.internalArr) >= b.maxCapacity {
-				fmt.Println("Buffer is full number of messages is > ", b.maxCapacity)
 				b.flush()
-				fmt.Println("Finished flushing buffer")
 			}
-			if b.sizeOfData >= MAX_SIZE {
-				fmt.Println("Buffer is full size of data is >", b.sizeOfData)
-
+			if b.sizeOfData >= b.maxDataSizeInQueue {
 				b.flush()
-				fmt.Println("Finished flushing buffer cause of size")
 			}
 
-			// buff is full flush to BulkCreateEvent
 		case <-time.After(time.Until(b.lastFlush.Add(b.flushPeriod))):
 			if len(b.internalArr) > 0 {
-				// fmt.Println("===========================Time is up and we have at least one event")
 				b.flush()
 			} else {
 				b.lastFlush = time.Now()
-				// fmt.Println("Time is up and we have no events")
 
 			}
 		case <-ctx.Done():
@@ -86,6 +90,7 @@ func (b *IngestBuf) flush() {
 
 	numEvents := len(events)
 	eventOpts := make([]*repository.CreateEventOpts, numEvents)
+
 	var doneChans []chan *flushResponse
 
 	for i := 0; i < numEvents; i++ {

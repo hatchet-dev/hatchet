@@ -73,23 +73,14 @@ func WithBufferIngestor(b IngestBuf) IngestorOptFunc {
 }
 
 func defaultIngestorOpts() *IngestorOpts {
-	return &IngestorOpts{
-
-		buff: IngestBuf{
-			maxCapacity: 1000,
-			flushPeriod: 100 * time.Millisecond,
-		},
-	}
+	return &IngestorOpts{}
 }
 
 func (i *IngestorImpl) StartBuffer(ctx context.Context) {
 	fmt.Println("============================================  Starting buffer")
 
-	i.buff.maxCapacity = 1000
-	i.buff.flushPeriod = 100 * time.Millisecond
-	// TODO config this capacity correctly
-	i.buff.eventOpsChan = make(chan *eventBuffWrapper, 2*i.buff.maxCapacity)
-	i.buff.BulkCreateFunc = i.eventRepository.BulkCreateEventSharedTenant
+	i.buff = *NewIngestBuffer(1000, 200*time.Millisecond, 1000000, i.eventRepository.BulkCreateEventSharedTenant)
+
 	i.buff.Start(ctx)
 }
 
