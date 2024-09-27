@@ -441,6 +441,7 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 		AdditionalOAuthConfigs: additionalOAuthConfigs,
 		AdditionalLoggers:      cf.AdditionalLoggers,
 		EnableDataRetention:    cf.EnableDataRetention,
+		EnableWorkerRetention:  cf.EnableWorkerRetention,
 	}, nil
 }
 
