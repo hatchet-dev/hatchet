@@ -441,6 +441,22 @@ workflowRuns:
         schema:
           type: string
           format: date-time
+      - description: The time after the workflow run was finished
+        in: query
+        name: finishedAfter
+        example: "2021-01-01T00:00:00Z"
+        required: false
+        schema:
+          type: string
+          format: date-time
+      - description: The time before the workflow run was finished
+        in: query
+        name: finishedBefore
+        example: "2021-01-01T00:00:00Z"
+        required: false
+        schema:
+          type: string
+          format: date-time
       - description: The order by field
         in: query
         name: orderByField

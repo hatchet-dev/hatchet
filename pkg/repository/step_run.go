@@ -167,6 +167,8 @@ type ProcessStepRunUpdatesResult struct {
 }
 
 type StepRunEngineRepository interface {
+	RegisterWorkflowRunCompletedCallback(callback Callback[*dbsqlc.ResolveWorkflowRunStatusRow])
+
 	// ListStepRunsForWorkflowRun returns a list of step runs for a workflow run.
 	ListStepRuns(ctx context.Context, tenantId string, opts *ListStepRunsOpts) ([]*dbsqlc.GetStepRunForEngineRow, error)
 

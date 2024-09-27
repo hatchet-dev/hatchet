@@ -261,6 +261,7 @@ type stepRunEngineRepository struct {
 	queries            *dbsqlc.Queries
 	cf                 *server.ConfigFileRuntime
 	cachedMinQueuedIds sync.Map
+	callbacks          []repository.Callback[*dbsqlc.ResolveWorkflowRunStatusRow]
 }
 
 func NewStepRunEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, cf *server.ConfigFileRuntime) repository.StepRunEngineRepository {
@@ -273,6 +274,14 @@ func NewStepRunEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *ze
 		queries: queries,
 		cf:      cf,
 	}
+}
+
+func (s *stepRunEngineRepository) RegisterWorkflowRunCompletedCallback(callback repository.Callback[*dbsqlc.ResolveWorkflowRunStatusRow]) {
+	if s.callbacks == nil {
+		s.callbacks = make([]repository.Callback[*dbsqlc.ResolveWorkflowRunStatusRow], 0)
+	}
+
+	s.callbacks = append(s.callbacks, callback)
 }
 
 func (s *stepRunEngineRepository) GetStepRunMetaForEngine(ctx context.Context, tenantId, stepRunId string) (*dbsqlc.GetStepRunMetaRow, error) {
@@ -1781,6 +1790,13 @@ func (s *stepRunEngineRepository) ProcessStepRunUpdates(ctx context.Context, qlp
 
 	if err != nil {
 		return emptyRes, fmt.Errorf("could not commit transaction: %w", err)
+	}
+
+	for _, cb := range s.callbacks {
+		for _, wr := range completedWorkflowRuns {
+			wrCp := wr
+			cb.Do(s.l, tenantId, wrCp)
+		}
 	}
 
 	defer printProcessStepRunUpdateInfo(ql, tenantId, startedAt, len(stepRunIds), durationUpdateStepRuns, durationResolveJobRunStatus, durationResolveWorkflowRuns, durationMarkQueueItemsProcessed, durationRunEvents)

@@ -33,7 +33,7 @@ type workflowRunAPIRepository struct {
 	l       *zerolog.Logger
 	m       *metered.Metered
 
-	callbacks []repository.Callback[*dbsqlc.WorkflowRun]
+	createCallbacks []repository.Callback[*dbsqlc.WorkflowRun]
 }
 
 func NewWorkflowRunRepository(client *db.PrismaClient, pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, m *metered.Metered) repository.WorkflowRunAPIRepository {
@@ -50,11 +50,11 @@ func NewWorkflowRunRepository(client *db.PrismaClient, pool *pgxpool.Pool, v val
 }
 
 func (w *workflowRunAPIRepository) RegisterCreateCallback(callback repository.Callback[*dbsqlc.WorkflowRun]) {
-	if w.callbacks == nil {
-		w.callbacks = make([]repository.Callback[*dbsqlc.WorkflowRun], 0)
+	if w.createCallbacks == nil {
+		w.createCallbacks = make([]repository.Callback[*dbsqlc.WorkflowRun], 0)
 	}
 
-	w.callbacks = append(w.callbacks, callback)
+	w.createCallbacks = append(w.createCallbacks, callback)
 }
 
 func (w *workflowRunAPIRepository) ListWorkflowRuns(ctx context.Context, tenantId string, opts *repository.ListWorkflowRunsOpts) (*repository.ListWorkflowRunsResult, error) {
@@ -107,8 +107,8 @@ func (w *workflowRunAPIRepository) CreateNewWorkflowRun(ctx context.Context, ten
 
 		id := sqlchelpers.UUIDToStr(workflowRun.ID)
 
-		for _, cb := range w.callbacks {
-			cb.Do(workflowRun) // nolint: errcheck
+		for _, cb := range w.createCallbacks {
+			cb.Do(w.l, tenantId, workflowRun)
 		}
 
 		return &id, workflowRun, nil
@@ -303,28 +303,37 @@ type workflowRunEngineRepository struct {
 	l       *zerolog.Logger
 	m       *metered.Metered
 
-	callbacks []repository.Callback[*dbsqlc.WorkflowRun]
+	createCallbacks []repository.Callback[*dbsqlc.WorkflowRun]
+	queuedCallbacks []repository.Callback[pgtype.UUID]
 }
 
 func NewWorkflowRunEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, m *metered.Metered, cbs ...repository.Callback[*dbsqlc.WorkflowRun]) repository.WorkflowRunEngineRepository {
 	queries := dbsqlc.New()
 
 	return &workflowRunEngineRepository{
-		v:         v,
-		pool:      pool,
-		queries:   queries,
-		l:         l,
-		m:         m,
-		callbacks: cbs,
+		v:               v,
+		pool:            pool,
+		queries:         queries,
+		l:               l,
+		m:               m,
+		createCallbacks: cbs,
 	}
 }
 
 func (w *workflowRunEngineRepository) RegisterCreateCallback(callback repository.Callback[*dbsqlc.WorkflowRun]) {
-	if w.callbacks == nil {
-		w.callbacks = make([]repository.Callback[*dbsqlc.WorkflowRun], 0)
+	if w.createCallbacks == nil {
+		w.createCallbacks = make([]repository.Callback[*dbsqlc.WorkflowRun], 0)
 	}
 
-	w.callbacks = append(w.callbacks, callback)
+	w.createCallbacks = append(w.createCallbacks, callback)
+}
+
+func (w *workflowRunEngineRepository) RegisterQueuedCallback(callback repository.Callback[pgtype.UUID]) {
+	if w.queuedCallbacks == nil {
+		w.queuedCallbacks = make([]repository.Callback[pgtype.UUID], 0)
+	}
+
+	w.queuedCallbacks = append(w.queuedCallbacks, callback)
 }
 
 func (w *workflowRunEngineRepository) GetWorkflowRunById(ctx context.Context, tenantId, id string) (*dbsqlc.GetWorkflowRunRow, error) {
@@ -446,8 +455,8 @@ func (w *workflowRunEngineRepository) CreateNewWorkflowRun(ctx context.Context, 
 		return "", err
 	}
 
-	for _, cb := range w.callbacks {
-		cb.Do(wfr) // nolint: errcheck
+	for _, cb := range w.createCallbacks {
+		cb.Do(w.l, tenantId, wfr)
 	}
 
 	id := sqlchelpers.UUIDToStr(wfr.ID)
@@ -658,6 +667,10 @@ func (s *workflowRunEngineRepository) UpdateWorkflowRunFromGroupKeyEval(ctx cont
 		return fmt.Errorf("could not update workflow run group key from expr: %w", err)
 	}
 
+	for _, cb := range s.queuedCallbacks {
+		cb.Do(s.l, tenantId, pgWorkflowRunId)
+	}
+
 	defer insertWorkflowRunQueueItem( // nolint: errcheck
 		ctx,
 		s.pool,
@@ -793,6 +806,11 @@ func listWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbsqlc.Q
 	if opts.FinishedAfter != nil {
 		countParams.FinishedAfter = sqlchelpers.TimestampFromTime(*opts.FinishedAfter)
 		queryParams.FinishedAfter = sqlchelpers.TimestampFromTime(*opts.FinishedAfter)
+	}
+
+	if opts.FinishedBefore != nil {
+		countParams.FinishedBefore = sqlchelpers.TimestampFromTime(*opts.FinishedBefore)
+		queryParams.FinishedBefore = sqlchelpers.TimestampFromTime(*opts.FinishedBefore)
 	}
 
 	orderByField := "createdAt"

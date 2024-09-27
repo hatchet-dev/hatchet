@@ -11,6 +11,9 @@ type ListWorkflowRunsQuery = Parameters<typeof api.workflowRunList>[1];
 export type ListCloudLogsQuery = Parameters<typeof cloudApi.logList>[1];
 export type GetCloudMetricsQuery = Parameters<typeof cloudApi.metricsCpuGet>[1];
 type WorkflowRunMetrics = Parameters<typeof api.workflowRunGetMetrics>[1];
+type WorkflowRunEventsMetrics = Parameters<
+  typeof cloudApi.workflowRunEventsGetMetrics
+>[1];
 
 export const queries = createQueryKeyStore({
   cloud: {
@@ -75,6 +78,11 @@ export const queries = createQueryKeyStore({
       queryKey: ['managed-worker:get:events', managedWorkerId],
       queryFn: async () =>
         (await cloudApi.managedWorkerEventsList(managedWorkerId)).data,
+    }),
+    workflowRunMetrics: (tenant: string, query: WorkflowRunEventsMetrics) => ({
+      queryKey: ['workflow-run:metrics', tenant, query],
+      queryFn: async () =>
+        (await cloudApi.workflowRunEventsGetMetrics(tenant, query)).data,
     }),
   },
   user: {
