@@ -206,8 +206,14 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile, runtime *server.Co
 
 	meter := metered.NewMetered(entitlementRepo, &l)
 
+	cleanupEngine, engineRepo := prisma.NewEngineRepository(pool, queuePool, runtime, prisma.WithLogger(&l), prisma.WithCache(ch), prisma.WithMetered(meter))
+
 	return &database.Config{
 		Disconnect: func() error {
+			if err := cleanupEngine(); err != nil {
+				return err
+			}
+
 			ch.Stop()
 			meter.Stop()
 			return c.Prisma.Disconnect()
@@ -215,7 +221,7 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile, runtime *server.Co
 		Pool:                  pool,
 		QueuePool:             queuePool,
 		APIRepository:         prisma.NewAPIRepository(c, pool, prisma.WithLogger(&l), prisma.WithCache(ch), prisma.WithMetered(meter)),
-		EngineRepository:      prisma.NewEngineRepository(pool, queuePool, runtime, prisma.WithLogger(&l), prisma.WithCache(ch), prisma.WithMetered(meter)),
+		EngineRepository:      engineRepo,
 		EntitlementRepository: entitlementRepo,
 		Seed:                  cf.Seed,
 	}, nil

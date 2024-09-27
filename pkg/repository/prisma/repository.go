@@ -281,7 +281,7 @@ func (r *engineRepository) WebhookWorker() repository.WebhookWorkerEngineReposit
 	return r.webhookWorker
 }
 
-func NewEngineRepository(pool *pgxpool.Pool, queuePool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ...PrismaRepositoryOpt) repository.EngineRepository {
+func NewEngineRepository(pool *pgxpool.Pool, queuePool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ...PrismaRepositoryOpt) (func() error, repository.EngineRepository) {
 	opts := defaultPrismaRepositoryOpts()
 
 	for _, f := range fs {
@@ -295,26 +295,31 @@ func NewEngineRepository(pool *pgxpool.Pool, queuePool *pgxpool.Pool, cf *server
 		opts.cache = cache.New(1 * time.Millisecond)
 	}
 
-	return &engineRepository{
-		health:         NewHealthEngineRepository(pool),
-		apiToken:       NewEngineTokenRepository(pool, opts.v, opts.l, opts.cache),
-		dispatcher:     NewDispatcherRepository(pool, opts.v, opts.l),
-		event:          NewEventEngineRepository(pool, opts.v, opts.l, opts.metered),
-		getGroupKeyRun: NewGetGroupKeyRunRepository(pool, opts.v, opts.l),
-		jobRun:         NewJobRunEngineRepository(pool, opts.v, opts.l),
-		stepRun:        NewStepRunEngineRepository(queuePool, opts.v, opts.l, cf),
-		step:           NewStepRepository(pool, opts.v, opts.l),
-		tenant:         NewTenantEngineRepository(pool, opts.v, opts.l, opts.cache),
-		tenantAlerting: NewTenantAlertingEngineRepository(pool, opts.v, opts.l, opts.cache),
-		ticker:         NewTickerRepository(pool, opts.v, opts.l),
-		worker:         NewWorkerEngineRepository(pool, opts.v, opts.l, opts.metered),
-		workflow:       NewWorkflowEngineRepository(pool, opts.v, opts.l, opts.metered),
-		workflowRun:    NewWorkflowRunEngineRepository(pool, opts.v, opts.l, opts.metered),
-		streamEvent:    NewStreamEventsEngineRepository(pool, opts.v, opts.l),
-		log:            NewLogEngineRepository(pool, opts.v, opts.l),
-		rateLimit:      NewRateLimitEngineRepository(pool, opts.v, opts.l),
-		webhookWorker:  NewWebhookWorkerEngineRepository(pool, opts.v, opts.l),
-	}
+	rlCache := cache.New(5 * time.Minute)
+
+	return func() error {
+			rlCache.Stop()
+			return nil
+		}, &engineRepository{
+			health:         NewHealthEngineRepository(pool),
+			apiToken:       NewEngineTokenRepository(pool, opts.v, opts.l, opts.cache),
+			dispatcher:     NewDispatcherRepository(pool, opts.v, opts.l),
+			event:          NewEventEngineRepository(pool, opts.v, opts.l, opts.metered),
+			getGroupKeyRun: NewGetGroupKeyRunRepository(pool, opts.v, opts.l),
+			jobRun:         NewJobRunEngineRepository(pool, opts.v, opts.l),
+			stepRun:        NewStepRunEngineRepository(queuePool, opts.v, opts.l, cf, rlCache),
+			step:           NewStepRepository(pool, opts.v, opts.l),
+			tenant:         NewTenantEngineRepository(pool, opts.v, opts.l, opts.cache),
+			tenantAlerting: NewTenantAlertingEngineRepository(pool, opts.v, opts.l, opts.cache),
+			ticker:         NewTickerRepository(pool, opts.v, opts.l),
+			worker:         NewWorkerEngineRepository(pool, opts.v, opts.l, opts.metered),
+			workflow:       NewWorkflowEngineRepository(pool, opts.v, opts.l, opts.metered),
+			workflowRun:    NewWorkflowRunEngineRepository(pool, opts.v, opts.l, opts.metered),
+			streamEvent:    NewStreamEventsEngineRepository(pool, opts.v, opts.l),
+			log:            NewLogEngineRepository(pool, opts.v, opts.l),
+			rateLimit:      NewRateLimitEngineRepository(pool, opts.v, opts.l),
+			webhookWorker:  NewWebhookWorkerEngineRepository(pool, opts.v, opts.l),
+		}
 }
 
 type entitlementRepository struct {

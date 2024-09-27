@@ -266,7 +266,7 @@ type stepRunEngineRepository struct {
 	callbacks                []repository.Callback[*dbsqlc.ResolveWorkflowRunStatusRow]
 }
 
-func NewStepRunEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, cf *server.ConfigFileRuntime) repository.StepRunEngineRepository {
+func NewStepRunEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, cf *server.ConfigFileRuntime, rlCache *cache.Cache) repository.StepRunEngineRepository {
 	queries := dbsqlc.New()
 
 	return &stepRunEngineRepository{
@@ -275,7 +275,7 @@ func NewStepRunEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *ze
 		l:                        l,
 		queries:                  queries,
 		cf:                       cf,
-		cachedStepIdHasRateLimit: cache.New(5 * time.Minute),
+		cachedStepIdHasRateLimit: rlCache,
 	}
 }
 
