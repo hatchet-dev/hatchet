@@ -135,6 +135,8 @@ func getErrorStr(errObj *ValidationErrObject) string {
 		return errObj.SafeExternalError(DurationErr)
 	case "celworkflowrunstr":
 		return errObj.SafeExternalError(CELExprErr)
+	case "celsteprunstr":
+		return errObj.SafeExternalError(CELExprErr)
 	default:
 		return errObj.SafeExternalError("")
 	}

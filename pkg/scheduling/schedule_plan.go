@@ -1,13 +1,17 @@
 package scheduling
 
 import (
-	"time"
-
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 )
+
+type RateLimitedResult struct {
+	StepRuns []pgtype.UUID
+	Keys     []string
+	Units    []int32
+}
 
 type SchedulePlan struct {
 	StepRunIds             []pgtype.UUID
@@ -17,8 +21,7 @@ type SchedulePlan struct {
 	UnassignedStepRunIds   []pgtype.UUID
 	QueuedStepRuns         []repository.QueuedStepRun
 	TimedOutStepRuns       []pgtype.UUID
-	RateLimitedStepRuns    []pgtype.UUID
-	RateLimitedQueues      map[string][]time.Time
+	RateLimitedStepRuns    RateLimitedResult
 	QueuedItems            []int64
 	ShouldContinue         bool
 	MinQueuedIds           map[string]int64
@@ -56,8 +59,10 @@ func (plan *SchedulePlan) HandleUnassigned(qi *QueueItemWithOrder) {
 	plan.unassignedActions[qi.ActionId.String] = struct{}{}
 }
 
-func (plan *SchedulePlan) HandleRateLimited(qi *QueueItemWithOrder) {
-	plan.RateLimitedStepRuns = append(plan.RateLimitedStepRuns, qi.StepRunId)
+func (plan *SchedulePlan) HandleRateLimited(qi *QueueItemWithOrder, key string, units int32) {
+	plan.RateLimitedStepRuns.StepRuns = append(plan.RateLimitedStepRuns.StepRuns, qi.StepRunId)
+	plan.RateLimitedStepRuns.Keys = append(plan.RateLimitedStepRuns.Keys, key)
+	plan.RateLimitedStepRuns.Units = append(plan.RateLimitedStepRuns.Units, units)
 }
 
 func (plan *SchedulePlan) AssignQiToSlot(qi *QueueItemWithOrder, slot *Slot) {

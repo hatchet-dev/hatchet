@@ -163,8 +163,20 @@ type CreateWorkflowStepRateLimitOpts struct {
 	// (required) the rate limit key
 	Key string `validate:"required"`
 
-	// (required) the rate limit units to consume
-	Units int
+	// (optional) a CEL expression for the rate limit key
+	KeyExpr *string `validate:"omitnil,celsteprunstr,required_without=Key"`
+
+	// (optional) the rate limit units to consume
+	Units *int `validate:"omitnil,required_without=UnitsExpr"`
+
+	// (optional) a CEL expression for the rate limit units
+	UnitsExpr *string `validate:"omitnil,celsteprunstr,required_without=Units"`
+
+	// (optional) a CEL expression for a dynamic limit value for the rate limit
+	LimitExpr *string `validate:"omitnil,celsteprunstr"`
+
+	// (optional) the rate limit duration, defaults to MINUTE
+	Duration *string `validate:"omitnil,oneof=SECOND MINUTE HOUR DAY WEEK MONTH YEAR"`
 }
 
 type ListWorkflowsOpts struct {

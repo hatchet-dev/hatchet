@@ -234,13 +234,30 @@ INSERT INTO "StepRateLimit" (
     "units",
     "stepId",
     "rateLimitKey",
-    "tenantId"
+    "tenantId",
+    "kind"
 ) VALUES (
     @units::integer,
     @stepId::uuid,
     @rateLimitKey::text,
-    @tenantId::uuid
+    @tenantId::uuid,
+    @kind
 ) RETURNING *;
+
+-- name: CreateStepExpressions :exec
+INSERT INTO "StepExpression" (
+    "key",
+    "stepId",
+    "expression",
+    "kind"
+) VALUES (
+    unnest(@keys::text[]),
+    @stepId::uuid,
+    unnest(@expressions::text[]),
+    unnest(cast(@kinds::text[] as"StepExpressionKind"[]))
+) ON CONFLICT ("key", "stepId", "kind") DO UPDATE
+SET
+    "expression" = EXCLUDED."expression";
 
 -- name: UpsertAction :one
 INSERT INTO "Action" (

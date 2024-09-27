@@ -71,6 +71,12 @@ func newValidator() *validator.Validate {
 		return err == nil
 	})
 
+	_ = validate.RegisterValidation("celsteprunstr", func(fl validator.FieldLevel) bool {
+		_, err := celParser.ParseStepRun(fl.Field().String())
+
+		return err == nil
+	})
+
 	return validate
 }
 

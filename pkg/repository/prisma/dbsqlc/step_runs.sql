@@ -8,6 +8,21 @@ WHERE
     "deletedAt" IS NULL;
 
 -- name: GetStepRunDataForEngine :one
+WITH expr_count AS (
+    SELECT
+        COUNT(*) AS "exprCount",
+        sr."id" AS "id"
+    FROM
+        "StepRun" sr
+    JOIN
+        "Step" s ON sr."stepId" = s."id"
+    JOIN
+        "StepExpression" se ON s."id" = se."stepId"
+    WHERE
+        sr."id" = @id::uuid
+    GROUP BY
+        sr."id"
+)
 SELECT
     sr."input",
     sr."output",
@@ -16,7 +31,8 @@ SELECT
     wr."additionalMetadata",
     wr."childIndex",
     wr."childKey",
-    wr."parentId"
+    wr."parentId",
+    COALESCE(ec."exprCount", 0) AS "exprCount"
 FROM
     "StepRun" sr
 JOIN
@@ -26,9 +42,59 @@ JOIN
 JOIN
     -- Take advantage of composite index on "JobRun"("workflowRunId", "tenantId")
     "WorkflowRun" wr ON jr."workflowRunId" = wr."id" AND wr."tenantId" = @tenantId::uuid
+LEFT JOIN
+    expr_count ec ON sr."id" = ec."id"
 WHERE
     sr."id" = @id::uuid AND
     sr."tenantId" = @tenantId::uuid;
+
+-- name: ListStepRunExpressionEvals :many
+SELECT
+    *
+FROM
+    "StepRunExpressionEval" sre
+WHERE
+    "stepRunId" = ANY(@stepRunIds::uuid[]);
+
+-- name: CreateStepRunExpressionEvalStrs :exec
+INSERT INTO "StepRunExpressionEval" (
+    "key",
+    "stepRunId",
+    "valueStr",
+    "kind"
+) VALUES (
+    unnest(@keys::text[]),
+    @stepRunId::uuid,
+    unnest(@valuesStr::text[]),
+    unnest(cast(@kinds::text[] as"StepExpressionKind"[]))
+) ON CONFLICT ("key", "stepRunId", "kind") DO UPDATE
+SET
+    "valueStr" = EXCLUDED."valueStr",
+    "valueInt" = EXCLUDED."valueInt";
+
+-- name: CreateStepRunExpressionEvalInts :exec
+INSERT INTO "StepRunExpressionEval" (
+    "key",
+    "stepRunId",
+    "valueInt",
+    "kind"
+) VALUES (
+    unnest(@keys::text[]),
+    @stepRunId::uuid,
+    unnest(@valuesInt::int[]),
+    unnest(cast(@kinds::text[] as"StepExpressionKind"[]))
+) ON CONFLICT ("key", "stepRunId", "kind") DO UPDATE
+SET
+    "valueStr" = EXCLUDED."valueStr",
+    "valueInt" = EXCLUDED."valueInt";
+
+-- name: GetStepExpressions :many
+SELECT
+    *
+FROM
+    "StepExpression"
+WHERE
+    "stepId" = @stepId::uuid;
 
 -- name: GetStepRunMeta :one
 SELECT
@@ -52,6 +118,7 @@ WITH child_count AS (
         "_StepRunOrder" AS step_run_order ON sr."id" = step_run_order."A"
     WHERE
         sr."id" = ANY(@ids::uuid[])
+        AND step_run_order IS NOT NULL
     GROUP BY
         sr."id"
 )
@@ -80,7 +147,7 @@ SELECT
     sr."retryCount" AS "SR_retryCount",
     sr."semaphoreReleased" AS "SR_semaphoreReleased",
     sr."priority" AS "SR_priority",
-    cc."childCount" AS "SR_childCount",
+    COALESCE(cc."childCount", 0) AS "SR_childCount",
     -- TODO: everything below this line is cacheable and should be moved to a separate query
     jr."id" AS "jobRunId",
     s."id" AS "stepId",
@@ -100,7 +167,7 @@ SELECT
     sticky."desiredWorkerId" AS "desiredWorkerId"
 FROM
     "StepRun" sr
-JOIN
+LEFT JOIN
     child_count cc ON sr."id" = cc."id"
 JOIN
     "Step" s ON sr."stepId" = s."id"
