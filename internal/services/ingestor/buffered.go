@@ -31,6 +31,8 @@ func (b *IngestBuf) buffEventWorker(ctx context.Context) {
 		select {
 		case e := <-b.eventOpsChan:
 			b.internalArr = append(b.internalArr, e)
+			b.sizeOfData += len(e.eventOps.Data)
+			b.sizeOfData += len(e.eventOps.AdditionalMetadata)
 
 			if len(b.internalArr) >= b.maxCapacity {
 				fmt.Println("Buffer is full number of messages is > ", b.maxCapacity)
