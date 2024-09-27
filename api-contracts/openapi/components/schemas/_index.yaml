@@ -80,6 +80,10 @@ EventData:
   $ref: "./event.yaml#/EventData"
 CreateEventRequest:
   $ref: "./event.yaml#/CreateEventRequest"
+BulkCreateEventRequest:
+  $ref: "./event.yaml#/BulkCreateEventRequest"
+BulkCreateEventResponse:
+  $ref: "./event.yaml#/Events"
 EventWorkflowRunSummary:
   $ref: "./event.yaml#/EventWorkflowRunSummary"
 EventOrderByField:
@@ -96,8 +100,18 @@ WorkflowID:
   $ref: "./event.yaml#/WorkflowID"
 EventList:
   $ref: "./event.yaml#/EventList"
+RateLimit:
+  $ref: "./rate_limits.yaml#/RateLimit"
+RateLimitList:
+  $ref: "./rate_limits.yaml#/RateLimitList"
+RateLimitOrderByField:
+  $ref: "./rate_limits.yaml#/RateLimitOrderByField"
+RateLimitOrderByDirection:
+  $ref: "./rate_limits.yaml#/RateLimitOrderByDirection"
 ReplayEventRequest:
   $ref: "./event.yaml#/ReplayEventRequest"
+CancelEventRequest:
+  $ref: "./event.yaml#/CancelEventRequest"
 Workflow:
   $ref: "./workflow.yaml#/Workflow"
 WorkflowUpdateRequest:
@@ -124,8 +138,12 @@ Job:
   $ref: "./workflow.yaml#/Job"
 Step:
   $ref: "./workflow.yaml#/Step"
+WorkflowWorkersCount:
+  $ref: "./workflow.yaml#/WorkflowWorkersCount"
 WorkflowRun:
   $ref: "./workflow_run.yaml#/WorkflowRun"
+WorkflowRunShape:
+  $ref: "./workflow_run.yaml#/WorkflowRunShape"
 ReplayWorkflowRunsRequest:
   $ref: "./workflow_run.yaml#/ReplayWorkflowRunsRequest"
 ReplayWorkflowRunsResponse:

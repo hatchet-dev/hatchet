@@ -94,12 +94,20 @@ paths:
     $ref: "./paths/tenant/tenant.yaml#/getQueueMetrics"
   /api/v1/tenants/{tenant}/events:
     $ref: "./paths/event/event.yaml#/withTenant"
+  /api/v1/tenants/{tenant}/events/bulk:
+    $ref: "./paths/event/event.yaml#/bulkCreateEvents"
   /api/v1/tenants/{tenant}/events/replay:
     $ref: "./paths/event/event.yaml#/replayEvents"
+  /api/v1/tenants/{tenant}/events/cancel:
+    $ref: "./paths/event/event.yaml#/cancelEvents"
+  /api/v1/tenants/{tenant}/rate-limits:
+    $ref: "./paths/rate-limits/rate_limits.yaml#/withTenant"
   /api/v1/tenants/{tenant}/members:
     $ref: "./paths/tenant/tenant.yaml#/members"
   /api/v1/tenants/{tenant}/members/{member}:
     $ref: "./paths/tenant/tenant.yaml#/member"
+  /api/v1/events/{event}:
+    $ref: "./paths/event/event.yaml#/withEvent"
   /api/v1/events/{event}/data:
     $ref: "./paths/event/event.yaml#/eventData"
   /api/v1/tenants/{tenant}/events/keys:
@@ -114,16 +122,18 @@ paths:
     $ref: "./paths/workflow/workflow.yaml#/workflowVersion"
   /api/v1/workflows/{workflow}/trigger:
     $ref: "./paths/workflow/workflow.yaml#/triggerWorkflow"
-  /api/v1/workflows/{workflow}/versions/definition:
-    $ref: "./paths/workflow/workflow.yaml#/workflowVersionDefinition"
   /api/v1/workflows/{workflow}/metrics:
     $ref: "./paths/workflow/workflow.yaml#/getMetrics"
   /api/v1/step-runs/{step-run}/logs:
     $ref: "./paths/log/log.yaml#/withStepRun"
   /api/v1/step-runs/{step-run}/events:
     $ref: "./paths/step-run/step-run.yaml#/listEvents"
+  /api/v1/tenants/{tenant}/workflow-runs/{workflow-run}/step-run-events:
+    $ref: "./paths/step-run/step-run.yaml#/listStepRunEventsForWorkflowRun"
   /api/v1/step-runs/{step-run}/archives:
     $ref: "./paths/step-run/step-run.yaml#/listArchives"
+  /api/v1/tenants/{tenant}/workflows/{workflow}/worker-count:
+    $ref: "./paths/workflow/workflow.yaml#/workflowWorkersCount"
   /api/v1/tenants/{tenant}/workflows/runs:
     $ref: "./paths/workflow/workflow.yaml#/workflowRuns"
   /api/v1/tenants/{tenant}/workflow-runs/replay:
@@ -132,6 +142,8 @@ paths:
     $ref: "./paths/workflow/workflow.yaml#/workflowRunsMetrics"
   /api/v1/tenants/{tenant}/workflow-runs/{workflow-run}:
     $ref: "./paths/workflow/workflow.yaml#/workflowRun"
+  /api/v1/tenants/{tenant}/workflow-runs/{workflow-run}/shape:
+    $ref: "./paths/workflow/workflow.yaml#/workflowRunShape"
   /api/v1/tenants/{tenant}/step-runs/{step-run}:
     $ref: "./paths/step-run/step-run.yaml#/stepRunScoped"
   /api/v1/tenants/{tenant}/step-runs/{step-run}/rerun:
@@ -150,5 +162,5 @@ paths:
     $ref: "./paths/webhook-worker/webhook-worker.yaml#/webhookworker"
   /api/v1/webhook-workers/{webhook}/requests:
     $ref: "./paths/webhook-worker/webhook-worker.yaml#/webhookworkerRequests"
-  /api/v1/workflow-runs/{workflow-run}/input:
+  /api/v1/tenants/{tenant}/workflow-runs/{workflow-run}/input:
     $ref: "./paths/workflow-run/workflow-run.yaml#/getWorkflowRunInput"

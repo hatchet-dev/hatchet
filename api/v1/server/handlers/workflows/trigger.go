@@ -15,26 +15,27 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 )
 
 func (t *WorkflowService) WorkflowRunCreate(ctx echo.Context, request gen.WorkflowRunCreateRequestObject) (gen.WorkflowRunCreateResponseObject, error) {
 	tenant := ctx.Get("tenant").(*db.TenantModel)
-	workflow := ctx.Get("workflow").(*db.WorkflowModel)
+	workflow := ctx.Get("workflow").(*dbsqlc.GetWorkflowByIdRow)
 
 	var workflowVersionId string
 
 	if request.Params.Version != nil {
 		workflowVersionId = request.Params.Version.String()
 	} else {
-		versions := workflow.Versions()
 
-		if len(versions) == 0 {
+		if !workflow.WorkflowVersionId.Valid {
 			return gen.WorkflowRunCreate400JSONResponse(
 				apierrors.NewAPIErrors("workflow has no versions"),
 			), nil
 		}
 
-		workflowVersionId = versions[0].ID
+		workflowVersionId = sqlchelpers.UUIDToStr(workflow.WorkflowVersionId)
 	}
 
 	workflowVersion, err := t.config.EngineRepository.Workflow().GetWorkflowVersionById(ctx.Request().Context(), tenant.ID, workflowVersionId)
@@ -82,7 +83,7 @@ func (t *WorkflowService) WorkflowRunCreate(ctx echo.Context, request gen.Workfl
 		return nil, err
 	}
 
-	workflowRun, err := t.config.APIRepository.WorkflowRun().CreateNewWorkflowRun(ctx.Request().Context(), tenant.ID, createOpts)
+	createdWorkflowRun, err := t.config.APIRepository.WorkflowRun().CreateNewWorkflowRun(ctx.Request().Context(), tenant.ID, createOpts)
 
 	if err == metered.ErrResourceExhausted {
 		return gen.WorkflowRunCreate429JSONResponse(
@@ -98,14 +99,23 @@ func (t *WorkflowService) WorkflowRunCreate(ctx echo.Context, request gen.Workfl
 	err = t.config.MessageQueue.AddMessage(
 		ctx.Request().Context(),
 		msgqueue.WORKFLOW_PROCESSING_QUEUE,
-		tasktypes.WorkflowRunQueuedToTask(workflowRun.TenantID, workflowRun.ID),
+		tasktypes.WorkflowRunQueuedToTask(
+			sqlchelpers.UUIDToStr(createdWorkflowRun.TenantId),
+			sqlchelpers.UUIDToStr(createdWorkflowRun.ID),
+		),
 	)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not add workflow run to queue: %w", err)
 	}
 
-	res, err := transformers.ToWorkflowRun(workflowRun)
+	workflowRun, err := t.config.APIRepository.WorkflowRun().GetWorkflowRunById(ctx.Request().Context(), tenant.ID, sqlchelpers.UUIDToStr(createdWorkflowRun.ID))
+
+	if err != nil {
+		return nil, fmt.Errorf("could not get workflow run: %w", err)
+	}
+
+	res, err := transformers.ToWorkflowRun(workflowRun, nil, nil, nil)
 
 	if err != nil {
 		return nil, err

@@ -10,9 +10,11 @@ import (
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/hatchet-dev/hatchet/internal/cel"
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/integrations/alerting"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
+	"github.com/hatchet-dev/hatchet/internal/queueutils"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/partition"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
@@ -30,14 +32,17 @@ type WorkflowsController interface {
 }
 
 type WorkflowsControllerImpl struct {
-	mq            msgqueue.MessageQueue
-	l             *zerolog.Logger
-	repo          repository.EngineRepository
-	dv            datautils.DataDecoderValidator
-	s             gocron.Scheduler
-	tenantAlerter *alerting.TenantAlertManager
-	a             *hatcheterrors.Wrapped
-	p             *partition.Partition
+	mq                       msgqueue.MessageQueue
+	l                        *zerolog.Logger
+	repo                     repository.EngineRepository
+	dv                       datautils.DataDecoderValidator
+	s                        gocron.Scheduler
+	tenantAlerter            *alerting.TenantAlertManager
+	a                        *hatcheterrors.Wrapped
+	p                        *partition.Partition
+	celParser                *cel.CELParser
+	processWorkflowEventsOps *queueutils.OperationPool
+	bumpQueueOps             *queueutils.OperationPool
 }
 
 type WorkflowsControllerOpt func(*WorkflowsControllerOpts)
@@ -140,7 +145,7 @@ func New(fs ...WorkflowsControllerOpt) (*WorkflowsControllerImpl, error) {
 	a := hatcheterrors.NewWrapped(opts.alerter)
 	a.WithData(map[string]interface{}{"service": "workflows-controller"})
 
-	return &WorkflowsControllerImpl{
+	w := &WorkflowsControllerImpl{
 		mq:            opts.mq,
 		l:             opts.l,
 		repo:          opts.repo,
@@ -149,7 +154,13 @@ func New(fs ...WorkflowsControllerOpt) (*WorkflowsControllerImpl, error) {
 		tenantAlerter: opts.ta,
 		a:             a,
 		p:             opts.p,
-	}, nil
+		celParser:     cel.NewCELParser(),
+	}
+
+	w.processWorkflowEventsOps = queueutils.NewOperationPool(w.l, time.Second*5, "process workflow events", w.processWorkflowEvents)
+	w.bumpQueueOps = queueutils.NewOperationPool(w.l, time.Second*5, "bump queue", w.runPollActiveQueuesTenant)
+
+	return w, nil
 }
 
 func (wc *WorkflowsControllerImpl) Start() (func() error, error) {
@@ -184,7 +195,7 @@ func (wc *WorkflowsControllerImpl) Start() (func() error, error) {
 	}
 
 	_, err = wc.s.NewJob(
-		gocron.DurationJob(time.Second*15),
+		gocron.DurationJob(time.Second*1),
 		gocron.NewTask(
 			wc.runPollActiveQueues(ctx),
 		),
@@ -193,6 +204,18 @@ func (wc *WorkflowsControllerImpl) Start() (func() error, error) {
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("could not poll active queues: %w", err)
+	}
+
+	_, err = wc.s.NewJob(
+		gocron.DurationJob(time.Second*1),
+		gocron.NewTask(
+			wc.runTenantProcessWorkflowRunEvents(ctx),
+		),
+	)
+
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("could not schedule process workflow run events: %w", err)
 	}
 
 	wc.s.Start()
@@ -217,10 +240,34 @@ func (wc *WorkflowsControllerImpl) Start() (func() error, error) {
 		return nil, err
 	}
 
+	f2 := func(task *msgqueue.Message) error {
+		wg.Add(1)
+		defer wg.Done()
+
+		err := wc.handlePartitionTask(context.Background(), task)
+		if err != nil {
+			wc.l.Error().Err(err).Msg("could not handle job task")
+			return wc.a.WrapErr(fmt.Errorf("could not handle job task: %w", err), map[string]interface{}{"task_id": task.ID}) // nolint: errcheck
+		}
+
+		return nil
+	}
+
+	cleanupQueue2, err := wc.mq.Subscribe(msgqueue.QueueTypeFromPartitionIDAndController(wc.p.GetControllerPartitionId(), msgqueue.WorkflowController), f2, msgqueue.NoOpHook)
+
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("could not subscribe to job processing queue: %w", err)
+	}
+
 	cleanup := func() error {
 		cancel()
 
 		if err := cleanupQueue(); err != nil {
+			return fmt.Errorf("could not cleanup queue: %w", err)
+		}
+
+		if err := cleanupQueue2(); err != nil {
 			return fmt.Errorf("could not cleanup queue: %w", err)
 		}
 
@@ -265,6 +312,64 @@ func (wc *WorkflowsControllerImpl) handleTask(ctx context.Context, task *msgqueu
 	}
 
 	return fmt.Errorf("unknown task: %s", task.ID)
+}
+
+func (wc *WorkflowsControllerImpl) handlePartitionTask(ctx context.Context, task *msgqueue.Message) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			recoverErr := recoveryutils.RecoverWithAlert(wc.l, wc.a, r)
+
+			if recoverErr != nil {
+				err = recoverErr
+			}
+		}
+	}()
+
+	if task.ID == "check-tenant-queue" {
+		return wc.handleCheckQueue(ctx, task)
+	}
+
+	return fmt.Errorf("unknown task: %s", task.ID)
+}
+
+func (wc *WorkflowsControllerImpl) handleCheckQueue(ctx context.Context, task *msgqueue.Message) error {
+	_, span := telemetry.NewSpanWithCarrier(ctx, "handle-check-queue", task.OtelCarrier)
+	defer span.End()
+
+	metadata := tasktypes.CheckTenantQueueMetadata{}
+
+	err := wc.dv.DecodeAndValidate(task.Metadata, &metadata)
+
+	if err != nil {
+		return fmt.Errorf("could not decode check queue metadata: %w", err)
+	}
+
+	// if this tenant is registered, then we should check the queue
+	wc.bumpQueueOps.RunOrContinue(metadata.TenantId)
+
+	return nil
+}
+
+func (wc *WorkflowsControllerImpl) checkTenantQueue(ctx context.Context, tenantId string) {
+	// send a message to the tenant partition queue that a step run is ready to be scheduled
+	tenant, err := wc.repo.Tenant().GetTenantByID(ctx, tenantId)
+
+	if err != nil {
+		wc.l.Err(err).Msg("could not add message to tenant partition queue")
+		return
+	}
+
+	if tenant.ControllerPartitionId.Valid {
+		err = wc.mq.AddMessage(
+			ctx,
+			msgqueue.QueueTypeFromPartitionIDAndController(tenant.ControllerPartitionId.String, msgqueue.WorkflowController),
+			tasktypes.CheckTenantQueueToTask(tenantId),
+		)
+
+		if err != nil {
+			wc.l.Err(err).Msg("could not add message to tenant partition queue")
+		}
+	}
 }
 
 func (wc *WorkflowsControllerImpl) handleReplayWorkflowRun(ctx context.Context, task *msgqueue.Message) error {
@@ -360,7 +465,7 @@ func (wc *WorkflowsControllerImpl) handleGroupKeyRunFinished(ctx context.Context
 		return fmt.Errorf("could not parse started at: %w", err)
 	}
 
-	groupKeyRun, err := wc.repo.GetGroupKeyRun().UpdateGetGroupKeyRun(ctx, metadata.TenantId, payload.GetGroupKeyRunId, &repository.UpdateGetGroupKeyRunOpts{
+	_, err = wc.repo.GetGroupKeyRun().UpdateGetGroupKeyRun(ctx, metadata.TenantId, payload.GetGroupKeyRunId, &repository.UpdateGetGroupKeyRunOpts{
 		FinishedAt: &finishedAt,
 		Status:     repository.StepRunStatusPtr(db.StepRunStatusSucceeded),
 		Output:     &payload.GroupKey,
@@ -370,56 +475,60 @@ func (wc *WorkflowsControllerImpl) handleGroupKeyRunFinished(ctx context.Context
 		return fmt.Errorf("could not update group key run: %w", err)
 	}
 
-	errGroup := new(errgroup.Group)
+	wc.checkTenantQueue(ctx, metadata.TenantId)
 
-	errGroup.Go(func() error {
-		workflowVersionId := sqlchelpers.UUIDToStr(groupKeyRun.WorkflowVersionId)
-
-		err := wc.bumpQueue(ctx, metadata.TenantId, workflowVersionId, &payload.GroupKey)
-
-		return err
-	})
-
-	return errGroup.Wait()
+	return nil
 }
 
 func (wc *WorkflowsControllerImpl) runPollActiveQueues(ctx context.Context) func() {
 	return func() {
-
 		wc.l.Debug().Msg("polling active queues")
 
-		toQueueList, err := wc.repo.WorkflowRun().ListActiveQueuedWorkflowVersions(ctx)
+		// list all tenants
+		tenants, err := wc.repo.Tenant().ListTenantsByControllerPartition(ctx, wc.p.GetControllerPartitionId())
 
 		if err != nil {
-			wc.l.Error().Err(err).Msg("could not list active queued workflow versions")
+			wc.l.Err(err).Msg("could not list tenants")
 			return
 		}
 
-		errGroup := new(errgroup.Group)
-
-		for i := range toQueueList {
-			toQueue := toQueueList[i]
-			errGroup.Go(func() error {
-				workflowVersionId := sqlchelpers.UUIDToStr(toQueue.WorkflowVersionId)
-				tenantId := sqlchelpers.UUIDToStr(toQueue.TenantId)
-				var key *string
-				if toQueue.ConcurrencyGroupId.Valid {
-					key = &toQueue.ConcurrencyGroupId.String
-				}
-				err := wc.bumpQueue(ctx, tenantId, workflowVersionId, key)
-				return err
-			})
-		}
-
-		err = errGroup.Wait()
-
-		if err != nil {
-			wc.l.Error().Err(err)
+		for i := range tenants {
+			tenantId := sqlchelpers.UUIDToStr(tenants[i].ID)
+			wc.bumpQueueOps.RunOrContinue(tenantId)
 		}
 	}
 }
-func (wc *WorkflowsControllerImpl) bumpQueue(ctx context.Context, tenantId string, workflowVersionId string, groupKey *string) error {
 
+func (wc *WorkflowsControllerImpl) runPollActiveQueuesTenant(ctx context.Context, tenantId string) (bool, error) {
+	wc.l.Debug().Msgf("polling active queues for tenant: %s", tenantId)
+
+	toQueueList, err := wc.repo.WorkflowRun().ListActiveQueuedWorkflowVersions(ctx, tenantId)
+
+	if err != nil {
+		wc.l.Error().Err(err).Msgf("could not list active queued workflow versions for tenant: %s", tenantId)
+		return false, err
+	}
+
+	errGroup := new(errgroup.Group)
+
+	for i := range toQueueList {
+		toQueue := toQueueList[i]
+		errGroup.Go(func() error {
+			workflowVersionId := sqlchelpers.UUIDToStr(toQueue.WorkflowVersionId)
+			tenantId := sqlchelpers.UUIDToStr(toQueue.TenantId)
+			var key *string
+			if toQueue.ConcurrencyGroupId.Valid {
+				key = &toQueue.ConcurrencyGroupId.String
+			}
+			err := wc.bumpQueue(ctx, tenantId, workflowVersionId, key)
+			return err
+		})
+	}
+
+	return false, errGroup.Wait()
+}
+
+func (wc *WorkflowsControllerImpl) bumpQueue(ctx context.Context, tenantId string, workflowVersionId string, groupKey *string) error {
 	workflowVersion, err := wc.repo.Workflow().GetWorkflowVersionById(ctx, tenantId, workflowVersionId)
 
 	if err != nil {
@@ -530,4 +639,40 @@ func (wc *WorkflowsControllerImpl) cancelGetGroupKeyRun(ctx context.Context, ten
 	}
 
 	return wc.cancelWorkflowRunJobs(ctx, workflowRun)
+}
+
+func (wc *WorkflowsControllerImpl) runTenantProcessWorkflowRunEvents(ctx context.Context) func() {
+	return func() {
+		wc.l.Debug().Msgf("partition: processing workflow run events")
+
+		// list all tenants
+		tenants, err := wc.repo.Tenant().ListTenantsByControllerPartition(ctx, wc.p.GetControllerPartitionId())
+
+		if err != nil {
+			wc.l.Err(err).Msg("could not list tenants")
+			return
+		}
+
+		for i := range tenants {
+			tenantId := sqlchelpers.UUIDToStr(tenants[i].ID)
+
+			wc.processWorkflowEventsOps.RunOrContinue(tenantId)
+		}
+	}
+}
+
+func (wc *WorkflowsControllerImpl) processWorkflowEvents(ctx context.Context, tenantId string) (bool, error) {
+	ctx, span := telemetry.NewSpan(ctx, "process-workflow-events")
+	defer span.End()
+
+	dbCtx, cancel := context.WithTimeout(ctx, 300*time.Second)
+	defer cancel()
+
+	res, err := wc.repo.WorkflowRun().ProcessWorkflowRunUpdates(dbCtx, tenantId)
+
+	if err != nil {
+		return false, fmt.Errorf("could not process step run updates: %w", err)
+	}
+
+	return res, nil
 }

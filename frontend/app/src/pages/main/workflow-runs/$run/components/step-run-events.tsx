@@ -205,6 +205,9 @@ const REASON_TO_TITLE: Record<StepRunEventReason, string> = {
   [StepRunEventReason.TIMED_OUT]: 'Execution timed out',
   [StepRunEventReason.SLOT_RELEASED]: 'Slot released',
   [StepRunEventReason.RETRIED_BY_USER]: 'Replayed by user',
+  [StepRunEventReason.WORKFLOW_RUN_GROUP_KEY_SUCCEEDED]:
+    'Successfully got group key',
+  [StepRunEventReason.WORKFLOW_RUN_GROUP_KEY_FAILED]: 'Failed to get group key',
 };
 
 function getTitleFromReason(reason: StepRunEventReason, message: string) {
@@ -309,5 +312,6 @@ function createStepRunArchive(stepRun: StepRun, order: number): StepRunArchive {
     cancelledAtEpoch: stepRun.cancelledAtEpoch,
     cancelledReason: stepRun.cancelledReason,
     cancelledError: stepRun.cancelledError,
+    retryCount: 0,
   };
 }

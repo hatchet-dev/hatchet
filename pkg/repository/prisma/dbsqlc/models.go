@@ -60,6 +60,7 @@ type InternalQueue string
 const (
 	InternalQueueWORKERSEMAPHORECOUNT InternalQueue = "WORKER_SEMAPHORE_COUNT"
 	InternalQueueSTEPRUNUPDATE        InternalQueue = "STEP_RUN_UPDATE"
+	InternalQueueWORKFLOWRUNUPDATE    InternalQueue = "WORKFLOW_RUN_UPDATE"
 )
 
 func (e *InternalQueue) Scan(src interface{}) error {
@@ -316,24 +317,113 @@ func (ns NullLogLineLevel) Value() (driver.Value, error) {
 	return string(ns.LogLineLevel), nil
 }
 
+type StepExpressionKind string
+
+const (
+	StepExpressionKindDYNAMICRATELIMITKEY    StepExpressionKind = "DYNAMIC_RATE_LIMIT_KEY"
+	StepExpressionKindDYNAMICRATELIMITVALUE  StepExpressionKind = "DYNAMIC_RATE_LIMIT_VALUE"
+	StepExpressionKindDYNAMICRATELIMITUNITS  StepExpressionKind = "DYNAMIC_RATE_LIMIT_UNITS"
+	StepExpressionKindDYNAMICRATELIMITWINDOW StepExpressionKind = "DYNAMIC_RATE_LIMIT_WINDOW"
+)
+
+func (e *StepExpressionKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = StepExpressionKind(s)
+	case string:
+		*e = StepExpressionKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for StepExpressionKind: %T", src)
+	}
+	return nil
+}
+
+type NullStepExpressionKind struct {
+	StepExpressionKind StepExpressionKind `json:"StepExpressionKind"`
+	Valid              bool               `json:"valid"` // Valid is true if StepExpressionKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullStepExpressionKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.StepExpressionKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.StepExpressionKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullStepExpressionKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.StepExpressionKind), nil
+}
+
+type StepRateLimitKind string
+
+const (
+	StepRateLimitKindSTATIC  StepRateLimitKind = "STATIC"
+	StepRateLimitKindDYNAMIC StepRateLimitKind = "DYNAMIC"
+)
+
+func (e *StepRateLimitKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = StepRateLimitKind(s)
+	case string:
+		*e = StepRateLimitKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for StepRateLimitKind: %T", src)
+	}
+	return nil
+}
+
+type NullStepRateLimitKind struct {
+	StepRateLimitKind StepRateLimitKind `json:"StepRateLimitKind"`
+	Valid             bool              `json:"valid"` // Valid is true if StepRateLimitKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullStepRateLimitKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.StepRateLimitKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.StepRateLimitKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullStepRateLimitKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.StepRateLimitKind), nil
+}
+
 type StepRunEventReason string
 
 const (
-	StepRunEventReasonREQUEUEDNOWORKER   StepRunEventReason = "REQUEUED_NO_WORKER"
-	StepRunEventReasonREQUEUEDRATELIMIT  StepRunEventReason = "REQUEUED_RATE_LIMIT"
-	StepRunEventReasonSCHEDULINGTIMEDOUT StepRunEventReason = "SCHEDULING_TIMED_OUT"
-	StepRunEventReasonASSIGNED           StepRunEventReason = "ASSIGNED"
-	StepRunEventReasonSTARTED            StepRunEventReason = "STARTED"
-	StepRunEventReasonFINISHED           StepRunEventReason = "FINISHED"
-	StepRunEventReasonFAILED             StepRunEventReason = "FAILED"
-	StepRunEventReasonRETRYING           StepRunEventReason = "RETRYING"
-	StepRunEventReasonCANCELLED          StepRunEventReason = "CANCELLED"
-	StepRunEventReasonTIMEDOUT           StepRunEventReason = "TIMED_OUT"
-	StepRunEventReasonREASSIGNED         StepRunEventReason = "REASSIGNED"
-	StepRunEventReasonSLOTRELEASED       StepRunEventReason = "SLOT_RELEASED"
-	StepRunEventReasonTIMEOUTREFRESHED   StepRunEventReason = "TIMEOUT_REFRESHED"
-	StepRunEventReasonRETRIEDBYUSER      StepRunEventReason = "RETRIED_BY_USER"
-	StepRunEventReasonSENTTOWORKER       StepRunEventReason = "SENT_TO_WORKER"
+	StepRunEventReasonREQUEUEDNOWORKER             StepRunEventReason = "REQUEUED_NO_WORKER"
+	StepRunEventReasonREQUEUEDRATELIMIT            StepRunEventReason = "REQUEUED_RATE_LIMIT"
+	StepRunEventReasonSCHEDULINGTIMEDOUT           StepRunEventReason = "SCHEDULING_TIMED_OUT"
+	StepRunEventReasonASSIGNED                     StepRunEventReason = "ASSIGNED"
+	StepRunEventReasonSTARTED                      StepRunEventReason = "STARTED"
+	StepRunEventReasonFINISHED                     StepRunEventReason = "FINISHED"
+	StepRunEventReasonFAILED                       StepRunEventReason = "FAILED"
+	StepRunEventReasonRETRYING                     StepRunEventReason = "RETRYING"
+	StepRunEventReasonCANCELLED                    StepRunEventReason = "CANCELLED"
+	StepRunEventReasonTIMEDOUT                     StepRunEventReason = "TIMED_OUT"
+	StepRunEventReasonREASSIGNED                   StepRunEventReason = "REASSIGNED"
+	StepRunEventReasonSLOTRELEASED                 StepRunEventReason = "SLOT_RELEASED"
+	StepRunEventReasonTIMEOUTREFRESHED             StepRunEventReason = "TIMEOUT_REFRESHED"
+	StepRunEventReasonRETRIEDBYUSER                StepRunEventReason = "RETRIED_BY_USER"
+	StepRunEventReasonSENTTOWORKER                 StepRunEventReason = "SENT_TO_WORKER"
+	StepRunEventReasonWORKFLOWRUNGROUPKEYSUCCEEDED StepRunEventReason = "WORKFLOW_RUN_GROUP_KEY_SUCCEEDED"
+	StepRunEventReasonWORKFLOWRUNGROUPKEYFAILED    StepRunEventReason = "WORKFLOW_RUN_GROUP_KEY_FAILED"
+	StepRunEventReasonRATELIMITERROR               StepRunEventReason = "RATE_LIMIT_ERROR"
 )
 
 func (e *StepRunEventReason) Scan(src interface{}) error {
@@ -1031,7 +1121,6 @@ type SecurityCheckIdent struct {
 }
 
 type SemaphoreQueueItem struct {
-	ID        int64       `json:"id"`
 	StepRunId pgtype.UUID `json:"stepRunId"`
 	WorkerId  pgtype.UUID `json:"workerId"`
 	TenantId  pgtype.UUID `json:"tenantId"`
@@ -1093,16 +1182,24 @@ type StepDesiredWorkerLabel struct {
 	Weight     int32                 `json:"weight"`
 }
 
+type StepExpression struct {
+	Key        string             `json:"key"`
+	StepId     pgtype.UUID        `json:"stepId"`
+	Expression string             `json:"expression"`
+	Kind       StepExpressionKind `json:"kind"`
+}
+
 type StepOrder struct {
 	A pgtype.UUID `json:"A"`
 	B pgtype.UUID `json:"B"`
 }
 
 type StepRateLimit struct {
-	Units        int32       `json:"units"`
-	StepId       pgtype.UUID `json:"stepId"`
-	RateLimitKey string      `json:"rateLimitKey"`
-	TenantId     pgtype.UUID `json:"tenantId"`
+	Units        int32             `json:"units"`
+	StepId       pgtype.UUID       `json:"stepId"`
+	RateLimitKey string            `json:"rateLimitKey"`
+	TenantId     pgtype.UUID       `json:"tenantId"`
+	Kind         StepRateLimitKind `json:"kind"`
 }
 
 type StepRun struct {
@@ -1147,6 +1244,15 @@ type StepRunEvent struct {
 	Message       string               `json:"message"`
 	Count         int32                `json:"count"`
 	Data          []byte               `json:"data"`
+	WorkflowRunId pgtype.UUID          `json:"workflowRunId"`
+}
+
+type StepRunExpressionEval struct {
+	Key       string             `json:"key"`
+	StepRunId pgtype.UUID        `json:"stepRunId"`
+	ValueStr  pgtype.Text        `json:"valueStr"`
+	ValueInt  pgtype.Int4        `json:"valueInt"`
+	Kind      StepExpressionKind `json:"kind"`
 }
 
 type StepRunOrder struct {
@@ -1170,6 +1276,7 @@ type StepRunResultArchive struct {
 	CancelledAt     pgtype.Timestamp `json:"cancelledAt"`
 	CancelledReason pgtype.Text      `json:"cancelledReason"`
 	CancelledError  pgtype.Text      `json:"cancelledError"`
+	RetryCount      int32            `json:"retryCount"`
 }
 
 type StreamEvent struct {
@@ -1408,13 +1515,14 @@ type Workflow struct {
 }
 
 type WorkflowConcurrency struct {
-	ID                    pgtype.UUID              `json:"id"`
-	CreatedAt             pgtype.Timestamp         `json:"createdAt"`
-	UpdatedAt             pgtype.Timestamp         `json:"updatedAt"`
-	WorkflowVersionId     pgtype.UUID              `json:"workflowVersionId"`
-	GetConcurrencyGroupId pgtype.UUID              `json:"getConcurrencyGroupId"`
-	MaxRuns               int32                    `json:"maxRuns"`
-	LimitStrategy         ConcurrencyLimitStrategy `json:"limitStrategy"`
+	ID                         pgtype.UUID              `json:"id"`
+	CreatedAt                  pgtype.Timestamp         `json:"createdAt"`
+	UpdatedAt                  pgtype.Timestamp         `json:"updatedAt"`
+	WorkflowVersionId          pgtype.UUID              `json:"workflowVersionId"`
+	GetConcurrencyGroupId      pgtype.UUID              `json:"getConcurrencyGroupId"`
+	MaxRuns                    int32                    `json:"maxRuns"`
+	LimitStrategy              ConcurrencyLimitStrategy `json:"limitStrategy"`
+	ConcurrencyGroupExpression pgtype.Text              `json:"concurrencyGroupExpression"`
 }
 
 type WorkflowRun struct {
@@ -1435,7 +1543,7 @@ type WorkflowRun struct {
 	ParentId           pgtype.UUID       `json:"parentId"`
 	ParentStepRunId    pgtype.UUID       `json:"parentStepRunId"`
 	AdditionalMetadata []byte            `json:"additionalMetadata"`
-	Duration           pgtype.Int4       `json:"duration"`
+	Duration           pgtype.Int8       `json:"duration"`
 	Priority           pgtype.Int4       `json:"priority"`
 }
 

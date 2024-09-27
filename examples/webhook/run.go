@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/hatchet-dev/hatchet/pkg/client"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 )
 
@@ -78,61 +77,7 @@ func run(
 		return fmt.Errorf("error pushing event: %w", err)
 	}
 
-	// TODO test for assigned status before it is started
-	//time.Sleep(2 * time.Second)
-	//verifyStepRuns(client, c.TenantId(), db.JobRunStatusRunning, db.StepRunStatusAssigned, nil)
-
 	time.Sleep(5 * time.Second)
 
 	return nil
-}
-
-func verifyStepRuns(prisma *db.PrismaClient, event string, tenantId string, jobRunStatus db.JobRunStatus, stepRunStatus db.StepRunStatus, check func(string)) {
-	events, err := prisma.Event.FindMany(
-		db.Event.TenantID.Equals(tenantId),
-		db.Event.Key.Equals(event),
-	).With(
-		db.Event.WorkflowRuns.Fetch().With(
-			db.WorkflowRunTriggeredBy.Parent.Fetch().With(
-				db.WorkflowRun.JobRuns.Fetch().With(
-					db.JobRun.StepRuns.Fetch(),
-				),
-			),
-		),
-	).Exec(context.Background())
-	if err != nil {
-		panic(fmt.Errorf("error finding events: %w", err))
-	}
-
-	if len(events) == 0 {
-		panic(fmt.Errorf("no events found"))
-	}
-
-	for _, event := range events {
-		if len(event.WorkflowRuns()) == 0 {
-			panic(fmt.Errorf("no workflow runs found"))
-		}
-		for _, workflowRun := range event.WorkflowRuns() {
-			if len(workflowRun.Parent().JobRuns()) == 0 {
-				panic(fmt.Errorf("no job runs found"))
-			}
-			for _, jobRuns := range workflowRun.Parent().JobRuns() {
-				if jobRuns.Status != jobRunStatus {
-					panic(fmt.Errorf("expected job run to be %s, got %s", jobRunStatus, jobRuns.Status))
-				}
-				for _, stepRun := range jobRuns.StepRuns() {
-					if stepRun.Status != stepRunStatus {
-						panic(fmt.Errorf("expected step run to be %s, got %s", stepRunStatus, stepRun.Status))
-					}
-					output, ok := stepRun.Output()
-					if check != nil {
-						if !ok {
-							panic(fmt.Errorf("expected step run to have output, got %+v", stepRun))
-						}
-						check(string(output))
-					}
-				}
-			}
-		}
-	}
 }

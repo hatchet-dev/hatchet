@@ -53,9 +53,10 @@ enum ConcurrencyLimitStrategy {
 }
 
 message WorkflowConcurrencyOpts {
-    string action = 1; // (required) the action id for getting the concurrency group
-    int32 max_runs = 2; // (optional) the maximum number of concurrent workflow runs, default 1
-    ConcurrencyLimitStrategy limit_strategy = 3; // (optional) the strategy to use when the concurrency limit is reached, default CANCEL_IN_PROGRESS
+    optional string action = 1; // (optional) the action id for getting the concurrency group
+    optional int32 max_runs = 2; // (optional) the maximum number of concurrent workflow runs, default 1
+    optional ConcurrencyLimitStrategy limit_strategy = 3; // (optional) the strategy to use when the concurrency limit is reached, default CANCEL_IN_PROGRESS
+    optional string expression = 4; // (optional) the expression to use for concurrency
 }
 
 // CreateWorkflowJobOpts represents options to create a workflow job.
@@ -116,7 +117,11 @@ message CreateWorkflowStepOpts {
 
 message CreateStepRateLimit {
     string key = 1; // (required) the key for the rate limit
-    int32 units = 2; // (required) the number of units this step consumes
+    optional int32 units = 2; // (optional) the number of units this step consumes
+    optional string key_expr = 3; // (optional) a CEL expression for determining the rate limit key
+    optional string units_expr = 4; // (optional) a CEL expression for determining the number of units consumed
+    optional string limit_values_expr = 5; // (optional) a CEL expression for determining the total amount of rate limit units
+    optional RateLimitDuration duration = 6; // (optional) the default rate limit window to use for dynamic rate limits
 }
 
 // ListWorkflowsRequest is the request for ListWorkflows.

@@ -2,14 +2,16 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/digest"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 )
+
+var ErrDagParentNotFound = errors.New("dag parent not found")
 
 type CreateWorkflowVersionOpts struct {
 	// (required) the workflow name
@@ -57,14 +59,17 @@ type CreateWorkflowVersionOpts struct {
 }
 
 type CreateWorkflowConcurrencyOpts struct {
-	// (required) the action id for getting the concurrency group
-	Action string `validate:"required,actionId"`
+	// (optional) the action id for getting the concurrency group
+	Action *string `validate:"omitempty,actionId"`
 
 	// (optional) the maximum number of concurrent workflow runs, default 1
 	MaxRuns *int32
 
 	// (optional) the strategy to use when the concurrency limit is reached, default CANCEL_IN_PROGRESS
 	LimitStrategy *string `validate:"omitnil,oneof=CANCEL_IN_PROGRESS DROP_NEWEST QUEUE_NEWEST GROUP_ROUND_ROBIN"`
+
+	// (optional) a concurrency expression for evaluating the concurrency key
+	Expression *string `validate:"omitempty,celworkflowrunstr"`
 }
 
 func (o *CreateWorkflowVersionOpts) Checksum() (string, error) {
@@ -161,8 +166,20 @@ type CreateWorkflowStepRateLimitOpts struct {
 	// (required) the rate limit key
 	Key string `validate:"required"`
 
-	// (required) the rate limit units to consume
-	Units int
+	// (optional) a CEL expression for the rate limit key
+	KeyExpr *string `validate:"omitnil,celsteprunstr,required_without=Key"`
+
+	// (optional) the rate limit units to consume
+	Units *int `validate:"omitnil,required_without=UnitsExpr"`
+
+	// (optional) a CEL expression for the rate limit units
+	UnitsExpr *string `validate:"omitnil,celsteprunstr,required_without=Units"`
+
+	// (optional) a CEL expression for a dynamic limit value for the rate limit
+	LimitExpr *string `validate:"omitnil,celsteprunstr"`
+
+	// (optional) the rate limit duration, defaults to MINUTE
+	Duration *string `validate:"omitnil,oneof=SECOND MINUTE HOUR DAY WEEK MONTH YEAR"`
 }
 
 type ListWorkflowsOpts struct {
@@ -226,14 +243,15 @@ type WorkflowAPIRepository interface {
 	ListWorkflows(tenantId string, opts *ListWorkflowsOpts) (*ListWorkflowsResult, error)
 
 	// GetWorkflowById returns a workflow by its name. It will return db.ErrNotFound if the workflow does not exist.
-	GetWorkflowById(workflowId string) (*db.WorkflowModel, error)
-
-	// GetWorkflowByName returns a workflow by its name. It will return db.ErrNotFound if the workflow does not exist.
-	GetWorkflowByName(tenantId, workflowName string) (*db.WorkflowModel, error)
+	GetWorkflowById(context context.Context, workflowId string) (*dbsqlc.GetWorkflowByIdRow, error)
 
 	// GetWorkflowVersionById returns a workflow version by its id. It will return db.ErrNotFound if the workflow
 	// version does not exist.
-	GetWorkflowVersionById(tenantId, workflowId string) (*db.WorkflowVersionModel, error)
+	GetWorkflowVersionById(tenantId, workflowVersionId string) (*dbsqlc.GetWorkflowVersionByIdRow,
+		[]*dbsqlc.WorkflowTriggerCronRef,
+		[]*dbsqlc.WorkflowTriggerEventRef,
+		[]*dbsqlc.WorkflowTriggerScheduledRef,
+		error)
 
 	// DeleteWorkflow deletes a workflow for a given tenant.
 	DeleteWorkflow(tenantId, workflowId string) (*dbsqlc.Workflow, error)
@@ -243,6 +261,9 @@ type WorkflowAPIRepository interface {
 
 	// UpdateWorkflow updates a workflow for a given tenant.
 	UpdateWorkflow(tenantId, workflowId string, opts *UpdateWorkflowOpts) (*dbsqlc.Workflow, error)
+
+	// GetWorkflowWorkerCount returns the number of workers for a given workflow.
+	GetWorkflowWorkerCount(tenantId, workflowId string) (int, int, error)
 }
 
 type WorkflowEngineRepository interface {

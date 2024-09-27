@@ -49,6 +49,18 @@ VALUES
         sqlc.narg('desiredWorkerId')::uuid
     );
 
+-- name: GetQueuedCounts :many
+SELECT
+    "queue",
+    COUNT(*) AS "count"
+FROM
+    "QueueItem" qi
+WHERE
+    qi."isQueued" = true
+    AND qi."tenantId" = @tenantId::uuid
+GROUP BY
+    qi."queue";
+
 -- name: GetMinMaxProcessedQueueItems :one
 SELECT
     COALESCE(MIN("id"), 0)::bigint AS "minId",
@@ -260,49 +272,6 @@ AND
     AND "id" <= @maxId::bigint
     AND "tenantId" = @tenantId::uuid;
 
--- name: CreateSemaphoreQueueItemsBulk :exec
-INSERT INTO
-    "SemaphoreQueueItem" (
-        "stepRunId",
-        "workerId",
-        "tenantId"
-    )
-SELECT
-    input."stepRunId",
-    input."workerId",
-    @tenantId::uuid
-FROM (
-    SELECT
-        unnest(@stepRunIds::uuid[]) AS "stepRunId",
-        unnest(@workerIds::uuid[]) AS "workerId"
-) AS input
-ON CONFLICT DO NOTHING;
-
--- name: RemoveSemaphoreQueueItem :exec
-DELETE FROM
-    "SemaphoreQueueItem"
-WHERE
-    "stepRunId" = @stepRunId::uuid
-    AND "workerId" = @workerId::uuid;
-
--- name: BulkReleaseSemaphoreQueueItems :exec
-WITH input_tuples AS (
-    SELECT
-        unnest(@stepRunIds::uuid[]) AS "stepRunId",
-        unnest(@workerIds::uuid[]) AS "workerId"
-), items AS (
-    SELECT
-        qi."id"
-    FROM
-        input_tuples it
-    JOIN
-        "SemaphoreQueueItem" qi ON qi."stepRunId" = it."stepRunId" AND qi."workerId" = it."workerId"
-)
-DELETE FROM
-    "SemaphoreQueueItem"
-WHERE
-    "id" IN (SELECT "id" FROM items);
-
 -- name: ListAvailableSlotsForWorkers :many
 WITH worker_max_runs AS (
     SELECT
@@ -316,7 +285,7 @@ WITH worker_max_runs AS (
 ), worker_filled_slots AS (
     SELECT
         "workerId",
-        COUNT("id") AS "filledSlots"
+        COUNT("stepRunId") AS "filledSlots"
     FROM
         "SemaphoreQueueItem"
     WHERE

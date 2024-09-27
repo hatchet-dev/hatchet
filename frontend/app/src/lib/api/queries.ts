@@ -5,11 +5,15 @@ import invariant from 'tiny-invariant';
 import { WebhookWorkerCreateRequest } from '.';
 
 type ListEventQuery = Parameters<typeof api.eventList>[1];
+type ListRateLimitsQuery = Parameters<typeof api.rateLimitList>[1];
 type ListLogLineQuery = Parameters<typeof api.logLineList>[1];
 type ListWorkflowRunsQuery = Parameters<typeof api.workflowRunList>[1];
 export type ListCloudLogsQuery = Parameters<typeof cloudApi.logList>[1];
 export type GetCloudMetricsQuery = Parameters<typeof cloudApi.metricsCpuGet>[1];
 type WorkflowRunMetrics = Parameters<typeof api.workflowRunGetMetrics>[1];
+type WorkflowRunEventsMetrics = Parameters<
+  typeof cloudApi.workflowRunEventsGetMetrics
+>[1];
 
 export const queries = createQueryKeyStore({
   cloud: {
@@ -74,6 +78,11 @@ export const queries = createQueryKeyStore({
       queryKey: ['managed-worker:get:events', managedWorkerId],
       queryFn: async () =>
         (await cloudApi.managedWorkerEventsList(managedWorkerId)).data,
+    }),
+    workflowRunMetrics: (tenant: string, query: WorkflowRunEventsMetrics) => ({
+      queryKey: ['workflow-run:metrics', tenant, query],
+      queryFn: async () =>
+        (await cloudApi.workflowRunEventsGetMetrics(tenant, query)).data,
     }),
   },
   user: {
@@ -160,20 +169,25 @@ export const queries = createQueryKeyStore({
           })
         ).data,
     }),
-    getDefinition: (workflow: string, version?: string) => ({
-      queryKey: ['workflow-version:get:definition', workflow, version],
-      queryFn: async () =>
-        (
-          await api.workflowVersionGetDefinition(workflow, {
-            version: version,
-          })
-        ).data,
-    }),
+    // getDefinition: (workflow: string, version?: string) => ({
+    //   queryKey: ['workflow-version:get:definition', workflow, version],
+    //   queryFn: async () =>
+    //     (
+    //       await api.workflowVersionGetDefinition(workflow, {
+    //         version: version,
+    //       })
+    //     ).data,
+    // }),
   },
   workflowRuns: {
     list: (tenant: string, query: ListWorkflowRunsQuery) => ({
       queryKey: ['workflow-run:list', tenant, query],
       queryFn: async () => (await api.workflowRunList(tenant, query)).data,
+    }),
+    shape: (tenant: string, workflowRun: string) => ({
+      queryKey: ['workflow-run:get:shape', tenant, workflowRun],
+      queryFn: async () =>
+        (await api.workflowRunGetShape(tenant, workflowRun)).data,
     }),
     get: (tenant: string, workflowRun: string) => ({
       queryKey: ['workflow-run:get', tenant, workflowRun],
@@ -181,12 +195,24 @@ export const queries = createQueryKeyStore({
     }),
     getInput: (tenant: string, workflowRun: string) => ({
       queryKey: ['workflow-run:get:input', tenant, workflowRun],
-      queryFn: async () => (await api.workflowRunGetInput(workflowRun)).data,
+      queryFn: async () =>
+        (await api.workflowRunGetInput(tenant, workflowRun)).data,
     }),
     metrics: (tenant: string, query: WorkflowRunMetrics) => ({
       queryKey: ['workflow-run:metrics', tenant, query],
       queryFn: async () =>
         (await api.workflowRunGetMetrics(tenant, query)).data,
+    }),
+    listStepRunEvents: (tenantId: string, workflowRun: string) => ({
+      queryKey: ['workflow-run:list:step-run-events', workflowRun],
+      queryFn: async () =>
+        (await api.workflowRunListStepRunEvents(tenantId, workflowRun)).data,
+    }),
+  },
+  metrics: {
+    get: (tenant: string) => ({
+      queryKey: ['queue-metrics:get', tenant],
+      queryFn: async () => (await api.tenantGetQueueMetrics(tenant)).data,
     }),
   },
   stepRuns: {
@@ -220,9 +246,19 @@ export const queries = createQueryKeyStore({
       queryKey: ['event-keys:list', tenant],
       queryFn: async () => (await api.eventKeyList(tenant)).data,
     }),
+    get: (event: string) => ({
+      queryKey: ['event:get', event],
+      queryFn: async () => (await api.eventGet(event)).data,
+    }),
     getData: (event: string) => ({
       queryKey: ['event-data:get', event],
       queryFn: async () => (await api.eventDataGet(event)).data,
+    }),
+  },
+  rate_limits: {
+    list: (tenant: string, query: ListRateLimitsQuery) => ({
+      queryKey: ['rate-limits:list', tenant, query],
+      queryFn: async () => (await api.rateLimitList(tenant, query)).data,
     }),
   },
   workers: {

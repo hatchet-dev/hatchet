@@ -25,35 +25,6 @@ func (q *Queries) BulkQueueItems(ctx context.Context, db DBTX, ids []int64) erro
 	return err
 }
 
-const bulkReleaseSemaphoreQueueItems = `-- name: BulkReleaseSemaphoreQueueItems :exec
-WITH input_tuples AS (
-    SELECT
-        unnest($1::uuid[]) AS "stepRunId",
-        unnest($2::uuid[]) AS "workerId"
-), items AS (
-    SELECT
-        qi."id"
-    FROM
-        input_tuples it
-    JOIN
-        "SemaphoreQueueItem" qi ON qi."stepRunId" = it."stepRunId" AND qi."workerId" = it."workerId"
-)
-DELETE FROM
-    "SemaphoreQueueItem"
-WHERE
-    "id" IN (SELECT "id" FROM items)
-`
-
-type BulkReleaseSemaphoreQueueItemsParams struct {
-	Steprunids []pgtype.UUID `json:"steprunids"`
-	Workerids  []pgtype.UUID `json:"workerids"`
-}
-
-func (q *Queries) BulkReleaseSemaphoreQueueItems(ctx context.Context, db DBTX, arg BulkReleaseSemaphoreQueueItemsParams) error {
-	_, err := db.Exec(ctx, bulkReleaseSemaphoreQueueItems, arg.Steprunids, arg.Workerids)
-	return err
-}
-
 const cleanupInternalQueueItems = `-- name: CleanupInternalQueueItems :exec
 DELETE FROM "InternalQueueItem"
 WHERE "isQueued" = 'f'
@@ -207,36 +178,6 @@ func (q *Queries) CreateQueueItem(ctx context.Context, db DBTX, arg CreateQueueI
 	return err
 }
 
-const createSemaphoreQueueItemsBulk = `-- name: CreateSemaphoreQueueItemsBulk :exec
-INSERT INTO
-    "SemaphoreQueueItem" (
-        "stepRunId",
-        "workerId",
-        "tenantId"
-    )
-SELECT
-    input."stepRunId",
-    input."workerId",
-    $1::uuid
-FROM (
-    SELECT
-        unnest($2::uuid[]) AS "stepRunId",
-        unnest($3::uuid[]) AS "workerId"
-) AS input
-ON CONFLICT DO NOTHING
-`
-
-type CreateSemaphoreQueueItemsBulkParams struct {
-	Tenantid   pgtype.UUID   `json:"tenantid"`
-	Steprunids []pgtype.UUID `json:"steprunids"`
-	Workerids  []pgtype.UUID `json:"workerids"`
-}
-
-func (q *Queries) CreateSemaphoreQueueItemsBulk(ctx context.Context, db DBTX, arg CreateSemaphoreQueueItemsBulkParams) error {
-	_, err := db.Exec(ctx, createSemaphoreQueueItemsBulk, arg.Tenantid, arg.Steprunids, arg.Workerids)
-	return err
-}
-
 const createTimeoutQueueItem = `-- name: CreateTimeoutQueueItem :exec
 INSERT INTO
     "InternalQueueItem" (
@@ -383,6 +324,44 @@ func (q *Queries) GetMinMaxProcessedTimeoutQueueItems(ctx context.Context, db DB
 	return &i, err
 }
 
+const getQueuedCounts = `-- name: GetQueuedCounts :many
+SELECT
+    "queue",
+    COUNT(*) AS "count"
+FROM
+    "QueueItem" qi
+WHERE
+    qi."isQueued" = true
+    AND qi."tenantId" = $1::uuid
+GROUP BY
+    qi."queue"
+`
+
+type GetQueuedCountsRow struct {
+	Queue string `json:"queue"`
+	Count int64  `json:"count"`
+}
+
+func (q *Queries) GetQueuedCounts(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]*GetQueuedCountsRow, error) {
+	rows, err := db.Query(ctx, getQueuedCounts, tenantid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*GetQueuedCountsRow
+	for rows.Next() {
+		var i GetQueuedCountsRow
+		if err := rows.Scan(&i.Queue, &i.Count); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listAvailableSlotsForWorkers = `-- name: ListAvailableSlotsForWorkers :many
 WITH worker_max_runs AS (
     SELECT
@@ -396,7 +375,7 @@ WITH worker_max_runs AS (
 ), worker_filled_slots AS (
     SELECT
         "workerId",
-        COUNT("id") AS "filledSlots"
+        COUNT("stepRunId") AS "filledSlots"
     FROM
         "SemaphoreQueueItem"
     WHERE
@@ -603,24 +582,6 @@ func (q *Queries) PopTimeoutQueueItems(ctx context.Context, db DBTX, arg PopTime
 		return nil, err
 	}
 	return items, nil
-}
-
-const removeSemaphoreQueueItem = `-- name: RemoveSemaphoreQueueItem :exec
-DELETE FROM
-    "SemaphoreQueueItem"
-WHERE
-    "stepRunId" = $1::uuid
-    AND "workerId" = $2::uuid
-`
-
-type RemoveSemaphoreQueueItemParams struct {
-	Steprunid pgtype.UUID `json:"steprunid"`
-	Workerid  pgtype.UUID `json:"workerid"`
-}
-
-func (q *Queries) RemoveSemaphoreQueueItem(ctx context.Context, db DBTX, arg RemoveSemaphoreQueueItemParams) error {
-	_, err := db.Exec(ctx, removeSemaphoreQueueItem, arg.Steprunid, arg.Workerid)
-	return err
 }
 
 const removeTimeoutQueueItem = `-- name: RemoveTimeoutQueueItem :exec

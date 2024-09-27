@@ -1,7 +1,6 @@
 import * as React from 'react';
 import { Label } from '@/components/ui/label';
 import { TimePickerInput } from './time-picker-input';
-import { ClockIcon } from '@radix-ui/react-icons';
 
 interface TimePickerProps {
   date: Date | undefined;
@@ -51,9 +50,6 @@ export function TimePicker({ date, setDate }: TimePickerProps) {
           ref={secondRef}
           onLeftFocus={() => minuteRef.current?.focus()}
         />
-      </div>
-      <div className="flex h-10 items-center">
-        <ClockIcon className="ml-2 h-4 w-4" />
       </div>
     </div>
   );

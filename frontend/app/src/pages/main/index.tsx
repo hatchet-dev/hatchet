@@ -3,6 +3,7 @@ import { cn } from '@/lib/utils';
 import {
   AdjustmentsHorizontalIcon,
   QueueListIcon,
+  ScaleIcon,
   ServerStackIcon,
   Squares2X2Icon,
 } from '@heroicons/react/24/outline';
@@ -120,16 +121,16 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
               <SidebarButtonPrimary
                 key={1}
                 onNavLinkClick={onNavLinkClick}
-                to="/events"
-                name="Events"
-                icon={<QueueListIcon className="mr-2 h-4 w-4" />}
+                to="/workflow-runs"
+                name="Workflow Runs"
+                icon={<AdjustmentsHorizontalIcon className="mr-2 h-4 w-4" />}
               />
               <SidebarButtonPrimary
                 key={2}
                 onNavLinkClick={onNavLinkClick}
-                to="/workflow-runs"
-                name="Workflow Runs"
-                icon={<AdjustmentsHorizontalIcon className="mr-2 h-4 w-4" />}
+                to="/events"
+                name="Events"
+                icon={<QueueListIcon className="mr-2 h-4 w-4" />}
               />
             </div>
           </div>
@@ -153,6 +154,13 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
                 icon={<ServerStackIcon className="mr-2 h-4 w-4" />}
                 prefix="/workers"
                 collapsibleChildren={workers}
+              />
+              <SidebarButtonPrimary
+                key={1}
+                onNavLinkClick={onNavLinkClick}
+                to="/rate-limits"
+                name="Rate Limits"
+                icon={<ScaleIcon className="mr-2 h-4 w-4" />}
               />
             </div>
           </div>

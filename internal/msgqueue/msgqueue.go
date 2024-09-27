@@ -95,8 +95,13 @@ func QueueTypeFromTickerID(t string) consumerQueue {
 	return consumerQueue(t)
 }
 
-func QueueTypeFromPartitionID(p string) consumerQueue {
-	return consumerQueue(p)
+const (
+	JobController      = "job"
+	WorkflowController = "workflow"
+)
+
+func QueueTypeFromPartitionIDAndController(p, controller string) consumerQueue {
+	return consumerQueue(fmt.Sprintf("%s_%s", p, controller))
 }
 
 type fanoutQueue struct {
@@ -154,6 +159,12 @@ func (t *Message) TenantID() string {
 type AckHook func(task *Message) error
 
 type MessageQueue interface {
+	// Clone copies the message queue with a new instance.
+	Clone() (func() error, MessageQueue)
+
+	// SetQOS sets the quality of service for the message queue.
+	SetQOS(prefetchCount int)
+
 	// AddMessage adds a task to the queue
 	AddMessage(ctx context.Context, queue Queue, task *Message) error
 

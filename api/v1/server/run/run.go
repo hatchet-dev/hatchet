@@ -18,6 +18,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/ingestors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/logs"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/metadata"
+	rate_limits "github.com/hatchet-dev/hatchet/api/v1/server/handlers/rate-limits"
 	slackapp "github.com/hatchet-dev/hatchet/api/v1/server/handlers/slack-app"
 	stepruns "github.com/hatchet-dev/hatchet/api/v1/server/handlers/step-runs"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/tenants"
@@ -37,6 +38,7 @@ type apiService struct {
 	*users.UserService
 	*tenants.TenantService
 	*events.EventService
+	*rate_limits.RateLimitService
 	*logs.LogService
 	*workflows.WorkflowService
 	*workers.WorkerService
@@ -54,6 +56,7 @@ func newAPIService(config *server.ServerConfig) *apiService {
 		UserService:           users.NewUserService(config),
 		TenantService:         tenants.NewTenantService(config),
 		EventService:          events.NewEventService(config),
+		RateLimitService:      rate_limits.NewRateLimitService(config),
 		LogService:            logs.NewLogService(config),
 		WorkflowService:       workflows.NewWorkflowService(config),
 		WorkflowRunsService:   workflowruns.NewWorkflowRunsService(config),
@@ -230,33 +233,37 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	})
 
 	populatorMW.RegisterGetter("workflow", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
-		workflow, err := config.APIRepository.Workflow().GetWorkflowById(id)
+		workflow, err := config.APIRepository.Workflow().GetWorkflowById(context.Background(), id)
 
 		if err != nil {
 			return nil, "", err
 		}
 
-		return workflow, workflow.TenantID, nil
+		return workflow, sqlchelpers.UUIDToStr(workflow.Workflow.TenantId), nil
 	})
 
 	populatorMW.RegisterGetter("workflow-run", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
-		workflowRun, err := config.APIRepository.WorkflowRun().GetWorkflowRunById(parentId, id)
+		workflowRun, err := config.APIRepository.WorkflowRun().GetWorkflowRunById(context.Background(), parentId, id)
 
 		if err != nil {
 			return nil, "", err
 		}
 
-		return workflowRun, workflowRun.TenantID, nil
+		return workflowRun, sqlchelpers.UUIDToStr(workflowRun.TenantId), nil
 	})
 
 	populatorMW.RegisterGetter("step-run", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
-		stepRun, err := config.APIRepository.StepRun().GetStepRunById(parentId, id)
+		stepRun, err := config.APIRepository.StepRun().GetStepRunById(id)
 
 		if err != nil {
 			return nil, "", err
 		}
 
-		return stepRun, stepRun.TenantID, nil
+		if parentId != "" && sqlchelpers.UUIDToStr(stepRun.TenantId) != parentId {
+			return nil, "", fmt.Errorf("tenant id mismatch when populating step run")
+		}
+
+		return stepRun, sqlchelpers.UUIDToStr(stepRun.TenantId), nil
 	})
 
 	populatorMW.RegisterGetter("event", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {

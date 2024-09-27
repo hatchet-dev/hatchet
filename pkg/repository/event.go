@@ -8,6 +8,11 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 )
 
+type BulkCreateEventOpts struct {
+	TenantId string `validate:"required,uuid"`
+	Events   []*CreateEventOpts
+}
+
 type CreateEventOpts struct {
 	// (required) the tenant id
 	TenantId string `validate:"required,uuid"`
@@ -55,11 +60,18 @@ type ListEventOpts struct {
 
 	// (optional) the event metadata
 	AdditionalMetadata []byte
+
+	// (optional) event ids to filter by
+	Ids []string
 }
 
 type ListEventResult struct {
 	Rows  []*dbsqlc.ListEventsRow
 	Count int
+}
+
+type BulkCreateEventResult struct {
+	Events []*dbsqlc.Event
 }
 
 type EventAPIRepository interface {
@@ -81,6 +93,9 @@ type EventEngineRepository interface {
 
 	// CreateEvent creates a new event for a given tenant.
 	CreateEvent(ctx context.Context, opts *CreateEventOpts) (*dbsqlc.Event, error)
+
+	// CreateEvent creates a new event for a given tenant.
+	BulkCreateEvent(ctx context.Context, opts *BulkCreateEventOpts) (*BulkCreateEventResult, error)
 
 	// GetEventForEngine returns an event for the engine by id.
 	GetEventForEngine(ctx context.Context, tenantId, id string) (*dbsqlc.Event, error)

@@ -83,8 +83,8 @@ export const columns: ColumnDef<WorkflowRun>[] = [
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Triggered by" />
     ),
-    cell: ({ row }) => {
-      const eventKey = row.original.triggeredBy?.event?.key || 'N/A';
+    cell: () => {
+      const eventKey = 'N/A'; // FIXME: add back event keys, crons, etc
 
       return <div>{eventKey}</div>;
     },

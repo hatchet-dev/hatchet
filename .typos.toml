@@ -14,3 +14,4 @@ extend-ignore-re = [
 
 [default.extend-words]
 datas = "datas"
+strat = "strat"

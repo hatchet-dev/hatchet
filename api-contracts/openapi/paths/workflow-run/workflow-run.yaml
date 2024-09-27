@@ -54,6 +54,15 @@ getWorkflowRunInput:
     description: Get the input for a workflow run.
     operationId: workflow-run:get:input
     parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
       - description: The workflow run id
         in: path
         name: workflow-run

@@ -72,7 +72,7 @@ const routes: RouteObject[] = [
             lazy: async () => {
               return {
                 loader: function () {
-                  return redirect('/events');
+                  return redirect('/workflow-runs');
                 },
               };
             },
@@ -124,6 +124,15 @@ const routes: RouteObject[] = [
                   }),
               },
               {
+                path: '/rate-limits',
+                lazy: async () =>
+                  import('./pages/main/rate-limits').then((res) => {
+                    return {
+                      Component: res.default,
+                    };
+                  }),
+              },
+              {
                 path: '/workflows',
                 lazy: async () =>
                   import('./pages/main/workflows').then((res) => {
@@ -138,7 +147,6 @@ const routes: RouteObject[] = [
                   import('./pages/main/workflows/$workflow').then((res) => {
                     return {
                       Component: res.default,
-                      loader: res.loader,
                     };
                   }),
               },

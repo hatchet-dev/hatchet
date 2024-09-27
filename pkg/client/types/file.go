@@ -48,7 +48,9 @@ const (
 )
 
 type WorkflowConcurrency struct {
-	ActionID string `yaml:"action,omitempty"`
+	ActionID *string `yaml:"action,omitempty"`
+
+	Expression *string `yaml:"expression,omitempty"`
 
 	MaxRuns int32 `yaml:"maxRuns,omitempty"`
 
@@ -118,8 +120,11 @@ type WorkflowStep struct {
 }
 
 type RateLimit struct {
-	Units int    `yaml:"units,omitempty"`
-	Key   string `yaml:"key,omitempty"`
+	Key            string  `yaml:"key,omitempty"`
+	KeyExpr        *string `yaml:"keyExpr,omitempty"`
+	Units          *int    `yaml:"units,omitempty"`
+	UnitsExpr      *string `yaml:"unitsExpr,omitempty"`
+	LimitValueExpr *string `yaml:"limitValueExpr,omitempty"`
 }
 
 func ParseYAML(ctx context.Context, yamlBytes []byte) (Workflow, error) {

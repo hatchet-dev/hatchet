@@ -5,6 +5,8 @@ import (
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type UpdateJobRunLookupDataOpts struct {
@@ -25,12 +27,18 @@ func JobRunStatusPtr(status db.JobRunStatus) *db.JobRunStatus {
 }
 
 type JobRunAPIRepository interface {
+	RegisterWorkflowRunRunningCallback(callback Callback[pgtype.UUID])
+
 	// SetJobRunStatusRunning resets the status of a job run to a RUNNING status. This is useful if a step
 	// run is being manually replayed, but shouldn't be used by most callers.
 	SetJobRunStatusRunning(tenantId, jobRunId string) error
+
+	ListJobRunByWorkflowRunId(ctx context.Context, tenantId, WorkflowRunId string) ([]*dbsqlc.ListJobRunsForWorkflowRunFullRow, error)
 }
 
 type JobRunEngineRepository interface {
+	RegisterWorkflowRunRunningCallback(callback Callback[pgtype.UUID])
+
 	// SetJobRunStatusRunning resets the status of a job run to a RUNNING status. This is useful if a step
 	// run is being manually replayed, but shouldn't be used by most callers.
 	SetJobRunStatusRunning(ctx context.Context, tenantId, jobRunId string) error

@@ -14,6 +14,9 @@ import {
   APIError,
   APIErrors,
   APIMeta,
+  BulkCreateEventRequest,
+  BulkCreateEventResponse,
+  CancelEventRequest,
   CreateAPITokenRequest,
   CreateAPITokenResponse,
   CreateEventRequest,
@@ -38,6 +41,9 @@ import {
   LogLineOrderByDirection,
   LogLineOrderByField,
   LogLineSearch,
+  RateLimitList,
+  RateLimitOrderByDirection,
+  RateLimitOrderByField,
   RejectInviteRequest,
   ReplayEventRequest,
   ReplayWorkflowRunsRequest,
@@ -83,12 +89,13 @@ import {
   WorkflowRunOrderByDirection,
   WorkflowRunOrderByField,
   WorkflowRunsCancelRequest,
+  WorkflowRunShape,
   WorkflowRunsMetrics,
   WorkflowRunStatus,
   WorkflowRunStatusList,
   WorkflowUpdateRequest,
   WorkflowVersion,
-  WorkflowVersionDefinition,
+  WorkflowWorkersCount,
 } from './data-contracts';
 import { ContentType, HttpClient, RequestParams } from './http-client';
 
@@ -855,6 +862,8 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
        * @example ["key1:value1","key2:value2"]
        */
       additionalMetadata?: string[];
+      /** A list of event ids to filter by */
+      eventIds?: string[];
     },
     params: RequestParams = {},
   ) =>
@@ -886,6 +895,25 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       ...params,
     });
   /**
+   * @description Bulk creates new events.
+   *
+   * @tags Event
+   * @name EventCreateBulk
+   * @summary Bulk Create events
+   * @request POST:/api/v1/tenants/{tenant}/events/bulk
+   * @secure
+   */
+  eventCreateBulk = (tenant: string, data: BulkCreateEventRequest, params: RequestParams = {}) =>
+    this.request<BulkCreateEventResponse, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/events/bulk`,
+      method: 'POST',
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: 'json',
+      ...params,
+    });
+  /**
    * @description Replays a list of events.
    *
    * @tags Event
@@ -901,6 +929,69 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       body: data,
       secure: true,
       type: ContentType.Json,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Cancels all runs for a list of events.
+   *
+   * @tags Event
+   * @name EventUpdateCancel
+   * @summary Replay events
+   * @request POST:/api/v1/tenants/{tenant}/events/cancel
+   * @secure
+   */
+  eventUpdateCancel = (tenant: string, data: CancelEventRequest, params: RequestParams = {}) =>
+    this.request<
+      {
+        workflowRunIds?: string[];
+      },
+      APIErrors
+    >({
+      path: `/api/v1/tenants/${tenant}/events/cancel`,
+      method: 'POST',
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Lists all rate limits for a tenant.
+   *
+   * @tags Rate Limits
+   * @name RateLimitList
+   * @summary List rate limits
+   * @request GET:/api/v1/tenants/{tenant}/rate-limits
+   * @secure
+   */
+  rateLimitList = (
+    tenant: string,
+    query?: {
+      /**
+       * The number to skip
+       * @format int64
+       */
+      offset?: number;
+      /**
+       * The number to limit by
+       * @format int64
+       */
+      limit?: number;
+      /** The search query to filter for */
+      search?: string;
+      /** What to order by */
+      orderByField?: RateLimitOrderByField;
+      /** The order direction */
+      orderByDirection?: RateLimitOrderByDirection;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<RateLimitList, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/rate-limits`,
+      method: 'GET',
+      query: query,
+      secure: true,
       format: 'json',
       ...params,
     });
@@ -934,6 +1025,23 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
     this.request<TenantMember, APIErrors>({
       path: `/api/v1/tenants/${tenant}/members/${member}`,
       method: 'DELETE',
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Get an event.
+   *
+   * @tags Event
+   * @name EventGet
+   * @summary Get event data
+   * @request GET:/api/v1/events/{event}
+   * @secure
+   */
+  eventGet = (event: string, params: RequestParams = {}) =>
+    this.request<Event, APIErrors>({
+      path: `/api/v1/events/${event}`,
+      method: 'GET',
       secure: true,
       format: 'json',
       ...params,
@@ -1129,36 +1237,6 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       ...params,
     });
   /**
-   * @description Get a workflow version definition for a tenant
-   *
-   * @tags Workflow
-   * @name WorkflowVersionGetDefinition
-   * @summary Get workflow version definition
-   * @request GET:/api/v1/workflows/{workflow}/versions/definition
-   * @secure
-   */
-  workflowVersionGetDefinition = (
-    workflow: string,
-    query?: {
-      /**
-       * The workflow version. If not supplied, the latest version is fetched.
-       * @format uuid
-       * @minLength 36
-       * @maxLength 36
-       */
-      version?: string;
-    },
-    params: RequestParams = {},
-  ) =>
-    this.request<WorkflowVersionDefinition, APIErrors>({
-      path: `/api/v1/workflows/${workflow}/versions/definition`,
-      method: 'GET',
-      query: query,
-      secure: true,
-      format: 'json',
-      ...params,
-    });
-  /**
    * @description Get the metrics for a workflow version
    *
    * @tags Workflow
@@ -1260,6 +1338,35 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       ...params,
     });
   /**
+   * @description List events for all step runs for a workflow run
+   *
+   * @tags Step Run
+   * @name WorkflowRunListStepRunEvents
+   * @summary List events for all step runs for a workflow run
+   * @request GET:/api/v1/tenants/{tenant}/workflow-runs/{workflow-run}/step-run-events
+   * @secure
+   */
+  workflowRunListStepRunEvents = (
+    tenant: string,
+    workflowRun: string,
+    query?: {
+      /**
+       * Last ID of the last event
+       * @format int32
+       */
+      lastId?: number;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<StepRunEventList, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/workflow-runs/${workflowRun}/step-run-events`,
+      method: 'GET',
+      query: query,
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
    * @description List archives for a step run
    *
    * @tags Step Run
@@ -1288,6 +1395,23 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       path: `/api/v1/step-runs/${stepRun}/archives`,
       method: 'GET',
       query: query,
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Get a count of the workers available for workflow
+   *
+   * @tags Workflow
+   * @name WorkflowGetWorkersCount
+   * @summary Get workflow worker count
+   * @request GET:/api/v1/tenants/{tenant}/workflows/{workflow}/worker-count
+   * @secure
+   */
+  workflowGetWorkersCount = (tenant: string, workflow: string, params: RequestParams = {}) =>
+    this.request<WorkflowWorkersCount, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/workflows/${workflow}/worker-count`,
+      method: 'GET',
       secure: true,
       format: 'json',
       ...params,
@@ -1363,6 +1487,18 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
        * @example "2021-01-01T00:00:00Z"
        */
       createdBefore?: string;
+      /**
+       * The time after the workflow run was finished
+       * @format date-time
+       * @example "2021-01-01T00:00:00Z"
+       */
+      finishedAfter?: string;
+      /**
+       * The time before the workflow run was finished
+       * @format date-time
+       * @example "2021-01-01T00:00:00Z"
+       */
+      finishedBefore?: string;
       /** The order by field */
       orderByField?: WorkflowRunOrderByField;
       /** The order by direction */
@@ -1477,6 +1613,23 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   workflowRunGet = (tenant: string, workflowRun: string, params: RequestParams = {}) =>
     this.request<WorkflowRun, APIErrors>({
       path: `/api/v1/tenants/${tenant}/workflow-runs/${workflowRun}`,
+      method: 'GET',
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Get a workflow run for a tenant
+   *
+   * @tags Workflow
+   * @name WorkflowRunGetShape
+   * @summary Get workflow run
+   * @request GET:/api/v1/tenants/{tenant}/workflow-runs/{workflow-run}/shape
+   * @secure
+   */
+  workflowRunGetShape = (tenant: string, workflowRun: string, params: RequestParams = {}) =>
+    this.request<WorkflowRunShape, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/workflow-runs/${workflowRun}/shape`,
       method: 'GET',
       secure: true,
       format: 'json',
@@ -1676,12 +1829,12 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @tags Workflow Run
    * @name WorkflowRunGetInput
    * @summary Get workflow run input
-   * @request GET:/api/v1/workflow-runs/{workflow-run}/input
+   * @request GET:/api/v1/tenants/{tenant}/workflow-runs/{workflow-run}/input
    * @secure
    */
-  workflowRunGetInput = (workflowRun: string, params: RequestParams = {}) =>
+  workflowRunGetInput = (tenant: string, workflowRun: string, params: RequestParams = {}) =>
     this.request<Record<string, any>, APIErrors>({
-      path: `/api/v1/workflow-runs/${workflowRun}/input`,
+      path: `/api/v1/tenants/${tenant}/workflow-runs/${workflowRun}/input`,
       method: 'GET',
       secure: true,
       format: 'json',

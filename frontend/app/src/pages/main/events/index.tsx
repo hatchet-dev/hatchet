@@ -45,6 +45,7 @@ import { Loading } from '@/components/ui/loading.tsx';
 import { TenantContextType } from '@/lib/outlet';
 import RelativeDate from '@/components/molecules/relative-date';
 import { CreateEventForm } from './components/create-event-form';
+import { BiX } from 'react-icons/bi';
 
 export default function Events() {
   return (
@@ -116,7 +117,9 @@ function EventsTable() {
     }
     return [];
   });
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
+    EventId: false,
+  });
 
   const [pagination, setPagination] = useState<PaginationState>(() => {
     const pageIndex = Number(searchParams.get('pageIndex')) || 0;
@@ -204,6 +207,16 @@ function EventsTable() {
     return filter?.value as Array<WorkflowRunStatus>;
   }, [columnFilters]);
 
+  const eventIds = useMemo(() => {
+    const filter = columnFilters.find((filter) => filter.id === 'EventId');
+
+    if (!filter) {
+      return;
+    }
+
+    return filter?.value as Array<string>;
+  }, [columnFilters]);
+
   const AdditionalMetadataFilter = useMemo(() => {
     const filter = columnFilters.find((filter) => filter.id === 'Metadata');
 
@@ -238,8 +251,20 @@ function EventsTable() {
       search,
       statuses,
       additionalMetadata: AdditionalMetadataFilter,
+      eventIds: eventIds,
     }),
     refetchInterval: 2000,
+  });
+
+  const cancelEventsMutation = useMutation({
+    mutationKey: ['event:update:cancel', tenant.metadata.id],
+    mutationFn: async (data: ReplayEventRequest) => {
+      await api.eventUpdateCancel(tenant.metadata.id, data);
+    },
+    onSuccess: () => {
+      refetch();
+    },
+    onError: handleApiError,
   });
 
   const replayEventsMutation = useMutation({
@@ -333,6 +358,21 @@ function EventsTable() {
   });
 
   const actions = [
+    <Button
+      key="cancel"
+      disabled={Object.keys(rowSelection).length === 0}
+      variant={Object.keys(rowSelection).length === 0 ? 'outline' : 'default'}
+      size="sm"
+      className="h-8 px-2 lg:px-3 gap-2"
+      onClick={() => {
+        cancelEventsMutation.mutate({
+          eventIds: Object.keys(rowSelection),
+        });
+      }}
+    >
+      <BiX className="h-4 w-4" />
+      Cancel
+    </Button>,
     <Button
       key="replay"
       disabled={Object.keys(rowSelection).length === 0}
@@ -430,6 +470,11 @@ function EventsTable() {
             columnId: 'Metadata',
             title: 'Metadata',
             type: ToolbarType.KeyValue,
+          },
+          {
+            columnId: 'EventId',
+            title: 'Event Id',
+            type: ToolbarType.Array,
           },
         ]}
         showColumnToggle={true}

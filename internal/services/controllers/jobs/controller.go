@@ -12,6 +12,7 @@ import (
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/hatchet-dev/hatchet/internal/cel"
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/datautils/merge"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
@@ -42,6 +43,7 @@ type JobsControllerImpl struct {
 	s              gocron.Scheduler
 	a              *hatcheterrors.Wrapped
 	p              *partition.Partition
+	celParser      *cel.CELParser
 
 	reassignMutexes sync.Map
 	timeoutMutexes  sync.Map
@@ -167,6 +169,7 @@ func New(fs ...JobsControllerOpt) (*JobsControllerImpl, error) {
 		s:              s,
 		a:              a,
 		p:              opts.p,
+		celParser:      cel.NewCELParser(),
 	}, nil
 }
 
@@ -440,7 +443,7 @@ func (ec *JobsControllerImpl) handleStepRunRetry(ctx context.Context, task *msgq
 		return fmt.Errorf("could not decode job task metadata: %w", err)
 	}
 
-	err = ec.repo.StepRun().ArchiveStepRunResult(ctx, metadata.TenantId, payload.StepRunId)
+	err = ec.repo.StepRun().ArchiveStepRunResult(ctx, metadata.TenantId, payload.StepRunId, payload.Error)
 
 	if err != nil {
 		return fmt.Errorf("could not archive step run result: %w", err)
@@ -486,7 +489,7 @@ func (ec *JobsControllerImpl) handleStepRunReplay(ctx context.Context, task *msg
 		return fmt.Errorf("could not decode job task metadata: %w", err)
 	}
 
-	err = ec.repo.StepRun().ArchiveStepRunResult(ctx, metadata.TenantId, payload.StepRunId)
+	err = ec.repo.StepRun().ArchiveStepRunResult(ctx, metadata.TenantId, payload.StepRunId, nil)
 
 	if err != nil {
 		return fmt.Errorf("could not archive step run result: %w", err)
@@ -817,6 +820,8 @@ func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId, stepId
 		IsRetry: isRetry,
 	}
 
+	inputDataBytes := data.Input
+
 	// If the step run input is not set, then we should set it. This will be set upstream if we've rerun
 	// the step run manually with new inputs. It will not be set when the step is automatically queued.
 	if in := data.Input; len(in) == 0 || string(in) == "{}" {
@@ -850,7 +855,7 @@ func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId, stepId
 				Overrides:   map[string]interface{}{},
 			}
 
-			inputDataBytes, err := json.Marshal(inputData)
+			inputDataBytes, err = json.Marshal(inputData)
 
 			if err != nil {
 				return ec.a.WrapErr(fmt.Errorf("could not convert input data to json: %w", err), errData)
@@ -860,12 +865,71 @@ func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId, stepId
 		}
 	}
 
+	// if the step has a non-zero expression count, then we evaluate expressions and add them to queueOpts
+	if data.ExprCount > 0 {
+		expressions, err := ec.repo.Step().ListStepExpressions(ctx, sqlchelpers.UUIDToStr(stepRun.StepId))
+
+		if err != nil {
+			return ec.a.WrapErr(fmt.Errorf("could not list step expressions: %w", err), errData)
+		}
+
+		additionalMeta := map[string]interface{}{}
+
+		// parse the additional metadata
+		if data.AdditionalMetadata != nil {
+			err = json.Unmarshal(data.AdditionalMetadata, &additionalMeta)
+
+			if err != nil {
+				return ec.a.WrapErr(fmt.Errorf("could not unmarshal additional metadata: %w", err), errData)
+			}
+		}
+
+		parsedInputData := datautils.StepRunData{}
+
+		err = json.Unmarshal(inputDataBytes, &parsedInputData)
+
+		if err != nil {
+			return ec.a.WrapErr(fmt.Errorf("could not unmarshal input data: %w", err), errData)
+		}
+
+		// construct the input data for the CEL expressions
+		input := cel.NewInput(
+			cel.WithAdditionalMetadata(additionalMeta),
+			cel.WithInput(parsedInputData.Input),
+			cel.WithParents(parsedInputData.Parents),
+		)
+
+		queueOpts.ExpressionEvals = make([]repository.CreateExpressionEvalOpt, 0)
+
+		for _, expression := range expressions {
+			// evaluate the expression
+			res, err := ec.celParser.ParseAndEvalStepRun(expression.Expression, input)
+
+			// if we encounter an error here, the step run should fail with this error
+			if err != nil {
+				return ec.failStepRun(ctx, tenantId, stepRunId, fmt.Sprintf("Could not parse step expression: %s", err.Error()), time.Now())
+			}
+
+			if err := ec.celParser.CheckStepRunOutAgainstKnown(res, expression.Kind); err != nil {
+				return ec.failStepRun(ctx, tenantId, stepRunId, fmt.Sprintf("Could not parse step expression: %s", err.Error()), time.Now())
+			}
+
+			// set the evaluated expression in queueOpts
+			queueOpts.ExpressionEvals = append(queueOpts.ExpressionEvals, repository.CreateExpressionEvalOpt{
+				Key:      expression.Key,
+				ValueStr: res.String,
+				ValueInt: res.Int,
+				Kind:     expression.Kind,
+			})
+		}
+	}
+
 	// indicate that the step run is pending assignment
 	_, err = ec.repo.StepRun().QueueStepRun(ctx, tenantId, stepRunId, queueOpts)
 
 	if err != nil {
-		if errors.Is(err, repository.ErrStepRunIsNotPending) {
-			ec.l.Debug().Msgf("step run %s is not pending, skipping scheduling", stepRunId)
+		if errors.Is(err, repository.ErrAlreadyQueued) {
+			ec.l.Debug().Msgf("step run %s is already queued, skipping scheduling", stepRunId)
 			return nil
 		}
 
@@ -889,7 +953,7 @@ func (ec *JobsControllerImpl) checkTenantQueue(ctx context.Context, tenantId str
 	if tenant.ControllerPartitionId.Valid {
 		err = ec.mq.AddMessage(
 			ctx,
-			msgqueue.QueueTypeFromPartitionID(tenant.ControllerPartitionId.String),
+			msgqueue.QueueTypeFromPartitionIDAndController(tenant.ControllerPartitionId.String, msgqueue.JobController),
 			tasktypes.CheckTenantQueueToTask(tenantId),
 		)
 
@@ -972,35 +1036,32 @@ func (ec *JobsControllerImpl) handleStepRunFinished(ctx context.Context, task *m
 		return fmt.Errorf("could not update step run: %w", err)
 	}
 
-	// recheck the tenant queue
-	ec.checkTenantQueue(ctx, metadata.TenantId)
-
 	stepRun, err := ec.repo.StepRun().GetStepRunForEngine(ctx, metadata.TenantId, payload.StepRunId)
 
 	if err != nil {
 		return fmt.Errorf("could not get step run: %w", err)
 	}
 
-	// queue the next step runs
-	jobRunId := sqlchelpers.UUIDToStr(stepRun.JobRunId)
-	stepRunId := sqlchelpers.UUIDToStr(stepRun.SRID)
-
-	nextStepRuns, err := ec.repo.StepRun().ListStartableStepRuns(ctx, metadata.TenantId, jobRunId, &stepRunId)
+	nextStepRuns, err := ec.repo.StepRun().ListStartableStepRuns(ctx, metadata.TenantId, sqlchelpers.UUIDToStr(stepRun.JobRunId), &payload.StepRunId)
 
 	if err != nil {
-		return fmt.Errorf("could not list startable step runs: %w", err)
-	}
+		ec.l.Error().Err(err).Msg("could not list startable step runs")
+	} else {
+		for _, nextStepRun := range nextStepRuns {
+			err := ec.mq.AddMessage(
+				context.Background(),
+				msgqueue.JOB_PROCESSING_QUEUE,
+				tasktypes.StepRunQueuedToTask(nextStepRun),
+			)
 
-	for _, nextStepRun := range nextStepRuns {
-		nextStepId := sqlchelpers.UUIDToStr(nextStepRun.StepId)
-		nextStepRunId := sqlchelpers.UUIDToStr(nextStepRun.SRID)
-
-		err = ec.queueStepRun(ctx, metadata.TenantId, nextStepId, nextStepRunId, false)
-
-		if err != nil {
-			return fmt.Errorf("could not queue next step run: %w", err)
+			if err != nil {
+				ec.l.Error().Err(err).Msg("could not queue next step run")
+			}
 		}
 	}
+
+	// recheck the tenant queue
+	ec.checkTenantQueue(ctx, metadata.TenantId)
 
 	return nil
 }
@@ -1061,14 +1122,24 @@ func (ec *JobsControllerImpl) failStepRun(ctx context.Context, tenantId, stepRun
 			EventReason:   repository.StepRunEventReasonPtr(eventReason),
 			EventMessage:  repository.StringPtr(eventMessage),
 			EventSeverity: repository.StepRunEventSeverityPtr(dbsqlc.StepRunEventSeverityCRITICAL),
+			EventData: map[string]interface{}{
+				"retry_count": stepRun.SRRetryCount,
+			},
 		})
 
 		// send a task to the taskqueue
 		return ec.mq.AddMessage(
 			ctx,
 			msgqueue.JOB_PROCESSING_QUEUE,
-			tasktypes.StepRunRetryToTask(stepRun, nil),
+			tasktypes.StepRunRetryToTask(stepRun, nil, errorReason),
 		)
+	}
+
+	// get the old step run to figure out the worker and dispatcher id, before we update the step run
+	oldStepRun, err := ec.repo.StepRun().GetStepRunForEngine(ctx, tenantId, stepRunId)
+
+	if err != nil {
+		return fmt.Errorf("could not get step run: %w", err)
 	}
 
 	// fail step run
@@ -1084,7 +1155,7 @@ func (ec *JobsControllerImpl) failStepRun(ctx context.Context, tenantId, stepRun
 		attemptCancel = true
 	}
 
-	if !stepRun.SRWorkerId.Valid {
+	if !oldStepRun.SRWorkerId.Valid {
 		// this is not a fatal error
 		ec.l.Warn().Msgf("[failStepRun] step run %s has no worker id, skipping cancellation", stepRunId)
 		attemptCancel = false
@@ -1094,7 +1165,7 @@ func (ec *JobsControllerImpl) failStepRun(ctx context.Context, tenantId, stepRun
 
 	// Attempt to cancel the previous running step run
 	if attemptCancel {
-		workerId := sqlchelpers.UUIDToStr(stepRun.SRWorkerId)
+		workerId := sqlchelpers.UUIDToStr(oldStepRun.SRWorkerId)
 
 		worker, err := ec.repo.Worker().GetWorkerForEngine(ctx, tenantId, workerId)
 
@@ -1115,9 +1186,9 @@ func (ec *JobsControllerImpl) failStepRun(ctx context.Context, tenantId, stepRun
 				workerId,
 				dispatcherId,
 				errorReason,
-				sqlchelpers.UUIDToStr(stepRun.WorkflowRunId),
-				&stepRun.StepRetries,
-				&stepRun.SRRetryCount,
+				sqlchelpers.UUIDToStr(oldStepRun.WorkflowRunId),
+				&oldStepRun.StepRetries,
+				&oldStepRun.SRRetryCount,
 			),
 		)
 

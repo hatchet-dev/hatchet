@@ -32,6 +32,7 @@ export function TriggerWorkflowForm({
   const navigate = useNavigate();
 
   const [input, setInput] = useState<string | undefined>('{}');
+  const [addlMeta, setAddlMeta] = useState<string | undefined>('{}');
   const [errors, setErrors] = useState<string[]>([]);
 
   const { handleApiError } = useApiError({
@@ -40,13 +41,14 @@ export function TriggerWorkflowForm({
 
   const triggerWorkflowMutation = useMutation({
     mutationKey: ['workflow-run:create', workflow?.metadata.id],
-    mutationFn: async (input: object) => {
+    mutationFn: async (data: { input: object; addlMeta: object }) => {
       if (!workflow) {
         return;
       }
 
       const res = await api.workflowRunCreate(workflow?.metadata.id, {
-        input: input,
+        input: data.input,
+        additionalMetadata: data.addlMeta,
       });
 
       return res.data;
@@ -81,13 +83,29 @@ export function TriggerWorkflowForm({
           </DialogDescription>
         </DialogHeader>
         <div className="font-bold">Input</div>
-        <CodeEditor code={input || '{}'} setCode={setInput} language="json" />
+        <CodeEditor
+          code={input || '{}'}
+          setCode={setInput}
+          language="json"
+          height="180px"
+        />
+        <div className="font-bold">Additional Metadata</div>
+        <CodeEditor
+          code={addlMeta || '{}'}
+          setCode={setAddlMeta}
+          height="90px"
+          language="json"
+        />
         <Button
           className="w-fit"
           disabled={triggerWorkflowMutation.isPending}
           onClick={() => {
             const inputObj = JSON.parse(input || '{}');
-            triggerWorkflowMutation.mutate(inputObj);
+            const addlMetaObj = JSON.parse(addlMeta || '{}');
+            triggerWorkflowMutation.mutate({
+              input: inputObj,
+              addlMeta: addlMetaObj,
+            });
           }}
         >
           <PlusIcon

@@ -92,6 +92,65 @@ WorkflowRun:
     - status
     - triggeredBy
 
+WorkflowRunShape:
+  type: object
+  properties:
+    metadata:
+      $ref: "./metadata.yaml#/APIResourceMeta"
+    tenantId:
+      type: string
+    workflowId:
+      type: string
+    workflowVersionId:
+      type: string
+    workflowVersion:
+      $ref: "./_index.yaml#/WorkflowVersion"
+    status:
+      $ref: "#/WorkflowRunStatus"
+    displayName:
+      type: string
+    jobRuns:
+      type: array
+      items:
+        $ref: "#/JobRun"
+    triggeredBy:
+      $ref: "#/WorkflowRunTriggeredBy"
+    input:
+      type: object
+      additionalProperties: true
+    error:
+      type: string
+    startedAt:
+      type: string
+      format: date-time
+    finishedAt:
+      type: string
+      format: date-time
+    duration:
+      type: integer
+      example: 1000
+    parentId:
+      type: string
+      example: bb214807-246e-43a5-a25d-41761d1cff9e
+      minLength: 36
+      maxLength: 36
+      format: uuid
+    parentStepRunId:
+      type: string
+      example: bb214807-246e-43a5-a25d-41761d1cff9e
+      minLength: 36
+      maxLength: 36
+      format: uuid
+    additionalMetadata:
+      type: object
+      additionalProperties: true
+  required:
+    - metadata
+    - tenantId
+    - workflowVersionId
+    - status
+    - triggeredBy
+
 WorkflowRunList:
   type: object
   properties:
@@ -189,19 +248,16 @@ WorkflowRunTriggeredBy:
   properties:
     metadata:
       $ref: "./metadata.yaml#/APIResourceMeta"
-    parentId:
+    parentWorkflowRunId:
       type: string
     eventId:
       type: string
-    event:
-      $ref: "./_index.yaml#/Event"
     cronParentId:
       type: string
     cronSchedule:
       type: string
   required:
     - metadata
-    - parentId
 
 JobRun:
   type: object
@@ -266,10 +322,8 @@ StepRun:
       type: string
     step:
       $ref: "./_index.yaml#/Step"
-    children:
-      type: array
-      items:
-        type: string
+    childWorkflowsCount:
+      type: integer
     parents:
       type: array
       items:
@@ -341,6 +395,8 @@ StepRunEventReason:
     - TIMED_OUT
     - SLOT_RELEASED
     - RETRIED_BY_USER
+    - WORKFLOW_RUN_GROUP_KEY_SUCCEEDED
+    - WORKFLOW_RUN_GROUP_KEY_FAILED
 
 StepRunEventSeverity:
   type: string
@@ -362,6 +418,8 @@ StepRunEvent:
       format: date-time
     stepRunId:
       type: string
+    workflowRunId:
+      type: string
     reason:
       $ref: "#/StepRunEventReason"
     severity:
@@ -376,7 +434,6 @@ StepRunEvent:
     - id
     - timeFirstSeen
     - timeLastSeen
-    - stepRunId
     - reason
     - severity
     - message
@@ -407,6 +464,8 @@ StepRunArchive:
       format: date-time
     error:
       type: string
+    retryCount:
+      type: integer
     createdAt:
       type: string
       format: date-time
@@ -433,6 +492,7 @@ StepRunArchive:
       type: string
   required:
     - stepRunId
+    - retryCount
     - order
     - createdAt
 
