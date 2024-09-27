@@ -35,6 +35,9 @@ ALTER TABLE "StepRun" DROP CONSTRAINT "StepRun_tenantId_fkey";
 ALTER TABLE "StepRun" DROP CONSTRAINT "StepRun_tickerId_fkey";
 
 -- DropForeignKey
+ALTER TABLE "StreamEvent" DROP CONSTRAINT "StreamEvent_tenantId_fkey";
+
+-- DropForeignKey
 ALTER TABLE "Worker" DROP CONSTRAINT "Worker_tenantId_fkey";
 
 -- DropForeignKey

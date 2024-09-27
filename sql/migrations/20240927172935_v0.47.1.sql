@@ -18,6 +18,8 @@ ALTER TABLE "StepRateLimit" DROP CONSTRAINT "StepRateLimit_tenantId_fkey";
 ALTER TABLE "StepRun" DROP CONSTRAINT "StepRun_stepId_fkey", DROP CONSTRAINT "StepRun_tenantId_fkey", DROP CONSTRAINT "StepRun_tickerId_fkey";
 -- Create index "StepRunExpressionEval_stepRunId_idx" to table: "StepRunExpressionEval"
 CREATE INDEX "StepRunExpressionEval_stepRunId_idx" ON "StepRunExpressionEval" ("stepRunId");
+-- Modify "StreamEvent" table
+ALTER TABLE "StreamEvent" DROP CONSTRAINT "StreamEvent_tenantId_fkey";
 -- Modify "Worker" table
 ALTER TABLE "Worker" DROP CONSTRAINT "Worker_tenantId_fkey";
 -- Modify "Workflow" table
