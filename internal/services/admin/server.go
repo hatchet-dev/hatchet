@@ -441,6 +441,15 @@ func getCreateWorkflowOpts(req *contracts.PutWorkflowRequest) (*repository.Creat
 		res, err := getCreateJobOpts(jobCp, "DEFAULT")
 
 		if err != nil {
+
+			if errors.Is(err, repository.ErrDagParentNotFound) {
+				// Extract the additional error information
+				return nil, status.Error(
+					codes.InvalidArgument,
+					err.Error(),
+				)
+			}
+
 			return nil, err
 		}
 
@@ -528,6 +537,8 @@ func getCreateWorkflowOpts(req *contracts.PutWorkflowRequest) (*repository.Creat
 func getCreateJobOpts(req *contracts.CreateWorkflowJobOpts, kind string) (*repository.CreateWorkflowJobOpts, error) {
 	steps := make([]repository.CreateWorkflowStepOpts, len(req.Steps))
 
+	stepReadableIdMap := make(map[string]bool)
+
 	for j, step := range req.Steps {
 		stepCp := step
 
@@ -538,6 +549,8 @@ func getCreateJobOpts(req *contracts.CreateWorkflowJobOpts, kind string) (*repos
 		}
 
 		retries := int(stepCp.Retries)
+
+		stepReadableIdMap[stepCp.ReadableId] = true
 
 		var affinity map[string]repository.DesiredWorkerLabelOpts
 
@@ -593,6 +606,15 @@ func getCreateJobOpts(req *contracts.CreateWorkflowJobOpts, kind string) (*repos
 
 		if stepCp.UserData != "" {
 			steps[j].UserData = &stepCp.UserData
+		}
+	}
+
+	// Check if parents are in the map
+	for _, step := range req.Steps {
+		for _, parent := range step.Parents {
+			if !stepReadableIdMap[parent] {
+				return nil, fmt.Errorf("%w: parent step '%s' not found for step '%s'", repository.ErrDagParentNotFound, parent, step.ReadableId)
+			}
 		}
 	}
 

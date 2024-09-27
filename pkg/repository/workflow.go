@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -9,6 +10,8 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/digest"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 )
+
+var ErrDagParentNotFound = errors.New("dag parent not found")
 
 type CreateWorkflowVersionOpts struct {
 	// (required) the workflow name
