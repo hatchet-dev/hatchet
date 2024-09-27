@@ -62,6 +62,19 @@ const (
 	LogLineOrderByFieldCreatedAt LogLineOrderByField = "createdAt"
 )
 
+// Defines values for RateLimitOrderByDirection.
+const (
+	Asc  RateLimitOrderByDirection = "asc"
+	Desc RateLimitOrderByDirection = "desc"
+)
+
+// Defines values for RateLimitOrderByField.
+const (
+	Key        RateLimitOrderByField = "key"
+	LimitValue RateLimitOrderByField = "limitValue"
+	Value      RateLimitOrderByField = "value"
+)
+
 // Defines values for StepRunEventReason.
 const (
 	StepRunEventReasonASSIGNED                     StepRunEventReason = "ASSIGNED"
@@ -510,6 +523,39 @@ type QueueMetrics struct {
 	// NumRunning The number of items running.
 	NumRunning int `json:"numRunning"`
 }
+
+// RateLimit defines model for RateLimit.
+type RateLimit struct {
+	// Key The key for the rate limit.
+	Key string `json:"key"`
+
+	// LastRefill The last time the rate limit was refilled.
+	LastRefill time.Time `json:"lastRefill"`
+
+	// LimitValue The maximum number of requests allowed within the window.
+	LimitValue int `json:"limitValue"`
+
+	// TenantId The ID of the tenant associated with this rate limit.
+	TenantId string `json:"tenantId"`
+
+	// Value The current number of requests made within the window.
+	Value int `json:"value"`
+
+	// Window The window of time in which the limitValue is enforced.
+	Window string `json:"window"`
+}
+
+// RateLimitList defines model for RateLimitList.
+type RateLimitList struct {
+	Pagination *PaginationResponse `json:"pagination,omitempty"`
+	Rows       *[]RateLimit        `json:"rows,omitempty"`
+}
+
+// RateLimitOrderByDirection defines model for RateLimitOrderByDirection.
+type RateLimitOrderByDirection string
+
+// RateLimitOrderByField defines model for RateLimitOrderByField.
+type RateLimitOrderByField string
 
 // RecentStepRuns defines model for RecentStepRuns.
 type RecentStepRuns struct {
@@ -1361,6 +1407,24 @@ type TenantGetQueueMetricsParams struct {
 	AdditionalMetadata *[]string `form:"additionalMetadata,omitempty" json:"additionalMetadata,omitempty"`
 }
 
+// RateLimitListParams defines parameters for RateLimitList.
+type RateLimitListParams struct {
+	// Offset The number to skip
+	Offset *int64 `form:"offset,omitempty" json:"offset,omitempty"`
+
+	// Limit The number to limit by
+	Limit *int64 `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Search The search query to filter for
+	Search *string `form:"search,omitempty" json:"search,omitempty"`
+
+	// OrderByField What to order by
+	OrderByField *RateLimitOrderByField `form:"orderByField,omitempty" json:"orderByField,omitempty"`
+
+	// OrderByDirection The order direction
+	OrderByDirection *RateLimitOrderByDirection `form:"orderByDirection,omitempty" json:"orderByDirection,omitempty"`
+}
+
 // WorkflowRunListStepRunEventsParams defines parameters for WorkflowRunListStepRunEvents.
 type WorkflowRunListStepRunEventsParams struct {
 	// LastId Last ID of the last event
@@ -1731,6 +1795,9 @@ type ClientInterface interface {
 
 	// TenantGetQueueMetrics request
 	TenantGetQueueMetrics(ctx context.Context, tenant openapi_types.UUID, params *TenantGetQueueMetricsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// RateLimitList request
+	RateLimitList(ctx context.Context, tenant openapi_types.UUID, params *RateLimitListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// TenantResourcePolicyGet request
 	TenantResourcePolicyGet(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -2446,6 +2513,18 @@ func (c *Client) TenantMemberDelete(ctx context.Context, tenant openapi_types.UU
 
 func (c *Client) TenantGetQueueMetrics(ctx context.Context, tenant openapi_types.UUID, params *TenantGetQueueMetricsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewTenantGetQueueMetricsRequest(c.Server, tenant, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) RateLimitList(ctx context.Context, tenant openapi_types.UUID, params *RateLimitListParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRateLimitListRequest(c.Server, tenant, params)
 	if err != nil {
 		return nil, err
 	}
@@ -4875,6 +4954,126 @@ func NewTenantGetQueueMetricsRequest(server string, tenant openapi_types.UUID, p
 	return req, nil
 }
 
+// NewRateLimitListRequest generates requests for RateLimitList
+func NewRateLimitListRequest(server string, tenant openapi_types.UUID, params *RateLimitListParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/tenants/%s/rate-limits", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Offset != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "offset", runtime.ParamLocationQuery, *params.Offset); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Search != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "search", runtime.ParamLocationQuery, *params.Search); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.OrderByField != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "orderByField", runtime.ParamLocationQuery, *params.OrderByField); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.OrderByDirection != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "orderByDirection", runtime.ParamLocationQuery, *params.OrderByDirection); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewTenantResourcePolicyGetRequest generates requests for TenantResourcePolicyGet
 func NewTenantResourcePolicyGetRequest(server string, tenant openapi_types.UUID) (*http.Request, error) {
 	var err error
@@ -7167,6 +7366,9 @@ type ClientWithResponsesInterface interface {
 	// TenantGetQueueMetricsWithResponse request
 	TenantGetQueueMetricsWithResponse(ctx context.Context, tenant openapi_types.UUID, params *TenantGetQueueMetricsParams, reqEditors ...RequestEditorFn) (*TenantGetQueueMetricsResponse, error)
 
+	// RateLimitListWithResponse request
+	RateLimitListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *RateLimitListParams, reqEditors ...RequestEditorFn) (*RateLimitListResponse, error)
+
 	// TenantResourcePolicyGetWithResponse request
 	TenantResourcePolicyGetWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*TenantResourcePolicyGetResponse, error)
 
@@ -8182,6 +8384,30 @@ func (r TenantGetQueueMetricsResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r TenantGetQueueMetricsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type RateLimitListResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *RateLimitList
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r RateLimitListResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r RateLimitListResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -9681,6 +9907,15 @@ func (c *ClientWithResponses) TenantGetQueueMetricsWithResponse(ctx context.Cont
 		return nil, err
 	}
 	return ParseTenantGetQueueMetricsResponse(rsp)
+}
+
+// RateLimitListWithResponse request returning *RateLimitListResponse
+func (c *ClientWithResponses) RateLimitListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *RateLimitListParams, reqEditors ...RequestEditorFn) (*RateLimitListResponse, error) {
+	rsp, err := c.RateLimitList(ctx, tenant, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRateLimitListResponse(rsp)
 }
 
 // TenantResourcePolicyGetWithResponse request returning *TenantResourcePolicyGetResponse
@@ -11579,6 +11814,46 @@ func ParseTenantGetQueueMetricsResponse(rsp *http.Response) (*TenantGetQueueMetr
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseRateLimitListResponse parses an HTTP response from a RateLimitListWithResponse call
+func ParseRateLimitListResponse(rsp *http.Response) (*RateLimitListResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &RateLimitListResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest RateLimitList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
 
 	}
 

@@ -528,11 +528,6 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByAdditionalMeta(key string, v
 	tenant := stream.Context().Value("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
-	q, err := msgqueue.TenantEventConsumerQueue(tenantId)
-	if err != nil {
-		return err
-	}
-
 	ctx, cancel := context.WithCancel(stream.Context())
 	defer cancel()
 
@@ -602,7 +597,7 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByAdditionalMeta(key string, v
 	}
 
 	// subscribe to the task queue for the tenant
-	cleanupQueue, err := s.heavyReadMQ.Subscribe(q, msgqueue.NoOpHook, f)
+	cleanupQueue, err := s.sharedReader.Subscribe(tenantId, f)
 
 	if err != nil {
 		return err
@@ -624,12 +619,6 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunId(workflowRunId 
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	s.l.Debug().Msgf("Received subscribe request for workflow: %s", workflowRunId)
-
-	q, err := msgqueue.TenantEventConsumerQueue(tenantId)
-
-	if err != nil {
-		return err
-	}
 
 	ctx, cancel := context.WithCancel(stream.Context())
 	defer cancel()
@@ -685,7 +674,7 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunId(workflowRunId 
 	}
 
 	// subscribe to the task queue for the tenant
-	cleanupQueue, err := s.heavyReadMQ.Subscribe(q, msgqueue.NoOpHook, f)
+	cleanupQueue, err := s.sharedReader.Subscribe(tenantId, f)
 
 	if err != nil {
 		return err
@@ -783,13 +772,6 @@ func (s *DispatcherImpl) SubscribeToWorkflowRuns(server contracts.Dispatcher_Sub
 
 	ctx, cancel := context.WithCancel(server.Context())
 	defer cancel()
-
-	// subscribe to the task queue for the tenant
-	q, err := msgqueue.TenantEventConsumerQueue(tenantId)
-
-	if err != nil {
-		return err
-	}
 
 	wg := sync.WaitGroup{}
 	sendMu := sync.Mutex{}
@@ -901,7 +883,7 @@ func (s *DispatcherImpl) SubscribeToWorkflowRuns(server contracts.Dispatcher_Sub
 	}
 
 	// subscribe to the task queue for the tenant
-	cleanupQueue, err := s.heavyReadMQ.Subscribe(q, msgqueue.NoOpHook, f)
+	cleanupQueue, err := s.sharedReader.Subscribe(tenantId, f)
 
 	if err != nil {
 		return err

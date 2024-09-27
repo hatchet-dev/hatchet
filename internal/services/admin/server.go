@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -246,6 +247,14 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWo
 		)
 
 		if err != nil {
+
+			if strings.Contains(err.Error(), "23503") {
+				return nil, status.Error(
+					codes.InvalidArgument,
+					"invalid rate limit, are you using a static key without first creating a rate limit with the same key?",
+				)
+			}
+
 			return nil, err
 		}
 	} else {
@@ -274,6 +283,14 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWo
 			)
 
 			if err != nil {
+
+				if strings.Contains(err.Error(), "23503") {
+					return nil, status.Error(
+						codes.InvalidArgument,
+						"invalid rate limit, are you using a static key without first creating a rate limit with the same key?",
+					)
+				}
+
 				return nil, err
 			}
 		} else {
@@ -559,10 +576,19 @@ func getCreateJobOpts(req *contracts.CreateWorkflowJobOpts, kind string) (*repos
 		}
 
 		for _, rateLimit := range stepCp.RateLimits {
-			steps[j].RateLimits = append(steps[j].RateLimits, repository.CreateWorkflowStepRateLimitOpts{
-				Key:   rateLimit.Key,
-				Units: int(rateLimit.Units),
-			})
+			opt := repository.CreateWorkflowStepRateLimitOpts{
+				Key:       rateLimit.Key,
+				KeyExpr:   rateLimit.KeyExpr,
+				LimitExpr: rateLimit.LimitValuesExpr,
+				UnitsExpr: rateLimit.UnitsExpr,
+			}
+
+			if rateLimit.Units != nil {
+				units := int(*rateLimit.Units)
+				opt.Units = &units
+			}
+
+			steps[j].RateLimits = append(steps[j].RateLimits, opt)
 		}
 
 		if stepCp.UserData != "" {

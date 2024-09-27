@@ -60,6 +60,15 @@ type QueueStepRunOpts struct {
 	IsInternalRetry bool
 
 	Input []byte
+
+	ExpressionEvals []CreateExpressionEvalOpt
+}
+
+type CreateExpressionEvalOpt struct {
+	Key      string
+	ValueStr *string
+	ValueInt *int
+	Kind     dbsqlc.StepExpressionKind
 }
 
 type UpdateStepRunOverridesDataOpts struct {

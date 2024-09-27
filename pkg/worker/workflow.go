@@ -309,11 +309,14 @@ type WorkflowStep struct {
 }
 
 type RateLimit struct {
-	// Units is the amount of units this step consumes
-	Units int
-
 	// Key is the rate limit key
-	Key string
+	Key     string  `yaml:"key,omitempty"`
+	KeyExpr *string `yaml:"keyExpr,omitempty"`
+
+	// Units is the amount of units this step consumes
+	Units          *int    `yaml:"units,omitempty"`
+	UnitsExpr      *string `yaml:"unitsExpr,omitempty"`
+	LimitValueExpr *string `yaml:"limitValueExpr,omitempty"`
 }
 
 func Fn(f any) *WorkflowStep {
@@ -413,8 +416,11 @@ func (w *WorkflowStep) ToWorkflowStep(svcName string, index int, namespace strin
 
 	for _, rateLimit := range w.RateLimit {
 		res.APIStep.RateLimits = append(res.APIStep.RateLimits, types.RateLimit{
-			Key:   rateLimit.Key,
-			Units: rateLimit.Units,
+			Key:            rateLimit.Key,
+			KeyExpr:        rateLimit.KeyExpr,
+			Units:          rateLimit.Units,
+			UnitsExpr:      rateLimit.UnitsExpr,
+			LimitValueExpr: rateLimit.LimitValueExpr,
 		})
 	}
 

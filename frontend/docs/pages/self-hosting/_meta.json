@@ -13,6 +13,7 @@
   "kubernetes-quickstart": "Quickstart",
   "kubernetes-glasskube": "Installing with Glasskube",
   "networking": "Networking",
+  "kubernetes-external-database": "Setting up an External Database",
   "-- Managing Hatchet": {
     "type": "separator",
     "title": "Managing Hatchet"

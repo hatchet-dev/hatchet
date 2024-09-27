@@ -20,7 +20,13 @@ CREATE TYPE "LimitResource" AS ENUM ('WORKFLOW_RUN', 'EVENT', 'WORKER', 'CRON', 
 CREATE TYPE "LogLineLevel" AS ENUM ('DEBUG', 'INFO', 'WARN', 'ERROR');
 
 -- CreateEnum
-CREATE TYPE "StepRunEventReason" AS ENUM ('REQUEUED_NO_WORKER', 'REQUEUED_RATE_LIMIT', 'SCHEDULING_TIMED_OUT', 'ASSIGNED', 'STARTED', 'FINISHED', 'FAILED', 'RETRYING', 'CANCELLED', 'TIMED_OUT', 'REASSIGNED', 'SLOT_RELEASED', 'TIMEOUT_REFRESHED', 'RETRIED_BY_USER', 'SENT_TO_WORKER', 'WORKFLOW_RUN_GROUP_KEY_SUCCEEDED', 'WORKFLOW_RUN_GROUP_KEY_FAILED');
+CREATE TYPE "StepExpressionKind" AS ENUM ('DYNAMIC_RATE_LIMIT_KEY', 'DYNAMIC_RATE_LIMIT_VALUE', 'DYNAMIC_RATE_LIMIT_UNITS', 'DYNAMIC_RATE_LIMIT_WINDOW');
+
+-- CreateEnum
+CREATE TYPE "StepRateLimitKind" AS ENUM ('STATIC', 'DYNAMIC');
+
+-- CreateEnum
+CREATE TYPE "StepRunEventReason" AS ENUM ('REQUEUED_NO_WORKER', 'REQUEUED_RATE_LIMIT', 'SCHEDULING_TIMED_OUT', 'ASSIGNED', 'STARTED', 'FINISHED', 'FAILED', 'RETRYING', 'CANCELLED', 'TIMED_OUT', 'REASSIGNED', 'SLOT_RELEASED', 'TIMEOUT_REFRESHED', 'RETRIED_BY_USER', 'SENT_TO_WORKER', 'WORKFLOW_RUN_GROUP_KEY_SUCCEEDED', 'WORKFLOW_RUN_GROUP_KEY_FAILED', 'RATE_LIMIT_ERROR');
 
 -- CreateEnum
 CREATE TYPE "StepRunEventSeverity" AS ENUM ('INFO', 'WARNING', 'CRITICAL');
@@ -349,11 +355,22 @@ CREATE TABLE "StepDesiredWorkerLabel" (
 );
 
 -- CreateTable
+CREATE TABLE "StepExpression" (
+    "key" TEXT NOT NULL,
+    "stepId" UUID NOT NULL,
+    "expression" TEXT NOT NULL,
+    "kind" "StepExpressionKind" NOT NULL,
+
+    CONSTRAINT "StepExpression_pkey" PRIMARY KEY ("key","stepId","kind")
+);
+
+-- CreateTable
 CREATE TABLE "StepRateLimit" (
     "units" INTEGER NOT NULL,
     "stepId" UUID NOT NULL,
     "rateLimitKey" TEXT NOT NULL,
-    "tenantId" UUID NOT NULL
+    "tenantId" UUID NOT NULL,
+    "kind" "StepRateLimitKind" NOT NULL DEFAULT 'STATIC'
 );
 
 -- CreateTable
@@ -403,6 +420,17 @@ CREATE TABLE "StepRunEvent" (
     "count" INTEGER NOT NULL,
     "data" JSONB,
     "workflowRunId" UUID
+);
+
+-- CreateTable
+CREATE TABLE "StepRunExpressionEval" (
+    "key" TEXT NOT NULL,
+    "stepRunId" UUID NOT NULL,
+    "valueStr" TEXT,
+    "valueInt" INTEGER,
+    "kind" "StepExpressionKind" NOT NULL,
+
+    CONSTRAINT "StepRunExpressionEval_pkey" PRIMARY KEY ("key","stepRunId","kind")
 );
 
 -- CreateTable
@@ -1404,9 +1432,6 @@ ALTER TABLE "Step" ADD CONSTRAINT "Step_tenantId_fkey" FOREIGN KEY ("tenantId") 
 ALTER TABLE "StepDesiredWorkerLabel" ADD CONSTRAINT "StepDesiredWorkerLabel_stepId_fkey" FOREIGN KEY ("stepId") REFERENCES "Step"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "StepRateLimit" ADD CONSTRAINT "StepRateLimit_stepId_fkey" FOREIGN KEY ("stepId") REFERENCES "Step"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "StepRateLimit" ADD CONSTRAINT "StepRateLimit_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -1633,3 +1658,7 @@ ON "StepRun" ("jobRunId", "status", "tenantId")
 WHERE "status" = 'PENDING';
 
 CREATE INDEX CONCURRENTLY IF NOT EXISTS "WorkflowRun_parentStepRunId" ON "WorkflowRun"("parentStepRunId" ASC);
+
+-- Additional indexes on workflow run
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_workflowrun_concurrency ON "WorkflowRun" ("concurrencyGroupId", "createdAt");
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_workflowrun_main ON "WorkflowRun" ("tenantId", "deletedAt", "status", "workflowVersionId", "createdAt");

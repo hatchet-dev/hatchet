@@ -18,14 +18,22 @@ const indicatorVariants = {
   exhausted: 'border-transparent rounded-full bg-red-500',
 };
 
-export function LimitIndicator({ limit }: { limit: TenantResourceLimit }) {
+export function LimitIndicator({
+  value,
+  alarmValue,
+  limitValue,
+}: {
+  value: number;
+  alarmValue?: number;
+  limitValue: number;
+}) {
   let variant = indicatorVariants.ok;
 
-  if (limit.alarmValue && limit.value >= limit.alarmValue) {
+  if (alarmValue && value >= alarmValue) {
     variant = indicatorVariants.alarm;
   }
 
-  if (limit.value >= limit.limitValue) {
+  if (value >= limitValue) {
     variant = indicatorVariants.exhausted;
   }
 
@@ -47,7 +55,11 @@ export const columns = (): ColumnDef<TenantResourceLimit>[] => {
       ),
       cell: ({ row }) => (
         <div className="flex flex-row items-center gap-4 pl-4">
-          <LimitIndicator limit={row.original} />
+          <LimitIndicator
+            value={row.original.value}
+            alarmValue={row.original.alarmValue}
+            limitValue={row.original.limitValue}
+          />
           {resources[row.original.resource]}
         </div>
       ),

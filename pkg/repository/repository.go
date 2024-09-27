@@ -34,6 +34,7 @@ type EngineRepository interface {
 	GetGroupKeyRun() GetGroupKeyRunEngineRepository
 	JobRun() JobRunEngineRepository
 	StepRun() StepRunEngineRepository
+	Step() StepRepository
 	Tenant() TenantEngineRepository
 	TenantAlertingSettings() TenantAlertingEngineRepository
 	Ticker() TickerEngineRepository

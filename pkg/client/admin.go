@@ -393,10 +393,19 @@ func (a *adminClientImpl) getJobOpts(jobName string, job *types.WorkflowJob) (*a
 		}
 
 		for _, rateLimit := range step.RateLimits {
-			stepOpt.RateLimits = append(stepOpt.RateLimits, &admincontracts.CreateStepRateLimit{
-				Key:   rateLimit.Key,
-				Units: int32(rateLimit.Units),
-			})
+			opt := &admincontracts.CreateStepRateLimit{
+				Key:             rateLimit.Key,
+				KeyExpr:         rateLimit.KeyExpr,
+				UnitsExpr:       rateLimit.UnitsExpr,
+				LimitValuesExpr: rateLimit.LimitValueExpr,
+			}
+
+			if rateLimit.Units != nil {
+				units := int32(*rateLimit.Units) // nolint: gosec
+				opt.Units = &units
+			}
+
+			stepOpt.RateLimits = append(stepOpt.RateLimits, opt)
 		}
 
 		if step.DesiredLabels != nil {
