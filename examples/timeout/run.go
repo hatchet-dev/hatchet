@@ -63,36 +63,6 @@ func run(done chan<- string, job worker.WorkflowJob) (func() error, error) {
 		}
 		defer client.Disconnect()
 
-		// TODO check for the database status
-
-		events, err := client.Event.FindMany(
-			db.Event.TenantID.Equals(c.TenantId()),
-			db.Event.Key.Equals("user:create:timeout"),
-		).With(
-			db.Event.WorkflowRuns.Fetch().With(
-				db.WorkflowRunTriggeredBy.Parent.Fetch().With(
-					db.WorkflowRun.JobRuns.Fetch().With(
-						db.JobRun.StepRuns.Fetch(),
-					),
-				),
-			),
-		).Exec(context.Background())
-		if err != nil {
-			panic(fmt.Errorf("error finding events: %w", err))
-		}
-
-		for _, event := range events {
-			for _, workflowRun := range event.WorkflowRuns() {
-				for _, jobRuns := range workflowRun.Parent().JobRuns() {
-					for _, stepRun := range jobRuns.StepRuns() {
-						if stepRun.Status != db.StepRunStatusFailed {
-							panic(fmt.Errorf("expected step run to be failed, got %s", stepRun.Status))
-						}
-					}
-				}
-			}
-		}
-
 		done <- "done"
 	}()
 

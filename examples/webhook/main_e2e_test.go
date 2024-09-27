@@ -115,12 +115,6 @@ func TestWebhook(t *testing.T) {
 					"webhook-step-one",
 					"webhook-step-two",
 				}, items)
-
-				verifyStepRuns(prisma, event, c.TenantId(), db.JobRunStatusSucceeded, db.StepRunStatusSucceeded, func(output string) {
-					if string(output) != `{"message":"hi from webhook-step-one"}` && string(output) != `{"message":"hi from webhook-step-two"}` {
-						panic(fmt.Errorf("expected step run output to be valid, got %s", output))
-					}
-				})
 			},
 		},
 		{
@@ -165,8 +159,6 @@ func TestWebhook(t *testing.T) {
 				if err != nil {
 					t.Fatalf("run() error = %s", err)
 				}
-
-				verifyStepRuns(prisma, event, c.TenantId(), db.JobRunStatusFailed, db.StepRunStatusFailed, nil)
 			},
 		},
 		{
@@ -267,12 +259,6 @@ func TestWebhook(t *testing.T) {
 					"wha-webhook-step-two",
 					"wha-webhook-action-1",
 				}, items)
-
-				verifyStepRuns(prisma, event, c.TenantId(), db.JobRunStatusSucceeded, db.StepRunStatusSucceeded, func(output string) {
-					if string(output) != `{"message":"hi from wha-webhook-step-one"}` && string(output) != `{"message":"hi from wha-webhook-step-two"}` && string(output) != `{"message":"hi from wha-webhook-action-1"}` {
-						panic(fmt.Errorf("expected step run output to be valid, got %s", output))
-					}
-				})
 			},
 		},
 	}
