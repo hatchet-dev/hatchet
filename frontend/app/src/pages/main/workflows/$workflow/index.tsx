@@ -20,6 +20,8 @@ import { ConfirmDialog } from '@/components/molecules/confirm-dialog';
 import { useTenantContext } from '@/lib/atoms';
 import {
   DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
@@ -107,21 +109,12 @@ export default function ExpandedWorkflow() {
                 {currVersion}
               </Badge>
             )}
-          </div>
-          <WorkflowTags tags={workflow.tags || []} />
-          <div className="flex flex-row gap-2">
             <DropdownMenu>
-              <DropdownMenuTrigger
-                onClick={() => {
-                  updateWorkflowMutation.mutate({
-                    isPaused: !workflow.isPaused,
-                  });
-                }}
-              >
+              <DropdownMenuTrigger>
                 {workflow.isPaused ? (
                   <Badge
                     variant="inProgress"
-                    className="px-4"
+                    className="px-2"
                     onClick={() => {
                       updateWorkflowMutation.mutate({ isPaused: false });
                     }}
@@ -131,7 +124,7 @@ export default function ExpandedWorkflow() {
                 ) : (
                   <Badge
                     variant="successful"
-                    className="px-4"
+                    className="px-2"
                     onClick={() => {
                       updateWorkflowMutation.mutate({ isPaused: true });
                     }}
@@ -140,7 +133,35 @@ export default function ExpandedWorkflow() {
                   </Badge>
                 )}
               </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem>
+                  {workflow.isPaused ? (
+                    <div
+                      onClick={() => {
+                        updateWorkflowMutation.mutate({
+                          isPaused: false,
+                        });
+                      }}
+                    >
+                      Unpause runs
+                    </div>
+                  ) : (
+                    <div
+                      onClick={() => {
+                        updateWorkflowMutation.mutate({
+                          isPaused: true,
+                        });
+                      }}
+                    >
+                      Pause runs
+                    </div>
+                  )}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
             </DropdownMenu>
+          </div>
+          <WorkflowTags tags={workflow.tags || []} />
+          <div className="flex flex-row gap-2">
             <Button
               className="text-sm"
               onClick={() => setTriggerWorkflow(true)}
