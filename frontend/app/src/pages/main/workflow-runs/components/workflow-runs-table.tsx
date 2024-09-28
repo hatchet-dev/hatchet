@@ -69,6 +69,7 @@ export interface WorkflowRunsTableProps {
   initColumnVisibility?: VisibilityState;
   filterVisibility?: { [key: string]: boolean };
   refetchInterval?: number;
+  showMetrics?: boolean;
 }
 
 const getCreatedAfterFromTimeRange = (timeRange?: string) => {
@@ -85,12 +86,14 @@ const getCreatedAfterFromTimeRange = (timeRange?: string) => {
 };
 
 export function WorkflowRunsTable({
+  createdAfter: createdAfterProp,
   workflowId,
   initColumnVisibility = {},
   filterVisibility = {},
   parentWorkflowRunId,
   parentStepRunId,
   refetchInterval = 5000,
+  showMetrics = false,
 }: WorkflowRunsTableProps) {
   const [searchParams, setSearchParams] = useSearchParams();
   const { tenant } = useOutletContext<TenantContextType>();
@@ -116,7 +119,8 @@ export function WorkflowRunsTable({
   );
 
   const [createdAfter, setCreatedAfter] = useState<string | undefined>(
-    getCreatedAfterFromTimeRange(defaultTimeRange) ||
+    createdAfterProp ||
+      getCreatedAfterFromTimeRange(defaultTimeRange) ||
       new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
   );
 
@@ -493,92 +497,97 @@ export function WorkflowRunsTable({
 
   return (
     <>
-      <Dialog
-        open={viewQueueMetrics}
-        onOpenChange={(open) => {
-          if (!open) {
-            setViewQueueMetrics(false);
-          }
-        }}
-      >
-        <DialogContent className="w-fit max-w-[80%] min-w-[500px]">
-          <DialogHeader>
-            <DialogTitle>Queue Metrics</DialogTitle>
-          </DialogHeader>
-          <Separator />
-          {tenantMetricsQuery.data?.queues && (
-            <CodeHighlighter
-              language="json"
-              code={JSON.stringify(
-                tenantMetricsQuery.data?.queues || '{}',
-                null,
-                2,
-              )}
-            />
-          )}
-          {tenantMetricsQuery.isLoading && <Skeleton className="w-full h-36" />}
-        </DialogContent>
-      </Dialog>
-
-      <div className="flex flex-row justify-end items-center my-4 gap-2">
-        {customTimeRange && [
-          <Button
-            key="clear"
-            onClick={() => {
-              setCustomTimeRange(undefined);
-            }}
-            variant="outline"
-            size="sm"
-            className="text-xs h-9 py-2"
-          >
-            <XCircleIcon className="h-[18px] w-[18px] mr-2" />
-            Clear
-          </Button>,
-          <DateTimePicker
-            key="after"
-            label="After"
-            date={createdAfter ? new Date(createdAfter) : undefined}
-            setDate={(date) => {
-              setCreatedAfter(date?.toISOString());
-            }}
-          />,
-          <DateTimePicker
-            key="before"
-            label="Before"
-            date={finishedBefore ? new Date(finishedBefore) : undefined}
-            setDate={(date) => {
-              setFinishedBefore(date?.toISOString());
-            }}
-          />,
-        ]}
-        <Select
-          value={customTimeRange ? 'custom' : defaultTimeRange}
-          onValueChange={(value) => {
-            if (value !== 'custom') {
-              setDefaultTimeRange(value);
-              setCustomTimeRange(undefined);
-            } else {
-              setCustomTimeRange([
-                getCreatedAfterFromTimeRange(value) ||
-                  new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-                new Date().toISOString(),
-              ]);
+      {showMetrics && (
+        <Dialog
+          open={viewQueueMetrics}
+          onOpenChange={(open) => {
+            if (!open) {
+              setViewQueueMetrics(false);
             }
           }}
         >
-          <SelectTrigger className="w-fit">
-            <SelectValue id="timerange" placeholder="Choose time range" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="1h">1 hour</SelectItem>
-            <SelectItem value="6h">6 hours</SelectItem>
-            <SelectItem value="1d">1 day</SelectItem>
-            <SelectItem value="7d">7 days</SelectItem>
-            <SelectItem value="custom">Custom</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-      {cloudMeta && cloudMeta.data?.metricsEnabled && (
+          <DialogContent className="w-fit max-w-[80%] min-w-[500px]">
+            <DialogHeader>
+              <DialogTitle>Queue Metrics</DialogTitle>
+            </DialogHeader>
+            <Separator />
+            {tenantMetricsQuery.data?.queues && (
+              <CodeHighlighter
+                language="json"
+                code={JSON.stringify(
+                  tenantMetricsQuery.data?.queues || '{}',
+                  null,
+                  2,
+                )}
+              />
+            )}
+            {tenantMetricsQuery.isLoading && (
+              <Skeleton className="w-full h-36" />
+            )}
+          </DialogContent>
+        </Dialog>
+      )}
+      {!createdAfterProp && (
+        <div className="flex flex-row justify-end items-center my-4 gap-2">
+          {customTimeRange && [
+            <Button
+              key="clear"
+              onClick={() => {
+                setCustomTimeRange(undefined);
+              }}
+              variant="outline"
+              size="sm"
+              className="text-xs h-9 py-2"
+            >
+              <XCircleIcon className="h-[18px] w-[18px] mr-2" />
+              Clear
+            </Button>,
+            <DateTimePicker
+              key="after"
+              label="After"
+              date={createdAfter ? new Date(createdAfter) : undefined}
+              setDate={(date) => {
+                setCreatedAfter(date?.toISOString());
+              }}
+            />,
+            <DateTimePicker
+              key="before"
+              label="Before"
+              date={finishedBefore ? new Date(finishedBefore) : undefined}
+              setDate={(date) => {
+                setFinishedBefore(date?.toISOString());
+              }}
+            />,
+          ]}
+          <Select
+            value={customTimeRange ? 'custom' : defaultTimeRange}
+            onValueChange={(value) => {
+              if (value !== 'custom') {
+                setDefaultTimeRange(value);
+                setCustomTimeRange(undefined);
+              } else {
+                setCustomTimeRange([
+                  getCreatedAfterFromTimeRange(value) ||
+                    new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+                  new Date().toISOString(),
+                ]);
+              }
+            }}
+          >
+            <SelectTrigger className="w-fit">
+              <SelectValue id="timerange" placeholder="Choose time range" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="1h">1 hour</SelectItem>
+              <SelectItem value="6h">6 hours</SelectItem>
+              <SelectItem value="1d">1 day</SelectItem>
+              <SelectItem value="7d">7 days</SelectItem>
+              <SelectItem value="custom">Custom</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+      {showMetrics && cloudMeta && cloudMeta.data?.metricsEnabled && (
         <GetWorkflowChart
           tenantId={tenant.metadata.id}
           createdAfter={createdAfter}
@@ -596,6 +605,7 @@ export function WorkflowRunsTable({
             onViewQueueMetricsClick={() => {
               setViewQueueMetrics(true);
             }}
+            showQueueMetrics={showMetrics}
             onClick={(status) => {
               setColumnFilters((prev) => {
                 const statusFilter = prev.find(
