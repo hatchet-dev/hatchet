@@ -115,7 +115,7 @@ func (r *workflowAPIRepository) ListWorkflows(tenantId string, opts *repository.
 	return res, nil
 }
 
-func (r *workflowAPIRepository) UpdateWorkflow(tenantId, workflowId string, opts *repository.UpdateWorkflowOpts) (*dbsqlc.Workflow, error) {
+func (r *workflowAPIRepository) UpdateWorkflow(ctx context.Context, tenantId, workflowId string, opts *repository.UpdateWorkflowOpts) (*dbsqlc.Workflow, error) {
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
@@ -133,9 +133,33 @@ func (r *workflowAPIRepository) UpdateWorkflow(tenantId, workflowId string, opts
 		}
 	}
 
-	workflow, err := r.queries.UpdateWorkflow(context.Background(), r.pool, params)
+	tx, commit, rollback, err := prepareTx(ctx, r.pool, r.l, 25000)
 
 	if err != nil {
+		return nil, err
+	}
+
+	defer rollback()
+
+	workflow, err := r.queries.UpdateWorkflow(ctx, tx, params)
+
+	if err != nil {
+		return nil, err
+	}
+
+	// if we're setting to an unpaused state, update internal queue items
+	if opts.IsPaused != nil && !*opts.IsPaused {
+		err = r.queries.HandleWorkflowUnpaused(ctx, tx, dbsqlc.HandleWorkflowUnpausedParams{
+			Workflowid: workflowId,
+			Tenantid:   sqlchelpers.UUIDFromStr(tenantId),
+		})
+
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if err := commit(ctx); err != nil {
 		return nil, err
 	}
 

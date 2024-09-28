@@ -141,13 +141,16 @@ func New(fs ...RetentionControllerOpt) (*RetentionControllerImpl, error) {
 	a.WithData(map[string]interface{}{"service": "retention-controller"})
 
 	return &RetentionControllerImpl{
-		l:             opts.l,
-		repo:          opts.repo,
-		dv:            opts.dv,
-		s:             s,
-		tenantAlerter: opts.ta,
-		a:             a,
-		p:             opts.p,
+		l:               opts.l,
+		repo:            opts.repo,
+		dv:              opts.dv,
+		s:               s,
+		tenantAlerter:   opts.ta,
+		a:               a,
+		p:               opts.p,
+		dataRetention:   opts.dataRetention,
+		workerRetention: opts.workerRetention,
+		queueRetention:  opts.queueRetention,
 	}, nil
 }
 

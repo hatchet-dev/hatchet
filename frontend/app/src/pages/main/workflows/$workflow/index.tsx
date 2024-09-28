@@ -111,7 +111,13 @@ export default function ExpandedWorkflow() {
           <WorkflowTags tags={workflow.tags || []} />
           <div className="flex flex-row gap-2">
             <DropdownMenu>
-              <DropdownMenuTrigger>
+              <DropdownMenuTrigger
+                onClick={() => {
+                  updateWorkflowMutation.mutate({
+                    isPaused: !workflow.isPaused,
+                  });
+                }}
+              >
                 {workflow.isPaused ? (
                   <Badge
                     variant="inProgress"

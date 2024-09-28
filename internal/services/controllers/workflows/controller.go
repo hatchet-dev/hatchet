@@ -42,6 +42,7 @@ type WorkflowsControllerImpl struct {
 	p                        *partition.Partition
 	celParser                *cel.CELParser
 	processWorkflowEventsOps *queueutils.OperationPool
+	unpausedWorkflowRunsOps  *queueutils.OperationPool
 	bumpQueueOps             *queueutils.OperationPool
 }
 
@@ -158,6 +159,7 @@ func New(fs ...WorkflowsControllerOpt) (*WorkflowsControllerImpl, error) {
 	}
 
 	w.processWorkflowEventsOps = queueutils.NewOperationPool(w.l, time.Second*5, "process workflow events", w.processWorkflowEvents)
+	w.unpausedWorkflowRunsOps = queueutils.NewOperationPool(w.l, time.Second*5, "unpause workflow runs", w.unpauseWorkflowRuns)
 	w.bumpQueueOps = queueutils.NewOperationPool(w.l, time.Second*5, "bump queue", w.runPollActiveQueuesTenant)
 
 	return w, nil
@@ -216,6 +218,18 @@ func (wc *WorkflowsControllerImpl) Start() (func() error, error) {
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("could not schedule process workflow run events: %w", err)
+	}
+
+	_, err = wc.s.NewJob(
+		gocron.DurationJob(time.Second*1),
+		gocron.NewTask(
+			wc.runTenantUnpauseWorkflowRuns(ctx),
+		),
+	)
+
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("could not schedule unpause workflow runs: %w", err)
 	}
 
 	wc.s.Start()
@@ -661,6 +675,26 @@ func (wc *WorkflowsControllerImpl) runTenantProcessWorkflowRunEvents(ctx context
 	}
 }
 
+func (wc *WorkflowsControllerImpl) runTenantUnpauseWorkflowRuns(ctx context.Context) func() {
+	return func() {
+		wc.l.Debug().Msgf("partition: processing unpaused workflow runs")
+
+		// list all tenants
+		tenants, err := wc.repo.Tenant().ListTenantsByControllerPartition(ctx, wc.p.GetControllerPartitionId())
+
+		if err != nil {
+			wc.l.Err(err).Msg("could not list tenants")
+			return
+		}
+
+		for i := range tenants {
+			tenantId := sqlchelpers.UUIDToStr(tenants[i].ID)
+
+			wc.unpausedWorkflowRunsOps.RunOrContinue(tenantId)
+		}
+	}
+}
+
 func (wc *WorkflowsControllerImpl) processWorkflowEvents(ctx context.Context, tenantId string) (bool, error) {
 	ctx, span := telemetry.NewSpan(ctx, "process-workflow-events")
 	defer span.End()
@@ -672,6 +706,49 @@ func (wc *WorkflowsControllerImpl) processWorkflowEvents(ctx context.Context, te
 
 	if err != nil {
 		return false, fmt.Errorf("could not process step run updates: %w", err)
+	}
+
+	return res, nil
+}
+
+func (wc *WorkflowsControllerImpl) unpauseWorkflowRuns(ctx context.Context, tenantId string) (bool, error) {
+	ctx, span := telemetry.NewSpan(ctx, "unpause-workflow-runs")
+	defer span.End()
+
+	dbCtx, cancel := context.WithTimeout(ctx, 300*time.Second)
+	defer cancel()
+
+	toQueue, res, err := wc.repo.WorkflowRun().ProcessUnpausedWorkflowRuns(dbCtx, tenantId)
+
+	if err != nil {
+		return false, fmt.Errorf("could not process unpaused workflow runs: %w", err)
+	}
+
+	if toQueue != nil {
+		errGroup := new(errgroup.Group)
+
+		for i := range toQueue {
+			row := toQueue[i]
+
+			errGroup.Go(func() error {
+				workflowRunId := sqlchelpers.UUIDToStr(row.WorkflowRun.ID)
+
+				wc.l.Info().Msgf("popped workflow run %s", workflowRunId)
+				workflowRun, err := wc.repo.WorkflowRun().GetWorkflowRunById(ctx, tenantId, workflowRunId)
+
+				if err != nil {
+					return fmt.Errorf("could not get workflow run: %w", err)
+				}
+
+				isPaused := workflowRun.IsPaused.Valid && workflowRun.IsPaused.Bool
+
+				return wc.queueWorkflowRunJobs(ctx, workflowRun, isPaused)
+			})
+		}
+
+		if err := errGroup.Wait(); err != nil {
+			return false, fmt.Errorf("could not queue workflow runs: %w", err)
+		}
 	}
 
 	return res, nil

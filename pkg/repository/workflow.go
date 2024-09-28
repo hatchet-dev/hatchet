@@ -260,7 +260,7 @@ type WorkflowAPIRepository interface {
 	GetWorkflowMetrics(tenantId, workflowId string, opts *GetWorkflowMetricsOpts) (*WorkflowMetrics, error)
 
 	// UpdateWorkflow updates a workflow for a given tenant.
-	UpdateWorkflow(tenantId, workflowId string, opts *UpdateWorkflowOpts) (*dbsqlc.Workflow, error)
+	UpdateWorkflow(ctx context.Context, tenantId, workflowId string, opts *UpdateWorkflowOpts) (*dbsqlc.Workflow, error)
 
 	// GetWorkflowWorkerCount returns the number of workers for a given workflow.
 	GetWorkflowWorkerCount(tenantId, workflowId string) (int, int, error)

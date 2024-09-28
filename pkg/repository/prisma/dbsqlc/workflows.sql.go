@@ -1136,6 +1136,42 @@ func (q *Queries) GetWorkflowWorkerCount(ctx context.Context, db DBTX, arg GetWo
 	return &i, err
 }
 
+const handleWorkflowUnpaused = `-- name: HandleWorkflowUnpaused :exec
+WITH matching_qis AS (
+    -- We know that we're going to need to scan all the queue items in this queue
+    -- for the tenant, so we write this query in such a way that the index is used.
+    SELECT
+        qi."id"
+    FROM
+        "InternalQueueItem" qi
+    WHERE
+        qi."isQueued" = true
+        AND qi."tenantId" = $2::uuid
+        AND qi."queue" = 'WORKFLOW_RUN_PAUSED'
+        AND qi."priority" = 1
+    ORDER BY
+        qi."id" DESC
+)
+UPDATE "InternalQueueItem"
+SET "priority" = 4
+FROM
+    matching_qis
+WHERE
+    "InternalQueueItem"."id" = matching_qis."id"
+    AND "data"->>'workflow_id' = $1::text
+`
+
+type HandleWorkflowUnpausedParams struct {
+	Workflowid string      `json:"workflowid"`
+	Tenantid   pgtype.UUID `json:"tenantid"`
+}
+
+// We update all the queue items to have a higher priority so we can unpause them
+func (q *Queries) HandleWorkflowUnpaused(ctx context.Context, db DBTX, arg HandleWorkflowUnpausedParams) error {
+	_, err := db.Exec(ctx, handleWorkflowUnpaused, arg.Workflowid, arg.Tenantid)
+	return err
+}
+
 const linkOnFailureJob = `-- name: LinkOnFailureJob :one
 UPDATE "WorkflowVersion"
 SET "onFailureJobId" = $1::uuid
@@ -1167,6 +1203,37 @@ func (q *Queries) LinkOnFailureJob(ctx context.Context, db DBTX, arg LinkOnFailu
 		&i.DefaultPriority,
 	)
 	return &i, err
+}
+
+const listPausedWorkflows = `-- name: ListPausedWorkflows :many
+SELECT
+    "id"
+FROM
+    "Workflow"
+WHERE
+    "tenantId" = $1::uuid AND
+    "isPaused" = true AND
+    "deletedAt" IS NULL
+`
+
+func (q *Queries) ListPausedWorkflows(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]pgtype.UUID, error) {
+	rows, err := db.Query(ctx, listPausedWorkflows, tenantid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []pgtype.UUID
+	for rows.Next() {
+		var id pgtype.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listWorkflows = `-- name: ListWorkflows :many

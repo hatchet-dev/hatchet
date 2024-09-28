@@ -486,6 +486,16 @@ SET
 WHERE "id" = @id::uuid
 RETURNING *;
 
+-- name: ListPausedWorkflows :many
+SELECT
+    "id"
+FROM
+    "Workflow"
+WHERE
+    "tenantId" = @tenantId::uuid AND
+    "isPaused" = true AND
+    "deletedAt" IS NULL;
+
 -- name: UpdateWorkflow :one
 UPDATE "Workflow"
 SET
@@ -493,6 +503,31 @@ SET
     "isPaused" = coalesce(sqlc.narg('isPaused')::boolean, "isPaused")
 WHERE "id" = @id::uuid
 RETURNING *;
+
+-- name: HandleWorkflowUnpaused :exec
+WITH matching_qis AS (
+    -- We know that we're going to need to scan all the queue items in this queue
+    -- for the tenant, so we write this query in such a way that the index is used.
+    SELECT
+        qi."id"
+    FROM
+        "InternalQueueItem" qi
+    WHERE
+        qi."isQueued" = true
+        AND qi."tenantId" = @tenantId::uuid
+        AND qi."queue" = 'WORKFLOW_RUN_PAUSED'
+        AND qi."priority" = 1
+    ORDER BY
+        qi."id" DESC
+)
+UPDATE "InternalQueueItem"
+-- We update all the queue items to have a higher priority so we can unpause them
+SET "priority" = 4
+FROM
+    matching_qis
+WHERE
+    "InternalQueueItem"."id" = matching_qis."id"
+    AND "data"->>'workflow_id' = @workflowId::text;
 
 -- name: GetWorkflowWorkerCount :one
 WITH UniqueWorkers AS (

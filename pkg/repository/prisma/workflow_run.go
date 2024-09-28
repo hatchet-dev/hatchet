@@ -121,6 +121,19 @@ type updateWorkflowRunQueueData struct {
 	Event *repository.CreateStepRunEventOpts `json:"event,omitempty"`
 }
 
+func (w *workflowRunEngineRepository) QueuePausedWorkflowRun(ctx context.Context, tenantId, workflowId, workflowRunId string) error {
+	return insertPausedWorkflowRunQueueItem(
+		ctx,
+		w.pool,
+		w.queries,
+		tenantId,
+		unpauseWorkflowRunQueueData{
+			WorkflowId:    workflowId,
+			WorkflowRunId: workflowRunId,
+		},
+	)
+}
+
 func (w *workflowRunEngineRepository) ProcessWorkflowRunUpdates(ctx context.Context, tenantId string) (bool, error) {
 	ctx, span := telemetry.NewSpan(ctx, "process-workflow-run-updates-database")
 	defer span.End()
@@ -226,6 +239,116 @@ func (w *workflowRunEngineRepository) ProcessWorkflowRunUpdates(ctx context.Cont
 	}
 
 	return len(queueItems) == limit, nil
+}
+
+type unpauseWorkflowRunQueueData struct {
+	// NOTE: do not change this workflow_id without also changing HandleWorkflowUnpaused,
+	// as we've written a query which selects on this field
+	WorkflowId    string `json:"workflow_id"`
+	WorkflowRunId string `json:"workflow_run_id"`
+}
+
+func (w *workflowRunEngineRepository) ProcessUnpausedWorkflowRuns(ctx context.Context, tenantId string) ([]*dbsqlc.GetWorkflowRunRow, bool, error) {
+	ctx, span := telemetry.NewSpan(ctx, "process-workflow-run-updates-database")
+	defer span.End()
+
+	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
+
+	limit := 1000
+
+	tx, commit, rollback, err := prepareTx(ctx, w.pool, w.l, 25000)
+
+	if err != nil {
+		return nil, false, err
+	}
+
+	defer rollback()
+
+	// list queues
+	queueItems, err := w.queries.ListInternalQueueItems(ctx, tx, dbsqlc.ListInternalQueueItemsParams{
+		Tenantid: pgTenantId,
+		Queue:    dbsqlc.InternalQueueWORKFLOWRUNPAUSED,
+		Limit: pgtype.Int4{
+			Int32: int32(limit),
+			Valid: true,
+		},
+	})
+
+	if err != nil {
+		return nil, false, fmt.Errorf("could not list internal queue items for paused workflow runs: %w", err)
+	}
+
+	if len(queueItems) == 0 {
+		return nil, false, nil
+	}
+
+	data, err := toQueueItemData[unpauseWorkflowRunQueueData](queueItems)
+
+	if err != nil {
+		return nil, false, fmt.Errorf("could not convert internal queue item data to worker semaphore queue data: %w", err)
+	}
+
+	// construct a map of workflow IDs
+	candidateUnpausedWorkflows := make(map[string]bool)
+
+	for _, item := range data {
+		candidateUnpausedWorkflows[item.WorkflowId] = true
+	}
+
+	// list paused workflows
+	pausedWorkflowIds, err := w.queries.ListPausedWorkflows(ctx, tx, sqlchelpers.UUIDFromStr(tenantId))
+
+	if err != nil {
+		return nil, false, fmt.Errorf("could not list paused workflows: %w", err)
+	}
+
+	// for each workflow ID, check whether it is paused
+	for _, pausedWorkflowId := range pausedWorkflowIds {
+		delete(candidateUnpausedWorkflows, sqlchelpers.UUIDToStr(pausedWorkflowId))
+	}
+
+	// if there are no paused workflows to unpause, return
+	if len(candidateUnpausedWorkflows) == 0 {
+		return nil, false, nil
+	}
+
+	// if there are paused workflows to unpause, queue them
+	workflowRunsToQueue := make([]pgtype.UUID, 0)
+	qiIds := make([]int64, 0)
+
+	for i, item := range data {
+		if _, ok := candidateUnpausedWorkflows[item.WorkflowId]; ok {
+			workflowRunsToQueue = append(workflowRunsToQueue, sqlchelpers.UUIDFromStr(item.WorkflowRunId))
+			qiIds = append(qiIds, queueItems[i].ID)
+		}
+	}
+
+	// update the processed semaphore queue items for the workflow runs which were unpaused
+	err = w.queries.MarkInternalQueueItemsProcessed(ctx, tx, qiIds)
+
+	if err != nil {
+		return nil, false, fmt.Errorf("could not mark worker semaphore queue items processed: %w", err)
+	}
+
+	// get the workflow runs by id
+	workflowRuns, err := w.queries.GetWorkflowRun(ctx, tx, dbsqlc.GetWorkflowRunParams{
+		Ids:      workflowRunsToQueue,
+		Tenantid: pgTenantId,
+	})
+
+	if err != nil {
+		return nil, false, fmt.Errorf("could not get workflow runs by id: %w", err)
+	}
+
+	err = commit(ctx)
+
+	if err != nil {
+		return nil, false, fmt.Errorf("could not commit transaction: %w", err)
+	}
+
+	// if we reached this point, it means that some of the workflows in the queue were unpaused, so
+	// we should continue until this is no longer true
+	return workflowRuns, true, nil
 }
 
 func (w *workflowRunAPIRepository) GetWorkflowRunById(ctx context.Context, tenantId, id string) (*dbsqlc.GetWorkflowRunByIdRow, error) {
@@ -1265,6 +1388,26 @@ func insertWorkflowRunQueueItem(
 		queries,
 		tenantId,
 		dbsqlc.InternalQueueWORKFLOWRUNUPDATE,
+		insertData,
+	)
+}
+
+func insertPausedWorkflowRunQueueItem(
+	ctx context.Context,
+	dbtx dbsqlc.DBTX,
+	queries *dbsqlc.Queries,
+	tenantId string,
+	data unpauseWorkflowRunQueueData,
+) error {
+	insertData := make([]any, 1)
+	insertData[0] = data
+
+	return bulkInsertInternalQueueItem(
+		ctx,
+		dbtx,
+		queries,
+		tenantId,
+		dbsqlc.InternalQueueWORKFLOWRUNPAUSED,
 		insertData,
 	)
 }

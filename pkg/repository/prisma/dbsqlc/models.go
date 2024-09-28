@@ -61,6 +61,7 @@ const (
 	InternalQueueWORKERSEMAPHORECOUNT InternalQueue = "WORKER_SEMAPHORE_COUNT"
 	InternalQueueSTEPRUNUPDATE        InternalQueue = "STEP_RUN_UPDATE"
 	InternalQueueWORKFLOWRUNUPDATE    InternalQueue = "WORKFLOW_RUN_UPDATE"
+	InternalQueueWORKFLOWRUNPAUSED    InternalQueue = "WORKFLOW_RUN_PAUSED"
 )
 
 func (e *InternalQueue) Scan(src interface{}) error {
