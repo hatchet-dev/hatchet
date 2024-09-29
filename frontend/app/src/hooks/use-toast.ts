@@ -1,4 +1,3 @@
-// Inspired by react-hot-toast library
 import * as React from 'react';
 
 import type { ToastActionElement, ToastProps } from '@/components/ui/toast';
@@ -6,20 +5,11 @@ import type { ToastActionElement, ToastProps } from '@/components/ui/toast';
 const TOAST_LIMIT = 1;
 const TOAST_REMOVE_DELAY = 1000000;
 
-// Add this type definition
-export type ToastPosition =
-  | 'top-left'
-  | 'top-right'
-  | 'bottom-left'
-  | 'bottom-right';
-
-// Modify the existing ToasterToast type
 type ToasterToast = ToastProps & {
   id: string;
   title?: React.ReactNode;
   description?: React.ReactNode;
   action?: ToastActionElement;
-  position?: ToastPosition;
 };
 
 const actionTypes = {
@@ -144,10 +134,9 @@ function dispatch(action: Action) {
   });
 }
 
-// Modify the Toast type
 type Toast = Omit<ToasterToast, 'id'>;
 
-function toast({ position = 'bottom-right', ...props }: Toast) {
+function toast({ ...props }: Toast) {
   const id = genId();
 
   const update = (props: ToasterToast) =>
@@ -162,7 +151,6 @@ function toast({ position = 'bottom-right', ...props }: Toast) {
     toast: {
       ...props,
       id,
-      position,
       open: true,
       onOpenChange: (open) => {
         if (!open) {

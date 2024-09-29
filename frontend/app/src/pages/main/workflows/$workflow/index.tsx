@@ -12,7 +12,7 @@ import { TenantContextType } from '@/lib/outlet';
 import { TriggerWorkflowForm } from './components/trigger-workflow-form';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { useApiMetaIntegrations } from '@/lib/hooks';
+import { useApiError, useApiMetaIntegrations } from '@/lib/hooks';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import WorkflowGeneralSettings from './components/workflow-general-settings';
 import { WorkflowRunsTable } from '../../workflow-runs/components/workflow-runs-table';
@@ -30,6 +30,7 @@ export default function ExpandedWorkflow() {
 
   // TODO list previous versions and make selectable
   const [selectedVersion] = useState<string | undefined>();
+  const { handleApiError } = useApiError({});
 
   invariant(tenant);
 
@@ -61,10 +62,9 @@ export default function ExpandedWorkflow() {
 
       return res.data;
     },
+    onError: handleApiError,
     onSuccess: () => {
-      // TODO this will conflict with wip changes
-      // HACK to reload the page since we're using the legacy loader model
-      window.location.reload();
+      workflowQuery.refetch();
     },
   });
 
