@@ -370,6 +370,7 @@ export function ChildWorkflowRuns({
       initColumnVisibility={{
         'Triggered by': false,
       }}
+      createdAfter={stepRun?.metadata.createdAt}
     />
   );
 }
