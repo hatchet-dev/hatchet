@@ -116,6 +116,49 @@ withWorkflow:
     summary: Delete workflow
     tags:
       - Workflow
+  patch:
+    x-resources: ["tenant", "workflow"]
+    description: Update a workflow for a tenant
+    operationId: workflow:update
+    parameters:
+      - description: The workflow id
+        in: path
+        name: workflow
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    requestBody:
+      content:
+        application/json:
+          schema:
+            $ref: "../../components/schemas/_index.yaml#/WorkflowUpdateRequest"
+      description: The input to update the workflow
+      required: true
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/Workflow"
+        description: Successfully updated the workflow
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+    summary: Update workflow
+    tags:
+      - Workflow
 workflowVersion:
   get:
     x-resources: ["tenant", "workflow"]

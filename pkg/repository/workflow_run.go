@@ -448,6 +448,10 @@ type WorkflowRunEngineRepository interface {
 	// GetWorkflowRunById returns a workflow run by id.
 	GetWorkflowRunById(ctx context.Context, tenantId, runId string) (*dbsqlc.GetWorkflowRunRow, error)
 
+	QueuePausedWorkflowRun(ctx context.Context, tenantId, workflowId, workflowRunId string) error
+
+	ProcessUnpausedWorkflowRuns(ctx context.Context, tenantId string) ([]*dbsqlc.GetWorkflowRunRow, bool, error)
+
 	GetWorkflowRunAdditionalMeta(ctx context.Context, tenantId, workflowRunId string) (*dbsqlc.GetWorkflowRunAdditionalMetaRow, error)
 
 	ReplayWorkflowRun(ctx context.Context, tenantId, workflowRunId string) (*dbsqlc.GetWorkflowRunRow, error)

@@ -115,6 +115,57 @@ func (r *workflowAPIRepository) ListWorkflows(tenantId string, opts *repository.
 	return res, nil
 }
 
+func (r *workflowAPIRepository) UpdateWorkflow(ctx context.Context, tenantId, workflowId string, opts *repository.UpdateWorkflowOpts) (*dbsqlc.Workflow, error) {
+	if err := r.v.Validate(opts); err != nil {
+		return nil, err
+	}
+
+	pgWorkflowId := sqlchelpers.UUIDFromStr(workflowId)
+
+	params := dbsqlc.UpdateWorkflowParams{
+		ID: pgWorkflowId,
+	}
+
+	if opts.IsPaused != nil {
+		params.IsPaused = pgtype.Bool{
+			Valid: true,
+			Bool:  *opts.IsPaused,
+		}
+	}
+
+	tx, commit, rollback, err := prepareTx(ctx, r.pool, r.l, 25000)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer rollback()
+
+	workflow, err := r.queries.UpdateWorkflow(ctx, tx, params)
+
+	if err != nil {
+		return nil, err
+	}
+
+	// if we're setting to an unpaused state, update internal queue items
+	if opts.IsPaused != nil && !*opts.IsPaused {
+		err = r.queries.HandleWorkflowUnpaused(ctx, tx, dbsqlc.HandleWorkflowUnpausedParams{
+			Workflowid: workflowId,
+			Tenantid:   sqlchelpers.UUIDFromStr(tenantId),
+		})
+
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if err := commit(ctx); err != nil {
+		return nil, err
+	}
+
+	return workflow, nil
+}
+
 func (r *workflowAPIRepository) GetWorkflowById(ctx context.Context, workflowId string) (*dbsqlc.GetWorkflowByIdRow, error) {
 	return r.queries.GetWorkflowById(context.Background(), r.pool, sqlchelpers.UUIDFromStr(workflowId))
 

@@ -114,6 +114,8 @@ CancelEventRequest:
   $ref: "./event.yaml#/CancelEventRequest"
 Workflow:
   $ref: "./workflow.yaml#/Workflow"
+WorkflowUpdateRequest:
+  $ref: "./workflow.yaml#/WorkflowUpdateRequest"
 WorkflowConcurrency:
   $ref: "./workflow.yaml#/WorkflowConcurrency"
 WorkflowVersionMeta:

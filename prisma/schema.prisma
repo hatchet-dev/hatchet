@@ -463,6 +463,8 @@ model Workflow {
   // the parent tenant
   tenantId String @db.Uuid
 
+  isPaused Boolean? @default(false)
+
   // the workflow name
   name String
 
@@ -1347,6 +1349,7 @@ enum InternalQueue {
   WORKER_SEMAPHORE_COUNT
   STEP_RUN_UPDATE
   WORKFLOW_RUN_UPDATE
+  WORKFLOW_RUN_PAUSED
 }
 
 model InternalQueueItem {

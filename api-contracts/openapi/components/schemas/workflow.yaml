@@ -8,6 +8,9 @@ Workflow:
     description:
       type: string
       description: The description of the workflow.
+    isPaused:
+      type: boolean
+      description: Whether the workflow is paused.
     versions:
       type: array
       items:
@@ -26,6 +29,13 @@ Workflow:
     - metadata
     - name
   type: object
+
+WorkflowUpdateRequest:
+  type: object
+  properties:
+    isPaused:
+      type: boolean
+      description: Whether the workflow is paused.
 
 WorkflowTag:
   type: object

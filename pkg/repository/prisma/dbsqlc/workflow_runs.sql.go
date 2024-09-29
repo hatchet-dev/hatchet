@@ -986,6 +986,7 @@ SELECT
     -- waiting on https://github.com/sqlc-dev/sqlc/pull/2858 for nullable fields
     wc."limitStrategy" as "concurrencyLimitStrategy",
     wc."maxRuns" as "concurrencyMaxRuns",
+    workflow."isPaused" as "isPaused",
     wc."concurrencyGroupExpression" as "concurrencyGroupExpression",
     groupKeyRun."id" as "getGroupKeyRunId"
 FROM
@@ -1020,6 +1021,7 @@ type GetWorkflowRunRow struct {
 	WorkflowName               pgtype.Text                  `json:"workflowName"`
 	ConcurrencyLimitStrategy   NullConcurrencyLimitStrategy `json:"concurrencyLimitStrategy"`
 	ConcurrencyMaxRuns         pgtype.Int4                  `json:"concurrencyMaxRuns"`
+	IsPaused                   pgtype.Bool                  `json:"isPaused"`
 	ConcurrencyGroupExpression pgtype.Text                  `json:"concurrencyGroupExpression"`
 	GetGroupKeyRunId           pgtype.UUID                  `json:"getGroupKeyRunId"`
 }
@@ -1080,6 +1082,7 @@ func (q *Queries) GetWorkflowRun(ctx context.Context, db DBTX, arg GetWorkflowRu
 			&i.WorkflowName,
 			&i.ConcurrencyLimitStrategy,
 			&i.ConcurrencyMaxRuns,
+			&i.IsPaused,
 			&i.ConcurrencyGroupExpression,
 			&i.GetGroupKeyRunId,
 		); err != nil {
@@ -1125,7 +1128,7 @@ const getWorkflowRunById = `-- name: GetWorkflowRunById :one
 SELECT
     r."createdAt", r."updatedAt", r."deletedAt", r."tenantId", r."workflowVersionId", r.status, r.error, r."startedAt", r."finishedAt", r."concurrencyGroupId", r."displayName", r.id, r."childIndex", r."childKey", r."parentId", r."parentStepRunId", r."additionalMetadata", r.duration, r.priority,
     wv.id, wv."createdAt", wv."updatedAt", wv."deletedAt", wv.version, wv."order", wv."workflowId", wv.checksum, wv."scheduleTimeout", wv."onFailureJobId", wv.sticky, wv.kind, wv."defaultPriority",
-    w.id, w."createdAt", w."updatedAt", w."deletedAt", w."tenantId", w.name, w.description,
+    w.id, w."createdAt", w."updatedAt", w."deletedAt", w."tenantId", w.name, w.description, w."isPaused",
     tb.id, tb."createdAt", tb."updatedAt", tb."deletedAt", tb."tenantId", tb."eventId", tb."cronParentId", tb."cronSchedule", tb."scheduledId", tb.input, tb."parentId"
 FROM
     "WorkflowRun" r
@@ -1214,6 +1217,7 @@ func (q *Queries) GetWorkflowRunById(ctx context.Context, db DBTX, arg GetWorkfl
 		&i.Workflow.TenantId,
 		&i.Workflow.Name,
 		&i.Workflow.Description,
+		&i.Workflow.IsPaused,
 		&i.WorkflowRunTriggeredBy.ID,
 		&i.WorkflowRunTriggeredBy.CreatedAt,
 		&i.WorkflowRunTriggeredBy.UpdatedAt,
@@ -1514,7 +1518,7 @@ func (q *Queries) ListWorkflowRunEventsByWorkflowRunId(ctx context.Context, db D
 const listWorkflowRuns = `-- name: ListWorkflowRuns :many
 SELECT
     runs."createdAt", runs."updatedAt", runs."deletedAt", runs."tenantId", runs."workflowVersionId", runs.status, runs.error, runs."startedAt", runs."finishedAt", runs."concurrencyGroupId", runs."displayName", runs.id, runs."childIndex", runs."childKey", runs."parentId", runs."parentStepRunId", runs."additionalMetadata", runs.duration, runs.priority,
-    workflow.id, workflow."createdAt", workflow."updatedAt", workflow."deletedAt", workflow."tenantId", workflow.name, workflow.description,
+    workflow.id, workflow."createdAt", workflow."updatedAt", workflow."deletedAt", workflow."tenantId", workflow.name, workflow.description, workflow."isPaused",
     runtriggers.id, runtriggers."createdAt", runtriggers."updatedAt", runtriggers."deletedAt", runtriggers."tenantId", runtriggers."eventId", runtriggers."cronParentId", runtriggers."cronSchedule", runtriggers."scheduledId", runtriggers.input, runtriggers."parentId",
     workflowversion.id, workflowversion."createdAt", workflowversion."updatedAt", workflowversion."deletedAt", workflowversion.version, workflowversion."order", workflowversion."workflowId", workflowversion.checksum, workflowversion."scheduleTimeout", workflowversion."onFailureJobId", workflowversion.sticky, workflowversion.kind, workflowversion."defaultPriority",
     -- waiting on https://github.com/sqlc-dev/sqlc/pull/2858 for nullable events field
@@ -1701,6 +1705,7 @@ func (q *Queries) ListWorkflowRuns(ctx context.Context, db DBTX, arg ListWorkflo
 			&i.Workflow.TenantId,
 			&i.Workflow.Name,
 			&i.Workflow.Description,
+			&i.Workflow.IsPaused,
 			&i.WorkflowRunTriggeredBy.ID,
 			&i.WorkflowRunTriggeredBy.CreatedAt,
 			&i.WorkflowRunTriggeredBy.UpdatedAt,

@@ -61,6 +61,7 @@ const (
 	InternalQueueWORKERSEMAPHORECOUNT InternalQueue = "WORKER_SEMAPHORE_COUNT"
 	InternalQueueSTEPRUNUPDATE        InternalQueue = "STEP_RUN_UPDATE"
 	InternalQueueWORKFLOWRUNUPDATE    InternalQueue = "WORKFLOW_RUN_UPDATE"
+	InternalQueueWORKFLOWRUNPAUSED    InternalQueue = "WORKFLOW_RUN_PAUSED"
 )
 
 func (e *InternalQueue) Scan(src interface{}) error {
@@ -1511,6 +1512,7 @@ type Workflow struct {
 	TenantId    pgtype.UUID      `json:"tenantId"`
 	Name        string           `json:"name"`
 	Description pgtype.Text      `json:"description"`
+	IsPaused    pgtype.Bool      `json:"isPaused"`
 }
 
 type WorkflowConcurrency struct {

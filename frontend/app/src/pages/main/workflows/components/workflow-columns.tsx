@@ -4,8 +4,26 @@ import { Workflow } from '@/lib/api';
 import { Link } from 'react-router-dom';
 import { ChevronRightIcon } from '@radix-ui/react-icons';
 import RelativeDate from '@/components/molecules/relative-date';
+import { Badge } from '@/components/ui/badge';
 
 export const columns: ColumnDef<Workflow>[] = [
+  {
+    accessorKey: 'Status',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Status" />
+    ),
+    cell: ({ row }) => (
+      <>
+        {row.original.isPaused ? (
+          <Badge variant="inProgress">Paused</Badge>
+        ) : (
+          <Badge variant="successful">Active</Badge>
+        )}
+      </>
+    ),
+    enableSorting: false,
+    enableHiding: false,
+  },
   {
     accessorKey: 'name',
     header: ({ column }) => (

@@ -549,11 +549,18 @@ export interface Workflow {
   name: string;
   /** The description of the workflow. */
   description?: string;
+  /** Whether the workflow is paused. */
+  isPaused?: boolean;
   versions?: WorkflowVersionMeta[];
   /** The tags of the workflow. */
   tags?: WorkflowTag[];
   /** The jobs of the workflow. */
   jobs?: Job[];
+}
+
+export interface WorkflowUpdateRequest {
+  /** Whether the workflow is paused. */
+  isPaused?: boolean;
 }
 
 export interface WorkflowConcurrency {

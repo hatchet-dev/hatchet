@@ -93,6 +93,7 @@ import {
   WorkflowRunsMetrics,
   WorkflowRunStatus,
   WorkflowRunStatusList,
+  WorkflowUpdateRequest,
   WorkflowVersion,
   WorkflowWorkersCount,
 } from './data-contracts';
@@ -1151,6 +1152,25 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       path: `/api/v1/workflows/${workflow}`,
       method: 'DELETE',
       secure: true,
+      ...params,
+    });
+  /**
+   * @description Update a workflow for a tenant
+   *
+   * @tags Workflow
+   * @name WorkflowUpdate
+   * @summary Update workflow
+   * @request PATCH:/api/v1/workflows/{workflow}
+   * @secure
+   */
+  workflowUpdate = (workflow: string, data: WorkflowUpdateRequest, params: RequestParams = {}) =>
+    this.request<Workflow, APIErrors>({
+      path: `/api/v1/workflows/${workflow}`,
+      method: 'PATCH',
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: 'json',
       ...params,
     });
   /**
