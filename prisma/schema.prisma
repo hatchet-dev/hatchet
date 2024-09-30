@@ -206,7 +206,6 @@ model Tenant {
   dataRetentionPeriod String @default("720h")
 
   triggers          WorkflowTriggers[]
-  jobRunLookupDatas JobRunLookupData[]
   members           TenantMember[]
   workflowTags      WorkflowTag[]
   actions           Action[]
@@ -708,9 +707,6 @@ model Job {
   // a timeout value for the job
   timeout String?
 
-  // any runs for this job
-  runs JobRun[]
-
   // the kind of job
   kind JobKind @default(DEFAULT)
 
@@ -1098,7 +1094,6 @@ model JobRun {
   workflowRunId String      @db.Uuid
 
   // the parent job
-  job   Job    @relation(fields: [jobId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   jobId String @db.Uuid
 
   // the assigned ticker
@@ -1148,7 +1143,6 @@ model JobRunLookupData {
   jobRunId String @unique @db.Uuid
 
   // the tenant id
-  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   tenantId String @db.Uuid
 
   data Json?
