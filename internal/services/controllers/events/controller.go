@@ -179,6 +179,10 @@ func (ec *EventsControllerImpl) processEvent(ctx context.Context, tenantId, even
 	ctx, span := telemetry.NewSpan(ctx, "process-event")
 	defer span.End()
 
+	if additionalMetadata == nil {
+		additionalMetadata = make(map[string]interface{})
+	}
+
 	// query for matching workflows in the system
 	workflowVersions, err := ec.repo.Workflow().ListWorkflowsForEvent(ctx, tenantId, eventKey)
 
