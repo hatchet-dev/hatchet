@@ -89,9 +89,10 @@ err = w.RegisterWorkflow(
         Steps: []*worker.WorkflowStep{
             worker.Fn(StepOne).SetName("step-one").SetRateLimit(
                 worker.RateLimit{
+                    Key: "per-user-rate-limit",
                     Units: 1,
-                    DynamicKey: "input.user_id",
-                    Limit: 10,
+                    KeyExpr: "input.user_id",
+                    LimitValueExpr: '"10"',
                     Duration: worker.RateLimitDurationMinute,
                 },
             ),
