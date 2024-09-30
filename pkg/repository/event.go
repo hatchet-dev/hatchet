@@ -13,10 +13,6 @@ type BulkCreateEventOpts struct {
 	Events   []*CreateEventOpts
 }
 
-type BulkCreateEventSharedTenantOpts struct {
-	Events []*CreateEventOpts
-}
-
 type CreateEventOpts struct {
 	// (required) the tenant id
 	TenantId string `validate:"required,uuid"`

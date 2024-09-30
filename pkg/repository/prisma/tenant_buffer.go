@@ -122,5 +122,5 @@ func (t *TenantBufferManager[T, U]) BuffItem(tenantID string, eventOps T) (chan 
 	if err != nil {
 		return nil, err
 	}
-	return tenantBuf.buffEvent(eventOps)
+	return tenantBuf.buffItem(eventOps)
 }

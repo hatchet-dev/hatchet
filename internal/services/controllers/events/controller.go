@@ -194,9 +194,6 @@ func (ec *EventsControllerImpl) processEvent(ctx context.Context, tenantId, even
 
 		g.Go(func() error {
 
-			// what happens if this additional metadata is already set ?
-			// add the event id to the additional metadata so that when we trigger workflows we can query by event id and by key
-
 			if additionalMetadata["hatchet__event_id"] == nil {
 				additionalMetadata["hatchet__event_id"] = eventId
 			}

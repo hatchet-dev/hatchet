@@ -105,10 +105,6 @@ func (b *IngestBuf[T, U]) safeIncSizeOfData(size int) {
 func (b *IngestBuf[T, U]) safeDecSizeOfData(size int) {
 	b.lock.Lock()
 	b.sizeOfData -= size
-	if b.sizeOfData < 0 {
-		panic("this should never happen")
-	}
-
 	b.lock.Unlock()
 }
 
@@ -240,8 +236,8 @@ func (b *IngestBuf[T, U]) Start() (func() error, error) {
 	return b.cleanup, nil
 }
 
-func (b *IngestBuf[T, U]) buffEvent(item T) (chan *flushResponse[U], error) {
-	doneChan := make(chan *flushResponse[U], 200)
+func (b *IngestBuf[T, U]) buffItem(item T) (chan *flushResponse[U], error) {
+	doneChan := make(chan *flushResponse[U], 1)
 
 	select {
 	case b.inputChan <- &inputWrapper[T, U]{

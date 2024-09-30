@@ -118,7 +118,7 @@ func (i *IngestorImpl) StartBufferLoop() (func() error, error) {
 }
 
 func (i *IngestorImpl) IngestEvent(ctx context.Context, tenantId, key string, data []byte, metadata []byte) (*dbsqlc.Event, error) {
-	_, span := telemetry.NewSpan(ctx, "ingest-event")
+	ctx, span := telemetry.NewSpan(ctx, "ingest-event")
 	defer span.End()
 
 	event, err := i.eventRepository.CreateEvent(ctx, &repository.CreateEventOpts{
@@ -136,15 +136,12 @@ func (i *IngestorImpl) IngestEvent(ctx context.Context, tenantId, key string, da
 		return nil, fmt.Errorf("could not create events: %w", err)
 	}
 
-	// TODO any attributes we want to add here? could jam in all the event ids? but could be a lot
-
 	telemetry.WithAttributes(span, telemetry.AttributeKV{
 		Key:   "event_id",
 		Value: event.ID,
 	})
 
 	err = i.mq.AddMessage(context.Background(), msgqueue.EVENT_PROCESSING_QUEUE, eventToTask(event))
-	// fmt.Printf("event: %+v\n", event)
 	if err != nil {
 		return nil, fmt.Errorf("could not add event to task queue: %w", err)
 
@@ -179,7 +176,6 @@ func (i *IngestorImpl) BulkIngestEvent(ctx context.Context, tenantId string, eve
 
 	for _, event := range events.Events {
 		err = i.mq.AddMessage(context.Background(), msgqueue.EVENT_PROCESSING_QUEUE, eventToTask(event))
-		// fmt.Printf("event: %+v\n", event)
 		if err != nil {
 			return nil, fmt.Errorf("could not add event to task queue: %w", err)
 		}

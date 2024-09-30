@@ -279,8 +279,6 @@ func (r *eventEngineRepository) CreateEvent(ctx context.Context, opts *repositor
 			ReplayedEvent:      opts.ReplayedEvent,
 		}
 
-		// done, err := r.buff.buffEvent(&createOpts)
-
 		done, err := r.bulkCreateBuffer.BuffItem(opts.TenantId, &createOpts)
 
 		if err != nil {
