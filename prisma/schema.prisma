@@ -444,6 +444,9 @@ model Event {
   // the workflow runs that were triggered by this event
   workflowRuns WorkflowRunTriggeredBy[]
 
+  // this is used to order the events on bulk inserts
+  insertOrder Int?
+
   @@index([tenantId])
   @@index([createdAt])
   @@index([tenantId, createdAt])

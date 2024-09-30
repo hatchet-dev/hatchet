@@ -904,6 +904,7 @@ type Event struct {
 	ReplayedFromId     pgtype.UUID      `json:"replayedFromId"`
 	Data               []byte           `json:"data"`
 	AdditionalMetadata []byte           `json:"additionalMetadata"`
+	InsertOrder        pgtype.Int4      `json:"insertOrder"`
 }
 
 type GetGroupKeyRun struct {

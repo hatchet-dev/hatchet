@@ -194,6 +194,24 @@ func (r *eventAPIRepository) ListEventKeys(tenantId string) ([]string, error) {
 	return keys, nil
 }
 
+func sizeOfEvent(item *repository.CreateEventOpts) int {
+	return len(item.Data) + len(item.AdditionalMetadata)
+}
+
+func (e *eventEngineRepository) StartBufferLoop() (func() error, error) {
+
+	tenantBufOpts := TenantBufManagerOpts[*repository.CreateEventOpts, *dbsqlc.Event]{OutputFunc: e.BulkCreateEventSharedTenant, SizeFunc: sizeOfEvent, l: e.l}
+	var err error
+	e.bulkCreateBuffer, err = NewTenantBufManager(tenantBufOpts)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return e.bulkCreateBuffer.Cleanup, err
+
+}
+
 func (r *eventAPIRepository) GetEventById(id string) (*db.EventModel, error) {
 	return r.client.Event.FindFirst(
 		db.Event.ID.Equals(id),
@@ -210,13 +228,13 @@ func (r *eventAPIRepository) ListEventsById(tenantId string, ids []string) ([]db
 }
 
 type eventEngineRepository struct {
-	pool    *pgxpool.Pool
-	v       validator.Validator
-	queries *dbsqlc.Queries
-	l       *zerolog.Logger
-	m       *metered.Metered
-
-	callbacks []repository.Callback[*dbsqlc.Event]
+	pool             *pgxpool.Pool
+	v                validator.Validator
+	queries          *dbsqlc.Queries
+	l                *zerolog.Logger
+	m                *metered.Metered
+	bulkCreateBuffer *TenantBufferManager[*repository.CreateEventOpts, *dbsqlc.Event]
+	callbacks        []repository.Callback[*dbsqlc.Event]
 }
 
 func NewEventEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, m *metered.Metered) repository.EventEngineRepository {
@@ -246,40 +264,53 @@ func (r *eventEngineRepository) GetEventForEngine(ctx context.Context, tenantId,
 func (r *eventEngineRepository) CreateEvent(ctx context.Context, opts *repository.CreateEventOpts) (*dbsqlc.Event, error) {
 	return metered.MakeMetered(ctx, r.m, dbsqlc.LimitResourceEVENT, opts.TenantId, 1, func() (*string, *dbsqlc.Event, error) {
 
-		ctx, span := telemetry.NewSpan(ctx, "db-create-event")
+		_, span := telemetry.NewSpan(ctx, "db-create-event")
 		defer span.End()
 
 		if err := r.v.Validate(opts); err != nil {
 			return nil, nil, err
 		}
 
-		createParams := dbsqlc.CreateEventParams{
-			ID:                 sqlchelpers.UUIDFromStr(uuid.New().String()),
+		createOpts := repository.CreateEventOpts{
+			TenantId:           opts.TenantId,
 			Key:                opts.Key,
-			Tenantid:           sqlchelpers.UUIDFromStr(opts.TenantId),
 			Data:               opts.Data,
-			Additionalmetadata: opts.AdditionalMetadata,
+			AdditionalMetadata: opts.AdditionalMetadata,
+			ReplayedEvent:      opts.ReplayedEvent,
 		}
 
-		if opts.ReplayedEvent != nil {
-			createParams.ReplayedFromId = sqlchelpers.UUIDFromStr(*opts.ReplayedEvent)
-		}
+		// done, err := r.buff.buffEvent(&createOpts)
 
-		e, err := r.queries.CreateEvent(
-			ctx,
-			r.pool,
-			createParams,
-		)
+		done, err := r.bulkCreateBuffer.BuffItem(opts.TenantId, &createOpts)
 
 		if err != nil {
-			return nil, nil, fmt.Errorf("could not create event: %w", err)
+			return nil, nil, fmt.Errorf("could not buffer event: %w", err)
 		}
+		var response *flushResponse[*dbsqlc.Event]
+
+		select {
+		case response = <-done:
+		case <-ctx.Done():
+			return nil, nil, ctx.Err()
+		case <-time.After(20 * time.Second):
+			return nil, nil, fmt.Errorf("timeout waiting for event to be flushed to db")
+		}
+
+		if response.err != nil {
+			return nil, nil, fmt.Errorf("could not create event: %w", response.err)
+		}
+
+		e := response.result
 
 		for _, cb := range r.callbacks {
 			cb.Do(e) // nolint: errcheck
 		}
 
 		id := sqlchelpers.UUIDToStr(e.ID)
+
+		if e.TenantId != sqlchelpers.UUIDFromStr(opts.TenantId) {
+			panic("tenant id mismatch")
+		}
 
 		return &id, e, nil
 	})
@@ -297,6 +328,7 @@ func (r *eventEngineRepository) BulkCreateEvent(ctx context.Context, opts *repos
 		defer span.End()
 
 		if err := r.v.Validate(opts); err != nil {
+
 			return nil, nil, err
 		}
 		params := make([]dbsqlc.CreateEventsParams, len(opts.Events))
@@ -371,10 +403,10 @@ func (r *eventEngineRepository) BulkCreateEvent(ctx context.Context, opts *repos
 		return &returnString, &repository.BulkCreateEventResult{Events: events}, nil
 	})
 }
-func (r *eventEngineRepository) BulkCreateEventSharedTenant(ctx context.Context, opts *repository.BulkCreateEventSharedTenantOpts) (*repository.BulkCreateEventResult, error) {
+func (r *eventEngineRepository) BulkCreateEventSharedTenant(ctx context.Context, opts []*repository.CreateEventOpts) ([]*dbsqlc.Event, error) {
 
 	// need to do the metering beforehand
-	numberOfResources := len(opts.Events)
+	numberOfResources := len(opts)
 	if numberOfResources < math.MinInt32 || numberOfResources > math.MaxInt32 {
 		return nil, fmt.Errorf("number of resources is out of range")
 	}
@@ -382,12 +414,19 @@ func (r *eventEngineRepository) BulkCreateEventSharedTenant(ctx context.Context,
 	ctx, span := telemetry.NewSpan(ctx, "db-bulk-create-event-shared-tenant")
 	defer span.End()
 
-	if err := r.v.Validate(opts); err != nil {
-		return nil, err
-	}
-	params := make([]dbsqlc.CreateEventsParams, len(opts.Events))
+	for _, opt := range opts {
 
-	for i, event := range opts.Events {
+		if err := r.v.Validate(opt); err != nil {
+			return nil, err
+		}
+	}
+	params := make([]dbsqlc.CreateEventsParams, len(opts))
+
+	for i, event := range opts {
+
+		if i > math.MaxInt32 || i < math.MinInt32 {
+			return nil, fmt.Errorf("number of resources is out of range for int 32")
+		}
 
 		params[i] = dbsqlc.CreateEventsParams{
 			ID:                 sqlchelpers.UUIDFromStr(uuid.New().String()),
@@ -395,6 +434,7 @@ func (r *eventEngineRepository) BulkCreateEventSharedTenant(ctx context.Context,
 			TenantId:           sqlchelpers.UUIDFromStr(event.TenantId),
 			Data:               event.Data,
 			AdditionalMetadata: event.AdditionalMetadata,
+			InsertOrder:        sqlchelpers.ToInt(int32(i)),
 		}
 
 		if event.ReplayedEvent != nil {
@@ -447,7 +487,7 @@ func (r *eventEngineRepository) BulkCreateEventSharedTenant(ctx context.Context,
 	}
 
 	// TODO is this return string important?
-	return &repository.BulkCreateEventResult{Events: events}, nil
+	return events, nil
 
 }
 

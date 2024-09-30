@@ -101,7 +101,7 @@ type EventEngineRepository interface {
 	// CreateEvent creates a new event for a given tenant.
 	BulkCreateEvent(ctx context.Context, opts *BulkCreateEventOpts) (*BulkCreateEventResult, error)
 
-	BulkCreateEventSharedTenant(ctx context.Context, opts *BulkCreateEventSharedTenantOpts) (*BulkCreateEventResult, error)
+	BulkCreateEventSharedTenant(ctx context.Context, opts []*CreateEventOpts) ([]*dbsqlc.Event, error)
 
 	// GetEventForEngine returns an event for the engine by id.
 	GetEventForEngine(ctx context.Context, tenantId, id string) (*dbsqlc.Event, error)
@@ -115,4 +115,6 @@ type EventEngineRepository interface {
 	// ClearEventPayloadData removes the potentially large payload data of events that were created before the given time.
 	// It returns the number of events that were updated and the number of events that were not updated.
 	ClearEventPayloadData(ctx context.Context, tenantId string) (bool, error)
+
+	StartBufferLoop() (func() error, error)
 }

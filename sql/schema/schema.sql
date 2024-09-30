@@ -114,6 +114,7 @@ CREATE TABLE "Event" (
     "replayedFromId" UUID,
     "data" JSONB,
     "additionalMetadata" JSONB,
+    "insertOrder" INTEGER,
 
     CONSTRAINT "Event_pkey" PRIMARY KEY ("id")
 );
