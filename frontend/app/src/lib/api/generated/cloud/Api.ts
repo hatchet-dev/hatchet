@@ -29,6 +29,7 @@ import {
   TenantSubscription,
   UpdateTenantSubscription,
   VectorPushRequest,
+  WorkflowRunEventsMetricsCounts,
 } from "./data-contracts";
 import { ContentType, HttpClient, RequestParams } from "./http-client";
 
@@ -561,6 +562,41 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
     this.request<FeatureFlags, APIErrors>({
       path: `/api/v1/cloud/tenants/${tenant}/feature-flags`,
       method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Get a minute by minute breakdown of workflow run metrics for a tenant
+   *
+   * @tags Workflow
+   * @name WorkflowRunEventsGetMetrics
+   * @summary Get workflow runs
+   * @request GET:/api/v1/cloud/tenants/{tenant}/runs-metrics
+   * @secure
+   */
+  workflowRunEventsGetMetrics = (
+    tenant: string,
+    query?: {
+      /**
+       * The time after the workflow run was created
+       * @format date-time
+       * @example "2021-01-01T00:00:00Z"
+       */
+      createdAfter?: string;
+      /**
+       * The time before the workflow run was completed
+       * @format date-time
+       * @example "2021-01-01T00:00:00Z"
+       */
+      finishedBefore?: string;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<WorkflowRunEventsMetricsCounts, APIErrors>({
+      path: `/api/v1/cloud/tenants/${tenant}/runs-metrics`,
+      method: "GET",
+      query: query,
       secure: true,
       format: "json",
       ...params,

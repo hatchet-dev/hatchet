@@ -41,6 +41,8 @@ type ServerConfigFile struct {
 
 	EnableDataRetention bool `mapstructure:"enableDataRetention" json:"enableDataRetention,omitempty" default:"true"`
 
+	EnableWorkerRetention bool `mapstructure:"enableWorkerRetention" json:"enableWorkerRetention,omitempty" default:"false"`
+
 	TLS shared.TLSConfigFile `mapstructure:"tls" json:"tls,omitempty"`
 
 	Logger shared.LoggerConfigFile `mapstructure:"logger" json:"logger,omitempty"`
@@ -346,6 +348,8 @@ type ServerConfig struct {
 
 	EnableDataRetention bool
 
+	EnableWorkerRetention bool
+
 	Namespaces []string
 
 	MessageQueue msgqueue.MessageQueue
@@ -393,6 +397,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.shutdownWait", "SERVER_SHUTDOWN_WAIT")
 	_ = v.BindEnv("services", "SERVER_SERVICES")
 	_ = v.BindEnv("enableDataRetention", "SERVER_ENABLE_DATA_RETENTION")
+	_ = v.BindEnv("enableWorkerRetention", "SERVER_ENABLE_WORKER_RETENTION")
 	_ = v.BindEnv("runtime.enforceLimits", "SERVER_ENFORCE_LIMITS")
 	_ = v.BindEnv("runtime.allowSignup", "SERVER_ALLOW_SIGNUP")
 	_ = v.BindEnv("runtime.allowInvites", "SERVER_ALLOW_INVITES")

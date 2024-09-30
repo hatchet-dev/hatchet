@@ -49,6 +49,8 @@ func (wc *WorkflowsControllerImpl) handleWorkflowRunQueued(ctx context.Context, 
 		return fmt.Errorf("could not get job run: %w", err)
 	}
 
+	isPaused := workflowRun.IsPaused.Valid && workflowRun.IsPaused.Bool
+
 	workflowRunId := sqlchelpers.UUIDToStr(workflowRun.WorkflowRun.ID)
 
 	servertel.WithWorkflowRunModel(span, workflowRun)
@@ -108,7 +110,7 @@ func (wc *WorkflowsControllerImpl) handleWorkflowRunQueued(ctx context.Context, 
 		return fmt.Errorf("workflow run %s has concurrency settings but no group key run", workflowRunId)
 	}
 
-	err = wc.queueWorkflowRunJobs(ctx, workflowRun)
+	err = wc.queueWorkflowRunJobs(ctx, workflowRun, isPaused)
 
 	if err != nil {
 		return fmt.Errorf("could not start workflow run: %w", err)
@@ -140,7 +142,7 @@ func (wc *WorkflowsControllerImpl) evalWorkflowRunConcurrency(ctx context.Contex
 		}
 	}
 
-	concurrencyGroupId, err := wc.celParser.ParseAndEvalWorkflowString(expr, cel.NewWorkflowStringInput(
+	concurrencyGroupId, err := wc.celParser.ParseAndEvalWorkflowString(expr, cel.NewInput(
 		cel.WithInput(input),
 		cel.WithAdditionalMetadata(addMeta),
 		cel.WithWorkflowRunID(workflowRunId),
@@ -308,12 +310,17 @@ func (wc *WorkflowsControllerImpl) scheduleGetGroupAction(
 	return nil
 }
 
-func (wc *WorkflowsControllerImpl) queueWorkflowRunJobs(ctx context.Context, workflowRun *dbsqlc.GetWorkflowRunRow) error {
+func (wc *WorkflowsControllerImpl) queueWorkflowRunJobs(ctx context.Context, workflowRun *dbsqlc.GetWorkflowRunRow, isPaused bool) error {
 	ctx, span := telemetry.NewSpan(ctx, "queue-workflow-run-jobs") // nolint:ineffassign
 	defer span.End()
 
 	tenantId := sqlchelpers.UUIDToStr(workflowRun.WorkflowRun.TenantId)
 	workflowRunId := sqlchelpers.UUIDToStr(workflowRun.WorkflowRun.ID)
+	workflowId := sqlchelpers.UUIDToStr(workflowRun.WorkflowVersion.WorkflowId)
+
+	if isPaused {
+		return wc.repo.WorkflowRun().QueuePausedWorkflowRun(ctx, tenantId, workflowId, workflowRunId)
+	}
 
 	jobRuns, err := wc.repo.JobRun().ListJobRunsForWorkflowRun(ctx, tenantId, workflowRunId)
 
@@ -627,7 +634,13 @@ func (wc *WorkflowsControllerImpl) queueByCancelInProgress(ctx context.Context, 
 				return fmt.Errorf("could not get workflow run: %w", err)
 			}
 
-			return wc.queueWorkflowRunJobs(ctx, workflowRun)
+			isPaused := workflowRun.IsPaused.Valid && workflowRun.IsPaused.Bool
+
+			if isPaused {
+				return nil
+			}
+
+			return wc.queueWorkflowRunJobs(ctx, workflowRun, isPaused)
 		})
 	}
 
@@ -670,7 +683,13 @@ func (wc *WorkflowsControllerImpl) queueByGroupRoundRobin(ctx context.Context, t
 				return fmt.Errorf("could not get workflow run: %w", err)
 			}
 
-			return wc.queueWorkflowRunJobs(ctx, workflowRun)
+			isPaused := workflowRun.IsPaused.Valid && workflowRun.IsPaused.Bool
+
+			if isPaused {
+				return nil
+			}
+
+			return wc.queueWorkflowRunJobs(ctx, workflowRun, isPaused)
 		})
 	}
 

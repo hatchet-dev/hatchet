@@ -197,7 +197,7 @@ func (r *tenantAPIRepository) DeleteTenantMember(memberId string) (*db.TenantMem
 	).Delete().Exec(context.Background())
 }
 
-func (r *tenantAPIRepository) GetQueueMetrics(tenantId string, opts *repository.GetQueueMetricsOpts) (*repository.GetQueueMetricsResponse, error) {
+func (r *tenantAPIRepository) GetQueueMetrics(ctx context.Context, tenantId string, opts *repository.GetQueueMetricsOpts) (*repository.GetQueueMetricsResponse, error) {
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
@@ -231,25 +231,29 @@ func (r *tenantAPIRepository) GetQueueMetrics(tenantId string, opts *repository.
 		totalParams.WorkflowIds = uuids
 	}
 
-	tx, err := r.pool.Begin(context.Background())
+	tx, commit, rollback, err := prepareTx(ctx, r.pool, r.l, 60*1000)
 
 	if err != nil {
 		return nil, err
 	}
 
-	defer deferRollback(context.Background(), r.l, tx.Rollback)
+	defer rollback()
 
 	// get the totals
-	total, err := r.queries.GetTenantTotalQueueMetrics(context.Background(), tx, totalParams)
+	total, err := r.queries.GetTenantTotalQueueMetrics(ctx, tx, totalParams)
 
 	if err != nil {
 		return nil, err
 	}
 
 	// get the workflow metrics
-	workflowMetrics, err := r.queries.GetTenantWorkflowQueueMetrics(context.Background(), tx, workflowParams)
+	workflowMetrics, err := r.queries.GetTenantWorkflowQueueMetrics(ctx, tx, workflowParams)
 
 	if err != nil {
+		return nil, err
+	}
+
+	if err := commit(ctx); err != nil {
 		return nil, err
 	}
 

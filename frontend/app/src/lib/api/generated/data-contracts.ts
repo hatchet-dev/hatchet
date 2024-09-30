@@ -500,6 +500,41 @@ export interface EventList {
   rows?: Event[];
 }
 
+export interface RateLimit {
+  /** The key for the rate limit. */
+  key: string;
+  /** The ID of the tenant associated with this rate limit. */
+  tenantId: string;
+  /** The maximum number of requests allowed within the window. */
+  limitValue: number;
+  /** The current number of requests made within the window. */
+  value: number;
+  /** The window of time in which the limitValue is enforced. */
+  window: string;
+  /**
+   * The last time the rate limit was refilled.
+   * @format date-time
+   * @example "2022-12-13T20:06:48.888Z"
+   */
+  lastRefill: string;
+}
+
+export interface RateLimitList {
+  pagination?: PaginationResponse;
+  rows?: RateLimit[];
+}
+
+export enum RateLimitOrderByField {
+  Key = 'key',
+  Value = 'value',
+  LimitValue = 'limitValue',
+}
+
+export enum RateLimitOrderByDirection {
+  Asc = 'asc',
+  Desc = 'desc',
+}
+
 export interface ReplayEventRequest {
   eventIds: string[];
 }
@@ -514,11 +549,18 @@ export interface Workflow {
   name: string;
   /** The description of the workflow. */
   description?: string;
+  /** Whether the workflow is paused. */
+  isPaused?: boolean;
   versions?: WorkflowVersionMeta[];
   /** The tags of the workflow. */
   tags?: WorkflowTag[];
   /** The jobs of the workflow. */
   jobs?: Job[];
+}
+
+export interface WorkflowUpdateRequest {
+  /** Whether the workflow is paused. */
+  isPaused?: boolean;
 }
 
 export interface WorkflowConcurrency {

@@ -2,7 +2,6 @@ package scheduling
 
 import (
 	"context"
-	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 
@@ -30,8 +29,8 @@ func GeneratePlan(
 	slots []*Slot,
 	uniqueActionsArr []string,
 	queueItems []*QueueItemWithOrder,
-	stepRateUnits map[string]map[string]int32,
-	currRateLimits map[string]*dbsqlc.ListRateLimitsForTenantRow,
+	stepRunRateUnits map[string]map[string]int32,
+	currRateLimits map[string]*dbsqlc.ListRateLimitsForTenantWithMutateRow,
 	workerLabels map[string][]*dbsqlc.GetWorkerLabelsRow,
 	stepDesiredLabels map[string][]*dbsqlc.GetDesiredLabelsRow,
 ) (SchedulePlan, error) {
@@ -39,19 +38,21 @@ func GeneratePlan(
 	defer span.End()
 
 	plan := SchedulePlan{
-		StepRunIds:             make([]pgtype.UUID, 0),
-		StepRunTimeouts:        make([]string, 0),
-		SlotIds:                make([]string, 0),
-		WorkerIds:              make([]pgtype.UUID, 0),
-		UnassignedStepRunIds:   make([]pgtype.UUID, 0),
-		RateLimitedStepRuns:    make([]pgtype.UUID, 0),
+		StepRunIds:           make([]pgtype.UUID, 0),
+		StepRunTimeouts:      make([]string, 0),
+		SlotIds:              make([]string, 0),
+		WorkerIds:            make([]pgtype.UUID, 0),
+		UnassignedStepRunIds: make([]pgtype.UUID, 0),
+		RateLimitedStepRuns: RateLimitedResult{
+			StepRuns: make([]pgtype.UUID, 0),
+			Keys:     make([]string, 0),
+		},
 		QueuedStepRuns:         make([]repository.QueuedStepRun, 0),
 		TimedOutStepRuns:       make([]pgtype.UUID, 0),
 		QueuedItems:            make([]int64, 0),
 		MinQueuedIds:           make(map[string]int64),
 		ShouldContinue:         false,
 		RateLimitUnitsConsumed: make(map[string]int32),
-		RateLimitedQueues:      make(map[string][]time.Time),
 		unassignedActions:      make(map[string]struct{}),
 	}
 
@@ -102,21 +103,17 @@ func GeneratePlan(
 		}
 
 		stepRunId := sqlchelpers.UUIDToStr(qi.StepRunId)
-		isRateLimited := false
+		rateLimitedOnKey := ""
+		rateLimitedUnits := int32(0)
 
 		// check if we're rate limited
-		if srRateLimitUnits, ok := stepRateUnits[stepId]; ok {
+		if srRateLimitUnits, ok := stepRunRateUnits[stepRunId]; ok {
 			for key, units := range srRateLimitUnits {
 				if rateLimit, ok := rateLimits[key]; ok {
 					// add the step run id to the rate limit. if this returns false, then we're rate limited
 					if !rateLimit.AddStepRunId(stepRunId, units) {
-						isRateLimited = true
-
-						if _, ok := plan.RateLimitedQueues[key]; !ok {
-							plan.RateLimitedQueues[key] = make([]time.Time, 0)
-						}
-
-						plan.RateLimitedQueues[qi.Queue] = append(plan.RateLimitedQueues[qi.Queue], rateLimit.NextRefill())
+						rateLimitedOnKey = key
+						rateLimitedUnits = units
 					}
 				}
 			}
@@ -125,7 +122,7 @@ func GeneratePlan(
 		// pick a worker to assign the slot to
 		assigned := false
 
-		if !isRateLimited {
+		if rateLimitedOnKey == "" {
 			slot := workerManager.AttemptAssignSlot(qi)
 
 			// we assign the slot to the plan
@@ -144,12 +141,12 @@ func GeneratePlan(
 		}
 
 		// if we couldn't assign the slot to any worker then mark as rate limited
-		if isRateLimited {
-			plan.HandleRateLimited(qi)
+		if rateLimitedOnKey != "" {
+			plan.HandleRateLimited(qi, rateLimitedOnKey, rateLimitedUnits)
 
 			// if we're rate limited then call rollback on the rate limits (this can happen if we've succeeded on one rate limit
 			// but failed on another)
-			for key := range stepRateUnits[stepId] {
+			for key := range stepRunRateUnits[stepId] {
 				if rateLimit, ok := rateLimits[key]; ok {
 					rateLimit.Rollback(stepRunId)
 				}
@@ -158,7 +155,7 @@ func GeneratePlan(
 			plan.HandleUnassigned(qi)
 
 			// if we can't assign the slot to any worker then we rollback the rate limit
-			for key := range stepRateUnits[stepId] {
+			for key := range stepRunRateUnits[stepId] {
 				if rateLimit, ok := rateLimits[key]; ok {
 					rateLimit.Rollback(stepRunId)
 				}

@@ -33,7 +33,7 @@ type workflowRunAPIRepository struct {
 	l       *zerolog.Logger
 	m       *metered.Metered
 
-	callbacks []repository.Callback[*dbsqlc.WorkflowRun]
+	createCallbacks []repository.Callback[*dbsqlc.WorkflowRun]
 }
 
 func NewWorkflowRunRepository(client *db.PrismaClient, pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, m *metered.Metered) repository.WorkflowRunAPIRepository {
@@ -50,11 +50,11 @@ func NewWorkflowRunRepository(client *db.PrismaClient, pool *pgxpool.Pool, v val
 }
 
 func (w *workflowRunAPIRepository) RegisterCreateCallback(callback repository.Callback[*dbsqlc.WorkflowRun]) {
-	if w.callbacks == nil {
-		w.callbacks = make([]repository.Callback[*dbsqlc.WorkflowRun], 0)
+	if w.createCallbacks == nil {
+		w.createCallbacks = make([]repository.Callback[*dbsqlc.WorkflowRun], 0)
 	}
 
-	w.callbacks = append(w.callbacks, callback)
+	w.createCallbacks = append(w.createCallbacks, callback)
 }
 
 func (w *workflowRunAPIRepository) ListWorkflowRuns(ctx context.Context, tenantId string, opts *repository.ListWorkflowRunsOpts) (*repository.ListWorkflowRunsResult, error) {
@@ -107,8 +107,8 @@ func (w *workflowRunAPIRepository) CreateNewWorkflowRun(ctx context.Context, ten
 
 		id := sqlchelpers.UUIDToStr(workflowRun.ID)
 
-		for _, cb := range w.callbacks {
-			cb.Do(workflowRun) // nolint: errcheck
+		for _, cb := range w.createCallbacks {
+			cb.Do(w.l, tenantId, workflowRun)
 		}
 
 		return &id, workflowRun, nil
@@ -119,6 +119,19 @@ type updateWorkflowRunQueueData struct {
 	WorkflowRunId string `json:"workflow_run_id"`
 
 	Event *repository.CreateStepRunEventOpts `json:"event,omitempty"`
+}
+
+func (w *workflowRunEngineRepository) QueuePausedWorkflowRun(ctx context.Context, tenantId, workflowId, workflowRunId string) error {
+	return insertPausedWorkflowRunQueueItem(
+		ctx,
+		w.pool,
+		w.queries,
+		tenantId,
+		unpauseWorkflowRunQueueData{
+			WorkflowId:    workflowId,
+			WorkflowRunId: workflowRunId,
+		},
+	)
 }
 
 func (w *workflowRunEngineRepository) ProcessWorkflowRunUpdates(ctx context.Context, tenantId string) (bool, error) {
@@ -228,6 +241,116 @@ func (w *workflowRunEngineRepository) ProcessWorkflowRunUpdates(ctx context.Cont
 	return len(queueItems) == limit, nil
 }
 
+type unpauseWorkflowRunQueueData struct {
+	// NOTE: do not change this workflow_id without also changing HandleWorkflowUnpaused,
+	// as we've written a query which selects on this field
+	WorkflowId    string `json:"workflow_id"`
+	WorkflowRunId string `json:"workflow_run_id"`
+}
+
+func (w *workflowRunEngineRepository) ProcessUnpausedWorkflowRuns(ctx context.Context, tenantId string) ([]*dbsqlc.GetWorkflowRunRow, bool, error) {
+	ctx, span := telemetry.NewSpan(ctx, "process-workflow-run-updates-database")
+	defer span.End()
+
+	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
+
+	limit := 1000
+
+	tx, commit, rollback, err := prepareTx(ctx, w.pool, w.l, 25000)
+
+	if err != nil {
+		return nil, false, err
+	}
+
+	defer rollback()
+
+	// list queues
+	queueItems, err := w.queries.ListInternalQueueItems(ctx, tx, dbsqlc.ListInternalQueueItemsParams{
+		Tenantid: pgTenantId,
+		Queue:    dbsqlc.InternalQueueWORKFLOWRUNPAUSED,
+		Limit: pgtype.Int4{
+			Int32: int32(limit),
+			Valid: true,
+		},
+	})
+
+	if err != nil {
+		return nil, false, fmt.Errorf("could not list internal queue items for paused workflow runs: %w", err)
+	}
+
+	if len(queueItems) == 0 {
+		return nil, false, nil
+	}
+
+	data, err := toQueueItemData[unpauseWorkflowRunQueueData](queueItems)
+
+	if err != nil {
+		return nil, false, fmt.Errorf("could not convert internal queue item data to worker semaphore queue data: %w", err)
+	}
+
+	// construct a map of workflow IDs
+	candidateUnpausedWorkflows := make(map[string]bool)
+
+	for _, item := range data {
+		candidateUnpausedWorkflows[item.WorkflowId] = true
+	}
+
+	// list paused workflows
+	pausedWorkflowIds, err := w.queries.ListPausedWorkflows(ctx, tx, sqlchelpers.UUIDFromStr(tenantId))
+
+	if err != nil {
+		return nil, false, fmt.Errorf("could not list paused workflows: %w", err)
+	}
+
+	// for each workflow ID, check whether it is paused
+	for _, pausedWorkflowId := range pausedWorkflowIds {
+		delete(candidateUnpausedWorkflows, sqlchelpers.UUIDToStr(pausedWorkflowId))
+	}
+
+	// if there are no paused workflows to unpause, return
+	if len(candidateUnpausedWorkflows) == 0 {
+		return nil, false, nil
+	}
+
+	// if there are paused workflows to unpause, queue them
+	workflowRunsToQueue := make([]pgtype.UUID, 0)
+	qiIds := make([]int64, 0)
+
+	for i, item := range data {
+		if _, ok := candidateUnpausedWorkflows[item.WorkflowId]; ok {
+			workflowRunsToQueue = append(workflowRunsToQueue, sqlchelpers.UUIDFromStr(item.WorkflowRunId))
+			qiIds = append(qiIds, queueItems[i].ID)
+		}
+	}
+
+	// update the processed semaphore queue items for the workflow runs which were unpaused
+	err = w.queries.MarkInternalQueueItemsProcessed(ctx, tx, qiIds)
+
+	if err != nil {
+		return nil, false, fmt.Errorf("could not mark worker semaphore queue items processed: %w", err)
+	}
+
+	// get the workflow runs by id
+	workflowRuns, err := w.queries.GetWorkflowRun(ctx, tx, dbsqlc.GetWorkflowRunParams{
+		Ids:      workflowRunsToQueue,
+		Tenantid: pgTenantId,
+	})
+
+	if err != nil {
+		return nil, false, fmt.Errorf("could not get workflow runs by id: %w", err)
+	}
+
+	err = commit(ctx)
+
+	if err != nil {
+		return nil, false, fmt.Errorf("could not commit transaction: %w", err)
+	}
+
+	// if we reached this point, it means that some of the workflows in the queue were unpaused, so
+	// we should continue until this is no longer true
+	return workflowRuns, true, nil
+}
+
 func (w *workflowRunAPIRepository) GetWorkflowRunById(ctx context.Context, tenantId, id string) (*dbsqlc.GetWorkflowRunByIdRow, error) {
 	return w.queries.GetWorkflowRunById(ctx, w.pool, dbsqlc.GetWorkflowRunByIdParams{
 		Tenantid:      sqlchelpers.UUIDFromStr(tenantId),
@@ -303,28 +426,37 @@ type workflowRunEngineRepository struct {
 	l       *zerolog.Logger
 	m       *metered.Metered
 
-	callbacks []repository.Callback[*dbsqlc.WorkflowRun]
+	createCallbacks []repository.Callback[*dbsqlc.WorkflowRun]
+	queuedCallbacks []repository.Callback[pgtype.UUID]
 }
 
 func NewWorkflowRunEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, m *metered.Metered, cbs ...repository.Callback[*dbsqlc.WorkflowRun]) repository.WorkflowRunEngineRepository {
 	queries := dbsqlc.New()
 
 	return &workflowRunEngineRepository{
-		v:         v,
-		pool:      pool,
-		queries:   queries,
-		l:         l,
-		m:         m,
-		callbacks: cbs,
+		v:               v,
+		pool:            pool,
+		queries:         queries,
+		l:               l,
+		m:               m,
+		createCallbacks: cbs,
 	}
 }
 
 func (w *workflowRunEngineRepository) RegisterCreateCallback(callback repository.Callback[*dbsqlc.WorkflowRun]) {
-	if w.callbacks == nil {
-		w.callbacks = make([]repository.Callback[*dbsqlc.WorkflowRun], 0)
+	if w.createCallbacks == nil {
+		w.createCallbacks = make([]repository.Callback[*dbsqlc.WorkflowRun], 0)
 	}
 
-	w.callbacks = append(w.callbacks, callback)
+	w.createCallbacks = append(w.createCallbacks, callback)
+}
+
+func (w *workflowRunEngineRepository) RegisterQueuedCallback(callback repository.Callback[pgtype.UUID]) {
+	if w.queuedCallbacks == nil {
+		w.queuedCallbacks = make([]repository.Callback[pgtype.UUID], 0)
+	}
+
+	w.queuedCallbacks = append(w.queuedCallbacks, callback)
 }
 
 func (w *workflowRunEngineRepository) GetWorkflowRunById(ctx context.Context, tenantId, id string) (*dbsqlc.GetWorkflowRunRow, error) {
@@ -446,8 +578,8 @@ func (w *workflowRunEngineRepository) CreateNewWorkflowRun(ctx context.Context, 
 		return "", err
 	}
 
-	for _, cb := range w.callbacks {
-		cb.Do(wfr) // nolint: errcheck
+	for _, cb := range w.createCallbacks {
+		cb.Do(w.l, tenantId, wfr)
 	}
 
 	id := sqlchelpers.UUIDToStr(wfr.ID)
@@ -658,6 +790,10 @@ func (s *workflowRunEngineRepository) UpdateWorkflowRunFromGroupKeyEval(ctx cont
 		return fmt.Errorf("could not update workflow run group key from expr: %w", err)
 	}
 
+	for _, cb := range s.queuedCallbacks {
+		cb.Do(s.l, tenantId, pgWorkflowRunId)
+	}
+
 	defer insertWorkflowRunQueueItem( // nolint: errcheck
 		ctx,
 		s.pool,
@@ -793,6 +929,11 @@ func listWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbsqlc.Q
 	if opts.FinishedAfter != nil {
 		countParams.FinishedAfter = sqlchelpers.TimestampFromTime(*opts.FinishedAfter)
 		queryParams.FinishedAfter = sqlchelpers.TimestampFromTime(*opts.FinishedAfter)
+	}
+
+	if opts.FinishedBefore != nil {
+		countParams.FinishedBefore = sqlchelpers.TimestampFromTime(*opts.FinishedBefore)
+		queryParams.FinishedBefore = sqlchelpers.TimestampFromTime(*opts.FinishedBefore)
 	}
 
 	orderByField := "createdAt"
@@ -1247,6 +1388,26 @@ func insertWorkflowRunQueueItem(
 		queries,
 		tenantId,
 		dbsqlc.InternalQueueWORKFLOWRUNUPDATE,
+		insertData,
+	)
+}
+
+func insertPausedWorkflowRunQueueItem(
+	ctx context.Context,
+	dbtx dbsqlc.DBTX,
+	queries *dbsqlc.Queries,
+	tenantId string,
+	data unpauseWorkflowRunQueueData,
+) error {
+	insertData := make([]any, 1)
+	insertData[0] = data
+
+	return bulkInsertInternalQueueItem(
+		ctx,
+		dbtx,
+		queries,
+		tenantId,
+		dbsqlc.InternalQueueWORKFLOWRUNPAUSED,
 		insertData,
 	)
 }

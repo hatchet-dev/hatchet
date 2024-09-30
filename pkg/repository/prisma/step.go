@@ -4,25 +4,32 @@ import (
 	"context"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog"
 )
 
 type stepRepository struct {
-	client *db.PrismaClient
-	v      validator.Validator
+	v       validator.Validator
+	pool    *pgxpool.Pool
+	queries *dbsqlc.Queries
+	l       *zerolog.Logger
 }
 
-func NewStepRepository(client *db.PrismaClient, v validator.Validator) repository.StepRepository {
+func NewStepRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger) repository.StepRepository {
+	queries := dbsqlc.New()
+
 	return &stepRepository{
-		client: client,
-		v:      v,
+		pool:    pool,
+		v:       v,
+		l:       l,
+		queries: queries,
 	}
 }
 
-func (j *stepRepository) ListStepsByActions(tenantId string, actions []string) ([]db.StepModel, error) {
-	return j.client.Step.FindMany(
-		db.Step.TenantID.Equals(tenantId),
-		db.Step.ActionID.In(actions),
-	).Exec(context.Background())
+func (j *stepRepository) ListStepExpressions(ctx context.Context, stepId string) ([]*dbsqlc.StepExpression, error) {
+	return j.queries.GetStepExpressions(ctx, j.pool, sqlchelpers.UUIDFromStr(stepId))
 }

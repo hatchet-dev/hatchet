@@ -365,25 +365,61 @@ func (q *Queries) CreateStep(ctx context.Context, db DBTX, arg CreateStepParams)
 	return &i, err
 }
 
+const createStepExpressions = `-- name: CreateStepExpressions :exec
+INSERT INTO "StepExpression" (
+    "key",
+    "stepId",
+    "expression",
+    "kind"
+) VALUES (
+    unnest($1::text[]),
+    $2::uuid,
+    unnest($3::text[]),
+    unnest(cast($4::text[] as"StepExpressionKind"[]))
+) ON CONFLICT ("key", "stepId", "kind") DO UPDATE
+SET
+    "expression" = EXCLUDED."expression"
+`
+
+type CreateStepExpressionsParams struct {
+	Keys        []string    `json:"keys"`
+	Stepid      pgtype.UUID `json:"stepid"`
+	Expressions []string    `json:"expressions"`
+	Kinds       []string    `json:"kinds"`
+}
+
+func (q *Queries) CreateStepExpressions(ctx context.Context, db DBTX, arg CreateStepExpressionsParams) error {
+	_, err := db.Exec(ctx, createStepExpressions,
+		arg.Keys,
+		arg.Stepid,
+		arg.Expressions,
+		arg.Kinds,
+	)
+	return err
+}
+
 const createStepRateLimit = `-- name: CreateStepRateLimit :one
 INSERT INTO "StepRateLimit" (
     "units",
     "stepId",
     "rateLimitKey",
-    "tenantId"
+    "tenantId",
+    "kind"
 ) VALUES (
     $1::integer,
     $2::uuid,
     $3::text,
-    $4::uuid
-) RETURNING units, "stepId", "rateLimitKey", "tenantId"
+    $4::uuid,
+    $5
+) RETURNING units, "stepId", "rateLimitKey", "tenantId", kind
 `
 
 type CreateStepRateLimitParams struct {
-	Units        int32       `json:"units"`
-	Stepid       pgtype.UUID `json:"stepid"`
-	Ratelimitkey string      `json:"ratelimitkey"`
-	Tenantid     pgtype.UUID `json:"tenantid"`
+	Units        int32             `json:"units"`
+	Stepid       pgtype.UUID       `json:"stepid"`
+	Ratelimitkey string            `json:"ratelimitkey"`
+	Tenantid     pgtype.UUID       `json:"tenantid"`
+	Kind         StepRateLimitKind `json:"kind"`
 }
 
 func (q *Queries) CreateStepRateLimit(ctx context.Context, db DBTX, arg CreateStepRateLimitParams) (*StepRateLimit, error) {
@@ -392,6 +428,7 @@ func (q *Queries) CreateStepRateLimit(ctx context.Context, db DBTX, arg CreateSt
 		arg.Stepid,
 		arg.Ratelimitkey,
 		arg.Tenantid,
+		arg.Kind,
 	)
 	var i StepRateLimit
 	err := row.Scan(
@@ -399,6 +436,7 @@ func (q *Queries) CreateStepRateLimit(ctx context.Context, db DBTX, arg CreateSt
 		&i.StepId,
 		&i.RateLimitKey,
 		&i.TenantId,
+		&i.Kind,
 	)
 	return &i, err
 }
@@ -420,7 +458,7 @@ INSERT INTO "Workflow" (
     $5::uuid,
     $6::text,
     $7::text
-) RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", name, description
+) RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", name, description, "isPaused"
 `
 
 type CreateWorkflowParams struct {
@@ -452,6 +490,7 @@ func (q *Queries) CreateWorkflow(ctx context.Context, db DBTX, arg CreateWorkflo
 		&i.TenantId,
 		&i.Name,
 		&i.Description,
+		&i.IsPaused,
 	)
 	return &i, err
 }
@@ -718,7 +757,7 @@ func (q *Queries) CreateWorkflowVersion(ctx context.Context, db DBTX, arg Create
 
 const getWorkflowById = `-- name: GetWorkflowById :one
 SELECT
-    w.id, w."createdAt", w."updatedAt", w."deletedAt", w."tenantId", w.name, w.description,
+    w.id, w."createdAt", w."updatedAt", w."deletedAt", w."tenantId", w.name, w.description, w."isPaused",
     wv."id" as "workflowVersionId"
 FROM
     "Workflow" as w
@@ -747,6 +786,7 @@ func (q *Queries) GetWorkflowById(ctx context.Context, db DBTX, id pgtype.UUID) 
 		&i.Workflow.TenantId,
 		&i.Workflow.Name,
 		&i.Workflow.Description,
+		&i.Workflow.IsPaused,
 		&i.WorkflowVersionId,
 	)
 	return &i, err
@@ -754,7 +794,7 @@ func (q *Queries) GetWorkflowById(ctx context.Context, db DBTX, id pgtype.UUID) 
 
 const getWorkflowByName = `-- name: GetWorkflowByName :one
 SELECT
-    id, "createdAt", "updatedAt", "deletedAt", "tenantId", name, description
+    id, "createdAt", "updatedAt", "deletedAt", "tenantId", name, description, "isPaused"
 FROM
     "Workflow" as workflows
 WHERE
@@ -779,6 +819,7 @@ func (q *Queries) GetWorkflowByName(ctx context.Context, db DBTX, arg GetWorkflo
 		&i.TenantId,
 		&i.Name,
 		&i.Description,
+		&i.IsPaused,
 	)
 	return &i, err
 }
@@ -806,7 +847,7 @@ func (q *Queries) GetWorkflowLatestVersion(ctx context.Context, db DBTX, workflo
 const getWorkflowVersionById = `-- name: GetWorkflowVersionById :one
 SELECT
     wv.id, wv."createdAt", wv."updatedAt", wv."deletedAt", wv.version, wv."order", wv."workflowId", wv.checksum, wv."scheduleTimeout", wv."onFailureJobId", wv.sticky, wv.kind, wv."defaultPriority",
-    w.id, w."createdAt", w."updatedAt", w."deletedAt", w."tenantId", w.name, w.description,
+    w.id, w."createdAt", w."updatedAt", w."deletedAt", w."tenantId", w.name, w.description, w."isPaused",
     wc."id" as "concurrencyId",
     wc."maxRuns" as "concurrencyMaxRuns",
     wc."getConcurrencyGroupId" as "concurrencyGroupId",
@@ -854,6 +895,7 @@ func (q *Queries) GetWorkflowVersionById(ctx context.Context, db DBTX, id pgtype
 		&i.Workflow.TenantId,
 		&i.Workflow.Name,
 		&i.Workflow.Description,
+		&i.Workflow.IsPaused,
 		&i.ConcurrencyId,
 		&i.ConcurrencyMaxRuns,
 		&i.ConcurrencyGroupId,
@@ -1094,6 +1136,42 @@ func (q *Queries) GetWorkflowWorkerCount(ctx context.Context, db DBTX, arg GetWo
 	return &i, err
 }
 
+const handleWorkflowUnpaused = `-- name: HandleWorkflowUnpaused :exec
+WITH matching_qis AS (
+    -- We know that we're going to need to scan all the queue items in this queue
+    -- for the tenant, so we write this query in such a way that the index is used.
+    SELECT
+        qi."id"
+    FROM
+        "InternalQueueItem" qi
+    WHERE
+        qi."isQueued" = true
+        AND qi."tenantId" = $2::uuid
+        AND qi."queue" = 'WORKFLOW_RUN_PAUSED'
+        AND qi."priority" = 1
+    ORDER BY
+        qi."id" DESC
+)
+UPDATE "InternalQueueItem"
+SET "priority" = 4
+FROM
+    matching_qis
+WHERE
+    "InternalQueueItem"."id" = matching_qis."id"
+    AND "data"->>'workflow_id' = $1::text
+`
+
+type HandleWorkflowUnpausedParams struct {
+	Workflowid string      `json:"workflowid"`
+	Tenantid   pgtype.UUID `json:"tenantid"`
+}
+
+// We update all the queue items to have a higher priority so we can unpause them
+func (q *Queries) HandleWorkflowUnpaused(ctx context.Context, db DBTX, arg HandleWorkflowUnpausedParams) error {
+	_, err := db.Exec(ctx, handleWorkflowUnpaused, arg.Workflowid, arg.Tenantid)
+	return err
+}
+
 const linkOnFailureJob = `-- name: LinkOnFailureJob :one
 UPDATE "WorkflowVersion"
 SET "onFailureJobId" = $1::uuid
@@ -1127,9 +1205,40 @@ func (q *Queries) LinkOnFailureJob(ctx context.Context, db DBTX, arg LinkOnFailu
 	return &i, err
 }
 
+const listPausedWorkflows = `-- name: ListPausedWorkflows :many
+SELECT
+    "id"
+FROM
+    "Workflow"
+WHERE
+    "tenantId" = $1::uuid AND
+    "isPaused" = true AND
+    "deletedAt" IS NULL
+`
+
+func (q *Queries) ListPausedWorkflows(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]pgtype.UUID, error) {
+	rows, err := db.Query(ctx, listPausedWorkflows, tenantid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []pgtype.UUID
+	for rows.Next() {
+		var id pgtype.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listWorkflows = `-- name: ListWorkflows :many
 SELECT
-    workflows.id, workflows."createdAt", workflows."updatedAt", workflows."deletedAt", workflows."tenantId", workflows.name, workflows.description
+    workflows.id, workflows."createdAt", workflows."updatedAt", workflows."deletedAt", workflows."tenantId", workflows.name, workflows.description, workflows."isPaused"
 FROM
     "Workflow" as workflows
 WHERE
@@ -1177,6 +1286,7 @@ func (q *Queries) ListWorkflows(ctx context.Context, db DBTX, arg ListWorkflowsP
 			&i.Workflow.TenantId,
 			&i.Workflow.Name,
 			&i.Workflow.Description,
+			&i.Workflow.IsPaused,
 		); err != nil {
 			return nil, err
 		}
@@ -1346,7 +1456,7 @@ SET
     "name" = "name" || '-' || gen_random_uuid(),
     "deletedAt" = CURRENT_TIMESTAMP
 WHERE "id" = $1::uuid
-RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", name, description
+RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", name, description, "isPaused"
 `
 
 func (q *Queries) SoftDeleteWorkflow(ctx context.Context, db DBTX, id pgtype.UUID) (*Workflow, error) {
@@ -1360,6 +1470,37 @@ func (q *Queries) SoftDeleteWorkflow(ctx context.Context, db DBTX, id pgtype.UUI
 		&i.TenantId,
 		&i.Name,
 		&i.Description,
+		&i.IsPaused,
+	)
+	return &i, err
+}
+
+const updateWorkflow = `-- name: UpdateWorkflow :one
+UPDATE "Workflow"
+SET
+    "updatedAt" = CURRENT_TIMESTAMP,
+    "isPaused" = coalesce($1::boolean, "isPaused")
+WHERE "id" = $2::uuid
+RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", name, description, "isPaused"
+`
+
+type UpdateWorkflowParams struct {
+	IsPaused pgtype.Bool `json:"isPaused"`
+	ID       pgtype.UUID `json:"id"`
+}
+
+func (q *Queries) UpdateWorkflow(ctx context.Context, db DBTX, arg UpdateWorkflowParams) (*Workflow, error) {
+	row := db.QueryRow(ctx, updateWorkflow, arg.IsPaused, arg.ID)
+	var i Workflow
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.TenantId,
+		&i.Name,
+		&i.Description,
+		&i.IsPaused,
 	)
 	return &i, err
 }

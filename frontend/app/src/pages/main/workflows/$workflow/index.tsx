@@ -1,5 +1,5 @@
 import { Separator } from '@/components/ui/separator';
-import api, { queries } from '@/lib/api';
+import api, { queries, WorkflowUpdateRequest } from '@/lib/api';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import invariant from 'tiny-invariant';
@@ -12,18 +12,25 @@ import { TenantContextType } from '@/lib/outlet';
 import { TriggerWorkflowForm } from './components/trigger-workflow-form';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { useApiMetaIntegrations } from '@/lib/hooks';
+import { useApiError, useApiMetaIntegrations } from '@/lib/hooks';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import WorkflowGeneralSettings from './components/workflow-general-settings';
 import { WorkflowRunsTable } from '../../workflow-runs/components/workflow-runs-table';
 import { ConfirmDialog } from '@/components/molecules/confirm-dialog';
 import { useTenantContext } from '@/lib/atoms';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 export default function ExpandedWorkflow() {
   const [tenant] = useTenantContext();
 
   // TODO list previous versions and make selectable
   const [selectedVersion] = useState<string | undefined>();
+  const { handleApiError } = useApiError({});
 
   invariant(tenant);
 
@@ -44,6 +51,22 @@ export default function ExpandedWorkflow() {
   });
 
   const navigate = useNavigate();
+
+  const updateWorkflowMutation = useMutation({
+    mutationKey: ['workflow:update', workflowQuery?.data?.metadata.id],
+    mutationFn: async (data: WorkflowUpdateRequest) => {
+      invariant(workflowQuery.data);
+      const res = await api.workflowUpdate(workflowQuery?.data?.metadata.id, {
+        ...data,
+      });
+
+      return res.data;
+    },
+    onError: handleApiError,
+    onSuccess: () => {
+      workflowQuery.refetch();
+    },
+  });
 
   const deleteWorkflowMutation = useMutation({
     mutationKey: ['workflow:delete', workflowQuery?.data?.metadata.id],
@@ -86,11 +109,66 @@ export default function ExpandedWorkflow() {
                 {currVersion}
               </Badge>
             )}
+            <DropdownMenu>
+              <DropdownMenuTrigger>
+                {workflow.isPaused ? (
+                  <Badge
+                    variant="inProgress"
+                    className="px-2"
+                    onClick={() => {
+                      updateWorkflowMutation.mutate({ isPaused: false });
+                    }}
+                  >
+                    Paused
+                  </Badge>
+                ) : (
+                  <Badge
+                    variant="successful"
+                    className="px-2"
+                    onClick={() => {
+                      updateWorkflowMutation.mutate({ isPaused: true });
+                    }}
+                  >
+                    Active
+                  </Badge>
+                )}
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem>
+                  {workflow.isPaused ? (
+                    <div
+                      onClick={() => {
+                        updateWorkflowMutation.mutate({
+                          isPaused: false,
+                        });
+                      }}
+                    >
+                      Unpause runs
+                    </div>
+                  ) : (
+                    <div
+                      onClick={() => {
+                        updateWorkflowMutation.mutate({
+                          isPaused: true,
+                        });
+                      }}
+                    >
+                      Pause runs
+                    </div>
+                  )}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
           <WorkflowTags tags={workflow.tags || []} />
-          <Button className="text-sm" onClick={() => setTriggerWorkflow(true)}>
-            Trigger Workflow
-          </Button>
+          <div className="flex flex-row gap-2">
+            <Button
+              className="text-sm"
+              onClick={() => setTriggerWorkflow(true)}
+            >
+              Trigger Workflow
+            </Button>
+          </div>
           <TriggerWorkflowForm
             show={triggerWorkflow}
             workflow={workflow}

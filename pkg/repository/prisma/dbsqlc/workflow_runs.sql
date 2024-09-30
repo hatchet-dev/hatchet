@@ -1,6 +1,6 @@
 -- name: CountWorkflowRuns :one
 WITH runs AS (
-    SELECT runs."id", runs."createdAt"
+    SELECT runs."id", runs."createdAt", runs."finishedAt", runs."startedAt", runs."duration"
     FROM
         "WorkflowRun" as runs
     LEFT JOIN
@@ -69,11 +69,22 @@ WITH runs AS (
         ) AND
         (
             sqlc.narg('finishedAfter')::timestamp IS NULL OR
-            runs."finishedAt" > sqlc.narg('finishedAfter')::timestamp
+            runs."finishedAt" > sqlc.narg('finishedAfter')::timestamp OR
+            runs."finishedAt" IS NULL
+        ) AND
+        (
+            sqlc.narg('finishedBefore')::timestamp IS NULL OR
+            runs."finishedAt" <= sqlc.narg('finishedBefore')::timestamp
         )
     ORDER BY
         case when @orderBy = 'createdAt ASC' THEN runs."createdAt" END ASC ,
-        case when @orderBy = 'createdAt DESC' then runs."createdAt" END DESC,
+        case when @orderBy = 'createdAt DESC' THEN runs."createdAt" END DESC,
+        case when @orderBy = 'finishedAt ASC' THEN runs."finishedAt" END ASC ,
+        case when @orderBy = 'finishedAt DESC' THEN runs."finishedAt" END DESC,
+        case when @orderBy = 'startedAt ASC' THEN runs."startedAt" END ASC ,
+        case when @orderBy = 'startedAt DESC' THEN runs."startedAt" END DESC,
+        case when @orderBy = 'duration ASC' THEN runs."duration" END ASC NULLS FIRST,
+        case when @orderBy = 'duration DESC' THEN runs."duration" END DESC NULLS LAST,
         runs."id" ASC
     LIMIT 10000
 )
@@ -214,7 +225,12 @@ WHERE
     ) AND
     (
         sqlc.narg('finishedAfter')::timestamp IS NULL OR
-        runs."finishedAt" > sqlc.narg('finishedAfter')::timestamp
+        runs."finishedAt" > sqlc.narg('finishedAfter')::timestamp OR
+        runs."finishedAt" IS NULL
+    ) AND
+    (
+        sqlc.narg('finishedBefore')::timestamp IS NULL OR
+        runs."finishedAt" <= sqlc.narg('finishedBefore')::timestamp
     )
 ORDER BY
     case when @orderBy = 'createdAt ASC' THEN runs."createdAt" END ASC ,
@@ -424,10 +440,10 @@ WITH jobRuns AS (
     WHERE
         wr."id" = j."workflowRunId"
         AND "tenantId" = @tenantId::uuid
-    RETURNING wr."id", wr."status"
+    RETURNING wr."id", wr."status", wr."tenantId"
 )
 -- Return distinct workflow run ids in a final state
-SELECT DISTINCT "id", "status"
+SELECT DISTINCT "id", "status", "tenantId"
 FROM updated_workflow_runs
 WHERE "status" IN ('SUCCEEDED', 'FAILED');
 
@@ -763,6 +779,7 @@ SELECT
     -- waiting on https://github.com/sqlc-dev/sqlc/pull/2858 for nullable fields
     wc."limitStrategy" as "concurrencyLimitStrategy",
     wc."maxRuns" as "concurrencyMaxRuns",
+    workflow."isPaused" as "isPaused",
     wc."concurrencyGroupExpression" as "concurrencyGroupExpression",
     groupKeyRun."id" as "getGroupKeyRunId"
 FROM

@@ -234,13 +234,30 @@ INSERT INTO "StepRateLimit" (
     "units",
     "stepId",
     "rateLimitKey",
-    "tenantId"
+    "tenantId",
+    "kind"
 ) VALUES (
     @units::integer,
     @stepId::uuid,
     @rateLimitKey::text,
-    @tenantId::uuid
+    @tenantId::uuid,
+    @kind
 ) RETURNING *;
+
+-- name: CreateStepExpressions :exec
+INSERT INTO "StepExpression" (
+    "key",
+    "stepId",
+    "expression",
+    "kind"
+) VALUES (
+    unnest(@keys::text[]),
+    @stepId::uuid,
+    unnest(@expressions::text[]),
+    unnest(cast(@kinds::text[] as"StepExpressionKind"[]))
+) ON CONFLICT ("key", "stepId", "kind") DO UPDATE
+SET
+    "expression" = EXCLUDED."expression";
 
 -- name: UpsertAction :one
 INSERT INTO "Action" (
@@ -468,6 +485,49 @@ SET
     "deletedAt" = CURRENT_TIMESTAMP
 WHERE "id" = @id::uuid
 RETURNING *;
+
+-- name: ListPausedWorkflows :many
+SELECT
+    "id"
+FROM
+    "Workflow"
+WHERE
+    "tenantId" = @tenantId::uuid AND
+    "isPaused" = true AND
+    "deletedAt" IS NULL;
+
+-- name: UpdateWorkflow :one
+UPDATE "Workflow"
+SET
+    "updatedAt" = CURRENT_TIMESTAMP,
+    "isPaused" = coalesce(sqlc.narg('isPaused')::boolean, "isPaused")
+WHERE "id" = @id::uuid
+RETURNING *;
+
+-- name: HandleWorkflowUnpaused :exec
+WITH matching_qis AS (
+    -- We know that we're going to need to scan all the queue items in this queue
+    -- for the tenant, so we write this query in such a way that the index is used.
+    SELECT
+        qi."id"
+    FROM
+        "InternalQueueItem" qi
+    WHERE
+        qi."isQueued" = true
+        AND qi."tenantId" = @tenantId::uuid
+        AND qi."queue" = 'WORKFLOW_RUN_PAUSED'
+        AND qi."priority" = 1
+    ORDER BY
+        qi."id" DESC
+)
+UPDATE "InternalQueueItem"
+-- We update all the queue items to have a higher priority so we can unpause them
+SET "priority" = 4
+FROM
+    matching_qis
+WHERE
+    "InternalQueueItem"."id" = matching_qis."id"
+    AND "data"->>'workflow_id' = @workflowId::text;
 
 -- name: GetWorkflowWorkerCount :one
 WITH UniqueWorkers AS (

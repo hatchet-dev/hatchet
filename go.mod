@@ -28,7 +28,7 @@ require (
 	github.com/shopspring/decimal v1.4.0
 	github.com/spf13/cobra v1.8.1
 	github.com/spf13/viper v1.19.0
-	github.com/steebchen/prisma-client-go v0.41.0
+	github.com/steebchen/prisma-client-go v0.42.0
 	github.com/tink-crypto/tink-go v0.0.0-20230613075026-d6de17e3f164
 	github.com/tink-crypto/tink-go-gcpkms v0.0.0-20230602082706-31d0d09ccc8d
 	go.opentelemetry.io/otel v1.30.0
@@ -38,7 +38,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.30.0
 	go.uber.org/goleak v1.3.0
 	golang.org/x/exp v0.0.0-20240613232115-7f521ea00fb8
-	google.golang.org/api v0.198.0
+	google.golang.org/api v0.199.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20240903143218-8af14fe29dc1
 	k8s.io/api v0.31.1
 	k8s.io/apimachinery v0.31.1
@@ -47,9 +47,9 @@ require (
 )
 
 require (
-	cloud.google.com/go/auth v0.9.4 // indirect
+	cloud.google.com/go/auth v0.9.5 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.4 // indirect
-	cloud.google.com/go/compute/metadata v0.5.1 // indirect
+	cloud.google.com/go/compute/metadata v0.5.2 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.0 // indirect
 	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect

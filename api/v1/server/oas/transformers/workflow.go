@@ -25,6 +25,8 @@ func ToWorkflow(
 		Name: workflow.Name,
 	}
 
+	res.IsPaused = &workflow.IsPaused.Bool
+
 	res.Description = &workflow.Description.String
 
 	if version != nil {
@@ -44,7 +46,7 @@ func ToWorkflowVersionMeta(version *dbsqlc.WorkflowVersion, workflow *dbsqlc.Wor
 			version.UpdatedAt.Time,
 		),
 		WorkflowId: sqlchelpers.UUIDToStr(version.WorkflowId),
-		Order:      int32(version.Order),
+		Order:      int32(version.Order), // nolint: gosec
 		Version:    version.Version.String,
 	}
 
@@ -73,7 +75,7 @@ func ToWorkflowVersion(
 			version.UpdatedAt.Time,
 		),
 		// WorkflowId:      sqlchelpers.UUIDToStr(version.WorkflowId),
-		Order:           int32(version.Order),
+		Order:           int32(version.Order), // nolint: gosec
 		Version:         version.Version.String,
 		ScheduleTimeout: &version.ScheduleTimeout,
 		DefaultPriority: &version.DefaultPriority.Int32,
@@ -290,6 +292,7 @@ func ToWorkflowFromSQLC(row *dbsqlc.Workflow) *gen.Workflow {
 		Metadata:    *toAPIMetadata(pgUUIDToStr(row.ID), row.CreatedAt.Time, row.UpdatedAt.Time),
 		Name:        row.Name,
 		Description: &row.Description.String,
+		IsPaused:    &row.IsPaused.Bool,
 	}
 
 	return res

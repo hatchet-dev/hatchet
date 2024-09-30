@@ -92,7 +92,7 @@ func (q *Queries) BulkCreateWorkflowRunEvent(ctx context.Context, db DBTX, arg B
 
 const countWorkflowRuns = `-- name: CountWorkflowRuns :one
 WITH runs AS (
-    SELECT runs."id", runs."createdAt"
+    SELECT runs."id", runs."createdAt", runs."finishedAt", runs."startedAt", runs."duration"
     FROM
         "WorkflowRun" as runs
     LEFT JOIN
@@ -161,11 +161,22 @@ WITH runs AS (
         ) AND
         (
             $14::timestamp IS NULL OR
-            runs."finishedAt" > $14::timestamp
+            runs."finishedAt" > $14::timestamp OR
+            runs."finishedAt" IS NULL
+        ) AND
+        (
+            $15::timestamp IS NULL OR
+            runs."finishedAt" <= $15::timestamp
         )
     ORDER BY
-        case when $15 = 'createdAt ASC' THEN runs."createdAt" END ASC ,
-        case when $15 = 'createdAt DESC' then runs."createdAt" END DESC,
+        case when $16 = 'createdAt ASC' THEN runs."createdAt" END ASC ,
+        case when $16 = 'createdAt DESC' THEN runs."createdAt" END DESC,
+        case when $16 = 'finishedAt ASC' THEN runs."finishedAt" END ASC ,
+        case when $16 = 'finishedAt DESC' THEN runs."finishedAt" END DESC,
+        case when $16 = 'startedAt ASC' THEN runs."startedAt" END ASC ,
+        case when $16 = 'startedAt DESC' THEN runs."startedAt" END DESC,
+        case when $16 = 'duration ASC' THEN runs."duration" END ASC NULLS FIRST,
+        case when $16 = 'duration DESC' THEN runs."duration" END DESC NULLS LAST,
         runs."id" ASC
     LIMIT 10000
 )
@@ -190,6 +201,7 @@ type CountWorkflowRunsParams struct {
 	CreatedAfter       pgtype.Timestamp `json:"createdAfter"`
 	CreatedBefore      pgtype.Timestamp `json:"createdBefore"`
 	FinishedAfter      pgtype.Timestamp `json:"finishedAfter"`
+	FinishedBefore     pgtype.Timestamp `json:"finishedBefore"`
 	Orderby            interface{}      `json:"orderby"`
 }
 
@@ -209,6 +221,7 @@ func (q *Queries) CountWorkflowRuns(ctx context.Context, db DBTX, arg CountWorkf
 		arg.CreatedAfter,
 		arg.CreatedBefore,
 		arg.FinishedAfter,
+		arg.FinishedBefore,
 		arg.Orderby,
 	)
 	var total int64
@@ -973,6 +986,7 @@ SELECT
     -- waiting on https://github.com/sqlc-dev/sqlc/pull/2858 for nullable fields
     wc."limitStrategy" as "concurrencyLimitStrategy",
     wc."maxRuns" as "concurrencyMaxRuns",
+    workflow."isPaused" as "isPaused",
     wc."concurrencyGroupExpression" as "concurrencyGroupExpression",
     groupKeyRun."id" as "getGroupKeyRunId"
 FROM
@@ -1007,6 +1021,7 @@ type GetWorkflowRunRow struct {
 	WorkflowName               pgtype.Text                  `json:"workflowName"`
 	ConcurrencyLimitStrategy   NullConcurrencyLimitStrategy `json:"concurrencyLimitStrategy"`
 	ConcurrencyMaxRuns         pgtype.Int4                  `json:"concurrencyMaxRuns"`
+	IsPaused                   pgtype.Bool                  `json:"isPaused"`
 	ConcurrencyGroupExpression pgtype.Text                  `json:"concurrencyGroupExpression"`
 	GetGroupKeyRunId           pgtype.UUID                  `json:"getGroupKeyRunId"`
 }
@@ -1067,6 +1082,7 @@ func (q *Queries) GetWorkflowRun(ctx context.Context, db DBTX, arg GetWorkflowRu
 			&i.WorkflowName,
 			&i.ConcurrencyLimitStrategy,
 			&i.ConcurrencyMaxRuns,
+			&i.IsPaused,
 			&i.ConcurrencyGroupExpression,
 			&i.GetGroupKeyRunId,
 		); err != nil {
@@ -1112,7 +1128,7 @@ const getWorkflowRunById = `-- name: GetWorkflowRunById :one
 SELECT
     r."createdAt", r."updatedAt", r."deletedAt", r."tenantId", r."workflowVersionId", r.status, r.error, r."startedAt", r."finishedAt", r."concurrencyGroupId", r."displayName", r.id, r."childIndex", r."childKey", r."parentId", r."parentStepRunId", r."additionalMetadata", r.duration, r.priority,
     wv.id, wv."createdAt", wv."updatedAt", wv."deletedAt", wv.version, wv."order", wv."workflowId", wv.checksum, wv."scheduleTimeout", wv."onFailureJobId", wv.sticky, wv.kind, wv."defaultPriority",
-    w.id, w."createdAt", w."updatedAt", w."deletedAt", w."tenantId", w.name, w.description,
+    w.id, w."createdAt", w."updatedAt", w."deletedAt", w."tenantId", w.name, w.description, w."isPaused",
     tb.id, tb."createdAt", tb."updatedAt", tb."deletedAt", tb."tenantId", tb."eventId", tb."cronParentId", tb."cronSchedule", tb."scheduledId", tb.input, tb."parentId"
 FROM
     "WorkflowRun" r
@@ -1201,6 +1217,7 @@ func (q *Queries) GetWorkflowRunById(ctx context.Context, db DBTX, arg GetWorkfl
 		&i.Workflow.TenantId,
 		&i.Workflow.Name,
 		&i.Workflow.Description,
+		&i.Workflow.IsPaused,
 		&i.WorkflowRunTriggeredBy.ID,
 		&i.WorkflowRunTriggeredBy.CreatedAt,
 		&i.WorkflowRunTriggeredBy.UpdatedAt,
@@ -1501,7 +1518,7 @@ func (q *Queries) ListWorkflowRunEventsByWorkflowRunId(ctx context.Context, db D
 const listWorkflowRuns = `-- name: ListWorkflowRuns :many
 SELECT
     runs."createdAt", runs."updatedAt", runs."deletedAt", runs."tenantId", runs."workflowVersionId", runs.status, runs.error, runs."startedAt", runs."finishedAt", runs."concurrencyGroupId", runs."displayName", runs.id, runs."childIndex", runs."childKey", runs."parentId", runs."parentStepRunId", runs."additionalMetadata", runs.duration, runs.priority,
-    workflow.id, workflow."createdAt", workflow."updatedAt", workflow."deletedAt", workflow."tenantId", workflow.name, workflow.description,
+    workflow.id, workflow."createdAt", workflow."updatedAt", workflow."deletedAt", workflow."tenantId", workflow.name, workflow.description, workflow."isPaused",
     runtriggers.id, runtriggers."createdAt", runtriggers."updatedAt", runtriggers."deletedAt", runtriggers."tenantId", runtriggers."eventId", runtriggers."cronParentId", runtriggers."cronSchedule", runtriggers."scheduledId", runtriggers.input, runtriggers."parentId",
     workflowversion.id, workflowversion."createdAt", workflowversion."updatedAt", workflowversion."deletedAt", workflowversion.version, workflowversion."order", workflowversion."workflowId", workflowversion.checksum, workflowversion."scheduleTimeout", workflowversion."onFailureJobId", workflowversion.sticky, workflowversion.kind, workflowversion."defaultPriority",
     -- waiting on https://github.com/sqlc-dev/sqlc/pull/2858 for nullable events field
@@ -1578,22 +1595,27 @@ WHERE
     ) AND
     (
         $14::timestamp IS NULL OR
-        runs."finishedAt" > $14::timestamp
+        runs."finishedAt" > $14::timestamp OR
+        runs."finishedAt" IS NULL
+    ) AND
+    (
+        $15::timestamp IS NULL OR
+        runs."finishedAt" <= $15::timestamp
     )
 ORDER BY
-    case when $15 = 'createdAt ASC' THEN runs."createdAt" END ASC ,
-    case when $15 = 'createdAt DESC' THEN runs."createdAt" END DESC,
-    case when $15 = 'finishedAt ASC' THEN runs."finishedAt" END ASC ,
-    case when $15 = 'finishedAt DESC' THEN runs."finishedAt" END DESC,
-    case when $15 = 'startedAt ASC' THEN runs."startedAt" END ASC ,
-    case when $15 = 'startedAt DESC' THEN runs."startedAt" END DESC,
-    case when $15 = 'duration ASC' THEN runs."duration" END ASC NULLS FIRST,
-    case when $15 = 'duration DESC' THEN runs."duration" END DESC NULLS LAST,
+    case when $16 = 'createdAt ASC' THEN runs."createdAt" END ASC ,
+    case when $16 = 'createdAt DESC' THEN runs."createdAt" END DESC,
+    case when $16 = 'finishedAt ASC' THEN runs."finishedAt" END ASC ,
+    case when $16 = 'finishedAt DESC' THEN runs."finishedAt" END DESC,
+    case when $16 = 'startedAt ASC' THEN runs."startedAt" END ASC ,
+    case when $16 = 'startedAt DESC' THEN runs."startedAt" END DESC,
+    case when $16 = 'duration ASC' THEN runs."duration" END ASC NULLS FIRST,
+    case when $16 = 'duration DESC' THEN runs."duration" END DESC NULLS LAST,
     runs."id" ASC
 OFFSET
-    COALESCE($16, 0)
+    COALESCE($17, 0)
 LIMIT
-    COALESCE($17, 50)
+    COALESCE($18, 50)
 `
 
 type ListWorkflowRunsParams struct {
@@ -1611,6 +1633,7 @@ type ListWorkflowRunsParams struct {
 	CreatedAfter       pgtype.Timestamp `json:"createdAfter"`
 	CreatedBefore      pgtype.Timestamp `json:"createdBefore"`
 	FinishedAfter      pgtype.Timestamp `json:"finishedAfter"`
+	FinishedBefore     pgtype.Timestamp `json:"finishedBefore"`
 	Orderby            interface{}      `json:"orderby"`
 	Offset             interface{}      `json:"offset"`
 	Limit              interface{}      `json:"limit"`
@@ -1643,6 +1666,7 @@ func (q *Queries) ListWorkflowRuns(ctx context.Context, db DBTX, arg ListWorkflo
 		arg.CreatedAfter,
 		arg.CreatedBefore,
 		arg.FinishedAfter,
+		arg.FinishedBefore,
 		arg.Orderby,
 		arg.Offset,
 		arg.Limit,
@@ -1681,6 +1705,7 @@ func (q *Queries) ListWorkflowRuns(ctx context.Context, db DBTX, arg ListWorkflo
 			&i.Workflow.TenantId,
 			&i.Workflow.Name,
 			&i.Workflow.Description,
+			&i.Workflow.IsPaused,
 			&i.WorkflowRunTriggeredBy.ID,
 			&i.WorkflowRunTriggeredBy.CreatedAt,
 			&i.WorkflowRunTriggeredBy.UpdatedAt,
@@ -1939,9 +1964,9 @@ WITH jobRuns AS (
     WHERE
         wr."id" = j."workflowRunId"
         AND "tenantId" = $2::uuid
-    RETURNING wr."id", wr."status"
+    RETURNING wr."id", wr."status", wr."tenantId"
 )
-SELECT DISTINCT "id", "status"
+SELECT DISTINCT "id", "status", "tenantId"
 FROM updated_workflow_runs
 WHERE "status" IN ('SUCCEEDED', 'FAILED')
 `
@@ -1952,8 +1977,9 @@ type ResolveWorkflowRunStatusParams struct {
 }
 
 type ResolveWorkflowRunStatusRow struct {
-	ID     pgtype.UUID       `json:"id"`
-	Status WorkflowRunStatus `json:"status"`
+	ID       pgtype.UUID       `json:"id"`
+	Status   WorkflowRunStatus `json:"status"`
+	TenantId pgtype.UUID       `json:"tenantId"`
 }
 
 // Return distinct workflow run ids in a final state
@@ -1966,7 +1992,7 @@ func (q *Queries) ResolveWorkflowRunStatus(ctx context.Context, db DBTX, arg Res
 	var items []*ResolveWorkflowRunStatusRow
 	for rows.Next() {
 		var i ResolveWorkflowRunStatusRow
-		if err := rows.Scan(&i.ID, &i.Status); err != nil {
+		if err := rows.Scan(&i.ID, &i.Status, &i.TenantId); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)

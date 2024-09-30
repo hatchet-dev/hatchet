@@ -98,7 +98,7 @@ type TenantAPIRepository interface {
 	DeleteTenantMember(memberId string) (*db.TenantMemberModel, error)
 
 	// GetQueueMetrics returns the queue metrics for the given tenant
-	GetQueueMetrics(tenantId string, opts *GetQueueMetricsOpts) (*GetQueueMetricsResponse, error)
+	GetQueueMetrics(ctx context.Context, tenantId string, opts *GetQueueMetricsOpts) (*GetQueueMetricsResponse, error)
 }
 
 type TenantEngineRepository interface {

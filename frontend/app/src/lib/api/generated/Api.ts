@@ -41,6 +41,9 @@ import {
   LogLineOrderByDirection,
   LogLineOrderByField,
   LogLineSearch,
+  RateLimitList,
+  RateLimitOrderByDirection,
+  RateLimitOrderByField,
   RejectInviteRequest,
   ReplayEventRequest,
   ReplayWorkflowRunsRequest,
@@ -90,6 +93,7 @@ import {
   WorkflowRunsMetrics,
   WorkflowRunStatus,
   WorkflowRunStatusList,
+  WorkflowUpdateRequest,
   WorkflowVersion,
   WorkflowWorkersCount,
 } from './data-contracts';
@@ -953,6 +957,45 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       ...params,
     });
   /**
+   * @description Lists all rate limits for a tenant.
+   *
+   * @tags Rate Limits
+   * @name RateLimitList
+   * @summary List rate limits
+   * @request GET:/api/v1/tenants/{tenant}/rate-limits
+   * @secure
+   */
+  rateLimitList = (
+    tenant: string,
+    query?: {
+      /**
+       * The number to skip
+       * @format int64
+       */
+      offset?: number;
+      /**
+       * The number to limit by
+       * @format int64
+       */
+      limit?: number;
+      /** The search query to filter for */
+      search?: string;
+      /** What to order by */
+      orderByField?: RateLimitOrderByField;
+      /** The order direction */
+      orderByDirection?: RateLimitOrderByDirection;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<RateLimitList, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/rate-limits`,
+      method: 'GET',
+      query: query,
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
    * @description Gets a list of tenant members
    *
    * @tags Tenant
@@ -1109,6 +1152,25 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       path: `/api/v1/workflows/${workflow}`,
       method: 'DELETE',
       secure: true,
+      ...params,
+    });
+  /**
+   * @description Update a workflow for a tenant
+   *
+   * @tags Workflow
+   * @name WorkflowUpdate
+   * @summary Update workflow
+   * @request PATCH:/api/v1/workflows/{workflow}
+   * @secure
+   */
+  workflowUpdate = (workflow: string, data: WorkflowUpdateRequest, params: RequestParams = {}) =>
+    this.request<Workflow, APIErrors>({
+      path: `/api/v1/workflows/${workflow}`,
+      method: 'PATCH',
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: 'json',
       ...params,
     });
   /**
@@ -1425,6 +1487,18 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
        * @example "2021-01-01T00:00:00Z"
        */
       createdBefore?: string;
+      /**
+       * The time after the workflow run was finished
+       * @format date-time
+       * @example "2021-01-01T00:00:00Z"
+       */
+      finishedAfter?: string;
+      /**
+       * The time before the workflow run was finished
+       * @format date-time
+       * @example "2021-01-01T00:00:00Z"
+       */
+      finishedBefore?: string;
       /** The order by field */
       orderByField?: WorkflowRunOrderByField;
       /** The order by direction */

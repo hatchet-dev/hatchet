@@ -5,11 +5,15 @@ import invariant from 'tiny-invariant';
 import { WebhookWorkerCreateRequest } from '.';
 
 type ListEventQuery = Parameters<typeof api.eventList>[1];
+type ListRateLimitsQuery = Parameters<typeof api.rateLimitList>[1];
 type ListLogLineQuery = Parameters<typeof api.logLineList>[1];
 type ListWorkflowRunsQuery = Parameters<typeof api.workflowRunList>[1];
 export type ListCloudLogsQuery = Parameters<typeof cloudApi.logList>[1];
 export type GetCloudMetricsQuery = Parameters<typeof cloudApi.metricsCpuGet>[1];
 type WorkflowRunMetrics = Parameters<typeof api.workflowRunGetMetrics>[1];
+type WorkflowRunEventsMetrics = Parameters<
+  typeof cloudApi.workflowRunEventsGetMetrics
+>[1];
 
 export const queries = createQueryKeyStore({
   cloud: {
@@ -74,6 +78,11 @@ export const queries = createQueryKeyStore({
       queryKey: ['managed-worker:get:events', managedWorkerId],
       queryFn: async () =>
         (await cloudApi.managedWorkerEventsList(managedWorkerId)).data,
+    }),
+    workflowRunMetrics: (tenant: string, query: WorkflowRunEventsMetrics) => ({
+      queryKey: ['workflow-run:metrics', tenant, query],
+      queryFn: async () =>
+        (await cloudApi.workflowRunEventsGetMetrics(tenant, query)).data,
     }),
   },
   user: {
@@ -244,6 +253,12 @@ export const queries = createQueryKeyStore({
     getData: (event: string) => ({
       queryKey: ['event-data:get', event],
       queryFn: async () => (await api.eventDataGet(event)).data,
+    }),
+  },
+  rate_limits: {
+    list: (tenant: string, query: ListRateLimitsQuery) => ({
+      queryKey: ['rate-limits:list', tenant, query],
+      queryFn: async () => (await api.rateLimitList(tenant, query)).data,
     }),
   },
   workers: {

@@ -27,7 +27,6 @@ const TimePickerInput = React.forwardRef<
   (
     {
       className,
-      type = 'datetime-local',
       value,
       id,
       name,
@@ -113,22 +112,28 @@ const TimePickerInput = React.forwardRef<
       }
     };
 
+    const valueToTwoDigits = (value: number) => {
+      return value < 10 ? `0${value}` : value;
+    };
+
     return (
       <Input
         ref={ref}
         id={id || picker}
         name={name || picker}
         className={cn(
-          'w-[48px] text-center font-mono text-base tabular-nums caret-transparent focus:bg-accent focus:text-accent-foreground [&::-webkit-inner-spin-button]:appearance-none',
+          'w-[48px] text-xs text-center font-mono tabular-nums caret-transparent focus:bg-accent focus:text-accent-foreground [&::-webkit-inner-spin-button]:appearance-none',
           className,
         )}
-        value={value || calculatedValue}
+        value={value || valueToTwoDigits(parseInt(calculatedValue))}
         onChange={(e) => {
           e.preventDefault();
           onChange?.(e);
         }}
-        type={type}
-        inputMode="decimal"
+        min={0}
+        max={59}
+        type="number"
+        inputMode="numeric"
         onKeyDown={(e) => {
           onKeyDown?.(e);
           handleKeyDown(e);

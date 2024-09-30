@@ -13,7 +13,8 @@ import (
 )
 
 type rateLimitInput struct {
-	Index int `json:"index"`
+	Index  int    `json:"index"`
+	UserId string `json:"user_id"`
 }
 
 type stepOneOutput struct {
@@ -50,8 +51,8 @@ func main() {
 	}
 
 	err = c.Admin().PutRateLimit("api1", &types.RateLimitOpts{
-		Max:      3,
-		Duration: "day",
+		Max:      12,
+		Duration: types.Minute,
 	})
 
 	if err != nil {
@@ -68,6 +69,10 @@ func main() {
 		panic(err)
 	}
 
+	unitExpr := "int(input.index) + 1"
+	keyExpr := "input.user_id"
+	limitValueExpr := "3"
+
 	err = w.On(
 		worker.NoTrigger(),
 		&worker.WorkflowJob{
@@ -76,8 +81,10 @@ func main() {
 			Steps: []*worker.WorkflowStep{
 				worker.Fn(StepOne).SetName("step-one").SetRateLimit(
 					worker.RateLimit{
-						Units: 1,
-						Key:   "api1",
+						Key:            "per-user-rate-limit",
+						KeyExpr:        &keyExpr,
+						UnitsExpr:      &unitExpr,
+						LimitValueExpr: &limitValueExpr,
 					},
 				),
 			},
@@ -89,12 +96,15 @@ func main() {
 	}
 
 	for i := 0; i < 12; i++ {
-		_, err = c.Admin().RunWorkflow("rate-limit-workflow", &rateLimitInput{
-			Index: i,
-		})
+		for j := 0; j < 3; j++ {
+			_, err = c.Admin().RunWorkflow("rate-limit-workflow", &rateLimitInput{
+				Index:  j,
+				UserId: fmt.Sprintf("user-%d", i),
+			})
 
-		if err != nil {
-			panic(err)
+			if err != nil {
+				panic(err)
+			}
 		}
 	}
 

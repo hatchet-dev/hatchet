@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 
+	"github.com/hatchet-dev/hatchet/internal/cel"
 	"github.com/hatchet-dev/hatchet/internal/dagutils"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
@@ -112,6 +113,57 @@ func (r *workflowAPIRepository) ListWorkflows(tenantId string, opts *repository.
 	res.Rows = sqlcWorkflows
 
 	return res, nil
+}
+
+func (r *workflowAPIRepository) UpdateWorkflow(ctx context.Context, tenantId, workflowId string, opts *repository.UpdateWorkflowOpts) (*dbsqlc.Workflow, error) {
+	if err := r.v.Validate(opts); err != nil {
+		return nil, err
+	}
+
+	pgWorkflowId := sqlchelpers.UUIDFromStr(workflowId)
+
+	params := dbsqlc.UpdateWorkflowParams{
+		ID: pgWorkflowId,
+	}
+
+	if opts.IsPaused != nil {
+		params.IsPaused = pgtype.Bool{
+			Valid: true,
+			Bool:  *opts.IsPaused,
+		}
+	}
+
+	tx, commit, rollback, err := prepareTx(ctx, r.pool, r.l, 25000)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer rollback()
+
+	workflow, err := r.queries.UpdateWorkflow(ctx, tx, params)
+
+	if err != nil {
+		return nil, err
+	}
+
+	// if we're setting to an unpaused state, update internal queue items
+	if opts.IsPaused != nil && !*opts.IsPaused {
+		err = r.queries.HandleWorkflowUnpaused(ctx, tx, dbsqlc.HandleWorkflowUnpausedParams{
+			Workflowid: workflowId,
+			Tenantid:   sqlchelpers.UUIDFromStr(tenantId),
+		})
+
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if err := commit(ctx); err != nil {
+		return nil, err
+	}
+
+	return workflow, nil
 }
 
 func (r *workflowAPIRepository) GetWorkflowById(ctx context.Context, workflowId string) (*dbsqlc.GetWorkflowByIdRow, error) {
@@ -923,16 +975,81 @@ func (r *workflowEngineRepository) createJobTx(ctx context.Context, tx pgx.Tx, t
 		}
 
 		if len(stepOpts.RateLimits) > 0 {
+			createStepExprParams := dbsqlc.CreateStepExpressionsParams{
+				Stepid: sqlchelpers.UUIDFromStr(stepId),
+			}
+
 			for _, rateLimit := range stepOpts.RateLimits {
-				_, err := r.queries.CreateStepRateLimit(
+				// if ANY of the step expressions are not nil, we create ALL options as expressions, but with static
+				// keys for any nil expressions.
+				if rateLimit.KeyExpr != nil || rateLimit.LimitExpr != nil || rateLimit.UnitsExpr != nil {
+					var keyExpr, limitExpr, unitsExpr string
+
+					windowExpr := cel.Str("MINUTE")
+
+					if rateLimit.Duration != nil {
+						windowExpr = fmt.Sprintf(`"%s"`, *rateLimit.Duration)
+					}
+
+					if rateLimit.KeyExpr != nil {
+						keyExpr = *rateLimit.KeyExpr
+					} else {
+						keyExpr = cel.Str(rateLimit.Key)
+					}
+
+					if rateLimit.UnitsExpr != nil {
+						unitsExpr = *rateLimit.UnitsExpr
+					} else {
+						unitsExpr = cel.Int(*rateLimit.Units)
+					}
+
+					// create the key expression
+					createStepExprParams.Kinds = append(createStepExprParams.Kinds, string(dbsqlc.StepExpressionKindDYNAMICRATELIMITKEY))
+					createStepExprParams.Keys = append(createStepExprParams.Keys, rateLimit.Key)
+					createStepExprParams.Expressions = append(createStepExprParams.Expressions, keyExpr)
+
+					// create the limit value expression, if it's set
+					if rateLimit.LimitExpr != nil {
+						limitExpr = *rateLimit.LimitExpr
+
+						createStepExprParams.Kinds = append(createStepExprParams.Kinds, string(dbsqlc.StepExpressionKindDYNAMICRATELIMITVALUE))
+						createStepExprParams.Keys = append(createStepExprParams.Keys, rateLimit.Key)
+						createStepExprParams.Expressions = append(createStepExprParams.Expressions, limitExpr)
+					}
+
+					// create the units value expression
+					createStepExprParams.Kinds = append(createStepExprParams.Kinds, string(dbsqlc.StepExpressionKindDYNAMICRATELIMITUNITS))
+					createStepExprParams.Keys = append(createStepExprParams.Keys, rateLimit.Key)
+					createStepExprParams.Expressions = append(createStepExprParams.Expressions, unitsExpr)
+
+					// create the window expression
+					createStepExprParams.Kinds = append(createStepExprParams.Kinds, string(dbsqlc.StepExpressionKindDYNAMICRATELIMITWINDOW))
+					createStepExprParams.Keys = append(createStepExprParams.Keys, rateLimit.Key)
+					createStepExprParams.Expressions = append(createStepExprParams.Expressions, windowExpr)
+				} else {
+					_, err := r.queries.CreateStepRateLimit(
+						ctx,
+						tx,
+						dbsqlc.CreateStepRateLimitParams{
+							Stepid:       sqlchelpers.UUIDFromStr(stepId),
+							Ratelimitkey: rateLimit.Key,
+							Units:        int32(*rateLimit.Units), // nolint: gosec
+							Tenantid:     tenantId,
+							Kind:         dbsqlc.StepRateLimitKindSTATIC,
+						},
+					)
+
+					if err != nil {
+						return "", fmt.Errorf("could not create step rate limit: %w", err)
+					}
+				}
+			}
+
+			if len(createStepExprParams.Kinds) > 0 {
+				err := r.queries.CreateStepExpressions(
 					ctx,
 					tx,
-					dbsqlc.CreateStepRateLimitParams{
-						Stepid:       sqlchelpers.UUIDFromStr(stepId),
-						Ratelimitkey: rateLimit.Key,
-						Units:        int32(rateLimit.Units),
-						Tenantid:     tenantId,
-					},
+					createStepExprParams,
 				)
 
 				if err != nil {
@@ -943,39 +1060,4 @@ func (r *workflowEngineRepository) createJobTx(ctx context.Context, tx pgx.Tx, t
 	}
 
 	return jobId, nil
-}
-
-func defaultWorkflowPopulator() []db.WorkflowRelationWith {
-	return []db.WorkflowRelationWith{
-		db.Workflow.Tags.Fetch(),
-		db.Workflow.Versions.Fetch().OrderBy(
-			db.WorkflowVersion.Order.Order(db.SortOrderDesc),
-		).With(
-			defaultWorkflowVersionPopulator()...,
-		),
-	}
-}
-
-func defaultWorkflowVersionPopulator() []db.WorkflowVersionRelationWith {
-	return []db.WorkflowVersionRelationWith{
-		db.WorkflowVersion.Workflow.Fetch(),
-		db.WorkflowVersion.Triggers.Fetch().With(
-			db.WorkflowTriggers.Events.Fetch(),
-			db.WorkflowTriggers.Crons.Fetch().With(
-				db.WorkflowTriggerCronRef.Ticker.Fetch(),
-			),
-		),
-		db.WorkflowVersion.Concurrency.Fetch().With(
-			db.WorkflowConcurrency.GetConcurrencyGroup.Fetch(),
-		),
-		db.WorkflowVersion.Jobs.Fetch().With(
-			db.Job.Steps.Fetch().With(
-				db.Step.Action.Fetch(),
-				db.Step.Parents.Fetch(),
-			),
-		),
-		db.WorkflowVersion.Scheduled.Fetch().With(
-			db.WorkflowTriggerScheduledRef.Ticker.Fetch(),
-		),
-	}
 }

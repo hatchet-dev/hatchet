@@ -301,7 +301,7 @@ func (r *eventEngineRepository) CreateEvent(ctx context.Context, opts *repositor
 		e := response.result
 
 		for _, cb := range r.callbacks {
-			cb.Do(e) // nolint: errcheck
+			cb.Do(r.l, opts.TenantId, e)
 		}
 
 		id := sqlchelpers.UUIDToStr(e.ID)
@@ -384,10 +384,7 @@ func (r *eventEngineRepository) BulkCreateEvent(ctx context.Context, opts *repos
 		for _, e := range events {
 
 			for _, cb := range r.callbacks {
-				err = cb.Do(e)
-				if err != nil {
-					return nil, nil, fmt.Errorf("could not execute callback: %w", err)
-				}
+				cb.Do(r.l, opts.TenantId, e)
 			}
 
 		}
@@ -475,11 +472,10 @@ func (r *eventEngineRepository) BulkCreateEventSharedTenant(ctx context.Context,
 
 	for _, e := range events {
 
+		tenantId := sqlchelpers.UUIDToStr(e.TenantId)
+
 		for _, cb := range r.callbacks {
-			err = cb.Do(e)
-			if err != nil {
-				return nil, fmt.Errorf("could not execute callback: %w", err)
-			}
+			cb.Do(r.l, tenantId, e)
 		}
 
 	}

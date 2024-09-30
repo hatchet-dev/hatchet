@@ -100,12 +100,22 @@ WorkflowID:
   $ref: "./event.yaml#/WorkflowID"
 EventList:
   $ref: "./event.yaml#/EventList"
+RateLimit:
+  $ref: "./rate_limits.yaml#/RateLimit"
+RateLimitList:
+  $ref: "./rate_limits.yaml#/RateLimitList"
+RateLimitOrderByField:
+  $ref: "./rate_limits.yaml#/RateLimitOrderByField"
+RateLimitOrderByDirection:
+  $ref: "./rate_limits.yaml#/RateLimitOrderByDirection"
 ReplayEventRequest:
   $ref: "./event.yaml#/ReplayEventRequest"
 CancelEventRequest:
   $ref: "./event.yaml#/CancelEventRequest"
 Workflow:
   $ref: "./workflow.yaml#/Workflow"
+WorkflowUpdateRequest:
+  $ref: "./workflow.yaml#/WorkflowUpdateRequest"
 WorkflowConcurrency:
   $ref: "./workflow.yaml#/WorkflowConcurrency"
 WorkflowVersionMeta:
