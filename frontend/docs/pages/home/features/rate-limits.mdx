@@ -80,6 +80,8 @@ const workflow: Workflow = {
 
   </Tabs.Tab>
   <Tabs.Tab>
+> Note: Go requires both a key and KeyExpr be set and the LimitValueExpr must be a CEL.
+
 ```go
 err = w.RegisterWorkflow(
     &worker.WorkflowJob{
@@ -100,6 +102,7 @@ err = w.RegisterWorkflow(
     },
 )
 ```
+
   </Tabs.Tab>
 </Tabs>
 
