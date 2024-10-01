@@ -6,6 +6,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hatchet-dev/hatchet/pkg/validator"
+
 	"github.com/rs/zerolog"
 )
 
@@ -14,45 +16,45 @@ import (
 
 type TenantBufferManager[T any, U any] struct {
 	tenants     sync.Map
+	tenantLock  sync.Map
 	l           *zerolog.Logger
 	defaultOpts IngestBufOpts[T, U]
+	v           validator.Validator
 }
 
 type TenantBufManagerOpts[T any, U any] struct {
-	OutputFunc func(ctx context.Context, items []T) ([]U, error)
-	SizeFunc   func(T) int
-	l          *zerolog.Logger
+	OutputFunc func(ctx context.Context, items []T) ([]U, error) `validate:"required"`
+	SizeFunc   func(T) int                                       `validate:"required"`
+	L          *zerolog.Logger                                   `validate:"required"`
+	V          validator.Validator                               `validate:"required"`
 }
 
 // Create a new TenantBufferManager with generic types T for input and U for output
 func NewTenantBufManager[T any, U any](opts TenantBufManagerOpts[T, U]) (*TenantBufferManager[T, U], error) {
 
-	if opts.OutputFunc == nil {
-		return nil, fmt.Errorf("output function is required")
-	}
+	v := opts.V
+	err := v.Validate(opts)
 
-	if opts.SizeFunc == nil {
-		return nil, fmt.Errorf("size function is required")
-	}
-	if opts.l == nil {
-		return nil, fmt.Errorf("logger is required")
+	if err != nil {
+		return nil, err
 	}
 
 	megabyte := 1024 * 1024
 
 	defaultOpts := IngestBufOpts[T, U]{
-		maxCapacity:        1000,
-		flushPeriod:        50 * time.Millisecond,
-		maxDataSizeInQueue: 4 * megabyte,
-		outputFunc:         opts.OutputFunc,
-		sizeFunc:           opts.SizeFunc,
-		l:                  opts.l,
+		MaxCapacity:        1000,
+		FlushPeriod:        50 * time.Millisecond,
+		MaxDataSizeInQueue: 4 * megabyte,
+		OutputFunc:         opts.OutputFunc,
+		SizeFunc:           opts.SizeFunc,
+		L:                  opts.L,
 	}
 
 	return &TenantBufferManager[T, U]{
 		tenants:     sync.Map{},
-		l:           opts.l,
+		l:           opts.L,
 		defaultOpts: defaultOpts,
+		v:           v,
 	}, nil
 }
 
@@ -65,14 +67,20 @@ func (t *TenantBufferManager[T, U]) createTenantBuf(
 	opts IngestBufOpts[T, U],
 ) (*IngestBuf[T, U], error) {
 
-	ingestBuf := NewIngestBuffer(opts)
-
-	err := ingestBuf.validate()
+	err := t.v.Validate(opts)
 	if err != nil {
 		return nil, err
 	}
 
+	ingestBuf := NewIngestBuffer(opts)
+
+	// we already have a lock for the tenant but just being paranoid
+	if _, ok := t.tenants.Load(tenantKey); ok {
+		return nil, fmt.Errorf("tenant buffer already exists for tenant %s", tenantKey)
+	}
+
 	t.tenants.Store(tenantKey, ingestBuf)
+
 	_, err = t.startTenantBuf(tenantKey)
 	if err != nil {
 		t.l.Error().Err(err).Msg("error starting tenant buffer")
@@ -97,7 +105,7 @@ func (t *TenantBufferManager[T, U]) startTenantBuf(tenantKey string) (func() err
 	if v, ok := t.tenants.Load(tenantKey); ok {
 		return v.(*IngestBuf[T, U]).Start()
 	}
-	return nil, fmt.Errorf("tenant buffer not found")
+	return nil, fmt.Errorf("tenant buffer not found for tenant %s", tenantKey)
 }
 
 // Retrieve or create a tenant buffer
@@ -106,9 +114,14 @@ func (t *TenantBufferManager[T, U]) getOrCreateTenantBuf(
 	opts IngestBufOpts[T, U],
 ) (*IngestBuf[T, U], error) {
 
+	tlock, _ := t.tenantLock.LoadOrStore(tenantBufKey, &sync.Mutex{})
+	tlock.(*sync.Mutex).Lock()
+	defer tlock.(*sync.Mutex).Unlock()
+
 	if v, ok := t.tenants.Load(tenantBufKey); ok {
 		return v.(*IngestBuf[T, U]), nil
 	}
+	t.l.Debug().Msgf("creating new tenant buffer for tenant %s", tenantBufKey)
 	return t.createTenantBuf(tenantBufKey, opts)
 }
 

@@ -15,7 +15,12 @@ type ingestBufState int
 const (
 	started ingestBufState = iota
 	initialized
+	finished
 )
+
+func (s ingestBufState) String() string {
+	return [...]string{"started", "initialized", "finished"}[s]
+}
 
 // e.g. T is eventOpts and U is *dbsqlc.Event
 
@@ -45,18 +50,18 @@ type inputWrapper[T any, U any] struct {
 }
 
 type IngestBufOpts[T any, U any] struct {
-	maxCapacity        int
-	flushPeriod        time.Duration
-	maxDataSizeInQueue int
-	outputFunc         func(ctx context.Context, items []T) ([]U, error)
-	sizeFunc           func(T) int
-	l                  *zerolog.Logger
+	MaxCapacity        int                                               `validate:"required,gt=0"`
+	FlushPeriod        time.Duration                                     `validate:"required,gt=0"`
+	MaxDataSizeInQueue int                                               `validate:"required,gt=0"`
+	OutputFunc         func(ctx context.Context, items []T) ([]U, error) `validate:"required"`
+	SizeFunc           func(T) int                                       `validate:"required"`
+	L                  *zerolog.Logger                                   `validate:"required"`
 }
 
 // NewIngestBuffer creates a new buffer for any type T
 func NewIngestBuffer[T any, U any](opts IngestBufOpts[T, U]) *IngestBuf[T, U] {
 
-	inputChannelSize := opts.maxCapacity
+	inputChannelSize := opts.MaxCapacity
 	if inputChannelSize < 100 {
 		inputChannelSize = 100
 	}
@@ -66,64 +71,50 @@ func NewIngestBuffer[T any, U any](opts IngestBufOpts[T, U]) *IngestBuf[T, U] {
 
 	return &IngestBuf[T, U]{
 		state:              initialized,
-		maxCapacity:        opts.maxCapacity,
-		flushPeriod:        opts.flushPeriod,
+		maxCapacity:        opts.MaxCapacity,
+		flushPeriod:        opts.FlushPeriod,
 		inputChan:          make(chan *inputWrapper[T, U], inputChannelSize),
 		lastFlush:          time.Now(),
 		internalArr:        make([]*inputWrapper[T, U], 0),
 		sizeOfData:         0,
-		maxDataSizeInQueue: opts.maxDataSizeInQueue,
-		outputFunc:         opts.outputFunc,
-		sizeFunc:           opts.sizeFunc,
-		l:                  opts.l,
+		maxDataSizeInQueue: opts.MaxDataSizeInQueue,
+		outputFunc:         opts.OutputFunc,
+		sizeFunc:           opts.SizeFunc,
+		l:                  opts.L,
 		ctx:                ctx,
 		cancel:             cancel,
 	}
 }
 
-func (b *IngestBuf[T, U]) validate() error {
-	if b.maxCapacity <= 0 {
-		return fmt.Errorf("max capacity must be greater than 0")
-	}
-	if b.flushPeriod <= 0 {
-		return fmt.Errorf("flush period must be greater than 0")
-	}
-	if b.maxDataSizeInQueue <= 0 {
-		return fmt.Errorf("max data size in queue must be greater than 0")
-	}
-	if b.outputFunc == nil {
-		return fmt.Errorf("bulk create func must be set")
-	}
-	if b.sizeFunc == nil {
-		return fmt.Errorf("size func must be set")
-	}
-	if b.l == nil {
-		return fmt.Errorf("logger must be set")
-	}
-	return nil
-}
 func (b *IngestBuf[T, U]) safeFetchSizeOfData() int {
 	b.lock.Lock()
 	defer b.lock.Unlock()
+
 	return b.sizeOfData
 }
 
 func (b *IngestBuf[T, U]) safeIncSizeOfData(size int) {
 	b.lock.Lock()
+	defer b.lock.Unlock()
+
 	b.sizeOfData += size
-	b.lock.Unlock()
+
 }
 
 func (b *IngestBuf[T, U]) safeDecSizeOfData(size int) {
 	b.lock.Lock()
+	defer b.lock.Unlock()
+
 	b.sizeOfData -= size
-	b.lock.Unlock()
+
 }
 
 func (b *IngestBuf[T, U]) safeSetLastFlush(t time.Time) {
 	b.lock.Lock()
+	defer b.lock.Unlock()
+
 	b.lastFlush = t
-	b.lock.Unlock()
+
 }
 
 func (b *IngestBuf[T, U]) safeFetchLastFlush() time.Time {
@@ -226,6 +217,11 @@ func (b *IngestBuf[T, U]) flush(items []*inputWrapper[T, U]) {
 }
 
 func (b *IngestBuf[T, U]) cleanup() error {
+
+	b.lock.Lock()
+	b.state = finished
+	b.lock.Unlock()
+
 	g := errgroup.Group{}
 
 	for len(b.internalArr) > 0 {
@@ -247,18 +243,23 @@ func (b *IngestBuf[T, U]) Start() (func() error, error) {
 	b.l.Debug().Msg("Starting buffer")
 
 	b.lock.Lock()
+	defer b.lock.Unlock()
+
 	if b.state == started {
-		b.lock.Unlock()
 		return nil, fmt.Errorf("buffer already started")
 	}
 	b.state = started
-	b.lock.Unlock()
 
 	go b.buffWorker()
 	return b.cleanup, nil
 }
 
 func (b *IngestBuf[T, U]) BuffItem(item T) (chan *flushResponse[U], error) {
+
+	if b.state != started {
+		return nil, fmt.Errorf("buffer not ready, in state '%v'", b.state.String())
+	}
+
 	doneChan := make(chan *flushResponse[U], 1)
 
 	select {

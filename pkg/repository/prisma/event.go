@@ -200,7 +200,7 @@ func sizeOfEvent(item *repository.CreateEventOpts) int {
 
 func (e *eventEngineRepository) StartBufferLoop() (func() error, error) {
 
-	tenantBufOpts := TenantBufManagerOpts[*repository.CreateEventOpts, *dbsqlc.Event]{OutputFunc: e.BulkCreateEventSharedTenant, SizeFunc: sizeOfEvent, l: e.l}
+	tenantBufOpts := TenantBufManagerOpts[*repository.CreateEventOpts, *dbsqlc.Event]{OutputFunc: e.BulkCreateEventSharedTenant, SizeFunc: sizeOfEvent, L: e.l, V: e.v}
 	var err error
 	e.bulkCreateBuffer, err = NewTenantBufManager(tenantBufOpts)
 
