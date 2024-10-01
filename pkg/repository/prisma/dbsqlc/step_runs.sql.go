@@ -298,7 +298,11 @@ const bulkMarkStepRunsAsCancelling = `-- name: BulkMarkStepRunsAsCancelling :man
 UPDATE
     "StepRun" sr
 SET
-    "status" = 'CANCELLING',
+    "status" = CASE
+        -- Final states are final, we cannot go from a final state to cancelling
+        WHEN "status" IN ('SUCCEEDED', 'FAILED', 'CANCELLED') THEN "status"
+        ELSE 'CANCELLING'
+    END,
     "updatedAt" = CURRENT_TIMESTAMP
 FROM (
     SELECT

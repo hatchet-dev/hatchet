@@ -1,6 +1,8 @@
 package tasktypes
 
 import (
+	"time"
+
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
@@ -212,6 +214,32 @@ func StepRunReplayToTask(stepRun *dbsqlc.GetStepRunForEngineRow, inputData []byt
 
 	return &msgqueue.Message{
 		ID:       "step-run-replay",
+		Payload:  payload,
+		Metadata: metadata,
+		Retries:  3,
+	}
+}
+
+func StepRunFailedToTask(stepRun *dbsqlc.GetStepRunForEngineRow, errorReason string, failedAt *time.Time) *msgqueue.Message {
+	stepRunId := sqlchelpers.UUIDToStr(stepRun.SRID)
+	workflowRunId := sqlchelpers.UUIDToStr(stepRun.WorkflowRunId)
+	tenantId := sqlchelpers.UUIDToStr(stepRun.SRTenantId)
+
+	payload, _ := datautils.ToJSONMap(StepRunFailedTaskPayload{
+		WorkflowRunId: workflowRunId,
+		StepRunId:     stepRunId,
+		FailedAt:      failedAt.Format(time.RFC3339),
+		Error:         errorReason,
+		StepRetries:   &stepRun.StepRetries,
+		RetryCount:    &stepRun.SRRetryCount,
+	})
+
+	metadata, _ := datautils.ToJSONMap(StepRunFailedTaskMetadata{
+		TenantId: tenantId,
+	})
+
+	return &msgqueue.Message{
+		ID:       "step-run-failed",
 		Payload:  payload,
 		Metadata: metadata,
 		Retries:  3,

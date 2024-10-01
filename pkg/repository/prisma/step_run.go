@@ -455,18 +455,22 @@ func (s *stepRunEngineRepository) ListStepRunsToReassign(ctx context.Context, te
 	return stepRunIdsStr, nil
 }
 
-func (s *stepRunEngineRepository) ListStepRunsToTimeout(ctx context.Context, tenantId string) ([]*dbsqlc.GetStepRunForEngineRow, error) {
+func (s *stepRunEngineRepository) ListStepRunsToTimeout(ctx context.Context, tenantId string) (bool, []*dbsqlc.GetStepRunForEngineRow, error) {
 	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
 
 	tx, err := s.pool.Begin(ctx)
 
 	if err != nil {
-		return nil, err
+		return false, nil, err
 	}
 
 	defer deferRollback(ctx, s.l, tx.Rollback)
 
 	limit := 100
+
+	if s.cf.SingleQueueLimit != 0 {
+		limit = s.cf.SingleQueueLimit
+	}
 
 	// get the step run and make sure it's still in pending
 	stepRunIds, err := s.queries.PopTimeoutQueueItems(ctx, tx, dbsqlc.PopTimeoutQueueItemsParams{
@@ -478,15 +482,17 @@ func (s *stepRunEngineRepository) ListStepRunsToTimeout(ctx context.Context, ten
 	})
 
 	if err != nil {
-		return nil, err
+		return false, nil, err
 	}
 
 	// mark the step runs as cancelling
-	_, err = s.queries.BulkMarkStepRunsAsCancelling(ctx, tx, stepRunIds)
+	defer func() {
+		_, err = s.queries.BulkMarkStepRunsAsCancelling(ctx, s.pool, stepRunIds)
 
-	if err != nil {
-		return nil, err
-	}
+		if err != nil {
+			s.l.Err(err).Msg("could not bulk mark step runs as cancelling")
+		}
+	}()
 
 	stepRuns, err := s.queries.GetStepRunForEngine(ctx, tx, dbsqlc.GetStepRunForEngineParams{
 		Ids:      stepRunIds,
@@ -494,16 +500,16 @@ func (s *stepRunEngineRepository) ListStepRunsToTimeout(ctx context.Context, ten
 	})
 
 	if err != nil {
-		return nil, err
+		return false, nil, err
 	}
 
 	err = tx.Commit(ctx)
 
 	if err != nil {
-		return nil, err
+		return false, nil, err
 	}
 
-	return stepRuns, nil
+	return len(stepRunIds) == limit, stepRuns, nil
 }
 
 var deadlockRetry = func(l *zerolog.Logger, f func() error) error {

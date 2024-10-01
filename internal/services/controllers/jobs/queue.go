@@ -35,8 +35,9 @@ type queue struct {
 	// a custom queue logger
 	ql *zerolog.Logger
 
-	tenantQueueOperations   *queueutils.OperationPool
-	updateStepRunOperations *queueutils.OperationPool
+	tenantQueueOperations    *queueutils.OperationPool
+	updateStepRunOperations  *queueutils.OperationPool
+	timeoutStepRunOperations *queueutils.OperationPool
 }
 
 func newQueue(
@@ -67,6 +68,7 @@ func newQueue(
 
 	q.tenantQueueOperations = queueutils.NewOperationPool(ql, time.Second*5, "check tenant queue", q.scheduleStepRuns)
 	q.updateStepRunOperations = queueutils.NewOperationPool(ql, time.Second*30, "update step runs", q.processStepRunUpdates)
+	q.timeoutStepRunOperations = queueutils.NewOperationPool(ql, time.Second*30, "timeout step runs", q.processStepRunTimeouts)
 
 	return q, nil
 }
@@ -98,6 +100,18 @@ func (q *queue) Start() (func() error, error) {
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("could not schedule step run update: %w", err)
+	}
+
+	_, err = q.s.NewJob(
+		gocron.DurationJob(time.Second*1),
+		gocron.NewTask(
+			q.runTenantTimeoutStepRuns(ctx),
+		),
+	)
+
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("could not schedule step run timeout: %w", err)
 	}
 
 	q.s.Start()
@@ -336,6 +350,75 @@ func (q *queue) processStepRunUpdates(ctx context.Context, tenantId string) (boo
 	}
 
 	return res.Continue, nil
+}
+
+func (q *queue) runTenantTimeoutStepRuns(ctx context.Context) func() {
+	return func() {
+		q.l.Debug().Msgf("partition: running timeout for step runs")
+
+		// list all tenants
+		tenants, err := q.repo.Tenant().ListTenantsByControllerPartition(ctx, q.p.GetControllerPartitionId())
+
+		if err != nil {
+			q.l.Err(err).Msg("could not list tenants")
+			return
+		}
+
+		for i := range tenants {
+			tenantId := sqlchelpers.UUIDToStr(tenants[i].ID)
+
+			q.timeoutStepRunOperations.RunOrContinue(tenantId)
+		}
+	}
+}
+
+func (q *queue) processStepRunTimeouts(ctx context.Context, tenantId string) (bool, error) {
+	ctx, span := telemetry.NewSpan(ctx, "handle-step-run-timeout")
+	defer span.End()
+
+	shouldContinue, stepRuns, err := q.repo.StepRun().ListStepRunsToTimeout(ctx, tenantId)
+
+	if err != nil {
+		return false, fmt.Errorf("could not list step runs to timeout for tenant %s: %w", tenantId, err)
+	}
+
+	if num := len(stepRuns); num > 0 {
+		q.l.Info().Msgf("timing out %d step runs", num)
+	}
+
+	failedAt := time.Now().UTC()
+
+	err = MakeBatched(10, stepRuns, func(group []*dbsqlc.GetStepRunForEngineRow) error {
+		scheduleCtx, cancel := context.WithTimeout(context.Background(), time.Minute)
+		defer cancel()
+
+		scheduleCtx, span := telemetry.NewSpan(scheduleCtx, "handle-step-run-timeout-step-run")
+		defer span.End()
+
+		for i := range group {
+			stepRunCp := group[i]
+
+			if err := q.mq.AddMessage(
+				scheduleCtx,
+				msgqueue.JOB_PROCESSING_QUEUE,
+				tasktypes.StepRunFailedToTask(
+					stepRunCp,
+					"TIMED_OUT",
+					&failedAt,
+				),
+			); err != nil {
+				q.l.Error().Err(err).Msg("could not add step run failed task to task queue")
+			}
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return false, fmt.Errorf("could not process step run timeouts: %w", err)
+	}
+
+	return shouldContinue, nil
 }
 
 func getStepRunCancelTask(tenantId, stepRunId, reason string) *msgqueue.Message {
