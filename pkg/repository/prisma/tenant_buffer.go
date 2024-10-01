@@ -56,17 +56,20 @@ func NewTenantBufManager[T any, U any](opts TenantBufManagerOpts[T, U]) (*Tenant
 	}, nil
 }
 
-// Retrieve a tenant's IngestBuf with the specified tenantID
-func (t *TenantBufferManager[T, U]) GetTenantBuf(tenantID string) *IngestBuf[T, U] {
-	if v, ok := t.tenants.Load(tenantID); ok {
+// Retrieve a tenant's IngestBuf with the specified tenantKey
+func (t *TenantBufferManager[T, U]) GetTenantBuf(tenantKey string) *IngestBuf[T, U] {
+	if v, ok := t.tenants.Load(tenantKey); ok {
 		return v.(*IngestBuf[T, U])
 	}
 	return nil
 }
 
 // Create a new IngestBuf for the tenant and store it in the tenants map
+// If we want to have a buffer for each tenant, we can create a new buffer for each tenant
+// But if we would like tenants to share a buffer (maybe for lots of smaller tenants), we can use the same key for them.
+
 func (t *TenantBufferManager[T, U]) CreateTenantBuf(
-	tenantID string,
+	tenantKey string,
 	opts IngestBufOpts[T, U],
 ) (*IngestBuf[T, U], error) {
 
@@ -77,8 +80,8 @@ func (t *TenantBufferManager[T, U]) CreateTenantBuf(
 		return nil, err
 	}
 
-	t.tenants.Store(tenantID, ingestBuf)
-	_, err = t.StartTenantBuf(tenantID)
+	t.tenants.Store(tenantKey, ingestBuf)
+	_, err = t.StartTenantBuf(tenantKey)
 	if err != nil {
 		t.l.Error().Err(err).Msg("error starting tenant buffer")
 
@@ -98,8 +101,8 @@ func (t *TenantBufferManager[T, U]) Cleanup() error {
 }
 
 // Start the tenant's buffer
-func (t *TenantBufferManager[T, U]) StartTenantBuf(tenantID string) (func() error, error) {
-	if v, ok := t.tenants.Load(tenantID); ok {
+func (t *TenantBufferManager[T, U]) StartTenantBuf(tenantKey string) (func() error, error) {
+	if v, ok := t.tenants.Load(tenantKey); ok {
 		return v.(*IngestBuf[T, U]).Start()
 	}
 	return nil, fmt.Errorf("tenant buffer not found")
@@ -117,8 +120,8 @@ func (t *TenantBufferManager[T, U]) GetOrCreateTenantBuf(
 	return t.CreateTenantBuf(tenantBufKey, opts)
 }
 
-func (t *TenantBufferManager[T, U]) BuffItem(tenantID string, eventOps T) (chan *flushResponse[U], error) {
-	tenantBuf, err := t.GetOrCreateTenantBuf(tenantID, t.defaultOpts)
+func (t *TenantBufferManager[T, U]) BuffItem(tenantKey string, eventOps T) (chan *flushResponse[U], error) {
+	tenantBuf, err := t.GetOrCreateTenantBuf(tenantKey, t.defaultOpts)
 	if err != nil {
 		return nil, err
 	}

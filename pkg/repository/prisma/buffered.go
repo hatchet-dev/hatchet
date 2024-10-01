@@ -33,8 +33,10 @@ type IngestBuf[T any, U any] struct {
 	sizeOfData         int // size of data in buffer
 	maxDataSizeInQueue int // max number of bytes to hold in buffer before we flush
 
-	l    *zerolog.Logger
-	lock sync.Mutex
+	l      *zerolog.Logger
+	lock   sync.Mutex
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
 type inputWrapper[T any, U any] struct {
@@ -59,6 +61,9 @@ func NewIngestBuffer[T any, U any](opts IngestBufOpts[T, U]) *IngestBuf[T, U] {
 		inputChannelSize = 100
 	}
 
+	ctx := context.Background()
+	ctx, cancel := context.WithCancel(ctx)
+
 	return &IngestBuf[T, U]{
 		state:              initialized,
 		maxCapacity:        opts.maxCapacity,
@@ -71,6 +76,8 @@ func NewIngestBuffer[T any, U any](opts IngestBufOpts[T, U]) *IngestBuf[T, U] {
 		outputFunc:         opts.outputFunc,
 		sizeFunc:           opts.sizeFunc,
 		l:                  opts.l,
+		ctx:                ctx,
+		cancel:             cancel,
 	}
 }
 
@@ -128,6 +135,8 @@ func (b *IngestBuf[T, U]) safeFetchLastFlush() time.Time {
 func (b *IngestBuf[T, U]) buffWorker() {
 	for {
 		select {
+		case <-b.ctx.Done():
+			return
 		case e := <-b.inputChan:
 			b.internalArr = append(b.internalArr, e)
 			b.safeIncSizeOfData(b.calcSizeOfData([]T{e.item}))
@@ -229,6 +238,8 @@ func (b *IngestBuf[T, U]) cleanup() error {
 	if err := g.Wait(); err != nil {
 		return err
 	}
+	b.cancel()
+
 	return nil
 }
 
@@ -257,6 +268,9 @@ func (b *IngestBuf[T, U]) buffItem(item T) (chan *flushResponse[U], error) {
 	}:
 	case <-time.After(5 * time.Second):
 		return nil, fmt.Errorf("timeout waiting for buffer")
+
+	case <-b.ctx.Done():
+		return nil, fmt.Errorf("buffer is closed")
 	}
 	return doneChan, nil
 }
