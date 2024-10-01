@@ -95,6 +95,11 @@ func (b *IngestBuf[T, U]) validate() error {
 	}
 	return nil
 }
+func (b *IngestBuf[T, U]) safeFetchSizeOfData() int {
+	b.lock.Lock()
+	defer b.lock.Unlock()
+	return b.sizeOfData
+}
 
 func (b *IngestBuf[T, U]) safeIncSizeOfData(size int) {
 	b.lock.Lock()
@@ -114,6 +119,12 @@ func (b *IngestBuf[T, U]) safeSetLastFlush(t time.Time) {
 	b.lock.Unlock()
 }
 
+func (b *IngestBuf[T, U]) safeFetchLastFlush() time.Time {
+	b.lock.Lock()
+	defer b.lock.Unlock()
+	return b.lastFlush
+}
+
 func (b *IngestBuf[T, U]) buffWorker() {
 	for {
 		select {
@@ -124,11 +135,11 @@ func (b *IngestBuf[T, U]) buffWorker() {
 			if len(b.internalArr) >= b.maxCapacity {
 				go b.flush(b.sliceInternalArray())
 			}
-			if b.sizeOfData >= b.maxDataSizeInQueue {
+			if b.safeFetchSizeOfData() >= b.maxDataSizeInQueue {
 				go b.flush(b.sliceInternalArray())
 			}
 
-		case <-time.After(time.Until(b.lastFlush.Add(b.flushPeriod))):
+		case <-time.After(time.Until(b.safeFetchLastFlush().Add(b.flushPeriod))):
 			if len(b.internalArr) > 0 {
 				go b.flush(b.sliceInternalArray())
 			} else {
