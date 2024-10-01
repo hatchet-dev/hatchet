@@ -2378,7 +2378,6 @@ LEFT JOIN
     "Workflow" as workflow ON workflowVersion."workflowId" = workflow."id"
 WHERE
     runs."tenantId" = $1::uuid AND
-    runs."createdAt" > NOW() - INTERVAL '1 day' AND
     (
         $2::timestamp IS NULL OR
         runs."createdAt" > $2::timestamp

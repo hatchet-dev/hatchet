@@ -111,14 +111,16 @@ export function DataTable<TData extends IDGetter, TValue>({
   manualSorting = true,
   manualFiltering = true,
 }: DataTableProps<TData, TValue> & ExtraDataTableProps) {
+  const loadingNoData = isLoading && !data.length;
+
   const tableData = React.useMemo(
-    () => (isLoading ? Array(10).fill({ metadata: {} }) : data),
-    [isLoading, data],
+    () => (loadingNoData ? Array(10).fill({ metadata: {} }) : data),
+    [loadingNoData, data],
   );
 
   const tableColumns = React.useMemo(
     () =>
-      isLoading
+      loadingNoData
         ? columns.map((column) => ({
             ...column,
             cell: () => <Skeleton className="h-4 w-[100px]" />,
@@ -246,6 +248,7 @@ export function DataTable<TData extends IDGetter, TValue>({
         <DataTableToolbar
           table={table}
           filters={filters}
+          isLoading={isLoading}
           actions={actions}
           search={search}
           setSearch={setSearch}
