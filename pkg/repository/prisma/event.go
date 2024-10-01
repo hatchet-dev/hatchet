@@ -208,7 +208,7 @@ func (e *eventEngineRepository) StartBufferLoop() (func() error, error) {
 		return nil, err
 	}
 
-	return e.bulkCreateBuffer.Cleanup, err
+	return e.bulkCreateBuffer.cleanup, err
 
 }
 

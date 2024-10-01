@@ -258,7 +258,7 @@ func (b *IngestBuf[T, U]) Start() (func() error, error) {
 	return b.cleanup, nil
 }
 
-func (b *IngestBuf[T, U]) buffItem(item T) (chan *flushResponse[U], error) {
+func (b *IngestBuf[T, U]) BuffItem(item T) (chan *flushResponse[U], error) {
 	doneChan := make(chan *flushResponse[U], 1)
 
 	select {
