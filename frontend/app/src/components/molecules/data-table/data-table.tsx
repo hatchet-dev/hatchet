@@ -126,7 +126,7 @@ export function DataTable<TData extends IDGetter, TValue>({
             cell: () => <Skeleton className="h-4 w-[100px]" />,
           }))
         : columns,
-    [isLoading, columns],
+    [loadingNoData, columns],
   );
 
   const table = useReactTable({
