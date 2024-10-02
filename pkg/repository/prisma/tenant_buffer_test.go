@@ -8,11 +8,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/hatchet-dev/hatchet/pkg/config/shared"
-	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
@@ -42,13 +41,7 @@ func testMockSizeFunc(item testMockEvent) int {
 }
 
 func TestNewTenantBufManager(t *testing.T) {
-
-	logger := logger.NewStdErr(
-		&shared.LoggerConfigFile{
-			Level:  "warn",
-			Format: "console",
-		}, "",
-	)
+	logger := zerolog.New(zerolog.NewTestWriter(t))
 
 	opts := TenantBufManagerOpts[testMockEvent, testMockResult]{
 		OutputFunc: testMockOutputFunc,
@@ -63,12 +56,7 @@ func TestNewTenantBufManager(t *testing.T) {
 }
 
 func TestTenantBufferManager_BuffItem(t *testing.T) {
-	logger := logger.NewStdErr(
-		&shared.LoggerConfigFile{
-			Level:  "warn",
-			Format: "console",
-		}, "",
-	)
+	logger := zerolog.New(zerolog.NewTestWriter(t))
 
 	opts := TenantBufManagerOpts[testMockEvent, testMockResult]{
 		OutputFunc: testMockOutputFunc,
@@ -121,12 +109,7 @@ func generateTestCases(numTenants int) []struct {
 }
 
 func TestTenantBufferManager_CreateMultipleBuffers(t *testing.T) {
-	logger := logger.NewStdErr(
-		&shared.LoggerConfigFile{
-			Level:  "warn",
-			Format: "console",
-		}, "",
-	)
+	logger := zerolog.New(zerolog.NewTestWriter(t))
 
 	opts := TenantBufManagerOpts[testMockEvent, testMockResult]{
 		OutputFunc: testMockOutputFunc,
@@ -171,12 +154,7 @@ func TestTenantBufferManager_CreateMultipleBuffers(t *testing.T) {
 }
 
 func TestTenantBufferManager_OrderPreservation(t *testing.T) {
-	logger := logger.NewStdErr(
-		&shared.LoggerConfigFile{
-			Level:  "warn",
-			Format: "console",
-		}, "",
-	)
+	logger := zerolog.New(zerolog.NewTestWriter(t))
 
 	opts := TenantBufManagerOpts[testMockEvent, testMockResult]{
 		OutputFunc: testMockOutputFunc,
@@ -217,12 +195,7 @@ func TestTenantBufferManager_OrderPreservation(t *testing.T) {
 }
 
 func TestTenantBufferManager_Cleanup(t *testing.T) {
-	logger := logger.NewStdErr(
-		&shared.LoggerConfigFile{
-			Level:  "warn",
-			Format: "console",
-		}, "",
-	)
+	logger := zerolog.New(zerolog.NewTestWriter(t))
 
 	opts := TenantBufManagerOpts[testMockEvent, testMockResult]{
 		OutputFunc: testMockOutputFunc,
