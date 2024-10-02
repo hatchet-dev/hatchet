@@ -1064,6 +1064,12 @@ func (s *DispatcherImpl) handleStepRunStarted(ctx context.Context, request *cont
 		TenantId: tenantId,
 	})
 
+	err = s.repo.StepRun().ReleaseStepRunSemaphore(ctx, tenantId, request.StepRunId, false)
+
+	if err != nil {
+		s.l.Error().Err(err).Msgf("could not release semaphore for step run %s", request.StepRunId)
+	}
+
 	// send the event to the jobs queue
 	err = s.mq.AddMessage(ctx, msgqueue.JOB_PROCESSING_QUEUE, &msgqueue.Message{
 		ID:       "step-run-started",
@@ -1085,6 +1091,12 @@ func (s *DispatcherImpl) handleStepRunStarted(ctx context.Context, request *cont
 func (s *DispatcherImpl) handleStepRunCompleted(ctx context.Context, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+
+	err := s.repo.StepRun().ReleaseStepRunSemaphore(ctx, tenantId, request.StepRunId, false)
+
+	if err != nil {
+		s.l.Error().Err(err).Msgf("could not release semaphore for step run %s", request.StepRunId)
+	}
 
 	s.l.Debug().Msgf("Received step completed event for step run %s", request.StepRunId)
 
@@ -1149,6 +1161,12 @@ func (s *DispatcherImpl) handleStepRunCompleted(ctx context.Context, request *co
 func (s *DispatcherImpl) handleStepRunFailed(ctx context.Context, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+
+	err := s.repo.StepRun().ReleaseStepRunSemaphore(ctx, tenantId, request.StepRunId, false)
+
+	if err != nil {
+		s.l.Error().Err(err).Msgf("could not release semaphore for step run %s", request.StepRunId)
+	}
 
 	s.l.Debug().Msgf("Received step failed event for step run %s", request.StepRunId)
 
