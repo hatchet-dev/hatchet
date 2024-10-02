@@ -341,9 +341,15 @@ func (t *MessageQueueImpl) startPublishing() func() error {
 
 						t.l.Debug().Msgf("publishing msg %s to queue %s", msg.ID, msg.q.Name())
 
-						err = pub.PublishWithContext(ctx, "", msg.q.Name(), false, false, amqp.Publishing{
+						pubMsg := amqp.Publishing{
 							Body: body,
-						})
+						}
+
+						if msg.ImmediatelyExpire {
+							pubMsg.Expiration = "0"
+						}
+
+						err = pub.PublishWithContext(ctx, "", msg.q.Name(), false, false, pubMsg)
 
 						// retry failed delivery on the next session
 						if err != nil {
