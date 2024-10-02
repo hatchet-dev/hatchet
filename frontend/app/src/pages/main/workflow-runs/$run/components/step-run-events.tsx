@@ -194,7 +194,6 @@ const REASON_TO_TITLE: Record<StepRunEventReason, string> = {
   [StepRunEventReason.ASSIGNED]: 'Assigned to worker',
   [StepRunEventReason.STARTED]: 'Started',
   [StepRunEventReason.ACKNOWLEDGED]: 'Acknowledged by worker',
-  [StepRunEventReason.REJECTED]: 'Rejected by worker',
   [StepRunEventReason.FINISHED]: 'Completed',
   [StepRunEventReason.FAILED]: 'Failed',
   [StepRunEventReason.CANCELLED]: 'Cancelled',

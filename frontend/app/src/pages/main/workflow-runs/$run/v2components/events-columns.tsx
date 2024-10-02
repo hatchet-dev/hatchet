@@ -180,7 +180,6 @@ const REASON_TO_TITLE: Record<StepRunEventReason, string> = {
     'Successfully got group key',
   [StepRunEventReason.WORKFLOW_RUN_GROUP_KEY_FAILED]: 'Failed to get group key',
   [StepRunEventReason.ACKNOWLEDGED]: 'Acknowledged by worker',
-  [StepRunEventReason.REJECTED]: 'Rejected by worker',
 };
 
 function getTitleFromReason(reason: StepRunEventReason, message: string) {
