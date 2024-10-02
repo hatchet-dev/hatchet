@@ -40,7 +40,7 @@ func mockSizeFunc(item mockItem) int {
 }
 
 func TestIngestBufInitialization(t *testing.T) {
-	logger := zerolog.New(zerolog.NewTestWriter(t))
+	logger := zerolog.New(nil).Level(zerolog.Disabled)
 
 	opts := IngestBufOpts[mockItem, mockResult]{
 		MaxCapacity:        5,
@@ -65,7 +65,7 @@ func TestIngestBufInitialization(t *testing.T) {
 }
 
 func TestIngestBufValidation(t *testing.T) {
-	logger := zerolog.New(zerolog.NewTestWriter(t))
+	logger := zerolog.New(nil).Level(zerolog.Disabled)
 
 	opts := IngestBufOpts[mockItem, mockResult]{
 		MaxCapacity:        0,
@@ -84,7 +84,7 @@ func TestIngestBufValidation(t *testing.T) {
 }
 
 func TestIngestBufBuffering(t *testing.T) {
-	logger := zerolog.New(zerolog.NewTestWriter(t))
+	logger := zerolog.New(nil).Level(zerolog.Disabled)
 
 	opts := IngestBufOpts[mockItem, mockResult]{
 		MaxCapacity:        2,
@@ -114,7 +114,7 @@ func TestIngestBufBuffering(t *testing.T) {
 }
 
 func TestIngestBufAutoFlushOnCapacity(t *testing.T) {
-	logger := zerolog.New(zerolog.NewTestWriter(t))
+	logger := zerolog.New(nil).Level(zerolog.Disabled)
 
 	opts := IngestBufOpts[mockItem, mockResult]{
 		MaxCapacity:        2,
@@ -154,7 +154,7 @@ func TestIngestBufAutoFlushOnCapacity(t *testing.T) {
 }
 
 func TestIngestBufAutoFlushOnSize(t *testing.T) {
-	logger := zerolog.New(zerolog.NewTestWriter(t))
+	logger := zerolog.New(nil).Level(zerolog.Disabled)
 
 	opts := IngestBufOpts[mockItem, mockResult]{
 		MaxCapacity:        10,
@@ -184,7 +184,7 @@ func TestIngestBufAutoFlushOnSize(t *testing.T) {
 }
 
 func TestIngestBufTimeoutFlush(t *testing.T) {
-	logger := zerolog.New(zerolog.NewTestWriter(t))
+	logger := zerolog.New(nil).Level(zerolog.Disabled)
 
 	opts := IngestBufOpts[mockItem, mockResult]{
 		MaxCapacity:        10,
@@ -217,7 +217,7 @@ func TestIngestBufTimeoutFlush(t *testing.T) {
 }
 
 func TestIngestBufOrderPreservation(t *testing.T) {
-	logger := zerolog.New(zerolog.NewTestWriter(t))
+	logger := zerolog.New(nil).Level(zerolog.Disabled)
 
 	opts := IngestBufOpts[mockItem, mockResult]{
 		MaxCapacity:        5,
