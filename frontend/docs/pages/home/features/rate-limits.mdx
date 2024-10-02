@@ -106,6 +106,10 @@ err = w.RegisterWorkflow(
   </Tabs.Tab>
 </Tabs>
 
+<Callout type="info">
+  Note: Dynamic keys are a shared resource, this means the same rendered cel on
+  multiple steps will be treated as one global rate limit.
+</Callout>
 ## Static Rate Limits
 
 Static Rate Limits (formerly known as Global Rate Limits) are defined as part of your worker startup lifecycle prior to runtime. This model provides a single "source of truth" for pre-defined resources such as:
