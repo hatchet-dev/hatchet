@@ -1042,6 +1042,7 @@ func (s *DispatcherImpl) handleStepRunStarted(inputCtx context.Context, request 
 	tenant := inputCtx.Value("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
+	// run the rest on a separate context to always send to job controller
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -1091,6 +1092,7 @@ func (s *DispatcherImpl) handleStepRunCompleted(inputCtx context.Context, reques
 
 	s.l.Debug().Msgf("Received step completed event for step run %s", request.StepRunId)
 
+	// run the rest on a separate context to always send to job controller
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -1156,6 +1158,7 @@ func (s *DispatcherImpl) handleStepRunFailed(inputCtx context.Context, request *
 	tenant := inputCtx.Value("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
+	// run the rest on a separate context to always send to job controller
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -1204,6 +1207,7 @@ func (s *DispatcherImpl) handleGetGroupKeyRunStarted(inputCtx context.Context, r
 	tenant := inputCtx.Value("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
+	// run the rest on a separate context to always send to job controller
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -1242,6 +1246,7 @@ func (s *DispatcherImpl) handleGetGroupKeyRunCompleted(inputCtx context.Context,
 	tenant := inputCtx.Value("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
+	// run the rest on a separate context to always send to job controller
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -1281,6 +1286,7 @@ func (s *DispatcherImpl) handleGetGroupKeyRunFailed(inputCtx context.Context, re
 	tenant := inputCtx.Value("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
+	// run the rest on a separate context to always send to job controller
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
