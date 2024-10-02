@@ -63,6 +63,7 @@ import {
   TenantMemberList,
   TenantQueueMetrics,
   TenantResourcePolicy,
+  TenantStepRunQueueMetrics,
   TriggerWorkflowRunRequest,
   UpdateTenantAlertEmailGroupRequest,
   UpdateTenantInviteRequest,
@@ -819,6 +820,23 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       path: `/api/v1/tenants/${tenant}/queue-metrics`,
       method: 'GET',
       query: query,
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Get the queue metrics for the tenant
+   *
+   * @tags Tenant
+   * @name TenantGetStepRunQueueMetrics
+   * @summary Get step run metrics
+   * @request GET:/api/v1/tenants/{tenant}/step-run-queue-metrics
+   * @secure
+   */
+  tenantGetStepRunQueueMetrics = (tenant: string, params: RequestParams = {}) =>
+    this.request<TenantStepRunQueueMetrics, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/step-run-queue-metrics`,
+      method: 'GET',
       secure: true,
       format: 'json',
       ...params,
