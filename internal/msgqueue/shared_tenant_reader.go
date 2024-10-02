@@ -45,11 +45,7 @@ func (s *SharedTenantReader) Subscribe(tenantId string, postAck AckHook) (func()
 	if !t.isRunning {
 		t.isRunning = true
 
-		q, err := TenantEventConsumerQueue(tenantId)
-
-		if err != nil {
-			return nil, err
-		}
+		q := TenantEventConsumerQueue(tenantId)
 
 		cleanupSingleSub, err := s.mq.Subscribe(q, NoOpHook, func(task *Message) error {
 			var innerErr error

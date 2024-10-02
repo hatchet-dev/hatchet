@@ -360,6 +360,10 @@ export interface TenantQueueMetrics {
   queues?: Record<string, number>;
 }
 
+export interface TenantStepRunQueueMetrics {
+  queues?: Record<string, number>;
+}
+
 export interface AcceptInviteRequest {
   /**
    * @minLength 36

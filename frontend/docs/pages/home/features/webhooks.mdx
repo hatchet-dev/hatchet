@@ -67,7 +67,7 @@ const hatchet = Hatchet.init();
 const webhooks = hatchet.webhooks([workflow]);
 
 export const { GET, POST, PUT } = webhooks.nextJSHandler({
-  secret: process.env.HATCHET_WEBHOOK_SECRET,
+  secret: process.env.HATCHET_WEBHOOK_SECRET || "",
 });
 ```
 

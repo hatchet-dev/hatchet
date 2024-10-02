@@ -267,7 +267,11 @@ func (wc *WorkflowsControllerImpl) Start() (func() error, error) {
 		return nil
 	}
 
-	cleanupQueue2, err := wc.mq.Subscribe(msgqueue.QueueTypeFromPartitionIDAndController(wc.p.GetControllerPartitionId(), msgqueue.WorkflowController), f2, msgqueue.NoOpHook)
+	cleanupQueue2, err := wc.mq.Subscribe(
+		msgqueue.QueueTypeFromPartitionIDAndController(wc.p.GetControllerPartitionId(), msgqueue.WorkflowController),
+		msgqueue.NoOpHook, // the only handler is to check the queue, so we acknowledge immediately with the NoOpHook
+		f2,
+	)
 
 	if err != nil {
 		cancel()

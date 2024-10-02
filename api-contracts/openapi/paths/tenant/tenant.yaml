@@ -619,3 +619,47 @@ getQueueMetrics:
     summary: Get workflow metrics
     tags:
       - Workflow
+
+getStepRunQueueMetrics:
+  get:
+    x-resources: ["tenant"]
+    description: Get the queue metrics for the tenant
+    operationId: tenant:get:step-run-queue-metrics
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/TenantStepRunQueueMetrics"
+        description: Successfully retrieved the step run queue metrics
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+      "404":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Not found
+    summary: Get step run metrics
+    tags:
+      - Tenant

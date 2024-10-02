@@ -113,11 +113,11 @@ func (f fanoutQueue) FanoutExchangeKey() string {
 	return f.consumerQueue.Name()
 }
 
-func TenantEventConsumerQueue(t string) (fanoutQueue, error) {
+func TenantEventConsumerQueue(t string) fanoutQueue {
 	// generate a unique queue name for the tenant
 	return fanoutQueue{
 		consumerQueue: consumerQueue(t),
-	}, nil
+	}
 }
 
 type Message struct {
@@ -135,6 +135,9 @@ type Message struct {
 
 	// RetryDelay is the delay between retries.
 	RetryDelay int `json:"retry_delay"`
+
+	// Whether the message should immediately expire if it reaches the queue without an active consumer.
+	ImmediatelyExpire bool `json:"immediately_expire"`
 
 	// OtelCarrier is the OpenTelemetry carrier for the task.
 	OtelCarrier map[string]string `json:"otel_carrier"`

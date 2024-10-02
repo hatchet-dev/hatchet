@@ -64,6 +64,8 @@ QueueMetrics:
   $ref: "./tenant.yaml#/QueueMetrics"
 TenantQueueMetrics:
   $ref: "./tenant.yaml#/TenantQueueMetrics"
+TenantStepRunQueueMetrics:
+  $ref: "./tenant.yaml#/TenantStepRunQueueMetrics"
 AcceptInviteRequest:
   $ref: "./user.yaml#/AcceptInviteRequest"
 RejectInviteRequest:

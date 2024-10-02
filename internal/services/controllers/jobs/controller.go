@@ -16,7 +16,6 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/datautils/merge"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
-	"github.com/hatchet-dev/hatchet/internal/queueutils"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/partition"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
@@ -47,7 +46,6 @@ type JobsControllerImpl struct {
 	celParser      *cel.CELParser
 
 	reassignMutexes sync.Map
-	timeoutMutexes  sync.Map
 }
 
 type JobsControllerOpt func(*JobsControllerOpts)
@@ -205,18 +203,6 @@ func (jc *JobsControllerImpl) Start() (func() error, error) {
 		return nil, fmt.Errorf("could not schedule step run reassign: %w", err)
 	}
 
-	_, err = jc.s.NewJob(
-		gocron.DurationJob(time.Second*1),
-		gocron.NewTask(
-			jc.runStepRunTimeout(ctx),
-		),
-	)
-
-	if err != nil {
-		cancel()
-		return nil, fmt.Errorf("could not schedule step run timeout: %w", err)
-	}
-
 	jc.s.Start()
 
 	f := func(task *msgqueue.Message) error {
@@ -296,8 +282,6 @@ func (ec *JobsControllerImpl) handleTask(ctx context.Context, task *msgqueue.Mes
 		return ec.handleStepRunRetry(ctx, task)
 	case "step-run-queued":
 		return ec.handleStepRunQueued(ctx, task)
-	case "step-run-started":
-		return ec.handleStepRunStarted(ctx, task)
 	case "step-run-finished":
 		return ec.handleStepRunFinished(ctx, task)
 	case "step-run-failed":
@@ -629,92 +613,6 @@ func (ec *JobsControllerImpl) runStepRunReassignTenant(ctx context.Context, tena
 	return nil
 }
 
-func (jc *JobsControllerImpl) runStepRunTimeout(ctx context.Context) func() {
-	return func() {
-		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-		defer cancel()
-
-		jc.l.Debug().Msgf("jobs controller: running step run timeout")
-
-		// list all tenants
-		tenants, err := jc.repo.Tenant().ListTenantsByControllerPartition(ctx, jc.p.GetControllerPartitionId())
-
-		if err != nil {
-			jc.l.Err(err).Msg("could not list tenants")
-			return
-		}
-
-		g := new(errgroup.Group)
-
-		for i := range tenants {
-			tenantId := sqlchelpers.UUIDToStr(tenants[i].ID)
-
-			g.Go(func() error {
-				return jc.runStepRunTimeoutTenant(ctx, tenantId)
-			})
-		}
-
-		err = g.Wait()
-
-		if err != nil {
-			jc.l.Err(err).Msg("could not run step run timeout")
-		}
-	}
-}
-
-// runStepRunTimeoutTenant looks for step runs that are timed out in the tenant.
-func (ec *JobsControllerImpl) runStepRunTimeoutTenant(ctx context.Context, tenantId string) error {
-	// we want only one requeue running at a time for a tenant
-	if _, ok := ec.timeoutMutexes.Load(tenantId); !ok {
-		ec.timeoutMutexes.Store(tenantId, &sync.Mutex{})
-	}
-
-	muInt, _ := ec.timeoutMutexes.Load(tenantId)
-	mu := muInt.(*sync.Mutex)
-
-	if !mu.TryLock() {
-		return nil
-	}
-
-	defer mu.Unlock()
-
-	ctx, span := telemetry.NewSpan(ctx, "handle-step-run-timeout")
-	defer span.End()
-
-	stepRuns, err := ec.repo.StepRun().ListStepRunsToTimeout(ctx, tenantId)
-
-	if err != nil {
-		return fmt.Errorf("could not list step runs to timeout for tenant %s: %w", tenantId, err)
-	}
-
-	if num := len(stepRuns); num > 0 {
-		ec.l.Info().Msgf("timing out %d step runs", num)
-	}
-
-	return queueutils.MakeBatched(10, stepRuns, func(group []*dbsqlc.GetStepRunForEngineRow) error {
-		scheduleCtx, cancel := context.WithTimeout(context.Background(), time.Minute)
-		defer cancel()
-
-		scheduleCtx, span := telemetry.NewSpan(scheduleCtx, "handle-step-run-timeout-step-run")
-		defer span.End()
-
-		for i := range group {
-			stepRunCp := group[i]
-
-			defer span.End()
-
-			stepRunId := sqlchelpers.UUIDToStr(stepRunCp.SRID)
-
-			err = ec.failStepRun(scheduleCtx, tenantId, stepRunId, "TIMED_OUT", time.Now().UTC())
-			if err != nil {
-				return err
-			}
-		}
-
-		return nil
-	})
-}
-
 func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId, stepId, stepRunId string, isRetry bool) error {
 	ctx, span := telemetry.NewSpan(ctx, "queue-step-run")
 	defer span.End()
@@ -885,41 +783,6 @@ func (ec *JobsControllerImpl) checkTenantQueue(ctx context.Context, tenantId str
 			ec.l.Err(err).Msg("could not add message to tenant partition queue")
 		}
 	}
-}
-
-func (ec *JobsControllerImpl) handleStepRunStarted(ctx context.Context, task *msgqueue.Message) error {
-	ctx, span := telemetry.NewSpanWithCarrier(ctx, "handle-step-run-started", task.OtelCarrier)
-	defer span.End()
-
-	payload := tasktypes.StepRunStartedTaskPayload{}
-	metadata := tasktypes.StepRunStartedTaskMetadata{}
-
-	err := ec.dv.DecodeAndValidate(task.Payload, &payload)
-
-	if err != nil {
-		return fmt.Errorf("could not decode step run started task payload: %w", err)
-	}
-
-	err = ec.dv.DecodeAndValidate(task.Metadata, &metadata)
-
-	if err != nil {
-		return fmt.Errorf("could not decode step run started task metadata: %w", err)
-	}
-
-	// update the step run in the database
-	startedAt, err := time.Parse(time.RFC3339, payload.StartedAt)
-
-	if err != nil {
-		return fmt.Errorf("could not parse started at: %w", err)
-	}
-
-	err = ec.repo.StepRun().StepRunStarted(ctx, metadata.TenantId, payload.StepRunId, startedAt)
-
-	if err != nil {
-		return fmt.Errorf("could not update step run: %w", err)
-	}
-
-	return nil
 }
 
 func (ec *JobsControllerImpl) handleStepRunFinished(ctx context.Context, task *msgqueue.Message) error {

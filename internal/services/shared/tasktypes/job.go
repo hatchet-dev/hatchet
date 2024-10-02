@@ -15,10 +15,11 @@ func CheckTenantQueueToTask(tenantId string) *msgqueue.Message {
 	})
 
 	return &msgqueue.Message{
-		ID:       "check-tenant-queue",
-		Payload:  nil,
-		Metadata: metadata,
-		Retries:  3,
+		ID:                "check-tenant-queue",
+		Payload:           nil,
+		Metadata:          metadata,
+		ImmediatelyExpire: true,
+		Retries:           3,
 	}
 }
 

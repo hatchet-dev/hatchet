@@ -17,7 +17,6 @@ import api, {
   WorkflowRunStatus,
   queries,
 } from '@/lib/api';
-import { Loading } from '@/components/ui/loading.tsx';
 import { TenantContextType } from '@/lib/outlet';
 import { useOutletContext, useSearchParams } from 'react-router-dom';
 import {
@@ -306,6 +305,7 @@ export function WorkflowRunsTable({
       createdAfter,
       finishedBefore,
     }),
+    placeholderData: (prev) => prev,
     refetchInterval,
   });
 
@@ -317,11 +317,12 @@ export function WorkflowRunsTable({
       additionalMetadata: AdditionalMetadataFilter,
       createdAfter,
     }),
+    placeholderData: (prev) => prev,
     refetchInterval,
   });
 
   const tenantMetricsQuery = useQuery({
-    ...queries.metrics.get(tenant.metadata.id),
+    ...queries.metrics.getStepRunQueueMetrics(tenant.metadata.id),
     refetchInterval,
   });
 
@@ -491,9 +492,10 @@ export function WorkflowRunsTable({
     </Button>,
   ];
 
-  if (listWorkflowRunsQuery.isLoading) {
-    return <Loading />;
-  }
+  const isLoading =
+    listWorkflowRunsQuery.isFetching ||
+    workflowKeysIsLoading ||
+    metricsQuery.isLoading;
 
   return (
     <>
@@ -639,7 +641,7 @@ export function WorkflowRunsTable({
       <DataTable
         emptyState={<>No workflow runs found with the given filters.</>}
         error={workflowKeysError}
-        isLoading={workflowKeysIsLoading}
+        isLoading={isLoading}
         columns={columns}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
@@ -680,15 +682,12 @@ const GetWorkflowChart = ({
       createdAfter,
       finishedBefore,
     }),
+    placeholderData: (prev) => prev,
     refetchInterval,
   });
 
   if (workflowRunEventsMetricsQuery.isLoading) {
     return <Skeleton className="w-full h-36" />;
-  }
-
-  if (!workflowRunEventsMetricsQuery.data) {
-    return null;
   }
 
   return (
