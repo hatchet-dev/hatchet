@@ -296,12 +296,12 @@ func NewEngineRepository(pool *pgxpool.Pool, queuePool *pgxpool.Pool, cf *server
 	}
 
 	rlCache := cache.New(5 * time.Minute)
-	eventEngine, err := NewEventEngineRepository(pool, opts.v, opts.l, opts.metered)
+	eventEngine, cleanupEventEngine, err := NewEventEngineRepository(pool, opts.v, opts.l, opts.metered)
 
 	return func() error {
 
 			rlCache.Stop()
-			return eventEngine.Cleanup()
+			return cleanupEventEngine()
 
 		}, &engineRepository{
 			health:         NewHealthEngineRepository(pool),

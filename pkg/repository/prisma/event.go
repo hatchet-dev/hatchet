@@ -233,11 +233,11 @@ type eventEngineRepository struct {
 	callbacks        []repository.Callback[*dbsqlc.Event]
 }
 
-func (r *eventEngineRepository) Cleanup() error {
+func (r *eventEngineRepository) cleanup() error {
 	return r.bulkCreateBuffer.cleanup()
 }
 
-func NewEventEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, m *metered.Metered) (repository.EventEngineRepository, error) {
+func NewEventEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, m *metered.Metered) (repository.EventEngineRepository, func() error, error) {
 	queries := dbsqlc.New()
 
 	e := eventEngineRepository{
@@ -249,7 +249,7 @@ func NewEventEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zero
 	}
 	err := e.startBufferLoop()
 
-	return &e, err
+	return &e, e.cleanup, err
 }
 
 func (r *eventEngineRepository) RegisterCreateCallback(callback repository.Callback[*dbsqlc.Event]) {
