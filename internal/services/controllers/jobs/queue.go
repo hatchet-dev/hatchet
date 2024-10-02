@@ -116,7 +116,7 @@ func (q *queue) Start() (func() error, error) {
 
 	q.s.Start()
 
-	f := func(task *msgqueue.Message) error {
+	postAck := func(task *msgqueue.Message) error {
 		wg.Add(1)
 		defer wg.Done()
 
@@ -129,7 +129,11 @@ func (q *queue) Start() (func() error, error) {
 		return nil
 	}
 
-	cleanupQueue, err := q.mq.Subscribe(msgqueue.QueueTypeFromPartitionIDAndController(q.p.GetControllerPartitionId(), msgqueue.JobController), f, msgqueue.NoOpHook)
+	cleanupQueue, err := q.mq.Subscribe(
+		msgqueue.QueueTypeFromPartitionIDAndController(q.p.GetControllerPartitionId(), msgqueue.JobController),
+		msgqueue.NoOpHook, // the only handler is to check the queue, so we acknowledge immediately with the NoOpHook
+		postAck,
+	)
 
 	if err != nil {
 		cancel()
