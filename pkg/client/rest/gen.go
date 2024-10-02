@@ -77,11 +77,13 @@ const (
 
 // Defines values for StepRunEventReason.
 const (
+	StepRunEventReasonACKNOWLEDGED                 StepRunEventReason = "ACKNOWLEDGED"
 	StepRunEventReasonASSIGNED                     StepRunEventReason = "ASSIGNED"
 	StepRunEventReasonCANCELLED                    StepRunEventReason = "CANCELLED"
 	StepRunEventReasonFAILED                       StepRunEventReason = "FAILED"
 	StepRunEventReasonFINISHED                     StepRunEventReason = "FINISHED"
 	StepRunEventReasonREASSIGNED                   StepRunEventReason = "REASSIGNED"
+	StepRunEventReasonREJECTED                     StepRunEventReason = "REJECTED"
 	StepRunEventReasonREQUEUEDNOWORKER             StepRunEventReason = "REQUEUED_NO_WORKER"
 	StepRunEventReasonREQUEUEDRATELIMIT            StepRunEventReason = "REQUEUED_RATE_LIMIT"
 	StepRunEventReasonRETRIEDBYUSER                StepRunEventReason = "RETRIED_BY_USER"
