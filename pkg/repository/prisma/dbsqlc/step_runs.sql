@@ -8,6 +8,21 @@ WHERE
     "deletedAt" IS NULL;
 
 -- name: GetStepRunDataForEngine :one
+WITH expr_count AS (
+    SELECT
+        COUNT(*) AS "exprCount",
+        sr."id" AS "id"
+    FROM
+        "StepRun" sr
+    JOIN
+        "Step" s ON sr."stepId" = s."id"
+    JOIN
+        "StepExpression" se ON s."id" = se."stepId"
+    WHERE
+        sr."id" = @id::uuid
+    GROUP BY
+        sr."id"
+)
 SELECT
     sr."input",
     sr."output",
@@ -16,7 +31,8 @@ SELECT
     wr."additionalMetadata",
     wr."childIndex",
     wr."childKey",
-    wr."parentId"
+    wr."parentId",
+    COALESCE(ec."exprCount", 0) AS "exprCount"
 FROM
     "StepRun" sr
 JOIN
@@ -26,9 +42,59 @@ JOIN
 JOIN
     -- Take advantage of composite index on "JobRun"("workflowRunId", "tenantId")
     "WorkflowRun" wr ON jr."workflowRunId" = wr."id" AND wr."tenantId" = @tenantId::uuid
+LEFT JOIN
+    expr_count ec ON sr."id" = ec."id"
 WHERE
     sr."id" = @id::uuid AND
     sr."tenantId" = @tenantId::uuid;
+
+-- name: ListStepRunExpressionEvals :many
+SELECT
+    *
+FROM
+    "StepRunExpressionEval" sre
+WHERE
+    "stepRunId" = ANY(@stepRunIds::uuid[]);
+
+-- name: CreateStepRunExpressionEvalStrs :exec
+INSERT INTO "StepRunExpressionEval" (
+    "key",
+    "stepRunId",
+    "valueStr",
+    "kind"
+) VALUES (
+    unnest(@keys::text[]),
+    @stepRunId::uuid,
+    unnest(@valuesStr::text[]),
+    unnest(cast(@kinds::text[] as"StepExpressionKind"[]))
+) ON CONFLICT ("key", "stepRunId", "kind") DO UPDATE
+SET
+    "valueStr" = EXCLUDED."valueStr",
+    "valueInt" = EXCLUDED."valueInt";
+
+-- name: CreateStepRunExpressionEvalInts :exec
+INSERT INTO "StepRunExpressionEval" (
+    "key",
+    "stepRunId",
+    "valueInt",
+    "kind"
+) VALUES (
+    unnest(@keys::text[]),
+    @stepRunId::uuid,
+    unnest(@valuesInt::int[]),
+    unnest(cast(@kinds::text[] as"StepExpressionKind"[]))
+) ON CONFLICT ("key", "stepRunId", "kind") DO UPDATE
+SET
+    "valueStr" = EXCLUDED."valueStr",
+    "valueInt" = EXCLUDED."valueInt";
+
+-- name: GetStepExpressions :many
+SELECT
+    *
+FROM
+    "StepExpression"
+WHERE
+    "stepId" = @stepId::uuid;
 
 -- name: GetStepRunMeta :one
 SELECT
@@ -52,6 +118,7 @@ WITH child_count AS (
         "_StepRunOrder" AS step_run_order ON sr."id" = step_run_order."A"
     WHERE
         sr."id" = ANY(@ids::uuid[])
+        AND step_run_order IS NOT NULL
     GROUP BY
         sr."id"
 )
@@ -80,7 +147,7 @@ SELECT
     sr."retryCount" AS "SR_retryCount",
     sr."semaphoreReleased" AS "SR_semaphoreReleased",
     sr."priority" AS "SR_priority",
-    cc."childCount" AS "SR_childCount",
+    COALESCE(cc."childCount", 0) AS "SR_childCount",
     -- TODO: everything below this line is cacheable and should be moved to a separate query
     jr."id" AS "jobRunId",
     s."id" AS "stepId",
@@ -100,7 +167,7 @@ SELECT
     sticky."desiredWorkerId" AS "desiredWorkerId"
 FROM
     "StepRun" sr
-JOIN
+LEFT JOIN
     child_count cc ON sr."id" = cc."id"
 JOIN
     "Step" s ON sr."stepId" = s."id"
@@ -474,6 +541,16 @@ deleted_sqis AS (
         sqi."stepRunId" = srs."id"
         AND sqi."workerId" = srs."workerId"
 ),
+deleted_tqis AS (
+    DELETE FROM
+        "TimeoutQueueItem" tqi
+    -- delete when step run id AND retry count tuples match
+    USING
+        step_runs_to_reassign srs
+    WHERE
+        tqi."stepRunId" = srs."id"
+        AND tqi."retryCount" = srs."retryCount"
+),
 inserted_queue_items AS (
     INSERT INTO "QueueItem" (
         "stepRunId",
@@ -527,26 +604,42 @@ WHERE
 LIMIT 100;
 
 -- name: RefreshTimeoutBy :one
-UPDATE
-    "StepRun" sr
+WITH step_run AS (
+    SELECT
+        "id",
+        "retryCount",
+        "tenantId"
+    FROM
+        "StepRun"
+    WHERE
+        "id" = @stepRunId::uuid AND
+        "tenantId" = @tenantId::uuid
+)
+INSERT INTO
+    "TimeoutQueueItem" (
+        "stepRunId",
+        "retryCount",
+        "timeoutAt",
+        "tenantId",
+        "isQueued"
+    )
+SELECT
+    sr."id",
+    sr."retryCount",
+    NOW() + convert_duration_to_interval(sqlc.narg('incrementTimeoutBy')::text),
+    sr."tenantId",
+    true
+FROM
+    step_run sr
+ON CONFLICT ("stepRunId", "retryCount") DO UPDATE
 SET
-    "timeoutAt" = CASE
-        -- Only update timeoutAt if the step run is currently in RUNNING status
-        WHEN sr."status" = 'RUNNING' THEN
-            COALESCE(sr."timeoutAt", CURRENT_TIMESTAMP) + convert_duration_to_interval(sqlc.narg('incrementTimeoutBy')::text)
-            ELSE sr."timeoutAt"
-        END,
-    "updatedAt" = CURRENT_TIMESTAMP
-WHERE
-    "id" = @stepRunId::uuid AND
-    "tenantId" = @tenantId::uuid
-RETURNING *;
+    "timeoutAt" = "TimeoutQueueItem"."timeoutAt" + convert_duration_to_interval(sqlc.narg('incrementTimeoutBy')::text)
+RETURNING "TimeoutQueueItem"."timeoutAt";
 
 -- name: UpdateStepRunUnsetWorkerId :one
 WITH oldsr AS (
     SELECT
         "id",
-        "workerId",
         "retryCount"
     FROM
         "StepRun"
@@ -679,7 +772,9 @@ SELECT
     true
 FROM
     updated_step_runs sr
-ON CONFLICT DO NOTHING;
+ON CONFLICT ("stepRunId", "retryCount") DO UPDATE
+SET
+    "timeoutAt" = EXCLUDED."timeoutAt";
 
 -- name: GetFinalizedStepRuns :many
 SELECT
@@ -694,7 +789,11 @@ WHERE
 UPDATE
     "StepRun" sr
 SET
-    "status" = 'CANCELLING',
+    "status" = CASE
+        -- Final states are final, we cannot go from a final state to cancelling
+        WHEN "status" IN ('SUCCEEDED', 'FAILED', 'CANCELLED') THEN "status"
+        ELSE 'CANCELLING'
+    END,
     "updatedAt" = CURRENT_TIMESTAMP
 FROM (
     SELECT

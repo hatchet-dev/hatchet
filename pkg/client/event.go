@@ -14,12 +14,22 @@ import (
 
 type PushOpFunc func(*eventcontracts.PushEventRequest) error
 
+type BulkPushOpFunc func(*eventcontracts.BulkPushEventRequest) error
+
 type EventClient interface {
 	Push(ctx context.Context, eventKey string, payload interface{}, options ...PushOpFunc) error
+
+	BulkPush(ctx context.Context, payloads []EventWithMetadata, options ...BulkPushOpFunc) error
 
 	PutLog(ctx context.Context, stepRunId, msg string) error
 
 	PutStreamEvent(ctx context.Context, stepRunId string, message []byte) error
+}
+
+type EventWithMetadata struct {
+	Event              interface{}       `json:"event"`
+	AdditionalMetadata map[string]string `json:"metadata"`
+	Key                string            `json:"key"`
 }
 
 type eventClientImpl struct {
@@ -85,6 +95,43 @@ func (a *eventClientImpl) Push(ctx context.Context, eventKey string, payload int
 	}
 
 	_, err = a.client.Push(a.ctx.newContext(ctx), &request)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (a *eventClientImpl) BulkPush(ctx context.Context, payload []EventWithMetadata, options ...BulkPushOpFunc) error {
+
+	request := eventcontracts.BulkPushEventRequest{}
+
+	var events []*eventcontracts.PushEventRequest
+
+	for _, p := range payload {
+
+		ePayload, err := json.Marshal(p.Event)
+		if err != nil {
+			return err
+		}
+		eMetadata, err := json.Marshal(p.AdditionalMetadata)
+		if err != nil {
+			return err
+		}
+		eMetadataString := string(eMetadata)
+
+		events = append(events, &eventcontracts.PushEventRequest{
+			Key:                a.namespace + p.Key,
+			EventTimestamp:     timestamppb.Now(),
+			Payload:            string(ePayload),
+			AdditionalMetadata: &eMetadataString,
+		})
+	}
+
+	request.Events = events
+
+	_, err := a.client.BulkPush(a.ctx.newContext(ctx), &request)
 
 	if err != nil {
 		return err

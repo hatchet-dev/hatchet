@@ -12,6 +12,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
+	"github.com/hatchet-dev/hatchet/internal/queueutils"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/partition"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
@@ -34,8 +35,9 @@ type queue struct {
 	// a custom queue logger
 	ql *zerolog.Logger
 
-	tenantQueueOperations   sync.Map
-	updateStepRunOperations sync.Map
+	tenantQueueOperations    *queueutils.OperationPool
+	updateStepRunOperations  *queueutils.OperationPool
+	timeoutStepRunOperations *queueutils.OperationPool
 }
 
 func newQueue(
@@ -53,7 +55,7 @@ func newQueue(
 		return nil, fmt.Errorf("could not create scheduler: %w", err)
 	}
 
-	return &queue{
+	q := &queue{
 		mq:   mq,
 		l:    l,
 		repo: repo,
@@ -62,95 +64,13 @@ func newQueue(
 		a:    a,
 		p:    p,
 		ql:   ql,
-	}, nil
-}
-
-type operation struct {
-	mu             sync.RWMutex
-	shouldContinue bool
-	isRunning      bool
-	tenantId       string
-	lastRun        time.Time
-	description    string
-	timeout        time.Duration
-}
-
-func (o *operation) runOrContinue(l *zerolog.Logger, ql *zerolog.Logger, scheduler func(context.Context, string) (bool, error)) {
-	o.setContinue(true)
-	o.run(l, ql, scheduler)
-}
-
-func (o *operation) run(l *zerolog.Logger, ql *zerolog.Logger, scheduler func(context.Context, string) (bool, error)) {
-	if !o.setRunning(true, ql) {
-		return
 	}
 
-	go func() {
-		defer func() {
-			o.setRunning(false, ql)
-		}()
+	q.tenantQueueOperations = queueutils.NewOperationPool(ql, time.Second*5, "check tenant queue", q.scheduleStepRuns)
+	q.updateStepRunOperations = queueutils.NewOperationPool(ql, time.Second*30, "update step runs", q.processStepRunUpdates)
+	q.timeoutStepRunOperations = queueutils.NewOperationPool(ql, time.Second*30, "timeout step runs", q.processStepRunTimeouts)
 
-		f := func() {
-			o.setContinue(false)
-
-			ctx, cancel := context.WithTimeout(context.Background(), o.timeout)
-			defer cancel()
-
-			shouldContinue, err := scheduler(ctx, o.tenantId)
-
-			if err != nil {
-				l.Err(err).Msgf("could not %s", o.description)
-				return
-			}
-
-			// if a continue was set during execution of the scheduler, we'd like to continue no matter what.
-			// if a continue was not set, we'd like to set it to the value returned by the scheduler.
-			if !o.getContinue() {
-				o.setContinue(shouldContinue)
-			}
-		}
-
-		f()
-
-		for o.getContinue() {
-			f()
-		}
-	}()
-}
-
-// setRunning sets the running state of the operation and returns true if the state was changed,
-// false if the state was not changed.
-func (o *operation) setRunning(isRunning bool, ql *zerolog.Logger) bool {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-
-	if isRunning == o.isRunning {
-		return false
-	}
-
-	if isRunning {
-		ql.Info().Str("tenant_id", o.tenantId).TimeDiff("last_run", time.Now(), o.lastRun).Msg(o.description)
-
-		o.lastRun = time.Now()
-	}
-
-	o.isRunning = isRunning
-
-	return true
-}
-
-func (o *operation) setContinue(shouldContinue bool) {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-
-	o.shouldContinue = shouldContinue
-}
-
-func (o *operation) getContinue() bool {
-	o.mu.RLock()
-	defer o.mu.RUnlock()
-
-	return o.shouldContinue
+	return q, nil
 }
 
 func (q *queue) Start() (func() error, error) {
@@ -182,9 +102,21 @@ func (q *queue) Start() (func() error, error) {
 		return nil, fmt.Errorf("could not schedule step run update: %w", err)
 	}
 
+	_, err = q.s.NewJob(
+		gocron.DurationJob(time.Second*1),
+		gocron.NewTask(
+			q.runTenantTimeoutStepRuns(ctx),
+		),
+	)
+
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("could not schedule step run timeout: %w", err)
+	}
+
 	q.s.Start()
 
-	f := func(task *msgqueue.Message) error {
+	postAck := func(task *msgqueue.Message) error {
 		wg.Add(1)
 		defer wg.Done()
 
@@ -197,7 +129,11 @@ func (q *queue) Start() (func() error, error) {
 		return nil
 	}
 
-	cleanupQueue, err := q.mq.Subscribe(msgqueue.QueueTypeFromPartitionID(q.p.GetControllerPartitionId()), f, msgqueue.NoOpHook)
+	cleanupQueue, err := q.mq.Subscribe(
+		msgqueue.QueueTypeFromPartitionIDAndController(q.p.GetControllerPartitionId(), msgqueue.JobController),
+		msgqueue.NoOpHook, // the only handler is to check the queue, so we acknowledge immediately with the NoOpHook
+		postAck,
+	)
 
 	if err != nil {
 		cancel()
@@ -254,17 +190,8 @@ func (q *queue) handleCheckQueue(ctx context.Context, task *msgqueue.Message) er
 	}
 
 	// if this tenant is registered, then we should check the queue
-	if opInt, ok := q.tenantQueueOperations.Load(metadata.TenantId); ok {
-		op := opInt.(*operation)
-
-		op.runOrContinue(q.l, q.ql, q.scheduleStepRuns)
-	}
-
-	if opInt, ok := q.updateStepRunOperations.Load(metadata.TenantId); ok {
-		op := opInt.(*operation)
-
-		op.runOrContinue(q.l, q.ql, q.processStepRunUpdates)
-	}
+	q.tenantQueueOperations.RunOrContinue(metadata.TenantId)
+	q.updateStepRunOperations.RunOrContinue(metadata.TenantId)
 
 	return nil
 }
@@ -284,7 +211,7 @@ func (q *queue) runTenantQueues(ctx context.Context) func() {
 		for i := range tenants {
 			tenantId := sqlchelpers.UUIDToStr(tenants[i].ID)
 
-			q.getQueueOperation(tenantId).run(q.l, q.ql, q.scheduleStepRuns)
+			q.tenantQueueOperations.RunOrContinue(tenantId)
 		}
 	}
 }
@@ -334,40 +261,6 @@ func (q *queue) scheduleStepRuns(ctx context.Context, tenantId string) (bool, er
 	return queueResults.Continue, err
 }
 
-func (q *queue) getQueueOperation(tenantId string) *operation {
-	op, ok := q.tenantQueueOperations.Load(tenantId)
-
-	if !ok {
-		op = &operation{
-			tenantId:    tenantId,
-			lastRun:     time.Now(),
-			description: "scheduling step runs",
-			timeout:     30 * time.Second,
-		}
-
-		q.tenantQueueOperations.Store(tenantId, op)
-	}
-
-	return op.(*operation)
-}
-
-func (q *queue) getUpdateStepRunOperation(tenantId string) *operation {
-	op, ok := q.updateStepRunOperations.Load(tenantId)
-
-	if !ok {
-		op = &operation{
-			tenantId:    tenantId,
-			lastRun:     time.Now(),
-			description: "updating step runs",
-			timeout:     300 * time.Second,
-		}
-
-		q.updateStepRunOperations.Store(tenantId, op)
-	}
-
-	return op.(*operation)
-}
-
 func (q *queue) runTenantUpdateStepRuns(ctx context.Context) func() {
 	return func() {
 		q.l.Debug().Msgf("partition: updating step run statuses")
@@ -383,7 +276,7 @@ func (q *queue) runTenantUpdateStepRuns(ctx context.Context) func() {
 		for i := range tenants {
 			tenantId := sqlchelpers.UUIDToStr(tenants[i].ID)
 
-			q.getUpdateStepRunOperation(tenantId).run(q.l, q.ql, q.processStepRunUpdates)
+			q.updateStepRunOperations.RunOrContinue(tenantId)
 		}
 	}
 }
@@ -461,6 +354,75 @@ func (q *queue) processStepRunUpdates(ctx context.Context, tenantId string) (boo
 	}
 
 	return res.Continue, nil
+}
+
+func (q *queue) runTenantTimeoutStepRuns(ctx context.Context) func() {
+	return func() {
+		q.l.Debug().Msgf("partition: running timeout for step runs")
+
+		// list all tenants
+		tenants, err := q.repo.Tenant().ListTenantsByControllerPartition(ctx, q.p.GetControllerPartitionId())
+
+		if err != nil {
+			q.l.Err(err).Msg("could not list tenants")
+			return
+		}
+
+		for i := range tenants {
+			tenantId := sqlchelpers.UUIDToStr(tenants[i].ID)
+
+			q.timeoutStepRunOperations.RunOrContinue(tenantId)
+		}
+	}
+}
+
+func (q *queue) processStepRunTimeouts(ctx context.Context, tenantId string) (bool, error) {
+	ctx, span := telemetry.NewSpan(ctx, "handle-step-run-timeout")
+	defer span.End()
+
+	shouldContinue, stepRuns, err := q.repo.StepRun().ListStepRunsToTimeout(ctx, tenantId)
+
+	if err != nil {
+		return false, fmt.Errorf("could not list step runs to timeout for tenant %s: %w", tenantId, err)
+	}
+
+	if num := len(stepRuns); num > 0 {
+		q.l.Info().Msgf("timing out %d step runs", num)
+	}
+
+	failedAt := time.Now().UTC()
+
+	err = MakeBatched(10, stepRuns, func(group []*dbsqlc.GetStepRunForEngineRow) error {
+		scheduleCtx, cancel := context.WithTimeout(context.Background(), time.Minute)
+		defer cancel()
+
+		scheduleCtx, span := telemetry.NewSpan(scheduleCtx, "handle-step-run-timeout-step-run")
+		defer span.End()
+
+		for i := range group {
+			stepRunCp := group[i]
+
+			if err := q.mq.AddMessage(
+				scheduleCtx,
+				msgqueue.JOB_PROCESSING_QUEUE,
+				tasktypes.StepRunFailedToTask(
+					stepRunCp,
+					"TIMED_OUT",
+					&failedAt,
+				),
+			); err != nil {
+				q.l.Error().Err(err).Msg("could not add step run failed task to task queue")
+			}
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return false, fmt.Errorf("could not process step run timeouts: %w", err)
+	}
+
+	return shouldContinue, nil
 }
 
 func getStepRunCancelTask(tenantId, stepRunId, reason string) *msgqueue.Message {

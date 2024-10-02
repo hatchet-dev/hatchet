@@ -100,8 +100,12 @@ export function StepRunEvents({
           updatedAt: item.timeLastSeen,
         },
         event: item,
-        stepRun: normalizedStepRunsByStepRunId[item.stepRunId],
-        step: normalizedStepsByStepRunId[item.stepRunId],
+        stepRun: item.stepRunId
+          ? normalizedStepRunsByStepRunId[item.stepRunId]
+          : undefined,
+        step: item.stepRunId
+          ? normalizedStepsByStepRunId[item.stepRunId]
+          : undefined,
       };
     }) || [];
 

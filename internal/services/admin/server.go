@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -246,6 +247,14 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWo
 		)
 
 		if err != nil {
+
+			if strings.Contains(err.Error(), "23503") {
+				return nil, status.Error(
+					codes.InvalidArgument,
+					"invalid rate limit, are you using a static key without first creating a rate limit with the same key?",
+				)
+			}
+
 			return nil, err
 		}
 	} else {
@@ -274,6 +283,14 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWo
 			)
 
 			if err != nil {
+
+				if strings.Contains(err.Error(), "23503") {
+					return nil, status.Error(
+						codes.InvalidArgument,
+						"invalid rate limit, are you using a static key without first creating a rate limit with the same key?",
+					)
+				}
+
 				return nil, err
 			}
 		} else {
@@ -424,6 +441,15 @@ func getCreateWorkflowOpts(req *contracts.PutWorkflowRequest) (*repository.Creat
 		res, err := getCreateJobOpts(jobCp, "DEFAULT")
 
 		if err != nil {
+
+			if errors.Is(err, repository.ErrDagParentNotFound) {
+				// Extract the additional error information
+				return nil, status.Error(
+					codes.InvalidArgument,
+					err.Error(),
+				)
+			}
+
 			return nil, err
 		}
 
@@ -457,19 +483,24 @@ func getCreateWorkflowOpts(req *contracts.PutWorkflowRequest) (*repository.Creat
 	var concurrency *repository.CreateWorkflowConcurrencyOpts
 
 	if req.Opts.Concurrency != nil {
+		if req.Opts.Concurrency.Action == nil && req.Opts.Concurrency.Expression == nil {
+			return nil, status.Error(
+				codes.InvalidArgument,
+				"concurrency action or expression is required",
+			)
+		}
+
 		var limitStrategy *string
 
-		if req.Opts.Concurrency.LimitStrategy.String() != "" {
+		if req.Opts.Concurrency.LimitStrategy != nil && req.Opts.Concurrency.LimitStrategy.String() != "" {
 			limitStrategy = repository.StringPtr(req.Opts.Concurrency.LimitStrategy.String())
 		}
 
 		concurrency = &repository.CreateWorkflowConcurrencyOpts{
 			Action:        req.Opts.Concurrency.Action,
 			LimitStrategy: limitStrategy,
-		}
-
-		if req.Opts.Concurrency.MaxRuns != 0 {
-			concurrency.MaxRuns = &req.Opts.Concurrency.MaxRuns
+			Expression:    req.Opts.Concurrency.Expression,
+			MaxRuns:       req.Opts.Concurrency.MaxRuns,
 		}
 	}
 
@@ -506,6 +537,8 @@ func getCreateWorkflowOpts(req *contracts.PutWorkflowRequest) (*repository.Creat
 func getCreateJobOpts(req *contracts.CreateWorkflowJobOpts, kind string) (*repository.CreateWorkflowJobOpts, error) {
 	steps := make([]repository.CreateWorkflowStepOpts, len(req.Steps))
 
+	stepReadableIdMap := make(map[string]bool)
+
 	for j, step := range req.Steps {
 		stepCp := step
 
@@ -516,6 +549,8 @@ func getCreateJobOpts(req *contracts.CreateWorkflowJobOpts, kind string) (*repos
 		}
 
 		retries := int(stepCp.Retries)
+
+		stepReadableIdMap[stepCp.ReadableId] = true
 
 		var affinity map[string]repository.DesiredWorkerLabelOpts
 
@@ -554,14 +589,32 @@ func getCreateJobOpts(req *contracts.CreateWorkflowJobOpts, kind string) (*repos
 		}
 
 		for _, rateLimit := range stepCp.RateLimits {
-			steps[j].RateLimits = append(steps[j].RateLimits, repository.CreateWorkflowStepRateLimitOpts{
-				Key:   rateLimit.Key,
-				Units: int(rateLimit.Units),
-			})
+			opt := repository.CreateWorkflowStepRateLimitOpts{
+				Key:       rateLimit.Key,
+				KeyExpr:   rateLimit.KeyExpr,
+				LimitExpr: rateLimit.LimitValuesExpr,
+				UnitsExpr: rateLimit.UnitsExpr,
+			}
+
+			if rateLimit.Units != nil {
+				units := int(*rateLimit.Units)
+				opt.Units = &units
+			}
+
+			steps[j].RateLimits = append(steps[j].RateLimits, opt)
 		}
 
 		if stepCp.UserData != "" {
 			steps[j].UserData = &stepCp.UserData
+		}
+	}
+
+	// Check if parents are in the map
+	for _, step := range req.Steps {
+		for _, parent := range step.Parents {
+			if !stepReadableIdMap[parent] {
+				return nil, fmt.Errorf("%w: parent step '%s' not found for step '%s'", repository.ErrDagParentNotFound, parent, step.ReadableId)
+			}
 		}
 	}
 

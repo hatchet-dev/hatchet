@@ -528,11 +528,6 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByAdditionalMeta(key string, v
 	tenant := stream.Context().Value("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
-	q, err := msgqueue.TenantEventConsumerQueue(tenantId)
-	if err != nil {
-		return err
-	}
-
 	ctx, cancel := context.WithCancel(stream.Context())
 	defer cancel()
 
@@ -602,7 +597,7 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByAdditionalMeta(key string, v
 	}
 
 	// subscribe to the task queue for the tenant
-	cleanupQueue, err := s.mq.Subscribe(q, msgqueue.NoOpHook, f)
+	cleanupQueue, err := s.sharedReader.Subscribe(tenantId, f)
 
 	if err != nil {
 		return err
@@ -624,12 +619,6 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunId(workflowRunId 
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	s.l.Debug().Msgf("Received subscribe request for workflow: %s", workflowRunId)
-
-	q, err := msgqueue.TenantEventConsumerQueue(tenantId)
-
-	if err != nil {
-		return err
-	}
 
 	ctx, cancel := context.WithCancel(stream.Context())
 	defer cancel()
@@ -685,7 +674,7 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunId(workflowRunId 
 	}
 
 	// subscribe to the task queue for the tenant
-	cleanupQueue, err := s.mq.Subscribe(q, msgqueue.NoOpHook, f)
+	cleanupQueue, err := s.sharedReader.Subscribe(tenantId, f)
 
 	if err != nil {
 		return err
@@ -754,6 +743,22 @@ func (s *sendTimeFilter) canSend() bool {
 	return true
 }
 
+func calculateResultsSize(results []*contracts.StepRunResult) int64 {
+	var totalSize int64
+
+	for _, result := range results {
+		// Size of the struct fields
+		if result != nil && result.Output != nil {
+			// Assuming StepRunResult has fields like ID, Status, Output, etc.
+			// Adjust these based on the actual struct definition
+			totalSize += int64(len(*result.Output))
+			// Add sizes of other fields...
+		}
+	}
+
+	return totalSize
+}
+
 // SubscribeToWorkflowEvents registers workflow events with the dispatcher
 func (s *DispatcherImpl) SubscribeToWorkflowRuns(server contracts.Dispatcher_SubscribeToWorkflowRunsServer) error {
 	tenant := server.Context().Value("tenant").(*dbsqlc.Tenant)
@@ -768,17 +773,16 @@ func (s *DispatcherImpl) SubscribeToWorkflowRuns(server contracts.Dispatcher_Sub
 	ctx, cancel := context.WithCancel(server.Context())
 	defer cancel()
 
-	// subscribe to the task queue for the tenant
-	q, err := msgqueue.TenantEventConsumerQueue(tenantId)
-
-	if err != nil {
-		return err
-	}
-
 	wg := sync.WaitGroup{}
 	sendMu := sync.Mutex{}
 
 	sendEvent := func(e *contracts.WorkflowRunEvent) error {
+
+		if calculateResultsSize(e.Results) > 3*1024*1024 {
+			s.l.Warn().Msgf("results size for workflow run %s exceeds 3MB", e.WorkflowRunId)
+			e.Results = nil
+		}
+
 		// send the task to the client
 		sendMu.Lock()
 		err := server.Send(e)
@@ -786,7 +790,7 @@ func (s *DispatcherImpl) SubscribeToWorkflowRuns(server contracts.Dispatcher_Sub
 
 		if err != nil {
 			cancel() // FIXME is this necessary?
-			s.l.Error().Err(err).Msgf("could not send workflow event to client")
+			s.l.Error().Err(err).Msgf("could not subscribe to workflow events for run %s", e.WorkflowRunId)
 			return err
 		}
 
@@ -879,7 +883,7 @@ func (s *DispatcherImpl) SubscribeToWorkflowRuns(server contracts.Dispatcher_Sub
 	}
 
 	// subscribe to the task queue for the tenant
-	cleanupQueue, err := s.mq.Subscribe(q, msgqueue.NoOpHook, f)
+	cleanupQueue, err := s.sharedReader.Subscribe(tenantId, f)
 
 	if err != nil {
 		return err
@@ -1017,15 +1021,15 @@ func (d *DispatcherImpl) RefreshTimeout(ctx context.Context, request *contracts.
 		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", apiErrors.String())
 	}
 
-	stepRun, err := d.repo.StepRun().RefreshTimeoutBy(ctx, tenantId, request.StepRunId, opts)
+	pgTimeoutAt, err := d.repo.StepRun().RefreshTimeoutBy(ctx, tenantId, request.StepRunId, opts)
 
 	if err != nil {
 		return nil, err
 	}
 
 	timeoutAt := &timestamppb.Timestamp{
-		Seconds: stepRun.TimeoutAt.Time.Unix(),
-		Nanos:   int32(stepRun.TimeoutAt.Time.Nanosecond()),
+		Seconds: pgTimeoutAt.Time.Unix(),
+		Nanos:   int32(pgTimeoutAt.Time.Nanosecond()), // nolint:gosec
 	}
 
 	return &contracts.RefreshTimeoutResponse{
@@ -1034,9 +1038,13 @@ func (d *DispatcherImpl) RefreshTimeout(ctx context.Context, request *contracts.
 
 }
 
-func (s *DispatcherImpl) handleStepRunStarted(ctx context.Context, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
-	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
+func (s *DispatcherImpl) handleStepRunStarted(inputCtx context.Context, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
+	tenant := inputCtx.Value("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+
+	// run the rest on a separate context to always send to job controller
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 
 	s.l.Debug().Msgf("Received step started event for step run %s", request.StepRunId)
 
@@ -1078,11 +1086,15 @@ func (s *DispatcherImpl) handleStepRunStarted(ctx context.Context, request *cont
 	}, nil
 }
 
-func (s *DispatcherImpl) handleStepRunCompleted(ctx context.Context, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
-	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
+func (s *DispatcherImpl) handleStepRunCompleted(inputCtx context.Context, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
+	tenant := inputCtx.Value("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	s.l.Debug().Msgf("Received step completed event for step run %s", request.StepRunId)
+
+	// run the rest on a separate context to always send to job controller
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 
 	// verify that the event payload can be unmarshalled into a map type
 	if request.EventPayload != "" {
@@ -1142,9 +1154,13 @@ func (s *DispatcherImpl) handleStepRunCompleted(ctx context.Context, request *co
 	}, nil
 }
 
-func (s *DispatcherImpl) handleStepRunFailed(ctx context.Context, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
-	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
+func (s *DispatcherImpl) handleStepRunFailed(inputCtx context.Context, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
+	tenant := inputCtx.Value("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+
+	// run the rest on a separate context to always send to job controller
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 
 	s.l.Debug().Msgf("Received step failed event for step run %s", request.StepRunId)
 
@@ -1187,9 +1203,13 @@ func (s *DispatcherImpl) handleStepRunFailed(ctx context.Context, request *contr
 	}, nil
 }
 
-func (s *DispatcherImpl) handleGetGroupKeyRunStarted(ctx context.Context, request *contracts.GroupKeyActionEvent) (*contracts.ActionEventResponse, error) {
-	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
+func (s *DispatcherImpl) handleGetGroupKeyRunStarted(inputCtx context.Context, request *contracts.GroupKeyActionEvent) (*contracts.ActionEventResponse, error) {
+	tenant := inputCtx.Value("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+
+	// run the rest on a separate context to always send to job controller
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 
 	s.l.Debug().Msgf("Received step started event for step run %s", request.GetGroupKeyRunId)
 
@@ -1222,9 +1242,13 @@ func (s *DispatcherImpl) handleGetGroupKeyRunStarted(ctx context.Context, reques
 	}, nil
 }
 
-func (s *DispatcherImpl) handleGetGroupKeyRunCompleted(ctx context.Context, request *contracts.GroupKeyActionEvent) (*contracts.ActionEventResponse, error) {
-	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
+func (s *DispatcherImpl) handleGetGroupKeyRunCompleted(inputCtx context.Context, request *contracts.GroupKeyActionEvent) (*contracts.ActionEventResponse, error) {
+	tenant := inputCtx.Value("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+
+	// run the rest on a separate context to always send to job controller
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 
 	s.l.Debug().Msgf("Received step completed event for step run %s", request.GetGroupKeyRunId)
 
@@ -1258,9 +1282,13 @@ func (s *DispatcherImpl) handleGetGroupKeyRunCompleted(ctx context.Context, requ
 	}, nil
 }
 
-func (s *DispatcherImpl) handleGetGroupKeyRunFailed(ctx context.Context, request *contracts.GroupKeyActionEvent) (*contracts.ActionEventResponse, error) {
-	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
+func (s *DispatcherImpl) handleGetGroupKeyRunFailed(inputCtx context.Context, request *contracts.GroupKeyActionEvent) (*contracts.ActionEventResponse, error) {
+	tenant := inputCtx.Value("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+
+	// run the rest on a separate context to always send to job controller
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 
 	s.l.Debug().Msgf("Received step failed event for step run %s", request.GetGroupKeyRunId)
 

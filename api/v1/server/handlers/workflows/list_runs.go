@@ -49,6 +49,14 @@ func (t *WorkflowService) WorkflowRunList(ctx echo.Context, request gen.Workflow
 		listOpts.CreatedBefore = request.Params.CreatedBefore
 	}
 
+	if request.Params.FinishedAfter != nil {
+		listOpts.FinishedAfter = request.Params.FinishedAfter
+	}
+
+	if request.Params.FinishedBefore != nil {
+		listOpts.FinishedBefore = request.Params.FinishedBefore
+	}
+
 	if request.Params.Limit != nil {
 		limit = int(*request.Params.Limit)
 		listOpts.Limit = &limit

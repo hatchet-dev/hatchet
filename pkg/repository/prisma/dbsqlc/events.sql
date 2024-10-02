@@ -82,6 +82,32 @@ INSERT INTO "Event" (
     @additionalMetadata::jsonb
 ) RETURNING *;
 
+-- name: CreateEvents :copyfrom
+INSERT INTO "Event" (
+    "id",
+    "key",
+    "tenantId",
+    "replayedFromId",
+    "data",
+    "additionalMetadata"
+
+) VALUES (
+    $1,
+    $2,
+    $3,
+    $4,
+    $5,
+    $6
+);
+
+
+-- name: GetInsertedEvents :many
+
+SELECT * FROM "Event"
+WHERE xmin::text = (txid_current() % (2^32)::bigint)::text
+ORDER BY id;
+
+
 -- name: ListEvents :many
 WITH filtered_events AS (
     SELECT

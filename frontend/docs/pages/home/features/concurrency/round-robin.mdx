@@ -30,7 +30,96 @@ Keep in mind that the `GROUP_ROUND_ROBIN` strategy may not be suitable for all u
 
 To use the `GROUP_ROUND_ROBIN` concurrency limit strategy, define a `concurrency` configuration in your workflow definition:
 
+<Tabs items={["CEL Expression (Recommended)", "Key Function (Advanced)"]}>
+  <Tabs.Tab>
+
+CEL expressions are evaluated on the Hatchet engine (not in your worker) and can be used to extract values from the workflow input or [additional metadata](/features/additional-metadata).
+
 <Tabs items={['Python', 'Typescript', 'Go']}>
+  <Tabs.Tab>
+
+```python
+from hatchet_sdk import ConcurrencyLimitStrategy, ConcurrencyExpression
+
+@hatchet.workflow(
+  on_events=["concurrency-test"],
+  concurrency=ConcurrencyExpression(
+    expression="input.group",
+    max_runs=5,
+    limit_strategy=ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
+  )
+)
+class ConcurrencyDemoWorkflow:
+    @hatchet.step()
+    def step1(self, context):
+        print("executed step1")
+        pass
+
+```
+
+  </Tabs.Tab>
+  <Tabs.Tab>
+
+```typescript
+export const concurrencyDemoWorkflow: Workflow = {
+  id: "my-workflow",
+  description: "My workflow with concurrency control",
+  on: {
+    event: "concurrency-test",
+  },
+  steps: [
+    // ...
+  ],
+  concurrency: {
+    name: "my-workflow-concurrency",
+    maxRuns: 10,
+    limitStrategy: ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
+    expression: "input.group",
+  },
+};
+```
+
+  </Tabs.Tab>
+  <Tabs.Tab>
+
+```go
+import (
+  "github.com/hatchet-dev/hatchet/pkg/client/types"
+  "github.com/hatchet-dev/hatchet/pkg/worker"
+)
+
+type MyUser struct {
+    UserId string `json:"user_id"`
+}
+
+err = w.RegisterWorkflow(
+    &worker.WorkflowJob{
+        Name: "concurrency-limit-per-user",
+        On: worker.Events("concurrency-test-event"),
+        Description: "This limits concurrency to 1 run at a time per user.",
+        Concurrency: worker.Concurrency(getConcurrencyKey).MaxRuns(10).LimitStrategy(types.GroupRoundRobin),
+        Steps: []*worker.WorkflowStep{
+            // your steps here...
+        },
+    },
+)
+
+```
+
+  </Tabs.Tab>
+</Tabs>
+
+In this example:
+
+- `maxRuns` sets the maximum number of concurrent instances allowed for each group.
+- `limitStrategy` is set to `GROUP_ROUND_ROBIN`, indicating that instances should be processed in a round-robin fashion within each group.
+- `expression` is a CEL expression that is evaluated on the Hatchet engine (not in your worker) and can be used to extract values from the workflow input or [additional metadata](/features/additional-metadata).
+
+</Tabs.Tab>
+  <Tabs.Tab>
+In advanced use cases, you may want to use a custom function to determine the concurrency key. Concurrency key functions are evaluated on your Hatchet workers and can be used to extract values from the workflow input, context, and other sources (i.e. database, external API, etc.).
+<Tabs items={['Python', 'Typescript', 'Go']}>
+
   <Tabs.Tab>
 
 ```python
@@ -46,6 +135,7 @@ class ConcurrencyDemoWorkflow:
     def step1(self, context):
         print("executed step1")
         pass
+
 ```
 
   </Tabs.Tab>
@@ -54,7 +144,7 @@ class ConcurrencyDemoWorkflow:
 ```typescript
 export const concurrencyDemoWorkflow: Workflow = {
   id: "my-workflow",
-  description: "My workflow with GROUP_ROUND_ROBIN concurrency control",
+  description: "My workflow with concurrency control",
   on: {
     event: "concurrency-test",
   },
@@ -80,18 +170,19 @@ import (
 )
 
 type MyUser struct {
-  UserId string `json:"user_id"`
+    UserId string `json:"user_id"`
 }
 
 func getConcurrencyKey(ctx worker.HatchetContext) (string, error) {
-    event := &MyUser{}
-    err := ctx.WorkflowInput(event)
+  event := &MyUser{}
+  err := ctx.WorkflowInput(event)
 
     if err != nil {
         return "", err
     }
 
     return event.UserId, nil
+
 }
 
 err = w.RegisterWorkflow(
@@ -116,5 +207,10 @@ In this example:
 - `maxRuns` sets the maximum number of concurrent instances allowed for each group.
 - `limitStrategy` is set to `GROUP_ROUND_ROBIN`, indicating that instances should be processed in a round-robin fashion within each group.
 - `key` is a function that takes the workflow context and returns a string key. This key is used to group workflow instances for the purpose of concurrency limiting and round-robin processing. In this example, instances are grouped by `userId`, so the concurrency limit and round-robin processing are applied separately for each unique user.
+
+</Tabs.Tab>
+</Tabs>
+
+> NOTE: Only one of `key` or `expression` should be provided, not both.
 
 With this configuration, Hatchet will automatically manage your workflow's concurrency, processing instances within each group in a round-robin fashion and ensuring fair distribution of resources across groups.

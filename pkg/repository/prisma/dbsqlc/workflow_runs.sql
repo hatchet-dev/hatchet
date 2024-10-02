@@ -1,6 +1,6 @@
 -- name: CountWorkflowRuns :one
 WITH runs AS (
-    SELECT runs."id", runs."createdAt"
+    SELECT runs."id", runs."createdAt", runs."finishedAt", runs."startedAt", runs."duration"
     FROM
         "WorkflowRun" as runs
     LEFT JOIN
@@ -69,11 +69,22 @@ WITH runs AS (
         ) AND
         (
             sqlc.narg('finishedAfter')::timestamp IS NULL OR
-            runs."finishedAt" > sqlc.narg('finishedAfter')::timestamp
+            runs."finishedAt" > sqlc.narg('finishedAfter')::timestamp OR
+            runs."finishedAt" IS NULL
+        ) AND
+        (
+            sqlc.narg('finishedBefore')::timestamp IS NULL OR
+            runs."finishedAt" <= sqlc.narg('finishedBefore')::timestamp
         )
     ORDER BY
         case when @orderBy = 'createdAt ASC' THEN runs."createdAt" END ASC ,
-        case when @orderBy = 'createdAt DESC' then runs."createdAt" END DESC,
+        case when @orderBy = 'createdAt DESC' THEN runs."createdAt" END DESC,
+        case when @orderBy = 'finishedAt ASC' THEN runs."finishedAt" END ASC ,
+        case when @orderBy = 'finishedAt DESC' THEN runs."finishedAt" END DESC,
+        case when @orderBy = 'startedAt ASC' THEN runs."startedAt" END ASC ,
+        case when @orderBy = 'startedAt DESC' THEN runs."startedAt" END DESC,
+        case when @orderBy = 'duration ASC' THEN runs."duration" END ASC NULLS FIRST,
+        case when @orderBy = 'duration DESC' THEN runs."duration" END DESC NULLS LAST,
         runs."id" ASC
     LIMIT 10000
 )
@@ -101,7 +112,6 @@ LEFT JOIN
     "Workflow" as workflow ON workflowVersion."workflowId" = workflow."id"
 WHERE
     runs."tenantId" = @tenantId::uuid AND
-    runs."createdAt" > NOW() - INTERVAL '1 day' AND
     (
         sqlc.narg('createdAfter')::timestamp IS NULL OR
         runs."createdAt" > sqlc.narg('createdAfter')::timestamp
@@ -214,7 +224,12 @@ WHERE
     ) AND
     (
         sqlc.narg('finishedAfter')::timestamp IS NULL OR
-        runs."finishedAt" > sqlc.narg('finishedAfter')::timestamp
+        runs."finishedAt" > sqlc.narg('finishedAfter')::timestamp OR
+        runs."finishedAt" IS NULL
+    ) AND
+    (
+        sqlc.narg('finishedBefore')::timestamp IS NULL OR
+        runs."finishedAt" <= sqlc.narg('finishedBefore')::timestamp
     )
 ORDER BY
     case when @orderBy = 'createdAt ASC' THEN runs."createdAt" END ASC ,
@@ -294,7 +309,31 @@ WHERE
 RETURNING
     "WorkflowRun".*;
 
--- name: UpdateWorkflowRunGroupKey :one
+-- name: UpdateWorkflowRunGroupKeyFromExpr :one
+UPDATE "WorkflowRun" wr
+SET "error" = CASE
+    -- Final states are final, cannot be updated. We also can't move out of a queued state
+    WHEN "status" IN ('SUCCEEDED', 'FAILED', 'QUEUED') THEN "error"
+    WHEN sqlc.narg('error')::text IS NOT NULL THEN sqlc.narg('error')::text
+    ELSE "error"
+END,
+"status" = CASE
+    -- Final states are final, cannot be updated. We also can't move out of a queued state
+    WHEN "status" IN ('SUCCEEDED', 'FAILED', 'QUEUED') THEN "status"
+    -- When the concurrency expression errored, then the workflow is failed
+    WHEN sqlc.narg('error')::text IS NOT NULL THEN 'FAILED'
+    -- When the expression evaluated successfully, then queue the workflow run
+    ELSE 'QUEUED'
+END,
+"concurrencyGroupId" = CASE
+    WHEN sqlc.narg('concurrencyGroupId')::text IS NOT NULL THEN sqlc.narg('concurrencyGroupId')::text
+    ELSE "concurrencyGroupId"
+END
+WHERE
+    wr."id" = @workflowRunId::uuid
+RETURNING wr."id";
+
+-- name: UpdateWorkflowRunGroupKeyFromRun :one
 WITH groupKeyRun AS (
     SELECT "id", "status" as groupKeyRunStatus, "output", "workflowRunId"
     FROM "GetGroupKeyRun" as groupKeyRun
@@ -400,10 +439,10 @@ WITH jobRuns AS (
     WHERE
         wr."id" = j."workflowRunId"
         AND "tenantId" = @tenantId::uuid
-    RETURNING wr."id", wr."status"
+    RETURNING wr."id", wr."status", wr."tenantId"
 )
 -- Return distinct workflow run ids in a final state
-SELECT DISTINCT "id", "status"
+SELECT DISTINCT "id", "status", "tenantId"
 FROM updated_workflow_runs
 WHERE "status" IN ('SUCCEEDED', 'FAILED');
 
@@ -739,6 +778,8 @@ SELECT
     -- waiting on https://github.com/sqlc-dev/sqlc/pull/2858 for nullable fields
     wc."limitStrategy" as "concurrencyLimitStrategy",
     wc."maxRuns" as "concurrencyMaxRuns",
+    workflow."isPaused" as "isPaused",
+    wc."concurrencyGroupExpression" as "concurrencyGroupExpression",
     groupKeyRun."id" as "getGroupKeyRunId"
 FROM
     "WorkflowRun" as runs
@@ -870,7 +911,9 @@ WITH QueuedRuns AS (
     FROM "WorkflowRun" wr
     JOIN "WorkflowVersion" wv ON wv."id" = wr."workflowVersionId"
     JOIN "Workflow" w ON w."id" = wv."workflowId"
-    WHERE wr."status" = 'QUEUED'
+    WHERE
+        wr."tenantId" = @tenantId::uuid
+        AND wr."status" = 'QUEUED'
 		AND wr."concurrencyGroupId" IS NOT NULL
     ORDER BY wr."workflowVersionId"
 )
@@ -963,7 +1006,10 @@ WHERE
 GROUP BY
     wr."parentStepRunId";
 
--- name: GetStepRunsForJobRuns :many
+
+-- We grab the output for each step run here which could potentially be very large
+
+-- name: GetStepRunsForJobRunsWithOutput :many
 SELECT
 	sr."id",
 	sr."createdAt",
@@ -979,10 +1025,78 @@ SELECT
     sr."cancelledReason",
     sr."timeoutAt",
     sr."error",
-    sr."workerId"
+    sr."workerId",
+    sr."output"
 FROM "StepRun" sr
 WHERE
 	sr."jobRunId" = ANY(@jobIds::uuid[])
     AND sr."tenantId" = @tenantId::uuid
     AND sr."deletedAt" IS NULL
 ORDER BY sr."order" DESC;
+
+-- name: BulkCreateWorkflowRunEvent :exec
+WITH input_values AS (
+    SELECT
+        unnest(@timeSeen::timestamp[]) AS "timeFirstSeen",
+        unnest(@timeSeen::timestamp[]) AS "timeLastSeen",
+        unnest(@workflowRunIds::uuid[]) AS "workflowRunId",
+        unnest(cast(@reasons::text[] as"StepRunEventReason"[])) AS "reason",
+        unnest(cast(@severities::text[] as "StepRunEventSeverity"[])) AS "severity",
+        unnest(@messages::text[]) AS "message",
+        1 AS "count",
+        unnest(@data::jsonb[]) AS "data"
+),
+updated AS (
+    UPDATE "StepRunEvent"
+    SET
+        "timeLastSeen" = input_values."timeLastSeen",
+        "message" = input_values."message",
+        "count" = "StepRunEvent"."count" + 1,
+        "data" = input_values."data"
+    FROM input_values
+    WHERE
+        "StepRunEvent"."workflowRunId" = input_values."workflowRunId"
+        AND "StepRunEvent"."reason" = input_values."reason"
+        AND "StepRunEvent"."severity" = input_values."severity"
+        AND "StepRunEvent"."id" = (
+            SELECT "id"
+            FROM "StepRunEvent"
+            WHERE "workflowRunId" = input_values."workflowRunId"
+            ORDER BY "id" DESC
+            LIMIT 1
+        )
+    RETURNING "StepRunEvent".*
+)
+INSERT INTO "StepRunEvent" (
+    "timeFirstSeen",
+    "timeLastSeen",
+    "workflowRunId",
+    "reason",
+    "severity",
+    "message",
+    "count",
+    "data"
+)
+SELECT
+    "timeFirstSeen",
+    "timeLastSeen",
+    "workflowRunId",
+    "reason",
+    "severity",
+    "message",
+    "count",
+    "data"
+FROM input_values
+WHERE NOT EXISTS (
+    SELECT 1 FROM updated WHERE "workflowRunId" = input_values."workflowRunId"
+);
+
+-- name: ListWorkflowRunEventsByWorkflowRunId :many
+SELECT
+    sre.*
+FROM
+    "StepRunEvent" sre
+WHERE
+    sre."workflowRunId" = @workflowRunId::uuid
+ORDER BY
+    sre."id" DESC;

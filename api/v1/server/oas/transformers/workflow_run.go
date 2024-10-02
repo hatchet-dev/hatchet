@@ -42,7 +42,7 @@ func ToWorkflowRunShape(
 	}
 
 	if run.Duration.Valid {
-		duration := int(run.Duration.Int32)
+		duration := int(run.Duration.Int64)
 		res.Duration = &duration
 	}
 
@@ -86,18 +86,10 @@ func ToWorkflowRun(
 		Status:            gen.WorkflowRunStatus(run.Status),
 		WorkflowVersionId: sqlchelpers.UUIDToStr(run.WorkflowVersionId),
 		DisplayName:       &run.DisplayName.String,
-		// StartedAt:         &run.StartedAt.Time,
-		// FinishedAt:        &run.FinishedAt.Time,
-		Error: &run.Error.String,
+		StartedAt:         &run.StartedAt.Time,
+		FinishedAt:        &run.FinishedAt.Time,
+		Error:             &run.Error.String,
 	}
-
-	// if run.StartedAt.Valid {
-	// 	res.StartedAt = &run.StartedAt.Time
-	// }
-
-	// if run.FinishedAt.Valid {
-	// 	res.FinishedAt = &run.FinishedAt.Time
-	// }
 
 	res.TriggeredBy = *ToWorkflowRunTriggeredBy(run.ParentId, &run.WorkflowRunTriggeredBy)
 
@@ -124,6 +116,7 @@ func ToJobRun(
 	steps []*dbsqlc.GetStepsForJobsRow,
 	stepRuns []*repository.StepRunForJobRun,
 ) *gen.JobRun {
+
 	res := &gen.JobRun{
 		Metadata: *toAPIMetadata(
 			sqlchelpers.UUIDToStr(jobRun.ID),
@@ -244,6 +237,7 @@ func ToStepRun(stepRun *repository.StepRunForJobRun) *gen.StepRun {
 		TenantId:            sqlchelpers.UUIDToStr(stepRun.TenantId),
 		JobRunId:            sqlchelpers.UUIDToStr(stepRun.JobRunId),
 		ChildWorkflowsCount: &stepRun.ChildWorkflowsCount,
+		Output:              byteSliceToStringPointer(stepRun.Output),
 	}
 
 	if stepRun.CancelledError.Valid {
@@ -310,11 +304,20 @@ func ToStepRunEvent(stepRunEvent *dbsqlc.StepRunEvent) *gen.StepRunEvent {
 		Id:            int(stepRunEvent.ID),
 		TimeFirstSeen: stepRunEvent.TimeFirstSeen.Time,
 		TimeLastSeen:  stepRunEvent.TimeLastSeen.Time,
-		StepRunId:     sqlchelpers.UUIDToStr(stepRunEvent.StepRunId),
 		Severity:      gen.StepRunEventSeverity(stepRunEvent.Severity),
 		Reason:        gen.StepRunEventReason(stepRunEvent.Reason),
 		Message:       stepRunEvent.Message,
 		Count:         int(stepRunEvent.Count),
+	}
+
+	if stepRunEvent.StepRunId.Valid {
+		srId := sqlchelpers.UUIDToStr(stepRunEvent.StepRunId)
+		res.StepRunId = &srId
+	}
+
+	if stepRunEvent.WorkflowRunId.Valid {
+		wrId := sqlchelpers.UUIDToStr(stepRunEvent.WorkflowRunId)
+		res.WorkflowRunId = &wrId
 	}
 
 	if stepRunEvent.Data != nil {
@@ -460,7 +463,7 @@ func ToWorkflowRunFromSQLC(row *dbsqlc.ListWorkflowRunsRow) *gen.WorkflowRun {
 	var duration int
 
 	if run.Duration.Valid {
-		duration = int(run.Duration.Int32)
+		duration = int(run.Duration.Int64)
 	}
 
 	res := &gen.WorkflowRun{

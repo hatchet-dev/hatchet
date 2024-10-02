@@ -20,6 +20,11 @@ export interface APICloudMetadata {
    * @example true
    */
   canLinkGithub?: boolean;
+  /**
+   * whether metrics are enabled for the tenant
+   * @example true
+   */
+  metricsEnabled?: boolean;
 }
 
 export interface APIErrors {
@@ -481,3 +486,17 @@ export interface InstanceList {
  * @example {"flag1":"value1","flag2":"value2"}
  */
 export type FeatureFlags = Record<string, string>;
+
+export interface WorkflowRunEventsMetric {
+  /** @format date-time */
+  time: string;
+  PENDING: number;
+  RUNNING: number;
+  SUCCEEDED: number;
+  FAILED: number;
+  QUEUED: number;
+}
+
+export interface WorkflowRunEventsMetricsCounts {
+  results?: WorkflowRunEventsMetric[];
+}

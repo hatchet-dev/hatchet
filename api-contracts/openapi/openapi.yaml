@@ -94,10 +94,14 @@ paths:
     $ref: "./paths/tenant/tenant.yaml#/getQueueMetrics"
   /api/v1/tenants/{tenant}/events:
     $ref: "./paths/event/event.yaml#/withTenant"
+  /api/v1/tenants/{tenant}/events/bulk:
+    $ref: "./paths/event/event.yaml#/bulkCreateEvents"
   /api/v1/tenants/{tenant}/events/replay:
     $ref: "./paths/event/event.yaml#/replayEvents"
   /api/v1/tenants/{tenant}/events/cancel:
     $ref: "./paths/event/event.yaml#/cancelEvents"
+  /api/v1/tenants/{tenant}/rate-limits:
+    $ref: "./paths/rate-limits/rate_limits.yaml#/withTenant"
   /api/v1/tenants/{tenant}/members:
     $ref: "./paths/tenant/tenant.yaml#/members"
   /api/v1/tenants/{tenant}/members/{member}:
@@ -128,6 +132,8 @@ paths:
     $ref: "./paths/step-run/step-run.yaml#/listStepRunEventsForWorkflowRun"
   /api/v1/step-runs/{step-run}/archives:
     $ref: "./paths/step-run/step-run.yaml#/listArchives"
+  /api/v1/tenants/{tenant}/workflows/{workflow}/worker-count:
+    $ref: "./paths/workflow/workflow.yaml#/workflowWorkersCount"
   /api/v1/tenants/{tenant}/workflows/runs:
     $ref: "./paths/workflow/workflow.yaml#/workflowRuns"
   /api/v1/tenants/{tenant}/workflow-runs/replay:

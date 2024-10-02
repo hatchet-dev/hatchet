@@ -18,6 +18,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/ingestors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/logs"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/metadata"
+	rate_limits "github.com/hatchet-dev/hatchet/api/v1/server/handlers/rate-limits"
 	slackapp "github.com/hatchet-dev/hatchet/api/v1/server/handlers/slack-app"
 	stepruns "github.com/hatchet-dev/hatchet/api/v1/server/handlers/step-runs"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/tenants"
@@ -37,6 +38,7 @@ type apiService struct {
 	*users.UserService
 	*tenants.TenantService
 	*events.EventService
+	*rate_limits.RateLimitService
 	*logs.LogService
 	*workflows.WorkflowService
 	*workers.WorkerService
@@ -54,6 +56,7 @@ func newAPIService(config *server.ServerConfig) *apiService {
 		UserService:           users.NewUserService(config),
 		TenantService:         tenants.NewTenantService(config),
 		EventService:          events.NewEventService(config),
+		RateLimitService:      rate_limits.NewRateLimitService(config),
 		LogService:            logs.NewLogService(config),
 		WorkflowService:       workflows.NewWorkflowService(config),
 		WorkflowRunsService:   workflowruns.NewWorkflowRunsService(config),

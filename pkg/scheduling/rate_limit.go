@@ -16,7 +16,7 @@ type RateLimit struct {
 	mu                sync.Mutex
 }
 
-func NewRateLimit(key string, rl *dbsqlc.ListRateLimitsForTenantRow) *RateLimit {
+func NewRateLimit(key string, rl *dbsqlc.ListRateLimitsForTenantWithMutateRow) *RateLimit {
 	return &RateLimit{
 		key:               key,
 		maxUnits:          rl.Value,
