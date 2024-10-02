@@ -1064,12 +1064,6 @@ func (s *DispatcherImpl) handleStepRunStarted(ctx context.Context, request *cont
 		TenantId: tenantId,
 	})
 
-	err = s.repo.StepRun().ReleaseStepRunSemaphore(ctx, tenantId, request.StepRunId, false)
-
-	if err != nil {
-		s.l.Error().Err(err).Msgf("could not release semaphore for step run %s", request.StepRunId)
-	}
-
 	// send the event to the jobs queue
 	err = s.mq.AddMessage(ctx, msgqueue.JOB_PROCESSING_QUEUE, &msgqueue.Message{
 		ID:       "step-run-started",
