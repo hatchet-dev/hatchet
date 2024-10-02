@@ -307,7 +307,7 @@ func NewEngineRepository(pool *pgxpool.Pool, queuePool *pgxpool.Pool, cf *server
 			event:          NewEventEngineRepository(pool, opts.v, opts.l, opts.metered),
 			getGroupKeyRun: NewGetGroupKeyRunRepository(pool, opts.v, opts.l),
 			jobRun:         NewJobRunEngineRepository(pool, opts.v, opts.l),
-			stepRun:        NewStepRunEngineRepository(queuePool, opts.v, opts.l, cf, rlCache),
+			stepRun:        NewStepRunEngineRepository(pool, queuePool, opts.v, opts.l, cf, rlCache),
 			step:           NewStepRepository(pool, opts.v, opts.l),
 			tenant:         NewTenantEngineRepository(pool, opts.v, opts.l, opts.cache),
 			tenantAlerting: NewTenantAlertingEngineRepository(pool, opts.v, opts.l, opts.cache),

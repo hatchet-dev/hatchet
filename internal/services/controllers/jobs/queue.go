@@ -282,7 +282,7 @@ func (q *queue) runTenantUpdateStepRuns(ctx context.Context) func() {
 }
 
 func (q *queue) processStepRunUpdates(ctx context.Context, tenantId string) (bool, error) {
-	ctx, span := telemetry.NewSpan(ctx, "process-worker-semaphores")
+	ctx, span := telemetry.NewSpan(ctx, "process-step-run-updates")
 	defer span.End()
 
 	dbCtx, cancel := context.WithTimeout(ctx, 300*time.Second)

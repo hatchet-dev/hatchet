@@ -257,6 +257,7 @@ func (s *stepRunAPIRepository) ListStepRunArchives(tenantId string, stepRunId st
 
 type stepRunEngineRepository struct {
 	pool                     *pgxpool.Pool
+	queuePool                *pgxpool.Pool
 	v                        validator.Validator
 	l                        *zerolog.Logger
 	queries                  *dbsqlc.Queries
@@ -266,11 +267,12 @@ type stepRunEngineRepository struct {
 	callbacks                []repository.Callback[*dbsqlc.ResolveWorkflowRunStatusRow]
 }
 
-func NewStepRunEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, cf *server.ConfigFileRuntime, rlCache *cache.Cache) repository.StepRunEngineRepository {
+func NewStepRunEngineRepository(pool *pgxpool.Pool, queuePool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, cf *server.ConfigFileRuntime, rlCache *cache.Cache) repository.StepRunEngineRepository {
 	queries := dbsqlc.New()
 
 	return &stepRunEngineRepository{
 		pool:                     pool,
+		queuePool:                queuePool,
 		v:                        v,
 		l:                        l,
 		queries:                  queries,
@@ -888,7 +890,7 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, qlp *zerolo
 		Valid: true,
 	}
 
-	tx, err := s.pool.Begin(ctx)
+	tx, err := s.queuePool.Begin(ctx)
 
 	if err != nil {
 		return emptyRes, err
@@ -1595,7 +1597,7 @@ func (s *stepRunEngineRepository) ProcessStepRunUpdates(ctx context.Context, qlp
 		limit = s.cf.SingleQueueLimit * 4 // we call update step run 4x
 	}
 
-	tx, commit, rollback, err := prepareTx(ctx, s.pool, s.l, 25000)
+	tx, commit, rollback, err := prepareTx(ctx, s.queuePool, s.l, 25000)
 
 	if err != nil {
 		return emptyRes, err
@@ -1862,7 +1864,7 @@ func (s *stepRunEngineRepository) CleanupQueueItems(ctx context.Context, tenantI
 	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
 
 	// get the min and max queue items
-	minMax, err := s.queries.GetMinMaxProcessedQueueItems(ctx, s.pool, pgTenantId)
+	minMax, err := s.queries.GetMinMaxProcessedQueueItems(ctx, s.queuePool, pgTenantId)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -1884,7 +1886,7 @@ func (s *stepRunEngineRepository) CleanupQueueItems(ctx context.Context, tenantI
 	}
 
 	// iterate until we have no more queue items to process
-	var batchSize int64 = 1000
+	var batchSize int64 = 10000
 	var currBatch int64
 
 	for {
@@ -1901,7 +1903,7 @@ func (s *stepRunEngineRepository) CleanupQueueItems(ctx context.Context, tenantI
 		}
 
 		// get the next batch of queue items
-		err := s.queries.CleanupQueueItems(ctx, s.pool, dbsqlc.CleanupQueueItemsParams{
+		err := s.queries.CleanupQueueItems(ctx, s.queuePool, dbsqlc.CleanupQueueItemsParams{
 			Minid:    minId,
 			Maxid:    minId + batchSize*currBatch,
 			Tenantid: pgTenantId,
@@ -1953,7 +1955,7 @@ func (s *stepRunEngineRepository) CleanupInternalQueueItems(ctx context.Context,
 	}
 
 	// iterate until we have no more queue items to process
-	var batchSize int64 = 1000
+	var batchSize int64 = 10000
 	var currBatch int64
 
 	for {
@@ -1970,7 +1972,7 @@ func (s *stepRunEngineRepository) CleanupInternalQueueItems(ctx context.Context,
 		}
 
 		// get the next batch of queue items
-		err := s.queries.CleanupInternalQueueItems(ctx, s.pool, dbsqlc.CleanupInternalQueueItemsParams{
+		err := s.queries.CleanupInternalQueueItems(ctx, s.queuePool, dbsqlc.CleanupInternalQueueItemsParams{
 			Minid:    minId,
 			Maxid:    minId + batchSize*currBatch,
 			Tenantid: pgTenantId,
@@ -2024,7 +2026,7 @@ func (s *stepRunEngineRepository) StepRunSucceeded(ctx context.Context, tenantId
 
 	finished := string(dbsqlc.StepRunStatusSUCCEEDED)
 
-	tx, err := s.pool.Begin(ctx)
+	tx, err := s.queuePool.Begin(ctx)
 
 	if err != nil {
 		return err
@@ -2081,7 +2083,7 @@ func (s *stepRunEngineRepository) StepRunCancelled(ctx context.Context, tenantId
 
 	cancelled := string(dbsqlc.StepRunStatusCANCELLED)
 
-	tx, err := s.pool.Begin(ctx)
+	tx, err := s.queuePool.Begin(ctx)
 
 	if err != nil {
 		return err
@@ -2146,7 +2148,7 @@ func (s *stepRunEngineRepository) StepRunFailed(ctx context.Context, tenantId, s
 
 	failed := string(dbsqlc.StepRunStatusFAILED)
 
-	tx, err := s.pool.Begin(ctx)
+	tx, err := s.queuePool.Begin(ctx)
 
 	if err != nil {
 		return err
@@ -2473,7 +2475,7 @@ func (s *stepRunEngineRepository) QueueStepRun(ctx context.Context, tenantId, st
 		return nil, err
 	}
 
-	tx, commit, rollback, err := prepareTx(ctx, s.pool, s.l, 5000)
+	tx, commit, rollback, err := prepareTx(ctx, s.queuePool, s.l, 5000)
 
 	if err != nil {
 		return nil, err
