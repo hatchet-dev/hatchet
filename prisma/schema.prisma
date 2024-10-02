@@ -424,6 +424,9 @@ model Event {
   // metadata stored in the event
   additionalMetadata Json?
 
+  // this is used to order the events on bulk inserts
+  insertOrder Int?
+
   @@index([tenantId])
   @@index([createdAt])
   @@index([tenantId, createdAt])

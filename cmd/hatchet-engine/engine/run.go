@@ -330,6 +330,11 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig) ([]Teardown, er
 			return nil, fmt.Errorf("could not create ingestor: %w", err)
 		}
 
+		cleanupIngestor, err := ei.StartBufferLoop()
+		if err != nil {
+			return nil, fmt.Errorf("could not start ingestor buffer: %w", err)
+		}
+
 		adminSvc, err := admin.NewAdminService(
 			admin.WithRepository(sc.EngineRepository),
 			admin.WithMessageQueue(sc.MessageQueue),
@@ -385,6 +390,14 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig) ([]Teardown, er
 				err := grpcServerCleanup()
 				if err != nil {
 					return fmt.Errorf("failed to cleanup GRPC server: %w", err)
+				}
+				return nil
+			})
+
+			g.Go(func() error {
+				err := cleanupIngestor()
+				if err != nil {
+					return fmt.Errorf("failed to cleanup ingestor: %w", err)
 				}
 				return nil
 			})

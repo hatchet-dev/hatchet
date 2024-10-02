@@ -179,6 +179,10 @@ func (ec *EventsControllerImpl) processEvent(ctx context.Context, tenantId, even
 	ctx, span := telemetry.NewSpan(ctx, "process-event")
 	defer span.End()
 
+	if additionalMetadata == nil {
+		additionalMetadata = make(map[string]interface{})
+	}
+
 	// query for matching workflows in the system
 	workflowVersions, err := ec.repo.Workflow().ListWorkflowsForEvent(ctx, tenantId, eventKey)
 
@@ -194,6 +198,13 @@ func (ec *EventsControllerImpl) processEvent(ctx context.Context, tenantId, even
 
 		g.Go(func() error {
 
+			if additionalMetadata["hatchet__event_id"] == nil {
+				additionalMetadata["hatchet__event_id"] = eventId
+			}
+
+			if additionalMetadata["hatchet__event_key"] == nil {
+				additionalMetadata["hatchet__event_key"] = eventKey
+			}
 			// create a new workflow run in the database
 			createOpts, err := repository.GetCreateWorkflowRunOptsFromEvent(eventId, workflowCp, data, additionalMetadata)
 
