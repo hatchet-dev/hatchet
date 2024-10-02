@@ -139,19 +139,14 @@ func (b *IngestBuf[T, U]) buffWorker() {
 			b.safeAppendInternalArray(e)
 			b.safeIncSizeOfData(b.calcSizeOfData([]T{e.item}))
 
-			if b.safeCheckSizeOfBuffer() >= b.maxCapacity {
-				go b.flush(b.sliceInternalArray())
-			}
-			if b.safeFetchSizeOfData() >= b.maxDataSizeInQueue {
-				go b.flush(b.sliceInternalArray())
+			if b.safeCheckSizeOfBuffer() >= b.maxCapacity || b.safeFetchSizeOfData() >= b.maxDataSizeInQueue {
+				b.flush(b.sliceInternalArray())
 			}
 
 		case <-time.After(time.Until(b.safeFetchLastFlush().Add(b.flushPeriod))):
-			if b.safeCheckSizeOfBuffer() > 0 {
-				go b.flush(b.sliceInternalArray())
-			} else {
-				b.safeSetLastFlush(time.Now())
-			}
+
+			b.flush(b.sliceInternalArray())
+
 		}
 	}
 }
@@ -164,6 +159,8 @@ func (b *IngestBuf[T, U]) sliceInternalArray() (items []*inputWrapper[T, U]) {
 		items = b.internalArr[:b.maxCapacity]
 		b.internalArr = b.internalArr[b.maxCapacity:]
 	} else {
+		b.lock.Lock()
+		defer b.lock.Unlock()
 		items = b.internalArr
 		b.internalArr = nil
 	}
@@ -193,6 +190,11 @@ func (b *IngestBuf[T, U]) flush(items []*inputWrapper[T, U]) {
 	numItems := len(items)
 	b.safeSetLastFlush(time.Now())
 
+	if numItems == 0 {
+		// nothing to flush
+		return
+	}
+
 	var doneChans []chan<- *flushResponse[U]
 	opts := make([]T, numItems)
 
@@ -202,31 +204,33 @@ func (b *IngestBuf[T, U]) flush(items []*inputWrapper[T, U]) {
 	}
 
 	b.safeDecSizeOfData(b.calcSizeOfData(opts))
+	go func() {
+		ctx := context.Background()
+		result, err := b.outputFunc(ctx, opts)
 
-	ctx := context.Background()
-	result, err := b.outputFunc(ctx, opts)
+		if err != nil {
+			for _, doneChan := range doneChans {
+				select {
+				case doneChan <- &flushResponse[U]{err: err}:
+				default:
+					b.l.Error().Msgf("could not send error to done chan: %v", err)
 
-	if err != nil {
-		for _, doneChan := range doneChans {
+				}
+			}
+			return
+		}
+
+		for i, d := range doneChans {
 			select {
-			case doneChan <- &flushResponse[U]{err: err}:
+			case d <- &flushResponse[U]{result: result[i], err: nil}:
 			default:
-				b.l.Error().Msgf("could not send error to done chan: %v", err)
-
+				b.l.Error().Msg("could not send done to done chan")
 			}
 		}
-		return
-	}
 
-	for i, d := range doneChans {
-		select {
-		case d <- &flushResponse[U]{result: result[i], err: nil}:
-		default:
-			b.l.Error().Msg("could not send done to done chan")
-		}
-	}
+		b.l.Debug().Msgf("Flushed %d items", numItems)
+	}()
 
-	b.l.Debug().Msgf("Flushed %d items", numItems)
 }
 
 func (b *IngestBuf[T, U]) cleanup() error {

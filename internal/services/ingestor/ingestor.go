@@ -21,7 +21,6 @@ type Ingestor interface {
 	IngestEvent(ctx context.Context, tenantId, eventName string, data []byte, metadata []byte) (*dbsqlc.Event, error)
 	BulkIngestEvent(ctx context.Context, tenantID string, eventOpts []*repository.CreateEventOpts) ([]*dbsqlc.Event, error)
 	IngestReplayedEvent(ctx context.Context, tenantId string, replayedEvent *dbsqlc.Event) (*dbsqlc.Event, error)
-	StartBufferLoop() (func() error, error)
 }
 
 type IngestorOptFunc func(*IngestorOpts)
@@ -112,9 +111,6 @@ func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
 		mq:            opts.mq,
 		v:             validator.NewDefaultValidator(),
 	}, nil
-}
-func (i *IngestorImpl) StartBufferLoop() (func() error, error) {
-	return i.eventRepository.StartBufferLoop()
 }
 
 func (i *IngestorImpl) IngestEvent(ctx context.Context, tenantId, key string, data []byte, metadata []byte) (*dbsqlc.Event, error) {

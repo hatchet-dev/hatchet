@@ -198,17 +198,13 @@ func sizeOfEvent(item *repository.CreateEventOpts) int {
 	return len(item.Data) + len(item.AdditionalMetadata)
 }
 
-func (e *eventEngineRepository) StartBufferLoop() (func() error, error) {
+func (e *eventEngineRepository) startBufferLoop() error {
 
 	tenantBufOpts := TenantBufManagerOpts[*repository.CreateEventOpts, *dbsqlc.Event]{OutputFunc: e.BulkCreateEventSharedTenant, SizeFunc: sizeOfEvent, L: e.l, V: e.v}
 	var err error
 	e.bulkCreateBuffer, err = NewTenantBufManager(tenantBufOpts)
 
-	if err != nil {
-		return nil, err
-	}
-
-	return e.bulkCreateBuffer.cleanup, err
+	return err
 
 }
 
@@ -237,16 +233,23 @@ type eventEngineRepository struct {
 	callbacks        []repository.Callback[*dbsqlc.Event]
 }
 
-func NewEventEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, m *metered.Metered) repository.EventEngineRepository {
+func (r *eventEngineRepository) Cleanup() error {
+	return r.bulkCreateBuffer.cleanup()
+}
+
+func NewEventEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, m *metered.Metered) (repository.EventEngineRepository, error) {
 	queries := dbsqlc.New()
 
-	return &eventEngineRepository{
+	e := eventEngineRepository{
 		pool:    pool,
 		v:       v,
 		queries: queries,
 		l:       l,
 		m:       m,
 	}
+	err := e.startBufferLoop()
+
+	return &e, err
 }
 
 func (r *eventEngineRepository) RegisterCreateCallback(callback repository.Callback[*dbsqlc.Event]) {

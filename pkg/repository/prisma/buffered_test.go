@@ -109,7 +109,7 @@ func TestIngestBufBuffering(t *testing.T) {
 	assert.Equal(t, 1, resp.result.ID)
 
 	assert.Equal(t, 0, buf.safeFetchSizeOfData())
-	assert.Equal(t, 0, len(buf.internalArr))
+	assert.Equal(t, 0, buf.safeCheckSizeOfBuffer())
 
 }
 
@@ -149,7 +149,7 @@ func TestIngestBufAutoFlushOnCapacity(t *testing.T) {
 	wg.Wait()
 
 	assert.Equal(t, 0, buf.safeFetchSizeOfData())
-	assert.Equal(t, 0, len(buf.internalArr))
+	assert.Equal(t, 0, buf.safeCheckSizeOfBuffer())
 
 }
 
@@ -179,7 +179,7 @@ func TestIngestBufAutoFlushOnSize(t *testing.T) {
 	assert.Equal(t, 1, resp.result.ID)
 
 	assert.Equal(t, 0, buf.safeFetchSizeOfData())
-	assert.Equal(t, 0, len(buf.internalArr))
+	assert.Equal(t, 0, buf.safeCheckSizeOfBuffer())
 
 }
 
@@ -213,7 +213,7 @@ func TestIngestBufTimeoutFlush(t *testing.T) {
 	}
 
 	assert.Equal(t, 0, buf.safeFetchSizeOfData())
-	assert.Equal(t, 0, len(buf.internalArr))
+	assert.Equal(t, 0, buf.safeCheckSizeOfBuffer())
 }
 
 func TestIngestBufOrderPreservation(t *testing.T) {

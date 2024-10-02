@@ -281,7 +281,7 @@ func (r *engineRepository) WebhookWorker() repository.WebhookWorkerEngineReposit
 	return r.webhookWorker
 }
 
-func NewEngineRepository(pool *pgxpool.Pool, queuePool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ...PrismaRepositoryOpt) (func() error, repository.EngineRepository) {
+func NewEngineRepository(pool *pgxpool.Pool, queuePool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ...PrismaRepositoryOpt) (func() error, repository.EngineRepository, error) {
 	opts := defaultPrismaRepositoryOpts()
 
 	for _, f := range fs {
@@ -296,15 +296,18 @@ func NewEngineRepository(pool *pgxpool.Pool, queuePool *pgxpool.Pool, cf *server
 	}
 
 	rlCache := cache.New(5 * time.Minute)
+	eventEngine, err := NewEventEngineRepository(pool, opts.v, opts.l, opts.metered)
 
 	return func() error {
+
 			rlCache.Stop()
-			return nil
+			return eventEngine.Cleanup()
+
 		}, &engineRepository{
 			health:         NewHealthEngineRepository(pool),
 			apiToken:       NewEngineTokenRepository(pool, opts.v, opts.l, opts.cache),
 			dispatcher:     NewDispatcherRepository(pool, opts.v, opts.l),
-			event:          NewEventEngineRepository(pool, opts.v, opts.l, opts.metered),
+			event:          eventEngine,
 			getGroupKeyRun: NewGetGroupKeyRunRepository(pool, opts.v, opts.l),
 			jobRun:         NewJobRunEngineRepository(pool, opts.v, opts.l),
 			stepRun:        NewStepRunEngineRepository(queuePool, opts.v, opts.l, cf, rlCache),
@@ -319,7 +322,8 @@ func NewEngineRepository(pool *pgxpool.Pool, queuePool *pgxpool.Pool, cf *server
 			log:            NewLogEngineRepository(pool, opts.v, opts.l),
 			rateLimit:      NewRateLimitEngineRepository(pool, opts.v, opts.l),
 			webhookWorker:  NewWebhookWorkerEngineRepository(pool, opts.v, opts.l),
-		}
+		},
+		err
 }
 
 type entitlementRepository struct {

@@ -42,7 +42,8 @@ func NewTenantBufManager[T any, U any](opts TenantBufManagerOpts[T, U]) (*Tenant
 	megabyte := 1024 * 1024
 
 	defaultOpts := IngestBufOpts[T, U]{
-		MaxCapacity:        1000,
+		// something we can tune if we see this DB transaction is too slow
+		MaxCapacity:        10000,
 		FlushPeriod:        50 * time.Millisecond,
 		MaxDataSizeInQueue: 4 * megabyte,
 		OutputFunc:         opts.OutputFunc,
