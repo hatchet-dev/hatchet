@@ -194,6 +194,10 @@ func (ec *EventsControllerImpl) processEvent(ctx context.Context, tenantId, even
 
 	additionalMetadata = cleanAdditionalMetadata(additionalMetadata)
 
+	additionalMetadata["hatchet__event_id"] = eventId
+
+	additionalMetadata["hatchet__event_key"] = eventKey
+
 	// query for matching workflows in the system
 	workflowVersions, err := ec.repo.Workflow().ListWorkflowsForEvent(ctx, tenantId, eventKey)
 
@@ -208,10 +212,6 @@ func (ec *EventsControllerImpl) processEvent(ctx context.Context, tenantId, even
 		workflowCp := workflowVersion
 
 		g.Go(func() error {
-
-			additionalMetadata["hatchet__event_id"] = eventId
-
-			additionalMetadata["hatchet__event_key"] = eventKey
 
 			// create a new workflow run in the database
 			createOpts, err := repository.GetCreateWorkflowRunOptsFromEvent(eventId, workflowCp, data, additionalMetadata)
