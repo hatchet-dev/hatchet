@@ -86,6 +86,13 @@ func NewIngestBuffer[T any, U any](opts IngestBufOpts[T, U]) *IngestBuf[T, U] {
 	}
 }
 
+func (b *IngestBuf[T, U]) safeAppendInternalArray(e *inputWrapper[T, U]) {
+	b.lock.Lock()
+	defer b.lock.Unlock()
+
+	b.internalArr = append(b.internalArr, e)
+}
+
 func (b *IngestBuf[T, U]) safeFetchSizeOfData() int {
 	b.lock.Lock()
 	defer b.lock.Unlock()
@@ -129,7 +136,7 @@ func (b *IngestBuf[T, U]) buffWorker() {
 		case <-b.ctx.Done():
 			return
 		case e := <-b.inputChan:
-			b.internalArr = append(b.internalArr, e)
+			b.safeAppendInternalArray(e)
 			b.safeIncSizeOfData(b.calcSizeOfData([]T{e.item}))
 
 			if len(b.internalArr) >= b.maxCapacity {
