@@ -139,7 +139,7 @@ func (b *IngestBuf[T, U]) buffWorker() {
 			b.safeAppendInternalArray(e)
 			b.safeIncSizeOfData(b.calcSizeOfData([]T{e.item}))
 
-			if len(b.internalArr) >= b.maxCapacity {
+			if b.safeCheckSizeOfBuffer() >= b.maxCapacity {
 				go b.flush(b.sliceInternalArray())
 			}
 			if b.safeFetchSizeOfData() >= b.maxDataSizeInQueue {
@@ -147,7 +147,7 @@ func (b *IngestBuf[T, U]) buffWorker() {
 			}
 
 		case <-time.After(time.Until(b.safeFetchLastFlush().Add(b.flushPeriod))):
-			if len(b.internalArr) > 0 {
+			if b.safeCheckSizeOfBuffer() > 0 {
 				go b.flush(b.sliceInternalArray())
 			} else {
 				b.safeSetLastFlush(time.Now())
@@ -157,10 +157,10 @@ func (b *IngestBuf[T, U]) buffWorker() {
 }
 
 func (b *IngestBuf[T, U]) sliceInternalArray() (items []*inputWrapper[T, U]) {
-	b.lock.Lock()
-	defer b.lock.Unlock()
 
-	if len(b.internalArr) >= b.maxCapacity {
+	if b.safeCheckSizeOfBuffer() >= b.maxCapacity {
+		b.lock.Lock()
+		defer b.lock.Unlock()
 		items = b.internalArr[:b.maxCapacity]
 		b.internalArr = b.internalArr[b.maxCapacity:]
 	} else {
@@ -181,6 +181,12 @@ func (b *IngestBuf[T, U]) calcSizeOfData(items []T) int {
 		size += b.sizeFunc(item)
 	}
 	return size
+}
+
+func (b *IngestBuf[T, U]) safeCheckSizeOfBuffer() int {
+	b.lock.Lock()
+	defer b.lock.Unlock()
+	return len(b.internalArr)
 }
 
 func (b *IngestBuf[T, U]) flush(items []*inputWrapper[T, U]) {
@@ -231,7 +237,7 @@ func (b *IngestBuf[T, U]) cleanup() error {
 
 	g := errgroup.Group{}
 
-	for len(b.internalArr) > 0 {
+	for b.safeCheckSizeOfBuffer() > 0 {
 		g.Go(func() error {
 			b.flush(b.sliceInternalArray())
 			return nil
