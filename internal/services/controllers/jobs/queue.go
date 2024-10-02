@@ -277,7 +277,7 @@ func (q *queue) processStepRunUpdates(ctx context.Context, tenantId string) (boo
 	}
 
 	// for all succeeded step runs, check for startable child step runs
-	err = MakeBatched(20, res.SucceededStepRuns, func(group []*dbsqlc.GetStepRunForEngineRow) error {
+	err = queueutils.MakeBatched(20, res.SucceededStepRuns, func(group []*dbsqlc.GetStepRunForEngineRow) error {
 		for _, stepRun := range group {
 			if stepRun.SRChildCount == 0 {
 				continue

@@ -16,6 +16,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/datautils/merge"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
+	"github.com/hatchet-dev/hatchet/internal/queueutils"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/partition"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
@@ -287,8 +288,6 @@ func (ec *JobsControllerImpl) handleTask(ctx context.Context, task *msgqueue.Mes
 	}()
 
 	switch task.ID {
-	case "job-run-queued":
-		return ec.handleJobRunQueued(ctx, task)
 	case "job-run-cancelled":
 		return ec.handleJobRunCancelled(ctx, task)
 	case "step-run-replay":
@@ -309,62 +308,6 @@ func (ec *JobsControllerImpl) handleTask(ctx context.Context, task *msgqueue.Mes
 		return ec.handleStepRunTimedOut(ctx, task)
 	}
 	return fmt.Errorf("unknown task: %s", task.ID)
-}
-
-func (ec *JobsControllerImpl) handleJobRunQueued(ctx context.Context, task *msgqueue.Message) error {
-	ctx, span := telemetry.NewSpanWithCarrier(ctx, "handle-job-run-queued", task.OtelCarrier)
-	defer span.End()
-
-	payload := tasktypes.JobRunQueuedTaskPayload{}
-	metadata := tasktypes.JobRunQueuedTaskMetadata{}
-
-	err := ec.dv.DecodeAndValidate(task.Payload, &payload)
-
-	if err != nil {
-		return fmt.Errorf("could not decode job task payload: %w", err)
-	}
-
-	err = ec.dv.DecodeAndValidate(task.Metadata, &metadata)
-
-	if err != nil {
-		return fmt.Errorf("could not decode job task metadata: %w", err)
-	}
-
-	err = ec.repo.JobRun().SetJobRunStatusRunning(ctx, metadata.TenantId, payload.JobRunId)
-
-	if err != nil {
-		return fmt.Errorf("could not set job run status to running: %w", err)
-	}
-
-	// list the step runs which are startable
-	startableStepRuns, err := ec.repo.StepRun().ListStartableStepRuns(ctx, metadata.TenantId, payload.JobRunId, nil)
-
-	if err != nil {
-		return fmt.Errorf("could not list startable step runs: %w", err)
-	}
-
-	g := new(errgroup.Group)
-
-	for _, stepRun := range startableStepRuns {
-		stepRunCp := stepRun
-
-		g.Go(func() error {
-			return ec.mq.AddMessage(
-				ctx,
-				msgqueue.JOB_PROCESSING_QUEUE,
-				tasktypes.StepRunQueuedToTask(stepRunCp),
-			)
-		})
-	}
-
-	err = g.Wait()
-
-	if err != nil {
-		ec.l.Err(err).Msg("could not run job run queued")
-		return err
-	}
-
-	return nil
 }
 
 func (ec *JobsControllerImpl) handleJobRunCancelled(ctx context.Context, task *msgqueue.Message) error {
@@ -618,25 +561,6 @@ func (jc *JobsControllerImpl) runPgStat() func() {
 	}
 }
 
-func MakeBatched[T any](batchSize int, things []T, fn func(group []T) error) error {
-	g := new(errgroup.Group)
-
-	for i := 0; i < len(things); i += batchSize {
-		end := i + batchSize
-		if end > len(things) {
-			end = len(things)
-		}
-
-		group := things[i:end]
-
-		g.Go(func() error {
-			return fn(group)
-		})
-	}
-
-	return g.Wait()
-}
-
 func (jc *JobsControllerImpl) runStepRunReassign(ctx context.Context, startedAt time.Time) func() {
 	return func() {
 		// if we are within 15 seconds of the started time, then we should not reassign step runs
@@ -767,7 +691,7 @@ func (ec *JobsControllerImpl) runStepRunTimeoutTenant(ctx context.Context, tenan
 		ec.l.Info().Msgf("timing out %d step runs", num)
 	}
 
-	return MakeBatched(10, stepRuns, func(group []*dbsqlc.GetStepRunForEngineRow) error {
+	return queueutils.MakeBatched(10, stepRuns, func(group []*dbsqlc.GetStepRunForEngineRow) error {
 		scheduleCtx, cancel := context.WithTimeout(context.Background(), time.Minute)
 		defer cancel()
 
