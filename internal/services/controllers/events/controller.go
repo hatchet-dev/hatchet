@@ -175,13 +175,24 @@ func (ec *EventsControllerImpl) handleTask(ctx context.Context, task *msgqueue.M
 	return ec.processEvent(ctx, metadata.TenantId, payload.EventId, payload.EventKey, []byte(payload.EventData), additionalMetadata)
 }
 
+func cleanAdditionalMetadata(additionalMetadata map[string]interface{}) map[string]interface{} {
+	if additionalMetadata == nil {
+		additionalMetadata = make(map[string]interface{})
+	}
+
+	for key := range additionalMetadata {
+		if key[:10] == "hatchet__" {
+			delete(additionalMetadata, key)
+		}
+	}
+	return additionalMetadata
+}
+
 func (ec *EventsControllerImpl) processEvent(ctx context.Context, tenantId, eventId, eventKey string, data []byte, additionalMetadata map[string]interface{}) error {
 	ctx, span := telemetry.NewSpan(ctx, "process-event")
 	defer span.End()
 
-	if additionalMetadata == nil {
-		additionalMetadata = make(map[string]interface{})
-	}
+	additionalMetadata = cleanAdditionalMetadata(additionalMetadata)
 
 	// query for matching workflows in the system
 	workflowVersions, err := ec.repo.Workflow().ListWorkflowsForEvent(ctx, tenantId, eventKey)
@@ -198,13 +209,10 @@ func (ec *EventsControllerImpl) processEvent(ctx context.Context, tenantId, even
 
 		g.Go(func() error {
 
-			if additionalMetadata["hatchet__event_id"] == nil {
-				additionalMetadata["hatchet__event_id"] = eventId
-			}
+			additionalMetadata["hatchet__event_id"] = eventId
 
-			if additionalMetadata["hatchet__event_key"] == nil {
-				additionalMetadata["hatchet__event_key"] = eventKey
-			}
+			additionalMetadata["hatchet__event_key"] = eventKey
+
 			// create a new workflow run in the database
 			createOpts, err := repository.GetCreateWorkflowRunOptsFromEvent(eventId, workflowCp, data, additionalMetadata)
 
