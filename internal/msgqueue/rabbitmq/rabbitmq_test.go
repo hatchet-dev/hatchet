@@ -66,7 +66,7 @@ func TestMessageQueueIntegration(t *testing.T) {
 	assert.NoError(t, err, "registering tenant should not error")
 
 	// Assuming there's a mechanism to retrieve a tenant-specific queue, e.g., by tenant ID
-	tenantQueue, err := msgqueue.TenantEventConsumerQueue(tenantId)
+	tenantQueue := msgqueue.TenantEventConsumerQueue(tenantId)
 
 	if err != nil {
 		t.Fatalf("error creating tenant-specific queue: %v", err)

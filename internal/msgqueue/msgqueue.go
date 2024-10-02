@@ -113,11 +113,11 @@ func (f fanoutQueue) FanoutExchangeKey() string {
 	return f.consumerQueue.Name()
 }
 
-func TenantEventConsumerQueue(t string) (fanoutQueue, error) {
+func TenantEventConsumerQueue(t string) fanoutQueue {
 	// generate a unique queue name for the tenant
 	return fanoutQueue{
 		consumerQueue: consumerQueue(t),
-	}, nil
+	}
 }
 
 type Message struct {
