@@ -945,6 +945,8 @@ func (s *DispatcherImpl) SendStepActionEvent(ctx context.Context, request *contr
 	switch request.EventType {
 	case contracts.StepActionEventType_STEP_EVENT_TYPE_STARTED:
 		return s.handleStepRunStarted(ctx, request)
+	case contracts.StepActionEventType_STEP_EVENT_TYPE_ACKNOWLEDGED:
+		return s.handleStepRunAcked(ctx, request)
 	case contracts.StepActionEventType_STEP_EVENT_TYPE_COMPLETED:
 		return s.handleStepRunCompleted(ctx, request)
 	case contracts.StepActionEventType_STEP_EVENT_TYPE_FAILED:
@@ -1071,6 +1073,54 @@ func (s *DispatcherImpl) handleStepRunStarted(inputCtx context.Context, request 
 	// send the event to the jobs queue
 	err = s.mq.AddMessage(ctx, msgqueue.JOB_PROCESSING_QUEUE, &msgqueue.Message{
 		ID:       "step-run-started",
+		Payload:  payload,
+		Metadata: metadata,
+		Retries:  3,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &contracts.ActionEventResponse{
+		TenantId: tenantId,
+		WorkerId: request.WorkerId,
+	}, nil
+}
+
+func (s *DispatcherImpl) handleStepRunAcked(inputCtx context.Context, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
+	tenant := inputCtx.Value("tenant").(*dbsqlc.Tenant)
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+
+	// run the rest on a separate context to always send to job controller
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	s.l.Debug().Msgf("Received step ack event for step run %s", request.StepRunId)
+
+	startedAt := request.EventTimestamp.AsTime()
+
+	sr, err := s.repo.StepRun().GetStepRunForEngine(ctx, tenantId, request.StepRunId)
+
+	if err != nil {
+		return nil, err
+	}
+
+	payload, _ := datautils.ToJSONMap(tasktypes.StepRunStartedTaskPayload{
+		StepRunId:     request.StepRunId,
+		StartedAt:     startedAt.Format(time.RFC3339),
+		WorkflowRunId: sqlchelpers.UUIDToStr(sr.WorkflowRunId),
+		StepRetries:   &sr.StepRetries,
+		RetryCount:    &sr.SRRetryCount,
+	})
+
+	metadata, _ := datautils.ToJSONMap(tasktypes.StepRunStartedTaskMetadata{
+		TenantId: tenantId,
+	})
+
+	// send the event to the jobs queue
+	err = s.mq.AddMessage(ctx, msgqueue.JOB_PROCESSING_QUEUE, &msgqueue.Message{
+		ID:       "step-run-acked",
 		Payload:  payload,
 		Metadata: metadata,
 		Retries:  3,
@@ -1357,6 +1407,7 @@ func (s *DispatcherImpl) taskToWorkflowEvent(task *msgqueue.Message, tenantId st
 
 	var stepRunId string
 
+	// todo step-run-acked
 	switch task.ID {
 	case "step-run-started":
 		payload, err := UnmarshalPayload[tasktypes.StepRunStartedTaskPayload](task.Payload)

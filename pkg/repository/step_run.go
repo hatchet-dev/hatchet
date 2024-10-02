@@ -177,6 +177,8 @@ type StepRunEngineRepository interface {
 
 	ListStepRunsToTimeout(ctx context.Context, tenantId string) (bool, []*dbsqlc.GetStepRunForEngineRow, error)
 
+	StepRunAcked(ctx context.Context, tenantId, stepRunId string, ackedAt time.Time) error
+
 	StepRunStarted(ctx context.Context, tenantId, stepRunId string, startedAt time.Time) error
 
 	StepRunSucceeded(ctx context.Context, tenantId, stepRunId string, finishedAt time.Time, output []byte) error

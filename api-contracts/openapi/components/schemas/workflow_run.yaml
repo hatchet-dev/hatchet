@@ -387,7 +387,6 @@ StepRunEventReason:
     - ASSIGNED
     - STARTED
     - ACKNOWLEDGED
-    - REJECTED
     - FINISHED
     - FAILED
     - RETRYING
