@@ -274,6 +274,8 @@ func (ec *JobsControllerImpl) handleTask(ctx context.Context, task *msgqueue.Mes
 	}()
 
 	switch task.ID {
+	case "job-run-queued":
+		return ec.handleJobRunQueued(ctx, task)
 	case "job-run-cancelled":
 		return ec.handleJobRunCancelled(ctx, task)
 	case "step-run-replay":
@@ -282,6 +284,8 @@ func (ec *JobsControllerImpl) handleTask(ctx context.Context, task *msgqueue.Mes
 		return ec.handleStepRunRetry(ctx, task)
 	case "step-run-queued":
 		return ec.handleStepRunQueued(ctx, task)
+	case "step-run-started":
+		return ec.handleStepRunStarted(ctx, task)
 	case "step-run-finished":
 		return ec.handleStepRunFinished(ctx, task)
 	case "step-run-failed":
@@ -292,6 +296,62 @@ func (ec *JobsControllerImpl) handleTask(ctx context.Context, task *msgqueue.Mes
 		return ec.handleStepRunTimedOut(ctx, task)
 	}
 	return fmt.Errorf("unknown task: %s", task.ID)
+}
+
+func (ec *JobsControllerImpl) handleJobRunQueued(ctx context.Context, task *msgqueue.Message) error {
+	ctx, span := telemetry.NewSpanWithCarrier(ctx, "handle-job-run-queued", task.OtelCarrier)
+	defer span.End()
+
+	payload := tasktypes.JobRunQueuedTaskPayload{}
+	metadata := tasktypes.JobRunQueuedTaskMetadata{}
+
+	err := ec.dv.DecodeAndValidate(task.Payload, &payload)
+
+	if err != nil {
+		return fmt.Errorf("could not decode job task payload: %w", err)
+	}
+
+	err = ec.dv.DecodeAndValidate(task.Metadata, &metadata)
+
+	if err != nil {
+		return fmt.Errorf("could not decode job task metadata: %w", err)
+	}
+
+	err = ec.repo.JobRun().SetJobRunStatusRunning(ctx, metadata.TenantId, payload.JobRunId)
+
+	if err != nil {
+		return fmt.Errorf("could not set job run status to running: %w", err)
+	}
+
+	// list the step runs which are startable
+	startableStepRuns, err := ec.repo.StepRun().ListStartableStepRuns(ctx, metadata.TenantId, payload.JobRunId, nil)
+
+	if err != nil {
+		return fmt.Errorf("could not list startable step runs: %w", err)
+	}
+
+	g := new(errgroup.Group)
+
+	for _, stepRun := range startableStepRuns {
+		stepRunCp := stepRun
+
+		g.Go(func() error {
+			return ec.mq.AddMessage(
+				ctx,
+				msgqueue.JOB_PROCESSING_QUEUE,
+				tasktypes.StepRunQueuedToTask(stepRunCp),
+			)
+		})
+	}
+
+	err = g.Wait()
+
+	if err != nil {
+		ec.l.Err(err).Msg("could not run job run queued")
+		return err
+	}
+
+	return nil
 }
 
 func (ec *JobsControllerImpl) handleJobRunCancelled(ctx context.Context, task *msgqueue.Message) error {
@@ -783,6 +843,41 @@ func (ec *JobsControllerImpl) checkTenantQueue(ctx context.Context, tenantId str
 			ec.l.Err(err).Msg("could not add message to tenant partition queue")
 		}
 	}
+}
+
+func (ec *JobsControllerImpl) handleStepRunStarted(ctx context.Context, task *msgqueue.Message) error {
+	ctx, span := telemetry.NewSpanWithCarrier(ctx, "handle-step-run-started", task.OtelCarrier)
+	defer span.End()
+
+	payload := tasktypes.StepRunStartedTaskPayload{}
+	metadata := tasktypes.StepRunStartedTaskMetadata{}
+
+	err := ec.dv.DecodeAndValidate(task.Payload, &payload)
+
+	if err != nil {
+		return fmt.Errorf("could not decode step run started task payload: %w", err)
+	}
+
+	err = ec.dv.DecodeAndValidate(task.Metadata, &metadata)
+
+	if err != nil {
+		return fmt.Errorf("could not decode step run started task metadata: %w", err)
+	}
+
+	// update the step run in the database
+	startedAt, err := time.Parse(time.RFC3339, payload.StartedAt)
+
+	if err != nil {
+		return fmt.Errorf("could not parse started at: %w", err)
+	}
+
+	err = ec.repo.StepRun().StepRunStarted(ctx, metadata.TenantId, payload.StepRunId, startedAt)
+
+	if err != nil {
+		return fmt.Errorf("could not update step run: %w", err)
+	}
+
+	return nil
 }
 
 func (ec *JobsControllerImpl) handleStepRunFinished(ctx context.Context, task *msgqueue.Message) error {
