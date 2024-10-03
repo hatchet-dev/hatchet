@@ -18,16 +18,12 @@ There are several reasons why you might want to use concurrency control in your 
 
 5. **Spike Protection**: When you have workflows that are triggered by external events, such as webhooks or user actions, you may experience spikes in traffic that can overwhelm your system. Concurrency control can help you manage these spikes by limiting the number of concurrent runs and queuing new runs until resources become available.
 
-### Configuring concurrency control
+### Available Strategies:
 
-To configure concurrency control for a workflow in Hatchet, you can add a `concurrency` field to your workflow definition. The `concurrency` field is an object with the following properties:
+- [`CANCEL_IN_PROGRESS`](./cancel-in-progress): Cancel the currently running workflow instances for the same concurrency key to free up slots for the new instance.
+- [`GROUP_ROUND_ROBIN`](./round-robin): Distribute workflow instances across available slots in a round-robin fashion based on the `key` function.
 
-- `name` (required): A string identifier for the concurrency limit. This is used to identify the limit in logs and the dashboard.
-- `maxRuns` (optional): The maximum number of concurrent runs allowed for a given concurrency key. If not specified, there is no limit.
-- `limitStrategy` (optional): The strategy to use when the concurrency limit is reached. Can be one of:
-  - [`CANCEL_IN_PROGRESS`](./cancel-in-progress): Cancel the currently running workflow instances for the same concurrency key to free up slots for the new instance.
-  - [`GROUP_ROUND_ROBIN`](./round-robin): Distribute workflow instances across available slots in a round-robin fashion based on the `key` function.
-- `key` (required): A function that takes the workflow context and returns a string key. This key is used to group runs for the purpose of concurrency limiting. For example, you could use this to limit concurrency on a per-user basis.
+> We're always open to adding more strategies to fit your needs. Join our [discord](https://discord.gg/ZMeUafwH89) to let us know.
 
 ### Setting concurrency on workers
 
