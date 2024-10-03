@@ -757,3 +757,58 @@ func (wc *WorkflowsControllerImpl) unpauseWorkflowRuns(ctx context.Context, tena
 
 	return res, nil
 }
+
+func (wc *WorkflowsControllerImpl) startManyJobRuns(ctx context.Context, tenantId string, jobRunIds []string) error {
+	return queueutils.MakeBatched(50, jobRunIds, func(group []string) error {
+		for i := range group {
+			err := wc.startJobRun(ctx, tenantId, group[i])
+
+			if err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
+}
+
+func (wc *WorkflowsControllerImpl) startJobRun(ctx context.Context, tenantId, jobRunId string) error {
+	ctx, span := telemetry.NewSpan(ctx, "handle-start-job-run")
+	defer span.End()
+
+	err := wc.repo.JobRun().SetJobRunStatusRunning(ctx, tenantId, jobRunId)
+
+	if err != nil {
+		return fmt.Errorf("could not set job run status to running: %w", err)
+	}
+
+	// list the step runs which are startable
+	startableStepRuns, err := wc.repo.StepRun().ListStartableStepRuns(ctx, tenantId, jobRunId, nil)
+
+	if err != nil {
+		return fmt.Errorf("could not list startable step runs: %w", err)
+	}
+
+	g := new(errgroup.Group)
+
+	for _, stepRun := range startableStepRuns {
+		stepRunCp := stepRun
+
+		g.Go(func() error {
+			return wc.mq.AddMessage(
+				ctx,
+				msgqueue.JOB_PROCESSING_QUEUE,
+				tasktypes.StepRunQueuedToTask(stepRunCp),
+			)
+		})
+	}
+
+	err = g.Wait()
+
+	if err != nil {
+		wc.l.Err(err).Msg("could not handle start job run")
+		return err
+	}
+
+	return nil
+}

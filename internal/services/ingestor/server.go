@@ -175,11 +175,7 @@ func (i *IngestorImpl) PutStreamEvent(ctx context.Context, req *contracts.PutStr
 		return nil, err
 	}
 
-	q, err := msgqueue.TenantEventConsumerQueue(tenantId)
-
-	if err != nil {
-		return nil, err
-	}
+	q := msgqueue.TenantEventConsumerQueue(tenantId)
 
 	e := streamEventToTask(streamEvent, sqlchelpers.UUIDToStr(meta.WorkflowRunId), &meta.RetryCount, &meta.Retries)
 
