@@ -41,6 +41,8 @@ type HatchetContext interface {
 
 	WorkflowInput(target interface{}) error
 
+	AdditionalMetadata() map[string]string
+
 	StepName() string
 
 	StepRunId() string
@@ -83,9 +85,10 @@ type JobRunLookupData struct {
 }
 
 type StepRunData struct {
-	Input       map[string]interface{} `json:"input"`
-	TriggeredBy TriggeredBy            `json:"triggered_by"`
-	Parents     map[string]StepData    `json:"parents"`
+	Input              map[string]interface{} `json:"input"`
+	TriggeredBy        TriggeredBy            `json:"triggered_by"`
+	Parents            map[string]StepData    `json:"parents"`
+	AdditionalMetadata map[string]string      `json:"additional_metadata"`
 }
 
 type StepData map[string]interface{}
@@ -182,6 +185,10 @@ func (h *hatchetContext) TriggeredByEvent() bool {
 
 func (h *hatchetContext) WorkflowInput(target interface{}) error {
 	return toTarget(h.stepData.Input, target)
+}
+
+func (h *hatchetContext) AdditionalMetadata() map[string]string {
+	return h.stepData.AdditionalMetadata
 }
 
 func (h *hatchetContext) StepName() string {
@@ -323,10 +330,6 @@ func (h *hatchetContext) SpawnWorkflow(workflowName string, input any, opts *Spa
 	}, nil
 }
 
-func (h *hatchetContext) AdditionalMetadata() map[string]string {
-	return h.a.AdditionalMetadata
-}
-
 func (h *hatchetContext) ChildIndex() *int32 {
 	return h.a.ChildIndex
 }
@@ -377,6 +380,8 @@ func (h *hatchetContext) populateStepData() error {
 	if err != nil {
 		return err
 	}
+
+	h.stepData.AdditionalMetadata = h.a.AdditionalMetadata
 
 	return nil
 }
