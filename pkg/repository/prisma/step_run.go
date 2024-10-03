@@ -2018,6 +2018,36 @@ func (s *stepRunEngineRepository) StepRunStarted(ctx context.Context, tenantId, 
 	return nil
 }
 
+func (s *stepRunEngineRepository) StepRunAcked(ctx context.Context, tenantId, stepRunId string, startedAt time.Time) error {
+	ctx, span := telemetry.NewSpan(ctx, "step-run-acked-db")
+	defer span.End()
+
+	ack := dbsqlc.StepRunEventReasonACKNOWLEDGED
+
+	message := "Ack at " + startedAt.Format(time.RFC1123)
+
+	// write a queue item that the step run has started
+	err := insertStepRunQueueItem(
+		ctx,
+		s.pool,
+		s.queries,
+		tenantId,
+		updateStepRunQueueData{
+			StepRunId: stepRunId,
+			Event: &repository.CreateStepRunEventOpts{
+				EventReason:  &ack,
+				EventMessage: &message,
+			},
+		},
+	)
+
+	if err != nil {
+		return fmt.Errorf("could not insert step run queue item: %w", err)
+	}
+
+	return nil
+}
+
 func (s *stepRunEngineRepository) StepRunSucceeded(ctx context.Context, tenantId, stepRunId string, finishedAt time.Time, output []byte) error {
 	ctx, span := telemetry.NewSpan(ctx, "step-run-started-db")
 	defer span.End()
