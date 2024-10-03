@@ -22,6 +22,7 @@ FROM nginx:alpine
 
 ARG APP_TARGET=client
 
+COPY --from=api-binary-base /hatchet/hatchet-api ./hatchet-api
 COPY ./build/package/dashboard-entrypoint.sh ./entrypoint.sh
 COPY ./build/package/dashboard-nginx.conf /etc/nginx/nginx.conf
 
