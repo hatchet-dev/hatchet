@@ -322,7 +322,7 @@ export function WorkflowRunsTable({
   });
 
   const tenantMetricsQuery = useQuery({
-    ...queries.metrics.get(tenant.metadata.id),
+    ...queries.metrics.getStepRunQueueMetrics(tenant.metadata.id),
     refetchInterval,
   });
 

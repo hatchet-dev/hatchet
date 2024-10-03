@@ -214,6 +214,11 @@ export const queries = createQueryKeyStore({
       queryKey: ['queue-metrics:get', tenant],
       queryFn: async () => (await api.tenantGetQueueMetrics(tenant)).data,
     }),
+    getStepRunQueueMetrics: (tenant: string) => ({
+      queryKey: ['queue-metrics:get:step-run', tenant],
+      queryFn: async () =>
+        (await api.tenantGetStepRunQueueMetrics(tenant)).data,
+    }),
   },
   stepRuns: {
     get: (tenant: string, stepRun: string) => ({

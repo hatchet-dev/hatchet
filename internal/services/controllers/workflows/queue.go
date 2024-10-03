@@ -216,14 +216,10 @@ func (wc *WorkflowsControllerImpl) handleWorkflowRunFinished(ctx context.Context
 
 		if !repository.IsFinalJobRunStatus(jobRun.Status) {
 			if workflowRun.WorkflowRun.Status == dbsqlc.WorkflowRunStatusFAILED {
-				err = wc.mq.AddMessage(
-					ctx,
-					msgqueue.JOB_PROCESSING_QUEUE,
-					tasktypes.JobRunQueuedToTask(metadata.TenantId, sqlchelpers.UUIDToStr(jobRun.ID)),
-				)
+				err = wc.startJobRun(ctx, metadata.TenantId, sqlchelpers.UUIDToStr(jobRun.ID))
 
 				if err != nil {
-					return fmt.Errorf("could not add job run to task queue: %w", err)
+					return err
 				}
 			} else if jobRun.Status != dbsqlc.JobRunStatus(db.JobRunStatusCancelled) {
 				// cancel the onFailure job
@@ -328,7 +324,7 @@ func (wc *WorkflowsControllerImpl) queueWorkflowRunJobs(ctx context.Context, wor
 		return fmt.Errorf("could not list job runs: %w", err)
 	}
 
-	var returnErr error
+	jobRunIds := make([]string, 0)
 
 	for i := range jobRuns {
 		// don't start job runs that are onFailure
@@ -336,20 +332,10 @@ func (wc *WorkflowsControllerImpl) queueWorkflowRunJobs(ctx context.Context, wor
 			continue
 		}
 
-		jobRunId := sqlchelpers.UUIDToStr(jobRuns[i].ID)
-
-		err := wc.mq.AddMessage(
-			ctx,
-			msgqueue.JOB_PROCESSING_QUEUE,
-			tasktypes.JobRunQueuedToTask(tenantId, jobRunId),
-		)
-
-		if err != nil {
-			returnErr = multierror.Append(err, fmt.Errorf("could not add job run to task queue: %w", err))
-		}
+		jobRunIds = append(jobRunIds, sqlchelpers.UUIDToStr(jobRuns[i].ID))
 	}
 
-	return returnErr
+	return wc.startManyJobRuns(ctx, tenantId, jobRunIds)
 }
 
 func (wc *WorkflowsControllerImpl) cancelWorkflowRunJobs(ctx context.Context, workflowRun *dbsqlc.GetWorkflowRunRow) error {
