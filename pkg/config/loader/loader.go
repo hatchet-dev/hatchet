@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/exaring/otelpgx"
 	pgxzero "github.com/jackc/pgx-zerolog"
@@ -151,11 +152,11 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile, runtime *server.Co
 		return nil, err
 	}
 
-	queueConfig, err := pgxpool.ParseConfig(databaseUrl)
+	// queueConfig, err := pgxpool.ParseConfig(databaseUrl)
 
-	if err != nil {
-		return nil, err
-	}
+	// if err != nil {
+	// 	return nil, err
+	// }
 
 	if cf.LogQueries {
 		config.ConnConfig.Tracer = &tracelog.TraceLog{
@@ -163,14 +164,14 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile, runtime *server.Co
 			LogLevel: tracelog.LogLevelDebug,
 		}
 
-		queueConfig.ConnConfig.Tracer = &tracelog.TraceLog{
-			Logger:   pgxzero.NewLogger(l),
-			LogLevel: tracelog.LogLevelDebug,
-		}
+		// queueConfig.ConnConfig.Tracer = &tracelog.TraceLog{
+		// 	Logger:   pgxzero.NewLogger(l),
+		// 	LogLevel: tracelog.LogLevelDebug,
+		// }
 	}
 
 	config.ConnConfig.Tracer = otelpgx.NewTracer()
-	queueConfig.ConnConfig.Tracer = otelpgx.NewTracer()
+	// queueConfig.ConnConfig.Tracer = otelpgx.NewTracer()
 
 	if cf.MaxConns != 0 {
 		config.MaxConns = int32(cf.MaxConns)
@@ -180,13 +181,15 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile, runtime *server.Co
 		config.MinConns = int32(cf.MinConns)
 	}
 
-	if cf.MaxQueueConns != 0 {
-		queueConfig.MaxConns = int32(cf.MaxQueueConns)
-	}
+	config.MaxConnLifetime = 15 * 60 * time.Second
 
-	if cf.MinQueueConns != 0 {
-		queueConfig.MinConns = int32(cf.MinQueueConns)
-	}
+	// if cf.MaxQueueConns != 0 {
+	// 	queueConfig.MaxConns = int32(cf.MaxQueueConns)
+	// }
+
+	// if cf.MinQueueConns != 0 {
+	// 	queueConfig.MinConns = int32(cf.MinQueueConns)
+	// }
 
 	pool, err := pgxpool.NewWithConfig(context.Background(), config)
 
@@ -194,11 +197,11 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile, runtime *server.Co
 		return nil, fmt.Errorf("could not connect to database: %w", err)
 	}
 
-	queuePool, err := pgxpool.NewWithConfig(context.Background(), queueConfig)
+	// queuePool, err := pgxpool.NewWithConfig(context.Background(), queueConfig)
 
-	if err != nil {
-		return nil, fmt.Errorf("could not connect to database: %w", err)
-	}
+	// if err != nil {
+	// 	return nil, fmt.Errorf("could not connect to database: %w", err)
+	// }
 
 	ch := cache.New(cf.CacheDuration)
 
@@ -206,7 +209,7 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile, runtime *server.Co
 
 	meter := metered.NewMetered(entitlementRepo, &l)
 
-	cleanupEngine, engineRepo := prisma.NewEngineRepository(pool, queuePool, runtime, prisma.WithLogger(&l), prisma.WithCache(ch), prisma.WithMetered(meter))
+	cleanupEngine, engineRepo := prisma.NewEngineRepository(pool, pool, runtime, prisma.WithLogger(&l), prisma.WithCache(ch), prisma.WithMetered(meter))
 
 	return &database.Config{
 		Disconnect: func() error {
@@ -219,7 +222,7 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile, runtime *server.Co
 			return c.Prisma.Disconnect()
 		},
 		Pool:                  pool,
-		QueuePool:             queuePool,
+		QueuePool:             pool,
 		APIRepository:         prisma.NewAPIRepository(c, pool, prisma.WithLogger(&l), prisma.WithCache(ch), prisma.WithMetered(meter)),
 		EngineRepository:      engineRepo,
 		EntitlementRepository: entitlementRepo,
