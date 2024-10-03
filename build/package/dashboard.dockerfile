@@ -26,7 +26,7 @@ COPY ./build/package/dashboard-entrypoint.sh ./entrypoint.sh
 COPY ./build/package/dashboard-nginx.conf /etc/nginx/nginx.conf
 
 RUN rm -rf /usr/share/nginx/html/*
-COPY --from=build /app/dist /usr/share/nginx/html
+COPY --from=frontend-build /app/dist /usr/share/nginx/html
 
 EXPOSE 80
 
