@@ -205,6 +205,22 @@ func (b *IngestBuf[T, U]) flush(items []*inputWrapper[T, U]) {
 
 	b.safeDecSizeOfData(b.calcSizeOfData(opts))
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				err := fmt.Errorf("panic recovered in flush: %v", r)
+				b.l.Error().Msgf("Panic recovered: %v", err)
+
+				// Send error to all done channels
+				for _, doneChan := range doneChans {
+					select {
+					case doneChan <- &flushResponse[U]{err: err}:
+					default:
+						b.l.Error().Msgf("could not send panic error to done chan: %v", err)
+					}
+				}
+			}
+		}()
+
 		ctx := context.Background()
 		result, err := b.outputFunc(ctx, opts)
 
@@ -214,7 +230,6 @@ func (b *IngestBuf[T, U]) flush(items []*inputWrapper[T, U]) {
 				case doneChan <- &flushResponse[U]{err: err}:
 				default:
 					b.l.Error().Msgf("could not send error to done chan: %v", err)
-
 				}
 			}
 			return
@@ -230,7 +245,6 @@ func (b *IngestBuf[T, U]) flush(items []*inputWrapper[T, U]) {
 
 		b.l.Debug().Msgf("Flushed %d items", numItems)
 	}()
-
 }
 
 func (b *IngestBuf[T, U]) cleanup() error {
