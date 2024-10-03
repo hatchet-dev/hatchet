@@ -330,6 +330,10 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig) ([]Teardown, er
 			return nil, fmt.Errorf("could not create ingestor: %w", err)
 		}
 
+		if err != nil {
+			return nil, fmt.Errorf("could not start ingestor buffer: %w", err)
+		}
+
 		adminSvc, err := admin.NewAdminService(
 			admin.WithRepository(sc.EngineRepository),
 			admin.WithMessageQueue(sc.MessageQueue),

@@ -129,7 +129,7 @@ func (i *IngestorImpl) IngestEvent(ctx context.Context, tenantId, key string, da
 	}
 
 	if err != nil {
-		return nil, fmt.Errorf("could not create event: %w", err)
+		return nil, fmt.Errorf("could not create events: %w", err)
 	}
 
 	telemetry.WithAttributes(span, telemetry.AttributeKV{
@@ -138,9 +138,9 @@ func (i *IngestorImpl) IngestEvent(ctx context.Context, tenantId, key string, da
 	})
 
 	err = i.mq.AddMessage(context.Background(), msgqueue.EVENT_PROCESSING_QUEUE, eventToTask(event))
-
 	if err != nil {
 		return nil, fmt.Errorf("could not add event to task queue: %w", err)
+
 	}
 
 	return event, nil
@@ -172,7 +172,6 @@ func (i *IngestorImpl) BulkIngestEvent(ctx context.Context, tenantId string, eve
 
 	for _, event := range events.Events {
 		err = i.mq.AddMessage(context.Background(), msgqueue.EVENT_PROCESSING_QUEUE, eventToTask(event))
-		fmt.Printf("event: %+v\n", event)
 		if err != nil {
 			return nil, fmt.Errorf("could not add event to task queue: %w", err)
 		}

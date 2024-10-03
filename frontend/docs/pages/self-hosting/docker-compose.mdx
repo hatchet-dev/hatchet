@@ -40,7 +40,7 @@ services:
     volumes:
       - hatchet_postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready", "-d", "hatchet"]
+      test: ["CMD-SHELL", "pg_isready -d hatchet -U hatchet"]
       interval: 10s
       timeout: 10s
       retries: 5
