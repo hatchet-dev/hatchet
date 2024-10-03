@@ -32,6 +32,10 @@ func (c *testHatchetContext) WorkflowInput(target interface{}) error {
 	return nil
 }
 
+func (c *testHatchetContext) AdditionalMetadata() map[string]string {
+	return nil
+}
+
 func (c *testHatchetContext) SpawnWorkflow(workflowName string, input any, opts *SpawnWorkflowOpts) (*ChildWorkflow, error) {
 	panic("not implemented")
 }
