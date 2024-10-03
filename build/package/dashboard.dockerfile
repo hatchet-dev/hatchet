@@ -1,0 +1,34 @@
+# This expects the hatchet-lite image to be built and available on the machine
+# -------------------
+ARG HATCHET_API_IMAGE
+
+# Stage 1: copy from the existing Go built image
+FROM $HATCHET_API_IMAGE as api-binary-base
+
+# Stage 2: build the frontend
+FROM node:18-alpine as frontend-build
+
+WORKDIR /app
+
+COPY ./frontend/app/package.json ./frontend/app/pnpm-lock.yaml ./
+RUN corepack pnpm --version
+RUN corepack pnpm install --frozen-lockfile && corepack pnpm store prune
+
+COPY ./frontend/app ./
+RUN npm run build
+
+# Stage 3: run in nginx alpine image
+FROM nginx:alpine
+
+ARG APP_TARGET=client
+
+COPY ./build/package/dashboard-entrypoint.sh ./entrypoint.sh
+COPY ./build/package/dashboard-nginx.conf /etc/nginx/nginx.conf
+
+RUN rm -rf /usr/share/nginx/html/*
+COPY --from=build /app/dist /usr/share/nginx/html
+
+EXPOSE 80
+
+# Run the entrypoint script
+CMD ["./entrypoint.sh"]
