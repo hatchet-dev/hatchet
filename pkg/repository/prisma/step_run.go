@@ -1884,7 +1884,7 @@ func (s *stepRunEngineRepository) CleanupQueueItems(ctx context.Context, tenantI
 	}
 
 	// iterate until we have no more queue items to process
-	var batchSize int64 = 1000
+	var batchSize int64 = 10000
 	var currBatch int64
 
 	for {
@@ -1953,7 +1953,7 @@ func (s *stepRunEngineRepository) CleanupInternalQueueItems(ctx context.Context,
 	}
 
 	// iterate until we have no more queue items to process
-	var batchSize int64 = 1000
+	var batchSize int64 = 10000
 	var currBatch int64
 
 	for {
