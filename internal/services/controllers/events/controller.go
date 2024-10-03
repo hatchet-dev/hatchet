@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/rs/zerolog"
@@ -181,7 +182,7 @@ func cleanAdditionalMetadata(additionalMetadata map[string]interface{}) map[stri
 	}
 
 	for key := range additionalMetadata {
-		if key[:10] == "hatchet__" {
+		if strings.HasPrefix(key, "hatchet__") {
 			delete(additionalMetadata, key)
 		}
 	}
