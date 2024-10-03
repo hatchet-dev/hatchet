@@ -596,6 +596,11 @@ func getCreateJobOpts(req *contracts.CreateWorkflowJobOpts, kind string) (*repos
 				UnitsExpr: rateLimit.UnitsExpr,
 			}
 
+			if rateLimit.Duration != nil {
+				dur := rateLimit.Duration.String()
+				opt.Duration = &dur
+			}
+
 			if rateLimit.Units != nil {
 				units := int(*rateLimit.Units)
 				opt.Units = &units
