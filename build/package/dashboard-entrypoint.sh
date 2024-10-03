@@ -18,8 +18,8 @@ shutdown() {
   exit 0
 }
 
-# Start hatchet-api in the background
-/hatchet/hatchet-api &
+# Start hatchet-api with any passed command line arguments in the background
+/hatchet/hatchet-api "$@" &
 HATCHET_API_PID=$!
 
 # Start NGINX in the foreground
