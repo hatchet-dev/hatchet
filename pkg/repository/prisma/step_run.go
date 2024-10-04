@@ -1949,7 +1949,7 @@ func (s *stepRunEngineRepository) ProcessStepRunUpdates(ctx context.Context, qlp
 		Tenantid: pgTenantId,
 		Queue:    dbsqlc.InternalQueueSTEPRUNUPDATE,
 		Limit: pgtype.Int4{
-			Int32: int32(limit),
+			Int32: int32(limit), // nolint: gosec
 			Valid: true,
 		},
 	})

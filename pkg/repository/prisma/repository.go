@@ -281,7 +281,7 @@ func (r *engineRepository) WebhookWorker() repository.WebhookWorkerEngineReposit
 	return r.webhookWorker
 }
 
-func NewEngineRepository(pool *pgxpool.Pool, queuePool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ...PrismaRepositoryOpt) (func() error, repository.EngineRepository, error) {
+func NewEngineRepository(pool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ...PrismaRepositoryOpt) (func() error, repository.EngineRepository, error) {
 	opts := defaultPrismaRepositoryOpts()
 
 	for _, f := range fs {
@@ -304,7 +304,7 @@ func NewEngineRepository(pool *pgxpool.Pool, queuePool *pgxpool.Pool, cf *server
 		return nil, nil, err
 	}
 
-	stepRunEngine, cleanupStepRunEngine, err := NewStepRunEngineRepository(queuePool, opts.v, opts.l, cf, rlCache)
+	stepRunEngine, cleanupStepRunEngine, err := NewStepRunEngineRepository(pool, opts.v, opts.l, cf, rlCache)
 
 	if err != nil {
 		return nil, nil, err
