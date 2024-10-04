@@ -976,7 +976,7 @@ func (ec *JobsControllerImpl) handleStepRunFailed(ctx context.Context, task *msg
 }
 
 func (ec *JobsControllerImpl) failStepRun(ctx context.Context, tenantId, stepRunId, errorReason string, failedAt time.Time) error {
-	stepRun, err := ec.repo.StepRun().GetStepRunForEngine(ctx, tenantId, stepRunId)
+	oldStepRun, err := ec.repo.StepRun().GetStepRunForEngine(ctx, tenantId, stepRunId)
 
 	if err != nil {
 		return fmt.Errorf("could not get step run: %w", err)
@@ -986,7 +986,7 @@ func (ec *JobsControllerImpl) failStepRun(ctx context.Context, tenantId, stepRun
 	defer ec.checkTenantQueue(ctx, tenantId)
 
 	// determine if step run should be retried or not
-	shouldRetry := stepRun.SRRetryCount < stepRun.StepRetries
+	shouldRetry := oldStepRun.SRRetryCount < oldStepRun.StepRetries
 
 	if shouldRetry {
 		eventMessage := fmt.Sprintf("Step run failed on %s", failedAt.Format(time.RFC1123))
@@ -995,7 +995,7 @@ func (ec *JobsControllerImpl) failStepRun(ctx context.Context, tenantId, stepRun
 
 		if errorReason == "TIMED_OUT" {
 			eventReason = dbsqlc.StepRunEventReasonTIMEDOUT
-			eventMessage = fmt.Sprintf("Step exceeded timeout duration (%s)", stepRun.StepTimeout.String)
+			eventMessage = fmt.Sprintf("Step exceeded timeout duration (%s)", oldStepRun.StepTimeout.String)
 		}
 
 		eventMessage += ", and will be retried."
@@ -1005,7 +1005,7 @@ func (ec *JobsControllerImpl) failStepRun(ctx context.Context, tenantId, stepRun
 			EventMessage:  repository.StringPtr(eventMessage),
 			EventSeverity: repository.StepRunEventSeverityPtr(dbsqlc.StepRunEventSeverityCRITICAL),
 			EventData: map[string]interface{}{
-				"retry_count": stepRun.SRRetryCount,
+				"retry_count": oldStepRun.SRRetryCount,
 			},
 		})
 
@@ -1013,19 +1013,12 @@ func (ec *JobsControllerImpl) failStepRun(ctx context.Context, tenantId, stepRun
 		return ec.mq.AddMessage(
 			ctx,
 			msgqueue.JOB_PROCESSING_QUEUE,
-			tasktypes.StepRunRetryToTask(stepRun, nil, errorReason),
+			tasktypes.StepRunRetryToTask(oldStepRun, nil, errorReason),
 		)
 	}
 
-	// get the old step run to figure out the worker and dispatcher id, before we update the step run
-	oldStepRun, err := ec.repo.StepRun().GetStepRunForEngine(ctx, tenantId, stepRunId)
-
-	if err != nil {
-		return fmt.Errorf("could not get step run: %w", err)
-	}
-
 	// fail step run
-	err = ec.repo.StepRun().StepRunFailed(ctx, tenantId, stepRunId, failedAt, errorReason)
+	err = ec.repo.StepRun().StepRunFailed(ctx, tenantId, stepRunId, failedAt, errorReason, int(oldStepRun.SRRetryCount))
 
 	if err != nil {
 		return fmt.Errorf("could not fail step run: %w", err)

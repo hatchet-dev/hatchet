@@ -298,9 +298,23 @@ func NewEngineRepository(pool *pgxpool.Pool, queuePool *pgxpool.Pool, cf *server
 	rlCache := cache.New(5 * time.Minute)
 	eventEngine, cleanupEventEngine, err := NewEventEngineRepository(pool, opts.v, opts.l, opts.metered)
 
-	return func() error {
+	if err != nil {
+		return nil, nil, err
+	}
 
+	stepRunEngine, cleanupStepRunEngine, err := NewStepRunEngineRepository(queuePool, opts.v, opts.l, cf, rlCache)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return func() error {
 			rlCache.Stop()
+
+			if err := cleanupStepRunEngine(); err != nil {
+				return err
+			}
+
 			return cleanupEventEngine()
 
 		}, &engineRepository{
@@ -310,14 +324,14 @@ func NewEngineRepository(pool *pgxpool.Pool, queuePool *pgxpool.Pool, cf *server
 			event:          eventEngine,
 			getGroupKeyRun: NewGetGroupKeyRunRepository(pool, opts.v, opts.l),
 			jobRun:         NewJobRunEngineRepository(pool, opts.v, opts.l),
-			stepRun:        NewStepRunEngineRepository(queuePool, opts.v, opts.l, cf, rlCache),
+			stepRun:        stepRunEngine,
 			step:           NewStepRepository(pool, opts.v, opts.l),
 			tenant:         NewTenantEngineRepository(pool, opts.v, opts.l, opts.cache),
 			tenantAlerting: NewTenantAlertingEngineRepository(pool, opts.v, opts.l, opts.cache),
 			ticker:         NewTickerRepository(pool, opts.v, opts.l),
 			worker:         NewWorkerEngineRepository(pool, opts.v, opts.l, opts.metered),
 			workflow:       NewWorkflowEngineRepository(pool, opts.v, opts.l, opts.metered),
-			workflowRun:    NewWorkflowRunEngineRepository(pool, opts.v, opts.l, opts.metered),
+			workflowRun:    NewWorkflowRunEngineRepository(stepRunEngine, pool, opts.v, opts.l, opts.metered),
 			streamEvent:    NewStreamEventsEngineRepository(pool, opts.v, opts.l),
 			log:            NewLogEngineRepository(pool, opts.v, opts.l),
 			rateLimit:      NewRateLimitEngineRepository(pool, opts.v, opts.l),

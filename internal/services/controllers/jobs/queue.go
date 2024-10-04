@@ -35,9 +35,10 @@ type queue struct {
 	// a custom queue logger
 	ql *zerolog.Logger
 
-	tenantQueueOperations    *queueutils.OperationPool
-	updateStepRunOperations  *queueutils.OperationPool
-	timeoutStepRunOperations *queueutils.OperationPool
+	tenantQueueOperations     *queueutils.OperationPool
+	updateStepRunOperations   *queueutils.OperationPool
+	updateStepRunV2Operations *queueutils.OperationPool
+	timeoutStepRunOperations  *queueutils.OperationPool
 }
 
 func newQueue(
@@ -68,6 +69,7 @@ func newQueue(
 
 	q.tenantQueueOperations = queueutils.NewOperationPool(ql, time.Second*5, "check tenant queue", q.scheduleStepRuns)
 	q.updateStepRunOperations = queueutils.NewOperationPool(ql, time.Second*30, "update step runs", q.processStepRunUpdates)
+	q.updateStepRunV2Operations = queueutils.NewOperationPool(ql, time.Second*30, "update step runs (v2)", q.processStepRunUpdatesV2)
 	q.timeoutStepRunOperations = queueutils.NewOperationPool(ql, time.Second*30, "timeout step runs", q.processStepRunTimeouts)
 
 	return q, nil
@@ -112,6 +114,18 @@ func (q *queue) Start() (func() error, error) {
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("could not schedule step run timeout: %w", err)
+	}
+
+	_, err = q.s.NewJob(
+		gocron.DurationJob(time.Second*1),
+		gocron.NewTask(
+			q.runTenantUpdateStepRunsV2(ctx),
+		),
+	)
+
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("could not schedule step run update (v2): %w", err)
 	}
 
 	q.s.Start()
@@ -350,6 +364,62 @@ func (q *queue) processStepRunUpdates(ctx context.Context, tenantId string) (boo
 
 		if err != nil {
 			q.l.Error().Err(err).Msg("could not add workflow run finished task to task queue")
+		}
+	}
+
+	return res.Continue, nil
+}
+
+func (q *queue) runTenantUpdateStepRunsV2(ctx context.Context) func() {
+	return func() {
+		q.l.Debug().Msgf("partition: updating step run statuses (v2)")
+
+		// list all tenants
+		tenants, err := q.repo.Tenant().ListTenantsByControllerPartition(ctx, q.p.GetControllerPartitionId())
+
+		if err != nil {
+			q.l.Err(err).Msg("could not list tenants")
+			return
+		}
+
+		for i := range tenants {
+			tenantId := sqlchelpers.UUIDToStr(tenants[i].ID)
+
+			q.updateStepRunV2Operations.RunOrContinue(tenantId)
+		}
+	}
+}
+
+func (q *queue) processStepRunUpdatesV2(ctx context.Context, tenantId string) (bool, error) {
+	ctx, span := telemetry.NewSpan(ctx, "process-step-run-updates-v2")
+	defer span.End()
+
+	dbCtx, cancel := context.WithTimeout(ctx, 300*time.Second)
+	defer cancel()
+
+	res, err := q.repo.StepRun().ProcessStepRunUpdatesV2(dbCtx, q.ql, tenantId)
+
+	if err != nil {
+		return false, fmt.Errorf("could not process step run updates (v2): %w", err)
+	}
+
+	// for all finished workflow runs, send a message
+	for _, finished := range res.CompletedWorkflowRuns {
+		workflowRunId := sqlchelpers.UUIDToStr(finished.ID)
+		status := string(finished.Status)
+
+		err := q.mq.AddMessage(
+			context.Background(),
+			msgqueue.WORKFLOW_PROCESSING_QUEUE,
+			tasktypes.WorkflowRunFinishedToTask(
+				tenantId,
+				workflowRunId,
+				status,
+			),
+		)
+
+		if err != nil {
+			q.l.Error().Err(err).Msg("could not add workflow run finished task to task queue (v2)")
 		}
 	}
 

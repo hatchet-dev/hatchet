@@ -126,7 +126,7 @@ func (w *workflowRunEngineRepository) QueuePausedWorkflowRun(ctx context.Context
 		ctx,
 		w.pool,
 		w.queries,
-		tenantId,
+		sqlchelpers.UUIDFromStr(tenantId),
 		unpauseWorkflowRunQueueData{
 			WorkflowId:    workflowId,
 			WorkflowRunId: workflowRunId,
@@ -420,26 +420,28 @@ func (w *workflowRunAPIRepository) GetStepRunsForJobRuns(ctx context.Context, te
 }
 
 type workflowRunEngineRepository struct {
-	pool    *pgxpool.Pool
-	v       validator.Validator
-	queries *dbsqlc.Queries
-	l       *zerolog.Logger
-	m       *metered.Metered
+	pool              *pgxpool.Pool
+	v                 validator.Validator
+	queries           *dbsqlc.Queries
+	l                 *zerolog.Logger
+	m                 *metered.Metered
+	stepRunRepository *stepRunEngineRepository
 
 	createCallbacks []repository.Callback[*dbsqlc.WorkflowRun]
 	queuedCallbacks []repository.Callback[pgtype.UUID]
 }
 
-func NewWorkflowRunEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, m *metered.Metered, cbs ...repository.Callback[*dbsqlc.WorkflowRun]) repository.WorkflowRunEngineRepository {
+func NewWorkflowRunEngineRepository(stepRunRepository *stepRunEngineRepository, pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, m *metered.Metered, cbs ...repository.Callback[*dbsqlc.WorkflowRun]) repository.WorkflowRunEngineRepository {
 	queries := dbsqlc.New()
 
 	return &workflowRunEngineRepository{
-		v:               v,
-		pool:            pool,
-		queries:         queries,
-		l:               l,
-		m:               m,
-		createCallbacks: cbs,
+		v:                 v,
+		pool:              pool,
+		queries:           queries,
+		l:                 l,
+		m:                 m,
+		createCallbacks:   cbs,
+		stepRunRepository: stepRunRepository,
 	}
 }
 
@@ -698,10 +700,7 @@ func (s *workflowRunEngineRepository) ReplayWorkflowRun(ctx context.Context, ten
 			sev := dbsqlc.StepRunEventSeverityINFO
 			reason := dbsqlc.StepRunEventReasonRETRIEDBYUSER
 
-			defer deferredStepRunEvent(
-				s.l,
-				s.pool,
-				s.queries,
+			defer s.stepRunRepository.deferredStepRunEvent(
 				tenantId,
 				stepRunIdStr,
 				repository.CreateStepRunEventOpts{
@@ -1386,8 +1385,8 @@ func insertWorkflowRunQueueItem(
 		ctx,
 		dbtx,
 		queries,
-		tenantId,
-		dbsqlc.InternalQueueWORKFLOWRUNUPDATE,
+		[]pgtype.UUID{sqlchelpers.UUIDFromStr(tenantId)},
+		[]dbsqlc.InternalQueue{dbsqlc.InternalQueueWORKFLOWRUNUPDATE},
 		insertData,
 	)
 }
@@ -1396,7 +1395,7 @@ func insertPausedWorkflowRunQueueItem(
 	ctx context.Context,
 	dbtx dbsqlc.DBTX,
 	queries *dbsqlc.Queries,
-	tenantId string,
+	tenantId pgtype.UUID,
 	data unpauseWorkflowRunQueueData,
 ) error {
 	insertData := make([]any, 1)
@@ -1406,8 +1405,8 @@ func insertPausedWorkflowRunQueueItem(
 		ctx,
 		dbtx,
 		queries,
-		tenantId,
-		dbsqlc.InternalQueueWORKFLOWRUNPAUSED,
+		[]pgtype.UUID{tenantId},
+		[]dbsqlc.InternalQueue{dbsqlc.InternalQueueWORKFLOWRUNPAUSED},
 		insertData,
 	)
 }
