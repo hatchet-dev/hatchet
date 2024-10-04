@@ -1620,11 +1620,11 @@ model Worker {
   webhook   WebhookWorker? @relation(fields: [webhookId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   webhookId String?        @unique @db.Uuid
 
-  sdkVersion String?
-  language WorkerSDKS?
+  sdkVersion      String?
+  language        WorkerSDKS?
   languageVersion String?
-  os String?
-  runtimeExtra String?
+  os              String?
+  runtimeExtra    String?
 }
 
 model WorkerAssignEvent {
