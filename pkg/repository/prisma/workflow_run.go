@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"math"
+	"slices"
 	"strings"
 	"time"
 
@@ -863,20 +865,18 @@ func createNewWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbs
 
 			createRunsParams = append(createRunsParams, crp)
 
-			var desiredWorkerId *string
+			var desiredWorkerId pgtype.UUID
 
 			if opt.DesiredWorkerId != nil {
-				// problem here is that we need a desirewdWorkerId for the sticky state
-				// so we can only create an entry in WorkflowRunStickyState if we have a desiredWorkerId
 
-				desiredWorkerId = opt.DesiredWorkerId
-				stickyInfos = append(stickyInfos, stickyInfo{
-					workflowRunId:     sqlchelpers.UUIDFromStr(workflowRunId),
-					workflowVersionId: sqlchelpers.UUIDFromStr(opt.WorkflowVersionId),
-					desiredWorkerId:   sqlchelpers.UUIDFromStr(*desiredWorkerId),
-				})
-
+				desiredWorkerId = sqlchelpers.UUIDFromStr(*opt.DesiredWorkerId)
 			}
+
+			stickyInfos = append(stickyInfos, stickyInfo{
+				workflowRunId:     sqlchelpers.UUIDFromStr(workflowRunId),
+				workflowVersionId: sqlchelpers.UUIDFromStr(opt.WorkflowVersionId),
+				desiredWorkerId:   desiredWorkerId,
+			})
 
 			var (
 				eventId, cronParentId, scheduledWorkflowId pgtype.UUID
@@ -899,29 +899,21 @@ func createNewWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbs
 				scheduledWorkflowId = sqlchelpers.UUIDFromStr(*opt.ScheduledWorkflowId)
 			}
 
-			// so I can't pass a NULL in for parentID so I need to set it to something
-			// setting it to workflowRunId for now but maybe thats not correct
-			// maybe I just don't set a triggered by if its not set
-			// setting it to workflowRunId for breaks uniq constraint
+			// so we are ignoring opt.ParentId
 
-			// there is a unique index on parentId - one can only be a parent once
-			//     "WorkflowRunTriggeredBy_parentId_key" UNIQUE, btree ("parentId")
-			// seems we should error here better too.
-
-			if opt.ParentId != nil && false { // skipping this for now
-				cp := dbsqlc.CreateWorkflowRunTriggeredBysParams{
-					ID:           sqlchelpers.UUIDFromStr(uuid.New().String()),
-					TenantId:     pgTenantId,
-					ParentId:     sqlchelpers.UUIDFromStr(*opt.ParentId),
-					EventId:      eventId,
-					CronParentId: cronParentId,
-					ScheduledId:  scheduledWorkflowId,
-					CronSchedule: cronSchedule,
-				}
-
-				triggeredByParams = append(triggeredByParams, cp)
-
+			cp := dbsqlc.CreateWorkflowRunTriggeredBysParams{
+				ID:           sqlchelpers.UUIDFromStr(uuid.New().String()),
+				TenantId:     pgTenantId,
+				ParentId:     sqlchelpers.UUIDFromStr(workflowRunId),
+				EventId:      eventId,
+				CronParentId: cronParentId,
+				ScheduledId:  scheduledWorkflowId,
+				CronSchedule: cronSchedule,
 			}
+
+			triggeredByParams = append(triggeredByParams, cp)
+
+			// }
 
 			if opt.GetGroupKeyRun != nil {
 				groupKeyParams = append(groupKeyParams, dbsqlc.CreateGetGroupKeyRunsParams{
@@ -971,11 +963,17 @@ func createNewWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbs
 			workflowVersionIds := make([]pgtype.UUID, 0)
 			desiredWorkerIds := make([]pgtype.UUID, 0)
 
+			workflowVersionIdMap := make(map[string]pgtype.UUID)
+
 			for _, stickyInfo := range stickyInfos {
 				stickyWorkflowRunIds = append(stickyWorkflowRunIds, stickyInfo.workflowRunId)
-				workflowVersionIds = append(workflowVersionIds, stickyInfo.workflowVersionId)
+
+				// we want distinct workflowVersionIds
+				workflowVersionIdMap[sqlchelpers.UUIDToStr(stickyInfo.workflowVersionId)] = stickyInfo.workflowVersionId
 				desiredWorkerIds = append(desiredWorkerIds, stickyInfo.desiredWorkerId)
 			}
+
+			workflowVersionIds = slices.Collect(maps.Values(workflowVersionIdMap))
 
 			_, err = queries.CreateMultipleWorkflowRunStickyStates(tx1Ctx, tx, dbsqlc.CreateMultipleWorkflowRunStickyStatesParams{
 				Tenantid:           pgTenantId,
@@ -985,6 +983,7 @@ func createNewWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbs
 			})
 
 			if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+
 				return nil, fmt.Errorf("failed to create workflow run sticky state: %w", err)
 			}
 		}
@@ -1159,11 +1158,6 @@ func createNewWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbs
 
 		}
 
-		createdWorkflows, err := queries.GetInsertedWorkflowRuns(tx1Ctx, tx)
-		if err != nil {
-			return nil, err
-		}
-
 		err = commit(tx1Ctx)
 
 		if err != nil {
@@ -1171,7 +1165,7 @@ func createNewWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbs
 
 			return nil, err
 		}
-		return createdWorkflows, nil
+		return workflowRuns, nil
 	}()
 
 	if err != nil {

@@ -148,10 +148,9 @@ func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.T
 		}
 	} else {
 		createOpts, err = repository.GetCreateWorkflowRunOptsFromManual(workflowVersion, []byte(req.Input), additionalMetadata)
-	}
-
-	if err != nil {
-		return nil, fmt.Errorf("Trigger Workflow not after parent triggered check could not create workflow run opts: %w", err)
+		if err != nil {
+			return nil, fmt.Errorf("Trigger Workflow not after parent triggered check could not create workflow run opts: %w", err)
+		}
 	}
 
 	if req.DesiredWorkerId != nil {
@@ -231,7 +230,8 @@ func getOpts(ctx context.Context, req *contracts.TriggerWorkflowRequest, a *Admi
 			)
 		}
 
-		// what are we doing here? Seems like we are sending the child workflow run back if someone tries to trigger it again
+		// Unsure about this piece
+		// how do we want to handle ?
 
 		// workflowRun, err := a.repo.WorkflowRun().GetChildWorkflowRun(
 		// 	createContext,
@@ -332,10 +332,9 @@ func getOpts(ctx context.Context, req *contracts.TriggerWorkflowRequest, a *Admi
 		}
 	} else {
 		createOpts, err = repository.GetCreateWorkflowRunOptsFromManual(workflowVersion, []byte(req.Input), additionalMetadata)
-	}
-
-	if err != nil {
-		return nil, fmt.Errorf("Trigger Workflow not after parent triggered check could not create workflow run opts: %w", err)
+		if err != nil {
+			return nil, fmt.Errorf("Trigger Workflow not after parent triggered check could not create workflow run opts: %w", err)
+		}
 	}
 
 	if req.DesiredWorkerId != nil {

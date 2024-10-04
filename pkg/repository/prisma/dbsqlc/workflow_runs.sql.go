@@ -310,16 +310,16 @@ INSERT INTO "JobRunLookupData" (
     "data"
 )
 SELECT
-    COALESCE(input_data.id, gen_random_uuid()),    -- Use the provided id or generate one
-    CURRENT_TIMESTAMP,                             -- Set current timestamp for createdAt
-    CURRENT_TIMESTAMP,                             -- Set current timestamp for updatedAt
-    NULL,                                          -- Set deletedAt as NULL
-    input_data.jobRunId,                           -- jobRunId from input_data
-    input_data.tenantId,                           -- tenantId from input_data
-    jsonb_build_object(                            -- Build JSON data for 'data' column
+    COALESCE(input_data.id, gen_random_uuid()),
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP,
+    NULL,
+    input_data.jobRunId,
+    input_data.tenantId,
+    jsonb_build_object(
         'input', input_data.input,
         'triggered_by', input_data.triggeredBy,
-        'steps', '{}'::jsonb                       -- Set steps to empty JSON object
+        'steps', '{}'::jsonb
     )
 FROM input_data
 RETURNING id, "createdAt", "updatedAt", "deletedAt", "jobRunId", "tenantId", data
@@ -448,7 +448,7 @@ FROM
 JOIN
     "Job"
 ON
-    "Job"."workflowVersionId" = input_data.workflowVersionId  -- Join with matching workflowVersionId
+    "Job"."workflowVersionId" = input_data.workflowVersionId
 RETURNING "JobRun"."id", "JobRun"."workflowRunId"
 `
 
@@ -553,7 +553,7 @@ func (q *Queries) CreateMultipleWorkflowRunDedupes(ctx context.Context, db DBTX,
 
 const createMultipleWorkflowRunStickyStates = `-- name: CreateMultipleWorkflowRunStickyStates :many
 WITH workflow_version AS (
-    SELECT
+    SELECT DISTINCT
         "id" AS workflow_version_id,
         "sticky"
     FROM "WorkflowVersion"
@@ -691,7 +691,7 @@ steps AS (
         s."id" as step_id,
         s."actionId",
         s."jobId",
-        j.jobRunId,  -- Alias this correctly from job_ids
+        j.jobRunId,
         j."tenantId"
     FROM "Step" s
     JOIN job_ids j ON s."jobId" = j."jobId"
@@ -706,13 +706,13 @@ INSERT INTO "StepRun" (
     "queue"
 )
 SELECT
-    gen_random_uuid() as id, -- Generating a new UUID for StepRun
-    s."tenantId" as tenantId, -- TenantId from JobRun
-    $1::int4 as priority, -- Priority passed in as a parameter
+    gen_random_uuid() as id,
+    s."tenantId" as tenantId,
+    $1::int4 as priority,
     'PENDING' as status,
-    s.jobRunId as jobRunId, -- The jobRunId from the steps CTE
+    s.jobRunId as jobRunId,
     step_id as stepId,
-    s."actionId" as queue -- Correctly referencing "actionId" with quotes
+    s."actionId" as queue
 FROM steps s
 RETURNING
     "id"
@@ -950,16 +950,16 @@ INSERT INTO "WorkflowRunTriggeredBy" (
     "cronSchedule",
     "scheduledId"
 ) VALUES (
-    gen_random_uuid(), -- Generates a new UUID for id
+    gen_random_uuid(),
     CURRENT_TIMESTAMP,
     CURRENT_TIMESTAMP,
-    NULL, -- assuming deletedAt is not set on creation
+    NULL,
     $1::uuid,
-    $2::uuid, -- assuming parentId is the workflowRunId
-    $3::uuid, -- NULL if not provided
-    $4::uuid, -- NULL if not provided
-    $5::text, -- NULL if not provided
-    $6::uuid -- NULL if not provided
+    $2::uuid,
+    $3::uuid,
+    $4::uuid,
+    $5::text,
+    $6::uuid
 ) RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "eventId", "cronParentId", "cronSchedule", "scheduledId", input, "parentId"
 `
 

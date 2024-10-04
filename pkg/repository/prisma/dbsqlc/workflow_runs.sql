@@ -592,9 +592,10 @@ FROM workflow_version
 WHERE workflow_version."sticky" IS NOT NULL
 RETURNING *;
 
+
 -- name: CreateMultipleWorkflowRunStickyStates :many
 WITH workflow_version AS (
-    SELECT
+    SELECT DISTINCT
         "id" AS workflow_version_id,
         "sticky"
     FROM "WorkflowVersion"
@@ -620,6 +621,7 @@ JOIN UNNEST(@workflowVersionIds::uuid[]) AS wv(workflow_version_id)
     ON workflow_version.workflow_version_id = wv.workflow_version_id
 WHERE workflow_version."sticky" IS NOT NULL
 RETURNING *;
+
 
 -- name: GetWorkflowRunAdditionalMeta :one
 SELECT

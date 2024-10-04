@@ -68,23 +68,8 @@ func run() (func() error, error) {
 	go func() {
 		log.Printf("pushing event")
 
-		// testEvent := userCreateEvent{
-		// 	Username: "echo-test",
-		// 	UserID:   "1234",
-		// 	Data: map[string]string{
-		// 		"test": "test",
-		// 	},
-		// }
-
-		// // push an event
-		// err := c.Event().Push(
-		// 	context.Background(),
-		// 	"user:create:sticky",
-		// 	testEvent,
-		// )
-
 		var workflows []*client.Workflow
-		for i := 0; i < 10; i++ {
+		for i := 0; i < 200; i++ {
 			data := map[string]interface{}{
 				"username": fmt.Sprintf("echo-test-%d", i),
 				"user_id":  fmt.Sprintf("1234-%d", i),
