@@ -6,10 +6,26 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 
 	"github.com/rs/zerolog"
 )
+
+var (
+	defaultFlushPeriod = 10 * time.Millisecond
+	defaultMaxCapacity = 100
+)
+
+func setDefaults(cf *server.ConfigFileRuntime) {
+	if cf.FlushPeriodMilliseconds != 0 {
+		defaultFlushPeriod = time.Duration(cf.FlushPeriodMilliseconds) * time.Millisecond
+	}
+
+	if cf.FlushItemsThreshold != 0 {
+		defaultMaxCapacity = cf.FlushItemsThreshold
+	}
+}
 
 // This is a wrapper around the IngestBuf to manage multiple tenants
 // An example would be T is eventOps and U is *dbsqlc.Event
@@ -28,7 +44,8 @@ type TenantBufManagerOpts[T any, U any] struct {
 	L          *zerolog.Logger                                   `validate:"required"`
 	V          validator.Validator                               `validate:"required"`
 
-	FlushPeriod *time.Duration
+	FlushPeriod         *time.Duration
+	FlushItemsThreshold int
 }
 
 // Create a new TenantBufferManager with generic types T for input and U for output
@@ -45,8 +62,8 @@ func NewTenantBufManager[T any, U any](opts TenantBufManagerOpts[T, U]) (*Tenant
 
 	defaultOpts := IngestBufOpts[T, U]{
 		// something we can tune if we see this DB transaction is too slow
-		MaxCapacity:        10000,
-		FlushPeriod:        50 * time.Millisecond,
+		MaxCapacity:        defaultMaxCapacity,
+		FlushPeriod:        defaultFlushPeriod,
 		MaxDataSizeInQueue: 4 * megabyte,
 		OutputFunc:         opts.OutputFunc,
 		SizeFunc:           opts.SizeFunc,

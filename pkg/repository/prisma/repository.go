@@ -288,6 +288,8 @@ func NewEngineRepository(pool *pgxpool.Pool, queuePool *pgxpool.Pool, cf *server
 		f(opts)
 	}
 
+	setDefaults(cf)
+
 	newLogger := opts.l.With().Str("service", "database").Logger()
 	opts.l = &newLogger
 
