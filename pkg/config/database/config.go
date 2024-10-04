@@ -46,8 +46,6 @@ type SeedConfigFile struct {
 }
 
 type Config struct {
-	Disconnect func() error
-
 	Pool *pgxpool.Pool
 
 	QueuePool *pgxpool.Pool

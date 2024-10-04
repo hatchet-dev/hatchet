@@ -250,8 +250,6 @@ func runCreateWorkerToken() error {
 
 	defer cleanup() // nolint:errcheck
 
-	defer serverConf.Disconnect() // nolint:errcheck
-
 	expiresAt := time.Now().UTC().Add(100 * 365 * 24 * time.Hour)
 
 	tenantId := tokenTenantId
