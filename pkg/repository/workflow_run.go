@@ -47,7 +47,8 @@ type CreateWorkflowRunOpts struct {
 	ChildKey *string
 
 	// (optional) the child index of the workflow run, if this is a child run of a different workflow
-	ChildIndex *int
+	// ChildIndex *int `validate:"omitempty,min=0"`
+	ChildIndex *int // I feel like I should be able to tighten this up but it seems a -1 for child index is coming from somewhere
 
 	// (optional) additional metadata for the workflow run
 	AdditionalMetadata map[string]interface{} `validate:"omitempty"`
@@ -428,6 +429,9 @@ type WorkflowRunEngineRepository interface {
 
 	// CreateNewWorkflowRun creates a new workflow run for a workflow version.
 	CreateNewWorkflowRun(ctx context.Context, tenantId string, opts *CreateWorkflowRunOpts) (string, error)
+
+	// CreateNewWorkflowRuns creates new workflow runs in bulk
+	CreateNewWorkflowRuns(ctx context.Context, tenantId string, opts []*CreateWorkflowRunOpts) ([]string, error)
 
 	// GetWorkflowRunById returns a workflow run by id.
 	GetWorkflowRunById(ctx context.Context, tenantId, runId string) (*dbsqlc.GetWorkflowRunRow, error)

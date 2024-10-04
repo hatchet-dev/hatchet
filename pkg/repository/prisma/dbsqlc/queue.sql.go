@@ -587,3 +587,31 @@ func (q *Queries) UpsertQueue(ctx context.Context, db DBTX, arg UpsertQueueParam
 	_, err := db.Exec(ctx, upsertQueue, arg.Tenantid, arg.Name)
 	return err
 }
+
+const upsertQueues = `-- name: UpsertQueues :exec
+WITH input_data AS (
+    SELECT
+        UNNEST($1::uuid[]) AS tenantId,
+        UNNEST($2::text[]) AS name
+)
+INSERT INTO "Queue" (
+    "tenantId",
+    "name"
+)
+SELECT
+    input_data.tenantId,
+    input_data.name
+FROM
+    input_data
+ON CONFLICT ("tenantId", "name") DO NOTHING
+`
+
+type UpsertQueuesParams struct {
+	Tenantids []pgtype.UUID `json:"tenantids"`
+	Names     []string      `json:"names"`
+}
+
+func (q *Queries) UpsertQueues(ctx context.Context, db DBTX, arg UpsertQueuesParams) error {
+	_, err := db.Exec(ctx, upsertQueues, arg.Tenantids, arg.Names)
+	return err
+}

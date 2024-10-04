@@ -39,7 +39,7 @@ type AdminClient interface {
 	// RunWorkflow triggers a workflow run and returns the run id
 	RunWorkflow(workflowName string, input interface{}, opts ...RunOptFunc) (string, error)
 
-	// BulkRunWorkflow(workflows []*Workflow) ([]string, error)
+	BulkRunWorkflow(workflows []*Workflow) ([]string, error)
 
 	RunChildWorkflow(workflowName string, input interface{}, opts *ChildWorkflowOpts) (string, error)
 
@@ -221,7 +221,21 @@ func (a *adminClientImpl) RunWorkflow(workflowName string, input interface{}, op
 	return res.WorkflowRunId, nil
 }
 
-func (a *adminClientImpl) BulkRunWorkflow(triggerWorkflowRequests []*admincontracts.TriggerWorkflowRequest) ([]string, error) {
+func (a *adminClientImpl) BulkRunWorkflow(workflows []*Workflow) ([]string, error) {
+
+	triggerWorkflowRequests := make([]*admincontracts.TriggerWorkflowRequest, len(workflows))
+
+	for i, workflow := range workflows {
+		inputBytes, err := json.Marshal(workflow.Input)
+		if err != nil {
+			return nil, fmt.Errorf("could not marshal input: %w", err)
+		}
+
+		triggerWorkflowRequests[i] = &admincontracts.TriggerWorkflowRequest{
+			Name:  workflow.Name,
+			Input: string(inputBytes),
+		}
+	}
 
 	r := admincontracts.BulkTriggerWorkflowRequest{
 		Workflows: triggerWorkflowRequests,

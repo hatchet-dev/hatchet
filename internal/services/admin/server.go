@@ -144,14 +144,14 @@ func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.T
 		)
 
 		if err != nil {
-			return nil, fmt.Errorf("could not create workflow run opts: %w", err)
+			return nil, fmt.Errorf("Trigger Workflow could not create workflow run opts: %w", err)
 		}
 	} else {
 		createOpts, err = repository.GetCreateWorkflowRunOptsFromManual(workflowVersion, []byte(req.Input), additionalMetadata)
 	}
 
 	if err != nil {
-		return nil, fmt.Errorf("could not create workflow run opts: %w", err)
+		return nil, fmt.Errorf("Trigger Workflow not after parent triggered check could not create workflow run opts: %w", err)
 	}
 
 	if req.DesiredWorkerId != nil {
@@ -188,7 +188,7 @@ func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.T
 	}
 
 	if err != nil {
-		return nil, fmt.Errorf("could not create workflow run: %w", err)
+		return nil, fmt.Errorf("Trigger Workflow - could not create workflow run: %w", err)
 	}
 
 	// send to workflow processing queue
@@ -207,69 +207,206 @@ func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.T
 	}, nil
 }
 
-// func (a *AdminServiceImpl) BulkTriggerWorkflow(ctx context.Context, req *contracts.BulkTriggerWorkflowRequest) (*contracts.BulkTriggerWorkflowResponse, error) {
-// 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
-// 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+func getOpts(ctx context.Context, req *contracts.TriggerWorkflowRequest, a *AdminServiceImpl) (*repository.CreateWorkflowRunOpts, error) {
+	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
-// 	createContext, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-// 	defer cancel()
+	createContext, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 
-// 	var workflowRuns []*contracts.TriggerWorkflowResponse
+	isParentTriggered := req.ParentId != nil
 
-// 	if len(req.Workflows) == 0 {
-// 		return &contracts.BulkTriggerWorkflowResponse{}, status.Error(codes.InvalidArgument, "no workflows provided")
-// 	}
+	if isParentTriggered {
+		if req.ParentStepRunId == nil {
+			return nil, status.Error(
+				codes.InvalidArgument,
+				"parent step run id is required when parent id is provided",
+			)
+		}
 
-// 	parentId := req.Workflows[0].ParentId
+		if req.ChildIndex == nil {
+			return nil, status.Error(
+				codes.InvalidArgument,
+				"child index is required when parent id is provided",
+			)
+		}
 
-// 	// every workflow in the bulk trigger request should have the same parent id, either nil or the same value
-// 	for _, workflow := range req.Workflows {
-// 		if parentId != workflow.ParentId {
-// 			return nil, status.Error(
-// 				codes.InvalidArgument,
-// 				"all workflows in the bulk trigger request must have the same parent id",
-// 			)
-// 		}
-// 	}
+		// what are we doing here? Seems like we are sending the child workflow run back if someone tries to trigger it again
 
-// 	if parentId != nil {
-// 		for _, workflow := range req.Workflows {
-// 			if workflow.ParentStepRunId == nil {
-// 				return nil, status.Error(
-// 					codes.InvalidArgument,
-// 					"parent step run id is required when parent id is provided",
-// 				)
-// 			}
+		// workflowRun, err := a.repo.WorkflowRun().GetChildWorkflowRun(
+		// 	createContext,
+		// 	*req.ParentId,
+		// 	*req.ParentStepRunId,
+		// 	int(*req.ChildIndex),
+		// 	req.ChildKey,
+		// )
 
-// 			if workflow.ChildIndex == nil {
-// 				return nil, status.Error(
-// 					codes.InvalidArgument,
-// 					"child index is required when parent id is provided",
-// 				)
-// 			}
+		// if err != nil {
+		// 	if !errors.Is(err, pgx.ErrNoRows) {
+		// 		return nil, fmt.Errorf("could not get child workflow run: %w", err)
+		// 	}
+		// }
 
-// 			workflowRun, err := a.repo.WorkflowRun().GetChildWorkflowRun(
-// 				createContext,
-// 				*parentId,
-// 				*workflow.ParentStepRunId,
-// 				int(*workflow.ChildIndex),
-// 				workflow.ChildKey,
-// 			)
+		// if err == nil && workflowRun != nil {
+		// 	return contracts.TriggerWorkflowResponse{
+		// 		WorkflowRunId: sqlchelpers.UUIDToStr(workflowRun.ID),
+		// 	}, nil
+		// }
+	}
 
-// 			if err != nil {
-// 				if !errors.Is(err, pgx.ErrNoRows) {
-// 					return nil, fmt.Errorf("could not get child workflow run: %w", err)
-// 				}
-// 			}
+	workflow, err := a.repo.Workflow().GetWorkflowByName(
+		createContext,
+		tenantId,
+		req.Name,
+	)
 
-// 			if err == nil && workflowRun != nil {
-// 				workflowRuns = append(workflowRuns, &contracts.TriggerWorkflowResponse{
-// 					WorkflowRunId: sqlchelpers.UUIDToStr(workflowRun.ID),
-// 				})
-// 			}
-// 		}
+	if err == metered.ErrResourceExhausted {
+		return nil, status.Error(
+			codes.ResourceExhausted,
+			"workflow run limit exceeded",
+		)
+	}
 
-// }
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, status.Error(
+				codes.NotFound,
+				"workflow not found",
+			)
+		}
+
+		return nil, fmt.Errorf("could not get workflow by name: %w", err)
+	}
+
+	workflowVersion, err := a.repo.Workflow().GetLatestWorkflowVersion(
+		createContext,
+		tenantId,
+		sqlchelpers.UUIDToStr(workflow.ID),
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not get latest workflow version: %w", err)
+	}
+
+	var createOpts *repository.CreateWorkflowRunOpts
+
+	var additionalMetadata map[string]interface{}
+
+	if req.AdditionalMetadata != nil {
+		err := json.Unmarshal([]byte(*req.AdditionalMetadata), &additionalMetadata)
+		if err != nil {
+			return nil, fmt.Errorf("could not unmarshal additional metadata: %w", err)
+		}
+	}
+
+	if isParentTriggered {
+		parent, err := a.repo.WorkflowRun().GetWorkflowRunById(createContext, tenantId, sqlchelpers.UUIDToStr(sqlchelpers.UUIDFromStr(*req.ParentId)))
+
+		if err != nil {
+			return nil, fmt.Errorf("could not get parent workflow run: %w", err)
+		}
+
+		var parentAdditionalMeta map[string]interface{}
+
+		if parent.WorkflowRun.AdditionalMetadata != nil {
+			err := json.Unmarshal(parent.WorkflowRun.AdditionalMetadata, &parentAdditionalMeta)
+			if err != nil {
+				return nil, fmt.Errorf("could not unmarshal parent additional metadata: %w", err)
+			}
+		}
+
+		createOpts, err = repository.GetCreateWorkflowRunOptsFromParent(
+			workflowVersion,
+			[]byte(req.Input),
+
+			*req.ParentId,
+			*req.ParentStepRunId,
+			int(*req.ChildIndex),
+			req.ChildKey,
+			additionalMetadata,
+			parentAdditionalMeta,
+		)
+
+		if err != nil {
+			return nil, fmt.Errorf("Trigger Workflow could not create workflow run opts: %w", err)
+		}
+	} else {
+		createOpts, err = repository.GetCreateWorkflowRunOptsFromManual(workflowVersion, []byte(req.Input), additionalMetadata)
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("Trigger Workflow not after parent triggered check could not create workflow run opts: %w", err)
+	}
+
+	if req.DesiredWorkerId != nil {
+		if !workflowVersion.WorkflowVersion.Sticky.Valid {
+			return nil, status.Errorf(codes.Canceled, "workflow version %s does not have sticky enabled", workflowVersion.WorkflowName)
+		}
+
+		createOpts.DesiredWorkerId = req.DesiredWorkerId
+	}
+
+	if workflowVersion.WorkflowVersion.DefaultPriority.Valid {
+		createOpts.Priority = &workflowVersion.WorkflowVersion.DefaultPriority.Int32
+	}
+
+	if req.Priority != nil {
+		createOpts.Priority = req.Priority
+	}
+
+	return createOpts, nil
+}
+
+func (a *AdminServiceImpl) BulkTriggerWorkflow(ctx context.Context, req *contracts.BulkTriggerWorkflowRequest) (*contracts.BulkTriggerWorkflowResponse, error) {
+	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+
+	createContext, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	var opts []*repository.CreateWorkflowRunOpts
+	for _, req := range req.Workflows {
+
+		opt, err := getOpts(ctx, req, a)
+		if err != nil {
+			return nil, err
+		}
+
+		opts = append(opts, opt)
+
+	}
+
+	if len(opts) == 0 {
+		return &contracts.BulkTriggerWorkflowResponse{}, status.Error(codes.InvalidArgument, "no suitable workflows provided")
+	}
+
+	workflowRunIds, err := a.repo.WorkflowRun().CreateNewWorkflowRuns(createContext, tenantId, opts)
+
+	if err == metered.ErrResourceExhausted {
+		return nil, status.Errorf(codes.ResourceExhausted, "resource exhausted: workflow run limit exceeded for tenant")
+	}
+	if err != nil {
+		return nil, fmt.Errorf("could not create workflow runs: %w", err)
+	}
+
+	if len(workflowRunIds) == 0 {
+		return &contracts.BulkTriggerWorkflowResponse{}, status.Error(codes.InvalidArgument, "no workflows provided")
+	}
+
+	for _, workflowRunId := range workflowRunIds {
+		err = a.mq.AddMessage(
+			context.Background(),
+			msgqueue.WORKFLOW_PROCESSING_QUEUE,
+			tasktypes.WorkflowRunQueuedToTask(tenantId, workflowRunId),
+		)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not queue workflow run: %w", err)
+		}
+	}
+
+	return &contracts.BulkTriggerWorkflowResponse{WorkflowRunIds: workflowRunIds}, nil
+
+}
 
 func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWorkflowRequest) (*contracts.WorkflowVersion, error) {
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)

@@ -227,6 +227,16 @@ func (q *Queries) CreateGetGroupKeyRun(ctx context.Context, db DBTX, arg CreateG
 	return &i, err
 }
 
+type CreateGetGroupKeyRunsParams struct {
+	ID                pgtype.UUID      `json:"id"`
+	TenantId          pgtype.UUID      `json:"tenantId"`
+	WorkflowRunId     pgtype.UUID      `json:"workflowRunId"`
+	Input             []byte           `json:"input"`
+	RequeueAfter      pgtype.Timestamp `json:"requeueAfter"`
+	ScheduleTimeoutAt pgtype.Timestamp `json:"scheduleTimeoutAt"`
+	Status            StepRunStatus    `json:"status"`
+}
+
 const createJobRunLookupData = `-- name: CreateJobRunLookupData :one
 INSERT INTO "JobRunLookupData" (
     "id",
@@ -280,6 +290,83 @@ func (q *Queries) CreateJobRunLookupData(ctx context.Context, db DBTX, arg Creat
 	return &i, err
 }
 
+const createJobRunLookupDatas = `-- name: CreateJobRunLookupDatas :many
+
+WITH input_data AS (
+    SELECT
+        UNNEST(COALESCE($1::uuid[], ARRAY[gen_random_uuid()])) AS id,
+        UNNEST($2::uuid[]) AS jobRunId,
+        UNNEST($3::uuid[]) AS tenantId,
+        UNNEST($4::text[]) AS triggeredBy,
+        UNNEST(COALESCE($5::jsonb[], ARRAY[ '{}'::jsonb ])) AS input
+)
+INSERT INTO "JobRunLookupData" (
+    "id",
+    "createdAt",
+    "updatedAt",
+    "deletedAt",
+    "jobRunId",
+    "tenantId",
+    "data"
+)
+SELECT
+    COALESCE(input_data.id, gen_random_uuid()),    -- Use the provided id or generate one
+    CURRENT_TIMESTAMP,                             -- Set current timestamp for createdAt
+    CURRENT_TIMESTAMP,                             -- Set current timestamp for updatedAt
+    NULL,                                          -- Set deletedAt as NULL
+    input_data.jobRunId,                           -- jobRunId from input_data
+    input_data.tenantId,                           -- tenantId from input_data
+    jsonb_build_object(                            -- Build JSON data for 'data' column
+        'input', input_data.input,
+        'triggered_by', input_data.triggeredBy,
+        'steps', '{}'::jsonb                       -- Set steps to empty JSON object
+    )
+FROM input_data
+RETURNING id, "createdAt", "updatedAt", "deletedAt", "jobRunId", "tenantId", data
+`
+
+type CreateJobRunLookupDatasParams struct {
+	Ids          []pgtype.UUID `json:"ids"`
+	Jobrunids    []pgtype.UUID `json:"jobrunids"`
+	Tenantids    []pgtype.UUID `json:"tenantids"`
+	Triggeredbys []string      `json:"triggeredbys"`
+	Inputs       [][]byte      `json:"inputs"`
+}
+
+func (q *Queries) CreateJobRunLookupDatas(ctx context.Context, db DBTX, arg CreateJobRunLookupDatasParams) ([]*JobRunLookupData, error) {
+	rows, err := db.Query(ctx, createJobRunLookupDatas,
+		arg.Ids,
+		arg.Jobrunids,
+		arg.Tenantids,
+		arg.Triggeredbys,
+		arg.Inputs,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*JobRunLookupData
+	for rows.Next() {
+		var i JobRunLookupData
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.JobRunId,
+			&i.TenantId,
+			&i.Data,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const createJobRuns = `-- name: CreateJobRuns :many
 INSERT INTO "JobRun" (
     "id",
@@ -324,6 +411,71 @@ func (q *Queries) CreateJobRuns(ctx context.Context, db DBTX, arg CreateJobRunsP
 			return nil, err
 		}
 		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const createManyJobRuns = `-- name: CreateManyJobRuns :many
+
+WITH input_data AS (
+    SELECT
+        UNNEST($1::uuid[]) AS tenantId,
+        UNNEST($2::uuid[]) AS workflowRunId,
+        UNNEST($3::uuid[]) AS workflowVersionId
+)
+INSERT INTO "JobRun" (
+    "id",
+    "createdAt",
+    "updatedAt",
+    "tenantId",
+    "workflowRunId",
+    "jobId",
+    "status"
+)
+SELECT
+    gen_random_uuid(),
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP,
+    input_data.tenantId,
+    input_data.workflowRunId,
+    "Job"."id",
+    'PENDING'
+FROM
+    input_data
+JOIN
+    "Job"
+ON
+    "Job"."workflowVersionId" = input_data.workflowVersionId  -- Join with matching workflowVersionId
+RETURNING "JobRun"."id", "JobRun"."workflowRunId"
+`
+
+type CreateManyJobRunsParams struct {
+	Tenantids          []pgtype.UUID `json:"tenantids"`
+	Workflowrunids     []pgtype.UUID `json:"workflowrunids"`
+	Workflowversionids []pgtype.UUID `json:"workflowversionids"`
+}
+
+type CreateManyJobRunsRow struct {
+	ID            pgtype.UUID `json:"id"`
+	WorkflowRunId pgtype.UUID `json:"workflowRunId"`
+}
+
+func (q *Queries) CreateManyJobRuns(ctx context.Context, db DBTX, arg CreateManyJobRunsParams) ([]*CreateManyJobRunsRow, error) {
+	rows, err := db.Query(ctx, createManyJobRuns, arg.Tenantids, arg.Workflowrunids, arg.Workflowversionids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*CreateManyJobRunsRow
+	for rows.Next() {
+		var i CreateManyJobRunsRow
+		if err := rows.Scan(&i.ID, &i.WorkflowRunId); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -515,6 +667,80 @@ func (q *Queries) CreateStepRun(ctx context.Context, db DBTX, arg CreateStepRunP
 	var id pgtype.UUID
 	err := row.Scan(&id)
 	return id, err
+}
+
+type CreateStepRunsParams struct {
+	ID           pgtype.UUID      `json:"id"`
+	TenantId     pgtype.UUID      `json:"tenantId"`
+	JobRunId     pgtype.UUID      `json:"jobRunId"`
+	StepId       pgtype.UUID      `json:"stepId"`
+	Status       StepRunStatus    `json:"status"`
+	RequeueAfter pgtype.Timestamp `json:"requeueAfter"`
+	Queue        string           `json:"queue"`
+	Priority     pgtype.Int4      `json:"priority"`
+}
+
+const createStepRunsForJobRunIds = `-- name: CreateStepRunsForJobRunIds :many
+WITH job_ids AS (
+    SELECT DISTINCT "jobId", "id" as jobRunId, "tenantId"
+    FROM "JobRun"
+    WHERE "id" = ANY($2::uuid[])
+),
+steps AS (
+    SELECT
+        s."id" as step_id,
+        s."actionId",
+        s."jobId",
+        j.jobRunId,  -- Alias this correctly from job_ids
+        j."tenantId"
+    FROM "Step" s
+    JOIN job_ids j ON s."jobId" = j."jobId"
+)
+INSERT INTO "StepRun" (
+    "id",
+    "tenantId",
+    "priority",
+    "status",
+    "jobRunId",
+    "stepId",
+    "queue"
+)
+SELECT
+    gen_random_uuid() as id, -- Generating a new UUID for StepRun
+    s."tenantId" as tenantId, -- TenantId from JobRun
+    $1::int4 as priority, -- Priority passed in as a parameter
+    'PENDING' as status,
+    s.jobRunId as jobRunId, -- The jobRunId from the steps CTE
+    step_id as stepId,
+    s."actionId" as queue -- Correctly referencing "actionId" with quotes
+FROM steps s
+RETURNING
+    "id"
+`
+
+type CreateStepRunsForJobRunIdsParams struct {
+	Priority  int32         `json:"priority"`
+	Jobrunids []pgtype.UUID `json:"jobrunids"`
+}
+
+func (q *Queries) CreateStepRunsForJobRunIds(ctx context.Context, db DBTX, arg CreateStepRunsForJobRunIdsParams) ([]pgtype.UUID, error) {
+	rows, err := db.Query(ctx, createStepRunsForJobRunIds, arg.Priority, arg.Jobrunids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []pgtype.UUID
+	for rows.Next() {
+		var id pgtype.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const createWorkflowRun = `-- name: CreateWorkflowRun :one
@@ -772,6 +998,16 @@ func (q *Queries) CreateWorkflowRunTriggeredBy(ctx context.Context, db DBTX, arg
 	return &i, err
 }
 
+type CreateWorkflowRunTriggeredBysParams struct {
+	ID           pgtype.UUID `json:"id"`
+	TenantId     pgtype.UUID `json:"tenantId"`
+	ParentId     pgtype.UUID `json:"parentId"`
+	EventId      pgtype.UUID `json:"eventId"`
+	CronParentId pgtype.UUID `json:"cronParentId"`
+	CronSchedule pgtype.Text `json:"cronSchedule"`
+	ScheduledId  pgtype.UUID `json:"scheduledId"`
+}
+
 type CreateWorkflowRunsParams struct {
 	ID                 pgtype.UUID       `json:"id"`
 	DisplayName        pgtype.Text       `json:"displayName"`
@@ -839,6 +1075,33 @@ func (q *Queries) GetChildWorkflowRun(ctx context.Context, db DBTX, arg GetChild
 		&i.Priority,
 	)
 	return &i, err
+}
+
+const getInsertedStepRuns = `-- name: GetInsertedStepRuns :many
+
+SELECT id FROM "StepRun"
+WHERE xmin::text = (txid_current() % (2^32)::bigint)::text
+ORDER BY id
+`
+
+func (q *Queries) GetInsertedStepRuns(ctx context.Context, db DBTX) ([]pgtype.UUID, error) {
+	rows, err := db.Query(ctx, getInsertedStepRuns)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []pgtype.UUID
+	for rows.Next() {
+		var id pgtype.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getInsertedWorkflowRuns = `-- name: GetInsertedWorkflowRuns :many
@@ -1068,6 +1331,48 @@ func (q *Queries) GetStepsForJobs(ctx context.Context, db DBTX, arg GetStepsForJ
 			&i.Step.Retries,
 			&i.Step.ScheduleTimeout,
 			&i.Parents,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getStepsForWorkflowVersion = `-- name: GetStepsForWorkflowVersion :many
+
+SELECT
+    "Step".id, "Step"."createdAt", "Step"."updatedAt", "Step"."deletedAt", "Step"."readableId", "Step"."tenantId", "Step"."jobId", "Step"."actionId", "Step".timeout, "Step"."customUserData", "Step".retries, "Step"."scheduleTimeout"  from "Step"
+JOIN "Job" ON "Step"."jobId" = "Job"."id"
+WHERE
+    "workflowVersionId" = ANY($1::uuid[])
+`
+
+func (q *Queries) GetStepsForWorkflowVersion(ctx context.Context, db DBTX, workflowversionids []pgtype.UUID) ([]*Step, error) {
+	rows, err := db.Query(ctx, getStepsForWorkflowVersion, workflowversionids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*Step
+	for rows.Next() {
+		var i Step
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.ReadableId,
+			&i.TenantId,
+			&i.JobId,
+			&i.ActionId,
+			&i.Timeout,
+			&i.CustomUserData,
+			&i.Retries,
+			&i.ScheduleTimeout,
 		); err != nil {
 			return nil, err
 		}

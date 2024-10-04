@@ -204,7 +204,7 @@ func (ec *EventsControllerImpl) processEvent(ctx context.Context, tenantId, even
 			workflowRunId, err := ec.repo.WorkflowRun().CreateNewWorkflowRun(ctx, tenantId, createOpts)
 
 			if err != nil {
-				return fmt.Errorf("could not create workflow run: %w", err)
+				return fmt.Errorf("processEvent: could not create workflow run: %w", err)
 			}
 
 			// send to workflow processing queue
