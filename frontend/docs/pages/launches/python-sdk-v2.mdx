@@ -1,0 +1,163 @@
+import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
+
+# `v0.42` - Python SDK v2 and more!
+
+Hey there, its been a while! Over the last few months we've been building a ton here @ Hatchet! So
+much so that we haven't really had the time to whip up a proper changelog but thankfully, we've
+brought on some extra folks to help out and ensure we get these out more frequently.
+
+Expect a more succinct writeup of everything thats changed since `v0.20` (the last version we wrote
+a full post on) coming very soon!
+
+## Hatchet Python SDK v2
+
+### Hatchet Function
+
+While Directed Acyclic Graph (ie DAGs for short) are a great way to define complex multi-step
+workflows, we noticed a lot of users just neededed to define a single function.
+
+With that in mind, we introduced a new way to define a simple workflow with minimal library overhead:
+
+```py
+from hatchet_sdk import Context
+from hatchet_sdk.v2.hatchet import Hatchet
+
+hatchet = Hatchet(debug=True)
+
+
+@hatchet.function(on_events=["user:create"])
+def hatchet_func(ctx: Context) -> None:
+    print("Running hatchet_func")
+
+
+worker = hatchet.worker(
+    name="test-worker",
+    max_runs=5,
+)
+worker.start()
+```
+
+[Docs →](https://docs.hatchet.run/sdks/python-sdk/workflow)
+
+### Durable Function
+
+We've also introduced a way to better define when a function should execute as a durable function.
+This should enable (as an example) the ability to fan out workflow from a mid-point after a failure
+without needing to rerun all the previous successful runs.
+
+Durable Fan out Example:
+
+```py
+import asyncio
+
+from hatchet_sdk import Context
+from hatchet_sdk.v2.callable import DurableContext
+from hatchet_sdk.v2.hatchet import Hatchet
+
+hatchet = Hatchet(debug=True)
+
+
+@hatchet.function()
+def my_func(ctx: Context):
+    return {"my_func": "testing123"}
+
+
+@hatchet.durable()
+async def my_durable_func(ctx: DurableContext):
+    function_runs = []
+    n = ctx.workflow_input().get("n", 20)
+
+    for i in range(n):
+        function_runs.append(
+            ctx.run(my_func, {"test": "test"}, key=f"my_func_{i}").result()
+        )
+
+    result = await asyncio.gather(*function_runs)
+    ctx.log(result)
+
+    return {"my_durable_func": result}
+
+
+def main():
+    worker = hatchet.worker("test-worker", max_runs=5)
+
+    hatchet.admin.run(my_durable_func, {"test": "test"})
+
+    worker.start()
+```
+
+[Docs →](https://docs.hatchet.run/sdks/python-sdk/workflow#durable-functions)
+
+### Improved AsyncIO support
+
+While taking a pass over a lot of the architecture of the SDK, we also cleaned up and improved a lot
+of our native AsyncIO support. We found and patched quite a few areas with loop-blocking calls,
+implemented smaller coroutines for faster yielding, and improved the overall thread safety of
+spawned subprocesses. Overall, a large step forward for a smaller footprint when using AsyncIO!
+
+We've also started to put together some utilities to help you convert non-async safe code blocks
+quickly and easily to be async safe!
+
+An example of one utility, `sync_to_async` below:
+
+```py
+import time
+
+from hatchet_sdk import Context, sync_to_async
+from hatchet_sdk.v2.hatchet import Hatchet
+
+hatchet = Hatchet(debug=True)
+
+
+@sync_to_async  # This will now be async safe!
+def blocking_function():
+    time.sleep(5)
+    return {"type": "sync_blocking"}
+
+
+@sync_to_async  # This will now be async safe!
+async def async_blocking_function():
+    time.sleep(5)
+    return {"type": "async_blocking"}
+
+
+@hatchet.function()
+async def my_func(context: Context) -> dict:
+    data = [
+        await blocking_function(),
+        await async_blocking_function(),
+    ]
+    return {
+        "status": "success",
+        "data": data,
+    }
+
+
+worker = hatchet.worker("worker", max_runs=5)
+
+worker.start()
+```
+
+[Docs →](https://docs.hatchet.run/sdks/python-sdk/asyncio)
+
+### Background Nanny Process
+
+We've noticed some issues with observability on identifying _where_ problems lie when writing
+complex workflows. In order to help ease this pain point, we've added a background nanny process to
+alert on any bad we notice happening such as:
+
+- non-async safe code that could be blocking the event loop
+- poor network conditions leading to slow execution / releases of workers
+- non-thread safe code causing issues in the spawned threads
+
+### Concurrency and Throughput Improvements
+
+We've also taken a polish pass on how we're implementing concurrency within the SDK to improve the
+overall performance in edge case conditions. These improvements should see a much lower memory
+footprint on top of enabling better graceful termination of any running processes. If you've noticed
+weird behavior when trying to kill a running process, a lingering process after a network
+disconnection, or any other weird edge case behavior -- this fix is for you!
+
+As always we’d love to hear from you on how we’re doing and what we should focus on next!
+
+[Join us in our discord](https://discord.com/invite/ZMeUafwH89) and say hi!

@@ -10,5 +10,9 @@
     "rate-limits": {
         "title": "April 12th - v0.20 Release",
         "display": "hidden"
+    },
+    "python-sdk-v2": {
+        "title": "August 20th - Python SDK v2 Release",
+        "display": "hidden"
     }
 }

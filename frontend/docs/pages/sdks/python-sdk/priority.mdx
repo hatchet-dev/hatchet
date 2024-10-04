@@ -1,0 +1,46 @@
+import { Callout } from "nextra/components";
+
+# Setting Workflow Priority
+
+<Callout type="info">This feature is currently in beta and may be subject to change.</Callout>
+
+You can set different priorities for your workflows to make sure that the most important tasks are
+handled first, especially when resources are limited. This means that if your worker pool is busy
+with many tasks, the high-priority tasks will be processed before the lower-priority ones.
+
+You can assign a priority value of 1, 2, or 3 to a worker. The higher the number, the higher the
+priority compared to others.
+
+For example, let's say you have two workflows: `high_prio_workflow` and `low_prio_workflow`. If you
+set `low_prio_workflow` to a priority of 1 and `high_prio_workflow` to a higher priority of 2 or 3,
+the system will prioritize `high_prio_workflow` when a worker is available. Below is a code example
+showing how this works.
+
+```py
+import asyncio
+
+from hatchet_sdk import Context
+from hatchet_sdk.v2.hatchet import Hatchet
+
+hatchet = Hatchet(debug=True)
+
+@hatchet.function(default_priority=2)
+async def high_prio_workflow(ctx: Context) -> dict:
+    await asyncio.sleep(5)
+    return {"return_string": "High Priority Return"}
+
+@hatchet.function(default_priority=1)
+async def low_prio_workflow(ctx: Context) -> dict:
+    await asyncio.sleep(5)
+    return {"return_string": "Low Priority Return"}
+
+worker = hatchet.worker("example-priority-worker", max_runs=1)
+
+hatchet.admin.run(low_prio_workflow, {})
+hatchet.admin.run(low_prio_workflow, {})
+
+hatchet.admin.run(high_prio_workflow, {})
+hatchet.admin.run(high_prio_workflow, {})
+
+worker.start()
+```

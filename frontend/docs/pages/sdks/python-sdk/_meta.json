@@ -14,7 +14,6 @@
     "title": "Configuration"
   },
   "client": "Client",
-  "worker": "Worker",
   "workflow": "Workflow",
   "--- Running Workflows": {
     "type": "separator",
@@ -25,6 +24,11 @@
   "run-workflow-events": "Event-Triggered Workflows",
   "run-workflow-cron": "Cron Workflows",
   "run-workflow-schedule": "Scheduled Workflows",
+  "--- Workflow Options": {
+    "type": "separator",
+    "title": "Workflow Options"
+  },
+  "priority": "Setting Workflow Priority",
   "--- Getting Workflow Results": {
     "type": "separator",
     "title": "Getting Workflow Results"
@@ -34,6 +38,7 @@
     "type": "separator",
     "title": "Advanced"
   },
+  "dag": "DAG Workers",
   "fairness": "Concurrency and Fairness",
   "logging": "Logging",
   "api": "REST API",
