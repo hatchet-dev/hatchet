@@ -53,6 +53,9 @@ CREATE TYPE "WebhookWorkerRequestMethod" AS ENUM ('GET', 'POST', 'PUT');
 CREATE TYPE "WorkerLabelComparator" AS ENUM ('EQUAL', 'NOT_EQUAL', 'GREATER_THAN', 'GREATER_THAN_OR_EQUAL', 'LESS_THAN', 'LESS_THAN_OR_EQUAL');
 
 -- CreateEnum
+CREATE TYPE "WorkerSDKS" AS ENUM ('UNKNOWN', 'GO', 'PYTHON', 'TYPESCRIPT');
+
+-- CreateEnum
 CREATE TYPE "WorkerType" AS ENUM ('WEBHOOK', 'MANAGED', 'SELFHOSTED');
 
 -- CreateEnum
@@ -718,6 +721,11 @@ CREATE TABLE "Worker" (
     "isPaused" BOOLEAN NOT NULL DEFAULT false,
     "type" "WorkerType" NOT NULL DEFAULT 'SELFHOSTED',
     "webhookId" UUID,
+    "language" "WorkerSDKS",
+    "languageVersion" TEXT,
+    "os" TEXT,
+    "runtimeExtra" TEXT,
+    "sdkVersion" TEXT,
 
     CONSTRAINT "Worker_pkey" PRIMARY KEY ("id")
 );

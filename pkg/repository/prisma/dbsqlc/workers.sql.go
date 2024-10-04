@@ -32,7 +32,7 @@ INSERT INTO "Worker" (
     $4::int,
     $5::uuid,
     $6::"WorkerType"
-) RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", "isActive", "lastListenerEstablished", "isPaused", type, "webhookId"
+) RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", "isActive", "lastListenerEstablished", "isPaused", type, "webhookId", language, "languageVersion", os, "runtimeExtra", "sdkVersion"
 `
 
 type CreateWorkerParams struct {
@@ -69,6 +69,11 @@ func (q *Queries) CreateWorker(ctx context.Context, db DBTX, arg CreateWorkerPar
 		&i.IsPaused,
 		&i.Type,
 		&i.WebhookId,
+		&i.Language,
+		&i.LanguageVersion,
+		&i.Os,
+		&i.RuntimeExtra,
+		&i.SdkVersion,
 	)
 	return &i, err
 }
@@ -161,7 +166,7 @@ DELETE FROM
   "Worker"
 WHERE
   "id" = $1::uuid
-RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", "isActive", "lastListenerEstablished", "isPaused", type, "webhookId"
+RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", "isActive", "lastListenerEstablished", "isPaused", type, "webhookId", language, "languageVersion", os, "runtimeExtra", "sdkVersion"
 `
 
 func (q *Queries) DeleteWorker(ctx context.Context, db DBTX, id pgtype.UUID) (*Worker, error) {
@@ -182,6 +187,11 @@ func (q *Queries) DeleteWorker(ctx context.Context, db DBTX, id pgtype.UUID) (*W
 		&i.IsPaused,
 		&i.Type,
 		&i.WebhookId,
+		&i.Language,
+		&i.LanguageVersion,
+		&i.Os,
+		&i.RuntimeExtra,
+		&i.SdkVersion,
 	)
 	return &i, err
 }
@@ -224,7 +234,7 @@ func (q *Queries) GetWorkerActionsByWorkerId(ctx context.Context, db DBTX, arg G
 
 const getWorkerById = `-- name: GetWorkerById :one
 SELECT
-    w.id, w."createdAt", w."updatedAt", w."deletedAt", w."tenantId", w."lastHeartbeatAt", w.name, w."dispatcherId", w."maxRuns", w."isActive", w."lastListenerEstablished", w."isPaused", w.type, w."webhookId",
+    w.id, w."createdAt", w."updatedAt", w."deletedAt", w."tenantId", w."lastHeartbeatAt", w.name, w."dispatcherId", w."maxRuns", w."isActive", w."lastListenerEstablished", w."isPaused", w.type, w."webhookId", w.language, w."languageVersion", w.os, w."runtimeExtra", w."sdkVersion",
     ww."url" AS "webhookUrl",
     w."maxRuns" - (
         SELECT COUNT(*)
@@ -265,6 +275,11 @@ func (q *Queries) GetWorkerById(ctx context.Context, db DBTX, id pgtype.UUID) (*
 		&i.Worker.IsPaused,
 		&i.Worker.Type,
 		&i.Worker.WebhookId,
+		&i.Worker.Language,
+		&i.Worker.LanguageVersion,
+		&i.Worker.Os,
+		&i.Worker.RuntimeExtra,
+		&i.Worker.SdkVersion,
 		&i.WebhookUrl,
 		&i.RemainingSlots,
 	)
@@ -273,7 +288,7 @@ func (q *Queries) GetWorkerById(ctx context.Context, db DBTX, id pgtype.UUID) (*
 
 const getWorkerByWebhookId = `-- name: GetWorkerByWebhookId :one
 SELECT
-    id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", "isActive", "lastListenerEstablished", "isPaused", type, "webhookId"
+    id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", "isActive", "lastListenerEstablished", "isPaused", type, "webhookId", language, "languageVersion", os, "runtimeExtra", "sdkVersion"
 FROM
     "Worker"
 WHERE
@@ -304,6 +319,11 @@ func (q *Queries) GetWorkerByWebhookId(ctx context.Context, db DBTX, arg GetWork
 		&i.IsPaused,
 		&i.Type,
 		&i.WebhookId,
+		&i.Language,
+		&i.LanguageVersion,
+		&i.Os,
+		&i.RuntimeExtra,
+		&i.SdkVersion,
 	)
 	return &i, err
 }
@@ -555,7 +575,7 @@ func (q *Queries) ListWorkerLabels(ctx context.Context, db DBTX, workerid pgtype
 
 const listWorkersWithSlotCount = `-- name: ListWorkersWithSlotCount :many
 SELECT
-    workers.id, workers."createdAt", workers."updatedAt", workers."deletedAt", workers."tenantId", workers."lastHeartbeatAt", workers.name, workers."dispatcherId", workers."maxRuns", workers."isActive", workers."lastListenerEstablished", workers."isPaused", workers.type, workers."webhookId",
+    workers.id, workers."createdAt", workers."updatedAt", workers."deletedAt", workers."tenantId", workers."lastHeartbeatAt", workers.name, workers."dispatcherId", workers."maxRuns", workers."isActive", workers."lastListenerEstablished", workers."isPaused", workers.type, workers."webhookId", workers.language, workers."languageVersion", workers.os, workers."runtimeExtra", workers."sdkVersion",
     ww."url" AS "webhookUrl",
     ww."id" AS "webhookId",
     workers."maxRuns" - (
@@ -640,6 +660,11 @@ func (q *Queries) ListWorkersWithSlotCount(ctx context.Context, db DBTX, arg Lis
 			&i.Worker.IsPaused,
 			&i.Worker.Type,
 			&i.Worker.WebhookId,
+			&i.Worker.Language,
+			&i.Worker.LanguageVersion,
+			&i.Worker.Os,
+			&i.Worker.RuntimeExtra,
+			&i.Worker.SdkVersion,
 			&i.WebhookUrl,
 			&i.WebhookId,
 			&i.RemainingSlots,
@@ -666,7 +691,7 @@ SET
     "isPaused" = coalesce($5::boolean, "isPaused")
 WHERE
     "id" = $6::uuid
-RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", "isActive", "lastListenerEstablished", "isPaused", type, "webhookId"
+RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", "isActive", "lastListenerEstablished", "isPaused", type, "webhookId", language, "languageVersion", os, "runtimeExtra", "sdkVersion"
 `
 
 type UpdateWorkerParams struct {
@@ -703,6 +728,11 @@ func (q *Queries) UpdateWorker(ctx context.Context, db DBTX, arg UpdateWorkerPar
 		&i.IsPaused,
 		&i.Type,
 		&i.WebhookId,
+		&i.Language,
+		&i.LanguageVersion,
+		&i.Os,
+		&i.RuntimeExtra,
+		&i.SdkVersion,
 	)
 	return &i, err
 }
@@ -718,7 +748,7 @@ WHERE
         "lastListenerEstablished" IS NULL
         OR "lastListenerEstablished" <= $2::timestamp
         )
-RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", "isActive", "lastListenerEstablished", "isPaused", type, "webhookId"
+RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", "isActive", "lastListenerEstablished", "isPaused", type, "webhookId", language, "languageVersion", os, "runtimeExtra", "sdkVersion"
 `
 
 type UpdateWorkerActiveStatusParams struct {
@@ -745,6 +775,11 @@ func (q *Queries) UpdateWorkerActiveStatus(ctx context.Context, db DBTX, arg Upd
 		&i.IsPaused,
 		&i.Type,
 		&i.WebhookId,
+		&i.Language,
+		&i.LanguageVersion,
+		&i.Os,
+		&i.RuntimeExtra,
+		&i.SdkVersion,
 	)
 	return &i, err
 }
@@ -757,7 +792,7 @@ SET
     "lastHeartbeatAt" = $1::timestamp
 WHERE
     "id" = $2::uuid
-RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", "isActive", "lastListenerEstablished", "isPaused", type, "webhookId"
+RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", "isActive", "lastListenerEstablished", "isPaused", type, "webhookId", language, "languageVersion", os, "runtimeExtra", "sdkVersion"
 `
 
 type UpdateWorkerHeartbeatParams struct {
@@ -783,6 +818,11 @@ func (q *Queries) UpdateWorkerHeartbeat(ctx context.Context, db DBTX, arg Update
 		&i.IsPaused,
 		&i.Type,
 		&i.WebhookId,
+		&i.Language,
+		&i.LanguageVersion,
+		&i.Os,
+		&i.RuntimeExtra,
+		&i.SdkVersion,
 	)
 	return &i, err
 }
@@ -793,7 +833,7 @@ SET "isActive" = $1::boolean
 WHERE
   "tenantId" = $2::uuid AND
   "webhookId" = $3::uuid
-RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", "isActive", "lastListenerEstablished", "isPaused", type, "webhookId"
+RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", "isActive", "lastListenerEstablished", "isPaused", type, "webhookId", language, "languageVersion", os, "runtimeExtra", "sdkVersion"
 `
 
 type UpdateWorkersByWebhookIdParams struct {
@@ -826,6 +866,11 @@ func (q *Queries) UpdateWorkersByWebhookId(ctx context.Context, db DBTX, arg Upd
 			&i.IsPaused,
 			&i.Type,
 			&i.WebhookId,
+			&i.Language,
+			&i.LanguageVersion,
+			&i.Os,
+			&i.RuntimeExtra,
+			&i.SdkVersion,
 		); err != nil {
 			return nil, err
 		}

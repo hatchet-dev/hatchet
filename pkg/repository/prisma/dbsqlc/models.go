@@ -810,6 +810,50 @@ func (ns NullWorkerLabelComparator) Value() (driver.Value, error) {
 	return string(ns.WorkerLabelComparator), nil
 }
 
+type WorkerSDKS string
+
+const (
+	WorkerSDKSUNKNOWN    WorkerSDKS = "UNKNOWN"
+	WorkerSDKSGO         WorkerSDKS = "GO"
+	WorkerSDKSPYTHON     WorkerSDKS = "PYTHON"
+	WorkerSDKSTYPESCRIPT WorkerSDKS = "TYPESCRIPT"
+)
+
+func (e *WorkerSDKS) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = WorkerSDKS(s)
+	case string:
+		*e = WorkerSDKS(s)
+	default:
+		return fmt.Errorf("unsupported scan type for WorkerSDKS: %T", src)
+	}
+	return nil
+}
+
+type NullWorkerSDKS struct {
+	WorkerSDKS WorkerSDKS `json:"WorkerSDKS"`
+	Valid      bool       `json:"valid"` // Valid is true if WorkerSDKS is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullWorkerSDKS) Scan(value interface{}) error {
+	if value == nil {
+		ns.WorkerSDKS, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.WorkerSDKS.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullWorkerSDKS) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.WorkerSDKS), nil
+}
+
 type WorkerType string
 
 const (
@@ -1487,6 +1531,11 @@ type Worker struct {
 	IsPaused                bool             `json:"isPaused"`
 	Type                    WorkerType       `json:"type"`
 	WebhookId               pgtype.UUID      `json:"webhookId"`
+	Language                NullWorkerSDKS   `json:"language"`
+	LanguageVersion         pgtype.Text      `json:"languageVersion"`
+	Os                      pgtype.Text      `json:"os"`
+	RuntimeExtra            pgtype.Text      `json:"runtimeExtra"`
+	SdkVersion              pgtype.Text      `json:"sdkVersion"`
 }
 
 type WorkerAssignEvent struct {
