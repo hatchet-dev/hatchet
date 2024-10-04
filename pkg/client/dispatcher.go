@@ -4,9 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os/exec"
+	"runtime"
+	"strings"
 	"time"
 
 	"github.com/rs/zerolog"
+	"golang.org/x/sys/unix"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -195,17 +199,55 @@ type actionListenerImpl struct {
 	listenerStrategy ListenerStrategy
 }
 
+func getDetailedOSInfo() string {
+	var uname unix.Utsname
+	err := unix.Uname(&uname)
+	if err != nil {
+		return fmt.Sprintf("%s-unknown", runtime.GOOS)
+	}
+
+	sysname := strings.TrimRight(string(uname.Sysname[:]), "\x00")
+	release := strings.TrimRight(string(uname.Release[:]), "\x00")
+	machine := strings.TrimRight(string(uname.Machine[:]), "\x00")
+
+	var osType string
+	switch sysname {
+	case "Darwin":
+		osType = "macOS"
+	default:
+		osType = sysname
+	}
+
+	return fmt.Sprintf("%s-%s-%s-%s", osType, release, machine, runtime.GOARCH)
+}
+
 func (d *dispatcherClientImpl) newActionListener(ctx context.Context, req *GetActionListenerRequest) (*actionListenerImpl, *string, error) {
 	// validate the request
 	if err := d.v.Validate(req); err != nil {
 		return nil, nil, err
 	}
 
+	// Get OS information
+	os := getDetailedOSInfo()
+
+	// Get Go version
+	goVersionCmd := exec.Command("go", "version")
+	goVersionOutput, err := goVersionCmd.Output()
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not get go version: %w", err)
+	}
+	goVersion := strings.TrimSpace(strings.TrimPrefix(string(goVersionOutput), "go version "))
+
 	registerReq := &dispatchercontracts.WorkerRegisterRequest{
 		WorkerName: req.WorkerName,
 		Actions:    req.Actions,
 		Services:   req.Services,
 		WebhookId:  req.WebhookId,
+		RuntimeInfo: &dispatchercontracts.RuntimeInfo{
+			Os:              &os,
+			Language:        dispatchercontracts.SDKS_GO.Enum(),
+			LanguageVersion: &goVersion,
+		},
 	}
 
 	if req.Labels != nil {

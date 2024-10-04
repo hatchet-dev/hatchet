@@ -77,6 +77,23 @@ func ToWorkerLabels(labels []*dbsqlc.ListWorkerLabelsRow) *[]gen.WorkerLabel {
 	return &resp
 }
 
+func ToWorkerRuntimeInfo(worker *dbsqlc.Worker) *gen.WorkerRuntimeInfo {
+
+	runtime := &gen.WorkerRuntimeInfo{
+		SdkVersion:      &worker.SdkVersion.String,
+		LanguageVersion: &worker.LanguageVersion.String,
+		Os:              &worker.Os.String,
+		RuntimeExtra:    &worker.RuntimeExtra.String,
+	}
+
+	if worker.Language.Valid {
+		lang := gen.WorkerRuntimeSDKs(worker.Language.WorkerSDKS)
+		runtime.Language = &lang
+	}
+
+	return runtime
+}
+
 func ToWorkerSqlc(worker *dbsqlc.Worker, remainingSlots *int, webhookUrl *string, actions []pgtype.Text) *gen.Worker {
 
 	dispatcherId := uuid.MustParse(pgUUIDToStr(worker.DispatcherId))
@@ -108,6 +125,7 @@ func ToWorkerSqlc(worker *dbsqlc.Worker, remainingSlots *int, webhookUrl *string
 		MaxRuns:       &maxRuns,
 		AvailableRuns: &availableRuns,
 		WebhookUrl:    webhookUrl,
+		RuntimeInfo:   ToWorkerRuntimeInfo(worker),
 	}
 
 	if worker.WebhookId.Valid {
