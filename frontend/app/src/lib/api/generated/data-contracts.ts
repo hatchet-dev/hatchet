@@ -966,6 +966,20 @@ export interface StepRunArchiveList {
   rows?: StepRunArchive[];
 }
 
+export interface WorkerRuntimeInfo {
+  sdkVersion?: string;
+  language?: WorkerRuntimeSDKs;
+  languageVersion?: string;
+  os?: string;
+  runtimeExtra?: string;
+}
+
+export enum WorkerRuntimeSDKs {
+  GOLANG = 'GOLANG',
+  PYTHON = 'PYTHON',
+  TYPESCRIPT = 'TYPESCRIPT',
+}
+
 export interface WorkerList {
   pagination?: PaginationResponse;
   rows?: Worker[];
@@ -1058,6 +1072,7 @@ export interface Worker {
    * @format uuid
    */
   webhookId?: string;
+  runtimeInfo?: WorkerRuntimeInfo;
 }
 
 export interface WorkerLabel {
