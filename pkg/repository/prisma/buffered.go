@@ -139,10 +139,12 @@ func (b *IngestBuf[T, U]) buffWorker() {
 			b.safeAppendInternalArray(e)
 			b.safeIncSizeOfData(b.calcSizeOfData([]T{e.item}))
 
-			if b.safeCheckSizeOfBuffer() >= b.maxCapacity || b.safeFetchSizeOfData() >= b.maxDataSizeInQueue {
+			// if last flush time + flush period is in the past, flush
+			if time.Now().After(b.safeFetchLastFlush().Add(b.flushPeriod)) {
+				b.flush(b.sliceInternalArray())
+			} else if b.safeCheckSizeOfBuffer() >= b.maxCapacity || b.safeFetchSizeOfData() >= b.maxDataSizeInQueue {
 				b.flush(b.sliceInternalArray())
 			}
-
 		case <-time.After(time.Until(b.safeFetchLastFlush().Add(b.flushPeriod))):
 
 			b.flush(b.sliceInternalArray())

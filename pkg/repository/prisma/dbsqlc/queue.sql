@@ -191,14 +191,16 @@ INSERT INTO
         "priority"
     )
 SELECT
-    @queue::"InternalQueue",
+    input."queue",
     true,
     input."data",
-    @tenantId::uuid,
+    input."tenantId",
     1
 FROM (
     SELECT
-        unnest(@datas::json[]) AS "data"
+        unnest(cast(@queues::text[] as"InternalQueue"[])) AS "queue",
+        unnest(@datas::json[]) AS "data",
+        unnest(@tenantIds::uuid[]) AS "tenantId"
 ) AS input
 ON CONFLICT DO NOTHING;
 
