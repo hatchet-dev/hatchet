@@ -56,6 +56,9 @@ message WorkerRegisterRequest {
 
     // (optional) worker labels (i.e. state or other metadata)
     map<string, WorkerLabels> labels = 5;
+
+    // (optional) webhookId is the id of the webhook that the worker is associated with (if any)
+    optional string webhookId = 6;
 }
 
 message WorkerRegisterResponse {

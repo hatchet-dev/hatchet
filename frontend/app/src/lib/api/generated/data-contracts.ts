@@ -357,6 +357,11 @@ export interface TenantQueueMetrics {
   /** The total queue metrics. */
   total?: QueueMetrics;
   workflow?: Record<string, QueueMetrics>;
+  queues?: Record<string, number>;
+}
+
+export interface TenantStepRunQueueMetrics {
+  queues?: Record<string, number>;
 }
 
 export interface AcceptInviteRequest {
@@ -434,6 +439,16 @@ export interface CreateEventRequest {
   additionalMetadata?: object;
 }
 
+export interface BulkCreateEventRequest {
+  events: CreateEventRequest[];
+}
+
+export interface BulkCreateEventResponse {
+  metadata: APIResourceMeta;
+  /** The events. */
+  events: Event[];
+}
+
 export interface EventWorkflowRunSummary {
   /**
    * The number of pending runs.
@@ -489,7 +504,46 @@ export interface EventList {
   rows?: Event[];
 }
 
+export interface RateLimit {
+  /** The key for the rate limit. */
+  key: string;
+  /** The ID of the tenant associated with this rate limit. */
+  tenantId: string;
+  /** The maximum number of requests allowed within the window. */
+  limitValue: number;
+  /** The current number of requests made within the window. */
+  value: number;
+  /** The window of time in which the limitValue is enforced. */
+  window: string;
+  /**
+   * The last time the rate limit was refilled.
+   * @format date-time
+   * @example "2022-12-13T20:06:48.888Z"
+   */
+  lastRefill: string;
+}
+
+export interface RateLimitList {
+  pagination?: PaginationResponse;
+  rows?: RateLimit[];
+}
+
+export enum RateLimitOrderByField {
+  Key = 'key',
+  Value = 'value',
+  LimitValue = 'limitValue',
+}
+
+export enum RateLimitOrderByDirection {
+  Asc = 'asc',
+  Desc = 'desc',
+}
+
 export interface ReplayEventRequest {
+  eventIds: string[];
+}
+
+export interface CancelEventRequest {
   eventIds: string[];
 }
 
@@ -499,12 +553,18 @@ export interface Workflow {
   name: string;
   /** The description of the workflow. */
   description?: string;
+  /** Whether the workflow is paused. */
+  isPaused?: boolean;
   versions?: WorkflowVersionMeta[];
   /** The tags of the workflow. */
   tags?: WorkflowTag[];
-  lastRun?: WorkflowRun;
   /** The jobs of the workflow. */
   jobs?: Job[];
+}
+
+export interface WorkflowUpdateRequest {
+  /** Whether the workflow is paused. */
+  isPaused?: boolean;
 }
 
 export interface WorkflowConcurrency {
@@ -536,6 +596,13 @@ export interface WorkflowVersion {
   /** @format int32 */
   order: number;
   workflowId: string;
+  /** The sticky strategy of the workflow. */
+  sticky?: string;
+  /**
+   * The default priority of the workflow.
+   * @format int32
+   */
+  defaultPriority?: number;
   workflow?: Workflow;
   concurrency?: WorkflowConcurrency;
   triggers?: WorkflowTriggers;
@@ -604,9 +671,50 @@ export interface Step {
   parents?: string[];
 }
 
+export interface WorkflowWorkersCount {
+  freeSlotCount?: number;
+  maxSlotCount?: number;
+  workflowRunId?: string;
+}
+
 export interface WorkflowRun {
   metadata: APIResourceMeta;
   tenantId: string;
+  workflowVersionId: string;
+  workflowVersion?: WorkflowVersion;
+  status: WorkflowRunStatus;
+  displayName?: string;
+  jobRuns?: JobRun[];
+  triggeredBy: WorkflowRunTriggeredBy;
+  input?: Record<string, any>;
+  error?: string;
+  /** @format date-time */
+  startedAt?: string;
+  /** @format date-time */
+  finishedAt?: string;
+  /** @example 1000 */
+  duration?: number;
+  /**
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   * @example "bb214807-246e-43a5-a25d-41761d1cff9e"
+   */
+  parentId?: string;
+  /**
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   * @example "bb214807-246e-43a5-a25d-41761d1cff9e"
+   */
+  parentStepRunId?: string;
+  additionalMetadata?: Record<string, any>;
+}
+
+export interface WorkflowRunShape {
+  metadata: APIResourceMeta;
+  tenantId: string;
+  workflowId?: string;
   workflowVersionId: string;
   workflowVersion?: WorkflowVersion;
   status: WorkflowRunStatus;
@@ -715,6 +823,7 @@ export enum StepRunStatus {
   SUCCEEDED = 'SUCCEEDED',
   FAILED = 'FAILED',
   CANCELLED = 'CANCELLED',
+  CANCELLING = 'CANCELLING',
 }
 
 export interface JobRun {
@@ -742,9 +851,8 @@ export interface JobRun {
 
 export interface WorkflowRunTriggeredBy {
   metadata: APIResourceMeta;
-  parentId: string;
+  parentWorkflowRunId?: string;
   eventId?: string;
-  event?: Event;
   cronParentId?: string;
   cronSchedule?: string;
 }
@@ -756,7 +864,7 @@ export interface StepRun {
   jobRun?: JobRun;
   stepId: string;
   step?: Step;
-  children?: string[];
+  childWorkflowsCount?: number;
   parents?: string[];
   childWorkflowRuns?: string[];
   workerId?: string;
@@ -798,6 +906,8 @@ export enum StepRunEventReason {
   TIMED_OUT = 'TIMED_OUT',
   SLOT_RELEASED = 'SLOT_RELEASED',
   RETRIED_BY_USER = 'RETRIED_BY_USER',
+  WORKFLOW_RUN_GROUP_KEY_SUCCEEDED = 'WORKFLOW_RUN_GROUP_KEY_SUCCEEDED',
+  WORKFLOW_RUN_GROUP_KEY_FAILED = 'WORKFLOW_RUN_GROUP_KEY_FAILED',
 }
 
 export enum StepRunEventSeverity {
@@ -812,7 +922,8 @@ export interface StepRunEvent {
   timeFirstSeen: string;
   /** @format date-time */
   timeLastSeen: string;
-  stepRunId: string;
+  stepRunId?: string;
+  workflowRunId?: string;
   reason: StepRunEventReason;
   severity: StepRunEventSeverity;
   message: string;
@@ -833,6 +944,7 @@ export interface StepRunArchive {
   /** @format date-time */
   startedAt?: string;
   error?: string;
+  retryCount: number;
   /** @format date-time */
   createdAt: string;
   startedAtEpoch?: number;
@@ -859,10 +971,52 @@ export interface WorkerList {
   rows?: Worker[];
 }
 
+export interface SemaphoreSlots {
+  /**
+   * The step run id.
+   * @format uuid
+   */
+  stepRunId: string;
+  /** The action id. */
+  actionId: string;
+  /**
+   * The time this slot was started.
+   * @format date-time
+   */
+  startedAt?: string;
+  /**
+   * The time this slot will timeout.
+   * @format date-time
+   */
+  timeoutAt?: string;
+  /**
+   * The workflow run id.
+   * @format uuid
+   */
+  workflowRunId: string;
+  status: StepRunStatus;
+}
+
+export interface RecentStepRuns {
+  metadata: APIResourceMeta;
+  /** The action id. */
+  actionId: string;
+  status: StepRunStatus;
+  /** @format date-time */
+  startedAt?: string;
+  /** @format date-time */
+  finishedAt?: string;
+  /** @format date-time */
+  cancelledAt?: string;
+  /** @format uuid */
+  workflowRunId: string;
+}
+
 export interface Worker {
   metadata: APIResourceMeta;
   /** The name of the worker. */
   name: string;
+  type: 'SELFHOSTED' | 'MANAGED' | 'WEBHOOK';
   /**
    * The time this worker last sent a heartbeat.
    * @format date-time
@@ -877,8 +1031,10 @@ export interface Worker {
   lastListenerEstablished?: string;
   /** The actions this worker can perform. */
   actions?: string[];
-  /** The recent step runs for this worker. */
-  recentStepRuns?: StepRun[];
+  /** The semaphore slot state for the worker. */
+  slots?: SemaphoreSlots[];
+  /** The recent step runs for the worker. */
+  recentStepRuns?: RecentStepRuns[];
   /** The status of the worker. */
   status?: 'ACTIVE' | 'INACTIVE' | 'PAUSED';
   /** The maximum number of runs this worker can execute concurrently. */
@@ -895,6 +1051,13 @@ export interface Worker {
   dispatcherId?: string;
   /** The current label state of the worker. */
   labels?: WorkerLabel[];
+  /** The webhook URL for the worker. */
+  webhookUrl?: string;
+  /**
+   * The webhook ID for the worker.
+   * @format uuid
+   */
+  webhookId?: string;
 }
 
 export interface WorkerLabel {
@@ -1082,6 +1245,29 @@ export interface WebhookWorker {
   name: string;
   /** The webhook url. */
   url: string;
+}
+
+export enum WebhookWorkerRequestMethod {
+  GET = 'GET',
+  POST = 'POST',
+  PUT = 'PUT',
+}
+
+export interface WebhookWorkerRequest {
+  /**
+   * The date and time the request was created.
+   * @format date-time
+   */
+  created_at: string;
+  /** The HTTP method used for the request. */
+  method: WebhookWorkerRequestMethod;
+  /** The HTTP status code of the response. */
+  statusCode: number;
+}
+
+export interface WebhookWorkerRequestListResponse {
+  /** The list of webhook requests. */
+  requests?: WebhookWorkerRequest[];
 }
 
 export interface WebhookWorkerCreated {

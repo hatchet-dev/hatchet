@@ -110,6 +110,31 @@ model WebhookWorker {
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 
   webhookWorkerWorkflows WebhookWorkerWorkflow[]
+
+  worker Worker?
+
+  requests WebhookWorkerRequest[]
+}
+
+enum WebhookWorkerRequestMethod {
+  GET
+  POST
+  PUT
+}
+
+model WebhookWorkerRequest {
+  id        String   @id @unique @default(uuid()) @db.Uuid
+  createdAt DateTime @default(now())
+
+  // the parent webhook worker
+  webhookWorker   WebhookWorker @relation(fields: [webhookWorkerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  webhookWorkerId String        @db.Uuid
+
+  // the request method
+  method WebhookWorkerRequestMethod
+
+  // the request status code
+  statusCode Int
 }
 
 model WebhookWorkerWorkflow {
@@ -134,6 +159,9 @@ model ControllerPartition {
   // lastHeartbeat is used for rebalancing partitions
   lastHeartbeat DateTime?
 
+  // name of the partition
+  name String?
+
   tenants Tenant[]
 }
 
@@ -144,6 +172,9 @@ model TenantWorkerPartition {
 
   // lastHeartbeat is used for rebalancing partitions
   lastHeartbeat DateTime?
+
+  // name of the partition
+  name String?
 
   tenants Tenant[]
 }
@@ -160,7 +191,7 @@ model Tenant {
   name String
   slug String @unique
 
-  // wheather the user has opted out of analytics
+  // whether the user has opted out of analytics
   analyticsOptOut Boolean @default(false)
 
   // the parent controller partition, if exists
@@ -174,39 +205,23 @@ model Tenant {
   // The data retention period for deletable resources. This is a Go duration string.
   dataRetentionPeriod String @default("720h")
 
-  events              Event[]
-  workflows           Workflow[]
-  jobs                Job[]
-  steps               Step[]
-  triggers            WorkflowTriggers[]
-  workflowRuns        WorkflowRun[]
-  workflowRunTriggers WorkflowRunTriggeredBy[]
-  jobRuns             JobRun[]
-  jobRunLookupDatas   JobRunLookupData[]
-  stepRuns            StepRun[]
-  workers             Worker[]
-  members             TenantMember[]
-  workflowTags        WorkflowTag[]
-  actions             Action[]
-  services            Service[]
-  invites             TenantInviteLink[]
-  apiTokens           APIToken[]
-  groupKeyRuns        GetGroupKeyRun[]
-  vcsProviders        TenantVcsProvider[]
-  streamEvents        StreamEvent[]
-  logs                LogLine[]
-  snsIntegrations     SNSIntegration[]
-  rateLimits          RateLimit[]
-  stepRateLimits      StepRateLimit[]
-  alertEmailGroups    TenantAlertEmailGroup[]
+  triggers          WorkflowTriggers[]
+  members           TenantMember[]
+  workflowTags      WorkflowTag[]
+  actions           Action[]
+  services          Service[]
+  invites           TenantInviteLink[]
+  apiTokens         APIToken[]
+  vcsProviders      TenantVcsProvider[]
+  snsIntegrations   SNSIntegration[]
+  alertEmailGroups  TenantAlertEmailGroup[]
   // alertMemberEmails controls whether to send alert emails to tenant members in addition to the alert email groups
-  alertMemberEmails   Boolean                    @default(true)
-  slackWebhooks       SlackAppWebhook[]
-  alertingSettings    TenantAlertingSettings?
-  limits              TenantResourceLimit[]
-  limitAlerts         TenantResourceLimitAlert[]
-  webhookWorkers      WebhookWorker[]
-  dedupes             WorkflowRunDedupe[]
+  alertMemberEmails Boolean                    @default(true)
+  slackWebhooks     SlackAppWebhook[]
+  alertingSettings  TenantAlertingSettings?
+  limits            TenantResourceLimit[]
+  limitAlerts       TenantResourceLimitAlert[]
+  webhookWorkers    WebhookWorker[]
 
   @@index([controllerPartitionId])
   @@index([workerPartitionId])
@@ -394,7 +409,6 @@ model Event {
   key String
 
   // the parent tenant
-  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   tenantId String @db.Uuid
 
   // the event which was replayed
@@ -410,8 +424,8 @@ model Event {
   // metadata stored in the event
   additionalMetadata Json?
 
-  // the workflow runs that were triggered by this event
-  workflowRuns WorkflowRunTriggeredBy[]
+  // this is used to order the events on bulk inserts
+  insertOrder Int?
 
   @@index([tenantId])
   @@index([createdAt])
@@ -449,8 +463,9 @@ model Workflow {
   deletedAt DateTime?
 
   // the parent tenant
-  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   tenantId String @db.Uuid
+
+  isPaused Boolean? @default(false)
 
   // the workflow name
   name String
@@ -514,9 +529,6 @@ model WorkflowVersion {
   onFailureJob   Job?    @relation("OnFailureJob", fields: [onFailureJobId], references: [id])
   onFailureJobId String? @unique @db.Uuid
 
-  // all runs for the workflow
-  runs WorkflowRun[]
-
   // the scheduled runs for the workflow
   scheduled WorkflowTriggerScheduledRef[]
 
@@ -525,6 +537,9 @@ model WorkflowVersion {
 
   // the default amount of time to wait while scheduling a step run
   scheduleTimeout String @default("5m")
+
+  // default priority for the workflow
+  defaultPriority Int?
 
   @@index([deletedAt])
 }
@@ -558,6 +573,9 @@ model WorkflowConcurrency {
   // An action which gets the concurrency group for the WorkflowRun.
   getConcurrencyGroup   Action? @relation(fields: [getConcurrencyGroupId], references: [id])
   getConcurrencyGroupId String? @db.Uuid
+
+  // A CEL expression for getting the concurrency group based on the input to the workflow.
+  concurrencyGroupExpression String?
 
   // the maximum number of concurrent workflow runs
   maxRuns Int @default(1)
@@ -674,7 +692,6 @@ model Job {
   deletedAt DateTime?
 
   // the parent tenant
-  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   tenantId String @db.Uuid
 
   // the parent workflow
@@ -692,9 +709,6 @@ model Job {
 
   // a timeout value for the job
   timeout String?
-
-  // any runs for this job
-  runs JobRun[]
 
   // the kind of job
   kind JobKind @default(DEFAULT)
@@ -763,7 +777,6 @@ model Step {
   readableId String?
 
   // the parent tenant
-  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   tenantId String @db.Uuid
 
   // the parent job
@@ -787,13 +800,8 @@ model Step {
   // a list of dependencies for this step
   parents Step[] @relation("StepOrder")
 
-  // a list of runs for this step
-  stepRuns StepRun[]
-
   // the default amount of time to wait while scheduling a step run
   scheduleTimeout String @default("5m")
-
-  rateLimits StepRateLimit[]
 
   workerLabels StepDesiredWorkerLabel[]
 
@@ -801,16 +809,24 @@ model Step {
   @@unique([jobId, readableId])
 }
 
+enum StepRateLimitKind {
+  // STATIC rate limits are assigned to every step run belonging to these steps
+  STATIC
+
+  // DYNAMIC rate limits are assigned to specific step runs
+  DYNAMIC
+}
+
 model StepRateLimit {
   units Int
 
-  step   Step   @relation(fields: [stepId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   stepId String @db.Uuid
 
   rateLimit    RateLimit @relation(fields: [tenantId, rateLimitKey], references: [tenantId, key])
   rateLimitKey String
 
-  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  kind StepRateLimitKind @default(STATIC)
+
   tenantId String @db.Uuid
 
   @@unique([stepId, rateLimitKey])
@@ -818,7 +834,6 @@ model StepRateLimit {
 
 model RateLimit {
   // the parent tenant
-  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   tenantId String @db.Uuid
 
   // the rate limit key
@@ -877,12 +892,10 @@ model WorkflowRun {
   displayName String?
 
   // the parent tenant
-  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   tenantId String @db.Uuid
 
   // the parent workflow
-  workflowVersion   WorkflowVersion @relation(fields: [workflowVersionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  workflowVersionId String          @db.Uuid
+  workflowVersionId String @db.Uuid
 
   concurrencyGroupId String?
 
@@ -891,8 +904,6 @@ model WorkflowRun {
   status WorkflowRunStatus @default(PENDING)
 
   jobRuns JobRun[]
-
-  triggeredBy WorkflowRunTriggeredBy?
 
   sticky WorkflowRunStickyState?
 
@@ -906,7 +917,10 @@ model WorkflowRun {
   finishedAt DateTime?
 
   // the duration of the run (ms)
-  duration Int?
+  duration BigInt? @db.BigInt
+
+  // priority of the workflow run
+  priority Int?
 
   // a list of dependents for this workflow run
   children          WorkflowRun[]                 @relation("WorkflowRunChild")
@@ -925,7 +939,7 @@ model WorkflowRun {
   // a user-defined key for this workflow run
   childKey String?
 
-  // (optional) additonal metadata for the workflow run
+  // (optional) additional metadata for the workflow run
   additionalMetadata Json?
 
   @@unique([parentId, parentStepRunId, childKey])
@@ -944,7 +958,6 @@ model WorkflowRunDedupe {
   updatedAt DateTime @default(now()) @updatedAt
 
   // the parent tenant
-  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   tenantId String @db.Uuid
 
   // the parent workflow
@@ -969,7 +982,6 @@ model GetGroupKeyRun {
   deletedAt DateTime? // TODO verify we're setting this
 
   // the parent tenant
-  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   tenantId String @db.Uuid
 
   // the parent workflow run
@@ -1021,6 +1033,13 @@ model GetGroupKeyRun {
   cancelledError String?
 
   @@index([deletedAt])
+  @@index([tenantId])
+  @@index([workerId])
+  @@index([createdAt])
+  // index for ListStepRunsToReassign, ListStepRunsToRequeue
+  @@index([tenantId, deletedAt, status])
+  // index for PollGetGroupKeyRuns
+  @@index([status, deletedAt, timeoutAt])
 }
 
 model WorkflowRunTriggeredBy {
@@ -1029,19 +1048,16 @@ model WorkflowRunTriggeredBy {
   updatedAt DateTime  @default(now()) @updatedAt
   deletedAt DateTime?
 
-  // the tenant (needed for unique constraint)
-  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  // the tenant
   tenantId String @db.Uuid
 
   // the parent workflow run
-  parent   WorkflowRun @relation(fields: [parentId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  parentId String      @unique @db.Uuid
+  parentId String @unique @db.Uuid
 
   // the input if this was triggered manually
   input Json?
 
   // the parent event
-  event   Event?  @relation(fields: [eventId], references: [id])
   eventId String? @db.Uuid
 
   // the cron reference that triggered this workflow
@@ -1074,7 +1090,6 @@ model JobRun {
   deletedAt DateTime?
 
   // the parent tenant
-  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   tenantId String @db.Uuid
 
   // the parent workflow run
@@ -1082,11 +1097,9 @@ model JobRun {
   workflowRunId String      @db.Uuid
 
   // the parent job
-  job   Job    @relation(fields: [jobId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   jobId String @db.Uuid
 
   // the assigned ticker
-  ticker   Ticker? @relation(fields: [tickerId], references: [id])
   tickerId String? @db.Uuid
 
   stepRuns StepRun[]
@@ -1133,7 +1146,6 @@ model JobRunLookupData {
   jobRunId String @unique @db.Uuid
 
   // the tenant id
-  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   tenantId String @db.Uuid
 
   data Json?
@@ -1150,11 +1162,42 @@ enum StepRunStatus {
 
   // running states
   RUNNING
+  CANCELLING
 
   // final states
   SUCCEEDED
   FAILED
   CANCELLED
+}
+
+enum StepExpressionKind {
+  DYNAMIC_RATE_LIMIT_KEY
+  DYNAMIC_RATE_LIMIT_VALUE
+  DYNAMIC_RATE_LIMIT_UNITS
+  DYNAMIC_RATE_LIMIT_WINDOW
+}
+
+model StepExpression {
+  key        String
+  stepId     String             @db.Uuid
+  expression String
+  kind       StepExpressionKind
+
+  @@id([key, stepId, kind])
+}
+
+// StepRunExpressionEval is an evaluated expression for a step run
+model StepRunExpressionEval {
+  key       String
+  stepRunId String @db.Uuid
+
+  valueStr String?
+  valueInt Int?
+
+  kind StepExpressionKind
+
+  @@id([key, stepRunId, kind])
+  @@index([stepRunId])
 }
 
 model StepRun {
@@ -1165,7 +1208,6 @@ model StepRun {
   deletedAt DateTime?
 
   // the parent tenant
-  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   tenantId String @db.Uuid
 
   // the parent job run
@@ -1173,7 +1215,6 @@ model StepRun {
   jobRunId String @db.Uuid
 
   // the parent step
-  step   Step   @relation(fields: [stepId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   stepId String @db.Uuid
 
   // a list of dependents for this step
@@ -1184,12 +1225,14 @@ model StepRun {
 
   order BigInt @default(autoincrement()) @db.BigInt
 
+  queue    String @default("default")
+  priority Int?
+
   // the worker assigned to this job
   worker   Worker? @relation(fields: [workerId], references: [id])
   workerId String? @db.Uuid
 
   // the assigned ticker
-  ticker   Ticker? @relation(fields: [tickerId], references: [id])
   tickerId String? @db.Uuid
 
   // the run status
@@ -1243,8 +1286,6 @@ model StepRun {
   // if the semaphore was released prior to terminal state
   semaphoreReleased Boolean @default(false)
 
-  semaphoreSlot WorkerSemaphoreSlot?
-
   archivedResults StepRunResultArchive[]
 
   streamEvents StreamEvent[]
@@ -1252,8 +1293,6 @@ model StepRun {
 
   childWorkflowRuns WorkflowRun[]
   childSchedules    WorkflowTriggerScheduledRef[]
-
-  events StepRunEvent[]
 
   @@index([tenantId])
   @@index([workerId])
@@ -1266,21 +1305,108 @@ model StepRun {
   @@index([id, tenantId])
   // index for ResolveJobRunStatus, ResolveLaterStepRuns, and LinkStepRunParents
   @@index([jobRunId, tenantId, order])
-  // index for ListStepRunsToRequeue, ListStepRunsToReassign
-  @@index([jobRunId, status, tenantId])
-  // index for PollStepRuns
-  @@index([tenantId, status, timeoutAt])
+  // NOTE: custom index on "StepRun_jobRunId_status_tenantId_idx" set manually in migrations
+  // deletedAt index
   @@index([deletedAt])
+}
+
+model Queue {
+  id BigInt @id @default(autoincrement()) @db.BigInt
+
+  tenantId String @db.Uuid
+  name     String
+
+  @@unique([tenantId, name])
+}
+
+model QueueItem {
+  id BigInt @id @default(autoincrement()) @db.BigInt
+
+  // optional params which are specific to step runs
+  stepRunId         String?   @db.Uuid
+  stepId            String?   @db.Uuid
+  actionId          String?
+  scheduleTimeoutAt DateTime?
+  stepTimeout       String?
+
+  // ALTER TABLE "QueueItem" ADD CONSTRAINT "QueueItem_priority_check" CHECK ("priority" >= 1 AND "priority" <= 4);
+  priority Int     @default(1) // custom migration to set this between 1 and 4
+  isQueued Boolean
+  tenantId String  @db.Uuid
+  queue    String
+
+  // sticky strategy for the queue item to assign steps to the same worker
+  sticky          StickyStrategy?
+  desiredWorkerId String?         @db.Uuid
+
+  @@index([isQueued, tenantId, queue, priority(sort: Desc), id], name: "QueueItem_isQueued_priority_tenantId_queue_id_idx_2")
+}
+
+enum InternalQueue {
+  WORKER_SEMAPHORE_COUNT
+  STEP_RUN_UPDATE
+  WORKFLOW_RUN_UPDATE
+  WORKFLOW_RUN_PAUSED
+}
+
+model InternalQueueItem {
+  id BigInt @id @default(autoincrement()) @db.BigInt
+
+  queue    InternalQueue
+  isQueued Boolean
+  data     Json?
+
+  tenantId String @db.Uuid
+
+  // ALTER TABLE "InternalQueueItem" ADD CONSTRAINT "InternalQueueItem_priority_check" CHECK ("priority" >= 1 AND "priority" <= 4);
+  priority Int @default(1) // custom migration to set this between 1 and 4
+
+  uniqueKey String?
+
+  @@unique([tenantId, queue, uniqueKey])
+  @@index([isQueued, tenantId, queue, priority(sort: Desc), id])
+}
+
+model TimeoutQueueItem {
+  id BigInt @id @default(autoincrement()) @db.BigInt
+
+  // the parent step run
+  stepRunId String @db.Uuid
+
+  retryCount Int
+
+  // the time the step run times out due to a scheduling timeout (no workers available)
+  timeoutAt DateTime
+
+  // the parent tenant
+  tenantId String @db.Uuid
+
+  isQueued Boolean
+
+  @@unique([stepRunId, retryCount])
+  @@index([tenantId, isQueued, timeoutAt])
+}
+
+model SemaphoreQueueItem {
+  stepRunId String @id @unique @db.Uuid
+  workerId  String @db.Uuid
+
+  // the parent tenant
+  tenantId String @db.Uuid
+
+  @@index([tenantId, workerId])
 }
 
 enum StepRunEventReason {
   REQUEUED_NO_WORKER
   REQUEUED_RATE_LIMIT
+  RATE_LIMIT_ERROR
   SCHEDULING_TIMED_OUT
   TIMED_OUT
   REASSIGNED
 
   ASSIGNED
+  SENT_TO_WORKER
   STARTED
   FINISHED
   FAILED
@@ -1289,6 +1415,10 @@ enum StepRunEventReason {
   CANCELLED
   TIMEOUT_REFRESHED
   SLOT_RELEASED
+
+  // NOTE: not actually step run events, but the table is currently named StepRunEvent
+  WORKFLOW_RUN_GROUP_KEY_SUCCEEDED
+  WORKFLOW_RUN_GROUP_KEY_FAILED
 }
 
 enum StepRunEventSeverity {
@@ -1303,8 +1433,10 @@ model StepRunEvent {
   timeLastSeen  DateTime @default(now())
 
   // the parent step run
-  stepRun   StepRun @relation(fields: [stepRunId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  stepRunId String  @db.Uuid
+  stepRunId String? @db.Uuid
+
+  // the parent workflow run
+  workflowRunId String? @db.Uuid
 
   // the event reason
   reason StepRunEventReason
@@ -1319,6 +1451,7 @@ model StepRunEvent {
   data Json?
 
   @@index([stepRunId])
+  @@index([workflowRunId])
 }
 
 model StepRunResultArchive {
@@ -1330,6 +1463,8 @@ model StepRunResultArchive {
   // the parent step run
   stepRun   StepRun @relation(fields: [stepRunId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   stepRunId String  @db.Uuid
+
+  retryCount Int @default(0)
 
   order BigInt @default(autoincrement()) @db.BigInt
 
@@ -1390,8 +1525,6 @@ model Ticker {
   // whether this ticker is active or not
   isActive Boolean @default(true)
 
-  jobRuns      JobRun[]
-  stepRuns     StepRun[]
   crons        WorkflowTriggerCronRef[]
   scheduled    WorkflowTriggerScheduledRef[]
   groupKeyRuns GetGroupKeyRun[]
@@ -1424,6 +1557,12 @@ model WorkerLabel {
   @@index([workerId])
 }
 
+enum WorkerType {
+  WEBHOOK
+  MANAGED
+  SELFHOSTED
+}
+
 model Worker {
   // base fields
   id        String    @id @unique @default(uuid()) @db.Uuid
@@ -1431,10 +1570,11 @@ model Worker {
   updatedAt DateTime  @default(now()) @updatedAt
   deletedAt DateTime?
 
+  type WorkerType @default(SELFHOSTED)
+
   labels WorkerLabel[]
 
   // the parent tenant
-  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   tenantId String @db.Uuid
 
   // the last heartbeat time
@@ -1468,34 +1608,22 @@ model Worker {
   // the runs which retrieve the group keys
   groupKeyRuns GetGroupKeyRun[]
 
-  slots WorkerSemaphoreSlot[]
+  assignedEvents WorkerAssignEvent[]
 
-  // DEPRECATED in v_0_30_1, replaced with slots and will be removed in a future release
-  semaphore WorkerSemaphore? // FIXME remove this in a few releases from v_0_30_1
+  webhook   WebhookWorker? @relation(fields: [webhookId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  webhookId String?        @unique @db.Uuid
 }
 
-// DEPRECATED in v_0_30_1, replaced with slots and will be removed in a future release
-// FIXME remove in a future release
-model WorkerSemaphore {
+model WorkerAssignEvent {
+  id BigInt @id @default(autoincrement()) @db.BigInt
+
   // the parent worker
-  worker   Worker @relation(fields: [workerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  workerId String @unique @db.Uuid
-  // keeps track of maxRuns - runningRuns on the worker
-  slots    Int
-}
-
-model WorkerSemaphoreSlot {
-  id String @id @unique @default(uuid()) @db.Uuid
-
-  // the parent semaphore
   worker   Worker @relation(fields: [workerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   workerId String @db.Uuid
 
-  // the parent step run
-  stepRun   StepRun? @relation(fields: [stepRunId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  stepRunId String?  @unique @db.Uuid
+  assignedStepRuns Json?
 
-  @@index([workerId])
+  @@index([workerId, id(order: Desc)])
 }
 
 model Service {
@@ -1593,7 +1721,6 @@ model LogLine {
   createdAt DateTime @default(now())
 
   // the parent tenant
-  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   tenantId String @db.Uuid
 
   // the step run id this log is associated with
@@ -1616,7 +1743,6 @@ model StreamEvent {
   createdAt DateTime @default(now())
 
   // the parent tenant
-  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   tenantId String @db.Uuid
 
   // the step run id this stream event is associated with

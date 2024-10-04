@@ -19,6 +19,7 @@ import (
 type Ingestor interface {
 	contracts.EventsServiceServer
 	IngestEvent(ctx context.Context, tenantId, eventName string, data []byte, metadata []byte) (*dbsqlc.Event, error)
+	BulkIngestEvent(ctx context.Context, tenantID string, eventOpts []*repository.CreateEventOpts) ([]*dbsqlc.Event, error)
 	IngestReplayedEvent(ctx context.Context, tenantId string, replayedEvent *dbsqlc.Event) (*dbsqlc.Event, error)
 }
 
@@ -128,7 +129,7 @@ func (i *IngestorImpl) IngestEvent(ctx context.Context, tenantId, key string, da
 	}
 
 	if err != nil {
-		return nil, fmt.Errorf("could not create event: %w", err)
+		return nil, fmt.Errorf("could not create events: %w", err)
 	}
 
 	telemetry.WithAttributes(span, telemetry.AttributeKV{
@@ -137,12 +138,46 @@ func (i *IngestorImpl) IngestEvent(ctx context.Context, tenantId, key string, da
 	})
 
 	err = i.mq.AddMessage(context.Background(), msgqueue.EVENT_PROCESSING_QUEUE, eventToTask(event))
-
 	if err != nil {
 		return nil, fmt.Errorf("could not add event to task queue: %w", err)
+
 	}
 
 	return event, nil
+}
+
+func (i *IngestorImpl) BulkIngestEvent(ctx context.Context, tenantId string, eventOpts []*repository.CreateEventOpts) ([]*dbsqlc.Event, error) {
+	ctx, span := telemetry.NewSpan(ctx, "bulk-ingest-event")
+	defer span.End()
+
+	events, err := i.eventRepository.BulkCreateEvent(ctx, &repository.BulkCreateEventOpts{
+		Events:   eventOpts,
+		TenantId: tenantId,
+	})
+
+	if err == metered.ErrResourceExhausted {
+		return nil, metered.ErrResourceExhausted
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("could not create events: %w", err)
+	}
+
+	// TODO any attributes we want to add here? could jam in all the event ids? but could be a lot
+
+	// telemetry.WithAttributes(span, telemetry.AttributeKV{
+	// 	Key:   "event_id",
+	// 	Value: event.ID,
+	// })
+
+	for _, event := range events.Events {
+		err = i.mq.AddMessage(context.Background(), msgqueue.EVENT_PROCESSING_QUEUE, eventToTask(event))
+		if err != nil {
+			return nil, fmt.Errorf("could not add event to task queue: %w", err)
+		}
+	}
+
+	return events.Events, nil
 }
 
 func (i *IngestorImpl) IngestReplayedEvent(ctx context.Context, tenantId string, replayedEvent *dbsqlc.Event) (*dbsqlc.Event, error) {

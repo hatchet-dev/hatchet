@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc/codes"
@@ -37,6 +38,8 @@ type subscribedWorker struct {
 
 	// finished is used to signal closure of a client subscribing goroutine
 	finished chan<- bool
+
+	sendMu sync.Mutex
 }
 
 func (worker *subscribedWorker) StartStepRun(
@@ -89,6 +92,9 @@ func (worker *subscribedWorker) StartStepRun(
 		action.ParentWorkflowRunId = &parentId
 	}
 
+	worker.sendMu.Lock()
+	defer worker.sendMu.Unlock()
+
 	return worker.stream.Send(action)
 }
 
@@ -103,6 +109,9 @@ func (worker *subscribedWorker) StartGroupKeyAction(
 	inputData := getGroupKeyRun.GetGroupKeyRun.Input
 	workflowRunId := sqlchelpers.UUIDToStr(getGroupKeyRun.WorkflowRunId)
 	getGroupKeyRunId := sqlchelpers.UUIDToStr(getGroupKeyRun.GetGroupKeyRun.ID)
+
+	worker.sendMu.Lock()
+	defer worker.sendMu.Unlock()
 
 	return worker.stream.Send(&contracts.AssignedAction{
 		TenantId:         tenantId,
@@ -121,6 +130,9 @@ func (worker *subscribedWorker) CancelStepRun(
 ) error {
 	ctx, span := telemetry.NewSpan(ctx, "cancel-step-run") // nolint:ineffassign
 	defer span.End()
+
+	worker.sendMu.Lock()
+	defer worker.sendMu.Unlock()
 
 	return worker.stream.Send(&contracts.AssignedAction{
 		TenantId:      tenantId,
@@ -153,6 +165,7 @@ func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.Worker
 		Name:         request.WorkerName,
 		Actions:      request.Actions,
 		Services:     svcs,
+		WebhookId:    request.WebhookId,
 	}
 
 	if request.MaxRuns != nil {
@@ -265,6 +278,10 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 		})
 
 		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return nil
+			}
+
 			s.l.Error().Err(err).Msgf("could not update worker %s dispatcher", request.WorkerId)
 			return err
 		}
@@ -310,6 +327,10 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 					})
 
 					if err != nil {
+						if errors.Is(err, pgx.ErrNoRows) {
+							return
+						}
+
 						s.l.Error().Err(err).Msgf("could not update worker %s heartbeat", request.WorkerId)
 						return
 					}
@@ -360,6 +381,10 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 		})
 
 		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return nil
+			}
+
 			s.l.Error().Err(err).Msgf("could not update worker %s dispatcher", request.WorkerId)
 			return err
 		}
@@ -370,6 +395,10 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 	_, err = s.repo.Worker().UpdateWorkerActiveStatus(ctx, tenantId, request.WorkerId, true, sessionEstablished)
 
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil
+		}
+
 		lastSessionEstablished := "NULL"
 
 		if worker.LastListenerEstablished.Valid {
@@ -402,7 +431,7 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 
 			_, err = s.repo.Worker().UpdateWorkerActiveStatus(ctx, tenantId, request.WorkerId, false, sessionEstablished)
 
-			if err != nil {
+			if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 				s.l.Error().Err(err).Msgf("could not update worker %s active status to false due to worker stream closing (session established %s)", request.WorkerId, sessionEstablished.String())
 				return err
 			}
@@ -416,7 +445,7 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 
 			_, err = s.repo.Worker().UpdateWorkerActiveStatus(ctx, tenantId, request.WorkerId, false, sessionEstablished)
 
-			if err != nil {
+			if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 				s.l.Error().Err(err).Msgf("could not update worker %s active status due to worker disconnecting (session established %s)", request.WorkerId, sessionEstablished.String())
 				return err
 			}
@@ -451,17 +480,14 @@ func (s *DispatcherImpl) Heartbeat(ctx context.Context, req *contracts.Heartbeat
 	// if we haven't seen the dispatcher for 6 seconds (one interval plus latency), reject the heartbeat as the client
 	// should reconnect
 	if worker.DispatcherLastHeartbeatAt.Time.Before(time.Now().Add(-6 * time.Second)) {
-		return nil, status.Errorf(codes.FailedPrecondition, "Heartbeat rejected, worker stream for %s is not active", req.WorkerId)
+		return nil, status.Errorf(codes.FailedPrecondition, "Heartbeat rejected: dispatcher latency: %s, %s", req.WorkerId, sqlchelpers.UUIDToStr(worker.DispatcherId))
 	}
 
 	if worker.LastListenerEstablished.Valid && !worker.IsActive {
-		return nil, status.Errorf(codes.FailedPrecondition, "Heartbeat rejected, worker stream for %s is not active", req.WorkerId)
+		return nil, status.Errorf(codes.FailedPrecondition, "Heartbeat rejected: worker stream is not active: %s", req.WorkerId)
 	}
 
-	_, err = s.repo.Worker().UpdateWorker(ctx, tenantId, req.WorkerId, &repository.UpdateWorkerOpts{
-		// use the system time for heartbeat
-		LastHeartbeatAt: &heartbeatAt,
-	})
+	err = s.repo.Worker().UpdateWorkerHeartbeat(ctx, tenantId, req.WorkerId, heartbeatAt)
 
 	if err != nil {
 		return nil, err
@@ -478,7 +504,7 @@ func (s *DispatcherImpl) ReleaseSlot(ctx context.Context, req *contracts.Release
 		return nil, fmt.Errorf("step run id is required")
 	}
 
-	err := s.repo.StepRun().ReleaseStepRunSemaphore(ctx, tenantId, req.StepRunId)
+	err := s.repo.StepRun().ReleaseStepRunSemaphore(ctx, tenantId, req.StepRunId, true)
 
 	if err != nil {
 		return nil, err
@@ -488,10 +514,6 @@ func (s *DispatcherImpl) ReleaseSlot(ctx context.Context, req *contracts.Release
 }
 
 func (s *DispatcherImpl) SubscribeToWorkflowEvents(request *contracts.SubscribeToWorkflowEventsRequest, stream contracts.Dispatcher_SubscribeToWorkflowEventsServer) error {
-
-	fmt.Println("SubscribeToWorkflowEvents")
-	fmt.Println(request)
-
 	if request.WorkflowRunId != nil {
 		return s.subscribeToWorkflowEventsByWorkflowRunId(*request.WorkflowRunId, stream)
 	} else if request.AdditionalMetaKey != nil && request.AdditionalMetaValue != nil {
@@ -506,13 +528,6 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByAdditionalMeta(key string, v
 	tenant := stream.Context().Value("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
-	s.l.Error().Msgf("Received subscribe request for additional meta key-value: {%s: %s}", key, value)
-
-	q, err := msgqueue.TenantEventConsumerQueue(tenantId)
-	if err != nil {
-		return err
-	}
-
 	ctx, cancel := context.WithCancel(stream.Context())
 	defer cancel()
 
@@ -520,7 +535,8 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByAdditionalMeta(key string, v
 
 	// Keep track of active workflow run IDs
 	activeRunIds := make(map[string]struct{})
-	var mu sync.Mutex // Mutex to protect activeRunIds
+	var mu sync.Mutex     // Mutex to protect activeRunIds
+	var sendMu sync.Mutex // Mutex to protect sending messages
 
 	f := func(task *msgqueue.Message) error {
 		wg.Add(1)
@@ -536,8 +552,10 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByAdditionalMeta(key string, v
 					return false, nil
 				}
 
-				if e.ResourceType != contracts.ResourceType_RESOURCE_TYPE_WORKFLOW_RUN &&
-					e.EventType != contracts.ResourceEventType_RESOURCE_EVENT_TYPE_COMPLETED {
+				isWorkflowRunCompletedEvent := e.ResourceType == contracts.ResourceType_RESOURCE_TYPE_WORKFLOW_RUN &&
+					e.EventType == contracts.ResourceEventType_RESOURCE_EVENT_TYPE_COMPLETED
+
+				if !isWorkflowRunCompletedEvent {
 					// Add the run ID to active runs
 					activeRunIds[e.WorkflowRunId] = struct{}{}
 				} else {
@@ -556,12 +574,14 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByAdditionalMeta(key string, v
 		if err != nil {
 			s.l.Error().Err(err).Msgf("could not convert task to workflow event")
 			return nil
-		} else if e == nil {
+		} else if e == nil || e.WorkflowRunId == "" {
 			return nil
 		}
 
 		// send the task to the client
+		sendMu.Lock()
 		err = stream.Send(e)
+		sendMu.Unlock()
 
 		if err != nil {
 			cancel() // FIXME is this necessary?
@@ -577,7 +597,7 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByAdditionalMeta(key string, v
 	}
 
 	// subscribe to the task queue for the tenant
-	cleanupQueue, err := s.mq.Subscribe(q, msgqueue.NoOpHook, f)
+	cleanupQueue, err := s.sharedReader.Subscribe(tenantId, f)
 
 	if err != nil {
 		return err
@@ -600,12 +620,6 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunId(workflowRunId 
 
 	s.l.Debug().Msgf("Received subscribe request for workflow: %s", workflowRunId)
 
-	q, err := msgqueue.TenantEventConsumerQueue(tenantId)
-
-	if err != nil {
-		return err
-	}
-
 	ctx, cancel := context.WithCancel(stream.Context())
 	defer cancel()
 
@@ -626,6 +640,8 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunId(workflowRunId 
 
 	wg := sync.WaitGroup{}
 
+	sendMu := sync.Mutex{}
+
 	f := func(task *msgqueue.Message) error {
 		wg.Add(1)
 		defer wg.Done()
@@ -640,7 +656,9 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunId(workflowRunId 
 		}
 
 		// send the task to the client
+		sendMu.Lock()
 		err = stream.Send(e)
+		sendMu.Unlock()
 
 		if err != nil {
 			cancel() // FIXME is this necessary?
@@ -656,7 +674,7 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunId(workflowRunId 
 	}
 
 	// subscribe to the task queue for the tenant
-	cleanupQueue, err := s.mq.Subscribe(q, msgqueue.NoOpHook, f)
+	cleanupQueue, err := s.sharedReader.Subscribe(tenantId, f)
 
 	if err != nil {
 		return err
@@ -718,11 +736,27 @@ func (s *sendTimeFilter) canSend() bool {
 	}
 
 	go func() {
-		time.Sleep(time.Second - 10*time.Millisecond)
+		time.Sleep(10 * time.Millisecond)
 		s.mu.Unlock()
 	}()
 
 	return true
+}
+
+func calculateResultsSize(results []*contracts.StepRunResult) int64 {
+	var totalSize int64
+
+	for _, result := range results {
+		// Size of the struct fields
+		if result != nil && result.Output != nil {
+			// Assuming StepRunResult has fields like ID, Status, Output, etc.
+			// Adjust these based on the actual struct definition
+			totalSize += int64(len(*result.Output))
+			// Add sizes of other fields...
+		}
+	}
+
+	return totalSize
 }
 
 // SubscribeToWorkflowEvents registers workflow events with the dispatcher
@@ -739,22 +773,24 @@ func (s *DispatcherImpl) SubscribeToWorkflowRuns(server contracts.Dispatcher_Sub
 	ctx, cancel := context.WithCancel(server.Context())
 	defer cancel()
 
-	// subscribe to the task queue for the tenant
-	q, err := msgqueue.TenantEventConsumerQueue(tenantId)
-
-	if err != nil {
-		return err
-	}
-
 	wg := sync.WaitGroup{}
+	sendMu := sync.Mutex{}
 
 	sendEvent := func(e *contracts.WorkflowRunEvent) error {
+
+		if calculateResultsSize(e.Results) > 3*1024*1024 {
+			s.l.Warn().Msgf("results size for workflow run %s exceeds 3MB", e.WorkflowRunId)
+			e.Results = nil
+		}
+
 		// send the task to the client
+		sendMu.Lock()
 		err := server.Send(e)
+		sendMu.Unlock()
 
 		if err != nil {
 			cancel() // FIXME is this necessary?
-			s.l.Error().Err(err).Msgf("could not send workflow event to client")
+			s.l.Error().Err(err).Msgf("could not subscribe to workflow events for run %s", e.WorkflowRunId)
 			return err
 		}
 
@@ -847,7 +883,7 @@ func (s *DispatcherImpl) SubscribeToWorkflowRuns(server contracts.Dispatcher_Sub
 	}
 
 	// subscribe to the task queue for the tenant
-	cleanupQueue, err := s.mq.Subscribe(q, msgqueue.NoOpHook, f)
+	cleanupQueue, err := s.sharedReader.Subscribe(tenantId, f)
 
 	if err != nil {
 		return err
@@ -985,15 +1021,15 @@ func (d *DispatcherImpl) RefreshTimeout(ctx context.Context, request *contracts.
 		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", apiErrors.String())
 	}
 
-	stepRun, err := d.repo.StepRun().RefreshTimeoutBy(ctx, tenantId, request.StepRunId, opts)
+	pgTimeoutAt, err := d.repo.StepRun().RefreshTimeoutBy(ctx, tenantId, request.StepRunId, opts)
 
 	if err != nil {
 		return nil, err
 	}
 
 	timeoutAt := &timestamppb.Timestamp{
-		Seconds: stepRun.TimeoutAt.Time.Unix(),
-		Nanos:   int32(stepRun.TimeoutAt.Time.Nanosecond()),
+		Seconds: pgTimeoutAt.Time.Unix(),
+		Nanos:   int32(pgTimeoutAt.Time.Nanosecond()), // nolint:gosec
 	}
 
 	return &contracts.RefreshTimeoutResponse{
@@ -1002,9 +1038,13 @@ func (d *DispatcherImpl) RefreshTimeout(ctx context.Context, request *contracts.
 
 }
 
-func (s *DispatcherImpl) handleStepRunStarted(ctx context.Context, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
-	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
+func (s *DispatcherImpl) handleStepRunStarted(inputCtx context.Context, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
+	tenant := inputCtx.Value("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+
+	// run the rest on a separate context to always send to job controller
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 
 	s.l.Debug().Msgf("Received step started event for step run %s", request.StepRunId)
 
@@ -1014,6 +1054,12 @@ func (s *DispatcherImpl) handleStepRunStarted(ctx context.Context, request *cont
 
 	if err != nil {
 		return nil, err
+	}
+
+	err = s.repo.StepRun().StepRunStarted(ctx, tenantId, request.StepRunId, startedAt)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not mark step run started: %w", err)
 	}
 
 	payload, _ := datautils.ToJSONMap(tasktypes.StepRunStartedTaskPayload{
@@ -1028,8 +1074,8 @@ func (s *DispatcherImpl) handleStepRunStarted(ctx context.Context, request *cont
 		TenantId: tenantId,
 	})
 
-	// send the event to the jobs queue
-	err = s.mq.AddMessage(ctx, msgqueue.JOB_PROCESSING_QUEUE, &msgqueue.Message{
+	// we send the event directly to the tenant's event queue
+	err = s.mq.AddMessage(ctx, msgqueue.TenantEventConsumerQueue(tenantId), &msgqueue.Message{
 		ID:       "step-run-started",
 		Payload:  payload,
 		Metadata: metadata,
@@ -1046,9 +1092,19 @@ func (s *DispatcherImpl) handleStepRunStarted(ctx context.Context, request *cont
 	}, nil
 }
 
-func (s *DispatcherImpl) handleStepRunCompleted(ctx context.Context, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
-	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
+func (s *DispatcherImpl) handleStepRunCompleted(inputCtx context.Context, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
+	tenant := inputCtx.Value("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+
+	// run the rest on a separate context to always send to job controller
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	err := s.repo.StepRun().ReleaseStepRunSemaphore(ctx, tenantId, request.StepRunId, false)
+
+	if err != nil {
+		s.l.Error().Err(err).Msgf("could not release semaphore for step run %s", request.StepRunId)
+	}
 
 	s.l.Debug().Msgf("Received step completed event for step run %s", request.StepRunId)
 
@@ -1110,9 +1166,19 @@ func (s *DispatcherImpl) handleStepRunCompleted(ctx context.Context, request *co
 	}, nil
 }
 
-func (s *DispatcherImpl) handleStepRunFailed(ctx context.Context, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
-	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
+func (s *DispatcherImpl) handleStepRunFailed(inputCtx context.Context, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
+	tenant := inputCtx.Value("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+
+	// run the rest on a separate context to always send to job controller
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	err := s.repo.StepRun().ReleaseStepRunSemaphore(ctx, tenantId, request.StepRunId, false)
+
+	if err != nil {
+		s.l.Error().Err(err).Msgf("could not release semaphore for step run %s", request.StepRunId)
+	}
 
 	s.l.Debug().Msgf("Received step failed event for step run %s", request.StepRunId)
 
@@ -1155,9 +1221,13 @@ func (s *DispatcherImpl) handleStepRunFailed(ctx context.Context, request *contr
 	}, nil
 }
 
-func (s *DispatcherImpl) handleGetGroupKeyRunStarted(ctx context.Context, request *contracts.GroupKeyActionEvent) (*contracts.ActionEventResponse, error) {
-	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
+func (s *DispatcherImpl) handleGetGroupKeyRunStarted(inputCtx context.Context, request *contracts.GroupKeyActionEvent) (*contracts.ActionEventResponse, error) {
+	tenant := inputCtx.Value("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+
+	// run the rest on a separate context to always send to job controller
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 
 	s.l.Debug().Msgf("Received step started event for step run %s", request.GetGroupKeyRunId)
 
@@ -1190,9 +1260,13 @@ func (s *DispatcherImpl) handleGetGroupKeyRunStarted(ctx context.Context, reques
 	}, nil
 }
 
-func (s *DispatcherImpl) handleGetGroupKeyRunCompleted(ctx context.Context, request *contracts.GroupKeyActionEvent) (*contracts.ActionEventResponse, error) {
-	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
+func (s *DispatcherImpl) handleGetGroupKeyRunCompleted(inputCtx context.Context, request *contracts.GroupKeyActionEvent) (*contracts.ActionEventResponse, error) {
+	tenant := inputCtx.Value("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+
+	// run the rest on a separate context to always send to job controller
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 
 	s.l.Debug().Msgf("Received step completed event for step run %s", request.GetGroupKeyRunId)
 
@@ -1226,9 +1300,13 @@ func (s *DispatcherImpl) handleGetGroupKeyRunCompleted(ctx context.Context, requ
 	}, nil
 }
 
-func (s *DispatcherImpl) handleGetGroupKeyRunFailed(ctx context.Context, request *contracts.GroupKeyActionEvent) (*contracts.ActionEventResponse, error) {
-	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
+func (s *DispatcherImpl) handleGetGroupKeyRunFailed(inputCtx context.Context, request *contracts.GroupKeyActionEvent) (*contracts.ActionEventResponse, error) {
+	tenant := inputCtx.Value("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+
+	// run the rest on a separate context to always send to job controller
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 
 	s.l.Debug().Msgf("Received step failed event for step run %s", request.GetGroupKeyRunId)
 
@@ -1523,22 +1601,22 @@ func (s *DispatcherImpl) isMatchingWorkflowRun(task *msgqueue.Message, workflowR
 }
 
 func (s *DispatcherImpl) toWorkflowRunEvent(tenantId string, workflowRuns []*dbsqlc.ListWorkflowRunsRow) ([]*contracts.WorkflowRunEvent, error) {
-	workflowRunIds := make([]string, 0)
+	finalWorkflowRuns := make([]*dbsqlc.ListWorkflowRunsRow, 0)
 
 	for _, workflowRun := range workflowRuns {
-		if workflowRun.WorkflowRun.Status != dbsqlc.WorkflowRunStatusFAILED && workflowRun.WorkflowRun.Status != dbsqlc.WorkflowRunStatusSUCCEEDED {
+		wrCopy := workflowRun
+
+		if !repository.IsFinalWorkflowRunStatus(wrCopy.WorkflowRun.Status) {
 			continue
 		}
 
-		workflowRunId := sqlchelpers.UUIDToStr(workflowRun.WorkflowRun.ID)
-
-		workflowRunIds = append(workflowRunIds, workflowRunId)
+		finalWorkflowRuns = append(finalWorkflowRuns, wrCopy)
 	}
 
 	res := make([]*contracts.WorkflowRunEvent, 0)
 
 	// get step run results for each workflow run
-	mappedStepRunResults, err := s.getStepResultsForWorkflowRun(tenantId, workflowRunIds)
+	mappedStepRunResults, err := s.getStepResultsForWorkflowRun(tenantId, finalWorkflowRuns)
 
 	if err != nil {
 		return nil, err
@@ -1556,7 +1634,18 @@ func (s *DispatcherImpl) toWorkflowRunEvent(tenantId string, workflowRuns []*dbs
 	return res, nil
 }
 
-func (s *DispatcherImpl) getStepResultsForWorkflowRun(tenantId string, workflowRunIds []string) (map[string][]*contracts.StepRunResult, error) {
+func (s *DispatcherImpl) getStepResultsForWorkflowRun(tenantId string, workflowRuns []*dbsqlc.ListWorkflowRunsRow) (map[string][]*contracts.StepRunResult, error) {
+	workflowRunIds := make([]string, 0)
+	workflowRunToOnFailureJobIds := make(map[string]string)
+
+	for _, workflowRun := range workflowRuns {
+		workflowRunIds = append(workflowRunIds, sqlchelpers.UUIDToStr(workflowRun.WorkflowRun.ID))
+
+		if workflowRun.WorkflowVersion.OnFailureJobId.Valid {
+			workflowRunToOnFailureJobIds[sqlchelpers.UUIDToStr(workflowRun.WorkflowRun.ID)] = sqlchelpers.UUIDToStr(workflowRun.WorkflowVersion.OnFailureJobId)
+		}
+	}
+
 	stepRuns, err := s.repo.StepRun().ListStepRuns(context.Background(), tenantId, &repository.ListStepRunsOpts{
 		WorkflowRunIds: workflowRunIds,
 	})
@@ -1573,6 +1662,16 @@ func (s *DispatcherImpl) getStepResultsForWorkflowRun(tenantId string, workflowR
 
 		if err != nil {
 			return nil, fmt.Errorf("could not get step run data for %s, %e", sqlchelpers.UUIDToStr(stepRun.SRID), err)
+		}
+
+		workflowRunId := sqlchelpers.UUIDToStr(stepRun.WorkflowRunId)
+		jobId := sqlchelpers.UUIDToStr(stepRun.JobId)
+
+		hasError := data.Error.Valid || stepRun.SRCancelledReason.Valid
+		isOnFailureJob := workflowRunToOnFailureJobIds[workflowRunId] == jobId
+
+		if hasError && isOnFailureJob {
+			continue
 		}
 
 		resStepRun := &contracts.StepRunResult{
@@ -1593,8 +1692,6 @@ func (s *DispatcherImpl) getStepResultsForWorkflowRun(tenantId string, workflowR
 		if data.Output != nil {
 			resStepRun.Output = repository.StringPtr(string(data.Output))
 		}
-
-		workflowRunId := sqlchelpers.UUIDToStr(stepRun.WorkflowRunId)
 
 		if currResults, ok := res[workflowRunId]; ok {
 			res[workflowRunId] = append(currResults, resStepRun)

@@ -39,9 +39,15 @@ type ServerConfigFile struct {
 
 	Services []string `mapstructure:"services" json:"services,omitempty" default:"[\"health\", \"ticker\", \"grpc\", \"eventscontroller\", \"queue\", \"webhookscontroller\", \"heartbeater\", \"retention\"]"`
 
+	EnableDataRetention bool `mapstructure:"enableDataRetention" json:"enableDataRetention,omitempty" default:"true"`
+
+	EnableWorkerRetention bool `mapstructure:"enableWorkerRetention" json:"enableWorkerRetention,omitempty" default:"false"`
+
 	TLS shared.TLSConfigFile `mapstructure:"tls" json:"tls,omitempty"`
 
 	Logger shared.LoggerConfigFile `mapstructure:"logger" json:"logger,omitempty"`
+
+	AdditionalLoggers ConfigFileAdditionalLoggers `mapstructure:"additionalLoggers" json:"additionalLoggers,omitempty"`
 
 	OpenTelemetry shared.OpenTelemetryConfigFile `mapstructure:"otel" json:"otel,omitempty"`
 
@@ -50,6 +56,14 @@ type ServerConfigFile struct {
 	TenantAlerting ConfigFileTenantAlerting `mapstructure:"tenantAlerting" json:"tenantAlerting,omitempty"`
 
 	Email ConfigFileEmail `mapstructure:"email" json:"email,omitempty"`
+}
+
+type ConfigFileAdditionalLoggers struct {
+	// Queue is a custom logger config for the queue service
+	Queue shared.LoggerConfigFile `mapstructure:"queue" json:"queue,omitempty"`
+
+	// PgxStats is a custom logger config for the pgx stats service
+	PgxStats shared.LoggerConfigFile `mapstructure:"pgxStats" json:"pgxStats,omitempty"`
 }
 
 // General server runtime options
@@ -86,6 +100,9 @@ type ConfigFileRuntime struct {
 
 	// RequeueLimit is the number of times a message will be requeued in each attempt
 	RequeueLimit int `mapstructure:"requeueLimit" json:"requeueLimit,omitempty" default:"100"`
+
+	// QueueLimit is the limit of items to return from a single queue at a time
+	SingleQueueLimit int `mapstructure:"singleQueueLimit" json:"singleQueueLimit,omitempty" default:"100"`
 
 	// Allow new tenants to be created
 	AllowSignup bool `mapstructure:"allowSignup" json:"allowSignup,omitempty" default:"true"`
@@ -208,7 +225,8 @@ type EncryptionConfigFileCloudKMS struct {
 
 type ConfigFileAuth struct {
 	// RestrictedEmailDomains sets the restricted email domains for the instance.
-	RestrictedEmailDomains []string `mapstructure:"restrictedEmailDomains" json:"restrictedEmailDomains,omitempty"`
+	// NOTE: do not use this on the server from the config file.
+	RestrictedEmailDomains string `mapstructure:"restrictedEmailDomains" json:"restrictedEmailDomains,omitempty"`
 
 	// BasedAuthEnabled controls whether email and password-based login is enabled for this
 	// Hatchet instance
@@ -287,6 +305,8 @@ type PostmarkConfigFile struct {
 }
 
 type AuthConfig struct {
+	RestrictedEmailDomains []string
+
 	ConfigFile ConfigFileAuth
 
 	GoogleOAuthConfig *oauth2.Config
@@ -326,11 +346,17 @@ type ServerConfig struct {
 
 	Services []string
 
+	EnableDataRetention bool
+
+	EnableWorkerRetention bool
+
 	Namespaces []string
 
 	MessageQueue msgqueue.MessageQueue
 
 	Logger *zerolog.Logger
+
+	AdditionalLoggers ConfigFileAdditionalLoggers
 
 	TLSConfig *tls.Config
 
@@ -370,6 +396,8 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.grpcMaxMsgSize", "SERVER_GRPC_MAX_MSG_SIZE")
 	_ = v.BindEnv("runtime.shutdownWait", "SERVER_SHUTDOWN_WAIT")
 	_ = v.BindEnv("services", "SERVER_SERVICES")
+	_ = v.BindEnv("enableDataRetention", "SERVER_ENABLE_DATA_RETENTION")
+	_ = v.BindEnv("enableWorkerRetention", "SERVER_ENABLE_WORKER_RETENTION")
 	_ = v.BindEnv("runtime.enforceLimits", "SERVER_ENFORCE_LIMITS")
 	_ = v.BindEnv("runtime.allowSignup", "SERVER_ALLOW_SIGNUP")
 	_ = v.BindEnv("runtime.allowInvites", "SERVER_ALLOW_INVITES")
@@ -456,6 +484,7 @@ func BindAllEnv(v *viper.Viper) {
 	// throughput options
 	_ = v.BindEnv("msgQueue.rabbitmq.qos", "SERVER_MSGQUEUE_RABBITMQ_QOS")
 	_ = v.BindEnv("runtime.requeueLimit", "SERVER_REQUEUE_LIMIT")
+	_ = v.BindEnv("runtime.singleQueueLimit", "SERVER_SINGLE_QUEUE_LIMIT")
 
 	// tls options
 	_ = v.BindEnv("tls.tlsStrategy", "SERVER_TLS_STRATEGY")
@@ -470,6 +499,12 @@ func BindAllEnv(v *viper.Viper) {
 	// logger options
 	_ = v.BindEnv("logger.level", "SERVER_LOGGER_LEVEL")
 	_ = v.BindEnv("logger.format", "SERVER_LOGGER_FORMAT")
+
+	// additional logger options
+	_ = v.BindEnv("additionalLoggers.queue.level", "SERVER_ADDITIONAL_LOGGERS_QUEUE_LEVEL")
+	_ = v.BindEnv("additionalLoggers.queue.format", "SERVER_ADDITIONAL_LOGGERS_QUEUE_FORMAT")
+	_ = v.BindEnv("additionalLoggers.pgxStats.level", "SERVER_ADDITIONAL_LOGGERS_PGXSTATS_LEVEL")
+	_ = v.BindEnv("additionalLoggers.pgxStats.format", "SERVER_ADDITIONAL_LOGGERS_PGXSTATS_FORMAT")
 
 	// otel options
 	_ = v.BindEnv("otel.serviceName", "SERVER_OTEL_SERVICE_NAME")

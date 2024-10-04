@@ -47,9 +47,13 @@ func Prepare(t *testing.T) {
 	_ = os.Setenv("SERVER_SECURITY_CHECK_ENABLED", "false")
 
 	_ = os.Setenv("SERVER_LOGGER_LEVEL", "error")
-	_ = os.Setenv("SERVER_LOGGER_FORMAT", "json")
+	_ = os.Setenv("SERVER_LOGGER_FORMAT", "console")
 	_ = os.Setenv("DATABASE_LOGGER_LEVEL", "error")
-	_ = os.Setenv("DATABASE_LOGGER_FORMAT", "json")
+	_ = os.Setenv("DATABASE_LOGGER_FORMAT", "console")
+	_ = os.Setenv("SERVER_ADDITIONAL_LOGGERS_QUEUE_LEVEL", "error")
+	_ = os.Setenv("SERVER_ADDITIONAL_LOGGERS_QUEUE_FORMAT", "console")
+	_ = os.Setenv("SERVER_ADDITIONAL_LOGGERS_PGXSTATS_LEVEL", "error")
+	_ = os.Setenv("SERVER_ADDITIONAL_LOGGERS_PGXSTATS_FORMAT", "console")
 
 	// read in the local config
 	configLoader := loader.NewConfigLoader(path.Join(testPath, baseDir, "generated"))

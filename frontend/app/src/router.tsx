@@ -72,7 +72,7 @@ const routes: RouteObject[] = [
             lazy: async () => {
               return {
                 loader: function () {
-                  return redirect('/events');
+                  return redirect('/workflow-runs');
                 },
               };
             },
@@ -124,6 +124,15 @@ const routes: RouteObject[] = [
                   }),
               },
               {
+                path: '/rate-limits',
+                lazy: async () =>
+                  import('./pages/main/rate-limits').then((res) => {
+                    return {
+                      Component: res.default,
+                    };
+                  }),
+              },
+              {
                 path: '/workflows',
                 lazy: async () =>
                   import('./pages/main/workflows').then((res) => {
@@ -138,7 +147,6 @@ const routes: RouteObject[] = [
                   import('./pages/main/workflows/$workflow').then((res) => {
                     return {
                       Component: res.default,
-                      loader: res.loader,
                     };
                   }),
               },
@@ -161,6 +169,16 @@ const routes: RouteObject[] = [
                   }),
               },
               {
+                path: '/workers',
+                lazy: async () => {
+                  return {
+                    loader: function () {
+                      return redirect('/workers/all');
+                    },
+                  };
+                },
+              },
+              {
                 path: '/workers/all',
                 lazy: async () =>
                   import('./pages/main/workers').then((res) => {
@@ -168,6 +186,17 @@ const routes: RouteObject[] = [
                       Component: res.default,
                     };
                   }),
+              },
+              {
+                path: '/workers/webhook',
+                lazy: async () =>
+                  import('./pages/main/workers/webhooks/index.tsx').then(
+                    (res) => {
+                      return {
+                        Component: res.default,
+                      };
+                    },
+                  ),
               },
               {
                 path: '/workers/:worker',
@@ -239,17 +268,6 @@ const routes: RouteObject[] = [
                       Component: res.default,
                     };
                   }),
-              },
-              {
-                path: '/tenant-settings/webhooks',
-                lazy: async () =>
-                  import('./pages/main/tenant-settings/webhooks').then(
-                    (res) => {
-                      return {
-                        Component: res.default,
-                      };
-                    },
-                  ),
               },
               {
                 path: '/tenant-settings/members',

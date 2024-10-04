@@ -61,7 +61,7 @@ func (q *Queries) ClearEventPayloadData(ctx context.Context, db DBTX, arg ClearE
 const countEvents = `-- name: CountEvents :one
 WITH events AS (
     SELECT
-        events."id", events."createdAt"
+        events."id"
     FROM
         "Event" as events
     LEFT JOIN
@@ -74,32 +74,35 @@ WITH events AS (
         "Workflow" as workflow ON workflowVersion."workflowId" = workflow."id"
     WHERE
         events."tenantId" = $1 AND
-        events."deletedAt" IS NOT NULL AND
+        events."deletedAt" IS NULL AND
         (
-            $2::text[] IS NULL OR
-            events."key" = ANY($2::text[])
-            ) AND
-        (
-            $3::jsonb IS NULL OR
-            events."additionalMetadata" @> $3::jsonb
+            $2::uuid[] IS NULL OR
+            events."id" = ANY($2::uuid[])
         ) AND
         (
-            ($4::text[])::uuid[] IS NULL OR
-            (workflow."id" = ANY($4::text[]::uuid[]))
-            ) AND
-        (
-            $5::text IS NULL OR
-            jsonb_path_exists(events."data", cast(concat('$.** ? (@.type() == "string" && @ like_regex "', $5::text, '")') as jsonpath))
+            $3::text[] IS NULL OR
+            events."key" = ANY($3::text[])
         ) AND
-            (
-                $6::text[] IS NULL OR
-                "status" = ANY(cast($6::text[] as "WorkflowRunStatus"[]))
-            )
-    GROUP BY
-        events."id"
+        (
+            $4::jsonb IS NULL OR
+            events."additionalMetadata" @> $4::jsonb
+        ) AND
+        (
+            ($5::text[])::uuid[] IS NULL OR
+            (workflow."id" = ANY($5::text[]::uuid[]))
+        ) AND
+        (
+            $6::text IS NULL OR
+            workflow.name like concat('%', $6::text, '%') OR
+            jsonb_path_exists(events."data", cast(concat('$.** ? (@.type() == "string" && @ like_regex "', $6::text, '")') as jsonpath))
+        ) AND
+        (
+            $7::text[] IS NULL OR
+            "status" = ANY(cast($7::text[] as "WorkflowRunStatus"[]))
+        )
     ORDER BY
-        case when $7 = 'createdAt ASC' THEN events."createdAt" END ASC ,
-        case when $7 = 'createdAt DESC' then events."createdAt" END DESC
+        case when $8 = 'createdAt ASC' THEN events."createdAt" END ASC ,
+        case when $8 = 'createdAt DESC' then events."createdAt" END DESC
     LIMIT 10000
 )
 SELECT
@@ -109,18 +112,20 @@ FROM
 `
 
 type CountEventsParams struct {
-	TenantId           pgtype.UUID `json:"tenantId"`
-	Keys               []string    `json:"keys"`
-	AdditionalMetadata []byte      `json:"additionalMetadata"`
-	Workflows          []string    `json:"workflows"`
-	Search             pgtype.Text `json:"search"`
-	Statuses           []string    `json:"statuses"`
-	Orderby            interface{} `json:"orderby"`
+	TenantId           pgtype.UUID   `json:"tenantId"`
+	EventIds           []pgtype.UUID `json:"event_ids"`
+	Keys               []string      `json:"keys"`
+	AdditionalMetadata []byte        `json:"additionalMetadata"`
+	Workflows          []string      `json:"workflows"`
+	Search             pgtype.Text   `json:"search"`
+	Statuses           []string      `json:"statuses"`
+	Orderby            interface{}   `json:"orderby"`
 }
 
 func (q *Queries) CountEvents(ctx context.Context, db DBTX, arg CountEventsParams) (int64, error) {
 	row := db.QueryRow(ctx, countEvents,
 		arg.TenantId,
+		arg.EventIds,
 		arg.Keys,
 		arg.AdditionalMetadata,
 		arg.Workflows,
@@ -154,7 +159,7 @@ INSERT INTO "Event" (
     $7::uuid,
     $8::jsonb,
     $9::jsonb
-) RETURNING id, "createdAt", "updatedAt", "deletedAt", key, "tenantId", "replayedFromId", data, "additionalMetadata"
+) RETURNING id, "createdAt", "updatedAt", "deletedAt", key, "tenantId", "replayedFromId", data, "additionalMetadata", "insertOrder"
 `
 
 type CreateEventParams struct {
@@ -192,17 +197,28 @@ func (q *Queries) CreateEvent(ctx context.Context, db DBTX, arg CreateEventParam
 		&i.ReplayedFromId,
 		&i.Data,
 		&i.AdditionalMetadata,
+		&i.InsertOrder,
 	)
 	return &i, err
 }
 
+type CreateEventsParams struct {
+	ID                 pgtype.UUID `json:"id"`
+	Key                string      `json:"key"`
+	TenantId           pgtype.UUID `json:"tenantId"`
+	ReplayedFromId     pgtype.UUID `json:"replayedFromId"`
+	Data               []byte      `json:"data"`
+	AdditionalMetadata []byte      `json:"additionalMetadata"`
+	InsertOrder        pgtype.Int4 `json:"insertOrder"`
+}
+
 const getEventForEngine = `-- name: GetEventForEngine :one
 SELECT
-    id, "createdAt", "updatedAt", "deletedAt", key, "tenantId", "replayedFromId", data, "additionalMetadata"
+    id, "createdAt", "updatedAt", "deletedAt", key, "tenantId", "replayedFromId", data, "additionalMetadata", "insertOrder"
 FROM
     "Event"
 WHERE
-    "deletedAt" IS NOT NULL AND
+    "deletedAt" IS NULL AND
     "id" = $1::uuid
 `
 
@@ -219,6 +235,7 @@ func (q *Queries) GetEventForEngine(ctx context.Context, db DBTX, id pgtype.UUID
 		&i.ReplayedFromId,
 		&i.Data,
 		&i.AdditionalMetadata,
+		&i.InsertOrder,
 	)
 	return &i, err
 }
@@ -263,68 +280,143 @@ func (q *Queries) GetEventsForRange(ctx context.Context, db DBTX) ([]*GetEventsF
 	return items, nil
 }
 
+const getInsertedEvents = `-- name: GetInsertedEvents :many
+
+SELECT id, "createdAt", "updatedAt", "deletedAt", key, "tenantId", "replayedFromId", data, "additionalMetadata", "insertOrder" FROM "Event"
+WHERE xmin::text = (txid_current() % (2^32)::bigint)::text
+ORDER BY "insertOrder" ASC
+`
+
+func (q *Queries) GetInsertedEvents(ctx context.Context, db DBTX) ([]*Event, error) {
+	rows, err := db.Query(ctx, getInsertedEvents)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*Event
+	for rows.Next() {
+		var i Event
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.Key,
+			&i.TenantId,
+			&i.ReplayedFromId,
+			&i.Data,
+			&i.AdditionalMetadata,
+			&i.InsertOrder,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listEvents = `-- name: ListEvents :many
-SELECT
-    events.id, events."createdAt", events."updatedAt", events."deletedAt", events.key, events."tenantId", events."replayedFromId", events.data, events."additionalMetadata",
-    sum(case when runs."status" = 'PENDING' then 1 else 0 end) AS pendingRuns,
-    sum(case when runs."status" = 'QUEUED' then 1 else 0 end) AS queuedRuns,
-    sum(case when runs."status" = 'RUNNING' then 1 else 0 end) AS runningRuns,
-    sum(case when runs."status" = 'SUCCEEDED' then 1 else 0 end) AS succeededRuns,
-    sum(case when runs."status" = 'FAILED' then 1 else 0 end) AS failedRuns
-FROM
-    "Event" as events
-LEFT JOIN
-    "WorkflowRunTriggeredBy" as runTriggers ON events."id" = runTriggers."eventId"
-LEFT JOIN
-    "WorkflowRun" as runs ON runTriggers."parentId" = runs."id"
-LEFT JOIN
-    "WorkflowVersion" as workflowVersion ON workflowVersion."id" = runs."workflowVersionId"
-LEFT JOIN
-    "Workflow" as workflow ON workflowVersion."workflowId" = workflow."id"
-WHERE
-    events."tenantId" = $1 AND
-    (
-        $2::text[] IS NULL OR
-        events."key" = ANY($2::text[])
-    ) AND
+WITH filtered_events AS (
+    SELECT
+        events."id"
+    FROM
+        "Event" as events
+    LEFT JOIN
+        "WorkflowRunTriggeredBy" as runTriggers ON events."id" = runTriggers."eventId"
+    LEFT JOIN
+        "WorkflowRun" as runs ON runTriggers."parentId" = runs."id"
+    LEFT JOIN
+        "WorkflowVersion" as workflowVersion ON workflowVersion."id" = runs."workflowVersionId"
+    LEFT JOIN
+        "Workflow" as workflow ON workflowVersion."workflowId" = workflow."id"
+    WHERE
+        events."tenantId" = $1 AND
+        events."deletedAt" IS NULL AND
         (
-        $3::jsonb IS NULL OR
-        events."additionalMetadata" @> $3::jsonb
-    ) AND
-    (
-        ($4::text[])::uuid[] IS NULL OR
-        (workflow."id" = ANY($4::text[]::uuid[]))
-    ) AND
-    (
-        $5::text IS NULL OR
-        workflow.name like concat('%', $5::text, '%') OR
-        jsonb_path_exists(events."data", cast(concat('$.** ? (@.type() == "string" && @ like_regex "', $5::text, '")') as jsonpath))
-    ) AND
-    (
-        $6::text[] IS NULL OR
-        "status" = ANY(cast($6::text[] as "WorkflowRunStatus"[]))
-    )
-GROUP BY
-    events."id"
+            $3::uuid[] IS NULL OR
+            events."id" = ANY($3::uuid[])
+        ) AND
+        (
+            $4::text[] IS NULL OR
+            events."key" = ANY($4::text[])
+        ) AND
+        (
+            $5::jsonb IS NULL OR
+            events."additionalMetadata" @> $5::jsonb
+        ) AND
+        (
+            ($6::text[])::uuid[] IS NULL OR
+            (workflow."id" = ANY($6::text[]::uuid[]))
+        ) AND
+        (
+            $7::text IS NULL OR
+            workflow.name like concat('%', $7::text, '%') OR
+            jsonb_path_exists(events."data", cast(concat('$.** ? (@.type() == "string" && @ like_regex "', $7::text, '")') as jsonpath))
+        ) AND
+        (
+            $8::text[] IS NULL OR
+            runs."status" = ANY(cast($8::text[] as "WorkflowRunStatus"[]))
+        )
+    GROUP BY events."id"
+    ORDER BY
+        case when $2 = 'createdAt ASC' THEN MAX(events."createdAt") END ASC,
+        case when $2 = 'createdAt DESC' then MAX(events."createdAt") END DESC
+    OFFSET
+        COALESCE($9, 0)
+    LIMIT
+        COALESCE($10, 50)
+),
+event_run_counts AS (
+    SELECT
+        events."id" as event_id,
+        COUNT(CASE WHEN runs."status" = 'PENDING' THEN 1 END) AS pendingRuns,
+        COUNT(CASE WHEN runs."status" = 'QUEUED' THEN 1 END) AS queuedRuns,
+        COUNT(CASE WHEN runs."status" = 'RUNNING' THEN 1 END) AS runningRuns,
+        COUNT(CASE WHEN runs."status" = 'SUCCEEDED' THEN 1 END) AS succeededRuns,
+        COUNT(CASE WHEN runs."status" = 'FAILED' THEN 1 END) AS failedRuns
+    FROM
+        filtered_events
+    JOIN
+        "Event" as events ON events."id" = filtered_events."id"
+    LEFT JOIN
+        "WorkflowRunTriggeredBy" as runTriggers ON events."id" = runTriggers."eventId"
+    LEFT JOIN
+        "WorkflowRun" as runs ON runTriggers."parentId" = runs."id"
+    GROUP BY
+        events."id"
+)
+SELECT
+    events.id, events."createdAt", events."updatedAt", events."deletedAt", events.key, events."tenantId", events."replayedFromId", events.data, events."additionalMetadata", events."insertOrder",
+    COALESCE(erc.pendingRuns, 0) AS pendingRuns,
+    COALESCE(erc.queuedRuns, 0) AS queuedRuns,
+    COALESCE(erc.runningRuns, 0) AS runningRuns,
+    COALESCE(erc.succeededRuns, 0) AS succeededRuns,
+    COALESCE(erc.failedRuns, 0) AS failedRuns
+FROM
+    filtered_events fe
+JOIN
+    "Event" as events ON events."id" = fe."id"
+LEFT JOIN
+    event_run_counts erc ON events."id" = erc.event_id
 ORDER BY
-    case when $7 = 'createdAt ASC' THEN events."createdAt" END ASC ,
-    case when $7 = 'createdAt DESC' then events."createdAt" END DESC
-OFFSET
-    COALESCE($8, 0)
-LIMIT
-    COALESCE($9, 50)
+    case when $2 = 'createdAt ASC' THEN events."createdAt" END ASC,
+    case when $2 = 'createdAt DESC' then events."createdAt" END DESC
 `
 
 type ListEventsParams struct {
-	TenantId           pgtype.UUID `json:"tenantId"`
-	Keys               []string    `json:"keys"`
-	AdditionalMetadata []byte      `json:"additionalMetadata"`
-	Workflows          []string    `json:"workflows"`
-	Search             pgtype.Text `json:"search"`
-	Statuses           []string    `json:"statuses"`
-	Orderby            interface{} `json:"orderby"`
-	Offset             interface{} `json:"offset"`
-	Limit              interface{} `json:"limit"`
+	TenantId           pgtype.UUID   `json:"tenantId"`
+	Orderby            interface{}   `json:"orderby"`
+	EventIds           []pgtype.UUID `json:"event_ids"`
+	Keys               []string      `json:"keys"`
+	AdditionalMetadata []byte        `json:"additionalMetadata"`
+	Workflows          []string      `json:"workflows"`
+	Search             pgtype.Text   `json:"search"`
+	Statuses           []string      `json:"statuses"`
+	Offset             interface{}   `json:"offset"`
+	Limit              interface{}   `json:"limit"`
 }
 
 type ListEventsRow struct {
@@ -339,12 +431,13 @@ type ListEventsRow struct {
 func (q *Queries) ListEvents(ctx context.Context, db DBTX, arg ListEventsParams) ([]*ListEventsRow, error) {
 	rows, err := db.Query(ctx, listEvents,
 		arg.TenantId,
+		arg.Orderby,
+		arg.EventIds,
 		arg.Keys,
 		arg.AdditionalMetadata,
 		arg.Workflows,
 		arg.Search,
 		arg.Statuses,
-		arg.Orderby,
 		arg.Offset,
 		arg.Limit,
 	)
@@ -365,6 +458,7 @@ func (q *Queries) ListEvents(ctx context.Context, db DBTX, arg ListEventsParams)
 			&i.Event.ReplayedFromId,
 			&i.Event.Data,
 			&i.Event.AdditionalMetadata,
+			&i.Event.InsertOrder,
 			&i.Pendingruns,
 			&i.Queuedruns,
 			&i.Runningruns,
@@ -383,11 +477,11 @@ func (q *Queries) ListEvents(ctx context.Context, db DBTX, arg ListEventsParams)
 
 const listEventsByIDs = `-- name: ListEventsByIDs :many
 SELECT
-    id, "createdAt", "updatedAt", "deletedAt", key, "tenantId", "replayedFromId", data, "additionalMetadata"
+    id, "createdAt", "updatedAt", "deletedAt", key, "tenantId", "replayedFromId", data, "additionalMetadata", "insertOrder"
 FROM
     "Event" as events
 WHERE
-    events."deletedAt" IS NOT NULL AND
+    events."deletedAt" IS NULL AND
     "tenantId" = $1::uuid AND
     "id" = ANY ($2::uuid[])
 `
@@ -416,6 +510,7 @@ func (q *Queries) ListEventsByIDs(ctx context.Context, db DBTX, arg ListEventsBy
 			&i.ReplayedFromId,
 			&i.Data,
 			&i.AdditionalMetadata,
+			&i.InsertOrder,
 		); err != nil {
 			return nil, err
 		}

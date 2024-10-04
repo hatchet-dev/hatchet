@@ -356,7 +356,7 @@ Next, let's assign task IDs according to the following algorithm:
 
 **\*Note:** we are making a critical assumption that the number of unique group keys will always be below the `blockLength` , and increasing the blockLength in the future would be a bit involved. A blockLength of ~1 million gives us ~1 billion task executions. To increase the block length, it's recommended that you add an offset equal to the the maximum task id, and start assigning task ids from there. We will also (in the worst case) cap out at 1 billion executed tasks, though this can be fixed by reassigning IDs when close to this limit.\*
 
-### SQL implemenation
+### SQL implementation
 
 To actually implement this, let's add a new set of tables to our queue implementation. We'll add a table for `task_groups`, which maintains the pointer `p(i)` from above, along with a table called `task_addr_ptrs` which maintains `p_max_assigned` from above:
 

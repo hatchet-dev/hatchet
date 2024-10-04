@@ -2,6 +2,7 @@ package prisma
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -41,45 +42,95 @@ func NewWorkerAPIRepository(client *db.PrismaClient, pool *pgxpool.Pool, v valid
 	}
 }
 
-func (w *workerAPIRepository) GetWorkerById(workerId string) (*db.WorkerModel, error) {
-	return w.client.Worker.FindUnique(
-		db.Worker.ID.Equals(workerId),
-	).With(
-		db.Worker.Dispatcher.Fetch(),
-		db.Worker.Actions.Fetch(),
-		db.Worker.Slots.Fetch(),
-	).Exec(context.Background())
+func (w *workerAPIRepository) GetWorkerById(workerId string) (*dbsqlc.GetWorkerByIdRow, error) {
+	return w.queries.GetWorkerById(context.Background(), w.pool, sqlchelpers.UUIDFromStr(workerId))
 }
 
-func (w *workerAPIRepository) ListRecentWorkerStepRuns(tenantId, workerId string) ([]db.StepRunModel, error) {
-	return w.client.StepRun.FindMany(
-		db.StepRun.WorkerID.Equals(workerId),
-		db.StepRun.TenantID.Equals(tenantId),
-	).Take(10).OrderBy(
-		db.StepRun.CreatedAt.Order(db.SortOrderDesc),
-	).With(
-		db.StepRun.Children.Fetch(),
-		db.StepRun.Parents.Fetch(),
-		db.StepRun.JobRun.Fetch().With(
-			db.JobRun.WorkflowRun.Fetch(),
-		),
-		db.StepRun.Step.Fetch().With(
-			db.Step.Job.Fetch().With(
-				db.Job.Workflow.Fetch(),
-			),
-			db.Step.Action.Fetch(),
-		),
-	).Exec(context.Background())
+func (w *workerAPIRepository) GetWorkerActionsByWorkerId(tenantid, workerId string) ([]pgtype.Text, error) {
+	return w.queries.GetWorkerActionsByWorkerId(context.Background(), w.pool, dbsqlc.GetWorkerActionsByWorkerIdParams{
+		Workerid: sqlchelpers.UUIDFromStr(workerId),
+		Tenantid: sqlchelpers.UUIDFromStr(tenantid),
+	})
 }
 
-func (r *workerAPIRepository) ListWorkers(tenantId string, opts *repository.ListWorkersOpts) ([]*dbsqlc.ListWorkersWithStepCountRow, error) {
+func (w *workerAPIRepository) ListWorkerState(tenantId, workerId string, maxRuns int) ([]*dbsqlc.ListSemaphoreSlotsWithStateForWorkerRow, []*dbsqlc.GetStepRunForEngineRow, error) {
+	slots, err := w.queries.ListSemaphoreSlotsWithStateForWorker(context.Background(), w.pool, dbsqlc.ListSemaphoreSlotsWithStateForWorkerParams{
+		Workerid: sqlchelpers.UUIDFromStr(workerId),
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Limit: pgtype.Int4{
+			Int32: int32(maxRuns),
+			Valid: true,
+		},
+	})
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not list worker slot state: %w", err)
+	}
+
+	// get recent assignment events
+	assignedEvents, err := w.queries.ListRecentAssignedEventsForWorker(context.Background(), w.pool, dbsqlc.ListRecentAssignedEventsForWorkerParams{
+		Workerid: sqlchelpers.UUIDFromStr(workerId),
+		Limit: pgtype.Int4{
+			Int32: int32(maxRuns),
+			Valid: true,
+		},
+	})
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not list worker recent assigned events: %w", err)
+	}
+
+	// construct unique array of recent step run ids
+	uniqueStepRunIds := make(map[string]bool)
+
+	for _, event := range assignedEvents {
+		// unmarshal to string array
+		var stepRunIds []string
+
+		if err := json.Unmarshal(event.AssignedStepRuns, &stepRunIds); err != nil {
+			return nil, nil, fmt.Errorf("could not unmarshal assigned step runs: %w", err)
+		}
+
+		for _, stepRunId := range stepRunIds {
+			if _, ok := uniqueStepRunIds[stepRunId]; ok {
+				continue
+			}
+
+			// just do 20 for now
+			if len(uniqueStepRunIds) > 20 {
+				break
+			}
+
+			uniqueStepRunIds[stepRunId] = true
+		}
+	}
+
+	stepRunIds := make([]pgtype.UUID, 0, len(uniqueStepRunIds))
+
+	for stepRunId := range uniqueStepRunIds {
+		stepRunIds = append(stepRunIds, sqlchelpers.UUIDFromStr(stepRunId))
+	}
+
+	recent, err := w.queries.GetStepRunForEngine(context.Background(), w.pool, dbsqlc.GetStepRunForEngineParams{
+		Ids:      stepRunIds,
+		TenantId: sqlchelpers.UUIDFromStr(tenantId),
+	})
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not list worker recent step runs: %w", err)
+	}
+
+	return slots, recent, nil
+}
+
+func (r *workerAPIRepository) ListWorkers(tenantId string, opts *repository.ListWorkersOpts) ([]*dbsqlc.ListWorkersWithSlotCountRow, error) {
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
 
 	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
 
-	queryParams := dbsqlc.ListWorkersWithStepCountParams{
+	queryParams := dbsqlc.ListWorkersWithSlotCountParams{
 		Tenantid: pgTenantId,
 	}
 
@@ -98,28 +149,14 @@ func (r *workerAPIRepository) ListWorkers(tenantId string, opts *repository.List
 		}
 	}
 
-	tx, err := r.pool.Begin(context.Background())
-
-	if err != nil {
-		return nil, err
-	}
-
-	defer deferRollback(context.Background(), r.l, tx.Rollback)
-
-	workers, err := r.queries.ListWorkersWithStepCount(context.Background(), tx, queryParams)
+	workers, err := r.queries.ListWorkersWithSlotCount(context.Background(), r.pool, queryParams)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			workers = make([]*dbsqlc.ListWorkersWithStepCountRow, 0)
+			workers = make([]*dbsqlc.ListWorkersWithSlotCountRow, 0)
 		} else {
 			return nil, fmt.Errorf("could not list workers: %w", err)
 		}
-	}
-
-	err = tx.Commit(context.Background())
-
-	if err != nil {
-		return nil, fmt.Errorf("could not commit transaction: %w", err)
 	}
 
 	return workers, nil
@@ -182,7 +219,7 @@ func (w *workerEngineRepository) GetWorkerForEngine(ctx context.Context, tenantI
 }
 
 func (w *workerEngineRepository) CreateNewWorker(ctx context.Context, tenantId string, opts *repository.CreateWorkerOpts) (*dbsqlc.Worker, error) {
-	return metered.MakeMetered(ctx, w.m, dbsqlc.LimitResourceWORKER, tenantId, func() (*string, *dbsqlc.Worker, error) {
+	return metered.MakeMetered(ctx, w.m, dbsqlc.LimitResourceWORKER, tenantId, 1, func() (*string, *dbsqlc.Worker, error) {
 		if err := w.v.Validate(opts); err != nil {
 			return nil, nil, err
 		}
@@ -203,6 +240,20 @@ func (w *workerEngineRepository) CreateNewWorker(ctx context.Context, tenantId s
 			Name:         opts.Name,
 		}
 
+		// Default to self hosted
+		createParams.Type = dbsqlc.NullWorkerType{
+			WorkerType: dbsqlc.WorkerTypeSELFHOSTED,
+			Valid:      true,
+		}
+
+		if opts.WebhookId != nil {
+			createParams.WebhookId = sqlchelpers.UUIDFromStr(*opts.WebhookId)
+			createParams.Type = dbsqlc.NullWorkerType{
+				WorkerType: dbsqlc.WorkerTypeWEBHOOK,
+				Valid:      true,
+			}
+		}
+
 		if opts.MaxRuns != nil {
 			createParams.MaxRuns = pgtype.Int4{
 				Int32: int32(*opts.MaxRuns),
@@ -215,22 +266,30 @@ func (w *workerEngineRepository) CreateNewWorker(ctx context.Context, tenantId s
 			}
 		}
 
-		worker, err := w.queries.CreateWorker(ctx, tx, createParams)
+		var worker *dbsqlc.Worker
 
-		if err != nil {
-			return nil, nil, fmt.Errorf("could not create worker: %w", err)
+		// HACK upsert webhook worker
+		if opts.WebhookId != nil {
+			worker, err = w.queries.GetWorkerByWebhookId(ctx, tx, dbsqlc.GetWorkerByWebhookIdParams{
+				Webhookid: createParams.WebhookId,
+				Tenantid:  pgTenantId,
+			})
+
+			if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+				return nil, nil, fmt.Errorf("could not get worker: %w", err)
+			}
+
+			if errors.Is(err, pgx.ErrNoRows) {
+				worker = nil
+			}
 		}
 
-		err = w.queries.StubWorkerSemaphoreSlots(ctx, tx, dbsqlc.StubWorkerSemaphoreSlotsParams{
-			Workerid: worker.ID,
-			MaxRuns: pgtype.Int4{
-				Int32: worker.MaxRuns,
-				Valid: true,
-			},
-		})
+		if worker == nil {
+			worker, err = w.queries.CreateWorker(ctx, tx, createParams)
 
-		if err != nil {
-			return nil, nil, fmt.Errorf("could not stub worker semaphore slots: %w", err)
+			if err != nil {
+				return nil, nil, fmt.Errorf("could not create worker: %w", err)
+			}
 		}
 
 		svcUUIDs := make([]pgtype.UUID, len(opts.Services))
@@ -293,6 +352,8 @@ func (w *workerEngineRepository) CreateNewWorker(ctx context.Context, tenantId s
 	})
 }
 
+// UpdateWorker updates a worker in the repository.
+// It will only update the worker if there is no lock on the worker, else it will skip.
 func (w *workerEngineRepository) UpdateWorker(ctx context.Context, tenantId, workerId string, opts *repository.UpdateWorkerOpts) (*dbsqlc.Worker, error) {
 	if err := w.v.Validate(opts); err != nil {
 		return nil, err
@@ -368,19 +429,29 @@ func (w *workerEngineRepository) UpdateWorker(ctx context.Context, tenantId, wor
 	return worker, nil
 }
 
+func (w *workerEngineRepository) UpdateWorkerHeartbeat(ctx context.Context, tenantId, workerId string, lastHeartbeat time.Time) error {
+
+	_, err := w.queries.UpdateWorkerHeartbeat(ctx, w.pool, dbsqlc.UpdateWorkerHeartbeatParams{
+		ID:              sqlchelpers.UUIDFromStr(workerId),
+		LastHeartbeatAt: sqlchelpers.TimestampFromTime(lastHeartbeat),
+	})
+
+	if err != nil && err != pgx.ErrNoRows {
+		return fmt.Errorf("could not update worker heartbeat: %w", err)
+	}
+
+	return nil
+}
+
 func (w *workerEngineRepository) DeleteWorker(ctx context.Context, tenantId, workerId string) error {
 	_, err := w.queries.DeleteWorker(ctx, w.pool, sqlchelpers.UUIDFromStr(workerId))
 
 	return err
 }
 
-func (w *workerEngineRepository) UpdateWorkersByName(ctx context.Context, params dbsqlc.UpdateWorkersByNameParams) error {
-	_, err := w.queries.UpdateWorkersByName(ctx, w.pool, params)
+func (w *workerEngineRepository) UpdateWorkersByWebhookId(ctx context.Context, params dbsqlc.UpdateWorkersByWebhookIdParams) error {
+	_, err := w.queries.UpdateWorkersByWebhookId(ctx, w.pool, params)
 	return err
-}
-
-func (w *workerEngineRepository) ResolveWorkerSemaphoreSlots(ctx context.Context, tenantId pgtype.UUID) (*dbsqlc.ResolveWorkerSemaphoreSlotsRow, error) {
-	return w.queries.ResolveWorkerSemaphoreSlots(ctx, w.pool, tenantId)
 }
 
 func (w *workerEngineRepository) UpdateWorkerActiveStatus(ctx context.Context, tenantId, workerId string, isActive bool, timestamp time.Time) (*dbsqlc.Worker, error) {
@@ -438,4 +509,65 @@ func (w *workerEngineRepository) UpsertWorkerLabels(ctx context.Context, workerI
 	}
 
 	return affinities, nil
+}
+
+func (r *workerEngineRepository) DeleteOldWorkers(ctx context.Context, tenantId string, lastHeartbeatBefore time.Time) (bool, error) {
+	hasMore, err := r.queries.DeleteOldWorkers(ctx, r.pool, dbsqlc.DeleteOldWorkersParams{
+		Tenantid:            sqlchelpers.UUIDFromStr(tenantId),
+		Lastheartbeatbefore: sqlchelpers.TimestampFromTime(lastHeartbeatBefore),
+		Limit:               20,
+	})
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, nil
+		}
+
+		return false, err
+	}
+
+	return hasMore, nil
+}
+
+func (r *workerEngineRepository) DeleteOldWorkerEvents(ctx context.Context, tenantId string, lastHeartbeatAfter time.Time) error {
+	// list workers
+	workers, err := r.queries.ListWorkersWithSlotCount(ctx, r.pool, dbsqlc.ListWorkersWithSlotCountParams{
+		Tenantid:           sqlchelpers.UUIDFromStr(tenantId),
+		LastHeartbeatAfter: sqlchelpers.TimestampFromTime(lastHeartbeatAfter),
+	})
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil
+		}
+
+		return err
+	}
+
+	for _, worker := range workers {
+		hasMore := true
+
+		for hasMore {
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+
+			// delete worker events
+			hasMore, err = r.queries.DeleteOldWorkerAssignEvents(ctx, r.pool, dbsqlc.DeleteOldWorkerAssignEventsParams{
+				Workerid: worker.Worker.ID,
+				MaxRuns:  worker.Worker.MaxRuns,
+				Limit:    100,
+			})
+
+			if err != nil {
+				if errors.Is(err, pgx.ErrNoRows) {
+					break
+				}
+
+				return fmt.Errorf("could not delete old worker events: %w", err)
+			}
+		}
+	}
+
+	return nil
 }

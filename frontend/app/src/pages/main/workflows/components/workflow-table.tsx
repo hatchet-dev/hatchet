@@ -23,6 +23,7 @@ import {
 import { SortingState, VisibilityState } from '@tanstack/react-table';
 import { BiCard, BiTable } from 'react-icons/bi';
 import RelativeDate from '@/components/molecules/relative-date';
+import { Badge } from '@/components/ui/badge';
 
 export function WorkflowTable() {
   const { tenant } = useOutletContext<TenantContextType>();
@@ -86,17 +87,20 @@ export function WorkflowTable() {
       className="border overflow-hidden shadow rounded-lg"
     >
       <div className="px-4 py-5 sm:p-6">
-        <h3 className="text-lg leading-6 font-medium text-foreground">
-          <Link to={`/workflows/${data.metadata?.id}`}>{data.name}</Link>
-        </h3>
-        <p className="mt-1 max-w-2xl text-sm text-gray-700 dark:text-gray-300">
-          Last run{' '}
-          {data.lastRun?.metadata?.createdAt ? (
-            <RelativeDate date={data.lastRun?.metadata?.createdAt} />
+        <div className="flex flex-row justify-between items-center">
+          <h3 className="text-lg leading-6 font-medium text-foreground">
+            <Link to={`/workflows/${data.metadata?.id}`}>{data.name}</Link>
+          </h3>
+          {data.isPaused ? (
+            <Badge variant="inProgress">Paused</Badge>
           ) : (
-            'never'
+            <Badge variant="successful">Active</Badge>
           )}
-          <br />
+        </div>
+        <p className="mt-1 max-w-2xl text-sm text-gray-700 dark:text-gray-300">
+          {/* Last run{' '}
+          {data.lastRunAt ? <RelativeDate date={data.lastRunAt} /> : 'never'}
+          <br /> */}
           Created at <RelativeDate date={data.metadata?.createdAt} />
         </p>
       </div>

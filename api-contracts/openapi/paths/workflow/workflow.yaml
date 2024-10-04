@@ -57,6 +57,12 @@ withWorkflow:
             schema:
               $ref: "../../components/schemas/_index.yaml#/Workflow"
         description: Successfully retrieved the workflow
+      "404":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Not found
       "400":
         content:
           application/json:
@@ -108,6 +114,49 @@ withWorkflow:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Not found
     summary: Delete workflow
+    tags:
+      - Workflow
+  patch:
+    x-resources: ["tenant", "workflow"]
+    description: Update a workflow for a tenant
+    operationId: workflow:update
+    parameters:
+      - description: The workflow id
+        in: path
+        name: workflow
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    requestBody:
+      content:
+        application/json:
+          schema:
+            $ref: "../../components/schemas/_index.yaml#/WorkflowUpdateRequest"
+      description: The input to update the workflow
+      required: true
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/Workflow"
+        description: Successfully updated the workflow
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+    summary: Update workflow
     tags:
       - Workflow
 workflowVersion:
@@ -419,6 +468,38 @@ workflowRuns:
           type: array
           items:
             type: string
+      - description: The time after the workflow run was created
+        in: query
+        name: createdAfter
+        example: "2021-01-01T00:00:00Z"
+        required: false
+        schema:
+          type: string
+          format: date-time
+      - description: The time before the workflow run was created
+        in: query
+        name: createdBefore
+        example: "2021-01-01T00:00:00Z"
+        required: false
+        schema:
+          type: string
+          format: date-time
+      - description: The time after the workflow run was finished
+        in: query
+        name: finishedAfter
+        example: "2021-01-01T00:00:00Z"
+        required: false
+        schema:
+          type: string
+          format: date-time
+      - description: The time before the workflow run was finished
+        in: query
+        name: finishedBefore
+        example: "2021-01-01T00:00:00Z"
+        required: false
+        schema:
+          type: string
+          format: date-time
       - description: The order by field
         in: query
         name: orderByField
@@ -513,6 +594,22 @@ workflowRunsMetrics:
           type: array
           items:
             type: string
+      - description: The time after the workflow run was created
+        in: query
+        name: createdAfter
+        example: "2021-01-01T00:00:00Z"
+        required: false
+        schema:
+          type: string
+          format: date-time
+      - description: The time before the workflow run was created
+        in: query
+        name: createdBefore
+        example: "2021-01-01T00:00:00Z"
+        required: false
+        schema:
+          type: string
+          format: date-time
     responses:
       "200":
         content:
@@ -565,6 +662,52 @@ workflowRun:
           application/json:
             schema:
               $ref: "../../components/schemas/_index.yaml#/WorkflowRun"
+        description: Successfully retrieved the workflow run
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+    summary: Get workflow run
+    tags:
+      - Workflow
+workflowRunShape:
+  get:
+    x-resources: ["tenant", "workflow-run"]
+    description: Get a workflow run for a tenant
+    operationId: workflow-run:get:shape
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The workflow run id
+        in: path
+        name: workflow-run
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/WorkflowRunShape"
         description: Successfully retrieved the workflow run
       "400":
         content:
@@ -634,5 +777,52 @@ getMetrics:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Not found
     summary: Get workflow metrics
+    tags:
+      - Workflow
+
+workflowWorkersCount:
+  get:
+    x-resources: ["tenant", "workflow"]
+    description: Get a count of the workers available for workflow
+    operationId: workflow:get:workers-count
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The workflow id
+        in: path
+        name: workflow
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/WorkflowWorkersCount"
+        description: Successfully retrieved the workflow worker count
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+    summary: Get workflow worker count
     tags:
       - Workflow

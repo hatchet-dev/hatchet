@@ -79,52 +79,11 @@ ORDER BY
 -- name: ListWorkflows :many
 SELECT
     sqlc.embed(workflows)
-FROM (
-    SELECT
-        DISTINCT ON(workflows."id") workflows.*
-    FROM
-        "Workflow" as workflows
-    LEFT JOIN
-        (
-            SELECT * FROM "WorkflowVersion" as workflowVersion ORDER BY workflowVersion."order" DESC LIMIT 1
-        ) as workflowVersion ON workflows."id" = workflowVersion."workflowId"
-    LEFT JOIN
-        "WorkflowTriggers" as workflowTrigger ON workflowVersion."id" = workflowTrigger."workflowVersionId"
-    LEFT JOIN
-        "WorkflowTriggerEventRef" as workflowTriggerEventRef ON workflowTrigger."id" = workflowTriggerEventRef."parentId"
-    WHERE
-        workflows."tenantId" = $1
-        AND workflows."deletedAt" IS NULL
-        AND workflowVersion."deletedAt" IS NULL
-        AND
-        (
-            sqlc.narg('eventKey')::text IS NULL OR
-            workflows."id" IN (
-                SELECT
-                    DISTINCT ON(t1."workflowId") t1."workflowId"
-                FROM
-                    "WorkflowVersion" AS t1
-                    LEFT JOIN "WorkflowTriggers" AS j2 ON j2."workflowVersionId" = t1."id"
-                WHERE
-                    (
-                        j2."id" IN (
-                            SELECT
-                                t3."parentId"
-                            FROM
-                                "public"."WorkflowTriggerEventRef" AS t3
-                            WHERE
-                                t3."eventKey" = sqlc.narg('eventKey')::text
-                                AND t3."parentId" IS NOT NULL
-                        )
-                        AND j2."id" IS NOT NULL
-                        AND t1."workflowId" IS NOT NULL
-                    )
-                ORDER BY
-                    t1."workflowId" DESC
-            )
-        )
-    ORDER BY workflows."id" DESC
-) as workflows
+FROM
+    "Workflow" as workflows
+WHERE
+    workflows."tenantId" = $1 AND
+    workflows."deletedAt" IS NULL
 ORDER BY
     case when @orderBy = 'createdAt ASC' THEN workflows."createdAt" END ASC ,
     case when @orderBy = 'createdAt DESC' then workflows."createdAt" END DESC
@@ -163,7 +122,8 @@ INSERT INTO "WorkflowVersion" (
     "workflowId",
     "scheduleTimeout",
     "sticky",
-    "kind"
+    "kind",
+    "defaultPriority"
 ) VALUES (
     @id::uuid,
     coalesce(sqlc.narg('createdAt')::timestamp, CURRENT_TIMESTAMP),
@@ -174,7 +134,8 @@ INSERT INTO "WorkflowVersion" (
     @workflowId::uuid,
     coalesce(sqlc.narg('scheduleTimeout')::text, '5m'),
     sqlc.narg('sticky')::"StickyStrategy",
-    coalesce(sqlc.narg('kind')::"WorkflowKind", 'DAG')
+    coalesce(sqlc.narg('kind')::"WorkflowKind", 'DAG'),
+    sqlc.narg('defaultPriority')::integer
 ) RETURNING *;
 
 -- name: CreateWorkflowConcurrency :one
@@ -185,15 +146,17 @@ INSERT INTO "WorkflowConcurrency" (
     "workflowVersionId",
     "getConcurrencyGroupId",
     "maxRuns",
-    "limitStrategy"
+    "limitStrategy",
+    "concurrencyGroupExpression"
 ) VALUES (
-    @id::uuid,
+    gen_random_uuid(),
     coalesce(sqlc.narg('createdAt')::timestamp, CURRENT_TIMESTAMP),
     coalesce(sqlc.narg('updatedAt')::timestamp, CURRENT_TIMESTAMP),
     @workflowVersionId::uuid,
-    @getConcurrencyGroupId::uuid,
+    sqlc.narg('getConcurrencyGroupId')::uuid,
     coalesce(sqlc.narg('maxRuns')::integer, 1),
-    coalesce(sqlc.narg('limitStrategy')::"ConcurrencyLimitStrategy", 'CANCEL_IN_PROGRESS')
+    coalesce(sqlc.narg('limitStrategy')::"ConcurrencyLimitStrategy", 'CANCEL_IN_PROGRESS'),
+    sqlc.narg('concurrencyGroupExpression')::text
 ) RETURNING *;
 
 -- name: CreateJob :one
@@ -271,13 +234,30 @@ INSERT INTO "StepRateLimit" (
     "units",
     "stepId",
     "rateLimitKey",
-    "tenantId"
+    "tenantId",
+    "kind"
 ) VALUES (
     @units::integer,
     @stepId::uuid,
     @rateLimitKey::text,
-    @tenantId::uuid
+    @tenantId::uuid,
+    @kind
 ) RETURNING *;
+
+-- name: CreateStepExpressions :exec
+INSERT INTO "StepExpression" (
+    "key",
+    "stepId",
+    "expression",
+    "kind"
+) VALUES (
+    unnest(@keys::text[]),
+    @stepId::uuid,
+    unnest(@expressions::text[]),
+    unnest(cast(@kinds::text[] as"StepExpressionKind"[]))
+) ON CONFLICT ("key", "stepId", "kind") DO UPDATE
+SET
+    "expression" = EXCLUDED."expression";
 
 -- name: UpsertAction :one
 INSERT INTO "Action" (
@@ -403,7 +383,9 @@ SELECT
     sqlc.embed(workflowVersions),
     w."name" as "workflowName",
     wc."limitStrategy" as "concurrencyLimitStrategy",
-    wc."maxRuns" as "concurrencyMaxRuns"
+    wc."maxRuns" as "concurrencyMaxRuns",
+    wc."getConcurrencyGroupId" as "concurrencyGroupId",
+    wc."concurrencyGroupExpression" as "concurrencyGroupExpression"
 FROM
     "WorkflowVersion" as workflowVersions
 JOIN
@@ -503,3 +485,138 @@ SET
     "deletedAt" = CURRENT_TIMESTAMP
 WHERE "id" = @id::uuid
 RETURNING *;
+
+-- name: ListPausedWorkflows :many
+SELECT
+    "id"
+FROM
+    "Workflow"
+WHERE
+    "tenantId" = @tenantId::uuid AND
+    "isPaused" = true AND
+    "deletedAt" IS NULL;
+
+-- name: UpdateWorkflow :one
+UPDATE "Workflow"
+SET
+    "updatedAt" = CURRENT_TIMESTAMP,
+    "isPaused" = coalesce(sqlc.narg('isPaused')::boolean, "isPaused")
+WHERE "id" = @id::uuid
+RETURNING *;
+
+-- name: HandleWorkflowUnpaused :exec
+WITH matching_qis AS (
+    -- We know that we're going to need to scan all the queue items in this queue
+    -- for the tenant, so we write this query in such a way that the index is used.
+    SELECT
+        qi."id"
+    FROM
+        "InternalQueueItem" qi
+    WHERE
+        qi."isQueued" = true
+        AND qi."tenantId" = @tenantId::uuid
+        AND qi."queue" = 'WORKFLOW_RUN_PAUSED'
+        AND qi."priority" = 1
+    ORDER BY
+        qi."id" DESC
+)
+UPDATE "InternalQueueItem"
+-- We update all the queue items to have a higher priority so we can unpause them
+SET "priority" = 4
+FROM
+    matching_qis
+WHERE
+    "InternalQueueItem"."id" = matching_qis."id"
+    AND "data"->>'workflow_id' = @workflowId::text;
+
+-- name: GetWorkflowWorkerCount :one
+WITH UniqueWorkers AS (
+    SELECT DISTINCT w."id" AS workerId
+    FROM "Worker" w
+    JOIN "_ActionToWorker" atw ON w."id" = atw."B"
+    JOIN "Action" a ON atw."A" = a."id"
+    JOIN "Step" s ON a."actionId" = s."actionId"
+    JOIN "Job" j ON s."jobId" = j."id"
+    JOIN "WorkflowVersion" workflowVersion ON j."workflowVersionId" = workflowVersion."id"
+    WHERE
+        w."tenantId" = @tenantId::uuid
+        AND workflowVersion."deletedAt" IS NULL
+        AND w."deletedAt" IS NULL
+        AND w."dispatcherId" IS NOT NULL
+        AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+        AND w."isActive" = true
+        AND w."isPaused" = false
+        AND workflowVersion."workflowId" = @workflowId::uuid
+),
+workers AS (
+    SELECT SUM("maxRuns") AS maxR
+    FROM "Worker"
+    WHERE "id" IN (SELECT workerId FROM UniqueWorkers)
+),
+slots AS (
+    SELECT COUNT(*) AS usedSlotCount
+    FROM "SemaphoreQueueItem" sqi
+    WHERE sqi."workerId" IN (SELECT workerId FROM UniqueWorkers)
+)
+SELECT
+    COALESCE(maxR, 0) AS totalSlotCount,
+    COALESCE(maxR, 0)  - COALESCE(usedSlotCount, 0) AS freeSlotCount
+FROM workers, slots;
+
+-- name: GetWorkflowVersionCronTriggerRefs :many
+SELECT
+    wtc.*
+FROM
+    "WorkflowTriggerCronRef" as wtc
+JOIN "WorkflowTriggers" as wt ON wt."id" = wtc."parentId"
+WHERE
+    wt."workflowVersionId" = @workflowVersionId::uuid;
+
+-- name: GetWorkflowVersionEventTriggerRefs :many
+SELECT
+    wtc.*
+FROM
+    "WorkflowTriggerEventRef" as wtc
+JOIN "WorkflowTriggers" as wt ON wt."id" = wtc."parentId"
+WHERE
+    wt."workflowVersionId" = @workflowVersionId::uuid;
+
+-- name: GetWorkflowVersionScheduleTriggerRefs :many
+SELECT
+    wtc.*
+FROM
+    "WorkflowTriggerScheduledRef" as wtc
+JOIN "WorkflowTriggers" as wt ON wt."id" = wtc."parentId"
+WHERE
+    wt."workflowVersionId" = @workflowVersionId::uuid;
+
+-- name: GetWorkflowVersionById :one
+SELECT
+    sqlc.embed(wv),
+    sqlc.embed(w),
+    wc."id" as "concurrencyId",
+    wc."maxRuns" as "concurrencyMaxRuns",
+    wc."getConcurrencyGroupId" as "concurrencyGroupId",
+    wc."limitStrategy" as "concurrencyLimitStrategy"
+FROM
+    "WorkflowVersion" as wv
+JOIN "Workflow" as w on w."id" = wv."workflowId"
+LEFT JOIN "WorkflowConcurrency" as wc ON wc."workflowVersionId" = wv."id"
+WHERE
+    wv."id" = @id::uuid AND
+    wv."deletedAt" IS NULL
+LIMIT 1;
+
+-- name: GetWorkflowById :one
+SELECT
+    sqlc.embed(w),
+    wv."id" as "workflowVersionId"
+FROM
+    "Workflow" as w
+LEFT JOIN "WorkflowVersion" as wv ON w."id" = wv."workflowId"
+WHERE
+    w."id" = @id::uuid AND
+    w."deletedAt" IS NULL
+ORDER BY
+    wv."order" DESC
+LIMIT 1;

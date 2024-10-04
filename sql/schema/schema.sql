@@ -2,6 +2,9 @@
 CREATE TYPE "ConcurrencyLimitStrategy" AS ENUM ('CANCEL_IN_PROGRESS', 'DROP_NEWEST', 'QUEUE_NEWEST', 'GROUP_ROUND_ROBIN');
 
 -- CreateEnum
+CREATE TYPE "InternalQueue" AS ENUM ('WORKER_SEMAPHORE_COUNT', 'STEP_RUN_UPDATE', 'WORKFLOW_RUN_UPDATE', 'WORKFLOW_RUN_PAUSED');
+
+-- CreateEnum
 CREATE TYPE "InviteLinkStatus" AS ENUM ('PENDING', 'ACCEPTED', 'REJECTED');
 
 -- CreateEnum
@@ -17,13 +20,19 @@ CREATE TYPE "LimitResource" AS ENUM ('WORKFLOW_RUN', 'EVENT', 'WORKER', 'CRON', 
 CREATE TYPE "LogLineLevel" AS ENUM ('DEBUG', 'INFO', 'WARN', 'ERROR');
 
 -- CreateEnum
-CREATE TYPE "StepRunEventReason" AS ENUM ('REQUEUED_NO_WORKER', 'REQUEUED_RATE_LIMIT', 'SCHEDULING_TIMED_OUT', 'ASSIGNED', 'STARTED', 'FINISHED', 'FAILED', 'RETRYING', 'CANCELLED', 'TIMED_OUT', 'REASSIGNED', 'SLOT_RELEASED', 'TIMEOUT_REFRESHED', 'RETRIED_BY_USER');
+CREATE TYPE "StepExpressionKind" AS ENUM ('DYNAMIC_RATE_LIMIT_KEY', 'DYNAMIC_RATE_LIMIT_VALUE', 'DYNAMIC_RATE_LIMIT_UNITS', 'DYNAMIC_RATE_LIMIT_WINDOW');
+
+-- CreateEnum
+CREATE TYPE "StepRateLimitKind" AS ENUM ('STATIC', 'DYNAMIC');
+
+-- CreateEnum
+CREATE TYPE "StepRunEventReason" AS ENUM ('REQUEUED_NO_WORKER', 'REQUEUED_RATE_LIMIT', 'SCHEDULING_TIMED_OUT', 'ASSIGNED', 'STARTED', 'FINISHED', 'FAILED', 'RETRYING', 'CANCELLED', 'TIMED_OUT', 'REASSIGNED', 'SLOT_RELEASED', 'TIMEOUT_REFRESHED', 'RETRIED_BY_USER', 'SENT_TO_WORKER', 'WORKFLOW_RUN_GROUP_KEY_SUCCEEDED', 'WORKFLOW_RUN_GROUP_KEY_FAILED', 'RATE_LIMIT_ERROR');
 
 -- CreateEnum
 CREATE TYPE "StepRunEventSeverity" AS ENUM ('INFO', 'WARNING', 'CRITICAL');
 
 -- CreateEnum
-CREATE TYPE "StepRunStatus" AS ENUM ('PENDING', 'PENDING_ASSIGNMENT', 'ASSIGNED', 'RUNNING', 'SUCCEEDED', 'FAILED', 'CANCELLED');
+CREATE TYPE "StepRunStatus" AS ENUM ('PENDING', 'PENDING_ASSIGNMENT', 'ASSIGNED', 'RUNNING', 'SUCCEEDED', 'FAILED', 'CANCELLED', 'CANCELLING');
 
 -- CreateEnum
 CREATE TYPE "StickyStrategy" AS ENUM ('SOFT', 'HARD');
@@ -38,7 +47,13 @@ CREATE TYPE "TenantResourceLimitAlertType" AS ENUM ('Alarm', 'Exhausted');
 CREATE TYPE "VcsProvider" AS ENUM ('GITHUB');
 
 -- CreateEnum
+CREATE TYPE "WebhookWorkerRequestMethod" AS ENUM ('GET', 'POST', 'PUT');
+
+-- CreateEnum
 CREATE TYPE "WorkerLabelComparator" AS ENUM ('EQUAL', 'NOT_EQUAL', 'GREATER_THAN', 'GREATER_THAN_OR_EQUAL', 'LESS_THAN', 'LESS_THAN_OR_EQUAL');
+
+-- CreateEnum
+CREATE TYPE "WorkerType" AS ENUM ('WEBHOOK', 'MANAGED', 'SELFHOSTED');
 
 -- CreateEnum
 CREATE TYPE "WorkflowKind" AS ENUM ('FUNCTION', 'DURABLE', 'DAG');
@@ -77,6 +92,7 @@ CREATE TABLE "ControllerPartition" (
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "lastHeartbeat" TIMESTAMP(3),
+    "name" TEXT,
 
     CONSTRAINT "ControllerPartition_pkey" PRIMARY KEY ("id")
 );
@@ -104,6 +120,7 @@ CREATE TABLE "Event" (
     "replayedFromId" UUID,
     "data" JSONB,
     "additionalMetadata" JSONB,
+    "insertOrder" INTEGER,
 
     CONSTRAINT "Event_pkey" PRIMARY KEY ("id")
 );
@@ -132,6 +149,19 @@ CREATE TABLE "GetGroupKeyRun" (
     "scheduleTimeoutAt" TIMESTAMP(3),
 
     CONSTRAINT "GetGroupKeyRun_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "InternalQueueItem" (
+    "id" BIGSERIAL NOT NULL,
+    "queue" "InternalQueue" NOT NULL,
+    "isQueued" BOOLEAN NOT NULL,
+    "data" JSONB,
+    "tenantId" UUID NOT NULL,
+    "priority" INTEGER NOT NULL DEFAULT 1,
+    "uniqueKey" TEXT,
+
+    CONSTRAINT "InternalQueueItem_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -199,6 +229,33 @@ CREATE TABLE "LogLine" (
 );
 
 -- CreateTable
+CREATE TABLE "Queue" (
+    "id" BIGSERIAL NOT NULL,
+    "tenantId" UUID NOT NULL,
+    "name" TEXT NOT NULL,
+
+    CONSTRAINT "Queue_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "QueueItem" (
+    "id" BIGSERIAL NOT NULL,
+    "stepRunId" UUID,
+    "stepId" UUID,
+    "actionId" TEXT,
+    "scheduleTimeoutAt" TIMESTAMP(3),
+    "stepTimeout" TEXT,
+    "priority" INTEGER NOT NULL DEFAULT 1,
+    "isQueued" BOOLEAN NOT NULL,
+    "tenantId" UUID NOT NULL,
+    "queue" TEXT NOT NULL,
+    "sticky" "StickyStrategy",
+    "desiredWorkerId" UUID,
+
+    CONSTRAINT "QueueItem_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "RateLimit" (
     "tenantId" UUID NOT NULL,
     "key" TEXT NOT NULL,
@@ -224,6 +281,15 @@ CREATE TABLE "SecurityCheckIdent" (
     "id" UUID NOT NULL,
 
     CONSTRAINT "SecurityCheckIdent_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "SemaphoreQueueItem" (
+    "stepRunId" UUID NOT NULL,
+    "workerId" UUID NOT NULL,
+    "tenantId" UUID NOT NULL,
+
+    CONSTRAINT "SemaphoreQueueItem_pkey" PRIMARY KEY ("stepRunId")
 );
 
 -- CreateTable
@@ -290,11 +356,22 @@ CREATE TABLE "StepDesiredWorkerLabel" (
 );
 
 -- CreateTable
+CREATE TABLE "StepExpression" (
+    "key" TEXT NOT NULL,
+    "stepId" UUID NOT NULL,
+    "expression" TEXT NOT NULL,
+    "kind" "StepExpressionKind" NOT NULL,
+
+    CONSTRAINT "StepExpression_pkey" PRIMARY KEY ("key","stepId","kind")
+);
+
+-- CreateTable
 CREATE TABLE "StepRateLimit" (
     "units" INTEGER NOT NULL,
     "stepId" UUID NOT NULL,
     "rateLimitKey" TEXT NOT NULL,
-    "tenantId" UUID NOT NULL
+    "tenantId" UUID NOT NULL,
+    "kind" "StepRateLimitKind" NOT NULL DEFAULT 'STATIC'
 );
 
 -- CreateTable
@@ -326,6 +403,8 @@ CREATE TABLE "StepRun" (
     "gitRepoBranch" TEXT,
     "retryCount" INTEGER NOT NULL DEFAULT 0,
     "semaphoreReleased" BOOLEAN NOT NULL DEFAULT false,
+    "queue" TEXT NOT NULL DEFAULT 'default',
+    "priority" INTEGER,
 
     CONSTRAINT "StepRun_pkey" PRIMARY KEY ("id")
 );
@@ -335,12 +414,24 @@ CREATE TABLE "StepRunEvent" (
     "id" BIGSERIAL NOT NULL,
     "timeFirstSeen" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "timeLastSeen" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "stepRunId" UUID NOT NULL,
+    "stepRunId" UUID,
     "reason" "StepRunEventReason" NOT NULL,
     "severity" "StepRunEventSeverity" NOT NULL,
     "message" TEXT NOT NULL,
     "count" INTEGER NOT NULL,
-    "data" JSONB
+    "data" JSONB,
+    "workflowRunId" UUID
+);
+
+-- CreateTable
+CREATE TABLE "StepRunExpressionEval" (
+    "key" TEXT NOT NULL,
+    "stepRunId" UUID NOT NULL,
+    "valueStr" TEXT,
+    "valueInt" INTEGER,
+    "kind" "StepExpressionKind" NOT NULL,
+
+    CONSTRAINT "StepRunExpressionEval_pkey" PRIMARY KEY ("key","stepRunId","kind")
 );
 
 -- CreateTable
@@ -360,6 +451,7 @@ CREATE TABLE "StepRunResultArchive" (
     "cancelledAt" TIMESTAMP(3),
     "cancelledReason" TEXT,
     "cancelledError" TEXT,
+    "retryCount" INTEGER NOT NULL DEFAULT 0,
 
     CONSTRAINT "StepRunResultArchive_pkey" PRIMARY KEY ("id")
 );
@@ -500,6 +592,7 @@ CREATE TABLE "TenantWorkerPartition" (
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "lastHeartbeat" TIMESTAMP(3),
+    "name" TEXT,
 
     CONSTRAINT "TenantWorkerPartition_pkey" PRIMARY KEY ("id")
 );
@@ -513,6 +606,18 @@ CREATE TABLE "Ticker" (
     "isActive" BOOLEAN NOT NULL DEFAULT true,
 
     CONSTRAINT "Ticker_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "TimeoutQueueItem" (
+    "id" BIGSERIAL NOT NULL,
+    "stepRunId" UUID NOT NULL,
+    "retryCount" INTEGER NOT NULL,
+    "timeoutAt" TIMESTAMP(3) NOT NULL,
+    "tenantId" UUID NOT NULL,
+    "isQueued" BOOLEAN NOT NULL,
+
+    CONSTRAINT "TimeoutQueueItem_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -578,6 +683,17 @@ CREATE TABLE "WebhookWorker" (
 );
 
 -- CreateTable
+CREATE TABLE "WebhookWorkerRequest" (
+    "id" UUID NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "webhookWorkerId" UUID NOT NULL,
+    "method" "WebhookWorkerRequestMethod" NOT NULL,
+    "statusCode" INTEGER NOT NULL,
+
+    CONSTRAINT "WebhookWorkerRequest_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "WebhookWorkerWorkflow" (
     "id" UUID NOT NULL,
     "webhookWorkerId" UUID NOT NULL,
@@ -600,8 +716,19 @@ CREATE TABLE "Worker" (
     "isActive" BOOLEAN NOT NULL DEFAULT false,
     "lastListenerEstablished" TIMESTAMP(3),
     "isPaused" BOOLEAN NOT NULL DEFAULT false,
+    "type" "WorkerType" NOT NULL DEFAULT 'SELFHOSTED',
+    "webhookId" UUID,
 
     CONSTRAINT "Worker_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "WorkerAssignEvent" (
+    "id" BIGSERIAL NOT NULL,
+    "workerId" UUID NOT NULL,
+    "assignedStepRuns" JSONB,
+
+    CONSTRAINT "WorkerAssignEvent_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -618,21 +745,6 @@ CREATE TABLE "WorkerLabel" (
 );
 
 -- CreateTable
-CREATE TABLE "WorkerSemaphore" (
-    "workerId" UUID NOT NULL,
-    "slots" INTEGER NOT NULL
-);
-
--- CreateTable
-CREATE TABLE "WorkerSemaphoreSlot" (
-    "id" UUID NOT NULL,
-    "workerId" UUID NOT NULL,
-    "stepRunId" UUID,
-
-    CONSTRAINT "WorkerSemaphoreSlot_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
 CREATE TABLE "Workflow" (
     "id" UUID NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -641,6 +753,7 @@ CREATE TABLE "Workflow" (
     "tenantId" UUID NOT NULL,
     "name" TEXT NOT NULL,
     "description" TEXT,
+    "isPaused" BOOLEAN DEFAULT false,
 
     CONSTRAINT "Workflow_pkey" PRIMARY KEY ("id")
 );
@@ -654,6 +767,7 @@ CREATE TABLE "WorkflowConcurrency" (
     "getConcurrencyGroupId" UUID,
     "maxRuns" INTEGER NOT NULL DEFAULT 1,
     "limitStrategy" "ConcurrencyLimitStrategy" NOT NULL DEFAULT 'CANCEL_IN_PROGRESS',
+    "concurrencyGroupExpression" TEXT,
 
     CONSTRAINT "WorkflowConcurrency_pkey" PRIMARY KEY ("id")
 );
@@ -677,7 +791,8 @@ CREATE TABLE "WorkflowRun" (
     "parentId" UUID,
     "parentStepRunId" UUID,
     "additionalMetadata" JSONB,
-    "duration" INTEGER,
+    "duration" BIGINT,
+    "priority" INTEGER,
 
     CONSTRAINT "WorkflowRun_pkey" PRIMARY KEY ("id")
 );
@@ -791,6 +906,7 @@ CREATE TABLE "WorkflowVersion" (
     "onFailureJobId" UUID,
     "sticky" "StickyStrategy",
     "kind" "WorkflowKind" NOT NULL DEFAULT 'DAG',
+    "defaultPriority" INTEGER,
 
     CONSTRAINT "WorkflowVersion_pkey" PRIMARY KEY ("id")
 );
@@ -853,13 +969,34 @@ CREATE INDEX "Event_tenantId_createdAt_idx" ON "Event"("tenantId" ASC, "createdA
 CREATE INDEX "Event_tenantId_idx" ON "Event"("tenantId" ASC);
 
 -- CreateIndex
+CREATE INDEX "GetGroupKeyRun_createdAt_idx" ON "GetGroupKeyRun"("createdAt" ASC);
+
+-- CreateIndex
 CREATE INDEX "GetGroupKeyRun_deletedAt_idx" ON "GetGroupKeyRun"("deletedAt" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "GetGroupKeyRun_id_key" ON "GetGroupKeyRun"("id" ASC);
 
 -- CreateIndex
+CREATE INDEX "GetGroupKeyRun_status_deletedAt_timeoutAt_idx" ON "GetGroupKeyRun"("status" ASC, "deletedAt" ASC, "timeoutAt" ASC);
+
+-- CreateIndex
+CREATE INDEX "GetGroupKeyRun_tenantId_deletedAt_status_idx" ON "GetGroupKeyRun"("tenantId" ASC, "deletedAt" ASC, "status" ASC);
+
+-- CreateIndex
+CREATE INDEX "GetGroupKeyRun_tenantId_idx" ON "GetGroupKeyRun"("tenantId" ASC);
+
+-- CreateIndex
+CREATE INDEX "GetGroupKeyRun_workerId_idx" ON "GetGroupKeyRun"("workerId" ASC);
+
+-- CreateIndex
 CREATE UNIQUE INDEX "GetGroupKeyRun_workflowRunId_key" ON "GetGroupKeyRun"("workflowRunId" ASC);
+
+-- CreateIndex
+CREATE INDEX "InternalQueueItem_isQueued_tenantId_queue_priority_id_idx" ON "InternalQueueItem"("isQueued" ASC, "tenantId" ASC, "queue" ASC, "priority" DESC, "id" ASC);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "InternalQueueItem_tenantId_queue_uniqueKey_key" ON "InternalQueueItem"("tenantId" ASC, "queue" ASC, "uniqueKey" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Job_id_key" ON "Job"("id" ASC);
@@ -886,6 +1023,12 @@ CREATE UNIQUE INDEX "JobRunLookupData_jobRunId_key" ON "JobRunLookupData"("jobRu
 CREATE UNIQUE INDEX "JobRunLookupData_jobRunId_tenantId_key" ON "JobRunLookupData"("jobRunId" ASC, "tenantId" ASC);
 
 -- CreateIndex
+CREATE UNIQUE INDEX "Queue_tenantId_name_key" ON "Queue"("tenantId" ASC, "name" ASC);
+
+-- CreateIndex
+CREATE INDEX "QueueItem_isQueued_priority_tenantId_queue_id_idx_2" ON "QueueItem"("isQueued" ASC, "tenantId" ASC, "queue" ASC, "priority" DESC, "id" ASC);
+
+-- CreateIndex
 CREATE UNIQUE INDEX "RateLimit_tenantId_key_key" ON "RateLimit"("tenantId" ASC, "key" ASC);
 
 -- CreateIndex
@@ -896,6 +1039,12 @@ CREATE UNIQUE INDEX "SNSIntegration_tenantId_topicArn_key" ON "SNSIntegration"("
 
 -- CreateIndex
 CREATE UNIQUE INDEX "SecurityCheckIdent_id_key" ON "SecurityCheckIdent"("id" ASC);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "SemaphoreQueueItem_stepRunId_key" ON "SemaphoreQueueItem"("stepRunId" ASC);
+
+-- CreateIndex
+CREATE INDEX "SemaphoreQueueItem_tenantId_workerId_idx" ON "SemaphoreQueueItem"("tenantId" ASC, "workerId" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Service_id_key" ON "Service"("id" ASC);
@@ -940,9 +1089,6 @@ CREATE INDEX "StepRun_id_tenantId_idx" ON "StepRun"("id" ASC, "tenantId" ASC);
 CREATE INDEX "StepRun_jobRunId_status_idx" ON "StepRun"("jobRunId" ASC, "status" ASC);
 
 -- CreateIndex
-CREATE INDEX "StepRun_jobRunId_status_tenantId_idx" ON "StepRun"("jobRunId" ASC, "status" ASC, "tenantId" ASC);
-
--- CreateIndex
 CREATE INDEX "StepRun_jobRunId_tenantId_order_idx" ON "StepRun"("jobRunId" ASC, "tenantId" ASC, "order" ASC);
 
 -- CreateIndex
@@ -952,9 +1098,6 @@ CREATE INDEX "StepRun_stepId_idx" ON "StepRun"("stepId" ASC);
 CREATE INDEX "StepRun_tenantId_idx" ON "StepRun"("tenantId" ASC);
 
 -- CreateIndex
-CREATE INDEX "StepRun_tenantId_status_timeoutAt_idx" ON "StepRun"("tenantId" ASC, "status" ASC, "timeoutAt" ASC);
-
--- CreateIndex
 CREATE INDEX "StepRun_workerId_idx" ON "StepRun"("workerId" ASC);
 
 -- CreateIndex
@@ -962,6 +1105,12 @@ CREATE UNIQUE INDEX "StepRunEvent_id_key" ON "StepRunEvent"("id" ASC);
 
 -- CreateIndex
 CREATE INDEX "StepRunEvent_stepRunId_idx" ON "StepRunEvent"("stepRunId" ASC);
+
+-- CreateIndex
+CREATE INDEX "StepRunEvent_workflowRunId_idx" ON "StepRunEvent"("workflowRunId" ASC);
+
+-- CreateIndex
+CREATE INDEX "StepRunExpressionEval_stepRunId_idx" ON "StepRunExpressionEval"("stepRunId" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "StepRunResultArchive_id_key" ON "StepRunResultArchive"("id" ASC);
@@ -1018,6 +1167,12 @@ CREATE UNIQUE INDEX "TenantWorkerPartition_id_key" ON "TenantWorkerPartition"("i
 CREATE UNIQUE INDEX "Ticker_id_key" ON "Ticker"("id" ASC);
 
 -- CreateIndex
+CREATE UNIQUE INDEX "TimeoutQueueItem_stepRunId_retryCount_key" ON "TimeoutQueueItem"("stepRunId" ASC, "retryCount" ASC);
+
+-- CreateIndex
+CREATE INDEX "TimeoutQueueItem_tenantId_isQueued_timeoutAt_idx" ON "TimeoutQueueItem"("tenantId" ASC, "isQueued" ASC, "timeoutAt" ASC);
+
+-- CreateIndex
 CREATE UNIQUE INDEX "User_email_key" ON "User"("email" ASC);
 
 -- CreateIndex
@@ -1045,6 +1200,9 @@ CREATE UNIQUE INDEX "WebhookWorker_id_key" ON "WebhookWorker"("id" ASC);
 CREATE UNIQUE INDEX "WebhookWorker_url_key" ON "WebhookWorker"("url" ASC);
 
 -- CreateIndex
+CREATE UNIQUE INDEX "WebhookWorkerRequest_id_key" ON "WebhookWorkerRequest"("id" ASC);
+
+-- CreateIndex
 CREATE UNIQUE INDEX "WebhookWorkerWorkflow_id_key" ON "WebhookWorkerWorkflow"("id" ASC);
 
 -- CreateIndex
@@ -1054,22 +1212,16 @@ CREATE UNIQUE INDEX "WebhookWorkerWorkflow_webhookWorkerId_workflowId_key" ON "W
 CREATE UNIQUE INDEX "Worker_id_key" ON "Worker"("id" ASC);
 
 -- CreateIndex
+CREATE UNIQUE INDEX "Worker_webhookId_key" ON "Worker"("webhookId" ASC);
+
+-- CreateIndex
+CREATE INDEX "WorkerAssignEvent_workerId_id_idx" ON "WorkerAssignEvent"("workerId" ASC, "id" ASC);
+
+-- CreateIndex
 CREATE INDEX "WorkerLabel_workerId_idx" ON "WorkerLabel"("workerId" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "WorkerLabel_workerId_key_key" ON "WorkerLabel"("workerId" ASC, "key" ASC);
-
--- CreateIndex
-CREATE UNIQUE INDEX "WorkerSemaphore_workerId_key" ON "WorkerSemaphore"("workerId" ASC);
-
--- CreateIndex
-CREATE UNIQUE INDEX "WorkerSemaphoreSlot_id_key" ON "WorkerSemaphoreSlot"("id" ASC);
-
--- CreateIndex
-CREATE UNIQUE INDEX "WorkerSemaphoreSlot_stepRunId_key" ON "WorkerSemaphoreSlot"("stepRunId" ASC);
-
--- CreateIndex
-CREATE INDEX "WorkerSemaphoreSlot_workerId_idx" ON "WorkerSemaphoreSlot"("workerId" ASC);
 
 -- CreateIndex
 CREATE INDEX "Workflow_deletedAt_idx" ON "Workflow"("deletedAt" ASC);
@@ -1216,12 +1368,6 @@ ALTER TABLE "Action" ADD CONSTRAINT "Action_tenantId_fkey" FOREIGN KEY ("tenantI
 ALTER TABLE "Event" ADD CONSTRAINT "Event_replayedFromId_fkey" FOREIGN KEY ("replayedFromId") REFERENCES "Event"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Event" ADD CONSTRAINT "Event_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "GetGroupKeyRun" ADD CONSTRAINT "GetGroupKeyRun_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "GetGroupKeyRun" ADD CONSTRAINT "GetGroupKeyRun_tickerId_fkey" FOREIGN KEY ("tickerId") REFERENCES "Ticker"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -1231,19 +1377,7 @@ ALTER TABLE "GetGroupKeyRun" ADD CONSTRAINT "GetGroupKeyRun_workerId_fkey" FOREI
 ALTER TABLE "GetGroupKeyRun" ADD CONSTRAINT "GetGroupKeyRun_workflowRunId_fkey" FOREIGN KEY ("workflowRunId") REFERENCES "WorkflowRun"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Job" ADD CONSTRAINT "Job_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "Job" ADD CONSTRAINT "Job_workflowVersionId_fkey" FOREIGN KEY ("workflowVersionId") REFERENCES "WorkflowVersion"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "JobRun" ADD CONSTRAINT "JobRun_jobId_fkey" FOREIGN KEY ("jobId") REFERENCES "Job"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "JobRun" ADD CONSTRAINT "JobRun_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "JobRun" ADD CONSTRAINT "JobRun_tickerId_fkey" FOREIGN KEY ("tickerId") REFERENCES "Ticker"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "JobRun" ADD CONSTRAINT "JobRun_workflowRunId_fkey" FOREIGN KEY ("workflowRunId") REFERENCES "WorkflowRun"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -1252,16 +1386,7 @@ ALTER TABLE "JobRun" ADD CONSTRAINT "JobRun_workflowRunId_fkey" FOREIGN KEY ("wo
 ALTER TABLE "JobRunLookupData" ADD CONSTRAINT "JobRunLookupData_jobRunId_fkey" FOREIGN KEY ("jobRunId") REFERENCES "JobRun"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "JobRunLookupData" ADD CONSTRAINT "JobRunLookupData_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "LogLine" ADD CONSTRAINT "LogLine_stepRunId_fkey" FOREIGN KEY ("stepRunId") REFERENCES "StepRun"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "LogLine" ADD CONSTRAINT "LogLine_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "RateLimit" ADD CONSTRAINT "RateLimit_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "SNSIntegration" ADD CONSTRAINT "SNSIntegration_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -1279,16 +1404,7 @@ ALTER TABLE "Step" ADD CONSTRAINT "Step_actionId_tenantId_fkey" FOREIGN KEY ("ac
 ALTER TABLE "Step" ADD CONSTRAINT "Step_jobId_fkey" FOREIGN KEY ("jobId") REFERENCES "Job"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Step" ADD CONSTRAINT "Step_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "StepDesiredWorkerLabel" ADD CONSTRAINT "StepDesiredWorkerLabel_stepId_fkey" FOREIGN KEY ("stepId") REFERENCES "Step"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "StepRateLimit" ADD CONSTRAINT "StepRateLimit_stepId_fkey" FOREIGN KEY ("stepId") REFERENCES "Step"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "StepRateLimit" ADD CONSTRAINT "StepRateLimit_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "StepRateLimit" ADD CONSTRAINT "StepRateLimit_tenantId_rateLimitKey_fkey" FOREIGN KEY ("tenantId", "rateLimitKey") REFERENCES "RateLimit"("tenantId", "key") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -1297,28 +1413,13 @@ ALTER TABLE "StepRateLimit" ADD CONSTRAINT "StepRateLimit_tenantId_rateLimitKey_
 ALTER TABLE "StepRun" ADD CONSTRAINT "StepRun_jobRunId_fkey" FOREIGN KEY ("jobRunId") REFERENCES "JobRun"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "StepRun" ADD CONSTRAINT "StepRun_stepId_fkey" FOREIGN KEY ("stepId") REFERENCES "Step"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "StepRun" ADD CONSTRAINT "StepRun_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "StepRun" ADD CONSTRAINT "StepRun_tickerId_fkey" FOREIGN KEY ("tickerId") REFERENCES "Ticker"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "StepRun" ADD CONSTRAINT "StepRun_workerId_fkey" FOREIGN KEY ("workerId") REFERENCES "Worker"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "StepRunEvent" ADD CONSTRAINT "StepRunEvent_stepRunId_fkey" FOREIGN KEY ("stepRunId") REFERENCES "StepRun"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "StepRunResultArchive" ADD CONSTRAINT "StepRunResultArchive_stepRunId_fkey" FOREIGN KEY ("stepRunId") REFERENCES "StepRun"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "StreamEvent" ADD CONSTRAINT "StreamEvent_stepRunId_fkey" FOREIGN KEY ("stepRunId") REFERENCES "StepRun"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "StreamEvent" ADD CONSTRAINT "StreamEvent_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Tenant" ADD CONSTRAINT "Tenant_controllerPartitionId_fkey" FOREIGN KEY ("controllerPartitionId") REFERENCES "ControllerPartition"("id") ON DELETE SET NULL ON UPDATE SET NULL;
@@ -1372,6 +1473,9 @@ ALTER TABLE "WebhookWorker" ADD CONSTRAINT "WebhookWorker_tenantId_fkey" FOREIGN
 ALTER TABLE "WebhookWorker" ADD CONSTRAINT "WebhookWorker_tokenId_fkey" FOREIGN KEY ("tokenId") REFERENCES "APIToken"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "WebhookWorkerRequest" ADD CONSTRAINT "WebhookWorkerRequest_webhookWorkerId_fkey" FOREIGN KEY ("webhookWorkerId") REFERENCES "WebhookWorker"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "WebhookWorkerWorkflow" ADD CONSTRAINT "WebhookWorkerWorkflow_webhookWorkerId_fkey" FOREIGN KEY ("webhookWorkerId") REFERENCES "WebhookWorker"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -1381,22 +1485,13 @@ ALTER TABLE "WebhookWorkerWorkflow" ADD CONSTRAINT "WebhookWorkerWorkflow_workfl
 ALTER TABLE "Worker" ADD CONSTRAINT "Worker_dispatcherId_fkey" FOREIGN KEY ("dispatcherId") REFERENCES "Dispatcher"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Worker" ADD CONSTRAINT "Worker_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "Worker" ADD CONSTRAINT "Worker_webhookId_fkey" FOREIGN KEY ("webhookId") REFERENCES "WebhookWorker"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "WorkerAssignEvent" ADD CONSTRAINT "WorkerAssignEvent_workerId_fkey" FOREIGN KEY ("workerId") REFERENCES "Worker"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "WorkerLabel" ADD CONSTRAINT "WorkerLabel_workerId_fkey" FOREIGN KEY ("workerId") REFERENCES "Worker"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "WorkerSemaphore" ADD CONSTRAINT "WorkerSemaphore_workerId_fkey" FOREIGN KEY ("workerId") REFERENCES "Worker"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "WorkerSemaphoreSlot" ADD CONSTRAINT "WorkerSemaphoreSlot_stepRunId_fkey" FOREIGN KEY ("stepRunId") REFERENCES "StepRun"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "WorkerSemaphoreSlot" ADD CONSTRAINT "WorkerSemaphoreSlot_workerId_fkey" FOREIGN KEY ("workerId") REFERENCES "Worker"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "Workflow" ADD CONSTRAINT "Workflow_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "WorkflowConcurrency" ADD CONSTRAINT "WorkflowConcurrency_getConcurrencyGroupId_fkey" FOREIGN KEY ("getConcurrencyGroupId") REFERENCES "Action"("id") ON DELETE SET NULL ON UPDATE CASCADE;
@@ -1411,31 +1506,13 @@ ALTER TABLE "WorkflowRun" ADD CONSTRAINT "WorkflowRun_parentId_fkey" FOREIGN KEY
 ALTER TABLE "WorkflowRun" ADD CONSTRAINT "WorkflowRun_parentStepRunId_fkey" FOREIGN KEY ("parentStepRunId") REFERENCES "StepRun"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "WorkflowRun" ADD CONSTRAINT "WorkflowRun_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "WorkflowRun" ADD CONSTRAINT "WorkflowRun_workflowVersionId_fkey" FOREIGN KEY ("workflowVersionId") REFERENCES "WorkflowVersion"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "WorkflowRunDedupe" ADD CONSTRAINT "WorkflowRunDedupe_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "WorkflowRunStickyState" ADD CONSTRAINT "WorkflowRunStickyState_workflowRunId_fkey" FOREIGN KEY ("workflowRunId") REFERENCES "WorkflowRun"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "WorkflowRunTriggeredBy" ADD CONSTRAINT "WorkflowRunTriggeredBy_cronParentId_cronSchedule_fkey" FOREIGN KEY ("cronParentId", "cronSchedule") REFERENCES "WorkflowTriggerCronRef"("parentId", "cron") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "WorkflowRunTriggeredBy" ADD CONSTRAINT "WorkflowRunTriggeredBy_eventId_fkey" FOREIGN KEY ("eventId") REFERENCES "Event"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "WorkflowRunTriggeredBy" ADD CONSTRAINT "WorkflowRunTriggeredBy_parentId_fkey" FOREIGN KEY ("parentId") REFERENCES "WorkflowRun"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "WorkflowRunTriggeredBy" ADD CONSTRAINT "WorkflowRunTriggeredBy_scheduledId_fkey" FOREIGN KEY ("scheduledId") REFERENCES "WorkflowTriggerScheduledRef"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "WorkflowRunTriggeredBy" ADD CONSTRAINT "WorkflowRunTriggeredBy_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "WorkflowTag" ADD CONSTRAINT "WorkflowTag_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -1502,3 +1579,22 @@ ALTER TABLE "_WorkflowToWorkflowTag" ADD CONSTRAINT "_WorkflowToWorkflowTag_A_fk
 
 -- AddForeignKey
 ALTER TABLE "_WorkflowToWorkflowTag" ADD CONSTRAINT "_WorkflowToWorkflowTag_B_fkey" FOREIGN KEY ("B") REFERENCES "WorkflowTag"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- NOTE: this is a SQL script file that contains the constraints for the database
+-- it is needed because prisma does not support constraints yet
+
+-- Modify "QueueItem" table
+ALTER TABLE "QueueItem" ADD CONSTRAINT "QueueItem_priority_check" CHECK ("priority" >= 1 AND "priority" <= 4);
+
+-- Modify "InternalQueueItem" table
+ALTER TABLE "InternalQueueItem" ADD CONSTRAINT "InternalQueueItem_priority_check" CHECK ("priority" >= 1 AND "priority" <= 4);
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS "StepRun_jobRunId_status_tenantId_idx"
+ON "StepRun" ("jobRunId", "status", "tenantId")
+WHERE "status" = 'PENDING';
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS "WorkflowRun_parentStepRunId" ON "WorkflowRun"("parentStepRunId" ASC);
+
+-- Additional indexes on workflow run
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_workflowrun_concurrency ON "WorkflowRun" ("concurrencyGroupId", "createdAt");
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_workflowrun_main ON "WorkflowRun" ("tenantId", "deletedAt", "status", "workflowVersionId", "createdAt");

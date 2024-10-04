@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 
+	"github.com/hatchet-dev/hatchet/internal/cel"
 	"github.com/hatchet-dev/hatchet/internal/dagutils"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
@@ -18,7 +19,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlctoprisma"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
@@ -59,24 +59,8 @@ func (r *workflowAPIRepository) ListWorkflows(tenantId string, opts *repository.
 		TenantId: *pgTenantId,
 	}
 
-	latestRunParams := dbsqlc.ListWorkflowsLatestRunsParams{
-		TenantId: *pgTenantId,
-	}
-
 	countParams := dbsqlc.CountWorkflowsParams{
 		TenantId: *pgTenantId,
-	}
-
-	if opts.EventKey != nil {
-		pgEventKey := &pgtype.Text{}
-
-		if err := pgEventKey.Scan(*opts.EventKey); err != nil {
-			return nil, err
-		}
-
-		queryParams.EventKey = *pgEventKey
-		countParams.EventKey = *pgEventKey
-		latestRunParams.EventKey = *pgEventKey
 	}
 
 	if opts.Offset != nil {
@@ -106,19 +90,6 @@ func (r *workflowAPIRepository) ListWorkflows(tenantId string, opts *repository.
 		return nil, fmt.Errorf("failed to fetch workflows: %w", err)
 	}
 
-	latestRuns, err := r.queries.ListWorkflowsLatestRuns(context.Background(), tx, latestRunParams)
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch latest runs: %w", err)
-	}
-
-	latestRunsMap := map[string]*dbsqlc.WorkflowRun{}
-
-	for i := range latestRuns {
-		uuid := sqlchelpers.UUIDToStr(latestRuns[i].WorkflowId)
-		latestRunsMap[uuid] = &latestRuns[i].WorkflowRun
-	}
-
 	count, err := r.queries.CountWorkflows(context.Background(), tx, countParams)
 
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
@@ -139,57 +110,117 @@ func (r *workflowAPIRepository) ListWorkflows(tenantId string, opts *repository.
 		sqlcWorkflows[i] = &workflows[i].Workflow
 	}
 
-	prismaWorkflows := sqlctoprisma.NewConverter[dbsqlc.Workflow, db.WorkflowModel]().ToPrismaList(sqlcWorkflows)
-
-	rows := make([]*repository.ListWorkflowsRow, 0)
-
-	for i, workflow := range prismaWorkflows {
-
-		var prismaRun *db.WorkflowRunModel
-
-		if latestRun, exists := latestRunsMap[workflow.ID]; exists {
-			prismaRun = sqlctoprisma.NewConverter[dbsqlc.WorkflowRun, db.WorkflowRunModel]().ToPrisma(latestRun)
-		}
-
-		rows = append(rows, &repository.ListWorkflowsRow{
-			WorkflowModel: prismaWorkflows[i],
-			LatestRun:     prismaRun,
-		})
-	}
-
-	res.Rows = rows
+	res.Rows = sqlcWorkflows
 
 	return res, nil
 }
 
-func (r *workflowAPIRepository) GetWorkflowById(workflowId string) (*db.WorkflowModel, error) {
-	return r.client.Workflow.FindFirst(
-		db.Workflow.ID.Equals(workflowId),
-		db.Workflow.DeletedAt.IsNull(),
-	).With(
-		defaultWorkflowPopulator()...,
-	).Exec(context.Background())
+func (r *workflowAPIRepository) UpdateWorkflow(ctx context.Context, tenantId, workflowId string, opts *repository.UpdateWorkflowOpts) (*dbsqlc.Workflow, error) {
+	if err := r.v.Validate(opts); err != nil {
+		return nil, err
+	}
+
+	pgWorkflowId := sqlchelpers.UUIDFromStr(workflowId)
+
+	params := dbsqlc.UpdateWorkflowParams{
+		ID: pgWorkflowId,
+	}
+
+	if opts.IsPaused != nil {
+		params.IsPaused = pgtype.Bool{
+			Valid: true,
+			Bool:  *opts.IsPaused,
+		}
+	}
+
+	tx, commit, rollback, err := prepareTx(ctx, r.pool, r.l, 25000)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer rollback()
+
+	workflow, err := r.queries.UpdateWorkflow(ctx, tx, params)
+
+	if err != nil {
+		return nil, err
+	}
+
+	// if we're setting to an unpaused state, update internal queue items
+	if opts.IsPaused != nil && !*opts.IsPaused {
+		err = r.queries.HandleWorkflowUnpaused(ctx, tx, dbsqlc.HandleWorkflowUnpausedParams{
+			Workflowid: workflowId,
+			Tenantid:   sqlchelpers.UUIDFromStr(tenantId),
+		})
+
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if err := commit(ctx); err != nil {
+		return nil, err
+	}
+
+	return workflow, nil
 }
 
-func (r *workflowAPIRepository) GetWorkflowByName(tenantId, workflowName string) (*db.WorkflowModel, error) {
-	return r.client.Workflow.FindFirst(
-		db.Workflow.TenantIDName(
-			db.Workflow.TenantID.Equals(tenantId),
-			db.Workflow.Name.Equals(workflowName),
-		),
-		db.Workflow.DeletedAt.IsNull(),
-	).With(
-		defaultWorkflowPopulator()...,
-	).Exec(context.Background())
+func (r *workflowAPIRepository) GetWorkflowById(ctx context.Context, workflowId string) (*dbsqlc.GetWorkflowByIdRow, error) {
+	return r.queries.GetWorkflowById(context.Background(), r.pool, sqlchelpers.UUIDFromStr(workflowId))
+
 }
 
-func (r *workflowAPIRepository) GetWorkflowVersionById(tenantId, workflowVersionId string) (*db.WorkflowVersionModel, error) {
-	return r.client.WorkflowVersion.FindFirst(
-		db.WorkflowVersion.ID.Equals(workflowVersionId),
-		db.WorkflowVersion.DeletedAt.IsNull(),
-	).With(
-		defaultWorkflowVersionPopulator()...,
-	).Exec(context.Background())
+func (r *workflowAPIRepository) GetWorkflowVersionById(tenantId, workflowVersionId string) (
+	*dbsqlc.GetWorkflowVersionByIdRow,
+	[]*dbsqlc.WorkflowTriggerCronRef,
+	[]*dbsqlc.WorkflowTriggerEventRef,
+	[]*dbsqlc.WorkflowTriggerScheduledRef,
+	error,
+) {
+	pgWorkflowVersionId := sqlchelpers.UUIDFromStr(workflowVersionId)
+
+	row, err := r.queries.GetWorkflowVersionById(
+		context.Background(),
+		r.pool,
+		pgWorkflowVersionId,
+	)
+
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("failed to fetch workflow version: %w", err)
+	}
+
+	crons, err := r.queries.GetWorkflowVersionCronTriggerRefs(
+		context.Background(),
+		r.pool,
+		pgWorkflowVersionId,
+	)
+
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("failed to fetch cron triggers: %w", err)
+	}
+
+	events, err := r.queries.GetWorkflowVersionEventTriggerRefs(
+		context.Background(),
+		r.pool,
+		pgWorkflowVersionId,
+	)
+
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("failed to fetch event triggers: %w", err)
+	}
+
+	scheduled, err := r.queries.GetWorkflowVersionScheduleTriggerRefs(
+		context.Background(),
+		r.pool,
+		pgWorkflowVersionId,
+	)
+
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("failed to fetch scheduled triggers: %w", err)
+	}
+
+	return row, crons, events, scheduled, nil
 }
 
 func (r *workflowAPIRepository) DeleteWorkflow(tenantId, workflowId string) (*dbsqlc.Workflow, error) {
@@ -552,6 +583,22 @@ func (r *workflowEngineRepository) ListWorkflowsForEvent(ctx context.Context, te
 	return workflows, nil
 }
 
+func (r *workflowAPIRepository) GetWorkflowWorkerCount(tenantId, workflowId string) (int, int, error) {
+	params := dbsqlc.GetWorkflowWorkerCountParams{
+		Tenantid:   sqlchelpers.UUIDFromStr(tenantId),
+		Workflowid: sqlchelpers.UUIDFromStr(workflowId),
+	}
+
+	results, err := r.queries.GetWorkflowWorkerCount(context.Background(), r.pool, params)
+
+	if err != nil {
+		return 0, 0, err
+	}
+
+	return int(results.Freeslotcount), int(results.Totalslotcount), nil
+
+}
+
 func (r *workflowEngineRepository) createWorkflowVersionTxs(ctx context.Context, tx pgx.Tx, tenantId, workflowId pgtype.UUID, opts *repository.CreateWorkflowVersionOpts) (string, error) {
 	workflowVersionId := uuid.New().String()
 
@@ -567,11 +614,21 @@ func (r *workflowEngineRepository) createWorkflowVersionTxs(ctx context.Context,
 		return "", err
 	}
 
+	var defaultPriority pgtype.Int4
+
+	if opts.DefaultPriority != nil {
+		defaultPriority = pgtype.Int4{
+			Valid: true,
+			Int32: *opts.DefaultPriority,
+		}
+	}
+
 	createParams := dbsqlc.CreateWorkflowVersionParams{
-		ID:         sqlchelpers.UUIDFromStr(workflowVersionId),
-		Checksum:   cs,
-		Version:    version,
-		Workflowid: workflowId,
+		ID:              sqlchelpers.UUIDFromStr(workflowVersionId),
+		Checksum:        cs,
+		Version:         version,
+		Workflowid:      workflowId,
+		DefaultPriority: defaultPriority,
 	}
 
 	if opts.ScheduleTimeout != nil {
@@ -604,24 +661,30 @@ func (r *workflowEngineRepository) createWorkflowVersionTxs(ctx context.Context,
 
 	// create concurrency group
 	if opts.Concurrency != nil {
-		// upsert the action
-		action, err := r.queries.UpsertAction(
-			ctx,
-			tx,
-			dbsqlc.UpsertActionParams{
-				Action:   opts.Concurrency.Action,
-				Tenantid: tenantId,
-			},
-		)
-
-		if err != nil {
-			return "", fmt.Errorf("could not upsert action: %w", err)
+		params := dbsqlc.CreateWorkflowConcurrencyParams{
+			Workflowversionid: sqlcWorkflowVersion.ID,
 		}
 
-		params := dbsqlc.CreateWorkflowConcurrencyParams{
-			ID:                    sqlchelpers.UUIDFromStr(uuid.New().String()),
-			Workflowversionid:     sqlcWorkflowVersion.ID,
-			Getconcurrencygroupid: action.ID,
+		// upsert the action
+		if opts.Concurrency.Action != nil {
+			action, err := r.queries.UpsertAction(
+				ctx,
+				tx,
+				dbsqlc.UpsertActionParams{
+					Action:   *opts.Concurrency.Action,
+					Tenantid: tenantId,
+				},
+			)
+
+			if err != nil {
+				return "", fmt.Errorf("could not upsert action: %w", err)
+			}
+
+			params.GetConcurrencyGroupId = action.ID
+		}
+
+		if opts.Concurrency.Expression != nil {
+			params.ConcurrencyGroupExpression = sqlchelpers.TextFromStr(*opts.Concurrency.Expression)
 		}
 
 		if opts.Concurrency.MaxRuns != nil {
@@ -912,16 +975,81 @@ func (r *workflowEngineRepository) createJobTx(ctx context.Context, tx pgx.Tx, t
 		}
 
 		if len(stepOpts.RateLimits) > 0 {
+			createStepExprParams := dbsqlc.CreateStepExpressionsParams{
+				Stepid: sqlchelpers.UUIDFromStr(stepId),
+			}
+
 			for _, rateLimit := range stepOpts.RateLimits {
-				_, err := r.queries.CreateStepRateLimit(
+				// if ANY of the step expressions are not nil, we create ALL options as expressions, but with static
+				// keys for any nil expressions.
+				if rateLimit.KeyExpr != nil || rateLimit.LimitExpr != nil || rateLimit.UnitsExpr != nil {
+					var keyExpr, limitExpr, unitsExpr string
+
+					windowExpr := cel.Str("MINUTE")
+
+					if rateLimit.Duration != nil {
+						windowExpr = fmt.Sprintf(`"%s"`, *rateLimit.Duration)
+					}
+
+					if rateLimit.KeyExpr != nil {
+						keyExpr = *rateLimit.KeyExpr
+					} else {
+						keyExpr = cel.Str(rateLimit.Key)
+					}
+
+					if rateLimit.UnitsExpr != nil {
+						unitsExpr = *rateLimit.UnitsExpr
+					} else {
+						unitsExpr = cel.Int(*rateLimit.Units)
+					}
+
+					// create the key expression
+					createStepExprParams.Kinds = append(createStepExprParams.Kinds, string(dbsqlc.StepExpressionKindDYNAMICRATELIMITKEY))
+					createStepExprParams.Keys = append(createStepExprParams.Keys, rateLimit.Key)
+					createStepExprParams.Expressions = append(createStepExprParams.Expressions, keyExpr)
+
+					// create the limit value expression, if it's set
+					if rateLimit.LimitExpr != nil {
+						limitExpr = *rateLimit.LimitExpr
+
+						createStepExprParams.Kinds = append(createStepExprParams.Kinds, string(dbsqlc.StepExpressionKindDYNAMICRATELIMITVALUE))
+						createStepExprParams.Keys = append(createStepExprParams.Keys, rateLimit.Key)
+						createStepExprParams.Expressions = append(createStepExprParams.Expressions, limitExpr)
+					}
+
+					// create the units value expression
+					createStepExprParams.Kinds = append(createStepExprParams.Kinds, string(dbsqlc.StepExpressionKindDYNAMICRATELIMITUNITS))
+					createStepExprParams.Keys = append(createStepExprParams.Keys, rateLimit.Key)
+					createStepExprParams.Expressions = append(createStepExprParams.Expressions, unitsExpr)
+
+					// create the window expression
+					createStepExprParams.Kinds = append(createStepExprParams.Kinds, string(dbsqlc.StepExpressionKindDYNAMICRATELIMITWINDOW))
+					createStepExprParams.Keys = append(createStepExprParams.Keys, rateLimit.Key)
+					createStepExprParams.Expressions = append(createStepExprParams.Expressions, windowExpr)
+				} else {
+					_, err := r.queries.CreateStepRateLimit(
+						ctx,
+						tx,
+						dbsqlc.CreateStepRateLimitParams{
+							Stepid:       sqlchelpers.UUIDFromStr(stepId),
+							Ratelimitkey: rateLimit.Key,
+							Units:        int32(*rateLimit.Units), // nolint: gosec
+							Tenantid:     tenantId,
+							Kind:         dbsqlc.StepRateLimitKindSTATIC,
+						},
+					)
+
+					if err != nil {
+						return "", fmt.Errorf("could not create step rate limit: %w", err)
+					}
+				}
+			}
+
+			if len(createStepExprParams.Kinds) > 0 {
+				err := r.queries.CreateStepExpressions(
 					ctx,
 					tx,
-					dbsqlc.CreateStepRateLimitParams{
-						Stepid:       sqlchelpers.UUIDFromStr(stepId),
-						Ratelimitkey: rateLimit.Key,
-						Units:        int32(rateLimit.Units),
-						Tenantid:     tenantId,
-					},
+					createStepExprParams,
 				)
 
 				if err != nil {
@@ -932,39 +1060,4 @@ func (r *workflowEngineRepository) createJobTx(ctx context.Context, tx pgx.Tx, t
 	}
 
 	return jobId, nil
-}
-
-func defaultWorkflowPopulator() []db.WorkflowRelationWith {
-	return []db.WorkflowRelationWith{
-		db.Workflow.Tags.Fetch(),
-		db.Workflow.Versions.Fetch().OrderBy(
-			db.WorkflowVersion.Order.Order(db.SortOrderDesc),
-		).With(
-			defaultWorkflowVersionPopulator()...,
-		),
-	}
-}
-
-func defaultWorkflowVersionPopulator() []db.WorkflowVersionRelationWith {
-	return []db.WorkflowVersionRelationWith{
-		db.WorkflowVersion.Workflow.Fetch(),
-		db.WorkflowVersion.Triggers.Fetch().With(
-			db.WorkflowTriggers.Events.Fetch(),
-			db.WorkflowTriggers.Crons.Fetch().With(
-				db.WorkflowTriggerCronRef.Ticker.Fetch(),
-			),
-		),
-		db.WorkflowVersion.Concurrency.Fetch().With(
-			db.WorkflowConcurrency.GetConcurrencyGroup.Fetch(),
-		),
-		db.WorkflowVersion.Jobs.Fetch().With(
-			db.Job.Steps.Fetch().With(
-				db.Step.Action.Fetch(),
-				db.Step.Parents.Fetch(),
-			),
-		),
-		db.WorkflowVersion.Scheduled.Fetch().With(
-			db.WorkflowTriggerScheduledRef.Ticker.Fetch(),
-		),
-	}
 }

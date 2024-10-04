@@ -9,7 +9,7 @@ export default function WorkflowRuns() {
           Workflow Runs
         </h2>
         <Separator className="my-4" />
-        <WorkflowRunsTable />
+        <WorkflowRunsTable showMetrics={true} />
       </div>
     </div>
   );

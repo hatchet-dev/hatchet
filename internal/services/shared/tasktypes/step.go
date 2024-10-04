@@ -1,6 +1,8 @@
 package tasktypes
 
 import (
+	"time"
+
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
@@ -56,15 +58,14 @@ type StepRunRequeueTaskMetadata struct {
 	TenantId string `json:"tenant_id" validate:"required,uuid"`
 }
 
-type StepRunNotifyCancelTaskPayload struct {
-	WorkflowRunId   string `json:"workflow_run_id" validate:"required,uuid"`
+type StepRunCancelTaskPayload struct {
 	StepRunId       string `json:"step_run_id" validate:"required,uuid"`
 	CancelledReason string `json:"cancelled_reason" validate:"required"`
 	StepRetries     *int32 `json:"step_retries,omitempty"`
 	RetryCount      *int32 `json:"retry_count,omitempty"`
 }
 
-type StepRunNotifyCancelTaskMetadata struct {
+type StepRunCancelTaskMetadata struct {
 	TenantId string `json:"tenant_id" validate:"required,uuid"`
 }
 
@@ -136,6 +137,8 @@ type StepRunRetryTaskPayload struct {
 	StepRunId     string `json:"step_run_id" validate:"required,uuid"`
 	JobRunId      string `json:"job_run_id" validate:"required,uuid"`
 
+	Error *string `json:"error,omitempty"`
+
 	// optional - if not provided, the step run will be retried with the same input
 	InputData string `json:"input_data,omitempty"`
 
@@ -162,7 +165,7 @@ type StepRunReplayTaskMetadata struct {
 	TenantId string `json:"tenant_id" validate:"required,uuid"`
 }
 
-func StepRunRetryToTask(stepRun *dbsqlc.GetStepRunForEngineRow, inputData []byte) *msgqueue.Message {
+func StepRunRetryToTask(stepRun *dbsqlc.GetStepRunForEngineRow, inputData []byte, err string) *msgqueue.Message {
 	jobRunId := sqlchelpers.UUIDToStr(stepRun.JobRunId)
 	stepRunId := sqlchelpers.UUIDToStr(stepRun.SRID)
 	tenantId := sqlchelpers.UUIDToStr(stepRun.SRTenantId)
@@ -172,6 +175,7 @@ func StepRunRetryToTask(stepRun *dbsqlc.GetStepRunForEngineRow, inputData []byte
 		WorkflowRunId: workflowRunId,
 		JobRunId:      jobRunId,
 		StepRunId:     stepRunId,
+		Error:         &err,
 		InputData:     string(inputData),
 		StepRetries:   &stepRun.StepRetries,
 		RetryCount:    &stepRun.SRRetryCount,
@@ -216,24 +220,49 @@ func StepRunReplayToTask(stepRun *dbsqlc.GetStepRunForEngineRow, inputData []byt
 	}
 }
 
+func StepRunFailedToTask(stepRun *dbsqlc.GetStepRunForEngineRow, errorReason string, failedAt *time.Time) *msgqueue.Message {
+	stepRunId := sqlchelpers.UUIDToStr(stepRun.SRID)
+	workflowRunId := sqlchelpers.UUIDToStr(stepRun.WorkflowRunId)
+	tenantId := sqlchelpers.UUIDToStr(stepRun.SRTenantId)
+
+	payload, _ := datautils.ToJSONMap(StepRunFailedTaskPayload{
+		WorkflowRunId: workflowRunId,
+		StepRunId:     stepRunId,
+		FailedAt:      failedAt.Format(time.RFC3339),
+		Error:         errorReason,
+		StepRetries:   &stepRun.StepRetries,
+		RetryCount:    &stepRun.SRRetryCount,
+	})
+
+	metadata, _ := datautils.ToJSONMap(StepRunFailedTaskMetadata{
+		TenantId: tenantId,
+	})
+
+	return &msgqueue.Message{
+		ID:       "step-run-failed",
+		Payload:  payload,
+		Metadata: metadata,
+		Retries:  3,
+	}
+}
+
 func StepRunCancelToTask(stepRun *dbsqlc.GetStepRunForEngineRow, reason string) *msgqueue.Message {
 	stepRunId := sqlchelpers.UUIDToStr(stepRun.SRID)
 	tenantId := sqlchelpers.UUIDToStr(stepRun.SRTenantId)
 
-	payload, _ := datautils.ToJSONMap(StepRunNotifyCancelTaskPayload{
-		WorkflowRunId:   sqlchelpers.UUIDToStr(stepRun.WorkflowRunId),
+	payload, _ := datautils.ToJSONMap(StepRunCancelTaskPayload{
 		StepRunId:       stepRunId,
 		CancelledReason: reason,
 		StepRetries:     &stepRun.StepRetries,
 		RetryCount:      &stepRun.SRRetryCount,
 	})
 
-	metadata, _ := datautils.ToJSONMap(StepRunNotifyCancelTaskMetadata{
+	metadata, _ := datautils.ToJSONMap(StepRunCancelTaskMetadata{
 		TenantId: tenantId,
 	})
 
 	return &msgqueue.Message{
-		ID:       "step-run-cancelled",
+		ID:       "step-run-cancel",
 		Payload:  payload,
 		Metadata: metadata,
 		Retries:  3,

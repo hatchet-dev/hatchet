@@ -6,11 +6,10 @@ import (
 	"os"
 	"time"
 
-	"golang.org/x/sync/errgroup"
-
 	"github.com/hatchet-dev/hatchet/internal/services/admin"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/events"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/jobs"
+	"github.com/hatchet-dev/hatchet/internal/services/controllers/partition"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/retention"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/workflows"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher"
@@ -24,6 +23,8 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
+
+	"golang.org/x/sync/errgroup"
 )
 
 type Teardown struct {
@@ -103,7 +104,7 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig) ([]Teardown, er
 		return nil, fmt.Errorf("could not initialize tracer: %w", err)
 	}
 
-	p, err := newPartitioner(sc.EngineRepository.Tenant(), l)
+	p, err := partition.NewPartition(l, sc.EngineRepository.Tenant())
 
 	if err != nil {
 		return nil, fmt.Errorf("could not create partitioner: %w", err)
@@ -113,7 +114,7 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig) ([]Teardown, er
 
 	teardown = append(teardown, Teardown{
 		Name: "partitioner",
-		Fn:   p.shutdown,
+		Fn:   p.Shutdown,
 	})
 
 	var h *health.Health
@@ -152,18 +153,18 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig) ([]Teardown, er
 		})
 	}
 
-	var partitionId string
-
 	// FIXME: jobscontroller and workflowscontroller are deprecated service names, but there's not a clear upgrade
 	// path for old config files.
 	if sc.HasService("queue") || sc.HasService("jobscontroller") || sc.HasService("workflowscontroller") || sc.HasService("retention") || sc.HasService("ticker") {
-		partitionTeardown, pId, err := p.withControllers(ctx)
-		partitionId = pId
+		partitionCleanup, err := p.StartControllerPartition(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("could not create rebalance controller partitions job: %w", err)
 		}
 
-		teardown = append(teardown, *partitionTeardown)
+		teardown = append(teardown, Teardown{
+			Name: "controller partition",
+			Fn:   partitionCleanup,
+		})
 	}
 
 	if sc.HasService("ticker") {
@@ -173,7 +174,7 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig) ([]Teardown, er
 			ticker.WithLogger(sc.Logger),
 			ticker.WithTenantAlerter(sc.TenantAlerter),
 			ticker.WithEntitlementsRepository(sc.EntitlementRepository),
-			ticker.WithPartitionId(partitionId),
+			ticker.WithPartition(p),
 		)
 
 		if err != nil {
@@ -196,7 +197,9 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig) ([]Teardown, er
 			jobs.WithMessageQueue(sc.MessageQueue),
 			jobs.WithRepository(sc.EngineRepository),
 			jobs.WithLogger(sc.Logger),
-			jobs.WithPartitionId(partitionId),
+			jobs.WithPartition(p),
+			jobs.WithQueueLoggerConfig(&sc.AdditionalLoggers.Queue),
+			jobs.WithPgxStatsLoggerConfig(&sc.AdditionalLoggers.PgxStats),
 		)
 
 		if err != nil {
@@ -218,7 +221,7 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig) ([]Teardown, er
 			workflows.WithRepository(sc.EngineRepository),
 			workflows.WithLogger(sc.Logger),
 			workflows.WithTenantAlerter(sc.TenantAlerter),
-			workflows.WithPartitionId(partitionId),
+			workflows.WithPartition(p),
 		)
 		if err != nil {
 			return nil, fmt.Errorf("could not create workflows controller: %w", err)
@@ -240,8 +243,11 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig) ([]Teardown, er
 			retention.WithRepository(sc.EngineRepository),
 			retention.WithLogger(sc.Logger),
 			retention.WithTenantAlerter(sc.TenantAlerter),
-			retention.WithPartitionId(partitionId),
+			retention.WithPartition(p),
+			retention.WithDataRetention(sc.EnableDataRetention),
+			retention.WithWorkerRetention(sc.EnableWorkerRetention),
 		)
+
 		if err != nil {
 			return nil, fmt.Errorf("could not create retention controller: %w", err)
 		}
@@ -318,6 +324,10 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig) ([]Teardown, er
 			return nil, fmt.Errorf("could not create ingestor: %w", err)
 		}
 
+		if err != nil {
+			return nil, fmt.Errorf("could not start ingestor buffer: %w", err)
+		}
+
 		adminSvc, err := admin.NewAdminService(
 			admin.WithRepository(sc.EngineRepository),
 			admin.WithMessageQueue(sc.MessageQueue),
@@ -391,24 +401,27 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig) ([]Teardown, er
 	}
 
 	if sc.HasService("webhookscontroller") {
-		partitionTeardown, partitionId, err := p.withTenantWorkers(ctx)
+		cleanup1, err := p.StartTenantWorkerPartition(ctx)
 
 		if err != nil {
 			return nil, fmt.Errorf("could not create rebalance controller partitions job: %w", err)
 		}
 
-		teardown = append(teardown, *partitionTeardown)
+		teardown = append(teardown, Teardown{
+			Name: "tenant worker partition",
+			Fn:   cleanup1,
+		})
 
-		wh := webhooks.New(sc, partitionId)
+		wh := webhooks.New(sc, p)
 
-		cleanup, err := wh.Start()
+		cleanup2, err := wh.Start()
 		if err != nil {
 			return nil, fmt.Errorf("could not create webhook worker: %w", err)
 		}
 
 		teardown = append(teardown, Teardown{
 			Name: "webhook worker",
-			Fn:   cleanup,
+			Fn:   cleanup2,
 		})
 	}
 
@@ -424,8 +437,6 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig) ([]Teardown, er
 	if healthProbes {
 		h.SetReady(true)
 	}
-
-	p.start()
 
 	<-ctx.Done()
 

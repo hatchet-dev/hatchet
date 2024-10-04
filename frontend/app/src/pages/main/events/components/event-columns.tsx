@@ -50,6 +50,17 @@ export const columns = ({
       enableHiding: false,
     },
     {
+      accessorKey: 'EventId',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Event Id" />
+      ),
+      cell: ({ row }) => (
+        <div className="w-full">{row.original.metadata.id}</div>
+      ),
+      enableSorting: false,
+      enableHiding: true,
+    },
+    {
       accessorKey: 'key',
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title="Event" />

@@ -19,6 +19,10 @@ type ConfigFile struct {
 	PostgresSSLMode  string `mapstructure:"sslMode" json:"sslMode,omitempty" default:"disable"`
 
 	MaxConns int `mapstructure:"maxConns" json:"maxConns,omitempty" default:"20"`
+	MinConns int `mapstructure:"minConns" json:"minConns,omitempty" default:"10"`
+
+	MaxQueueConns int `mapstructure:"maxQueueConns" json:"maxQueueConns,omitempty" default:"50"`
+	MinQueueConns int `mapstructure:"minQueueConns" json:"minQueueConns,omitempty" default:"10"`
 
 	Seed SeedConfigFile `mapstructure:"seed" json:"seed,omitempty"`
 
@@ -44,6 +48,8 @@ type SeedConfigFile struct {
 type Config struct {
 	Pool *pgxpool.Pool
 
+	QueuePool *pgxpool.Pool
+
 	APIRepository repository.APIRepository
 
 	EngineRepository repository.EngineRepository
@@ -62,6 +68,9 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("sslMode", "DATABASE_POSTGRES_SSL_MODE")
 	_ = v.BindEnv("logQueries", "DATABASE_LOG_QUERIES")
 	_ = v.BindEnv("maxConns", "DATABASE_MAX_CONNS")
+	_ = v.BindEnv("minConns", "DATABASE_MIN_CONNS")
+	_ = v.BindEnv("maxQueueConns", "DATABASE_MAX_QUEUE_CONNS")
+	_ = v.BindEnv("minQueueConns", "DATABASE_MIN_QUEUE_CONNS")
 
 	_ = v.BindEnv("cacheDuration", "CACHE_DURATION")
 

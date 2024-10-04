@@ -2,71 +2,107 @@ package transformers
 
 import (
 	"encoding/json"
-	"sort"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 )
 
-func ToWorkflowRun(run *db.WorkflowRunModel) (*gen.WorkflowRun, error) {
-	res := &gen.WorkflowRun{
-		Metadata:          *toAPIMetadata(run.ID, run.CreatedAt, run.UpdatedAt),
-		TenantId:          run.TenantID,
+func ToWorkflowRunShape(
+	run *dbsqlc.GetWorkflowRunByIdRow,
+	version *dbsqlc.GetWorkflowVersionByIdRow,
+	jobs []*dbsqlc.ListJobRunsForWorkflowRunFullRow,
+	steps []*dbsqlc.GetStepsForJobsRow,
+	stepRuns []*repository.StepRunForJobRun,
+) *gen.WorkflowRunShape {
+	res := &gen.WorkflowRunShape{
+		Metadata: *toAPIMetadata(
+			sqlchelpers.UUIDToStr(run.ID),
+			run.CreatedAt.Time,
+			run.UpdatedAt.Time,
+		),
+		TenantId:          sqlchelpers.UUIDToStr(run.TenantId),
+		WorkflowVersionId: sqlchelpers.UUIDToStr(run.WorkflowVersionId),
+		DisplayName:       &run.DisplayName.String,
+		Error:             &run.Error.String,
 		Status:            gen.WorkflowRunStatus(run.Status),
-		WorkflowVersionId: run.WorkflowVersionID,
 	}
 
-	if displayName, ok := run.DisplayName(); ok {
-		res.DisplayName = &displayName
+	if run.StartedAt.Valid {
+		res.StartedAt = &run.StartedAt.Time
 	}
 
-	if startedAt, ok := run.StartedAt(); ok && !startedAt.IsZero() {
-		res.StartedAt = &startedAt
+	if run.FinishedAt.Valid {
+		res.FinishedAt = &run.FinishedAt.Time
 	}
 
-	if finishedAt, ok := run.FinishedAt(); ok && !finishedAt.IsZero() {
-		res.FinishedAt = &finishedAt
+	if run.Duration.Valid {
+		duration := int(run.Duration.Int64)
+		res.Duration = &duration
 	}
 
-	if runErr, ok := run.Error(); ok {
-		res.Error = &runErr
+	if version != nil {
+		// TODO concurrency
+		workflowId := sqlchelpers.UUIDToStr(version.Workflow.ID)
+		res.WorkflowId = &workflowId
+		res.WorkflowVersion = ToWorkflowVersion(&version.WorkflowVersion, &version.Workflow, nil, nil, nil, nil)
 	}
 
-	if run.RelationsWorkflowRun.TriggeredBy != nil {
-		if triggeredBy, ok := run.TriggeredBy(); ok {
-			res.TriggeredBy = *ToWorkflowRunTriggeredBy(triggeredBy)
-		}
-	}
+	res.TriggeredBy = *ToWorkflowRunTriggeredBy(run.ParentId, &run.WorkflowRunTriggeredBy)
 
-	if run.RelationsWorkflowRun.WorkflowVersion != nil {
-		workflowVersion := run.WorkflowVersion()
-
-		resWorkflowVersion, err := ToWorkflowVersion(nil, workflowVersion)
-
-		if err != nil {
-			return nil, err
-		}
-
-		res.WorkflowVersion = resWorkflowVersion
-	}
-
-	if run.RelationsWorkflowRun.JobRuns != nil {
+	if jobs != nil {
 		jobRuns := make([]gen.JobRun, 0)
 
-		for _, jobRun := range run.JobRuns() {
-			jobRunCp := jobRun
-			genJobRun, err := ToJobRun(&jobRunCp)
+		for _, jobRun := range jobs {
+			jobRunCp := *jobRun
+			jobRuns = append(jobRuns, *ToJobRun(&jobRunCp, steps, stepRuns))
 
-			if err != nil {
-				return nil, err
-			}
-			jobRuns = append(jobRuns, *genJobRun)
+		}
+
+		res.JobRuns = &jobRuns
+	}
+
+	return res
+}
+
+func ToWorkflowRun(
+	run *dbsqlc.GetWorkflowRunByIdRow,
+	jobs []*dbsqlc.ListJobRunsForWorkflowRunFullRow,
+	steps []*dbsqlc.GetStepsForJobsRow,
+	stepRuns []*repository.StepRunForJobRun,
+) (*gen.WorkflowRun, error) {
+	res := &gen.WorkflowRun{
+		Metadata: *toAPIMetadata(
+			sqlchelpers.UUIDToStr(run.ID),
+			run.CreatedAt.Time,
+			run.UpdatedAt.Time,
+		),
+		TenantId:          sqlchelpers.UUIDToStr(run.TenantId),
+		Status:            gen.WorkflowRunStatus(run.Status),
+		WorkflowVersionId: sqlchelpers.UUIDToStr(run.WorkflowVersionId),
+		DisplayName:       &run.DisplayName.String,
+		StartedAt:         &run.StartedAt.Time,
+		FinishedAt:        &run.FinishedAt.Time,
+		Error:             &run.Error.String,
+	}
+
+	res.TriggeredBy = *ToWorkflowRunTriggeredBy(run.ParentId, &run.WorkflowRunTriggeredBy)
+
+	if run.WorkflowVersionId.Valid {
+		res.WorkflowVersion = ToWorkflowVersion(&run.WorkflowVersion, &run.Workflow, nil, nil, nil, nil)
+	}
+
+	if jobs != nil {
+		jobRuns := make([]gen.JobRun, 0)
+
+		for _, jobRun := range jobs {
+			jobRunCp := *jobRun
+			jobRuns = append(jobRuns, *ToJobRun(&jobRunCp, steps, stepRuns))
 		}
 
 		res.JobRuns = &jobRuns
@@ -75,163 +111,189 @@ func ToWorkflowRun(run *db.WorkflowRunModel) (*gen.WorkflowRun, error) {
 	return res, nil
 }
 
-func ToJobRun(jobRun *db.JobRunModel) (*gen.JobRun, error) {
+func ToJobRun(
+	jobRun *dbsqlc.ListJobRunsForWorkflowRunFullRow,
+	steps []*dbsqlc.GetStepsForJobsRow,
+	stepRuns []*repository.StepRunForJobRun,
+) *gen.JobRun {
+
 	res := &gen.JobRun{
-		Metadata:      *toAPIMetadata(jobRun.ID, jobRun.CreatedAt, jobRun.UpdatedAt),
-		Status:        gen.JobRunStatus(jobRun.Status),
-		JobId:         jobRun.JobID,
-		TenantId:      jobRun.TenantID,
-		WorkflowRunId: jobRun.WorkflowRunID,
+		Metadata: *toAPIMetadata(
+			sqlchelpers.UUIDToStr(jobRun.ID),
+			jobRun.CreatedAt.Time,
+			jobRun.UpdatedAt.Time,
+		),
+		Status:          gen.JobRunStatus(jobRun.Status),
+		JobId:           sqlchelpers.UUIDToStr(jobRun.JobId),
+		TenantId:        sqlchelpers.UUIDToStr(jobRun.TenantId),
+		WorkflowRunId:   sqlchelpers.UUIDToStr(jobRun.WorkflowRunId),
+		StartedAt:       &jobRun.StartedAt.Time,
+		FinishedAt:      &jobRun.FinishedAt.Time,
+		CancelledAt:     &jobRun.CancelledAt.Time,
+		CancelledError:  &jobRun.CancelledError.String,
+		CancelledReason: &jobRun.CancelledReason.String,
+		TimeoutAt:       &jobRun.TimeoutAt.Time,
 	}
 
-	if startedAt, ok := jobRun.StartedAt(); ok && !startedAt.IsZero() {
-		res.StartedAt = &startedAt
-	}
+	res.Job = ToJob(&jobRun.Job, steps)
 
-	if finishedAt, ok := jobRun.FinishedAt(); ok && !finishedAt.IsZero() {
-		res.FinishedAt = &finishedAt
-	}
+	resStepRuns := make([]gen.StepRun, 0)
 
-	if cancelledAt, ok := jobRun.CancelledAt(); ok && !cancelledAt.IsZero() {
-		res.CancelledAt = &cancelledAt
-	}
+	for _, stepRun := range stepRuns {
 
-	if cancelledError, ok := jobRun.CancelledError(); ok {
-		res.CancelledError = &cancelledError
-	}
-
-	if cancelledReason, ok := jobRun.CancelledReason(); ok {
-		res.CancelledReason = &cancelledReason
-	}
-
-	if timeoutAt, ok := jobRun.TimeoutAt(); ok && !timeoutAt.IsZero() {
-		res.TimeoutAt = &timeoutAt
-	}
-
-	if jobRun.RelationsJobRun.Job != nil {
-		var err error
-		job := jobRun.Job()
-		res.Job, err = ToJob(job)
-
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	if jobRun.RelationsJobRun.WorkflowRun != nil {
-		var err error
-		workflowRun := jobRun.WorkflowRun()
-		res.WorkflowRun, err = ToWorkflowRun(workflowRun)
-
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	if stepRuns := jobRun.RelationsJobRun.StepRuns; stepRuns != nil {
-
-		orderedStepRuns := stepRuns
-
-		sort.SliceStable(orderedStepRuns, func(i, j int) bool {
-			return orderedStepRuns[i].Order < orderedStepRuns[j].Order
-		})
-
-		stepRuns := make([]gen.StepRun, 0)
-
-		for _, stepRun := range orderedStepRuns {
-			stepRunCp := stepRun
-			genStepRun, err := ToStepRun(&stepRunCp)
-
-			if err != nil {
-				return nil, err
-			}
-
-			stepRuns = append(stepRuns, *genStepRun)
+		if stepRun.JobRunId != jobRun.ID {
+			continue
 		}
 
-		res.StepRuns = &stepRuns
+		stepRunCp := stepRun
+		genStepRun := ToStepRun(stepRunCp)
+		resStepRuns = append(resStepRuns, *genStepRun)
 	}
 
-	return res, nil
+	res.StepRuns = &resStepRuns
+
+	return res
 }
 
-func ToStepRun(stepRun *db.StepRunModel) (*gen.StepRun, error) {
+func ToStepRunFull(stepRun *repository.GetStepRunFull) *gen.StepRun {
 	res := &gen.StepRun{
-		Metadata: *toAPIMetadata(stepRun.ID, stepRun.CreatedAt, stepRun.UpdatedAt),
+		Metadata: *toAPIMetadata(
+			sqlchelpers.UUIDToStr(stepRun.ID),
+			stepRun.CreatedAt.Time,
+			stepRun.UpdatedAt.Time,
+		),
 		Status:   gen.StepRunStatus(stepRun.Status),
-		StepId:   stepRun.StepID,
-		TenantId: stepRun.TenantID,
-		JobRunId: stepRun.JobRunID,
+		StepId:   sqlchelpers.UUIDToStr(stepRun.StepId),
+		TenantId: sqlchelpers.UUIDToStr(stepRun.TenantId),
+		JobRunId: sqlchelpers.UUIDToStr(stepRun.JobRunId),
 	}
 
-	if startedAt, ok := stepRun.StartedAt(); ok && !startedAt.IsZero() {
-		res.StartedAt = &startedAt
-		res.StartedAtEpoch = getEpochFromTime(startedAt)
-	}
-
-	if finishedAt, ok := stepRun.FinishedAt(); ok && !finishedAt.IsZero() {
-		res.FinishedAt = &finishedAt
-		res.FinishedAtEpoch = getEpochFromTime(finishedAt)
-	}
-
-	if cancelledAt, ok := stepRun.CancelledAt(); ok && !cancelledAt.IsZero() {
-		res.CancelledAt = &cancelledAt
-		res.CancelledAtEpoch = getEpochFromTime(cancelledAt)
-	}
-
-	if cancelledError, ok := stepRun.CancelledError(); ok {
+	if stepRun.CancelledError.Valid {
+		cancelledError := stepRun.CancelledError.String
 		res.CancelledError = &cancelledError
 	}
 
-	if cancelledReason, ok := stepRun.CancelledReason(); ok {
+	if stepRun.CancelledReason.Valid {
+		cancelledReason := stepRun.CancelledReason.String
 		res.CancelledReason = &cancelledReason
 	}
 
-	if runErr, ok := stepRun.Error(); ok {
-		res.Error = &runErr
+	if stepRun.Error.Valid {
+		err := stepRun.Error.String
+		res.Error = &err
 	}
 
-	if timeoutAt, ok := stepRun.TimeoutAt(); ok && !timeoutAt.IsZero() {
-		res.TimeoutAt = &timeoutAt
-		res.TimeoutAtEpoch = getEpochFromTime(timeoutAt)
+	if stepRun.StartedAt.Valid {
+		res.StartedAt = &stepRun.StartedAt.Time
+		res.StartedAtEpoch = getEpochFromPgTime(stepRun.StartedAt)
 	}
 
-	if workerId, ok := stepRun.WorkerID(); ok {
+	if stepRun.FinishedAt.Valid {
+		res.FinishedAt = &stepRun.FinishedAt.Time
+		res.FinishedAtEpoch = getEpochFromPgTime(stepRun.FinishedAt)
+	}
+
+	if stepRun.CancelledAt.Valid {
+		res.CancelledAt = &stepRun.CancelledAt.Time
+		res.CancelledAtEpoch = getEpochFromPgTime(stepRun.CancelledAt)
+	}
+
+	if stepRun.TimeoutAt.Valid {
+		res.TimeoutAt = &stepRun.TimeoutAt.Time
+		res.TimeoutAtEpoch = getEpochFromPgTime(stepRun.TimeoutAt)
+	}
+
+	if stepRun.ChildWorkflowRuns != nil {
+		res.ChildWorkflowRuns = &stepRun.ChildWorkflowRuns
+	}
+
+	if stepRun.WorkerId.Valid {
+		workerId := sqlchelpers.UUIDToStr(stepRun.WorkerId)
 		res.WorkerId = &workerId
 	}
 
-	if stepRun.RelationsStepRun.Step != nil {
-		step := stepRun.Step()
-
-		res.Step = ToStep(step)
+	if stepRun.Input != nil {
+		input := string(stepRun.Input)
+		res.Input = &input
 	}
 
-	if stepRun.RelationsStepRun.ChildWorkflowRuns != nil {
-		childWorkflowRuns := make([]string, 0)
-
-		for _, childWorkflowRun := range stepRun.ChildWorkflowRuns() {
-			childWorkflowRuns = append(childWorkflowRuns, childWorkflowRun.ID)
-		}
-
-		res.ChildWorkflowRuns = &childWorkflowRuns
+	if stepRun.Output != nil {
+		output := string(stepRun.Output)
+		res.Output = &output
 	}
 
-	if inputData, ok := stepRun.Input(); ok {
-		res.Input = repository.StringPtr(string(json.RawMessage(inputData)))
+	return res
+}
+
+func ToStepRun(stepRun *repository.StepRunForJobRun) *gen.StepRun {
+	res := &gen.StepRun{
+		Metadata: *toAPIMetadata(
+			sqlchelpers.UUIDToStr(stepRun.ID),
+			stepRun.CreatedAt.Time,
+			stepRun.UpdatedAt.Time,
+		),
+		Status:              gen.StepRunStatus(stepRun.Status),
+		StepId:              sqlchelpers.UUIDToStr(stepRun.StepId),
+		TenantId:            sqlchelpers.UUIDToStr(stepRun.TenantId),
+		JobRunId:            sqlchelpers.UUIDToStr(stepRun.JobRunId),
+		ChildWorkflowsCount: &stepRun.ChildWorkflowsCount,
+		Output:              byteSliceToStringPointer(stepRun.Output),
 	}
 
-	if outputData, ok := stepRun.Output(); ok {
-		res.Output = repository.StringPtr(string(json.RawMessage(outputData)))
+	if stepRun.CancelledError.Valid {
+		cancelledError := stepRun.CancelledError.String
+		res.CancelledError = &cancelledError
 	}
 
-	if jobRun := stepRun.RelationsStepRun.JobRun; jobRun != nil {
-		var err error
+	if stepRun.CancelledReason.Valid {
+		cancelledReason := stepRun.CancelledReason.String
+		res.CancelledReason = &cancelledReason
+	}
 
-		res.JobRun, err = ToJobRun(jobRun)
+	if stepRun.Error.Valid {
+		err := stepRun.Error.String
+		res.Error = &err
+	}
 
-		if err != nil {
-			return nil, err
-		}
+	if stepRun.StartedAt.Valid {
+		res.StartedAt = &stepRun.StartedAt.Time
+		res.StartedAtEpoch = getEpochFromPgTime(stepRun.StartedAt)
+	}
+
+	if stepRun.FinishedAt.Valid {
+		res.FinishedAt = &stepRun.FinishedAt.Time
+		res.FinishedAtEpoch = getEpochFromPgTime(stepRun.FinishedAt)
+	}
+
+	if stepRun.CancelledAt.Valid {
+		res.CancelledAt = &stepRun.CancelledAt.Time
+		res.CancelledAtEpoch = getEpochFromPgTime(stepRun.CancelledAt)
+	}
+
+	if stepRun.TimeoutAt.Valid {
+		res.TimeoutAt = &stepRun.TimeoutAt.Time
+		res.TimeoutAtEpoch = getEpochFromPgTime(stepRun.TimeoutAt)
+	}
+
+	if stepRun.WorkerId.Valid {
+		workerId := sqlchelpers.UUIDToStr(stepRun.WorkerId)
+		res.WorkerId = &workerId
+	}
+
+	return res
+}
+
+func ToRecentStepRun(stepRun *dbsqlc.GetStepRunForEngineRow) (*gen.RecentStepRuns, error) {
+	workflowRunId := uuid.MustParse(sqlchelpers.UUIDToStr(stepRun.WorkflowRunId))
+
+	res := &gen.RecentStepRuns{
+		Metadata:      *toAPIMetadata(sqlchelpers.UUIDToStr(stepRun.SRID), stepRun.SRCreatedAt.Time, stepRun.SRUpdatedAt.Time),
+		Status:        gen.StepRunStatus(stepRun.SRStatus),
+		StartedAt:     &stepRun.SRStartedAt.Time,
+		FinishedAt:    &stepRun.SRFinishedAt.Time,
+		CancelledAt:   &stepRun.SRCancelledAt.Time,
+		ActionId:      stepRun.ActionId,
+		WorkflowRunId: workflowRunId,
 	}
 
 	return res, nil
@@ -242,11 +304,20 @@ func ToStepRunEvent(stepRunEvent *dbsqlc.StepRunEvent) *gen.StepRunEvent {
 		Id:            int(stepRunEvent.ID),
 		TimeFirstSeen: stepRunEvent.TimeFirstSeen.Time,
 		TimeLastSeen:  stepRunEvent.TimeLastSeen.Time,
-		StepRunId:     sqlchelpers.UUIDToStr(stepRunEvent.StepRunId),
 		Severity:      gen.StepRunEventSeverity(stepRunEvent.Severity),
 		Reason:        gen.StepRunEventReason(stepRunEvent.Reason),
 		Message:       stepRunEvent.Message,
 		Count:         int(stepRunEvent.Count),
+	}
+
+	if stepRunEvent.StepRunId.Valid {
+		srId := sqlchelpers.UUIDToStr(stepRunEvent.StepRunId)
+		res.StepRunId = &srId
+	}
+
+	if stepRunEvent.WorkflowRunId.Valid {
+		wrId := sqlchelpers.UUIDToStr(stepRunEvent.WorkflowRunId)
+		res.WorkflowRunId = &wrId
 	}
 
 	if stepRunEvent.Data != nil {
@@ -261,24 +332,45 @@ func ToStepRunEvent(stepRunEvent *dbsqlc.StepRunEvent) *gen.StepRunEvent {
 }
 
 func ToStepRunArchive(stepRunArchive *dbsqlc.StepRunResultArchive) *gen.StepRunArchive {
-
 	res := &gen.StepRunArchive{
-		CreatedAt:        stepRunArchive.CreatedAt.Time,
-		StepRunId:        sqlchelpers.UUIDToStr(stepRunArchive.StepRunId),
-		Order:            int(stepRunArchive.Order),
-		Input:            byteSliceToStringPointer(stepRunArchive.Input),
-		Output:           byteSliceToStringPointer(stepRunArchive.Output),
-		Error:            &stepRunArchive.Error.String,
-		CancelledAt:      &stepRunArchive.CancelledAt.Time,
-		CancelledAtEpoch: getEpochFromPgTime(stepRunArchive.CancelledAt),
-		CancelledError:   &stepRunArchive.CancelledError.String,
-		CancelledReason:  &stepRunArchive.CancelledReason.String,
-		FinishedAt:       &stepRunArchive.FinishedAt.Time,
-		FinishedAtEpoch:  getEpochFromPgTime(stepRunArchive.FinishedAt),
-		StartedAt:        &stepRunArchive.StartedAt.Time,
-		StartedAtEpoch:   getEpochFromPgTime(stepRunArchive.StartedAt),
-		TimeoutAt:        &stepRunArchive.TimeoutAt.Time,
-		TimeoutAtEpoch:   getEpochFromPgTime(stepRunArchive.TimeoutAt),
+		CreatedAt:  stepRunArchive.CreatedAt.Time,
+		StepRunId:  sqlchelpers.UUIDToStr(stepRunArchive.StepRunId),
+		RetryCount: int(stepRunArchive.RetryCount),
+		Order:      int(stepRunArchive.Order),
+		Input:      byteSliceToStringPointer(stepRunArchive.Input),
+		Output:     byteSliceToStringPointer(stepRunArchive.Output),
+	}
+
+	if stepRunArchive.CancelledAt.Valid {
+		res.CancelledAt = &stepRunArchive.CancelledAt.Time
+		res.CancelledAtEpoch = getEpochFromPgTime(stepRunArchive.CancelledAt)
+	}
+
+	if stepRunArchive.Error.Valid {
+		res.Error = &stepRunArchive.Error.String
+	}
+
+	if stepRunArchive.CancelledError.Valid {
+		res.CancelledError = &stepRunArchive.CancelledError.String
+	}
+
+	if stepRunArchive.CancelledReason.Valid {
+		res.CancelledReason = &stepRunArchive.CancelledReason.String
+	}
+
+	if stepRunArchive.FinishedAt.Valid {
+		res.FinishedAt = &stepRunArchive.FinishedAt.Time
+		res.FinishedAtEpoch = getEpochFromPgTime(stepRunArchive.FinishedAt)
+	}
+
+	if stepRunArchive.TimeoutAt.Valid {
+		res.TimeoutAt = &stepRunArchive.TimeoutAt.Time
+		res.TimeoutAtEpoch = getEpochFromPgTime(stepRunArchive.TimeoutAt)
+	}
+
+	if stepRunArchive.StartedAt.Valid {
+		res.StartedAt = &stepRunArchive.StartedAt.Time
+		res.StartedAtEpoch = getEpochFromPgTime(stepRunArchive.StartedAt)
 	}
 
 	return res
@@ -301,19 +393,28 @@ func getEpochFromTime(t time.Time) *int {
 	return &epoch
 }
 
-func ToWorkflowRunTriggeredBy(triggeredBy *db.WorkflowRunTriggeredByModel) *gen.WorkflowRunTriggeredBy {
+func ToWorkflowRunTriggeredBy(parentWorkflowRunId pgtype.UUID, triggeredBy *dbsqlc.WorkflowRunTriggeredBy) *gen.WorkflowRunTriggeredBy {
 	res := &gen.WorkflowRunTriggeredBy{
-		Metadata: *toAPIMetadata(triggeredBy.ID, triggeredBy.CreatedAt, triggeredBy.UpdatedAt),
-		ParentId: triggeredBy.ParentID,
+		Metadata: *toAPIMetadata(sqlchelpers.UUIDToStr(triggeredBy.ID), triggeredBy.CreatedAt.Time, triggeredBy.UpdatedAt.Time),
 	}
 
-	if event, ok := triggeredBy.Event(); ok {
-		res.EventId = &event.ID
-		res.Event = ToEvent(event)
+	if parentWorkflowRunId.Valid {
+		parent := sqlchelpers.UUIDToStr(parentWorkflowRunId)
+		res.ParentWorkflowRunId = &parent
 	}
 
-	if cron, ok := triggeredBy.Cron(); ok {
-		res.CronSchedule = &cron.Cron
+	if triggeredBy.EventId.Valid {
+		eventId := sqlchelpers.UUIDToStr(triggeredBy.EventId)
+		res.EventId = &eventId
+	}
+
+	if triggeredBy.CronParentId.Valid {
+		cronParentId := sqlchelpers.UUIDToStr(triggeredBy.CronParentId)
+		res.CronParentId = &cronParentId
+	}
+
+	if triggeredBy.CronSchedule.Valid {
+		res.CronSchedule = &triggeredBy.CronSchedule.String
 	}
 
 	return res
@@ -337,22 +438,13 @@ func ToWorkflowRunFromSQLC(row *dbsqlc.ListWorkflowRunsRow) *gen.WorkflowRun {
 		finishedAt = &run.FinishedAt.Time
 	}
 
-	var event *gen.Event
-
-	if row.ID.Valid && row.Key.Valid {
-		event = &gen.Event{
-			Key:      row.Key.String,
-			Metadata: *toAPIMetadata(pgUUIDToStr(row.ID), row.CreatedAt.Time, row.UpdatedAt.Time),
-		}
-	}
-
 	triggeredBy := &gen.WorkflowRunTriggeredBy{
 		Metadata: *toAPIMetadata(pgUUIDToStr(runTriggeredBy.ID), runTriggeredBy.CreatedAt.Time, runTriggeredBy.UpdatedAt.Time),
-		ParentId: sqlchelpers.UUIDToStr(runTriggeredBy.ParentId),
 	}
 
-	if event != nil {
-		triggeredBy.Event = event
+	if run.ParentId.Valid {
+		parentId := sqlchelpers.UUIDToStr(run.ParentId)
+		triggeredBy.ParentWorkflowRunId = &parentId
 	}
 
 	workflowRunId := sqlchelpers.UUIDToStr(run.ID)
@@ -371,7 +463,7 @@ func ToWorkflowRunFromSQLC(row *dbsqlc.ListWorkflowRunsRow) *gen.WorkflowRun {
 	var duration int
 
 	if run.Duration.Valid {
-		duration = int(run.Duration.Int32)
+		duration = int(run.Duration.Int64)
 	}
 
 	res := &gen.WorkflowRun{

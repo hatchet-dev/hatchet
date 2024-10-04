@@ -32,7 +32,7 @@ func NewMetered(entitlements repository.EntitlementsRepository, l *zerolog.Logge
 
 var ErrResourceExhausted = fmt.Errorf("resource exhausted")
 
-func MakeMetered[T any](ctx context.Context, m *Metered, resource dbsqlc.LimitResource, tenantId string, f func() (*string, *T, error)) (*T, error) {
+func MakeMetered[T any](ctx context.Context, m *Metered, resource dbsqlc.LimitResource, tenantId string, numberOfResources int32, f func() (*string, *T, error)) (*T, error) {
 
 	var key = fmt.Sprintf("%s:%s", resource, tenantId)
 
@@ -45,7 +45,7 @@ func MakeMetered[T any](ctx context.Context, m *Metered, resource dbsqlc.LimitRe
 	}
 
 	if canCreate == nil {
-		c, percent, err := m.entitlements.TenantLimit().CanCreate(ctx, resource, tenantId)
+		c, percent, err := m.entitlements.TenantLimit().CanCreate(ctx, resource, tenantId, numberOfResources)
 
 		if err != nil {
 			return nil, fmt.Errorf("could not check tenant limit: %w", err)
@@ -70,7 +70,7 @@ func MakeMetered[T any](ctx context.Context, m *Metered, resource dbsqlc.LimitRe
 	}
 
 	deferredMeter := func() {
-		limit, err := m.entitlements.TenantLimit().Meter(ctx, resource, tenantId)
+		limit, err := m.entitlements.TenantLimit().Meter(ctx, resource, tenantId, numberOfResources)
 
 		if limit != nil && (percent <= 50 || percent >= 100) {
 			m.c.Set(key, limit.Value < limit.LimitValue)

@@ -1,9 +1,11 @@
 package workflows
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"strings"
+	"time"
 
 	"github.com/labstack/echo/v4"
 
@@ -37,6 +39,22 @@ func (t *WorkflowService) WorkflowRunList(ctx echo.Context, request gen.Workflow
 	if request.Params.OrderByDirection != nil {
 		orderDirection = string(*request.Params.OrderByDirection)
 		listOpts.OrderDirection = &orderDirection
+	}
+
+	if request.Params.CreatedAfter != nil {
+		listOpts.CreatedAfter = request.Params.CreatedAfter
+	}
+
+	if request.Params.CreatedBefore != nil {
+		listOpts.CreatedBefore = request.Params.CreatedBefore
+	}
+
+	if request.Params.FinishedAfter != nil {
+		listOpts.FinishedAfter = request.Params.FinishedAfter
+	}
+
+	if request.Params.FinishedBefore != nil {
+		listOpts.FinishedBefore = request.Params.FinishedBefore
 	}
 
 	if request.Params.Limit != nil {
@@ -96,7 +114,10 @@ func (t *WorkflowService) WorkflowRunList(ctx echo.Context, request gen.Workflow
 		listOpts.AdditionalMetadata = additionalMetadata
 	}
 
-	workflowRuns, err := t.config.APIRepository.WorkflowRun().ListWorkflowRuns(tenant.ID, listOpts)
+	dbCtx, cancel := context.WithTimeout(ctx.Request().Context(), 30*time.Second)
+	defer cancel()
+
+	workflowRuns, err := t.config.APIRepository.WorkflowRun().ListWorkflowRuns(dbCtx, tenant.ID, listOpts)
 
 	if err != nil {
 		return nil, err

@@ -55,6 +55,50 @@ func (ns NullConcurrencyLimitStrategy) Value() (driver.Value, error) {
 	return string(ns.ConcurrencyLimitStrategy), nil
 }
 
+type InternalQueue string
+
+const (
+	InternalQueueWORKERSEMAPHORECOUNT InternalQueue = "WORKER_SEMAPHORE_COUNT"
+	InternalQueueSTEPRUNUPDATE        InternalQueue = "STEP_RUN_UPDATE"
+	InternalQueueWORKFLOWRUNUPDATE    InternalQueue = "WORKFLOW_RUN_UPDATE"
+	InternalQueueWORKFLOWRUNPAUSED    InternalQueue = "WORKFLOW_RUN_PAUSED"
+)
+
+func (e *InternalQueue) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = InternalQueue(s)
+	case string:
+		*e = InternalQueue(s)
+	default:
+		return fmt.Errorf("unsupported scan type for InternalQueue: %T", src)
+	}
+	return nil
+}
+
+type NullInternalQueue struct {
+	InternalQueue InternalQueue `json:"InternalQueue"`
+	Valid         bool          `json:"valid"` // Valid is true if InternalQueue is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullInternalQueue) Scan(value interface{}) error {
+	if value == nil {
+		ns.InternalQueue, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.InternalQueue.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullInternalQueue) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.InternalQueue), nil
+}
+
 type InviteLinkStatus string
 
 const (
@@ -274,23 +318,113 @@ func (ns NullLogLineLevel) Value() (driver.Value, error) {
 	return string(ns.LogLineLevel), nil
 }
 
+type StepExpressionKind string
+
+const (
+	StepExpressionKindDYNAMICRATELIMITKEY    StepExpressionKind = "DYNAMIC_RATE_LIMIT_KEY"
+	StepExpressionKindDYNAMICRATELIMITVALUE  StepExpressionKind = "DYNAMIC_RATE_LIMIT_VALUE"
+	StepExpressionKindDYNAMICRATELIMITUNITS  StepExpressionKind = "DYNAMIC_RATE_LIMIT_UNITS"
+	StepExpressionKindDYNAMICRATELIMITWINDOW StepExpressionKind = "DYNAMIC_RATE_LIMIT_WINDOW"
+)
+
+func (e *StepExpressionKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = StepExpressionKind(s)
+	case string:
+		*e = StepExpressionKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for StepExpressionKind: %T", src)
+	}
+	return nil
+}
+
+type NullStepExpressionKind struct {
+	StepExpressionKind StepExpressionKind `json:"StepExpressionKind"`
+	Valid              bool               `json:"valid"` // Valid is true if StepExpressionKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullStepExpressionKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.StepExpressionKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.StepExpressionKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullStepExpressionKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.StepExpressionKind), nil
+}
+
+type StepRateLimitKind string
+
+const (
+	StepRateLimitKindSTATIC  StepRateLimitKind = "STATIC"
+	StepRateLimitKindDYNAMIC StepRateLimitKind = "DYNAMIC"
+)
+
+func (e *StepRateLimitKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = StepRateLimitKind(s)
+	case string:
+		*e = StepRateLimitKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for StepRateLimitKind: %T", src)
+	}
+	return nil
+}
+
+type NullStepRateLimitKind struct {
+	StepRateLimitKind StepRateLimitKind `json:"StepRateLimitKind"`
+	Valid             bool              `json:"valid"` // Valid is true if StepRateLimitKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullStepRateLimitKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.StepRateLimitKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.StepRateLimitKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullStepRateLimitKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.StepRateLimitKind), nil
+}
+
 type StepRunEventReason string
 
 const (
-	StepRunEventReasonREQUEUEDNOWORKER   StepRunEventReason = "REQUEUED_NO_WORKER"
-	StepRunEventReasonREQUEUEDRATELIMIT  StepRunEventReason = "REQUEUED_RATE_LIMIT"
-	StepRunEventReasonSCHEDULINGTIMEDOUT StepRunEventReason = "SCHEDULING_TIMED_OUT"
-	StepRunEventReasonASSIGNED           StepRunEventReason = "ASSIGNED"
-	StepRunEventReasonSTARTED            StepRunEventReason = "STARTED"
-	StepRunEventReasonFINISHED           StepRunEventReason = "FINISHED"
-	StepRunEventReasonFAILED             StepRunEventReason = "FAILED"
-	StepRunEventReasonRETRYING           StepRunEventReason = "RETRYING"
-	StepRunEventReasonCANCELLED          StepRunEventReason = "CANCELLED"
-	StepRunEventReasonTIMEDOUT           StepRunEventReason = "TIMED_OUT"
-	StepRunEventReasonREASSIGNED         StepRunEventReason = "REASSIGNED"
-	StepRunEventReasonSLOTRELEASED       StepRunEventReason = "SLOT_RELEASED"
-	StepRunEventReasonTIMEOUTREFRESHED   StepRunEventReason = "TIMEOUT_REFRESHED"
-	StepRunEventReasonRETRIEDBYUSER      StepRunEventReason = "RETRIED_BY_USER"
+	StepRunEventReasonREQUEUEDNOWORKER             StepRunEventReason = "REQUEUED_NO_WORKER"
+	StepRunEventReasonREQUEUEDRATELIMIT            StepRunEventReason = "REQUEUED_RATE_LIMIT"
+	StepRunEventReasonSCHEDULINGTIMEDOUT           StepRunEventReason = "SCHEDULING_TIMED_OUT"
+	StepRunEventReasonASSIGNED                     StepRunEventReason = "ASSIGNED"
+	StepRunEventReasonSTARTED                      StepRunEventReason = "STARTED"
+	StepRunEventReasonFINISHED                     StepRunEventReason = "FINISHED"
+	StepRunEventReasonFAILED                       StepRunEventReason = "FAILED"
+	StepRunEventReasonRETRYING                     StepRunEventReason = "RETRYING"
+	StepRunEventReasonCANCELLED                    StepRunEventReason = "CANCELLED"
+	StepRunEventReasonTIMEDOUT                     StepRunEventReason = "TIMED_OUT"
+	StepRunEventReasonREASSIGNED                   StepRunEventReason = "REASSIGNED"
+	StepRunEventReasonSLOTRELEASED                 StepRunEventReason = "SLOT_RELEASED"
+	StepRunEventReasonTIMEOUTREFRESHED             StepRunEventReason = "TIMEOUT_REFRESHED"
+	StepRunEventReasonRETRIEDBYUSER                StepRunEventReason = "RETRIED_BY_USER"
+	StepRunEventReasonSENTTOWORKER                 StepRunEventReason = "SENT_TO_WORKER"
+	StepRunEventReasonWORKFLOWRUNGROUPKEYSUCCEEDED StepRunEventReason = "WORKFLOW_RUN_GROUP_KEY_SUCCEEDED"
+	StepRunEventReasonWORKFLOWRUNGROUPKEYFAILED    StepRunEventReason = "WORKFLOW_RUN_GROUP_KEY_FAILED"
+	StepRunEventReasonRATELIMITERROR               StepRunEventReason = "RATE_LIMIT_ERROR"
 )
 
 func (e *StepRunEventReason) Scan(src interface{}) error {
@@ -381,6 +515,7 @@ const (
 	StepRunStatusSUCCEEDED         StepRunStatus = "SUCCEEDED"
 	StepRunStatusFAILED            StepRunStatus = "FAILED"
 	StepRunStatusCANCELLED         StepRunStatus = "CANCELLED"
+	StepRunStatusCANCELLING        StepRunStatus = "CANCELLING"
 )
 
 func (e *StepRunStatus) Scan(src interface{}) error {
@@ -586,6 +721,49 @@ func (ns NullVcsProvider) Value() (driver.Value, error) {
 	return string(ns.VcsProvider), nil
 }
 
+type WebhookWorkerRequestMethod string
+
+const (
+	WebhookWorkerRequestMethodGET  WebhookWorkerRequestMethod = "GET"
+	WebhookWorkerRequestMethodPOST WebhookWorkerRequestMethod = "POST"
+	WebhookWorkerRequestMethodPUT  WebhookWorkerRequestMethod = "PUT"
+)
+
+func (e *WebhookWorkerRequestMethod) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = WebhookWorkerRequestMethod(s)
+	case string:
+		*e = WebhookWorkerRequestMethod(s)
+	default:
+		return fmt.Errorf("unsupported scan type for WebhookWorkerRequestMethod: %T", src)
+	}
+	return nil
+}
+
+type NullWebhookWorkerRequestMethod struct {
+	WebhookWorkerRequestMethod WebhookWorkerRequestMethod `json:"WebhookWorkerRequestMethod"`
+	Valid                      bool                       `json:"valid"` // Valid is true if WebhookWorkerRequestMethod is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullWebhookWorkerRequestMethod) Scan(value interface{}) error {
+	if value == nil {
+		ns.WebhookWorkerRequestMethod, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.WebhookWorkerRequestMethod.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullWebhookWorkerRequestMethod) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.WebhookWorkerRequestMethod), nil
+}
+
 type WorkerLabelComparator string
 
 const (
@@ -630,6 +808,49 @@ func (ns NullWorkerLabelComparator) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.WorkerLabelComparator), nil
+}
+
+type WorkerType string
+
+const (
+	WorkerTypeWEBHOOK    WorkerType = "WEBHOOK"
+	WorkerTypeMANAGED    WorkerType = "MANAGED"
+	WorkerTypeSELFHOSTED WorkerType = "SELFHOSTED"
+)
+
+func (e *WorkerType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = WorkerType(s)
+	case string:
+		*e = WorkerType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for WorkerType: %T", src)
+	}
+	return nil
+}
+
+type NullWorkerType struct {
+	WorkerType WorkerType `json:"WorkerType"`
+	Valid      bool       `json:"valid"` // Valid is true if WorkerType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullWorkerType) Scan(value interface{}) error {
+	if value == nil {
+		ns.WorkerType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.WorkerType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullWorkerType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.WorkerType), nil
 }
 
 type WorkflowKind string
@@ -749,6 +970,7 @@ type ControllerPartition struct {
 	CreatedAt     pgtype.Timestamp `json:"createdAt"`
 	UpdatedAt     pgtype.Timestamp `json:"updatedAt"`
 	LastHeartbeat pgtype.Timestamp `json:"lastHeartbeat"`
+	Name          pgtype.Text      `json:"name"`
 }
 
 type Dispatcher struct {
@@ -770,6 +992,7 @@ type Event struct {
 	ReplayedFromId     pgtype.UUID      `json:"replayedFromId"`
 	Data               []byte           `json:"data"`
 	AdditionalMetadata []byte           `json:"additionalMetadata"`
+	InsertOrder        pgtype.Int4      `json:"insertOrder"`
 }
 
 type GetGroupKeyRun struct {
@@ -793,6 +1016,16 @@ type GetGroupKeyRun struct {
 	CancelledError    pgtype.Text      `json:"cancelledError"`
 	WorkflowRunId     pgtype.UUID      `json:"workflowRunId"`
 	ScheduleTimeoutAt pgtype.Timestamp `json:"scheduleTimeoutAt"`
+}
+
+type InternalQueueItem struct {
+	ID        int64         `json:"id"`
+	Queue     InternalQueue `json:"queue"`
+	IsQueued  bool          `json:"isQueued"`
+	Data      []byte        `json:"data"`
+	TenantId  pgtype.UUID   `json:"tenantId"`
+	Priority  int32         `json:"priority"`
+	UniqueKey pgtype.Text   `json:"uniqueKey"`
 }
 
 type Job struct {
@@ -847,6 +1080,27 @@ type LogLine struct {
 	Metadata  []byte           `json:"metadata"`
 }
 
+type Queue struct {
+	ID       int64       `json:"id"`
+	TenantId pgtype.UUID `json:"tenantId"`
+	Name     string      `json:"name"`
+}
+
+type QueueItem struct {
+	ID                int64              `json:"id"`
+	StepRunId         pgtype.UUID        `json:"stepRunId"`
+	StepId            pgtype.UUID        `json:"stepId"`
+	ActionId          pgtype.Text        `json:"actionId"`
+	ScheduleTimeoutAt pgtype.Timestamp   `json:"scheduleTimeoutAt"`
+	StepTimeout       pgtype.Text        `json:"stepTimeout"`
+	Priority          int32              `json:"priority"`
+	IsQueued          bool               `json:"isQueued"`
+	TenantId          pgtype.UUID        `json:"tenantId"`
+	Queue             string             `json:"queue"`
+	Sticky            NullStickyStrategy `json:"sticky"`
+	DesiredWorkerId   pgtype.UUID        `json:"desiredWorkerId"`
+}
+
 type RateLimit struct {
 	TenantId   pgtype.UUID      `json:"tenantId"`
 	Key        string           `json:"key"`
@@ -866,6 +1120,12 @@ type SNSIntegration struct {
 
 type SecurityCheckIdent struct {
 	ID pgtype.UUID `json:"id"`
+}
+
+type SemaphoreQueueItem struct {
+	StepRunId pgtype.UUID `json:"stepRunId"`
+	WorkerId  pgtype.UUID `json:"workerId"`
+	TenantId  pgtype.UUID `json:"tenantId"`
 }
 
 type Service struct {
@@ -924,16 +1184,24 @@ type StepDesiredWorkerLabel struct {
 	Weight     int32                 `json:"weight"`
 }
 
+type StepExpression struct {
+	Key        string             `json:"key"`
+	StepId     pgtype.UUID        `json:"stepId"`
+	Expression string             `json:"expression"`
+	Kind       StepExpressionKind `json:"kind"`
+}
+
 type StepOrder struct {
 	A pgtype.UUID `json:"A"`
 	B pgtype.UUID `json:"B"`
 }
 
 type StepRateLimit struct {
-	Units        int32       `json:"units"`
-	StepId       pgtype.UUID `json:"stepId"`
-	RateLimitKey string      `json:"rateLimitKey"`
-	TenantId     pgtype.UUID `json:"tenantId"`
+	Units        int32             `json:"units"`
+	StepId       pgtype.UUID       `json:"stepId"`
+	RateLimitKey string            `json:"rateLimitKey"`
+	TenantId     pgtype.UUID       `json:"tenantId"`
+	Kind         StepRateLimitKind `json:"kind"`
 }
 
 type StepRun struct {
@@ -964,6 +1232,8 @@ type StepRun struct {
 	GitRepoBranch     pgtype.Text      `json:"gitRepoBranch"`
 	RetryCount        int32            `json:"retryCount"`
 	SemaphoreReleased bool             `json:"semaphoreReleased"`
+	Queue             string           `json:"queue"`
+	Priority          pgtype.Int4      `json:"priority"`
 }
 
 type StepRunEvent struct {
@@ -976,6 +1246,15 @@ type StepRunEvent struct {
 	Message       string               `json:"message"`
 	Count         int32                `json:"count"`
 	Data          []byte               `json:"data"`
+	WorkflowRunId pgtype.UUID          `json:"workflowRunId"`
+}
+
+type StepRunExpressionEval struct {
+	Key       string             `json:"key"`
+	StepRunId pgtype.UUID        `json:"stepRunId"`
+	ValueStr  pgtype.Text        `json:"valueStr"`
+	ValueInt  pgtype.Int4        `json:"valueInt"`
+	Kind      StepExpressionKind `json:"kind"`
 }
 
 type StepRunOrder struct {
@@ -999,6 +1278,7 @@ type StepRunResultArchive struct {
 	CancelledAt     pgtype.Timestamp `json:"cancelledAt"`
 	CancelledReason pgtype.Text      `json:"cancelledReason"`
 	CancelledError  pgtype.Text      `json:"cancelledError"`
+	RetryCount      int32            `json:"retryCount"`
 }
 
 type StreamEvent struct {
@@ -1109,6 +1389,7 @@ type TenantWorkerPartition struct {
 	CreatedAt     pgtype.Timestamp `json:"createdAt"`
 	UpdatedAt     pgtype.Timestamp `json:"updatedAt"`
 	LastHeartbeat pgtype.Timestamp `json:"lastHeartbeat"`
+	Name          pgtype.Text      `json:"name"`
 }
 
 type Ticker struct {
@@ -1117,6 +1398,15 @@ type Ticker struct {
 	UpdatedAt       pgtype.Timestamp `json:"updatedAt"`
 	LastHeartbeatAt pgtype.Timestamp `json:"lastHeartbeatAt"`
 	IsActive        bool             `json:"isActive"`
+}
+
+type TimeoutQueueItem struct {
+	ID         int64            `json:"id"`
+	StepRunId  pgtype.UUID      `json:"stepRunId"`
+	RetryCount int32            `json:"retryCount"`
+	TimeoutAt  pgtype.Timestamp `json:"timeoutAt"`
+	TenantId   pgtype.UUID      `json:"tenantId"`
+	IsQueued   bool             `json:"isQueued"`
 }
 
 type User struct {
@@ -1168,6 +1458,14 @@ type WebhookWorker struct {
 	TenantId   pgtype.UUID      `json:"tenantId"`
 }
 
+type WebhookWorkerRequest struct {
+	ID              pgtype.UUID                `json:"id"`
+	CreatedAt       pgtype.Timestamp           `json:"createdAt"`
+	WebhookWorkerId pgtype.UUID                `json:"webhookWorkerId"`
+	Method          WebhookWorkerRequestMethod `json:"method"`
+	StatusCode      int32                      `json:"statusCode"`
+}
+
 type WebhookWorkerWorkflow struct {
 	ID              pgtype.UUID `json:"id"`
 	WebhookWorkerId pgtype.UUID `json:"webhookWorkerId"`
@@ -1187,6 +1485,14 @@ type Worker struct {
 	IsActive                bool             `json:"isActive"`
 	LastListenerEstablished pgtype.Timestamp `json:"lastListenerEstablished"`
 	IsPaused                bool             `json:"isPaused"`
+	Type                    WorkerType       `json:"type"`
+	WebhookId               pgtype.UUID      `json:"webhookId"`
+}
+
+type WorkerAssignEvent struct {
+	ID               int64       `json:"id"`
+	WorkerId         pgtype.UUID `json:"workerId"`
+	AssignedStepRuns []byte      `json:"assignedStepRuns"`
 }
 
 type WorkerLabel struct {
@@ -1199,17 +1505,6 @@ type WorkerLabel struct {
 	IntValue  pgtype.Int4      `json:"intValue"`
 }
 
-type WorkerSemaphore struct {
-	WorkerId pgtype.UUID `json:"workerId"`
-	Slots    int32       `json:"slots"`
-}
-
-type WorkerSemaphoreSlot struct {
-	ID        pgtype.UUID `json:"id"`
-	WorkerId  pgtype.UUID `json:"workerId"`
-	StepRunId pgtype.UUID `json:"stepRunId"`
-}
-
 type Workflow struct {
 	ID          pgtype.UUID      `json:"id"`
 	CreatedAt   pgtype.Timestamp `json:"createdAt"`
@@ -1218,16 +1513,18 @@ type Workflow struct {
 	TenantId    pgtype.UUID      `json:"tenantId"`
 	Name        string           `json:"name"`
 	Description pgtype.Text      `json:"description"`
+	IsPaused    pgtype.Bool      `json:"isPaused"`
 }
 
 type WorkflowConcurrency struct {
-	ID                    pgtype.UUID              `json:"id"`
-	CreatedAt             pgtype.Timestamp         `json:"createdAt"`
-	UpdatedAt             pgtype.Timestamp         `json:"updatedAt"`
-	WorkflowVersionId     pgtype.UUID              `json:"workflowVersionId"`
-	GetConcurrencyGroupId pgtype.UUID              `json:"getConcurrencyGroupId"`
-	MaxRuns               int32                    `json:"maxRuns"`
-	LimitStrategy         ConcurrencyLimitStrategy `json:"limitStrategy"`
+	ID                         pgtype.UUID              `json:"id"`
+	CreatedAt                  pgtype.Timestamp         `json:"createdAt"`
+	UpdatedAt                  pgtype.Timestamp         `json:"updatedAt"`
+	WorkflowVersionId          pgtype.UUID              `json:"workflowVersionId"`
+	GetConcurrencyGroupId      pgtype.UUID              `json:"getConcurrencyGroupId"`
+	MaxRuns                    int32                    `json:"maxRuns"`
+	LimitStrategy              ConcurrencyLimitStrategy `json:"limitStrategy"`
+	ConcurrencyGroupExpression pgtype.Text              `json:"concurrencyGroupExpression"`
 }
 
 type WorkflowRun struct {
@@ -1248,7 +1545,8 @@ type WorkflowRun struct {
 	ParentId           pgtype.UUID       `json:"parentId"`
 	ParentStepRunId    pgtype.UUID       `json:"parentStepRunId"`
 	AdditionalMetadata []byte            `json:"additionalMetadata"`
-	Duration           pgtype.Int4       `json:"duration"`
+	Duration           pgtype.Int8       `json:"duration"`
+	Priority           pgtype.Int4       `json:"priority"`
 }
 
 type WorkflowRunDedupe struct {
@@ -1346,4 +1644,5 @@ type WorkflowVersion struct {
 	OnFailureJobId  pgtype.UUID        `json:"onFailureJobId"`
 	Sticky          NullStickyStrategy `json:"sticky"`
 	Kind            WorkflowKind       `json:"kind"`
+	DefaultPriority pgtype.Int4        `json:"defaultPriority"`
 }

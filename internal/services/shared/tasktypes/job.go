@@ -30,6 +30,24 @@ func JobRunQueuedToTask(tenantId, jobRunId string) *msgqueue.Message {
 	}
 }
 
+type CheckTenantQueueMetadata struct {
+	TenantId string `json:"tenant_id" validate:"required,uuid"`
+}
+
+func CheckTenantQueueToTask(tenantId string) *msgqueue.Message {
+	metadata, _ := datautils.ToJSONMap(CheckTenantQueueMetadata{
+		TenantId: tenantId,
+	})
+
+	return &msgqueue.Message{
+		ID:                "check-tenant-queue",
+		Payload:           nil,
+		Metadata:          metadata,
+		ImmediatelyExpire: true,
+		Retries:           3,
+	}
+}
+
 type JobRunCancelledTaskPayload struct {
 	JobRunId string  `json:"job_run_id" validate:"required,uuid"`
 	Reason   *string `json:"reason,omitempty"`

@@ -1,0 +1,36 @@
+{
+  "StepRunIds": [
+    "16fa711e-c03e-435c-88d9-62adf1591d98",
+    "064e787a-6cfd-4f82-8b6d-d8031459fdee"
+  ],
+  "StepRunTimeouts": ["60s", "60s"],
+  "SlotIds": [
+    "8cf68f09-b914-4f31-9777-8082b751a2d4",
+    "aed946be-43db-4b5f-876a-c6c71f4d52aa"
+  ],
+  "WorkerIds": [
+    "aaaaaaaa-43db-4b5f-876a-c6c71f4d52aa",
+    "bbbbbbbb-43db-4b5f-876a-c6c71f4d52aa"
+  ],
+  "UnassignedStepRunIds": ["064e787a-6cfd-4f82-8b6d-d8031459fdef"],
+  "QueuedStepRuns": [
+    {
+      "StepRunId": "16fa711e-c03e-435c-88d9-62adf1591d98",
+      "WorkerId": "aaaaaaaa-43db-4b5f-876a-c6c71f4d52aa",
+      "DispatcherId": "9994a9eb-430d-46da-934d-d9dd953cfd21"
+    },
+    {
+      "StepRunId": "064e787a-6cfd-4f82-8b6d-d8031459fdee",
+      "WorkerId": "bbbbbbbb-43db-4b5f-876a-c6c71f4d52aa",
+      "DispatcherId": "9994a9eb-430d-46da-934d-d9dd953cfd21"
+    }
+  ],
+  "TimedOutStepRuns": [],
+  "RateLimitedStepRuns": {},
+  "QueuedItems": [137295, 152259],
+  "ShouldContinue": false,
+  "MinQueuedIds": {
+    "child:process2": 0
+  },
+  "RateLimitUnitsConsumed": {}
+}

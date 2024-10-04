@@ -48,6 +48,67 @@ func (i *IngestorImpl) Push(ctx context.Context, req *contracts.PushEventRequest
 	return e, nil
 }
 
+func (i *IngestorImpl) BulkPush(ctx context.Context, req *contracts.BulkPushEventRequest) (*contracts.Events, error) {
+	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
+
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+
+	events := make([]*repository.CreateEventOpts, 0)
+
+	for _, e := range req.Events {
+		var additionalMeta []byte
+		if e.AdditionalMetadata != nil {
+			additionalMeta = []byte(*e.AdditionalMetadata)
+		}
+		events = append(events, &repository.CreateEventOpts{
+			TenantId:           tenantId,
+			Key:                e.Key,
+			Data:               []byte(e.Payload),
+			AdditionalMetadata: additionalMeta,
+		})
+	}
+
+	opts := &repository.BulkCreateEventOpts{
+		TenantId: tenantId,
+		Events:   events,
+	}
+
+	if err := i.v.Validate(opts); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
+	}
+
+	for _, e := range opts.Events {
+
+		if err := i.v.Validate(e); err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "Invalid request: events failing validation %s", err)
+		}
+	}
+
+	createdEvents, err := i.BulkIngestEvent(ctx, tenantId, events)
+
+	if err == metered.ErrResourceExhausted {
+		return nil, status.Errorf(codes.ResourceExhausted, "resource exhausted: event limit exceeded for tenant")
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	var contractEvents []*contracts.Event
+	for _, e := range createdEvents {
+
+		contractEvent, err := toEvent(e)
+
+		if err != nil {
+			return nil, err
+		}
+
+		contractEvents = append(contractEvents, contractEvent)
+
+	}
+
+	return &contracts.Events{Events: contractEvents}, nil
+}
+
 func (i *IngestorImpl) ReplaySingleEvent(ctx context.Context, req *contracts.ReplayEventRequest) (*contracts.Event, error) {
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
 
@@ -114,11 +175,7 @@ func (i *IngestorImpl) PutStreamEvent(ctx context.Context, req *contracts.PutStr
 		return nil, err
 	}
 
-	q, err := msgqueue.TenantEventConsumerQueue(tenantId)
-
-	if err != nil {
-		return nil, err
-	}
+	q := msgqueue.TenantEventConsumerQueue(tenantId)
 
 	e := streamEventToTask(streamEvent, sqlchelpers.UUIDToStr(meta.WorkflowRunId), &meta.RetryCount, &meta.Retries)
 

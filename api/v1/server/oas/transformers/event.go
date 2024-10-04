@@ -7,6 +7,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -19,6 +20,24 @@ func ToEvent(event *db.EventModel) *gen.Event {
 	}
 
 	return res
+}
+
+func ToEventList(events []*dbsqlc.Event) []gen.Event {
+	res := make([]gen.Event, len(events))
+
+	for i, event := range events {
+		res[i] = dbslqEventToEvent(event)
+	}
+
+	return res
+}
+
+func dbslqEventToEvent(event *dbsqlc.Event) gen.Event {
+	return gen.Event{
+		Metadata: *toAPIMetadata(sqlchelpers.UUIDToStr(event.ID), event.CreatedAt.Time, event.UpdatedAt.Time),
+		Key:      event.Key,
+		TenantId: pgUUIDToStr(event.TenantId),
+	}
 }
 
 func ToEventFromSQLC(eventRow *dbsqlc.ListEventsRow) (*gen.Event, error) {

@@ -13,13 +13,14 @@ type WebhookWorker struct {
 }
 
 type WorkerOpts struct {
-	Name     string
-	Token    string
-	ID       string
-	Secret   string
-	URL      string
-	TenantID string
-	Actions  []string
+	Name      string
+	Token     string
+	ID        string
+	Secret    string
+	URL       string
+	TenantID  string
+	Actions   []string
+	WebhookId string
 }
 
 func New(opts WorkerOpts) (*WebhookWorker, error) {
@@ -47,8 +48,9 @@ func (w *WebhookWorker) Start() (func() error, error) {
 	}
 
 	cleanup, err := r.StartWebhook(worker.WebhookWorkerOpts{
-		URL:    w.opts.URL,
-		Secret: w.opts.Secret,
+		URL:       w.opts.URL,
+		Secret:    w.opts.Secret,
+		WebhookId: w.opts.WebhookId,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("could not start webhook worker: %w", err)

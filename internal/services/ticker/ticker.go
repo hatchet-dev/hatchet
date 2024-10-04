@@ -9,15 +9,13 @@ import (
 	"github.com/go-co-op/gocron/v2"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
-	"golang.org/x/sync/errgroup"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/integrations/alerting"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
+	"github.com/hatchet-dev/hatchet/internal/services/controllers/partition"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 )
 
 type Ticker interface {
@@ -41,7 +39,7 @@ type TickerImpl struct {
 
 	tickerId string
 
-	partitionId string
+	p *partition.Partition
 }
 
 type TickerOpt func(*TickerOpts)
@@ -57,7 +55,7 @@ type TickerOpts struct {
 
 	dv datautils.DataDecoderValidator
 
-	partitionId string
+	p *partition.Partition
 }
 
 func defaultTickerOpts() *TickerOpts {
@@ -99,9 +97,9 @@ func WithTenantAlerter(ta *alerting.TenantAlertManager) TickerOpt {
 	}
 }
 
-func WithPartitionId(pid string) TickerOpt {
+func WithPartition(p *partition.Partition) TickerOpt {
 	return func(opts *TickerOpts) {
-		opts.partitionId = pid
+		opts.p = p
 	}
 }
 
@@ -128,8 +126,8 @@ func New(fs ...TickerOpt) (*TickerImpl, error) {
 		return nil, fmt.Errorf("tenant alerter is required. use WithTenantAlerter")
 	}
 
-	if opts.partitionId == "" {
-		return nil, fmt.Errorf("partition id is required. use WithPartitionId")
+	if opts.p == nil {
+		return nil, fmt.Errorf("partition is required. use WithPartition")
 	}
 
 	newLogger := opts.l.With().Str("service", "ticker").Logger()
@@ -150,7 +148,7 @@ func New(fs ...TickerOpt) (*TickerImpl, error) {
 		dv:           opts.dv,
 		tickerId:     opts.tickerId,
 		ta:           opts.ta,
-		partitionId:  opts.partitionId,
+		p:            opts.p,
 	}, nil
 }
 
@@ -270,32 +268,6 @@ func (t *TickerImpl) Start() (func() error, error) {
 		return nil, fmt.Errorf("could not schedule tenant resource limit alert polling: %w", err)
 	}
 
-	// poll to resolve worker semaphore slots every 1 minute
-	_, err = t.s.NewJob(
-		gocron.DurationJob(time.Minute*1),
-		gocron.NewTask(
-			t.runWorkerSemaphoreSlotResolver(ctx),
-		),
-	)
-
-	if err != nil {
-		cancel()
-		return nil, fmt.Errorf("could not schedule worker semaphore slot resolver polling: %w", err)
-	}
-
-	// poll to resolve unresolved failed step runs every 30 seconds
-	// _, err = t.s.NewJob(
-	// 	gocron.DurationJob(time.Second*30),
-	// 	gocron.NewTask(
-	// 		t.runResolveUnresolvedFailedSteps(ctx),
-	// 	),
-	// )
-
-	// if err != nil {
-	// 	cancel()
-	// 	return nil, fmt.Errorf("could not resolve unresolved failed steps polling: %w", err)
-	// }
-
 	t.s.Start()
 
 	cleanup := func() error {
@@ -311,7 +283,7 @@ func (t *TickerImpl) Start() (func() error, error) {
 		defer deleteCancel()
 
 		// delete the ticker
-		err = t.repo.Ticker().Delete(deleteCtx, t.tickerId)
+		err = t.repo.Ticker().DeactivateTicker(deleteCtx, t.tickerId)
 
 		if err != nil {
 			t.l.Err(err).Msg("could not delete ticker")
@@ -355,94 +327,3 @@ func (t *TickerImpl) runStreamEventCleanup(ctx context.Context) func() {
 		}
 	}
 }
-
-func (t *TickerImpl) runWorkerSemaphoreSlotResolverTenant(ctx context.Context, tenant *dbsqlc.Tenant) error {
-	tenantId := tenant.ID
-
-	tenantIdStr := sqlchelpers.UUIDToStr(tenantId)
-
-	t.l.Debug().Msgf("ticker: resolving orphaned worker semaphore slots for tenant %s", tenantIdStr)
-
-	// keep resolving until the context is done
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		default:
-		}
-
-		n, err := t.repo.Worker().ResolveWorkerSemaphoreSlots(ctx, tenantId)
-
-		if err != nil {
-			t.l.Err(err).Msgf("could not resolve orphaned worker semaphore slots for tenant %s", tenantIdStr)
-			return err
-		}
-
-		if n.HasResolved {
-			t.l.Warn().Msgf("resolved orphaned worker semaphore slots for tenant %s", tenantIdStr)
-		}
-
-		if !n.HasMore {
-			return nil
-		}
-	}
-}
-
-func (t *TickerImpl) runWorkerSemaphoreSlotResolver(ctx context.Context) func() {
-	return func() {
-		ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
-		defer cancel()
-
-		t.l.Debug().Msgf("ticker: resolving orphaned worker semaphore slots")
-
-		// list all tenants
-		tenants, err := t.repo.Tenant().ListTenantsByControllerPartition(ctx, t.partitionId)
-
-		if err != nil {
-			t.l.Err(err).Msg("could not list tenants")
-			return
-		}
-
-		g := new(errgroup.Group)
-
-		for i := range tenants {
-			g.Go(func() error {
-				return t.runWorkerSemaphoreSlotResolverTenant(ctx, tenants[i])
-			})
-		}
-
-		err = g.Wait()
-
-		if err != nil {
-			t.l.Err(err).Msg("could not run worker semaphore slot resolver")
-		}
-	}
-}
-
-// func (t *TickerImpl) runResolveUnresolvedFailedSteps(ctx context.Context) func() {
-// 	return func() {
-
-// 		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-// 		defer cancel()
-
-// 		toResolve, err := t.repo.Ticker().PollUnresolvedFailedStepRuns(ctx)
-
-// 		if err != nil {
-// 			t.l.Err(err).Msg("could not poll unresolved failed step runs")
-// 			return
-// 		}
-
-// 		if len(toResolve) > 0 {
-// 			t.l.Warn().Msgf("attempting to resolve %d unresolved failed step runs", len(toResolve))
-// 		}
-
-// 		for _, stepRun := range toResolve {
-// 			_, err := t.repo.StepRun().ResolveRelatedStatuses(ctx, stepRun.TenantId, stepRun.ID)
-
-// 			if err != nil {
-// 				t.l.Err(err).Msgf("could not resolve step run %s", sqlchelpers.UUIDToStr(stepRun.ID))
-// 			}
-// 		}
-
-// 	}
-// }

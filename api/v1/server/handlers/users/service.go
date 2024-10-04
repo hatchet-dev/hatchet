@@ -2,7 +2,6 @@ package users
 
 import (
 	"errors"
-	"fmt"
 	"strings"
 
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
@@ -19,7 +18,7 @@ func NewUserService(config *server.ServerConfig) *UserService {
 }
 
 func (u *UserService) checkUserRestrictionsForEmail(conf *server.ServerConfig, email string) error {
-	if len(conf.Auth.ConfigFile.RestrictedEmailDomains) == 0 {
+	if len(conf.Auth.RestrictedEmailDomains) == 0 {
 		return nil
 	}
 
@@ -34,16 +33,18 @@ func (u *UserService) checkUserRestrictionsForEmail(conf *server.ServerConfig, e
 	return u.checkUserRestrictions(conf, domain)
 }
 
+var ErrNotInRestrictedDomain = errors.New("email is not in the restricted domain group")
+
 func (u *UserService) checkUserRestrictions(conf *server.ServerConfig, emailDomain string) error {
 	if len(conf.Auth.ConfigFile.RestrictedEmailDomains) == 0 {
 		return nil
 	}
 
-	for _, domain := range conf.Auth.ConfigFile.RestrictedEmailDomains {
+	for _, domain := range conf.Auth.RestrictedEmailDomains {
 		if domain == emailDomain {
 			return nil
 		}
 	}
 
-	return fmt.Errorf("email is not in the restricted domain group")
+	return ErrNotInRestrictedDomain
 }

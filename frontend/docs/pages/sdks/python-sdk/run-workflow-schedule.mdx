@@ -19,6 +19,6 @@ workflowRun = hatchet.client.admin.schedule_workflow(
 
 This method takes the following parameters:
 
-- `workflow_name` (**required**): The name of the workflow to trigger. If you have not overriden the workflow name in the `hatchet.workflow` decorator, this should match the name of the workflow class.
+- `workflow_name` (**required**): The name of the workflow to trigger. If you have not overridden the workflow name in the `hatchet.workflow` decorator, this should match the name of the workflow class.
 - `schedule_time` (**required**): The time at which the workflow should be scheduled to run. This should be a `datetime` object.
 - `input` (**required**): The input to the workflow. This should be a JSON-serializable dict.

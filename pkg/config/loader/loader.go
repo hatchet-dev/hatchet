@@ -168,19 +168,51 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile, runtime *server.Co
 		return nil, nil, err
 	}
 
+	queueConfig, err := pgxpool.ParseConfig(databaseUrl)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
 	if cf.LogQueries {
 		config.ConnConfig.Tracer = &tracelog.TraceLog{
+			Logger:   pgxzero.NewLogger(l),
+			LogLevel: tracelog.LogLevelDebug,
+		}
+
+		queueConfig.ConnConfig.Tracer = &tracelog.TraceLog{
 			Logger:   pgxzero.NewLogger(l),
 			LogLevel: tracelog.LogLevelDebug,
 		}
 	}
 
 	config.ConnConfig.Tracer = otelpgx.NewTracer()
+	queueConfig.ConnConfig.Tracer = otelpgx.NewTracer()
 
-	config.MaxConns = int32(cf.MaxConns)
-	config.MinConns = int32(cf.MaxConns)
+	if cf.MaxConns != 0 {
+		config.MaxConns = int32(cf.MaxConns)
+	}
+
+	if cf.MinConns != 0 {
+		config.MinConns = int32(cf.MinConns)
+	}
+
+	if cf.MaxQueueConns != 0 {
+		queueConfig.MaxConns = int32(cf.MaxQueueConns)
+	}
+
+	if cf.MinQueueConns != 0 {
+		queueConfig.MinConns = int32(cf.MinQueueConns)
+	}
 
 	pool, err := pgxpool.NewWithConfig(context.Background(), config)
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not connect to database: %w", err)
+	}
+
+	queuePool, err := pgxpool.NewWithConfig(context.Background(), queueConfig)
+
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not connect to database: %w", err)
 	}
@@ -191,7 +223,17 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile, runtime *server.Co
 
 	meter := metered.NewMetered(entitlementRepo, &l)
 
+	cleanupEngine, engineRepo, err := prisma.NewEngineRepository(pool, queuePool, runtime, prisma.WithLogger(&l), prisma.WithCache(ch), prisma.WithMetered(meter))
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not create engine repository: %w", err)
+	}
+
 	cleanup := func() error {
+		if err := cleanupEngine(); err != nil {
+			return err
+		}
+
 		ch.Stop()
 		meter.Stop()
 		return c.Prisma.Disconnect()
@@ -199,8 +241,9 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile, runtime *server.Co
 
 	cfg := &database.Config{
 		Pool:                  pool,
+		QueuePool:             queuePool,
 		APIRepository:         prisma.NewAPIRepository(c, pool, prisma.WithLogger(&l), prisma.WithCache(ch), prisma.WithMetered(meter)),
-		EngineRepository:      prisma.NewEngineRepository(pool, runtime, prisma.WithLogger(&l), prisma.WithCache(ch), prisma.WithMetered(meter)),
+		EngineRepository:      engineRepo,
 		EntitlementRepository: entitlementRepo,
 		Seed:                  cf.Seed,
 	}
@@ -318,7 +361,8 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 	}
 
 	auth := server.AuthConfig{
-		ConfigFile: cf.Auth,
+		RestrictedEmailDomains: getStrArr(cf.Auth.RestrictedEmailDomains),
+		ConfigFile:             cf.Auth,
 	}
 
 	if cf.Auth.Google.Enabled {
@@ -425,6 +469,9 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 		Email:                  emailSvc,
 		TenantAlerter:          alerting.New(dc.EngineRepository, encryptionSvc, cf.Runtime.ServerURL, emailSvc),
 		AdditionalOAuthConfigs: additionalOAuthConfigs,
+		AdditionalLoggers:      cf.AdditionalLoggers,
+		EnableDataRetention:    cf.EnableDataRetention,
+		EnableWorkerRetention:  cf.EnableWorkerRetention,
 	}, nil
 }
 

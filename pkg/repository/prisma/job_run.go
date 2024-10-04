@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 
@@ -21,6 +22,8 @@ type jobRunAPIRepository struct {
 	v       validator.Validator
 	queries *dbsqlc.Queries
 	l       *zerolog.Logger
+
+	wrRunningCallbacks []repository.Callback[pgtype.UUID]
 }
 
 func NewJobRunAPIRepository(client *db.PrismaClient, pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger) repository.JobRunAPIRepository {
@@ -35,8 +38,35 @@ func NewJobRunAPIRepository(client *db.PrismaClient, pool *pgxpool.Pool, v valid
 	}
 }
 
+func (j *jobRunAPIRepository) RegisterWorkflowRunRunningCallback(callback repository.Callback[pgtype.UUID]) {
+	if j.wrRunningCallbacks == nil {
+		j.wrRunningCallbacks = make([]repository.Callback[pgtype.UUID], 0)
+	}
+
+	j.wrRunningCallbacks = append(j.wrRunningCallbacks, callback)
+}
+
 func (j *jobRunAPIRepository) SetJobRunStatusRunning(tenantId, jobRunId string) error {
-	return setJobRunStatusRunning(context.Background(), j.pool, j.queries, j.l, tenantId, jobRunId)
+	wrId, err := setJobRunStatusRunning(context.Background(), j.pool, j.queries, j.l, tenantId, jobRunId)
+
+	if err != nil {
+		return err
+	}
+
+	for _, cb := range j.wrRunningCallbacks {
+		cb.Do(j.l, tenantId, *wrId)
+	}
+
+	return nil
+}
+
+func (j *jobRunAPIRepository) ListJobRunByWorkflowRunId(ctx context.Context, tenantId, workflowRunId string) ([]*dbsqlc.ListJobRunsForWorkflowRunFullRow, error) {
+	return j.queries.ListJobRunsForWorkflowRunFull(ctx, j.pool,
+		dbsqlc.ListJobRunsForWorkflowRunFullParams{
+			Tenantid:      sqlchelpers.UUIDFromStr(tenantId),
+			Workflowrunid: sqlchelpers.UUIDFromStr(workflowRunId),
+		},
+	)
 }
 
 type jobRunEngineRepository struct {
@@ -44,6 +74,8 @@ type jobRunEngineRepository struct {
 	v       validator.Validator
 	queries *dbsqlc.Queries
 	l       *zerolog.Logger
+
+	wrRunningCallbacks []repository.Callback[pgtype.UUID]
 }
 
 func NewJobRunEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger) repository.JobRunEngineRepository {
@@ -57,8 +89,26 @@ func NewJobRunEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zer
 	}
 }
 
+func (j *jobRunEngineRepository) RegisterWorkflowRunRunningCallback(callback repository.Callback[pgtype.UUID]) {
+	if j.wrRunningCallbacks == nil {
+		j.wrRunningCallbacks = make([]repository.Callback[pgtype.UUID], 0)
+	}
+
+	j.wrRunningCallbacks = append(j.wrRunningCallbacks, callback)
+}
+
 func (j *jobRunEngineRepository) SetJobRunStatusRunning(ctx context.Context, tenantId, jobRunId string) error {
-	return setJobRunStatusRunning(ctx, j.pool, j.queries, j.l, tenantId, jobRunId)
+	wrId, err := setJobRunStatusRunning(ctx, j.pool, j.queries, j.l, tenantId, jobRunId)
+
+	if err != nil {
+		return err
+	}
+
+	for _, cb := range j.wrRunningCallbacks {
+		cb.Do(j.l, tenantId, *wrId)
+	}
+
+	return nil
 }
 
 func (j *jobRunEngineRepository) ListJobRunsForWorkflowRun(ctx context.Context, tenantId, workflowRunId string) ([]*dbsqlc.ListJobRunsForWorkflowRunRow, error) {
@@ -73,11 +123,11 @@ func (j *jobRunEngineRepository) GetJobRunByWorkflowRunIdAndJobId(ctx context.Co
 	})
 }
 
-func setJobRunStatusRunning(ctx context.Context, pool *pgxpool.Pool, queries *dbsqlc.Queries, l *zerolog.Logger, tenantId, jobRunId string) error {
+func setJobRunStatusRunning(ctx context.Context, pool *pgxpool.Pool, queries *dbsqlc.Queries, l *zerolog.Logger, tenantId, jobRunId string) (*pgtype.UUID, error) {
 	tx, err := pool.Begin(ctx)
 
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	defer deferRollback(context.Background(), l, tx.Rollback)
@@ -89,10 +139,10 @@ func setJobRunStatusRunning(ctx context.Context, pool *pgxpool.Pool, queries *db
 	})
 
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	_, err = queries.UpdateWorkflowRun(
+	wr, err := queries.UpdateWorkflowRun(
 		context.Background(),
 		tx,
 		dbsqlc.UpdateWorkflowRunParams{
@@ -106,10 +156,14 @@ func setJobRunStatusRunning(ctx context.Context, pool *pgxpool.Pool, queries *db
 	)
 
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return tx.Commit(context.Background())
+	if err := tx.Commit(context.Background()); err != nil {
+		return nil, err
+	}
+
+	return &wr.ID, nil
 }
 
 func (r *jobRunEngineRepository) ClearJobRunPayloadData(ctx context.Context, tenantId string) (bool, error) {

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -26,6 +27,9 @@ func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.T
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
+	createContext, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
 	isParentTriggered := req.ParentId != nil
 
 	// if there's a parent id passed in, we query for an existing workflow run which matches these params
@@ -45,7 +49,7 @@ func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.T
 		}
 
 		workflowRun, err := a.repo.WorkflowRun().GetChildWorkflowRun(
-			ctx,
+			createContext,
 			*req.ParentId,
 			*req.ParentStepRunId,
 			int(*req.ChildIndex),
@@ -66,7 +70,7 @@ func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.T
 	}
 
 	workflow, err := a.repo.Workflow().GetWorkflowByName(
-		ctx,
+		createContext,
 		tenantId,
 		req.Name,
 	)
@@ -90,7 +94,7 @@ func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.T
 	}
 
 	workflowVersion, err := a.repo.Workflow().GetLatestWorkflowVersion(
-		ctx,
+		createContext,
 		tenantId,
 		sqlchelpers.UUIDToStr(workflow.ID),
 	)
@@ -111,7 +115,7 @@ func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.T
 	}
 
 	if isParentTriggered {
-		parent, err := a.repo.WorkflowRun().GetWorkflowRunById(ctx, tenantId, sqlchelpers.UUIDToStr(sqlchelpers.UUIDFromStr(*req.ParentId)))
+		parent, err := a.repo.WorkflowRun().GetWorkflowRunById(createContext, tenantId, sqlchelpers.UUIDToStr(sqlchelpers.UUIDFromStr(*req.ParentId)))
 
 		if err != nil {
 			return nil, fmt.Errorf("could not get parent workflow run: %w", err)
@@ -157,7 +161,15 @@ func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.T
 		createOpts.DesiredWorkerId = req.DesiredWorkerId
 	}
 
-	workflowRunId, err := a.repo.WorkflowRun().CreateNewWorkflowRun(ctx, tenantId, createOpts)
+	if workflowVersion.WorkflowVersion.DefaultPriority.Valid {
+		createOpts.Priority = &workflowVersion.WorkflowVersion.DefaultPriority.Int32
+	}
+
+	if req.Priority != nil {
+		createOpts.Priority = req.Priority
+	}
+
+	workflowRunId, err := a.repo.WorkflowRun().CreateNewWorkflowRun(createContext, tenantId, createOpts)
 
 	dedupeTarget := repository.ErrDedupeValueExists{}
 
@@ -235,6 +247,14 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWo
 		)
 
 		if err != nil {
+
+			if strings.Contains(err.Error(), "23503") {
+				return nil, status.Error(
+					codes.InvalidArgument,
+					"invalid rate limit, are you using a static key without first creating a rate limit with the same key?",
+				)
+			}
+
 			return nil, err
 		}
 	} else {
@@ -263,6 +283,14 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWo
 			)
 
 			if err != nil {
+
+				if strings.Contains(err.Error(), "23503") {
+					return nil, status.Error(
+						codes.InvalidArgument,
+						"invalid rate limit, are you using a static key without first creating a rate limit with the same key?",
+					)
+				}
+
 				return nil, err
 			}
 		} else {
@@ -413,6 +441,15 @@ func getCreateWorkflowOpts(req *contracts.PutWorkflowRequest) (*repository.Creat
 		res, err := getCreateJobOpts(jobCp, "DEFAULT")
 
 		if err != nil {
+
+			if errors.Is(err, repository.ErrDagParentNotFound) {
+				// Extract the additional error information
+				return nil, status.Error(
+					codes.InvalidArgument,
+					err.Error(),
+				)
+			}
+
 			return nil, err
 		}
 
@@ -446,19 +483,24 @@ func getCreateWorkflowOpts(req *contracts.PutWorkflowRequest) (*repository.Creat
 	var concurrency *repository.CreateWorkflowConcurrencyOpts
 
 	if req.Opts.Concurrency != nil {
+		if req.Opts.Concurrency.Action == nil && req.Opts.Concurrency.Expression == nil {
+			return nil, status.Error(
+				codes.InvalidArgument,
+				"concurrency action or expression is required",
+			)
+		}
+
 		var limitStrategy *string
 
-		if req.Opts.Concurrency.LimitStrategy.String() != "" {
+		if req.Opts.Concurrency.LimitStrategy != nil && req.Opts.Concurrency.LimitStrategy.String() != "" {
 			limitStrategy = repository.StringPtr(req.Opts.Concurrency.LimitStrategy.String())
 		}
 
 		concurrency = &repository.CreateWorkflowConcurrencyOpts{
 			Action:        req.Opts.Concurrency.Action,
 			LimitStrategy: limitStrategy,
-		}
-
-		if req.Opts.Concurrency.MaxRuns != 0 {
-			concurrency.MaxRuns = &req.Opts.Concurrency.MaxRuns
+			Expression:    req.Opts.Concurrency.Expression,
+			MaxRuns:       req.Opts.Concurrency.MaxRuns,
 		}
 	}
 
@@ -488,11 +530,14 @@ func getCreateWorkflowOpts(req *contracts.PutWorkflowRequest) (*repository.Creat
 		ScheduleTimeout:   req.Opts.ScheduleTimeout,
 		Sticky:            sticky,
 		Kind:              kind,
+		DefaultPriority:   req.Opts.DefaultPriority,
 	}, nil
 }
 
 func getCreateJobOpts(req *contracts.CreateWorkflowJobOpts, kind string) (*repository.CreateWorkflowJobOpts, error) {
 	steps := make([]repository.CreateWorkflowStepOpts, len(req.Steps))
+
+	stepReadableIdMap := make(map[string]bool)
 
 	for j, step := range req.Steps {
 		stepCp := step
@@ -504,6 +549,8 @@ func getCreateJobOpts(req *contracts.CreateWorkflowJobOpts, kind string) (*repos
 		}
 
 		retries := int(stepCp.Retries)
+
+		stepReadableIdMap[stepCp.ReadableId] = true
 
 		var affinity map[string]repository.DesiredWorkerLabelOpts
 
@@ -542,14 +589,37 @@ func getCreateJobOpts(req *contracts.CreateWorkflowJobOpts, kind string) (*repos
 		}
 
 		for _, rateLimit := range stepCp.RateLimits {
-			steps[j].RateLimits = append(steps[j].RateLimits, repository.CreateWorkflowStepRateLimitOpts{
-				Key:   rateLimit.Key,
-				Units: int(rateLimit.Units),
-			})
+			opt := repository.CreateWorkflowStepRateLimitOpts{
+				Key:       rateLimit.Key,
+				KeyExpr:   rateLimit.KeyExpr,
+				LimitExpr: rateLimit.LimitValuesExpr,
+				UnitsExpr: rateLimit.UnitsExpr,
+			}
+
+			if rateLimit.Duration != nil {
+				dur := rateLimit.Duration.String()
+				opt.Duration = &dur
+			}
+
+			if rateLimit.Units != nil {
+				units := int(*rateLimit.Units)
+				opt.Units = &units
+			}
+
+			steps[j].RateLimits = append(steps[j].RateLimits, opt)
 		}
 
 		if stepCp.UserData != "" {
 			steps[j].UserData = &stepCp.UserData
+		}
+	}
+
+	// Check if parents are in the map
+	for _, step := range req.Steps {
+		for _, parent := range step.Parents {
+			if !stepReadableIdMap[parent] {
+				return nil, fmt.Errorf("%w: parent step '%s' not found for step '%s'", repository.ErrDagParentNotFound, parent, step.ReadableId)
+			}
 		}
 	}
 

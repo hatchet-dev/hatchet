@@ -42,6 +42,7 @@ message CreateWorkflowVersionOpts {
     optional CreateWorkflowJobOpts on_failure_job = 11; // (optional) the job to run on failure
     optional StickyStrategy sticky = 12; // (optional) the sticky strategy for assigning steps to workers
     optional WorkflowKind kind = 13; // (optional) the kind of workflow
+    optional int32 default_priority = 14; // (optional) the priority of the workflow
 }
 
 enum ConcurrencyLimitStrategy {
@@ -52,9 +53,10 @@ enum ConcurrencyLimitStrategy {
 }
 
 message WorkflowConcurrencyOpts {
-    string action = 1; // (required) the action id for getting the concurrency group
-    int32 max_runs = 2; // (optional) the maximum number of concurrent workflow runs, default 1
-    ConcurrencyLimitStrategy limit_strategy = 3; // (optional) the strategy to use when the concurrency limit is reached, default CANCEL_IN_PROGRESS
+    optional string action = 1; // (optional) the action id for getting the concurrency group
+    optional int32 max_runs = 2; // (optional) the maximum number of concurrent workflow runs, default 1
+    optional ConcurrencyLimitStrategy limit_strategy = 3; // (optional) the strategy to use when the concurrency limit is reached, default CANCEL_IN_PROGRESS
+    optional string expression = 4; // (optional) the expression to use for concurrency
 }
 
 // CreateWorkflowJobOpts represents options to create a workflow job.
@@ -115,7 +117,11 @@ message CreateWorkflowStepOpts {
 
 message CreateStepRateLimit {
     string key = 1; // (required) the key for the rate limit
-    int32 units = 2; // (required) the number of units this step consumes
+    optional int32 units = 2; // (optional) the number of units this step consumes
+    optional string key_expr = 3; // (optional) a CEL expression for determining the rate limit key
+    optional string units_expr = 4; // (optional) a CEL expression for determining the number of units consumed
+    optional string limit_values_expr = 5; // (optional) a CEL expression for determining the total amount of rate limit units
+    optional RateLimitDuration duration = 6; // (optional) the default rate limit window to use for dynamic rate limits
 }
 
 // ListWorkflowsRequest is the request for ListWorkflows.
@@ -194,6 +200,9 @@ message TriggerWorkflowRequest {
     // (optional) desired worker id for the workflow run,
     // requires the workflow definition to have a sticky strategy
     optional string desired_worker_id = 8;
+
+    // (optional) override for the priority of the workflow steps, will set all steps to this priority
+    optional int32 priority = 9;
 }
 
 message TriggerWorkflowResponse {

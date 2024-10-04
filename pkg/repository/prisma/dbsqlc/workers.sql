@@ -1,9 +1,19 @@
--- name: ListWorkersWithStepCount :many
+-- name: ListWorkersWithSlotCount :many
 SELECT
     sqlc.embed(workers),
-    (SELECT COUNT(*) FROM "WorkerSemaphoreSlot" wss WHERE wss."workerId" = workers."id" AND wss."stepRunId" IS NOT NULL) AS "slots"
+    ww."url" AS "webhookUrl",
+    ww."id" AS "webhookId",
+    workers."maxRuns" - (
+        SELECT COUNT(*)
+        FROM "SemaphoreQueueItem" sqi
+        WHERE
+            sqi."tenantId" = workers."tenantId" AND
+            sqi."workerId" = workers."id"
+    ) AS "remainingSlots"
 FROM
     "Worker" workers
+LEFT JOIN
+    "WebhookWorker" ww ON workers."webhookId" = ww."id"
 WHERE
     workers."tenantId" = @tenantId
     AND (
@@ -29,12 +39,71 @@ WHERE
         ))
     )
 GROUP BY
-    workers."id";
+    workers."id", ww."url", ww."id";
 
--- name: StubWorkerSemaphoreSlots :exec
-INSERT INTO "WorkerSemaphoreSlot" ("id", "workerId")
-SELECT gen_random_uuid(), @workerId::uuid
-FROM generate_series(1, sqlc.narg('maxRuns')::int);
+-- name: GetWorkerById :one
+SELECT
+    sqlc.embed(w),
+    ww."url" AS "webhookUrl",
+    w."maxRuns" - (
+        SELECT COUNT(*)
+        FROM "SemaphoreQueueItem" sqi
+        WHERE
+            sqi."tenantId" = w."tenantId" AND
+            sqi."workerId" = w."id"
+    ) AS "remainingSlots"
+FROM
+    "Worker" w
+LEFT JOIN
+    "WebhookWorker" ww ON w."webhookId" = ww."id"
+WHERE
+    w."id" = @id::uuid;
+
+-- name: GetWorkerActionsByWorkerId :many
+SELECT
+    a."actionId" AS actionId
+FROM "Worker" w
+LEFT JOIN "_ActionToWorker" aw ON w.id = aw."B"
+LEFT JOIN "Action" a ON aw."A" = a.id
+WHERE
+    a."tenantId" = @tenantId::uuid AND
+    w."id" = @workerId::uuid;
+
+-- name: ListSemaphoreSlotsWithStateForWorker :many
+SELECT
+    sr."id" AS "stepRunId",
+    sr."status" AS "status",
+    s."actionId",
+    sr."timeoutAt" AS "timeoutAt",
+    sr."startedAt" AS "startedAt",
+    jr."workflowRunId" AS "workflowRunId"
+FROM
+    "SemaphoreQueueItem" sqi
+JOIN
+    "StepRun" sr ON sr."id" = sqi."stepRunId"
+JOIN
+    "JobRun" jr ON sr."jobRunId" = jr."id"
+JOIN
+    "Step" s ON sr."stepId" = s."id"
+WHERE
+    sqi."tenantId" = @tenantId::uuid
+    AND sqi."workerId" = @workerId::uuid
+ORDER BY
+    sr."createdAt" DESC
+LIMIT
+    COALESCE(sqlc.narg('limit')::int, 100);
+
+-- name: ListRecentAssignedEventsForWorker :many
+SELECT
+    "workerId",
+    "assignedStepRuns"
+FROM
+    "WorkerAssignEvent"
+WHERE
+    "workerId" = @workerId::uuid
+ORDER BY "id" DESC
+LIMIT
+    COALESCE(sqlc.narg('limit')::int, 100);
 
 -- name: GetWorkerForEngine :one
 SELECT
@@ -60,7 +129,9 @@ INSERT INTO "Worker" (
     "tenantId",
     "name",
     "dispatcherId",
-    "maxRuns"
+    "maxRuns",
+    "webhookId",
+    "type"
 ) VALUES (
     gen_random_uuid(),
     CURRENT_TIMESTAMP,
@@ -68,8 +139,29 @@ INSERT INTO "Worker" (
     @tenantId::uuid,
     @name::text,
     @dispatcherId::uuid,
-    sqlc.narg('maxRuns')::int
+    sqlc.narg('maxRuns')::int,
+    sqlc.narg('webhookId')::uuid,
+    sqlc.narg('type')::"WorkerType"
 ) RETURNING *;
+
+-- name: GetWorkerByWebhookId :one
+SELECT
+    *
+FROM
+    "Worker"
+WHERE
+    "webhookId" = @webhookId::uuid
+    AND "tenantId" = @tenantId::uuid;
+
+-- name: UpdateWorkerHeartbeat :one
+UPDATE
+    "Worker"
+SET
+    "updatedAt" = CURRENT_TIMESTAMP,
+    "lastHeartbeatAt" = sqlc.narg('lastHeartbeatAt')::timestamp
+WHERE
+    "id" = @id::uuid
+RETURNING *;
 
 -- name: UpdateWorker :one
 UPDATE
@@ -84,37 +176,6 @@ SET
 WHERE
     "id" = @id::uuid
 RETURNING *;
-
--- name: ResolveWorkerSemaphoreSlots :one
-WITH to_count AS (
-    SELECT wss."id"
-    FROM "WorkerSemaphoreSlot" wss
-    JOIN "StepRun" sr ON wss."stepRunId" = sr."id"
-        AND sr."status" NOT IN ('RUNNING', 'ASSIGNED')
-        AND sr."tenantId" = @tenantId::uuid
-    ORDER BY RANDOM()
-    LIMIT 11
-    FOR UPDATE SKIP LOCKED
-),
-to_resolve AS (
-    SELECT * FROM to_count LIMIT 10
-),
-update_result AS (
-    UPDATE "WorkerSemaphoreSlot" wss
-    SET "stepRunId" = null
-    WHERE wss."id" IN (SELECT "id" FROM to_resolve)
-    RETURNING wss."id"
-)
-SELECT
-	CASE
-		WHEN COUNT(*) > 0 THEN TRUE
-		ELSE FALSE
-	END AS "hasResolved",
-	CASE
-		WHEN COUNT(*) > 10 THEN TRUE
-		ELSE FALSE
-	END AS "hasMore"
-FROM to_count;
 
 -- name: LinkActionsToWorker :exec
 INSERT INTO "_ActionToWorker" (
@@ -165,12 +226,12 @@ WHERE
   "id" = @id::uuid
 RETURNING *;
 
--- name: UpdateWorkersByName :many
+-- name: UpdateWorkersByWebhookId :many
 UPDATE "Worker"
 SET "isActive" = @isActive::boolean
 WHERE
   "tenantId" = @tenantId::uuid AND
-  "name" = @name::text
+  "webhookId" = @webhookId::uuid
 RETURNING *;
 
 -- name: UpdateWorkerActiveStatus :one
@@ -218,3 +279,58 @@ SET
     "intValue" = sqlc.narg('intValue')::int,
     "strValue" = sqlc.narg('strValue')::text
 RETURNING *;
+
+-- name: DeleteOldWorkers :one
+WITH for_delete AS (
+    SELECT
+        "id"
+    FROM "Worker" w
+    WHERE
+        w."tenantId" = @tenantId::uuid AND
+        w."lastHeartbeatAt" < @lastHeartbeatBefore::timestamp
+    LIMIT sqlc.arg('limit') + 1
+), expired_with_limit AS (
+    SELECT
+        for_delete."id" as "id"
+    FROM for_delete
+    LIMIT sqlc.arg('limit')
+), has_more AS (
+    SELECT
+        CASE
+            WHEN COUNT(*) > sqlc.arg('limit') THEN TRUE
+            ELSE FALSE
+        END as has_more
+    FROM for_delete
+), delete_events AS (
+    DELETE FROM "WorkerAssignEvent" wae
+    WHERE wae."workerId" IN (SELECT "id" FROM expired_with_limit)
+    RETURNING wae."id"
+)
+DELETE FROM "Worker" w
+WHERE w."id" IN (SELECT "id" FROM expired_with_limit)
+RETURNING
+    (SELECT has_more FROM has_more) as has_more;
+
+-- name: DeleteOldWorkerAssignEvents :one
+-- delete worker assign events outside of the first <maxRuns> events for a worker
+WITH for_delete AS (
+    SELECT
+        "id"
+    FROM "WorkerAssignEvent" wae
+    WHERE
+        wae."workerId" = @workerId::uuid
+    ORDER BY wae."id" DESC
+    OFFSET sqlc.arg('maxRuns')::int
+    LIMIT sqlc.arg('limit')::int + 1
+), has_more AS (
+    SELECT
+        CASE
+            WHEN COUNT(*) > sqlc.arg('limit') THEN TRUE
+            ELSE FALSE
+        END as has_more
+    FROM for_delete
+)
+DELETE FROM "WorkerAssignEvent" wae
+WHERE wae."id" IN (SELECT "id" FROM for_delete)
+RETURNING
+    (SELECT has_more FROM has_more) as has_more;

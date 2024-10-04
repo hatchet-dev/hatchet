@@ -98,7 +98,7 @@ type TenantAPIRepository interface {
 	DeleteTenantMember(memberId string) (*db.TenantMemberModel, error)
 
 	// GetQueueMetrics returns the queue metrics for the given tenant
-	GetQueueMetrics(tenantId string, opts *GetQueueMetricsOpts) (*GetQueueMetricsResponse, error)
+	GetQueueMetrics(ctx context.Context, tenantId string, opts *GetQueueMetricsOpts) (*GetQueueMetricsResponse, error)
 }
 
 type TenantEngineRepository interface {
@@ -111,7 +111,11 @@ type TenantEngineRepository interface {
 	ListTenantsByWorkerPartition(ctx context.Context, workerPartitionId string) ([]*dbsqlc.Tenant, error)
 
 	// CreateEnginePartition creates a new partition for tenants within the engine
-	CreateControllerPartition(ctx context.Context, id string) error
+	CreateControllerPartition(ctx context.Context) (string, error)
+
+	// UpdateControllerPartitionHeartbeat updates the heartbeat for the given partition. If the partition no longer exists,
+	// it creates a new partition and returns the new partition id. Otherwise, it returns the existing partition id.
+	UpdateControllerPartitionHeartbeat(ctx context.Context, partitionId string) (string, error)
 
 	DeleteControllerPartition(ctx context.Context, id string) error
 
@@ -119,7 +123,9 @@ type TenantEngineRepository interface {
 
 	RebalanceInactiveControllerPartitions(ctx context.Context) error
 
-	CreateTenantWorkerPartition(ctx context.Context, id string) error
+	CreateTenantWorkerPartition(ctx context.Context) (string, error)
+
+	UpdateWorkerPartitionHeartbeat(ctx context.Context, partitionId string) (string, error)
 
 	DeleteTenantWorkerPartition(ctx context.Context, id string) error
 

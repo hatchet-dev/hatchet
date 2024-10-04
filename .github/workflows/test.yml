@@ -12,7 +12,7 @@ jobs:
       - name: Install Protoc
         uses: arduino/setup-protoc@v3
         with:
-          version: "26.1"
+          version: "28.2"
 
       - name: Install Task
         uses: arduino/setup-task@v2
@@ -20,7 +20,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.21"
+          go-version: "1.22"
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -54,7 +54,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.21"
+          go-version: "1.22"
 
       - name: Go deps
         run: go mod download
@@ -78,7 +78,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.21"
+          go-version: "1.22"
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -123,7 +123,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.21"
+          go-version: "1.22"
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -154,6 +154,11 @@ jobs:
           SERVER_ENCRYPTION_MASTER_KEYSET_FILE=./hack/dev/encryption-keys/master.key
           SERVER_ENCRYPTION_JWT_PRIVATE_KEYSET_FILE=./hack/dev/encryption-keys/private_ec256.key
           SERVER_ENCRYPTION_JWT_PUBLIC_KEYSET_FILE=./hack/dev/encryption-keys/public_ec256.key
+
+          SERVER_LOGGER_LEVEL=warn
+          SERVER_LOGGER_FORMAT=console
+          DATABASE_LOGGER_LEVEL=warn
+          DATABASE_LOGGER_FORMAT=console
 
           DATABASE_URL='postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet'
           SERVER_PORT=8080
@@ -205,7 +210,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.21"
+          go-version: "1.22"
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -236,6 +241,10 @@ jobs:
           SERVER_AUTH_COOKIE_DOMAIN=app.dev.hatchet-tools.com
           SERVER_AUTH_COOKIE_INSECURE=false
           SERVER_AUTH_SET_EMAIL_VERIFIED=true
+          SERVER_LOGGER_LEVEL=warn
+          SERVER_LOGGER_FORMAT=console
+          DATABASE_LOGGER_LEVEL=warn
+          DATABASE_LOGGER_FORMAT=console
           EOF
 
       - name: Generate

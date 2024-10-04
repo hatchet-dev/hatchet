@@ -43,7 +43,7 @@ You will need to set up two environment variables:
 
 ### Next.js App Dir
 
-```typescript filename="app/api/webhook.ts" copy
+```typescript filename="app/api/webhook/route.ts" copy
 import { Hatchet } from "@hatchet-dev/typescript-sdk";
 
 const hatchet = Hatchet.init();
@@ -67,7 +67,7 @@ const hatchet = Hatchet.init();
 const webhooks = hatchet.webhooks([workflow]);
 
 export const { GET, POST, PUT } = webhooks.nextJSHandler({
-  secret: process.env.HATCHET_WEBHOOK_SECRET,
+  secret: process.env.HATCHET_WEBHOOK_SECRET || "",
 });
 ```
 

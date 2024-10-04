@@ -8,6 +8,9 @@ Workflow:
     description:
       type: string
       description: The description of the workflow.
+    isPaused:
+      type: boolean
+      description: Whether the workflow is paused.
     versions:
       type: array
       items:
@@ -17,8 +20,6 @@ Workflow:
       items:
         $ref: "#/WorkflowTag"
       description: The tags of the workflow.
-    lastRun:
-      $ref: "./_index.yaml#/WorkflowRun"
     jobs:
       type: array
       items:
@@ -28,6 +29,13 @@ Workflow:
     - metadata
     - name
   type: object
+
+WorkflowUpdateRequest:
+  type: object
+  properties:
+    isPaused:
+      type: boolean
+      description: Whether the workflow is paused.
 
 WorkflowTag:
   type: object
@@ -88,6 +96,13 @@ WorkflowVersion:
       format: int32
     workflowId:
       type: string
+    sticky:
+      type: string
+      description: The sticky strategy of the workflow.
+    defaultPriority:
+      type: integer
+      format: int32
+      description: The default priority of the workflow.
     workflow:
       $ref: "#/Workflow"
     concurrency:
@@ -267,3 +282,15 @@ WorkflowMetrics:
     groupKeyCount:
       type: integer
       description: The total number of concurrency group keys.
+
+WorkflowWorkersCount:
+  type: object
+  properties:
+    freeSlotCount:
+      type: integer
+    maxSlotCount:
+      type: integer
+    workflowRunId:
+      type: string
+  required:
+    - count

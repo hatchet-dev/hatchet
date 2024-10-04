@@ -1,72 +1,90 @@
 -- name: CountWorkflowRuns :one
 WITH runs AS (
-    SELECT runs."id", runs."createdAt"
+    SELECT runs."id", runs."createdAt", runs."finishedAt", runs."startedAt", runs."duration"
     FROM
-    "WorkflowRun" as runs
-LEFT JOIN
-    "WorkflowRunTriggeredBy" as runTriggers ON runTriggers."parentId" = runs."id"
-LEFT JOIN
-    "Event" as events ON runTriggers."eventId" = events."id"
-LEFT JOIN
-    "WorkflowVersion" as workflowVersion ON runs."workflowVersionId" = workflowVersion."id"
-LEFT JOIN
-    "Workflow" as workflow ON workflowVersion."workflowId" = workflow."id"
-WHERE
-    runs."tenantId" = $1 AND
-    runs."deletedAt" IS NULL AND
-    workflowVersion."deletedAt" IS NULL AND
-    workflow."deletedAt" IS NULL AND
-    (
-        sqlc.narg('workflowVersionId')::uuid IS NULL OR
-        workflowVersion."id" = sqlc.narg('workflowVersionId')::uuid
-    ) AND
-    (
-        sqlc.narg('workflowId')::uuid IS NULL OR
-        workflow."id" = sqlc.narg('workflowId')::uuid
-    ) AND
-    (
-        sqlc.narg('ids')::uuid[] IS NULL OR
-        runs."id" = ANY(sqlc.narg('ids')::uuid[])
-    ) AND
-    (
-        sqlc.narg('parentId')::uuid IS NULL OR
-        runs."parentId" = sqlc.narg('parentId')::uuid
-    ) AND
-    (
-        sqlc.narg('parentStepRunId')::uuid IS NULL OR
-        runs."parentStepRunId" = sqlc.narg('parentStepRunId')::uuid
-    ) AND
-    (
-        sqlc.narg('additionalMetadata')::jsonb IS NULL OR
-        runs."additionalMetadata" @> sqlc.narg('additionalMetadata')::jsonb
-    ) AND
-    (
-        sqlc.narg('eventId')::uuid IS NULL OR
-        events."id" = sqlc.narg('eventId')::uuid
-    ) AND
-    (
-        sqlc.narg('groupKey')::text IS NULL OR
-        runs."concurrencyGroupId" = sqlc.narg('groupKey')::text
-    ) AND
-    (
-        sqlc.narg('statuses')::text[] IS NULL OR
-        "status" = ANY(cast(sqlc.narg('statuses')::text[] as "WorkflowRunStatus"[]))
-    ) AND
-    (
-        sqlc.narg('kinds')::text[] IS NULL OR
-        workflowVersion."kind" = ANY(cast(sqlc.narg('kinds')::text[] as "WorkflowKind"[]))
-    ) AND
-    (
-        sqlc.narg('createdAfter')::timestamp IS NULL OR
-        runs."createdAt" > sqlc.narg('createdAfter')::timestamp
-    ) AND
-    (
-        sqlc.narg('finishedAfter')::timestamp IS NULL OR
-        runs."finishedAt" > sqlc.narg('finishedAfter')::timestamp
-    )
+        "WorkflowRun" as runs
+    LEFT JOIN
+        "WorkflowRunTriggeredBy" as runTriggers ON runTriggers."parentId" = runs."id"
+    LEFT JOIN
+        "Event" as events ON
+            runTriggers."eventId" = events."id"
+            AND (
+                sqlc.narg('eventId')::uuid IS NULL OR
+                events."id" = sqlc.narg('eventId')::uuid
+            )
+    LEFT JOIN
+        "WorkflowVersion" as workflowVersion ON
+            runs."workflowVersionId" = workflowVersion."id"
+            AND (
+                sqlc.narg('workflowVersionId')::uuid IS NULL OR
+                workflowVersion."id" = sqlc.narg('workflowVersionId')::uuid
+            )
+            AND (
+                sqlc.narg('kinds')::text[] IS NULL OR
+                workflowVersion."kind" = ANY(cast(sqlc.narg('kinds')::text[] as "WorkflowKind"[]))
+            )
+    LEFT JOIN
+        "Workflow" as workflow ON
+            workflowVersion."workflowId" = workflow."id"
+            AND (
+                sqlc.narg('workflowId')::uuid IS NULL OR
+                workflow."id" = sqlc.narg('workflowId')::uuid
+            )
+    WHERE
+        runs."tenantId" = $1 AND
+        runs."deletedAt" IS NULL AND
+        workflowVersion."deletedAt" IS NULL AND
+        workflow."deletedAt" IS NULL AND
+        (
+            sqlc.narg('ids')::uuid[] IS NULL OR
+            runs."id" = ANY(sqlc.narg('ids')::uuid[])
+        ) AND
+        (
+            sqlc.narg('additionalMetadata')::jsonb IS NULL OR
+            runs."additionalMetadata" @> sqlc.narg('additionalMetadata')::jsonb
+        ) AND
+        (
+            sqlc.narg('parentId')::uuid IS NULL OR
+            runs."parentId" = sqlc.narg('parentId')::uuid
+        ) AND
+        (
+            sqlc.narg('parentStepRunId')::uuid IS NULL OR
+            runs."parentStepRunId" = sqlc.narg('parentStepRunId')::uuid
+        ) AND
+        (
+            sqlc.narg('groupKey')::text IS NULL OR
+            runs."concurrencyGroupId" = sqlc.narg('groupKey')::text
+        ) AND
+        (
+            sqlc.narg('statuses')::text[] IS NULL OR
+            "status" = ANY(cast(sqlc.narg('statuses')::text[] as "WorkflowRunStatus"[]))
+        ) AND
+        (
+            sqlc.narg('createdAfter')::timestamp IS NULL OR
+            runs."createdAt" > sqlc.narg('createdAfter')::timestamp
+        ) AND
+        (
+            sqlc.narg('createdBefore')::timestamp IS NULL OR
+            runs."createdAt" < sqlc.narg('createdBefore')::timestamp
+        ) AND
+        (
+            sqlc.narg('finishedAfter')::timestamp IS NULL OR
+            runs."finishedAt" > sqlc.narg('finishedAfter')::timestamp OR
+            runs."finishedAt" IS NULL
+        ) AND
+        (
+            sqlc.narg('finishedBefore')::timestamp IS NULL OR
+            runs."finishedAt" <= sqlc.narg('finishedBefore')::timestamp
+        )
     ORDER BY
         case when @orderBy = 'createdAt ASC' THEN runs."createdAt" END ASC ,
-        case when @orderBy = 'createdAt DESC' then runs."createdAt" END DESC,
+        case when @orderBy = 'createdAt DESC' THEN runs."createdAt" END DESC,
+        case when @orderBy = 'finishedAt ASC' THEN runs."finishedAt" END ASC ,
+        case when @orderBy = 'finishedAt DESC' THEN runs."finishedAt" END DESC,
+        case when @orderBy = 'startedAt ASC' THEN runs."startedAt" END ASC ,
+        case when @orderBy = 'startedAt DESC' THEN runs."startedAt" END DESC,
+        case when @orderBy = 'duration ASC' THEN runs."duration" END ASC NULLS FIRST,
+        case when @orderBy = 'duration DESC' THEN runs."duration" END DESC NULLS LAST,
         runs."id" ASC
     LIMIT 10000
 )
@@ -94,6 +112,14 @@ LEFT JOIN
     "Workflow" as workflow ON workflowVersion."workflowId" = workflow."id"
 WHERE
     runs."tenantId" = @tenantId::uuid AND
+    (
+        sqlc.narg('createdAfter')::timestamp IS NULL OR
+        runs."createdAt" > sqlc.narg('createdAfter')::timestamp
+    ) AND
+    (
+        sqlc.narg('createdBefore')::timestamp IS NULL OR
+        runs."createdAt" < sqlc.narg('createdBefore')::timestamp
+    ) AND
     runs."deletedAt" IS NULL AND
     workflowVersion."deletedAt" IS NULL AND
     workflow."deletedAt" IS NULL AND
@@ -131,23 +157,38 @@ FROM
 LEFT JOIN
     "WorkflowRunTriggeredBy" as runTriggers ON runTriggers."parentId" = runs."id"
 LEFT JOIN
-    "Event" as events ON runTriggers."eventId" = events."id"
-LEFT JOIN
-    "WorkflowVersion" as workflowVersion ON runs."workflowVersionId" = workflowVersion."id"
-LEFT JOIN
-    "Workflow" as workflow ON workflowVersion."workflowId" = workflow."id"
+    "Event" as events ON
+        runTriggers."eventId" = events."id"
+        AND (
+            sqlc.narg('eventId')::uuid IS NULL OR
+            events."id" = sqlc.narg('eventId')::uuid
+        )
+JOIN
+    "WorkflowVersion" as workflowVersion ON
+        runs."workflowVersionId" = workflowVersion."id"
+        AND (
+            sqlc.narg('workflowVersionId')::uuid IS NULL OR
+            workflowVersion."id" = sqlc.narg('workflowVersionId')::uuid
+        )
+        AND (
+            sqlc.narg('kinds')::text[] IS NULL OR
+            workflowVersion."kind" = ANY(cast(sqlc.narg('kinds')::text[] as "WorkflowKind"[]))
+        )
+JOIN
+    "Workflow" as workflow ON
+        workflowVersion."workflowId" = workflow."id"
+        AND (
+            sqlc.narg('workflowId')::uuid IS NULL OR
+            workflow."id" = sqlc.narg('workflowId')::uuid
+        )
 WHERE
     runs."tenantId" = $1 AND
     runs."deletedAt" IS NULL AND
     workflowVersion."deletedAt" IS NULL AND
     workflow."deletedAt" IS NULL AND
     (
-        sqlc.narg('workflowVersionId')::uuid IS NULL OR
-        workflowVersion."id" = sqlc.narg('workflowVersionId')::uuid
-    ) AND
-    (
-        sqlc.narg('workflowId')::uuid IS NULL OR
-        workflow."id" = sqlc.narg('workflowId')::uuid
+        sqlc.narg('eventId')::uuid IS NULL OR
+        events."id" = sqlc.narg('eventId')::uuid
     ) AND
     (
         sqlc.narg('ids')::uuid[] IS NULL OR
@@ -166,10 +207,6 @@ WHERE
         runs."parentStepRunId" = sqlc.narg('parentStepRunId')::uuid
     ) AND
     (
-        sqlc.narg('eventId')::uuid IS NULL OR
-        events."id" = sqlc.narg('eventId')::uuid
-    ) AND
-    (
         sqlc.narg('groupKey')::text IS NULL OR
         runs."concurrencyGroupId" = sqlc.narg('groupKey')::text
     ) AND
@@ -178,16 +215,21 @@ WHERE
         "status" = ANY(cast(sqlc.narg('statuses')::text[] as "WorkflowRunStatus"[]))
     ) AND
     (
-        sqlc.narg('kinds')::text[] IS NULL OR
-        workflowVersion."kind" = ANY(cast(sqlc.narg('kinds')::text[] as "WorkflowKind"[]))
-    ) AND
-    (
         sqlc.narg('createdAfter')::timestamp IS NULL OR
         runs."createdAt" > sqlc.narg('createdAfter')::timestamp
     ) AND
     (
+        sqlc.narg('createdBefore')::timestamp IS NULL OR
+        runs."createdAt" < sqlc.narg('createdBefore')::timestamp
+    ) AND
+    (
         sqlc.narg('finishedAfter')::timestamp IS NULL OR
-        runs."finishedAt" > sqlc.narg('finishedAfter')::timestamp
+        runs."finishedAt" > sqlc.narg('finishedAfter')::timestamp OR
+        runs."finishedAt" IS NULL
+    ) AND
+    (
+        sqlc.narg('finishedBefore')::timestamp IS NULL OR
+        runs."finishedAt" <= sqlc.narg('finishedBefore')::timestamp
     )
 ORDER BY
     case when @orderBy = 'createdAt ASC' THEN runs."createdAt" END ASC ,
@@ -267,7 +309,31 @@ WHERE
 RETURNING
     "WorkflowRun".*;
 
--- name: UpdateWorkflowRunGroupKey :one
+-- name: UpdateWorkflowRunGroupKeyFromExpr :one
+UPDATE "WorkflowRun" wr
+SET "error" = CASE
+    -- Final states are final, cannot be updated. We also can't move out of a queued state
+    WHEN "status" IN ('SUCCEEDED', 'FAILED', 'QUEUED') THEN "error"
+    WHEN sqlc.narg('error')::text IS NOT NULL THEN sqlc.narg('error')::text
+    ELSE "error"
+END,
+"status" = CASE
+    -- Final states are final, cannot be updated. We also can't move out of a queued state
+    WHEN "status" IN ('SUCCEEDED', 'FAILED', 'QUEUED') THEN "status"
+    -- When the concurrency expression errored, then the workflow is failed
+    WHEN sqlc.narg('error')::text IS NOT NULL THEN 'FAILED'
+    -- When the expression evaluated successfully, then queue the workflow run
+    ELSE 'QUEUED'
+END,
+"concurrencyGroupId" = CASE
+    WHEN sqlc.narg('concurrencyGroupId')::text IS NOT NULL THEN sqlc.narg('concurrencyGroupId')::text
+    ELSE "concurrencyGroupId"
+END
+WHERE
+    wr."id" = @workflowRunId::uuid
+RETURNING wr."id";
+
+-- name: UpdateWorkflowRunGroupKeyFromRun :one
 WITH groupKeyRun AS (
     SELECT "id", "status" as groupKeyRunStatus, "output", "workflowRunId"
     FROM "GetGroupKeyRun" as groupKeyRun
@@ -307,9 +373,11 @@ workflowRun."id" = groupKeyRun."workflowRunId" AND
 workflowRun."tenantId" = @tenantId::uuid
 RETURNING workflowRun.*;
 
--- name: ResolveWorkflowRunStatus :one
+-- name: ResolveWorkflowRunStatus :many
 WITH jobRuns AS (
-    SELECT sum(case when runs."status" = 'PENDING' then 1 else 0 end) AS pendingRuns,
+    SELECT
+        runs."workflowRunId",
+        sum(case when runs."status" = 'PENDING' then 1 else 0 end) AS pendingRuns,
         sum(case when runs."status" = 'RUNNING' then 1 else 0 end) AS runningRuns,
         sum(case when runs."status" = 'SUCCEEDED' then 1 else 0 end) AS succeededRuns,
         sum(case when runs."status" = 'FAILED' then 1 else 0 end) AS failedRuns,
@@ -317,62 +385,66 @@ WITH jobRuns AS (
     FROM "JobRun" as runs
     JOIN "Job" as job ON runs."jobId" = job."id"
     WHERE
-        "workflowRunId" = (
+        runs."workflowRunId" = ANY(
             SELECT "workflowRunId"
             FROM "JobRun"
-            WHERE "id" = @jobRunId::uuid
+            WHERE "id" = ANY(@jobRunIds::uuid[])
         ) AND
         runs."deletedAt" IS NULL AND
         runs."tenantId" = @tenantId::uuid AND
         -- we should not include onFailure jobs in the calculation
         job."kind" = 'DEFAULT'
+    GROUP BY runs."workflowRunId"
+), updated_workflow_runs AS (
+    UPDATE "WorkflowRun" wr
+    SET "status" = CASE
+        -- Final states are final, cannot be updated
+        WHEN "status" IN ('SUCCEEDED', 'FAILED') THEN "status"
+        -- We check for running first, because if a job run is running, then the workflow is running
+        WHEN j.runningRuns > 0 THEN 'RUNNING'
+        -- When at least one job run has failed or been cancelled, then the workflow is failed
+        WHEN j.failedRuns > 0 OR j.cancelledRuns > 0 THEN 'FAILED'
+        -- When all job runs have succeeded, then the workflow is succeeded
+        WHEN j.succeededRuns > 0 AND j.pendingRuns = 0 AND j.runningRuns = 0 AND j.failedRuns = 0 AND j.cancelledRuns = 0 THEN 'SUCCEEDED'
+        ELSE "status"
+    END,
+    "finishedAt" = CASE
+        -- Final states are final, cannot be updated
+        WHEN "finishedAt" IS NOT NULL THEN "finishedAt"
+        -- We check for running first, because if a job run is running, then the workflow is not finished
+        WHEN j.runningRuns > 0 THEN NULL
+        -- When one job run has failed or been cancelled, then the workflow is failed
+        WHEN j.failedRuns > 0 OR j.cancelledRuns > 0 OR j.succeededRuns > 0 THEN NOW()
+        ELSE "finishedAt"
+    END,
+    "startedAt" = CASE
+        -- Started at is final, cannot be changed
+        WHEN "startedAt" IS NOT NULL THEN "startedAt"
+        -- If a job is running or in a final state, then the workflow has started
+        WHEN j.runningRuns > 0 OR j.succeededRuns > 0 OR j.failedRuns > 0 OR j.cancelledRuns > 0 THEN NOW()
+        ELSE "startedAt"
+    END,
+    "duration" = CASE
+        -- duration is final, cannot be changed
+        WHEN "duration" IS NOT NULL THEN "duration"
+        -- We check for running first, because if a job run is running, then the workflow is not finished
+        WHEN j.runningRuns > 0 THEN NULL
+        -- When one job run has failed or been cancelled, then the workflow is failed
+        WHEN j.failedRuns > 0 OR j.cancelledRuns > 0 OR j.succeededRuns > 0 THEN
+                        EXTRACT(EPOCH FROM (NOW() - "startedAt")) * 1000
+        ELSE "duration"
+    END
+    FROM
+        jobRuns j
+    WHERE
+        wr."id" = j."workflowRunId"
+        AND "tenantId" = @tenantId::uuid
+    RETURNING wr."id", wr."status", wr."tenantId"
 )
-UPDATE "WorkflowRun"
-SET "status" = CASE
-    -- Final states are final, cannot be updated
-    WHEN "status" IN ('SUCCEEDED', 'FAILED') THEN "status"
-    -- We check for running first, because if a job run is running, then the workflow is running
-    WHEN j.runningRuns > 0 THEN 'RUNNING'
-    -- When at least one job run has failed or been cancelled, then the workflow is failed
-    WHEN j.failedRuns > 0 OR j.cancelledRuns > 0 THEN 'FAILED'
-    -- When all job runs have succeeded, then the workflow is succeeded
-    WHEN j.succeededRuns > 0 AND j.pendingRuns = 0 AND j.runningRuns = 0 AND j.failedRuns = 0 AND j.cancelledRuns = 0 THEN 'SUCCEEDED'
-    ELSE "status"
-END,
-"finishedAt" = CASE
-    -- Final states are final, cannot be updated
-    WHEN "finishedAt" IS NOT NULL THEN "finishedAt"
-    -- We check for running first, because if a job run is running, then the workflow is not finished
-    WHEN j.runningRuns > 0 THEN NULL
-    -- When one job run has failed or been cancelled, then the workflow is failed
-    WHEN j.failedRuns > 0 OR j.cancelledRuns > 0 OR j.succeededRuns > 0 THEN NOW()
-    ELSE "finishedAt"
-END,
-"startedAt" = CASE
-    -- Started at is final, cannot be changed
-    WHEN "startedAt" IS NOT NULL THEN "startedAt"
-    -- If a job is running or in a final state, then the workflow has started
-    WHEN j.runningRuns > 0 OR j.succeededRuns > 0 OR j.failedRuns > 0 OR j.cancelledRuns > 0 THEN NOW()
-    ELSE "startedAt"
-END,
-"duration" = CASE
-    -- duration is final, cannot be changed
-    WHEN "duration" IS NOT NULL THEN "duration"
-    -- We check for running first, because if a job run is running, then the workflow is not finished
-    WHEN j.runningRuns > 0 THEN NULL
-    -- When one job run has failed or been cancelled, then the workflow is failed
-    WHEN j.failedRuns > 0 OR j.cancelledRuns > 0 OR j.succeededRuns > 0 THEN
-                    EXTRACT(EPOCH FROM (NOW() - "startedAt")) * 1000
-    ELSE "duration"
-END
-FROM
-    jobRuns j
-WHERE "id" = (
-    SELECT "workflowRunId"
-    FROM "JobRun"
-    WHERE "id" = @jobRunId::uuid
-) AND "tenantId" = @tenantId::uuid
-RETURNING "WorkflowRun".*;
+-- Return distinct workflow run ids in a final state
+SELECT DISTINCT "id", "status", "tenantId"
+FROM updated_workflow_runs
+WHERE "status" IN ('SUCCEEDED', 'FAILED');
 
 -- name: UpdateWorkflowRun :one
 UPDATE
@@ -425,7 +497,8 @@ INSERT INTO "WorkflowRun" (
     "childKey",
     "parentId",
     "parentStepRunId",
-    "additionalMetadata"
+    "additionalMetadata",
+    "priority"
 ) VALUES (
     COALESCE(sqlc.narg('id')::uuid, gen_random_uuid()),
     CURRENT_TIMESTAMP,
@@ -442,7 +515,8 @@ INSERT INTO "WorkflowRun" (
     sqlc.narg('childKey')::text,
     sqlc.narg('parentId')::uuid,
     sqlc.narg('parentStepRunId')::uuid,
-    @additionalMetadata::jsonb
+    @additionalMetadata::jsonb,
+    sqlc.narg('priority')::int
 ) RETURNING *;
 
 -- name: CreateWorkflowRunDedupe :one
@@ -638,12 +712,7 @@ INSERT INTO "JobRunLookupData" (
     )
 ) RETURNING *;
 
--- name: CreateStepRuns :exec
-WITH job_id AS (
-    SELECT "jobId"
-    FROM "JobRun"
-    WHERE "id" = @jobRunId::uuid
-)
+-- name: CreateStepRun :one
 INSERT INTO "StepRun" (
     "id",
     "createdAt",
@@ -653,7 +722,8 @@ INSERT INTO "StepRun" (
     "stepId",
     "status",
     "requeueAfter",
-    "callerFiles"
+    "queue",
+    "priority"
 )
 SELECT
     gen_random_uuid(),
@@ -661,16 +731,33 @@ SELECT
     CURRENT_TIMESTAMP,
     @tenantId::uuid,
     @jobRunId::uuid,
-    "id",
+    @stepId::uuid,
     'PENDING', -- default status
     CURRENT_TIMESTAMP + INTERVAL '5 seconds',
-    '{}'
+    sqlc.narg('queue')::text,
+    sqlc.narg('priority')::int
+RETURNING "id";
+
+-- name: ListStepsForJob :many
+WITH job_id AS (
+    SELECT "jobId"
+    FROM "JobRun"
+    WHERE "id" = @jobRunId::uuid
+)
+SELECT
+    s."id",
+    s."actionId"
 FROM
-    "Step", job_id
+    "Step" s, job_id
 WHERE
-    "Step"."jobId" = job_id."jobId";
+    s."jobId" = job_id."jobId";
 
 -- name: LinkStepRunParents :exec
+WITH step_runs AS (
+    SELECT "id", "stepId"
+    FROM "StepRun"
+    WHERE "id" = ANY(@stepRunIds::uuid[])
+)
 INSERT INTO "_StepRunOrder" ("A", "B")
 SELECT
     parent_run."id" AS "A",
@@ -678,9 +765,9 @@ SELECT
 FROM
     "_StepOrder" AS step_order
 JOIN
-    "StepRun" AS parent_run ON parent_run."stepId" = step_order."A" AND parent_run."jobRunId" = @jobRunId::uuid
+    step_runs AS parent_run ON parent_run."stepId" = step_order."A"
 JOIN
-    "StepRun" AS child_run ON child_run."stepId" = step_order."B" AND child_run."jobRunId" = @jobRunId::uuid;
+    step_runs AS child_run ON child_run."stepId" = step_order."B";
 
 -- name: GetWorkflowRun :many
 SELECT
@@ -691,6 +778,8 @@ SELECT
     -- waiting on https://github.com/sqlc-dev/sqlc/pull/2858 for nullable fields
     wc."limitStrategy" as "concurrencyLimitStrategy",
     wc."maxRuns" as "concurrencyMaxRuns",
+    workflow."isPaused" as "isPaused",
+    wc."concurrencyGroupExpression" as "concurrencyGroupExpression",
     groupKeyRun."id" as "getGroupKeyRunId"
 FROM
     "WorkflowRun" as runs
@@ -822,7 +911,9 @@ WITH QueuedRuns AS (
     FROM "WorkflowRun" wr
     JOIN "WorkflowVersion" wv ON wv."id" = wr."workflowVersionId"
     JOIN "Workflow" w ON w."id" = wv."workflowId"
-    WHERE wr."status" = 'QUEUED'
+    WHERE
+        wr."tenantId" = @tenantId::uuid
+        AND wr."status" = 'QUEUED'
 		AND wr."concurrencyGroupId" IS NOT NULL
     ORDER BY wr."workflowVersionId"
 )
@@ -859,3 +950,153 @@ FROM "JobRun" jr
 JOIN "JobRunLookupData" jld ON jr."id" = jld."jobRunId"
 WHERE jld."data" ? 'input' AND jr."workflowRunId" = @workflowRunId::uuid
 LIMIT 1;
+
+-- name: GetWorkflowRunById :one
+SELECT
+    r.*,
+    sqlc.embed(wv),
+    sqlc.embed(w),
+    sqlc.embed(tb)
+FROM
+    "WorkflowRun" r
+JOIN
+    "WorkflowVersion" as wv ON
+        r."workflowVersionId" = wv."id"
+JOIN "Workflow" as w ON
+    wv."workflowId" = w."id"
+JOIN "WorkflowRunTriggeredBy" as tb ON
+    r."id" = tb."parentId"
+WHERE
+    r."id" = @workflowRunId::uuid AND
+    r."tenantId" = @tenantId::uuid;
+
+-- name: GetWorkflowRunTrigger :one
+SELECT *
+FROM
+    "WorkflowRunTriggeredBy"
+WHERE
+    "parentId" = @runId::uuid AND
+    "tenantId" = @tenantId::uuid;
+
+
+-- name: GetStepsForJobs :many
+SELECT
+	j."id" as "jobId",
+    sqlc.embed(s),
+    (
+        SELECT array_agg(so."A")::uuid[]  -- Casting the array_agg result to uuid[]
+        FROM "_StepOrder" so
+        WHERE so."B" = s."id"
+    ) AS "parents"
+FROM "Job" j
+JOIN "Step" s ON s."jobId" = j."id"
+WHERE
+    j."id" = ANY(@jobIds::uuid[])
+    AND j."tenantId" = @tenantId::uuid
+    AND j."deletedAt" IS NULL;
+
+-- name: ListChildWorkflowRunCounts :many
+SELECT
+    wr."parentStepRunId",
+    COUNT(wr."id") as "count"
+FROM
+    "WorkflowRun" wr
+WHERE
+    wr."parentStepRunId" = ANY(@stepRunIds::uuid[])
+GROUP BY
+    wr."parentStepRunId";
+
+
+-- We grab the output for each step run here which could potentially be very large
+
+-- name: GetStepRunsForJobRunsWithOutput :many
+SELECT
+	sr."id",
+	sr."createdAt",
+	sr."updatedAt",
+	sr."status",
+    sr."jobRunId",
+    sr."stepId",
+    sr."tenantId",
+    sr."startedAt",
+    sr."finishedAt",
+    sr."cancelledAt",
+    sr."cancelledError",
+    sr."cancelledReason",
+    sr."timeoutAt",
+    sr."error",
+    sr."workerId",
+    sr."output"
+FROM "StepRun" sr
+WHERE
+	sr."jobRunId" = ANY(@jobIds::uuid[])
+    AND sr."tenantId" = @tenantId::uuid
+    AND sr."deletedAt" IS NULL
+ORDER BY sr."order" DESC;
+
+-- name: BulkCreateWorkflowRunEvent :exec
+WITH input_values AS (
+    SELECT
+        unnest(@timeSeen::timestamp[]) AS "timeFirstSeen",
+        unnest(@timeSeen::timestamp[]) AS "timeLastSeen",
+        unnest(@workflowRunIds::uuid[]) AS "workflowRunId",
+        unnest(cast(@reasons::text[] as"StepRunEventReason"[])) AS "reason",
+        unnest(cast(@severities::text[] as "StepRunEventSeverity"[])) AS "severity",
+        unnest(@messages::text[]) AS "message",
+        1 AS "count",
+        unnest(@data::jsonb[]) AS "data"
+),
+updated AS (
+    UPDATE "StepRunEvent"
+    SET
+        "timeLastSeen" = input_values."timeLastSeen",
+        "message" = input_values."message",
+        "count" = "StepRunEvent"."count" + 1,
+        "data" = input_values."data"
+    FROM input_values
+    WHERE
+        "StepRunEvent"."workflowRunId" = input_values."workflowRunId"
+        AND "StepRunEvent"."reason" = input_values."reason"
+        AND "StepRunEvent"."severity" = input_values."severity"
+        AND "StepRunEvent"."id" = (
+            SELECT "id"
+            FROM "StepRunEvent"
+            WHERE "workflowRunId" = input_values."workflowRunId"
+            ORDER BY "id" DESC
+            LIMIT 1
+        )
+    RETURNING "StepRunEvent".*
+)
+INSERT INTO "StepRunEvent" (
+    "timeFirstSeen",
+    "timeLastSeen",
+    "workflowRunId",
+    "reason",
+    "severity",
+    "message",
+    "count",
+    "data"
+)
+SELECT
+    "timeFirstSeen",
+    "timeLastSeen",
+    "workflowRunId",
+    "reason",
+    "severity",
+    "message",
+    "count",
+    "data"
+FROM input_values
+WHERE NOT EXISTS (
+    SELECT 1 FROM updated WHERE "workflowRunId" = input_values."workflowRunId"
+);
+
+-- name: ListWorkflowRunEventsByWorkflowRunId :many
+SELECT
+    sre.*
+FROM
+    "StepRunEvent" sre
+WHERE
+    sre."workflowRunId" = @workflowRunId::uuid
+ORDER BY
+    sre."id" DESC;

@@ -15,6 +15,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
+	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/random"
 )
@@ -40,6 +41,7 @@ type MessageQueueImpl struct {
 	sessions chan chan session
 	msgs     chan *msgWithQueue
 	identity string
+	configFs []MessageQueueImplOpt
 
 	qos int
 
@@ -107,6 +109,7 @@ func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl) {
 		identity: identity(),
 		l:        opts.l,
 		qos:      opts.qos,
+		configFs: fs,
 	}
 
 	constructor := func(context.Context) (*amqp.Connection, error) {
@@ -166,12 +169,6 @@ func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl) {
 		return nil, nil
 	}
 
-	if _, err := t.initQueue(sub, msgqueue.SCHEDULING_QUEUE); err != nil {
-		t.l.Debug().Msgf("error initializing queue: %v", err)
-		cancel()
-		return nil, nil
-	}
-
 	// create publisher go func
 	cleanup1 := t.startPublishing()
 
@@ -189,8 +186,21 @@ func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl) {
 	return cleanup, t
 }
 
+func (t *MessageQueueImpl) Clone() (func() error, msgqueue.MessageQueue) {
+	return New(t.configFs...)
+}
+
+func (t *MessageQueueImpl) SetQOS(prefetchCount int) {
+	t.qos = prefetchCount
+}
+
 // AddMessage adds a msg to the queue.
 func (t *MessageQueueImpl) AddMessage(ctx context.Context, q msgqueue.Queue, msg *msgqueue.Message) error {
+	// inject otel carrier into the message
+	if msg.OtelCarrier == nil {
+		msg.OtelCarrier = telemetry.GetCarrier(ctx)
+	}
+
 	t.msgs <- &msgWithQueue{
 		Message: msg,
 		q:       q,
@@ -316,7 +326,7 @@ func (t *MessageQueueImpl) startPublishing() func() error {
 
 				select {
 				case <-ctx.Done():
-					break
+					return
 				case msg := <-t.msgs:
 					go func(msg *msgWithQueue) {
 						body, err := json.Marshal(msg)
@@ -331,9 +341,15 @@ func (t *MessageQueueImpl) startPublishing() func() error {
 
 						t.l.Debug().Msgf("publishing msg %s to queue %s", msg.ID, msg.q.Name())
 
-						err = pub.PublishWithContext(ctx, "", msg.q.Name(), false, false, amqp.Publishing{
+						pubMsg := amqp.Publishing{
 							Body: body,
-						})
+						}
+
+						if msg.ImmediatelyExpire {
+							pubMsg.Expiration = "0"
+						}
+
+						err = pub.PublishWithContext(ctx, "", msg.q.Name(), false, false, pubMsg)
 
 						// retry failed delivery on the next session
 						if err != nil {
@@ -476,7 +492,7 @@ func (t *MessageQueueImpl) subscribe(
 						}
 
 						if err := json.Unmarshal(rabbitMsg.Body, msg); err != nil {
-							t.l.Error().Msgf("error unmarshaling message: %v", err)
+							t.l.Error().Msgf("error unmarshalling message: %v", err)
 
 							// reject this message
 							if err := rabbitMsg.Reject(false); err != nil {

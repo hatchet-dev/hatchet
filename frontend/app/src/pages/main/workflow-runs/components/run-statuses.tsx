@@ -28,6 +28,10 @@ const RUN_STATUS_VARIANTS: Record<RunStatusType, RunStatusVariant> = {
     text: 'Cancelled',
     variant: 'failed',
   },
+  CANCELLING: {
+    text: 'Cancelling',
+    variant: 'inProgress',
+  },
   RUNNING: {
     text: 'Running',
     variant: 'inProgress',

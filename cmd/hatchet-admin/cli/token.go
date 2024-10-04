@@ -89,7 +89,13 @@ func runCreateAPIToken(expiresIn time.Duration) error {
 
 	expiresAt := time.Now().UTC().Add(expiresIn)
 
-	defaultTok, err := serverConf.Auth.JWTManager.GenerateTenantToken(context.Background(), tokenTenantId, tokenName, false, &expiresAt)
+	tenantId := tokenTenantId
+
+	if tenantId == "" {
+		tenantId = serverConf.Seed.DefaultTenantID
+	}
+
+	defaultTok, err := serverConf.Auth.JWTManager.GenerateTenantToken(context.Background(), tenantId, tokenName, false, &expiresAt)
 
 	if err != nil {
 		return err

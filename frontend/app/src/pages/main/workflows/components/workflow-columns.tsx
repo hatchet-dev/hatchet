@@ -4,8 +4,26 @@ import { Workflow } from '@/lib/api';
 import { Link } from 'react-router-dom';
 import { ChevronRightIcon } from '@radix-ui/react-icons';
 import RelativeDate from '@/components/molecules/relative-date';
+import { Badge } from '@/components/ui/badge';
 
 export const columns: ColumnDef<Workflow>[] = [
+  {
+    accessorKey: 'Status',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Status" />
+    ),
+    cell: ({ row }) => (
+      <>
+        {row.original.isPaused ? (
+          <Badge variant="inProgress">Paused</Badge>
+        ) : (
+          <Badge variant="successful">Active</Badge>
+        )}
+      </>
+    ),
+    enableSorting: false,
+    enableHiding: false,
+  },
   {
     accessorKey: 'name',
     header: ({ column }) => (
@@ -20,36 +38,6 @@ export const columns: ColumnDef<Workflow>[] = [
     ),
     enableSorting: true,
     enableHiding: false,
-  },
-  {
-    accessorKey: 'lastRun',
-    header: ({ column }) => (
-      <DataTableColumnHeader
-        column={column}
-        title="Last Run"
-        className="whitespace-nowrap"
-      />
-    ),
-    sortingFn: (a, b) => {
-      const dateA = a.original.lastRun?.metadata.createdAt
-        ? new Date(a.original.lastRun.metadata.createdAt)
-        : null;
-      const dateB = b.original.lastRun?.metadata.createdAt
-        ? new Date(b.original.lastRun.metadata.createdAt)
-        : null;
-      return dateA && dateB ? dateA.getTime() - dateB.getTime() : 0;
-    },
-    cell: ({ row }) => {
-      return (
-        <div className="whitespace-nowrap">
-          {row.original.lastRun?.metadata.createdAt && (
-            <RelativeDate date={row.original.lastRun?.metadata.createdAt} />
-          )}
-        </div>
-      );
-    },
-    enableSorting: true,
-    enableHiding: true,
   },
   {
     accessorKey: 'createdAt',

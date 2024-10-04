@@ -25,6 +25,9 @@ type CreateWorkerOpts struct {
 
 	// A list of actions this worker can run
 	Actions []string `validate:"dive,actionId"`
+
+	// (optional) Webhook Id associated with the worker (if any)
+	WebhookId *string `validate:"omitempty,uuid"`
 }
 
 type UpdateWorkerOpts struct {
@@ -66,13 +69,16 @@ type ApiUpdateWorkerOpts struct {
 
 type WorkerAPIRepository interface {
 	// ListWorkers lists workers for the tenant
-	ListWorkers(tenantId string, opts *ListWorkersOpts) ([]*dbsqlc.ListWorkersWithStepCountRow, error)
+	ListWorkers(tenantId string, opts *ListWorkersOpts) ([]*dbsqlc.ListWorkersWithSlotCountRow, error)
 
 	// ListRecentWorkerStepRuns lists recent step runs for a given worker
-	ListRecentWorkerStepRuns(tenantId, workerId string) ([]db.StepRunModel, error)
+	ListWorkerState(tenantId, workerId string, maxRuns int) ([]*dbsqlc.ListSemaphoreSlotsWithStateForWorkerRow, []*dbsqlc.GetStepRunForEngineRow, error)
+
+	// GetWorkerActionsByWorkerId returns a list of actions for a worker
+	GetWorkerActionsByWorkerId(tenantid, workerId string) ([]pgtype.Text, error)
 
 	// GetWorkerById returns a worker by its id.
-	GetWorkerById(workerId string) (*db.WorkerModel, error)
+	GetWorkerById(workerId string) (*dbsqlc.GetWorkerByIdRow, error)
 
 	// ListWorkerLabels returns a list of labels config for a worker
 	ListWorkerLabels(tenantId, workerId string) ([]*dbsqlc.ListWorkerLabelsRow, error)
@@ -88,17 +94,23 @@ type WorkerEngineRepository interface {
 	// UpdateWorker updates a worker for a given tenant.
 	UpdateWorker(ctx context.Context, tenantId, workerId string, opts *UpdateWorkerOpts) (*dbsqlc.Worker, error)
 
+	// UpdateWorker updates a worker in the repository.
+	// It will only update the worker if there is no lock on the worker, else it will skip.
+	UpdateWorkerHeartbeat(ctx context.Context, tenantId, workerId string, lastHeartbeatAt time.Time) error
+
 	// DeleteWorker removes the worker from the database
 	DeleteWorker(ctx context.Context, tenantId, workerId string) error
 
-	// UpdateWorkersByName removes the worker from the database
-	UpdateWorkersByName(ctx context.Context, opts dbsqlc.UpdateWorkersByNameParams) error
+	// UpdateWorkersByWebhookId removes the worker from the database
+	UpdateWorkersByWebhookId(ctx context.Context, opts dbsqlc.UpdateWorkersByWebhookIdParams) error
 
 	GetWorkerForEngine(ctx context.Context, tenantId, workerId string) (*dbsqlc.GetWorkerForEngineRow, error)
-
-	ResolveWorkerSemaphoreSlots(ctx context.Context, tenantId pgtype.UUID) (*dbsqlc.ResolveWorkerSemaphoreSlotsRow, error)
 
 	UpdateWorkerActiveStatus(ctx context.Context, tenantId, workerId string, isActive bool, timestamp time.Time) (*dbsqlc.Worker, error)
 
 	UpsertWorkerLabels(ctx context.Context, workerId pgtype.UUID, opts []UpsertWorkerLabelOpts) ([]*dbsqlc.WorkerLabel, error)
+
+	DeleteOldWorkers(ctx context.Context, tenantId string, lastHeartbeatBefore time.Time) (bool, error)
+
+	DeleteOldWorkerEvents(ctx context.Context, tenantId string, lastHeartbeatAfter time.Time) error
 }

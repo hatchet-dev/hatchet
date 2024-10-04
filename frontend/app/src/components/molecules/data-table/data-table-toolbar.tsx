@@ -6,6 +6,7 @@ import { DataTableViewOptions } from './data-table-view-options';
 
 import { DataTableFacetedFilter } from './data-table-faceted-filter';
 import { Input } from '@/components/ui/input.tsx';
+import { Spinner } from '@/components/ui/loading';
 
 export interface FilterOption {
   label: string;
@@ -17,6 +18,7 @@ export enum ToolbarType {
   Checkbox = 'checkbox',
   Radio = 'radio',
   KeyValue = 'key-value',
+  Array = 'array',
 }
 
 export type ToolbarFilters = {
@@ -33,6 +35,7 @@ interface DataTableToolbarProps<TData> {
   setSearch?: (search: string) => void;
   search?: string;
   showColumnToggle?: boolean;
+  isLoading?: boolean;
 }
 
 export function DataTableToolbar<TData>({
@@ -42,6 +45,7 @@ export function DataTableToolbar<TData>({
   setSearch,
   search,
   showColumnToggle,
+  isLoading = false,
 }: DataTableToolbarProps<TData>) {
   const isFiltered = table.getState().columnFilters?.length > 0;
 
@@ -76,7 +80,8 @@ export function DataTableToolbar<TData>({
           </Button>
         )}
       </div>
-      <div className="flex flex-row gap-4">
+      <div className="flex flex-row gap-4 items-center">
+        {isLoading && <Spinner />}
         {actions && actions.length > 0 && actions}
         {showColumnToggle && <DataTableViewOptions table={table} />}
       </div>

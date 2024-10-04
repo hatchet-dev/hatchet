@@ -4,13 +4,13 @@
 
 1. Make sure all prerequisite dependencies are installed:
 
-    - [Go 1.21+](https://go.dev/doc/install)
-    - [Node.js v18+](https://nodejs.org/en/download) - we recommend using [nvm](https://github.com/nvm-sh/nvm) for managing node versions.
-    - [pnpm](https://pnpm.io/installation) installed globally (`npm i -g pnpm`)
-    - [Docker Desktop](https://docs.docker.com/desktop/install/mac-install/)
-    - [protoc](https://grpc.io/docs/protoc-installation/)
-    - [pip](https://pip.pypa.io/en/stable/installation/)
-    - [Caddy](https://caddyserver.com/docs/install)
+   - [Go 1.22+](https://go.dev/doc/install)
+   - [Node.js v18+](https://nodejs.org/en/download) - we recommend using [nvm](https://github.com/nvm-sh/nvm) for managing node versions.
+   - [pnpm](https://pnpm.io/installation) installed globally (`npm i -g pnpm`)
+   - [Docker Desktop](https://docs.docker.com/desktop/install/mac-install/)
+   - [protoc](https://grpc.io/docs/protoc-installation/)
+   - [pip](https://pip.pypa.io/en/stable/installation/)
+   - [Caddy](https://caddyserver.com/docs/install)
 
 2. Start the Database and RabbitMQ services:
 
@@ -19,6 +19,7 @@ task start-db
 ```
 
 3. Install dependencies, run migrations, generate encryption keys, and seed the database:
+
 ```sh
 task setup
 ```

@@ -2,6 +2,7 @@ package prisma
 
 import (
 	"context"
+	"errors"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -201,7 +202,7 @@ func (t *tenantLimitRepository) GetLimits(ctx context.Context, tenantId string) 
 	return limits, nil
 }
 
-func (t *tenantLimitRepository) CanCreate(ctx context.Context, resource dbsqlc.LimitResource, tenantId string) (bool, int, error) {
+func (t *tenantLimitRepository) CanCreate(ctx context.Context, resource dbsqlc.LimitResource, tenantId string, numberOfResources int32) (bool, int, error) {
 
 	if !t.config.EnforceLimits {
 		return true, 0, nil
@@ -215,7 +216,7 @@ func (t *tenantLimitRepository) CanCreate(ctx context.Context, resource dbsqlc.L
 		},
 	})
 
-	if err == pgx.ErrNoRows {
+	if err != nil && errors.Is(err, pgx.ErrNoRows) {
 		t.l.Warn().Msgf("no %s tenant limit found, creating default limit", string(resource))
 
 		err = t.SelectOrInsertTenantLimits(ctx, tenantId, nil)
@@ -225,9 +226,7 @@ func (t *tenantLimitRepository) CanCreate(ctx context.Context, resource dbsqlc.L
 		}
 
 		return true, 0, nil
-	}
-
-	if err != nil {
+	} else if err != nil {
 		return false, 0, err
 	}
 
@@ -244,18 +243,20 @@ func (t *tenantLimitRepository) CanCreate(ctx context.Context, resource dbsqlc.L
 
 	}
 
-	if value >= limit.LimitValue {
+	// subtract 1 for backwards compatibility
+
+	if value+numberOfResources-1 >= limit.LimitValue {
 		return false, 100, nil
 	}
 
-	return true, calcPercent(value, limit.LimitValue), nil
+	return true, calcPercent(value+numberOfResources, limit.LimitValue), nil
 }
 
 func calcPercent(value int32, limit int32) int {
 	return int((float64(value) / float64(limit)) * 100)
 }
 
-func (t *tenantLimitRepository) Meter(ctx context.Context, resource dbsqlc.LimitResource, tenantId string) (*dbsqlc.TenantResourceLimit, error) {
+func (t *tenantLimitRepository) Meter(ctx context.Context, resource dbsqlc.LimitResource, tenantId string, numberOfResources int32) (*dbsqlc.TenantResourceLimit, error) {
 	if !t.config.EnforceLimits {
 		return nil, nil
 	}
@@ -266,6 +267,7 @@ func (t *tenantLimitRepository) Meter(ctx context.Context, resource dbsqlc.Limit
 			LimitResource: resource,
 			Valid:         true,
 		},
+		Numresources: numberOfResources,
 	})
 
 	if err != nil {

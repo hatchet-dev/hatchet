@@ -74,6 +74,7 @@ export const formatPercentTooltip = (d: number) => `${format2Dec(d)}%`;
 
 type AreaChartProps = {
   data: MetricValue[];
+  kind: 'area' | 'bar';
   gradientColor?: string;
   width: number;
   height: number;
@@ -91,6 +92,7 @@ type AreaChartProps = {
 export default withTooltip<AreaChartProps, TooltipData>(
   ({
     data,
+    kind,
     gradientColor = background2,
     width,
     height,
@@ -164,6 +166,12 @@ export default withTooltip<AreaChartProps, TooltipData>(
       [showTooltip, yScale, dateScale, data],
     );
 
+    let barWidth = innerWidth / data.length;
+
+    if (barWidth <= 5) {
+      barWidth = 6;
+    }
+
     return (
       <div>
         <svg width={width} height={height} overflow={'visible'}>
@@ -210,17 +218,47 @@ export default withTooltip<AreaChartProps, TooltipData>(
               toOpacity={0.2}
               height={innerHeight}
             />
-            <AreaClosed<MetricValue>
-              data={data}
-              x={(d) => dateScale(d.date) || 0}
-              y={(d) => yScale(d.value) || 0}
-              yScale={yScale}
-              strokeWidth={1}
-              stroke="url(#gradient)"
-              fill="url(#gradient)"
-              curve={curveMonotoneX}
-              height={innerHeight}
-            />
+            {kind == 'bar' &&
+              data.map((d, i) => {
+                if (i == 0) {
+                  return (
+                    <Bar
+                      key={i}
+                      x={dateScale(getDate(d)) || 0}
+                      y={yScale(getValue(d)) || 0}
+                      width={(barWidth - 4) / 2}
+                      height={innerHeight - yScale(getValue(d)) || 0}
+                      fill="url(#gradient)"
+                      rx={2}
+                    />
+                  );
+                }
+
+                return (
+                  <Bar
+                    key={i}
+                    x={(dateScale(getDate(d)) || 0) - barWidth / 2}
+                    y={yScale(getValue(d)) || 0}
+                    width={barWidth - 4}
+                    height={innerHeight - yScale(getValue(d)) || 0}
+                    fill="url(#gradient)"
+                    rx={2}
+                  />
+                );
+              })}
+            {kind == 'area' && (
+              <AreaClosed<MetricValue>
+                data={data}
+                x={(d) => dateScale(d.date) || 0}
+                y={(d) => yScale(d.value) || 0}
+                yScale={yScale}
+                strokeWidth={1}
+                stroke="url(#gradient)"
+                fill="url(#gradient)"
+                curve={curveMonotoneX}
+                height={innerHeight}
+              />
+            )}
             {!hideBottomAxis && (
               <AxisBottom
                 top={height}

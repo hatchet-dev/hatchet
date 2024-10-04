@@ -1,0 +1,69 @@
+withTenant:
+  get:
+    x-resources: ["tenant"]
+    description: Lists all rate limits for a tenant.
+    operationId: rate-limit:list
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The number to skip
+        in: query
+        name: offset
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - description: The number to limit by
+        in: query
+        name: limit
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - description: The search query to filter for
+        in: query
+        name: search
+        required: false
+        schema:
+          type: string
+      - description: What to order by
+        in: query
+        name: orderByField
+        required: false
+        schema:
+          $ref: "../../components/schemas/_index.yaml#/RateLimitOrderByField"
+      - description: The order direction
+        in: query
+        name: orderByDirection
+        required: false
+        schema:
+          $ref: "../../components/schemas/_index.yaml#/RateLimitOrderByDirection"
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/RateLimitList"
+        description: Successfully listed the rate limits
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+    summary: List rate limits
+    tags:
+      - Rate Limits
