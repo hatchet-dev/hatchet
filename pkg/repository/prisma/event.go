@@ -350,7 +350,7 @@ func (r *eventEngineRepository) BulkCreateEvent(ctx context.Context, opts *repos
 				params[i].ReplayedFromId = sqlchelpers.UUIDFromStr(*event.ReplayedEvent)
 			}
 
-			ids = append(ids, sqlchelpers.UUIDFromStr(eventId))
+			ids[i] = sqlchelpers.UUIDFromStr(eventId)
 		}
 
 		// start a transaction
