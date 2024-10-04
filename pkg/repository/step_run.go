@@ -166,6 +166,11 @@ type ProcessStepRunUpdatesResult struct {
 	Continue              bool
 }
 
+type ProcessStepRunUpdatesResultV2 struct {
+	CompletedWorkflowRuns []*dbsqlc.ResolveWorkflowRunStatusRow
+	Continue              bool
+}
+
 type StepRunEngineRepository interface {
 	RegisterWorkflowRunCompletedCallback(callback Callback[*dbsqlc.ResolveWorkflowRunStatusRow])
 
@@ -183,7 +188,7 @@ type StepRunEngineRepository interface {
 
 	StepRunCancelled(ctx context.Context, tenantId, stepRunId string, cancelledAt time.Time, cancelledReason string) error
 
-	StepRunFailed(ctx context.Context, tenantId, stepRunId string, failedAt time.Time, errStr string) error
+	StepRunFailed(ctx context.Context, tenantId, stepRunId string, failedAt time.Time, errStr string, retryCount int) error
 
 	ReplayStepRun(ctx context.Context, tenantId, stepRunId string, input []byte) (*dbsqlc.GetStepRunForEngineRow, error)
 
@@ -211,6 +216,8 @@ type StepRunEngineRepository interface {
 	GetQueueCounts(ctx context.Context, tenantId string) (map[string]int, error)
 
 	ProcessStepRunUpdates(ctx context.Context, qlp *zerolog.Logger, tenantId string) (ProcessStepRunUpdatesResult, error)
+
+	ProcessStepRunUpdatesV2(ctx context.Context, qlp *zerolog.Logger, tenantId string) (ProcessStepRunUpdatesResultV2, error)
 
 	QueueStepRuns(ctx context.Context, ql *zerolog.Logger, tenantId string) (QueueStepRunsResult, error)
 

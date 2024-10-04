@@ -104,6 +104,12 @@ type ConfigFileRuntime struct {
 	// QueueLimit is the limit of items to return from a single queue at a time
 	SingleQueueLimit int `mapstructure:"singleQueueLimit" json:"singleQueueLimit,omitempty" default:"100"`
 
+	// FlushPeriodMilliseconds is the number of milliseconds before flush
+	FlushPeriodMilliseconds int `mapstructure:"flushPeriodMilliseconds" json:"flushPeriodMilliseconds,omitempty" default:"10"`
+
+	// FlushItemsThreshold is the number of items to hold in memory until flushing to the database
+	FlushItemsThreshold int `mapstructure:"flushItemsThreshold" json:"flushItemsThreshold,omitempty" default:"100"`
+
 	// Allow new tenants to be created
 	AllowSignup bool `mapstructure:"allowSignup" json:"allowSignup,omitempty" default:"true"`
 
@@ -485,6 +491,8 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("msgQueue.rabbitmq.qos", "SERVER_MSGQUEUE_RABBITMQ_QOS")
 	_ = v.BindEnv("runtime.requeueLimit", "SERVER_REQUEUE_LIMIT")
 	_ = v.BindEnv("runtime.singleQueueLimit", "SERVER_SINGLE_QUEUE_LIMIT")
+	_ = v.BindEnv("runtime.flushPeriodMilliseconds", "SERVER_FLUSH_PERIOD_MILLISECONDS")
+	_ = v.BindEnv("runtime.flushItemsThreshold", "SERVER_FLUSH_ITEMS_THRESHOLD")
 
 	// tls options
 	_ = v.BindEnv("tls.tlsStrategy", "SERVER_TLS_STRATEGY")

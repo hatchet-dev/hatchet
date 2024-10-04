@@ -424,6 +424,9 @@ model Event {
   // metadata stored in the event
   additionalMetadata Json?
 
+  // this is used to order the events on bulk inserts
+  insertOrder Int?
+
   @@index([tenantId])
   @@index([createdAt])
   @@index([tenantId, createdAt])
@@ -1342,6 +1345,7 @@ model QueueItem {
 enum InternalQueue {
   WORKER_SEMAPHORE_COUNT
   STEP_RUN_UPDATE
+  STEP_RUN_UPDATE_V2
   WORKFLOW_RUN_UPDATE
   WORKFLOW_RUN_PAUSED
 }

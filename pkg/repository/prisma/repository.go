@@ -281,12 +281,14 @@ func (r *engineRepository) WebhookWorker() repository.WebhookWorkerEngineReposit
 	return r.webhookWorker
 }
 
-func NewEngineRepository(pool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ...PrismaRepositoryOpt) (func() error, repository.EngineRepository) {
+func NewEngineRepository(pool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ...PrismaRepositoryOpt) (func() error, repository.EngineRepository, error) {
 	opts := defaultPrismaRepositoryOpts()
 
 	for _, f := range fs {
 		f(opts)
 	}
+
+	setDefaults(cf)
 
 	newLogger := opts.l.With().Str("service", "database").Logger()
 	opts.l = &newLogger
@@ -296,30 +298,48 @@ func NewEngineRepository(pool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ..
 	}
 
 	rlCache := cache.New(5 * time.Minute)
+	eventEngine, cleanupEventEngine, err := NewEventEngineRepository(pool, opts.v, opts.l, opts.metered)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	stepRunEngine, cleanupStepRunEngine, err := NewStepRunEngineRepository(pool, opts.v, opts.l, cf, rlCache)
+
+	if err != nil {
+		return nil, nil, err
+	}
 
 	return func() error {
 			rlCache.Stop()
-			return nil
+
+			if err := cleanupStepRunEngine(); err != nil {
+				return err
+			}
+
+			return cleanupEventEngine()
+
 		}, &engineRepository{
 			health:         NewHealthEngineRepository(pool),
 			apiToken:       NewEngineTokenRepository(pool, opts.v, opts.l, opts.cache),
 			dispatcher:     NewDispatcherRepository(pool, opts.v, opts.l),
-			event:          NewEventEngineRepository(pool, opts.v, opts.l, opts.metered),
+			event:          eventEngine,
 			getGroupKeyRun: NewGetGroupKeyRunRepository(pool, opts.v, opts.l),
 			jobRun:         NewJobRunEngineRepository(pool, opts.v, opts.l),
-			stepRun:        NewStepRunEngineRepository(pool, opts.v, opts.l, cf, rlCache),
+			stepRun:        stepRunEngine,
 			step:           NewStepRepository(pool, opts.v, opts.l),
 			tenant:         NewTenantEngineRepository(pool, opts.v, opts.l, opts.cache),
 			tenantAlerting: NewTenantAlertingEngineRepository(pool, opts.v, opts.l, opts.cache),
 			ticker:         NewTickerRepository(pool, opts.v, opts.l),
 			worker:         NewWorkerEngineRepository(pool, opts.v, opts.l, opts.metered),
 			workflow:       NewWorkflowEngineRepository(pool, opts.v, opts.l, opts.metered),
-			workflowRun:    NewWorkflowRunEngineRepository(pool, opts.v, opts.l, opts.metered),
+			workflowRun:    NewWorkflowRunEngineRepository(stepRunEngine, pool, opts.v, opts.l, opts.metered),
 			streamEvent:    NewStreamEventsEngineRepository(pool, opts.v, opts.l),
 			log:            NewLogEngineRepository(pool, opts.v, opts.l),
 			rateLimit:      NewRateLimitEngineRepository(pool, opts.v, opts.l),
 			webhookWorker:  NewWebhookWorkerEngineRepository(pool, opts.v, opts.l),
-		}
+		},
+		err
 }
 
 type entitlementRepository struct {

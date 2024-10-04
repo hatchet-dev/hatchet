@@ -62,6 +62,7 @@ const (
 	InternalQueueSTEPRUNUPDATE        InternalQueue = "STEP_RUN_UPDATE"
 	InternalQueueWORKFLOWRUNUPDATE    InternalQueue = "WORKFLOW_RUN_UPDATE"
 	InternalQueueWORKFLOWRUNPAUSED    InternalQueue = "WORKFLOW_RUN_PAUSED"
+	InternalQueueSTEPRUNUPDATEV2      InternalQueue = "STEP_RUN_UPDATE_V2"
 )
 
 func (e *InternalQueue) Scan(src interface{}) error {
@@ -992,6 +993,7 @@ type Event struct {
 	ReplayedFromId     pgtype.UUID      `json:"replayedFromId"`
 	Data               []byte           `json:"data"`
 	AdditionalMetadata []byte           `json:"additionalMetadata"`
+	InsertOrder        pgtype.Int4      `json:"insertOrder"`
 }
 
 type GetGroupKeyRun struct {

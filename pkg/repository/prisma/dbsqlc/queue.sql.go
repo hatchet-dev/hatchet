@@ -95,26 +95,28 @@ INSERT INTO
         "priority"
     )
 SELECT
-    $1::"InternalQueue",
+    input."queue",
     true,
     input."data",
-    $2::uuid,
+    input."tenantId",
     1
 FROM (
     SELECT
-        unnest($3::json[]) AS "data"
+        unnest(cast($1::text[] as"InternalQueue"[])) AS "queue",
+        unnest($2::json[]) AS "data",
+        unnest($3::uuid[]) AS "tenantId"
 ) AS input
 ON CONFLICT DO NOTHING
 `
 
 type CreateInternalQueueItemsBulkParams struct {
-	Queue    InternalQueue `json:"queue"`
-	Tenantid pgtype.UUID   `json:"tenantid"`
-	Datas    [][]byte      `json:"datas"`
+	Queues    []string      `json:"queues"`
+	Datas     [][]byte      `json:"datas"`
+	Tenantids []pgtype.UUID `json:"tenantids"`
 }
 
 func (q *Queries) CreateInternalQueueItemsBulk(ctx context.Context, db DBTX, arg CreateInternalQueueItemsBulkParams) error {
-	_, err := db.Exec(ctx, createInternalQueueItemsBulk, arg.Queue, arg.Tenantid, arg.Datas)
+	_, err := db.Exec(ctx, createInternalQueueItemsBulk, arg.Queues, arg.Datas, arg.Tenantids)
 	return err
 }
 

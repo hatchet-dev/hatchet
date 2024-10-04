@@ -183,7 +183,11 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile, runtime *server.Co
 
 	meter := metered.NewMetered(entitlementRepo, &l)
 
-	cleanupEngine, engineRepo := prisma.NewEngineRepository(pool, runtime, prisma.WithLogger(&l), prisma.WithCache(ch), prisma.WithMetered(meter))
+	cleanupEngine, engineRepo, err := prisma.NewEngineRepository(pool, runtime, prisma.WithLogger(&l), prisma.WithCache(ch), prisma.WithMetered(meter))
+
+	if err != nil {
+		return nil, fmt.Errorf("could not create engine repository: %w", err)
+	}
 
 	return &database.Config{
 		Disconnect: func() error {
