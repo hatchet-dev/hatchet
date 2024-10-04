@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 
+	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
@@ -281,6 +282,42 @@ func (w *workerEngineRepository) CreateNewWorker(ctx context.Context, tenantId s
 
 			if errors.Is(err, pgx.ErrNoRows) {
 				worker = nil
+			}
+		}
+
+		if opts.RuntimeInfo != nil {
+			if opts.RuntimeInfo.SdkVersion != nil {
+				createParams.SdkVersion = sqlchelpers.TextFromStr(*opts.RuntimeInfo.SdkVersion)
+			}
+			if opts.RuntimeInfo.Language != nil {
+				switch *opts.RuntimeInfo.Language {
+				case contracts.SDKS_GO:
+					createParams.Language = dbsqlc.NullWorkerSDKS{
+						WorkerSDKS: dbsqlc.WorkerSDKSGO,
+						Valid:      true,
+					}
+				case contracts.SDKS_PYTHON:
+					createParams.Language = dbsqlc.NullWorkerSDKS{
+						WorkerSDKS: dbsqlc.WorkerSDKSPYTHON,
+						Valid:      true,
+					}
+				case contracts.SDKS_TYPESCRIPT:
+					createParams.Language = dbsqlc.NullWorkerSDKS{
+						WorkerSDKS: dbsqlc.WorkerSDKSTYPESCRIPT,
+						Valid:      true,
+					}
+				default:
+					return nil, nil, fmt.Errorf("invalid sdk: %s", *opts.RuntimeInfo.Language)
+				}
+			}
+			if opts.RuntimeInfo.LanguageVersion != nil {
+				createParams.LanguageVersion = sqlchelpers.TextFromStr(*opts.RuntimeInfo.LanguageVersion)
+			}
+			if opts.RuntimeInfo.Os != nil {
+				createParams.Os = sqlchelpers.TextFromStr(*opts.RuntimeInfo.Os)
+			}
+			if opts.RuntimeInfo.Extra != nil {
+				createParams.RuntimeExtra = sqlchelpers.TextFromStr(*opts.RuntimeInfo.Extra)
 			}
 		}
 

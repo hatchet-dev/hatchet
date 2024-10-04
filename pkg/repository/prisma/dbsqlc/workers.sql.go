@@ -21,7 +21,12 @@ INSERT INTO "Worker" (
     "dispatcherId",
     "maxRuns",
     "webhookId",
-    "type"
+    "type",
+    "sdkVersion",
+    "language",
+    "languageVersion",
+    "os",
+    "runtimeExtra"
 ) VALUES (
     gen_random_uuid(),
     CURRENT_TIMESTAMP,
@@ -31,17 +36,27 @@ INSERT INTO "Worker" (
     $3::uuid,
     $4::int,
     $5::uuid,
-    $6::"WorkerType"
+    $6::"WorkerType",
+    $7::text,
+    $8::"WorkerSDKS",
+    $9::text,
+    $10::text,
+    $11::text
 ) RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "lastHeartbeatAt", name, "dispatcherId", "maxRuns", "isActive", "lastListenerEstablished", "isPaused", type, "webhookId", language, "languageVersion", os, "runtimeExtra", "sdkVersion"
 `
 
 type CreateWorkerParams struct {
-	Tenantid     pgtype.UUID    `json:"tenantid"`
-	Name         string         `json:"name"`
-	Dispatcherid pgtype.UUID    `json:"dispatcherid"`
-	MaxRuns      pgtype.Int4    `json:"maxRuns"`
-	WebhookId    pgtype.UUID    `json:"webhookId"`
-	Type         NullWorkerType `json:"type"`
+	Tenantid        pgtype.UUID    `json:"tenantid"`
+	Name            string         `json:"name"`
+	Dispatcherid    pgtype.UUID    `json:"dispatcherid"`
+	MaxRuns         pgtype.Int4    `json:"maxRuns"`
+	WebhookId       pgtype.UUID    `json:"webhookId"`
+	Type            NullWorkerType `json:"type"`
+	SdkVersion      pgtype.Text    `json:"sdkVersion"`
+	Language        NullWorkerSDKS `json:"language"`
+	LanguageVersion pgtype.Text    `json:"languageVersion"`
+	Os              pgtype.Text    `json:"os"`
+	RuntimeExtra    pgtype.Text    `json:"runtimeExtra"`
 }
 
 func (q *Queries) CreateWorker(ctx context.Context, db DBTX, arg CreateWorkerParams) (*Worker, error) {
@@ -52,6 +67,11 @@ func (q *Queries) CreateWorker(ctx context.Context, db DBTX, arg CreateWorkerPar
 		arg.MaxRuns,
 		arg.WebhookId,
 		arg.Type,
+		arg.SdkVersion,
+		arg.Language,
+		arg.LanguageVersion,
+		arg.Os,
+		arg.RuntimeExtra,
 	)
 	var i Worker
 	err := row.Scan(
