@@ -77,11 +77,11 @@ services:
       DATABASE_POSTGRES_PORT: "5432"
       DATABASE_POSTGRES_HOST: "postgres"
       SERVER_TASKQUEUE_RABBITMQ_URL: amqp://user:password@rabbitmq:5672/
-      SERVER_AUTH_COOKIE_DOMAIN: localhost:8080
+      SERVER_AUTH_COOKIE_DOMAIN: 127.0.0.1:8080
       SERVER_AUTH_COOKIE_INSECURE: "t"
-      SERVER_GRPC_BIND_ADDRESS: "0.0.0.0"
       SERVER_GRPC_INSECURE: "t"
-      SERVER_GRPC_BROADCAST_ADDRESS: localhost:7077
+      SERVER_GRPC_BIND_ADDRESS: "0.0.0.0"
+      SERVER_GRPC_BROADCAST_ADDRESS: "host.docker.internal:7077"
     volumes:
       - hatchet_certs:/hatchet/certs
       - hatchet_config:/hatchet/config
