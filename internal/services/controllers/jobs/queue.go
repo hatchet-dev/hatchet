@@ -206,6 +206,7 @@ func (q *queue) handleCheckQueue(ctx context.Context, task *msgqueue.Message) er
 	// if this tenant is registered, then we should check the queue
 	q.tenantQueueOperations.RunOrContinue(metadata.TenantId)
 	q.updateStepRunOperations.RunOrContinue(metadata.TenantId)
+	q.updateStepRunV2Operations.RunOrContinue(metadata.TenantId)
 
 	return nil
 }
@@ -221,6 +222,8 @@ func (q *queue) runTenantQueues(ctx context.Context) func() {
 			q.l.Err(err).Msg("could not list tenants")
 			return
 		}
+
+		q.tenantQueueOperations.SetTenants(tenants)
 
 		for i := range tenants {
 			tenantId := sqlchelpers.UUIDToStr(tenants[i].ID)
@@ -286,6 +289,8 @@ func (q *queue) runTenantUpdateStepRuns(ctx context.Context) func() {
 			q.l.Err(err).Msg("could not list tenants")
 			return
 		}
+
+		q.updateStepRunOperations.SetTenants(tenants)
 
 		for i := range tenants {
 			tenantId := sqlchelpers.UUIDToStr(tenants[i].ID)
@@ -382,6 +387,8 @@ func (q *queue) runTenantUpdateStepRunsV2(ctx context.Context) func() {
 			return
 		}
 
+		q.updateStepRunV2Operations.SetTenants(tenants)
+
 		for i := range tenants {
 			tenantId := sqlchelpers.UUIDToStr(tenants[i].ID)
 
@@ -437,6 +444,8 @@ func (q *queue) runTenantTimeoutStepRuns(ctx context.Context) func() {
 			q.l.Err(err).Msg("could not list tenants")
 			return
 		}
+
+		q.timeoutStepRunOperations.SetTenants(tenants)
 
 		for i := range tenants {
 			tenantId := sqlchelpers.UUIDToStr(tenants[i].ID)
