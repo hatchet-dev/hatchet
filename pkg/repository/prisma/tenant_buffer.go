@@ -27,6 +27,8 @@ type TenantBufManagerOpts[T any, U any] struct {
 	SizeFunc   func(T) int                                       `validate:"required"`
 	L          *zerolog.Logger                                   `validate:"required"`
 	V          validator.Validator                               `validate:"required"`
+
+	FlushPeriod *time.Duration
 }
 
 // Create a new TenantBufferManager with generic types T for input and U for output
@@ -49,6 +51,10 @@ func NewTenantBufManager[T any, U any](opts TenantBufManagerOpts[T, U]) (*Tenant
 		OutputFunc:         opts.OutputFunc,
 		SizeFunc:           opts.SizeFunc,
 		L:                  opts.L,
+	}
+
+	if opts.FlushPeriod != nil {
+		defaultOpts.FlushPeriod = *opts.FlushPeriod
 	}
 
 	return &TenantBufferManager[T, U]{

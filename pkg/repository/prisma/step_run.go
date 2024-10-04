@@ -2485,24 +2485,10 @@ func (s *stepRunEngineRepository) StepRunStarted(ctx context.Context, tenantId, 
 		Status:    &running,
 	}
 
-	done, err := s.bulkStatusBuffer.BuffItem(tenantId, data)
+	_, err := s.bulkStatusBuffer.BuffItem(tenantId, data)
 
 	if err != nil {
 		return fmt.Errorf("could not buffer event: %w", err)
-	}
-
-	var response *flushResponse[pgtype.UUID]
-
-	select {
-	case response = <-done:
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-time.After(20 * time.Second):
-		return fmt.Errorf("timeout waiting for event to be flushed to db")
-	}
-
-	if response.err != nil {
-		return fmt.Errorf("could not flush event: %w", response.err)
 	}
 
 	// fire-and-forget for events
