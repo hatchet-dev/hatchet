@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
+	"golang.org/x/exp/maps"
 
 	"github.com/hatchet-dev/hatchet/internal/dagutils"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
@@ -447,6 +449,35 @@ func (r *workflowEngineRepository) CreateSchedules(
 	return r.queries.CreateSchedules(ctx, r.pool, createParams)
 }
 
+func (r *workflowEngineRepository) GetLatestWorkflowVersions(ctx context.Context, tenantId string, workflowIds []string) ([]*dbsqlc.GetLatestWorkflowVersionForWorkflowsRow, error) {
+
+	fmt.Println("the size of the workflowids are ", len(workflowIds))
+	var workflowVersionIds = make([]pgtype.UUID, len(workflowIds))
+
+	fmt.Println("the workflowids are ", strings.Join(workflowIds, ","))
+
+	for i, id := range workflowIds {
+		workflowVersionIds[i] = sqlchelpers.UUIDFromStr(id)
+	}
+
+	getLatestWorkflowVersionForWorkflowsParams := dbsqlc.GetLatestWorkflowVersionForWorkflowsParams{
+		Tenantid:    sqlchelpers.UUIDFromStr(tenantId),
+		Workflowids: workflowVersionIds,
+	}
+
+	versionIds, err := r.queries.GetLatestWorkflowVersionForWorkflows(ctx, r.pool, getLatestWorkflowVersionForWorkflowsParams)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch latest version: %w", err)
+	}
+
+	if len(versionIds) != len(workflowIds) {
+		return nil, fmt.Errorf("expected %d workflow version for latest, got %d", len(workflowIds), len(versionIds))
+	}
+
+	return versionIds, nil
+}
+
 func (r *workflowEngineRepository) GetLatestWorkflowVersion(ctx context.Context, tenantId, workflowId string) (*dbsqlc.GetWorkflowVersionForEngineRow, error) {
 	versionId, err := r.queries.GetWorkflowLatestVersion(ctx, r.pool, sqlchelpers.UUIDFromStr(workflowId))
 
@@ -475,6 +506,54 @@ func (r *workflowEngineRepository) GetWorkflowByName(ctx context.Context, tenant
 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
 		Name:     workflowName,
 	})
+}
+
+func (r *workflowEngineRepository) GetWorkflowsByNames(ctx context.Context, tenantId string, workflowNames []string) ([]*dbsqlc.Workflow, error) {
+
+	// we need to error if we don't have a workflow for a name
+
+	var distinctNamesMap = make(map[string]string)
+
+	for _, name := range workflowNames {
+		distinctNamesMap[name] = name
+	}
+
+	distinctNames := maps.Values(distinctNamesMap)
+
+	results, err := r.queries.GetWorkflowsByNames(ctx, r.pool, dbsqlc.GetWorkflowsByNamesParams{
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Names:    distinctNames,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch workflows: %w", err)
+	}
+	if len(results) != len(distinctNames) {
+		if len(results) > len(distinctNames) {
+			return nil, fmt.Errorf("expected %d workflows, got %d ", len(distinctNames), len(results))
+
+		}
+		mismatched := make(map[string]bool)
+
+		for _, result := range results {
+			mismatched[result.Name] = true
+		}
+
+		var missingNames []string
+
+		for _, name := range distinctNames {
+			if _, ok := mismatched[name]; !ok {
+				missingNames = append(missingNames, name)
+			}
+
+		}
+
+		return nil, fmt.Errorf("expected %d workflows, got %d  - missing %s", len(distinctNames), len(results), strings.Join(missingNames, ","))
+
+	}
+
+	return results, nil
+
 }
 
 func (r *workflowEngineRepository) GetWorkflowVersionById(ctx context.Context, tenantId, workflowId string) (*dbsqlc.GetWorkflowVersionForEngineRow, error) {

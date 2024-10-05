@@ -306,26 +306,51 @@ func (w *workflowRunEngineRepository) PopWorkflowRunsRoundRobin(ctx context.Cont
 	})
 }
 
+type createWorkflowRunResult struct {
+	ids []string
+}
+
 func (w *workflowRunEngineRepository) CreateNewWorkflowRuns(ctx context.Context, tenantId string, opts []*repository.CreateWorkflowRunOpts) ([]string, error) {
-	wfrs, err := createNewWorkflowRuns(ctx, w.pool, w.queries, w.l, tenantId, opts)
 
-	if err != nil {
-		return nil, err
+	meteredAmount := len(opts)
+
+	if meteredAmount == 0 {
+		return nil, nil
 	}
 
-	for _, cb := range w.callbacks {
-		for _, wfr := range wfrs {
-			cb.Do(wfr) // nolint: errcheck
+	if meteredAmount > math.MaxInt32 || meteredAmount < 0 {
+		return nil, fmt.Errorf("invalid amount of workflow runs to create: %d", meteredAmount)
+	}
+
+	wfrs, err := metered.MakeMetered(ctx, w.m, dbsqlc.LimitResourceWORKFLOWRUN, tenantId, int32(meteredAmount), func() (*string, *createWorkflowRunResult, error) {
+
+		wfrs, err := createNewWorkflowRuns(ctx, w.pool, w.queries, w.l, tenantId, opts)
+
+		if err != nil {
+			return nil, nil, err
 		}
-	}
 
-	ids := make([]string, len(wfrs))
+		for _, cb := range w.callbacks {
+			for _, wfr := range wfrs {
+				cb.Do(wfr) // nolint: errcheck
+			}
+		}
 
-	for i, wfr := range wfrs {
-		ids[i] = sqlchelpers.UUIDToStr(wfr.ID)
-	}
+		ids := make([]string, len(wfrs))
 
-	return ids, nil
+		for i, wfr := range wfrs {
+			ids[i] = sqlchelpers.UUIDToStr(wfr.ID)
+		}
+
+		str := strings.Join(ids, ",")
+
+		return &str,
+			&createWorkflowRunResult{
+				ids: ids,
+			}, nil
+	})
+
+	return wfrs.ids, err
 }
 
 func (w *workflowRunEngineRepository) CreateNewWorkflowRun(ctx context.Context, tenantId string, opts *repository.CreateWorkflowRunOpts) (string, error) {
@@ -993,9 +1018,6 @@ func createNewWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbs
 			_, err = queries.CreateWorkflowRunTriggeredBys(tx1Ctx, tx, triggeredByParams)
 
 			if err != nil {
-				for _, triggeredByParam := range triggeredByParams {
-					printTriggeredParams(triggeredByParam)
-				}
 
 				l.Info().Msgf("failed to create workflow run triggered by %+v", triggeredByParams)
 				l.Error().Err(err).Msg("failed to create workflow run triggered by")
@@ -1182,15 +1204,4 @@ func isUniqueViolationOnDedupe(err error) bool {
 
 	return strings.Contains(err.Error(), "WorkflowRunDedupe_tenantId_workflowId_value_key") &&
 		strings.Contains(err.Error(), "SQLSTATE 23505")
-}
-
-func printTriggeredParams(triggeredByParam dbsqlc.CreateWorkflowRunTriggeredBysParams) {
-	fmt.Println("Triggered by params =-=-=-=-=-=-=-=-=====-=-=-")
-	fmt.Println("ID: ", sqlchelpers.UUIDToStr(triggeredByParam.ID))
-	fmt.Println("TenantId: ", sqlchelpers.UUIDToStr(triggeredByParam.TenantId))
-	fmt.Println("ParentId: ", sqlchelpers.UUIDToStr(triggeredByParam.ParentId))
-	fmt.Println("EventId: ", sqlchelpers.UUIDToStr(triggeredByParam.EventId))
-	fmt.Println("CronParentId: ", sqlchelpers.UUIDToStr(triggeredByParam.CronParentId))
-	fmt.Println("ScheduledId: ", sqlchelpers.UUIDToStr(triggeredByParam.ScheduledId))
-	fmt.Println("CronSchedule: ", triggeredByParam.CronSchedule)
 }

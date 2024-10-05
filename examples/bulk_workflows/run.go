@@ -69,7 +69,7 @@ func run() (func() error, error) {
 		log.Printf("pushing event")
 
 		var workflows []*client.Workflow
-		for i := 0; i < 200; i++ {
+		for i := 0; i < 500; i++ {
 			data := map[string]interface{}{
 				"username": fmt.Sprintf("echo-test-%d", i),
 				"user_id":  fmt.Sprintf("1234-%d", i),

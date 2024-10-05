@@ -377,6 +377,40 @@ WHERE
     w."deletedAt" IS NULL AND
     workflowVersions."deletedAt" IS NULL;
 
+-- name: GetLatestWorkflowVersionForWorkflows :many
+WITH latest_versions AS (
+    SELECT DISTINCT ON (workflowVersions."workflowId")
+        workflowVersions."id" AS workflowVersionId,
+        workflowVersions."workflowId",
+        workflowVersions."order"
+    FROM
+        "WorkflowVersion" as workflowVersions
+    WHERE
+        workflowVersions."workflowId" = ANY(@workflowIds::uuid[]) AND
+        workflowVersions."deletedAt" IS NULL
+    ORDER BY
+        workflowVersions."workflowId", workflowVersions."order" DESC
+)
+SELECT
+    workflowVersions.*,
+    w."name" as "workflowName",
+    wc."limitStrategy" as "concurrencyLimitStrategy",
+    wc."maxRuns" as "concurrencyMaxRuns"
+FROM
+    latest_versions
+JOIN
+    "WorkflowVersion" as workflowVersions ON workflowVersions."id" = latest_versions.workflowVersionId
+JOIN
+    "Workflow" as w ON w."id" = workflowVersions."workflowId"
+LEFT JOIN
+    "WorkflowConcurrency" as wc ON wc."workflowVersionId" = workflowVersions."id"
+WHERE
+    w."tenantId" = @tenantId::uuid AND
+    w."deletedAt" IS NULL AND
+    workflowVersions."deletedAt" IS NULL;
+
+
+
 -- name: GetWorkflowByName :one
 SELECT
     *
@@ -386,6 +420,18 @@ WHERE
     workflows."tenantId" = @tenantId::uuid AND
     workflows."name" = @name::text AND
     workflows."deletedAt" IS NULL;
+
+-- name: GetWorkflowsByNames :many
+SELECT
+    workflows.*
+FROM
+    "Workflow" as workflows
+WHERE
+    workflows."tenantId" = @tenantId::uuid AND
+    workflows."name" = ANY(@names::text[]) AND
+    workflows."deletedAt" IS NULL;
+
+
 
 -- name: CreateSchedules :many
 INSERT INTO "WorkflowTriggerScheduledRef" (
