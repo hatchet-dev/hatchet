@@ -25,7 +25,7 @@ import {
 } from '@/components/ui/breadcrumb';
 import { formatDuration } from '@/lib/utils';
 import RelativeDate from '@/components/molecules/relative-date';
-import { useToast } from '@/components/ui/use-toast';
+import { useToast } from '@/components/hooks/use-toast';
 
 interface RunDetailHeaderProps {
   data?: WorkflowRunShape;
@@ -57,7 +57,6 @@ const RunDetailHeader: React.FC<RunDetailHeaderProps> = ({
       toast({
         title: 'Cancelling workflow run...',
         duration: 3000,
-        position: 'top-right',
       });
     },
     mutationFn: async () => {
@@ -82,7 +81,6 @@ const RunDetailHeader: React.FC<RunDetailHeaderProps> = ({
       toast({
         title: 'Replaying workflow run...',
         duration: 3000,
-        position: 'top-right',
       });
     },
     mutationFn: async () => {

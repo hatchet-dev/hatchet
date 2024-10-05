@@ -94,8 +94,11 @@ type EventEngineRepository interface {
 	// CreateEvent creates a new event for a given tenant.
 	CreateEvent(ctx context.Context, opts *CreateEventOpts) (*dbsqlc.Event, error)
 
-	// CreateEvent creates a new event for a given tenant.
+	// CreateEvent creates new events for a given tenant.
 	BulkCreateEvent(ctx context.Context, opts *BulkCreateEventOpts) (*BulkCreateEventResult, error)
+
+	// BulkCreateEventSharedTenant creates new events for multiple tenants.
+	BulkCreateEventSharedTenant(ctx context.Context, opts []*CreateEventOpts) ([]*dbsqlc.Event, error)
 
 	// GetEventForEngine returns an event for the engine by id.
 	GetEventForEngine(ctx context.Context, tenantId, id string) (*dbsqlc.Event, error)

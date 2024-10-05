@@ -37,13 +37,14 @@ type Dispatcher interface {
 type DispatcherImpl struct {
 	contracts.UnimplementedDispatcherServer
 
-	s     gocron.Scheduler
-	mq    msgqueue.MessageQueue
-	l     *zerolog.Logger
-	dv    datautils.DataDecoderValidator
-	v     validator.Validator
-	repo  repository.EngineRepository
-	cache cache.Cacheable
+	s            gocron.Scheduler
+	mq           msgqueue.MessageQueue
+	sharedReader *msgqueue.SharedTenantReader
+	l            *zerolog.Logger
+	dv           datautils.DataDecoderValidator
+	v            validator.Validator
+	repo         repository.EngineRepository
+	cache        cache.Cacheable
 
 	entitlements repository.EntitlementsRepository
 
@@ -239,6 +240,10 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 
 func (d *DispatcherImpl) Start() (func() error, error) {
 	ctx, cancel := context.WithCancel(context.Background())
+	mqCleanup, heavyReadMQ := d.mq.Clone()
+	heavyReadMQ.SetQOS(1000)
+
+	d.sharedReader = msgqueue.NewSharedTenantReader(heavyReadMQ)
 
 	// register the dispatcher by creating a new dispatcher in the database
 	dispatcher, err := d.repo.Dispatcher().CreateNewDispatcher(ctx, &repository.CreateDispatcherOpts{
@@ -291,6 +296,10 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 	cleanup := func() error {
 		d.l.Debug().Msgf("dispatcher is shutting down...")
 		cancel()
+
+		if err := mqCleanup(); err != nil {
+			return fmt.Errorf("could not cleanup queue: %w", err)
+		}
 
 		if err := cleanupQueue(); err != nil {
 			return fmt.Errorf("could not cleanup queue: %w", err)
@@ -500,6 +509,8 @@ func (d *DispatcherImpl) handleStepRunAssignedTask(ctx context.Context, task *ms
 		}
 	}
 
+	now := time.Now().UTC()
+
 	if success {
 		defer d.repo.StepRun().DeferredStepRunEvent(
 			metadata.TenantId,
@@ -508,6 +519,8 @@ func (d *DispatcherImpl) handleStepRunAssignedTask(ctx context.Context, task *ms
 				EventMessage:  repository.StringPtr("Sent step run to the assigned worker"),
 				EventReason:   repository.StepRunEventReasonPtr(dbsqlc.StepRunEventReasonSENTTOWORKER),
 				EventSeverity: repository.StepRunEventSeverityPtr(dbsqlc.StepRunEventSeverityINFO),
+				Timestamp:     &now,
+				EventData:     map[string]interface{}{"worker_id": payload.WorkerId},
 			},
 		)
 
@@ -521,6 +534,8 @@ func (d *DispatcherImpl) handleStepRunAssignedTask(ctx context.Context, task *ms
 			EventMessage:  repository.StringPtr("Could not send step run to assigned worker"),
 			EventReason:   repository.StepRunEventReasonPtr(dbsqlc.StepRunEventReasonREASSIGNED),
 			EventSeverity: repository.StepRunEventSeverityPtr(dbsqlc.StepRunEventSeverityWARNING),
+			Timestamp:     &now,
+			EventData:     map[string]interface{}{"worker_id": payload.WorkerId},
 		},
 	)
 
@@ -529,7 +544,7 @@ func (d *DispatcherImpl) handleStepRunAssignedTask(ctx context.Context, task *ms
 		IsInternalRetry: true,
 	})
 
-	if err != nil {
+	if err != nil && !errors.Is(err, repository.ErrAlreadyRunning) {
 		multiErr = multierror.Append(multiErr, fmt.Errorf("💥 could not requeue step run in dispatcher: %w", err))
 	}
 

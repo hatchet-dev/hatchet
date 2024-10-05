@@ -31,13 +31,9 @@ Events:
       items:
         $ref: "#/Event"
       description: The events.
-    pagination:
-      $ref: "./metadata.yaml#/PaginationResponse"
-      description: The pagination information.
   required:
     - metadata
     - events
-    - pagination
 
 EventData:
   properties:

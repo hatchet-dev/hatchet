@@ -95,8 +95,13 @@ func QueueTypeFromTickerID(t string) consumerQueue {
 	return consumerQueue(t)
 }
 
-func QueueTypeFromPartitionID(p string) consumerQueue {
-	return consumerQueue(p)
+const (
+	JobController      = "job"
+	WorkflowController = "workflow"
+)
+
+func QueueTypeFromPartitionIDAndController(p, controller string) consumerQueue {
+	return consumerQueue(fmt.Sprintf("%s_%s", p, controller))
 }
 
 type fanoutQueue struct {
@@ -108,11 +113,11 @@ func (f fanoutQueue) FanoutExchangeKey() string {
 	return f.consumerQueue.Name()
 }
 
-func TenantEventConsumerQueue(t string) (fanoutQueue, error) {
+func TenantEventConsumerQueue(t string) fanoutQueue {
 	// generate a unique queue name for the tenant
 	return fanoutQueue{
 		consumerQueue: consumerQueue(t),
-	}, nil
+	}
 }
 
 type Message struct {
@@ -130,6 +135,9 @@ type Message struct {
 
 	// RetryDelay is the delay between retries.
 	RetryDelay int `json:"retry_delay"`
+
+	// Whether the message should immediately expire if it reaches the queue without an active consumer.
+	ImmediatelyExpire bool `json:"immediately_expire"`
 
 	// OtelCarrier is the OpenTelemetry carrier for the task.
 	OtelCarrier map[string]string `json:"otel_carrier"`
@@ -154,6 +162,12 @@ func (t *Message) TenantID() string {
 type AckHook func(task *Message) error
 
 type MessageQueue interface {
+	// Clone copies the message queue with a new instance.
+	Clone() (func() error, MessageQueue)
+
+	// SetQOS sets the quality of service for the message queue.
+	SetQOS(prefetchCount int)
+
 	// AddMessage adds a task to the queue
 	AddMessage(ctx context.Context, queue Queue, task *Message) error
 

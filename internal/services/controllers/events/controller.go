@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/rs/zerolog"
@@ -175,9 +176,28 @@ func (ec *EventsControllerImpl) handleTask(ctx context.Context, task *msgqueue.M
 	return ec.processEvent(ctx, metadata.TenantId, payload.EventId, payload.EventKey, []byte(payload.EventData), additionalMetadata)
 }
 
+func cleanAdditionalMetadata(additionalMetadata map[string]interface{}) map[string]interface{} {
+	if additionalMetadata == nil {
+		additionalMetadata = make(map[string]interface{})
+	}
+
+	for key := range additionalMetadata {
+		if strings.HasPrefix(key, "hatchet__") {
+			delete(additionalMetadata, key)
+		}
+	}
+	return additionalMetadata
+}
+
 func (ec *EventsControllerImpl) processEvent(ctx context.Context, tenantId, eventId, eventKey string, data []byte, additionalMetadata map[string]interface{}) error {
 	ctx, span := telemetry.NewSpan(ctx, "process-event")
 	defer span.End()
+
+	additionalMetadata = cleanAdditionalMetadata(additionalMetadata)
+
+	additionalMetadata["hatchet__event_id"] = eventId
+
+	additionalMetadata["hatchet__event_key"] = eventKey
 
 	// query for matching workflows in the system
 	workflowVersions, err := ec.repo.Workflow().ListWorkflowsForEvent(ctx, tenantId, eventKey)

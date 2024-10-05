@@ -243,14 +243,17 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig) ([]Teardown, er
 		})
 	}
 
-	if sc.HasService("retention") && sc.EnableDataRetention {
+	if sc.HasService("retention") {
 		rc, err := retention.New(
 			retention.WithAlerter(sc.Alerter),
 			retention.WithRepository(sc.EngineRepository),
 			retention.WithLogger(sc.Logger),
 			retention.WithTenantAlerter(sc.TenantAlerter),
 			retention.WithPartition(p),
+			retention.WithDataRetention(sc.EnableDataRetention),
+			retention.WithWorkerRetention(sc.EnableWorkerRetention),
 		)
+
 		if err != nil {
 			return nil, fmt.Errorf("could not create retention controller: %w", err)
 		}
@@ -325,6 +328,10 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig) ([]Teardown, er
 		)
 		if err != nil {
 			return nil, fmt.Errorf("could not create ingestor: %w", err)
+		}
+
+		if err != nil {
+			return nil, fmt.Errorf("could not start ingestor buffer: %w", err)
 		}
 
 		adminSvc, err := admin.NewAdminService(

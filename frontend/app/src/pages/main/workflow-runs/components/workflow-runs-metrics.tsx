@@ -6,6 +6,8 @@ import { Badge } from '@/components/ui/badge';
 interface WorkflowRunsMetricsProps {
   metrics: WorkflowRunsMetrics;
   onClick?: (status?: WorkflowRunStatus) => void;
+  onViewQueueMetricsClick?: () => void;
+  showQueueMetrics?: boolean;
 }
 
 const calculatePercentage = (value: number, total: number): number => {
@@ -20,7 +22,9 @@ const calculatePercentage = (value: number, total: number): number => {
 
 export const WorkflowRunsMetricsView: React.FC<WorkflowRunsMetricsProps> = ({
   metrics: { counts },
+  showQueueMetrics = false,
   onClick = () => {},
+  onViewQueueMetricsClick = () => {},
 }) => {
   const total =
     (counts?.PENDING ?? 0) +
@@ -78,6 +82,15 @@ export const WorkflowRunsMetricsView: React.FC<WorkflowRunsMetricsProps> = ({
       >
         {counts?.QUEUED?.toLocaleString('en-US')} Queued ({queuedPercentage}%)
       </Badge>
+      {showQueueMetrics && (
+        <Badge
+          variant="outline"
+          className="cursor-pointer rounded-sm font-normal text-sm px-2 py-1 w-fit"
+          onClick={() => onViewQueueMetricsClick()}
+        >
+          Queue metrics
+        </Badge>
+      )}
     </dl>
   );
 };

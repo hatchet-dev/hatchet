@@ -68,6 +68,18 @@ VALUES
         sqlc.narg('desiredWorkerId')::uuid
     );
 
+-- name: GetQueuedCounts :many
+SELECT
+    "queue",
+    COUNT(*) AS "count"
+FROM
+    "QueueItem" qi
+WHERE
+    qi."isQueued" = true
+    AND qi."tenantId" = @tenantId::uuid
+GROUP BY
+    qi."queue";
+
 -- name: GetMinMaxProcessedQueueItems :one
 SELECT
     COALESCE(MIN("id"), 0)::bigint AS "minId",
@@ -198,14 +210,16 @@ INSERT INTO
         "priority"
     )
 SELECT
-    @queue::"InternalQueue",
+    input."queue",
     true,
     input."data",
-    @tenantId::uuid,
+    input."tenantId",
     1
 FROM (
     SELECT
-        unnest(@datas::json[]) AS "data"
+        unnest(cast(@queues::text[] as"InternalQueue"[])) AS "queue",
+        unnest(@datas::json[]) AS "data",
+        unnest(@tenantIds::uuid[]) AS "tenantId"
 ) AS input
 ON CONFLICT DO NOTHING;
 

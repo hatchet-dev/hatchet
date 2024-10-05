@@ -35,6 +35,7 @@ func (r iteratorForCreateEvents) Values() ([]interface{}, error) {
 		r.rows[0].ReplayedFromId,
 		r.rows[0].Data,
 		r.rows[0].AdditionalMetadata,
+		r.rows[0].InsertOrder,
 	}, nil
 }
 
@@ -43,7 +44,7 @@ func (r iteratorForCreateEvents) Err() error {
 }
 
 func (q *Queries) CreateEvents(ctx context.Context, db DBTX, arg []CreateEventsParams) (int64, error) {
-	return db.CopyFrom(ctx, []string{"Event"}, []string{"id", "key", "tenantId", "replayedFromId", "data", "additionalMetadata"}, &iteratorForCreateEvents{rows: arg})
+	return db.CopyFrom(ctx, []string{"Event"}, []string{"id", "key", "tenantId", "replayedFromId", "data", "additionalMetadata", "insertOrder"}, &iteratorForCreateEvents{rows: arg})
 }
 
 // iteratorForCreateGetGroupKeyRuns implements pgx.CopyFromSource.

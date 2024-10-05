@@ -124,6 +124,15 @@ const routes: RouteObject[] = [
                   }),
               },
               {
+                path: '/rate-limits',
+                lazy: async () =>
+                  import('./pages/main/rate-limits').then((res) => {
+                    return {
+                      Component: res.default,
+                    };
+                  }),
+              },
+              {
                 path: '/workflows',
                 lazy: async () =>
                   import('./pages/main/workflows').then((res) => {

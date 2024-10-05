@@ -41,6 +41,8 @@ type HatchetContext interface {
 
 	WorkflowInput(target interface{}) error
 
+	AdditionalMetadata() map[string]string
+
 	StepName() string
 
 	StepRunId() string
@@ -83,9 +85,10 @@ type JobRunLookupData struct {
 }
 
 type StepRunData struct {
-	Input       map[string]interface{} `json:"input"`
-	TriggeredBy TriggeredBy            `json:"triggered_by"`
-	Parents     map[string]StepData    `json:"parents"`
+	Input              map[string]interface{} `json:"input"`
+	TriggeredBy        TriggeredBy            `json:"triggered_by"`
+	Parents            map[string]StepData    `json:"parents"`
+	AdditionalMetadata map[string]string      `json:"additional_metadata"`
 }
 
 type StepData map[string]interface{}
@@ -184,6 +187,10 @@ func (h *hatchetContext) WorkflowInput(target interface{}) error {
 	return toTarget(h.stepData.Input, target)
 }
 
+func (h *hatchetContext) AdditionalMetadata() map[string]string {
+	return h.stepData.AdditionalMetadata
+}
+
 func (h *hatchetContext) StepName() string {
 	return h.a.StepName
 }
@@ -247,8 +254,9 @@ func (h *hatchetContext) inc() {
 }
 
 type SpawnWorkflowOpts struct {
-	Key    *string
-	Sticky *bool
+	Key                *string
+	Sticky             *bool
+	AdditionalMetadata *map[string]string
 }
 
 func (h *hatchetContext) saveOrLoadListener() (*client.WorkflowRunsListener, error) {
@@ -299,11 +307,12 @@ func (h *hatchetContext) SpawnWorkflow(workflowName string, input any, opts *Spa
 		workflowName,
 		input,
 		&client.ChildWorkflowOpts{
-			ParentId:        h.WorkflowRunId(),
-			ParentStepRunId: h.StepRunId(),
-			ChildIndex:      h.index(),
-			ChildKey:        opts.Key,
-			DesiredWorkerId: desiredWorker,
+			ParentId:           h.WorkflowRunId(),
+			ParentStepRunId:    h.StepRunId(),
+			ChildIndex:         h.index(),
+			ChildKey:           opts.Key,
+			DesiredWorkerId:    desiredWorker,
+			AdditionalMetadata: opts.AdditionalMetadata,
 		},
 	)
 
@@ -319,10 +328,6 @@ func (h *hatchetContext) SpawnWorkflow(workflowName string, input any, opts *Spa
 		l:             h.l,
 		listener:      listener,
 	}, nil
-}
-
-func (h *hatchetContext) AdditionalMetadata() map[string]string {
-	return h.a.AdditionalMetadata
 }
 
 func (h *hatchetContext) ChildIndex() *int32 {
@@ -375,6 +380,8 @@ func (h *hatchetContext) populateStepData() error {
 	if err != nil {
 		return err
 	}
+
+	h.stepData.AdditionalMetadata = h.a.AdditionalMetadata
 
 	return nil
 }

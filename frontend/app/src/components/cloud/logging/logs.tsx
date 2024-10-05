@@ -172,7 +172,9 @@ const LoggingComponent: React.FC<LogProps> = ({
               </span>
             )}
             {log.instance && (
-              <span className="text-white mr-2 ml--2">{log.instance}</span>
+              <span className="text-foreground dark:text-white mr-2 ml--2">
+                {log.instance}
+              </span>
             )}
             <span
               dangerouslySetInnerHTML={{

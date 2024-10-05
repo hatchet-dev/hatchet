@@ -2,6 +2,7 @@ package workflows
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -9,6 +10,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/hatchet-dev/hatchet/internal/cel"
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
@@ -40,6 +42,7 @@ func (wc *WorkflowsControllerImpl) handleWorkflowRunQueued(ctx context.Context, 
 	err = wc.dv.DecodeAndValidate(task.Metadata, &metadata)
 
 	if err != nil {
+
 		return fmt.Errorf("could not decode job task metadata: %w", err)
 	}
 
@@ -49,6 +52,8 @@ func (wc *WorkflowsControllerImpl) handleWorkflowRunQueued(ctx context.Context, 
 	if err != nil {
 		return fmt.Errorf("could not get job run: %w", err)
 	}
+
+	isPaused := workflowRun.IsPaused.Valid && workflowRun.IsPaused.Bool
 
 	workflowRunId := sqlchelpers.UUIDToStr(workflowRun.WorkflowRun.ID)
 
@@ -80,17 +85,90 @@ func (wc *WorkflowsControllerImpl) handleWorkflowRunQueued(ctx context.Context, 
 		}
 
 		return nil
-	} else if workflowRun.ConcurrencyLimitStrategy.Valid && !workflowRun.GetGroupKeyRunId.Valid {
+	} else if workflowRun.ConcurrencyLimitStrategy.Valid && workflowRun.ConcurrencyGroupExpression.Valid {
+		// if the workflow has a concurrency group expression, then we need to evaluate it
+		// and see if we can start the workflow run
+		wc.l.Info().Msgf("workflow %s has concurrency settings", workflowRunId)
+
+		groupKey, err := wc.evalWorkflowRunConcurrency(ctx, metadata.TenantId, workflowRunId, workflowRun.ConcurrencyGroupExpression.String)
+
+		if err != nil {
+			return fmt.Errorf("could not evaluate concurrency group expression: %w", err)
+		}
+
+		if groupKey == nil {
+			// fail the workflow run
+			workflowRun, err := wc.repo.WorkflowRun().GetWorkflowRunById(ctx, metadata.TenantId, workflowRunId)
+
+			if err != nil {
+				return fmt.Errorf("could not get workflow run: %w", err)
+			}
+
+			return wc.cancelWorkflowRunJobs(ctx, workflowRun)
+		}
+
+		wc.checkTenantQueue(ctx, metadata.TenantId)
+
+		return nil
+	} else if workflowRun.ConcurrencyLimitStrategy.Valid {
 		return fmt.Errorf("workflow run %s has concurrency settings but no group key run", workflowRunId)
 	}
 
-	err = wc.queueWorkflowRunJobs(ctx, workflowRun)
+	err = wc.queueWorkflowRunJobs(ctx, workflowRun, isPaused)
 
 	if err != nil {
 		return fmt.Errorf("could not start workflow run: %w", err)
 	}
 
 	return nil
+}
+
+func (wc *WorkflowsControllerImpl) evalWorkflowRunConcurrency(ctx context.Context, tenantId, workflowRunId, expr string) (*string, error) {
+	input, err := wc.repo.WorkflowRun().GetWorkflowRunInputData(tenantId, workflowRunId)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not get workflow run input data: %w", err)
+	}
+
+	addMetaRes, err := wc.repo.WorkflowRun().GetWorkflowRunAdditionalMeta(ctx, tenantId, workflowRunId)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not get workflow run additional meta: %w", err)
+	}
+
+	addMeta := map[string]interface{}{}
+
+	if addMetaRes.AdditionalMetadata != nil {
+		err = json.Unmarshal(addMetaRes.AdditionalMetadata, &addMeta)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not decode additional metadata: %w", err)
+		}
+	}
+
+	concurrencyGroupId, err := wc.celParser.ParseAndEvalWorkflowString(expr, cel.NewInput(
+		cel.WithInput(input),
+		cel.WithAdditionalMetadata(addMeta),
+		cel.WithWorkflowRunID(workflowRunId),
+	))
+
+	opts := &repository.UpdateWorkflowRunFromGroupKeyEvalOpts{}
+
+	if err != nil {
+		opts.Error = repository.StringPtr(fmt.Sprintf("could not evaluate concurrency group expression %s: %s", expr, err.Error()))
+
+		wc.l.Err(err).Msgf("could not evaluate concurrency group expression for tenant %s and workflow run %s", tenantId, workflowRunId)
+	} else {
+		opts.GroupKey = repository.StringPtr(concurrencyGroupId)
+	}
+
+	err = wc.repo.WorkflowRun().UpdateWorkflowRunFromGroupKeyEval(ctx, tenantId, workflowRunId, opts)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not update workflow run from group key eval: %w", err)
+	}
+
+	return opts.GroupKey, nil
 }
 
 func (wc *WorkflowsControllerImpl) handleWorkflowRunFinished(ctx context.Context, task *msgqueue.Message) error {
@@ -142,14 +220,10 @@ func (wc *WorkflowsControllerImpl) handleWorkflowRunFinished(ctx context.Context
 
 		if !repository.IsFinalJobRunStatus(jobRun.Status) {
 			if workflowRun.WorkflowRun.Status == dbsqlc.WorkflowRunStatusFAILED {
-				err = wc.mq.AddMessage(
-					ctx,
-					msgqueue.JOB_PROCESSING_QUEUE,
-					tasktypes.JobRunQueuedToTask(metadata.TenantId, sqlchelpers.UUIDToStr(jobRun.ID)),
-				)
+				err = wc.startJobRun(ctx, metadata.TenantId, sqlchelpers.UUIDToStr(jobRun.ID))
 
 				if err != nil {
-					return fmt.Errorf("could not add job run to task queue: %w", err)
+					return err
 				}
 			} else if jobRun.Status != dbsqlc.JobRunStatus(db.JobRunStatusCancelled) {
 				// cancel the onFailure job
@@ -178,31 +252,7 @@ func (wc *WorkflowsControllerImpl) handleWorkflowRunFinished(ctx context.Context
 		}
 	}
 
-	if workflowRun.ConcurrencyLimitStrategy.Valid {
-		wc.l.Info().Msgf("workflow %s has concurrency settings", workflowRunId)
-
-		switch workflowRun.ConcurrencyLimitStrategy.ConcurrencyLimitStrategy {
-		case dbsqlc.ConcurrencyLimitStrategyGROUPROUNDROBIN:
-			err = wc.queueByGroupRoundRobin(
-				ctx,
-				metadata.TenantId,
-				// FIXME: use some kind of autoconverter, if we add fields in the future we might not populate
-				// them properly
-				&dbsqlc.GetWorkflowVersionForEngineRow{
-					WorkflowVersion:          workflowRun.WorkflowVersion,
-					WorkflowName:             workflowRun.WorkflowName.String,
-					ConcurrencyLimitStrategy: workflowRun.ConcurrencyLimitStrategy,
-					ConcurrencyMaxRuns:       workflowRun.ConcurrencyMaxRuns,
-				},
-			)
-		default:
-			return nil
-		}
-
-		if err != nil {
-			return fmt.Errorf("could not queue workflow runs: %w", err)
-		}
-	}
+	wc.checkTenantQueue(ctx, metadata.TenantId)
 
 	return nil
 }
@@ -260,12 +310,17 @@ func (wc *WorkflowsControllerImpl) scheduleGetGroupAction(
 	return nil
 }
 
-func (wc *WorkflowsControllerImpl) queueWorkflowRunJobs(ctx context.Context, workflowRun *dbsqlc.GetWorkflowRunRow) error {
+func (wc *WorkflowsControllerImpl) queueWorkflowRunJobs(ctx context.Context, workflowRun *dbsqlc.GetWorkflowRunRow, isPaused bool) error {
 	ctx, span := telemetry.NewSpan(ctx, "queue-workflow-run-jobs") // nolint:ineffassign
 	defer span.End()
 
 	tenantId := sqlchelpers.UUIDToStr(workflowRun.WorkflowRun.TenantId)
 	workflowRunId := sqlchelpers.UUIDToStr(workflowRun.WorkflowRun.ID)
+	workflowId := sqlchelpers.UUIDToStr(workflowRun.WorkflowVersion.WorkflowId)
+
+	if isPaused {
+		return wc.repo.WorkflowRun().QueuePausedWorkflowRun(ctx, tenantId, workflowId, workflowRunId)
+	}
 
 	jobRuns, err := wc.repo.JobRun().ListJobRunsForWorkflowRun(ctx, tenantId, workflowRunId)
 
@@ -273,7 +328,7 @@ func (wc *WorkflowsControllerImpl) queueWorkflowRunJobs(ctx context.Context, wor
 		return fmt.Errorf("could not list job runs: %w", err)
 	}
 
-	var returnErr error
+	jobRunIds := make([]string, 0)
 
 	for i := range jobRuns {
 		// don't start job runs that are onFailure
@@ -281,20 +336,10 @@ func (wc *WorkflowsControllerImpl) queueWorkflowRunJobs(ctx context.Context, wor
 			continue
 		}
 
-		jobRunId := sqlchelpers.UUIDToStr(jobRuns[i].ID)
-
-		err := wc.mq.AddMessage(
-			ctx,
-			msgqueue.JOB_PROCESSING_QUEUE,
-			tasktypes.JobRunQueuedToTask(tenantId, jobRunId),
-		)
-
-		if err != nil {
-			returnErr = multierror.Append(err, fmt.Errorf("could not add job run to task queue: %w", err))
-		}
+		jobRunIds = append(jobRunIds, sqlchelpers.UUIDToStr(jobRuns[i].ID))
 	}
 
-	return returnErr
+	return wc.startManyJobRuns(ctx, tenantId, jobRunIds)
 }
 
 func (wc *WorkflowsControllerImpl) cancelWorkflowRunJobs(ctx context.Context, workflowRun *dbsqlc.GetWorkflowRunRow) error {
@@ -579,7 +624,13 @@ func (wc *WorkflowsControllerImpl) queueByCancelInProgress(ctx context.Context, 
 				return fmt.Errorf("could not get workflow run: %w", err)
 			}
 
-			return wc.queueWorkflowRunJobs(ctx, workflowRun)
+			isPaused := workflowRun.IsPaused.Valid && workflowRun.IsPaused.Bool
+
+			if isPaused {
+				return nil
+			}
+
+			return wc.queueWorkflowRunJobs(ctx, workflowRun, isPaused)
 		})
 	}
 
@@ -622,7 +673,13 @@ func (wc *WorkflowsControllerImpl) queueByGroupRoundRobin(ctx context.Context, t
 				return fmt.Errorf("could not get workflow run: %w", err)
 			}
 
-			return wc.queueWorkflowRunJobs(ctx, workflowRun)
+			isPaused := workflowRun.IsPaused.Valid && workflowRun.IsPaused.Bool
+
+			if isPaused {
+				return nil
+			}
+
+			return wc.queueWorkflowRunJobs(ctx, workflowRun, isPaused)
 		})
 	}
 

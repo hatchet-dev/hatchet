@@ -27,14 +27,10 @@ func main() {
 		panic(err)
 	}
 
-	// interrupt := cmdutils.InterruptChan()
-
 	_, err = run()
 	if err != nil {
 		panic(err)
 	}
-
-	// <-interrupt
 
 }
 

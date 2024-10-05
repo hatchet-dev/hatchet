@@ -7,7 +7,7 @@
   "on-failure-step": "On Failure Step",
   "streaming": "Streaming",
   "triggering-runs": "Triggering Runs",
-  "rate-limits": "Global Rate Limits",
+  "rate-limits": "Rate Limits",
   "worker-assignment": "Worker Assignment",
   "additional-metadata": "Additional Metadata",
   "advanced": "Advanced"

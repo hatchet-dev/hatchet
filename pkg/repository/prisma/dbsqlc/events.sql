@@ -89,7 +89,8 @@ INSERT INTO "Event" (
     "tenantId",
     "replayedFromId",
     "data",
-    "additionalMetadata"
+    "additionalMetadata",
+    "insertOrder"
 
 ) VALUES (
     $1,
@@ -97,7 +98,8 @@ INSERT INTO "Event" (
     $3,
     $4,
     $5,
-    $6
+    $6,
+    $7
 );
 
 
@@ -105,7 +107,7 @@ INSERT INTO "Event" (
 
 SELECT * FROM "Event"
 WHERE xmin::text = (txid_current() % (2^32)::bigint)::text
-ORDER BY id;
+ORDER BY "insertOrder" ASC;
 
 
 -- name: ListEvents :many

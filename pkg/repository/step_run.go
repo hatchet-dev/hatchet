@@ -8,6 +8,8 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 
+	"github.com/jackc/pgx/v5/pgtype"
+
 	"github.com/rs/zerolog"
 )
 
@@ -58,6 +60,15 @@ type QueueStepRunOpts struct {
 	IsInternalRetry bool
 
 	Input []byte
+
+	ExpressionEvals []CreateExpressionEvalOpt
+}
+
+type CreateExpressionEvalOpt struct {
+	Key      string
+	ValueStr *string
+	ValueInt *int
+	Kind     dbsqlc.StepExpressionKind
 }
 
 type UpdateStepRunOverridesDataOpts struct {
@@ -78,10 +89,11 @@ func StepRunEventSeverityPtr(severity dbsqlc.StepRunEventSeverity) *dbsqlc.StepR
 	return &severity
 }
 
-var ErrStepRunIsNotPending = fmt.Errorf("step run is not pending")
 var ErrNoWorkerAvailable = fmt.Errorf("no worker available")
 var ErrRateLimitExceeded = fmt.Errorf("rate limit exceeded")
 var ErrStepRunIsNotAssigned = fmt.Errorf("step run is not assigned")
+var ErrAlreadyQueued = fmt.Errorf("step run is already queued")
+var ErrAlreadyRunning = fmt.Errorf("step run is already running")
 
 type StepRunUpdateInfo struct {
 	WorkflowRunFinalState bool
@@ -154,14 +166,21 @@ type ProcessStepRunUpdatesResult struct {
 	Continue              bool
 }
 
+type ProcessStepRunUpdatesResultV2 struct {
+	CompletedWorkflowRuns []*dbsqlc.ResolveWorkflowRunStatusRow
+	Continue              bool
+}
+
 type StepRunEngineRepository interface {
+	RegisterWorkflowRunCompletedCallback(callback Callback[*dbsqlc.ResolveWorkflowRunStatusRow])
+
 	// ListStepRunsForWorkflowRun returns a list of step runs for a workflow run.
 	ListStepRuns(ctx context.Context, tenantId string, opts *ListStepRunsOpts) ([]*dbsqlc.GetStepRunForEngineRow, error)
 
 	// ListStepRunsToReassign returns a list of step runs which are in a reassignable state.
 	ListStepRunsToReassign(ctx context.Context, tenantId string) ([]string, error)
 
-	ListStepRunsToTimeout(ctx context.Context, tenantId string) ([]*dbsqlc.GetStepRunForEngineRow, error)
+	ListStepRunsToTimeout(ctx context.Context, tenantId string) (bool, []*dbsqlc.GetStepRunForEngineRow, error)
 
 	StepRunStarted(ctx context.Context, tenantId, stepRunId string, startedAt time.Time) error
 
@@ -169,7 +188,7 @@ type StepRunEngineRepository interface {
 
 	StepRunCancelled(ctx context.Context, tenantId, stepRunId string, cancelledAt time.Time, cancelledReason string) error
 
-	StepRunFailed(ctx context.Context, tenantId, stepRunId string, failedAt time.Time, errStr string) error
+	StepRunFailed(ctx context.Context, tenantId, stepRunId string, failedAt time.Time, errStr string, retryCount int) error
 
 	ReplayStepRun(ctx context.Context, tenantId, stepRunId string, input []byte) (*dbsqlc.GetStepRunForEngineRow, error)
 
@@ -194,7 +213,11 @@ type StepRunEngineRepository interface {
 	// a pending state.
 	QueueStepRun(ctx context.Context, tenantId, stepRunId string, opts *QueueStepRunOpts) (*dbsqlc.GetStepRunForEngineRow, error)
 
+	GetQueueCounts(ctx context.Context, tenantId string) (map[string]int, error)
+
 	ProcessStepRunUpdates(ctx context.Context, qlp *zerolog.Logger, tenantId string) (ProcessStepRunUpdatesResult, error)
+
+	ProcessStepRunUpdatesV2(ctx context.Context, qlp *zerolog.Logger, tenantId string) (ProcessStepRunUpdatesResultV2, error)
 
 	QueueStepRuns(ctx context.Context, ql *zerolog.Logger, tenantId string) (QueueStepRunsResult, error)
 
@@ -206,7 +229,7 @@ type StepRunEngineRepository interface {
 
 	ArchiveStepRunResult(ctx context.Context, tenantId, stepRunId string, err *string) error
 
-	RefreshTimeoutBy(ctx context.Context, tenantId, stepRunId string, opts RefreshTimeoutBy) (*dbsqlc.StepRun, error)
+	RefreshTimeoutBy(ctx context.Context, tenantId, stepRunId string, opts RefreshTimeoutBy) (pgtype.Timestamp, error)
 
 	DeferredStepRunEvent(
 		tenantId, stepRunId string,
