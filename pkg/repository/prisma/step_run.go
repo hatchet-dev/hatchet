@@ -275,11 +275,11 @@ type stepRunEngineRepository struct {
 }
 
 func (s *stepRunEngineRepository) cleanup() error {
-	if err := s.bulkStatusBuffer.cleanup(); err != nil {
+	if err := s.bulkStatusBuffer.Cleanup(); err != nil {
 		return err
 	}
 
-	return s.bulkEventBuffer.cleanup()
+	return s.bulkEventBuffer.Cleanup()
 }
 
 func NewStepRunEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, cf *server.ConfigFileRuntime, rlCache *cache.Cache) (*stepRunEngineRepository, func() error, error) {

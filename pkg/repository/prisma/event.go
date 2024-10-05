@@ -234,7 +234,7 @@ type eventEngineRepository struct {
 }
 
 func (r *eventEngineRepository) cleanup() error {
-	return r.bulkCreateBuffer.cleanup()
+	return r.bulkCreateBuffer.Cleanup()
 }
 
 func NewEventEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, m *metered.Metered) (repository.EventEngineRepository, func() error, error) {

@@ -115,7 +115,7 @@ func (t *TenantBufferManager[T, U]) createTenantBuf(
 }
 
 // cleanup all tenant buffers
-func (t *TenantBufferManager[T, U]) cleanup() error {
+func (t *TenantBufferManager[T, U]) Cleanup() error {
 	t.tenants.Range(func(key, value interface{}) bool {
 		ingestBuf := value.(*IngestBuf[T, U])
 		_ = ingestBuf.cleanup()
