@@ -1523,47 +1523,86 @@ func (q *Queries) ListNonFinalChildStepRuns(ctx context.Context, db DBTX, arg Li
 	return items, nil
 }
 
-const listStartableStepRuns = `-- name: ListStartableStepRuns :many
-WITH job_run AS (
-    SELECT "status", "deletedAt"
-    FROM "JobRun"
-    WHERE
-        "id" = $1::uuid
-        AND "status" = 'RUNNING'
-        AND "deletedAt" IS NULL
-)
+const listStartableStepRunsManyParents = `-- name: ListStartableStepRunsManyParents :many
 SELECT
     DISTINCT ON (child_run."id")
     child_run."id" AS "id"
 FROM
-    "StepRun" AS child_run
+    "StepRun" AS parent_run
 LEFT JOIN
-    "_StepRunOrder" AS step_run_order ON step_run_order."B" = child_run."id"
+    "_StepRunOrder" AS step_run_order ON step_run_order."A" = parent_run."id"
 JOIN
-    job_run ON true
+    "StepRun" AS child_run ON step_run_order."B" = child_run."id"
 WHERE
-    child_run."jobRunId" = $1::uuid
+    parent_run."id" = $1::uuid
     AND child_run."status" = 'PENDING'
-    -- we look for whether the step run is startable ASSUMING that succeededParentStepRunId has succeeded,
-    -- so we are making sure that all other parent step runs have succeeded
+    -- we look for whether the step run is startable by ensuring that all parent step runs have succeeded
     AND NOT EXISTS (
         SELECT 1
         FROM "_StepRunOrder" AS parent_order
         JOIN "StepRun" AS parent_run ON parent_order."A" = parent_run."id"
         WHERE
             parent_order."B" = child_run."id"
-            AND parent_run."id" != $2::uuid
             AND parent_run."status" != 'SUCCEEDED'
+    )
+    -- AND we ensure that there's at least 2 parent step runs
+    AND EXISTS (
+        SELECT 1
+        FROM "_StepRunOrder" AS parent_order
+        JOIN "StepRun" AS parent_run ON parent_order."A" = parent_run."id"
+        WHERE
+            parent_order."B" = child_run."id"
+        OFFSET 1
     )
 `
 
-type ListStartableStepRunsParams struct {
-	Jobrunid                 pgtype.UUID `json:"jobrunid"`
-	SucceededParentStepRunId pgtype.UUID `json:"succeededParentStepRunId"`
+func (q *Queries) ListStartableStepRunsManyParents(ctx context.Context, db DBTX, parentsteprunid pgtype.UUID) ([]pgtype.UUID, error) {
+	rows, err := db.Query(ctx, listStartableStepRunsManyParents, parentsteprunid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []pgtype.UUID
+	for rows.Next() {
+		var id pgtype.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
-func (q *Queries) ListStartableStepRuns(ctx context.Context, db DBTX, arg ListStartableStepRunsParams) ([]pgtype.UUID, error) {
-	rows, err := db.Query(ctx, listStartableStepRuns, arg.Jobrunid, arg.SucceededParentStepRunId)
+const listStartableStepRunsSingleParent = `-- name: ListStartableStepRunsSingleParent :many
+SELECT
+    DISTINCT ON (child_run."id")
+    child_run."id" AS "id"
+FROM
+    "StepRun" AS parent_run
+LEFT JOIN
+    "_StepRunOrder" AS step_run_order ON step_run_order."A" = parent_run."id"
+JOIN
+    "StepRun" AS child_run ON step_run_order."B" = child_run."id"
+WHERE
+    parent_run."id" = $1::uuid
+    AND child_run."status" = 'PENDING'
+    -- we look for whether the step run is startable ASSUMING that parentStepRunId has succeeded,
+    -- but we only have one parent step run
+    AND NOT EXISTS (
+        SELECT 1
+        FROM "_StepRunOrder" AS parent_order
+        JOIN "StepRun" AS parent_run ON parent_order."A" = parent_run."id"
+        WHERE
+            parent_order."B" = child_run."id"
+            AND parent_run."id" != $1::uuid
+    )
+`
+
+func (q *Queries) ListStartableStepRunsSingleParent(ctx context.Context, db DBTX, parentsteprunid pgtype.UUID) ([]pgtype.UUID, error) {
+	rows, err := db.Query(ctx, listStartableStepRunsSingleParent, parentsteprunid)
 	if err != nil {
 		return nil, err
 	}
