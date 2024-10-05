@@ -40,6 +40,8 @@ func IsFinalWorkflowRunStatus(status dbsqlc.WorkflowRunStatus) bool {
 }
 
 type CreateStepRunEventOpts struct {
+	StepRunId string `validate:"required,uuid"`
+
 	EventMessage *string
 
 	EventReason *dbsqlc.StepRunEventReason
@@ -239,7 +241,7 @@ type StepRunEngineRepository interface {
 	RefreshTimeoutBy(ctx context.Context, tenantId, stepRunId string, opts RefreshTimeoutBy) (pgtype.Timestamp, error)
 
 	DeferredStepRunEvent(
-		tenantId, stepRunId string,
+		tenantId string,
 		opts CreateStepRunEventOpts,
 	)
 

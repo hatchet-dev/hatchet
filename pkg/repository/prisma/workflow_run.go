@@ -702,8 +702,8 @@ func (s *workflowRunEngineRepository) ReplayWorkflowRun(ctx context.Context, ten
 
 			defer s.stepRunRepository.deferredStepRunEvent(
 				tenantId,
-				stepRunIdStr,
 				repository.CreateStepRunEventOpts{
+					StepRunId:     stepRunIdStr,
 					EventMessage:  repository.StringPtr("Workflow run was replayed, resetting step run result"),
 					EventSeverity: &sev,
 					EventReason:   &reason,
