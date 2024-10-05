@@ -5,9 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"maps"
 	"math"
-	"slices"
 	"strings"
 	"time"
 
@@ -1317,7 +1315,9 @@ func createNewWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbs
 				desiredWorkerIds = append(desiredWorkerIds, stickyInfo.desiredWorkerId)
 			}
 
-			workflowVersionIds = slices.Collect(maps.Values(workflowVersionIdMap))
+			for _, value := range workflowVersionIdMap {
+				workflowVersionIds = append(workflowVersionIds, value)
+			}
 
 			_, err = queries.CreateMultipleWorkflowRunStickyStates(tx1Ctx, tx, dbsqlc.CreateMultipleWorkflowRunStickyStatesParams{
 				Tenantid:           pgTenantId,

@@ -11,7 +11,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
-	"golang.org/x/exp/maps"
 
 	"github.com/hatchet-dev/hatchet/internal/cel"
 	"github.com/hatchet-dev/hatchet/internal/dagutils"
@@ -570,8 +569,11 @@ func (r *workflowEngineRepository) GetWorkflowsByNames(ctx context.Context, tena
 		distinctNamesMap[name] = name
 	}
 
-	distinctNames := maps.Values(distinctNamesMap)
+	var distinctNames []string
 
+	for _, value := range distinctNamesMap {
+		distinctNames = append(distinctNames, value)
+	}
 	results, err := r.queries.GetWorkflowsByNames(ctx, r.pool, dbsqlc.GetWorkflowsByNamesParams{
 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
 		Names:    distinctNames,
