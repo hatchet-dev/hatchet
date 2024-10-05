@@ -915,14 +915,14 @@ func getWorkflowsForWorkflowNames(ctx context.Context, tenantId string, reqs []*
 		return nil, fmt.Errorf("could not get workflows by names: %w", err)
 	}
 
-	worklfowMap := make(map[string]*dbsqlc.Workflow)
+	workflowMap := make(map[string]*dbsqlc.Workflow)
 
 	for _, w := range workflows {
 
-		worklfowMap[w.Name] = w
+		workflowMap[w.Name] = w
 
 	}
 
-	return worklfowMap, nil
+	return workflowMap, nil
 
 }
