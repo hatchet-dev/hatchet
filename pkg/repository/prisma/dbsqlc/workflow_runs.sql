@@ -553,6 +553,7 @@ INSERT INTO "WorkflowRun" (
 
 SELECT * FROM "WorkflowRun"
 WHERE xmin::text = (txid_current() % (2^32)::bigint)::text
+AND "createdAt" >= @createdAt::timestamp
 ORDER BY id;
 
 
@@ -973,6 +974,7 @@ INSERT INTO "StepRun" (
 
 SELECT id FROM "StepRun"
 WHERE xmin::text = (txid_current() % (2^32)::bigint)::text
+AND "createdAt" >= @createdAt::timestamp
 ORDER BY id;
 
 -- name: GetStepsForWorkflowVersion :many
@@ -1098,6 +1100,31 @@ WHERE
         -- if childKey is set, use that
         (sqlc.narg('childKey')::text IS NULL AND "childIndex" = @childIndex) OR
         (sqlc.narg('childKey')::text IS NOT NULL AND "childKey" = sqlc.narg('childKey')::text)
+    );
+
+
+
+-- name: GetChildWorkflowRuns :many
+WITH input_data AS (
+    SELECT
+        UNNEST(@parentIds::uuid[]) AS parentId,
+        UNNEST(@parentStepRunIds::uuid[]) AS parentStepRunId,
+        UNNEST(@childIndices::int[]) AS childIndex,
+        UNNEST(@childKeys::text[]) AS childKey
+)
+SELECT
+    wr.*
+FROM
+    "WorkflowRun" wr
+JOIN
+    input_data i ON
+    wr."parentId" = i.parentId AND
+    wr."parentStepRunId" = i.parentStepRunId
+WHERE
+    wr."deletedAt" IS NULL AND
+    (
+        (i.childKey IS NULL AND wr."childIndex" = i.childIndex) OR
+        (i.childKey IS NOT NULL AND wr."childKey" = i.childKey)
     );
 
 -- name: GetScheduledChildWorkflowRun :one
@@ -1252,6 +1279,26 @@ JOIN "WorkflowRunTriggeredBy" as tb ON
     r."id" = tb."parentId"
 WHERE
     r."id" = @workflowRunId::uuid AND
+    r."tenantId" = @tenantId::uuid;
+
+
+-- name: GetWorkflowRunByIds :many
+SELECT
+    r.*,
+    sqlc.embed(wv),
+    sqlc.embed(w),
+    sqlc.embed(tb)
+FROM
+    "WorkflowRun" r
+JOIN
+    "WorkflowVersion" as wv ON
+        r."workflowVersionId" = wv."id"
+JOIN "Workflow" as w ON
+    wv."workflowId" = w."id"
+JOIN "WorkflowRunTriggeredBy" as tb ON
+    r."id" = tb."parentId"
+WHERE
+    r."id" = ANY(@workflowRunIds::uuid[]) AND
     r."tenantId" = @tenantId::uuid;
 
 -- name: GetWorkflowRunTrigger :one

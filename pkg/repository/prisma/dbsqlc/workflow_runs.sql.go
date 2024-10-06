@@ -1169,15 +1169,92 @@ func (q *Queries) GetChildWorkflowRun(ctx context.Context, db DBTX, arg GetChild
 	return &i, err
 }
 
+const getChildWorkflowRuns = `-- name: GetChildWorkflowRuns :many
+WITH input_data AS (
+    SELECT
+        UNNEST($1::uuid[]) AS parentId,
+        UNNEST($2::uuid[]) AS parentStepRunId,
+        UNNEST($3::int[]) AS childIndex,
+        UNNEST($4::text[]) AS childKey
+)
+SELECT
+    wr."createdAt", wr."updatedAt", wr."deletedAt", wr."tenantId", wr."workflowVersionId", wr.status, wr.error, wr."startedAt", wr."finishedAt", wr."concurrencyGroupId", wr."displayName", wr.id, wr."childIndex", wr."childKey", wr."parentId", wr."parentStepRunId", wr."additionalMetadata", wr.duration, wr.priority
+FROM
+    "WorkflowRun" wr
+JOIN
+    input_data i ON
+    wr."parentId" = i.parentId AND
+    wr."parentStepRunId" = i.parentStepRunId
+WHERE
+    wr."deletedAt" IS NULL AND
+    (
+        (i.childKey IS NULL AND wr."childIndex" = i.childIndex) OR
+        (i.childKey IS NOT NULL AND wr."childKey" = i.childKey)
+    )
+`
+
+type GetChildWorkflowRunsParams struct {
+	Parentids        []pgtype.UUID `json:"parentids"`
+	Parentsteprunids []pgtype.UUID `json:"parentsteprunids"`
+	Childindices     []int32       `json:"childindices"`
+	Childkeys        []string      `json:"childkeys"`
+}
+
+func (q *Queries) GetChildWorkflowRuns(ctx context.Context, db DBTX, arg GetChildWorkflowRunsParams) ([]*WorkflowRun, error) {
+	rows, err := db.Query(ctx, getChildWorkflowRuns,
+		arg.Parentids,
+		arg.Parentsteprunids,
+		arg.Childindices,
+		arg.Childkeys,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*WorkflowRun
+	for rows.Next() {
+		var i WorkflowRun
+		if err := rows.Scan(
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.TenantId,
+			&i.WorkflowVersionId,
+			&i.Status,
+			&i.Error,
+			&i.StartedAt,
+			&i.FinishedAt,
+			&i.ConcurrencyGroupId,
+			&i.DisplayName,
+			&i.ID,
+			&i.ChildIndex,
+			&i.ChildKey,
+			&i.ParentId,
+			&i.ParentStepRunId,
+			&i.AdditionalMetadata,
+			&i.Duration,
+			&i.Priority,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getInsertedStepRuns = `-- name: GetInsertedStepRuns :many
 
 SELECT id FROM "StepRun"
 WHERE xmin::text = (txid_current() % (2^32)::bigint)::text
+AND "createdAt" >= $1::timestamp
 ORDER BY id
 `
 
-func (q *Queries) GetInsertedStepRuns(ctx context.Context, db DBTX) ([]pgtype.UUID, error) {
-	rows, err := db.Query(ctx, getInsertedStepRuns)
+func (q *Queries) GetInsertedStepRuns(ctx context.Context, db DBTX, createdat pgtype.Timestamp) ([]pgtype.UUID, error) {
+	rows, err := db.Query(ctx, getInsertedStepRuns, createdat)
 	if err != nil {
 		return nil, err
 	}
@@ -1200,11 +1277,12 @@ const getInsertedWorkflowRuns = `-- name: GetInsertedWorkflowRuns :many
 
 SELECT "createdAt", "updatedAt", "deletedAt", "tenantId", "workflowVersionId", status, error, "startedAt", "finishedAt", "concurrencyGroupId", "displayName", id, "childIndex", "childKey", "parentId", "parentStepRunId", "additionalMetadata", duration, priority FROM "WorkflowRun"
 WHERE xmin::text = (txid_current() % (2^32)::bigint)::text
+AND "createdAt" >= $1::timestamp
 ORDER BY id
 `
 
-func (q *Queries) GetInsertedWorkflowRuns(ctx context.Context, db DBTX) ([]*WorkflowRun, error) {
-	rows, err := db.Query(ctx, getInsertedWorkflowRuns)
+func (q *Queries) GetInsertedWorkflowRuns(ctx context.Context, db DBTX, createdat pgtype.Timestamp) ([]*WorkflowRun, error) {
+	rows, err := db.Query(ctx, getInsertedWorkflowRuns, createdat)
 	if err != nil {
 		return nil, err
 	}
@@ -1735,6 +1813,128 @@ func (q *Queries) GetWorkflowRunById(ctx context.Context, db DBTX, arg GetWorkfl
 		&i.WorkflowRunTriggeredBy.ParentId,
 	)
 	return &i, err
+}
+
+const getWorkflowRunByIds = `-- name: GetWorkflowRunByIds :many
+SELECT
+    r."createdAt", r."updatedAt", r."deletedAt", r."tenantId", r."workflowVersionId", r.status, r.error, r."startedAt", r."finishedAt", r."concurrencyGroupId", r."displayName", r.id, r."childIndex", r."childKey", r."parentId", r."parentStepRunId", r."additionalMetadata", r.duration, r.priority,
+    wv.id, wv."createdAt", wv."updatedAt", wv."deletedAt", wv.version, wv."order", wv."workflowId", wv.checksum, wv."scheduleTimeout", wv."onFailureJobId", wv.sticky, wv.kind, wv."defaultPriority",
+    w.id, w."createdAt", w."updatedAt", w."deletedAt", w."tenantId", w.name, w.description, w."isPaused",
+    tb.id, tb."createdAt", tb."updatedAt", tb."deletedAt", tb."tenantId", tb."eventId", tb."cronParentId", tb."cronSchedule", tb."scheduledId", tb.input, tb."parentId"
+FROM
+    "WorkflowRun" r
+JOIN
+    "WorkflowVersion" as wv ON
+        r."workflowVersionId" = wv."id"
+JOIN "Workflow" as w ON
+    wv."workflowId" = w."id"
+JOIN "WorkflowRunTriggeredBy" as tb ON
+    r."id" = tb."parentId"
+WHERE
+    r."id" = ANY($1::uuid[]) AND
+    r."tenantId" = $2::uuid
+`
+
+type GetWorkflowRunByIdsParams struct {
+	Workflowrunids []pgtype.UUID `json:"workflowrunids"`
+	Tenantid       pgtype.UUID   `json:"tenantid"`
+}
+
+type GetWorkflowRunByIdsRow struct {
+	CreatedAt              pgtype.Timestamp       `json:"createdAt"`
+	UpdatedAt              pgtype.Timestamp       `json:"updatedAt"`
+	DeletedAt              pgtype.Timestamp       `json:"deletedAt"`
+	TenantId               pgtype.UUID            `json:"tenantId"`
+	WorkflowVersionId      pgtype.UUID            `json:"workflowVersionId"`
+	Status                 WorkflowRunStatus      `json:"status"`
+	Error                  pgtype.Text            `json:"error"`
+	StartedAt              pgtype.Timestamp       `json:"startedAt"`
+	FinishedAt             pgtype.Timestamp       `json:"finishedAt"`
+	ConcurrencyGroupId     pgtype.Text            `json:"concurrencyGroupId"`
+	DisplayName            pgtype.Text            `json:"displayName"`
+	ID                     pgtype.UUID            `json:"id"`
+	ChildIndex             pgtype.Int4            `json:"childIndex"`
+	ChildKey               pgtype.Text            `json:"childKey"`
+	ParentId               pgtype.UUID            `json:"parentId"`
+	ParentStepRunId        pgtype.UUID            `json:"parentStepRunId"`
+	AdditionalMetadata     []byte                 `json:"additionalMetadata"`
+	Duration               pgtype.Int8            `json:"duration"`
+	Priority               pgtype.Int4            `json:"priority"`
+	WorkflowVersion        WorkflowVersion        `json:"workflow_version"`
+	Workflow               Workflow               `json:"workflow"`
+	WorkflowRunTriggeredBy WorkflowRunTriggeredBy `json:"workflow_run_triggered_by"`
+}
+
+func (q *Queries) GetWorkflowRunByIds(ctx context.Context, db DBTX, arg GetWorkflowRunByIdsParams) ([]*GetWorkflowRunByIdsRow, error) {
+	rows, err := db.Query(ctx, getWorkflowRunByIds, arg.Workflowrunids, arg.Tenantid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*GetWorkflowRunByIdsRow
+	for rows.Next() {
+		var i GetWorkflowRunByIdsRow
+		if err := rows.Scan(
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.TenantId,
+			&i.WorkflowVersionId,
+			&i.Status,
+			&i.Error,
+			&i.StartedAt,
+			&i.FinishedAt,
+			&i.ConcurrencyGroupId,
+			&i.DisplayName,
+			&i.ID,
+			&i.ChildIndex,
+			&i.ChildKey,
+			&i.ParentId,
+			&i.ParentStepRunId,
+			&i.AdditionalMetadata,
+			&i.Duration,
+			&i.Priority,
+			&i.WorkflowVersion.ID,
+			&i.WorkflowVersion.CreatedAt,
+			&i.WorkflowVersion.UpdatedAt,
+			&i.WorkflowVersion.DeletedAt,
+			&i.WorkflowVersion.Version,
+			&i.WorkflowVersion.Order,
+			&i.WorkflowVersion.WorkflowId,
+			&i.WorkflowVersion.Checksum,
+			&i.WorkflowVersion.ScheduleTimeout,
+			&i.WorkflowVersion.OnFailureJobId,
+			&i.WorkflowVersion.Sticky,
+			&i.WorkflowVersion.Kind,
+			&i.WorkflowVersion.DefaultPriority,
+			&i.Workflow.ID,
+			&i.Workflow.CreatedAt,
+			&i.Workflow.UpdatedAt,
+			&i.Workflow.DeletedAt,
+			&i.Workflow.TenantId,
+			&i.Workflow.Name,
+			&i.Workflow.Description,
+			&i.Workflow.IsPaused,
+			&i.WorkflowRunTriggeredBy.ID,
+			&i.WorkflowRunTriggeredBy.CreatedAt,
+			&i.WorkflowRunTriggeredBy.UpdatedAt,
+			&i.WorkflowRunTriggeredBy.DeletedAt,
+			&i.WorkflowRunTriggeredBy.TenantId,
+			&i.WorkflowRunTriggeredBy.EventId,
+			&i.WorkflowRunTriggeredBy.CronParentId,
+			&i.WorkflowRunTriggeredBy.CronSchedule,
+			&i.WorkflowRunTriggeredBy.ScheduledId,
+			&i.WorkflowRunTriggeredBy.Input,
+			&i.WorkflowRunTriggeredBy.ParentId,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getWorkflowRunInput = `-- name: GetWorkflowRunInput :one

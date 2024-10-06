@@ -502,10 +502,7 @@ func (r *workflowEngineRepository) CreateSchedules(
 
 func (r *workflowEngineRepository) GetLatestWorkflowVersions(ctx context.Context, tenantId string, workflowIds []string) ([]*dbsqlc.GetLatestWorkflowVersionForWorkflowsRow, error) {
 
-	fmt.Println("the size of the workflowids are ", len(workflowIds))
 	var workflowVersionIds = make([]pgtype.UUID, len(workflowIds))
-
-	fmt.Println("the workflowids are ", strings.Join(workflowIds, ","))
 
 	for i, id := range workflowIds {
 		workflowVersionIds[i] = sqlchelpers.UUIDFromStr(id)

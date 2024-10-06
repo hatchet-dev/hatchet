@@ -216,9 +216,16 @@ func (a *AdminServiceImpl) BulkTriggerWorkflow(ctx context.Context, req *contrac
 	var opts []*repository.CreateWorkflowRunOpts
 	var existingWorkflows []string
 
+	if len(req.Workflows) == 0 {
+		return &contracts.BulkTriggerWorkflowResponse{}, status.Error(codes.InvalidArgument, "no workflows provided")
+	}
+
+	if len(req.Workflows) > 1000 {
+		return nil, status.Error(codes.InvalidArgument, "maximum of 1000 workflows can be triggered at once")
+	}
+
 	opts, existingWorkflows, err := getOpts(ctx, req.Workflows, a)
 	if err != nil {
-
 		return nil, err
 	}
 
@@ -717,6 +724,9 @@ func getOpts(ctx context.Context, requests []*contracts.TriggerWorkflowRequest, 
 
 	createContext, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
+	var childWorkflowRunChecks []repository.ChildWorkflowRun
+
+	childWorkflowMap := make(map[repository.ChildWorkflowRun]*dbsqlc.WorkflowRun)
 
 	for _, req := range requests {
 		isParentTriggered := req.ParentId != nil
@@ -736,25 +746,59 @@ func getOpts(ctx context.Context, requests []*contracts.TriggerWorkflowRequest, 
 				)
 			}
 
-			workflowRun, err := a.repo.WorkflowRun().GetChildWorkflowRun(
-				createContext,
-				*req.ParentId,
-				*req.ParentStepRunId,
-				int(*req.ChildIndex),
-				req.ChildKey,
-			)
+			childWorkflowRunChecks = append(childWorkflowRunChecks, repository.ChildWorkflowRun{
+				ParentId:        *req.ParentId,
+				ParentStepRunId: *req.ParentStepRunId,
+				ChildIndex:      int(*req.ChildIndex),
+				Childkey:        req.ChildKey,
+			})
 
-			if err != nil {
-				if !errors.Is(err, pgx.ErrNoRows) {
-					return nil, nil, fmt.Errorf("could not get child workflow run: %w", err)
-				}
+		}
+	}
+
+	if len(childWorkflowRunChecks) > 0 {
+		workflowRuns, err := a.repo.WorkflowRun().GetChildWorkflowRuns(
+			createContext,
+			childWorkflowRunChecks,
+		)
+
+		if err != nil {
+			return nil, nil, fmt.Errorf("could not get child workflow runs: %w", err)
+		}
+
+		for _, wfr := range workflowRuns {
+			childWorkflowRun := repository.ChildWorkflowRun{
+				ParentId:        sqlchelpers.UUIDToStr(wfr.ParentId),
+				ParentStepRunId: sqlchelpers.UUIDToStr(wfr.ParentStepRunId),
+				ChildIndex:      int(wfr.ChildIndex.Int32),
+				Childkey:        &wfr.ChildKey.String,
 			}
 
-			if err == nil && workflowRun != nil {
+			childWorkflowMap[childWorkflowRun] = wfr
+		}
+	}
+
+	for _, req := range requests {
+		isParentTriggered := req.ParentId != nil
+
+		if isParentTriggered {
+
+			workflowRun := childWorkflowMap[repository.ChildWorkflowRun{
+				ParentId:        *req.ParentId,
+				ParentStepRunId: *req.ParentStepRunId,
+				ChildIndex:      int(*req.ChildIndex),
+				Childkey:        req.ChildKey,
+			}]
+
+			if workflowRun != nil {
 
 				existingWorkflowRuns = append(existingWorkflowRuns, sqlchelpers.UUIDToStr(workflowRun.ID))
-				continue
+
+			} else {
+				// can't find the child workflow run, so we need to trigger it
+				nonParentWorkflows = append(nonParentWorkflows, req)
 			}
+
 		} else {
 			nonParentWorkflows = append(nonParentWorkflows, req)
 		}
@@ -782,6 +826,27 @@ func getOpts(ctx context.Context, requests []*contracts.TriggerWorkflowRequest, 
 
 	for _, w := range workflowVersions {
 		workflowVersionMap[sqlchelpers.UUIDToStr(w.WorkflowId)] = w
+	}
+
+	parentTriggeredWorkflowRuns := make(map[string]*dbsqlc.GetWorkflowRunRow)
+	var parentIds []string
+
+	for _, req := range nonParentWorkflows {
+		isParentTriggered := req.ParentId != nil
+
+		if isParentTriggered {
+			parentIds = append(parentIds, sqlchelpers.UUIDToStr(sqlchelpers.UUIDFromStr(*req.ParentId)))
+		}
+	}
+
+	parentWorkflowRuns, err := a.repo.WorkflowRun().GetWorkflowRunByIds(createContext, tenantId, parentIds)
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not get parent workflow runs: %w", err)
+	}
+
+	for _, wfr := range parentWorkflowRuns {
+		parentTriggeredWorkflowRuns[sqlchelpers.UUIDToStr(wfr.WorkflowRun.ID)] = wfr
 	}
 
 	for _, req := range nonParentWorkflows {
@@ -828,10 +893,11 @@ func getOpts(ctx context.Context, requests []*contracts.TriggerWorkflowRequest, 
 		isParentTriggered := req.ParentId != nil
 
 		if isParentTriggered {
-			parent, err := a.repo.WorkflowRun().GetWorkflowRunById(createContext, tenantId, sqlchelpers.UUIDToStr(sqlchelpers.UUIDFromStr(*req.ParentId)))
 
-			if err != nil {
-				return nil, nil, fmt.Errorf("could not get parent workflow run: %w", err)
+			parent := parentTriggeredWorkflowRuns[sqlchelpers.UUIDToStr(sqlchelpers.UUIDFromStr(*req.ParentId))]
+
+			if parent == nil {
+				return nil, nil, status.Errorf(codes.NotFound, "parent workflow run %s not found", *req.ParentId)
 			}
 
 			var parentAdditionalMeta map[string]interface{}

@@ -401,6 +401,9 @@ type WorkflowRunAPIRepository interface {
 	// GetWorkflowRunById returns a workflow run by id.
 	GetWorkflowRunById(ctx context.Context, tenantId, runId string) (*dbsqlc.GetWorkflowRunByIdRow, error)
 
+	// GetWorkflowRunById returns a workflow run by id.
+	GetWorkflowRunByIds(ctx context.Context, tenantId string, runIds []string) ([]*dbsqlc.GetWorkflowRunByIdsRow, error)
+
 	GetStepsForJobs(ctx context.Context, tenantId string, jobIds []string) ([]*dbsqlc.GetStepsForJobsRow, error)
 
 	GetStepRunsForJobRuns(ctx context.Context, tenantId string, jobRunIds []string) ([]*StepRunForJobRun, error)
@@ -423,6 +426,12 @@ type UpdateWorkflowRunFromGroupKeyEvalOpts struct {
 
 	Error *string
 }
+type ChildWorkflowRun struct {
+	ParentId        string
+	ParentStepRunId string
+	ChildIndex      int
+	Childkey        *string
+}
 
 type WorkflowRunEngineRepository interface {
 	RegisterCreateCallback(callback Callback[*dbsqlc.WorkflowRun])
@@ -432,6 +441,8 @@ type WorkflowRunEngineRepository interface {
 	ListWorkflowRuns(ctx context.Context, tenantId string, opts *ListWorkflowRunsOpts) (*ListWorkflowRunsResult, error)
 
 	GetChildWorkflowRun(ctx context.Context, parentId, parentStepRunId string, childIndex int, childkey *string) (*dbsqlc.WorkflowRun, error)
+
+	GetChildWorkflowRuns(ctx context.Context, childWorkflowRuns []ChildWorkflowRun) ([]*dbsqlc.WorkflowRun, error)
 
 	GetScheduledChildWorkflowRun(ctx context.Context, parentId, parentStepRunId string, childIndex int, childkey *string) (*dbsqlc.WorkflowTriggerScheduledRef, error)
 
@@ -450,6 +461,9 @@ type WorkflowRunEngineRepository interface {
 
 	// GetWorkflowRunById returns a workflow run by id.
 	GetWorkflowRunById(ctx context.Context, tenantId, runId string) (*dbsqlc.GetWorkflowRunRow, error)
+
+	// TODO maybe we don't need this?
+	GetWorkflowRunByIds(ctx context.Context, tenantId string, runId []string) ([]*dbsqlc.GetWorkflowRunRow, error)
 
 	QueuePausedWorkflowRun(ctx context.Context, tenantId, workflowId, workflowRunId string) error
 
