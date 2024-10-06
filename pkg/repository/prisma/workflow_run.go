@@ -579,14 +579,14 @@ func (w *workflowRunEngineRepository) GetChildWorkflowRuns(ctx context.Context, 
 		childParams = append(childParams, p)
 	}
 
-	parantIds := make([]pgtype.UUID, len(childParams))
+	parentIds := make([]pgtype.UUID, len(childParams))
 	parentStepRunIds := make([]pgtype.UUID, len(childParams))
 	childIndexes := make([]int32, len(childParams))
 	childKeys := make([]string, len(childParams))
 
 	for _, p := range childParams {
 
-		parantIds = append(parantIds, p.Parentid)
+		parentIds = append(parentIds, p.Parentid)
 		parentStepRunIds = append(parentStepRunIds, p.Parentsteprunid)
 		childKeys = append(childKeys, p.ChildKey.String)
 		childIndexes = append(childIndexes, p.Childindex.Int32)
@@ -594,7 +594,7 @@ func (w *workflowRunEngineRepository) GetChildWorkflowRuns(ctx context.Context, 
 	}
 
 	return w.queries.GetChildWorkflowRuns(ctx, w.pool, dbsqlc.GetChildWorkflowRunsParams{
-		Parentids:        parantIds,
+		Parentids:        parentIds,
 		Parentsteprunids: parentStepRunIds,
 		Childindices:     childIndexes,
 		Childkeys:        childKeys,
