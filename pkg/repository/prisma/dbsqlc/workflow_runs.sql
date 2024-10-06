@@ -548,14 +548,11 @@ INSERT INTO "WorkflowRun" (
 
 );
 
-
 -- name: GetInsertedWorkflowRuns :many
-
 SELECT * FROM "WorkflowRun"
 WHERE xmin::text = (txid_current() % (2^32)::bigint)::text
 AND "createdAt" >= @createdAt::timestamp
 ORDER BY id;
-
 
 -- name: CreateWorkflowRunDedupe :one
 WITH workflow_id AS (

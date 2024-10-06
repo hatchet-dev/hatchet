@@ -1274,7 +1274,6 @@ func (q *Queries) GetInsertedStepRuns(ctx context.Context, db DBTX, createdat pg
 }
 
 const getInsertedWorkflowRuns = `-- name: GetInsertedWorkflowRuns :many
-
 SELECT "createdAt", "updatedAt", "deletedAt", "tenantId", "workflowVersionId", status, error, "startedAt", "finishedAt", "concurrencyGroupId", "displayName", id, "childIndex", "childKey", "parentId", "parentStepRunId", "additionalMetadata", duration, priority FROM "WorkflowRun"
 WHERE xmin::text = (txid_current() % (2^32)::bigint)::text
 AND "createdAt" >= $1::timestamp
