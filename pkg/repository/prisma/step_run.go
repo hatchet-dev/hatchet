@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hashicorp/go-multierror"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -2606,58 +2607,43 @@ func (s *stepRunEngineRepository) StepRunCancelled(ctx context.Context, tenantId
 		Status:          &cancelled,
 	}
 
-	done, err := s.bulkStatusBuffer.BuffItem(tenantId, data)
+	_, err = s.bulkStatusBuffer.BuffItem(tenantId, data)
 
 	if err != nil {
 		return fmt.Errorf("could not buffer step run succeeded: %w", err)
 	}
 
-	var response *flushResponse[pgtype.UUID]
+	laterStepRuns, err := s.queries.GetLaterStepRuns(ctx, s.pool, dbsqlc.GetLaterStepRunsParams{
+		Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
+		Steprunid: sqlchelpers.UUIDFromStr(stepRunId),
+	})
 
-	select {
-	case response = <-done:
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-time.After(20 * time.Second):
-		return fmt.Errorf("timeout waiting for step run succeeded to be flushed to db")
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return fmt.Errorf("could not get later step runs: %w", err)
 	}
 
-	if response.err != nil {
-		return fmt.Errorf("could not flush step run succeeded: %w", response.err)
-	}
+	var innerErr error
 
-	tx, err := s.pool.Begin(ctx)
+	for _, laterStepRun := range laterStepRuns {
+		laterStepRunId := sqlchelpers.UUIDToStr(laterStepRun.ID)
+		cancelled := string(dbsqlc.StepRunStatusCANCELLED)
+		reason := "PREVIOUS_STEP_CANCELLED"
 
-	if err != nil {
-		return err
-	}
-
-	defer deferRollback(ctx, s.l, tx.Rollback)
-
-	// check that the step run is not in a final state
-	stepRun, err := s.getStepRunForEngineTx(ctx, tx, tenantId, stepRunId)
-
-	if err != nil {
-		return fmt.Errorf("could not get step run: %w", err)
-	}
-
-	if !repository.IsFinalStepRunStatus(stepRun.SRStatus) {
-		_, err = s.queries.ResolveLaterStepRuns(ctx, tx, dbsqlc.ResolveLaterStepRunsParams{
-			Steprunid: sqlchelpers.UUIDFromStr(stepRunId),
-			Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
-			Status:    dbsqlc.StepRunStatusCANCELLED,
+		_, err := s.bulkStatusBuffer.BuffItem(tenantId, &updateStepRunQueueData{
+			Hash:            hashToBucket(laterStepRun.ID, s.maxHashFactor),
+			StepRunId:       laterStepRunId,
+			TenantId:        tenantId,
+			CancelledAt:     &cancelledAt,
+			CancelledReason: &reason,
+			Status:          &cancelled,
 		})
 
 		if err != nil {
-			return fmt.Errorf("could not resolve later step runs: %w", err)
+			innerErr = multierror.Append(innerErr, fmt.Errorf("could not buffer later step run cancelled: %w", err))
 		}
 	}
 
-	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("could not commit transaction: %w", err)
-	}
-
-	return nil
+	return innerErr
 }
 
 func (s *stepRunEngineRepository) StepRunFailed(ctx context.Context, tenantId, stepRunId string, failedAt time.Time, errStr string, retryCount int) error {
@@ -2683,58 +2669,48 @@ func (s *stepRunEngineRepository) StepRunFailed(ctx context.Context, tenantId, s
 		Status:     &failed,
 	}
 
-	done, err := s.bulkStatusBuffer.BuffItem(tenantId, data)
+	_, err = s.bulkStatusBuffer.BuffItem(tenantId, data)
 
 	if err != nil {
 		return fmt.Errorf("could not buffer step run succeeded: %w", err)
 	}
 
-	var response *flushResponse[pgtype.UUID]
+	laterStepRuns, err := s.queries.GetLaterStepRuns(ctx, s.pool, dbsqlc.GetLaterStepRunsParams{
+		Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
+		Steprunid: sqlchelpers.UUIDFromStr(stepRunId),
+	})
 
-	select {
-	case response = <-done:
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-time.After(20 * time.Second):
-		return fmt.Errorf("timeout waiting for step run succeeded to be flushed to db")
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return fmt.Errorf("could not get later step runs: %w", err)
 	}
 
-	if response.err != nil {
-		return fmt.Errorf("could not flush step run succeeded: %w", response.err)
-	}
+	var innerErr error
 
-	tx, err := s.pool.Begin(ctx)
+	for _, laterStepRun := range laterStepRuns {
+		laterStepRunId := sqlchelpers.UUIDToStr(laterStepRun.ID)
+		cancelled := string(dbsqlc.StepRunStatusCANCELLED)
 
-	if err != nil {
-		return err
-	}
+		reason := "PREVIOUS_STEP_FAILED"
 
-	defer deferRollback(ctx, s.l, tx.Rollback)
+		if errStr == "TIMED_OUT" {
+			reason = "PREVIOUS_STEP_TIMED_OUT"
+		}
 
-	// check that the step run is not in a final state
-	stepRun, err := s.getStepRunForEngineTx(ctx, tx, tenantId, stepRunId)
-
-	if err != nil {
-		return fmt.Errorf("could not get step run: %w", err)
-	}
-
-	if !repository.IsFinalStepRunStatus(stepRun.SRStatus) {
-		_, err = s.queries.ResolveLaterStepRuns(ctx, tx, dbsqlc.ResolveLaterStepRunsParams{
-			Steprunid: sqlchelpers.UUIDFromStr(stepRunId),
-			Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
-			Status:    dbsqlc.StepRunStatusFAILED,
+		_, err := s.bulkStatusBuffer.BuffItem(tenantId, &updateStepRunQueueData{
+			Hash:            hashToBucket(laterStepRun.ID, s.maxHashFactor),
+			StepRunId:       laterStepRunId,
+			TenantId:        tenantId,
+			CancelledAt:     &failedAt,
+			CancelledReason: &reason,
+			Status:          &cancelled,
 		})
 
 		if err != nil {
-			return fmt.Errorf("could not resolve later step runs: %w", err)
+			innerErr = multierror.Append(innerErr, fmt.Errorf("could not buffer later step run cancelled: %w", err))
 		}
 	}
 
-	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("could not commit transaction: %w", err)
-	}
-
-	return nil
+	return innerErr
 }
 
 func (s *stepRunEngineRepository) ReplayStepRun(ctx context.Context, tenantId, stepRunId string, input []byte) (*dbsqlc.GetStepRunForEngineRow, error) {
