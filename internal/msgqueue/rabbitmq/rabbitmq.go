@@ -364,29 +364,30 @@ func (t *MessageQueueImpl) startPublishing() func() error {
 						}
 
 						// if this is a tenant msg, publish to the tenant exchange
-						if msg.TenantID() != "" {
-							// determine if the tenant exchange exists
-							if _, ok := t.tenantIdCache.Get(msg.TenantID()); !ok {
-								// register the tenant exchange
-								err = t.RegisterTenant(ctx, msg.TenantID())
+						// TODO: remove before merge, temporarily disabled
+						// if msg.TenantID() != "" {
+						// 	// determine if the tenant exchange exists
+						// 	if _, ok := t.tenantIdCache.Get(msg.TenantID()); !ok {
+						// 		// register the tenant exchange
+						// 		err = t.RegisterTenant(ctx, msg.TenantID())
 
-								if err != nil {
-									t.l.Error().Msgf("error registering tenant exchange: %v", err)
-									return
-								}
-							}
+						// 		if err != nil {
+						// 			t.l.Error().Msgf("error registering tenant exchange: %v", err)
+						// 			return
+						// 		}
+						// 	}
 
-							t.l.Debug().Msgf("publishing tenant msg %s to exchange %s", msg.ID, msg.TenantID())
+						// 	t.l.Debug().Msgf("publishing tenant msg %s to exchange %s", msg.ID, msg.TenantID())
 
-							err = pub.PublishWithContext(ctx, msg.TenantID(), "", false, false, amqp.Publishing{
-								Body: body,
-							})
+						// 	err = pub.PublishWithContext(ctx, msg.TenantID(), "", false, false, amqp.Publishing{
+						// 		Body: body,
+						// 	})
 
-							if err != nil {
-								t.l.Error().Msgf("error publishing tenant msg: %v", err)
-								return
-							}
-						}
+						// 	if err != nil {
+						// 		t.l.Error().Msgf("error publishing tenant msg: %v", err)
+						// 		return
+						// 	}
+						// }
 
 						t.l.Debug().Msgf("published msg %s to queue %s", msg.ID, msg.q.Name())
 					}(msg)
