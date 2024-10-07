@@ -196,6 +196,9 @@ func (t *MessageQueueImpl) SetQOS(prefetchCount int) {
 
 // AddMessage adds a msg to the queue.
 func (t *MessageQueueImpl) AddMessage(ctx context.Context, q msgqueue.Queue, msg *msgqueue.Message) error {
+	ctx, span := telemetry.NewSpan(ctx, "add-message")
+	defer span.End()
+
 	// inject otel carrier into the message
 	if msg.OtelCarrier == nil {
 		msg.OtelCarrier = telemetry.GetCarrier(ctx)
@@ -338,6 +341,9 @@ func (t *MessageQueueImpl) startPublishing() func() error {
 
 						ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 						defer cancel()
+
+						ctx, span := telemetry.NewSpanWithCarrier(ctx, "publish-message", msg.OtelCarrier)
+						defer span.End()
 
 						t.l.Debug().Msgf("publishing msg %s to queue %s", msg.ID, msg.q.Name())
 
