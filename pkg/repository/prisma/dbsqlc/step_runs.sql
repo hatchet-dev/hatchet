@@ -203,37 +203,60 @@ WHERE
     AND child_run."status" = 'PENDING'
     AND step_run_order."A" IS NULL;
 
--- name: ListStartableStepRuns :many
-WITH job_run AS (
-    SELECT "status", "deletedAt"
-    FROM "JobRun"
-    WHERE
-        "id" = @jobRunId::uuid
-        AND "status" = 'RUNNING'
-        AND "deletedAt" IS NULL
-)
+-- name: ListStartableStepRunsManyParents :many
 SELECT
     DISTINCT ON (child_run."id")
     child_run."id" AS "id"
 FROM
-    "StepRun" AS child_run
+    "StepRun" AS parent_run
 LEFT JOIN
-    "_StepRunOrder" AS step_run_order ON step_run_order."B" = child_run."id"
+    "_StepRunOrder" AS step_run_order ON step_run_order."A" = parent_run."id"
 JOIN
-    job_run ON true
+    "StepRun" AS child_run ON step_run_order."B" = child_run."id"
 WHERE
-    child_run."jobRunId" = @jobRunId::uuid
+    parent_run."id" = @parentStepRunId::uuid
     AND child_run."status" = 'PENDING'
-    -- we look for whether the step run is startable ASSUMING that succeededParentStepRunId has succeeded,
-    -- so we are making sure that all other parent step runs have succeeded
+    -- we look for whether the step run is startable by ensuring that all parent step runs have succeeded
     AND NOT EXISTS (
         SELECT 1
         FROM "_StepRunOrder" AS parent_order
         JOIN "StepRun" AS parent_run ON parent_order."A" = parent_run."id"
         WHERE
             parent_order."B" = child_run."id"
-            AND parent_run."id" != sqlc.arg('succeededParentStepRunId')::uuid
             AND parent_run."status" != 'SUCCEEDED'
+    )
+    -- AND we ensure that there's at least 2 parent step runs
+    AND EXISTS (
+        SELECT 1
+        FROM "_StepRunOrder" AS parent_order
+        JOIN "StepRun" AS parent_run ON parent_order."A" = parent_run."id"
+        WHERE
+            parent_order."B" = child_run."id"
+        OFFSET 1
+    );
+
+-- name: ListStartableStepRunsSingleParent :many
+SELECT
+    DISTINCT ON (child_run."id")
+    child_run."id" AS "id"
+FROM
+    "StepRun" AS parent_run
+LEFT JOIN
+    "_StepRunOrder" AS step_run_order ON step_run_order."A" = parent_run."id"
+JOIN
+    "StepRun" AS child_run ON step_run_order."B" = child_run."id"
+WHERE
+    parent_run."id" = @parentStepRunId::uuid
+    AND child_run."status" = 'PENDING'
+    -- we look for whether the step run is startable ASSUMING that parentStepRunId has succeeded,
+    -- but we only have one parent step run
+    AND NOT EXISTS (
+        SELECT 1
+        FROM "_StepRunOrder" AS parent_order
+        JOIN "StepRun" AS parent_run ON parent_order."A" = parent_run."id"
+        WHERE
+            parent_order."B" = child_run."id"
+            AND parent_run."id" != @parentStepRunId::uuid
     );
 
 -- name: ListStepRuns :many

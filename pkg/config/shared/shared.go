@@ -13,10 +13,10 @@ type TLSConfigFile struct {
 }
 
 type LoggerConfigFile struct {
-	Level string `mapstructure:"level" json:"level,omitempty" default:"debug"`
+	Level string `mapstructure:"level" json:"level,omitempty" default:"warn"`
 
 	// format can be "json" or "console"
-	Format string `mapstructure:"format" json:"format,omitempty" default:"json"`
+	Format string `mapstructure:"format" json:"format,omitempty" default:"console"`
 }
 
 type OpenTelemetryConfigFile struct {

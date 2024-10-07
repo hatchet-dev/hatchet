@@ -214,7 +214,7 @@ func TestTenantBufferManager_Cleanup(t *testing.T) {
 	require.NoError(t, err)
 
 	// Ensure buffers are cleaned up
-	err = manager.cleanup()
+	err = manager.Cleanup()
 	require.NoError(t, err)
 
 	// Try to buff an item after cleanup, should return an error

@@ -783,7 +783,7 @@ func (wc *WorkflowsControllerImpl) startJobRun(ctx context.Context, tenantId, jo
 	}
 
 	// list the step runs which are startable
-	startableStepRuns, err := wc.repo.StepRun().ListStartableStepRuns(ctx, tenantId, jobRunId, nil)
+	startableStepRuns, err := wc.repo.StepRun().ListInitialStepRunsForJobRun(ctx, tenantId, jobRunId)
 
 	if err != nil {
 		return fmt.Errorf("could not list startable step runs: %w", err)

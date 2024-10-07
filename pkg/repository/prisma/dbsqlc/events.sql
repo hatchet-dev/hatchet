@@ -104,11 +104,9 @@ INSERT INTO "Event" (
 
 
 -- name: GetInsertedEvents :many
-
 SELECT * FROM "Event"
-WHERE xmin::text = (txid_current() % (2^32)::bigint)::text
+WHERE "id" = ANY(@ids::uuid[])
 ORDER BY "insertOrder" ASC;
-
 
 -- name: ListEvents :many
 WITH filtered_events AS (
