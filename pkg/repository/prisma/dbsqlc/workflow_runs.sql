@@ -551,7 +551,7 @@ INSERT INTO "WorkflowRun" (
 -- name: GetInsertedWorkflowRuns :many
 SELECT * FROM "WorkflowRun"
 WHERE xmin::text = (txid_current() % (2^32)::bigint)::text
-AND "createdAt" >= @createdAt::timestamp
+AND ("createdAt" >= (@createdAt::timestamp) - interval '10 milliseconds')
 ORDER BY id;
 
 -- name: CreateWorkflowRunDedupe :one
@@ -576,32 +576,6 @@ INSERT INTO "WorkflowRunDedupe" (
     sqlc.narg('value')::text
 ) RETURNING *;
 
--- name: CreateMultipleWorkflowRunDedupes :many
-WITH workflow_ids AS (
-    SELECT w."id", wv."id" as workflow_version_id
-    FROM "Workflow" w
-    JOIN "WorkflowVersion" wv ON wv."workflowId" = w."id"
-    WHERE wv."id" = ANY(@workflowVersionIds::uuid[])
-)
-INSERT INTO "WorkflowRunDedupe" (
-    "createdAt",
-    "updatedAt",
-    "tenantId",
-    "workflowId",
-    "workflowRunId",
-    "value"
-)
-SELECT
-    CURRENT_TIMESTAMP,
-    CURRENT_TIMESTAMP,
-    @tenantId::uuid,
-    workflow_ids."id",
-    UNNEST(@workflowRunIds::uuid[]),
-    UNNEST(@values::text[])
-FROM workflow_ids
-JOIN UNNEST(@workflowVersionIds::uuid[]) AS wv(workflow_version_id)
-    ON workflow_ids.workflow_version_id = wv.workflow_version_id
-RETURNING *;
 
 
 -- name: CreateWorkflowRunStickyState :one
@@ -971,16 +945,16 @@ INSERT INTO "StepRun" (
 
 SELECT id FROM "StepRun"
 WHERE xmin::text = (txid_current() % (2^32)::bigint)::text
-AND "createdAt" >= @createdAt::timestamp
+AND ("createdAt" >= (@createdAt::timestamp) - interval '10 milliseconds')
 ORDER BY id;
 
 -- name: GetStepsForWorkflowVersion :many
 
 SELECT
     "Step".*  from "Step"
-JOIN "Job" ON "Step"."jobId" = "Job"."id"
+JOIN "Job" j ON "Step"."jobId" = j."id"
 WHERE
-    "workflowVersionId" = ANY(@workflowVersionIds::uuid[]);
+    j."workflowVersionId" = ANY(@workflowVersionIds::uuid[]);
 
 -- name: ListStepsForJob :many
 WITH job_id AS (

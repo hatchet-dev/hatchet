@@ -217,7 +217,7 @@ func (a *AdminServiceImpl) BulkTriggerWorkflow(ctx context.Context, req *contrac
 	var existingWorkflows []string
 
 	if len(req.Workflows) == 0 {
-		return &contracts.BulkTriggerWorkflowResponse{}, status.Error(codes.InvalidArgument, "no workflows provided")
+		return nil, status.Error(codes.InvalidArgument, "no workflows provided")
 	}
 
 	if len(req.Workflows) > 1000 {
@@ -231,7 +231,7 @@ func (a *AdminServiceImpl) BulkTriggerWorkflow(ctx context.Context, req *contrac
 
 	if len(opts) == 0 {
 		if len(existingWorkflows) == 0 {
-			return &contracts.BulkTriggerWorkflowResponse{}, status.Error(codes.InvalidArgument, "no suitable new workflows provided")
+			return nil, status.Error(codes.InvalidArgument, "no suitable new workflows provided")
 		}
 		return &contracts.BulkTriggerWorkflowResponse{WorkflowRunIds: existingWorkflows}, nil
 
@@ -263,7 +263,7 @@ func (a *AdminServiceImpl) BulkTriggerWorkflow(ctx context.Context, req *contrac
 	workflowRunIds = append(workflowRunIds, existingWorkflows...)
 
 	if len(workflowRunIds) == 0 {
-		return &contracts.BulkTriggerWorkflowResponse{}, status.Error(codes.InvalidArgument, "no workflows created")
+		return nil, status.Error(codes.InvalidArgument, "no workflows created")
 	}
 
 	return &contracts.BulkTriggerWorkflowResponse{WorkflowRunIds: workflowRunIds}, nil
@@ -735,17 +735,16 @@ func getOpts(ctx context.Context, requests []*contracts.TriggerWorkflowRequest, 
 			if req.ParentStepRunId == nil {
 				return nil, nil, status.Error(
 					codes.InvalidArgument,
-					"parent step run id is required when parent id is provided",
+					fmt.Sprintf("parent step run id is required when parent id is provided. name: %v parent id: %v, parent step run id: %v", req.Name, req.ParentId, req.ParentStepRunId),
 				)
 			}
 
 			if req.ChildIndex == nil {
 				return nil, nil, status.Error(
 					codes.InvalidArgument,
-					"child index is required when parent id is provided",
+					fmt.Sprintf("child index is required when parent id is provided. name: %v , child key: %v child index: %v", req.Name, req.ChildKey, req.ChildIndex),
 				)
 			}
-
 			childWorkflowRunChecks = append(childWorkflowRunChecks, repository.ChildWorkflowRun{
 				ParentId:        *req.ParentId,
 				ParentStepRunId: *req.ParentStepRunId,
@@ -969,13 +968,6 @@ func getWorkflowsForWorkflowNames(ctx context.Context, tenantId string, reqs []*
 		tenantId,
 		workflowNames,
 	)
-
-	if err == metered.ErrResourceExhausted {
-		return nil, status.Error(
-			codes.ResourceExhausted,
-			"workflow run limit exceeded",
-		)
-	}
 
 	if err != nil {
 		return nil, fmt.Errorf("could not get workflows by names: %w", err)

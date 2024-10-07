@@ -68,13 +68,13 @@ func run() (func() error, error) {
 	go func() {
 		log.Printf("pushing event")
 
-		var workflows []*client.Workflow
+		var workflows []*client.WorkflowRun
 		for i := 0; i < 500; i++ {
 			data := map[string]interface{}{
 				"username": fmt.Sprintf("echo-test-%d", i),
 				"user_id":  fmt.Sprintf("1234-%d", i),
 			}
-			workflows = append(workflows, &client.Workflow{
+			workflows = append(workflows, &client.WorkflowRun{
 				Name:  "sticky",
 				Input: data,
 			})

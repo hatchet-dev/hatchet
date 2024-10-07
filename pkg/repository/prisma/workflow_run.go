@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strconv"
 	"strings"
 	"time"
 
@@ -599,6 +600,27 @@ func (w *workflowRunEngineRepository) GetChildWorkflowRuns(ctx context.Context, 
 		Childindices:     childIndexes,
 		Childkeys:        childKeys,
 	})
+}
+func (w *workflowRunEngineRepository) CreateDeDupeKey(ctx context.Context, tenantId, workflowRunId string, workflowVersionId string, key string) error {
+	_, err := w.queries.CreateWorkflowRunDedupe(
+		ctx,
+		w.pool,
+		dbsqlc.CreateWorkflowRunDedupeParams{
+			Tenantid:          sqlchelpers.UUIDFromStr(tenantId),
+			Workflowversionid: sqlchelpers.UUIDFromStr(workflowVersionId),
+			Value:             sqlchelpers.TextFromStr(key),
+			Workflowrunid:     sqlchelpers.UUIDFromStr(workflowRunId),
+		},
+	)
+
+	if err != nil {
+		if isUniqueViolationOnDedupe(err) {
+			return repository.ErrDedupeValueExists{
+				DedupeValue: key,
+			}
+		}
+	}
+	return err
 }
 
 func (w *workflowRunEngineRepository) GetScheduledChildWorkflowRun(ctx context.Context, parentId, parentStepRunId string, childIndex int, childkey *string) (*dbsqlc.WorkflowTriggerScheduledRef, error) {
@@ -1240,9 +1262,9 @@ func createNewWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbs
 
 				// I think something in the python SDK/examples is setting this to -1 (works with my go example fails with python)
 
-				if *opt.ChildIndex < 0 {
-					l.Warn().Msgf("child index must be greater than or equal to 0 but it is : %d", *opt.ChildIndex)
-					// 	return nil, errors.New("child index must be greater than or equal to 0 but it is : " + strconv.Itoa(*opt.ChildIndex))
+				if *opt.ChildIndex < -1 {
+					l.Error().Msgf("child index must be greater than or equal to -1 but it is : %d", *opt.ChildIndex)
+					return nil, errors.New("child index must be greater than or equal to -1 but it is : " + strconv.Itoa(*opt.ChildIndex))
 				}
 
 				if *opt.ChildIndex < math.MinInt32 || *opt.ChildIndex > math.MaxInt32 {
@@ -1332,8 +1354,6 @@ func createNewWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbs
 				scheduledWorkflowId = sqlchelpers.UUIDFromStr(*opt.ScheduledWorkflowId)
 			}
 
-			// so we are ignoring opt.ParentId
-
 			cp := dbsqlc.CreateWorkflowRunTriggeredBysParams{
 				ID:           sqlchelpers.UUIDFromStr(uuid.New().String()),
 				TenantId:     pgTenantId,
@@ -1345,8 +1365,6 @@ func createNewWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbs
 			}
 
 			triggeredByParams = append(triggeredByParams, cp)
-
-			// }
 
 			if opt.GetGroupKeyRun != nil {
 				groupKeyParams = append(groupKeyParams, dbsqlc.CreateGetGroupKeyRunsParams{
@@ -1553,20 +1571,20 @@ func createNewWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbs
 			}
 
 			// think about doing this all in one query
-			err = queries.UpsertQueues(
-				tx1Ctx,
-				tx,
-				dbsqlc.UpsertQueuesParams{
-					Tenantids: newTenantIds,
-					Names:     stepActionIds,
-				},
-			)
+			// err = queries.UpsertQueues(
+			// 	tx1Ctx,
+			// 	tx,
+			// 	dbsqlc.UpsertQueuesParams{
+			// 		Tenantids: newTenantIds,
+			// 		Names:     stepActionIds,
+			// 	},
+			// )
 
-			if err != nil {
-				l.Error().Msgf("trying to upsert queues with names %+v and tenantIds %+v ", stepActionIds, newTenantIds)
-				l.Error().Err(err).Msg("failed to upsert queues")
-				return nil, err
-			}
+			// if err != nil {
+			// 	l.Error().Msgf("trying to upsert queues with names %+v and tenantIds %+v ", stepActionIds, newTenantIds)
+			// 	l.Error().Err(err).Msg("failed to upsert queues")
+			// 	return nil, err
+			// }
 
 			stepRunIds, err := queries.CreateStepRunsForJobRunIds(tx1Ctx, tx, dbsqlc.CreateStepRunsForJobRunIdsParams{
 				Jobrunids: jobRunIds,

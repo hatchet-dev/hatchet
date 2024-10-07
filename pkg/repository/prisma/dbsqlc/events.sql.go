@@ -287,6 +287,7 @@ WHERE xmin::text = (txid_current() % (2^32)::bigint)::text
 ORDER BY "insertOrder" ASC
 `
 
+// AND ("createdAt" >= (@createdAt::timestamp) - interval '10 milliseconds')
 func (q *Queries) GetInsertedEvents(ctx context.Context, db DBTX) ([]*Event, error) {
 	rows, err := db.Query(ctx, getInsertedEvents)
 	if err != nil {

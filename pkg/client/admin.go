@@ -27,10 +27,9 @@ type ChildWorkflowOpts struct {
 	AdditionalMetadata *map[string]string
 }
 
-type Workflow struct {
+type WorkflowRun struct {
 	Name  string
 	Input interface{}
-	// opts  *RunOptFunc
 }
 
 type AdminClient interface {
@@ -40,7 +39,7 @@ type AdminClient interface {
 	// RunWorkflow triggers a workflow run and returns the run id
 	RunWorkflow(workflowName string, input interface{}, opts ...RunOptFunc) (string, error)
 
-	BulkRunWorkflow(workflows []*Workflow) ([]string, error)
+	BulkRunWorkflow(workflows []*WorkflowRun) ([]string, error)
 
 	RunChildWorkflow(workflowName string, input interface{}, opts *ChildWorkflowOpts) (string, error)
 
@@ -222,7 +221,7 @@ func (a *adminClientImpl) RunWorkflow(workflowName string, input interface{}, op
 	return res.WorkflowRunId, nil
 }
 
-func (a *adminClientImpl) BulkRunWorkflow(workflows []*Workflow) ([]string, error) {
+func (a *adminClientImpl) BulkRunWorkflow(workflows []*WorkflowRun) ([]string, error) {
 
 	triggerWorkflowRequests := make([]*admincontracts.TriggerWorkflowRequest, len(workflows))
 

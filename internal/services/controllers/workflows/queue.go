@@ -46,11 +46,23 @@ func (wc *WorkflowsControllerImpl) handleWorkflowRunQueued(ctx context.Context, 
 		return fmt.Errorf("could not decode job task metadata: %w", err)
 	}
 
-	// get the workflow run in the database
 	workflowRun, err := wc.repo.WorkflowRun().GetWorkflowRunById(ctx, metadata.TenantId, payload.WorkflowRunId)
 
 	if err != nil {
 		return fmt.Errorf("could not get job run: %w", err)
+	}
+
+	err = wc.checkDedupe(ctx, workflowRun.WorkflowRun)
+
+	if err != nil {
+
+		e := wc.failWorkflowRun(ctx, metadata.TenantId, payload.WorkflowRunId, "DUPLICATE_WORKFLOW_RUN")
+
+		if e != nil {
+			return fmt.Errorf("could not fail workflow run: %v -  %w", payload.WorkflowRunId, e)
+		}
+
+		return fmt.Errorf("failed dedupe for workflow: %v -  %w", payload.WorkflowRunId, err)
 	}
 
 	isPaused := workflowRun.IsPaused.Valid && workflowRun.IsPaused.Bool
@@ -121,6 +133,63 @@ func (wc *WorkflowsControllerImpl) handleWorkflowRunQueued(ctx context.Context, 
 	}
 
 	return nil
+}
+
+func (wc *WorkflowsControllerImpl) failWorkflowRun(ctx context.Context, tenantId string, workflowRunId string, reason string) error {
+	failedAt := time.Now().UTC()
+
+	payload, _ := datautils.ToJSONMap(tasktypes.WorkflowRunFailedTask{
+		WorkflowRunId: workflowRunId,
+		FailedAt:      failedAt.Format(time.RFC3339),
+		Reason:        reason,
+	})
+
+	metadata, _ := datautils.ToJSONMap(tasktypes.WorkflowRunFailedTaskMetadata{
+		TenantId: tenantId,
+	})
+
+	err := wc.mq.AddMessage(ctx, msgqueue.JOB_PROCESSING_QUEUE, &msgqueue.Message{
+		ID:       "step-run-failed",
+		Payload:  payload,
+		Metadata: metadata,
+		Retries:  3,
+	})
+
+	return err
+}
+
+func (wc *WorkflowsControllerImpl) checkDedupe(ctx context.Context, workflowRun dbsqlc.WorkflowRun) error {
+
+	var dedupeValue *string
+	var additionalMetadata map[string]interface{}
+	var err error
+
+	if len(workflowRun.AdditionalMetadata) > 0 {
+		err = json.Unmarshal(workflowRun.AdditionalMetadata, &additionalMetadata)
+		if err != nil {
+			return err
+		}
+
+		// if additional metadata contains a "dedupe" key, use it as the dedupe value
+		if dedupeVal, ok := additionalMetadata["dedupe"]; ok {
+			switch v := dedupeVal.(type) {
+			case string:
+				dedupeValue = &v
+			case int:
+				dedupeStr := fmt.Sprintf("%d", v)
+				dedupeValue = &dedupeStr
+			}
+		}
+
+		if dedupeValue == nil {
+			return nil
+		}
+
+		err = wc.repo.WorkflowRun().CreateDeDupeKey(ctx, sqlchelpers.UUIDToStr(workflowRun.TenantId), sqlchelpers.UUIDToStr(workflowRun.ID), sqlchelpers.UUIDToStr(workflowRun.WorkflowVersionId), *dedupeValue)
+
+	}
+
+	return err
 }
 
 func (wc *WorkflowsControllerImpl) evalWorkflowRunConcurrency(ctx context.Context, tenantId, workflowRunId, expr string) (*string, error) {

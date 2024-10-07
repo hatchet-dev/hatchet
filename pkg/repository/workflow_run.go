@@ -49,8 +49,8 @@ type CreateWorkflowRunOpts struct {
 	ChildKey *string
 
 	// (optional) the child index of the workflow run, if this is a child run of a different workflow
-	// ChildIndex *int `validate:"omitempty,min=0"`
-	ChildIndex *int // I feel like I should be able to tighten this up but it seems a -1 for child index is coming from somewhere
+	// python sdk uses -1 as default value
+	ChildIndex *int `validate:"omitempty,min=-1"`
 
 	// (optional) additional metadata for the workflow run
 	AdditionalMetadata map[string]interface{} `validate:"omitempty"`
@@ -453,6 +453,9 @@ type WorkflowRunEngineRepository interface {
 
 	// CreateNewWorkflowRuns creates new workflow runs in bulk
 	CreateNewWorkflowRuns(ctx context.Context, tenantId string, opts []*CreateWorkflowRunOpts) ([]string, error)
+
+	CreateDeDupeKey(ctx context.Context, tenantId, workflowRunId, worrkflowVersionId, dedupeValue string) error
+
 	GetWorkflowRunInputData(tenantId, workflowRunId string) (map[string]interface{}, error)
 
 	ProcessWorkflowRunUpdates(ctx context.Context, tenantId string) (bool, error)

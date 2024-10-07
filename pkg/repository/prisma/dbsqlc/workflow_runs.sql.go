@@ -575,74 +575,6 @@ func (q *Queries) CreateManyJobRuns(ctx context.Context, db DBTX, arg CreateMany
 	return items, nil
 }
 
-const createMultipleWorkflowRunDedupes = `-- name: CreateMultipleWorkflowRunDedupes :many
-WITH workflow_ids AS (
-    SELECT w."id", wv."id" as workflow_version_id
-    FROM "Workflow" w
-    JOIN "WorkflowVersion" wv ON wv."workflowId" = w."id"
-    WHERE wv."id" = ANY($4::uuid[])
-)
-INSERT INTO "WorkflowRunDedupe" (
-    "createdAt",
-    "updatedAt",
-    "tenantId",
-    "workflowId",
-    "workflowRunId",
-    "value"
-)
-SELECT
-    CURRENT_TIMESTAMP,
-    CURRENT_TIMESTAMP,
-    $1::uuid,
-    workflow_ids."id",
-    UNNEST($2::uuid[]),
-    UNNEST($3::text[])
-FROM workflow_ids
-JOIN UNNEST($4::uuid[]) AS wv(workflow_version_id)
-    ON workflow_ids.workflow_version_id = wv.workflow_version_id
-RETURNING id, "createdAt", "updatedAt", "tenantId", "workflowId", "workflowRunId", value
-`
-
-type CreateMultipleWorkflowRunDedupesParams struct {
-	Tenantid           pgtype.UUID   `json:"tenantid"`
-	Workflowrunids     []pgtype.UUID `json:"workflowrunids"`
-	Values             []string      `json:"values"`
-	Workflowversionids []pgtype.UUID `json:"workflowversionids"`
-}
-
-func (q *Queries) CreateMultipleWorkflowRunDedupes(ctx context.Context, db DBTX, arg CreateMultipleWorkflowRunDedupesParams) ([]*WorkflowRunDedupe, error) {
-	rows, err := db.Query(ctx, createMultipleWorkflowRunDedupes,
-		arg.Tenantid,
-		arg.Workflowrunids,
-		arg.Values,
-		arg.Workflowversionids,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []*WorkflowRunDedupe
-	for rows.Next() {
-		var i WorkflowRunDedupe
-		if err := rows.Scan(
-			&i.ID,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.TenantId,
-			&i.WorkflowId,
-			&i.WorkflowRunId,
-			&i.Value,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const createMultipleWorkflowRunStickyStates = `-- name: CreateMultipleWorkflowRunStickyStates :many
 WITH workflow_version AS (
     SELECT DISTINCT
@@ -1249,7 +1181,7 @@ const getInsertedStepRuns = `-- name: GetInsertedStepRuns :many
 
 SELECT id FROM "StepRun"
 WHERE xmin::text = (txid_current() % (2^32)::bigint)::text
-AND "createdAt" >= $1::timestamp
+AND ("createdAt" >= ($1::timestamp) - interval '10 milliseconds')
 ORDER BY id
 `
 
@@ -1276,7 +1208,7 @@ func (q *Queries) GetInsertedStepRuns(ctx context.Context, db DBTX, createdat pg
 const getInsertedWorkflowRuns = `-- name: GetInsertedWorkflowRuns :many
 SELECT "createdAt", "updatedAt", "deletedAt", "tenantId", "workflowVersionId", status, error, "startedAt", "finishedAt", "concurrencyGroupId", "displayName", id, "childIndex", "childKey", "parentId", "parentStepRunId", "additionalMetadata", duration, priority FROM "WorkflowRun"
 WHERE xmin::text = (txid_current() % (2^32)::bigint)::text
-AND "createdAt" >= $1::timestamp
+AND ("createdAt" >= ($1::timestamp) - interval '10 milliseconds')
 ORDER BY id
 `
 
@@ -1520,9 +1452,9 @@ const getStepsForWorkflowVersion = `-- name: GetStepsForWorkflowVersion :many
 
 SELECT
     "Step".id, "Step"."createdAt", "Step"."updatedAt", "Step"."deletedAt", "Step"."readableId", "Step"."tenantId", "Step"."jobId", "Step"."actionId", "Step".timeout, "Step"."customUserData", "Step".retries, "Step"."scheduleTimeout"  from "Step"
-JOIN "Job" ON "Step"."jobId" = "Job"."id"
+JOIN "Job" j ON "Step"."jobId" = j."id"
 WHERE
-    "workflowVersionId" = ANY($1::uuid[])
+    j."workflowVersionId" = ANY($1::uuid[])
 `
 
 func (q *Queries) GetStepsForWorkflowVersion(ctx context.Context, db DBTX, workflowversionids []pgtype.UUID) ([]*Step, error) {

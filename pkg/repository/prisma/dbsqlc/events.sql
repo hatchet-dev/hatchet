@@ -107,6 +107,7 @@ INSERT INTO "Event" (
 
 SELECT * FROM "Event"
 WHERE xmin::text = (txid_current() % (2^32)::bigint)::text
+-- AND ("createdAt" >= (@createdAt::timestamp) - interval '10 milliseconds')
 ORDER BY "insertOrder" ASC;
 
 
