@@ -1928,10 +1928,10 @@ func (s *stepRunEngineRepository) ProcessStepRunUpdatesV2(ctx context.Context, q
 
 	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
 
-	limit := 100
+	limit := 100 * s.maxHashFactor
 
 	if s.cf.SingleQueueLimit != 0 {
-		limit = s.cf.SingleQueueLimit * 4 // we call update step run 4x
+		limit = s.cf.SingleQueueLimit * s.maxHashFactor
 	}
 
 	tx, commit, rollback, err := prepareTx(ctx, s.pool, s.l, 25000)
@@ -2507,14 +2507,14 @@ func (s *stepRunEngineRepository) CleanupInternalQueueItems(ctx context.Context,
 	return nil
 }
 
-func (s *stepRunEngineRepository) StepRunStarted(ctx context.Context, tenantId, stepRunId string, startedAt time.Time) error {
+func (s *stepRunEngineRepository) StepRunStarted(ctx context.Context, tenantId, workflowRunId, stepRunId string, startedAt time.Time) error {
 	ctx, span := telemetry.NewSpan(ctx, "step-run-started-db")
 	defer span.End()
 
 	running := string(dbsqlc.StepRunStatusRUNNING)
 
 	data := &updateStepRunQueueData{
-		Hash:      hashToBucket(sqlchelpers.UUIDFromStr(stepRunId), s.maxHashFactor),
+		Hash:      hashToBucket(sqlchelpers.UUIDFromStr(workflowRunId), s.maxHashFactor),
 		StepRunId: stepRunId,
 		TenantId:  tenantId,
 		StartedAt: &startedAt,
@@ -2530,7 +2530,7 @@ func (s *stepRunEngineRepository) StepRunStarted(ctx context.Context, tenantId, 
 	return nil
 }
 
-func (s *stepRunEngineRepository) StepRunSucceeded(ctx context.Context, tenantId, stepRunId string, finishedAt time.Time, output []byte) error {
+func (s *stepRunEngineRepository) StepRunSucceeded(ctx context.Context, tenantId, workflowRunId, stepRunId string, finishedAt time.Time, output []byte) error {
 	ctx, span := telemetry.NewSpan(ctx, "step-run-started-db")
 	defer span.End()
 
@@ -2544,7 +2544,7 @@ func (s *stepRunEngineRepository) StepRunSucceeded(ctx context.Context, tenantId
 	finished := string(dbsqlc.StepRunStatusSUCCEEDED)
 
 	data := &updateStepRunQueueData{
-		Hash:       hashToBucket(sqlchelpers.UUIDFromStr(stepRunId), s.maxHashFactor),
+		Hash:       hashToBucket(sqlchelpers.UUIDFromStr(workflowRunId), s.maxHashFactor),
 		StepRunId:  stepRunId,
 		TenantId:   tenantId,
 		FinishedAt: &finishedAt,
@@ -2599,7 +2599,7 @@ func (s *stepRunEngineRepository) StepRunSucceeded(ctx context.Context, tenantId
 	return nil
 }
 
-func (s *stepRunEngineRepository) StepRunCancelled(ctx context.Context, tenantId, stepRunId string, cancelledAt time.Time, cancelledReason string) error {
+func (s *stepRunEngineRepository) StepRunCancelled(ctx context.Context, tenantId, workflowRunId, stepRunId string, cancelledAt time.Time, cancelledReason string) error {
 	ctx, span := telemetry.NewSpan(ctx, "step-run-cancelled-db")
 	defer span.End()
 
@@ -2613,7 +2613,7 @@ func (s *stepRunEngineRepository) StepRunCancelled(ctx context.Context, tenantId
 	cancelled := string(dbsqlc.StepRunStatusCANCELLED)
 
 	data := &updateStepRunQueueData{
-		Hash:            hashToBucket(sqlchelpers.UUIDFromStr(stepRunId), s.maxHashFactor),
+		Hash:            hashToBucket(sqlchelpers.UUIDFromStr(workflowRunId), s.maxHashFactor),
 		StepRunId:       stepRunId,
 		TenantId:        tenantId,
 		CancelledAt:     &cancelledAt,
@@ -2660,7 +2660,7 @@ func (s *stepRunEngineRepository) StepRunCancelled(ctx context.Context, tenantId
 	return innerErr
 }
 
-func (s *stepRunEngineRepository) StepRunFailed(ctx context.Context, tenantId, stepRunId string, failedAt time.Time, errStr string, retryCount int) error {
+func (s *stepRunEngineRepository) StepRunFailed(ctx context.Context, tenantId, workflowRunId, stepRunId string, failedAt time.Time, errStr string, retryCount int) error {
 	ctx, span := telemetry.NewSpan(ctx, "step-run-failed-db")
 	defer span.End()
 
@@ -2674,7 +2674,7 @@ func (s *stepRunEngineRepository) StepRunFailed(ctx context.Context, tenantId, s
 	failed := string(dbsqlc.StepRunStatusFAILED)
 
 	data := &updateStepRunQueueData{
-		Hash:       hashToBucket(sqlchelpers.UUIDFromStr(stepRunId), s.maxHashFactor),
+		Hash:       hashToBucket(sqlchelpers.UUIDFromStr(workflowRunId), s.maxHashFactor),
 		StepRunId:  stepRunId,
 		TenantId:   tenantId,
 		RetryCount: retryCount,
