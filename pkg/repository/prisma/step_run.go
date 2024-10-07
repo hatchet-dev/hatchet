@@ -534,10 +534,18 @@ func (s *stepRunEngineRepository) bulkWriteStepRunEvents(ctx context.Context, op
 	}
 
 	err := deadlockRetry(s.l, func() (err error) {
-		return bulkStepRunEvents(
+		tx, commit, rollback, err := prepareTx(ctx, s.pool, s.l, 10000)
+
+		if err != nil {
+			return err
+		}
+
+		defer rollback()
+
+		err = bulkStepRunEvents(
 			ctx,
 			s.l,
-			s.pool,
+			tx,
 			s.queries,
 			eventStepRunIds,
 			eventTimeSeen,
@@ -546,6 +554,12 @@ func (s *stepRunEngineRepository) bulkWriteStepRunEvents(ctx context.Context, op
 			eventMessages,
 			eventData,
 		)
+
+		if err != nil {
+			return err
+		}
+
+		return commit(ctx)
 	})
 
 	if err != nil {
