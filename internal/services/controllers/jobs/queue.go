@@ -223,7 +223,7 @@ func (q *queue) runTenantQueues(ctx context.Context) func() {
 			return
 		}
 
-		q.tenantQueueOperations.SetTenants(tenants)
+		// q.tenantQueueOperations.SetTenants(tenants)
 
 		for i := range tenants {
 			tenantId := sqlchelpers.UUIDToStr(tenants[i].ID)
@@ -290,7 +290,7 @@ func (q *queue) runTenantUpdateStepRuns(ctx context.Context) func() {
 			return
 		}
 
-		q.updateStepRunOperations.SetTenants(tenants)
+		// q.updateStepRunOperations.SetTenants(tenants)
 
 		for i := range tenants {
 			tenantId := sqlchelpers.UUIDToStr(tenants[i].ID)
@@ -386,7 +386,7 @@ func (q *queue) runTenantUpdateStepRunsV2(ctx context.Context) func() {
 			return
 		}
 
-		q.updateStepRunV2Operations.SetTenants(tenants)
+		// q.updateStepRunV2Operations.SetTenants(tenants)
 
 		for i := range tenants {
 			tenantId := sqlchelpers.UUIDToStr(tenants[i].ID)
@@ -482,7 +482,7 @@ func (q *queue) runTenantTimeoutStepRuns(ctx context.Context) func() {
 			return
 		}
 
-		q.timeoutStepRunOperations.SetTenants(tenants)
+		// q.timeoutStepRunOperations.SetTenants(tenants)
 
 		for i := range tenants {
 			tenantId := sqlchelpers.UUIDToStr(tenants[i].ID)
