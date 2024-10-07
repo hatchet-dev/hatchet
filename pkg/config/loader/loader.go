@@ -21,6 +21,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/integrations/email"
 	"github.com/hatchet-dev/hatchet/internal/integrations/email/postmark"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
+	"github.com/hatchet-dev/hatchet/internal/msgqueue/pgqueue"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue/rabbitmq"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
@@ -230,18 +231,24 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 	}
 
 	var mq msgqueue.MessageQueue
-	cleanup1 := func() error {
+	mqCleanup := func() error {
 		return nil
 	}
 
 	var ing ingestor.Ingestor
 
 	if cf.MessageQueue.Enabled {
-		cleanup1, mq = rabbitmq.New(
-			rabbitmq.WithURL(cf.MessageQueue.RabbitMQ.URL),
-			rabbitmq.WithLogger(&l),
-			rabbitmq.WithQos(cf.MessageQueue.RabbitMQ.Qos),
-		)
+		if cf.MessageQueue.Kind == "postgres" {
+			mqCleanup, mq = pgqueue.New(
+				pgqueue.WithLogger(&l),
+				pgqueue.WithConnString(cf.MessageQueue.Postgres.ConnectionString),
+			)
+		} else {
+			mqCleanup, mq = rabbitmq.New(
+				rabbitmq.WithURL(cf.MessageQueue.RabbitMQ.URL),
+				rabbitmq.WithLogger(&l),
+				rabbitmq.WithQos(cf.MessageQueue.RabbitMQ.Qos))
+		}
 
 		ing, err = ingestor.NewIngestor(
 			ingestor.WithEventRepository(dc.EngineRepository.Event()),
@@ -400,7 +407,7 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 
 	cleanup = func() error {
 		log.Printf("cleaning up server config")
-		if err := cleanup1(); err != nil {
+		if err := mqCleanup(); err != nil {
 			return fmt.Errorf("error cleaning up rabbitmq: %w", err)
 		}
 		return nil
