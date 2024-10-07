@@ -281,15 +281,13 @@ func (q *Queries) GetEventsForRange(ctx context.Context, db DBTX) ([]*GetEventsF
 }
 
 const getInsertedEvents = `-- name: GetInsertedEvents :many
-
 SELECT id, "createdAt", "updatedAt", "deletedAt", key, "tenantId", "replayedFromId", data, "additionalMetadata", "insertOrder" FROM "Event"
-WHERE xmin::text = (txid_current() % (2^32)::bigint)::text
+WHERE "id" = ANY($1::uuid[])
 ORDER BY "insertOrder" ASC
 `
 
-// AND ("createdAt" >= (@createdAt::timestamp) - interval '10 milliseconds')
-func (q *Queries) GetInsertedEvents(ctx context.Context, db DBTX) ([]*Event, error) {
-	rows, err := db.Query(ctx, getInsertedEvents)
+func (q *Queries) GetInsertedEvents(ctx context.Context, db DBTX, ids []pgtype.UUID) ([]*Event, error) {
+	rows, err := db.Query(ctx, getInsertedEvents, ids)
 	if err != nil {
 		return nil, err
 	}

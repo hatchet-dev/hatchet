@@ -514,8 +514,8 @@ func (d *DispatcherImpl) handleStepRunAssignedTask(ctx context.Context, task *ms
 	if success {
 		defer d.repo.StepRun().DeferredStepRunEvent(
 			metadata.TenantId,
-			sqlchelpers.UUIDToStr(stepRun.SRID),
 			repository.CreateStepRunEventOpts{
+				StepRunId:     sqlchelpers.UUIDToStr(stepRun.SRID),
 				EventMessage:  repository.StringPtr("Sent step run to the assigned worker"),
 				EventReason:   repository.StepRunEventReasonPtr(dbsqlc.StepRunEventReasonSENTTOWORKER),
 				EventSeverity: repository.StepRunEventSeverityPtr(dbsqlc.StepRunEventSeverityINFO),
@@ -529,8 +529,8 @@ func (d *DispatcherImpl) handleStepRunAssignedTask(ctx context.Context, task *ms
 
 	defer d.repo.StepRun().DeferredStepRunEvent(
 		metadata.TenantId,
-		sqlchelpers.UUIDToStr(stepRun.SRID),
 		repository.CreateStepRunEventOpts{
+			StepRunId:     sqlchelpers.UUIDToStr(stepRun.SRID),
 			EventMessage:  repository.StringPtr("Could not send step run to assigned worker"),
 			EventReason:   repository.StepRunEventReasonPtr(dbsqlc.StepRunEventReasonREASSIGNED),
 			EventSeverity: repository.StepRunEventSeverityPtr(dbsqlc.StepRunEventSeverityWARNING),

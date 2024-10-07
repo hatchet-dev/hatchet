@@ -234,7 +234,7 @@ type eventEngineRepository struct {
 }
 
 func (r *eventEngineRepository) cleanup() error {
-	return r.bulkCreateBuffer.cleanup()
+	return r.bulkCreateBuffer.Cleanup()
 }
 
 func NewEventEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, m *metered.Metered) (repository.EventEngineRepository, func() error, error) {
@@ -332,11 +332,13 @@ func (r *eventEngineRepository) BulkCreateEvent(ctx context.Context, opts *repos
 			return nil, nil, err
 		}
 		params := make([]dbsqlc.CreateEventsParams, len(opts.Events))
+		ids := make([]pgtype.UUID, len(opts.Events))
 
 		for i, event := range opts.Events {
+			eventId := uuid.New().String()
 
 			params[i] = dbsqlc.CreateEventsParams{
-				ID:                 sqlchelpers.UUIDFromStr(uuid.New().String()),
+				ID:                 sqlchelpers.UUIDFromStr(eventId),
 				Key:                event.Key,
 				TenantId:           sqlchelpers.UUIDFromStr(event.TenantId),
 				Data:               event.Data,
@@ -347,6 +349,7 @@ func (r *eventEngineRepository) BulkCreateEvent(ctx context.Context, opts *repos
 				params[i].ReplayedFromId = sqlchelpers.UUIDFromStr(*event.ReplayedEvent)
 			}
 
+			ids[i] = sqlchelpers.UUIDFromStr(eventId)
 		}
 
 		// start a transaction
@@ -370,7 +373,7 @@ func (r *eventEngineRepository) BulkCreateEvent(ctx context.Context, opts *repos
 
 		r.l.Info().Msgf("inserted %d events", insertCount)
 
-		events, err := r.queries.GetInsertedEvents(ctx, tx)
+		events, err := r.queries.GetInsertedEvents(ctx, tx, ids)
 
 		if err != nil {
 			return nil, nil, fmt.Errorf("could not retrieve inserted events: %w", err)
@@ -418,6 +421,7 @@ func (r *eventEngineRepository) BulkCreateEventSharedTenant(ctx context.Context,
 		}
 	}
 	params := make([]dbsqlc.CreateEventsParams, len(opts))
+	ids := make([]pgtype.UUID, len(opts))
 
 	for i, event := range opts {
 
@@ -425,8 +429,10 @@ func (r *eventEngineRepository) BulkCreateEventSharedTenant(ctx context.Context,
 			return nil, fmt.Errorf("number of resources is out of range for int 32")
 		}
 
+		eventId := uuid.New().String()
+
 		params[i] = dbsqlc.CreateEventsParams{
-			ID:                 sqlchelpers.UUIDFromStr(uuid.New().String()),
+			ID:                 sqlchelpers.UUIDFromStr(eventId),
 			Key:                event.Key,
 			TenantId:           sqlchelpers.UUIDFromStr(event.TenantId),
 			Data:               event.Data,
@@ -438,6 +444,7 @@ func (r *eventEngineRepository) BulkCreateEventSharedTenant(ctx context.Context,
 			params[i].ReplayedFromId = sqlchelpers.UUIDFromStr(*event.ReplayedEvent)
 		}
 
+		ids[i] = sqlchelpers.UUIDFromStr(eventId)
 	}
 
 	// start a transaction
@@ -461,7 +468,7 @@ func (r *eventEngineRepository) BulkCreateEventSharedTenant(ctx context.Context,
 
 	r.l.Info().Msgf("inserted %d events", insertCount)
 
-	events, err := r.queries.GetInsertedEvents(ctx, tx)
+	events, err := r.queries.GetInsertedEvents(ctx, tx, ids)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not retrieve inserted events: %w", err)
