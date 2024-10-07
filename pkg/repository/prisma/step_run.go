@@ -1928,10 +1928,10 @@ func (s *stepRunEngineRepository) ProcessStepRunUpdatesV2(ctx context.Context, q
 
 	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
 
-	limit := 100 * s.maxHashFactor
+	limit := 100 * 4
 
 	if s.cf.SingleQueueLimit != 0 {
-		limit = s.cf.SingleQueueLimit * s.maxHashFactor
+		limit = s.cf.SingleQueueLimit * 4
 	}
 
 	tx, commit, rollback, err := prepareTx(ctx, s.pool, s.l, 25000)
