@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"strings"
 	"sync"
 	"time"
 
@@ -260,6 +261,7 @@ func (w *Worker) RegisterWorkflow(workflow workflowConverter) error {
 // Deprecated: Use RegisterWorkflow instead
 func (w *Worker) On(t triggerConverter, workflow workflowConverter) error {
 	svcName := workflow.ToWorkflow("", "").Name
+	svcName = strings.ToLower(svcName)
 
 	// get the default service
 	svc, ok := w.services.Load(svcName)
