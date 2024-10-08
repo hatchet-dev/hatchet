@@ -168,28 +168,13 @@ func (r *eventAPIRepository) ListEvents(ctx context.Context, tenantId string, op
 }
 
 func (r *eventAPIRepository) ListEventKeys(tenantId string) ([]string, error) {
-	var rows []struct {
-		Key string `json:"key"`
-	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 
-	err := r.client.Prisma.QueryRaw(
-		`
-		SELECT DISTINCT ON("Event"."key") "Event"."key"
-		FROM "Event"
-		WHERE
-		"Event"."tenantId"::text = $1
-		`,
-		tenantId,
-	).Exec(context.Background(), &rows)
+	keys, err := r.queries.ListEventKeys(ctx, r.pool, sqlchelpers.UUIDFromStr(tenantId))
 
 	if err != nil {
 		return nil, err
-	}
-
-	keys := make([]string, len(rows))
-
-	for i, row := range rows {
-		keys[i] = row.Key
 	}
 
 	return keys, nil

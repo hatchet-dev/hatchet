@@ -68,6 +68,15 @@ INSERT INTO "EventKey" (
     @tenantId::uuid
 ) ON CONFLICT ("key", "tenantId") DO NOTHING;
 
+-- name: ListEventKeys :many
+SELECT
+    "key"
+FROM
+    "EventKey"
+WHERE
+    "tenantId" = @tenantId::uuid
+ORDER BY "key" ASC;
+
 -- name: CreateEvent :one
 INSERT INTO "Event" (
     "id",

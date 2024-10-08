@@ -337,6 +337,36 @@ func (q *Queries) GetInsertedEvents(ctx context.Context, db DBTX, ids []pgtype.U
 	return items, nil
 }
 
+const listEventKeys = `-- name: ListEventKeys :many
+SELECT
+    "key"
+FROM
+    "EventKey"
+WHERE
+    "tenantId" = $1::uuid
+ORDER BY "key" ASC
+`
+
+func (q *Queries) ListEventKeys(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]string, error) {
+	rows, err := db.Query(ctx, listEventKeys, tenantid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var key string
+		if err := rows.Scan(&key); err != nil {
+			return nil, err
+		}
+		items = append(items, key)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listEvents = `-- name: ListEvents :many
 WITH filtered_events AS (
     SELECT
