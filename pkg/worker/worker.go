@@ -224,8 +224,6 @@ func NewWorker(fs ...WorkerOpt) (*Worker, error) {
 		}
 	}
 
-	w.NewService("default")
-
 	return w, nil
 }
 
@@ -261,11 +259,13 @@ func (w *Worker) RegisterWorkflow(workflow workflowConverter) error {
 
 // Deprecated: Use RegisterWorkflow instead
 func (w *Worker) On(t triggerConverter, workflow workflowConverter) error {
+	svcName := workflow.ToWorkflow("", "").Name
+
 	// get the default service
-	svc, ok := w.services.Load("default")
+	svc, ok := w.services.Load(svcName)
 
 	if !ok {
-		return fmt.Errorf("could not load default service")
+		return w.NewService(svcName).On(t, workflow)
 	}
 
 	return svc.(*Service).On(t, workflow)
