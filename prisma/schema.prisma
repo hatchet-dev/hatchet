@@ -397,6 +397,12 @@ model APIToken {
   webhookWorkers WebhookWorker[]
 }
 
+model EventKey {
+  key String @id
+  tenantId String @db.Uuid
+  @@unique([key, tenantId])
+}
+
 // Event represents an event in the database.
 model Event {
   // base fields

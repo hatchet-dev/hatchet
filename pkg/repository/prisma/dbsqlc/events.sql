@@ -59,6 +59,15 @@ SELECT
 FROM
     events;
 
+-- name: CreateEventKey :exec
+INSERT INTO "EventKey" (
+    "key",
+    "tenantId"
+) VALUES (
+    @key::text,
+    @tenantId::uuid
+) ON CONFLICT ("key", "tenantId") DO NOTHING;
+
 -- name: CreateEvent :one
 INSERT INTO "Event" (
     "id",

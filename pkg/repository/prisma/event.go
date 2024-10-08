@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -224,13 +225,14 @@ func (r *eventAPIRepository) ListEventsById(tenantId string, ids []string) ([]db
 }
 
 type eventEngineRepository struct {
-	pool             *pgxpool.Pool
-	v                validator.Validator
-	queries          *dbsqlc.Queries
-	l                *zerolog.Logger
-	m                *metered.Metered
-	bulkCreateBuffer *TenantBufferManager[*repository.CreateEventOpts, *dbsqlc.Event]
-	callbacks        []repository.Callback[*dbsqlc.Event]
+	pool                *pgxpool.Pool
+	v                   validator.Validator
+	queries             *dbsqlc.Queries
+	l                   *zerolog.Logger
+	m                   *metered.Metered
+	bulkCreateBuffer    *TenantBufferManager[*repository.CreateEventOpts, *dbsqlc.Event]
+	callbacks           []repository.Callback[*dbsqlc.Event]
+	createEventKeyCache *lru.Cache[string, bool]
 }
 
 func (r *eventEngineRepository) cleanup() error {
@@ -240,12 +242,15 @@ func (r *eventEngineRepository) cleanup() error {
 func NewEventEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, m *metered.Metered) (repository.EventEngineRepository, func() error, error) {
 	queries := dbsqlc.New()
 
+	createEventKeyCache, _ := lru.New[string, bool](2000) // nolint: errcheck - this only returns an error if the size is less than 0
+
 	e := eventEngineRepository{
-		pool:    pool,
-		v:       v,
-		queries: queries,
-		l:       l,
-		m:       m,
+		pool:                pool,
+		v:                   v,
+		queries:             queries,
+		l:                   l,
+		m:                   m,
+		createEventKeyCache: createEventKeyCache,
 	}
 	err := e.startBufferLoop()
 
@@ -262,6 +267,28 @@ func (r *eventEngineRepository) RegisterCreateCallback(callback repository.Callb
 
 func (r *eventEngineRepository) GetEventForEngine(ctx context.Context, tenantId, id string) (*dbsqlc.Event, error) {
 	return r.queries.GetEventForEngine(ctx, r.pool, sqlchelpers.UUIDFromStr(id))
+}
+
+func (r *eventEngineRepository) createEventKey(ctx context.Context, tx pgx.Tx, tenantId, key string) error {
+
+	cacheKey := fmt.Sprintf("%s-%s", tenantId, key)
+
+	if _, ok := r.createEventKeyCache.Get(cacheKey); ok {
+		return nil
+	}
+
+	err := r.queries.CreateEventKey(ctx, tx, dbsqlc.CreateEventKeyParams{
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Key:      key,
+	})
+
+	if err != nil {
+		return err
+	}
+
+	r.createEventKeyCache.Add(cacheKey, true)
+
+	return nil
 }
 
 func (r *eventEngineRepository) CreateEvent(ctx context.Context, opts *repository.CreateEventOpts) (*dbsqlc.Event, error) {
@@ -335,6 +362,11 @@ func (r *eventEngineRepository) BulkCreateEvent(ctx context.Context, opts *repos
 		params := make([]dbsqlc.CreateEventsParams, len(opts.Events))
 		ids := make([]pgtype.UUID, len(opts.Events))
 
+		uniqueEventKeys := make(map[string]struct {
+			key      string
+			tenantId string
+		})
+
 		for i, event := range opts.Events {
 			eventId := uuid.New().String()
 
@@ -350,6 +382,14 @@ func (r *eventEngineRepository) BulkCreateEvent(ctx context.Context, opts *repos
 				params[i].ReplayedFromId = sqlchelpers.UUIDFromStr(*event.ReplayedEvent)
 			}
 
+			uniqueEventKeys[fmt.Sprintf("%s-%s", event.TenantId, event.Key)] = struct {
+				key      string
+				tenantId string
+			}{
+				key:      event.Key,
+				tenantId: event.TenantId,
+			}
+
 			ids[i] = sqlchelpers.UUIDFromStr(eventId)
 		}
 
@@ -362,6 +402,16 @@ func (r *eventEngineRepository) BulkCreateEvent(ctx context.Context, opts *repos
 
 		defer deferRollback(ctx, r.l, tx.Rollback)
 
+		// create event keys in same transaction
+		for _, eventKey := range uniqueEventKeys {
+			err := r.createEventKey(ctx, tx, eventKey.tenantId, eventKey.key)
+
+			if err != nil {
+				return nil, nil, fmt.Errorf("could not create event key: %w", err)
+			}
+		}
+
+		// create events
 		insertCount, err := r.queries.CreateEvents(
 			ctx,
 			tx,
