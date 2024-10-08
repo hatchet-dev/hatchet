@@ -59,14 +59,15 @@ SELECT
 FROM
     events;
 
--- name: CreateEventKey :exec
+-- name: CreateEventKeys :exec
 INSERT INTO "EventKey" (
     "key",
     "tenantId"
-) VALUES (
-    @key::text,
-    @tenantId::uuid
-) ON CONFLICT ("key", "tenantId") DO NOTHING;
+)
+SELECT
+    unnest(@keys::text[]) AS "key",
+    unnest(@tenantIds::uuid[]) AS "tenantId"
+ON CONFLICT ("key", "tenantId") DO NOTHING;
 
 -- name: ListEventKeys :many
 SELECT

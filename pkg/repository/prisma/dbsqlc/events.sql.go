@@ -202,23 +202,24 @@ func (q *Queries) CreateEvent(ctx context.Context, db DBTX, arg CreateEventParam
 	return &i, err
 }
 
-const createEventKey = `-- name: CreateEventKey :exec
+const createEventKeys = `-- name: CreateEventKeys :exec
 INSERT INTO "EventKey" (
     "key",
     "tenantId"
-) VALUES (
-    $1::text,
-    $2::uuid
-) ON CONFLICT ("key", "tenantId") DO NOTHING
+)
+SELECT
+    unnest($1::text[]) AS "key",
+    unnest($2::uuid[]) AS "tenantId"
+ON CONFLICT ("key", "tenantId") DO NOTHING
 `
 
-type CreateEventKeyParams struct {
-	Key      string      `json:"key"`
-	Tenantid pgtype.UUID `json:"tenantid"`
+type CreateEventKeysParams struct {
+	Keys      []string      `json:"keys"`
+	Tenantids []pgtype.UUID `json:"tenantids"`
 }
 
-func (q *Queries) CreateEventKey(ctx context.Context, db DBTX, arg CreateEventKeyParams) error {
-	_, err := db.Exec(ctx, createEventKey, arg.Key, arg.Tenantid)
+func (q *Queries) CreateEventKeys(ctx context.Context, db DBTX, arg CreateEventKeysParams) error {
+	_, err := db.Exec(ctx, createEventKeys, arg.Keys, arg.Tenantids)
 	return err
 }
 

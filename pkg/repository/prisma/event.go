@@ -254,24 +254,40 @@ func (r *eventEngineRepository) GetEventForEngine(ctx context.Context, tenantId,
 	return r.queries.GetEventForEngine(ctx, r.pool, sqlchelpers.UUIDFromStr(id))
 }
 
-func (r *eventEngineRepository) createEventKey(ctx context.Context, tx pgx.Tx, tenantId, key string) error {
+func (r *eventEngineRepository) createEventKeys(ctx context.Context, tx pgx.Tx, keys map[string]struct {
+	key      string
+	tenantId string
+}) error {
 
-	cacheKey := fmt.Sprintf("%s-%s", tenantId, key)
+	eventKeys := make([]string, 0)
+	eventKeysTenantIds := make([]pgtype.UUID, 0)
 
-	if _, ok := r.createEventKeyCache.Get(cacheKey); ok {
-		return nil
+	for _, eventKey := range keys {
+		cacheKey := fmt.Sprintf("%s-%s", eventKey.tenantId, eventKey.key)
+
+		// if the key is already in the cache, skip it
+		if _, ok := r.createEventKeyCache.Get(cacheKey); ok {
+			continue
+		}
+
+		r.l.Debug().Msgf("creating event key %s for tenant %s", eventKey.key, eventKey.tenantId)
+		eventKeys = append(eventKeys, eventKey.key)
+		eventKeysTenantIds = append(eventKeysTenantIds, sqlchelpers.UUIDFromStr(eventKey.tenantId))
 	}
 
-	err := r.queries.CreateEventKey(ctx, tx, dbsqlc.CreateEventKeyParams{
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
-		Key:      key,
+	err := r.queries.CreateEventKeys(ctx, tx, dbsqlc.CreateEventKeysParams{
+		Tenantids: eventKeysTenantIds,
+		Keys:      eventKeys,
 	})
 
 	if err != nil {
 		return err
 	}
 
-	r.createEventKeyCache.Add(cacheKey, true)
+	// add to cache
+	for i := range eventKeys {
+		r.createEventKeyCache.Add(fmt.Sprintf("%s-%s", sqlchelpers.UUIDToStr(eventKeysTenantIds[i]), eventKeys[i]), true)
+	}
 
 	return nil
 }
@@ -387,15 +403,11 @@ func (r *eventEngineRepository) BulkCreateEvent(ctx context.Context, opts *repos
 
 		defer deferRollback(ctx, r.l, tx.Rollback)
 
-		// create event keys in same transaction
-		for _, eventKey := range uniqueEventKeys {
-			err := r.createEventKey(ctx, tx, eventKey.tenantId, eventKey.key)
+		err = r.createEventKeys(ctx, tx, uniqueEventKeys)
 
-			if err != nil {
-				return nil, nil, fmt.Errorf("could not create event key: %w", err)
-			}
+		if err != nil {
+			return nil, nil, fmt.Errorf("could not create event keys: %w", err)
 		}
-
 		// create events
 		insertCount, err := r.queries.CreateEvents(
 			ctx,
