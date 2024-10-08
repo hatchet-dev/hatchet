@@ -638,11 +638,12 @@ func (w *Worker) sendFailureEvent(ctx HatchetContext, err error) error {
 	failureEvent := w.getActionEvent(assignedAction, client.ActionEventTypeFailed)
 
 	w.alerter.SendAlert(context.Background(), err, map[string]interface{}{
-		"actionId":   assignedAction.ActionId,
-		"workerId":   assignedAction.WorkerId,
-		"stepRunId":  assignedAction.StepRunId,
-		"jobName":    assignedAction.JobName,
-		"actionType": assignedAction.ActionType,
+		"actionId":      assignedAction.ActionId,
+		"workerId":      assignedAction.WorkerId,
+		"workflowRunId": assignedAction.WorkflowRunId,
+		"stepRunId":     assignedAction.StepRunId,
+		"jobName":       assignedAction.JobName,
+		"actionType":    assignedAction.ActionType,
 	})
 
 	failureEvent.EventPayload = err.Error()

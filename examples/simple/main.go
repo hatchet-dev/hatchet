@@ -62,7 +62,7 @@ func run(events chan<- string) (func() error, error) {
 	err = w.RegisterWorkflow(
 		&worker.WorkflowJob{
 			On:          worker.Events("user:create:simple"),
-			Name:        "SiMpLe",
+			Name:        "simple",
 			Description: "This runs after an update to the user model.",
 			Concurrency: worker.Expression("input.user_id"),
 			Steps: []*worker.WorkflowStep{
