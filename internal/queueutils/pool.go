@@ -4,6 +4,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 	"github.com/rs/zerolog"
 )
 
@@ -13,7 +15,6 @@ type OperationPool struct {
 	description string
 	method      OpMethod
 	ql          *zerolog.Logger
-	// setTenantsMu sync.RWMutex
 }
 
 func NewOperationPool(ql *zerolog.Logger, timeout time.Duration, description string, method OpMethod) *OperationPool {
@@ -25,37 +26,28 @@ func NewOperationPool(ql *zerolog.Logger, timeout time.Duration, description str
 	}
 }
 
-// func (p *OperationPool) SetTenants(tenants []*dbsqlc.Tenant) {
-// 	p.setTenantsMu.Lock()
-// 	defer p.setTenantsMu.Unlock()
+func (p *OperationPool) SetTenants(tenants []*dbsqlc.Tenant) {
+	tenantMap := make(map[string]bool)
 
-// 	tenantMap := make(map[string]bool)
+	for _, t := range tenants {
+		tenantMap[sqlchelpers.UUIDToStr(t.ID)] = true
+	}
 
-// 	for _, t := range tenants {
-// 		tenantMap[sqlchelpers.UUIDToStr(t.ID)] = true
-// 	}
+	// delete tenants that are not in the list
+	p.ops.Range(func(key, value interface{}) bool {
+		if _, ok := tenantMap[key.(string)]; !ok {
+			p.ops.Delete(key)
+		}
 
-// 	// delete tenants that are not in the list
-// 	p.ops.Range(func(key, value interface{}) bool {
-// 		if _, ok := tenantMap[key.(string)]; !ok {
-// 			p.ops.Delete(key)
-// 		}
-
-// 		return true
-// 	})
-// }
+		return true
+	})
+}
 
 func (p *OperationPool) RunOrContinue(id string) {
-	// p.setTenantsMu.RLock()
-	// defer p.setTenantsMu.RUnlock()
-
 	p.GetOperation(id).RunOrContinue(p.ql)
 }
 
 func (p *OperationPool) GetOperation(id string) *SerialOperation {
-	// p.setTenantsMu.RLock()
-	// defer p.setTenantsMu.RUnlock()
-
 	op, ok := p.ops.Load(id)
 
 	if !ok {
