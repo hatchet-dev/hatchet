@@ -43,10 +43,6 @@ func main() {
 	}
 }
 
-func getConcurrencyKey(ctx worker.HatchetContext) (string, error) {
-	return "user-create", nil
-}
-
 func run(events chan<- string) (func() error, error) {
 	c, err := client.New()
 
@@ -63,9 +59,7 @@ func run(events chan<- string) (func() error, error) {
 		return nil, fmt.Errorf("error creating worker: %w", err)
 	}
 
-	testSvc := w.NewService("test")
-
-	err = testSvc.RegisterWorkflow(
+	err = w.RegisterWorkflow(
 		&worker.WorkflowJob{
 			On:          worker.Events("user:create:simple"),
 			Name:        "simple",
