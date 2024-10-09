@@ -16,6 +16,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 )
 
 type EventsController interface {
@@ -221,7 +222,9 @@ func (ec *EventsControllerImpl) processEvent(ctx context.Context, tenantId, even
 				return fmt.Errorf("could not get create workflow run opts: %w", err)
 			}
 
-			workflowRunId, err := ec.repo.WorkflowRun().CreateNewWorkflowRun(ctx, tenantId, createOpts)
+			workflowRun, err := ec.repo.WorkflowRun().CreateNewWorkflowRun(ctx, tenantId, createOpts)
+
+			workflowRunId := sqlchelpers.UUIDToStr(workflowRun.ID)
 
 			if err != nil {
 				return fmt.Errorf("processEvent: could not create workflow run: %w", err)

@@ -193,6 +193,7 @@ func (r iteratorForCreateWorkflowRuns) Values() ([]interface{}, error) {
 		r.rows[0].ParentStepRunId,
 		r.rows[0].AdditionalMetadata,
 		r.rows[0].Priority,
+		r.rows[0].InsertOrder,
 	}, nil
 }
 
@@ -201,5 +202,5 @@ func (r iteratorForCreateWorkflowRuns) Err() error {
 }
 
 func (q *Queries) CreateWorkflowRuns(ctx context.Context, db DBTX, arg []CreateWorkflowRunsParams) (int64, error) {
-	return db.CopyFrom(ctx, []string{"WorkflowRun"}, []string{"id", "displayName", "tenantId", "workflowVersionId", "status", "childIndex", "childKey", "parentId", "parentStepRunId", "additionalMetadata", "priority"}, &iteratorForCreateWorkflowRuns{rows: arg})
+	return db.CopyFrom(ctx, []string{"WorkflowRun"}, []string{"id", "displayName", "tenantId", "workflowVersionId", "status", "childIndex", "childKey", "parentId", "parentStepRunId", "additionalMetadata", "priority", "insertOrder"}, &iteratorForCreateWorkflowRuns{rows: arg})
 }

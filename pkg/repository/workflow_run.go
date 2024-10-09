@@ -18,6 +18,8 @@ type CreateWorkflowRunOpts struct {
 	// (optional) the workflow run display name
 	DisplayName *string
 
+	TenantId string `validate:"required,uuid"`
+
 	// (required) the workflow version id
 	WorkflowVersionId string `validate:"required,uuid"`
 
@@ -449,10 +451,10 @@ type WorkflowRunEngineRepository interface {
 	PopWorkflowRunsRoundRobin(ctx context.Context, tenantId, workflowId string, maxRuns int) ([]*dbsqlc.WorkflowRun, error)
 
 	// CreateNewWorkflowRun creates a new workflow run for a workflow version.
-	CreateNewWorkflowRun(ctx context.Context, tenantId string, opts *CreateWorkflowRunOpts) (string, error)
+	CreateNewWorkflowRun(ctx context.Context, tenantId string, opts *CreateWorkflowRunOpts) (*dbsqlc.WorkflowRun, error)
 
 	// CreateNewWorkflowRuns creates new workflow runs in bulk
-	CreateNewWorkflowRuns(ctx context.Context, tenantId string, opts []*CreateWorkflowRunOpts) ([]string, error)
+	CreateNewWorkflowRuns(ctx context.Context, tenantId string, opts []*CreateWorkflowRunOpts) ([]*dbsqlc.WorkflowRun, error)
 
 	CreateDeDupeKey(ctx context.Context, tenantId, workflowRunId, worrkflowVersionId, dedupeValue string) error
 

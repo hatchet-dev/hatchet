@@ -532,7 +532,8 @@ INSERT INTO "WorkflowRun" (
     "parentId",
     "parentStepRunId",
     "additionalMetadata",
-    "priority"
+    "priority",
+    "insertOrder"
 ) VALUES (
     $1,
     $2,
@@ -544,7 +545,8 @@ INSERT INTO "WorkflowRun" (
     $8,
     $9,
     $10,
-    $11
+    $11,
+    $12
 
 );
 
@@ -552,7 +554,7 @@ INSERT INTO "WorkflowRun" (
 SELECT * FROM "WorkflowRun"
 WHERE xmin::text = (txid_current() % (2^32)::bigint)::text
 AND ("createdAt" >= (@createdAt::timestamp) - interval '10 milliseconds')
-ORDER BY id;
+ORDER BY "insertOrder" ASC;
 
 -- name: CreateWorkflowRunDedupe :one
 WITH workflow_id AS (
@@ -623,7 +625,7 @@ INSERT INTO "WorkflowRunStickyState" (
 SELECT
     CURRENT_TIMESTAMP,
     CURRENT_TIMESTAMP,
-    @tenantId::uuid,
+    UNNEST(@tenantId::uuid[]),
     UNNEST(@workflowRunIds::uuid[]),
     UNNEST(@desiredWorkerIds::uuid[]),
     workflow_version."sticky"
@@ -831,7 +833,7 @@ JOIN
     "Job"
 ON
     "Job"."workflowVersionId" = input_data.workflowVersionId
-RETURNING "JobRun"."id", "JobRun"."workflowRunId";
+RETURNING "JobRun"."id", "JobRun"."workflowRunId", "JobRun"."tenantId";
 
 
 

@@ -25,6 +25,7 @@ func (s ingestBufState) String() string {
 // e.g. T is eventOpts and U is *dbsqlc.Event
 
 type IngestBuf[T any, U any] struct {
+	name       string // a human readable name for the buffer
 	outputFunc func(ctx context.Context, items []T) ([]U, error)
 	sizeFunc   func(T) int
 
@@ -50,6 +51,7 @@ type inputWrapper[T any, U any] struct {
 }
 
 type IngestBufOpts[T any, U any] struct {
+	Name               string                                            `validate:"required"`
 	MaxCapacity        int                                               `validate:"required,gt=0"`
 	FlushPeriod        time.Duration                                     `validate:"required,gt=0"`
 	MaxDataSizeInQueue int                                               `validate:"required,gt=0"`
@@ -70,6 +72,7 @@ func NewIngestBuffer[T any, U any](opts IngestBufOpts[T, U]) *IngestBuf[T, U] {
 	ctx, cancel := context.WithCancel(ctx)
 
 	return &IngestBuf[T, U]{
+		name:               opts.Name,
 		state:              initialized,
 		maxCapacity:        opts.MaxCapacity,
 		flushPeriod:        opts.FlushPeriod,
@@ -245,7 +248,7 @@ func (b *IngestBuf[T, U]) flush(items []*inputWrapper[T, U]) {
 			}
 		}
 
-		b.l.Debug().Msgf("Flushed %d items", numItems)
+		b.l.Debug().Msgf("%s : flushed %d items", b.name, numItems)
 	}()
 }
 
@@ -284,7 +287,22 @@ func (b *IngestBuf[T, U]) Start() (func() error, error) {
 	b.state = started
 
 	go b.buffWorker()
+	// go b.startDebugLoop()
+
 	return b.cleanup, nil
+}
+
+func (b *IngestBuf[T, U]) StartDebugLoop() {
+	b.l.Debug().Msg("starting debug loop")
+	for {
+		select {
+		case <-time.After(10 * time.Second):
+			b.debugBuffer()
+		case <-b.ctx.Done():
+			b.l.Debug().Msg("stopping debug loop")
+			return
+		}
+	}
 }
 
 func (b *IngestBuf[T, U]) BuffItem(item T) (chan *flushResponse[U], error) {
@@ -307,4 +325,18 @@ func (b *IngestBuf[T, U]) BuffItem(item T) (chan *flushResponse[U], error) {
 		return nil, fmt.Errorf("buffer is closed")
 	}
 	return doneChan, nil
+}
+
+func (b *IngestBuf[T, U]) debugBuffer() {
+
+	b.l.Debug().Msgf("============= Buffer %s =============", b.name)
+	b.l.Debug().Msgf("%s has %d items", b.name, b.safeCheckSizeOfBuffer())
+	b.l.Debug().Msgf("%s has %d bytes", b.name, b.safeFetchSizeOfData())
+	b.l.Debug().Msgf("%s last flushed at %v", b.name, b.safeFetchLastFlush())
+	b.l.Debug().Msgf("%s has %d max capacity", b.name, b.maxCapacity)
+	b.l.Debug().Msgf("%s has %d max data size in queue", b.name, b.maxDataSizeInQueue)
+	b.l.Debug().Msgf("%s has %v flush period", b.name, b.flushPeriod)
+	b.l.Debug().Msgf("%s is in state %v", b.name, b.state)
+	b.l.Debug().Msgf("=====================================")
+
 }

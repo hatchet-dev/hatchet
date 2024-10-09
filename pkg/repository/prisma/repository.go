@@ -309,11 +309,19 @@ func NewEngineRepository(pool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ..
 	if err != nil {
 		return nil, nil, err
 	}
+	workflowRunEngine, cleanupWorkflowRunEngine, err := NewWorkflowRunEngineRepository(stepRunEngine, pool, opts.v, opts.l, opts.metered)
+
+	if err != nil {
+		return nil, nil, err
+	}
 
 	return func() error {
 			rlCache.Stop()
 
 			if err := cleanupStepRunEngine(); err != nil {
+				return err
+			}
+			if err := cleanupWorkflowRunEngine(); err != nil {
 				return err
 			}
 
@@ -333,7 +341,7 @@ func NewEngineRepository(pool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ..
 			ticker:         NewTickerRepository(pool, opts.v, opts.l),
 			worker:         NewWorkerEngineRepository(pool, opts.v, opts.l, opts.metered),
 			workflow:       NewWorkflowEngineRepository(pool, opts.v, opts.l, opts.metered),
-			workflowRun:    NewWorkflowRunEngineRepository(stepRunEngine, pool, opts.v, opts.l, opts.metered),
+			workflowRun:    workflowRunEngine,
 			streamEvent:    NewStreamEventsEngineRepository(pool, opts.v, opts.l),
 			log:            NewLogEngineRepository(pool, opts.v, opts.l),
 			rateLimit:      NewRateLimitEngineRepository(pool, opts.v, opts.l),

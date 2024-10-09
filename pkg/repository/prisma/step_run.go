@@ -335,6 +335,7 @@ func sizeOfEventData(item *repository.CreateStepRunEventOpts) int {
 
 func (s *stepRunEngineRepository) startBuffers() error {
 	statusBufOpts := TenantBufManagerOpts[*updateStepRunQueueData, pgtype.UUID]{
+		Name:       "update_step_run_status",
 		OutputFunc: s.bulkUpdateStepRunStatuses,
 		SizeFunc:   sizeOfUpdateData,
 		L:          s.l,
@@ -349,6 +350,7 @@ func (s *stepRunEngineRepository) startBuffers() error {
 	}
 
 	eventBufOpts := TenantBufManagerOpts[*repository.CreateStepRunEventOpts, int]{
+		Name:       "create_step_run_event",
 		OutputFunc: s.bulkWriteStepRunEvents,
 		SizeFunc:   sizeOfEventData,
 		L:          s.l,

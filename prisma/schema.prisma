@@ -942,6 +942,9 @@ model WorkflowRun {
   // (optional) additional metadata for the workflow run
   additionalMetadata Json?
 
+  // this is used to order the workflow runs on bulk inserts
+  insertOrder Int?
+
   @@unique([parentId, parentStepRunId, childKey])
   @@index([tenantId])
   @@index([workflowVersionId])

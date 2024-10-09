@@ -25,7 +25,13 @@ func main() {
 	}
 
 	ch := cmdutils.InterruptChan()
-	cleanup, err := run()
+
+	cleanup, err := runBulk()
+
+	if err != nil {
+		panic(err)
+	}
+	cleanupSecond, err := runSingles()
 	if err != nil {
 		panic(err)
 	}
@@ -35,4 +41,9 @@ func main() {
 	if err := cleanup(); err != nil {
 		panic(fmt.Errorf("cleanup() error = %v", err))
 	}
+
+	if err := cleanupSecond(); err != nil {
+		panic(fmt.Errorf("cleanupSecond() error = %v", err))
+	}
+
 }

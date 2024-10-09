@@ -97,11 +97,13 @@ func (w *workflowRunEngineRepository) GetWorkflowRunInputData(tenantId, workflow
 
 func (w *workflowRunAPIRepository) CreateNewWorkflowRun(ctx context.Context, tenantId string, opts *repository.CreateWorkflowRunOpts) (*dbsqlc.WorkflowRun, error) {
 	return metered.MakeMetered(ctx, w.m, dbsqlc.LimitResourceWORKFLOWRUN, tenantId, 1, func() (*string, *dbsqlc.WorkflowRun, error) {
+		opts.TenantId = tenantId
+
 		if err := w.v.Validate(opts); err != nil {
 			return nil, nil, err
 		}
 
-		workflowRuns, err := createNewWorkflowRuns(ctx, w.pool, w.queries, w.l, tenantId, []*repository.CreateWorkflowRunOpts{opts})
+		workflowRuns, err := createNewWorkflowRuns(ctx, w.pool, w.queries, w.l, []*repository.CreateWorkflowRunOpts{opts})
 
 		if err != nil {
 			return nil, nil, err
@@ -448,12 +450,14 @@ type workflowRunEngineRepository struct {
 
 	createCallbacks []repository.Callback[*dbsqlc.WorkflowRun]
 	queuedCallbacks []repository.Callback[pgtype.UUID]
+
+	bulkCreateBuffer *TenantBufferManager[*repository.CreateWorkflowRunOpts, *dbsqlc.WorkflowRun]
 }
 
-func NewWorkflowRunEngineRepository(stepRunRepository *stepRunEngineRepository, pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, m *metered.Metered, cbs ...repository.Callback[*dbsqlc.WorkflowRun]) repository.WorkflowRunEngineRepository {
+func NewWorkflowRunEngineRepository(stepRunRepository *stepRunEngineRepository, pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, m *metered.Metered, cbs ...repository.Callback[*dbsqlc.WorkflowRun]) (repository.WorkflowRunEngineRepository, func() error, error) {
 	queries := dbsqlc.New()
 
-	return &workflowRunEngineRepository{
+	w := workflowRunEngineRepository{
 		v:                 v,
 		pool:              pool,
 		queries:           queries,
@@ -462,6 +466,52 @@ func NewWorkflowRunEngineRepository(stepRunRepository *stepRunEngineRepository, 
 		createCallbacks:   cbs,
 		stepRunRepository: stepRunRepository,
 	}
+	err := w.startBuffer()
+
+	if err != nil {
+		l.Error().Err(err).Msg("could not start buffer")
+	}
+
+	return &w, w.cleanup, nil
+
+}
+
+func (w *workflowRunEngineRepository) cleanup() error {
+
+	return w.bulkCreateBuffer.Cleanup()
+}
+func (w *workflowRunEngineRepository) startBuffer() error {
+	flushPeriod := 10 * time.Millisecond
+
+	createWorkflowRunBufOpts := TenantBufManagerOpts[*repository.CreateWorkflowRunOpts, *dbsqlc.WorkflowRun]{
+		Name:                "create_workflow_run",
+		OutputFunc:          w.BulkCreateWorkflowRuns,
+		SizeFunc:            sizeOfData,
+		L:                   w.l,
+		V:                   w.v,
+		FlushItemsThreshold: 1,
+		FlushPeriod:         &flushPeriod,
+	}
+
+	b, err := NewTenantBufManager(createWorkflowRunBufOpts)
+
+	if err != nil {
+		return err
+	}
+
+	w.bulkCreateBuffer = b
+
+	return nil
+
+}
+
+func sizeOfData(data *repository.CreateWorkflowRunOpts) int {
+	size := 0
+
+	size += len(data.InputData)
+	size += len(data.AdditionalMetadata)
+	size += len(*data.DisplayName)
+	return size
 }
 
 func (w *workflowRunEngineRepository) RegisterCreateCallback(callback repository.Callback[*dbsqlc.WorkflowRun]) {
@@ -668,11 +718,18 @@ func (w *workflowRunEngineRepository) PopWorkflowRunsRoundRobin(ctx context.Cont
 	return res, nil
 }
 
-type createWorkflowRunResult struct {
-	ids []string
+func (w *workflowRunEngineRepository) BulkCreateWorkflowRuns(ctx context.Context, opts []*repository.CreateWorkflowRunOpts) ([]*dbsqlc.WorkflowRun, error) {
+	if len(opts) == 0 {
+		return nil, fmt.Errorf("no workflow runs to create")
+	}
+
+	w.l.Debug().Msgf("bulk creating %d workflow runs", len(opts))
+
+	return createNewWorkflowRuns(ctx, w.pool, w.queries, w.l, opts)
 }
 
-func (w *workflowRunEngineRepository) CreateNewWorkflowRuns(ctx context.Context, tenantId string, opts []*repository.CreateWorkflowRunOpts) ([]string, error) {
+// this is single tenant
+func (w *workflowRunEngineRepository) CreateNewWorkflowRuns(ctx context.Context, tenantId string, opts []*repository.CreateWorkflowRunOpts) ([]*dbsqlc.WorkflowRun, error) {
 
 	meteredAmount := len(opts)
 
@@ -685,9 +742,13 @@ func (w *workflowRunEngineRepository) CreateNewWorkflowRuns(ctx context.Context,
 		return nil, fmt.Errorf("invalid amount of workflow runs to create: %d", meteredAmount)
 	}
 
-	wfrs, err := metered.MakeMetered(ctx, w.m, dbsqlc.LimitResourceWORKFLOWRUN, tenantId, int32(meteredAmount), func() (*string, *createWorkflowRunResult, error) {
+	for _, opt := range opts {
+		opt.TenantId = tenantId
+	}
 
-		wfrs, err := createNewWorkflowRuns(ctx, w.pool, w.queries, w.l, tenantId, opts)
+	wfrs, err := metered.MakeMetered(ctx, w.m, dbsqlc.LimitResourceWORKFLOWRUN, tenantId, int32(meteredAmount), func() (*string, *[]*dbsqlc.WorkflowRun, error) { // nolint: gosec
+
+		wfrs, err := createNewWorkflowRuns(ctx, w.pool, w.queries, w.l, opts)
 
 		if err != nil {
 			return nil, nil, err
@@ -708,9 +769,7 @@ func (w *workflowRunEngineRepository) CreateNewWorkflowRuns(ctx context.Context,
 		str := strings.Join(ids, ",")
 
 		return &str,
-			&createWorkflowRunResult{
-				ids: ids,
-			}, nil
+			&wfrs, nil
 	})
 
 	if err != nil {
@@ -718,41 +777,39 @@ func (w *workflowRunEngineRepository) CreateNewWorkflowRuns(ctx context.Context,
 		return nil, err
 	}
 
-	return wfrs.ids, err
+	return *wfrs, err
 }
 
-func (w *workflowRunEngineRepository) CreateNewWorkflowRun(ctx context.Context, tenantId string, opts *repository.CreateWorkflowRunOpts) (string, error) {
-	// this is where we are coming from the API on hatchet.admin.run_workflow(
+func (w *workflowRunEngineRepository) CreateNewWorkflowRun(ctx context.Context, tenantId string, opts *repository.CreateWorkflowRunOpts) (*dbsqlc.WorkflowRun, error) {
 	wfr, err := metered.MakeMetered(ctx, w.m, dbsqlc.LimitResourceWORKFLOWRUN, tenantId, 1, func() (*string, *dbsqlc.WorkflowRun, error) {
+		opts.TenantId = tenantId
 
 		if err := w.v.Validate(opts); err != nil {
 			return nil, nil, err
 		}
 
-		wfrs, err := createNewWorkflowRuns(ctx, w.pool, w.queries, w.l, tenantId, []*repository.CreateWorkflowRunOpts{opts})
+		// wfrs, err := createNewWorkflowRuns(ctx, w.pool, w.queries, w.l, tenantId, []*repository.CreateWorkflowRunOpts{opts})
+		wfr, err := w.bulkCreateBuffer.BuffItem(tenantId, opts)
 
 		if err != nil {
 			return nil, nil, err
 		}
 
-		wfr := wfrs[0]
+		res := <-wfr
 
-		id := sqlchelpers.UUIDToStr(wfr.ID)
+		if res.err != nil {
+			return nil, nil, res.err
+		}
 
-		return &id, wfr, nil
+		meterKey := sqlchelpers.UUIDToStr(res.result.ID)
+		return &meterKey, res.result, res.err
 	})
 
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	for _, cb := range w.createCallbacks {
-		cb.Do(w.l, tenantId, wfr)
-	}
-
-	id := sqlchelpers.UUIDToStr(wfr.ID)
-
-	return id, nil
+	return wfr, nil
 }
 
 func (w *workflowRunEngineRepository) ListActiveQueuedWorkflowVersions(ctx context.Context, tenantId string) ([]*dbsqlc.ListActiveQueuedWorkflowVersionsRow, error) {
@@ -1209,7 +1266,7 @@ func workflowRunMetricsCount(ctx context.Context, pool *pgxpool.Pool, queries *d
 	return workflowRunsCount, nil
 }
 
-func createNewWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbsqlc.Queries, l *zerolog.Logger, tenantId string, inputOpts []*repository.CreateWorkflowRunOpts) ([]*dbsqlc.WorkflowRun, error) {
+func createNewWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbsqlc.Queries, l *zerolog.Logger, inputOpts []*repository.CreateWorkflowRunOpts) ([]*dbsqlc.WorkflowRun, error) {
 
 	ctx, span := telemetry.NewSpan(ctx, "db-create-new-workflow-runs")
 	defer span.End()
@@ -1223,7 +1280,6 @@ func createNewWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbs
 			return nil, err
 		}
 
-		pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
 		var createRunsParams []dbsqlc.CreateWorkflowRunsParams
 
 		workflowRunOptsMap := make(map[string]*repository.CreateWorkflowRunOpts)
@@ -1232,6 +1288,7 @@ func createNewWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbs
 			workflowRunId     pgtype.UUID
 			workflowVersionId pgtype.UUID
 			desiredWorkerId   pgtype.UUID
+			tenantId          pgtype.UUID
 		}
 
 		var stickyInfos []stickyInfo
@@ -1239,7 +1296,7 @@ func createNewWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbs
 		var groupKeyParams []dbsqlc.CreateGetGroupKeyRunsParams
 		var jobRunParams []dbsqlc.CreateJobRunsParams
 
-		for _, opt := range inputOpts {
+		for order, opt := range inputOpts {
 
 			// begin a transaction
 			workflowRunId := uuid.New().String()
@@ -1250,7 +1307,7 @@ func createNewWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbs
 
 			createParams := dbsqlc.CreateWorkflowRunParams{
 				ID:                sqlchelpers.UUIDFromStr(workflowRunId),
-				Tenantid:          pgTenantId,
+				Tenantid:          sqlchelpers.UUIDFromStr(opt.TenantId),
 				Workflowversionid: sqlchelpers.UUIDFromStr(opt.WorkflowVersionId),
 			}
 
@@ -1303,6 +1360,9 @@ func createNewWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbs
 					Valid: true,
 				}
 			}
+			if order > math.MaxInt32 || order < math.MinInt32 {
+				return nil, errors.New("order must be within the range of a 32-bit signed integer")
+			}
 
 			crp := dbsqlc.CreateWorkflowRunsParams{
 				ID:                 createParams.ID,
@@ -1316,6 +1376,7 @@ func createNewWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbs
 				AdditionalMetadata: createParams.Additionalmetadata,
 				Priority:           createParams.Priority,
 				Status:             "PENDING",
+				InsertOrder:        pgtype.Int4{Int32: int32(order), Valid: true},
 			}
 
 			createRunsParams = append(createRunsParams, crp)
@@ -1330,6 +1391,7 @@ func createNewWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbs
 			stickyInfos = append(stickyInfos, stickyInfo{
 				workflowRunId:     sqlchelpers.UUIDFromStr(workflowRunId),
 				workflowVersionId: sqlchelpers.UUIDFromStr(opt.WorkflowVersionId),
+				tenantId:          sqlchelpers.UUIDFromStr(opt.TenantId),
 				desiredWorkerId:   desiredWorkerId,
 			})
 
@@ -1356,7 +1418,7 @@ func createNewWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbs
 
 			cp := dbsqlc.CreateWorkflowRunTriggeredBysParams{
 				ID:           sqlchelpers.UUIDFromStr(uuid.New().String()),
-				TenantId:     pgTenantId,
+				TenantId:     sqlchelpers.UUIDFromStr(opt.TenantId),
 				ParentId:     sqlchelpers.UUIDFromStr(workflowRunId),
 				EventId:      eventId,
 				CronParentId: cronParentId,
@@ -1368,7 +1430,7 @@ func createNewWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbs
 
 			if opt.GetGroupKeyRun != nil {
 				groupKeyParams = append(groupKeyParams, dbsqlc.CreateGetGroupKeyRunsParams{
-					TenantId:          pgTenantId,
+					TenantId:          sqlchelpers.UUIDFromStr(opt.TenantId),
 					WorkflowRunId:     sqlchelpers.UUIDFromStr(workflowRunId),
 					Input:             opt.GetGroupKeyRun.Input,
 					RequeueAfter:      sqlchelpers.TimestampFromTime(time.Now().UTC().Add(5 * time.Second)),
@@ -1379,7 +1441,7 @@ func createNewWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbs
 			}
 
 			jobRunParams = append(jobRunParams, dbsqlc.CreateJobRunsParams{
-				Tenantid:          pgTenantId,
+				Tenantid:          sqlchelpers.UUIDFromStr(opt.TenantId),
 				Workflowrunid:     sqlchelpers.UUIDFromStr(workflowRunId),
 				Workflowversionid: sqlchelpers.UUIDFromStr(opt.WorkflowVersionId),
 			})
@@ -1415,6 +1477,7 @@ func createNewWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbs
 			stickyWorkflowRunIds := make([]pgtype.UUID, 0)
 			workflowVersionIds := make([]pgtype.UUID, 0)
 			desiredWorkerIds := make([]pgtype.UUID, 0)
+			tenantIds := make([]pgtype.UUID, 0)
 
 			workflowVersionIdMap := make(map[string]pgtype.UUID)
 
@@ -1424,6 +1487,7 @@ func createNewWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbs
 				// we want distinct workflowVersionIds
 				workflowVersionIdMap[sqlchelpers.UUIDToStr(stickyInfo.workflowVersionId)] = stickyInfo.workflowVersionId
 				desiredWorkerIds = append(desiredWorkerIds, stickyInfo.desiredWorkerId)
+				tenantIds = append(tenantIds, stickyInfo.tenantId)
 			}
 
 			for _, value := range workflowVersionIdMap {
@@ -1431,7 +1495,7 @@ func createNewWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbs
 			}
 
 			_, err = queries.CreateMultipleWorkflowRunStickyStates(tx1Ctx, tx, dbsqlc.CreateMultipleWorkflowRunStickyStatesParams{
-				Tenantid:           pgTenantId,
+				Tenantid:           tenantIds,
 				Workflowrunids:     stickyWorkflowRunIds,
 				Workflowversionids: workflowVersionIds,
 				Desiredworkerids:   desiredWorkerIds,
@@ -1506,7 +1570,7 @@ func createNewWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbs
 				workflowRunOpts := workflowRunOptsMap[sqlchelpers.UUIDToStr(workflowRunId)]
 
 				lookupParams := dbsqlc.CreateJobRunLookupDataParams{
-					Tenantid:    pgTenantId,
+					Tenantid:    jobRunResult.TenantId,
 					Triggeredby: workflowRunOpts.TriggeredBy,
 					Jobrunid:    jobRunId,
 				}
@@ -1530,7 +1594,7 @@ func createNewWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbs
 
 				ids = append(ids, sqlchelpers.UUIDFromStr(uuid.New().String()))
 				jobRunIds = append(jobRunIds, jobRunLookupDataParams[j].Jobrunid)
-				tenantIds = append(tenantIds, pgTenantId)
+				tenantIds = append(tenantIds, jobRunLookupDataParams[j].Tenantid)
 				triggeredByIds = append(triggeredByIds, jobRunLookupDataParams[j].Triggeredby)
 				inputs = append(inputs, jobRunLookupDataParams[j].Input)
 
@@ -1552,39 +1616,6 @@ func createNewWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbs
 				l.Error().Err(err).Msg("failed to create job run lookup data")
 				return nil, err
 			}
-
-			steps, err := queries.GetStepsForWorkflowVersion(tx1Ctx, tx,
-				workflowVersionIds,
-			)
-
-			if err != nil {
-				l.Error().Err(err).Msg("failed to get steps for workflow version")
-				return nil, err
-			}
-
-			var stepActionIds []string
-			var newTenantIds []pgtype.UUID
-
-			for _, step := range steps {
-				stepActionIds = append(stepActionIds, step.ActionId)
-				newTenantIds = append(newTenantIds, pgTenantId)
-			}
-
-			// think about doing this all in one query
-			// err = queries.UpsertQueues(
-			// 	tx1Ctx,
-			// 	tx,
-			// 	dbsqlc.UpsertQueuesParams{
-			// 		Tenantids: newTenantIds,
-			// 		Names:     stepActionIds,
-			// 	},
-			// )
-
-			// if err != nil {
-			// 	l.Error().Msgf("trying to upsert queues with names %+v and tenantIds %+v ", stepActionIds, newTenantIds)
-			// 	l.Error().Err(err).Msg("failed to upsert queues")
-			// 	return nil, err
-			// }
 
 			stepRunIds, err := queries.CreateStepRunsForJobRunIds(tx1Ctx, tx, dbsqlc.CreateStepRunsForJobRunIdsParams{
 				Jobrunids: jobRunIds,

@@ -170,9 +170,7 @@ func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.T
 		createOpts.Priority = req.Priority
 	}
 
-	// this is what is really happening we are creating WorkflowRuns
-
-	workflowRunId, err := a.repo.WorkflowRun().CreateNewWorkflowRun(createContext, tenantId, createOpts)
+	workflowRun, err := a.repo.WorkflowRun().CreateNewWorkflowRun(createContext, tenantId, createOpts)
 
 	dedupeTarget := repository.ErrDedupeValueExists{}
 
@@ -190,6 +188,8 @@ func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.T
 	if err != nil {
 		return nil, fmt.Errorf("Trigger Workflow - could not create workflow run: %w", err)
 	}
+
+	workflowRunId := sqlchelpers.UUIDToStr(workflowRun.ID)
 
 	// send to workflow processing queue
 	err = a.mq.AddMessage(
@@ -237,13 +237,18 @@ func (a *AdminServiceImpl) BulkTriggerWorkflow(ctx context.Context, req *contrac
 
 	}
 
-	workflowRunIds, err := a.repo.WorkflowRun().CreateNewWorkflowRuns(createContext, tenantId, opts)
+	workflowRuns, err := a.repo.WorkflowRun().CreateNewWorkflowRuns(createContext, tenantId, opts)
 
 	if err == metered.ErrResourceExhausted {
 		return nil, status.Errorf(codes.ResourceExhausted, "resource exhausted: workflow run limit exceeded for tenant")
 	}
 	if err != nil {
 		return nil, fmt.Errorf("could not create workflow runs: %w", err)
+	}
+
+	var workflowRunIds []string
+	for _, workflowRun := range workflowRuns {
+		workflowRunIds = append(workflowRunIds, sqlchelpers.UUIDToStr(workflowRun.ID))
 	}
 
 	for _, workflowRunId := range workflowRunIds {
