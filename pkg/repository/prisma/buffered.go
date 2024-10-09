@@ -71,6 +71,8 @@ func NewIngestBuffer[T any, U any](opts IngestBufOpts[T, U]) *IngestBuf[T, U] {
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
 
+	logger := opts.L.With().Str("buffer", opts.Name).Logger()
+
 	return &IngestBuf[T, U]{
 		name:               opts.Name,
 		state:              initialized,
@@ -83,7 +85,7 @@ func NewIngestBuffer[T any, U any](opts IngestBufOpts[T, U]) *IngestBuf[T, U] {
 		maxDataSizeInQueue: opts.MaxDataSizeInQueue,
 		outputFunc:         opts.OutputFunc,
 		sizeFunc:           opts.SizeFunc,
-		l:                  opts.L,
+		l:                  &logger,
 		ctx:                ctx,
 		cancel:             cancel,
 	}
@@ -248,7 +250,7 @@ func (b *IngestBuf[T, U]) flush(items []*inputWrapper[T, U]) {
 			}
 		}
 
-		b.l.Debug().Msgf("%s : flushed %d items", b.name, numItems)
+		b.l.Debug().Msgf("flushed %d items", numItems)
 	}()
 }
 
@@ -329,14 +331,14 @@ func (b *IngestBuf[T, U]) BuffItem(item T) (chan *flushResponse[U], error) {
 
 func (b *IngestBuf[T, U]) debugBuffer() {
 
-	b.l.Debug().Msgf("============= Buffer %s =============", b.name)
-	b.l.Debug().Msgf("%s has %d items", b.name, b.safeCheckSizeOfBuffer())
-	b.l.Debug().Msgf("%s has %d bytes", b.name, b.safeFetchSizeOfData())
-	b.l.Debug().Msgf("%s last flushed at %v", b.name, b.safeFetchLastFlush())
-	b.l.Debug().Msgf("%s has %d max capacity", b.name, b.maxCapacity)
-	b.l.Debug().Msgf("%s has %d max data size in queue", b.name, b.maxDataSizeInQueue)
-	b.l.Debug().Msgf("%s has %v flush period", b.name, b.flushPeriod)
-	b.l.Debug().Msgf("%s is in state %v", b.name, b.state)
+	b.l.Debug().Msgf("============= Buffer =============")
+	b.l.Debug().Msgf("%d items", b.safeCheckSizeOfBuffer())
+	b.l.Debug().Msgf("%d bytes", b.safeFetchSizeOfData())
+	b.l.Debug().Msgf("last flushed at %v", b.safeFetchLastFlush())
+	b.l.Debug().Msgf("%d max capacity", b.maxCapacity)
+	b.l.Debug().Msgf("%d max data size in queue", b.maxDataSizeInQueue)
+	b.l.Debug().Msgf("%v flush period", b.flushPeriod)
+	b.l.Debug().Msgf("in state %v", b.state)
 	b.l.Debug().Msgf("=====================================")
 
 }
