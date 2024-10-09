@@ -76,15 +76,15 @@ func (t *TenantAlertManager) sendEmailTenantResourceLimitAlert(tenant *dbsqlc.Te
 	resource = cases.Title(language.English).String(resource)
 
 	if payload.AlertType == string(dbsqlc.TenantResourceLimitAlertTypeAlarm) {
-		subject = fmt.Sprintf("%s has exhausted %d%% of its limit (%d/%d)", resource, payload.Percentage, payload.CurrentValue, payload.LimitValue)
+		subject = fmt.Sprintf("%s has exhausted %d%% of its %s limit (%d/%d)", resource, payload.Percentage, payload.LimitWindow, payload.CurrentValue, payload.LimitValue)
 		summary = "We're sending you this alert because a resource on your Hatchet tenant is approaching its usage limit."
-		summary2 = "Once the limit is reached, any further resource usage will be denied."
+		summary2 = fmt.Sprintf("Once the %s limit is reached, any further resource usage will be denied. Last refilled %s.", payload.LimitWindow, payload.LastRefillAgo)
 	}
 
 	if payload.AlertType == string(dbsqlc.TenantResourceLimitAlertTypeExhausted) {
-		subject = fmt.Sprintf("%s has exhausted 100%% of its limit (%d/%d)", payload.Resource, payload.CurrentValue, payload.LimitValue)
+		subject = fmt.Sprintf("%s has exhausted 100%% of its %s limit (%d/%d)", payload.Resource, payload.LimitWindow, payload.CurrentValue, payload.LimitValue)
 		summary = "We're sending you this alert because a resource on your Hatchet tenant has exhausted its usage limit."
-		summary2 = "Any further resource usage will be denied until the limit is increased."
+		summary2 = fmt.Sprintf("Any further resource usage will be denied until the limit is increased or its refill window is reached. Last refilled %s.", payload.LastRefillAgo)
 	}
 
 	return t.email.SendTenantResourceLimitAlert(

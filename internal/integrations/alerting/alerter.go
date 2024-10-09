@@ -222,13 +222,35 @@ func (t *TenantAlertManager) SendTenantResourceLimitAlert(tenantId string, alert
 
 	percentage := int(float64(alert.Value) / float64(alert.Limit) * 100)
 
+	state, err := t.repo.TenantAlertingSettings().GetTenantResourceLimitState(ctx, tenantId, string(alert.Resource))
+
+	if err != nil {
+		return err
+	}
+
+	lastRefillAgo := timediff.TimeDiff(state.LastRefill.Time)
+
+	window := ""
+
+	if state.Window.Valid {
+		switch state.Window.String {
+		case "24h0m0s":
+			window = "daily"
+		default:
+			window = state.Window.String
+
+		}
+	}
+
 	payload := &alerttypes.ResourceLimitAlert{
-		Link:         fmt.Sprintf("%s/tenant-settings/resource-limits?tenant=%s", t.serverURL, tenantId),
-		Resource:     string(alert.Resource),
-		AlertType:    string(alert.AlertType),
-		CurrentValue: int(alert.Value),
-		LimitValue:   int(alert.Limit),
-		Percentage:   percentage,
+		Link:          fmt.Sprintf("%s/tenant-settings/resource-limits?tenant=%s", t.serverURL, tenantId),
+		Resource:      string(alert.Resource),
+		AlertType:     string(alert.AlertType),
+		CurrentValue:  int(alert.Value),
+		LimitValue:    int(alert.Limit),
+		Percentage:    percentage,
+		LimitWindow:   window,
+		LastRefillAgo: lastRefillAgo,
 	}
 
 	return t.sendTenantResourceLimitAlert(ctx, tenantAlerting, payload)
