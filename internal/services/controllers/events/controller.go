@@ -224,11 +224,11 @@ func (ec *EventsControllerImpl) processEvent(ctx context.Context, tenantId, even
 
 			workflowRun, err := ec.repo.WorkflowRun().CreateNewWorkflowRun(ctx, tenantId, createOpts)
 
-			workflowRunId := sqlchelpers.UUIDToStr(workflowRun.ID)
-
 			if err != nil {
 				return fmt.Errorf("processEvent: could not create workflow run: %w", err)
 			}
+
+			workflowRunId := sqlchelpers.UUIDToStr(workflowRun.ID)
 
 			// send to workflow processing queue
 			err = ec.mq.AddMessage(
