@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"strings"
 	"sync"
 	"time"
 
@@ -224,8 +225,6 @@ func NewWorker(fs ...WorkerOpt) (*Worker, error) {
 		}
 	}
 
-	w.NewService("default")
-
 	return w, nil
 }
 
@@ -261,11 +260,14 @@ func (w *Worker) RegisterWorkflow(workflow workflowConverter) error {
 
 // Deprecated: Use RegisterWorkflow instead
 func (w *Worker) On(t triggerConverter, workflow workflowConverter) error {
+	svcName := workflow.ToWorkflow("", "").Name
+	svcName = strings.ToLower(svcName)
+
 	// get the default service
-	svc, ok := w.services.Load("default")
+	svc, ok := w.services.Load(svcName)
 
 	if !ok {
-		return fmt.Errorf("could not load default service")
+		return w.NewService(svcName).On(t, workflow)
 	}
 
 	return svc.(*Service).On(t, workflow)
@@ -636,11 +638,12 @@ func (w *Worker) sendFailureEvent(ctx HatchetContext, err error) error {
 	failureEvent := w.getActionEvent(assignedAction, client.ActionEventTypeFailed)
 
 	w.alerter.SendAlert(context.Background(), err, map[string]interface{}{
-		"actionId":   assignedAction.ActionId,
-		"workerId":   assignedAction.WorkerId,
-		"stepRunId":  assignedAction.StepRunId,
-		"jobName":    assignedAction.JobName,
-		"actionType": assignedAction.ActionType,
+		"actionId":      assignedAction.ActionId,
+		"workerId":      assignedAction.WorkerId,
+		"workflowRunId": assignedAction.WorkflowRunId,
+		"stepRunId":     assignedAction.StepRunId,
+		"jobName":       assignedAction.JobName,
+		"actionType":    assignedAction.ActionType,
 	})
 
 	failureEvent.EventPayload = err.Error()
