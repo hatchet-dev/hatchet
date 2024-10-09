@@ -599,7 +599,7 @@ func (r *workflowEngineRepository) GetWorkflowsByNames(ctx context.Context, tena
 
 		}
 
-		return nil, fmt.Errorf("expected %d workflows, got %d  - missing %s", len(distinctNames), len(results), strings.Join(missingNames, ","))
+		return nil, fmt.Errorf("expected %d workflows, got %d  - missing '%s'", len(distinctNames), len(results), strings.Join(missingNames, ","))
 
 	}
 

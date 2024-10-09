@@ -854,7 +854,7 @@ func getWorkflowsForWorkflowNames(ctx context.Context, tenantId string, reqs []*
 	)
 
 	if err != nil {
-		return nil, fmt.Errorf("could not get workflows by names: %w", err)
+		return nil, status.Errorf(codes.InvalidArgument, "could not get workflows by names: %v", err)
 	}
 
 	workflowMap := make(map[string]*dbsqlc.Workflow)
