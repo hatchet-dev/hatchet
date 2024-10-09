@@ -28,8 +28,9 @@ type ChildWorkflowOpts struct {
 }
 
 type WorkflowRun struct {
-	Name  string
-	Input interface{}
+	Name    string
+	Input   interface{}
+	Options []RunOptFunc
 }
 
 type AdminClient interface {
@@ -234,6 +235,13 @@ func (a *adminClientImpl) BulkRunWorkflow(workflows []*WorkflowRun) ([]string, e
 		triggerWorkflowRequests[i] = &admincontracts.TriggerWorkflowRequest{
 			Name:  workflow.Name,
 			Input: string(inputBytes),
+		}
+
+		for _, optionFunc := range workflow.Options {
+			err = optionFunc(triggerWorkflowRequests[i])
+			if err != nil {
+				return nil, fmt.Errorf("could not apply run option: %w", err)
+			}
 		}
 	}
 

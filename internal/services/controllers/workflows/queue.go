@@ -56,13 +56,18 @@ func (wc *WorkflowsControllerImpl) handleWorkflowRunQueued(ctx context.Context, 
 
 	if err != nil {
 
-		e := wc.failWorkflowRun(ctx, metadata.TenantId, payload.WorkflowRunId, "DUPLICATE_WORKFLOW_RUN")
+		e := wc.failWorkflowRunsJobRuns(ctx, metadata.TenantId, payload.WorkflowRunId, "DUPLICATE_WORKFLOW_RUN")
 
 		if e != nil {
 			return fmt.Errorf("could not fail workflow run: %v -  %w", payload.WorkflowRunId, e)
 		}
 
-		return fmt.Errorf("failed dedupe for workflow: %v -  %w", payload.WorkflowRunId, err)
+		wc.l.Info().Msgf("workflow run %s is a duplicate, failing", payload.WorkflowRunId)
+
+		wc.l.Debug().Msgf("dedupe error is %v", err)
+
+		// return nil to avoid requeueing the message
+		return nil
 	}
 
 	isPaused := workflowRun.IsPaused.Valid && workflowRun.IsPaused.Bool
@@ -135,25 +140,38 @@ func (wc *WorkflowsControllerImpl) handleWorkflowRunQueued(ctx context.Context, 
 	return nil
 }
 
-func (wc *WorkflowsControllerImpl) failWorkflowRun(ctx context.Context, tenantId string, workflowRunId string, reason string) error {
-	failedAt := time.Now().UTC()
+func (wc *WorkflowsControllerImpl) failWorkflowRunsJobRuns(ctx context.Context, tenantId string, workflowRunId string, reason string) error {
 
-	payload, _ := datautils.ToJSONMap(tasktypes.WorkflowRunFailedTask{
-		WorkflowRunId: workflowRunId,
-		FailedAt:      failedAt.Format(time.RFC3339),
-		Reason:        reason,
-	})
+	jobRuns, err := wc.repo.JobRun().GetJobRunsByWorkflowRunId(ctx, tenantId, workflowRunId)
 
-	metadata, _ := datautils.ToJSONMap(tasktypes.WorkflowRunFailedTaskMetadata{
-		TenantId: tenantId,
-	})
+	if err != nil {
+		return fmt.Errorf("failWorkflowRunsJobRuns, could not get job runs: %w", err)
+	}
 
-	err := wc.mq.AddMessage(ctx, msgqueue.JOB_PROCESSING_QUEUE, &msgqueue.Message{
-		ID:       "step-run-failed",
-		Payload:  payload,
-		Metadata: metadata,
-		Retries:  3,
-	})
+	for _, jobRun := range jobRuns {
+
+		jobRunId := sqlchelpers.UUIDToStr(jobRun.ID)
+
+		payload, _ := datautils.ToJSONMap(tasktypes.JobRunCancelledTaskPayload{
+			JobRunId: jobRunId,
+			Reason:   &reason,
+		})
+
+		metadata, _ := datautils.ToJSONMap(tasktypes.JobRunCancelledTaskMetadata{
+			TenantId: tenantId,
+		})
+
+		err := wc.mq.AddMessage(ctx, msgqueue.JOB_PROCESSING_QUEUE, &msgqueue.Message{
+			ID:       "job-run-cancelled",
+			Payload:  payload,
+			Metadata: metadata,
+			Retries:  3,
+		})
+
+		if err != nil {
+			return fmt.Errorf("failWorkflowRunsJobRuns, could not add job run to task queue: %w", err)
+		}
+	}
 
 	return err
 }

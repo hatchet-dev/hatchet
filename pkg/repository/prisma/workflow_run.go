@@ -19,6 +19,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/defaults"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
+	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
@@ -34,21 +35,60 @@ type workflowRunAPIRepository struct {
 	queries *dbsqlc.Queries
 	l       *zerolog.Logger
 	m       *metered.Metered
+	cf      *server.ConfigFileRuntime
 
 	createCallbacks []repository.Callback[*dbsqlc.WorkflowRun]
+
+	bulkCreateBuffer *TenantBufferManager[*repository.CreateWorkflowRunOpts, *dbsqlc.WorkflowRun]
 }
 
-func NewWorkflowRunRepository(client *db.PrismaClient, pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, m *metered.Metered) repository.WorkflowRunAPIRepository {
+func NewWorkflowRunRepository(client *db.PrismaClient, pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, m *metered.Metered, cf *server.ConfigFileRuntime) (repository.WorkflowRunAPIRepository, func() error, error) {
 	queries := dbsqlc.New()
 
-	return &workflowRunAPIRepository{
+	w := workflowRunAPIRepository{
 		client:  client,
 		v:       v,
 		pool:    pool,
 		queries: queries,
 		l:       l,
 		m:       m,
+		cf:      cf,
 	}
+
+	err := w.startBuffer()
+
+	if err != nil {
+		l.Error().Err(err).Msg("could not start buffer")
+	}
+
+	return &w, w.cleanup, nil
+
+}
+
+func (w *workflowRunAPIRepository) cleanup() error {
+
+	return w.bulkCreateBuffer.Cleanup()
+}
+func (w *workflowRunAPIRepository) startBuffer() error {
+
+	createWorkflowRunBufOpts := TenantBufManagerOpts[*repository.CreateWorkflowRunOpts, *dbsqlc.WorkflowRun]{
+		Name:       "create_workflow_run",
+		OutputFunc: w.BulkCreateWorkflowRuns,
+		SizeFunc:   sizeOfData,
+		L:          w.l,
+		V:          w.v,
+	}
+
+	b, err := NewTenantBufManager(createWorkflowRunBufOpts)
+
+	if err != nil {
+		return err
+	}
+
+	w.bulkCreateBuffer = b
+
+	return nil
+
 }
 
 func (w *workflowRunAPIRepository) RegisterCreateCallback(callback repository.Callback[*dbsqlc.WorkflowRun]) {
@@ -102,23 +142,37 @@ func (w *workflowRunAPIRepository) CreateNewWorkflowRun(ctx context.Context, ten
 		if err := w.v.Validate(opts); err != nil {
 			return nil, nil, err
 		}
+		var wfr *dbsqlc.WorkflowRun
 
-		workflowRuns, err := createNewWorkflowRuns(ctx, w.pool, w.queries, w.l, []*repository.CreateWorkflowRunOpts{opts})
-
-		if err != nil {
-			return nil, nil, err
-		}
-		var id string
-		for _, workflowRun := range workflowRuns {
-
-			id = sqlchelpers.UUIDToStr(workflowRun.ID)
-
-			for _, cb := range w.createCallbacks {
-				cb.Do(w.l, tenantId, workflowRun)
+		if w.cf.BufferCreateWorkflowRuns {
+			wfrChan, err := w.bulkCreateBuffer.BuffItem(tenantId, opts)
+			if err != nil {
+				return nil, nil, err
 			}
 
+			res := <-wfrChan
+
+			if res.err != nil {
+				return nil, nil, res.err
+			}
+			wfr = res.result
+
+		} else {
+			workflowRuns, err := createNewWorkflowRuns(ctx, w.pool, w.queries, w.l, []*repository.CreateWorkflowRunOpts{opts})
+
+			if err != nil {
+				return nil, nil, err
+			}
+			wfr = workflowRuns[0]
 		}
-		return &id, workflowRuns[0], nil
+
+		id := sqlchelpers.UUIDToStr(wfr.ID)
+
+		for _, cb := range w.createCallbacks {
+			cb.Do(w.l, tenantId, wfr)
+		}
+
+		return &id, wfr, nil
 	})
 
 }
@@ -446,6 +500,7 @@ type workflowRunEngineRepository struct {
 	queries           *dbsqlc.Queries
 	l                 *zerolog.Logger
 	m                 *metered.Metered
+	cf                *server.ConfigFileRuntime
 	stepRunRepository *stepRunEngineRepository
 
 	createCallbacks []repository.Callback[*dbsqlc.WorkflowRun]
@@ -454,7 +509,7 @@ type workflowRunEngineRepository struct {
 	bulkCreateBuffer *TenantBufferManager[*repository.CreateWorkflowRunOpts, *dbsqlc.WorkflowRun]
 }
 
-func NewWorkflowRunEngineRepository(stepRunRepository *stepRunEngineRepository, pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, m *metered.Metered, cbs ...repository.Callback[*dbsqlc.WorkflowRun]) (repository.WorkflowRunEngineRepository, func() error, error) {
+func NewWorkflowRunEngineRepository(stepRunRepository *stepRunEngineRepository, pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, m *metered.Metered, cf *server.ConfigFileRuntime, cbs ...repository.Callback[*dbsqlc.WorkflowRun]) (repository.WorkflowRunEngineRepository, func() error, error) {
 	queries := dbsqlc.New()
 
 	w := workflowRunEngineRepository{
@@ -465,6 +520,7 @@ func NewWorkflowRunEngineRepository(stepRunRepository *stepRunEngineRepository, 
 		m:                 m,
 		createCallbacks:   cbs,
 		stepRunRepository: stepRunRepository,
+		cf:                cf,
 	}
 	err := w.startBuffer()
 
@@ -481,16 +537,13 @@ func (w *workflowRunEngineRepository) cleanup() error {
 	return w.bulkCreateBuffer.Cleanup()
 }
 func (w *workflowRunEngineRepository) startBuffer() error {
-	flushPeriod := 10 * time.Millisecond
 
 	createWorkflowRunBufOpts := TenantBufManagerOpts[*repository.CreateWorkflowRunOpts, *dbsqlc.WorkflowRun]{
-		Name:                "create_workflow_run",
-		OutputFunc:          w.BulkCreateWorkflowRuns,
-		SizeFunc:            sizeOfData,
-		L:                   w.l,
-		V:                   w.v,
-		FlushItemsThreshold: 1,
-		FlushPeriod:         &flushPeriod,
+		Name:       "create_workflow_run",
+		OutputFunc: w.BulkCreateWorkflowRuns,
+		SizeFunc:   sizeOfData,
+		L:          w.l,
+		V:          w.v,
 	}
 
 	b, err := NewTenantBufManager(createWorkflowRunBufOpts)
@@ -718,6 +771,16 @@ func (w *workflowRunEngineRepository) PopWorkflowRunsRoundRobin(ctx context.Cont
 	return res, nil
 }
 
+func (w *workflowRunAPIRepository) BulkCreateWorkflowRuns(ctx context.Context, opts []*repository.CreateWorkflowRunOpts) ([]*dbsqlc.WorkflowRun, error) {
+	if len(opts) == 0 {
+		return nil, fmt.Errorf("no workflow runs to create")
+	}
+
+	w.l.Debug().Msgf("bulk creating %d workflow runs", len(opts))
+
+	return createNewWorkflowRuns(ctx, w.pool, w.queries, w.l, opts)
+}
+
 func (w *workflowRunEngineRepository) BulkCreateWorkflowRuns(ctx context.Context, opts []*repository.CreateWorkflowRunOpts) ([]*dbsqlc.WorkflowRun, error) {
 	if len(opts) == 0 {
 		return nil, fmt.Errorf("no workflow runs to create")
@@ -788,21 +851,31 @@ func (w *workflowRunEngineRepository) CreateNewWorkflowRun(ctx context.Context, 
 			return nil, nil, err
 		}
 
-		// wfrs, err := createNewWorkflowRuns(ctx, w.pool, w.queries, w.l, tenantId, []*repository.CreateWorkflowRunOpts{opts})
-		wfr, err := w.bulkCreateBuffer.BuffItem(tenantId, opts)
+		var workflowRun *dbsqlc.WorkflowRun
 
-		if err != nil {
-			return nil, nil, err
+		if w.cf.BufferCreateWorkflowRuns {
+			wfr, err := w.bulkCreateBuffer.BuffItem(tenantId, opts)
+
+			if err != nil {
+				return nil, nil, err
+			}
+
+			res := <-wfr
+
+			if res.err != nil {
+				return nil, nil, res.err
+			}
+			workflowRun = res.result
+		} else {
+			wfrs, err := createNewWorkflowRuns(ctx, w.pool, w.queries, w.l, []*repository.CreateWorkflowRunOpts{opts})
+			if err != nil {
+				return nil, nil, err
+			}
+			workflowRun = wfrs[0]
 		}
 
-		res := <-wfr
-
-		if res.err != nil {
-			return nil, nil, res.err
-		}
-
-		meterKey := sqlchelpers.UUIDToStr(res.result.ID)
-		return &meterKey, res.result, res.err
+		meterKey := sqlchelpers.UUIDToStr(workflowRun.ID)
+		return &meterKey, workflowRun, nil
 	})
 
 	if err != nil {
@@ -1448,7 +1521,8 @@ func createNewWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbs
 
 		}
 
-		workflowTimestamp := sqlchelpers.TimestampFromTime(time.Now().UTC().Add(-10 * time.Millisecond))
+		// we use this with xmin to retrieve workflow runs that were created in the same transaction
+		workflowTimestamp := sqlchelpers.TimestampFromTime(time.Now().UTC())
 
 		_, err = queries.CreateWorkflowRuns(
 			tx1Ctx,
@@ -1469,7 +1543,7 @@ func createNewWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbs
 		}
 
 		if len(workflowRuns) == 0 {
-			return nil, errors.New("no workflow runs created")
+			return nil, errors.New("no new workflow runs created")
 		}
 
 		if len(stickyInfos) > 0 {

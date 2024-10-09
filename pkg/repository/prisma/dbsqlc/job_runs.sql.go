@@ -92,6 +92,50 @@ func (q *Queries) GetJobRunByWorkflowRunIdAndJobId(ctx context.Context, db DBTX,
 	return &i, err
 }
 
+const getJobRunsByWorkflowRunId = `-- name: GetJobRunsByWorkflowRunId :many
+
+SELECT
+    "id",
+    "jobId",
+    "status"
+FROM
+    "JobRun" jr
+WHERE
+    jr."workflowRunId" = $1::uuid
+    AND jr."tenantId" = $2::uuid
+`
+
+type GetJobRunsByWorkflowRunIdParams struct {
+	Workflowrunid pgtype.UUID `json:"workflowrunid"`
+	Tenantid      pgtype.UUID `json:"tenantid"`
+}
+
+type GetJobRunsByWorkflowRunIdRow struct {
+	ID     pgtype.UUID  `json:"id"`
+	JobId  pgtype.UUID  `json:"jobId"`
+	Status JobRunStatus `json:"status"`
+}
+
+func (q *Queries) GetJobRunsByWorkflowRunId(ctx context.Context, db DBTX, arg GetJobRunsByWorkflowRunIdParams) ([]*GetJobRunsByWorkflowRunIdRow, error) {
+	rows, err := db.Query(ctx, getJobRunsByWorkflowRunId, arg.Workflowrunid, arg.Tenantid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*GetJobRunsByWorkflowRunIdRow
+	for rows.Next() {
+		var i GetJobRunsByWorkflowRunIdRow
+		if err := rows.Scan(&i.ID, &i.JobId, &i.Status); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listJobRunsForWorkflowRun = `-- name: ListJobRunsForWorkflowRun :many
 SELECT
     "id",

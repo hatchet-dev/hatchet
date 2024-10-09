@@ -31,6 +31,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+
 	cleanupSecond, err := runSingles()
 	if err != nil {
 		panic(err)

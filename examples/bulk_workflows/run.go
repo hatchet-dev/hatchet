@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"log"
-	"time"
 
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
@@ -28,7 +27,7 @@ func runBulk() (func() error, error) {
 	err = w.RegisterWorkflow(
 		&worker.WorkflowJob{
 			On:             worker.Events("user:create:sticky"),
-			Name:           "sticky",
+			Name:           "sticky2",
 			Description:    "sticky",
 			StickyStrategy: types.StickyStrategyPtr(types.StickyStrategy_SOFT),
 			Steps: []*worker.WorkflowStep{
@@ -66,7 +65,7 @@ func runBulk() (func() error, error) {
 	}
 
 	go func() {
-		log.Printf("pushing event")
+		log.Printf("pushing workflow")
 
 		var workflows []*client.WorkflowRun
 		for i := 0; i < 100; i++ {
@@ -75,9 +74,16 @@ func runBulk() (func() error, error) {
 				"user_id":  fmt.Sprintf("1234-%d", i),
 			}
 			workflows = append(workflows, &client.WorkflowRun{
-				Name:  "sticky",
+				Name:  "sticky2",
 				Input: data,
+				Options: []client.RunOptFunc{
+					// setting a dedupe key so these shouldn't all run
+					client.WithRunMetadata(map[string]interface{}{
+						// "dedupe": "dedupe1",
+					}),
+				},
 			})
+
 		}
 
 		outs, err := c.Admin().BulkRunWorkflow(workflows)
@@ -86,10 +92,9 @@ func runBulk() (func() error, error) {
 		}
 
 		for _, out := range outs {
-			log.Printf("workflow output: %v", out)
+			log.Printf("workflow run id: %v", out)
 		}
 
-		time.Sleep(10 * time.Second)
 	}()
 
 	cleanup, err := w.Start()
@@ -155,36 +160,37 @@ func runSingles() (func() error, error) {
 		return nil, fmt.Errorf("error registering workflow: %w", err)
 	}
 
-	go func() {
-		log.Printf("pushing event")
+	log.Printf("pushing workflow")
 
-		var workflows []*client.WorkflowRun
-		for i := 0; i < 100; i++ {
-			data := map[string]interface{}{
-				"username": fmt.Sprintf("echo-test-%d", i),
-				"user_id":  fmt.Sprintf("1234-%d", i),
+	var workflows []*client.WorkflowRun
+	for i := 0; i < 100; i++ {
+		data := map[string]interface{}{
+			"username": fmt.Sprintf("echo-test-%d", i),
+			"user_id":  fmt.Sprintf("1234-%d", i),
+		}
+		workflows = append(workflows, &client.WorkflowRun{
+			Name:  "sticky",
+			Input: data,
+			Options: []client.RunOptFunc{
+				client.WithRunMetadata(map[string]interface{}{
+					// "dedupe": "dedupe1",
+				}),
+			},
+		})
+	}
+
+	for _, wf := range workflows {
+
+		go func() {
+			out, err := c.Admin().RunWorkflow(wf.Name, wf.Input, wf.Options...)
+			if err != nil {
+				panic(fmt.Errorf("error pushing event: %w", err))
 			}
-			workflows = append(workflows, &client.WorkflowRun{
-				Name:  "sticky",
-				Input: data,
-			})
-		}
 
-		for _, wf := range workflows {
+			log.Printf("workflow run id: %v", out)
+		}()
 
-			go func() {
-				out, err := c.Admin().RunWorkflow(wf.Name, wf.Input)
-				if err != nil {
-					panic(fmt.Errorf("error pushing event: %w", err))
-				}
-
-				log.Printf("workflow output: %v", out)
-			}()
-
-		}
-
-		time.Sleep(10 * time.Second)
-	}()
+	}
 
 	cleanup, err := w.Start()
 	if err != nil {

@@ -123,6 +123,13 @@ func (j *jobRunEngineRepository) GetJobRunByWorkflowRunIdAndJobId(ctx context.Co
 	})
 }
 
+func (j *jobRunEngineRepository) GetJobRunsByWorkflowRunId(ctx context.Context, tenantId string, workflowRunId string) ([]*dbsqlc.GetJobRunsByWorkflowRunIdRow, error) {
+	return j.queries.GetJobRunsByWorkflowRunId(ctx, j.pool, dbsqlc.GetJobRunsByWorkflowRunIdParams{
+		Workflowrunid: sqlchelpers.UUIDFromStr(workflowRunId),
+		Tenantid:      sqlchelpers.UUIDFromStr(tenantId),
+	})
+}
+
 func setJobRunStatusRunning(ctx context.Context, pool *pgxpool.Pool, queries *dbsqlc.Queries, l *zerolog.Logger, tenantId, jobRunId string) (*pgtype.UUID, error) {
 	tx, err := pool.Begin(ctx)
 

@@ -30,147 +30,26 @@ func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.T
 	createContext, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	isParentTriggered := req.ParentId != nil
-
-	// if there's a parent id passed in, we query for an existing workflow run which matches these params
-	if isParentTriggered {
-		if req.ParentStepRunId == nil {
-			return nil, status.Error(
-				codes.InvalidArgument,
-				"parent step run id is required when parent id is provided",
-			)
-		}
-
-		if req.ChildIndex == nil {
-			return nil, status.Error(
-				codes.InvalidArgument,
-				"child index is required when parent id is provided",
-			)
-		}
-
-		workflowRun, err := a.repo.WorkflowRun().GetChildWorkflowRun(
-			createContext,
-			*req.ParentId,
-			*req.ParentStepRunId,
-			int(*req.ChildIndex),
-			req.ChildKey,
-		)
-
-		if err != nil {
-			if !errors.Is(err, pgx.ErrNoRows) {
-				return nil, fmt.Errorf("could not get child workflow run: %w", err)
-			}
-		}
-
-		// if we find a matching workflow run, we return the id and stop triggering the workflow
-
-		if err == nil && workflowRun != nil {
-			return &contracts.TriggerWorkflowResponse{
-				WorkflowRunId: sqlchelpers.UUIDToStr(workflowRun.ID),
-			}, nil
-		}
+	createOpts, existingWorkflows, err := getOpts(ctx, []*contracts.TriggerWorkflowRequest{req}, a)
+	if err != nil {
+		return nil, err
 	}
 
-	workflow, err := a.repo.Workflow().GetWorkflowByName(
-		createContext,
-		tenantId,
-		req.Name,
-	)
+	if len(existingWorkflows) > 0 {
+		return &contracts.TriggerWorkflowResponse{
+			WorkflowRunId: existingWorkflows[0],
+		}, nil
+	}
 
-	if err == metered.ErrResourceExhausted {
+	if len(createOpts) > 1 {
 		return nil, status.Error(
-			codes.ResourceExhausted,
-			"workflow run limit exceeded",
+			codes.Internal,
+			"multiple workflow options created from single request",
 		)
 	}
+	createOpt := createOpts[0]
 
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, status.Error(
-				codes.NotFound,
-				"workflow not found",
-			)
-		}
-
-		return nil, fmt.Errorf("could not get workflow by name: %w", err)
-	}
-
-	workflowVersion, err := a.repo.Workflow().GetLatestWorkflowVersion(
-		createContext,
-		tenantId,
-		sqlchelpers.UUIDToStr(workflow.ID),
-	)
-
-	if err != nil {
-		return nil, fmt.Errorf("could not get latest workflow version: %w", err)
-	}
-
-	var createOpts *repository.CreateWorkflowRunOpts
-
-	var additionalMetadata map[string]interface{}
-
-	if req.AdditionalMetadata != nil {
-		err := json.Unmarshal([]byte(*req.AdditionalMetadata), &additionalMetadata)
-		if err != nil {
-			return nil, fmt.Errorf("could not unmarshal additional metadata: %w", err)
-		}
-	}
-
-	if isParentTriggered {
-		parent, err := a.repo.WorkflowRun().GetWorkflowRunById(createContext, tenantId, sqlchelpers.UUIDToStr(sqlchelpers.UUIDFromStr(*req.ParentId)))
-
-		if err != nil {
-			return nil, fmt.Errorf("could not get parent workflow run: %w", err)
-		}
-
-		var parentAdditionalMeta map[string]interface{}
-
-		if parent.WorkflowRun.AdditionalMetadata != nil {
-			err := json.Unmarshal(parent.WorkflowRun.AdditionalMetadata, &parentAdditionalMeta)
-			if err != nil {
-				return nil, fmt.Errorf("could not unmarshal parent additional metadata: %w", err)
-			}
-		}
-
-		createOpts, err = repository.GetCreateWorkflowRunOptsFromParent(
-			workflowVersion,
-			[]byte(req.Input),
-			// we have already checked for nil values above
-			*req.ParentId,
-			*req.ParentStepRunId,
-			int(*req.ChildIndex),
-			req.ChildKey,
-			additionalMetadata,
-			parentAdditionalMeta,
-		)
-
-		if err != nil {
-			return nil, fmt.Errorf("Trigger Workflow could not create workflow run opts: %w", err)
-		}
-	} else {
-		createOpts, err = repository.GetCreateWorkflowRunOptsFromManual(workflowVersion, []byte(req.Input), additionalMetadata)
-		if err != nil {
-			return nil, fmt.Errorf("Trigger Workflow not after parent triggered check could not create workflow run opts: %w", err)
-		}
-	}
-
-	if req.DesiredWorkerId != nil {
-		if !workflowVersion.WorkflowVersion.Sticky.Valid {
-			return nil, status.Errorf(codes.Canceled, "workflow version %s does not have sticky enabled", workflowVersion.WorkflowName)
-		}
-
-		createOpts.DesiredWorkerId = req.DesiredWorkerId
-	}
-
-	if workflowVersion.WorkflowVersion.DefaultPriority.Valid {
-		createOpts.Priority = &workflowVersion.WorkflowVersion.DefaultPriority.Int32
-	}
-
-	if req.Priority != nil {
-		createOpts.Priority = req.Priority
-	}
-
-	workflowRun, err := a.repo.WorkflowRun().CreateNewWorkflowRun(createContext, tenantId, createOpts)
+	workflowRun, err := a.repo.WorkflowRun().CreateNewWorkflowRun(createContext, tenantId, createOpt)
 
 	dedupeTarget := repository.ErrDedupeValueExists{}
 
