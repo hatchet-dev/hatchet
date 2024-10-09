@@ -49,6 +49,8 @@ type MessageQueueImpl struct {
 
 	ready bool
 
+	disableTenantExchangePubs bool
+
 	// lru cache for tenant ids
 	tenantIdCache *lru.Cache[string, bool]
 }
@@ -60,16 +62,18 @@ func (t *MessageQueueImpl) IsReady() bool {
 type MessageQueueImplOpt func(*MessageQueueImplOpts)
 
 type MessageQueueImplOpts struct {
-	l   *zerolog.Logger
-	url string
-	qos int
+	l                         *zerolog.Logger
+	url                       string
+	qos                       int
+	disableTenantExchangePubs bool
 }
 
 func defaultMessageQueueImplOpts() *MessageQueueImplOpts {
 	l := logger.NewDefaultLogger("rabbitmq")
 
 	return &MessageQueueImplOpts{
-		l: &l,
+		l:                         &l,
+		disableTenantExchangePubs: false,
 	}
 }
 
@@ -91,6 +95,12 @@ func WithQos(qos int) MessageQueueImplOpt {
 	}
 }
 
+func WithDisableTenantExchangePubs(disable bool) MessageQueueImplOpt {
+	return func(opts *MessageQueueImplOpts) {
+		opts.disableTenantExchangePubs = disable
+	}
+}
+
 // New creates a new MessageQueueImpl.
 func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl) {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -105,11 +115,12 @@ func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl) {
 	opts.l = &newLogger
 
 	t := &MessageQueueImpl{
-		ctx:      ctx,
-		identity: identity(),
-		l:        opts.l,
-		qos:      opts.qos,
-		configFs: fs,
+		ctx:                       ctx,
+		identity:                  identity(),
+		l:                         opts.l,
+		qos:                       opts.qos,
+		configFs:                  fs,
+		disableTenantExchangePubs: opts.disableTenantExchangePubs,
 	}
 
 	constructor := func(context.Context) (*amqp.Connection, error) {
@@ -364,30 +375,29 @@ func (t *MessageQueueImpl) startPublishing() func() error {
 						}
 
 						// if this is a tenant msg, publish to the tenant exchange
-						// TODO: remove before merge, temporarily disabled
-						// if msg.TenantID() != "" {
-						// 	// determine if the tenant exchange exists
-						// 	if _, ok := t.tenantIdCache.Get(msg.TenantID()); !ok {
-						// 		// register the tenant exchange
-						// 		err = t.RegisterTenant(ctx, msg.TenantID())
+						if !t.disableTenantExchangePubs && msg.TenantID() != "" {
+							// determine if the tenant exchange exists
+							if _, ok := t.tenantIdCache.Get(msg.TenantID()); !ok {
+								// register the tenant exchange
+								err = t.RegisterTenant(ctx, msg.TenantID())
 
-						// 		if err != nil {
-						// 			t.l.Error().Msgf("error registering tenant exchange: %v", err)
-						// 			return
-						// 		}
-						// 	}
+								if err != nil {
+									t.l.Error().Msgf("error registering tenant exchange: %v", err)
+									return
+								}
+							}
 
-						// 	t.l.Debug().Msgf("publishing tenant msg %s to exchange %s", msg.ID, msg.TenantID())
+							t.l.Debug().Msgf("publishing tenant msg %s to exchange %s", msg.ID, msg.TenantID())
 
-						// 	err = pub.PublishWithContext(ctx, msg.TenantID(), "", false, false, amqp.Publishing{
-						// 		Body: body,
-						// 	})
+							err = pub.PublishWithContext(ctx, msg.TenantID(), "", false, false, amqp.Publishing{
+								Body: body,
+							})
 
-						// 	if err != nil {
-						// 		t.l.Error().Msgf("error publishing tenant msg: %v", err)
-						// 		return
-						// 	}
-						// }
+							if err != nil {
+								t.l.Error().Msgf("error publishing tenant msg: %v", err)
+								return
+							}
+						}
 
 						t.l.Debug().Msgf("published msg %s to queue %s", msg.ID, msg.q.Name())
 					}(msg)
