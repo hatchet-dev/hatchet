@@ -230,6 +230,48 @@ func (ns NullJobRunStatus) Value() (driver.Value, error) {
 	return string(ns.JobRunStatus), nil
 }
 
+type LeaseKind string
+
+const (
+	LeaseKindWORKER LeaseKind = "WORKER"
+	LeaseKindQUEUE  LeaseKind = "QUEUE"
+)
+
+func (e *LeaseKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = LeaseKind(s)
+	case string:
+		*e = LeaseKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for LeaseKind: %T", src)
+	}
+	return nil
+}
+
+type NullLeaseKind struct {
+	LeaseKind LeaseKind `json:"LeaseKind"`
+	Valid     bool      `json:"valid"` // Valid is true if LeaseKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullLeaseKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.LeaseKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.LeaseKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullLeaseKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.LeaseKind), nil
+}
+
 type LimitResource string
 
 const (
@@ -1069,6 +1111,14 @@ type JobRunLookupData struct {
 	JobRunId  pgtype.UUID      `json:"jobRunId"`
 	TenantId  pgtype.UUID      `json:"tenantId"`
 	Data      []byte           `json:"data"`
+}
+
+type Lease struct {
+	ID         int64            `json:"id"`
+	ExpiresAt  pgtype.Timestamp `json:"expiresAt"`
+	TenantId   pgtype.UUID      `json:"tenantId"`
+	ResourceId string           `json:"resourceId"`
+	Kind       LeaseKind        `json:"kind"`
 }
 
 type LogLine struct {

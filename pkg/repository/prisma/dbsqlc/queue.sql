@@ -119,6 +119,27 @@ LIMIT
     COALESCE(sqlc.narg('limit')::integer, 100)
 FOR UPDATE SKIP LOCKED;
 
+-- name: ListQueueItemsForQueue :many
+SELECT
+    *
+FROM
+    "QueueItem" qi
+WHERE
+    qi."isQueued" = true
+    AND qi."tenantId" = @tenantId::uuid
+    AND qi."queue" = @queue::text
+    AND (
+        sqlc.narg('gtId')::bigint IS NULL OR
+        qi."id" >= sqlc.narg('gtId')::bigint
+    )
+    -- Added to ensure that the index is used
+    AND qi."priority" >= 1 AND qi."priority" <= 4
+ORDER BY
+    qi."priority" DESC,
+    qi."id" ASC
+LIMIT
+    COALESCE(sqlc.narg('limit')::integer, 100);
+
 -- name: BulkQueueItems :exec
 UPDATE
     "QueueItem" qi
@@ -304,3 +325,85 @@ FROM
     worker_max_runs wmr
 LEFT JOIN
     worker_filled_slots wfs ON wmr."id" = wfs."workerId";
+
+-- name: ListAllAvailableSlotsForWorkers :many
+WITH worker_max_runs AS (
+    SELECT
+        "id",
+        "maxRuns"
+    FROM
+        "Worker"
+    WHERE
+        "tenantId" = @tenantId::uuid
+), worker_filled_slots AS (
+    SELECT
+        "workerId",
+        COUNT("stepRunId") AS "filledSlots"
+    FROM
+        "SemaphoreQueueItem"
+    WHERE
+        "tenantId" = @tenantId::uuid
+    GROUP BY
+        "workerId"
+)
+-- subtract the filled slots from the max runs to get the available slots
+SELECT
+    wmr."id",
+    wmr."maxRuns" - COALESCE(wfs."filledSlots", 0) AS "availableSlots"
+FROM
+    worker_max_runs wmr
+LEFT JOIN
+    worker_filled_slots wfs ON wmr."id" = wfs."workerId";
+
+-- name: ListAllWorkerActions :many
+SELECT
+    a."actionId" AS actionId
+FROM "Worker" w
+LEFT JOIN "_ActionToWorker" aw ON w.id = aw."B"
+LEFT JOIN "Action" a ON aw."A" = a.id
+WHERE
+    a."tenantId" = @tenantId::uuid AND
+    w."id" = @workerId::uuid;
+
+-- name: ListActionsForWorkers :many
+SELECT
+    w."id" as "workerId",
+    a."actionId"
+FROM
+    "Worker" w
+LEFT JOIN
+    "_ActionToWorker" atw ON w."id" = atw."B"
+LEFT JOIN
+    "Action" a ON atw."A" = a."id"
+WHERE
+    w."tenantId" = @tenantId::uuid
+    AND w."id" = ANY(@workerIds::uuid[]);
+
+-- name: ListActionsForAvailableWorkers :many
+SELECT
+    w."id" as "workerId",
+    a."actionId"
+FROM
+    "Worker" w
+JOIN
+    "_ActionToWorker" atw ON w."id" = atw."B"
+JOIN
+    "Action" a ON atw."A" = a."id"
+WHERE
+    w."tenantId" = @tenantId::uuid
+    AND w."dispatcherId" IS NOT NULL
+    AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+    AND w."isActive" = true
+    AND w."isPaused" = false;
+
+-- name: ListActiveWorkerIds :many
+SELECT
+    w."id"
+FROM
+    "Worker" w
+WHERE
+    w."tenantId" = @tenantId::uuid
+    AND w."dispatcherId" IS NOT NULL
+    AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+    AND w."isActive" = true
+    AND w."isPaused" = false;

@@ -39,6 +39,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
+	v2 "github.com/hatchet-dev/hatchet/pkg/scheduling/v2"
 	"github.com/hatchet-dev/hatchet/pkg/security"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
@@ -398,8 +399,19 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 		})
 	}
 
+	schedulingPool, cleanupSchedulingPool := v2.NewSchedulingPool(
+		&l,
+		dc.Pool,
+		cf.Runtime.SingleQueueLimit,
+	)
+
 	cleanup = func() error {
 		log.Printf("cleaning up server config")
+
+		if err := cleanupSchedulingPool(); err != nil {
+			return fmt.Errorf("error cleaning up scheduling pool: %w", err)
+		}
+
 		if err := cleanup1(); err != nil {
 			return fmt.Errorf("error cleaning up rabbitmq: %w", err)
 		}
@@ -429,6 +441,7 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 		AdditionalLoggers:      cf.AdditionalLoggers,
 		EnableDataRetention:    cf.EnableDataRetention,
 		EnableWorkerRetention:  cf.EnableWorkerRetention,
+		SchedulingPool:         schedulingPool,
 	}, nil
 }
 

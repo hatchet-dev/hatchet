@@ -27,6 +27,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
+	v2 "github.com/hatchet-dev/hatchet/pkg/scheduling/v2"
 )
 
 type JobsController interface {
@@ -44,6 +45,7 @@ type JobsControllerImpl struct {
 	a              *hatcheterrors.Wrapped
 	p              *partition.Partition
 	celParser      *cel.CELParser
+	scheduler      *v2.SchedulingPool
 
 	reassignMutexes sync.Map
 }
@@ -59,6 +61,7 @@ type JobsControllerOpts struct {
 	p              *partition.Partition
 	queueLogger    *zerolog.Logger
 	pgxStatsLogger *zerolog.Logger
+	scheduler      *v2.SchedulingPool
 }
 
 func defaultJobsControllerOpts() *JobsControllerOpts {
@@ -127,6 +130,12 @@ func WithDataDecoderValidator(dv datautils.DataDecoderValidator) JobsControllerO
 	}
 }
 
+func WithScheduler(s *v2.SchedulingPool) JobsControllerOpt {
+	return func(opts *JobsControllerOpts) {
+		opts.scheduler = s
+	}
+}
+
 func New(fs ...JobsControllerOpt) (*JobsControllerImpl, error) {
 	opts := defaultJobsControllerOpts()
 
@@ -144,6 +153,10 @@ func New(fs ...JobsControllerOpt) (*JobsControllerImpl, error) {
 
 	if opts.p == nil {
 		return nil, errors.New("partition is required. use WithPartition")
+	}
+
+	if opts.scheduler == nil {
+		return nil, errors.New("scheduler is required. use WithScheduler")
 	}
 
 	newLogger := opts.l.With().Str("service", "jobs-controller").Logger()
@@ -164,6 +177,7 @@ func New(fs ...JobsControllerOpt) (*JobsControllerImpl, error) {
 		queueLogger:    opts.queueLogger,
 		pgxStatsLogger: opts.pgxStatsLogger,
 		repo:           opts.repo,
+		scheduler:      opts.scheduler,
 		dv:             opts.dv,
 		s:              s,
 		a:              a,
@@ -225,7 +239,7 @@ func (jc *JobsControllerImpl) Start() (func() error, error) {
 		return nil, fmt.Errorf("could not subscribe to job processing queue: %w", err)
 	}
 
-	q, err := newQueue(jc.mq, jc.l, jc.queueLogger, jc.repo, jc.dv, jc.a, jc.p)
+	q, err := newQueue(jc.mq, jc.l, jc.queueLogger, jc.repo, jc.dv, jc.a, jc.p, jc.scheduler)
 
 	if err != nil {
 		cancel()
@@ -808,7 +822,7 @@ func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId, stepId
 	}
 
 	// indicate that the step run is pending assignment
-	_, err = ec.repo.StepRun().QueueStepRun(ctx, tenantId, stepRunId, queueOpts)
+	sr, err := ec.repo.StepRun().QueueStepRun(ctx, tenantId, stepRunId, queueOpts)
 
 	if err != nil {
 		if errors.Is(err, repository.ErrAlreadyQueued) {
@@ -819,12 +833,12 @@ func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId, stepId
 		return ec.a.WrapErr(fmt.Errorf("could not update step run: %w", err), errData)
 	}
 
-	defer ec.checkTenantQueue(ctx, tenantId)
+	defer ec.checkTenantQueue(ctx, tenantId, sr.SRQueue, true, false)
 
 	return nil
 }
 
-func (ec *JobsControllerImpl) checkTenantQueue(ctx context.Context, tenantId string) {
+func (ec *JobsControllerImpl) checkTenantQueue(ctx context.Context, tenantId, queueName string, isStepQueued bool, isSlotReleased bool) {
 	// send a message to the tenant partition queue that a step run is ready to be scheduled
 	tenant, err := ec.repo.Tenant().GetTenantByID(ctx, tenantId)
 
@@ -837,7 +851,7 @@ func (ec *JobsControllerImpl) checkTenantQueue(ctx context.Context, tenantId str
 		err = ec.mq.AddMessage(
 			ctx,
 			msgqueue.QueueTypeFromPartitionIDAndController(tenant.ControllerPartitionId.String, msgqueue.JobController),
-			tasktypes.CheckTenantQueueToTask(tenantId),
+			tasktypes.CheckTenantQueueToTask(tenantId, queueName, isStepQueued, isSlotReleased),
 		)
 
 		if err != nil {
@@ -900,6 +914,12 @@ func (ec *JobsControllerImpl) handleStepRunFinished(ctx context.Context, task *m
 		return fmt.Errorf("could not decode step run finished task metadata: %w", err)
 	}
 
+	sr, err := ec.repo.StepRun().GetStepRunForEngine(ctx, metadata.TenantId, payload.StepRunId)
+
+	if err != nil {
+		return fmt.Errorf("could not get step run: %w", err)
+	}
+
 	// update the step run in the database
 	finishedAt, err := time.Parse(time.RFC3339, payload.FinishedAt)
 
@@ -938,7 +958,7 @@ func (ec *JobsControllerImpl) handleStepRunFinished(ctx context.Context, task *m
 	}
 
 	// recheck the tenant queue
-	ec.checkTenantQueue(ctx, metadata.TenantId)
+	ec.checkTenantQueue(ctx, metadata.TenantId, sr.SRQueue, false, true)
 
 	return nil
 }
@@ -978,7 +998,7 @@ func (ec *JobsControllerImpl) failStepRun(ctx context.Context, tenantId, stepRun
 	}
 
 	// check the queue on failure
-	defer ec.checkTenantQueue(ctx, tenantId)
+	defer ec.checkTenantQueue(ctx, tenantId, oldStepRun.SRQueue, false, true)
 
 	// determine if step run should be retried or not
 	shouldRetry := oldStepRun.SRRetryCount < oldStepRun.StepRetries

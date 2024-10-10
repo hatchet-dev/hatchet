@@ -395,6 +395,47 @@ func (q *Queries) LinkServicesToWorker(ctx context.Context, db DBTX, arg LinkSer
 	return err
 }
 
+const listDispatcherIdsForWorkers = `-- name: ListDispatcherIdsForWorkers :many
+SELECT
+    "id" as "workerId",
+    "dispatcherId"
+FROM
+    "Worker"
+WHERE
+    "tenantId" = $1::uuid
+    AND "id" = ANY($2::uuid[])
+`
+
+type ListDispatcherIdsForWorkersParams struct {
+	Tenantid  pgtype.UUID   `json:"tenantid"`
+	Workerids []pgtype.UUID `json:"workerids"`
+}
+
+type ListDispatcherIdsForWorkersRow struct {
+	WorkerId     pgtype.UUID `json:"workerId"`
+	DispatcherId pgtype.UUID `json:"dispatcherId"`
+}
+
+func (q *Queries) ListDispatcherIdsForWorkers(ctx context.Context, db DBTX, arg ListDispatcherIdsForWorkersParams) ([]*ListDispatcherIdsForWorkersRow, error) {
+	rows, err := db.Query(ctx, listDispatcherIdsForWorkers, arg.Tenantid, arg.Workerids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListDispatcherIdsForWorkersRow
+	for rows.Next() {
+		var i ListDispatcherIdsForWorkersRow
+		if err := rows.Scan(&i.WorkerId, &i.DispatcherId); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listRecentAssignedEventsForWorker = `-- name: ListRecentAssignedEventsForWorker :many
 SELECT
     "workerId",

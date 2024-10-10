@@ -142,7 +142,7 @@ func (w *workflowRunEngineRepository) ProcessWorkflowRunUpdates(ctx context.Cont
 
 	limit := 100
 
-	tx, commit, rollback, err := prepareTx(ctx, w.pool, w.l, 25000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, w.l, 25000)
 
 	if err != nil {
 		return false, err
@@ -256,7 +256,7 @@ func (w *workflowRunEngineRepository) ProcessUnpausedWorkflowRuns(ctx context.Co
 
 	limit := 1000
 
-	tx, commit, rollback, err := prepareTx(ctx, w.pool, w.l, 25000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, w.l, 25000)
 
 	if err != nil {
 		return nil, false, err
@@ -530,7 +530,7 @@ func (w *workflowRunEngineRepository) GetScheduledChildWorkflowRun(ctx context.C
 }
 
 func (w *workflowRunEngineRepository) PopWorkflowRunsRoundRobin(ctx context.Context, tenantId, workflowId string, maxRuns int) ([]*dbsqlc.WorkflowRun, error) {
-	tx, commit, rollback, err := prepareTx(ctx, w.pool, w.l, 15000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, w.l, 15000)
 
 	if err != nil {
 		return nil, err
@@ -629,7 +629,7 @@ func (s *workflowRunEngineRepository) ReplayWorkflowRun(ctx context.Context, ten
 			return err
 		}
 
-		defer deferRollback(ctx, s.l, tx.Rollback)
+		defer sqlchelpers.DeferRollback(ctx, s.l, tx.Rollback)
 
 		pgWorkflowRunId := sqlchelpers.UUIDFromStr(workflowRunId)
 
@@ -956,7 +956,7 @@ func listWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbsqlc.Q
 		return nil, err
 	}
 
-	defer deferRollback(ctx, l, tx.Rollback)
+	defer sqlchelpers.DeferRollback(ctx, l, tx.Rollback)
 
 	workflowRuns, err := queries.ListWorkflowRuns(ctx, tx, queryParams)
 
@@ -1054,7 +1054,7 @@ func createNewWorkflowRun(ctx context.Context, pool *pgxpool.Pool, queries *dbsq
 		// begin a transaction
 		workflowRunId := uuid.New().String()
 
-		tx, commit, rollback, err := prepareTx(tx1Ctx, pool, l, 15000)
+		tx, commit, rollback, err := sqlchelpers.PrepareTx(tx1Ctx, pool, l, 15000)
 
 		if err != nil {
 			return nil, err
