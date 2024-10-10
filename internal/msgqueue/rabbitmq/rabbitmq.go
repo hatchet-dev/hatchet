@@ -49,6 +49,8 @@ type MessageQueueImpl struct {
 
 	ready bool
 
+	disableTenantExchangePubs bool
+
 	// lru cache for tenant ids
 	tenantIdCache *lru.Cache[string, bool]
 }
@@ -60,16 +62,18 @@ func (t *MessageQueueImpl) IsReady() bool {
 type MessageQueueImplOpt func(*MessageQueueImplOpts)
 
 type MessageQueueImplOpts struct {
-	l   *zerolog.Logger
-	url string
-	qos int
+	l                         *zerolog.Logger
+	url                       string
+	qos                       int
+	disableTenantExchangePubs bool
 }
 
 func defaultMessageQueueImplOpts() *MessageQueueImplOpts {
 	l := logger.NewDefaultLogger("rabbitmq")
 
 	return &MessageQueueImplOpts{
-		l: &l,
+		l:                         &l,
+		disableTenantExchangePubs: false,
 	}
 }
 
@@ -91,6 +95,12 @@ func WithQos(qos int) MessageQueueImplOpt {
 	}
 }
 
+func WithDisableTenantExchangePubs(disable bool) MessageQueueImplOpt {
+	return func(opts *MessageQueueImplOpts) {
+		opts.disableTenantExchangePubs = disable
+	}
+}
+
 // New creates a new MessageQueueImpl.
 func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl) {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -105,11 +115,12 @@ func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl) {
 	opts.l = &newLogger
 
 	t := &MessageQueueImpl{
-		ctx:      ctx,
-		identity: identity(),
-		l:        opts.l,
-		qos:      opts.qos,
-		configFs: fs,
+		ctx:                       ctx,
+		identity:                  identity(),
+		l:                         opts.l,
+		qos:                       opts.qos,
+		configFs:                  fs,
+		disableTenantExchangePubs: opts.disableTenantExchangePubs,
 	}
 
 	constructor := func(context.Context) (*amqp.Connection, error) {
@@ -196,6 +207,9 @@ func (t *MessageQueueImpl) SetQOS(prefetchCount int) {
 
 // AddMessage adds a msg to the queue.
 func (t *MessageQueueImpl) AddMessage(ctx context.Context, q msgqueue.Queue, msg *msgqueue.Message) error {
+	ctx, span := telemetry.NewSpan(ctx, "add-message")
+	defer span.End()
+
 	// inject otel carrier into the message
 	if msg.OtelCarrier == nil {
 		msg.OtelCarrier = telemetry.GetCarrier(ctx)
@@ -339,6 +353,9 @@ func (t *MessageQueueImpl) startPublishing() func() error {
 						ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 						defer cancel()
 
+						ctx, span := telemetry.NewSpanWithCarrier(ctx, "publish-message", msg.OtelCarrier)
+						defer span.End()
+
 						t.l.Debug().Msgf("publishing msg %s to queue %s", msg.ID, msg.q.Name())
 
 						pubMsg := amqp.Publishing{
@@ -358,7 +375,7 @@ func (t *MessageQueueImpl) startPublishing() func() error {
 						}
 
 						// if this is a tenant msg, publish to the tenant exchange
-						if msg.TenantID() != "" {
+						if !t.disableTenantExchangePubs && msg.TenantID() != "" {
 							// determine if the tenant exchange exists
 							if _, ok := t.tenantIdCache.Get(msg.TenantID()); !ok {
 								// register the tenant exchange
