@@ -914,12 +914,6 @@ func (ec *JobsControllerImpl) handleStepRunFinished(ctx context.Context, task *m
 		return fmt.Errorf("could not decode step run finished task metadata: %w", err)
 	}
 
-	sr, err := ec.repo.StepRun().GetStepRunForEngine(ctx, metadata.TenantId, payload.StepRunId)
-
-	if err != nil {
-		return fmt.Errorf("could not get step run: %w", err)
-	}
-
 	// update the step run in the database
 	finishedAt, err := time.Parse(time.RFC3339, payload.FinishedAt)
 
@@ -958,7 +952,7 @@ func (ec *JobsControllerImpl) handleStepRunFinished(ctx context.Context, task *m
 	}
 
 	// recheck the tenant queue
-	ec.checkTenantQueue(ctx, metadata.TenantId, sr.SRQueue, false, true)
+	ec.checkTenantQueue(ctx, metadata.TenantId, "", false, true)
 
 	return nil
 }
@@ -998,7 +992,7 @@ func (ec *JobsControllerImpl) failStepRun(ctx context.Context, tenantId, stepRun
 	}
 
 	// check the queue on failure
-	defer ec.checkTenantQueue(ctx, tenantId, oldStepRun.SRQueue, false, true)
+	defer ec.checkTenantQueue(ctx, tenantId, "", false, true)
 
 	// determine if step run should be retried or not
 	shouldRetry := oldStepRun.SRRetryCount < oldStepRun.StepRetries

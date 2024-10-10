@@ -2232,14 +2232,12 @@ func (s *stepRunEngineRepository) processStepRunUpdatesV2(
 	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
 
 	batches := make([][]updateStepRunQueueData, s.updateConcurrentFactor)
-	stepRunIds := make([]pgtype.UUID, 0, len(data))
 	completedStepRunIds := make([]pgtype.UUID, 0, len(data))
 
 	for _, item := range data {
 		batch := item.Hash % s.updateConcurrentFactor
 
 		batches[batch] = append(batches[batch], item)
-		stepRunIds = append(stepRunIds, sqlchelpers.UUIDFromStr(item.StepRunId))
 
 		if item.Status != nil && dbsqlc.StepRunStatus(*item.Status) == dbsqlc.StepRunStatusSUCCEEDED {
 			completedStepRunIds = append(completedStepRunIds, sqlchelpers.UUIDFromStr(item.StepRunId))
@@ -2515,7 +2513,7 @@ func (s *stepRunEngineRepository) CleanupInternalQueueItems(ctx context.Context,
 }
 
 func (s *stepRunEngineRepository) StepRunStarted(ctx context.Context, tenantId, workflowRunId, stepRunId string, startedAt time.Time) error {
-	ctx, span := telemetry.NewSpan(ctx, "step-run-started-db")
+	ctx, span := telemetry.NewSpan(ctx, "step-run-started-db") // nolint: ineffassign
 	defer span.End()
 
 	running := string(dbsqlc.StepRunStatusRUNNING)
@@ -3668,46 +3666,6 @@ func printQueueDebugInfo(
 		"duration_assign_queue_items", durationAssignQueueItems,
 	).Dur(
 		"duration_pop_queue_items", durationPopQueueItems,
-	).Msg(msg)
-}
-
-func printProcessStepRunUpdateInfo(
-	l zerolog.Logger,
-	tenantId string,
-	startedAt time.Time,
-	numStepRuns int,
-	durationUpdateStepRuns time.Duration,
-	durationResolveJobRuns time.Duration,
-	durationResolveWorkflowRuns time.Duration,
-	durationMarkQueueItemsProcessed time.Duration,
-	durationWriteStepRunEvents time.Duration,
-) {
-	duration := time.Since(startedAt)
-
-	e := l.Debug()
-	msg := "process step run updates debug information"
-
-	if duration > 100*time.Millisecond {
-		e = l.Warn()
-		msg = fmt.Sprintf("process step run updates duration was longer than 100ms (%s) for %d step runs", duration, numStepRuns)
-	}
-
-	e.Str(
-		"tenant_id", tenantId,
-	).Int(
-		"num_step_runs", numStepRuns,
-	).Dur(
-		"total_duration", duration,
-	).Dur(
-		"duration_update_step_runs", durationUpdateStepRuns,
-	).Dur(
-		"duration_resolve_job_runs", durationResolveJobRuns,
-	).Dur(
-		"duration_resolve_workflow_runs", durationResolveWorkflowRuns,
-	).Dur(
-		"duration_mark_queue_items_processed", durationMarkQueueItemsProcessed,
-	).Dur(
-		"duration_write_step_run_events", durationWriteStepRunEvents,
 	).Msg(msg)
 }
 

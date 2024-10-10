@@ -218,7 +218,7 @@ func newQueuer(conf *sharedConfig, tenantId pgtype.UUID, queueName string, s *Sc
 	defaultLimit := 100
 
 	if conf.singleQueueLimit > 0 {
-		defaultLimit = int(conf.singleQueueLimit)
+		defaultLimit = conf.singleQueueLimit
 	}
 
 	repo := newQueueItemDbQueries(conf, tenantId, queueName, int32(defaultLimit))

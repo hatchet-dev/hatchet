@@ -2,7 +2,6 @@ package v2
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"time"
 
@@ -177,30 +176,24 @@ func newLeaseManager(conf *sharedConfig, tenantId pgtype.UUID) (*LeaseManager, <
 	}, workersCh, queuesCh
 }
 
-func (l *LeaseManager) sendWorkerIds(workerIds []pgtype.UUID) {
-	// non-blocking send
+func (l *LeaseManager) sendWorkerIds(ctx context.Context, workerIds []pgtype.UUID) {
 	select {
+	case <-ctx.Done():
+		return
 	case l.workersCh <- workerIds:
-	default:
-		l.conf.l.Error().Msg("could not send worker ids to channel")
 	}
-
-	// l.workersCh <- workerIds
 }
 
-func (l *LeaseManager) sendQueues(queues []string) {
-	// non-blocking send
+func (l *LeaseManager) sendQueues(ctx context.Context, queues []string) {
 	select {
+	case <-ctx.Done():
+		return
 	case l.queuesCh <- queues:
-	default:
-		l.conf.l.Error().Msg("could not send queues to channel")
 	}
-	// l.queuesCh <- queues
 }
 
 func (l *LeaseManager) acquireWorkerLeases(ctx context.Context) error {
 	if ok := l.workerLeasesMu.TryLock(); !ok {
-		fmt.Println("COULD NOT GET LOCK")
 		return nil
 	}
 
@@ -234,7 +227,7 @@ func (l *LeaseManager) acquireWorkerLeases(ctx context.Context) error {
 		successfullyAcquiredWorkerIds = append(successfullyAcquiredWorkerIds, workerId)
 	}
 
-	l.sendWorkerIds(successfullyAcquiredWorkerIds)
+	go l.sendWorkerIds(ctx, successfullyAcquiredWorkerIds)
 
 	return nil
 }
@@ -272,7 +265,7 @@ func (l *LeaseManager) acquireQueueLeases(ctx context.Context) error {
 		successfullyAcquiredQueues = append(successfullyAcquiredQueues, lease.ResourceId)
 	}
 
-	l.sendQueues(successfullyAcquiredQueues)
+	go l.sendQueues(ctx, successfullyAcquiredQueues)
 
 	return nil
 }
@@ -317,11 +310,17 @@ func (l *LeaseManager) cleanup(ctx context.Context) error {
 	eg := errgroup.Group{}
 
 	eg.Go(func() error {
-		return l.lr.ReleaseLeases(context.Background(), l.workerLeases)
+		l.workerLeasesMu.Lock()
+		defer l.workerLeasesMu.Unlock()
+
+		return l.lr.ReleaseLeases(ctx, l.workerLeases)
 	})
 
 	eg.Go(func() error {
-		return l.lr.ReleaseLeases(context.Background(), l.queueLeases)
+		l.queueLeasesMu.Lock()
+		defer l.queueLeasesMu.Unlock()
+
+		return l.lr.ReleaseLeases(ctx, l.queueLeases)
 	})
 
 	if err := eg.Wait(); err != nil {

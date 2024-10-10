@@ -548,7 +548,7 @@ func (s *Scheduler) tryAssign(ctx context.Context, qis []*dbsqlc.QueueItem) <-ch
 						break
 					}
 
-					skip += 1
+					skip++
 
 					assigned = append(assigned, &AssignedQueueItem{
 						WorkerId:  workerId,

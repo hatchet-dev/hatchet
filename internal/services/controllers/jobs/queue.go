@@ -173,7 +173,11 @@ func (q *queue) Start() (func() error, error) {
 					continue
 				}
 
-				q.scheduleStepRuns(ctx, sqlchelpers.UUIDToStr(res.TenantId), res)
+				err = q.scheduleStepRuns(ctx, sqlchelpers.UUIDToStr(res.TenantId), res)
+
+				if err != nil {
+					q.l.Error().Err(err).Msg("could not schedule step runs")
+				}
 			}
 		}
 	}()
@@ -233,15 +237,12 @@ func (q *queue) handleCheckQueue(ctx context.Context, task *msgqueue.Message) er
 		return fmt.Errorf("could not decode check queue metadata: %w", err)
 	}
 
-	if payload.QueueName != "" {
-		if payload.IsSlotReleased {
-			q.scheduler.Replenish(ctx, metadata.TenantId, payload.QueueName)
-		}
-
-		if payload.IsStepQueued {
-			q.scheduler.Queue(ctx, metadata.TenantId, payload.QueueName)
-		}
-	} else {
+	switch {
+	case payload.IsStepQueued && payload.QueueName != "":
+		q.scheduler.Queue(ctx, metadata.TenantId, payload.QueueName)
+	case payload.IsSlotReleased:
+		q.scheduler.Replenish(ctx, metadata.TenantId)
+	default:
 		q.scheduler.RefreshAll(ctx, metadata.TenantId)
 	}
 

@@ -2,7 +2,6 @@ package v2
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -33,8 +32,6 @@ type tenantManager struct {
 }
 
 func newTenantManager(cf *sharedConfig, tenantId string, resultsCh chan *QueueResults) *tenantManager {
-	fmt.Println("<<<<<<>>>>>>>> INITIALIZING TENANT MANAGER")
-
 	tenantIdUUID := sqlchelpers.UUIDFromStr(tenantId)
 
 	s := newScheduler(cf, tenantIdUUID)
@@ -63,7 +60,6 @@ func newTenantManager(cf *sharedConfig, tenantId string, resultsCh chan *QueueRe
 }
 
 func (t *tenantManager) Cleanup() error {
-	fmt.Println("<<<<<<>>>>>>>> CLEANING UP TENANT MANAGER")
 	defer t.cleanup()
 
 	cleanupCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -160,7 +156,7 @@ func (t *tenantManager) refreshAll(ctx context.Context) {
 	}
 }
 
-func (t *tenantManager) replenish(ctx context.Context, queueName string) {
+func (t *tenantManager) replenish(ctx context.Context) {
 	t.queuersMu.RLock()
 	defer t.queuersMu.RUnlock()
 

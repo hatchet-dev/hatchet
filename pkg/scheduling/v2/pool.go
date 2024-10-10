@@ -112,10 +112,10 @@ func (p *SchedulingPool) RefreshAll(ctx context.Context, tenantId string) {
 	tm.refreshAll(ctx)
 }
 
-func (p *SchedulingPool) Replenish(ctx context.Context, tenantId string, queueName string) {
+func (p *SchedulingPool) Replenish(ctx context.Context, tenantId string) {
 	tm := p.getTenantManager(tenantId)
 
-	tm.replenish(ctx, queueName)
+	tm.replenish(ctx)
 }
 
 func (p *SchedulingPool) Queue(ctx context.Context, tenantId string, queueName string) {
