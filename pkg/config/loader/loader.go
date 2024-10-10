@@ -242,6 +242,7 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 			rabbitmq.WithURL(cf.MessageQueue.RabbitMQ.URL),
 			rabbitmq.WithLogger(&l),
 			rabbitmq.WithQos(cf.MessageQueue.RabbitMQ.Qos),
+			rabbitmq.WithDisableTenantExchangePubs(cf.Runtime.DisableTenantPubs),
 		)
 
 		ing, err = ingestor.NewIngestor(

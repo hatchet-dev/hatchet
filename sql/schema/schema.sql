@@ -129,6 +129,14 @@ CREATE TABLE "Event" (
 );
 
 -- CreateTable
+CREATE TABLE "EventKey" (
+    "key" TEXT NOT NULL,
+    "tenantId" UUID NOT NULL,
+
+    CONSTRAINT "EventKey_pkey" PRIMARY KEY ("key")
+);
+
+-- CreateTable
 CREATE TABLE "GetGroupKeyRun" (
     "id" UUID NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -981,6 +989,9 @@ CREATE INDEX "Event_tenantId_createdAt_idx" ON "Event"("tenantId" ASC, "createdA
 
 -- CreateIndex
 CREATE INDEX "Event_tenantId_idx" ON "Event"("tenantId" ASC);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "EventKey_key_tenantId_key" ON "EventKey"("key" ASC, "tenantId" ASC);
 
 -- CreateIndex
 CREATE INDEX "GetGroupKeyRun_createdAt_idx" ON "GetGroupKeyRun"("createdAt" ASC);
