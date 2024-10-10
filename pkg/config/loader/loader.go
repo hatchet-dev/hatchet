@@ -189,6 +189,12 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile, runtime *server.Co
 		return nil, fmt.Errorf("could not create engine repository: %w", err)
 	}
 
+	apiRepo, cleanupApiRepo, err := prisma.NewAPIRepository(c, pool, runtime, prisma.WithLogger(&l), prisma.WithCache(ch), prisma.WithMetered(meter))
+
+	if err != nil {
+		return nil, fmt.Errorf("could not create api repository: %w", err)
+	}
+
 	return &database.Config{
 		Disconnect: func() error {
 			if err := cleanupEngine(); err != nil {
@@ -197,11 +203,14 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile, runtime *server.Co
 
 			ch.Stop()
 			meter.Stop()
+			if err = cleanupApiRepo(); err != nil {
+				return err
+			}
 			return c.Prisma.Disconnect()
 		},
 		Pool:                  pool,
 		QueuePool:             pool,
-		APIRepository:         prisma.NewAPIRepository(c, pool, prisma.WithLogger(&l), prisma.WithCache(ch), prisma.WithMetered(meter)),
+		APIRepository:         apiRepo,
 		EngineRepository:      engineRepo,
 		EntitlementRepository: entitlementRepo,
 		Seed:                  cf.Seed,

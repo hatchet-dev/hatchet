@@ -27,12 +27,20 @@ type ChildWorkflowOpts struct {
 	AdditionalMetadata *map[string]string
 }
 
+type WorkflowRun struct {
+	Name    string
+	Input   interface{}
+	Options []RunOptFunc
+}
+
 type AdminClient interface {
 	PutWorkflow(workflow *types.Workflow, opts ...PutOptFunc) error
 	ScheduleWorkflow(workflowName string, opts ...ScheduleOptFunc) error
 
 	// RunWorkflow triggers a workflow run and returns the run id
 	RunWorkflow(workflowName string, input interface{}, opts ...RunOptFunc) (string, error)
+
+	BulkRunWorkflow(workflows []*WorkflowRun) ([]string, error)
 
 	RunChildWorkflow(workflowName string, input interface{}, opts *ChildWorkflowOpts) (string, error)
 
@@ -212,6 +220,43 @@ func (a *adminClientImpl) RunWorkflow(workflowName string, input interface{}, op
 	}
 
 	return res.WorkflowRunId, nil
+}
+
+func (a *adminClientImpl) BulkRunWorkflow(workflows []*WorkflowRun) ([]string, error) {
+
+	triggerWorkflowRequests := make([]*admincontracts.TriggerWorkflowRequest, len(workflows))
+
+	for i, workflow := range workflows {
+		inputBytes, err := json.Marshal(workflow.Input)
+		if err != nil {
+			return nil, fmt.Errorf("could not marshal input: %w", err)
+		}
+
+		triggerWorkflowRequests[i] = &admincontracts.TriggerWorkflowRequest{
+			Name:  workflow.Name,
+			Input: string(inputBytes),
+		}
+
+		for _, optionFunc := range workflow.Options {
+			err = optionFunc(triggerWorkflowRequests[i])
+			if err != nil {
+				return nil, fmt.Errorf("could not apply run option: %w", err)
+			}
+		}
+	}
+
+	r := admincontracts.BulkTriggerWorkflowRequest{
+		Workflows: triggerWorkflowRequests,
+	}
+
+	res, err := a.client.BulkTriggerWorkflow(a.ctx.newContext(context.Background()), &r)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not bulk trigger workflows: %w", err)
+	}
+
+	return res.WorkflowRunIds, nil
+
 }
 
 func (a *adminClientImpl) RunChildWorkflow(workflowName string, input interface{}, opts *ChildWorkflowOpts) (string, error) {

@@ -18,6 +18,8 @@ type CreateWorkflowRunOpts struct {
 	// (optional) the workflow run display name
 	DisplayName *string
 
+	TenantId string `validate:"required,uuid"`
+
 	// (required) the workflow version id
 	WorkflowVersionId string `validate:"required,uuid"`
 
@@ -49,7 +51,8 @@ type CreateWorkflowRunOpts struct {
 	ChildKey *string
 
 	// (optional) the child index of the workflow run, if this is a child run of a different workflow
-	ChildIndex *int
+	// python sdk uses -1 as default value
+	ChildIndex *int `validate:"omitempty,min=-1"`
 
 	// (optional) additional metadata for the workflow run
 	AdditionalMetadata map[string]interface{} `validate:"omitempty"`
@@ -400,6 +403,9 @@ type WorkflowRunAPIRepository interface {
 	// GetWorkflowRunById returns a workflow run by id.
 	GetWorkflowRunById(ctx context.Context, tenantId, runId string) (*dbsqlc.GetWorkflowRunByIdRow, error)
 
+	// GetWorkflowRunById returns a workflow run by id.
+	GetWorkflowRunByIds(ctx context.Context, tenantId string, runIds []string) ([]*dbsqlc.GetWorkflowRunByIdsRow, error)
+
 	GetStepsForJobs(ctx context.Context, tenantId string, jobIds []string) ([]*dbsqlc.GetStepsForJobsRow, error)
 
 	GetStepRunsForJobRuns(ctx context.Context, tenantId string, jobRunIds []string) ([]*StepRunForJobRun, error)
@@ -422,6 +428,12 @@ type UpdateWorkflowRunFromGroupKeyEvalOpts struct {
 
 	Error *string
 }
+type ChildWorkflowRun struct {
+	ParentId        string
+	ParentStepRunId string
+	ChildIndex      int
+	Childkey        *string
+}
 
 type WorkflowRunEngineRepository interface {
 	RegisterCreateCallback(callback Callback[*dbsqlc.WorkflowRun])
@@ -432,12 +444,19 @@ type WorkflowRunEngineRepository interface {
 
 	GetChildWorkflowRun(ctx context.Context, parentId, parentStepRunId string, childIndex int, childkey *string) (*dbsqlc.WorkflowRun, error)
 
+	GetChildWorkflowRuns(ctx context.Context, childWorkflowRuns []ChildWorkflowRun) ([]*dbsqlc.WorkflowRun, error)
+
 	GetScheduledChildWorkflowRun(ctx context.Context, parentId, parentStepRunId string, childIndex int, childkey *string) (*dbsqlc.WorkflowTriggerScheduledRef, error)
 
 	PopWorkflowRunsRoundRobin(ctx context.Context, tenantId, workflowId string, maxRuns int) ([]*dbsqlc.WorkflowRun, error)
 
 	// CreateNewWorkflowRun creates a new workflow run for a workflow version.
-	CreateNewWorkflowRun(ctx context.Context, tenantId string, opts *CreateWorkflowRunOpts) (string, error)
+	CreateNewWorkflowRun(ctx context.Context, tenantId string, opts *CreateWorkflowRunOpts) (*dbsqlc.WorkflowRun, error)
+
+	// CreateNewWorkflowRuns creates new workflow runs in bulk
+	CreateNewWorkflowRuns(ctx context.Context, tenantId string, opts []*CreateWorkflowRunOpts) ([]*dbsqlc.WorkflowRun, error)
+
+	CreateDeDupeKey(ctx context.Context, tenantId, workflowRunId, worrkflowVersionId, dedupeValue string) error
 
 	GetWorkflowRunInputData(tenantId, workflowRunId string) (map[string]interface{}, error)
 
@@ -447,6 +466,9 @@ type WorkflowRunEngineRepository interface {
 
 	// GetWorkflowRunById returns a workflow run by id.
 	GetWorkflowRunById(ctx context.Context, tenantId, runId string) (*dbsqlc.GetWorkflowRunRow, error)
+
+	// TODO maybe we don't need this?
+	GetWorkflowRunByIds(ctx context.Context, tenantId string, runId []string) ([]*dbsqlc.GetWorkflowRunRow, error)
 
 	QueuePausedWorkflowRun(ctx context.Context, tenantId, workflowId, workflowRunId string) error
 

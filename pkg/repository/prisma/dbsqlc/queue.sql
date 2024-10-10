@@ -11,6 +11,25 @@ VALUES
     )
 ON CONFLICT ("tenantId", "name") DO NOTHING;
 
+
+-- name: UpsertQueues :exec
+WITH input_data AS (
+    SELECT
+        UNNEST(@tenantIds::uuid[]) AS tenantId,
+        UNNEST(@names::text[]) AS name
+)
+INSERT INTO "Queue" (
+    "tenantId",
+    "name"
+)
+SELECT
+    input_data.tenantId,
+    input_data.name
+FROM
+    input_data
+ON CONFLICT ("tenantId", "name") DO NOTHING;
+
+
 -- name: ListQueues :many
 SELECT
     *

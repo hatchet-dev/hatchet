@@ -25,6 +25,7 @@ type WorkflowServiceClient interface {
 	PutWorkflow(ctx context.Context, in *PutWorkflowRequest, opts ...grpc.CallOption) (*WorkflowVersion, error)
 	ScheduleWorkflow(ctx context.Context, in *ScheduleWorkflowRequest, opts ...grpc.CallOption) (*WorkflowVersion, error)
 	TriggerWorkflow(ctx context.Context, in *TriggerWorkflowRequest, opts ...grpc.CallOption) (*TriggerWorkflowResponse, error)
+	BulkTriggerWorkflow(ctx context.Context, in *BulkTriggerWorkflowRequest, opts ...grpc.CallOption) (*BulkTriggerWorkflowResponse, error)
 	PutRateLimit(ctx context.Context, in *PutRateLimitRequest, opts ...grpc.CallOption) (*PutRateLimitResponse, error)
 }
 
@@ -63,6 +64,15 @@ func (c *workflowServiceClient) TriggerWorkflow(ctx context.Context, in *Trigger
 	return out, nil
 }
 
+func (c *workflowServiceClient) BulkTriggerWorkflow(ctx context.Context, in *BulkTriggerWorkflowRequest, opts ...grpc.CallOption) (*BulkTriggerWorkflowResponse, error) {
+	out := new(BulkTriggerWorkflowResponse)
+	err := c.cc.Invoke(ctx, "/WorkflowService/BulkTriggerWorkflow", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *workflowServiceClient) PutRateLimit(ctx context.Context, in *PutRateLimitRequest, opts ...grpc.CallOption) (*PutRateLimitResponse, error) {
 	out := new(PutRateLimitResponse)
 	err := c.cc.Invoke(ctx, "/WorkflowService/PutRateLimit", in, out, opts...)
@@ -79,6 +89,7 @@ type WorkflowServiceServer interface {
 	PutWorkflow(context.Context, *PutWorkflowRequest) (*WorkflowVersion, error)
 	ScheduleWorkflow(context.Context, *ScheduleWorkflowRequest) (*WorkflowVersion, error)
 	TriggerWorkflow(context.Context, *TriggerWorkflowRequest) (*TriggerWorkflowResponse, error)
+	BulkTriggerWorkflow(context.Context, *BulkTriggerWorkflowRequest) (*BulkTriggerWorkflowResponse, error)
 	PutRateLimit(context.Context, *PutRateLimitRequest) (*PutRateLimitResponse, error)
 	mustEmbedUnimplementedWorkflowServiceServer()
 }
@@ -95,6 +106,9 @@ func (UnimplementedWorkflowServiceServer) ScheduleWorkflow(context.Context, *Sch
 }
 func (UnimplementedWorkflowServiceServer) TriggerWorkflow(context.Context, *TriggerWorkflowRequest) (*TriggerWorkflowResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method TriggerWorkflow not implemented")
+}
+func (UnimplementedWorkflowServiceServer) BulkTriggerWorkflow(context.Context, *BulkTriggerWorkflowRequest) (*BulkTriggerWorkflowResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method BulkTriggerWorkflow not implemented")
 }
 func (UnimplementedWorkflowServiceServer) PutRateLimit(context.Context, *PutRateLimitRequest) (*PutRateLimitResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method PutRateLimit not implemented")
@@ -166,6 +180,24 @@ func _WorkflowService_TriggerWorkflow_Handler(srv interface{}, ctx context.Conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _WorkflowService_BulkTriggerWorkflow_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BulkTriggerWorkflowRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkflowServiceServer).BulkTriggerWorkflow(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/WorkflowService/BulkTriggerWorkflow",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkflowServiceServer).BulkTriggerWorkflow(ctx, req.(*BulkTriggerWorkflowRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _WorkflowService_PutRateLimit_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(PutRateLimitRequest)
 	if err := dec(in); err != nil {
@@ -202,6 +234,10 @@ var WorkflowService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "TriggerWorkflow",
 			Handler:    _WorkflowService_TriggerWorkflow_Handler,
+		},
+		{
+			MethodName: "BulkTriggerWorkflow",
+			Handler:    _WorkflowService_BulkTriggerWorkflow_Handler,
 		},
 		{
 			MethodName: "PutRateLimit",
