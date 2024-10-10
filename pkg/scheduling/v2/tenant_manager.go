@@ -75,6 +75,9 @@ func (t *tenantManager) Cleanup() error {
 		return err
 	}
 
+	t.queuersMu.RLock()
+	defer t.queuersMu.RUnlock()
+
 	for _, q := range t.queuers {
 		q.Cleanup()
 	}
