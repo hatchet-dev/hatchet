@@ -381,7 +381,7 @@ func (wc *WorkflowsControllerImpl) checkTenantQueue(ctx context.Context, tenantI
 		err = wc.mq.AddMessage(
 			ctx,
 			msgqueue.QueueTypeFromPartitionIDAndController(tenant.ControllerPartitionId.String, msgqueue.WorkflowController),
-			tasktypes.CheckTenantQueueToTask(tenantId),
+			tasktypes.CheckTenantQueueToTask(tenantId, "", false, false),
 		)
 
 		if err != nil {

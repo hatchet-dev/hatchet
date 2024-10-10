@@ -72,7 +72,7 @@ func (r *streamEventEngineRepository) PutStreamEvent(ctx context.Context, tenant
 		return nil, err
 	}
 
-	defer deferRollback(ctx, r.l, tx.Rollback)
+	defer sqlchelpers.DeferRollback(ctx, r.l, tx.Rollback)
 
 	streamEvent, err := r.queries.CreateStreamEvent(
 		ctx,
@@ -100,7 +100,7 @@ func (r *streamEventEngineRepository) GetStreamEvent(ctx context.Context, tenant
 	if err != nil {
 		return nil, err
 	}
-	defer deferRollback(ctx, r.l, tx.Rollback)
+	defer sqlchelpers.DeferRollback(ctx, r.l, tx.Rollback)
 
 	streamEvent, err := r.queries.GetStreamEvent(ctx, tx, dbsqlc.GetStreamEventParams{
 		ID:       streamEventId,
@@ -129,7 +129,7 @@ func (r *streamEventEngineRepository) CleanupStreamEvents(ctx context.Context) e
 		return err
 	}
 
-	defer deferRollback(ctx, r.l, tx.Rollback)
+	defer sqlchelpers.DeferRollback(ctx, r.l, tx.Rollback)
 
 	err = r.queries.CleanupStreamEvents(ctx, r.pool)
 

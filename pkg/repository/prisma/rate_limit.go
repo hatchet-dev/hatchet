@@ -83,7 +83,7 @@ func (r *rateLimitEngineRepository) ListRateLimits(ctx context.Context, tenantId
 		return nil, err
 	}
 
-	defer deferRollback(context.Background(), r.l, tx.Rollback)
+	defer sqlchelpers.DeferRollback(context.Background(), r.l, tx.Rollback)
 
 	rls, err := r.queries.ListRateLimitsForTenantNoMutate(ctx, tx, queryParams)
 

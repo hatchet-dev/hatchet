@@ -230,7 +230,7 @@ func (w *workerEngineRepository) CreateNewWorker(ctx context.Context, tenantId s
 			return nil, nil, err
 		}
 
-		defer deferRollback(ctx, w.l, tx.Rollback)
+		defer sqlchelpers.DeferRollback(ctx, w.l, tx.Rollback)
 
 		pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
 
@@ -365,7 +365,7 @@ func (w *workerEngineRepository) UpdateWorker(ctx context.Context, tenantId, wor
 		return nil, err
 	}
 
-	defer deferRollback(ctx, w.l, tx.Rollback)
+	defer sqlchelpers.DeferRollback(ctx, w.l, tx.Rollback)
 
 	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
 

@@ -164,7 +164,7 @@ func (s *getGroupKeyRunRepository) UpdateGetGroupKeyRun(ctx context.Context, ten
 		return nil, err
 	}
 
-	defer deferRollback(ctx, s.l, tx.Rollback)
+	defer sqlchelpers.DeferRollback(ctx, s.l, tx.Rollback)
 
 	res1, err := s.queries.UpdateGetGroupKeyRun(ctx, tx, updateParams)
 
