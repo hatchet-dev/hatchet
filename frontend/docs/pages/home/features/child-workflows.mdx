@@ -85,7 +85,6 @@ w.RegisterWorkflow(
 
 Note that calling `spawnWorkflow` will return immediately, and the child workflows will run in parallel. If you want to wait for child workflows, you can await the results of each workflow (see below).
 
-
 ## Spawning Workflows in Bulk
 
 If you have a large number of workflows to spawn, you can use the `spawn workflows` method to spawn multiple workflows in parallel. This method will return a list of `Workflow Reference` objects that you can use to wait for the results of each workflow.
@@ -138,8 +137,9 @@ const parentWorkflow: Workflow = {
           options: { additionalMetadata: { childKey: `child-${i}` } },
         }));
 
-        const spawnedWorkflows = await ctx.spawnWorkflows<string, string>(workflowRequests);
-
+        const spawnedWorkflows = await ctx.spawnWorkflows<string, string>(
+          workflowRequests,
+        );
 
         return spawnedWorkflows;
       },
@@ -187,8 +187,6 @@ w.RegisterWorkflow(
 
   </Tabs.Tab>
 </Tabs>
-
-
 
 ## Scatter/Gather Workflows
 

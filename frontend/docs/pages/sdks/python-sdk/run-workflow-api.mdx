@@ -23,7 +23,6 @@ This method takes the following parameters:
 
 For more information on how to interact with the return value of `run_workflow`, see the documentation for [getting workflow run results](./get-workflow-results).
 
-
 ### Running Workflows in Bulk via API
 
 Workflows can also be triggered in bulk by calling `run_workflows`. This method is available on the `hatchet.client.admin` client:
@@ -54,6 +53,7 @@ workflowRunRefs = hatchet.admin.run_workflows(
 )
 
 ```
+
 This method takes the following parameters:
 
 - `workflow_runs` (**required**): A list of WorkflowRun objects.
