@@ -398,7 +398,8 @@ model APIToken {
 }
 
 model EventKey {
-  key      String @id
+  id       BigInt @id @default(autoincrement()) @db.BigInt
+  key      String
   tenantId String @db.Uuid
 
   @@unique([key, tenantId])
