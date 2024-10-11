@@ -1182,82 +1182,6 @@ func (q *Queries) GetChildWorkflowRuns(ctx context.Context, db DBTX, arg GetChil
 	return items, nil
 }
 
-const getInsertedStepRuns = `-- name: GetInsertedStepRuns :many
-
-SELECT id FROM "StepRun"
-WHERE xmin::text = (txid_current() % (2^32)::bigint)::text
-AND ("createdAt" >= ($1::timestamp) - interval '10 milliseconds')
-ORDER BY id
-`
-
-func (q *Queries) GetInsertedStepRuns(ctx context.Context, db DBTX, createdat pgtype.Timestamp) ([]pgtype.UUID, error) {
-	rows, err := db.Query(ctx, getInsertedStepRuns, createdat)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []pgtype.UUID
-	for rows.Next() {
-		var id pgtype.UUID
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		items = append(items, id)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getInsertedWorkflowRuns = `-- name: GetInsertedWorkflowRuns :many
-SELECT "createdAt", "updatedAt", "deletedAt", "tenantId", "workflowVersionId", status, error, "startedAt", "finishedAt", "concurrencyGroupId", "displayName", id, "childIndex", "childKey", "parentId", "parentStepRunId", "additionalMetadata", duration, priority, "insertOrder" FROM "WorkflowRun"
-WHERE xmin::text = (txid_current() % (2^32)::bigint)::text
-AND ("createdAt" >= ($1::timestamp) - interval '10 milliseconds')
-ORDER BY "insertOrder" ASC
-`
-
-func (q *Queries) GetInsertedWorkflowRuns(ctx context.Context, db DBTX, createdat pgtype.Timestamp) ([]*WorkflowRun, error) {
-	rows, err := db.Query(ctx, getInsertedWorkflowRuns, createdat)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []*WorkflowRun
-	for rows.Next() {
-		var i WorkflowRun
-		if err := rows.Scan(
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.DeletedAt,
-			&i.TenantId,
-			&i.WorkflowVersionId,
-			&i.Status,
-			&i.Error,
-			&i.StartedAt,
-			&i.FinishedAt,
-			&i.ConcurrencyGroupId,
-			&i.DisplayName,
-			&i.ID,
-			&i.ChildIndex,
-			&i.ChildKey,
-			&i.ParentId,
-			&i.ParentStepRunId,
-			&i.AdditionalMetadata,
-			&i.Duration,
-			&i.Priority,
-			&i.InsertOrder,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const getScheduledChildWorkflowRun = `-- name: GetScheduledChildWorkflowRun :one
 SELECT
     id, "parentId", "triggerAt", "tickerId", input, "childIndex", "childKey", "parentStepRunId", "parentWorkflowRunId"
@@ -1956,6 +1880,54 @@ func (q *Queries) GetWorkflowRunTrigger(ctx context.Context, db DBTX, arg GetWor
 		&i.ParentId,
 	)
 	return &i, err
+}
+
+const getWorkflowRunsInsertedInThisTxn = `-- name: GetWorkflowRunsInsertedInThisTxn :many
+SELECT "createdAt", "updatedAt", "deletedAt", "tenantId", "workflowVersionId", status, error, "startedAt", "finishedAt", "concurrencyGroupId", "displayName", id, "childIndex", "childKey", "parentId", "parentStepRunId", "additionalMetadata", duration, priority, "insertOrder" FROM "WorkflowRun"
+WHERE xmin::text = (txid_current() % (2^32)::bigint)::text
+AND ("createdAt" = CURRENT_TIMESTAMP::timestamp(3))
+ORDER BY "insertOrder" ASC
+`
+
+func (q *Queries) GetWorkflowRunsInsertedInThisTxn(ctx context.Context, db DBTX) ([]*WorkflowRun, error) {
+	rows, err := db.Query(ctx, getWorkflowRunsInsertedInThisTxn)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*WorkflowRun
+	for rows.Next() {
+		var i WorkflowRun
+		if err := rows.Scan(
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.TenantId,
+			&i.WorkflowVersionId,
+			&i.Status,
+			&i.Error,
+			&i.StartedAt,
+			&i.FinishedAt,
+			&i.ConcurrencyGroupId,
+			&i.DisplayName,
+			&i.ID,
+			&i.ChildIndex,
+			&i.ChildKey,
+			&i.ParentId,
+			&i.ParentStepRunId,
+			&i.AdditionalMetadata,
+			&i.Duration,
+			&i.Priority,
+			&i.InsertOrder,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const linkStepRunParents = `-- name: LinkStepRunParents :exec

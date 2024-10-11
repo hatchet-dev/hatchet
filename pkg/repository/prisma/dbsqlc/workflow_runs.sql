@@ -550,10 +550,11 @@ INSERT INTO "WorkflowRun" (
 
 );
 
--- name: GetInsertedWorkflowRuns :many
+
+-- name: GetWorkflowRunsInsertedInThisTxn :many
 SELECT * FROM "WorkflowRun"
 WHERE xmin::text = (txid_current() % (2^32)::bigint)::text
-AND ("createdAt" >= (@createdAt::timestamp) - interval '10 milliseconds')
+AND ("createdAt" = CURRENT_TIMESTAMP::timestamp(3))
 ORDER BY "insertOrder" ASC;
 
 -- name: CreateWorkflowRunDedupe :one
@@ -943,12 +944,6 @@ INSERT INTO "StepRun" (
     $8
 
 );
--- name: GetInsertedStepRuns :many
-
-SELECT id FROM "StepRun"
-WHERE xmin::text = (txid_current() % (2^32)::bigint)::text
-AND ("createdAt" >= (@createdAt::timestamp) - interval '10 milliseconds')
-ORDER BY id;
 
 -- name: GetStepsForWorkflowVersion :many
 

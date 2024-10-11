@@ -1390,8 +1390,6 @@ func createNewWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbs
 
 			if opt.ChildIndex != nil {
 
-				// I think something in the python SDK/examples is setting this to -1 (works with my go example fails with python)
-
 				if *opt.ChildIndex < -1 {
 					l.Error().Msgf("child index must be greater than or equal to -1 but it is : %d", *opt.ChildIndex)
 					return nil, errors.New("child index must be greater than or equal to -1 but it is : " + strconv.Itoa(*opt.ChildIndex))
@@ -1521,9 +1519,6 @@ func createNewWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbs
 
 		}
 
-		// we use this with xmin to retrieve workflow runs that were created in the same transaction
-		workflowTimestamp := sqlchelpers.TimestampFromTime(time.Now().UTC())
-
 		_, err = queries.CreateWorkflowRuns(
 			tx1Ctx,
 			tx,
@@ -1535,7 +1530,7 @@ func createNewWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbs
 			return nil, err
 		}
 
-		workflowRuns, err := queries.GetInsertedWorkflowRuns(tx1Ctx, tx, workflowTimestamp)
+		workflowRuns, err := queries.GetWorkflowRunsInsertedInThisTxn(tx1Ctx, tx)
 
 		if err != nil {
 			l.Error().Err(err).Msg("failed to get inserted workflow runs")
@@ -1543,7 +1538,13 @@ func createNewWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbs
 		}
 
 		if len(workflowRuns) == 0 {
+			l.Error().Msg("no new workflow runs created in transaction")
 			return nil, errors.New("no new workflow runs created")
+		}
+
+		if len(workflowRuns) != len(createRunsParams) {
+			l.Error().Msg("number of created workflow runs does not match number of returned workflow runs")
+			return nil, errors.New("number of created workflow runs does not match number of returned workflow runs")
 		}
 
 		if len(stickyInfos) > 0 {
