@@ -289,7 +289,6 @@ func (b *IngestBuf[T, U]) Start() (func() error, error) {
 	b.state = started
 
 	go b.buffWorker()
-	// go b.startDebugLoop()
 
 	return b.cleanup, nil
 }
