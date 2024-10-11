@@ -604,6 +604,19 @@ func (w *workflowRunEngineRepository) GetWorkflowRunById(ctx context.Context, te
 
 func (w *workflowRunEngineRepository) GetWorkflowRunByIds(ctx context.Context, tenantId string, ids []string) ([]*dbsqlc.GetWorkflowRunRow, error) {
 
+	// we need to only search for unique ids
+	uniqueIds := make(map[string]bool)
+
+	for _, id := range ids {
+		uniqueIds[id] = true
+	}
+
+	ids = make([]string, 0, len(uniqueIds))
+
+	for id := range uniqueIds {
+		ids = append(ids, id)
+	}
+
 	uuids := make([]pgtype.UUID, len(ids))
 
 	for i, id := range ids {
@@ -620,7 +633,23 @@ func (w *workflowRunEngineRepository) GetWorkflowRunByIds(ctx context.Context, t
 	}
 
 	if len(runs) != len(uuids) {
-		return nil, repository.ErrWorkflowRunNotFound
+		missingIds := make([]string, 0, len(uuids)-len(runs))
+
+		for _, id := range uuids {
+			found := false
+			for _, run := range runs {
+				if run.WorkflowRun.ID == id {
+					found = true
+					break
+				}
+			}
+
+			if !found {
+				missingIds = append(missingIds, sqlchelpers.UUIDToStr(id))
+			}
+		}
+
+		return nil, fmt.Errorf("%w: could not find workflow runs with ids: %s", repository.ErrWorkflowRunNotFound, strings.Join(missingIds, ", "))
 	}
 
 	return runs, nil

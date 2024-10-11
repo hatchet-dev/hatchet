@@ -725,7 +725,7 @@ func getOpts(ctx context.Context, requests []*contracts.TriggerWorkflowRequest, 
 	parentWorkflowRuns, err := a.repo.WorkflowRun().GetWorkflowRunByIds(createContext, tenantId, parentIds)
 
 	if err != nil {
-		return nil, nil, fmt.Errorf("could not get parent workflow runs: %w", err)
+		return nil, nil, status.Errorf(codes.InvalidArgument, "could not get parent workflow runs: %s -  %v", strings.Join(parentIds, ","), err)
 	}
 
 	for _, wfr := range parentWorkflowRuns {
@@ -770,7 +770,7 @@ func getOpts(ctx context.Context, requests []*contracts.TriggerWorkflowRequest, 
 		if req.AdditionalMetadata != nil {
 			err := json.Unmarshal([]byte(*req.AdditionalMetadata), &additionalMetadata)
 			if err != nil {
-				return nil, nil, fmt.Errorf("could not unmarshal additional metadata: %w", err)
+				return nil, nil, status.Errorf(codes.InvalidArgument, "could not unmarshal additional metadata received metadata %s but %v", *req.AdditionalMetadata, err)
 			}
 		}
 		isParentTriggered := req.ParentId != nil
