@@ -872,7 +872,7 @@ func (ec *JobsControllerImpl) handleStepRunStarted(ctx context.Context, task *ms
 		return fmt.Errorf("could not parse started at: %w", err)
 	}
 
-	err = ec.repo.StepRun().StepRunStarted(ctx, metadata.TenantId, payload.StepRunId, startedAt)
+	err = ec.repo.StepRun().StepRunStarted(ctx, metadata.TenantId, payload.WorkflowRunId, payload.StepRunId, startedAt)
 
 	if err != nil {
 		return fmt.Errorf("could not update step run: %w", err)
@@ -913,7 +913,7 @@ func (ec *JobsControllerImpl) handleStepRunFinished(ctx context.Context, task *m
 		stepOutput = []byte(payload.StepOutputData)
 	}
 
-	err = ec.repo.StepRun().StepRunSucceeded(ctx, metadata.TenantId, payload.StepRunId, finishedAt, stepOutput)
+	err = ec.repo.StepRun().StepRunSucceeded(ctx, metadata.TenantId, payload.WorkflowRunId, payload.StepRunId, finishedAt, stepOutput)
 
 	if err != nil {
 		return fmt.Errorf("could not update step run: %w", err)
@@ -1014,7 +1014,7 @@ func (ec *JobsControllerImpl) failStepRun(ctx context.Context, tenantId, stepRun
 	}
 
 	// fail step run
-	err = ec.repo.StepRun().StepRunFailed(ctx, tenantId, stepRunId, failedAt, errorReason, int(oldStepRun.SRRetryCount))
+	err = ec.repo.StepRun().StepRunFailed(ctx, tenantId, sqlchelpers.UUIDToStr(oldStepRun.WorkflowRunId), stepRunId, failedAt, errorReason, int(oldStepRun.SRRetryCount))
 
 	if err != nil {
 		return fmt.Errorf("could not fail step run: %w", err)
@@ -1129,7 +1129,7 @@ func (ec *JobsControllerImpl) cancelStepRun(ctx context.Context, tenantId, stepR
 		return fmt.Errorf("could not get step run: %w", err)
 	}
 
-	err = ec.repo.StepRun().StepRunCancelled(ctx, tenantId, stepRunId, now, reason)
+	err = ec.repo.StepRun().StepRunCancelled(ctx, tenantId, sqlchelpers.UUIDToStr(oldStepRun.WorkflowRunId), stepRunId, now, reason)
 
 	if err != nil {
 		return fmt.Errorf("could not cancel step run: %w", err)

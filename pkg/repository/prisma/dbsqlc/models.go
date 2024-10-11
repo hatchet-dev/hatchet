@@ -996,6 +996,11 @@ type Event struct {
 	InsertOrder        pgtype.Int4      `json:"insertOrder"`
 }
 
+type EventKey struct {
+	Key      string      `json:"key"`
+	TenantId pgtype.UUID `json:"tenantId"`
+}
+
 type GetGroupKeyRun struct {
 	ID                pgtype.UUID      `json:"id"`
 	CreatedAt         pgtype.Timestamp `json:"createdAt"`
