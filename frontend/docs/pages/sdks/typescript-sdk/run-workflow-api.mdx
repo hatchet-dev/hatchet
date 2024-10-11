@@ -41,3 +41,50 @@ const workflowRun = hatchet.admin.runWorkflow(
 ### Exceptions
 
 - `HatchetError`: Thrown if there is any error during the workflow spawning process, with the error message provided.
+
+
+## Running Workflows in Bulk via API
+
+Workflows can also be triggered in bulk by calling `runWorkflows`. This method is available on the `hatchet.admin` client:
+
+```ts filename="run-workflows.ts" copy
+import Hatchet from "@hatchet-dev/typescript-sdk";
+
+const hatchet = Hatchet.init();
+const workflowRuns: WorkflowRun[] = [];
+
+workflowRuns[0] = {
+  workflowName: 'bulk-parent-workflow',
+  input: {},
+  options: {
+    additionalMetadata: {
+      key: 'value',
+    },
+  },
+};
+
+workflowRuns[1] = {
+  workflowName: 'bulk-parent-workflow',
+  input: { second: 'second' },
+  options: {
+    additionalMetadata: {
+      key: 'value',
+    },
+  },
+};
+
+const workflowRunResponse = hatchet.admin.runWorkflows(workflowRuns);
+
+```
+
+### Parameters
+
+- `workflowRuns` (`WorkflowRun[]`): An array of `WorkflowRun` objects.
+
+### Returns
+
+- [`WorkflowRunRef`](./get-workflow-results): An array of references to the workflow runs, with the output data type specified by the generic type parameter `P`.
+
+### Exceptions
+
+- `HatchetError`: Thrown if there is any error during the workflow spawning process, with the error message provided.

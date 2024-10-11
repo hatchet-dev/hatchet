@@ -22,3 +22,38 @@ This method takes the following parameters:
   - `additional_metadata`: A dict of key-value strings to attach to the workflow run. This metadata will be shown in the Hatchet UI and will be available in API endpoints for listing/filtering.
 
 For more information on how to interact with the return value of `run_workflow`, see the documentation for [getting workflow run results](./get-workflow-results).
+
+
+### Running Workflows in Bulk via API
+
+Workflows can also be triggered in bulk by calling `run_workflows`. This method is available on the `hatchet.client.admin` client:
+
+```python filename="run_workflows.py" copy
+from hatchet_sdk import Hatchet, ClientConfig
+
+hatchet = Hatchet()
+
+workflowRuns: WorkflowRun = []
+
+for i in range(20):
+    workflowRuns.append(
+        {
+            "workflow_name": "BulkParent",
+            "input": {"n": i},
+            "options": {
+                "additional_metadata": {
+                    "bulk-trigger": i,
+                    "hello-{i}": "earth-{i}",
+                },
+            },
+        }
+    )
+
+workflowRunRefs = hatchet.admin.run_workflows(
+    workflowRuns,
+)
+
+```
+This method takes the following parameters:
+
+- `workflow_runs` (**required**): A list of WorkflowRun objects.

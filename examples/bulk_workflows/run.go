@@ -35,9 +35,19 @@ func runBulk() (func() error, error) {
 
 					sticky := true
 
-					_, err = ctx.SpawnWorkflow("step-one", nil, &worker.SpawnWorkflowOpts{
-						Sticky: &sticky,
-					})
+					_, err = ctx.SpawnWorkflows(
+						[]*worker.SpawnWorkflowsOpts{
+							{
+								WorkflowName: "step-one",
+
+								Sticky: &sticky,
+							},
+							{
+								WorkflowName: "step-one",
+
+								Sticky: &sticky,
+							},
+						})
 
 					if err != nil {
 						return nil, fmt.Errorf("error spawning workflow: %w", err)
