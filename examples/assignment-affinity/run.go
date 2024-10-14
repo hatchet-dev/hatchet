@@ -23,7 +23,7 @@ func run() (func() error, error) {
 		),
 		worker.WithLabels(map[string]interface{}{
 			"model":  "fancy-ai-model-v2",
-			"memory": 512,
+			"memory": 1024,
 		}),
 	)
 	if err != nil {

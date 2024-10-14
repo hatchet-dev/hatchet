@@ -436,6 +436,57 @@ func (q *Queries) ListDispatcherIdsForWorkers(ctx context.Context, db DBTX, arg 
 	return items, nil
 }
 
+const listManyWorkerLabels = `-- name: ListManyWorkerLabels :many
+SELECT
+    "id",
+    "key",
+    "intValue",
+    "strValue",
+    "createdAt",
+    "updatedAt",
+    "workerId"
+FROM "WorkerLabel" wl
+WHERE wl."workerId" = ANY($1::uuid[])
+`
+
+type ListManyWorkerLabelsRow struct {
+	ID        int64            `json:"id"`
+	Key       string           `json:"key"`
+	IntValue  pgtype.Int4      `json:"intValue"`
+	StrValue  pgtype.Text      `json:"strValue"`
+	CreatedAt pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt pgtype.Timestamp `json:"updatedAt"`
+	WorkerId  pgtype.UUID      `json:"workerId"`
+}
+
+func (q *Queries) ListManyWorkerLabels(ctx context.Context, db DBTX, workerids []pgtype.UUID) ([]*ListManyWorkerLabelsRow, error) {
+	rows, err := db.Query(ctx, listManyWorkerLabels, workerids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListManyWorkerLabelsRow
+	for rows.Next() {
+		var i ListManyWorkerLabelsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Key,
+			&i.IntValue,
+			&i.StrValue,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.WorkerId,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listRecentAssignedEventsForWorker = `-- name: ListRecentAssignedEventsForWorker :many
 SELECT
     "workerId",

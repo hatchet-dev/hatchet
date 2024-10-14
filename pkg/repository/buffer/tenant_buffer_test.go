@@ -1,4 +1,4 @@
-package prisma
+package buffer
 
 import (
 	"context"
@@ -77,8 +77,8 @@ func TestTenantBufferManager_BuffItem(t *testing.T) {
 
 	// Collect the result after the item is flushed
 	resp := <-respChan
-	require.NoError(t, resp.err)
-	assert.Equal(t, event.ID, resp.result.ID)
+	require.NoError(t, resp.Err)
+	assert.Equal(t, event.ID, resp.Result.ID)
 }
 
 func generateTestCases(numTenants int) []struct {
@@ -144,8 +144,8 @@ func TestTenantBufferManager_CreateMultipleBuffers(t *testing.T) {
 			require.NoError(t, err)
 
 			resp := <-respChan
-			require.NoError(t, resp.err)
-			assert.Equal(t, tc.event.ID, resp.result.ID)
+			require.NoError(t, resp.Err)
+			assert.Equal(t, tc.event.ID, resp.Result.ID)
 		}(tc)
 	}
 
@@ -185,8 +185,8 @@ func TestTenantBufferManager_OrderPreservation(t *testing.T) {
 
 			// Collect the result after the item is flushed
 			resp := <-respChan
-			require.NoError(t, resp.err)
-			assert.Equal(t, id, resp.result.ID)
+			require.NoError(t, resp.Err)
+			assert.Equal(t, id, resp.Result.ID)
 		}(id)
 	}
 

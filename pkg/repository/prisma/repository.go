@@ -8,6 +8,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/buffer"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
@@ -288,7 +289,7 @@ func NewEngineRepository(pool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ..
 		f(opts)
 	}
 
-	setDefaults(cf)
+	buffer.SetDefaults(cf.FlushPeriodMilliseconds, cf.FlushItemsThreshold)
 
 	newLogger := opts.l.With().Str("service", "database").Logger()
 	opts.l = &newLogger

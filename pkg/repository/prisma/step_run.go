@@ -8,7 +8,6 @@ import (
 	"hash/fnv"
 	"math/rand"
 	"sort"
-	"strings"
 	"sync"
 	"time"
 
@@ -23,6 +22,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/buffer"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
@@ -268,8 +268,8 @@ type stepRunEngineRepository struct {
 	cachedStepIdHasRateLimit *cache.Cache
 	callbacks                []repository.Callback[*dbsqlc.ResolveWorkflowRunStatusRow]
 
-	bulkStatusBuffer *TenantBufferManager[*updateStepRunQueueData, pgtype.UUID]
-	bulkEventBuffer  *TenantBufferManager[*repository.CreateStepRunEventOpts, int]
+	bulkStatusBuffer *buffer.TenantBufferManager[*updateStepRunQueueData, pgtype.UUID]
+	bulkEventBuffer  *buffer.BulkEventWriter
 
 	updateConcurrentFactor int
 	maxHashFactor          int
@@ -286,6 +286,12 @@ func (s *stepRunEngineRepository) cleanup() error {
 func NewStepRunEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, cf *server.ConfigFileRuntime, rlCache *cache.Cache) (*stepRunEngineRepository, func() error, error) {
 	queries := dbsqlc.New()
 
+	eventBuffer, err := buffer.NewBulkEventWriter(pool, v, l)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
 	s := &stepRunEngineRepository{
 		pool:                     pool,
 		v:                        v,
@@ -295,9 +301,10 @@ func NewStepRunEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *ze
 		cachedStepIdHasRateLimit: rlCache,
 		updateConcurrentFactor:   cf.UpdateConcurrentFactor,
 		maxHashFactor:            cf.UpdateHashFactor,
+		bulkEventBuffer:          eventBuffer,
 	}
 
-	err := s.startBuffers()
+	err = s.startBuffers()
 
 	if err != nil {
 		l.Err(err).Msg("could not start buffers")
@@ -329,7 +336,7 @@ func sizeOfEventData(item *repository.CreateStepRunEventOpts) int {
 }
 
 func (s *stepRunEngineRepository) startBuffers() error {
-	statusBufOpts := TenantBufManagerOpts[*updateStepRunQueueData, pgtype.UUID]{
+	statusBufOpts := buffer.TenantBufManagerOpts[*updateStepRunQueueData, pgtype.UUID]{
 		OutputFunc: s.bulkUpdateStepRunStatuses,
 		SizeFunc:   sizeOfUpdateData,
 		L:          s.l,
@@ -337,20 +344,11 @@ func (s *stepRunEngineRepository) startBuffers() error {
 	}
 
 	var err error
-	s.bulkStatusBuffer, err = NewTenantBufManager(statusBufOpts)
+	s.bulkStatusBuffer, err = buffer.NewTenantBufManager(statusBufOpts)
 
 	if err != nil {
 		return err
 	}
-
-	eventBufOpts := TenantBufManagerOpts[*repository.CreateStepRunEventOpts, int]{
-		OutputFunc: s.bulkWriteStepRunEvents,
-		SizeFunc:   sizeOfEventData,
-		L:          s.l,
-		V:          s.v,
-	}
-
-	s.bulkEventBuffer, err = NewTenantBufManager(eventBufOpts)
 
 	return err
 }
@@ -533,7 +531,7 @@ func (s *stepRunEngineRepository) bulkWriteStepRunEvents(ctx context.Context, op
 		}
 	}
 
-	err := deadlockRetry(s.l, func() (err error) {
+	err := sqlchelpers.DeadlockRetry(s.l, func() (err error) {
 		tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, s.pool, s.l, 10000)
 
 		if err != nil {
@@ -795,54 +793,8 @@ func (s *stepRunEngineRepository) ListStepRunsToTimeout(ctx context.Context, ten
 	return len(stepRunIds) == limit, stepRuns, nil
 }
 
-var deadlockRetry = func(l *zerolog.Logger, f func() error) error {
-	return genericRetry(l.Warn(), 3, f, "deadlock", func(err error) (bool, error) {
-		return strings.Contains(err.Error(), "deadlock detected"), err
-	}, 50*time.Millisecond, 200*time.Millisecond)
-}
-
-var genericRetry = func(l *zerolog.Event, maxRetries int, f func() error, msg string, condition func(err error) (bool, error), minSleep, maxSleep time.Duration) error {
-	retries := 0
-
-	for {
-		err := f()
-
-		if err != nil {
-			// condition detected, retry
-			if ok, overrideErr := condition(err); ok {
-				retries++
-
-				if retries > maxRetries {
-					return err
-				}
-
-				l.Err(err).Msgf("retry (%s) condition met, retry %d", msg, retries)
-
-				// sleep with jitter
-				sleepWithJitter(minSleep, maxSleep)
-			} else {
-				if overrideErr != nil {
-					return overrideErr
-				}
-
-				return err
-			}
-		}
-
-		if err == nil {
-			if retries > 0 {
-				l.Msgf("retry (%s) condition resolved after %d retries", msg, retries)
-			}
-
-			break
-		}
-	}
-
-	return nil
-}
-
 func (s *stepRunEngineRepository) ReleaseStepRunSemaphore(ctx context.Context, tenantId, stepRunId string, isUserTriggered bool) error {
-	return deadlockRetry(s.l, func() error {
+	return sqlchelpers.DeadlockRetry(s.l, func() error {
 		tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, s.pool, s.l, 5000)
 
 		if err != nil {
@@ -2564,7 +2516,7 @@ func (s *stepRunEngineRepository) StepRunSucceeded(ctx context.Context, tenantId
 		return fmt.Errorf("could not buffer step run succeeded: %w", err)
 	}
 
-	var response *flushResponse[pgtype.UUID]
+	var response *buffer.FlushResponse[pgtype.UUID]
 
 	select {
 	case response = <-done:
@@ -2574,8 +2526,8 @@ func (s *stepRunEngineRepository) StepRunSucceeded(ctx context.Context, tenantId
 		return fmt.Errorf("timeout waiting for step run succeeded to be flushed to db")
 	}
 
-	if response.err != nil {
-		return fmt.Errorf("could not flush step run succeeded: %w", response.err)
+	if response.Err != nil {
+		return fmt.Errorf("could not flush step run succeeded: %w", response.Err)
 	}
 
 	tx, err := s.pool.Begin(ctx)
@@ -3292,22 +3244,6 @@ func archiveStepRunResult(ctx context.Context, queries *dbsqlc.Queries, db dbsql
 	_, err := queries.ArchiveStepRunResultFromStepRun(ctx, db, params)
 
 	return err
-}
-
-// sleepWithJitter sleeps for a random duration between min and max duration.
-// min and max are time.Duration values, specifying the minimum and maximum sleep times.
-func sleepWithJitter(min, max time.Duration) {
-	if min > max {
-		min, max = max, min // Swap if min is greater than max
-	}
-
-	jitter := max - min
-	if jitter > 0 {
-		sleepDuration := min + time.Duration(rand.Int63n(int64(jitter))) // nolint: gosec
-		time.Sleep(sleepDuration)
-	} else {
-		time.Sleep(min) // Sleep for min duration if jitter is not positive
-	}
 }
 
 func (s *stepRunEngineRepository) RefreshTimeoutBy(ctx context.Context, tenantId, stepRunId string, opts repository.RefreshTimeoutBy) (pgtype.Timestamp, error) {

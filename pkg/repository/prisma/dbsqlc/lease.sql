@@ -1,4 +1,14 @@
-
+-- name: GetLeasesToAcquire :exec
+SELECT
+    *
+FROM
+    "Lease"
+WHERE
+    "tenantId" = @tenantId::uuid
+    AND "kind" = @kind::"LeaseKind"
+    AND "expiresAt" < now()
+    AND "resourceId" = ANY(@resourceIds::text[])
+FOR UPDATE;
 
 -- name: AcquireLeases :many
 -- Attempts to acquire leases for a set of resources. Returns the acquired leases.

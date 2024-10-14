@@ -2,46 +2,32 @@ package v2
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"sync"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 	"github.com/sasha-s/go-deadlock"
 
+	"github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/buffer"
+	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 )
 
-type queueRepo interface {
-	ListQueues(ctx context.Context, tenantId pgtype.UUID) ([]*dbsqlc.Queue, error)
-}
-
-type queueDbQueries struct {
-	queries *dbsqlc.Queries
-	pool    *pgxpool.Pool
-	l       *zerolog.Logger
-}
-
-func newQueueDbQueries(queries *dbsqlc.Queries, pool *pgxpool.Pool, l *zerolog.Logger) *queueDbQueries {
-	return &queueDbQueries{
-		queries: queries,
-		pool:    pool,
-		l:       l,
-	}
-}
-
-func (d *queueDbQueries) ListQueues(ctx context.Context, tenantId pgtype.UUID) ([]*dbsqlc.Queue, error) {
-	return d.queries.ListQueues(ctx, d.pool, tenantId)
-}
-
-type queueItemRepo interface {
+type queuerRepo interface {
 	ListQueueItems(ctx context.Context) ([]*dbsqlc.QueueItem, error)
 	MarkQueueItemsProcessed(ctx context.Context, r *assignResults) (succeeded []*AssignedQueueItem, failed []*AssignedQueueItem, err error)
+	GetStepRunRateLimits(ctx context.Context, queueItems []*dbsqlc.QueueItem) (map[string]map[string]int32, error)
+	GetDesiredLabels(ctx context.Context, stepIds []pgtype.UUID) (map[string][]*dbsqlc.GetDesiredLabelsRow, error)
 }
 
-type queueItemDbQueries struct {
+type queuerDbQueries struct {
 	tenantId  pgtype.UUID
 	queueName string
 
@@ -52,32 +38,273 @@ type queueItemDbQueries struct {
 	limit  pgtype.Int4
 	gtId   pgtype.Int8
 	gtIdMu deadlock.Mutex
+
+	eventBuffer              *buffer.BulkEventWriter
+	cachedStepIdHasRateLimit *cache.Cache
 }
 
-func newQueueItemDbQueries(cf *sharedConfig, tenantId pgtype.UUID, queueName string, limit int32) *queueItemDbQueries {
-	return &queueItemDbQueries{
-		tenantId:  tenantId,
-		queueName: queueName,
-		queries:   cf.queries,
-		pool:      cf.pool,
-		l:         cf.l,
+func newQueueItemDbQueries(cf *sharedConfig, tenantId pgtype.UUID, eventBuffer *buffer.BulkEventWriter, queueName string, limit int32) *queuerDbQueries {
+	return &queuerDbQueries{
+		tenantId:    tenantId,
+		queueName:   queueName,
+		queries:     cf.queries,
+		pool:        cf.pool,
+		l:           cf.l,
+		eventBuffer: eventBuffer,
 		limit: pgtype.Int4{
 			Int32: limit,
 			Valid: true,
 		},
+		cachedStepIdHasRateLimit: cache.New(5 * time.Minute),
 	}
 }
 
-func (d *queueItemDbQueries) ListQueueItems(ctx context.Context) ([]*dbsqlc.QueueItem, error) {
-	return d.queries.ListQueueItemsForQueue(ctx, d.pool, dbsqlc.ListQueueItemsForQueueParams{
+func (d *queuerDbQueries) ListQueueItems(ctx context.Context) ([]*dbsqlc.QueueItem, error) {
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, d.pool, d.l, 5000)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer rollback()
+
+	qis, err := d.queries.ListQueueItemsForQueue(ctx, tx, dbsqlc.ListQueueItemsForQueueParams{
 		Tenantid: d.tenantId,
 		Queue:    d.queueName,
 		GtId:     d.gtId,
 		Limit:    d.limit,
 	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	qis, err = d.removeInvalidStepRuns(ctx, tx, qis)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if err := commit(ctx); err != nil {
+		return nil, err
+	}
+
+	return qis, nil
 }
 
-func (d *queueItemDbQueries) MarkQueueItemsProcessed(ctx context.Context, r *assignResults) (
+// removeInvalidStepRuns removes all duplicate step runs and step runs which are in a finalized state from
+// the queue. It returns the remaining queue items and an error if one occurred.
+func (s *queuerDbQueries) removeInvalidStepRuns(ctx context.Context, tx pgx.Tx, qis []*dbsqlc.QueueItem) ([]*dbsqlc.QueueItem, error) {
+	if len(qis) == 0 {
+		return qis, nil
+	}
+
+	currStepRunIds := make([]pgtype.UUID, len(qis))
+
+	for i, qi := range qis {
+		currStepRunIds[i] = qi.StepRunId
+	}
+
+	// remove duplicates
+	encountered := map[string]bool{}
+	remaining1 := make([]*dbsqlc.QueueItem, 0, len(qis))
+	cancelled := make([]int64, 0, len(qis))
+
+	for _, v := range qis {
+		stepRunId := sqlchelpers.UUIDToStr(v.StepRunId)
+
+		if encountered[stepRunId] {
+			cancelled = append(cancelled, v.ID)
+			continue
+		}
+
+		encountered[stepRunId] = true
+		remaining1 = append(remaining1, v)
+	}
+
+	finalizedStepRuns, err := s.queries.GetFinalizedStepRuns(ctx, tx, currStepRunIds)
+
+	if err != nil {
+		return nil, err
+	}
+
+	finalizedStepRunsMap := make(map[string]bool, len(finalizedStepRuns))
+
+	for _, sr := range finalizedStepRuns {
+		s.l.Warn().Msgf("step run %s is in state %s, skipping queueing", sqlchelpers.UUIDToStr(sr.ID), string(sr.Status))
+		finalizedStepRunsMap[sqlchelpers.UUIDToStr(sr.ID)] = true
+	}
+
+	// remove cancelled step runs from the queue items
+	remaining2 := make([]*dbsqlc.QueueItem, 0, len(remaining1))
+
+	for _, qi := range remaining1 {
+		if _, ok := finalizedStepRunsMap[sqlchelpers.UUIDToStr(qi.StepRunId)]; ok {
+			cancelled = append(cancelled, qi.ID)
+			continue
+		}
+
+		remaining2 = append(remaining2, qi)
+	}
+
+	if len(cancelled) > 0 {
+		err = s.queries.BulkQueueItems(ctx, tx, cancelled)
+
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return remaining2, nil
+}
+
+func (s *queuerDbQueries) bulkStepRunsAssigned(
+	tenantId string,
+	assignedAt time.Time,
+	stepRunIds []pgtype.UUID,
+	workerIds []pgtype.UUID,
+) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	workerIdToStepRunIds := make(map[string][]string)
+
+	for i := range stepRunIds {
+		workerId := sqlchelpers.UUIDToStr(workerIds[i])
+
+		if _, ok := workerIdToStepRunIds[workerId]; !ok {
+			workerIdToStepRunIds[workerId] = make([]string, 0)
+		}
+
+		workerIdToStepRunIds[workerId] = append(workerIdToStepRunIds[workerId], sqlchelpers.UUIDToStr(stepRunIds[i]))
+		message := fmt.Sprintf("Assigned to worker %s", workerId)
+		timeSeen := assignedAt
+		reasons := dbsqlc.StepRunEventReasonASSIGNED
+		severity := dbsqlc.StepRunEventSeverityINFO
+		data := map[string]interface{}{"worker_id": workerId}
+
+		_, err := s.eventBuffer.BuffItem(tenantId, &repository.CreateStepRunEventOpts{
+			StepRunId:     sqlchelpers.UUIDToStr(stepRunIds[i]),
+			EventMessage:  &message,
+			EventReason:   &reasons,
+			EventSeverity: &severity,
+			Timestamp:     &timeSeen,
+			EventData:     data,
+		})
+
+		if err != nil {
+			s.l.Err(err).Msg("could not buffer step run event")
+		}
+	}
+
+	orderedWorkerIds := make([]pgtype.UUID, 0)
+	assignedStepRuns := make([][]byte, 0)
+
+	for workerId, stepRunIds := range workerIdToStepRunIds {
+		orderedWorkerIds = append(orderedWorkerIds, sqlchelpers.UUIDFromStr(workerId))
+		assignedStepRunsBytes, _ := json.Marshal(stepRunIds) // nolint: errcheck
+		assignedStepRuns = append(assignedStepRuns, assignedStepRunsBytes)
+	}
+
+	err := s.queries.CreateWorkerAssignEvents(ctx, s.pool, dbsqlc.CreateWorkerAssignEventsParams{
+		Workerids:        orderedWorkerIds,
+		Assignedstepruns: assignedStepRuns,
+	})
+
+	if err != nil {
+		s.l.Err(err).Msg("could not create worker assign events")
+	}
+}
+
+func (s *queuerDbQueries) bulkStepRunsUnassigned(
+	tenantId string,
+	stepRunIds []pgtype.UUID,
+) {
+	for _, stepRunId := range stepRunIds {
+		message := "No worker available"
+		timeSeen := time.Now().UTC()
+		severity := dbsqlc.StepRunEventSeverityWARNING
+		reason := dbsqlc.StepRunEventReasonREQUEUEDNOWORKER
+		data := map[string]interface{}{}
+
+		_, err := s.eventBuffer.BuffItem(tenantId, &repository.CreateStepRunEventOpts{
+			StepRunId:     sqlchelpers.UUIDToStr(stepRunId),
+			EventMessage:  &message,
+			EventReason:   &reason,
+			EventSeverity: &severity,
+			Timestamp:     &timeSeen,
+			EventData:     data,
+		})
+
+		if err != nil {
+			s.l.Err(err).Msg("could not buffer step run event")
+		}
+	}
+}
+
+func (s *queuerDbQueries) bulkStepRunsRateLimited(
+	tenantId string,
+	rateLimits []*rateLimitResult,
+) {
+	for _, rlResult := range rateLimits {
+		message := fmt.Sprintf(
+			"Rate limit exceeded for key %s, attempting to consume %d units, but only had %d remaining",
+			rlResult.exceededKey,
+			rlResult.exceededUnits,
+			rlResult.exceededVal,
+		)
+
+		reason := dbsqlc.StepRunEventReasonREQUEUEDRATELIMIT
+		severity := dbsqlc.StepRunEventSeverityWARNING
+		timeSeen := time.Now().UTC()
+		data := map[string]interface{}{
+			"rate_limit_key": rlResult.exceededKey,
+		}
+
+		_, err := s.eventBuffer.BuffItem(tenantId, &repository.CreateStepRunEventOpts{
+			StepRunId:     rlResult.stepRunId,
+			EventMessage:  &message,
+			EventReason:   &reason,
+			EventSeverity: &severity,
+			Timestamp:     &timeSeen,
+			EventData:     data,
+		})
+
+		if err != nil {
+			s.l.Err(err).Msg("could not buffer step run event")
+		}
+	}
+}
+
+func (d *queuerDbQueries) updateMinId() {
+	if ok := d.gtIdMu.TryLock(); !ok {
+		return
+	}
+
+	defer d.gtIdMu.Unlock()
+
+	dbCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	minId, err := d.queries.GetMinUnprocessedQueueItemId(dbCtx, d.pool, dbsqlc.GetMinUnprocessedQueueItemIdParams{
+		Tenantid: d.tenantId,
+		Queue:    d.queueName,
+	})
+
+	if err != nil {
+		d.l.Error().Err(err).Msg("error getting min id")
+		return
+	}
+
+	if minId != 0 {
+		d.gtId = pgtype.Int8{
+			Int64: minId,
+			Valid: true,
+		}
+	}
+}
+
+func (d *queuerDbQueries) MarkQueueItemsProcessed(ctx context.Context, r *assignResults) (
 	succeeded []*AssignedQueueItem, failed []*AssignedQueueItem, err error,
 ) {
 	start := time.Now()
@@ -99,32 +326,29 @@ func (d *queueItemDbQueries) MarkQueueItemsProcessed(ctx context.Context, r *ass
 	stepTimeouts := make([]string, len(r.assigned))
 
 	for i, assignedItem := range r.assigned {
-		// d.gtIdMu.Lock()
-
-		// if !d.gtId.Valid {
-		// 	d.gtId = pgtype.Int8{
-		// 		Int64: assignedItem.QueueItem.ID,
-		// 		Valid: true,
-		// 	}
-		// } else if assignedItem.QueueItem.ID > d.gtId.Int64 {
-		// 	d.gtId = pgtype.Int8{
-		// 		Int64: assignedItem.QueueItem.ID,
-		// 		Valid: true,
-		// 	}
-		// }
-
-		// d.gtIdMu.Unlock()
-
 		idsToUnqueue[i] = assignedItem.QueueItem.ID
 		stepRunIds[i] = assignedItem.QueueItem.StepRunId
 		workerIds[i] = assignedItem.WorkerId
 		stepTimeouts[i] = assignedItem.QueueItem.StepTimeout.String
 	}
 
+	unassignedStepRunIds := make([]pgtype.UUID, 0, len(r.unassigned))
+
+	for _, id := range r.unassigned {
+		unassignedStepRunIds = append(unassignedStepRunIds, id.StepRunId)
+	}
+
+	timedOutStepRuns := make([]pgtype.UUID, 0, len(r.schedulingTimedOut))
+
 	for _, id := range r.schedulingTimedOut {
 		idsToUnqueue = append(idsToUnqueue, id.ID)
+		timedOutStepRuns = append(timedOutStepRuns, id.StepRunId)
+	}
 
-		// TODO: WRITE AN ERROR MESSAGE AND ENQUEUE A STATUS UPDATE
+	_, err = d.queries.BulkMarkStepRunsAsCancelling(ctx, tx, timedOutStepRuns)
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not bulk mark step runs as cancelling: %w", err)
 	}
 
 	// TODO: ADD UNIQUE CONSTRAINT TO SEMAPHORES WITH ON CONFLICT DO NOTHING, THEN DON'T
@@ -159,6 +383,13 @@ func (d *queueItemDbQueries) MarkQueueItemsProcessed(ctx context.Context, r *ass
 		return nil, nil, err
 	}
 
+	// if we committed, we can update the min id
+	go d.updateMinId()
+
+	d.bulkStepRunsAssigned(sqlchelpers.UUIDToStr(d.tenantId), time.Now().UTC(), stepRunIds, workerIds)
+	d.bulkStepRunsUnassigned(sqlchelpers.UUIDToStr(d.tenantId), unassignedStepRunIds)
+	d.bulkStepRunsRateLimited(sqlchelpers.UUIDToStr(d.tenantId), r.rateLimited)
+
 	workerIdToDispatcherId := make(map[string]pgtype.UUID, len(dispatcherIdWorkerIds))
 
 	for _, dispatcherIdWorkerId := range dispatcherIdWorkerIds {
@@ -180,13 +411,281 @@ func (d *queueItemDbQueries) MarkQueueItemsProcessed(ctx context.Context, r *ass
 		succeeded = append(succeeded, assignedItem)
 	}
 
-	d.l.Warn().Msgf("marking queue items processed took %s (prepare=%s, update=%s, bulkqueue=%s)", time.Since(start), timeAfterPrepare, timeAfterUpdateStepRuns, timeAfterBulkQueueItems)
+	if sinceStart := time.Since(start); sinceStart > 100*time.Millisecond {
+		d.l.Warn().Msgf(
+			"marking queue items processed took longer than 100ms (%s) (prepare=%s, update=%s, bulkqueue=%s)",
+			sinceStart, timeAfterPrepare, timeAfterUpdateStepRuns, timeAfterBulkQueueItems,
+		)
+	}
 
 	return succeeded, failed, nil
 }
 
+func (d *queuerDbQueries) GetStepRunRateLimits(ctx context.Context, queueItems []*dbsqlc.QueueItem) (map[string]map[string]int32, error) {
+	stepRunIds := make([]pgtype.UUID, 0, len(queueItems))
+	stepIds := make([]pgtype.UUID, 0, len(queueItems))
+	stepsWithRateLimits := make(map[string]bool)
+
+	for _, item := range queueItems {
+		stepRunIds = append(stepRunIds, item.StepRunId)
+		stepIds = append(stepIds, item.StepId)
+	}
+
+	stepIdToStepRuns := make(map[string][]string)
+	stepRunIdToStepId := make(map[string]string)
+
+	for i, stepRunId := range stepRunIds {
+		stepId := sqlchelpers.UUIDToStr(stepIds[i])
+		stepRunIdStr := sqlchelpers.UUIDToStr(stepRunId)
+
+		if _, ok := stepIdToStepRuns[stepId]; !ok {
+			stepIdToStepRuns[stepId] = make([]string, 0)
+		}
+
+		stepIdToStepRuns[stepId] = append(stepIdToStepRuns[stepId], stepRunIdStr)
+		stepRunIdToStepId[stepRunIdStr] = stepId
+	}
+
+	// check if we have any rate limits for these step ids
+	skipRateLimiting := true
+
+	for stepIdStr := range stepIdToStepRuns {
+		if hasRateLimit, ok := d.cachedStepIdHasRateLimit.Get(stepIdStr); !ok || hasRateLimit.(bool) {
+			skipRateLimiting = false
+			break
+		}
+	}
+
+	if skipRateLimiting {
+		return nil, nil
+	}
+
+	// get all step run expression evals which correspond to rate limits, grouped by step run id
+	expressionEvals, err := d.queries.ListStepRunExpressionEvals(ctx, d.pool, stepRunIds)
+
+	if err != nil {
+		return nil, err
+	}
+
+	stepRunAndGlobalKeyToKey := make(map[string]string)
+	stepRunToKeys := make(map[string][]string)
+
+	for _, eval := range expressionEvals {
+		stepRunId := sqlchelpers.UUIDToStr(eval.StepRunId)
+		globalKey := eval.Key
+
+		// Only append if this is a key expression. Note that we have a uniqueness constraint on
+		// the stepRunId, kind, and key, so we will not insert duplicate values into the array.
+		if eval.Kind == dbsqlc.StepExpressionKindDYNAMICRATELIMITKEY {
+			stepsWithRateLimits[stepRunIdToStepId[stepRunId]] = true
+
+			k := eval.ValueStr.String
+
+			if _, ok := stepRunToKeys[stepRunId]; !ok {
+				stepRunToKeys[stepRunId] = make([]string, 0)
+			}
+
+			stepRunToKeys[stepRunId] = append(stepRunToKeys[stepRunId], k)
+
+			stepRunAndGlobalKey := fmt.Sprintf("%s-%s", stepRunId, globalKey)
+
+			stepRunAndGlobalKeyToKey[stepRunAndGlobalKey] = k
+		}
+	}
+
+	rateLimitKeyToEvals := make(map[string][]*dbsqlc.StepRunExpressionEval)
+
+	for _, eval := range expressionEvals {
+		k := stepRunAndGlobalKeyToKey[fmt.Sprintf("%s-%s", sqlchelpers.UUIDToStr(eval.StepRunId), eval.Key)]
+
+		if _, ok := rateLimitKeyToEvals[k]; !ok {
+			rateLimitKeyToEvals[k] = make([]*dbsqlc.StepRunExpressionEval, 0)
+		}
+
+		rateLimitKeyToEvals[k] = append(rateLimitKeyToEvals[k], eval)
+	}
+
+	upsertRateLimitBulkParams := dbsqlc.UpsertRateLimitsBulkParams{
+		Tenantid: d.tenantId,
+	}
+
+	stepRunToKeyToUnits := make(map[string]map[string]int32)
+
+	for key, evals := range rateLimitKeyToEvals {
+		var duration string
+		var limitValue int
+		var skip bool
+
+		for _, eval := range evals {
+			// add to stepRunToKeyToUnits
+			stepRunId := sqlchelpers.UUIDToStr(eval.StepRunId)
+
+			// throw an error if there are multiple rate limits with the same keys, but different limit values or durations
+			if eval.Kind == dbsqlc.StepExpressionKindDYNAMICRATELIMITWINDOW {
+				if duration == "" {
+					duration = eval.ValueStr.String
+				} else if duration != eval.ValueStr.String {
+					largerDuration, err := getLargerDuration(duration, eval.ValueStr.String)
+
+					if err != nil {
+						skip = true
+						break
+					}
+
+					message := fmt.Sprintf("Multiple rate limits with key %s have different durations: %s vs %s. Using longer window %s.", key, duration, eval.ValueStr.String, largerDuration)
+					timeSeen := time.Now().UTC()
+					reason := dbsqlc.StepRunEventReasonRATELIMITERROR
+					severity := dbsqlc.StepRunEventSeverityWARNING
+					data := map[string]interface{}{}
+
+					_, buffErr := d.eventBuffer.BuffItem(sqlchelpers.UUIDToStr(d.tenantId), &repository.CreateStepRunEventOpts{
+						StepRunId:     sqlchelpers.UUIDToStr(eval.StepRunId),
+						EventMessage:  &message,
+						EventReason:   &reason,
+						EventSeverity: &severity,
+						Timestamp:     &timeSeen,
+						EventData:     data,
+					})
+
+					if buffErr != nil {
+						d.l.Err(buffErr).Msg("could not buffer step run event")
+					}
+
+					duration = largerDuration
+				}
+			}
+
+			if eval.Kind == dbsqlc.StepExpressionKindDYNAMICRATELIMITVALUE {
+				if limitValue == 0 {
+					limitValue = int(eval.ValueInt.Int32)
+				} else if limitValue != int(eval.ValueInt.Int32) {
+					message := fmt.Sprintf("Multiple rate limits with key %s have different limit values: %d vs %d. Using lower value %d.", key, limitValue, eval.ValueInt.Int32, min(limitValue, int(eval.ValueInt.Int32)))
+					timeSeen := time.Now().UTC()
+					reason := dbsqlc.StepRunEventReasonRATELIMITERROR
+					severity := dbsqlc.StepRunEventSeverityWARNING
+					data := map[string]interface{}{}
+
+					_, buffErr := d.eventBuffer.BuffItem(sqlchelpers.UUIDToStr(d.tenantId), &repository.CreateStepRunEventOpts{
+						StepRunId:     sqlchelpers.UUIDToStr(eval.StepRunId),
+						EventMessage:  &message,
+						EventReason:   &reason,
+						EventSeverity: &severity,
+						Timestamp:     &timeSeen,
+						EventData:     data,
+					})
+
+					if buffErr != nil {
+						d.l.Err(buffErr).Msg("could not buffer step run event")
+					}
+
+					limitValue = min(limitValue, int(eval.ValueInt.Int32))
+				}
+			}
+
+			if eval.Kind == dbsqlc.StepExpressionKindDYNAMICRATELIMITUNITS {
+				if _, ok := stepRunToKeyToUnits[stepRunId]; !ok {
+					stepRunToKeyToUnits[stepRunId] = make(map[string]int32)
+				}
+
+				stepRunToKeyToUnits[stepRunId][key] = eval.ValueInt.Int32
+			}
+		}
+
+		if skip {
+			continue
+		}
+
+		upsertRateLimitBulkParams.Keys = append(upsertRateLimitBulkParams.Keys, key)
+		upsertRateLimitBulkParams.Windows = append(upsertRateLimitBulkParams.Windows, getWindowParamFromDurString(duration))
+		upsertRateLimitBulkParams.Limitvalues = append(upsertRateLimitBulkParams.Limitvalues, int32(limitValue)) // nolint: gosec
+	}
+
+	var stepRateLimits []*dbsqlc.StepRateLimit
+
+	if len(upsertRateLimitBulkParams.Keys) > 0 {
+		// upsert all rate limits based on the keys, limit values, and durations
+		err = d.queries.UpsertRateLimitsBulk(ctx, d.pool, upsertRateLimitBulkParams)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not bulk upsert dynamic rate limits: %w", err)
+		}
+	}
+
+	// get all existing static rate limits for steps to the mapping, mapping back from step ids to step run ids
+	uniqueStepIds := make([]pgtype.UUID, 0, len(stepIdToStepRuns))
+
+	for stepId := range stepIdToStepRuns {
+		uniqueStepIds = append(uniqueStepIds, sqlchelpers.UUIDFromStr(stepId))
+	}
+
+	stepRateLimits, err = d.queries.ListRateLimitsForSteps(ctx, d.pool, dbsqlc.ListRateLimitsForStepsParams{
+		Tenantid: d.tenantId,
+		Stepids:  uniqueStepIds,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("could not list rate limits for steps: %w", err)
+	}
+
+	for _, row := range stepRateLimits {
+		stepsWithRateLimits[sqlchelpers.UUIDToStr(row.StepId)] = true
+		stepId := sqlchelpers.UUIDToStr(row.StepId)
+		stepRuns := stepIdToStepRuns[stepId]
+
+		for _, stepRunId := range stepRuns {
+			if _, ok := stepRunToKeyToUnits[stepRunId]; !ok {
+				stepRunToKeyToUnits[stepRunId] = make(map[string]int32)
+			}
+
+			stepRunToKeyToUnits[stepRunId][row.RateLimitKey] = row.Units
+		}
+	}
+
+	rateLimitsForTenant, err := d.queries.ListRateLimitsForTenantWithMutate(ctx, d.pool, d.tenantId)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not list rate limits for tenant: %w", err)
+	}
+
+	mapRateLimitsForTenant := make(map[string]*dbsqlc.ListRateLimitsForTenantWithMutateRow)
+
+	for _, row := range rateLimitsForTenant {
+		mapRateLimitsForTenant[row.Key] = row
+	}
+
+	// store all step ids in the cache, so we can skip rate limiting for steps without rate limits
+	for stepId := range stepIdToStepRuns {
+		hasRateLimit := stepsWithRateLimits[stepId]
+		d.cachedStepIdHasRateLimit.Set(stepId, hasRateLimit)
+	}
+
+	return stepRunToKeyToUnits, nil
+}
+
+func (d *queuerDbQueries) GetDesiredLabels(ctx context.Context, stepIds []pgtype.UUID) (map[string][]*dbsqlc.GetDesiredLabelsRow, error) {
+	labels, err := d.queries.GetDesiredLabels(ctx, d.pool, stepIds)
+
+	if err != nil {
+		return nil, err
+	}
+
+	stepIdToLabels := make(map[string][]*dbsqlc.GetDesiredLabelsRow)
+
+	for _, label := range labels {
+		stepId := sqlchelpers.UUIDToStr(label.StepId)
+
+		if _, ok := stepIdToLabels[stepId]; !ok {
+			stepIdToLabels[stepId] = make([]*dbsqlc.GetDesiredLabelsRow, 0)
+		}
+
+		stepIdToLabels[stepId] = append(stepIdToLabels[stepId], label)
+	}
+
+	return stepIdToLabels, nil
+}
+
 type Queuer struct {
-	repo      queueItemRepo
+	repo      queuerRepo
 	tenantId  pgtype.UUID
 	queueName string
 
@@ -195,13 +694,6 @@ type Queuer struct {
 	s *Scheduler
 
 	lastReplenished *time.Time
-	qis             []*queueItem
-	qiMu            deadlock.Mutex
-
-	// unackedQis is a list of queue items that have been unqueued but have not been
-	// flushed to the database yet
-	unackedQis map[int64]*queueItem
-	unackedMu  deadlock.Mutex
 
 	limit int
 
@@ -214,14 +706,14 @@ type Queuer struct {
 	cleanup func()
 }
 
-func newQueuer(conf *sharedConfig, tenantId pgtype.UUID, queueName string, s *Scheduler, resultsCh chan<- *QueueResults) *Queuer {
+func newQueuer(conf *sharedConfig, tenantId pgtype.UUID, queueName string, s *Scheduler, eventBuffer *buffer.BulkEventWriter, resultsCh chan<- *QueueResults) *Queuer {
 	defaultLimit := 100
 
 	if conf.singleQueueLimit > 0 {
 		defaultLimit = conf.singleQueueLimit
 	}
 
-	repo := newQueueItemDbQueries(conf, tenantId, queueName, int32(defaultLimit))
+	repo := newQueueItemDbQueries(conf, tenantId, eventBuffer, queueName, int32(defaultLimit)) // nolint: gosec
 
 	notifyQueueCh := make(chan struct{})
 
@@ -233,7 +725,6 @@ func newQueuer(conf *sharedConfig, tenantId pgtype.UUID, queueName string, s *Sc
 		s:             s,
 		limit:         100,
 		resultsCh:     resultsCh,
-		unackedQis:    make(map[int64]*queueItem),
 		notifyQueueCh: notifyQueueCh,
 	}
 
@@ -247,22 +738,6 @@ func newQueuer(conf *sharedConfig, tenantId pgtype.UUID, queueName string, s *Sc
 
 func (q *Queuer) Cleanup() {
 	q.cleanup()
-}
-
-func (q *Queuer) activeQisLen() int {
-	res := 0
-
-	for _, qi := range q.qis {
-		if qi.active() {
-			res++
-		}
-	}
-
-	return res
-}
-
-func (q *Queuer) ack(id int64) {
-	delete(q.unackedQis, id)
 }
 
 func (q *Queuer) queue() {
@@ -298,9 +773,29 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 			continue
 		}
 
+		rls, err := q.repo.GetStepRunRateLimits(ctx, qis)
+
+		if err != nil {
+			q.l.Error().Err(err).Msg("error getting rate limits")
+			continue
+		}
+
+		stepIds := make([]pgtype.UUID, 0, len(qis))
+
+		for _, qi := range qis {
+			stepIds = append(stepIds, qi.StepId)
+		}
+
+		labels, err := q.repo.GetDesiredLabels(ctx, stepIds)
+
+		if err != nil {
+			q.l.Error().Err(err).Msg("error getting desired labels")
+			continue
+		}
+
 		timeToRefill := time.Since(start)
 
-		assignCh := q.s.tryAssign(ctx, qis)
+		assignCh := q.s.tryAssign(ctx, qis, labels, rls)
 		count := 0
 		countMu := sync.Mutex{}
 
@@ -320,7 +815,9 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 				count += numFlushed
 				countMu.Unlock()
 
-				q.l.Warn().Msgf("flushed %d items in %s", numFlushed, time.Since(startFlush))
+				if sinceStart := time.Since(startFlush); sinceStart > 100*time.Millisecond {
+					q.l.Warn().Msgf("flushing items to database took longer than 100ms (%d items in %s)", numFlushed, time.Since(startFlush))
+				}
 			}()
 		}
 
@@ -328,7 +825,9 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 
 		elapsed := time.Since(start)
 
-		q.l.Warn().Msgf("queue %s took %s to process %d items (time to refill %s)", q.queueName, elapsed, len(qis), timeToRefill)
+		if elapsed > 100*time.Millisecond {
+			q.l.Warn().Msgf("queue %s took longer than 100ms (%s) to process %d items (time to refill %s)", q.queueName, elapsed, len(qis), timeToRefill)
+		}
 
 		// if we processed all queue items, queue again
 		if len(qis) > 0 && count == len(qis) {
@@ -344,17 +843,11 @@ func (q *Queuer) refillQueue(ctx context.Context, curr []*dbsqlc.QueueItem) ([]*
 	replenish := false
 	now := time.Now()
 
-	// q.unackedMu.Lock()
-	// defer q.unackedMu.Unlock()
-
 	if len(curr) < q.limit/2 {
-		// fmt.Println("REPLENISHING BECAUSE LENGTH IS", len(curr))
 		replenish = true
 	}
 
 	if q.lastReplenished != nil {
-		// fmt.Println("REPLENISHING BECAUSE LAST REPLENISHED")
-
 		if time.Since(*q.lastReplenished) > 990*time.Millisecond {
 			replenish = true
 		}
@@ -369,133 +862,14 @@ func (q *Queuer) refillQueue(ctx context.Context, curr []*dbsqlc.QueueItem) ([]*
 	return q.repo.ListQueueItems(ctx)
 }
 
-// func (q *Queuer) replenish(ctx context.Context) error {
-// 	now := time.Now()
-
-// 	if ok := q.replenishMu.TryLock(); !ok {
-// 		return nil
-// 	}
-
-// 	defer func() {
-// 		q.replenishMu.Unlock()
-// 	}()
-
-// 	// determine whether we need to replenish with the following cases:
-// 	// - mustReplenish is true
-// 	// - we last replenished more than 1 second ago
-// 	// - if we are at less than 50% of the limit, we always attempt to replenish
-// 	replenish := false
-
-// 	q.unackedMu.Lock()
-// 	defer q.unackedMu.Unlock()
-
-// 	// fmt.Println("ACTIVE QIS LEN", q.activeQisLen(), q.queueName)
-// 	// fmt.Println("UNACKED QIS LEN", len(q.unackedQis), q.queueName)
-
-// 	if q.activeQisLen() < q.limit/2 {
-// 		replenish = true
-// 	}
-
-// 	if q.lastReplenished != nil {
-// 		if time.Since(*q.lastReplenished) > 990*time.Millisecond {
-// 			replenish = true
-// 		}
-// 	}
-
-// 	if !replenish {
-// 		return nil
-// 	}
-
-// 	// before we read from the database, we need to make sure there are no operations that can
-// 	// change the state of the queue items currently in progress
-// 	q.qiMu.Lock()
-// 	defer q.qiMu.Unlock()
-
-// 	qis, err := q.repo.ListQueueItems(ctx)
-
-// 	// fmt.Println("GOT QUEUE ITEMS", len(qis), q.queueName)
-
-// 	if err != nil {
-// 		return err
-// 	}
-
-// 	if len(qis) == 0 {
-// 		return nil
-// 	}
-
-// 	// construct new queue items, merging the new queue items with any unacked queue items
-// 	newQis := make([]*queueItem, 0, len(qis)+len(q.unackedQis))
-
-// 	for _, qi := range qis {
-// 		if unackedQi, ok := q.unackedQis[qi.ID]; ok {
-// 			newQis = append(newQis, unackedQi)
-// 		} else {
-// 			newQis = append(newQis, &queueItem{
-// 				QueueItem: qi,
-// 			})
-// 		}
-// 	}
-
-// 	fmt.Println("GOT", len(qis), "BUT LENGTH OF NEW QIS IS", len(newQis))
-
-// 	q.qis = newQis
-
-// 	q.lastReplenished = &now
-
-// 	go q.queue(ctx)
-
-// 	return nil
-// }
-
 type QueueResults struct {
 	TenantId pgtype.UUID
 	Assigned []*AssignedQueueItem
+
+	// A list of step run ids that were not assigned because they reached the scheduling
+	// timeout
+	SchedulingTimedOut []string
 }
-
-// func (q *Queuer) queuev0(ctx context.Context) {
-// 	if ok := q.queueMu.TryLock(); !ok {
-// 		return
-// 	}
-
-// 	if len(q.qis) == 0 {
-// 		q.queueMu.Unlock()
-// 		return
-// 	}
-
-// 	// TODO: change this mechanism to append to a set of queue items which should be removed
-// 	// during the next replenish, so we don't need to lock all queue items for this long
-// 	q.unackedMu.Lock()
-
-// 	fmt.Println("ATTEMPTING TO ASSIGN QUEUE ITEMS", len(q.qis))
-
-// 	assignCh := q.s.tryAssign(ctx, q.qis)
-
-// 	go func() {
-// 		defer q.queueMu.Unlock()
-// 		defer q.unackedMu.Unlock()
-
-// 		wg := sync.WaitGroup{}
-
-// 		for r := range assignCh {
-// 			wg.Add(1)
-
-// 			fmt.Println("ASSIGNED", len(r.assigned))
-
-// 			// save all unacked queue items
-// 			for i := range r.assigned {
-// 				qi := r.assigned[i]
-// 				q.unackedQis[qi.QueueItem.ID] = qi.QueueItem
-// 			}
-
-// 			go func() {
-// 				defer wg.Done()
-// 				q.flushToDatabase(ctx, r)
-// 			}()
-// 		}
-
-// 		wg.Wait()
-// 	}()
-// }
 
 func (q *Queuer) flushToDatabase(ctx context.Context, r *assignResults) int {
 	succeeded, failed, err := q.repo.MarkQueueItemsProcessed(ctx, r)
@@ -510,22 +884,81 @@ func (q *Queuer) flushToDatabase(ctx context.Context, r *assignResults) int {
 		return 0
 	}
 
-	// TODO: MOVE ACKS AND NACKS INTO THE TRANSACTION??
-	// TODO: ACK AND NACK QUEUE ITEMS??
 	for _, failedItem := range failed {
 		q.s.nack(failedItem.AckId)
-		q.ack(failedItem.QueueItem.ID)
 	}
 
 	for _, assignedItem := range succeeded {
 		q.s.ack(assignedItem.AckId)
-		q.ack(assignedItem.QueueItem.ID)
+	}
+
+	schedulingTimedOut := make([]string, 0, len(r.schedulingTimedOut))
+
+	for _, id := range r.schedulingTimedOut {
+		schedulingTimedOut = append(schedulingTimedOut, sqlchelpers.UUIDToStr(id.StepRunId))
 	}
 
 	q.resultsCh <- &QueueResults{
-		TenantId: q.tenantId,
-		Assigned: succeeded,
+		TenantId:           q.tenantId,
+		Assigned:           succeeded,
+		SchedulingTimedOut: schedulingTimedOut,
 	}
 
 	return len(succeeded)
+}
+
+func getLargerDuration(s1, s2 string) (string, error) {
+	i1, err := getDurationIndex(s1)
+	if err != nil {
+		return "", err
+	}
+
+	i2, err := getDurationIndex(s2)
+	if err != nil {
+		return "", err
+	}
+
+	if i1 > i2 {
+		return s1, nil
+	}
+
+	return s2, nil
+}
+
+func getDurationIndex(s string) (int, error) {
+	for i, d := range durationStrings {
+		if d == s {
+			return i, nil
+		}
+	}
+
+	return -1, fmt.Errorf("invalid duration string: %s", s)
+}
+
+var durationStrings = []string{
+	"SECOND",
+	"MINUTE",
+	"HOUR",
+	"DAY",
+	"WEEK",
+	"MONTH",
+	"YEAR",
+}
+
+func getWindowParamFromDurString(dur string) string {
+	// validate duration string
+	found := false
+
+	for _, d := range durationStrings {
+		if d == dur {
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		return "MINUTE"
+	}
+
+	return fmt.Sprintf("1 %s", dur)
 }

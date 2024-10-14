@@ -15,7 +15,15 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 )
 
+type ListActiveWorkersResult struct {
+	ID     pgtype.UUID
+	Labels []*dbsqlc.ListManyWorkerLabelsRow
+}
+
 type leaseRepo interface {
+	ListQueues(ctx context.Context, tenantId pgtype.UUID) ([]*dbsqlc.Queue, error)
+	ListActiveWorkers(ctx context.Context, tenantId pgtype.UUID) ([]*ListActiveWorkersResult, error)
+
 	AcquireLeases(ctx context.Context, kind dbsqlc.LeaseKind, resourceIds []string, existingLeases []*dbsqlc.Lease) ([]*dbsqlc.Lease, error)
 	RenewLeases(ctx context.Context, leases []*dbsqlc.Lease) ([]*dbsqlc.Lease, error)
 	ReleaseLeases(ctx context.Context, leases []*dbsqlc.Lease) error
@@ -56,8 +64,11 @@ func (d *leaseDbQueries) AcquireLeases(ctx context.Context, kind dbsqlc.LeaseKin
 
 	defer rollback()
 
-	// set tx mode serializable
-	_, err = tx.Exec(ctx, "SET TRANSACTION ISOLATION LEVEL SERIALIZABLE")
+	err = d.queries.GetLeasesToAcquire(ctx, tx, dbsqlc.GetLeasesToAcquireParams{
+		Kind:        kind,
+		Resourceids: resourceIds,
+		Tenantid:    d.tenantId,
+	})
 
 	if err != nil {
 		return nil, err
@@ -141,12 +152,58 @@ func (d *leaseDbQueries) ReleaseLeases(ctx context.Context, leases []*dbsqlc.Lea
 	return nil
 }
 
+func (d *leaseDbQueries) ListQueues(ctx context.Context, tenantId pgtype.UUID) ([]*dbsqlc.Queue, error) {
+	return d.queries.ListQueues(ctx, d.pool, tenantId)
+}
+
+func (d *leaseDbQueries) ListActiveWorkers(ctx context.Context, tenantId pgtype.UUID) ([]*ListActiveWorkersResult, error) {
+	activeWorkers, err := d.queries.ListActiveWorkers(ctx, d.pool, tenantId)
+
+	if err != nil {
+		return nil, err
+	}
+
+	workerIds := make([]pgtype.UUID, 0, len(activeWorkers))
+
+	for _, worker := range activeWorkers {
+		workerIds = append(workerIds, worker.ID)
+	}
+
+	labels, err := d.queries.ListManyWorkerLabels(ctx, d.pool, workerIds)
+
+	if err != nil {
+		return nil, err
+	}
+
+	workerIdsToLabels := make(map[string][]*dbsqlc.ListManyWorkerLabelsRow, len(labels))
+
+	for _, label := range labels {
+		wId := sqlchelpers.UUIDToStr(label.WorkerId)
+
+		if _, ok := workerIdsToLabels[wId]; !ok {
+			workerIdsToLabels[wId] = make([]*dbsqlc.ListManyWorkerLabelsRow, 0)
+		}
+
+		workerIdsToLabels[wId] = append(workerIdsToLabels[wId], label)
+	}
+
+	res := make([]*ListActiveWorkersResult, 0, len(activeWorkers))
+
+	for _, worker := range activeWorkers {
+		wId := sqlchelpers.UUIDToStr(worker.ID)
+		res = append(res, &ListActiveWorkersResult{
+			ID:     worker.ID,
+			Labels: workerIdsToLabels[wId],
+		})
+	}
+
+	return res, nil
+}
+
 // LeaseManager is responsible for leases on multiple queues and multiplexing
 // queue results to callers. It is still tenant-scoped.
 type LeaseManager struct {
 	lr leaseRepo
-	wr workerRepo
-	qr queueRepo
 
 	conf *sharedConfig
 
@@ -154,21 +211,19 @@ type LeaseManager struct {
 
 	workerLeasesMu deadlock.Mutex
 	workerLeases   []*dbsqlc.Lease
-	workersCh      chan<- []pgtype.UUID
+	workersCh      chan<- []*ListActiveWorkersResult
 
 	queueLeasesMu deadlock.Mutex
 	queueLeases   []*dbsqlc.Lease
 	queuesCh      chan<- []string
 }
 
-func newLeaseManager(conf *sharedConfig, tenantId pgtype.UUID) (*LeaseManager, <-chan []pgtype.UUID, <-chan []string) {
-	workersCh := make(chan []pgtype.UUID)
+func newLeaseManager(conf *sharedConfig, tenantId pgtype.UUID) (*LeaseManager, <-chan []*ListActiveWorkersResult, <-chan []string) {
+	workersCh := make(chan []*ListActiveWorkersResult)
 	queuesCh := make(chan []string)
 
 	return &LeaseManager{
 		lr:        newLeaseDbQueries(tenantId, conf.queries, conf.pool, conf.l),
-		wr:        newWorkerDbQueries(conf.queries, conf.pool, conf.l),
-		qr:        newQueueDbQueries(conf.queries, conf.pool, conf.l),
 		conf:      conf,
 		tenantId:  tenantId,
 		workersCh: workersCh,
@@ -176,7 +231,7 @@ func newLeaseManager(conf *sharedConfig, tenantId pgtype.UUID) (*LeaseManager, <
 	}, workersCh, queuesCh
 }
 
-func (l *LeaseManager) sendWorkerIds(ctx context.Context, workerIds []pgtype.UUID) {
+func (l *LeaseManager) sendWorkerIds(ctx context.Context, workerIds []*ListActiveWorkersResult) {
 	select {
 	case <-ctx.Done():
 		return
@@ -199,32 +254,35 @@ func (l *LeaseManager) acquireWorkerLeases(ctx context.Context) error {
 
 	defer l.workerLeasesMu.Unlock()
 
-	workerIds, err := l.wr.ListActiveWorkers(ctx, l.tenantId)
+	activeWorkers, err := l.lr.ListActiveWorkers(ctx, l.tenantId)
 
 	if err != nil {
 		return err
 	}
 
-	workerIdsStr := make([]string, len(workerIds))
+	workerIdsStr := make([]string, len(activeWorkers))
+	activeWorkerIdsToResults := make(map[string]*ListActiveWorkersResult, len(activeWorkers))
 
-	for i, id := range workerIds {
-		workerIdsStr[i] = sqlchelpers.UUIDToStr(id)
+	for i, activeWorker := range activeWorkers {
+		aw := activeWorker
+		workerIdsStr[i] = sqlchelpers.UUIDToStr(activeWorker.ID)
+		activeWorkerIdsToResults[workerIdsStr[i]] = aw
 	}
 
-	workerLeases, err := l.lr.AcquireLeases(ctx, dbsqlc.LeaseKindWORKER, workerIdsStr, l.workerLeases)
+	successfullyAcquiredWorkerIds := make([]*ListActiveWorkersResult, 0)
 
-	if err != nil {
-		return err
-	}
+	if len(workerIdsStr) != 0 {
+		workerLeases, err := l.lr.AcquireLeases(ctx, dbsqlc.LeaseKindWORKER, workerIdsStr, l.workerLeases)
 
-	l.workerLeases = workerLeases
+		if err != nil {
+			return err
+		}
 
-	successfullyAcquiredWorkerIds := make([]pgtype.UUID, 0)
+		l.workerLeases = workerLeases
 
-	for _, lease := range workerLeases {
-		workerId := sqlchelpers.UUIDFromStr(lease.ResourceId)
-
-		successfullyAcquiredWorkerIds = append(successfullyAcquiredWorkerIds, workerId)
+		for _, lease := range workerLeases {
+			successfullyAcquiredWorkerIds = append(successfullyAcquiredWorkerIds, activeWorkerIdsToResults[lease.ResourceId])
+		}
 	}
 
 	go l.sendWorkerIds(ctx, successfullyAcquiredWorkerIds)
@@ -239,7 +297,7 @@ func (l *LeaseManager) acquireQueueLeases(ctx context.Context) error {
 
 	defer l.queueLeasesMu.Unlock()
 
-	queues, err := l.qr.ListQueues(ctx, l.tenantId)
+	queues, err := l.lr.ListQueues(ctx, l.tenantId)
 
 	if err != nil {
 		return err
@@ -251,18 +309,20 @@ func (l *LeaseManager) acquireQueueLeases(ctx context.Context) error {
 		queueIdsStr[i] = q.Name
 	}
 
-	queueLeases, err := l.lr.AcquireLeases(ctx, dbsqlc.LeaseKindQUEUE, queueIdsStr, l.queueLeases)
-
-	if err != nil {
-		return err
-	}
-
-	l.queueLeases = queueLeases
-
 	successfullyAcquiredQueues := []string{}
 
-	for _, lease := range queueLeases {
-		successfullyAcquiredQueues = append(successfullyAcquiredQueues, lease.ResourceId)
+	if len(queueIdsStr) != 0 {
+		queueLeases, err := l.lr.AcquireLeases(ctx, dbsqlc.LeaseKindQUEUE, queueIdsStr, l.queueLeases)
+
+		if err != nil {
+			return err
+		}
+
+		l.queueLeases = queueLeases
+
+		for _, lease := range queueLeases {
+			successfullyAcquiredQueues = append(successfullyAcquiredQueues, lease.ResourceId)
+		}
 	}
 
 	go l.sendQueues(ctx, successfullyAcquiredQueues)

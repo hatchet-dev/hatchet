@@ -400,11 +400,18 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 		})
 	}
 
-	schedulingPool, cleanupSchedulingPool := v2.NewSchedulingPool(
+	v := validator.NewDefaultValidator()
+
+	schedulingPool, cleanupSchedulingPool, err := v2.NewSchedulingPool(
 		&l,
 		dc.Pool,
+		v,
 		cf.Runtime.SingleQueueLimit,
 	)
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not create scheduling pool: %w", err)
+	}
 
 	cleanup = func() error {
 		log.Printf("cleaning up server config")
@@ -433,7 +440,7 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 		Logger:                 &l,
 		TLSConfig:              tls,
 		SessionStore:           ss,
-		Validator:              validator.NewDefaultValidator(),
+		Validator:              v,
 		Ingestor:               ing,
 		OpenTelemetry:          cf.OpenTelemetry,
 		Email:                  emailSvc,

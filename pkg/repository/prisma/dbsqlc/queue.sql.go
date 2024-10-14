@@ -326,6 +326,29 @@ func (q *Queries) GetMinMaxProcessedTimeoutQueueItems(ctx context.Context, db DB
 	return &i, err
 }
 
+const getMinUnprocessedQueueItemId = `-- name: GetMinUnprocessedQueueItemId :one
+SELECT
+    COALESCE(MIN("id"), 0)::bigint AS "minId"
+FROM
+    "QueueItem"
+WHERE
+    "isQueued" = 't'
+    AND "tenantId" = $1::uuid
+    AND "queue" = $2::text
+`
+
+type GetMinUnprocessedQueueItemIdParams struct {
+	Tenantid pgtype.UUID `json:"tenantid"`
+	Queue    string      `json:"queue"`
+}
+
+func (q *Queries) GetMinUnprocessedQueueItemId(ctx context.Context, db DBTX, arg GetMinUnprocessedQueueItemIdParams) (int64, error) {
+	row := db.QueryRow(ctx, getMinUnprocessedQueueItemId, arg.Tenantid, arg.Queue)
+	var minId int64
+	err := row.Scan(&minId)
+	return minId, err
+}
+
 const getQueuedCounts = `-- name: GetQueuedCounts :many
 SELECT
     "queue",
@@ -452,9 +475,10 @@ func (q *Queries) ListActionsForWorkers(ctx context.Context, db DBTX, arg ListAc
 	return items, nil
 }
 
-const listActiveWorkerIds = `-- name: ListActiveWorkerIds :many
+const listActiveWorkers = `-- name: ListActiveWorkers :many
 SELECT
-    w."id"
+    w."id",
+    w."maxRuns"
 FROM
     "Worker" w
 WHERE
@@ -465,19 +489,24 @@ WHERE
     AND w."isPaused" = false
 `
 
-func (q *Queries) ListActiveWorkerIds(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]pgtype.UUID, error) {
-	rows, err := db.Query(ctx, listActiveWorkerIds, tenantid)
+type ListActiveWorkersRow struct {
+	ID      pgtype.UUID `json:"id"`
+	MaxRuns int32       `json:"maxRuns"`
+}
+
+func (q *Queries) ListActiveWorkers(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]*ListActiveWorkersRow, error) {
+	rows, err := db.Query(ctx, listActiveWorkers, tenantid)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []pgtype.UUID
+	var items []*ListActiveWorkersRow
 	for rows.Next() {
-		var id pgtype.UUID
-		if err := rows.Scan(&id); err != nil {
+		var i ListActiveWorkersRow
+		if err := rows.Scan(&i.ID, &i.MaxRuns); err != nil {
 			return nil, err
 		}
-		items = append(items, id)
+		items = append(items, &i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

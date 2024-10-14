@@ -8,6 +8,7 @@ import (
 	"github.com/sasha-s/go-deadlock"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/hatchet-dev/hatchet/pkg/repository/buffer"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 )
 
@@ -18,23 +19,27 @@ type tenantManager struct {
 	tenantId pgtype.UUID
 
 	scheduler *Scheduler
+	rl        *rateLimiter
 
 	queuers   []*Queuer
 	queuersMu deadlock.RWMutex
 
 	leaseManager *LeaseManager
 
-	workersCh <-chan []pgtype.UUID
+	workersCh <-chan []*ListActiveWorkersResult
 	queuesCh  <-chan []string
 	resultsCh chan *QueueResults
 
 	cleanup func()
+
+	eventBuffer *buffer.BulkEventWriter
 }
 
-func newTenantManager(cf *sharedConfig, tenantId string, resultsCh chan *QueueResults) *tenantManager {
+func newTenantManager(cf *sharedConfig, tenantId string, eventBuffer *buffer.BulkEventWriter, resultsCh chan *QueueResults) *tenantManager {
 	tenantIdUUID := sqlchelpers.UUIDFromStr(tenantId)
 
-	s := newScheduler(cf, tenantIdUUID)
+	rl := newRateLimiter(cf, tenantIdUUID)
+	s := newScheduler(cf, tenantIdUUID, rl)
 	leaseManager, workersCh, queuesCh := newLeaseManager(cf, tenantIdUUID)
 
 	t := &tenantManager{
@@ -45,6 +50,8 @@ func newTenantManager(cf *sharedConfig, tenantId string, resultsCh chan *QueueRe
 		workersCh:    workersCh,
 		queuesCh:     queuesCh,
 		resultsCh:    resultsCh,
+		rl:           rl,
+		eventBuffer:  eventBuffer,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -78,6 +85,8 @@ func (t *tenantManager) Cleanup() error {
 		q.Cleanup()
 	}
 
+	t.rl.cleanup()
+
 	return nil
 }
 
@@ -87,7 +96,7 @@ func (t *tenantManager) listenForWorkerLeases(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case workerIds := <-t.workersCh:
-			t.scheduler.setWorkerIds(workerIds)
+			t.scheduler.setWorkers(workerIds)
 		}
 	}
 }
@@ -125,7 +134,7 @@ func (t *tenantManager) setQueuers(queueNames []string) {
 	}
 
 	for queueName := range queueNamesSet {
-		newQueueArr = append(newQueueArr, newQueuer(t.cf, t.tenantId, queueName, t.scheduler, t.resultsCh))
+		newQueueArr = append(newQueueArr, newQueuer(t.cf, t.tenantId, queueName, t.scheduler, t.eventBuffer, t.resultsCh))
 	}
 
 	t.queuers = newQueueArr
@@ -138,7 +147,7 @@ func (t *tenantManager) refreshAll(ctx context.Context) {
 	eg := errgroup.Group{}
 
 	eg.Go(func() error {
-		return t.scheduler.replenish(ctx)
+		return t.scheduler.replenish(ctx, false)
 	})
 
 	for i := range t.queuers {
@@ -160,7 +169,7 @@ func (t *tenantManager) replenish(ctx context.Context) {
 	t.queuersMu.RLock()
 	defer t.queuersMu.RUnlock()
 
-	err := t.scheduler.replenish(ctx)
+	err := t.scheduler.replenish(ctx, false)
 
 	if err != nil {
 		t.cf.l.Error().Err(err).Msg("error replenishing scheduler")

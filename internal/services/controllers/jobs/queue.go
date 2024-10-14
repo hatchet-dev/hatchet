@@ -37,7 +37,6 @@ type queue struct {
 	// a custom queue logger
 	ql *zerolog.Logger
 
-	// tenantQueueOperations     *queueutils.OperationPool
 	updateStepRunOperations   *queueutils.OperationPool
 	updateStepRunV2Operations *queueutils.OperationPool
 	timeoutStepRunOperations  *queueutils.OperationPool
@@ -71,7 +70,6 @@ func newQueue(
 		scheduler: scheduler,
 	}
 
-	// q.tenantQueueOperations = queueutils.NewOperationPool(ql, time.Second*5, "check tenant queue", q.scheduleStepRuns)
 	q.updateStepRunOperations = queueutils.NewOperationPool(ql, time.Second*30, "update step runs", q.processStepRunUpdates)
 	q.updateStepRunV2Operations = queueutils.NewOperationPool(ql, time.Second*30, "update step runs (v2)", q.processStepRunUpdatesV2)
 	q.timeoutStepRunOperations = queueutils.NewOperationPool(ql, time.Second*30, "timeout step runs", q.processStepRunTimeouts)
@@ -85,19 +83,19 @@ func (q *queue) Start() (func() error, error) {
 
 	wg := sync.WaitGroup{}
 
-	// _, err := q.s.NewJob(
-	// 	gocron.DurationJob(time.Second*1),
-	// 	gocron.NewTask(
-	// 		q.runTenantQueues(ctx),
-	// 	),
-	// )
-
-	// if err != nil {
-	// 	cancel()
-	// 	return nil, fmt.Errorf("could not schedule step run reassign: %w", err)
-	// }
-
 	_, err := q.s.NewJob(
+		gocron.DurationJob(time.Second*1),
+		gocron.NewTask(
+			q.runTenantSetQueues(ctx),
+		),
+	)
+
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("could not schedule tenant set queues: %w", err)
+	}
+
+	_, err = q.s.NewJob(
 		gocron.DurationJob(time.Second*1),
 		gocron.NewTask(
 			q.runTenantUpdateStepRuns(ctx),
@@ -242,46 +240,37 @@ func (q *queue) handleCheckQueue(ctx context.Context, task *msgqueue.Message) er
 		q.scheduler.Queue(ctx, metadata.TenantId, payload.QueueName)
 	case payload.IsSlotReleased:
 		q.scheduler.Replenish(ctx, metadata.TenantId)
+		q.updateStepRunV2Operations.RunOrContinue(metadata.TenantId)
 	default:
 		q.scheduler.RefreshAll(ctx, metadata.TenantId)
-	}
 
-	// if this tenant is registered, then we should check the queue
-	// q.tenantQueueOperations.RunOrContinue(metadata.TenantId)
-	q.updateStepRunOperations.RunOrContinue(metadata.TenantId)
-	q.updateStepRunV2Operations.RunOrContinue(metadata.TenantId)
+		// check the step run updates
+		q.updateStepRunOperations.RunOrContinue(metadata.TenantId)
+		q.updateStepRunV2Operations.RunOrContinue(metadata.TenantId)
+	}
 
 	return nil
 }
 
-// func (q *queue) runTenantQueues(ctx context.Context) func() {
-// 	return func() {
-// 		q.l.Debug().Msgf("partition: checking step run requeue")
+func (q *queue) runTenantSetQueues(ctx context.Context) func() {
+	return func() {
+		q.l.Debug().Msgf("partition: checking step run requeue")
 
-// 		// list all tenants
-// 		tenants, err := q.repo.Tenant().ListTenantsByControllerPartition(ctx, q.p.GetControllerPartitionId())
+		// list all tenants
+		tenants, err := q.repo.Tenant().ListTenantsByControllerPartition(ctx, q.p.GetControllerPartitionId())
 
-// 		if err != nil {
-// 			q.l.Err(err).Msg("could not list tenants")
-// 			return
-// 		}
+		if err != nil {
+			q.l.Err(err).Msg("could not list tenants")
+			return
+		}
 
-// 		q.tenantQueueOperations.SetTenants(tenants)
-
-// 		for i := range tenants {
-// 			tenantId := sqlchelpers.UUIDToStr(tenants[i].ID)
-
-// 			q.tenantQueueOperations.RunOrContinue(tenantId)
-// 		}
-// 	}
-// }
+		q.scheduler.SetTenants(tenants)
+	}
+}
 
 func (q *queue) scheduleStepRuns(ctx context.Context, tenantId string, res *v2.QueueResults) error {
 	ctx, span := telemetry.NewSpan(ctx, "schedule-step-runs")
 	defer span.End()
-
-	// dbCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	// defer cancel()
 
 	var err error
 
@@ -307,26 +296,23 @@ func (q *queue) scheduleStepRuns(ctx context.Context, tenantId string, res *v2.Q
 		}
 	}
 
+	for _, toCancel := range res.SchedulingTimedOut {
+		innerErr := q.mq.AddMessage(
+			ctx,
+			msgqueue.JOB_PROCESSING_QUEUE,
+			getStepRunCancelTask(
+				tenantId,
+				toCancel,
+				"SCHEDULING_TIMED_OUT",
+			),
+		)
+
+		if innerErr != nil {
+			err = multierror.Append(err, fmt.Errorf("could not send cancel step run event: %w", innerErr))
+		}
+	}
+
 	return err
-
-	// for _, toCancel := range queueResults.SchedulingTimedOut {
-	// 	innerErr := q.mq.AddMessage(
-	// 		ctx,
-	// 		msgqueue.JOB_PROCESSING_QUEUE,
-	// 		getStepRunCancelTask(
-	// 			tenantId,
-	// 			toCancel,
-	// 			"SCHEDULING_TIMED_OUT",
-	// 		),
-	// 	)
-
-	// 	if innerErr != nil {
-	// 		err = multierror.Append(err, fmt.Errorf("could not send cancel step run event: %w", innerErr))
-	// 	}
-	// }
-
-	// return queueResults.Continue, err
-	// return nil
 }
 
 func (q *queue) runTenantUpdateStepRuns(ctx context.Context) func() {
@@ -350,9 +336,6 @@ func (q *queue) runTenantUpdateStepRuns(ctx context.Context) func() {
 			tenantId := sqlchelpers.UUIDToStr(tenants[i].ID)
 
 			q.updateStepRunOperations.RunOrContinue(tenantId)
-
-			// TODO: MOVE ELSEWHERE!
-			q.scheduler.RefreshAll(ctx, tenantId)
 		}
 	}
 }

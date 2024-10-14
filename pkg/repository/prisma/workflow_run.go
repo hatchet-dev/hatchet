@@ -622,7 +622,7 @@ func (s *workflowRunEngineRepository) ReplayWorkflowRun(ctx context.Context, ten
 	ctx, span := telemetry.NewSpan(ctx, "replay-workflow-run")
 	defer span.End()
 
-	err := deadlockRetry(s.l, func() error {
+	err := sqlchelpers.DeadlockRetry(s.l, func() error {
 		tx, err := s.pool.Begin(ctx)
 
 		if err != nil {

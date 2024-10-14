@@ -7,8 +7,10 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 
+	"github.com/hatchet-dev/hatchet/pkg/repository/buffer"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
 type sharedConfig struct {
@@ -25,10 +27,18 @@ type SchedulingPool struct {
 	cf *sharedConfig
 
 	resultsCh chan *QueueResults
+
+	eventBuffer *buffer.BulkEventWriter
 }
 
-func NewSchedulingPool(l *zerolog.Logger, p *pgxpool.Pool, singleQueueLimit int) (*SchedulingPool, func() error) {
+func NewSchedulingPool(l *zerolog.Logger, p *pgxpool.Pool, v validator.Validator, singleQueueLimit int) (*SchedulingPool, func() error, error) {
 	resultsCh := make(chan *QueueResults)
+
+	eventBuffer, err := buffer.NewBulkEventWriter(p, v, l)
+
+	if err != nil {
+		return nil, nil, err
+	}
 
 	s := &SchedulingPool{
 		cf: &sharedConfig{
@@ -37,13 +47,18 @@ func NewSchedulingPool(l *zerolog.Logger, p *pgxpool.Pool, singleQueueLimit int)
 			l:                l,
 			singleQueueLimit: singleQueueLimit,
 		},
-		resultsCh: resultsCh,
+		resultsCh:   resultsCh,
+		eventBuffer: eventBuffer,
 	}
 
 	return s, func() error {
+		if err := eventBuffer.Cleanup(); err != nil {
+			return err
+		}
+
 		s.cleanup()
 		return nil
-	}
+	}, nil
 }
 
 func (p *SchedulingPool) GetResultsCh() chan *QueueResults {
@@ -66,14 +81,18 @@ func (p *SchedulingPool) SetTenants(tenants []*dbsqlc.Tenant) {
 	tenantMap := make(map[string]bool)
 
 	for _, t := range tenants {
-		tenantMap[sqlchelpers.UUIDToStr(t.ID)] = true
+		tenantId := sqlchelpers.UUIDToStr(t.ID)
+		tenantMap[tenantId] = true
+		p.getTenantManager(tenantId) // nolint: ineffassign
 	}
 
 	toCleanup := make([]*tenantManager, 0)
 
 	// delete tenants that are not in the list
 	p.tenants.Range(func(key, value interface{}) bool {
-		if _, ok := tenantMap[key.(string)]; !ok {
+		tenantId := key.(string)
+
+		if _, ok := tenantMap[tenantId]; !ok {
 			toCleanup = append(toCleanup, value.(*tenantManager))
 			p.tenants.Delete(key)
 		}
@@ -128,7 +147,7 @@ func (p *SchedulingPool) getTenantManager(tenantId string) *tenantManager {
 	tm, ok := p.tenants.Load(tenantId)
 
 	if !ok {
-		tm = newTenantManager(p.cf, tenantId, p.resultsCh)
+		tm = newTenantManager(p.cf, tenantId, p.eventBuffer, p.resultsCh)
 		p.tenants.Store(tenantId, tm)
 	}
 

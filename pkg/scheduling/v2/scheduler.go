@@ -59,95 +59,29 @@ type Scheduler struct {
 	actionsMu   deadlock.RWMutex
 	replenishMu deadlock.Mutex
 
-	workerIdsMu deadlock.Mutex
-	workerIds   []pgtype.UUID
+	workersMu deadlock.Mutex
+	workers   map[string]*worker
+
+	assignedCount   int
+	assignedCountMu deadlock.Mutex
 
 	// unackedSlots are slots which have been assigned to a worker, but have not been flushed
 	// to the database yet. They negatively count towards a worker's available slot count.
 	unackedSlots map[int]*slot
 	unackedMu    deadlock.Mutex
 
-	assignedCount   int
-	assignedCountMu deadlock.Mutex
+	rl *rateLimiter
 }
 
-func newScheduler(cf *sharedConfig, tenantId pgtype.UUID) *Scheduler {
+func newScheduler(cf *sharedConfig, tenantId pgtype.UUID, rl *rateLimiter) *Scheduler {
 	return &Scheduler{
 		repo:         newSchedulerDbQueries(cf.queries, cf.pool, tenantId),
 		tenantId:     tenantId,
 		l:            cf.l,
 		actions:      make(map[string]*action),
 		unackedSlots: make(map[int]*slot),
+		rl:           rl,
 	}
-}
-
-type action struct {
-	lastReplenishedSlotCount   int
-	lastReplenishedWorkerCount int
-
-	// note that slots can be used across multiple actions, hence the pointer
-	slots []*slot
-}
-
-func (a *action) activeCount() int {
-	count := 0
-
-	for _, slot := range a.slots {
-		if slot.active() {
-			count++
-		}
-	}
-
-	return count
-}
-
-type slot struct {
-	workerId string
-	actions  []string
-
-	// expiresAt is when the slot is no longer valid, but has not been cleaned up yet
-	expiresAt *time.Time
-	used      bool
-
-	ackd bool
-
-	mu deadlock.RWMutex
-}
-
-func (s *slot) active() bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	return !s.used && s.expiresAt != nil && s.expiresAt.After(time.Now())
-}
-
-func (s *slot) use() bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if s.used {
-		return false
-	}
-
-	s.used = true
-	s.ackd = false
-
-	return true
-}
-
-func (s *slot) ack() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	s.ackd = true
-}
-
-func (s *slot) nack() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	s.used = false
-	s.ackd = false
 }
 
 // TODO: ACK IN BULK!
@@ -172,29 +106,46 @@ func (s *Scheduler) nack(id int) {
 	}
 }
 
-func (s *Scheduler) setWorkerIds(workerIds []pgtype.UUID) {
-	s.workerIdsMu.Lock()
-	defer s.workerIdsMu.Unlock()
+func (s *Scheduler) setWorkers(workers []*ListActiveWorkersResult) {
+	s.workersMu.Lock()
+	defer s.workersMu.Unlock()
 
-	s.workerIds = workerIds
+	newWorkers := make(map[string]*worker, len(workers))
+
+	for i := range workers {
+		newWorkers[sqlchelpers.UUIDToStr(workers[i].ID)] = &worker{
+			ListActiveWorkersResult: workers[i],
+		}
+	}
+
+	s.workers = newWorkers
 }
 
-func (s *Scheduler) getWorkerIds() []pgtype.UUID {
-	s.workerIdsMu.Lock()
-	defer s.workerIdsMu.Unlock()
+func (s *Scheduler) getWorkers() map[string]*worker {
+	s.workersMu.Lock()
+	defer s.workersMu.Unlock()
 
-	return s.workerIds
+	return s.workers
 }
 
 // replenish loads new slots from the database.
-func (s *Scheduler) replenish(ctx context.Context) error {
-	if ok := s.replenishMu.TryLock(); !ok {
+func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
+	if mustReplenish {
+		s.replenishMu.Lock()
+	} else if ok := s.replenishMu.TryLock(); !ok {
 		return nil
 	}
 
 	defer s.replenishMu.Unlock()
 
-	workersToActiveActions, err := s.repo.ListActionsForWorkers(ctx, s.getWorkerIds())
+	workers := s.getWorkers()
+	workerIds := make([]pgtype.UUID, 0)
+
+	for workerIdStr := range workers {
+		workerIds = append(workerIds, sqlchelpers.UUIDFromStr(workerIdStr))
+	}
+
+	workersToActiveActions, err := s.repo.ListActionsForWorkers(ctx, workerIds)
 
 	if err != nil {
 		return err
@@ -224,6 +175,11 @@ func (s *Scheduler) replenish(ctx context.Context) error {
 	s.actionsMu.RLock()
 
 	for actionId, workers := range actionsToWorkerIds {
+		if mustReplenish {
+			actionsToReplenish[actionId] = true
+			continue
+		}
+
 		// if the action is not in the map, it should be replenished
 		if _, ok := s.actions[actionId]; !ok {
 			actionsToReplenish[actionId] = true
@@ -288,11 +244,13 @@ func (s *Scheduler) replenish(ctx context.Context) error {
 
 	for _, unackedSlot := range s.unackedSlots {
 		s := unackedSlot
-		if _, ok := workersToUnackedSlots[s.workerId]; !ok {
-			workersToUnackedSlots[s.workerId] = make([]*slot, 0)
+		workerId := s.getWorkerId()
+
+		if _, ok := workersToUnackedSlots[workerId]; !ok {
+			workersToUnackedSlots[workerId] = make([]*slot, 0)
 		}
 
-		workersToUnackedSlots[s.workerId] = append(workersToUnackedSlots[s.workerId], s)
+		workersToUnackedSlots[workerId] = append(workersToUnackedSlots[workerId], s)
 	}
 
 	// FUNCTION 4: write the new slots to the scheduler and clean up expired slots
@@ -312,7 +270,7 @@ func (s *Scheduler) replenish(ctx context.Context) error {
 		for i := 0; i < int(worker.AvailableSlots)-len(unackedSlots); i++ {
 			slots = append(slots, &slot{
 				actions:   actions,
-				workerId:  workerId,
+				worker:    workers[workerId],
 				expiresAt: &expires,
 			})
 		}
@@ -338,6 +296,8 @@ func (s *Scheduler) replenish(ctx context.Context) error {
 			}
 		} else {
 			// we overwrite the slots for the action
+
+			// TODO: order the slots by worker id to fairly distribute the slots
 			s.actions[actionId].slots = newSlots
 			s.actions[actionId].lastReplenishedSlotCount = actionsToTotalSlots[actionId]
 			s.actions[actionId].lastReplenishedWorkerCount = len(actionsToWorkerIds[actionId])
@@ -368,11 +328,21 @@ func (s *Scheduler) replenish(ctx context.Context) error {
 		}
 	}
 
+	// DEBUG PRINT
+	// for actionId, storedAction := range s.actions {
+	// 	s.l.Warn().Msgf("action %s has %d slots", actionId, len(storedAction.slots))
+
+	// 	for i := range storedAction.slots {
+	// 		slot := storedAction.slots[i]
+	// 		// s.l.Warn().Msgf("slot %d: workerId=%s, actions=%v, expiresAt=%v, used=%v", i, slot.workerId, slot.actions, slot.expiresAt, slot.used)
+	// 	}
+	// }
+
 	return nil
 }
 
 func (s *Scheduler) loopReplenish(ctx context.Context) {
-	ticker := time.NewTicker(100 * time.Millisecond)
+	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 
 	for {
@@ -380,7 +350,7 @@ func (s *Scheduler) loopReplenish(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			err := s.replenish(ctx)
+			err := s.replenish(ctx, true)
 
 			if err != nil {
 				s.l.Error().Err(err).Msg("error replenishing slots")
@@ -393,20 +363,44 @@ func (s *Scheduler) start(ctx context.Context) {
 	go s.loopReplenish(ctx)
 }
 
-var ErrNoSlotsAvailable = fmt.Errorf("no slots available")
-var ErrAlreadyAssigned = fmt.Errorf("queue item already assigned")
+type assignSingleResult struct {
+	workerId pgtype.UUID
+	ackId    int
+
+	noSlots   bool
+	succeeded bool
+
+	rateLimitResult *rateLimitResult
+}
 
 // tryAssignSingleton attempts to assign a singleton step to a worker.
-func (s *Scheduler) tryAssignSingleton(ctx context.Context, qi *dbsqlc.QueueItem, skip int) (
-	workerId pgtype.UUID, ackId int, err error,
+func (s *Scheduler) tryAssignSingleton(
+	ctx context.Context,
+	qi *dbsqlc.QueueItem,
+	skip int,
+	labels []*dbsqlc.GetDesiredLabelsRow,
+	rls map[string]int32,
+) (
+	res assignSingleResult, err error,
 ) {
 	if !qi.ActionId.Valid {
-		return workerId, ackId, fmt.Errorf("queue item does not have a valid action id")
+		return res, fmt.Errorf("queue item does not have a valid action id")
 	}
 
 	actionId := qi.ActionId.String
 
-	// TODO: check rate limits
+	var rateLimitAck func()
+	var rateLimitNack func()
+
+	// check rate limits
+	if len(rls) > 0 {
+		rlResult := s.rl.use(ctx, sqlchelpers.UUIDToStr(qi.StepRunId), rls)
+
+		if !rlResult.succeeded {
+			res.rateLimitResult = &rlResult
+			return res, nil
+		}
+	}
 
 	// pick a worker to assign the slot to
 	var assignedSlot *slot
@@ -414,13 +408,16 @@ func (s *Scheduler) tryAssignSingleton(ctx context.Context, qi *dbsqlc.QueueItem
 	s.actionsMu.RLock()
 	if _, ok := s.actions[actionId]; !ok {
 		s.actionsMu.RUnlock()
-		return workerId, ackId, ErrNoSlotsAvailable
+		res.noSlots = true
+		return res, nil
 	}
 
 	candidateSlots := s.actions[actionId].slots
 	s.actionsMu.RUnlock()
 
 	startIterating := time.Now()
+
+	candidateSlots = getRankedSlots(qi, labels, candidateSlots)
 
 	for i := skip; i < len(candidateSlots); i++ {
 		slot := candidateSlots[i]
@@ -429,7 +426,7 @@ func (s *Scheduler) tryAssignSingleton(ctx context.Context, qi *dbsqlc.QueueItem
 			continue
 		}
 
-		if !slot.use() {
+		if !slot.use([]func(){rateLimitAck}, []func(){rateLimitNack}) {
 			continue
 		}
 
@@ -438,7 +435,8 @@ func (s *Scheduler) tryAssignSingleton(ctx context.Context, qi *dbsqlc.QueueItem
 	}
 
 	if assignedSlot == nil {
-		return workerId, ackId, ErrNoSlotsAvailable
+		res.noSlots = true
+		return res, nil
 	}
 
 	endIterating := time.Now()
@@ -447,16 +445,17 @@ func (s *Scheduler) tryAssignSingleton(ctx context.Context, qi *dbsqlc.QueueItem
 
 	s.assignedCountMu.Lock()
 	s.assignedCount++
-	ackId = s.assignedCount
+	res.ackId = s.assignedCount
 	s.assignedCountMu.Unlock()
 
 	s.unackedMu.Lock()
-	s.unackedSlots[ackId] = assignedSlot
+	s.unackedSlots[res.ackId] = assignedSlot
 	s.unackedMu.Unlock()
 
-	res := sqlchelpers.UUIDFromStr(assignedSlot.workerId)
+	res.workerId = sqlchelpers.UUIDFromStr(assignedSlot.getWorkerId())
+	res.succeeded = true
 
-	return res, ackId, nil
+	return res, nil
 }
 
 type AssignedQueueItem struct {
@@ -479,14 +478,15 @@ type assignResults struct {
 	errored            []*erroredQueueItem
 	unassigned         []*dbsqlc.QueueItem
 	schedulingTimedOut []*dbsqlc.QueueItem
-
-	// TODO: return rate limited slots
-	// rateLimited []*dbsqlc.QueueItem
+	rateLimited        []*rateLimitResult
 }
 
-func (s *Scheduler) tryAssign(ctx context.Context, qis []*dbsqlc.QueueItem) <-chan *assignResults {
-	// fmt.Println("TRY ASSIGN", len(qis))
-
+func (s *Scheduler) tryAssign(
+	ctx context.Context,
+	qis []*dbsqlc.QueueItem,
+	stepIdsToLabels map[string][]*dbsqlc.GetDesiredLabelsRow,
+	stepRunIdsToRateLimits map[string]map[string]int32,
+) <-chan *assignResults {
 	// split into groups based on action ids, and process each action id in parallel
 	actionIdToQueueItems := make(map[string][]*dbsqlc.QueueItem)
 
@@ -517,6 +517,7 @@ func (s *Scheduler) tryAssign(ctx context.Context, qis []*dbsqlc.QueueItem) <-ch
 				errored := make([]*erroredQueueItem, 0, len(qis))
 				unassigned := make([]*dbsqlc.QueueItem, 0, len(qis))
 				schedulingTimedOut := make([]*dbsqlc.QueueItem, 0, len(qis))
+				rateLimited := make([]*rateLimitResult, 0, len(qis))
 
 				startAssignment := time.Now()
 
@@ -531,29 +532,44 @@ func (s *Scheduler) tryAssign(ctx context.Context, qis []*dbsqlc.QueueItem) <-ch
 						continue
 					}
 
-					workerId, ackId, err := s.tryAssignSingleton(ctx, qi, skip)
+					labels := make([]*dbsqlc.GetDesiredLabelsRow, 0)
+
+					if stepIdsToLabels != nil {
+						if _, ok := stepIdsToLabels[sqlchelpers.UUIDToStr(qi.StepId)]; ok {
+							labels = stepIdsToLabels[sqlchelpers.UUIDToStr(qi.StepId)]
+						}
+					}
+
+					rls := make(map[string]int32)
+
+					if stepRunIdsToRateLimits != nil {
+						if _, ok := stepRunIdsToRateLimits[sqlchelpers.UUIDToStr(qi.StepRunId)]; ok {
+							rls = stepRunIdsToRateLimits[sqlchelpers.UUIDToStr(qi.StepRunId)]
+						}
+					}
+
+					singleRes, err := s.tryAssignSingleton(ctx, qi, skip, labels, rls)
 
 					if err != nil {
-						if err == ErrNoSlotsAvailable {
-							unassigned = append(unassigned, qi)
-						} else {
-							errored = append(errored, &erroredQueueItem{
-								QueueItem: qi,
-								Err:       err,
-							})
-						}
+						s.l.Error().Err(err).Msg("error assigning queue item")
+					}
 
-						// if we can't assign, we break out of the loop
-						// TODO: change this once we have rate limits!
-						break
+					if !singleRes.succeeded {
+						if singleRes.rateLimitResult != nil {
+							rateLimited = append(rateLimited, singleRes.rateLimitResult)
+							continue
+						} else if singleRes.noSlots {
+							unassigned = append(unassigned, qi)
+							break
+						}
 					}
 
 					skip++
 
 					assigned = append(assigned, &AssignedQueueItem{
-						WorkerId:  workerId,
+						WorkerId:  singleRes.workerId,
 						QueueItem: qi,
-						AckId:     ackId,
+						AckId:     singleRes.ackId,
 					})
 				}
 
@@ -566,6 +582,7 @@ func (s *Scheduler) tryAssign(ctx context.Context, qis []*dbsqlc.QueueItem) <-ch
 					errored:            errored,
 					unassigned:         unassigned,
 					schedulingTimedOut: schedulingTimedOut,
+					rateLimited:        rateLimited,
 				}
 			}(actionId, qis)
 		}

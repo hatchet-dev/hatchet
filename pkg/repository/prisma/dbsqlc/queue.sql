@@ -61,6 +61,16 @@ WHERE
 GROUP BY
     qi."queue";
 
+-- name: GetMinUnprocessedQueueItemId :one
+SELECT
+    COALESCE(MIN("id"), 0)::bigint AS "minId"
+FROM
+    "QueueItem"
+WHERE
+    "isQueued" = 't'
+    AND "tenantId" = @tenantId::uuid
+    AND "queue" = @queue::text;
+
 -- name: GetMinMaxProcessedQueueItems :one
 SELECT
     COALESCE(MIN("id"), 0)::bigint AS "minId",
@@ -396,9 +406,10 @@ WHERE
     AND w."isActive" = true
     AND w."isPaused" = false;
 
--- name: ListActiveWorkerIds :many
+-- name: ListActiveWorkers :many
 SELECT
-    w."id"
+    w."id",
+    w."maxRuns"
 FROM
     "Worker" w
 WHERE

@@ -78,6 +78,30 @@ func (q *Queries) AcquireLeases(ctx context.Context, db DBTX, arg AcquireLeasesP
 	return items, nil
 }
 
+const getLeasesToAcquire = `-- name: GetLeasesToAcquire :exec
+SELECT
+    id, "expiresAt", "tenantId", "resourceId", kind
+FROM
+    "Lease"
+WHERE
+    "tenantId" = $1::uuid
+    AND "kind" = $2::"LeaseKind"
+    AND "expiresAt" < now()
+    AND "resourceId" = ANY($3::text[])
+FOR UPDATE
+`
+
+type GetLeasesToAcquireParams struct {
+	Tenantid    pgtype.UUID `json:"tenantid"`
+	Kind        LeaseKind   `json:"kind"`
+	Resourceids []string    `json:"resourceids"`
+}
+
+func (q *Queries) GetLeasesToAcquire(ctx context.Context, db DBTX, arg GetLeasesToAcquireParams) error {
+	_, err := db.Exec(ctx, getLeasesToAcquire, arg.Tenantid, arg.Kind, arg.Resourceids)
+	return err
+}
+
 const releaseLeases = `-- name: ReleaseLeases :many
 DELETE FROM "Lease" l
 USING (

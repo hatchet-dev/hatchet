@@ -1,4 +1,4 @@
-package prisma
+package buffer
 
 import (
 	"context"
@@ -6,7 +6,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 
 	"github.com/rs/zerolog"
@@ -17,13 +16,13 @@ var (
 	defaultMaxCapacity = 100
 )
 
-func setDefaults(cf *server.ConfigFileRuntime) {
-	if cf.FlushPeriodMilliseconds != 0 {
-		defaultFlushPeriod = time.Duration(cf.FlushPeriodMilliseconds) * time.Millisecond
+func SetDefaults(flushPeriodMilliseconds int, flushItemsThreshold int) {
+	if flushPeriodMilliseconds != 0 {
+		defaultFlushPeriod = time.Duration(flushPeriodMilliseconds) * time.Millisecond
 	}
 
-	if cf.FlushItemsThreshold != 0 {
-		defaultMaxCapacity = cf.FlushItemsThreshold
+	if flushItemsThreshold != 0 {
+		defaultMaxCapacity = flushItemsThreshold
 	}
 }
 
@@ -149,7 +148,7 @@ func (t *TenantBufferManager[T, U]) getOrCreateTenantBuf(
 	return t.createTenantBuf(tenantBufKey, opts)
 }
 
-func (t *TenantBufferManager[T, U]) BuffItem(tenantKey string, eventOps T) (chan *flushResponse[U], error) {
+func (t *TenantBufferManager[T, U]) BuffItem(tenantKey string, eventOps T) (chan *FlushResponse[U], error) {
 	tenantBuf, err := t.getOrCreateTenantBuf(tenantKey, t.defaultOpts)
 	if err != nil {
 		return nil, err
