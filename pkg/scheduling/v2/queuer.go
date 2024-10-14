@@ -37,7 +37,7 @@ type queuerDbQueries struct {
 
 	limit  pgtype.Int4
 	gtId   pgtype.Int8
-	gtIdMu deadlock.Mutex
+	gtIdMu deadlock.RWMutex
 
 	eventBuffer              *buffer.BulkEventWriter
 	cachedStepIdHasRateLimit *cache.Cache
@@ -59,6 +59,25 @@ func newQueueItemDbQueries(cf *sharedConfig, tenantId pgtype.UUID, eventBuffer *
 	}
 }
 
+func (d *queuerDbQueries) setMinId(id int64) {
+	d.gtIdMu.TryLock()
+	defer d.gtIdMu.Unlock()
+
+	d.gtId = pgtype.Int8{
+		Int64: id,
+		Valid: true,
+	}
+}
+
+func (d *queuerDbQueries) getMinId() pgtype.Int8 {
+	d.gtIdMu.RLock()
+	defer d.gtIdMu.RUnlock()
+
+	val := d.gtId
+
+	return val
+}
+
 func (d *queuerDbQueries) ListQueueItems(ctx context.Context) ([]*dbsqlc.QueueItem, error) {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, d.pool, d.l, 5000)
 
@@ -71,7 +90,7 @@ func (d *queuerDbQueries) ListQueueItems(ctx context.Context) ([]*dbsqlc.QueueIt
 	qis, err := d.queries.ListQueueItemsForQueue(ctx, tx, dbsqlc.ListQueueItemsForQueueParams{
 		Tenantid: d.tenantId,
 		Queue:    d.queueName,
-		GtId:     d.gtId,
+		GtId:     d.getMinId(),
 		Limit:    d.limit,
 	})
 
@@ -277,12 +296,6 @@ func (s *queuerDbQueries) bulkStepRunsRateLimited(
 }
 
 func (d *queuerDbQueries) updateMinId() {
-	if ok := d.gtIdMu.TryLock(); !ok {
-		return
-	}
-
-	defer d.gtIdMu.Unlock()
-
 	dbCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -297,10 +310,7 @@ func (d *queuerDbQueries) updateMinId() {
 	}
 
 	if minId != 0 {
-		d.gtId = pgtype.Int8{
-			Int64: minId,
-			Valid: true,
-		}
+		d.setMinId(minId)
 	}
 }
 
