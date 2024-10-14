@@ -551,7 +551,11 @@ func (wc *WorkflowsControllerImpl) queueByCancelInProgress(ctx context.Context, 
 	wc.l.Info().Msgf("handling queue with strategy CANCEL_IN_PROGRESS for %s", groupKey)
 
 	mutex := wc.getLock(fmt.Sprintf("%s:%s", tenantId, groupKey))
-	mutex.Lock()
+
+	if ok := mutex.TryLock(); !ok {
+		return nil
+	}
+
 	defer mutex.Unlock()
 
 	running := db.WorkflowRunStatusRunning
