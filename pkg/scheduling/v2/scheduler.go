@@ -415,8 +415,6 @@ func (s *Scheduler) tryAssignSingleton(
 	candidateSlots := s.actions[actionId].slots
 	s.actionsMu.RUnlock()
 
-	startIterating := time.Now()
-
 	candidateSlots = getRankedSlots(qi, labels, candidateSlots)
 
 	for i := skip; i < len(candidateSlots); i++ {
@@ -438,10 +436,6 @@ func (s *Scheduler) tryAssignSingleton(
 		res.noSlots = true
 		return res, nil
 	}
-
-	endIterating := time.Now()
-
-	s.l.Warn().Msgf("iteration took %v", endIterating.Sub(startIterating))
 
 	s.assignedCountMu.Lock()
 	s.assignedCount++
@@ -575,7 +569,9 @@ func (s *Scheduler) tryAssign(
 
 				endAssignment := time.Now()
 
-				s.l.Warn().Msgf("assignment of %d queue items took %v", len(qis), endAssignment.Sub(startAssignment))
+				if sinceStart := endAssignment.Sub(startAssignment); sinceStart > 100*time.Millisecond {
+					s.l.Warn().Msgf("assignment of %d queue items took longer than 100ms (%v)", len(qis), sinceStart.String())
+				}
 
 				resultsCh <- &assignResults{
 					assigned:           assigned,

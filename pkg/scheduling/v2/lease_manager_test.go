@@ -1,0 +1,163 @@
+package v2
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/rs/zerolog"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+
+	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
+)
+
+type mockLeaseRepo struct {
+	mock.Mock
+}
+
+func (m *mockLeaseRepo) ListQueues(ctx context.Context, tenantId pgtype.UUID) ([]*dbsqlc.Queue, error) {
+	args := m.Called(ctx, tenantId)
+	return args.Get(0).([]*dbsqlc.Queue), args.Error(1)
+}
+
+func (m *mockLeaseRepo) ListActiveWorkers(ctx context.Context, tenantId pgtype.UUID) ([]*ListActiveWorkersResult, error) {
+	args := m.Called(ctx, tenantId)
+	return args.Get(0).([]*ListActiveWorkersResult), args.Error(1)
+}
+
+func (m *mockLeaseRepo) AcquireLeases(ctx context.Context, kind dbsqlc.LeaseKind, resourceIds []string, existingLeases []*dbsqlc.Lease) ([]*dbsqlc.Lease, error) {
+	args := m.Called(ctx, kind, resourceIds, existingLeases)
+	return args.Get(0).([]*dbsqlc.Lease), args.Error(1)
+}
+
+func (m *mockLeaseRepo) RenewLeases(ctx context.Context, leases []*dbsqlc.Lease) ([]*dbsqlc.Lease, error) {
+	args := m.Called(ctx, leases)
+	return args.Get(0).([]*dbsqlc.Lease), args.Error(1)
+}
+
+func (m *mockLeaseRepo) ReleaseLeases(ctx context.Context, leases []*dbsqlc.Lease) error {
+	args := m.Called(ctx, leases)
+	return args.Error(0)
+}
+
+func TestLeaseManager_AcquireWorkerLeases(t *testing.T) {
+	l := zerolog.Nop()
+	tenantId := pgtype.UUID{}
+	mockLeaseRepo := &mockLeaseRepo{}
+	leaseManager := &LeaseManager{
+		lr:       mockLeaseRepo,
+		conf:     &sharedConfig{l: &l},
+		tenantId: tenantId,
+	}
+
+	mockWorkers := []*ListActiveWorkersResult{
+		{ID: pgtype.UUID{}, Labels: nil},
+		{ID: pgtype.UUID{}, Labels: nil},
+	}
+	mockLeases := []*dbsqlc.Lease{
+		{ID: 1, ResourceId: "worker-1"},
+		{ID: 2, ResourceId: "worker-2"},
+	}
+
+	mockLeaseRepo.On("ListActiveWorkers", mock.Anything, tenantId).Return(mockWorkers, nil)
+	mockLeaseRepo.On("AcquireLeases", mock.Anything, dbsqlc.LeaseKindWORKER, mock.Anything, mock.Anything).Return(mockLeases, nil)
+
+	err := leaseManager.acquireWorkerLeases(context.Background())
+	assert.NoError(t, err)
+	assert.Len(t, leaseManager.workerLeases, 2)
+}
+
+func TestLeaseManager_AcquireQueueLeases(t *testing.T) {
+	l := zerolog.Nop()
+	tenantId := pgtype.UUID{}
+	mockLeaseRepo := &mockLeaseRepo{}
+	leaseManager := &LeaseManager{
+		lr:       mockLeaseRepo,
+		conf:     &sharedConfig{l: &l},
+		tenantId: tenantId,
+	}
+
+	mockQueues := []*dbsqlc.Queue{
+		{Name: "queue-1"},
+		{Name: "queue-2"},
+	}
+	mockLeases := []*dbsqlc.Lease{
+		{ID: 1, ResourceId: "queue-1"},
+		{ID: 2, ResourceId: "queue-2"},
+	}
+
+	mockLeaseRepo.On("ListQueues", mock.Anything, tenantId).Return(mockQueues, nil)
+	mockLeaseRepo.On("AcquireLeases", mock.Anything, dbsqlc.LeaseKindQUEUE, mock.Anything, mock.Anything).Return(mockLeases, nil)
+
+	err := leaseManager.acquireQueueLeases(context.Background())
+	assert.NoError(t, err)
+	assert.Len(t, leaseManager.queueLeases, 2)
+}
+
+func TestLeaseManager_SendWorkerIds(t *testing.T) {
+	tenantId := pgtype.UUID{}
+	workersCh := make(chan []*ListActiveWorkersResult)
+	leaseManager := &LeaseManager{
+		tenantId:  tenantId,
+		workersCh: workersCh,
+	}
+
+	mockWorkers := []*ListActiveWorkersResult{
+		{ID: pgtype.UUID{}, Labels: nil},
+	}
+
+	go leaseManager.sendWorkerIds(mockWorkers)
+
+	result := <-workersCh
+	assert.Equal(t, mockWorkers, result)
+}
+
+func TestLeaseManager_SendQueues(t *testing.T) {
+	tenantId := pgtype.UUID{}
+	queuesCh := make(chan []string)
+	leaseManager := &LeaseManager{
+		tenantId: tenantId,
+		queuesCh: queuesCh,
+	}
+
+	mockQueues := []string{"queue-1", "queue-2"}
+
+	go leaseManager.sendQueues(mockQueues)
+
+	result := <-queuesCh
+	assert.Equal(t, mockQueues, result)
+}
+
+func TestLeaseManager_AcquireWorkersBeforeListenerReady(t *testing.T) {
+	tenantId := pgtype.UUID{}
+	workersCh := make(chan []*ListActiveWorkersResult)
+	leaseManager := &LeaseManager{
+		tenantId:  tenantId,
+		workersCh: workersCh,
+	}
+
+	mockWorkers1 := []*ListActiveWorkersResult{
+		{ID: pgtype.UUID{}, Labels: nil},
+	}
+	mockWorkers2 := []*ListActiveWorkersResult{
+		{ID: pgtype.UUID{}, Labels: nil},
+		{ID: pgtype.UUID{}, Labels: nil},
+	}
+
+	// Send workers before listener is ready
+	go leaseManager.sendWorkerIds(mockWorkers1)
+	time.Sleep(100 * time.Millisecond)
+	var result []*ListActiveWorkersResult
+	go func() {
+		result = <-workersCh
+	}()
+	time.Sleep(100 * time.Millisecond)
+	go leaseManager.sendWorkerIds(mockWorkers2)
+	time.Sleep(100 * time.Millisecond)
+
+	// Ensure only the latest workers are sent over the channel
+	assert.Equal(t, mockWorkers2, result)
+	assert.Len(t, workersCh, 0) // Ensure no additional workers are left in the channel
+}

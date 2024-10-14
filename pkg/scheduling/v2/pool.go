@@ -32,7 +32,7 @@ type SchedulingPool struct {
 }
 
 func NewSchedulingPool(l *zerolog.Logger, p *pgxpool.Pool, v validator.Validator, singleQueueLimit int) (*SchedulingPool, func() error, error) {
-	resultsCh := make(chan *QueueResults)
+	resultsCh := make(chan *QueueResults, 1000)
 
 	eventBuffer, err := buffer.NewBulkEventWriter(p, v, l)
 

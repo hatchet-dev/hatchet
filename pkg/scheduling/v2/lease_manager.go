@@ -231,19 +231,17 @@ func newLeaseManager(conf *sharedConfig, tenantId pgtype.UUID) (*LeaseManager, <
 	}, workersCh, queuesCh
 }
 
-func (l *LeaseManager) sendWorkerIds(ctx context.Context, workerIds []*ListActiveWorkersResult) {
+func (l *LeaseManager) sendWorkerIds(workerIds []*ListActiveWorkersResult) {
 	select {
-	case <-ctx.Done():
-		return
 	case l.workersCh <- workerIds:
+	default:
 	}
 }
 
-func (l *LeaseManager) sendQueues(ctx context.Context, queues []string) {
+func (l *LeaseManager) sendQueues(queues []string) {
 	select {
-	case <-ctx.Done():
-		return
 	case l.queuesCh <- queues:
+	default:
 	}
 }
 
@@ -285,7 +283,7 @@ func (l *LeaseManager) acquireWorkerLeases(ctx context.Context) error {
 		}
 	}
 
-	go l.sendWorkerIds(ctx, successfullyAcquiredWorkerIds)
+	l.sendWorkerIds(successfullyAcquiredWorkerIds)
 
 	return nil
 }
@@ -325,7 +323,7 @@ func (l *LeaseManager) acquireQueueLeases(ctx context.Context) error {
 		}
 	}
 
-	go l.sendQueues(ctx, successfullyAcquiredQueues)
+	l.sendQueues(successfullyAcquiredQueues)
 
 	return nil
 }
