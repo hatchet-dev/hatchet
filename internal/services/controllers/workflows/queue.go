@@ -550,76 +550,59 @@ func (wc *WorkflowsControllerImpl) queueByCancelInProgress(ctx context.Context, 
 
 	wc.l.Info().Msgf("handling queue with strategy CANCEL_IN_PROGRESS for %s", groupKey)
 
-	// Get or create a mutex for this specific groupKey
 	mutex := wc.getLock(fmt.Sprintf("%s:%s", tenantId, groupKey))
 	mutex.Lock()
 	defer mutex.Unlock()
 
-	// list all workflow runs that are running for this group key
 	running := db.WorkflowRunStatusRunning
-
+	queued := db.WorkflowRunStatusQueued
 	workflowVersionId := sqlchelpers.UUIDToStr(workflowVersion.WorkflowVersion.ID)
+	maxRuns := int(workflowVersion.ConcurrencyMaxRuns.Int32)
 
 	runningWorkflowRuns, err := wc.repo.WorkflowRun().ListWorkflowRuns(ctx, tenantId, &repository.ListWorkflowRunsOpts{
 		WorkflowVersionId: &workflowVersionId,
 		GroupKey:          &groupKey,
 		Statuses:          &[]db.WorkflowRunStatus{running},
-		// order from oldest to newest
-		OrderBy:        repository.StringPtr("createdAt"),
-		OrderDirection: repository.StringPtr("ASC"),
+		OrderBy:           repository.StringPtr("createdAt"),
+		OrderDirection:    repository.StringPtr("ASC"),
 	})
-
 	if err != nil {
 		return fmt.Errorf("could not list running workflow runs: %w", err)
 	}
-
-	// get workflow runs which are queued for this group key
-	queued := db.WorkflowRunStatusQueued
-
-	maxRuns := int(workflowVersion.ConcurrencyMaxRuns.Int32)
 
 	queuedWorkflowRuns, err := wc.repo.WorkflowRun().ListWorkflowRuns(ctx, tenantId, &repository.ListWorkflowRunsOpts{
 		WorkflowVersionId: &workflowVersionId,
 		GroupKey:          &groupKey,
 		Statuses:          &[]db.WorkflowRunStatus{queued},
-		// order from oldest to newest
-		OrderBy:        repository.StringPtr("createdAt"),
-		OrderDirection: repository.StringPtr("ASC"),
-		Limit:          &maxRuns,
+		OrderBy:           repository.StringPtr("createdAt"),
+		OrderDirection:    repository.StringPtr("ASC"),
 	})
-
 	if err != nil {
 		return fmt.Errorf("could not list queued workflow runs: %w", err)
 	}
 
-	// cancel up to maxRuns - queued runs
-	maxToQueue := min(maxRuns, len(queuedWorkflowRuns.Rows))
+	runningCount := len(runningWorkflowRuns.Rows)
+	queuedCount := len(queuedWorkflowRuns.Rows)
+
+	// Calculate how many runs we need to cancel
+	toCancel := max(0, runningCount+queuedCount-maxRuns)
+
 	errGroup := new(errgroup.Group)
 
-	for i := range runningWorkflowRuns.Rows {
-		// in this strategy we need to make room for all of the queued runs
-		if i >= len(queuedWorkflowRuns.Rows) {
-			break
-		}
-
+	// Cancel the oldest running workflows
+	for i := 0; i < toCancel && i < runningCount; i++ {
 		row := runningWorkflowRuns.Rows[i]
+		workflowRunId := sqlchelpers.UUIDToStr(row.WorkflowRun.ID)
 
 		errGroup.Go(func() error {
-			workflowRunId := sqlchelpers.UUIDToStr(row.WorkflowRun.ID)
 			return wc.cancelWorkflowRun(ctx, tenantId, workflowRunId)
 		})
 
 		errGroup.Go(func() error {
-
-			workflowRunId := sqlchelpers.UUIDToStr(row.WorkflowRun.ID)
-			tenantId := sqlchelpers.UUIDToStr(row.WorkflowRun.TenantId)
-
 			workflowRun, err := wc.repo.WorkflowRun().GetWorkflowRunById(ctx, tenantId, workflowRunId)
-
 			if err != nil {
 				return err
 			}
-
 			return wc.cancelWorkflowRunJobs(ctx, workflowRun, "CANCEL_IN_PROGRESS")
 		})
 	}
@@ -628,25 +611,21 @@ func (wc *WorkflowsControllerImpl) queueByCancelInProgress(ctx context.Context, 
 		return fmt.Errorf("could not cancel workflow runs: %w", err)
 	}
 
+	// Queue new runs
+	toQueue := min(maxRuns-(runningCount-toCancel), queuedCount)
 	errGroup = new(errgroup.Group)
 
-	for i := range queuedWorkflowRuns.Rows {
-		if i >= maxToQueue {
-			break
-		}
-
+	for i := 0; i < toQueue; i++ {
 		row := queuedWorkflowRuns.Rows[i]
+		workflowRunId := sqlchelpers.UUIDToStr(row.WorkflowRun.ID)
 
 		errGroup.Go(func() error {
-			workflowRunId := sqlchelpers.UUIDToStr(row.WorkflowRun.ID)
 			workflowRun, err := wc.repo.WorkflowRun().GetWorkflowRunById(ctx, tenantId, workflowRunId)
-
 			if err != nil {
 				return fmt.Errorf("could not get workflow run: %w", err)
 			}
 
 			isPaused := workflowRun.IsPaused.Valid && workflowRun.IsPaused.Bool
-
 			if isPaused {
 				return nil
 			}
