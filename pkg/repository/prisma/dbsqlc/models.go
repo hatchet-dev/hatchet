@@ -1041,6 +1041,7 @@ type Event struct {
 type EventKey struct {
 	Key      string      `json:"key"`
 	TenantId pgtype.UUID `json:"tenantId"`
+	ID       int64       `json:"id"`
 }
 
 type GetGroupKeyRun struct {

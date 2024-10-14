@@ -132,8 +132,9 @@ CREATE TABLE "Event" (
 CREATE TABLE "EventKey" (
     "key" TEXT NOT NULL,
     "tenantId" UUID NOT NULL,
+    "id" BIGSERIAL NOT NULL,
 
-    CONSTRAINT "EventKey_pkey" PRIMARY KEY ("key")
+    CONSTRAINT "EventKey_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
