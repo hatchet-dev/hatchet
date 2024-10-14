@@ -2,9 +2,11 @@ package v2
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
@@ -171,7 +173,7 @@ func (d *leaseDbQueries) ListActiveWorkers(ctx context.Context, tenantId pgtype.
 
 	labels, err := d.queries.ListManyWorkerLabels(ctx, d.pool, workerIds)
 
-	if err != nil {
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return nil, err
 	}
 
@@ -328,9 +330,9 @@ func (l *LeaseManager) acquireQueueLeases(ctx context.Context) error {
 	return nil
 }
 
-// loopForLeases acquires new leases every 5 seconds for workers and queues
+// loopForLeases acquires new leases every 1 second for workers and queues
 func (l *LeaseManager) loopForLeases(ctx context.Context) {
-	ticker := time.NewTicker(5 * time.Second)
+	ticker := time.NewTicker(1 * time.Second)
 
 	for {
 		select {
