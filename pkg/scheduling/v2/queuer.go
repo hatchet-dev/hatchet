@@ -60,7 +60,7 @@ func newQueueItemDbQueries(cf *sharedConfig, tenantId pgtype.UUID, eventBuffer *
 }
 
 func (d *queuerDbQueries) setMinId(id int64) {
-	d.gtIdMu.TryLock()
+	d.gtIdMu.Lock()
 	defer d.gtIdMu.Unlock()
 
 	d.gtId = pgtype.Int8{
