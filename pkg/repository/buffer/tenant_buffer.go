@@ -30,6 +30,7 @@ func SetDefaults(flushPeriodMilliseconds int, flushItemsThreshold int) {
 // An example would be T is eventOps and U is *dbsqlc.Event
 
 type TenantBufferManager[T any, U any] struct {
+	name        string // a human readable name for the buffer
 	tenants     sync.Map
 	tenantLock  sync.Map
 	l           *zerolog.Logger
@@ -38,6 +39,7 @@ type TenantBufferManager[T any, U any] struct {
 }
 
 type TenantBufManagerOpts[T any, U any] struct {
+	Name       string                                            `validate:"required"`
 	OutputFunc func(ctx context.Context, items []T) ([]U, error) `validate:"required"`
 	SizeFunc   func(T) int                                       `validate:"required"`
 	L          *zerolog.Logger                                   `validate:"required"`
@@ -72,8 +74,12 @@ func NewTenantBufManager[T any, U any](opts TenantBufManagerOpts[T, U]) (*Tenant
 	if opts.FlushPeriod != nil {
 		defaultOpts.FlushPeriod = *opts.FlushPeriod
 	}
+	if opts.FlushItemsThreshold != 0 {
+		defaultOpts.MaxCapacity = opts.FlushItemsThreshold
+	}
 
 	return &TenantBufferManager[T, U]{
+		name:        opts.Name,
 		tenants:     sync.Map{},
 		l:           opts.L,
 		defaultOpts: defaultOpts,
@@ -145,6 +151,7 @@ func (t *TenantBufferManager[T, U]) getOrCreateTenantBuf(
 		return v.(*IngestBuf[T, U]), nil
 	}
 	t.l.Debug().Msgf("creating new tenant buffer for tenant %s", tenantBufKey)
+	opts.Name = fmt.Sprintf("%s-%s", t.name, tenantBufKey)
 	return t.createTenantBuf(tenantBufKey, opts)
 }
 

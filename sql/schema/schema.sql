@@ -816,6 +816,7 @@ CREATE TABLE "WorkflowRun" (
     "additionalMetadata" JSONB,
     "duration" BIGINT,
     "priority" INTEGER,
+    "insertOrder" INTEGER,
 
     CONSTRAINT "WorkflowRun_pkey" PRIMARY KEY ("id")
 );

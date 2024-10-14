@@ -92,7 +92,7 @@ func (t *WorkflowService) WorkflowRunCreate(ctx echo.Context, request gen.Workfl
 	}
 
 	if err != nil {
-		return nil, fmt.Errorf("could not create workflow run: %w", err)
+		return nil, fmt.Errorf("trigger.go could not create workflow run: %w", err)
 	}
 
 	// send to workflow processing queue

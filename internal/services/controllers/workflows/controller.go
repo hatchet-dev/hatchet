@@ -44,6 +44,7 @@ type WorkflowsControllerImpl struct {
 	processWorkflowEventsOps *queueutils.OperationPool
 	unpausedWorkflowRunsOps  *queueutils.OperationPool
 	bumpQueueOps             *queueutils.OperationPool
+	queueMutex               sync.Map
 }
 
 type WorkflowsControllerOpt func(*WorkflowsControllerOpts)
@@ -656,7 +657,7 @@ func (wc *WorkflowsControllerImpl) cancelGetGroupKeyRun(ctx context.Context, ten
 		return fmt.Errorf("could not get workflow run: %w", err)
 	}
 
-	return wc.cancelWorkflowRunJobs(ctx, workflowRun)
+	return wc.cancelWorkflowRunJobs(ctx, workflowRun, "")
 }
 
 func (wc *WorkflowsControllerImpl) runTenantProcessWorkflowRunEvents(ctx context.Context) func() {

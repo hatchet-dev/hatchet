@@ -187,7 +187,7 @@ func sizeOfEvent(item *repository.CreateEventOpts) int {
 
 func (e *eventEngineRepository) startBufferLoop() error {
 
-	tenantBufOpts := buffer.TenantBufManagerOpts[*repository.CreateEventOpts, *dbsqlc.Event]{OutputFunc: e.BulkCreateEventSharedTenant, SizeFunc: sizeOfEvent, L: e.l, V: e.v}
+	tenantBufOpts := buffer.TenantBufManagerOpts[*repository.CreateEventOpts, *dbsqlc.Event]{Name: "create_events", OutputFunc: e.BulkCreateEventSharedTenant, SizeFunc: sizeOfEvent, L: e.l, V: e.v}
 	var err error
 	e.bulkCreateBuffer, err = buffer.NewTenantBufManager(tenantBufOpts)
 
@@ -358,7 +358,6 @@ func (r *eventEngineRepository) BulkCreateEvent(ctx context.Context, opts *repos
 		defer span.End()
 
 		if err := r.v.Validate(opts); err != nil {
-
 			return nil, nil, err
 		}
 		params := make([]dbsqlc.CreateEventsParams, len(opts.Events))

@@ -43,6 +43,7 @@ func TestIngestBufInitialization(t *testing.T) {
 	logger := zerolog.New(nil).Level(zerolog.Disabled)
 
 	opts := IngestBufOpts[mockItem, mockResult]{
+		Name:               "test",
 		MaxCapacity:        5,
 		FlushPeriod:        1 * time.Second,
 		MaxDataSizeInQueue: 100,
@@ -68,6 +69,7 @@ func TestIngestBufValidation(t *testing.T) {
 	logger := zerolog.New(nil).Level(zerolog.Disabled)
 
 	opts := IngestBufOpts[mockItem, mockResult]{
+		Name:               "test",
 		MaxCapacity:        0,
 		FlushPeriod:        -1 * time.Second,
 		MaxDataSizeInQueue: -1,
@@ -87,6 +89,7 @@ func TestIngestBufBuffering(t *testing.T) {
 	logger := zerolog.New(nil).Level(zerolog.Disabled)
 
 	opts := IngestBufOpts[mockItem, mockResult]{
+		Name:               "test",
 		MaxCapacity:        2,
 		FlushPeriod:        1 * time.Second,
 		MaxDataSizeInQueue: 100,
@@ -117,6 +120,7 @@ func TestIngestBufAutoFlushOnCapacity(t *testing.T) {
 	logger := zerolog.New(nil).Level(zerolog.Disabled)
 
 	opts := IngestBufOpts[mockItem, mockResult]{
+		Name:               "test",
 		MaxCapacity:        2,
 		FlushPeriod:        5 * time.Second,
 		MaxDataSizeInQueue: 100,
@@ -157,6 +161,7 @@ func TestIngestBufAutoFlushOnSize(t *testing.T) {
 	logger := zerolog.New(nil).Level(zerolog.Disabled)
 
 	opts := IngestBufOpts[mockItem, mockResult]{
+		Name:               "test",
 		MaxCapacity:        10,
 		FlushPeriod:        5 * time.Second,
 		MaxDataSizeInQueue: 20, // Flush on size
@@ -187,6 +192,7 @@ func TestIngestBufTimeoutFlush(t *testing.T) {
 	logger := zerolog.New(nil).Level(zerolog.Disabled)
 
 	opts := IngestBufOpts[mockItem, mockResult]{
+		Name:               "test",
 		MaxCapacity:        10,
 		FlushPeriod:        100 * time.Millisecond,
 		MaxDataSizeInQueue: 100,
@@ -220,6 +226,7 @@ func TestIngestBufOrderPreservation(t *testing.T) {
 	logger := zerolog.New(nil).Level(zerolog.Disabled)
 
 	opts := IngestBufOpts[mockItem, mockResult]{
+		Name:               "test",
 		MaxCapacity:        5,
 		FlushPeriod:        5 * time.Second,
 		MaxDataSizeInQueue: 100,

@@ -36,6 +36,7 @@ func NewBulkEventWriter(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Lo
 	}
 
 	eventBufOpts := TenantBufManagerOpts[*repository.CreateStepRunEventOpts, int]{
+		Name:       "step_run_event_buffer",
 		OutputFunc: w.BulkWriteStepRunEvents,
 		SizeFunc:   sizeOfEventData,
 		L:          w.l,

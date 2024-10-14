@@ -159,6 +159,19 @@ WHERE
     AND jr."workflowRunId" = @workflowRunId::uuid
     AND jr."jobId" = @jobId::uuid;
 
+-- name: GetJobRunsByWorkflowRunId :many
+
+SELECT
+    "id",
+    "jobId",
+    "status"
+FROM
+    "JobRun" jr
+WHERE
+    jr."workflowRunId" = @workflowRunId::uuid
+    AND jr."tenantId" = @tenantId::uuid;
+
+
 -- name: ClearJobRunLookupData :one
 WITH for_delete AS (
     SELECT
