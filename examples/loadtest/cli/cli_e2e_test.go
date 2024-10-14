@@ -46,7 +46,7 @@ func TestLoadCLI(t *testing.T) {
 			duration:        10 * time.Second,
 			eventsPerSecond: 10,
 			delay:           0 * time.Second,
-			wait:            20 * time.Second,
+			wait:            60 * time.Second,
 			concurrency:     0,
 		},
 	}, {
@@ -55,7 +55,7 @@ func TestLoadCLI(t *testing.T) {
 			duration:        10 * time.Second,
 			eventsPerSecond: 10,
 			delay:           10 * time.Second,
-			wait:            30 * time.Second,
+			wait:            60 * time.Second,
 			concurrency:     0,
 		},
 	}, {

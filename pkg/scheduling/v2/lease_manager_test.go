@@ -149,15 +149,16 @@ func TestLeaseManager_AcquireWorkersBeforeListenerReady(t *testing.T) {
 	// Send workers before listener is ready
 	go leaseManager.sendWorkerIds(mockWorkers1)
 	time.Sleep(100 * time.Millisecond)
-	var result []*ListActiveWorkersResult
+	resultCh := make(chan []*ListActiveWorkersResult)
 	go func() {
-		result = <-workersCh
+		resultCh <- <-workersCh
 	}()
 	time.Sleep(100 * time.Millisecond)
 	go leaseManager.sendWorkerIds(mockWorkers2)
 	time.Sleep(100 * time.Millisecond)
 
 	// Ensure only the latest workers are sent over the channel
+	result := <-resultCh
 	assert.Equal(t, mockWorkers2, result)
 	assert.Len(t, workersCh, 0) // Ensure no additional workers are left in the channel
 }
