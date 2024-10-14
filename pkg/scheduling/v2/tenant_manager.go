@@ -130,6 +130,9 @@ func (t *tenantManager) setQueuers(queueNames []string) {
 
 			// delete from set
 			delete(queueNamesSet, q.queueName)
+		} else {
+			// if not in new set, cleanup
+			go q.Cleanup()
 		}
 	}
 
