@@ -716,6 +716,7 @@ func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId, stepId
 			err := json.Unmarshal(lookupDataBytes, lookupData)
 
 			if err != nil {
+				ec.l.Error().Err(err).Msgf("could not unmarshal job run lookup data : %s", string(lookupDataBytes))
 				return ec.a.WrapErr(fmt.Errorf("could not get job run lookup data: %w", err), errData)
 			}
 

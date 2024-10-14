@@ -19,3 +19,23 @@ if err != nil {
     return nil, err
 }
 ```
+
+## Spawning ChildWorkflows in Bulk
+
+Child workflows can also be spawned in bulk:
+
+```go
+_, err = ctx.SpawnWorkflows(
+[]*worker.SpawnWorkflowsOpts{
+    {
+        WorkflowName: "step-one",
+
+        Sticky: &sticky,
+    },
+    {
+        WorkflowName: "step-one",
+
+        Sticky: &sticky,
+    },
+})
+```

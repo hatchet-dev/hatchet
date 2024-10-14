@@ -24,6 +24,10 @@ import (
 )
 
 func (wc *WorkflowsControllerImpl) handleWorkflowRunQueued(ctx context.Context, task *msgqueue.Message) error {
+
+	// TODO remove de dupes and fail if they are clashing
+	// write a cancellation step run for the failed workflow run (failWorkflowRun)
+
 	ctx, span := telemetry.NewSpan(ctx, "handle-workflow-run-queued")
 	defer span.End()
 
@@ -43,11 +47,28 @@ func (wc *WorkflowsControllerImpl) handleWorkflowRunQueued(ctx context.Context, 
 		return fmt.Errorf("could not decode job task metadata: %w", err)
 	}
 
-	// get the workflow run in the database
 	workflowRun, err := wc.repo.WorkflowRun().GetWorkflowRunById(ctx, metadata.TenantId, payload.WorkflowRunId)
 
 	if err != nil {
 		return fmt.Errorf("could not get job run: %w", err)
+	}
+
+	err = wc.checkDedupe(ctx, workflowRun.WorkflowRun)
+
+	if err != nil {
+
+		e := wc.failWorkflowRunsJobRuns(ctx, metadata.TenantId, payload.WorkflowRunId, "DUPLICATE_WORKFLOW_RUN")
+
+		if e != nil {
+			return fmt.Errorf("could not fail workflow run: %v -  %w", payload.WorkflowRunId, e)
+		}
+
+		wc.l.Info().Msgf("workflow run %s is a duplicate, failing", payload.WorkflowRunId)
+
+		wc.l.Debug().Msgf("dedupe error is %v", err)
+
+		// return nil to avoid requeueing the message
+		return nil
 	}
 
 	isPaused := workflowRun.IsPaused.Valid && workflowRun.IsPaused.Bool
@@ -118,6 +139,76 @@ func (wc *WorkflowsControllerImpl) handleWorkflowRunQueued(ctx context.Context, 
 	}
 
 	return nil
+}
+
+func (wc *WorkflowsControllerImpl) failWorkflowRunsJobRuns(ctx context.Context, tenantId string, workflowRunId string, reason string) error {
+
+	jobRuns, err := wc.repo.JobRun().GetJobRunsByWorkflowRunId(ctx, tenantId, workflowRunId)
+
+	if err != nil {
+		return fmt.Errorf("failWorkflowRunsJobRuns, could not get job runs: %w", err)
+	}
+
+	for _, jobRun := range jobRuns {
+
+		jobRunId := sqlchelpers.UUIDToStr(jobRun.ID)
+
+		payload, _ := datautils.ToJSONMap(tasktypes.JobRunCancelledTaskPayload{
+			JobRunId: jobRunId,
+			Reason:   &reason,
+		})
+
+		metadata, _ := datautils.ToJSONMap(tasktypes.JobRunCancelledTaskMetadata{
+			TenantId: tenantId,
+		})
+
+		err := wc.mq.AddMessage(ctx, msgqueue.JOB_PROCESSING_QUEUE, &msgqueue.Message{
+			ID:       "job-run-cancelled",
+			Payload:  payload,
+			Metadata: metadata,
+			Retries:  3,
+		})
+
+		if err != nil {
+			return fmt.Errorf("failWorkflowRunsJobRuns, could not add job run to task queue: %w", err)
+		}
+	}
+
+	return err
+}
+
+func (wc *WorkflowsControllerImpl) checkDedupe(ctx context.Context, workflowRun dbsqlc.WorkflowRun) error {
+
+	var dedupeValue *string
+	var additionalMetadata map[string]interface{}
+	var err error
+
+	if len(workflowRun.AdditionalMetadata) > 0 {
+		err = json.Unmarshal(workflowRun.AdditionalMetadata, &additionalMetadata)
+		if err != nil {
+			return err
+		}
+
+		// if additional metadata contains a "dedupe" key, use it as the dedupe value
+		if dedupeVal, ok := additionalMetadata["dedupe"]; ok {
+			switch v := dedupeVal.(type) {
+			case string:
+				dedupeValue = &v
+			case int:
+				dedupeStr := fmt.Sprintf("%d", v)
+				dedupeValue = &dedupeStr
+			}
+		}
+
+		if dedupeValue == nil {
+			return nil
+		}
+
+		err = wc.repo.WorkflowRun().CreateDeDupeKey(ctx, sqlchelpers.UUIDToStr(workflowRun.TenantId), sqlchelpers.UUIDToStr(workflowRun.ID), sqlchelpers.UUIDToStr(workflowRun.WorkflowVersionId), *dedupeValue)
+
+	}
+
+	return err
 }
 
 func (wc *WorkflowsControllerImpl) evalWorkflowRunConcurrency(ctx context.Context, tenantId, workflowRunId, expr string) (*string, error) {

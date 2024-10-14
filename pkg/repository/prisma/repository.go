@@ -75,7 +75,7 @@ func WithMetered(metered *metered.Metered) PrismaRepositoryOpt {
 	}
 }
 
-func NewAPIRepository(client *db.PrismaClient, pool *pgxpool.Pool, fs ...PrismaRepositoryOpt) repository.APIRepository {
+func NewAPIRepository(client *db.PrismaClient, pool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ...PrismaRepositoryOpt) (repository.APIRepository, func() error, error) {
 	opts := defaultPrismaRepositoryOpts()
 
 	for _, f := range fs {
@@ -88,6 +88,7 @@ func NewAPIRepository(client *db.PrismaClient, pool *pgxpool.Pool, fs ...PrismaR
 	if opts.cache == nil {
 		opts.cache = cache.New(1 * time.Millisecond)
 	}
+	workflowRunRepository, cleanupWorkflowRunRepository, err := NewWorkflowRunRepository(client, pool, opts.v, opts.l, opts.metered, cf)
 
 	return &apiRepository{
 		apiToken:       NewAPITokenRepository(client, opts.v, opts.cache),
@@ -97,7 +98,7 @@ func NewAPIRepository(client *db.PrismaClient, pool *pgxpool.Pool, fs ...PrismaR
 		tenantAlerting: NewTenantAlertingAPIRepository(client, opts.v, opts.cache),
 		tenantInvite:   NewTenantInviteRepository(client, opts.v),
 		workflow:       NewWorkflowRepository(client, pool, opts.v, opts.l),
-		workflowRun:    NewWorkflowRunRepository(client, pool, opts.v, opts.l, opts.metered),
+		workflowRun:    workflowRunRepository,
 		jobRun:         NewJobRunAPIRepository(client, pool, opts.v, opts.l),
 		stepRun:        NewStepRunAPIRepository(client, pool, opts.v, opts.l),
 		step:           NewStepRepository(pool, opts.v, opts.l),
@@ -109,7 +110,7 @@ func NewAPIRepository(client *db.PrismaClient, pool *pgxpool.Pool, fs ...PrismaR
 		health:         NewHealthAPIRepository(client, pool),
 		securityCheck:  NewSecurityCheckRepository(client, pool),
 		webhookWorker:  NewWebhookWorkerRepository(client, opts.v),
-	}
+	}, cleanupWorkflowRunRepository, err
 }
 
 func (r *apiRepository) Health() repository.HealthRepository {
@@ -309,11 +310,19 @@ func NewEngineRepository(pool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ..
 	if err != nil {
 		return nil, nil, err
 	}
+	workflowRunEngine, cleanupWorkflowRunEngine, err := NewWorkflowRunEngineRepository(stepRunEngine, pool, opts.v, opts.l, opts.metered, cf)
+
+	if err != nil {
+		return nil, nil, err
+	}
 
 	return func() error {
 			rlCache.Stop()
 
 			if err := cleanupStepRunEngine(); err != nil {
+				return err
+			}
+			if err := cleanupWorkflowRunEngine(); err != nil {
 				return err
 			}
 
@@ -333,7 +342,7 @@ func NewEngineRepository(pool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ..
 			ticker:         NewTickerRepository(pool, opts.v, opts.l),
 			worker:         NewWorkerEngineRepository(pool, opts.v, opts.l, opts.metered),
 			workflow:       NewWorkflowEngineRepository(pool, opts.v, opts.l, opts.metered),
-			workflowRun:    NewWorkflowRunEngineRepository(stepRunEngine, pool, opts.v, opts.l, opts.metered),
+			workflowRun:    workflowRunEngine,
 			streamEvent:    NewStreamEventsEngineRepository(pool, opts.v, opts.l),
 			log:            NewLogEngineRepository(pool, opts.v, opts.l),
 			rateLimit:      NewRateLimitEngineRepository(pool, opts.v, opts.l),

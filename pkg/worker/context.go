@@ -55,6 +55,8 @@ type HatchetContext interface {
 
 	SpawnWorkflow(workflowName string, input any, opts *SpawnWorkflowOpts) (*ChildWorkflow, error)
 
+	SpawnWorkflows(childWorkflows []*SpawnWorkflowsOpts) ([]*ChildWorkflow, error)
+
 	ReleaseSlot() error
 
 	RefreshTimeout(incrementTimeoutBy string) error
@@ -328,6 +330,78 @@ func (h *hatchetContext) SpawnWorkflow(workflowName string, input any, opts *Spa
 		l:             h.l,
 		listener:      listener,
 	}, nil
+}
+
+type SpawnWorkflowsOpts struct {
+	WorkflowName       string
+	Input              any
+	Key                *string
+	Sticky             *bool
+	AdditionalMetadata *map[string]string
+}
+
+func (h *hatchetContext) SpawnWorkflows(childWorkflows []*SpawnWorkflowsOpts) ([]*ChildWorkflow, error) {
+
+	triggerWorkflows := make([]*client.RunChildWorkflowsOpts, len(childWorkflows))
+	listener, err := h.saveOrLoadListener()
+
+	for i, c := range childWorkflows {
+
+		var desiredWorker *string
+
+		if c.Sticky != nil {
+			if _, exists := h.w.worker.registered_workflows[c.WorkflowName]; !exists {
+				return nil, fmt.Errorf("cannot run with sticky: workflow %s is not registered on this worker", c.WorkflowName)
+			}
+
+			desiredWorker = h.w.id
+		}
+
+		if err != nil {
+			return nil, err
+		}
+		workflowName := c.WorkflowName
+
+		if ns := h.client().Namespace(); ns != "" && !strings.HasPrefix(c.WorkflowName, ns) {
+			workflowName = fmt.Sprintf("%s%s", ns, workflowName)
+		}
+
+		// increment the index
+		h.inc()
+
+		triggerWorkflows[i] = &client.RunChildWorkflowsOpts{
+			WorkflowName: workflowName,
+			Input:        c.Input,
+			Opts: &client.ChildWorkflowOpts{
+				ParentId:           h.WorkflowRunId(),
+				ParentStepRunId:    h.StepRunId(),
+				ChildIndex:         h.index(),
+				ChildKey:           c.Key,
+				DesiredWorkerId:    desiredWorker,
+				AdditionalMetadata: c.AdditionalMetadata,
+			},
+		}
+	}
+
+	workflowRunIds, err := h.client().Admin().RunChildWorkflows(
+		triggerWorkflows,
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to spawn workflow: %w", err)
+	}
+
+	createdWorkflows := make([]*ChildWorkflow, len(workflowRunIds))
+
+	for i, workflowRunId := range workflowRunIds {
+		createdWorkflows[i] = &ChildWorkflow{
+			workflowRunId: workflowRunId,
+			l:             h.l,
+			listener:      listener,
+		}
+	}
+
+	return createdWorkflows, nil
 }
 
 func (h *hatchetContext) ChildIndex() *int32 {

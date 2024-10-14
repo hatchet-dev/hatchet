@@ -1554,6 +1554,7 @@ type WorkflowRun struct {
 	AdditionalMetadata []byte            `json:"additionalMetadata"`
 	Duration           pgtype.Int8       `json:"duration"`
 	Priority           pgtype.Int4       `json:"priority"`
+	InsertOrder        pgtype.Int4       `json:"insertOrder"`
 }
 
 type WorkflowRunDedupe struct {

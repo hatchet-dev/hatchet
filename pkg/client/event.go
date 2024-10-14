@@ -19,14 +19,14 @@ type BulkPushOpFunc func(*eventcontracts.BulkPushEventRequest) error
 type EventClient interface {
 	Push(ctx context.Context, eventKey string, payload interface{}, options ...PushOpFunc) error
 
-	BulkPush(ctx context.Context, payloads []EventWithMetadata, options ...BulkPushOpFunc) error
+	BulkPush(ctx context.Context, payloads []EventWithAdditionalMetadata, options ...BulkPushOpFunc) error
 
 	PutLog(ctx context.Context, stepRunId, msg string) error
 
 	PutStreamEvent(ctx context.Context, stepRunId string, message []byte) error
 }
 
-type EventWithMetadata struct {
+type EventWithAdditionalMetadata struct {
 	Event              interface{}       `json:"event"`
 	AdditionalMetadata map[string]string `json:"metadata"`
 	Key                string            `json:"key"`
@@ -103,7 +103,7 @@ func (a *eventClientImpl) Push(ctx context.Context, eventKey string, payload int
 	return nil
 }
 
-func (a *eventClientImpl) BulkPush(ctx context.Context, payload []EventWithMetadata, options ...BulkPushOpFunc) error {
+func (a *eventClientImpl) BulkPush(ctx context.Context, payload []EventWithAdditionalMetadata, options ...BulkPushOpFunc) error {
 
 	request := eventcontracts.BulkPushEventRequest{}
 

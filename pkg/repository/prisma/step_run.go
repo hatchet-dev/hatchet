@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-multierror"
+	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -269,7 +270,9 @@ type stepRunEngineRepository struct {
 	callbacks                []repository.Callback[*dbsqlc.ResolveWorkflowRunStatusRow]
 
 	bulkStatusBuffer *TenantBufferManager[*updateStepRunQueueData, pgtype.UUID]
-	bulkEventBuffer  *TenantBufferManager[*repository.CreateStepRunEventOpts, int]
+
+	queueActionTenantCache *lru.Cache[string, bool]
+	bulkEventBuffer        *TenantBufferManager[*repository.CreateStepRunEventOpts, int]
 
 	updateConcurrentFactor int
 	maxHashFactor          int
@@ -296,6 +299,8 @@ func NewStepRunEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *ze
 		updateConcurrentFactor:   cf.UpdateConcurrentFactor,
 		maxHashFactor:            cf.UpdateHashFactor,
 	}
+
+	s.queueActionTenantCache, _ = lru.New[string, bool](10000)
 
 	err := s.startBuffers()
 
@@ -330,6 +335,7 @@ func sizeOfEventData(item *repository.CreateStepRunEventOpts) int {
 
 func (s *stepRunEngineRepository) startBuffers() error {
 	statusBufOpts := TenantBufManagerOpts[*updateStepRunQueueData, pgtype.UUID]{
+		Name:       "update_step_run_status",
 		OutputFunc: s.bulkUpdateStepRunStatuses,
 		SizeFunc:   sizeOfUpdateData,
 		L:          s.l,
@@ -344,6 +350,7 @@ func (s *stepRunEngineRepository) startBuffers() error {
 	}
 
 	eventBufOpts := TenantBufManagerOpts[*repository.CreateStepRunEventOpts, int]{
+		Name:       "create_step_run_event",
 		OutputFunc: s.bulkWriteStepRunEvents,
 		SizeFunc:   sizeOfEventData,
 		L:          s.l,
@@ -2987,6 +2994,34 @@ func (s *stepRunEngineRepository) UpdateStepRunInputSchema(ctx context.Context, 
 	return inputSchema, nil
 }
 
+func (s *stepRunEngineRepository) doCachedUpsertOfQueue(ctx context.Context, tx dbsqlc.DBTX, tenantId string, innerStepRun *dbsqlc.GetStepRunForEngineRow) error {
+	// update the queue with the action id
+
+	cacheKey := fmt.Sprintf("t-%s-q-%s", tenantId, innerStepRun.ActionId)
+
+	_, ok := s.queueActionTenantCache.Get(cacheKey)
+
+	if !ok {
+
+		err := s.queries.UpsertQueue(
+			ctx,
+			tx,
+			dbsqlc.UpsertQueueParams{
+				Name:     innerStepRun.ActionId,
+				Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+			},
+		)
+		if err != nil {
+			return err
+		}
+
+		s.queueActionTenantCache.Add(cacheKey, true)
+
+	}
+
+	return nil
+}
+
 func (s *stepRunEngineRepository) QueueStepRun(ctx context.Context, tenantId, stepRunId string, opts *repository.QueueStepRunOpts) (*dbsqlc.GetStepRunForEngineRow, error) {
 	ctx, span := telemetry.NewSpan(ctx, "queue-step-run-database")
 	defer span.End()
@@ -3045,6 +3080,12 @@ func (s *stepRunEngineRepository) QueueStepRun(ctx context.Context, tenantId, st
 
 	if err != nil {
 		return nil, err
+	}
+
+	err = s.doCachedUpsertOfQueue(ctx, tx, tenantId, innerStepRun)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not upsert queue with actionId: %w", err)
 	}
 
 	// if this is an internal retry, and the step run is in a running or final state, this is a no-op. The internal retry
