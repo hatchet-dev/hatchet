@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/hashicorp/go-multierror"
@@ -100,7 +101,7 @@ func (wc *WorkflowsControllerImpl) handleWorkflowRunQueued(ctx context.Context, 
 				return fmt.Errorf("could not get workflow run: %w", err)
 			}
 
-			return wc.cancelWorkflowRunJobs(ctx, workflowRun)
+			return wc.cancelWorkflowRunJobs(ctx, workflowRun, "GROUP_KEY_REQUIRED")
 		}
 
 		wc.checkTenantQueue(ctx, metadata.TenantId)
@@ -338,7 +339,7 @@ func (wc *WorkflowsControllerImpl) queueWorkflowRunJobs(ctx context.Context, wor
 	return wc.startManyJobRuns(ctx, tenantId, jobRunIds)
 }
 
-func (wc *WorkflowsControllerImpl) cancelWorkflowRunJobs(ctx context.Context, workflowRun *dbsqlc.GetWorkflowRunRow) error {
+func (wc *WorkflowsControllerImpl) cancelWorkflowRunJobs(ctx context.Context, workflowRun *dbsqlc.GetWorkflowRunRow, reason string) error {
 	ctx, span := telemetry.NewSpan(ctx, "cancel-workflow-run-jobs") // nolint:ineffassign
 	defer span.End()
 
@@ -364,7 +365,7 @@ func (wc *WorkflowsControllerImpl) cancelWorkflowRunJobs(ctx context.Context, wo
 		err := wc.mq.AddMessage(
 			context.Background(),
 			msgqueue.JOB_PROCESSING_QUEUE,
-			tasktypes.JobRunCancelledToTask(tenantId, jobRunId, nil),
+			tasktypes.JobRunCancelledToTask(tenantId, jobRunId, &reason),
 		)
 
 		if err != nil {
@@ -538,11 +539,21 @@ func (ec *WorkflowsControllerImpl) runGetGroupKeyRunReassignTenant(ctx context.C
 	return g.Wait()
 }
 
+func (wc *WorkflowsControllerImpl) getLock(key string) *sync.Mutex {
+	actual, _ := wc.queueMutex.LoadOrStore(key, &sync.Mutex{})
+	return actual.(*sync.Mutex)
+}
+
 func (wc *WorkflowsControllerImpl) queueByCancelInProgress(ctx context.Context, tenantId, groupKey string, workflowVersion *dbsqlc.GetWorkflowVersionForEngineRow) error {
 	ctx, span := telemetry.NewSpan(ctx, "queue-by-cancel-in-progress")
 	defer span.End()
 
 	wc.l.Info().Msgf("handling queue with strategy CANCEL_IN_PROGRESS for %s", groupKey)
+
+	// Get or create a mutex for this specific groupKey
+	mutex := wc.getLock(fmt.Sprintf("%s:%s", tenantId, groupKey))
+	mutex.Lock()
+	defer mutex.Unlock()
 
 	// list all workflow runs that are running for this group key
 	running := db.WorkflowRunStatusRunning
@@ -596,6 +607,20 @@ func (wc *WorkflowsControllerImpl) queueByCancelInProgress(ctx context.Context, 
 		errGroup.Go(func() error {
 			workflowRunId := sqlchelpers.UUIDToStr(row.WorkflowRun.ID)
 			return wc.cancelWorkflowRun(ctx, tenantId, workflowRunId)
+		})
+
+		errGroup.Go(func() error {
+
+			workflowRunId := sqlchelpers.UUIDToStr(row.WorkflowRun.ID)
+			tenantId := sqlchelpers.UUIDToStr(row.WorkflowRun.TenantId)
+
+			workflowRun, err := wc.repo.WorkflowRun().GetWorkflowRunById(ctx, tenantId, workflowRunId)
+
+			if err != nil {
+				return err
+			}
+
+			return wc.cancelWorkflowRunJobs(ctx, workflowRun, "CANCEL_IN_PROGRESS")
 		})
 	}
 
