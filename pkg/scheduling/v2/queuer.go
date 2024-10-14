@@ -716,6 +716,8 @@ type Queuer struct {
 	queueMu deadlock.Mutex
 
 	cleanup func()
+
+	isCleanedUp bool
 }
 
 func newQueuer(conf *sharedConfig, tenantId pgtype.UUID, queueName string, s *Scheduler, eventBuffer *buffer.BulkEventWriter, resultsCh chan<- *QueueResults) *Queuer {
@@ -741,9 +743,18 @@ func newQueuer(conf *sharedConfig, tenantId pgtype.UUID, queueName string, s *Sc
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
+	cleanupMu := sync.Mutex{}
 	q.cleanup = func() {
-		defer cancel()
+		cleanupMu.Lock()
+		defer cleanupMu.Unlock()
+
+		if q.isCleanedUp {
+			return
+		}
+
+		q.isCleanedUp = true
 		cleanupRepo()
+		cancel()
 	}
 
 	go q.loopQueue(ctx)
