@@ -43,7 +43,9 @@ type queuerDbQueries struct {
 	cachedStepIdHasRateLimit *cache.Cache
 }
 
-func newQueueItemDbQueries(cf *sharedConfig, tenantId pgtype.UUID, eventBuffer *buffer.BulkEventWriter, queueName string, limit int32) *queuerDbQueries {
+func newQueueItemDbQueries(cf *sharedConfig, tenantId pgtype.UUID, eventBuffer *buffer.BulkEventWriter, queueName string, limit int32,
+) (*queuerDbQueries, func()) {
+	c := cache.New(5 * time.Minute)
 	return &queuerDbQueries{
 		tenantId:    tenantId,
 		queueName:   queueName,
@@ -55,8 +57,8 @@ func newQueueItemDbQueries(cf *sharedConfig, tenantId pgtype.UUID, eventBuffer *
 			Int32: limit,
 			Valid: true,
 		},
-		cachedStepIdHasRateLimit: cache.New(5 * time.Minute),
-	}
+		cachedStepIdHasRateLimit: c,
+	}, c.Stop
 }
 
 func (d *queuerDbQueries) setMinId(id int64) {
@@ -723,7 +725,7 @@ func newQueuer(conf *sharedConfig, tenantId pgtype.UUID, queueName string, s *Sc
 		defaultLimit = conf.singleQueueLimit
 	}
 
-	repo := newQueueItemDbQueries(conf, tenantId, eventBuffer, queueName, int32(defaultLimit)) // nolint: gosec
+	repo, cleanupRepo := newQueueItemDbQueries(conf, tenantId, eventBuffer, queueName, int32(defaultLimit)) // nolint: gosec
 
 	notifyQueueCh := make(chan struct{})
 
@@ -739,7 +741,10 @@ func newQueuer(conf *sharedConfig, tenantId pgtype.UUID, queueName string, s *Sc
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	q.cleanup = cancel
+	q.cleanup = func() {
+		defer cancel()
+		cleanupRepo()
+	}
 
 	go q.loopQueue(ctx)
 
