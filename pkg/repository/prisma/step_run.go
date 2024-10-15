@@ -2501,7 +2501,7 @@ func (s *stepRunEngineRepository) StepRunAcked(ctx context.Context, tenantId, wo
 
 	data := &repository.CreateStepRunEventOpts{
 		StepRunId:     stepRunId,
-		EventMessage:  repository.StringPtr("Step Acknowledged By Runner"),
+		EventMessage:  repository.StringPtr("Step run acknowledged at " + startedAt.Format(time.RFC1123)),
 		EventSeverity: &sev,
 		EventReason:   &ack,
 	}
