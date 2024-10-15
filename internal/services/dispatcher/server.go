@@ -1413,7 +1413,6 @@ func (s *DispatcherImpl) taskToWorkflowEvent(task *msgqueue.Message, tenantId st
 
 	var stepRunId string
 
-	// todo step-run-acked
 	switch task.ID {
 	case "step-run-started":
 		payload, err := UnmarshalPayload[tasktypes.StepRunStartedTaskPayload](task.Payload)
