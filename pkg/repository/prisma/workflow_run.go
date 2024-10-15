@@ -21,6 +21,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/buffer"
 	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
@@ -39,7 +40,7 @@ type workflowRunAPIRepository struct {
 
 	createCallbacks []repository.Callback[*dbsqlc.WorkflowRun]
 
-	bulkCreateBuffer *TenantBufferManager[*repository.CreateWorkflowRunOpts, *dbsqlc.WorkflowRun]
+	bulkCreateBuffer *buffer.TenantBufferManager[*repository.CreateWorkflowRunOpts, *dbsqlc.WorkflowRun]
 }
 
 func NewWorkflowRunRepository(client *db.PrismaClient, pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, m *metered.Metered, cf *server.ConfigFileRuntime) (repository.WorkflowRunAPIRepository, func() error, error) {
@@ -71,7 +72,7 @@ func (w *workflowRunAPIRepository) cleanup() error {
 }
 func (w *workflowRunAPIRepository) startBuffer() error {
 
-	createWorkflowRunBufOpts := TenantBufManagerOpts[*repository.CreateWorkflowRunOpts, *dbsqlc.WorkflowRun]{
+	createWorkflowRunBufOpts := buffer.TenantBufManagerOpts[*repository.CreateWorkflowRunOpts, *dbsqlc.WorkflowRun]{
 		Name:       "create_workflow_run",
 		OutputFunc: w.BulkCreateWorkflowRuns,
 		SizeFunc:   sizeOfData,
@@ -79,7 +80,7 @@ func (w *workflowRunAPIRepository) startBuffer() error {
 		V:          w.v,
 	}
 
-	b, err := NewTenantBufManager(createWorkflowRunBufOpts)
+	b, err := buffer.NewTenantBufManager(createWorkflowRunBufOpts)
 
 	if err != nil {
 		return err
@@ -152,10 +153,10 @@ func (w *workflowRunAPIRepository) CreateNewWorkflowRun(ctx context.Context, ten
 
 			res := <-wfrChan
 
-			if res.err != nil {
-				return nil, nil, res.err
+			if res.Err != nil {
+				return nil, nil, res.Err
 			}
-			wfr = res.result
+			wfr = res.Result
 
 		} else {
 			workflowRuns, err := createNewWorkflowRuns(ctx, w.pool, w.queries, w.l, []*repository.CreateWorkflowRunOpts{opts})
@@ -204,7 +205,7 @@ func (w *workflowRunEngineRepository) ProcessWorkflowRunUpdates(ctx context.Cont
 
 	limit := 100
 
-	tx, commit, rollback, err := prepareTx(ctx, w.pool, w.l, 25000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, w.l, 25000)
 
 	if err != nil {
 		return false, err
@@ -318,7 +319,7 @@ func (w *workflowRunEngineRepository) ProcessUnpausedWorkflowRuns(ctx context.Co
 
 	limit := 1000
 
-	tx, commit, rollback, err := prepareTx(ctx, w.pool, w.l, 25000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, w.l, 25000)
 
 	if err != nil {
 		return nil, false, err
@@ -506,7 +507,7 @@ type workflowRunEngineRepository struct {
 	createCallbacks []repository.Callback[*dbsqlc.WorkflowRun]
 	queuedCallbacks []repository.Callback[pgtype.UUID]
 
-	bulkCreateBuffer *TenantBufferManager[*repository.CreateWorkflowRunOpts, *dbsqlc.WorkflowRun]
+	bulkCreateBuffer *buffer.TenantBufferManager[*repository.CreateWorkflowRunOpts, *dbsqlc.WorkflowRun]
 }
 
 func NewWorkflowRunEngineRepository(stepRunRepository *stepRunEngineRepository, pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, m *metered.Metered, cf *server.ConfigFileRuntime, cbs ...repository.Callback[*dbsqlc.WorkflowRun]) (repository.WorkflowRunEngineRepository, func() error, error) {
@@ -538,7 +539,7 @@ func (w *workflowRunEngineRepository) cleanup() error {
 }
 func (w *workflowRunEngineRepository) startBuffer() error {
 
-	createWorkflowRunBufOpts := TenantBufManagerOpts[*repository.CreateWorkflowRunOpts, *dbsqlc.WorkflowRun]{
+	createWorkflowRunBufOpts := buffer.TenantBufManagerOpts[*repository.CreateWorkflowRunOpts, *dbsqlc.WorkflowRun]{
 		Name:       "create_workflow_run",
 		OutputFunc: w.BulkCreateWorkflowRuns,
 		SizeFunc:   sizeOfData,
@@ -546,7 +547,7 @@ func (w *workflowRunEngineRepository) startBuffer() error {
 		V:          w.v,
 	}
 
-	b, err := NewTenantBufManager(createWorkflowRunBufOpts)
+	b, err := buffer.NewTenantBufManager(createWorkflowRunBufOpts)
 
 	if err != nil {
 		return err
@@ -773,7 +774,7 @@ func (w *workflowRunEngineRepository) GetScheduledChildWorkflowRun(ctx context.C
 }
 
 func (w *workflowRunEngineRepository) PopWorkflowRunsRoundRobin(ctx context.Context, tenantId, workflowId string, maxRuns int) ([]*dbsqlc.WorkflowRun, error) {
-	tx, commit, rollback, err := prepareTx(ctx, w.pool, w.l, 15000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, w.l, 15000)
 
 	if err != nil {
 		return nil, err
@@ -891,10 +892,10 @@ func (w *workflowRunEngineRepository) CreateNewWorkflowRun(ctx context.Context, 
 
 			res := <-wfr
 
-			if res.err != nil {
-				return nil, nil, res.err
+			if res.Err != nil {
+				return nil, nil, res.Err
 			}
-			workflowRun = res.result
+			workflowRun = res.Result
 		} else {
 			wfrs, err := createNewWorkflowRuns(ctx, w.pool, w.queries, w.l, []*repository.CreateWorkflowRunOpts{opts})
 			if err != nil {
@@ -947,14 +948,14 @@ func (s *workflowRunEngineRepository) ReplayWorkflowRun(ctx context.Context, ten
 	ctx, span := telemetry.NewSpan(ctx, "replay-workflow-run")
 	defer span.End()
 
-	err := deadlockRetry(s.l, func() error {
+	err := sqlchelpers.DeadlockRetry(s.l, func() error {
 		tx, err := s.pool.Begin(ctx)
 
 		if err != nil {
 			return err
 		}
 
-		defer deferRollback(ctx, s.l, tx.Rollback)
+		defer sqlchelpers.DeferRollback(ctx, s.l, tx.Rollback)
 
 		pgWorkflowRunId := sqlchelpers.UUIDFromStr(workflowRunId)
 
@@ -1281,7 +1282,7 @@ func listWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbsqlc.Q
 		return nil, err
 	}
 
-	defer deferRollback(ctx, l, tx.Rollback)
+	defer sqlchelpers.DeferRollback(ctx, l, tx.Rollback)
 
 	workflowRuns, err := queries.ListWorkflowRuns(ctx, tx, queryParams)
 
@@ -1376,7 +1377,9 @@ func createNewWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbs
 	sqlcWorkflowRuns, err := func() ([]*dbsqlc.WorkflowRun, error) {
 		tx1Ctx, tx1Span := telemetry.NewSpan(ctx, "db-create-new-workflow-runs-tx")
 		defer tx1Span.End()
-		tx, commit, rollback, err := prepareTx(tx1Ctx, pool, l, 15000)
+
+		// begin a transaction
+		tx, commit, rollback, err := sqlchelpers.PrepareTx(tx1Ctx, pool, l, 15000)
 
 		if err != nil {
 			return nil, err

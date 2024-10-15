@@ -66,7 +66,7 @@ func (r *tenantAPIRepository) CreateTenant(opts *repository.CreateTenantOpts) (*
 		return nil, err
 	}
 
-	defer deferRollback(context.Background(), r.l, tx.Rollback)
+	defer sqlchelpers.DeferRollback(context.Background(), r.l, tx.Rollback)
 
 	createTenant, err := r.queries.CreateTenant(context.Background(), tx, dbsqlc.CreateTenantParams{
 		ID:                  sqlchelpers.UUIDFromStr(tenantId),
@@ -231,7 +231,7 @@ func (r *tenantAPIRepository) GetQueueMetrics(ctx context.Context, tenantId stri
 		totalParams.WorkflowIds = uuids
 	}
 
-	tx, commit, rollback, err := prepareTx(ctx, r.pool, r.l, 60*1000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 60*1000)
 
 	if err != nil {
 		return nil, err
@@ -314,7 +314,7 @@ func (r *tenantEngineRepository) UpdateControllerPartitionHeartbeat(ctx context.
 		return "", err
 	}
 
-	defer deferRollback(ctx, r.l, tx.Rollback)
+	defer sqlchelpers.DeferRollback(ctx, r.l, tx.Rollback)
 
 	// set tx timeout to 5 seconds to avoid deadlocks
 	_, err = tx.Exec(ctx, "SET statement_timeout=5000")
@@ -352,7 +352,7 @@ func (r *tenantEngineRepository) UpdateWorkerPartitionHeartbeat(ctx context.Cont
 		return "", err
 	}
 
-	defer deferRollback(ctx, r.l, tx.Rollback)
+	defer sqlchelpers.DeferRollback(ctx, r.l, tx.Rollback)
 
 	// set tx timeout to 5 seconds to avoid deadlocks
 	_, err = tx.Exec(ctx, "SET statement_timeout=5000")

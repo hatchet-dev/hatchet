@@ -39,6 +39,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
+	v2 "github.com/hatchet-dev/hatchet/pkg/scheduling/v2"
 	"github.com/hatchet-dev/hatchet/pkg/security"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
@@ -408,8 +409,26 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 		})
 	}
 
+	v := validator.NewDefaultValidator()
+
+	schedulingPool, cleanupSchedulingPool, err := v2.NewSchedulingPool(
+		&l,
+		dc.Pool,
+		v,
+		cf.Runtime.SingleQueueLimit,
+	)
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not create scheduling pool: %w", err)
+	}
+
 	cleanup = func() error {
 		log.Printf("cleaning up server config")
+
+		if err := cleanupSchedulingPool(); err != nil {
+			return fmt.Errorf("error cleaning up scheduling pool: %w", err)
+		}
+
 		if err := cleanup1(); err != nil {
 			return fmt.Errorf("error cleaning up rabbitmq: %w", err)
 		}
@@ -430,7 +449,7 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 		Logger:                 &l,
 		TLSConfig:              tls,
 		SessionStore:           ss,
-		Validator:              validator.NewDefaultValidator(),
+		Validator:              v,
 		Ingestor:               ing,
 		OpenTelemetry:          cf.OpenTelemetry,
 		Email:                  emailSvc,
@@ -439,6 +458,7 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 		AdditionalLoggers:      cf.AdditionalLoggers,
 		EnableDataRetention:    cf.EnableDataRetention,
 		EnableWorkerRetention:  cf.EnableWorkerRetention,
+		SchedulingPool:         schedulingPool,
 	}, nil
 }
 

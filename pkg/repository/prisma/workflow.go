@@ -83,7 +83,7 @@ func (r *workflowAPIRepository) ListWorkflows(tenantId string, opts *repository.
 		return nil, err
 	}
 
-	defer deferRollback(context.Background(), r.l, tx.Rollback)
+	defer sqlchelpers.DeferRollback(context.Background(), r.l, tx.Rollback)
 
 	workflows, err := r.queries.ListWorkflows(context.Background(), tx, queryParams)
 
@@ -134,7 +134,7 @@ func (r *workflowAPIRepository) UpdateWorkflow(ctx context.Context, tenantId, wo
 		}
 	}
 
-	tx, commit, rollback, err := prepareTx(ctx, r.pool, r.l, 25000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 25000)
 
 	if err != nil {
 		return nil, err
@@ -335,7 +335,7 @@ func (r *workflowEngineRepository) CreateNewWorkflow(ctx context.Context, tenant
 		return nil, err
 	}
 
-	defer deferRollback(ctx, r.l, tx.Rollback)
+	defer sqlchelpers.DeferRollback(ctx, r.l, tx.Rollback)
 
 	workflowId := sqlchelpers.UUIDFromStr(uuid.New().String())
 	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
@@ -446,7 +446,7 @@ func (r *workflowEngineRepository) CreateWorkflowVersion(ctx context.Context, te
 		return nil, err
 	}
 
-	defer deferRollback(ctx, r.l, tx.Rollback)
+	defer sqlchelpers.DeferRollback(ctx, r.l, tx.Rollback)
 
 	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
 

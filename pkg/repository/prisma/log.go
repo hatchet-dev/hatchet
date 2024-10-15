@@ -98,7 +98,7 @@ func (r *logAPIRepository) ListLogLines(tenantId string, opts *repository.ListLo
 		return nil, err
 	}
 
-	defer deferRollback(context.Background(), r.l, tx.Rollback)
+	defer sqlchelpers.DeferRollback(context.Background(), r.l, tx.Rollback)
 
 	logLines, err := r.queries.ListLogLines(context.Background(), tx, queryParams)
 
@@ -183,7 +183,7 @@ func (r *logEngineRepository) PutLog(ctx context.Context, tenantId string, opts 
 		return nil, err
 	}
 
-	defer deferRollback(ctx, r.l, tx.Rollback)
+	defer sqlchelpers.DeferRollback(ctx, r.l, tx.Rollback)
 
 	logLine, err := r.queries.CreateLogLine(
 		ctx,
