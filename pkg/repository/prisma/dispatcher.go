@@ -63,7 +63,7 @@ func (d *dispatcherRepository) UpdateStaleDispatchers(ctx context.Context, onSta
 		return err
 	}
 
-	defer deferRollback(context.Background(), d.l, tx.Rollback)
+	defer sqlchelpers.DeferRollback(context.Background(), d.l, tx.Rollback)
 
 	staleDispatchers, err := d.queries.ListStaleDispatchers(context.Background(), tx)
 

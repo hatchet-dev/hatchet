@@ -435,6 +435,98 @@ func (q *Queries) LinkServicesToWorker(ctx context.Context, db DBTX, arg LinkSer
 	return err
 }
 
+const listDispatcherIdsForWorkers = `-- name: ListDispatcherIdsForWorkers :many
+SELECT
+    "id" as "workerId",
+    "dispatcherId"
+FROM
+    "Worker"
+WHERE
+    "tenantId" = $1::uuid
+    AND "id" = ANY($2::uuid[])
+`
+
+type ListDispatcherIdsForWorkersParams struct {
+	Tenantid  pgtype.UUID   `json:"tenantid"`
+	Workerids []pgtype.UUID `json:"workerids"`
+}
+
+type ListDispatcherIdsForWorkersRow struct {
+	WorkerId     pgtype.UUID `json:"workerId"`
+	DispatcherId pgtype.UUID `json:"dispatcherId"`
+}
+
+func (q *Queries) ListDispatcherIdsForWorkers(ctx context.Context, db DBTX, arg ListDispatcherIdsForWorkersParams) ([]*ListDispatcherIdsForWorkersRow, error) {
+	rows, err := db.Query(ctx, listDispatcherIdsForWorkers, arg.Tenantid, arg.Workerids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListDispatcherIdsForWorkersRow
+	for rows.Next() {
+		var i ListDispatcherIdsForWorkersRow
+		if err := rows.Scan(&i.WorkerId, &i.DispatcherId); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listManyWorkerLabels = `-- name: ListManyWorkerLabels :many
+SELECT
+    "id",
+    "key",
+    "intValue",
+    "strValue",
+    "createdAt",
+    "updatedAt",
+    "workerId"
+FROM "WorkerLabel" wl
+WHERE wl."workerId" = ANY($1::uuid[])
+`
+
+type ListManyWorkerLabelsRow struct {
+	ID        int64            `json:"id"`
+	Key       string           `json:"key"`
+	IntValue  pgtype.Int4      `json:"intValue"`
+	StrValue  pgtype.Text      `json:"strValue"`
+	CreatedAt pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt pgtype.Timestamp `json:"updatedAt"`
+	WorkerId  pgtype.UUID      `json:"workerId"`
+}
+
+func (q *Queries) ListManyWorkerLabels(ctx context.Context, db DBTX, workerids []pgtype.UUID) ([]*ListManyWorkerLabelsRow, error) {
+	rows, err := db.Query(ctx, listManyWorkerLabels, workerids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListManyWorkerLabelsRow
+	for rows.Next() {
+		var i ListManyWorkerLabelsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Key,
+			&i.IntValue,
+			&i.StrValue,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.WorkerId,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listRecentAssignedEventsForWorker = `-- name: ListRecentAssignedEventsForWorker :many
 SELECT
     "workerId",

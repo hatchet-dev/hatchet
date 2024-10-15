@@ -16,6 +16,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/buffer"
 	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
@@ -133,7 +134,7 @@ func (r *eventAPIRepository) ListEvents(ctx context.Context, tenantId string, op
 		return nil, err
 	}
 
-	defer deferRollback(context.Background(), r.l, tx.Rollback)
+	defer sqlchelpers.DeferRollback(context.Background(), r.l, tx.Rollback)
 
 	events, err := r.queries.ListEvents(ctx, tx, queryParams)
 
@@ -186,9 +187,9 @@ func sizeOfEvent(item *repository.CreateEventOpts) int {
 
 func (e *eventEngineRepository) startBufferLoop() error {
 
-	tenantBufOpts := TenantBufManagerOpts[*repository.CreateEventOpts, *dbsqlc.Event]{Name: "create_events", OutputFunc: e.BulkCreateEventSharedTenant, SizeFunc: sizeOfEvent, L: e.l, V: e.v}
+	tenantBufOpts := buffer.TenantBufManagerOpts[*repository.CreateEventOpts, *dbsqlc.Event]{Name: "create_events", OutputFunc: e.BulkCreateEventSharedTenant, SizeFunc: sizeOfEvent, L: e.l, V: e.v}
 	var err error
-	e.bulkCreateBuffer, err = NewTenantBufManager(tenantBufOpts)
+	e.bulkCreateBuffer, err = buffer.NewTenantBufManager(tenantBufOpts)
 
 	return err
 
@@ -215,7 +216,7 @@ type eventEngineRepository struct {
 	queries             *dbsqlc.Queries
 	l                   *zerolog.Logger
 	m                   *metered.Metered
-	bulkCreateBuffer    *TenantBufferManager[*repository.CreateEventOpts, *dbsqlc.Event]
+	bulkCreateBuffer    *buffer.TenantBufferManager[*repository.CreateEventOpts, *dbsqlc.Event]
 	callbacks           []repository.Callback[*dbsqlc.Event]
 	createEventKeyCache *lru.Cache[string, bool]
 }
@@ -315,7 +316,7 @@ func (r *eventEngineRepository) CreateEvent(ctx context.Context, opts *repositor
 		if err != nil {
 			return nil, nil, fmt.Errorf("could not buffer event: %w", err)
 		}
-		var response *flushResponse[*dbsqlc.Event]
+		var response *buffer.FlushResponse[*dbsqlc.Event]
 
 		select {
 		case response = <-done:
@@ -325,11 +326,11 @@ func (r *eventEngineRepository) CreateEvent(ctx context.Context, opts *repositor
 			return nil, nil, fmt.Errorf("timeout waiting for event to be flushed to db")
 		}
 
-		if response.err != nil {
-			return nil, nil, fmt.Errorf("could not create event: %w", response.err)
+		if response.Err != nil {
+			return nil, nil, fmt.Errorf("could not create event: %w", response.Err)
 		}
 
-		e := response.result
+		e := response.Result
 
 		for _, cb := range r.callbacks {
 			cb.Do(r.l, opts.TenantId, e)
@@ -400,7 +401,7 @@ func (r *eventEngineRepository) BulkCreateEvent(ctx context.Context, opts *repos
 			return nil, nil, err
 		}
 
-		defer deferRollback(ctx, r.l, tx.Rollback)
+		defer sqlchelpers.DeferRollback(ctx, r.l, tx.Rollback)
 
 		err = r.createEventKeys(ctx, tx, uniqueEventKeys)
 
@@ -501,7 +502,7 @@ func (r *eventEngineRepository) BulkCreateEventSharedTenant(ctx context.Context,
 		return nil, err
 	}
 
-	defer deferRollback(ctx, r.l, tx.Rollback)
+	defer sqlchelpers.DeferRollback(ctx, r.l, tx.Rollback)
 
 	insertCount, err := r.queries.CreateEvents(
 		ctx,

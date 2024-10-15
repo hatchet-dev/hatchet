@@ -137,7 +137,7 @@ func setJobRunStatusRunning(ctx context.Context, pool *pgxpool.Pool, queries *db
 		return nil, err
 	}
 
-	defer deferRollback(context.Background(), l, tx.Rollback)
+	defer sqlchelpers.DeferRollback(context.Background(), l, tx.Rollback)
 
 	jobRun, err := queries.UpdateJobRunStatus(context.Background(), tx, dbsqlc.UpdateJobRunStatusParams{
 		ID:       sqlchelpers.UUIDFromStr(jobRunId),

@@ -19,3 +19,19 @@ func UUIDFromStr(uuid string) pgtype.UUID {
 
 	return pgUUID
 }
+
+func UniqueSet(uuids []pgtype.UUID) []pgtype.UUID {
+	seen := make(map[string]struct{})
+	unique := make([]pgtype.UUID, 0, len(uuids))
+
+	for _, uuid := range uuids {
+		uuidStr := UUIDToStr(uuid)
+
+		if _, ok := seen[uuidStr]; !ok {
+			seen[uuidStr] = struct{}{}
+			unique = append(unique, uuid)
+		}
+	}
+
+	return unique
+}

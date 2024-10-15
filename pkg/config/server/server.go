@@ -19,6 +19,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/config/shared"
 	"github.com/hatchet-dev/hatchet/pkg/encryption"
 	"github.com/hatchet-dev/hatchet/pkg/errors"
+	v2 "github.com/hatchet-dev/hatchet/pkg/scheduling/v2"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
@@ -390,6 +391,8 @@ type ServerConfig struct {
 	TenantAlerter *alerting.TenantAlertManager
 
 	AdditionalOAuthConfigs map[string]*oauth2.Config
+
+	SchedulingPool *v2.SchedulingPool
 }
 
 func (c *ServerConfig) HasService(name string) bool {

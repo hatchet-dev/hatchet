@@ -218,6 +218,7 @@ enum StepActionEventType {
     STEP_EVENT_TYPE_STARTED = 1;
     STEP_EVENT_TYPE_COMPLETED = 2;
     STEP_EVENT_TYPE_FAILED = 3;
+    STEP_EVENT_TYPE_ACKNOWLEDGED = 4;
 }
 
 message StepActionEvent {

@@ -38,7 +38,7 @@ func run(ch <-chan interface{}, events chan<- string) error {
 	time.Sleep(1 * time.Second)
 
 	// trigger workflow
-	workflowRunId, err := c.Admin().RunWorkflow(
+	workflow, err := c.Admin().RunWorkflow(
 		"post-user-update",
 		&userCreateEvent{
 			Username: "echo-test",
@@ -56,12 +56,12 @@ func run(ch <-chan interface{}, events chan<- string) error {
 		return fmt.Errorf("error running workflow: %w", err)
 	}
 
-	fmt.Println("workflow run id:", workflowRunId)
+	fmt.Println("workflow run id:", workflow.WorkflowRunId())
 
 	interruptCtx, cancel := cmdutils.InterruptContextFromChan(ch)
 	defer cancel()
 
-	err = c.Subscribe().On(interruptCtx, workflowRunId, func(event client.WorkflowEvent) error {
+	err = c.Subscribe().On(interruptCtx, workflow.WorkflowRunId(), func(event client.WorkflowEvent) error {
 		fmt.Println(event.EventPayload)
 
 		return nil

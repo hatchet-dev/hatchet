@@ -344,3 +344,25 @@ DELETE FROM "WorkerAssignEvent" wae
 WHERE wae."id" IN (SELECT "id" FROM for_delete)
 RETURNING
     (SELECT has_more FROM has_more) as has_more;
+
+-- name: ListDispatcherIdsForWorkers :many
+SELECT
+    "id" as "workerId",
+    "dispatcherId"
+FROM
+    "Worker"
+WHERE
+    "tenantId" = @tenantId::uuid
+    AND "id" = ANY(@workerIds::uuid[]);
+
+-- name: ListManyWorkerLabels :many
+SELECT
+    "id",
+    "key",
+    "intValue",
+    "strValue",
+    "createdAt",
+    "updatedAt",
+    "workerId"
+FROM "WorkerLabel" wl
+WHERE wl."workerId" = ANY(@workerIds::uuid[]);
