@@ -39,7 +39,7 @@ type AdminClient interface {
 	ScheduleWorkflow(workflowName string, opts ...ScheduleOptFunc) error
 
 	// RunWorkflow triggers a workflow run and returns the run id
-	RunWorkflow(workflowName string, input interface{}, opts ...RunOptFunc) (string, error)
+	RunWorkflow(workflowName string, input interface{}, opts ...RunOptFunc) (*Workflow, error)
 
 	BulkRunWorkflow(workflows []*WorkflowRun) ([]string, error)
 
@@ -67,15 +67,18 @@ type adminClientImpl struct {
 	ctx *contextLoader
 
 	namespace string
+
+	subscriber SubscribeClient
 }
 
-func newAdmin(conn *grpc.ClientConn, opts *sharedClientOpts) AdminClient {
+func newAdmin(conn *grpc.ClientConn, opts *sharedClientOpts, subscriber SubscribeClient) AdminClient {
 	return &adminClientImpl{
-		client:    admincontracts.NewWorkflowServiceClient(conn),
-		l:         opts.l,
-		v:         opts.v,
-		ctx:       opts.ctxLoader,
-		namespace: opts.namespace,
+		client:     admincontracts.NewWorkflowServiceClient(conn),
+		l:          opts.l,
+		v:          opts.v,
+		ctx:        opts.ctxLoader,
+		namespace:  opts.namespace,
+		subscriber: subscriber,
 	}
 }
 
@@ -186,11 +189,11 @@ func WithRunMetadata(metadata interface{}) RunOptFunc {
 	}
 }
 
-func (a *adminClientImpl) RunWorkflow(workflowName string, input interface{}, options ...RunOptFunc) (string, error) {
+func (a *adminClientImpl) RunWorkflow(workflowName string, input interface{}, options ...RunOptFunc) (*Workflow, error) {
 	inputBytes, err := json.Marshal(input)
 
 	if err != nil {
-		return "", fmt.Errorf("could not marshal input: %w", err)
+		return nil, fmt.Errorf("could not marshal input: %w", err)
 	}
 
 	if a.namespace != "" && !strings.HasPrefix(workflowName, a.namespace) {
@@ -205,7 +208,7 @@ func (a *adminClientImpl) RunWorkflow(workflowName string, input interface{}, op
 	for _, optionFunc := range options {
 		err = optionFunc(&request)
 		if err != nil {
-			return "", fmt.Errorf("could not apply run option: %w", err)
+			return nil, fmt.Errorf("could not apply run option: %w", err)
 		}
 	}
 
@@ -213,15 +216,24 @@ func (a *adminClientImpl) RunWorkflow(workflowName string, input interface{}, op
 
 	if err != nil {
 		if status.Code(err) == codes.AlreadyExists {
-			return "", &DedupeViolationErr{
+			return nil, &DedupeViolationErr{
 				details: fmt.Sprintf("could not trigger workflow: %s", err.Error()),
 			}
 		}
 
-		return "", fmt.Errorf("could not trigger workflow: %w", err)
+		return nil, fmt.Errorf("could not trigger workflow: %w", err)
 	}
 
-	return res.WorkflowRunId, nil
+	listener, err := a.subscriber.SubscribeToWorkflowRunEvents(context.Background())
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to subscribe to workflow run events: %w", err)
+	}
+
+	return &Workflow{
+		workflowRunId: res.WorkflowRunId,
+		listener:      listener,
+	}, nil
 }
 
 func (a *adminClientImpl) BulkRunWorkflow(workflows []*WorkflowRun) ([]string, error) {
