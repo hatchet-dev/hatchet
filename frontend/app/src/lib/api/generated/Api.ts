@@ -49,6 +49,8 @@ import {
   ReplayWorkflowRunsRequest,
   ReplayWorkflowRunsResponse,
   RerunStepRunRequest,
+  ScheduledWorkflowsList,
+  ScheduledWorkflowsOrderByField,
   SNSIntegration,
   StepRun,
   StepRunArchiveList,
@@ -1111,6 +1113,55 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
     this.request<WorkflowList, APIErrors>({
       path: `/api/v1/tenants/${tenant}/workflows`,
       method: 'GET',
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Get all scheduled workflow runs for a tenant
+   *
+   * @tags ScheduledWorkflows
+   * @name WorkflowScheduledList
+   * @summary Get workflow runs
+   * @request GET:/api/v1/tenants/{tenant}/workflows/scheduled
+   * @secure
+   */
+  workflowScheduledList = (
+    tenant: string,
+    query?: {
+      /**
+       * The number to skip
+       * @format int64
+       */
+      offset?: number;
+      /**
+       * The number to limit by
+       * @format int64
+       */
+      limit?: number;
+      /**
+       * The workflow id to get runs for.
+       * @format uuid
+       * @minLength 36
+       * @maxLength 36
+       */
+      workflowId?: string;
+      /**
+       * A list of metadata key value pairs to filter by
+       * @example ["key1:value1","key2:value2"]
+       */
+      additionalMetadata?: string[];
+      /** The order by field */
+      orderByField?: ScheduledWorkflowsOrderByField;
+      /** The order by direction */
+      orderByDirection?: WorkflowRunOrderByDirection;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<ScheduledWorkflowsList, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/workflows/scheduled`,
+      method: 'GET',
+      query: query,
       secure: true,
       format: 'json',
       ...params,

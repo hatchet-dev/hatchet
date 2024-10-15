@@ -760,6 +760,27 @@ export interface WorkflowRunList {
   pagination?: PaginationResponse;
 }
 
+export interface ScheduledWorkflows {
+  metadata: APIResourceMeta;
+  tenantId: string;
+  workflowVersionId: string;
+  workflowId: string;
+  workflowName: string;
+  /** @format date-time */
+  triggerAt: string;
+  input?: Record<string, any>;
+  additionalMetadata?: Record<string, any>;
+}
+
+export interface ScheduledWorkflowsList {
+  rows?: ScheduledWorkflows[];
+  pagination?: PaginationResponse;
+}
+
+export enum ScheduledWorkflowsOrderByField {
+  TriggerAt = 'triggerAt',
+}
+
 export enum WorkflowRunOrderByField {
   CreatedAt = 'createdAt',
   StartedAt = 'startedAt',

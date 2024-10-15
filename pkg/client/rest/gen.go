@@ -75,6 +75,11 @@ const (
 	Value      RateLimitOrderByField = "value"
 )
 
+// Defines values for ScheduledWorkflowsOrderByField.
+const (
+	TriggerAt ScheduledWorkflowsOrderByField = "triggerAt"
+)
+
 // Defines values for StepRunEventReason.
 const (
 	StepRunEventReasonASSIGNED                     StepRunEventReason = "ASSIGNED"
@@ -606,6 +611,27 @@ type SNSIntegration struct {
 	// TopicArn The Amazon Resource Name (ARN) of the SNS topic.
 	TopicArn string `json:"topicArn"`
 }
+
+// ScheduledWorkflows defines model for ScheduledWorkflows.
+type ScheduledWorkflows struct {
+	AdditionalMetadata *map[string]interface{} `json:"additionalMetadata,omitempty"`
+	Input              *map[string]interface{} `json:"input,omitempty"`
+	Metadata           APIResourceMeta         `json:"metadata"`
+	TenantId           string                  `json:"tenantId"`
+	TriggerAt          time.Time               `json:"triggerAt"`
+	WorkflowId         string                  `json:"workflowId"`
+	WorkflowName       string                  `json:"workflowName"`
+	WorkflowVersionId  string                  `json:"workflowVersionId"`
+}
+
+// ScheduledWorkflowsList defines model for ScheduledWorkflowsList.
+type ScheduledWorkflowsList struct {
+	Pagination *PaginationResponse   `json:"pagination,omitempty"`
+	Rows       *[]ScheduledWorkflows `json:"rows,omitempty"`
+}
+
+// ScheduledWorkflowsOrderByField defines model for ScheduledWorkflowsOrderByField.
+type ScheduledWorkflowsOrderByField string
 
 // SemaphoreSlots defines model for SemaphoreSlots.
 type SemaphoreSlots struct {
@@ -1517,6 +1543,27 @@ type WorkflowRunGetMetricsParams struct {
 	CreatedBefore *time.Time `form:"createdBefore,omitempty" json:"createdBefore,omitempty"`
 }
 
+// WorkflowScheduledListParams defines parameters for WorkflowScheduledList.
+type WorkflowScheduledListParams struct {
+	// Offset The number to skip
+	Offset *int64 `form:"offset,omitempty" json:"offset,omitempty"`
+
+	// Limit The number to limit by
+	Limit *int64 `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// WorkflowId The workflow id to get runs for.
+	WorkflowId *openapi_types.UUID `form:"workflowId,omitempty" json:"workflowId,omitempty"`
+
+	// AdditionalMetadata A list of metadata key value pairs to filter by
+	AdditionalMetadata *[]string `form:"additionalMetadata,omitempty" json:"additionalMetadata,omitempty"`
+
+	// OrderByField The order by field
+	OrderByField *ScheduledWorkflowsOrderByField `form:"orderByField,omitempty" json:"orderByField,omitempty"`
+
+	// OrderByDirection The order by direction
+	OrderByDirection *WorkflowRunOrderByDirection `form:"orderByDirection,omitempty" json:"orderByDirection,omitempty"`
+}
+
 // WorkflowGetMetricsParams defines parameters for WorkflowGetMetrics.
 type WorkflowGetMetricsParams struct {
 	// Status A status of workflow run statuses to filter by
@@ -1891,6 +1938,9 @@ type ClientInterface interface {
 
 	// WorkflowRunGetMetrics request
 	WorkflowRunGetMetrics(ctx context.Context, tenant openapi_types.UUID, params *WorkflowRunGetMetricsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// WorkflowScheduledList request
+	WorkflowScheduledList(ctx context.Context, tenant openapi_types.UUID, params *WorkflowScheduledListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// WorkflowGetWorkersCount request
 	WorkflowGetWorkersCount(ctx context.Context, tenant openapi_types.UUID, workflow openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -2874,6 +2924,18 @@ func (c *Client) WorkflowRunList(ctx context.Context, tenant openapi_types.UUID,
 
 func (c *Client) WorkflowRunGetMetrics(ctx context.Context, tenant openapi_types.UUID, params *WorkflowRunGetMetricsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewWorkflowRunGetMetricsRequest(c.Server, tenant, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) WorkflowScheduledList(ctx context.Context, tenant openapi_types.UUID, params *WorkflowScheduledListParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWorkflowScheduledListRequest(c.Server, tenant, params)
 	if err != nil {
 		return nil, err
 	}
@@ -6390,6 +6452,142 @@ func NewWorkflowRunGetMetricsRequest(server string, tenant openapi_types.UUID, p
 	return req, nil
 }
 
+// NewWorkflowScheduledListRequest generates requests for WorkflowScheduledList
+func NewWorkflowScheduledListRequest(server string, tenant openapi_types.UUID, params *WorkflowScheduledListParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/tenants/%s/workflows/scheduled", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Offset != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "offset", runtime.ParamLocationQuery, *params.Offset); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.WorkflowId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workflowId", runtime.ParamLocationQuery, *params.WorkflowId); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.AdditionalMetadata != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "additionalMetadata", runtime.ParamLocationQuery, *params.AdditionalMetadata); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.OrderByField != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "orderByField", runtime.ParamLocationQuery, *params.OrderByField); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.OrderByDirection != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "orderByDirection", runtime.ParamLocationQuery, *params.OrderByDirection); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewWorkflowGetWorkersCountRequest generates requests for WorkflowGetWorkersCount
 func NewWorkflowGetWorkersCountRequest(server string, tenant openapi_types.UUID, workflow openapi_types.UUID) (*http.Request, error) {
 	var err error
@@ -7586,6 +7784,9 @@ type ClientWithResponsesInterface interface {
 
 	// WorkflowRunGetMetricsWithResponse request
 	WorkflowRunGetMetricsWithResponse(ctx context.Context, tenant openapi_types.UUID, params *WorkflowRunGetMetricsParams, reqEditors ...RequestEditorFn) (*WorkflowRunGetMetricsResponse, error)
+
+	// WorkflowScheduledListWithResponse request
+	WorkflowScheduledListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *WorkflowScheduledListParams, reqEditors ...RequestEditorFn) (*WorkflowScheduledListResponse, error)
 
 	// WorkflowGetWorkersCountWithResponse request
 	WorkflowGetWorkersCountWithResponse(ctx context.Context, tenant openapi_types.UUID, workflow openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkflowGetWorkersCountResponse, error)
@@ -9102,6 +9303,30 @@ func (r WorkflowRunGetMetricsResponse) StatusCode() int {
 	return 0
 }
 
+type WorkflowScheduledListResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ScheduledWorkflowsList
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r WorkflowScheduledListResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r WorkflowScheduledListResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type WorkflowGetWorkersCountResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -10353,6 +10578,15 @@ func (c *ClientWithResponses) WorkflowRunGetMetricsWithResponse(ctx context.Cont
 		return nil, err
 	}
 	return ParseWorkflowRunGetMetricsResponse(rsp)
+}
+
+// WorkflowScheduledListWithResponse request returning *WorkflowScheduledListResponse
+func (c *ClientWithResponses) WorkflowScheduledListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *WorkflowScheduledListParams, reqEditors ...RequestEditorFn) (*WorkflowScheduledListResponse, error) {
+	rsp, err := c.WorkflowScheduledList(ctx, tenant, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseWorkflowScheduledListResponse(rsp)
 }
 
 // WorkflowGetWorkersCountWithResponse request returning *WorkflowGetWorkersCountResponse
@@ -12996,6 +13230,46 @@ func ParseWorkflowRunGetMetricsResponse(rsp *http.Response) (*WorkflowRunGetMetr
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest WorkflowRunsMetrics
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseWorkflowScheduledListResponse parses an HTTP response from a WorkflowScheduledListWithResponse call
+func ParseWorkflowScheduledListResponse(rsp *http.Response) (*WorkflowScheduledListResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &WorkflowScheduledListResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ScheduledWorkflowsList
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

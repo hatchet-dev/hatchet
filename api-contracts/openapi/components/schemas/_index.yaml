@@ -152,6 +152,12 @@ ReplayWorkflowRunsResponse:
   $ref: "./workflow_run.yaml#/ReplayWorkflowRunsResponse"
 WorkflowRunList:
   $ref: "./workflow_run.yaml#/WorkflowRunList"
+ScheduledWorkflows:
+  $ref: "./workflow_run.yaml#/ScheduledWorkflows"
+ScheduledWorkflowsList:
+  $ref: "./workflow_run.yaml#/ScheduledWorkflowsList"
+ScheduledWorkflowsOrderByField:
+  $ref: "./workflow_run.yaml#/ScheduledWorkflowsOrderByField"
 WorkflowRunOrderByField:
   $ref: "./workflow_run.yaml#/WorkflowRunOrderByField"
 WorkflowRunOrderByDirection:

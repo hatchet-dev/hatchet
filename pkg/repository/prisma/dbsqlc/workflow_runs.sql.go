@@ -90,6 +90,21 @@ func (q *Queries) BulkCreateWorkflowRunEvent(ctx context.Context, db DBTX, arg B
 	return err
 }
 
+const countScheduledWorkflows = `-- name: CountScheduledWorkflows :one
+SELECT count(*) FROM "WorkflowTriggerScheduledRef" t
+JOIN "WorkflowVersion" v ON t."parentId" = v."id"
+JOIN "Workflow" w on v."workflowId" = w."id"
+WHERE v."deletedAt" IS NULL
+	AND w."tenantId" = $1::uuid
+`
+
+func (q *Queries) CountScheduledWorkflows(ctx context.Context, db DBTX, tenantid pgtype.UUID) (int64, error) {
+	row := db.QueryRow(ctx, countScheduledWorkflows, tenantid)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countWorkflowRuns = `-- name: CountWorkflowRuns :one
 WITH runs AS (
     SELECT runs."id", runs."createdAt", runs."finishedAt", runs."startedAt", runs."duration"
@@ -2041,6 +2056,99 @@ func (q *Queries) ListChildWorkflowRunCounts(ctx context.Context, db DBTX, stepr
 	for rows.Next() {
 		var i ListChildWorkflowRunCountsRow
 		if err := rows.Scan(&i.ParentStepRunId, &i.Count); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listScheduledWorkflows = `-- name: ListScheduledWorkflows :many
+SELECT
+    w."name",
+    w."id" as "workflowId",
+    v."id" as "workflowVersionId",
+    w."tenantId",
+    t.id, t."parentId", t."triggerAt", t."tickerId", t.input, t."childIndex", t."childKey", t."parentStepRunId", t."parentWorkflowRunId"
+FROM "WorkflowTriggerScheduledRef" t
+JOIN "WorkflowVersion" v ON t."parentId" = v."id"
+JOIN "Workflow" w on v."workflowId" = w."id"
+WHERE v."deletedAt" IS NULL
+	AND w."tenantId" = $1::uuid
+    -- TODO page
+ORDER BY
+    case when $2 = 'triggerAt ASC' THEN t."triggerAt" END ASC ,
+    case when $2 = 'triggerAt DESC' THEN t."triggerAt" END DESC,
+    -- case when @orderBy = 'createdAt ASC' THEN t."createdAt" END ASC ,
+    -- case when @orderBy = 'createdAt DESC' THEN t."createdAt" END DESC,
+    -- case when @orderBy = 'finishedAt ASC' THEN t."finishedAt" END ASC ,
+    -- case when @orderBy = 'finishedAt DESC' THEN t."finishedAt" END DESC,
+    -- case when @orderBy = 'startedAt ASC' THEN t."startedAt" END ASC ,
+    -- case when @orderBy = 'startedAt DESC' THEN t."startedAt" END DESC,
+    -- case when @orderBy = 'duration ASC' THEN t."duration" END ASC NULLS FIRST,
+    -- case when @orderBy = 'duration DESC' THEN runs."duration" END DESC NULLS LAST,
+    t."id" ASC
+OFFSET
+    COALESCE($3, 0)
+LIMIT
+    COALESCE($4, 50)
+`
+
+type ListScheduledWorkflowsParams struct {
+	Tenantid pgtype.UUID `json:"tenantid"`
+	Orderby  interface{} `json:"orderby"`
+	Offset   interface{} `json:"offset"`
+	Limit    interface{} `json:"limit"`
+}
+
+type ListScheduledWorkflowsRow struct {
+	Name                string           `json:"name"`
+	WorkflowId          pgtype.UUID      `json:"workflowId"`
+	WorkflowVersionId   pgtype.UUID      `json:"workflowVersionId"`
+	TenantId            pgtype.UUID      `json:"tenantId"`
+	ID                  pgtype.UUID      `json:"id"`
+	ParentId            pgtype.UUID      `json:"parentId"`
+	TriggerAt           pgtype.Timestamp `json:"triggerAt"`
+	TickerId            pgtype.UUID      `json:"tickerId"`
+	Input               []byte           `json:"input"`
+	ChildIndex          pgtype.Int4      `json:"childIndex"`
+	ChildKey            pgtype.Text      `json:"childKey"`
+	ParentStepRunId     pgtype.UUID      `json:"parentStepRunId"`
+	ParentWorkflowRunId pgtype.UUID      `json:"parentWorkflowRunId"`
+}
+
+func (q *Queries) ListScheduledWorkflows(ctx context.Context, db DBTX, arg ListScheduledWorkflowsParams) ([]*ListScheduledWorkflowsRow, error) {
+	rows, err := db.Query(ctx, listScheduledWorkflows,
+		arg.Tenantid,
+		arg.Orderby,
+		arg.Offset,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListScheduledWorkflowsRow
+	for rows.Next() {
+		var i ListScheduledWorkflowsRow
+		if err := rows.Scan(
+			&i.Name,
+			&i.WorkflowId,
+			&i.WorkflowVersionId,
+			&i.TenantId,
+			&i.ID,
+			&i.ParentId,
+			&i.TriggerAt,
+			&i.TickerId,
+			&i.Input,
+			&i.ChildIndex,
+			&i.ChildKey,
+			&i.ParentStepRunId,
+			&i.ParentWorkflowRunId,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)

@@ -115,6 +115,43 @@ func (w *workflowRunAPIRepository) WorkflowRunMetricsCount(ctx context.Context, 
 	return workflowRunMetricsCount(context.Background(), w.pool, w.queries, tenantId, opts)
 }
 
+func (w *workflowRunAPIRepository) ListScheduledWorkflows(ctx context.Context, tenantId string, opts *repository.ListScheduledWorkflowsOpts) ([]*dbsqlc.ListScheduledWorkflowsRow, int64, error) {
+
+	ctx, cancel := context.WithTimeout(ctx, time.Second*30)
+	defer cancel()
+
+	count, err := w.queries.CountScheduledWorkflows(ctx, w.pool, sqlchelpers.UUIDFromStr(tenantId))
+
+	if err != nil {
+		return nil, 0, err
+	}
+
+	listOpts := dbsqlc.ListScheduledWorkflowsParams{
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+	}
+
+	if opts.Limit != nil {
+		listOpts.Limit = pgtype.Int4{
+			Int32: int32(*opts.Limit), // nolint: gosec
+			Valid: true,
+		}
+	}
+
+	if opts.Offset != nil {
+		listOpts.Offset = pgtype.Int4{
+			Int32: int32(*opts.Offset), // nolint: gosec
+			Valid: true,
+		}
+	}
+
+	scheduledWorkflows, err := w.queries.ListScheduledWorkflows(ctx, w.pool, listOpts)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return scheduledWorkflows, count, nil
+}
+
 func (w *workflowRunEngineRepository) GetWorkflowRunInputData(tenantId, workflowRunId string) (map[string]interface{}, error) {
 	lookupData := datautils.JobRunLookupData{}
 

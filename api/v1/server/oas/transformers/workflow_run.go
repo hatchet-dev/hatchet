@@ -482,3 +482,18 @@ func ToWorkflowRunFromSQLC(row *dbsqlc.ListWorkflowRunsRow) *gen.WorkflowRun {
 
 	return res
 }
+
+func ToScheduledWorkflowsFromSQLC(scheduled *dbsqlc.ListScheduledWorkflowsRow) *gen.ScheduledWorkflows {
+
+	res := &gen.ScheduledWorkflows{
+		Metadata:          *toAPIMetadata(sqlchelpers.UUIDToStr(scheduled.ID), time.Now(), time.Now()),
+		WorkflowVersionId: sqlchelpers.UUIDToStr(scheduled.WorkflowVersionId),
+		WorkflowId:        sqlchelpers.UUIDToStr(scheduled.WorkflowId),
+		WorkflowName:      scheduled.Name,
+		TenantId:          sqlchelpers.UUIDToStr(scheduled.TenantId),
+		TriggerAt:         scheduled.TriggerAt.Time,
+		// AdditionalMetadata: &additionalMetadata,
+	}
+
+	return res
+}

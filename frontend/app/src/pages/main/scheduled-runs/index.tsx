@@ -1,5 +1,5 @@
 import { DataTable } from '../../../components/molecules/data-table/data-table';
-import { RateLimitRow, columns } from './components/scheduled-runs-columns';
+import { columns } from './components/scheduled-runs-columns';
 import { Separator } from '@/components/ui/separator';
 import { useEffect, useMemo, useState } from 'react';
 import {
@@ -11,8 +11,8 @@ import {
 } from '@tanstack/react-table';
 import { useQuery } from '@tanstack/react-query';
 import {
-  RateLimitOrderByDirection,
-  RateLimitOrderByField,
+  ScheduledWorkflowsOrderByField,
+  WorkflowRunOrderByDirection,
   queries,
 } from '@/lib/api';
 import invariant from 'tiny-invariant';
@@ -96,31 +96,29 @@ function ScheduledRunsTable() {
   ]);
 
   const orderByDirection = useMemo(():
-    | RateLimitOrderByDirection
+    | WorkflowRunOrderByDirection
     | undefined => {
     if (!sorting.length) {
       return;
     }
 
     return sorting[0]?.desc
-      ? RateLimitOrderByDirection.Desc
-      : RateLimitOrderByDirection.Asc;
+      ? WorkflowRunOrderByDirection.DESC
+      : WorkflowRunOrderByDirection.ASC;
   }, [sorting]);
 
-  const orderByField = useMemo((): RateLimitOrderByField | undefined => {
+  const orderByField = useMemo(():
+    | ScheduledWorkflowsOrderByField
+    | undefined => {
     if (!sorting.length) {
       return;
     }
 
     switch (sorting[0]?.id) {
-      case 'Key':
-        return RateLimitOrderByField.Key;
-      case 'Value':
-        return RateLimitOrderByField.Value;
-      case 'LimitValue':
-        return RateLimitOrderByField.LimitValue;
+      case 'triggerAt':
+        return ScheduledWorkflowsOrderByField.TriggerAt;
       default:
-        return RateLimitOrderByField.Key;
+        return ScheduledWorkflowsOrderByField.TriggerAt;
     }
   }, [sorting]);
 
@@ -134,11 +132,11 @@ function ScheduledRunsTable() {
 
   const {
     data,
-    isLoading: rateLimitsIsLoading,
-    error: rateLimitsError,
+    isLoading: queryIsLoading,
+    error: queryError,
   } = useQuery({
-    ...queries.rate_limits.list(tenant.metadata.id, {
-      search,
+    ...queries.scheduledRuns.list(tenant.metadata.id, {
+      // TODO: add filters
       orderByField,
       orderByDirection,
       offset,
@@ -147,22 +145,22 @@ function ScheduledRunsTable() {
     refetchInterval: 2000,
   });
 
-  const tableData =
-    data?.rows?.map(
-      (row): RateLimitRow => ({
-        ...row,
-        metadata: {
-          id: row.key,
-        },
-      }),
-    ) || [];
+  // const tableData =
+  //   data?.rows?.map(
+  //     (row): ScheduledWorkflows => ({
+  //       ...row,
+  //       metadata: {
+  //         id: row.key,
+  //       },
+  //     }),
+  //   ) || [];
 
   return (
     <DataTable
-      error={rateLimitsError}
-      isLoading={rateLimitsIsLoading}
+      error={queryError}
+      isLoading={queryIsLoading}
       columns={columns}
-      data={tableData}
+      data={data?.rows || []}
       filters={[]}
       showColumnToggle={true}
       columnVisibility={columnVisibility}

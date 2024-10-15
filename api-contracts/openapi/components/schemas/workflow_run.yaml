@@ -6,6 +6,11 @@ WorkflowRunOrderByField:
     - finishedAt
     - duration
 
+ScheduledWorkflowsOrderByField:
+  type: string
+  enum:
+    - triggerAt
+
 WorkflowRunOrderByDirection:
   type: string
   enum:
@@ -158,6 +163,46 @@ WorkflowRunList:
       type: array
       items:
         $ref: "#/WorkflowRun"
+    pagination:
+      $ref: "./metadata.yaml#/PaginationResponse"
+
+ScheduledWorkflows:
+  type: object
+  properties:
+    metadata:
+      $ref: "./metadata.yaml#/APIResourceMeta"
+    tenantId:
+      type: string
+    workflowVersionId:
+      type: string
+    workflowId:
+      type: string
+    workflowName:
+      type: string
+    triggerAt:
+      type: string
+      format: date-time
+    input:
+      type: object
+      additionalProperties: true
+    additionalMetadata:
+      type: object
+      additionalProperties: true
+  required:
+    - metadata
+    - tenantId
+    - workflowVersionId
+    - workflowName
+    - workflowId
+    - triggerAt
+
+ScheduledWorkflowsList:
+  type: object
+  properties:
+    rows:
+      type: array
+      items:
+        $ref: "#/ScheduledWorkflows"
     pagination:
       $ref: "./metadata.yaml#/PaginationResponse"
 
