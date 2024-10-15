@@ -2493,30 +2493,23 @@ func (s *stepRunEngineRepository) StepRunStarted(ctx context.Context, tenantId, 
 }
 
 func (s *stepRunEngineRepository) StepRunAcked(ctx context.Context, tenantId, workflowRunId, stepRunId string, startedAt time.Time) error {
-	ctx, span := telemetry.NewSpan(ctx, "step-run-acked-db")
+	_, span := telemetry.NewSpan(ctx, "step-run-acked-db")
 	defer span.End()
 
-	ack := dbsqlc.StepRunEventReasonACKNOWLEDGED
+	ack := string(dbsqlc.StepRunEventReasonACKNOWLEDGED)
 
-	message := "Ack at " + startedAt.Format(time.RFC1123)
+	data := &updateStepRunQueueData{
+		Hash:      hashToBucket(sqlchelpers.UUIDFromStr(workflowRunId), s.maxHashFactor),
+		StepRunId: stepRunId,
+		TenantId:  tenantId,
+		StartedAt: &startedAt,
+		Status:    &ack,
+	}
 
-	// write a queue item that the step run has started
-	err := insertStepRunQueueItem(
-		ctx,
-		s.pool,
-		s.queries,
-		tenantId,
-		updateStepRunQueueData{
-			StepRunId: stepRunId,
-			Event: &repository.CreateStepRunEventOpts{
-				EventReason:  &ack,
-				EventMessage: &message,
-			},
-		},
-	)
+	_, err := s.bulkStatusBuffer.BuffItem(tenantId, data)
 
 	if err != nil {
-		return fmt.Errorf("could not insert step run queue item: %w", err)
+		return fmt.Errorf("could not buffer event: %w", err)
 	}
 
 	return nil
