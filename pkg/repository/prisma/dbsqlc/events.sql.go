@@ -159,7 +159,7 @@ INSERT INTO "Event" (
     $7::uuid,
     $8::jsonb,
     $9::jsonb
-) RETURNING id, "createdAt", "updatedAt", "deletedAt", key, "tenantId", "replayedFromId", data, "additionalMetadata"
+) RETURNING id, "createdAt", "updatedAt", "deletedAt", key, "tenantId", "replayedFromId", data, "additionalMetadata", "insertOrder"
 `
 
 type CreateEventParams struct {
@@ -197,8 +197,30 @@ func (q *Queries) CreateEvent(ctx context.Context, db DBTX, arg CreateEventParam
 		&i.ReplayedFromId,
 		&i.Data,
 		&i.AdditionalMetadata,
+		&i.InsertOrder,
 	)
 	return &i, err
+}
+
+const createEventKeys = `-- name: CreateEventKeys :exec
+INSERT INTO "EventKey" (
+    "key",
+    "tenantId"
+)
+SELECT
+    unnest($1::text[]) AS "key",
+    unnest($2::uuid[]) AS "tenantId"
+ON CONFLICT ("key", "tenantId") DO NOTHING
+`
+
+type CreateEventKeysParams struct {
+	Keys      []string      `json:"keys"`
+	Tenantids []pgtype.UUID `json:"tenantids"`
+}
+
+func (q *Queries) CreateEventKeys(ctx context.Context, db DBTX, arg CreateEventKeysParams) error {
+	_, err := db.Exec(ctx, createEventKeys, arg.Keys, arg.Tenantids)
+	return err
 }
 
 type CreateEventsParams struct {
@@ -208,11 +230,12 @@ type CreateEventsParams struct {
 	ReplayedFromId     pgtype.UUID `json:"replayedFromId"`
 	Data               []byte      `json:"data"`
 	AdditionalMetadata []byte      `json:"additionalMetadata"`
+	InsertOrder        pgtype.Int4 `json:"insertOrder"`
 }
 
 const getEventForEngine = `-- name: GetEventForEngine :one
 SELECT
-    id, "createdAt", "updatedAt", "deletedAt", key, "tenantId", "replayedFromId", data, "additionalMetadata"
+    id, "createdAt", "updatedAt", "deletedAt", key, "tenantId", "replayedFromId", data, "additionalMetadata", "insertOrder"
 FROM
     "Event"
 WHERE
@@ -233,6 +256,7 @@ func (q *Queries) GetEventForEngine(ctx context.Context, db DBTX, id pgtype.UUID
 		&i.ReplayedFromId,
 		&i.Data,
 		&i.AdditionalMetadata,
+		&i.InsertOrder,
 	)
 	return &i, err
 }
@@ -278,14 +302,13 @@ func (q *Queries) GetEventsForRange(ctx context.Context, db DBTX) ([]*GetEventsF
 }
 
 const getInsertedEvents = `-- name: GetInsertedEvents :many
-
-SELECT id, "createdAt", "updatedAt", "deletedAt", key, "tenantId", "replayedFromId", data, "additionalMetadata" FROM "Event"
-WHERE xmin::text = (txid_current() % (2^32)::bigint)::text
-ORDER BY id
+SELECT id, "createdAt", "updatedAt", "deletedAt", key, "tenantId", "replayedFromId", data, "additionalMetadata", "insertOrder" FROM "Event"
+WHERE "id" = ANY($1::uuid[])
+ORDER BY "insertOrder" ASC
 `
 
-func (q *Queries) GetInsertedEvents(ctx context.Context, db DBTX) ([]*Event, error) {
-	rows, err := db.Query(ctx, getInsertedEvents)
+func (q *Queries) GetInsertedEvents(ctx context.Context, db DBTX, ids []pgtype.UUID) ([]*Event, error) {
+	rows, err := db.Query(ctx, getInsertedEvents, ids)
 	if err != nil {
 		return nil, err
 	}
@@ -303,10 +326,41 @@ func (q *Queries) GetInsertedEvents(ctx context.Context, db DBTX) ([]*Event, err
 			&i.ReplayedFromId,
 			&i.Data,
 			&i.AdditionalMetadata,
+			&i.InsertOrder,
 		); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listEventKeys = `-- name: ListEventKeys :many
+SELECT
+    "key"
+FROM
+    "EventKey"
+WHERE
+    "tenantId" = $1::uuid
+ORDER BY "key" ASC
+`
+
+func (q *Queries) ListEventKeys(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]string, error) {
+	rows, err := db.Query(ctx, listEventKeys, tenantid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var key string
+		if err := rows.Scan(&key); err != nil {
+			return nil, err
+		}
+		items = append(items, key)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -385,7 +439,7 @@ event_run_counts AS (
         events."id"
 )
 SELECT
-    events.id, events."createdAt", events."updatedAt", events."deletedAt", events.key, events."tenantId", events."replayedFromId", events.data, events."additionalMetadata",
+    events.id, events."createdAt", events."updatedAt", events."deletedAt", events.key, events."tenantId", events."replayedFromId", events.data, events."additionalMetadata", events."insertOrder",
     COALESCE(erc.pendingRuns, 0) AS pendingRuns,
     COALESCE(erc.queuedRuns, 0) AS queuedRuns,
     COALESCE(erc.runningRuns, 0) AS runningRuns,
@@ -454,6 +508,7 @@ func (q *Queries) ListEvents(ctx context.Context, db DBTX, arg ListEventsParams)
 			&i.Event.ReplayedFromId,
 			&i.Event.Data,
 			&i.Event.AdditionalMetadata,
+			&i.Event.InsertOrder,
 			&i.Pendingruns,
 			&i.Queuedruns,
 			&i.Runningruns,
@@ -472,7 +527,7 @@ func (q *Queries) ListEvents(ctx context.Context, db DBTX, arg ListEventsParams)
 
 const listEventsByIDs = `-- name: ListEventsByIDs :many
 SELECT
-    id, "createdAt", "updatedAt", "deletedAt", key, "tenantId", "replayedFromId", data, "additionalMetadata"
+    id, "createdAt", "updatedAt", "deletedAt", key, "tenantId", "replayedFromId", data, "additionalMetadata", "insertOrder"
 FROM
     "Event" as events
 WHERE
@@ -505,6 +560,7 @@ func (q *Queries) ListEventsByIDs(ctx context.Context, db DBTX, arg ListEventsBy
 			&i.ReplayedFromId,
 			&i.Data,
 			&i.AdditionalMetadata,
+			&i.InsertOrder,
 		); err != nil {
 			return nil, err
 		}

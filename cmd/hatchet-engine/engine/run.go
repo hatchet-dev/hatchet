@@ -206,6 +206,7 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig) ([]Teardown, er
 			jobs.WithPartition(p),
 			jobs.WithQueueLoggerConfig(&sc.AdditionalLoggers.Queue),
 			jobs.WithPgxStatsLoggerConfig(&sc.AdditionalLoggers.PgxStats),
+			jobs.WithScheduler(sc.SchedulingPool),
 		)
 
 		if err != nil {
@@ -328,6 +329,10 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig) ([]Teardown, er
 		)
 		if err != nil {
 			return nil, fmt.Errorf("could not create ingestor: %w", err)
+		}
+
+		if err != nil {
+			return nil, fmt.Errorf("could not start ingestor buffer: %w", err)
 		}
 
 		adminSvc, err := admin.NewAdminService(

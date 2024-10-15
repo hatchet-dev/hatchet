@@ -74,7 +74,7 @@ func run(events chan<- string) (func() error, error) {
 			Steps: []*worker.WorkflowStep{
 				worker.Fn(
 					func(ctx worker.HatchetContext) (result *proceduralParentOutput, err error) {
-						childWorkflows := make([]*worker.ChildWorkflow, NUM_CHILDREN)
+						childWorkflows := make([]*client.Workflow, NUM_CHILDREN)
 
 						for i := 0; i < NUM_CHILDREN; i++ {
 							childInput := proceduralChildInput{
@@ -104,7 +104,7 @@ func run(events chan<- string) (func() error, error) {
 						childOutputsMu := sync.Mutex{}
 
 						for i, childWorkflow := range childWorkflows {
-							eg.Go(func(i int, childWorkflow *worker.ChildWorkflow) func() error {
+							eg.Go(func(i int, childWorkflow *client.Workflow) func() error {
 								return func() error {
 									childResult, err := childWorkflow.Result()
 

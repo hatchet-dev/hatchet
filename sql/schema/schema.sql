@@ -2,7 +2,7 @@
 CREATE TYPE "ConcurrencyLimitStrategy" AS ENUM ('CANCEL_IN_PROGRESS', 'DROP_NEWEST', 'QUEUE_NEWEST', 'GROUP_ROUND_ROBIN');
 
 -- CreateEnum
-CREATE TYPE "InternalQueue" AS ENUM ('WORKER_SEMAPHORE_COUNT', 'STEP_RUN_UPDATE', 'WORKFLOW_RUN_UPDATE', 'WORKFLOW_RUN_PAUSED');
+CREATE TYPE "InternalQueue" AS ENUM ('WORKER_SEMAPHORE_COUNT', 'STEP_RUN_UPDATE', 'WORKFLOW_RUN_UPDATE', 'WORKFLOW_RUN_PAUSED', 'STEP_RUN_UPDATE_V2');
 
 -- CreateEnum
 CREATE TYPE "InviteLinkStatus" AS ENUM ('PENDING', 'ACCEPTED', 'REJECTED');
@@ -12,6 +12,9 @@ CREATE TYPE "JobKind" AS ENUM ('DEFAULT', 'ON_FAILURE');
 
 -- CreateEnum
 CREATE TYPE "JobRunStatus" AS ENUM ('PENDING', 'RUNNING', 'SUCCEEDED', 'FAILED', 'CANCELLED');
+
+-- CreateEnum
+CREATE TYPE "LeaseKind" AS ENUM ('WORKER', 'QUEUE');
 
 -- CreateEnum
 CREATE TYPE "LimitResource" AS ENUM ('WORKFLOW_RUN', 'EVENT', 'WORKER', 'CRON', 'SCHEDULE');
@@ -120,8 +123,18 @@ CREATE TABLE "Event" (
     "replayedFromId" UUID,
     "data" JSONB,
     "additionalMetadata" JSONB,
+    "insertOrder" INTEGER,
 
     CONSTRAINT "Event_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "EventKey" (
+    "key" TEXT NOT NULL,
+    "tenantId" UUID NOT NULL,
+    "id" BIGSERIAL NOT NULL,
+
+    CONSTRAINT "EventKey_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -212,6 +225,17 @@ CREATE TABLE "JobRunLookupData" (
     "data" JSONB,
 
     CONSTRAINT "JobRunLookupData_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "Lease" (
+    "id" BIGSERIAL NOT NULL,
+    "expiresAt" TIMESTAMP(3),
+    "tenantId" UUID NOT NULL,
+    "resourceId" TEXT NOT NULL,
+    "kind" "LeaseKind" NOT NULL,
+
+    CONSTRAINT "Lease_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -792,6 +816,7 @@ CREATE TABLE "WorkflowRun" (
     "additionalMetadata" JSONB,
     "duration" BIGINT,
     "priority" INTEGER,
+    "insertOrder" INTEGER,
 
     CONSTRAINT "WorkflowRun_pkey" PRIMARY KEY ("id")
 );
@@ -968,6 +993,9 @@ CREATE INDEX "Event_tenantId_createdAt_idx" ON "Event"("tenantId" ASC, "createdA
 CREATE INDEX "Event_tenantId_idx" ON "Event"("tenantId" ASC);
 
 -- CreateIndex
+CREATE UNIQUE INDEX "EventKey_key_tenantId_key" ON "EventKey"("key" ASC, "tenantId" ASC);
+
+-- CreateIndex
 CREATE INDEX "GetGroupKeyRun_createdAt_idx" ON "GetGroupKeyRun"("createdAt" ASC);
 
 -- CreateIndex
@@ -1020,6 +1048,9 @@ CREATE UNIQUE INDEX "JobRunLookupData_jobRunId_key" ON "JobRunLookupData"("jobRu
 
 -- CreateIndex
 CREATE UNIQUE INDEX "JobRunLookupData_jobRunId_tenantId_key" ON "JobRunLookupData"("jobRunId" ASC, "tenantId" ASC);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Lease_tenantId_kind_resourceId_key" ON "Lease"("tenantId" ASC, "kind" ASC, "resourceId" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Queue_tenantId_name_key" ON "Queue"("tenantId" ASC, "name" ASC);

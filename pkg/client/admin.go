@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -27,14 +28,23 @@ type ChildWorkflowOpts struct {
 	AdditionalMetadata *map[string]string
 }
 
+type WorkflowRun struct {
+	Name    string
+	Input   interface{}
+	Options []RunOptFunc
+}
+
 type AdminClient interface {
 	PutWorkflow(workflow *types.Workflow, opts ...PutOptFunc) error
 	ScheduleWorkflow(workflowName string, opts ...ScheduleOptFunc) error
 
 	// RunWorkflow triggers a workflow run and returns the run id
-	RunWorkflow(workflowName string, input interface{}, opts ...RunOptFunc) (string, error)
+	RunWorkflow(workflowName string, input interface{}, opts ...RunOptFunc) (*Workflow, error)
+
+	BulkRunWorkflow(workflows []*WorkflowRun) ([]string, error)
 
 	RunChildWorkflow(workflowName string, input interface{}, opts *ChildWorkflowOpts) (string, error)
+	RunChildWorkflows(workflows []*RunChildWorkflowsOpts) ([]string, error)
 
 	PutRateLimit(key string, opts *types.RateLimitOpts) error
 }
@@ -57,15 +67,18 @@ type adminClientImpl struct {
 	ctx *contextLoader
 
 	namespace string
+
+	subscriber SubscribeClient
 }
 
-func newAdmin(conn *grpc.ClientConn, opts *sharedClientOpts) AdminClient {
+func newAdmin(conn *grpc.ClientConn, opts *sharedClientOpts, subscriber SubscribeClient) AdminClient {
 	return &adminClientImpl{
-		client:    admincontracts.NewWorkflowServiceClient(conn),
-		l:         opts.l,
-		v:         opts.v,
-		ctx:       opts.ctxLoader,
-		namespace: opts.namespace,
+		client:     admincontracts.NewWorkflowServiceClient(conn),
+		l:          opts.l,
+		v:          opts.v,
+		ctx:        opts.ctxLoader,
+		namespace:  opts.namespace,
+		subscriber: subscriber,
 	}
 }
 
@@ -176,11 +189,11 @@ func WithRunMetadata(metadata interface{}) RunOptFunc {
 	}
 }
 
-func (a *adminClientImpl) RunWorkflow(workflowName string, input interface{}, options ...RunOptFunc) (string, error) {
+func (a *adminClientImpl) RunWorkflow(workflowName string, input interface{}, options ...RunOptFunc) (*Workflow, error) {
 	inputBytes, err := json.Marshal(input)
 
 	if err != nil {
-		return "", fmt.Errorf("could not marshal input: %w", err)
+		return nil, fmt.Errorf("could not marshal input: %w", err)
 	}
 
 	if a.namespace != "" && !strings.HasPrefix(workflowName, a.namespace) {
@@ -195,7 +208,7 @@ func (a *adminClientImpl) RunWorkflow(workflowName string, input interface{}, op
 	for _, optionFunc := range options {
 		err = optionFunc(&request)
 		if err != nil {
-			return "", fmt.Errorf("could not apply run option: %w", err)
+			return nil, fmt.Errorf("could not apply run option: %w", err)
 		}
 	}
 
@@ -203,15 +216,61 @@ func (a *adminClientImpl) RunWorkflow(workflowName string, input interface{}, op
 
 	if err != nil {
 		if status.Code(err) == codes.AlreadyExists {
-			return "", &DedupeViolationErr{
+			return nil, &DedupeViolationErr{
 				details: fmt.Sprintf("could not trigger workflow: %s", err.Error()),
 			}
 		}
 
-		return "", fmt.Errorf("could not trigger workflow: %w", err)
+		return nil, fmt.Errorf("could not trigger workflow: %w", err)
 	}
 
-	return res.WorkflowRunId, nil
+	listener, err := a.subscriber.SubscribeToWorkflowRunEvents(context.Background())
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to subscribe to workflow run events: %w", err)
+	}
+
+	return &Workflow{
+		workflowRunId: res.WorkflowRunId,
+		listener:      listener,
+	}, nil
+}
+
+func (a *adminClientImpl) BulkRunWorkflow(workflows []*WorkflowRun) ([]string, error) {
+
+	triggerWorkflowRequests := make([]*admincontracts.TriggerWorkflowRequest, len(workflows))
+
+	for i, workflow := range workflows {
+		inputBytes, err := json.Marshal(workflow.Input)
+		if err != nil {
+			return nil, fmt.Errorf("could not marshal input: %w", err)
+		}
+
+		triggerWorkflowRequests[i] = &admincontracts.TriggerWorkflowRequest{
+			Name:  workflow.Name,
+			Input: string(inputBytes),
+		}
+
+		for _, optionFunc := range workflow.Options {
+			err = optionFunc(triggerWorkflowRequests[i])
+			if err != nil {
+				return nil, fmt.Errorf("could not apply run option: %w", err)
+			}
+		}
+	}
+
+	r := admincontracts.BulkTriggerWorkflowRequest{
+		Workflows: triggerWorkflowRequests,
+	}
+
+	res, err := a.client.BulkTriggerWorkflow(a.ctx.newContext(context.Background()), &r)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not bulk trigger workflows: %w", err)
+	}
+
+	return res.WorkflowRunIds, nil
+
 }
 
 func (a *adminClientImpl) RunChildWorkflow(workflowName string, input interface{}, opts *ChildWorkflowOpts) (string, error) {
@@ -255,6 +314,70 @@ func (a *adminClientImpl) RunChildWorkflow(workflowName string, input interface{
 	}
 
 	return res.WorkflowRunId, nil
+
+}
+
+type RunChildWorkflowsOpts struct {
+	WorkflowName string
+	Input        interface{}
+	Opts         *ChildWorkflowOpts
+}
+
+func (a *adminClientImpl) RunChildWorkflows(workflows []*RunChildWorkflowsOpts) ([]string, error) {
+
+	triggerWorkflowRequests := make([]*admincontracts.TriggerWorkflowRequest, len(workflows))
+
+	for i, workflow := range workflows {
+		if workflow.Opts == nil {
+			workflow.Opts = &ChildWorkflowOpts{}
+		}
+
+		inputBytes, err := json.Marshal(workflow.Input)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not marshal input: %w", err)
+		}
+
+		var workflowName = workflow.WorkflowName
+
+		if a.namespace != "" && !strings.HasPrefix(workflow.WorkflowName, a.namespace) {
+			workflowName = fmt.Sprintf("%s%s", a.namespace, workflow.WorkflowName)
+		}
+
+		if workflow.Opts.ChildIndex < math.MinInt32 || workflow.Opts.ChildIndex > math.MaxInt32 {
+			return nil, fmt.Errorf("child index out of range")
+		}
+		childIndex := int32(workflow.Opts.ChildIndex) // nolint: gosec
+
+		metadataBytes, err := json.Marshal(workflow.Opts.AdditionalMetadata)
+		if err != nil {
+			return nil, fmt.Errorf("could not marshal additional metadata: %w", err)
+		}
+		metadata := string(metadataBytes)
+
+		triggerWorkflowRequests[i] = &admincontracts.TriggerWorkflowRequest{
+			Name:               workflowName,
+			Input:              string(inputBytes),
+			ParentId:           &workflow.Opts.ParentId,
+			ParentStepRunId:    &workflow.Opts.ParentStepRunId,
+			ChildIndex:         &childIndex,
+			ChildKey:           workflow.Opts.ChildKey,
+			DesiredWorkerId:    workflow.Opts.DesiredWorkerId,
+			AdditionalMetadata: &metadata,
+		}
+
+	}
+
+	res, err := a.client.BulkTriggerWorkflow(a.ctx.newContext(context.Background()), &admincontracts.BulkTriggerWorkflowRequest{
+		Workflows: triggerWorkflowRequests,
+	})
+
+	if err != nil {
+
+		return nil, fmt.Errorf("could not trigger child workflow: %w", err)
+	}
+
+	return res.WorkflowRunIds, nil
 }
 
 func (a *adminClientImpl) PutRateLimit(key string, opts *types.RateLimitOpts) error {

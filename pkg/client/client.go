@@ -232,10 +232,11 @@ func newFromOpts(opts *ClientOpts) (Client, error) {
 		ctxLoader: newContextLoader(opts.token),
 	}
 
-	admin := newAdmin(conn, shared)
+	subscribe := newSubscribe(conn, shared)
+	admin := newAdmin(conn, shared, subscribe)
 	dispatcher := newDispatcher(conn, shared)
 	event := newEvent(conn, shared)
-	subscribe := newSubscribe(conn, shared)
+
 	rest, err := rest.NewClientWithResponses(opts.serverURL, rest.WithRequestEditorFn(func(ctx context.Context, req *http.Request) error {
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", opts.token))
 		return nil

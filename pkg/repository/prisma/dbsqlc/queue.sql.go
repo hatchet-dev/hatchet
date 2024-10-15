@@ -95,26 +95,28 @@ INSERT INTO
         "priority"
     )
 SELECT
-    $1::"InternalQueue",
+    input."queue",
     true,
     input."data",
-    $2::uuid,
+    input."tenantId",
     1
 FROM (
     SELECT
-        unnest($3::json[]) AS "data"
+        unnest(cast($1::text[] as"InternalQueue"[])) AS "queue",
+        unnest($2::json[]) AS "data",
+        unnest($3::uuid[]) AS "tenantId"
 ) AS input
 ON CONFLICT DO NOTHING
 `
 
 type CreateInternalQueueItemsBulkParams struct {
-	Queue    InternalQueue `json:"queue"`
-	Tenantid pgtype.UUID   `json:"tenantid"`
-	Datas    [][]byte      `json:"datas"`
+	Queues    []string      `json:"queues"`
+	Datas     [][]byte      `json:"datas"`
+	Tenantids []pgtype.UUID `json:"tenantids"`
 }
 
 func (q *Queries) CreateInternalQueueItemsBulk(ctx context.Context, db DBTX, arg CreateInternalQueueItemsBulkParams) error {
-	_, err := db.Exec(ctx, createInternalQueueItemsBulk, arg.Queue, arg.Tenantid, arg.Datas)
+	_, err := db.Exec(ctx, createInternalQueueItemsBulk, arg.Queues, arg.Datas, arg.Tenantids)
 	return err
 }
 
@@ -324,6 +326,29 @@ func (q *Queries) GetMinMaxProcessedTimeoutQueueItems(ctx context.Context, db DB
 	return &i, err
 }
 
+const getMinUnprocessedQueueItemId = `-- name: GetMinUnprocessedQueueItemId :one
+SELECT
+    COALESCE(MIN("id"), 0)::bigint AS "minId"
+FROM
+    "QueueItem"
+WHERE
+    "isQueued" = 't'
+    AND "tenantId" = $1::uuid
+    AND "queue" = $2::text
+`
+
+type GetMinUnprocessedQueueItemIdParams struct {
+	Tenantid pgtype.UUID `json:"tenantid"`
+	Queue    string      `json:"queue"`
+}
+
+func (q *Queries) GetMinUnprocessedQueueItemId(ctx context.Context, db DBTX, arg GetMinUnprocessedQueueItemIdParams) (int64, error) {
+	row := db.QueryRow(ctx, getMinUnprocessedQueueItemId, arg.Tenantid, arg.Queue)
+	var minId int64
+	err := row.Scan(&minId)
+	return minId, err
+}
+
 const getQueuedCounts = `-- name: GetQueuedCounts :many
 SELECT
     "queue",
@@ -355,6 +380,224 @@ func (q *Queries) GetQueuedCounts(ctx context.Context, db DBTX, tenantid pgtype.
 			return nil, err
 		}
 		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listActionsForAvailableWorkers = `-- name: ListActionsForAvailableWorkers :many
+SELECT
+    w."id" as "workerId",
+    a."actionId"
+FROM
+    "Worker" w
+JOIN
+    "_ActionToWorker" atw ON w."id" = atw."B"
+JOIN
+    "Action" a ON atw."A" = a."id"
+WHERE
+    w."tenantId" = $1::uuid
+    AND w."dispatcherId" IS NOT NULL
+    AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+    AND w."isActive" = true
+    AND w."isPaused" = false
+`
+
+type ListActionsForAvailableWorkersRow struct {
+	WorkerId pgtype.UUID `json:"workerId"`
+	ActionId string      `json:"actionId"`
+}
+
+func (q *Queries) ListActionsForAvailableWorkers(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]*ListActionsForAvailableWorkersRow, error) {
+	rows, err := db.Query(ctx, listActionsForAvailableWorkers, tenantid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListActionsForAvailableWorkersRow
+	for rows.Next() {
+		var i ListActionsForAvailableWorkersRow
+		if err := rows.Scan(&i.WorkerId, &i.ActionId); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listActionsForWorkers = `-- name: ListActionsForWorkers :many
+SELECT
+    w."id" as "workerId",
+    a."actionId"
+FROM
+    "Worker" w
+LEFT JOIN
+    "_ActionToWorker" atw ON w."id" = atw."B"
+LEFT JOIN
+    "Action" a ON atw."A" = a."id"
+WHERE
+    w."tenantId" = $1::uuid
+    AND w."id" = ANY($2::uuid[])
+`
+
+type ListActionsForWorkersParams struct {
+	Tenantid  pgtype.UUID   `json:"tenantid"`
+	Workerids []pgtype.UUID `json:"workerids"`
+}
+
+type ListActionsForWorkersRow struct {
+	WorkerId pgtype.UUID `json:"workerId"`
+	ActionId pgtype.Text `json:"actionId"`
+}
+
+func (q *Queries) ListActionsForWorkers(ctx context.Context, db DBTX, arg ListActionsForWorkersParams) ([]*ListActionsForWorkersRow, error) {
+	rows, err := db.Query(ctx, listActionsForWorkers, arg.Tenantid, arg.Workerids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListActionsForWorkersRow
+	for rows.Next() {
+		var i ListActionsForWorkersRow
+		if err := rows.Scan(&i.WorkerId, &i.ActionId); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listActiveWorkers = `-- name: ListActiveWorkers :many
+SELECT
+    w."id",
+    w."maxRuns"
+FROM
+    "Worker" w
+WHERE
+    w."tenantId" = $1::uuid
+    AND w."dispatcherId" IS NOT NULL
+    AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+    AND w."isActive" = true
+    AND w."isPaused" = false
+`
+
+type ListActiveWorkersRow struct {
+	ID      pgtype.UUID `json:"id"`
+	MaxRuns int32       `json:"maxRuns"`
+}
+
+func (q *Queries) ListActiveWorkers(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]*ListActiveWorkersRow, error) {
+	rows, err := db.Query(ctx, listActiveWorkers, tenantid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListActiveWorkersRow
+	for rows.Next() {
+		var i ListActiveWorkersRow
+		if err := rows.Scan(&i.ID, &i.MaxRuns); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAllAvailableSlotsForWorkers = `-- name: ListAllAvailableSlotsForWorkers :many
+WITH worker_max_runs AS (
+    SELECT
+        "id",
+        "maxRuns"
+    FROM
+        "Worker"
+    WHERE
+        "tenantId" = $1::uuid
+), worker_filled_slots AS (
+    SELECT
+        "workerId",
+        COUNT("stepRunId") AS "filledSlots"
+    FROM
+        "SemaphoreQueueItem"
+    WHERE
+        "tenantId" = $1::uuid
+    GROUP BY
+        "workerId"
+)
+SELECT
+    wmr."id",
+    wmr."maxRuns" - COALESCE(wfs."filledSlots", 0) AS "availableSlots"
+FROM
+    worker_max_runs wmr
+LEFT JOIN
+    worker_filled_slots wfs ON wmr."id" = wfs."workerId"
+`
+
+type ListAllAvailableSlotsForWorkersRow struct {
+	ID             pgtype.UUID `json:"id"`
+	AvailableSlots int32       `json:"availableSlots"`
+}
+
+// subtract the filled slots from the max runs to get the available slots
+func (q *Queries) ListAllAvailableSlotsForWorkers(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]*ListAllAvailableSlotsForWorkersRow, error) {
+	rows, err := db.Query(ctx, listAllAvailableSlotsForWorkers, tenantid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListAllAvailableSlotsForWorkersRow
+	for rows.Next() {
+		var i ListAllAvailableSlotsForWorkersRow
+		if err := rows.Scan(&i.ID, &i.AvailableSlots); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAllWorkerActions = `-- name: ListAllWorkerActions :many
+SELECT
+    a."actionId" AS actionId
+FROM "Worker" w
+LEFT JOIN "_ActionToWorker" aw ON w.id = aw."B"
+LEFT JOIN "Action" a ON aw."A" = a.id
+WHERE
+    a."tenantId" = $1::uuid AND
+    w."id" = $2::uuid
+`
+
+type ListAllWorkerActionsParams struct {
+	Tenantid pgtype.UUID `json:"tenantid"`
+	Workerid pgtype.UUID `json:"workerid"`
+}
+
+func (q *Queries) ListAllWorkerActions(ctx context.Context, db DBTX, arg ListAllWorkerActionsParams) ([]pgtype.Text, error) {
+	rows, err := db.Query(ctx, listAllWorkerActions, arg.Tenantid, arg.Workerid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []pgtype.Text
+	for rows.Next() {
+		var actionid pgtype.Text
+		if err := rows.Scan(&actionid); err != nil {
+			return nil, err
+		}
+		items = append(items, actionid)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -476,6 +719,73 @@ func (q *Queries) ListInternalQueueItems(ctx context.Context, db DBTX, arg ListI
 			&i.TenantId,
 			&i.Priority,
 			&i.UniqueKey,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listQueueItemsForQueue = `-- name: ListQueueItemsForQueue :many
+SELECT
+    id, "stepRunId", "stepId", "actionId", "scheduleTimeoutAt", "stepTimeout", priority, "isQueued", "tenantId", queue, sticky, "desiredWorkerId"
+FROM
+    "QueueItem" qi
+WHERE
+    qi."isQueued" = true
+    AND qi."tenantId" = $1::uuid
+    AND qi."queue" = $2::text
+    AND (
+        $3::bigint IS NULL OR
+        qi."id" >= $3::bigint
+    )
+    -- Added to ensure that the index is used
+    AND qi."priority" >= 1 AND qi."priority" <= 4
+ORDER BY
+    qi."priority" DESC,
+    qi."id" ASC
+LIMIT
+    COALESCE($4::integer, 100)
+`
+
+type ListQueueItemsForQueueParams struct {
+	Tenantid pgtype.UUID `json:"tenantid"`
+	Queue    string      `json:"queue"`
+	GtId     pgtype.Int8 `json:"gtId"`
+	Limit    pgtype.Int4 `json:"limit"`
+}
+
+func (q *Queries) ListQueueItemsForQueue(ctx context.Context, db DBTX, arg ListQueueItemsForQueueParams) ([]*QueueItem, error) {
+	rows, err := db.Query(ctx, listQueueItemsForQueue,
+		arg.Tenantid,
+		arg.Queue,
+		arg.GtId,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*QueueItem
+	for rows.Next() {
+		var i QueueItem
+		if err := rows.Scan(
+			&i.ID,
+			&i.StepRunId,
+			&i.StepId,
+			&i.ActionId,
+			&i.ScheduleTimeoutAt,
+			&i.StepTimeout,
+			&i.Priority,
+			&i.IsQueued,
+			&i.TenantId,
+			&i.Queue,
+			&i.Sticky,
+			&i.DesiredWorkerId,
 		); err != nil {
 			return nil, err
 		}
@@ -623,5 +933,33 @@ type UpsertQueueParams struct {
 
 func (q *Queries) UpsertQueue(ctx context.Context, db DBTX, arg UpsertQueueParams) error {
 	_, err := db.Exec(ctx, upsertQueue, arg.Tenantid, arg.Name)
+	return err
+}
+
+const upsertQueues = `-- name: UpsertQueues :exec
+WITH input_data AS (
+    SELECT
+        UNNEST($1::uuid[]) AS tenantId,
+        UNNEST($2::text[]) AS name
+)
+INSERT INTO "Queue" (
+    "tenantId",
+    "name"
+)
+SELECT
+    input_data.tenantId,
+    input_data.name
+FROM
+    input_data
+ON CONFLICT ("tenantId", "name") DO NOTHING
+`
+
+type UpsertQueuesParams struct {
+	Tenantids []pgtype.UUID `json:"tenantids"`
+	Names     []string      `json:"names"`
+}
+
+func (q *Queries) UpsertQueues(ctx context.Context, db DBTX, arg UpsertQueuesParams) error {
+	_, err := db.Exec(ctx, upsertQueues, arg.Tenantids, arg.Names)
 	return err
 }

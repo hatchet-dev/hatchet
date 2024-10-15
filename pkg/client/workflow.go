@@ -1,28 +1,36 @@
-package worker
+package client
 
 import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/rs/zerolog"
-
-	"github.com/hatchet-dev/hatchet/pkg/client"
-
 	dispatchercontracts "github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 )
 
-type ChildWorkflow struct {
+type Workflow struct {
 	workflowRunId string
-	// client        client.Client
-	l        *zerolog.Logger
-	listener *client.WorkflowRunsListener
+	listener      *WorkflowRunsListener
 }
 
-type ChildWorkflowResult struct {
+func NewWorkflow(
+	workflowRunId string,
+	listener *WorkflowRunsListener,
+) *Workflow {
+	return &Workflow{
+		workflowRunId: workflowRunId,
+		listener:      listener,
+	}
+}
+
+func (r *Workflow) WorkflowRunId() string {
+	return r.workflowRunId
+}
+
+type WorkflowResult struct {
 	workflowRun *dispatchercontracts.WorkflowRunEvent
 }
 
-func (r *ChildWorkflowResult) StepOutput(key string, v interface{}) error {
+func (r *WorkflowResult) StepOutput(key string, v interface{}) error {
 	var outputBytes []byte
 	for _, stepRunResult := range r.workflowRun.Results {
 		if stepRunResult.StepReadableId == key {
@@ -47,15 +55,15 @@ func (r *ChildWorkflowResult) StepOutput(key string, v interface{}) error {
 	return nil
 }
 
-func (c *ChildWorkflow) Result() (*ChildWorkflowResult, error) {
-	resChan := make(chan *ChildWorkflowResult)
+func (c *Workflow) Result() (*WorkflowResult, error) {
+	resChan := make(chan *WorkflowResult)
 
 	err := c.listener.AddWorkflowRun(
 		c.workflowRunId,
-		func(event client.WorkflowRunEvent) error {
+		func(event WorkflowRunEvent) error {
 			// non-blocking send
 			select {
-			case resChan <- &ChildWorkflowResult{
+			case resChan <- &WorkflowResult{
 				workflowRun: event,
 			}: // continue
 			default:

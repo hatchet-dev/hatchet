@@ -1058,6 +1058,12 @@ func (s *DispatcherImpl) handleStepRunStarted(inputCtx context.Context, request 
 		return nil, err
 	}
 
+	err = s.repo.StepRun().StepRunStarted(ctx, tenantId, sqlchelpers.UUIDToStr(sr.WorkflowRunId), request.StepRunId, startedAt)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not mark step run started: %w", err)
+	}
+
 	payload, _ := datautils.ToJSONMap(tasktypes.StepRunStartedTaskPayload{
 		StepRunId:     request.StepRunId,
 		StartedAt:     startedAt.Format(time.RFC3339),
@@ -1070,8 +1076,8 @@ func (s *DispatcherImpl) handleStepRunStarted(inputCtx context.Context, request 
 		TenantId: tenantId,
 	})
 
-	// send the event to the jobs queue
-	err = s.mq.AddMessage(ctx, msgqueue.JOB_PROCESSING_QUEUE, &msgqueue.Message{
+	// we send the event directly to the tenant's event queue
+	err = s.mq.AddMessage(ctx, msgqueue.TenantEventConsumerQueue(tenantId), &msgqueue.Message{
 		ID:       "step-run-started",
 		Payload:  payload,
 		Metadata: metadata,

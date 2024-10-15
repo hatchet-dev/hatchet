@@ -454,18 +454,6 @@ func (d *DispatcherImpl) handleStepRunAssignedTask(ctx context.Context, task *ms
 		return fmt.Errorf("could not decode dispatcher task metadata: %w", err)
 	}
 
-	// get the worker for this task
-	workers, err := d.workers.Get(payload.WorkerId)
-
-	if err != nil {
-		return fmt.Errorf("could not get worker: %w", err)
-	}
-
-	if len(workers) == 0 {
-		d.l.Warn().Msgf("worker %s not found, ignoring task for step run %s", payload.WorkerId, payload.StepRunId)
-		return nil
-	}
-
 	// load the step run from the database
 	stepRun, err := d.repo.StepRun().GetStepRunForEngine(ctx, metadata.TenantId, payload.StepRunId)
 
@@ -499,6 +487,13 @@ func (d *DispatcherImpl) handleStepRunAssignedTask(ctx context.Context, task *ms
 	var multiErr error
 	var success bool
 
+	// get the worker for this task
+	workers, err := d.workers.Get(payload.WorkerId)
+
+	if err != nil && !errors.Is(err, ErrWorkerNotFound) {
+		return fmt.Errorf("could not get worker: %w", err)
+	}
+
 	for i, w := range workers {
 		err = w.StartStepRun(ctx, metadata.TenantId, stepRun, data)
 
@@ -514,8 +509,8 @@ func (d *DispatcherImpl) handleStepRunAssignedTask(ctx context.Context, task *ms
 	if success {
 		defer d.repo.StepRun().DeferredStepRunEvent(
 			metadata.TenantId,
-			sqlchelpers.UUIDToStr(stepRun.SRID),
 			repository.CreateStepRunEventOpts{
+				StepRunId:     sqlchelpers.UUIDToStr(stepRun.SRID),
 				EventMessage:  repository.StringPtr("Sent step run to the assigned worker"),
 				EventReason:   repository.StepRunEventReasonPtr(dbsqlc.StepRunEventReasonSENTTOWORKER),
 				EventSeverity: repository.StepRunEventSeverityPtr(dbsqlc.StepRunEventSeverityINFO),
@@ -529,8 +524,8 @@ func (d *DispatcherImpl) handleStepRunAssignedTask(ctx context.Context, task *ms
 
 	defer d.repo.StepRun().DeferredStepRunEvent(
 		metadata.TenantId,
-		sqlchelpers.UUIDToStr(stepRun.SRID),
 		repository.CreateStepRunEventOpts{
+			StepRunId:     sqlchelpers.UUIDToStr(stepRun.SRID),
 			EventMessage:  repository.StringPtr("Could not send step run to assigned worker"),
 			EventReason:   repository.StepRunEventReasonPtr(dbsqlc.StepRunEventReasonREASSIGNED),
 			EventSeverity: repository.StepRunEventSeverityPtr(dbsqlc.StepRunEventSeverityWARNING),

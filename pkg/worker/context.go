@@ -41,6 +41,8 @@ type HatchetContext interface {
 
 	WorkflowInput(target interface{}) error
 
+	AdditionalMetadata() map[string]string
+
 	StepName() string
 
 	StepRunId() string
@@ -51,7 +53,9 @@ type HatchetContext interface {
 
 	StreamEvent(message []byte)
 
-	SpawnWorkflow(workflowName string, input any, opts *SpawnWorkflowOpts) (*ChildWorkflow, error)
+	SpawnWorkflow(workflowName string, input any, opts *SpawnWorkflowOpts) (*client.Workflow, error)
+
+	SpawnWorkflows(childWorkflows []*SpawnWorkflowsOpts) ([]*client.Workflow, error)
 
 	ReleaseSlot() error
 
@@ -83,9 +87,10 @@ type JobRunLookupData struct {
 }
 
 type StepRunData struct {
-	Input       map[string]interface{} `json:"input"`
-	TriggeredBy TriggeredBy            `json:"triggered_by"`
-	Parents     map[string]StepData    `json:"parents"`
+	Input              map[string]interface{} `json:"input"`
+	TriggeredBy        TriggeredBy            `json:"triggered_by"`
+	Parents            map[string]StepData    `json:"parents"`
+	AdditionalMetadata map[string]string      `json:"additional_metadata"`
 }
 
 type StepData map[string]interface{}
@@ -184,6 +189,10 @@ func (h *hatchetContext) WorkflowInput(target interface{}) error {
 	return toTarget(h.stepData.Input, target)
 }
 
+func (h *hatchetContext) AdditionalMetadata() map[string]string {
+	return h.stepData.AdditionalMetadata
+}
+
 func (h *hatchetContext) StepName() string {
 	return h.a.StepName
 }
@@ -271,7 +280,7 @@ func (h *hatchetContext) saveOrLoadListener() (*client.WorkflowRunsListener, err
 	return listener, nil
 }
 
-func (h *hatchetContext) SpawnWorkflow(workflowName string, input any, opts *SpawnWorkflowOpts) (*ChildWorkflow, error) {
+func (h *hatchetContext) SpawnWorkflow(workflowName string, input any, opts *SpawnWorkflowOpts) (*client.Workflow, error) {
 	if opts == nil {
 		opts = &SpawnWorkflowOpts{}
 	}
@@ -316,15 +325,75 @@ func (h *hatchetContext) SpawnWorkflow(workflowName string, input any, opts *Spa
 	// increment the index
 	h.inc()
 
-	return &ChildWorkflow{
-		workflowRunId: workflowRunId,
-		l:             h.l,
-		listener:      listener,
-	}, nil
+	return client.NewWorkflow(workflowRunId, listener), nil
 }
 
-func (h *hatchetContext) AdditionalMetadata() map[string]string {
-	return h.a.AdditionalMetadata
+type SpawnWorkflowsOpts struct {
+	WorkflowName       string
+	Input              any
+	Key                *string
+	Sticky             *bool
+	AdditionalMetadata *map[string]string
+}
+
+func (h *hatchetContext) SpawnWorkflows(childWorkflows []*SpawnWorkflowsOpts) ([]*client.Workflow, error) {
+
+	triggerWorkflows := make([]*client.RunChildWorkflowsOpts, len(childWorkflows))
+	listener, err := h.saveOrLoadListener()
+
+	for i, c := range childWorkflows {
+
+		var desiredWorker *string
+
+		if c.Sticky != nil {
+			if _, exists := h.w.worker.registered_workflows[c.WorkflowName]; !exists {
+				return nil, fmt.Errorf("cannot run with sticky: workflow %s is not registered on this worker", c.WorkflowName)
+			}
+
+			desiredWorker = h.w.id
+		}
+
+		if err != nil {
+			return nil, err
+		}
+		workflowName := c.WorkflowName
+
+		if ns := h.client().Namespace(); ns != "" && !strings.HasPrefix(c.WorkflowName, ns) {
+			workflowName = fmt.Sprintf("%s%s", ns, workflowName)
+		}
+
+		// increment the index
+		h.inc()
+
+		triggerWorkflows[i] = &client.RunChildWorkflowsOpts{
+			WorkflowName: workflowName,
+			Input:        c.Input,
+			Opts: &client.ChildWorkflowOpts{
+				ParentId:           h.WorkflowRunId(),
+				ParentStepRunId:    h.StepRunId(),
+				ChildIndex:         h.index(),
+				ChildKey:           c.Key,
+				DesiredWorkerId:    desiredWorker,
+				AdditionalMetadata: c.AdditionalMetadata,
+			},
+		}
+	}
+
+	workflowRunIds, err := h.client().Admin().RunChildWorkflows(
+		triggerWorkflows,
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to spawn workflow: %w", err)
+	}
+
+	createdWorkflows := make([]*client.Workflow, len(workflowRunIds))
+
+	for i, workflowRunId := range workflowRunIds {
+		createdWorkflows[i] = client.NewWorkflow(workflowRunId, listener)
+	}
+
+	return createdWorkflows, nil
 }
 
 func (h *hatchetContext) ChildIndex() *int32 {
@@ -377,6 +446,8 @@ func (h *hatchetContext) populateStepData() error {
 	if err != nil {
 		return err
 	}
+
+	h.stepData.AdditionalMetadata = h.a.AdditionalMetadata
 
 	return nil
 }

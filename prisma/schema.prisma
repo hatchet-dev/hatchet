@@ -397,6 +397,14 @@ model APIToken {
   webhookWorkers WebhookWorker[]
 }
 
+model EventKey {
+  id       BigInt @id @default(autoincrement()) @db.BigInt
+  key      String
+  tenantId String @db.Uuid
+
+  @@unique([key, tenantId])
+}
+
 // Event represents an event in the database.
 model Event {
   // base fields
@@ -423,6 +431,9 @@ model Event {
 
   // metadata stored in the event
   additionalMetadata Json?
+
+  // this is used to order the events on bulk inserts
+  insertOrder Int?
 
   @@index([tenantId])
   @@index([createdAt])
@@ -939,6 +950,9 @@ model WorkflowRun {
   // (optional) additional metadata for the workflow run
   additionalMetadata Json?
 
+  // this is used to order the workflow runs on bulk inserts
+  insertOrder Int?
+
   @@unique([parentId, parentStepRunId, childKey])
   @@index([tenantId])
   @@index([workflowVersionId])
@@ -1342,6 +1356,7 @@ model QueueItem {
 enum InternalQueue {
   WORKER_SEMAPHORE_COUNT
   STEP_RUN_UPDATE
+  STEP_RUN_UPDATE_V2
   WORKFLOW_RUN_UPDATE
   WORKFLOW_RUN_PAUSED
 }
@@ -1772,4 +1787,27 @@ model SNSIntegration {
 
 model SecurityCheckIdent {
   id String @id @unique @default(uuid()) @db.Uuid
+}
+
+enum LeaseKind {
+  WORKER
+  QUEUE
+}
+
+model Lease {
+  id BigInt @id @default(autoincrement()) @db.BigInt
+
+  // when the lease on the resource expires
+  expiresAt DateTime?
+
+  // the parent tenant
+  tenantId String @db.Uuid
+
+  // the resource being leased
+  resourceId String
+
+  // the kind of lease
+  kind LeaseKind
+
+  @@unique([tenantId, kind, resourceId])
 }

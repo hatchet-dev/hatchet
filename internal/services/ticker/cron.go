@@ -121,12 +121,14 @@ func (t *TickerImpl) runCronWorkflow(tenantId, workflowVersionId, cron, cronPare
 			return
 		}
 
-		workflowRunId, err := t.repo.WorkflowRun().CreateNewWorkflowRun(ctx, tenantId, createOpts)
+		workflowRun, err := t.repo.WorkflowRun().CreateNewWorkflowRun(ctx, tenantId, createOpts)
 
 		if err != nil {
 			t.l.Err(err).Msg("could not create workflow run")
 			return
 		}
+
+		workflowRunId := sqlchelpers.UUIDToStr(workflowRun.ID)
 
 		err = t.mq.AddMessage(
 			context.Background(),

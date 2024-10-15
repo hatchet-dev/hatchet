@@ -146,7 +146,7 @@ func GeneratePlan(
 
 			// if we're rate limited then call rollback on the rate limits (this can happen if we've succeeded on one rate limit
 			// but failed on another)
-			for key := range stepRunRateUnits[stepId] {
+			for key := range stepRunRateUnits[stepRunId] {
 				if rateLimit, ok := rateLimits[key]; ok {
 					rateLimit.Rollback(stepRunId)
 				}
@@ -155,7 +155,7 @@ func GeneratePlan(
 			plan.HandleUnassigned(qi)
 
 			// if we can't assign the slot to any worker then we rollback the rate limit
-			for key := range stepRunRateUnits[stepId] {
+			for key := range stepRunRateUnits[stepRunId] {
 				if rateLimit, ok := rateLimits[key]; ok {
 					rateLimit.Rollback(stepRunId)
 				}
