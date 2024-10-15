@@ -82,7 +82,7 @@ func main() {
 		panic(fmt.Errorf("error cleaning up: %w", err))
 	}
 
-	workflowRunId, err := c.Admin().RunWorkflow("stream-event-workflow", &streamEventInput{
+	workflow, err := c.Admin().RunWorkflow("stream-event-workflow", &streamEventInput{
 		Index: 0,
 	})
 
@@ -90,7 +90,7 @@ func main() {
 		panic(err)
 	}
 
-	err = c.Subscribe().Stream(interruptCtx, workflowRunId, func(event client.StreamEvent) error {
+	err = c.Subscribe().Stream(interruptCtx, workflow.WorkflowRunId(), func(event client.StreamEvent) error {
 		fmt.Println(string(event.Message))
 
 		return nil
