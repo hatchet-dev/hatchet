@@ -903,20 +903,30 @@ func (q *Queuer) flushToDatabase(ctx context.Context, r *assignResults) int {
 	if err != nil {
 		q.l.Error().Err(err).Msg("error marking queue items processed")
 
+		nackIds := make([]int, 0, len(r.assigned))
+
 		for _, assignedItem := range r.assigned {
-			q.s.nack(assignedItem.AckId)
+			nackIds = append(nackIds, assignedItem.AckId)
 		}
+
+		q.s.nack(nackIds)
 
 		return 0
 	}
 
+	nackIds := make([]int, 0, len(failed))
+	ackIds := make([]int, 0, len(succeeded))
+
 	for _, failedItem := range failed {
-		q.s.nack(failedItem.AckId)
+		nackIds = append(nackIds, failedItem.AckId)
 	}
 
 	for _, assignedItem := range succeeded {
-		q.s.ack(assignedItem.AckId)
+		ackIds = append(ackIds, assignedItem.AckId)
 	}
+
+	q.s.nack(nackIds)
+	q.s.ack(ackIds)
 
 	schedulingTimedOut := make([]string, 0, len(r.schedulingTimedOut))
 

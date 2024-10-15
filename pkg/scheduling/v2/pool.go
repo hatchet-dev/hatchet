@@ -94,7 +94,6 @@ func (p *SchedulingPool) SetTenants(tenants []*dbsqlc.Tenant) {
 
 		if _, ok := tenantMap[tenantId]; !ok {
 			toCleanup = append(toCleanup, value.(*tenantManager))
-			p.tenants.Delete(key)
 		}
 
 		return true
@@ -113,6 +112,8 @@ func (p *SchedulingPool) cleanupTenants(toCleanup []*tenantManager) {
 
 		go func(tm *tenantManager) {
 			defer wg.Done()
+
+			p.tenants.Delete(tm.tenantId)
 
 			err := tm.Cleanup()
 
@@ -140,7 +141,7 @@ func (p *SchedulingPool) Replenish(ctx context.Context, tenantId string) {
 func (p *SchedulingPool) Queue(ctx context.Context, tenantId string, queueName string) {
 	tm := p.getTenantManager(tenantId)
 
-	tm.queue(ctx, queueName)
+	tm.queue(queueName)
 }
 
 func (p *SchedulingPool) getTenantManager(tenantId string) *tenantManager {

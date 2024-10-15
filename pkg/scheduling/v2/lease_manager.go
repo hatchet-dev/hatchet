@@ -27,7 +27,6 @@ type leaseRepo interface {
 	ListActiveWorkers(ctx context.Context, tenantId pgtype.UUID) ([]*ListActiveWorkersResult, error)
 
 	AcquireLeases(ctx context.Context, kind dbsqlc.LeaseKind, resourceIds []string, existingLeases []*dbsqlc.Lease) ([]*dbsqlc.Lease, error)
-	RenewLeases(ctx context.Context, leases []*dbsqlc.Lease) ([]*dbsqlc.Lease, error)
 	ReleaseLeases(ctx context.Context, leases []*dbsqlc.Lease) error
 }
 
@@ -93,37 +92,6 @@ func (d *leaseDbQueries) AcquireLeases(ctx context.Context, kind dbsqlc.LeaseKin
 	}
 
 	return leases, nil
-}
-
-func (d *leaseDbQueries) RenewLeases(ctx context.Context, leases []*dbsqlc.Lease) ([]*dbsqlc.Lease, error) {
-	leaseIds := make([]int64, len(leases))
-
-	for i, lease := range leases {
-		leaseIds[i] = lease.ID
-	}
-
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, d.pool, d.l, 5000)
-
-	if err != nil {
-		return nil, err
-	}
-
-	defer rollback()
-
-	renewedLeases, err := d.queries.RenewLeases(ctx, tx, dbsqlc.RenewLeasesParams{
-		LeaseDuration: d.leaseDuration,
-		Leaseids:      leaseIds,
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	if err := commit(ctx); err != nil {
-		return nil, err
-	}
-
-	return renewedLeases, nil
 }
 
 func (d *leaseDbQueries) ReleaseLeases(ctx context.Context, leases []*dbsqlc.Lease) error {

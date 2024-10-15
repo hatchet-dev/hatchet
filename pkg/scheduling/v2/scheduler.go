@@ -84,25 +84,27 @@ func newScheduler(cf *sharedConfig, tenantId pgtype.UUID, rl *rateLimiter) *Sche
 	}
 }
 
-// TODO: ACK IN BULK!
-func (s *Scheduler) ack(id int) {
+func (s *Scheduler) ack(ids []int) {
 	s.unackedMu.Lock()
 	defer s.unackedMu.Unlock()
 
-	if slot, ok := s.unackedSlots[id]; ok {
-		slot.ack()
-		delete(s.unackedSlots, id)
+	for _, id := range ids {
+		if slot, ok := s.unackedSlots[id]; ok {
+			slot.ack()
+			delete(s.unackedSlots, id)
+		}
 	}
 }
 
-// TODO: NACK IN BULK!
-func (s *Scheduler) nack(id int) {
+func (s *Scheduler) nack(ids []int) {
 	s.unackedMu.Lock()
 	defer s.unackedMu.Unlock()
 
-	if slot, ok := s.unackedSlots[id]; ok {
-		slot.nack()
-		delete(s.unackedSlots, id)
+	for _, id := range ids {
+		if slot, ok := s.unackedSlots[id]; ok {
+			slot.nack()
+			delete(s.unackedSlots, id)
+		}
 	}
 }
 
@@ -238,7 +240,6 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 	// FUNCTION 3: list unacked slots (so they're not counted towards the worker slot count)
 	workersToUnackedSlots := make(map[string][]*slot)
 
-	// TODO: CHECK CORRECTNESS OF UNACKED SLOTS, PERHAPS WE SHOULD LOCK THIS FOR THE ENTIRE REPLENISH?
 	s.unackedMu.Lock()
 	defer s.unackedMu.Unlock()
 
@@ -254,8 +255,6 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 	}
 
 	// FUNCTION 4: write the new slots to the scheduler and clean up expired slots
-	now := time.Now()
-	expires := now.Add(5 * time.Second)
 	actionsToNewSlots := make(map[string][]*slot)
 	actionsToTotalSlots := make(map[string]int)
 
@@ -269,9 +268,8 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 
 		for i := 0; i < int(worker.AvailableSlots)-len(unackedSlots); i++ {
 			slots = append(slots, &slot{
-				actions:   actions,
-				worker:    workers[workerId],
-				expiresAt: &expires,
+				actions: actions,
+				worker:  workers[workerId],
 			})
 		}
 
@@ -296,8 +294,6 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 			}
 		} else {
 			// we overwrite the slots for the action
-
-			// TODO: order the slots by worker id to fairly distribute the slots
 			s.actions[actionId].slots = newSlots
 			s.actions[actionId].lastReplenishedSlotCount = actionsToTotalSlots[actionId]
 			s.actions[actionId].lastReplenishedWorkerCount = len(actionsToWorkerIds[actionId])
@@ -327,16 +323,6 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 			delete(s.actions, actionId)
 		}
 	}
-
-	// DEBUG PRINT
-	// for actionId, storedAction := range s.actions {
-	// 	s.l.Warn().Msgf("action %s has %d slots", actionId, len(storedAction.slots))
-
-	// 	for i := range storedAction.slots {
-	// 		slot := storedAction.slots[i]
-	// 		// s.l.Warn().Msgf("slot %d: workerId=%s, actions=%v, expiresAt=%v, used=%v", i, slot.workerId, slot.actions, slot.expiresAt, slot.used)
-	// 	}
-	// }
 
 	return nil
 }
@@ -377,7 +363,11 @@ type assignSingleResult struct {
 func (s *Scheduler) tryAssignSingleton(
 	ctx context.Context,
 	qi *dbsqlc.QueueItem,
-	skip int,
+	// ringOffset is a hint for where to start the search for a slot. The search will wraparound the ring if necessary.
+	// If a slot is assigned, the caller should increment this value for the next call to tryAssignSingleton.
+	// Note that this is not guaranteed to be the actual offset of the latest assigned slot, since many actions may be scheduling
+	// slots concurrently.
+	ringOffset int,
 	labels []*dbsqlc.GetDesiredLabelsRow,
 	rls map[string]int32,
 ) (
@@ -413,13 +403,17 @@ func (s *Scheduler) tryAssignSingleton(
 	}
 
 	candidateSlots := s.actions[actionId].slots
+
+	ringOffset %= len(candidateSlots)
+
+	// rotate the ring to the offset
+	candidateSlots = append(candidateSlots[ringOffset:], candidateSlots[:ringOffset]...)
+
 	s.actionsMu.RUnlock()
 
 	candidateSlots = getRankedSlots(qi, labels, candidateSlots)
 
-	for i := skip; i < len(candidateSlots); i++ {
-		slot := candidateSlots[i]
-
+	for _, slot := range candidateSlots {
 		if !slot.active() {
 			continue
 		}
@@ -515,8 +509,7 @@ func (s *Scheduler) tryAssign(
 
 				startAssignment := time.Now()
 
-				// TODO: ADD A NOTE ABOUT SKIPPING SINCE THERE MIGHT BE CONTENTION ON THE CANDIDATE SLOTS
-				skip := 0
+				ringOffset := 0
 
 				for i := range qis {
 					qi := qis[i]
@@ -542,7 +535,7 @@ func (s *Scheduler) tryAssign(
 						}
 					}
 
-					singleRes, err := s.tryAssignSingleton(ctx, qi, skip, labels, rls)
+					singleRes, err := s.tryAssignSingleton(ctx, qi, ringOffset, labels, rls)
 
 					if err != nil {
 						s.l.Error().Err(err).Msg("error assigning queue item")
@@ -558,7 +551,7 @@ func (s *Scheduler) tryAssign(
 						}
 					}
 
-					skip++
+					ringOffset++
 
 					assigned = append(assigned, &AssignedQueueItem{
 						WorkerId:  singleRes.workerId,

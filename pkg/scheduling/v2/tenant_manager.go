@@ -179,7 +179,7 @@ func (t *tenantManager) replenish(ctx context.Context) {
 	}
 }
 
-func (t *tenantManager) queue(ctx context.Context, queueName string) {
+func (t *tenantManager) queue(queueName string) {
 	t.queuersMu.RLock()
 	defer t.queuersMu.RUnlock()
 

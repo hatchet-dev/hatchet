@@ -36,19 +36,6 @@ WHERE
     "Lease"."id" = ANY(@existingLeaseIds::bigint[])
 RETURNING *;
 
--- name: RenewLeases :many
--- Renews a set of leases by their IDs. Returns the renewed leases.
-UPDATE "Lease" l
-SET
-    "expiresAt" = now() + COALESCE(sqlc.narg('leaseDuration')::interval, '30 seconds'::interval)
-FROM (
-    SELECT
-        unnest(@leaseIds::bigint[]) AS "id"
-    ) AS input
-WHERE
-    l."id" = input."id"
-RETURNING l.*;
-
 -- name: ReleaseLeases :many
 -- Releases a set of leases by their IDs. Returns the released leases.
 DELETE FROM "Lease" l

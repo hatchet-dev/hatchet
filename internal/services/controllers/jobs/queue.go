@@ -327,9 +327,6 @@ func (q *queue) runTenantUpdateStepRuns(ctx context.Context) func() {
 			return
 		}
 
-		// TODO: MOVE ELSEWHERE!
-		q.scheduler.SetTenants(tenants)
-
 		q.updateStepRunOperations.SetTenants(tenants)
 
 		for i := range tenants {

@@ -2,7 +2,6 @@ package v2
 
 import (
 	"sort"
-	"time"
 
 	"github.com/sasha-s/go-deadlock"
 
@@ -14,9 +13,7 @@ type slot struct {
 	worker  *worker
 	actions []string
 
-	// expiresAt is when the slot is no longer valid, but has not been cleaned up yet
-	expiresAt *time.Time
-	used      bool
+	used bool
 
 	ackd bool
 
@@ -34,7 +31,7 @@ func (s *slot) active() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	return !s.used && s.expiresAt != nil && s.expiresAt.After(time.Now())
+	return !s.used
 }
 
 func (s *slot) use(additionalAcks []func(), additionalNacks []func()) bool {
