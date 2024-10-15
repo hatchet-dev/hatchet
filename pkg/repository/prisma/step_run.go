@@ -2492,6 +2492,29 @@ func (s *stepRunEngineRepository) StepRunStarted(ctx context.Context, tenantId, 
 	return nil
 }
 
+func (s *stepRunEngineRepository) StepRunAcked(ctx context.Context, tenantId, workflowRunId, stepRunId string, startedAt time.Time) error {
+	_, span := telemetry.NewSpan(ctx, "step-run-acked-db")
+	defer span.End()
+
+	sev := dbsqlc.StepRunEventSeverityINFO
+	ack := dbsqlc.StepRunEventReasonACKNOWLEDGED
+
+	data := &repository.CreateStepRunEventOpts{
+		StepRunId:     stepRunId,
+		EventMessage:  repository.StringPtr("Step run acknowledged at " + startedAt.Format(time.RFC1123)),
+		EventSeverity: &sev,
+		EventReason:   &ack,
+	}
+
+	_, err := s.bulkEventBuffer.BuffItem(tenantId, data)
+
+	if err != nil {
+		return fmt.Errorf("could not buffer event: %w", err)
+	}
+
+	return nil
+}
+
 func (s *stepRunEngineRepository) StepRunSucceeded(ctx context.Context, tenantId, workflowRunId, stepRunId string, finishedAt time.Time, output []byte) error {
 	ctx, span := telemetry.NewSpan(ctx, "step-run-started-db")
 	defer span.End()

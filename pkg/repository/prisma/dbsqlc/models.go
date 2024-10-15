@@ -468,6 +468,7 @@ const (
 	StepRunEventReasonWORKFLOWRUNGROUPKEYSUCCEEDED StepRunEventReason = "WORKFLOW_RUN_GROUP_KEY_SUCCEEDED"
 	StepRunEventReasonWORKFLOWRUNGROUPKEYFAILED    StepRunEventReason = "WORKFLOW_RUN_GROUP_KEY_FAILED"
 	StepRunEventReasonRATELIMITERROR               StepRunEventReason = "RATE_LIMIT_ERROR"
+	StepRunEventReasonACKNOWLEDGED                 StepRunEventReason = "ACKNOWLEDGED"
 )
 
 func (e *StepRunEventReason) Scan(src interface{}) error {
