@@ -14,6 +14,9 @@ CREATE TYPE "JobKind" AS ENUM ('DEFAULT', 'ON_FAILURE');
 CREATE TYPE "JobRunStatus" AS ENUM ('PENDING', 'RUNNING', 'SUCCEEDED', 'FAILED', 'CANCELLED');
 
 -- CreateEnum
+CREATE TYPE "LeaseKind" AS ENUM ('WORKER', 'QUEUE');
+
+-- CreateEnum
 CREATE TYPE "LimitResource" AS ENUM ('WORKFLOW_RUN', 'EVENT', 'WORKER', 'CRON', 'SCHEDULE');
 
 -- CreateEnum
@@ -26,7 +29,7 @@ CREATE TYPE "StepExpressionKind" AS ENUM ('DYNAMIC_RATE_LIMIT_KEY', 'DYNAMIC_RAT
 CREATE TYPE "StepRateLimitKind" AS ENUM ('STATIC', 'DYNAMIC');
 
 -- CreateEnum
-CREATE TYPE "StepRunEventReason" AS ENUM ('REQUEUED_NO_WORKER', 'REQUEUED_RATE_LIMIT', 'SCHEDULING_TIMED_OUT', 'ASSIGNED', 'STARTED', 'FINISHED', 'FAILED', 'RETRYING', 'CANCELLED', 'TIMED_OUT', 'REASSIGNED', 'SLOT_RELEASED', 'TIMEOUT_REFRESHED', 'RETRIED_BY_USER', 'SENT_TO_WORKER', 'WORKFLOW_RUN_GROUP_KEY_SUCCEEDED', 'WORKFLOW_RUN_GROUP_KEY_FAILED', 'RATE_LIMIT_ERROR');
+CREATE TYPE "StepRunEventReason" AS ENUM ('REQUEUED_NO_WORKER', 'REQUEUED_RATE_LIMIT', 'SCHEDULING_TIMED_OUT', 'ASSIGNED', 'STARTED', 'FINISHED', 'FAILED', 'RETRYING', 'CANCELLED', 'TIMED_OUT', 'REASSIGNED', 'SLOT_RELEASED', 'TIMEOUT_REFRESHED', 'RETRIED_BY_USER', 'SENT_TO_WORKER', 'WORKFLOW_RUN_GROUP_KEY_SUCCEEDED', 'WORKFLOW_RUN_GROUP_KEY_FAILED', 'RATE_LIMIT_ERROR', 'ACKNOWLEDGED');
 
 -- CreateEnum
 CREATE TYPE "StepRunEventSeverity" AS ENUM ('INFO', 'WARNING', 'CRITICAL');
@@ -222,6 +225,17 @@ CREATE TABLE "JobRunLookupData" (
     "data" JSONB,
 
     CONSTRAINT "JobRunLookupData_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "Lease" (
+    "id" BIGSERIAL NOT NULL,
+    "expiresAt" TIMESTAMP(3),
+    "tenantId" UUID NOT NULL,
+    "resourceId" TEXT NOT NULL,
+    "kind" "LeaseKind" NOT NULL,
+
+    CONSTRAINT "Lease_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -1034,6 +1048,9 @@ CREATE UNIQUE INDEX "JobRunLookupData_jobRunId_key" ON "JobRunLookupData"("jobRu
 
 -- CreateIndex
 CREATE UNIQUE INDEX "JobRunLookupData_jobRunId_tenantId_key" ON "JobRunLookupData"("jobRunId" ASC, "tenantId" ASC);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Lease_tenantId_kind_resourceId_key" ON "Lease"("tenantId" ASC, "kind" ASC, "resourceId" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Queue_tenantId_name_key" ON "Queue"("tenantId" ASC, "name" ASC);

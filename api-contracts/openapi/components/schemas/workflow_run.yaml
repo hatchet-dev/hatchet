@@ -431,6 +431,7 @@ StepRunEventReason:
     - SCHEDULING_TIMED_OUT
     - ASSIGNED
     - STARTED
+    - ACKNOWLEDGED
     - FINISHED
     - FAILED
     - RETRYING

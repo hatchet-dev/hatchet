@@ -1,4 +1,4 @@
-package prisma
+package buffer
 
 import (
 	"context"
@@ -108,8 +108,8 @@ func TestIngestBufBuffering(t *testing.T) {
 	require.NoError(t, err)
 
 	resp := <-doneChan
-	assert.NoError(t, resp.err)
-	assert.Equal(t, 1, resp.result.ID)
+	assert.NoError(t, resp.Err)
+	assert.Equal(t, 1, resp.Result.ID)
 
 	assert.Equal(t, 0, buf.safeFetchSizeOfData())
 	assert.Equal(t, 0, buf.safeCheckSizeOfBuffer())
@@ -145,8 +145,8 @@ func TestIngestBufAutoFlushOnCapacity(t *testing.T) {
 			require.NoError(t, err)
 
 			resp := <-doneChan
-			assert.NoError(t, resp.err)
-			assert.Equal(t, i, resp.result.ID)
+			assert.NoError(t, resp.Err)
+			assert.Equal(t, i, resp.Result.ID)
 		}(i)
 	}
 
@@ -180,8 +180,8 @@ func TestIngestBufAutoFlushOnSize(t *testing.T) {
 	require.NoError(t, err)
 
 	resp := <-doneChan
-	assert.NoError(t, resp.err)
-	assert.Equal(t, 1, resp.result.ID)
+	assert.NoError(t, resp.Err)
+	assert.Equal(t, 1, resp.Result.ID)
 
 	assert.Equal(t, 0, buf.safeFetchSizeOfData())
 	assert.Equal(t, 0, buf.safeCheckSizeOfBuffer())
@@ -212,8 +212,8 @@ func TestIngestBufTimeoutFlush(t *testing.T) {
 
 	select {
 	case resp := <-doneChan:
-		assert.NoError(t, resp.err)
-		assert.Equal(t, 1, resp.result.ID)
+		assert.NoError(t, resp.Err)
+		assert.Equal(t, 1, resp.Result.ID)
 	case <-time.After(500 * time.Millisecond):
 		t.Error("Flush should have been triggered by timeout")
 	}
@@ -262,9 +262,9 @@ func TestIngestBufOrderPreservation(t *testing.T) {
 			require.NoError(t, err)
 
 			resp := <-doneChan
-			require.NoError(t, resp.err)
+			require.NoError(t, resp.Err)
 
-			assert.Equal(t, id, resp.result.ID)
+			assert.Equal(t, id, resp.Result.ID)
 		}(id)
 	}
 

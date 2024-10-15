@@ -53,9 +53,9 @@ type HatchetContext interface {
 
 	StreamEvent(message []byte)
 
-	SpawnWorkflow(workflowName string, input any, opts *SpawnWorkflowOpts) (*ChildWorkflow, error)
+	SpawnWorkflow(workflowName string, input any, opts *SpawnWorkflowOpts) (*client.Workflow, error)
 
-	SpawnWorkflows(childWorkflows []*SpawnWorkflowsOpts) ([]*ChildWorkflow, error)
+	SpawnWorkflows(childWorkflows []*SpawnWorkflowsOpts) ([]*client.Workflow, error)
 
 	ReleaseSlot() error
 
@@ -280,7 +280,7 @@ func (h *hatchetContext) saveOrLoadListener() (*client.WorkflowRunsListener, err
 	return listener, nil
 }
 
-func (h *hatchetContext) SpawnWorkflow(workflowName string, input any, opts *SpawnWorkflowOpts) (*ChildWorkflow, error) {
+func (h *hatchetContext) SpawnWorkflow(workflowName string, input any, opts *SpawnWorkflowOpts) (*client.Workflow, error) {
 	if opts == nil {
 		opts = &SpawnWorkflowOpts{}
 	}
@@ -325,11 +325,7 @@ func (h *hatchetContext) SpawnWorkflow(workflowName string, input any, opts *Spa
 	// increment the index
 	h.inc()
 
-	return &ChildWorkflow{
-		workflowRunId: workflowRunId,
-		l:             h.l,
-		listener:      listener,
-	}, nil
+	return client.NewWorkflow(workflowRunId, listener), nil
 }
 
 type SpawnWorkflowsOpts struct {
@@ -340,7 +336,7 @@ type SpawnWorkflowsOpts struct {
 	AdditionalMetadata *map[string]string
 }
 
-func (h *hatchetContext) SpawnWorkflows(childWorkflows []*SpawnWorkflowsOpts) ([]*ChildWorkflow, error) {
+func (h *hatchetContext) SpawnWorkflows(childWorkflows []*SpawnWorkflowsOpts) ([]*client.Workflow, error) {
 
 	triggerWorkflows := make([]*client.RunChildWorkflowsOpts, len(childWorkflows))
 	listener, err := h.saveOrLoadListener()
@@ -391,14 +387,10 @@ func (h *hatchetContext) SpawnWorkflows(childWorkflows []*SpawnWorkflowsOpts) ([
 		return nil, fmt.Errorf("failed to spawn workflow: %w", err)
 	}
 
-	createdWorkflows := make([]*ChildWorkflow, len(workflowRunIds))
+	createdWorkflows := make([]*client.Workflow, len(workflowRunIds))
 
 	for i, workflowRunId := range workflowRunIds {
-		createdWorkflows[i] = &ChildWorkflow{
-			workflowRunId: workflowRunId,
-			l:             h.l,
-			listener:      listener,
-		}
+		createdWorkflows[i] = client.NewWorkflow(workflowRunId, listener)
 	}
 
 	return createdWorkflows, nil

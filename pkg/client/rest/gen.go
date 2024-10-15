@@ -82,6 +82,7 @@ const (
 
 // Defines values for StepRunEventReason.
 const (
+	StepRunEventReasonACKNOWLEDGED                 StepRunEventReason = "ACKNOWLEDGED"
 	StepRunEventReasonASSIGNED                     StepRunEventReason = "ASSIGNED"
 	StepRunEventReasonCANCELLED                    StepRunEventReason = "CANCELLED"
 	StepRunEventReasonFAILED                       StepRunEventReason = "FAILED"
