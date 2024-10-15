@@ -924,7 +924,7 @@ func (ec *JobsControllerImpl) handleStepRunAcked(ctx context.Context, task *msgq
 		return fmt.Errorf("could not parse started at: %w", err)
 	}
 
-	err = ec.repo.StepRun().StepRunAcked(ctx, metadata.TenantId, payload.StepRunId, startedAt)
+	err = ec.repo.StepRun().StepRunAcked(ctx, metadata.TenantId, payload.WorkflowRunId, payload.StepRunId, startedAt)
 
 	if err != nil {
 		return fmt.Errorf("could not update step run: %w", err)

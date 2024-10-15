@@ -2496,17 +2496,17 @@ func (s *stepRunEngineRepository) StepRunAcked(ctx context.Context, tenantId, wo
 	_, span := telemetry.NewSpan(ctx, "step-run-acked-db")
 	defer span.End()
 
-	ack := string(dbsqlc.StepRunEventReasonACKNOWLEDGED)
+	sev := dbsqlc.StepRunEventSeverityINFO
+	ack := dbsqlc.StepRunEventReasonACKNOWLEDGED
 
-	data := &updateStepRunQueueData{
-		Hash:      hashToBucket(sqlchelpers.UUIDFromStr(workflowRunId), s.maxHashFactor),
-		StepRunId: stepRunId,
-		TenantId:  tenantId,
-		StartedAt: &startedAt,
-		Status:    &ack,
+	data := &repository.CreateStepRunEventOpts{
+		StepRunId:     stepRunId,
+		EventMessage:  repository.StringPtr("Step Acknowledged By Runner"),
+		EventSeverity: &sev,
+		EventReason:   &ack,
 	}
 
-	_, err := s.bulkStatusBuffer.BuffItem(tenantId, data)
+	_, err := s.bulkEventBuffer.BuffItem(tenantId, data)
 
 	if err != nil {
 		return fmt.Errorf("could not buffer event: %w", err)
