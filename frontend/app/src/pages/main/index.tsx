@@ -2,6 +2,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import {
   AdjustmentsHorizontalIcon,
+  CalendarDaysIcon,
   QueueListIcon,
   ScaleIcon,
   ServerStackIcon,
@@ -156,11 +157,18 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
                 collapsibleChildren={workers}
               />
               <SidebarButtonPrimary
-                key={1}
+                key={3}
                 onNavLinkClick={onNavLinkClick}
                 to="/rate-limits"
                 name="Rate Limits"
                 icon={<ScaleIcon className="mr-2 h-4 w-4" />}
+              />
+              <SidebarButtonPrimary
+                key={4}
+                onNavLinkClick={onNavLinkClick}
+                to="/scheduled"
+                name="Scheduled Runs"
+                icon={<CalendarDaysIcon className="mr-2 h-4 w-4" />}
               />
             </div>
           </div>
