@@ -95,7 +95,6 @@ require (
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/perimeterx/marshmallow v1.1.5 // indirect
-	github.com/petermattis/goid v0.0.0-20240813172612-4fcff4a6cae7 // indirect
 	github.com/sagikazarmark/locafero v0.4.0 // indirect
 	github.com/sagikazarmark/slog-shim v0.1.0 // indirect
 	github.com/sourcegraph/conc v0.3.0 // indirect
@@ -126,7 +125,7 @@ require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/exaring/otelpgx v0.6.2
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
-	github.com/getsentry/sentry-go v0.29.0
+	github.com/getsentry/sentry-go v0.29.1
 	github.com/go-chi/chi v1.5.5
 	github.com/go-playground/validator/v10 v10.22.1
 	github.com/go-test/deep v1.1.0 // indirect
@@ -147,8 +146,7 @@ require (
 	github.com/rabbitmq/amqp091-go v1.10.0
 	github.com/robfig/cron/v3 v3.0.1 // indirect
 	github.com/rs/zerolog v1.33.0
-	github.com/sasha-s/go-deadlock v0.3.5
-	github.com/slack-go/slack v0.14.0
+	github.com/slack-go/slack v0.15.0
 	github.com/spf13/afero v1.11.0 // indirect
 	github.com/spf13/cast v1.6.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect

@@ -11,7 +11,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
-	"github.com/sasha-s/go-deadlock"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/buffer"
@@ -37,7 +36,7 @@ type queuerDbQueries struct {
 
 	limit  pgtype.Int4
 	gtId   pgtype.Int8
-	gtIdMu deadlock.RWMutex
+	gtIdMu sync.RWMutex
 
 	eventBuffer              *buffer.BulkEventWriter
 	cachedStepIdHasRateLimit *cache.Cache
@@ -713,7 +712,7 @@ type Queuer struct {
 
 	notifyQueueCh chan struct{}
 
-	queueMu deadlock.Mutex
+	queueMu sync.Mutex
 
 	cleanup func()
 

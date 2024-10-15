@@ -10,7 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
-	"github.com/sasha-s/go-deadlock"
+
 	"golang.org/x/sync/errgroup"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
@@ -179,11 +179,11 @@ type LeaseManager struct {
 
 	tenantId pgtype.UUID
 
-	workerLeasesMu deadlock.Mutex
+	workerLeasesMu sync.Mutex
 	workerLeases   []*dbsqlc.Lease
 	workersCh      chan<- []*ListActiveWorkersResult
 
-	queueLeasesMu deadlock.Mutex
+	queueLeasesMu sync.Mutex
 	queueLeases   []*dbsqlc.Lease
 	queuesCh      chan<- []string
 }

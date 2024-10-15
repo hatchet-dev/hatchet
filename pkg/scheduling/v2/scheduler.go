@@ -6,8 +6,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/sasha-s/go-deadlock"
-
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
@@ -56,19 +54,19 @@ type Scheduler struct {
 	l *zerolog.Logger
 
 	actions     map[string]*action
-	actionsMu   deadlock.RWMutex
-	replenishMu deadlock.Mutex
+	actionsMu   sync.RWMutex
+	replenishMu sync.Mutex
 
-	workersMu deadlock.Mutex
+	workersMu sync.Mutex
 	workers   map[string]*worker
 
 	assignedCount   int
-	assignedCountMu deadlock.Mutex
+	assignedCountMu sync.Mutex
 
 	// unackedSlots are slots which have been assigned to a worker, but have not been flushed
 	// to the database yet. They negatively count towards a worker's available slot count.
 	unackedSlots map[int]*slot
-	unackedMu    deadlock.Mutex
+	unackedMu    sync.Mutex
 
 	rl *rateLimiter
 }

@@ -2,12 +2,12 @@ package v2
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
-	"github.com/sasha-s/go-deadlock"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
@@ -113,12 +113,12 @@ type rateLimiter struct {
 
 	// unacked is a map of stepRunId to rateLimitSet
 	unacked   map[string]rateLimitSet
-	unackedMu deadlock.RWMutex
+	unackedMu sync.RWMutex
 
-	unflushedMu deadlock.RWMutex
+	unflushedMu sync.RWMutex
 	unflushed   rateLimitSet
 
-	dbRateLimitsMu deadlock.RWMutex
+	dbRateLimitsMu sync.RWMutex
 	dbRateLimits   rateLimitSet
 
 	cleanup func()

@@ -2,8 +2,7 @@ package v2
 
 import (
 	"sort"
-
-	"github.com/sasha-s/go-deadlock"
+	"sync"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
@@ -20,7 +19,7 @@ type slot struct {
 	additionalAcks  []func()
 	additionalNacks []func()
 
-	mu deadlock.RWMutex
+	mu sync.RWMutex
 }
 
 func (s *slot) getWorkerId() string {

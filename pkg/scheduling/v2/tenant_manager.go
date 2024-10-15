@@ -2,10 +2,11 @@ package v2
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/sasha-s/go-deadlock"
+
 	"golang.org/x/sync/errgroup"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/buffer"
@@ -22,7 +23,7 @@ type tenantManager struct {
 	rl        *rateLimiter
 
 	queuers   []*Queuer
-	queuersMu deadlock.RWMutex
+	queuersMu sync.RWMutex
 
 	leaseManager *LeaseManager
 
