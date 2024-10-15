@@ -397,6 +397,14 @@ model APIToken {
   webhookWorkers WebhookWorker[]
 }
 
+model EventKey {
+  id       BigInt @id @default(autoincrement()) @db.BigInt
+  key      String
+  tenantId String @db.Uuid
+
+  @@unique([key, tenantId])
+}
+
 // Event represents an event in the database.
 model Event {
   // base fields
@@ -942,6 +950,9 @@ model WorkflowRun {
   // (optional) additional metadata for the workflow run
   additionalMetadata Json?
 
+  // this is used to order the workflow runs on bulk inserts
+  insertOrder Int?
+
   @@unique([parentId, parentStepRunId, childKey])
   @@index([tenantId])
   @@index([workflowVersionId])
@@ -1345,6 +1356,7 @@ model QueueItem {
 enum InternalQueue {
   WORKER_SEMAPHORE_COUNT
   STEP_RUN_UPDATE
+  STEP_RUN_UPDATE_V2
   WORKFLOW_RUN_UPDATE
   WORKFLOW_RUN_PAUSED
 }

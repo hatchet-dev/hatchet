@@ -39,6 +39,9 @@ func (c *testHatchetContext) AdditionalMetadata() map[string]string {
 func (c *testHatchetContext) SpawnWorkflow(workflowName string, input any, opts *SpawnWorkflowOpts) (*ChildWorkflow, error) {
 	panic("not implemented")
 }
+func (c *testHatchetContext) SpawnWorkflows(opts []*SpawnWorkflowsOpts) ([]*ChildWorkflow, error) {
+	panic("not implemented")
+}
 
 func (c *testHatchetContext) StepName() string {
 	panic("not implemented")

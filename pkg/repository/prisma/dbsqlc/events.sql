@@ -59,6 +59,25 @@ SELECT
 FROM
     events;
 
+-- name: CreateEventKeys :exec
+INSERT INTO "EventKey" (
+    "key",
+    "tenantId"
+)
+SELECT
+    unnest(@keys::text[]) AS "key",
+    unnest(@tenantIds::uuid[]) AS "tenantId"
+ON CONFLICT ("key", "tenantId") DO NOTHING;
+
+-- name: ListEventKeys :many
+SELECT
+    "key"
+FROM
+    "EventKey"
+WHERE
+    "tenantId" = @tenantId::uuid
+ORDER BY "key" ASC;
+
 -- name: CreateEvent :one
 INSERT INTO "Event" (
     "id",
@@ -104,11 +123,9 @@ INSERT INTO "Event" (
 
 
 -- name: GetInsertedEvents :many
-
 SELECT * FROM "Event"
-WHERE xmin::text = (txid_current() % (2^32)::bigint)::text
+WHERE "id" = ANY(@ids::uuid[])
 ORDER BY "insertOrder" ASC;
-
 
 -- name: ListEvents :many
 WITH filtered_events AS (

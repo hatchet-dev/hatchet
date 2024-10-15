@@ -62,6 +62,7 @@ const (
 	InternalQueueSTEPRUNUPDATE        InternalQueue = "STEP_RUN_UPDATE"
 	InternalQueueWORKFLOWRUNUPDATE    InternalQueue = "WORKFLOW_RUN_UPDATE"
 	InternalQueueWORKFLOWRUNPAUSED    InternalQueue = "WORKFLOW_RUN_PAUSED"
+	InternalQueueSTEPRUNUPDATEV2      InternalQueue = "STEP_RUN_UPDATE_V2"
 )
 
 func (e *InternalQueue) Scan(src interface{}) error {
@@ -1039,6 +1040,12 @@ type Event struct {
 	InsertOrder        pgtype.Int4      `json:"insertOrder"`
 }
 
+type EventKey struct {
+	Key      string      `json:"key"`
+	TenantId pgtype.UUID `json:"tenantId"`
+	ID       int64       `json:"id"`
+}
+
 type GetGroupKeyRun struct {
 	ID                pgtype.UUID      `json:"id"`
 	CreatedAt         pgtype.Timestamp `json:"createdAt"`
@@ -1596,6 +1603,7 @@ type WorkflowRun struct {
 	AdditionalMetadata []byte            `json:"additionalMetadata"`
 	Duration           pgtype.Int8       `json:"duration"`
 	Priority           pgtype.Int4       `json:"priority"`
+	InsertOrder        pgtype.Int4       `json:"insertOrder"`
 }
 
 type WorkflowRunDedupe struct {

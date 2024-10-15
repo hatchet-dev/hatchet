@@ -104,6 +104,18 @@ type ConfigFileRuntime struct {
 	// QueueLimit is the limit of items to return from a single queue at a time
 	SingleQueueLimit int `mapstructure:"singleQueueLimit" json:"singleQueueLimit,omitempty" default:"100"`
 
+	// FlushPeriodMilliseconds is the number of milliseconds before flush
+	FlushPeriodMilliseconds int `mapstructure:"flushPeriodMilliseconds" json:"flushPeriodMilliseconds,omitempty" default:"10"`
+
+	// FlushItemsThreshold is the number of items to hold in memory until flushing to the database
+	FlushItemsThreshold int `mapstructure:"flushItemsThreshold" json:"flushItemsThreshold,omitempty" default:"100"`
+
+	// How many buckets to hash into for parallelizing updates
+	UpdateHashFactor int `mapstructure:"updateHashFactor" json:"updateHashFactor,omitempty" default:"100"`
+
+	// How many concurrent updates to allow
+	UpdateConcurrentFactor int `mapstructure:"updateConcurrentFactor" json:"updateConcurrentFactor,omitempty" default:"10"`
+
 	// Allow new tenants to be created
 	AllowSignup bool `mapstructure:"allowSignup" json:"allowSignup,omitempty" default:"true"`
 
@@ -115,6 +127,11 @@ type ConfigFileRuntime struct {
 
 	// Allow passwords to be changed
 	AllowChangePassword bool `mapstructure:"allowChangePassword" json:"allowChangePassword,omitempty" default:"true"`
+
+	// Buffer create workflow runs
+	BufferCreateWorkflowRuns bool `mapstructure:"bufferCreateWorkflowRuns" json:"bufferCreateWorkflowRuns,omitempty" default:"true"`
+	// DisableTenantPubs controls whether tenant pubsub is disabled
+	DisableTenantPubs bool `mapstructure:"disableTenantPubs" json:"disableTenantPubs,omitempty"`
 }
 
 type SecurityCheckConfigFile struct {
@@ -403,6 +420,8 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.allowInvites", "SERVER_ALLOW_INVITES")
 	_ = v.BindEnv("runtime.allowCreateTenant", "SERVER_ALLOW_CREATE_TENANT")
 	_ = v.BindEnv("runtime.allowChangePassword", "SERVER_ALLOW_CHANGE_PASSWORD")
+	_ = v.BindEnv("runtime.bufferCreateWorkflowRuns", "SERVER_BUFFER_CREATE_WORKFLOW_RUNS")
+	_ = v.BindEnv("runtime.disableTenantPubs", "SERVER_DISABLE_TENANT_PUBS")
 
 	// security check options
 	_ = v.BindEnv("securityCheck.enabled", "SERVER_SECURITY_CHECK_ENABLED")
@@ -485,6 +504,10 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("msgQueue.rabbitmq.qos", "SERVER_MSGQUEUE_RABBITMQ_QOS")
 	_ = v.BindEnv("runtime.requeueLimit", "SERVER_REQUEUE_LIMIT")
 	_ = v.BindEnv("runtime.singleQueueLimit", "SERVER_SINGLE_QUEUE_LIMIT")
+	_ = v.BindEnv("runtime.flushPeriodMilliseconds", "SERVER_FLUSH_PERIOD_MILLISECONDS")
+	_ = v.BindEnv("runtime.flushItemsThreshold", "SERVER_FLUSH_ITEMS_THRESHOLD")
+	_ = v.BindEnv("runtime.updateHashFactor", "SERVER_UPDATE_HASH_FACTOR")
+	_ = v.BindEnv("runtime.updateConcurrentFactor", "SERVER_UPDATE_CONCURRENT_FACTOR")
 
 	// tls options
 	_ = v.BindEnv("tls.tlsStrategy", "SERVER_TLS_STRATEGY")
@@ -523,4 +546,5 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("email.postmark.fromEmail", "SERVER_EMAIL_POSTMARK_FROM_EMAIL")
 	_ = v.BindEnv("email.postmark.fromName", "SERVER_EMAIL_POSTMARK_FROM_NAME")
 	_ = v.BindEnv("email.postmark.supportEmail", "SERVER_EMAIL_POSTMARK_SUPPORT_EMAIL")
+
 }

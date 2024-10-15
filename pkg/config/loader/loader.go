@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/exaring/otelpgx"
 	pgxzero "github.com/jackc/pgx-zerolog"
@@ -151,26 +152,14 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile, runtime *server.Co
 		return nil, err
 	}
 
-	queueConfig, err := pgxpool.ParseConfig(databaseUrl)
-
-	if err != nil {
-		return nil, err
-	}
-
 	if cf.LogQueries {
 		config.ConnConfig.Tracer = &tracelog.TraceLog{
-			Logger:   pgxzero.NewLogger(l),
-			LogLevel: tracelog.LogLevelDebug,
-		}
-
-		queueConfig.ConnConfig.Tracer = &tracelog.TraceLog{
 			Logger:   pgxzero.NewLogger(l),
 			LogLevel: tracelog.LogLevelDebug,
 		}
 	}
 
 	config.ConnConfig.Tracer = otelpgx.NewTracer()
-	queueConfig.ConnConfig.Tracer = otelpgx.NewTracer()
 
 	if cf.MaxConns != 0 {
 		config.MaxConns = int32(cf.MaxConns)
@@ -180,21 +169,9 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile, runtime *server.Co
 		config.MinConns = int32(cf.MinConns)
 	}
 
-	if cf.MaxQueueConns != 0 {
-		queueConfig.MaxConns = int32(cf.MaxQueueConns)
-	}
-
-	if cf.MinQueueConns != 0 {
-		queueConfig.MinConns = int32(cf.MinQueueConns)
-	}
+	config.MaxConnLifetime = 15 * 60 * time.Second
 
 	pool, err := pgxpool.NewWithConfig(context.Background(), config)
-
-	if err != nil {
-		return nil, fmt.Errorf("could not connect to database: %w", err)
-	}
-
-	queuePool, err := pgxpool.NewWithConfig(context.Background(), queueConfig)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not connect to database: %w", err)
@@ -206,10 +183,16 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile, runtime *server.Co
 
 	meter := metered.NewMetered(entitlementRepo, &l)
 
-	cleanupEngine, engineRepo, err := prisma.NewEngineRepository(pool, queuePool, runtime, prisma.WithLogger(&l), prisma.WithCache(ch), prisma.WithMetered(meter))
+	cleanupEngine, engineRepo, err := prisma.NewEngineRepository(pool, runtime, prisma.WithLogger(&l), prisma.WithCache(ch), prisma.WithMetered(meter))
 
 	if err != nil {
 		return nil, fmt.Errorf("could not create engine repository: %w", err)
+	}
+
+	apiRepo, cleanupApiRepo, err := prisma.NewAPIRepository(c, pool, runtime, prisma.WithLogger(&l), prisma.WithCache(ch), prisma.WithMetered(meter))
+
+	if err != nil {
+		return nil, fmt.Errorf("could not create api repository: %w", err)
 	}
 
 	return &database.Config{
@@ -220,11 +203,14 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile, runtime *server.Co
 
 			ch.Stop()
 			meter.Stop()
+			if err = cleanupApiRepo(); err != nil {
+				return err
+			}
 			return c.Prisma.Disconnect()
 		},
 		Pool:                  pool,
-		QueuePool:             queuePool,
-		APIRepository:         prisma.NewAPIRepository(c, pool, prisma.WithLogger(&l), prisma.WithCache(ch), prisma.WithMetered(meter)),
+		QueuePool:             pool,
+		APIRepository:         apiRepo,
 		EngineRepository:      engineRepo,
 		EntitlementRepository: entitlementRepo,
 		Seed:                  cf.Seed,
@@ -264,6 +250,7 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 			rabbitmq.WithURL(cf.MessageQueue.RabbitMQ.URL),
 			rabbitmq.WithLogger(&l),
 			rabbitmq.WithQos(cf.MessageQueue.RabbitMQ.Qos),
+			rabbitmq.WithDisableTenantExchangePubs(cf.Runtime.DisableTenantPubs),
 		)
 
 		ing, err = ingestor.NewIngestor(

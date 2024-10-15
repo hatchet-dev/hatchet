@@ -25,6 +25,7 @@ func (s ingestBufState) String() string {
 // e.g. T is eventOpts and U is *dbsqlc.Event
 
 type IngestBuf[T any, U any] struct {
+	name       string // a human readable name for the buffer
 	outputFunc func(ctx context.Context, items []T) ([]U, error)
 	sizeFunc   func(T) int
 
@@ -50,6 +51,7 @@ type inputWrapper[T any, U any] struct {
 }
 
 type IngestBufOpts[T any, U any] struct {
+	Name               string                                            `validate:"required"`
 	MaxCapacity        int                                               `validate:"required,gt=0"`
 	FlushPeriod        time.Duration                                     `validate:"required,gt=0"`
 	MaxDataSizeInQueue int                                               `validate:"required,gt=0"`
@@ -69,7 +71,10 @@ func NewIngestBuffer[T any, U any](opts IngestBufOpts[T, U]) *IngestBuf[T, U] {
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
 
+	logger := opts.L.With().Str("buffer", opts.Name).Logger()
+
 	return &IngestBuf[T, U]{
+		name:               opts.Name,
 		state:              initialized,
 		maxCapacity:        opts.MaxCapacity,
 		flushPeriod:        opts.FlushPeriod,
@@ -80,7 +85,7 @@ func NewIngestBuffer[T any, U any](opts IngestBufOpts[T, U]) *IngestBuf[T, U] {
 		maxDataSizeInQueue: opts.MaxDataSizeInQueue,
 		outputFunc:         opts.OutputFunc,
 		sizeFunc:           opts.SizeFunc,
-		l:                  opts.L,
+		l:                  &logger,
 		ctx:                ctx,
 		cancel:             cancel,
 	}
@@ -139,10 +144,12 @@ func (b *IngestBuf[T, U]) buffWorker() {
 			b.safeAppendInternalArray(e)
 			b.safeIncSizeOfData(b.calcSizeOfData([]T{e.item}))
 
-			if b.safeCheckSizeOfBuffer() >= b.maxCapacity || b.safeFetchSizeOfData() >= b.maxDataSizeInQueue {
+			// if last flush time + flush period is in the past, flush
+			if time.Now().After(b.safeFetchLastFlush().Add(b.flushPeriod)) {
+				b.flush(b.sliceInternalArray())
+			} else if b.safeCheckSizeOfBuffer() >= b.maxCapacity || b.safeFetchSizeOfData() >= b.maxDataSizeInQueue {
 				b.flush(b.sliceInternalArray())
 			}
-
 		case <-time.After(time.Until(b.safeFetchLastFlush().Add(b.flushPeriod))):
 
 			b.flush(b.sliceInternalArray())
@@ -243,7 +250,7 @@ func (b *IngestBuf[T, U]) flush(items []*inputWrapper[T, U]) {
 			}
 		}
 
-		b.l.Debug().Msgf("Flushed %d items", numItems)
+		b.l.Debug().Msgf("flushed %d items", numItems)
 	}()
 }
 
@@ -282,7 +289,21 @@ func (b *IngestBuf[T, U]) Start() (func() error, error) {
 	b.state = started
 
 	go b.buffWorker()
+
 	return b.cleanup, nil
+}
+
+func (b *IngestBuf[T, U]) StartDebugLoop() {
+	b.l.Debug().Msg("starting debug loop")
+	for {
+		select {
+		case <-time.After(10 * time.Second):
+			b.debugBuffer()
+		case <-b.ctx.Done():
+			b.l.Debug().Msg("stopping debug loop")
+			return
+		}
+	}
 }
 
 func (b *IngestBuf[T, U]) BuffItem(item T) (chan *flushResponse[U], error) {
@@ -305,4 +326,18 @@ func (b *IngestBuf[T, U]) BuffItem(item T) (chan *flushResponse[U], error) {
 		return nil, fmt.Errorf("buffer is closed")
 	}
 	return doneChan, nil
+}
+
+func (b *IngestBuf[T, U]) debugBuffer() {
+
+	b.l.Debug().Msgf("============= Buffer =============")
+	b.l.Debug().Msgf("%d items", b.safeCheckSizeOfBuffer())
+	b.l.Debug().Msgf("%d bytes", b.safeFetchSizeOfData())
+	b.l.Debug().Msgf("last flushed at %v", b.safeFetchLastFlush())
+	b.l.Debug().Msgf("%d max capacity", b.maxCapacity)
+	b.l.Debug().Msgf("%d max data size in queue", b.maxDataSizeInQueue)
+	b.l.Debug().Msgf("%v flush period", b.flushPeriod)
+	b.l.Debug().Msgf("in state %v", b.state)
+	b.l.Debug().Msgf("=====================================")
+
 }

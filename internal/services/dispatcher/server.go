@@ -1066,7 +1066,7 @@ func (s *DispatcherImpl) handleStepRunStarted(inputCtx context.Context, request 
 		return nil, err
 	}
 
-	err = s.repo.StepRun().StepRunStarted(ctx, tenantId, request.StepRunId, startedAt)
+	err = s.repo.StepRun().StepRunStarted(ctx, tenantId, sqlchelpers.UUIDToStr(sr.WorkflowRunId), request.StepRunId, startedAt)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not mark step run started: %w", err)

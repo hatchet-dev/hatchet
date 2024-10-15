@@ -2,7 +2,7 @@
 CREATE TYPE "ConcurrencyLimitStrategy" AS ENUM ('CANCEL_IN_PROGRESS', 'DROP_NEWEST', 'QUEUE_NEWEST', 'GROUP_ROUND_ROBIN');
 
 -- CreateEnum
-CREATE TYPE "InternalQueue" AS ENUM ('WORKER_SEMAPHORE_COUNT', 'STEP_RUN_UPDATE', 'WORKFLOW_RUN_UPDATE', 'WORKFLOW_RUN_PAUSED');
+CREATE TYPE "InternalQueue" AS ENUM ('WORKER_SEMAPHORE_COUNT', 'STEP_RUN_UPDATE', 'WORKFLOW_RUN_UPDATE', 'WORKFLOW_RUN_PAUSED', 'STEP_RUN_UPDATE_V2');
 
 -- CreateEnum
 CREATE TYPE "InviteLinkStatus" AS ENUM ('PENDING', 'ACCEPTED', 'REJECTED');
@@ -126,6 +126,15 @@ CREATE TABLE "Event" (
     "insertOrder" INTEGER,
 
     CONSTRAINT "Event_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "EventKey" (
+    "key" TEXT NOT NULL,
+    "tenantId" UUID NOT NULL,
+    "id" BIGSERIAL NOT NULL,
+
+    CONSTRAINT "EventKey_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -801,6 +810,7 @@ CREATE TABLE "WorkflowRun" (
     "additionalMetadata" JSONB,
     "duration" BIGINT,
     "priority" INTEGER,
+    "insertOrder" INTEGER,
 
     CONSTRAINT "WorkflowRun_pkey" PRIMARY KEY ("id")
 );
@@ -975,6 +985,9 @@ CREATE INDEX "Event_tenantId_createdAt_idx" ON "Event"("tenantId" ASC, "createdA
 
 -- CreateIndex
 CREATE INDEX "Event_tenantId_idx" ON "Event"("tenantId" ASC);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "EventKey_key_tenantId_key" ON "EventKey"("key" ASC, "tenantId" ASC);
 
 -- CreateIndex
 CREATE INDEX "GetGroupKeyRun_createdAt_idx" ON "GetGroupKeyRun"("createdAt" ASC);

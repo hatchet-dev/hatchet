@@ -40,6 +40,8 @@ func IsFinalWorkflowRunStatus(status dbsqlc.WorkflowRunStatus) bool {
 }
 
 type CreateStepRunEventOpts struct {
+	StepRunId string `validate:"required,uuid"`
+
 	EventMessage *string
 
 	EventReason *dbsqlc.StepRunEventReason
@@ -166,6 +168,12 @@ type ProcessStepRunUpdatesResult struct {
 	Continue              bool
 }
 
+type ProcessStepRunUpdatesResultV2 struct {
+	SucceededStepRuns     []*dbsqlc.GetStepRunForEngineRow
+	CompletedWorkflowRuns []*dbsqlc.ResolveWorkflowRunStatusRow
+	Continue              bool
+}
+
 type StepRunEngineRepository interface {
 	RegisterWorkflowRunCompletedCallback(callback Callback[*dbsqlc.ResolveWorkflowRunStatusRow])
 
@@ -177,13 +185,13 @@ type StepRunEngineRepository interface {
 
 	ListStepRunsToTimeout(ctx context.Context, tenantId string) (bool, []*dbsqlc.GetStepRunForEngineRow, error)
 
-	StepRunStarted(ctx context.Context, tenantId, stepRunId string, startedAt time.Time) error
+	StepRunStarted(ctx context.Context, tenantId, workflowRunId, stepRunId string, startedAt time.Time) error
 
-	StepRunSucceeded(ctx context.Context, tenantId, stepRunId string, finishedAt time.Time, output []byte) error
+	StepRunSucceeded(ctx context.Context, tenantId, workflowRunId, stepRunId string, finishedAt time.Time, output []byte) error
 
-	StepRunCancelled(ctx context.Context, tenantId, stepRunId string, cancelledAt time.Time, cancelledReason string) error
+	StepRunCancelled(ctx context.Context, tenantId, workflowRunId, stepRunId string, cancelledAt time.Time, cancelledReason string) error
 
-	StepRunFailed(ctx context.Context, tenantId, stepRunId string, failedAt time.Time, errStr string) error
+	StepRunFailed(ctx context.Context, tenantId, workflowRunId, stepRunId string, failedAt time.Time, errStr string, retryCount int) error
 
 	ReplayStepRun(ctx context.Context, tenantId, stepRunId string, input []byte) (*dbsqlc.GetStepRunForEngineRow, error)
 
@@ -212,20 +220,28 @@ type StepRunEngineRepository interface {
 
 	ProcessStepRunUpdates(ctx context.Context, qlp *zerolog.Logger, tenantId string) (ProcessStepRunUpdatesResult, error)
 
+	ProcessStepRunUpdatesV2(ctx context.Context, qlp *zerolog.Logger, tenantId string) (ProcessStepRunUpdatesResultV2, error)
+
 	QueueStepRuns(ctx context.Context, ql *zerolog.Logger, tenantId string) (QueueStepRunsResult, error)
 
 	CleanupQueueItems(ctx context.Context, tenantId string) error
 
 	CleanupInternalQueueItems(ctx context.Context, tenantId string) error
 
-	ListStartableStepRuns(ctx context.Context, tenantId, jobRunId string, parentStepRunId *string) ([]*dbsqlc.GetStepRunForEngineRow, error)
+	ListInitialStepRunsForJobRun(ctx context.Context, tenantId, jobRunId string) ([]*dbsqlc.GetStepRunForEngineRow, error)
+
+	// ListStartableStepRuns returns a list of step runs that are in a startable state, assuming that the parentStepRunId has succeeded.
+	// The singleParent flag is used to determine if we should reject listing step runs with many parents. This is important to avoid
+	// race conditions where a step run is started by multiple parents completing at the same time. As a result, singleParent=false should
+	// be called from a serializable process after processing step run status updates.
+	ListStartableStepRuns(ctx context.Context, tenantId, parentStepRunId string, singleParent bool) ([]*dbsqlc.GetStepRunForEngineRow, error)
 
 	ArchiveStepRunResult(ctx context.Context, tenantId, stepRunId string, err *string) error
 
 	RefreshTimeoutBy(ctx context.Context, tenantId, stepRunId string, opts RefreshTimeoutBy) (pgtype.Timestamp, error)
 
 	DeferredStepRunEvent(
-		tenantId, stepRunId string,
+		tenantId string,
 		opts CreateStepRunEventOpts,
 	)
 

@@ -11,6 +11,25 @@ VALUES
     )
 ON CONFLICT ("tenantId", "name") DO NOTHING;
 
+
+-- name: UpsertQueues :exec
+WITH input_data AS (
+    SELECT
+        UNNEST(@tenantIds::uuid[]) AS tenantId,
+        UNNEST(@names::text[]) AS name
+)
+INSERT INTO "Queue" (
+    "tenantId",
+    "name"
+)
+SELECT
+    input_data.tenantId,
+    input_data.name
+FROM
+    input_data
+ON CONFLICT ("tenantId", "name") DO NOTHING;
+
+
 -- name: ListQueues :many
 SELECT
     *
@@ -191,14 +210,16 @@ INSERT INTO
         "priority"
     )
 SELECT
-    @queue::"InternalQueue",
+    input."queue",
     true,
     input."data",
-    @tenantId::uuid,
+    input."tenantId",
     1
 FROM (
     SELECT
-        unnest(@datas::json[]) AS "data"
+        unnest(cast(@queues::text[] as"InternalQueue"[])) AS "queue",
+        unnest(@datas::json[]) AS "data",
+        unnest(@tenantIds::uuid[]) AS "tenantId"
 ) AS input
 ON CONFLICT DO NOTHING;
 

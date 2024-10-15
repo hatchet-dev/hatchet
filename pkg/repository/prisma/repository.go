@@ -75,7 +75,7 @@ func WithMetered(metered *metered.Metered) PrismaRepositoryOpt {
 	}
 }
 
-func NewAPIRepository(client *db.PrismaClient, pool *pgxpool.Pool, fs ...PrismaRepositoryOpt) repository.APIRepository {
+func NewAPIRepository(client *db.PrismaClient, pool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ...PrismaRepositoryOpt) (repository.APIRepository, func() error, error) {
 	opts := defaultPrismaRepositoryOpts()
 
 	for _, f := range fs {
@@ -88,6 +88,7 @@ func NewAPIRepository(client *db.PrismaClient, pool *pgxpool.Pool, fs ...PrismaR
 	if opts.cache == nil {
 		opts.cache = cache.New(1 * time.Millisecond)
 	}
+	workflowRunRepository, cleanupWorkflowRunRepository, err := NewWorkflowRunRepository(client, pool, opts.v, opts.l, opts.metered, cf)
 
 	return &apiRepository{
 		apiToken:       NewAPITokenRepository(client, opts.v, opts.cache),
@@ -97,7 +98,7 @@ func NewAPIRepository(client *db.PrismaClient, pool *pgxpool.Pool, fs ...PrismaR
 		tenantAlerting: NewTenantAlertingAPIRepository(client, opts.v, opts.cache),
 		tenantInvite:   NewTenantInviteRepository(client, opts.v),
 		workflow:       NewWorkflowRepository(client, pool, opts.v, opts.l),
-		workflowRun:    NewWorkflowRunRepository(client, pool, opts.v, opts.l, opts.metered),
+		workflowRun:    workflowRunRepository,
 		jobRun:         NewJobRunAPIRepository(client, pool, opts.v, opts.l),
 		stepRun:        NewStepRunAPIRepository(client, pool, opts.v, opts.l),
 		step:           NewStepRepository(pool, opts.v, opts.l),
@@ -109,7 +110,7 @@ func NewAPIRepository(client *db.PrismaClient, pool *pgxpool.Pool, fs ...PrismaR
 		health:         NewHealthAPIRepository(client, pool),
 		securityCheck:  NewSecurityCheckRepository(client, pool),
 		webhookWorker:  NewWebhookWorkerRepository(client, opts.v),
-	}
+	}, cleanupWorkflowRunRepository, err
 }
 
 func (r *apiRepository) Health() repository.HealthRepository {
@@ -281,12 +282,14 @@ func (r *engineRepository) WebhookWorker() repository.WebhookWorkerEngineReposit
 	return r.webhookWorker
 }
 
-func NewEngineRepository(pool *pgxpool.Pool, queuePool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ...PrismaRepositoryOpt) (func() error, repository.EngineRepository, error) {
+func NewEngineRepository(pool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ...PrismaRepositoryOpt) (func() error, repository.EngineRepository, error) {
 	opts := defaultPrismaRepositoryOpts()
 
 	for _, f := range fs {
 		f(opts)
 	}
+
+	setDefaults(cf)
 
 	newLogger := opts.l.With().Str("service", "database").Logger()
 	opts.l = &newLogger
@@ -298,9 +301,31 @@ func NewEngineRepository(pool *pgxpool.Pool, queuePool *pgxpool.Pool, cf *server
 	rlCache := cache.New(5 * time.Minute)
 	eventEngine, cleanupEventEngine, err := NewEventEngineRepository(pool, opts.v, opts.l, opts.metered)
 
-	return func() error {
+	if err != nil {
+		return nil, nil, err
+	}
 
+	stepRunEngine, cleanupStepRunEngine, err := NewStepRunEngineRepository(pool, opts.v, opts.l, cf, rlCache)
+
+	if err != nil {
+		return nil, nil, err
+	}
+	workflowRunEngine, cleanupWorkflowRunEngine, err := NewWorkflowRunEngineRepository(stepRunEngine, pool, opts.v, opts.l, opts.metered, cf)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return func() error {
 			rlCache.Stop()
+
+			if err := cleanupStepRunEngine(); err != nil {
+				return err
+			}
+			if err := cleanupWorkflowRunEngine(); err != nil {
+				return err
+			}
+
 			return cleanupEventEngine()
 
 		}, &engineRepository{
@@ -310,14 +335,14 @@ func NewEngineRepository(pool *pgxpool.Pool, queuePool *pgxpool.Pool, cf *server
 			event:          eventEngine,
 			getGroupKeyRun: NewGetGroupKeyRunRepository(pool, opts.v, opts.l),
 			jobRun:         NewJobRunEngineRepository(pool, opts.v, opts.l),
-			stepRun:        NewStepRunEngineRepository(queuePool, opts.v, opts.l, cf, rlCache),
+			stepRun:        stepRunEngine,
 			step:           NewStepRepository(pool, opts.v, opts.l),
 			tenant:         NewTenantEngineRepository(pool, opts.v, opts.l, opts.cache),
 			tenantAlerting: NewTenantAlertingEngineRepository(pool, opts.v, opts.l, opts.cache),
 			ticker:         NewTickerRepository(pool, opts.v, opts.l),
 			worker:         NewWorkerEngineRepository(pool, opts.v, opts.l, opts.metered),
 			workflow:       NewWorkflowEngineRepository(pool, opts.v, opts.l, opts.metered),
-			workflowRun:    NewWorkflowRunEngineRepository(pool, opts.v, opts.l, opts.metered),
+			workflowRun:    workflowRunEngine,
 			streamEvent:    NewStreamEventsEngineRepository(pool, opts.v, opts.l),
 			log:            NewLogEngineRepository(pool, opts.v, opts.l),
 			rateLimit:      NewRateLimitEngineRepository(pool, opts.v, opts.l),

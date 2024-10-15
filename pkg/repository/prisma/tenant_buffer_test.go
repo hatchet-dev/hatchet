@@ -44,6 +44,7 @@ func TestNewTenantBufManager(t *testing.T) {
 	logger := zerolog.New(nil).Level(zerolog.Disabled)
 
 	opts := TenantBufManagerOpts[testMockEvent, testMockResult]{
+		Name:       "test",
 		OutputFunc: testMockOutputFunc,
 		SizeFunc:   testMockSizeFunc,
 		L:          &logger,
@@ -59,6 +60,7 @@ func TestTenantBufferManager_BuffItem(t *testing.T) {
 	logger := zerolog.New(nil).Level(zerolog.Disabled)
 
 	opts := TenantBufManagerOpts[testMockEvent, testMockResult]{
+		Name:       "test",
 		OutputFunc: testMockOutputFunc,
 		SizeFunc:   testMockSizeFunc,
 		L:          &logger,
@@ -112,6 +114,7 @@ func TestTenantBufferManager_CreateMultipleBuffers(t *testing.T) {
 	logger := zerolog.New(nil).Level(zerolog.Disabled)
 
 	opts := TenantBufManagerOpts[testMockEvent, testMockResult]{
+		Name:       "test",
 		OutputFunc: testMockOutputFunc,
 		SizeFunc:   testMockSizeFunc,
 		L:          &logger,
@@ -157,6 +160,7 @@ func TestTenantBufferManager_OrderPreservation(t *testing.T) {
 	logger := zerolog.New(nil).Level(zerolog.Disabled)
 
 	opts := TenantBufManagerOpts[testMockEvent, testMockResult]{
+		Name:       "test",
 		OutputFunc: testMockOutputFunc,
 		SizeFunc:   testMockSizeFunc,
 		L:          &logger,
@@ -198,6 +202,7 @@ func TestTenantBufferManager_Cleanup(t *testing.T) {
 	logger := zerolog.New(nil).Level(zerolog.Disabled)
 
 	opts := TenantBufManagerOpts[testMockEvent, testMockResult]{
+		Name:       "test",
 		OutputFunc: testMockOutputFunc,
 		SizeFunc:   testMockSizeFunc,
 		L:          &logger,
@@ -214,7 +219,7 @@ func TestTenantBufferManager_Cleanup(t *testing.T) {
 	require.NoError(t, err)
 
 	// Ensure buffers are cleaned up
-	err = manager.cleanup()
+	err = manager.Cleanup()
 	require.NoError(t, err)
 
 	// Try to buff an item after cleanup, should return an error

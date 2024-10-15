@@ -202,6 +202,27 @@ func (q *Queries) CreateEvent(ctx context.Context, db DBTX, arg CreateEventParam
 	return &i, err
 }
 
+const createEventKeys = `-- name: CreateEventKeys :exec
+INSERT INTO "EventKey" (
+    "key",
+    "tenantId"
+)
+SELECT
+    unnest($1::text[]) AS "key",
+    unnest($2::uuid[]) AS "tenantId"
+ON CONFLICT ("key", "tenantId") DO NOTHING
+`
+
+type CreateEventKeysParams struct {
+	Keys      []string      `json:"keys"`
+	Tenantids []pgtype.UUID `json:"tenantids"`
+}
+
+func (q *Queries) CreateEventKeys(ctx context.Context, db DBTX, arg CreateEventKeysParams) error {
+	_, err := db.Exec(ctx, createEventKeys, arg.Keys, arg.Tenantids)
+	return err
+}
+
 type CreateEventsParams struct {
 	ID                 pgtype.UUID `json:"id"`
 	Key                string      `json:"key"`
@@ -281,14 +302,13 @@ func (q *Queries) GetEventsForRange(ctx context.Context, db DBTX) ([]*GetEventsF
 }
 
 const getInsertedEvents = `-- name: GetInsertedEvents :many
-
 SELECT id, "createdAt", "updatedAt", "deletedAt", key, "tenantId", "replayedFromId", data, "additionalMetadata", "insertOrder" FROM "Event"
-WHERE xmin::text = (txid_current() % (2^32)::bigint)::text
+WHERE "id" = ANY($1::uuid[])
 ORDER BY "insertOrder" ASC
 `
 
-func (q *Queries) GetInsertedEvents(ctx context.Context, db DBTX) ([]*Event, error) {
-	rows, err := db.Query(ctx, getInsertedEvents)
+func (q *Queries) GetInsertedEvents(ctx context.Context, db DBTX, ids []pgtype.UUID) ([]*Event, error) {
+	rows, err := db.Query(ctx, getInsertedEvents, ids)
 	if err != nil {
 		return nil, err
 	}
@@ -311,6 +331,36 @@ func (q *Queries) GetInsertedEvents(ctx context.Context, db DBTX) ([]*Event, err
 			return nil, err
 		}
 		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listEventKeys = `-- name: ListEventKeys :many
+SELECT
+    "key"
+FROM
+    "EventKey"
+WHERE
+    "tenantId" = $1::uuid
+ORDER BY "key" ASC
+`
+
+func (q *Queries) ListEventKeys(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]string, error) {
+	rows, err := db.Query(ctx, listEventKeys, tenantid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var key string
+		if err := rows.Scan(&key); err != nil {
+			return nil, err
+		}
+		items = append(items, key)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

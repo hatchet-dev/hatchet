@@ -6,15 +6,32 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 
 	"github.com/rs/zerolog"
 )
 
+var (
+	defaultFlushPeriod = 10 * time.Millisecond
+	defaultMaxCapacity = 100
+)
+
+func setDefaults(cf *server.ConfigFileRuntime) {
+	if cf.FlushPeriodMilliseconds != 0 {
+		defaultFlushPeriod = time.Duration(cf.FlushPeriodMilliseconds) * time.Millisecond
+	}
+
+	if cf.FlushItemsThreshold != 0 {
+		defaultMaxCapacity = cf.FlushItemsThreshold
+	}
+}
+
 // This is a wrapper around the IngestBuf to manage multiple tenants
 // An example would be T is eventOps and U is *dbsqlc.Event
 
 type TenantBufferManager[T any, U any] struct {
+	name        string // a human readable name for the buffer
 	tenants     sync.Map
 	tenantLock  sync.Map
 	l           *zerolog.Logger
@@ -23,10 +40,14 @@ type TenantBufferManager[T any, U any] struct {
 }
 
 type TenantBufManagerOpts[T any, U any] struct {
+	Name       string                                            `validate:"required"`
 	OutputFunc func(ctx context.Context, items []T) ([]U, error) `validate:"required"`
 	SizeFunc   func(T) int                                       `validate:"required"`
 	L          *zerolog.Logger                                   `validate:"required"`
 	V          validator.Validator                               `validate:"required"`
+
+	FlushPeriod         *time.Duration
+	FlushItemsThreshold int
 }
 
 // Create a new TenantBufferManager with generic types T for input and U for output
@@ -43,15 +64,23 @@ func NewTenantBufManager[T any, U any](opts TenantBufManagerOpts[T, U]) (*Tenant
 
 	defaultOpts := IngestBufOpts[T, U]{
 		// something we can tune if we see this DB transaction is too slow
-		MaxCapacity:        10000,
-		FlushPeriod:        50 * time.Millisecond,
+		MaxCapacity:        defaultMaxCapacity,
+		FlushPeriod:        defaultFlushPeriod,
 		MaxDataSizeInQueue: 4 * megabyte,
 		OutputFunc:         opts.OutputFunc,
 		SizeFunc:           opts.SizeFunc,
 		L:                  opts.L,
 	}
 
+	if opts.FlushPeriod != nil {
+		defaultOpts.FlushPeriod = *opts.FlushPeriod
+	}
+	if opts.FlushItemsThreshold != 0 {
+		defaultOpts.MaxCapacity = opts.FlushItemsThreshold
+	}
+
 	return &TenantBufferManager[T, U]{
+		name:        opts.Name,
 		tenants:     sync.Map{},
 		l:           opts.L,
 		defaultOpts: defaultOpts,
@@ -92,7 +121,7 @@ func (t *TenantBufferManager[T, U]) createTenantBuf(
 }
 
 // cleanup all tenant buffers
-func (t *TenantBufferManager[T, U]) cleanup() error {
+func (t *TenantBufferManager[T, U]) Cleanup() error {
 	t.tenants.Range(func(key, value interface{}) bool {
 		ingestBuf := value.(*IngestBuf[T, U])
 		_ = ingestBuf.cleanup()
@@ -123,6 +152,7 @@ func (t *TenantBufferManager[T, U]) getOrCreateTenantBuf(
 		return v.(*IngestBuf[T, U]), nil
 	}
 	t.l.Debug().Msgf("creating new tenant buffer for tenant %s", tenantBufKey)
+	opts.Name = fmt.Sprintf("%s-%s", t.name, tenantBufKey)
 	return t.createTenantBuf(tenantBufKey, opts)
 }
 
