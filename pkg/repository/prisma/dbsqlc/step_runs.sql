@@ -1090,8 +1090,7 @@ SET
     "error" = NULL,
     "cancelledAt" = NULL,
     "cancelledReason" = NULL,
-    "cancelledError" = NULL,
-    "input" = NULL
+    "cancelledError" = NULL
 WHERE
     "workflowRunId" = @workflowRunId::uuid
 RETURNING *;

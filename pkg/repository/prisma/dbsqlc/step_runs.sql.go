@@ -2355,8 +2355,7 @@ SET
     "error" = NULL,
     "cancelledAt" = NULL,
     "cancelledReason" = NULL,
-    "cancelledError" = NULL,
-    "input" = NULL
+    "cancelledError" = NULL
 WHERE
     "workflowRunId" = $1::uuid
 RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "workerId", "tickerId", status, input, output, "requeueAfter", error, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError", "workflowRunId", "scheduleTimeoutAt"
