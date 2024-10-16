@@ -277,10 +277,12 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 		slots := make([]*slot, 0)
 
 		for i := 0; i < int(worker.AvailableSlots)-len(unackedSlots); i++ {
-			slots = append(slots, &slot{
-				actions: actions,
-				worker:  workers[workerId],
-			})
+			slots = append(slots, newSlot(workers[workerId], actions))
+		}
+
+		// extend expiry of all unacked slots
+		for _, unackedSlot := range unackedSlots {
+			unackedSlot.extendExpiry()
 		}
 
 		slots = append(slots, unackedSlots...)
