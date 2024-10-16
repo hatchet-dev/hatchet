@@ -400,6 +400,9 @@ func (s *Scheduler) tryAssignSingleton(
 			res.rateLimitResult = &rlResult
 			return res, nil
 		}
+
+		rateLimitAck = rlResult.ack
+		rateLimitNack = rlResult.nack
 	}
 
 	// pick a worker to assign the slot to
