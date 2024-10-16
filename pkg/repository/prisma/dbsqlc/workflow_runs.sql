@@ -1008,20 +1008,26 @@ RETURNING
 
 -- name: LinkStepRunParents :exec
 WITH step_runs AS (
-    SELECT "id", "stepId"
+    SELECT "id", "stepId", "jobRunId"
     FROM "StepRun"
     WHERE "id" = ANY(@stepRunIds::uuid[])
+), parent_child_step_runs AS (
+    SELECT
+        parent_run."id" AS "A",
+        child_run."id" AS "B"
+    FROM
+        "_StepOrder" AS step_order
+    JOIN
+        step_runs AS parent_run ON parent_run."stepId" = step_order."A"
+    JOIN
+        step_runs AS child_run ON child_run."stepId" = step_order."B" AND child_run."jobRunId" = parent_run."jobRunId"
 )
 INSERT INTO "_StepRunOrder" ("A", "B")
 SELECT
-    parent_run."id" AS "A",
-    child_run."id" AS "B"
+    parent_child_step_runs."A" AS "A",
+    parent_child_step_runs."B" AS "B"
 FROM
-    "_StepOrder" AS step_order
-JOIN
-    step_runs AS parent_run ON parent_run."stepId" = step_order."A"
-JOIN
-    step_runs AS child_run ON child_run."stepId" = step_order."B";
+    parent_child_step_runs;
 
 -- name: GetWorkflowRun :many
 SELECT

@@ -359,8 +359,15 @@ WHERE
     "StepRun"."id" = input."id";
 
 -- name: BulkCancelStepRun :exec
-UPDATE
-    "StepRun"
+WITH input AS (
+    SELECT
+        unnest(@stepRunIds::uuid[]) AS "id",
+        unnest(@finishedAts::timestamp[]) AS "finishedAt",
+        unnest(@cancelledAts::timestamp[]) AS "cancelledAt",
+        unnest(@cancelledReasons::text[]) AS "cancelledReason",
+        unnest(@cancelledErrors::text[]) AS "cancelledError"
+)
+UPDATE "StepRun"
 SET
     "status" = CASE
         -- Final states are final, cannot be updated
@@ -371,16 +378,9 @@ SET
     "cancelledAt" = input."cancelledAt",
     "cancelledReason" = input."cancelledReason",
     "cancelledError" = input."cancelledError"
-FROM (
-    SELECT
-        unnest(@stepRunIds::uuid[]) AS "id",
-        unnest(@finishedAts::timestamp[]) AS "finishedAt",
-        unnest(@cancelledAts::timestamp[]) AS "cancelledAt",
-        unnest(@cancelledReasons::text[]) AS "cancelledReason",
-        unnest(@cancelledErrors::text[]) AS "cancelledError"
-) AS input
-WHERE
-    "StepRun"."id" = input."id";
+FROM input
+WHERE "StepRun"."id" = input."id";
+
 
 -- name: BulkFailStepRun :exec
 UPDATE
@@ -968,6 +968,13 @@ WITH input_values AS (
         unnest(@messages::text[]) AS "message",
         1 AS "count",
         unnest(@data::jsonb[]) AS "data"
+),
+locked_rows AS (
+    SELECT "id"
+    FROM "StepRunEvent"
+    WHERE "stepRunId" IN (SELECT unnest(@stepRunIds::uuid[]))
+    ORDER BY "id"
+    FOR UPDATE
 ),
 updated AS (
     UPDATE "StepRunEvent"

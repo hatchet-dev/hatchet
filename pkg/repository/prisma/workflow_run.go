@@ -1859,6 +1859,6 @@ func bulkWorkflowRunEvents(
 	})
 
 	if err != nil {
-		l.Err(err).Msg("could not create deferred step run event")
+		l.Err(err).Msg("could not create bulk workflow run event")
 	}
 }
