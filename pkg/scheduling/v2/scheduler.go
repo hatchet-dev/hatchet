@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 
+	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 )
@@ -35,6 +36,9 @@ func newSchedulerDbQueries(queries *dbsqlc.Queries, pool *pgxpool.Pool, tenantId
 }
 
 func (d *schedulerDbQueries) ListActionsForWorkers(ctx context.Context, workerIds []pgtype.UUID) ([]*dbsqlc.ListActionsForWorkersRow, error) {
+	ctx, span := telemetry.NewSpan(ctx, "list-actions-for-workers")
+	defer span.End()
+
 	return d.queries.ListActionsForWorkers(ctx, d.pool, dbsqlc.ListActionsForWorkersParams{
 		Tenantid:  d.tenantId,
 		Workerids: workerIds,
@@ -42,6 +46,9 @@ func (d *schedulerDbQueries) ListActionsForWorkers(ctx context.Context, workerId
 }
 
 func (d *schedulerDbQueries) ListAvailableSlotsForWorkers(ctx context.Context, params dbsqlc.ListAvailableSlotsForWorkersParams) ([]*dbsqlc.ListAvailableSlotsForWorkersRow, error) {
+	ctx, span := telemetry.NewSpan(ctx, "list-available-slots-for-workers")
+	defer span.End()
+
 	return d.queries.ListAvailableSlotsForWorkers(ctx, d.pool, params)
 }
 
@@ -54,31 +61,36 @@ type Scheduler struct {
 	l *zerolog.Logger
 
 	actions     map[string]*action
-	actionsMu   sync.RWMutex
-	replenishMu sync.Mutex
+	actionsMu   rwMutex
+	replenishMu mutex
 
-	workersMu sync.Mutex
+	workersMu mutex
 	workers   map[string]*worker
 
 	assignedCount   int
-	assignedCountMu sync.Mutex
+	assignedCountMu mutex
 
 	// unackedSlots are slots which have been assigned to a worker, but have not been flushed
 	// to the database yet. They negatively count towards a worker's available slot count.
 	unackedSlots map[int]*slot
-	unackedMu    sync.Mutex
+	unackedMu    mutex
 
 	rl *rateLimiter
 }
 
 func newScheduler(cf *sharedConfig, tenantId pgtype.UUID, rl *rateLimiter) *Scheduler {
 	return &Scheduler{
-		repo:         newSchedulerDbQueries(cf.queries, cf.pool, tenantId),
-		tenantId:     tenantId,
-		l:            cf.l,
-		actions:      make(map[string]*action),
-		unackedSlots: make(map[int]*slot),
-		rl:           rl,
+		repo:            newSchedulerDbQueries(cf.queries, cf.pool, tenantId),
+		tenantId:        tenantId,
+		l:               cf.l,
+		actions:         make(map[string]*action),
+		unackedSlots:    make(map[int]*slot),
+		rl:              rl,
+		actionsMu:       newRWMu(cf.l),
+		replenishMu:     newMu(cf.l),
+		workersMu:       newMu(cf.l),
+		assignedCountMu: newMu(cf.l),
+		unackedMu:       newMu(cf.l),
 	}
 }
 

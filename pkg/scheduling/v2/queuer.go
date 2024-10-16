@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 
+	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/buffer"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
@@ -80,6 +81,9 @@ func (d *queuerDbQueries) getMinId() pgtype.Int8 {
 }
 
 func (d *queuerDbQueries) ListQueueItems(ctx context.Context) ([]*dbsqlc.QueueItem, error) {
+	ctx, span := telemetry.NewSpan(ctx, "list-queue-items")
+	defer span.End()
+
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, d.pool, d.l, 5000)
 
 	if err != nil {
@@ -318,6 +322,9 @@ func (d *queuerDbQueries) updateMinId() {
 func (d *queuerDbQueries) MarkQueueItemsProcessed(ctx context.Context, r *assignResults) (
 	succeeded []*AssignedQueueItem, failed []*AssignedQueueItem, err error,
 ) {
+	ctx, span := telemetry.NewSpan(ctx, "mark-queue-items-processed")
+	defer span.End()
+
 	start := time.Now()
 
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, d.pool, d.l, 5000)
@@ -433,6 +440,9 @@ func (d *queuerDbQueries) MarkQueueItemsProcessed(ctx context.Context, r *assign
 }
 
 func (d *queuerDbQueries) GetStepRunRateLimits(ctx context.Context, queueItems []*dbsqlc.QueueItem) (map[string]map[string]int32, error) {
+	ctx, span := telemetry.NewSpan(ctx, "get-step-run-rate-limits")
+	defer span.End()
+
 	stepRunIds := make([]pgtype.UUID, 0, len(queueItems))
 	stepIds := make([]pgtype.UUID, 0, len(queueItems))
 	stepsWithRateLimits := make(map[string]bool)
@@ -674,6 +684,9 @@ func (d *queuerDbQueries) GetStepRunRateLimits(ctx context.Context, queueItems [
 }
 
 func (d *queuerDbQueries) GetDesiredLabels(ctx context.Context, stepIds []pgtype.UUID) (map[string][]*dbsqlc.GetDesiredLabelsRow, error) {
+	ctx, span := telemetry.NewSpan(ctx, "get-desired-labels")
+	defer span.End()
+
 	labels, err := d.queries.GetDesiredLabels(ctx, d.pool, stepIds)
 
 	if err != nil {
@@ -712,7 +725,7 @@ type Queuer struct {
 
 	notifyQueueCh chan struct{}
 
-	queueMu sync.Mutex
+	queueMu mutex
 
 	cleanup func()
 
@@ -739,6 +752,7 @@ func newQueuer(conf *sharedConfig, tenantId pgtype.UUID, queueName string, s *Sc
 		limit:         100,
 		resultsCh:     resultsCh,
 		notifyQueueCh: notifyQueueCh,
+		queueMu:       newMu(conf.l),
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
