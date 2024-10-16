@@ -285,6 +285,37 @@ export default function ExpandedWorkflowRun() {
             ))
           )}
         </div>
+        {worker.runtimeInfo && (
+          <>
+            <Separator className="my-4" />
+            <h3 className="text-xl font-bold leading-tight text-foreground mb-4">
+              Worker Runtime Info
+            </h3>
+            <div className="mb-4 text-sm text-gray-700 dark:text-gray-300">
+              {worker.runtimeInfo?.sdkVersion && (
+                <div>
+                  <b>Hatchet SDK</b>: {worker.runtimeInfo?.sdkVersion}
+                </div>
+              )}
+              {worker.runtimeInfo?.languageVersion && (
+                <div>
+                  <b>Runtime</b>: {worker.runtimeInfo?.language}{' '}
+                  {worker.runtimeInfo?.languageVersion}
+                </div>
+              )}
+              {worker.runtimeInfo?.os && (
+                <div>
+                  <b>OS</b>: {worker.runtimeInfo?.os}
+                </div>
+              )}
+              {worker.runtimeInfo?.runtimeExtra && (
+                <div>
+                  <b>Runtime Extra</b>: {worker.runtimeInfo?.runtimeExtra}
+                </div>
+              )}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

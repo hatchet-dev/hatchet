@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"runtime"
+	"runtime/debug"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -201,11 +203,26 @@ func (d *dispatcherClientImpl) newActionListener(ctx context.Context, req *GetAc
 		return nil, nil, err
 	}
 
+	// Get OS information
+	var goVersion string
+
+	// Get Go version
+	if buildInfo, ok := debug.ReadBuildInfo(); ok {
+		goVersion = buildInfo.GoVersion
+	}
+
+	os := runtime.GOOS
+
 	registerReq := &dispatchercontracts.WorkerRegisterRequest{
 		WorkerName: req.WorkerName,
 		Actions:    req.Actions,
 		Services:   req.Services,
 		WebhookId:  req.WebhookId,
+		RuntimeInfo: &dispatchercontracts.RuntimeInfo{
+			Language:        dispatchercontracts.SDKS_GO.Enum(),
+			LanguageVersion: &goVersion,
+			Os:              &os,
+		},
 	}
 
 	if req.Labels != nil {

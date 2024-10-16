@@ -3,6 +3,7 @@ import { DataTableColumnHeader } from '../../../../components/molecules/data-tab
 import { Worker } from '@/lib/api';
 import { Link } from 'react-router-dom';
 import RelativeDate from '@/components/molecules/relative-date';
+import { SdkInfo } from './sdk-info';
 
 export const columns: ColumnDef<Worker>[] = [
   {
@@ -85,6 +86,15 @@ export const columns: ColumnDef<Worker>[] = [
         </div>
       );
     },
+    enableSorting: false,
+    enableHiding: true,
+  },
+  {
+    accessorKey: 'runtime',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="SDK Version" />
+    ),
+    cell: ({ row }) => <SdkInfo runtimeInfo={row.original.runtimeInfo} />,
     enableSorting: false,
     enableHiding: true,
   },
