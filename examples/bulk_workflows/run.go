@@ -5,137 +5,64 @@ import (
 	"log"
 
 	"github.com/hatchet-dev/hatchet/pkg/client"
-	"github.com/hatchet-dev/hatchet/pkg/worker"
 )
 
-func runBulk() (func() error, error) {
+func runBulk(workflowName string, quantity int) error {
 	c, err := client.New()
 	if err != nil {
-		return nil, fmt.Errorf("error creating client: %w", err)
+		return fmt.Errorf("error creating client: %w", err)
 	}
 
-	w, err := worker.NewWorker(
-		worker.WithClient(
-			c,
-		),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("error creating worker: %w", err)
-	}
-
-	err = w.RegisterWorkflow(
-		&worker.WorkflowJob{
-			On:          worker.Events("user:create:simple"),
-			Name:        "simple",
-			Description: "This runs after an update to the user model.",
-			Steps: []*worker.WorkflowStep{
-				worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
-					input := &userCreateEvent{}
-
-					err = ctx.WorkflowInput(input)
-
-					if err != nil {
-						return nil, err
-					}
-
-					log.Printf("step-one")
-
-					return &stepOneOutput{
-						Message: "Username is: " + input.Username,
-					}, nil
-				},
-				).SetName("step-one"),
-				worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
-					input := &stepOneOutput{}
-					err = ctx.StepOutput("step-one", input)
-
-					if err != nil {
-						return nil, err
-					}
-
-					log.Printf("step-two")
-
-					return &stepOneOutput{
-						Message: "Above message is: " + input.Message,
-					}, nil
-				}).SetName("step-two").AddParents("step-one"),
-			},
-		},
-	)
-	if err != nil {
-		return nil, fmt.Errorf("error registering workflow: %w", err)
-	}
-
-	go func() {
-		log.Printf("pushing workflow")
-
-		var workflows []*client.WorkflowRun
-		for i := 0; i < 999; i++ {
-			data := map[string]interface{}{
-				"username": fmt.Sprintf("echo-test-%d", i),
-				"user_id":  fmt.Sprintf("1234-%d", i),
-			}
-			workflows = append(workflows, &client.WorkflowRun{
-				Name:  "simple",
-				Input: data,
-				Options: []client.RunOptFunc{
-					// setting a dedupe key so these shouldn't all run
-					client.WithRunMetadata(map[string]interface{}{
-						// "dedupe": "dedupe1",
-					}),
-				},
-			})
-
-		}
-
-		outs, err := c.Admin().BulkRunWorkflow(workflows)
-		if err != nil {
-			panic(fmt.Errorf("error pushing event: %w", err))
-		}
-
-		for _, out := range outs {
-			log.Printf("workflow run id: %v", out)
-		}
-
-	}()
-
-	cleanup, err := w.Start()
-	if err != nil {
-		return nil, fmt.Errorf("error starting worker: %w", err)
-	}
-
-	return cleanup, nil
-}
-
-func runSingles() (func() error, error) {
-	c, err := client.New()
-	if err != nil {
-		return nil, fmt.Errorf("error creating client: %w", err)
-	}
-
-	w, err := worker.NewWorker(
-		worker.WithClient(
-			c,
-		),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("error creating worker: %w", err)
-	}
-
-	if err != nil {
-		return nil, fmt.Errorf("error registering workflow: %w", err)
-	}
-
-	log.Printf("pushing workflow")
+	log.Printf("pushing %d workflows in bulk", quantity)
 
 	var workflows []*client.WorkflowRun
-	for i := 0; i < 999; i++ {
+	for i := 0; i < quantity; i++ {
 		data := map[string]interface{}{
 			"username": fmt.Sprintf("echo-test-%d", i),
 			"user_id":  fmt.Sprintf("1234-%d", i),
 		}
 		workflows = append(workflows, &client.WorkflowRun{
-			Name:  "simple",
+			Name:  workflowName,
+			Input: data,
+			Options: []client.RunOptFunc{
+				// setting a dedupe key so these shouldn't all run
+				client.WithRunMetadata(map[string]interface{}{
+					// "dedupe": "dedupe1",
+				}),
+			},
+		})
+
+	}
+
+	outs, err := c.Admin().BulkRunWorkflow(workflows)
+	if err != nil {
+		panic(fmt.Errorf("error pushing event: %w", err))
+	}
+
+	for _, out := range outs {
+		log.Printf("workflow run id: %v", out)
+	}
+
+	return nil
+
+}
+
+func runSingles(workflowName string, quantity int) error {
+	c, err := client.New()
+	if err != nil {
+		return fmt.Errorf("error creating client: %w", err)
+	}
+
+	log.Printf("pushing %d single workflows", quantity)
+
+	var workflows []*client.WorkflowRun
+	for i := 0; i < quantity; i++ {
+		data := map[string]interface{}{
+			"username": fmt.Sprintf("echo-test-%d", i),
+			"user_id":  fmt.Sprintf("1234-%d", i),
+		}
+		workflows = append(workflows, &client.WorkflowRun{
+			Name:  workflowName,
 			Input: data,
 			Options: []client.RunOptFunc{
 				client.WithRunMetadata(map[string]interface{}{
@@ -158,10 +85,5 @@ func runSingles() (func() error, error) {
 
 	}
 
-	cleanup, err := w.Start()
-	if err != nil {
-		return nil, fmt.Errorf("error starting worker: %w", err)
-	}
-
-	return cleanup, nil
+	return nil
 }
