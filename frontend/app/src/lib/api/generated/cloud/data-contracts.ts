@@ -130,7 +130,10 @@ export interface ManagedWorker {
   metadata: APIResourceMeta;
   name: string;
   buildConfig: ManagedWorkerBuildConfig;
-  runtimeConfig: ManagedWorkerRuntimeConfig;
+  isIac: boolean;
+  /** A map of environment variables to set for the worker */
+  envVars: Record<string, string>;
+  runtimeConfigs?: ManagedWorkerRuntimeConfig[];
 }
 
 export interface ManagedWorkerList {
@@ -162,8 +165,6 @@ export interface BuildStep {
 export interface ManagedWorkerRuntimeConfig {
   metadata: APIResourceMeta;
   numReplicas: number;
-  /** A map of environment variables to set for the worker */
-  envVars: Record<string, string>;
   /** The kind of CPU to use for the worker */
   cpuKind: string;
   /** The number of CPUs to use for the worker */
@@ -172,6 +173,8 @@ export interface ManagedWorkerRuntimeConfig {
   memoryMb: number;
   /** The region that the worker is deployed to */
   region: ManagedWorkerRegion;
+  /** A list of actions this runtime config corresponds to */
+  actions?: string[];
 }
 
 export enum ManagedWorkerEventStatus {
@@ -201,7 +204,27 @@ export interface ManagedWorkerEventList {
 export interface CreateManagedWorkerRequest {
   name: string;
   buildConfig: CreateManagedWorkerBuildConfigRequest;
-  runtimeConfig: CreateManagedWorkerRuntimeConfigRequest;
+  /** A map of environment variables to set for the worker */
+  envVars: Record<string, string>;
+  isIac: boolean;
+  runtimeConfig?: CreateManagedWorkerRuntimeConfigRequest;
+}
+
+export interface UpdateManagedWorkerRequest {
+  name?: string;
+  buildConfig?: CreateManagedWorkerBuildConfigRequest;
+  /** A map of environment variables to set for the worker */
+  envVars?: Record<string, string>;
+  isIac?: boolean;
+  runtimeConfig?: CreateManagedWorkerRuntimeConfigRequest;
+}
+
+export interface InfraAsCodeRequest {
+  runtimeConfigs: CreateManagedWorkerRuntimeConfigRequest[];
+}
+
+export interface RuntimeConfigActionsResponse {
+  actions: string[];
 }
 
 export interface CreateManagedWorkerBuildConfigRequest {
@@ -266,8 +289,6 @@ export interface CreateManagedWorkerRuntimeConfigRequest {
    * @max 1000
    */
   numReplicas: number;
-  /** A map of environment variables to set for the worker */
-  envVars: Record<string, string>;
   /** The region to deploy the worker to */
   region?: ManagedWorkerRegion;
   /** The kind of CPU to use for the worker */
@@ -284,6 +305,7 @@ export interface CreateManagedWorkerRuntimeConfigRequest {
    * @max 65536
    */
   memoryMb: number;
+  actions?: string[];
 }
 
 export interface TenantBillingState {

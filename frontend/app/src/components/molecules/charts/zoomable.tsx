@@ -7,6 +7,8 @@ import {
   ResponsiveContainer,
   Bar,
   BarChart,
+  LineChart,
+  Line,
 } from 'recharts';
 import {
   ChartConfig,
@@ -14,7 +16,7 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from '@/components/ui/chart';
-import { capitalize } from '@/lib/utils';
+import { capitalize, cn } from '@/lib/utils';
 
 export type DataPoint<T extends string> = Record<T, number> & {
   date: string;
@@ -59,6 +61,8 @@ type ZoomableChartProps<T extends string> = {
   colors?: Record<string, string>;
   zoom?: (startTime: string, endTime: string) => void;
   showYAxis?: boolean;
+  kind: 'bar' | 'line';
+  className?: string;
 };
 
 export function ZoomableChart<T extends string>({
@@ -66,6 +70,8 @@ export function ZoomableChart<T extends string>({
   colors,
   zoom,
   showYAxis = true,
+  kind = 'bar',
+  className,
 }: ZoomableChartProps<T>) {
   const [refAreaLeft, setRefAreaLeft] = useState<string | null>(null);
   const [refAreaRight, setRefAreaRight] = useState<string | null>(null);
@@ -147,72 +153,209 @@ export function ZoomableChart<T extends string>({
   return (
     <ChartContainer
       config={chartConfig}
-      className="w-full h-[200px] min-h-[200px]"
+      className={cn('w-full h-[200px] min-h-[200px]', className)}
     >
       <div className="h-full" ref={chartRef} style={{ touchAction: 'none' }}>
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart
+        {kind === 'bar' ? (
+          <ChildBarChart
             data={data}
-            margin={{
-              left: 0,
-              right: 0,
-              top: 0,
-              bottom: 0,
-            }}
-            onMouseDown={handleMouseDown}
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
-          >
-            <CartesianGrid vertical={false} />
-            <XAxis
-              dataKey="date"
-              tickFormatter={formatXAxis}
-              tickLine={false}
-              axisLine={false}
-              tickMargin={4}
-              minTickGap={16}
-              style={{ fontSize: '10px', userSelect: 'none' }}
-            />
-            {showYAxis && (
-              <YAxis
-                tickLine={false}
-                axisLine={false}
-                tickMargin={4}
-                style={{ fontSize: '10px', userSelect: 'none' }}
-              />
-            )}
-            <ChartTooltip
-              content={
-                <ChartTooltipContent
-                  className="w-[150px] sm:w-[200px] font-mono text-xs sm:text-xs"
-                  labelFormatter={(value) => new Date(value).toLocaleString()}
-                />
-              }
-            />
-            {dataKeys.map((key) => (
-              <Bar
-                key={key}
-                type="monotone"
-                dataKey={key}
-                stroke={chartConfig[key].color}
-                fillOpacity={1}
-                fill={chartConfig[key].color}
-                isAnimationActive={false}
-              />
-            ))}
-
-            {refAreaLeft && refAreaRight && (
-              <ReferenceArea
-                x1={refAreaLeft}
-                x2={refAreaRight}
-                strokeOpacity={0.3}
-                fill="hsl(var(--foreground))"
-                fillOpacity={0.1}
-              />
-            )}
-          </BarChart>
-        </ResponsiveContainer>
+            showYAxis={showYAxis}
+            formatXAxis={formatXAxis}
+            handleMouseDown={handleMouseDown}
+            handleMouseMove={handleMouseMove}
+            handleMouseUp={handleMouseUp}
+            refAreaLeft={refAreaLeft}
+            refAreaRight={refAreaRight}
+            chartConfig={chartConfig}
+            dataKeys={dataKeys}
+          />
+        ) : (
+          <ChildLineChart
+            data={data}
+            showYAxis={showYAxis}
+            formatXAxis={formatXAxis}
+            handleMouseDown={handleMouseDown}
+            handleMouseMove={handleMouseMove}
+            handleMouseUp={handleMouseUp}
+            refAreaLeft={refAreaLeft}
+            refAreaRight={refAreaRight}
+            chartConfig={chartConfig}
+            dataKeys={dataKeys}
+          />
+        )}
       </div>
     </ChartContainer>
+  );
+}
+
+type ChildChartProps<T extends string> = {
+  data: DataPoint<T>[];
+  showYAxis?: boolean;
+  formatXAxis: (tickItem: string) => string;
+  handleMouseDown: (e: any) => void;
+  handleMouseMove: (e: any) => void;
+  handleMouseUp: () => void;
+  refAreaLeft: string | null;
+  refAreaRight: string | null;
+  chartConfig: ChartConfig;
+  dataKeys: string[];
+};
+
+function ChildBarChart<T extends string>({
+  data,
+  showYAxis = true,
+  formatXAxis,
+  handleMouseDown,
+  handleMouseMove,
+  handleMouseUp,
+  refAreaLeft,
+  refAreaRight,
+  chartConfig,
+  dataKeys,
+}: ChildChartProps<T>) {
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <BarChart
+        data={data}
+        margin={{
+          left: 0,
+          right: 0,
+          top: 0,
+          bottom: 0,
+        }}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+      >
+        <CartesianGrid vertical={false} />
+        <XAxis
+          dataKey="date"
+          tickFormatter={formatXAxis}
+          tickLine={false}
+          axisLine={false}
+          tickMargin={4}
+          minTickGap={16}
+          style={{ fontSize: '10px', userSelect: 'none' }}
+        />
+        {showYAxis && (
+          <YAxis
+            tickLine={false}
+            axisLine={false}
+            tickMargin={4}
+            style={{ fontSize: '10px', userSelect: 'none' }}
+          />
+        )}
+        <ChartTooltip
+          content={
+            <ChartTooltipContent
+              className="w-[150px] sm:w-[200px] font-mono text-xs sm:text-xs"
+              labelFormatter={(value) => new Date(value).toLocaleString()}
+            />
+          }
+        />
+        {dataKeys.map((key) => (
+          <Bar
+            key={key}
+            type="monotone"
+            dataKey={key}
+            stroke={chartConfig[key].color}
+            fillOpacity={1}
+            fill={chartConfig[key].color}
+            isAnimationActive={false}
+          />
+        ))}
+
+        {refAreaLeft && refAreaRight && (
+          <ReferenceArea
+            x1={refAreaLeft}
+            x2={refAreaRight}
+            strokeOpacity={0.3}
+            fill="hsl(var(--foreground))"
+            fillOpacity={0.1}
+          />
+        )}
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
+function ChildLineChart<T extends string>({
+  data,
+  showYAxis = true,
+  formatXAxis,
+  handleMouseDown,
+  handleMouseMove,
+  handleMouseUp,
+  refAreaLeft,
+  refAreaRight,
+  chartConfig,
+  dataKeys,
+}: ChildChartProps<T>) {
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <LineChart
+        data={data}
+        margin={{
+          left: 0,
+          right: 0,
+          top: 0,
+          bottom: 0,
+        }}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+      >
+        <CartesianGrid vertical={false} />
+        <XAxis
+          dataKey="date"
+          tickFormatter={formatXAxis}
+          tickLine={false}
+          axisLine={false}
+          tickMargin={4}
+          minTickGap={16}
+          style={{ fontSize: '10px', userSelect: 'none' }}
+        />
+        {showYAxis && (
+          <YAxis
+            tickLine={false}
+            axisLine={false}
+            tickMargin={4}
+            style={{ fontSize: '10px', userSelect: 'none' }}
+          />
+        )}
+        <ChartTooltip
+          content={
+            <ChartTooltipContent
+              className="w-[150px] sm:w-[200px] font-mono text-xs sm:text-xs"
+              labelFormatter={(value) => new Date(value).toLocaleString()}
+            />
+          }
+        />
+        {dataKeys.map((key) => {
+          return (
+            <Line
+              key={key}
+              type="natural"
+              dot={false}
+              dataKey={key}
+              stroke={chartConfig[key].color}
+              fillOpacity={1}
+              fill={chartConfig[key].color}
+              isAnimationActive={false}
+            />
+          );
+        })}
+
+        {refAreaLeft && refAreaRight && (
+          <ReferenceArea
+            x1={refAreaLeft}
+            x2={refAreaRight}
+            strokeOpacity={0.3}
+            fill="hsl(var(--foreground))"
+            fillOpacity={0.1}
+          />
+        )}
+      </LineChart>
+    </ResponsiveContainer>
   );
 }
