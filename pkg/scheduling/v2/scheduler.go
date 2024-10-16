@@ -331,7 +331,7 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 
 	// third pass: remove any actions which have no slots
 	for actionId, storedAction := range s.actions {
-		if len(storedAction.slots) == 0 {
+		if storedAction.activeCount() == 0 {
 			delete(s.actions, actionId)
 		}
 	}
