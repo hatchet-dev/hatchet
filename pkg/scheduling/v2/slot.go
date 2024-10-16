@@ -3,16 +3,23 @@ package v2
 import (
 	"sort"
 	"sync"
+	"time"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 )
 
+// slot expiry is 1 second to account for the 1 second replenish rate, plus 500 ms of buffer
+// time for unacked slots to get written back to the database.
+const defaultSlotExpiry = 1500 * time.Millisecond
+
 type slot struct {
 	worker  *worker
 	actions []string
 
-	used bool
+	// expiresAt is when the slot is no longer valid, but has not been cleaned up yet
+	expiresAt *time.Time
+	used      bool
 
 	ackd bool
 
@@ -22,15 +29,33 @@ type slot struct {
 	mu sync.RWMutex
 }
 
+func newSlot(worker *worker, actions []string) *slot {
+	expires := time.Now().Add(defaultSlotExpiry)
+
+	return &slot{
+		worker:    worker,
+		actions:   actions,
+		expiresAt: &expires,
+	}
+}
+
 func (s *slot) getWorkerId() string {
 	return sqlchelpers.UUIDToStr(s.worker.ID)
+}
+
+func (s *slot) extendExpiry() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	expires := time.Now().Add(defaultSlotExpiry)
+	s.expiresAt = &expires
 }
 
 func (s *slot) active() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	return !s.used
+	return !s.used && s.expiresAt != nil && s.expiresAt.After(time.Now())
 }
 
 func (s *slot) use(additionalAcks []func(), additionalNacks []func()) bool {
