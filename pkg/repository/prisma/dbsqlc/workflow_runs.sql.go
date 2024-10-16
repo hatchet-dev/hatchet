@@ -582,7 +582,23 @@ WITH workflow_version AS (
         "id" AS workflow_version_id,
         "sticky"
     FROM "WorkflowVersion"
-    WHERE "id" = ANY($4::uuid[])
+    WHERE "id" = ANY($1::uuid[])
+),
+indexed_arrays AS (
+    SELECT
+        t.tenant_id,
+        wr.workflow_run_id,
+        dw.desired_worker_id,
+        wv.workflow_version_id
+    FROM
+        UNNEST($2::uuid[]) WITH ORDINALITY AS t(tenant_id, ord),
+        UNNEST($3::uuid[]) WITH ORDINALITY AS wr(workflow_run_id, ord),
+        UNNEST($4::uuid[]) WITH ORDINALITY AS dw(desired_worker_id, ord),
+        UNNEST($1::uuid[]) WITH ORDINALITY AS wv(workflow_version_id, ord)
+    WHERE
+        t.ord = wr.ord
+        AND wr.ord = dw.ord
+        AND dw.ord = wv.ord  -- Ensure matching ordinality across all arrays
 )
 INSERT INTO "WorkflowRunStickyState" (
     "createdAt",
@@ -595,30 +611,31 @@ INSERT INTO "WorkflowRunStickyState" (
 SELECT
     CURRENT_TIMESTAMP,
     CURRENT_TIMESTAMP,
-    UNNEST($1::uuid[]),
-    UNNEST($2::uuid[]),
-    UNNEST($3::uuid[]),
+    ia.tenant_id,
+    ia.workflow_run_id,
+    ia.desired_worker_id,
     workflow_version."sticky"
-FROM workflow_version
-JOIN UNNEST($4::uuid[]) AS wv(workflow_version_id)
-    ON workflow_version.workflow_version_id = wv.workflow_version_id
+FROM indexed_arrays ia
+JOIN workflow_version
+    ON workflow_version.workflow_version_id = ia.workflow_version_id
 WHERE workflow_version."sticky" IS NOT NULL
+GROUP BY ia.workflow_run_id, ia.tenant_id, ia.desired_worker_id, workflow_version."sticky"
 RETURNING id, "createdAt", "updatedAt", "tenantId", "workflowRunId", "desiredWorkerId", strategy
 `
 
 type CreateMultipleWorkflowRunStickyStatesParams struct {
+	Workflowversionids []pgtype.UUID `json:"workflowversionids"`
 	Tenantid           []pgtype.UUID `json:"tenantid"`
 	Workflowrunids     []pgtype.UUID `json:"workflowrunids"`
 	Desiredworkerids   []pgtype.UUID `json:"desiredworkerids"`
-	Workflowversionids []pgtype.UUID `json:"workflowversionids"`
 }
 
 func (q *Queries) CreateMultipleWorkflowRunStickyStates(ctx context.Context, db DBTX, arg CreateMultipleWorkflowRunStickyStatesParams) ([]*WorkflowRunStickyState, error) {
 	rows, err := db.Query(ctx, createMultipleWorkflowRunStickyStates,
+		arg.Workflowversionids,
 		arg.Tenantid,
 		arg.Workflowrunids,
 		arg.Desiredworkerids,
-		arg.Workflowversionids,
 	)
 	if err != nil {
 		return nil, err
