@@ -116,13 +116,6 @@ WITH input AS (
         unnest($3::timestamp[]) AS "cancelledAt",
         unnest($4::text[]) AS "cancelledReason",
         unnest($5::text[]) AS "cancelledError"
-),
-locked_rows AS (
-    SELECT "id"
-    FROM "StepRun"
-    WHERE "id" IN (SELECT "id" FROM input)
-    ORDER BY "id" asc
-    FOR UPDATE
 )
 UPDATE "StepRun"
 SET
