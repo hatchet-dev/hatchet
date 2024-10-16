@@ -41,7 +41,7 @@ func init() {
 
 	var insecureBool bool
 
-	if insecureStr := strings.TrimSpace(insecure); insecureStr == "t" || insecureStr == "true" {
+	if insecureStr := strings.ToLower(strings.TrimSpace(insecure)); insecureStr == "t" || insecureStr == "true" {
 		insecureBool = true
 	}
 
