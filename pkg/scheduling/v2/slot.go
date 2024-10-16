@@ -175,8 +175,9 @@ func getRankedSlots(
 		if qi.Sticky.Valid && qi.Sticky.StickyStrategy == dbsqlc.StickyStrategyHARD {
 			if qi.DesiredWorkerId.Valid && workerId == sqlchelpers.UUIDToStr(qi.DesiredWorkerId) {
 				validSlots.addSlot(slot, 0)
-				continue
 			}
+
+			continue
 		}
 
 		// if this step has affinity labels, check if the worker has the desired labels, and rank by
