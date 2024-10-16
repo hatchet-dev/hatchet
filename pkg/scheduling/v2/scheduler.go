@@ -257,31 +257,25 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 	actionsToTotalSlots := make(map[string]int)
 
 	for _, worker := range availableSlots {
+		workerId := sqlchelpers.UUIDToStr(worker.ID)
+		actions := workerIdsToActions[workerId]
+		unackedSlots := workersToUnackedSlots[workerId]
 
-		if worker.AvailableSlots > 0 {
+		// create a slot for each available slot
+		slots := make([]*slot, 0)
 
-			workerId := sqlchelpers.UUIDToStr(worker.ID)
-			actions := workerIdsToActions[workerId]
-			unackedSlots := workersToUnackedSlots[workerId]
+		for i := 0; i < int(worker.AvailableSlots)-len(unackedSlots); i++ {
+			slots = append(slots, &slot{
+				actions: actions,
+				worker:  workers[workerId],
+			})
+		}
 
-			// create a slot for each available slot
-			slots := make([]*slot, 0, int(worker.AvailableSlots))
+		slots = append(slots, unackedSlots...)
 
-			for i := 0; i < int(worker.AvailableSlots)-len(unackedSlots); i++ {
-				slots = append(slots, &slot{
-					actions: actions,
-					worker:  workers[workerId],
-				})
-			}
-
-			slots = append(slots, unackedSlots...)
-
-			for _, actionId := range actions {
-				actionsToNewSlots[actionId] = append(actionsToNewSlots[actionId], slots...)
-				actionsToTotalSlots[actionId] += len(slots)
-			}
-		} else {
-			s.l.Warn().Msgf("worker %s has no available slots", sqlchelpers.UUIDToStr(worker.ID))
+		for _, actionId := range actions {
+			actionsToNewSlots[actionId] = append(actionsToNewSlots[actionId], slots...)
+			actionsToTotalSlots[actionId] += len(slots)
 		}
 	}
 

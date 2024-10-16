@@ -186,6 +186,9 @@ type LeaseManager struct {
 	queueLeasesMu sync.Mutex
 	queueLeases   []*dbsqlc.Lease
 	queuesCh      chan<- []string
+
+	cleanedUp bool
+	cleanupMu sync.Mutex
 }
 
 func newLeaseManager(conf *sharedConfig, tenantId pgtype.UUID) (*LeaseManager, <-chan []*ListActiveWorkersResult, <-chan []string) {
@@ -331,6 +334,18 @@ func (l *LeaseManager) loopForLeases(ctx context.Context) {
 }
 
 func (l *LeaseManager) cleanup(ctx context.Context) error {
+	if ok := l.cleanupMu.TryLock(); !ok {
+		return nil
+	}
+
+	defer l.cleanupMu.Unlock()
+
+	if l.cleanedUp {
+		return nil
+	}
+
+	l.cleanedUp = true
+
 	// close channels
 	defer close(l.workersCh)
 	defer close(l.queuesCh)

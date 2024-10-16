@@ -728,7 +728,7 @@ func newQueuer(conf *sharedConfig, tenantId pgtype.UUID, queueName string, s *Sc
 
 	repo, cleanupRepo := newQueueItemDbQueries(conf, tenantId, eventBuffer, queueName, int32(defaultLimit)) // nolint: gosec
 
-	notifyQueueCh := make(chan struct{})
+	notifyQueueCh := make(chan struct{}, 1)
 
 	q := &Queuer{
 		repo:          repo,
