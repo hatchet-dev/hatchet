@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -27,6 +28,7 @@ type BulkEventWriter struct {
 
 func NewBulkEventWriter(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger) (*BulkEventWriter, error) {
 	queries := dbsqlc.New()
+	flushPeriod := 250 * time.Millisecond
 
 	w := &BulkEventWriter{
 		pool:    pool,
@@ -36,11 +38,13 @@ func NewBulkEventWriter(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Lo
 	}
 
 	eventBufOpts := TenantBufManagerOpts[*repository.CreateStepRunEventOpts, int]{
-		Name:       "step_run_event_buffer",
-		OutputFunc: w.BulkWriteStepRunEvents,
-		SizeFunc:   sizeOfEventData,
-		L:          w.l,
-		V:          w.v,
+		Name:                "step_run_event_buffer",
+		OutputFunc:          w.BulkWriteStepRunEvents,
+		SizeFunc:            sizeOfEventData,
+		L:                   w.l,
+		V:                   w.v,
+		FlushPeriod:         &flushPeriod,
+		FlushItemsThreshold: 1000,
 	}
 
 	manager, err := NewTenantBufManager(eventBufOpts)
@@ -69,6 +73,15 @@ func sizeOfEventData(item *repository.CreateStepRunEventOpts) int {
 	return size
 }
 
+func sortByStepRunId(opts []*repository.CreateStepRunEventOpts) []*repository.CreateStepRunEventOpts {
+
+	sort.SliceStable(opts, func(i, j int) bool {
+		return opts[i].StepRunId < opts[j].StepRunId
+	})
+
+	return opts
+}
+
 func (w *BulkEventWriter) BulkWriteStepRunEvents(ctx context.Context, opts []*repository.CreateStepRunEventOpts) ([]int, error) {
 	res := make([]int, 0, len(opts))
 	eventTimeSeen := make([]pgtype.Timestamp, 0, len(opts))
@@ -79,7 +92,9 @@ func (w *BulkEventWriter) BulkWriteStepRunEvents(ctx context.Context, opts []*re
 	eventData := make([]map[string]interface{}, 0, len(opts))
 	dedupe := make(map[string]bool)
 
-	for i, item := range opts {
+	orderedOpts := sortByStepRunId(opts)
+
+	for i, item := range orderedOpts {
 		res = append(res, i)
 
 		if item.EventMessage == nil || item.EventReason == nil || item.StepRunId == "" {
@@ -199,7 +214,7 @@ func bulkStepRunEvents(
 	})
 
 	if err != nil {
-		return fmt.Errorf("could not create deferred step run event: %w", err)
+		return fmt.Errorf("bulk_events - could not create deferred step run event: %w", err)
 	}
 
 	return nil

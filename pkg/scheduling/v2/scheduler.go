@@ -257,25 +257,31 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 	actionsToTotalSlots := make(map[string]int)
 
 	for _, worker := range availableSlots {
-		workerId := sqlchelpers.UUIDToStr(worker.ID)
-		actions := workerIdsToActions[workerId]
-		unackedSlots := workersToUnackedSlots[workerId]
 
-		// create a slot for each available slot
-		slots := make([]*slot, 0, int(worker.AvailableSlots))
+		if worker.AvailableSlots > 0 {
 
-		for i := 0; i < int(worker.AvailableSlots)-len(unackedSlots); i++ {
-			slots = append(slots, &slot{
-				actions: actions,
-				worker:  workers[workerId],
-			})
-		}
+			workerId := sqlchelpers.UUIDToStr(worker.ID)
+			actions := workerIdsToActions[workerId]
+			unackedSlots := workersToUnackedSlots[workerId]
 
-		slots = append(slots, unackedSlots...)
+			// create a slot for each available slot
+			slots := make([]*slot, 0, int(worker.AvailableSlots))
 
-		for _, actionId := range actions {
-			actionsToNewSlots[actionId] = append(actionsToNewSlots[actionId], slots...)
-			actionsToTotalSlots[actionId] += len(slots)
+			for i := 0; i < int(worker.AvailableSlots)-len(unackedSlots); i++ {
+				slots = append(slots, &slot{
+					actions: actions,
+					worker:  workers[workerId],
+				})
+			}
+
+			slots = append(slots, unackedSlots...)
+
+			for _, actionId := range actions {
+				actionsToNewSlots[actionId] = append(actionsToNewSlots[actionId], slots...)
+				actionsToTotalSlots[actionId] += len(slots)
+			}
+		} else {
+			s.l.Warn().Msgf("worker %s has no available slots", sqlchelpers.UUIDToStr(worker.ID))
 		}
 	}
 

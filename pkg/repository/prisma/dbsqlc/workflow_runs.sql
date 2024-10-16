@@ -1011,6 +1011,7 @@ WITH step_runs AS (
     SELECT "id", "stepId"
     FROM "StepRun"
     WHERE "id" = ANY(@stepRunIds::uuid[])
+    FOR UPDATE
 )
 INSERT INTO "_StepRunOrder" ("A", "B")
 SELECT
