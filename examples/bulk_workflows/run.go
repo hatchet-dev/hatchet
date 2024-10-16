@@ -5,7 +5,6 @@ import (
 	"log"
 
 	"github.com/hatchet-dev/hatchet/pkg/client"
-	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 )
 
@@ -26,47 +25,40 @@ func runBulk() (func() error, error) {
 
 	err = w.RegisterWorkflow(
 		&worker.WorkflowJob{
-			On:             worker.Events("user:create:sticky"),
-			Name:           "sticky2",
-			Description:    "sticky",
-			StickyStrategy: types.StickyStrategyPtr(types.StickyStrategy_SOFT),
+			On:          worker.Events("user:create:simple"),
+			Name:        "simple",
+			Description: "This runs after an update to the user model.",
 			Steps: []*worker.WorkflowStep{
 				worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
+					input := &userCreateEvent{}
 
-					sticky := true
-
-					_, err = ctx.SpawnWorkflows(
-						[]*worker.SpawnWorkflowsOpts{
-							{
-								WorkflowName: "step-one",
-
-								Sticky: &sticky,
-							},
-							{
-								WorkflowName: "step-one",
-
-								Sticky: &sticky,
-							},
-						})
+					err = ctx.WorkflowInput(input)
 
 					if err != nil {
-						return nil, fmt.Errorf("error spawning workflow: %w", err)
+						return nil, err
 					}
 
+					log.Printf("step-one")
+
 					return &stepOneOutput{
-						Message: ctx.Worker().ID(),
+						Message: "Username is: " + input.Username,
 					}, nil
-				}).SetName("step-one"),
+				},
+				).SetName("step-one"),
 				worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
+					input := &stepOneOutput{}
+					err = ctx.StepOutput("step-one", input)
+
+					if err != nil {
+						return nil, err
+					}
+
+					log.Printf("step-two")
+
 					return &stepOneOutput{
-						Message: ctx.Worker().ID(),
+						Message: "Above message is: " + input.Message,
 					}, nil
-				}).SetName("step-two"),
-				worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
-					return &stepOneOutput{
-						Message: ctx.Worker().ID(),
-					}, nil
-				}).SetName("step-three").AddParents("step-one", "step-two"),
+				}).SetName("step-two").AddParents("step-one"),
 			},
 		},
 	)
@@ -78,13 +70,13 @@ func runBulk() (func() error, error) {
 		log.Printf("pushing workflow")
 
 		var workflows []*client.WorkflowRun
-		for i := 0; i < 100; i++ {
+		for i := 0; i < 999; i++ {
 			data := map[string]interface{}{
 				"username": fmt.Sprintf("echo-test-%d", i),
 				"user_id":  fmt.Sprintf("1234-%d", i),
 			}
 			workflows = append(workflows, &client.WorkflowRun{
-				Name:  "sticky2",
+				Name:  "simple",
 				Input: data,
 				Options: []client.RunOptFunc{
 					// setting a dedupe key so these shouldn't all run
@@ -130,42 +122,6 @@ func runSingles() (func() error, error) {
 		return nil, fmt.Errorf("error creating worker: %w", err)
 	}
 
-	err = w.RegisterWorkflow(
-		&worker.WorkflowJob{
-			On:             worker.Events("user:create:sticky"),
-			Name:           "sticky",
-			Description:    "sticky",
-			StickyStrategy: types.StickyStrategyPtr(types.StickyStrategy_SOFT),
-			Steps: []*worker.WorkflowStep{
-				worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
-
-					sticky := true
-
-					_, err = ctx.SpawnWorkflow("step-one", nil, &worker.SpawnWorkflowOpts{
-						Sticky: &sticky,
-					})
-
-					if err != nil {
-						return nil, fmt.Errorf("error spawning workflow: %w", err)
-					}
-
-					return &stepOneOutput{
-						Message: ctx.Worker().ID(),
-					}, nil
-				}).SetName("step-one"),
-				worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
-					return &stepOneOutput{
-						Message: ctx.Worker().ID(),
-					}, nil
-				}).SetName("step-two"),
-				worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
-					return &stepOneOutput{
-						Message: ctx.Worker().ID(),
-					}, nil
-				}).SetName("step-three").AddParents("step-one", "step-two"),
-			},
-		},
-	)
 	if err != nil {
 		return nil, fmt.Errorf("error registering workflow: %w", err)
 	}
@@ -173,13 +129,13 @@ func runSingles() (func() error, error) {
 	log.Printf("pushing workflow")
 
 	var workflows []*client.WorkflowRun
-	for i := 0; i < 100; i++ {
+	for i := 0; i < 999; i++ {
 		data := map[string]interface{}{
 			"username": fmt.Sprintf("echo-test-%d", i),
 			"user_id":  fmt.Sprintf("1234-%d", i),
 		}
 		workflows = append(workflows, &client.WorkflowRun{
-			Name:  "sticky",
+			Name:  "simple",
 			Input: data,
 			Options: []client.RunOptFunc{
 				client.WithRunMetadata(map[string]interface{}{
