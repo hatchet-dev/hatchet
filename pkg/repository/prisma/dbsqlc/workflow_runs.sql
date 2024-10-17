@@ -606,14 +606,26 @@ FROM workflow_version
 WHERE workflow_version."sticky" IS NOT NULL
 RETURNING *;
 
-
--- name: CreateMultipleWorkflowRunStickyStates :many
-WITH workflow_version AS (
-    SELECT DISTINCT
-        "id" AS workflow_version_id,
-        "sticky"
-    FROM "WorkflowVersion"
-    WHERE "id" = ANY(@workflowVersionIds::uuid[])
+-- name: CreateMultipleWorkflowRunStickyStates :exec
+WITH input_rows AS (
+    SELECT
+        UNNEST(@tenantId::uuid[]) as "tenantId",
+        UNNEST(@workflowRunIds::uuid[]) as "workflowRunId",
+        UNNEST(@desiredWorkerIds::uuid[]) as "desiredWorkerId",
+        UNNEST(@workflowVersionIds::uuid[]) as "workflowVersionId"
+), valid_rows AS (
+    SELECT
+        ir."tenantId",
+        ir."workflowRunId",
+        ir."desiredWorkerId",
+        ir."workflowVersionId",
+        wv."sticky"
+    FROM
+        input_rows ir
+    JOIN
+        "WorkflowVersion" wv ON wv."id" = ir."workflowVersionId"
+    WHERE
+        wv."sticky" IS NOT NULL
 )
 INSERT INTO "WorkflowRunStickyState" (
     "createdAt",
@@ -626,16 +638,11 @@ INSERT INTO "WorkflowRunStickyState" (
 SELECT
     CURRENT_TIMESTAMP,
     CURRENT_TIMESTAMP,
-    UNNEST(@tenantId::uuid[]),
-    UNNEST(@workflowRunIds::uuid[]),
-    UNNEST(@desiredWorkerIds::uuid[]),
-    workflow_version."sticky"
-FROM workflow_version
-JOIN UNNEST(@workflowVersionIds::uuid[]) AS wv(workflow_version_id)
-    ON workflow_version.workflow_version_id = wv.workflow_version_id
-WHERE workflow_version."sticky" IS NOT NULL
-RETURNING *;
-
+    vr."tenantId",
+    vr."workflowRunId",
+    vr."desiredWorkerId",
+    vr."sticky"
+FROM valid_rows vr;
 
 -- name: GetWorkflowRunAdditionalMeta :one
 SELECT

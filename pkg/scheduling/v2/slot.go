@@ -1,7 +1,7 @@
 package v2
 
 import (
-	"sort"
+	"slices"
 	"sync"
 	"time"
 
@@ -154,13 +154,27 @@ func (r *rankedValidSlots) addSlot(slot *slot, rank int) {
 	r.workerSeenCount[workerId]++
 }
 
-func (r *rankedValidSlots) less(i, j int) bool {
+func (r *rankedValidSlots) less(a, b *slot) int {
+	idxA := slices.Index(r.validSlots, a)
+	idxB := slices.Index(r.validSlots, b)
+
+	intA := r.slotRanking[idxA]
+	intB := r.slotRanking[idxB]
+
 	// if we have the same rank, sort by worker seen count
-	if r.slotRanking[i] == r.slotRanking[j] {
-		return r.workerSlotCountRank[i] > r.workerSlotCountRank[j]
+	if intA == intB {
+		intA = r.workerSlotCountRank[idxA]
+		intB = r.workerSlotCountRank[idxB]
 	}
 
-	return r.slotRanking[i] > r.slotRanking[j]
+	switch {
+	case intA == intB:
+		return 0
+	case intA > intB:
+		return -1
+	default:
+		return 1
+	}
 }
 
 func (r *rankedValidSlots) order() []*slot {
@@ -174,7 +188,7 @@ func (r *rankedValidSlots) order() []*slot {
 	}
 
 	// sort the slots by rank
-	sort.Slice(nonNegativeSlots, r.less)
+	slices.SortStableFunc(nonNegativeSlots, r.less)
 
 	return nonNegativeSlots
 }
@@ -195,10 +209,22 @@ func getRankedSlots(
 			continue
 		}
 
-		// if this is a sticky strategy, it can only be assigned to the desired worker if the desired
-		// worker id is set. otherwise, it can be assigned to any worker.
+		// if this is a HARD sticky strategy, it can only be assigned to the desired worker if the desired
+		// worker id is set. otherwise, it cannot be assigned.
 		if qi.Sticky.Valid && qi.Sticky.StickyStrategy == dbsqlc.StickyStrategyHARD {
 			if qi.DesiredWorkerId.Valid && workerId == sqlchelpers.UUIDToStr(qi.DesiredWorkerId) {
+				validSlots.addSlot(slot, 0)
+			}
+
+			continue
+		}
+
+		// if this is a SOFT sticky strategy, we should prefer the desired worker, but if it is not
+		// available, we can assign to any worker.
+		if qi.Sticky.Valid && qi.Sticky.StickyStrategy == dbsqlc.StickyStrategySOFT {
+			if qi.DesiredWorkerId.Valid && workerId == sqlchelpers.UUIDToStr(qi.DesiredWorkerId) {
+				validSlots.addSlot(slot, 1)
+			} else {
 				validSlots.addSlot(slot, 0)
 			}
 
