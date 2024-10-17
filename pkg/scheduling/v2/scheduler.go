@@ -3,6 +3,7 @@ package v2
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"sync"
 	"time"
 
@@ -296,8 +297,14 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 	s.actionsMu.Lock()
 	defer s.actionsMu.Unlock()
 
+	// (we don't need cryptographically secure randomness)
+	randSource := rand.New(rand.NewSource(time.Now().UnixNano())) // nolint: gosec
+
 	// first pass: write all actions with new slots to the scheduler
 	for actionId, newSlots := range actionsToNewSlots {
+		// randomly sort the slots
+		randSource.Shuffle(len(newSlots), func(i, j int) { newSlots[i], newSlots[j] = newSlots[j], newSlots[i] })
+
 		if _, ok := s.actions[actionId]; !ok {
 			s.actions[actionId] = &action{
 				slots:                      newSlots,
@@ -371,6 +378,15 @@ type assignSingleResult struct {
 	rateLimitResult *rateLimitResult
 }
 
+type tryAssignTiming struct {
+	checkRateLimits     time.Duration
+	getSlots            time.Duration
+	rankSlots           time.Duration
+	pickSlot            time.Duration
+	assignedCountMuLock time.Duration
+	unackedMuLock       time.Duration
+}
+
 // tryAssignSingleton attempts to assign a singleton step to a worker.
 func (s *Scheduler) tryAssignSingleton(
 	ctx context.Context,
@@ -382,14 +398,17 @@ func (s *Scheduler) tryAssignSingleton(
 	ringOffset int,
 	labels []*dbsqlc.GetDesiredLabelsRow,
 	rls map[string]int32,
+	rankCache *rankingCache,
 ) (
-	res assignSingleResult, err error,
+	res assignSingleResult, timing tryAssignTiming, err error,
 ) {
 	ctx, span := telemetry.NewSpan(ctx, "try-assign-singleton")
 	defer span.End()
 
+	checkpoint := time.Now()
+
 	if !qi.ActionId.Valid {
-		return res, fmt.Errorf("queue item does not have a valid action id")
+		return res, timing, fmt.Errorf("queue item does not have a valid action id")
 	}
 
 	actionId := qi.ActionId.String
@@ -403,12 +422,15 @@ func (s *Scheduler) tryAssignSingleton(
 
 		if !rlResult.succeeded {
 			res.rateLimitResult = &rlResult
-			return res, nil
+			return res, timing, nil
 		}
 
 		rateLimitAck = rlResult.ack
 		rateLimitNack = rlResult.nack
 	}
+
+	timing.checkRateLimits = time.Since(checkpoint)
+	checkpoint = time.Now()
 
 	// pick a worker to assign the slot to
 	var assignedSlot *slot
@@ -417,7 +439,7 @@ func (s *Scheduler) tryAssignSingleton(
 	if _, ok := s.actions[actionId]; !ok {
 		s.actionsMu.RUnlock()
 		res.noSlots = true
-		return res, nil
+		return res, timing, nil
 	}
 
 	candidateSlots := s.actions[actionId].slots
@@ -429,7 +451,13 @@ func (s *Scheduler) tryAssignSingleton(
 
 	s.actionsMu.RUnlock()
 
-	candidateSlots = getRankedSlots(qi, labels, candidateSlots)
+	timing.getSlots = time.Since(checkpoint)
+	checkpoint = time.Now()
+
+	candidateSlots = getRankedSlots(qi, labels, candidateSlots, rankCache)
+
+	timing.rankSlots = time.Since(checkpoint)
+	checkpoint = time.Now()
 
 	for _, slot := range candidateSlots {
 		if !slot.active() {
@@ -444,9 +472,12 @@ func (s *Scheduler) tryAssignSingleton(
 		break
 	}
 
+	timing.pickSlot = time.Since(checkpoint)
+	checkpoint = time.Now()
+
 	if assignedSlot == nil {
 		res.noSlots = true
-		return res, nil
+		return res, timing, nil
 	}
 
 	s.assignedCountMu.Lock()
@@ -454,14 +485,19 @@ func (s *Scheduler) tryAssignSingleton(
 	res.ackId = s.assignedCount
 	s.assignedCountMu.Unlock()
 
+	timing.assignedCountMuLock = time.Since(checkpoint)
+	checkpoint = time.Now()
+
 	s.unackedMu.Lock()
 	s.unackedSlots[res.ackId] = assignedSlot
 	s.unackedMu.Unlock()
 
+	timing.unackedMuLock = time.Since(checkpoint)
+
 	res.workerId = sqlchelpers.UUIDFromStr(assignedSlot.getWorkerId())
 	res.succeeded = true
 
-	return res, nil
+	return res, timing, nil
 }
 
 type AssignedQueueItem struct {
@@ -519,8 +555,11 @@ func (s *Scheduler) tryAssign(
 		for actionId, qis := range actionIdToQueueItems {
 			wg.Add(1)
 
+			rankCache := newRankingCache()
+
 			go func(actionId string, qis []*dbsqlc.QueueItem) {
 				defer wg.Done()
+				start := time.Now()
 				assigned := make([]*AssignedQueueItem, 0, len(qis))
 				errored := make([]*erroredQueueItem, 0, len(qis))
 				unassigned := make([]*dbsqlc.QueueItem, 0, len(qis))
@@ -555,10 +594,28 @@ func (s *Scheduler) tryAssign(
 						}
 					}
 
-					singleRes, err := s.tryAssignSingleton(ctx, qi, ringOffset, labels, rls)
+					singleRes, timing, err := s.tryAssignSingleton(ctx, qi, ringOffset, labels, rls, rankCache)
 
 					if err != nil {
 						s.l.Error().Err(err).Msg("error assigning queue item")
+					}
+
+					if sinceStart := time.Since(start); sinceStart > 100*time.Millisecond {
+						s.l.Warn().Dur(
+							"check_rate_limits", timing.checkRateLimits,
+						).Dur(
+							"get_slots", timing.getSlots,
+						).Dur(
+							"rank_slots", timing.rankSlots,
+						).Dur(
+							"pick_slot", timing.pickSlot,
+						).Dur(
+							"assigned_count_mu_lock", timing.assignedCountMuLock,
+						).Dur(
+							"unacked_mu_lock", timing.unackedMuLock,
+						).Msgf(
+							"assigning queue item took longer than 100ms (%v)", sinceStart.String(),
+						)
 					}
 
 					if !singleRes.succeeded {

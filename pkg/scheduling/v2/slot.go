@@ -5,6 +5,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hatchet-dev/hatchet/internal/datautils"
+	"github.com/hatchet-dev/hatchet/internal/digest"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 )
@@ -108,15 +110,7 @@ func (s *slot) nack(additionalNacks ...func()) {
 }
 
 type rankedValidSlots struct {
-	validSlots      []*slot
-	workerSeenCount map[string]int
-
-	// slotRanking is a map of slot index to rank. Ranks of -1 will not count in the final ranking.
-	slotRanking map[int]int
-
-	// workerSlotCountRank is used as a secondary ranking for workers with the same rank. It stores a map of
-	// slot index to the number of times that worker was seen.
-	workerSlotCountRank map[int]int
+	ranksToSlots map[int][]*slot
 
 	// cachedWorkerRanks is a map of worker id to rank.
 	cachedWorkerRanks map[string]int
@@ -124,11 +118,8 @@ type rankedValidSlots struct {
 
 func newRankedValidSlots() *rankedValidSlots {
 	return &rankedValidSlots{
-		validSlots:          make([]*slot, 0),
-		workerSeenCount:     make(map[string]int),
-		cachedWorkerRanks:   make(map[string]int),
-		workerSlotCountRank: make(map[int]int),
-		slotRanking:         make(map[int]int),
+		ranksToSlots:      make(map[int][]*slot),
+		cachedWorkerRanks: make(map[string]int),
 	}
 }
 
@@ -143,52 +134,33 @@ func (r *rankedValidSlots) addFromCache(slot *slot) bool {
 	return false
 }
 
-func (r *rankedValidSlots) addSlot(slot *slot, rank int) {
-	workerId := slot.getWorkerId()
-	index := len(r.validSlots)
-
-	r.validSlots = append(r.validSlots, slot)
-	r.slotRanking[index] = rank
-	r.workerSlotCountRank[index] = r.workerSeenCount[workerId]
-	r.cachedWorkerRanks[workerId] = rank
-	r.workerSeenCount[workerId]++
-}
-
-func (r *rankedValidSlots) less(a, b *slot) int {
-	idxA := slices.Index(r.validSlots, a)
-	idxB := slices.Index(r.validSlots, b)
-
-	intA := r.slotRanking[idxA]
-	intB := r.slotRanking[idxB]
-
-	// if we have the same rank, sort by worker seen count
-	if intA == intB {
-		intA = r.workerSlotCountRank[idxA]
-		intB = r.workerSlotCountRank[idxB]
+func (r *rankedValidSlots) addSlot(s *slot, rank int) {
+	if _, ok := r.ranksToSlots[rank]; !ok {
+		r.ranksToSlots[rank] = make([]*slot, 0)
 	}
 
-	switch {
-	case intA == intB:
-		return 0
-	case intA > intB:
-		return -1
-	default:
-		return 1
-	}
+	r.ranksToSlots[rank] = append(r.ranksToSlots[rank], s)
 }
 
 func (r *rankedValidSlots) order() []*slot {
 	nonNegativeSlots := make([]*slot, 0)
 
-	// remove any slots with a negative rank
-	for i, rank := range r.slotRanking {
-		if rank >= 0 {
-			nonNegativeSlots = append(nonNegativeSlots, r.validSlots[i])
-		}
+	sortedRanks := make([]int, 0, len(r.ranksToSlots))
+
+	for rank := range r.ranksToSlots {
+		sortedRanks = append(sortedRanks, rank)
 	}
 
-	// sort the slots by rank
-	slices.SortStableFunc(nonNegativeSlots, r.less)
+	slices.Sort(sortedRanks)
+
+	// iterate through sortedRanks in reverse order
+	for i := len(sortedRanks) - 1; i >= 0; i-- {
+		rank := sortedRanks[i]
+
+		if r.ranksToSlots[rank] != nil {
+			nonNegativeSlots = append(nonNegativeSlots, r.ranksToSlots[rank]...)
+		}
+	}
 
 	return nonNegativeSlots
 }
@@ -199,7 +171,18 @@ func getRankedSlots(
 	qi *dbsqlc.QueueItem,
 	labels []*dbsqlc.GetDesiredLabelsRow,
 	slots []*slot,
+	cache *rankingCache,
 ) []*slot {
+	cacheKey := &cacheKey{
+		StickyStrategy:  string(qi.Sticky.StickyStrategy),
+		DesiredWorkerId: sqlchelpers.UUIDToStr(qi.DesiredWorkerId),
+		Labels:          labels,
+	}
+
+	if cachedSlots := cache.get(cacheKey); cachedSlots != nil {
+		return cachedSlots
+	}
+
 	validSlots := newRankedValidSlots()
 
 	for _, slot := range slots {
@@ -243,5 +226,62 @@ func getRankedSlots(
 		validSlots.addSlot(slot, 0)
 	}
 
-	return validSlots.order()
+	res := validSlots.order()
+
+	cache.set(cacheKey, res)
+
+	return res
+}
+
+type rankingCache struct {
+	cache map[string][]*slot
+}
+
+func newRankingCache() *rankingCache {
+	return &rankingCache{
+		cache: make(map[string][]*slot),
+	}
+}
+
+func (c *rankingCache) get(key *cacheKey) []*slot {
+	checksum, err := key.checksum()
+
+	if err != nil {
+		return nil
+	}
+
+	return c.cache[checksum]
+}
+
+func (c *rankingCache) set(key *cacheKey, slots []*slot) {
+	checksum, err := key.checksum()
+
+	if err != nil {
+		return
+	}
+
+	c.cache[checksum] = slots
+}
+
+type cacheKey struct {
+	StickyStrategy  string                        `json:"sticky_strategy"`
+	DesiredWorkerId string                        `json:"desired_worker_id"`
+	Labels          []*dbsqlc.GetDesiredLabelsRow `json:"labels"`
+}
+
+func (k *cacheKey) checksum() (string, error) {
+	// compute a checksum for the workflow
+	declaredValues, err := datautils.ToJSONMap(k)
+
+	if err != nil {
+		return "", err
+	}
+
+	workflowChecksum, err := digest.DigestValues(declaredValues)
+
+	if err != nil {
+		return "", err
+	}
+
+	return workflowChecksum.String(), nil
 }
