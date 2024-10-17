@@ -1438,49 +1438,57 @@ func (q *Queries) ListWorkflows(ctx context.Context, db DBTX, arg ListWorkflowsP
 }
 
 const listWorkflowsForEvent = `-- name: ListWorkflowsForEvent :many
-SELECT DISTINCT ON ("WorkflowVersion"."workflowId") "WorkflowVersion".id
-FROM "WorkflowVersion"
-LEFT JOIN "Workflow" AS j1 ON j1.id = "WorkflowVersion"."workflowId"
-LEFT JOIN "WorkflowTriggers" AS j2 ON j2."workflowVersionId" = "WorkflowVersion"."id"
+WITH latest_versions AS (
+    SELECT
+        workflowVersions."id" AS "workflowVersionId"
+    FROM
+        "WorkflowVersion" as workflowVersions
+    JOIN
+        "Workflow" as workflow ON workflow."id" = workflowVersions."workflowId"
+    WHERE
+        workflow."tenantId" = $2::uuid
+        AND workflowVersions."deletedAt" IS NULL
+        AND workflowVersions."id" = (
+            -- confirm that the workflow version is the latest
+            SELECT wv2.id
+            FROM "WorkflowVersion" wv2
+            WHERE wv2."workflowId" = workflowVersions."workflowId"
+            ORDER BY wv2."order" DESC
+            LIMIT 1
+        )
+)
+SELECT
+    latest_versions."workflowVersionId"
+FROM
+    latest_versions
+JOIN
+    "WorkflowTriggers" as triggers ON triggers."workflowVersionId" = latest_versions."workflowVersionId"
+JOIN
+    "WorkflowTriggerEventRef" as eventRef ON eventRef."parentId" = triggers."id"
 WHERE
-    (j1."tenantId"::uuid = $1 AND j1.id IS NOT NULL)
-    AND j1."deletedAt" IS NULL
-    AND "WorkflowVersion"."deletedAt" IS NULL
-    AND
-    (j2.id IN (
-        SELECT t3."parentId"
-        FROM "WorkflowTriggerEventRef" AS t3
-        WHERE t3."eventKey" = $2 AND t3."parentId" IS NOT NULL
-    ) AND j2.id IS NOT NULL)
-    AND "WorkflowVersion".id = (
-        -- confirm that the workflow version is the latest
-        SELECT wv2.id
-        FROM "WorkflowVersion" wv2
-        WHERE wv2."workflowId" = "WorkflowVersion"."workflowId"
-        ORDER BY wv2."order" DESC
-        LIMIT 1
-    )
-ORDER BY "WorkflowVersion"."workflowId", "WorkflowVersion"."order" DESC
+    eventRef."eventKey" = $1::text
 `
 
 type ListWorkflowsForEventParams struct {
-	Tenantid pgtype.UUID `json:"tenantid"`
 	Eventkey string      `json:"eventkey"`
+	Tenantid pgtype.UUID `json:"tenantid"`
 }
 
+// Get all of the latest workflow versions for the tenant
+// select the workflow versions that have the event trigger
 func (q *Queries) ListWorkflowsForEvent(ctx context.Context, db DBTX, arg ListWorkflowsForEventParams) ([]pgtype.UUID, error) {
-	rows, err := db.Query(ctx, listWorkflowsForEvent, arg.Tenantid, arg.Eventkey)
+	rows, err := db.Query(ctx, listWorkflowsForEvent, arg.Eventkey, arg.Tenantid)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	var items []pgtype.UUID
 	for rows.Next() {
-		var id pgtype.UUID
-		if err := rows.Scan(&id); err != nil {
+		var workflowVersionId pgtype.UUID
+		if err := rows.Scan(&workflowVersionId); err != nil {
 			return nil, err
 		}
-		items = append(items, id)
+		items = append(items, workflowVersionId)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
