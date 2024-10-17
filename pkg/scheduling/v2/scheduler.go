@@ -398,7 +398,6 @@ func (s *Scheduler) tryAssignSingleton(
 	ringOffset int,
 	labels []*dbsqlc.GetDesiredLabelsRow,
 	rls map[string]int32,
-	rankCache *rankingCache,
 ) (
 	res assignSingleResult, timing tryAssignTiming, err error,
 ) {
@@ -454,7 +453,9 @@ func (s *Scheduler) tryAssignSingleton(
 	timing.getSlots = time.Since(checkpoint)
 	checkpoint = time.Now()
 
-	candidateSlots = getRankedSlots(qi, labels, candidateSlots, rankCache)
+	if qi.Sticky.Valid || len(labels) > 0 {
+		candidateSlots = getRankedSlots(qi, labels, candidateSlots)
+	}
 
 	timing.rankSlots = time.Since(checkpoint)
 	checkpoint = time.Now()
@@ -555,8 +556,6 @@ func (s *Scheduler) tryAssign(
 		for actionId, qis := range actionIdToQueueItems {
 			wg.Add(1)
 
-			rankCache := newRankingCache()
-
 			go func(actionId string, qis []*dbsqlc.QueueItem) {
 				defer wg.Done()
 				start := time.Now()
@@ -594,7 +593,7 @@ func (s *Scheduler) tryAssign(
 						}
 					}
 
-					singleRes, timing, err := s.tryAssignSingleton(ctx, qi, ringOffset, labels, rls, rankCache)
+					singleRes, timing, err := s.tryAssignSingleton(ctx, qi, ringOffset, labels, rls)
 
 					if err != nil {
 						s.l.Error().Err(err).Msg("error assigning queue item")

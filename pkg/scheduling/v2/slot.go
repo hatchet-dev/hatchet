@@ -5,8 +5,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hatchet-dev/hatchet/internal/datautils"
-	"github.com/hatchet-dev/hatchet/internal/digest"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 )
@@ -171,18 +169,7 @@ func getRankedSlots(
 	qi *dbsqlc.QueueItem,
 	labels []*dbsqlc.GetDesiredLabelsRow,
 	slots []*slot,
-	cache *rankingCache,
 ) []*slot {
-	cacheKey := &cacheKey{
-		StickyStrategy:  string(qi.Sticky.StickyStrategy),
-		DesiredWorkerId: sqlchelpers.UUIDToStr(qi.DesiredWorkerId),
-		Labels:          labels,
-	}
-
-	if cachedSlots := cache.get(cacheKey); cachedSlots != nil {
-		return cachedSlots
-	}
-
 	validSlots := newRankedValidSlots()
 
 	for _, slot := range slots {
@@ -226,62 +213,5 @@ func getRankedSlots(
 		validSlots.addSlot(slot, 0)
 	}
 
-	res := validSlots.order()
-
-	cache.set(cacheKey, res)
-
-	return res
-}
-
-type rankingCache struct {
-	cache map[string][]*slot
-}
-
-func newRankingCache() *rankingCache {
-	return &rankingCache{
-		cache: make(map[string][]*slot),
-	}
-}
-
-func (c *rankingCache) get(key *cacheKey) []*slot {
-	checksum, err := key.checksum()
-
-	if err != nil {
-		return nil
-	}
-
-	return c.cache[checksum]
-}
-
-func (c *rankingCache) set(key *cacheKey, slots []*slot) {
-	checksum, err := key.checksum()
-
-	if err != nil {
-		return
-	}
-
-	c.cache[checksum] = slots
-}
-
-type cacheKey struct {
-	StickyStrategy  string                        `json:"sticky_strategy"`
-	DesiredWorkerId string                        `json:"desired_worker_id"`
-	Labels          []*dbsqlc.GetDesiredLabelsRow `json:"labels"`
-}
-
-func (k *cacheKey) checksum() (string, error) {
-	// compute a checksum for the workflow
-	declaredValues, err := datautils.ToJSONMap(k)
-
-	if err != nil {
-		return "", err
-	}
-
-	workflowChecksum, err := digest.DigestValues(declaredValues)
-
-	if err != nil {
-		return "", err
-	}
-
-	return workflowChecksum.String(), nil
+	return validSlots.order()
 }

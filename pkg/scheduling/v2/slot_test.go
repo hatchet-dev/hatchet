@@ -97,8 +97,7 @@ func TestGetRankedSlots(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rankCache := newRankingCache()
-			actualSlots := getRankedSlots(tt.qi, tt.labels, tt.slots, rankCache)
+			actualSlots := getRankedSlots(tt.qi, tt.labels, tt.slots)
 			actualWorkerIds := make([]string, len(actualSlots))
 			for i, s := range actualSlots {
 				actualWorkerIds[i] = s.getWorkerId()
