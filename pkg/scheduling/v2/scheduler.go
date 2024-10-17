@@ -385,6 +385,9 @@ func (s *Scheduler) tryAssignSingleton(
 ) (
 	res assignSingleResult, err error,
 ) {
+	ctx, span := telemetry.NewSpan(ctx, "try-assign-singleton")
+	defer span.End()
+
 	if !qi.ActionId.Valid {
 		return res, fmt.Errorf("queue item does not have a valid action id")
 	}
@@ -490,6 +493,8 @@ func (s *Scheduler) tryAssign(
 	stepIdsToLabels map[string][]*dbsqlc.GetDesiredLabelsRow,
 	stepRunIdsToRateLimits map[string]map[string]int32,
 ) <-chan *assignResults {
+	ctx, span := telemetry.NewSpan(ctx, "try-assign")
+
 	// split into groups based on action ids, and process each action id in parallel
 	actionIdToQueueItems := make(map[string][]*dbsqlc.QueueItem)
 
@@ -592,6 +597,7 @@ func (s *Scheduler) tryAssign(
 		}
 
 		wg.Wait()
+		span.End()
 		close(resultsCh)
 	}()
 
