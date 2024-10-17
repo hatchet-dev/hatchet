@@ -23,6 +23,7 @@ type sharedConfig struct {
 // SchedulingPool is responsible for managing a pool of tenantManagers.
 type SchedulingPool struct {
 	tenants sync.Map
+	setMu   mutex
 
 	cf *sharedConfig
 
@@ -49,6 +50,7 @@ func NewSchedulingPool(l *zerolog.Logger, p *pgxpool.Pool, v validator.Validator
 		},
 		resultsCh:   resultsCh,
 		eventBuffer: eventBuffer,
+		setMu:       newMu(l),
 	}
 
 	return s, func() error {
@@ -78,6 +80,12 @@ func (p *SchedulingPool) cleanup() {
 }
 
 func (p *SchedulingPool) SetTenants(tenants []*dbsqlc.Tenant) {
+	if ok := p.setMu.TryLock(); !ok {
+		return
+	}
+
+	defer p.setMu.Unlock()
+
 	tenantMap := make(map[string]bool)
 
 	for _, t := range tenants {
@@ -99,7 +107,15 @@ func (p *SchedulingPool) SetTenants(tenants []*dbsqlc.Tenant) {
 		return true
 	})
 
+	// delete each tenant from the map
+	for _, tm := range toCleanup {
+		tenantId := sqlchelpers.UUIDToStr(tm.tenantId)
+		p.tenants.Delete(tenantId)
+	}
+
 	go func() {
+		// it is safe to cleanup tenants in a separate goroutine because we no longer have pointers to
+		// any cleaned up tenants in the map
 		p.cleanupTenants(toCleanup)
 	}()
 }
@@ -112,8 +128,6 @@ func (p *SchedulingPool) cleanupTenants(toCleanup []*tenantManager) {
 
 		go func(tm *tenantManager) {
 			defer wg.Done()
-
-			p.tenants.Delete(tm.tenantId)
 
 			err := tm.Cleanup()
 
