@@ -1,7 +1,7 @@
 package v2
 
 import (
-	"sort"
+	"slices"
 	"sync"
 	"time"
 
@@ -154,13 +154,27 @@ func (r *rankedValidSlots) addSlot(slot *slot, rank int) {
 	r.workerSeenCount[workerId]++
 }
 
-func (r *rankedValidSlots) less(i, j int) bool {
+func (r *rankedValidSlots) less(a, b *slot) int {
+	idxA := slices.Index(r.validSlots, a)
+	idxB := slices.Index(r.validSlots, b)
+
+	intA := r.slotRanking[idxA]
+	intB := r.slotRanking[idxB]
+
 	// if we have the same rank, sort by worker seen count
-	if r.slotRanking[i] == r.slotRanking[j] {
-		return r.workerSlotCountRank[i] > r.workerSlotCountRank[j]
+	if intA == intB {
+		intA = r.workerSlotCountRank[idxA]
+		intB = r.workerSlotCountRank[idxB]
 	}
 
-	return r.slotRanking[i] > r.slotRanking[j]
+	switch {
+	case intA == intB:
+		return 0
+	case intA > intB:
+		return -1
+	default:
+		return 1
+	}
 }
 
 func (r *rankedValidSlots) order() []*slot {
@@ -174,7 +188,7 @@ func (r *rankedValidSlots) order() []*slot {
 	}
 
 	// sort the slots by rank
-	sort.Slice(nonNegativeSlots, r.less)
+	slices.SortStableFunc(nonNegativeSlots, r.less)
 
 	return nonNegativeSlots
 }
