@@ -1594,7 +1594,7 @@ func createNewWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbs
 				tenantIds = append(tenantIds, stickyInfo.tenantId)
 			}
 
-			_, err = queries.CreateMultipleWorkflowRunStickyStates(tx1Ctx, tx, dbsqlc.CreateMultipleWorkflowRunStickyStatesParams{
+			err = queries.CreateMultipleWorkflowRunStickyStates(tx1Ctx, tx, dbsqlc.CreateMultipleWorkflowRunStickyStatesParams{
 				Tenantid:           tenantIds,
 				Workflowrunids:     stickyWorkflowRunIds,
 				Workflowversionids: workflowVersionIds,

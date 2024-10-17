@@ -606,31 +606,26 @@ FROM workflow_version
 WHERE workflow_version."sticky" IS NOT NULL
 RETURNING *;
 
-
-
--- name: CreateMultipleWorkflowRunStickyStates :many
-WITH workflow_version AS (
-    SELECT DISTINCT
-        "id" AS workflow_version_id,
-        "sticky"
-    FROM "WorkflowVersion"
-    WHERE "id" = ANY(@workflowVersionIds::uuid[])
-),
-indexed_arrays AS (
+-- name: CreateMultipleWorkflowRunStickyStates :exec
+WITH input_rows AS (
     SELECT
-        t.tenant_id,
-        wr.workflow_run_id,
-        dw.desired_worker_id,
-        wv.workflow_version_id
+        UNNEST(@tenantId::uuid[]) as "tenantId",
+        UNNEST(@workflowRunIds::uuid[]) as "workflowRunId",
+        UNNEST(@desiredWorkerIds::uuid[]) as "desiredWorkerId",
+        UNNEST(@workflowVersionIds::uuid[]) as "workflowVersionId"
+), valid_rows AS (
+    SELECT
+        ir."tenantId",
+        ir."workflowRunId",
+        ir."desiredWorkerId",
+        ir."workflowVersionId",
+        wv."sticky"
     FROM
-        UNNEST(@tenantId::uuid[]) WITH ORDINALITY AS t(tenant_id, ord),
-        UNNEST(@workflowRunIds::uuid[]) WITH ORDINALITY AS wr(workflow_run_id, ord),
-        UNNEST(@desiredWorkerIds::uuid[]) WITH ORDINALITY AS dw(desired_worker_id, ord),
-        UNNEST(@workflowVersionIds::uuid[]) WITH ORDINALITY AS wv(workflow_version_id, ord)
+        input_rows ir
+    JOIN
+        "WorkflowVersion" wv ON wv."id" = ir."workflowVersionId"
     WHERE
-        t.ord = wr.ord
-        AND wr.ord = dw.ord
-        AND dw.ord = wv.ord  -- Ensure matching ordinality across all arrays
+        wv."sticky" IS NOT NULL
 )
 INSERT INTO "WorkflowRunStickyState" (
     "createdAt",
@@ -643,16 +638,11 @@ INSERT INTO "WorkflowRunStickyState" (
 SELECT
     CURRENT_TIMESTAMP,
     CURRENT_TIMESTAMP,
-    ia.tenant_id,
-    ia.workflow_run_id,
-    ia.desired_worker_id,
-    workflow_version."sticky"
-FROM indexed_arrays ia
-JOIN workflow_version
-    ON workflow_version.workflow_version_id = ia.workflow_version_id
-WHERE workflow_version."sticky" IS NOT NULL
-GROUP BY ia.workflow_run_id, ia.tenant_id, ia.desired_worker_id, workflow_version."sticky"
-RETURNING *;
+    vr."tenantId",
+    vr."workflowRunId",
+    vr."desiredWorkerId",
+    vr."sticky"
+FROM valid_rows vr;
 
 -- name: GetWorkflowRunAdditionalMeta :one
 SELECT
