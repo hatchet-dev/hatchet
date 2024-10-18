@@ -356,7 +356,7 @@ INSERT INTO "WorkflowTriggerScheduledRef" (
 -- name: ListWorkflowsForEvent :many
 -- Get all of the latest workflow versions for the tenant
 WITH latest_versions AS (
-    SELECT
+    SELECT DISTINCT ON("workflowId")
         workflowVersions."id" AS "workflowVersionId"
     FROM
         "WorkflowVersion" as workflowVersions
@@ -365,14 +365,7 @@ WITH latest_versions AS (
     WHERE
         workflow."tenantId" = @tenantId::uuid
         AND workflowVersions."deletedAt" IS NULL
-        AND workflowVersions."id" = (
-            -- confirm that the workflow version is the latest
-            SELECT wv2.id
-            FROM "WorkflowVersion" wv2
-            WHERE wv2."workflowId" = workflowVersions."workflowId"
-            ORDER BY wv2."order" DESC
-            LIMIT 1
-        )
+    ORDER BY "workflowId", "order" DESC
 )
 -- select the workflow versions that have the event trigger
 SELECT

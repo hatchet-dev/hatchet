@@ -1439,7 +1439,7 @@ func (q *Queries) ListWorkflows(ctx context.Context, db DBTX, arg ListWorkflowsP
 
 const listWorkflowsForEvent = `-- name: ListWorkflowsForEvent :many
 WITH latest_versions AS (
-    SELECT
+    SELECT DISTINCT ON("workflowId")
         workflowVersions."id" AS "workflowVersionId"
     FROM
         "WorkflowVersion" as workflowVersions
@@ -1448,14 +1448,7 @@ WITH latest_versions AS (
     WHERE
         workflow."tenantId" = $2::uuid
         AND workflowVersions."deletedAt" IS NULL
-        AND workflowVersions."id" = (
-            -- confirm that the workflow version is the latest
-            SELECT wv2.id
-            FROM "WorkflowVersion" wv2
-            WHERE wv2."workflowId" = workflowVersions."workflowId"
-            ORDER BY wv2."order" DESC
-            LIMIT 1
-        )
+    ORDER BY "workflowId", "order" DESC
 )
 SELECT
     latest_versions."workflowVersionId"
