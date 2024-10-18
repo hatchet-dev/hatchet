@@ -902,9 +902,11 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		}
 
 		// if we processed all queue items, queue again
+		countMu.Lock()
 		if len(qis) > 0 && count == len(qis) {
 			q.queue()
 		}
+		countMu.Unlock()
 	}
 }
 
