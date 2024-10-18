@@ -391,6 +391,10 @@ func (s *Scheduler) tryAssignBatch(
 	ctx context.Context,
 	actionId string,
 	qis []*dbsqlc.QueueItem,
+	// ringOffset is a hint for where to start the search for a slot. The search will wraparound the ring if necessary.
+	// If a slot is assigned, the caller should increment this value for the next call to tryAssignSingleton.
+	// Note that this is not guaranteed to be the actual offset of the latest assigned slot, since many actions may be scheduling
+	// slots concurrently.
 	ringOffset int,
 	stepIdsToLabels map[string][]*dbsqlc.GetDesiredLabelsRow,
 	stepRunIdsToRateLimits map[string]map[string]int32,
@@ -473,7 +477,13 @@ func (s *Scheduler) tryAssignBatch(
 
 		wg.Add(1)
 
-		go func(i int) {
+		newRingOffset %= len(candidateSlots)
+
+		// rotate the ring to the offset
+		childSlots := candidateSlots
+		childSlots = append(childSlots[newRingOffset:], childSlots[:newRingOffset]...)
+
+		go func(i int, childSlots []*slot) {
 			defer wg.Done()
 
 			qi := qis[i]
@@ -481,8 +491,7 @@ func (s *Scheduler) tryAssignBatch(
 			singleRes, err := s.tryAssignSingleton(
 				ctx,
 				qi,
-				candidateSlots,
-				ringOffset,
+				childSlots,
 				stepIdsToLabels[sqlchelpers.UUIDToStr(qi.StepId)],
 				rlAcks[i],
 				rlNacks[i],
@@ -494,7 +503,7 @@ func (s *Scheduler) tryAssignBatch(
 
 			res[i] = &singleRes
 			res[i].qi = qi
-		}(i)
+		}(i, childSlots)
 
 		newRingOffset++
 	}
@@ -513,11 +522,6 @@ func (s *Scheduler) tryAssignSingleton(
 	ctx context.Context,
 	qi *dbsqlc.QueueItem,
 	candidateSlots []*slot,
-	// ringOffset is a hint for where to start the search for a slot. The search will wraparound the ring if necessary.
-	// If a slot is assigned, the caller should increment this value for the next call to tryAssignSingleton.
-	// Note that this is not guaranteed to be the actual offset of the latest assigned slot, since many actions may be scheduling
-	// slots concurrently.
-	ringOffset int,
 	labels []*dbsqlc.GetDesiredLabelsRow,
 	rateLimitAck func(),
 	rateLimitNack func(),
@@ -526,11 +530,6 @@ func (s *Scheduler) tryAssignSingleton(
 ) {
 	ctx, span := telemetry.NewSpan(ctx, "try-assign-singleton") // nolint: ineffassign
 	defer span.End()
-
-	ringOffset %= len(candidateSlots)
-
-	// rotate the ring to the offset
-	candidateSlots = append(candidateSlots[ringOffset:], candidateSlots[:ringOffset]...)
 
 	if qi.Sticky.Valid || len(labels) > 0 {
 		candidateSlots = getRankedSlots(qi, labels, candidateSlots)
