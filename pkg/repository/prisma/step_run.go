@@ -267,6 +267,7 @@ type stepRunEngineRepository struct {
 	cf                       *server.ConfigFileRuntime
 	cachedMinQueuedIds       sync.Map
 	cachedStepIdHasRateLimit *cache.Cache
+	cachedDesiredLabels      *cache.Cache
 	callbacks                []repository.Callback[*dbsqlc.ResolveWorkflowRunStatusRow]
 
 	bulkStatusBuffer       *buffer.TenantBufferManager[*updateStepRunQueueData, pgtype.UUID]
@@ -301,6 +302,7 @@ func NewStepRunEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *ze
 		queries:                  queries,
 		cf:                       cf,
 		cachedStepIdHasRateLimit: rlCache,
+		cachedDesiredLabels:      rlCache,
 		updateConcurrentFactor:   cf.UpdateConcurrentFactor,
 		maxHashFactor:            cf.UpdateHashFactor,
 		bulkEventBuffer:          eventBuffer,
@@ -1306,23 +1308,36 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, qlp *zerolo
 	desiredLabels := make(map[string][]*dbsqlc.GetDesiredLabelsRow)
 	hasDesired := false
 
-	// GET DESIRED LABELS
-	// OPTIMIZATION: CACHEABLE
-	stepIds := make([]pgtype.UUID, 0, len(stepIdSet))
+	// GET KNOWN LABELS FROM CACHE
+	cacheMissStepIds := make([]pgtype.UUID, 0, len(stepIdSet))
 	for stepId := range stepIdSet {
-		stepIds = append(stepIds, sqlchelpers.UUIDFromStr(stepId))
+		if knownLabels, ok := s.cachedDesiredLabels.Get(stepId); ok {
+			knownLabelsArr := knownLabels.([]*dbsqlc.GetDesiredLabelsRow)
+
+			for _, label := range knownLabelsArr {
+				stepIdStr := sqlchelpers.UUIDToStr(label.StepId)
+				desiredLabels[stepIdStr] = knownLabelsArr
+				s.cachedDesiredLabels.Set(stepIdStr, knownLabelsArr)
+			}
+		} else {
+			cacheMissStepIds = append(cacheMissStepIds, sqlchelpers.UUIDFromStr(stepId))
+		}
 	}
 
-	labels, err := s.queries.GetDesiredLabels(ctx, tx, stepIds)
+	// GET CACHE MISS DESIRED LABELS
+	if len(cacheMissStepIds) > 0 {
 
-	if err != nil {
-		return emptyRes, fmt.Errorf("could not get desired labels: %w", err)
-	}
+		labels, err := s.queries.GetDesiredLabels(ctx, tx, cacheMissStepIds)
 
-	for _, label := range labels {
-		stepId := sqlchelpers.UUIDToStr(label.StepId)
-		desiredLabels[stepId] = labels
-		hasDesired = true
+		if err != nil {
+			return emptyRes, fmt.Errorf("could not get desired labels: %w", err)
+		}
+
+		for _, label := range labels {
+			stepId := sqlchelpers.UUIDToStr(label.StepId)
+			desiredLabels[stepId] = labels
+			hasDesired = true
+		}
 	}
 
 	var workerLabels = make(map[string][]*dbsqlc.GetWorkerLabelsRow)
