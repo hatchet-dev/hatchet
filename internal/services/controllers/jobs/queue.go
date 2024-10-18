@@ -239,6 +239,10 @@ func (q *queue) handleCheckQueue(ctx context.Context, task *msgqueue.Message) er
 	case payload.IsStepQueued && payload.QueueName != "":
 		q.scheduler.Queue(ctx, metadata.TenantId, payload.QueueName)
 	case payload.IsSlotReleased:
+		if payload.QueueName != "" {
+			q.scheduler.Queue(ctx, metadata.TenantId, payload.QueueName)
+		}
+
 		q.scheduler.Replenish(ctx, metadata.TenantId)
 		q.updateStepRunV2Operations.RunOrContinue(metadata.TenantId)
 	default:
@@ -351,7 +355,8 @@ func (q *queue) processStepRunUpdates(ctx context.Context, tenantId string) (boo
 	}
 
 	// for all succeeded step runs, check for startable child step runs
-	err = queueutils.MakeBatched(20, res.SucceededStepRuns, func(group []*dbsqlc.GetStepRunForEngineRow) error {
+	err = queueutils.BatchConcurrent(20, res.SucceededStepRuns, func(group []*dbsqlc.GetStepRunForEngineRow) error {
+
 		for _, stepRun := range group {
 			if stepRun.SRChildCount == 0 {
 				continue
@@ -447,7 +452,7 @@ func (q *queue) processStepRunUpdatesV2(ctx context.Context, tenantId string) (b
 	}
 
 	// for all succeeded step runs, check for startable child step runs
-	err = queueutils.MakeBatched(20, res.SucceededStepRuns, func(group []*dbsqlc.GetStepRunForEngineRow) error {
+	err = queueutils.BatchConcurrent(20, res.SucceededStepRuns, func(group []*dbsqlc.GetStepRunForEngineRow) error {
 		for _, stepRun := range group {
 			if stepRun.SRChildCount == 0 {
 				continue
@@ -545,7 +550,7 @@ func (q *queue) processStepRunTimeouts(ctx context.Context, tenantId string) (bo
 
 	failedAt := time.Now().UTC()
 
-	err = queueutils.MakeBatched(10, stepRuns, func(group []*dbsqlc.GetStepRunForEngineRow) error {
+	err = queueutils.BatchConcurrent(10, stepRuns, func(group []*dbsqlc.GetStepRunForEngineRow) error {
 		scheduleCtx, cancel := context.WithTimeout(context.Background(), time.Minute)
 		defer cancel()
 

@@ -760,7 +760,7 @@ func (wc *WorkflowsControllerImpl) unpauseWorkflowRuns(ctx context.Context, tena
 }
 
 func (wc *WorkflowsControllerImpl) startManyJobRuns(ctx context.Context, tenantId string, jobRunIds []string) error {
-	return queueutils.MakeBatched(50, jobRunIds, func(group []string) error {
+	return queueutils.BatchConcurrent(50, jobRunIds, func(group []string) error {
 		for i := range group {
 			err := wc.startJobRun(ctx, tenantId, group[i])
 
