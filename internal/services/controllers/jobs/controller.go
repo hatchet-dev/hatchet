@@ -990,7 +990,13 @@ func (ec *JobsControllerImpl) handleStepRunFinished(ctx context.Context, task *m
 	}
 
 	// recheck the tenant queue
-	ec.checkTenantQueue(ctx, metadata.TenantId, "", false, true)
+	sr, err := ec.repo.StepRun().GetStepRunForEngine(ctx, metadata.TenantId, payload.StepRunId)
+
+	if err != nil {
+		return fmt.Errorf("could not get step run: %w", err)
+	}
+
+	ec.checkTenantQueue(ctx, metadata.TenantId, sr.SRQueue, false, true)
 
 	return nil
 }
@@ -1030,7 +1036,7 @@ func (ec *JobsControllerImpl) failStepRun(ctx context.Context, tenantId, stepRun
 	}
 
 	// check the queue on failure
-	defer ec.checkTenantQueue(ctx, tenantId, "", false, true)
+	defer ec.checkTenantQueue(ctx, tenantId, oldStepRun.SRQueue, false, true)
 
 	// determine if step run should be retried or not
 	shouldRetry := oldStepRun.SRRetryCount < oldStepRun.StepRetries

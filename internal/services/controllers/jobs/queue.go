@@ -239,6 +239,10 @@ func (q *queue) handleCheckQueue(ctx context.Context, task *msgqueue.Message) er
 	case payload.IsStepQueued && payload.QueueName != "":
 		q.scheduler.Queue(ctx, metadata.TenantId, payload.QueueName)
 	case payload.IsSlotReleased:
+		if payload.QueueName != "" {
+			q.scheduler.Queue(ctx, metadata.TenantId, payload.QueueName)
+		}
+
 		q.scheduler.Replenish(ctx, metadata.TenantId)
 		q.updateStepRunV2Operations.RunOrContinue(metadata.TenantId)
 	default:
