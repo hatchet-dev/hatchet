@@ -368,6 +368,12 @@ func (s *Scheduler) start(ctx context.Context) {
 	go s.loopReplenish(ctx)
 }
 
+type scheduleRateLimitResult struct {
+	*rateLimitResult
+
+	qi *dbsqlc.QueueItem
+}
+
 type assignSingleResult struct {
 	workerId pgtype.UUID
 	ackId    int
@@ -375,7 +381,7 @@ type assignSingleResult struct {
 	noSlots   bool
 	succeeded bool
 
-	rateLimitResult *rateLimitResult
+	rateLimitResult *scheduleRateLimitResult
 }
 
 type tryAssignTiming struct {
@@ -420,7 +426,10 @@ func (s *Scheduler) tryAssignSingleton(
 		rlResult := s.rl.use(ctx, sqlchelpers.UUIDToStr(qi.StepRunId), rls)
 
 		if !rlResult.succeeded {
-			res.rateLimitResult = &rlResult
+			res.rateLimitResult = &scheduleRateLimitResult{
+				rateLimitResult: &rlResult,
+				qi:              qi,
+			}
 			return res, timing, nil
 		}
 
@@ -511,17 +520,11 @@ type AssignedQueueItem struct {
 	DispatcherId *pgtype.UUID
 }
 
-type erroredQueueItem struct {
-	QueueItem *dbsqlc.QueueItem
-	Err       error
-}
-
 type assignResults struct {
 	assigned           []*AssignedQueueItem
-	errored            []*erroredQueueItem
 	unassigned         []*dbsqlc.QueueItem
 	schedulingTimedOut []*dbsqlc.QueueItem
-	rateLimited        []*rateLimitResult
+	rateLimited        []*scheduleRateLimitResult
 }
 
 func (s *Scheduler) tryAssign(
@@ -560,10 +563,9 @@ func (s *Scheduler) tryAssign(
 				defer wg.Done()
 				start := time.Now()
 				assigned := make([]*AssignedQueueItem, 0, len(qis))
-				errored := make([]*erroredQueueItem, 0, len(qis))
 				unassigned := make([]*dbsqlc.QueueItem, 0, len(qis))
 				schedulingTimedOut := make([]*dbsqlc.QueueItem, 0, len(qis))
-				rateLimited := make([]*rateLimitResult, 0, len(qis))
+				rateLimited := make([]*scheduleRateLimitResult, 0, len(qis))
 
 				startAssignment := time.Now()
 
@@ -644,7 +646,6 @@ func (s *Scheduler) tryAssign(
 
 				resultsCh <- &assignResults{
 					assigned:           assigned,
-					errored:            errored,
 					unassigned:         unassigned,
 					schedulingTimedOut: schedulingTimedOut,
 					rateLimited:        rateLimited,

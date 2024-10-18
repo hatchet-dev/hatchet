@@ -150,9 +150,12 @@ FOR UPDATE SKIP LOCKED;
 
 -- name: ListQueueItemsForQueue :many
 SELECT
-    *
+    sqlc.embed(qi),
+    sr."status"
 FROM
     "QueueItem" qi
+JOIN
+    "StepRun" sr ON qi."stepRunId" = sr."id"
 WHERE
     qi."isQueued" = true
     AND qi."tenantId" = @tenantId::uuid
