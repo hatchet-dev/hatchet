@@ -703,7 +703,9 @@ func (d *queuerDbQueries) GetDesiredLabels(ctx context.Context, stepIds []pgtype
 	ctx, span := telemetry.NewSpan(ctx, "get-desired-labels")
 	defer span.End()
 
-	labels, err := d.queries.GetDesiredLabels(ctx, d.pool, stepIds)
+	uniqueStepIds := sqlchelpers.UniqueSet(stepIds)
+
+	labels, err := d.queries.GetDesiredLabels(ctx, d.pool, uniqueStepIds)
 
 	if err != nil {
 		return nil, err

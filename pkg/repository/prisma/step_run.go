@@ -716,7 +716,7 @@ func (s *stepRunEngineRepository) ReleaseStepRunSemaphore(ctx context.Context, t
 		err = s.releaseWorkerSemaphoreSlot(ctx, tx, tenantId, stepRunId)
 
 		if err != nil {
-			return fmt.Errorf("could not release worker semaphore slot: %w", err)
+			return fmt.Errorf("could not release worker semaphore slot for step run %s: %w", stepRunId, err)
 		}
 
 		if isUserTriggered {

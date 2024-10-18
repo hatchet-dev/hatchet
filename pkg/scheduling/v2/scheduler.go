@@ -464,33 +464,45 @@ func (s *Scheduler) tryAssignBatch(
 
 	candidateSlots := s.actions[actionId].slots
 
+	wg := sync.WaitGroup{}
+
 	for i := range res {
 		if res[i].rateLimitResult != nil {
 			continue
 		}
 
-		qi := qis[i]
+		wg.Add(1)
 
-		singleRes, err := s.tryAssignSingleton(
-			ctx,
-			qi,
-			candidateSlots,
-			ringOffset,
-			stepIdsToLabels[sqlchelpers.UUIDToStr(qi.StepId)],
-			rlAcks[i],
-			rlNacks[i],
-		)
+		go func(i int) {
+			defer wg.Done()
 
-		if err != nil {
-			s.l.Error().Err(err).Msg("error assigning queue item")
-			return res, newRingOffset, err
-		}
+			qi := qis[i]
 
-		res[i] = &singleRes
-		res[i].qi = qi
+			singleRes, err := s.tryAssignSingleton(
+				ctx,
+				qi,
+				candidateSlots,
+				ringOffset,
+				stepIdsToLabels[sqlchelpers.UUIDToStr(qi.StepId)],
+				rlAcks[i],
+				rlNacks[i],
+			)
+
+			if err != nil {
+				s.l.Error().Err(err).Msg("error assigning queue item")
+			}
+
+			res[i] = &singleRes
+			res[i].qi = qi
+		}(i)
+
 		newRingOffset++
 	}
 
+	wg.Wait()
+
+	// we can only unlock the actions mutex after assigning slots, because we are using the
+	// underlying pointers to the slots
 	s.actionsMu.RUnlock()
 
 	return res, newRingOffset, nil

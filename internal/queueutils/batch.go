@@ -6,6 +6,10 @@ import (
 )
 
 func BatchConcurrent[T any](batchSize int, things []T, fn func(group []T) error) error {
+	if batchSize <= 0 {
+		return nil
+	}
+
 	g := new(errgroup.Group)
 
 	for i := 0; i < len(things); i += batchSize {
@@ -25,6 +29,10 @@ func BatchConcurrent[T any](batchSize int, things []T, fn func(group []T) error)
 }
 
 func BatchLinear[T any](batchSize int, things []T, fn func(group []T) error) error {
+	if batchSize <= 0 {
+		return nil
+	}
+
 	var err error
 
 	for i := 0; i < len(things); i += batchSize {
