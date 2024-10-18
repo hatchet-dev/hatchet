@@ -481,13 +481,9 @@ func (s *Scheduler) tryAssignBatch(
 
 		wg.Add(1)
 
-		newRingOffset %= len(candidateSlots)
+		childRingOffset := newRingOffset % len(candidateSlots)
 
-		// rotate the ring to the offset
-		childSlots := candidateSlots
-		childSlots = append(childSlots[newRingOffset:], childSlots[:newRingOffset]...)
-
-		go func(i int, childSlots []*slot) {
+		go func(i int) {
 			defer wg.Done()
 
 			qi := qis[i]
@@ -495,7 +491,8 @@ func (s *Scheduler) tryAssignBatch(
 			singleRes, err := s.tryAssignSingleton(
 				ctx,
 				qi,
-				childSlots,
+				candidateSlots,
+				childRingOffset,
 				stepIdsToLabels[sqlchelpers.UUIDToStr(qi.StepId)],
 				rlAcks[i],
 				rlNacks[i],
@@ -507,7 +504,7 @@ func (s *Scheduler) tryAssignBatch(
 
 			res[i] = &singleRes
 			res[i].qi = qi
-		}(i, childSlots)
+		}(i)
 
 		newRingOffset++
 	}
@@ -526,6 +523,7 @@ func (s *Scheduler) tryAssignSingleton(
 	ctx context.Context,
 	qi *dbsqlc.QueueItem,
 	candidateSlots []*slot,
+	ringOffset int,
 	labels []*dbsqlc.GetDesiredLabelsRow,
 	rateLimitAck func(),
 	rateLimitNack func(),
@@ -541,7 +539,11 @@ func (s *Scheduler) tryAssignSingleton(
 
 	var assignedSlot *slot
 
-	for _, slot := range candidateSlots {
+	trav := candidateSlots[ringOffset:]
+	trav2 := candidateSlots[:ringOffset]
+	trav = append(trav, trav2...)
+
+	for _, slot := range trav {
 		if !slot.active() {
 			continue
 		}
