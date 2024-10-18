@@ -518,6 +518,29 @@ func (s *Scheduler) tryAssignBatch(
 	return res, newRingOffset, nil
 }
 
+func findSlot(
+	candidateSlots []*slot,
+	rateLimitAck func(),
+	rateLimitNack func(),
+) *slot {
+	var assignedSlot *slot
+
+	for _, slot := range candidateSlots {
+		if !slot.active() {
+			continue
+		}
+
+		if !slot.use([]func(){rateLimitAck}, []func(){rateLimitNack}) {
+			continue
+		}
+
+		assignedSlot = slot
+		break
+	}
+
+	return assignedSlot
+}
+
 // tryAssignSingleton attempts to assign a singleton step to a worker.
 func (s *Scheduler) tryAssignSingleton(
 	ctx context.Context,
@@ -537,23 +560,10 @@ func (s *Scheduler) tryAssignSingleton(
 		candidateSlots = getRankedSlots(qi, labels, candidateSlots)
 	}
 
-	var assignedSlot *slot
+	assignedSlot := findSlot(candidateSlots[ringOffset:], rateLimitAck, rateLimitNack)
 
-	trav := candidateSlots[ringOffset:]
-	trav2 := candidateSlots[:ringOffset]
-	trav = append(trav, trav2...)
-
-	for _, slot := range trav {
-		if !slot.active() {
-			continue
-		}
-
-		if !slot.use([]func(){rateLimitAck}, []func(){rateLimitNack}) {
-			continue
-		}
-
-		assignedSlot = slot
-		break
+	if assignedSlot == nil {
+		assignedSlot = findSlot(candidateSlots[:ringOffset], rateLimitAck, rateLimitNack)
 	}
 
 	if assignedSlot == nil {
