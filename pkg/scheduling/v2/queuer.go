@@ -824,7 +824,8 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		case <-q.notifyQueueCh:
 		}
 
-		checkpoint := time.Now()
+		start := time.Now()
+		checkpoint := start
 		var err error
 		qis, err = q.refillQueue(ctx, qis)
 
@@ -844,7 +845,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		}
 
 		rateLimitTime := time.Since(checkpoint)
-		start := time.Now()
+		checkpoint = time.Now()
 
 		stepIds := make([]pgtype.UUID, 0, len(qis))
 
@@ -859,19 +860,23 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 			continue
 		}
 
-		desiredLabelsTime := time.Since(start)
+		desiredLabelsTime := time.Since(checkpoint)
 		checkpoint = time.Now()
 
 		assignCh := q.s.tryAssign(ctx, qis, labels, rls)
 		count := 0
 		countMu := sync.Mutex{}
+		wg := sync.WaitGroup{}
 
 		for r := range assignCh {
 			// synchronously add to unackedMu
 			q.addToUnacked(r)
+			wg.Add(1)
 
 			// asynchronously flush to database
 			go func() {
+				defer wg.Done()
+
 				startFlush := time.Now()
 
 				numFlushed := q.flushToDatabase(ctx, r)
@@ -902,11 +907,15 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		}
 
 		// if we processed all queue items, queue again
-		countMu.Lock()
-		if len(qis) > 0 && count == len(qis) {
-			q.queue()
-		}
-		countMu.Unlock()
+		go func() {
+			wg.Wait()
+
+			countMu.Lock()
+			if len(qis) > 0 && count == len(qis) {
+				q.queue()
+			}
+			countMu.Unlock()
+		}()
 	}
 }
 
