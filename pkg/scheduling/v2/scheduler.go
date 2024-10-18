@@ -630,7 +630,7 @@ func (s *Scheduler) tryAssign(
 					batched = append(batched, qi)
 				}
 
-				err := queueutils.MakeBatched(50, batched, func(batchQis []*dbsqlc.QueueItem) error {
+				err := queueutils.BatchLinear(50, batched, func(batchQis []*dbsqlc.QueueItem) error {
 					batchStart := time.Now()
 
 					results, newRingOffset, err := s.tryAssignBatch(ctx, actionId, batchQis, ringOffset, stepIdsToLabels, stepRunIdsToRateLimits)
