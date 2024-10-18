@@ -252,6 +252,12 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 	// FUNCTION 3: list unacked slots (so they're not counted towards the worker slot count)
 	workersToUnackedSlots := make(map[string][]*slot)
 
+	// we get a lock on the actionsMu here because we want to acquire the locks in the same order
+	// as the tryAssignBatch function. otherwise, we could deadlock when tryAssignBatch has a lock
+	// on the actionsMu and tries to acquire the unackedMu lock.
+	s.actionsMu.Lock()
+	defer s.actionsMu.Unlock()
+
 	s.unackedMu.Lock()
 	defer s.unackedMu.Unlock()
 
@@ -294,9 +300,6 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 			actionsToTotalSlots[actionId] += len(slots)
 		}
 	}
-
-	s.actionsMu.Lock()
-	defer s.actionsMu.Unlock()
 
 	// (we don't need cryptographically secure randomness)
 	randSource := rand.New(rand.NewSource(time.Now().UnixNano())) // nolint: gosec
@@ -451,8 +454,9 @@ func (s *Scheduler) tryAssignBatch(
 		rlNacks[i] = rateLimitNack
 	}
 
-	// next, if we're not rate-limited, lock the actions map and try to assign the batch of queue items
-	// increment the ring offset for each call when we're not rate limited
+	// lock the actions map and try to assign the batch of queue items.
+	// NOTE: if we change the position of this lock, make sure that we are still acquiring locks in the same
+	// order as the replenish() function, otherwise we may deadlock.
 	s.actionsMu.RLock()
 
 	if _, ok := s.actions[actionId]; !ok {
