@@ -205,11 +205,12 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 		var replenish bool
 		activeCount := storedAction.activeCount()
 
-		if activeCount == 0 {
+		switch {
+		case activeCount == 0:
 			replenish = true
-		} else if activeCount <= (storedAction.lastReplenishedSlotCount / 2) {
+		case activeCount <= (storedAction.lastReplenishedSlotCount / 2):
 			replenish = true
-		} else if len(workers) > storedAction.lastReplenishedWorkerCount {
+		case len(workers) > storedAction.lastReplenishedWorkerCount:
 			replenish = true
 		}
 

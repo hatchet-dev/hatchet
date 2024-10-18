@@ -329,16 +329,6 @@ func sizeOfUpdateData(item *updateStepRunQueueData) int {
 	return size
 }
 
-func sizeOfEventData(item *repository.CreateStepRunEventOpts) int {
-	size := len(*item.EventMessage)
-
-	for k, v := range item.EventData {
-		size += len(k) + len(fmt.Sprintf("%v", v))
-	}
-
-	return size
-}
-
 func (s *stepRunEngineRepository) startBuffers() error {
 	statusBufOpts := buffer.TenantBufManagerOpts[*updateStepRunQueueData, pgtype.UUID]{
 		Name:       "update_step_run_status",
@@ -485,91 +475,6 @@ func (s *stepRunEngineRepository) bulkUpdateStepRunStatuses(ctx context.Context,
 	}
 
 	return stepRunIds, nil
-}
-
-func (s *stepRunEngineRepository) bulkWriteStepRunEvents(ctx context.Context, opts []*repository.CreateStepRunEventOpts) ([]int, error) {
-	res := make([]int, 0, len(opts))
-	eventTimeSeen := make([]pgtype.Timestamp, 0, len(opts))
-	eventReasons := make([]dbsqlc.StepRunEventReason, 0, len(opts))
-	eventStepRunIds := make([]pgtype.UUID, 0, len(opts))
-	eventSeverities := make([]dbsqlc.StepRunEventSeverity, 0, len(opts))
-	eventMessages := make([]string, 0, len(opts))
-	eventData := make([]map[string]interface{}, 0, len(opts))
-	dedupe := make(map[string]bool)
-
-	for i, item := range opts {
-		res = append(res, i)
-
-		if item.EventMessage == nil || item.EventReason == nil || item.StepRunId == "" {
-			continue
-		}
-
-		stepRunId := sqlchelpers.UUIDFromStr(item.StepRunId)
-		dedupeKey := fmt.Sprintf("EVENT-%s-%s", item.StepRunId, *item.EventReason)
-
-		if _, ok := dedupe[dedupeKey]; ok {
-			continue
-		}
-
-		dedupe[dedupeKey] = true
-
-		eventStepRunIds = append(eventStepRunIds, stepRunId)
-		eventMessages = append(eventMessages, *item.EventMessage)
-		eventReasons = append(eventReasons, *item.EventReason)
-
-		if item.EventSeverity != nil {
-			eventSeverities = append(eventSeverities, *item.EventSeverity)
-		} else {
-			eventSeverities = append(eventSeverities, dbsqlc.StepRunEventSeverityINFO)
-		}
-
-		if item.EventData != nil {
-			eventData = append(eventData, item.EventData)
-		} else {
-			eventData = append(eventData, map[string]interface{}{})
-		}
-
-		if item.Timestamp != nil {
-			eventTimeSeen = append(eventTimeSeen, sqlchelpers.TimestampFromTime(*item.Timestamp))
-		} else {
-			eventTimeSeen = append(eventTimeSeen, sqlchelpers.TimestampFromTime(time.Now().UTC()))
-		}
-	}
-
-	err := sqlchelpers.DeadlockRetry(s.l, func() (err error) {
-		tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, s.pool, s.l, 10000)
-
-		if err != nil {
-			return err
-		}
-
-		defer rollback()
-
-		err = bulkStepRunEvents(
-			ctx,
-			s.l,
-			tx,
-			s.queries,
-			eventStepRunIds,
-			eventTimeSeen,
-			eventReasons,
-			eventSeverities,
-			eventMessages,
-			eventData,
-		)
-
-		if err != nil {
-			return err
-		}
-
-		return commit(ctx)
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	return res, nil
 }
 
 func (s *stepRunEngineRepository) RegisterWorkflowRunCompletedCallback(callback repository.Callback[*dbsqlc.ResolveWorkflowRunStatusRow]) {
@@ -1000,57 +905,6 @@ func (s *stepRunEngineRepository) bulkStepRunsRateLimited(
 			s.l.Err(err).Msg("could not buffer step run event")
 		}
 	}
-}
-
-func bulkStepRunEvents(
-	ctx context.Context,
-	l *zerolog.Logger,
-	dbtx dbsqlc.DBTX,
-	queries *dbsqlc.Queries,
-	stepRunIds []pgtype.UUID,
-	timeSeen []pgtype.Timestamp,
-	reasons []dbsqlc.StepRunEventReason,
-	severities []dbsqlc.StepRunEventSeverity,
-	messages []string,
-	data []map[string]interface{},
-) error {
-	inputData := [][]byte{}
-	inputReasons := []string{}
-	inputSeverities := []string{}
-
-	for _, d := range data {
-		dataBytes, err := json.Marshal(d)
-
-		if err != nil {
-			l.Err(err).Msg("could not marshal deferred step run event data")
-			return err
-		}
-
-		inputData = append(inputData, dataBytes)
-	}
-
-	for _, r := range reasons {
-		inputReasons = append(inputReasons, string(r))
-	}
-
-	for _, s := range severities {
-		inputSeverities = append(inputSeverities, string(s))
-	}
-
-	err := queries.BulkCreateStepRunEvent(ctx, dbtx, dbsqlc.BulkCreateStepRunEventParams{
-		Steprunids: stepRunIds,
-		Reasons:    inputReasons,
-		Severities: inputSeverities,
-		Messages:   messages,
-		Data:       inputData,
-		Timeseen:   timeSeen,
-	})
-
-	if err != nil {
-		return fmt.Errorf("bulkStepRunEvents - could not create deferred step run event: %w", err)
-	}
-
-	return nil
 }
 
 func UniqueSet[T any](i []T, keyFunc func(T) string) map[string]struct{} {
@@ -3544,41 +3398,6 @@ func bulkInsertInternalQueueItem(
 		Tenantids: tenantIds,
 		Queues:    insertQueues,
 		Datas:     insertData,
-	})
-
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (s *stepRunEngineRepository) bulkInsertUniqueInternalQueueItem(
-	ctx context.Context,
-	tx pgx.Tx,
-	tenantId string,
-	queue dbsqlc.InternalQueue,
-	data []any,
-	uniqueKeys []string,
-) error {
-	// construct bytes for the data
-	insertData := make([][]byte, len(data))
-
-	for i, d := range data {
-		b, err := json.Marshal(d)
-
-		if err != nil {
-			return err
-		}
-
-		insertData[i] = b
-	}
-
-	err := s.queries.CreateUniqueInternalQueueItemsBulk(ctx, tx, dbsqlc.CreateUniqueInternalQueueItemsBulkParams{
-		Tenantid:   sqlchelpers.UUIDFromStr(tenantId),
-		Queue:      queue,
-		Datas:      insertData,
-		Uniquekeys: uniqueKeys,
 	})
 
 	if err != nil {

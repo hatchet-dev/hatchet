@@ -907,11 +907,13 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		}
 
 		// if we processed all queue items, queue again
+		prevQis := qis
+
 		go func() {
 			wg.Wait()
 
 			countMu.Lock()
-			if len(qis) > 0 && count == len(qis) {
+			if len(prevQis) > 0 && count == len(prevQis) {
 				q.queue()
 			}
 			countMu.Unlock()
