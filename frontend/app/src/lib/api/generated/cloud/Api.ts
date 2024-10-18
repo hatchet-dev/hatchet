@@ -16,6 +16,7 @@ import {
   Build,
   CreateManagedWorkerRequest,
   FeatureFlags,
+  InfraAsCodeRequest,
   InstanceList,
   ListGithubAppInstallationsResponse,
   ListGithubBranchesResponse,
@@ -25,8 +26,10 @@ import {
   ManagedWorkerEventList,
   ManagedWorkerList,
   Matrix,
+  RuntimeConfigActionsResponse,
   TenantBillingState,
   TenantSubscription,
+  UpdateManagedWorkerRequest,
   UpdateTenantSubscription,
   VectorPushRequest,
   WorkflowRunEventsMetricsCounts,
@@ -227,7 +230,7 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @request POST:/api/v1/cloud/managed-worker/{managed-worker}
    * @secure
    */
-  managedWorkerUpdate = (managedWorker: string, data: CreateManagedWorkerRequest, params: RequestParams = {}) =>
+  managedWorkerUpdate = (managedWorker: string, data: UpdateManagedWorkerRequest, params: RequestParams = {}) =>
     this.request<ManagedWorker, APIErrors>({
       path: `/api/v1/cloud/managed-worker/${managedWorker}`,
       method: "POST",
@@ -250,6 +253,41 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
     this.request<ManagedWorker, APIErrors>({
       path: `/api/v1/cloud/managed-worker/${managedWorker}`,
       method: "DELETE",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Registers runtime configs via infra-as-code
+   *
+   * @tags Managed Worker
+   * @name InfraAsCodeCreate
+   * @summary Create Infra as Code
+   * @request POST:/api/v1/cloud/infra-as-code/{infra-as-code-request}
+   * @secure
+   */
+  infraAsCodeCreate = (infraAsCodeRequest: string, data: InfraAsCodeRequest, params: RequestParams = {}) =>
+    this.request<void, APIErrors>({
+      path: `/api/v1/cloud/infra-as-code/${infraAsCodeRequest}`,
+      method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      ...params,
+    });
+  /**
+   * @description Get a list of runtime config actions for a managed worker
+   *
+   * @tags Managed Worker
+   * @name RuntimeConfigListActions
+   * @summary Get Runtime Config Actions
+   * @request GET:/api/v1/cloud/runtime-config/{runtime-config}/actions
+   * @secure
+   */
+  runtimeConfigListActions = (runtimeConfig: string, params: RequestParams = {}) =>
+    this.request<RuntimeConfigActionsResponse, APIErrors>({
+      path: `/api/v1/cloud/runtime-config/${runtimeConfig}/actions`,
+      method: "GET",
       secure: true,
       format: "json",
       ...params,

@@ -2,6 +2,7 @@ import { queries } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 import {
   ManagedWorker,
+  Matrix,
   SampleStream,
 } from '@/lib/api/generated/cloud/data-contracts';
 import { Loading } from '@/components/ui/loading';
@@ -17,6 +18,10 @@ import { GetCloudMetricsQuery } from '@/lib/api/queries';
 import { DateTimePicker } from '@/components/molecules/time-picker/date-time-picker';
 import { Button } from '@/components/ui/button';
 import { ArrowPathIcon } from '@heroicons/react/24/outline';
+import {
+  DataPoint,
+  ZoomableChart,
+} from '@/components/molecules/charts/zoomable';
 
 export function ManagedWorkerMetrics({
   managedWorker,
@@ -67,7 +72,10 @@ export function ManagedWorkerMetrics({
   if (
     getCpuMetricsQuery.isLoading ||
     getMemoryMetricsQuery.isLoading ||
-    getDiskMetricsQuery.isLoading
+    getDiskMetricsQuery.isLoading ||
+    !getCpuMetricsQuery.data ||
+    !getMemoryMetricsQuery.data ||
+    !getDiskMetricsQuery.data
   ) {
     return <Loading />;
   }
@@ -83,6 +91,14 @@ export function ManagedWorkerMetrics({
   const datesMatchSearch =
     beforeInput?.toISOString() === queryParams?.before &&
     afterInput?.toISOString() === queryParams?.after;
+
+  const zoomableChartData: DataPoint<string>[] = transformToDataPoints(
+    getCpuMetricsQuery.data,
+  );
+
+  // DataPoint<T extends string> = Record<T, number> & {
+  //   date: string;
+  // };
 
   return (
     <div className="flex flex-col gap-4">
@@ -126,7 +142,17 @@ export function ManagedWorkerMetrics({
           end={beforeInput || new Date()}
         />
       )}
-      {getCpuMetricsQuery.data?.map((d, i) => {
+      <ZoomableChart
+        className="max-h-[25rem] min-h-[25rem]"
+        data={zoomableChartData}
+        colors={{
+          '6e82001f0053e8-sea': 'rgb(34 197 94 / 0.5)',
+        }}
+        kind="line"
+        zoom={(start, end) => {}}
+        showYAxis={true}
+      />
+      {/* {getCpuMetricsQuery.data?.map((d, i) => {
         return (
           <MetricsChart
             key={i}
@@ -135,7 +161,7 @@ export function ManagedWorkerMetrics({
             tooltipFormat={formatPercentTooltip}
           />
         );
-      })}
+      })} */}
       <h4 className="text-lg font-bold leading-tight text-foreground mt-16 ml-4">
         Memory
       </h4>
@@ -243,4 +269,28 @@ function MetricsPlaceholder({ start, end }: { start: Date; end: Date }) {
       />
     </div>
   );
+}
+
+function transformToDataPoints(matrix: Matrix): DataPoint<string>[] {
+  const dataPointsMap: Record<string, DataPoint<string>> = {};
+
+  matrix.forEach((sampleStream) => {
+    const metricLabel = Object.values(sampleStream.metric || {}).join('-');
+
+    (sampleStream.values || []).forEach(([timestamp, value]) => {
+      const isoDate = new Date(timestamp * 1000).toISOString();
+
+      if (!dataPointsMap[isoDate]) {
+        const obj: any = {
+          date: isoDate,
+        };
+
+        dataPointsMap[isoDate] = obj as DataPoint<string>;
+      }
+
+      dataPointsMap[isoDate][metricLabel] = parseFloat(value);
+    });
+  });
+
+  return Object.values(dataPointsMap);
 }

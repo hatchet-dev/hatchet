@@ -66,38 +66,51 @@ export function ManagedWorkersTable() {
     </Card>
   );
 
-  const card: React.FC<{ data: ManagedWorker }> = ({ data }) => (
-    <div
-      key={data.metadata?.id}
-      className="border overflow-hidden shadow rounded-lg"
-    >
-      <div className="px-4 py-5 sm:p-6 gap-1 flex flex-col">
-        <div className="flex flex-row gap-2 items-center">
-          <CpuChipIcon className="h-6 w-6 text-foreground mt-1" />
-          <h3 className="text-lg font-semibold leading-tight text-foreground">
-            {data.name}
-          </h3>
+  const card: React.FC<{ data: ManagedWorker }> = ({ data }) => {
+    const totReplicas = data.runtimeConfigs?.reduce(
+      (acc, curr) => acc + curr.numReplicas,
+      0,
+    );
+    const totCpus = data.runtimeConfigs?.reduce(
+      (acc, curr) => acc + curr.cpus,
+      0,
+    );
+    const totMemory = data.runtimeConfigs?.reduce(
+      (acc, curr) => acc + curr.memoryMb,
+      0,
+    );
+
+    return (
+      <div
+        key={data.metadata?.id}
+        className="border overflow-hidden shadow rounded-lg"
+      >
+        <div className="px-4 py-5 sm:p-6 gap-1 flex flex-col">
+          <div className="flex flex-row gap-2 items-center">
+            <CpuChipIcon className="h-6 w-6 text-foreground mt-1" />
+            <h3 className="text-lg font-semibold leading-tight text-foreground">
+              {data.name}
+            </h3>
+          </div>
+          <p className="mt-1 max-w-2xl text-sm text-gray-700 dark:text-gray-300">
+            Created <RelativeDate date={data.metadata?.createdAt} />
+          </p>
+          <GithubButton buildConfig={data.buildConfig} prefix="Deploys from" />
+          <p className="mt-1 max-w-2xl text-sm text-gray-700 dark:text-gray-300">
+            {totReplicas} {totReplicas == 1 ? 'instance' : 'instances'} with{' '}
+            {totCpus} CPUs and {totMemory} MB memory
+          </p>
         </div>
-        <p className="mt-1 max-w-2xl text-sm text-gray-700 dark:text-gray-300">
-          Created <RelativeDate date={data.metadata?.createdAt} />
-        </p>
-        <GithubButton buildConfig={data.buildConfig} prefix="Deploys from" />
-        <p className="mt-1 max-w-2xl text-sm text-gray-700 dark:text-gray-300">
-          {data.runtimeConfig.numReplicas}{' '}
-          {data.runtimeConfig.numReplicas == 1 ? 'instance' : 'instances'} with{' '}
-          {data.runtimeConfig.cpus} CPUs and {data.runtimeConfig.memoryMb} MB
-          memory
-        </p>
-      </div>
-      <div className="px-4 py-4 sm:px-6">
-        <div className="text-sm text-background-secondary">
-          <Link to={`/workers/managed-workers/${data.metadata?.id}`}>
-            <Button>View Worker Pool</Button>
-          </Link>
+        <div className="px-4 py-4 sm:px-6">
+          <div className="text-sm text-background-secondary">
+            <Link to={`/workers/managed-workers/${data.metadata?.id}`}>
+              <Button>View Worker Pool</Button>
+            </Link>
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const actions = [
     <Button
