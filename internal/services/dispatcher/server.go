@@ -1209,6 +1209,7 @@ func (s *DispatcherImpl) handleStepRunCompleted(inputCtx context.Context, reques
 
 	if err != nil {
 		s.l.Error().Err(err).Msgf("could not release semaphore for step run %s", request.StepRunId)
+		return nil, err
 	}
 
 	s.l.Debug().Msgf("Received step completed event for step run %s", request.StepRunId)
@@ -1283,6 +1284,7 @@ func (s *DispatcherImpl) handleStepRunFailed(inputCtx context.Context, request *
 
 	if err != nil {
 		s.l.Error().Err(err).Msgf("could not release semaphore for step run %s", request.StepRunId)
+		return nil, err
 	}
 
 	s.l.Debug().Msgf("Received step failed event for step run %s", request.StepRunId)
