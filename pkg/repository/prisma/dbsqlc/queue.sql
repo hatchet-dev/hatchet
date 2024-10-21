@@ -344,6 +344,27 @@ WITH input AS (
     SELECT
         UNNEST(@stepRunIds::uuid[]) AS "stepRunId",
         UNNEST(@retryCounts::integer[]) AS "retryCount"
+    ORDER BY "stepRunId"
+),
+-- get locks on the timeout queue items in the same order as the step run ids
+-- to prevent deadlocks
+qis AS (
+    SELECT
+        "stepRunId",
+        "retryCount"
+    FROM
+        "TimeoutQueueItem"
+    WHERE
+        ("stepRunId", "retryCount") IN (
+            SELECT
+                "stepRunId",
+                "retryCount"
+            FROM
+                input
+        )
+    ORDER BY
+        "stepRunId"
+    FOR UPDATE
 )
 DELETE FROM
     "TimeoutQueueItem"
@@ -353,7 +374,7 @@ WHERE
             "stepRunId",
             "retryCount"
         FROM
-            input
+            qis
     );
 
 -- name: GetMinMaxProcessedTimeoutQueueItems :one

@@ -789,11 +789,21 @@ WITH input AS (
         "StepRun" sr
     JOIN
         input ON sr."id" = input."stepRunId" AND sr."tenantId" = input."tenantId"
+), locked_sqis AS (
+    -- Lock the semaphore queue items in a stable order to prevent deadlocks
+    SELECT
+        sqi."stepRunId"
+    FROM
+        "SemaphoreQueueItem" sqi
+    JOIN
+        input ON sqi."stepRunId" = input."stepRunId"
+    ORDER BY sqi."stepRunId"
+    FOR UPDATE
 ), deleted_sqi AS (
     DELETE FROM
         "SemaphoreQueueItem" sqi
     WHERE
-        sqi."stepRunId" = ANY(@stepRunIds::uuid[])
+        sqi."stepRunId" IN (SELECT "stepRunId" FROM locked_sqis)
     RETURNING sqi."workerId", sqi."stepRunId"
 )
 SELECT
@@ -874,6 +884,7 @@ WITH input AS (
                 unnest(@stepRunTimeouts::text[]) AS "stepTimeout",
                 unnest(@workerIds::uuid[]) AS "workerId"
         ) AS subquery
+    ORDER BY "id"
 ), updated_step_runs AS (
     SELECT
         sr."id",
@@ -884,6 +895,7 @@ WITH input AS (
         input
     JOIN
         "StepRun" sr ON sr."id" = input."id"
+    ORDER BY sr."id"
 ), assignments AS (
     INSERT INTO "SemaphoreQueueItem" (
         "stepRunId",

@@ -940,6 +940,25 @@ WITH input AS (
     SELECT
         UNNEST($1::uuid[]) AS "stepRunId",
         UNNEST($2::integer[]) AS "retryCount"
+    ORDER BY "stepRunId"
+),
+qis AS (
+    SELECT
+        "stepRunId",
+        "retryCount"
+    FROM
+        "TimeoutQueueItem"
+    WHERE
+        ("stepRunId", "retryCount") IN (
+            SELECT
+                "stepRunId",
+                "retryCount"
+            FROM
+                input
+        )
+    ORDER BY
+        "stepRunId"
+    FOR UPDATE
 )
 DELETE FROM
     "TimeoutQueueItem"
@@ -949,7 +968,7 @@ WHERE
             "stepRunId",
             "retryCount"
         FROM
-            input
+            qis
     )
 `
 
@@ -958,6 +977,7 @@ type RemoveTimeoutQueueItemBulkParams struct {
 	Retrycounts []int32       `json:"retrycounts"`
 }
 
+// get locks on the timeout queue items in the same order as the step run ids
 func (q *Queries) RemoveTimeoutQueueItemBulk(ctx context.Context, db DBTX, arg RemoveTimeoutQueueItemBulkParams) error {
 	_, err := db.Exec(ctx, removeTimeoutQueueItemBulk, arg.Steprunids, arg.Retrycounts)
 	return err
