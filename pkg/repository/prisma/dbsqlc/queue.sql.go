@@ -180,6 +180,20 @@ func (q *Queries) CreateQueueItem(ctx context.Context, db DBTX, arg CreateQueueI
 	return err
 }
 
+type CreateQueueItemsBulkParams struct {
+	StepRunId         pgtype.UUID        `json:"stepRunId"`
+	StepId            pgtype.UUID        `json:"stepId"`
+	ActionId          pgtype.Text        `json:"actionId"`
+	ScheduleTimeoutAt pgtype.Timestamp   `json:"scheduleTimeoutAt"`
+	StepTimeout       pgtype.Text        `json:"stepTimeout"`
+	Priority          int32              `json:"priority"`
+	IsQueued          bool               `json:"isQueued"`
+	TenantId          pgtype.UUID        `json:"tenantId"`
+	Queue             string             `json:"queue"`
+	Sticky            NullStickyStrategy `json:"sticky"`
+	DesiredWorkerId   pgtype.UUID        `json:"desiredWorkerId"`
+}
+
 const createTimeoutQueueItem = `-- name: CreateTimeoutQueueItem :exec
 INSERT INTO
     "InternalQueueItem" (
@@ -918,6 +932,34 @@ type RemoveTimeoutQueueItemParams struct {
 
 func (q *Queries) RemoveTimeoutQueueItem(ctx context.Context, db DBTX, arg RemoveTimeoutQueueItemParams) error {
 	_, err := db.Exec(ctx, removeTimeoutQueueItem, arg.Steprunid, arg.Retrycount)
+	return err
+}
+
+const removeTimeoutQueueItemBulk = `-- name: RemoveTimeoutQueueItemBulk :exec
+WITH input AS (
+    SELECT
+        UNNEST($1::uuid[]) AS "stepRunId",
+        UNNEST($2::integer[]) AS "retryCount"
+)
+DELETE FROM
+    "TimeoutQueueItem"
+WHERE
+    ("stepRunId", "retryCount") IN (
+        SELECT
+            "stepRunId",
+            "retryCount"
+        FROM
+            input
+    )
+`
+
+type RemoveTimeoutQueueItemBulkParams struct {
+	Steprunids  []pgtype.UUID `json:"steprunids"`
+	Retrycounts []int32       `json:"retrycounts"`
+}
+
+func (q *Queries) RemoveTimeoutQueueItemBulk(ctx context.Context, db DBTX, arg RemoveTimeoutQueueItemBulkParams) error {
+	_, err := db.Exec(ctx, removeTimeoutQueueItemBulk, arg.Steprunids, arg.Retrycounts)
 	return err
 }
 

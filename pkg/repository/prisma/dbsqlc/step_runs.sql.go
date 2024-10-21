@@ -946,6 +946,138 @@ func (q *Queries) GetStepRun(ctx context.Context, db DBTX, id pgtype.UUID) (*Ste
 	return &i, err
 }
 
+const getStepRunBulkDataForEngine = `-- name: GetStepRunBulkDataForEngine :many
+SELECT
+    sr."id" AS "SR_id",
+    sr."retryCount" AS "SR_retryCount",
+    sr."input",
+    sr."output",
+    sr."error",
+    sr."status",
+    jr."id" AS "jobRunId",
+    jr."status" AS "jobRunStatus",
+    jr."status" AS "jobRunStatus",
+    jr."workflowRunId" AS "workflowRunId",
+    jrld."data" AS "jobRunLookupData",
+    wr."additionalMetadata",
+    wr."childIndex",
+    wr."childKey",
+    wr."parentId",
+    jr."id" AS "jobRunId",
+    s."id" AS "stepId",
+    s."retries" AS "stepRetries",
+    s."timeout" AS "stepTimeout",
+    s."scheduleTimeout" AS "stepScheduleTimeout",
+    s."readableId" AS "stepReadableId",
+    s."customUserData" AS "stepCustomUserData",
+    j."name" AS "jobName",
+    j."id" AS "jobId",
+    j."kind" AS "jobKind",
+    j."workflowVersionId" AS "workflowVersionId",
+    a."actionId" AS "actionId"
+FROM
+    "StepRun" sr
+JOIN
+    "Step" s ON sr."stepId" = s."id"
+JOIN
+    "Action" a ON s."actionId" = a."actionId" AND s."tenantId" = a."tenantId"
+JOIN
+    "JobRun" jr ON sr."jobRunId" = jr."id"
+JOIN
+    "Job" j ON jr."jobId" = j."id"
+JOIN
+    "JobRunLookupData" jrld ON jr."id" = jrld."jobRunId"
+JOIN
+    -- Take advantage of composite index on "JobRun"("workflowRunId", "tenantId")
+    "WorkflowRun" wr ON jr."workflowRunId" = wr."id" AND wr."tenantId" = $1::uuid
+WHERE
+    sr."id" = ANY($2::uuid[])
+    AND sr."tenantId" = $1::uuid
+`
+
+type GetStepRunBulkDataForEngineParams struct {
+	Tenantid pgtype.UUID   `json:"tenantid"`
+	Ids      []pgtype.UUID `json:"ids"`
+}
+
+type GetStepRunBulkDataForEngineRow struct {
+	SRID                pgtype.UUID   `json:"SR_id"`
+	SRRetryCount        int32         `json:"SR_retryCount"`
+	Input               []byte        `json:"input"`
+	Output              []byte        `json:"output"`
+	Error               pgtype.Text   `json:"error"`
+	Status              StepRunStatus `json:"status"`
+	JobRunId            pgtype.UUID   `json:"jobRunId"`
+	JobRunStatus        JobRunStatus  `json:"jobRunStatus"`
+	JobRunStatus_2      JobRunStatus  `json:"jobRunStatus_2"`
+	WorkflowRunId       pgtype.UUID   `json:"workflowRunId"`
+	JobRunLookupData    []byte        `json:"jobRunLookupData"`
+	AdditionalMetadata  []byte        `json:"additionalMetadata"`
+	ChildIndex          pgtype.Int4   `json:"childIndex"`
+	ChildKey            pgtype.Text   `json:"childKey"`
+	ParentId            pgtype.UUID   `json:"parentId"`
+	JobRunId_2          pgtype.UUID   `json:"jobRunId_2"`
+	StepId              pgtype.UUID   `json:"stepId"`
+	StepRetries         int32         `json:"stepRetries"`
+	StepTimeout         pgtype.Text   `json:"stepTimeout"`
+	StepScheduleTimeout string        `json:"stepScheduleTimeout"`
+	StepReadableId      pgtype.Text   `json:"stepReadableId"`
+	StepCustomUserData  []byte        `json:"stepCustomUserData"`
+	JobName             string        `json:"jobName"`
+	JobId               pgtype.UUID   `json:"jobId"`
+	JobKind             JobKind       `json:"jobKind"`
+	WorkflowVersionId   pgtype.UUID   `json:"workflowVersionId"`
+	ActionId            string        `json:"actionId"`
+}
+
+func (q *Queries) GetStepRunBulkDataForEngine(ctx context.Context, db DBTX, arg GetStepRunBulkDataForEngineParams) ([]*GetStepRunBulkDataForEngineRow, error) {
+	rows, err := db.Query(ctx, getStepRunBulkDataForEngine, arg.Tenantid, arg.Ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*GetStepRunBulkDataForEngineRow
+	for rows.Next() {
+		var i GetStepRunBulkDataForEngineRow
+		if err := rows.Scan(
+			&i.SRID,
+			&i.SRRetryCount,
+			&i.Input,
+			&i.Output,
+			&i.Error,
+			&i.Status,
+			&i.JobRunId,
+			&i.JobRunStatus,
+			&i.JobRunStatus_2,
+			&i.WorkflowRunId,
+			&i.JobRunLookupData,
+			&i.AdditionalMetadata,
+			&i.ChildIndex,
+			&i.ChildKey,
+			&i.ParentId,
+			&i.JobRunId_2,
+			&i.StepId,
+			&i.StepRetries,
+			&i.StepTimeout,
+			&i.StepScheduleTimeout,
+			&i.StepReadableId,
+			&i.StepCustomUserData,
+			&i.JobName,
+			&i.JobId,
+			&i.JobKind,
+			&i.WorkflowVersionId,
+			&i.ActionId,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getStepRunDataForEngine = `-- name: GetStepRunDataForEngine :one
 WITH expr_count AS (
     SELECT
@@ -2107,6 +2239,75 @@ func (q *Queries) QueueStepRun(ctx context.Context, db DBTX, arg QueueStepRunPar
 	return err
 }
 
+const queueStepRunBulkNoInput = `-- name: QueueStepRunBulkNoInput :exec
+WITH input AS (
+    SELECT
+        unnest($1::uuid[]) AS "id",
+        unnest($2::int[]) AS "retryCount"
+)
+UPDATE
+    "StepRun" sr
+SET
+    "finishedAt" = NULL,
+    "status" = 'PENDING_ASSIGNMENT',
+    "output" = NULL,
+    "error" = NULL,
+    "cancelledAt" = NULL,
+    "cancelledReason" = NULL,
+    "retryCount" = input."retryCount",
+    "semaphoreReleased" = false
+FROM
+    input
+WHERE
+    sr."id" = input."id"
+`
+
+type QueueStepRunBulkNoInputParams struct {
+	Ids         []pgtype.UUID `json:"ids"`
+	Retrycounts []int32       `json:"retrycounts"`
+}
+
+func (q *Queries) QueueStepRunBulkNoInput(ctx context.Context, db DBTX, arg QueueStepRunBulkNoInputParams) error {
+	_, err := db.Exec(ctx, queueStepRunBulkNoInput, arg.Ids, arg.Retrycounts)
+	return err
+}
+
+const queueStepRunBulkWithInput = `-- name: QueueStepRunBulkWithInput :exec
+WITH input AS (
+    SELECT
+        unnest($1::uuid[]) AS "id",
+        unnest($2::jsonb[]) AS "input",
+        unnest($3::int[]) AS "retryCount"
+)
+UPDATE
+    "StepRun" sr
+SET
+    "finishedAt" = NULL,
+    "status" = 'PENDING_ASSIGNMENT',
+    "input" = COALESCE(input."input", sr."input"),
+    "output" = NULL,
+    "error" = NULL,
+    "cancelledAt" = NULL,
+    "cancelledReason" = NULL,
+    "retryCount" = input."retryCount",
+    "semaphoreReleased" = false
+FROM
+    input
+WHERE
+    sr."id" = input."id"
+`
+
+type QueueStepRunBulkWithInputParams struct {
+	Ids         []pgtype.UUID `json:"ids"`
+	Inputs      [][]byte      `json:"inputs"`
+	Retrycounts []int32       `json:"retrycounts"`
+}
+
+func (q *Queries) QueueStepRunBulkWithInput(ctx context.Context, db DBTX, arg QueueStepRunBulkWithInputParams) error {
+	_, err := db.Exec(ctx, queueStepRunBulkWithInput, arg.Ids, arg.Inputs, arg.Retrycounts)
+	return err
+}
+
 const refreshTimeoutBy = `-- name: RefreshTimeoutBy :one
 WITH step_run AS (
     SELECT
@@ -2666,6 +2867,67 @@ func (q *Queries) UpdateStepRunUnsetWorkerId(ctx context.Context, db DBTX, arg U
 	var i UpdateStepRunUnsetWorkerIdRow
 	err := row.Scan(&i.WorkerId, &i.RetryCount)
 	return &i, err
+}
+
+const updateStepRunUnsetWorkerIdBulk = `-- name: UpdateStepRunUnsetWorkerIdBulk :many
+WITH input AS (
+    SELECT
+        unnest($1::uuid[]) AS "stepRunId",
+        unnest($2::uuid[]) AS "tenantId"
+), oldsr AS (
+    SELECT
+        sr."id",
+        sr."retryCount"
+    FROM
+        "StepRun" sr
+    JOIN
+        input ON sr."id" = input."stepRunId" AND sr."tenantId" = input."tenantId"
+), deleted_sqi AS (
+    DELETE FROM
+        "SemaphoreQueueItem" sqi
+    WHERE
+        sqi."stepRunId" = ANY($1::uuid[])
+    RETURNING sqi."workerId", sqi."stepRunId"
+)
+SELECT
+    deleted_sqi."workerId" AS "workerId",
+    oldsr."retryCount",
+    deleted_sqi."stepRunId" AS "stepRunId"
+FROM
+    deleted_sqi
+JOIN
+    oldsr ON deleted_sqi."stepRunId" = oldsr."id"
+`
+
+type UpdateStepRunUnsetWorkerIdBulkParams struct {
+	Steprunids []pgtype.UUID `json:"steprunids"`
+	Tenantids  []pgtype.UUID `json:"tenantids"`
+}
+
+type UpdateStepRunUnsetWorkerIdBulkRow struct {
+	WorkerId   pgtype.UUID `json:"workerId"`
+	RetryCount int32       `json:"retryCount"`
+	StepRunId  pgtype.UUID `json:"stepRunId"`
+}
+
+func (q *Queries) UpdateStepRunUnsetWorkerIdBulk(ctx context.Context, db DBTX, arg UpdateStepRunUnsetWorkerIdBulkParams) ([]*UpdateStepRunUnsetWorkerIdBulkRow, error) {
+	rows, err := db.Query(ctx, updateStepRunUnsetWorkerIdBulk, arg.Steprunids, arg.Tenantids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*UpdateStepRunUnsetWorkerIdBulkRow
+	for rows.Next() {
+		var i UpdateStepRunUnsetWorkerIdBulkRow
+		if err := rows.Scan(&i.WorkerId, &i.RetryCount, &i.StepRunId); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const updateStepRunsToAssigned = `-- name: UpdateStepRunsToAssigned :exec

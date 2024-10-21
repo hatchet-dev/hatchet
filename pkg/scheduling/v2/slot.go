@@ -90,14 +90,14 @@ func (s *slot) ack() {
 	s.additionalNacks = nil
 }
 
-func (s *slot) nack(additionalNacks ...func()) {
+func (s *slot) nack() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	s.used = false
-	s.ackd = false
+	s.ackd = true
 
-	for _, nack := range additionalNacks {
+	for _, nack := range s.additionalNacks {
 		if nack != nil {
 			nack()
 		}

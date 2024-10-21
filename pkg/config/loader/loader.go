@@ -220,6 +220,7 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile, runtime *server.Co
 
 func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigFile, version string) (cleanup func() error, res *server.ServerConfig, err error) {
 	l := logger.NewStdErr(&cf.Logger, "server")
+	queueLogger := logger.NewStdErr(&cf.AdditionalLoggers.Queue, "queue")
 
 	tls, err := loaderutils.LoadServerTLSConfig(&cf.TLS)
 
@@ -412,8 +413,8 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 	v := validator.NewDefaultValidator()
 
 	schedulingPool, cleanupSchedulingPool, err := v2.NewSchedulingPool(
-		&l,
-		dc.Pool,
+		&queueLogger,
+		dc.QueuePool,
 		v,
 		cf.Runtime.SingleQueueLimit,
 	)

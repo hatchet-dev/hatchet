@@ -278,25 +278,42 @@ func (q *queue) scheduleStepRuns(ctx context.Context, tenantId string, res *v2.Q
 
 	var err error
 
-	for _, queueResult := range res.Assigned {
-		if queueResult.DispatcherId == nil {
-			q.l.Error().Msg("could not assign step run to worker: no dispatcher id")
-			continue
+	// bulk assign step runs
+	if len(res.Assigned) > 0 {
+		dispatcherIdToWorkerIdsToStepRuns := make(map[string]map[string][]string)
+
+		for _, bulkAssigned := range res.Assigned {
+			if bulkAssigned.DispatcherId == nil {
+				q.l.Error().Msg("could not assign step run to worker: no dispatcher id")
+				continue
+			}
+
+			dispatcherId := sqlchelpers.UUIDToStr(*bulkAssigned.DispatcherId)
+
+			if _, ok := dispatcherIdToWorkerIdsToStepRuns[dispatcherId]; !ok {
+				dispatcherIdToWorkerIdsToStepRuns[dispatcherId] = make(map[string][]string)
+			}
+
+			workerId := sqlchelpers.UUIDToStr(bulkAssigned.WorkerId)
+
+			if _, ok := dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId]; !ok {
+				dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId] = make([]string, 0)
+			}
+
+			dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId] = append(dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId], sqlchelpers.UUIDToStr(bulkAssigned.QueueItem.StepRunId))
 		}
 
-		dispatcherId := sqlchelpers.UUIDToStr(*queueResult.DispatcherId)
-		stepRunId := sqlchelpers.UUIDToStr(queueResult.QueueItem.StepRunId)
-		workerId := sqlchelpers.UUIDToStr(queueResult.WorkerId)
+		// for each dispatcher, send a bulk assigned task
+		for dispatcherId, workerIdsToStepRuns := range dispatcherIdToWorkerIdsToStepRuns {
+			err = q.mq.AddMessage(
+				ctx,
+				msgqueue.QueueTypeFromDispatcherID(dispatcherId),
+				stepRunBulkAssignedTask(tenantId, dispatcherId, workerIdsToStepRuns),
+			)
 
-		// send a task to the dispatcher
-		innerErr := q.mq.AddMessage(
-			ctx,
-			msgqueue.QueueTypeFromDispatcherID(dispatcherId),
-			stepRunAssignedTask(tenantId, stepRunId, workerId, dispatcherId),
-		)
-
-		if innerErr != nil {
-			err = multierror.Append(err, fmt.Errorf("could not send queued step run: %w", innerErr))
+			if err != nil {
+				err = multierror.Append(err, fmt.Errorf("could not send bulk assigned task: %w", err))
+			}
 		}
 	}
 
@@ -595,6 +612,24 @@ func getStepRunCancelTask(tenantId, stepRunId, reason string) *msgqueue.Message 
 
 	return &msgqueue.Message{
 		ID:       "step-run-cancel",
+		Payload:  payload,
+		Metadata: metadata,
+		Retries:  3,
+	}
+}
+
+func stepRunBulkAssignedTask(tenantId, dispatcherId string, workerIdsToStepRuns map[string][]string) *msgqueue.Message {
+	payload, _ := datautils.ToJSONMap(tasktypes.StepRunAssignedBulkTaskPayload{
+		WorkerIdToStepRunIds: workerIdsToStepRuns,
+	})
+
+	metadata, _ := datautils.ToJSONMap(tasktypes.StepRunAssignedBulkTaskMetadata{
+		TenantId:     tenantId,
+		DispatcherId: dispatcherId,
+	})
+
+	return &msgqueue.Message{
+		ID:       "step-run-assigned-bulk",
 		Payload:  payload,
 		Metadata: metadata,
 		Retries:  3,

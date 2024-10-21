@@ -98,6 +98,61 @@ func (worker *subscribedWorker) StartStepRun(
 	return worker.stream.Send(action)
 }
 
+func (worker *subscribedWorker) StartStepRunFromBulk(
+	ctx context.Context,
+	tenantId string,
+	stepRun *dbsqlc.GetStepRunBulkDataForEngineRow,
+) error {
+	ctx, span := telemetry.NewSpan(ctx, "start-step-run-from-bulk") // nolint:ineffassign
+	defer span.End()
+
+	inputBytes := []byte{}
+
+	if stepRun.Input != nil {
+		inputBytes = stepRun.Input
+	}
+
+	stepName := stepRun.StepReadableId.String
+
+	action := &contracts.AssignedAction{
+		TenantId:      tenantId,
+		JobId:         sqlchelpers.UUIDToStr(stepRun.JobId),
+		JobName:       stepRun.JobName,
+		JobRunId:      sqlchelpers.UUIDToStr(stepRun.JobRunId),
+		StepId:        sqlchelpers.UUIDToStr(stepRun.StepId),
+		StepRunId:     sqlchelpers.UUIDToStr(stepRun.SRID),
+		ActionType:    contracts.ActionType_START_STEP_RUN,
+		ActionId:      stepRun.ActionId,
+		ActionPayload: string(inputBytes),
+		StepName:      stepName,
+		WorkflowRunId: sqlchelpers.UUIDToStr(stepRun.WorkflowRunId),
+		RetryCount:    stepRun.SRRetryCount,
+	}
+
+	if stepRun.AdditionalMetadata != nil {
+		metadataStr := string(stepRun.AdditionalMetadata)
+		action.AdditionalMetadata = &metadataStr
+	}
+
+	if stepRun.ChildIndex.Valid {
+		action.ChildWorkflowIndex = &stepRun.ChildIndex.Int32
+	}
+
+	if stepRun.ChildKey.Valid {
+		action.ChildWorkflowKey = &stepRun.ChildKey.String
+	}
+
+	if stepRun.ParentId.Valid {
+		parentId := sqlchelpers.UUIDToStr(stepRun.ParentId)
+		action.ParentWorkflowRunId = &parentId
+	}
+
+	worker.sendMu.Lock()
+	defer worker.sendMu.Unlock()
+
+	return worker.stream.Send(action)
+}
+
 func (worker *subscribedWorker) StartGroupKeyAction(
 	ctx context.Context,
 	tenantId string,

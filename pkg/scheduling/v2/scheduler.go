@@ -80,10 +80,12 @@ type Scheduler struct {
 }
 
 func newScheduler(cf *sharedConfig, tenantId pgtype.UUID, rl *rateLimiter) *Scheduler {
+	l := cf.l.With().Str("tenant_id", sqlchelpers.UUIDToStr(tenantId)).Logger()
+
 	return &Scheduler{
 		repo:            newSchedulerDbQueries(cf.queries, cf.pool, tenantId),
 		tenantId:        tenantId,
-		l:               cf.l,
+		l:               &l,
 		actions:         make(map[string]*action),
 		unackedSlots:    make(map[int]*slot),
 		rl:              rl,
@@ -146,10 +148,13 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 	if mustReplenish {
 		s.replenishMu.Lock()
 	} else if ok := s.replenishMu.TryLock(); !ok {
+		s.l.Debug().Msg("skipping replenish because another replenish is in progress")
 		return nil
 	}
 
 	defer s.replenishMu.Unlock()
+
+	s.l.Debug().Msg("replenishing slots")
 
 	workers := s.getWorkers()
 	workerIds := make([]pgtype.UUID, 0)
@@ -158,11 +163,17 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 		workerIds = append(workerIds, sqlchelpers.UUIDFromStr(workerIdStr))
 	}
 
+	start := time.Now()
+	checkpoint := start
+
 	workersToActiveActions, err := s.repo.ListActionsForWorkers(ctx, workerIds)
 
 	if err != nil {
 		return err
 	}
+
+	s.l.Debug().Msgf("listing actions for workers took %s", time.Since(checkpoint))
+	checkpoint = time.Now()
 
 	actionsToWorkerIds := make(map[string][]string)
 	workerIdsToActions := make(map[string][]string)
@@ -207,10 +218,13 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 
 		switch {
 		case activeCount == 0:
+			s.l.Debug().Msgf("replenishing all slots for action %s because activeCount is 0", actionId)
 			replenish = true
 		case activeCount <= (storedAction.lastReplenishedSlotCount / 2):
+			s.l.Debug().Msgf("replenishing slots for action %s because 50%% of slots have been used", actionId)
 			replenish = true
 		case len(workers) > storedAction.lastReplenishedWorkerCount:
+			s.l.Debug().Msgf("replenishing slots for action %s because more workers are available", actionId)
 			replenish = true
 		}
 
@@ -218,6 +232,9 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 	}
 
 	s.actionsMu.RUnlock()
+
+	s.l.Debug().Msgf("determining which actions to replenish took %s", time.Since(checkpoint))
+	checkpoint = time.Now()
 
 	// FUNCTION 2: for each action which should be replenished, load the available slots
 	uniqueWorkerIds := make(map[string]bool)
@@ -248,6 +265,8 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 	if err != nil {
 		return err
 	}
+
+	s.l.Debug().Msgf("loading available slots took %s", time.Since(checkpoint))
 
 	// FUNCTION 3: list unacked slots (so they're not counted towards the worker slot count)
 	workersToUnackedSlots := make(map[string][]*slot)
@@ -293,6 +312,8 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 			unackedSlot.extendExpiry()
 		}
 
+		s.l.Debug().Msgf("worker %s has %d total slots, %d unacked slots", workerId, worker.AvailableSlots, len(unackedSlots))
+
 		slots = append(slots, unackedSlots...)
 
 		for _, actionId := range actions {
@@ -321,6 +342,8 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 			s.actions[actionId].lastReplenishedSlotCount = actionsToTotalSlots[actionId]
 			s.actions[actionId].lastReplenishedWorkerCount = len(actionsToWorkerIds[actionId])
 		}
+
+		s.l.Debug().Msgf("before cleanup, action %s has %d slots", actionId, len(newSlots))
 	}
 
 	// second pass: clean up used and expired slots
@@ -338,13 +361,22 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 		}
 
 		storedAction.slots = newSlots
+
+		s.l.Debug().Msgf("after cleanup, action %s has %d slots", i, len(newSlots))
 	}
 
 	// third pass: remove any actions which have no slots
 	for actionId, storedAction := range s.actions {
 		if storedAction.activeCount() == 0 {
+			s.l.Debug().Msgf("removing action %s because it has no slots", actionId)
 			delete(s.actions, actionId)
 		}
+	}
+
+	if sinceStart := time.Since(start); sinceStart > 100*time.Millisecond {
+		s.l.Warn().Dur("duration", sinceStart).Msg("replenishing slots took longer than 100ms")
+	} else {
+		s.l.Debug().Dur("duration", sinceStart).Msgf("finished replenishing slots")
 	}
 
 	return nil
@@ -404,6 +436,8 @@ func (s *Scheduler) tryAssignBatch(
 ) (
 	res []*assignSingleResult, newRingOffset int, err error,
 ) {
+	s.l.Debug().Msgf("trying to assign %d queue items", len(qis))
+
 	newRingOffset = ringOffset
 
 	ctx, span := telemetry.NewSpan(ctx, "try-assign-batch")
@@ -461,6 +495,8 @@ func (s *Scheduler) tryAssignBatch(
 
 	if _, ok := s.actions[actionId]; !ok {
 		s.actionsMu.RUnlock()
+
+		s.l.Debug().Msgf("no slots for action %s", actionId)
 
 		// if the action is not in the map, then we have no slots to assign to
 		for i := range res {
@@ -552,6 +588,7 @@ func (s *Scheduler) tryAssignSingleton(
 	rateLimitNack func(),
 ) (
 	res assignSingleResult, err error,
+
 ) {
 	ctx, span := telemetry.NewSpan(ctx, "try-assign-singleton") // nolint: ineffassign
 	defer span.End()
@@ -630,6 +667,7 @@ func (s *Scheduler) tryAssign(
 
 	go func() {
 		wg := sync.WaitGroup{}
+		startTotal := time.Now()
 
 		// process each action id in parallel
 		for actionId, qis := range actionIdToQueueItems {
@@ -658,6 +696,8 @@ func (s *Scheduler) tryAssign(
 				}
 
 				err := queueutils.BatchLinear(50, batched, func(batchQis []*dbsqlc.QueueItem) error {
+					batchAssigned := make([]*AssignedQueueItem, 0, len(batchQis))
+
 					batchStart := time.Now()
 
 					results, newRingOffset, err := s.tryAssignBatch(ctx, actionId, batchQis, ringOffset, stepIdsToLabels, stepRunIdsToRateLimits)
@@ -679,7 +719,7 @@ func (s *Scheduler) tryAssign(
 							continue
 						}
 
-						assigned = append(assigned, &AssignedQueueItem{
+						batchAssigned = append(batchAssigned, &AssignedQueueItem{
 							WorkerId:  singleRes.workerId,
 							QueueItem: singleRes.qi,
 							AckId:     singleRes.ackId,
@@ -688,6 +728,10 @@ func (s *Scheduler) tryAssign(
 
 					if sinceStart := time.Since(batchStart); sinceStart > 100*time.Millisecond {
 						s.l.Warn().Dur("duration", sinceStart).Msgf("processing batch of %d queue items took longer than 100ms", len(batchQis))
+					}
+
+					resultsCh <- &assignResults{
+						assigned: batchAssigned,
 					}
 
 					return nil
@@ -710,6 +754,10 @@ func (s *Scheduler) tryAssign(
 		wg.Wait()
 		span.End()
 		close(resultsCh)
+
+		if sinceStart := time.Since(startTotal); sinceStart > 100*time.Millisecond {
+			s.l.Warn().Dur("duration", sinceStart).Msgf("assigning queue items took longer than 100ms")
+		}
 	}()
 
 	return resultsCh

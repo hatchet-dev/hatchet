@@ -1,0 +1,134 @@
+package buffer
+
+import (
+	"context"
+	"sort"
+	"time"
+
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog"
+
+	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/validator"
+)
+
+type BulkSemaphoreReleaser struct {
+	*TenantBufferManager[SemaphoreReleaseOpts, pgtype.UUID]
+
+	pool    *pgxpool.Pool
+	v       validator.Validator
+	l       *zerolog.Logger
+	queries *dbsqlc.Queries
+}
+
+func NewBulkSemaphoreReleaser(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger) (*BulkSemaphoreReleaser, error) {
+	queries := dbsqlc.New()
+	flushPeriod := 50 * time.Millisecond
+
+	w := &BulkSemaphoreReleaser{
+		pool:    pool,
+		v:       v,
+		l:       l,
+		queries: queries,
+	}
+
+	eventBufOpts := TenantBufManagerOpts[SemaphoreReleaseOpts, pgtype.UUID]{
+		Name:                "semaphore_releaser",
+		OutputFunc:          w.BulkReleaseSemaphores,
+		SizeFunc:            sizeOfData,
+		L:                   w.l,
+		V:                   w.v,
+		FlushPeriod:         &flushPeriod,
+		FlushItemsThreshold: 1000,
+	}
+
+	manager, err := NewTenantBufManager(eventBufOpts)
+
+	if err != nil {
+		l.Err(err).Msg("could not create tenant buffer manager")
+		return nil, err
+	}
+
+	w.TenantBufferManager = manager
+
+	return w, nil
+}
+
+func (w *BulkSemaphoreReleaser) Cleanup() error {
+	return w.TenantBufferManager.Cleanup()
+}
+
+func sizeOfData(item SemaphoreReleaseOpts) int {
+	return len(item.StepRunId.Bytes) + len(item.TenantId.Bytes)
+}
+
+func sortForSemaphoreRelease(opts []SemaphoreReleaseOpts) []SemaphoreReleaseOpts {
+	sort.SliceStable(opts, func(i, j int) bool {
+		return sqlchelpers.UUIDToStr(opts[i].StepRunId) < sqlchelpers.UUIDToStr(opts[j].StepRunId)
+	})
+
+	return opts
+}
+
+type SemaphoreReleaseOpts struct {
+	StepRunId pgtype.UUID
+	TenantId  pgtype.UUID
+}
+
+func (w *BulkSemaphoreReleaser) BulkReleaseSemaphores(ctx context.Context, opts []SemaphoreReleaseOpts) ([]pgtype.UUID, error) {
+	res := make([]pgtype.UUID, 0, len(opts))
+
+	for _, o := range opts {
+		res = append(res, o.StepRunId)
+	}
+
+	orderedOpts := sortForSemaphoreRelease(opts)
+
+	err := sqlchelpers.DeadlockRetry(w.l, func() (err error) {
+		tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, w.l, 10000)
+
+		if err != nil {
+			return err
+		}
+
+		defer rollback()
+
+		stepRunIds := make([]pgtype.UUID, 0, len(orderedOpts))
+		tenantIds := make([]pgtype.UUID, 0, len(orderedOpts))
+
+		for _, o := range orderedOpts {
+			stepRunIds = append(stepRunIds, o.StepRunId)
+			tenantIds = append(tenantIds, o.TenantId)
+		}
+
+		oldSrs, err := w.queries.UpdateStepRunUnsetWorkerIdBulk(ctx, tx, dbsqlc.UpdateStepRunUnsetWorkerIdBulkParams{
+			Steprunids: stepRunIds,
+			Tenantids:  tenantIds,
+		})
+
+		retryCounts := make([]int32, 0, len(oldSrs))
+
+		for _, sr := range oldSrs {
+			retryCounts = append(retryCounts, sr.RetryCount)
+		}
+
+		err = w.queries.RemoveTimeoutQueueItemBulk(ctx, tx, dbsqlc.RemoveTimeoutQueueItemBulkParams{
+			Steprunids:  res,
+			Retrycounts: retryCounts,
+		})
+
+		if err != nil {
+			return err
+		}
+
+		return commit(ctx)
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return res, nil
+}

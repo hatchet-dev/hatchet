@@ -340,6 +340,7 @@ func (d *queuerDbQueries) MarkQueueItemsProcessed(ctx context.Context, r *assign
 	defer span.End()
 
 	start := time.Now()
+	checkpoint := start
 
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, d.pool, d.l, 5000)
 
@@ -349,7 +350,8 @@ func (d *queuerDbQueries) MarkQueueItemsProcessed(ctx context.Context, r *assign
 
 	defer rollback()
 
-	timeAfterPrepare := time.Since(start)
+	durPrepare := time.Since(checkpoint)
+	checkpoint = time.Now()
 
 	// d.queries.UpdateStepRunsToAssigned
 	idsToUnqueue := make([]int64, len(r.assigned))
@@ -396,7 +398,8 @@ func (d *queuerDbQueries) MarkQueueItemsProcessed(ctx context.Context, r *assign
 		return nil, nil, err
 	}
 
-	timeAfterUpdateStepRuns := time.Since(start)
+	timeAfterUpdateStepRuns := time.Since(checkpoint)
+	checkpoint = time.Now()
 
 	err = d.queries.BulkQueueItems(ctx, tx, idsToUnqueue)
 
@@ -404,7 +407,7 @@ func (d *queuerDbQueries) MarkQueueItemsProcessed(ctx context.Context, r *assign
 		return nil, nil, err
 	}
 
-	timeAfterBulkQueueItems := time.Since(start)
+	timeAfterBulkQueueItems := time.Since(checkpoint)
 
 	dispatcherIdWorkerIds, err := d.queries.ListDispatcherIdsForWorkers(ctx, tx, dbsqlc.ListDispatcherIdsForWorkersParams{
 		Tenantid:  d.tenantId,
@@ -446,9 +449,24 @@ func (d *queuerDbQueries) MarkQueueItemsProcessed(ctx context.Context, r *assign
 	}
 
 	if sinceStart := time.Since(start); sinceStart > 100*time.Millisecond {
-		d.l.Warn().Msgf(
-			"marking queue items processed took longer than 100ms (%s) (prepare=%s, update=%s, bulkqueue=%s)",
-			sinceStart, timeAfterPrepare, timeAfterUpdateStepRuns, timeAfterBulkQueueItems,
+		d.l.Warn().Dur(
+			"duration", sinceStart,
+		).Dur(
+			"prepare", durPrepare,
+		).Dur(
+			"update", timeAfterUpdateStepRuns,
+		).Dur(
+			"bulkqueue", timeAfterBulkQueueItems,
+		).Int(
+			"assigned", len(succeeded),
+		).Int(
+			"failed", len(failed),
+		).Int(
+			"unassigned", len(unassignedStepRunIds),
+		).Int(
+			"timed_out", len(timedOutStepRuns),
+		).Msgf(
+			"marking queue items processed took longer than 100ms",
 		)
 	}
 
@@ -911,7 +929,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		// if we processed all queue items, queue again
 		prevQis := qis
 
-		go func() {
+		go func(originalStart time.Time) {
 			wg.Wait()
 
 			countMu.Lock()
@@ -919,14 +937,17 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 				q.queue()
 			}
 			countMu.Unlock()
-		}()
+
+			if sinceStart := time.Since(originalStart); sinceStart > 100*time.Millisecond {
+				q.l.Warn().Dur(
+					"duration", sinceStart,
+				).Msgf("queue %s took longer than 100ms to process and flush %d items", q.queueName, len(prevQis))
+			}
+		}(start)
 	}
 }
 
 func (q *Queuer) refillQueue(ctx context.Context, curr []*dbsqlc.QueueItem) ([]*dbsqlc.QueueItem, error) {
-	q.unackedMu.RLock()
-	defer q.unackedMu.RUnlock()
-
 	// determine whether we need to replenish with the following cases:
 	// - we last replenished more than 1 second ago
 	// - if we are at less than 50% of the limit, we always attempt to replenish
@@ -943,11 +964,7 @@ func (q *Queuer) refillQueue(ctx context.Context, curr []*dbsqlc.QueueItem) ([]*
 
 	if replenish {
 		q.lastReplenished = &now
-		limit := q.limit + len(q.unacked)
-
-		if limit < 2*q.limit {
-			limit = 2 * q.limit
-		}
+		limit := 2 * q.limit
 
 		var err error
 		curr, err = q.repo.ListQueueItems(ctx, limit)
@@ -956,6 +973,9 @@ func (q *Queuer) refillQueue(ctx context.Context, curr []*dbsqlc.QueueItem) ([]*
 			return nil, err
 		}
 	}
+
+	q.unackedMu.RLock()
+	defer q.unackedMu.RUnlock()
 
 	newCurr := make([]*dbsqlc.QueueItem, 0, len(curr))
 
@@ -1025,6 +1045,8 @@ func (q *Queuer) flushToDatabase(ctx context.Context, r *assignResults) int {
 	// no matter what, we always ack the items in the queuer
 	defer q.ack(r)
 
+	q.l.Debug().Int("assigned", len(r.assigned)).Int("unassigned", len(r.unassigned)).Int("scheduling_timed_out", len(r.schedulingTimedOut)).Msg("flushing to database")
+
 	succeeded, failed, err := q.repo.MarkQueueItemsProcessed(ctx, r)
 
 	if err != nil {
@@ -1066,6 +1088,8 @@ func (q *Queuer) flushToDatabase(ctx context.Context, r *assignResults) int {
 		Assigned:           succeeded,
 		SchedulingTimedOut: schedulingTimedOut,
 	}
+
+	q.l.Debug().Int("succeeded", len(succeeded)).Int("failed", len(failed)).Msg("flushed to database")
 
 	return len(succeeded)
 }

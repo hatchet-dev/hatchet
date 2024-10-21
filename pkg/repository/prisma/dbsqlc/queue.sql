@@ -68,6 +68,36 @@ VALUES
         sqlc.narg('desiredWorkerId')::uuid
     );
 
+-- name: CreateQueueItemsBulk :copyfrom
+INSERT INTO
+    "QueueItem" (
+        "stepRunId",
+        "stepId",
+        "actionId",
+        "scheduleTimeoutAt",
+        "stepTimeout",
+        "priority",
+        "isQueued",
+        "tenantId",
+        "queue",
+        "sticky",
+        "desiredWorkerId"
+    )
+VALUES
+    (
+        $1,
+        $2,
+        $3,
+        $4,
+        $5,
+        $6,
+        $7,
+        $8,
+        $9,
+        $10,
+        $11
+    );
+
 -- name: GetQueuedCounts :many
 SELECT
     "queue",
@@ -308,6 +338,23 @@ DELETE FROM
 WHERE
     "stepRunId" = @stepRunId::uuid
     AND "retryCount" = @retryCount::integer;
+
+-- name: RemoveTimeoutQueueItemBulk :exec
+WITH input AS (
+    SELECT
+        UNNEST(@stepRunIds::uuid[]) AS "stepRunId",
+        UNNEST(@retryCounts::integer[]) AS "retryCount"
+)
+DELETE FROM
+    "TimeoutQueueItem"
+WHERE
+    ("stepRunId", "retryCount") IN (
+        SELECT
+            "stepRunId",
+            "retryCount"
+        FROM
+            input
+    );
 
 -- name: GetMinMaxProcessedTimeoutQueueItems :one
 SELECT
