@@ -844,6 +844,13 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		case <-q.notifyQueueCh:
 		}
 
+		ctx, span := telemetry.NewSpan(ctx, "queue")
+
+		telemetry.WithAttributes(span, telemetry.AttributeKV{
+			Key:   "queue",
+			Value: q.queueName,
+		})
+
 		start := time.Now()
 		checkpoint := start
 		var err error
@@ -931,6 +938,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 
 		go func(originalStart time.Time) {
 			wg.Wait()
+			span.End()
 
 			countMu.Lock()
 			if len(prevQis) > 0 && count == len(prevQis) {
@@ -1044,6 +1052,9 @@ func (q *Queuer) ack(r *assignResults) {
 func (q *Queuer) flushToDatabase(ctx context.Context, r *assignResults) int {
 	// no matter what, we always ack the items in the queuer
 	defer q.ack(r)
+
+	ctx, span := telemetry.NewSpan(ctx, "flush-to-database")
+	defer span.End()
 
 	q.l.Debug().Int("assigned", len(r.assigned)).Int("unassigned", len(r.unassigned)).Int("scheduling_timed_out", len(r.schedulingTimedOut)).Msg("flushing to database")
 
