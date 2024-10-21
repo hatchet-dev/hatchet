@@ -108,14 +108,16 @@ func (w *BulkSemaphoreReleaser) BulkReleaseSemaphores(ctx context.Context, opts 
 			Tenantids:  tenantIds,
 		})
 
+		timeoutSrs := make([]pgtype.UUID, 0, len(oldSrs))
 		retryCounts := make([]int32, 0, len(oldSrs))
 
 		for _, sr := range oldSrs {
+			timeoutSrs = append(timeoutSrs, sr.StepRunId)
 			retryCounts = append(retryCounts, sr.RetryCount)
 		}
 
 		err = w.queries.RemoveTimeoutQueueItemBulk(ctx, tx, dbsqlc.RemoveTimeoutQueueItemBulkParams{
-			Steprunids:  res,
+			Steprunids:  timeoutSrs,
 			Retrycounts: retryCounts,
 		})
 

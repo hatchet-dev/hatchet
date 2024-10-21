@@ -901,12 +901,12 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 			wg.Add(1)
 
 			// asynchronously flush to database
-			go func() {
+			go func(ar *assignResults) {
 				defer wg.Done()
 
 				startFlush := time.Now()
 
-				numFlushed := q.flushToDatabase(ctx, r)
+				numFlushed := q.flushToDatabase(ctx, ar)
 
 				countMu.Lock()
 				count += numFlushed
@@ -915,7 +915,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 				if sinceStart := time.Since(startFlush); sinceStart > 100*time.Millisecond {
 					q.l.Warn().Msgf("flushing items to database took longer than 100ms (%d items in %s)", numFlushed, time.Since(startFlush))
 				}
-			}()
+			}(r)
 		}
 
 		assignTime := time.Since(checkpoint)
