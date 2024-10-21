@@ -284,6 +284,14 @@ func (s *stepRunEngineRepository) cleanup() error {
 		return err
 	}
 
+	if err := s.bulkSemaphoreReleaser.Cleanup(); err != nil {
+		return err
+	}
+
+	if err := s.bulkQueuer.Cleanup(); err != nil {
+		return err
+	}
+
 	return s.bulkEventBuffer.Cleanup()
 }
 
