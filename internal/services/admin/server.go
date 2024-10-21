@@ -705,10 +705,10 @@ func getOpts(ctx context.Context, requests []*contracts.TriggerWorkflowRequest, 
 		return nil, nil, fmt.Errorf("could not get latest workflow versions: %w", err)
 	}
 
-	workflowVersionMap := make(map[string]*dbsqlc.GetLatestWorkflowVersionForWorkflowsRow)
+	workflowVersionMap := make(map[string]*dbsqlc.GetWorkflowVersionForEngineRow)
 
 	for _, w := range workflowVersions {
-		workflowVersionMap[sqlchelpers.UUIDToStr(w.WorkflowId)] = w
+		workflowVersionMap[sqlchelpers.UUIDToStr(w.WorkflowVersion.ID)] = w
 	}
 
 	parentTriggeredWorkflowRuns := make(map[string]*dbsqlc.GetWorkflowRunRow)
@@ -740,28 +740,7 @@ func getOpts(ctx context.Context, requests []*contracts.TriggerWorkflowRequest, 
 			return nil, nil, status.Errorf(codes.NotFound, "workflow %s not found", req.Name)
 		}
 
-		workflowVersion := workflowVersionMap[sqlchelpers.UUIDToStr(workflow.ID)]
-
-		latestVersion := dbsqlc.GetWorkflowVersionForEngineRow{
-			WorkflowVersion: dbsqlc.WorkflowVersion{
-				ID:              workflowVersion.ID,
-				CreatedAt:       workflowVersion.CreatedAt,
-				UpdatedAt:       workflowVersion.UpdatedAt,
-				DeletedAt:       workflowVersion.DeletedAt,
-				Version:         workflowVersion.Version,
-				Order:           workflowVersion.Order,
-				WorkflowId:      workflowVersion.WorkflowId,
-				Checksum:        workflowVersion.Checksum,
-				ScheduleTimeout: workflowVersion.ScheduleTimeout,
-				OnFailureJobId:  workflowVersion.OnFailureJobId,
-				Sticky:          workflowVersion.Sticky,
-				Kind:            workflowVersion.Kind,
-				DefaultPriority: workflowVersion.DefaultPriority,
-			},
-			WorkflowName:             workflow.Name,
-			ConcurrencyLimitStrategy: workflowVersion.ConcurrencyLimitStrategy,
-			ConcurrencyMaxRuns:       workflowVersion.ConcurrencyMaxRuns,
-		}
+		latestVersion := workflowVersionMap[sqlchelpers.UUIDToStr(workflow.ID)]
 
 		var createOpts *repository.CreateWorkflowRunOpts
 
@@ -793,9 +772,8 @@ func getOpts(ctx context.Context, requests []*contracts.TriggerWorkflowRequest, 
 			}
 
 			createOpts, err = repository.GetCreateWorkflowRunOptsFromParent(
-				&latestVersion,
+				latestVersion,
 				[]byte(req.Input),
-
 				*req.ParentId,
 				*req.ParentStepRunId,
 				int(*req.ChildIndex),
@@ -808,7 +786,7 @@ func getOpts(ctx context.Context, requests []*contracts.TriggerWorkflowRequest, 
 				return nil, nil, fmt.Errorf("Trigger Workflow could not create workflow run opts: %w", err)
 			}
 		} else {
-			createOpts, err = repository.GetCreateWorkflowRunOptsFromManual(&latestVersion, []byte(req.Input), additionalMetadata)
+			createOpts, err = repository.GetCreateWorkflowRunOptsFromManual(latestVersion, []byte(req.Input), additionalMetadata)
 			if err != nil {
 				return nil, nil, fmt.Errorf("Trigger Workflow not after parent triggered check could not create workflow run opts: %w", err)
 			}
@@ -816,7 +794,7 @@ func getOpts(ctx context.Context, requests []*contracts.TriggerWorkflowRequest, 
 
 		if req.DesiredWorkerId != nil {
 			if !latestVersion.WorkflowVersion.Sticky.Valid {
-				return nil, nil, status.Errorf(codes.Canceled, "workflow version %s does not have sticky enabled", workflowVersion.WorkflowName)
+				return nil, nil, status.Errorf(codes.Canceled, "workflow version %s does not have sticky enabled", latestVersion.WorkflowName)
 			}
 
 			createOpts.DesiredWorkerId = req.DesiredWorkerId

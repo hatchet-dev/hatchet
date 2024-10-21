@@ -414,10 +414,7 @@ WITH latest_versions AS (
         workflowVersions."workflowId", workflowVersions."order" DESC
 )
 SELECT
-    workflowVersions.*,
-    w."name" as "workflowName",
-    wc."limitStrategy" as "concurrencyLimitStrategy",
-    wc."maxRuns" as "concurrencyMaxRuns"
+    workflowVersions."id"
 FROM
     latest_versions
 JOIN
@@ -430,8 +427,6 @@ WHERE
     w."tenantId" = @tenantId::uuid AND
     w."deletedAt" IS NULL AND
     workflowVersions."deletedAt" IS NULL;
-
-
 
 -- name: GetWorkflowByName :one
 SELECT

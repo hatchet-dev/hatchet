@@ -500,7 +500,7 @@ func (r *workflowEngineRepository) CreateSchedules(
 	return r.queries.CreateSchedules(ctx, r.pool, createParams)
 }
 
-func (r *workflowEngineRepository) GetLatestWorkflowVersions(ctx context.Context, tenantId string, workflowIds []string) ([]*dbsqlc.GetLatestWorkflowVersionForWorkflowsRow, error) {
+func (r *workflowEngineRepository) GetLatestWorkflowVersions(ctx context.Context, tenantId string, workflowIds []string) ([]*dbsqlc.GetWorkflowVersionForEngineRow, error) {
 
 	var workflowVersionIds = make([]pgtype.UUID, len(workflowIds))
 
@@ -523,7 +523,10 @@ func (r *workflowEngineRepository) GetLatestWorkflowVersions(ctx context.Context
 		return nil, fmt.Errorf("expected %d workflow version for latest, got %d", len(workflowIds), len(versionIds))
 	}
 
-	return versionIds, nil
+	return r.queries.GetWorkflowVersionForEngine(ctx, r.pool, dbsqlc.GetWorkflowVersionForEngineParams{
+		Ids:      versionIds,
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+	})
 }
 
 func (r *workflowEngineRepository) GetLatestWorkflowVersion(ctx context.Context, tenantId, workflowId string) (*dbsqlc.GetWorkflowVersionForEngineRow, error) {

@@ -770,10 +770,7 @@ WITH latest_versions AS (
         workflowVersions."workflowId", workflowVersions."order" DESC
 )
 SELECT
-    workflowversions.id, workflowversions."createdAt", workflowversions."updatedAt", workflowversions."deletedAt", workflowversions.version, workflowversions."order", workflowversions."workflowId", workflowversions.checksum, workflowversions."scheduleTimeout", workflowversions."onFailureJobId", workflowversions.sticky, workflowversions.kind, workflowversions."defaultPriority",
-    w."name" as "workflowName",
-    wc."limitStrategy" as "concurrencyLimitStrategy",
-    wc."maxRuns" as "concurrencyMaxRuns"
+    workflowVersions."id"
 FROM
     latest_versions
 JOIN
@@ -793,55 +790,19 @@ type GetLatestWorkflowVersionForWorkflowsParams struct {
 	Workflowids []pgtype.UUID `json:"workflowids"`
 }
 
-type GetLatestWorkflowVersionForWorkflowsRow struct {
-	ID                       pgtype.UUID                  `json:"id"`
-	CreatedAt                pgtype.Timestamp             `json:"createdAt"`
-	UpdatedAt                pgtype.Timestamp             `json:"updatedAt"`
-	DeletedAt                pgtype.Timestamp             `json:"deletedAt"`
-	Version                  pgtype.Text                  `json:"version"`
-	Order                    int64                        `json:"order"`
-	WorkflowId               pgtype.UUID                  `json:"workflowId"`
-	Checksum                 string                       `json:"checksum"`
-	ScheduleTimeout          string                       `json:"scheduleTimeout"`
-	OnFailureJobId           pgtype.UUID                  `json:"onFailureJobId"`
-	Sticky                   NullStickyStrategy           `json:"sticky"`
-	Kind                     WorkflowKind                 `json:"kind"`
-	DefaultPriority          pgtype.Int4                  `json:"defaultPriority"`
-	WorkflowName             string                       `json:"workflowName"`
-	ConcurrencyLimitStrategy NullConcurrencyLimitStrategy `json:"concurrencyLimitStrategy"`
-	ConcurrencyMaxRuns       pgtype.Int4                  `json:"concurrencyMaxRuns"`
-}
-
-func (q *Queries) GetLatestWorkflowVersionForWorkflows(ctx context.Context, db DBTX, arg GetLatestWorkflowVersionForWorkflowsParams) ([]*GetLatestWorkflowVersionForWorkflowsRow, error) {
+func (q *Queries) GetLatestWorkflowVersionForWorkflows(ctx context.Context, db DBTX, arg GetLatestWorkflowVersionForWorkflowsParams) ([]pgtype.UUID, error) {
 	rows, err := db.Query(ctx, getLatestWorkflowVersionForWorkflows, arg.Tenantid, arg.Workflowids)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*GetLatestWorkflowVersionForWorkflowsRow
+	var items []pgtype.UUID
 	for rows.Next() {
-		var i GetLatestWorkflowVersionForWorkflowsRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.DeletedAt,
-			&i.Version,
-			&i.Order,
-			&i.WorkflowId,
-			&i.Checksum,
-			&i.ScheduleTimeout,
-			&i.OnFailureJobId,
-			&i.Sticky,
-			&i.Kind,
-			&i.DefaultPriority,
-			&i.WorkflowName,
-			&i.ConcurrencyLimitStrategy,
-			&i.ConcurrencyMaxRuns,
-		); err != nil {
+		var id pgtype.UUID
+		if err := rows.Scan(&id); err != nil {
 			return nil, err
 		}
-		items = append(items, &i)
+		items = append(items, id)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

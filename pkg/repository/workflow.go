@@ -283,7 +283,7 @@ type WorkflowEngineRepository interface {
 
 	GetLatestWorkflowVersion(ctx context.Context, tenantId, workflowId string) (*dbsqlc.GetWorkflowVersionForEngineRow, error)
 
-	GetLatestWorkflowVersions(ctx context.Context, tenantId string, workflowIds []string) ([]*dbsqlc.GetLatestWorkflowVersionForWorkflowsRow, error)
+	GetLatestWorkflowVersions(ctx context.Context, tenantId string, workflowIds []string) ([]*dbsqlc.GetWorkflowVersionForEngineRow, error)
 
 	// GetWorkflowByName returns a workflow by its name. It will return db.ErrNotFound if the workflow does not exist.
 	GetWorkflowByName(ctx context.Context, tenantId, workflowName string) (*dbsqlc.Workflow, error)
