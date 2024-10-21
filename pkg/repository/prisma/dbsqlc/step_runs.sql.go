@@ -2355,6 +2355,18 @@ func (q *Queries) RefreshTimeoutBy(ctx context.Context, db DBTX, arg RefreshTime
 	return timeoutAt, err
 }
 
+const removeTimeoutQueueItems = `-- name: RemoveTimeoutQueueItems :exec
+DELETE FROM
+    "TimeoutQueueItem"
+WHERE
+    "stepRunId" = ANY($1::uuid[])
+`
+
+func (q *Queries) RemoveTimeoutQueueItems(ctx context.Context, db DBTX, steprunids []pgtype.UUID) error {
+	_, err := db.Exec(ctx, removeTimeoutQueueItems, steprunids)
+	return err
+}
+
 const replayStepRunResetJobRun = `-- name: ReplayStepRunResetJobRun :one
 UPDATE
     "JobRun"
@@ -2869,75 +2881,16 @@ func (q *Queries) UpdateStepRunUnsetWorkerId(ctx context.Context, db DBTX, arg U
 	return &i, err
 }
 
-const updateStepRunUnsetWorkerIdBulk = `-- name: UpdateStepRunUnsetWorkerIdBulk :many
-WITH input AS (
-    SELECT
-        unnest($1::uuid[]) AS "stepRunId",
-        unnest($2::uuid[]) AS "tenantId"
-), oldsr AS (
-    SELECT
-        sr."id",
-        sr."retryCount"
-    FROM
-        "StepRun" sr
-    JOIN
-        input ON sr."id" = input."stepRunId" AND sr."tenantId" = input."tenantId"
-), locked_sqis AS (
-    -- Lock the semaphore queue items in a stable order to prevent deadlocks
-    SELECT
-        sqi."stepRunId"
-    FROM
-        "SemaphoreQueueItem" sqi
-    JOIN
-        input ON sqi."stepRunId" = input."stepRunId"
-    ORDER BY sqi."stepRunId"
-    FOR UPDATE
-), deleted_sqi AS (
-    DELETE FROM
-        "SemaphoreQueueItem" sqi
-    WHERE
-        sqi."stepRunId" IN (SELECT "stepRunId" FROM locked_sqis)
-    RETURNING sqi."workerId", sqi."stepRunId"
-)
-SELECT
-    deleted_sqi."workerId" AS "workerId",
-    oldsr."retryCount",
-    deleted_sqi."stepRunId" AS "stepRunId"
-FROM
-    deleted_sqi
-JOIN
-    oldsr ON deleted_sqi."stepRunId" = oldsr."id"
+const updateStepRunUnsetWorkerIdBulk = `-- name: UpdateStepRunUnsetWorkerIdBulk :exec
+DELETE FROM
+    "SemaphoreQueueItem"
+WHERE
+    "stepRunId" = ANY($1::uuid[])
 `
 
-type UpdateStepRunUnsetWorkerIdBulkParams struct {
-	Steprunids []pgtype.UUID `json:"steprunids"`
-	Tenantids  []pgtype.UUID `json:"tenantids"`
-}
-
-type UpdateStepRunUnsetWorkerIdBulkRow struct {
-	WorkerId   pgtype.UUID `json:"workerId"`
-	RetryCount int32       `json:"retryCount"`
-	StepRunId  pgtype.UUID `json:"stepRunId"`
-}
-
-func (q *Queries) UpdateStepRunUnsetWorkerIdBulk(ctx context.Context, db DBTX, arg UpdateStepRunUnsetWorkerIdBulkParams) ([]*UpdateStepRunUnsetWorkerIdBulkRow, error) {
-	rows, err := db.Query(ctx, updateStepRunUnsetWorkerIdBulk, arg.Steprunids, arg.Tenantids)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []*UpdateStepRunUnsetWorkerIdBulkRow
-	for rows.Next() {
-		var i UpdateStepRunUnsetWorkerIdBulkRow
-		if err := rows.Scan(&i.WorkerId, &i.RetryCount, &i.StepRunId); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
+func (q *Queries) UpdateStepRunUnsetWorkerIdBulk(ctx context.Context, db DBTX, steprunids []pgtype.UUID) error {
+	_, err := db.Exec(ctx, updateStepRunUnsetWorkerIdBulk, steprunids)
+	return err
 }
 
 const updateStepRunsToAssigned = `-- name: UpdateStepRunsToAssigned :exec
@@ -3087,4 +3040,43 @@ func (q *Queries) UpsertDesiredWorkerLabel(ctx context.Context, db DBTX, arg Ups
 		&i.Weight,
 	)
 	return &i, err
+}
+
+const verifiedStepRunTenantIds = `-- name: VerifiedStepRunTenantIds :many
+WITH input AS (
+    SELECT
+        unnest($1::uuid[]) AS "id",
+        unnest($2::uuid[]) AS "tenantId"
+)
+SELECT
+    sr."id"
+FROM "StepRun" sr
+JOIN input ON sr."id" = input."id" AND sr."tenantId" = input."tenantId"
+ORDER BY sr."id"
+`
+
+type VerifiedStepRunTenantIdsParams struct {
+	Steprunids []pgtype.UUID `json:"steprunids"`
+	Tenantids  []pgtype.UUID `json:"tenantids"`
+}
+
+// stable ordering as it minimizes the chance of deadlocks
+func (q *Queries) VerifiedStepRunTenantIds(ctx context.Context, db DBTX, arg VerifiedStepRunTenantIdsParams) ([]pgtype.UUID, error) {
+	rows, err := db.Query(ctx, verifiedStepRunTenantIds, arg.Steprunids, arg.Tenantids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []pgtype.UUID
+	for rows.Next() {
+		var id pgtype.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

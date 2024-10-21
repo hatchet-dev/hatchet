@@ -339,44 +339,6 @@ WHERE
     "stepRunId" = @stepRunId::uuid
     AND "retryCount" = @retryCount::integer;
 
--- name: RemoveTimeoutQueueItemBulk :exec
-WITH input AS (
-    SELECT
-        UNNEST(@stepRunIds::uuid[]) AS "stepRunId",
-        UNNEST(@retryCounts::integer[]) AS "retryCount"
-    ORDER BY "stepRunId"
-),
--- get locks on the timeout queue items in the same order as the step run ids
--- to prevent deadlocks
-qis AS (
-    SELECT
-        "stepRunId",
-        "retryCount"
-    FROM
-        "TimeoutQueueItem"
-    WHERE
-        ("stepRunId", "retryCount") IN (
-            SELECT
-                "stepRunId",
-                "retryCount"
-            FROM
-                input
-        )
-    ORDER BY
-        "stepRunId"
-    FOR UPDATE
-)
-DELETE FROM
-    "TimeoutQueueItem"
-WHERE
-    ("stepRunId", "retryCount") IN (
-        SELECT
-            "stepRunId",
-            "retryCount"
-        FROM
-            qis
-    );
-
 -- name: GetMinMaxProcessedTimeoutQueueItems :one
 SELECT
     COALESCE(MIN("id"), 0)::bigint AS "minId",

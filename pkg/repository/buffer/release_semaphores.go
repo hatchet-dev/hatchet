@@ -86,8 +86,25 @@ func (w *BulkSemaphoreReleaser) BulkReleaseSemaphores(ctx context.Context, opts 
 
 	orderedOpts := sortForSemaphoreRelease(opts)
 
-	err := sqlchelpers.DeadlockRetry(w.l, func() (err error) {
-		tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, w.l, 10000)
+	stepRunIds := make([]pgtype.UUID, 0, len(orderedOpts))
+	tenantIds := make([]pgtype.UUID, 0, len(orderedOpts))
+
+	for _, o := range orderedOpts {
+		stepRunIds = append(stepRunIds, o.StepRunId)
+		tenantIds = append(tenantIds, o.TenantId)
+	}
+
+	verifiedStepRunIds, err := w.queries.VerifiedStepRunTenantIds(ctx, w.pool, dbsqlc.VerifiedStepRunTenantIdsParams{
+		Steprunids: stepRunIds,
+		Tenantids:  tenantIds,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	err = sqlchelpers.DeadlockRetry(w.l, func() (err error) {
+		tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, w.l, 5000)
 
 		if err != nil {
 			return err
@@ -95,31 +112,29 @@ func (w *BulkSemaphoreReleaser) BulkReleaseSemaphores(ctx context.Context, opts 
 
 		defer rollback()
 
-		stepRunIds := make([]pgtype.UUID, 0, len(orderedOpts))
-		tenantIds := make([]pgtype.UUID, 0, len(orderedOpts))
+		err = w.queries.UpdateStepRunUnsetWorkerIdBulk(ctx, tx, verifiedStepRunIds)
 
-		for _, o := range orderedOpts {
-			stepRunIds = append(stepRunIds, o.StepRunId)
-			tenantIds = append(tenantIds, o.TenantId)
+		if err != nil {
+			return err
 		}
 
-		oldSrs, err := w.queries.UpdateStepRunUnsetWorkerIdBulk(ctx, tx, dbsqlc.UpdateStepRunUnsetWorkerIdBulkParams{
-			Steprunids: stepRunIds,
-			Tenantids:  tenantIds,
-		})
+		return commit(ctx)
+	})
 
-		timeoutSrs := make([]pgtype.UUID, 0, len(oldSrs))
-		retryCounts := make([]int32, 0, len(oldSrs))
+	if err != nil {
+		return nil, err
+	}
 
-		for _, sr := range oldSrs {
-			timeoutSrs = append(timeoutSrs, sr.StepRunId)
-			retryCounts = append(retryCounts, sr.RetryCount)
+	err = sqlchelpers.DeadlockRetry(w.l, func() (err error) {
+		tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, w.l, 5000)
+
+		if err != nil {
+			return err
 		}
 
-		err = w.queries.RemoveTimeoutQueueItemBulk(ctx, tx, dbsqlc.RemoveTimeoutQueueItemBulkParams{
-			Steprunids:  timeoutSrs,
-			Retrycounts: retryCounts,
-		})
+		defer rollback()
+
+		err = w.queries.RemoveTimeoutQueueItems(ctx, tx, verifiedStepRunIds)
 
 		if err != nil {
 			return err

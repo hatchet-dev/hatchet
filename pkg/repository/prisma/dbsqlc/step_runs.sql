@@ -776,44 +776,30 @@ SELECT
 FROM
     deleted_sqi, oldsr;
 
--- name: UpdateStepRunUnsetWorkerIdBulk :many
+-- name: VerifiedStepRunTenantIds :many
 WITH input AS (
     SELECT
-        unnest(@stepRunIds::uuid[]) AS "stepRunId",
+        unnest(@stepRunIds::uuid[]) AS "id",
         unnest(@tenantIds::uuid[]) AS "tenantId"
-), oldsr AS (
-    SELECT
-        sr."id",
-        sr."retryCount"
-    FROM
-        "StepRun" sr
-    JOIN
-        input ON sr."id" = input."stepRunId" AND sr."tenantId" = input."tenantId"
-), locked_sqis AS (
-    -- Lock the semaphore queue items in a stable order to prevent deadlocks
-    SELECT
-        sqi."stepRunId"
-    FROM
-        "SemaphoreQueueItem" sqi
-    JOIN
-        input ON sqi."stepRunId" = input."stepRunId"
-    ORDER BY sqi."stepRunId"
-    FOR UPDATE
-), deleted_sqi AS (
-    DELETE FROM
-        "SemaphoreQueueItem" sqi
-    WHERE
-        sqi."stepRunId" IN (SELECT "stepRunId" FROM locked_sqis)
-    RETURNING sqi."workerId", sqi."stepRunId"
 )
 SELECT
-    deleted_sqi."workerId" AS "workerId",
-    oldsr."retryCount",
-    deleted_sqi."stepRunId" AS "stepRunId"
-FROM
-    deleted_sqi
-JOIN
-    oldsr ON deleted_sqi."stepRunId" = oldsr."id";
+    sr."id"
+FROM "StepRun" sr
+JOIN input ON sr."id" = input."id" AND sr."tenantId" = input."tenantId"
+-- stable ordering as it minimizes the chance of deadlocks
+ORDER BY sr."id";
+
+-- name: UpdateStepRunUnsetWorkerIdBulk :exec
+DELETE FROM
+    "SemaphoreQueueItem"
+WHERE
+    "stepRunId" = ANY(@stepRunIds::uuid[]);
+
+-- name: RemoveTimeoutQueueItems :exec
+DELETE FROM
+    "TimeoutQueueItem"
+WHERE
+    "stepRunId" = ANY(@stepRunIds::uuid[]);
 
 -- name: CheckWorker :one
 SELECT

@@ -728,7 +728,7 @@ func (s *stepRunEngineRepository) ListStepRunsToTimeout(ctx context.Context, ten
 }
 
 func (s *stepRunEngineRepository) ReleaseStepRunSemaphore(ctx context.Context, tenantId, stepRunId string, isUserTriggered bool) error {
-	err := s.releaseWorkerSemaphoreSlot(ctx, tenantId, stepRunId, isUserTriggered)
+	err := s.releaseWorkerSemaphoreSlot(ctx, tenantId, stepRunId)
 
 	if err != nil {
 		return fmt.Errorf("could not release worker semaphore slot for step run %s: %w", stepRunId, err)
@@ -2408,7 +2408,7 @@ func (s *stepRunEngineRepository) StepRunSucceeded(ctx context.Context, tenantId
 	defer span.End()
 
 	// write a queue item to release the worker semaphore
-	err := s.releaseWorkerSemaphoreSlot(ctx, tenantId, stepRunId, false)
+	err := s.releaseWorkerSemaphoreSlot(ctx, tenantId, stepRunId)
 
 	if err != nil {
 		return fmt.Errorf("could not release worker semaphore queue items: %w", err)
@@ -2477,7 +2477,7 @@ func (s *stepRunEngineRepository) StepRunCancelled(ctx context.Context, tenantId
 	defer span.End()
 
 	// write a queue item to release the worker semaphore
-	err := s.releaseWorkerSemaphoreSlot(ctx, tenantId, stepRunId, false)
+	err := s.releaseWorkerSemaphoreSlot(ctx, tenantId, stepRunId)
 
 	if err != nil {
 		return fmt.Errorf("could not release worker semaphore queue items: %w", err)
@@ -2538,7 +2538,7 @@ func (s *stepRunEngineRepository) StepRunFailed(ctx context.Context, tenantId, w
 	defer span.End()
 
 	// release the worker semaphore
-	err := s.releaseWorkerSemaphoreSlot(ctx, tenantId, stepRunId, false)
+	err := s.releaseWorkerSemaphoreSlot(ctx, tenantId, stepRunId)
 
 	if err != nil {
 		return fmt.Errorf("could not release worker semaphore queue items: %w", err)
@@ -2909,7 +2909,7 @@ func (s *stepRunEngineRepository) QueueStepRun(ctx context.Context, tenantId, st
 
 	if opts.IsRetry || opts.IsInternalRetry {
 		// if this is a retry, write a queue item to release the worker semaphore
-		err := s.releaseWorkerSemaphoreSlot(ctx, tenantId, stepRunId, false)
+		err := s.releaseWorkerSemaphoreSlot(ctx, tenantId, stepRunId)
 
 		if err != nil {
 			return nil, fmt.Errorf("could not release worker semaphore queue items: %w", err)
@@ -3286,7 +3286,7 @@ func (s *stepRunEngineRepository) removeFinalizedStepRuns(ctx context.Context, t
 	return remaining, cancelled, nil
 }
 
-func (s *stepRunEngineRepository) releaseWorkerSemaphoreSlot(ctx context.Context, tenantId, stepRunId string, wait bool) error {
+func (s *stepRunEngineRepository) releaseWorkerSemaphoreSlot(ctx context.Context, tenantId, stepRunId string) error {
 	done, err := s.bulkSemaphoreReleaser.BuffItem(tenantId, buffer.SemaphoreReleaseOpts{
 		StepRunId: sqlchelpers.UUIDFromStr(stepRunId),
 		TenantId:  sqlchelpers.UUIDFromStr(tenantId),
@@ -3296,20 +3296,18 @@ func (s *stepRunEngineRepository) releaseWorkerSemaphoreSlot(ctx context.Context
 		return fmt.Errorf("could not buffer semaphore release: %w", err)
 	}
 
-	if wait {
-		var response *buffer.FlushResponse[pgtype.UUID]
+	var response *buffer.FlushResponse[pgtype.UUID]
 
-		select {
-		case response = <-done:
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(15 * time.Second):
-			return fmt.Errorf("timeout waiting for step run succeeded to be flushed to db")
-		}
+	select {
+	case response = <-done:
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-time.After(15 * time.Second):
+		return fmt.Errorf("timeout waiting for semaphore slot to be flushed to db")
+	}
 
-		if response.Err != nil {
-			return fmt.Errorf("could not flush step run succeeded: %w", response.Err)
-		}
+	if response.Err != nil {
+		return fmt.Errorf("could not release worker semaphore slot: %w", response.Err)
 	}
 
 	return nil
