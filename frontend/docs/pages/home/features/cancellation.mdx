@@ -100,7 +100,7 @@ w.RegisterWorkflow(
                   go func() {
                     // Step business logic
                     // ...
-                    done <- struct{}{}
+                    stepDone <- struct{}{}
                   }()
                   select {
                     case <- ctx.Done():
