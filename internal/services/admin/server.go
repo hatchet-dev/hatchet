@@ -708,7 +708,7 @@ func getOpts(ctx context.Context, requests []*contracts.TriggerWorkflowRequest, 
 	workflowVersionMap := make(map[string]*dbsqlc.GetWorkflowVersionForEngineRow)
 
 	for _, w := range workflowVersions {
-		workflowVersionMap[sqlchelpers.UUIDToStr(w.WorkflowVersion.ID)] = w
+		workflowVersionMap[sqlchelpers.UUIDToStr(w.WorkflowVersion.WorkflowId)] = w
 	}
 
 	parentTriggeredWorkflowRuns := make(map[string]*dbsqlc.GetWorkflowRunRow)
