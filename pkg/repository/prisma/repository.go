@@ -342,7 +342,7 @@ func NewEngineRepository(pool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ..
 			tenantAlerting: NewTenantAlertingEngineRepository(pool, opts.v, opts.l, opts.cache),
 			ticker:         NewTickerRepository(pool, opts.v, opts.l),
 			worker:         NewWorkerEngineRepository(pool, opts.v, opts.l, opts.metered),
-			workflow:       NewWorkflowEngineRepository(pool, opts.v, opts.l, opts.metered),
+			workflow:       NewWorkflowEngineRepository(pool, opts.v, opts.l, opts.metered, opts.cache),
 			workflowRun:    workflowRunEngine,
 			streamEvent:    NewStreamEventsEngineRepository(pool, opts.v, opts.l),
 			log:            NewLogEngineRepository(pool, opts.v, opts.l),

@@ -172,6 +172,13 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile, runtime *server.Co
 
 	config.MaxConnLifetime = 15 * 60 * time.Second
 
+	debugger := &debugger{
+		callerCounts: make(map[string]int),
+		l:            &l,
+	}
+
+	config.BeforeAcquire = debugger.beforeAcquire
+
 	pool, err := pgxpool.NewWithConfig(context.Background(), config)
 
 	if err != nil {

@@ -857,7 +857,13 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		qis, err = q.refillQueue(ctx, qis)
 
 		if err != nil {
+			span.End()
 			q.l.Error().Err(err).Msg("error refilling queue")
+			continue
+		}
+
+		if len(qis) == 0 {
+			span.End()
 			continue
 		}
 
