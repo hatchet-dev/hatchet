@@ -38,7 +38,10 @@ type ServerConfigFile struct {
 
 	MessageQueue MessageQueueConfigFile `mapstructure:"msgQueue" json:"msgQueue,omitempty"`
 
-	Services []string `mapstructure:"services" json:"services,omitempty" default:"[\"health\", \"ticker\", \"grpc\", \"eventscontroller\", \"queue\", \"webhookscontroller\", \"heartbeater\", \"retention\"]"`
+	Services []string `mapstructure:"services" json:"services,omitempty" default:"[\"all\"]"`
+
+	// Used to bind the environment variable, since the array is not well supported
+	ServicesString string `mapstructure:"servicesString" json:"servicesString,omitempty"`
 
 	EnableDataRetention bool `mapstructure:"enableDataRetention" json:"enableDataRetention,omitempty" default:"true"`
 
@@ -415,7 +418,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.grpcInsecure", "SERVER_GRPC_INSECURE")
 	_ = v.BindEnv("runtime.grpcMaxMsgSize", "SERVER_GRPC_MAX_MSG_SIZE")
 	_ = v.BindEnv("runtime.shutdownWait", "SERVER_SHUTDOWN_WAIT")
-	_ = v.BindEnv("services", "SERVER_SERVICES")
+	_ = v.BindEnv("servicesString", "SERVER_SERVICES")
 	_ = v.BindEnv("enableDataRetention", "SERVER_ENABLE_DATA_RETENTION")
 	_ = v.BindEnv("enableWorkerRetention", "SERVER_ENABLE_WORKER_RETENTION")
 	_ = v.BindEnv("runtime.enforceLimits", "SERVER_ENFORCE_LIMITS")

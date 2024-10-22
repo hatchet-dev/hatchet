@@ -1176,6 +1176,14 @@ type SNSIntegration struct {
 	TopicArn  string           `json:"topicArn"`
 }
 
+type SchedulerPartition struct {
+	ID            string           `json:"id"`
+	CreatedAt     pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt     pgtype.Timestamp `json:"updatedAt"`
+	LastHeartbeat pgtype.Timestamp `json:"lastHeartbeat"`
+	Name          pgtype.Text      `json:"name"`
+}
+
 type SecurityCheckIdent struct {
 	ID pgtype.UUID `json:"id"`
 }
@@ -1360,6 +1368,7 @@ type Tenant struct {
 	ControllerPartitionId pgtype.Text      `json:"controllerPartitionId"`
 	WorkerPartitionId     pgtype.Text      `json:"workerPartitionId"`
 	DataRetentionPeriod   string           `json:"dataRetentionPeriod"`
+	SchedulerPartitionId  pgtype.Text      `json:"schedulerPartitionId"`
 }
 
 type TenantAlertEmailGroup struct {

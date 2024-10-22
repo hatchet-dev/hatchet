@@ -2530,6 +2530,13 @@ func (s *stepRunEngineRepository) StepRunFailed(ctx context.Context, tenantId, w
 	ctx, span := telemetry.NewSpan(ctx, "step-run-failed-db")
 	defer span.End()
 
+	// write a queue item to release the worker semaphore
+	err := s.releaseWorkerSemaphoreSlot(ctx, tenantId, stepRunId)
+
+	if err != nil {
+		return fmt.Errorf("could not release worker semaphore queue items: %w", err)
+	}
+
 	failed := string(dbsqlc.StepRunStatusFAILED)
 
 	data := &updateStepRunQueueData{
@@ -2542,7 +2549,7 @@ func (s *stepRunEngineRepository) StepRunFailed(ctx context.Context, tenantId, w
 		Status:     &failed,
 	}
 
-	_, err := s.bulkStatusBuffer.BuffItem(tenantId, data)
+	_, err = s.bulkStatusBuffer.BuffItem(tenantId, data)
 
 	if err != nil {
 		return fmt.Errorf("could not buffer step run succeeded: %w", err)

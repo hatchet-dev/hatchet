@@ -346,7 +346,7 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 		s.l.Debug().Msgf("before cleanup, action %s has %d slots", actionId, len(newSlots))
 	}
 
-	// second pass: clean up used and expired slots
+	// second pass: clean up expired slots
 	for i := range s.actions {
 		storedAction := s.actions[i]
 
@@ -355,7 +355,7 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 		for i := range storedAction.slots {
 			slot := storedAction.slots[i]
 
-			if slot.active() {
+			if !slot.expired() {
 				newSlots = append(newSlots, slot)
 			}
 		}
@@ -367,7 +367,7 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 
 	// third pass: remove any actions which have no slots
 	for actionId, storedAction := range s.actions {
-		if storedAction.activeCount() == 0 {
+		if len(storedAction.slots) == 0 {
 			s.l.Debug().Msgf("removing action %s because it has no slots", actionId)
 			delete(s.actions, actionId)
 		}

@@ -172,12 +172,14 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile, runtime *server.Co
 
 	config.MaxConnLifetime = 15 * 60 * time.Second
 
-	debugger := &debugger{
-		callerCounts: make(map[string]int),
-		l:            &l,
-	}
+	if cf.Logger.Level == "debug" {
+		debugger := &debugger{
+			callerCounts: make(map[string]int),
+			l:            &l,
+		}
 
-	config.BeforeAcquire = debugger.beforeAcquire
+		config.BeforeAcquire = debugger.beforeAcquire
+	}
 
 	pool, err := pgxpool.NewWithConfig(context.Background(), config)
 
@@ -443,6 +445,13 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 		return nil
 	}
 
+	services := cf.Services
+
+	// edge case to support backwards-compatibility with the services array in the config file
+	if cf.ServicesString != "" {
+		services = strings.Split(cf.ServicesString, " ")
+	}
+
 	return cleanup, &server.ServerConfig{
 		Alerter:                alerter,
 		Analytics:              analyticsEmitter,
@@ -453,7 +462,7 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 		Encryption:             encryptionSvc,
 		Config:                 dc,
 		MessageQueue:           mq,
-		Services:               cf.Services,
+		Services:               services,
 		Logger:                 &l,
 		TLSConfig:              tls,
 		SessionStore:           ss,

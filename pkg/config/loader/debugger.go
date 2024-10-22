@@ -65,7 +65,7 @@ func (d *debugger) printCallerCounts() {
 		return counts[i].count > counts[j].count
 	})
 
-	sl := d.l.Error()
+	sl := d.l.Debug()
 
 	for i, c := range counts {
 		// print only the top 20 callers

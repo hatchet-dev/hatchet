@@ -1064,6 +1064,10 @@ func (q *Queuer) flushToDatabase(ctx context.Context, r *assignResults) int {
 
 	q.l.Debug().Int("assigned", len(r.assigned)).Int("unassigned", len(r.unassigned)).Int("scheduling_timed_out", len(r.schedulingTimedOut)).Msg("flushing to database")
 
+	if len(r.assigned) == 0 && len(r.unassigned) == 0 && len(r.schedulingTimedOut) == 0 && len(r.rateLimited) == 0 {
+		return 0
+	}
+
 	succeeded, failed, err := q.repo.MarkQueueItemsProcessed(ctx, r)
 
 	if err != nil {

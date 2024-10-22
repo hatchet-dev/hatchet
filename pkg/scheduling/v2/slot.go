@@ -58,6 +58,13 @@ func (s *slot) active() bool {
 	return !s.used && s.expiresAt != nil && s.expiresAt.After(time.Now())
 }
 
+func (s *slot) expired() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	return s.expiresAt == nil || s.expiresAt.Before(time.Now())
+}
+
 func (s *slot) use(additionalAcks []func(), additionalNacks []func()) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()

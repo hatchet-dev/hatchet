@@ -15,7 +15,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/integrations/alerting"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/queueutils"
-	"github.com/hatchet-dev/hatchet/internal/services/controllers/partition"
+	"github.com/hatchet-dev/hatchet/internal/services/partition"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"

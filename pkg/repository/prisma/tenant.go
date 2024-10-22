@@ -446,6 +446,76 @@ func (r *tenantEngineRepository) RebalanceInactiveTenantWorkerPartitions(ctx con
 	return r.queries.RebalanceInactiveTenantWorkerPartitions(ctx, r.pool)
 }
 
+func (r *tenantEngineRepository) UpdateSchedulerPartitionHeartbeat(ctx context.Context, partitionId string) (string, error) {
+	tx, err := r.pool.Begin(ctx)
+
+	if err != nil {
+		return "", err
+	}
+
+	defer sqlchelpers.DeferRollback(ctx, r.l, tx.Rollback)
+
+	// set tx timeout to 5 seconds to avoid deadlocks
+	_, err = tx.Exec(ctx, "SET statement_timeout=5000")
+
+	if err != nil {
+		return "", err
+	}
+
+	partition, err := r.queries.SchedulerPartitionHeartbeat(ctx, tx, partitionId)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			// create a new partition
+			partition, err = r.queries.CreateSchedulerPartition(ctx, tx, getPartitionName())
+
+			if err != nil {
+				return "", err
+			}
+		} else {
+			return "", err
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return "", err
+	}
+
+	return partition.ID, nil
+}
+
+func (r *tenantEngineRepository) ListTenantsBySchedulerPartition(ctx context.Context, schedulerPartitionId string) ([]*dbsqlc.Tenant, error) {
+	if schedulerPartitionId == "" {
+		return nil, fmt.Errorf("partitionId is required")
+	}
+
+	return r.queries.ListTenantsBySchedulerPartitionId(ctx, r.pool, schedulerPartitionId)
+}
+
+func (r *tenantEngineRepository) CreateSchedulerPartition(ctx context.Context) (string, error) {
+
+	partition, err := r.queries.CreateSchedulerPartition(ctx, r.pool, getPartitionName())
+
+	if err != nil {
+		return "", err
+	}
+
+	return partition.ID, nil
+}
+
+func (r *tenantEngineRepository) DeleteSchedulerPartition(ctx context.Context, id string) error {
+	_, err := r.queries.DeleteSchedulerPartition(ctx, r.pool, id)
+	return err
+}
+
+func (r *tenantEngineRepository) RebalanceAllSchedulerPartitions(ctx context.Context) error {
+	return r.queries.RebalanceAllSchedulerPartitions(ctx, r.pool)
+}
+
+func (r *tenantEngineRepository) RebalanceInactiveSchedulerPartitions(ctx context.Context) error {
+	return r.queries.RebalanceInactiveSchedulerPartitions(ctx, r.pool)
+}
+
 func getPartitionName() pgtype.Text {
 	hostname, ok := os.LookupEnv("HOSTNAME")
 
