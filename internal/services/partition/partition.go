@@ -78,13 +78,19 @@ func (p *Partition) Shutdown() error {
 	err := p.controllerCron.Shutdown()
 
 	if err != nil {
-		return fmt.Errorf("could not shutdown controller scheduler: %w", err)
+		return fmt.Errorf("could not shutdown controller cron: %w", err)
 	}
 
 	err = p.workerCron.Shutdown()
 
 	if err != nil {
-		return fmt.Errorf("could not shutdown worker scheduler: %w", err)
+		return fmt.Errorf("could not shutdown worker cron: %w", err)
+	}
+
+	err = p.schedulerCron.Shutdown()
+
+	if err != nil {
+		return fmt.Errorf("could not shutdown scheduler cron: %w", err)
 	}
 
 	// wait for heartbeat timeout duration
