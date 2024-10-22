@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/hatchet-dev/hatchet/internal/services/admin"
@@ -35,7 +36,14 @@ type Teardown struct {
 func init() {
 	svcName := os.Getenv("SERVER_OTEL_SERVICE_NAME")
 	collectorURL := os.Getenv("SERVER_OTEL_COLLECTOR_URL")
+	insecure := os.Getenv("SERVER_OTEL_INSECURE")
 	traceIdRatio := os.Getenv("SERVER_OTEL_TRACE_ID_RATIO")
+
+	var insecureBool bool
+
+	if insecureStr := strings.ToLower(strings.TrimSpace(insecure)); insecureStr == "t" || insecureStr == "true" {
+		insecureBool = true
+	}
 
 	// we do this to we get the tracer set globally, which is needed by some of the otel
 	// integrations for the database before start
@@ -43,6 +51,7 @@ func init() {
 		ServiceName:  svcName,
 		CollectorURL: collectorURL,
 		TraceIdRatio: traceIdRatio,
+		Insecure:     insecureBool,
 	})
 
 	if err != nil {

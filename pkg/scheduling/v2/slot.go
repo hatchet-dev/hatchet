@@ -1,18 +1,25 @@
 package v2
 
 import (
-	"sort"
+	"slices"
 	"sync"
+	"time"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 )
 
+// slot expiry is 1 second to account for the 1 second replenish rate, plus 500 ms of buffer
+// time for unacked slots to get written back to the database.
+const defaultSlotExpiry = 1500 * time.Millisecond
+
 type slot struct {
 	worker  *worker
 	actions []string
 
-	used bool
+	// expiresAt is when the slot is no longer valid, but has not been cleaned up yet
+	expiresAt *time.Time
+	used      bool
 
 	ackd bool
 
@@ -22,15 +29,33 @@ type slot struct {
 	mu sync.RWMutex
 }
 
+func newSlot(worker *worker, actions []string) *slot {
+	expires := time.Now().Add(defaultSlotExpiry)
+
+	return &slot{
+		worker:    worker,
+		actions:   actions,
+		expiresAt: &expires,
+	}
+}
+
 func (s *slot) getWorkerId() string {
 	return sqlchelpers.UUIDToStr(s.worker.ID)
+}
+
+func (s *slot) extendExpiry() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	expires := time.Now().Add(defaultSlotExpiry)
+	s.expiresAt = &expires
 }
 
 func (s *slot) active() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	return !s.used
+	return !s.used && s.expiresAt != nil && s.expiresAt.After(time.Now())
 }
 
 func (s *slot) use(additionalAcks []func(), additionalNacks []func()) bool {
@@ -83,15 +108,7 @@ func (s *slot) nack(additionalNacks ...func()) {
 }
 
 type rankedValidSlots struct {
-	validSlots      []*slot
-	workerSeenCount map[string]int
-
-	// slotRanking is a map of slot index to rank. Ranks of -1 will not count in the final ranking.
-	slotRanking map[int]int
-
-	// workerSlotCountRank is used as a secondary ranking for workers with the same rank. It stores a map of
-	// slot index to the number of times that worker was seen.
-	workerSlotCountRank map[int]int
+	ranksToSlots map[int][]*slot
 
 	// cachedWorkerRanks is a map of worker id to rank.
 	cachedWorkerRanks map[string]int
@@ -99,11 +116,8 @@ type rankedValidSlots struct {
 
 func newRankedValidSlots() *rankedValidSlots {
 	return &rankedValidSlots{
-		validSlots:          make([]*slot, 0),
-		workerSeenCount:     make(map[string]int),
-		cachedWorkerRanks:   make(map[string]int),
-		workerSlotCountRank: make(map[int]int),
-		slotRanking:         make(map[int]int),
+		ranksToSlots:      make(map[int][]*slot),
+		cachedWorkerRanks: make(map[string]int),
 	}
 }
 
@@ -118,38 +132,33 @@ func (r *rankedValidSlots) addFromCache(slot *slot) bool {
 	return false
 }
 
-func (r *rankedValidSlots) addSlot(slot *slot, rank int) {
-	workerId := slot.getWorkerId()
-	index := len(r.validSlots)
-
-	r.validSlots = append(r.validSlots, slot)
-	r.slotRanking[index] = rank
-	r.workerSlotCountRank[index] = r.workerSeenCount[workerId]
-	r.cachedWorkerRanks[workerId] = rank
-	r.workerSeenCount[workerId]++
-}
-
-func (r *rankedValidSlots) less(i, j int) bool {
-	// if we have the same rank, sort by worker seen count
-	if r.slotRanking[i] == r.slotRanking[j] {
-		return r.workerSlotCountRank[i] > r.workerSlotCountRank[j]
+func (r *rankedValidSlots) addSlot(s *slot, rank int) {
+	if _, ok := r.ranksToSlots[rank]; !ok {
+		r.ranksToSlots[rank] = make([]*slot, 0)
 	}
 
-	return r.slotRanking[i] > r.slotRanking[j]
+	r.ranksToSlots[rank] = append(r.ranksToSlots[rank], s)
 }
 
 func (r *rankedValidSlots) order() []*slot {
 	nonNegativeSlots := make([]*slot, 0)
 
-	// remove any slots with a negative rank
-	for i, rank := range r.slotRanking {
-		if rank >= 0 {
-			nonNegativeSlots = append(nonNegativeSlots, r.validSlots[i])
-		}
+	sortedRanks := make([]int, 0, len(r.ranksToSlots))
+
+	for rank := range r.ranksToSlots {
+		sortedRanks = append(sortedRanks, rank)
 	}
 
-	// sort the slots by rank
-	sort.Slice(nonNegativeSlots, r.less)
+	slices.Sort(sortedRanks)
+
+	// iterate through sortedRanks in reverse order
+	for i := len(sortedRanks) - 1; i >= 0; i-- {
+		rank := sortedRanks[i]
+
+		if r.ranksToSlots[rank] != nil {
+			nonNegativeSlots = append(nonNegativeSlots, r.ranksToSlots[rank]...)
+		}
+	}
 
 	return nonNegativeSlots
 }
@@ -170,13 +179,26 @@ func getRankedSlots(
 			continue
 		}
 
-		// if this is a sticky strategy, it can only be assigned to the desired worker if the desired
-		// worker id is set. otherwise, it can be assigned to any worker.
+		// if this is a HARD sticky strategy, it can only be assigned to the desired worker if the desired
+		// worker id is set. otherwise, it cannot be assigned.
 		if qi.Sticky.Valid && qi.Sticky.StickyStrategy == dbsqlc.StickyStrategyHARD {
 			if qi.DesiredWorkerId.Valid && workerId == sqlchelpers.UUIDToStr(qi.DesiredWorkerId) {
 				validSlots.addSlot(slot, 0)
-				continue
 			}
+
+			continue
+		}
+
+		// if this is a SOFT sticky strategy, we should prefer the desired worker, but if it is not
+		// available, we can assign to any worker.
+		if qi.Sticky.Valid && qi.Sticky.StickyStrategy == dbsqlc.StickyStrategySOFT {
+			if qi.DesiredWorkerId.Valid && workerId == sqlchelpers.UUIDToStr(qi.DesiredWorkerId) {
+				validSlots.addSlot(slot, 1)
+			} else {
+				validSlots.addSlot(slot, 0)
+			}
+
+			continue
 		}
 
 		// if this step has affinity labels, check if the worker has the desired labels, and rank by

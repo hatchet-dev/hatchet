@@ -109,8 +109,15 @@ func (q *Queries) ArchiveStepRunResultFromStepRun(ctx context.Context, db DBTX, 
 }
 
 const bulkCancelStepRun = `-- name: BulkCancelStepRun :exec
-UPDATE
-    "StepRun"
+WITH input AS (
+    SELECT
+        unnest($1::uuid[]) AS "id",
+        unnest($2::timestamp[]) AS "finishedAt",
+        unnest($3::timestamp[]) AS "cancelledAt",
+        unnest($4::text[]) AS "cancelledReason",
+        unnest($5::text[]) AS "cancelledError"
+)
+UPDATE "StepRun"
 SET
     "status" = CASE
         -- Final states are final, cannot be updated
@@ -121,16 +128,8 @@ SET
     "cancelledAt" = input."cancelledAt",
     "cancelledReason" = input."cancelledReason",
     "cancelledError" = input."cancelledError"
-FROM (
-    SELECT
-        unnest($1::uuid[]) AS "id",
-        unnest($2::timestamp[]) AS "finishedAt",
-        unnest($3::timestamp[]) AS "cancelledAt",
-        unnest($4::text[]) AS "cancelledReason",
-        unnest($5::text[]) AS "cancelledError"
-) AS input
-WHERE
-    "StepRun"."id" = input."id"
+FROM input
+WHERE "StepRun"."id" = input."id"
 `
 
 type BulkCancelStepRunParams struct {
@@ -163,6 +162,13 @@ WITH input_values AS (
         unnest($5::text[]) AS "message",
         1 AS "count",
         unnest($6::jsonb[]) AS "data"
+),
+locked_rows AS (
+    SELECT "id"
+    FROM "StepRunEvent"
+    WHERE "stepRunId" IN (SELECT unnest($2::uuid[]))
+    ORDER BY "id"
+    FOR UPDATE
 ),
 updated AS (
     UPDATE "StepRunEvent"
@@ -2349,8 +2355,7 @@ SET
     "error" = NULL,
     "cancelledAt" = NULL,
     "cancelledReason" = NULL,
-    "cancelledError" = NULL,
-    "input" = NULL
+    "cancelledError" = NULL
 WHERE
     "workflowRunId" = $1::uuid
 RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "workerId", "tickerId", status, input, output, "requeueAfter", error, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError", "workflowRunId", "scheduleTimeoutAt"

@@ -1586,22 +1586,15 @@ func createNewWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbs
 			desiredWorkerIds := make([]pgtype.UUID, 0)
 			tenantIds := make([]pgtype.UUID, 0)
 
-			workflowVersionIdMap := make(map[string]pgtype.UUID)
-
 			for _, stickyInfo := range stickyInfos {
 				stickyWorkflowRunIds = append(stickyWorkflowRunIds, stickyInfo.workflowRunId)
 
-				// we want distinct workflowVersionIds
-				workflowVersionIdMap[sqlchelpers.UUIDToStr(stickyInfo.workflowVersionId)] = stickyInfo.workflowVersionId
+				workflowVersionIds = append(workflowVersionIds, stickyInfo.workflowVersionId)
 				desiredWorkerIds = append(desiredWorkerIds, stickyInfo.desiredWorkerId)
 				tenantIds = append(tenantIds, stickyInfo.tenantId)
 			}
 
-			for _, value := range workflowVersionIdMap {
-				workflowVersionIds = append(workflowVersionIds, value)
-			}
-
-			_, err = queries.CreateMultipleWorkflowRunStickyStates(tx1Ctx, tx, dbsqlc.CreateMultipleWorkflowRunStickyStatesParams{
+			err = queries.CreateMultipleWorkflowRunStickyStates(tx1Ctx, tx, dbsqlc.CreateMultipleWorkflowRunStickyStatesParams{
 				Tenantid:           tenantIds,
 				Workflowrunids:     stickyWorkflowRunIds,
 				Workflowversionids: workflowVersionIds,
@@ -1859,6 +1852,6 @@ func bulkWorkflowRunEvents(
 	})
 
 	if err != nil {
-		l.Err(err).Msg("could not create deferred step run event")
+		l.Err(err).Msg("could not create bulk workflow run event")
 	}
 }

@@ -1047,7 +1047,7 @@ func bulkStepRunEvents(
 	})
 
 	if err != nil {
-		return fmt.Errorf("could not create deferred step run event: %w", err)
+		return fmt.Errorf("bulkStepRunEvents - could not create deferred step run event: %w", err)
 	}
 
 	return nil
@@ -1921,6 +1921,8 @@ func (s *stepRunEngineRepository) ProcessStepRunUpdatesV2(ctx context.Context, q
 
 	var completedWorkflowRuns []*dbsqlc.ResolveWorkflowRunStatusRow
 
+	data = stableSortBatch(data)
+
 	succeededStepRuns, completedWorkflowRunsV1, err := s.processStepRunUpdatesV2(ctx, &ql, tenantId, tx, data)
 
 	if err != nil {
@@ -1960,6 +1962,14 @@ func (s *stepRunEngineRepository) ProcessStepRunUpdatesV2(ctx context.Context, q
 		CompletedWorkflowRuns: completedWorkflowRuns,
 		Continue:              len(queueItems) == limit,
 	}, nil
+}
+
+func stableSortBatch(batch []updateStepRunQueueData) []updateStepRunQueueData {
+	sort.SliceStable(batch, func(i, j int) bool {
+		return batch[i].StepRunId < batch[j].StepRunId
+	})
+
+	return batch
 }
 
 func (s *stepRunEngineRepository) processStepRunUpdates(
@@ -2265,6 +2275,7 @@ func (s *stepRunEngineRepository) processStepRunUpdatesV2(
 			}
 
 			if len(cancelParams.Steprunids) > 0 {
+
 				err = s.queries.BulkCancelStepRun(ctx, tx, cancelParams)
 
 				if err != nil {

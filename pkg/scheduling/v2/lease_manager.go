@@ -13,6 +13,7 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
+	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 )
@@ -51,6 +52,9 @@ func newLeaseDbQueries(tenantId pgtype.UUID, queries *dbsqlc.Queries, pool *pgxp
 }
 
 func (d *leaseDbQueries) AcquireLeases(ctx context.Context, kind dbsqlc.LeaseKind, resourceIds []string, existingLeases []*dbsqlc.Lease) ([]*dbsqlc.Lease, error) {
+	ctx, span := telemetry.NewSpan(ctx, "acquire-leases")
+	defer span.End()
+
 	leaseIds := make([]int64, len(existingLeases))
 
 	for i, lease := range existingLeases {
@@ -95,6 +99,9 @@ func (d *leaseDbQueries) AcquireLeases(ctx context.Context, kind dbsqlc.LeaseKin
 }
 
 func (d *leaseDbQueries) ReleaseLeases(ctx context.Context, leases []*dbsqlc.Lease) error {
+	ctx, span := telemetry.NewSpan(ctx, "release-leases")
+	defer span.End()
+
 	leaseIds := make([]int64, len(leases))
 
 	for i, lease := range leases {
@@ -123,10 +130,16 @@ func (d *leaseDbQueries) ReleaseLeases(ctx context.Context, leases []*dbsqlc.Lea
 }
 
 func (d *leaseDbQueries) ListQueues(ctx context.Context, tenantId pgtype.UUID) ([]*dbsqlc.Queue, error) {
+	ctx, span := telemetry.NewSpan(ctx, "list-queues")
+	defer span.End()
+
 	return d.queries.ListQueues(ctx, d.pool, tenantId)
 }
 
 func (d *leaseDbQueries) ListActiveWorkers(ctx context.Context, tenantId pgtype.UUID) ([]*ListActiveWorkersResult, error) {
+	ctx, span := telemetry.NewSpan(ctx, "list-active-workers")
+	defer span.End()
+
 	activeWorkers, err := d.queries.ListActiveWorkers(ctx, d.pool, tenantId)
 
 	if err != nil {
@@ -186,6 +199,9 @@ type LeaseManager struct {
 	queueLeasesMu sync.Mutex
 	queueLeases   []*dbsqlc.Lease
 	queuesCh      chan<- []string
+
+	cleanedUp bool
+	cleanupMu sync.Mutex
 }
 
 func newLeaseManager(conf *sharedConfig, tenantId pgtype.UUID) (*LeaseManager, <-chan []*ListActiveWorkersResult, <-chan []string) {
@@ -331,6 +347,18 @@ func (l *LeaseManager) loopForLeases(ctx context.Context) {
 }
 
 func (l *LeaseManager) cleanup(ctx context.Context) error {
+	if ok := l.cleanupMu.TryLock(); !ok {
+		return nil
+	}
+
+	defer l.cleanupMu.Unlock()
+
+	if l.cleanedUp {
+		return nil
+	}
+
+	l.cleanedUp = true
+
 	// close channels
 	defer close(l.workersCh)
 	defer close(l.queuesCh)
