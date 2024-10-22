@@ -529,6 +529,11 @@ func (s *DispatcherImpl) Heartbeat(ctx context.Context, req *contracts.Heartbeat
 	worker, err := s.repo.Worker().GetWorkerForEngine(ctx, tenantId, req.WorkerId)
 
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			s.l.Error().Msgf("worker %s not found", req.WorkerId)
+			return nil, err
+		}
+
 		return nil, err
 	}
 
@@ -546,7 +551,7 @@ func (s *DispatcherImpl) Heartbeat(ctx context.Context, req *contracts.Heartbeat
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			s.l.Error().Msgf("worker %s not found", req.WorkerId)
+			s.l.Error().Msgf("could not update worker heartbeat: worker %s not found", req.WorkerId)
 			return nil, err
 		}
 
