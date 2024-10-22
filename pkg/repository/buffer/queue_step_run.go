@@ -25,9 +25,8 @@ type BulkStepRunQueuer struct {
 	queries *dbsqlc.Queries
 }
 
-func NewBulkStepRunQueuer(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger) (*BulkStepRunQueuer, error) {
+func NewBulkStepRunQueuer(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, conf ConfigFileBuffer) (*BulkStepRunQueuer, error) {
 	queries := dbsqlc.New()
-	flushPeriod := 20 * time.Millisecond
 
 	w := &BulkStepRunQueuer{
 		pool:    pool,
@@ -37,13 +36,12 @@ func NewBulkStepRunQueuer(pool *pgxpool.Pool, v validator.Validator, l *zerolog.
 	}
 
 	eventBufOpts := TenantBufManagerOpts[BulkQueueStepRunOpts, pgtype.UUID]{
-		Name:                "step_run_queuer",
-		OutputFunc:          w.BulkQueueStepRuns,
-		SizeFunc:            sizeOfQueueData,
-		L:                   w.l,
-		V:                   w.v,
-		FlushPeriod:         &flushPeriod,
-		FlushItemsThreshold: 1000,
+		Name:       "step_run_queuer",
+		OutputFunc: w.BulkQueueStepRuns,
+		SizeFunc:   sizeOfQueueData,
+		L:          w.l,
+		V:          w.v,
+		Config:     conf,
 	}
 
 	manager, err := NewTenantBufManager(eventBufOpts)

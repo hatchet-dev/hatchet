@@ -426,6 +426,7 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 		dc.QueuePool,
 		v,
 		cf.Runtime.SingleQueueLimit,
+		cf.Runtime.EventBuffer,
 	)
 
 	if err != nil {

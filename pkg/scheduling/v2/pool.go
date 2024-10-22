@@ -32,10 +32,10 @@ type SchedulingPool struct {
 	eventBuffer *buffer.BulkEventWriter
 }
 
-func NewSchedulingPool(l *zerolog.Logger, p *pgxpool.Pool, v validator.Validator, singleQueueLimit int) (*SchedulingPool, func() error, error) {
+func NewSchedulingPool(l *zerolog.Logger, p *pgxpool.Pool, v validator.Validator, singleQueueLimit int, buffSettings buffer.ConfigFileBuffer) (*SchedulingPool, func() error, error) {
 	resultsCh := make(chan *QueueResults, 1000)
 
-	eventBuffer, err := buffer.NewBulkEventWriter(p, v, l)
+	eventBuffer, err := buffer.NewBulkEventWriter(p, v, l, buffSettings)
 
 	if err != nil {
 		return nil, nil, err

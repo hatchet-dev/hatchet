@@ -298,19 +298,19 @@ func (s *stepRunEngineRepository) cleanup() error {
 func NewStepRunEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, cf *server.ConfigFileRuntime, rlCache *cache.Cache) (*stepRunEngineRepository, func() error, error) {
 	queries := dbsqlc.New()
 
-	eventBuffer, err := buffer.NewBulkEventWriter(pool, v, l)
+	eventBuffer, err := buffer.NewBulkEventWriter(pool, v, l, cf.EventBuffer)
 
 	if err != nil {
 		return nil, nil, err
 	}
 
-	semReleaser, err := buffer.NewBulkSemaphoreReleaser(pool, v, l)
+	semReleaser, err := buffer.NewBulkSemaphoreReleaser(pool, v, l, cf.ReleaseSemaphoreBuffer)
 
 	if err != nil {
 		return nil, nil, err
 	}
 
-	bulkQueuer, err := buffer.NewBulkStepRunQueuer(pool, v, l)
+	bulkQueuer, err := buffer.NewBulkStepRunQueuer(pool, v, l, cf.QueueStepRunBuffer)
 
 	if err != nil {
 		return nil, nil, err

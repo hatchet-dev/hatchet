@@ -523,7 +523,7 @@ func NewWorkflowRunEngineRepository(stepRunRepository *stepRunEngineRepository, 
 		stepRunRepository: stepRunRepository,
 		cf:                cf,
 	}
-	err := w.startBuffer()
+	err := w.startBuffer(cf.WorkflowRunBuffer)
 
 	if err != nil {
 		l.Error().Err(err).Msg("could not start buffer")
@@ -537,7 +537,7 @@ func (w *workflowRunEngineRepository) cleanup() error {
 
 	return w.bulkCreateBuffer.Cleanup()
 }
-func (w *workflowRunEngineRepository) startBuffer() error {
+func (w *workflowRunEngineRepository) startBuffer(conf buffer.ConfigFileBuffer) error {
 
 	createWorkflowRunBufOpts := buffer.TenantBufManagerOpts[*repository.CreateWorkflowRunOpts, *dbsqlc.WorkflowRun]{
 		Name:       "create_workflow_run",
@@ -545,6 +545,7 @@ func (w *workflowRunEngineRepository) startBuffer() error {
 		SizeFunc:   sizeOfData,
 		L:          w.l,
 		V:          w.v,
+		Config:     conf,
 	}
 
 	b, err := buffer.NewTenantBufManager(createWorkflowRunBufOpts)

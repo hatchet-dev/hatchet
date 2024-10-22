@@ -3,7 +3,6 @@ package buffer
 import (
 	"context"
 	"sort"
-	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -23,9 +22,8 @@ type BulkSemaphoreReleaser struct {
 	queries *dbsqlc.Queries
 }
 
-func NewBulkSemaphoreReleaser(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger) (*BulkSemaphoreReleaser, error) {
+func NewBulkSemaphoreReleaser(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, conf ConfigFileBuffer) (*BulkSemaphoreReleaser, error) {
 	queries := dbsqlc.New()
-	flushPeriod := 50 * time.Millisecond
 
 	w := &BulkSemaphoreReleaser{
 		pool:    pool,
@@ -35,13 +33,12 @@ func NewBulkSemaphoreReleaser(pool *pgxpool.Pool, v validator.Validator, l *zero
 	}
 
 	eventBufOpts := TenantBufManagerOpts[SemaphoreReleaseOpts, pgtype.UUID]{
-		Name:                "semaphore_releaser",
-		OutputFunc:          w.BulkReleaseSemaphores,
-		SizeFunc:            sizeOfData,
-		L:                   w.l,
-		V:                   w.v,
-		FlushPeriod:         &flushPeriod,
-		FlushItemsThreshold: 1000,
+		Name:       "semaphore_releaser",
+		OutputFunc: w.BulkReleaseSemaphores,
+		SizeFunc:   sizeOfData,
+		L:          w.l,
+		V:          w.v,
+		Config:     conf,
 	}
 
 	manager, err := NewTenantBufManager(eventBufOpts)
