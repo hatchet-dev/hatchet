@@ -205,7 +205,7 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 		var replenish bool
 		activeCount := storedAction.activeCount()
 
-		if activeCount == 0 {
+		if activeCount == 0 { // nolint: gocritic
 			replenish = true
 		} else if activeCount <= (storedAction.lastReplenishedSlotCount / 2) {
 			replenish = true

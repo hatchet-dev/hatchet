@@ -25,6 +25,7 @@ import { WorkerStatus, isHealthy } from '../$worker';
 import { ColumnFiltersState } from '@tanstack/react-table';
 import RelativeDate from '@/components/molecules/relative-date';
 import { Badge } from '@/components/ui/badge';
+import { SdkInfo } from './sdk-info';
 
 export function WorkersTable() {
   const { tenant } = useOutletContext<TenantContextType>();
@@ -104,7 +105,11 @@ export function WorkersTable() {
           <WorkerStatus status={data.status} health={isHealthy(data)} />
         </div>
         <h3 className="text-lg leading-6 font-medium text-foreground">
-          <Link to={`/workers/${data.metadata?.id}`}>
+          <Link
+            to={`/workers/${data.metadata?.id}`}
+            className="flex flex-row gap-2 hover:underline"
+          >
+            <SdkInfo runtimeInfo={data?.runtimeInfo} iconOnly={true} />
             {data.webhookUrl || data.name}
           </Link>
         </h3>
