@@ -472,20 +472,18 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		Fn:   p.Shutdown,
 	})
 
-	var h *health.Health
-	healthProbes := sc.HasService("health")
-	if healthProbes {
-		h = health.New(sc.EngineRepository, sc.MessageQueue)
-		cleanup, err := h.Start()
-		if err != nil {
-			return nil, fmt.Errorf("could not start health: %w", err)
-		}
+	h := health.New(sc.EngineRepository, sc.MessageQueue)
 
-		teardown = append(teardown, Teardown{
-			Name: "health",
-			Fn:   cleanup,
-		})
+	cleanup, err := h.Start()
+
+	if err != nil {
+		return nil, fmt.Errorf("could not start health: %w", err)
 	}
+
+	teardown = append(teardown, Teardown{
+		Name: "health",
+		Fn:   cleanup,
+	})
 
 	if sc.HasService("all") || sc.HasService("controllers") {
 		partitionCleanup, err := p.StartControllerPartition(ctx)
@@ -805,15 +803,11 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 
 	l.Debug().Msgf("engine has started")
 
-	if healthProbes {
-		h.SetReady(true)
-	}
+	h.SetReady(true)
 
 	<-ctx.Done()
 
-	if healthProbes {
-		h.SetReady(false)
-	}
+	h.SetReady(false)
 
 	return teardown, nil
 }
