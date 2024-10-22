@@ -593,7 +593,7 @@ func (d *DispatcherImpl) handleStepRunBulkAssignedTask(ctx context.Context, task
 	for workerId, stepRunIds := range payload.WorkerIdToStepRunIds {
 		workerId := workerId
 
-		d.l.Warn().Msgf("worker %s has %d step runs", workerId, len(stepRunIds))
+		d.l.Debug().Msgf("worker %s has %d step runs", workerId, len(stepRunIds))
 
 		// get the worker for this task
 		workers, err := d.workers.Get(workerId)
