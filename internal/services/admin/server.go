@@ -610,7 +610,7 @@ func getOpts(ctx context.Context, requests []*contracts.TriggerWorkflowRequest, 
 	defer cancel()
 	var childWorkflowRunChecks []repository.ChildWorkflowRun
 
-	childWorkflowMap := make(map[repository.ChildWorkflowRun]*dbsqlc.WorkflowRun)
+	childWorkflowMap := make(map[string]*dbsqlc.WorkflowRun)
 
 	for _, req := range requests {
 		isParentTriggered := req.ParentId != nil
@@ -650,14 +650,15 @@ func getOpts(ctx context.Context, requests []*contracts.TriggerWorkflowRequest, 
 		}
 
 		for _, wfr := range workflowRuns {
-			childWorkflowRun := repository.ChildWorkflowRun{
-				ParentId:        sqlchelpers.UUIDToStr(wfr.ParentId),
-				ParentStepRunId: sqlchelpers.UUIDToStr(wfr.ParentStepRunId),
-				ChildIndex:      int(wfr.ChildIndex.Int32),
-				Childkey:        &wfr.ChildKey.String,
+			var childKey *string
+
+			if wfr.ChildKey.Valid {
+				childKey = &wfr.ChildKey.String
 			}
 
-			childWorkflowMap[childWorkflowRun] = wfr
+			key := getChildKey(sqlchelpers.UUIDToStr(wfr.ParentStepRunId), int(wfr.ChildIndex.Int32), childKey)
+
+			childWorkflowMap[key] = wfr
 		}
 	}
 
@@ -665,23 +666,16 @@ func getOpts(ctx context.Context, requests []*contracts.TriggerWorkflowRequest, 
 		isParentTriggered := req.ParentId != nil
 
 		if isParentTriggered {
+			key := getChildKey(*req.ParentStepRunId, int(*req.ChildIndex), req.ChildKey)
 
-			workflowRun := childWorkflowMap[repository.ChildWorkflowRun{
-				ParentId:        *req.ParentId,
-				ParentStepRunId: *req.ParentStepRunId,
-				ChildIndex:      int(*req.ChildIndex),
-				Childkey:        req.ChildKey,
-			}]
+			workflowRun := childWorkflowMap[key]
 
 			if workflowRun != nil {
-
 				existingWorkflowRuns = append(existingWorkflowRuns, sqlchelpers.UUIDToStr(workflowRun.ID))
-
 			} else {
 				// can't find the child workflow run, so we need to trigger it
 				nonParentWorkflows = append(nonParentWorkflows, req)
 			}
-
 		} else {
 			nonParentWorkflows = append(nonParentWorkflows, req)
 		}
@@ -845,4 +839,12 @@ func getWorkflowsForWorkflowNames(ctx context.Context, tenantId string, reqs []*
 
 	return workflowMap, nil
 
+}
+
+func getChildKey(parentStepRunId string, childIndex int, childKey *string) string {
+	if childKey != nil {
+		return fmt.Sprintf("%s-%s", parentStepRunId, *childKey)
+	}
+
+	return fmt.Sprintf("%s-%d", parentStepRunId, childIndex)
 }

@@ -79,6 +79,9 @@ type ConfigFileRuntime struct {
 	// ServerURL is the full server URL of the instance, including protocol.
 	ServerURL string `mapstructure:"url" json:"url,omitempty" default:"http://localhost:8080"`
 
+	// Healthcheck controls whether the server has a healthcheck endpoint
+	Healthcheck bool `mapstructure:"healthcheck" json:"healthcheck,omitempty" default:"true"`
+
 	// GRPCPort is the port that the grpc service listens on
 	GRPCPort int `mapstructure:"grpcPort" json:"grpcPort,omitempty" default:"7070"`
 
@@ -426,6 +429,7 @@ func BindAllEnv(v *viper.Viper) {
 	// runtime options
 	_ = v.BindEnv("runtime.port", "SERVER_PORT")
 	_ = v.BindEnv("runtime.url", "SERVER_URL")
+	_ = v.BindEnv("runtime.healthcheck", "SERVER_HEALTHCHECK")
 	_ = v.BindEnv("runtime.grpcPort", "SERVER_GRPC_PORT")
 	_ = v.BindEnv("runtime.grpcBindAddress", "SERVER_GRPC_BIND_ADDRESS")
 	_ = v.BindEnv("runtime.grpcBroadcastAddress", "SERVER_GRPC_BROADCAST_ADDRESS")
