@@ -902,8 +902,6 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		wg := sync.WaitGroup{}
 
 		for r := range assignCh {
-			// synchronously add to unackedMu
-			q.addToUnacked(r)
 			wg.Add(1)
 
 			// asynchronously flush to database
@@ -962,6 +960,9 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 }
 
 func (q *Queuer) refillQueue(ctx context.Context, curr []*dbsqlc.QueueItem) ([]*dbsqlc.QueueItem, error) {
+	q.unackedMu.Lock()
+	defer q.unackedMu.Unlock()
+
 	// determine whether we need to replenish with the following cases:
 	// - we last replenished more than 1 second ago
 	// - if we are at less than 50% of the limit, we always attempt to replenish
@@ -988,15 +989,17 @@ func (q *Queuer) refillQueue(ctx context.Context, curr []*dbsqlc.QueueItem) ([]*
 		}
 	}
 
-	q.unackedMu.RLock()
-	defer q.unackedMu.RUnlock()
-
 	newCurr := make([]*dbsqlc.QueueItem, 0, len(curr))
 
 	for _, qi := range curr {
 		if _, ok := q.unacked[qi.ID]; !ok {
 			newCurr = append(newCurr, qi)
 		}
+	}
+
+	// add all newCurr to unacked so we don't assign them again
+	for _, qi := range newCurr {
+		q.unacked[qi.ID] = struct{}{}
 	}
 
 	return newCurr, nil
@@ -1009,28 +1012,6 @@ type QueueResults struct {
 	// A list of step run ids that were not assigned because they reached the scheduling
 	// timeout
 	SchedulingTimedOut []string
-}
-
-func (q *Queuer) addToUnacked(r *assignResults) {
-	q.unackedMu.Lock()
-
-	for _, assignedItem := range r.assigned {
-		q.unacked[assignedItem.QueueItem.ID] = struct{}{}
-	}
-
-	for _, unassignedItem := range r.unassigned {
-		q.unacked[unassignedItem.ID] = struct{}{}
-	}
-
-	for _, schedulingTimedOutItem := range r.schedulingTimedOut {
-		q.unacked[schedulingTimedOutItem.ID] = struct{}{}
-	}
-
-	for _, rateLimitedItem := range r.rateLimited {
-		q.unacked[rateLimitedItem.qi.ID] = struct{}{}
-	}
-
-	q.unackedMu.Unlock()
 }
 
 func (q *Queuer) ack(r *assignResults) {
