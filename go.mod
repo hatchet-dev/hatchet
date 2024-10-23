@@ -7,7 +7,7 @@ toolchain go1.22.3
 require (
 	github.com/Masterminds/semver/v3 v3.3.0
 	github.com/creasty/defaults v1.8.0
-	github.com/fatih/color v1.17.0
+	github.com/fatih/color v1.18.0
 	github.com/getkin/kin-openapi v0.128.0
 	github.com/go-co-op/gocron/v2 v2.12.1
 	github.com/google/go-github/v57 v57.0.0
