@@ -300,13 +300,15 @@ func NewEngineRepository(pool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ..
 	}
 
 	rlCache := cache.New(5 * time.Minute)
+	queueCache := cache.New(5 * time.Minute)
+
 	eventEngine, cleanupEventEngine, err := NewEventEngineRepository(pool, opts.v, opts.l, opts.metered)
 
 	if err != nil {
 		return nil, nil, err
 	}
 
-	stepRunEngine, cleanupStepRunEngine, err := NewStepRunEngineRepository(pool, opts.v, opts.l, cf, rlCache)
+	stepRunEngine, cleanupStepRunEngine, err := NewStepRunEngineRepository(pool, opts.v, opts.l, cf, rlCache, queueCache)
 
 	if err != nil {
 		return nil, nil, err
@@ -319,6 +321,7 @@ func NewEngineRepository(pool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ..
 
 	return func() error {
 			rlCache.Stop()
+			queueCache.Stop()
 
 			if err := cleanupStepRunEngine(); err != nil {
 				return err

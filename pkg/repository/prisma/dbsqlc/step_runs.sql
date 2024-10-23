@@ -1090,32 +1090,34 @@ WITH input_values AS (
         1 AS "count",
         unnest(@data::jsonb[]) AS "data"
 ),
+matched_rows AS (
+    SELECT DISTINCT ON (sre."stepRunId")
+        sre."stepRunId", sre."reason", sre."severity", sre."id"
+    FROM "StepRunEvent" sre
+    WHERE
+        sre."stepRunId" = ANY(@stepRunIds::uuid[])
+    ORDER BY sre."stepRunId", sre."id" DESC
+),
 locked_rows AS (
-    SELECT "id"
-    FROM "StepRunEvent"
-    WHERE "stepRunId" IN (SELECT unnest(@stepRunIds::uuid[]))
+    SELECT sre."id", iv.*
+    FROM "StepRunEvent" sre
+    JOIN
+        matched_rows mr ON sre."id" = mr."id"
+    JOIN
+        input_values iv ON sre."stepRunId" = iv."stepRunId" AND sre."reason" = iv."reason" AND sre."severity" = iv."severity"
     ORDER BY "id"
     FOR UPDATE
 ),
 updated AS (
     UPDATE "StepRunEvent"
     SET
-        "timeLastSeen" = input_values."timeLastSeen",
-        "message" = input_values."message",
+        "timeLastSeen" = locked_rows."timeLastSeen",
+        "message" = locked_rows."message",
         "count" = "StepRunEvent"."count" + 1,
-        "data" = input_values."data"
-    FROM input_values
+        "data" = locked_rows."data"
+    FROM locked_rows
     WHERE
-        "StepRunEvent"."stepRunId" = input_values."stepRunId"
-        AND "StepRunEvent"."reason" = input_values."reason"
-        AND "StepRunEvent"."severity" = input_values."severity"
-        AND "StepRunEvent"."id" = (
-            SELECT "id"
-            FROM "StepRunEvent"
-            WHERE "stepRunId" = input_values."stepRunId"
-            ORDER BY "id" DESC
-            LIMIT 1
-        )
+        "StepRunEvent"."id" = locked_rows."id"
     RETURNING "StepRunEvent".*
 )
 INSERT INTO "StepRunEvent" (
@@ -1139,7 +1141,7 @@ SELECT
     "data"
 FROM input_values
 WHERE NOT EXISTS (
-    SELECT 1 FROM updated WHERE "stepRunId" = input_values."stepRunId"
+    SELECT 1 FROM updated WHERE "stepRunId" = input_values."stepRunId" AND "reason" = input_values."reason" AND "severity" = input_values."severity"
 );
 
 -- name: CountStepRunEvents :one
