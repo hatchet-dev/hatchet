@@ -16,6 +16,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/dagutils"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
@@ -284,9 +285,11 @@ type workflowEngineRepository struct {
 	queries *dbsqlc.Queries
 	l       *zerolog.Logger
 	m       *metered.Metered
+
+	cache cache.Cacheable
 }
 
-func NewWorkflowEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, m *metered.Metered) repository.WorkflowEngineRepository {
+func NewWorkflowEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, m *metered.Metered, cache cache.Cacheable) repository.WorkflowEngineRepository {
 	queries := dbsqlc.New()
 
 	return &workflowEngineRepository{
@@ -295,6 +298,7 @@ func NewWorkflowEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *z
 		pool:    pool,
 		l:       l,
 		m:       m,
+		cache:   cache,
 	}
 }
 
@@ -500,7 +504,7 @@ func (r *workflowEngineRepository) CreateSchedules(
 	return r.queries.CreateSchedules(ctx, r.pool, createParams)
 }
 
-func (r *workflowEngineRepository) GetLatestWorkflowVersions(ctx context.Context, tenantId string, workflowIds []string) ([]*dbsqlc.GetLatestWorkflowVersionForWorkflowsRow, error) {
+func (r *workflowEngineRepository) GetLatestWorkflowVersions(ctx context.Context, tenantId string, workflowIds []string) ([]*dbsqlc.GetWorkflowVersionForEngineRow, error) {
 
 	var workflowVersionIds = make([]pgtype.UUID, len(workflowIds))
 
@@ -523,7 +527,10 @@ func (r *workflowEngineRepository) GetLatestWorkflowVersions(ctx context.Context
 		return nil, fmt.Errorf("expected %d workflow version for latest, got %d", len(workflowIds), len(versionIds))
 	}
 
-	return versionIds, nil
+	return r.queries.GetWorkflowVersionForEngine(ctx, r.pool, dbsqlc.GetWorkflowVersionForEngineParams{
+		Ids:      versionIds,
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+	})
 }
 
 func (r *workflowEngineRepository) GetLatestWorkflowVersion(ctx context.Context, tenantId, workflowId string) (*dbsqlc.GetWorkflowVersionForEngineRow, error) {
@@ -625,40 +632,48 @@ func (r *workflowEngineRepository) GetWorkflowVersionById(ctx context.Context, t
 }
 
 func (r *workflowEngineRepository) ListWorkflowsForEvent(ctx context.Context, tenantId, eventKey string) ([]*dbsqlc.GetWorkflowVersionForEngineRow, error) {
-	ctx, span1 := telemetry.NewSpan(ctx, "db-list-workflows-for-event")
-	defer span1.End()
+	cachedArr, err := cache.MakeCacheable(r.cache, fmt.Sprintf("%s-%s", tenantId, eventKey), func() (*[]*dbsqlc.GetWorkflowVersionForEngineRow, error) {
+		ctx, span1 := telemetry.NewSpan(ctx, "db-list-workflows-for-event")
+		defer span1.End()
 
-	ctx, span2 := telemetry.NewSpan(ctx, "db-list-workflows-for-event-query")
-	defer span2.End()
+		ctx, span2 := telemetry.NewSpan(ctx, "db-list-workflows-for-event-query")
+		defer span2.End()
 
-	workflowVersionIds, err := r.queries.ListWorkflowsForEvent(ctx, r.pool, dbsqlc.ListWorkflowsForEventParams{
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
-		Eventkey: eventKey,
-	})
+		workflowVersionIds, err := r.queries.ListWorkflowsForEvent(ctx, r.pool, dbsqlc.ListWorkflowsForEventParams{
+			Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+			Eventkey: eventKey,
+		})
 
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return []*dbsqlc.GetWorkflowVersionForEngineRow{}, nil
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return &[]*dbsqlc.GetWorkflowVersionForEngineRow{}, nil
+			}
+
+			return nil, fmt.Errorf("failed to fetch workflows: %w", err)
 		}
 
-		return nil, fmt.Errorf("failed to fetch workflows: %w", err)
-	}
+		span2.End()
 
-	span2.End()
+		ctx, span3 := telemetry.NewSpan(ctx, "db-get-workflow-versions-for-engine") // nolint: ineffassign
+		defer span3.End()
 
-	ctx, span3 := telemetry.NewSpan(ctx, "db-get-workflow-versions-for-engine") // nolint: ineffassign
-	defer span3.End()
+		workflows, err := r.queries.GetWorkflowVersionForEngine(ctx, r.pool, dbsqlc.GetWorkflowVersionForEngineParams{
+			Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+			Ids:      workflowVersionIds,
+		})
 
-	workflows, err := r.queries.GetWorkflowVersionForEngine(ctx, r.pool, dbsqlc.GetWorkflowVersionForEngineParams{
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
-		Ids:      workflowVersionIds,
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch workflow versions: %w", err)
+		}
+
+		return &workflows, nil
 	})
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch workflow versions: %w", err)
+		return nil, err
 	}
 
-	return workflows, nil
+	return *cachedArr, nil
 }
 
 func (r *workflowAPIRepository) GetWorkflowWorkerCount(tenantId, workflowId string) (int, int, error) {

@@ -26,9 +26,8 @@ type BulkEventWriter struct {
 	queries *dbsqlc.Queries
 }
 
-func NewBulkEventWriter(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger) (*BulkEventWriter, error) {
+func NewBulkEventWriter(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, conf ConfigFileBuffer) (*BulkEventWriter, error) {
 	queries := dbsqlc.New()
-	flushPeriod := 250 * time.Millisecond
 
 	w := &BulkEventWriter{
 		pool:    pool,
@@ -38,13 +37,12 @@ func NewBulkEventWriter(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Lo
 	}
 
 	eventBufOpts := TenantBufManagerOpts[*repository.CreateStepRunEventOpts, int]{
-		Name:                "step_run_event_buffer",
-		OutputFunc:          w.BulkWriteStepRunEvents,
-		SizeFunc:            sizeOfEventData,
-		L:                   w.l,
-		V:                   w.v,
-		FlushPeriod:         &flushPeriod,
-		FlushItemsThreshold: 1000,
+		Name:       "step_run_event_buffer",
+		OutputFunc: w.BulkWriteStepRunEvents,
+		SizeFunc:   sizeOfEventData,
+		L:          w.l,
+		V:          w.v,
+		Config:     conf,
 	}
 
 	manager, err := NewTenantBufManager(eventBufOpts)

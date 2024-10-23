@@ -10,8 +10,9 @@ WHERE
     AND "resourceId" = ANY(@resourceIds::text[])
 FOR UPDATE;
 
--- name: AcquireLeases :many
--- Attempts to acquire leases for a set of resources. Returns the acquired leases.
+-- name: AcquireOrExtendLeases :many
+-- Attempts to acquire leases for a set of resources, and extends the leases if we already have them.
+-- Returns the acquired leases.
 INSERT INTO "Lease" (
     "expiresAt",
     "tenantId",

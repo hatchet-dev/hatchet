@@ -354,29 +354,30 @@ INSERT INTO "WorkflowTriggerScheduledRef" (
 ) RETURNING *;
 
 -- name: ListWorkflowsForEvent :many
-SELECT DISTINCT ON ("WorkflowVersion"."workflowId") "WorkflowVersion".id
-FROM "WorkflowVersion"
-LEFT JOIN "Workflow" AS j1 ON j1.id = "WorkflowVersion"."workflowId"
-LEFT JOIN "WorkflowTriggers" AS j2 ON j2."workflowVersionId" = "WorkflowVersion"."id"
+-- Get all of the latest workflow versions for the tenant
+WITH latest_versions AS (
+    SELECT DISTINCT ON("workflowId")
+        workflowVersions."id" AS "workflowVersionId"
+    FROM
+        "WorkflowVersion" as workflowVersions
+    JOIN
+        "Workflow" as workflow ON workflow."id" = workflowVersions."workflowId"
+    WHERE
+        workflow."tenantId" = @tenantId::uuid
+        AND workflowVersions."deletedAt" IS NULL
+    ORDER BY "workflowId", "order" DESC
+)
+-- select the workflow versions that have the event trigger
+SELECT
+    latest_versions."workflowVersionId"
+FROM
+    latest_versions
+JOIN
+    "WorkflowTriggers" as triggers ON triggers."workflowVersionId" = latest_versions."workflowVersionId"
+JOIN
+    "WorkflowTriggerEventRef" as eventRef ON eventRef."parentId" = triggers."id"
 WHERE
-    (j1."tenantId"::uuid = @tenantId AND j1.id IS NOT NULL)
-    AND j1."deletedAt" IS NULL
-    AND "WorkflowVersion"."deletedAt" IS NULL
-    AND
-    (j2.id IN (
-        SELECT t3."parentId"
-        FROM "WorkflowTriggerEventRef" AS t3
-        WHERE t3."eventKey" = @eventKey AND t3."parentId" IS NOT NULL
-    ) AND j2.id IS NOT NULL)
-    AND "WorkflowVersion".id = (
-        -- confirm that the workflow version is the latest
-        SELECT wv2.id
-        FROM "WorkflowVersion" wv2
-        WHERE wv2."workflowId" = "WorkflowVersion"."workflowId"
-        ORDER BY wv2."order" DESC
-        LIMIT 1
-    )
-ORDER BY "WorkflowVersion"."workflowId", "WorkflowVersion"."order" DESC;
+    eventRef."eventKey" = @eventKey::text;
 
 -- name: GetWorkflowVersionForEngine :many
 SELECT
@@ -413,10 +414,7 @@ WITH latest_versions AS (
         workflowVersions."workflowId", workflowVersions."order" DESC
 )
 SELECT
-    workflowVersions.*,
-    w."name" as "workflowName",
-    wc."limitStrategy" as "concurrencyLimitStrategy",
-    wc."maxRuns" as "concurrencyMaxRuns"
+    workflowVersions."id"
 FROM
     latest_versions
 JOIN
@@ -429,8 +427,6 @@ WHERE
     w."tenantId" = @tenantId::uuid AND
     w."deletedAt" IS NULL AND
     workflowVersions."deletedAt" IS NULL;
-
-
 
 -- name: GetWorkflowByName :one
 SELECT

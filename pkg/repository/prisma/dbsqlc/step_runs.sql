@@ -48,6 +48,54 @@ WHERE
     sr."id" = @id::uuid AND
     sr."tenantId" = @tenantId::uuid;
 
+-- name: GetStepRunBulkDataForEngine :many
+SELECT
+    sr."id" AS "SR_id",
+    sr."retryCount" AS "SR_retryCount",
+    sr."input",
+    sr."output",
+    sr."error",
+    sr."status",
+    jr."id" AS "jobRunId",
+    jr."status" AS "jobRunStatus",
+    jr."status" AS "jobRunStatus",
+    jr."workflowRunId" AS "workflowRunId",
+    jrld."data" AS "jobRunLookupData",
+    wr."additionalMetadata",
+    wr."childIndex",
+    wr."childKey",
+    wr."parentId",
+    jr."id" AS "jobRunId",
+    s."id" AS "stepId",
+    s."retries" AS "stepRetries",
+    s."timeout" AS "stepTimeout",
+    s."scheduleTimeout" AS "stepScheduleTimeout",
+    s."readableId" AS "stepReadableId",
+    s."customUserData" AS "stepCustomUserData",
+    j."name" AS "jobName",
+    j."id" AS "jobId",
+    j."kind" AS "jobKind",
+    j."workflowVersionId" AS "workflowVersionId",
+    a."actionId" AS "actionId"
+FROM
+    "StepRun" sr
+JOIN
+    "Step" s ON sr."stepId" = s."id"
+JOIN
+    "Action" a ON s."actionId" = a."actionId" AND s."tenantId" = a."tenantId"
+JOIN
+    "JobRun" jr ON sr."jobRunId" = jr."id"
+JOIN
+    "Job" j ON jr."jobId" = j."id"
+JOIN
+    "JobRunLookupData" jrld ON jr."id" = jrld."jobRunId"
+JOIN
+    -- Take advantage of composite index on "JobRun"("workflowRunId", "tenantId")
+    "WorkflowRun" wr ON jr."workflowRunId" = wr."id" AND wr."tenantId" = @tenantId::uuid
+WHERE
+    sr."id" = ANY(@ids::uuid[])
+    AND sr."tenantId" = @tenantId::uuid;
+
 -- name: ListStepRunExpressionEvals :many
 SELECT
     *
@@ -310,6 +358,52 @@ SET
 WHERE
   "id" = @id::uuid AND
   "tenantId" = @tenantId::uuid;
+
+-- name: QueueStepRunBulkWithInput :exec
+WITH input AS (
+    SELECT
+        unnest(@ids::uuid[]) AS "id",
+        unnest(@inputs::jsonb[]) AS "input",
+        unnest(@retryCounts::int[]) AS "retryCount"
+)
+UPDATE
+    "StepRun" sr
+SET
+    "finishedAt" = NULL,
+    "status" = 'PENDING_ASSIGNMENT',
+    "input" = COALESCE(input."input", sr."input"),
+    "output" = NULL,
+    "error" = NULL,
+    "cancelledAt" = NULL,
+    "cancelledReason" = NULL,
+    "retryCount" = input."retryCount",
+    "semaphoreReleased" = false
+FROM
+    input
+WHERE
+    sr."id" = input."id";
+
+-- name: QueueStepRunBulkNoInput :exec
+WITH input AS (
+    SELECT
+        unnest(@ids::uuid[]) AS "id",
+        unnest(@retryCounts::int[]) AS "retryCount"
+)
+UPDATE
+    "StepRun" sr
+SET
+    "finishedAt" = NULL,
+    "status" = 'PENDING_ASSIGNMENT',
+    "output" = NULL,
+    "error" = NULL,
+    "cancelledAt" = NULL,
+    "cancelledReason" = NULL,
+    "retryCount" = input."retryCount",
+    "semaphoreReleased" = false
+FROM
+    input
+WHERE
+    sr."id" = input."id";
 
 -- name: ManualReleaseSemaphore :exec
 UPDATE
@@ -682,6 +776,31 @@ SELECT
 FROM
     deleted_sqi, oldsr;
 
+-- name: VerifiedStepRunTenantIds :many
+WITH input AS (
+    SELECT
+        unnest(@stepRunIds::uuid[]) AS "id",
+        unnest(@tenantIds::uuid[]) AS "tenantId"
+)
+SELECT
+    sr."id"
+FROM "StepRun" sr
+JOIN input ON sr."id" = input."id" AND sr."tenantId" = input."tenantId"
+-- stable ordering as it minimizes the chance of deadlocks
+ORDER BY sr."id";
+
+-- name: UpdateStepRunUnsetWorkerIdBulk :exec
+DELETE FROM
+    "SemaphoreQueueItem"
+WHERE
+    "stepRunId" = ANY(@stepRunIds::uuid[]);
+
+-- name: RemoveTimeoutQueueItems :exec
+DELETE FROM
+    "TimeoutQueueItem"
+WHERE
+    "stepRunId" = ANY(@stepRunIds::uuid[]);
+
 -- name: CheckWorker :one
 SELECT
     "id"
@@ -751,6 +870,7 @@ WITH input AS (
                 unnest(@stepRunTimeouts::text[]) AS "stepTimeout",
                 unnest(@workerIds::uuid[]) AS "workerId"
         ) AS subquery
+    ORDER BY "id"
 ), updated_step_runs AS (
     SELECT
         sr."id",
@@ -761,6 +881,7 @@ WITH input AS (
         input
     JOIN
         "StepRun" sr ON sr."id" = input."id"
+    ORDER BY sr."id"
 ), assignments AS (
     INSERT INTO "SemaphoreQueueItem" (
         "stepRunId",

@@ -256,6 +256,7 @@ CREATE TABLE "Queue" (
     "id" BIGSERIAL NOT NULL,
     "tenantId" UUID NOT NULL,
     "name" TEXT NOT NULL,
+    "lastActive" TIMESTAMP(3),
 
     CONSTRAINT "Queue_pkey" PRIMARY KEY ("id")
 );
@@ -297,6 +298,17 @@ CREATE TABLE "SNSIntegration" (
     "topicArn" TEXT NOT NULL,
 
     CONSTRAINT "SNSIntegration_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "SchedulerPartition" (
+    "id" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "lastHeartbeat" TIMESTAMP(3),
+    "name" TEXT,
+
+    CONSTRAINT "SchedulerPartition_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -504,6 +516,7 @@ CREATE TABLE "Tenant" (
     "controllerPartitionId" TEXT,
     "workerPartitionId" TEXT,
     "dataRetentionPeriod" TEXT NOT NULL DEFAULT '720h',
+    "schedulerPartitionId" TEXT,
 
     CONSTRAINT "Tenant_pkey" PRIMARY KEY ("id")
 );
@@ -1053,6 +1066,9 @@ CREATE UNIQUE INDEX "JobRunLookupData_jobRunId_tenantId_key" ON "JobRunLookupDat
 CREATE UNIQUE INDEX "Lease_tenantId_kind_resourceId_key" ON "Lease"("tenantId" ASC, "kind" ASC, "resourceId" ASC);
 
 -- CreateIndex
+CREATE INDEX "Queue_tenantId_lastActive_idx" ON "Queue"("tenantId" ASC, "lastActive" ASC);
+
+-- CreateIndex
 CREATE UNIQUE INDEX "Queue_tenantId_name_key" ON "Queue"("tenantId" ASC, "name" ASC);
 
 -- CreateIndex
@@ -1066,6 +1082,9 @@ CREATE UNIQUE INDEX "SNSIntegration_id_key" ON "SNSIntegration"("id" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "SNSIntegration_tenantId_topicArn_key" ON "SNSIntegration"("tenantId" ASC, "topicArn" ASC);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "SchedulerPartition_id_key" ON "SchedulerPartition"("id" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "SecurityCheckIdent_id_key" ON "SecurityCheckIdent"("id" ASC);
@@ -1455,6 +1474,9 @@ ALTER TABLE "StreamEvent" ADD CONSTRAINT "StreamEvent_stepRunId_fkey" FOREIGN KE
 ALTER TABLE "Tenant" ADD CONSTRAINT "Tenant_controllerPartitionId_fkey" FOREIGN KEY ("controllerPartitionId") REFERENCES "ControllerPartition"("id") ON DELETE SET NULL ON UPDATE SET NULL;
 
 -- AddForeignKey
+ALTER TABLE "Tenant" ADD CONSTRAINT "Tenant_schedulerPartitionId_fkey" FOREIGN KEY ("schedulerPartitionId") REFERENCES "SchedulerPartition"("id") ON DELETE SET NULL ON UPDATE SET NULL;
+
+-- AddForeignKey
 ALTER TABLE "Tenant" ADD CONSTRAINT "Tenant_workerPartitionId_fkey" FOREIGN KEY ("workerPartitionId") REFERENCES "TenantWorkerPartition"("id") ON DELETE SET NULL ON UPDATE SET NULL;
 
 -- AddForeignKey
@@ -1628,3 +1650,19 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS "WorkflowRun_parentStepRunId" ON "Workfl
 -- Additional indexes on workflow run
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_workflowrun_concurrency ON "WorkflowRun" ("concurrencyGroupId", "createdAt");
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_workflowrun_main ON "WorkflowRun" ("tenantId", "deletedAt", "status", "workflowVersionId", "createdAt");
+
+-- Additional indexes on workflow
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_workflow_version_workflow_id_order
+ON "WorkflowVersion" ("workflowId", "order" DESC)
+WHERE "deletedAt" IS NULL;
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_workflow_tenant_id
+ON "Workflow" ("tenantId");
+
+-- Additional indexes on WorkflowTriggers
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_workflow_triggers_workflow_version_id
+ON "WorkflowTriggers" ("workflowVersionId");
+
+-- Additional indexes on WorkflowTriggerEventRef
+CREATE INDEX idx_workflow_trigger_event_ref_event_key_parent_id
+ON "WorkflowTriggerEventRef" ("eventKey", "parentId");

@@ -27,7 +27,7 @@ func (m *mockLeaseRepo) ListActiveWorkers(ctx context.Context, tenantId pgtype.U
 	return args.Get(0).([]*ListActiveWorkersResult), args.Error(1)
 }
 
-func (m *mockLeaseRepo) AcquireLeases(ctx context.Context, kind dbsqlc.LeaseKind, resourceIds []string, existingLeases []*dbsqlc.Lease) ([]*dbsqlc.Lease, error) {
+func (m *mockLeaseRepo) AcquireOrExtendLeases(ctx context.Context, kind dbsqlc.LeaseKind, resourceIds []string, existingLeases []*dbsqlc.Lease) ([]*dbsqlc.Lease, error) {
 	args := m.Called(ctx, kind, resourceIds, existingLeases)
 	return args.Get(0).([]*dbsqlc.Lease), args.Error(1)
 }
@@ -62,7 +62,7 @@ func TestLeaseManager_AcquireWorkerLeases(t *testing.T) {
 	}
 
 	mockLeaseRepo.On("ListActiveWorkers", mock.Anything, tenantId).Return(mockWorkers, nil)
-	mockLeaseRepo.On("AcquireLeases", mock.Anything, dbsqlc.LeaseKindWORKER, mock.Anything, mock.Anything).Return(mockLeases, nil)
+	mockLeaseRepo.On("AcquireOrExtendLeases", mock.Anything, dbsqlc.LeaseKindWORKER, mock.Anything, mock.Anything).Return(mockLeases, nil)
 
 	err := leaseManager.acquireWorkerLeases(context.Background())
 	assert.NoError(t, err)
@@ -89,7 +89,7 @@ func TestLeaseManager_AcquireQueueLeases(t *testing.T) {
 	}
 
 	mockLeaseRepo.On("ListQueues", mock.Anything, tenantId).Return(mockQueues, nil)
-	mockLeaseRepo.On("AcquireLeases", mock.Anything, dbsqlc.LeaseKindQUEUE, mock.Anything, mock.Anything).Return(mockLeases, nil)
+	mockLeaseRepo.On("AcquireOrExtendLeases", mock.Anything, dbsqlc.LeaseKindQUEUE, mock.Anything, mock.Anything).Return(mockLeases, nil)
 
 	err := leaseManager.acquireQueueLeases(context.Background())
 	assert.NoError(t, err)

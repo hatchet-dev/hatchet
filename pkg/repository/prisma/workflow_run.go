@@ -523,7 +523,7 @@ func NewWorkflowRunEngineRepository(stepRunRepository *stepRunEngineRepository, 
 		stepRunRepository: stepRunRepository,
 		cf:                cf,
 	}
-	err := w.startBuffer()
+	err := w.startBuffer(cf.WorkflowRunBuffer)
 
 	if err != nil {
 		l.Error().Err(err).Msg("could not start buffer")
@@ -537,7 +537,7 @@ func (w *workflowRunEngineRepository) cleanup() error {
 
 	return w.bulkCreateBuffer.Cleanup()
 }
-func (w *workflowRunEngineRepository) startBuffer() error {
+func (w *workflowRunEngineRepository) startBuffer(conf buffer.ConfigFileBuffer) error {
 
 	createWorkflowRunBufOpts := buffer.TenantBufManagerOpts[*repository.CreateWorkflowRunOpts, *dbsqlc.WorkflowRun]{
 		Name:       "create_workflow_run",
@@ -545,6 +545,7 @@ func (w *workflowRunEngineRepository) startBuffer() error {
 		SizeFunc:   sizeOfData,
 		L:          w.l,
 		V:          w.v,
+		Config:     conf,
 	}
 
 	b, err := buffer.NewTenantBufManager(createWorkflowRunBufOpts)
@@ -689,51 +690,54 @@ func (w *workflowRunEngineRepository) GetChildWorkflowRun(ctx context.Context, p
 }
 
 func (w *workflowRunEngineRepository) GetChildWorkflowRuns(ctx context.Context, childWorkflowRuns []repository.ChildWorkflowRun) ([]*dbsqlc.WorkflowRun, error) {
+	parentIdsWithIndex := make([]pgtype.UUID, 0, len(childWorkflowRuns))
+	parentStepRunIdsWithIndex := make([]pgtype.UUID, 0, len(childWorkflowRuns))
+	parentIdsWithKey := make([]pgtype.UUID, 0, len(childWorkflowRuns))
+	parentStepRunIdsWithKey := make([]pgtype.UUID, 0, len(childWorkflowRuns))
+	childIndexes := make([]int32, 0, len(childWorkflowRuns))
+	childKeys := make([]string, 0, len(childWorkflowRuns))
 
-	var childParams []dbsqlc.GetChildWorkflowRunParams
 	for _, childWorkflowRun := range childWorkflowRuns {
-
 		if childWorkflowRun.ChildIndex <= math.MinInt32 || childWorkflowRun.ChildIndex >= math.MaxInt32 {
 			return nil, fmt.Errorf("invalid child index: %d", childWorkflowRun.ChildIndex)
 		}
+
 		safeInt32 := int32(childWorkflowRun.ChildIndex) // nolint: gosec
 
-		p := dbsqlc.GetChildWorkflowRunParams{
-			Parentid:        sqlchelpers.UUIDFromStr(childWorkflowRun.ParentId),
-			Parentsteprunid: sqlchelpers.UUIDFromStr(childWorkflowRun.ParentStepRunId),
-			Childindex: pgtype.Int4{
-				Int32: safeInt32,
-				Valid: true,
-			},
-		}
-
 		if childWorkflowRun.Childkey != nil {
-			p.ChildKey = sqlchelpers.TextFromStr(*childWorkflowRun.Childkey)
+			parentIdsWithKey = append(parentIdsWithKey, sqlchelpers.UUIDFromStr(childWorkflowRun.ParentId))
+			parentStepRunIdsWithKey = append(parentStepRunIdsWithKey, sqlchelpers.UUIDFromStr(childWorkflowRun.ParentStepRunId))
+			childKeys = append(childKeys, *childWorkflowRun.Childkey)
+		} else {
+			parentIdsWithIndex = append(parentIdsWithIndex, sqlchelpers.UUIDFromStr(childWorkflowRun.ParentId))
+			parentStepRunIdsWithIndex = append(parentStepRunIdsWithIndex, sqlchelpers.UUIDFromStr(childWorkflowRun.ParentStepRunId))
+			childIndexes = append(childIndexes, safeInt32)
 		}
-		childParams = append(childParams, p)
 	}
 
-	parentIds := make([]pgtype.UUID, len(childParams))
-	parentStepRunIds := make([]pgtype.UUID, len(childParams))
-	childIndexes := make([]int32, len(childParams))
-	childKeys := make([]string, len(childParams))
+	wrs, err := w.queries.GetChildWorkflowRunsByIndex(ctx, w.pool, dbsqlc.GetChildWorkflowRunsByIndexParams{
+		Parentids:        parentIdsWithIndex,
+		Parentsteprunids: parentStepRunIdsWithIndex,
+		Childindexes:     childIndexes,
+	})
 
-	for _, p := range childParams {
-
-		parentIds = append(parentIds, p.Parentid)
-		parentStepRunIds = append(parentStepRunIds, p.Parentsteprunid)
-		childKeys = append(childKeys, p.ChildKey.String)
-		childIndexes = append(childIndexes, p.Childindex.Int32)
-
+	if err != nil {
+		return nil, err
 	}
 
-	return w.queries.GetChildWorkflowRuns(ctx, w.pool, dbsqlc.GetChildWorkflowRunsParams{
-		Parentids:        parentIds,
-		Parentsteprunids: parentStepRunIds,
-		Childindices:     childIndexes,
+	wrs2, err := w.queries.GetChildWorkflowRunsByKey(ctx, w.pool, dbsqlc.GetChildWorkflowRunsByKeyParams{
+		Parentids:        parentIdsWithKey,
+		Parentsteprunids: parentStepRunIdsWithKey,
 		Childkeys:        childKeys,
 	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return append(wrs, wrs2...), nil
 }
+
 func (w *workflowRunEngineRepository) CreateDeDupeKey(ctx context.Context, tenantId, workflowRunId string, workflowVersionId string, key string) error {
 	_, err := w.queries.CreateWorkflowRunDedupe(
 		ctx,

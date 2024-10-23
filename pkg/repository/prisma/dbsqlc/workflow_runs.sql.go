@@ -1091,13 +1091,12 @@ func (q *Queries) GetChildWorkflowRun(ctx context.Context, db DBTX, arg GetChild
 	return &i, err
 }
 
-const getChildWorkflowRuns = `-- name: GetChildWorkflowRuns :many
+const getChildWorkflowRunsByIndex = `-- name: GetChildWorkflowRunsByIndex :many
 WITH input_data AS (
     SELECT
         UNNEST($1::uuid[]) AS parentId,
         UNNEST($2::uuid[]) AS parentStepRunId,
-        UNNEST($3::int[]) AS childIndex,
-        UNNEST($4::text[]) AS childKey
+        UNNEST($3::int[]) AS childIndex
 )
 SELECT
     wr."createdAt", wr."updatedAt", wr."deletedAt", wr."tenantId", wr."workflowVersionId", wr.status, wr.error, wr."startedAt", wr."finishedAt", wr."concurrencyGroupId", wr."displayName", wr.id, wr."childIndex", wr."childKey", wr."parentId", wr."parentStepRunId", wr."additionalMetadata", wr.duration, wr.priority, wr."insertOrder"
@@ -1106,29 +1105,87 @@ FROM
 JOIN
     input_data i ON
     wr."parentId" = i.parentId AND
-    wr."parentStepRunId" = i.parentStepRunId
+    wr."parentStepRunId" = i.parentStepRunId AND
+    wr."childIndex" = i.childIndex
 WHERE
-    wr."deletedAt" IS NULL AND
-    (
-        (i.childKey IS NULL AND wr."childIndex" = i.childIndex) OR
-        (i.childKey IS NOT NULL AND wr."childKey" = i.childKey)
-    )
+    wr."deletedAt" IS NULL
 `
 
-type GetChildWorkflowRunsParams struct {
+type GetChildWorkflowRunsByIndexParams struct {
 	Parentids        []pgtype.UUID `json:"parentids"`
 	Parentsteprunids []pgtype.UUID `json:"parentsteprunids"`
-	Childindices     []int32       `json:"childindices"`
+	Childindexes     []int32       `json:"childindexes"`
+}
+
+func (q *Queries) GetChildWorkflowRunsByIndex(ctx context.Context, db DBTX, arg GetChildWorkflowRunsByIndexParams) ([]*WorkflowRun, error) {
+	rows, err := db.Query(ctx, getChildWorkflowRunsByIndex, arg.Parentids, arg.Parentsteprunids, arg.Childindexes)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*WorkflowRun
+	for rows.Next() {
+		var i WorkflowRun
+		if err := rows.Scan(
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.TenantId,
+			&i.WorkflowVersionId,
+			&i.Status,
+			&i.Error,
+			&i.StartedAt,
+			&i.FinishedAt,
+			&i.ConcurrencyGroupId,
+			&i.DisplayName,
+			&i.ID,
+			&i.ChildIndex,
+			&i.ChildKey,
+			&i.ParentId,
+			&i.ParentStepRunId,
+			&i.AdditionalMetadata,
+			&i.Duration,
+			&i.Priority,
+			&i.InsertOrder,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getChildWorkflowRunsByKey = `-- name: GetChildWorkflowRunsByKey :many
+WITH input_data AS (
+    SELECT
+        UNNEST($1::uuid[]) AS parentId,
+        UNNEST($2::uuid[]) AS parentStepRunId,
+        UNNEST($3::text[]) AS childKey
+)
+SELECT
+    wr."createdAt", wr."updatedAt", wr."deletedAt", wr."tenantId", wr."workflowVersionId", wr.status, wr.error, wr."startedAt", wr."finishedAt", wr."concurrencyGroupId", wr."displayName", wr.id, wr."childIndex", wr."childKey", wr."parentId", wr."parentStepRunId", wr."additionalMetadata", wr.duration, wr.priority, wr."insertOrder"
+FROM
+    "WorkflowRun" wr
+JOIN
+    input_data i ON
+    wr."parentId" = i.parentId AND
+    wr."parentStepRunId" = i.parentStepRunId AND
+    wr."childKey" = i.childKey
+WHERE
+    wr."deletedAt" IS NULL
+`
+
+type GetChildWorkflowRunsByKeyParams struct {
+	Parentids        []pgtype.UUID `json:"parentids"`
+	Parentsteprunids []pgtype.UUID `json:"parentsteprunids"`
 	Childkeys        []string      `json:"childkeys"`
 }
 
-func (q *Queries) GetChildWorkflowRuns(ctx context.Context, db DBTX, arg GetChildWorkflowRunsParams) ([]*WorkflowRun, error) {
-	rows, err := db.Query(ctx, getChildWorkflowRuns,
-		arg.Parentids,
-		arg.Parentsteprunids,
-		arg.Childindices,
-		arg.Childkeys,
-	)
+func (q *Queries) GetChildWorkflowRunsByKey(ctx context.Context, db DBTX, arg GetChildWorkflowRunsByKeyParams) ([]*WorkflowRun, error) {
+	rows, err := db.Query(ctx, getChildWorkflowRunsByKey, arg.Parentids, arg.Parentsteprunids, arg.Childkeys)
 	if err != nil {
 		return nil, err
 	}
