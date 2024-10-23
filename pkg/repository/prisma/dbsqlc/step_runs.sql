@@ -501,8 +501,7 @@ WITH RECURSIVE currStepRun AS (
   SELECT "id", "status", "cancelledReason"
   FROM "StepRun"
   WHERE
-    "id" = @stepRunId::uuid AND
-    "tenantId" = @tenantId::uuid
+    "id" = @stepRunId::uuid
 ), childStepRuns AS (
   SELECT sr."id", sr."status"
   FROM "StepRun" sr
@@ -537,8 +536,7 @@ SET  "status" = CASE
 FROM
     childStepRuns csr
 WHERE
-    sr."id" = csr."id" AND
-    sr."tenantId" = @tenantId::uuid
+    sr."id" = csr."id"
 RETURNING sr.*;
 
 -- name: UpdateStepRunOverridesData :one
@@ -1240,8 +1238,7 @@ WITH RECURSIVE currStepRun AS (
     SELECT *
     FROM "StepRun"
     WHERE
-        "id" = @stepRunId::uuid AND
-        "tenantId" = @tenantId::uuid
+        "id" = @stepRunId::uuid
 ), childStepRuns AS (
     SELECT sr."id", sr."status"
     FROM "StepRun" sr
@@ -1260,17 +1257,14 @@ SELECT
 FROM
     "StepRun" sr
 JOIN
-    childStepRuns csr ON sr."id" = csr."id"
-WHERE
-    sr."tenantId" = @tenantId::uuid;
+    childStepRuns csr ON sr."id" = csr."id";
 
 -- name: ReplayStepRunResetStepRuns :many
 WITH RECURSIVE currStepRun AS (
     SELECT *
     FROM "StepRun"
     WHERE
-        "id" = @stepRunId::uuid AND
-        "tenantId" = @tenantId::uuid
+        "id" = @stepRunId::uuid
 ), childStepRuns AS (
     SELECT sr."id", sr."status"
     FROM "StepRun" sr
@@ -1303,11 +1297,8 @@ SET
 FROM
     childStepRuns csr
 WHERE
-    sr."tenantId" = @tenantId::uuid AND
-    (
-        sr."id" = csr."id" OR
-        sr."id" = @stepRunId::uuid
-    )
+    sr."id" = csr."id" OR
+    sr."id" = @stepRunId::uuid
 RETURNING sr.*;
 
 -- name: ResetStepRunsByIds :many
@@ -1334,8 +1325,7 @@ WITH RECURSIVE currStepRun AS (
     SELECT *
     FROM "StepRun"
     WHERE
-        "id" = @stepRunId::uuid AND
-        "tenantId" = @tenantId::uuid
+        "id" = @stepRunId::uuid
 ), childStepRuns AS (
     SELECT sr."id", sr."status"
     FROM "StepRun" sr
@@ -1358,7 +1348,6 @@ FROM
 JOIN
     childStepRuns csr ON sr."id" = csr."id"
 WHERE
-    sr."tenantId" = @tenantId::uuid AND
     sr."deletedAt" IS NULL AND
     sr."status" NOT IN ('SUCCEEDED', 'FAILED', 'CANCELLED');
 
