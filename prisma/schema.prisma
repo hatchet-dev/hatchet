@@ -1346,7 +1346,10 @@ model Queue {
   tenantId String @db.Uuid
   name     String
 
+  lastActive DateTime?
+
   @@unique([tenantId, name])
+  @@index([tenantId, lastActive])
 }
 
 model QueueItem {

@@ -256,6 +256,7 @@ CREATE TABLE "Queue" (
     "id" BIGSERIAL NOT NULL,
     "tenantId" UUID NOT NULL,
     "name" TEXT NOT NULL,
+    "lastActive" TIMESTAMP(3),
 
     CONSTRAINT "Queue_pkey" PRIMARY KEY ("id")
 );
@@ -1063,6 +1064,9 @@ CREATE UNIQUE INDEX "JobRunLookupData_jobRunId_tenantId_key" ON "JobRunLookupDat
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Lease_tenantId_kind_resourceId_key" ON "Lease"("tenantId" ASC, "kind" ASC, "resourceId" ASC);
+
+-- CreateIndex
+CREATE INDEX "Queue_tenantId_lastActive_idx" ON "Queue"("tenantId" ASC, "lastActive" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Queue_tenantId_name_key" ON "Queue"("tenantId" ASC, "name" ASC);

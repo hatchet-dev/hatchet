@@ -349,6 +349,8 @@ WHERE
     "isQueued" = 't'
     AND "tenantId" = $1::uuid
     AND "queue" = $2::text
+    -- Added to ensure that the index is used
+    AND "priority" >= 1 AND "priority" <= 4
 `
 
 type GetMinUnprocessedQueueItemIdParams struct {
@@ -822,11 +824,12 @@ func (q *Queries) ListQueueItemsForQueue(ctx context.Context, db DBTX, arg ListQ
 
 const listQueues = `-- name: ListQueues :many
 SELECT
-    id, "tenantId", name
+    id, "tenantId", name, "lastActive"
 FROM
     "Queue"
 WHERE
     "tenantId" = $1::uuid
+    AND "lastActive" > NOW() - INTERVAL '1 day'
 `
 
 func (q *Queries) ListQueues(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]*Queue, error) {
@@ -838,7 +841,12 @@ func (q *Queries) ListQueues(ctx context.Context, db DBTX, tenantid pgtype.UUID)
 	var items []*Queue
 	for rows.Next() {
 		var i Queue
-		if err := rows.Scan(&i.ID, &i.TenantId, &i.Name); err != nil {
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantId,
+			&i.Name,
+			&i.LastActive,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)
@@ -939,14 +947,18 @@ const upsertQueue = `-- name: UpsertQueue :exec
 INSERT INTO
     "Queue" (
         "tenantId",
-        "name"
+        "name",
+        "lastActive"
     )
 VALUES
     (
         $1::uuid,
-        $2::text
+        $2::text,
+        NOW()
     )
-ON CONFLICT ("tenantId", "name") DO NOTHING
+ON CONFLICT ("tenantId", "name") DO UPDATE
+SET
+    "lastActive" = NOW()
 `
 
 type UpsertQueueParams struct {
@@ -967,14 +979,18 @@ WITH input_data AS (
 )
 INSERT INTO "Queue" (
     "tenantId",
-    "name"
+    "name",
+    "lastActive"
 )
 SELECT
     input_data.tenantId,
-    input_data.name
+    input_data.name,
+    NOW()
 FROM
     input_data
-ON CONFLICT ("tenantId", "name") DO NOTHING
+ON CONFLICT ("tenantId", "name") DO UPDATE
+SET
+    "lastActive" = NOW()
 `
 
 type UpsertQueuesParams struct {

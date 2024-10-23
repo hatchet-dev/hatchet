@@ -1139,9 +1139,10 @@ type LogLine struct {
 }
 
 type Queue struct {
-	ID       int64       `json:"id"`
-	TenantId pgtype.UUID `json:"tenantId"`
-	Name     string      `json:"name"`
+	ID         int64            `json:"id"`
+	TenantId   pgtype.UUID      `json:"tenantId"`
+	Name       string           `json:"name"`
+	LastActive pgtype.Timestamp `json:"lastActive"`
 }
 
 type QueueItem struct {
