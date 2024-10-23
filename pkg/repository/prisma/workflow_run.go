@@ -73,7 +73,7 @@ func (w *workflowRunAPIRepository) cleanup() error {
 func (w *workflowRunAPIRepository) startBuffer() error {
 
 	createWorkflowRunBufOpts := buffer.TenantBufManagerOpts[*repository.CreateWorkflowRunOpts, *dbsqlc.WorkflowRun]{
-		Name:       "create_workflow_run",
+		Name:       "api_create_workflow_run",
 		OutputFunc: w.BulkCreateWorkflowRuns,
 		SizeFunc:   sizeOfData,
 		L:          w.l,
@@ -540,7 +540,7 @@ func (w *workflowRunEngineRepository) cleanup() error {
 func (w *workflowRunEngineRepository) startBuffer() error {
 
 	createWorkflowRunBufOpts := buffer.TenantBufManagerOpts[*repository.CreateWorkflowRunOpts, *dbsqlc.WorkflowRun]{
-		Name:       "create_workflow_run",
+		Name:       "engine_create_workflow_run",
 		OutputFunc: w.BulkCreateWorkflowRuns,
 		SizeFunc:   sizeOfData,
 		L:          w.l,
