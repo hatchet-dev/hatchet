@@ -2487,10 +2487,7 @@ func (s *stepRunEngineRepository) StepRunCancelled(ctx context.Context, tenantId
 		return fmt.Errorf("could not buffer step run succeeded: %w", err)
 	}
 
-	laterStepRuns, err := s.queries.GetLaterStepRuns(ctx, s.pool, dbsqlc.GetLaterStepRunsParams{
-		Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
-		Steprunid: sqlchelpers.UUIDFromStr(stepRunId),
-	})
+	laterStepRuns, err := s.queries.GetLaterStepRuns(ctx, s.pool, sqlchelpers.UUIDFromStr(stepRunId))
 
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return fmt.Errorf("could not get later step runs: %w", err)
@@ -2549,10 +2546,7 @@ func (s *stepRunEngineRepository) StepRunFailed(ctx context.Context, tenantId, w
 		return fmt.Errorf("could not buffer step run succeeded: %w", err)
 	}
 
-	laterStepRuns, err := s.queries.GetLaterStepRuns(ctx, s.pool, dbsqlc.GetLaterStepRunsParams{
-		Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
-		Steprunid: sqlchelpers.UUIDFromStr(stepRunId),
-	})
+	laterStepRuns, err := s.queries.GetLaterStepRuns(ctx, s.pool, sqlchelpers.UUIDFromStr(stepRunId))
 
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return fmt.Errorf("could not get later step runs: %w", err)
@@ -2636,10 +2630,7 @@ func (s *stepRunEngineRepository) ReplayStepRun(ctx context.Context, tenantId, s
 		return nil, err
 	}
 
-	laterStepRuns, err := s.queries.GetLaterStepRuns(ctx, tx, dbsqlc.GetLaterStepRunsParams{
-		Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
-		Steprunid: sqlchelpers.UUIDFromStr(stepRunId),
-	})
+	laterStepRuns, err := s.queries.GetLaterStepRuns(ctx, tx, sqlchelpers.UUIDFromStr(stepRunId))
 
 	if err != nil {
 		return nil, err
@@ -2686,7 +2677,6 @@ func (s *stepRunEngineRepository) ReplayStepRun(ctx context.Context, tenantId, s
 
 	// reset all later step runs to a pending state
 	_, err = s.queries.ReplayStepRunResetStepRuns(ctx, tx, dbsqlc.ReplayStepRunResetStepRunsParams{
-		Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
 		Steprunid: sqlchelpers.UUIDFromStr(stepRunId),
 		Input:     input,
 	})
@@ -2723,10 +2713,7 @@ func (s *stepRunEngineRepository) PreflightCheckReplayStepRun(ctx context.Contex
 	}
 
 	// verify that child step runs are in a final state
-	childStepRuns, err := s.queries.ListNonFinalChildStepRuns(ctx, s.pool, dbsqlc.ListNonFinalChildStepRunsParams{
-		Steprunid: sqlchelpers.UUIDFromStr(stepRunId),
-		Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
-	})
+	childStepRuns, err := s.queries.ListNonFinalChildStepRuns(ctx, s.pool, sqlchelpers.UUIDFromStr(stepRunId))
 
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return fmt.Errorf("could not list non-final child step runs: %w", err)
