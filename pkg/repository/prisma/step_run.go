@@ -2012,10 +2012,9 @@ func (s *stepRunEngineRepository) processStepRunUpdates(
 	// startResolveJobRunStatus := time.Now()
 
 	// update the job runs and workflow runs as well
-	jobRunIds, err := s.queries.ResolveJobRunStatus(ctx, tx, dbsqlc.ResolveJobRunStatusParams{
-		Steprunids: stepRunIds,
-		Tenantid:   pgTenantId,
-	})
+	jobRunIds, err := s.queries.ResolveJobRunStatus(ctx, tx,
+		stepRunIds,
+	)
 
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not resolve job run status: %w", err)
@@ -2169,10 +2168,7 @@ func (s *stepRunEngineRepository) processStepRunUpdatesV2(
 			}
 
 			// update the job runs and workflow runs as well
-			jobRunIds, err := s.queries.ResolveJobRunStatus(ctx, tx, dbsqlc.ResolveJobRunStatusParams{
-				Steprunids: batchStepRunIds,
-				Tenantid:   pgTenantId,
-			})
+			jobRunIds, err := s.queries.ResolveJobRunStatus(ctx, tx, batchStepRunIds)
 
 			if err != nil {
 				return fmt.Errorf("could not resolve job run status: %w", err)

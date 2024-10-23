@@ -78,6 +78,8 @@ func NewTenantBufManager[T any, U any](opts TenantBufManagerOpts[T, U]) (*Tenant
 		defaultOpts.MaxCapacity = opts.Config.FlushItemsThreshold
 	}
 
+	opts.L.Debug().Msgf("creating new tenant buffer manager %s with default flush period %s and max capacity %d", opts.Name, defaultOpts.FlushPeriod, defaultOpts.MaxCapacity)
+
 	return &TenantBufferManager[T, U]{
 		name:        opts.Name,
 		tenants:     sync.Map{},

@@ -278,9 +278,8 @@ WITH stepRuns AS (
         "jobRunId" = ANY(
             SELECT "jobRunId"
             FROM "StepRun"
-            WHERE "id" = ANY($2::uuid[])
-        ) AND
-        "tenantId" = $1::uuid
+            WHERE "id" = ANY($1::uuid[])
+        )
     GROUP BY runs."jobRunId"
 )
 UPDATE "JobRun"
@@ -316,17 +315,11 @@ END
 FROM stepRuns s
 WHERE
     "id" = s."jobRunId"
-    AND "tenantId" = $1::uuid
 RETURNING "JobRun"."id"
 `
 
-type ResolveJobRunStatusParams struct {
-	Tenantid   pgtype.UUID   `json:"tenantid"`
-	Steprunids []pgtype.UUID `json:"steprunids"`
-}
-
-func (q *Queries) ResolveJobRunStatus(ctx context.Context, db DBTX, arg ResolveJobRunStatusParams) ([]pgtype.UUID, error) {
-	rows, err := db.Query(ctx, resolveJobRunStatus, arg.Tenantid, arg.Steprunids)
+func (q *Queries) ResolveJobRunStatus(ctx context.Context, db DBTX, steprunids []pgtype.UUID) ([]pgtype.UUID, error) {
+	rows, err := db.Query(ctx, resolveJobRunStatus, steprunids)
 	if err != nil {
 		return nil, err
 	}
