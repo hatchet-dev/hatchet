@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-multierror"
-	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -273,7 +272,7 @@ type stepRunEngineRepository struct {
 	bulkEventBuffer        *buffer.BulkEventWriter
 	bulkSemaphoreReleaser  *buffer.BulkSemaphoreReleaser
 	bulkQueuer             *buffer.BulkStepRunQueuer
-	queueActionTenantCache *lru.Cache[string, bool]
+	queueActionTenantCache *cache.Cache
 
 	updateConcurrentFactor int
 	maxHashFactor          int
@@ -295,7 +294,7 @@ func (s *stepRunEngineRepository) cleanup() error {
 	return s.bulkEventBuffer.Cleanup()
 }
 
-func NewStepRunEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, cf *server.ConfigFileRuntime, rlCache *cache.Cache) (*stepRunEngineRepository, func() error, error) {
+func NewStepRunEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, cf *server.ConfigFileRuntime, rlCache *cache.Cache, queueCache *cache.Cache) (*stepRunEngineRepository, func() error, error) {
 	queries := dbsqlc.New()
 
 	eventBuffer, err := buffer.NewBulkEventWriter(pool, v, l, cf.EventBuffer)
@@ -328,9 +327,8 @@ func NewStepRunEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *ze
 		bulkEventBuffer:          eventBuffer,
 		bulkSemaphoreReleaser:    semReleaser,
 		bulkQueuer:               bulkQueuer,
+		queueActionTenantCache:   queueCache,
 	}
-
-	s.queueActionTenantCache, _ = lru.New[string, bool](10000)
 
 	err = s.startBuffers()
 
@@ -2847,14 +2845,9 @@ func (s *stepRunEngineRepository) UpdateStepRunInputSchema(ctx context.Context, 
 }
 
 func (s *stepRunEngineRepository) doCachedUpsertOfQueue(ctx context.Context, tx dbsqlc.DBTX, tenantId string, innerStepRun *dbsqlc.GetStepRunForEngineRow) error {
-	// update the queue with the action id
+	cacheKey := fmt.Sprintf("t-%s-q-%s", tenantId, innerStepRun.SRQueue)
 
-	cacheKey := fmt.Sprintf("t-%s-q-%s", tenantId, innerStepRun.ActionId)
-
-	_, ok := s.queueActionTenantCache.Get(cacheKey)
-
-	if !ok {
-
+	_, err := cache.MakeCacheable(s.queueActionTenantCache, cacheKey, func() (*bool, error) {
 		err := s.queries.UpsertQueue(
 			ctx,
 			tx,
@@ -2863,15 +2856,16 @@ func (s *stepRunEngineRepository) doCachedUpsertOfQueue(ctx context.Context, tx 
 				Tenantid: sqlchelpers.UUIDFromStr(tenantId),
 			},
 		)
+
 		if err != nil {
-			return err
+			return nil, err
 		}
 
-		s.queueActionTenantCache.Add(cacheKey, true)
+		res := true
+		return &res, nil
+	})
 
-	}
-
-	return nil
+	return err
 }
 
 func (s *stepRunEngineRepository) QueueStepRun(ctx context.Context, tenantId, stepRunId string, opts *repository.QueueStepRunOpts) (*dbsqlc.GetStepRunForEngineRow, error) {

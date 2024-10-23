@@ -390,7 +390,7 @@ func (ec *JobsControllerImpl) handleJobRunCancelled(ctx context.Context, task *m
 
 		reason := "JOB_RUN_CANCELLED"
 
-		if payload.Reason != nil {
+		if payload.Reason != nil && *payload.Reason != "" {
 			reason = *payload.Reason
 		}
 
