@@ -1666,3 +1666,8 @@ ON "WorkflowTriggers" ("workflowVersionId");
 -- Additional indexes on WorkflowTriggerEventRef
 CREATE INDEX idx_workflow_trigger_event_ref_event_key_parent_id
 ON "WorkflowTriggerEventRef" ("eventKey", "parentId");
+
+-- Additional indexes on WorkflowRun
+CREATE INDEX CONCURRENTLY IF NOT EXISTS "WorkflowRun_parentId_parentStepRunId_childIndex_key"
+ON "WorkflowRun"("parentId", "parentStepRunId", "childIndex")
+WHERE "deletedAt" IS NULL;
