@@ -10,6 +10,7 @@ To trigger a workflow with a cron schedule, you need to configure the `on` prope
 
 <Tabs items={['Python', 'Typescript', 'Golang']}>
   <Tabs.Tab>
+
 ```python
 @hatchet.workflow(on_crons=["0 0 * * *"])
 class MyWorkflow:
@@ -23,8 +24,10 @@ class MyWorkflow:
         print("executed step2")
         pass
 ```
+
   </Tabs.Tab>
   <Tabs.Tab>
+
 ```typescript
 const myWorkflow: Workflow = {
   id: "my-workflow",
@@ -37,8 +40,10 @@ const myWorkflow: Workflow = {
   ],
 };
 ```
+
   </Tabs.Tab>
   <Tabs.Tab>
+
 ```go
 w.RegisterWorkflow(
     &worker.WorkflowJob{
@@ -56,6 +61,7 @@ w.RegisterWorkflow(
     },
 )
 ```
+
   </Tabs.Tab>
 </Tabs>
 
