@@ -507,7 +507,6 @@ func ToCronWorkflowsFromSQLC(scheduled *dbsqlc.ListCronWorkflowsRow) *gen.CronWo
 		WorkflowName:      scheduled.Name,
 		TenantId:          sqlchelpers.UUIDToStr(scheduled.TenantId),
 		Cron:              scheduled.Cron,
-		// TriggerAt:         scheduled.TriggerAt.Time,
 		// AdditionalMetadata: &additionalMetadata,
 	}
 

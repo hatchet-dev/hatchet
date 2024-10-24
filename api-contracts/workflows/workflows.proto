@@ -149,6 +149,9 @@ message ScheduleWorkflowRequest {
     // (optional) the key for the child. if this is set, matches on the index or the
     // child key will be a no-op, even if the schedule has changed.
     optional string child_key = 7;
+
+    // (optional) the additional metadata for the workflow
+    optional string additional_metadata = 8;
 }
 
 // WorkflowVersion represents the WorkflowVersion model.

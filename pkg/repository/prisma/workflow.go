@@ -492,9 +492,10 @@ func (r *workflowEngineRepository) CreateSchedules(
 	}
 
 	createParams := dbsqlc.CreateSchedulesParams{
-		Workflowrunid: sqlchelpers.UUIDFromStr(workflowVersionId),
-		Input:         opts.Input,
-		Triggertimes:  make([]pgtype.Timestamp, len(opts.ScheduledTriggers)),
+		Workflowrunid:      sqlchelpers.UUIDFromStr(workflowVersionId),
+		Input:              opts.Input,
+		Triggertimes:       make([]pgtype.Timestamp, len(opts.ScheduledTriggers)),
+		Additionalmetadata: opts.AdditionalMetadata,
 	}
 
 	for i, scheduledTrigger := range opts.ScheduledTriggers {

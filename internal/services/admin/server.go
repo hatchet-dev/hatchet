@@ -334,15 +334,20 @@ func (a *AdminServiceImpl) ScheduleWorkflow(ctx context.Context, req *contracts.
 
 	workflowVersionId := sqlchelpers.UUIDToStr(currWorkflow.WorkflowVersion.ID)
 
-	// FIXME add additional metadata?
+	var additionalMetadata []byte
+
+	if req.AdditionalMetadata != nil {
+		additionalMetadata = []byte(*req.AdditionalMetadata)
+	}
 
 	_, err = a.repo.Workflow().CreateSchedules(
 		ctx,
 		tenantId,
 		workflowVersionId,
 		&repository.CreateWorkflowSchedulesOpts{
-			ScheduledTriggers: dbSchedules,
-			Input:             []byte(req.Input),
+			ScheduledTriggers:  dbSchedules,
+			Input:              []byte(req.Input),
+			AdditionalMetadata: additionalMetadata,
 		},
 	)
 

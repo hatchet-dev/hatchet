@@ -156,7 +156,8 @@ not_run_scheduled_workflows AS (
     SELECT
         scheduledWorkflow."id",
         versions."id" AS "workflowVersionId",
-        workflow."tenantId" AS "tenantId"
+        workflow."tenantId" AS "tenantId",
+        scheduledWorkflow."additionalMetadata" AS "additionalMetadata"
     FROM
         "WorkflowTriggerScheduledRef" as scheduledWorkflow
     JOIN

@@ -664,6 +664,8 @@ model WorkflowTriggerCronRef {
   // the input parameters to the scheduled workflow
   input Json?
 
+  additionalMetadata Json?
+
   // cron references must be unique per workflow
   @@unique([parentId, cron])
 }
@@ -699,6 +701,8 @@ model WorkflowTriggerScheduledRef {
   childKey String?
 
   triggered WorkflowRunTriggeredBy?
+
+  additionalMetadata Json?
 
   @@unique([parentId, parentStepRunId, childKey])
 }

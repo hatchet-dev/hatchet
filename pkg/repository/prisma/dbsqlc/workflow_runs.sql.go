@@ -1232,7 +1232,7 @@ func (q *Queries) GetChildWorkflowRunsByKey(ctx context.Context, db DBTX, arg Ge
 
 const getScheduledChildWorkflowRun = `-- name: GetScheduledChildWorkflowRun :one
 SELECT
-    id, "parentId", "triggerAt", "tickerId", input, "childIndex", "childKey", "parentStepRunId", "parentWorkflowRunId"
+    id, "parentId", "triggerAt", "tickerId", input, "childIndex", "childKey", "parentStepRunId", "parentWorkflowRunId", "additionalMetadata"
 FROM
     "WorkflowTriggerScheduledRef"
 WHERE
@@ -1270,6 +1270,7 @@ func (q *Queries) GetScheduledChildWorkflowRun(ctx context.Context, db DBTX, arg
 		&i.ChildKey,
 		&i.ParentStepRunId,
 		&i.ParentWorkflowRunId,
+		&i.AdditionalMetadata,
 	)
 	return &i, err
 }
@@ -2112,7 +2113,7 @@ SELECT
     v."id" as "workflowVersionId",
     w."tenantId",
     t.id, t."createdAt", t."updatedAt", t."deletedAt", t."workflowVersionId", t."tenantId",
-    c."parentId", c.cron, c."tickerId", c.input, c.enabled
+    c."parentId", c.cron, c."tickerId", c.input, c.enabled, c."additionalMetadata"
 FROM "WorkflowTriggerCronRef" c
 JOIN "WorkflowTriggers" t ON c."parentId" = t."id"
 JOIN "WorkflowVersion" v ON t."workflowVersionId" = v."id"
@@ -2161,6 +2162,7 @@ type ListCronWorkflowsRow struct {
 	TickerId            pgtype.UUID      `json:"tickerId"`
 	Input               []byte           `json:"input"`
 	Enabled             bool             `json:"enabled"`
+	AdditionalMetadata  []byte           `json:"additionalMetadata"`
 }
 
 func (q *Queries) ListCronWorkflows(ctx context.Context, db DBTX, arg ListCronWorkflowsParams) ([]*ListCronWorkflowsRow, error) {
@@ -2193,6 +2195,7 @@ func (q *Queries) ListCronWorkflows(ctx context.Context, db DBTX, arg ListCronWo
 			&i.TickerId,
 			&i.Input,
 			&i.Enabled,
+			&i.AdditionalMetadata,
 		); err != nil {
 			return nil, err
 		}
@@ -2210,7 +2213,7 @@ SELECT
     w."id" as "workflowId",
     v."id" as "workflowVersionId",
     w."tenantId",
-    t.id, t."parentId", t."triggerAt", t."tickerId", t.input, t."childIndex", t."childKey", t."parentStepRunId", t."parentWorkflowRunId"
+    t.id, t."parentId", t."triggerAt", t."tickerId", t.input, t."childIndex", t."childKey", t."parentStepRunId", t."parentWorkflowRunId", t."additionalMetadata"
 FROM "WorkflowTriggerScheduledRef" t
 JOIN "WorkflowVersion" v ON t."parentId" = v."id"
 JOIN "Workflow" w on v."workflowId" = w."id"
@@ -2256,6 +2259,7 @@ type ListScheduledWorkflowsRow struct {
 	ChildKey            pgtype.Text      `json:"childKey"`
 	ParentStepRunId     pgtype.UUID      `json:"parentStepRunId"`
 	ParentWorkflowRunId pgtype.UUID      `json:"parentWorkflowRunId"`
+	AdditionalMetadata  []byte           `json:"additionalMetadata"`
 }
 
 func (q *Queries) ListScheduledWorkflows(ctx context.Context, db DBTX, arg ListScheduledWorkflowsParams) ([]*ListScheduledWorkflowsRow, error) {
@@ -2286,6 +2290,7 @@ func (q *Queries) ListScheduledWorkflows(ctx context.Context, db DBTX, arg ListS
 			&i.ChildKey,
 			&i.ParentStepRunId,
 			&i.ParentWorkflowRunId,
+			&i.AdditionalMetadata,
 		); err != nil {
 			return nil, err
 		}
