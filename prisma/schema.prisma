@@ -653,7 +653,7 @@ model WorkflowTriggerCronRef {
   updatedAt DateTime  @default(now()) @updatedAt
   deletedAt DateTime?
   // the cron expression
-  cron String
+  cron      String
 
   // whether this cron is enabled or not
   enabled Boolean @default(true)

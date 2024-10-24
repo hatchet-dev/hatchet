@@ -248,7 +248,7 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWo
 		}
 	}
 
-	resp := toWorkflowVersion(workflowVersion)
+	resp := toWorkflowVersion(workflowVersion, nil)
 
 	return resp, nil
 }
@@ -322,7 +322,7 @@ func (a *AdminServiceImpl) ScheduleWorkflow(ctx context.Context, req *contracts.
 		}
 
 		if err == nil && existing != nil {
-			return toWorkflowVersion(currWorkflow), nil
+			return toWorkflowVersion(currWorkflow, nil), nil
 		}
 	}
 
@@ -340,7 +340,7 @@ func (a *AdminServiceImpl) ScheduleWorkflow(ctx context.Context, req *contracts.
 		additionalMetadata = []byte(*req.AdditionalMetadata)
 	}
 
-	_, err = a.repo.Workflow().CreateSchedules(
+	scheduledRef, err := a.repo.Workflow().CreateSchedules(
 		ctx,
 		tenantId,
 		workflowVersionId,
@@ -355,7 +355,7 @@ func (a *AdminServiceImpl) ScheduleWorkflow(ctx context.Context, req *contracts.
 		return nil, err
 	}
 
-	resp := toWorkflowVersion(currWorkflow)
+	resp := toWorkflowVersion(currWorkflow, scheduledRef)
 
 	return resp, nil
 }
@@ -586,13 +586,23 @@ func getCreateJobOpts(req *contracts.CreateWorkflowJobOpts, kind string) (*repos
 	}, nil
 }
 
-func toWorkflowVersion(workflowVersion *dbsqlc.GetWorkflowVersionForEngineRow) *contracts.WorkflowVersion {
+func toWorkflowVersion(workflowVersion *dbsqlc.GetWorkflowVersionForEngineRow, scheduledRefs []*dbsqlc.WorkflowTriggerScheduledRef) *contracts.WorkflowVersion {
+	scheduledWorkflows := make([]*contracts.ScheduledWorkflow, len(scheduledRefs))
+
+	for i, ref := range scheduledRefs {
+		scheduledWorkflows[i] = &contracts.ScheduledWorkflow{
+			Id:        sqlchelpers.UUIDToStr(ref.ID),
+			TriggerAt: timestamppb.New(ref.TriggerAt.Time),
+		}
+	}
+
 	version := &contracts.WorkflowVersion{
-		Id:         sqlchelpers.UUIDToStr(workflowVersion.WorkflowVersion.ID),
-		CreatedAt:  timestamppb.New(workflowVersion.WorkflowVersion.CreatedAt.Time),
-		UpdatedAt:  timestamppb.New(workflowVersion.WorkflowVersion.UpdatedAt.Time),
-		Order:      int32(workflowVersion.WorkflowVersion.Order),
-		WorkflowId: sqlchelpers.UUIDToStr(workflowVersion.WorkflowVersion.WorkflowId),
+		Id:                 sqlchelpers.UUIDToStr(workflowVersion.WorkflowVersion.ID),
+		CreatedAt:          timestamppb.New(workflowVersion.WorkflowVersion.CreatedAt.Time),
+		UpdatedAt:          timestamppb.New(workflowVersion.WorkflowVersion.UpdatedAt.Time),
+		Order:              workflowVersion.WorkflowVersion.Order,
+		WorkflowId:         sqlchelpers.UUIDToStr(workflowVersion.WorkflowVersion.WorkflowId),
+		ScheduledWorkflows: scheduledWorkflows,
 	}
 
 	if workflowVersion.WorkflowVersion.Version.String != "" {
