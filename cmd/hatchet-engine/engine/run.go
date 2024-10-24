@@ -190,6 +190,43 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			Name: "controller partition",
 			Fn:   partitionCleanup,
 		})
+
+		schedulePartitionCleanup, err := p.StartSchedulerPartition(ctx)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not create create scheduler partition: %w", err)
+		}
+
+		teardown = append(teardown, Teardown{
+			Name: "scheduler partition",
+			Fn:   schedulePartitionCleanup,
+		})
+
+		// create the dispatcher
+		s, err := scheduler.New(
+			scheduler.WithAlerter(sc.Alerter),
+			scheduler.WithMessageQueue(sc.MessageQueue),
+			scheduler.WithRepository(sc.EngineRepository),
+			scheduler.WithLogger(sc.Logger),
+			scheduler.WithPartition(p),
+			scheduler.WithQueueLoggerConfig(&sc.AdditionalLoggers.Queue),
+			scheduler.WithSchedulerPool(sc.SchedulingPool),
+		)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not create dispatcher: %w", err)
+		}
+
+		cleanup, err := s.Start()
+
+		if err != nil {
+			return nil, fmt.Errorf("could not start dispatcher: %w", err)
+		}
+
+		teardown = append(teardown, Teardown{
+			Name: "scheduler",
+			Fn:   cleanup,
+		})
 	}
 
 	if sc.HasService("ticker") {
