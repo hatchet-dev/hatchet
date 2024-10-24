@@ -1,5 +1,5 @@
 import { DataTable } from '../../../components/molecules/data-table/data-table';
-import { columns } from './components/crons-columns';
+import { columns } from './components/recurring-columns';
 import { Separator } from '@/components/ui/separator';
 import { useEffect, useMemo, useState } from 'react';
 import {
@@ -24,7 +24,7 @@ export default function Crons() {
     <div className="flex-grow h-full w-full">
       <div className="mx-auto max-w-7xl py-8 px-4 sm:px-6 lg:px-8">
         <h2 className="text-2xl font-bold leading-tight text-foreground">
-          Cron Runs
+          Recurring Runs
         </h2>
         <Separator className="my-4" />
         <CronsTable />

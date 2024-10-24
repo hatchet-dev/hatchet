@@ -142,9 +142,9 @@ const routes: RouteObject[] = [
                   }),
               },
               {
-                path: '/crons',
+                path: '/recurring',
                 lazy: async () =>
-                  import('./pages/main/crons').then((res) => {
+                  import('./pages/main/recurring').then((res) => {
                     return {
                       Component: res.default,
                     };
