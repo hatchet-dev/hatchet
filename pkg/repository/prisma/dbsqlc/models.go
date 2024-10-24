@@ -1139,9 +1139,10 @@ type LogLine struct {
 }
 
 type Queue struct {
-	ID       int64       `json:"id"`
-	TenantId pgtype.UUID `json:"tenantId"`
-	Name     string      `json:"name"`
+	ID         int64            `json:"id"`
+	TenantId   pgtype.UUID      `json:"tenantId"`
+	Name       string           `json:"name"`
+	LastActive pgtype.Timestamp `json:"lastActive"`
 }
 
 type QueueItem struct {
@@ -1174,6 +1175,14 @@ type SNSIntegration struct {
 	UpdatedAt pgtype.Timestamp `json:"updatedAt"`
 	TenantId  pgtype.UUID      `json:"tenantId"`
 	TopicArn  string           `json:"topicArn"`
+}
+
+type SchedulerPartition struct {
+	ID            string           `json:"id"`
+	CreatedAt     pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt     pgtype.Timestamp `json:"updatedAt"`
+	LastHeartbeat pgtype.Timestamp `json:"lastHeartbeat"`
+	Name          pgtype.Text      `json:"name"`
 }
 
 type SecurityCheckIdent struct {
@@ -1360,6 +1369,7 @@ type Tenant struct {
 	ControllerPartitionId pgtype.Text      `json:"controllerPartitionId"`
 	WorkerPartitionId     pgtype.Text      `json:"workerPartitionId"`
 	DataRetentionPeriod   string           `json:"dataRetentionPeriod"`
+	SchedulerPartitionId  pgtype.Text      `json:"schedulerPartitionId"`
 }
 
 type TenantAlertEmailGroup struct {

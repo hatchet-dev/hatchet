@@ -2,7 +2,7 @@ package v2
 
 import (
 	"context"
-	"fmt"
+	"math/rand"
 	"sync"
 	"time"
 
@@ -10,6 +10,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 
+	"github.com/hatchet-dev/hatchet/internal/queueutils"
+	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 )
@@ -35,6 +37,9 @@ func newSchedulerDbQueries(queries *dbsqlc.Queries, pool *pgxpool.Pool, tenantId
 }
 
 func (d *schedulerDbQueries) ListActionsForWorkers(ctx context.Context, workerIds []pgtype.UUID) ([]*dbsqlc.ListActionsForWorkersRow, error) {
+	ctx, span := telemetry.NewSpan(ctx, "list-actions-for-workers")
+	defer span.End()
+
 	return d.queries.ListActionsForWorkers(ctx, d.pool, dbsqlc.ListActionsForWorkersParams{
 		Tenantid:  d.tenantId,
 		Workerids: workerIds,
@@ -42,6 +47,9 @@ func (d *schedulerDbQueries) ListActionsForWorkers(ctx context.Context, workerId
 }
 
 func (d *schedulerDbQueries) ListAvailableSlotsForWorkers(ctx context.Context, params dbsqlc.ListAvailableSlotsForWorkersParams) ([]*dbsqlc.ListAvailableSlotsForWorkersRow, error) {
+	ctx, span := telemetry.NewSpan(ctx, "list-available-slots-for-workers")
+	defer span.End()
+
 	return d.queries.ListAvailableSlotsForWorkers(ctx, d.pool, params)
 }
 
@@ -54,31 +62,38 @@ type Scheduler struct {
 	l *zerolog.Logger
 
 	actions     map[string]*action
-	actionsMu   sync.RWMutex
-	replenishMu sync.Mutex
+	actionsMu   rwMutex
+	replenishMu mutex
 
-	workersMu sync.Mutex
+	workersMu mutex
 	workers   map[string]*worker
 
 	assignedCount   int
-	assignedCountMu sync.Mutex
+	assignedCountMu mutex
 
 	// unackedSlots are slots which have been assigned to a worker, but have not been flushed
 	// to the database yet. They negatively count towards a worker's available slot count.
 	unackedSlots map[int]*slot
-	unackedMu    sync.Mutex
+	unackedMu    mutex
 
 	rl *rateLimiter
 }
 
 func newScheduler(cf *sharedConfig, tenantId pgtype.UUID, rl *rateLimiter) *Scheduler {
+	l := cf.l.With().Str("tenant_id", sqlchelpers.UUIDToStr(tenantId)).Logger()
+
 	return &Scheduler{
-		repo:         newSchedulerDbQueries(cf.queries, cf.pool, tenantId),
-		tenantId:     tenantId,
-		l:            cf.l,
-		actions:      make(map[string]*action),
-		unackedSlots: make(map[int]*slot),
-		rl:           rl,
+		repo:            newSchedulerDbQueries(cf.queries, cf.pool, tenantId),
+		tenantId:        tenantId,
+		l:               &l,
+		actions:         make(map[string]*action),
+		unackedSlots:    make(map[int]*slot),
+		rl:              rl,
+		actionsMu:       newRWMu(cf.l),
+		replenishMu:     newMu(cf.l),
+		workersMu:       newMu(cf.l),
+		assignedCountMu: newMu(cf.l),
+		unackedMu:       newMu(cf.l),
 	}
 }
 
@@ -133,10 +148,13 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 	if mustReplenish {
 		s.replenishMu.Lock()
 	} else if ok := s.replenishMu.TryLock(); !ok {
+		s.l.Debug().Msg("skipping replenish because another replenish is in progress")
 		return nil
 	}
 
 	defer s.replenishMu.Unlock()
+
+	s.l.Debug().Msg("replenishing slots")
 
 	workers := s.getWorkers()
 	workerIds := make([]pgtype.UUID, 0)
@@ -145,11 +163,17 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 		workerIds = append(workerIds, sqlchelpers.UUIDFromStr(workerIdStr))
 	}
 
+	start := time.Now()
+	checkpoint := start
+
 	workersToActiveActions, err := s.repo.ListActionsForWorkers(ctx, workerIds)
 
 	if err != nil {
 		return err
 	}
+
+	s.l.Debug().Msgf("listing actions for workers took %s", time.Since(checkpoint))
+	checkpoint = time.Now()
 
 	actionsToWorkerIds := make(map[string][]string)
 	workerIdsToActions := make(map[string][]string)
@@ -192,11 +216,15 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 		var replenish bool
 		activeCount := storedAction.activeCount()
 
-		if activeCount == 0 { // nolint: gocritic
+		switch {
+		case activeCount == 0:
+			s.l.Debug().Msgf("replenishing all slots for action %s because activeCount is 0", actionId)
 			replenish = true
-		} else if activeCount <= (storedAction.lastReplenishedSlotCount / 2) {
+		case activeCount <= (storedAction.lastReplenishedSlotCount / 2):
+			s.l.Debug().Msgf("replenishing slots for action %s because 50%% of slots have been used", actionId)
 			replenish = true
-		} else if len(workers) > storedAction.lastReplenishedWorkerCount {
+		case len(workers) > storedAction.lastReplenishedWorkerCount:
+			s.l.Debug().Msgf("replenishing slots for action %s because more workers are available", actionId)
 			replenish = true
 		}
 
@@ -204,6 +232,9 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 	}
 
 	s.actionsMu.RUnlock()
+
+	s.l.Debug().Msgf("determining which actions to replenish took %s", time.Since(checkpoint))
+	checkpoint = time.Now()
 
 	// FUNCTION 2: for each action which should be replenished, load the available slots
 	uniqueWorkerIds := make(map[string]bool)
@@ -235,8 +266,16 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 		return err
 	}
 
+	s.l.Debug().Msgf("loading available slots took %s", time.Since(checkpoint))
+
 	// FUNCTION 3: list unacked slots (so they're not counted towards the worker slot count)
 	workersToUnackedSlots := make(map[string][]*slot)
+
+	// we get a lock on the actionsMu here because we want to acquire the locks in the same order
+	// as the tryAssignBatch function. otherwise, we could deadlock when tryAssignBatch has a lock
+	// on the actionsMu and tries to acquire the unackedMu lock.
+	s.actionsMu.Lock()
+	defer s.actionsMu.Unlock()
 
 	s.unackedMu.Lock()
 	defer s.unackedMu.Unlock()
@@ -262,14 +301,18 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 		unackedSlots := workersToUnackedSlots[workerId]
 
 		// create a slot for each available slot
-		slots := make([]*slot, 0, int(worker.AvailableSlots))
+		slots := make([]*slot, 0)
 
 		for i := 0; i < int(worker.AvailableSlots)-len(unackedSlots); i++ {
-			slots = append(slots, &slot{
-				actions: actions,
-				worker:  workers[workerId],
-			})
+			slots = append(slots, newSlot(workers[workerId], actions))
 		}
+
+		// extend expiry of all unacked slots
+		for _, unackedSlot := range unackedSlots {
+			unackedSlot.extendExpiry()
+		}
+
+		s.l.Debug().Msgf("worker %s has %d total slots, %d unacked slots", workerId, worker.AvailableSlots, len(unackedSlots))
 
 		slots = append(slots, unackedSlots...)
 
@@ -279,11 +322,14 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 		}
 	}
 
-	s.actionsMu.Lock()
-	defer s.actionsMu.Unlock()
+	// (we don't need cryptographically secure randomness)
+	randSource := rand.New(rand.NewSource(time.Now().UnixNano())) // nolint: gosec
 
 	// first pass: write all actions with new slots to the scheduler
 	for actionId, newSlots := range actionsToNewSlots {
+		// randomly sort the slots
+		randSource.Shuffle(len(newSlots), func(i, j int) { newSlots[i], newSlots[j] = newSlots[j], newSlots[i] })
+
 		if _, ok := s.actions[actionId]; !ok {
 			s.actions[actionId] = &action{
 				slots:                      newSlots,
@@ -296,9 +342,11 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 			s.actions[actionId].lastReplenishedSlotCount = actionsToTotalSlots[actionId]
 			s.actions[actionId].lastReplenishedWorkerCount = len(actionsToWorkerIds[actionId])
 		}
+
+		s.l.Debug().Msgf("before cleanup, action %s has %d slots", actionId, len(newSlots))
 	}
 
-	// second pass: clean up used and expired slots
+	// second pass: clean up expired slots
 	for i := range s.actions {
 		storedAction := s.actions[i]
 
@@ -307,19 +355,28 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 		for i := range storedAction.slots {
 			slot := storedAction.slots[i]
 
-			if slot.active() {
+			if !slot.expired() {
 				newSlots = append(newSlots, slot)
 			}
 		}
 
 		storedAction.slots = newSlots
+
+		s.l.Debug().Msgf("after cleanup, action %s has %d slots", i, len(newSlots))
 	}
 
 	// third pass: remove any actions which have no slots
 	for actionId, storedAction := range s.actions {
 		if len(storedAction.slots) == 0 {
+			s.l.Debug().Msgf("removing action %s because it has no slots", actionId)
 			delete(s.actions, actionId)
 		}
+	}
+
+	if sinceStart := time.Since(start); sinceStart > 100*time.Millisecond {
+		s.l.Warn().Dur("duration", sinceStart).Msg("replenishing slots took longer than 100ms")
+	} else {
+		s.l.Debug().Dur("duration", sinceStart).Msgf("finished replenishing slots")
 	}
 
 	return nil
@@ -347,69 +404,162 @@ func (s *Scheduler) start(ctx context.Context) {
 	go s.loopReplenish(ctx)
 }
 
+type scheduleRateLimitResult struct {
+	*rateLimitResult
+
+	qi *dbsqlc.QueueItem
+}
+
 type assignSingleResult struct {
+	qi *dbsqlc.QueueItem
+
 	workerId pgtype.UUID
 	ackId    int
 
 	noSlots   bool
 	succeeded bool
 
-	rateLimitResult *rateLimitResult
+	rateLimitResult *scheduleRateLimitResult
 }
 
-// tryAssignSingleton attempts to assign a singleton step to a worker.
-func (s *Scheduler) tryAssignSingleton(
+func (s *Scheduler) tryAssignBatch(
 	ctx context.Context,
-	qi *dbsqlc.QueueItem,
+	actionId string,
+	qis []*dbsqlc.QueueItem,
 	// ringOffset is a hint for where to start the search for a slot. The search will wraparound the ring if necessary.
 	// If a slot is assigned, the caller should increment this value for the next call to tryAssignSingleton.
 	// Note that this is not guaranteed to be the actual offset of the latest assigned slot, since many actions may be scheduling
 	// slots concurrently.
 	ringOffset int,
-	labels []*dbsqlc.GetDesiredLabelsRow,
-	rls map[string]int32,
+	stepIdsToLabels map[string][]*dbsqlc.GetDesiredLabelsRow,
+	stepRunIdsToRateLimits map[string]map[string]int32,
 ) (
-	res assignSingleResult, err error,
+	res []*assignSingleResult, newRingOffset int, err error,
 ) {
-	if !qi.ActionId.Valid {
-		return res, fmt.Errorf("queue item does not have a valid action id")
-	}
+	s.l.Debug().Msgf("trying to assign %d queue items", len(qis))
 
-	actionId := qi.ActionId.String
+	newRingOffset = ringOffset
 
-	var rateLimitAck func()
-	var rateLimitNack func()
+	ctx, span := telemetry.NewSpan(ctx, "try-assign-batch")
+	defer span.End()
 
-	// check rate limits
-	if len(rls) > 0 {
-		rlResult := s.rl.use(ctx, sqlchelpers.UUIDToStr(qi.StepRunId), rls)
+	res = make([]*assignSingleResult, len(qis))
 
-		if !rlResult.succeeded {
-			res.rateLimitResult = &rlResult
-			return res, nil
+	for i := range qis {
+		res[i] = &assignSingleResult{
+			qi: qis[i],
 		}
 	}
 
-	// pick a worker to assign the slot to
-	var assignedSlot *slot
+	rlAcks := make([]func(), len(qis))
+	rlNacks := make([]func(), len(qis))
 
+	// first, check rate limits for each of the queue items
+	for i := range res {
+		r := res[i]
+		qi := qis[i]
+		var rateLimitAck func()
+		var rateLimitNack func()
+
+		rls := make(map[string]int32)
+
+		if stepRunIdsToRateLimits != nil {
+			if _, ok := stepRunIdsToRateLimits[sqlchelpers.UUIDToStr(qi.StepRunId)]; ok {
+				rls = stepRunIdsToRateLimits[sqlchelpers.UUIDToStr(qi.StepRunId)]
+			}
+		}
+
+		// check rate limits
+		if len(rls) > 0 {
+			rlResult := s.rl.use(ctx, sqlchelpers.UUIDToStr(qi.StepRunId), rls)
+
+			if !rlResult.succeeded {
+				r.rateLimitResult = &scheduleRateLimitResult{
+					rateLimitResult: &rlResult,
+					qi:              qi,
+				}
+			} else {
+				rateLimitAck = rlResult.ack
+				rateLimitNack = rlResult.nack
+			}
+		}
+
+		rlAcks[i] = rateLimitAck
+		rlNacks[i] = rateLimitNack
+	}
+
+	// lock the actions map and try to assign the batch of queue items.
+	// NOTE: if we change the position of this lock, make sure that we are still acquiring locks in the same
+	// order as the replenish() function, otherwise we may deadlock.
 	s.actionsMu.RLock()
+
 	if _, ok := s.actions[actionId]; !ok {
 		s.actionsMu.RUnlock()
-		res.noSlots = true
-		return res, nil
+
+		s.l.Debug().Msgf("no slots for action %s", actionId)
+
+		// if the action is not in the map, then we have no slots to assign to
+		for i := range res {
+			res[i].noSlots = true
+		}
+
+		return res, newRingOffset, nil
 	}
 
 	candidateSlots := s.actions[actionId].slots
 
-	ringOffset %= len(candidateSlots)
+	wg := sync.WaitGroup{}
 
-	// rotate the ring to the offset
-	candidateSlots = append(candidateSlots[ringOffset:], candidateSlots[:ringOffset]...)
+	for i := range res {
+		if res[i].rateLimitResult != nil {
+			continue
+		}
 
+		wg.Add(1)
+
+		childRingOffset := newRingOffset % len(candidateSlots)
+
+		go func(i int) {
+			defer wg.Done()
+
+			qi := qis[i]
+
+			singleRes, err := s.tryAssignSingleton(
+				ctx,
+				qi,
+				candidateSlots,
+				childRingOffset,
+				stepIdsToLabels[sqlchelpers.UUIDToStr(qi.StepId)],
+				rlAcks[i],
+				rlNacks[i],
+			)
+
+			if err != nil {
+				s.l.Error().Err(err).Msg("error assigning queue item")
+			}
+
+			res[i] = &singleRes
+			res[i].qi = qi
+		}(i)
+
+		newRingOffset++
+	}
+
+	wg.Wait()
+
+	// we can only unlock the actions mutex after assigning slots, because we are using the
+	// underlying pointers to the slots
 	s.actionsMu.RUnlock()
 
-	candidateSlots = getRankedSlots(qi, labels, candidateSlots)
+	return res, newRingOffset, nil
+}
+
+func findSlot(
+	candidateSlots []*slot,
+	rateLimitAck func(),
+	rateLimitNack func(),
+) *slot {
+	var assignedSlot *slot
 
 	for _, slot := range candidateSlots {
 		if !slot.active() {
@@ -422,6 +572,35 @@ func (s *Scheduler) tryAssignSingleton(
 
 		assignedSlot = slot
 		break
+	}
+
+	return assignedSlot
+}
+
+// tryAssignSingleton attempts to assign a singleton step to a worker.
+func (s *Scheduler) tryAssignSingleton(
+	ctx context.Context,
+	qi *dbsqlc.QueueItem,
+	candidateSlots []*slot,
+	ringOffset int,
+	labels []*dbsqlc.GetDesiredLabelsRow,
+	rateLimitAck func(),
+	rateLimitNack func(),
+) (
+	res assignSingleResult, err error,
+
+) {
+	ctx, span := telemetry.NewSpan(ctx, "try-assign-singleton") // nolint: ineffassign
+	defer span.End()
+
+	if qi.Sticky.Valid || len(labels) > 0 {
+		candidateSlots = getRankedSlots(qi, labels, candidateSlots)
+	}
+
+	assignedSlot := findSlot(candidateSlots[ringOffset:], rateLimitAck, rateLimitNack)
+
+	if assignedSlot == nil {
+		assignedSlot = findSlot(candidateSlots[:ringOffset], rateLimitAck, rateLimitNack)
 	}
 
 	if assignedSlot == nil {
@@ -454,17 +633,11 @@ type AssignedQueueItem struct {
 	DispatcherId *pgtype.UUID
 }
 
-type erroredQueueItem struct {
-	QueueItem *dbsqlc.QueueItem
-	Err       error
-}
-
 type assignResults struct {
 	assigned           []*AssignedQueueItem
-	errored            []*erroredQueueItem
 	unassigned         []*dbsqlc.QueueItem
 	schedulingTimedOut []*dbsqlc.QueueItem
-	rateLimited        []*rateLimitResult
+	rateLimited        []*scheduleRateLimitResult
 }
 
 func (s *Scheduler) tryAssign(
@@ -473,6 +646,8 @@ func (s *Scheduler) tryAssign(
 	stepIdsToLabels map[string][]*dbsqlc.GetDesiredLabelsRow,
 	stepRunIdsToRateLimits map[string]map[string]int32,
 ) <-chan *assignResults {
+	ctx, span := telemetry.NewSpan(ctx, "try-assign")
+
 	// split into groups based on action ids, and process each action id in parallel
 	actionIdToQueueItems := make(map[string][]*dbsqlc.QueueItem)
 
@@ -492,6 +667,7 @@ func (s *Scheduler) tryAssign(
 
 	go func() {
 		wg := sync.WaitGroup{}
+		startTotal := time.Now()
 
 		// process each action id in parallel
 		for actionId, qis := range actionIdToQueueItems {
@@ -500,14 +676,13 @@ func (s *Scheduler) tryAssign(
 			go func(actionId string, qis []*dbsqlc.QueueItem) {
 				defer wg.Done()
 				assigned := make([]*AssignedQueueItem, 0, len(qis))
-				errored := make([]*erroredQueueItem, 0, len(qis))
 				unassigned := make([]*dbsqlc.QueueItem, 0, len(qis))
 				schedulingTimedOut := make([]*dbsqlc.QueueItem, 0, len(qis))
-				rateLimited := make([]*rateLimitResult, 0, len(qis))
-
-				startAssignment := time.Now()
+				rateLimited := make([]*scheduleRateLimitResult, 0, len(qis))
 
 				ringOffset := 0
+
+				batched := make([]*dbsqlc.QueueItem, 0)
 
 				for i := range qis {
 					qi := qis[i]
@@ -517,56 +692,58 @@ func (s *Scheduler) tryAssign(
 						continue
 					}
 
-					labels := make([]*dbsqlc.GetDesiredLabelsRow, 0)
-
-					if stepIdsToLabels != nil {
-						if _, ok := stepIdsToLabels[sqlchelpers.UUIDToStr(qi.StepId)]; ok {
-							labels = stepIdsToLabels[sqlchelpers.UUIDToStr(qi.StepId)]
-						}
-					}
-
-					rls := make(map[string]int32)
-
-					if stepRunIdsToRateLimits != nil {
-						if _, ok := stepRunIdsToRateLimits[sqlchelpers.UUIDToStr(qi.StepRunId)]; ok {
-							rls = stepRunIdsToRateLimits[sqlchelpers.UUIDToStr(qi.StepRunId)]
-						}
-					}
-
-					singleRes, err := s.tryAssignSingleton(ctx, qi, ringOffset, labels, rls)
-
-					if err != nil {
-						s.l.Error().Err(err).Msg("error assigning queue item")
-					}
-
-					if !singleRes.succeeded {
-						if singleRes.rateLimitResult != nil {
-							rateLimited = append(rateLimited, singleRes.rateLimitResult)
-							continue
-						} else if singleRes.noSlots {
-							unassigned = append(unassigned, qi)
-							break
-						}
-					}
-
-					ringOffset++
-
-					assigned = append(assigned, &AssignedQueueItem{
-						WorkerId:  singleRes.workerId,
-						QueueItem: qi,
-						AckId:     singleRes.ackId,
-					})
+					batched = append(batched, qi)
 				}
 
-				endAssignment := time.Now()
+				err := queueutils.BatchLinear(50, batched, func(batchQis []*dbsqlc.QueueItem) error {
+					batchAssigned := make([]*AssignedQueueItem, 0, len(batchQis))
 
-				if sinceStart := endAssignment.Sub(startAssignment); sinceStart > 100*time.Millisecond {
-					s.l.Warn().Msgf("assignment of %d queue items took longer than 100ms (%v)", len(qis), sinceStart.String())
+					batchStart := time.Now()
+
+					results, newRingOffset, err := s.tryAssignBatch(ctx, actionId, batchQis, ringOffset, stepIdsToLabels, stepRunIdsToRateLimits)
+
+					if err != nil {
+						return err
+					}
+
+					ringOffset = newRingOffset
+
+					for _, singleRes := range results {
+						if !singleRes.succeeded {
+							if singleRes.rateLimitResult != nil {
+								rateLimited = append(rateLimited, singleRes.rateLimitResult)
+							} else if singleRes.noSlots {
+								unassigned = append(unassigned, singleRes.qi)
+							}
+
+							continue
+						}
+
+						batchAssigned = append(batchAssigned, &AssignedQueueItem{
+							WorkerId:  singleRes.workerId,
+							QueueItem: singleRes.qi,
+							AckId:     singleRes.ackId,
+						})
+					}
+
+					if sinceStart := time.Since(batchStart); sinceStart > 100*time.Millisecond {
+						s.l.Warn().Dur("duration", sinceStart).Msgf("processing batch of %d queue items took longer than 100ms", len(batchQis))
+					}
+
+					resultsCh <- &assignResults{
+						assigned: batchAssigned,
+					}
+
+					return nil
+				})
+
+				if err != nil {
+					s.l.Error().Err(err).Msg("error assigning queue items")
+					return
 				}
 
 				resultsCh <- &assignResults{
 					assigned:           assigned,
-					errored:            errored,
 					unassigned:         unassigned,
 					schedulingTimedOut: schedulingTimedOut,
 					rateLimited:        rateLimited,
@@ -575,7 +752,12 @@ func (s *Scheduler) tryAssign(
 		}
 
 		wg.Wait()
+		span.End()
 		close(resultsCh)
+
+		if sinceStart := time.Since(startTotal); sinceStart > 100*time.Millisecond {
+			s.l.Warn().Dur("duration", sinceStart).Msgf("assigning queue items took longer than 100ms")
+		}
 	}()
 
 	return resultsCh

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -25,7 +26,7 @@ type BulkEventWriter struct {
 	queries *dbsqlc.Queries
 }
 
-func NewBulkEventWriter(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger) (*BulkEventWriter, error) {
+func NewBulkEventWriter(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, conf ConfigFileBuffer) (*BulkEventWriter, error) {
 	queries := dbsqlc.New()
 
 	w := &BulkEventWriter{
@@ -41,6 +42,7 @@ func NewBulkEventWriter(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Lo
 		SizeFunc:   sizeOfEventData,
 		L:          w.l,
 		V:          w.v,
+		Config:     conf,
 	}
 
 	manager, err := NewTenantBufManager(eventBufOpts)
@@ -69,6 +71,15 @@ func sizeOfEventData(item *repository.CreateStepRunEventOpts) int {
 	return size
 }
 
+func sortByStepRunId(opts []*repository.CreateStepRunEventOpts) []*repository.CreateStepRunEventOpts {
+
+	sort.SliceStable(opts, func(i, j int) bool {
+		return opts[i].StepRunId < opts[j].StepRunId
+	})
+
+	return opts
+}
+
 func (w *BulkEventWriter) BulkWriteStepRunEvents(ctx context.Context, opts []*repository.CreateStepRunEventOpts) ([]int, error) {
 	res := make([]int, 0, len(opts))
 	eventTimeSeen := make([]pgtype.Timestamp, 0, len(opts))
@@ -79,7 +90,9 @@ func (w *BulkEventWriter) BulkWriteStepRunEvents(ctx context.Context, opts []*re
 	eventData := make([]map[string]interface{}, 0, len(opts))
 	dedupe := make(map[string]bool)
 
-	for i, item := range opts {
+	orderedOpts := sortByStepRunId(opts)
+
+	for i, item := range orderedOpts {
 		res = append(res, i)
 
 		if item.EventMessage == nil || item.EventReason == nil || item.StepRunId == "" {
@@ -199,7 +212,8 @@ func bulkStepRunEvents(
 	})
 
 	if err != nil {
-		return fmt.Errorf("could not create deferred step run event: %w", err)
+		l.Error().Err(err).Msg("could not create deferred step run event")
+		return fmt.Errorf("bulk_events - could not create deferred step run event: %w", err)
 	}
 
 	return nil

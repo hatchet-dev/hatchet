@@ -180,6 +180,20 @@ func (q *Queries) CreateQueueItem(ctx context.Context, db DBTX, arg CreateQueueI
 	return err
 }
 
+type CreateQueueItemsBulkParams struct {
+	StepRunId         pgtype.UUID        `json:"stepRunId"`
+	StepId            pgtype.UUID        `json:"stepId"`
+	ActionId          pgtype.Text        `json:"actionId"`
+	ScheduleTimeoutAt pgtype.Timestamp   `json:"scheduleTimeoutAt"`
+	StepTimeout       pgtype.Text        `json:"stepTimeout"`
+	Priority          int32              `json:"priority"`
+	IsQueued          bool               `json:"isQueued"`
+	TenantId          pgtype.UUID        `json:"tenantId"`
+	Queue             string             `json:"queue"`
+	Sticky            NullStickyStrategy `json:"sticky"`
+	DesiredWorkerId   pgtype.UUID        `json:"desiredWorkerId"`
+}
+
 const createTimeoutQueueItem = `-- name: CreateTimeoutQueueItem :exec
 INSERT INTO
     "InternalQueueItem" (
@@ -335,6 +349,8 @@ WHERE
     "isQueued" = 't'
     AND "tenantId" = $1::uuid
     AND "queue" = $2::text
+    -- Added to ensure that the index is used
+    AND "priority" >= 1 AND "priority" <= 4
 `
 
 type GetMinUnprocessedQueueItemIdParams struct {
@@ -732,9 +748,12 @@ func (q *Queries) ListInternalQueueItems(ctx context.Context, db DBTX, arg ListI
 
 const listQueueItemsForQueue = `-- name: ListQueueItemsForQueue :many
 SELECT
-    id, "stepRunId", "stepId", "actionId", "scheduleTimeoutAt", "stepTimeout", priority, "isQueued", "tenantId", queue, sticky, "desiredWorkerId"
+    qi.id, qi."stepRunId", qi."stepId", qi."actionId", qi."scheduleTimeoutAt", qi."stepTimeout", qi.priority, qi."isQueued", qi."tenantId", qi.queue, qi.sticky, qi."desiredWorkerId",
+    sr."status"
 FROM
     "QueueItem" qi
+JOIN
+    "StepRun" sr ON qi."stepRunId" = sr."id"
 WHERE
     qi."isQueued" = true
     AND qi."tenantId" = $1::uuid
@@ -759,7 +778,12 @@ type ListQueueItemsForQueueParams struct {
 	Limit    pgtype.Int4 `json:"limit"`
 }
 
-func (q *Queries) ListQueueItemsForQueue(ctx context.Context, db DBTX, arg ListQueueItemsForQueueParams) ([]*QueueItem, error) {
+type ListQueueItemsForQueueRow struct {
+	QueueItem QueueItem     `json:"queue_item"`
+	Status    StepRunStatus `json:"status"`
+}
+
+func (q *Queries) ListQueueItemsForQueue(ctx context.Context, db DBTX, arg ListQueueItemsForQueueParams) ([]*ListQueueItemsForQueueRow, error) {
 	rows, err := db.Query(ctx, listQueueItemsForQueue,
 		arg.Tenantid,
 		arg.Queue,
@@ -770,22 +794,23 @@ func (q *Queries) ListQueueItemsForQueue(ctx context.Context, db DBTX, arg ListQ
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*QueueItem
+	var items []*ListQueueItemsForQueueRow
 	for rows.Next() {
-		var i QueueItem
+		var i ListQueueItemsForQueueRow
 		if err := rows.Scan(
-			&i.ID,
-			&i.StepRunId,
-			&i.StepId,
-			&i.ActionId,
-			&i.ScheduleTimeoutAt,
-			&i.StepTimeout,
-			&i.Priority,
-			&i.IsQueued,
-			&i.TenantId,
-			&i.Queue,
-			&i.Sticky,
-			&i.DesiredWorkerId,
+			&i.QueueItem.ID,
+			&i.QueueItem.StepRunId,
+			&i.QueueItem.StepId,
+			&i.QueueItem.ActionId,
+			&i.QueueItem.ScheduleTimeoutAt,
+			&i.QueueItem.StepTimeout,
+			&i.QueueItem.Priority,
+			&i.QueueItem.IsQueued,
+			&i.QueueItem.TenantId,
+			&i.QueueItem.Queue,
+			&i.QueueItem.Sticky,
+			&i.QueueItem.DesiredWorkerId,
+			&i.Status,
 		); err != nil {
 			return nil, err
 		}
@@ -799,11 +824,12 @@ func (q *Queries) ListQueueItemsForQueue(ctx context.Context, db DBTX, arg ListQ
 
 const listQueues = `-- name: ListQueues :many
 SELECT
-    id, "tenantId", name
+    id, "tenantId", name, "lastActive"
 FROM
     "Queue"
 WHERE
     "tenantId" = $1::uuid
+    AND "lastActive" > NOW() - INTERVAL '1 day'
 `
 
 func (q *Queries) ListQueues(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]*Queue, error) {
@@ -815,7 +841,12 @@ func (q *Queries) ListQueues(ctx context.Context, db DBTX, tenantid pgtype.UUID)
 	var items []*Queue
 	for rows.Next() {
 		var i Queue
-		if err := rows.Scan(&i.ID, &i.TenantId, &i.Name); err != nil {
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantId,
+			&i.Name,
+			&i.LastActive,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)
@@ -916,14 +947,18 @@ const upsertQueue = `-- name: UpsertQueue :exec
 INSERT INTO
     "Queue" (
         "tenantId",
-        "name"
+        "name",
+        "lastActive"
     )
 VALUES
     (
         $1::uuid,
-        $2::text
+        $2::text,
+        NOW()
     )
-ON CONFLICT ("tenantId", "name") DO NOTHING
+ON CONFLICT ("tenantId", "name") DO UPDATE
+SET
+    "lastActive" = NOW()
 `
 
 type UpsertQueueParams struct {
@@ -944,14 +979,18 @@ WITH input_data AS (
 )
 INSERT INTO "Queue" (
     "tenantId",
-    "name"
+    "name",
+    "lastActive"
 )
 SELECT
     input_data.tenantId,
-    input_data.name
+    input_data.name,
+    NOW()
 FROM
     input_data
-ON CONFLICT ("tenantId", "name") DO NOTHING
+ON CONFLICT ("tenantId", "name") DO UPDATE
+SET
+    "lastActive" = NOW()
 `
 
 type UpsertQueuesParams struct {

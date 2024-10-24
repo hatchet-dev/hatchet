@@ -16,7 +16,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/datautils/merge"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
-	"github.com/hatchet-dev/hatchet/internal/services/controllers/partition"
+	"github.com/hatchet-dev/hatchet/internal/services/partition"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
@@ -27,7 +27,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
-	v2 "github.com/hatchet-dev/hatchet/pkg/scheduling/v2"
 )
 
 type JobsController interface {
@@ -45,7 +44,6 @@ type JobsControllerImpl struct {
 	a              *hatcheterrors.Wrapped
 	p              *partition.Partition
 	celParser      *cel.CELParser
-	scheduler      *v2.SchedulingPool
 
 	reassignMutexes sync.Map
 }
@@ -61,7 +59,6 @@ type JobsControllerOpts struct {
 	p              *partition.Partition
 	queueLogger    *zerolog.Logger
 	pgxStatsLogger *zerolog.Logger
-	scheduler      *v2.SchedulingPool
 }
 
 func defaultJobsControllerOpts() *JobsControllerOpts {
@@ -130,12 +127,6 @@ func WithDataDecoderValidator(dv datautils.DataDecoderValidator) JobsControllerO
 	}
 }
 
-func WithScheduler(s *v2.SchedulingPool) JobsControllerOpt {
-	return func(opts *JobsControllerOpts) {
-		opts.scheduler = s
-	}
-}
-
 func New(fs ...JobsControllerOpt) (*JobsControllerImpl, error) {
 	opts := defaultJobsControllerOpts()
 
@@ -153,10 +144,6 @@ func New(fs ...JobsControllerOpt) (*JobsControllerImpl, error) {
 
 	if opts.p == nil {
 		return nil, errors.New("partition is required. use WithPartition")
-	}
-
-	if opts.scheduler == nil {
-		return nil, errors.New("scheduler is required. use WithScheduler")
 	}
 
 	newLogger := opts.l.With().Str("service", "jobs-controller").Logger()
@@ -177,7 +164,6 @@ func New(fs ...JobsControllerOpt) (*JobsControllerImpl, error) {
 		queueLogger:    opts.queueLogger,
 		pgxStatsLogger: opts.pgxStatsLogger,
 		repo:           opts.repo,
-		scheduler:      opts.scheduler,
 		dv:             opts.dv,
 		s:              s,
 		a:              a,
@@ -239,7 +225,7 @@ func (jc *JobsControllerImpl) Start() (func() error, error) {
 		return nil, fmt.Errorf("could not subscribe to job processing queue: %w", err)
 	}
 
-	q, err := newQueue(jc.mq, jc.l, jc.queueLogger, jc.repo, jc.dv, jc.a, jc.p, jc.scheduler)
+	q, err := newQueue(jc.mq, jc.l, jc.queueLogger, jc.repo, jc.dv, jc.a, jc.p)
 
 	if err != nil {
 		cancel()
@@ -404,7 +390,7 @@ func (ec *JobsControllerImpl) handleJobRunCancelled(ctx context.Context, task *m
 
 		reason := "JOB_RUN_CANCELLED"
 
-		if payload.Reason != nil {
+		if payload.Reason != nil && *payload.Reason != "" {
 			reason = *payload.Reason
 		}
 
@@ -858,7 +844,19 @@ func (ec *JobsControllerImpl) checkTenantQueue(ctx context.Context, tenantId, qu
 		)
 
 		if err != nil {
-			ec.l.Err(err).Msg("could not add message to tenant partition queue")
+			ec.l.Err(err).Msg("could not add message to controller partition queue")
+		}
+	}
+
+	if tenant.SchedulerPartitionId.Valid {
+		err = ec.mq.AddMessage(
+			ctx,
+			msgqueue.QueueTypeFromPartitionIDAndController(tenant.SchedulerPartitionId.String, msgqueue.Scheduler),
+			tasktypes.CheckTenantQueueToTask(tenantId, queueName, isStepQueued, isSlotReleased),
+		)
+
+		if err != nil {
+			ec.l.Err(err).Msg("could not add message to scheduler partition queue")
 		}
 	}
 }
@@ -990,7 +988,13 @@ func (ec *JobsControllerImpl) handleStepRunFinished(ctx context.Context, task *m
 	}
 
 	// recheck the tenant queue
-	ec.checkTenantQueue(ctx, metadata.TenantId, "", false, true)
+	sr, err := ec.repo.StepRun().GetStepRunForEngine(ctx, metadata.TenantId, payload.StepRunId)
+
+	if err != nil {
+		return fmt.Errorf("could not get step run: %w", err)
+	}
+
+	ec.checkTenantQueue(ctx, metadata.TenantId, sr.SRQueue, false, true)
 
 	return nil
 }
@@ -1030,7 +1034,7 @@ func (ec *JobsControllerImpl) failStepRun(ctx context.Context, tenantId, stepRun
 	}
 
 	// check the queue on failure
-	defer ec.checkTenantQueue(ctx, tenantId, "", false, true)
+	defer ec.checkTenantQueue(ctx, tenantId, oldStepRun.SRQueue, false, true)
 
 	// determine if step run should be retried or not
 	shouldRetry := oldStepRun.SRRetryCount < oldStepRun.StepRetries
@@ -1221,25 +1225,6 @@ func (ec *JobsControllerImpl) cancelStepRun(ctx context.Context, tenantId, stepR
 	}
 
 	return nil
-}
-
-func stepRunAssignedTask(tenantId, stepRunId, workerId, dispatcherId string) *msgqueue.Message {
-	payload, _ := datautils.ToJSONMap(tasktypes.StepRunAssignedTaskPayload{
-		StepRunId: stepRunId,
-		WorkerId:  workerId,
-	})
-
-	metadata, _ := datautils.ToJSONMap(tasktypes.StepRunAssignedTaskMetadata{
-		TenantId:     tenantId,
-		DispatcherId: dispatcherId,
-	})
-
-	return &msgqueue.Message{
-		ID:       "step-run-assigned",
-		Payload:  payload,
-		Metadata: metadata,
-		Retries:  3,
-	}
 }
 
 func stepRunCancelledTask(tenantId, stepRunId, workerId, dispatcherId, cancelledReason string, runId string, retries *int32, retryCount *int32) *msgqueue.Message {

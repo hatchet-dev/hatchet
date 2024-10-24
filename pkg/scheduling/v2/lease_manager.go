@@ -13,6 +13,7 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
+	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 )
@@ -26,7 +27,7 @@ type leaseRepo interface {
 	ListQueues(ctx context.Context, tenantId pgtype.UUID) ([]*dbsqlc.Queue, error)
 	ListActiveWorkers(ctx context.Context, tenantId pgtype.UUID) ([]*ListActiveWorkersResult, error)
 
-	AcquireLeases(ctx context.Context, kind dbsqlc.LeaseKind, resourceIds []string, existingLeases []*dbsqlc.Lease) ([]*dbsqlc.Lease, error)
+	AcquireOrExtendLeases(ctx context.Context, kind dbsqlc.LeaseKind, resourceIds []string, existingLeases []*dbsqlc.Lease) ([]*dbsqlc.Lease, error)
 	ReleaseLeases(ctx context.Context, leases []*dbsqlc.Lease) error
 }
 
@@ -50,7 +51,10 @@ func newLeaseDbQueries(tenantId pgtype.UUID, queries *dbsqlc.Queries, pool *pgxp
 	}
 }
 
-func (d *leaseDbQueries) AcquireLeases(ctx context.Context, kind dbsqlc.LeaseKind, resourceIds []string, existingLeases []*dbsqlc.Lease) ([]*dbsqlc.Lease, error) {
+func (d *leaseDbQueries) AcquireOrExtendLeases(ctx context.Context, kind dbsqlc.LeaseKind, resourceIds []string, existingLeases []*dbsqlc.Lease) ([]*dbsqlc.Lease, error) {
+	ctx, span := telemetry.NewSpan(ctx, "acquire-leases")
+	defer span.End()
+
 	leaseIds := make([]int64, len(existingLeases))
 
 	for i, lease := range existingLeases {
@@ -75,7 +79,7 @@ func (d *leaseDbQueries) AcquireLeases(ctx context.Context, kind dbsqlc.LeaseKin
 		return nil, err
 	}
 
-	leases, err := d.queries.AcquireLeases(ctx, tx, dbsqlc.AcquireLeasesParams{
+	leases, err := d.queries.AcquireOrExtendLeases(ctx, tx, dbsqlc.AcquireOrExtendLeasesParams{
 		Kind:             kind,
 		LeaseDuration:    d.leaseDuration,
 		Resourceids:      resourceIds,
@@ -95,6 +99,9 @@ func (d *leaseDbQueries) AcquireLeases(ctx context.Context, kind dbsqlc.LeaseKin
 }
 
 func (d *leaseDbQueries) ReleaseLeases(ctx context.Context, leases []*dbsqlc.Lease) error {
+	ctx, span := telemetry.NewSpan(ctx, "release-leases")
+	defer span.End()
+
 	leaseIds := make([]int64, len(leases))
 
 	for i, lease := range leases {
@@ -123,10 +130,16 @@ func (d *leaseDbQueries) ReleaseLeases(ctx context.Context, leases []*dbsqlc.Lea
 }
 
 func (d *leaseDbQueries) ListQueues(ctx context.Context, tenantId pgtype.UUID) ([]*dbsqlc.Queue, error) {
+	ctx, span := telemetry.NewSpan(ctx, "list-queues")
+	defer span.End()
+
 	return d.queries.ListQueues(ctx, d.pool, tenantId)
 }
 
 func (d *leaseDbQueries) ListActiveWorkers(ctx context.Context, tenantId pgtype.UUID) ([]*ListActiveWorkersResult, error) {
+	ctx, span := telemetry.NewSpan(ctx, "list-active-workers")
+	defer span.End()
+
 	activeWorkers, err := d.queries.ListActiveWorkers(ctx, d.pool, tenantId)
 
 	if err != nil {
@@ -186,6 +199,9 @@ type LeaseManager struct {
 	queueLeasesMu sync.Mutex
 	queueLeases   []*dbsqlc.Lease
 	queuesCh      chan<- []string
+
+	cleanedUp bool
+	cleanupMu sync.Mutex
 }
 
 func newLeaseManager(conf *sharedConfig, tenantId pgtype.UUID) (*LeaseManager, <-chan []*ListActiveWorkersResult, <-chan []string) {
@@ -228,19 +244,37 @@ func (l *LeaseManager) acquireWorkerLeases(ctx context.Context) error {
 		return err
 	}
 
+	currResourceIdsToLease := make(map[string]*dbsqlc.Lease, len(l.workerLeases))
+
+	for _, lease := range l.workerLeases {
+		currResourceIdsToLease[lease.ResourceId] = lease
+	}
+
 	workerIdsStr := make([]string, len(activeWorkers))
 	activeWorkerIdsToResults := make(map[string]*ListActiveWorkersResult, len(activeWorkers))
+
+	leasesToExtend := make([]*dbsqlc.Lease, 0, len(activeWorkers))
+	leasesToRelease := make([]*dbsqlc.Lease, 0, len(currResourceIdsToLease))
 
 	for i, activeWorker := range activeWorkers {
 		aw := activeWorker
 		workerIdsStr[i] = sqlchelpers.UUIDToStr(activeWorker.ID)
 		activeWorkerIdsToResults[workerIdsStr[i]] = aw
+
+		if lease, ok := currResourceIdsToLease[workerIdsStr[i]]; ok {
+			leasesToExtend = append(leasesToExtend, lease)
+			delete(currResourceIdsToLease, workerIdsStr[i])
+		}
+	}
+
+	for _, lease := range currResourceIdsToLease {
+		leasesToRelease = append(leasesToRelease, lease)
 	}
 
 	successfullyAcquiredWorkerIds := make([]*ListActiveWorkersResult, 0)
 
 	if len(workerIdsStr) != 0 {
-		workerLeases, err := l.lr.AcquireLeases(ctx, dbsqlc.LeaseKindWORKER, workerIdsStr, l.workerLeases)
+		workerLeases, err := l.lr.AcquireOrExtendLeases(ctx, dbsqlc.LeaseKindWORKER, workerIdsStr, leasesToExtend)
 
 		if err != nil {
 			return err
@@ -254,6 +288,12 @@ func (l *LeaseManager) acquireWorkerLeases(ctx context.Context) error {
 	}
 
 	l.sendWorkerIds(successfullyAcquiredWorkerIds)
+
+	if len(leasesToRelease) != 0 {
+		if err := l.lr.ReleaseLeases(ctx, leasesToRelease); err != nil {
+			return err
+		}
+	}
 
 	return nil
 }
@@ -271,16 +311,34 @@ func (l *LeaseManager) acquireQueueLeases(ctx context.Context) error {
 		return err
 	}
 
+	currResourceIdsToLease := make(map[string]*dbsqlc.Lease, len(l.queueLeases))
+
+	for _, lease := range l.queueLeases {
+		currResourceIdsToLease[lease.ResourceId] = lease
+	}
+
 	queueIdsStr := make([]string, len(queues))
+	leasesToExtend := make([]*dbsqlc.Lease, 0, len(queues))
+	leasesToRelease := make([]*dbsqlc.Lease, 0, len(currResourceIdsToLease))
 
 	for i, q := range queues {
 		queueIdsStr[i] = q.Name
+
+		if lease, ok := currResourceIdsToLease[queueIdsStr[i]]; ok {
+			leasesToExtend = append(leasesToExtend, lease)
+			delete(currResourceIdsToLease, queueIdsStr[i])
+		}
+	}
+
+	for _, lease := range currResourceIdsToLease {
+		leasesToRelease = append(leasesToRelease, lease)
 	}
 
 	successfullyAcquiredQueues := []string{}
 
 	if len(queueIdsStr) != 0 {
-		queueLeases, err := l.lr.AcquireLeases(ctx, dbsqlc.LeaseKindQUEUE, queueIdsStr, l.queueLeases)
+
+		queueLeases, err := l.lr.AcquireOrExtendLeases(ctx, dbsqlc.LeaseKindQUEUE, queueIdsStr, leasesToExtend)
 
 		if err != nil {
 			return err
@@ -294,6 +352,12 @@ func (l *LeaseManager) acquireQueueLeases(ctx context.Context) error {
 	}
 
 	l.sendQueues(successfullyAcquiredQueues)
+
+	if len(leasesToRelease) != 0 {
+		if err := l.lr.ReleaseLeases(ctx, leasesToRelease); err != nil {
+			return err
+		}
+	}
 
 	return nil
 }
@@ -331,6 +395,18 @@ func (l *LeaseManager) loopForLeases(ctx context.Context) {
 }
 
 func (l *LeaseManager) cleanup(ctx context.Context) error {
+	if ok := l.cleanupMu.TryLock(); !ok {
+		return nil
+	}
+
+	defer l.cleanupMu.Unlock()
+
+	if l.cleanedUp {
+		return nil
+	}
+
+	l.cleanedUp = true
+
 	// close channels
 	defer close(l.workersCh)
 	defer close(l.queuesCh)

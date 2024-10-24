@@ -606,14 +606,26 @@ FROM workflow_version
 WHERE workflow_version."sticky" IS NOT NULL
 RETURNING *;
 
-
--- name: CreateMultipleWorkflowRunStickyStates :many
-WITH workflow_version AS (
-    SELECT DISTINCT
-        "id" AS workflow_version_id,
-        "sticky"
-    FROM "WorkflowVersion"
-    WHERE "id" = ANY(@workflowVersionIds::uuid[])
+-- name: CreateMultipleWorkflowRunStickyStates :exec
+WITH input_rows AS (
+    SELECT
+        UNNEST(@tenantId::uuid[]) as "tenantId",
+        UNNEST(@workflowRunIds::uuid[]) as "workflowRunId",
+        UNNEST(@desiredWorkerIds::uuid[]) as "desiredWorkerId",
+        UNNEST(@workflowVersionIds::uuid[]) as "workflowVersionId"
+), valid_rows AS (
+    SELECT
+        ir."tenantId",
+        ir."workflowRunId",
+        ir."desiredWorkerId",
+        ir."workflowVersionId",
+        wv."sticky"
+    FROM
+        input_rows ir
+    JOIN
+        "WorkflowVersion" wv ON wv."id" = ir."workflowVersionId"
+    WHERE
+        wv."sticky" IS NOT NULL
 )
 INSERT INTO "WorkflowRunStickyState" (
     "createdAt",
@@ -626,16 +638,11 @@ INSERT INTO "WorkflowRunStickyState" (
 SELECT
     CURRENT_TIMESTAMP,
     CURRENT_TIMESTAMP,
-    UNNEST(@tenantId::uuid[]),
-    UNNEST(@workflowRunIds::uuid[]),
-    UNNEST(@desiredWorkerIds::uuid[]),
-    workflow_version."sticky"
-FROM workflow_version
-JOIN UNNEST(@workflowVersionIds::uuid[]) AS wv(workflow_version_id)
-    ON workflow_version.workflow_version_id = wv.workflow_version_id
-WHERE workflow_version."sticky" IS NOT NULL
-RETURNING *;
-
+    vr."tenantId",
+    vr."workflowRunId",
+    vr."desiredWorkerId",
+    vr."sticky"
+FROM valid_rows vr;
 
 -- name: GetWorkflowRunAdditionalMeta :one
 SELECT
@@ -1008,20 +1015,26 @@ RETURNING
 
 -- name: LinkStepRunParents :exec
 WITH step_runs AS (
-    SELECT "id", "stepId"
+    SELECT "id", "stepId", "jobRunId"
     FROM "StepRun"
     WHERE "id" = ANY(@stepRunIds::uuid[])
+), parent_child_step_runs AS (
+    SELECT
+        parent_run."id" AS "A",
+        child_run."id" AS "B"
+    FROM
+        "_StepOrder" AS step_order
+    JOIN
+        step_runs AS parent_run ON parent_run."stepId" = step_order."A"
+    JOIN
+        step_runs AS child_run ON child_run."stepId" = step_order."B" AND child_run."jobRunId" = parent_run."jobRunId"
 )
 INSERT INTO "_StepRunOrder" ("A", "B")
 SELECT
-    parent_run."id" AS "A",
-    child_run."id" AS "B"
+    parent_child_step_runs."A" AS "A",
+    parent_child_step_runs."B" AS "B"
 FROM
-    "_StepOrder" AS step_order
-JOIN
-    step_runs AS parent_run ON parent_run."stepId" = step_order."A"
-JOIN
-    step_runs AS child_run ON child_run."stepId" = step_order."B";
+    parent_child_step_runs;
 
 -- name: GetWorkflowRun :many
 SELECT
@@ -1070,30 +1083,33 @@ WHERE
         (sqlc.narg('childKey')::text IS NOT NULL AND "childKey" = sqlc.narg('childKey')::text)
     );
 
-
-
--- name: GetChildWorkflowRuns :many
-WITH input_data AS (
-    SELECT
-        UNNEST(@parentIds::uuid[]) AS parentId,
-        UNNEST(@parentStepRunIds::uuid[]) AS parentStepRunId,
-        UNNEST(@childIndices::int[]) AS childIndex,
-        UNNEST(@childKeys::text[]) AS childKey
-)
+-- name: GetChildWorkflowRunsByIndex :many
 SELECT
     wr.*
 FROM
     "WorkflowRun" wr
-JOIN
-    input_data i ON
-    wr."parentId" = i.parentId AND
-    wr."parentStepRunId" = i.parentStepRunId
 WHERE
-    wr."deletedAt" IS NULL AND
-    (
-        (i.childKey IS NULL AND wr."childIndex" = i.childIndex) OR
-        (i.childKey IS NOT NULL AND wr."childKey" = i.childKey)
-    );
+    (wr."parentId", wr."parentStepRunId", wr."childIndex") IN (
+        SELECT
+            UNNEST(@parentIds::uuid[]),
+            UNNEST(@parentStepRunIds::uuid[]),
+            UNNEST(@childIndexes::int[])
+    )
+    AND wr."deletedAt" IS NULL;
+
+-- name: GetChildWorkflowRunsByKey :many
+SELECT
+    wr.*
+FROM
+    "WorkflowRun" wr
+WHERE
+    (wr."parentId", wr."parentStepRunId", wr."childKey") IN (
+        SELECT
+            UNNEST(@parentIds::uuid[]),
+            UNNEST(@parentStepRunIds::uuid[]),
+            UNNEST(@childKeys::text[])
+    )
+    AND wr."deletedAt" IS NULL;
 
 -- name: GetScheduledChildWorkflowRun :one
 SELECT

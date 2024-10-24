@@ -7,11 +7,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 
+	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/buffer"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
@@ -20,7 +20,7 @@ import (
 )
 
 type queuerRepo interface {
-	ListQueueItems(ctx context.Context) ([]*dbsqlc.QueueItem, error)
+	ListQueueItems(ctx context.Context, limit int) ([]*dbsqlc.QueueItem, error)
 	MarkQueueItemsProcessed(ctx context.Context, r *assignResults) (succeeded []*AssignedQueueItem, failed []*AssignedQueueItem, err error)
 	GetStepRunRateLimits(ctx context.Context, queueItems []*dbsqlc.QueueItem) (map[string]map[string]int32, error)
 	GetDesiredLabels(ctx context.Context, stepIds []pgtype.UUID) (map[string][]*dbsqlc.GetDesiredLabelsRow, error)
@@ -34,7 +34,6 @@ type queuerDbQueries struct {
 	pool    *pgxpool.Pool
 	l       *zerolog.Logger
 
-	limit  pgtype.Int4
 	gtId   pgtype.Int8
 	gtIdMu sync.RWMutex
 
@@ -42,20 +41,16 @@ type queuerDbQueries struct {
 	cachedStepIdHasRateLimit *cache.Cache
 }
 
-func newQueueItemDbQueries(cf *sharedConfig, tenantId pgtype.UUID, eventBuffer *buffer.BulkEventWriter, queueName string, limit int32,
+func newQueueItemDbQueries(cf *sharedConfig, tenantId pgtype.UUID, eventBuffer *buffer.BulkEventWriter, queueName string,
 ) (*queuerDbQueries, func()) {
 	c := cache.New(5 * time.Minute)
 	return &queuerDbQueries{
-		tenantId:    tenantId,
-		queueName:   queueName,
-		queries:     cf.queries,
-		pool:        cf.pool,
-		l:           cf.l,
-		eventBuffer: eventBuffer,
-		limit: pgtype.Int4{
-			Int32: limit,
-			Valid: true,
-		},
+		tenantId:                 tenantId,
+		queueName:                queueName,
+		queries:                  cf.queries,
+		pool:                     cf.pool,
+		l:                        cf.l,
+		eventBuffer:              eventBuffer,
 		cachedStepIdHasRateLimit: c,
 	}, c.Stop
 }
@@ -79,50 +74,60 @@ func (d *queuerDbQueries) getMinId() pgtype.Int8 {
 	return val
 }
 
-func (d *queuerDbQueries) ListQueueItems(ctx context.Context) ([]*dbsqlc.QueueItem, error) {
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, d.pool, d.l, 5000)
+func (d *queuerDbQueries) ListQueueItems(ctx context.Context, limit int) ([]*dbsqlc.QueueItem, error) {
+	ctx, span := telemetry.NewSpan(ctx, "list-queue-items")
+	defer span.End()
 
-	if err != nil {
-		return nil, err
-	}
+	start := time.Now()
+	checkpoint := start
 
-	defer rollback()
-
-	qis, err := d.queries.ListQueueItemsForQueue(ctx, tx, dbsqlc.ListQueueItemsForQueueParams{
+	qis, err := d.queries.ListQueueItemsForQueue(ctx, d.pool, dbsqlc.ListQueueItemsForQueueParams{
 		Tenantid: d.tenantId,
 		Queue:    d.queueName,
 		GtId:     d.getMinId(),
-		Limit:    d.limit,
+		Limit: pgtype.Int4{
+			Int32: int32(limit), // nolint: gosec
+			Valid: true,
+		},
 	})
 
 	if err != nil {
 		return nil, err
 	}
 
-	qis, err = d.removeInvalidStepRuns(ctx, tx, qis)
+	if len(qis) == 0 {
+		return nil, nil
+	}
+
+	listTime := time.Since(checkpoint)
+	checkpoint = time.Now()
+
+	resQis, err := d.removeInvalidStepRuns(ctx, qis)
 
 	if err != nil {
 		return nil, err
 	}
 
-	if err := commit(ctx); err != nil {
-		return nil, err
+	removeInvalidTime := time.Since(checkpoint)
+
+	if sinceStart := time.Since(start); sinceStart > 100*time.Millisecond {
+		d.l.Warn().Dur(
+			"list", listTime,
+		).Dur(
+			"remove_invalid", removeInvalidTime,
+		).Msgf(
+			"listing %d queue items for queue %s took longer than 100ms (%s)", len(resQis), d.queueName, sinceStart.String(),
+		)
 	}
 
-	return qis, nil
+	return resQis, nil
 }
 
 // removeInvalidStepRuns removes all duplicate step runs and step runs which are in a finalized state from
 // the queue. It returns the remaining queue items and an error if one occurred.
-func (s *queuerDbQueries) removeInvalidStepRuns(ctx context.Context, tx pgx.Tx, qis []*dbsqlc.QueueItem) ([]*dbsqlc.QueueItem, error) {
+func (s *queuerDbQueries) removeInvalidStepRuns(ctx context.Context, qis []*dbsqlc.ListQueueItemsForQueueRow) ([]*dbsqlc.QueueItem, error) {
 	if len(qis) == 0 {
-		return qis, nil
-	}
-
-	currStepRunIds := make([]pgtype.UUID, len(qis))
-
-	for i, qi := range qis {
-		currStepRunIds[i] = qi.StepRunId
+		return nil, nil
 	}
 
 	// remove duplicates
@@ -131,28 +136,25 @@ func (s *queuerDbQueries) removeInvalidStepRuns(ctx context.Context, tx pgx.Tx, 
 	cancelled := make([]int64, 0, len(qis))
 
 	for _, v := range qis {
-		stepRunId := sqlchelpers.UUIDToStr(v.StepRunId)
+		stepRunId := sqlchelpers.UUIDToStr(v.QueueItem.StepRunId)
 
 		if encountered[stepRunId] {
-			cancelled = append(cancelled, v.ID)
+			cancelled = append(cancelled, v.QueueItem.ID)
 			continue
 		}
 
 		encountered[stepRunId] = true
-		remaining1 = append(remaining1, v)
+		remaining1 = append(remaining1, &v.QueueItem)
 	}
 
-	finalizedStepRuns, err := s.queries.GetFinalizedStepRuns(ctx, tx, currStepRunIds)
+	finalizedStepRunsMap := make(map[string]bool)
 
-	if err != nil {
-		return nil, err
-	}
-
-	finalizedStepRunsMap := make(map[string]bool, len(finalizedStepRuns))
-
-	for _, sr := range finalizedStepRuns {
-		s.l.Warn().Msgf("step run %s is in state %s, skipping queueing", sqlchelpers.UUIDToStr(sr.ID), string(sr.Status))
-		finalizedStepRunsMap[sqlchelpers.UUIDToStr(sr.ID)] = true
+	for _, v := range qis {
+		if v.Status == dbsqlc.StepRunStatusCANCELLED || v.Status == dbsqlc.StepRunStatusSUCCEEDED || v.Status == dbsqlc.StepRunStatusFAILED || v.Status == dbsqlc.StepRunStatusCANCELLING {
+			stepRunId := sqlchelpers.UUIDToStr(v.QueueItem.StepRunId)
+			s.l.Warn().Msgf("step run %s is in state %s, skipping queueing", stepRunId, string(v.Status))
+			finalizedStepRunsMap[stepRunId] = true
+		}
 	}
 
 	// remove cancelled step runs from the queue items
@@ -167,12 +169,28 @@ func (s *queuerDbQueries) removeInvalidStepRuns(ctx context.Context, tx pgx.Tx, 
 		remaining2 = append(remaining2, qi)
 	}
 
-	if len(cancelled) > 0 {
-		err = s.queries.BulkQueueItems(ctx, tx, cancelled)
+	if len(cancelled) == 0 {
+		return remaining2, nil
+	}
 
-		if err != nil {
-			return nil, err
-		}
+	// If we've reached this point, we have queue items to cancel. We prepare a transaction in order
+	// to set a statement timeout.
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, s.pool, s.l, 5000)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer rollback()
+
+	err = s.queries.BulkQueueItems(ctx, tx, cancelled)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if err := commit(ctx); err != nil {
+		return nil, err
 	}
 
 	return remaining2, nil
@@ -264,7 +282,7 @@ func (s *queuerDbQueries) bulkStepRunsUnassigned(
 
 func (s *queuerDbQueries) bulkStepRunsRateLimited(
 	tenantId string,
-	rateLimits []*rateLimitResult,
+	rateLimits []*scheduleRateLimitResult,
 ) {
 	for _, rlResult := range rateLimits {
 		message := fmt.Sprintf(
@@ -318,7 +336,11 @@ func (d *queuerDbQueries) updateMinId() {
 func (d *queuerDbQueries) MarkQueueItemsProcessed(ctx context.Context, r *assignResults) (
 	succeeded []*AssignedQueueItem, failed []*AssignedQueueItem, err error,
 ) {
+	ctx, span := telemetry.NewSpan(ctx, "mark-queue-items-processed")
+	defer span.End()
+
 	start := time.Now()
+	checkpoint := start
 
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, d.pool, d.l, 5000)
 
@@ -328,7 +350,8 @@ func (d *queuerDbQueries) MarkQueueItemsProcessed(ctx context.Context, r *assign
 
 	defer rollback()
 
-	timeAfterPrepare := time.Since(start)
+	durPrepare := time.Since(checkpoint)
+	checkpoint = time.Now()
 
 	// d.queries.UpdateStepRunsToAssigned
 	idsToUnqueue := make([]int64, len(r.assigned))
@@ -375,7 +398,8 @@ func (d *queuerDbQueries) MarkQueueItemsProcessed(ctx context.Context, r *assign
 		return nil, nil, err
 	}
 
-	timeAfterUpdateStepRuns := time.Since(start)
+	timeAfterUpdateStepRuns := time.Since(checkpoint)
+	checkpoint = time.Now()
 
 	err = d.queries.BulkQueueItems(ctx, tx, idsToUnqueue)
 
@@ -383,7 +407,7 @@ func (d *queuerDbQueries) MarkQueueItemsProcessed(ctx context.Context, r *assign
 		return nil, nil, err
 	}
 
-	timeAfterBulkQueueItems := time.Since(start)
+	timeAfterBulkQueueItems := time.Since(checkpoint)
 
 	dispatcherIdWorkerIds, err := d.queries.ListDispatcherIdsForWorkers(ctx, tx, dbsqlc.ListDispatcherIdsForWorkersParams{
 		Tenantid:  d.tenantId,
@@ -394,12 +418,14 @@ func (d *queuerDbQueries) MarkQueueItemsProcessed(ctx context.Context, r *assign
 		return nil, nil, err
 	}
 
-	// if we committed, we can update the min id
-	go d.updateMinId()
+	go func() {
+		// if we committed, we can update the min id
+		d.updateMinId()
 
-	d.bulkStepRunsAssigned(sqlchelpers.UUIDToStr(d.tenantId), time.Now().UTC(), stepRunIds, workerIds)
-	d.bulkStepRunsUnassigned(sqlchelpers.UUIDToStr(d.tenantId), unassignedStepRunIds)
-	d.bulkStepRunsRateLimited(sqlchelpers.UUIDToStr(d.tenantId), r.rateLimited)
+		d.bulkStepRunsAssigned(sqlchelpers.UUIDToStr(d.tenantId), time.Now().UTC(), stepRunIds, workerIds)
+		d.bulkStepRunsUnassigned(sqlchelpers.UUIDToStr(d.tenantId), unassignedStepRunIds)
+		d.bulkStepRunsRateLimited(sqlchelpers.UUIDToStr(d.tenantId), r.rateLimited)
+	}()
 
 	workerIdToDispatcherId := make(map[string]pgtype.UUID, len(dispatcherIdWorkerIds))
 
@@ -423,9 +449,24 @@ func (d *queuerDbQueries) MarkQueueItemsProcessed(ctx context.Context, r *assign
 	}
 
 	if sinceStart := time.Since(start); sinceStart > 100*time.Millisecond {
-		d.l.Warn().Msgf(
-			"marking queue items processed took longer than 100ms (%s) (prepare=%s, update=%s, bulkqueue=%s)",
-			sinceStart, timeAfterPrepare, timeAfterUpdateStepRuns, timeAfterBulkQueueItems,
+		d.l.Warn().Dur(
+			"duration", sinceStart,
+		).Dur(
+			"prepare", durPrepare,
+		).Dur(
+			"update", timeAfterUpdateStepRuns,
+		).Dur(
+			"bulkqueue", timeAfterBulkQueueItems,
+		).Int(
+			"assigned", len(succeeded),
+		).Int(
+			"failed", len(failed),
+		).Int(
+			"unassigned", len(unassignedStepRunIds),
+		).Int(
+			"timed_out", len(timedOutStepRuns),
+		).Msgf(
+			"marking queue items processed took longer than 100ms",
 		)
 	}
 
@@ -433,6 +474,9 @@ func (d *queuerDbQueries) MarkQueueItemsProcessed(ctx context.Context, r *assign
 }
 
 func (d *queuerDbQueries) GetStepRunRateLimits(ctx context.Context, queueItems []*dbsqlc.QueueItem) (map[string]map[string]int32, error) {
+	ctx, span := telemetry.NewSpan(ctx, "get-step-run-rate-limits")
+	defer span.End()
+
 	stepRunIds := make([]pgtype.UUID, 0, len(queueItems))
 	stepIds := make([]pgtype.UUID, 0, len(queueItems))
 	stepsWithRateLimits := make(map[string]bool)
@@ -674,7 +718,12 @@ func (d *queuerDbQueries) GetStepRunRateLimits(ctx context.Context, queueItems [
 }
 
 func (d *queuerDbQueries) GetDesiredLabels(ctx context.Context, stepIds []pgtype.UUID) (map[string][]*dbsqlc.GetDesiredLabelsRow, error) {
-	labels, err := d.queries.GetDesiredLabels(ctx, d.pool, stepIds)
+	ctx, span := telemetry.NewSpan(ctx, "get-desired-labels")
+	defer span.End()
+
+	uniqueStepIds := sqlchelpers.UniqueSet(stepIds)
+
+	labels, err := d.queries.GetDesiredLabels(ctx, d.pool, uniqueStepIds)
 
 	if err != nil {
 		return nil, err
@@ -712,11 +761,14 @@ type Queuer struct {
 
 	notifyQueueCh chan struct{}
 
-	queueMu sync.Mutex
+	queueMu mutex
 
 	cleanup func()
 
 	isCleanedUp bool
+
+	unackedMu rwMutex
+	unacked   map[int64]struct{}
 }
 
 func newQueuer(conf *sharedConfig, tenantId pgtype.UUID, queueName string, s *Scheduler, eventBuffer *buffer.BulkEventWriter, resultsCh chan<- *QueueResults) *Queuer {
@@ -726,9 +778,9 @@ func newQueuer(conf *sharedConfig, tenantId pgtype.UUID, queueName string, s *Sc
 		defaultLimit = conf.singleQueueLimit
 	}
 
-	repo, cleanupRepo := newQueueItemDbQueries(conf, tenantId, eventBuffer, queueName, int32(defaultLimit)) // nolint: gosec
+	repo, cleanupRepo := newQueueItemDbQueries(conf, tenantId, eventBuffer, queueName)
 
-	notifyQueueCh := make(chan struct{})
+	notifyQueueCh := make(chan struct{}, 1)
 
 	q := &Queuer{
 		repo:          repo,
@@ -736,9 +788,12 @@ func newQueuer(conf *sharedConfig, tenantId pgtype.UUID, queueName string, s *Sc
 		queueName:     queueName,
 		l:             conf.l,
 		s:             s,
-		limit:         100,
+		limit:         defaultLimit,
 		resultsCh:     resultsCh,
 		notifyQueueCh: notifyQueueCh,
+		queueMu:       newMu(conf.l),
+		unackedMu:     newRWMu(conf.l),
+		unacked:       make(map[int64]struct{}),
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -789,14 +844,31 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		case <-q.notifyQueueCh:
 		}
 
-		start := time.Now()
+		ctx, span := telemetry.NewSpan(ctx, "queue")
 
-		qis, err := q.refillQueue(ctx, qis)
+		telemetry.WithAttributes(span, telemetry.AttributeKV{
+			Key:   "queue",
+			Value: q.queueName,
+		})
+
+		start := time.Now()
+		checkpoint := start
+		var err error
+		qis, err = q.refillQueue(ctx, qis)
 
 		if err != nil {
+			span.End()
 			q.l.Error().Err(err).Msg("error refilling queue")
 			continue
 		}
+
+		if len(qis) == 0 {
+			span.End()
+			continue
+		}
+
+		refillTime := time.Since(checkpoint)
+		checkpoint = time.Now()
 
 		rls, err := q.repo.GetStepRunRateLimits(ctx, qis)
 
@@ -804,6 +876,9 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 			q.l.Error().Err(err).Msg("error getting rate limits")
 			continue
 		}
+
+		rateLimitTime := time.Since(checkpoint)
+		checkpoint = time.Now()
 
 		stepIds := make([]pgtype.UUID, 0, len(qis))
 
@@ -818,23 +893,24 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 			continue
 		}
 
-		timeToRefill := time.Since(start)
+		desiredLabelsTime := time.Since(checkpoint)
+		checkpoint = time.Now()
 
 		assignCh := q.s.tryAssign(ctx, qis, labels, rls)
 		count := 0
 		countMu := sync.Mutex{}
-
 		wg := sync.WaitGroup{}
 
 		for r := range assignCh {
 			wg.Add(1)
 
-			go func() {
+			// asynchronously flush to database
+			go func(ar *assignResults) {
 				defer wg.Done()
 
 				startFlush := time.Now()
 
-				numFlushed := q.flushToDatabase(ctx, r)
+				numFlushed := q.flushToDatabase(ctx, ar)
 
 				countMu.Lock()
 				count += numFlushed
@@ -843,48 +919,90 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 				if sinceStart := time.Since(startFlush); sinceStart > 100*time.Millisecond {
 					q.l.Warn().Msgf("flushing items to database took longer than 100ms (%d items in %s)", numFlushed, time.Since(startFlush))
 				}
-			}()
+			}(r)
 		}
 
-		wg.Wait()
-
+		assignTime := time.Since(checkpoint)
 		elapsed := time.Since(start)
 
 		if elapsed > 100*time.Millisecond {
-			q.l.Warn().Msgf("queue %s took longer than 100ms (%s) to process %d items (time to refill %s)", q.queueName, elapsed, len(qis), timeToRefill)
+			q.l.Warn().Dur(
+				"refill_time", refillTime,
+			).Dur(
+				"rate_limit_time", rateLimitTime,
+			).Dur(
+				"desired_labels_time", desiredLabelsTime,
+			).Dur(
+				"assign_time", assignTime,
+			).Msgf("queue %s took longer than 100ms (%s) to process %d items", q.queueName, elapsed, len(qis))
 		}
 
 		// if we processed all queue items, queue again
-		if len(qis) > 0 && count == len(qis) {
-			go q.queue()
-		}
+		prevQis := qis
+
+		go func(originalStart time.Time) {
+			wg.Wait()
+			span.End()
+
+			countMu.Lock()
+			if len(prevQis) > 0 && count == len(prevQis) {
+				q.queue()
+			}
+			countMu.Unlock()
+
+			if sinceStart := time.Since(originalStart); sinceStart > 100*time.Millisecond {
+				q.l.Warn().Dur(
+					"duration", sinceStart,
+				).Msgf("queue %s took longer than 100ms to process and flush %d items", q.queueName, len(prevQis))
+			}
+		}(start)
 	}
 }
 
 func (q *Queuer) refillQueue(ctx context.Context, curr []*dbsqlc.QueueItem) ([]*dbsqlc.QueueItem, error) {
+	q.unackedMu.Lock()
+	defer q.unackedMu.Unlock()
+
 	// determine whether we need to replenish with the following cases:
 	// - we last replenished more than 1 second ago
 	// - if we are at less than 50% of the limit, we always attempt to replenish
 	replenish := false
 	now := time.Now()
 
-	if len(curr) < q.limit/2 {
+	if len(curr) < q.limit {
 		replenish = true
-	}
-
-	if q.lastReplenished != nil {
+	} else if q.lastReplenished != nil {
 		if time.Since(*q.lastReplenished) > 990*time.Millisecond {
 			replenish = true
 		}
 	}
 
-	if !replenish {
-		return curr, nil
+	if replenish {
+		q.lastReplenished = &now
+		limit := 2 * q.limit
+
+		var err error
+		curr, err = q.repo.ListQueueItems(ctx, limit)
+
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	q.lastReplenished = &now
+	newCurr := make([]*dbsqlc.QueueItem, 0, len(curr))
 
-	return q.repo.ListQueueItems(ctx)
+	for _, qi := range curr {
+		if _, ok := q.unacked[qi.ID]; !ok {
+			newCurr = append(newCurr, qi)
+		}
+	}
+
+	// add all newCurr to unacked so we don't assign them again
+	for _, qi := range newCurr {
+		q.unacked[qi.ID] = struct{}{}
+	}
+
+	return newCurr, nil
 }
 
 type QueueResults struct {
@@ -896,7 +1014,41 @@ type QueueResults struct {
 	SchedulingTimedOut []string
 }
 
+func (q *Queuer) ack(r *assignResults) {
+	q.unackedMu.Lock()
+
+	for _, assignedItem := range r.assigned {
+		delete(q.unacked, assignedItem.QueueItem.ID)
+	}
+
+	for _, unassignedItem := range r.unassigned {
+		delete(q.unacked, unassignedItem.ID)
+	}
+
+	for _, schedulingTimedOutItem := range r.schedulingTimedOut {
+		delete(q.unacked, schedulingTimedOutItem.ID)
+	}
+
+	for _, rateLimitedItem := range r.rateLimited {
+		delete(q.unacked, rateLimitedItem.qi.ID)
+	}
+
+	q.unackedMu.Unlock()
+}
+
 func (q *Queuer) flushToDatabase(ctx context.Context, r *assignResults) int {
+	// no matter what, we always ack the items in the queuer
+	defer q.ack(r)
+
+	ctx, span := telemetry.NewSpan(ctx, "flush-to-database")
+	defer span.End()
+
+	q.l.Debug().Int("assigned", len(r.assigned)).Int("unassigned", len(r.unassigned)).Int("scheduling_timed_out", len(r.schedulingTimedOut)).Msg("flushing to database")
+
+	if len(r.assigned) == 0 && len(r.unassigned) == 0 && len(r.schedulingTimedOut) == 0 && len(r.rateLimited) == 0 {
+		return 0
+	}
+
 	succeeded, failed, err := q.repo.MarkQueueItemsProcessed(ctx, r)
 
 	if err != nil {
@@ -938,6 +1090,8 @@ func (q *Queuer) flushToDatabase(ctx context.Context, r *assignResults) int {
 		Assigned:           succeeded,
 		SchedulingTimedOut: schedulingTimedOut,
 	}
+
+	q.l.Debug().Int("succeeded", len(succeeded)).Int("failed", len(failed)).Msg("flushed to database")
 
 	return len(succeeded)
 }

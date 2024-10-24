@@ -591,13 +591,26 @@ func (q *Queries) CreateManyJobRuns(ctx context.Context, db DBTX, arg CreateMany
 	return items, nil
 }
 
-const createMultipleWorkflowRunStickyStates = `-- name: CreateMultipleWorkflowRunStickyStates :many
-WITH workflow_version AS (
-    SELECT DISTINCT
-        "id" AS workflow_version_id,
-        "sticky"
-    FROM "WorkflowVersion"
-    WHERE "id" = ANY($4::uuid[])
+const createMultipleWorkflowRunStickyStates = `-- name: CreateMultipleWorkflowRunStickyStates :exec
+WITH input_rows AS (
+    SELECT
+        UNNEST($1::uuid[]) as "tenantId",
+        UNNEST($2::uuid[]) as "workflowRunId",
+        UNNEST($3::uuid[]) as "desiredWorkerId",
+        UNNEST($4::uuid[]) as "workflowVersionId"
+), valid_rows AS (
+    SELECT
+        ir."tenantId",
+        ir."workflowRunId",
+        ir."desiredWorkerId",
+        ir."workflowVersionId",
+        wv."sticky"
+    FROM
+        input_rows ir
+    JOIN
+        "WorkflowVersion" wv ON wv."id" = ir."workflowVersionId"
+    WHERE
+        wv."sticky" IS NOT NULL
 )
 INSERT INTO "WorkflowRunStickyState" (
     "createdAt",
@@ -610,15 +623,11 @@ INSERT INTO "WorkflowRunStickyState" (
 SELECT
     CURRENT_TIMESTAMP,
     CURRENT_TIMESTAMP,
-    UNNEST($1::uuid[]),
-    UNNEST($2::uuid[]),
-    UNNEST($3::uuid[]),
-    workflow_version."sticky"
-FROM workflow_version
-JOIN UNNEST($4::uuid[]) AS wv(workflow_version_id)
-    ON workflow_version.workflow_version_id = wv.workflow_version_id
-WHERE workflow_version."sticky" IS NOT NULL
-RETURNING id, "createdAt", "updatedAt", "tenantId", "workflowRunId", "desiredWorkerId", strategy
+    vr."tenantId",
+    vr."workflowRunId",
+    vr."desiredWorkerId",
+    vr."sticky"
+FROM valid_rows vr
 `
 
 type CreateMultipleWorkflowRunStickyStatesParams struct {
@@ -628,37 +637,14 @@ type CreateMultipleWorkflowRunStickyStatesParams struct {
 	Workflowversionids []pgtype.UUID `json:"workflowversionids"`
 }
 
-func (q *Queries) CreateMultipleWorkflowRunStickyStates(ctx context.Context, db DBTX, arg CreateMultipleWorkflowRunStickyStatesParams) ([]*WorkflowRunStickyState, error) {
-	rows, err := db.Query(ctx, createMultipleWorkflowRunStickyStates,
+func (q *Queries) CreateMultipleWorkflowRunStickyStates(ctx context.Context, db DBTX, arg CreateMultipleWorkflowRunStickyStatesParams) error {
+	_, err := db.Exec(ctx, createMultipleWorkflowRunStickyStates,
 		arg.Tenantid,
 		arg.Workflowrunids,
 		arg.Desiredworkerids,
 		arg.Workflowversionids,
 	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []*WorkflowRunStickyState
-	for rows.Next() {
-		var i WorkflowRunStickyState
-		if err := rows.Scan(
-			&i.ID,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.TenantId,
-			&i.WorkflowRunId,
-			&i.DesiredWorkerId,
-			&i.Strategy,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
+	return err
 }
 
 const createStepRun = `-- name: CreateStepRun :one
@@ -1120,44 +1106,91 @@ func (q *Queries) GetChildWorkflowRun(ctx context.Context, db DBTX, arg GetChild
 	return &i, err
 }
 
-const getChildWorkflowRuns = `-- name: GetChildWorkflowRuns :many
-WITH input_data AS (
-    SELECT
-        UNNEST($1::uuid[]) AS parentId,
-        UNNEST($2::uuid[]) AS parentStepRunId,
-        UNNEST($3::int[]) AS childIndex,
-        UNNEST($4::text[]) AS childKey
-)
+const getChildWorkflowRunsByIndex = `-- name: GetChildWorkflowRunsByIndex :many
 SELECT
     wr."createdAt", wr."updatedAt", wr."deletedAt", wr."tenantId", wr."workflowVersionId", wr.status, wr.error, wr."startedAt", wr."finishedAt", wr."concurrencyGroupId", wr."displayName", wr.id, wr."childIndex", wr."childKey", wr."parentId", wr."parentStepRunId", wr."additionalMetadata", wr.duration, wr.priority, wr."insertOrder"
 FROM
     "WorkflowRun" wr
-JOIN
-    input_data i ON
-    wr."parentId" = i.parentId AND
-    wr."parentStepRunId" = i.parentStepRunId
 WHERE
-    wr."deletedAt" IS NULL AND
-    (
-        (i.childKey IS NULL AND wr."childIndex" = i.childIndex) OR
-        (i.childKey IS NOT NULL AND wr."childKey" = i.childKey)
+    (wr."parentId", wr."parentStepRunId", wr."childIndex") IN (
+        SELECT
+            UNNEST($1::uuid[]),
+            UNNEST($2::uuid[]),
+            UNNEST($3::int[])
     )
+    AND wr."deletedAt" IS NULL
 `
 
-type GetChildWorkflowRunsParams struct {
+type GetChildWorkflowRunsByIndexParams struct {
 	Parentids        []pgtype.UUID `json:"parentids"`
 	Parentsteprunids []pgtype.UUID `json:"parentsteprunids"`
-	Childindices     []int32       `json:"childindices"`
+	Childindexes     []int32       `json:"childindexes"`
+}
+
+func (q *Queries) GetChildWorkflowRunsByIndex(ctx context.Context, db DBTX, arg GetChildWorkflowRunsByIndexParams) ([]*WorkflowRun, error) {
+	rows, err := db.Query(ctx, getChildWorkflowRunsByIndex, arg.Parentids, arg.Parentsteprunids, arg.Childindexes)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*WorkflowRun
+	for rows.Next() {
+		var i WorkflowRun
+		if err := rows.Scan(
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.TenantId,
+			&i.WorkflowVersionId,
+			&i.Status,
+			&i.Error,
+			&i.StartedAt,
+			&i.FinishedAt,
+			&i.ConcurrencyGroupId,
+			&i.DisplayName,
+			&i.ID,
+			&i.ChildIndex,
+			&i.ChildKey,
+			&i.ParentId,
+			&i.ParentStepRunId,
+			&i.AdditionalMetadata,
+			&i.Duration,
+			&i.Priority,
+			&i.InsertOrder,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getChildWorkflowRunsByKey = `-- name: GetChildWorkflowRunsByKey :many
+SELECT
+    wr."createdAt", wr."updatedAt", wr."deletedAt", wr."tenantId", wr."workflowVersionId", wr.status, wr.error, wr."startedAt", wr."finishedAt", wr."concurrencyGroupId", wr."displayName", wr.id, wr."childIndex", wr."childKey", wr."parentId", wr."parentStepRunId", wr."additionalMetadata", wr.duration, wr.priority, wr."insertOrder"
+FROM
+    "WorkflowRun" wr
+WHERE
+    (wr."parentId", wr."parentStepRunId", wr."childKey") IN (
+        SELECT
+            UNNEST($1::uuid[]),
+            UNNEST($2::uuid[]),
+            UNNEST($3::text[])
+    )
+    AND wr."deletedAt" IS NULL
+`
+
+type GetChildWorkflowRunsByKeyParams struct {
+	Parentids        []pgtype.UUID `json:"parentids"`
+	Parentsteprunids []pgtype.UUID `json:"parentsteprunids"`
 	Childkeys        []string      `json:"childkeys"`
 }
 
-func (q *Queries) GetChildWorkflowRuns(ctx context.Context, db DBTX, arg GetChildWorkflowRunsParams) ([]*WorkflowRun, error) {
-	rows, err := db.Query(ctx, getChildWorkflowRuns,
-		arg.Parentids,
-		arg.Parentsteprunids,
-		arg.Childindices,
-		arg.Childkeys,
-	)
+func (q *Queries) GetChildWorkflowRunsByKey(ctx context.Context, db DBTX, arg GetChildWorkflowRunsByKeyParams) ([]*WorkflowRun, error) {
+	rows, err := db.Query(ctx, getChildWorkflowRunsByKey, arg.Parentids, arg.Parentsteprunids, arg.Childkeys)
 	if err != nil {
 		return nil, err
 	}
@@ -1947,20 +1980,26 @@ func (q *Queries) GetWorkflowRunsInsertedInThisTxn(ctx context.Context, db DBTX)
 
 const linkStepRunParents = `-- name: LinkStepRunParents :exec
 WITH step_runs AS (
-    SELECT "id", "stepId"
+    SELECT "id", "stepId", "jobRunId"
     FROM "StepRun"
     WHERE "id" = ANY($1::uuid[])
+), parent_child_step_runs AS (
+    SELECT
+        parent_run."id" AS "A",
+        child_run."id" AS "B"
+    FROM
+        "_StepOrder" AS step_order
+    JOIN
+        step_runs AS parent_run ON parent_run."stepId" = step_order."A"
+    JOIN
+        step_runs AS child_run ON child_run."stepId" = step_order."B" AND child_run."jobRunId" = parent_run."jobRunId"
 )
 INSERT INTO "_StepRunOrder" ("A", "B")
 SELECT
-    parent_run."id" AS "A",
-    child_run."id" AS "B"
+    parent_child_step_runs."A" AS "A",
+    parent_child_step_runs."B" AS "B"
 FROM
-    "_StepOrder" AS step_order
-JOIN
-    step_runs AS parent_run ON parent_run."stepId" = step_order."A"
-JOIN
-    step_runs AS child_run ON child_run."stepId" = step_order."B"
+    parent_child_step_runs
 `
 
 func (q *Queries) LinkStepRunParents(ctx context.Context, db DBTX, steprunids []pgtype.UUID) error {

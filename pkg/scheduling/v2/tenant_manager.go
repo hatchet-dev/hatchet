@@ -146,13 +146,8 @@ func (t *tenantManager) setQueuers(queueNames []string) {
 
 func (t *tenantManager) refreshAll(ctx context.Context) {
 	t.queuersMu.RLock()
-	defer t.queuersMu.RUnlock()
 
 	eg := errgroup.Group{}
-
-	eg.Go(func() error {
-		return t.scheduler.replenish(ctx, false)
-	})
 
 	for i := range t.queuers {
 		index := i
@@ -164,15 +159,14 @@ func (t *tenantManager) refreshAll(ctx context.Context) {
 		})
 	}
 
+	t.queuersMu.RUnlock()
+
 	if err := eg.Wait(); err != nil {
 		t.cf.l.Error().Err(err).Msg("error replenishing all queues")
 	}
 }
 
 func (t *tenantManager) replenish(ctx context.Context) {
-	t.queuersMu.RLock()
-	defer t.queuersMu.RUnlock()
-
 	err := t.scheduler.replenish(ctx, false)
 
 	if err != nil {
@@ -182,12 +176,14 @@ func (t *tenantManager) replenish(ctx context.Context) {
 
 func (t *tenantManager) queue(queueName string) {
 	t.queuersMu.RLock()
-	defer t.queuersMu.RUnlock()
 
 	for _, q := range t.queuers {
 		if q.queueName == queueName {
+			t.queuersMu.RUnlock()
 			q.queue()
 			return
 		}
 	}
+
+	t.queuersMu.RUnlock()
 }

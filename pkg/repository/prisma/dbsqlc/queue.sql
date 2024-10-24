@@ -2,15 +2,18 @@
 INSERT INTO
     "Queue" (
         "tenantId",
-        "name"
+        "name",
+        "lastActive"
     )
 VALUES
     (
         @tenantId::uuid,
-        @name::text
+        @name::text,
+        NOW()
     )
-ON CONFLICT ("tenantId", "name") DO NOTHING;
-
+ON CONFLICT ("tenantId", "name") DO UPDATE
+SET
+    "lastActive" = NOW();
 
 -- name: UpsertQueues :exec
 WITH input_data AS (
@@ -20,15 +23,18 @@ WITH input_data AS (
 )
 INSERT INTO "Queue" (
     "tenantId",
-    "name"
+    "name",
+    "lastActive"
 )
 SELECT
     input_data.tenantId,
-    input_data.name
+    input_data.name,
+    NOW()
 FROM
     input_data
-ON CONFLICT ("tenantId", "name") DO NOTHING;
-
+ON CONFLICT ("tenantId", "name") DO UPDATE
+SET
+    "lastActive" = NOW();
 
 -- name: ListQueues :many
 SELECT
@@ -36,7 +42,8 @@ SELECT
 FROM
     "Queue"
 WHERE
-    "tenantId" = @tenantId::uuid;
+    "tenantId" = @tenantId::uuid
+    AND "lastActive" > NOW() - INTERVAL '1 day';
 
 -- name: CreateQueueItem :exec
 INSERT INTO
@@ -68,6 +75,36 @@ VALUES
         sqlc.narg('desiredWorkerId')::uuid
     );
 
+-- name: CreateQueueItemsBulk :copyfrom
+INSERT INTO
+    "QueueItem" (
+        "stepRunId",
+        "stepId",
+        "actionId",
+        "scheduleTimeoutAt",
+        "stepTimeout",
+        "priority",
+        "isQueued",
+        "tenantId",
+        "queue",
+        "sticky",
+        "desiredWorkerId"
+    )
+VALUES
+    (
+        $1,
+        $2,
+        $3,
+        $4,
+        $5,
+        $6,
+        $7,
+        $8,
+        $9,
+        $10,
+        $11
+    );
+
 -- name: GetQueuedCounts :many
 SELECT
     "queue",
@@ -88,7 +125,9 @@ FROM
 WHERE
     "isQueued" = 't'
     AND "tenantId" = @tenantId::uuid
-    AND "queue" = @queue::text;
+    AND "queue" = @queue::text
+    -- Added to ensure that the index is used
+    AND "priority" >= 1 AND "priority" <= 4;
 
 -- name: GetMinMaxProcessedQueueItems :one
 SELECT
@@ -150,9 +189,12 @@ FOR UPDATE SKIP LOCKED;
 
 -- name: ListQueueItemsForQueue :many
 SELECT
-    *
+    sqlc.embed(qi),
+    sr."status"
 FROM
     "QueueItem" qi
+JOIN
+    "StepRun" sr ON qi."stepRunId" = sr."id"
 WHERE
     qi."isQueued" = true
     AND qi."tenantId" = @tenantId::uuid
