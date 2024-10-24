@@ -34,9 +34,10 @@ func (rl *HatchetRateLimiter) GetOrCreateTenantRateLimiter(rateLimitToken string
 
 	if _, ok := rl.rateLimiters[rateLimitToken]; !ok {
 		rl.rateLimiters[rateLimitToken] = &HatchetApiTokenRateLimiter{
-			eventsLimiter:     rate.NewLimiter(rl.rate, rl.burst),
-			dispatcherLimiter: rate.NewLimiter(rl.rate, rl.burst),
-			workflowLimiter:   rate.NewLimiter(rl.rate, rl.burst),
+			eventsLimiter:   rate.NewLimiter(rl.rate, rl.burst),
+			workflowLimiter: rate.NewLimiter(rl.rate, rl.burst),
+			// 10x the rate for dispatcher
+			dispatcherLimiter: rate.NewLimiter(rl.rate*10, rl.burst*10),
 		}
 	}
 

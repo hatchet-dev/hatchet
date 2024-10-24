@@ -2,8 +2,6 @@ package middleware
 
 import (
 	"context"
-	"encoding/hex"
-	"hash/fnv"
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth"
 	"github.com/rs/zerolog"
@@ -35,7 +33,7 @@ func (a *GRPCAuthN) Middleware(ctx context.Context) (context.Context, error) {
 		return nil, forbidden
 	}
 
-	tenantId, err := a.config.Auth.JWTManager.ValidateTenantToken(ctx, token)
+	tenantId, tokenUUID, err := a.config.Auth.JWTManager.ValidateTenantToken(ctx, token)
 
 	if err != nil {
 		a.l.Debug().Err(err).Msgf("error validating tenant token: %s", err)
@@ -43,9 +41,7 @@ func (a *GRPCAuthN) Middleware(ctx context.Context) (context.Context, error) {
 		return nil, forbidden
 	}
 
-	// we want to rate limit by API token
-
-	ctx = context.WithValue(ctx, "rate_limit_token", hashToken(token))
+	ctx = context.WithValue(ctx, "rate_limit_token", tokenUUID)
 
 	// get the tenant id
 	queriedTenant, err := a.config.EngineRepository.Tenant().GetTenantByID(ctx, tenantId)
@@ -57,12 +53,4 @@ func (a *GRPCAuthN) Middleware(ctx context.Context) (context.Context, error) {
 
 	return context.WithValue(ctx, "tenant", queriedTenant), nil
 
-}
-
-func hashToken(token string) string {
-	hash := fnv.New64a()
-	hash.Write([]byte(token))
-	hashedToken := hash.Sum(nil)
-
-	return hex.EncodeToString(hashedToken)
 }
