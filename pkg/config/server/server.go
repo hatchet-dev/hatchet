@@ -142,9 +142,6 @@ type ConfigFileRuntime struct {
 	// FlushItemsThreshold is the default number of items to hold in memory until flushing to the database
 	FlushItemsThreshold int `mapstructure:"flushItemsThreshold" json:"flushItemsThreshold,omitempty" default:"100"`
 
-	// SerialBuffer controls whether the event buffer is serial or runs concurrently
-	SerialBuffer bool `mapstructure:"serialBuffer" json:"serialBuffer,omitempty" default:"false"`
-
 	// WorkflowRunBuffer represents the buffer settings for workflow runs
 	WorkflowRunBuffer buffer.ConfigFileBuffer `mapstructure:"workflowRunBuffer" json:"workflowRunBuffer,omitempty"`
 
