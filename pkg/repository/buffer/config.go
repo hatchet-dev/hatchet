@@ -1,7 +1,16 @@
 package buffer
 
+import "time"
+
 // ConfigFileBuffer is the configuration for the buffer. We store it here to prevent circular dependencies
 type ConfigFileBuffer struct {
+
+	// WaitForFlush is the time to wait for the buffer to flush used for backpressure on writers
+	WaitForFlush time.Duration `mapstructure:"waitForFlush" json:"waitForFlush,omitempty" default:"1ms"`
+
+	// MaxConcurrent is the maximum number of concurrent flushes
+	MaxConcurrent int `mapstructure:"maxConcurrent" json:"maxConcurrent,omitempty" default:"10"`
+
 	// FlushPeriodMilliseconds is the number of milliseconds before flush
 	FlushPeriodMilliseconds int `mapstructure:"flushPeriodMilliseconds" json:"flushPeriodMilliseconds,omitempty" default:"10"`
 
