@@ -351,6 +351,14 @@ func (b *IngestBuf[T, U]) BuffItem(item T) (chan *FlushResponse[U], error) {
 
 	doneChan := make(chan *FlushResponse[U], 1)
 
+	if b.safeCheckSizeOfBuffer() > b.maxCapacity*10 && b.safeCheckSizeOfBuffer()%1000 == 0 {
+		if b.safeCheckSizeOfBuffer() > b.maxCapacity*100 {
+			b.l.Error().Msgf("buffer is seriously backed up with %d items", b.safeCheckSizeOfBuffer())
+		} else {
+			b.l.Warn().Msgf("buffer is backed up with %d items", b.safeCheckSizeOfBuffer())
+		}
+	}
+
 	select {
 	case b.inputChan <- &inputWrapper[T, U]{
 		item:     item,
