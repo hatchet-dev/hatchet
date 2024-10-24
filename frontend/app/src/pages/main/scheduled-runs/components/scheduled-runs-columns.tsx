@@ -4,6 +4,7 @@ import { RateLimit, ScheduledWorkflows } from '@/lib/api';
 import RelativeDate from '@/components/molecules/relative-date';
 import { AdditionalMetadata } from '../../events/components/additional-metadata';
 import { RunStatus } from '../../workflow-runs/components/run-statuses';
+import { Link } from 'react-router-dom';
 
 export type RateLimitRow = RateLimit & {
   metadata: {
@@ -13,15 +14,28 @@ export type RateLimitRow = RateLimit & {
 
 export const columns: ColumnDef<ScheduledWorkflows>[] = [
   {
+    accessorKey: 'runId',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Run ID" />
+    ),
+    cell: ({ row }) => {
+      return row.original.workflowRunId ? (
+        <Link to={`/workflow-runs/${row.original.workflowRunId}`}>
+          <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">
+            {row.original.workflowRunName}
+          </div>
+        </Link>
+      ) : null;
+    },
+  },
+  {
     accessorKey: 'status',
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Status" />
     ),
-    cell: ({ row }) => {
-      return (
-        <RunStatus status={row.original.workflowRunStatus || 'SCHEDULED'} />
-      );
-    },
+    cell: ({ row }) => (
+      <RunStatus status={row.original.workflowRunStatus || 'SCHEDULED'} />
+    ),
   },
   {
     accessorKey: 'triggerAt',
@@ -41,9 +55,11 @@ export const columns: ColumnDef<ScheduledWorkflows>[] = [
     ),
     cell: ({ row }) => (
       <div className="flex flex-row items-center gap-4 pl-4">
-        <a href={`/workflows/${row.original.workflowId}`}>
-          {row.original.workflowName}
-        </a>
+        <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">
+          <a href={`/workflows/${row.original.workflowId}`}>
+            {row.original.workflowName}
+          </a>
+        </div>
       </div>
     ),
     enableSorting: false,
