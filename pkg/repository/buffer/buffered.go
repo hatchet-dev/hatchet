@@ -9,6 +9,7 @@ import (
 
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/semaphore"
 )
 
 type ingestBufState int
@@ -40,10 +41,12 @@ type IngestBuf[T any, U any] struct {
 	sizeOfData         int // size of data in buffer
 	maxDataSizeInQueue int // max number of bytes to hold in buffer before we flush
 
-	l      *zerolog.Logger
-	lock   sync.Mutex
-	ctx    context.Context
-	cancel context.CancelFunc
+	l              *zerolog.Logger
+	lock           sync.Mutex
+	ctx            context.Context
+	cancel         context.CancelFunc
+	flushSempahore *semaphore.Weighted
+	waitForFlush   time.Duration
 }
 
 type inputWrapper[T any, U any] struct {
@@ -59,6 +62,8 @@ type IngestBufOpts[T any, U any] struct {
 	OutputFunc         func(ctx context.Context, items []T) ([]U, error) `validate:"required"`
 	SizeFunc           func(T) int                                       `validate:"required"`
 	L                  *zerolog.Logger                                   `validate:"required"`
+	MaxConcurrent      int                                               `validate:"omitempty,gt=0"`
+	waitForFlush       time.Duration                                     `validate:"omitempty,gt=0"`
 }
 
 // NewIngestBuffer creates a new buffer for any type T
@@ -73,6 +78,18 @@ func NewIngestBuffer[T any, U any](opts IngestBufOpts[T, U]) *IngestBuf[T, U] {
 	ctx, cancel := context.WithCancel(ctx)
 
 	logger := opts.L.With().Str("buffer", opts.Name).Logger()
+	if opts.MaxConcurrent == 0 {
+		opts.MaxConcurrent = 10
+	}
+
+	if opts.waitForFlush == 0 {
+		opts.waitForFlush = opts.FlushPeriod * 10
+
+	}
+
+	if opts.waitForFlush < 500*time.Millisecond {
+		opts.waitForFlush = 500 * time.Millisecond
+	}
 
 	return &IngestBuf[T, U]{
 		name:               opts.Name,
@@ -89,6 +106,8 @@ func NewIngestBuffer[T any, U any](opts IngestBufOpts[T, U]) *IngestBuf[T, U] {
 		l:                  &logger,
 		ctx:                ctx,
 		cancel:             cancel,
+		flushSempahore:     semaphore.NewWeighted(int64(opts.MaxConcurrent)),
+		waitForFlush:       opts.waitForFlush,
 	}
 }
 
@@ -196,12 +215,26 @@ func (b *IngestBuf[T, U]) safeCheckSizeOfBuffer() int {
 
 func (b *IngestBuf[T, U]) flush(items []*inputWrapper[T, U]) {
 	numItems := len(items)
-	b.safeSetLastFlush(time.Now())
 
 	if numItems == 0 {
+		b.safeSetLastFlush(time.Now())
 		// nothing to flush
 		return
 	}
+
+	timeStart := time.Now()
+	sCtx, _ := context.WithTimeoutCause(context.Background(), b.waitForFlush, fmt.Errorf("timed out waiting for semaphore in flush")) // wait for a flush period to acquire a semaphore
+	err := b.flushSempahore.Acquire(sCtx, 1)
+
+	if err != nil {
+		b.l.Error().Msgf("could not acquire semaphore: %v", err)
+		return
+	}
+	if time.Since(timeStart) > 50*time.Millisecond {
+		b.l.Warn().Msgf("flush took %v to acquire the semaphore", time.Since(timeStart))
+	}
+
+	b.safeSetLastFlush(time.Now())
 
 	var doneChans []chan<- *FlushResponse[U]
 	opts := make([]T, numItems)
@@ -212,7 +245,10 @@ func (b *IngestBuf[T, U]) flush(items []*inputWrapper[T, U]) {
 	}
 
 	b.safeDecSizeOfData(b.calcSizeOfData(opts))
+
 	go func() {
+		defer b.flushSempahore.Release(1)
+
 		defer func() {
 			if r := recover(); r != nil {
 				err := fmt.Errorf("[%s] panic recovered in flush: %v", b.name, r)
