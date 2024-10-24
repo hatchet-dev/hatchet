@@ -45,7 +45,7 @@ type IngestBuf[T any, U any] struct {
 	lock           sync.Mutex
 	ctx            context.Context
 	cancel         context.CancelFunc
-	flushSempahore *semaphore.Weighted
+	flushSemaphore *semaphore.Weighted
 	waitForFlush   time.Duration
 }
 
@@ -106,7 +106,7 @@ func NewIngestBuffer[T any, U any](opts IngestBufOpts[T, U]) *IngestBuf[T, U] {
 		l:                  &logger,
 		ctx:                ctx,
 		cancel:             cancel,
-		flushSempahore:     semaphore.NewWeighted(int64(opts.MaxConcurrent)),
+		flushSemaphore:     semaphore.NewWeighted(int64(opts.MaxConcurrent)),
 		waitForFlush:       opts.waitForFlush,
 	}
 }
@@ -224,7 +224,7 @@ func (b *IngestBuf[T, U]) flush(items []*inputWrapper[T, U]) {
 
 	timeStart := time.Now()
 	sCtx, _ := context.WithTimeoutCause(context.Background(), b.waitForFlush, fmt.Errorf("timed out waiting for semaphore in flush")) // wait for a flush period to acquire a semaphore
-	err := b.flushSempahore.Acquire(sCtx, 1)
+	err := b.flushSemaphore.Acquire(sCtx, 1)
 
 	if err != nil {
 		b.l.Error().Msgf("could not acquire semaphore: %v", err)
@@ -247,7 +247,7 @@ func (b *IngestBuf[T, U]) flush(items []*inputWrapper[T, U]) {
 	b.safeDecSizeOfData(b.calcSizeOfData(opts))
 
 	go func() {
-		defer b.flushSempahore.Release(1)
+		defer b.flushSemaphore.Release(1)
 
 		defer func() {
 			if r := recover(); r != nil {
