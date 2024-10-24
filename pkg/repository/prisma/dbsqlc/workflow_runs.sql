@@ -1423,10 +1423,16 @@ SELECT
     w."id" as "workflowId",
     v."id" as "workflowVersionId",
     w."tenantId",
-    t.*
+    t.*,
+    wr."createdAt" as "workflowRunCreatedAt",
+    wr."status" as "workflowRunStatus",
+    wr."id" as "workflowRunId",
+    wr."displayName" as "workflowRunName"
 FROM "WorkflowTriggerScheduledRef" t
 JOIN "WorkflowVersion" v ON t."parentId" = v."id"
 JOIN "Workflow" w on v."workflowId" = w."id"
+LEFT JOIN "WorkflowRunTriggeredBy" tb ON t."id" = tb."scheduledId"
+LEFT JOIN "WorkflowRun" wr ON tb."parentId" = wr."id"
 WHERE v."deletedAt" IS NULL
 	AND w."tenantId" = @tenantId::uuid
     -- TODO page

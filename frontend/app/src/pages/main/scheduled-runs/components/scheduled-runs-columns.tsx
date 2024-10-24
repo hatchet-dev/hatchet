@@ -3,6 +3,7 @@ import { DataTableColumnHeader } from '../../../../components/molecules/data-tab
 import { RateLimit, ScheduledWorkflows } from '@/lib/api';
 import RelativeDate from '@/components/molecules/relative-date';
 import { AdditionalMetadata } from '../../events/components/additional-metadata';
+import { RunStatus } from '../../workflow-runs/components/run-statuses';
 
 export type RateLimitRow = RateLimit & {
   metadata: {
@@ -11,6 +12,17 @@ export type RateLimitRow = RateLimit & {
 };
 
 export const columns: ColumnDef<ScheduledWorkflows>[] = [
+  {
+    accessorKey: 'status',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Status" />
+    ),
+    cell: ({ row }) => {
+      return (
+        <RunStatus status={row.original.workflowRunStatus || 'SCHEDULED'} />
+      );
+    },
+  },
   {
     accessorKey: 'triggerAt',
     header: ({ column }) => (

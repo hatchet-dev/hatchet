@@ -2222,10 +2222,16 @@ SELECT
     w."id" as "workflowId",
     v."id" as "workflowVersionId",
     w."tenantId",
-    t.id, t."parentId", t."triggerAt", t."tickerId", t.input, t."childIndex", t."childKey", t."parentStepRunId", t."parentWorkflowRunId", t."additionalMetadata", t."createdAt", t."deletedAt", t."updatedAt"
+    t.id, t."parentId", t."triggerAt", t."tickerId", t.input, t."childIndex", t."childKey", t."parentStepRunId", t."parentWorkflowRunId", t."additionalMetadata", t."createdAt", t."deletedAt", t."updatedAt",
+    wr."createdAt" as "workflowRunCreatedAt",
+    wr."status" as "workflowRunStatus",
+    wr."id" as "workflowRunId",
+    wr."displayName" as "workflowRunName"
 FROM "WorkflowTriggerScheduledRef" t
 JOIN "WorkflowVersion" v ON t."parentId" = v."id"
 JOIN "Workflow" w on v."workflowId" = w."id"
+LEFT JOIN "WorkflowRunTriggeredBy" tb ON t."id" = tb."scheduledId"
+LEFT JOIN "WorkflowRun" wr ON tb."parentId" = wr."id"
 WHERE v."deletedAt" IS NULL
 	AND w."tenantId" = $1::uuid
     -- TODO page
@@ -2255,23 +2261,27 @@ type ListScheduledWorkflowsParams struct {
 }
 
 type ListScheduledWorkflowsRow struct {
-	Name                string           `json:"name"`
-	WorkflowId          pgtype.UUID      `json:"workflowId"`
-	WorkflowVersionId   pgtype.UUID      `json:"workflowVersionId"`
-	TenantId            pgtype.UUID      `json:"tenantId"`
-	ID                  pgtype.UUID      `json:"id"`
-	ParentId            pgtype.UUID      `json:"parentId"`
-	TriggerAt           pgtype.Timestamp `json:"triggerAt"`
-	TickerId            pgtype.UUID      `json:"tickerId"`
-	Input               []byte           `json:"input"`
-	ChildIndex          pgtype.Int4      `json:"childIndex"`
-	ChildKey            pgtype.Text      `json:"childKey"`
-	ParentStepRunId     pgtype.UUID      `json:"parentStepRunId"`
-	ParentWorkflowRunId pgtype.UUID      `json:"parentWorkflowRunId"`
-	AdditionalMetadata  []byte           `json:"additionalMetadata"`
-	CreatedAt           pgtype.Timestamp `json:"createdAt"`
-	DeletedAt           pgtype.Timestamp `json:"deletedAt"`
-	UpdatedAt           pgtype.Timestamp `json:"updatedAt"`
+	Name                 string                `json:"name"`
+	WorkflowId           pgtype.UUID           `json:"workflowId"`
+	WorkflowVersionId    pgtype.UUID           `json:"workflowVersionId"`
+	TenantId             pgtype.UUID           `json:"tenantId"`
+	ID                   pgtype.UUID           `json:"id"`
+	ParentId             pgtype.UUID           `json:"parentId"`
+	TriggerAt            pgtype.Timestamp      `json:"triggerAt"`
+	TickerId             pgtype.UUID           `json:"tickerId"`
+	Input                []byte                `json:"input"`
+	ChildIndex           pgtype.Int4           `json:"childIndex"`
+	ChildKey             pgtype.Text           `json:"childKey"`
+	ParentStepRunId      pgtype.UUID           `json:"parentStepRunId"`
+	ParentWorkflowRunId  pgtype.UUID           `json:"parentWorkflowRunId"`
+	AdditionalMetadata   []byte                `json:"additionalMetadata"`
+	CreatedAt            pgtype.Timestamp      `json:"createdAt"`
+	DeletedAt            pgtype.Timestamp      `json:"deletedAt"`
+	UpdatedAt            pgtype.Timestamp      `json:"updatedAt"`
+	WorkflowRunCreatedAt pgtype.Timestamp      `json:"workflowRunCreatedAt"`
+	WorkflowRunStatus    NullWorkflowRunStatus `json:"workflowRunStatus"`
+	WorkflowRunId        pgtype.UUID           `json:"workflowRunId"`
+	WorkflowRunName      pgtype.Text           `json:"workflowRunName"`
 }
 
 func (q *Queries) ListScheduledWorkflows(ctx context.Context, db DBTX, arg ListScheduledWorkflowsParams) ([]*ListScheduledWorkflowsRow, error) {
@@ -2306,6 +2316,10 @@ func (q *Queries) ListScheduledWorkflows(ctx context.Context, db DBTX, arg ListS
 			&i.CreatedAt,
 			&i.DeletedAt,
 			&i.UpdatedAt,
+			&i.WorkflowRunCreatedAt,
+			&i.WorkflowRunStatus,
+			&i.WorkflowRunId,
+			&i.WorkflowRunName,
 		); err != nil {
 			return nil, err
 		}

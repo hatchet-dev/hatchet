@@ -494,14 +494,31 @@ func ToScheduledWorkflowsFromSQLC(scheduled *dbsqlc.ListScheduledWorkflowsRow) *
 		}
 	}
 
+	var workflowRunStatus gen.WorkflowRunStatus
+
+	if scheduled.WorkflowRunStatus.Valid {
+		workflowRunStatus = gen.WorkflowRunStatus(scheduled.WorkflowRunStatus.WorkflowRunStatus)
+	}
+
+	var workflowRunIdPtr *uuid.UUID
+
+	if scheduled.WorkflowRunId.Valid {
+		workflowRunId := uuid.MustParse(sqlchelpers.UUIDToStr(scheduled.WorkflowRunId))
+		workflowRunIdPtr = &workflowRunId
+	}
+
 	res := &gen.ScheduledWorkflows{
-		Metadata:           *toAPIMetadata(sqlchelpers.UUIDToStr(scheduled.ID), scheduled.CreatedAt.Time, scheduled.UpdatedAt.Time),
-		WorkflowVersionId:  sqlchelpers.UUIDToStr(scheduled.WorkflowVersionId),
-		WorkflowId:         sqlchelpers.UUIDToStr(scheduled.WorkflowId),
-		WorkflowName:       scheduled.Name,
-		TenantId:           sqlchelpers.UUIDToStr(scheduled.TenantId),
-		TriggerAt:          scheduled.TriggerAt.Time,
-		AdditionalMetadata: &additionalMetadata,
+		Metadata:             *toAPIMetadata(sqlchelpers.UUIDToStr(scheduled.ID), scheduled.CreatedAt.Time, scheduled.UpdatedAt.Time),
+		WorkflowVersionId:    sqlchelpers.UUIDToStr(scheduled.WorkflowVersionId),
+		WorkflowId:           sqlchelpers.UUIDToStr(scheduled.WorkflowId),
+		WorkflowName:         scheduled.Name,
+		TenantId:             sqlchelpers.UUIDToStr(scheduled.TenantId),
+		TriggerAt:            scheduled.TriggerAt.Time,
+		AdditionalMetadata:   &additionalMetadata,
+		WorkflowRunCreatedAt: &scheduled.WorkflowRunCreatedAt.Time,
+		WorkflowRunStatus:    &workflowRunStatus,
+		WorkflowRunId:        workflowRunIdPtr,
+		WorkflowRunName:      &scheduled.WorkflowRunName.String,
 	}
 
 	return res

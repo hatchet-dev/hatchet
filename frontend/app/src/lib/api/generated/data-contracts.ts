@@ -770,6 +770,17 @@ export interface ScheduledWorkflows {
   triggerAt: string;
   input?: Record<string, any>;
   additionalMetadata?: Record<string, any>;
+  /** @format date-time */
+  workflowRunCreatedAt?: string;
+  workflowRunName?: string;
+  workflowRunStatus?: WorkflowRunStatus;
+  /**
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   * @example "bb214807-246e-43a5-a25d-41761d1cff9e"
+   */
+  workflowRunId?: string;
 }
 
 export interface ScheduledWorkflowsList {
