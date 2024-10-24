@@ -2,6 +2,7 @@ import { ColumnDef } from '@tanstack/react-table';
 import { DataTableColumnHeader } from '../../../../components/molecules/data-table/data-table-column-header';
 import { CronWorkflows, RateLimit } from '@/lib/api';
 import CronPrettifier from 'cronstrue';
+import { AdditionalMetadata } from '../../events/components/additional-metadata';
 
 export type RateLimitRow = RateLimit & {
   metadata: {
@@ -48,5 +49,19 @@ export const columns: ColumnDef<CronWorkflows>[] = [
     ),
     enableSorting: false,
     enableHiding: true,
+  },
+  {
+    accessorKey: 'Metadata',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Metadata" />
+    ),
+    cell: ({ row }) => {
+      if (!row.original.additionalMetadata) {
+        return <div></div>;
+      }
+
+      return <AdditionalMetadata metadata={row.original.additionalMetadata} />;
+    },
+    enableSorting: false,
   },
 ];

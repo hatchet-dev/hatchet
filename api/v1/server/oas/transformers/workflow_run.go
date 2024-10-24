@@ -485,29 +485,46 @@ func ToWorkflowRunFromSQLC(row *dbsqlc.ListWorkflowRunsRow) *gen.WorkflowRun {
 
 func ToScheduledWorkflowsFromSQLC(scheduled *dbsqlc.ListScheduledWorkflowsRow) *gen.ScheduledWorkflows {
 
+	var additionalMetadata map[string]interface{}
+
+	if scheduled.AdditionalMetadata != nil {
+		err := json.Unmarshal(scheduled.AdditionalMetadata, &additionalMetadata)
+		if err != nil {
+			return nil
+		}
+	}
+
 	res := &gen.ScheduledWorkflows{
-		Metadata:          *toAPIMetadata(sqlchelpers.UUIDToStr(scheduled.ID), time.Now(), time.Now()),
-		WorkflowVersionId: sqlchelpers.UUIDToStr(scheduled.WorkflowVersionId),
-		WorkflowId:        sqlchelpers.UUIDToStr(scheduled.WorkflowId),
-		WorkflowName:      scheduled.Name,
-		TenantId:          sqlchelpers.UUIDToStr(scheduled.TenantId),
-		TriggerAt:         scheduled.TriggerAt.Time,
-		// AdditionalMetadata: &additionalMetadata,
+		Metadata:           *toAPIMetadata(sqlchelpers.UUIDToStr(scheduled.ID), time.Now(), time.Now()),
+		WorkflowVersionId:  sqlchelpers.UUIDToStr(scheduled.WorkflowVersionId),
+		WorkflowId:         sqlchelpers.UUIDToStr(scheduled.WorkflowId),
+		WorkflowName:       scheduled.Name,
+		TenantId:           sqlchelpers.UUIDToStr(scheduled.TenantId),
+		TriggerAt:          scheduled.TriggerAt.Time,
+		AdditionalMetadata: &additionalMetadata,
 	}
 
 	return res
 }
 
 func ToCronWorkflowsFromSQLC(scheduled *dbsqlc.ListCronWorkflowsRow) *gen.CronWorkflows {
+	var additionalMetadata map[string]interface{}
+
+	if scheduled.AdditionalMetadata != nil {
+		err := json.Unmarshal(scheduled.AdditionalMetadata, &additionalMetadata)
+		if err != nil {
+			return nil
+		}
+	}
 
 	res := &gen.CronWorkflows{
-		Metadata:          *toAPIMetadata(sqlchelpers.UUIDToStr(scheduled.ID), time.Now(), time.Now()),
-		WorkflowVersionId: sqlchelpers.UUIDToStr(scheduled.WorkflowVersionId),
-		WorkflowId:        sqlchelpers.UUIDToStr(scheduled.WorkflowId),
-		WorkflowName:      scheduled.Name,
-		TenantId:          sqlchelpers.UUIDToStr(scheduled.TenantId),
-		Cron:              scheduled.Cron,
-		// AdditionalMetadata: &additionalMetadata,
+		Metadata:           *toAPIMetadata(sqlchelpers.UUIDToStr(scheduled.ID), time.Now(), time.Now()),
+		WorkflowVersionId:  sqlchelpers.UUIDToStr(scheduled.WorkflowVersionId),
+		WorkflowId:         sqlchelpers.UUIDToStr(scheduled.WorkflowId),
+		WorkflowName:       scheduled.Name,
+		TenantId:           sqlchelpers.UUIDToStr(scheduled.TenantId),
+		Cron:               scheduled.Cron,
+		AdditionalMetadata: &additionalMetadata,
 	}
 
 	return res
