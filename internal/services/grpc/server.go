@@ -10,8 +10,10 @@ import (
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth"
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
+	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/ratelimit"
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/recovery"
 	"github.com/rs/zerolog"
+	"golang.org/x/time/rate"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
@@ -225,6 +227,8 @@ func (s *Server) startGRPC() (func() error, error) {
 		return status.Errorf(codes.Internal, "An internal error occurred")
 	}
 
+	limiter := middleware.NewHatchetRateLimiter(rate.Limit(s.config.Runtime.GRPCRateLimit), int(s.config.Runtime.GRPCRateLimit), s.l)
+
 	errorInterceptor := middleware.NewErrorInterceptor(s.a, s.l)
 
 	opts := []logging.Option{
@@ -234,6 +238,8 @@ func (s *Server) startGRPC() (func() error, error) {
 	serverOpts = append(serverOpts, grpc.ChainStreamInterceptor(
 		logging.StreamServerInterceptor(middleware.InterceptorLogger(s.l), opts...),
 		auth.StreamServerInterceptor(authMiddleware.Middleware),
+		middleware.ServerNameStreamingInterceptor,
+		ratelimit.StreamServerInterceptor(limiter),
 		errorInterceptor.ErrorStreamServerInterceptor(),
 		recovery.StreamServerInterceptor(recovery.WithRecoveryHandler(grpcPanicRecoveryHandler)),
 	))
@@ -241,6 +247,8 @@ func (s *Server) startGRPC() (func() error, error) {
 	serverOpts = append(serverOpts, grpc.ChainUnaryInterceptor(
 		logging.UnaryServerInterceptor(middleware.InterceptorLogger(s.l), opts...),
 		auth.UnaryServerInterceptor(authMiddleware.Middleware),
+		middleware.AttachServerNameInterceptor,
+		ratelimit.UnaryServerInterceptor(limiter),
 		errorInterceptor.ErrorUnaryServerInterceptor(),
 		recovery.UnaryServerInterceptor(recovery.WithRecoveryHandler(grpcPanicRecoveryHandler)),
 	))
