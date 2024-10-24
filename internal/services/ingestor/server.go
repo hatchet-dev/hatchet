@@ -53,6 +53,15 @@ func (i *IngestorImpl) BulkPush(ctx context.Context, req *contracts.BulkPushEven
 
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
+	if len(req.Events) == 0 {
+
+		return nil, status.Errorf(codes.InvalidArgument, "No events to ingest")
+	}
+
+	if len(req.Events) > 1000 {
+		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: too many events - %d is over maximum (1000)", len(req.Events))
+	}
+
 	events := make([]*repository.CreateEventOpts, 0)
 
 	for _, e := range req.Events {
