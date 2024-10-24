@@ -15,6 +15,7 @@ type WorkflowRunEventsMetrics = Parameters<
   typeof cloudApi.workflowRunEventsGetMetrics
 >[1];
 type WorkflowScheduledQuery = Parameters<typeof api.workflowScheduledList>[1];
+type CronWorkflowsQuery = Parameters<typeof api.cronWorkflowList>[1];
 
 export const queries = createQueryKeyStore({
   cloud: {
@@ -185,6 +186,12 @@ export const queries = createQueryKeyStore({
       queryKey: ['scheduled-run:list', tenant, query],
       queryFn: async () =>
         (await api.workflowScheduledList(tenant, query)).data,
+    }),
+  },
+  cronRuns: {
+    list: (tenant: string, query: CronWorkflowsQuery) => ({
+      queryKey: ['cron-run:list', tenant, query],
+      queryFn: async () => (await api.cronWorkflowList(tenant, query)).data,
     }),
   },
   workflowRuns: {

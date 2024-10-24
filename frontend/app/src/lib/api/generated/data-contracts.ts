@@ -781,6 +781,26 @@ export enum ScheduledWorkflowsOrderByField {
   TriggerAt = 'triggerAt',
 }
 
+export interface CronWorkflows {
+  metadata: APIResourceMeta;
+  tenantId: string;
+  workflowVersionId: string;
+  workflowId: string;
+  workflowName: string;
+  cron: string;
+  input?: Record<string, any>;
+  additionalMetadata?: Record<string, any>;
+}
+
+export interface CronWorkflowsList {
+  rows?: CronWorkflows[];
+  pagination?: PaginationResponse;
+}
+
+export enum CronWorkflowsOrderByField {
+  CreatedAt = 'createdAt',
+}
+
 export enum WorkflowRunOrderByField {
   CreatedAt = 'createdAt',
   StartedAt = 'startedAt',

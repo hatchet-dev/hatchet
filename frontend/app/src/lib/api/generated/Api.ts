@@ -24,6 +24,8 @@ import {
   CreateTenantAlertEmailGroupRequest,
   CreateTenantInviteRequest,
   CreateTenantRequest,
+  CronWorkflowsList,
+  CronWorkflowsOrderByField,
   Event,
   EventData,
   EventKey,
@@ -1120,7 +1122,7 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   /**
    * @description Get all scheduled workflow runs for a tenant
    *
-   * @tags ScheduledWorkflows
+   * @tags Workflow
    * @name WorkflowScheduledList
    * @summary Get workflow runs
    * @request GET:/api/v1/tenants/{tenant}/workflows/scheduled
@@ -1160,6 +1162,55 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   ) =>
     this.request<ScheduledWorkflowsList, APIErrors>({
       path: `/api/v1/tenants/${tenant}/workflows/scheduled`,
+      method: 'GET',
+      query: query,
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Get all cron job workflow runs for a tenant
+   *
+   * @tags Workflow
+   * @name CronWorkflowList
+   * @summary Get workflow runs
+   * @request GET:/api/v1/tenants/{tenant}/workflows/crons
+   * @secure
+   */
+  cronWorkflowList = (
+    tenant: string,
+    query?: {
+      /**
+       * The number to skip
+       * @format int64
+       */
+      offset?: number;
+      /**
+       * The number to limit by
+       * @format int64
+       */
+      limit?: number;
+      /**
+       * The workflow id to get runs for.
+       * @format uuid
+       * @minLength 36
+       * @maxLength 36
+       */
+      workflowId?: string;
+      /**
+       * A list of metadata key value pairs to filter by
+       * @example ["key1:value1","key2:value2"]
+       */
+      additionalMetadata?: string[];
+      /** The order by field */
+      orderByField?: CronWorkflowsOrderByField;
+      /** The order by direction */
+      orderByDirection?: WorkflowRunOrderByDirection;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<CronWorkflowsList, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/workflows/crons`,
       method: 'GET',
       query: query,
       secure: true,

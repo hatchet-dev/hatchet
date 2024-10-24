@@ -11,6 +11,11 @@ ScheduledWorkflowsOrderByField:
   enum:
     - triggerAt
 
+CronWorkflowsOrderByField:
+  type: string
+  enum:
+    - createdAt
+
 WorkflowRunOrderByDirection:
   type: string
   enum:
@@ -203,6 +208,45 @@ ScheduledWorkflowsList:
       type: array
       items:
         $ref: "#/ScheduledWorkflows"
+    pagination:
+      $ref: "./metadata.yaml#/PaginationResponse"
+
+CronWorkflows:
+  type: object
+  properties:
+    metadata:
+      $ref: "./metadata.yaml#/APIResourceMeta"
+    tenantId:
+      type: string
+    workflowVersionId:
+      type: string
+    workflowId:
+      type: string
+    workflowName:
+      type: string
+    cron:
+      type: string
+    input:
+      type: object
+      additionalProperties: true
+    additionalMetadata:
+      type: object
+      additionalProperties: true
+  required:
+    - metadata
+    - tenantId
+    - workflowVersionId
+    - workflowName
+    - workflowId
+    - cron
+
+CronWorkflowsList:
+  type: object
+  properties:
+    rows:
+      type: array
+      items:
+        $ref: "#/CronWorkflows"
     pagination:
       $ref: "./metadata.yaml#/PaginationResponse"
 

@@ -11,7 +11,7 @@ import {
 
 import { Link, Outlet, useLocation, useOutletContext } from 'react-router-dom';
 import { Tenant, TenantMember } from '@/lib/api';
-import { GearIcon } from '@radix-ui/react-icons';
+import { ClockIcon, GearIcon, StarIcon } from '@radix-ui/react-icons';
 import React, { useCallback } from 'react';
 import {
   MembershipsContextType,
@@ -169,6 +169,13 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
                 to="/scheduled"
                 name="Scheduled Runs"
                 icon={<CalendarDaysIcon className="mr-2 h-4 w-4" />}
+              />
+              <SidebarButtonPrimary
+                key={5}
+                onNavLinkClick={onNavLinkClick}
+                to="/crons"
+                name="Cron Runs"
+                icon={<ClockIcon className="mr-2 h-4 w-4" />}
               />
             </div>
           </div>

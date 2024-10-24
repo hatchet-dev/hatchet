@@ -2105,6 +2105,105 @@ func (q *Queries) ListChildWorkflowRunCounts(ctx context.Context, db DBTX, stepr
 	return items, nil
 }
 
+const listCronWorkflows = `-- name: ListCronWorkflows :many
+SELECT
+    w."name",
+    w."id" as "workflowId",
+    v."id" as "workflowVersionId",
+    w."tenantId",
+    t.id, t."createdAt", t."updatedAt", t."deletedAt", t."workflowVersionId", t."tenantId",
+    c."parentId", c.cron, c."tickerId", c.input, c.enabled
+FROM "WorkflowTriggerCronRef" c
+JOIN "WorkflowTriggers" t ON c."parentId" = t."id"
+JOIN "WorkflowVersion" v ON t."workflowVersionId" = v."id"
+JOIN "Workflow" w on v."workflowId" = w."id"
+WHERE v."deletedAt" IS NULL
+	AND w."tenantId" = $1::uuid
+    -- TODO page
+ORDER BY
+    -- case when @orderBy = 'triggerAt ASC' THEN t."triggerAt" END ASC ,
+    -- case when @orderBy = 'triggerAt DESC' THEN t."triggerAt" END DESC,
+    case when $2 = 'createdAt ASC' THEN t."createdAt" END ASC ,
+    case when $2 = 'createdAt DESC' THEN t."createdAt" END DESC,
+    -- case when @orderBy = 'finishedAt ASC' THEN t."finishedAt" END ASC ,
+    -- case when @orderBy = 'finishedAt DESC' THEN t."finishedAt" END DESC,
+    -- case when @orderBy = 'startedAt ASC' THEN t."startedAt" END ASC ,
+    -- case when @orderBy = 'startedAt DESC' THEN t."startedAt" END DESC,
+    -- case when @orderBy = 'duration ASC' THEN t."duration" END ASC NULLS FIRST,
+    -- case when @orderBy = 'duration DESC' THEN runs."duration" END DESC NULLS LAST,
+    t."id" ASC
+OFFSET
+    COALESCE($3, 0)
+LIMIT
+    COALESCE($4, 50)
+`
+
+type ListCronWorkflowsParams struct {
+	Tenantid pgtype.UUID `json:"tenantid"`
+	Orderby  interface{} `json:"orderby"`
+	Offset   interface{} `json:"offset"`
+	Limit    interface{} `json:"limit"`
+}
+
+type ListCronWorkflowsRow struct {
+	Name                string           `json:"name"`
+	WorkflowId          pgtype.UUID      `json:"workflowId"`
+	WorkflowVersionId   pgtype.UUID      `json:"workflowVersionId"`
+	TenantId            pgtype.UUID      `json:"tenantId"`
+	ID                  pgtype.UUID      `json:"id"`
+	CreatedAt           pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt           pgtype.Timestamp `json:"updatedAt"`
+	DeletedAt           pgtype.Timestamp `json:"deletedAt"`
+	WorkflowVersionId_2 pgtype.UUID      `json:"workflowVersionId_2"`
+	TenantId_2          pgtype.UUID      `json:"tenantId_2"`
+	ParentId            pgtype.UUID      `json:"parentId"`
+	Cron                string           `json:"cron"`
+	TickerId            pgtype.UUID      `json:"tickerId"`
+	Input               []byte           `json:"input"`
+	Enabled             bool             `json:"enabled"`
+}
+
+func (q *Queries) ListCronWorkflows(ctx context.Context, db DBTX, arg ListCronWorkflowsParams) ([]*ListCronWorkflowsRow, error) {
+	rows, err := db.Query(ctx, listCronWorkflows,
+		arg.Tenantid,
+		arg.Orderby,
+		arg.Offset,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListCronWorkflowsRow
+	for rows.Next() {
+		var i ListCronWorkflowsRow
+		if err := rows.Scan(
+			&i.Name,
+			&i.WorkflowId,
+			&i.WorkflowVersionId,
+			&i.TenantId,
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.WorkflowVersionId_2,
+			&i.TenantId_2,
+			&i.ParentId,
+			&i.Cron,
+			&i.TickerId,
+			&i.Input,
+			&i.Enabled,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listScheduledWorkflows = `-- name: ListScheduledWorkflows :many
 SELECT
     w."name",

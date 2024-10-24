@@ -142,6 +142,15 @@ const routes: RouteObject[] = [
                   }),
               },
               {
+                path: '/crons',
+                lazy: async () =>
+                  import('./pages/main/crons').then((res) => {
+                    return {
+                      Component: res.default,
+                    };
+                  }),
+              },
+              {
                 path: '/workflows',
                 lazy: async () =>
                   import('./pages/main/workflows').then((res) => {
