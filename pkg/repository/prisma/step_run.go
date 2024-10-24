@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-multierror"
-	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -273,7 +272,7 @@ type stepRunEngineRepository struct {
 	bulkEventBuffer        *buffer.BulkEventWriter
 	bulkSemaphoreReleaser  *buffer.BulkSemaphoreReleaser
 	bulkQueuer             *buffer.BulkStepRunQueuer
-	queueActionTenantCache *lru.Cache[string, bool]
+	queueActionTenantCache *cache.Cache
 
 	updateConcurrentFactor int
 	maxHashFactor          int
@@ -295,7 +294,7 @@ func (s *stepRunEngineRepository) cleanup() error {
 	return s.bulkEventBuffer.Cleanup()
 }
 
-func NewStepRunEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, cf *server.ConfigFileRuntime, rlCache *cache.Cache) (*stepRunEngineRepository, func() error, error) {
+func NewStepRunEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, cf *server.ConfigFileRuntime, rlCache *cache.Cache, queueCache *cache.Cache) (*stepRunEngineRepository, func() error, error) {
 	queries := dbsqlc.New()
 
 	eventBuffer, err := buffer.NewBulkEventWriter(pool, v, l, cf.EventBuffer)
@@ -328,9 +327,8 @@ func NewStepRunEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *ze
 		bulkEventBuffer:          eventBuffer,
 		bulkSemaphoreReleaser:    semReleaser,
 		bulkQueuer:               bulkQueuer,
+		queueActionTenantCache:   queueCache,
 	}
-
-	s.queueActionTenantCache, _ = lru.New[string, bool](10000)
 
 	err = s.startBuffers()
 
@@ -2489,10 +2487,7 @@ func (s *stepRunEngineRepository) StepRunCancelled(ctx context.Context, tenantId
 		return fmt.Errorf("could not buffer step run succeeded: %w", err)
 	}
 
-	laterStepRuns, err := s.queries.GetLaterStepRuns(ctx, s.pool, dbsqlc.GetLaterStepRunsParams{
-		Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
-		Steprunid: sqlchelpers.UUIDFromStr(stepRunId),
-	})
+	laterStepRuns, err := s.queries.GetLaterStepRuns(ctx, s.pool, sqlchelpers.UUIDFromStr(stepRunId))
 
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return fmt.Errorf("could not get later step runs: %w", err)
@@ -2551,10 +2546,7 @@ func (s *stepRunEngineRepository) StepRunFailed(ctx context.Context, tenantId, w
 		return fmt.Errorf("could not buffer step run succeeded: %w", err)
 	}
 
-	laterStepRuns, err := s.queries.GetLaterStepRuns(ctx, s.pool, dbsqlc.GetLaterStepRunsParams{
-		Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
-		Steprunid: sqlchelpers.UUIDFromStr(stepRunId),
-	})
+	laterStepRuns, err := s.queries.GetLaterStepRuns(ctx, s.pool, sqlchelpers.UUIDFromStr(stepRunId))
 
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return fmt.Errorf("could not get later step runs: %w", err)
@@ -2638,10 +2630,7 @@ func (s *stepRunEngineRepository) ReplayStepRun(ctx context.Context, tenantId, s
 		return nil, err
 	}
 
-	laterStepRuns, err := s.queries.GetLaterStepRuns(ctx, tx, dbsqlc.GetLaterStepRunsParams{
-		Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
-		Steprunid: sqlchelpers.UUIDFromStr(stepRunId),
-	})
+	laterStepRuns, err := s.queries.GetLaterStepRuns(ctx, tx, sqlchelpers.UUIDFromStr(stepRunId))
 
 	if err != nil {
 		return nil, err
@@ -2688,7 +2677,6 @@ func (s *stepRunEngineRepository) ReplayStepRun(ctx context.Context, tenantId, s
 
 	// reset all later step runs to a pending state
 	_, err = s.queries.ReplayStepRunResetStepRuns(ctx, tx, dbsqlc.ReplayStepRunResetStepRunsParams{
-		Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
 		Steprunid: sqlchelpers.UUIDFromStr(stepRunId),
 		Input:     input,
 	})
@@ -2725,10 +2713,7 @@ func (s *stepRunEngineRepository) PreflightCheckReplayStepRun(ctx context.Contex
 	}
 
 	// verify that child step runs are in a final state
-	childStepRuns, err := s.queries.ListNonFinalChildStepRuns(ctx, s.pool, dbsqlc.ListNonFinalChildStepRunsParams{
-		Steprunid: sqlchelpers.UUIDFromStr(stepRunId),
-		Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
-	})
+	childStepRuns, err := s.queries.ListNonFinalChildStepRuns(ctx, s.pool, sqlchelpers.UUIDFromStr(stepRunId))
 
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return fmt.Errorf("could not list non-final child step runs: %w", err)
@@ -2843,14 +2828,9 @@ func (s *stepRunEngineRepository) UpdateStepRunInputSchema(ctx context.Context, 
 }
 
 func (s *stepRunEngineRepository) doCachedUpsertOfQueue(ctx context.Context, tx dbsqlc.DBTX, tenantId string, innerStepRun *dbsqlc.GetStepRunForEngineRow) error {
-	// update the queue with the action id
+	cacheKey := fmt.Sprintf("t-%s-q-%s", tenantId, innerStepRun.SRQueue)
 
-	cacheKey := fmt.Sprintf("t-%s-q-%s", tenantId, innerStepRun.ActionId)
-
-	_, ok := s.queueActionTenantCache.Get(cacheKey)
-
-	if !ok {
-
+	_, err := cache.MakeCacheable(s.queueActionTenantCache, cacheKey, func() (*bool, error) {
 		err := s.queries.UpsertQueue(
 			ctx,
 			tx,
@@ -2859,15 +2839,16 @@ func (s *stepRunEngineRepository) doCachedUpsertOfQueue(ctx context.Context, tx 
 				Tenantid: sqlchelpers.UUIDFromStr(tenantId),
 			},
 		)
+
 		if err != nil {
-			return err
+			return nil, err
 		}
 
-		s.queueActionTenantCache.Add(cacheKey, true)
+		res := true
+		return &res, nil
+	})
 
-	}
-
-	return nil
+	return err
 }
 
 func (s *stepRunEngineRepository) QueueStepRun(ctx context.Context, tenantId, stepRunId string, opts *repository.QueueStepRunOpts) (*dbsqlc.GetStepRunForEngineRow, error) {

@@ -163,32 +163,34 @@ WITH input_values AS (
         1 AS "count",
         unnest($6::jsonb[]) AS "data"
 ),
+matched_rows AS (
+    SELECT DISTINCT ON (sre."stepRunId")
+        sre."stepRunId", sre."reason", sre."severity", sre."id"
+    FROM "StepRunEvent" sre
+    WHERE
+        sre."stepRunId" = ANY($2::uuid[])
+    ORDER BY sre."stepRunId", sre."id" DESC
+),
 locked_rows AS (
-    SELECT "id"
-    FROM "StepRunEvent"
-    WHERE "stepRunId" IN (SELECT unnest($2::uuid[]))
+    SELECT sre."id", iv."timeFirstSeen", iv."timeLastSeen", iv."stepRunId", iv.reason, iv.severity, iv.message, iv.count, iv.data
+    FROM "StepRunEvent" sre
+    JOIN
+        matched_rows mr ON sre."id" = mr."id"
+    JOIN
+        input_values iv ON sre."stepRunId" = iv."stepRunId" AND sre."reason" = iv."reason" AND sre."severity" = iv."severity"
     ORDER BY "id"
     FOR UPDATE
 ),
 updated AS (
     UPDATE "StepRunEvent"
     SET
-        "timeLastSeen" = input_values."timeLastSeen",
-        "message" = input_values."message",
+        "timeLastSeen" = locked_rows."timeLastSeen",
+        "message" = locked_rows."message",
         "count" = "StepRunEvent"."count" + 1,
-        "data" = input_values."data"
-    FROM input_values
+        "data" = locked_rows."data"
+    FROM locked_rows
     WHERE
-        "StepRunEvent"."stepRunId" = input_values."stepRunId"
-        AND "StepRunEvent"."reason" = input_values."reason"
-        AND "StepRunEvent"."severity" = input_values."severity"
-        AND "StepRunEvent"."id" = (
-            SELECT "id"
-            FROM "StepRunEvent"
-            WHERE "stepRunId" = input_values."stepRunId"
-            ORDER BY "id" DESC
-            LIMIT 1
-        )
+        "StepRunEvent"."id" = locked_rows."id"
     RETURNING "StepRunEvent".id, "StepRunEvent"."timeFirstSeen", "StepRunEvent"."timeLastSeen", "StepRunEvent"."stepRunId", "StepRunEvent".reason, "StepRunEvent".severity, "StepRunEvent".message, "StepRunEvent".count, "StepRunEvent".data, "StepRunEvent"."workflowRunId"
 )
 INSERT INTO "StepRunEvent" (
@@ -212,7 +214,7 @@ SELECT
     "data"
 FROM input_values
 WHERE NOT EXISTS (
-    SELECT 1 FROM updated WHERE "stepRunId" = input_values."stepRunId"
+    SELECT 1 FROM updated WHERE "stepRunId" = input_values."stepRunId" AND "reason" = input_values."reason" AND "severity" = input_values."severity"
 )
 `
 
@@ -759,8 +761,7 @@ WITH RECURSIVE currStepRun AS (
     SELECT id, "createdAt", "updatedAt", "deletedAt", "tenantId", "jobRunId", "stepId", "order", "workerId", "tickerId", status, input, output, "requeueAfter", "scheduleTimeoutAt", error, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError", "inputSchema", "callerFiles", "gitRepoBranch", "retryCount", "semaphoreReleased", queue, priority
     FROM "StepRun"
     WHERE
-        "id" = $2::uuid AND
-        "tenantId" = $1::uuid
+        "id" = $1::uuid
 ), childStepRuns AS (
     SELECT sr."id", sr."status"
     FROM "StepRun" sr
@@ -780,17 +781,10 @@ FROM
     "StepRun" sr
 JOIN
     childStepRuns csr ON sr."id" = csr."id"
-WHERE
-    sr."tenantId" = $1::uuid
 `
 
-type GetLaterStepRunsParams struct {
-	Tenantid  pgtype.UUID `json:"tenantid"`
-	Steprunid pgtype.UUID `json:"steprunid"`
-}
-
-func (q *Queries) GetLaterStepRuns(ctx context.Context, db DBTX, arg GetLaterStepRunsParams) ([]*StepRun, error) {
-	rows, err := db.Query(ctx, getLaterStepRuns, arg.Tenantid, arg.Steprunid)
+func (q *Queries) GetLaterStepRuns(ctx context.Context, db DBTX, steprunid pgtype.UUID) ([]*StepRun, error) {
+	rows, err := db.Query(ctx, getLaterStepRuns, steprunid)
 	if err != nil {
 		return nil, err
 	}
@@ -1577,8 +1571,7 @@ WITH RECURSIVE currStepRun AS (
     SELECT id, "createdAt", "updatedAt", "deletedAt", "tenantId", "jobRunId", "stepId", "order", "workerId", "tickerId", status, input, output, "requeueAfter", "scheduleTimeoutAt", error, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError", "inputSchema", "callerFiles", "gitRepoBranch", "retryCount", "semaphoreReleased", queue, priority
     FROM "StepRun"
     WHERE
-        "id" = $2::uuid AND
-        "tenantId" = $1::uuid
+        "id" = $1::uuid
 ), childStepRuns AS (
     SELECT sr."id", sr."status"
     FROM "StepRun" sr
@@ -1600,19 +1593,13 @@ FROM
 JOIN
     childStepRuns csr ON sr."id" = csr."id"
 WHERE
-    sr."tenantId" = $1::uuid AND
     sr."deletedAt" IS NULL AND
     sr."status" NOT IN ('SUCCEEDED', 'FAILED', 'CANCELLED')
 `
 
-type ListNonFinalChildStepRunsParams struct {
-	Tenantid  pgtype.UUID `json:"tenantid"`
-	Steprunid pgtype.UUID `json:"steprunid"`
-}
-
 // Select all child step runs that are not in a final state
-func (q *Queries) ListNonFinalChildStepRuns(ctx context.Context, db DBTX, arg ListNonFinalChildStepRunsParams) ([]*StepRun, error) {
-	rows, err := db.Query(ctx, listNonFinalChildStepRuns, arg.Tenantid, arg.Steprunid)
+func (q *Queries) ListNonFinalChildStepRuns(ctx context.Context, db DBTX, steprunid pgtype.UUID) ([]*StepRun, error) {
+	rows, err := db.Query(ctx, listNonFinalChildStepRuns, steprunid)
 	if err != nil {
 		return nil, err
 	}
@@ -2413,8 +2400,7 @@ WITH RECURSIVE currStepRun AS (
     SELECT id, "createdAt", "updatedAt", "deletedAt", "tenantId", "jobRunId", "stepId", "order", "workerId", "tickerId", status, input, output, "requeueAfter", "scheduleTimeoutAt", error, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError", "inputSchema", "callerFiles", "gitRepoBranch", "retryCount", "semaphoreReleased", queue, priority
     FROM "StepRun"
     WHERE
-        "id" = $1::uuid AND
-        "tenantId" = $3::uuid
+        "id" = $1::uuid
 ), childStepRuns AS (
     SELECT sr."id", sr."status"
     FROM "StepRun" sr
@@ -2447,22 +2433,18 @@ SET
 FROM
     childStepRuns csr
 WHERE
-    sr."tenantId" = $3::uuid AND
-    (
-        sr."id" = csr."id" OR
-        sr."id" = $1::uuid
-    )
+    sr."id" = csr."id" OR
+    sr."id" = $1::uuid
 RETURNING sr.id, sr."createdAt", sr."updatedAt", sr."deletedAt", sr."tenantId", sr."jobRunId", sr."stepId", sr."order", sr."workerId", sr."tickerId", sr.status, sr.input, sr.output, sr."requeueAfter", sr."scheduleTimeoutAt", sr.error, sr."startedAt", sr."finishedAt", sr."timeoutAt", sr."cancelledAt", sr."cancelledReason", sr."cancelledError", sr."inputSchema", sr."callerFiles", sr."gitRepoBranch", sr."retryCount", sr."semaphoreReleased", sr.queue, sr.priority
 `
 
 type ReplayStepRunResetStepRunsParams struct {
 	Steprunid pgtype.UUID `json:"steprunid"`
 	Input     []byte      `json:"input"`
-	Tenantid  pgtype.UUID `json:"tenantid"`
 }
 
 func (q *Queries) ReplayStepRunResetStepRuns(ctx context.Context, db DBTX, arg ReplayStepRunResetStepRunsParams) ([]*StepRun, error) {
-	rows, err := db.Query(ctx, replayStepRunResetStepRuns, arg.Steprunid, arg.Input, arg.Tenantid)
+	rows, err := db.Query(ctx, replayStepRunResetStepRuns, arg.Steprunid, arg.Input)
 	if err != nil {
 		return nil, err
 	}
@@ -2682,8 +2664,7 @@ WITH RECURSIVE currStepRun AS (
   SELECT "id", "status", "cancelledReason"
   FROM "StepRun"
   WHERE
-    "id" = $3::uuid AND
-    "tenantId" = $2::uuid
+    "id" = $2::uuid
 ), childStepRuns AS (
   SELECT sr."id", sr."status"
   FROM "StepRun" sr
@@ -2718,19 +2699,17 @@ SET  "status" = CASE
 FROM
     childStepRuns csr
 WHERE
-    sr."id" = csr."id" AND
-    sr."tenantId" = $2::uuid
+    sr."id" = csr."id"
 RETURNING sr.id, sr."createdAt", sr."updatedAt", sr."deletedAt", sr."tenantId", sr."jobRunId", sr."stepId", sr."order", sr."workerId", sr."tickerId", sr.status, sr.input, sr.output, sr."requeueAfter", sr."scheduleTimeoutAt", sr.error, sr."startedAt", sr."finishedAt", sr."timeoutAt", sr."cancelledAt", sr."cancelledReason", sr."cancelledError", sr."inputSchema", sr."callerFiles", sr."gitRepoBranch", sr."retryCount", sr."semaphoreReleased", sr.queue, sr.priority
 `
 
 type ResolveLaterStepRunsParams struct {
 	Status    StepRunStatus `json:"status"`
-	Tenantid  pgtype.UUID   `json:"tenantid"`
 	Steprunid pgtype.UUID   `json:"steprunid"`
 }
 
 func (q *Queries) ResolveLaterStepRuns(ctx context.Context, db DBTX, arg ResolveLaterStepRunsParams) ([]*StepRun, error) {
-	rows, err := db.Query(ctx, resolveLaterStepRuns, arg.Status, arg.Tenantid, arg.Steprunid)
+	rows, err := db.Query(ctx, resolveLaterStepRuns, arg.Status, arg.Steprunid)
 	if err != nil {
 		return nil, err
 	}

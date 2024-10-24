@@ -501,8 +501,7 @@ WITH RECURSIVE currStepRun AS (
   SELECT "id", "status", "cancelledReason"
   FROM "StepRun"
   WHERE
-    "id" = @stepRunId::uuid AND
-    "tenantId" = @tenantId::uuid
+    "id" = @stepRunId::uuid
 ), childStepRuns AS (
   SELECT sr."id", sr."status"
   FROM "StepRun" sr
@@ -537,8 +536,7 @@ SET  "status" = CASE
 FROM
     childStepRuns csr
 WHERE
-    sr."id" = csr."id" AND
-    sr."tenantId" = @tenantId::uuid
+    sr."id" = csr."id"
 RETURNING sr.*;
 
 -- name: UpdateStepRunOverridesData :one
@@ -1090,32 +1088,34 @@ WITH input_values AS (
         1 AS "count",
         unnest(@data::jsonb[]) AS "data"
 ),
+matched_rows AS (
+    SELECT DISTINCT ON (sre."stepRunId")
+        sre."stepRunId", sre."reason", sre."severity", sre."id"
+    FROM "StepRunEvent" sre
+    WHERE
+        sre."stepRunId" = ANY(@stepRunIds::uuid[])
+    ORDER BY sre."stepRunId", sre."id" DESC
+),
 locked_rows AS (
-    SELECT "id"
-    FROM "StepRunEvent"
-    WHERE "stepRunId" IN (SELECT unnest(@stepRunIds::uuid[]))
+    SELECT sre."id", iv.*
+    FROM "StepRunEvent" sre
+    JOIN
+        matched_rows mr ON sre."id" = mr."id"
+    JOIN
+        input_values iv ON sre."stepRunId" = iv."stepRunId" AND sre."reason" = iv."reason" AND sre."severity" = iv."severity"
     ORDER BY "id"
     FOR UPDATE
 ),
 updated AS (
     UPDATE "StepRunEvent"
     SET
-        "timeLastSeen" = input_values."timeLastSeen",
-        "message" = input_values."message",
+        "timeLastSeen" = locked_rows."timeLastSeen",
+        "message" = locked_rows."message",
         "count" = "StepRunEvent"."count" + 1,
-        "data" = input_values."data"
-    FROM input_values
+        "data" = locked_rows."data"
+    FROM locked_rows
     WHERE
-        "StepRunEvent"."stepRunId" = input_values."stepRunId"
-        AND "StepRunEvent"."reason" = input_values."reason"
-        AND "StepRunEvent"."severity" = input_values."severity"
-        AND "StepRunEvent"."id" = (
-            SELECT "id"
-            FROM "StepRunEvent"
-            WHERE "stepRunId" = input_values."stepRunId"
-            ORDER BY "id" DESC
-            LIMIT 1
-        )
+        "StepRunEvent"."id" = locked_rows."id"
     RETURNING "StepRunEvent".*
 )
 INSERT INTO "StepRunEvent" (
@@ -1139,7 +1139,7 @@ SELECT
     "data"
 FROM input_values
 WHERE NOT EXISTS (
-    SELECT 1 FROM updated WHERE "stepRunId" = input_values."stepRunId"
+    SELECT 1 FROM updated WHERE "stepRunId" = input_values."stepRunId" AND "reason" = input_values."reason" AND "severity" = input_values."severity"
 );
 
 -- name: CountStepRunEvents :one
@@ -1238,8 +1238,7 @@ WITH RECURSIVE currStepRun AS (
     SELECT *
     FROM "StepRun"
     WHERE
-        "id" = @stepRunId::uuid AND
-        "tenantId" = @tenantId::uuid
+        "id" = @stepRunId::uuid
 ), childStepRuns AS (
     SELECT sr."id", sr."status"
     FROM "StepRun" sr
@@ -1258,17 +1257,14 @@ SELECT
 FROM
     "StepRun" sr
 JOIN
-    childStepRuns csr ON sr."id" = csr."id"
-WHERE
-    sr."tenantId" = @tenantId::uuid;
+    childStepRuns csr ON sr."id" = csr."id";
 
 -- name: ReplayStepRunResetStepRuns :many
 WITH RECURSIVE currStepRun AS (
     SELECT *
     FROM "StepRun"
     WHERE
-        "id" = @stepRunId::uuid AND
-        "tenantId" = @tenantId::uuid
+        "id" = @stepRunId::uuid
 ), childStepRuns AS (
     SELECT sr."id", sr."status"
     FROM "StepRun" sr
@@ -1301,11 +1297,8 @@ SET
 FROM
     childStepRuns csr
 WHERE
-    sr."tenantId" = @tenantId::uuid AND
-    (
-        sr."id" = csr."id" OR
-        sr."id" = @stepRunId::uuid
-    )
+    sr."id" = csr."id" OR
+    sr."id" = @stepRunId::uuid
 RETURNING sr.*;
 
 -- name: ResetStepRunsByIds :many
@@ -1332,8 +1325,7 @@ WITH RECURSIVE currStepRun AS (
     SELECT *
     FROM "StepRun"
     WHERE
-        "id" = @stepRunId::uuid AND
-        "tenantId" = @tenantId::uuid
+        "id" = @stepRunId::uuid
 ), childStepRuns AS (
     SELECT sr."id", sr."status"
     FROM "StepRun" sr
@@ -1356,7 +1348,6 @@ FROM
 JOIN
     childStepRuns csr ON sr."id" = csr."id"
 WHERE
-    sr."tenantId" = @tenantId::uuid AND
     sr."deletedAt" IS NULL AND
     sr."status" NOT IN ('SUCCEEDED', 'FAILED', 'CANCELLED');
 

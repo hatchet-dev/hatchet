@@ -212,6 +212,7 @@ func bulkStepRunEvents(
 	})
 
 	if err != nil {
+		l.Error().Err(err).Msg("could not create deferred step run event")
 		return fmt.Errorf("bulk_events - could not create deferred step run event: %w", err)
 	}
 

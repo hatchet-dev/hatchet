@@ -1092,23 +1092,18 @@ func (q *Queries) GetChildWorkflowRun(ctx context.Context, db DBTX, arg GetChild
 }
 
 const getChildWorkflowRunsByIndex = `-- name: GetChildWorkflowRunsByIndex :many
-WITH input_data AS (
-    SELECT
-        UNNEST($1::uuid[]) AS parentId,
-        UNNEST($2::uuid[]) AS parentStepRunId,
-        UNNEST($3::int[]) AS childIndex
-)
 SELECT
     wr."createdAt", wr."updatedAt", wr."deletedAt", wr."tenantId", wr."workflowVersionId", wr.status, wr.error, wr."startedAt", wr."finishedAt", wr."concurrencyGroupId", wr."displayName", wr.id, wr."childIndex", wr."childKey", wr."parentId", wr."parentStepRunId", wr."additionalMetadata", wr.duration, wr.priority, wr."insertOrder"
 FROM
     "WorkflowRun" wr
-JOIN
-    input_data i ON
-    wr."parentId" = i.parentId AND
-    wr."parentStepRunId" = i.parentStepRunId AND
-    wr."childIndex" = i.childIndex
 WHERE
-    wr."deletedAt" IS NULL
+    (wr."parentId", wr."parentStepRunId", wr."childIndex") IN (
+        SELECT
+            UNNEST($1::uuid[]),
+            UNNEST($2::uuid[]),
+            UNNEST($3::int[])
+    )
+    AND wr."deletedAt" IS NULL
 `
 
 type GetChildWorkflowRunsByIndexParams struct {
@@ -1159,23 +1154,18 @@ func (q *Queries) GetChildWorkflowRunsByIndex(ctx context.Context, db DBTX, arg 
 }
 
 const getChildWorkflowRunsByKey = `-- name: GetChildWorkflowRunsByKey :many
-WITH input_data AS (
-    SELECT
-        UNNEST($1::uuid[]) AS parentId,
-        UNNEST($2::uuid[]) AS parentStepRunId,
-        UNNEST($3::text[]) AS childKey
-)
 SELECT
     wr."createdAt", wr."updatedAt", wr."deletedAt", wr."tenantId", wr."workflowVersionId", wr.status, wr.error, wr."startedAt", wr."finishedAt", wr."concurrencyGroupId", wr."displayName", wr.id, wr."childIndex", wr."childKey", wr."parentId", wr."parentStepRunId", wr."additionalMetadata", wr.duration, wr.priority, wr."insertOrder"
 FROM
     "WorkflowRun" wr
-JOIN
-    input_data i ON
-    wr."parentId" = i.parentId AND
-    wr."parentStepRunId" = i.parentStepRunId AND
-    wr."childKey" = i.childKey
 WHERE
-    wr."deletedAt" IS NULL
+    (wr."parentId", wr."parentStepRunId", wr."childKey") IN (
+        SELECT
+            UNNEST($1::uuid[]),
+            UNNEST($2::uuid[]),
+            UNNEST($3::text[])
+    )
+    AND wr."deletedAt" IS NULL
 `
 
 type GetChildWorkflowRunsByKeyParams struct {

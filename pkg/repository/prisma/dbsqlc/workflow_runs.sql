@@ -1084,42 +1084,32 @@ WHERE
     );
 
 -- name: GetChildWorkflowRunsByIndex :many
-WITH input_data AS (
-    SELECT
-        UNNEST(@parentIds::uuid[]) AS parentId,
-        UNNEST(@parentStepRunIds::uuid[]) AS parentStepRunId,
-        UNNEST(@childIndexes::int[]) AS childIndex
-)
 SELECT
     wr.*
 FROM
     "WorkflowRun" wr
-JOIN
-    input_data i ON
-    wr."parentId" = i.parentId AND
-    wr."parentStepRunId" = i.parentStepRunId AND
-    wr."childIndex" = i.childIndex
 WHERE
-    wr."deletedAt" IS NULL;
+    (wr."parentId", wr."parentStepRunId", wr."childIndex") IN (
+        SELECT
+            UNNEST(@parentIds::uuid[]),
+            UNNEST(@parentStepRunIds::uuid[]),
+            UNNEST(@childIndexes::int[])
+    )
+    AND wr."deletedAt" IS NULL;
 
 -- name: GetChildWorkflowRunsByKey :many
-WITH input_data AS (
-    SELECT
-        UNNEST(@parentIds::uuid[]) AS parentId,
-        UNNEST(@parentStepRunIds::uuid[]) AS parentStepRunId,
-        UNNEST(@childKeys::text[]) AS childKey
-)
 SELECT
     wr.*
 FROM
     "WorkflowRun" wr
-JOIN
-    input_data i ON
-    wr."parentId" = i.parentId AND
-    wr."parentStepRunId" = i.parentStepRunId AND
-    wr."childKey" = i.childKey
 WHERE
-    wr."deletedAt" IS NULL;
+    (wr."parentId", wr."parentStepRunId", wr."childKey") IN (
+        SELECT
+            UNNEST(@parentIds::uuid[]),
+            UNNEST(@parentStepRunIds::uuid[]),
+            UNNEST(@childKeys::text[])
+    )
+    AND wr."deletedAt" IS NULL;
 
 -- name: GetScheduledChildWorkflowRun :one
 SELECT
