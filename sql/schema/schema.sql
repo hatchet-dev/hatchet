@@ -894,7 +894,10 @@ CREATE TABLE "WorkflowTriggerCronRef" (
     "tickerId" UUID,
     "input" JSONB,
     "enabled" BOOLEAN NOT NULL DEFAULT true,
-    "additionalMetadata" JSONB
+    "additionalMetadata" JSONB,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "deletedAt" TIMESTAMP(3),
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- CreateTable
@@ -915,6 +918,9 @@ CREATE TABLE "WorkflowTriggerScheduledRef" (
     "parentStepRunId" UUID,
     "parentWorkflowRunId" UUID,
     "additionalMetadata" JSONB,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "deletedAt" TIMESTAMP(3),
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "WorkflowTriggerScheduledRef_pkey" PRIMARY KEY ("id")
 );

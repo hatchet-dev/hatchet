@@ -250,7 +250,7 @@ INSERT INTO "WorkflowTriggerScheduledRef" (
     unnest($2::timestamp[]),
     $3::jsonb,
     $4::json
-) RETURNING id, "parentId", "triggerAt", "tickerId", input, "childIndex", "childKey", "parentStepRunId", "parentWorkflowRunId", "additionalMetadata"
+) RETURNING id, "parentId", "triggerAt", "tickerId", input, "childIndex", "childKey", "parentStepRunId", "parentWorkflowRunId", "additionalMetadata", "createdAt", "deletedAt", "updatedAt"
 `
 
 type CreateSchedulesParams struct {
@@ -285,6 +285,9 @@ func (q *Queries) CreateSchedules(ctx context.Context, db DBTX, arg CreateSchedu
 			&i.ParentStepRunId,
 			&i.ParentWorkflowRunId,
 			&i.AdditionalMetadata,
+			&i.CreatedAt,
+			&i.DeletedAt,
+			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -569,7 +572,7 @@ INSERT INTO "WorkflowTriggerCronRef" (
     $1::uuid,
     $2::text,
     $3::jsonb
-) RETURNING "parentId", cron, "tickerId", input, enabled, "additionalMetadata"
+) RETURNING "parentId", cron, "tickerId", input, enabled, "additionalMetadata", "createdAt", "deletedAt", "updatedAt"
 `
 
 type CreateWorkflowTriggerCronRefParams struct {
@@ -588,6 +591,9 @@ func (q *Queries) CreateWorkflowTriggerCronRef(ctx context.Context, db DBTX, arg
 		&i.Input,
 		&i.Enabled,
 		&i.AdditionalMetadata,
+		&i.CreatedAt,
+		&i.DeletedAt,
+		&i.UpdatedAt,
 	)
 	return &i, err
 }
@@ -627,7 +633,7 @@ INSERT INTO "WorkflowTriggerScheduledRef" (
     $2::timestamp,
     NULL, -- or provide a tickerId if applicable
     NULL -- or provide input if applicable
-) RETURNING id, "parentId", "triggerAt", "tickerId", input, "childIndex", "childKey", "parentStepRunId", "parentWorkflowRunId", "additionalMetadata"
+) RETURNING id, "parentId", "triggerAt", "tickerId", input, "childIndex", "childKey", "parentStepRunId", "parentWorkflowRunId", "additionalMetadata", "createdAt", "deletedAt", "updatedAt"
 `
 
 type CreateWorkflowTriggerScheduledRefParams struct {
@@ -649,6 +655,9 @@ func (q *Queries) CreateWorkflowTriggerScheduledRef(ctx context.Context, db DBTX
 		&i.ParentStepRunId,
 		&i.ParentWorkflowRunId,
 		&i.AdditionalMetadata,
+		&i.CreatedAt,
+		&i.DeletedAt,
+		&i.UpdatedAt,
 	)
 	return &i, err
 }
@@ -972,7 +981,7 @@ func (q *Queries) GetWorkflowVersionById(ctx context.Context, db DBTX, id pgtype
 
 const getWorkflowVersionCronTriggerRefs = `-- name: GetWorkflowVersionCronTriggerRefs :many
 SELECT
-    wtc."parentId", wtc.cron, wtc."tickerId", wtc.input, wtc.enabled, wtc."additionalMetadata"
+    wtc."parentId", wtc.cron, wtc."tickerId", wtc.input, wtc.enabled, wtc."additionalMetadata", wtc."createdAt", wtc."deletedAt", wtc."updatedAt"
 FROM
     "WorkflowTriggerCronRef" as wtc
 JOIN "WorkflowTriggers" as wt ON wt."id" = wtc."parentId"
@@ -996,6 +1005,9 @@ func (q *Queries) GetWorkflowVersionCronTriggerRefs(ctx context.Context, db DBTX
 			&i.Input,
 			&i.Enabled,
 			&i.AdditionalMetadata,
+			&i.CreatedAt,
+			&i.DeletedAt,
+			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -1113,7 +1125,7 @@ func (q *Queries) GetWorkflowVersionForEngine(ctx context.Context, db DBTX, arg 
 
 const getWorkflowVersionScheduleTriggerRefs = `-- name: GetWorkflowVersionScheduleTriggerRefs :many
 SELECT
-    wtc.id, wtc."parentId", wtc."triggerAt", wtc."tickerId", wtc.input, wtc."childIndex", wtc."childKey", wtc."parentStepRunId", wtc."parentWorkflowRunId", wtc."additionalMetadata"
+    wtc.id, wtc."parentId", wtc."triggerAt", wtc."tickerId", wtc.input, wtc."childIndex", wtc."childKey", wtc."parentStepRunId", wtc."parentWorkflowRunId", wtc."additionalMetadata", wtc."createdAt", wtc."deletedAt", wtc."updatedAt"
 FROM
     "WorkflowTriggerScheduledRef" as wtc
 JOIN "WorkflowTriggers" as wt ON wt."id" = wtc."parentId"
@@ -1141,6 +1153,9 @@ func (q *Queries) GetWorkflowVersionScheduleTriggerRefs(ctx context.Context, db 
 			&i.ParentStepRunId,
 			&i.ParentWorkflowRunId,
 			&i.AdditionalMetadata,
+			&i.CreatedAt,
+			&i.DeletedAt,
+			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}

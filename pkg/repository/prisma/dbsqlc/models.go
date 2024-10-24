@@ -1667,12 +1667,15 @@ type WorkflowToWorkflowTag struct {
 }
 
 type WorkflowTriggerCronRef struct {
-	ParentId           pgtype.UUID `json:"parentId"`
-	Cron               string      `json:"cron"`
-	TickerId           pgtype.UUID `json:"tickerId"`
-	Input              []byte      `json:"input"`
-	Enabled            bool        `json:"enabled"`
-	AdditionalMetadata []byte      `json:"additionalMetadata"`
+	ParentId           pgtype.UUID      `json:"parentId"`
+	Cron               string           `json:"cron"`
+	TickerId           pgtype.UUID      `json:"tickerId"`
+	Input              []byte           `json:"input"`
+	Enabled            bool             `json:"enabled"`
+	AdditionalMetadata []byte           `json:"additionalMetadata"`
+	CreatedAt          pgtype.Timestamp `json:"createdAt"`
+	DeletedAt          pgtype.Timestamp `json:"deletedAt"`
+	UpdatedAt          pgtype.Timestamp `json:"updatedAt"`
 }
 
 type WorkflowTriggerEventRef struct {
@@ -1691,6 +1694,9 @@ type WorkflowTriggerScheduledRef struct {
 	ParentStepRunId     pgtype.UUID      `json:"parentStepRunId"`
 	ParentWorkflowRunId pgtype.UUID      `json:"parentWorkflowRunId"`
 	AdditionalMetadata  []byte           `json:"additionalMetadata"`
+	CreatedAt           pgtype.Timestamp `json:"createdAt"`
+	DeletedAt           pgtype.Timestamp `json:"deletedAt"`
+	UpdatedAt           pgtype.Timestamp `json:"updatedAt"`
 }
 
 type WorkflowTriggers struct {

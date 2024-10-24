@@ -19,7 +19,7 @@ import invariant from 'tiny-invariant';
 import { useOutletContext, useSearchParams } from 'react-router-dom';
 import { TenantContextType } from '@/lib/outlet';
 
-export default function RateLimits() {
+export default function Crons() {
   return (
     <div className="flex-grow h-full w-full">
       <div className="mx-auto max-w-7xl py-8 px-4 sm:px-6 lg:px-8">
@@ -27,13 +27,13 @@ export default function RateLimits() {
           Cron Runs
         </h2>
         <Separator className="my-4" />
-        <ScheduledRunsTable />
+        <CronsTable />
       </div>
     </div>
   );
 }
 
-function ScheduledRunsTable() {
+function CronsTable() {
   const { tenant } = useOutletContext<TenantContextType>();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -58,7 +58,7 @@ function ScheduledRunsTable() {
     return [];
   });
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
-    RateLimitId: false,
+    createdAt: false,
   });
 
   const [pagination, setPagination] = useState<PaginationState>(() => {

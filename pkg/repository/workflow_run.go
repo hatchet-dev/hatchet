@@ -396,7 +396,7 @@ type ListScheduledWorkflowsOpts struct {
 	Limit *int
 
 	// (optional) the order by field
-	OrderBy *string `validate:"omitempty,oneof=createdAt finishedAt startedAt duration"`
+	OrderBy *string `validate:"omitempty,oneof=createdAt triggerAt"`
 
 	// (optional) the order direction
 	OrderDirection *string `validate:"omitempty,oneof=ASC DESC"`

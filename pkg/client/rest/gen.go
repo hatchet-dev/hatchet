@@ -82,7 +82,8 @@ const (
 
 // Defines values for ScheduledWorkflowsOrderByField.
 const (
-	TriggerAt ScheduledWorkflowsOrderByField = "triggerAt"
+	ScheduledWorkflowsOrderByFieldCreatedAt ScheduledWorkflowsOrderByField = "createdAt"
+	ScheduledWorkflowsOrderByFieldTriggerAt ScheduledWorkflowsOrderByField = "triggerAt"
 )
 
 // Defines values for StepRunEventReason.
@@ -178,10 +179,10 @@ const (
 
 // Defines values for WorkflowRunOrderByField.
 const (
-	WorkflowRunOrderByFieldCreatedAt  WorkflowRunOrderByField = "createdAt"
-	WorkflowRunOrderByFieldDuration   WorkflowRunOrderByField = "duration"
-	WorkflowRunOrderByFieldFinishedAt WorkflowRunOrderByField = "finishedAt"
-	WorkflowRunOrderByFieldStartedAt  WorkflowRunOrderByField = "startedAt"
+	CreatedAt  WorkflowRunOrderByField = "createdAt"
+	Duration   WorkflowRunOrderByField = "duration"
+	FinishedAt WorkflowRunOrderByField = "finishedAt"
+	StartedAt  WorkflowRunOrderByField = "startedAt"
 )
 
 // Defines values for WorkflowRunStatus.

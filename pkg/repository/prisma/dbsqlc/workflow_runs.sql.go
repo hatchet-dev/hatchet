@@ -1232,7 +1232,7 @@ func (q *Queries) GetChildWorkflowRunsByKey(ctx context.Context, db DBTX, arg Ge
 
 const getScheduledChildWorkflowRun = `-- name: GetScheduledChildWorkflowRun :one
 SELECT
-    id, "parentId", "triggerAt", "tickerId", input, "childIndex", "childKey", "parentStepRunId", "parentWorkflowRunId", "additionalMetadata"
+    id, "parentId", "triggerAt", "tickerId", input, "childIndex", "childKey", "parentStepRunId", "parentWorkflowRunId", "additionalMetadata", "createdAt", "deletedAt", "updatedAt"
 FROM
     "WorkflowTriggerScheduledRef"
 WHERE
@@ -1271,6 +1271,9 @@ func (q *Queries) GetScheduledChildWorkflowRun(ctx context.Context, db DBTX, arg
 		&i.ParentStepRunId,
 		&i.ParentWorkflowRunId,
 		&i.AdditionalMetadata,
+		&i.CreatedAt,
+		&i.DeletedAt,
+		&i.UpdatedAt,
 	)
 	return &i, err
 }
@@ -2113,7 +2116,7 @@ SELECT
     v."id" as "workflowVersionId",
     w."tenantId",
     t.id, t."createdAt", t."updatedAt", t."deletedAt", t."workflowVersionId", t."tenantId",
-    c."parentId", c.cron, c."tickerId", c.input, c.enabled, c."additionalMetadata"
+    c."parentId", c.cron, c."tickerId", c.input, c.enabled, c."additionalMetadata", c."createdAt", c."deletedAt", c."updatedAt"
 FROM "WorkflowTriggerCronRef" c
 JOIN "WorkflowTriggers" t ON c."parentId" = t."id"
 JOIN "WorkflowVersion" v ON t."workflowVersionId" = v."id"
@@ -2163,6 +2166,9 @@ type ListCronWorkflowsRow struct {
 	Input               []byte           `json:"input"`
 	Enabled             bool             `json:"enabled"`
 	AdditionalMetadata  []byte           `json:"additionalMetadata"`
+	CreatedAt_2         pgtype.Timestamp `json:"createdAt_2"`
+	DeletedAt_2         pgtype.Timestamp `json:"deletedAt_2"`
+	UpdatedAt_2         pgtype.Timestamp `json:"updatedAt_2"`
 }
 
 func (q *Queries) ListCronWorkflows(ctx context.Context, db DBTX, arg ListCronWorkflowsParams) ([]*ListCronWorkflowsRow, error) {
@@ -2196,6 +2202,9 @@ func (q *Queries) ListCronWorkflows(ctx context.Context, db DBTX, arg ListCronWo
 			&i.Input,
 			&i.Enabled,
 			&i.AdditionalMetadata,
+			&i.CreatedAt_2,
+			&i.DeletedAt_2,
+			&i.UpdatedAt_2,
 		); err != nil {
 			return nil, err
 		}
@@ -2213,7 +2222,7 @@ SELECT
     w."id" as "workflowId",
     v."id" as "workflowVersionId",
     w."tenantId",
-    t.id, t."parentId", t."triggerAt", t."tickerId", t.input, t."childIndex", t."childKey", t."parentStepRunId", t."parentWorkflowRunId", t."additionalMetadata"
+    t.id, t."parentId", t."triggerAt", t."tickerId", t.input, t."childIndex", t."childKey", t."parentStepRunId", t."parentWorkflowRunId", t."additionalMetadata", t."createdAt", t."deletedAt", t."updatedAt"
 FROM "WorkflowTriggerScheduledRef" t
 JOIN "WorkflowVersion" v ON t."parentId" = v."id"
 JOIN "Workflow" w on v."workflowId" = w."id"
@@ -2223,8 +2232,8 @@ WHERE v."deletedAt" IS NULL
 ORDER BY
     case when $2 = 'triggerAt ASC' THEN t."triggerAt" END ASC ,
     case when $2 = 'triggerAt DESC' THEN t."triggerAt" END DESC,
-    -- case when @orderBy = 'createdAt ASC' THEN t."createdAt" END ASC ,
-    -- case when @orderBy = 'createdAt DESC' THEN t."createdAt" END DESC,
+    case when $2 = 'createdAt ASC' THEN t."createdAt" END ASC ,
+    case when $2 = 'createdAt DESC' THEN t."createdAt" END DESC,
     -- case when @orderBy = 'finishedAt ASC' THEN t."finishedAt" END ASC ,
     -- case when @orderBy = 'finishedAt DESC' THEN t."finishedAt" END DESC,
     -- case when @orderBy = 'startedAt ASC' THEN t."startedAt" END ASC ,
@@ -2260,6 +2269,9 @@ type ListScheduledWorkflowsRow struct {
 	ParentStepRunId     pgtype.UUID      `json:"parentStepRunId"`
 	ParentWorkflowRunId pgtype.UUID      `json:"parentWorkflowRunId"`
 	AdditionalMetadata  []byte           `json:"additionalMetadata"`
+	CreatedAt           pgtype.Timestamp `json:"createdAt"`
+	DeletedAt           pgtype.Timestamp `json:"deletedAt"`
+	UpdatedAt           pgtype.Timestamp `json:"updatedAt"`
 }
 
 func (q *Queries) ListScheduledWorkflows(ctx context.Context, db DBTX, arg ListScheduledWorkflowsParams) ([]*ListScheduledWorkflowsRow, error) {
@@ -2291,6 +2303,9 @@ func (q *Queries) ListScheduledWorkflows(ctx context.Context, db DBTX, arg ListS
 			&i.ParentStepRunId,
 			&i.ParentWorkflowRunId,
 			&i.AdditionalMetadata,
+			&i.CreatedAt,
+			&i.DeletedAt,
+			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}

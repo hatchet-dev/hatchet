@@ -58,7 +58,7 @@ function ScheduledRunsTable() {
     return [];
   });
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
-    RateLimitId: false,
+    createdAt: false,
   });
 
   const [pagination, setPagination] = useState<PaginationState>(() => {
@@ -115,6 +115,8 @@ function ScheduledRunsTable() {
     }
 
     switch (sorting[0]?.id) {
+      case 'createdAt':
+        return ScheduledWorkflowsOrderByField.CreatedAt;
       case 'triggerAt':
         return ScheduledWorkflowsOrderByField.TriggerAt;
       default:
@@ -144,16 +146,6 @@ function ScheduledRunsTable() {
     }),
     refetchInterval: 2000,
   });
-
-  // const tableData =
-  //   data?.rows?.map(
-  //     (row): ScheduledWorkflows => ({
-  //       ...row,
-  //       metadata: {
-  //         id: row.key,
-  //       },
-  //     }),
-  //   ) || [];
 
   return (
     <DataTable

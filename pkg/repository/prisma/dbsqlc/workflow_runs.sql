@@ -1433,8 +1433,8 @@ WHERE v."deletedAt" IS NULL
 ORDER BY
     case when @orderBy = 'triggerAt ASC' THEN t."triggerAt" END ASC ,
     case when @orderBy = 'triggerAt DESC' THEN t."triggerAt" END DESC,
-    -- case when @orderBy = 'createdAt ASC' THEN t."createdAt" END ASC ,
-    -- case when @orderBy = 'createdAt DESC' THEN t."createdAt" END DESC,
+    case when @orderBy = 'createdAt ASC' THEN t."createdAt" END ASC ,
+    case when @orderBy = 'createdAt DESC' THEN t."createdAt" END DESC,
     -- case when @orderBy = 'finishedAt ASC' THEN t."finishedAt" END ASC ,
     -- case when @orderBy = 'finishedAt DESC' THEN t."finishedAt" END DESC,
     -- case when @orderBy = 'startedAt ASC' THEN t."startedAt" END ASC ,

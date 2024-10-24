@@ -51,4 +51,17 @@ export const columns: ColumnDef<ScheduledWorkflows>[] = [
     },
     enableSorting: false,
   },
+  {
+    accessorKey: 'createdAt',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Created At" />
+    ),
+    cell: ({ row }) => (
+      <div className="flex flex-row items-center gap-4 pl-4">
+        <RelativeDate date={row.original.metadata.createdAt} />
+      </div>
+    ),
+    enableSorting: true,
+    enableHiding: true,
+  },
 ];

@@ -779,6 +779,7 @@ export interface ScheduledWorkflowsList {
 
 export enum ScheduledWorkflowsOrderByField {
   TriggerAt = 'triggerAt',
+  CreatedAt = 'createdAt',
 }
 
 export interface CronWorkflows {

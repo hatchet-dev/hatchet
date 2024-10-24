@@ -145,6 +145,20 @@ func (w *workflowRunAPIRepository) ListScheduledWorkflows(ctx context.Context, t
 		}
 	}
 
+	orderByField := "triggerAt"
+
+	if opts.OrderBy != nil {
+		orderByField = *opts.OrderBy
+	}
+
+	orderByDirection := "DESC"
+
+	if opts.OrderDirection != nil {
+		orderByDirection = *opts.OrderDirection
+	}
+
+	listOpts.Orderby = orderByField + " " + orderByDirection
+
 	scheduledWorkflows, err := w.queries.ListScheduledWorkflows(ctx, w.pool, listOpts)
 	if err != nil {
 		return nil, 0, err
@@ -181,6 +195,20 @@ func (w *workflowRunAPIRepository) ListCronWorkflows(ctx context.Context, tenant
 			Valid: true,
 		}
 	}
+
+	orderByField := "createdAt"
+
+	if opts.OrderBy != nil {
+		orderByField = *opts.OrderBy
+	}
+
+	orderByDirection := "DESC"
+
+	if opts.OrderDirection != nil {
+		orderByDirection = *opts.OrderDirection
+	}
+
+	listOpts.Orderby = orderByField + " " + orderByDirection
 
 	cronWorkflows, err := w.queries.ListCronWorkflows(ctx, w.pool, listOpts)
 	if err != nil {

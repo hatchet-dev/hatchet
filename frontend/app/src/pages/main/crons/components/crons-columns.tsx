@@ -3,6 +3,7 @@ import { DataTableColumnHeader } from '../../../../components/molecules/data-tab
 import { CronWorkflows, RateLimit } from '@/lib/api';
 import CronPrettifier from 'cronstrue';
 import { AdditionalMetadata } from '../../events/components/additional-metadata';
+import RelativeDate from '@/components/molecules/relative-date';
 
 export type RateLimitRow = RateLimit & {
   metadata: {
@@ -63,5 +64,18 @@ export const columns: ColumnDef<CronWorkflows>[] = [
       return <AdditionalMetadata metadata={row.original.additionalMetadata} />;
     },
     enableSorting: false,
+  },
+  {
+    accessorKey: 'createdAt',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Created At" />
+    ),
+    cell: ({ row }) => (
+      <div className="flex flex-row items-center gap-4 pl-4">
+        <RelativeDate date={row.original.metadata.createdAt} />
+      </div>
+    ),
+    enableSorting: true,
+    enableHiding: true,
   },
 ];

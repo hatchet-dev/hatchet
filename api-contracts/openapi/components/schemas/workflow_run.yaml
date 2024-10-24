@@ -10,7 +10,7 @@ ScheduledWorkflowsOrderByField:
   type: string
   enum:
     - triggerAt
-
+    - createdAt
 CronWorkflowsOrderByField:
   type: string
   enum:
