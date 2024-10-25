@@ -237,8 +237,8 @@ func (b *IngestBuf[T, U]) flush() {
 	err := b.flushSemaphore.Acquire(sCtx, 1)
 
 	if err != nil {
-		b.l.Error().Msg(b.debugBuffer())
-		b.l.Error().Msgf("could not acquire semaphore in: %s  %v", b.waitForFlush, err)
+		b.l.Warn().Msg(b.debugBuffer())
+		b.l.Warn().Msgf("could not acquire semaphore in: %s  %v", b.waitForFlush, err)
 		return
 	}
 
@@ -416,6 +416,8 @@ func (b *IngestBuf[T, U]) countDebugMapEntries() int {
 }
 func (b *IngestBuf[T, U]) debugBuffer() string {
 	var builder strings.Builder
+	b.fmux.Lock()
+	defer b.fmux.Unlock()
 
 	builder.WriteString("============= Buffer =============\n")
 	builder.WriteString(fmt.Sprintf("%d items in buffer\n", b.safeCheckSizeOfBuffer()))
