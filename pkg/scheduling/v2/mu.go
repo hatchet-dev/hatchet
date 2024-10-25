@@ -3,10 +3,10 @@ package v2
 import (
 	"fmt"
 	"runtime"
+	"sync"
 	"time"
 
 	"github.com/rs/zerolog"
-	"github.com/sasha-s/go-deadlock"
 )
 
 type debugMu struct {
@@ -28,13 +28,13 @@ func (d debugMu) print(start time.Time) {
 }
 
 type mutex struct {
-	*deadlock.Mutex
+	*sync.Mutex
 	debugMu
 }
 
 func newMu(l *zerolog.Logger) mutex {
 	return mutex{
-		Mutex:   &deadlock.Mutex{},
+		Mutex:   &sync.Mutex{},
 		debugMu: debugMu{l: l},
 	}
 }
@@ -45,13 +45,13 @@ func (m mutex) Lock() {
 }
 
 type rwMutex struct {
-	*deadlock.RWMutex
+	*sync.RWMutex
 	debugMu
 }
 
 func newRWMu(l *zerolog.Logger) rwMutex {
 	return rwMutex{
-		RWMutex: &deadlock.RWMutex{},
+		RWMutex: &sync.RWMutex{},
 		debugMu: debugMu{l: l},
 	}
 }

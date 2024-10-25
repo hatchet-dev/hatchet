@@ -2,12 +2,11 @@ package v2
 
 import (
 	"slices"
-
-	"github.com/sasha-s/go-deadlock"
+	"sync"
 )
 
 type action struct {
-	mu       deadlock.RWMutex
+	mu       sync.RWMutex
 	actionId string
 
 	lastReplenishedSlotCount   int
