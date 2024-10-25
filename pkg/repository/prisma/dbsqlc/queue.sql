@@ -1,5 +1,5 @@
 -- name: UpsertQueue :exec
-WITH queue_to_update AS (
+WITH queue_exists AS (
     SELECT
         1
     FROM
@@ -7,16 +7,31 @@ WITH queue_to_update AS (
     WHERE
         "tenantId" = @tenantId::uuid
         AND "name" = @name::text
+), queue_to_update AS (
+    SELECT
+        *
+    FROM
+        "Queue"
+    WHERE
+        EXISTS (
+            SELECT
+                1
+            FROM
+                queue_exists
+        )
+        AND "tenantId" = @tenantId::uuid
+        AND "name" = @name::text
     FOR UPDATE SKIP LOCKED
-)
-, update_queue AS (
+), update_queue AS (
     UPDATE
         "Queue"
     SET
         "lastActive" = NOW()
-    WHERE EXISTS (
-        SELECT 1 FROM queue_to_update
-    )
+    FROM
+        queue_to_update
+    WHERE
+        "Queue"."tenantId" = queue_to_update."tenantId"
+        AND "Queue"."name" = queue_to_update."name"
 )
 INSERT INTO
     "Queue" (
@@ -24,12 +39,13 @@ INSERT INTO
         "name",
         "lastActive"
     )
-VALUES
-    (
-        @tenantId::uuid,
-        @name::text,
-        NOW()
-    )
+SELECT
+    @tenantId::uuid,
+    @name::text,
+    NOW()
+WHERE NOT EXISTS (
+    SELECT 1 FROM queue_exists
+)
 ON CONFLICT ("tenantId", "name") DO NOTHING;
 
 -- name: ListQueues :many

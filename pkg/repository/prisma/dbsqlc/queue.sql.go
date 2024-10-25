@@ -1001,7 +1001,7 @@ func (q *Queries) RemoveTimeoutQueueItem(ctx context.Context, db DBTX, arg Remov
 }
 
 const upsertQueue = `-- name: UpsertQueue :exec
-WITH queue_to_update AS (
+WITH queue_exists AS (
     SELECT
         1
     FROM
@@ -1009,16 +1009,31 @@ WITH queue_to_update AS (
     WHERE
         "tenantId" = $1::uuid
         AND "name" = $2::text
+), queue_to_update AS (
+    SELECT
+        id, "tenantId", name, "lastActive"
+    FROM
+        "Queue"
+    WHERE
+        EXISTS (
+            SELECT
+                1
+            FROM
+                queue_exists
+        )
+        AND "tenantId" = $1::uuid
+        AND "name" = $2::text
     FOR UPDATE SKIP LOCKED
-)
-, update_queue AS (
+), update_queue AS (
     UPDATE
         "Queue"
     SET
         "lastActive" = NOW()
-    WHERE EXISTS (
-        SELECT 1 FROM queue_to_update
-    )
+    FROM
+        queue_to_update
+    WHERE
+        "Queue"."tenantId" = queue_to_update."tenantId"
+        AND "Queue"."name" = queue_to_update."name"
 )
 INSERT INTO
     "Queue" (
@@ -1026,12 +1041,13 @@ INSERT INTO
         "name",
         "lastActive"
     )
-VALUES
-    (
-        $1::uuid,
-        $2::text,
-        NOW()
-    )
+SELECT
+    $1::uuid,
+    $2::text,
+    NOW()
+WHERE NOT EXISTS (
+    SELECT 1 FROM queue_exists
+)
 ON CONFLICT ("tenantId", "name") DO NOTHING
 `
 

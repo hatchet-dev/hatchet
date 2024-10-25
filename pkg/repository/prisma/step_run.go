@@ -2828,29 +2828,27 @@ func (s *stepRunEngineRepository) UpdateStepRunInputSchema(ctx context.Context, 
 }
 
 func (s *stepRunEngineRepository) doCachedUpsertOfQueue(ctx context.Context, tx dbsqlc.DBTX, tenantId string, innerStepRun *dbsqlc.GetStepRunForEngineRow) error {
-	return nil
+	cacheKey := fmt.Sprintf("t-%s-q-%s", tenantId, innerStepRun.SRQueue)
 
-	// cacheKey := fmt.Sprintf("t-%s-q-%s", tenantId, innerStepRun.SRQueue)
+	_, err := cache.MakeCacheable(s.queueActionTenantCache, cacheKey, func() (*bool, error) {
+		err := s.queries.UpsertQueue(
+			ctx,
+			tx,
+			dbsqlc.UpsertQueueParams{
+				Name:     innerStepRun.ActionId,
+				Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+			},
+		)
 
-	// _, err := cache.MakeCacheable(s.queueActionTenantCache, cacheKey, func() (*bool, error) {
-	// 	err := s.queries.UpsertQueue(
-	// 		ctx,
-	// 		tx,
-	// 		dbsqlc.UpsertQueueParams{
-	// 			Name:     innerStepRun.ActionId,
-	// 			Tenantid: sqlchelpers.UUIDFromStr(tenantId),
-	// 		},
-	// 	)
+		if err != nil {
+			return nil, err
+		}
 
-	// 	if err != nil {
-	// 		return nil, err
-	// 	}
+		res := true
+		return &res, nil
+	})
 
-	// 	res := true
-	// 	return &res, nil
-	// })
-
-	// return err
+	return err
 }
 
 func (s *stepRunEngineRepository) QueueStepRun(ctx context.Context, tenantId, stepRunId string, opts *repository.QueueStepRunOpts) (*dbsqlc.GetStepRunForEngineRow, error) {
