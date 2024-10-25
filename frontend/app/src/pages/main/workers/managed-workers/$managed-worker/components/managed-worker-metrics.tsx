@@ -198,9 +198,6 @@ export function ManagedWorkerMetrics({
         <ZoomableChart
           className="max-h-[25rem] min-h-[25rem]"
           data={transformToDataPoints(getCpuMetricsQuery.data)}
-          colors={{
-            '6e82001f0053e8-sea': 'rgb(34 197 94 / 0.5)',
-          }}
           kind="line"
           zoom={(createdAfter, createdBefore) => {
             setCustomTimeRange([createdAfter, createdBefore]);
@@ -218,9 +215,6 @@ export function ManagedWorkerMetrics({
           data={transformToDataPoints(getMemoryMetricsQuery.data, (d) => {
             return d / (1000 * 1000);
           })}
-          colors={{
-            '6e82001f0053e8-sea': 'rgb(34 197 94 / 0.5)',
-          }}
           kind="line"
           zoom={(createdAfter, createdBefore) => {
             setCustomTimeRange([createdAfter, createdBefore]);
@@ -238,9 +232,6 @@ export function ManagedWorkerMetrics({
           data={transformToDataPoints(getDiskMetricsQuery.data, (d) => {
             return d / (1000 * 1000);
           })}
-          colors={{
-            '6e82001f0053e8-sea': 'rgb(34 197 94 / 0.5)',
-          }}
           kind="line"
           zoom={(createdAfter, createdBefore) => {
             setCustomTimeRange([createdAfter, createdBefore]);
