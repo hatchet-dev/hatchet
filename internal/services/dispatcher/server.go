@@ -98,6 +98,61 @@ func (worker *subscribedWorker) StartStepRun(
 	return worker.stream.Send(action)
 }
 
+func (worker *subscribedWorker) StartStepRunFromBulk(
+	ctx context.Context,
+	tenantId string,
+	stepRun *dbsqlc.GetStepRunBulkDataForEngineRow,
+) error {
+	ctx, span := telemetry.NewSpan(ctx, "start-step-run-from-bulk") // nolint:ineffassign
+	defer span.End()
+
+	inputBytes := []byte{}
+
+	if stepRun.Input != nil {
+		inputBytes = stepRun.Input
+	}
+
+	stepName := stepRun.StepReadableId.String
+
+	action := &contracts.AssignedAction{
+		TenantId:      tenantId,
+		JobId:         sqlchelpers.UUIDToStr(stepRun.JobId),
+		JobName:       stepRun.JobName,
+		JobRunId:      sqlchelpers.UUIDToStr(stepRun.JobRunId),
+		StepId:        sqlchelpers.UUIDToStr(stepRun.StepId),
+		StepRunId:     sqlchelpers.UUIDToStr(stepRun.SRID),
+		ActionType:    contracts.ActionType_START_STEP_RUN,
+		ActionId:      stepRun.ActionId,
+		ActionPayload: string(inputBytes),
+		StepName:      stepName,
+		WorkflowRunId: sqlchelpers.UUIDToStr(stepRun.WorkflowRunId),
+		RetryCount:    stepRun.SRRetryCount,
+	}
+
+	if stepRun.AdditionalMetadata != nil {
+		metadataStr := string(stepRun.AdditionalMetadata)
+		action.AdditionalMetadata = &metadataStr
+	}
+
+	if stepRun.ChildIndex.Valid {
+		action.ChildWorkflowIndex = &stepRun.ChildIndex.Int32
+	}
+
+	if stepRun.ChildKey.Valid {
+		action.ChildWorkflowKey = &stepRun.ChildKey.String
+	}
+
+	if stepRun.ParentId.Valid {
+		parentId := sqlchelpers.UUIDToStr(stepRun.ParentId)
+		action.ParentWorkflowRunId = &parentId
+	}
+
+	worker.sendMu.Lock()
+	defer worker.sendMu.Unlock()
+
+	return worker.stream.Send(action)
+}
+
 func (worker *subscribedWorker) StartGroupKeyAction(
 	ctx context.Context,
 	tenantId string,
@@ -484,6 +539,11 @@ func (s *DispatcherImpl) Heartbeat(ctx context.Context, req *contracts.Heartbeat
 	worker, err := s.repo.Worker().GetWorkerForEngine(ctx, tenantId, req.WorkerId)
 
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			s.l.Error().Msgf("worker %s not found", req.WorkerId)
+			return nil, err
+		}
+
 		return nil, err
 	}
 
@@ -500,6 +560,11 @@ func (s *DispatcherImpl) Heartbeat(ctx context.Context, req *contracts.Heartbeat
 	err = s.repo.Worker().UpdateWorkerHeartbeat(ctx, tenantId, req.WorkerId, heartbeatAt)
 
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			s.l.Error().Msgf("could not update worker heartbeat: worker %s not found", req.WorkerId)
+			return nil, err
+		}
+
 		return nil, err
 	}
 
@@ -1164,6 +1229,7 @@ func (s *DispatcherImpl) handleStepRunCompleted(inputCtx context.Context, reques
 
 	if err != nil {
 		s.l.Error().Err(err).Msgf("could not release semaphore for step run %s", request.StepRunId)
+		return nil, err
 	}
 
 	s.l.Debug().Msgf("Received step completed event for step run %s", request.StepRunId)
@@ -1238,6 +1304,7 @@ func (s *DispatcherImpl) handleStepRunFailed(inputCtx context.Context, request *
 
 	if err != nil {
 		s.l.Error().Err(err).Msgf("could not release semaphore for step run %s", request.StepRunId)
+		return nil, err
 	}
 
 	s.l.Debug().Msgf("Received step failed event for step run %s", request.StepRunId)

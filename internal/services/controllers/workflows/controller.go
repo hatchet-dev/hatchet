@@ -15,7 +15,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/integrations/alerting"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/queueutils"
-	"github.com/hatchet-dev/hatchet/internal/services/controllers/partition"
+	"github.com/hatchet-dev/hatchet/internal/services/partition"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
@@ -760,7 +760,7 @@ func (wc *WorkflowsControllerImpl) unpauseWorkflowRuns(ctx context.Context, tena
 }
 
 func (wc *WorkflowsControllerImpl) startManyJobRuns(ctx context.Context, tenantId string, jobRunIds []string) error {
-	return queueutils.MakeBatched(50, jobRunIds, func(group []string) error {
+	return queueutils.BatchConcurrent(50, jobRunIds, func(group []string) error {
 		for i := range group {
 			err := wc.startJobRun(ctx, tenantId, group[i])
 

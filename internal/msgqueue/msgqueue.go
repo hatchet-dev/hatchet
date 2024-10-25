@@ -98,6 +98,7 @@ func QueueTypeFromTickerID(t string) consumerQueue {
 const (
 	JobController      = "job"
 	WorkflowController = "workflow"
+	Scheduler          = "scheduler"
 )
 
 func QueueTypeFromPartitionIDAndController(p, controller string) consumerQueue {

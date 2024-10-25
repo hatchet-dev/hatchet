@@ -110,6 +110,8 @@ type TenantEngineRepository interface {
 
 	ListTenantsByWorkerPartition(ctx context.Context, workerPartitionId string) ([]*dbsqlc.Tenant, error)
 
+	ListTenantsBySchedulerPartition(ctx context.Context, schedulerPartitionId string) ([]*dbsqlc.Tenant, error)
+
 	// CreateEnginePartition creates a new partition for tenants within the engine
 	CreateControllerPartition(ctx context.Context) (string, error)
 
@@ -122,6 +124,16 @@ type TenantEngineRepository interface {
 	RebalanceAllControllerPartitions(ctx context.Context) error
 
 	RebalanceInactiveControllerPartitions(ctx context.Context) error
+
+	CreateSchedulerPartition(ctx context.Context) (string, error)
+
+	UpdateSchedulerPartitionHeartbeat(ctx context.Context, partitionId string) (string, error)
+
+	DeleteSchedulerPartition(ctx context.Context, id string) error
+
+	RebalanceAllSchedulerPartitions(ctx context.Context) error
+
+	RebalanceInactiveSchedulerPartitions(ctx context.Context) error
 
 	CreateTenantWorkerPartition(ctx context.Context) (string, error)
 

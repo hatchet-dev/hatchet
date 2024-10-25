@@ -85,6 +85,48 @@ func (q *Queries) CreateGetGroupKeyRuns(ctx context.Context, db DBTX, arg []Crea
 	return db.CopyFrom(ctx, []string{"GetGroupKeyRun"}, []string{"id", "tenantId", "workflowRunId", "input", "requeueAfter", "scheduleTimeoutAt", "status"}, &iteratorForCreateGetGroupKeyRuns{rows: arg})
 }
 
+// iteratorForCreateQueueItemsBulk implements pgx.CopyFromSource.
+type iteratorForCreateQueueItemsBulk struct {
+	rows                 []CreateQueueItemsBulkParams
+	skippedFirstNextCall bool
+}
+
+func (r *iteratorForCreateQueueItemsBulk) Next() bool {
+	if len(r.rows) == 0 {
+		return false
+	}
+	if !r.skippedFirstNextCall {
+		r.skippedFirstNextCall = true
+		return true
+	}
+	r.rows = r.rows[1:]
+	return len(r.rows) > 0
+}
+
+func (r iteratorForCreateQueueItemsBulk) Values() ([]interface{}, error) {
+	return []interface{}{
+		r.rows[0].StepRunId,
+		r.rows[0].StepId,
+		r.rows[0].ActionId,
+		r.rows[0].ScheduleTimeoutAt,
+		r.rows[0].StepTimeout,
+		r.rows[0].Priority,
+		r.rows[0].IsQueued,
+		r.rows[0].TenantId,
+		r.rows[0].Queue,
+		r.rows[0].Sticky,
+		r.rows[0].DesiredWorkerId,
+	}, nil
+}
+
+func (r iteratorForCreateQueueItemsBulk) Err() error {
+	return nil
+}
+
+func (q *Queries) CreateQueueItemsBulk(ctx context.Context, db DBTX, arg []CreateQueueItemsBulkParams) (int64, error) {
+	return db.CopyFrom(ctx, []string{"QueueItem"}, []string{"stepRunId", "stepId", "actionId", "scheduleTimeoutAt", "stepTimeout", "priority", "isQueued", "tenantId", "queue", "sticky", "desiredWorkerId"}, &iteratorForCreateQueueItemsBulk{rows: arg})
+}
+
 // iteratorForCreateStepRuns implements pgx.CopyFromSource.
 type iteratorForCreateStepRuns struct {
 	rows                 []CreateStepRunsParams

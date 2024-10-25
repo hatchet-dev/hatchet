@@ -473,7 +473,7 @@ func (w *workerEngineRepository) UpdateWorkerHeartbeat(ctx context.Context, tena
 		LastHeartbeatAt: sqlchelpers.TimestampFromTime(lastHeartbeat),
 	})
 
-	if err != nil && err != pgx.ErrNoRows {
+	if err != nil {
 		return fmt.Errorf("could not update worker heartbeat: %w", err)
 	}
 

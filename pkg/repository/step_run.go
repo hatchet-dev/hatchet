@@ -212,6 +212,8 @@ type StepRunEngineRepository interface {
 
 	GetStepRunDataForEngine(ctx context.Context, tenantId, stepRunId string) (*dbsqlc.GetStepRunDataForEngineRow, error)
 
+	GetStepRunBulkDataForEngine(ctx context.Context, tenantId string, stepRunIds []string) ([]*dbsqlc.GetStepRunBulkDataForEngineRow, error)
+
 	GetStepRunMetaForEngine(ctx context.Context, tenantId, stepRunId string) (*dbsqlc.GetStepRunMetaRow, error)
 
 	// QueueStepRun is like UpdateStepRun, except that it will only update the step run if it is in

@@ -3,6 +3,7 @@ package buffer
 import (
 	"context"
 	"fmt"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -214,8 +215,8 @@ func (b *IngestBuf[T, U]) flush(items []*inputWrapper[T, U]) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				err := fmt.Errorf("panic recovered in flush: %v", r)
-				b.l.Error().Msgf("Panic recovered: %v", err)
+				err := fmt.Errorf("[%s] panic recovered in flush: %v", b.name, r)
+				b.l.Error().Msgf("Panic recovered: %v. Stack %s", err, string(debug.Stack()))
 
 				// Send error to all done channels
 				for _, doneChan := range doneChans {
