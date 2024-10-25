@@ -539,7 +539,14 @@ func (s *Scheduler) tryAssignBatch(
 
 		wg.Add(1)
 
-		childRingOffset := newRingOffset % len(candidateSlots)
+		denom := len(candidateSlots)
+
+		if denom == 0 {
+			res[i].noSlots = true
+			wg.Done()
+		}
+
+		childRingOffset := newRingOffset % denom
 
 		go func(i int) {
 			defer wg.Done()
