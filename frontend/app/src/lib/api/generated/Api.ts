@@ -51,6 +51,7 @@ import {
   ReplayWorkflowRunsRequest,
   ReplayWorkflowRunsResponse,
   RerunStepRunRequest,
+  ScheduledWorkflows,
   ScheduledWorkflowsList,
   ScheduledWorkflowsOrderByField,
   SNSIntegration,
@@ -1166,6 +1167,39 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       query: query,
       secure: true,
       format: 'json',
+      ...params,
+    });
+  /**
+   * @description Get a scheduled workflow run for a tenant
+   *
+   * @tags Workflow
+   * @name WorkflowScheduledGet
+   * @summary Get workflow runs
+   * @request GET:/api/v1/tenants/{tenant}/workflows/scheduled/{scheduledId}
+   * @secure
+   */
+  workflowScheduledGet = (tenant: string, scheduledId: string, params: RequestParams = {}) =>
+    this.request<ScheduledWorkflows, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/workflows/scheduled/${scheduledId}`,
+      method: 'GET',
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Delete a scheduled workflow run for a tenant
+   *
+   * @tags Workflow
+   * @name WorkflowScheduledDelete
+   * @summary Delete tenant alert email group
+   * @request DELETE:/api/v1/tenants/{tenant}/workflows/scheduled/{scheduledId}
+   * @secure
+   */
+  workflowScheduledDelete = (tenant: string, scheduledId: string, params: RequestParams = {}) =>
+    this.request<void, APIErrors | APIError>({
+      path: `/api/v1/tenants/${tenant}/workflows/scheduled/${scheduledId}`,
+      method: 'DELETE',
+      secure: true,
       ...params,
     });
   /**

@@ -440,6 +440,15 @@ type WorkflowRunAPIRepository interface {
 	// List ScheduledWorkflows lists workflows by scheduled trigger
 	ListScheduledWorkflows(ctx context.Context, tenantId string, opts *ListScheduledWorkflowsOpts) ([]*dbsqlc.ListScheduledWorkflowsRow, int64, error)
 
+	// DeleteScheduledWorkflow deletes a scheduled workflow run
+	DeleteScheduledWorkflow(ctx context.Context, tenantId, scheduledWorkflowId string) error
+
+	// GetScheduledWorkflow gets a scheduled workflow run
+	GetScheduledWorkflow(ctx context.Context, tenantId, scheduledWorkflowId string) (*dbsqlc.ListScheduledWorkflowsRow, error)
+
+	// UpdateScheduledWorkflow updates a scheduled workflow run
+	UpdateScheduledWorkflow(ctx context.Context, tenantId, scheduledWorkflowId string, triggerAt time.Time) error
+
 	// List ScheduledWorkflows lists workflows by scheduled trigger
 	ListCronWorkflows(ctx context.Context, tenantId string, opts *ListCronWorkflowsOpts) ([]*dbsqlc.ListCronWorkflowsRow, int64, error)
 

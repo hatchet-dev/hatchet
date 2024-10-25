@@ -167,6 +167,37 @@ func (w *workflowRunAPIRepository) ListScheduledWorkflows(ctx context.Context, t
 	return scheduledWorkflows, count, nil
 }
 
+func (w *workflowRunAPIRepository) DeleteScheduledWorkflow(ctx context.Context, tenantId, scheduledWorkflowId string) error {
+	return w.queries.DeleteScheduledWorkflow(ctx, w.pool, sqlchelpers.UUIDFromStr(scheduledWorkflowId))
+}
+
+func (w *workflowRunAPIRepository) GetScheduledWorkflow(ctx context.Context, tenantId, scheduledWorkflowId string) (*dbsqlc.ListScheduledWorkflowsRow, error) {
+
+	listOpts := dbsqlc.ListScheduledWorkflowsParams{
+		Tenantid:   sqlchelpers.UUIDFromStr(tenantId),
+		Scheduleid: sqlchelpers.UUIDFromStr(scheduledWorkflowId),
+	}
+
+	scheduledWorkflows, err := w.queries.ListScheduledWorkflows(ctx, w.pool, listOpts)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(scheduledWorkflows) == 0 {
+		return nil, nil
+	}
+
+	return scheduledWorkflows[0], nil
+
+}
+
+func (w *workflowRunAPIRepository) UpdateScheduledWorkflow(ctx context.Context, tenantId, scheduledWorkflowId string, triggerAt time.Time) error {
+	return w.queries.UpdateScheduledWorkflow(ctx, w.pool, dbsqlc.UpdateScheduledWorkflowParams{
+		Scheduleid: sqlchelpers.UUIDFromStr(scheduledWorkflowId),
+		Triggerat:  sqlchelpers.TimestampFromTime(triggerAt),
+	})
+}
+
 func (w *workflowRunAPIRepository) ListCronWorkflows(ctx context.Context, tenantId string, opts *repository.ListCronWorkflowsOpts) ([]*dbsqlc.ListCronWorkflowsRow, int64, error) {
 
 	ctx, cancel := context.WithTimeout(ctx, time.Second*30)

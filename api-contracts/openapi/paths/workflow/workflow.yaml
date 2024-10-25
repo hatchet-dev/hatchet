@@ -910,6 +910,100 @@ scheduledList:
     tags:
       - Workflow
 
+scheduled:
+  get:
+    x-resources: ["tenant"]
+    description: Get a scheduled workflow run for a tenant
+    operationId: workflow-scheduled:get
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The scheduled workflow id
+        in: path
+        name: scheduledId
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "../../components/schemas/_index.yaml#/ScheduledWorkflows"
+          description: Successfully retrieved the workflow runs
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "../../components/schemas/_index.yaml#/APIErrors"
+          description: A malformed or bad request
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "../../components/schemas/_index.yaml#/APIErrors"
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "../../components/schemas/_index.yaml#/APIErrors"
+          description: Forbidden
+    summary: Get workflow runs
+    tags:
+      - Workflow
+  delete:
+    x-resources: ["tenant"]
+    description: Delete a scheduled workflow run for a tenant
+    operationId: workflow-scheduled:delete
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The scheduled workflow id
+        in: path
+        name: scheduledId
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+      "204":
+        description: Successfully deleted the scheduled workflow run
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIError"
+        description: Forbidden
+    summary: Delete tenant alert email group
+    tags:
+      - Workflow
+
 cronsList:
   get:
     x-resources: ["tenant"]

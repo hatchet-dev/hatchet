@@ -1998,6 +1998,12 @@ type ClientInterface interface {
 	// WorkflowScheduledList request
 	WorkflowScheduledList(ctx context.Context, tenant openapi_types.UUID, params *WorkflowScheduledListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// WorkflowScheduledDelete request
+	WorkflowScheduledDelete(ctx context.Context, tenant openapi_types.UUID, scheduledId openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// WorkflowScheduledGet request
+	WorkflowScheduledGet(ctx context.Context, tenant openapi_types.UUID, scheduledId openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// WorkflowGetWorkersCount request
 	WorkflowGetWorkersCount(ctx context.Context, tenant openapi_types.UUID, workflow openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -3004,6 +3010,30 @@ func (c *Client) WorkflowRunGetMetrics(ctx context.Context, tenant openapi_types
 
 func (c *Client) WorkflowScheduledList(ctx context.Context, tenant openapi_types.UUID, params *WorkflowScheduledListParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewWorkflowScheduledListRequest(c.Server, tenant, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) WorkflowScheduledDelete(ctx context.Context, tenant openapi_types.UUID, scheduledId openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWorkflowScheduledDeleteRequest(c.Server, tenant, scheduledId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) WorkflowScheduledGet(ctx context.Context, tenant openapi_types.UUID, scheduledId openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWorkflowScheduledGetRequest(c.Server, tenant, scheduledId)
 	if err != nil {
 		return nil, err
 	}
@@ -6792,6 +6822,88 @@ func NewWorkflowScheduledListRequest(server string, tenant openapi_types.UUID, p
 	return req, nil
 }
 
+// NewWorkflowScheduledDeleteRequest generates requests for WorkflowScheduledDelete
+func NewWorkflowScheduledDeleteRequest(server string, tenant openapi_types.UUID, scheduledId openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "scheduledId", runtime.ParamLocationPath, scheduledId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/tenants/%s/workflows/scheduled/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewWorkflowScheduledGetRequest generates requests for WorkflowScheduledGet
+func NewWorkflowScheduledGetRequest(server string, tenant openapi_types.UUID, scheduledId openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "scheduledId", runtime.ParamLocationPath, scheduledId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/tenants/%s/workflows/scheduled/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewWorkflowGetWorkersCountRequest generates requests for WorkflowGetWorkersCount
 func NewWorkflowGetWorkersCountRequest(server string, tenant openapi_types.UUID, workflow openapi_types.UUID) (*http.Request, error) {
 	var err error
@@ -7994,6 +8106,12 @@ type ClientWithResponsesInterface interface {
 
 	// WorkflowScheduledListWithResponse request
 	WorkflowScheduledListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *WorkflowScheduledListParams, reqEditors ...RequestEditorFn) (*WorkflowScheduledListResponse, error)
+
+	// WorkflowScheduledDeleteWithResponse request
+	WorkflowScheduledDeleteWithResponse(ctx context.Context, tenant openapi_types.UUID, scheduledId openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkflowScheduledDeleteResponse, error)
+
+	// WorkflowScheduledGetWithResponse request
+	WorkflowScheduledGetWithResponse(ctx context.Context, tenant openapi_types.UUID, scheduledId openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkflowScheduledGetResponse, error)
 
 	// WorkflowGetWorkersCountWithResponse request
 	WorkflowGetWorkersCountWithResponse(ctx context.Context, tenant openapi_types.UUID, workflow openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkflowGetWorkersCountResponse, error)
@@ -9558,6 +9676,54 @@ func (r WorkflowScheduledListResponse) StatusCode() int {
 	return 0
 }
 
+type WorkflowScheduledDeleteResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *APIErrors
+	JSON403      *APIError
+}
+
+// Status returns HTTPResponse.Status
+func (r WorkflowScheduledDeleteResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r WorkflowScheduledDeleteResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type WorkflowScheduledGetResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ScheduledWorkflows
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON404      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r WorkflowScheduledGetResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r WorkflowScheduledGetResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type WorkflowGetWorkersCountResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -10827,6 +10993,24 @@ func (c *ClientWithResponses) WorkflowScheduledListWithResponse(ctx context.Cont
 		return nil, err
 	}
 	return ParseWorkflowScheduledListResponse(rsp)
+}
+
+// WorkflowScheduledDeleteWithResponse request returning *WorkflowScheduledDeleteResponse
+func (c *ClientWithResponses) WorkflowScheduledDeleteWithResponse(ctx context.Context, tenant openapi_types.UUID, scheduledId openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkflowScheduledDeleteResponse, error) {
+	rsp, err := c.WorkflowScheduledDelete(ctx, tenant, scheduledId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseWorkflowScheduledDeleteResponse(rsp)
+}
+
+// WorkflowScheduledGetWithResponse request returning *WorkflowScheduledGetResponse
+func (c *ClientWithResponses) WorkflowScheduledGetWithResponse(ctx context.Context, tenant openapi_types.UUID, scheduledId openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkflowScheduledGetResponse, error) {
+	rsp, err := c.WorkflowScheduledGet(ctx, tenant, scheduledId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseWorkflowScheduledGetResponse(rsp)
 }
 
 // WorkflowGetWorkersCountWithResponse request returning *WorkflowGetWorkersCountResponse
@@ -13568,6 +13752,86 @@ func ParseWorkflowScheduledListResponse(rsp *http.Response) (*WorkflowScheduledL
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseWorkflowScheduledDeleteResponse parses an HTTP response from a WorkflowScheduledDeleteWithResponse call
+func ParseWorkflowScheduledDeleteResponse(rsp *http.Response) (*WorkflowScheduledDeleteResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &WorkflowScheduledDeleteResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseWorkflowScheduledGetResponse parses an HTTP response from a WorkflowScheduledGetWithResponse call
+func ParseWorkflowScheduledGetResponse(rsp *http.Response) (*WorkflowScheduledGetResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &WorkflowScheduledGetResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ScheduledWorkflows
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	}
 

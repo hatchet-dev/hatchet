@@ -1050,6 +1050,17 @@ type CreateWorkflowRunsParams struct {
 	InsertOrder        pgtype.Int4       `json:"insertOrder"`
 }
 
+const deleteScheduledWorkflow = `-- name: DeleteScheduledWorkflow :exec
+DELETE FROM "WorkflowTriggerScheduledRef"
+WHERE
+    "id" = $1::uuid
+`
+
+func (q *Queries) DeleteScheduledWorkflow(ctx context.Context, db DBTX, scheduleid pgtype.UUID) error {
+	_, err := db.Exec(ctx, deleteScheduledWorkflow, scheduleid)
+	return err
+}
+
 const getChildWorkflowRun = `-- name: GetChildWorkflowRun :one
 SELECT
     "createdAt", "updatedAt", "deletedAt", "tenantId", "workflowVersionId", status, error, "startedAt", "finishedAt", "concurrencyGroupId", "displayName", id, "childIndex", "childKey", "parentId", "parentStepRunId", "additionalMetadata", duration, priority, "insertOrder"
@@ -2234,12 +2245,12 @@ LEFT JOIN "WorkflowRunTriggeredBy" tb ON t."id" = tb."scheduledId"
 LEFT JOIN "WorkflowRun" wr ON tb."parentId" = wr."id"
 WHERE v."deletedAt" IS NULL
 	AND w."tenantId" = $1::uuid
-    -- TODO page
+    AND ($2::uuid IS NULL OR t."id" = $2::uuid)
 ORDER BY
-    case when $2 = 'triggerAt ASC' THEN t."triggerAt" END ASC ,
-    case when $2 = 'triggerAt DESC' THEN t."triggerAt" END DESC,
-    case when $2 = 'createdAt ASC' THEN t."createdAt" END ASC ,
-    case when $2 = 'createdAt DESC' THEN t."createdAt" END DESC,
+    case when $3 = 'triggerAt ASC' THEN t."triggerAt" END ASC ,
+    case when $3 = 'triggerAt DESC' THEN t."triggerAt" END DESC,
+    case when $3 = 'createdAt ASC' THEN t."createdAt" END ASC ,
+    case when $3 = 'createdAt DESC' THEN t."createdAt" END DESC,
     -- case when @orderBy = 'finishedAt ASC' THEN t."finishedAt" END ASC ,
     -- case when @orderBy = 'finishedAt DESC' THEN t."finishedAt" END DESC,
     -- case when @orderBy = 'startedAt ASC' THEN t."startedAt" END ASC ,
@@ -2248,16 +2259,17 @@ ORDER BY
     -- case when @orderBy = 'duration DESC' THEN runs."duration" END DESC NULLS LAST,
     t."id" ASC
 OFFSET
-    COALESCE($3, 0)
+    COALESCE($4, 0)
 LIMIT
-    COALESCE($4, 50)
+    COALESCE($5, 50)
 `
 
 type ListScheduledWorkflowsParams struct {
-	Tenantid pgtype.UUID `json:"tenantid"`
-	Orderby  interface{} `json:"orderby"`
-	Offset   interface{} `json:"offset"`
-	Limit    interface{} `json:"limit"`
+	Tenantid   pgtype.UUID `json:"tenantid"`
+	Scheduleid pgtype.UUID `json:"scheduleid"`
+	Orderby    interface{} `json:"orderby"`
+	Offset     interface{} `json:"offset"`
+	Limit      interface{} `json:"limit"`
 }
 
 type ListScheduledWorkflowsRow struct {
@@ -2287,6 +2299,7 @@ type ListScheduledWorkflowsRow struct {
 func (q *Queries) ListScheduledWorkflows(ctx context.Context, db DBTX, arg ListScheduledWorkflowsParams) ([]*ListScheduledWorkflowsRow, error) {
 	rows, err := db.Query(ctx, listScheduledWorkflows,
 		arg.Tenantid,
+		arg.Scheduleid,
 		arg.Orderby,
 		arg.Offset,
 		arg.Limit,
@@ -3062,6 +3075,23 @@ func (q *Queries) UpdateManyWorkflowRun(ctx context.Context, db DBTX, arg Update
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateScheduledWorkflow = `-- name: UpdateScheduledWorkflow :exec
+UPDATE "WorkflowTriggerScheduledRef"
+    SET "triggerAt" = $1::timestamp
+WHERE
+    "id" = $2::uuid
+`
+
+type UpdateScheduledWorkflowParams struct {
+	Triggerat  pgtype.Timestamp `json:"triggerat"`
+	Scheduleid pgtype.UUID      `json:"scheduleid"`
+}
+
+func (q *Queries) UpdateScheduledWorkflow(ctx context.Context, db DBTX, arg UpdateScheduledWorkflowParams) error {
+	_, err := db.Exec(ctx, updateScheduledWorkflow, arg.Triggerat, arg.Scheduleid)
+	return err
 }
 
 const updateWorkflowRun = `-- name: UpdateWorkflowRun :one

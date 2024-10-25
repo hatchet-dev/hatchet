@@ -1898,6 +1898,12 @@ type ServerInterface interface {
 	// Get workflow runs
 	// (GET /api/v1/tenants/{tenant}/workflows/scheduled)
 	WorkflowScheduledList(ctx echo.Context, tenant openapi_types.UUID, params WorkflowScheduledListParams) error
+	// Delete tenant alert email group
+	// (DELETE /api/v1/tenants/{tenant}/workflows/scheduled/{scheduledId})
+	WorkflowScheduledDelete(ctx echo.Context, tenant openapi_types.UUID, scheduledId openapi_types.UUID) error
+	// Get workflow runs
+	// (GET /api/v1/tenants/{tenant}/workflows/scheduled/{scheduledId})
+	WorkflowScheduledGet(ctx echo.Context, tenant openapi_types.UUID, scheduledId openapi_types.UUID) error
 	// Get workflow worker count
 	// (GET /api/v1/tenants/{tenant}/workflows/{workflow}/worker-count)
 	WorkflowGetWorkersCount(ctx echo.Context, tenant openapi_types.UUID, workflow openapi_types.UUID) error
@@ -3688,6 +3694,62 @@ func (w *ServerInterfaceWrapper) WorkflowScheduledList(ctx echo.Context) error {
 	return err
 }
 
+// WorkflowScheduledDelete converts echo context to params.
+func (w *ServerInterfaceWrapper) WorkflowScheduledDelete(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "tenant" -------------
+	var tenant openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithLocation("simple", false, "tenant", runtime.ParamLocationPath, ctx.Param("tenant"), &tenant)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter tenant: %s", err))
+	}
+
+	// ------------- Path parameter "scheduledId" -------------
+	var scheduledId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithLocation("simple", false, "scheduledId", runtime.ParamLocationPath, ctx.Param("scheduledId"), &scheduledId)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter scheduledId: %s", err))
+	}
+
+	ctx.Set(BearerAuthScopes, []string{})
+
+	ctx.Set(CookieAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.WorkflowScheduledDelete(ctx, tenant, scheduledId)
+	return err
+}
+
+// WorkflowScheduledGet converts echo context to params.
+func (w *ServerInterfaceWrapper) WorkflowScheduledGet(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "tenant" -------------
+	var tenant openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithLocation("simple", false, "tenant", runtime.ParamLocationPath, ctx.Param("tenant"), &tenant)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter tenant: %s", err))
+	}
+
+	// ------------- Path parameter "scheduledId" -------------
+	var scheduledId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithLocation("simple", false, "scheduledId", runtime.ParamLocationPath, ctx.Param("scheduledId"), &scheduledId)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter scheduledId: %s", err))
+	}
+
+	ctx.Set(BearerAuthScopes, []string{})
+
+	ctx.Set(CookieAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.WorkflowScheduledGet(ctx, tenant, scheduledId)
+	return err
+}
+
 // WorkflowGetWorkersCount converts echo context to params.
 func (w *ServerInterfaceWrapper) WorkflowGetWorkersCount(ctx echo.Context) error {
 	var err error
@@ -4185,6 +4247,8 @@ func RegisterHandlersWithBaseURL(router EchoRouter, si ServerInterface, baseURL 
 	router.GET(baseURL+"/api/v1/tenants/:tenant/workflows/runs", wrapper.WorkflowRunList)
 	router.GET(baseURL+"/api/v1/tenants/:tenant/workflows/runs/metrics", wrapper.WorkflowRunGetMetrics)
 	router.GET(baseURL+"/api/v1/tenants/:tenant/workflows/scheduled", wrapper.WorkflowScheduledList)
+	router.DELETE(baseURL+"/api/v1/tenants/:tenant/workflows/scheduled/:scheduledId", wrapper.WorkflowScheduledDelete)
+	router.GET(baseURL+"/api/v1/tenants/:tenant/workflows/scheduled/:scheduledId", wrapper.WorkflowScheduledGet)
 	router.GET(baseURL+"/api/v1/tenants/:tenant/workflows/:workflow/worker-count", wrapper.WorkflowGetWorkersCount)
 	router.GET(baseURL+"/api/v1/users/current", wrapper.UserGetCurrent)
 	router.GET(baseURL+"/api/v1/users/github/callback", wrapper.UserUpdateGithubOauthCallback)
@@ -6498,6 +6562,86 @@ func (response WorkflowScheduledList403JSONResponse) VisitWorkflowScheduledListR
 	return json.NewEncoder(w).Encode(response)
 }
 
+type WorkflowScheduledDeleteRequestObject struct {
+	Tenant      openapi_types.UUID `json:"tenant"`
+	ScheduledId openapi_types.UUID `json:"scheduledId"`
+}
+
+type WorkflowScheduledDeleteResponseObject interface {
+	VisitWorkflowScheduledDeleteResponse(w http.ResponseWriter) error
+}
+
+type WorkflowScheduledDelete204Response struct {
+}
+
+func (response WorkflowScheduledDelete204Response) VisitWorkflowScheduledDeleteResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type WorkflowScheduledDelete400JSONResponse APIErrors
+
+func (response WorkflowScheduledDelete400JSONResponse) VisitWorkflowScheduledDeleteResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type WorkflowScheduledDelete403JSONResponse APIError
+
+func (response WorkflowScheduledDelete403JSONResponse) VisitWorkflowScheduledDeleteResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type WorkflowScheduledGetRequestObject struct {
+	Tenant      openapi_types.UUID `json:"tenant"`
+	ScheduledId openapi_types.UUID `json:"scheduledId"`
+}
+
+type WorkflowScheduledGetResponseObject interface {
+	VisitWorkflowScheduledGetResponse(w http.ResponseWriter) error
+}
+
+type WorkflowScheduledGet200JSONResponse ScheduledWorkflows
+
+func (response WorkflowScheduledGet200JSONResponse) VisitWorkflowScheduledGetResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type WorkflowScheduledGet400JSONResponse APIErrors
+
+func (response WorkflowScheduledGet400JSONResponse) VisitWorkflowScheduledGetResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type WorkflowScheduledGet403JSONResponse APIErrors
+
+func (response WorkflowScheduledGet403JSONResponse) VisitWorkflowScheduledGetResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type WorkflowScheduledGet404JSONResponse APIErrors
+
+func (response WorkflowScheduledGet404JSONResponse) VisitWorkflowScheduledGetResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type WorkflowGetWorkersCountRequestObject struct {
 	Tenant   openapi_types.UUID `json:"tenant"`
 	Workflow openapi_types.UUID `json:"workflow"`
@@ -7541,6 +7685,10 @@ type StrictServerInterface interface {
 	WorkflowRunGetMetrics(ctx echo.Context, request WorkflowRunGetMetricsRequestObject) (WorkflowRunGetMetricsResponseObject, error)
 
 	WorkflowScheduledList(ctx echo.Context, request WorkflowScheduledListRequestObject) (WorkflowScheduledListResponseObject, error)
+
+	WorkflowScheduledDelete(ctx echo.Context, request WorkflowScheduledDeleteRequestObject) (WorkflowScheduledDeleteResponseObject, error)
+
+	WorkflowScheduledGet(ctx echo.Context, request WorkflowScheduledGetRequestObject) (WorkflowScheduledGetResponseObject, error)
 
 	WorkflowGetWorkersCount(ctx echo.Context, request WorkflowGetWorkersCountRequestObject) (WorkflowGetWorkersCountResponseObject, error)
 
@@ -9236,6 +9384,58 @@ func (sh *strictHandler) WorkflowScheduledList(ctx echo.Context, tenant openapi_
 	return nil
 }
 
+// WorkflowScheduledDelete operation middleware
+func (sh *strictHandler) WorkflowScheduledDelete(ctx echo.Context, tenant openapi_types.UUID, scheduledId openapi_types.UUID) error {
+	var request WorkflowScheduledDeleteRequestObject
+
+	request.Tenant = tenant
+	request.ScheduledId = scheduledId
+
+	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.WorkflowScheduledDelete(ctx, request.(WorkflowScheduledDeleteRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "WorkflowScheduledDelete")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		return err
+	} else if validResponse, ok := response.(WorkflowScheduledDeleteResponseObject); ok {
+		return validResponse.VisitWorkflowScheduledDeleteResponse(ctx.Response())
+	} else if response != nil {
+		return fmt.Errorf("Unexpected response type: %T", response)
+	}
+	return nil
+}
+
+// WorkflowScheduledGet operation middleware
+func (sh *strictHandler) WorkflowScheduledGet(ctx echo.Context, tenant openapi_types.UUID, scheduledId openapi_types.UUID) error {
+	var request WorkflowScheduledGetRequestObject
+
+	request.Tenant = tenant
+	request.ScheduledId = scheduledId
+
+	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.WorkflowScheduledGet(ctx, request.(WorkflowScheduledGetRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "WorkflowScheduledGet")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		return err
+	} else if validResponse, ok := response.(WorkflowScheduledGetResponseObject); ok {
+		return validResponse.VisitWorkflowScheduledGetResponse(ctx.Response())
+	} else if response != nil {
+		return fmt.Errorf("Unexpected response type: %T", response)
+	}
+	return nil
+}
+
 // WorkflowGetWorkersCount operation middleware
 func (sh *strictHandler) WorkflowGetWorkersCount(ctx echo.Context, tenant openapi_types.UUID, workflow openapi_types.UUID) error {
 	var request WorkflowGetWorkersCountRequestObject
@@ -10051,27 +10251,28 @@ var swaggerSpec = []string{
 	"GkUBbZgAkmJolcZftl3lNByzvuJcsgHuDoW+FVSsYWOQvqHQr4fm1StfBC2gA6YU0NLr+QPA0pldXYJ7",
 	"fHh8tHdI/3d1ePiR/e9/DLgX3ft0Aj3x+oDAPQqFa1uVhkI8gdMogdsE+RObYZMwV2B5ikKE56vDLPvv",
 	"FM+bAnqjmN7eZaKsub/Zq8Sy7thdJF7ZReLAJi0ccARo9KArsr+aJ87SE+Y1Fzbq1PBODd+9Gt7plp1u",
-	"+SI+cHjNQmBMAHUJK1/ofKcg+mlAj8Uaa2HWchW74Vh27qyH3QNW94C1nTtnxmTdK5YRI90N9LWdUJl/",
-	"tsyhsOdFaUhqLqOsjfT0lUkVwD1AAZgEkB1aclzjofUFEh77jk/YjK/eKbvOIfuVu1kWNmtFHuekwsmn",
-	"43UDrxeQtFqYRpH9UwwTfOClSQKrOZsXeBINHdpNW+LpCyQnYrAt0h0rZdSMzhjEXXqfl0/vY1vJitL9",
-	"ErkVK1mVyXiGyDydHHggCCZVBQRPIqqgEtigaNkXNjSrWnYih29cFMwT826jLFgBd3KBVYXAjOjbbLU3",
-	"BXGy3FtrSqk1q5ymQVgUzQK4HXpjQ//i9MbRt2F6yxH3y9EbCu8RgTbpPqU2zDtkdYJqj286Ai+NMhRz",
-	"bb0ED5+oaV3r4gI7fdH6WGURb0vYK5fFMdLeAfA8GJOK6hXsO84Mk2ISQ20qvvm8j7ud4Bc+OJ+oPh1l",
-	"BfXxlevor6sQnddkYEgq7b09fSWQBeJU5Kmj35vRF+/jbivrGx18A/TFV97RV01OfoqkFegriGaookjH",
-	"WTTDDgodwM7G/QoF44wNtB1aYkcwHX9HeXOt7tFBNJtB30Fdccp2XZ+LxzqlGtt7chDNopTUMEOUEjtu",
-	"iNKXt/UIGo1alkWqI9IaZZRRjy3ZLuBiAhM8R3GDK5DSye4axI+Q73k38XC+VQLXT9r8PqSiqLsTrXIn",
-	"UjFYT5IxwPghSnyzLOViUkhSR7avEqmXcszt6RgncxDOsonapGx4DDI/Q1Qnzl+ROOdkVaR0CyZK4IwK",
-	"sqTq0sdb4EqNJCvAsS22kWC0iWEk8rpnrlehp0sSstV5cAC8u628MIzpyC1+YKgRNQ1fHJYqZh38FD88",
-	"8xXSocprPYUcp7Wlf3hDGzcVWSrK6BCSTbRjf5CqcrQw3+OuUE4LC+Vw8rMolNPL6MuOOQ4Enm3uW7Kp",
-	"zJpXzTHiCMW2Xsmt5ZvN168SqFmlAF22XR17trQCXb5FTXk04032h01BDY1xg1OYZeEM4WxW5bvIpni9",
-	"5atW8FVsmXrdmrpVDcpW9STpsKKLgHjzCrNJJSHzVq+GlrdwK2UIKJwbVcWm6L1Domx39aUseY1D1nGa",
-	"ntMEQ6zDbEunybKTf/1NSE2GbBV81uBe1EpP+fdNbkYSwC7L946yfJ8bknoLYlUoZkU/+Z5VqRErTmig",
-	"cr2FgJEVg0Q63npp3lKjUdZhLBu1z567mumBrWCw7WX5ltVY7TJ8c62ryGW7Vg6tJMKyetjJA6OCuB5z",
-	"1qiJVjmJ6CYVkw9ljHcPE8xjmI0nZYMcRG3gZ03MPM+wuIEkjaunaNQDNkuiNGYR/DkIcqOMoLBO3+BT",
-	"AZiXUBvWTHgiSK/LedJGbSLbla0JLpKg2azKzeCKN3CAE8KH1WoJZj4Ir1NyXWnYZd8ZTpl1G6eUOqDf",
-	"E0W8CMQk4ymEnSkk3hz6pnwlueBvuSIlyEDZVVtlqlRl8CU0KZtSyyLBVVcWsQ0isXW14qUcrCkKaVv4",
-	"1UI0C9mAbcu7SqljJZb/4I1fkQnmV5DLW5ZyYlPXVAU7edcqFTAnxVVVwGUfsgkECUwyH7Ke1qsMJvdS",
-	"HqRJ4H503ecfz/8/AAD//z6iua4v2wEA",
+	"+SI+cHjNQmBMAHUJK1/ofKcg+mlAj8Uaa2HWchW74Vh27qyH3QNW94C1nTtnxmTdK5YRI90N9NWeUAc/",
+	"sz+Hvl0Nbv2Z1fDIeuV1uTU4MKYuy/G7+wrdlqW09VvaVUdbrm1tUR3Nhkd7lRafTbDXq0423n7e2uZh",
+	"2h2kryEM4WWP7yy8SqZA2vOiNCQ1tmTWRgbqyJxI4B6gAEwCyCSMHNcoYb5AwlPX4BM246uPqaqLp3rl",
+	"URKFzVpRsnBS4eTTqeoGXi8gabUoyyL7pxgm+MBLkwRWczavzygaOrSbtkLjF0hOxGBbpDtWibAZnTGI",
+	"u+x8L5+dz7YQJaX7JXIrFqIsk/EMkXk6OfBAEEyq6v+eRIuYatoNao5+YUOzoqMncvjGNT09Me82qnoW",
+	"cCcXWFXH04i+zRZrVRAnq7W2phJqs8KnGoRF0SyA26E3NvQvTm8cfRumtxxxvxy9ofAeEWiTrVtqw7xD",
+	"Vuav9vimI/DKZkMx19Yr6PGJrIy7AcKkWGlfYqTTF22PVRawvoS9clU7I+0dAM+DMakoPsW+48yKJCYx",
+	"lJbkm8/7uNuJXeWD84nqs0lXUB9fuY7+OhNmXlKJIam09/b0lUAWR1uRZpZ+b0ZfvI+7raStdPAN0Bdf",
+	"eUdfNSV1KJJWoK8gmqGKGltn0Qw7KHQAOxv3KxSMMzbQdmiJHcF0/B2lvbe6RwfRbAZ9B3W1pdt1fS4e",
+	"65RqbO/JQTSLUlLDDFFK7LghSl/e1iNoNGpZEsiOSGuUUUY9tmS7gIsJTPAcxQ2uQEonu2sQP0K+592E",
+	"39tWCVw/afP7kIqi7k60yp1IxWA9ScYA44co8c2ylItJIUkd2b5KpF7KMbenY5zMQTjLJmqTsuExyPwM",
+	"UZ04f0XinJNVkdItmCiBMyrIkqpLH2+BKzWSrH7WtthGgtEmhpHI6565XoWeLknIVufBAfDutvLCMKYj",
+	"t/iBoUbUNHxxWCp4efBT/GDhjGpRuc/ez1RWejQ6hGQT7dgfxNKHs6tz18I6d5nTdF2du15GX3bMcSDw",
+	"bHPfkk1l0ttqjhFHKLYNKmot32y+/KRAzSr1Y7Pt6tizpQVk8y1qyqMZb7I/bOphaYwbnMIs/baFs1mV",
+	"7yKb4vVWn1zBV7Fl6nVryk42qDrZk6TDaiYD4s0rzCaVhMxbvRpa3sKtlCGgcG5U1Yqk9w6Jst2Vh7Tk",
+	"NQ5Zx2l6ThMMsQ6zLZ0my07+VmF5mSeyVaRQg3tRKz3lm0S3ZQB20TE7io45N9TkEMSqUMyKfvI9q0ph",
+	"VpzQQOV6CwEjKwaJdLz10rylRqOsw1g2ap89dzXTA1vBYNsr0iGLqdsV6OBaV5HLdq0cWkmEZfWwkwdG",
+	"BXE95qxRE61SCtJNKuYOzBjvHiaYpyAxnpQNUgi2gZ81KW94guQN5FhePcOyHjCWSIAl4MlBkBtlBIV1",
+	"+gafCsC8hNqwZr4yQXpdyrI2ahPZrmxNcJEEzWZVbgZXvIEDnBA+rFYKOPNBeJ2S60rDLvvOcMqs2zil",
+	"1AH9nqjBSSAmGU8h7Ewh8ebQN6UbywV/yxUpQQbKrtoqU6UiwS+hSY3SsN7Niuen7Koat0Ek9tz3x//Y",
+	"zawjIUNFWkL46EHolx6spBysqelsW7fdQjQL2YBtq7NLqWMllv/gjV+RCeZXkMtblnJiU9dUBTt51yoV",
+	"MCfFVVXAZR+yCQQJTDIfsp7Wqwwm91IepEngfnTd5x/P/z8AAP//PplguO7iAQA=",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

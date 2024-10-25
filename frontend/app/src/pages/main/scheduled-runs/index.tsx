@@ -1,5 +1,6 @@
 import { DataTable } from '../../../components/molecules/data-table/data-table';
 import { columns } from './components/scheduled-runs-columns';
+import { DeleteScheduledRun } from './components/delete-scheduled-runs';
 import { Separator } from '@/components/ui/separator';
 import { useEffect, useMemo, useState } from 'react';
 import {
@@ -11,6 +12,7 @@ import {
 } from '@tanstack/react-table';
 import { useQuery } from '@tanstack/react-query';
 import {
+  ScheduledWorkflows,
   ScheduledWorkflowsOrderByField,
   WorkflowRunOrderByDirection,
   queries,
@@ -147,29 +149,46 @@ function ScheduledRunsTable() {
     refetchInterval: 2000,
   });
 
+  const [showScheduledRunRevoke, setShowScheduledRunRevoke] =
+    useState<ScheduledWorkflows>();
+
   return (
-    <DataTable
-      error={queryError}
-      isLoading={queryIsLoading}
-      columns={columns}
-      data={data?.rows || []}
-      filters={[]}
-      showColumnToggle={true}
-      columnVisibility={columnVisibility}
-      setColumnVisibility={setColumnVisibility}
-      sorting={sorting}
-      setSorting={setSorting}
-      search={search}
-      setSearch={setSearch}
-      columnFilters={columnFilters}
-      setColumnFilters={setColumnFilters}
-      pagination={pagination}
-      setPagination={setPagination}
-      onSetPageSize={setPageSize}
-      pageCount={data?.pagination?.num_pages || 0}
-      rowSelection={rowSelection}
-      setRowSelection={setRowSelection}
-      getRowId={(row) => row.metadata.id}
-    />
+    <>
+      <DeleteScheduledRun
+        tenant={tenant.metadata.id}
+        scheduledRun={showScheduledRunRevoke}
+        setShowScheduledRunRevoke={setShowScheduledRunRevoke}
+        onSuccess={() => {
+          setShowScheduledRunRevoke(undefined);
+        }}
+      />
+      <DataTable
+        error={queryError}
+        isLoading={queryIsLoading}
+        columns={columns({
+          onDeleteClick: (row) => {
+            setShowScheduledRunRevoke(row);
+          },
+        })}
+        data={data?.rows || []}
+        filters={[]}
+        showColumnToggle={true}
+        columnVisibility={columnVisibility}
+        setColumnVisibility={setColumnVisibility}
+        sorting={sorting}
+        setSorting={setSorting}
+        search={search}
+        setSearch={setSearch}
+        columnFilters={columnFilters}
+        setColumnFilters={setColumnFilters}
+        pagination={pagination}
+        setPagination={setPagination}
+        onSetPageSize={setPageSize}
+        pageCount={data?.pagination?.num_pages || 0}
+        rowSelection={rowSelection}
+        setRowSelection={setRowSelection}
+        getRowId={(row) => row.metadata.id}
+      />
+    </>
   );
 }

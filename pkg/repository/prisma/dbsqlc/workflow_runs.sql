@@ -1435,7 +1435,7 @@ LEFT JOIN "WorkflowRunTriggeredBy" tb ON t."id" = tb."scheduledId"
 LEFT JOIN "WorkflowRun" wr ON tb."parentId" = wr."id"
 WHERE v."deletedAt" IS NULL
 	AND w."tenantId" = @tenantId::uuid
-    -- TODO page
+    AND (@scheduleId::uuid IS NULL OR t."id" = @scheduleId::uuid)
 ORDER BY
     case when @orderBy = 'triggerAt ASC' THEN t."triggerAt" END ASC ,
     case when @orderBy = 'triggerAt DESC' THEN t."triggerAt" END DESC,
@@ -1452,6 +1452,17 @@ OFFSET
     COALESCE(sqlc.narg('offset'), 0)
 LIMIT
     COALESCE(sqlc.narg('limit'), 50);
+
+-- name: UpdateScheduledWorkflow :exec
+UPDATE "WorkflowTriggerScheduledRef"
+SET "triggerAt" = @triggerAt::timestamp
+WHERE
+    "id" = @scheduleId::uuid;
+
+-- name: DeleteScheduledWorkflow :exec
+DELETE FROM "WorkflowTriggerScheduledRef"
+WHERE
+    "id" = @scheduleId::uuid;
 
 -- name: ListCronWorkflows :many
 SELECT
