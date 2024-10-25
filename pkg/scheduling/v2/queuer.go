@@ -769,9 +769,6 @@ type Queuer struct {
 
 	unassigned   map[int64]*dbsqlc.QueueItem
 	unassignedMu mutex
-
-	allAssigned   map[string]*alreadyAssigned
-	allAssignedMu sync.Mutex
 }
 
 type alreadyAssigned struct {
@@ -805,7 +802,6 @@ func newQueuer(conf *sharedConfig, tenantId pgtype.UUID, queueName string, s *Sc
 		unacked:       make(map[int64]struct{}),
 		unassigned:    make(map[int64]*dbsqlc.QueueItem),
 		unassignedMu:  newMu(conf.l),
-		allAssigned:   make(map[string]*alreadyAssigned),
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -1110,35 +1106,6 @@ func (q *Queuer) flushToDatabase(ctx context.Context, r *assignResults) int {
 
 	for _, id := range r.schedulingTimedOut {
 		schedulingTimedOut = append(schedulingTimedOut, sqlchelpers.UUIDToStr(id.StepRunId))
-	}
-
-	for _, id := range succeeded {
-		q.allAssignedMu.Lock()
-		stepRunId := sqlchelpers.UUIDToStr(id.QueueItem.StepRunId)
-
-		if _, ok := q.allAssigned[stepRunId]; ok {
-			q.l.Panic().Int64(
-				"prev_assigned_qi", q.allAssigned[stepRunId].assignedQi.ID,
-			).Int64(
-				"new_assigned_qi", id.QueueItem.ID,
-			).Int(
-				"prev_assigned_batch", q.allAssigned[stepRunId].assignedAtBatch,
-			).Int(
-				"new_assigned_batch", id.assignedBatch,
-			).Int(
-				"prev_assigned_count", q.allAssigned[stepRunId].assignedAtCount,
-			).Int(
-				"new_assigned_count", id.assignedCount,
-			).Msgf("step run %s was already assigned", stepRunId)
-		}
-
-		q.allAssigned[stepRunId] = &alreadyAssigned{
-			assignedQi:      id.QueueItem,
-			assignedAtBatch: id.assignedBatch,
-			assignedAtCount: id.assignedCount,
-		}
-
-		q.allAssignedMu.Unlock()
 	}
 
 	q.resultsCh <- &QueueResults{
