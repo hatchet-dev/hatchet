@@ -252,7 +252,7 @@ const createManagedWorkerSchema = z.object({
     cpuKind: z.string(),
     cpus: z.number(),
     memoryMb: z.number(),
-    region: z.nativeEnum(ManagedWorkerRegion).optional(),
+    regions: z.array(z.nativeEnum(ManagedWorkerRegion)).optional(),
   }),
 });
 
@@ -290,7 +290,7 @@ export default function CreateWorkerForm({
         cpuKind: 'shared',
         cpus: 1,
         memoryMb: 1024,
-        region: ManagedWorkerRegion.Sea,
+        regions: [ManagedWorkerRegion.Sea],
       },
     },
   });
@@ -299,7 +299,7 @@ export default function CreateWorkerForm({
     '1 CPU, 1 GB RAM (shared CPU)',
   );
 
-  const region = watch('runtimeConfig.region');
+  const region = watch('runtimeConfig.regions');
   const installation = watch('buildConfig.githubInstallationId');
   const repoOwner = watch('buildConfig.githubRepositoryOwner');
   const repoName = watch('buildConfig.githubRepositoryName');
@@ -642,7 +642,7 @@ export default function CreateWorkerForm({
                       return;
                     }
 
-                    setValue('runtimeConfig.region', region.value);
+                    setValue('runtimeConfig.regions', [region.value]);
                   }}
                 >
                   <SelectTrigger className="w-fit">

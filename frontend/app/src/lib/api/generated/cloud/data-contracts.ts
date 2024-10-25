@@ -290,7 +290,7 @@ export interface CreateManagedWorkerRuntimeConfigRequest {
    */
   numReplicas: number;
   /** The region to deploy the worker to */
-  region?: ManagedWorkerRegion;
+  regions?: ManagedWorkerRegion[];
   /** The kind of CPU to use for the worker */
   cpuKind: string;
   /**

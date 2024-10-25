@@ -67,7 +67,7 @@ const updateManagedWorkerSchema = z.object({
       cpuKind: z.string(),
       cpus: z.number(),
       memoryMb: z.number(),
-      region: z.nativeEnum(ManagedWorkerRegion).optional(),
+      regions: z.array(z.nativeEnum(ManagedWorkerRegion)).optional(),
     })
     .optional(),
 });
@@ -116,7 +116,7 @@ export default function UpdateWorkerForm({
               cpuKind: managedWorker.runtimeConfigs[0].cpuKind,
               cpus: managedWorker.runtimeConfigs[0].cpus,
               memoryMb: managedWorker.runtimeConfigs[0].memoryMb,
-              region: managedWorker.runtimeConfigs[0].region,
+              regions: [managedWorker.runtimeConfigs[0].region],
             }
           : undefined,
     },
@@ -126,7 +126,7 @@ export default function UpdateWorkerForm({
     '1 CPU, 1 GB RAM (shared CPU)',
   );
 
-  const region = watch('runtimeConfig.region');
+  const region = watch('runtimeConfig.regions');
   const installation = watch('buildConfig.githubInstallationId');
   const repoOwner = watch('buildConfig.githubRepositoryOwner');
   const repoName = watch('buildConfig.githubRepositoryName');
@@ -204,10 +204,10 @@ export default function UpdateWorkerForm({
         cpuKind: 'shared',
         cpus: 1,
         memoryMb: 1024,
-        region: ManagedWorkerRegion.Sea,
+        regions: [ManagedWorkerRegion.Sea],
       });
       setMachineType('1 CPU, 1 GB RAM (shared CPU)');
-      setValue('runtimeConfig.region', ManagedWorkerRegion.Sea);
+      setValue('runtimeConfig.regions', [ManagedWorkerRegion.Sea]);
     }
   }, [getValues, setValue, isIac]);
 
@@ -478,7 +478,7 @@ export default function UpdateWorkerForm({
                         return;
                       }
 
-                      setValue('runtimeConfig.region', region.value);
+                      setValue('runtimeConfig.regions', [region.value]);
                     }}
                   >
                     <SelectTrigger className="w-fit">
