@@ -965,7 +965,6 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 	}
 }
 
-// TODO: try to not cache or pass in the current queue items.
 func (q *Queuer) refillQueue(ctx context.Context) ([]*dbsqlc.QueueItem, error) {
 	q.unackedMu.Lock()
 	defer q.unackedMu.Unlock()

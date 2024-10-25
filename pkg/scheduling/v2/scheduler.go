@@ -241,6 +241,18 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 		}
 	}
 
+	// if there are any workers which have additional actions not in the actionsToReplenish map, we need
+	// to add them to the actionsToReplenish map
+	for actionId := range actionsToReplenish {
+		for _, workerId := range actionsToWorkerIds[actionId] {
+			for _, actions := range workerIdsToActions[workerId] {
+				if _, ok := actionsToReplenish[actions]; !ok {
+					actionsToReplenish[actions] = s.actions[actions]
+				}
+			}
+		}
+	}
+
 	s.actionsMu.Unlock()
 
 	s.l.Debug().Msgf("determining which actions to replenish took %s", time.Since(checkpoint))
