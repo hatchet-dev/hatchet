@@ -2872,7 +2872,7 @@ func (q *Queries) UpdateStepRunUnsetWorkerIdBulk(ctx context.Context, db DBTX, s
 	return err
 }
 
-const updateStepRunsToAssigned = `-- name: UpdateStepRunsToAssigned :exec
+const updateStepRunsToAssigned = `-- name: UpdateStepRunsToAssigned :many
 WITH input AS (
     SELECT
         "id",
@@ -2897,7 +2897,7 @@ WITH input AS (
     JOIN
         "StepRun" sr ON sr."id" = input."id"
     ORDER BY sr."id"
-), assignments AS (
+), assigned_step_runs AS (
     INSERT INTO "SemaphoreQueueItem" (
         "stepRunId",
         "workerId",
@@ -2909,30 +2909,40 @@ WITH input AS (
         $4::uuid
     FROM
         input
-    -- conflicting step run id should update workerId
-    ON CONFLICT ("stepRunId") DO UPDATE
+    ON CONFLICT ("stepRunId") DO NOTHING
+    -- only return the step run ids that were successfully assigned
+    RETURNING "stepRunId", "workerId"
+), timeout_insert AS (
+    -- bulk insert into timeout queue items
+    INSERT INTO
+        "TimeoutQueueItem" (
+            "stepRunId",
+            "retryCount",
+            "timeoutAt",
+            "tenantId",
+            "isQueued"
+        )
+    SELECT
+        sr."id",
+        sr."retryCount",
+        sr."timeoutAt",
+        sr."tenantId",
+        true
+    FROM
+        updated_step_runs sr
+    JOIN
+        assigned_step_runs asr ON sr."id" = asr."stepRunId"
+    ON CONFLICT ("stepRunId", "retryCount") DO UPDATE
     SET
-        "workerId" = EXCLUDED."workerId"
+        "timeoutAt" = EXCLUDED."timeoutAt"
+    RETURNING
+        "stepRunId"
 )
-INSERT INTO
-    "TimeoutQueueItem" (
-        "stepRunId",
-        "retryCount",
-        "timeoutAt",
-        "tenantId",
-        "isQueued"
-    )
 SELECT
-    sr."id",
-    sr."retryCount",
-    sr."timeoutAt",
-    sr."tenantId",
-    true
+    asr."stepRunId",
+    asr."workerId"
 FROM
-    updated_step_runs sr
-ON CONFLICT ("stepRunId", "retryCount") DO UPDATE
-SET
-    "timeoutAt" = EXCLUDED."timeoutAt"
+    assigned_step_runs asr
 `
 
 type UpdateStepRunsToAssignedParams struct {
@@ -2942,15 +2952,34 @@ type UpdateStepRunsToAssignedParams struct {
 	Tenantid        pgtype.UUID   `json:"tenantid"`
 }
 
-// bulk insert into timeout queue items
-func (q *Queries) UpdateStepRunsToAssigned(ctx context.Context, db DBTX, arg UpdateStepRunsToAssignedParams) error {
-	_, err := db.Exec(ctx, updateStepRunsToAssigned,
+type UpdateStepRunsToAssignedRow struct {
+	StepRunId pgtype.UUID `json:"stepRunId"`
+	WorkerId  pgtype.UUID `json:"workerId"`
+}
+
+func (q *Queries) UpdateStepRunsToAssigned(ctx context.Context, db DBTX, arg UpdateStepRunsToAssignedParams) ([]*UpdateStepRunsToAssignedRow, error) {
+	rows, err := db.Query(ctx, updateStepRunsToAssigned,
 		arg.Steprunids,
 		arg.Stepruntimeouts,
 		arg.Workerids,
 		arg.Tenantid,
 	)
-	return err
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*UpdateStepRunsToAssignedRow
+	for rows.Next() {
+		var i UpdateStepRunsToAssignedRow
+		if err := rows.Scan(&i.StepRunId, &i.WorkerId); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const upsertDesiredWorkerLabel = `-- name: UpsertDesiredWorkerLabel :one

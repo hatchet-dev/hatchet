@@ -77,6 +77,10 @@ type Scheduler struct {
 	unackedMu    mutex
 
 	rl *rateLimiter
+
+	totalAssignedCallCount int
+	assignedBatchCount     int
+	countMu                sync.Mutex
 }
 
 func newScheduler(cf *sharedConfig, tenantId pgtype.UUID, rl *rateLimiter) *Scheduler {
@@ -425,6 +429,8 @@ type assignSingleResult struct {
 	succeeded bool
 
 	rateLimitResult *scheduleRateLimitResult
+
+	assignedBatch int
 }
 
 func (s *Scheduler) tryAssignBatch(
@@ -441,6 +447,11 @@ func (s *Scheduler) tryAssignBatch(
 ) (
 	res []*assignSingleResult, newRingOffset int, err error,
 ) {
+	s.countMu.Lock()
+	s.assignedBatchCount++
+	batch := s.assignedBatchCount
+	s.countMu.Unlock()
+
 	s.l.Debug().Msgf("trying to assign %d queue items", len(qis))
 
 	newRingOffset = ringOffset
@@ -452,7 +463,8 @@ func (s *Scheduler) tryAssignBatch(
 
 	for i := range qis {
 		res[i] = &assignSingleResult{
-			qi: qis[i],
+			qi:            qis[i],
+			assignedBatch: batch,
 		}
 	}
 
@@ -498,7 +510,9 @@ func (s *Scheduler) tryAssignBatch(
 	// order as the replenish() function, otherwise we may deadlock.
 	s.actionsMu.RLock()
 
-	if _, ok := s.actions[actionId]; !ok {
+	action, ok := s.actions[actionId]
+
+	if !ok || len(action.slots) == 0 {
 		s.actionsMu.RUnlock()
 
 		s.l.Debug().Msgf("no slots for action %s", actionId)
@@ -511,13 +525,12 @@ func (s *Scheduler) tryAssignBatch(
 		return res, newRingOffset, nil
 	}
 
-	action := s.actions[actionId]
 	s.actionsMu.RUnlock()
 
 	action.mu.Lock()
 	defer action.mu.Unlock()
 
-	candidateSlots := s.actions[actionId].slots
+	candidateSlots := action.slots
 
 	wg := sync.WaitGroup{}
 
@@ -551,6 +564,7 @@ func (s *Scheduler) tryAssignBatch(
 
 			res[i] = &singleRes
 			res[i].qi = qi
+			res[i].assignedBatch = batch
 		}(i)
 
 		newRingOffset++
@@ -636,8 +650,8 @@ type AssignedQueueItem struct {
 
 	QueueItem *dbsqlc.QueueItem
 
-	// DispatcherId only gets set after a successful flush to the database
-	DispatcherId *pgtype.UUID
+	assignedBatch int
+	assignedCount int
 }
 
 type assignResults struct {
@@ -653,6 +667,11 @@ func (s *Scheduler) tryAssign(
 	stepIdsToLabels map[string][]*dbsqlc.GetDesiredLabelsRow,
 	stepRunIdsToRateLimits map[string]map[string]int32,
 ) <-chan *assignResults {
+	s.countMu.Lock()
+	s.totalAssignedCallCount++
+	callCount := s.totalAssignedCallCount
+	s.countMu.Unlock()
+
 	ctx, span := telemetry.NewSpan(ctx, "try-assign")
 
 	// split into groups based on action ids, and process each action id in parallel
@@ -727,9 +746,11 @@ func (s *Scheduler) tryAssign(
 						}
 
 						batchAssigned = append(batchAssigned, &AssignedQueueItem{
-							WorkerId:  singleRes.workerId,
-							QueueItem: singleRes.qi,
-							AckId:     singleRes.ackId,
+							WorkerId:      singleRes.workerId,
+							QueueItem:     singleRes.qi,
+							AckId:         singleRes.ackId,
+							assignedBatch: singleRes.assignedBatch,
+							assignedCount: callCount,
 						})
 					}
 

@@ -855,7 +855,7 @@ FROM (
     ) AS input
 RETURNING *;
 
--- name: UpdateStepRunsToAssigned :exec
+-- name: UpdateStepRunsToAssigned :many
 WITH input AS (
     SELECT
         "id",
@@ -880,7 +880,7 @@ WITH input AS (
     JOIN
         "StepRun" sr ON sr."id" = input."id"
     ORDER BY sr."id"
-), assignments AS (
+), assigned_step_runs AS (
     INSERT INTO "SemaphoreQueueItem" (
         "stepRunId",
         "workerId",
@@ -892,31 +892,40 @@ WITH input AS (
         @tenantId::uuid
     FROM
         input
-    -- conflicting step run id should update workerId
-    ON CONFLICT ("stepRunId") DO UPDATE
+    ON CONFLICT ("stepRunId") DO NOTHING
+    -- only return the step run ids that were successfully assigned
+    RETURNING "stepRunId", "workerId"
+), timeout_insert AS (
+    -- bulk insert into timeout queue items
+    INSERT INTO
+        "TimeoutQueueItem" (
+            "stepRunId",
+            "retryCount",
+            "timeoutAt",
+            "tenantId",
+            "isQueued"
+        )
+    SELECT
+        sr."id",
+        sr."retryCount",
+        sr."timeoutAt",
+        sr."tenantId",
+        true
+    FROM
+        updated_step_runs sr
+    JOIN
+        assigned_step_runs asr ON sr."id" = asr."stepRunId"
+    ON CONFLICT ("stepRunId", "retryCount") DO UPDATE
     SET
-        "workerId" = EXCLUDED."workerId"
+        "timeoutAt" = EXCLUDED."timeoutAt"
+    RETURNING
+        "stepRunId"
 )
--- bulk insert into timeout queue items
-INSERT INTO
-    "TimeoutQueueItem" (
-        "stepRunId",
-        "retryCount",
-        "timeoutAt",
-        "tenantId",
-        "isQueued"
-    )
 SELECT
-    sr."id",
-    sr."retryCount",
-    sr."timeoutAt",
-    sr."tenantId",
-    true
+    asr."stepRunId",
+    asr."workerId"
 FROM
-    updated_step_runs sr
-ON CONFLICT ("stepRunId", "retryCount") DO UPDATE
-SET
-    "timeoutAt" = EXCLUDED."timeoutAt";
+    assigned_step_runs asr;
 
 -- name: GetFinalizedStepRuns :many
 SELECT

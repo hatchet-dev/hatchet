@@ -328,13 +328,35 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 	if len(res.Assigned) > 0 {
 		dispatcherIdToWorkerIdsToStepRuns := make(map[string]map[string][]string)
 
+		workerIds := make([]string, 0)
+
+		for _, assigned := range res.Assigned {
+			workerIds = append(workerIds, sqlchelpers.UUIDToStr(assigned.WorkerId))
+		}
+
+		dispatcherIdWorkerIds, err := s.repo.Worker().GetDispatcherIdsForWorkers(ctx, tenantId, workerIds)
+
+		// TODO: internal retry
+		if err != nil {
+			return fmt.Errorf("could not list dispatcher ids for workers: %w", err)
+		}
+
+		workerIdToDispatcherId := make(map[string]string)
+
+		for dispatcherId, workerIds := range dispatcherIdWorkerIds {
+			for _, workerId := range workerIds {
+				workerIdToDispatcherId[workerId] = dispatcherId
+			}
+		}
+
 		for _, bulkAssigned := range res.Assigned {
-			if bulkAssigned.DispatcherId == nil {
+			dispatcherId, ok := workerIdToDispatcherId[sqlchelpers.UUIDToStr(bulkAssigned.WorkerId)]
+
+			if !ok {
+				// TODO: internal retry
 				s.l.Error().Msg("could not assign step run to worker: no dispatcher id")
 				continue
 			}
-
-			dispatcherId := sqlchelpers.UUIDToStr(*bulkAssigned.DispatcherId)
 
 			if _, ok := dispatcherIdToWorkerIdsToStepRuns[dispatcherId]; !ok {
 				dispatcherIdToWorkerIdsToStepRuns[dispatcherId] = make(map[string][]string)

@@ -1304,7 +1304,7 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, qlp *zerolo
 		numAssigns[sqlchelpers.UUIDToStr(workerId)]++
 	}
 
-	err = s.queries.UpdateStepRunsToAssigned(ctx, tx, dbsqlc.UpdateStepRunsToAssignedParams{
+	_, err = s.queries.UpdateStepRunsToAssigned(ctx, tx, dbsqlc.UpdateStepRunsToAssignedParams{
 		Steprunids:      plan.StepRunIds,
 		Workerids:       plan.WorkerIds,
 		Stepruntimeouts: plan.StepRunTimeouts,

@@ -353,7 +353,6 @@ func (d *queuerDbQueries) MarkQueueItemsProcessed(ctx context.Context, r *assign
 	durPrepare := time.Since(checkpoint)
 	checkpoint = time.Now()
 
-	// d.queries.UpdateStepRunsToAssigned
 	idsToUnqueue := make([]int64, len(r.assigned))
 	stepRunIds := make([]pgtype.UUID, len(r.assigned))
 	workerIds := make([]pgtype.UUID, len(r.assigned))
@@ -385,9 +384,7 @@ func (d *queuerDbQueries) MarkQueueItemsProcessed(ctx context.Context, r *assign
 		return nil, nil, fmt.Errorf("could not bulk mark step runs as cancelling: %w", err)
 	}
 
-	// TODO: ADD UNIQUE CONSTRAINT TO SEMAPHORES WITH ON CONFLICT DO NOTHING, THEN DON'T
-	// QUEUE ITEMS THAT ALREADY HAVE SEMAPHORES
-	err = d.queries.UpdateStepRunsToAssigned(ctx, tx, dbsqlc.UpdateStepRunsToAssignedParams{
+	updatedStepRuns, err := d.queries.UpdateStepRunsToAssigned(ctx, tx, dbsqlc.UpdateStepRunsToAssignedParams{
 		Steprunids:      stepRunIds,
 		Workerids:       workerIds,
 		Stepruntimeouts: stepTimeouts,
@@ -409,11 +406,6 @@ func (d *queuerDbQueries) MarkQueueItemsProcessed(ctx context.Context, r *assign
 
 	timeAfterBulkQueueItems := time.Since(checkpoint)
 
-	dispatcherIdWorkerIds, err := d.queries.ListDispatcherIdsForWorkers(ctx, tx, dbsqlc.ListDispatcherIdsForWorkersParams{
-		Tenantid:  d.tenantId,
-		Workerids: sqlchelpers.UniqueSet(workerIds),
-	})
-
 	if err := commit(ctx); err != nil {
 		return nil, nil, err
 	}
@@ -422,30 +414,35 @@ func (d *queuerDbQueries) MarkQueueItemsProcessed(ctx context.Context, r *assign
 		// if we committed, we can update the min id
 		d.updateMinId()
 
-		d.bulkStepRunsAssigned(sqlchelpers.UUIDToStr(d.tenantId), time.Now().UTC(), stepRunIds, workerIds)
+		assignedStepRuns := make([]pgtype.UUID, len(updatedStepRuns))
+		assignedWorkerIds := make([]pgtype.UUID, len(updatedStepRuns))
+
+		for i, row := range updatedStepRuns {
+			assignedStepRuns[i] = row.StepRunId
+			assignedWorkerIds[i] = row.WorkerId
+		}
+
+		d.bulkStepRunsAssigned(sqlchelpers.UUIDToStr(d.tenantId), time.Now().UTC(), assignedStepRuns, assignedWorkerIds)
 		d.bulkStepRunsUnassigned(sqlchelpers.UUIDToStr(d.tenantId), unassignedStepRunIds)
 		d.bulkStepRunsRateLimited(sqlchelpers.UUIDToStr(d.tenantId), r.rateLimited)
 	}()
 
-	workerIdToDispatcherId := make(map[string]pgtype.UUID, len(dispatcherIdWorkerIds))
+	stepRunIdToAssignedItem := make(map[string]*AssignedQueueItem, len(updatedStepRuns))
 
-	for _, dispatcherIdWorkerId := range dispatcherIdWorkerIds {
-		workerIdToDispatcherId[sqlchelpers.UUIDToStr(dispatcherIdWorkerId.WorkerId)] = dispatcherIdWorkerId.DispatcherId
+	for _, assignedItem := range r.assigned {
+		stepRunIdToAssignedItem[sqlchelpers.UUIDToStr(assignedItem.QueueItem.StepRunId)] = assignedItem
 	}
 
 	succeeded = make([]*AssignedQueueItem, 0, len(r.assigned))
 	failed = make([]*AssignedQueueItem, 0, len(r.assigned))
 
-	for _, assignedItem := range r.assigned {
-		dispatcherId, ok := workerIdToDispatcherId[sqlchelpers.UUIDToStr(assignedItem.WorkerId)]
+	for _, row := range updatedStepRuns {
+		succeeded = append(succeeded, stepRunIdToAssignedItem[sqlchelpers.UUIDToStr(row.StepRunId)])
+		delete(stepRunIdToAssignedItem, sqlchelpers.UUIDToStr(row.StepRunId))
+	}
 
-		if !ok {
-			failed = append(failed, assignedItem)
-			continue
-		}
-
-		assignedItem.DispatcherId = &dispatcherId
-		succeeded = append(succeeded, assignedItem)
+	for _, assignedItem := range stepRunIdToAssignedItem {
+		failed = append(failed, assignedItem)
 	}
 
 	if sinceStart := time.Since(start); sinceStart > 100*time.Millisecond {
@@ -769,6 +766,18 @@ type Queuer struct {
 
 	unackedMu rwMutex
 	unacked   map[int64]struct{}
+
+	unassigned   map[int64]*dbsqlc.QueueItem
+	unassignedMu mutex
+
+	allAssigned   map[string]*alreadyAssigned
+	allAssignedMu sync.Mutex
+}
+
+type alreadyAssigned struct {
+	assignedQi      *dbsqlc.QueueItem
+	assignedAtBatch int
+	assignedAtCount int
 }
 
 func newQueuer(conf *sharedConfig, tenantId pgtype.UUID, queueName string, s *Scheduler, eventBuffer *buffer.BulkEventWriter, resultsCh chan<- *QueueResults) *Queuer {
@@ -794,6 +803,9 @@ func newQueuer(conf *sharedConfig, tenantId pgtype.UUID, queueName string, s *Sc
 		queueMu:       newMu(conf.l),
 		unackedMu:     newRWMu(conf.l),
 		unacked:       make(map[int64]struct{}),
+		unassigned:    make(map[int64]*dbsqlc.QueueItem),
+		unassignedMu:  newMu(conf.l),
+		allAssigned:   make(map[string]*alreadyAssigned),
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -834,7 +846,6 @@ func (q *Queuer) queue() {
 
 func (q *Queuer) loopQueue(ctx context.Context) {
 	ticker := time.NewTicker(1 * time.Second)
-	qis := make([]*dbsqlc.QueueItem, 0)
 
 	for {
 		select {
@@ -854,7 +865,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		start := time.Now()
 		checkpoint := start
 		var err error
-		qis, err = q.refillQueue(ctx, qis)
+		qis, err := q.refillQueue(ctx)
 
 		if err != nil {
 			span.End()
@@ -959,15 +970,24 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 	}
 }
 
-func (q *Queuer) refillQueue(ctx context.Context, curr []*dbsqlc.QueueItem) ([]*dbsqlc.QueueItem, error) {
+// TODO: try to not cache or pass in the current queue items.
+func (q *Queuer) refillQueue(ctx context.Context) ([]*dbsqlc.QueueItem, error) {
 	q.unackedMu.Lock()
 	defer q.unackedMu.Unlock()
+
+	q.unassignedMu.Lock()
+	defer q.unassignedMu.Unlock()
+
+	curr := make([]*dbsqlc.QueueItem, 0, len(q.unassigned))
+
+	for _, qi := range q.unassigned {
+		curr = append(curr, qi)
+	}
 
 	// determine whether we need to replenish with the following cases:
 	// - we last replenished more than 1 second ago
 	// - if we are at less than 50% of the limit, we always attempt to replenish
 	replenish := false
-	now := time.Now()
 
 	if len(curr) < q.limit {
 		replenish = true
@@ -978,6 +998,7 @@ func (q *Queuer) refillQueue(ctx context.Context, curr []*dbsqlc.QueueItem) ([]*
 	}
 
 	if replenish {
+		now := time.Now()
 		q.lastReplenished = &now
 		limit := 2 * q.limit
 
@@ -1016,24 +1037,30 @@ type QueueResults struct {
 
 func (q *Queuer) ack(r *assignResults) {
 	q.unackedMu.Lock()
+	defer q.unackedMu.Unlock()
+
+	q.unassignedMu.Lock()
+	defer q.unassignedMu.Unlock()
 
 	for _, assignedItem := range r.assigned {
 		delete(q.unacked, assignedItem.QueueItem.ID)
+		delete(q.unassigned, assignedItem.QueueItem.ID)
 	}
 
 	for _, unassignedItem := range r.unassigned {
 		delete(q.unacked, unassignedItem.ID)
+		q.unassigned[unassignedItem.ID] = unassignedItem
 	}
 
 	for _, schedulingTimedOutItem := range r.schedulingTimedOut {
 		delete(q.unacked, schedulingTimedOutItem.ID)
+		delete(q.unassigned, schedulingTimedOutItem.ID)
 	}
 
 	for _, rateLimitedItem := range r.rateLimited {
 		delete(q.unacked, rateLimitedItem.qi.ID)
+		q.unassigned[rateLimitedItem.qi.ID] = rateLimitedItem.qi
 	}
-
-	q.unackedMu.Unlock()
 }
 
 func (q *Queuer) flushToDatabase(ctx context.Context, r *assignResults) int {
@@ -1083,6 +1110,35 @@ func (q *Queuer) flushToDatabase(ctx context.Context, r *assignResults) int {
 
 	for _, id := range r.schedulingTimedOut {
 		schedulingTimedOut = append(schedulingTimedOut, sqlchelpers.UUIDToStr(id.StepRunId))
+	}
+
+	for _, id := range succeeded {
+		q.allAssignedMu.Lock()
+		stepRunId := sqlchelpers.UUIDToStr(id.QueueItem.StepRunId)
+
+		if _, ok := q.allAssigned[stepRunId]; ok {
+			q.l.Panic().Int64(
+				"prev_assigned_qi", q.allAssigned[stepRunId].assignedQi.ID,
+			).Int64(
+				"new_assigned_qi", id.QueueItem.ID,
+			).Int(
+				"prev_assigned_batch", q.allAssigned[stepRunId].assignedAtBatch,
+			).Int(
+				"new_assigned_batch", id.assignedBatch,
+			).Int(
+				"prev_assigned_count", q.allAssigned[stepRunId].assignedAtCount,
+			).Int(
+				"new_assigned_count", id.assignedCount,
+			).Msgf("step run %s was already assigned", stepRunId)
+		}
+
+		q.allAssigned[stepRunId] = &alreadyAssigned{
+			assignedQi:      id.QueueItem,
+			assignedAtBatch: id.assignedBatch,
+			assignedAtCount: id.assignedCount,
+		}
+
+		q.allAssignedMu.Unlock()
 	}
 
 	q.resultsCh <- &QueueResults{
