@@ -195,18 +195,26 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 	// - some slots for an action: replenish if 50% of slots have been used, or have expired
 	// - more workers available for an action than previously: fully replenish
 	// - otherwise, do not replenish
-	actionsToReplenish := make(map[string]bool)
-	s.actionsMu.RLock()
+	actionsToReplenish := make(map[string]*action)
+	s.actionsMu.Lock()
 
 	for actionId, workers := range actionsToWorkerIds {
-		if mustReplenish {
-			actionsToReplenish[actionId] = true
+		// if the action is not in the map, it should be replenished
+		if _, ok := s.actions[actionId]; !ok {
+			newAction := &action{
+				actionId: actionId,
+			}
+
+			actionsToReplenish[actionId] = newAction
+
+			s.actions[actionId] = newAction
+
 			continue
 		}
 
-		// if the action is not in the map, it should be replenished
-		if _, ok := s.actions[actionId]; !ok {
-			actionsToReplenish[actionId] = true
+		if mustReplenish {
+			actionsToReplenish[actionId] = s.actions[actionId]
+
 			continue
 		}
 
@@ -228,10 +236,24 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 			replenish = true
 		}
 
-		actionsToReplenish[actionId] = replenish
+		if replenish {
+			actionsToReplenish[actionId] = s.actions[actionId]
+		}
 	}
 
-	s.actionsMu.RUnlock()
+	// if there are any workers which have additional actions not in the actionsToReplenish map, we need
+	// to add them to the actionsToReplenish map
+	for actionId := range actionsToReplenish {
+		for _, workerId := range actionsToWorkerIds[actionId] {
+			for _, actions := range workerIdsToActions[workerId] {
+				if _, ok := actionsToReplenish[actions]; !ok {
+					actionsToReplenish[actions] = s.actions[actions]
+				}
+			}
+		}
+	}
+
+	s.actionsMu.Unlock()
 
 	s.l.Debug().Msgf("determining which actions to replenish took %s", time.Since(checkpoint))
 	checkpoint = time.Now()
@@ -239,11 +261,7 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 	// FUNCTION 2: for each action which should be replenished, load the available slots
 	uniqueWorkerIds := make(map[string]bool)
 
-	for actionId, replenish := range actionsToReplenish {
-		if !replenish {
-			continue
-		}
-
+	for actionId := range actionsToReplenish {
 		workerIds := actionsToWorkerIds[actionId]
 
 		for _, workerId := range workerIds {
@@ -256,6 +274,21 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 	for workerId := range uniqueWorkerIds {
 		workerUUIDs = append(workerUUIDs, sqlchelpers.UUIDFromStr(workerId))
 	}
+
+	// we get a lock on the actions mutexes here because we want to acquire the locks in the same order
+	// as the tryAssignBatch function. otherwise, we could deadlock when tryAssignBatch has a lock
+	// on the actionsMu and tries to acquire the unackedMu lock.
+	// additionally, we have to acquire a lock this early (before the database read) to prevent slots
+	// from being assigned while we read slots from the database.
+	s.actionsMu.Lock()
+	defer s.actionsMu.Unlock()
+
+	orderedLock(actionsToReplenish)
+	unlock := orderedUnlock(actionsToReplenish)
+	defer unlock()
+
+	s.unackedMu.Lock()
+	defer s.unackedMu.Unlock()
 
 	availableSlots, err := s.repo.ListAvailableSlotsForWorkers(ctx, dbsqlc.ListAvailableSlotsForWorkersParams{
 		Tenantid:  s.tenantId,
@@ -270,15 +303,6 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 
 	// FUNCTION 3: list unacked slots (so they're not counted towards the worker slot count)
 	workersToUnackedSlots := make(map[string][]*slot)
-
-	// we get a lock on the actionsMu here because we want to acquire the locks in the same order
-	// as the tryAssignBatch function. otherwise, we could deadlock when tryAssignBatch has a lock
-	// on the actionsMu and tries to acquire the unackedMu lock.
-	s.actionsMu.Lock()
-	defer s.actionsMu.Unlock()
-
-	s.unackedMu.Lock()
-	defer s.unackedMu.Unlock()
 
 	for _, unackedSlot := range s.unackedSlots {
 		s := unackedSlot
@@ -330,26 +354,17 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 		// randomly sort the slots
 		randSource.Shuffle(len(newSlots), func(i, j int) { newSlots[i], newSlots[j] = newSlots[j], newSlots[i] })
 
-		if _, ok := s.actions[actionId]; !ok {
-			s.actions[actionId] = &action{
-				slots:                      newSlots,
-				lastReplenishedSlotCount:   len(newSlots),
-				lastReplenishedWorkerCount: len(actionsToWorkerIds[actionId]),
-			}
-		} else {
-			// we overwrite the slots for the action
-			s.actions[actionId].slots = newSlots
-			s.actions[actionId].lastReplenishedSlotCount = actionsToTotalSlots[actionId]
-			s.actions[actionId].lastReplenishedWorkerCount = len(actionsToWorkerIds[actionId])
-		}
+		// we overwrite the slots for the action. we know that the action is in the map because we checked
+		// for it in the first pass.
+		s.actions[actionId].slots = newSlots
+		s.actions[actionId].lastReplenishedSlotCount = actionsToTotalSlots[actionId]
+		s.actions[actionId].lastReplenishedWorkerCount = len(actionsToWorkerIds[actionId])
 
 		s.l.Debug().Msgf("before cleanup, action %s has %d slots", actionId, len(newSlots))
 	}
 
 	// second pass: clean up expired slots
-	for i := range s.actions {
-		storedAction := s.actions[i]
-
+	for _, storedAction := range actionsToReplenish {
 		newSlots := make([]*slot, 0, len(storedAction.slots))
 
 		for i := range storedAction.slots {
@@ -362,11 +377,11 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 
 		storedAction.slots = newSlots
 
-		s.l.Debug().Msgf("after cleanup, action %s has %d slots", i, len(newSlots))
+		s.l.Debug().Msgf("after cleanup, action %s has %d slots", storedAction.actionId, len(newSlots))
 	}
 
 	// third pass: remove any actions which have no slots
-	for actionId, storedAction := range s.actions {
+	for actionId, storedAction := range actionsToReplenish {
 		if len(storedAction.slots) == 0 {
 			s.l.Debug().Msgf("removing action %s because it has no slots", actionId)
 			delete(s.actions, actionId)
@@ -493,7 +508,9 @@ func (s *Scheduler) tryAssignBatch(
 	// order as the replenish() function, otherwise we may deadlock.
 	s.actionsMu.RLock()
 
-	if _, ok := s.actions[actionId]; !ok {
+	action, ok := s.actions[actionId]
+
+	if !ok || len(action.slots) == 0 {
 		s.actionsMu.RUnlock()
 
 		s.l.Debug().Msgf("no slots for action %s", actionId)
@@ -506,7 +523,12 @@ func (s *Scheduler) tryAssignBatch(
 		return res, newRingOffset, nil
 	}
 
-	candidateSlots := s.actions[actionId].slots
+	s.actionsMu.RUnlock()
+
+	action.mu.Lock()
+	defer action.mu.Unlock()
+
+	candidateSlots := action.slots
 
 	wg := sync.WaitGroup{}
 
@@ -546,10 +568,6 @@ func (s *Scheduler) tryAssignBatch(
 	}
 
 	wg.Wait()
-
-	// we can only unlock the actions mutex after assigning slots, because we are using the
-	// underlying pointers to the slots
-	s.actionsMu.RUnlock()
 
 	return res, newRingOffset, nil
 }
@@ -628,9 +646,6 @@ type AssignedQueueItem struct {
 	WorkerId pgtype.UUID
 
 	QueueItem *dbsqlc.QueueItem
-
-	// DispatcherId only gets set after a successful flush to the database
-	DispatcherId *pgtype.UUID
 }
 
 type assignResults struct {
