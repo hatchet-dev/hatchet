@@ -52,7 +52,8 @@ def main():
     worker.register_workflow(Workflow())
     worker.start()
 
-main()
+if __name__ == "__main__":
+    main()
 ```
 
 ### Example: `worker.async_start`
@@ -69,5 +70,6 @@ async def main():
     worker.register_workflow(Workflow())
     await worker.async_start()
 
-asyncio.run(main())
+if __name__ == "__main__":
+    asyncio.run(main())
 ```
