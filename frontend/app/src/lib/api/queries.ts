@@ -62,7 +62,7 @@ export const queries = createQueryKeyStore({
       managedWorkerId: string,
       query: GetCloudMetricsQuery,
     ) => ({
-      queryKey: ['managed-worker:get:memory-metrics', managedWorkerId],
+      queryKey: ['managed-worker:get:memory-metrics', managedWorkerId, query],
       queryFn: async () =>
         (await cloudApi.metricsMemoryGet(managedWorkerId, query)).data,
     }),
@@ -70,7 +70,7 @@ export const queries = createQueryKeyStore({
       managedWorkerId: string,
       query: GetCloudMetricsQuery,
     ) => ({
-      queryKey: ['managed-worker:get:disk-metrics', managedWorkerId],
+      queryKey: ['managed-worker:get:disk-metrics', managedWorkerId, query],
       queryFn: async () =>
         (await cloudApi.metricsDiskGet(managedWorkerId, query)).data,
     }),

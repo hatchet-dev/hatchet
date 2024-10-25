@@ -129,7 +129,7 @@ export function useTenantContext(): [
 const lastTimeRange = 'lastTimeRange';
 
 const lastTimeRangeAtomInit = atom(
-  getInitialValue<string>(lastTimeRange, '1d'),
+  getInitialValue<string>(lastTimeRange, '1h'),
 );
 
 export const lastTimeRangeAtom = atom(
@@ -137,5 +137,19 @@ export const lastTimeRangeAtom = atom(
   (_get, set, newVal: string) => {
     set(lastTimeRangeAtomInit, newVal);
     localStorage.setItem(lastTimeRange, JSON.stringify(newVal));
+  },
+);
+
+const lastWorkerMetricsTimeRange = 'lastWorkerMetricsTimeRange';
+
+const lastWorkerMetricsTimeRangeAtomInit = atom(
+  getInitialValue<string>(lastWorkerMetricsTimeRange, '1h'),
+);
+
+export const lastWorkerMetricsTimeRangeAtom = atom(
+  (get) => get(lastWorkerMetricsTimeRangeAtomInit),
+  (_get, set, newVal: string) => {
+    set(lastWorkerMetricsTimeRangeAtomInit, newVal);
+    localStorage.setItem(lastWorkerMetricsTimeRange, JSON.stringify(newVal));
   },
 );

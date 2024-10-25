@@ -335,7 +335,7 @@ function ChildLineChart<T extends string>({
           return (
             <Line
               key={key}
-              type="natural"
+              type="monotone"
               dot={false}
               dataKey={key}
               stroke={chartConfig[key].color}
