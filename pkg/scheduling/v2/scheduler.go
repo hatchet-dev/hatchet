@@ -544,6 +544,8 @@ func (s *Scheduler) tryAssignBatch(
 		if denom == 0 {
 			res[i].noSlots = true
 			wg.Done()
+
+			continue
 		}
 
 		childRingOffset := newRingOffset % denom
