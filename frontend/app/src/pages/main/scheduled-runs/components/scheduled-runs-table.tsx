@@ -7,10 +7,9 @@ import {
   SortingState,
   VisibilityState,
 } from '@tanstack/react-table';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import invariant from 'tiny-invariant';
-import api, {
-  ReplayWorkflowRunsRequest,
+import {
   ScheduledRunStatus,
   ScheduledWorkflows,
   ScheduledWorkflowsOrderByField,
@@ -26,8 +25,6 @@ import {
 } from '@/components/molecules/data-table/data-table-toolbar';
 import { Button } from '@/components/ui/button';
 import { ArrowPathIcon } from '@heroicons/react/24/outline';
-import queryClient from '@/query-client';
-import { useApiError } from '@/lib/hooks';
 import { columns } from './scheduled-runs-columns';
 import { DeleteScheduledRun } from './delete-scheduled-runs';
 
@@ -45,7 +42,9 @@ export interface ScheduledWorkflowRunsTableProps {
 
 export function ScheduledRunsTable({
   workflowId,
-  initColumnVisibility = {},
+  initColumnVisibility = {
+    createdAt: false,
+  },
   filterVisibility = {},
   parentWorkflowRunId,
   parentStepRunId,
