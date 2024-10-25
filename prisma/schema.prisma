@@ -165,6 +165,21 @@ model ControllerPartition {
   tenants Tenant[]
 }
 
+// SchedulerPartition represents an engine instance the handles scheduling.
+model SchedulerPartition {
+  id        String   @id @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  // lastHeartbeat is used for rebalancing partitions
+  lastHeartbeat DateTime?
+
+  // name of the partition
+  name String?
+
+  tenants Tenant[]
+}
+
 model TenantWorkerPartition {
   id        String   @id @unique
   createdAt DateTime @default(now())
@@ -197,6 +212,10 @@ model Tenant {
   // the parent controller partition, if exists
   controllerPartition   ControllerPartition? @relation(fields: [controllerPartitionId], references: [id], onDelete: SetNull, onUpdate: SetNull)
   controllerPartitionId String?
+
+  // the parent scheduler partition, if exists
+  schedulerPartition   SchedulerPartition? @relation(fields: [schedulerPartitionId], references: [id], onDelete: SetNull, onUpdate: SetNull)
+  schedulerPartitionId String?
 
   // the parent worker partition, if exists
   workerPartition   TenantWorkerPartition? @relation(fields: [workerPartitionId], references: [id], onDelete: SetNull, onUpdate: SetNull)
@@ -395,6 +414,14 @@ model APIToken {
   tenantId String? @db.Uuid
 
   webhookWorkers WebhookWorker[]
+}
+
+model EventKey {
+  id       BigInt @id @default(autoincrement()) @db.BigInt
+  key      String
+  tenantId String @db.Uuid
+
+  @@unique([key, tenantId])
 }
 
 // Event represents an event in the database.
@@ -942,6 +969,9 @@ model WorkflowRun {
   // (optional) additional metadata for the workflow run
   additionalMetadata Json?
 
+  // this is used to order the workflow runs on bulk inserts
+  insertOrder Int?
+
   @@unique([parentId, parentStepRunId, childKey])
   @@index([tenantId])
   @@index([workflowVersionId])
@@ -1316,7 +1346,10 @@ model Queue {
   tenantId String @db.Uuid
   name     String
 
+  lastActive DateTime?
+
   @@unique([tenantId, name])
+  @@index([tenantId, lastActive])
 }
 
 model QueueItem {
@@ -1409,6 +1442,7 @@ enum StepRunEventReason {
   ASSIGNED
   SENT_TO_WORKER
   STARTED
+  ACKNOWLEDGED
   FINISHED
   FAILED
   RETRYING
@@ -1775,4 +1809,27 @@ model SNSIntegration {
 
 model SecurityCheckIdent {
   id String @id @unique @default(uuid()) @db.Uuid
+}
+
+enum LeaseKind {
+  WORKER
+  QUEUE
+}
+
+model Lease {
+  id BigInt @id @default(autoincrement()) @db.BigInt
+
+  // when the lease on the resource expires
+  expiresAt DateTime?
+
+  // the parent tenant
+  tenantId String @db.Uuid
+
+  // the resource being leased
+  resourceId String
+
+  // the kind of lease
+  kind LeaseKind
+
+  @@unique([tenantId, kind, resourceId])
 }

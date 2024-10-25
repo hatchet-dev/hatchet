@@ -16,7 +16,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/datautils/merge"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
-	"github.com/hatchet-dev/hatchet/internal/services/controllers/partition"
+	"github.com/hatchet-dev/hatchet/internal/services/partition"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
@@ -286,6 +286,8 @@ func (ec *JobsControllerImpl) handleTask(ctx context.Context, task *msgqueue.Mes
 		return ec.handleStepRunQueued(ctx, task)
 	case "step-run-started":
 		return ec.handleStepRunStarted(ctx, task)
+	case "step-run-acked":
+		return ec.handleStepRunAcked(ctx, task)
 	case "step-run-finished":
 		return ec.handleStepRunFinished(ctx, task)
 	case "step-run-failed":
@@ -388,7 +390,7 @@ func (ec *JobsControllerImpl) handleJobRunCancelled(ctx context.Context, task *m
 
 		reason := "JOB_RUN_CANCELLED"
 
-		if payload.Reason != nil {
+		if payload.Reason != nil && *payload.Reason != "" {
 			reason = *payload.Reason
 		}
 
@@ -716,6 +718,7 @@ func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId, stepId
 			err := json.Unmarshal(lookupDataBytes, lookupData)
 
 			if err != nil {
+				ec.l.Error().Err(err).Msgf("could not unmarshal job run lookup data : %s", string(lookupDataBytes))
 				return ec.a.WrapErr(fmt.Errorf("could not get job run lookup data: %w", err), errData)
 			}
 
@@ -808,7 +811,7 @@ func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId, stepId
 	}
 
 	// indicate that the step run is pending assignment
-	_, err = ec.repo.StepRun().QueueStepRun(ctx, tenantId, stepRunId, queueOpts)
+	sr, err := ec.repo.StepRun().QueueStepRun(ctx, tenantId, stepRunId, queueOpts)
 
 	if err != nil {
 		if errors.Is(err, repository.ErrAlreadyQueued) {
@@ -819,12 +822,12 @@ func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId, stepId
 		return ec.a.WrapErr(fmt.Errorf("could not update step run: %w", err), errData)
 	}
 
-	defer ec.checkTenantQueue(ctx, tenantId)
+	defer ec.checkTenantQueue(ctx, tenantId, sr.SRQueue, true, false)
 
 	return nil
 }
 
-func (ec *JobsControllerImpl) checkTenantQueue(ctx context.Context, tenantId string) {
+func (ec *JobsControllerImpl) checkTenantQueue(ctx context.Context, tenantId, queueName string, isStepQueued bool, isSlotReleased bool) {
 	// send a message to the tenant partition queue that a step run is ready to be scheduled
 	tenant, err := ec.repo.Tenant().GetTenantByID(ctx, tenantId)
 
@@ -837,11 +840,23 @@ func (ec *JobsControllerImpl) checkTenantQueue(ctx context.Context, tenantId str
 		err = ec.mq.AddMessage(
 			ctx,
 			msgqueue.QueueTypeFromPartitionIDAndController(tenant.ControllerPartitionId.String, msgqueue.JobController),
-			tasktypes.CheckTenantQueueToTask(tenantId),
+			tasktypes.CheckTenantQueueToTask(tenantId, queueName, isStepQueued, isSlotReleased),
 		)
 
 		if err != nil {
-			ec.l.Err(err).Msg("could not add message to tenant partition queue")
+			ec.l.Err(err).Msg("could not add message to controller partition queue")
+		}
+	}
+
+	if tenant.SchedulerPartitionId.Valid {
+		err = ec.mq.AddMessage(
+			ctx,
+			msgqueue.QueueTypeFromPartitionIDAndController(tenant.SchedulerPartitionId.String, msgqueue.Scheduler),
+			tasktypes.CheckTenantQueueToTask(tenantId, queueName, isStepQueued, isSlotReleased),
+		)
+
+		if err != nil {
+			ec.l.Err(err).Msg("could not add message to scheduler partition queue")
 		}
 	}
 }
@@ -872,7 +887,42 @@ func (ec *JobsControllerImpl) handleStepRunStarted(ctx context.Context, task *ms
 		return fmt.Errorf("could not parse started at: %w", err)
 	}
 
-	err = ec.repo.StepRun().StepRunStarted(ctx, metadata.TenantId, payload.StepRunId, startedAt)
+	err = ec.repo.StepRun().StepRunStarted(ctx, metadata.TenantId, payload.WorkflowRunId, payload.StepRunId, startedAt)
+
+	if err != nil {
+		return fmt.Errorf("could not update step run: %w", err)
+	}
+
+	return nil
+}
+
+func (ec *JobsControllerImpl) handleStepRunAcked(ctx context.Context, task *msgqueue.Message) error {
+	ctx, span := telemetry.NewSpanWithCarrier(ctx, "handle-step-run-acked", task.OtelCarrier)
+	defer span.End()
+
+	payload := tasktypes.StepRunStartedTaskPayload{}
+	metadata := tasktypes.StepRunStartedTaskMetadata{}
+
+	err := ec.dv.DecodeAndValidate(task.Payload, &payload)
+
+	if err != nil {
+		return fmt.Errorf("could not decode step run started task payload: %w", err)
+	}
+
+	err = ec.dv.DecodeAndValidate(task.Metadata, &metadata)
+
+	if err != nil {
+		return fmt.Errorf("could not decode step run started task metadata: %w", err)
+	}
+
+	// update the step run in the database
+	startedAt, err := time.Parse(time.RFC3339, payload.StartedAt)
+
+	if err != nil {
+		return fmt.Errorf("could not parse started at: %w", err)
+	}
+
+	err = ec.repo.StepRun().StepRunAcked(ctx, metadata.TenantId, payload.WorkflowRunId, payload.StepRunId, startedAt)
 
 	if err != nil {
 		return fmt.Errorf("could not update step run: %w", err)
@@ -913,7 +963,7 @@ func (ec *JobsControllerImpl) handleStepRunFinished(ctx context.Context, task *m
 		stepOutput = []byte(payload.StepOutputData)
 	}
 
-	err = ec.repo.StepRun().StepRunSucceeded(ctx, metadata.TenantId, payload.StepRunId, finishedAt, stepOutput)
+	err = ec.repo.StepRun().StepRunSucceeded(ctx, metadata.TenantId, payload.WorkflowRunId, payload.StepRunId, finishedAt, stepOutput)
 
 	if err != nil {
 		return fmt.Errorf("could not update step run: %w", err)
@@ -938,7 +988,13 @@ func (ec *JobsControllerImpl) handleStepRunFinished(ctx context.Context, task *m
 	}
 
 	// recheck the tenant queue
-	ec.checkTenantQueue(ctx, metadata.TenantId)
+	sr, err := ec.repo.StepRun().GetStepRunForEngine(ctx, metadata.TenantId, payload.StepRunId)
+
+	if err != nil {
+		return fmt.Errorf("could not get step run: %w", err)
+	}
+
+	ec.checkTenantQueue(ctx, metadata.TenantId, sr.SRQueue, false, true)
 
 	return nil
 }
@@ -978,7 +1034,7 @@ func (ec *JobsControllerImpl) failStepRun(ctx context.Context, tenantId, stepRun
 	}
 
 	// check the queue on failure
-	defer ec.checkTenantQueue(ctx, tenantId)
+	defer ec.checkTenantQueue(ctx, tenantId, oldStepRun.SRQueue, false, true)
 
 	// determine if step run should be retried or not
 	shouldRetry := oldStepRun.SRRetryCount < oldStepRun.StepRetries
@@ -1014,7 +1070,7 @@ func (ec *JobsControllerImpl) failStepRun(ctx context.Context, tenantId, stepRun
 	}
 
 	// fail step run
-	err = ec.repo.StepRun().StepRunFailed(ctx, tenantId, stepRunId, failedAt, errorReason, int(oldStepRun.SRRetryCount))
+	err = ec.repo.StepRun().StepRunFailed(ctx, tenantId, sqlchelpers.UUIDToStr(oldStepRun.WorkflowRunId), stepRunId, failedAt, errorReason, int(oldStepRun.SRRetryCount))
 
 	if err != nil {
 		return fmt.Errorf("could not fail step run: %w", err)
@@ -1129,7 +1185,7 @@ func (ec *JobsControllerImpl) cancelStepRun(ctx context.Context, tenantId, stepR
 		return fmt.Errorf("could not get step run: %w", err)
 	}
 
-	err = ec.repo.StepRun().StepRunCancelled(ctx, tenantId, stepRunId, now, reason)
+	err = ec.repo.StepRun().StepRunCancelled(ctx, tenantId, sqlchelpers.UUIDToStr(oldStepRun.WorkflowRunId), stepRunId, now, reason)
 
 	if err != nil {
 		return fmt.Errorf("could not cancel step run: %w", err)
@@ -1169,25 +1225,6 @@ func (ec *JobsControllerImpl) cancelStepRun(ctx context.Context, tenantId, stepR
 	}
 
 	return nil
-}
-
-func stepRunAssignedTask(tenantId, stepRunId, workerId, dispatcherId string) *msgqueue.Message {
-	payload, _ := datautils.ToJSONMap(tasktypes.StepRunAssignedTaskPayload{
-		StepRunId: stepRunId,
-		WorkerId:  workerId,
-	})
-
-	metadata, _ := datautils.ToJSONMap(tasktypes.StepRunAssignedTaskMetadata{
-		TenantId:     tenantId,
-		DispatcherId: dispatcherId,
-	})
-
-	return &msgqueue.Message{
-		ID:       "step-run-assigned",
-		Payload:  payload,
-		Metadata: metadata,
-		Retries:  3,
-	}
 }
 
 func stepRunCancelledTask(tenantId, stepRunId, workerId, dispatcherId, cancelledReason string, runId string, retries *int32, retryCount *int32) *msgqueue.Message {

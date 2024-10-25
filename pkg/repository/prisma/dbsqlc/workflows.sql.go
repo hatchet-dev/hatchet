@@ -755,6 +755,61 @@ func (q *Queries) CreateWorkflowVersion(ctx context.Context, db DBTX, arg Create
 	return &i, err
 }
 
+const getLatestWorkflowVersionForWorkflows = `-- name: GetLatestWorkflowVersionForWorkflows :many
+WITH latest_versions AS (
+    SELECT DISTINCT ON (workflowVersions."workflowId")
+        workflowVersions."id" AS workflowVersionId,
+        workflowVersions."workflowId",
+        workflowVersions."order"
+    FROM
+        "WorkflowVersion" as workflowVersions
+    WHERE
+        workflowVersions."workflowId" = ANY($2::uuid[]) AND
+        workflowVersions."deletedAt" IS NULL
+    ORDER BY
+        workflowVersions."workflowId", workflowVersions."order" DESC
+)
+SELECT
+    workflowVersions."id"
+FROM
+    latest_versions
+JOIN
+    "WorkflowVersion" as workflowVersions ON workflowVersions."id" = latest_versions.workflowVersionId
+JOIN
+    "Workflow" as w ON w."id" = workflowVersions."workflowId"
+LEFT JOIN
+    "WorkflowConcurrency" as wc ON wc."workflowVersionId" = workflowVersions."id"
+WHERE
+    w."tenantId" = $1::uuid AND
+    w."deletedAt" IS NULL AND
+    workflowVersions."deletedAt" IS NULL
+`
+
+type GetLatestWorkflowVersionForWorkflowsParams struct {
+	Tenantid    pgtype.UUID   `json:"tenantid"`
+	Workflowids []pgtype.UUID `json:"workflowids"`
+}
+
+func (q *Queries) GetLatestWorkflowVersionForWorkflows(ctx context.Context, db DBTX, arg GetLatestWorkflowVersionForWorkflowsParams) ([]pgtype.UUID, error) {
+	rows, err := db.Query(ctx, getLatestWorkflowVersionForWorkflows, arg.Tenantid, arg.Workflowids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []pgtype.UUID
+	for rows.Next() {
+		var id pgtype.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getWorkflowById = `-- name: GetWorkflowById :one
 SELECT
     w.id, w."createdAt", w."updatedAt", w."deletedAt", w."tenantId", w.name, w.description, w."isPaused",
@@ -1136,6 +1191,51 @@ func (q *Queries) GetWorkflowWorkerCount(ctx context.Context, db DBTX, arg GetWo
 	return &i, err
 }
 
+const getWorkflowsByNames = `-- name: GetWorkflowsByNames :many
+SELECT
+    workflows.id, workflows."createdAt", workflows."updatedAt", workflows."deletedAt", workflows."tenantId", workflows.name, workflows.description, workflows."isPaused"
+FROM
+    "Workflow" as workflows
+WHERE
+    workflows."tenantId" = $1::uuid AND
+    workflows."name" = ANY($2::text[]) AND
+    workflows."deletedAt" IS NULL
+`
+
+type GetWorkflowsByNamesParams struct {
+	Tenantid pgtype.UUID `json:"tenantid"`
+	Names    []string    `json:"names"`
+}
+
+func (q *Queries) GetWorkflowsByNames(ctx context.Context, db DBTX, arg GetWorkflowsByNamesParams) ([]*Workflow, error) {
+	rows, err := db.Query(ctx, getWorkflowsByNames, arg.Tenantid, arg.Names)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*Workflow
+	for rows.Next() {
+		var i Workflow
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.TenantId,
+			&i.Name,
+			&i.Description,
+			&i.IsPaused,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const handleWorkflowUnpaused = `-- name: HandleWorkflowUnpaused :exec
 WITH matching_qis AS (
     -- We know that we're going to need to scan all the queue items in this queue
@@ -1299,49 +1399,50 @@ func (q *Queries) ListWorkflows(ctx context.Context, db DBTX, arg ListWorkflowsP
 }
 
 const listWorkflowsForEvent = `-- name: ListWorkflowsForEvent :many
-SELECT DISTINCT ON ("WorkflowVersion"."workflowId") "WorkflowVersion".id
-FROM "WorkflowVersion"
-LEFT JOIN "Workflow" AS j1 ON j1.id = "WorkflowVersion"."workflowId"
-LEFT JOIN "WorkflowTriggers" AS j2 ON j2."workflowVersionId" = "WorkflowVersion"."id"
+WITH latest_versions AS (
+    SELECT DISTINCT ON("workflowId")
+        workflowVersions."id" AS "workflowVersionId"
+    FROM
+        "WorkflowVersion" as workflowVersions
+    JOIN
+        "Workflow" as workflow ON workflow."id" = workflowVersions."workflowId"
+    WHERE
+        workflow."tenantId" = $2::uuid
+        AND workflowVersions."deletedAt" IS NULL
+    ORDER BY "workflowId", "order" DESC
+)
+SELECT
+    latest_versions."workflowVersionId"
+FROM
+    latest_versions
+JOIN
+    "WorkflowTriggers" as triggers ON triggers."workflowVersionId" = latest_versions."workflowVersionId"
+JOIN
+    "WorkflowTriggerEventRef" as eventRef ON eventRef."parentId" = triggers."id"
 WHERE
-    (j1."tenantId"::uuid = $1 AND j1.id IS NOT NULL)
-    AND j1."deletedAt" IS NULL
-    AND "WorkflowVersion"."deletedAt" IS NULL
-    AND
-    (j2.id IN (
-        SELECT t3."parentId"
-        FROM "WorkflowTriggerEventRef" AS t3
-        WHERE t3."eventKey" = $2 AND t3."parentId" IS NOT NULL
-    ) AND j2.id IS NOT NULL)
-    AND "WorkflowVersion".id = (
-        -- confirm that the workflow version is the latest
-        SELECT wv2.id
-        FROM "WorkflowVersion" wv2
-        WHERE wv2."workflowId" = "WorkflowVersion"."workflowId"
-        ORDER BY wv2."order" DESC
-        LIMIT 1
-    )
-ORDER BY "WorkflowVersion"."workflowId", "WorkflowVersion"."order" DESC
+    eventRef."eventKey" = $1::text
 `
 
 type ListWorkflowsForEventParams struct {
-	Tenantid pgtype.UUID `json:"tenantid"`
 	Eventkey string      `json:"eventkey"`
+	Tenantid pgtype.UUID `json:"tenantid"`
 }
 
+// Get all of the latest workflow versions for the tenant
+// select the workflow versions that have the event trigger
 func (q *Queries) ListWorkflowsForEvent(ctx context.Context, db DBTX, arg ListWorkflowsForEventParams) ([]pgtype.UUID, error) {
-	rows, err := db.Query(ctx, listWorkflowsForEvent, arg.Tenantid, arg.Eventkey)
+	rows, err := db.Query(ctx, listWorkflowsForEvent, arg.Eventkey, arg.Tenantid)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	var items []pgtype.UUID
 	for rows.Next() {
-		var id pgtype.UUID
-		if err := rows.Scan(&id); err != nil {
+		var workflowVersionId pgtype.UUID
+		if err := rows.Scan(&workflowVersionId); err != nil {
 			return nil, err
 		}
-		items = append(items, id)
+		items = append(items, workflowVersionId)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -1351,7 +1452,7 @@ func (q *Queries) ListWorkflowsForEvent(ctx context.Context, db DBTX, arg ListWo
 
 const listWorkflowsLatestRuns = `-- name: ListWorkflowsLatestRuns :many
 SELECT
-    DISTINCT ON (workflow."id") runs."createdAt", runs."updatedAt", runs."deletedAt", runs."tenantId", runs."workflowVersionId", runs.status, runs.error, runs."startedAt", runs."finishedAt", runs."concurrencyGroupId", runs."displayName", runs.id, runs."childIndex", runs."childKey", runs."parentId", runs."parentStepRunId", runs."additionalMetadata", runs.duration, runs.priority, workflow."id" as "workflowId"
+    DISTINCT ON (workflow."id") runs."createdAt", runs."updatedAt", runs."deletedAt", runs."tenantId", runs."workflowVersionId", runs.status, runs.error, runs."startedAt", runs."finishedAt", runs."concurrencyGroupId", runs."displayName", runs.id, runs."childIndex", runs."childKey", runs."parentId", runs."parentStepRunId", runs."additionalMetadata", runs.duration, runs.priority, runs."insertOrder", workflow."id" as "workflowId"
 FROM
     "WorkflowRun" as runs
 LEFT JOIN
@@ -1432,6 +1533,7 @@ func (q *Queries) ListWorkflowsLatestRuns(ctx context.Context, db DBTX, arg List
 			&i.WorkflowRun.AdditionalMetadata,
 			&i.WorkflowRun.Duration,
 			&i.WorkflowRun.Priority,
+			&i.WorkflowRun.InsertOrder,
 			&i.WorkflowId,
 		); err != nil {
 			return nil, err

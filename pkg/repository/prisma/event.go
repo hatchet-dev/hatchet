@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/buffer"
 	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
@@ -132,7 +134,7 @@ func (r *eventAPIRepository) ListEvents(ctx context.Context, tenantId string, op
 		return nil, err
 	}
 
-	defer deferRollback(context.Background(), r.l, tx.Rollback)
+	defer sqlchelpers.DeferRollback(context.Background(), r.l, tx.Rollback)
 
 	events, err := r.queries.ListEvents(ctx, tx, queryParams)
 
@@ -167,28 +169,13 @@ func (r *eventAPIRepository) ListEvents(ctx context.Context, tenantId string, op
 }
 
 func (r *eventAPIRepository) ListEventKeys(tenantId string) ([]string, error) {
-	var rows []struct {
-		Key string `json:"key"`
-	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 
-	err := r.client.Prisma.QueryRaw(
-		`
-		SELECT DISTINCT ON("Event"."key") "Event"."key"
-		FROM "Event"
-		WHERE
-		"Event"."tenantId"::text = $1
-		`,
-		tenantId,
-	).Exec(context.Background(), &rows)
+	keys, err := r.queries.ListEventKeys(ctx, r.pool, sqlchelpers.UUIDFromStr(tenantId))
 
 	if err != nil {
 		return nil, err
-	}
-
-	keys := make([]string, len(rows))
-
-	for i, row := range rows {
-		keys[i] = row.Key
 	}
 
 	return keys, nil
@@ -200,9 +187,9 @@ func sizeOfEvent(item *repository.CreateEventOpts) int {
 
 func (e *eventEngineRepository) startBufferLoop() error {
 
-	tenantBufOpts := TenantBufManagerOpts[*repository.CreateEventOpts, *dbsqlc.Event]{OutputFunc: e.BulkCreateEventSharedTenant, SizeFunc: sizeOfEvent, L: e.l, V: e.v}
+	tenantBufOpts := buffer.TenantBufManagerOpts[*repository.CreateEventOpts, *dbsqlc.Event]{Name: "create_events", OutputFunc: e.BulkCreateEventSharedTenant, SizeFunc: sizeOfEvent, L: e.l, V: e.v}
 	var err error
-	e.bulkCreateBuffer, err = NewTenantBufManager(tenantBufOpts)
+	e.bulkCreateBuffer, err = buffer.NewTenantBufManager(tenantBufOpts)
 
 	return err
 
@@ -224,13 +211,14 @@ func (r *eventAPIRepository) ListEventsById(tenantId string, ids []string) ([]db
 }
 
 type eventEngineRepository struct {
-	pool             *pgxpool.Pool
-	v                validator.Validator
-	queries          *dbsqlc.Queries
-	l                *zerolog.Logger
-	m                *metered.Metered
-	bulkCreateBuffer *TenantBufferManager[*repository.CreateEventOpts, *dbsqlc.Event]
-	callbacks        []repository.Callback[*dbsqlc.Event]
+	pool                *pgxpool.Pool
+	v                   validator.Validator
+	queries             *dbsqlc.Queries
+	l                   *zerolog.Logger
+	m                   *metered.Metered
+	bulkCreateBuffer    *buffer.TenantBufferManager[*repository.CreateEventOpts, *dbsqlc.Event]
+	callbacks           []repository.Callback[*dbsqlc.Event]
+	createEventKeyCache *lru.Cache[string, bool]
 }
 
 func (r *eventEngineRepository) cleanup() error {
@@ -240,12 +228,15 @@ func (r *eventEngineRepository) cleanup() error {
 func NewEventEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, m *metered.Metered) (repository.EventEngineRepository, func() error, error) {
 	queries := dbsqlc.New()
 
+	createEventKeyCache, _ := lru.New[string, bool](2000) // nolint: errcheck - this only returns an error if the size is less than 0
+
 	e := eventEngineRepository{
-		pool:    pool,
-		v:       v,
-		queries: queries,
-		l:       l,
-		m:       m,
+		pool:                pool,
+		v:                   v,
+		queries:             queries,
+		l:                   l,
+		m:                   m,
+		createEventKeyCache: createEventKeyCache,
 	}
 	err := e.startBufferLoop()
 
@@ -262,6 +253,44 @@ func (r *eventEngineRepository) RegisterCreateCallback(callback repository.Callb
 
 func (r *eventEngineRepository) GetEventForEngine(ctx context.Context, tenantId, id string) (*dbsqlc.Event, error) {
 	return r.queries.GetEventForEngine(ctx, r.pool, sqlchelpers.UUIDFromStr(id))
+}
+
+func (r *eventEngineRepository) createEventKeys(ctx context.Context, tx pgx.Tx, keys map[string]struct {
+	key      string
+	tenantId string
+}) error {
+
+	eventKeys := make([]string, 0)
+	eventKeysTenantIds := make([]pgtype.UUID, 0)
+
+	for _, eventKey := range keys {
+		cacheKey := fmt.Sprintf("%s-%s", eventKey.tenantId, eventKey.key)
+
+		// if the key is already in the cache, skip it
+		if _, ok := r.createEventKeyCache.Get(cacheKey); ok {
+			continue
+		}
+
+		r.l.Debug().Msgf("creating event key %s for tenant %s", eventKey.key, eventKey.tenantId)
+		eventKeys = append(eventKeys, eventKey.key)
+		eventKeysTenantIds = append(eventKeysTenantIds, sqlchelpers.UUIDFromStr(eventKey.tenantId))
+	}
+
+	err := r.queries.CreateEventKeys(ctx, tx, dbsqlc.CreateEventKeysParams{
+		Tenantids: eventKeysTenantIds,
+		Keys:      eventKeys,
+	})
+
+	if err != nil {
+		return err
+	}
+
+	// add to cache
+	for i := range eventKeys {
+		r.createEventKeyCache.Add(fmt.Sprintf("%s-%s", sqlchelpers.UUIDToStr(eventKeysTenantIds[i]), eventKeys[i]), true)
+	}
+
+	return nil
 }
 
 func (r *eventEngineRepository) CreateEvent(ctx context.Context, opts *repository.CreateEventOpts) (*dbsqlc.Event, error) {
@@ -287,7 +316,7 @@ func (r *eventEngineRepository) CreateEvent(ctx context.Context, opts *repositor
 		if err != nil {
 			return nil, nil, fmt.Errorf("could not buffer event: %w", err)
 		}
-		var response *flushResponse[*dbsqlc.Event]
+		var response *buffer.FlushResponse[*dbsqlc.Event]
 
 		select {
 		case response = <-done:
@@ -297,11 +326,11 @@ func (r *eventEngineRepository) CreateEvent(ctx context.Context, opts *repositor
 			return nil, nil, fmt.Errorf("timeout waiting for event to be flushed to db")
 		}
 
-		if response.err != nil {
-			return nil, nil, fmt.Errorf("could not create event: %w", response.err)
+		if response.Err != nil {
+			return nil, nil, fmt.Errorf("could not create event: %w", response.Err)
 		}
 
-		e := response.result
+		e := response.Result
 
 		for _, cb := range r.callbacks {
 			cb.Do(r.l, opts.TenantId, e)
@@ -329,11 +358,15 @@ func (r *eventEngineRepository) BulkCreateEvent(ctx context.Context, opts *repos
 		defer span.End()
 
 		if err := r.v.Validate(opts); err != nil {
-
 			return nil, nil, err
 		}
 		params := make([]dbsqlc.CreateEventsParams, len(opts.Events))
 		ids := make([]pgtype.UUID, len(opts.Events))
+
+		uniqueEventKeys := make(map[string]struct {
+			key      string
+			tenantId string
+		})
 
 		for i, event := range opts.Events {
 			eventId := uuid.New().String()
@@ -350,6 +383,14 @@ func (r *eventEngineRepository) BulkCreateEvent(ctx context.Context, opts *repos
 				params[i].ReplayedFromId = sqlchelpers.UUIDFromStr(*event.ReplayedEvent)
 			}
 
+			uniqueEventKeys[fmt.Sprintf("%s-%s", event.TenantId, event.Key)] = struct {
+				key      string
+				tenantId string
+			}{
+				key:      event.Key,
+				tenantId: event.TenantId,
+			}
+
 			ids[i] = sqlchelpers.UUIDFromStr(eventId)
 		}
 
@@ -360,8 +401,14 @@ func (r *eventEngineRepository) BulkCreateEvent(ctx context.Context, opts *repos
 			return nil, nil, err
 		}
 
-		defer deferRollback(ctx, r.l, tx.Rollback)
+		defer sqlchelpers.DeferRollback(ctx, r.l, tx.Rollback)
 
+		err = r.createEventKeys(ctx, tx, uniqueEventKeys)
+
+		if err != nil {
+			return nil, nil, fmt.Errorf("could not create event keys: %w", err)
+		}
+		// create events
 		insertCount, err := r.queries.CreateEvents(
 			ctx,
 			tx,
@@ -455,7 +502,7 @@ func (r *eventEngineRepository) BulkCreateEventSharedTenant(ctx context.Context,
 		return nil, err
 	}
 
-	defer deferRollback(ctx, r.l, tx.Rollback)
+	defer sqlchelpers.DeferRollback(ctx, r.l, tx.Rollback)
 
 	insertCount, err := r.queries.CreateEvents(
 		ctx,

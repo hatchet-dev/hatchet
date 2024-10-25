@@ -19,8 +19,7 @@ WITH stepRuns AS (
             SELECT "jobRunId"
             FROM "StepRun"
             WHERE "id" = ANY(@stepRunIds::uuid[])
-        ) AND
-        "tenantId" = @tenantId::uuid
+        )
     GROUP BY runs."jobRunId"
 )
 UPDATE "JobRun"
@@ -56,7 +55,6 @@ END
 FROM stepRuns s
 WHERE
     "id" = s."jobRunId"
-    AND "tenantId" = @tenantId::uuid
 RETURNING "JobRun"."id";
 
 -- name: UpsertJobRunLookupData :exec
@@ -158,6 +156,19 @@ WHERE
     jr."tenantId" = @tenantId::uuid
     AND jr."workflowRunId" = @workflowRunId::uuid
     AND jr."jobId" = @jobId::uuid;
+
+-- name: GetJobRunsByWorkflowRunId :many
+
+SELECT
+    "id",
+    "jobId",
+    "status"
+FROM
+    "JobRun" jr
+WHERE
+    jr."workflowRunId" = @workflowRunId::uuid
+    AND jr."tenantId" = @tenantId::uuid;
+
 
 -- name: ClearJobRunLookupData :one
 WITH for_delete AS (

@@ -1,8 +1,9 @@
-package prisma
+package buffer
 
 import (
 	"context"
 	"fmt"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -25,6 +26,7 @@ func (s ingestBufState) String() string {
 // e.g. T is eventOpts and U is *dbsqlc.Event
 
 type IngestBuf[T any, U any] struct {
+	name       string // a human readable name for the buffer
 	outputFunc func(ctx context.Context, items []T) ([]U, error)
 	sizeFunc   func(T) int
 
@@ -46,10 +48,11 @@ type IngestBuf[T any, U any] struct {
 
 type inputWrapper[T any, U any] struct {
 	item     T
-	doneChan chan<- *flushResponse[U]
+	doneChan chan<- *FlushResponse[U]
 }
 
 type IngestBufOpts[T any, U any] struct {
+	Name               string                                            `validate:"required"`
 	MaxCapacity        int                                               `validate:"required,gt=0"`
 	FlushPeriod        time.Duration                                     `validate:"required,gt=0"`
 	MaxDataSizeInQueue int                                               `validate:"required,gt=0"`
@@ -69,7 +72,10 @@ func NewIngestBuffer[T any, U any](opts IngestBufOpts[T, U]) *IngestBuf[T, U] {
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
 
+	logger := opts.L.With().Str("buffer", opts.Name).Logger()
+
 	return &IngestBuf[T, U]{
+		name:               opts.Name,
 		state:              initialized,
 		maxCapacity:        opts.MaxCapacity,
 		flushPeriod:        opts.FlushPeriod,
@@ -80,7 +86,7 @@ func NewIngestBuffer[T any, U any](opts IngestBufOpts[T, U]) *IngestBuf[T, U] {
 		maxDataSizeInQueue: opts.MaxDataSizeInQueue,
 		outputFunc:         opts.OutputFunc,
 		sizeFunc:           opts.SizeFunc,
-		l:                  opts.L,
+		l:                  &logger,
 		ctx:                ctx,
 		cancel:             cancel,
 	}
@@ -169,9 +175,9 @@ func (b *IngestBuf[T, U]) sliceInternalArray() (items []*inputWrapper[T, U]) {
 	return items
 }
 
-type flushResponse[U any] struct {
-	result U
-	err    error
+type FlushResponse[U any] struct {
+	Result U
+	Err    error
 }
 
 func (b *IngestBuf[T, U]) calcSizeOfData(items []T) int {
@@ -197,7 +203,7 @@ func (b *IngestBuf[T, U]) flush(items []*inputWrapper[T, U]) {
 		return
 	}
 
-	var doneChans []chan<- *flushResponse[U]
+	var doneChans []chan<- *FlushResponse[U]
 	opts := make([]T, numItems)
 
 	for i := 0; i < numItems; i++ {
@@ -209,13 +215,13 @@ func (b *IngestBuf[T, U]) flush(items []*inputWrapper[T, U]) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				err := fmt.Errorf("panic recovered in flush: %v", r)
-				b.l.Error().Msgf("Panic recovered: %v", err)
+				err := fmt.Errorf("[%s] panic recovered in flush: %v", b.name, r)
+				b.l.Error().Msgf("Panic recovered: %v. Stack %s", err, string(debug.Stack()))
 
 				// Send error to all done channels
 				for _, doneChan := range doneChans {
 					select {
-					case doneChan <- &flushResponse[U]{err: err}:
+					case doneChan <- &FlushResponse[U]{Err: err}:
 					default:
 						b.l.Error().Msgf("could not send panic error to done chan: %v", err)
 					}
@@ -229,7 +235,7 @@ func (b *IngestBuf[T, U]) flush(items []*inputWrapper[T, U]) {
 		if err != nil {
 			for _, doneChan := range doneChans {
 				select {
-				case doneChan <- &flushResponse[U]{err: err}:
+				case doneChan <- &FlushResponse[U]{Err: err}:
 				default:
 					b.l.Error().Msgf("could not send error to done chan: %v", err)
 				}
@@ -239,13 +245,13 @@ func (b *IngestBuf[T, U]) flush(items []*inputWrapper[T, U]) {
 
 		for i, d := range doneChans {
 			select {
-			case d <- &flushResponse[U]{result: result[i], err: nil}:
+			case d <- &FlushResponse[U]{Result: result[i], Err: nil}:
 			default:
 				b.l.Error().Msg("could not send done to done chan")
 			}
 		}
 
-		b.l.Debug().Msgf("Flushed %d items", numItems)
+		b.l.Debug().Msgf("flushed %d items", numItems)
 	}()
 }
 
@@ -284,16 +290,30 @@ func (b *IngestBuf[T, U]) Start() (func() error, error) {
 	b.state = started
 
 	go b.buffWorker()
+
 	return b.cleanup, nil
 }
 
-func (b *IngestBuf[T, U]) BuffItem(item T) (chan *flushResponse[U], error) {
+func (b *IngestBuf[T, U]) StartDebugLoop() {
+	b.l.Debug().Msg("starting debug loop")
+	for {
+		select {
+		case <-time.After(10 * time.Second):
+			b.debugBuffer()
+		case <-b.ctx.Done():
+			b.l.Debug().Msg("stopping debug loop")
+			return
+		}
+	}
+}
+
+func (b *IngestBuf[T, U]) BuffItem(item T) (chan *FlushResponse[U], error) {
 
 	if b.state != started {
 		return nil, fmt.Errorf("buffer not ready, in state '%v'", b.state.String())
 	}
 
-	doneChan := make(chan *flushResponse[U], 1)
+	doneChan := make(chan *FlushResponse[U], 1)
 
 	select {
 	case b.inputChan <- &inputWrapper[T, U]{
@@ -307,4 +327,18 @@ func (b *IngestBuf[T, U]) BuffItem(item T) (chan *flushResponse[U], error) {
 		return nil, fmt.Errorf("buffer is closed")
 	}
 	return doneChan, nil
+}
+
+func (b *IngestBuf[T, U]) debugBuffer() {
+
+	b.l.Debug().Msgf("============= Buffer =============")
+	b.l.Debug().Msgf("%d items", b.safeCheckSizeOfBuffer())
+	b.l.Debug().Msgf("%d bytes", b.safeFetchSizeOfData())
+	b.l.Debug().Msgf("last flushed at %v", b.safeFetchLastFlush())
+	b.l.Debug().Msgf("%d max capacity", b.maxCapacity)
+	b.l.Debug().Msgf("%d max data size in queue", b.maxDataSizeInQueue)
+	b.l.Debug().Msgf("%v flush period", b.flushPeriod)
+	b.l.Debug().Msgf("in state %v", b.state)
+	b.l.Debug().Msgf("=====================================")
+
 }

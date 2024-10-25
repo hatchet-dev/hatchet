@@ -30,18 +30,30 @@ func JobRunQueuedToTask(tenantId, jobRunId string) *msgqueue.Message {
 	}
 }
 
+type CheckTenantQueuePayload struct {
+	IsStepQueued   bool   `json:"is_step_queued"`
+	IsSlotReleased bool   `json:"is_slot_released"`
+	QueueName      string `json:"queue_name"`
+}
+
 type CheckTenantQueueMetadata struct {
 	TenantId string `json:"tenant_id" validate:"required,uuid"`
 }
 
-func CheckTenantQueueToTask(tenantId string) *msgqueue.Message {
+func CheckTenantQueueToTask(tenantId, queueName string, isStepQueued bool, isSlotReleased bool) *msgqueue.Message {
+	payload, _ := datautils.ToJSONMap(CheckTenantQueuePayload{
+		IsStepQueued:   isStepQueued,
+		IsSlotReleased: isSlotReleased,
+		QueueName:      queueName,
+	})
+
 	metadata, _ := datautils.ToJSONMap(CheckTenantQueueMetadata{
 		TenantId: tenantId,
 	})
 
 	return &msgqueue.Message{
 		ID:                "check-tenant-queue",
-		Payload:           nil,
+		Payload:           payload,
 		Metadata:          metadata,
 		ImmediatelyExpire: true,
 		Retries:           3,

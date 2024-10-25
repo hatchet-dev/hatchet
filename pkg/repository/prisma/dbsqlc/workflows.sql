@@ -354,29 +354,30 @@ INSERT INTO "WorkflowTriggerScheduledRef" (
 ) RETURNING *;
 
 -- name: ListWorkflowsForEvent :many
-SELECT DISTINCT ON ("WorkflowVersion"."workflowId") "WorkflowVersion".id
-FROM "WorkflowVersion"
-LEFT JOIN "Workflow" AS j1 ON j1.id = "WorkflowVersion"."workflowId"
-LEFT JOIN "WorkflowTriggers" AS j2 ON j2."workflowVersionId" = "WorkflowVersion"."id"
+-- Get all of the latest workflow versions for the tenant
+WITH latest_versions AS (
+    SELECT DISTINCT ON("workflowId")
+        workflowVersions."id" AS "workflowVersionId"
+    FROM
+        "WorkflowVersion" as workflowVersions
+    JOIN
+        "Workflow" as workflow ON workflow."id" = workflowVersions."workflowId"
+    WHERE
+        workflow."tenantId" = @tenantId::uuid
+        AND workflowVersions."deletedAt" IS NULL
+    ORDER BY "workflowId", "order" DESC
+)
+-- select the workflow versions that have the event trigger
+SELECT
+    latest_versions."workflowVersionId"
+FROM
+    latest_versions
+JOIN
+    "WorkflowTriggers" as triggers ON triggers."workflowVersionId" = latest_versions."workflowVersionId"
+JOIN
+    "WorkflowTriggerEventRef" as eventRef ON eventRef."parentId" = triggers."id"
 WHERE
-    (j1."tenantId"::uuid = @tenantId AND j1.id IS NOT NULL)
-    AND j1."deletedAt" IS NULL
-    AND "WorkflowVersion"."deletedAt" IS NULL
-    AND
-    (j2.id IN (
-        SELECT t3."parentId"
-        FROM "WorkflowTriggerEventRef" AS t3
-        WHERE t3."eventKey" = @eventKey AND t3."parentId" IS NOT NULL
-    ) AND j2.id IS NOT NULL)
-    AND "WorkflowVersion".id = (
-        -- confirm that the workflow version is the latest
-        SELECT wv2.id
-        FROM "WorkflowVersion" wv2
-        WHERE wv2."workflowId" = "WorkflowVersion"."workflowId"
-        ORDER BY wv2."order" DESC
-        LIMIT 1
-    )
-ORDER BY "WorkflowVersion"."workflowId", "WorkflowVersion"."order" DESC;
+    eventRef."eventKey" = @eventKey::text;
 
 -- name: GetWorkflowVersionForEngine :many
 SELECT
@@ -398,6 +399,35 @@ WHERE
     w."deletedAt" IS NULL AND
     workflowVersions."deletedAt" IS NULL;
 
+-- name: GetLatestWorkflowVersionForWorkflows :many
+WITH latest_versions AS (
+    SELECT DISTINCT ON (workflowVersions."workflowId")
+        workflowVersions."id" AS workflowVersionId,
+        workflowVersions."workflowId",
+        workflowVersions."order"
+    FROM
+        "WorkflowVersion" as workflowVersions
+    WHERE
+        workflowVersions."workflowId" = ANY(@workflowIds::uuid[]) AND
+        workflowVersions."deletedAt" IS NULL
+    ORDER BY
+        workflowVersions."workflowId", workflowVersions."order" DESC
+)
+SELECT
+    workflowVersions."id"
+FROM
+    latest_versions
+JOIN
+    "WorkflowVersion" as workflowVersions ON workflowVersions."id" = latest_versions.workflowVersionId
+JOIN
+    "Workflow" as w ON w."id" = workflowVersions."workflowId"
+LEFT JOIN
+    "WorkflowConcurrency" as wc ON wc."workflowVersionId" = workflowVersions."id"
+WHERE
+    w."tenantId" = @tenantId::uuid AND
+    w."deletedAt" IS NULL AND
+    workflowVersions."deletedAt" IS NULL;
+
 -- name: GetWorkflowByName :one
 SELECT
     *
@@ -407,6 +437,18 @@ WHERE
     workflows."tenantId" = @tenantId::uuid AND
     workflows."name" = @name::text AND
     workflows."deletedAt" IS NULL;
+
+-- name: GetWorkflowsByNames :many
+SELECT
+    workflows.*
+FROM
+    "Workflow" as workflows
+WHERE
+    workflows."tenantId" = @tenantId::uuid AND
+    workflows."name" = ANY(@names::text[]) AND
+    workflows."deletedAt" IS NULL;
+
+
 
 -- name: CreateSchedules :many
 INSERT INTO "WorkflowTriggerScheduledRef" (

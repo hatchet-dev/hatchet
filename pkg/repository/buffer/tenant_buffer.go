@@ -1,4 +1,4 @@
-package prisma
+package buffer
 
 import (
 	"context"
@@ -6,7 +6,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 
 	"github.com/rs/zerolog"
@@ -17,13 +16,13 @@ var (
 	defaultMaxCapacity = 100
 )
 
-func setDefaults(cf *server.ConfigFileRuntime) {
-	if cf.FlushPeriodMilliseconds != 0 {
-		defaultFlushPeriod = time.Duration(cf.FlushPeriodMilliseconds) * time.Millisecond
+func SetDefaults(flushPeriodMilliseconds int, flushItemsThreshold int) {
+	if flushPeriodMilliseconds != 0 {
+		defaultFlushPeriod = time.Duration(flushPeriodMilliseconds) * time.Millisecond
 	}
 
-	if cf.FlushItemsThreshold != 0 {
-		defaultMaxCapacity = cf.FlushItemsThreshold
+	if flushItemsThreshold != 0 {
+		defaultMaxCapacity = flushItemsThreshold
 	}
 }
 
@@ -31,6 +30,7 @@ func setDefaults(cf *server.ConfigFileRuntime) {
 // An example would be T is eventOps and U is *dbsqlc.Event
 
 type TenantBufferManager[T any, U any] struct {
+	name        string // a human readable name for the buffer
 	tenants     sync.Map
 	tenantLock  sync.Map
 	l           *zerolog.Logger
@@ -39,13 +39,13 @@ type TenantBufferManager[T any, U any] struct {
 }
 
 type TenantBufManagerOpts[T any, U any] struct {
+	Name       string                                            `validate:"required"`
 	OutputFunc func(ctx context.Context, items []T) ([]U, error) `validate:"required"`
 	SizeFunc   func(T) int                                       `validate:"required"`
 	L          *zerolog.Logger                                   `validate:"required"`
 	V          validator.Validator                               `validate:"required"`
 
-	FlushPeriod         *time.Duration
-	FlushItemsThreshold int
+	Config ConfigFileBuffer
 }
 
 // Create a new TenantBufferManager with generic types T for input and U for output
@@ -70,11 +70,18 @@ func NewTenantBufManager[T any, U any](opts TenantBufManagerOpts[T, U]) (*Tenant
 		L:                  opts.L,
 	}
 
-	if opts.FlushPeriod != nil {
-		defaultOpts.FlushPeriod = *opts.FlushPeriod
+	if opts.Config.FlushPeriodMilliseconds != 0 {
+		defaultOpts.FlushPeriod = time.Duration(opts.Config.FlushPeriodMilliseconds) * time.Millisecond
 	}
 
+	if opts.Config.FlushItemsThreshold != 0 {
+		defaultOpts.MaxCapacity = opts.Config.FlushItemsThreshold
+	}
+
+	opts.L.Debug().Msgf("creating new tenant buffer manager %s with default flush period %s and max capacity %d", opts.Name, defaultOpts.FlushPeriod, defaultOpts.MaxCapacity)
+
 	return &TenantBufferManager[T, U]{
+		name:        opts.Name,
 		tenants:     sync.Map{},
 		l:           opts.L,
 		defaultOpts: defaultOpts,
@@ -146,10 +153,11 @@ func (t *TenantBufferManager[T, U]) getOrCreateTenantBuf(
 		return v.(*IngestBuf[T, U]), nil
 	}
 	t.l.Debug().Msgf("creating new tenant buffer for tenant %s", tenantBufKey)
+	opts.Name = fmt.Sprintf("%s-%s", t.name, tenantBufKey)
 	return t.createTenantBuf(tenantBufKey, opts)
 }
 
-func (t *TenantBufferManager[T, U]) BuffItem(tenantKey string, eventOps T) (chan *flushResponse[U], error) {
+func (t *TenantBufferManager[T, U]) BuffItem(tenantKey string, eventOps T) (chan *FlushResponse[U], error) {
 	tenantBuf, err := t.getOrCreateTenantBuf(tenantKey, t.defaultOpts)
 	if err != nil {
 		return nil, err

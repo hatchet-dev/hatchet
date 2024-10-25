@@ -8,7 +8,6 @@ import (
 	"hash/fnv"
 	"math/rand"
 	"sort"
-	"strings"
 	"sync"
 	"time"
 
@@ -23,6 +22,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/buffer"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
@@ -90,7 +90,7 @@ func (s *stepRunAPIRepository) ListStepRunEvents(stepRunId string, opts *reposit
 		return nil, err
 	}
 
-	defer deferRollback(context.Background(), s.l, tx.Rollback)
+	defer sqlchelpers.DeferRollback(context.Background(), s.l, tx.Rollback)
 
 	pgStepRunId := sqlchelpers.UUIDFromStr(stepRunId)
 
@@ -145,7 +145,7 @@ func (s *stepRunAPIRepository) ListStepRunEventsByWorkflowRunId(ctx context.Cont
 		return nil, err
 	}
 
-	defer deferRollback(context.Background(), s.l, tx.Rollback)
+	defer sqlchelpers.DeferRollback(context.Background(), s.l, tx.Rollback)
 
 	listParams := dbsqlc.ListStepRunEventsByWorkflowRunIdParams{
 		Workflowrunid: sqlchelpers.UUIDFromStr(workflowRunId),
@@ -208,7 +208,7 @@ func (s *stepRunAPIRepository) ListStepRunArchives(tenantId string, stepRunId st
 		return nil, err
 	}
 
-	defer deferRollback(context.Background(), s.l, tx.Rollback)
+	defer sqlchelpers.DeferRollback(context.Background(), s.l, tx.Rollback)
 
 	pgStepRunId := sqlchelpers.UUIDFromStr(stepRunId)
 	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
@@ -268,8 +268,11 @@ type stepRunEngineRepository struct {
 	cachedStepIdHasRateLimit *cache.Cache
 	callbacks                []repository.Callback[*dbsqlc.ResolveWorkflowRunStatusRow]
 
-	bulkStatusBuffer *TenantBufferManager[*updateStepRunQueueData, pgtype.UUID]
-	bulkEventBuffer  *TenantBufferManager[*repository.CreateStepRunEventOpts, int]
+	bulkStatusBuffer       *buffer.TenantBufferManager[*updateStepRunQueueData, pgtype.UUID]
+	bulkEventBuffer        *buffer.BulkEventWriter
+	bulkSemaphoreReleaser  *buffer.BulkSemaphoreReleaser
+	bulkQueuer             *buffer.BulkStepRunQueuer
+	queueActionTenantCache *cache.Cache
 
 	updateConcurrentFactor int
 	maxHashFactor          int
@@ -280,11 +283,37 @@ func (s *stepRunEngineRepository) cleanup() error {
 		return err
 	}
 
+	if err := s.bulkSemaphoreReleaser.Cleanup(); err != nil {
+		return err
+	}
+
+	if err := s.bulkQueuer.Cleanup(); err != nil {
+		return err
+	}
+
 	return s.bulkEventBuffer.Cleanup()
 }
 
-func NewStepRunEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, cf *server.ConfigFileRuntime, rlCache *cache.Cache) (*stepRunEngineRepository, func() error, error) {
+func NewStepRunEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, cf *server.ConfigFileRuntime, rlCache *cache.Cache, queueCache *cache.Cache) (*stepRunEngineRepository, func() error, error) {
 	queries := dbsqlc.New()
+
+	eventBuffer, err := buffer.NewBulkEventWriter(pool, v, l, cf.EventBuffer)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	semReleaser, err := buffer.NewBulkSemaphoreReleaser(pool, v, l, cf.ReleaseSemaphoreBuffer)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	bulkQueuer, err := buffer.NewBulkStepRunQueuer(pool, v, l, cf.QueueStepRunBuffer)
+
+	if err != nil {
+		return nil, nil, err
+	}
 
 	s := &stepRunEngineRepository{
 		pool:                     pool,
@@ -293,11 +322,15 @@ func NewStepRunEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *ze
 		queries:                  queries,
 		cf:                       cf,
 		cachedStepIdHasRateLimit: rlCache,
-		updateConcurrentFactor:   10,
-		maxHashFactor:            100,
+		updateConcurrentFactor:   cf.UpdateConcurrentFactor,
+		maxHashFactor:            cf.UpdateHashFactor,
+		bulkEventBuffer:          eventBuffer,
+		bulkSemaphoreReleaser:    semReleaser,
+		bulkQueuer:               bulkQueuer,
+		queueActionTenantCache:   queueCache,
 	}
 
-	err := s.startBuffers()
+	err = s.startBuffers()
 
 	if err != nil {
 		l.Err(err).Msg("could not start buffers")
@@ -318,18 +351,9 @@ func sizeOfUpdateData(item *updateStepRunQueueData) int {
 	return size
 }
 
-func sizeOfEventData(item *repository.CreateStepRunEventOpts) int {
-	size := len(*item.EventMessage)
-
-	for k, v := range item.EventData {
-		size += len(k) + len(fmt.Sprintf("%v", v))
-	}
-
-	return size
-}
-
 func (s *stepRunEngineRepository) startBuffers() error {
-	statusBufOpts := TenantBufManagerOpts[*updateStepRunQueueData, pgtype.UUID]{
+	statusBufOpts := buffer.TenantBufManagerOpts[*updateStepRunQueueData, pgtype.UUID]{
+		Name:       "update_step_run_status",
 		OutputFunc: s.bulkUpdateStepRunStatuses,
 		SizeFunc:   sizeOfUpdateData,
 		L:          s.l,
@@ -337,20 +361,11 @@ func (s *stepRunEngineRepository) startBuffers() error {
 	}
 
 	var err error
-	s.bulkStatusBuffer, err = NewTenantBufManager(statusBufOpts)
+	s.bulkStatusBuffer, err = buffer.NewTenantBufManager(statusBufOpts)
 
 	if err != nil {
 		return err
 	}
-
-	eventBufOpts := TenantBufManagerOpts[*repository.CreateStepRunEventOpts, int]{
-		OutputFunc: s.bulkWriteStepRunEvents,
-		SizeFunc:   sizeOfEventData,
-		L:          s.l,
-		V:          s.v,
-	}
-
-	s.bulkEventBuffer, err = NewTenantBufManager(eventBufOpts)
 
 	return err
 }
@@ -484,91 +499,6 @@ func (s *stepRunEngineRepository) bulkUpdateStepRunStatuses(ctx context.Context,
 	return stepRunIds, nil
 }
 
-func (s *stepRunEngineRepository) bulkWriteStepRunEvents(ctx context.Context, opts []*repository.CreateStepRunEventOpts) ([]int, error) {
-	res := make([]int, 0, len(opts))
-	eventTimeSeen := make([]pgtype.Timestamp, 0, len(opts))
-	eventReasons := make([]dbsqlc.StepRunEventReason, 0, len(opts))
-	eventStepRunIds := make([]pgtype.UUID, 0, len(opts))
-	eventSeverities := make([]dbsqlc.StepRunEventSeverity, 0, len(opts))
-	eventMessages := make([]string, 0, len(opts))
-	eventData := make([]map[string]interface{}, 0, len(opts))
-	dedupe := make(map[string]bool)
-
-	for i, item := range opts {
-		res = append(res, i)
-
-		if item.EventMessage == nil || item.EventReason == nil || item.StepRunId == "" {
-			continue
-		}
-
-		stepRunId := sqlchelpers.UUIDFromStr(item.StepRunId)
-		dedupeKey := fmt.Sprintf("EVENT-%s-%s", item.StepRunId, *item.EventReason)
-
-		if _, ok := dedupe[dedupeKey]; ok {
-			continue
-		}
-
-		dedupe[dedupeKey] = true
-
-		eventStepRunIds = append(eventStepRunIds, stepRunId)
-		eventMessages = append(eventMessages, *item.EventMessage)
-		eventReasons = append(eventReasons, *item.EventReason)
-
-		if item.EventSeverity != nil {
-			eventSeverities = append(eventSeverities, *item.EventSeverity)
-		} else {
-			eventSeverities = append(eventSeverities, dbsqlc.StepRunEventSeverityINFO)
-		}
-
-		if item.EventData != nil {
-			eventData = append(eventData, item.EventData)
-		} else {
-			eventData = append(eventData, map[string]interface{}{})
-		}
-
-		if item.Timestamp != nil {
-			eventTimeSeen = append(eventTimeSeen, sqlchelpers.TimestampFromTime(*item.Timestamp))
-		} else {
-			eventTimeSeen = append(eventTimeSeen, sqlchelpers.TimestampFromTime(time.Now().UTC()))
-		}
-	}
-
-	err := deadlockRetry(s.l, func() (err error) {
-		tx, commit, rollback, err := prepareTx(ctx, s.pool, s.l, 10000)
-
-		if err != nil {
-			return err
-		}
-
-		defer rollback()
-
-		err = bulkStepRunEvents(
-			ctx,
-			s.l,
-			tx,
-			s.queries,
-			eventStepRunIds,
-			eventTimeSeen,
-			eventReasons,
-			eventSeverities,
-			eventMessages,
-			eventData,
-		)
-
-		if err != nil {
-			return err
-		}
-
-		return commit(ctx)
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	return res, nil
-}
-
 func (s *stepRunEngineRepository) RegisterWorkflowRunCompletedCallback(callback repository.Callback[*dbsqlc.ResolveWorkflowRunStatusRow]) {
 	if s.callbacks == nil {
 		s.callbacks = make([]repository.Callback[*dbsqlc.ResolveWorkflowRunStatusRow], 0)
@@ -591,7 +521,7 @@ func (s *stepRunEngineRepository) ListRunningStepRunsForTicker(ctx context.Conte
 		return nil, err
 	}
 
-	defer deferRollback(ctx, s.l, tx.Rollback)
+	defer sqlchelpers.DeferRollback(ctx, s.l, tx.Rollback)
 
 	srs, err := s.queries.ListStepRuns(ctx, tx, dbsqlc.ListStepRunsParams{
 		Status: dbsqlc.NullStepRunStatus{
@@ -634,7 +564,7 @@ func (s *stepRunEngineRepository) ListStepRuns(ctx context.Context, tenantId str
 		return nil, err
 	}
 
-	defer deferRollback(ctx, s.l, tx.Rollback)
+	defer sqlchelpers.DeferRollback(ctx, s.l, tx.Rollback)
 
 	listOpts := dbsqlc.ListStepRunsParams{
 		TenantId: sqlchelpers.UUIDFromStr(tenantId),
@@ -681,7 +611,7 @@ func (s *stepRunEngineRepository) ListStepRuns(ctx context.Context, tenantId str
 func (s *stepRunEngineRepository) ListStepRunsToReassign(ctx context.Context, tenantId string) ([]string, error) {
 	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
 
-	tx, commit, rollback, err := prepareTx(ctx, s.pool, s.l, 5000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, s.pool, s.l, 5000)
 
 	if err != nil {
 		return nil, err
@@ -747,7 +677,7 @@ func (s *stepRunEngineRepository) ListStepRunsToTimeout(ctx context.Context, ten
 		return false, nil, err
 	}
 
-	defer deferRollback(ctx, s.l, tx.Rollback)
+	defer sqlchelpers.DeferRollback(ctx, s.l, tx.Rollback)
 
 	limit := 100
 
@@ -795,55 +725,15 @@ func (s *stepRunEngineRepository) ListStepRunsToTimeout(ctx context.Context, ten
 	return len(stepRunIds) == limit, stepRuns, nil
 }
 
-var deadlockRetry = func(l *zerolog.Logger, f func() error) error {
-	return genericRetry(l.Warn(), 3, f, "deadlock", func(err error) (bool, error) {
-		return strings.Contains(err.Error(), "deadlock detected"), err
-	}, 50*time.Millisecond, 200*time.Millisecond)
-}
+func (s *stepRunEngineRepository) ReleaseStepRunSemaphore(ctx context.Context, tenantId, stepRunId string, isUserTriggered bool) error {
+	err := s.releaseWorkerSemaphoreSlot(ctx, tenantId, stepRunId)
 
-var genericRetry = func(l *zerolog.Event, maxRetries int, f func() error, msg string, condition func(err error) (bool, error), minSleep, maxSleep time.Duration) error {
-	retries := 0
-
-	for {
-		err := f()
-
-		if err != nil {
-			// condition detected, retry
-			if ok, overrideErr := condition(err); ok {
-				retries++
-
-				if retries > maxRetries {
-					return err
-				}
-
-				l.Err(err).Msgf("retry (%s) condition met, retry %d", msg, retries)
-
-				// sleep with jitter
-				sleepWithJitter(minSleep, maxSleep)
-			} else {
-				if overrideErr != nil {
-					return overrideErr
-				}
-
-				return err
-			}
-		}
-
-		if err == nil {
-			if retries > 0 {
-				l.Msgf("retry (%s) condition resolved after %d retries", msg, retries)
-			}
-
-			break
-		}
+	if err != nil {
+		return fmt.Errorf("could not release worker semaphore slot for step run %s: %w", stepRunId, err)
 	}
 
-	return nil
-}
-
-func (s *stepRunEngineRepository) ReleaseStepRunSemaphore(ctx context.Context, tenantId, stepRunId string, isUserTriggered bool) error {
-	return deadlockRetry(s.l, func() error {
-		tx, commit, rollback, err := prepareTx(ctx, s.pool, s.l, 5000)
+	if isUserTriggered {
+		tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, s.pool, s.l, 5000)
 
 		if err != nil {
 			return err
@@ -851,57 +741,50 @@ func (s *stepRunEngineRepository) ReleaseStepRunSemaphore(ctx context.Context, t
 
 		defer rollback()
 
-		err = s.releaseWorkerSemaphoreSlot(ctx, tx, tenantId, stepRunId)
+		stepRun, err := s.getStepRunForEngineTx(context.Background(), tx, tenantId, stepRunId)
 
 		if err != nil {
-			return fmt.Errorf("could not release worker semaphore slot: %w", err)
+			return fmt.Errorf("could not get step run for engine: %w", err)
 		}
 
-		if isUserTriggered {
+		if stepRun.SRSemaphoreReleased {
+			return nil
+		}
 
-			stepRun, err := s.getStepRunForEngineTx(context.Background(), tx, tenantId, stepRunId)
+		data := map[string]interface{}{"worker_id": sqlchelpers.UUIDToStr(stepRun.SRWorkerId)}
 
-			if err != nil {
-				return fmt.Errorf("could not get step run for engine: %w", err)
-			}
+		dataBytes, err := json.Marshal(data)
 
-			if stepRun.SRSemaphoreReleased {
-				return nil
-			}
+		if err != nil {
+			return fmt.Errorf("could not marshal data: %w", err)
+		}
 
-			data := map[string]interface{}{"worker_id": sqlchelpers.UUIDToStr(stepRun.SRWorkerId)}
+		err = s.queries.CreateStepRunEvent(ctx, tx, dbsqlc.CreateStepRunEventParams{
+			Steprunid: stepRun.SRID,
+			Reason:    dbsqlc.StepRunEventReasonSLOTRELEASED,
+			Severity:  dbsqlc.StepRunEventSeverityINFO,
+			Message:   "Slot released",
+			Data:      dataBytes,
+		})
 
-			dataBytes, err := json.Marshal(data)
+		if err != nil {
+			return fmt.Errorf("could not create step run event: %w", err)
+		}
 
-			if err != nil {
-				return fmt.Errorf("could not marshal data: %w", err)
-			}
+		// Update the Step Run to release the semaphore
+		err = s.queries.ManualReleaseSemaphore(ctx, tx, dbsqlc.ManualReleaseSemaphoreParams{
+			Steprunid: stepRun.SRID,
+			Tenantid:  stepRun.SRTenantId,
+		})
 
-			err = s.queries.CreateStepRunEvent(ctx, tx, dbsqlc.CreateStepRunEventParams{
-				Steprunid: stepRun.SRID,
-				Reason:    dbsqlc.StepRunEventReasonSLOTRELEASED,
-				Severity:  dbsqlc.StepRunEventSeverityINFO,
-				Message:   "Slot released",
-				Data:      dataBytes,
-			})
-
-			if err != nil {
-				return fmt.Errorf("could not create step run event: %w", err)
-			}
-
-			// Update the Step Run to release the semaphore
-			err = s.queries.ManualReleaseSemaphore(ctx, tx, dbsqlc.ManualReleaseSemaphoreParams{
-				Steprunid: stepRun.SRID,
-				Tenantid:  stepRun.SRTenantId,
-			})
-
-			if err != nil {
-				return fmt.Errorf("could not update step run semaphoreRelease: %w", err)
-			}
+		if err != nil {
+			return fmt.Errorf("could not update step run semaphoreRelease: %w", err)
 		}
 
 		return commit(ctx)
-	})
+	}
+
+	return nil
 }
 
 func (s *stepRunEngineRepository) DeferredStepRunEvent(
@@ -1045,57 +928,6 @@ func (s *stepRunEngineRepository) bulkStepRunsRateLimited(
 	}
 }
 
-func bulkStepRunEvents(
-	ctx context.Context,
-	l *zerolog.Logger,
-	dbtx dbsqlc.DBTX,
-	queries *dbsqlc.Queries,
-	stepRunIds []pgtype.UUID,
-	timeSeen []pgtype.Timestamp,
-	reasons []dbsqlc.StepRunEventReason,
-	severities []dbsqlc.StepRunEventSeverity,
-	messages []string,
-	data []map[string]interface{},
-) error {
-	inputData := [][]byte{}
-	inputReasons := []string{}
-	inputSeverities := []string{}
-
-	for _, d := range data {
-		dataBytes, err := json.Marshal(d)
-
-		if err != nil {
-			l.Err(err).Msg("could not marshal deferred step run event data")
-			return err
-		}
-
-		inputData = append(inputData, dataBytes)
-	}
-
-	for _, r := range reasons {
-		inputReasons = append(inputReasons, string(r))
-	}
-
-	for _, s := range severities {
-		inputSeverities = append(inputSeverities, string(s))
-	}
-
-	err := queries.BulkCreateStepRunEvent(ctx, dbtx, dbsqlc.BulkCreateStepRunEventParams{
-		Steprunids: stepRunIds,
-		Reasons:    inputReasons,
-		Severities: inputSeverities,
-		Messages:   messages,
-		Data:       inputData,
-		Timeseen:   timeSeen,
-	})
-
-	if err != nil {
-		return fmt.Errorf("could not create deferred step run event: %w", err)
-	}
-
-	return nil
-}
-
 func UniqueSet[T any](i []T, keyFunc func(T) string) map[string]struct{} {
 	set := make(map[string]struct{})
 
@@ -1144,7 +976,7 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, qlp *zerolo
 		return emptyRes, err
 	}
 
-	defer deferRollback(ctx, s.l, tx.Rollback)
+	defer sqlchelpers.DeferRollback(ctx, s.l, tx.Rollback)
 
 	durationPrepareTx := time.Since(startedAt)
 
@@ -1433,7 +1265,7 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, qlp *zerolo
 			return
 		}
 
-		defer deferRollback(ctx, s.l, subtx.Rollback)
+		defer sqlchelpers.DeferRollback(ctx, s.l, subtx.Rollback)
 
 		params := dbsqlc.BulkUpdateRateLimitsParams{
 			Tenantid: pgTenantId,
@@ -1472,7 +1304,7 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, qlp *zerolo
 		numAssigns[sqlchelpers.UUIDToStr(workerId)]++
 	}
 
-	err = s.queries.UpdateStepRunsToAssigned(ctx, tx, dbsqlc.UpdateStepRunsToAssignedParams{
+	_, err = s.queries.UpdateStepRunsToAssigned(ctx, tx, dbsqlc.UpdateStepRunsToAssignedParams{
 		Steprunids:      plan.StepRunIds,
 		Workerids:       plan.WorkerIds,
 		Stepruntimeouts: plan.StepRunTimeouts,
@@ -1849,7 +1681,7 @@ func (s *stepRunEngineRepository) ProcessStepRunUpdates(ctx context.Context, qlp
 		limit = s.cf.SingleQueueLimit * 4 // we call update step run 4x
 	}
 
-	tx, commit, rollback, err := prepareTx(ctx, s.pool, s.l, 25000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, s.pool, s.l, 25000)
 
 	if err != nil {
 		return emptyRes, err
@@ -1928,13 +1760,13 @@ func (s *stepRunEngineRepository) ProcessStepRunUpdatesV2(ctx context.Context, q
 
 	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
 
-	limit := 100
+	limit := 100 * s.updateConcurrentFactor
 
 	if s.cf.SingleQueueLimit != 0 {
-		limit = s.cf.SingleQueueLimit * 4 // we call update step run 4x
+		limit = s.cf.SingleQueueLimit * s.updateConcurrentFactor
 	}
 
-	tx, commit, rollback, err := prepareTx(ctx, s.pool, s.l, 25000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, s.pool, s.l, 25000)
 
 	if err != nil {
 		return emptyRes, err
@@ -1963,6 +1795,8 @@ func (s *stepRunEngineRepository) ProcessStepRunUpdatesV2(ctx context.Context, q
 	}
 
 	var completedWorkflowRuns []*dbsqlc.ResolveWorkflowRunStatusRow
+
+	data = stableSortBatch(data)
 
 	succeededStepRuns, completedWorkflowRunsV1, err := s.processStepRunUpdatesV2(ctx, &ql, tenantId, tx, data)
 
@@ -2003,6 +1837,14 @@ func (s *stepRunEngineRepository) ProcessStepRunUpdatesV2(ctx context.Context, q
 		CompletedWorkflowRuns: completedWorkflowRuns,
 		Continue:              len(queueItems) == limit,
 	}, nil
+}
+
+func stableSortBatch(batch []updateStepRunQueueData) []updateStepRunQueueData {
+	sort.SliceStable(batch, func(i, j int) bool {
+		return batch[i].StepRunId < batch[j].StepRunId
+	})
+
+	return batch
 }
 
 func (s *stepRunEngineRepository) processStepRunUpdates(
@@ -2168,10 +2010,9 @@ func (s *stepRunEngineRepository) processStepRunUpdates(
 	// startResolveJobRunStatus := time.Now()
 
 	// update the job runs and workflow runs as well
-	jobRunIds, err := s.queries.ResolveJobRunStatus(ctx, tx, dbsqlc.ResolveJobRunStatusParams{
-		Steprunids: stepRunIds,
-		Tenantid:   pgTenantId,
-	})
+	jobRunIds, err := s.queries.ResolveJobRunStatus(ctx, tx,
+		stepRunIds,
+	)
 
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not resolve job run status: %w", err)
@@ -2225,27 +2066,26 @@ func (s *stepRunEngineRepository) processStepRunUpdatesV2(
 	ctx context.Context,
 	qlp *zerolog.Logger,
 	tenantId string,
-	tx dbsqlc.DBTX,
+	outerTx dbsqlc.DBTX,
 	data []updateStepRunQueueData,
 ) (succeededStepRuns []*dbsqlc.GetStepRunForEngineRow, completedWorkflowRuns []*dbsqlc.ResolveWorkflowRunStatusRow, err error) {
 	// startedAt := time.Now().UTC()
 	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
 
 	batches := make([][]updateStepRunQueueData, s.updateConcurrentFactor)
-	stepRunIds := make([]pgtype.UUID, 0, len(data))
 	completedStepRunIds := make([]pgtype.UUID, 0, len(data))
 
 	for _, item := range data {
 		batch := item.Hash % s.updateConcurrentFactor
 
 		batches[batch] = append(batches[batch], item)
-		stepRunIds = append(stepRunIds, sqlchelpers.UUIDFromStr(item.StepRunId))
 
 		if item.Status != nil && dbsqlc.StepRunStatus(*item.Status) == dbsqlc.StepRunStatusSUCCEEDED {
 			completedStepRunIds = append(completedStepRunIds, sqlchelpers.UUIDFromStr(item.StepRunId))
 		}
 	}
 
+	var wrMu sync.Mutex
 	var eg errgroup.Group
 
 	for _, batch := range batches {
@@ -2254,7 +2094,7 @@ func (s *stepRunEngineRepository) processStepRunUpdatesV2(
 		}
 
 		eg.Go(func() error {
-			tx, commit, rollback, err := prepareTx(ctx, s.pool, s.l, 25000)
+			tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, s.pool, s.l, 25000)
 
 			if err != nil {
 				return err
@@ -2266,9 +2106,11 @@ func (s *stepRunEngineRepository) processStepRunUpdatesV2(
 			failParams := dbsqlc.BulkFailStepRunParams{}
 			cancelParams := dbsqlc.BulkCancelStepRunParams{}
 			finishParams := dbsqlc.BulkFinishStepRunParams{}
+			batchStepRunIds := []pgtype.UUID{}
 
 			for _, item := range batch {
 				stepRunId := sqlchelpers.UUIDFromStr(item.StepRunId)
+				batchStepRunIds = append(batchStepRunIds, stepRunId)
 
 				switch dbsqlc.StepRunStatus(*item.Status) {
 				case dbsqlc.StepRunStatusRUNNING:
@@ -2307,6 +2149,7 @@ func (s *stepRunEngineRepository) processStepRunUpdatesV2(
 			}
 
 			if len(cancelParams.Steprunids) > 0 {
+
 				err = s.queries.BulkCancelStepRun(ctx, tx, cancelParams)
 
 				if err != nil {
@@ -2322,11 +2165,31 @@ func (s *stepRunEngineRepository) processStepRunUpdatesV2(
 				}
 			}
 
+			// update the job runs and workflow runs as well
+			jobRunIds, err := s.queries.ResolveJobRunStatus(ctx, tx, batchStepRunIds)
+
+			if err != nil {
+				return fmt.Errorf("could not resolve job run status: %w", err)
+			}
+
+			innerCompletedWorkflowRuns, err := s.queries.ResolveWorkflowRunStatus(ctx, tx, dbsqlc.ResolveWorkflowRunStatusParams{
+				Jobrunids: jobRunIds,
+				Tenantid:  pgTenantId,
+			})
+
+			if err != nil {
+				return fmt.Errorf("could not resolve workflow run status: %w", err)
+			}
+
 			err = commit(ctx)
 
 			if err != nil {
 				return fmt.Errorf("could not commit transaction: %w", err)
 			}
+
+			wrMu.Lock()
+			completedWorkflowRuns = append(completedWorkflowRuns, innerCompletedWorkflowRuns...)
+			wrMu.Unlock()
 
 			return nil
 		})
@@ -2338,26 +2201,7 @@ func (s *stepRunEngineRepository) processStepRunUpdatesV2(
 		return nil, nil, fmt.Errorf("could not process step run updates v2: %w", err)
 	}
 
-	// update the job runs and workflow runs as well
-	jobRunIds, err := s.queries.ResolveJobRunStatus(ctx, tx, dbsqlc.ResolveJobRunStatusParams{
-		Steprunids: stepRunIds,
-		Tenantid:   pgTenantId,
-	})
-
-	if err != nil {
-		return nil, nil, fmt.Errorf("could not resolve job run status: %w", err)
-	}
-
-	completedWorkflowRuns, err = s.queries.ResolveWorkflowRunStatus(ctx, tx, dbsqlc.ResolveWorkflowRunStatusParams{
-		Jobrunids: jobRunIds,
-		Tenantid:  pgTenantId,
-	})
-
-	if err != nil {
-		return nil, nil, fmt.Errorf("could not resolve workflow run status: %w", err)
-	}
-
-	succeededStepRuns, err = s.queries.GetStepRunForEngine(ctx, tx, dbsqlc.GetStepRunForEngineParams{
+	succeededStepRuns, err = s.queries.GetStepRunForEngine(ctx, outerTx, dbsqlc.GetStepRunForEngineParams{
 		Ids:      completedStepRunIds,
 		TenantId: pgTenantId,
 	})
@@ -2507,14 +2351,14 @@ func (s *stepRunEngineRepository) CleanupInternalQueueItems(ctx context.Context,
 	return nil
 }
 
-func (s *stepRunEngineRepository) StepRunStarted(ctx context.Context, tenantId, stepRunId string, startedAt time.Time) error {
-	ctx, span := telemetry.NewSpan(ctx, "step-run-started-db")
+func (s *stepRunEngineRepository) StepRunStarted(ctx context.Context, tenantId, workflowRunId, stepRunId string, startedAt time.Time) error {
+	ctx, span := telemetry.NewSpan(ctx, "step-run-started-db") // nolint: ineffassign
 	defer span.End()
 
 	running := string(dbsqlc.StepRunStatusRUNNING)
 
 	data := &updateStepRunQueueData{
-		Hash:      hashToBucket(sqlchelpers.UUIDFromStr(stepRunId), s.maxHashFactor),
+		Hash:      hashToBucket(sqlchelpers.UUIDFromStr(workflowRunId), s.maxHashFactor),
 		StepRunId: stepRunId,
 		TenantId:  tenantId,
 		StartedAt: &startedAt,
@@ -2530,21 +2374,37 @@ func (s *stepRunEngineRepository) StepRunStarted(ctx context.Context, tenantId, 
 	return nil
 }
 
-func (s *stepRunEngineRepository) StepRunSucceeded(ctx context.Context, tenantId, stepRunId string, finishedAt time.Time, output []byte) error {
-	ctx, span := telemetry.NewSpan(ctx, "step-run-started-db")
+func (s *stepRunEngineRepository) StepRunAcked(ctx context.Context, tenantId, workflowRunId, stepRunId string, startedAt time.Time) error {
+	_, span := telemetry.NewSpan(ctx, "step-run-acked-db")
 	defer span.End()
 
-	// write a queue item to release the worker semaphore
-	err := s.releaseWorkerSemaphoreSlot(ctx, s.pool, tenantId, stepRunId)
+	sev := dbsqlc.StepRunEventSeverityINFO
+	ack := dbsqlc.StepRunEventReasonACKNOWLEDGED
+
+	data := &repository.CreateStepRunEventOpts{
+		StepRunId:     stepRunId,
+		EventMessage:  repository.StringPtr("Step run acknowledged at " + startedAt.Format(time.RFC1123)),
+		EventSeverity: &sev,
+		EventReason:   &ack,
+	}
+
+	_, err := s.bulkEventBuffer.BuffItem(tenantId, data)
 
 	if err != nil {
-		return fmt.Errorf("could not release worker semaphore queue items: %w", err)
+		return fmt.Errorf("could not buffer event: %w", err)
 	}
+
+	return nil
+}
+
+func (s *stepRunEngineRepository) StepRunSucceeded(ctx context.Context, tenantId, workflowRunId, stepRunId string, finishedAt time.Time, output []byte) error {
+	ctx, span := telemetry.NewSpan(ctx, "step-run-started-db")
+	defer span.End()
 
 	finished := string(dbsqlc.StepRunStatusSUCCEEDED)
 
 	data := &updateStepRunQueueData{
-		Hash:       hashToBucket(sqlchelpers.UUIDFromStr(stepRunId), s.maxHashFactor),
+		Hash:       hashToBucket(sqlchelpers.UUIDFromStr(workflowRunId), s.maxHashFactor),
 		StepRunId:  stepRunId,
 		TenantId:   tenantId,
 		FinishedAt: &finishedAt,
@@ -2559,7 +2419,7 @@ func (s *stepRunEngineRepository) StepRunSucceeded(ctx context.Context, tenantId
 		return fmt.Errorf("could not buffer step run succeeded: %w", err)
 	}
 
-	var response *flushResponse[pgtype.UUID]
+	var response *buffer.FlushResponse[pgtype.UUID]
 
 	select {
 	case response = <-done:
@@ -2569,8 +2429,8 @@ func (s *stepRunEngineRepository) StepRunSucceeded(ctx context.Context, tenantId
 		return fmt.Errorf("timeout waiting for step run succeeded to be flushed to db")
 	}
 
-	if response.err != nil {
-		return fmt.Errorf("could not flush step run succeeded: %w", response.err)
+	if response.Err != nil {
+		return fmt.Errorf("could not flush step run succeeded: %w", response.Err)
 	}
 
 	tx, err := s.pool.Begin(ctx)
@@ -2579,7 +2439,7 @@ func (s *stepRunEngineRepository) StepRunSucceeded(ctx context.Context, tenantId
 		return err
 	}
 
-	defer deferRollback(ctx, s.l, tx.Rollback)
+	defer sqlchelpers.DeferRollback(ctx, s.l, tx.Rollback)
 
 	// update the job run lookup data
 	err = s.queries.UpdateJobRunLookupDataWithStepRun(ctx, tx, dbsqlc.UpdateJobRunLookupDataWithStepRunParams{
@@ -2599,12 +2459,12 @@ func (s *stepRunEngineRepository) StepRunSucceeded(ctx context.Context, tenantId
 	return nil
 }
 
-func (s *stepRunEngineRepository) StepRunCancelled(ctx context.Context, tenantId, stepRunId string, cancelledAt time.Time, cancelledReason string) error {
+func (s *stepRunEngineRepository) StepRunCancelled(ctx context.Context, tenantId, workflowRunId, stepRunId string, cancelledAt time.Time, cancelledReason string) error {
 	ctx, span := telemetry.NewSpan(ctx, "step-run-cancelled-db")
 	defer span.End()
 
 	// write a queue item to release the worker semaphore
-	err := s.releaseWorkerSemaphoreSlot(ctx, s.pool, tenantId, stepRunId)
+	err := s.releaseWorkerSemaphoreSlot(ctx, tenantId, stepRunId)
 
 	if err != nil {
 		return fmt.Errorf("could not release worker semaphore queue items: %w", err)
@@ -2613,7 +2473,7 @@ func (s *stepRunEngineRepository) StepRunCancelled(ctx context.Context, tenantId
 	cancelled := string(dbsqlc.StepRunStatusCANCELLED)
 
 	data := &updateStepRunQueueData{
-		Hash:            hashToBucket(sqlchelpers.UUIDFromStr(stepRunId), s.maxHashFactor),
+		Hash:            hashToBucket(sqlchelpers.UUIDFromStr(workflowRunId), s.maxHashFactor),
 		StepRunId:       stepRunId,
 		TenantId:        tenantId,
 		CancelledAt:     &cancelledAt,
@@ -2627,10 +2487,7 @@ func (s *stepRunEngineRepository) StepRunCancelled(ctx context.Context, tenantId
 		return fmt.Errorf("could not buffer step run succeeded: %w", err)
 	}
 
-	laterStepRuns, err := s.queries.GetLaterStepRuns(ctx, s.pool, dbsqlc.GetLaterStepRunsParams{
-		Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
-		Steprunid: sqlchelpers.UUIDFromStr(stepRunId),
-	})
+	laterStepRuns, err := s.queries.GetLaterStepRuns(ctx, s.pool, sqlchelpers.UUIDFromStr(stepRunId))
 
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return fmt.Errorf("could not get later step runs: %w", err)
@@ -2644,7 +2501,7 @@ func (s *stepRunEngineRepository) StepRunCancelled(ctx context.Context, tenantId
 		reason := "PREVIOUS_STEP_CANCELLED"
 
 		_, err := s.bulkStatusBuffer.BuffItem(tenantId, &updateStepRunQueueData{
-			Hash:            hashToBucket(laterStepRun.ID, s.maxHashFactor),
+			Hash:            hashToBucket(sqlchelpers.UUIDFromStr(workflowRunId), s.maxHashFactor),
 			StepRunId:       laterStepRunId,
 			TenantId:        tenantId,
 			CancelledAt:     &cancelledAt,
@@ -2660,12 +2517,12 @@ func (s *stepRunEngineRepository) StepRunCancelled(ctx context.Context, tenantId
 	return innerErr
 }
 
-func (s *stepRunEngineRepository) StepRunFailed(ctx context.Context, tenantId, stepRunId string, failedAt time.Time, errStr string, retryCount int) error {
+func (s *stepRunEngineRepository) StepRunFailed(ctx context.Context, tenantId, workflowRunId, stepRunId string, failedAt time.Time, errStr string, retryCount int) error {
 	ctx, span := telemetry.NewSpan(ctx, "step-run-failed-db")
 	defer span.End()
 
-	// release the worker semaphore
-	err := s.releaseWorkerSemaphoreSlot(ctx, s.pool, tenantId, stepRunId)
+	// write a queue item to release the worker semaphore
+	err := s.releaseWorkerSemaphoreSlot(ctx, tenantId, stepRunId)
 
 	if err != nil {
 		return fmt.Errorf("could not release worker semaphore queue items: %w", err)
@@ -2674,7 +2531,7 @@ func (s *stepRunEngineRepository) StepRunFailed(ctx context.Context, tenantId, s
 	failed := string(dbsqlc.StepRunStatusFAILED)
 
 	data := &updateStepRunQueueData{
-		Hash:       hashToBucket(sqlchelpers.UUIDFromStr(stepRunId), s.maxHashFactor),
+		Hash:       hashToBucket(sqlchelpers.UUIDFromStr(workflowRunId), s.maxHashFactor),
 		StepRunId:  stepRunId,
 		TenantId:   tenantId,
 		RetryCount: retryCount,
@@ -2689,10 +2546,7 @@ func (s *stepRunEngineRepository) StepRunFailed(ctx context.Context, tenantId, s
 		return fmt.Errorf("could not buffer step run succeeded: %w", err)
 	}
 
-	laterStepRuns, err := s.queries.GetLaterStepRuns(ctx, s.pool, dbsqlc.GetLaterStepRunsParams{
-		Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
-		Steprunid: sqlchelpers.UUIDFromStr(stepRunId),
-	})
+	laterStepRuns, err := s.queries.GetLaterStepRuns(ctx, s.pool, sqlchelpers.UUIDFromStr(stepRunId))
 
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return fmt.Errorf("could not get later step runs: %w", err)
@@ -2711,7 +2565,7 @@ func (s *stepRunEngineRepository) StepRunFailed(ctx context.Context, tenantId, s
 		}
 
 		_, err := s.bulkStatusBuffer.BuffItem(tenantId, &updateStepRunQueueData{
-			Hash:            hashToBucket(laterStepRun.ID, s.maxHashFactor),
+			Hash:            hashToBucket(sqlchelpers.UUIDFromStr(workflowRunId), s.maxHashFactor),
 			StepRunId:       laterStepRunId,
 			TenantId:        tenantId,
 			CancelledAt:     &failedAt,
@@ -2731,7 +2585,7 @@ func (s *stepRunEngineRepository) ReplayStepRun(ctx context.Context, tenantId, s
 	ctx, span := telemetry.NewSpan(ctx, "replay-step-run")
 	defer span.End()
 
-	tx, commit, rollback, err := prepareTx(ctx, s.pool, s.l, 5000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, s.pool, s.l, 5000)
 
 	if err != nil {
 		return nil, err
@@ -2776,10 +2630,7 @@ func (s *stepRunEngineRepository) ReplayStepRun(ctx context.Context, tenantId, s
 		return nil, err
 	}
 
-	laterStepRuns, err := s.queries.GetLaterStepRuns(ctx, tx, dbsqlc.GetLaterStepRunsParams{
-		Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
-		Steprunid: sqlchelpers.UUIDFromStr(stepRunId),
-	})
+	laterStepRuns, err := s.queries.GetLaterStepRuns(ctx, tx, sqlchelpers.UUIDFromStr(stepRunId))
 
 	if err != nil {
 		return nil, err
@@ -2826,7 +2677,6 @@ func (s *stepRunEngineRepository) ReplayStepRun(ctx context.Context, tenantId, s
 
 	// reset all later step runs to a pending state
 	_, err = s.queries.ReplayStepRunResetStepRuns(ctx, tx, dbsqlc.ReplayStepRunResetStepRunsParams{
-		Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
 		Steprunid: sqlchelpers.UUIDFromStr(stepRunId),
 		Input:     input,
 	})
@@ -2863,10 +2713,7 @@ func (s *stepRunEngineRepository) PreflightCheckReplayStepRun(ctx context.Contex
 	}
 
 	// verify that child step runs are in a final state
-	childStepRuns, err := s.queries.ListNonFinalChildStepRuns(ctx, s.pool, dbsqlc.ListNonFinalChildStepRunsParams{
-		Steprunid: sqlchelpers.UUIDFromStr(stepRunId),
-		Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
-	})
+	childStepRuns, err := s.queries.ListNonFinalChildStepRuns(ctx, s.pool, sqlchelpers.UUIDFromStr(stepRunId))
 
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return fmt.Errorf("could not list non-final child step runs: %w", err)
@@ -2903,7 +2750,7 @@ func (s *stepRunEngineRepository) UpdateStepRunOverridesData(ctx context.Context
 		return nil, err
 	}
 
-	defer deferRollback(ctx, s.l, tx.Rollback)
+	defer sqlchelpers.DeferRollback(ctx, s.l, tx.Rollback)
 
 	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
 	pgStepRunId := sqlchelpers.UUIDFromStr(stepRunId)
@@ -2952,7 +2799,7 @@ func (s *stepRunEngineRepository) UpdateStepRunInputSchema(ctx context.Context, 
 		return nil, err
 	}
 
-	defer deferRollback(ctx, s.l, tx.Rollback)
+	defer sqlchelpers.DeferRollback(ctx, s.l, tx.Rollback)
 
 	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
 	pgStepRunId := sqlchelpers.UUIDFromStr(stepRunId)
@@ -2980,6 +2827,44 @@ func (s *stepRunEngineRepository) UpdateStepRunInputSchema(ctx context.Context, 
 	return inputSchema, nil
 }
 
+func (s *stepRunEngineRepository) doCachedUpsertOfQueue(ctx context.Context, tx dbsqlc.DBTX, tenantId string, innerStepRun *dbsqlc.GetStepRunForEngineRow) error {
+	cacheKey := fmt.Sprintf("t-%s-q-%s", tenantId, innerStepRun.SRQueue)
+
+	_, err := cache.MakeCacheable(s.queueActionTenantCache, cacheKey, func() (*bool, error) {
+		tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, s.pool, s.l, 5000)
+
+		if err != nil {
+			return nil, err
+		}
+
+		defer rollback()
+
+		err = s.queries.UpsertQueue(
+			ctx,
+			tx,
+			dbsqlc.UpsertQueueParams{
+				Name:     innerStepRun.ActionId,
+				Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+			},
+		)
+
+		if err != nil {
+			return nil, err
+		}
+
+		err = commit(ctx)
+
+		if err != nil {
+			return nil, err
+		}
+
+		res := true
+		return &res, nil
+	})
+
+	return err
+}
+
 func (s *stepRunEngineRepository) QueueStepRun(ctx context.Context, tenantId, stepRunId string, opts *repository.QueueStepRunOpts) (*dbsqlc.GetStepRunForEngineRow, error) {
 	ctx, span := telemetry.NewSpan(ctx, "queue-step-run-database")
 	defer span.End()
@@ -2987,14 +2872,6 @@ func (s *stepRunEngineRepository) QueueStepRun(ctx context.Context, tenantId, st
 	if err := s.v.Validate(opts); err != nil {
 		return nil, err
 	}
-
-	tx, commit, rollback, err := prepareTx(ctx, s.pool, s.l, 5000)
-
-	if err != nil {
-		return nil, err
-	}
-
-	defer rollback()
 
 	queueParams := dbsqlc.QueueStepRunParams{
 		ID:       sqlchelpers.UUIDFromStr(stepRunId),
@@ -3016,7 +2893,7 @@ func (s *stepRunEngineRepository) QueueStepRun(ctx context.Context, tenantId, st
 
 	if opts.IsRetry || opts.IsInternalRetry {
 		// if this is a retry, write a queue item to release the worker semaphore
-		err = s.releaseWorkerSemaphoreSlot(ctx, tx, tenantId, stepRunId)
+		err := s.releaseWorkerSemaphoreSlot(ctx, tenantId, stepRunId)
 
 		if err != nil {
 			return nil, fmt.Errorf("could not release worker semaphore queue items: %w", err)
@@ -3027,17 +2904,23 @@ func (s *stepRunEngineRepository) QueueStepRun(ctx context.Context, tenantId, st
 	}
 
 	if len(opts.ExpressionEvals) > 0 {
-		err = s.createExpressionEvals(ctx, tx, stepRunId, opts.ExpressionEvals)
+		err := s.createExpressionEvals(ctx, s.pool, stepRunId, opts.ExpressionEvals)
 
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	innerStepRun, err := s.getStepRunForEngineTx(ctx, tx, tenantId, stepRunId)
+	innerStepRun, err := s.getStepRunForEngineTx(ctx, s.pool, tenantId, stepRunId)
 
 	if err != nil {
 		return nil, err
+	}
+
+	err = s.doCachedUpsertOfQueue(ctx, s.pool, tenantId, innerStepRun)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not upsert queue with actionId: %w", err)
 	}
 
 	// if this is an internal retry, and the step run is in a running or final state, this is a no-op. The internal retry
@@ -3052,36 +2935,14 @@ func (s *stepRunEngineRepository) QueueStepRun(ctx context.Context, tenantId, st
 		return nil, repository.ErrAlreadyQueued
 	}
 
-	err = s.queries.QueueStepRun(ctx, tx, queueParams)
+	_, err = s.bulkQueuer.BuffItem(tenantId, buffer.BulkQueueStepRunOpts{
+		GetStepRunForEngineRow: innerStepRun,
+		Priority:               priority,
+		IsRetry:                opts.IsRetry,
+		Input:                  opts.Input,
+	})
 
 	if err != nil {
-		return nil, err
-	}
-
-	createQiParams := dbsqlc.CreateQueueItemParams{
-		StepRunId:   innerStepRun.SRID,
-		StepId:      innerStepRun.StepId,
-		ActionId:    sqlchelpers.TextFromStr(innerStepRun.ActionId),
-		StepTimeout: innerStepRun.StepTimeout,
-		Tenantid:    sqlchelpers.UUIDFromStr(tenantId),
-		Queue:       innerStepRun.SRQueue,
-		Priority: pgtype.Int4{
-			Valid: true,
-			Int32: int32(priority),
-		},
-		Sticky:            innerStepRun.StickyStrategy,
-		DesiredWorkerId:   innerStepRun.DesiredWorkerId,
-		ScheduleTimeoutAt: getScheduleTimeout(innerStepRun),
-	}
-
-	// insert a queue item that the step run has been queued
-	err = s.queries.CreateQueueItem(ctx, tx, createQiParams)
-
-	if err != nil {
-		return nil, fmt.Errorf("could not create queue item: %w", err)
-	}
-
-	if err := commit(ctx); err != nil {
 		return nil, err
 	}
 
@@ -3202,6 +3063,19 @@ func (s *stepRunEngineRepository) GetStepRunDataForEngine(ctx context.Context, t
 	})
 }
 
+func (s *stepRunEngineRepository) GetStepRunBulkDataForEngine(ctx context.Context, tenantId string, stepRunIds []string) ([]*dbsqlc.GetStepRunBulkDataForEngineRow, error) {
+	ids := make([]pgtype.UUID, len(stepRunIds))
+
+	for i, id := range stepRunIds {
+		ids[i] = sqlchelpers.UUIDFromStr(id)
+	}
+
+	return s.queries.GetStepRunBulkDataForEngine(ctx, s.pool, dbsqlc.GetStepRunBulkDataForEngineParams{
+		Ids:      ids,
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+	})
+}
+
 func (s *stepRunEngineRepository) ListInitialStepRunsForJobRun(ctx context.Context, tenantId, jobRunId string) ([]*dbsqlc.GetStepRunForEngineRow, error) {
 	tx, err := s.pool.Begin(ctx)
 
@@ -3209,7 +3083,7 @@ func (s *stepRunEngineRepository) ListInitialStepRunsForJobRun(ctx context.Conte
 		return nil, err
 	}
 
-	defer deferRollback(ctx, s.l, tx.Rollback)
+	defer sqlchelpers.DeferRollback(ctx, s.l, tx.Rollback)
 
 	srs, err := s.queries.ListInitialStepRuns(ctx, tx, sqlchelpers.UUIDFromStr(jobRunId))
 
@@ -3238,7 +3112,7 @@ func (s *stepRunEngineRepository) ListStartableStepRuns(ctx context.Context, ten
 		return nil, err
 	}
 
-	defer deferRollback(ctx, s.l, tx.Rollback)
+	defer sqlchelpers.DeferRollback(ctx, s.l, tx.Rollback)
 
 	var srs []pgtype.UUID
 
@@ -3289,22 +3163,6 @@ func archiveStepRunResult(ctx context.Context, queries *dbsqlc.Queries, db dbsql
 	return err
 }
 
-// sleepWithJitter sleeps for a random duration between min and max duration.
-// min and max are time.Duration values, specifying the minimum and maximum sleep times.
-func sleepWithJitter(min, max time.Duration) {
-	if min > max {
-		min, max = max, min // Swap if min is greater than max
-	}
-
-	jitter := max - min
-	if jitter > 0 {
-		sleepDuration := min + time.Duration(rand.Int63n(int64(jitter))) // nolint: gosec
-		time.Sleep(sleepDuration)
-	} else {
-		time.Sleep(min) // Sleep for min duration if jitter is not positive
-	}
-}
-
 func (s *stepRunEngineRepository) RefreshTimeoutBy(ctx context.Context, tenantId, stepRunId string, opts repository.RefreshTimeoutBy) (pgtype.Timestamp, error) {
 	stepRunUUID := sqlchelpers.UUIDFromStr(stepRunId)
 	tenantUUID := sqlchelpers.UUIDFromStr(tenantId)
@@ -3317,7 +3175,7 @@ func (s *stepRunEngineRepository) RefreshTimeoutBy(ctx context.Context, tenantId
 		return pgtype.Timestamp{}, err
 	}
 
-	tx, commit, rollback, err := prepareTx(ctx, s.pool, s.l, 5000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, s.pool, s.l, 5000)
 
 	if err != nil {
 		return pgtype.Timestamp{}, err
@@ -3412,20 +3270,31 @@ func (s *stepRunEngineRepository) removeFinalizedStepRuns(ctx context.Context, t
 	return remaining, cancelled, nil
 }
 
-func (s *stepRunEngineRepository) releaseWorkerSemaphoreSlot(ctx context.Context, dbtx dbsqlc.DBTX, tenantId, stepRunId string) error {
-	oldWorkerIdAndRetryCount, err := s.queries.UpdateStepRunUnsetWorkerId(ctx, dbtx, dbsqlc.UpdateStepRunUnsetWorkerIdParams{
-		Steprunid: sqlchelpers.UUIDFromStr(stepRunId),
-		Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
+func (s *stepRunEngineRepository) releaseWorkerSemaphoreSlot(ctx context.Context, tenantId, stepRunId string) error {
+	done, err := s.bulkSemaphoreReleaser.BuffItem(tenantId, buffer.SemaphoreReleaseOpts{
+		StepRunId: sqlchelpers.UUIDFromStr(stepRunId),
+		TenantId:  sqlchelpers.UUIDFromStr(tenantId),
 	})
 
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return err
+	if err != nil {
+		return fmt.Errorf("could not buffer semaphore release: %w", err)
 	}
 
-	return s.queries.RemoveTimeoutQueueItem(ctx, dbtx, dbsqlc.RemoveTimeoutQueueItemParams{
-		Steprunid:  sqlchelpers.UUIDFromStr(stepRunId),
-		Retrycount: oldWorkerIdAndRetryCount.RetryCount,
-	})
+	var response *buffer.FlushResponse[pgtype.UUID]
+
+	select {
+	case response = <-done:
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-time.After(15 * time.Second):
+		return fmt.Errorf("timeout waiting for semaphore slot to be flushed to db")
+	}
+
+	if response.Err != nil {
+		return fmt.Errorf("could not release worker semaphore slot: %w", response.Err)
+	}
+
+	return nil
 }
 
 func toQueueItemData[d any](items []*dbsqlc.InternalQueueItem) ([]d, error) {
@@ -3539,41 +3408,6 @@ func bulkInsertInternalQueueItem(
 	return nil
 }
 
-func (s *stepRunEngineRepository) bulkInsertUniqueInternalQueueItem(
-	ctx context.Context,
-	tx pgx.Tx,
-	tenantId string,
-	queue dbsqlc.InternalQueue,
-	data []any,
-	uniqueKeys []string,
-) error {
-	// construct bytes for the data
-	insertData := make([][]byte, len(data))
-
-	for i, d := range data {
-		b, err := json.Marshal(d)
-
-		if err != nil {
-			return err
-		}
-
-		insertData[i] = b
-	}
-
-	err := s.queries.CreateUniqueInternalQueueItemsBulk(ctx, tx, dbsqlc.CreateUniqueInternalQueueItemsBulkParams{
-		Tenantid:   sqlchelpers.UUIDFromStr(tenantId),
-		Queue:      queue,
-		Datas:      insertData,
-		Uniquekeys: uniqueKeys,
-	})
-
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
 // removes duplicates from a slice of queue items by step run id
 func removeDuplicates(qis []*scheduling.QueueItemWithOrder) ([]*scheduling.QueueItemWithOrder, []*scheduling.QueueItemWithOrder) {
 	encountered := map[string]bool{}
@@ -3592,38 +3426,6 @@ func removeDuplicates(qis []*scheduling.QueueItemWithOrder) ([]*scheduling.Queue
 	}
 
 	return result, duplicates
-}
-
-func prepareTx(ctx context.Context, pool *pgxpool.Pool, l *zerolog.Logger, timeoutMs int) (pgx.Tx, func(context.Context) error, func(), error) {
-	tx, err := pool.Begin(ctx)
-
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	commit := func(ctx context.Context) error {
-		// reset statement timeout
-		_, err = tx.Exec(ctx, "SET statement_timeout=0")
-
-		if err != nil {
-			return err
-		}
-
-		return tx.Commit(ctx)
-	}
-
-	rollback := func() {
-		deferRollback(ctx, l, tx.Rollback)
-	}
-
-	// set tx timeout to 5 seconds to avoid deadlocks
-	_, err = tx.Exec(ctx, fmt.Sprintf("SET statement_timeout=%d", timeoutMs))
-
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	return tx, commit, rollback, nil
 }
 
 func printQueueDebugInfo(
@@ -3693,46 +3495,6 @@ func printQueueDebugInfo(
 		"duration_assign_queue_items", durationAssignQueueItems,
 	).Dur(
 		"duration_pop_queue_items", durationPopQueueItems,
-	).Msg(msg)
-}
-
-func printProcessStepRunUpdateInfo(
-	l zerolog.Logger,
-	tenantId string,
-	startedAt time.Time,
-	numStepRuns int,
-	durationUpdateStepRuns time.Duration,
-	durationResolveJobRuns time.Duration,
-	durationResolveWorkflowRuns time.Duration,
-	durationMarkQueueItemsProcessed time.Duration,
-	durationWriteStepRunEvents time.Duration,
-) {
-	duration := time.Since(startedAt)
-
-	e := l.Debug()
-	msg := "process step run updates debug information"
-
-	if duration > 100*time.Millisecond {
-		e = l.Warn()
-		msg = fmt.Sprintf("process step run updates duration was longer than 100ms (%s) for %d step runs", duration, numStepRuns)
-	}
-
-	e.Str(
-		"tenant_id", tenantId,
-	).Int(
-		"num_step_runs", numStepRuns,
-	).Dur(
-		"total_duration", duration,
-	).Dur(
-		"duration_update_step_runs", durationUpdateStepRuns,
-	).Dur(
-		"duration_resolve_job_runs", durationResolveJobRuns,
-	).Dur(
-		"duration_resolve_workflow_runs", durationResolveWorkflowRuns,
-	).Dur(
-		"duration_mark_queue_items_processed", durationMarkQueueItemsProcessed,
-	).Dur(
-		"duration_write_step_run_events", durationWriteStepRunEvents,
 	).Msg(msg)
 }
 

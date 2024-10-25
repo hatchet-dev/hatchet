@@ -20,13 +20,18 @@ const (
 type Partition struct {
 	controllerPartitionId string
 	workerPartitionId     string
-	controllerScheduler   gocron.Scheduler
-	workerScheduler       gocron.Scheduler
-	repo                  repository.TenantEngineRepository
-	l                     *zerolog.Logger
+	schedulerPartitionId  string
+
+	controllerCron gocron.Scheduler
+	workerCron     gocron.Scheduler
+	schedulerCron  gocron.Scheduler
+
+	repo repository.TenantEngineRepository
+	l    *zerolog.Logger
 
 	controllerMu sync.Mutex
 	workerMu     sync.Mutex
+	schedulerMu  sync.Mutex
 }
 
 func NewPartition(l *zerolog.Logger, repo repository.TenantEngineRepository) (*Partition, error) {
@@ -42,11 +47,18 @@ func NewPartition(l *zerolog.Logger, repo repository.TenantEngineRepository) (*P
 		return nil, err
 	}
 
+	s3, err := gocron.NewScheduler(gocron.WithLocation(time.UTC))
+
+	if err != nil {
+		return nil, err
+	}
+
 	return &Partition{
-		repo:                repo,
-		l:                   l,
-		controllerScheduler: s1,
-		workerScheduler:     s2,
+		repo:           repo,
+		l:              l,
+		controllerCron: s1,
+		workerCron:     s2,
+		schedulerCron:  s3,
 	}, nil
 }
 
@@ -58,17 +70,27 @@ func (p *Partition) GetWorkerPartitionId() string {
 	return p.workerPartitionId
 }
 
+func (p *Partition) GetSchedulerPartitionId() string {
+	return p.schedulerPartitionId
+}
+
 func (p *Partition) Shutdown() error {
-	err := p.controllerScheduler.Shutdown()
+	err := p.controllerCron.Shutdown()
 
 	if err != nil {
-		return fmt.Errorf("could not shutdown controller scheduler: %w", err)
+		return fmt.Errorf("could not shutdown controller cron: %w", err)
 	}
 
-	err = p.workerScheduler.Shutdown()
+	err = p.workerCron.Shutdown()
 
 	if err != nil {
-		return fmt.Errorf("could not shutdown worker scheduler: %w", err)
+		return fmt.Errorf("could not shutdown worker cron: %w", err)
+	}
+
+	err = p.schedulerCron.Shutdown()
+
+	if err != nil {
+		return fmt.Errorf("could not shutdown scheduler cron: %w", err)
 	}
 
 	// wait for heartbeat timeout duration
@@ -100,7 +122,7 @@ func (p *Partition) StartControllerPartition(ctx context.Context) (func() error,
 	p.controllerPartitionId = partitionId
 
 	// start the schedules
-	_, err = p.controllerScheduler.NewJob(
+	_, err = p.controllerCron.NewJob(
 		gocron.DurationJob(time.Second*20),
 		gocron.NewTask(
 			p.runControllerPartitionHeartbeat(ctx), // nolint: errcheck
@@ -112,7 +134,7 @@ func (p *Partition) StartControllerPartition(ctx context.Context) (func() error,
 	}
 
 	// rebalance partitions 10 seconds after startup
-	_, err = p.controllerScheduler.NewJob(
+	_, err = p.controllerCron.NewJob(
 		gocron.OneTimeJob(
 			gocron.OneTimeJobStartDateTime(time.Now().Add(time.Second*10)),
 		),
@@ -127,7 +149,7 @@ func (p *Partition) StartControllerPartition(ctx context.Context) (func() error,
 		return nil, fmt.Errorf("could not create rebalance all controller partitions job: %w", err)
 	}
 
-	_, err = p.controllerScheduler.NewJob(
+	_, err = p.controllerCron.NewJob(
 		gocron.DurationJob(time.Minute*1),
 		gocron.NewTask(
 			func() {
@@ -140,7 +162,7 @@ func (p *Partition) StartControllerPartition(ctx context.Context) (func() error,
 		return nil, fmt.Errorf("could not create rebalance inactive controller partitions job: %w", err)
 	}
 
-	p.controllerScheduler.Start()
+	p.controllerCron.Start()
 
 	return cleanup, nil
 }
@@ -175,6 +197,104 @@ func (p *Partition) runControllerPartitionHeartbeat(ctx context.Context) func() 
 	}
 }
 
+func (p *Partition) StartSchedulerPartition(ctx context.Context) (func() error, error) {
+	partitionId, err := p.repo.CreateSchedulerPartition(ctx)
+
+	if err != nil {
+		return nil, err
+	}
+
+	cleanup := func() error {
+		deleteCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		err = p.repo.DeleteSchedulerPartition(deleteCtx, p.GetSchedulerPartitionId())
+
+		if err != nil {
+			return fmt.Errorf("could not delete scheduler partition: %w", err)
+		}
+
+		return p.repo.RebalanceAllSchedulerPartitions(deleteCtx)
+	}
+
+	p.schedulerPartitionId = partitionId
+
+	// start the schedules
+	_, err = p.schedulerCron.NewJob(
+		gocron.DurationJob(time.Second*20),
+		gocron.NewTask(
+			p.runSchedulerPartitionHeartbeat(ctx), // nolint: errcheck
+		),
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not create scheduler partition heartbeat job: %w", err)
+	}
+
+	// rebalance partitions 10 seconds after startup
+	_, err = p.schedulerCron.NewJob(
+		gocron.OneTimeJob(
+			gocron.OneTimeJobStartDateTime(time.Now().Add(time.Second*10)),
+		),
+		gocron.NewTask(
+			func() {
+				rebalanceAllSchedulerPartitions(ctx, p.l, p.repo) // nolint: errcheck
+			},
+		),
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not create rebalance all scheduler partitions job: %w", err)
+	}
+
+	_, err = p.schedulerCron.NewJob(
+		gocron.DurationJob(time.Minute*1),
+		gocron.NewTask(
+			func() {
+				rebalanceInactiveSchedulerPartitions(ctx, p.l, p.repo) // nolint: errcheck
+			},
+		),
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not create rebalance inactive scheduler partitions job: %w", err)
+	}
+
+	p.schedulerCron.Start()
+
+	return cleanup, nil
+}
+
+func (p *Partition) runSchedulerPartitionHeartbeat(ctx context.Context) func() {
+	return func() {
+		if !p.schedulerMu.TryLock() {
+			p.l.Warn().Msg("could not acquire lock on scheduler partition")
+			return
+		}
+
+		defer p.schedulerMu.Unlock()
+
+		ctx, cancel := context.WithTimeout(ctx, heartbeatTimeout)
+		defer cancel()
+
+		ctx, span := telemetry.NewSpan(ctx, "run-partition-heartbeat")
+		defer span.End()
+
+		p.l.Debug().Msg("running scheduler partition heartbeat")
+
+		partitionId, err := p.repo.UpdateSchedulerPartitionHeartbeat(ctx, p.GetSchedulerPartitionId())
+
+		if err != nil {
+			p.l.Err(err).Msg("could not heartbeat partition")
+			return
+		}
+
+		if partitionId != p.GetSchedulerPartitionId() {
+			p.schedulerPartitionId = partitionId
+		}
+	}
+}
+
 func (p *Partition) StartTenantWorkerPartition(ctx context.Context) (func() error, error) {
 	partitionId, err := p.repo.CreateTenantWorkerPartition(ctx)
 
@@ -198,7 +318,7 @@ func (p *Partition) StartTenantWorkerPartition(ctx context.Context) (func() erro
 	}
 
 	// start the schedules
-	_, err = p.workerScheduler.NewJob(
+	_, err = p.workerCron.NewJob(
 		gocron.DurationJob(time.Second*20),
 		gocron.NewTask(
 			p.runTenantWorkerPartitionHeartbeat(ctx), // nolint: errcheck
@@ -210,7 +330,7 @@ func (p *Partition) StartTenantWorkerPartition(ctx context.Context) (func() erro
 	}
 
 	// rebalance partitions 30 seconds after startup
-	_, err = p.workerScheduler.NewJob(
+	_, err = p.workerCron.NewJob(
 		gocron.OneTimeJob(
 			gocron.OneTimeJobStartDateTime(time.Now().Add(time.Second*30)),
 		),
@@ -225,7 +345,7 @@ func (p *Partition) StartTenantWorkerPartition(ctx context.Context) (func() erro
 		return nil, fmt.Errorf("could not create rebalance all tenant worker partitions job: %w", err)
 	}
 
-	_, err = p.workerScheduler.NewJob(
+	_, err = p.workerCron.NewJob(
 		gocron.DurationJob(time.Minute*1),
 		gocron.NewTask(
 			func() {
@@ -238,7 +358,7 @@ func (p *Partition) StartTenantWorkerPartition(ctx context.Context) (func() erro
 		return nil, fmt.Errorf("could not create rebalance inactive tenant worker partitions job: %w", err)
 	}
 
-	p.workerScheduler.Start()
+	p.workerCron.Start()
 
 	return cleanup, nil
 }
@@ -308,6 +428,26 @@ func rebalanceInactiveTenantWorkerPartitions(ctx context.Context, l *zerolog.Log
 
 	if err != nil {
 		l.Err(err).Msg("could not rebalance inactive tenant worker partitions")
+	}
+
+	return err
+}
+
+func rebalanceAllSchedulerPartitions(ctx context.Context, l *zerolog.Logger, r repository.TenantEngineRepository) error {
+	err := r.RebalanceAllSchedulerPartitions(ctx)
+
+	if err != nil {
+		l.Err(err).Msg("could not rebalance scheduler partitions")
+	}
+
+	return err
+}
+
+func rebalanceInactiveSchedulerPartitions(ctx context.Context, l *zerolog.Logger, r repository.TenantEngineRepository) error {
+	err := r.RebalanceInactiveSchedulerPartitions(ctx)
+
+	if err != nil {
+		l.Err(err).Msg("could not rebalance inactive scheduler partitions")
 	}
 
 	return err

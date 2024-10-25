@@ -39,6 +39,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
+	v2 "github.com/hatchet-dev/hatchet/pkg/scheduling/v2"
 	"github.com/hatchet-dev/hatchet/pkg/security"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
@@ -171,6 +172,15 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile, runtime *server.Co
 
 	config.MaxConnLifetime = 15 * 60 * time.Second
 
+	if cf.Logger.Level == "debug" {
+		debugger := &debugger{
+			callerCounts: make(map[string]int),
+			l:            &l,
+		}
+
+		config.BeforeAcquire = debugger.beforeAcquire
+	}
+
 	pool, err := pgxpool.NewWithConfig(context.Background(), config)
 
 	if err != nil {
@@ -189,6 +199,12 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile, runtime *server.Co
 		return nil, fmt.Errorf("could not create engine repository: %w", err)
 	}
 
+	apiRepo, cleanupApiRepo, err := prisma.NewAPIRepository(c, pool, runtime, prisma.WithLogger(&l), prisma.WithCache(ch), prisma.WithMetered(meter))
+
+	if err != nil {
+		return nil, fmt.Errorf("could not create api repository: %w", err)
+	}
+
 	return &database.Config{
 		Disconnect: func() error {
 			if err := cleanupEngine(); err != nil {
@@ -197,11 +213,14 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile, runtime *server.Co
 
 			ch.Stop()
 			meter.Stop()
+			if err = cleanupApiRepo(); err != nil {
+				return err
+			}
 			return c.Prisma.Disconnect()
 		},
 		Pool:                  pool,
 		QueuePool:             pool,
-		APIRepository:         prisma.NewAPIRepository(c, pool, prisma.WithLogger(&l), prisma.WithCache(ch), prisma.WithMetered(meter)),
+		APIRepository:         apiRepo,
 		EngineRepository:      engineRepo,
 		EntitlementRepository: entitlementRepo,
 		Seed:                  cf.Seed,
@@ -210,6 +229,7 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile, runtime *server.Co
 
 func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigFile, version string) (cleanup func() error, res *server.ServerConfig, err error) {
 	l := logger.NewStdErr(&cf.Logger, "server")
+	queueLogger := logger.NewStdErr(&cf.AdditionalLoggers.Queue, "queue")
 
 	tls, err := loaderutils.LoadServerTLSConfig(&cf.TLS)
 
@@ -241,6 +261,7 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 			rabbitmq.WithURL(cf.MessageQueue.RabbitMQ.URL),
 			rabbitmq.WithLogger(&l),
 			rabbitmq.WithQos(cf.MessageQueue.RabbitMQ.Qos),
+			rabbitmq.WithDisableTenantExchangePubs(cf.Runtime.DisableTenantPubs),
 		)
 
 		ing, err = ingestor.NewIngestor(
@@ -398,12 +419,38 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 		})
 	}
 
+	v := validator.NewDefaultValidator()
+
+	schedulingPool, cleanupSchedulingPool, err := v2.NewSchedulingPool(
+		&queueLogger,
+		dc.QueuePool,
+		v,
+		cf.Runtime.SingleQueueLimit,
+		cf.Runtime.EventBuffer,
+	)
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not create scheduling pool: %w", err)
+	}
+
 	cleanup = func() error {
 		log.Printf("cleaning up server config")
+
+		if err := cleanupSchedulingPool(); err != nil {
+			return fmt.Errorf("error cleaning up scheduling pool: %w", err)
+		}
+
 		if err := cleanup1(); err != nil {
 			return fmt.Errorf("error cleaning up rabbitmq: %w", err)
 		}
 		return nil
+	}
+
+	services := cf.Services
+
+	// edge case to support backwards-compatibility with the services array in the config file
+	if cf.ServicesString != "" {
+		services = strings.Split(cf.ServicesString, " ")
 	}
 
 	return cleanup, &server.ServerConfig{
@@ -416,11 +463,11 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 		Encryption:             encryptionSvc,
 		Config:                 dc,
 		MessageQueue:           mq,
-		Services:               cf.Services,
+		Services:               services,
 		Logger:                 &l,
 		TLSConfig:              tls,
 		SessionStore:           ss,
-		Validator:              validator.NewDefaultValidator(),
+		Validator:              v,
 		Ingestor:               ing,
 		OpenTelemetry:          cf.OpenTelemetry,
 		Email:                  emailSvc,
@@ -429,6 +476,7 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 		AdditionalLoggers:      cf.AdditionalLoggers,
 		EnableDataRetention:    cf.EnableDataRetention,
 		EnableWorkerRetention:  cf.EnableWorkerRetention,
+		SchedulingPool:         schedulingPool,
 	}, nil
 }
 

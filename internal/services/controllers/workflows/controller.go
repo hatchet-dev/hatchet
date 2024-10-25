@@ -15,7 +15,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/integrations/alerting"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/queueutils"
-	"github.com/hatchet-dev/hatchet/internal/services/controllers/partition"
+	"github.com/hatchet-dev/hatchet/internal/services/partition"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
@@ -44,6 +44,7 @@ type WorkflowsControllerImpl struct {
 	processWorkflowEventsOps *queueutils.OperationPool
 	unpausedWorkflowRunsOps  *queueutils.OperationPool
 	bumpQueueOps             *queueutils.OperationPool
+	queueMutex               sync.Map
 }
 
 type WorkflowsControllerOpt func(*WorkflowsControllerOpts)
@@ -381,7 +382,7 @@ func (wc *WorkflowsControllerImpl) checkTenantQueue(ctx context.Context, tenantI
 		err = wc.mq.AddMessage(
 			ctx,
 			msgqueue.QueueTypeFromPartitionIDAndController(tenant.ControllerPartitionId.String, msgqueue.WorkflowController),
-			tasktypes.CheckTenantQueueToTask(tenantId),
+			tasktypes.CheckTenantQueueToTask(tenantId, "", false, false),
 		)
 
 		if err != nil {
@@ -656,7 +657,7 @@ func (wc *WorkflowsControllerImpl) cancelGetGroupKeyRun(ctx context.Context, ten
 		return fmt.Errorf("could not get workflow run: %w", err)
 	}
 
-	return wc.cancelWorkflowRunJobs(ctx, workflowRun)
+	return wc.cancelWorkflowRunJobs(ctx, workflowRun, "")
 }
 
 func (wc *WorkflowsControllerImpl) runTenantProcessWorkflowRunEvents(ctx context.Context) func() {
@@ -759,7 +760,7 @@ func (wc *WorkflowsControllerImpl) unpauseWorkflowRuns(ctx context.Context, tena
 }
 
 func (wc *WorkflowsControllerImpl) startManyJobRuns(ctx context.Context, tenantId string, jobRunIds []string) error {
-	return queueutils.MakeBatched(50, jobRunIds, func(group []string) error {
+	return queueutils.BatchConcurrent(50, jobRunIds, func(group []string) error {
 		for i := range group {
 			err := wc.startJobRun(ctx, tenantId, group[i])
 

@@ -134,7 +134,7 @@ func (r *tenantAlertingEngineRepository) GetTenantAlertingSettings(ctx context.C
 		return nil, err
 	}
 
-	defer deferRollback(ctx, r.l, tx.Rollback)
+	defer sqlchelpers.DeferRollback(ctx, r.l, tx.Rollback)
 
 	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
 
@@ -224,4 +224,14 @@ func (r *tenantAlertingEngineRepository) UpdateTenantAlertingSettings(ctx contex
 	)
 
 	return err
+}
+
+func (r *tenantAlertingEngineRepository) GetTenantResourceLimitState(ctx context.Context, tenantId string, resource string) (*dbsqlc.GetTenantResourceLimitRow, error) {
+	return r.queries.GetTenantResourceLimit(ctx, r.pool, dbsqlc.GetTenantResourceLimitParams{
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Resource: dbsqlc.NullLimitResource{
+			LimitResource: dbsqlc.LimitResource(resource),
+			Valid:         true,
+		},
+	})
 }

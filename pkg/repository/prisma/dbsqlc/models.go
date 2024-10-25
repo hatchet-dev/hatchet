@@ -230,6 +230,48 @@ func (ns NullJobRunStatus) Value() (driver.Value, error) {
 	return string(ns.JobRunStatus), nil
 }
 
+type LeaseKind string
+
+const (
+	LeaseKindWORKER LeaseKind = "WORKER"
+	LeaseKindQUEUE  LeaseKind = "QUEUE"
+)
+
+func (e *LeaseKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = LeaseKind(s)
+	case string:
+		*e = LeaseKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for LeaseKind: %T", src)
+	}
+	return nil
+}
+
+type NullLeaseKind struct {
+	LeaseKind LeaseKind `json:"LeaseKind"`
+	Valid     bool      `json:"valid"` // Valid is true if LeaseKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullLeaseKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.LeaseKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.LeaseKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullLeaseKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.LeaseKind), nil
+}
+
 type LimitResource string
 
 const (
@@ -426,6 +468,7 @@ const (
 	StepRunEventReasonWORKFLOWRUNGROUPKEYSUCCEEDED StepRunEventReason = "WORKFLOW_RUN_GROUP_KEY_SUCCEEDED"
 	StepRunEventReasonWORKFLOWRUNGROUPKEYFAILED    StepRunEventReason = "WORKFLOW_RUN_GROUP_KEY_FAILED"
 	StepRunEventReasonRATELIMITERROR               StepRunEventReason = "RATE_LIMIT_ERROR"
+	StepRunEventReasonACKNOWLEDGED                 StepRunEventReason = "ACKNOWLEDGED"
 )
 
 func (e *StepRunEventReason) Scan(src interface{}) error {
@@ -996,6 +1039,12 @@ type Event struct {
 	InsertOrder        pgtype.Int4      `json:"insertOrder"`
 }
 
+type EventKey struct {
+	Key      string      `json:"key"`
+	TenantId pgtype.UUID `json:"tenantId"`
+	ID       int64       `json:"id"`
+}
+
 type GetGroupKeyRun struct {
 	ID                pgtype.UUID      `json:"id"`
 	CreatedAt         pgtype.Timestamp `json:"createdAt"`
@@ -1071,6 +1120,14 @@ type JobRunLookupData struct {
 	Data      []byte           `json:"data"`
 }
 
+type Lease struct {
+	ID         int64            `json:"id"`
+	ExpiresAt  pgtype.Timestamp `json:"expiresAt"`
+	TenantId   pgtype.UUID      `json:"tenantId"`
+	ResourceId string           `json:"resourceId"`
+	Kind       LeaseKind        `json:"kind"`
+}
+
 type LogLine struct {
 	ID        int64            `json:"id"`
 	CreatedAt pgtype.Timestamp `json:"createdAt"`
@@ -1082,9 +1139,10 @@ type LogLine struct {
 }
 
 type Queue struct {
-	ID       int64       `json:"id"`
-	TenantId pgtype.UUID `json:"tenantId"`
-	Name     string      `json:"name"`
+	ID         int64            `json:"id"`
+	TenantId   pgtype.UUID      `json:"tenantId"`
+	Name       string           `json:"name"`
+	LastActive pgtype.Timestamp `json:"lastActive"`
 }
 
 type QueueItem struct {
@@ -1117,6 +1175,14 @@ type SNSIntegration struct {
 	UpdatedAt pgtype.Timestamp `json:"updatedAt"`
 	TenantId  pgtype.UUID      `json:"tenantId"`
 	TopicArn  string           `json:"topicArn"`
+}
+
+type SchedulerPartition struct {
+	ID            string           `json:"id"`
+	CreatedAt     pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt     pgtype.Timestamp `json:"updatedAt"`
+	LastHeartbeat pgtype.Timestamp `json:"lastHeartbeat"`
+	Name          pgtype.Text      `json:"name"`
 }
 
 type SecurityCheckIdent struct {
@@ -1303,6 +1369,7 @@ type Tenant struct {
 	ControllerPartitionId pgtype.Text      `json:"controllerPartitionId"`
 	WorkerPartitionId     pgtype.Text      `json:"workerPartitionId"`
 	DataRetentionPeriod   string           `json:"dataRetentionPeriod"`
+	SchedulerPartitionId  pgtype.Text      `json:"schedulerPartitionId"`
 }
 
 type TenantAlertEmailGroup struct {
@@ -1548,6 +1615,7 @@ type WorkflowRun struct {
 	AdditionalMetadata []byte            `json:"additionalMetadata"`
 	Duration           pgtype.Int8       `json:"duration"`
 	Priority           pgtype.Int4       `json:"priority"`
+	InsertOrder        pgtype.Int4       `json:"insertOrder"`
 }
 
 type WorkflowRunDedupe struct {

@@ -14,6 +14,9 @@ CREATE TYPE "JobKind" AS ENUM ('DEFAULT', 'ON_FAILURE');
 CREATE TYPE "JobRunStatus" AS ENUM ('PENDING', 'RUNNING', 'SUCCEEDED', 'FAILED', 'CANCELLED');
 
 -- CreateEnum
+CREATE TYPE "LeaseKind" AS ENUM ('WORKER', 'QUEUE');
+
+-- CreateEnum
 CREATE TYPE "LimitResource" AS ENUM ('WORKFLOW_RUN', 'EVENT', 'WORKER', 'CRON', 'SCHEDULE');
 
 -- CreateEnum
@@ -26,7 +29,7 @@ CREATE TYPE "StepExpressionKind" AS ENUM ('DYNAMIC_RATE_LIMIT_KEY', 'DYNAMIC_RAT
 CREATE TYPE "StepRateLimitKind" AS ENUM ('STATIC', 'DYNAMIC');
 
 -- CreateEnum
-CREATE TYPE "StepRunEventReason" AS ENUM ('REQUEUED_NO_WORKER', 'REQUEUED_RATE_LIMIT', 'SCHEDULING_TIMED_OUT', 'ASSIGNED', 'STARTED', 'FINISHED', 'FAILED', 'RETRYING', 'CANCELLED', 'TIMED_OUT', 'REASSIGNED', 'SLOT_RELEASED', 'TIMEOUT_REFRESHED', 'RETRIED_BY_USER', 'SENT_TO_WORKER', 'WORKFLOW_RUN_GROUP_KEY_SUCCEEDED', 'WORKFLOW_RUN_GROUP_KEY_FAILED', 'RATE_LIMIT_ERROR');
+CREATE TYPE "StepRunEventReason" AS ENUM ('REQUEUED_NO_WORKER', 'REQUEUED_RATE_LIMIT', 'SCHEDULING_TIMED_OUT', 'ASSIGNED', 'STARTED', 'FINISHED', 'FAILED', 'RETRYING', 'CANCELLED', 'TIMED_OUT', 'REASSIGNED', 'SLOT_RELEASED', 'TIMEOUT_REFRESHED', 'RETRIED_BY_USER', 'SENT_TO_WORKER', 'WORKFLOW_RUN_GROUP_KEY_SUCCEEDED', 'WORKFLOW_RUN_GROUP_KEY_FAILED', 'RATE_LIMIT_ERROR', 'ACKNOWLEDGED');
 
 -- CreateEnum
 CREATE TYPE "StepRunEventSeverity" AS ENUM ('INFO', 'WARNING', 'CRITICAL');
@@ -126,6 +129,15 @@ CREATE TABLE "Event" (
 );
 
 -- CreateTable
+CREATE TABLE "EventKey" (
+    "key" TEXT NOT NULL,
+    "tenantId" UUID NOT NULL,
+    "id" BIGSERIAL NOT NULL,
+
+    CONSTRAINT "EventKey_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "GetGroupKeyRun" (
     "id" UUID NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -216,6 +228,17 @@ CREATE TABLE "JobRunLookupData" (
 );
 
 -- CreateTable
+CREATE TABLE "Lease" (
+    "id" BIGSERIAL NOT NULL,
+    "expiresAt" TIMESTAMP(3),
+    "tenantId" UUID NOT NULL,
+    "resourceId" TEXT NOT NULL,
+    "kind" "LeaseKind" NOT NULL,
+
+    CONSTRAINT "Lease_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "LogLine" (
     "id" BIGSERIAL NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -233,6 +256,7 @@ CREATE TABLE "Queue" (
     "id" BIGSERIAL NOT NULL,
     "tenantId" UUID NOT NULL,
     "name" TEXT NOT NULL,
+    "lastActive" TIMESTAMP(3),
 
     CONSTRAINT "Queue_pkey" PRIMARY KEY ("id")
 );
@@ -274,6 +298,17 @@ CREATE TABLE "SNSIntegration" (
     "topicArn" TEXT NOT NULL,
 
     CONSTRAINT "SNSIntegration_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "SchedulerPartition" (
+    "id" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "lastHeartbeat" TIMESTAMP(3),
+    "name" TEXT,
+
+    CONSTRAINT "SchedulerPartition_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -481,6 +516,7 @@ CREATE TABLE "Tenant" (
     "controllerPartitionId" TEXT,
     "workerPartitionId" TEXT,
     "dataRetentionPeriod" TEXT NOT NULL DEFAULT '720h',
+    "schedulerPartitionId" TEXT,
 
     CONSTRAINT "Tenant_pkey" PRIMARY KEY ("id")
 );
@@ -793,6 +829,7 @@ CREATE TABLE "WorkflowRun" (
     "additionalMetadata" JSONB,
     "duration" BIGINT,
     "priority" INTEGER,
+    "insertOrder" INTEGER,
 
     CONSTRAINT "WorkflowRun_pkey" PRIMARY KEY ("id")
 );
@@ -969,6 +1006,9 @@ CREATE INDEX "Event_tenantId_createdAt_idx" ON "Event"("tenantId" ASC, "createdA
 CREATE INDEX "Event_tenantId_idx" ON "Event"("tenantId" ASC);
 
 -- CreateIndex
+CREATE UNIQUE INDEX "EventKey_key_tenantId_key" ON "EventKey"("key" ASC, "tenantId" ASC);
+
+-- CreateIndex
 CREATE INDEX "GetGroupKeyRun_createdAt_idx" ON "GetGroupKeyRun"("createdAt" ASC);
 
 -- CreateIndex
@@ -1023,6 +1063,12 @@ CREATE UNIQUE INDEX "JobRunLookupData_jobRunId_key" ON "JobRunLookupData"("jobRu
 CREATE UNIQUE INDEX "JobRunLookupData_jobRunId_tenantId_key" ON "JobRunLookupData"("jobRunId" ASC, "tenantId" ASC);
 
 -- CreateIndex
+CREATE UNIQUE INDEX "Lease_tenantId_kind_resourceId_key" ON "Lease"("tenantId" ASC, "kind" ASC, "resourceId" ASC);
+
+-- CreateIndex
+CREATE INDEX "Queue_tenantId_lastActive_idx" ON "Queue"("tenantId" ASC, "lastActive" ASC);
+
+-- CreateIndex
 CREATE UNIQUE INDEX "Queue_tenantId_name_key" ON "Queue"("tenantId" ASC, "name" ASC);
 
 -- CreateIndex
@@ -1036,6 +1082,9 @@ CREATE UNIQUE INDEX "SNSIntegration_id_key" ON "SNSIntegration"("id" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "SNSIntegration_tenantId_topicArn_key" ON "SNSIntegration"("tenantId" ASC, "topicArn" ASC);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "SchedulerPartition_id_key" ON "SchedulerPartition"("id" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "SecurityCheckIdent_id_key" ON "SecurityCheckIdent"("id" ASC);
@@ -1425,6 +1474,9 @@ ALTER TABLE "StreamEvent" ADD CONSTRAINT "StreamEvent_stepRunId_fkey" FOREIGN KE
 ALTER TABLE "Tenant" ADD CONSTRAINT "Tenant_controllerPartitionId_fkey" FOREIGN KEY ("controllerPartitionId") REFERENCES "ControllerPartition"("id") ON DELETE SET NULL ON UPDATE SET NULL;
 
 -- AddForeignKey
+ALTER TABLE "Tenant" ADD CONSTRAINT "Tenant_schedulerPartitionId_fkey" FOREIGN KEY ("schedulerPartitionId") REFERENCES "SchedulerPartition"("id") ON DELETE SET NULL ON UPDATE SET NULL;
+
+-- AddForeignKey
 ALTER TABLE "Tenant" ADD CONSTRAINT "Tenant_workerPartitionId_fkey" FOREIGN KEY ("workerPartitionId") REFERENCES "TenantWorkerPartition"("id") ON DELETE SET NULL ON UPDATE SET NULL;
 
 -- AddForeignKey
@@ -1598,3 +1650,24 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS "WorkflowRun_parentStepRunId" ON "Workfl
 -- Additional indexes on workflow run
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_workflowrun_concurrency ON "WorkflowRun" ("concurrencyGroupId", "createdAt");
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_workflowrun_main ON "WorkflowRun" ("tenantId", "deletedAt", "status", "workflowVersionId", "createdAt");
+
+-- Additional indexes on workflow
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_workflow_version_workflow_id_order
+ON "WorkflowVersion" ("workflowId", "order" DESC)
+WHERE "deletedAt" IS NULL;
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_workflow_tenant_id
+ON "Workflow" ("tenantId");
+
+-- Additional indexes on WorkflowTriggers
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_workflow_triggers_workflow_version_id
+ON "WorkflowTriggers" ("workflowVersionId");
+
+-- Additional indexes on WorkflowTriggerEventRef
+CREATE INDEX idx_workflow_trigger_event_ref_event_key_parent_id
+ON "WorkflowTriggerEventRef" ("eventKey", "parentId");
+
+-- Additional indexes on WorkflowRun
+CREATE INDEX CONCURRENTLY IF NOT EXISTS "WorkflowRun_parentId_parentStepRunId_childIndex_key"
+ON "WorkflowRun"("parentId", "parentStepRunId", "childIndex")
+WHERE "deletedAt" IS NULL;

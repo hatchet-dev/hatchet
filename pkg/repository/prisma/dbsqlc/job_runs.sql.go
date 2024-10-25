@@ -92,6 +92,50 @@ func (q *Queries) GetJobRunByWorkflowRunIdAndJobId(ctx context.Context, db DBTX,
 	return &i, err
 }
 
+const getJobRunsByWorkflowRunId = `-- name: GetJobRunsByWorkflowRunId :many
+
+SELECT
+    "id",
+    "jobId",
+    "status"
+FROM
+    "JobRun" jr
+WHERE
+    jr."workflowRunId" = $1::uuid
+    AND jr."tenantId" = $2::uuid
+`
+
+type GetJobRunsByWorkflowRunIdParams struct {
+	Workflowrunid pgtype.UUID `json:"workflowrunid"`
+	Tenantid      pgtype.UUID `json:"tenantid"`
+}
+
+type GetJobRunsByWorkflowRunIdRow struct {
+	ID     pgtype.UUID  `json:"id"`
+	JobId  pgtype.UUID  `json:"jobId"`
+	Status JobRunStatus `json:"status"`
+}
+
+func (q *Queries) GetJobRunsByWorkflowRunId(ctx context.Context, db DBTX, arg GetJobRunsByWorkflowRunIdParams) ([]*GetJobRunsByWorkflowRunIdRow, error) {
+	rows, err := db.Query(ctx, getJobRunsByWorkflowRunId, arg.Workflowrunid, arg.Tenantid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*GetJobRunsByWorkflowRunIdRow
+	for rows.Next() {
+		var i GetJobRunsByWorkflowRunIdRow
+		if err := rows.Scan(&i.ID, &i.JobId, &i.Status); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listJobRunsForWorkflowRun = `-- name: ListJobRunsForWorkflowRun :many
 SELECT
     "id",
@@ -234,9 +278,8 @@ WITH stepRuns AS (
         "jobRunId" = ANY(
             SELECT "jobRunId"
             FROM "StepRun"
-            WHERE "id" = ANY($2::uuid[])
-        ) AND
-        "tenantId" = $1::uuid
+            WHERE "id" = ANY($1::uuid[])
+        )
     GROUP BY runs."jobRunId"
 )
 UPDATE "JobRun"
@@ -272,17 +315,11 @@ END
 FROM stepRuns s
 WHERE
     "id" = s."jobRunId"
-    AND "tenantId" = $1::uuid
 RETURNING "JobRun"."id"
 `
 
-type ResolveJobRunStatusParams struct {
-	Tenantid   pgtype.UUID   `json:"tenantid"`
-	Steprunids []pgtype.UUID `json:"steprunids"`
-}
-
-func (q *Queries) ResolveJobRunStatus(ctx context.Context, db DBTX, arg ResolveJobRunStatusParams) ([]pgtype.UUID, error) {
-	rows, err := db.Query(ctx, resolveJobRunStatus, arg.Tenantid, arg.Steprunids)
+func (q *Queries) ResolveJobRunStatus(ctx context.Context, db DBTX, steprunids []pgtype.UUID) ([]pgtype.UUID, error) {
+	rows, err := db.Query(ctx, resolveJobRunStatus, steprunids)
 	if err != nil {
 		return nil, err
 	}

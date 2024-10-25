@@ -519,6 +519,44 @@ INSERT INTO "WorkflowRun" (
     sqlc.narg('priority')::int
 ) RETURNING *;
 
+
+-- name: CreateWorkflowRuns :copyfrom
+INSERT INTO "WorkflowRun" (
+    "id",
+    "displayName",
+    "tenantId",
+    "workflowVersionId",
+    "status",
+    "childIndex",
+    "childKey",
+    "parentId",
+    "parentStepRunId",
+    "additionalMetadata",
+    "priority",
+    "insertOrder"
+) VALUES (
+    $1,
+    $2,
+    $3,
+    $4,
+    $5,
+    $6,
+    $7,
+    $8,
+    $9,
+    $10,
+    $11,
+    $12
+
+);
+
+
+-- name: GetWorkflowRunsInsertedInThisTxn :many
+SELECT * FROM "WorkflowRun"
+WHERE xmin::text = (txid_current() % (2^32)::bigint)::text
+AND ("createdAt" = CURRENT_TIMESTAMP::timestamp(3))
+ORDER BY "insertOrder" ASC;
+
 -- name: CreateWorkflowRunDedupe :one
 WITH workflow_id AS (
     SELECT w."id" FROM "Workflow" w
@@ -540,6 +578,8 @@ INSERT INTO "WorkflowRunDedupe" (
     @workflowRunId::uuid,
     sqlc.narg('value')::text
 ) RETURNING *;
+
+
 
 -- name: CreateWorkflowRunStickyState :one
 WITH workflow_version AS (
@@ -565,6 +605,44 @@ SELECT
 FROM workflow_version
 WHERE workflow_version."sticky" IS NOT NULL
 RETURNING *;
+
+-- name: CreateMultipleWorkflowRunStickyStates :exec
+WITH input_rows AS (
+    SELECT
+        UNNEST(@tenantId::uuid[]) as "tenantId",
+        UNNEST(@workflowRunIds::uuid[]) as "workflowRunId",
+        UNNEST(@desiredWorkerIds::uuid[]) as "desiredWorkerId",
+        UNNEST(@workflowVersionIds::uuid[]) as "workflowVersionId"
+), valid_rows AS (
+    SELECT
+        ir."tenantId",
+        ir."workflowRunId",
+        ir."desiredWorkerId",
+        ir."workflowVersionId",
+        wv."sticky"
+    FROM
+        input_rows ir
+    JOIN
+        "WorkflowVersion" wv ON wv."id" = ir."workflowVersionId"
+    WHERE
+        wv."sticky" IS NOT NULL
+)
+INSERT INTO "WorkflowRunStickyState" (
+    "createdAt",
+    "updatedAt",
+    "tenantId",
+    "workflowRunId",
+    "desiredWorkerId",
+    "strategy"
+)
+SELECT
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP,
+    vr."tenantId",
+    vr."workflowRunId",
+    vr."desiredWorkerId",
+    vr."sticky"
+FROM valid_rows vr;
 
 -- name: GetWorkflowRunAdditionalMeta :one
 SELECT
@@ -608,17 +686,38 @@ INSERT INTO "WorkflowRunTriggeredBy" (
     "cronSchedule",
     "scheduledId"
 ) VALUES (
-    gen_random_uuid(), -- Generates a new UUID for id
+    gen_random_uuid(),
     CURRENT_TIMESTAMP,
     CURRENT_TIMESTAMP,
-    NULL, -- assuming deletedAt is not set on creation
+    NULL,
     @tenantId::uuid,
-    @workflowRunId::uuid, -- assuming parentId is the workflowRunId
-    sqlc.narg('eventId')::uuid, -- NULL if not provided
-    sqlc.narg('cronParentId')::uuid, -- NULL if not provided
-    sqlc.narg('cron')::text, -- NULL if not provided
-    sqlc.narg('scheduledId')::uuid -- NULL if not provided
+    @workflowRunId::uuid,
+    sqlc.narg('eventId')::uuid,
+    sqlc.narg('cronParentId')::uuid,
+    sqlc.narg('cron')::text,
+    sqlc.narg('scheduledId')::uuid
 ) RETURNING *;
+
+-- name: CreateWorkflowRunTriggeredBys :copyfrom
+
+INSERT INTO "WorkflowRunTriggeredBy" (
+    "id",
+    "tenantId",
+    "parentId",
+    "eventId",
+    "cronParentId",
+    "cronSchedule",
+    "scheduledId"
+) VALUES (
+    $1,
+    $2,
+    $3,
+    $4,
+    $5,
+    $6,
+    $7
+
+);
 
 -- name: CreateGetGroupKeyRun :one
 INSERT INTO "GetGroupKeyRun" (
@@ -665,6 +764,28 @@ INSERT INTO "GetGroupKeyRun" (
     NULL
 ) RETURNING *;
 
+-- name: CreateGetGroupKeyRuns :copyfrom
+
+INSERT INTO "GetGroupKeyRun" (
+    "id",
+    "tenantId",
+    "workflowRunId",
+    "input",
+    "requeueAfter",
+    "scheduleTimeoutAt",
+    "status"
+
+) VALUES (
+    $1,
+    $2,
+    $3,
+    $4,
+    $5,
+    $6,
+    $7
+
+);
+
 -- name: CreateJobRuns :many
 INSERT INTO "JobRun" (
     "id",
@@ -689,6 +810,41 @@ WHERE
     "workflowVersionId" = @workflowVersionId::uuid
 RETURNING "id";
 
+-- name: CreateManyJobRuns :many
+
+WITH input_data AS (
+    SELECT
+        UNNEST(@tenantIds::uuid[]) AS tenantId,
+        UNNEST(@workflowRunIds::uuid[]) AS workflowRunId,
+        UNNEST(@workflowVersionIds::uuid[]) AS workflowVersionId
+)
+INSERT INTO "JobRun" (
+    "id",
+    "createdAt",
+    "updatedAt",
+    "tenantId",
+    "workflowRunId",
+    "jobId",
+    "status"
+)
+SELECT
+    gen_random_uuid(),
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP,
+    input_data.tenantId,
+    input_data.workflowRunId,
+    "Job"."id",
+    'PENDING'
+FROM
+    input_data
+JOIN
+    "Job"
+ON
+    "Job"."workflowVersionId" = input_data.workflowVersionId
+RETURNING "JobRun"."id", "JobRun"."workflowRunId", "JobRun"."tenantId";
+
+
+
 -- name: CreateJobRunLookupData :one
 INSERT INTO "JobRunLookupData" (
     "id",
@@ -711,6 +867,41 @@ INSERT INTO "JobRunLookupData" (
         'steps', '{}'::jsonb
     )
 ) RETURNING *;
+
+-- name: CreateJobRunLookupDatas :many
+
+WITH input_data AS (
+    SELECT
+        UNNEST(COALESCE(@ids::uuid[], ARRAY[gen_random_uuid()])) AS id,
+        UNNEST(@jobRunIds::uuid[]) AS jobRunId,
+        UNNEST(@tenantIds::uuid[]) AS tenantId,
+        UNNEST(@triggeredBys::text[]) AS triggeredBy,
+        UNNEST(COALESCE(@inputs::jsonb[], ARRAY[ '{}'::jsonb ])) AS input
+)
+INSERT INTO "JobRunLookupData" (
+    "id",
+    "createdAt",
+    "updatedAt",
+    "deletedAt",
+    "jobRunId",
+    "tenantId",
+    "data"
+)
+SELECT
+    COALESCE(input_data.id, gen_random_uuid()),
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP,
+    NULL,
+    input_data.jobRunId,
+    input_data.tenantId,
+    jsonb_build_object(
+        'input', input_data.input,
+        'triggered_by', input_data.triggeredBy,
+        'steps', '{}'::jsonb
+    )
+FROM input_data
+RETURNING *;
+
 
 -- name: CreateStepRun :one
 INSERT INTO "StepRun" (
@@ -738,6 +929,37 @@ SELECT
     sqlc.narg('priority')::int
 RETURNING "id";
 
+-- name: CreateStepRuns :copyfrom
+
+INSERT INTO "StepRun" (
+    "id",
+    "tenantId",
+    "jobRunId",
+    "stepId",
+    "status",
+    "requeueAfter",
+    "queue",
+    "priority"
+) VALUES (
+    $1,
+    $2,
+    $3,
+    $4,
+    $5,
+    $6,
+    $7,
+    $8
+
+);
+
+-- name: GetStepsForWorkflowVersion :many
+
+SELECT
+    "Step".*  from "Step"
+JOIN "Job" j ON "Step"."jobId" = j."id"
+WHERE
+    j."workflowVersionId" = ANY(@workflowVersionIds::uuid[]);
+
 -- name: ListStepsForJob :many
 WITH job_id AS (
     SELECT "jobId"
@@ -752,22 +974,67 @@ FROM
 WHERE
     s."jobId" = job_id."jobId";
 
+-- name: CreateStepRunsForJobRunIds :many
+WITH job_ids AS (
+    SELECT DISTINCT "jobId", "id" as jobRunId, "tenantId"
+    FROM "JobRun"
+    WHERE "id" = ANY(@jobRunIds::uuid[])
+),
+steps AS (
+    SELECT
+        s."id" as step_id,
+        s."actionId",
+        s."jobId",
+        j.jobRunId,
+        j."tenantId"
+    FROM "Step" s
+    JOIN job_ids j ON s."jobId" = j."jobId"
+)
+INSERT INTO "StepRun" (
+    "id",
+    "tenantId",
+    "priority",
+    "status",
+    "jobRunId",
+    "stepId",
+    "queue"
+)
+SELECT
+    gen_random_uuid() as id,
+    s."tenantId" as tenantId,
+    @priority::int4 as priority,
+    'PENDING' as status,
+    s.jobRunId as jobRunId,
+    step_id as stepId,
+    s."actionId" as queue
+FROM steps s
+RETURNING
+    "id";
+
+
+
 -- name: LinkStepRunParents :exec
 WITH step_runs AS (
-    SELECT "id", "stepId"
+    SELECT "id", "stepId", "jobRunId"
     FROM "StepRun"
     WHERE "id" = ANY(@stepRunIds::uuid[])
+), parent_child_step_runs AS (
+    SELECT
+        parent_run."id" AS "A",
+        child_run."id" AS "B"
+    FROM
+        "_StepOrder" AS step_order
+    JOIN
+        step_runs AS parent_run ON parent_run."stepId" = step_order."A"
+    JOIN
+        step_runs AS child_run ON child_run."stepId" = step_order."B" AND child_run."jobRunId" = parent_run."jobRunId"
 )
 INSERT INTO "_StepRunOrder" ("A", "B")
 SELECT
-    parent_run."id" AS "A",
-    child_run."id" AS "B"
+    parent_child_step_runs."A" AS "A",
+    parent_child_step_runs."B" AS "B"
 FROM
-    "_StepOrder" AS step_order
-JOIN
-    step_runs AS parent_run ON parent_run."stepId" = step_order."A"
-JOIN
-    step_runs AS child_run ON child_run."stepId" = step_order."B";
+    parent_child_step_runs;
 
 -- name: GetWorkflowRun :many
 SELECT
@@ -815,6 +1082,34 @@ WHERE
         (sqlc.narg('childKey')::text IS NULL AND "childIndex" = @childIndex) OR
         (sqlc.narg('childKey')::text IS NOT NULL AND "childKey" = sqlc.narg('childKey')::text)
     );
+
+-- name: GetChildWorkflowRunsByIndex :many
+SELECT
+    wr.*
+FROM
+    "WorkflowRun" wr
+WHERE
+    (wr."parentId", wr."parentStepRunId", wr."childIndex") IN (
+        SELECT
+            UNNEST(@parentIds::uuid[]),
+            UNNEST(@parentStepRunIds::uuid[]),
+            UNNEST(@childIndexes::int[])
+    )
+    AND wr."deletedAt" IS NULL;
+
+-- name: GetChildWorkflowRunsByKey :many
+SELECT
+    wr.*
+FROM
+    "WorkflowRun" wr
+WHERE
+    (wr."parentId", wr."parentStepRunId", wr."childKey") IN (
+        SELECT
+            UNNEST(@parentIds::uuid[]),
+            UNNEST(@parentStepRunIds::uuid[]),
+            UNNEST(@childKeys::text[])
+    )
+    AND wr."deletedAt" IS NULL;
 
 -- name: GetScheduledChildWorkflowRun :one
 SELECT
@@ -968,6 +1263,26 @@ JOIN "WorkflowRunTriggeredBy" as tb ON
     r."id" = tb."parentId"
 WHERE
     r."id" = @workflowRunId::uuid AND
+    r."tenantId" = @tenantId::uuid;
+
+
+-- name: GetWorkflowRunByIds :many
+SELECT
+    r.*,
+    sqlc.embed(wv),
+    sqlc.embed(w),
+    sqlc.embed(tb)
+FROM
+    "WorkflowRun" r
+JOIN
+    "WorkflowVersion" as wv ON
+        r."workflowVersionId" = wv."id"
+JOIN "Workflow" as w ON
+    wv."workflowId" = w."id"
+JOIN "WorkflowRunTriggeredBy" as tb ON
+    r."id" = tb."parentId"
+WHERE
+    r."id" = ANY(@workflowRunIds::uuid[]) AND
     r."tenantId" = @tenantId::uuid;
 
 -- name: GetWorkflowRunTrigger :one

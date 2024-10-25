@@ -1,4 +1,4 @@
-package prisma
+package buffer
 
 import (
 	"context"
@@ -43,6 +43,7 @@ func TestIngestBufInitialization(t *testing.T) {
 	logger := zerolog.New(nil).Level(zerolog.Disabled)
 
 	opts := IngestBufOpts[mockItem, mockResult]{
+		Name:               "test",
 		MaxCapacity:        5,
 		FlushPeriod:        1 * time.Second,
 		MaxDataSizeInQueue: 100,
@@ -68,6 +69,7 @@ func TestIngestBufValidation(t *testing.T) {
 	logger := zerolog.New(nil).Level(zerolog.Disabled)
 
 	opts := IngestBufOpts[mockItem, mockResult]{
+		Name:               "test",
 		MaxCapacity:        0,
 		FlushPeriod:        -1 * time.Second,
 		MaxDataSizeInQueue: -1,
@@ -87,6 +89,7 @@ func TestIngestBufBuffering(t *testing.T) {
 	logger := zerolog.New(nil).Level(zerolog.Disabled)
 
 	opts := IngestBufOpts[mockItem, mockResult]{
+		Name:               "test",
 		MaxCapacity:        2,
 		FlushPeriod:        1 * time.Second,
 		MaxDataSizeInQueue: 100,
@@ -105,8 +108,8 @@ func TestIngestBufBuffering(t *testing.T) {
 	require.NoError(t, err)
 
 	resp := <-doneChan
-	assert.NoError(t, resp.err)
-	assert.Equal(t, 1, resp.result.ID)
+	assert.NoError(t, resp.Err)
+	assert.Equal(t, 1, resp.Result.ID)
 
 	assert.Equal(t, 0, buf.safeFetchSizeOfData())
 	assert.Equal(t, 0, buf.safeCheckSizeOfBuffer())
@@ -117,6 +120,7 @@ func TestIngestBufAutoFlushOnCapacity(t *testing.T) {
 	logger := zerolog.New(nil).Level(zerolog.Disabled)
 
 	opts := IngestBufOpts[mockItem, mockResult]{
+		Name:               "test",
 		MaxCapacity:        2,
 		FlushPeriod:        5 * time.Second,
 		MaxDataSizeInQueue: 100,
@@ -141,8 +145,8 @@ func TestIngestBufAutoFlushOnCapacity(t *testing.T) {
 			require.NoError(t, err)
 
 			resp := <-doneChan
-			assert.NoError(t, resp.err)
-			assert.Equal(t, i, resp.result.ID)
+			assert.NoError(t, resp.Err)
+			assert.Equal(t, i, resp.Result.ID)
 		}(i)
 	}
 
@@ -157,6 +161,7 @@ func TestIngestBufAutoFlushOnSize(t *testing.T) {
 	logger := zerolog.New(nil).Level(zerolog.Disabled)
 
 	opts := IngestBufOpts[mockItem, mockResult]{
+		Name:               "test",
 		MaxCapacity:        10,
 		FlushPeriod:        5 * time.Second,
 		MaxDataSizeInQueue: 20, // Flush on size
@@ -175,8 +180,8 @@ func TestIngestBufAutoFlushOnSize(t *testing.T) {
 	require.NoError(t, err)
 
 	resp := <-doneChan
-	assert.NoError(t, resp.err)
-	assert.Equal(t, 1, resp.result.ID)
+	assert.NoError(t, resp.Err)
+	assert.Equal(t, 1, resp.Result.ID)
 
 	assert.Equal(t, 0, buf.safeFetchSizeOfData())
 	assert.Equal(t, 0, buf.safeCheckSizeOfBuffer())
@@ -187,6 +192,7 @@ func TestIngestBufTimeoutFlush(t *testing.T) {
 	logger := zerolog.New(nil).Level(zerolog.Disabled)
 
 	opts := IngestBufOpts[mockItem, mockResult]{
+		Name:               "test",
 		MaxCapacity:        10,
 		FlushPeriod:        100 * time.Millisecond,
 		MaxDataSizeInQueue: 100,
@@ -206,8 +212,8 @@ func TestIngestBufTimeoutFlush(t *testing.T) {
 
 	select {
 	case resp := <-doneChan:
-		assert.NoError(t, resp.err)
-		assert.Equal(t, 1, resp.result.ID)
+		assert.NoError(t, resp.Err)
+		assert.Equal(t, 1, resp.Result.ID)
 	case <-time.After(500 * time.Millisecond):
 		t.Error("Flush should have been triggered by timeout")
 	}
@@ -220,6 +226,7 @@ func TestIngestBufOrderPreservation(t *testing.T) {
 	logger := zerolog.New(nil).Level(zerolog.Disabled)
 
 	opts := IngestBufOpts[mockItem, mockResult]{
+		Name:               "test",
 		MaxCapacity:        5,
 		FlushPeriod:        5 * time.Second,
 		MaxDataSizeInQueue: 100,
@@ -255,9 +262,9 @@ func TestIngestBufOrderPreservation(t *testing.T) {
 			require.NoError(t, err)
 
 			resp := <-doneChan
-			require.NoError(t, resp.err)
+			require.NoError(t, resp.Err)
 
-			assert.Equal(t, id, resp.result.ID)
+			assert.Equal(t, id, resp.Result.ID)
 		}(id)
 	}
 

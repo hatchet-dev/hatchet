@@ -6,16 +6,16 @@ import (
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
+
 	"github.com/rs/zerolog"
 )
 
 type OperationPool struct {
-	ops          sync.Map
-	timeout      time.Duration
-	description  string
-	method       OpMethod
-	ql           *zerolog.Logger
-	setTenantsMu sync.RWMutex
+	ops         sync.Map
+	timeout     time.Duration
+	description string
+	method      OpMethod
+	ql          *zerolog.Logger
 }
 
 func NewOperationPool(ql *zerolog.Logger, timeout time.Duration, description string, method OpMethod) *OperationPool {
@@ -28,9 +28,6 @@ func NewOperationPool(ql *zerolog.Logger, timeout time.Duration, description str
 }
 
 func (p *OperationPool) SetTenants(tenants []*dbsqlc.Tenant) {
-	p.setTenantsMu.Lock()
-	defer p.setTenantsMu.Unlock()
-
 	tenantMap := make(map[string]bool)
 
 	for _, t := range tenants {
@@ -48,16 +45,10 @@ func (p *OperationPool) SetTenants(tenants []*dbsqlc.Tenant) {
 }
 
 func (p *OperationPool) RunOrContinue(id string) {
-	p.setTenantsMu.RLock()
-	defer p.setTenantsMu.RUnlock()
-
 	p.GetOperation(id).RunOrContinue(p.ql)
 }
 
 func (p *OperationPool) GetOperation(id string) *SerialOperation {
-	p.setTenantsMu.RLock()
-	defer p.setTenantsMu.RUnlock()
-
 	op, ok := p.ops.Load(id)
 
 	if !ok {
