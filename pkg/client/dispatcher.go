@@ -205,10 +205,20 @@ func (d *dispatcherClientImpl) newActionListener(ctx context.Context, req *GetAc
 
 	// Get OS information
 	var goVersion string
+	var hatchetVersion string
 
 	// Get Go version
 	if buildInfo, ok := debug.ReadBuildInfo(); ok {
 		goVersion = buildInfo.GoVersion
+
+		for _, dep := range buildInfo.Deps {
+			if dep.Path == "github.com/hatchet-dev/hatchet" {
+				hatchetVersion = dep.Version
+				break
+			}
+		}
+
+		fmt.Println(hatchetVersion)
 	}
 
 	os := runtime.GOOS
@@ -222,6 +232,7 @@ func (d *dispatcherClientImpl) newActionListener(ctx context.Context, req *GetAc
 			Language:        dispatchercontracts.SDKS_GO.Enum(),
 			LanguageVersion: &goVersion,
 			Os:              &os,
+			SdkVersion:      &hatchetVersion,
 		},
 	}
 
