@@ -217,8 +217,6 @@ func (d *dispatcherClientImpl) newActionListener(ctx context.Context, req *GetAc
 				break
 			}
 		}
-
-		fmt.Println(hatchetVersion)
 	}
 
 	os := runtime.GOOS
