@@ -56,15 +56,15 @@ func (t *WorkflowService) WorkflowScheduledList(ctx echo.Context, request gen.Wo
 		listOpts.WorkflowId = &workflowIdStr
 	}
 
-	// if request.Params.Statuses != nil {
-	// 	statuses := make([]db.WorkflowRunStatus, len(*request.Params.Statuses))
+	if request.Params.Statuses != nil {
+		statuses := make([]db.WorkflowRunStatus, len(*request.Params.Statuses))
 
-	// 	for i, status := range *request.Params.Statuses {
-	// 		statuses[i] = db.WorkflowRunStatus(status)
-	// 	}
+		for i, status := range *request.Params.Statuses {
+			statuses[i] = db.WorkflowRunStatus(status)
+		}
 
-	// 	listOpts.Statuses = &statuses
-	// }
+		listOpts.Statuses = &statuses
+	}
 
 	if request.Params.AdditionalMetadata != nil {
 		additionalMetadata := make(map[string]interface{}, len(*request.Params.AdditionalMetadata))

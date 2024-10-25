@@ -857,9 +857,39 @@ scheduledList:
         schema:
           type: integer
           format: int64
+      - description: The order by field
+        in: query
+        name: orderByField
+        required: false
+        schema:
+          $ref: "../../components/schemas/_index.yaml#/ScheduledWorkflowsOrderByField"
+      - description: The order by direction
+        in: query
+        name: orderByDirection
+        required: false
+        schema:
+          $ref: "../../components/schemas/_index.yaml#/WorkflowRunOrderByDirection"
       - description: The workflow id to get runs for.
         in: query
         name: workflowId
+        required: false
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The parent workflow run id
+        in: query
+        name: parentWorkflowRunId
+        required: false
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The parent step run id
+        in: query
+        name: parentStepRunId
         required: false
         schema:
           type: string
@@ -875,18 +905,14 @@ scheduledList:
           type: array
           items:
             type: string
-      - description: The order by field
+      - description: A list of scheduled run statuses to filter by
         in: query
-        name: orderByField
+        name: statuses
         required: false
         schema:
-          $ref: "../../components/schemas/_index.yaml#/ScheduledWorkflowsOrderByField"
-      - description: The order by direction
-        in: query
-        name: orderByDirection
-        required: false
-        schema:
-          $ref: "../../components/schemas/_index.yaml#/WorkflowRunOrderByDirection"
+          type: array
+          items:
+            $ref: "../../components/schemas/_index.yaml#/ScheduledRunStatus"
     responses:
       "200":
         content:

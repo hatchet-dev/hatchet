@@ -51,6 +51,7 @@ import {
   ReplayWorkflowRunsRequest,
   ReplayWorkflowRunsResponse,
   RerunStepRunRequest,
+  ScheduledRunStatus,
   ScheduledWorkflows,
   ScheduledWorkflowsList,
   ScheduledWorkflowsOrderByField,
@@ -1142,6 +1143,10 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
        * @format int64
        */
       limit?: number;
+      /** The order by field */
+      orderByField?: ScheduledWorkflowsOrderByField;
+      /** The order by direction */
+      orderByDirection?: WorkflowRunOrderByDirection;
       /**
        * The workflow id to get runs for.
        * @format uuid
@@ -1150,14 +1155,26 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
        */
       workflowId?: string;
       /**
+       * The parent workflow run id
+       * @format uuid
+       * @minLength 36
+       * @maxLength 36
+       */
+      parentWorkflowRunId?: string;
+      /**
+       * The parent step run id
+       * @format uuid
+       * @minLength 36
+       * @maxLength 36
+       */
+      parentStepRunId?: string;
+      /**
        * A list of metadata key value pairs to filter by
        * @example ["key1:value1","key2:value2"]
        */
       additionalMetadata?: string[];
-      /** The order by field */
-      orderByField?: ScheduledWorkflowsOrderByField;
-      /** The order by direction */
-      orderByDirection?: WorkflowRunOrderByDirection;
+      /** A list of scheduled run statuses to filter by */
+      statuses?: ScheduledRunStatus[];
     },
     params: RequestParams = {},
   ) =>

@@ -793,6 +793,16 @@ export enum ScheduledWorkflowsOrderByField {
   CreatedAt = 'createdAt',
 }
 
+export enum ScheduledRunStatus {
+  PENDING = 'PENDING',
+  RUNNING = 'RUNNING',
+  SUCCEEDED = 'SUCCEEDED',
+  FAILED = 'FAILED',
+  CANCELLED = 'CANCELLED',
+  QUEUED = 'QUEUED',
+  SCHEDULED = 'SCHEDULED',
+}
+
 export interface CronWorkflows {
   metadata: APIResourceMeta;
   tenantId: string;

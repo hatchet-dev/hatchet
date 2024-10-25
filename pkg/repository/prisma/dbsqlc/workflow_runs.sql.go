@@ -90,16 +90,69 @@ func (q *Queries) BulkCreateWorkflowRunEvent(ctx context.Context, db DBTX, arg B
 	return err
 }
 
-const countScheduledWorkflows = `-- name: CountScheduledWorkflows :one
-SELECT count(*) FROM "WorkflowTriggerScheduledRef" t
-JOIN "WorkflowVersion" v ON t."parentId" = v."id"
+const countCronWorkflows = `-- name: CountCronWorkflows :one
+SELECT count(*)
+FROM "WorkflowTriggerCronRef" c
+JOIN "WorkflowTriggers" t ON c."parentId" = t."id"
+JOIN "WorkflowVersion" v ON t."workflowVersionId" = v."id"
 JOIN "Workflow" w on v."workflowId" = w."id"
-WHERE v."deletedAt" IS NULL
-	AND w."tenantId" = $1::uuid
+WHERE v."deletedAt" IS NULL AND w."tenantId" = $1::uuid
 `
 
-func (q *Queries) CountScheduledWorkflows(ctx context.Context, db DBTX, tenantid pgtype.UUID) (int64, error) {
-	row := db.QueryRow(ctx, countScheduledWorkflows, tenantid)
+func (q *Queries) CountCronWorkflows(ctx context.Context, db DBTX, tenantid pgtype.UUID) (int64, error) {
+	row := db.QueryRow(ctx, countCronWorkflows, tenantid)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countScheduledWorkflows = `-- name: CountScheduledWorkflows :one
+SELECT count(*)
+FROM "WorkflowTriggerScheduledRef" t
+JOIN "WorkflowVersion" v ON t."parentId" = v."id"
+JOIN "Workflow" w on v."workflowId" = w."id"
+LEFT JOIN "WorkflowRunTriggeredBy" tb ON t."id" = tb."scheduledId"
+LEFT JOIN "WorkflowRun" wr ON tb."parentId" = wr."id"
+WHERE v."deletedAt" IS NULL
+	AND w."tenantId" = $1::uuid
+    AND ($2::uuid IS NULL OR t."id" = $2::uuid)
+    AND ($3::uuid IS NULL OR w."id" = $3::uuid)
+    AND ($4::uuid IS NULL OR t."id" = $4::uuid)
+    AND ($5::uuid IS NULL OR t."parentStepRunId" = $5::uuid)
+    AND ($6::jsonb IS NULL OR
+        t."additionalMetadata" @> $6::jsonb)
+    AND (
+        $7::text[] IS NULL OR
+        wr."status" = ANY(cast($7::text[] as "WorkflowRunStatus"[]))
+        or (
+            $8::boolean IS TRUE AND
+            wr."status" IS NULL
+        )
+    )
+`
+
+type CountScheduledWorkflowsParams struct {
+	Tenantid            pgtype.UUID `json:"tenantid"`
+	Scheduleid          pgtype.UUID `json:"scheduleid"`
+	Workflowid          pgtype.UUID `json:"workflowid"`
+	Parentworkflowrunid pgtype.UUID `json:"parentworkflowrunid"`
+	Parentsteprunid     pgtype.UUID `json:"parentsteprunid"`
+	AdditionalMetadata  []byte      `json:"additionalMetadata"`
+	Statuses            []string    `json:"statuses"`
+	Includescheduled    bool        `json:"includescheduled"`
+}
+
+func (q *Queries) CountScheduledWorkflows(ctx context.Context, db DBTX, arg CountScheduledWorkflowsParams) (int64, error) {
+	row := db.QueryRow(ctx, countScheduledWorkflows,
+		arg.Tenantid,
+		arg.Scheduleid,
+		arg.Workflowid,
+		arg.Parentworkflowrunid,
+		arg.Parentsteprunid,
+		arg.AdditionalMetadata,
+		arg.Statuses,
+		arg.Includescheduled,
+	)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -2246,30 +2299,43 @@ LEFT JOIN "WorkflowRun" wr ON tb."parentId" = wr."id"
 WHERE v."deletedAt" IS NULL
 	AND w."tenantId" = $1::uuid
     AND ($2::uuid IS NULL OR t."id" = $2::uuid)
+    AND ($3::uuid IS NULL OR w."id" = $3::uuid)
+    AND ($4::uuid IS NULL OR t."id" = $4::uuid)
+    AND ($5::uuid IS NULL OR t."parentStepRunId" = $5::uuid)
+    AND ($6::jsonb IS NULL OR
+        t."additionalMetadata" @> $6::jsonb)
+    AND (
+        $7::text[] IS NULL OR
+        wr."status" = ANY(cast($7::text[] as "WorkflowRunStatus"[]))
+        or (
+            $8::boolean IS TRUE AND
+            wr."status" IS NULL
+        )
+    )
 ORDER BY
-    case when $3 = 'triggerAt ASC' THEN t."triggerAt" END ASC ,
-    case when $3 = 'triggerAt DESC' THEN t."triggerAt" END DESC,
-    case when $3 = 'createdAt ASC' THEN t."createdAt" END ASC ,
-    case when $3 = 'createdAt DESC' THEN t."createdAt" END DESC,
-    -- case when @orderBy = 'finishedAt ASC' THEN t."finishedAt" END ASC ,
-    -- case when @orderBy = 'finishedAt DESC' THEN t."finishedAt" END DESC,
-    -- case when @orderBy = 'startedAt ASC' THEN t."startedAt" END ASC ,
-    -- case when @orderBy = 'startedAt DESC' THEN t."startedAt" END DESC,
-    -- case when @orderBy = 'duration ASC' THEN t."duration" END ASC NULLS FIRST,
-    -- case when @orderBy = 'duration DESC' THEN runs."duration" END DESC NULLS LAST,
+    case when $9 = 'triggerAt ASC' THEN t."triggerAt" END ASC ,
+    case when $9 = 'triggerAt DESC' THEN t."triggerAt" END DESC,
+    case when $9 = 'createdAt ASC' THEN t."createdAt" END ASC ,
+    case when $9 = 'createdAt DESC' THEN t."createdAt" END DESC,
     t."id" ASC
 OFFSET
-    COALESCE($4, 0)
+    COALESCE($10, 0)
 LIMIT
-    COALESCE($5, 50)
+    COALESCE($11, 50)
 `
 
 type ListScheduledWorkflowsParams struct {
-	Tenantid   pgtype.UUID `json:"tenantid"`
-	Scheduleid pgtype.UUID `json:"scheduleid"`
-	Orderby    interface{} `json:"orderby"`
-	Offset     interface{} `json:"offset"`
-	Limit      interface{} `json:"limit"`
+	Tenantid            pgtype.UUID `json:"tenantid"`
+	Scheduleid          pgtype.UUID `json:"scheduleid"`
+	Workflowid          pgtype.UUID `json:"workflowid"`
+	Parentworkflowrunid pgtype.UUID `json:"parentworkflowrunid"`
+	Parentsteprunid     pgtype.UUID `json:"parentsteprunid"`
+	AdditionalMetadata  []byte      `json:"additionalMetadata"`
+	Statuses            []string    `json:"statuses"`
+	Includescheduled    bool        `json:"includescheduled"`
+	Orderby             interface{} `json:"orderby"`
+	Offset              interface{} `json:"offset"`
+	Limit               interface{} `json:"limit"`
 }
 
 type ListScheduledWorkflowsRow struct {
@@ -2300,6 +2366,12 @@ func (q *Queries) ListScheduledWorkflows(ctx context.Context, db DBTX, arg ListS
 	rows, err := db.Query(ctx, listScheduledWorkflows,
 		arg.Tenantid,
 		arg.Scheduleid,
+		arg.Workflowid,
+		arg.Parentworkflowrunid,
+		arg.Parentsteprunid,
+		arg.AdditionalMetadata,
+		arg.Statuses,
+		arg.Includescheduled,
 		arg.Orderby,
 		arg.Offset,
 		arg.Limit,
@@ -3079,7 +3151,7 @@ func (q *Queries) UpdateManyWorkflowRun(ctx context.Context, db DBTX, arg Update
 
 const updateScheduledWorkflow = `-- name: UpdateScheduledWorkflow :exec
 UPDATE "WorkflowTriggerScheduledRef"
-    SET "triggerAt" = $1::timestamp
+SET "triggerAt" = $1::timestamp
 WHERE
     "id" = $2::uuid
 `

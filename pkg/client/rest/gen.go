@@ -80,6 +80,17 @@ const (
 	Value      RateLimitOrderByField = "value"
 )
 
+// Defines values for ScheduledRunStatus.
+const (
+	ScheduledRunStatusCANCELLED ScheduledRunStatus = "CANCELLED"
+	ScheduledRunStatusFAILED    ScheduledRunStatus = "FAILED"
+	ScheduledRunStatusPENDING   ScheduledRunStatus = "PENDING"
+	ScheduledRunStatusQUEUED    ScheduledRunStatus = "QUEUED"
+	ScheduledRunStatusRUNNING   ScheduledRunStatus = "RUNNING"
+	ScheduledRunStatusSCHEDULED ScheduledRunStatus = "SCHEDULED"
+	ScheduledRunStatusSUCCEEDED ScheduledRunStatus = "SUCCEEDED"
+)
+
 // Defines values for ScheduledWorkflowsOrderByField.
 const (
 	ScheduledWorkflowsOrderByFieldCreatedAt ScheduledWorkflowsOrderByField = "createdAt"
@@ -187,12 +198,12 @@ const (
 
 // Defines values for WorkflowRunStatus.
 const (
-	WorkflowRunStatusCANCELLED WorkflowRunStatus = "CANCELLED"
-	WorkflowRunStatusFAILED    WorkflowRunStatus = "FAILED"
-	WorkflowRunStatusPENDING   WorkflowRunStatus = "PENDING"
-	WorkflowRunStatusQUEUED    WorkflowRunStatus = "QUEUED"
-	WorkflowRunStatusRUNNING   WorkflowRunStatus = "RUNNING"
-	WorkflowRunStatusSUCCEEDED WorkflowRunStatus = "SUCCEEDED"
+	CANCELLED WorkflowRunStatus = "CANCELLED"
+	FAILED    WorkflowRunStatus = "FAILED"
+	PENDING   WorkflowRunStatus = "PENDING"
+	QUEUED    WorkflowRunStatus = "QUEUED"
+	RUNNING   WorkflowRunStatus = "RUNNING"
+	SUCCEEDED WorkflowRunStatus = "SUCCEEDED"
 )
 
 // APIError defines model for APIError.
@@ -639,6 +650,9 @@ type SNSIntegration struct {
 	// TopicArn The Amazon Resource Name (ARN) of the SNS topic.
 	TopicArn string `json:"topicArn"`
 }
+
+// ScheduledRunStatus defines model for ScheduledRunStatus.
+type ScheduledRunStatus string
 
 // ScheduledWorkflows defines model for ScheduledWorkflows.
 type ScheduledWorkflows struct {
@@ -1604,17 +1618,26 @@ type WorkflowScheduledListParams struct {
 	// Limit The number to limit by
 	Limit *int64 `form:"limit,omitempty" json:"limit,omitempty"`
 
-	// WorkflowId The workflow id to get runs for.
-	WorkflowId *openapi_types.UUID `form:"workflowId,omitempty" json:"workflowId,omitempty"`
-
-	// AdditionalMetadata A list of metadata key value pairs to filter by
-	AdditionalMetadata *[]string `form:"additionalMetadata,omitempty" json:"additionalMetadata,omitempty"`
-
 	// OrderByField The order by field
 	OrderByField *ScheduledWorkflowsOrderByField `form:"orderByField,omitempty" json:"orderByField,omitempty"`
 
 	// OrderByDirection The order by direction
 	OrderByDirection *WorkflowRunOrderByDirection `form:"orderByDirection,omitempty" json:"orderByDirection,omitempty"`
+
+	// WorkflowId The workflow id to get runs for.
+	WorkflowId *openapi_types.UUID `form:"workflowId,omitempty" json:"workflowId,omitempty"`
+
+	// ParentWorkflowRunId The parent workflow run id
+	ParentWorkflowRunId *openapi_types.UUID `form:"parentWorkflowRunId,omitempty" json:"parentWorkflowRunId,omitempty"`
+
+	// ParentStepRunId The parent step run id
+	ParentStepRunId *openapi_types.UUID `form:"parentStepRunId,omitempty" json:"parentStepRunId,omitempty"`
+
+	// AdditionalMetadata A list of metadata key value pairs to filter by
+	AdditionalMetadata *[]string `form:"additionalMetadata,omitempty" json:"additionalMetadata,omitempty"`
+
+	// Statuses A list of scheduled run statuses to filter by
+	Statuses *[]ScheduledRunStatus `form:"statuses,omitempty" json:"statuses,omitempty"`
 }
 
 // WorkflowGetMetricsParams defines parameters for WorkflowGetMetrics.
@@ -6747,9 +6770,73 @@ func NewWorkflowScheduledListRequest(server string, tenant openapi_types.UUID, p
 
 		}
 
+		if params.OrderByField != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "orderByField", runtime.ParamLocationQuery, *params.OrderByField); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.OrderByDirection != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "orderByDirection", runtime.ParamLocationQuery, *params.OrderByDirection); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
 		if params.WorkflowId != nil {
 
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workflowId", runtime.ParamLocationQuery, *params.WorkflowId); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.ParentWorkflowRunId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "parentWorkflowRunId", runtime.ParamLocationQuery, *params.ParentWorkflowRunId); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.ParentStepRunId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "parentStepRunId", runtime.ParamLocationQuery, *params.ParentStepRunId); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err
@@ -6779,25 +6866,9 @@ func NewWorkflowScheduledListRequest(server string, tenant openapi_types.UUID, p
 
 		}
 
-		if params.OrderByField != nil {
+		if params.Statuses != nil {
 
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "orderByField", runtime.ParamLocationQuery, *params.OrderByField); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.OrderByDirection != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "orderByDirection", runtime.ParamLocationQuery, *params.OrderByDirection); err != nil {
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "statuses", runtime.ParamLocationQuery, *params.Statuses); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err

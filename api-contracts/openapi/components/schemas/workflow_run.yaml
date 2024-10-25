@@ -316,6 +316,17 @@ WorkflowRunStatus:
     - CANCELLED
     - QUEUED
 
+ScheduledRunStatus:
+  type: string
+  enum:
+    - PENDING
+    - RUNNING
+    - SUCCEEDED
+    - FAILED
+    - CANCELLED
+    - QUEUED
+    - SCHEDULED
+
 WorkflowKind:
   type: string
   enum:

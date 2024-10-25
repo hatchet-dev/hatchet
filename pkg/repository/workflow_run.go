@@ -404,6 +404,18 @@ type ListScheduledWorkflowsOpts struct {
 	// (optional) the workflow id
 	WorkflowId *string `validate:"omitempty,uuid"`
 
+	// (optional) the parent workflow run id
+	ParentWorkflowRunId *string `validate:"omitempty,uuid"`
+
+	// (optional) the parent step run id
+	ParentStepRunId *string `validate:"omitempty,uuid"`
+
+	// (optional) statuses to filter by
+	Statuses *[]db.WorkflowRunStatus
+
+	// (optional) include scheduled runs that are in the future
+	IncludeFuture *bool
+
 	// (optional) additional metadata for the workflow run
 	AdditionalMetadata map[string]interface{} `validate:"omitempty"`
 }

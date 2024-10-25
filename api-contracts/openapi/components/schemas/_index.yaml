@@ -158,6 +158,8 @@ ScheduledWorkflowsList:
   $ref: "./workflow_run.yaml#/ScheduledWorkflowsList"
 ScheduledWorkflowsOrderByField:
   $ref: "./workflow_run.yaml#/ScheduledWorkflowsOrderByField"
+ScheduledRunStatus:
+  $ref: "./workflow_run.yaml#/ScheduledRunStatus"
 CronWorkflows:
   $ref: "./workflow_run.yaml#/CronWorkflows"
 CronWorkflowsList:

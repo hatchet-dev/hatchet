@@ -121,14 +121,66 @@ func (w *workflowRunAPIRepository) ListScheduledWorkflows(ctx context.Context, t
 	ctx, cancel := context.WithTimeout(ctx, time.Second*30)
 	defer cancel()
 
-	count, err := w.queries.CountScheduledWorkflows(ctx, w.pool, sqlchelpers.UUIDFromStr(tenantId))
+	listOpts := dbsqlc.ListScheduledWorkflowsParams{
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+	}
+
+	countParams := dbsqlc.CountScheduledWorkflowsParams{
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+	}
+
+	if opts.WorkflowId != nil {
+		pgWorkflowId := sqlchelpers.UUIDFromStr(*opts.WorkflowId)
+
+		listOpts.Workflowid = pgWorkflowId
+		countParams.Workflowid = pgWorkflowId
+	}
+
+	if opts.AdditionalMetadata != nil {
+		additionalMetadataBytes, err := json.Marshal(opts.AdditionalMetadata)
+		if err != nil {
+			return nil, 0, err
+		}
+
+		listOpts.AdditionalMetadata = additionalMetadataBytes
+		countParams.AdditionalMetadata = additionalMetadataBytes
+	}
+
+	if opts.ParentWorkflowRunId != nil {
+		pgParentId := sqlchelpers.UUIDFromStr(*opts.ParentWorkflowRunId)
+
+		listOpts.Parentworkflowrunid = pgParentId
+		countParams.Parentworkflowrunid = pgParentId
+	}
+
+	if opts.ParentStepRunId != nil {
+		pgParentStepRunId := sqlchelpers.UUIDFromStr(*opts.ParentStepRunId)
+
+		listOpts.Parentsteprunid = pgParentStepRunId
+		countParams.Parentsteprunid = pgParentStepRunId
+	}
+
+	if opts.Statuses != nil {
+		statuses := make([]string, 0)
+
+		for _, status := range *opts.Statuses {
+			if status == "SCHEDULED" {
+				listOpts.Includescheduled = true
+				countParams.Includescheduled = true
+				continue
+			}
+
+			statuses = append(statuses, string(status))
+		}
+
+		listOpts.Statuses = statuses
+		countParams.Statuses = statuses
+	}
+
+	count, err := w.queries.CountScheduledWorkflows(ctx, w.pool, countParams)
 
 	if err != nil {
 		return nil, 0, err
-	}
-
-	listOpts := dbsqlc.ListScheduledWorkflowsParams{
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
 	}
 
 	if opts.Limit != nil {
@@ -203,7 +255,7 @@ func (w *workflowRunAPIRepository) ListCronWorkflows(ctx context.Context, tenant
 	ctx, cancel := context.WithTimeout(ctx, time.Second*30)
 	defer cancel()
 
-	count, err := w.queries.CountScheduledWorkflows(ctx, w.pool, sqlchelpers.UUIDFromStr(tenantId))
+	count, err := w.queries.CountCronWorkflows(ctx, w.pool, sqlchelpers.UUIDFromStr(tenantId))
 
 	if err != nil {
 		return nil, 0, err
