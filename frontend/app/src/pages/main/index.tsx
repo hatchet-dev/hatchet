@@ -150,8 +150,8 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
               <SidebarButtonPrimary
                 key={5}
                 onNavLinkClick={onNavLinkClick}
-                to="/recurring"
-                name="Recurring Runs"
+                to="/cron-jobs"
+                name="Cron Jobs"
                 icon={<ClockIcon className="mr-2 h-4 w-4" />}
               />
             </div>

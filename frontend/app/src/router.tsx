@@ -142,7 +142,7 @@ const routes: RouteObject[] = [
                   }),
               },
               {
-                path: '/recurring',
+                path: '/cron-jobs',
                 lazy: async () =>
                   import('./pages/main/recurring').then((res) => {
                     return {

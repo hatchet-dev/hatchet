@@ -3,6 +3,7 @@ import { DataTableColumnHeader } from '../../../../components/molecules/data-tab
 import { CronWorkflows, RateLimit } from '@/lib/api';
 import CronPrettifier from 'cronstrue';
 import RelativeDate from '@/components/molecules/relative-date';
+import { Link } from 'react-router-dom';
 
 export type RateLimitRow = RateLimit & {
   metadata: {
@@ -42,9 +43,11 @@ export const columns: ColumnDef<CronWorkflows>[] = [
     ),
     cell: ({ row }) => (
       <div className="flex flex-row items-center gap-4 pl-4">
-        <a href={`/workflows/${row.original.workflowId}`}>
-          {row.original.workflowName}
-        </a>
+        <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">
+          <Link to={`/workflows/${row.original.workflowId}`}>
+            {row.original.workflowName}
+          </Link>
+        </div>
       </div>
     ),
     enableSorting: false,
