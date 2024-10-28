@@ -1304,7 +1304,7 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, qlp *zerolo
 		numAssigns[sqlchelpers.UUIDToStr(workerId)]++
 	}
 
-	err = s.queries.UpdateStepRunsToAssigned(ctx, tx, dbsqlc.UpdateStepRunsToAssignedParams{
+	_, err = s.queries.UpdateStepRunsToAssigned(ctx, tx, dbsqlc.UpdateStepRunsToAssignedParams{
 		Steprunids:      plan.StepRunIds,
 		Workerids:       plan.WorkerIds,
 		Stepruntimeouts: plan.StepRunTimeouts,
@@ -2831,7 +2831,15 @@ func (s *stepRunEngineRepository) doCachedUpsertOfQueue(ctx context.Context, tx 
 	cacheKey := fmt.Sprintf("t-%s-q-%s", tenantId, innerStepRun.SRQueue)
 
 	_, err := cache.MakeCacheable(s.queueActionTenantCache, cacheKey, func() (*bool, error) {
-		err := s.queries.UpsertQueue(
+		tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, s.pool, s.l, 5000)
+
+		if err != nil {
+			return nil, err
+		}
+
+		defer rollback()
+
+		err = s.queries.UpsertQueue(
 			ctx,
 			tx,
 			dbsqlc.UpsertQueueParams{
@@ -2839,6 +2847,12 @@ func (s *stepRunEngineRepository) doCachedUpsertOfQueue(ctx context.Context, tx 
 				Tenantid: sqlchelpers.UUIDFromStr(tenantId),
 			},
 		)
+
+		if err != nil {
+			return nil, err
+		}
+
+		err = commit(ctx)
 
 		if err != nil {
 			return nil, err
