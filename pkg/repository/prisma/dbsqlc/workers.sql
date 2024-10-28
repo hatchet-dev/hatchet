@@ -131,7 +131,12 @@ INSERT INTO "Worker" (
     "dispatcherId",
     "maxRuns",
     "webhookId",
-    "type"
+    "type",
+    "sdkVersion",
+    "language",
+    "languageVersion",
+    "os",
+    "runtimeExtra"
 ) VALUES (
     gen_random_uuid(),
     CURRENT_TIMESTAMP,
@@ -141,7 +146,12 @@ INSERT INTO "Worker" (
     @dispatcherId::uuid,
     sqlc.narg('maxRuns')::int,
     sqlc.narg('webhookId')::uuid,
-    sqlc.narg('type')::"WorkerType"
+    sqlc.narg('type')::"WorkerType",
+    sqlc.narg('sdkVersion')::text,
+    sqlc.narg('language')::"WorkerSDKS",
+    sqlc.narg('languageVersion')::text,
+    sqlc.narg('os')::text,
+    sqlc.narg('runtimeExtra')::text
 ) RETURNING *;
 
 -- name: GetWorkerByWebhookId :one

@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"runtime"
+	"runtime/debug"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -201,11 +203,35 @@ func (d *dispatcherClientImpl) newActionListener(ctx context.Context, req *GetAc
 		return nil, nil, err
 	}
 
+	// Get OS information
+	var goVersion string
+	var hatchetVersion string
+
+	// Get Go version
+	if buildInfo, ok := debug.ReadBuildInfo(); ok {
+		goVersion = buildInfo.GoVersion
+
+		for _, dep := range buildInfo.Deps {
+			if dep.Path == "github.com/hatchet-dev/hatchet" {
+				hatchetVersion = dep.Version
+				break
+			}
+		}
+	}
+
+	os := runtime.GOOS
+
 	registerReq := &dispatchercontracts.WorkerRegisterRequest{
 		WorkerName: req.WorkerName,
 		Actions:    req.Actions,
 		Services:   req.Services,
 		WebhookId:  req.WebhookId,
+		RuntimeInfo: &dispatchercontracts.RuntimeInfo{
+			Language:        dispatchercontracts.SDKS_GO.Enum(),
+			LanguageVersion: &goVersion,
+			Os:              &os,
+			SdkVersion:      &hatchetVersion,
+		},
 	}
 
 	if req.Labels != nil {
