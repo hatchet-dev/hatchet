@@ -251,7 +251,7 @@ function transformToDataPoints(
 
   matrix.forEach((sampleStream) => {
     // if we have instance or region, use that as the metricLabel
-    var metricLabel = Object.values(sampleStream.metric || {}).join('-');
+    let metricLabel = Object.values(sampleStream.metric || {}).join('-');
 
     if (sampleStream.metric?.instance && sampleStream.metric?.region) {
       metricLabel = `[${sampleStream.metric.region}] ${sampleStream.metric.instance}`;
