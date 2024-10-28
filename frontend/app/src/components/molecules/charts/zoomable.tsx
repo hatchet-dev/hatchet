@@ -99,7 +99,7 @@ export function ZoomableChart<T extends string>({
 
       acc[key] = {
         label: capitalize(key),
-        color: colors?.[key] || `hsl(${(index * 360) / keys.length}, 70%, 50%)`,
+        color: colors?.[key] || color,
       };
       return acc;
     }, {});
