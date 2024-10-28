@@ -250,7 +250,12 @@ function transformToDataPoints(
   const dataPointsMap: Record<string, DataPoint<string>> = {};
 
   matrix.forEach((sampleStream) => {
-    const metricLabel = Object.values(sampleStream.metric || {}).join('-');
+    // if we have instance or region, use that as the metricLabel
+    var metricLabel = Object.values(sampleStream.metric || {}).join('-');
+
+    if (sampleStream.metric?.instance && sampleStream.metric?.region) {
+      metricLabel = `[${sampleStream.metric.region}] ${sampleStream.metric.instance}`;
+    }
 
     (sampleStream.values || []).forEach(([timestamp, value]) => {
       const isoDate = new Date(timestamp * 1000).toISOString();
