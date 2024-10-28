@@ -328,13 +328,38 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 	if len(res.Assigned) > 0 {
 		dispatcherIdToWorkerIdsToStepRuns := make(map[string]map[string][]string)
 
+		workerIds := make([]string, 0)
+
+		for _, assigned := range res.Assigned {
+			workerIds = append(workerIds, sqlchelpers.UUIDToStr(assigned.WorkerId))
+		}
+
+		dispatcherIdWorkerIds, err := s.repo.Worker().GetDispatcherIdsForWorkers(ctx, tenantId, workerIds)
+
+		if err != nil {
+			s.internalRetry(ctx, tenantId, res.Assigned...)
+
+			return fmt.Errorf("could not list dispatcher ids for workers: %w. attempting internal retry", err)
+		}
+
+		workerIdToDispatcherId := make(map[string]string)
+
+		for dispatcherId, workerIds := range dispatcherIdWorkerIds {
+			for _, workerId := range workerIds {
+				workerIdToDispatcherId[workerId] = dispatcherId
+			}
+		}
+
 		for _, bulkAssigned := range res.Assigned {
-			if bulkAssigned.DispatcherId == nil {
-				s.l.Error().Msg("could not assign step run to worker: no dispatcher id")
+			dispatcherId, ok := workerIdToDispatcherId[sqlchelpers.UUIDToStr(bulkAssigned.WorkerId)]
+
+			if !ok {
+				s.l.Error().Msg("could not assign step run to worker: no dispatcher id. attempting internal retry.")
+
+				s.internalRetry(ctx, tenantId, bulkAssigned)
+
 				continue
 			}
-
-			dispatcherId := sqlchelpers.UUIDToStr(*bulkAssigned.DispatcherId)
 
 			if _, ok := dispatcherIdToWorkerIdsToStepRuns[dispatcherId]; !ok {
 				dispatcherIdToWorkerIdsToStepRuns[dispatcherId] = make(map[string][]string)
@@ -380,6 +405,20 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 	}
 
 	return err
+}
+
+func (s *Scheduler) internalRetry(ctx context.Context, tenantId string, assigned ...*v2.AssignedQueueItem) {
+	for _, a := range assigned {
+		stepRunId := sqlchelpers.UUIDToStr(a.QueueItem.StepRunId)
+
+		_, err := s.repo.StepRun().QueueStepRun(ctx, tenantId, stepRunId, &repository.QueueStepRunOpts{
+			IsInternalRetry: true,
+		})
+
+		if err != nil {
+			s.l.Error().Err(err).Msg("could not requeue step run for internal retry")
+		}
+	}
 }
 
 func getStepRunCancelTask(tenantId, stepRunId, reason string) *msgqueue.Message {

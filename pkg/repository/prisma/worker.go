@@ -571,3 +571,35 @@ func (r *workerEngineRepository) DeleteOldWorkerEvents(ctx context.Context, tena
 
 	return nil
 }
+
+func (r *workerEngineRepository) GetDispatcherIdsForWorkers(ctx context.Context, tenantId string, workerIds []string) (map[string][]string, error) {
+	pgWorkerIds := make([]pgtype.UUID, len(workerIds))
+
+	for i, workerId := range workerIds {
+		pgWorkerIds[i] = sqlchelpers.UUIDFromStr(workerId)
+	}
+
+	rows, err := r.queries.ListDispatcherIdsForWorkers(ctx, r.pool, dbsqlc.ListDispatcherIdsForWorkersParams{
+		Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
+		Workerids: sqlchelpers.UniqueSet(pgWorkerIds),
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("could not get dispatcher ids for workers: %w", err)
+	}
+
+	dispatcherIdsToWorkers := make(map[string][]string)
+
+	for _, row := range rows {
+		dispatcherId := sqlchelpers.UUIDToStr(row.DispatcherId)
+		workerId := sqlchelpers.UUIDToStr(row.WorkerId)
+
+		if _, ok := dispatcherIdsToWorkers[dispatcherId]; !ok {
+			dispatcherIdsToWorkers[dispatcherId] = make([]string, 0)
+		}
+
+		dispatcherIdsToWorkers[dispatcherId] = append(dispatcherIdsToWorkers[dispatcherId], workerId)
+	}
+
+	return dispatcherIdsToWorkers, nil
+}
