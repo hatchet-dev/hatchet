@@ -56,12 +56,12 @@ func NewHatchetRateLimiter(r rate.Limit, b int, l *zerolog.Logger) *HatchetRateL
 // Limit is called before each request is processed. It should return an error if rate-limited.
 func (r *HatchetRateLimiter) Limit(ctx context.Context) error {
 
+	fmt.Printf("The rate limit is being checked it is %d \n", int(r.rate))
+
 	serviceName, ok := ctx.Value(grpcServiceName).(string)
 	if !ok {
 		return status.Errorf(codes.Internal, "no server in context")
 	}
-
-	fmt.Println("the service is", serviceName)
 
 	rateLimitToken := ctx.Value("rate_limit_token").(string)
 
