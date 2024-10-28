@@ -41,9 +41,16 @@ export default function ExpandedWorkflow() {
     mutationKey: ['managed-worker:update', params['managed-worker']],
     mutationFn: async (data: UpdateManagedWorkerRequest) => {
       invariant(managedWorker);
+
+      const dataCopy = { ...data };
+
+      if (dataCopy.isIac) {
+        delete dataCopy.runtimeConfig;
+      }
+
       const res = await cloudApi.managedWorkerUpdate(
         managedWorker.metadata.id,
-        data,
+        dataCopy,
       );
       return res.data;
     },
