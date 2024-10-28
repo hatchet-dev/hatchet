@@ -51,20 +51,20 @@ export const columns: ColumnDef<CronWorkflows>[] = [
     enableSorting: false,
     enableHiding: true,
   },
-  {
-    accessorKey: 'Metadata',
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Metadata" />
-    ),
-    cell: ({ row }) => {
-      if (!row.original.additionalMetadata) {
-        return <div></div>;
-      }
+  // {
+  //   accessorKey: 'Metadata',
+  //   header: ({ column }) => (
+  //     <DataTableColumnHeader column={column} title="Metadata" />
+  //   ),
+  //   cell: ({ row }) => {
+  //     if (!row.original.additionalMetadata) {
+  //       return <div></div>;
+  //     }
 
-      return <AdditionalMetadata metadata={row.original.additionalMetadata} />;
-    },
-    enableSorting: false,
-  },
+  //     return <AdditionalMetadata metadata={row.original.additionalMetadata} />;
+  //   },
+  //   enableSorting: false,
+  // },
   {
     accessorKey: 'createdAt',
     header: ({ column }) => (
