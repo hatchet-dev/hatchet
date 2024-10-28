@@ -2,7 +2,6 @@ import { ColumnDef } from '@tanstack/react-table';
 import { DataTableColumnHeader } from '../../../../components/molecules/data-table/data-table-column-header';
 import { CronWorkflows, RateLimit } from '@/lib/api';
 import CronPrettifier from 'cronstrue';
-import { AdditionalMetadata } from '../../events/components/additional-metadata';
 import RelativeDate from '@/components/molecules/relative-date';
 
 export type RateLimitRow = RateLimit & {
