@@ -1509,18 +1509,9 @@ JOIN "WorkflowVersion" v ON t."workflowVersionId" = v."id"
 JOIN "Workflow" w on v."workflowId" = w."id"
 WHERE v."deletedAt" IS NULL
 	AND w."tenantId" = @tenantId::uuid
-    -- TODO page
 ORDER BY
-    -- case when @orderBy = 'triggerAt ASC' THEN t."triggerAt" END ASC ,
-    -- case when @orderBy = 'triggerAt DESC' THEN t."triggerAt" END DESC,
     case when @orderBy = 'createdAt ASC' THEN t."createdAt" END ASC ,
     case when @orderBy = 'createdAt DESC' THEN t."createdAt" END DESC,
-    -- case when @orderBy = 'finishedAt ASC' THEN t."finishedAt" END ASC ,
-    -- case when @orderBy = 'finishedAt DESC' THEN t."finishedAt" END DESC,
-    -- case when @orderBy = 'startedAt ASC' THEN t."startedAt" END ASC ,
-    -- case when @orderBy = 'startedAt DESC' THEN t."startedAt" END DESC,
-    -- case when @orderBy = 'duration ASC' THEN t."duration" END ASC NULLS FIRST,
-    -- case when @orderBy = 'duration DESC' THEN runs."duration" END DESC NULLS LAST,
     t."id" ASC
 OFFSET
     COALESCE(sqlc.narg('offset'), 0)

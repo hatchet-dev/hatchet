@@ -629,7 +629,7 @@ workflowRunsMetrics:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
-    summary: Get workflow runs
+    summary: Get workflow runs metrics
     tags:
       - Workflow
 workflowRun:
@@ -932,7 +932,7 @@ scheduledList:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
-    summary: Get workflow runs
+    summary: Get scheduled workflow runs
     tags:
       - Workflow
 
@@ -985,7 +985,7 @@ scheduled:
               schema:
                 $ref: "../../components/schemas/_index.yaml#/APIErrors"
           description: Forbidden
-    summary: Get workflow runs
+    summary: Get scheduled workflow run
     tags:
       - Workflow
   delete:
@@ -1026,7 +1026,7 @@ scheduled:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIError"
         description: Forbidden
-    summary: Delete tenant alert email group
+    summary: Delete scheduled workflow run
     tags:
       - Workflow
 
@@ -1108,6 +1108,6 @@ cronsList:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
-    summary: Get workflow runs
+    summary: Get cron job workflows
     tags:
       - Workflow

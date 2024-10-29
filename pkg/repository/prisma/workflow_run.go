@@ -117,6 +117,9 @@ func (w *workflowRunAPIRepository) WorkflowRunMetricsCount(ctx context.Context, 
 }
 
 func (w *workflowRunAPIRepository) ListScheduledWorkflows(ctx context.Context, tenantId string, opts *repository.ListScheduledWorkflowsOpts) ([]*dbsqlc.ListScheduledWorkflowsRow, int64, error) {
+	if err := w.v.Validate(opts); err != nil {
+		return nil, 0, err
+	}
 
 	ctx, cancel := context.WithTimeout(ctx, time.Second*30)
 	defer cancel()
@@ -251,6 +254,9 @@ func (w *workflowRunAPIRepository) UpdateScheduledWorkflow(ctx context.Context, 
 }
 
 func (w *workflowRunAPIRepository) ListCronWorkflows(ctx context.Context, tenantId string, opts *repository.ListCronWorkflowsOpts) ([]*dbsqlc.ListCronWorkflowsRow, int64, error) {
+	if err := w.v.Validate(opts); err != nil {
+		return nil, 0, err
+	}
 
 	ctx, cancel := context.WithTimeout(ctx, time.Second*30)
 	defer cancel()

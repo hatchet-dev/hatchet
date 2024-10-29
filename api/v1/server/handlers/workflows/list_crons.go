@@ -56,16 +56,6 @@ func (t *WorkflowService) CronWorkflowList(ctx echo.Context, request gen.CronWor
 		listOpts.WorkflowId = &workflowIdStr
 	}
 
-	// if request.Params.Statuses != nil {
-	// 	statuses := make([]db.WorkflowRunStatus, len(*request.Params.Statuses))
-
-	// 	for i, status := range *request.Params.Statuses {
-	// 		statuses[i] = db.WorkflowRunStatus(status)
-	// 	}
-
-	// 	listOpts.Statuses = &statuses
-	// }
-
 	if request.Params.AdditionalMetadata != nil {
 		additionalMetadata := make(map[string]interface{}, len(*request.Params.AdditionalMetadata))
 

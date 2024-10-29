@@ -1126,7 +1126,7 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    *
    * @tags Workflow
    * @name WorkflowScheduledList
-   * @summary Get workflow runs
+   * @summary Get scheduled workflow runs
    * @request GET:/api/v1/tenants/{tenant}/workflows/scheduled
    * @secure
    */
@@ -1191,7 +1191,7 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    *
    * @tags Workflow
    * @name WorkflowScheduledGet
-   * @summary Get workflow runs
+   * @summary Get scheduled workflow run
    * @request GET:/api/v1/tenants/{tenant}/workflows/scheduled/{scheduledId}
    * @secure
    */
@@ -1208,7 +1208,7 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    *
    * @tags Workflow
    * @name WorkflowScheduledDelete
-   * @summary Delete tenant alert email group
+   * @summary Delete scheduled workflow run
    * @request DELETE:/api/v1/tenants/{tenant}/workflows/scheduled/{scheduledId}
    * @secure
    */
@@ -1224,7 +1224,7 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    *
    * @tags Workflow
    * @name CronWorkflowList
-   * @summary Get workflow runs
+   * @summary Get cron job workflows
    * @request GET:/api/v1/tenants/{tenant}/workflows/crons
    * @secure
    */
@@ -1709,7 +1709,7 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    *
    * @tags Workflow
    * @name WorkflowRunGetMetrics
-   * @summary Get workflow runs
+   * @summary Get workflow runs metrics
    * @request GET:/api/v1/tenants/{tenant}/workflows/runs/metrics
    * @secure
    */
