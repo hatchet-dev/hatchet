@@ -58,6 +58,7 @@ import {
 } from '@/components/molecules/charts/zoomable';
 import { DateTimePicker } from '@/components/molecules/time-picker/date-time-picker';
 import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
+import { AdditionalMetadataClick } from '../../events/components/additional-metadata';
 
 export interface WorkflowRunsTableProps {
   createdAfter?: string;
@@ -497,6 +498,25 @@ export function WorkflowRunsTable({
     workflowKeysIsLoading ||
     metricsQuery.isLoading;
 
+  const onAdditionalMetadataClick = ({
+    key,
+    value,
+  }: AdditionalMetadataClick) => {
+    setColumnFilters((prev) => {
+      const metadataFilter = prev.find((filter) => filter.id === 'Metadata');
+      if (metadataFilter) {
+        prev = prev.filter((filter) => filter.id !== 'Metadata');
+      }
+      return [
+        ...prev,
+        {
+          id: 'Metadata',
+          value: [`${key}:${value}`],
+        },
+      ];
+    });
+  };
+
   return (
     <>
       {showMetrics && (
@@ -642,7 +662,7 @@ export function WorkflowRunsTable({
         emptyState={<>No workflow runs found with the given filters.</>}
         error={workflowKeysError}
         isLoading={isLoading}
-        columns={columns}
+        columns={columns(onAdditionalMetadataClick)}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
         data={listWorkflowRunsQuery.data?.rows || []}
