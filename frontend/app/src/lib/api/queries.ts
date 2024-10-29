@@ -50,6 +50,15 @@ export const queries = createQueryKeyStore({
       queryKey: ['build-logs:list', buildId],
       queryFn: async () => (await cloudApi.buildLogsList(buildId)).data,
     }),
+    getIacLogs: (managedWorkerId: string, deployKey: string) => ({
+      queryKey: ['iac-logs:list', managedWorkerId, deployKey],
+      queryFn: async () =>
+        (
+          await cloudApi.iacLogsList(managedWorkerId, {
+            deployKey,
+          })
+        ).data,
+    }),
     getManagedWorkerCpuMetrics: (
       managedWorkerId: string,
       query: GetCloudMetricsQuery,

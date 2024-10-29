@@ -306,6 +306,11 @@ export interface CreateManagedWorkerRuntimeConfigRequest {
    */
   memoryMb: number;
   actions?: string[];
+  /**
+   * @min 1
+   * @max 1000
+   */
+  slots?: number;
 }
 
 export interface TenantBillingState {

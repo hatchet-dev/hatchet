@@ -429,6 +429,31 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       ...params,
     });
   /**
+   * @description Get the build logs for a specific build of a managed worker
+   *
+   * @tags Log
+   * @name IacLogsList
+   * @summary Get IaC Logs
+   * @request GET:/api/v1/cloud/managed-worker/{managed-worker}/iac-logs
+   * @secure
+   */
+  iacLogsList = (
+    managedWorker: string,
+    query: {
+      /** The deploy key */
+      deployKey: string;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<LogLineList, APIErrors>({
+      path: `/api/v1/cloud/managed-worker/${managedWorker}/iac-logs`,
+      method: "GET",
+      query: query,
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
    * @description Get all instances for a managed worker
    *
    * @tags Managed Worker
