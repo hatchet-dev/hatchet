@@ -67,6 +67,16 @@ func ToWorkflowRunShape(
 		res.JobRuns = &jobRuns
 	}
 
+	if run.AdditionalMetadata != nil {
+
+		additionalMetadata := make(map[string]interface{})
+		err := json.Unmarshal(run.AdditionalMetadata, &additionalMetadata)
+
+		if err == nil {
+			res.AdditionalMetadata = &additionalMetadata
+		}
+	}
+
 	return res
 }
 
@@ -106,6 +116,18 @@ func ToWorkflowRun(
 		}
 
 		res.JobRuns = &jobRuns
+	}
+
+	if run.AdditionalMetadata != nil {
+
+		additionalMetadata := make(map[string]interface{})
+		err := json.Unmarshal(run.AdditionalMetadata, &additionalMetadata)
+
+		if err != nil {
+			return nil, err
+		}
+
+		res.AdditionalMetadata = &additionalMetadata
 	}
 
 	return res, nil
