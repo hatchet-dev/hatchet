@@ -1,4 +1,4 @@
-import { Tabs } from "nextra/components";
+import { Tabs, Callout } from "nextra/components";
 
 # Tuning Hatchet for Performance
 
@@ -30,17 +30,17 @@ hatchet = Hatchet()
 
 events: List[BulkPushEventWithMetadata] = [
     {
-        "key": "event1",
+        "key": "user:create",
         "payload": {"message": "This is event 1"},
         "additional_metadata": {"source": "test", "user_id": "user123"},
     },
     {
-        "key": "event2",
+        "key": "user:create",
         "payload": {"message": "This is event 2"},
         "additional_metadata": {"source": "test", "user_id": "user456"},
     },
     {
-        "key": "event3",
+        "key": "user:create",
         "payload": {"message": "This is event 3"},
         "additional_metadata": {"source": "test", "user_id": "user789"},
     },
@@ -72,7 +72,7 @@ const events = [
   },
 ];
 
-hatchet.event.bulkPush("user:create:bulk", events);
+hatchet.event.bulkPush("user:create", events);
 ```
 
   </Tabs.Tab>
@@ -93,14 +93,14 @@ events := []client.EventWithMetadata{
       Name: "testing",
     },
     AdditionalMetadata: map[string]string{"hello": "world1"},
-    Key: "event1",
+    Key: "user:create",
   },
   {
     Event: &events.TestEvent{
       Name: "testing2",
     },
     AdditionalMetadata: map[string]string{"hello": "world2"},
-    Key: "event2",
+    Key: "user:create",
   },
 }
 
@@ -113,7 +113,9 @@ c.Event().BulkPush(
   </Tabs.Tab>
 </Tabs>
 
-There is a maximum limit of 1000 events per request.
+<Callout type="warning">
+  There is a maximum limit of 1000 events per request.
+</Callout>
 
 #### Workflows
 
@@ -213,7 +215,9 @@ w.RegisterWorkflow(
   </Tabs.Tab>
 </Tabs>
 
-There is a maximum limit of 1000 workflows per bulk request.
+<Callout type="warning">
+  There is a maximum limit of 1000 workflows per bulk request.
+</Callout>
 
 ### Tuning Buffer Settings
 
