@@ -2,7 +2,6 @@ package transformers
 
 import (
 	"encoding/json"
-	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -120,7 +119,6 @@ func ToWorkflowRun(
 	}
 
 	if run.AdditionalMetadata != nil {
-		fmt.Println("additional metadata", string(run.AdditionalMetadata))
 
 		additionalMetadata := make(map[string]interface{})
 		err := json.Unmarshal(run.AdditionalMetadata, &additionalMetadata)
