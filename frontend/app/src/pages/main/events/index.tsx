@@ -560,7 +560,7 @@ function EventWorkflowRunsList({ event }: { event: Event }) {
 
   return (
     <DataTable
-      columns={workflowRunsColumns}
+      columns={workflowRunsColumns()}
       data={listWorkflowRunsQuery.data?.rows || []}
       filters={[]}
       pageCount={listWorkflowRunsQuery.data?.pagination?.num_pages || 0}
