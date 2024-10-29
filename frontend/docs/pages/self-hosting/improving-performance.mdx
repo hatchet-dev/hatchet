@@ -1,3 +1,5 @@
+import { Tabs } from "nextra/components";
+
 # Tuning Hatchet for Performance
 
 Generally, with a reasonable database instance (4 CPU, 8GB RAM) and small payload sizes, Hatchet can handle hundreds of events and workflow runs per second. However, as throughput increases, you will start to see performance degradation. The most common causes of performance degradation are listed below.
@@ -10,15 +12,242 @@ The default max connection pool size is 50 per engine instance. If you have a hi
 
 Due to the nature of Hatchet workloads, the first bottleneck you will typically see on the database is CPU. If you have access to database query performance metrics, it is worth checking the cause of high CPU. If there is high lock contention on a query, please let the Hatchet team know, as we are looking to reduce lock contention in future releases. Otherwise, if you are seeing high CPU usage without any lock contention, you should increase the number of cores on your database instance.
 
-If you are performing a high number of inserts, particularly in a short period of time, and this correlates with high CPU usage, you can improve performance in several ways:
+If you are performing a high number of inserts, particularly in a short period of time, and this correlates with high CPU usage, you can improve performance in several ways by using bulk endpoints or tuning the buffer settings.
 
-1. Using bulk endpoints:
+### Using bulk endpoints
 
-{/* <<SEAN>> */}
+There are two main ways to initiate workflows, by sending events to Hatchet and by starting workflows directly. In most example workflows, we push a single event or workflow at a time, but it is possible to send multiple events or workflows in one request.
 
-2. Tuning the following settings:
+#### Events
 
-{/* <<SEAN>> */}
+ <Tabs items={['Python', 'Typescript', 'Golang']}>
+  <Tabs.Tab>
+
+```python
+from hatchet_sdk import Hatchet
+
+hatchet = Hatchet()
+
+events: List[BulkPushEventWithMetadata] = [
+    {
+        "key": "event1",
+        "payload": {"message": "This is event 1"},
+        "additional_metadata": {"source": "test", "user_id": "user123"},
+    },
+    {
+        "key": "event2",
+        "payload": {"message": "This is event 2"},
+        "additional_metadata": {"source": "test", "user_id": "user456"},
+    },
+    {
+        "key": "event3",
+        "payload": {"message": "This is event 3"},
+        "additional_metadata": {"source": "test", "user_id": "user789"},
+    },
+]
+
+result = hatchet.client.event.bulk_push(events)
+```
+
+  </Tabs.Tab>
+  <Tabs.Tab>
+
+```typescript
+import Hatchet from "@hatchet-dev/typescript-sdk";
+
+const hatchet = Hatchet.init();
+
+const events = [
+  {
+    payload: { test: "test1" },
+    additionalMetadata: { user_id: "user1", source: "test" },
+  },
+  {
+    payload: { test: "test2" },
+    additionalMetadata: { user_id: "user2", source: "test" },
+  },
+  {
+    payload: { test: "test3" },
+    additionalMetadata: { user_id: "user3", source: "test" },
+  },
+];
+
+hatchet.event.bulkPush("user:create:bulk", events);
+```
+
+  </Tabs.Tab>
+  <Tabs.Tab>
+
+```go
+c, err := client.New(
+  client.WithHostPort("127.0.0.1", 7077),
+)
+
+if err != nil {
+  panic(err)
+}
+
+events := []client.EventWithMetadata{
+  {
+    Event: &events.TestEvent{
+      Name: "testing",
+    },
+    AdditionalMetadata: map[string]string{"hello": "world1"},
+    Key: "event1",
+  },
+  {
+    Event: &events.TestEvent{
+      Name: "testing2",
+    },
+    AdditionalMetadata: map[string]string{"hello": "world2"},
+    Key: "event2",
+  },
+}
+
+c.Event().BulkPush(
+  context.Background(),
+  events,
+)
+```
+
+  </Tabs.Tab>
+</Tabs>
+
+There is a maximum limit of 1000 events per request.
+
+#### Workflows
+
+<Tabs items={['Python', 'Typescript', 'Go']}>
+  <Tabs.Tab>
+
+```python
+@hatchet.workflow("fanout:create")
+class Parent:
+    @hatchet.step()
+    def spawn(self, context: Context):
+        workflow_requests = [
+            {
+                "workflow": "Child",
+                "input": {"a": str(i)},
+                "key": f"child{i}",
+                "options": {}
+            }
+            for i in range(10)
+        ]
+
+        # Spawn the workflows in bulk using spawn_workflows
+        context.spawn_workflows(workflow_requests)
+        return {}
+
+```
+
+  </Tabs.Tab>
+  <Tabs.Tab>
+
+```typescript
+const parentWorkflow: Workflow = {
+  id: "parent-workflow",
+  description: "Example workflow for spawning child workflows",
+  on: {
+    event: "fanout:create",
+  },
+  steps: [
+    {
+      name: "parent-spawn",
+      timeout: "10s",
+      run: async (ctx) => {
+        const workflowRequests = Array.from({ length: 10 }, (_, i) => ({
+          workflow: "child-workflow",
+          input: { input: `child-input-${i}` },
+          options: { additionalMetadata: { childKey: `child-${i}` } },
+        }));
+
+        const spawnedWorkflows = await ctx.spawnWorkflows<string, string>(
+          workflowRequests,
+        );
+
+        return spawnedWorkflows;
+      },
+    },
+  ],
+};
+```
+
+  </Tabs.Tab>
+  <Tabs.Tab>
+
+```go
+w.RegisterWorkflow(
+    &worker.WorkflowJob{
+        Name: "parent-workflow",
+        On: worker.Event("fanout:create"),
+        Description: "Example workflow for spawning child workflows.",
+        Steps: []*worker.WorkflowStep{
+            worker.Fn(func(ctx worker.HatchetContext) error {
+                // Prepare the batch of workflows to spawn
+                childWorkflows := make([]*worker.SpawnWorkflowsOpts, 10)
+
+                for i := 0; i < 10; i++ {
+                    childInput := "child-input-" + strconv.Itoa(i)
+                    childWorkflows[i] = &worker.SpawnWorkflowsOpts{
+                        WorkflowName: "child-workflow",
+                        Input:        childInput,
+                        Key:          "child-key-" + strconv.Itoa(i),
+                    }
+                }
+
+                // Spawn all workflows in bulk using SpawnWorkflows
+                createdWorkflows, err := ctx.SpawnWorkflows(childWorkflows)
+                if err != nil {
+                    return err
+                }
+
+                return nil
+            }),
+        },
+    },
+)
+
+```
+
+  </Tabs.Tab>
+</Tabs>
+
+There is a maximum limit of 1000 workflows per bulk request.
+
+### Tuning Buffer Settings
+
+Hatchet has configurable write buffers which enable it to reduce the total number of database queries by batching DB writes. This speeds up throughput dramatically at the expense of a slight increase in latency. In general, increasing the buffer size and reducing the buffer flush frequency reduces the CPU load on the DB.
+
+The two most important configurable settings for the buffers are
+
+1. **Flush Period:** The amount of milliseconds to wait between subsequent writes to the database
+
+2. **Max Buffer Size:** The maximum size of the internal buffer writing to the database.
+
+The following environment variables are all configurable:
+
+```sh
+# Default values if the values below are not set
+SERVER_FLUSH_PERIOD_MILLISECONDS
+SERVER_FLUSH_ITEMS_THRESHOLD
+
+# Settings for writing workflow runs to the database
+SERVER_WORKFLOWRUNBUFFER_FLUSH_PERIOD_MILLISECONDS
+SERVER_WORKFLOWRUNBUFFER_FLUSH_ITEMS_THRESHOLD
+
+# Settings for writing events to the database
+SERVER_EVENTBUFFER_FLUSH_PERIOD_MILLISECONDS
+SERVER_EVENTBUFFER_FLUSH_ITEMS_THRESHOLD
+
+# Settings for releasing slots for workers
+SERVER_RELEASESEMAPHOREBUFFER_FLUSH_PERIOD_MILLISECONDS
+SERVER_RELEASESEMAPHOREBUFFER_FLUSH_ITEMS_THRESHOLD
+
+# Settings for writing queue items to the database
+SERVER_QUEUESTEPRUNBUFFER_FLUSH_PERIOD_MILLISECONDS
+SERVER_QUEUESTEPRUNBUFFER_FLUSH_ITEMS_THRESHOLD
+```
 
 ## Slow Time to Start
 
