@@ -9,6 +9,7 @@ import {
   BarChart,
   LineChart,
   Line,
+  Area,
 } from 'recharts';
 import {
   ChartConfig,
@@ -61,7 +62,7 @@ type ZoomableChartProps<T extends string> = {
   colors?: Record<string, string>;
   zoom?: (startTime: string, endTime: string) => void;
   showYAxis?: boolean;
-  kind: 'bar' | 'line';
+  kind: 'bar' | 'line' | 'area';
   className?: string;
 };
 
@@ -166,36 +167,35 @@ export function ZoomableChart<T extends string>({
       className={cn('w-full h-[200px] min-h-[200px]', className)}
     >
       <div className="h-full" ref={chartRef} style={{ touchAction: 'none' }}>
-        {kind === 'bar' ? (
-          <ChildBarChart
-            data={data}
-            showYAxis={showYAxis}
-            formatXAxis={formatXAxis}
-            handleMouseDown={handleMouseDown}
-            handleMouseMove={handleMouseMove}
-            handleMouseUp={handleMouseUp}
-            refAreaLeft={refAreaLeft}
-            refAreaRight={refAreaRight}
-            chartConfig={chartConfig}
-            dataKeys={dataKeys}
-          />
-        ) : (
-          <ChildLineChart
-            data={data}
-            showYAxis={showYAxis}
-            formatXAxis={formatXAxis}
-            handleMouseDown={handleMouseDown}
-            handleMouseMove={handleMouseMove}
-            handleMouseUp={handleMouseUp}
-            refAreaLeft={refAreaLeft}
-            refAreaRight={refAreaRight}
-            chartConfig={chartConfig}
-            dataKeys={dataKeys}
-          />
-        )}
+        {getChildChart(kind, {
+          data,
+          showYAxis,
+          formatXAxis,
+          handleMouseDown,
+          handleMouseMove,
+          handleMouseUp,
+          refAreaLeft,
+          refAreaRight,
+          chartConfig,
+          dataKeys,
+        })}
       </div>
     </ChartContainer>
   );
+}
+
+function getChildChart<T extends string>(
+  kind: 'bar' | 'line' | 'area',
+  props: ChildChartProps<T>,
+) {
+  switch (kind) {
+    case 'bar':
+      return <ChildBarChart {...props} />;
+    case 'line':
+      return <ChildLineChart {...props} />;
+    case 'area':
+      return <ChildAreaChart {...props} />;
+  }
 }
 
 type ChildChartProps<T extends string> = {
@@ -352,6 +352,88 @@ function ChildLineChart<T extends string>({
               fillOpacity={1}
               fill={chartConfig[key].color}
               isAnimationActive={false}
+            />
+          );
+        })}
+
+        {refAreaLeft && refAreaRight && (
+          <ReferenceArea
+            x1={refAreaLeft}
+            x2={refAreaRight}
+            strokeOpacity={0.3}
+            fill="hsl(var(--foreground))"
+            fillOpacity={0.1}
+          />
+        )}
+      </LineChart>
+    </ResponsiveContainer>
+  );
+}
+
+function ChildAreaChart<T extends string>({
+  data,
+  showYAxis = true,
+  formatXAxis,
+  handleMouseDown,
+  handleMouseMove,
+  handleMouseUp,
+  refAreaLeft,
+  refAreaRight,
+  chartConfig,
+  dataKeys,
+}: ChildChartProps<T>) {
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <LineChart
+        data={data}
+        margin={{
+          left: 0,
+          right: 0,
+          top: 0,
+          bottom: 0,
+        }}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+      >
+        <CartesianGrid vertical={false} />
+        <XAxis
+          dataKey="date"
+          tickFormatter={formatXAxis}
+          tickLine={false}
+          axisLine={false}
+          tickMargin={4}
+          minTickGap={16}
+          style={{ fontSize: '10px', userSelect: 'none' }}
+        />
+        {showYAxis && (
+          <YAxis
+            tickLine={false}
+            axisLine={false}
+            tickMargin={4}
+            style={{ fontSize: '10px', userSelect: 'none' }}
+          />
+        )}
+        <ChartTooltip
+          content={
+            <ChartTooltipContent
+              className="w-[150px] sm:w-[200px] font-mono text-xs sm:text-xs"
+              labelFormatter={(value) => new Date(value).toLocaleString()}
+            />
+          }
+        />
+        {dataKeys.map((key) => {
+          return (
+            <Area
+              key={key}
+              type="monotone"
+              dot={false}
+              dataKey={key}
+              stroke={chartConfig[key].color}
+              fillOpacity={0.6}
+              fill={chartConfig[key].color}
+              isAnimationActive={false}
+              stackId="a"
             />
           );
         })}
