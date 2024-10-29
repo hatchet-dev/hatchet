@@ -989,7 +989,7 @@ scheduled:
     tags:
       - Workflow
   delete:
-    x-resources: ["tenant"]
+    x-resources: ["tenant", "scheduled-workflow-run"]
     description: Delete a scheduled workflow run for a tenant
     operationId: workflow-scheduled:delete
     parameters:
