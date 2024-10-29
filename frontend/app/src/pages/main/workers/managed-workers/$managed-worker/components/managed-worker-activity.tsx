@@ -41,7 +41,7 @@ export function ManagedWorkerActivity({
       <IaCDebug
         managedWorkerId={managedWorker!.metadata.id}
         deployKey={iacDeployKey}
-        back={() => setBuildId(undefined)}
+        back={() => setIacDeployKey(undefined)}
       />
     );
   }
