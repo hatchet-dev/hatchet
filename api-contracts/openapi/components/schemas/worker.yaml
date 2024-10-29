@@ -143,6 +143,8 @@ Worker:
       type: string
       description: The webhook ID for the worker.
       format: uuid
+    runtimeInfo:
+      $ref: "#/WorkerRuntimeInfo"
   required:
     - metadata
     - name
@@ -164,3 +166,23 @@ WorkerList:
       items:
         $ref: "#/Worker"
       type: array
+
+WorkerRuntimeSDKs:
+  type: string
+  enum:
+    - GOLANG
+    - PYTHON
+    - TYPESCRIPT
+
+WorkerRuntimeInfo:
+  properties:
+    sdkVersion:
+      type: string
+    language:
+      $ref: "#/WorkerRuntimeSDKs"
+    languageVersion:
+      type: string
+    os:
+      type: string
+    runtimeExtra:
+      type: string

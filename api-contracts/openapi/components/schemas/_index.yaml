@@ -206,6 +206,10 @@ StepRunArchive:
   $ref: "./workflow_run.yaml#/StepRunArchive"
 StepRunArchiveList:
   $ref: "./workflow_run.yaml#/StepRunArchiveList"
+WorkerRuntimeInfo:
+  $ref: "./worker.yaml#/WorkerRuntimeInfo"
+WorkerRuntimeSDKs:
+  $ref: "./worker.yaml#/WorkerRuntimeSDKs"
 WorkerList:
   $ref: "./worker.yaml#/WorkerList"
 SemaphoreSlots:

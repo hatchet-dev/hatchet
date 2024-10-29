@@ -41,6 +41,21 @@ message WorkerLabels {
     optional int32 intValue = 2;
 }
 
+enum SDKS {
+    UNKNOWN = 0;
+    GO = 1;
+    PYTHON = 2;
+    TYPESCRIPT = 3;
+}
+
+message RuntimeInfo {
+    optional string sdkVersion = 1;
+    optional SDKS language = 2;
+    optional string languageVersion = 3;
+    optional string os = 4;
+    optional string extra = 5;
+}
+
 message WorkerRegisterRequest {
     // the name of the worker
     string workerName = 1;
@@ -59,6 +74,10 @@ message WorkerRegisterRequest {
 
     // (optional) webhookId is the id of the webhook that the worker is associated with (if any)
     optional string webhookId = 6;
+
+    // (optional) information regarding the runtime environment of the worker
+    optional RuntimeInfo runtimeInfo = 7;
+
 }
 
 message WorkerRegisterResponse {

@@ -223,6 +223,16 @@ func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.Worker
 		WebhookId:    request.WebhookId,
 	}
 
+	if request.RuntimeInfo != nil {
+		opts.RuntimeInfo = &repository.RuntimeInfo{
+			SdkVersion:      request.RuntimeInfo.SdkVersion,
+			Language:        request.RuntimeInfo.Language,
+			LanguageVersion: request.RuntimeInfo.LanguageVersion,
+			Os:              request.RuntimeInfo.Os,
+			Extra:           request.RuntimeInfo.Extra,
+		}
+	}
+
 	if request.MaxRuns != nil {
 		mr := int(*request.MaxRuns)
 		opts.MaxRuns = &mr
