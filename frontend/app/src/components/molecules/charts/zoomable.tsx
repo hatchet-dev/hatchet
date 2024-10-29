@@ -10,6 +10,7 @@ import {
   LineChart,
   Line,
   Area,
+  AreaChart,
 } from 'recharts';
 import {
   ChartConfig,
@@ -384,7 +385,7 @@ function ChildAreaChart<T extends string>({
 }: ChildChartProps<T>) {
   return (
     <ResponsiveContainer width="100%" height="100%">
-      <LineChart
+      <AreaChart
         data={data}
         margin={{
           left: 0,
@@ -447,7 +448,7 @@ function ChildAreaChart<T extends string>({
             fillOpacity={0.1}
           />
         )}
-      </LineChart>
+      </AreaChart>
     </ResponsiveContainer>
   );
 }
