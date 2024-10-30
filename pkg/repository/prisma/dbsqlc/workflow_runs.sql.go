@@ -122,6 +122,8 @@ WITH runs AS (
                 $5::uuid IS NULL OR
                 workflow."id" = $5::uuid
             )
+    LEFT JOIN
+        "JobRun" jr on jr."workflowRunId" = runs."id"
     WHERE
         runs."tenantId" = $1 AND
         runs."deletedAt" IS NULL AND
@@ -149,7 +151,7 @@ WITH runs AS (
         ) AND
         (
             $11::text[] IS NULL OR
-            "status" = ANY(cast($11::text[] as "WorkflowRunStatus"[]))
+            runs."status" = ANY(cast($11::text[] as "WorkflowRunStatus"[]))
         ) AND
         (
             $12::timestamp IS NULL OR
@@ -167,16 +169,20 @@ WITH runs AS (
         (
             $15::timestamp IS NULL OR
             runs."finishedAt" <= $15::timestamp
+        ) AND
+        (
+            $16::text[] IS NULL OR
+            jr."status" = ANY(cast($16::text[] as "JobRunStatus"[]))
         )
     ORDER BY
-        case when $16 = 'createdAt ASC' THEN runs."createdAt" END ASC ,
-        case when $16 = 'createdAt DESC' THEN runs."createdAt" END DESC,
-        case when $16 = 'finishedAt ASC' THEN runs."finishedAt" END ASC ,
-        case when $16 = 'finishedAt DESC' THEN runs."finishedAt" END DESC,
-        case when $16 = 'startedAt ASC' THEN runs."startedAt" END ASC ,
-        case when $16 = 'startedAt DESC' THEN runs."startedAt" END DESC,
-        case when $16 = 'duration ASC' THEN runs."duration" END ASC NULLS FIRST,
-        case when $16 = 'duration DESC' THEN runs."duration" END DESC NULLS LAST,
+        case when $17 = 'createdAt ASC' THEN runs."createdAt" END ASC ,
+        case when $17 = 'createdAt DESC' THEN runs."createdAt" END DESC,
+        case when $17 = 'finishedAt ASC' THEN runs."finishedAt" END ASC ,
+        case when $17 = 'finishedAt DESC' THEN runs."finishedAt" END DESC,
+        case when $17 = 'startedAt ASC' THEN runs."startedAt" END ASC ,
+        case when $17 = 'startedAt DESC' THEN runs."startedAt" END DESC,
+        case when $17 = 'duration ASC' THEN runs."duration" END ASC NULLS FIRST,
+        case when $17 = 'duration DESC' THEN runs."duration" END DESC NULLS LAST,
         runs."id" ASC
     LIMIT 10000
 )
@@ -202,6 +208,7 @@ type CountWorkflowRunsParams struct {
 	CreatedBefore      pgtype.Timestamp `json:"createdBefore"`
 	FinishedAfter      pgtype.Timestamp `json:"finishedAfter"`
 	FinishedBefore     pgtype.Timestamp `json:"finishedBefore"`
+	JobRunStatuses     []string         `json:"jobRunStatuses"`
 	Orderby            interface{}      `json:"orderby"`
 }
 
@@ -222,6 +229,7 @@ func (q *Queries) CountWorkflowRuns(ctx context.Context, db DBTX, arg CountWorkf
 		arg.CreatedBefore,
 		arg.FinishedAfter,
 		arg.FinishedBefore,
+		arg.JobRunStatuses,
 		arg.Orderby,
 	)
 	var total int64
@@ -2179,7 +2187,8 @@ SELECT
     runtriggers.id, runtriggers."createdAt", runtriggers."updatedAt", runtriggers."deletedAt", runtriggers."tenantId", runtriggers."eventId", runtriggers."cronParentId", runtriggers."cronSchedule", runtriggers."scheduledId", runtriggers.input, runtriggers."parentId",
     workflowversion.id, workflowversion."createdAt", workflowversion."updatedAt", workflowversion."deletedAt", workflowversion.version, workflowversion."order", workflowversion."workflowId", workflowversion.checksum, workflowversion."scheduleTimeout", workflowversion."onFailureJobId", workflowversion.sticky, workflowversion.kind, workflowversion."defaultPriority",
     -- waiting on https://github.com/sqlc-dev/sqlc/pull/2858 for nullable events field
-    events.id, events.key, events."createdAt", events."updatedAt"
+    events.id, events.key, events."createdAt", events."updatedAt",
+    jr."status" as jobRunStatus
 FROM
     "WorkflowRun" as runs
 LEFT JOIN
@@ -2209,6 +2218,8 @@ JOIN
             $5::uuid IS NULL OR
             workflow."id" = $5::uuid
         )
+JOIN
+	"JobRun" jr on jr."workflowRunId" = runs."id"
 WHERE
     runs."tenantId" = $1 AND
     runs."deletedAt" IS NULL AND
@@ -2240,7 +2251,7 @@ WHERE
     ) AND
     (
         $11::text[] IS NULL OR
-        "status" = ANY(cast($11::text[] as "WorkflowRunStatus"[]))
+        runs."status" = ANY(cast($11::text[] as "WorkflowRunStatus"[]))
     ) AND
     (
         $12::timestamp IS NULL OR
@@ -2258,21 +2269,25 @@ WHERE
     (
         $15::timestamp IS NULL OR
         runs."finishedAt" <= $15::timestamp
+    ) AND
+    (
+        $16::text[] IS NULL OR
+        jr."status" = ANY(cast($16::text[] as "JobRunStatus"[]))
     )
 ORDER BY
-    case when $16 = 'createdAt ASC' THEN runs."createdAt" END ASC ,
-    case when $16 = 'createdAt DESC' THEN runs."createdAt" END DESC,
-    case when $16 = 'finishedAt ASC' THEN runs."finishedAt" END ASC ,
-    case when $16 = 'finishedAt DESC' THEN runs."finishedAt" END DESC,
-    case when $16 = 'startedAt ASC' THEN runs."startedAt" END ASC ,
-    case when $16 = 'startedAt DESC' THEN runs."startedAt" END DESC,
-    case when $16 = 'duration ASC' THEN runs."duration" END ASC NULLS FIRST,
-    case when $16 = 'duration DESC' THEN runs."duration" END DESC NULLS LAST,
+    case when $17 = 'createdAt ASC' THEN runs."createdAt" END ASC ,
+    case when $17 = 'createdAt DESC' THEN runs."createdAt" END DESC,
+    case when $17 = 'finishedAt ASC' THEN runs."finishedAt" END ASC ,
+    case when $17 = 'finishedAt DESC' THEN runs."finishedAt" END DESC,
+    case when $17 = 'startedAt ASC' THEN runs."startedAt" END ASC ,
+    case when $17 = 'startedAt DESC' THEN runs."startedAt" END DESC,
+    case when $17 = 'duration ASC' THEN runs."duration" END ASC NULLS FIRST,
+    case when $17 = 'duration DESC' THEN runs."duration" END DESC NULLS LAST,
     runs."id" ASC
 OFFSET
-    COALESCE($17, 0)
+    COALESCE($18, 0)
 LIMIT
-    COALESCE($18, 50)
+    COALESCE($19, 50)
 `
 
 type ListWorkflowRunsParams struct {
@@ -2291,6 +2306,7 @@ type ListWorkflowRunsParams struct {
 	CreatedBefore      pgtype.Timestamp `json:"createdBefore"`
 	FinishedAfter      pgtype.Timestamp `json:"finishedAfter"`
 	FinishedBefore     pgtype.Timestamp `json:"finishedBefore"`
+	JobRunStatuses     []string         `json:"jobRunStatuses"`
 	Orderby            interface{}      `json:"orderby"`
 	Offset             interface{}      `json:"offset"`
 	Limit              interface{}      `json:"limit"`
@@ -2305,6 +2321,7 @@ type ListWorkflowRunsRow struct {
 	Key                    pgtype.Text            `json:"key"`
 	CreatedAt              pgtype.Timestamp       `json:"createdAt"`
 	UpdatedAt              pgtype.Timestamp       `json:"updatedAt"`
+	Jobrunstatus           JobRunStatus           `json:"jobrunstatus"`
 }
 
 func (q *Queries) ListWorkflowRuns(ctx context.Context, db DBTX, arg ListWorkflowRunsParams) ([]*ListWorkflowRunsRow, error) {
@@ -2324,6 +2341,7 @@ func (q *Queries) ListWorkflowRuns(ctx context.Context, db DBTX, arg ListWorkflo
 		arg.CreatedBefore,
 		arg.FinishedAfter,
 		arg.FinishedBefore,
+		arg.JobRunStatuses,
 		arg.Orderby,
 		arg.Offset,
 		arg.Limit,
@@ -2392,6 +2410,7 @@ func (q *Queries) ListWorkflowRuns(ctx context.Context, db DBTX, arg ListWorkflo
 			&i.Key,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Jobrunstatus,
 		); err != nil {
 			return nil, err
 		}

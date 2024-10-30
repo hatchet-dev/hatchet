@@ -97,6 +97,12 @@ func (t *TenantAlertManager) sendWorkflowRunAlert(ctx context.Context, tenantAle
 		db.WorkflowRunStatusFailed,
 	}
 
+	// NOTE: we only alert on failed job runs for now,
+	// we may want to add CANCELLED or other statuses in the future
+	jobRunStatuses := []db.JobRunStatus{
+		db.JobRunStatusFailed,
+	}
+
 	limit := 5
 
 	tenantId := sqlchelpers.UUIDToStr(tenantAlerting.Settings.TenantId)
@@ -110,6 +116,7 @@ func (t *TenantAlertManager) sendWorkflowRunAlert(ctx context.Context, tenantAle
 			OrderBy:        repository.StringPtr("createdAt"),
 			OrderDirection: repository.StringPtr("DESC"),
 			FinishedAfter:  &prevLastAlertedAt,
+			JobRunStatuses: &jobRunStatuses,
 		},
 	)
 

@@ -1234,6 +1234,17 @@ func listWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbsqlc.Q
 		countParams.Statuses = statuses
 	}
 
+	if opts.JobRunStatuses != nil {
+		jobRunStatuses := make([]string, 0)
+
+		for _, status := range *opts.JobRunStatuses {
+			jobRunStatuses = append(jobRunStatuses, string(status))
+		}
+
+		queryParams.JobRunStatuses = jobRunStatuses
+		countParams.JobRunStatuses = jobRunStatuses
+	}
+
 	if opts.Kinds != nil {
 		kinds := make([]string, 0)
 

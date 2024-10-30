@@ -30,6 +30,8 @@ WITH runs AS (
                 sqlc.narg('workflowId')::uuid IS NULL OR
                 workflow."id" = sqlc.narg('workflowId')::uuid
             )
+    LEFT JOIN
+        "JobRun" jr on jr."workflowRunId" = runs."id"
     WHERE
         runs."tenantId" = $1 AND
         runs."deletedAt" IS NULL AND
@@ -57,7 +59,7 @@ WITH runs AS (
         ) AND
         (
             sqlc.narg('statuses')::text[] IS NULL OR
-            "status" = ANY(cast(sqlc.narg('statuses')::text[] as "WorkflowRunStatus"[]))
+            runs."status" = ANY(cast(sqlc.narg('statuses')::text[] as "WorkflowRunStatus"[]))
         ) AND
         (
             sqlc.narg('createdAfter')::timestamp IS NULL OR
@@ -75,6 +77,10 @@ WITH runs AS (
         (
             sqlc.narg('finishedBefore')::timestamp IS NULL OR
             runs."finishedAt" <= sqlc.narg('finishedBefore')::timestamp
+        ) AND
+        (
+            sqlc.narg('jobRunStatuses')::text[] IS NULL OR
+            jr."status" = ANY(cast(sqlc.narg('jobRunStatuses')::text[] as "JobRunStatus"[]))
         )
     ORDER BY
         case when @orderBy = 'createdAt ASC' THEN runs."createdAt" END ASC ,
@@ -151,7 +157,8 @@ SELECT
     sqlc.embed(runTriggers),
     sqlc.embed(workflowVersion),
     -- waiting on https://github.com/sqlc-dev/sqlc/pull/2858 for nullable events field
-    events.id, events.key, events."createdAt", events."updatedAt"
+    events.id, events.key, events."createdAt", events."updatedAt",
+    jr."status" as jobRunStatus
 FROM
     "WorkflowRun" as runs
 LEFT JOIN
@@ -181,6 +188,8 @@ JOIN
             sqlc.narg('workflowId')::uuid IS NULL OR
             workflow."id" = sqlc.narg('workflowId')::uuid
         )
+JOIN
+	"JobRun" jr on jr."workflowRunId" = runs."id"
 WHERE
     runs."tenantId" = $1 AND
     runs."deletedAt" IS NULL AND
@@ -212,7 +221,7 @@ WHERE
     ) AND
     (
         sqlc.narg('statuses')::text[] IS NULL OR
-        "status" = ANY(cast(sqlc.narg('statuses')::text[] as "WorkflowRunStatus"[]))
+        runs."status" = ANY(cast(sqlc.narg('statuses')::text[] as "WorkflowRunStatus"[]))
     ) AND
     (
         sqlc.narg('createdAfter')::timestamp IS NULL OR
@@ -230,6 +239,10 @@ WHERE
     (
         sqlc.narg('finishedBefore')::timestamp IS NULL OR
         runs."finishedAt" <= sqlc.narg('finishedBefore')::timestamp
+    ) AND
+    (
+        sqlc.narg('jobRunStatuses')::text[] IS NULL OR
+        jr."status" = ANY(cast(sqlc.narg('jobRunStatuses')::text[] as "JobRunStatus"[]))
     )
 ORDER BY
     case when @orderBy = 'createdAt ASC' THEN runs."createdAt" END ASC ,

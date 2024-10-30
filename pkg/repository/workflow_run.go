@@ -281,6 +281,9 @@ type ListWorkflowRunsOpts struct {
 	// (optional) the status of the workflow run
 	Statuses *[]db.WorkflowRunStatus
 
+	// (optional) the status of the job run
+	JobRunStatuses *[]db.JobRunStatus
+
 	// (optional) a list of kinds to filter by
 	Kinds *[]dbsqlc.WorkflowKind
 
