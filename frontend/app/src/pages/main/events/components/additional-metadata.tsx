@@ -12,7 +12,21 @@ import {
 } from '@/components/ui/tooltip';
 
 const MAX_METADATA_LENGTH = 2;
-export function AdditionalMetadata({ metadata }: { metadata: object }) {
+
+export interface AdditionalMetadataClick {
+  key: string;
+  value: any;
+}
+
+interface AdditionalMetadataProps {
+  metadata: object;
+  onClick?: (click: AdditionalMetadataClick) => void;
+}
+
+export function AdditionalMetadata({
+  metadata,
+  onClick,
+}: AdditionalMetadataProps) {
   const metadataEntries = Object.entries(metadata || {});
   const visibleEntries = metadataEntries.slice(0, MAX_METADATA_LENGTH);
   const hiddenEntries = metadataEntries.slice(MAX_METADATA_LENGTH);
@@ -24,8 +38,9 @@ export function AdditionalMetadata({ metadata }: { metadata: object }) {
           <Tooltip>
             <TooltipTrigger>
               <Badge
-                className="mr-2 truncate cursor-default font-normal"
+                className="mr-2 truncate cursor-default font-normal cursor-pointer"
                 variant="secondary"
+                onClick={() => onClick?.({ key, value })}
               >
                 {`${key}: ${getValueString(value)}`}
               </Badge>
@@ -50,10 +65,11 @@ export function AdditionalMetadata({ metadata }: { metadata: object }) {
             <div className="flex flex-col gap-2 p-0">
               {metadataEntries.map(([key, value]) => (
                 <Badge
-                  className="mr-2 truncate font-normal text-sm"
+                  className="mr-2 truncate font-normal text-sm cursor-pointer"
                   title={`${key}:${value}`}
                   variant="secondary"
                   key={key}
+                  onClick={() => onClick?.({ key, value })}
                 >
                   {`${key}: ${value}`}
                 </Badge>
