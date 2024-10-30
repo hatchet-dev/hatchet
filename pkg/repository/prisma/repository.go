@@ -302,7 +302,7 @@ func NewEngineRepository(pool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ..
 	rlCache := cache.New(5 * time.Minute)
 	queueCache := cache.New(5 * time.Minute)
 
-	eventEngine, cleanupEventEngine, err := NewEventEngineRepository(pool, opts.v, opts.l, opts.metered)
+	eventEngine, cleanupEventEngine, err := NewEventEngineRepository(pool, opts.v, opts.l, opts.metered, cf.EventBuffer)
 
 	if err != nil {
 		return nil, nil, err
