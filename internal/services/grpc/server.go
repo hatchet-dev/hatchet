@@ -226,8 +226,12 @@ func (s *Server) startGRPC() (func() error, error) {
 		s.a.SendAlert(context.Background(), err, nil)
 		return status.Errorf(codes.Internal, "An internal error occurred")
 	}
-
-	limiter := middleware.NewHatchetRateLimiter(rate.Limit(s.config.Runtime.GRPCRateLimit), int(s.config.Runtime.GRPCRateLimit), s.l)
+	limit := s.config.Runtime.GRPCRateLimit
+	if limit == 0 {
+		limit = 1000
+	}
+	burst := limit
+	limiter := middleware.NewHatchetRateLimiter(rate.Limit(limit), int(burst), s.l)
 
 	errorInterceptor := middleware.NewErrorInterceptor(s.a, s.l)
 
