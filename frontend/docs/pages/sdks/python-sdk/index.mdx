@@ -79,7 +79,8 @@ async def main():
     worker.register_workflow(Workflow())
     await worker.async_start()
 
-asyncio.run(main())
+if __name__ == "__main__":
+    asyncio.run(main())
 ```
 
 ## Run your first workflow

@@ -1,40 +1,52 @@
 -- name: UpsertQueue :exec
+WITH queue_exists AS (
+    SELECT
+        1
+    FROM
+        "Queue"
+    WHERE
+        "tenantId" = @tenantId::uuid
+        AND "name" = @name::text
+), queue_to_update AS (
+    SELECT
+        *
+    FROM
+        "Queue"
+    WHERE
+        EXISTS (
+            SELECT
+                1
+            FROM
+                queue_exists
+        )
+        AND "tenantId" = @tenantId::uuid
+        AND "name" = @name::text
+    FOR UPDATE SKIP LOCKED
+), update_queue AS (
+    UPDATE
+        "Queue"
+    SET
+        "lastActive" = NOW()
+    FROM
+        queue_to_update
+    WHERE
+        "Queue"."tenantId" = queue_to_update."tenantId"
+        AND "Queue"."name" = queue_to_update."name"
+)
 INSERT INTO
     "Queue" (
         "tenantId",
         "name",
         "lastActive"
     )
-VALUES
-    (
-        @tenantId::uuid,
-        @name::text,
-        NOW()
-    )
-ON CONFLICT ("tenantId", "name") DO UPDATE
-SET
-    "lastActive" = NOW();
-
--- name: UpsertQueues :exec
-WITH input_data AS (
-    SELECT
-        UNNEST(@tenantIds::uuid[]) AS tenantId,
-        UNNEST(@names::text[]) AS name
-)
-INSERT INTO "Queue" (
-    "tenantId",
-    "name",
-    "lastActive"
-)
 SELECT
-    input_data.tenantId,
-    input_data.name,
+    @tenantId::uuid,
+    @name::text,
     NOW()
-FROM
-    input_data
-ON CONFLICT ("tenantId", "name") DO UPDATE
-SET
-    "lastActive" = NOW();
+WHERE NOT EXISTS (
+    SELECT 1 FROM queue_exists
+)
+ON CONFLICT ("tenantId", "name") DO NOTHING;
 
 -- name: ListQueues :many
 SELECT
@@ -118,16 +130,73 @@ GROUP BY
     qi."queue";
 
 -- name: GetMinUnprocessedQueueItemId :one
+WITH priority_1 AS (
+    SELECT
+        "id"
+    FROM
+        "QueueItem"
+    WHERE
+        "isQueued" = 't'
+        AND "tenantId" = @tenantId::uuid
+        AND "queue" = @queue::text
+        AND "priority" = 1
+    ORDER BY
+        "id" ASC
+    LIMIT 1
+),
+priority_2 AS (
+    SELECT
+        "id"
+    FROM
+        "QueueItem"
+    WHERE
+        "isQueued" = 't'
+        AND "tenantId" = @tenantId::uuid
+        AND "queue" = @queue::text
+        AND "priority" = 2
+    ORDER BY
+        "id" ASC
+    LIMIT 1
+),
+priority_3 AS (
+    SELECT
+        "id"
+    FROM
+        "QueueItem"
+    WHERE
+        "isQueued" = 't'
+        AND "tenantId" = @tenantId::uuid
+        AND "queue" = @queue::text
+        AND "priority" = 3
+    ORDER BY
+        "id" ASC
+    LIMIT 1
+),
+priority_4 AS (
+    SELECT
+        "id"
+    FROM
+        "QueueItem"
+    WHERE
+        "isQueued" = 't'
+        AND "tenantId" = @tenantId::uuid
+        AND "queue" = @queue::text
+        AND "priority" = 4
+    ORDER BY
+        "id" ASC
+    LIMIT 1
+)
 SELECT
     COALESCE(MIN("id"), 0)::bigint AS "minId"
-FROM
-    "QueueItem"
-WHERE
-    "isQueued" = 't'
-    AND "tenantId" = @tenantId::uuid
-    AND "queue" = @queue::text
-    -- Added to ensure that the index is used
-    AND "priority" >= 1 AND "priority" <= 4;
+FROM (
+    SELECT "id" FROM priority_1
+    UNION ALL
+    SELECT "id" FROM priority_2
+    UNION ALL
+    SELECT "id" FROM priority_3
+    UNION ALL
+    SELECT "id" FROM priority_4
+) AS combined_priorities;
 
 -- name: GetMinMaxProcessedQueueItems :one
 SELECT

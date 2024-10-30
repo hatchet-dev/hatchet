@@ -145,6 +145,13 @@ const (
 	WEBHOOK    WorkerType = "WEBHOOK"
 )
 
+// Defines values for WorkerRuntimeSDKs.
+const (
+	GOLANG     WorkerRuntimeSDKs = "GOLANG"
+	PYTHON     WorkerRuntimeSDKs = "PYTHON"
+	TYPESCRIPT WorkerRuntimeSDKs = "TYPESCRIPT"
+)
+
 // Defines values for WorkflowConcurrencyLimitStrategy.
 const (
 	CANCELINPROGRESS WorkflowConcurrencyLimitStrategy = "CANCEL_IN_PROGRESS"
@@ -1081,7 +1088,8 @@ type Worker struct {
 	Name string `json:"name"`
 
 	// RecentStepRuns The recent step runs for the worker.
-	RecentStepRuns *[]RecentStepRuns `json:"recentStepRuns,omitempty"`
+	RecentStepRuns *[]RecentStepRuns  `json:"recentStepRuns,omitempty"`
+	RuntimeInfo    *WorkerRuntimeInfo `json:"runtimeInfo,omitempty"`
 
 	// Slots The semaphore slot state for the worker.
 	Slots *[]SemaphoreSlots `json:"slots,omitempty"`
@@ -1118,6 +1126,18 @@ type WorkerList struct {
 	Pagination *PaginationResponse `json:"pagination,omitempty"`
 	Rows       *[]Worker           `json:"rows,omitempty"`
 }
+
+// WorkerRuntimeInfo defines model for WorkerRuntimeInfo.
+type WorkerRuntimeInfo struct {
+	Language        *WorkerRuntimeSDKs `json:"language,omitempty"`
+	LanguageVersion *string            `json:"languageVersion,omitempty"`
+	Os              *string            `json:"os,omitempty"`
+	RuntimeExtra    *string            `json:"runtimeExtra,omitempty"`
+	SdkVersion      *string            `json:"sdkVersion,omitempty"`
+}
+
+// WorkerRuntimeSDKs defines model for WorkerRuntimeSDKs.
+type WorkerRuntimeSDKs string
 
 // Workflow defines model for Workflow.
 type Workflow struct {
