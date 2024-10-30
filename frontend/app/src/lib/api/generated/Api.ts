@@ -24,6 +24,7 @@ import {
   CreateTenantAlertEmailGroupRequest,
   CreateTenantInviteRequest,
   CreateTenantRequest,
+  CronWorkflows,
   CronWorkflowsList,
   CronWorkflowsOrderByField,
   Event,
@@ -1220,39 +1221,6 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       ...params,
     });
   /**
-   * @description Delete a cron job workflow run for a tenant
-   *
-   * @tags Workflow
-   * @name WorkflowCronDelete
-   * @summary Delete cron job workflow run
-   * @request DELETE:/api/v1/tenants/{tenant}/workflows/crons
-   * @secure
-   */
-  workflowCronDelete = (
-    tenant: string,
-    query: {
-      /**
-       * The cron job parent id
-       * @format uuid
-       * @minLength 36
-       * @maxLength 36
-       */
-      cronParentId: string;
-      /** The cron job name */
-      cronName?: string;
-      /** Cron schedule */
-      cron: string;
-    },
-    params: RequestParams = {},
-  ) =>
-    this.request<void, APIErrors | APIError>({
-      path: `/api/v1/tenants/${tenant}/workflows/crons`,
-      method: 'DELETE',
-      query: query,
-      secure: true,
-      ...params,
-    });
-  /**
    * @description Get all cron job workflow runs for a tenant
    *
    * @tags Workflow
@@ -1299,6 +1267,39 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       query: query,
       secure: true,
       format: 'json',
+      ...params,
+    });
+  /**
+   * @description Get a cron job workflow run for a tenant
+   *
+   * @tags Workflow
+   * @name WorkflowCronGet
+   * @summary Get cron job workflow run
+   * @request GET:/api/v1/tenants/{tenant}/workflows/crons/{cronId}
+   * @secure
+   */
+  workflowCronGet = (tenant: string, cronId: string, params: RequestParams = {}) =>
+    this.request<CronWorkflows, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/workflows/crons/${cronId}`,
+      method: 'GET',
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Delete a cron job workflow run for a tenant
+   *
+   * @tags Workflow
+   * @name WorkflowCronDelete
+   * @summary Delete cron job workflow run
+   * @request DELETE:/api/v1/tenants/{tenant}/workflows/crons/{cronId}
+   * @secure
+   */
+  workflowCronDelete = (tenant: string, cronId: string, params: RequestParams = {}) =>
+    this.request<void, APIErrors | APIError>({
+      path: `/api/v1/tenants/${tenant}/workflows/crons/${cronId}`,
+      method: 'DELETE',
+      secure: true,
       ...params,
     });
   /**

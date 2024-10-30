@@ -227,7 +227,7 @@ FROM
     active_cron_schedules
 WHERE
     cronSchedules."parentId" = active_cron_schedules."parentId"
-RETURNING cronschedules."parentId", cronschedules.cron, cronschedules."tickerId", cronschedules.input, cronschedules.enabled, cronschedules."additionalMetadata", cronschedules."createdAt", cronschedules."deletedAt", cronschedules."updatedAt", cronschedules.name, active_cron_schedules."workflowVersionId", active_cron_schedules."tenantId"
+RETURNING cronschedules."parentId", cronschedules.cron, cronschedules."tickerId", cronschedules.input, cronschedules.enabled, cronschedules."additionalMetadata", cronschedules."createdAt", cronschedules."deletedAt", cronschedules."updatedAt", cronschedules.name, cronschedules.id, active_cron_schedules."workflowVersionId", active_cron_schedules."tenantId"
 `
 
 type PollCronSchedulesRow struct {
@@ -241,6 +241,7 @@ type PollCronSchedulesRow struct {
 	DeletedAt          pgtype.Timestamp `json:"deletedAt"`
 	UpdatedAt          pgtype.Timestamp `json:"updatedAt"`
 	Name               pgtype.Text      `json:"name"`
+	ID                 pgtype.UUID      `json:"id"`
 	WorkflowVersionId  pgtype.UUID      `json:"workflowVersionId"`
 	TenantId           pgtype.UUID      `json:"tenantId"`
 }
@@ -265,6 +266,7 @@ func (q *Queries) PollCronSchedules(ctx context.Context, db DBTX, tickerid pgtyp
 			&i.DeletedAt,
 			&i.UpdatedAt,
 			&i.Name,
+			&i.ID,
 			&i.WorkflowVersionId,
 			&i.TenantId,
 		); err != nil {

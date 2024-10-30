@@ -576,7 +576,7 @@ INSERT INTO "WorkflowTriggerCronRef" (
     $3::text,
     $4::jsonb,
     $5::jsonb
-) RETURNING "parentId", cron, "tickerId", input, enabled, "additionalMetadata", "createdAt", "deletedAt", "updatedAt", name
+) RETURNING "parentId", cron, "tickerId", input, enabled, "additionalMetadata", "createdAt", "deletedAt", "updatedAt", name, id
 `
 
 type CreateWorkflowTriggerCronRefParams struct {
@@ -607,6 +607,7 @@ func (q *Queries) CreateWorkflowTriggerCronRef(ctx context.Context, db DBTX, arg
 		&i.DeletedAt,
 		&i.UpdatedAt,
 		&i.Name,
+		&i.ID,
 	)
 	return &i, err
 }
@@ -791,19 +792,28 @@ func (q *Queries) CreateWorkflowVersion(ctx context.Context, db DBTX, arg Create
 const deleteWorkflowTriggerCronRef = `-- name: DeleteWorkflowTriggerCronRef :exec
 DELETE FROM "WorkflowTriggerCronRef"
 WHERE
-    "parentId" = $1::uuid AND
-    "cron" = $2::text AND
-    "name" = $3::text
+    "id" = $1::uuid OR
+    (
+        "parentId" = $2::uuid AND
+        "cron" = $3::text AND
+        "name" = $4::text
+    )
 `
 
 type DeleteWorkflowTriggerCronRefParams struct {
-	Parentid pgtype.UUID `json:"parentid"`
-	Cron     string      `json:"cron"`
-	Name     string      `json:"name"`
+	ID       pgtype.UUID `json:"id"`
+	ParentId pgtype.UUID `json:"parentId"`
+	Cron     pgtype.Text `json:"cron"`
+	Name     pgtype.Text `json:"name"`
 }
 
 func (q *Queries) DeleteWorkflowTriggerCronRef(ctx context.Context, db DBTX, arg DeleteWorkflowTriggerCronRefParams) error {
-	_, err := db.Exec(ctx, deleteWorkflowTriggerCronRef, arg.Parentid, arg.Cron, arg.Name)
+	_, err := db.Exec(ctx, deleteWorkflowTriggerCronRef,
+		arg.ID,
+		arg.ParentId,
+		arg.Cron,
+		arg.Name,
+	)
 	return err
 }
 
@@ -1013,7 +1023,7 @@ func (q *Queries) GetWorkflowVersionById(ctx context.Context, db DBTX, id pgtype
 
 const getWorkflowVersionCronTriggerRefs = `-- name: GetWorkflowVersionCronTriggerRefs :many
 SELECT
-    wtc."parentId", wtc.cron, wtc."tickerId", wtc.input, wtc.enabled, wtc."additionalMetadata", wtc."createdAt", wtc."deletedAt", wtc."updatedAt", wtc.name
+    wtc."parentId", wtc.cron, wtc."tickerId", wtc.input, wtc.enabled, wtc."additionalMetadata", wtc."createdAt", wtc."deletedAt", wtc."updatedAt", wtc.name, wtc.id
 FROM
     "WorkflowTriggerCronRef" as wtc
 JOIN "WorkflowTriggers" as wt ON wt."id" = wtc."parentId"
@@ -1041,6 +1051,7 @@ func (q *Queries) GetWorkflowVersionCronTriggerRefs(ctx context.Context, db DBTX
 			&i.DeletedAt,
 			&i.UpdatedAt,
 			&i.Name,
+			&i.ID,
 		); err != nil {
 			return nil, err
 		}
@@ -1386,7 +1397,7 @@ SELECT
     w."id" as "workflowId",
     w."tenantId",
     t.id, t."createdAt", t."updatedAt", t."deletedAt", t."workflowVersionId", t."tenantId",
-    c."parentId", c.cron, c."tickerId", c.input, c.enabled, c."additionalMetadata", c."createdAt", c."deletedAt", c."updatedAt", c.name
+    c."parentId", c.cron, c."tickerId", c.input, c.enabled, c."additionalMetadata", c."createdAt", c."deletedAt", c."updatedAt", c.name, c.id
 FROM
     latest_versions
 JOIN
@@ -1443,6 +1454,7 @@ type ListCronWorkflowsRow struct {
 	DeletedAt_2         pgtype.Timestamp `json:"deletedAt_2"`
 	UpdatedAt_2         pgtype.Timestamp `json:"updatedAt_2"`
 	Name_2              pgtype.Text      `json:"name_2"`
+	ID_2                pgtype.UUID      `json:"id_2"`
 }
 
 // Get all of the latest workflow versions for the tenant
@@ -1484,6 +1496,7 @@ func (q *Queries) ListCronWorkflows(ctx context.Context, db DBTX, arg ListCronWo
 			&i.DeletedAt_2,
 			&i.UpdatedAt_2,
 			&i.Name_2,
+			&i.ID_2,
 		); err != nil {
 			return nil, err
 		}

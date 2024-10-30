@@ -907,7 +907,8 @@ CREATE TABLE "WorkflowTriggerCronRef" (
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "deletedAt" TIMESTAMP(3),
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "name" TEXT
+    "name" TEXT,
+    "id" UUID NOT NULL
 );
 
 -- CreateTable
@@ -1367,6 +1368,9 @@ CREATE UNIQUE INDEX "WorkflowTag_id_key" ON "WorkflowTag"("id" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "WorkflowTag_tenantId_name_key" ON "WorkflowTag"("tenantId" ASC, "name" ASC);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "WorkflowTriggerCronRef_id_key" ON "WorkflowTriggerCronRef"("id" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "WorkflowTriggerCronRef_parentId_cron_key" ON "WorkflowTriggerCronRef"("parentId" ASC, "cron" ASC);

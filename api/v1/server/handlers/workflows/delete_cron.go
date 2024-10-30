@@ -21,9 +21,7 @@ func (t *WorkflowService) WorkflowCronDelete(ctx echo.Context, request gen.Workf
 
 	err := t.config.APIRepository.Workflow().DeleteCronWorkflow(dbCtx,
 		sqlchelpers.UUIDToStr(cron.TenantId),
-		request.Params.Cron,
-		request.Params.CronParentId.String(),
-		request.Params.CronName,
+		sqlchelpers.UUIDToStr(cron.ID),
 	)
 
 	if err != nil {

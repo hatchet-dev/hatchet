@@ -645,6 +645,8 @@ model WorkflowTriggerEventRef {
 }
 
 model WorkflowTriggerCronRef {
+  id String @unique @default(uuid()) @db.Uuid
+
   name String?
 
   // the parent workflow

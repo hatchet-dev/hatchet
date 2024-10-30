@@ -1727,6 +1727,7 @@ type WorkflowTriggerCronRef struct {
 	DeletedAt          pgtype.Timestamp `json:"deletedAt"`
 	UpdatedAt          pgtype.Timestamp `json:"updatedAt"`
 	Name               pgtype.Text      `json:"name"`
+	ID                 pgtype.UUID      `json:"id"`
 }
 
 type WorkflowTriggerEventRef struct {

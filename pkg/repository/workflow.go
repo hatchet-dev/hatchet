@@ -286,7 +286,7 @@ type WorkflowAPIRepository interface {
 	GetCronWorkflow(ctx context.Context, tenantId, cronWorkflowId string) (*dbsqlc.ListCronWorkflowsRow, error)
 
 	// DeleteCronWorkflow deletes a cron workflow run
-	DeleteCronWorkflow(ctx context.Context, tenantId, cron, cronParentId string, cronName *string) error
+	DeleteCronWorkflow(ctx context.Context, tenantId, id string) error
 }
 
 type WorkflowEngineRepository interface {

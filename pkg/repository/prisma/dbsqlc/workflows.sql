@@ -719,6 +719,9 @@ LIMIT
 -- name: DeleteWorkflowTriggerCronRef :exec
 DELETE FROM "WorkflowTriggerCronRef"
 WHERE
-    "parentId" = @parentId::uuid AND
-    "cron" = @cron::text AND
-    "name" = @name::text;
+    "id" = sqlc.narg('id')::uuid OR
+    (
+        "parentId" = sqlc.narg('parentId')::uuid AND
+        "cron" = sqlc.narg('cron')::text AND
+        "name" = sqlc.narg('name')::text
+    );

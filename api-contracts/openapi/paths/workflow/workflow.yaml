@@ -1031,6 +1031,57 @@ scheduled:
       - Workflow
 
 crons:
+  get:
+    x-resources: ["tenant", "cron-workflow"]
+    description: Get a cron job workflow run for a tenant
+    operationId: workflow-cron:get
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The cron job id
+        in: path
+        name: cronId
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "../../components/schemas/_index.yaml#/CronWorkflows"
+          description: Successfully retrieved the workflow runs
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "../../components/schemas/_index.yaml#/APIErrors"
+          description: A malformed or bad request
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "../../components/schemas/_index.yaml#/APIErrors"
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "../../components/schemas/_index.yaml#/APIErrors"
+          description: Forbidden
+    summary: Get cron job workflow run
+    tags:
+      - Workflow
   delete:
     x-resources: ["tenant", "cron-workflow"]
     description: Delete a cron job workflow run for a tenant
@@ -1045,27 +1096,15 @@ crons:
           format: uuid
           minLength: 36
           maxLength: 36
-      - description: The cron job parent id
-        in: query
-        name: cronParentId
+      - description: The cron job id
+        in: path
+        name: cronId
         required: true
         schema:
           type: string
           format: uuid
           minLength: 36
           maxLength: 36
-      - description: The cron job name
-        in: query
-        name: cronName
-        required: false
-        schema:
-          type: string
-      - description: Cron schedule
-        in: query
-        name: cron
-        required: true
-        schema:
-          type: string
     responses:
       "204":
         description: Successfully deleted the cron job workflow run
@@ -1084,6 +1123,8 @@ crons:
     summary: Delete cron job workflow run
     tags:
       - Workflow
+
+cronsList:
   get:
     x-resources: ["tenant"]
     description: Get all cron job workflow runs for a tenant

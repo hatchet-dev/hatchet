@@ -353,11 +353,9 @@ func (w *workflowAPIRepository) GetCronWorkflow(ctx context.Context, tenantId, c
 	return cronWorkflows[0], nil
 }
 
-func (w *workflowAPIRepository) DeleteCronWorkflow(ctx context.Context, tenantId, cron, cronParentId string, cronName *string) error {
+func (w *workflowAPIRepository) DeleteCronWorkflow(ctx context.Context, tenantId, id string) error {
 	return w.queries.DeleteWorkflowTriggerCronRef(ctx, w.pool, dbsqlc.DeleteWorkflowTriggerCronRefParams{
-		Parentid: sqlchelpers.UUIDFromStr(cronParentId),
-		Cron:     cron,
-		Name:     *cronName,
+		ID: sqlchelpers.UUIDFromStr(id),
 	})
 }
 
