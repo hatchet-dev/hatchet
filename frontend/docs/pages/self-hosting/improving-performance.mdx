@@ -253,6 +253,34 @@ SERVER_QUEUESTEPRUNBUFFER_FLUSH_PERIOD_MILLISECONDS
 SERVER_QUEUESTEPRUNBUFFER_FLUSH_ITEMS_THRESHOLD
 ```
 
+A buffer configuration for higher throughput might look like the following:
+
+```sh
+
+# Default values if the values below are not set
+SERVER_FLUSH_PERIOD_MILLISECONDS=250
+SERVER_FLUSH_ITEMS_THRESHOLD=1000
+
+# Settings for writing workflow runs to the database
+SERVER_WORKFLOWRUNBUFFER_FLUSH_PERIOD_MILLISECONDS=100
+SERVER_WORKFLOWRUNBUFFER_FLUSH_ITEMS_THRESHOLD=500
+
+# Settings for writing events to the database
+SERVER_EVENTBUFFER_FLUSH_PERIOD_MILLISECONDS=1000
+SERVER_EVENTBUFFER_FLUSH_ITEMS_THRESHOLD=1000
+
+# Settings for releasing slots for workers
+SERVER_RELEASESEMAPHOREBUFFER_FLUSH_PERIOD_MILLISECONDS=100
+SERVER_RELEASESEMAPHOREBUFFER_FLUSH_ITEMS_THRESHOLD=200
+
+# Settings for writing queue items to the database
+SERVER_QUEUESTEPRUNBUFFER_FLUSH_PERIOD_MILLISECONDS=100
+SERVER_QUEUESTEPRUNBUFFER_FLUSH_ITEMS_THRESHOLD=500
+
+```
+
+Benchmarking and tuning on your own infrastructure is recommended to find the optimal values for your workload and use case.
+
 ## Slow Time to Start
 
 With higher throughput, you may see a slower time to start for each step run in a workflow. The reason for this is typically that each step run needs to be processed in an internal message queue before getting sent to the worker. You can increase the throughput of this internal queue by setting the following environment variable (default value of `100`):
