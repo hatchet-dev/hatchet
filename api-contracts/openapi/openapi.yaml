@@ -121,7 +121,7 @@ paths:
   /api/v1/tenants/{tenant}/workflows/scheduled/{scheduledId}:
     $ref: "./paths/workflow/workflow.yaml#/scheduled"
   /api/v1/tenants/{tenant}/workflows/crons:
-    $ref: "./paths/workflow/workflow.yaml#/cronsList"
+    $ref: "./paths/workflow/workflow.yaml#/crons"
   /api/v1/tenants/{tenant}/workflows/cancel:
     $ref: "./paths/workflow/workflow.yaml#/cancelWorkflowRuns"
   /api/v1/workflows/{workflow}:

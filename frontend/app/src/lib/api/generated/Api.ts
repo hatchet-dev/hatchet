@@ -1220,6 +1220,39 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       ...params,
     });
   /**
+   * @description Delete a cron job workflow run for a tenant
+   *
+   * @tags Workflow
+   * @name WorkflowCronDelete
+   * @summary Delete cron job workflow run
+   * @request DELETE:/api/v1/tenants/{tenant}/workflows/crons
+   * @secure
+   */
+  workflowCronDelete = (
+    tenant: string,
+    query: {
+      /**
+       * The cron job parent id
+       * @format uuid
+       * @minLength 36
+       * @maxLength 36
+       */
+      cronParentId: string;
+      /** The cron job name */
+      cronName?: string;
+      /** Cron schedule */
+      cron: string;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<void, APIErrors | APIError>({
+      path: `/api/v1/tenants/${tenant}/workflows/crons`,
+      method: 'DELETE',
+      query: query,
+      secure: true,
+      ...params,
+    });
+  /**
    * @description Get all cron job workflow runs for a tenant
    *
    * @tags Workflow

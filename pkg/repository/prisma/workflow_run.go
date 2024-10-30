@@ -253,60 +253,6 @@ func (w *workflowRunAPIRepository) UpdateScheduledWorkflow(ctx context.Context, 
 	})
 }
 
-func (w *workflowRunAPIRepository) ListCronWorkflows(ctx context.Context, tenantId string, opts *repository.ListCronWorkflowsOpts) ([]*dbsqlc.ListCronWorkflowsRow, int64, error) {
-	if err := w.v.Validate(opts); err != nil {
-		return nil, 0, err
-	}
-
-	ctx, cancel := context.WithTimeout(ctx, time.Second*30)
-	defer cancel()
-
-	count, err := w.queries.CountCronWorkflows(ctx, w.pool, sqlchelpers.UUIDFromStr(tenantId))
-
-	if err != nil {
-		return nil, 0, err
-	}
-
-	listOpts := dbsqlc.ListCronWorkflowsParams{
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
-	}
-
-	if opts.Limit != nil {
-		listOpts.Limit = pgtype.Int4{
-			Int32: int32(*opts.Limit), // nolint: gosec
-			Valid: true,
-		}
-	}
-
-	if opts.Offset != nil {
-		listOpts.Offset = pgtype.Int4{
-			Int32: int32(*opts.Offset), // nolint: gosec
-			Valid: true,
-		}
-	}
-
-	orderByField := "createdAt"
-
-	if opts.OrderBy != nil {
-		orderByField = *opts.OrderBy
-	}
-
-	orderByDirection := "DESC"
-
-	if opts.OrderDirection != nil {
-		orderByDirection = *opts.OrderDirection
-	}
-
-	listOpts.Orderby = orderByField + " " + orderByDirection
-
-	cronWorkflows, err := w.queries.ListCronWorkflows(ctx, w.pool, listOpts)
-	if err != nil {
-		return nil, 0, err
-	}
-
-	return cronWorkflows, count, nil
-}
-
 func (w *workflowRunEngineRepository) GetWorkflowRunInputData(tenantId, workflowRunId string) (map[string]interface{}, error) {
 	lookupData := datautils.JobRunLookupData{}
 
@@ -1695,7 +1641,7 @@ func createNewWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbs
 
 			var (
 				eventId, cronParentId, scheduledWorkflowId pgtype.UUID
-				cronSchedule                               pgtype.Text
+				cronSchedule, cronName                     pgtype.Text
 			)
 
 			if opt.TriggeringEventId != nil {
@@ -1710,6 +1656,10 @@ func createNewWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbs
 				cronSchedule = sqlchelpers.TextFromStr(*opt.Cron)
 			}
 
+			if opt.CronName != nil {
+				cronName = sqlchelpers.TextFromStr(*opt.CronName)
+			}
+
 			if opt.ScheduledWorkflowId != nil {
 				scheduledWorkflowId = sqlchelpers.UUIDFromStr(*opt.ScheduledWorkflowId)
 			}
@@ -1722,6 +1672,7 @@ func createNewWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbs
 				CronParentId: cronParentId,
 				ScheduledId:  scheduledWorkflowId,
 				CronSchedule: cronSchedule,
+				CronName:     cronName,
 			}
 
 			triggeredByParams = append(triggeredByParams, cp)

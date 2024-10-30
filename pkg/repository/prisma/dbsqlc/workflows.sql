@@ -331,11 +331,15 @@ INSERT INTO "WorkflowTriggerEventRef" (
 INSERT INTO "WorkflowTriggerCronRef" (
     "parentId",
     "cron",
-    "input"
+    "name",
+    "input",
+    "additionalMetadata"
 ) VALUES (
     @workflowTriggersId::uuid,
     @cronTrigger::text,
-    sqlc.narg('input')::jsonb
+    sqlc.narg('name')::text,
+    sqlc.narg('input')::jsonb,
+    sqlc.narg('additionalMetadata')::jsonb
 ) RETURNING *;
 
 -- name: CreateWorkflowTriggerScheduledRef :one
@@ -664,3 +668,57 @@ WHERE
 ORDER BY
     wv."order" DESC
 LIMIT 1;
+
+
+-- name: ListCronWorkflows :many
+-- Get all of the latest workflow versions for the tenant
+WITH latest_versions AS (
+    SELECT DISTINCT ON("workflowId")
+        workflowVersions."id" AS "workflowVersionId",
+        workflowVersions."workflowId"
+    FROM
+        "WorkflowVersion" as workflowVersions
+    JOIN
+        "Workflow" as workflow ON workflow."id" = workflowVersions."workflowId"
+    WHERE
+        workflow."tenantId" = @tenantId::uuid
+        AND workflowVersions."deletedAt" IS NULL
+    ORDER BY "workflowId", "order" DESC
+)
+SELECT
+    latest_versions."workflowVersionId",
+    w."name",
+    w."id" as "workflowId",
+    w."tenantId",
+    t.*,
+    c.*
+FROM
+    latest_versions
+JOIN
+    "WorkflowTriggers" as t ON t."workflowVersionId" = latest_versions."workflowVersionId"
+JOIN
+    "WorkflowTriggerCronRef" as c ON c."parentId" = t."id"
+JOIN
+    "Workflow" w on w."id" = latest_versions."workflowId"
+WHERE
+    t."deletedAt" IS NULL
+    AND w."tenantId" = @tenantId::uuid
+    AND (@cronId::uuid IS NULL OR t."id" = @cronId::uuid)
+    AND (@workflowId::uuid IS NULL OR w."id" = @workflowId::uuid)
+    AND (sqlc.narg('additionalMetadata')::jsonb IS NULL OR
+        c."additionalMetadata" @> sqlc.narg('additionalMetadata')::jsonb)
+ORDER BY
+    case when @orderBy = 'createdAt ASC' THEN t."createdAt" END ASC ,
+    case when @orderBy = 'createdAt DESC' THEN t."createdAt" END DESC,
+    t."id" ASC
+OFFSET
+    COALESCE(sqlc.narg('offset'), 0)
+LIMIT
+    COALESCE(sqlc.narg('limit'), 50);
+
+-- name: DeleteWorkflowTriggerCronRef :exec
+DELETE FROM "WorkflowTriggerCronRef"
+WHERE
+    "parentId" = @parentId::uuid AND
+    "cron" = @cron::text AND
+    "name" = @name::text;

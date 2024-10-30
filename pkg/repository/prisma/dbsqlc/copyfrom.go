@@ -192,6 +192,7 @@ func (r iteratorForCreateWorkflowRunTriggeredBys) Values() ([]interface{}, error
 		r.rows[0].EventId,
 		r.rows[0].CronParentId,
 		r.rows[0].CronSchedule,
+		r.rows[0].CronName,
 		r.rows[0].ScheduledId,
 	}, nil
 }
@@ -201,7 +202,7 @@ func (r iteratorForCreateWorkflowRunTriggeredBys) Err() error {
 }
 
 func (q *Queries) CreateWorkflowRunTriggeredBys(ctx context.Context, db DBTX, arg []CreateWorkflowRunTriggeredBysParams) (int64, error) {
-	return db.CopyFrom(ctx, []string{"WorkflowRunTriggeredBy"}, []string{"id", "tenantId", "parentId", "eventId", "cronParentId", "cronSchedule", "scheduledId"}, &iteratorForCreateWorkflowRunTriggeredBys{rows: arg})
+	return db.CopyFrom(ctx, []string{"WorkflowRunTriggeredBy"}, []string{"id", "tenantId", "parentId", "eventId", "cronParentId", "cronSchedule", "cronName", "scheduledId"}, &iteratorForCreateWorkflowRunTriggeredBys{rows: arg})
 }
 
 // iteratorForCreateWorkflowRuns implements pgx.CopyFromSource.

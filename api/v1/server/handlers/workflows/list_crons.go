@@ -22,7 +22,7 @@ func (t *WorkflowService) CronWorkflowList(ctx echo.Context, request gen.CronWor
 	limit := 50
 	offset := 0
 	orderDirection := "DESC"
-	orderBy := "triggerAt"
+	orderBy := "createdAt"
 
 	listOpts := &repository.ListCronWorkflowsOpts{
 		Limit:          &limit,
@@ -76,7 +76,7 @@ func (t *WorkflowService) CronWorkflowList(ctx echo.Context, request gen.CronWor
 	dbCtx, cancel := context.WithTimeout(ctx.Request().Context(), 30*time.Second)
 	defer cancel()
 
-	scheduled, count, err := t.config.APIRepository.WorkflowRun().ListCronWorkflows(dbCtx, tenant.ID, listOpts)
+	scheduled, count, err := t.config.APIRepository.Workflow().ListCronWorkflows(dbCtx, tenant.ID, listOpts)
 
 	if err != nil {
 		return nil, err

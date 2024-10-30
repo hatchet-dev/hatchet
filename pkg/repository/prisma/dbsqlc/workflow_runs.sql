@@ -684,6 +684,7 @@ INSERT INTO "WorkflowRunTriggeredBy" (
     "eventId",
     "cronParentId",
     "cronSchedule",
+    "cronName",
     "scheduledId"
 ) VALUES (
     gen_random_uuid(),
@@ -694,12 +695,12 @@ INSERT INTO "WorkflowRunTriggeredBy" (
     @workflowRunId::uuid,
     sqlc.narg('eventId')::uuid,
     sqlc.narg('cronParentId')::uuid,
-    sqlc.narg('cron')::text,
+    sqlc.narg('cronSchedule')::text,
+    sqlc.narg('cronName')::text,
     sqlc.narg('scheduledId')::uuid
 ) RETURNING *;
 
 -- name: CreateWorkflowRunTriggeredBys :copyfrom
-
 INSERT INTO "WorkflowRunTriggeredBy" (
     "id",
     "tenantId",
@@ -707,6 +708,7 @@ INSERT INTO "WorkflowRunTriggeredBy" (
     "eventId",
     "cronParentId",
     "cronSchedule",
+    "cronName",
     "scheduledId"
 ) VALUES (
     $1,
@@ -715,8 +717,8 @@ INSERT INTO "WorkflowRunTriggeredBy" (
     $4,
     $5,
     $6,
-    $7
-
+    $7,
+    $8
 );
 
 -- name: CreateGetGroupKeyRun :one
@@ -1494,29 +1496,6 @@ WHERE
 DELETE FROM "WorkflowTriggerScheduledRef"
 WHERE
     "id" = @scheduleId::uuid;
-
--- name: ListCronWorkflows :many
-SELECT
-    w."name",
-    w."id" as "workflowId",
-    v."id" as "workflowVersionId",
-    w."tenantId",
-    t.*,
-    c.*
-FROM "WorkflowTriggerCronRef" c
-JOIN "WorkflowTriggers" t ON c."parentId" = t."id"
-JOIN "WorkflowVersion" v ON t."workflowVersionId" = v."id"
-JOIN "Workflow" w on v."workflowId" = w."id"
-WHERE v."deletedAt" IS NULL
-	AND w."tenantId" = @tenantId::uuid
-ORDER BY
-    case when @orderBy = 'createdAt ASC' THEN t."createdAt" END ASC ,
-    case when @orderBy = 'createdAt DESC' THEN t."createdAt" END DESC,
-    t."id" ASC
-OFFSET
-    COALESCE(sqlc.narg('offset'), 0)
-LIMIT
-    COALESCE(sqlc.narg('limit'), 50);
 
 -- name: CountCronWorkflows :one
 SELECT count(*)

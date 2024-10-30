@@ -58,6 +58,16 @@ type CreateWorkflowVersionOpts struct {
 	DefaultPriority *int32 `validate:"omitempty,min=1,max=3"`
 }
 
+type CreateCronWorkflowTriggerOpts struct {
+	// (required) the workflow name
+	Name string `validate:"required"`
+
+	Cron string `validate:"required,cron"`
+
+	Input              []byte
+	AdditionalMetadata []byte
+}
+
 type CreateWorkflowConcurrencyOpts struct {
 	// (optional) the action id for getting the concurrency group
 	Action *string `validate:"omitempty,actionId"`
@@ -265,6 +275,18 @@ type WorkflowAPIRepository interface {
 
 	// GetWorkflowWorkerCount returns the number of workers for a given workflow.
 	GetWorkflowWorkerCount(tenantId, workflowId string) (int, int, error)
+
+	// CreateCronWorkflow creates a cron trigger
+	CreateCronWorkflow(ctx context.Context, tenantId string, opts *CreateCronWorkflowTriggerOpts) (*dbsqlc.WorkflowRun, error)
+
+	// List ScheduledWorkflows lists workflows by scheduled trigger
+	ListCronWorkflows(ctx context.Context, tenantId string, opts *ListCronWorkflowsOpts) ([]*dbsqlc.ListCronWorkflowsRow, int64, error)
+
+	// GetCronWorkflow gets a cron workflow run
+	GetCronWorkflow(ctx context.Context, tenantId, cronWorkflowId string) (*dbsqlc.ListCronWorkflowsRow, error)
+
+	// DeleteCronWorkflow deletes a cron workflow run
+	DeleteCronWorkflow(ctx context.Context, tenantId, cron, cronParentId string, cronName *string) error
 }
 
 type WorkflowEngineRepository interface {

@@ -31,6 +31,7 @@ type CreateWorkflowRunOpts struct {
 	// (optional) the cron schedule that triggered the workflow run
 	Cron         *string `validate:"omitnil,cron,required_without=ManualTriggerInput,required_without=TriggeringEventId,required_without=ScheduledWorkflowId,excluded_with=ManualTriggerInput,excluded_with=TriggeringEventId,excluded_with=ScheduledWorkflowId"`
 	CronParentId *string `validate:"omitnil,uuid,required_without=ManualTriggerInput,required_without=TriggeringEventId,required_without=ScheduledWorkflowId,excluded_with=ManualTriggerInput,excluded_with=TriggeringEventId,excluded_with=ScheduledWorkflowId"`
+	CronName     *string `validate:"omitnil,exclude_without=Cron"`
 
 	// (optional) the scheduled trigger
 	ScheduledWorkflowId *string `validate:"omitnil,uuid,required_without=ManualTriggerInput,required_without=TriggeringEventId,required_without=Cron,excluded_with=ManualTriggerInput,excluded_with=TriggeringEventId,excluded_with=Cron"`
@@ -190,6 +191,7 @@ func GetCreateWorkflowRunOptsFromEvent(
 func GetCreateWorkflowRunOptsFromCron(
 	cron,
 	cronParentId string,
+	cronName *string,
 	workflowVersion *dbsqlc.GetWorkflowVersionForEngineRow,
 	input []byte,
 	additionalMetadata map[string]interface{},
@@ -203,6 +205,7 @@ func GetCreateWorkflowRunOptsFromCron(
 		WorkflowVersionId:  sqlchelpers.UUIDToStr(workflowVersion.WorkflowVersion.ID),
 		Cron:               &cron,
 		CronParentId:       &cronParentId,
+		CronName:           cronName,
 		TriggeredBy:        string(datautils.TriggeredByCron),
 		InputData:          input,
 		AdditionalMetadata: additionalMetadata,
@@ -460,9 +463,6 @@ type WorkflowRunAPIRepository interface {
 
 	// UpdateScheduledWorkflow updates a scheduled workflow run
 	UpdateScheduledWorkflow(ctx context.Context, tenantId, scheduledWorkflowId string, triggerAt time.Time) error
-
-	// List ScheduledWorkflows lists workflows by scheduled trigger
-	ListCronWorkflows(ctx context.Context, tenantId string, opts *ListCronWorkflowsOpts) ([]*dbsqlc.ListCronWorkflowsRow, int64, error)
 
 	// CreateNewWorkflowRun creates a new workflow run for a workflow version.
 	CreateNewWorkflowRun(ctx context.Context, tenantId string, opts *CreateWorkflowRunOpts) (*dbsqlc.WorkflowRun, error)

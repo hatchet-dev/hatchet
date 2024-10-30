@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -277,6 +278,118 @@ func (r *workflowAPIRepository) GetWorkflowMetrics(tenantId, workflowId string, 
 		GroupKeyRunsCount: int(runsCount),
 		GroupKeyCount:     int(groupKeysCount),
 	}, nil
+}
+
+func (w *workflowAPIRepository) ListCronWorkflows(ctx context.Context, tenantId string, opts *repository.ListCronWorkflowsOpts) ([]*dbsqlc.ListCronWorkflowsRow, int64, error) {
+	if err := w.v.Validate(opts); err != nil {
+		return nil, 0, err
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, time.Second*30)
+	defer cancel()
+
+	count, err := w.queries.CountCronWorkflows(ctx, w.pool, sqlchelpers.UUIDFromStr(tenantId))
+
+	if err != nil {
+		return nil, 0, err
+	}
+
+	listOpts := dbsqlc.ListCronWorkflowsParams{
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+	}
+
+	if opts.Limit != nil {
+		listOpts.Limit = pgtype.Int4{
+			Int32: int32(*opts.Limit), // nolint: gosec
+			Valid: true,
+		}
+	}
+
+	if opts.Offset != nil {
+		listOpts.Offset = pgtype.Int4{
+			Int32: int32(*opts.Offset), // nolint: gosec
+			Valid: true,
+		}
+	}
+
+	orderByField := "createdAt"
+
+	if opts.OrderBy != nil {
+		orderByField = *opts.OrderBy
+	}
+
+	orderByDirection := "DESC"
+
+	if opts.OrderDirection != nil {
+		orderByDirection = *opts.OrderDirection
+	}
+
+	listOpts.Orderby = orderByField + " " + orderByDirection
+
+	cronWorkflows, err := w.queries.ListCronWorkflows(ctx, w.pool, listOpts)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return cronWorkflows, count, nil
+}
+
+func (w *workflowAPIRepository) GetCronWorkflow(ctx context.Context, tenantId, cronWorkflowId string) (*dbsqlc.ListCronWorkflowsRow, error) {
+	listOpts := dbsqlc.ListCronWorkflowsParams{
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Cronid:   sqlchelpers.UUIDFromStr(cronWorkflowId),
+	}
+
+	cronWorkflows, err := w.queries.ListCronWorkflows(ctx, w.pool, listOpts)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if len(cronWorkflows) == 0 {
+		return nil, nil
+	}
+
+	return cronWorkflows[0], nil
+}
+
+func (w *workflowAPIRepository) DeleteCronWorkflow(ctx context.Context, tenantId, cron, cronParentId string, cronName *string) error {
+	return w.queries.DeleteWorkflowTriggerCronRef(ctx, w.pool, dbsqlc.DeleteWorkflowTriggerCronRefParams{
+		Parentid: sqlchelpers.UUIDFromStr(cronParentId),
+		Cron:     cron,
+		Name:     *cronName,
+	})
+}
+
+func (w *workflowAPIRepository) CreateCronWorkflow(ctx context.Context, tenantId string, opts *repository.CreateCronWorkflowTriggerOpts) (*dbsqlc.WorkflowRun, error) {
+
+	workflow, err := w.queries.GetWorkflowByName(ctx, w.pool, dbsqlc.GetWorkflowByNameParams{
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Name:     opts.Name,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	createParams := dbsqlc.CreateWorkflowTriggerCronRefParams{
+		Workflowtriggersid: workflow.ID,
+		Crontrigger:        opts.Cron,
+		Name:               sqlchelpers.TextFromStr(opts.Name),
+		Input:              opts.Input,
+		AdditionalMetadata: opts.AdditionalMetadata,
+	}
+
+	_, err = w.queries.CreateWorkflowTriggerCronRef(ctx, w.pool, createParams)
+
+	if err != nil {
+		return nil, err
+	}
+
+	// TODO: return the cron workflow trigger
+	// cronWorkflow, err := w.GetCronWorkflow(ctx, tenantId, cronWorkflowTrigger.)
+
+	return nil, nil
 }
 
 type workflowEngineRepository struct {

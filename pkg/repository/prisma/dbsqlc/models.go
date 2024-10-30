@@ -1699,6 +1699,7 @@ type WorkflowRunTriggeredBy struct {
 	ScheduledId  pgtype.UUID      `json:"scheduledId"`
 	Input        []byte           `json:"input"`
 	ParentId     pgtype.UUID      `json:"parentId"`
+	CronName     pgtype.Text      `json:"cronName"`
 }
 
 type WorkflowTag struct {
@@ -1725,6 +1726,7 @@ type WorkflowTriggerCronRef struct {
 	CreatedAt          pgtype.Timestamp `json:"createdAt"`
 	DeletedAt          pgtype.Timestamp `json:"deletedAt"`
 	UpdatedAt          pgtype.Timestamp `json:"updatedAt"`
+	Name               pgtype.Text      `json:"name"`
 }
 
 type WorkflowTriggerEventRef struct {

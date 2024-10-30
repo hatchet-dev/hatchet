@@ -1537,6 +1537,18 @@ type WorkflowRunListStepRunEventsParams struct {
 	LastId *int32 `form:"lastId,omitempty" json:"lastId,omitempty"`
 }
 
+// WorkflowCronDeleteParams defines parameters for WorkflowCronDelete.
+type WorkflowCronDeleteParams struct {
+	// CronParentId The cron job parent id
+	CronParentId openapi_types.UUID `form:"cronParentId" json:"cronParentId"`
+
+	// CronName The cron job name
+	CronName *string `form:"cronName,omitempty" json:"cronName,omitempty"`
+
+	// Cron Cron schedule
+	Cron string `form:"cron" json:"cron"`
+}
+
 // CronWorkflowListParams defines parameters for CronWorkflowList.
 type CronWorkflowListParams struct {
 	// Offset The number to skip
@@ -2028,6 +2040,9 @@ type ClientInterface interface {
 	WorkflowRunCancelWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	WorkflowRunCancel(ctx context.Context, tenant openapi_types.UUID, body WorkflowRunCancelJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// WorkflowCronDelete request
+	WorkflowCronDelete(ctx context.Context, tenant openapi_types.UUID, params *WorkflowCronDeleteParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// CronWorkflowList request
 	CronWorkflowList(ctx context.Context, tenant openapi_types.UUID, params *CronWorkflowListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -3005,6 +3020,18 @@ func (c *Client) WorkflowRunCancelWithBody(ctx context.Context, tenant openapi_t
 
 func (c *Client) WorkflowRunCancel(ctx context.Context, tenant openapi_types.UUID, body WorkflowRunCancelJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewWorkflowRunCancelRequest(c.Server, tenant, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) WorkflowCronDelete(ctx context.Context, tenant openapi_types.UUID, params *WorkflowCronDeleteParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWorkflowCronDeleteRequest(c.Server, tenant, params)
 	if err != nil {
 		return nil, err
 	}
@@ -6161,6 +6188,86 @@ func NewWorkflowRunCancelRequestWithBody(server string, tenant openapi_types.UUI
 	return req, nil
 }
 
+// NewWorkflowCronDeleteRequest generates requests for WorkflowCronDelete
+func NewWorkflowCronDeleteRequest(server string, tenant openapi_types.UUID, params *WorkflowCronDeleteParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/tenants/%s/workflows/crons", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "cronParentId", runtime.ParamLocationQuery, params.CronParentId); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		if params.CronName != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "cronName", runtime.ParamLocationQuery, *params.CronName); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "cron", runtime.ParamLocationQuery, params.Cron); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewCronWorkflowListRequest generates requests for CronWorkflowList
 func NewCronWorkflowListRequest(server string, tenant openapi_types.UUID, params *CronWorkflowListParams) (*http.Request, error) {
 	var err error
@@ -8186,6 +8293,9 @@ type ClientWithResponsesInterface interface {
 
 	WorkflowRunCancelWithResponse(ctx context.Context, tenant openapi_types.UUID, body WorkflowRunCancelJSONRequestBody, reqEditors ...RequestEditorFn) (*WorkflowRunCancelResponse, error)
 
+	// WorkflowCronDeleteWithResponse request
+	WorkflowCronDeleteWithResponse(ctx context.Context, tenant openapi_types.UUID, params *WorkflowCronDeleteParams, reqEditors ...RequestEditorFn) (*WorkflowCronDeleteResponse, error)
+
 	// CronWorkflowListWithResponse request
 	CronWorkflowListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *CronWorkflowListParams, reqEditors ...RequestEditorFn) (*CronWorkflowListResponse, error)
 
@@ -9671,6 +9781,29 @@ func (r WorkflowRunCancelResponse) StatusCode() int {
 	return 0
 }
 
+type WorkflowCronDeleteResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *APIErrors
+	JSON403      *APIError
+}
+
+// Status returns HTTPResponse.Status
+func (r WorkflowCronDeleteResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r WorkflowCronDeleteResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type CronWorkflowListResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -11048,6 +11181,15 @@ func (c *ClientWithResponses) WorkflowRunCancelWithResponse(ctx context.Context,
 		return nil, err
 	}
 	return ParseWorkflowRunCancelResponse(rsp)
+}
+
+// WorkflowCronDeleteWithResponse request returning *WorkflowCronDeleteResponse
+func (c *ClientWithResponses) WorkflowCronDeleteWithResponse(ctx context.Context, tenant openapi_types.UUID, params *WorkflowCronDeleteParams, reqEditors ...RequestEditorFn) (*WorkflowCronDeleteResponse, error) {
+	rsp, err := c.WorkflowCronDelete(ctx, tenant, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseWorkflowCronDeleteResponse(rsp)
 }
 
 // CronWorkflowListWithResponse request returning *CronWorkflowListResponse
@@ -13679,6 +13821,39 @@ func ParseWorkflowRunCancelResponse(rsp *http.Response) (*WorkflowRunCancelRespo
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
 		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseWorkflowCronDeleteResponse parses an HTTP response from a WorkflowCronDeleteWithResponse call
+func ParseWorkflowCronDeleteResponse(rsp *http.Response) (*WorkflowCronDeleteResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &WorkflowCronDeleteResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

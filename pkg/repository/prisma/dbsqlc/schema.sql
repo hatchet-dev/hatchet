@@ -879,6 +879,7 @@ CREATE TABLE "WorkflowRunTriggeredBy" (
     "scheduledId" UUID,
     "input" JSONB,
     "parentId" UUID NOT NULL,
+    "cronName" TEXT,
 
     CONSTRAINT "WorkflowRunTriggeredBy_pkey" PRIMARY KEY ("id")
 );
@@ -905,7 +906,8 @@ CREATE TABLE "WorkflowTriggerCronRef" (
     "additionalMetadata" JSONB,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "deletedAt" TIMESTAMP(3),
-    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "name" TEXT
 );
 
 -- CreateTable
@@ -1370,6 +1372,9 @@ CREATE UNIQUE INDEX "WorkflowTag_tenantId_name_key" ON "WorkflowTag"("tenantId" 
 CREATE UNIQUE INDEX "WorkflowTriggerCronRef_parentId_cron_key" ON "WorkflowTriggerCronRef"("parentId" ASC, "cron" ASC);
 
 -- CreateIndex
+CREATE UNIQUE INDEX "WorkflowTriggerCronRef_parentId_cron_name_key" ON "WorkflowTriggerCronRef"("parentId" ASC, "cron" ASC, "name" ASC);
+
+-- CreateIndex
 CREATE UNIQUE INDEX "WorkflowTriggerEventRef_parentId_eventKey_key" ON "WorkflowTriggerEventRef"("parentId" ASC, "eventKey" ASC);
 
 -- CreateIndex
@@ -1577,7 +1582,7 @@ ALTER TABLE "WorkflowRun" ADD CONSTRAINT "WorkflowRun_parentStepRunId_fkey" FORE
 ALTER TABLE "WorkflowRunStickyState" ADD CONSTRAINT "WorkflowRunStickyState_workflowRunId_fkey" FOREIGN KEY ("workflowRunId") REFERENCES "WorkflowRun"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "WorkflowRunTriggeredBy" ADD CONSTRAINT "WorkflowRunTriggeredBy_cronParentId_cronSchedule_fkey" FOREIGN KEY ("cronParentId", "cronSchedule") REFERENCES "WorkflowTriggerCronRef"("parentId", "cron") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "WorkflowRunTriggeredBy" ADD CONSTRAINT "WorkflowRunTriggeredBy_cronParentId_cronSchedule_cronName_fkey" FOREIGN KEY ("cronParentId", "cronSchedule", "cronName") REFERENCES "WorkflowTriggerCronRef"("parentId", "cron", "name") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "WorkflowRunTriggeredBy" ADD CONSTRAINT "WorkflowRunTriggeredBy_scheduledId_fkey" FOREIGN KEY ("scheduledId") REFERENCES "WorkflowTriggerScheduledRef"("id") ON DELETE SET NULL ON UPDATE CASCADE;
