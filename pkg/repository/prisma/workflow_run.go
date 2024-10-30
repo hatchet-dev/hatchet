@@ -56,7 +56,7 @@ func NewWorkflowRunRepository(client *db.PrismaClient, pool *pgxpool.Pool, v val
 		cf:      cf,
 	}
 
-	err := w.startBuffer()
+	err := w.startBuffer(cf.WorkflowRunBuffer)
 
 	if err != nil {
 		l.Error().Err(err).Msg("could not start buffer")
@@ -70,7 +70,7 @@ func (w *workflowRunAPIRepository) cleanup() error {
 
 	return w.bulkCreateBuffer.Cleanup()
 }
-func (w *workflowRunAPIRepository) startBuffer() error {
+func (w *workflowRunAPIRepository) startBuffer(conf buffer.ConfigFileBuffer) error {
 
 	createWorkflowRunBufOpts := buffer.TenantBufManagerOpts[*repository.CreateWorkflowRunOpts, *dbsqlc.WorkflowRun]{
 		Name:       "api_create_workflow_run",

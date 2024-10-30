@@ -185,9 +185,9 @@ func sizeOfEvent(item *repository.CreateEventOpts) int {
 	return len(item.Data) + len(item.AdditionalMetadata)
 }
 
-func (e *eventEngineRepository) startBufferLoop() error {
+func (e *eventEngineRepository) startBufferLoop(conf buffer.ConfigFileBuffer) error {
 
-	tenantBufOpts := buffer.TenantBufManagerOpts[*repository.CreateEventOpts, *dbsqlc.Event]{Name: "create_events", OutputFunc: e.BulkCreateEventSharedTenant, SizeFunc: sizeOfEvent, L: e.l, V: e.v}
+	tenantBufOpts := buffer.TenantBufManagerOpts[*repository.CreateEventOpts, *dbsqlc.Event]{Name: "create_events", OutputFunc: e.BulkCreateEventSharedTenant, SizeFunc: sizeOfEvent, L: e.l, V: e.v, Config: conf}
 	var err error
 	e.bulkCreateBuffer, err = buffer.NewTenantBufManager(tenantBufOpts)
 
@@ -225,7 +225,7 @@ func (r *eventEngineRepository) cleanup() error {
 	return r.bulkCreateBuffer.Cleanup()
 }
 
-func NewEventEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, m *metered.Metered) (repository.EventEngineRepository, func() error, error) {
+func NewEventEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, m *metered.Metered, bufferConf buffer.ConfigFileBuffer) (repository.EventEngineRepository, func() error, error) {
 	queries := dbsqlc.New()
 
 	createEventKeyCache, _ := lru.New[string, bool](2000) // nolint: errcheck - this only returns an error if the size is less than 0
@@ -238,7 +238,7 @@ func NewEventEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zero
 		m:                   m,
 		createEventKeyCache: createEventKeyCache,
 	}
-	err := e.startBufferLoop()
+	err := e.startBufferLoop(bufferConf)
 
 	return &e, e.cleanup, err
 }
