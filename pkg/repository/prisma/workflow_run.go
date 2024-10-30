@@ -657,6 +657,13 @@ func (w *workflowRunEngineRepository) GetWorkflowRunByIds(ctx context.Context, t
 	return runs, nil
 }
 
+func (w *workflowRunEngineRepository) GetFailureDetails(ctx context.Context, tenantId, workflowRunId string) (*dbsqlc.GetFailureDetailsRow, error) {
+	return w.queries.GetFailureDetails(ctx, w.pool, dbsqlc.GetFailureDetailsParams{
+		Tenantid:      sqlchelpers.UUIDFromStr(tenantId),
+		Workflowrunid: sqlchelpers.UUIDFromStr(workflowRunId),
+	})
+}
+
 func (w *workflowRunEngineRepository) GetWorkflowRunAdditionalMeta(ctx context.Context, tenantId, workflowRunId string) (*dbsqlc.GetWorkflowRunAdditionalMetaRow, error) {
 	return w.queries.GetWorkflowRunAdditionalMeta(ctx, w.pool, dbsqlc.GetWorkflowRunAdditionalMetaParams{
 		Tenantid:      sqlchelpers.UUIDFromStr(tenantId),
@@ -1232,17 +1239,6 @@ func listWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbsqlc.Q
 
 		queryParams.Statuses = statuses
 		countParams.Statuses = statuses
-	}
-
-	if opts.JobRunStatuses != nil {
-		jobRunStatuses := make([]string, 0)
-
-		for _, status := range *opts.JobRunStatuses {
-			jobRunStatuses = append(jobRunStatuses, string(status))
-		}
-
-		queryParams.JobRunStatuses = jobRunStatuses
-		countParams.JobRunStatuses = jobRunStatuses
 	}
 
 	if opts.Kinds != nil {

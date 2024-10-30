@@ -281,9 +281,6 @@ type ListWorkflowRunsOpts struct {
 	// (optional) the status of the workflow run
 	Statuses *[]db.WorkflowRunStatus
 
-	// (optional) the status of the job run
-	JobRunStatuses *[]db.JobRunStatus
-
 	// (optional) a list of kinds to filter by
 	Kinds *[]dbsqlc.WorkflowKind
 
@@ -486,4 +483,6 @@ type WorkflowRunEngineRepository interface {
 	// DeleteExpiredWorkflowRuns deletes workflow runs that were created before the given time. It returns the number of deleted runs
 	// and the number of non-deleted runs that match the conditions.
 	SoftDeleteExpiredWorkflowRuns(ctx context.Context, tenantId string, statuses []dbsqlc.WorkflowRunStatus, before time.Time) (bool, error)
+
+	GetFailureDetails(ctx context.Context, tenantId, workflowRunId string) (*dbsqlc.GetFailureDetailsRow, error)
 }

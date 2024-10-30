@@ -97,12 +97,6 @@ func (t *TenantAlertManager) sendWorkflowRunAlert(ctx context.Context, tenantAle
 		db.WorkflowRunStatusFailed,
 	}
 
-	// NOTE: we only alert on failed job runs for now,
-	// we may want to add CANCELLED or other statuses in the future
-	jobRunStatuses := []db.JobRunStatus{
-		db.JobRunStatusFailed,
-	}
-
 	limit := 5
 
 	tenantId := sqlchelpers.UUIDToStr(tenantAlerting.Settings.TenantId)
@@ -116,7 +110,6 @@ func (t *TenantAlertManager) sendWorkflowRunAlert(ctx context.Context, tenantAle
 			OrderBy:        repository.StringPtr("createdAt"),
 			OrderDirection: repository.StringPtr("DESC"),
 			FinishedAfter:  &prevLastAlertedAt,
-			JobRunStatuses: &jobRunStatuses,
 		},
 	)
 
@@ -128,7 +121,11 @@ func (t *TenantAlertManager) sendWorkflowRunAlert(ctx context.Context, tenantAle
 		return nil
 	}
 
-	failedItems := t.getFailedItems(failedWorkflowRuns)
+	failedItems, err := t.getFailedItems(failedWorkflowRuns)
+
+	if err != nil {
+		return err
+	}
 
 	// iterate through possible alerters
 	for _, slackWebhook := range tenantAlerting.SlackWebhooks {
@@ -146,12 +143,24 @@ func (t *TenantAlertManager) sendWorkflowRunAlert(ctx context.Context, tenantAle
 	return nil
 }
 
-func (t *TenantAlertManager) getFailedItems(failedWorkflowRuns *repository.ListWorkflowRunsResult) []alerttypes.WorkflowRunFailedItem {
+func (t *TenantAlertManager) getFailedItems(failedWorkflowRuns *repository.ListWorkflowRunsResult) ([]alerttypes.WorkflowRunFailedItem, error) {
 	res := make([]alerttypes.WorkflowRunFailedItem, 0)
 
 	for _, workflowRun := range failedWorkflowRuns.Rows {
+
 		workflowRunId := sqlchelpers.UUIDToStr(workflowRun.WorkflowRun.ID)
 		tenantId := sqlchelpers.UUIDToStr(workflowRun.WorkflowRun.TenantId)
+
+		details, err := t.repo.WorkflowRun().GetFailureDetails(context.Background(), tenantId, workflowRunId)
+
+		if err != nil {
+			return nil, err
+		}
+
+		if details.CancelledReason.String == "CANCELLED_BY_USER" {
+			// we don't want to alert on cancelled workflow runs
+			continue
+		}
 
 		readableId := workflowRun.WorkflowRun.DisplayName.String
 
@@ -168,7 +177,7 @@ func (t *TenantAlertManager) getFailedItems(failedWorkflowRuns *repository.ListW
 		})
 	}
 
-	return res
+	return res, nil
 }
 
 func (t *TenantAlertManager) SendExpiringTokenAlert(tenantId string, token *dbsqlc.PollExpiringTokensRow) error {
