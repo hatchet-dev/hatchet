@@ -7,10 +7,10 @@ import (
 
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
-
-	"golang.org/x/time/rate"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	"golang.org/x/time/rate"
 )
 
 type HatchetApiTokenRateLimiter struct {
@@ -54,7 +54,6 @@ func NewHatchetRateLimiter(r rate.Limit, b int, l *zerolog.Logger) *HatchetRateL
 
 // Limit is called before each request is processed. It should return an error if rate-limited.
 func (r *HatchetRateLimiter) Limit(ctx context.Context) error {
-
 	serviceName, ok := ctx.Value(grpcServiceName).(string)
 	if !ok {
 		return status.Errorf(codes.Internal, "no server in context")

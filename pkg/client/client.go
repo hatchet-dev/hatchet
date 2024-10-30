@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"time"
 
-	grpc_retry "github.com/grpc-ecosystem/go-grpc-middleware/retry"
+	grpc_retry "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/retry"
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -218,18 +218,25 @@ func newFromOpts(opts *ClientOpts) (Client, error) {
 		transportCreds = credentials.NewTLS(opts.tls)
 	}
 
+	grpcOpts := []grpc.DialOption{
+		grpc.WithTransportCredentials(transportCreds),
+	}
+
 	retryOpts := []grpc_retry.CallOption{
 		grpc_retry.WithBackoff(grpc_retry.BackoffExponentialWithJitter(5*time.Second, 0.10)),
 		grpc_retry.WithMax(5),
 		grpc_retry.WithPerRetryTimeout(30 * time.Second),
 		grpc_retry.WithCodes(codes.ResourceExhausted, codes.Unavailable),
+		grpc_retry.WithOnRetryCallback(grpc_retry.OnRetryCallback(func(ctx context.Context, attempt uint, err error) {
+			fmt.Print(ctx, "grpc_retry attempt: %d, backoff for %v", attempt, err)
+		})),
 	}
+	grpcOpts = append(grpcOpts, grpc.WithStreamInterceptor(grpc_retry.StreamClientInterceptor(retryOpts...)))
+	grpcOpts = append(grpcOpts, grpc.WithUnaryInterceptor(grpc_retry.UnaryClientInterceptor(retryOpts...)))
 
 	conn, err := grpc.NewClient(
 		opts.hostPort,
-		grpc.WithTransportCredentials(transportCreds),
-		grpc.WithStreamInterceptor(grpc_retry.StreamClientInterceptor(retryOpts...)),
-		grpc.WithUnaryInterceptor(grpc_retry.UnaryClientInterceptor(retryOpts...)),
+		grpcOpts...,
 	)
 
 	if err != nil {
