@@ -10,6 +10,7 @@ import (
 	grpc_retry "github.com/grpc-ecosystem/go-grpc-middleware/retry"
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 
@@ -221,6 +222,7 @@ func newFromOpts(opts *ClientOpts) (Client, error) {
 		grpc_retry.WithBackoff(grpc_retry.BackoffExponentialWithJitter(5*time.Second, 0.10)),
 		grpc_retry.WithMax(5),
 		grpc_retry.WithPerRetryTimeout(30 * time.Second),
+		grpc_retry.WithCodes(codes.ResourceExhausted, codes.Unavailable),
 	}
 
 	conn, err := grpc.NewClient(
