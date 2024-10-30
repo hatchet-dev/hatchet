@@ -14,6 +14,8 @@ import (
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type ingestBufState int
@@ -73,7 +75,8 @@ type inputWrapper[T any, U any] struct {
 }
 
 type IngestBufOpts[T any, U any] struct {
-	Name               string                                            `validate:"required"`
+	Name string `validate:"required"`
+	// MaxCapacity is the maximum number of items to hold in buffer before we initiate a flush
 	MaxCapacity        int                                               `validate:"required,gt=0"`
 	FlushPeriod        time.Duration                                     `validate:"required,gt=0"`
 	MaxDataSizeInQueue int                                               `validate:"required,gt=0"`
@@ -101,8 +104,6 @@ func NewIngestBuffer[T any, U any](opts IngestBufOpts[T, U]) *IngestBuf[T, U] {
 	}
 
 	if opts.WaitForFlush == 0 {
-		// we don't want to wait for a ton of time here because we would like to get back and process the input channel
-		// it will be a little back pressure though for anything upstream when we are contended for the semaphore
 		opts.WaitForFlush = 1 * time.Millisecond
 
 	}
@@ -173,6 +174,13 @@ func (b *IngestBuf[T, U]) safeFetchLastFlush() time.Time {
 	return b.lastFlush
 }
 
+// We take items from the input channel and add them to the internal array
+// We then check if we need to flush the buffer and if we do we flush
+// When we can't acquire a semaphore (we are over MaxConcurrent) we wait a small amount of time (waitForFlush) and then come back and add more items from the input channel to the internal array
+// The input channel is buffered and can accept up to maxCapacity items (or 100 if maxCapacity is less than 100)
+// If we are not emptying the buffer fast enough Buffering an item using BuffItem will eventually block and if it is blocked for long enough will error out with Resource Exhausted
+// If the internal buffer array ever gets to 50X maxCapacity we will error out with Resource Exhausted
+
 func (b *IngestBuf[T, U]) buffWorker() {
 	for {
 		select {
@@ -230,9 +238,11 @@ func (b *IngestBuf[T, U]) safeCheckSizeOfBuffer() int {
 
 func (b *IngestBuf[T, U]) flush() {
 
-	b.safeSetLastFlush(time.Now()) // need to set this before we acquire the semaphore so that we don't spin
+	// need to set this before we acquire the semaphore so that we don't spin
+	b.safeSetLastFlush(time.Now())
 
-	sCtx, _ := context.WithTimeoutCause(context.Background(), b.waitForFlush, fmt.Errorf("timed out waiting for semaphore in flush")) // wait for a flush period to acquire a semaphore
+	// wait for a waitForFlush amount to acquire a semaphore
+	sCtx, _ := context.WithTimeoutCause(context.Background(), b.waitForFlush, fmt.Errorf("timed out waiting for semaphore in flush"))
 
 	err := b.flushSemaphore.Acquire(sCtx, 1)
 
@@ -241,8 +251,6 @@ func (b *IngestBuf[T, U]) flush() {
 		b.l.Warn().Msgf("could not acquire semaphore in: %s  %v", b.waitForFlush, err)
 		return
 	}
-
-	// I only slice the array after I get the semaphore
 
 	items := b.sliceInternalArray()
 	numItems := len(items)
@@ -331,6 +339,7 @@ func (b *IngestBuf[T, U]) cleanup() error {
 	b.lock.Unlock()
 
 	g := errgroup.Group{}
+	g.SetLimit(b.maxConcurrent)
 
 	for b.safeCheckSizeOfBuffer() > 0 {
 		g.Go(func() error {
@@ -342,6 +351,20 @@ func (b *IngestBuf[T, U]) cleanup() error {
 	if err := g.Wait(); err != nil {
 		return err
 	}
+
+	// wait until currentlyFlushing is 0
+
+	for {
+		b.fmux.Lock()
+		flushingCount := b.currentlyFlushing
+		b.fmux.Unlock()
+		if flushingCount == 0 {
+			break
+		}
+		b.l.Info().Msgf("cleanup: waiting for %d goroutines to finish flushing", flushingCount)
+		time.Sleep(100 * time.Millisecond)
+	}
+
 	b.cancel()
 
 	return nil
@@ -383,7 +406,7 @@ func (b *IngestBuf[T, U]) BuffItem(item T) (chan *FlushResponse[U], error) {
 	}
 
 	if b.safeCheckSizeOfBuffer() >= b.maxCapacity*50 {
-		return nil, fmt.Errorf("buffer is out of space %v", b.safeCheckSizeOfBuffer())
+		return nil, status.Errorf(codes.ResourceExhausted, "buffer is out of space %v", b.safeCheckSizeOfBuffer())
 	}
 
 	if b.safeCheckSizeOfBuffer() > b.maxCapacity*10 && b.safeCheckSizeOfBuffer()%1000 == 0 {
@@ -398,7 +421,7 @@ func (b *IngestBuf[T, U]) BuffItem(item T) (chan *FlushResponse[U], error) {
 		doneChan: doneChan,
 	}:
 	case <-time.After(5 * time.Second):
-		return nil, fmt.Errorf("timeout waiting for buffer")
+		return nil, status.Errorf(codes.ResourceExhausted, "timeout waiting for buffer")
 
 	case <-b.ctx.Done():
 		return nil, fmt.Errorf("buffer is closed")
