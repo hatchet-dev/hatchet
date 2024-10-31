@@ -1215,7 +1215,7 @@ func (q *Queries) GetChildWorkflowRunsByKey(ctx context.Context, db DBTX, arg Ge
 	return items, nil
 }
 
-const getFailureDetails = `-- name: GetFailureDetails :one
+const getFailureDetails = `-- name: GetFailureDetails :many
 SELECT
 	wr."status",
 	wr."id",
@@ -1230,9 +1230,10 @@ JOIN
 	"StepRun" sr on sr."jobRunId" = jr."id"
 WHERE
 	wr."status" = 'FAILED' AND
+    sr."status" = ANY('{FAILED,CANCELLED}') AND
+    sr."cancelledReason" != 'CANCELLED_BY_USER' AND
 	wr."id" = $1::uuid AND
     wr."tenantId" = $2::uuid
-LIMIT 1
 `
 
 type GetFailureDetailsParams struct {
@@ -1249,18 +1250,31 @@ type GetFailureDetailsRow struct {
 	Error           pgtype.Text       `json:"error"`
 }
 
-func (q *Queries) GetFailureDetails(ctx context.Context, db DBTX, arg GetFailureDetailsParams) (*GetFailureDetailsRow, error) {
-	row := db.QueryRow(ctx, getFailureDetails, arg.Workflowrunid, arg.Tenantid)
-	var i GetFailureDetailsRow
-	err := row.Scan(
-		&i.Status,
-		&i.ID,
-		&i.JrStatus,
-		&i.SrStatus,
-		&i.CancelledReason,
-		&i.Error,
-	)
-	return &i, err
+func (q *Queries) GetFailureDetails(ctx context.Context, db DBTX, arg GetFailureDetailsParams) ([]*GetFailureDetailsRow, error) {
+	rows, err := db.Query(ctx, getFailureDetails, arg.Workflowrunid, arg.Tenantid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*GetFailureDetailsRow
+	for rows.Next() {
+		var i GetFailureDetailsRow
+		if err := rows.Scan(
+			&i.Status,
+			&i.ID,
+			&i.JrStatus,
+			&i.SrStatus,
+			&i.CancelledReason,
+			&i.Error,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getScheduledChildWorkflowRun = `-- name: GetScheduledChildWorkflowRun :one

@@ -1416,7 +1416,7 @@ WHERE
 ORDER BY
     sre."id" DESC;
 
--- name: GetFailureDetails :one
+-- name: GetFailureDetails :many
 SELECT
 	wr."status",
 	wr."id",
@@ -1431,6 +1431,7 @@ JOIN
 	"StepRun" sr on sr."jobRunId" = jr."id"
 WHERE
 	wr."status" = 'FAILED' AND
+    sr."status" = ANY('{FAILED,CANCELLED}') AND
+    sr."cancelledReason" != 'CANCELLED_BY_USER' AND
 	wr."id" = @workflowRunId::uuid AND
-    wr."tenantId" = @tenantId::uuid
-LIMIT 1;
+    wr."tenantId" = @tenantId::uuid;

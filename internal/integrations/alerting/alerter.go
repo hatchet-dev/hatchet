@@ -157,7 +157,7 @@ func (t *TenantAlertManager) getFailedItems(failedWorkflowRuns *repository.ListW
 			return nil, err
 		}
 
-		if details.CancelledReason.String == "CANCELLED_BY_USER" {
+		if len(details) == 0 {
 			// we don't want to alert on cancelled workflow runs
 			continue
 		}

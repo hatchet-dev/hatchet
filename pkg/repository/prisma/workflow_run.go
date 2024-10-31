@@ -657,11 +657,18 @@ func (w *workflowRunEngineRepository) GetWorkflowRunByIds(ctx context.Context, t
 	return runs, nil
 }
 
-func (w *workflowRunEngineRepository) GetFailureDetails(ctx context.Context, tenantId, workflowRunId string) (*dbsqlc.GetFailureDetailsRow, error) {
-	return w.queries.GetFailureDetails(ctx, w.pool, dbsqlc.GetFailureDetailsParams{
+func (w *workflowRunEngineRepository) GetFailureDetails(ctx context.Context, tenantId, workflowRunId string) ([]*dbsqlc.GetFailureDetailsRow, error) {
+
+	steps, err := w.queries.GetFailureDetails(ctx, w.pool, dbsqlc.GetFailureDetailsParams{
 		Tenantid:      sqlchelpers.UUIDFromStr(tenantId),
 		Workflowrunid: sqlchelpers.UUIDFromStr(workflowRunId),
 	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return steps, nil
 }
 
 func (w *workflowRunEngineRepository) GetWorkflowRunAdditionalMeta(ctx context.Context, tenantId, workflowRunId string) (*dbsqlc.GetWorkflowRunAdditionalMetaRow, error) {
