@@ -18,7 +18,7 @@ import { CodeHighlighter } from '@/components/ui/code-highlighter';
 import WorkflowRunVisualizer from './v2components/workflow-run-visualizer-v2';
 import { useAtom } from 'jotai';
 import { preferredWorkflowRunViewAtom } from '@/lib/atoms';
-import { ViewToggle } from './v2components/view-toggle';
+import { hasChildSteps, ViewToggle } from './v2components/view-toggle';
 
 export const WORKFLOW_RUN_TERMINAL_STATUSES = [
   WorkflowRunStatus.CANCELLED,
@@ -69,7 +69,7 @@ export default function ExpandedWorkflowRun() {
         <Separator className="my-4" />
         <div className="w-full max-h-[400px] overflow-auto relative bg-slate-100 dark:bg-slate-900">
           {shape.data && <ViewToggle shape={shape.data} />}
-          {shape.data && view == 'graph' && (
+          {shape.data && view == 'graph' && hasChildSteps(shape.data) && (
             <WorkflowRunVisualizer
               shape={shape.data}
               selectedStepRunId={sidebarState?.stepRunId}
@@ -82,7 +82,7 @@ export default function ExpandedWorkflowRun() {
               }}
             />
           )}
-          {shape.data && view == 'minimap' && (
+          {shape.data && (view == 'minimap' || !hasChildSteps(shape.data)) && (
             <MiniMap
               shape={shape.data}
               selectedStepRunId={sidebarState?.stepRunId}
