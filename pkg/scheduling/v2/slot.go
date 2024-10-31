@@ -58,6 +58,13 @@ func (s *slot) active() bool {
 	return !s.used && s.expiresAt != nil && s.expiresAt.After(time.Now())
 }
 
+func (s *slot) expired() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	return s.expiresAt == nil || s.expiresAt.Before(time.Now())
+}
+
 func (s *slot) use(additionalAcks []func(), additionalNacks []func()) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -90,14 +97,14 @@ func (s *slot) ack() {
 	s.additionalNacks = nil
 }
 
-func (s *slot) nack(additionalNacks ...func()) {
+func (s *slot) nack() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	s.used = false
-	s.ackd = false
+	s.ackd = true
 
-	for _, nack := range additionalNacks {
+	for _, nack := range s.additionalNacks {
 		if nack != nil {
 			nack()
 		}

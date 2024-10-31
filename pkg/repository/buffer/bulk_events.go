@@ -26,9 +26,8 @@ type BulkEventWriter struct {
 	queries *dbsqlc.Queries
 }
 
-func NewBulkEventWriter(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger) (*BulkEventWriter, error) {
+func NewBulkEventWriter(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, conf ConfigFileBuffer) (*BulkEventWriter, error) {
 	queries := dbsqlc.New()
-	flushPeriod := 250 * time.Millisecond
 
 	w := &BulkEventWriter{
 		pool:    pool,
@@ -38,13 +37,18 @@ func NewBulkEventWriter(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Lo
 	}
 
 	eventBufOpts := TenantBufManagerOpts[*repository.CreateStepRunEventOpts, int]{
-		Name:                "step_run_event_buffer",
-		OutputFunc:          w.BulkWriteStepRunEvents,
-		SizeFunc:            sizeOfEventData,
-		L:                   w.l,
-		V:                   w.v,
-		FlushPeriod:         &flushPeriod,
-		FlushItemsThreshold: 1000,
+		Name:     "step_run_event_buffer",
+		SizeFunc: sizeOfEventData,
+		L:        w.l,
+		V:        w.v,
+		Config:   conf,
+	}
+
+	if conf.SerialBuffer {
+		l.Warn().Msg("using serial buffer for step run events")
+		eventBufOpts.OutputFunc = w.SerialWriteStepRunEvent
+	} else {
+		eventBufOpts.OutputFunc = w.BulkWriteStepRunEvents
 	}
 
 	manager, err := NewTenantBufManager(eventBufOpts)
@@ -80,6 +84,50 @@ func sortByStepRunId(opts []*repository.CreateStepRunEventOpts) []*repository.Cr
 	})
 
 	return opts
+}
+
+func (w *BulkEventWriter) SerialWriteStepRunEvent(ctx context.Context, opts []*repository.CreateStepRunEventOpts) ([]int, error) {
+	res := make([]int, 0, len(opts))
+
+	for i, item := range opts {
+
+		res = append(res, i)
+		var eventData []byte
+		var err error
+
+		if item.EventData != nil {
+			eventData, err = json.Marshal(item.EventData)
+
+			if err != nil {
+				return nil, fmt.Errorf("could not marshal step run event data: %w", err)
+			}
+		}
+
+		tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, w.l, 1000)
+		if err != nil {
+			return nil, fmt.Errorf("could not prepare transaction: %w", err)
+		}
+		defer rollback()
+		err = w.queries.CreateStepRunEvent(ctx, tx, dbsqlc.CreateStepRunEventParams{
+			Steprunid: sqlchelpers.UUIDFromStr(item.StepRunId),
+			Reason:    *item.EventReason,
+			Severity:  *item.EventSeverity,
+			Message:   *item.EventMessage,
+			Data:      eventData,
+		})
+
+		if err != nil {
+			return nil, fmt.Errorf("could not create step run event: %w", err)
+		}
+		err = commit(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("could not commit transaction: %w", err)
+		}
+
+	}
+
+	return res, nil
+
 }
 
 func (w *BulkEventWriter) BulkWriteStepRunEvents(ctx context.Context, opts []*repository.CreateStepRunEventOpts) ([]int, error) {
@@ -214,6 +262,7 @@ func bulkStepRunEvents(
 	})
 
 	if err != nil {
+		l.Error().Err(err).Msg("could not create deferred step run event")
 		return fmt.Errorf("bulk_events - could not create deferred step run event: %w", err)
 	}
 

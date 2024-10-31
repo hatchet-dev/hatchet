@@ -366,3 +366,102 @@ WITH active_partitions AS (
 )
 DELETE FROM "TenantWorkerPartition"
 WHERE "id" IN (SELECT "id" FROM inactive_partitions);
+
+-- name: SchedulerPartitionHeartbeat :one
+UPDATE
+    "SchedulerPartition" p
+SET
+    "lastHeartbeat" = NOW()
+WHERE
+    p."id" = sqlc.arg('schedulerPartitionId')::text
+RETURNING *;
+
+-- name: CreateSchedulerPartition :one
+INSERT INTO "SchedulerPartition" ("id", "createdAt", "lastHeartbeat", "name")
+VALUES (gen_random_uuid()::text, NOW(), NOW(), sqlc.narg('name')::text)
+ON CONFLICT DO NOTHING
+RETURNING *;
+
+-- name: DeleteSchedulerPartition :one
+DELETE FROM "SchedulerPartition"
+WHERE "id" = sqlc.arg('id')::text
+RETURNING *;
+
+-- name: RebalanceAllSchedulerPartitions :exec
+WITH active_partitions AS (
+    SELECT
+        "id",
+        ROW_NUMBER() OVER () AS row_number
+    FROM
+        "SchedulerPartition"
+    WHERE
+        "lastHeartbeat" > NOW() - INTERVAL '1 minute'
+),
+tenants_to_update AS (
+    SELECT
+        tenants."id" AS "id",
+        ROW_NUMBER() OVER () AS row_number
+    FROM
+        "Tenant" AS tenants
+    WHERE
+        tenants."slug" != 'internal'
+)
+UPDATE
+    "Tenant" AS tenants
+SET
+    "schedulerPartitionId" = partitions."id"
+FROM
+    tenants_to_update,
+    active_partitions AS partitions
+WHERE
+    tenants."id" = tenants_to_update."id" AND
+    partitions.row_number = (tenants_to_update.row_number - 1) % (SELECT COUNT(*) FROM active_partitions) + 1;
+
+-- name: RebalanceInactiveSchedulerPartitions :exec
+WITH active_partitions AS (
+    SELECT
+        "id",
+        ROW_NUMBER() OVER () AS row_number
+    FROM
+        "SchedulerPartition"
+    WHERE
+        "lastHeartbeat" > NOW() - INTERVAL '1 minute'
+), inactive_partitions AS (
+    SELECT
+        "id"
+    FROM
+        "SchedulerPartition"
+    WHERE
+        "lastHeartbeat" <= NOW() - INTERVAL '1 minute'
+), tenants_to_update AS (
+    SELECT
+        tenants."id" AS "id",
+        ROW_NUMBER() OVER () AS row_number
+    FROM
+        "Tenant" AS tenants
+    WHERE
+        tenants."slug" != 'internal' AND
+        (
+            "schedulerPartitionId" IS NULL OR
+            "schedulerPartitionId" IN (SELECT "id" FROM inactive_partitions)
+        )
+), update_tenants AS (
+    UPDATE "Tenant" AS tenants
+    SET "schedulerPartitionId" = partitions."id"
+    FROM
+        tenants_to_update,
+        active_partitions AS partitions
+    WHERE
+    tenants."id" = tenants_to_update."id" AND
+    partitions.row_number = (tenants_to_update.row_number - 1) % (SELECT COUNT(*) FROM active_partitions) + 1
+)
+DELETE FROM "SchedulerPartition"
+WHERE "id" IN (SELECT "id" FROM inactive_partitions);
+
+-- name: ListTenantsBySchedulerPartitionId :many
+SELECT
+    *
+FROM
+    "Tenant" as tenants
+WHERE
+    "schedulerPartitionId" = sqlc.arg('schedulerPartitionId')::text;

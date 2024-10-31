@@ -36,6 +36,15 @@ type StepRunAssignedTaskMetadata struct {
 	DispatcherId string `json:"dispatcher_id" validate:"required,uuid"`
 }
 
+type StepRunAssignedBulkTaskPayload struct {
+	WorkerIdToStepRunIds map[string][]string `json:"worker_id_to_step_run_id" validate:"required"`
+}
+
+type StepRunAssignedBulkTaskMetadata struct {
+	TenantId     string `json:"tenant_id" validate:"required,uuid"`
+	DispatcherId string `json:"dispatcher_id" validate:"required,uuid"`
+}
+
 type StepRunCancelledTaskPayload struct {
 	WorkflowRunId   string `json:"workflow_run_id" validate:"required,uuid"`
 	StepRunId       string `json:"step_run_id" validate:"required,uuid"`

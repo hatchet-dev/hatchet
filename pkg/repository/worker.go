@@ -4,11 +4,20 @@ import (
 	"context"
 	"time"
 
+	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 
 	"github.com/jackc/pgx/v5/pgtype"
 )
+
+type RuntimeInfo struct {
+	SdkVersion      *string         `validate:"omitempty"`
+	Language        *contracts.SDKS `validate:"omitempty"`
+	LanguageVersion *string         `validate:"omitempty"`
+	Os              *string         `validate:"omitempty"`
+	Extra           *string         `validate:"omitempty"`
+}
 
 type CreateWorkerOpts struct {
 	// The id of the dispatcher
@@ -28,6 +37,9 @@ type CreateWorkerOpts struct {
 
 	// (optional) Webhook Id associated with the worker (if any)
 	WebhookId *string `validate:"omitempty,uuid"`
+
+	// (optional) Runtime info for the worker
+	RuntimeInfo *RuntimeInfo `validate:"omitempty"`
 }
 
 type UpdateWorkerOpts struct {
@@ -113,4 +125,6 @@ type WorkerEngineRepository interface {
 	DeleteOldWorkers(ctx context.Context, tenantId string, lastHeartbeatBefore time.Time) (bool, error)
 
 	DeleteOldWorkerEvents(ctx context.Context, tenantId string, lastHeartbeatAfter time.Time) error
+
+	GetDispatcherIdsForWorkers(ctx context.Context, tenantId string, workerIds []string) (map[string][]string, error)
 }

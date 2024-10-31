@@ -7,13 +7,12 @@ import (
 	"time"
 
 	"github.com/go-co-op/gocron/v2"
-	"github.com/hashicorp/go-multierror"
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/queueutils"
-	"github.com/hatchet-dev/hatchet/internal/services/controllers/partition"
+	"github.com/hatchet-dev/hatchet/internal/services/partition"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
@@ -21,18 +20,16 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
-	v2 "github.com/hatchet-dev/hatchet/pkg/scheduling/v2"
 )
 
 type queue struct {
-	mq        msgqueue.MessageQueue
-	l         *zerolog.Logger
-	repo      repository.EngineRepository
-	dv        datautils.DataDecoderValidator
-	s         gocron.Scheduler
-	a         *hatcheterrors.Wrapped
-	p         *partition.Partition
-	scheduler *v2.SchedulingPool
+	mq   msgqueue.MessageQueue
+	l    *zerolog.Logger
+	repo repository.EngineRepository
+	dv   datautils.DataDecoderValidator
+	s    gocron.Scheduler
+	a    *hatcheterrors.Wrapped
+	p    *partition.Partition
 
 	// a custom queue logger
 	ql *zerolog.Logger
@@ -50,7 +47,6 @@ func newQueue(
 	dv datautils.DataDecoderValidator,
 	a *hatcheterrors.Wrapped,
 	p *partition.Partition,
-	scheduler *v2.SchedulingPool,
 ) (*queue, error) {
 	s, err := gocron.NewScheduler(gocron.WithLocation(time.UTC))
 
@@ -59,15 +55,14 @@ func newQueue(
 	}
 
 	q := &queue{
-		mq:        mq,
-		l:         l,
-		repo:      repo,
-		dv:        dv,
-		s:         s,
-		a:         a,
-		p:         p,
-		ql:        ql,
-		scheduler: scheduler,
+		mq:   mq,
+		l:    l,
+		repo: repo,
+		dv:   dv,
+		s:    s,
+		a:    a,
+		p:    p,
+		ql:   ql,
 	}
 
 	q.updateStepRunOperations = queueutils.NewOperationPool(ql, time.Second*30, "update step runs", q.processStepRunUpdates)
@@ -84,18 +79,6 @@ func (q *queue) Start() (func() error, error) {
 	wg := sync.WaitGroup{}
 
 	_, err := q.s.NewJob(
-		gocron.DurationJob(time.Second*1),
-		gocron.NewTask(
-			q.runTenantSetQueues(ctx),
-		),
-	)
-
-	if err != nil {
-		cancel()
-		return nil, fmt.Errorf("could not schedule tenant set queues: %w", err)
-	}
-
-	_, err = q.s.NewJob(
 		gocron.DurationJob(time.Second*1),
 		gocron.NewTask(
 			q.runTenantUpdateStepRuns(ctx),
@@ -157,29 +140,6 @@ func (q *queue) Start() (func() error, error) {
 		return nil, fmt.Errorf("could not subscribe to job processing queue: %w", err)
 	}
 
-	queueResults := q.scheduler.GetResultsCh()
-
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case res := <-queueResults:
-				q.l.Debug().Msgf("partition: received queue results")
-
-				if res == nil {
-					continue
-				}
-
-				err = q.scheduleStepRuns(ctx, sqlchelpers.UUIDToStr(res.TenantId), res)
-
-				if err != nil {
-					q.l.Error().Err(err).Msg("could not schedule step runs")
-				}
-			}
-		}
-	}()
-
 	cleanup := func() error {
 		cancel()
 
@@ -236,83 +196,15 @@ func (q *queue) handleCheckQueue(ctx context.Context, task *msgqueue.Message) er
 	}
 
 	switch {
-	case payload.IsStepQueued && payload.QueueName != "":
-		q.scheduler.Queue(ctx, metadata.TenantId, payload.QueueName)
 	case payload.IsSlotReleased:
-		q.scheduler.Replenish(ctx, metadata.TenantId)
 		q.updateStepRunV2Operations.RunOrContinue(metadata.TenantId)
 	default:
-		q.scheduler.RefreshAll(ctx, metadata.TenantId)
-
 		// check the step run updates
 		q.updateStepRunOperations.RunOrContinue(metadata.TenantId)
 		q.updateStepRunV2Operations.RunOrContinue(metadata.TenantId)
 	}
 
 	return nil
-}
-
-func (q *queue) runTenantSetQueues(ctx context.Context) func() {
-	return func() {
-		q.l.Debug().Msgf("partition: checking step run requeue")
-
-		// list all tenants
-		tenants, err := q.repo.Tenant().ListTenantsByControllerPartition(ctx, q.p.GetControllerPartitionId())
-
-		if err != nil {
-			q.l.Err(err).Msg("could not list tenants")
-			return
-		}
-
-		q.scheduler.SetTenants(tenants)
-	}
-}
-
-func (q *queue) scheduleStepRuns(ctx context.Context, tenantId string, res *v2.QueueResults) error {
-	ctx, span := telemetry.NewSpan(ctx, "schedule-step-runs")
-	defer span.End()
-
-	var err error
-
-	for _, queueResult := range res.Assigned {
-		if queueResult.DispatcherId == nil {
-			q.l.Error().Msg("could not assign step run to worker: no dispatcher id")
-			continue
-		}
-
-		dispatcherId := sqlchelpers.UUIDToStr(*queueResult.DispatcherId)
-		stepRunId := sqlchelpers.UUIDToStr(queueResult.QueueItem.StepRunId)
-		workerId := sqlchelpers.UUIDToStr(queueResult.WorkerId)
-
-		// send a task to the dispatcher
-		innerErr := q.mq.AddMessage(
-			ctx,
-			msgqueue.QueueTypeFromDispatcherID(dispatcherId),
-			stepRunAssignedTask(tenantId, stepRunId, workerId, dispatcherId),
-		)
-
-		if innerErr != nil {
-			err = multierror.Append(err, fmt.Errorf("could not send queued step run: %w", innerErr))
-		}
-	}
-
-	for _, toCancel := range res.SchedulingTimedOut {
-		innerErr := q.mq.AddMessage(
-			ctx,
-			msgqueue.JOB_PROCESSING_QUEUE,
-			getStepRunCancelTask(
-				tenantId,
-				toCancel,
-				"SCHEDULING_TIMED_OUT",
-			),
-		)
-
-		if innerErr != nil {
-			err = multierror.Append(err, fmt.Errorf("could not send cancel step run event: %w", innerErr))
-		}
-	}
-
-	return err
 }
 
 func (q *queue) runTenantUpdateStepRuns(ctx context.Context) func() {
@@ -351,7 +243,8 @@ func (q *queue) processStepRunUpdates(ctx context.Context, tenantId string) (boo
 	}
 
 	// for all succeeded step runs, check for startable child step runs
-	err = queueutils.MakeBatched(20, res.SucceededStepRuns, func(group []*dbsqlc.GetStepRunForEngineRow) error {
+	err = queueutils.BatchConcurrent(20, res.SucceededStepRuns, func(group []*dbsqlc.GetStepRunForEngineRow) error {
+
 		for _, stepRun := range group {
 			if stepRun.SRChildCount == 0 {
 				continue
@@ -447,7 +340,7 @@ func (q *queue) processStepRunUpdatesV2(ctx context.Context, tenantId string) (b
 	}
 
 	// for all succeeded step runs, check for startable child step runs
-	err = queueutils.MakeBatched(20, res.SucceededStepRuns, func(group []*dbsqlc.GetStepRunForEngineRow) error {
+	err = queueutils.BatchConcurrent(20, res.SucceededStepRuns, func(group []*dbsqlc.GetStepRunForEngineRow) error {
 		for _, stepRun := range group {
 			if stepRun.SRChildCount == 0 {
 				continue
@@ -545,7 +438,7 @@ func (q *queue) processStepRunTimeouts(ctx context.Context, tenantId string) (bo
 
 	failedAt := time.Now().UTC()
 
-	err = queueutils.MakeBatched(10, stepRuns, func(group []*dbsqlc.GetStepRunForEngineRow) error {
+	err = queueutils.BatchConcurrent(10, stepRuns, func(group []*dbsqlc.GetStepRunForEngineRow) error {
 		scheduleCtx, cancel := context.WithTimeout(context.Background(), time.Minute)
 		defer cancel()
 
@@ -576,22 +469,4 @@ func (q *queue) processStepRunTimeouts(ctx context.Context, tenantId string) (bo
 	}
 
 	return shouldContinue, nil
-}
-
-func getStepRunCancelTask(tenantId, stepRunId, reason string) *msgqueue.Message {
-	payload, _ := datautils.ToJSONMap(tasktypes.StepRunCancelTaskPayload{
-		StepRunId:       stepRunId,
-		CancelledReason: reason,
-	})
-
-	metadata, _ := datautils.ToJSONMap(tasktypes.StepRunCancelTaskMetadata{
-		TenantId: tenantId,
-	})
-
-	return &msgqueue.Message{
-		ID:       "step-run-cancel",
-		Payload:  payload,
-		Metadata: metadata,
-		Retries:  3,
-	}
 }

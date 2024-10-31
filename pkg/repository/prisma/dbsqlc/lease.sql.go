@@ -11,7 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const acquireLeases = `-- name: AcquireLeases :many
+const acquireOrExtendLeases = `-- name: AcquireOrExtendLeases :many
 INSERT INTO "Lease" (
     "expiresAt",
     "tenantId",
@@ -36,7 +36,7 @@ WHERE
 RETURNING id, "expiresAt", "tenantId", "resourceId", kind
 `
 
-type AcquireLeasesParams struct {
+type AcquireOrExtendLeasesParams struct {
 	LeaseDuration    pgtype.Interval `json:"leaseDuration"`
 	Tenantid         pgtype.UUID     `json:"tenantid"`
 	Kind             LeaseKind       `json:"kind"`
@@ -44,10 +44,11 @@ type AcquireLeasesParams struct {
 	Existingleaseids []int64         `json:"existingleaseids"`
 }
 
-// Attempts to acquire leases for a set of resources. Returns the acquired leases.
+// Attempts to acquire leases for a set of resources, and extends the leases if we already have them.
+// Returns the acquired leases.
 // On conflict, acquire the lease if the existing lease has expired.
-func (q *Queries) AcquireLeases(ctx context.Context, db DBTX, arg AcquireLeasesParams) ([]*Lease, error) {
-	rows, err := db.Query(ctx, acquireLeases,
+func (q *Queries) AcquireOrExtendLeases(ctx context.Context, db DBTX, arg AcquireOrExtendLeasesParams) ([]*Lease, error) {
+	rows, err := db.Query(ctx, acquireOrExtendLeases,
 		arg.LeaseDuration,
 		arg.Tenantid,
 		arg.Kind,
