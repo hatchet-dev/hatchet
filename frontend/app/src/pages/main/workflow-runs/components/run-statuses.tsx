@@ -115,7 +115,7 @@ const indicatorVariants = {
   successful: 'border-transparent rounded-full bg-green-500',
   failed: 'border-transparent rounded-full bg-red-500',
   inProgress: 'border-transparent rounded-full bg-yellow-500',
-  outline: 'border-gray-500 rounded-full bg-transparent',
+  outline: 'border-transparent rounded-full bg-muted',
 };
 
 export function RunIndicator({
