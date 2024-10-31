@@ -501,8 +501,39 @@ CREATE TABLE
         "semaphoreReleased" BOOLEAN NOT NULL DEFAULT false,
         "queue" TEXT NOT NULL DEFAULT 'default',
         "priority" INTEGER,
-        CONSTRAINT "StepRun_pkey" PRIMARY KEY ("id")
+        CONSTRAINT "StepRun_pkey" PRIMARY KEY ("status", "id")
+    )
+PARTITION BY
+    LIST ("status");
+
+CREATE TABLE
+    "StepRun_volatile" PARTITION OF "StepRun" FOR
+VALUES
+    IN (
+        'PENDING',
+        'PENDING_ASSIGNMENT',
+        'ASSIGNED',
+        'RUNNING',
+        'CANCELLING'
+    )
+WITH
+    (fillfactor = 50);
+
+ALTER TABLE "StepRun_volatile"
+SET
+    (
+        autovacuum_vacuum_threshold = '1000',
+        autovacuum_vacuum_scale_factor = '0.01',
+        autovacuum_analyze_threshold = '500',
+        autovacuum_analyze_scale_factor = '0.01'
     );
+
+CREATE TABLE
+    "StepRun_stable" PARTITION OF "StepRun" FOR
+VALUES
+    IN ('FAILED', 'CANCELLED', 'SUCCEEDED')
+WITH
+    (fillfactor = 100);
 
 -- CreateTable
 CREATE TABLE
@@ -1186,9 +1217,6 @@ CREATE INDEX "StepRun_createdAt_idx" ON "StepRun" ("createdAt" ASC);
 CREATE INDEX "StepRun_deletedAt_idx" ON "StepRun" ("deletedAt" ASC);
 
 -- CreateIndex
-CREATE UNIQUE INDEX "StepRun_id_key" ON "StepRun" ("id" ASC);
-
--- CreateIndex
 CREATE INDEX "StepRun_id_tenantId_idx" ON "StepRun" ("id" ASC, "tenantId" ASC);
 
 -- CreateIndex
@@ -1500,9 +1528,6 @@ ALTER TABLE "JobRun" ADD CONSTRAINT "JobRun_workflowRunId_fkey" FOREIGN KEY ("wo
 ALTER TABLE "JobRunLookupData" ADD CONSTRAINT "JobRunLookupData_jobRunId_fkey" FOREIGN KEY ("jobRunId") REFERENCES "JobRun" ("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "LogLine" ADD CONSTRAINT "LogLine_stepRunId_fkey" FOREIGN KEY ("stepRunId") REFERENCES "StepRun" ("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "SNSIntegration" ADD CONSTRAINT "SNSIntegration_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant" ("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -1528,12 +1553,6 @@ ALTER TABLE "StepRun" ADD CONSTRAINT "StepRun_jobRunId_fkey" FOREIGN KEY ("jobRu
 
 -- AddForeignKey
 ALTER TABLE "StepRun" ADD CONSTRAINT "StepRun_workerId_fkey" FOREIGN KEY ("workerId") REFERENCES "Worker" ("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "StepRunResultArchive" ADD CONSTRAINT "StepRunResultArchive_stepRunId_fkey" FOREIGN KEY ("stepRunId") REFERENCES "StepRun" ("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "StreamEvent" ADD CONSTRAINT "StreamEvent_stepRunId_fkey" FOREIGN KEY ("stepRunId") REFERENCES "StepRun" ("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Tenant" ADD CONSTRAINT "Tenant_controllerPartitionId_fkey" FOREIGN KEY ("controllerPartitionId") REFERENCES "ControllerPartition" ("id") ON DELETE SET NULL ON UPDATE SET NULL;
@@ -1617,9 +1636,6 @@ ALTER TABLE "WorkflowConcurrency" ADD CONSTRAINT "WorkflowConcurrency_workflowVe
 ALTER TABLE "WorkflowRun" ADD CONSTRAINT "WorkflowRun_parentId_fkey" FOREIGN KEY ("parentId") REFERENCES "WorkflowRun" ("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "WorkflowRun" ADD CONSTRAINT "WorkflowRun_parentStepRunId_fkey" FOREIGN KEY ("parentStepRunId") REFERENCES "StepRun" ("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "WorkflowRunStickyState" ADD CONSTRAINT "WorkflowRunStickyState_workflowRunId_fkey" FOREIGN KEY ("workflowRunId") REFERENCES "WorkflowRun" ("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -1642,9 +1658,6 @@ ALTER TABLE "WorkflowTriggerEventRef" ADD CONSTRAINT "WorkflowTriggerEventRef_pa
 
 -- AddForeignKey
 ALTER TABLE "WorkflowTriggerScheduledRef" ADD CONSTRAINT "WorkflowTriggerScheduledRef_parentId_fkey" FOREIGN KEY ("parentId") REFERENCES "WorkflowVersion" ("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "WorkflowTriggerScheduledRef" ADD CONSTRAINT "WorkflowTriggerScheduledRef_parentStepRunId_fkey" FOREIGN KEY ("parentStepRunId") REFERENCES "StepRun" ("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "WorkflowTriggerScheduledRef" ADD CONSTRAINT "WorkflowTriggerScheduledRef_parentWorkflowRunId_fkey" FOREIGN KEY ("parentWorkflowRunId") REFERENCES "WorkflowRun" ("id") ON DELETE SET NULL ON UPDATE CASCADE;
@@ -1683,19 +1696,11 @@ ALTER TABLE "_StepOrder" ADD CONSTRAINT "_StepOrder_A_fkey" FOREIGN KEY ("A") RE
 ALTER TABLE "_StepOrder" ADD CONSTRAINT "_StepOrder_B_fkey" FOREIGN KEY ("B") REFERENCES "Step" ("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "_StepRunOrder" ADD CONSTRAINT "_StepRunOrder_A_fkey" FOREIGN KEY ("A") REFERENCES "StepRun" ("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "_StepRunOrder" ADD CONSTRAINT "_StepRunOrder_B_fkey" FOREIGN KEY ("B") REFERENCES "StepRun" ("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "_WorkflowToWorkflowTag" ADD CONSTRAINT "_WorkflowToWorkflowTag_A_fkey" FOREIGN KEY ("A") REFERENCES "Workflow" ("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "_WorkflowToWorkflowTag" ADD CONSTRAINT "_WorkflowToWorkflowTag_B_fkey" FOREIGN KEY ("B") REFERENCES "WorkflowTag" ("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
--- NOTE: this is a SQL script file that contains the constraints for the database
--- it is needed because prisma does not support constraints yet
 -- Modify "QueueItem" table
 ALTER TABLE "QueueItem" ADD CONSTRAINT "QueueItem_priority_check" CHECK (
     "priority" >= 1
@@ -1726,4 +1731,6 @@ CREATE INDEX IF NOT EXISTS idx_workflowrun_main ON "WorkflowRun" (
 );
 
 -- Additional indexes on step run
-CREATE INDEX IF NOT EXISTS StepRun_status_tenantId_idx ON "StepRun" ("status", "tenantId");
+CREATE INDEX IF NOT EXISTS "StepRun_status_tenantId_idx" ON "StepRun" ("status", "tenantId");
+
+CREATE INDEX IF NOT EXISTS "StepRun_updatedAt_idx" ON "StepRun" ("updatedAt");

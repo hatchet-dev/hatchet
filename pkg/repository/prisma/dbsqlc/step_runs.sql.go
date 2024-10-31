@@ -1927,7 +1927,6 @@ WITH step_runs_to_reassign AS (
     WHERE
         w."tenantId" = $1::uuid
         AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
-        -- TODO verify only reassign step runs that are not in final states I assume
         AND sr."status" in ('PENDING','PENDING_ASSIGNMENT','ASSIGNED','RUNNING','CANCELLING' )
 ),
 deleted_sqis AS (

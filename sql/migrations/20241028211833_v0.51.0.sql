@@ -35,10 +35,10 @@ BEGIN
                 "requeueAfter" timestamp(3) without time zone,
                 "scheduleTimeoutAt" timestamp(3) without time zone,
                 "error" text,
-                "startedAt" timestamp without time zone,
-                "finishedAt" timestamp without time zone,
-                "timeoutAt" timestamp without time zone,
-                "cancelledAt" timestamp without time zone,
+                "startedAt" timestamp(3)  without time zone,
+                "finishedAt" timestamp(3)  without time zone,
+                "timeoutAt" timestamp(3)  without time zone,
+                "cancelledAt" timestamp(3)  without time zone,
                 "cancelledReason" text,
                 "cancelledError" text,
                 "inputSchema" jsonb,
@@ -48,7 +48,7 @@ BEGIN
                 "semaphoreReleased" boolean NOT NULL DEFAULT false,
                 "queue" text NOT NULL DEFAULT 'default'::text,
                 "priority" integer,
-                PRIMARY KEY ("id", "status")
+                PRIMARY KEY ( "status", "id")
             ) PARTITION BY LIST ("status");
 
             RAISE NOTICE 'Created table "StepRun_new"';
@@ -96,9 +96,6 @@ BEGIN
             CREATE INDEX "StepRun_tenantId_idx" ON "StepRun_new" ("tenantId");
             CREATE INDEX "StepRun_workerId_idx" ON "StepRun_new" ("workerId");
             CREATE INDEX "StepRun_status_tenantId_idx" ON "StepRun_new" ("status", "tenantId");
-
-            CREATE UNIQUE INDEX "StepRun_id_unique_idx" ON "StepRun_new" ("id", "status");
-
 
 
             RAISE NOTICE 'Created indexes for "StepRun_new"';
@@ -223,3 +220,4 @@ BEGIN
     DROP TABLE "StepRun_old";
     COMMIT;
 END $$;
+
