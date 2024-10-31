@@ -221,3 +221,9 @@ BEGIN
     COMMIT;
 END $$;
 
+-- Drop index "StepRun_updatedAt_idx" from table: "StepRun"
+DROP INDEX "StepRun_updatedAt_idx";
+-- Create index "StepRun_id_key" to table: "StepRun"
+CREATE UNIQUE INDEX "StepRun_id_key" ON "StepRun" ("id", "status");
+-- Create index "StepRun_jobRunId_status_tenantId_idx" to table: "StepRun"
+CREATE INDEX "StepRun_jobRunId_status_tenantId_idx" ON "StepRun" ("jobRunId", "status", "tenantId") WHERE (status = 'PENDING'::"StepRunStatus");

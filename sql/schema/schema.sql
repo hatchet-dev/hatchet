@@ -129,868 +129,7 @@ CREATE TYPE "WorkerType" AS ENUM ('WEBHOOK', 'MANAGED', 'SELFHOSTED');
 CREATE TYPE "WorkflowKind" AS ENUM ('FUNCTION', 'DURABLE', 'DAG');
 
 -- CreateEnum
-< < < < < < < HEAD CREATE TYPE "WorkflowRunStatus" AS ENUM (
-    'PENDING',
-    'RUNNING',
-    'SUCCEEDED',
-    'FAILED',
-    'QUEUED'
-);
-
--- CreateTable
-CREATE TABLE
-    "APIToken" (
-        "id" UUID NOT NULL,
-        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "expiresAt" TIMESTAMP(3),
-        "revoked" BOOLEAN NOT NULL DEFAULT false,
-        "name" TEXT,
-        "tenantId" UUID,
-        "nextAlertAt" TIMESTAMP(3),
-        "internal" BOOLEAN NOT NULL DEFAULT false,
-        CONSTRAINT "APIToken_pkey" PRIMARY KEY ("id")
-    );
-
--- CreateTable
-CREATE TABLE
-    "Action" (
-        "description" TEXT,
-        "tenantId" UUID NOT NULL,
-        "actionId" TEXT NOT NULL,
-        "id" UUID NOT NULL,
-        CONSTRAINT "Action_pkey" PRIMARY KEY ("id")
-    );
-
--- CreateTable
-CREATE TABLE
-    "ControllerPartition" (
-        "id" TEXT NOT NULL,
-        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "lastHeartbeat" TIMESTAMP(3),
-        "name" TEXT,
-        CONSTRAINT "ControllerPartition_pkey" PRIMARY KEY ("id")
-    );
-
--- CreateTable
-CREATE TABLE
-    "Dispatcher" (
-        "id" UUID NOT NULL,
-        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "deletedAt" TIMESTAMP(3),
-        "lastHeartbeatAt" TIMESTAMP(3),
-        "isActive" BOOLEAN NOT NULL DEFAULT true,
-        CONSTRAINT "Dispatcher_pkey" PRIMARY KEY ("id")
-    );
-
--- CreateTable
-CREATE TABLE
-    "Event" (
-        "id" UUID NOT NULL,
-        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "deletedAt" TIMESTAMP(3),
-        "key" TEXT NOT NULL,
-        "tenantId" UUID NOT NULL,
-        "replayedFromId" UUID,
-        "data" JSONB,
-        "additionalMetadata" JSONB,
-        "insertOrder" INTEGER,
-        CONSTRAINT "Event_pkey" PRIMARY KEY ("id")
-    );
-
--- CreateTable
-CREATE TABLE
-    "EventKey" (
-        "key" TEXT NOT NULL,
-        "tenantId" UUID NOT NULL,
-        "id" BIGSERIAL NOT NULL,
-        CONSTRAINT "EventKey_pkey" PRIMARY KEY ("id")
-    );
-
--- CreateTable
-CREATE TABLE
-    "GetGroupKeyRun" (
-        "id" UUID NOT NULL,
-        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "deletedAt" TIMESTAMP(3),
-        "tenantId" UUID NOT NULL,
-        "workerId" UUID,
-        "tickerId" UUID,
-        "status" "StepRunStatus" NOT NULL DEFAULT 'PENDING',
-        "input" JSONB,
-        "output" TEXT,
-        "requeueAfter" TIMESTAMP(3),
-        "error" TEXT,
-        "startedAt" TIMESTAMP(3),
-        "finishedAt" TIMESTAMP(3),
-        "timeoutAt" TIMESTAMP(3),
-        "cancelledAt" TIMESTAMP(3),
-        "cancelledReason" TEXT,
-        "cancelledError" TEXT,
-        "workflowRunId" UUID NOT NULL,
-        "scheduleTimeoutAt" TIMESTAMP(3),
-        CONSTRAINT "GetGroupKeyRun_pkey" PRIMARY KEY ("id")
-    );
-
--- CreateTable
-CREATE TABLE
-    "InternalQueueItem" (
-        "id" BIGSERIAL NOT NULL,
-        "queue" "InternalQueue" NOT NULL,
-        "isQueued" BOOLEAN NOT NULL,
-        "data" JSONB,
-        "tenantId" UUID NOT NULL,
-        "priority" INTEGER NOT NULL DEFAULT 1,
-        "uniqueKey" TEXT,
-        CONSTRAINT "InternalQueueItem_pkey" PRIMARY KEY ("id")
-    );
-
--- CreateTable
-CREATE TABLE
-    "Job" (
-        "id" UUID NOT NULL,
-        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "deletedAt" TIMESTAMP(3),
-        "tenantId" UUID NOT NULL,
-        "workflowVersionId" UUID NOT NULL,
-        "name" TEXT NOT NULL,
-        "description" TEXT,
-        "timeout" TEXT,
-        "kind" "JobKind" NOT NULL DEFAULT 'DEFAULT',
-        CONSTRAINT "Job_pkey" PRIMARY KEY ("id")
-    );
-
--- CreateTable
-CREATE TABLE
-    "JobRun" (
-        "id" UUID NOT NULL,
-        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "deletedAt" TIMESTAMP(3),
-        "tenantId" UUID NOT NULL,
-        "jobId" UUID NOT NULL,
-        "tickerId" UUID,
-        "status" "JobRunStatus" NOT NULL DEFAULT 'PENDING',
-        "result" JSONB,
-        "startedAt" TIMESTAMP(3),
-        "finishedAt" TIMESTAMP(3),
-        "timeoutAt" TIMESTAMP(3),
-        "cancelledAt" TIMESTAMP(3),
-        "cancelledReason" TEXT,
-        "cancelledError" TEXT,
-        "workflowRunId" UUID NOT NULL,
-        CONSTRAINT "JobRun_pkey" PRIMARY KEY ("id")
-    );
-
--- CreateTable
-CREATE TABLE
-    "JobRunLookupData" (
-        "id" UUID NOT NULL,
-        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "deletedAt" TIMESTAMP(3),
-        "jobRunId" UUID NOT NULL,
-        "tenantId" UUID NOT NULL,
-        "data" JSONB,
-        CONSTRAINT "JobRunLookupData_pkey" PRIMARY KEY ("id")
-    );
-
--- CreateTable
-CREATE TABLE
-    "Lease" (
-        "id" BIGSERIAL NOT NULL,
-        "expiresAt" TIMESTAMP(3),
-        "tenantId" UUID NOT NULL,
-        "resourceId" TEXT NOT NULL,
-        "kind" "LeaseKind" NOT NULL,
-        CONSTRAINT "Lease_pkey" PRIMARY KEY ("id")
-    );
-
--- CreateTable
-CREATE TABLE
-    "LogLine" (
-        "id" BIGSERIAL NOT NULL,
-        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "tenantId" UUID NOT NULL,
-        "stepRunId" UUID,
-        "message" TEXT NOT NULL,
-        "level" "LogLineLevel" NOT NULL DEFAULT 'INFO',
-        "metadata" JSONB,
-        CONSTRAINT "LogLine_pkey" PRIMARY KEY ("id")
-    );
-
--- CreateTable
-CREATE TABLE
-    "Queue" (
-        "id" BIGSERIAL NOT NULL,
-        "tenantId" UUID NOT NULL,
-        "name" TEXT NOT NULL,
-        CONSTRAINT "Queue_pkey" PRIMARY KEY ("id")
-    );
-
--- CreateTable
-CREATE TABLE
-    "QueueItem" (
-        "id" BIGSERIAL NOT NULL,
-        "stepRunId" UUID,
-        "stepId" UUID,
-        "actionId" TEXT,
-        "scheduleTimeoutAt" TIMESTAMP(3),
-        "stepTimeout" TEXT,
-        "priority" INTEGER NOT NULL DEFAULT 1,
-        "isQueued" BOOLEAN NOT NULL,
-        "tenantId" UUID NOT NULL,
-        "queue" TEXT NOT NULL,
-        "sticky" "StickyStrategy",
-        "desiredWorkerId" UUID,
-        CONSTRAINT "QueueItem_pkey" PRIMARY KEY ("id")
-    );
-
--- CreateTable
-CREATE TABLE
-    "RateLimit" (
-        "tenantId" UUID NOT NULL,
-        "key" TEXT NOT NULL,
-        "limitValue" INTEGER NOT NULL,
-        "value" INTEGER NOT NULL,
-        "window" TEXT NOT NULL,
-        "lastRefill" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
-    );
-
--- CreateTable
-CREATE TABLE
-    "SNSIntegration" (
-        "id" UUID NOT NULL,
-        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "tenantId" UUID NOT NULL,
-        "topicArn" TEXT NOT NULL,
-        CONSTRAINT "SNSIntegration_pkey" PRIMARY KEY ("id")
-    );
-
--- CreateTable
-CREATE TABLE
-    "SecurityCheckIdent" (
-        "id" UUID NOT NULL,
-        CONSTRAINT "SecurityCheckIdent_pkey" PRIMARY KEY ("id")
-    );
-
--- CreateTable
-CREATE TABLE
-    "SemaphoreQueueItem" (
-        "stepRunId" UUID NOT NULL,
-        "workerId" UUID NOT NULL,
-        "tenantId" UUID NOT NULL,
-        CONSTRAINT "SemaphoreQueueItem_pkey" PRIMARY KEY ("stepRunId")
-    );
-
--- CreateTable
-CREATE TABLE
-    "Service" (
-        "id" UUID NOT NULL,
-        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "deletedAt" TIMESTAMP(3),
-        "name" TEXT NOT NULL,
-        "description" TEXT,
-        "tenantId" UUID NOT NULL,
-        CONSTRAINT "Service_pkey" PRIMARY KEY ("id")
-    );
-
--- CreateTable
-CREATE TABLE
-    "SlackAppWebhook" (
-        "id" UUID NOT NULL,
-        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "deletedAt" TIMESTAMP(3),
-        "tenantId" UUID NOT NULL,
-        "teamId" TEXT NOT NULL,
-        "teamName" TEXT NOT NULL,
-        "channelId" TEXT NOT NULL,
-        "channelName" TEXT NOT NULL,
-        "webhookURL" BYTEA NOT NULL,
-        CONSTRAINT "SlackAppWebhook_pkey" PRIMARY KEY ("id")
-    );
-
--- CreateTable
-CREATE TABLE
-    "Step" (
-        "id" UUID NOT NULL,
-        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "deletedAt" TIMESTAMP(3),
-        "readableId" TEXT,
-        "tenantId" UUID NOT NULL,
-        "jobId" UUID NOT NULL,
-        "actionId" TEXT NOT NULL,
-        "timeout" TEXT,
-        "customUserData" JSONB,
-        "retries" INTEGER NOT NULL DEFAULT 0,
-        "scheduleTimeout" TEXT NOT NULL DEFAULT '5m',
-        CONSTRAINT "Step_pkey" PRIMARY KEY ("id")
-    );
-
--- CreateTable
-CREATE TABLE
-    "StepDesiredWorkerLabel" (
-        "id" BIGSERIAL NOT NULL,
-        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "stepId" UUID NOT NULL,
-        "key" TEXT NOT NULL,
-        "strValue" TEXT,
-        "intValue" INTEGER,
-        "required" BOOLEAN NOT NULL,
-        "comparator" "WorkerLabelComparator" NOT NULL,
-        "weight" INTEGER NOT NULL,
-        CONSTRAINT "StepDesiredWorkerLabel_pkey" PRIMARY KEY ("id")
-    );
-
--- CreateTable
-CREATE TABLE
-    "StepExpression" (
-        "key" TEXT NOT NULL,
-        "stepId" UUID NOT NULL,
-        "expression" TEXT NOT NULL,
-        "kind" "StepExpressionKind" NOT NULL,
-        CONSTRAINT "StepExpression_pkey" PRIMARY KEY ("key", "stepId", "kind")
-    );
-
--- CreateTable
-CREATE TABLE
-    "StepRateLimit" (
-        "units" INTEGER NOT NULL,
-        "stepId" UUID NOT NULL,
-        "rateLimitKey" TEXT NOT NULL,
-        "tenantId" UUID NOT NULL,
-        "kind" "StepRateLimitKind" NOT NULL DEFAULT 'STATIC'
-    );
-
--- CreateTable
-CREATE TABLE
-    "StepRun" (
-        "id" UUID NOT NULL,
-        "createdAt" TIMESTAMP(3) without time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "updatedAt" TIMESTAMP(3) without time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "deletedAt" TIMESTAMP(3) without time zone,
-        "tenantId" UUID NOT NULL,
-        "jobRunId" UUID NOT NULL,
-        "stepId" UUID NOT NULL,
-        "order" BIGSERIAL NOT NULL,
-        "workerId" UUID,
-        "tickerId" UUID,
-        "status" "StepRunStatus" NOT NULL DEFAULT 'PENDING',
-        "input" JSONB,
-        "output" JSONB,
-        "requeueAfter" TIMESTAMP(3),
-        "scheduleTimeoutAt" TIMESTAMP(3),
-        "error" TEXT,
-        "startedAt" TIMESTAMP(3),
-        "finishedAt" TIMESTAMP(3),
-        "timeoutAt" TIMESTAMP(3),
-        "cancelledAt" TIMESTAMP(3),
-        "cancelledReason" TEXT,
-        "cancelledError" TEXT,
-        "inputSchema" JSONB,
-        "callerFiles" JSONB,
-        "gitRepoBranch" TEXT,
-        "retryCount" INTEGER NOT NULL DEFAULT 0,
-        "semaphoreReleased" BOOLEAN NOT NULL DEFAULT false,
-        "queue" TEXT NOT NULL DEFAULT 'default',
-        "priority" INTEGER,
-        CONSTRAINT "StepRun_pkey" PRIMARY KEY ("status", "id")
-    )
-PARTITION BY
-    LIST ("status");
-
-CREATE TABLE
-    "StepRun_volatile" PARTITION OF "StepRun" FOR
-VALUES
-    IN (
-        'PENDING',
-        'PENDING_ASSIGNMENT',
-        'ASSIGNED',
-        'RUNNING',
-        'CANCELLING'
-    )
-WITH
-    (fillfactor = 50);
-
-ALTER TABLE "StepRun_volatile"
-SET
-    (
-        autovacuum_vacuum_threshold = '1000',
-        autovacuum_vacuum_scale_factor = '0.01',
-        autovacuum_analyze_threshold = '500',
-        autovacuum_analyze_scale_factor = '0.01'
-    );
-
-CREATE TABLE
-    "StepRun_stable" PARTITION OF "StepRun" FOR
-VALUES
-    IN ('FAILED', 'CANCELLED', 'SUCCEEDED')
-WITH
-    (fillfactor = 100);
-
--- CreateTable
-CREATE TABLE
-    "StepRunEvent" (
-        "id" BIGSERIAL NOT NULL,
-        "timeFirstSeen" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "timeLastSeen" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "stepRunId" UUID,
-        "reason" "StepRunEventReason" NOT NULL,
-        "severity" "StepRunEventSeverity" NOT NULL,
-        "message" TEXT NOT NULL,
-        "count" INTEGER NOT NULL,
-        "data" JSONB,
-        "workflowRunId" UUID
-    );
-
--- CreateTable
-CREATE TABLE
-    "StepRunExpressionEval" (
-        "key" TEXT NOT NULL,
-        "stepRunId" UUID NOT NULL,
-        "valueStr" TEXT,
-        "valueInt" INTEGER,
-        "kind" "StepExpressionKind" NOT NULL,
-        CONSTRAINT "StepRunExpressionEval_pkey" PRIMARY KEY ("key", "stepRunId", "kind")
-    );
-
--- CreateTable
-CREATE TABLE
-    "StepRunResultArchive" (
-        "id" UUID NOT NULL,
-        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "deletedAt" TIMESTAMP(3),
-        "stepRunId" UUID NOT NULL,
-        "order" BIGSERIAL NOT NULL,
-        "input" JSONB,
-        "output" JSONB,
-        "error" TEXT,
-        "startedAt" TIMESTAMP(3),
-        "finishedAt" TIMESTAMP(3),
-        "timeoutAt" TIMESTAMP(3),
-        "cancelledAt" TIMESTAMP(3),
-        "cancelledReason" TEXT,
-        "cancelledError" TEXT,
-        "retryCount" INTEGER NOT NULL DEFAULT 0,
-        CONSTRAINT "StepRunResultArchive_pkey" PRIMARY KEY ("id")
-    );
-
--- CreateTable
-CREATE TABLE
-    "StreamEvent" (
-        "id" BIGSERIAL NOT NULL,
-        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "tenantId" UUID NOT NULL,
-        "stepRunId" UUID,
-        "message" BYTEA NOT NULL,
-        "metadata" JSONB,
-        CONSTRAINT "StreamEvent_pkey" PRIMARY KEY ("id")
-    );
-
--- CreateTable
-CREATE TABLE
-    "Tenant" (
-        "id" UUID NOT NULL,
-        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "deletedAt" TIMESTAMP(3),
-        "name" TEXT NOT NULL,
-        "slug" TEXT NOT NULL,
-        "analyticsOptOut" BOOLEAN NOT NULL DEFAULT false,
-        "alertMemberEmails" BOOLEAN NOT NULL DEFAULT true,
-        "controllerPartitionId" TEXT,
-        "workerPartitionId" TEXT,
-        "dataRetentionPeriod" TEXT NOT NULL DEFAULT '720h',
-        CONSTRAINT "Tenant_pkey" PRIMARY KEY ("id")
-    );
-
--- CreateTable
-CREATE TABLE
-    "TenantAlertEmailGroup" (
-        "id" UUID NOT NULL,
-        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "deletedAt" TIMESTAMP(3),
-        "tenantId" UUID NOT NULL,
-        "emails" TEXT NOT NULL,
-        CONSTRAINT "TenantAlertEmailGroup_pkey" PRIMARY KEY ("id")
-    );
-
--- CreateTable
-CREATE TABLE
-    "TenantAlertingSettings" (
-        "id" UUID NOT NULL,
-        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "deletedAt" TIMESTAMP(3),
-        "tenantId" UUID NOT NULL,
-        "maxFrequency" TEXT NOT NULL DEFAULT '1h',
-        "lastAlertedAt" TIMESTAMP(3),
-        "tickerId" UUID,
-        "enableExpiringTokenAlerts" BOOLEAN NOT NULL DEFAULT true,
-        "enableWorkflowRunFailureAlerts" BOOLEAN NOT NULL DEFAULT false,
-        "enableTenantResourceLimitAlerts" BOOLEAN NOT NULL DEFAULT true,
-        CONSTRAINT "TenantAlertingSettings_pkey" PRIMARY KEY ("id")
-    );
-
--- CreateTable
-CREATE TABLE
-    "TenantInviteLink" (
-        "id" UUID NOT NULL,
-        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "tenantId" UUID NOT NULL,
-        "inviterEmail" TEXT NOT NULL,
-        "inviteeEmail" TEXT NOT NULL,
-        "expires" TIMESTAMP(3) NOT NULL,
-        "status" "InviteLinkStatus" NOT NULL DEFAULT 'PENDING',
-        "role" "TenantMemberRole" NOT NULL DEFAULT 'OWNER',
-        CONSTRAINT "TenantInviteLink_pkey" PRIMARY KEY ("id")
-    );
-
--- CreateTable
-CREATE TABLE
-    "TenantMember" (
-        "id" UUID NOT NULL,
-        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "tenantId" UUID NOT NULL,
-        "userId" UUID NOT NULL,
-        "role" "TenantMemberRole" NOT NULL,
-        CONSTRAINT "TenantMember_pkey" PRIMARY KEY ("id")
-    );
-
--- CreateTable
-CREATE TABLE
-    "TenantResourceLimit" (
-        "id" UUID NOT NULL,
-        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "resource" "LimitResource" NOT NULL,
-        "tenantId" UUID NOT NULL,
-        "limitValue" INTEGER NOT NULL,
-        "alarmValue" INTEGER,
-        "value" INTEGER NOT NULL DEFAULT 0,
-        "window" TEXT,
-        "lastRefill" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "customValueMeter" BOOLEAN NOT NULL DEFAULT false,
-        CONSTRAINT "TenantResourceLimit_pkey" PRIMARY KEY ("id")
-    );
-
--- CreateTable
-CREATE TABLE
-    "TenantResourceLimitAlert" (
-        "id" UUID NOT NULL,
-        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "resourceLimitId" UUID NOT NULL,
-        "tenantId" UUID NOT NULL,
-        "resource" "LimitResource" NOT NULL,
-        "alertType" "TenantResourceLimitAlertType" NOT NULL,
-        "value" INTEGER NOT NULL,
-        "limit" INTEGER NOT NULL,
-        CONSTRAINT "TenantResourceLimitAlert_pkey" PRIMARY KEY ("id")
-    );
-
--- CreateTable
-CREATE TABLE
-    "TenantVcsProvider" (
-        "id" UUID NOT NULL,
-        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "deletedAt" TIMESTAMP(3),
-        "tenantId" UUID NOT NULL,
-        "vcsProvider" "VcsProvider" NOT NULL,
-        "config" JSONB,
-        CONSTRAINT "TenantVcsProvider_pkey" PRIMARY KEY ("id")
-    );
-
--- CreateTable
-CREATE TABLE
-    "TenantWorkerPartition" (
-        "id" TEXT NOT NULL,
-        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "lastHeartbeat" TIMESTAMP(3),
-        "name" TEXT,
-        CONSTRAINT "TenantWorkerPartition_pkey" PRIMARY KEY ("id")
-    );
-
--- CreateTable
-CREATE TABLE
-    "Ticker" (
-        "id" UUID NOT NULL,
-        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "lastHeartbeatAt" TIMESTAMP(3),
-        "isActive" BOOLEAN NOT NULL DEFAULT true,
-        CONSTRAINT "Ticker_pkey" PRIMARY KEY ("id")
-    );
-
--- CreateTable
-CREATE TABLE
-    "TimeoutQueueItem" (
-        "id" BIGSERIAL NOT NULL,
-        "stepRunId" UUID NOT NULL,
-        "retryCount" INTEGER NOT NULL,
-        "timeoutAt" TIMESTAMP(3) NOT NULL,
-        "tenantId" UUID NOT NULL,
-        "isQueued" BOOLEAN NOT NULL,
-        CONSTRAINT "TimeoutQueueItem_pkey" PRIMARY KEY ("id")
-    );
-
--- CreateTable
-CREATE TABLE
-    "User" (
-        "id" UUID NOT NULL,
-        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "deletedAt" TIMESTAMP(3),
-        "email" TEXT NOT NULL,
-        "emailVerified" BOOLEAN NOT NULL DEFAULT false,
-        "name" TEXT,
-        CONSTRAINT "User_pkey" PRIMARY KEY ("id")
-    );
-
--- CreateTable
-CREATE TABLE
-    "UserOAuth" (
-        "id" UUID NOT NULL,
-        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "userId" UUID NOT NULL,
-        "provider" TEXT NOT NULL,
-        "providerUserId" TEXT NOT NULL,
-        "expiresAt" TIMESTAMP(3),
-        "accessToken" BYTEA NOT NULL,
-        "refreshToken" BYTEA,
-        CONSTRAINT "UserOAuth_pkey" PRIMARY KEY ("id")
-    );
-
--- CreateTable
-CREATE TABLE
-    "UserPassword" ("hash" TEXT NOT NULL, "userId" UUID NOT NULL);
-
--- CreateTable
-CREATE TABLE
-    "UserSession" (
-        "id" UUID NOT NULL,
-        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "userId" UUID,
-        "data" JSONB,
-        "expiresAt" TIMESTAMP(3) NOT NULL,
-        CONSTRAINT "UserSession_pkey" PRIMARY KEY ("id")
-    );
-
--- CreateTable
-CREATE TABLE
-    "WebhookWorker" (
-        "id" UUID NOT NULL,
-        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "name" TEXT NOT NULL,
-        "secret" TEXT NOT NULL,
-        "url" TEXT NOT NULL,
-        "tokenValue" TEXT,
-        "deleted" BOOLEAN NOT NULL DEFAULT false,
-        "tokenId" UUID,
-        "tenantId" UUID NOT NULL,
-        CONSTRAINT "WebhookWorker_pkey" PRIMARY KEY ("id")
-    );
-
--- CreateTable
-CREATE TABLE
-    "WebhookWorkerRequest" (
-        "id" UUID NOT NULL,
-        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "webhookWorkerId" UUID NOT NULL,
-        "method" "WebhookWorkerRequestMethod" NOT NULL,
-        "statusCode" INTEGER NOT NULL,
-        CONSTRAINT "WebhookWorkerRequest_pkey" PRIMARY KEY ("id")
-    );
-
--- CreateTable
-CREATE TABLE
-    "WebhookWorkerWorkflow" (
-        "id" UUID NOT NULL,
-        "webhookWorkerId" UUID NOT NULL,
-        "workflowId" UUID NOT NULL,
-        CONSTRAINT "WebhookWorkerWorkflow_pkey" PRIMARY KEY ("id")
-    );
-
--- CreateTable
-CREATE TABLE
-    "Worker" (
-        "id" UUID NOT NULL,
-        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "deletedAt" TIMESTAMP(3),
-        "tenantId" UUID NOT NULL,
-        "lastHeartbeatAt" TIMESTAMP(3),
-        "name" TEXT NOT NULL,
-        "dispatcherId" UUID,
-        "maxRuns" INTEGER NOT NULL DEFAULT 100,
-        "isActive" BOOLEAN NOT NULL DEFAULT false,
-        "lastListenerEstablished" TIMESTAMP(3),
-        "isPaused" BOOLEAN NOT NULL DEFAULT false,
-        "type" "WorkerType" NOT NULL DEFAULT 'SELFHOSTED',
-        "webhookId" UUID,
-        CONSTRAINT "Worker_pkey" PRIMARY KEY ("id")
-    );
-
--- CreateTable
-CREATE TABLE
-    "WorkerAssignEvent" (
-        "id" BIGSERIAL NOT NULL,
-        "workerId" UUID NOT NULL,
-        "assignedStepRuns" JSONB,
-        CONSTRAINT "WorkerAssignEvent_pkey" PRIMARY KEY ("id")
-    );
-
--- CreateTable
-CREATE TABLE
-    "WorkerLabel" (
-        "id" BIGSERIAL NOT NULL,
-        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "workerId" UUID NOT NULL,
-        "key" TEXT NOT NULL,
-        "strValue" TEXT,
-        "intValue" INTEGER,
-        CONSTRAINT "WorkerLabel_pkey" PRIMARY KEY ("id")
-    );
-
--- CreateTable
-CREATE TABLE
-    "Workflow" (
-        "id" UUID NOT NULL,
-        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "deletedAt" TIMESTAMP(3),
-        "tenantId" UUID NOT NULL,
-        "name" TEXT NOT NULL,
-        "description" TEXT,
-        "isPaused" BOOLEAN DEFAULT false,
-        CONSTRAINT "Workflow_pkey" PRIMARY KEY ("id")
-    );
-
--- CreateTable
-CREATE TABLE
-    "WorkflowConcurrency" (
-        "id" UUID NOT NULL,
-        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "workflowVersionId" UUID NOT NULL,
-        "getConcurrencyGroupId" UUID,
-        "maxRuns" INTEGER NOT NULL DEFAULT 1,
-        "limitStrategy" "ConcurrencyLimitStrategy" NOT NULL DEFAULT 'CANCEL_IN_PROGRESS',
-        "concurrencyGroupExpression" TEXT,
-        CONSTRAINT "WorkflowConcurrency_pkey" PRIMARY KEY ("id")
-    );
-
--- CreateTable
-CREATE TABLE
-    "WorkflowRun" (
-        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "deletedAt" TIMESTAMP(3),
-        "tenantId" UUID NOT NULL,
-        "workflowVersionId" UUID NOT NULL,
-        "status" "WorkflowRunStatus" NOT NULL DEFAULT 'PENDING',
-        "error" TEXT,
-        "startedAt" TIMESTAMP(3),
-        "finishedAt" TIMESTAMP(3),
-        "concurrencyGroupId" TEXT,
-        "displayName" TEXT,
-        "id" UUID NOT NULL,
-        "childIndex" INTEGER,
-        "childKey" TEXT,
-        "parentId" UUID,
-        "parentStepRunId" UUID,
-        "additionalMetadata" JSONB,
-        "duration" BIGINT,
-        "priority" INTEGER,
-        "insertOrder" INTEGER,
-        CONSTRAINT "WorkflowRun_pkey" PRIMARY KEY ("id")
-    );
-
--- CreateTable
-CREATE TABLE
-    "WorkflowRunDedupe" (
-        "id" BIGSERIAL NOT NULL,
-        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "tenantId" UUID NOT NULL,
-        "workflowId" UUID NOT NULL,
-        "workflowRunId" UUID NOT NULL,
-        "value" TEXT NOT NULL
-    );
-
--- CreateTable
-CREATE TABLE
-    "WorkflowRunStickyState" (
-        "id" BIGSERIAL NOT NULL,
-        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "tenantId" UUID NOT NULL,
-        "workflowRunId" UUID NOT NULL,
-        "desiredWorkerId" UUID,
-        "strategy" "StickyStrategy" NOT NULL,
-        CONSTRAINT "WorkflowRunStickyState_pkey" PRIMARY KEY ("id")
-    );
-
--- CreateTable
-CREATE TABLE
-    "WorkflowRunTriggeredBy" (
-        "id" UUID NOT NULL,
-        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "deletedAt" TIMESTAMP(3),
-        "tenantId" UUID NOT NULL,
-        "eventId" UUID,
-        "cronParentId" UUID,
-        "cronSchedule" TEXT,
-        "scheduledId" UUID,
-        "input" JSONB,
-        "parentId" UUID NOT NULL,
-        CONSTRAINT "WorkflowRunTriggeredBy_pkey" PRIMARY KEY ("id")
-    );
-
--- CreateTable
-CREATE TABLE
-    "WorkflowTag" (
-        "id" UUID NOT NULL,
-        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "tenantId" UUID NOT NULL,
-        "name" TEXT NOT NULL,
-        "color" TEXT NOT NULL DEFAULT '#93C5FD',
-        CONSTRAINT "WorkflowTag_pkey" PRIMARY KEY ("id")
-    );
-
--- CreateTable
-CREATE TABLE
-    "WorkflowTriggerCronRef" (
-        "parentId" UUID NOT NULL,
-        "cron" TEXT NOT NULL,
-        "tickerId" UUID,
-        "input" JSONB,
-        "enabled" BOOLEAN NOT NULL DEFAULT true
-    );
-
-= = = = = = = CREATE TYPE "WorkflowRunStatus" AS ENUM (
+CREATE TYPE "WorkflowRunStatus" AS ENUM (
     'PENDING',
     'RUNNING',
     'SUCCEEDED',
@@ -1291,82 +430,175 @@ CREATE TABLE
         CONSTRAINT "SlackAppWebhook_pkey" PRIMARY KEY ("id")
     );
 
-> > > > > > > main
 -- CreateTable
 CREATE TABLE
-    "WorkflowTriggerEventRef" (
-        "parentId" UUID NOT NULL,
-        "eventKey" TEXT NOT NULL
-    );
-
--- CreateTable
-CREATE TABLE
-    "WorkflowTriggerScheduledRef" (
-        "id" UUID NOT NULL,
-        "parentId" UUID NOT NULL,
-        "triggerAt" TIMESTAMP(3) NOT NULL,
-        "tickerId" UUID,
-        "input" JSONB,
-        "childIndex" INTEGER,
-        "childKey" TEXT,
-        "parentStepRunId" UUID,
-        "parentWorkflowRunId" UUID,
-        CONSTRAINT "WorkflowTriggerScheduledRef_pkey" PRIMARY KEY ("id")
-    );
-
--- CreateTable
-CREATE TABLE
-    "WorkflowTriggers" (
+    "Step" (
         "id" UUID NOT NULL,
         "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
         "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
         "deletedAt" TIMESTAMP(3),
-        "workflowVersionId" UUID NOT NULL,
+        "readableId" TEXT,
         "tenantId" UUID NOT NULL,
-        CONSTRAINT "WorkflowTriggers_pkey" PRIMARY KEY ("id")
+        "jobId" UUID NOT NULL,
+        "actionId" TEXT NOT NULL,
+        "timeout" TEXT,
+        "customUserData" JSONB,
+        "retries" INTEGER NOT NULL DEFAULT 0,
+        "scheduleTimeout" TEXT NOT NULL DEFAULT '5m',
+        CONSTRAINT "Step_pkey" PRIMARY KEY ("id")
     );
 
 -- CreateTable
 CREATE TABLE
-    "WorkflowVersion" (
+    "StepDesiredWorkerLabel" (
+        "id" BIGSERIAL NOT NULL,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "stepId" UUID NOT NULL,
+        "key" TEXT NOT NULL,
+        "strValue" TEXT,
+        "intValue" INTEGER,
+        "required" BOOLEAN NOT NULL,
+        "comparator" "WorkerLabelComparator" NOT NULL,
+        "weight" INTEGER NOT NULL,
+        CONSTRAINT "StepDesiredWorkerLabel_pkey" PRIMARY KEY ("id")
+    );
+
+-- CreateTable
+CREATE TABLE
+    "StepExpression" (
+        "key" TEXT NOT NULL,
+        "stepId" UUID NOT NULL,
+        "expression" TEXT NOT NULL,
+        "kind" "StepExpressionKind" NOT NULL,
+        CONSTRAINT "StepExpression_pkey" PRIMARY KEY ("key", "stepId", "kind")
+    );
+
+-- CreateTable
+CREATE TABLE
+    "StepRateLimit" (
+        "units" INTEGER NOT NULL,
+        "stepId" UUID NOT NULL,
+        "rateLimitKey" TEXT NOT NULL,
+        "tenantId" UUID NOT NULL,
+        "kind" "StepRateLimitKind" NOT NULL DEFAULT 'STATIC'
+    );
+
+-- CreateTable
+CREATE TABLE
+    "StepRun" (
+        "id" UUID NOT NULL,
+        "createdAt" TIMESTAMP(3) without time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) without time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "deletedAt" TIMESTAMP(3) without time zone,
+        "tenantId" UUID NOT NULL,
+        "jobRunId" UUID NOT NULL,
+        "stepId" UUID NOT NULL,
+        "order" BIGSERIAL NOT NULL,
+        "workerId" UUID,
+        "tickerId" UUID,
+        "status" "StepRunStatus" NOT NULL DEFAULT 'PENDING',
+        "input" JSONB,
+        "output" JSONB,
+        "requeueAfter" TIMESTAMP(3),
+        "scheduleTimeoutAt" TIMESTAMP(3),
+        "error" TEXT,
+        "startedAt" TIMESTAMP(3),
+        "finishedAt" TIMESTAMP(3),
+        "timeoutAt" TIMESTAMP(3),
+        "cancelledAt" TIMESTAMP(3),
+        "cancelledReason" TEXT,
+        "cancelledError" TEXT,
+        "inputSchema" JSONB,
+        "callerFiles" JSONB,
+        "gitRepoBranch" TEXT,
+        "retryCount" INTEGER NOT NULL DEFAULT 0,
+        "semaphoreReleased" BOOLEAN NOT NULL DEFAULT false,
+        "queue" TEXT NOT NULL DEFAULT 'default',
+        "priority" INTEGER,
+        CONSTRAINT "StepRun_pkey" PRIMARY KEY ("status", "id")
+    )
+PARTITION BY
+    LIST ("status");
+
+CREATE TABLE
+    "StepRun_volatile" PARTITION OF "StepRun" FOR
+VALUES
+    IN (
+        'PENDING',
+        'PENDING_ASSIGNMENT',
+        'ASSIGNED',
+        'RUNNING',
+        'CANCELLING'
+    )
+WITH
+    (fillfactor = 50);
+
+ALTER TABLE "StepRun_volatile"
+SET
+    (
+        autovacuum_vacuum_threshold = '1000',
+        autovacuum_vacuum_scale_factor = '0.01',
+        autovacuum_analyze_threshold = '500',
+        autovacuum_analyze_scale_factor = '0.01'
+    );
+
+CREATE TABLE
+    "StepRun_stable" PARTITION OF "StepRun" FOR
+VALUES
+    IN ('FAILED', 'CANCELLED', 'SUCCEEDED')
+WITH
+    (fillfactor = 100);
+
+-- CreateTable
+CREATE TABLE
+    "StepRunEvent" (
+        "id" BIGSERIAL NOT NULL,
+        "timeFirstSeen" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "timeLastSeen" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "stepRunId" UUID,
+        "reason" "StepRunEventReason" NOT NULL,
+        "severity" "StepRunEventSeverity" NOT NULL,
+        "message" TEXT NOT NULL,
+        "count" INTEGER NOT NULL,
+        "data" JSONB,
+        "workflowRunId" UUID
+    );
+
+-- CreateTable
+CREATE TABLE
+    "StepRunExpressionEval" (
+        "key" TEXT NOT NULL,
+        "stepRunId" UUID NOT NULL,
+        "valueStr" TEXT,
+        "valueInt" INTEGER,
+        "kind" "StepExpressionKind" NOT NULL,
+        CONSTRAINT "StepRunExpressionEval_pkey" PRIMARY KEY ("key", "stepRunId", "kind")
+    );
+
+-- CreateTable
+CREATE TABLE
+    "StepRunResultArchive" (
         "id" UUID NOT NULL,
         "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
         "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
         "deletedAt" TIMESTAMP(3),
-        "version" TEXT,
+        "stepRunId" UUID NOT NULL,
         "order" BIGSERIAL NOT NULL,
-        "workflowId" UUID NOT NULL,
-        "checksum" TEXT NOT NULL,
-        "scheduleTimeout" TEXT NOT NULL DEFAULT '5m',
-        "onFailureJobId" UUID,
-        "sticky" "StickyStrategy",
-        "kind" "WorkflowKind" NOT NULL DEFAULT 'DAG',
-        "defaultPriority" INTEGER,
-        CONSTRAINT "WorkflowVersion_pkey" PRIMARY KEY ("id")
+        "input" JSONB,
+        "output" JSONB,
+        "error" TEXT,
+        "startedAt" TIMESTAMP(3),
+        "finishedAt" TIMESTAMP(3),
+        "timeoutAt" TIMESTAMP(3),
+        "cancelledAt" TIMESTAMP(3),
+        "cancelledReason" TEXT,
+        "cancelledError" TEXT,
+        "retryCount" INTEGER NOT NULL DEFAULT 0,
+        CONSTRAINT "StepRunResultArchive_pkey" PRIMARY KEY ("id")
     );
 
 -- CreateTable
-CREATE TABLE
-    "_ActionToWorker" ("B" UUID NOT NULL, "A" UUID NOT NULL);
-
--- CreateTable
-CREATE TABLE
-    "_ServiceToWorker" ("A" UUID NOT NULL, "B" UUID NOT NULL);
-
--- CreateTable
-CREATE TABLE
-    "_StepOrder" ("A" UUID NOT NULL, "B" UUID NOT NULL);
-
--- CreateTable
-CREATE TABLE
-    "_StepRunOrder" ("A" UUID NOT NULL, "B" UUID NOT NULL);
-
--- CreateTable
-< < < < < < < HEAD
-CREATE TABLE
-    "_WorkflowToWorkflowTag" ("A" UUID NOT NULL, "B" UUID NOT NULL);
-
-= = = = = = =
 CREATE TABLE
     "StreamEvent" (
         "id" BIGSERIAL NOT NULL,
@@ -1852,10 +1084,6 @@ CREATE TABLE
 -- CreateIndex
 CREATE UNIQUE INDEX "APIToken_id_key" ON "APIToken" ("id" ASC);
 
-> > > > > > > main
--- CreateIndex
-CREATE UNIQUE INDEX "APIToken_id_key" ON "APIToken" ("id" ASC);
-
 -- CreateIndex
 CREATE UNIQUE INDEX "Action_id_key" ON "Action" ("id" ASC);
 
@@ -1944,14 +1172,11 @@ CREATE UNIQUE INDEX "JobRunLookupData_jobRunId_key" ON "JobRunLookupData" ("jobR
 CREATE UNIQUE INDEX "JobRunLookupData_jobRunId_tenantId_key" ON "JobRunLookupData" ("jobRunId" ASC, "tenantId" ASC);
 
 -- CreateIndex
-< < < < < < < HEAD CREATE UNIQUE INDEX "Lease_tenantId_kind_resourceId_key" ON "Lease" ("tenantId" ASC, "kind" ASC, "resourceId" ASC);
-
-= = = = = = = CREATE INDEX "Queue_tenantId_lastActive_idx" ON "Queue" ("tenantId" ASC, "lastActive" ASC);
+CREATE UNIQUE INDEX "Lease_tenantId_kind_resourceId_key" ON "Lease" ("tenantId" ASC, "kind" ASC, "resourceId" ASC);
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Queue_tenantId_name_key" ON "Queue" ("tenantId" ASC, "name" ASC);
+CREATE INDEX "Queue_tenantId_lastActive_idx" ON "Queue" ("tenantId" ASC, "lastActive" ASC);
 
-> > > > > > > main
 -- CreateIndex
 CREATE UNIQUE INDEX "Queue_tenantId_name_key" ON "Queue" ("tenantId" ASC, "name" ASC);
 
@@ -1971,14 +1196,11 @@ CREATE UNIQUE INDEX "RateLimit_tenantId_key_key" ON "RateLimit" ("tenantId" ASC,
 CREATE UNIQUE INDEX "SNSIntegration_id_key" ON "SNSIntegration" ("id" ASC);
 
 -- CreateIndex
-< < < < < < < HEAD CREATE UNIQUE INDEX "SNSIntegration_tenantId_topicArn_key" ON "SNSIntegration" ("tenantId" ASC, "topicArn" ASC);
-
-= = = = = = = CREATE UNIQUE INDEX "SchedulerPartition_id_key" ON "SchedulerPartition" ("id" ASC);
+CREATE UNIQUE INDEX "SNSIntegration_tenantId_topicArn_key" ON "SNSIntegration" ("tenantId" ASC, "topicArn" ASC);
 
 -- CreateIndex
-CREATE UNIQUE INDEX "SecurityCheckIdent_id_key" ON "SecurityCheckIdent" ("id" ASC);
+CREATE UNIQUE INDEX "SchedulerPartition_id_key" ON "SchedulerPartition" ("id" ASC);
 
-> > > > > > > main
 -- CreateIndex
 CREATE UNIQUE INDEX "SecurityCheckIdent_id_key" ON "SecurityCheckIdent" ("id" ASC);
 
@@ -2020,6 +1242,9 @@ CREATE INDEX "StepRun_createdAt_idx" ON "StepRun" ("createdAt" ASC);
 
 -- CreateIndex
 CREATE INDEX "StepRun_deletedAt_idx" ON "StepRun" ("deletedAt" ASC);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "StepRun_id_key" ON "StepRun" ("id" ASC, "status" ASC);
 
 -- CreateIndex
 CREATE INDEX "StepRun_id_tenantId_idx" ON "StepRun" ("id" ASC, "tenantId" ASC);
@@ -2354,13 +1579,10 @@ ALTER TABLE "StepDesiredWorkerLabel" ADD CONSTRAINT "StepDesiredWorkerLabel_step
 ALTER TABLE "StepRateLimit" ADD CONSTRAINT "StepRateLimit_tenantId_rateLimitKey_fkey" FOREIGN KEY ("tenantId", "rateLimitKey") REFERENCES "RateLimit" ("tenantId", "key") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "StepRun" ADD CONSTRAINT "StepRun_jobRunId_fkey" FOREIGN KEY ("jobRunId") REFERENCES "JobRun" ("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "StepRun" ADD CONSTRAINT "StepRun_workerId_fkey" FOREIGN KEY ("workerId") REFERENCES "Worker" ("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "Tenant" ADD CONSTRAINT "Tenant_controllerPartitionId_fkey" FOREIGN KEY ("controllerPartitionId") REFERENCES "ControllerPartition" ("id") ON DELETE SET NULL ON UPDATE SET NULL;
+
+-- AddForeignKey
+ALTER TABLE "Tenant" ADD CONSTRAINT "Tenant_schedulerPartitionId_fkey" FOREIGN KEY ("schedulerPartitionId") REFERENCES "SchedulerPartition" ("id") ON DELETE SET NULL ON UPDATE SET NULL;
 
 -- AddForeignKey
 ALTER TABLE "Tenant" ADD CONSTRAINT "Tenant_workerPartitionId_fkey" FOREIGN KEY ("workerPartitionId") REFERENCES "TenantWorkerPartition" ("id") ON DELETE SET NULL ON UPDATE SET NULL;
@@ -2372,16 +1594,8 @@ ALTER TABLE "TenantAlertEmailGroup" ADD CONSTRAINT "TenantAlertEmailGroup_tenant
 ALTER TABLE "TenantAlertingSettings" ADD CONSTRAINT "TenantAlertingSettings_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant" ("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-< < < < < < < HEAD
 ALTER TABLE "TenantAlertingSettings" ADD CONSTRAINT "TenantAlertingSettings_tickerId_fkey" FOREIGN KEY ("tickerId") REFERENCES "Ticker" ("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
-= = = = = = =
-ALTER TABLE "Tenant" ADD CONSTRAINT "Tenant_schedulerPartitionId_fkey" FOREIGN KEY ("schedulerPartitionId") REFERENCES "SchedulerPartition" ("id") ON DELETE SET NULL ON UPDATE SET NULL;
-
--- AddForeignKey
-ALTER TABLE "Tenant" ADD CONSTRAINT "Tenant_workerPartitionId_fkey" FOREIGN KEY ("workerPartitionId") REFERENCES "TenantWorkerPartition" ("id") ON DELETE SET NULL ON UPDATE SET NULL;
-
-> > > > > > > main
 -- AddForeignKey
 ALTER TABLE "TenantInviteLink" ADD CONSTRAINT "TenantInviteLink_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant" ("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
@@ -2514,6 +1728,8 @@ ALTER TABLE "_WorkflowToWorkflowTag" ADD CONSTRAINT "_WorkflowToWorkflowTag_A_fk
 -- AddForeignKey
 ALTER TABLE "_WorkflowToWorkflowTag" ADD CONSTRAINT "_WorkflowToWorkflowTag_B_fkey" FOREIGN KEY ("B") REFERENCES "WorkflowTag" ("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
+-- NOTE: this is a SQL script file that contains the constraints for the database
+-- it is needed because prisma does not support constraints yet
 -- Modify "QueueItem" table
 ALTER TABLE "QueueItem" ADD CONSTRAINT "QueueItem_priority_check" CHECK (
     "priority" >= 1
@@ -2543,11 +1759,6 @@ CREATE INDEX IF NOT EXISTS idx_workflowrun_main ON "WorkflowRun" (
     "createdAt"
 );
 
--- Additional indexes on step run
-CREATE INDEX IF NOT EXISTS "StepRun_status_tenantId_idx" ON "StepRun" ("status", "tenantId");
-
-CREATE INDEX IF NOT EXISTS "StepRun_updatedAt_idx" ON "StepRun" ("updatedAt");
-
 -- Additional indexes on workflow
 CREATE INDEX IF NOT EXISTS idx_workflow_version_workflow_id_order ON "WorkflowVersion" ("workflowId", "order" DESC)
 WHERE
@@ -2565,3 +1776,5 @@ CREATE INDEX idx_workflow_trigger_event_ref_event_key_parent_id ON "WorkflowTrig
 CREATE INDEX IF NOT EXISTS "WorkflowRun_parentId_parentStepRunId_childIndex_key" ON "WorkflowRun" ("parentId", "parentStepRunId", "childIndex")
 WHERE
     "deletedAt" IS NULL;
+
+CREATE INDEX IF NOT EXISTS "StepRun_status_tenantId_idx" ON "StepRun" ("status", "tenantId");
