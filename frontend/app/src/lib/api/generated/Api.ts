@@ -24,6 +24,8 @@ import {
   CreateTenantAlertEmailGroupRequest,
   CreateTenantInviteRequest,
   CreateTenantRequest,
+  CronWorkflowsList,
+  CronWorkflowsOrderByField,
   Event,
   EventData,
   EventKey,
@@ -49,6 +51,10 @@ import {
   ReplayWorkflowRunsRequest,
   ReplayWorkflowRunsResponse,
   RerunStepRunRequest,
+  ScheduledRunStatus,
+  ScheduledWorkflows,
+  ScheduledWorkflowsList,
+  ScheduledWorkflowsOrderByField,
   SNSIntegration,
   StepRun,
   StepRunArchiveList,
@@ -1116,6 +1122,153 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       ...params,
     });
   /**
+   * @description Get all scheduled workflow runs for a tenant
+   *
+   * @tags Workflow
+   * @name WorkflowScheduledList
+   * @summary Get scheduled workflow runs
+   * @request GET:/api/v1/tenants/{tenant}/workflows/scheduled
+   * @secure
+   */
+  workflowScheduledList = (
+    tenant: string,
+    query?: {
+      /**
+       * The number to skip
+       * @format int64
+       */
+      offset?: number;
+      /**
+       * The number to limit by
+       * @format int64
+       */
+      limit?: number;
+      /** The order by field */
+      orderByField?: ScheduledWorkflowsOrderByField;
+      /** The order by direction */
+      orderByDirection?: WorkflowRunOrderByDirection;
+      /**
+       * The workflow id to get runs for.
+       * @format uuid
+       * @minLength 36
+       * @maxLength 36
+       */
+      workflowId?: string;
+      /**
+       * The parent workflow run id
+       * @format uuid
+       * @minLength 36
+       * @maxLength 36
+       */
+      parentWorkflowRunId?: string;
+      /**
+       * The parent step run id
+       * @format uuid
+       * @minLength 36
+       * @maxLength 36
+       */
+      parentStepRunId?: string;
+      /**
+       * A list of metadata key value pairs to filter by
+       * @example ["key1:value1","key2:value2"]
+       */
+      additionalMetadata?: string[];
+      /** A list of scheduled run statuses to filter by */
+      statuses?: ScheduledRunStatus[];
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<ScheduledWorkflowsList, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/workflows/scheduled`,
+      method: 'GET',
+      query: query,
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Get a scheduled workflow run for a tenant
+   *
+   * @tags Workflow
+   * @name WorkflowScheduledGet
+   * @summary Get scheduled workflow run
+   * @request GET:/api/v1/tenants/{tenant}/workflows/scheduled/{scheduledId}
+   * @secure
+   */
+  workflowScheduledGet = (tenant: string, scheduledId: string, params: RequestParams = {}) =>
+    this.request<ScheduledWorkflows, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/workflows/scheduled/${scheduledId}`,
+      method: 'GET',
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Delete a scheduled workflow run for a tenant
+   *
+   * @tags Workflow
+   * @name WorkflowScheduledDelete
+   * @summary Delete scheduled workflow run
+   * @request DELETE:/api/v1/tenants/{tenant}/workflows/scheduled/{scheduledId}
+   * @secure
+   */
+  workflowScheduledDelete = (tenant: string, scheduledId: string, params: RequestParams = {}) =>
+    this.request<void, APIErrors | APIError>({
+      path: `/api/v1/tenants/${tenant}/workflows/scheduled/${scheduledId}`,
+      method: 'DELETE',
+      secure: true,
+      ...params,
+    });
+  /**
+   * @description Get all cron job workflow runs for a tenant
+   *
+   * @tags Workflow
+   * @name CronWorkflowList
+   * @summary Get cron job workflows
+   * @request GET:/api/v1/tenants/{tenant}/workflows/crons
+   * @secure
+   */
+  cronWorkflowList = (
+    tenant: string,
+    query?: {
+      /**
+       * The number to skip
+       * @format int64
+       */
+      offset?: number;
+      /**
+       * The number to limit by
+       * @format int64
+       */
+      limit?: number;
+      /**
+       * The workflow id to get runs for.
+       * @format uuid
+       * @minLength 36
+       * @maxLength 36
+       */
+      workflowId?: string;
+      /**
+       * A list of metadata key value pairs to filter by
+       * @example ["key1:value1","key2:value2"]
+       */
+      additionalMetadata?: string[];
+      /** The order by field */
+      orderByField?: CronWorkflowsOrderByField;
+      /** The order by direction */
+      orderByDirection?: WorkflowRunOrderByDirection;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<CronWorkflowsList, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/workflows/crons`,
+      method: 'GET',
+      query: query,
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
    * @description Cancel a batch of workflow runs
    *
    * @tags Workflow Run
@@ -1556,7 +1709,7 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    *
    * @tags Workflow
    * @name WorkflowRunGetMetrics
-   * @summary Get workflow runs
+   * @summary Get workflow runs metrics
    * @request GET:/api/v1/tenants/{tenant}/workflows/runs/metrics
    * @secure
    */

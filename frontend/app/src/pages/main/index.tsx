@@ -2,6 +2,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import {
   AdjustmentsHorizontalIcon,
+  CalendarDaysIcon,
   QueueListIcon,
   ScaleIcon,
   ServerStackIcon,
@@ -10,7 +11,7 @@ import {
 
 import { Link, Outlet, useLocation, useOutletContext } from 'react-router-dom';
 import { Tenant, TenantMember } from '@/lib/api';
-import { GearIcon } from '@radix-ui/react-icons';
+import { ClockIcon, GearIcon } from '@radix-ui/react-icons';
 import React, { useCallback } from 'react';
 import {
   MembershipsContextType,
@@ -136,6 +137,27 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
           </div>
           <div className="py-2">
             <h2 className="mb-2 text-lg font-semibold tracking-tight">
+              Triggers
+            </h2>
+            <div className="space-y-1">
+              <SidebarButtonPrimary
+                key={4}
+                onNavLinkClick={onNavLinkClick}
+                to="/scheduled"
+                name="Scheduled Runs"
+                icon={<CalendarDaysIcon className="mr-2 h-4 w-4" />}
+              />
+              <SidebarButtonPrimary
+                key={5}
+                onNavLinkClick={onNavLinkClick}
+                to="/cron-jobs"
+                name="Cron Jobs"
+                icon={<ClockIcon className="mr-2 h-4 w-4" />}
+              />
+            </div>
+          </div>
+          <div className="py-2">
+            <h2 className="mb-2 text-lg font-semibold tracking-tight">
               Resources
             </h2>
             <div className="space-y-1">
@@ -156,7 +178,7 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
                 collapsibleChildren={workers}
               />
               <SidebarButtonPrimary
-                key={1}
+                key={3}
                 onNavLinkClick={onNavLinkClick}
                 to="/rate-limits"
                 name="Rate Limits"

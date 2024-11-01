@@ -252,6 +252,16 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		return workflowRun, sqlchelpers.UUIDToStr(workflowRun.TenantId), nil
 	})
 
+	populatorMW.RegisterGetter("scheduled-workflow-run", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
+		scheduled, err := config.APIRepository.WorkflowRun().GetScheduledWorkflow(context.Background(), parentId, id)
+
+		if err != nil {
+			return nil, "", err
+		}
+
+		return scheduled, sqlchelpers.UUIDToStr(scheduled.TenantId), nil
+	})
+
 	populatorMW.RegisterGetter("step-run", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
 		stepRun, err := config.APIRepository.StepRun().GetStepRunById(id)
 
@@ -284,6 +294,15 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		}
 
 		return worker, sqlchelpers.UUIDToStr(worker.Worker.TenantId), nil
+	})
+
+	populatorMW.RegisterGetter("webhook", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
+		webhookWorker, err := config.APIRepository.WebhookWorker().GetWebhookWorkerByID(id)
+		if err != nil {
+			return nil, "", err
+		}
+
+		return webhookWorker, webhookWorker.TenantID, nil
 	})
 
 	populatorMW.RegisterGetter("webhook", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
