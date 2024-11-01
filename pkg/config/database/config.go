@@ -50,6 +50,8 @@ type Config struct {
 
 	Pool *pgxpool.Pool
 
+	EssentialPool *pgxpool.Pool
+
 	QueuePool *pgxpool.Pool
 
 	APIRepository repository.APIRepository
