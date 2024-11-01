@@ -133,6 +133,24 @@ const routes: RouteObject[] = [
                   }),
               },
               {
+                path: '/scheduled',
+                lazy: async () =>
+                  import('./pages/main/scheduled-runs').then((res) => {
+                    return {
+                      Component: res.default,
+                    };
+                  }),
+              },
+              {
+                path: '/cron-jobs',
+                lazy: async () =>
+                  import('./pages/main/recurring').then((res) => {
+                    return {
+                      Component: res.default,
+                    };
+                  }),
+              },
+              {
                 path: '/workflows',
                 lazy: async () =>
                   import('./pages/main/workflows').then((res) => {

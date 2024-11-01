@@ -23,6 +23,11 @@ const (
 	CookieAuthScopes = "cookieAuth.Scopes"
 )
 
+// Defines values for CronWorkflowsOrderByField.
+const (
+	CronWorkflowsOrderByFieldCreatedAt CronWorkflowsOrderByField = "createdAt"
+)
+
 // Defines values for EventOrderByDirection.
 const (
 	EventOrderByDirectionAsc  EventOrderByDirection = "asc"
@@ -73,6 +78,23 @@ const (
 	Key        RateLimitOrderByField = "key"
 	LimitValue RateLimitOrderByField = "limitValue"
 	Value      RateLimitOrderByField = "value"
+)
+
+// Defines values for ScheduledRunStatus.
+const (
+	ScheduledRunStatusCANCELLED ScheduledRunStatus = "CANCELLED"
+	ScheduledRunStatusFAILED    ScheduledRunStatus = "FAILED"
+	ScheduledRunStatusPENDING   ScheduledRunStatus = "PENDING"
+	ScheduledRunStatusQUEUED    ScheduledRunStatus = "QUEUED"
+	ScheduledRunStatusRUNNING   ScheduledRunStatus = "RUNNING"
+	ScheduledRunStatusSCHEDULED ScheduledRunStatus = "SCHEDULED"
+	ScheduledRunStatusSUCCEEDED ScheduledRunStatus = "SUCCEEDED"
+)
+
+// Defines values for ScheduledWorkflowsOrderByField.
+const (
+	ScheduledWorkflowsOrderByFieldCreatedAt ScheduledWorkflowsOrderByField = "createdAt"
+	ScheduledWorkflowsOrderByFieldTriggerAt ScheduledWorkflowsOrderByField = "triggerAt"
 )
 
 // Defines values for StepRunEventReason.
@@ -183,12 +205,12 @@ const (
 
 // Defines values for WorkflowRunStatus.
 const (
-	WorkflowRunStatusCANCELLED WorkflowRunStatus = "CANCELLED"
-	WorkflowRunStatusFAILED    WorkflowRunStatus = "FAILED"
-	WorkflowRunStatusPENDING   WorkflowRunStatus = "PENDING"
-	WorkflowRunStatusQUEUED    WorkflowRunStatus = "QUEUED"
-	WorkflowRunStatusRUNNING   WorkflowRunStatus = "RUNNING"
-	WorkflowRunStatusSUCCEEDED WorkflowRunStatus = "SUCCEEDED"
+	CANCELLED WorkflowRunStatus = "CANCELLED"
+	FAILED    WorkflowRunStatus = "FAILED"
+	PENDING   WorkflowRunStatus = "PENDING"
+	QUEUED    WorkflowRunStatus = "QUEUED"
+	RUNNING   WorkflowRunStatus = "RUNNING"
+	SUCCEEDED WorkflowRunStatus = "SUCCEEDED"
 )
 
 // APIError defines model for APIError.
@@ -353,6 +375,27 @@ type CreateTenantRequest struct {
 	// Slug The slug of the tenant.
 	Slug string `json:"slug" validate:"required,hatchetName"`
 }
+
+// CronWorkflows defines model for CronWorkflows.
+type CronWorkflows struct {
+	AdditionalMetadata *map[string]interface{} `json:"additionalMetadata,omitempty"`
+	Cron               string                  `json:"cron"`
+	Input              *map[string]interface{} `json:"input,omitempty"`
+	Metadata           APIResourceMeta         `json:"metadata"`
+	TenantId           string                  `json:"tenantId"`
+	WorkflowId         string                  `json:"workflowId"`
+	WorkflowName       string                  `json:"workflowName"`
+	WorkflowVersionId  string                  `json:"workflowVersionId"`
+}
+
+// CronWorkflowsList defines model for CronWorkflowsList.
+type CronWorkflowsList struct {
+	Pagination *PaginationResponse `json:"pagination,omitempty"`
+	Rows       *[]CronWorkflows    `json:"rows,omitempty"`
+}
+
+// CronWorkflowsOrderByField defines model for CronWorkflowsOrderByField.
+type CronWorkflowsOrderByField string
 
 // Event defines model for Event.
 type Event struct {
@@ -614,6 +657,34 @@ type SNSIntegration struct {
 	// TopicArn The Amazon Resource Name (ARN) of the SNS topic.
 	TopicArn string `json:"topicArn"`
 }
+
+// ScheduledRunStatus defines model for ScheduledRunStatus.
+type ScheduledRunStatus string
+
+// ScheduledWorkflows defines model for ScheduledWorkflows.
+type ScheduledWorkflows struct {
+	AdditionalMetadata   *map[string]interface{} `json:"additionalMetadata,omitempty"`
+	Input                *map[string]interface{} `json:"input,omitempty"`
+	Metadata             APIResourceMeta         `json:"metadata"`
+	TenantId             string                  `json:"tenantId"`
+	TriggerAt            time.Time               `json:"triggerAt"`
+	WorkflowId           string                  `json:"workflowId"`
+	WorkflowName         string                  `json:"workflowName"`
+	WorkflowRunCreatedAt *time.Time              `json:"workflowRunCreatedAt,omitempty"`
+	WorkflowRunId        *openapi_types.UUID     `json:"workflowRunId,omitempty"`
+	WorkflowRunName      *string                 `json:"workflowRunName,omitempty"`
+	WorkflowRunStatus    *WorkflowRunStatus      `json:"workflowRunStatus,omitempty"`
+	WorkflowVersionId    string                  `json:"workflowVersionId"`
+}
+
+// ScheduledWorkflowsList defines model for ScheduledWorkflowsList.
+type ScheduledWorkflowsList struct {
+	Pagination *PaginationResponse   `json:"pagination,omitempty"`
+	Rows       *[]ScheduledWorkflows `json:"rows,omitempty"`
+}
+
+// ScheduledWorkflowsOrderByField defines model for ScheduledWorkflowsOrderByField.
+type ScheduledWorkflowsOrderByField string
 
 // SemaphoreSlots defines model for SemaphoreSlots.
 type SemaphoreSlots struct {
@@ -1466,6 +1537,27 @@ type WorkflowRunListStepRunEventsParams struct {
 	LastId *int32 `form:"lastId,omitempty" json:"lastId,omitempty"`
 }
 
+// CronWorkflowListParams defines parameters for CronWorkflowList.
+type CronWorkflowListParams struct {
+	// Offset The number to skip
+	Offset *int64 `form:"offset,omitempty" json:"offset,omitempty"`
+
+	// Limit The number to limit by
+	Limit *int64 `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// WorkflowId The workflow id to get runs for.
+	WorkflowId *openapi_types.UUID `form:"workflowId,omitempty" json:"workflowId,omitempty"`
+
+	// AdditionalMetadata A list of metadata key value pairs to filter by
+	AdditionalMetadata *[]string `form:"additionalMetadata,omitempty" json:"additionalMetadata,omitempty"`
+
+	// OrderByField The order by field
+	OrderByField *CronWorkflowsOrderByField `form:"orderByField,omitempty" json:"orderByField,omitempty"`
+
+	// OrderByDirection The order by direction
+	OrderByDirection *WorkflowRunOrderByDirection `form:"orderByDirection,omitempty" json:"orderByDirection,omitempty"`
+}
+
 // WorkflowRunListParams defines parameters for WorkflowRunList.
 type WorkflowRunListParams struct {
 	// Offset The number to skip
@@ -1536,6 +1628,36 @@ type WorkflowRunGetMetricsParams struct {
 
 	// CreatedBefore The time before the workflow run was created
 	CreatedBefore *time.Time `form:"createdBefore,omitempty" json:"createdBefore,omitempty"`
+}
+
+// WorkflowScheduledListParams defines parameters for WorkflowScheduledList.
+type WorkflowScheduledListParams struct {
+	// Offset The number to skip
+	Offset *int64 `form:"offset,omitempty" json:"offset,omitempty"`
+
+	// Limit The number to limit by
+	Limit *int64 `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// OrderByField The order by field
+	OrderByField *ScheduledWorkflowsOrderByField `form:"orderByField,omitempty" json:"orderByField,omitempty"`
+
+	// OrderByDirection The order by direction
+	OrderByDirection *WorkflowRunOrderByDirection `form:"orderByDirection,omitempty" json:"orderByDirection,omitempty"`
+
+	// WorkflowId The workflow id to get runs for.
+	WorkflowId *openapi_types.UUID `form:"workflowId,omitempty" json:"workflowId,omitempty"`
+
+	// ParentWorkflowRunId The parent workflow run id
+	ParentWorkflowRunId *openapi_types.UUID `form:"parentWorkflowRunId,omitempty" json:"parentWorkflowRunId,omitempty"`
+
+	// ParentStepRunId The parent step run id
+	ParentStepRunId *openapi_types.UUID `form:"parentStepRunId,omitempty" json:"parentStepRunId,omitempty"`
+
+	// AdditionalMetadata A list of metadata key value pairs to filter by
+	AdditionalMetadata *[]string `form:"additionalMetadata,omitempty" json:"additionalMetadata,omitempty"`
+
+	// Statuses A list of scheduled run statuses to filter by
+	Statuses *[]ScheduledRunStatus `form:"statuses,omitempty" json:"statuses,omitempty"`
 }
 
 // WorkflowGetMetricsParams defines parameters for WorkflowGetMetrics.
@@ -1907,11 +2029,23 @@ type ClientInterface interface {
 
 	WorkflowRunCancel(ctx context.Context, tenant openapi_types.UUID, body WorkflowRunCancelJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// CronWorkflowList request
+	CronWorkflowList(ctx context.Context, tenant openapi_types.UUID, params *CronWorkflowListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// WorkflowRunList request
 	WorkflowRunList(ctx context.Context, tenant openapi_types.UUID, params *WorkflowRunListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// WorkflowRunGetMetrics request
 	WorkflowRunGetMetrics(ctx context.Context, tenant openapi_types.UUID, params *WorkflowRunGetMetricsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// WorkflowScheduledList request
+	WorkflowScheduledList(ctx context.Context, tenant openapi_types.UUID, params *WorkflowScheduledListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// WorkflowScheduledDelete request
+	WorkflowScheduledDelete(ctx context.Context, tenant openapi_types.UUID, scheduledId openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// WorkflowScheduledGet request
+	WorkflowScheduledGet(ctx context.Context, tenant openapi_types.UUID, scheduledId openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// WorkflowGetWorkersCount request
 	WorkflowGetWorkersCount(ctx context.Context, tenant openapi_types.UUID, workflow openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -2881,6 +3015,18 @@ func (c *Client) WorkflowRunCancel(ctx context.Context, tenant openapi_types.UUI
 	return c.Client.Do(req)
 }
 
+func (c *Client) CronWorkflowList(ctx context.Context, tenant openapi_types.UUID, params *CronWorkflowListParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCronWorkflowListRequest(c.Server, tenant, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) WorkflowRunList(ctx context.Context, tenant openapi_types.UUID, params *WorkflowRunListParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewWorkflowRunListRequest(c.Server, tenant, params)
 	if err != nil {
@@ -2895,6 +3041,42 @@ func (c *Client) WorkflowRunList(ctx context.Context, tenant openapi_types.UUID,
 
 func (c *Client) WorkflowRunGetMetrics(ctx context.Context, tenant openapi_types.UUID, params *WorkflowRunGetMetricsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewWorkflowRunGetMetricsRequest(c.Server, tenant, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) WorkflowScheduledList(ctx context.Context, tenant openapi_types.UUID, params *WorkflowScheduledListParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWorkflowScheduledListRequest(c.Server, tenant, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) WorkflowScheduledDelete(ctx context.Context, tenant openapi_types.UUID, scheduledId openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWorkflowScheduledDeleteRequest(c.Server, tenant, scheduledId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) WorkflowScheduledGet(ctx context.Context, tenant openapi_types.UUID, scheduledId openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWorkflowScheduledGetRequest(c.Server, tenant, scheduledId)
 	if err != nil {
 		return nil, err
 	}
@@ -5979,6 +6161,142 @@ func NewWorkflowRunCancelRequestWithBody(server string, tenant openapi_types.UUI
 	return req, nil
 }
 
+// NewCronWorkflowListRequest generates requests for CronWorkflowList
+func NewCronWorkflowListRequest(server string, tenant openapi_types.UUID, params *CronWorkflowListParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/tenants/%s/workflows/crons", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Offset != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "offset", runtime.ParamLocationQuery, *params.Offset); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.WorkflowId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workflowId", runtime.ParamLocationQuery, *params.WorkflowId); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.AdditionalMetadata != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "additionalMetadata", runtime.ParamLocationQuery, *params.AdditionalMetadata); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.OrderByField != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "orderByField", runtime.ParamLocationQuery, *params.OrderByField); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.OrderByDirection != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "orderByDirection", runtime.ParamLocationQuery, *params.OrderByDirection); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewWorkflowRunListRequest generates requests for WorkflowRunList
 func NewWorkflowRunListRequest(server string, tenant openapi_types.UUID, params *WorkflowRunListParams) (*http.Request, error) {
 	var err error
@@ -6401,6 +6719,272 @@ func NewWorkflowRunGetMetricsRequest(server string, tenant openapi_types.UUID, p
 		}
 
 		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewWorkflowScheduledListRequest generates requests for WorkflowScheduledList
+func NewWorkflowScheduledListRequest(server string, tenant openapi_types.UUID, params *WorkflowScheduledListParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/tenants/%s/workflows/scheduled", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Offset != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "offset", runtime.ParamLocationQuery, *params.Offset); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.OrderByField != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "orderByField", runtime.ParamLocationQuery, *params.OrderByField); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.OrderByDirection != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "orderByDirection", runtime.ParamLocationQuery, *params.OrderByDirection); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.WorkflowId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workflowId", runtime.ParamLocationQuery, *params.WorkflowId); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.ParentWorkflowRunId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "parentWorkflowRunId", runtime.ParamLocationQuery, *params.ParentWorkflowRunId); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.ParentStepRunId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "parentStepRunId", runtime.ParamLocationQuery, *params.ParentStepRunId); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.AdditionalMetadata != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "additionalMetadata", runtime.ParamLocationQuery, *params.AdditionalMetadata); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Statuses != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "statuses", runtime.ParamLocationQuery, *params.Statuses); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewWorkflowScheduledDeleteRequest generates requests for WorkflowScheduledDelete
+func NewWorkflowScheduledDeleteRequest(server string, tenant openapi_types.UUID, scheduledId openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "scheduledId", runtime.ParamLocationPath, scheduledId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/tenants/%s/workflows/scheduled/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewWorkflowScheduledGetRequest generates requests for WorkflowScheduledGet
+func NewWorkflowScheduledGetRequest(server string, tenant openapi_types.UUID, scheduledId openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "scheduledId", runtime.ParamLocationPath, scheduledId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/tenants/%s/workflows/scheduled/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
 	}
 
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
@@ -7602,11 +8186,23 @@ type ClientWithResponsesInterface interface {
 
 	WorkflowRunCancelWithResponse(ctx context.Context, tenant openapi_types.UUID, body WorkflowRunCancelJSONRequestBody, reqEditors ...RequestEditorFn) (*WorkflowRunCancelResponse, error)
 
+	// CronWorkflowListWithResponse request
+	CronWorkflowListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *CronWorkflowListParams, reqEditors ...RequestEditorFn) (*CronWorkflowListResponse, error)
+
 	// WorkflowRunListWithResponse request
 	WorkflowRunListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *WorkflowRunListParams, reqEditors ...RequestEditorFn) (*WorkflowRunListResponse, error)
 
 	// WorkflowRunGetMetricsWithResponse request
 	WorkflowRunGetMetricsWithResponse(ctx context.Context, tenant openapi_types.UUID, params *WorkflowRunGetMetricsParams, reqEditors ...RequestEditorFn) (*WorkflowRunGetMetricsResponse, error)
+
+	// WorkflowScheduledListWithResponse request
+	WorkflowScheduledListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *WorkflowScheduledListParams, reqEditors ...RequestEditorFn) (*WorkflowScheduledListResponse, error)
+
+	// WorkflowScheduledDeleteWithResponse request
+	WorkflowScheduledDeleteWithResponse(ctx context.Context, tenant openapi_types.UUID, scheduledId openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkflowScheduledDeleteResponse, error)
+
+	// WorkflowScheduledGetWithResponse request
+	WorkflowScheduledGetWithResponse(ctx context.Context, tenant openapi_types.UUID, scheduledId openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkflowScheduledGetResponse, error)
 
 	// WorkflowGetWorkersCountWithResponse request
 	WorkflowGetWorkersCountWithResponse(ctx context.Context, tenant openapi_types.UUID, workflow openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkflowGetWorkersCountResponse, error)
@@ -9075,6 +9671,30 @@ func (r WorkflowRunCancelResponse) StatusCode() int {
 	return 0
 }
 
+type CronWorkflowListResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *CronWorkflowsList
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r CronWorkflowListResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CronWorkflowListResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type WorkflowRunListResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -9117,6 +9737,78 @@ func (r WorkflowRunGetMetricsResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r WorkflowRunGetMetricsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type WorkflowScheduledListResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ScheduledWorkflowsList
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r WorkflowScheduledListResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r WorkflowScheduledListResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type WorkflowScheduledDeleteResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *APIErrors
+	JSON403      *APIError
+}
+
+// Status returns HTTPResponse.Status
+func (r WorkflowScheduledDeleteResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r WorkflowScheduledDeleteResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type WorkflowScheduledGetResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ScheduledWorkflows
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON404      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r WorkflowScheduledGetResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r WorkflowScheduledGetResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -10358,6 +11050,15 @@ func (c *ClientWithResponses) WorkflowRunCancelWithResponse(ctx context.Context,
 	return ParseWorkflowRunCancelResponse(rsp)
 }
 
+// CronWorkflowListWithResponse request returning *CronWorkflowListResponse
+func (c *ClientWithResponses) CronWorkflowListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *CronWorkflowListParams, reqEditors ...RequestEditorFn) (*CronWorkflowListResponse, error) {
+	rsp, err := c.CronWorkflowList(ctx, tenant, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCronWorkflowListResponse(rsp)
+}
+
 // WorkflowRunListWithResponse request returning *WorkflowRunListResponse
 func (c *ClientWithResponses) WorkflowRunListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *WorkflowRunListParams, reqEditors ...RequestEditorFn) (*WorkflowRunListResponse, error) {
 	rsp, err := c.WorkflowRunList(ctx, tenant, params, reqEditors...)
@@ -10374,6 +11075,33 @@ func (c *ClientWithResponses) WorkflowRunGetMetricsWithResponse(ctx context.Cont
 		return nil, err
 	}
 	return ParseWorkflowRunGetMetricsResponse(rsp)
+}
+
+// WorkflowScheduledListWithResponse request returning *WorkflowScheduledListResponse
+func (c *ClientWithResponses) WorkflowScheduledListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *WorkflowScheduledListParams, reqEditors ...RequestEditorFn) (*WorkflowScheduledListResponse, error) {
+	rsp, err := c.WorkflowScheduledList(ctx, tenant, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseWorkflowScheduledListResponse(rsp)
+}
+
+// WorkflowScheduledDeleteWithResponse request returning *WorkflowScheduledDeleteResponse
+func (c *ClientWithResponses) WorkflowScheduledDeleteWithResponse(ctx context.Context, tenant openapi_types.UUID, scheduledId openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkflowScheduledDeleteResponse, error) {
+	rsp, err := c.WorkflowScheduledDelete(ctx, tenant, scheduledId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseWorkflowScheduledDeleteResponse(rsp)
+}
+
+// WorkflowScheduledGetWithResponse request returning *WorkflowScheduledGetResponse
+func (c *ClientWithResponses) WorkflowScheduledGetWithResponse(ctx context.Context, tenant openapi_types.UUID, scheduledId openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkflowScheduledGetResponse, error) {
+	rsp, err := c.WorkflowScheduledGet(ctx, tenant, scheduledId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseWorkflowScheduledGetResponse(rsp)
 }
 
 // WorkflowGetWorkersCountWithResponse request returning *WorkflowGetWorkersCountResponse
@@ -12961,6 +13689,46 @@ func ParseWorkflowRunCancelResponse(rsp *http.Response) (*WorkflowRunCancelRespo
 	return response, nil
 }
 
+// ParseCronWorkflowListResponse parses an HTTP response from a CronWorkflowListWithResponse call
+func ParseCronWorkflowListResponse(rsp *http.Response) (*CronWorkflowListResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CronWorkflowListResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest CronWorkflowsList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseWorkflowRunListResponse parses an HTTP response from a WorkflowRunListWithResponse call
 func ParseWorkflowRunListResponse(rsp *http.Response) (*WorkflowRunListResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -13035,6 +13803,126 @@ func ParseWorkflowRunGetMetricsResponse(rsp *http.Response) (*WorkflowRunGetMetr
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseWorkflowScheduledListResponse parses an HTTP response from a WorkflowScheduledListWithResponse call
+func ParseWorkflowScheduledListResponse(rsp *http.Response) (*WorkflowScheduledListResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &WorkflowScheduledListResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ScheduledWorkflowsList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseWorkflowScheduledDeleteResponse parses an HTTP response from a WorkflowScheduledDeleteWithResponse call
+func ParseWorkflowScheduledDeleteResponse(rsp *http.Response) (*WorkflowScheduledDeleteResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &WorkflowScheduledDeleteResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseWorkflowScheduledGetResponse parses an HTTP response from a WorkflowScheduledGetWithResponse call
+func ParseWorkflowScheduledGetResponse(rsp *http.Response) (*WorkflowScheduledGetResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &WorkflowScheduledGetResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ScheduledWorkflows
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	}
 

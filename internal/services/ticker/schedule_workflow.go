@@ -129,6 +129,16 @@ func (t *TickerImpl) runScheduledWorkflow(tenantId, workflowVersionId, scheduled
 
 		fs := make([]repository.CreateWorkflowRunOpt, 0)
 
+		var additionalMetadata map[string]interface{}
+
+		if scheduled.AdditionalMetadata != nil {
+			err := json.Unmarshal(scheduled.AdditionalMetadata, &additionalMetadata)
+			if err != nil {
+				t.l.Err(err).Msg("could not unmarshal additional metadata")
+				return
+			}
+		}
+
 		if scheduled.ParentWorkflowRunId.Valid {
 			var childKey *string
 
@@ -158,18 +168,17 @@ func (t *TickerImpl) runScheduledWorkflow(tenantId, workflowVersionId, scheduled
 				sqlchelpers.UUIDToStr(scheduled.ParentStepRunId),
 				int(scheduled.ChildIndex.Int32),
 				childKey,
-				nil,
+				additionalMetadata,
 				parentAdditionalMeta,
 			))
 		}
 
 		// create a new workflow run in the database
-		// FIXME additionalMetadata is not used for scheduled runs
 		createOpts, err := repository.GetCreateWorkflowRunOptsFromSchedule(
 			scheduledWorkflowId,
 			workflowVersion,
 			scheduled.Input,
-			nil,
+			additionalMetadata,
 			fs...,
 		)
 
