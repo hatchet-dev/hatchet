@@ -22,7 +22,7 @@ func (t *WorkflowService) CronWorkflowList(ctx echo.Context, request gen.CronWor
 	limit := 50
 	offset := 0
 	orderDirection := "DESC"
-	orderBy := "triggerAt"
+	orderBy := "createdAt"
 
 	listOpts := &repository.ListCronWorkflowsOpts{
 		Limit:          &limit,
