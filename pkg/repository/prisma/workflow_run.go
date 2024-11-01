@@ -56,7 +56,7 @@ func NewWorkflowRunRepository(client *db.PrismaClient, pool *pgxpool.Pool, v val
 		cf:      cf,
 	}
 
-	err := w.startBuffer()
+	err := w.startBuffer(cf.WorkflowRunBuffer)
 
 	if err != nil {
 		l.Error().Err(err).Msg("could not start buffer")
@@ -70,7 +70,7 @@ func (w *workflowRunAPIRepository) cleanup() error {
 
 	return w.bulkCreateBuffer.Cleanup()
 }
-func (w *workflowRunAPIRepository) startBuffer() error {
+func (w *workflowRunAPIRepository) startBuffer(conf buffer.ConfigFileBuffer) error {
 
 	createWorkflowRunBufOpts := buffer.TenantBufManagerOpts[*repository.CreateWorkflowRunOpts, *dbsqlc.WorkflowRun]{
 		Name:       "api_create_workflow_run",
@@ -251,6 +251,60 @@ func (w *workflowRunAPIRepository) UpdateScheduledWorkflow(ctx context.Context, 
 		Scheduleid: sqlchelpers.UUIDFromStr(scheduledWorkflowId),
 		Triggerat:  sqlchelpers.TimestampFromTime(triggerAt),
 	})
+}
+
+func (w *workflowRunAPIRepository) ListCronWorkflows(ctx context.Context, tenantId string, opts *repository.ListCronWorkflowsOpts) ([]*dbsqlc.ListCronWorkflowsRow, int64, error) {
+	if err := w.v.Validate(opts); err != nil {
+		return nil, 0, err
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, time.Second*30)
+	defer cancel()
+
+	count, err := w.queries.CountCronWorkflows(ctx, w.pool, sqlchelpers.UUIDFromStr(tenantId))
+
+	if err != nil {
+		return nil, 0, err
+	}
+
+	listOpts := dbsqlc.ListCronWorkflowsParams{
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+	}
+
+	if opts.Limit != nil {
+		listOpts.Limit = pgtype.Int4{
+			Int32: int32(*opts.Limit), // nolint: gosec
+			Valid: true,
+		}
+	}
+
+	if opts.Offset != nil {
+		listOpts.Offset = pgtype.Int4{
+			Int32: int32(*opts.Offset), // nolint: gosec
+			Valid: true,
+		}
+	}
+
+	orderByField := "createdAt"
+
+	if opts.OrderBy != nil {
+		orderByField = *opts.OrderBy
+	}
+
+	orderByDirection := "DESC"
+
+	if opts.OrderDirection != nil {
+		orderByDirection = *opts.OrderDirection
+	}
+
+	listOpts.Orderby = orderByField + " " + orderByDirection
+
+	cronWorkflows, err := w.queries.ListCronWorkflows(ctx, w.pool, listOpts)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return cronWorkflows, count, nil
 }
 
 func (w *workflowRunEngineRepository) GetWorkflowRunInputData(tenantId, workflowRunId string) (map[string]interface{}, error) {

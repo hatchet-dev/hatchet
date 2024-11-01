@@ -99,6 +99,7 @@ JOIN "Workflow" w on v."workflowId" = w."id"
 WHERE v."deletedAt" IS NULL AND w."tenantId" = $1::uuid
 `
 
+// TODO move this to workflow.sql
 func (q *Queries) CountCronWorkflows(ctx context.Context, db DBTX, tenantid pgtype.UUID) (int64, error) {
 	row := db.QueryRow(ctx, countCronWorkflows, tenantid)
 	var count int64
@@ -217,7 +218,7 @@ WITH runs AS (
         ) AND
         (
             $11::text[] IS NULL OR
-            "status" = ANY(cast($11::text[] as "WorkflowRunStatus"[]))
+            runs."status" = ANY(cast($11::text[] as "WorkflowRunStatus"[]))
         ) AND
         (
             $12::timestamp IS NULL OR
@@ -2469,7 +2470,7 @@ WHERE
     ) AND
     (
         $11::text[] IS NULL OR
-        "status" = ANY(cast($11::text[] as "WorkflowRunStatus"[]))
+        runs."status" = ANY(cast($11::text[] as "WorkflowRunStatus"[]))
     ) AND
     (
         $12::timestamp IS NULL OR

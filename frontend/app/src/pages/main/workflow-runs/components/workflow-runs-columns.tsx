@@ -3,11 +3,16 @@ import { DataTableColumnHeader } from '../../../../components/molecules/data-tab
 import { WorkflowRun } from '@/lib/api';
 import { Link } from 'react-router-dom';
 import { RunStatus } from './run-statuses';
-import { AdditionalMetadata } from '../../events/components/additional-metadata';
+import {
+  AdditionalMetadata,
+  AdditionalMetadataClick,
+} from '../../events/components/additional-metadata';
 import RelativeDate from '@/components/molecules/relative-date';
 import { Checkbox } from '@/components/ui/checkbox';
 
-export const columns: ColumnDef<WorkflowRun>[] = [
+export const columns: (
+  onAdditionalMetadataClick?: (click: AdditionalMetadataClick) => void,
+) => ColumnDef<WorkflowRun>[] = (onAdditionalMetadataClick) => [
   {
     id: 'select',
     header: ({ table }) => (
@@ -183,7 +188,12 @@ export const columns: ColumnDef<WorkflowRun>[] = [
         return <div></div>;
       }
 
-      return <AdditionalMetadata metadata={row.original.additionalMetadata} />;
+      return (
+        <AdditionalMetadata
+          metadata={row.original.additionalMetadata}
+          onClick={onAdditionalMetadataClick}
+        />
+      );
     },
     enableSorting: false,
   },

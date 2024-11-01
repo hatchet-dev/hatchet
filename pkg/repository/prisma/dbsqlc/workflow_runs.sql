@@ -57,7 +57,7 @@ WITH runs AS (
         ) AND
         (
             sqlc.narg('statuses')::text[] IS NULL OR
-            "status" = ANY(cast(sqlc.narg('statuses')::text[] as "WorkflowRunStatus"[]))
+            runs."status" = ANY(cast(sqlc.narg('statuses')::text[] as "WorkflowRunStatus"[]))
         ) AND
         (
             sqlc.narg('createdAfter')::timestamp IS NULL OR
@@ -212,7 +212,7 @@ WHERE
     ) AND
     (
         sqlc.narg('statuses')::text[] IS NULL OR
-        "status" = ANY(cast(sqlc.narg('statuses')::text[] as "WorkflowRunStatus"[]))
+        runs."status" = ANY(cast(sqlc.narg('statuses')::text[] as "WorkflowRunStatus"[]))
     ) AND
     (
         sqlc.narg('createdAfter')::timestamp IS NULL OR
@@ -1497,6 +1497,7 @@ DELETE FROM "WorkflowTriggerScheduledRef"
 WHERE
     "id" = @scheduleId::uuid;
 
+-- TODO move this to workflow.sql
 -- name: CountCronWorkflows :one
 SELECT count(*)
 FROM "WorkflowTriggerCronRef" c

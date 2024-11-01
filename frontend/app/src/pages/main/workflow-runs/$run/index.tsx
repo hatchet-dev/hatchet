@@ -14,6 +14,11 @@ import StepRunDetail, {
   TabOption,
 } from './v2components/step-run-detail/step-run-detail';
 import { Separator } from '@/components/ui/separator';
+import { CodeHighlighter } from '@/components/ui/code-highlighter';
+import WorkflowRunVisualizer from './v2components/workflow-run-visualizer-v2';
+import { useAtom } from 'jotai';
+import { preferredWorkflowRunViewAtom } from '@/lib/atoms';
+import { hasChildSteps, ViewToggle } from './v2components/view-toggle';
 
 export const WORKFLOW_RUN_TERMINAL_STATUSES = [
   WorkflowRunStatus.CANCELLED,
@@ -51,6 +56,8 @@ export default function ExpandedWorkflowRun() {
     }
   }, [params.run, sidebarState]);
 
+  const [view] = useAtom(preferredWorkflowRunViewAtom);
+
   return (
     <div className="flex-grow h-full w-full">
       <div className="mx-auto max-w-7xl pt-2 px-4 sm:px-6 lg:px-8">
@@ -60,21 +67,40 @@ export default function ExpandedWorkflowRun() {
           refetch={() => shape.refetch()}
         />
         <Separator className="my-4" />
-        {shape.data?.jobRuns?.map(({ job, stepRuns }, idx) => (
-          <MiniMap
-            steps={job?.steps}
-            stepRuns={stepRuns}
-            key={idx}
-            selectedStepRunId={sidebarState?.stepRunId}
-            onClick={(stepRunId, defaultOpenTab?: TabOption) =>
-              setSidebarState(
-                stepRunId == sidebarState?.stepRunId
-                  ? undefined
-                  : { stepRunId, defaultOpenTab, workflowRunId: params.run },
-              )
-            }
-          />
-        ))}
+        <div className="w-full max-h-[400px] overflow-auto relative bg-slate-100 dark:bg-slate-900">
+          {shape.data && <ViewToggle shape={shape.data} />}
+          {shape.data && view == 'graph' && hasChildSteps(shape.data) && (
+            <WorkflowRunVisualizer
+              shape={shape.data}
+              selectedStepRunId={sidebarState?.stepRunId}
+              setSelectedStepRunId={(stepRunId) => {
+                setSidebarState({
+                  stepRunId,
+                  defaultOpenTab: TabOption.Output,
+                  workflowRunId: params.run,
+                });
+              }}
+            />
+          )}
+          {shape.data && (view == 'minimap' || !hasChildSteps(shape.data)) && (
+            <MiniMap
+              shape={shape.data}
+              selectedStepRunId={sidebarState?.stepRunId}
+              onClick={(stepRunId, defaultOpenTab?: TabOption) =>
+                setSidebarState(
+                  stepRunId == sidebarState?.stepRunId
+                    ? undefined
+                    : {
+                        stepRunId,
+                        defaultOpenTab,
+                        workflowRunId: params.run,
+                      },
+                )
+              }
+            />
+          )}
+        </div>
+
         <div className="h-4" />
         <Tabs defaultValue="activity">
           <TabsList layout="underlined">
@@ -83,6 +109,9 @@ export default function ExpandedWorkflowRun() {
             </TabsTrigger>
             <TabsTrigger variant="underlined" value="input">
               Input
+            </TabsTrigger>
+            <TabsTrigger variant="underlined" value="additional-metadata">
+              Additional Metadata
             </TabsTrigger>
             {/* <TabsTrigger value="logs">App Logs</TabsTrigger> */}
           </TabsList>
@@ -103,6 +132,13 @@ export default function ExpandedWorkflowRun() {
           </TabsContent>
           <TabsContent value="input">
             {shape.data && <WorkflowRunInputDialog run={shape.data} />}
+          </TabsContent>
+          <TabsContent value="additional-metadata">
+            <CodeHighlighter
+              className="my-4"
+              language="json"
+              code={JSON.stringify(shape.data?.additionalMetadata, null, 2)}
+            />
           </TabsContent>
         </Tabs>
       </div>

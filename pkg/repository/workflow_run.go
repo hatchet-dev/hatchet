@@ -423,6 +423,7 @@ type ListScheduledWorkflowsOpts struct {
 	AdditionalMetadata map[string]interface{} `validate:"omitempty"`
 }
 
+// TODO move this to workflow.go
 type ListCronWorkflowsOpts struct {
 	// (optional) number of events to skip
 	Offset *int
@@ -431,7 +432,7 @@ type ListCronWorkflowsOpts struct {
 	Limit *int
 
 	// (optional) the order by field
-	OrderBy *string `validate:"omitempty,oneof=createdAt finishedAt startedAt duration"`
+	OrderBy *string `validate:"omitempty,oneof=createdAt"`
 
 	// (optional) the order direction
 	OrderDirection *string `validate:"omitempty,oneof=ASC DESC"`
