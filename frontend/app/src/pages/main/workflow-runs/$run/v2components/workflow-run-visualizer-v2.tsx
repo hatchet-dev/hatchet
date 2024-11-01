@@ -14,9 +14,6 @@ import dagre from 'dagre';
 import invariant from 'tiny-invariant';
 import { useTheme } from '@/components/theme-provider';
 
-const initBgColorDark = '#050c1c';
-const initBgColorLight = '#ffffff';
-
 const connectionLineStyleDark = { stroke: '#fff' };
 const connectionLineStyleLight = { stroke: '#000' };
 
@@ -26,12 +23,12 @@ const nodeTypes = {
 
 const WorkflowRunVisualizer = ({
   shape,
-  selectedStepRun,
-  setSelectedStepRun,
+  selectedStepRunId,
+  setSelectedStepRunId,
 }: {
   shape: WorkflowRunShape;
-  selectedStepRun?: StepRun;
-  setSelectedStepRun: (stepRun: StepRun) => void;
+  selectedStepRunId?: string;
+  setSelectedStepRunId: (stepRunId: string) => void;
 }) => {
   const { theme } = useTheme();
 
@@ -43,21 +40,23 @@ const WorkflowRunVisualizer = ({
   useEffect(() => {
     const stepEdges =
       shape.jobRuns
-        ?.map((job) => {
-          invariant(job.stepRuns, 'has stepRuns');
-          return job.stepRuns
+        ?.map((jobRun) => {
+          invariant(jobRun.stepRuns, 'has stepRuns');
+          return jobRun.stepRuns
             .map((stepRun: StepRun) => {
-              invariant(stepRun.step, 'has step');
+              const step = jobRun.job?.steps.find((step) => {
+                return step.metadata.id === stepRun.stepId;
+              });
+
+              invariant(step, 'has step');
 
               return (
-                stepRun.step.parents
+                step.parents
                   ?.map((parent) => {
-                    invariant(stepRun.step, 'has step');
-
                     return {
-                      id: `${parent}-${stepRun.step.metadata.id}`,
+                      id: `${parent}-${step.metadata.id}`,
                       source: parent,
-                      target: stepRun.step.metadata.id,
+                      target: step.metadata.id,
                       animated: stepRun.status === StepRunStatus.RUNNING,
                       markerEnd: {
                         type: MarkerType.ArrowClosed,
@@ -77,34 +76,34 @@ const WorkflowRunVisualizer = ({
           invariant(jobRun.stepRuns, 'has stepRuns');
 
           return jobRun.stepRuns.map((stepRun) => {
-            invariant(stepRun.step, 'has step');
-            const hasChild = stepEdges.some((edge) => {
-              invariant(stepRun.step, 'has step');
-              return edge?.source === stepRun.step.metadata.id;
+            // find the step in the shape
+            const step = jobRun.job?.steps.find((step) => {
+              return step.metadata.id === stepRun.stepId;
             });
-            const hasParent =
-              stepRun.step?.parents?.length && stepRun.step.parents.length > 0;
+
+            invariant(step, 'has step');
+
+            const hasChild = stepEdges.some((edge) => {
+              return edge?.source === step.metadata.id;
+            });
+            const hasParent = step?.parents?.length && step.parents.length > 0;
 
             const data: StepRunNodeProps = {
               stepRun: stepRun,
               onClick: () => {
-                setSelectedStepRun(stepRun);
+                setSelectedStepRunId(stepRun?.metadata.id);
               },
-              variant:
+              step: step,
+              graphVariant:
                 hasParent && hasChild
                   ? 'default'
                   : hasChild
                     ? 'output_only'
                     : 'input_only',
-              selected: !selectedStepRun
-                ? 'none'
-                : selectedStepRun.stepId === stepRun.stepId
-                  ? 'selected'
-                  : 'not_selected',
             };
 
             return {
-              id: stepRun.step.metadata.id,
+              id: step.metadata.id,
               selectable: false,
               type: 'stepNode',
               position: { x: 0, y: 0 }, // positioning gets set by dagre later
@@ -116,7 +115,7 @@ const WorkflowRunVisualizer = ({
 
     setNodes(stepNodes);
     setEdges(stepEdges);
-  }, [shape, setNodes, setEdges, setSelectedStepRun, selectedStepRun]);
+  }, [shape, setNodes, setEdges, setSelectedStepRunId, selectedStepRunId]);
 
   const nodeWidth = 230;
   const nodeHeight = 70;
@@ -162,10 +161,6 @@ const WorkflowRunVisualizer = ({
   const dagrNodes = dagrLayout.nodes;
   const dagrEdges = dagrLayout.edges;
 
-  const bg = useMemo(() => {
-    return theme === 'dark' ? initBgColorDark : initBgColorLight;
-  }, [theme]);
-
   const connectionLineStyle = useMemo(() => {
     return theme === 'dark'
       ? connectionLineStyleDark
@@ -173,13 +168,12 @@ const WorkflowRunVisualizer = ({
   }, [theme]);
 
   return (
-    <>
+    <div className="w-full h-[300px]">
       <ReactFlow
         nodes={dagrNodes}
         edges={dagrEdges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
-        style={{ background: bg }}
         nodeTypes={nodeTypes}
         connectionLineStyle={connectionLineStyle}
         snapToGrid={true}
@@ -190,7 +184,7 @@ const WorkflowRunVisualizer = ({
         className="border-1 border-gray-800 rounded-lg"
         maxZoom={1}
       />
-    </>
+    </div>
   );
 };
 
