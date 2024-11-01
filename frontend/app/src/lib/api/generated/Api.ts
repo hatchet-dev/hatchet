@@ -1193,12 +1193,12 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @tags Workflow
    * @name WorkflowScheduledGet
    * @summary Get scheduled workflow run
-   * @request GET:/api/v1/tenants/{tenant}/workflows/scheduled/{scheduledId}
+   * @request GET:/api/v1/tenants/{tenant}/workflows/scheduled/{scheduled-workflow-run}
    * @secure
    */
-  workflowScheduledGet = (tenant: string, scheduledId: string, params: RequestParams = {}) =>
+  workflowScheduledGet = (tenant: string, scheduledWorkflowRun: string, params: RequestParams = {}) =>
     this.request<ScheduledWorkflows, APIErrors>({
-      path: `/api/v1/tenants/${tenant}/workflows/scheduled/${scheduledId}`,
+      path: `/api/v1/tenants/${tenant}/workflows/scheduled/${scheduledWorkflowRun}`,
       method: 'GET',
       secure: true,
       format: 'json',
@@ -1210,12 +1210,12 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @tags Workflow
    * @name WorkflowScheduledDelete
    * @summary Delete scheduled workflow run
-   * @request DELETE:/api/v1/tenants/{tenant}/workflows/scheduled/{scheduledId}
+   * @request DELETE:/api/v1/tenants/{tenant}/workflows/scheduled/{scheduled-workflow-run}
    * @secure
    */
-  workflowScheduledDelete = (tenant: string, scheduledId: string, params: RequestParams = {}) =>
+  workflowScheduledDelete = (tenant: string, scheduledWorkflowRun: string, params: RequestParams = {}) =>
     this.request<void, APIErrors | APIError>({
-      path: `/api/v1/tenants/${tenant}/workflows/scheduled/${scheduledId}`,
+      path: `/api/v1/tenants/${tenant}/workflows/scheduled/${scheduledWorkflowRun}`,
       method: 'DELETE',
       secure: true,
       ...params,
@@ -1275,12 +1275,12 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @tags Workflow
    * @name WorkflowCronGet
    * @summary Get cron job workflow run
-   * @request GET:/api/v1/tenants/{tenant}/workflows/crons/{cronId}
+   * @request GET:/api/v1/tenants/{tenant}/workflows/crons/{cron-workflow}
    * @secure
    */
-  workflowCronGet = (tenant: string, cronId: string, params: RequestParams = {}) =>
+  workflowCronGet = (tenant: string, cronWorkflow: string, params: RequestParams = {}) =>
     this.request<CronWorkflows, APIErrors>({
-      path: `/api/v1/tenants/${tenant}/workflows/crons/${cronId}`,
+      path: `/api/v1/tenants/${tenant}/workflows/crons/${cronWorkflow}`,
       method: 'GET',
       secure: true,
       format: 'json',
@@ -1292,12 +1292,12 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @tags Workflow
    * @name WorkflowCronDelete
    * @summary Delete cron job workflow run
-   * @request DELETE:/api/v1/tenants/{tenant}/workflows/crons/{cronId}
+   * @request DELETE:/api/v1/tenants/{tenant}/workflows/crons/{cron-workflow}
    * @secure
    */
-  workflowCronDelete = (tenant: string, cronId: string, params: RequestParams = {}) =>
+  workflowCronDelete = (tenant: string, cronWorkflow: string, params: RequestParams = {}) =>
     this.request<void, APIErrors | APIError>({
-      path: `/api/v1/tenants/${tenant}/workflows/crons/${cronId}`,
+      path: `/api/v1/tenants/${tenant}/workflows/crons/${cronWorkflow}`,
       method: 'DELETE',
       secure: true,
       ...params,

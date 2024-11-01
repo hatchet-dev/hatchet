@@ -18,7 +18,7 @@ func (t *WorkflowService) WorkflowCronGet(ctx echo.Context, request gen.Workflow
 	dbCtx, cancel := context.WithTimeout(ctx.Request().Context(), 30*time.Second)
 	defer cancel()
 
-	scheduled, err := t.config.APIRepository.Workflow().GetCronWorkflow(dbCtx, tenant.ID, request.CronId.String())
+	scheduled, err := t.config.APIRepository.Workflow().GetCronWorkflow(dbCtx, tenant.ID, request.CronWorkflow.String())
 
 	if err != nil {
 		return nil, err

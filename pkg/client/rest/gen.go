@@ -2033,10 +2033,10 @@ type ClientInterface interface {
 	CronWorkflowList(ctx context.Context, tenant openapi_types.UUID, params *CronWorkflowListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// WorkflowCronDelete request
-	WorkflowCronDelete(ctx context.Context, tenant openapi_types.UUID, cronId openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+	WorkflowCronDelete(ctx context.Context, tenant openapi_types.UUID, cronWorkflow openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// WorkflowCronGet request
-	WorkflowCronGet(ctx context.Context, tenant openapi_types.UUID, cronId openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+	WorkflowCronGet(ctx context.Context, tenant openapi_types.UUID, cronWorkflow openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// WorkflowRunList request
 	WorkflowRunList(ctx context.Context, tenant openapi_types.UUID, params *WorkflowRunListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -2048,10 +2048,10 @@ type ClientInterface interface {
 	WorkflowScheduledList(ctx context.Context, tenant openapi_types.UUID, params *WorkflowScheduledListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// WorkflowScheduledDelete request
-	WorkflowScheduledDelete(ctx context.Context, tenant openapi_types.UUID, scheduledId openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+	WorkflowScheduledDelete(ctx context.Context, tenant openapi_types.UUID, scheduledWorkflowRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// WorkflowScheduledGet request
-	WorkflowScheduledGet(ctx context.Context, tenant openapi_types.UUID, scheduledId openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+	WorkflowScheduledGet(ctx context.Context, tenant openapi_types.UUID, scheduledWorkflowRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// WorkflowGetWorkersCount request
 	WorkflowGetWorkersCount(ctx context.Context, tenant openapi_types.UUID, workflow openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -3033,8 +3033,8 @@ func (c *Client) CronWorkflowList(ctx context.Context, tenant openapi_types.UUID
 	return c.Client.Do(req)
 }
 
-func (c *Client) WorkflowCronDelete(ctx context.Context, tenant openapi_types.UUID, cronId openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewWorkflowCronDeleteRequest(c.Server, tenant, cronId)
+func (c *Client) WorkflowCronDelete(ctx context.Context, tenant openapi_types.UUID, cronWorkflow openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWorkflowCronDeleteRequest(c.Server, tenant, cronWorkflow)
 	if err != nil {
 		return nil, err
 	}
@@ -3045,8 +3045,8 @@ func (c *Client) WorkflowCronDelete(ctx context.Context, tenant openapi_types.UU
 	return c.Client.Do(req)
 }
 
-func (c *Client) WorkflowCronGet(ctx context.Context, tenant openapi_types.UUID, cronId openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewWorkflowCronGetRequest(c.Server, tenant, cronId)
+func (c *Client) WorkflowCronGet(ctx context.Context, tenant openapi_types.UUID, cronWorkflow openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWorkflowCronGetRequest(c.Server, tenant, cronWorkflow)
 	if err != nil {
 		return nil, err
 	}
@@ -3093,8 +3093,8 @@ func (c *Client) WorkflowScheduledList(ctx context.Context, tenant openapi_types
 	return c.Client.Do(req)
 }
 
-func (c *Client) WorkflowScheduledDelete(ctx context.Context, tenant openapi_types.UUID, scheduledId openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewWorkflowScheduledDeleteRequest(c.Server, tenant, scheduledId)
+func (c *Client) WorkflowScheduledDelete(ctx context.Context, tenant openapi_types.UUID, scheduledWorkflowRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWorkflowScheduledDeleteRequest(c.Server, tenant, scheduledWorkflowRun)
 	if err != nil {
 		return nil, err
 	}
@@ -3105,8 +3105,8 @@ func (c *Client) WorkflowScheduledDelete(ctx context.Context, tenant openapi_typ
 	return c.Client.Do(req)
 }
 
-func (c *Client) WorkflowScheduledGet(ctx context.Context, tenant openapi_types.UUID, scheduledId openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewWorkflowScheduledGetRequest(c.Server, tenant, scheduledId)
+func (c *Client) WorkflowScheduledGet(ctx context.Context, tenant openapi_types.UUID, scheduledWorkflowRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWorkflowScheduledGetRequest(c.Server, tenant, scheduledWorkflowRun)
 	if err != nil {
 		return nil, err
 	}
@@ -6328,7 +6328,7 @@ func NewCronWorkflowListRequest(server string, tenant openapi_types.UUID, params
 }
 
 // NewWorkflowCronDeleteRequest generates requests for WorkflowCronDelete
-func NewWorkflowCronDeleteRequest(server string, tenant openapi_types.UUID, cronId openapi_types.UUID) (*http.Request, error) {
+func NewWorkflowCronDeleteRequest(server string, tenant openapi_types.UUID, cronWorkflow openapi_types.UUID) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -6340,7 +6340,7 @@ func NewWorkflowCronDeleteRequest(server string, tenant openapi_types.UUID, cron
 
 	var pathParam1 string
 
-	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "cronId", runtime.ParamLocationPath, cronId)
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "cron-workflow", runtime.ParamLocationPath, cronWorkflow)
 	if err != nil {
 		return nil, err
 	}
@@ -6369,7 +6369,7 @@ func NewWorkflowCronDeleteRequest(server string, tenant openapi_types.UUID, cron
 }
 
 // NewWorkflowCronGetRequest generates requests for WorkflowCronGet
-func NewWorkflowCronGetRequest(server string, tenant openapi_types.UUID, cronId openapi_types.UUID) (*http.Request, error) {
+func NewWorkflowCronGetRequest(server string, tenant openapi_types.UUID, cronWorkflow openapi_types.UUID) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -6381,7 +6381,7 @@ func NewWorkflowCronGetRequest(server string, tenant openapi_types.UUID, cronId 
 
 	var pathParam1 string
 
-	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "cronId", runtime.ParamLocationPath, cronId)
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "cron-workflow", runtime.ParamLocationPath, cronWorkflow)
 	if err != nil {
 		return nil, err
 	}
@@ -7026,7 +7026,7 @@ func NewWorkflowScheduledListRequest(server string, tenant openapi_types.UUID, p
 }
 
 // NewWorkflowScheduledDeleteRequest generates requests for WorkflowScheduledDelete
-func NewWorkflowScheduledDeleteRequest(server string, tenant openapi_types.UUID, scheduledId openapi_types.UUID) (*http.Request, error) {
+func NewWorkflowScheduledDeleteRequest(server string, tenant openapi_types.UUID, scheduledWorkflowRun openapi_types.UUID) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -7038,7 +7038,7 @@ func NewWorkflowScheduledDeleteRequest(server string, tenant openapi_types.UUID,
 
 	var pathParam1 string
 
-	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "scheduledId", runtime.ParamLocationPath, scheduledId)
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "scheduled-workflow-run", runtime.ParamLocationPath, scheduledWorkflowRun)
 	if err != nil {
 		return nil, err
 	}
@@ -7067,7 +7067,7 @@ func NewWorkflowScheduledDeleteRequest(server string, tenant openapi_types.UUID,
 }
 
 // NewWorkflowScheduledGetRequest generates requests for WorkflowScheduledGet
-func NewWorkflowScheduledGetRequest(server string, tenant openapi_types.UUID, scheduledId openapi_types.UUID) (*http.Request, error) {
+func NewWorkflowScheduledGetRequest(server string, tenant openapi_types.UUID, scheduledWorkflowRun openapi_types.UUID) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -7079,7 +7079,7 @@ func NewWorkflowScheduledGetRequest(server string, tenant openapi_types.UUID, sc
 
 	var pathParam1 string
 
-	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "scheduledId", runtime.ParamLocationPath, scheduledId)
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "scheduled-workflow-run", runtime.ParamLocationPath, scheduledWorkflowRun)
 	if err != nil {
 		return nil, err
 	}
@@ -8302,10 +8302,10 @@ type ClientWithResponsesInterface interface {
 	CronWorkflowListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *CronWorkflowListParams, reqEditors ...RequestEditorFn) (*CronWorkflowListResponse, error)
 
 	// WorkflowCronDeleteWithResponse request
-	WorkflowCronDeleteWithResponse(ctx context.Context, tenant openapi_types.UUID, cronId openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkflowCronDeleteResponse, error)
+	WorkflowCronDeleteWithResponse(ctx context.Context, tenant openapi_types.UUID, cronWorkflow openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkflowCronDeleteResponse, error)
 
 	// WorkflowCronGetWithResponse request
-	WorkflowCronGetWithResponse(ctx context.Context, tenant openapi_types.UUID, cronId openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkflowCronGetResponse, error)
+	WorkflowCronGetWithResponse(ctx context.Context, tenant openapi_types.UUID, cronWorkflow openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkflowCronGetResponse, error)
 
 	// WorkflowRunListWithResponse request
 	WorkflowRunListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *WorkflowRunListParams, reqEditors ...RequestEditorFn) (*WorkflowRunListResponse, error)
@@ -8317,10 +8317,10 @@ type ClientWithResponsesInterface interface {
 	WorkflowScheduledListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *WorkflowScheduledListParams, reqEditors ...RequestEditorFn) (*WorkflowScheduledListResponse, error)
 
 	// WorkflowScheduledDeleteWithResponse request
-	WorkflowScheduledDeleteWithResponse(ctx context.Context, tenant openapi_types.UUID, scheduledId openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkflowScheduledDeleteResponse, error)
+	WorkflowScheduledDeleteWithResponse(ctx context.Context, tenant openapi_types.UUID, scheduledWorkflowRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkflowScheduledDeleteResponse, error)
 
 	// WorkflowScheduledGetWithResponse request
-	WorkflowScheduledGetWithResponse(ctx context.Context, tenant openapi_types.UUID, scheduledId openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkflowScheduledGetResponse, error)
+	WorkflowScheduledGetWithResponse(ctx context.Context, tenant openapi_types.UUID, scheduledWorkflowRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkflowScheduledGetResponse, error)
 
 	// WorkflowGetWorkersCountWithResponse request
 	WorkflowGetWorkersCountWithResponse(ctx context.Context, tenant openapi_types.UUID, workflow openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkflowGetWorkersCountResponse, error)
@@ -11226,8 +11226,8 @@ func (c *ClientWithResponses) CronWorkflowListWithResponse(ctx context.Context, 
 }
 
 // WorkflowCronDeleteWithResponse request returning *WorkflowCronDeleteResponse
-func (c *ClientWithResponses) WorkflowCronDeleteWithResponse(ctx context.Context, tenant openapi_types.UUID, cronId openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkflowCronDeleteResponse, error) {
-	rsp, err := c.WorkflowCronDelete(ctx, tenant, cronId, reqEditors...)
+func (c *ClientWithResponses) WorkflowCronDeleteWithResponse(ctx context.Context, tenant openapi_types.UUID, cronWorkflow openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkflowCronDeleteResponse, error) {
+	rsp, err := c.WorkflowCronDelete(ctx, tenant, cronWorkflow, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -11235,8 +11235,8 @@ func (c *ClientWithResponses) WorkflowCronDeleteWithResponse(ctx context.Context
 }
 
 // WorkflowCronGetWithResponse request returning *WorkflowCronGetResponse
-func (c *ClientWithResponses) WorkflowCronGetWithResponse(ctx context.Context, tenant openapi_types.UUID, cronId openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkflowCronGetResponse, error) {
-	rsp, err := c.WorkflowCronGet(ctx, tenant, cronId, reqEditors...)
+func (c *ClientWithResponses) WorkflowCronGetWithResponse(ctx context.Context, tenant openapi_types.UUID, cronWorkflow openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkflowCronGetResponse, error) {
+	rsp, err := c.WorkflowCronGet(ctx, tenant, cronWorkflow, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -11271,8 +11271,8 @@ func (c *ClientWithResponses) WorkflowScheduledListWithResponse(ctx context.Cont
 }
 
 // WorkflowScheduledDeleteWithResponse request returning *WorkflowScheduledDeleteResponse
-func (c *ClientWithResponses) WorkflowScheduledDeleteWithResponse(ctx context.Context, tenant openapi_types.UUID, scheduledId openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkflowScheduledDeleteResponse, error) {
-	rsp, err := c.WorkflowScheduledDelete(ctx, tenant, scheduledId, reqEditors...)
+func (c *ClientWithResponses) WorkflowScheduledDeleteWithResponse(ctx context.Context, tenant openapi_types.UUID, scheduledWorkflowRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkflowScheduledDeleteResponse, error) {
+	rsp, err := c.WorkflowScheduledDelete(ctx, tenant, scheduledWorkflowRun, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -11280,8 +11280,8 @@ func (c *ClientWithResponses) WorkflowScheduledDeleteWithResponse(ctx context.Co
 }
 
 // WorkflowScheduledGetWithResponse request returning *WorkflowScheduledGetResponse
-func (c *ClientWithResponses) WorkflowScheduledGetWithResponse(ctx context.Context, tenant openapi_types.UUID, scheduledId openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkflowScheduledGetResponse, error) {
-	rsp, err := c.WorkflowScheduledGet(ctx, tenant, scheduledId, reqEditors...)
+func (c *ClientWithResponses) WorkflowScheduledGetWithResponse(ctx context.Context, tenant openapi_types.UUID, scheduledWorkflowRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkflowScheduledGetResponse, error) {
+	rsp, err := c.WorkflowScheduledGet(ctx, tenant, scheduledWorkflowRun, reqEditors...)
 	if err != nil {
 		return nil, err
 	}

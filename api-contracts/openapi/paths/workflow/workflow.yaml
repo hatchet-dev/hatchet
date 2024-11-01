@@ -938,7 +938,7 @@ scheduledList:
 
 scheduled:
   get:
-    x-resources: ["tenant"]
+    x-resources: ["tenant", "scheduled-workflow-run"]
     description: Get a scheduled workflow run for a tenant
     operationId: workflow-scheduled:get
     parameters:
@@ -953,7 +953,7 @@ scheduled:
           maxLength: 36
       - description: The scheduled workflow id
         in: path
-        name: scheduledId
+        name: scheduled-workflow-run
         required: true
         schema:
           type: string
@@ -1004,7 +1004,7 @@ scheduled:
           maxLength: 36
       - description: The scheduled workflow id
         in: path
-        name: scheduledId
+        name: scheduled-workflow-run
         required: true
         schema:
           type: string
@@ -1047,7 +1047,7 @@ crons:
           maxLength: 36
       - description: The cron job id
         in: path
-        name: cronId
+        name: cron-workflow
         required: true
         schema:
           type: string
@@ -1098,7 +1098,7 @@ crons:
           maxLength: 36
       - description: The cron job id
         in: path
-        name: cronId
+        name: cron-workflow
         required: true
         schema:
           type: string
