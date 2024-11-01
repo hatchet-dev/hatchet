@@ -142,6 +142,10 @@ export function timeFrom(time: string | number, secondTime?: string | number) {
 }
 
 export function formatDuration(ms: number): string {
+  if (ms < 0) {
+    return '0s';
+  }
+
   if (ms < 1000) {
     return `${ms}ms`;
   } else if (ms < 60000) {

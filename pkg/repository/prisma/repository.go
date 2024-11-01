@@ -283,7 +283,7 @@ func (r *engineRepository) WebhookWorker() repository.WebhookWorkerEngineReposit
 	return r.webhookWorker
 }
 
-func NewEngineRepository(pool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ...PrismaRepositoryOpt) (func() error, repository.EngineRepository, error) {
+func NewEngineRepository(pool *pgxpool.Pool, essentialPool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ...PrismaRepositoryOpt) (func() error, repository.EngineRepository, error) {
 	opts := defaultPrismaRepositoryOpts()
 
 	for _, f := range fs {
@@ -302,7 +302,7 @@ func NewEngineRepository(pool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ..
 	rlCache := cache.New(5 * time.Minute)
 	queueCache := cache.New(5 * time.Minute)
 
-	eventEngine, cleanupEventEngine, err := NewEventEngineRepository(pool, opts.v, opts.l, opts.metered)
+	eventEngine, cleanupEventEngine, err := NewEventEngineRepository(pool, opts.v, opts.l, opts.metered, cf.EventBuffer)
 
 	if err != nil {
 		return nil, nil, err
@@ -344,7 +344,7 @@ func NewEngineRepository(pool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ..
 			tenant:         NewTenantEngineRepository(pool, opts.v, opts.l, opts.cache),
 			tenantAlerting: NewTenantAlertingEngineRepository(pool, opts.v, opts.l, opts.cache),
 			ticker:         NewTickerRepository(pool, opts.v, opts.l),
-			worker:         NewWorkerEngineRepository(pool, opts.v, opts.l, opts.metered),
+			worker:         NewWorkerEngineRepository(pool, essentialPool, opts.v, opts.l, opts.metered),
 			workflow:       NewWorkflowEngineRepository(pool, opts.v, opts.l, opts.metered, opts.cache),
 			workflowRun:    workflowRunEngine,
 			streamEvent:    NewStreamEventsEngineRepository(pool, opts.v, opts.l),

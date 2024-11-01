@@ -181,6 +181,23 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile, runtime *server.Co
 		config.BeforeAcquire = debugger.beforeAcquire
 	}
 
+	// a smaller pool for essential services like the heartbeat
+	essentialConfig := config.Copy()
+	essentialConfig.MinConns = 1
+
+	essentialConfig.MaxConns /= 100
+	if essentialConfig.MaxConns < 1 {
+		essentialConfig.MaxConns = 1
+	}
+
+	config.MaxConns -= essentialConfig.MaxConns
+
+	essentialPool, err := pgxpool.NewWithConfig(context.Background(), essentialConfig)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not connect to database: %w", err)
+	}
+
 	pool, err := pgxpool.NewWithConfig(context.Background(), config)
 
 	if err != nil {
@@ -193,7 +210,7 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile, runtime *server.Co
 
 	meter := metered.NewMetered(entitlementRepo, &l)
 
-	cleanupEngine, engineRepo, err := prisma.NewEngineRepository(pool, runtime, prisma.WithLogger(&l), prisma.WithCache(ch), prisma.WithMetered(meter))
+	cleanupEngine, engineRepo, err := prisma.NewEngineRepository(pool, essentialPool, runtime, prisma.WithLogger(&l), prisma.WithCache(ch), prisma.WithMetered(meter))
 
 	if err != nil {
 		return nil, fmt.Errorf("could not create engine repository: %w", err)
@@ -219,6 +236,7 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile, runtime *server.Co
 			return c.Prisma.Disconnect()
 		},
 		Pool:                  pool,
+		EssentialPool:         essentialPool,
 		QueuePool:             pool,
 		APIRepository:         apiRepo,
 		EngineRepository:      engineRepo,

@@ -92,7 +92,8 @@ func (o *CreateWorkflowVersionOpts) Checksum() (string, error) {
 type CreateWorkflowSchedulesOpts struct {
 	ScheduledTriggers []time.Time
 
-	Input []byte
+	Input              []byte
+	AdditionalMetadata []byte
 }
 
 type CreateWorkflowTagOpts struct {

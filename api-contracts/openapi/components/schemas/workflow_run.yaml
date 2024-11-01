@@ -6,6 +6,17 @@ WorkflowRunOrderByField:
     - finishedAt
     - duration
 
+ScheduledWorkflowsOrderByField:
+  type: string
+  enum:
+    - triggerAt
+    - createdAt
+
+CronWorkflowsOrderByField:
+  type: string
+  enum:
+    - createdAt
+
 WorkflowRunOrderByDirection:
   type: string
   enum:
@@ -161,6 +172,98 @@ WorkflowRunList:
     pagination:
       $ref: "./metadata.yaml#/PaginationResponse"
 
+ScheduledWorkflows:
+  type: object
+  properties:
+    metadata:
+      $ref: "./metadata.yaml#/APIResourceMeta"
+    tenantId:
+      type: string
+    workflowVersionId:
+      type: string
+    workflowId:
+      type: string
+    workflowName:
+      type: string
+    triggerAt:
+      type: string
+      format: date-time
+    input:
+      type: object
+      additionalProperties: true
+    additionalMetadata:
+      type: object
+      additionalProperties: true
+    workflowRunCreatedAt:
+      type: string
+      format: date-time
+    workflowRunName:
+      type: string
+    workflowRunStatus:
+      $ref: "#/WorkflowRunStatus"
+    workflowRunId:
+      type: string
+      example: bb214807-246e-43a5-a25d-41761d1cff9e
+      minLength: 36
+      maxLength: 36
+      format: uuid
+  required:
+    - metadata
+    - tenantId
+    - workflowVersionId
+    - workflowName
+    - workflowId
+    - triggerAt
+
+ScheduledWorkflowsList:
+  type: object
+  properties:
+    rows:
+      type: array
+      items:
+        $ref: "#/ScheduledWorkflows"
+    pagination:
+      $ref: "./metadata.yaml#/PaginationResponse"
+
+CronWorkflows:
+  type: object
+  properties:
+    metadata:
+      $ref: "./metadata.yaml#/APIResourceMeta"
+    tenantId:
+      type: string
+    workflowVersionId:
+      type: string
+    workflowId:
+      type: string
+    workflowName:
+      type: string
+    cron:
+      type: string
+    input:
+      type: object
+      additionalProperties: true
+    additionalMetadata:
+      type: object
+      additionalProperties: true
+  required:
+    - metadata
+    - tenantId
+    - workflowVersionId
+    - workflowName
+    - workflowId
+    - cron
+
+CronWorkflowsList:
+  type: object
+  properties:
+    rows:
+      type: array
+      items:
+        $ref: "#/CronWorkflows"
+    pagination:
+      $ref: "./metadata.yaml#/PaginationResponse"
+
 WorkflowRunsMetricsCounts:
   type: object
   properties:
@@ -212,6 +315,17 @@ WorkflowRunStatus:
     - FAILED
     - CANCELLED
     - QUEUED
+
+ScheduledRunStatus:
+  type: string
+  enum:
+    - PENDING
+    - RUNNING
+    - SUCCEEDED
+    - FAILED
+    - CANCELLED
+    - QUEUED
+    - SCHEDULED
 
 WorkflowKind:
   type: string

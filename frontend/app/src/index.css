@@ -82,13 +82,8 @@ body {
 .step-run-card {
   --transition: 0.25s;
   --spark: 3s;
-  display: grid;
-  border-radius: 10px;
   position: relative;
   overflow: hidden;
-  box-shadow: 0 1000px 0 0 hsl(217.2 32.6% 17.5%) inset;
-  transition: box-shadow var(--transition), background var(--transition),
-    transform var(--transition);
 }
 
 .step-run-card.active .step-run-backdrop {
@@ -102,7 +97,7 @@ body {
 .spark {
   position: absolute;
   inset: 0;
-  border-radius: 10px;
+  border-radius: 2px;
   rotate: 0deg;
   overflow: hidden;
   mask: linear-gradient(white, transparent 50%);
@@ -135,7 +130,7 @@ body {
   position: absolute;
   inset: 1px;
   background: 222.2 84% 4.9%;
-  border-radius: 10px;
+  border-radius: 2px;
   transition: background var(--transition) opacity var(--transition);
 }
 
