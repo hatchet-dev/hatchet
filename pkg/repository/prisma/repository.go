@@ -335,7 +335,7 @@ func NewEngineRepository(pool *pgxpool.Pool, essentialPool *pgxpool.Pool, cf *se
 		}, &engineRepository{
 			health:         NewHealthEngineRepository(pool),
 			apiToken:       NewEngineTokenRepository(pool, opts.v, opts.l, opts.cache),
-			dispatcher:     NewDispatcherRepository(pool, opts.v, opts.l),
+			dispatcher:     NewDispatcherRepository(pool, essentialPool, opts.v, opts.l),
 			event:          eventEngine,
 			getGroupKeyRun: NewGetGroupKeyRunRepository(pool, opts.v, opts.l),
 			jobRun:         NewJobRunEngineRepository(pool, opts.v, opts.l),
