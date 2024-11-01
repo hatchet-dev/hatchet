@@ -48,7 +48,7 @@ export default memo(({ data }: { data: StepRunNodeProps }) => {
           height: '30px',
           opacity: isHovering ? 1 : 0.8,
         }}
-        onClick={() => data.onClick(TabOption.ChildWorkflowRuns)}
+        onClick={() => data.onClick()}
         onMouseEnter={() => setIsHovering(true)}
         onMouseLeave={() => setIsHovering(false)}
       >
