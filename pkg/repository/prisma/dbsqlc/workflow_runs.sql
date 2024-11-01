@@ -57,7 +57,7 @@ WITH runs AS (
         ) AND
         (
             sqlc.narg('statuses')::text[] IS NULL OR
-            "status" = ANY(cast(sqlc.narg('statuses')::text[] as "WorkflowRunStatus"[]))
+            runs."status" = ANY(cast(sqlc.narg('statuses')::text[] as "WorkflowRunStatus"[]))
         ) AND
         (
             sqlc.narg('createdAfter')::timestamp IS NULL OR
@@ -212,7 +212,7 @@ WHERE
     ) AND
     (
         sqlc.narg('statuses')::text[] IS NULL OR
-        "status" = ANY(cast(sqlc.narg('statuses')::text[] as "WorkflowRunStatus"[]))
+        runs."status" = ANY(cast(sqlc.narg('statuses')::text[] as "WorkflowRunStatus"[]))
     ) AND
     (
         sqlc.narg('createdAfter')::timestamp IS NULL OR
@@ -1416,6 +1416,25 @@ WHERE
 ORDER BY
     sre."id" DESC;
 
+-- name: GetFailureDetails :many
+SELECT
+	wr."status",
+	wr."id",
+	jr."status" as "jrStatus",
+	sr."status" as "srStatus",
+	sr."cancelledReason",
+	sr."error"
+FROM "WorkflowRun" wr
+JOIN
+	"JobRun" jr on jr."workflowRunId" = wr."id"
+JOIN
+	"StepRun" sr on sr."jobRunId" = jr."id"
+WHERE
+	wr."status" = 'FAILED' AND
+    sr."status" = ANY('{FAILED,CANCELLED}') AND
+    sr."cancelledReason" != 'CANCELLED_BY_USER' AND
+	wr."id" = @workflowRunId::uuid AND
+    wr."tenantId" = @tenantId::uuid;
 
 -- name: ListScheduledWorkflows :many
 SELECT
