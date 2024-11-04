@@ -74,7 +74,7 @@ export default function Webhooks() {
                     <CardTitle className="flex items-center justify-between">
                       {worker.name}
                       <DropdownMenu>
-                        <DropdownMenuTrigger>
+                        <DropdownMenuTrigger asChild>
                           <Button
                             aria-label="Workflow Actions"
                             size="icon"

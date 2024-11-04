@@ -17,7 +17,7 @@ import { Button } from '@/components/ui/button';
 import invariant from 'tiny-invariant';
 import { useApiError } from '@/lib/hooks';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { PlusIcon } from '@heroicons/react/24/outline';
+import { ChevronDownIcon, PlusIcon } from '@heroicons/react/24/outline';
 import { cn } from '@/lib/utils';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import { TenantContextType } from '@/lib/outlet';
@@ -26,6 +26,12 @@ import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import CronPrettifier from 'cronstrue';
 import { DateTimePicker } from '@/components/molecules/time-picker/date-time-picker';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 type TimingOption = 'now' | 'schedule' | 'cron';
 
@@ -56,6 +62,10 @@ export function TriggerWorkflowForm({
   );
   const [cronExpression, setCronExpression] = useState<string>('* * * * *');
 
+  const [selectedWorkflowId, setSelectedWorkflowId] = useState<
+    string | undefined
+  >(defaultWorkflow?.metadata.id);
+
   const cronPretty = useMemo(() => {
     try {
       return {
@@ -80,14 +90,20 @@ export function TriggerWorkflowForm({
   });
 
   const workflow = useMemo(() => {
-    if (!defaultWorkflow) {
-      return (workflowKeys?.rows || [])[0];
+    if (defaultWorkflow) {
+      return workflowKeys?.rows?.find(
+        (w) => w.metadata.id === defaultWorkflow.metadata.id,
+      );
     }
 
-    return workflowKeys?.rows?.find(
-      (w) => w.metadata.id === defaultWorkflow?.metadata.id,
-    );
-  }, [workflowKeys, defaultWorkflow]);
+    if (selectedWorkflowId) {
+      return workflowKeys?.rows?.find(
+        (w) => w.metadata.id === selectedWorkflowId,
+      );
+    }
+
+    return (workflowKeys?.rows || [])[0];
+  }, [workflowKeys, defaultWorkflow, selectedWorkflowId]);
 
   const triggerNowMutation = useMutation({
     mutationKey: ['workflow-run:create', workflow?.metadata.id],
@@ -96,7 +112,7 @@ export function TriggerWorkflowForm({
         return;
       }
 
-      const res = await api.workflowRunCreate(workflow?.metadata.id, {
+      const res = await api.workflowRunCreate(workflow.metadata.id, {
         input: data.input,
         additionalMetadata: data.addlMeta,
       });
@@ -191,6 +207,11 @@ export function TriggerWorkflowForm({
   });
 
   const handleSubmit = () => {
+    if (!workflow) {
+      setErrors(['No workflow selected.']);
+      return;
+    }
+
     const inputObj = JSON.parse(input || '{}');
     const addlMetaObj = JSON.parse(addlMeta || '{}');
 
@@ -233,11 +254,39 @@ export function TriggerWorkflowForm({
     >
       <DialogContent className="sm:max-w-[625px] py-12">
         <DialogHeader>
-          <DialogTitle>Trigger {workflow?.name}</DialogTitle>
+          <DialogTitle>Trigger Workflow</DialogTitle>
           <DialogDescription>
             You can change the input to your workflow here.
           </DialogDescription>
         </DialogHeader>
+
+        <div className="font-bold">Workflow</div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button aria-label="Select Workflow" variant="outline">
+              {workflow?.name} <ChevronDownIcon className="h-4 w-4 ml-2" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            {workflowKeysIsLoading && (
+              <DropdownMenuItem>Loading workflows...</DropdownMenuItem>
+            )}
+            {workflowKeysError && (
+              <DropdownMenuItem disabled>
+                Error loading workflows
+              </DropdownMenuItem>
+            )}
+            {workflowKeys?.rows?.map((w) => (
+              <DropdownMenuItem
+                key={w.metadata.id}
+                onClick={() => setSelectedWorkflowId(w.metadata.id)}
+              >
+                {w.name}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
         <div className="font-bold">Input</div>
         <CodeEditor
           code={input || '{}'}
