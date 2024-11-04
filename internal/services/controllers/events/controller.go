@@ -227,6 +227,24 @@ func (ec *EventsControllerImpl) processEvent(ctx context.Context, tenantId, even
 			if err != nil {
 				return fmt.Errorf("processEvent: could not create workflow run: %w", err)
 			}
+			tenant, err := ec.repo.Tenant().GetTenantByID(ctx, tenantId)
+
+			if err != nil {
+				ec.l.Err(err).Msg("could not add message to tenant partition queue")
+				return fmt.Errorf("could not get tenant: %w", err)
+			}
+
+			if tenant.ControllerPartitionId.Valid {
+				err = ec.mq.AddMessage(
+					ctx,
+					msgqueue.QueueTypeFromPartitionIDAndController(tenant.ControllerPartitionId.String, msgqueue.WorkflowController),
+					tasktypes.CheckTenantQueueToTask(tenantId, "", false, false),
+				)
+
+				if err != nil {
+					ec.l.Err(err).Msg("could not add message to tenant partition queue")
+				}
+			}
 
 			workflowRunId := sqlchelpers.UUIDToStr(workflowRun.ID)
 
