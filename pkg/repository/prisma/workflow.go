@@ -354,9 +354,7 @@ func (w *workflowAPIRepository) GetCronWorkflow(ctx context.Context, tenantId, c
 }
 
 func (w *workflowAPIRepository) DeleteCronWorkflow(ctx context.Context, tenantId, id string) error {
-	return w.queries.DeleteWorkflowTriggerCronRef(ctx, w.pool, dbsqlc.DeleteWorkflowTriggerCronRefParams{
-		ID: sqlchelpers.UUIDFromStr(id),
-	})
+	return w.queries.DeleteWorkflowTriggerCronRef(ctx, w.pool, sqlchelpers.UUIDFromStr(id))
 }
 
 func (w *workflowAPIRepository) CreateCronWorkflow(ctx context.Context, tenantId string, opts *repository.CreateCronWorkflowTriggerOpts) (*dbsqlc.WorkflowRun, error) {

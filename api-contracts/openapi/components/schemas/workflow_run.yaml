@@ -240,6 +240,8 @@ CronWorkflows:
       type: string
     cron:
       type: string
+    name:
+      type: string
     input:
       type: object
       additionalProperties: true

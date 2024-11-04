@@ -569,13 +569,15 @@ INSERT INTO "WorkflowTriggerCronRef" (
     "cron",
     "name",
     "input",
-    "additionalMetadata"
+    "additionalMetadata",
+    "id"
 ) VALUES (
     $1::uuid,
     $2::text,
     $3::text,
     $4::jsonb,
-    $5::jsonb
+    $5::jsonb,
+    gen_random_uuid()
 ) RETURNING "parentId", cron, "tickerId", input, enabled, "additionalMetadata", "createdAt", "deletedAt", "updatedAt", name, id
 `
 
@@ -792,28 +794,11 @@ func (q *Queries) CreateWorkflowVersion(ctx context.Context, db DBTX, arg Create
 const deleteWorkflowTriggerCronRef = `-- name: DeleteWorkflowTriggerCronRef :exec
 DELETE FROM "WorkflowTriggerCronRef"
 WHERE
-    "id" = $1::uuid OR
-    (
-        "parentId" = $2::uuid AND
-        "cron" = $3::text AND
-        "name" = $4::text
-    )
+    "id" = $1::uuid
 `
 
-type DeleteWorkflowTriggerCronRefParams struct {
-	ID       pgtype.UUID `json:"id"`
-	ParentId pgtype.UUID `json:"parentId"`
-	Cron     pgtype.Text `json:"cron"`
-	Name     pgtype.Text `json:"name"`
-}
-
-func (q *Queries) DeleteWorkflowTriggerCronRef(ctx context.Context, db DBTX, arg DeleteWorkflowTriggerCronRefParams) error {
-	_, err := db.Exec(ctx, deleteWorkflowTriggerCronRef,
-		arg.ID,
-		arg.ParentId,
-		arg.Cron,
-		arg.Name,
-	)
+func (q *Queries) DeleteWorkflowTriggerCronRef(ctx context.Context, db DBTX, id pgtype.UUID) error {
+	_, err := db.Exec(ctx, deleteWorkflowTriggerCronRef, id)
 	return err
 }
 
@@ -1393,9 +1378,11 @@ WITH latest_versions AS (
 )
 SELECT
     latest_versions."workflowVersionId",
-    w."name",
+    w."name" as "workflowName",
     w."id" as "workflowId",
     w."tenantId",
+    t."id" as "triggerId",
+    c."id" as "cronId",
     t.id, t."createdAt", t."updatedAt", t."deletedAt", t."workflowVersionId", t."tenantId",
     c."parentId", c.cron, c."tickerId", c.input, c.enabled, c."additionalMetadata", c."createdAt", c."deletedAt", c."updatedAt", c.name, c.id
 FROM
@@ -1435,9 +1422,11 @@ type ListCronWorkflowsParams struct {
 
 type ListCronWorkflowsRow struct {
 	WorkflowVersionId   pgtype.UUID      `json:"workflowVersionId"`
-	Name                string           `json:"name"`
+	WorkflowName        string           `json:"workflowName"`
 	WorkflowId          pgtype.UUID      `json:"workflowId"`
 	TenantId            pgtype.UUID      `json:"tenantId"`
+	TriggerId           pgtype.UUID      `json:"triggerId"`
+	CronId              pgtype.UUID      `json:"cronId"`
 	ID                  pgtype.UUID      `json:"id"`
 	CreatedAt           pgtype.Timestamp `json:"createdAt"`
 	UpdatedAt           pgtype.Timestamp `json:"updatedAt"`
@@ -1453,7 +1442,7 @@ type ListCronWorkflowsRow struct {
 	CreatedAt_2         pgtype.Timestamp `json:"createdAt_2"`
 	DeletedAt_2         pgtype.Timestamp `json:"deletedAt_2"`
 	UpdatedAt_2         pgtype.Timestamp `json:"updatedAt_2"`
-	Name_2              pgtype.Text      `json:"name_2"`
+	Name                pgtype.Text      `json:"name"`
 	ID_2                pgtype.UUID      `json:"id_2"`
 }
 
@@ -1477,9 +1466,11 @@ func (q *Queries) ListCronWorkflows(ctx context.Context, db DBTX, arg ListCronWo
 		var i ListCronWorkflowsRow
 		if err := rows.Scan(
 			&i.WorkflowVersionId,
-			&i.Name,
+			&i.WorkflowName,
 			&i.WorkflowId,
 			&i.TenantId,
+			&i.TriggerId,
+			&i.CronId,
 			&i.ID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -1495,7 +1486,7 @@ func (q *Queries) ListCronWorkflows(ctx context.Context, db DBTX, arg ListCronWo
 			&i.CreatedAt_2,
 			&i.DeletedAt_2,
 			&i.UpdatedAt_2,
-			&i.Name_2,
+			&i.Name,
 			&i.ID_2,
 		); err != nil {
 			return nil, err

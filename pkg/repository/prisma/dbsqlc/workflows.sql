@@ -333,13 +333,15 @@ INSERT INTO "WorkflowTriggerCronRef" (
     "cron",
     "name",
     "input",
-    "additionalMetadata"
+    "additionalMetadata",
+    "id"
 ) VALUES (
     @workflowTriggersId::uuid,
     @cronTrigger::text,
     sqlc.narg('name')::text,
     sqlc.narg('input')::jsonb,
-    sqlc.narg('additionalMetadata')::jsonb
+    sqlc.narg('additionalMetadata')::jsonb,
+    gen_random_uuid()
 ) RETURNING *;
 
 -- name: CreateWorkflowTriggerScheduledRef :one
@@ -687,9 +689,11 @@ WITH latest_versions AS (
 )
 SELECT
     latest_versions."workflowVersionId",
-    w."name",
+    w."name" as "workflowName",
     w."id" as "workflowId",
     w."tenantId",
+    t."id" as "triggerId",
+    c."id" as "cronId",
     t.*,
     c.*
 FROM
@@ -719,9 +723,4 @@ LIMIT
 -- name: DeleteWorkflowTriggerCronRef :exec
 DELETE FROM "WorkflowTriggerCronRef"
 WHERE
-    "id" = sqlc.narg('id')::uuid OR
-    (
-        "parentId" = sqlc.narg('parentId')::uuid AND
-        "cron" = sqlc.narg('cron')::text AND
-        "name" = sqlc.narg('name')::text
-    );
+    "id" = @id::uuid;

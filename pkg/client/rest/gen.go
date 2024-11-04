@@ -382,6 +382,7 @@ type CronWorkflows struct {
 	Cron               string                  `json:"cron"`
 	Input              *map[string]interface{} `json:"input,omitempty"`
 	Metadata           APIResourceMeta         `json:"metadata"`
+	Name               *string                 `json:"name,omitempty"`
 	TenantId           string                  `json:"tenantId"`
 	WorkflowId         string                  `json:"workflowId"`
 	WorkflowName       string                  `json:"workflowName"`

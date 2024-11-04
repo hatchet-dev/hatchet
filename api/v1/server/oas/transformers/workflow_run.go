@@ -560,10 +560,11 @@ func ToCronWorkflowsFromSQLC(cron *dbsqlc.ListCronWorkflowsRow) *gen.CronWorkflo
 		Metadata:           *toAPIMetadata(sqlchelpers.UUIDToStr(cron.ID), cron.CreatedAt.Time, cron.UpdatedAt.Time),
 		WorkflowVersionId:  sqlchelpers.UUIDToStr(cron.WorkflowVersionId),
 		WorkflowId:         sqlchelpers.UUIDToStr(cron.WorkflowId),
-		WorkflowName:       cron.Name,
+		WorkflowName:       cron.WorkflowName,
 		TenantId:           sqlchelpers.UUIDToStr(cron.TenantId),
 		Cron:               cron.Cron,
 		AdditionalMetadata: &additionalMetadata,
+		Name:               &cron.Name.String,
 	}
 
 	return res

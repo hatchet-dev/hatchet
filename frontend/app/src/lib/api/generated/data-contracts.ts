@@ -810,6 +810,7 @@ export interface CronWorkflows {
   workflowId: string;
   workflowName: string;
   cron: string;
+  name?: string;
   input?: Record<string, any>;
   additionalMetadata?: Record<string, any>;
 }
