@@ -7,6 +7,7 @@ import {
 } from '@/components/ui/dialog';
 import api, {
   CronWorkflows,
+  queries,
   ScheduledWorkflows,
   Workflow,
   WorkflowRun,
@@ -15,7 +16,7 @@ import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import invariant from 'tiny-invariant';
 import { useApiError } from '@/lib/hooks';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { PlusIcon } from '@heroicons/react/24/outline';
 import { cn } from '@/lib/utils';
 import { useNavigate, useOutletContext } from 'react-router-dom';
@@ -26,14 +27,18 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import CronPrettifier from 'cronstrue';
 import { DateTimePicker } from '@/components/molecules/time-picker/date-time-picker';
 
+type TimingOption = 'now' | 'schedule' | 'cron';
+
 export function TriggerWorkflowForm({
-  workflow,
+  defaultWorkflow,
   show,
   onClose,
+  defaultTimingOption = 'now',
 }: {
-  workflow: Workflow;
+  defaultWorkflow?: Workflow;
   show: boolean;
   onClose: () => void;
+  defaultTimingOption?: TimingOption;
 }) {
   const { tenant } = useOutletContext<TenantContextType>();
   invariant(tenant);
@@ -44,9 +49,8 @@ export function TriggerWorkflowForm({
   const [addlMeta, setAddlMeta] = useState<string | undefined>('{}');
   const [errors, setErrors] = useState<string[]>([]);
 
-  const [timingOption, setTimingOption] = useState<'now' | 'schedule' | 'cron'>(
-    'now',
-  );
+  const [timingOption, setTimingOption] =
+    useState<TimingOption>(defaultTimingOption);
   const [scheduleTime, setScheduleTime] = useState<Date | undefined>(
     new Date(),
   );
@@ -66,6 +70,24 @@ export function TriggerWorkflowForm({
   const { handleApiError } = useApiError({
     setErrors,
   });
+
+  const {
+    data: workflowKeys,
+    isLoading: workflowKeysIsLoading,
+    error: workflowKeysError,
+  } = useQuery({
+    ...queries.workflows.list(tenant.metadata.id),
+  });
+
+  const workflow = useMemo(() => {
+    if (!defaultWorkflow) {
+      return (workflowKeys?.rows || [])[0];
+    }
+
+    return workflowKeys?.rows?.find(
+      (w) => w.metadata.id === defaultWorkflow?.metadata.id,
+    );
+  }, [workflowKeys, defaultWorkflow]);
 
   const triggerNowMutation = useMutation({
     mutationKey: ['workflow-run:create', workflow?.metadata.id],
@@ -211,7 +233,7 @@ export function TriggerWorkflowForm({
     >
       <DialogContent className="sm:max-w-[625px] py-12">
         <DialogHeader>
-          <DialogTitle>Trigger this workflow</DialogTitle>
+          <DialogTitle>Trigger {workflow?.name}</DialogTitle>
           <DialogDescription>
             You can change the input to your workflow here.
           </DialogDescription>
@@ -247,11 +269,77 @@ export function TriggerWorkflowForm({
             <TabsContent value="schedule">
               <div className="mt-4">
                 <div className="font-bold mb-2">Select Date and Time</div>
-                <DateTimePicker
-                  date={scheduleTime}
-                  setDate={setScheduleTime}
-                  label="Select Date and Time"
-                />
+                <div className="flex gap-2">
+                  <DateTimePicker
+                    date={scheduleTime}
+                    setDate={setScheduleTime}
+                    label="Trigger at"
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setScheduleTime(new Date())}
+                  >
+                    Now
+                  </Button>
+                </div>
+                <div className="flex gap-2 mt-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const newTime = new Date(scheduleTime || new Date());
+                      newTime.setSeconds(newTime.getSeconds() + 15);
+                      setScheduleTime(newTime);
+                    }}
+                  >
+                    +15s
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const newTime = new Date(scheduleTime || new Date());
+                      newTime.setMinutes(newTime.getMinutes() + 1);
+                      setScheduleTime(newTime);
+                    }}
+                  >
+                    +1m
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const newTime = new Date(scheduleTime || new Date());
+                      newTime.setMinutes(newTime.getMinutes() + 5);
+                      setScheduleTime(newTime);
+                    }}
+                  >
+                    +5m
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const newTime = new Date(scheduleTime || new Date());
+                      newTime.setMinutes(newTime.getMinutes() + 15);
+                      setScheduleTime(newTime);
+                    }}
+                  >
+                    +15m
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const newTime = new Date(scheduleTime || new Date());
+                      newTime.setMinutes(newTime.getMinutes() + 60);
+                      setScheduleTime(newTime);
+                    }}
+                  >
+                    +60m
+                  </Button>
+                </div>
               </div>
             </TabsContent>
             <TabsContent value="cron">
