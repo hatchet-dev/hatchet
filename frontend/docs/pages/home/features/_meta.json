@@ -10,5 +10,6 @@
   "rate-limits": "Rate Limits",
   "worker-assignment": "Worker Assignment",
   "additional-metadata": "Additional Metadata",
-  "advanced": "Advanced"
+  "advanced": "Advanced",
+  "opentelemetry": "OpenTelemetry"
 }
