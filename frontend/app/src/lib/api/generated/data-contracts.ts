@@ -1196,6 +1196,20 @@ export interface TriggerWorkflowRunRequest {
   additionalMetadata?: object;
 }
 
+export interface ScheduleWorkflowRunRequest {
+  input: object;
+  additionalMetadata: object;
+  /** @format date-time */
+  triggerAt: string;
+}
+
+export interface CreateCronWorkflowTriggerRequest {
+  input: object;
+  additionalMetadata: object;
+  cronName: string;
+  cronExpression: string;
+}
+
 export interface CreatePullRequestFromStepRun {
   branchName: string;
 }

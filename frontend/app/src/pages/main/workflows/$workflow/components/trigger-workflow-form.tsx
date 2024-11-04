@@ -5,8 +5,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import api, { Workflow, WorkflowRun } from '@/lib/api';
-import { useState } from 'react';
+import api, {
+  CronWorkflows,
+  ScheduledWorkflows,
+  Workflow,
+  WorkflowRun,
+} from '@/lib/api';
+import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import invariant from 'tiny-invariant';
 import { useApiError } from '@/lib/hooks';
@@ -16,6 +21,9 @@ import { cn } from '@/lib/utils';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import { TenantContextType } from '@/lib/outlet';
 import { CodeEditor } from '@/components/ui/code-editor';
+import { Input } from '@/components/ui/input';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import CronPrettifier from 'cronstrue';
 
 export function TriggerWorkflowForm({
   workflow,
@@ -35,11 +43,28 @@ export function TriggerWorkflowForm({
   const [addlMeta, setAddlMeta] = useState<string | undefined>('{}');
   const [errors, setErrors] = useState<string[]>([]);
 
+  const [timingOption, setTimingOption] = useState<'now' | 'schedule' | 'cron'>(
+    'now',
+  );
+  const [scheduleTime, setScheduleTime] = useState<string>('');
+  const [cronExpression, setCronExpression] = useState<string>('* * * * *');
+
+  const cronPretty = useMemo(() => {
+    try {
+      return {
+        pretty: CronPrettifier.toString(cronExpression || '').toLowerCase(),
+      };
+    } catch (e) {
+      console.error(e);
+      return { error: e as string };
+    }
+  }, [cronExpression]);
+
   const { handleApiError } = useApiError({
     setErrors,
   });
 
-  const triggerWorkflowMutation = useMutation({
+  const triggerNowMutation = useMutation({
     mutationKey: ['workflow-run:create', workflow?.metadata.id],
     mutationFn: async (data: { input: object; addlMeta: object }) => {
       if (!workflow) {
@@ -65,6 +90,112 @@ export function TriggerWorkflowForm({
     },
     onError: handleApiError,
   });
+
+  const triggerScheduleMutation = useMutation({
+    mutationKey: ['workflow-run:schedule', workflow?.metadata.id],
+    mutationFn: async (data: {
+      input: object;
+      addlMeta: object;
+      scheduledAt: string;
+    }) => {
+      if (!workflow) {
+        return;
+      }
+
+      const res = await api.scheduledWorkflowRunCreate(
+        tenant.metadata.id,
+        workflow?.metadata.id,
+        {
+          input: data.input,
+          additionalMetadata: data.addlMeta,
+          triggerAt: data.scheduledAt,
+        },
+      );
+
+      return res.data;
+    },
+    onMutate: () => {
+      setErrors([]);
+    },
+    onSuccess: (workflowRun: ScheduledWorkflows | undefined) => {
+      if (!workflowRun) {
+        return;
+      }
+
+      // TODO: navigate to the scheduled workflow runs page
+      // navigate(`/workflow-runs/${workflowRun.metadata.id}`);
+    },
+    onError: handleApiError,
+  });
+
+  const triggerCronMutation = useMutation({
+    mutationKey: ['workflow-run:cron', workflow?.metadata.id],
+    mutationFn: async (data: {
+      input: object;
+      addlMeta: object;
+      cron: string;
+    }) => {
+      if (!workflow) {
+        return;
+      }
+
+      const res = await api.cronWorkflowTriggerCreate(
+        tenant.metadata.id,
+        workflow?.metadata.id,
+        {
+          input: data.input,
+          additionalMetadata: data.addlMeta,
+          cronName: 'helloworld',
+          cronExpression: data.cron,
+        },
+      );
+
+      return res.data;
+    },
+    onMutate: () => {
+      setErrors([]);
+    },
+    onSuccess: (workflowRun: CronWorkflows | undefined) => {
+      if (!workflowRun) {
+        return;
+      }
+      // TODO: navigate to the cron workflow runs page
+      // navigate(`/workflow-runs/${workflowRun.metadata.id}`);
+    },
+    onError: handleApiError,
+  });
+
+  const handleSubmit = () => {
+    const inputObj = JSON.parse(input || '{}');
+    const addlMetaObj = JSON.parse(addlMeta || '{}');
+
+    if (timingOption === 'now') {
+      triggerNowMutation.mutate({
+        input: inputObj,
+        addlMeta: addlMetaObj,
+      });
+    } else if (timingOption === 'schedule') {
+      if (!scheduleTime) {
+        setErrors(['Please select a date and time for scheduling.']);
+        return;
+      }
+      triggerScheduleMutation.mutate({
+        input: inputObj,
+        addlMeta: addlMetaObj,
+        scheduledAt: scheduleTime,
+      });
+    } else if (timingOption === 'cron') {
+      if (!cronExpression) {
+        setErrors(['Please enter a valid cron expression.']);
+        return;
+      }
+      triggerCronMutation.mutate({
+        input: inputObj,
+        addlMeta: addlMetaObj,
+        cron: cronExpression,
+      });
+    }
+  };
 
   return (
     <Dialog
@@ -96,27 +227,74 @@ export function TriggerWorkflowForm({
           height="90px"
           language="json"
         />
+        <div>
+          <div className="font-bold mb-2">Timing</div>
+          <Tabs
+            defaultValue={timingOption}
+            onValueChange={(value) =>
+              setTimingOption(value as 'now' | 'schedule' | 'cron')
+            }
+          >
+            <TabsList>
+              <TabsTrigger value="now">Now</TabsTrigger>
+              <TabsTrigger value="schedule">Schedule</TabsTrigger>
+              <TabsTrigger value="cron">Cron</TabsTrigger>
+            </TabsList>
+            <TabsContent value="now"></TabsContent>
+            <TabsContent value="schedule">
+              <div className="mt-4">
+                <div className="font-bold mb-2">Select Date and Time</div>
+                <Input
+                  type="datetime-local"
+                  value={scheduleTime}
+                  onChange={(e) => setScheduleTime(e.target.value)}
+                  className="w-full"
+                />
+              </div>
+            </TabsContent>
+            <TabsContent value="cron">
+              <div className="mt-4">
+                <div className="font-bold mb-2">Cron Expression</div>
+                <Input
+                  type="text"
+                  value={cronExpression}
+                  onChange={(e) => setCronExpression(e.target.value)}
+                  placeholder="e.g., 0 0 * * *"
+                  className="w-full"
+                />
+                <div className="text-sm text-gray-500">
+                  {cronPretty?.error || `(runs ${cronPretty?.pretty} UTC)`}
+                </div>
+              </div>
+            </TabsContent>
+          </Tabs>
+        </div>
+
         <Button
-          className="w-fit"
-          disabled={triggerWorkflowMutation.isPending}
-          onClick={() => {
-            const inputObj = JSON.parse(input || '{}');
-            const addlMetaObj = JSON.parse(addlMeta || '{}');
-            triggerWorkflowMutation.mutate({
-              input: inputObj,
-              addlMeta: addlMetaObj,
-            });
-          }}
+          className="w-fit mt-6"
+          disabled={
+            triggerNowMutation.isPending ||
+            triggerScheduleMutation.isPending ||
+            triggerCronMutation.isPending
+          }
+          onClick={handleSubmit}
         >
           <PlusIcon
             className={cn(
-              triggerWorkflowMutation.isPending ? 'rotate-180' : '',
+              triggerNowMutation.isPending ||
+                triggerScheduleMutation.isPending ||
+                triggerCronMutation.isPending
+                ? 'rotate-180'
+                : '',
               'h-4 w-4 mr-2',
             )}
           />
           Trigger workflow
         </Button>
-        {errors.length > 0 && (
+        {(errors.length > 0 ||
+          triggerNowMutation.error ||
+          triggerScheduleMutation.error ||
+          triggerCronMutation.error) && (
           <div className="mt-4">
             {errors.map((error, index) => (
               <div key={index} className="text-red-500 text-sm">

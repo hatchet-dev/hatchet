@@ -29,7 +29,7 @@ export const columns = ({
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title="Name" />
       ),
-      cell: ({ row }) => <div>{row.original.name }</div>,
+      cell: ({ row }) => <div>{row.original.name}</div>,
     },
     {
       accessorKey: 'readable',

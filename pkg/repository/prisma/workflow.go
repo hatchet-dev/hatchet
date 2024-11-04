@@ -2,6 +2,7 @@ package prisma
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -357,35 +358,51 @@ func (w *workflowAPIRepository) DeleteCronWorkflow(ctx context.Context, tenantId
 	return w.queries.DeleteWorkflowTriggerCronRef(ctx, w.pool, sqlchelpers.UUIDFromStr(id))
 }
 
-func (w *workflowAPIRepository) CreateCronWorkflow(ctx context.Context, tenantId string, opts *repository.CreateCronWorkflowTriggerOpts) (*dbsqlc.WorkflowRun, error) {
+func (w *workflowAPIRepository) CreateCronWorkflow(ctx context.Context, tenantId string, opts *repository.CreateCronWorkflowTriggerOpts) (*dbsqlc.ListCronWorkflowsRow, error) {
 
-	workflow, err := w.queries.GetWorkflowByName(ctx, w.pool, dbsqlc.GetWorkflowByNameParams{
+	var input, additionalMetadata []byte
+	var err error
+
+	if opts.Input != nil {
+		input, err = json.Marshal(opts.Input)
+
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if opts.AdditionalMetadata != nil {
+		additionalMetadata, err = json.Marshal(opts.AdditionalMetadata)
+
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	createParams := dbsqlc.CreateWorkflowTriggerCronRefForWorkflowParams{
+		Workflowid:         sqlchelpers.UUIDFromStr(opts.WorkflowId),
+		Crontrigger:        opts.Cron,
+		Name:               sqlchelpers.TextFromStr(opts.Name),
+		Input:              input,
+		AdditionalMetadata: additionalMetadata,
+	}
+
+	cronTrigger, err := w.queries.CreateWorkflowTriggerCronRefForWorkflow(ctx, w.pool, createParams)
+
+	if err != nil {
+		return nil, err
+	}
+
+	row, err := w.queries.ListCronWorkflows(ctx, w.pool, dbsqlc.ListCronWorkflowsParams{
 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
-		Name:     opts.Name,
+		Cronid:   cronTrigger.ID,
 	})
 
 	if err != nil {
 		return nil, err
 	}
 
-	createParams := dbsqlc.CreateWorkflowTriggerCronRefParams{
-		Workflowtriggersid: workflow.ID,
-		Crontrigger:        opts.Cron,
-		Name:               sqlchelpers.TextFromStr(opts.Name),
-		Input:              opts.Input,
-		AdditionalMetadata: opts.AdditionalMetadata,
-	}
-
-	_, err = w.queries.CreateWorkflowTriggerCronRef(ctx, w.pool, createParams)
-
-	if err != nil {
-		return nil, err
-	}
-
-	// TODO: return the cron workflow trigger
-	// cronWorkflow, err := w.GetCronWorkflow(ctx, tenantId, cronWorkflowTrigger.)
-
-	return nil, nil
+	return row[0], nil
 }
 
 type workflowEngineRepository struct {

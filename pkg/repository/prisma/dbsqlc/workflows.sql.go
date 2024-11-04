@@ -614,6 +614,69 @@ func (q *Queries) CreateWorkflowTriggerCronRef(ctx context.Context, db DBTX, arg
 	return &i, err
 }
 
+const createWorkflowTriggerCronRefForWorkflow = `-- name: CreateWorkflowTriggerCronRefForWorkflow :one
+WITH latest_version AS (
+    SELECT "id" FROM "WorkflowVersion"
+    WHERE "workflowId" = $5::uuid
+    ORDER BY "order" DESC
+    LIMIT 1
+),
+latest_trigger AS (
+    SELECT "id" FROM "WorkflowTriggers"
+    WHERE "workflowVersionId" = (SELECT "id" FROM latest_version)
+    ORDER BY "createdAt" DESC
+    LIMIT 1
+)
+INSERT INTO "WorkflowTriggerCronRef" (
+    "parentId",
+    "cron",
+    "name",
+    "input",
+    "additionalMetadata",
+    "id"
+) VALUES (
+    (SELECT "id" FROM latest_trigger),
+    $1::text,
+    $2::text,
+    $3::jsonb,
+    $4::jsonb,
+    gen_random_uuid()
+) RETURNING "parentId", cron, "tickerId", input, enabled, "additionalMetadata", "createdAt", "deletedAt", "updatedAt", name, id
+`
+
+type CreateWorkflowTriggerCronRefForWorkflowParams struct {
+	Crontrigger        string      `json:"crontrigger"`
+	Name               pgtype.Text `json:"name"`
+	Input              []byte      `json:"input"`
+	AdditionalMetadata []byte      `json:"additionalMetadata"`
+	Workflowid         pgtype.UUID `json:"workflowid"`
+}
+
+func (q *Queries) CreateWorkflowTriggerCronRefForWorkflow(ctx context.Context, db DBTX, arg CreateWorkflowTriggerCronRefForWorkflowParams) (*WorkflowTriggerCronRef, error) {
+	row := db.QueryRow(ctx, createWorkflowTriggerCronRefForWorkflow,
+		arg.Crontrigger,
+		arg.Name,
+		arg.Input,
+		arg.AdditionalMetadata,
+		arg.Workflowid,
+	)
+	var i WorkflowTriggerCronRef
+	err := row.Scan(
+		&i.ParentId,
+		&i.Cron,
+		&i.TickerId,
+		&i.Input,
+		&i.Enabled,
+		&i.AdditionalMetadata,
+		&i.CreatedAt,
+		&i.DeletedAt,
+		&i.UpdatedAt,
+		&i.Name,
+		&i.ID,
+	)
+	return &i, err
+}
+
 const createWorkflowTriggerEventRef = `-- name: CreateWorkflowTriggerEventRef :one
 INSERT INTO "WorkflowTriggerEventRef" (
     "parentId",
@@ -641,24 +704,31 @@ INSERT INTO "WorkflowTriggerScheduledRef" (
     "id",
     "parentId",
     "triggerAt",
-    "tickerId",
-    "input"
+    "input",
+    "additionalMetadata"
 ) VALUES (
     gen_random_uuid(),
     $1::uuid,
     $2::timestamp,
-    NULL, -- or provide a tickerId if applicable
-    NULL -- or provide input if applicable
+    $3::jsonb,
+    $4::jsonb
 ) RETURNING id, "parentId", "triggerAt", "tickerId", input, "childIndex", "childKey", "parentStepRunId", "parentWorkflowRunId", "additionalMetadata", "createdAt", "deletedAt", "updatedAt"
 `
 
 type CreateWorkflowTriggerScheduledRefParams struct {
-	Workflowversionid pgtype.UUID      `json:"workflowversionid"`
-	Scheduledtrigger  pgtype.Timestamp `json:"scheduledtrigger"`
+	Workflowversionid  pgtype.UUID      `json:"workflowversionid"`
+	Scheduledtrigger   pgtype.Timestamp `json:"scheduledtrigger"`
+	Input              []byte           `json:"input"`
+	Additionalmetadata []byte           `json:"additionalmetadata"`
 }
 
 func (q *Queries) CreateWorkflowTriggerScheduledRef(ctx context.Context, db DBTX, arg CreateWorkflowTriggerScheduledRefParams) (*WorkflowTriggerScheduledRef, error) {
-	row := db.QueryRow(ctx, createWorkflowTriggerScheduledRef, arg.Workflowversionid, arg.Scheduledtrigger)
+	row := db.QueryRow(ctx, createWorkflowTriggerScheduledRef,
+		arg.Workflowversionid,
+		arg.Scheduledtrigger,
+		arg.Input,
+		arg.Additionalmetadata,
+	)
 	var i WorkflowTriggerScheduledRef
 	err := row.Scan(
 		&i.ID,

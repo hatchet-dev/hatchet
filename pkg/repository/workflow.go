@@ -59,13 +59,16 @@ type CreateWorkflowVersionOpts struct {
 }
 
 type CreateCronWorkflowTriggerOpts struct {
+	// (required) the workflow id
+	WorkflowId string `validate:"required,uuid"`
+
 	// (required) the workflow name
 	Name string `validate:"required"`
 
 	Cron string `validate:"required,cron"`
 
-	Input              []byte
-	AdditionalMetadata []byte
+	Input              map[string]interface{}
+	AdditionalMetadata map[string]interface{}
 }
 
 type CreateWorkflowConcurrencyOpts struct {
@@ -277,7 +280,7 @@ type WorkflowAPIRepository interface {
 	GetWorkflowWorkerCount(tenantId, workflowId string) (int, int, error)
 
 	// CreateCronWorkflow creates a cron trigger
-	CreateCronWorkflow(ctx context.Context, tenantId string, opts *CreateCronWorkflowTriggerOpts) (*dbsqlc.WorkflowRun, error)
+	CreateCronWorkflow(ctx context.Context, tenantId string, opts *CreateCronWorkflowTriggerOpts) (*dbsqlc.ListCronWorkflowsRow, error)
 
 	// List ScheduledWorkflows lists workflows by scheduled trigger
 	ListCronWorkflows(ctx context.Context, tenantId string, opts *ListCronWorkflowsOpts) ([]*dbsqlc.ListCronWorkflowsRow, int64, error)

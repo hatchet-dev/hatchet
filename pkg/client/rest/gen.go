@@ -336,6 +336,14 @@ type CreateAPITokenResponse struct {
 	Token string `json:"token"`
 }
 
+// CreateCronWorkflowTriggerRequest defines model for CreateCronWorkflowTriggerRequest.
+type CreateCronWorkflowTriggerRequest struct {
+	AdditionalMetadata map[string]interface{} `json:"additionalMetadata"`
+	CronExpression     string                 `json:"cronExpression"`
+	CronName           string                 `json:"cronName"`
+	Input              map[string]interface{} `json:"input"`
+}
+
 // CreateEventRequest defines model for CreateEventRequest.
 type CreateEventRequest struct {
 	// AdditionalMetadata Additional metadata for the event.
@@ -657,6 +665,13 @@ type SNSIntegration struct {
 
 	// TopicArn The Amazon Resource Name (ARN) of the SNS topic.
 	TopicArn string `json:"topicArn"`
+}
+
+// ScheduleWorkflowRunRequest defines model for ScheduleWorkflowRunRequest.
+type ScheduleWorkflowRunRequest struct {
+	AdditionalMetadata map[string]interface{} `json:"additionalMetadata"`
+	Input              map[string]interface{} `json:"input"`
+	TriggerAt          time.Time              `json:"triggerAt"`
 }
 
 // ScheduledRunStatus defines model for ScheduledRunStatus.
@@ -1661,6 +1676,18 @@ type WorkflowScheduledListParams struct {
 	Statuses *[]ScheduledRunStatus `form:"statuses,omitempty" json:"statuses,omitempty"`
 }
 
+// CronWorkflowTriggerCreateParams defines parameters for CronWorkflowTriggerCreate.
+type CronWorkflowTriggerCreateParams struct {
+	// Version The workflow version. If not supplied, the latest version is fetched.
+	Version *openapi_types.UUID `form:"version,omitempty" json:"version,omitempty"`
+}
+
+// ScheduledWorkflowRunCreateParams defines parameters for ScheduledWorkflowRunCreate.
+type ScheduledWorkflowRunCreateParams struct {
+	// Version The workflow version. If not supplied, the latest version is fetched.
+	Version *openapi_types.UUID `form:"version,omitempty" json:"version,omitempty"`
+}
+
 // WorkflowGetMetricsParams defines parameters for WorkflowGetMetrics.
 type WorkflowGetMetricsParams struct {
 	// Status A status of workflow run statuses to filter by
@@ -1729,6 +1756,12 @@ type WorkflowRunUpdateReplayJSONRequestBody = ReplayWorkflowRunsRequest
 
 // WorkflowRunCancelJSONRequestBody defines body for WorkflowRunCancel for application/json ContentType.
 type WorkflowRunCancelJSONRequestBody = WorkflowRunsCancelRequest
+
+// CronWorkflowTriggerCreateJSONRequestBody defines body for CronWorkflowTriggerCreate for application/json ContentType.
+type CronWorkflowTriggerCreateJSONRequestBody = CreateCronWorkflowTriggerRequest
+
+// ScheduledWorkflowRunCreateJSONRequestBody defines body for ScheduledWorkflowRunCreate for application/json ContentType.
+type ScheduledWorkflowRunCreateJSONRequestBody = ScheduleWorkflowRunRequest
 
 // TenantInviteAcceptJSONRequestBody defines body for TenantInviteAccept for application/json ContentType.
 type TenantInviteAcceptJSONRequestBody = AcceptInviteRequest
@@ -2053,6 +2086,16 @@ type ClientInterface interface {
 
 	// WorkflowScheduledGet request
 	WorkflowScheduledGet(ctx context.Context, tenant openapi_types.UUID, scheduledWorkflowRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CronWorkflowTriggerCreateWithBody request with any body
+	CronWorkflowTriggerCreateWithBody(ctx context.Context, tenant openapi_types.UUID, workflow openapi_types.UUID, params *CronWorkflowTriggerCreateParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CronWorkflowTriggerCreate(ctx context.Context, tenant openapi_types.UUID, workflow openapi_types.UUID, params *CronWorkflowTriggerCreateParams, body CronWorkflowTriggerCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ScheduledWorkflowRunCreateWithBody request with any body
+	ScheduledWorkflowRunCreateWithBody(ctx context.Context, tenant openapi_types.UUID, workflow openapi_types.UUID, params *ScheduledWorkflowRunCreateParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	ScheduledWorkflowRunCreate(ctx context.Context, tenant openapi_types.UUID, workflow openapi_types.UUID, params *ScheduledWorkflowRunCreateParams, body ScheduledWorkflowRunCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// WorkflowGetWorkersCount request
 	WorkflowGetWorkersCount(ctx context.Context, tenant openapi_types.UUID, workflow openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -3108,6 +3151,54 @@ func (c *Client) WorkflowScheduledDelete(ctx context.Context, tenant openapi_typ
 
 func (c *Client) WorkflowScheduledGet(ctx context.Context, tenant openapi_types.UUID, scheduledWorkflowRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewWorkflowScheduledGetRequest(c.Server, tenant, scheduledWorkflowRun)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CronWorkflowTriggerCreateWithBody(ctx context.Context, tenant openapi_types.UUID, workflow openapi_types.UUID, params *CronWorkflowTriggerCreateParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCronWorkflowTriggerCreateRequestWithBody(c.Server, tenant, workflow, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CronWorkflowTriggerCreate(ctx context.Context, tenant openapi_types.UUID, workflow openapi_types.UUID, params *CronWorkflowTriggerCreateParams, body CronWorkflowTriggerCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCronWorkflowTriggerCreateRequest(c.Server, tenant, workflow, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ScheduledWorkflowRunCreateWithBody(ctx context.Context, tenant openapi_types.UUID, workflow openapi_types.UUID, params *ScheduledWorkflowRunCreateParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewScheduledWorkflowRunCreateRequestWithBody(c.Server, tenant, workflow, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ScheduledWorkflowRunCreate(ctx context.Context, tenant openapi_types.UUID, workflow openapi_types.UUID, params *ScheduledWorkflowRunCreateParams, body ScheduledWorkflowRunCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewScheduledWorkflowRunCreateRequest(c.Server, tenant, workflow, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -7108,6 +7199,158 @@ func NewWorkflowScheduledGetRequest(server string, tenant openapi_types.UUID, sc
 	return req, nil
 }
 
+// NewCronWorkflowTriggerCreateRequest calls the generic CronWorkflowTriggerCreate builder with application/json body
+func NewCronWorkflowTriggerCreateRequest(server string, tenant openapi_types.UUID, workflow openapi_types.UUID, params *CronWorkflowTriggerCreateParams, body CronWorkflowTriggerCreateJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCronWorkflowTriggerCreateRequestWithBody(server, tenant, workflow, params, "application/json", bodyReader)
+}
+
+// NewCronWorkflowTriggerCreateRequestWithBody generates requests for CronWorkflowTriggerCreate with any type of body
+func NewCronWorkflowTriggerCreateRequestWithBody(server string, tenant openapi_types.UUID, workflow openapi_types.UUID, params *CronWorkflowTriggerCreateParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "workflow", runtime.ParamLocationPath, workflow)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/tenants/%s/workflows/%s/crons", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Version != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "version", runtime.ParamLocationQuery, *params.Version); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewScheduledWorkflowRunCreateRequest calls the generic ScheduledWorkflowRunCreate builder with application/json body
+func NewScheduledWorkflowRunCreateRequest(server string, tenant openapi_types.UUID, workflow openapi_types.UUID, params *ScheduledWorkflowRunCreateParams, body ScheduledWorkflowRunCreateJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewScheduledWorkflowRunCreateRequestWithBody(server, tenant, workflow, params, "application/json", bodyReader)
+}
+
+// NewScheduledWorkflowRunCreateRequestWithBody generates requests for ScheduledWorkflowRunCreate with any type of body
+func NewScheduledWorkflowRunCreateRequestWithBody(server string, tenant openapi_types.UUID, workflow openapi_types.UUID, params *ScheduledWorkflowRunCreateParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "workflow", runtime.ParamLocationPath, workflow)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/tenants/%s/workflows/%s/scheduled", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Version != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "version", runtime.ParamLocationQuery, *params.Version); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewWorkflowGetWorkersCountRequest generates requests for WorkflowGetWorkersCount
 func NewWorkflowGetWorkersCountRequest(server string, tenant openapi_types.UUID, workflow openapi_types.UUID) (*http.Request, error) {
 	var err error
@@ -8322,6 +8565,16 @@ type ClientWithResponsesInterface interface {
 
 	// WorkflowScheduledGetWithResponse request
 	WorkflowScheduledGetWithResponse(ctx context.Context, tenant openapi_types.UUID, scheduledWorkflowRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkflowScheduledGetResponse, error)
+
+	// CronWorkflowTriggerCreateWithBodyWithResponse request with any body
+	CronWorkflowTriggerCreateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, workflow openapi_types.UUID, params *CronWorkflowTriggerCreateParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CronWorkflowTriggerCreateResponse, error)
+
+	CronWorkflowTriggerCreateWithResponse(ctx context.Context, tenant openapi_types.UUID, workflow openapi_types.UUID, params *CronWorkflowTriggerCreateParams, body CronWorkflowTriggerCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*CronWorkflowTriggerCreateResponse, error)
+
+	// ScheduledWorkflowRunCreateWithBodyWithResponse request with any body
+	ScheduledWorkflowRunCreateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, workflow openapi_types.UUID, params *ScheduledWorkflowRunCreateParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ScheduledWorkflowRunCreateResponse, error)
+
+	ScheduledWorkflowRunCreateWithResponse(ctx context.Context, tenant openapi_types.UUID, workflow openapi_types.UUID, params *ScheduledWorkflowRunCreateParams, body ScheduledWorkflowRunCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*ScheduledWorkflowRunCreateResponse, error)
 
 	// WorkflowGetWorkersCountWithResponse request
 	WorkflowGetWorkersCountWithResponse(ctx context.Context, tenant openapi_types.UUID, workflow openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkflowGetWorkersCountResponse, error)
@@ -9982,6 +10235,58 @@ func (r WorkflowScheduledGetResponse) StatusCode() int {
 	return 0
 }
 
+type CronWorkflowTriggerCreateResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *CronWorkflows
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON404      *APIErrors
+	JSON429      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r CronWorkflowTriggerCreateResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CronWorkflowTriggerCreateResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ScheduledWorkflowRunCreateResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ScheduledWorkflows
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON404      *APIErrors
+	JSON429      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r ScheduledWorkflowRunCreateResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ScheduledWorkflowRunCreateResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type WorkflowGetWorkersCountResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -11287,6 +11592,40 @@ func (c *ClientWithResponses) WorkflowScheduledGetWithResponse(ctx context.Conte
 		return nil, err
 	}
 	return ParseWorkflowScheduledGetResponse(rsp)
+}
+
+// CronWorkflowTriggerCreateWithBodyWithResponse request with arbitrary body returning *CronWorkflowTriggerCreateResponse
+func (c *ClientWithResponses) CronWorkflowTriggerCreateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, workflow openapi_types.UUID, params *CronWorkflowTriggerCreateParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CronWorkflowTriggerCreateResponse, error) {
+	rsp, err := c.CronWorkflowTriggerCreateWithBody(ctx, tenant, workflow, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCronWorkflowTriggerCreateResponse(rsp)
+}
+
+func (c *ClientWithResponses) CronWorkflowTriggerCreateWithResponse(ctx context.Context, tenant openapi_types.UUID, workflow openapi_types.UUID, params *CronWorkflowTriggerCreateParams, body CronWorkflowTriggerCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*CronWorkflowTriggerCreateResponse, error) {
+	rsp, err := c.CronWorkflowTriggerCreate(ctx, tenant, workflow, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCronWorkflowTriggerCreateResponse(rsp)
+}
+
+// ScheduledWorkflowRunCreateWithBodyWithResponse request with arbitrary body returning *ScheduledWorkflowRunCreateResponse
+func (c *ClientWithResponses) ScheduledWorkflowRunCreateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, workflow openapi_types.UUID, params *ScheduledWorkflowRunCreateParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ScheduledWorkflowRunCreateResponse, error) {
+	rsp, err := c.ScheduledWorkflowRunCreateWithBody(ctx, tenant, workflow, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseScheduledWorkflowRunCreateResponse(rsp)
+}
+
+func (c *ClientWithResponses) ScheduledWorkflowRunCreateWithResponse(ctx context.Context, tenant openapi_types.UUID, workflow openapi_types.UUID, params *ScheduledWorkflowRunCreateParams, body ScheduledWorkflowRunCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*ScheduledWorkflowRunCreateResponse, error) {
+	rsp, err := c.ScheduledWorkflowRunCreate(ctx, tenant, workflow, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseScheduledWorkflowRunCreateResponse(rsp)
 }
 
 // WorkflowGetWorkersCountWithResponse request returning *WorkflowGetWorkersCountResponse
@@ -14188,6 +14527,114 @@ func ParseWorkflowScheduledGetResponse(rsp *http.Response) (*WorkflowScheduledGe
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCronWorkflowTriggerCreateResponse parses an HTTP response from a CronWorkflowTriggerCreateWithResponse call
+func ParseCronWorkflowTriggerCreateResponse(rsp *http.Response) (*CronWorkflowTriggerCreateResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CronWorkflowTriggerCreateResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest CronWorkflows
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseScheduledWorkflowRunCreateResponse parses an HTTP response from a ScheduledWorkflowRunCreateWithResponse call
+func ParseScheduledWorkflowRunCreateResponse(rsp *http.Response) (*ScheduledWorkflowRunCreateResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ScheduledWorkflowRunCreateResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ScheduledWorkflows
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 

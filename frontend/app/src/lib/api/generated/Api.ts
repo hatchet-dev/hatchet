@@ -19,6 +19,7 @@ import {
   CancelEventRequest,
   CreateAPITokenRequest,
   CreateAPITokenResponse,
+  CreateCronWorkflowTriggerRequest,
   CreateEventRequest,
   CreateSNSIntegrationRequest,
   CreateTenantAlertEmailGroupRequest,
@@ -56,6 +57,7 @@ import {
   ScheduledWorkflows,
   ScheduledWorkflowsList,
   ScheduledWorkflowsOrderByField,
+  ScheduleWorkflowRunRequest,
   SNSIntegration,
   StepRun,
   StepRunArchiveList,
@@ -1123,6 +1125,40 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       ...params,
     });
   /**
+   * @description Schedule a new workflow run for a tenant
+   *
+   * @tags Workflow Run
+   * @name ScheduledWorkflowRunCreate
+   * @summary Trigger workflow run
+   * @request POST:/api/v1/tenants/{tenant}/workflows/{workflow}/scheduled
+   * @secure
+   */
+  scheduledWorkflowRunCreate = (
+    tenant: string,
+    workflow: string,
+    data: ScheduleWorkflowRunRequest,
+    query?: {
+      /**
+       * The workflow version. If not supplied, the latest version is fetched.
+       * @format uuid
+       * @minLength 36
+       * @maxLength 36
+       */
+      version?: string;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<ScheduledWorkflows, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/workflows/${workflow}/scheduled`,
+      method: 'POST',
+      query: query,
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: 'json',
+      ...params,
+    });
+  /**
    * @description Get all scheduled workflow runs for a tenant
    *
    * @tags Workflow
@@ -1221,7 +1257,41 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       ...params,
     });
   /**
-   * @description Get all cron job workflow runs for a tenant
+   * @description Create a new cron job workflow trigger for a tenant
+   *
+   * @tags Workflow Run
+   * @name CronWorkflowTriggerCreate
+   * @summary Create cron job workflow trigger
+   * @request POST:/api/v1/tenants/{tenant}/workflows/{workflow}/crons
+   * @secure
+   */
+  cronWorkflowTriggerCreate = (
+    tenant: string,
+    workflow: string,
+    data: CreateCronWorkflowTriggerRequest,
+    query?: {
+      /**
+       * The workflow version. If not supplied, the latest version is fetched.
+       * @format uuid
+       * @minLength 36
+       * @maxLength 36
+       */
+      version?: string;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<CronWorkflows, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/workflows/${workflow}/crons`,
+      method: 'POST',
+      query: query,
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Get all cron job workflow triggers for a tenant
    *
    * @tags Workflow
    * @name CronWorkflowList

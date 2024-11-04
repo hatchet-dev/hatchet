@@ -674,7 +674,6 @@ model WorkflowTriggerCronRef {
   additionalMetadata Json?
 
   // cron references must be unique per workflow
-  @@unique([parentId, cron])
   @@unique([parentId, cron, name])
 }
 

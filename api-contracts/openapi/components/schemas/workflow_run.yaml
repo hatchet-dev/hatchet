@@ -638,6 +638,36 @@ TriggerWorkflowRunRequest:
   required:
     - input
 
+CreateCronWorkflowTriggerRequest:
+  properties:
+    input:
+      type: object
+    additionalMetadata:
+      type: object
+    cronName:
+      type: string
+    cronExpression:
+      type: string
+  required:
+    - input
+    - additionalMetadata
+    - cronName
+    - cronExpression
+
+ScheduleWorkflowRunRequest:
+  properties:
+    input:
+      type: object
+    additionalMetadata:
+      type: object
+    triggerAt:
+      type: string
+      format: date-time
+  required:
+    - input
+    - additionalMetadata
+    - triggerAt
+
 CreatePullRequestFromStepRun:
   properties:
     branchName:
