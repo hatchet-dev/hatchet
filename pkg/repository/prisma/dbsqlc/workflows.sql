@@ -374,6 +374,33 @@ INSERT INTO "WorkflowTriggerCronRef" (
     gen_random_uuid()
 ) RETURNING *;
 
+-- name: CreateWorkflowTriggerScheduledRefForWorkflow :one
+WITH latest_version AS (
+    SELECT "id" FROM "WorkflowVersion"
+    WHERE "workflowId" = @workflowId::uuid
+    ORDER BY "order" DESC
+    LIMIT 1
+),
+latest_trigger AS (
+    SELECT "id" FROM "WorkflowTriggers"
+    WHERE "workflowVersionId" = (SELECT "id" FROM latest_version)
+    ORDER BY "createdAt" DESC
+    LIMIT 1
+)
+INSERT INTO "WorkflowTriggerScheduledRef" (
+    "id",
+    "parentId",
+    "triggerAt",
+    "input",
+    "additionalMetadata"
+) VALUES (
+    gen_random_uuid(),
+    (SELECT "id" FROM latest_version),
+    @scheduledTrigger::timestamp,
+    @input::jsonb,
+    @additionalMetadata::jsonb
+) RETURNING *;
+
 -- name: CreateWorkflowTriggerScheduledRef :one
 INSERT INTO "WorkflowTriggerScheduledRef" (
     "id",

@@ -631,6 +631,51 @@ func (r *workflowEngineRepository) CreateSchedules(
 	return r.queries.CreateSchedules(ctx, r.pool, createParams)
 }
 
+func (r *workflowAPIRepository) CreateScheduledWorkflow(ctx context.Context, tenantId string, opts *repository.CreateScheduledWorkflowRunForWorkflowOpts) (*dbsqlc.ListScheduledWorkflowsRow, error) {
+	if err := r.v.Validate(opts); err != nil {
+		return nil, err
+	}
+
+	var input, additionalMetadata []byte
+	var err error
+
+	if opts.Input != nil {
+		input, err = json.Marshal(opts.Input)
+	}
+
+	if opts.AdditionalMetadata != nil {
+		additionalMetadata, err = json.Marshal(opts.AdditionalMetadata)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	createParams := dbsqlc.CreateWorkflowTriggerScheduledRefForWorkflowParams{
+		Workflowid:         sqlchelpers.UUIDFromStr(opts.WorkflowId),
+		Scheduledtrigger:   sqlchelpers.TimestampFromTime(opts.ScheduledTrigger),
+		Input:              input,
+		Additionalmetadata: additionalMetadata,
+	}
+
+	created, err := r.queries.CreateWorkflowTriggerScheduledRefForWorkflow(ctx, r.pool, createParams)
+
+	if err != nil {
+		return nil, err
+	}
+
+	scheduled, err := r.queries.ListScheduledWorkflows(ctx, r.pool, dbsqlc.ListScheduledWorkflowsParams{
+		Tenantid:   sqlchelpers.UUIDFromStr(tenantId),
+		Scheduleid: created.ID,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return scheduled[0], nil
+}
+
 func (r *workflowEngineRepository) GetLatestWorkflowVersions(ctx context.Context, tenantId string, workflowIds []string) ([]*dbsqlc.GetWorkflowVersionForEngineRow, error) {
 
 	var workflowVersionIds = make([]pgtype.UUID, len(workflowIds))

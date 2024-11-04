@@ -109,6 +109,15 @@ type CreateWorkflowSchedulesOpts struct {
 	AdditionalMetadata []byte
 }
 
+type CreateScheduledWorkflowRunForWorkflowOpts struct {
+	WorkflowId string `validate:"required,uuid"`
+
+	ScheduledTrigger time.Time
+
+	Input              map[string]interface{}
+	AdditionalMetadata map[string]interface{}
+}
+
 type CreateWorkflowTagOpts struct {
 	// (required) the tag name
 	Name string `validate:"required"`
@@ -290,6 +299,9 @@ type WorkflowAPIRepository interface {
 
 	// DeleteCronWorkflow deletes a cron workflow run
 	DeleteCronWorkflow(ctx context.Context, tenantId, id string) error
+
+	// CreateScheduledWorkflow creates a scheduled workflow run
+	CreateScheduledWorkflow(ctx context.Context, tenantId string, opts *CreateScheduledWorkflowRunForWorkflowOpts) (*dbsqlc.ListScheduledWorkflowsRow, error)
 }
 
 type WorkflowEngineRepository interface {

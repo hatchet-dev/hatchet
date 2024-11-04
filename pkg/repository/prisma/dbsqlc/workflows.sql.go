@@ -748,6 +748,67 @@ func (q *Queries) CreateWorkflowTriggerScheduledRef(ctx context.Context, db DBTX
 	return &i, err
 }
 
+const createWorkflowTriggerScheduledRefForWorkflow = `-- name: CreateWorkflowTriggerScheduledRefForWorkflow :one
+WITH latest_version AS (
+    SELECT "id" FROM "WorkflowVersion"
+    WHERE "workflowId" = $4::uuid
+    ORDER BY "order" DESC
+    LIMIT 1
+),
+latest_trigger AS (
+    SELECT "id" FROM "WorkflowTriggers"
+    WHERE "workflowVersionId" = (SELECT "id" FROM latest_version)
+    ORDER BY "createdAt" DESC
+    LIMIT 1
+)
+INSERT INTO "WorkflowTriggerScheduledRef" (
+    "id",
+    "parentId",
+    "triggerAt",
+    "input",
+    "additionalMetadata"
+) VALUES (
+    gen_random_uuid(),
+    (SELECT "id" FROM latest_version),
+    $1::timestamp,
+    $2::jsonb,
+    $3::jsonb
+) RETURNING id, "parentId", "triggerAt", "tickerId", input, "childIndex", "childKey", "parentStepRunId", "parentWorkflowRunId", "additionalMetadata", "createdAt", "deletedAt", "updatedAt"
+`
+
+type CreateWorkflowTriggerScheduledRefForWorkflowParams struct {
+	Scheduledtrigger   pgtype.Timestamp `json:"scheduledtrigger"`
+	Input              []byte           `json:"input"`
+	Additionalmetadata []byte           `json:"additionalmetadata"`
+	Workflowid         pgtype.UUID      `json:"workflowid"`
+}
+
+func (q *Queries) CreateWorkflowTriggerScheduledRefForWorkflow(ctx context.Context, db DBTX, arg CreateWorkflowTriggerScheduledRefForWorkflowParams) (*WorkflowTriggerScheduledRef, error) {
+	row := db.QueryRow(ctx, createWorkflowTriggerScheduledRefForWorkflow,
+		arg.Scheduledtrigger,
+		arg.Input,
+		arg.Additionalmetadata,
+		arg.Workflowid,
+	)
+	var i WorkflowTriggerScheduledRef
+	err := row.Scan(
+		&i.ID,
+		&i.ParentId,
+		&i.TriggerAt,
+		&i.TickerId,
+		&i.Input,
+		&i.ChildIndex,
+		&i.ChildKey,
+		&i.ParentStepRunId,
+		&i.ParentWorkflowRunId,
+		&i.AdditionalMetadata,
+		&i.CreatedAt,
+		&i.DeletedAt,
+		&i.UpdatedAt,
+	)
+	return &i, err
+}
+
 const createWorkflowTriggers = `-- name: CreateWorkflowTriggers :one
 INSERT INTO "WorkflowTriggers" (
     "id",

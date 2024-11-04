@@ -24,6 +24,7 @@ import { CodeEditor } from '@/components/ui/code-editor';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import CronPrettifier from 'cronstrue';
+import { DateTimePicker } from '@/components/molecules/time-picker/date-time-picker';
 
 export function TriggerWorkflowForm({
   workflow,
@@ -46,7 +47,9 @@ export function TriggerWorkflowForm({
   const [timingOption, setTimingOption] = useState<'now' | 'schedule' | 'cron'>(
     'now',
   );
-  const [scheduleTime, setScheduleTime] = useState<string>('');
+  const [scheduleTime, setScheduleTime] = useState<Date | undefined>(
+    new Date(),
+  );
   const [cronExpression, setCronExpression] = useState<string>('* * * * *');
 
   const cronPretty = useMemo(() => {
@@ -123,7 +126,7 @@ export function TriggerWorkflowForm({
       }
 
       // TODO: navigate to the scheduled workflow runs page
-      // navigate(`/workflow-runs/${workflowRun.metadata.id}`);
+      navigate(`/scheduled`);
     },
     onError: handleApiError,
   });
@@ -160,7 +163,7 @@ export function TriggerWorkflowForm({
         return;
       }
       // TODO: navigate to the cron workflow runs page
-      // navigate(`/workflow-runs/${workflowRun.metadata.id}`);
+      navigate(`/cron-jobs`);
     },
     onError: handleApiError,
   });
@@ -182,7 +185,7 @@ export function TriggerWorkflowForm({
       triggerScheduleMutation.mutate({
         input: inputObj,
         addlMeta: addlMetaObj,
-        scheduledAt: scheduleTime,
+        scheduledAt: scheduleTime.toISOString(),
       });
     } else if (timingOption === 'cron') {
       if (!cronExpression) {
@@ -244,11 +247,10 @@ export function TriggerWorkflowForm({
             <TabsContent value="schedule">
               <div className="mt-4">
                 <div className="font-bold mb-2">Select Date and Time</div>
-                <Input
-                  type="datetime-local"
-                  value={scheduleTime}
-                  onChange={(e) => setScheduleTime(e.target.value)}
-                  className="w-full"
+                <DateTimePicker
+                  date={scheduleTime}
+                  setDate={setScheduleTime}
+                  label="Select Date and Time"
                 />
               </div>
             </TabsContent>
