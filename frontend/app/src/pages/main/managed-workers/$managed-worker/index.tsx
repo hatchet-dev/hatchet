@@ -69,7 +69,7 @@ export default function ExpandedWorkflow() {
     },
     onSuccess: () => {
       setDeleteWorker(false);
-      navigate('/workers/managed-workers');
+      navigate('/managed-workers');
     },
     onError: handleApiError,
   });

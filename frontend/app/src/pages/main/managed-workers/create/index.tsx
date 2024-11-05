@@ -37,7 +37,7 @@ export default function CreateWorker() {
       return res.data;
     },
     onSuccess: (data) => {
-      navigate(`/workers/managed-workers/${data.metadata.id}`);
+      navigate(`/managed-workers/${data.metadata.id}`);
     },
     onError: handleApiError,
   });
@@ -49,7 +49,7 @@ export default function CreateWorker() {
           <div className="flex flex-row gap-4 items-center justify-between">
             <ServerStackIcon className="h-6 w-6 text-foreground mt-1" />
             <h2 className="text-2xl font-bold leading-tight text-foreground">
-              New Worker
+              New Managed Worker
             </h2>
           </div>
         </div>

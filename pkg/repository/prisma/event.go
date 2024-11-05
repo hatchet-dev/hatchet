@@ -217,7 +217,7 @@ type eventEngineRepository struct {
 	l                   *zerolog.Logger
 	m                   *metered.Metered
 	bulkCreateBuffer    *buffer.TenantBufferManager[*repository.CreateEventOpts, *dbsqlc.Event]
-	callbacks           []repository.Callback[*dbsqlc.Event]
+	callbacks           []repository.TenantScopedCallback[*dbsqlc.Event]
 	createEventKeyCache *lru.Cache[string, bool]
 }
 
@@ -243,9 +243,9 @@ func NewEventEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zero
 	return &e, e.cleanup, err
 }
 
-func (r *eventEngineRepository) RegisterCreateCallback(callback repository.Callback[*dbsqlc.Event]) {
+func (r *eventEngineRepository) RegisterCreateCallback(callback repository.TenantScopedCallback[*dbsqlc.Event]) {
 	if r.callbacks == nil {
-		r.callbacks = make([]repository.Callback[*dbsqlc.Event], 0)
+		r.callbacks = make([]repository.TenantScopedCallback[*dbsqlc.Event], 0)
 	}
 
 	r.callbacks = append(r.callbacks, callback)

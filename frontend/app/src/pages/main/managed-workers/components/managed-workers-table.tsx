@@ -103,8 +103,8 @@ export function ManagedWorkersTable() {
         </div>
         <div className="px-4 py-4 sm:px-6">
           <div className="text-sm text-background-secondary">
-            <Link to={`/workers/managed-workers/${data.metadata?.id}`}>
-              <Button>View Worker Pool</Button>
+            <Link to={`/managed-workers/${data.metadata?.id}`}>
+              <Button>View Compute Instance</Button>
             </Link>
           </div>
         </div>
