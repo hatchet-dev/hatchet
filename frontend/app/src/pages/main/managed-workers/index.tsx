@@ -16,7 +16,7 @@ export default function ManagedWorkers() {
           <h2 className="text-2xl font-bold leading-tight text-foreground">
             Managed Compute
           </h2>
-          <Link to="/workers/managed-workers/create">
+          <Link to="/managed-workers/create">
             <Button>Deploy Workers</Button>
           </Link>
         </div>

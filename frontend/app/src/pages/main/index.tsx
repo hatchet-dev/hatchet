@@ -170,7 +170,7 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
                 <SidebarButtonPrimary
                   key={3}
                   onNavLinkClick={onNavLinkClick}
-                  to="/workers/managed-workers"
+                  to="/managed-workers"
                   name="Managed Compute"
                   icon={<CpuChipIcon className="mr-2 h-4 w-4" />}
                 />
