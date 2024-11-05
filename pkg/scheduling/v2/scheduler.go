@@ -520,8 +520,8 @@ func (s *Scheduler) tryAssignBatch(
 			res[i].noSlots = true
 
 			// nack the rate limit result, if it exists
-			if res[i].rateLimitResult != nil {
-				res[i].rateLimitResult.nack()
+			if rlNack := rlNacks[i]; rlNack != nil {
+				rlNack()
 			}
 		}
 
