@@ -27,7 +27,7 @@ func JobRunStatusPtr(status db.JobRunStatus) *db.JobRunStatus {
 }
 
 type JobRunAPIRepository interface {
-	RegisterWorkflowRunRunningCallback(callback Callback[pgtype.UUID])
+	RegisterWorkflowRunRunningCallback(callback TenantScopedCallback[pgtype.UUID])
 
 	// SetJobRunStatusRunning resets the status of a job run to a RUNNING status. This is useful if a step
 	// run is being manually replayed, but shouldn't be used by most callers.
@@ -37,7 +37,7 @@ type JobRunAPIRepository interface {
 }
 
 type JobRunEngineRepository interface {
-	RegisterWorkflowRunRunningCallback(callback Callback[pgtype.UUID])
+	RegisterWorkflowRunRunningCallback(callback TenantScopedCallback[pgtype.UUID])
 
 	// SetJobRunStatusRunning resets the status of a job run to a RUNNING status. This is useful if a step
 	// run is being manually replayed, but shouldn't be used by most callers.

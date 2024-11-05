@@ -266,7 +266,7 @@ type stepRunEngineRepository struct {
 	cf                       *server.ConfigFileRuntime
 	cachedMinQueuedIds       sync.Map
 	cachedStepIdHasRateLimit *cache.Cache
-	callbacks                []repository.Callback[*dbsqlc.ResolveWorkflowRunStatusRow]
+	callbacks                []repository.TenantScopedCallback[*dbsqlc.ResolveWorkflowRunStatusRow]
 
 	bulkStatusBuffer       *buffer.TenantBufferManager[*updateStepRunQueueData, pgtype.UUID]
 	bulkEventBuffer        *buffer.BulkEventWriter
@@ -499,9 +499,9 @@ func (s *stepRunEngineRepository) bulkUpdateStepRunStatuses(ctx context.Context,
 	return stepRunIds, nil
 }
 
-func (s *stepRunEngineRepository) RegisterWorkflowRunCompletedCallback(callback repository.Callback[*dbsqlc.ResolveWorkflowRunStatusRow]) {
+func (s *stepRunEngineRepository) RegisterWorkflowRunCompletedCallback(callback repository.TenantScopedCallback[*dbsqlc.ResolveWorkflowRunStatusRow]) {
 	if s.callbacks == nil {
-		s.callbacks = make([]repository.Callback[*dbsqlc.ResolveWorkflowRunStatusRow], 0)
+		s.callbacks = make([]repository.TenantScopedCallback[*dbsqlc.ResolveWorkflowRunStatusRow], 0)
 	}
 
 	s.callbacks = append(s.callbacks, callback)

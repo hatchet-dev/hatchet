@@ -59,9 +59,9 @@ func StringPtr(s string) *string {
 	return &s
 }
 
-type Callback[T any] func(string, T) error
+type TenantScopedCallback[T any] func(string, T) error
 
-func (c Callback[T]) Do(l *zerolog.Logger, tenantId string, v T) {
+func (c TenantScopedCallback[T]) Do(l *zerolog.Logger, tenantId string, v T) {
 	// wrap in panic recover to avoid panics in the callback
 	defer func() {
 		if r := recover(); r != nil {
@@ -73,6 +73,27 @@ func (c Callback[T]) Do(l *zerolog.Logger, tenantId string, v T) {
 
 	go func() {
 		err := c(tenantId, v)
+
+		if err != nil {
+			l.Error().Err(err).Msg("callback failed")
+		}
+	}()
+}
+
+type UnscopedCallback[T any] func(T) error
+
+func (c UnscopedCallback[T]) Do(l *zerolog.Logger, v T) {
+	// wrap in panic recover to avoid panics in the callback
+	defer func() {
+		if r := recover(); r != nil {
+			if l != nil {
+				l.Error().Interface("panic", r).Msg("panic in callback")
+			}
+		}
+	}()
+
+	go func() {
+		err := c(v)
 
 		if err != nil {
 			l.Error().Err(err).Msg("callback failed")
