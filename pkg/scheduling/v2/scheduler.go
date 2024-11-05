@@ -469,12 +469,15 @@ func (s *Scheduler) tryAssignBatch(
 	rlAcks := make([]func(), len(qis))
 	rlNacks := make([]func(), len(qis))
 
+	noop := func() {}
+
 	// first, check rate limits for each of the queue items
 	for i := range res {
 		r := res[i]
 		qi := qis[i]
-		var rateLimitAck func()
-		var rateLimitNack func()
+
+		rateLimitAck := noop
+		rateLimitNack := noop
 
 		rls := make(map[string]int32)
 
@@ -518,11 +521,7 @@ func (s *Scheduler) tryAssignBatch(
 		// if the action is not in the map, then we have no slots to assign to
 		for i := range res {
 			res[i].noSlots = true
-
-			// nack the rate limit result, if it exists
-			if rlNack := rlNacks[i]; rlNack != nil {
-				rlNack()
-			}
+			rlNacks[i]()
 		}
 
 		return res, newRingOffset, nil
@@ -548,6 +547,7 @@ func (s *Scheduler) tryAssignBatch(
 
 		if denom == 0 {
 			res[i].noSlots = true
+			rlNacks[i]()
 			wg.Done()
 
 			continue
@@ -572,6 +572,10 @@ func (s *Scheduler) tryAssignBatch(
 
 			if err != nil {
 				s.l.Error().Err(err).Msg("error assigning queue item")
+			}
+
+			if !singleRes.succeeded {
+				rlNacks[i]()
 			}
 
 			res[i] = &singleRes
