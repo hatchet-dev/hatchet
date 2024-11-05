@@ -904,8 +904,12 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 
 		assignCh := q.s.tryAssign(ctx, qis, labels, rls)
 		count := 0
+
 		countMu := sync.Mutex{}
 		wg := sync.WaitGroup{}
+
+		startingQiLength := len(qis)
+		processedQiLength := 0
 
 		for r := range assignCh {
 			wg.Add(1)
@@ -920,6 +924,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 
 				countMu.Lock()
 				count += numFlushed
+				processedQiLength += len(ar.assigned) + len(ar.unassigned) + len(ar.schedulingTimedOut) + len(ar.rateLimited)
 				countMu.Unlock()
 
 				if sinceStart := time.Since(startFlush); sinceStart > 100*time.Millisecond {
@@ -954,6 +959,11 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 			if len(prevQis) > 0 && count == len(prevQis) {
 				q.queue()
 			}
+
+			if startingQiLength != processedQiLength {
+				q.l.Error().Int("starting", startingQiLength).Int("processed", processedQiLength).Msg("queue items processed mismatch")
+			}
+
 			countMu.Unlock()
 
 			if sinceStart := time.Since(originalStart); sinceStart > 100*time.Millisecond {
