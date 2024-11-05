@@ -649,8 +649,11 @@ model WorkflowTriggerCronRef {
   parent   WorkflowTriggers @relation(fields: [parentId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   parentId String           @db.Uuid
 
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @default(now()) @updatedAt
+  deletedAt DateTime?
   // the cron expression
-  cron String
+  cron      String
 
   // whether this cron is enabled or not
   enabled Boolean @default(true)
@@ -664,12 +667,18 @@ model WorkflowTriggerCronRef {
   // the input parameters to the scheduled workflow
   input Json?
 
+  additionalMetadata Json?
+
   // cron references must be unique per workflow
   @@unique([parentId, cron])
 }
 
 model WorkflowTriggerScheduledRef {
   id String @id @unique @default(uuid()) @db.Uuid
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @default(now()) @updatedAt
+  deletedAt DateTime?
 
   // the parent workflow
   parent   WorkflowVersion @relation(fields: [parentId], references: [id], onDelete: Cascade, onUpdate: Cascade)
@@ -699,6 +708,8 @@ model WorkflowTriggerScheduledRef {
   childKey String?
 
   triggered WorkflowRunTriggeredBy?
+
+  additionalMetadata Json?
 
   @@unique([parentId, parentStepRunId, childKey])
 }

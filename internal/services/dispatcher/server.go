@@ -16,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
+	telemetry_codes "go.opentelemetry.io/otel/codes"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -524,6 +525,9 @@ const HeartbeatInterval = 4 * time.Second
 
 // Heartbeat is used to update the last heartbeat time for a worker
 func (s *DispatcherImpl) Heartbeat(ctx context.Context, req *contracts.HeartbeatRequest) (*contracts.HeartbeatResponse, error) {
+	ctx, span := telemetry.NewSpan(ctx, "update-worker-heartbeat")
+	defer span.End()
+
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
@@ -539,6 +543,8 @@ func (s *DispatcherImpl) Heartbeat(ctx context.Context, req *contracts.Heartbeat
 	worker, err := s.repo.Worker().GetWorkerForEngine(ctx, tenantId, req.WorkerId)
 
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(telemetry_codes.Error, "could not get worker")
 		if errors.Is(err, pgx.ErrNoRows) {
 			s.l.Error().Msgf("worker %s not found", req.WorkerId)
 			return nil, err
@@ -550,16 +556,22 @@ func (s *DispatcherImpl) Heartbeat(ctx context.Context, req *contracts.Heartbeat
 	// if we haven't seen the dispatcher for 6 seconds (one interval plus latency), reject the heartbeat as the client
 	// should reconnect
 	if worker.DispatcherLastHeartbeatAt.Time.Before(time.Now().Add(-6 * time.Second)) {
+		span.RecordError(err)
+		span.SetStatus(telemetry_codes.Error, "dispatcher latency")
 		return nil, status.Errorf(codes.FailedPrecondition, "Heartbeat rejected: dispatcher latency: %s, %s", req.WorkerId, sqlchelpers.UUIDToStr(worker.DispatcherId))
 	}
 
 	if worker.LastListenerEstablished.Valid && !worker.IsActive {
+		span.RecordError(err)
+		span.SetStatus(telemetry_codes.Error, "worker stream is not active")
 		return nil, status.Errorf(codes.FailedPrecondition, "Heartbeat rejected: worker stream is not active: %s", req.WorkerId)
 	}
 
 	err = s.repo.Worker().UpdateWorkerHeartbeat(ctx, tenantId, req.WorkerId, heartbeatAt)
 
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(telemetry_codes.Error, "could not update worker heartbeat")
 		if errors.Is(err, pgx.ErrNoRows) {
 			s.l.Error().Msgf("could not update worker heartbeat: worker %s not found", req.WorkerId)
 			return nil, err

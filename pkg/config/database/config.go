@@ -18,7 +18,7 @@ type ConfigFile struct {
 	PostgresDbName   string `mapstructure:"dbName" json:"dbName,omitempty" default:"hatchet"`
 	PostgresSSLMode  string `mapstructure:"sslMode" json:"sslMode,omitempty" default:"disable"`
 
-	MaxConns int `mapstructure:"maxConns" json:"maxConns,omitempty" default:"20"`
+	MaxConns int `mapstructure:"maxConns" json:"maxConns,omitempty" default:"50"`
 	MinConns int `mapstructure:"minConns" json:"minConns,omitempty" default:"10"`
 
 	MaxQueueConns int `mapstructure:"maxQueueConns" json:"maxQueueConns,omitempty" default:"50"`
@@ -49,6 +49,8 @@ type Config struct {
 	Disconnect func() error
 
 	Pool *pgxpool.Pool
+
+	EssentialPool *pgxpool.Pool
 
 	QueuePool *pgxpool.Pool
 

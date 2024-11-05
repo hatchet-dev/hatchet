@@ -629,7 +629,7 @@ workflowRunsMetrics:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
-    summary: Get workflow runs
+    summary: Get workflow runs metrics
     tags:
       - Workflow
 workflowRun:
@@ -824,5 +824,290 @@ workflowWorkersCount:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
     summary: Get workflow worker count
+    tags:
+      - Workflow
+
+
+scheduledList:
+  get:
+    x-resources: ["tenant"]
+    description: Get all scheduled workflow runs for a tenant
+    operationId: workflow-scheduled:list
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The number to skip
+        in: query
+        name: offset
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - description: The number to limit by
+        in: query
+        name: limit
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - description: The order by field
+        in: query
+        name: orderByField
+        required: false
+        schema:
+          $ref: "../../components/schemas/_index.yaml#/ScheduledWorkflowsOrderByField"
+      - description: The order by direction
+        in: query
+        name: orderByDirection
+        required: false
+        schema:
+          $ref: "../../components/schemas/_index.yaml#/WorkflowRunOrderByDirection"
+      - description: The workflow id to get runs for.
+        in: query
+        name: workflowId
+        required: false
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The parent workflow run id
+        in: query
+        name: parentWorkflowRunId
+        required: false
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The parent step run id
+        in: query
+        name: parentStepRunId
+        required: false
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: A list of metadata key value pairs to filter by
+        in: query
+        name: additionalMetadata
+        example: ["key1:value1", "key2:value2"]
+        required: false
+        schema:
+          type: array
+          items:
+            type: string
+      - description: A list of scheduled run statuses to filter by
+        in: query
+        name: statuses
+        required: false
+        schema:
+          type: array
+          items:
+            $ref: "../../components/schemas/_index.yaml#/ScheduledRunStatus"
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/ScheduledWorkflowsList"
+        description: Successfully retrieved the workflow runs
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+    summary: Get scheduled workflow runs
+    tags:
+      - Workflow
+
+scheduled:
+  get:
+    x-resources: ["tenant"]
+    description: Get a scheduled workflow run for a tenant
+    operationId: workflow-scheduled:get
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The scheduled workflow id
+        in: path
+        name: scheduledId
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "../../components/schemas/_index.yaml#/ScheduledWorkflows"
+          description: Successfully retrieved the workflow runs
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "../../components/schemas/_index.yaml#/APIErrors"
+          description: A malformed or bad request
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "../../components/schemas/_index.yaml#/APIErrors"
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "../../components/schemas/_index.yaml#/APIErrors"
+          description: Forbidden
+    summary: Get scheduled workflow run
+    tags:
+      - Workflow
+  delete:
+    x-resources: ["tenant", "scheduled-workflow-run"]
+    description: Delete a scheduled workflow run for a tenant
+    operationId: workflow-scheduled:delete
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The scheduled workflow id
+        in: path
+        name: scheduledId
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+      "204":
+        description: Successfully deleted the scheduled workflow run
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIError"
+        description: Forbidden
+    summary: Delete scheduled workflow run
+    tags:
+      - Workflow
+
+cronsList:
+  get:
+    x-resources: ["tenant"]
+    description: Get all cron job workflow runs for a tenant
+    operationId: cron-workflow:list
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The number to skip
+        in: query
+        name: offset
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - description: The number to limit by
+        in: query
+        name: limit
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - description: The workflow id to get runs for.
+        in: query
+        name: workflowId
+        required: false
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: A list of metadata key value pairs to filter by
+        in: query
+        name: additionalMetadata
+        example: ["key1:value1", "key2:value2"]
+        required: false
+        schema:
+          type: array
+          items:
+            type: string
+      - description: The order by field
+        in: query
+        name: orderByField
+        required: false
+        schema:
+          $ref: "../../components/schemas/_index.yaml#/CronWorkflowsOrderByField"
+      - description: The order by direction
+        in: query
+        name: orderByDirection
+        required: false
+        schema:
+          $ref: "../../components/schemas/_index.yaml#/WorkflowRunOrderByDirection"
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/CronWorkflowsList"
+        description: Successfully retrieved the workflow runs
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+    summary: Get cron job workflows
     tags:
       - Workflow

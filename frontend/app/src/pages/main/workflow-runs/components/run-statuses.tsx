@@ -8,7 +8,8 @@ import {
 import { JobRunStatus, StepRunStatus, WorkflowRunStatus } from '@/lib/api';
 import { capitalize, cn } from '@/lib/utils';
 
-type RunStatusType = `${StepRunStatus | WorkflowRunStatus | JobRunStatus}`;
+type RunStatusType =
+  `${StepRunStatus | WorkflowRunStatus | JobRunStatus | 'SCHEDULED'}`;
 
 type RunStatusVariant = {
   text: string;
@@ -51,6 +52,10 @@ const RUN_STATUS_VARIANTS: Record<RunStatusType, RunStatusVariant> = {
   ASSIGNED: {
     text: 'Assigned',
     variant: 'inProgress',
+  },
+  SCHEDULED: {
+    text: 'Scheduled',
+    variant: 'outline',
   },
 };
 
@@ -115,7 +120,7 @@ const indicatorVariants = {
   successful: 'border-transparent rounded-full bg-green-500',
   failed: 'border-transparent rounded-full bg-red-500',
   inProgress: 'border-transparent rounded-full bg-yellow-500',
-  outline: 'border-gray-500 rounded-full bg-transparent',
+  outline: 'border-transparent rounded-full bg-muted',
 };
 
 export function RunIndicator({

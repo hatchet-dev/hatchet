@@ -153,3 +153,19 @@ export const lastWorkerMetricsTimeRangeAtom = atom(
     localStorage.setItem(lastWorkerMetricsTimeRange, JSON.stringify(newVal));
   },
 );
+
+type ViewOptions = 'graph' | 'minimap';
+
+const preferredWorkflowRunViewKey = 'wrView';
+
+const preferredWorkflowRunViewAtomInit = atom(
+  getInitialValue<ViewOptions>(preferredWorkflowRunViewKey, 'minimap'),
+);
+
+export const preferredWorkflowRunViewAtom = atom(
+  (get) => get(preferredWorkflowRunViewAtomInit),
+  (_get, set, newVal: ViewOptions) => {
+    set(preferredWorkflowRunViewAtomInit, newVal);
+    localStorage.setItem(preferredWorkflowRunViewKey, JSON.stringify(newVal));
+  },
+);

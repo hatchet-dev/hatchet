@@ -388,6 +388,58 @@ type StepRunForJobRun struct {
 	ChildWorkflowsCount int
 }
 
+type ListScheduledWorkflowsOpts struct {
+	// (optional) number of events to skip
+	Offset *int
+
+	// (optional) number of events to return
+	Limit *int
+
+	// (optional) the order by field
+	OrderBy *string `validate:"omitempty,oneof=createdAt triggerAt"`
+
+	// (optional) the order direction
+	OrderDirection *string `validate:"omitempty,oneof=ASC DESC"`
+
+	// (optional) the workflow id
+	WorkflowId *string `validate:"omitempty,uuid"`
+
+	// (optional) the parent workflow run id
+	ParentWorkflowRunId *string `validate:"omitempty,uuid"`
+
+	// (optional) the parent step run id
+	ParentStepRunId *string `validate:"omitempty,uuid"`
+
+	// (optional) statuses to filter by
+	Statuses *[]db.WorkflowRunStatus
+
+	// (optional) include scheduled runs that are in the future
+	IncludeFuture *bool
+
+	// (optional) additional metadata for the workflow run
+	AdditionalMetadata map[string]interface{} `validate:"omitempty"`
+}
+
+type ListCronWorkflowsOpts struct {
+	// (optional) number of events to skip
+	Offset *int
+
+	// (optional) number of events to return
+	Limit *int
+
+	// (optional) the order by field
+	OrderBy *string `validate:"omitempty,oneof=createdAt"`
+
+	// (optional) the order direction
+	OrderDirection *string `validate:"omitempty,oneof=ASC DESC"`
+
+	// (optional) the workflow id
+	WorkflowId *string `validate:"omitempty,uuid"`
+
+	// (optional) additional metadata for the workflow run
+	AdditionalMetadata map[string]interface{} `validate:"omitempty"`
+}
+
 type WorkflowRunAPIRepository interface {
 	RegisterCreateCallback(callback Callback[*dbsqlc.WorkflowRun])
 
@@ -396,6 +448,21 @@ type WorkflowRunAPIRepository interface {
 
 	// Counts by status
 	WorkflowRunMetricsCount(ctx context.Context, tenantId string, opts *WorkflowRunsMetricsOpts) (*dbsqlc.WorkflowRunsMetricsCountRow, error)
+
+	// List ScheduledWorkflows lists workflows by scheduled trigger
+	ListScheduledWorkflows(ctx context.Context, tenantId string, opts *ListScheduledWorkflowsOpts) ([]*dbsqlc.ListScheduledWorkflowsRow, int64, error)
+
+	// DeleteScheduledWorkflow deletes a scheduled workflow run
+	DeleteScheduledWorkflow(ctx context.Context, tenantId, scheduledWorkflowId string) error
+
+	// GetScheduledWorkflow gets a scheduled workflow run
+	GetScheduledWorkflow(ctx context.Context, tenantId, scheduledWorkflowId string) (*dbsqlc.ListScheduledWorkflowsRow, error)
+
+	// UpdateScheduledWorkflow updates a scheduled workflow run
+	UpdateScheduledWorkflow(ctx context.Context, tenantId, scheduledWorkflowId string, triggerAt time.Time) error
+
+	// List ScheduledWorkflows lists workflows by scheduled trigger
+	ListCronWorkflows(ctx context.Context, tenantId string, opts *ListCronWorkflowsOpts) ([]*dbsqlc.ListCronWorkflowsRow, int64, error)
 
 	// CreateNewWorkflowRun creates a new workflow run for a workflow version.
 	CreateNewWorkflowRun(ctx context.Context, tenantId string, opts *CreateWorkflowRunOpts) (*dbsqlc.WorkflowRun, error)
@@ -483,4 +550,6 @@ type WorkflowRunEngineRepository interface {
 	// DeleteExpiredWorkflowRuns deletes workflow runs that were created before the given time. It returns the number of deleted runs
 	// and the number of non-deleted runs that match the conditions.
 	SoftDeleteExpiredWorkflowRuns(ctx context.Context, tenantId string, statuses []dbsqlc.WorkflowRunStatus, before time.Time) (bool, error)
+
+	GetFailureDetails(ctx context.Context, tenantId, workflowRunId string) ([]*dbsqlc.GetFailureDetailsRow, error)
 }

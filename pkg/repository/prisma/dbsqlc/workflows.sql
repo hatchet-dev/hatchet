@@ -455,12 +455,14 @@ INSERT INTO "WorkflowTriggerScheduledRef" (
     "id",
     "parentId",
     "triggerAt",
-    "input"
+    "input",
+    "additionalMetadata"
 ) VALUES (
     gen_random_uuid(),
     @workflowRunId::uuid,
     unnest(@triggerTimes::timestamp[]),
-    @input::jsonb
+    @input::jsonb,
+    @additionalMetadata::json
 ) RETURNING *;
 
 -- name: GetWorkflowLatestVersion :one

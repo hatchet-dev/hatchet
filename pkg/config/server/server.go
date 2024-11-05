@@ -97,6 +97,9 @@ type ConfigFileRuntime struct {
 	// GRPCMaxMsgSize is the maximum message size that the grpc server will accept
 	GRPCMaxMsgSize int `mapstructure:"grpcMaxMsgSize" json:"grpcMaxMsgSize,omitempty" default:"4194304"`
 
+	// GRPCRateLimit is the rate limit for the grpc server. We count limits separately for the Workflow, Dispatcher and Events services. Workflow and Events service are set to this rate, Dispatcher is 10X this rate. The rate limit is per second, per engine, per api token.
+	GRPCRateLimit float64 `mapstructure:"grpcRateLimit" json:"grpcRateLimit,omitempty" default:"1000"`
+
 	// ShutdownWait is the time between the readiness probe being offline when a shutdown is triggered and the actual start of cleaning up resources.
 	ShutdownWait time.Duration `mapstructure:"shutdownWait" json:"shutdownWait,omitempty" default:"20s"`
 
@@ -135,6 +138,12 @@ type ConfigFileRuntime struct {
 
 	// DisableTenantPubs controls whether tenant pubsub is disabled
 	DisableTenantPubs bool `mapstructure:"disableTenantPubs" json:"disableTenantPubs,omitempty"`
+
+	// WaitForFlush is the time to wait for the buffer to flush used for exerting some back pressure on writers
+	WaitForFlush time.Duration `mapstructure:"waitForFlush" json:"waitForFlush,omitempty" default:"1ms"`
+
+	// MaxConcurrent is the maximum number of concurrent flushes
+	MaxConcurrent int `mapstructure:"maxConcurrent" json:"maxConcurrent,omitempty" default:"50"`
 
 	// FlushPeriodMilliseconds is the default number of milliseconds before flush
 	FlushPeriodMilliseconds int `mapstructure:"flushPeriodMilliseconds" json:"flushPeriodMilliseconds,omitempty" default:"10"`
@@ -435,6 +444,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.grpcBroadcastAddress", "SERVER_GRPC_BROADCAST_ADDRESS")
 	_ = v.BindEnv("runtime.grpcInsecure", "SERVER_GRPC_INSECURE")
 	_ = v.BindEnv("runtime.grpcMaxMsgSize", "SERVER_GRPC_MAX_MSG_SIZE")
+	_ = v.BindEnv("runtime.grpcRateLimit", "SERVER_GRPC_RATE_LIMIT")
 	_ = v.BindEnv("runtime.shutdownWait", "SERVER_SHUTDOWN_WAIT")
 	_ = v.BindEnv("servicesString", "SERVER_SERVICES")
 	_ = v.BindEnv("enableDataRetention", "SERVER_ENABLE_DATA_RETENTION")
@@ -472,19 +482,29 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.limits.defaultScheduleAlarmLimit", "SERVER_LIMITS_DEFAULT_SCHEDULE_ALARM_LIMIT")
 
 	// buffer options
+	_ = v.BindEnv("runtime.workflowRunBuffer.waitForFlush", "SERVER_WORKFLOWRUNBUFFER_WAIT_FOR_FLUSH")
+	_ = v.BindEnv("runtime.workflowRunBuffer.maxConcurrent", "SERVER_WORKFLOWRUNBUFFER_MAX_CONCURRENT")
 	_ = v.BindEnv("runtime.workflowRunBuffer.flushPeriodMilliseconds", "SERVER_WORKFLOWRUNBUFFER_FLUSH_PERIOD_MILLISECONDS")
 	_ = v.BindEnv("runtime.workflowRunBuffer.flushItemsThreshold", "SERVER_WORKFLOWRUNBUFFER_FLUSH_ITEMS_THRESHOLD")
 
+	_ = v.BindEnv("runtime.eventBuffer.waitForFlush", "SERVER_EVENTBUFFER_WAIT_FOR_FLUSH")
+	_ = v.BindEnv("runtime.eventBuffer.maxConcurrent", "SERVER_EVENTBUFFER_MAX_CONCURRENT")
 	_ = v.BindEnv("runtime.eventBuffer.flushPeriodMilliseconds", "SERVER_EVENTBUFFER_FLUSH_PERIOD_MILLISECONDS")
 	_ = v.BindEnv("runtime.eventBuffer.flushItemsThreshold", "SERVER_EVENTBUFFER_FLUSH_ITEMS_THRESHOLD")
 	_ = v.BindEnv("runtime.eventBuffer.serialBuffer", "SERVER_EVENTBUFFER_SERIAL_BUFFER")
 
+	_ = v.BindEnv(("runtime.releaseSemaphoreBuffer.waitForFlush"), "SERVER_RELEASESEMAPHOREBUFFER_WAIT_FOR_FLUSH")
+	_ = v.BindEnv("runtime.releaseSemaphoreBuffer.maxConcurrent", "SERVER_RELEASESEMAPHOREBUFFER_MAX_CONCURRENT")
 	_ = v.BindEnv("runtime.releaseSemaphoreBuffer.flushPeriodMilliseconds", "SERVER_RELEASESEMAPHOREBUFFER_FLUSH_PERIOD_MILLISECONDS")
 	_ = v.BindEnv("runtime.releaseSemaphoreBuffer.flushItemsThreshold", "SERVER_RELEASESEMAPHOREBUFFER_FLUSH_ITEMS_THRESHOLD")
 
+	_ = v.BindEnv("runtime.queueStepRunBuffer.waitForFlush", "SERVER_QUEUESTEPRUNBUFFER_WAIT_FOR_FLUSH")
+	_ = v.BindEnv("runtime.queueStepRunBuffer.maxConcurrent", "SERVER_QUEUESTEPRUNBUFFER_MAX_CONCURRENT")
 	_ = v.BindEnv("runtime.queueStepRunBuffer.flushPeriodMilliseconds", "SERVER_QUEUESTEPRUNBUFFER_FLUSH_PERIOD_MILLISECONDS")
 	_ = v.BindEnv("runtime.queueStepRunBuffer.flushItemsThreshold", "SERVER_QUEUESTEPRUNBUFFER_FLUSH_ITEMS_THRESHOLD")
 
+	_ = v.BindEnv("runtime.waitForFlush", "SERVER_WAIT_FOR_FLUSH")
+	_ = v.BindEnv("runtime.maxConcurrent", "SERVER_MAX_CONCURRENT")
 	_ = v.BindEnv("runtime.flushPeriodMilliseconds", "SERVER_FLUSH_PERIOD_MILLISECONDS")
 	_ = v.BindEnv("runtime.flushItemsThreshold", "SERVER_FLUSH_ITEMS_THRESHOLD")
 
@@ -572,6 +592,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("otel.serviceName", "SERVER_OTEL_SERVICE_NAME")
 	_ = v.BindEnv("otel.collectorURL", "SERVER_OTEL_COLLECTOR_URL")
 	_ = v.BindEnv("otel.traceIdRatio", "SERVER_OTEL_TRACE_ID_RATIO")
+	_ = v.BindEnv("otel.insecure", "SERVER_OTEL_INSECURE")
 
 	// tenant alerting options
 	_ = v.BindEnv("tenantAlerting.slack.enabled", "SERVER_TENANT_ALERTING_SLACK_ENABLED")

@@ -121,7 +121,11 @@ func (t *TenantAlertManager) sendWorkflowRunAlert(ctx context.Context, tenantAle
 		return nil
 	}
 
-	failedItems := t.getFailedItems(failedWorkflowRuns)
+	failedItems, err := t.getFailedItems(failedWorkflowRuns)
+
+	if err != nil {
+		return err
+	}
 
 	// iterate through possible alerters
 	for _, slackWebhook := range tenantAlerting.SlackWebhooks {
@@ -139,12 +143,24 @@ func (t *TenantAlertManager) sendWorkflowRunAlert(ctx context.Context, tenantAle
 	return nil
 }
 
-func (t *TenantAlertManager) getFailedItems(failedWorkflowRuns *repository.ListWorkflowRunsResult) []alerttypes.WorkflowRunFailedItem {
+func (t *TenantAlertManager) getFailedItems(failedWorkflowRuns *repository.ListWorkflowRunsResult) ([]alerttypes.WorkflowRunFailedItem, error) {
 	res := make([]alerttypes.WorkflowRunFailedItem, 0)
 
 	for _, workflowRun := range failedWorkflowRuns.Rows {
+
 		workflowRunId := sqlchelpers.UUIDToStr(workflowRun.WorkflowRun.ID)
 		tenantId := sqlchelpers.UUIDToStr(workflowRun.WorkflowRun.TenantId)
+
+		details, err := t.repo.WorkflowRun().GetFailureDetails(context.Background(), tenantId, workflowRunId)
+
+		if err != nil {
+			return nil, err
+		}
+
+		if len(details) == 0 {
+			// we don't want to alert on cancelled workflow runs
+			continue
+		}
 
 		readableId := workflowRun.WorkflowRun.DisplayName.String
 
@@ -161,7 +177,7 @@ func (t *TenantAlertManager) getFailedItems(failedWorkflowRuns *repository.ListW
 		})
 	}
 
-	return res
+	return res, nil
 }
 
 func (t *TenantAlertManager) SendExpiringTokenAlert(tenantId string, token *dbsqlc.PollExpiringTokensRow) error {

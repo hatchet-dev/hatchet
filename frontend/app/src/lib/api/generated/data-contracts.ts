@@ -760,6 +760,69 @@ export interface WorkflowRunList {
   pagination?: PaginationResponse;
 }
 
+export interface ScheduledWorkflows {
+  metadata: APIResourceMeta;
+  tenantId: string;
+  workflowVersionId: string;
+  workflowId: string;
+  workflowName: string;
+  /** @format date-time */
+  triggerAt: string;
+  input?: Record<string, any>;
+  additionalMetadata?: Record<string, any>;
+  /** @format date-time */
+  workflowRunCreatedAt?: string;
+  workflowRunName?: string;
+  workflowRunStatus?: WorkflowRunStatus;
+  /**
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   * @example "bb214807-246e-43a5-a25d-41761d1cff9e"
+   */
+  workflowRunId?: string;
+}
+
+export interface ScheduledWorkflowsList {
+  rows?: ScheduledWorkflows[];
+  pagination?: PaginationResponse;
+}
+
+export enum ScheduledWorkflowsOrderByField {
+  TriggerAt = 'triggerAt',
+  CreatedAt = 'createdAt',
+}
+
+export enum ScheduledRunStatus {
+  PENDING = 'PENDING',
+  RUNNING = 'RUNNING',
+  SUCCEEDED = 'SUCCEEDED',
+  FAILED = 'FAILED',
+  CANCELLED = 'CANCELLED',
+  QUEUED = 'QUEUED',
+  SCHEDULED = 'SCHEDULED',
+}
+
+export interface CronWorkflows {
+  metadata: APIResourceMeta;
+  tenantId: string;
+  workflowVersionId: string;
+  workflowId: string;
+  workflowName: string;
+  cron: string;
+  input?: Record<string, any>;
+  additionalMetadata?: Record<string, any>;
+}
+
+export interface CronWorkflowsList {
+  rows?: CronWorkflows[];
+  pagination?: PaginationResponse;
+}
+
+export enum CronWorkflowsOrderByField {
+  CreatedAt = 'createdAt',
+}
+
 export enum WorkflowRunOrderByField {
   CreatedAt = 'createdAt',
   StartedAt = 'startedAt',

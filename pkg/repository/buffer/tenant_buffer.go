@@ -44,8 +44,7 @@ type TenantBufManagerOpts[T any, U any] struct {
 	SizeFunc   func(T) int                                       `validate:"required"`
 	L          *zerolog.Logger                                   `validate:"required"`
 	V          validator.Validator                               `validate:"required"`
-
-	Config ConfigFileBuffer
+	Config     ConfigFileBuffer                                  `validate:"required"`
 }
 
 // Create a new TenantBufferManager with generic types T for input and U for output
@@ -68,6 +67,8 @@ func NewTenantBufManager[T any, U any](opts TenantBufManagerOpts[T, U]) (*Tenant
 		OutputFunc:         opts.OutputFunc,
 		SizeFunc:           opts.SizeFunc,
 		L:                  opts.L,
+		MaxConcurrent:      opts.Config.MaxConcurrent,
+		WaitForFlush:       opts.Config.WaitForFlush,
 	}
 
 	if opts.Config.FlushPeriodMilliseconds != 0 {
@@ -76,6 +77,14 @@ func NewTenantBufManager[T any, U any](opts TenantBufManagerOpts[T, U]) (*Tenant
 
 	if opts.Config.FlushItemsThreshold != 0 {
 		defaultOpts.MaxCapacity = opts.Config.FlushItemsThreshold
+	}
+
+	if opts.Config.MaxConcurrent != 0 {
+		defaultOpts.MaxConcurrent = opts.Config.MaxConcurrent
+	}
+
+	if opts.Config.WaitForFlush != 0 {
+		defaultOpts.WaitForFlush = opts.Config.WaitForFlush
 	}
 
 	opts.L.Debug().Msgf("creating new tenant buffer manager %s with default flush period %s and max capacity %d", opts.Name, defaultOpts.FlushPeriod, defaultOpts.MaxCapacity)

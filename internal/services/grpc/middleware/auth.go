@@ -33,13 +33,15 @@ func (a *GRPCAuthN) Middleware(ctx context.Context) (context.Context, error) {
 		return nil, forbidden
 	}
 
-	tenantId, err := a.config.Auth.JWTManager.ValidateTenantToken(ctx, token)
+	tenantId, tokenUUID, err := a.config.Auth.JWTManager.ValidateTenantToken(ctx, token)
 
 	if err != nil {
 		a.l.Debug().Err(err).Msgf("error validating tenant token: %s", err)
 
 		return nil, forbidden
 	}
+
+	ctx = context.WithValue(ctx, "rate_limit_token", tokenUUID)
 
 	// get the tenant id
 	queriedTenant, err := a.config.EngineRepository.Tenant().GetTenantByID(ctx, tenantId)
@@ -50,4 +52,5 @@ func (a *GRPCAuthN) Middleware(ctx context.Context) (context.Context, error) {
 	}
 
 	return context.WithValue(ctx, "tenant", queriedTenant), nil
+
 }
