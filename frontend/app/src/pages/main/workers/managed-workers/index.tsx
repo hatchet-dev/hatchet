@@ -14,10 +14,10 @@ export default function ManagedWorkers() {
       <div className="mx-auto max-w-7xl py-8 px-4 sm:px-6 lg:px-8">
         <div className="flex flex-row justify-between items-center">
           <h2 className="text-2xl font-bold leading-tight text-foreground">
-            Managed Worker Pools
+            Managed Compute
           </h2>
           <Link to="/workers/managed-workers/create">
-            <Button>Create Worker Pool</Button>
+            <Button>Deploy Workers</Button>
           </Link>
         </div>
         <Separator className="my-4" />
