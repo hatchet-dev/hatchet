@@ -72,7 +72,7 @@ export interface WorkflowRunsTableProps {
   showMetrics?: boolean;
 }
 
-const getCreatedAfterFromTimeRange = (timeRange?: string) => {
+export const getCreatedAfterFromTimeRange = (timeRange?: string) => {
   switch (timeRange) {
     case '1h':
       return new Date(Date.now() - 60 * 60 * 1000).toISOString();
@@ -713,6 +713,7 @@ const GetWorkflowChart = ({
   return (
     <div className="">
       <ZoomableChart
+        kind="bar"
         data={
           workflowRunEventsMetricsQuery.data?.results?.map(
             (result): DataPoint<'SUCCEEDED' | 'FAILED'> => ({

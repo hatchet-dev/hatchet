@@ -22,6 +22,7 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { ManagedWorkerBuild } from './managed-worker-build';
 import GithubButton from './github-button';
+import { ManagedWorkerIaC } from './managed-worker-iac';
 
 export function ManagedWorkerActivity({
   managedWorker,
@@ -29,20 +30,39 @@ export function ManagedWorkerActivity({
   managedWorker: ManagedWorker | undefined;
 }) {
   const [buildId, setBuildId] = useState<string | undefined>();
+  const [iacDeployKey, setIacDeployKey] = useState<string | undefined>();
 
   if (buildId) {
     return <Build buildId={buildId} back={() => setBuildId(undefined)} />;
   }
 
-  return <EventList managedWorker={managedWorker} setBuildId={setBuildId} />;
+  if (iacDeployKey) {
+    return (
+      <IaCDebug
+        managedWorkerId={managedWorker!.metadata.id}
+        deployKey={iacDeployKey}
+        back={() => setIacDeployKey(undefined)}
+      />
+    );
+  }
+
+  return (
+    <EventList
+      managedWorker={managedWorker}
+      setBuildId={setBuildId}
+      setDeployKey={setIacDeployKey}
+    />
+  );
 }
 
 function EventList({
   managedWorker,
   setBuildId,
+  setDeployKey,
 }: {
   managedWorker: ManagedWorker | undefined;
   setBuildId: (id: string) => void;
+  setDeployKey: (key: string) => void;
 }) {
   const getLogsQuery = useQuery({
     ...queries.cloud.listManagedWorkerEvents(managedWorker!.metadata.id || ''),
@@ -76,6 +96,7 @@ function EventList({
           managedWorker={managedWorker}
           event={item}
           setBuildId={setBuildId}
+          setDeployKey={setDeployKey}
         />
       ))}
     </div>
@@ -101,14 +122,46 @@ function Build({ buildId, back }: { buildId: string; back: () => void }) {
   );
 }
 
+function IaCDebug({
+  managedWorkerId,
+  deployKey,
+  back,
+}: {
+  managedWorkerId: string;
+  deployKey: string;
+  back: () => void;
+}) {
+  return (
+    <div className="flex flex-col justify-start items-start gap-4 mt-8">
+      <div className="flex flex-row justify-start gap-4 items-center">
+        <Button
+          onClick={back}
+          variant="link"
+          className="flex items-center gap-1"
+        >
+          <ChevronLeftIcon className="w-4 h-4" />
+          Back
+        </Button>
+      </div>
+      <Separator />
+      <ManagedWorkerIaC
+        managedWorkerId={managedWorkerId}
+        deployKey={deployKey}
+      />
+    </div>
+  );
+}
+
 function ManagedWorkerEventCard({
   managedWorker,
   event,
   setBuildId,
+  setDeployKey,
 }: {
   managedWorker: ManagedWorker;
   event: ManagedWorkerEvent;
   setBuildId: (id: string) => void;
+  setDeployKey: (key: string) => void;
 }) {
   return (
     <Card className=" bg-muted/30">
@@ -125,7 +178,7 @@ function ManagedWorkerEventCard({
         <CardDescription className="mt-2">{event.message}</CardDescription>
       </CardHeader>
       <CardContent className="p-0 z-10 bg-background"></CardContent>
-      {renderCardFooter(managedWorker, event, setBuildId)}
+      {renderCardFooter(managedWorker, event, setBuildId, setDeployKey)}
     </Card>
   );
 }
@@ -134,6 +187,7 @@ function renderCardFooter(
   managedWorker: ManagedWorker,
   event: ManagedWorkerEvent,
   setBuildId: (id: string) => void,
+  setDeployKey: (key: string) => void,
 ) {
   if (event.data) {
     const data = event.data as any;
@@ -151,6 +205,21 @@ function renderCardFooter(
         >
           <ArrowRightIcon className="w-4 h-4 mr-1" />
           View build info
+        </Button>,
+      );
+    }
+
+    if (data.deploy_key) {
+      buttons.push(
+        <Button
+          variant="link"
+          size="xs"
+          onClick={() => {
+            setDeployKey(data.deploy_key);
+          }}
+        >
+          <ArrowRightIcon className="w-4 h-4 mr-1" />
+          View IaC debug info
         </Button>,
       );
     }

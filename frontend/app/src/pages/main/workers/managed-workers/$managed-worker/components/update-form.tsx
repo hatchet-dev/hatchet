@@ -18,27 +18,59 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
 import EnvGroupArray, { KeyValueType } from '@/components/ui/envvar';
 import {
-  createOrUpdateManagedWorkerSchema,
   getRepoName,
   getRepoOwner,
   getRepoOwnerName,
   machineTypes,
   regions,
 } from '../../create/components/create-worker-form';
-import { ManagedWorker } from '@/lib/api/generated/cloud/data-contracts';
+import {
+  ManagedWorker,
+  ManagedWorkerRegion,
+} from '@/lib/api/generated/cloud/data-contracts';
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface UpdateWorkerFormProps {
-  onSubmit: (opts: z.infer<typeof createOrUpdateManagedWorkerSchema>) => void;
+  onSubmit: (opts: z.infer<typeof updateManagedWorkerSchema>) => void;
   isLoading: boolean;
   fieldErrors?: Record<string, string>;
   managedWorker: ManagedWorker;
 }
+
+const updateManagedWorkerSchema = z.object({
+  name: z.string().optional(),
+  buildConfig: z
+    .object({
+      githubInstallationId: z.string().uuid().length(36),
+      githubRepositoryOwner: z.string(),
+      githubRepositoryName: z.string(),
+      githubRepositoryBranch: z.string(),
+      steps: z.array(
+        z.object({
+          buildDir: z.string(),
+          dockerfilePath: z.string(),
+        }),
+      ),
+    })
+    .optional(),
+  isIac: z.boolean().default(false).optional(),
+  envVars: z.record(z.string()).optional(),
+  runtimeConfig: z
+    .object({
+      numReplicas: z.number().min(0).max(16),
+      cpuKind: z.string(),
+      cpus: z.number(),
+      memoryMb: z.number(),
+      regions: z.array(z.nativeEnum(ManagedWorkerRegion)).optional(),
+    })
+    .optional(),
+});
 
 export default function UpdateWorkerForm({
   onSubmit,
@@ -51,9 +83,10 @@ export default function UpdateWorkerForm({
     handleSubmit,
     control,
     setValue,
+    getValues,
     formState: { errors },
-  } = useForm<z.infer<typeof createOrUpdateManagedWorkerSchema>>({
-    resolver: zodResolver(createOrUpdateManagedWorkerSchema),
+  } = useForm<z.infer<typeof updateManagedWorkerSchema>>({
+    resolver: zodResolver(updateManagedWorkerSchema),
     defaultValues: {
       name: managedWorker.name,
       buildConfig: {
@@ -74,14 +107,18 @@ export default function UpdateWorkerForm({
           },
         ],
       },
-      runtimeConfig: {
-        numReplicas: managedWorker.runtimeConfig.numReplicas,
-        cpuKind: managedWorker.runtimeConfig.cpuKind,
-        cpus: managedWorker.runtimeConfig.cpus,
-        memoryMb: managedWorker.runtimeConfig.memoryMb,
-        envVars: managedWorker.runtimeConfig.envVars,
-        region: managedWorker.runtimeConfig.region,
-      },
+      envVars: managedWorker.envVars,
+      isIac: managedWorker.isIac,
+      runtimeConfig:
+        !managedWorker.isIac && managedWorker.runtimeConfigs?.length == 1
+          ? {
+              numReplicas: managedWorker.runtimeConfigs[0].numReplicas,
+              cpuKind: managedWorker.runtimeConfigs[0].cpuKind,
+              cpus: managedWorker.runtimeConfigs[0].cpus,
+              memoryMb: managedWorker.runtimeConfigs[0].memoryMb,
+              regions: [managedWorker.runtimeConfigs[0].region],
+            }
+          : undefined,
     },
   });
 
@@ -89,7 +126,7 @@ export default function UpdateWorkerForm({
     '1 CPU, 1 GB RAM (shared CPU)',
   );
 
-  const region = watch('runtimeConfig.region');
+  const region = watch('runtimeConfig.regions');
   const installation = watch('buildConfig.githubInstallationId');
   const repoOwner = watch('buildConfig.githubRepositoryOwner');
   const repoName = watch('buildConfig.githubRepositoryName');
@@ -109,8 +146,10 @@ export default function UpdateWorkerForm({
   });
 
   const [envVars, setEnvVars] = useState<KeyValueType[]>(
-    envVarsRecordToKeyValueType(managedWorker.runtimeConfig.envVars),
+    envVarsRecordToKeyValueType(managedWorker.envVars),
   );
+
+  const [isIac, setIsIac] = useState(managedWorker.isIac);
 
   const nameError = errors.name?.message?.toString() || fieldErrors?.name;
   const buildDirError =
@@ -123,7 +162,7 @@ export default function UpdateWorkerForm({
     errors.runtimeConfig?.numReplicas?.message?.toString() ||
     fieldErrors?.numReplicas;
   const envVarsError =
-    errors.runtimeConfig?.envVars?.message?.toString() || fieldErrors?.envVars;
+    errors.envVars?.message?.toString() || fieldErrors?.envVars;
   const cpuKindError =
     errors.runtimeConfig?.cpuKind?.message?.toString() || fieldErrors?.cpuKind;
   const cpusError =
@@ -157,6 +196,20 @@ export default function UpdateWorkerForm({
       );
     }
   }, [managedWorker, listInstallationsQuery, setValue, installation]);
+
+  useEffect(() => {
+    if (!isIac && !getValues('runtimeConfig')) {
+      setValue('runtimeConfig', {
+        numReplicas: 1,
+        cpuKind: 'shared',
+        cpus: 1,
+        memoryMb: 1024,
+        regions: [ManagedWorkerRegion.Sea],
+      });
+      setMachineType('1 CPU, 1 GB RAM (shared CPU)');
+      setValue('runtimeConfig.regions', [ManagedWorkerRegion.Sea]);
+    }
+  }, [getValues, setValue, isIac]);
 
   // if there are no github accounts linked, ask the user to link one
   if (
@@ -376,119 +429,13 @@ export default function UpdateWorkerForm({
               <div className="text-sm text-muted-foreground">
                 Configure the runtime settings for this worker.
               </div>
-              <Label htmlFor="region">Region</Label>
-              <Select
-                value={region?.toString()}
-                onValueChange={(value) => {
-                  // find the region object from the value
-                  const region = regions.find((i) => i.value === value);
-
-                  if (!region) {
-                    return;
-                  }
-
-                  setValue('runtimeConfig.region', region.value);
-                }}
-              >
-                <SelectTrigger className="w-fit">
-                  <SelectValue id="region" placeholder="Choose region" />
-                </SelectTrigger>
-                <SelectContent>
-                  {regions.map((i) => (
-                    <SelectItem key={i.value} value={i.value}>
-                      {i.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Label htmlFor="numReplicas">Number of replicas</Label>
-              <Controller
-                control={control}
-                name="runtimeConfig.numReplicas"
-                render={({ field }) => {
-                  return (
-                    <Input
-                      {...field}
-                      type="number"
-                      onChange={(e) => {
-                        if (e.target.value === '') {
-                          field.onChange(e.target.value);
-                          return;
-                        }
-
-                        field.onChange(parseInt(e.target.value));
-                      }}
-                      min={1}
-                      max={16}
-                      id="numReplicas"
-                      placeholder="1"
-                    />
-                  );
-                }}
-              />
-              {numReplicasError && (
-                <div className="text-sm text-red-500">{numReplicasError}</div>
-              )}
-              <Label htmlFor="machineType">Machine type</Label>
-              <Controller
-                control={control}
-                name="runtimeConfig.cpuKind"
-                render={({ field }) => {
-                  return (
-                    <Select
-                      {...field}
-                      value={machineType}
-                      onValueChange={(value) => {
-                        // get the correct machine type from the value
-                        const machineType = machineTypes.find(
-                          (i) => i.title === value,
-                        );
-
-                        setMachineType(value);
-                        setValue('runtimeConfig.cpus', machineType?.cpus || 1);
-                        setValue(
-                          'runtimeConfig.memoryMb',
-                          machineType?.memoryMb || 1024,
-                        );
-                        setValue(
-                          'runtimeConfig.cpuKind',
-                          machineType?.cpuKind || 'shared',
-                        );
-                      }}
-                    >
-                      <SelectTrigger className="w-fit">
-                        <SelectValue
-                          id="machineType"
-                          placeholder="Choose type"
-                        />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {machineTypes.map((i) => (
-                          <SelectItem key={i.title} value={i.title}>
-                            {i.title}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  );
-                }}
-              />
-              {cpuKindError && (
-                <div className="text-sm text-red-500">{cpuKindError}</div>
-              )}
-              {cpusError && (
-                <div className="text-sm text-red-500">{cpusError}</div>
-              )}
-              {memoryMbError && (
-                <div className="text-sm text-red-500">{memoryMbError}</div>
-              )}
               <Label>Environment Variables</Label>
               <EnvGroupArray
                 values={envVars}
                 setValues={(value) => {
                   setEnvVars(value);
                   setValue(
-                    'runtimeConfig.envVars',
+                    'envVars',
                     value.reduce<Record<string, string>>((acc, item) => {
                       acc[item.key] = item.value;
                       return acc;
@@ -499,6 +446,140 @@ export default function UpdateWorkerForm({
               {envVarsError && (
                 <div className="text-sm text-red-500">{envVarsError}</div>
               )}
+              <Label>Machine Configuration Method</Label>
+              <Tabs
+                defaultValue="activity"
+                value={isIac ? 'iac' : 'ui'}
+                onValueChange={(value) => {
+                  setIsIac(value === 'iac');
+                  setValue('isIac', value === 'iac');
+                }}
+              >
+                <TabsList layout="underlined">
+                  <TabsTrigger variant="underlined" value="ui">
+                    UI
+                  </TabsTrigger>
+                  <TabsTrigger variant="underlined" value="iac">
+                    Infra-As-Code
+                  </TabsTrigger>
+                </TabsList>
+                <TabsContent value="iac" className="pt-4 grid gap-4">
+                  TODO: LINK TO DOCS!
+                </TabsContent>
+                <TabsContent value="ui" className="pt-4 grid gap-4">
+                  <Label htmlFor="region">Region</Label>
+                  <Select
+                    value={region?.toString()}
+                    onValueChange={(value) => {
+                      // find the region object from the value
+                      const region = regions.find((i) => i.value === value);
+
+                      if (!region) {
+                        return;
+                      }
+
+                      setValue('runtimeConfig.regions', [region.value]);
+                    }}
+                  >
+                    <SelectTrigger className="w-fit">
+                      <SelectValue id="region" placeholder="Choose region" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {regions.map((i) => (
+                        <SelectItem key={i.value} value={i.value}>
+                          {i.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Label htmlFor="numReplicas">Number of replicas</Label>
+                  <Controller
+                    control={control}
+                    name="runtimeConfig.numReplicas"
+                    render={({ field }) => {
+                      return (
+                        <Input
+                          {...field}
+                          type="number"
+                          onChange={(e) => {
+                            if (e.target.value === '') {
+                              field.onChange(e.target.value);
+                              return;
+                            }
+
+                            field.onChange(parseInt(e.target.value));
+                          }}
+                          min={1}
+                          max={16}
+                          id="numReplicas"
+                          placeholder="1"
+                        />
+                      );
+                    }}
+                  />
+                  {numReplicasError && (
+                    <div className="text-sm text-red-500">
+                      {numReplicasError}
+                    </div>
+                  )}
+                  <Label htmlFor="machineType">Machine type</Label>
+                  <Controller
+                    control={control}
+                    name="runtimeConfig.cpuKind"
+                    render={({ field }) => {
+                      return (
+                        <Select
+                          {...field}
+                          value={machineType}
+                          onValueChange={(value) => {
+                            // get the correct machine type from the value
+                            const machineType = machineTypes.find(
+                              (i) => i.title === value,
+                            );
+
+                            setMachineType(value);
+                            setValue(
+                              'runtimeConfig.cpus',
+                              machineType?.cpus || 1,
+                            );
+                            setValue(
+                              'runtimeConfig.memoryMb',
+                              machineType?.memoryMb || 1024,
+                            );
+                            setValue(
+                              'runtimeConfig.cpuKind',
+                              machineType?.cpuKind || 'shared',
+                            );
+                          }}
+                        >
+                          <SelectTrigger className="w-fit">
+                            <SelectValue
+                              id="machineType"
+                              placeholder="Choose type"
+                            />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {machineTypes.map((i) => (
+                              <SelectItem key={i.title} value={i.title}>
+                                {i.title}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      );
+                    }}
+                  />
+                  {cpuKindError && (
+                    <div className="text-sm text-red-500">{cpuKindError}</div>
+                  )}
+                  {cpusError && (
+                    <div className="text-sm text-red-500">{cpusError}</div>
+                  )}
+                  {memoryMbError && (
+                    <div className="text-sm text-red-500">{memoryMbError}</div>
+                  )}
+                </TabsContent>
+              </Tabs>
             </AccordionContent>
           </AccordionItem>
         </Accordion>

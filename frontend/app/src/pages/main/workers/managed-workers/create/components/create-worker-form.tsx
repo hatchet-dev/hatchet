@@ -19,6 +19,7 @@ import { Input } from '@/components/ui/input';
 import { Step, Steps } from '@/components/ui/steps';
 import EnvGroupArray, { KeyValueType } from '@/components/ui/envvar';
 import { ManagedWorkerRegion } from '@/lib/api/generated/cloud/data-contracts';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export const machineTypes = [
   {
@@ -230,7 +231,7 @@ export const regions = [
   },
 ];
 
-export const createOrUpdateManagedWorkerSchema = z.object({
+const createManagedWorkerSchema = z.object({
   name: z.string(),
   buildConfig: z.object({
     githubInstallationId: z.string().uuid().length(36),
@@ -244,18 +245,19 @@ export const createOrUpdateManagedWorkerSchema = z.object({
       }),
     ),
   }),
+  isIac: z.boolean().default(false),
+  envVars: z.record(z.string()),
   runtimeConfig: z.object({
     numReplicas: z.number().min(0).max(16),
-    envVars: z.record(z.string()),
     cpuKind: z.string(),
     cpus: z.number(),
     memoryMb: z.number(),
-    region: z.nativeEnum(ManagedWorkerRegion).optional(),
+    regions: z.array(z.nativeEnum(ManagedWorkerRegion)).optional(),
   }),
 });
 
 interface CreateWorkerFormProps {
-  onSubmit: (opts: z.infer<typeof createOrUpdateManagedWorkerSchema>) => void;
+  onSubmit: (opts: z.infer<typeof createManagedWorkerSchema>) => void;
   isLoading: boolean;
   fieldErrors?: Record<string, string>;
 }
@@ -271,8 +273,8 @@ export default function CreateWorkerForm({
     control,
     setValue,
     formState: { errors },
-  } = useForm<z.infer<typeof createOrUpdateManagedWorkerSchema>>({
-    resolver: zodResolver(createOrUpdateManagedWorkerSchema),
+  } = useForm<z.infer<typeof createManagedWorkerSchema>>({
+    resolver: zodResolver(createManagedWorkerSchema),
     defaultValues: {
       buildConfig: {
         steps: [
@@ -282,13 +284,13 @@ export default function CreateWorkerForm({
           },
         ],
       },
+      envVars: {},
       runtimeConfig: {
         numReplicas: 1,
         cpuKind: 'shared',
         cpus: 1,
         memoryMb: 1024,
-        envVars: {},
-        region: ManagedWorkerRegion.Sea,
+        regions: [ManagedWorkerRegion.Sea],
       },
     },
   });
@@ -297,7 +299,7 @@ export default function CreateWorkerForm({
     '1 CPU, 1 GB RAM (shared CPU)',
   );
 
-  const region = watch('runtimeConfig.region');
+  const region = watch('runtimeConfig.regions');
   const installation = watch('buildConfig.githubInstallationId');
   const repoOwner = watch('buildConfig.githubRepositoryOwner');
   const repoName = watch('buildConfig.githubRepositoryName');
@@ -317,6 +319,7 @@ export default function CreateWorkerForm({
   });
 
   const [envVars, setEnvVars] = useState<KeyValueType[]>([]);
+  const [isIac, setIsIac] = useState(false);
 
   const nameError = errors.name?.message?.toString() || fieldErrors?.name;
   const buildDirError =
@@ -329,7 +332,7 @@ export default function CreateWorkerForm({
     errors.runtimeConfig?.numReplicas?.message?.toString() ||
     fieldErrors?.numReplicas;
   const envVarsError =
-    errors.runtimeConfig?.envVars?.message?.toString() || fieldErrors?.envVars;
+    errors.envVars?.message?.toString() || fieldErrors?.envVars;
   const cpuKindError =
     errors.runtimeConfig?.cpuKind?.message?.toString() || fieldErrors?.cpuKind;
   const cpusError =
@@ -590,116 +593,13 @@ export default function CreateWorkerForm({
             <div className="text-sm text-muted-foreground">
               Configure the runtime settings for this worker.
             </div>
-            <Label htmlFor="region">Region</Label>
-            <Select
-              value={region?.toString()}
-              onValueChange={(value) => {
-                // find the region object from the value
-                const region = regions.find((i) => i.value === value);
-
-                if (!region) {
-                  return;
-                }
-
-                setValue('runtimeConfig.region', region.value);
-              }}
-            >
-              <SelectTrigger className="w-fit">
-                <SelectValue id="region" placeholder="Choose region" />
-              </SelectTrigger>
-              <SelectContent>
-                {regions.map((i) => (
-                  <SelectItem key={i.value} value={i.value}>
-                    {i.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Label htmlFor="numReplicas">Number of replicas</Label>
-            <Controller
-              control={control}
-              name="runtimeConfig.numReplicas"
-              render={({ field }) => {
-                return (
-                  <Input
-                    {...field}
-                    type="number"
-                    onChange={(e) => {
-                      if (e.target.value === '') {
-                        field.onChange(e.target.value);
-                        return;
-                      }
-
-                      field.onChange(parseInt(e.target.value));
-                    }}
-                    min={0}
-                    max={16}
-                    id="numReplicas"
-                    placeholder="1"
-                  />
-                );
-              }}
-            />
-            {numReplicasError && (
-              <div className="text-sm text-red-500">{numReplicasError}</div>
-            )}
-            <Label htmlFor="machineType">Machine type</Label>
-            <Controller
-              control={control}
-              name="runtimeConfig.cpuKind"
-              render={({ field }) => {
-                return (
-                  <Select
-                    {...field}
-                    value={machineType}
-                    onValueChange={(value) => {
-                      // get the correct machine type from the value
-                      const machineType = machineTypes.find(
-                        (i) => i.title === value,
-                      );
-
-                      setMachineType(value);
-                      setValue('runtimeConfig.cpus', machineType?.cpus || 1);
-                      setValue(
-                        'runtimeConfig.memoryMb',
-                        machineType?.memoryMb || 1024,
-                      );
-                      setValue(
-                        'runtimeConfig.cpuKind',
-                        machineType?.cpuKind || 'shared',
-                      );
-                    }}
-                  >
-                    <SelectTrigger className="w-fit">
-                      <SelectValue id="machineType" placeholder="Choose type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {machineTypes.map((i) => (
-                        <SelectItem key={i.title} value={i.title}>
-                          {i.title}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                );
-              }}
-            />
-            {cpuKindError && (
-              <div className="text-sm text-red-500">{cpuKindError}</div>
-            )}
-            {cpusError && (
-              <div className="text-sm text-red-500">{cpusError}</div>
-            )}
-            {memoryMbError && (
-              <div className="text-sm text-red-500">{memoryMbError}</div>
-            )}
             <Label>Environment Variables</Label>
             <EnvGroupArray
               values={envVars}
               setValues={(value) => {
                 setEnvVars(value);
                 setValue(
-                  'runtimeConfig.envVars',
+                  'envVars',
                   value.reduce<Record<string, string>>((acc, item) => {
                     acc[item.key] = item.value;
                     return acc;
@@ -710,6 +610,138 @@ export default function CreateWorkerForm({
             {envVarsError && (
               <div className="text-sm text-red-500">{envVarsError}</div>
             )}
+            <Label>Machine Configuration Method</Label>
+            <Tabs
+              defaultValue="activity"
+              value={isIac ? 'iac' : 'ui'}
+              onValueChange={(value) => {
+                setIsIac(value === 'iac');
+                setValue('isIac', value === 'iac');
+              }}
+            >
+              <TabsList layout="underlined">
+                <TabsTrigger variant="underlined" value="ui">
+                  UI
+                </TabsTrigger>
+                <TabsTrigger variant="underlined" value="iac">
+                  Infra-As-Code
+                </TabsTrigger>
+              </TabsList>
+              <TabsContent value="iac" className="pt-4 grid gap-4">
+                TODO: LINK TO DOCS!
+              </TabsContent>
+              <TabsContent value="ui" className="pt-4 grid gap-4">
+                <Label htmlFor="region">Region</Label>
+                <Select
+                  value={region?.toString()}
+                  onValueChange={(value) => {
+                    // find the region object from the value
+                    const region = regions.find((i) => i.value === value);
+
+                    if (!region) {
+                      return;
+                    }
+
+                    setValue('runtimeConfig.regions', [region.value]);
+                  }}
+                >
+                  <SelectTrigger className="w-fit">
+                    <SelectValue id="region" placeholder="Choose region" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {regions.map((i) => (
+                      <SelectItem key={i.value} value={i.value}>
+                        {i.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Label htmlFor="numReplicas">Number of replicas</Label>
+                <Controller
+                  control={control}
+                  name="runtimeConfig.numReplicas"
+                  render={({ field }) => {
+                    return (
+                      <Input
+                        {...field}
+                        type="number"
+                        onChange={(e) => {
+                          if (e.target.value === '') {
+                            field.onChange(e.target.value);
+                            return;
+                          }
+
+                          field.onChange(parseInt(e.target.value));
+                        }}
+                        min={0}
+                        max={16}
+                        id="numReplicas"
+                        placeholder="1"
+                      />
+                    );
+                  }}
+                />
+                {numReplicasError && (
+                  <div className="text-sm text-red-500">{numReplicasError}</div>
+                )}
+                <Label htmlFor="machineType">Machine type</Label>
+                <Controller
+                  control={control}
+                  name="runtimeConfig.cpuKind"
+                  render={({ field }) => {
+                    return (
+                      <Select
+                        {...field}
+                        value={machineType}
+                        onValueChange={(value) => {
+                          // get the correct machine type from the value
+                          const machineType = machineTypes.find(
+                            (i) => i.title === value,
+                          );
+
+                          setMachineType(value);
+                          setValue(
+                            'runtimeConfig.cpus',
+                            machineType?.cpus || 1,
+                          );
+                          setValue(
+                            'runtimeConfig.memoryMb',
+                            machineType?.memoryMb || 1024,
+                          );
+                          setValue(
+                            'runtimeConfig.cpuKind',
+                            machineType?.cpuKind || 'shared',
+                          );
+                        }}
+                      >
+                        <SelectTrigger className="w-fit">
+                          <SelectValue
+                            id="machineType"
+                            placeholder="Choose type"
+                          />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {machineTypes.map((i) => (
+                            <SelectItem key={i.title} value={i.title}>
+                              {i.title}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    );
+                  }}
+                />
+                {cpuKindError && (
+                  <div className="text-sm text-red-500">{cpuKindError}</div>
+                )}
+                {cpusError && (
+                  <div className="text-sm text-red-500">{cpusError}</div>
+                )}
+                {memoryMbError && (
+                  <div className="text-sm text-red-500">{memoryMbError}</div>
+                )}
+              </TabsContent>
+            </Tabs>
           </div>
         </Step>
         <Step title="Review">

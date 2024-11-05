@@ -2,34 +2,83 @@ import { queries } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 import {
   ManagedWorker,
-  SampleStream,
+  Matrix,
 } from '@/lib/api/generated/cloud/data-contracts';
 import { Loading } from '@/components/ui/loading';
-import AreaChart, {
-  MetricValue,
-  format2Dec,
-  formatPercentTooltip,
-} from '@/components/molecules/brush-chart/area-chart';
-import { useMemo, useState } from 'react';
-import { useParentSize } from '@visx/responsive';
+import { useEffect, useMemo, useState } from 'react';
 import { Separator } from '@/components/ui/separator';
-import { GetCloudMetricsQuery } from '@/lib/api/queries';
 import { DateTimePicker } from '@/components/molecules/time-picker/date-time-picker';
 import { Button } from '@/components/ui/button';
-import { ArrowPathIcon } from '@heroicons/react/24/outline';
+import { XCircleIcon } from '@heroicons/react/24/outline';
+import {
+  DataPoint,
+  ZoomableChart,
+} from '@/components/molecules/charts/zoomable';
+import { useAtom } from 'jotai';
+import { lastWorkerMetricsTimeRangeAtom } from '@/lib/atoms';
+import { getCreatedAfterFromTimeRange } from '@/pages/main/workflow-runs/components/workflow-runs-table';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 export function ManagedWorkerMetrics({
   managedWorker,
 }: {
   managedWorker: ManagedWorker;
 }) {
-  const [beforeInput, setBeforeInput] = useState<Date | undefined>();
-  const [afterInput, setAfterInput] = useState<Date | undefined>();
-  const [queryParams, setQueryParams] = useState<GetCloudMetricsQuery>({
-    // default after is 1 day
-    after: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-  });
-  const [rotate, setRotate] = useState(false);
+  const [defaultTimeRange, setDefaultTimeRange] = useAtom(
+    lastWorkerMetricsTimeRangeAtom,
+  );
+
+  // customTimeRange does not get set in the atom,
+  const [customTimeRange, setCustomTimeRange] = useState<
+    string[] | undefined
+  >();
+
+  const [createdAfter, setCreatedAfter] = useState<string | undefined>(
+    getCreatedAfterFromTimeRange(defaultTimeRange) ||
+      new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+  );
+
+  const [finishedBefore, setFinishedBefore] = useState<string | undefined>();
+
+  // create a timer which updates the createdAfter date every minute
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (customTimeRange) {
+        return;
+      }
+
+      setCreatedAfter(
+        getCreatedAfterFromTimeRange(defaultTimeRange) ||
+          new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+      );
+    }, 60 * 1000);
+
+    return () => clearInterval(interval);
+  }, [defaultTimeRange, customTimeRange]);
+
+  // whenever the time range changes, update the createdAfter date
+  useEffect(() => {
+    if (customTimeRange && customTimeRange.length === 2) {
+      setCreatedAfter(customTimeRange[0]);
+      setFinishedBefore(customTimeRange[1]);
+    } else if (defaultTimeRange) {
+      setCreatedAfter(getCreatedAfterFromTimeRange(defaultTimeRange));
+      setFinishedBefore(undefined);
+    }
+  }, [defaultTimeRange, customTimeRange, setCreatedAfter]);
+
+  const queryParams = useMemo(() => {
+    return {
+      after: createdAfter,
+      before: finishedBefore,
+    };
+  }, [createdAfter, finishedBefore]);
 
   const getCpuMetricsQuery = useQuery({
     ...queries.cloud.getManagedWorkerCpuMetrics(
@@ -67,22 +116,13 @@ export function ManagedWorkerMetrics({
   if (
     getCpuMetricsQuery.isLoading ||
     getMemoryMetricsQuery.isLoading ||
-    getDiskMetricsQuery.isLoading
+    getDiskMetricsQuery.isLoading ||
+    !getCpuMetricsQuery.data ||
+    !getMemoryMetricsQuery.data ||
+    !getDiskMetricsQuery.data
   ) {
     return <Loading />;
   }
-
-  const refreshMetrics = () => {
-    setQueryParams({
-      after: afterInput?.toISOString(),
-      before: beforeInput?.toISOString(),
-    });
-    setRotate(!rotate);
-  };
-
-  const datesMatchSearch =
-    beforeInput?.toISOString() === queryParams?.before &&
-    afterInput?.toISOString() === queryParams?.after;
 
   return (
     <div className="flex flex-col gap-4">
@@ -90,29 +130,63 @@ export function ManagedWorkerMetrics({
         <h3 className="text-xl font-bold leading-tight text-foreground">
           Metrics
         </h3>
-        <div className="flex flex-row gap-4">
-          <DateTimePicker
-            date={afterInput}
-            setDate={setAfterInput}
-            label="After"
-          />
-          <DateTimePicker
-            date={beforeInput}
-            setDate={setBeforeInput}
-            label="Before"
-          />
-          <Button
-            key="refresh"
-            className="h-8 px-2 lg:px-3"
-            size="sm"
-            onClick={refreshMetrics}
-            variant={datesMatchSearch ? 'outline' : 'default'}
-            aria-label="Refresh logs"
+        <div className="flex flex-row justify-end items-center my-4 gap-2">
+          {customTimeRange && [
+            <Button
+              key="clear"
+              onClick={() => {
+                setCustomTimeRange(undefined);
+              }}
+              variant="outline"
+              size="sm"
+              className="text-xs h-9 py-2"
+            >
+              <XCircleIcon className="h-[18px] w-[18px] mr-2" />
+              Clear
+            </Button>,
+            <DateTimePicker
+              key="after"
+              label="After"
+              date={createdAfter ? new Date(createdAfter) : undefined}
+              setDate={(date) => {
+                setCreatedAfter(date?.toISOString());
+              }}
+            />,
+            <DateTimePicker
+              key="before"
+              label="Before"
+              date={finishedBefore ? new Date(finishedBefore) : undefined}
+              setDate={(date) => {
+                setFinishedBefore(date?.toISOString());
+              }}
+            />,
+          ]}
+          <Select
+            value={customTimeRange ? 'custom' : defaultTimeRange}
+            onValueChange={(value) => {
+              if (value !== 'custom') {
+                setDefaultTimeRange(value);
+                setCustomTimeRange(undefined);
+              } else {
+                setCustomTimeRange([
+                  getCreatedAfterFromTimeRange(value) ||
+                    new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+                  new Date().toISOString(),
+                ]);
+              }
+            }}
           >
-            <ArrowPathIcon
-              className={`h-4 w-4 transition-transform ${rotate ? 'rotate-180' : ''}`}
-            />
-          </Button>
+            <SelectTrigger className="w-fit">
+              <SelectValue id="timerange" placeholder="Choose time range" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="1h">1 hour</SelectItem>
+              <SelectItem value="6h">6 hours</SelectItem>
+              <SelectItem value="1d">1 day</SelectItem>
+              <SelectItem value="7d">7 days</SelectItem>
+              <SelectItem value="custom">Custom</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </div>
       <Separator />
@@ -120,127 +194,87 @@ export function ManagedWorkerMetrics({
         CPU
       </h4>
       <Separator />
-      {getCpuMetricsQuery.data?.length === 0 && (
-        <MetricsPlaceholder
-          start={afterInput || new Date(Date.now() - 24 * 60 * 60 * 1000)}
-          end={beforeInput || new Date()}
+      {
+        <ZoomableChart
+          className="max-h-[25rem] min-h-[25rem]"
+          data={transformToDataPoints(getCpuMetricsQuery.data)}
+          kind="line"
+          zoom={(createdAfter, createdBefore) => {
+            setCustomTimeRange([createdAfter, createdBefore]);
+          }}
+          showYAxis={true}
         />
-      )}
-      {getCpuMetricsQuery.data?.map((d, i) => {
-        return (
-          <MetricsChart
-            key={i}
-            sample={d}
-            yLabel="CPU Usage (%)"
-            tooltipFormat={formatPercentTooltip}
-          />
-        );
-      })}
+      }
       <h4 className="text-lg font-bold leading-tight text-foreground mt-16 ml-4">
         Memory
       </h4>
       <Separator />
-      {getMemoryMetricsQuery.data?.map((d, i) => {
-        return (
-          <MetricsChart
-            key={i}
-            sample={d}
-            normalizer={(d) => {
-              return d / (1000 * 1000);
-            }}
-            yLabel="Memory (MB)"
-            tooltipFormat={(d) => {
-              return format2Dec(d) + ' MB';
-            }}
-          />
-        );
-      })}
+      {
+        <ZoomableChart
+          className="max-h-[25rem] min-h-[25rem]"
+          data={transformToDataPoints(getMemoryMetricsQuery.data, (d) => {
+            return d / (1000 * 1000);
+          })}
+          kind="line"
+          zoom={(createdAfter, createdBefore) => {
+            setCustomTimeRange([createdAfter, createdBefore]);
+          }}
+          showYAxis={true}
+        />
+      }
       <h4 className="text-lg font-bold leading-tight text-foreground mt-16 ml-4">
         Disk
       </h4>
       <Separator />
-      {getDiskMetricsQuery.data?.map((d, i) => {
-        return (
-          <MetricsChart
-            key={i}
-            sample={d}
-            normalizer={(d) => {
-              return d / (1000 * 1000);
-            }}
-            yLabel="Disk (MB)"
-            tooltipFormat={(d) => {
-              return format2Dec(d) + ' MB';
-            }}
-          />
-        );
-      })}
+      {
+        <ZoomableChart
+          className="max-h-[25rem] min-h-[25rem]"
+          data={transformToDataPoints(getDiskMetricsQuery.data, (d) => {
+            return d / (1000 * 1000);
+          })}
+          kind="line"
+          zoom={(createdAfter, createdBefore) => {
+            setCustomTimeRange([createdAfter, createdBefore]);
+          }}
+          showYAxis={true}
+        />
+      }
     </div>
   );
 }
 
-type MetricsChartProps = {
-  sample: SampleStream;
-  normalizer?: (value: number) => number;
-  yLabel: string;
-  tooltipFormat?: (d: number) => string;
-};
+function transformToDataPoints(
+  matrix: Matrix,
+  normalizer?: (n: number) => number,
+): DataPoint<string>[] {
+  const dataPointsMap: Record<string, DataPoint<string>> = {};
 
-function MetricsChart({
-  sample,
-  normalizer,
-  yLabel,
-  tooltipFormat,
-}: MetricsChartProps) {
-  const { parentRef, width, height } = useParentSize({ debounceTime: 150 });
+  matrix.forEach((sampleStream) => {
+    // if we have instance or region, use that as the metricLabel
+    let metricLabel = Object.values(sampleStream.metric || {}).join('-');
 
-  const values: MetricValue[] = useMemo(
-    () =>
-      sample.values?.map((v) => {
-        return {
-          date: new Date(v[0] * 1000),
-          value: normalizer ? normalizer(parseFloat(v[1])) : parseFloat(v[1]),
+    if (sampleStream.metric?.instance && sampleStream.metric?.region) {
+      metricLabel = `[${sampleStream.metric.region}] ${sampleStream.metric.instance}`;
+    }
+
+    (sampleStream.values || []).forEach(([timestamp, value]) => {
+      const isoDate = new Date(timestamp * 1000).toISOString();
+
+      if (!dataPointsMap[isoDate]) {
+        const obj: any = {
+          date: isoDate,
         };
-      }) || [],
-    [sample, normalizer],
-  );
 
-  return (
-    <div
-      ref={parentRef}
-      className="w-full max-h-[25rem] min-h-[25rem] ml-8 px-14"
-    >
-      <AreaChart
-        kind="area"
-        hideBottomAxis={false}
-        data={values}
-        width={width}
-        height={height}
-        yLabel={yLabel}
-        tooltipFormat={tooltipFormat}
-      />
-    </div>
-  );
-}
+        dataPointsMap[isoDate] = obj as DataPoint<string>;
+      }
 
-function MetricsPlaceholder({ start, end }: { start: Date; end: Date }) {
-  const { parentRef, width, height } = useParentSize({ debounceTime: 150 });
+      let val = parseFloat(value);
 
-  return (
-    <div
-      ref={parentRef}
-      className="w-full max-h-[25rem] min-h-[25rem] ml-8 px-14"
-    >
-      <AreaChart
-        kind="area"
-        hideBottomAxis={true}
-        hideLeftAxis={true}
-        data={[]}
-        width={width}
-        height={height}
-        yDomain={[0, 100]}
-        xDomain={[start, end]}
-        centerText="No data available for the selected time range."
-      />
-    </div>
-  );
+      val = normalizer ? normalizer(val) : val;
+
+      dataPointsMap[isoDate][metricLabel] = val;
+    });
+  });
+
+  return Object.values(dataPointsMap);
 }

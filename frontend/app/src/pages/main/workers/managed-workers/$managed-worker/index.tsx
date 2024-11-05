@@ -13,7 +13,7 @@ import { ConfirmDialog } from '@/components/molecules/confirm-dialog';
 import { ManagedWorkerLogs } from './components/managed-worker-logs';
 import { ManagedWorkerMetrics } from './components/managed-worker-metrics';
 import { ManagedWorkerActivity } from './components/managed-worker-activity';
-import { CreateManagedWorkerRequest } from '@/lib/api/generated/cloud/data-contracts';
+import { UpdateManagedWorkerRequest } from '@/lib/api/generated/cloud/data-contracts';
 import { ManagedWorkerInstancesTable } from './components/managed-worker-instances-table';
 import UpdateWorkerForm from './components/update-form';
 import { cloudApi } from '@/lib/api/api';
@@ -37,13 +37,20 @@ export default function ExpandedWorkflow() {
     setFieldErrors: setFieldErrors,
   });
 
-  const createManagedWorkerMutation = useMutation({
-    mutationKey: ['managed-worker:create', params['managed-worker']],
-    mutationFn: async (data: CreateManagedWorkerRequest) => {
+  const updateManagedWorkerMutation = useMutation({
+    mutationKey: ['managed-worker:update', params['managed-worker']],
+    mutationFn: async (data: UpdateManagedWorkerRequest) => {
       invariant(managedWorker);
+
+      const dataCopy = { ...data };
+
+      if (dataCopy.isIac) {
+        delete dataCopy.runtimeConfig;
+      }
+
       const res = await cloudApi.managedWorkerUpdate(
         managedWorker.metadata.id,
-        data,
+        dataCopy,
       );
       return res.data;
     },
@@ -141,8 +148,8 @@ export default function ExpandedWorkflow() {
             <Separator className="my-4" />
             <UpdateWorkerForm
               managedWorker={managedWorker}
-              onSubmit={createManagedWorkerMutation.mutate}
-              isLoading={createManagedWorkerMutation.isPending}
+              onSubmit={updateManagedWorkerMutation.mutate}
+              isLoading={updateManagedWorkerMutation.isPending}
               fieldErrors={fieldErrors}
             />
             <Separator className="my-4" />
