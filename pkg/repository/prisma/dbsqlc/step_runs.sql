@@ -433,6 +433,9 @@ FROM (
 WHERE
     "StepRun"."id" = input."id";
 
+-- name: ValidatesAsJson :exec
+SELECT @input::jsonb AS "is_valid";
+
 -- name: BulkFinishStepRun :exec
 UPDATE
     "StepRun"
