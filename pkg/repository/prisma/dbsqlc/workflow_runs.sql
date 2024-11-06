@@ -1210,6 +1210,8 @@ WITH QueuedRuns AS (
         wr."tenantId" = @tenantId::uuid
         AND wr."status" = 'QUEUED'
 		AND wr."concurrencyGroupId" IS NOT NULL
+        AND wr."deletedAt" IS NULL
+        AND wv."deletedAt" IS NULL
     ORDER BY wr."workflowVersionId"
 )
 SELECT
