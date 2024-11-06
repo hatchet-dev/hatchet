@@ -692,18 +692,6 @@ func (d *queuerDbQueries) GetStepRunRateLimits(ctx context.Context, queueItems [
 		}
 	}
 
-	rateLimitsForTenant, err := d.queries.ListRateLimitsForTenantWithMutate(ctx, d.pool, d.tenantId)
-
-	if err != nil {
-		return nil, fmt.Errorf("could not list rate limits for tenant: %w", err)
-	}
-
-	mapRateLimitsForTenant := make(map[string]*dbsqlc.ListRateLimitsForTenantWithMutateRow)
-
-	for _, row := range rateLimitsForTenant {
-		mapRateLimitsForTenant[row.Key] = row
-	}
-
 	// store all step ids in the cache, so we can skip rate limiting for steps without rate limits
 	for stepId := range stepIdToStepRuns {
 		hasRateLimit := stepsWithRateLimits[stepId]
@@ -880,6 +868,8 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 
 		if err != nil {
 			q.l.Error().Err(err).Msg("error getting rate limits")
+
+			q.unackedToUnassigned(qis)
 			continue
 		}
 
@@ -896,6 +886,8 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 
 		if err != nil {
 			q.l.Error().Err(err).Msg("error getting desired labels")
+
+			q.unackedToUnassigned(qis)
 			continue
 		}
 
@@ -1064,6 +1056,19 @@ func (q *Queuer) ack(r *assignResults) {
 	for _, rateLimitedItem := range r.rateLimited {
 		delete(q.unacked, rateLimitedItem.qi.ID)
 		q.unassigned[rateLimitedItem.qi.ID] = rateLimitedItem.qi
+	}
+}
+
+func (q *Queuer) unackedToUnassigned(items []*dbsqlc.QueueItem) {
+	q.unackedMu.Lock()
+	defer q.unackedMu.Unlock()
+
+	q.unassignedMu.Lock()
+	defer q.unassignedMu.Unlock()
+
+	for _, item := range items {
+		delete(q.unacked, item.ID)
+		q.unassigned[item.ID] = item
 	}
 }
 
