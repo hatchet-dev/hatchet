@@ -2129,8 +2129,6 @@ func (s *stepRunEngineRepository) processStepRunUpdatesV2(
 
 			if err != nil {
 				// attempt to validate json for outputs
-
-				failParams := dbsqlc.BulkFailStepRunParams{}
 				finishParams := dbsqlc.BulkFinishStepRunParams{}
 
 				for _, item := range batch {
