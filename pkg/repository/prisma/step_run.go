@@ -2080,10 +2080,6 @@ func (s *stepRunEngineRepository) processStepRunUpdatesV2(
 		batch := item.Hash % s.updateConcurrentFactor
 
 		batches[batch] = append(batches[batch], item)
-
-		if item.Status != nil && dbsqlc.StepRunStatus(*item.Status) == dbsqlc.StepRunStatusSUCCEEDED {
-			completedStepRunIds = append(completedStepRunIds, sqlchelpers.UUIDFromStr(item.StepRunId))
-		}
 	}
 
 	var wrMu sync.Mutex
@@ -2164,6 +2160,7 @@ func (s *stepRunEngineRepository) processStepRunUpdatesV2(
 
 			wrMu.Lock()
 			completedWorkflowRuns = append(completedWorkflowRuns, innerCompletedWorkflowRuns...)
+			completedStepRunIds = append(completedStepRunIds, finishParams.Steprunids...)
 			wrMu.Unlock()
 
 			return nil
