@@ -3050,6 +3050,15 @@ func (q *Queries) UpsertDesiredWorkerLabel(ctx context.Context, db DBTX, arg Ups
 	return &i, err
 }
 
+const validatesAsJson = `-- name: ValidatesAsJson :exec
+SELECT $1::jsonb AS "is_valid"
+`
+
+func (q *Queries) ValidatesAsJson(ctx context.Context, db DBTX, input []byte) error {
+	_, err := db.Exec(ctx, validatesAsJson, input)
+	return err
+}
+
 const verifiedStepRunTenantIds = `-- name: VerifiedStepRunTenantIds :many
 WITH input AS (
     SELECT
