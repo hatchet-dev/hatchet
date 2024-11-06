@@ -8,6 +8,7 @@ import (
 	"hash/fnv"
 	"math/rand"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -2127,7 +2128,7 @@ func (s *stepRunEngineRepository) processStepRunUpdatesV2(
 
 			innerCompletedWorkflowRuns, err := s.bulkProcessStepRunUpdates(ctx, startParams, failParams, cancelParams, finishParams, batchStepRunIds, pgTenantId)
 
-			if err != nil {
+			if err != nil && strings.Contains(err.Error(), "SQLSTATE 22P02") {
 				// attempt to validate json for outputs
 				finishParams := dbsqlc.BulkFinishStepRunParams{}
 
@@ -2157,6 +2158,8 @@ func (s *stepRunEngineRepository) processStepRunUpdatesV2(
 				if err != nil {
 					return fmt.Errorf("could not process step run updates: %w", err)
 				}
+			} else if err != nil {
+				return fmt.Errorf("could not process step run updates: %w", err)
 			}
 
 			wrMu.Lock()
@@ -2508,14 +2511,16 @@ func (s *stepRunEngineRepository) StepRunSucceeded(ctx context.Context, tenantId
 		Jsondata:  output,
 	})
 
-	if err != nil {
-		s.l.Err(err).Msg("update job run lookup data with step run failed")
+	if err != nil && strings.Contains(err.Error(), "SQLSTATE 22P02") {
+		s.l.Err(err).Msg("update job run lookup data with step run failed due to invalid json")
 
 		validationErr := s.ValidateOutputs(ctx, output)
 
 		if validationErr != nil {
 			return s.StepRunFailed(ctx, tenantId, workflowRunId, stepRunId, finishedAt, "OUTPUT_NOT_VALID_JSON", 0)
 		}
+	} else if err != nil {
+		s.l.Err(err).Msg("update job run lookup data with step run failed")
 
 		return s.StepRunFailed(ctx, tenantId, workflowRunId, stepRunId, finishedAt, "FAILED_TO_WRITE_DATA", 0)
 	}
