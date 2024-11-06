@@ -16,6 +16,9 @@ import (
 
 	"github.com/hatchet-dev/hatchet/pkg/client/loader"
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
+
+	cloudrest "github.com/hatchet-dev/hatchet/pkg/client/cloud/rest"
+
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	"github.com/hatchet-dev/hatchet/pkg/config/client"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
@@ -28,6 +31,7 @@ type Client interface {
 	Event() EventClient
 	Subscribe() SubscribeClient
 	API() *rest.ClientWithResponses
+	CloudAPI() *cloudrest.ClientWithResponses
 	TenantId() string
 	Namespace() string
 }
@@ -40,6 +44,7 @@ type clientImpl struct {
 	event      EventClient
 	subscribe  SubscribeClient
 	rest       *rest.ClientWithResponses
+	cloudrest  *cloudrest.ClientWithResponses
 
 	// the tenant id
 	tenantId string
@@ -265,6 +270,15 @@ func newFromOpts(opts *ClientOpts) (Client, error) {
 		return nil, fmt.Errorf("could not create rest client: %w", err)
 	}
 
+	cloudrest, err := cloudrest.NewClientWithResponses(opts.serverURL, cloudrest.WithRequestEditorFn(func(ctx context.Context, req *http.Request) error {
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", opts.token))
+		return nil
+	}))
+
+	if err != nil {
+		return nil, fmt.Errorf("could not create cloud REST client: %w", err)
+	}
+
 	// if init workflows is set, then we need to initialize the workflows
 	if opts.initWorkflows {
 		if err := initWorkflows(opts.filesLoader, admin); err != nil {
@@ -282,6 +296,7 @@ func newFromOpts(opts *ClientOpts) (Client, error) {
 		event:      event,
 		v:          opts.v,
 		rest:       rest,
+		cloudrest:  cloudrest,
 		namespace:  opts.namespace,
 	}, nil
 }
@@ -304,6 +319,10 @@ func (c *clientImpl) Subscribe() SubscribeClient {
 
 func (c *clientImpl) API() *rest.ClientWithResponses {
 	return c.rest
+}
+
+func (c *clientImpl) CloudAPI() *cloudrest.ClientWithResponses {
+	return c.cloudrest
 }
 
 func (c *clientImpl) TenantId() string {
