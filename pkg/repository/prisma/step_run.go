@@ -2126,7 +2126,7 @@ func (s *stepRunEngineRepository) processStepRunUpdatesV2(
 
 			if err != nil && strings.Contains(err.Error(), "SQLSTATE 22P02") {
 				// attempt to validate json for outputs
-				finishParams := dbsqlc.BulkFinishStepRunParams{}
+				finishParams = dbsqlc.BulkFinishStepRunParams{}
 
 				for _, item := range batch {
 					stepRunId := sqlchelpers.UUIDFromStr(item.StepRunId)
