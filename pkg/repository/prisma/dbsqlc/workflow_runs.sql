@@ -1433,8 +1433,11 @@ JOIN
 	"StepRun" sr on sr."jobRunId" = jr."id"
 WHERE
 	wr."status" = 'FAILED' AND
-    sr."status" = ANY('{FAILED,CANCELLED}') AND
-    sr."cancelledReason" != 'CANCELLED_BY_USER' AND
+    sr."status" IN ('FAILED', 'CANCELLED') AND
+    (
+        sr."cancelledReason" IS NULL OR
+        sr."cancelledReason" NOT IN ('CANCELLED_BY_USER', 'PREVIOUS_STEP_TIMED_OUT', 'PREVIOUS_STEP_FAILED', 'PREVIOUS_STEP_CANCELLED', 'CANCELLED_BY_CONCURRENCY_LIMIT')
+    ) AND
 	wr."id" = @workflowRunId::uuid AND
     wr."tenantId" = @tenantId::uuid;
 
