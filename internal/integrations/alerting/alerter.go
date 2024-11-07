@@ -127,6 +127,10 @@ func (t *TenantAlertManager) sendWorkflowRunAlert(ctx context.Context, tenantAle
 		return err
 	}
 
+	if len(failedItems) == 0 {
+		return nil
+	}
+
 	// iterate through possible alerters
 	for _, slackWebhook := range tenantAlerting.SlackWebhooks {
 		if innerErr := t.sendSlackWorkflowRunAlert(slackWebhook, failedWorkflowRuns.Count, failedItems); innerErr != nil {
