@@ -8,6 +8,7 @@ import (
 	"hash/fnv"
 	"math/rand"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -2079,10 +2080,6 @@ func (s *stepRunEngineRepository) processStepRunUpdatesV2(
 		batch := item.Hash % s.updateConcurrentFactor
 
 		batches[batch] = append(batches[batch], item)
-
-		if item.Status != nil && dbsqlc.StepRunStatus(*item.Status) == dbsqlc.StepRunStatusSUCCEEDED {
-			completedStepRunIds = append(completedStepRunIds, sqlchelpers.UUIDFromStr(item.StepRunId))
-		}
 	}
 
 	var wrMu sync.Mutex
@@ -2093,14 +2090,7 @@ func (s *stepRunEngineRepository) processStepRunUpdatesV2(
 			continue
 		}
 
-		eg.Go(func() error {
-			tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, s.pool, s.l, 25000)
-
-			if err != nil {
-				return err
-			}
-
-			defer rollback()
+		fn := func() error {
 
 			startParams := dbsqlc.BulkStartStepRunParams{}
 			failParams := dbsqlc.BulkFailStepRunParams{}
@@ -2132,67 +2122,51 @@ func (s *stepRunEngineRepository) processStepRunUpdatesV2(
 				}
 			}
 
-			if len(startParams.Steprunids) > 0 {
-				err = s.queries.BulkStartStepRun(ctx, tx, startParams)
+			innerCompletedWorkflowRuns, err := s.bulkProcessStepRunUpdates(ctx, startParams, failParams, cancelParams, finishParams, batchStepRunIds, pgTenantId)
+
+			if err != nil && strings.Contains(err.Error(), "SQLSTATE 22P02") {
+				// attempt to validate json for outputs
+				finishParams = dbsqlc.BulkFinishStepRunParams{}
+
+				for _, item := range batch {
+					stepRunId := sqlchelpers.UUIDFromStr(item.StepRunId)
+
+					if item.Status == nil || dbsqlc.StepRunStatus(*item.Status) != dbsqlc.StepRunStatusSUCCEEDED {
+						continue
+					}
+
+					validationErr := s.ValidateOutputs(ctx, item.Output)
+
+					if validationErr != nil {
+						// put into failed params
+						failParams.Steprunids = append(failParams.Steprunids, stepRunId)
+						failParams.Finishedats = append(failParams.Finishedats, sqlchelpers.TimestampFromTime(*item.FinishedAt))
+						failParams.Errors = append(failParams.Errors, "OUTPUT_NOT_VALID_JSON")
+					} else {
+						finishParams.Steprunids = append(finishParams.Steprunids, stepRunId)
+						finishParams.Finishedats = append(finishParams.Finishedats, sqlchelpers.TimestampFromTime(*item.FinishedAt))
+						finishParams.Outputs = append(finishParams.Outputs, item.Output)
+					}
+				}
+
+				innerCompletedWorkflowRuns, err = s.bulkProcessStepRunUpdates(ctx, startParams, failParams, cancelParams, finishParams, batchStepRunIds, pgTenantId)
 
 				if err != nil {
-					return fmt.Errorf("could not start step runs: %w", err)
+					return fmt.Errorf("could not process step run updates: %w", err)
 				}
-			}
-
-			if len(failParams.Steprunids) > 0 {
-				err = s.queries.BulkFailStepRun(ctx, tx, failParams)
-
-				if err != nil {
-					return fmt.Errorf("could not fail step runs: %w", err)
-				}
-			}
-
-			if len(cancelParams.Steprunids) > 0 {
-
-				err = s.queries.BulkCancelStepRun(ctx, tx, cancelParams)
-
-				if err != nil {
-					return fmt.Errorf("could not cancel step runs: %w", err)
-				}
-			}
-
-			if len(finishParams.Steprunids) > 0 {
-				err = s.queries.BulkFinishStepRun(ctx, tx, finishParams)
-
-				if err != nil {
-					return fmt.Errorf("could not finish step runs: %w", err)
-				}
-			}
-
-			// update the job runs and workflow runs as well
-			jobRunIds, err := s.queries.ResolveJobRunStatus(ctx, tx, batchStepRunIds)
-
-			if err != nil {
-				return fmt.Errorf("could not resolve job run status: %w", err)
-			}
-
-			innerCompletedWorkflowRuns, err := s.queries.ResolveWorkflowRunStatus(ctx, tx, dbsqlc.ResolveWorkflowRunStatusParams{
-				Jobrunids: jobRunIds,
-				Tenantid:  pgTenantId,
-			})
-
-			if err != nil {
-				return fmt.Errorf("could not resolve workflow run status: %w", err)
-			}
-
-			err = commit(ctx)
-
-			if err != nil {
-				return fmt.Errorf("could not commit transaction: %w", err)
+			} else if err != nil {
+				return fmt.Errorf("could not process step run updates: %w", err)
 			}
 
 			wrMu.Lock()
 			completedWorkflowRuns = append(completedWorkflowRuns, innerCompletedWorkflowRuns...)
+			completedStepRunIds = append(completedStepRunIds, finishParams.Steprunids...)
 			wrMu.Unlock()
 
 			return nil
-		})
+		}
+
+		eg.Go(fn)
 	}
 
 	err = eg.Wait()
@@ -2211,6 +2185,92 @@ func (s *stepRunEngineRepository) processStepRunUpdatesV2(
 	}
 
 	return succeededStepRuns, completedWorkflowRuns, nil
+}
+
+func (s *stepRunEngineRepository) bulkProcessStepRunUpdates(ctx context.Context,
+	startParams dbsqlc.BulkStartStepRunParams,
+	failParams dbsqlc.BulkFailStepRunParams,
+	cancelParams dbsqlc.BulkCancelStepRunParams,
+	finishParams dbsqlc.BulkFinishStepRunParams,
+	batchStepRunIds []pgtype.UUID,
+	pgTenantId pgtype.UUID,
+) (completedWorkflowRuns []*dbsqlc.ResolveWorkflowRunStatusRow, err error) {
+
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, s.pool, s.l, 25000)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer rollback()
+
+	if len(finishParams.Steprunids) > 0 {
+		err = s.queries.BulkFinishStepRun(ctx, tx, finishParams)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not finish step runs: %w", err)
+		}
+	}
+
+	if len(startParams.Steprunids) > 0 {
+		err = s.queries.BulkStartStepRun(ctx, tx, startParams)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not start step runs: %w", err)
+		}
+	}
+
+	if len(failParams.Steprunids) > 0 {
+		err = s.queries.BulkFailStepRun(ctx, tx, failParams)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not fail step runs: %w", err)
+		}
+	}
+
+	if len(cancelParams.Steprunids) > 0 {
+
+		err = s.queries.BulkCancelStepRun(ctx, tx, cancelParams)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not cancel step runs: %w", err)
+		}
+	}
+
+	// update the job runs and workflow runs as well
+	jobRunIds, err := s.queries.ResolveJobRunStatus(ctx, tx, batchStepRunIds)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not resolve job run status: %w", err)
+	}
+
+	innerCompletedWorkflowRuns, err := s.queries.ResolveWorkflowRunStatus(ctx, tx, dbsqlc.ResolveWorkflowRunStatusParams{
+		Jobrunids: jobRunIds,
+		Tenantid:  pgTenantId,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("could not resolve workflow run status: %w", err)
+	}
+
+	err = commit(ctx)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not commit transaction: %w", err)
+	}
+
+	return innerCompletedWorkflowRuns, nil
+}
+
+func (s *stepRunEngineRepository) ValidateOutputs(ctx context.Context, output []byte) error {
+	// new tx for validation
+	validationTx, err := s.pool.Begin(ctx)
+
+	if err != nil {
+		return err
+	}
+
+	return s.queries.ValidatesAsJson(ctx, validationTx, output)
 }
 
 func (s *stepRunEngineRepository) CleanupQueueItems(ctx context.Context, tenantId string) error {
@@ -2448,8 +2508,18 @@ func (s *stepRunEngineRepository) StepRunSucceeded(ctx context.Context, tenantId
 		Jsondata:  output,
 	})
 
-	if err != nil {
-		return fmt.Errorf("could not update job run lookup data: %w", err)
+	if err != nil && strings.Contains(err.Error(), "SQLSTATE 22P02") {
+		s.l.Err(err).Msg("update job run lookup data with step run failed due to invalid json")
+
+		validationErr := s.ValidateOutputs(ctx, output)
+
+		if validationErr != nil {
+			return s.StepRunFailed(ctx, tenantId, workflowRunId, stepRunId, finishedAt, "OUTPUT_NOT_VALID_JSON", 0)
+		}
+	} else if err != nil {
+		s.l.Err(err).Msg("update job run lookup data with step run failed")
+
+		return s.StepRunFailed(ctx, tenantId, workflowRunId, stepRunId, finishedAt, "FAILED_TO_WRITE_DATA", 0)
 	}
 
 	if err := tx.Commit(ctx); err != nil {
