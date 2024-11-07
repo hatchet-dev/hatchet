@@ -13,6 +13,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/pkg/client"
+	"github.com/hatchet-dev/hatchet/pkg/client/compute"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	"github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/integrations"
@@ -35,6 +36,8 @@ type Action interface {
 
 	// Service returns the service that the action belongs to
 	Service() string
+
+	Compute() *compute.Compute
 }
 
 type actionImpl struct {
@@ -43,6 +46,8 @@ type actionImpl struct {
 	runConcurrencyAction GetWorkflowConcurrencyGroupFn
 	method               any
 	service              string
+
+	compute *compute.Compute
 }
 
 func (j *actionImpl) Name() string {
@@ -65,12 +70,18 @@ func (j *actionImpl) Service() string {
 	return j.service
 }
 
+func (j *actionImpl) Compute() *compute.Compute {
+	return j.compute
+}
+
+type ActionRegistry map[string]Action
+
 type Worker struct {
 	client client.Client
 
 	name string
 
-	actions map[string]Action
+	actions ActionRegistry
 
 	registered_workflows map[string]bool
 
@@ -199,7 +210,7 @@ func NewWorker(fs ...WorkerOpt) (*Worker, error) {
 		client:               opts.client,
 		name:                 opts.name,
 		l:                    opts.l,
-		actions:              map[string]Action{},
+		actions:              ActionRegistry{},
 		alerter:              opts.alerter,
 		middlewares:          mws,
 		maxRuns:              opts.maxRuns,
@@ -210,6 +221,7 @@ func NewWorker(fs ...WorkerOpt) (*Worker, error) {
 
 	mws.add(w.panicMiddleware)
 
+	// TODO: Remove integrations
 	// register all integrations
 	for _, integration := range opts.integrations {
 		actions := integration.Actions()
@@ -218,7 +230,7 @@ func NewWorker(fs ...WorkerOpt) (*Worker, error) {
 		for _, integrationAction := range actions {
 			action := fmt.Sprintf("%s:%s", integrationId, integrationAction)
 
-			err := w.registerAction(integrationId, action, integration.ActionHandler(integrationAction))
+			err := w.registerAction(integrationId, action, integration.ActionHandler(integrationAction), nil)
 
 			if err != nil {
 				return nil, fmt.Errorf("could not register integration action %s: %w", action, err)
@@ -291,10 +303,10 @@ func (w *Worker) RegisterAction(actionId string, method any) error {
 		return fmt.Errorf("could not parse action id: %w", err)
 	}
 
-	return w.registerAction(action.Service, action.Verb, method)
+	return w.registerAction(action.Service, action.Verb, method, nil)
 }
 
-func (w *Worker) registerAction(service, verb string, method any) error {
+func (w *Worker) registerAction(service, verb string, method any, compute *compute.Compute) error {
 	actionId := fmt.Sprintf("%s:%s", service, verb)
 
 	// if the service is "concurrency", then this is a special action
@@ -304,6 +316,7 @@ func (w *Worker) registerAction(service, verb string, method any) error {
 			runConcurrencyAction: method.(GetWorkflowConcurrencyGroupFn),
 			method:               method,
 			service:              service,
+			compute:              compute,
 		}
 
 		return nil
@@ -327,6 +340,7 @@ func (w *Worker) registerAction(service, verb string, method any) error {
 		run:     actionFunc,
 		method:  method,
 		service: service,
+		compute: compute,
 	}
 
 	return nil
@@ -339,6 +353,7 @@ func (w *Worker) Start() (func() error, error) {
 	actionNames := []string{}
 
 	for _, action := range w.actions {
+
 		if w.client.RunnableActions() != nil {
 			if !slices.Contains(w.client.RunnableActions(), action.Name()) {
 				continue
@@ -349,6 +364,8 @@ func (w *Worker) Start() (func() error, error) {
 	}
 
 	w.l.Debug().Msgf("worker %s is listening for actions: %v", w.name, actionNames)
+
+	_ = NewManagedCompute(&w.actions, w.client, 1)
 
 	listener, id, err := w.client.Dispatcher().GetActionListener(ctx, &client.GetActionListenerRequest{
 		WorkerName: w.name,
