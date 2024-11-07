@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -338,8 +339,16 @@ func (w *Worker) Start() (func() error, error) {
 	actionNames := []string{}
 
 	for _, action := range w.actions {
+		if w.client.RunnableActions() != nil {
+			if !slices.Contains(w.client.RunnableActions(), action.Name()) {
+				continue
+			}
+		}
+
 		actionNames = append(actionNames, action.Name())
 	}
+
+	w.l.Debug().Msgf("worker %s is listening for actions: %v", w.name, actionNames)
 
 	listener, id, err := w.client.Dispatcher().GetActionListener(ctx, &client.GetActionListenerRequest{
 		WorkerName: w.name,

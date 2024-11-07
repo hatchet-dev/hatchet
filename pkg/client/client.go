@@ -34,6 +34,8 @@ type Client interface {
 	CloudAPI() *cloudrest.ClientWithResponses
 	TenantId() string
 	Namespace() string
+	CloudRegisterID() *string
+	RunnableActions() []string
 }
 
 type clientImpl struct {
@@ -50,6 +52,9 @@ type clientImpl struct {
 	tenantId string
 
 	namespace string
+
+	cloudRegisterID *string
+	runnableActions []string
 
 	l *zerolog.Logger
 
@@ -69,6 +74,9 @@ type ClientOpts struct {
 	serverURL string
 	token     string
 	namespace string
+
+	cloudRegisterID *string
+	runnableActions []string
 
 	filesLoader   filesLoaderFunc
 	initWorkflows bool
@@ -103,15 +111,17 @@ func defaultClientOpts(token *string, cf *client.ClientConfigFile) *ClientOpts {
 	logger := logger.NewDefaultLogger("client")
 
 	return &ClientOpts{
-		tenantId:    clientConfig.TenantId,
-		token:       clientConfig.Token,
-		l:           &logger,
-		v:           validator.NewDefaultValidator(),
-		tls:         clientConfig.TLSConfig,
-		hostPort:    clientConfig.GRPCBroadcastAddress,
-		serverURL:   clientConfig.ServerURL,
-		filesLoader: types.DefaultLoader,
-		namespace:   clientConfig.Namespace,
+		tenantId:        clientConfig.TenantId,
+		token:           clientConfig.Token,
+		l:               &logger,
+		v:               validator.NewDefaultValidator(),
+		tls:             clientConfig.TLSConfig,
+		hostPort:        clientConfig.GRPCBroadcastAddress,
+		serverURL:       clientConfig.ServerURL,
+		filesLoader:     types.DefaultLoader,
+		namespace:       clientConfig.Namespace,
+		cloudRegisterID: clientConfig.CloudRegisterID,
+		runnableActions: clientConfig.RunnableActions,
 	}
 }
 
@@ -287,17 +297,19 @@ func newFromOpts(opts *ClientOpts) (Client, error) {
 	}
 
 	return &clientImpl{
-		conn:       conn,
-		tenantId:   opts.tenantId,
-		l:          opts.l,
-		admin:      admin,
-		dispatcher: dispatcher,
-		subscribe:  subscribe,
-		event:      event,
-		v:          opts.v,
-		rest:       rest,
-		cloudrest:  cloudrest,
-		namespace:  opts.namespace,
+		conn:            conn,
+		tenantId:        opts.tenantId,
+		l:               opts.l,
+		admin:           admin,
+		dispatcher:      dispatcher,
+		subscribe:       subscribe,
+		event:           event,
+		v:               opts.v,
+		rest:            rest,
+		cloudrest:       cloudrest,
+		namespace:       opts.namespace,
+		cloudRegisterID: opts.cloudRegisterID,
+		runnableActions: opts.runnableActions,
 	}, nil
 }
 
@@ -331,6 +343,14 @@ func (c *clientImpl) TenantId() string {
 
 func (c *clientImpl) Namespace() string {
 	return c.namespace
+}
+
+func (c *clientImpl) CloudRegisterID() *string {
+	return c.cloudRegisterID
+}
+
+func (c *clientImpl) RunnableActions() []string {
+	return c.runnableActions
 }
 
 func initWorkflows(fl filesLoaderFunc, adminClient AdminClient) error {

@@ -18,6 +18,9 @@ type ClientConfigFile struct {
 	TLS ClientTLSConfigFile `mapstructure:"tls" json:"tls,omitempty"`
 
 	Namespace string `mapstructure:"namespace" json:"namespace,omitempty"`
+
+	CloudRegisterID    *string  `mapstructure:"cloudRegisterID" json:"cloudRegisterID,omitempty"`
+	RawRunnableActions []string `mapstructure:"runnableActions" json:"runnableActions,omitempty"`
 }
 
 type ClientTLSConfigFile struct {
@@ -37,6 +40,9 @@ type ClientConfig struct {
 	TLSConfig *tls.Config
 
 	Namespace string
+
+	CloudRegisterID *string
+	RunnableActions []string
 }
 
 func BindAllEnv(v *viper.Viper) {
@@ -44,6 +50,9 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("token", "HATCHET_CLIENT_TOKEN")
 	_ = v.BindEnv("hostPort", "HATCHET_CLIENT_HOST_PORT")
 	_ = v.BindEnv("namespace", "HATCHET_CLIENT_NAMESPACE")
+
+	_ = v.BindEnv("cloudRegisterID", "HATCHET_CLIENT_CLOUD_REGISTER_ID")
+	_ = v.BindEnv("runnableActions", "HATCHET_CLOUD_ACTIONS")
 
 	// tls options
 	_ = v.BindEnv("tls.base.tlsStrategy", "HATCHET_CLIENT_TLS_STRATEGY")

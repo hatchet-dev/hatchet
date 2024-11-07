@@ -365,7 +365,7 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, error
 				continue
 			}
 
-			a.l.Debug().Msgf("Received action type: %s", actionType)
+			a.l.Debug().Msgf("Received action type: %s for action: %s", actionType, assignedAction.ActionId)
 
 			unquoted := assignedAction.ActionPayload
 
