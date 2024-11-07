@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-co-op/gocron/v2"
 	"github.com/goccy/go-json"
+	"github.com/hashicorp/go-multierror"
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/datautils/merge"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
+	"github.com/hatchet-dev/hatchet/internal/queueutils"
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
@@ -665,13 +667,31 @@ func (ec *JobsControllerImpl) runStepRunReassignTenant(ctx context.Context, tena
 	ctx, span := telemetry.NewSpan(ctx, "handle-step-run-reassign")
 	defer span.End()
 
-	_, err := ec.repo.StepRun().ListStepRunsToReassign(ctx, tenantId)
+	_, stepRunsToFail, err := ec.repo.StepRun().ListStepRunsToReassign(ctx, tenantId)
 
 	if err != nil {
 		return fmt.Errorf("could not list step runs to reassign for tenant %s: %w", tenantId, err)
 	}
 
-	return nil
+	return queueutils.BatchConcurrent(50, stepRunsToFail, func(stepRuns []*dbsqlc.GetStepRunForEngineRow) error {
+		var innerErr error
+
+		for _, stepRun := range stepRuns {
+			err := ec.failStepRun(
+				ctx,
+				tenantId,
+				sqlchelpers.UUIDToStr(stepRun.SRID),
+				"Worker has become inactive, and we exhausted all retries.",
+				time.Now(),
+			)
+
+			if err != nil {
+				innerErr = multierror.Append(innerErr, err)
+			}
+		}
+
+		return innerErr
+	})
 }
 
 func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId, stepId, stepRunId string, isRetry bool) error {

@@ -1297,6 +1297,9 @@ model StepRun {
   // which retry we're on for this step run
   retryCount Int @default(0)
 
+  // the internal retry count for this step run
+  internalRetryCount Int @default(0)
+
   // the run error
   error String?
 

@@ -25,7 +25,7 @@ export default memo(({ data }: { data: StepRunNodeProps }) => {
   const stepRun = data.stepRun;
 
   return (
-    <div className="flex flex-col justify-start min-w-fit">
+    <div className="flex flex-col justify-start min-w-fit grow">
       {(variant == 'default' || variant == 'input_only') && (
         <Handle
           type="target"

@@ -638,40 +638,53 @@ func (s *stepRunEngineRepository) ListStepRunsToCancel(ctx context.Context, tena
 	return res, err
 }
 
-func (s *stepRunEngineRepository) ListStepRunsToReassign(ctx context.Context, tenantId string) ([]string, error) {
+func (s *stepRunEngineRepository) ListStepRunsToReassign(ctx context.Context, tenantId string) ([]string, []*dbsqlc.GetStepRunForEngineRow, error) {
 	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
 
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, s.pool, s.l, 5000)
 
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	defer rollback()
 
 	// get the step run and make sure it's still in pending
-	stepRunReassign, err := s.queries.ListStepRunsToReassign(ctx, tx, pgTenantId)
+	results, err := s.queries.ListStepRunsToReassign(ctx, tx, pgTenantId)
 
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	stepRunIds := make([]pgtype.UUID, len(stepRunReassign))
-	stepRunIdsStr := make([]string, len(stepRunReassign))
-	workerIds := make([]pgtype.UUID, len(stepRunReassign))
-	retryCounts := make([]int32, len(stepRunReassign))
+	stepRunIds := make([]pgtype.UUID, 0, len(results))
+	stepRunIdsStr := make([]string, 0, len(results))
+	workerIds := make([]pgtype.UUID, 0, len(results))
 
-	for i, sr := range stepRunReassign {
-		stepRunIds[i] = sr.ID
-		stepRunIdsStr[i] = sqlchelpers.UUIDToStr(sr.ID)
-		workerIds[i] = sr.WorkerId
-		retryCounts[i] = sr.RetryCount
+	failedStepRunIds := make([]pgtype.UUID, 0, len(results))
+
+	for _, sr := range results {
+		if sr.Operation == "REASSIGNED" {
+			stepRunIds = append(stepRunIds, sr.ID)
+			stepRunIdsStr = append(stepRunIdsStr, sqlchelpers.UUIDToStr(sr.ID))
+			workerIds = append(workerIds, sr.WorkerId)
+		} else if sr.Operation == "FAILED" {
+			failedStepRunIds = append(failedStepRunIds, sr.ID)
+		}
+	}
+
+	failedStepRunResults, err := s.queries.GetStepRunForEngine(ctx, tx, dbsqlc.GetStepRunForEngineParams{
+		Ids:      failedStepRunIds,
+		TenantId: pgTenantId,
+	})
+
+	if err != nil {
+		return nil, nil, err
 	}
 
 	err = commit(ctx)
 
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	for i, stepRunIdUUID := range stepRunIds {
@@ -695,7 +708,7 @@ func (s *stepRunEngineRepository) ListStepRunsToReassign(ctx context.Context, te
 		}
 	}
 
-	return stepRunIdsStr, nil
+	return stepRunIdsStr, failedStepRunResults, nil
 }
 
 func (s *stepRunEngineRepository) ListStepRunsToTimeout(ctx context.Context, tenantId string) (bool, []*dbsqlc.GetStepRunForEngineRow, error) {
