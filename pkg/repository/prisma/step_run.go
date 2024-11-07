@@ -609,6 +609,35 @@ func (s *stepRunEngineRepository) ListStepRuns(ctx context.Context, tenantId str
 	return res, err
 }
 
+func (s *stepRunEngineRepository) ListStepRunsToCancel(ctx context.Context, tenantId, jobRunId string) ([]*dbsqlc.GetStepRunForEngineRow, error) {
+	tx, err := s.pool.Begin(ctx)
+
+	if err != nil {
+		return nil, err
+	}
+
+	srs, err := s.queries.ListStepRunsToCancel(ctx, tx, dbsqlc.ListStepRunsToCancelParams{
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Jobrunid: sqlchelpers.UUIDFromStr(jobRunId),
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	res, err := s.queries.GetStepRunForEngine(ctx, tx, dbsqlc.GetStepRunForEngineParams{
+		Ids: srs,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	err = tx.Commit(ctx)
+
+	return res, err
+}
+
 func (s *stepRunEngineRepository) ListStepRunsToReassign(ctx context.Context, tenantId string) ([]string, error) {
 	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
 
@@ -2529,7 +2558,7 @@ func (s *stepRunEngineRepository) StepRunSucceeded(ctx context.Context, tenantId
 	return nil
 }
 
-func (s *stepRunEngineRepository) StepRunCancelled(ctx context.Context, tenantId, workflowRunId, stepRunId string, cancelledAt time.Time, cancelledReason string) error {
+func (s *stepRunEngineRepository) StepRunCancelled(ctx context.Context, tenantId, workflowRunId, stepRunId string, cancelledAt time.Time, cancelledReason string, propagate bool) error {
 	ctx, span := telemetry.NewSpan(ctx, "step-run-cancelled-db")
 	defer span.End()
 
@@ -2554,37 +2583,41 @@ func (s *stepRunEngineRepository) StepRunCancelled(ctx context.Context, tenantId
 	_, err = s.bulkStatusBuffer.BuffItem(tenantId, data)
 
 	if err != nil {
-		return fmt.Errorf("could not buffer step run succeeded: %w", err)
+		return fmt.Errorf("could not buffer step run cancelled: %w", err)
 	}
 
-	laterStepRuns, err := s.queries.GetLaterStepRuns(ctx, s.pool, sqlchelpers.UUIDFromStr(stepRunId))
+	if propagate {
+		laterStepRuns, err := s.queries.GetLaterStepRuns(ctx, s.pool, sqlchelpers.UUIDFromStr(stepRunId))
 
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return fmt.Errorf("could not get later step runs: %w", err)
-	}
-
-	var innerErr error
-
-	for _, laterStepRun := range laterStepRuns {
-		laterStepRunId := sqlchelpers.UUIDToStr(laterStepRun.ID)
-		cancelled := string(dbsqlc.StepRunStatusCANCELLED)
-		reason := "PREVIOUS_STEP_CANCELLED"
-
-		_, err := s.bulkStatusBuffer.BuffItem(tenantId, &updateStepRunQueueData{
-			Hash:            hashToBucket(sqlchelpers.UUIDFromStr(workflowRunId), s.maxHashFactor),
-			StepRunId:       laterStepRunId,
-			TenantId:        tenantId,
-			CancelledAt:     &cancelledAt,
-			CancelledReason: &reason,
-			Status:          &cancelled,
-		})
-
-		if err != nil {
-			innerErr = multierror.Append(innerErr, fmt.Errorf("could not buffer later step run cancelled: %w", err))
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return fmt.Errorf("could not get later step runs: %w", err)
 		}
+
+		var innerErr error
+
+		for _, laterStepRun := range laterStepRuns {
+			laterStepRunId := sqlchelpers.UUIDToStr(laterStepRun.ID)
+			cancelled := string(dbsqlc.StepRunStatusCANCELLED)
+			reason := "PREVIOUS_STEP_CANCELLED"
+
+			_, err := s.bulkStatusBuffer.BuffItem(tenantId, &updateStepRunQueueData{
+				Hash:            hashToBucket(sqlchelpers.UUIDFromStr(workflowRunId), s.maxHashFactor),
+				StepRunId:       laterStepRunId,
+				TenantId:        tenantId,
+				CancelledAt:     &cancelledAt,
+				CancelledReason: &reason,
+				Status:          &cancelled,
+			})
+
+			if err != nil {
+				innerErr = multierror.Append(innerErr, fmt.Errorf("could not buffer later step run cancelled: %w", err))
+			}
+		}
+
+		return innerErr
 	}
 
-	return innerErr
+	return nil
 }
 
 func (s *stepRunEngineRepository) StepRunFailed(ctx context.Context, tenantId, workflowRunId, stepRunId string, failedAt time.Time, errStr string, retryCount int) error {

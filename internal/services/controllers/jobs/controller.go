@@ -375,9 +375,7 @@ func (ec *JobsControllerImpl) handleJobRunCancelled(ctx context.Context, task *m
 		return fmt.Errorf("could not decode job task metadata: %w", err)
 	}
 
-	stepRuns, err := ec.repo.StepRun().ListStepRuns(ctx, metadata.TenantId, &repository.ListStepRunsOpts{
-		JobRunId: &payload.JobRunId,
-	})
+	stepRuns, err := ec.repo.StepRun().ListStepRunsToCancel(ctx, metadata.TenantId, payload.JobRunId)
 
 	if err != nil {
 		return fmt.Errorf("could not list step runs: %w", err)
@@ -398,7 +396,7 @@ func (ec *JobsControllerImpl) handleJobRunCancelled(ctx context.Context, task *m
 			return ec.mq.AddMessage(
 				ctx,
 				msgqueue.JOB_PROCESSING_QUEUE,
-				tasktypes.StepRunCancelToTask(stepRunCp, reason),
+				tasktypes.StepRunCancelToTask(stepRunCp, reason, false),
 			)
 		})
 	}
@@ -1168,10 +1166,10 @@ func (ec *JobsControllerImpl) handleStepRunCancel(ctx context.Context, task *msg
 		return fmt.Errorf("could not decode step run notify cancel task metadata: %w", err)
 	}
 
-	return ec.cancelStepRun(ctx, metadata.TenantId, payload.StepRunId, payload.CancelledReason)
+	return ec.cancelStepRun(ctx, metadata.TenantId, payload.StepRunId, payload.CancelledReason, payload.PropagateToChildren)
 }
 
-func (ec *JobsControllerImpl) cancelStepRun(ctx context.Context, tenantId, stepRunId, reason string) error {
+func (ec *JobsControllerImpl) cancelStepRun(ctx context.Context, tenantId, stepRunId, reason string, propagate bool) error {
 	ctx, span := telemetry.NewSpan(ctx, "cancel-step-run")
 	defer span.End()
 
@@ -1185,7 +1183,7 @@ func (ec *JobsControllerImpl) cancelStepRun(ctx context.Context, tenantId, stepR
 		return fmt.Errorf("could not get step run: %w", err)
 	}
 
-	err = ec.repo.StepRun().StepRunCancelled(ctx, tenantId, sqlchelpers.UUIDToStr(oldStepRun.WorkflowRunId), stepRunId, now, reason)
+	err = ec.repo.StepRun().StepRunCancelled(ctx, tenantId, sqlchelpers.UUIDToStr(oldStepRun.WorkflowRunId), stepRunId, now, reason, propagate)
 
 	if err != nil {
 		return fmt.Errorf("could not cancel step run: %w", err)
@@ -1193,7 +1191,7 @@ func (ec *JobsControllerImpl) cancelStepRun(ctx context.Context, tenantId, stepR
 
 	if !oldStepRun.SRWorkerId.Valid {
 		// this is not a fatal error
-		ec.l.Warn().Msgf("[cancelStepRun] step run %s has no worker id, skipping send of cancellation", stepRunId)
+		ec.l.Debug().Msgf("[cancelStepRun] step run %s has no worker id, skipping send of cancellation", stepRunId)
 
 		return nil
 	}

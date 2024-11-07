@@ -102,15 +102,11 @@ export const JobMiniMap: React.FC<JobMiniMapProps> = ({
   }, [steps, stepRuns]);
 
   return (
-    <div className="flex flex-row overflow-x-auto p-4 rounded-sm relative gap-1">
+    <div className="flex flex-row p-4 rounded-sm relative gap-1">
       {columns.map((column, colIndex) => (
         <div
           key={colIndex}
-          className="flex flex-col justify-start h-full"
-          style={{
-            width: `${100 / columns.length}%`,
-            minWidth: '150px', // Minimum width for readability
-          }}
+          className="flex flex-col justify-start h-full w-fit"
         >
           {column.map((step) => {
             const stepRun = normalizedStepRunsByStepId[step.metadata.id];

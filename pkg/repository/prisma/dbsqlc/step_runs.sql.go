@@ -2023,6 +2023,47 @@ func (q *Queries) ListStepRuns(ctx context.Context, db DBTX, arg ListStepRunsPar
 	return items, nil
 }
 
+const listStepRunsToCancel = `-- name: ListStepRunsToCancel :many
+SELECT
+    DISTINCT ON ("StepRun"."id")
+    "StepRun"."id"
+FROM
+    "StepRun"
+JOIN
+    "JobRun" ON "StepRun"."jobRunId" = "JobRun"."id"
+WHERE
+    "StepRun"."deletedAt" IS NULL AND
+    "JobRun"."deletedAt" IS NULL AND
+    "StepRun"."tenantId" = $1::uuid AND
+    "StepRun"."jobRunId" = $2::uuid AND
+    "StepRun"."status" = ANY(ARRAY['PENDING', 'PENDING_ASSIGNMENT', 'ASSIGNED', 'RUNNING']::"StepRunStatus"[])
+`
+
+type ListStepRunsToCancelParams struct {
+	Tenantid pgtype.UUID `json:"tenantid"`
+	Jobrunid pgtype.UUID `json:"jobrunid"`
+}
+
+func (q *Queries) ListStepRunsToCancel(ctx context.Context, db DBTX, arg ListStepRunsToCancelParams) ([]pgtype.UUID, error) {
+	rows, err := db.Query(ctx, listStepRunsToCancel, arg.Tenantid, arg.Jobrunid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []pgtype.UUID
+	for rows.Next() {
+		var id pgtype.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listStepRunsToReassign = `-- name: ListStepRunsToReassign :many
 WITH step_runs_to_reassign AS (
     SELECT

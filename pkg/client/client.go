@@ -228,7 +228,7 @@ func newFromOpts(opts *ClientOpts) (Client, error) {
 		grpc_retry.WithPerRetryTimeout(30 * time.Second),
 		grpc_retry.WithCodes(codes.ResourceExhausted, codes.Unavailable),
 		grpc_retry.WithOnRetryCallback(grpc_retry.OnRetryCallback(func(ctx context.Context, attempt uint, err error) {
-			fmt.Print(ctx, "grpc_retry attempt: %d, backoff for %v", attempt, err)
+			opts.l.Debug().Msgf("grpc_retry attempt: %d, backoff for %v", attempt, err)
 		})),
 	}
 	grpcOpts = append(grpcOpts, grpc.WithStreamInterceptor(grpc_retry.StreamClientInterceptor(retryOpts...)))

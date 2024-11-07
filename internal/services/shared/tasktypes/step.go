@@ -68,10 +68,11 @@ type StepRunRequeueTaskMetadata struct {
 }
 
 type StepRunCancelTaskPayload struct {
-	StepRunId       string `json:"step_run_id" validate:"required,uuid"`
-	CancelledReason string `json:"cancelled_reason" validate:"required"`
-	StepRetries     *int32 `json:"step_retries,omitempty"`
-	RetryCount      *int32 `json:"retry_count,omitempty"`
+	StepRunId           string `json:"step_run_id" validate:"required,uuid"`
+	CancelledReason     string `json:"cancelled_reason" validate:"required"`
+	StepRetries         *int32 `json:"step_retries,omitempty"`
+	RetryCount          *int32 `json:"retry_count,omitempty"`
+	PropagateToChildren bool   `json:"propagate_to_children"`
 }
 
 type StepRunCancelTaskMetadata struct {
@@ -255,15 +256,16 @@ func StepRunFailedToTask(stepRun *dbsqlc.GetStepRunForEngineRow, errorReason str
 	}
 }
 
-func StepRunCancelToTask(stepRun *dbsqlc.GetStepRunForEngineRow, reason string) *msgqueue.Message {
+func StepRunCancelToTask(stepRun *dbsqlc.GetStepRunForEngineRow, reason string, propagateToChildren bool) *msgqueue.Message {
 	stepRunId := sqlchelpers.UUIDToStr(stepRun.SRID)
 	tenantId := sqlchelpers.UUIDToStr(stepRun.SRTenantId)
 
 	payload, _ := datautils.ToJSONMap(StepRunCancelTaskPayload{
-		StepRunId:       stepRunId,
-		CancelledReason: reason,
-		StepRetries:     &stepRun.StepRetries,
-		RetryCount:      &stepRun.SRRetryCount,
+		StepRunId:           stepRunId,
+		CancelledReason:     reason,
+		StepRetries:         &stepRun.StepRetries,
+		RetryCount:          &stepRun.SRRetryCount,
+		PropagateToChildren: propagateToChildren,
 	})
 
 	metadata, _ := datautils.ToJSONMap(StepRunCancelTaskMetadata{

@@ -339,6 +339,21 @@ WHERE
         "StepRun"."tickerId" = sqlc.narg('tickerId')::uuid
     );
 
+-- name: ListStepRunsToCancel :many
+SELECT
+    DISTINCT ON ("StepRun"."id")
+    "StepRun"."id"
+FROM
+    "StepRun"
+JOIN
+    "JobRun" ON "StepRun"."jobRunId" = "JobRun"."id"
+WHERE
+    "StepRun"."deletedAt" IS NULL AND
+    "JobRun"."deletedAt" IS NULL AND
+    "StepRun"."tenantId" = @tenantId::uuid AND
+    "StepRun"."jobRunId" = @jobRunId::uuid AND
+    "StepRun"."status" = ANY(ARRAY['PENDING', 'PENDING_ASSIGNMENT', 'ASSIGNED', 'RUNNING']::"StepRunStatus"[]);
+
 -- name: QueueStepRun :exec
 UPDATE
     "StepRun"
