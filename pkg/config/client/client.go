@@ -51,7 +51,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("hostPort", "HATCHET_CLIENT_HOST_PORT")
 	_ = v.BindEnv("namespace", "HATCHET_CLIENT_NAMESPACE")
 
-	_ = v.BindEnv("cloudRegisterID", "HATCHET_CLIENT_CLOUD_REGISTER_ID")
+	_ = v.BindEnv("cloudRegisterID", "HATCHET_CLOUD_REGISTER_ID")
 	_ = v.BindEnv("runnableActions", "HATCHET_CLOUD_ACTIONS")
 
 	// tls options
