@@ -218,6 +218,20 @@ func newLeaseManager(conf *sharedConfig, tenantId pgtype.UUID) (*LeaseManager, <
 }
 
 func (l *LeaseManager) sendWorkerIds(workerIds []*ListActiveWorkersResult) {
+	defer func() {
+		if r := recover(); r != nil {
+			l.conf.l.Error().Interface("recovered", r).Msg("recovered from panic")
+		}
+	}()
+
+	// can't cleanup while sending
+	l.cleanupMu.Lock()
+	defer l.cleanupMu.Unlock()
+
+	if l.cleanedUp {
+		return
+	}
+
 	select {
 	case l.workersCh <- workerIds:
 	default:
@@ -225,6 +239,20 @@ func (l *LeaseManager) sendWorkerIds(workerIds []*ListActiveWorkersResult) {
 }
 
 func (l *LeaseManager) sendQueues(queues []string) {
+	defer func() {
+		if r := recover(); r != nil {
+			l.conf.l.Error().Interface("recovered", r).Msg("recovered from panic")
+		}
+	}()
+
+	// can't cleanup while sending
+	l.cleanupMu.Lock()
+	defer l.cleanupMu.Unlock()
+
+	if l.cleanedUp {
+		return
+	}
+
 	select {
 	case l.queuesCh <- queues:
 	default:
@@ -395,10 +423,7 @@ func (l *LeaseManager) loopForLeases(ctx context.Context) {
 }
 
 func (l *LeaseManager) cleanup(ctx context.Context) error {
-	if ok := l.cleanupMu.TryLock(); !ok {
-		return nil
-	}
-
+	l.cleanupMu.Lock()
 	defer l.cleanupMu.Unlock()
 
 	if l.cleanedUp {
