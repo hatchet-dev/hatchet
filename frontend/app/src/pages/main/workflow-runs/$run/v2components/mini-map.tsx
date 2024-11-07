@@ -13,7 +13,7 @@ interface MiniMapProps {
 
 export const MiniMap: React.FC<MiniMapProps> = ({ shape, onClick }) => {
   return (
-    <div className={cn(hasChildSteps(shape) && 'pb-12')}>
+    <div className={cn('grow', hasChildSteps(shape) && 'pb-12')}>
       {shape.jobRuns?.map(({ job, stepRuns }, idx) => {
         const steps = job?.steps;
 
@@ -106,7 +106,7 @@ export const JobMiniMap: React.FC<JobMiniMapProps> = ({
       {columns.map((column, colIndex) => (
         <div
           key={colIndex}
-          className="flex flex-col justify-start h-full w-fit"
+          className="flex flex-col justify-start h-full min-w-fit grow"
         >
           {column.map((step) => {
             const stepRun = normalizedStepRunsByStepId[step.metadata.id];
