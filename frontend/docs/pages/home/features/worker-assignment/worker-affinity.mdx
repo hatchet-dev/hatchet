@@ -159,6 +159,7 @@ Labels can also be set dynamically on workers using the `upsertLabels` method. T
 
 <Tabs items={['Python', 'Typescript', 'Golang']}>
   <Tabs.Tab>
+
 ```python
     @hatchet.step(
         desired_worker_labels={
@@ -183,39 +184,42 @@ Labels can also be set dynamically on workers using the `upsertLabels` method. T
 
         return {"worker": context.worker.id()}
 
-````
-  </Tabs.Tab>
-  <Tabs.Tab>
-```typescript
-  const affinity: Workflow = {
-    id: 'dynamic-affinity-workflow',
-    description: 'test',
-    steps: [
-      {
-        name: 'child-step1',
-        worker_labels: {
-          model: {
-            value: 'fancy-vision-model',
-            required: false,
-          },
-        },
-        run: async (ctx) => {
-          if (ctx.worker.labels().model !== 'fancy-vision-model') {
-            await ctx.worker.upsertLabels({ model: undefined });
-            await evictModel();
-            await loadNewModel("fancy-vision-model");
-            await ctx.worker.upsertLabels({ model: 'fancy-vision-model' });
-          }
-          // DO WORK
-          return { childStep1: 'childStep1 results!' };
-        },
-      },
-    ],
-  };
-````
+```
 
   </Tabs.Tab>
   <Tabs.Tab>
+
+```typescript
+const affinity: Workflow = {
+  id: "dynamic-affinity-workflow",
+  description: "test",
+  steps: [
+    {
+      name: "child-step1",
+      worker_labels: {
+        model: {
+          value: "fancy-vision-model",
+          required: false,
+        },
+      },
+      run: async (ctx) => {
+        if (ctx.worker.labels().model !== "fancy-vision-model") {
+          await ctx.worker.upsertLabels({ model: undefined });
+          await evictModel();
+          await loadNewModel("fancy-vision-model");
+          await ctx.worker.upsertLabels({ model: "fancy-vision-model" });
+        }
+        // DO WORK
+        return { childStep1: "childStep1 results!" };
+      },
+    },
+  ],
+};
+```
+
+  </Tabs.Tab>
+  <Tabs.Tab>
+
 ```go
 	err = w.RegisterWorkflow(
 		&worker.WorkflowJob{
@@ -260,6 +264,6 @@ Labels can also be set dynamically on workers using the `upsertLabels` method. T
     )
 
 ```
+
   </Tabs.Tab>
 </Tabs>
-```

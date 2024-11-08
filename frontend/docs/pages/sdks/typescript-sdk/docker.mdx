@@ -16,6 +16,7 @@ Before creating your Dockerfile, ensure your TypeScript worker:
 
 <Tabs items={['npm', 'pnpm', 'yarn']}>
   <Tabs.Tab>
+
 ```dockerfile
 # Stage 1: Build
 FROM node:18 AS builder
@@ -23,36 +24,47 @@ FROM node:18 AS builder
 WORKDIR /app
 
 # Copy package files
-COPY package*.json ./
+
+COPY package\*.json ./
 
 # Install dependencies
+
 RUN npm ci
 
 # Copy source code
+
 COPY . .
 
 # Build TypeScript
+
 RUN npm run build
 
 # Stage 2: Production
+
 FROM node:18-alpine
 
 WORKDIR /app
 
 # Copy package files
-COPY package*.json ./
+
+COPY package\*.json ./
 
 # Install production dependencies only
+
 RUN npm ci --omit=dev
 
 # Copy built assets from builder
+
 COPY --from=builder /app/dist ./dist
 
 # Set production environment
+
 ENV NODE_ENV=production
 
 # Start the worker
+
 CMD ["node", "dist/worker.js"]
+
 ```
 
 <Callout type="info">
@@ -61,6 +73,7 @@ CMD ["node", "dist/worker.js"]
   </Tabs.Tab>
 
   <Tabs.Tab>
+
 ```dockerfile
 # Stage 1: Build
 FROM node:18 AS builder
@@ -112,6 +125,7 @@ CMD ["node", "dist/worker.js"]
   </Tabs.Tab>
 
   <Tabs.Tab>
+
 ```dockerfile
 # Stage 1: Build
 FROM node:18 AS builder
@@ -119,36 +133,47 @@ FROM node:18 AS builder
 WORKDIR /app
 
 # Copy package files
+
 COPY package.json yarn.lock ./
 
 # Install dependencies
+
 RUN yarn install --frozen-lockfile
 
 # Copy source code
+
 COPY . .
 
 # Build TypeScript
+
 RUN yarn build
 
 # Stage 2: Production
+
 FROM node:18-alpine
 
 WORKDIR /app
 
 # Copy package files
+
 COPY package.json yarn.lock ./
 
 # Install production dependencies only
+
 RUN yarn install --frozen-lockfile --production
 
 # Copy built assets from builder
+
 COPY --from=builder /app/dist ./dist
 
 # Set production environment
+
 ENV NODE_ENV=production
 
 # Start the worker
+
 CMD ["node", "dist/worker.js"]
+
 ```
 
 <Callout type="info">
@@ -160,9 +185,11 @@ CMD ["node", "dist/worker.js"]
 ## Best Practices
 
 ### 1. Multi-stage Builds
+
 Using multi-stage builds helps create smaller production images by excluding build tools and development dependencies.
 
 ### 2. Dependency Caching
+
 ```dockerfile
 # Copy only package files first
 COPY package*.json ./
@@ -176,6 +203,7 @@ RUN <package-manager> install
 ```
 
 ### 3. Production Optimizations
+
 ```dockerfile
 # Set production environment
 ENV NODE_ENV=production
@@ -189,7 +217,9 @@ RUN yarn install --frozen-lockfile --production
 ```
 
 ### 4. TypeScript Configuration
+
 Ensure your `tsconfig.json` is properly configured:
+
 ```json
 {
   "compilerOptions": {
@@ -206,7 +236,9 @@ Ensure your `tsconfig.json` is properly configured:
 ```
 
 ### 5. `.dockerignore` File
+
 Remember to create a `.dockerignore` file to exclude unnecessary files:
+
 ```
 node_modules
 npm-debug.log

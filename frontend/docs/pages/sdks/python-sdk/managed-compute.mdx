@@ -15,6 +15,7 @@ This guide assumes you are already familiar with the basics of Hatchet and have 
 ## Basic Configuration
 
 ### Compute Configuration
+
 The `Compute` class allows you to define resource requirements for your workload directly in your Python code. You can define multiple compute configurations to use in your workflows on a step-by-step basis. This allows you to easily optimize your compute resources for different parts of your workflow.
 
 ```python
@@ -44,7 +45,8 @@ For a full list of configuration options, see the [Compute API documentation](..
 ## GPU Support
 
 <Callout type="warning">
-  GPU compute has limited region support and constraints. [See the GPU docs for more information](../../compute/gpu.mdx).
+  GPU compute has limited region support and constraints. [See the GPU docs for
+  more information](../../compute/gpu.mdx).
 </Callout>
 
 Hatchet Managed Compute supports GPU instances. You can define GPU compute configurations in the same way as CPU configurations, but with the addition of the `gpu` parameter.
@@ -63,10 +65,10 @@ gpu_compute = Compute(
 
 For a full list of configuration options, see the [Compute API documentation](../../compute/infra-as-code.mdx#gpu).
 
-
 ## Defining Compute Requirements in Workflows
 
 ### Workflow Definition
+
 Use compute configuration can then be passed to the `step` decorator to define compute requirements for each step in your workflow.
 
 ```python
@@ -104,6 +106,7 @@ class ManagedWorkflow:
 ## Worker Management
 
 ### Setting Up Workers
+
 Configure and start workers to execute your workflows as you would normally do with any other Hatchet worker:
 
 ```python

@@ -22,26 +22,30 @@ To utilize workers effectively, you need to register your workflows with the wor
 
 <Tabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
+
 ```python
 workflow = MyWorkflow()
 worker = hatchet.worker('test-worker', max_runs=4)
 worker.register_workflow(workflow)
 worker.start()
 ```
+
   </Tabs.Tab>
   <Tabs.Tab>
+
 ```typescript
 async function main() {
-  const worker = await hatchet.worker('example-worker');
+  const worker = await hatchet.worker("example-worker");
   await worker.registerWorkflow(workflow);
   worker.start();
 }
 
 main();
+```
 
-````
   </Tabs.Tab>
   <Tabs.Tab>
+
 ```go
 client, err := client.New(
     client.InitWorkflows(),
@@ -69,7 +73,7 @@ interruptCtx, cancel := cmdutils.InterruptContextFromChan(cmdutils.InterruptChan
 defer cancel()
 
 go worker.Start()
-````
+```
 
   </Tabs.Tab>
 </Tabs>

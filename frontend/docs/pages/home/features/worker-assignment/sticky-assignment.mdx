@@ -32,6 +32,7 @@ There are two strategies for setting sticky assignment:
 
 <Tabs items={['Python', 'Typescript', 'Golang']}>
   <Tabs.Tab>
+
 ```python
 @hatchet.workflow(
     on_events=["user:create"],
@@ -50,9 +51,11 @@ class StickyWorkflow:
     def step2(self, context: Context):
         return {"worker": context.worker.id()}
 
-````
+```
+
   </Tabs.Tab>
   <Tabs.Tab>
+
 ```typescript
 const myWorkflow: Workflow = {
   id: "my-workflow",
@@ -65,10 +68,11 @@ const myWorkflow: Workflow = {
     // Define your workflow steps here
   ],
 };
-````
+```
 
   </Tabs.Tab>
   <Tabs.Tab>
+
 ```go
 	err = w.RegisterWorkflow(
 		&worker.WorkflowJob{
@@ -96,6 +100,7 @@ const myWorkflow: Workflow = {
 		},
 	)
 ```
+
   </Tabs.Tab>
 </Tabs>
 
@@ -114,6 +119,7 @@ If either condition is not met, an error will be thrown when the child workflow 
 
 <Tabs items={['Python', 'Typescript', 'Golang']}>
   <Tabs.Tab>
+
 ```python
 @hatchet.workflow(
     on_events=["sticky:parent"],
@@ -124,7 +130,8 @@ class StickyWorkflow:
         ref = context.spawn_workflow('StickyChildWorkflow', {}, options={"sticky": True})
         await ref.result()
         return {"worker": context.worker.id()}
-````
+```
+
 ```python
 @hatchet.workflow(
 on_events=["sticky:child"],
@@ -135,37 +142,42 @@ class StickyChildWorkflow:
 def child(self, context: Context):
 return {"worker": context.worker.id()}
 
-````
+```
+
   </Tabs.Tab>
   <Tabs.Tab>
+
 ```typescript
 const parentWorkflow: Workflow = {
-  id: 'parent-sticky-workflow',
-  description: 'test',
+  id: "parent-sticky-workflow",
+  description: "test",
   steps: [
     {
-      name: 'step1',
+      name: "step1",
       run: async (ctx) => {
         const results: Promise<any>[] = [];
 
         for (let i = 0; i < 50; i++) {
-          const result = await ctx.spawnWorkflow(childWorkflow, {}, { sticky: true });
+          const result = await ctx.spawnWorkflow(
+            childWorkflow,
+            {},
+            { sticky: true },
+          );
           results.push(result.result());
         }
 
-        console.log('Results:', await Promise.all(results));
+        console.log("Results:", await Promise.all(results));
 
-        return { step1: 'step1 results!' };
+        return { step1: "step1 results!" };
       },
     },
-
-],
+  ],
 };
-
-````
+```
 
   </Tabs.Tab>
   <Tabs.Tab>
+
 ```go
 	err = w.RegisterWorkflow(
 		&worker.WorkflowJob{
@@ -194,6 +206,6 @@ const parentWorkflow: Workflow = {
     )
 
 ```
+
   </Tabs.Tab>
 </Tabs>
-```

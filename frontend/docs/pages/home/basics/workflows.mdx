@@ -24,6 +24,7 @@ These relationships are defined in code by specifying required parents in the `p
 
 <Tabs items={['Python', 'Typescript']}>
   <Tabs.Tab>
+
 ```python
 @hatchet.workflow(on_events=["question:create"])
 class BasicRagWorkflow:
@@ -60,9 +61,11 @@ class BasicRagWorkflow:
             "message": message,
         }
 
-````
+```
+
     </Tabs.Tab>
     <Tabs.Tab>
+
 ```typescript
 const workflow: Workflow = {
   id: 'basic-rag-workflow',
@@ -117,7 +120,7 @@ const workflow: Workflow = {
 
   ],
 };
-````
+```
 
     </Tabs.Tab>
 

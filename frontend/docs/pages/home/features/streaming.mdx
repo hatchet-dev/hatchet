@@ -59,6 +59,7 @@ async function listen_for_files() {
 ```
 
   </Tabs.Tab>
+
 ```go copy
 workflowRunId, err := c.Admin().RunWorkflow("stream-event-workflow", &streamEventInput{
   Index: 0,
@@ -78,7 +79,8 @@ if err != nil {
 panic(err)
 }
 
-````
+```
+
 </Tabs>
 
 ## Streaming from a Step Context
@@ -95,7 +97,7 @@ def step1(self, context: Context):
     context.put_stream('hello from step1')
     # continue with the step run...
     return {"step1": "results"}
-````
+```
 
   </Tabs.Tab>
   <Tabs.Tab>

@@ -117,6 +117,7 @@ Here is an example of how to push a single event:
 
 <Tabs items={['Python', 'Typescript', 'Golang']}>
   <Tabs.Tab>
+
 ```python
 from hatchet_sdk import Hatchet
 
@@ -129,9 +130,11 @@ hatchet.client.event.push(
 }
 )
 
-````
+```
+
   </Tabs.Tab>
   <Tabs.Tab>
+
 ```typescript
 import Hatchet from "@hatchet-dev/typescript-sdk";
 
@@ -140,10 +143,11 @@ const hatchet = Hatchet.init();
 hatchet.event.push("user:create", {
   test: "test",
 });
-````
+```
 
   </Tabs.Tab>
   <Tabs.Tab>
+
 ```go
 c, err := client.New(
   client.WithHostPort("127.0.0.1", 7077),
@@ -161,14 +165,16 @@ Name: "testing",
 },
 )
 
-````
+```
+
   </Tabs.Tab>
 </Tabs>
 
- Here is an example of how to push multiple events at once:
+Here is an example of how to push multiple events at once:
 
  <Tabs items={['Python', 'Typescript', 'Golang']}>
   <Tabs.Tab>
+
 ```python
 from hatchet_sdk import Hatchet
 
@@ -197,35 +203,37 @@ result =
 hatchet.client.event.bulk_push(
     events
 )
-````
+```
 
   </Tabs.Tab>
   <Tabs.Tab>
+
 ```typescript
 import Hatchet from "@hatchet-dev/typescript-sdk";
 
 const hatchet = Hatchet.init();
 
 const events = [
-{
-payload: { test: 'test1' },
-additionalMetadata: { user_id: 'user1', source: 'test' },
-},
-{
-payload: { test: 'test2' },
-additionalMetadata: { user_id: 'user2', source: 'test' },
-},
-{
-payload: { test: 'test3' },
-additionalMetadata: { user_id: 'user3', source: 'test' },
-},
+  {
+    payload: { test: "test1" },
+    additionalMetadata: { user_id: "user1", source: "test" },
+  },
+  {
+    payload: { test: "test2" },
+    additionalMetadata: { user_id: "user2", source: "test" },
+  },
+  {
+    payload: { test: "test3" },
+    additionalMetadata: { user_id: "user3", source: "test" },
+  },
 ];
 
-hatchet.event.bulkPush('user:create:bulk', events);
+hatchet.event.bulkPush("user:create:bulk", events);
+```
 
-````
   </Tabs.Tab>
   <Tabs.Tab>
+
 ```go
 c, err := client.New(
   client.WithHostPort("127.0.0.1", 7077),
@@ -256,7 +264,7 @@ c.Event().BulkPush(
   context.Background(),
   events,
 )
-````
+```
 
   </Tabs.Tab>
 </Tabs>
@@ -280,5 +288,3 @@ When working with event-driven workflows, consider the following best practices:
 ## Events Dashboard
 
 Hatchet provides a visual dashboard for monitoring and managing events. You can view incoming events, inspect event payloads, and configure event triggers directly from the dashboard. This makes it easy to monitor the flow of events and manage your event-driven workflows.
-
-{/* TODO Graphic */}
