@@ -13,11 +13,11 @@
   },
   "python": {
     "title": "Python ↗",
-    "href": "/sdks/python-sdk"
+    "href": "/sdks/python-sdk/docker"
   },
   "typescript": {
     "title": "TypeScript ↗",
-    "href": "/sdks/typescript-sdk"
+    "href": "/sdks/typescript-sdk/docker"
   },
   "golang": {
     "title": "Golang ↗",
