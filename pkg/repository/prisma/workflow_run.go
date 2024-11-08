@@ -38,7 +38,7 @@ type workflowRunAPIRepository struct {
 	m       *metered.Metered
 	cf      *server.ConfigFileRuntime
 
-	createCallbacks []repository.Callback[*dbsqlc.WorkflowRun]
+	createCallbacks []repository.TenantScopedCallback[*dbsqlc.WorkflowRun]
 
 	bulkCreateBuffer *buffer.TenantBufferManager[*repository.CreateWorkflowRunOpts, *dbsqlc.WorkflowRun]
 }
@@ -92,9 +92,9 @@ func (w *workflowRunAPIRepository) startBuffer(conf buffer.ConfigFileBuffer) err
 
 }
 
-func (w *workflowRunAPIRepository) RegisterCreateCallback(callback repository.Callback[*dbsqlc.WorkflowRun]) {
+func (w *workflowRunAPIRepository) RegisterCreateCallback(callback repository.TenantScopedCallback[*dbsqlc.WorkflowRun]) {
 	if w.createCallbacks == nil {
-		w.createCallbacks = make([]repository.Callback[*dbsqlc.WorkflowRun], 0)
+		w.createCallbacks = make([]repository.TenantScopedCallback[*dbsqlc.WorkflowRun], 0)
 	}
 
 	w.createCallbacks = append(w.createCallbacks, callback)
@@ -695,13 +695,13 @@ type workflowRunEngineRepository struct {
 	cf                *server.ConfigFileRuntime
 	stepRunRepository *stepRunEngineRepository
 
-	createCallbacks []repository.Callback[*dbsqlc.WorkflowRun]
-	queuedCallbacks []repository.Callback[pgtype.UUID]
+	createCallbacks []repository.TenantScopedCallback[*dbsqlc.WorkflowRun]
+	queuedCallbacks []repository.TenantScopedCallback[pgtype.UUID]
 
 	bulkCreateBuffer *buffer.TenantBufferManager[*repository.CreateWorkflowRunOpts, *dbsqlc.WorkflowRun]
 }
 
-func NewWorkflowRunEngineRepository(stepRunRepository *stepRunEngineRepository, pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, m *metered.Metered, cf *server.ConfigFileRuntime, cbs ...repository.Callback[*dbsqlc.WorkflowRun]) (repository.WorkflowRunEngineRepository, func() error, error) {
+func NewWorkflowRunEngineRepository(stepRunRepository *stepRunEngineRepository, pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, m *metered.Metered, cf *server.ConfigFileRuntime, cbs ...repository.TenantScopedCallback[*dbsqlc.WorkflowRun]) (repository.WorkflowRunEngineRepository, func() error, error) {
 	queries := dbsqlc.New()
 
 	w := workflowRunEngineRepository{
@@ -760,17 +760,17 @@ func sizeOfData(data *repository.CreateWorkflowRunOpts) int {
 	return size
 }
 
-func (w *workflowRunEngineRepository) RegisterCreateCallback(callback repository.Callback[*dbsqlc.WorkflowRun]) {
+func (w *workflowRunEngineRepository) RegisterCreateCallback(callback repository.TenantScopedCallback[*dbsqlc.WorkflowRun]) {
 	if w.createCallbacks == nil {
-		w.createCallbacks = make([]repository.Callback[*dbsqlc.WorkflowRun], 0)
+		w.createCallbacks = make([]repository.TenantScopedCallback[*dbsqlc.WorkflowRun], 0)
 	}
 
 	w.createCallbacks = append(w.createCallbacks, callback)
 }
 
-func (w *workflowRunEngineRepository) RegisterQueuedCallback(callback repository.Callback[pgtype.UUID]) {
+func (w *workflowRunEngineRepository) RegisterQueuedCallback(callback repository.TenantScopedCallback[pgtype.UUID]) {
 	if w.queuedCallbacks == nil {
-		w.queuedCallbacks = make([]repository.Callback[pgtype.UUID], 0)
+		w.queuedCallbacks = make([]repository.TenantScopedCallback[pgtype.UUID], 0)
 	}
 
 	w.queuedCallbacks = append(w.queuedCallbacks, callback)

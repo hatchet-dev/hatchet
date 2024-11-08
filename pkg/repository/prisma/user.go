@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
@@ -14,13 +15,25 @@ import (
 type userRepository struct {
 	client *db.PrismaClient
 	v      validator.Validator
+	l      *zerolog.Logger
+
+	createCallbacks []repository.UnscopedCallback[*db.UserModel]
 }
 
-func NewUserRepository(client *db.PrismaClient, v validator.Validator) repository.UserRepository {
+func NewUserRepository(client *db.PrismaClient, l *zerolog.Logger, v validator.Validator) repository.UserRepository {
 	return &userRepository{
 		client: client,
 		v:      v,
+		l:      l,
 	}
+}
+
+func (w *userRepository) RegisterCreateCallback(callback repository.UnscopedCallback[*db.UserModel]) {
+	if w.createCallbacks == nil {
+		w.createCallbacks = make([]repository.UnscopedCallback[*db.UserModel], 0)
+	}
+
+	w.createCallbacks = append(w.createCallbacks, callback)
 }
 
 func (r *userRepository) GetUserByID(id string) (*db.UserModel, error) {
@@ -94,8 +107,13 @@ func (r *userRepository) CreateUser(opts *repository.CreateUserOpts) (*db.UserMo
 	if err := r.client.Prisma.Transaction(txs...).Exec(context.Background()); err != nil {
 		return nil, err
 	}
+	res := createTx.Result()
 
-	return createTx.Result(), nil
+	for _, cb := range r.createCallbacks {
+		cb.Do(r.l, res)
+	}
+
+	return res, nil
 }
 
 func (r *userRepository) UpdateUser(id string, opts *repository.UpdateUserOpts) (*db.UserModel, error) {

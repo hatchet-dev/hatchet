@@ -445,7 +445,7 @@ type ListCronWorkflowsOpts struct {
 }
 
 type WorkflowRunAPIRepository interface {
-	RegisterCreateCallback(callback Callback[*dbsqlc.WorkflowRun])
+	RegisterCreateCallback(callback TenantScopedCallback[*dbsqlc.WorkflowRun])
 
 	// ListWorkflowRuns returns workflow runs for a given workflow version id.
 	ListWorkflowRuns(ctx context.Context, tenantId string, opts *ListWorkflowRunsOpts) (*ListWorkflowRunsResult, error)
@@ -504,8 +504,8 @@ type ChildWorkflowRun struct {
 }
 
 type WorkflowRunEngineRepository interface {
-	RegisterCreateCallback(callback Callback[*dbsqlc.WorkflowRun])
-	RegisterQueuedCallback(callback Callback[pgtype.UUID])
+	RegisterCreateCallback(callback TenantScopedCallback[*dbsqlc.WorkflowRun])
+	RegisterQueuedCallback(callback TenantScopedCallback[pgtype.UUID])
 
 	// ListWorkflowRuns returns workflow runs for a given workflow version id.
 	ListWorkflowRuns(ctx context.Context, tenantId string, opts *ListWorkflowRunsOpts) (*ListWorkflowRunsResult, error)

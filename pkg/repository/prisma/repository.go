@@ -107,7 +107,7 @@ func NewAPIRepository(client *db.PrismaClient, pool *pgxpool.Pool, cf *server.Co
 		sns:            NewSNSRepository(client, opts.v),
 		worker:         NewWorkerAPIRepository(client, pool, opts.v, opts.l, opts.metered),
 		userSession:    NewUserSessionRepository(client, opts.v),
-		user:           NewUserRepository(client, opts.v),
+		user:           NewUserRepository(client, opts.l, opts.v),
 		health:         NewHealthAPIRepository(client, pool),
 		securityCheck:  NewSecurityCheckRepository(client, pool),
 		webhookWorker:  NewWebhookWorkerRepository(client, opts.v),

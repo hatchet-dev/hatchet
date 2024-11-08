@@ -443,6 +443,7 @@ CREATE TABLE "StepRun" (
     "semaphoreReleased" BOOLEAN NOT NULL DEFAULT false,
     "queue" TEXT NOT NULL DEFAULT 'default',
     "priority" INTEGER,
+    "internalRetryCount" INTEGER NOT NULL DEFAULT 0,
 
     CONSTRAINT "StepRun_pkey" PRIMARY KEY ("id")
 );

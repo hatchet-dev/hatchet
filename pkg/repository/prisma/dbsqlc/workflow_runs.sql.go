@@ -1301,6 +1301,71 @@ func (q *Queries) GetChildWorkflowRunsByKey(ctx context.Context, db DBTX, arg Ge
 	return items, nil
 }
 
+const getFailureDetails = `-- name: GetFailureDetails :many
+SELECT
+	wr."status",
+	wr."id",
+	jr."status" as "jrStatus",
+	sr."status" as "srStatus",
+	sr."cancelledReason",
+	sr."error"
+FROM "WorkflowRun" wr
+JOIN
+	"JobRun" jr on jr."workflowRunId" = wr."id"
+JOIN
+	"StepRun" sr on sr."jobRunId" = jr."id"
+WHERE
+	wr."status" = 'FAILED' AND
+    sr."status" IN ('FAILED', 'CANCELLED') AND
+    (
+        sr."cancelledReason" IS NULL OR
+        sr."cancelledReason" NOT IN ('CANCELLED_BY_USER', 'PREVIOUS_STEP_TIMED_OUT', 'PREVIOUS_STEP_FAILED', 'PREVIOUS_STEP_CANCELLED', 'CANCELLED_BY_CONCURRENCY_LIMIT')
+    ) AND
+	wr."id" = $1::uuid AND
+    wr."tenantId" = $2::uuid
+`
+
+type GetFailureDetailsParams struct {
+	Workflowrunid pgtype.UUID `json:"workflowrunid"`
+	Tenantid      pgtype.UUID `json:"tenantid"`
+}
+
+type GetFailureDetailsRow struct {
+	Status          WorkflowRunStatus `json:"status"`
+	ID              pgtype.UUID       `json:"id"`
+	JrStatus        JobRunStatus      `json:"jrStatus"`
+	SrStatus        StepRunStatus     `json:"srStatus"`
+	CancelledReason pgtype.Text       `json:"cancelledReason"`
+	Error           pgtype.Text       `json:"error"`
+}
+
+func (q *Queries) GetFailureDetails(ctx context.Context, db DBTX, arg GetFailureDetailsParams) ([]*GetFailureDetailsRow, error) {
+	rows, err := db.Query(ctx, getFailureDetails, arg.Workflowrunid, arg.Tenantid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*GetFailureDetailsRow
+	for rows.Next() {
+		var i GetFailureDetailsRow
+		if err := rows.Scan(
+			&i.Status,
+			&i.ID,
+			&i.JrStatus,
+			&i.SrStatus,
+			&i.CancelledReason,
+			&i.Error,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getScheduledChildWorkflowRun = `-- name: GetScheduledChildWorkflowRun :one
 SELECT
     id, "parentId", "triggerAt", "tickerId", input, "childIndex", "childKey", "parentStepRunId", "parentWorkflowRunId", "additionalMetadata", "createdAt", "deletedAt", "updatedAt"
@@ -2101,6 +2166,8 @@ WITH QueuedRuns AS (
         wr."tenantId" = $1::uuid
         AND wr."status" = 'QUEUED'
 		AND wr."concurrencyGroupId" IS NOT NULL
+        AND wr."deletedAt" IS NULL
+        AND wv."deletedAt" IS NULL
     ORDER BY wr."workflowVersionId"
 )
 SELECT

@@ -339,6 +339,21 @@ WHERE
         "StepRun"."tickerId" = sqlc.narg('tickerId')::uuid
     );
 
+-- name: ListStepRunsToCancel :many
+SELECT
+    DISTINCT ON ("StepRun"."id")
+    "StepRun"."id"
+FROM
+    "StepRun"
+JOIN
+    "JobRun" ON "StepRun"."jobRunId" = "JobRun"."id"
+WHERE
+    "StepRun"."deletedAt" IS NULL AND
+    "JobRun"."deletedAt" IS NULL AND
+    "StepRun"."tenantId" = @tenantId::uuid AND
+    "StepRun"."jobRunId" = @jobRunId::uuid AND
+    "StepRun"."status" = ANY(ARRAY['PENDING', 'PENDING_ASSIGNMENT', 'ASSIGNED', 'RUNNING']::"StepRunStatus"[]);
+
 -- name: QueueStepRun :exec
 UPDATE
     "StepRun"
@@ -432,6 +447,9 @@ FROM (
     ) AS input
 WHERE
     "StepRun"."id" = input."id";
+
+-- name: ValidatesAsJson :exec
+SELECT @input::jsonb AS "is_valid";
 
 -- name: BulkFinishStepRun :exec
 UPDATE
@@ -623,12 +641,13 @@ FROM step_run_data
 RETURNING *;
 
 -- name: ListStepRunsToReassign :many
-WITH step_runs_to_reassign AS (
+WITH step_runs_on_inactive_workers AS (
     SELECT
         sr."id",
         sr."tenantId",
         sr."scheduleTimeoutAt",
         sr."retryCount",
+        sr."internalRetryCount",
         sqi."workerId",
         s."actionId",
         s."id" AS "stepId",
@@ -646,12 +665,28 @@ WITH step_runs_to_reassign AS (
         w."tenantId" = @tenantId::uuid
         AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
 ),
+step_runs_to_reassign AS (
+    SELECT
+        *
+    FROM
+        step_runs_on_inactive_workers
+    WHERE
+        "internalRetryCount" < 1
+),
+step_runs_to_fail AS (
+    SELECT
+        *
+    FROM
+        step_runs_on_inactive_workers
+    WHERE
+        "internalRetryCount" >= 1
+),
 deleted_sqis AS (
     DELETE FROM
         "SemaphoreQueueItem" sqi
     -- delete when step run id AND worker id tuples match
     USING
-        step_runs_to_reassign srs
+        step_runs_on_inactive_workers srs
     WHERE
         sqi."stepRunId" = srs."id"
         AND sqi."workerId" = srs."workerId"
@@ -661,7 +696,7 @@ deleted_tqis AS (
         "TimeoutQueueItem" tqi
     -- delete when step run id AND retry count tuples match
     USING
-        step_runs_to_reassign srs
+        step_runs_on_inactive_workers srs
     WHERE
         tqi."stepRunId" = srs."id"
         AND tqi."retryCount" = srs."retryCount"
@@ -697,17 +732,27 @@ updated_step_runs AS (
     SET
         "status" = 'PENDING_ASSIGNMENT',
         "scheduleTimeoutAt" = CURRENT_TIMESTAMP + COALESCE(convert_duration_to_interval(srs."scheduleTimeout"), INTERVAL '5 minutes'),
-        "updatedAt" = CURRENT_TIMESTAMP
+        "updatedAt" = CURRENT_TIMESTAMP,
+        "internalRetryCount" = sr."internalRetryCount" + 1
     FROM step_runs_to_reassign srs
     WHERE sr."id" = srs."id"
     RETURNING sr."id"
 )
 SELECT
-    srs."id",
-    srs."workerId",
-    srs."retryCount"
+    srs1."id",
+    srs1."workerId",
+    srs1."retryCount",
+    'REASSIGNED' AS "operation"
 FROM
-    step_runs_to_reassign srs;
+    step_runs_to_reassign srs1
+UNION ALL
+SELECT
+    srs2."id",
+    srs2."workerId",
+    srs2."retryCount",
+    'FAILED' AS "operation"
+FROM
+    step_runs_to_fail srs2;
 
 -- name: ListStepRunsToTimeout :many
 SELECT "id"

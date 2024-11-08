@@ -18,7 +18,7 @@ export const ViewToggle: React.FC<Props> = ({ shape }) => {
   }
 
   return (
-    <div className="flex items-center space-x-2 absolute bottom-2 right-2 z-20">
+    <div className="sticky ml-auto mt-auto bottom-2 right-2 z-20">
       <Button variant="outline" size="icon" onClick={() => setView(otherView)}>
         {view == 'minimap' && <BiExpand />}
         {view == 'graph' && <BiExitFullscreen />}

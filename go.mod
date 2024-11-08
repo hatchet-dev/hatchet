@@ -38,8 +38,8 @@ require (
 	go.opentelemetry.io/otel/trace v1.31.0
 	go.uber.org/goleak v1.3.0
 	golang.org/x/exp v0.0.0-20240613232115-7f521ea00fb8
-	golang.org/x/time v0.7.0
-	google.golang.org/api v0.204.0
+	golang.org/x/time v0.8.0
+	google.golang.org/api v0.205.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20241015192408-796eee8c2d53
 	k8s.io/api v0.31.2
 	k8s.io/apimachinery v0.31.2
@@ -48,7 +48,8 @@ require (
 )
 
 require (
-	cloud.google.com/go/auth v0.10.0 // indirect
+	cel.dev/expr v0.18.0 // indirect
+	cloud.google.com/go/auth v0.10.1 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.5 // indirect
 	cloud.google.com/go/compute/metadata v0.5.2 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.0 // indirect
@@ -130,7 +131,7 @@ require (
 	github.com/go-playground/validator/v10 v10.22.1
 	github.com/go-test/deep v1.1.0 // indirect
 	github.com/goccy/go-json v0.10.3
-	github.com/google/cel-go v0.21.0
+	github.com/google/cel-go v0.22.0
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/schema v1.4.1
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.1.0
@@ -154,10 +155,10 @@ require (
 	github.com/subosito/gotenv v1.6.0 // indirect
 	golang.org/x/crypto v0.28.0
 	golang.org/x/net v0.30.0 // indirect
-	golang.org/x/oauth2 v0.23.0
-	golang.org/x/sync v0.8.0
+	golang.org/x/oauth2 v0.24.0
+	golang.org/x/sync v0.9.0
 	golang.org/x/sys v0.26.0 // indirect
-	golang.org/x/text v0.19.0
+	golang.org/x/text v0.20.0
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20241021214115-324edc3d5d38 // indirect
 	google.golang.org/grpc v1.67.1
 	google.golang.org/protobuf v1.35.1

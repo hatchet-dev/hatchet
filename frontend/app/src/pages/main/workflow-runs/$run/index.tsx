@@ -67,8 +67,7 @@ export default function ExpandedWorkflowRun() {
           refetch={() => shape.refetch()}
         />
         <Separator className="my-4" />
-        <div className="w-full max-h-[400px] overflow-auto relative bg-slate-100 dark:bg-slate-900">
-          {shape.data && <ViewToggle shape={shape.data} />}
+        <div className="w-full h-fit flex overflow-auto relative bg-slate-100 dark:bg-slate-900">
           {shape.data && view == 'graph' && hasChildSteps(shape.data) && (
             <WorkflowRunVisualizer
               shape={shape.data}
@@ -99,8 +98,8 @@ export default function ExpandedWorkflowRun() {
               }
             />
           )}
+          {shape.data && <ViewToggle shape={shape.data} />}
         </div>
-
         <div className="h-4" />
         <Tabs defaultValue="activity">
           <TabsList layout="underlined">

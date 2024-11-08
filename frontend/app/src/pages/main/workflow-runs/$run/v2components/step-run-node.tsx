@@ -25,7 +25,7 @@ export default memo(({ data }: { data: StepRunNodeProps }) => {
   const stepRun = data.stepRun;
 
   return (
-    <div className="flex flex-col justify-start min-w-fit">
+    <div className="flex flex-col justify-start min-w-fit grow">
       {(variant == 'default' || variant == 'input_only') && (
         <Handle
           type="target"
@@ -48,7 +48,7 @@ export default memo(({ data }: { data: StepRunNodeProps }) => {
           height: '30px',
           opacity: isHovering ? 1 : 0.8,
         }}
-        onClick={() => data.onClick(TabOption.ChildWorkflowRuns)}
+        onClick={() => data.onClick()}
         onMouseEnter={() => setIsHovering(true)}
         onMouseLeave={() => setIsHovering(false)}
       >

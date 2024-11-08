@@ -1212,6 +1212,8 @@ WITH QueuedRuns AS (
         wr."tenantId" = @tenantId::uuid
         AND wr."status" = 'QUEUED'
 		AND wr."concurrencyGroupId" IS NOT NULL
+        AND wr."deletedAt" IS NULL
+        AND wv."deletedAt" IS NULL
     ORDER BY wr."workflowVersionId"
 )
 SELECT
@@ -1418,6 +1420,28 @@ WHERE
 ORDER BY
     sre."id" DESC;
 
+-- name: GetFailureDetails :many
+SELECT
+	wr."status",
+	wr."id",
+	jr."status" as "jrStatus",
+	sr."status" as "srStatus",
+	sr."cancelledReason",
+	sr."error"
+FROM "WorkflowRun" wr
+JOIN
+	"JobRun" jr on jr."workflowRunId" = wr."id"
+JOIN
+	"StepRun" sr on sr."jobRunId" = jr."id"
+WHERE
+	wr."status" = 'FAILED' AND
+    sr."status" IN ('FAILED', 'CANCELLED') AND
+    (
+        sr."cancelledReason" IS NULL OR
+        sr."cancelledReason" NOT IN ('CANCELLED_BY_USER', 'PREVIOUS_STEP_TIMED_OUT', 'PREVIOUS_STEP_FAILED', 'PREVIOUS_STEP_CANCELLED', 'CANCELLED_BY_CONCURRENCY_LIMIT')
+    ) AND
+	wr."id" = @workflowRunId::uuid AND
+    wr."tenantId" = @tenantId::uuid;
 
 -- name: ListScheduledWorkflows :many
 SELECT
