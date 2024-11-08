@@ -3,6 +3,11 @@
         "title": "User Guide",
         "type": "page"
     },
+    "compute": {
+        "title": "Managed Compute",
+        "type": "page",
+        "href": "/compute"
+    },
     "sdks": {
         "title": "SDK Reference",
         "type": "menu",

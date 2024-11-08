@@ -25,6 +25,13 @@
   "run-workflow-events": "Event-Triggered Workflows",
   "run-workflow-cron": "Cron Workflows",
   "run-workflow-schedule": "Scheduled Workflows",
+  "--- Deploying Workers": {
+    "type": "separator",
+    "title": "Deploying Workers"
+  },
+  "docker": "Docker",
+  "managed-compute": "Managed Compute",
+  "self-hosted": "Self-Hosted",
   "--- Getting Workflow Results": {
     "type": "separator",
     "title": "Getting Workflow Results"
