@@ -1,0 +1,252 @@
+import { Tabs, Callout } from "nextra/components";
+
+# Dockerizing Hatchet TypeScript Applications
+
+This guide explains how to create Dockerfiles for Hatchet TypeScript applications using different package managers.
+
+## Entry Point Configuration for Hatchet
+
+Before creating your Dockerfile, ensure your TypeScript worker:
+
+1. Implements the Hatchet worker startup using `worker.start()`
+2. Has proper environment variables configured
+3. Registers workflows using the `worker.register` method
+
+## Example Docker Files
+
+<Tabs items={['npm', 'pnpm', 'yarn']}>
+  <Tabs.Tab>
+
+```dockerfile
+# Stage 1: Build
+FROM node:18 AS builder
+
+WORKDIR /app
+
+# Copy package files
+
+COPY package\*.json ./
+
+# Install dependencies
+
+RUN npm ci
+
+# Copy source code
+
+COPY . .
+
+# Build TypeScript
+
+RUN npm run build
+
+# Stage 2: Production
+
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Copy package files
+
+COPY package\*.json ./
+
+# Install production dependencies only
+
+RUN npm ci --omit=dev
+
+# Copy built assets from builder
+
+COPY --from=builder /app/dist ./dist
+
+# Set production environment
+
+ENV NODE_ENV=production
+
+# Start the worker
+
+CMD ["node", "dist/worker.js"]
+
+```
+
+<Callout type="info">
+    Use `npm ci` instead of `npm install` for more reliable builds. It's faster and ensures consistent installs across environments.
+</Callout>
+  </Tabs.Tab>
+
+  <Tabs.Tab>
+
+```dockerfile
+# Stage 1: Build
+FROM node:18 AS builder
+
+WORKDIR /app
+
+# Install pnpm
+RUN npm install -g pnpm
+
+# Copy package files
+COPY pnpm-lock.yaml package.json ./
+
+# Install dependencies
+RUN pnpm install --frozen-lockfile
+
+# Copy source code
+COPY . .
+
+# Build TypeScript
+RUN pnpm build
+
+# Stage 2: Production
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Install pnpm
+RUN npm install -g pnpm
+
+# Copy package files
+COPY pnpm-lock.yaml package.json ./
+
+# Install production dependencies only
+RUN pnpm install --frozen-lockfile --prod
+
+# Copy built assets from builder
+COPY --from=builder /app/dist ./dist
+
+# Set production environment
+ENV NODE_ENV=production
+
+# Start the worker
+CMD ["node", "dist/worker.js"]
+```
+
+<Callout type="info">
+    PNPM's `--frozen-lockfile` flag ensures consistent installs and fails if an update is needed.
+</Callout>
+  </Tabs.Tab>
+
+  <Tabs.Tab>
+
+```dockerfile
+# Stage 1: Build
+FROM node:18 AS builder
+
+WORKDIR /app
+
+# Copy package files
+
+COPY package.json yarn.lock ./
+
+# Install dependencies
+
+RUN yarn install --frozen-lockfile
+
+# Copy source code
+
+COPY . .
+
+# Build TypeScript
+
+RUN yarn build
+
+# Stage 2: Production
+
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Copy package files
+
+COPY package.json yarn.lock ./
+
+# Install production dependencies only
+
+RUN yarn install --frozen-lockfile --production
+
+# Copy built assets from builder
+
+COPY --from=builder /app/dist ./dist
+
+# Set production environment
+
+ENV NODE_ENV=production
+
+# Start the worker
+
+CMD ["node", "dist/worker.js"]
+
+```
+
+<Callout type="info">
+    Yarn's `--frozen-lockfile` ensures your dependencies match the lock file exactly.
+</Callout>
+  </Tabs.Tab>
+</Tabs>
+
+## Best Practices
+
+### 1. Multi-stage Builds
+
+Using multi-stage builds helps create smaller production images by excluding build tools and development dependencies.
+
+### 2. Dependency Caching
+
+```dockerfile
+# Copy only package files first
+COPY package*.json ./
+# or
+COPY pnpm-lock.yaml package.json ./
+# or
+COPY package.json yarn.lock ./
+
+# Install dependencies
+RUN <package-manager> install
+```
+
+### 3. Production Optimizations
+
+```dockerfile
+# Set production environment
+ENV NODE_ENV=production
+
+# Install only production dependencies
+RUN npm ci --omit=dev
+# or
+RUN pnpm install --frozen-lockfile --prod
+# or
+RUN yarn install --frozen-lockfile --production
+```
+
+### 4. TypeScript Configuration
+
+Ensure your `tsconfig.json` is properly configured:
+
+```json
+{
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "module": "commonjs",
+    "target": "es2020",
+    "esModuleInterop": true,
+    "strict": true
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
+}
+```
+
+### 5. `.dockerignore` File
+
+Remember to create a `.dockerignore` file to exclude unnecessary files:
+
+```
+node_modules
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+.git
+.gitignore
+.env
+dist
+coverage
+```

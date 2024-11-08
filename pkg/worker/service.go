@@ -3,6 +3,7 @@ package worker
 import (
 	"fmt"
 
+	"github.com/hatchet-dev/hatchet/pkg/client/compute"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 )
 
@@ -42,7 +43,7 @@ func (s *Service) On(t triggerConverter, workflow workflowConverter) error {
 	}
 
 	// register all steps as actions
-	for actionId, fn := range workflow.ToActionMap(s.Name) {
+	for actionId, action := range workflow.ToActionMap(s.Name) {
 		parsedAction, err := types.ParseActionID(actionId)
 
 		if err != nil {
@@ -56,7 +57,7 @@ func (s *Service) On(t triggerConverter, workflow workflowConverter) error {
 			}
 		}
 
-		err = s.worker.registerAction(parsedAction.Service, parsedAction.Verb, fn)
+		err = s.worker.registerAction(parsedAction.Service, parsedAction.Verb, action.fn, action.compute)
 
 		if err != nil {
 			return err
@@ -67,7 +68,8 @@ func (s *Service) On(t triggerConverter, workflow workflowConverter) error {
 }
 
 type registerActionOpts struct {
-	name string
+	name    string
+	compute *compute.Compute
 }
 
 type RegisterActionOpt func(*registerActionOpts)
@@ -75,6 +77,12 @@ type RegisterActionOpt func(*registerActionOpts)
 func WithActionName(name string) RegisterActionOpt {
 	return func(opts *registerActionOpts) {
 		opts.name = name
+	}
+}
+
+func WithCompute(compute *compute.Compute) RegisterActionOpt {
+	return func(opts *registerActionOpts) {
+		opts.compute = compute
 	}
 }
 
@@ -89,7 +97,7 @@ func (s *Service) RegisterAction(fn any, opts ...RegisterActionOpt) error {
 		fnOpts.name = getFnName(fn)
 	}
 
-	return s.worker.registerAction(s.Name, fnOpts.name, fn)
+	return s.worker.registerAction(s.Name, fnOpts.name, fn, fnOpts.compute)
 }
 
 func (s *Service) Call(verb string) *WorkflowStep {
