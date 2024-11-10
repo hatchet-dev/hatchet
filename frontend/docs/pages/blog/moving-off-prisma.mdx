@@ -308,9 +308,15 @@ And a big kudos to Prisma for supporting `prisma migrate diff` and making the un
 ## Footnotes
 
 <div id="1">
-  [1] The core of our queue has almost always been raw SQL, and this post is
-  focused on the parts of our service which are still high volume, but don't
-  implement the queue.
+  [1] Another reason we weren't initially focused on throughput or latency is
+  that Hatchet wasn't originally built as a queue in the traditional sense. The
+  idea was to build a workflow engine resembling Github actions, but with
+  actions that could run with actions defined in user code. And the initial
+  use-case was to provide an simple, declarative API that application workflows
+  could use to run complex tasks. There is a great deal of overlap between the
+  Hatchet MVP and the current Hatchet service, but it took us several iterations
+  to realize that the valuable part that we're replacing is a queue, and queues
+  are traditionally very high throughput and low latency.
 </div>
 
 <div id="2">
