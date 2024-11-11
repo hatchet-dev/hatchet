@@ -43,7 +43,7 @@ For those curious, here's a link to our Prisma schema in our [first commit](http
 
 #### Prisma Studio
 
-Most of our time in building the initial MVP was spent in Prisma Studio, manually preparing different types of workflows and ensuring that they ran to completion with various configuration options. We also hooked up a studio instance to our staging database, which was helpful in debugging issues that we didn't see in development.
+A good chunk of our time while building the initial MVP was spent in Prisma Studio, manually preparing different types of workflows and ensuring that they ran to completion with various configuration options. We also hooked up a studio instance to our staging database, which was helpful in debugging issues that we didn't see in development.
 
 Eventually, Prisma studio became far too slow on fields with many high-cardinality relations (like our `Tenant` model), and we started exploring other data visualization tools.
 
@@ -51,7 +51,7 @@ Eventually, Prisma studio became far too slow on fields with many high-cardinali
 
 We make pretty heavy use of composite keys and relations in our system — for example, the function that each task runs in our system is represented by an `actionId`, which is simply a method name that's unique per tenant:
 
-```ts
+```txt
 model Action {
   actionId String
 
@@ -64,7 +64,7 @@ model Action {
 
 This can be referenced via:
 
-```ts
+```txt
 model Step {
   action   Action @relation(fields: [actionId, tenantId], references: [actionId, tenantId])
 
@@ -75,7 +75,7 @@ model Step {
 
 We also have a handful of composite primary keys, such as:
 
-```ts
+```txt
 model StepExpression {
   key        String
   stepId     String             @db.Uuid
@@ -92,7 +92,7 @@ We found these simple and pleasant to write and use in the generated clients.
 
 One-many relations are easy to write — we made heavy use of this in our `Tenant` table:
 
-```ts
+```txt
 model Tenant {
   steps     Step[]
   actions   Action[]
@@ -124,7 +124,7 @@ Our temporary fix was to set a `statement_timeout` on some of our critical table
 
 With several of our tables, we require a mandatory one-to-one relationship, which isn't possible to model in Prisma. For example, this schema:
 
-```ts
+```txt
 model User {
   id       Int    @id @default(autoincrement())
   profile  Profile @relation(fields: [profileId], references: [id])
@@ -270,7 +270,7 @@ fi
 
 (we could have kept using Prisma for migrations, and this was tempting, but we still had issues with `CREATE INDEX CONCURRENTLY` that were easy to solve with atlas)
 
-This way, we kept using the Prisma schema as the source of truth, generating a `schema.sql` file from the Prisma DSL, and use atlas and sqlc for migrations in production, thereby preventing the Prisma engine from impacting anything critical. Additionally, this allowed us to only migrate queries on the critical path, and keep using the generated Prisma client for low-volume tables that didn't need any optimization. The downside is that we had a convoluted process for generating migrations which caused a few headaches during development.
+This way, we kept using the Prisma schema as the source of truth, generating a `schema.sql` file from the Prisma DSL, and used atlas for migrations in production, thereby preventing the Prisma engine from impacting anything critical. Additionally, this allowed us to only migrate queries on the critical path, and keep using the generated Prisma client for low-volume tables that didn't need any optimization. The downside is that we had a convoluted process for generating migrations which caused a few headaches during development.
 
 Note that using the Prisma DSL as the source of truth assumes that Prisma supports everything that we'd want to change on the database level, which eventually it didn't. The first breaking point was partial indexes: we finally reached the amount of volume on our databases where partial indexes made sense to reduce index writes, but this wasn't supported in our Prisma schema. The fix here was simple — we simply concatenated an additional `.sql` file that stored our partial indexes with our auto-generated `schema.sql` file. We unfortunately now had two sources of the database schema, but as long as the additional `.sql` file was updated infrequently and only inserted resources that Prisma wasn't trying to change, this still worked well.
 
