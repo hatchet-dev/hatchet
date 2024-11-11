@@ -307,7 +307,7 @@ And a big kudos to Prisma for supporting `prisma migrate diff` and making the un
 
 ## Footnotes
 
-<div id="1">
+<div id="1" className="my-6">
   [1] Another reason we weren't initially focused on throughput or latency is
   that Hatchet wasn't originally built as a queue in the traditional sense. The
   idea was to build a workflow engine resembling Github actions, but with
@@ -319,7 +319,7 @@ And a big kudos to Prisma for supporting `prisma migrate diff` and making the un
   are traditionally very high throughput and low latency.
 </div>
 
-<div id="2">
+<div id="2" className="my-6">
   [2] We were previously able to do about 3k/second _per tenant_, but had to
   re-architect so that each queue on each tenant ran as a separate thread. This
   is more difficult than it seems, because workers can subscribe to many queues
@@ -327,7 +327,7 @@ And a big kudos to Prisma for supporting `prisma migrate diff` and making the un
   number of concurrently executing functions on a given worker.
 </div>
 
-<div id="3">
+<div id="3" className="my-6">
 [3] This will likely be the subject of a future blog post, and isn't relevant for the discussion above, but for those curious, the performance benefits from these four items are:
 
 1. **Partition busy task tables into a “running” state versus a “final” state — the former being rapidly updated as the task is running, the latter being used for reporting but very infrequently updated.**
