@@ -1,5 +1,5 @@
 {
-  "moving-off-prisma": {
+  "migrating-off-prisma": {
     "title": "Why we moved off Prisma"
   },
   "problems-with-celery": {
