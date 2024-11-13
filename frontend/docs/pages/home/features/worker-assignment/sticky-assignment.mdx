@@ -1,4 +1,5 @@
 import { Tabs, Callout } from "nextra/components";
+import UniversalTabs from "../../../../components/UniversalTabs";
 
 # Sticky Worker Assignment (Beta)
 
@@ -30,7 +31,7 @@ There are two strategies for setting sticky assignment:
 - `SOFT`: The all steps in the workflow will attempt to be assigned to the same worker, but if that worker is unavailable, it will be assigned to another worker.
 - `HARD`: The all steps in the workflow will only be assigned to the same worker. If that worker is unavailable, the step run will not be assigned to another worker and will remain in a pending state until the original worker becomes available or timeout is reached. (See [Scheduling Timeouts](../timeouts.mdx))
 
-<Tabs items={['Python', 'Typescript', 'Golang']}>
+<UniversalTabs items={['Python', 'Typescript', 'Golang']}>
   <Tabs.Tab>
 
 ```python
@@ -102,7 +103,7 @@ const myWorkflow: Workflow = {
 ```
 
   </Tabs.Tab>
-</Tabs>
+</UniversalTabs>
 
 In this example, the `sticky` property is set to `SOFT`, which means that the workflow will attempt to be assigned to the same worker for the duration of its execution. If the original worker is unavailable, the workflow will be assigned to another worker.
 
@@ -117,7 +118,7 @@ However, the child workflow must:
 
 If either condition is not met, an error will be thrown when the child workflow is spawned.
 
-<Tabs items={['Python', 'Typescript', 'Golang']}>
+<UniversalTabs items={['Python', 'Typescript', 'Golang']}>
   <Tabs.Tab>
 
 ```python
@@ -208,4 +209,4 @@ const parentWorkflow: Workflow = {
 ```
 
   </Tabs.Tab>
-</Tabs>
+</UniversalTabs>

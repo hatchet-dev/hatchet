@@ -1,4 +1,5 @@
 import { Tabs } from "nextra/components";
+import UniversalTabs from "../../../components/UniversalTabs";
 
 # Cancellation in Hatchet Workflows
 
@@ -10,7 +11,7 @@ When a workflow is canceled, Hatchet sends a cancellation signal to all the curr
 
 {/* TODO Python */}
 
-<Tabs items={['Typescript', 'Go']}>
+<UniversalTabs items={['Typescript', 'Go']}>
 <Tabs.Tab>
 
 Hatchet uses the standard `AbortController` and `AbortSignal` interfaces from Node.js to handle cancellation. Each step in a workflow has access to a `context.controller` property, which is an instance of `AbortController`. The `AbortController` provides a way to signal cancellation to the step and any asynchronous operations it may be performing.
@@ -119,7 +120,7 @@ w.RegisterWorkflow(
 ```
 
 </Tabs.Tab>
-</Tabs>
+</UniversalTabs>
 
 ## Cancellation Best Practices
 

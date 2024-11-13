@@ -1,10 +1,11 @@
 import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
+import UniversalTabs from "../../../components/UniversalTabs";
 
 # Understanding Steps in Hatchet
 
 In Hatchet, steps are simply a function that satisfies the following signature:
 
-<Tabs items={['Python', 'Typescript']}>
+<UniversalTabs items={['Python', 'Typescript']}>
   <Tabs.Tab>
 ```python
 def my_step(context: Context) -> dict:
@@ -20,7 +21,7 @@ export const myStep = async (ctx: Context): Promise<object> => {
 };
 ```
     </Tabs.Tab>
-</Tabs>
+</UniversalTabs>
 
 This function takes a single argument, `context`, which is an object that provides access to the workflow's input, as well as methods to interact with hatchet (i.e. logging). The function returns a JSON-serializable object, which represents the output of the step.
 
@@ -41,7 +42,7 @@ Here's some key best practices for defining independent steps in Hatchet:
 
 A step in Hatchet accepts a single workflow input, which is typically a JSON object and can be accessed through the `context` argument:
 
-<Tabs items={['Python', 'Typescript']}>
+<UniversalTabs items={['Python', 'Typescript']}>
   <Tabs.Tab>
 ```python
 def my_step(context: Context) -> dict:
@@ -59,7 +60,7 @@ export const myStep = async (ctx: Context): Promise<object> => {
 };
 ```
     </Tabs.Tab>
-</Tabs>
+</UniversalTabs>
 
 This input object can contain any data or parameters required for the step to perform its operation. By using a JSON object as the input, steps can be easily integrated and combined, as the input can be easily serialized and deserialized.
 
