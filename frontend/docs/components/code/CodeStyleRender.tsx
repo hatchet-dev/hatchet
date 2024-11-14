@@ -18,7 +18,7 @@ const CodeStyleRender = ({ parsed, language }: CodeStyleRenderProps) => {
     const asyncHighlight = async () => {
         const highlightedHtml = await codeToHtml(parsed, {
             lang: language.toLowerCase(),
-            theme: theme.theme === "dark" ? "github-dark" : "github-light",
+            theme: theme.resolvedTheme === "dark" ? "github-dark" : "github-light",
         });
 
         setHtml(highlightedHtml);
