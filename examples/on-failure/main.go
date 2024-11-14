@@ -25,14 +25,14 @@ func StepOne(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
 }
 
 func OnFailure(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
+	// run cleanup code or notifications here
 	return &stepOneOutput{
 		Message: "Failure!",
 	}, nil
 }
 
-// ...
-
 func main() {
+	// ...
 	err := godotenv.Load()
 
 	if err != nil {
@@ -73,7 +73,8 @@ func main() {
 			},
 		},
 	)
-	// ‼️
+
+	// ...
 
 	if err != nil {
 		panic(err)
@@ -99,3 +100,5 @@ func main() {
 		}
 	}
 }
+
+// ‼️
