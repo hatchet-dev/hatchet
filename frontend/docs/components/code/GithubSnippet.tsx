@@ -1,6 +1,6 @@
 import React from 'react'
 import { useData } from 'nextra/data'
-import { CodeRenderer } from './CodeRenderer'
+import { CodeBlock } from './CodeBlock'
 import { Src } from './codeData'
 
 interface GithubSnippetProps {
@@ -10,12 +10,10 @@ interface GithubSnippetProps {
 
 export const GithubSnippet = ({ src, target }: GithubSnippetProps) => {
   const { contents } = useData()
-
   const snippet = contents.find(c => c.props.rawUrl === src.rawUrl) as Src
 
-  console.log(snippet)
-  return <CodeRenderer source={{
+  return <CodeBlock source={{
+    ...src,
     ...snippet,
-    raw: snippet.raw
   }} target={target} />
 }

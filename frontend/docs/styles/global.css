@@ -162,3 +162,13 @@ nav {
 :is(html[class~="dark"]) .nextra-nav-container-blur.nx-pointer-events-none {
   background-color: var(--background) !important;
 }
+
+.shiki {
+  padding: 15px !important;
+  border-radius: 10px !important;
+  background-color: rgba(40, 99, 159, 0.05) !important;
+}
+
+.dark .shiki {
+  background-color: #1e293b !important;
+}

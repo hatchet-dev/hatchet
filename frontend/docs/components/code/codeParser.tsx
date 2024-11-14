@@ -20,7 +20,7 @@ export const parseDocComments = (
     source: string,
     target: string,
     collapsed: boolean = false,
-) => {
+): string => {
     const lines = source.split('\n');
     let isSnippet = false;
     let isCollecting = false;
@@ -71,7 +71,7 @@ export const parseDocComments = (
     }
 
     if (resultLines.length === 0) {
-      return <div>No snippet found for {target}</div>;
+      return `🚨 No snippet found for ${target} \n\n${source}`;
     }
 
     return resultLines.join('\n');
