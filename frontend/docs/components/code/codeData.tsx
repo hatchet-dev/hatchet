@@ -73,7 +73,9 @@ export const getSnippets = (props: RepoProps[]): Promise<{ props: { ssg: { conte
     props: {
       ssg: {
         contents: results
-      }
+      },
+      // revalidate every 60 seconds
+      revalidate: 60
     }
   }));
 }
