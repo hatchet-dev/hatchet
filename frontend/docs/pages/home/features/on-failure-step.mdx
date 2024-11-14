@@ -1,31 +1,25 @@
 import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
 import UniversalTabs from "@/components/UniversalTabs";
-import { GithubSnippet, getSnippets } from '@/components/code'
+import { GithubSnippet, getSnippets } from "@/components/code";
 
 {/* TODO switch branch to main */}
 export const OnFailureTs = {
-  branch: 'docs--on-failure--timeouts',
-  path: 'src/examples/on-failure.ts'
+branch: 'docs--on-failure--timeouts',
+path: 'src/examples/on-failure.ts'
 };
 
 export const OnFailurePy = {
-  branch: 'docs--on-failure--timeout',
-  path: 'examples/on_failure/worker.py'
+  branch: "docs--on-failure--timeout",
+  path: "examples/on_failure/worker.py",
 };
 
 export const OnFailureGo = {
-  branch: 'docs--git-driven-snips',
-  path: 'examples/on-failure/main.go'
+  branch: "docs--git-driven-snips",
+  path: "examples/on-failure/main.go",
 };
 
-export const getStaticProps = ({}) => getSnippets(
-  [
-    OnFailureTs,
-    OnFailurePy,
-    OnFailureGo,
-  ]
-)
-
+export const getStaticProps = ({}) =>
+  getSnippets([OnFailureTs, OnFailurePy, OnFailureGo]);
 
 # On Failure Step
 
@@ -35,7 +29,7 @@ The On Failure Step is a special step in Hatchet workflows that allows you to de
 
 You can define an On Failure Step on your Workflow using the Hatchet client libraries:
 
-<UniversalTabs items={['Python', 'Typescript', 'Go']}>
+<UniversalTabs items={["Python", "Typescript", "Go"]}>
   <Tabs.Tab title="Python">
     <GithubSnippet src={OnFailurePy} target="OnFailure Step" />
   </Tabs.Tab>
