@@ -1,16 +1,20 @@
 import React from 'react'
 import { useData } from 'nextra/data'
 import { CodeBlock } from './CodeBlock'
-import { Src } from './codeData'
+import { RepoProps, Src } from './codeData'
 
 interface GithubSnippetProps {
-  src: Src
+  src: RepoProps
   target: string
 }
 
 export const GithubSnippet = ({ src, target }: GithubSnippetProps) => {
   const { contents } = useData()
-  const snippet = contents.find(c => c.props.rawUrl === src.rawUrl) as Src
+  const snippet = contents.find(c => c.rawUrl.endsWith(src.path)) as Src
+
+  if (!snippet) {
+    return null
+  }
 
   return <CodeBlock source={{
     ...src,

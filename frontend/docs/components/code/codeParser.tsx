@@ -66,7 +66,11 @@ export const parseDocComments = (
 
       // Collect focused section
       if (isCollecting) {
-        resultLines.push(line);
+        if (line.trim() === '') {
+          resultLines.push(' ');
+        } else {
+          resultLines.push(line);
+        }
       }
     }
 

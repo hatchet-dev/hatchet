@@ -15,7 +15,7 @@ export const extToLanguage = {
 
 const defaultBranch = 'main'
 
-type RepoProps = {
+export type RepoProps = {
   user?: string
   repo?: string
   branch?: string
@@ -39,24 +39,41 @@ export type Src = {
     githubUrl: string
     language?: string
 }
-
 export const getSnippets = (props: RepoProps[]): Promise<{ props: { ssg: { contents: Src[] } } }> => {
-  return Promise.all(props.map(prop =>
-    fetch(getRawUrl(prop))
-      .then(res => res.text())
-      .then(raw => ({
-        raw,
-        props: prop,
-        rawUrl: getRawUrl(prop),
-        githubUrl: getUIUrl(prop),
-        language: extToLanguage[prop.path.split('.').pop() as keyof typeof extToLanguage]
-      }))
-  )).then(results => ({
+  return Promise.all(
+    props.map(async (prop) => {
+      const rawUrl = getRawUrl(prop);
+      const githubUrl = getUIUrl(prop);
+      const fileExt = prop.path.split('.').pop() as keyof typeof extToLanguage;
+      const language = extToLanguage[fileExt];
+
+      try {
+        const response = await fetch(rawUrl);
+        const raw = await response.text();
+
+        return {
+          raw,
+          props: prop,
+          rawUrl,
+          githubUrl,
+          language
+        };
+      } catch (error) {
+        // Return object with empty raw content but preserve URLs on failure
+        return {
+          raw: '',
+          props: prop,
+          rawUrl,
+          githubUrl,
+          language
+        };
+      }
+    })
+  ).then(results => ({
     props: {
       ssg: {
         contents: results
-      },
-
+      }
     }
-  }))
+  }));
 }

@@ -1,6 +1,6 @@
 import React from "react";
 import { parseDocComments } from "./codeParser";
-import { extToLanguage, Src } from "./codeData";
+import { Src } from "./codeData";
 import CodeStyleRender from "./CodeStyleRender";
 
 interface CodeRendererProps {
@@ -16,52 +16,65 @@ export const CodeBlock = ({ source, target }: CodeRendererProps) => {
     const parsed = parseDocComments(source.raw, target, collapsed);
 
     return <>
-        <div className="flex gap-2 mb-4 justify-end">
-            <button
-                onClick={() => setCollapsed(!collapsed)}
-                className="flex items-center gap-1 px-3 py-1 text-sm rounded border hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-            >
-                {collapsed ? (
-                    <>
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                            <path d="M8 2a.5.5 0 0 1 .5.5v5h5a.5.5 0 0 1 0 1h-5v5a.5.5 0 0 1-1 0v-5h-5a.5.5 0 0 1 0-1h5v-5A.5.5 0 0 1 8 2Z"/>
-                        </svg>
-                        <span>Expand</span>
-                    </>
-                ) : (
-                    <>
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                            <path d="M4 8a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7A.5.5 0 0 1 4 8Z"/>
-                        </svg>
-                        <span>Collapse</span>
-                    </>
-                )}
-            </button>
-            <button
-                onClick={() => setPlainText(!plainText)}
-                className="flex items-center gap-1 px-3 py-1 text-sm rounded border hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-            >
-                {plainText ? (
-                    <>
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                            <path d="M2.5 3.5v9h11v-9h-11zm0-1h11a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1z"/>
-                            <path d="M3.5 5.5h9v1h-9v-1zm0 2h9v1h-9v-1zm0 2h5v1h-5v-1z"/>
-                        </svg>
-                        <span>Show HTML</span>
-                    </>
-                ) : (
-                    <>
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                            <path d="M5.854 4.854a.5.5 0 1 0-.708-.708l-3.5 3.5a.5.5 0 0 0 0 .708l3.5 3.5a.5.5 0 0 0 .708-.708L2.707 8l3.147-3.146zm4.292 0a.5.5 0 0 1 .708-.708l3.5 3.5a.5.5 0 0 1 0 .708l-3.5 3.5a.5.5 0 0 1-.708-.708L13.293 8l-3.147-3.146z"/>
-                        </svg>
-                        <span>Show Plain Text</span>
-                    </>
-                )}
-            </button>
+        <div className="flex flex-row gap-4 justify-between items-center pl-2">
+            <a href={source.githubUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-gray-500 font-mono hover:underline">{source.props.path}</a>
+            <div className="flex gap-2 justify-end">
+                <button
+                    onClick={() => setCollapsed(!collapsed)}
+                    className="flex items-center gap-1 px-3 py-1 text-sm rounded border hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                >
+                    {collapsed ? (
+                        <>
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                <path d="M8 2a.5.5 0 0 1 .5.5v5h5a.5.5 0 0 1 0 1h-5v5a.5.5 0 0 1-1 0v-5h-5a.5.5 0 0 1 0-1h5v-5A.5.5 0 0 1 8 2Z"/>
+                            </svg>
+                            <span>Expand</span>
+                        </>
+                    ) : (
+                        <>
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                <path d="M4 8a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7A.5.5 0 0 1 4 8Z"/>
+                            </svg>
+                            <span>Collapse</span>
+                        </>
+                    )}
+                </button>
+                <button
+                    onClick={() => setPlainText(!plainText)}
+                    className="flex items-center gap-1 px-3 py-1 text-sm rounded border hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                >
+                    {plainText ? (
+                        <>
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                <path d="M2.5 3.5v9h11v-9h-11zm0-1h11a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1z"/>
+                                <path d="M3.5 5.5h9v1h-9v-1zm0 2h9v1h-9v-1zm0 2h5v1h-5v-1z"/>
+                            </svg>
+                            <span>Show HTML</span>
+                        </>
+                    ) : (
+                        <>
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                <path d="M5.854 4.854a.5.5 0 1 0-.708-.708l-3.5 3.5a.5.5 0 0 0 0 .708l3.5 3.5a.5.5 0 0 0 .708-.708L2.707 8l3.147-3.146zm4.292 0a.5.5 0 0 1 .708-.708l3.5 3.5a.5.5 0 0 1 0 .708l-3.5 3.5a.5.5 0 0 1-.708-.708L13.293 8l-3.147-3.146z"/>
+                            </svg>
+                            <span>Show Plain Text</span>
+                        </>
+                    )}
+                </button>
+            </div>
         </div>
        {!plainText && <CodeStyleRender parsed={parsed} language={source.language} />}
+        {/* plain text for SEO */}
         <pre style={{ display: plainText ? 'block' : 'none' }} aria-hidden="true">{parsed}</pre>
+
         <div className="flex gap-4 mb-4 p-2 justify-end">
+            <a
+                href={source.rawUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="no-underline text-gray-500 flex items-center gap-2"
+            >
+                View Raw
+            </a>
             <a
                 href={source.githubUrl}
                 target="_blank"
@@ -74,6 +87,5 @@ export const CodeBlock = ({ source, target }: CodeRendererProps) => {
                 View Full Code on GitHub &rarr;
             </a>
         </div>
-       {/* plain text for SEO */}
     </>
 }
