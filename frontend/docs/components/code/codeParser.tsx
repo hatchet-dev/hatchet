@@ -59,7 +59,7 @@ export const parseDocComments = (
         }
 
         // Stop at ‼️
-        if (isSnippet && startsWithPrefixAndChar(line, '‼️')) {
+        if (isSnippet && line.includes('‼️')) {
             break;
         }
       }

@@ -1,18 +1,22 @@
 import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
 import UniversalTabs from "@/components/UniversalTabs";
-import { GithubSnippets, getSnippets } from '@/components/code/GithubSnippets'
+import { GithubSnippet, getSnippets } from '@/components/code'
+
+export const OnFailureSrc = { path: 'src/examples/on-failure.ts' };
+export const BulkTriggerSrc = { path: 'src/examples/bulk-trigger.ts' };
 
 export const getStaticProps = ({ params }) => getSnippets(
   [
-    { path: 'src/examples/on-failure.ts' },
-    { path: 'src/examples/bulk-trigger.ts' }
+    OnFailureSrc,
+    BulkTriggerSrc
   ]
 )
 
 
 # On Failure Step
 
-<GithubSnippets />
+<GithubSnippet src={OnFailureSrc} target="OnFailure Step" />
+
 The On Failure Step is a special step in Hatchet workflows that allows you to define a function to be executed in the event that any step in the main workflow fails. This feature enables you to handle errors, perform cleanup tasks, or trigger notifications in case of workflow failures.
 
 ## Defining an On Failure Step
