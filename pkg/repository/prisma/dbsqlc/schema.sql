@@ -118,7 +118,7 @@ CREATE TABLE "Dispatcher" (
 -- CreateTable
 CREATE TABLE "Event" (
     "id" UUID NOT NULL,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "createdAt" TIMESTAMP(6) NOT NULL DEFAULT clock_timestamp(),
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "deletedAt" TIMESTAMP(3),
     "key" TEXT NOT NULL,
