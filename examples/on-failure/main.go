@@ -15,7 +15,12 @@ type stepOneOutput struct {
 	Message string `json:"message"`
 }
 
+// ❓ OnFailure Step
+// This workflow will fail because the step will throw an error
+// we define an onFailure step to handle this case
+
 func StepOne(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
+	// 👀 this step will always raise an exception
 	return nil, fmt.Errorf("test on failure")
 }
 
@@ -24,6 +29,8 @@ func OnFailure(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
 		Message: "Failure!",
 	}, nil
 }
+
+// ...
 
 func main() {
 	err := godotenv.Load()
@@ -48,6 +55,7 @@ func main() {
 		panic(err)
 	}
 
+	// 👀 we define an onFailure step to handle this case
 	err = w.On(
 		worker.NoTrigger(),
 		&worker.WorkflowJob{
@@ -65,6 +73,7 @@ func main() {
 			},
 		},
 	)
+	// ‼️
 
 	if err != nil {
 		panic(err)
