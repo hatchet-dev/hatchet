@@ -64,7 +64,7 @@ This project is licensed under the MIT License.
 - [ ] **Retries** - `pages/home/features/retries`
 - [ ] **Timeouts** - `pages/home/features/timeouts`
 - [ ] **Errors and Logging** - `pages/home/features/errors-and-logging`
-- [~] **On Failure Step** - `pages/home/features/on-failure-step`
+- [x] **On Failure Step** - `pages/home/features/on-failure-step`
 - [ ] **Streaming** - `pages/home/features/streaming`
 - [ ] **Triggering Runs** - `pages/home/features/triggering-runs`
 - [ ] **Rate Limits** - `pages/home/features/rate-limits`
