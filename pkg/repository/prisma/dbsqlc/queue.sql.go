@@ -516,6 +516,10 @@ LEFT JOIN
 WHERE
     w."tenantId" = $1::uuid
     AND w."id" = ANY($2::uuid[])
+    AND w."dispatcherId" IS NOT NULL
+    AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+    AND w."isActive" = true
+    AND w."isPaused" = false
 `
 
 type ListActionsForWorkersParams struct {

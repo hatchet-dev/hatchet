@@ -2098,7 +2098,7 @@ step_runs_to_reassign AS (
     FROM
         step_runs_on_inactive_workers
     WHERE
-        "internalRetryCount" < 1
+        "internalRetryCount" < $2::int
 ),
 step_runs_to_fail AS (
     SELECT
@@ -2106,7 +2106,7 @@ step_runs_to_fail AS (
     FROM
         step_runs_on_inactive_workers
     WHERE
-        "internalRetryCount" >= 1
+        "internalRetryCount" >= $2::int
 ),
 deleted_sqis AS (
     DELETE FROM
@@ -2182,6 +2182,11 @@ FROM
     step_runs_to_fail srs2
 `
 
+type ListStepRunsToReassignParams struct {
+	Tenantid              pgtype.UUID `json:"tenantid"`
+	Maxinternalretrycount int32       `json:"maxinternalretrycount"`
+}
+
 type ListStepRunsToReassignRow struct {
 	ID         pgtype.UUID `json:"id"`
 	WorkerId   pgtype.UUID `json:"workerId"`
@@ -2189,8 +2194,8 @@ type ListStepRunsToReassignRow struct {
 	Operation  string      `json:"operation"`
 }
 
-func (q *Queries) ListStepRunsToReassign(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]*ListStepRunsToReassignRow, error) {
-	rows, err := db.Query(ctx, listStepRunsToReassign, tenantid)
+func (q *Queries) ListStepRunsToReassign(ctx context.Context, db DBTX, arg ListStepRunsToReassignParams) ([]*ListStepRunsToReassignRow, error) {
+	rows, err := db.Query(ctx, listStepRunsToReassign, arg.Tenantid, arg.Maxinternalretrycount)
 	if err != nil {
 		return nil, err
 	}

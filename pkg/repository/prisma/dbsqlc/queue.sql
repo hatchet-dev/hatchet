@@ -517,7 +517,11 @@ LEFT JOIN
     "Action" a ON atw."A" = a."id"
 WHERE
     w."tenantId" = @tenantId::uuid
-    AND w."id" = ANY(@workerIds::uuid[]);
+    AND w."id" = ANY(@workerIds::uuid[])
+    AND w."dispatcherId" IS NOT NULL
+    AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+    AND w."isActive" = true
+    AND w."isPaused" = false;
 
 -- name: ListActionsForAvailableWorkers :many
 SELECT

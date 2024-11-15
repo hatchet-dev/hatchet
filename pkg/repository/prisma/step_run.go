@@ -650,7 +650,10 @@ func (s *stepRunEngineRepository) ListStepRunsToReassign(ctx context.Context, te
 	defer rollback()
 
 	// get the step run and make sure it's still in pending
-	results, err := s.queries.ListStepRunsToReassign(ctx, tx, pgTenantId)
+	results, err := s.queries.ListStepRunsToReassign(ctx, tx, dbsqlc.ListStepRunsToReassignParams{
+		Maxinternalretrycount: s.cf.MaxInternalRetryCount,
+		Tenantid:              pgTenantId,
+	})
 
 	if err != nil {
 		return nil, nil, err
@@ -3007,18 +3010,6 @@ func (s *stepRunEngineRepository) QueueStepRun(ctx context.Context, tenantId, st
 		}
 	}
 
-	if opts.IsRetry || opts.IsInternalRetry {
-		// if this is a retry, write a queue item to release the worker semaphore
-		err := s.releaseWorkerSemaphoreSlot(ctx, tenantId, stepRunId)
-
-		if err != nil {
-			return nil, fmt.Errorf("could not release worker semaphore queue items: %w", err)
-		}
-
-		// retries get highest priority to ensure that they're run immediately
-		priority = 4
-	}
-
 	if len(opts.ExpressionEvals) > 0 {
 		err := s.createExpressionEvals(ctx, s.pool, stepRunId, opts.ExpressionEvals)
 
@@ -3049,6 +3040,22 @@ func (s *stepRunEngineRepository) QueueStepRun(ctx context.Context, tenantId, st
 	// if this is not a retry, and the step run is already in a pending assignment state, this is a no-op
 	if !opts.IsRetry && !opts.IsInternalRetry && innerStepRun.SRStatus == dbsqlc.StepRunStatusPENDINGASSIGNMENT {
 		return nil, repository.ErrAlreadyQueued
+	}
+
+	if opts.IsRetry || opts.IsInternalRetry {
+		// if this is a retry, write a queue item to release the worker semaphore
+		//
+		// FIXME: there is a race condition here where we can delete a worker semaphore slot that has already been reassigned,
+		// but the step run was not in a RUNNING state. The fix for this would be to track an total retry count on the step run
+		// and use this to identify semaphore slots, but this involves a big refactor of semaphore slots.
+		err := s.releaseWorkerSemaphoreSlot(ctx, tenantId, stepRunId)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not release worker semaphore queue items: %w", err)
+		}
+
+		// retries get highest priority to ensure that they're run immediately
+		priority = 4
 	}
 
 	_, err = s.bulkQueuer.BuffItem(tenantId, buffer.BulkQueueStepRunOpts{
