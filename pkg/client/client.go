@@ -13,6 +13,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 
 	"github.com/hatchet-dev/hatchet/pkg/client/loader"
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
@@ -66,14 +67,15 @@ type ClientOpt func(*ClientOpts)
 type filesLoaderFunc func() []*types.Workflow
 
 type ClientOpts struct {
-	tenantId  string
-	l         *zerolog.Logger
-	v         validator.Validator
-	tls       *tls.Config
-	hostPort  string
-	serverURL string
-	token     string
-	namespace string
+	tenantId    string
+	l           *zerolog.Logger
+	v           validator.Validator
+	tls         *tls.Config
+	hostPort    string
+	serverURL   string
+	token       string
+	namespace   string
+	noGrpcRetry bool
 
 	cloudRegisterID *string
 	runnableActions []string
@@ -122,6 +124,7 @@ func defaultClientOpts(token *string, cf *client.ClientConfigFile) *ClientOpts {
 		namespace:       clientConfig.Namespace,
 		cloudRegisterID: clientConfig.CloudRegisterID,
 		runnableActions: clientConfig.RunnableActions,
+		noGrpcRetry:     clientConfig.NoGrpcRetry,
 	}
 }
 
@@ -237,17 +240,26 @@ func newFromOpts(opts *ClientOpts) (Client, error) {
 		grpc.WithTransportCredentials(transportCreds),
 	}
 
-	retryOpts := []grpc_retry.CallOption{
-		grpc_retry.WithBackoff(grpc_retry.BackoffExponentialWithJitter(5*time.Second, 0.10)),
-		grpc_retry.WithMax(5),
-		grpc_retry.WithPerRetryTimeout(30 * time.Second),
-		grpc_retry.WithCodes(codes.ResourceExhausted, codes.Unavailable),
-		grpc_retry.WithOnRetryCallback(grpc_retry.OnRetryCallback(func(ctx context.Context, attempt uint, err error) {
-			opts.l.Debug().Msgf("grpc_retry attempt: %d, backoff for %v", attempt, err)
-		})),
+	if !opts.noGrpcRetry {
+		retryOnCodes := []codes.Code{
+			codes.ResourceExhausted,
+		}
+
+		retryOpts := []grpc_retry.CallOption{
+
+			grpc_retry.WithBackoff(grpc_retry.BackoffExponentialWithJitter(5*time.Second, 0.10)),
+			grpc_retry.WithMax(5),
+			grpc_retry.WithPerRetryTimeout(30 * time.Second),
+			grpc_retry.WithCodes(retryOnCodes...),
+			grpc_retry.WithOnRetryCallback(grpc_retry.OnRetryCallback(func(ctx context.Context, attempt uint, err error) {
+				if contains(retryOnCodes, status.Code(err)) {
+					opts.l.Debug().Msgf("grpc_retry attempt: %d, backoff for %v", attempt, err)
+				}
+			})),
+		}
+		grpcOpts = append(grpcOpts, grpc.WithChainStreamInterceptor(grpc_retry.StreamClientInterceptor(retryOpts...)))
+		grpcOpts = append(grpcOpts, grpc.WithChainUnaryInterceptor(grpc_retry.UnaryClientInterceptor(retryOpts...)))
 	}
-	grpcOpts = append(grpcOpts, grpc.WithStreamInterceptor(grpc_retry.StreamClientInterceptor(retryOpts...)))
-	grpcOpts = append(grpcOpts, grpc.WithUnaryInterceptor(grpc_retry.UnaryClientInterceptor(retryOpts...)))
 
 	conn, err := grpc.NewClient(
 		opts.hostPort,
@@ -363,4 +375,13 @@ func initWorkflows(fl filesLoaderFunc, adminClient AdminClient) error {
 	}
 
 	return nil
+}
+
+func contains(codes []codes.Code, code codes.Code) bool {
+	for _, c := range codes {
+		if c == code {
+			return true
+		}
+	}
+	return false
 }
