@@ -1,4 +1,5 @@
 import { Tabs, Steps, Callout } from "nextra/components";
+import UniversalTabs from "../../components/UniversalTabs";
 
 # Kubernetes Deployment via Glasskube
 
@@ -154,7 +155,7 @@ This will spin up the Hatchet engine service on `localhost:7070` which you can t
 
 ### Run your first worker
 
-<Tabs items={['Python', 'Typescript', 'Go']}>
+<UniversalTabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
 Make sure you have the following dependencies installed:
 
@@ -344,7 +345,7 @@ go run main.go
 ```
 
 </Tabs.Tab>
-</Tabs>
+</UniversalTabs>
 
 ### Run your first workflow
 

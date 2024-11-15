@@ -1,4 +1,5 @@
 import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
+import UniversalTabs from "../../../components/UniversalTabs";
 
 # Workflows in Hatchet
 
@@ -22,7 +23,7 @@ Each Step is represented as a node in the graph, and the arrows between the node
 
 These relationships are defined in code by specifying required parents in the `parent` array of that step.
 
-<Tabs items={['Python', 'Typescript']}>
+<UniversalTabs items={['Python', 'Typescript']}>
   <Tabs.Tab>
 
 ```python
@@ -124,13 +125,13 @@ const workflow: Workflow = {
 
     </Tabs.Tab>
 
-</Tabs>
+</UniversalTabs>
 
 ### Accessing Workflow State Within a Step
 
 In Hatchet, each step within a workflow has access to parent step outputs. This capability allows you to pass data between steps, enabling you to build complex workflows that respond dynamically to the outcomes of previous steps.
 
-<Tabs items={['Python', 'Typescript']}>
+<UniversalTabs items={['Python', 'Typescript']}>
   <Tabs.Tab>
 ```python
 @hatchet.step(parents=["previous_step"])
@@ -162,7 +163,7 @@ const workflow: Workflow = {
 };
 ```
     </Tabs.Tab>
-</Tabs>
+</UniversalTabs>
 
 {/* ## Spawning Child Workflows */}
 

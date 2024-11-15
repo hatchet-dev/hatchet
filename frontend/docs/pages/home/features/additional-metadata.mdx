@@ -1,4 +1,5 @@
 import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
+import UniversalTabs from "../../../components/UniversalTabs";
 
 # Additional Metadata
 
@@ -10,7 +11,7 @@ You can attach additional metadata when pushing events or triggering workflow ru
 
 <Tabs items={['Event Push', 'Workflow Run Trigger']}>
   <Tabs.Tab>
-<Tabs items={['Python', 'Typescript', 'Go']}>
+<UniversalTabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
 ```python
 hatchet.event.push("user:create", {'userId': '1234'}, options={
@@ -47,10 +48,10 @@ err := c.Event().Push(
 )
 ```
   </Tabs.Tab>
-</Tabs>
+</UniversalTabs>
   </Tabs.Tab>
   <Tabs.Tab>
-<Tabs items={['Python', 'Typescript', 'Go']}>
+<UniversalTabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
 ```python
 workflowRunId = hatchet.admin.run_workflow(
@@ -92,7 +93,7 @@ workflowRunId, err := c.Admin().RunWorkflow(
 )
 ```
   </Tabs.Tab>
-</Tabs>
+</UniversalTabs>
   </Tabs.Tab>
 </Tabs>
 

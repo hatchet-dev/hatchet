@@ -1,4 +1,5 @@
 import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
+import UniversalTabs from "../../components/UniversalTabs";
 
 # `v0.18` - Child Workflows
 
@@ -25,7 +26,7 @@ We've had support for spawning new workflows programmatically for a while, but t
 
 For a practical example, say we have a workflow which extracts text from PDFs. PDF parsing and extraction is an expensive operation, so we'd like to parse each page separately, collect the text from each PDF, and pass it downstream to a future step in our workflow. We can model each page as a child workflow. For example, in the Typescript SDK:
 
-<Tabs items={['Typescript', 'Python', 'Go']}>
+<UniversalTabs items={['Typescript', 'Python', 'Go']}>
   <Tabs.Tab>
     ```ts
     async function f(ctx) {
@@ -106,7 +107,7 @@ For a practical example, say we have a workflow which extracts text from PDFs. P
     ```
 
   </Tabs.Tab>
-</Tabs>
+</UniversalTabs>
 
 What happens if our workflow fails during the `await Promise.all`, for example when exceeding a timeout? Because we've already called `spawnWorkflow` for each page, when this workflow is rerun, we'll simply enter the `Promise.all` method again with the same child workflows.
 

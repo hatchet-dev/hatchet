@@ -1,4 +1,5 @@
 import { Tabs, Callout } from "nextra/components";
+import UniversalTabs from "../../components/UniversalTabs";
 
 # Tuning Hatchet for Performance
 
@@ -20,7 +21,7 @@ There are two main ways to initiate workflows, by sending events to Hatchet and 
 
 #### Events
 
- <Tabs items={['Python', 'Typescript', 'Golang']}>
+ <UniversalTabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
 
 ```python
@@ -111,7 +112,7 @@ c.Event().BulkPush(
 ```
 
   </Tabs.Tab>
-</Tabs>
+</UniversalTabs>
 
 <Callout type="warning">
   There is a maximum limit of 1000 events per request.
@@ -119,7 +120,7 @@ c.Event().BulkPush(
 
 #### Workflows
 
-<Tabs items={['Python', 'Typescript', 'Go']}>
+<UniversalTabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
 
 ```python
@@ -213,7 +214,7 @@ w.RegisterWorkflow(
 ```
 
   </Tabs.Tab>
-</Tabs>
+</UniversalTabs>
 
 <Callout type="warning">
   There is a maximum limit of 1000 workflows per bulk request.

@@ -1,4 +1,5 @@
 import { Tabs, Callout } from "nextra/components";
+import UniversalTabs from "../../components/UniversalTabs";
 
 # CPU Instance Configuration
 
@@ -12,7 +13,7 @@ The Hatchet SDK provides a `Compute` class that allows you to define and manage 
 
 ## Basic Configuration
 
-<Tabs items={['Python', 'TypeScript', 'Golang']}>
+<UniversalTabs items={['Python', 'TypeScript', 'Go']}>
   <Tabs.Tab>
 
 ```python
@@ -29,7 +30,7 @@ regions=["ewr"] # Region codes
 ```
 
   </Tabs.Tab>
-</Tabs>
+</UniversalTabs>
 
 ## CPU Types and Memory Scaling
 
