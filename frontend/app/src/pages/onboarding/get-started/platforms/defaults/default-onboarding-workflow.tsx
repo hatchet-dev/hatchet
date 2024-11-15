@@ -70,9 +70,7 @@ export const DefaultOnboardingWorkflow: React.FC<{
 
   return (
     <div>
-      <p>
-        Your TypeScript application is now set up, and your worker is connected!
-      </p>
+      <p>Your application is now set up, and your worker is connected!</p>
       <p className="mt-4">
         Click the button below to trigger a run, and check out your worker
         terminal for log output!
