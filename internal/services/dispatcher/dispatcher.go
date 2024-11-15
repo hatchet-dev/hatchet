@@ -654,7 +654,7 @@ func (d *DispatcherImpl) handleStepRunBulkAssignedTask(ctx context.Context, task
 					var success bool
 
 					for i, w := range workers {
-						err = w.StartStepRunFromBulk(ctx, metadata.TenantId, stepRun)
+						err := w.StartStepRunFromBulk(ctx, metadata.TenantId, stepRun)
 
 						if err != nil {
 							multiErr = multierror.Append(multiErr, fmt.Errorf("could not send step action to worker (%d): %w", i, err))
