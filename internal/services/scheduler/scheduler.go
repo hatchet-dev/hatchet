@@ -423,8 +423,9 @@ func (s *Scheduler) internalRetry(ctx context.Context, tenantId string, assigned
 
 func getStepRunCancelTask(tenantId, stepRunId, reason string) *msgqueue.Message {
 	payload, _ := datautils.ToJSONMap(tasktypes.StepRunCancelTaskPayload{
-		StepRunId:       stepRunId,
-		CancelledReason: reason,
+		StepRunId:           stepRunId,
+		CancelledReason:     reason,
+		PropagateToChildren: true,
 	})
 
 	metadata, _ := datautils.ToJSONMap(tasktypes.StepRunCancelTaskMetadata{
