@@ -650,7 +650,10 @@ func (s *stepRunEngineRepository) ListStepRunsToReassign(ctx context.Context, te
 	defer rollback()
 
 	// get the step run and make sure it's still in pending
-	results, err := s.queries.ListStepRunsToReassign(ctx, tx, pgTenantId)
+	results, err := s.queries.ListStepRunsToReassign(ctx, tx, dbsqlc.ListStepRunsToReassignParams{
+		Maxinternalretrycount: s.cf.MaxInternalRetryCount,
+		Tenantid:              pgTenantId,
+	})
 
 	if err != nil {
 		return nil, nil, err
