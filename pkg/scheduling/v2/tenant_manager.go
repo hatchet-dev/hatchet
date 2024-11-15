@@ -75,10 +75,7 @@ func (t *tenantManager) Cleanup() error {
 
 	err := t.leaseManager.cleanup(cleanupCtx)
 
-	if err != nil {
-		return err
-	}
-
+	// clean up the other resources even if the lease manager fails to clean up
 	t.queuersMu.RLock()
 	defer t.queuersMu.RUnlock()
 
@@ -88,7 +85,7 @@ func (t *tenantManager) Cleanup() error {
 
 	t.rl.cleanup()
 
-	return nil
+	return err
 }
 
 func (t *tenantManager) listenForWorkerLeases(ctx context.Context) {
