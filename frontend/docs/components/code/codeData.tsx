@@ -32,9 +32,11 @@ const getLocalUrl = (ext: string, { path }: RepoProps) => {
   return `http://localhost:4001/${localPaths[ext]}/${path}`
 }
 
+const isDev = process?.env?.NODE_ENV === 'development'
+
 const getRawUrl = ({ user, repo, branch, path }: RepoProps) => {
   const ext = path.split('.').pop()
-  if (process.env.NODE_ENV === 'development') {
+  if (isDev) {
     return getLocalUrl(ext, { path })
   }
   return `https://raw.githubusercontent.com/${user || defaultUser}/${repo || defaultRepos[ext]}/refs/heads/${branch || defaultBranch}/${path}`
@@ -42,7 +44,7 @@ const getRawUrl = ({ user, repo, branch, path }: RepoProps) => {
 
 const getUIUrl = ({ user, repo, branch, path }: RepoProps) => {
   const ext = path.split('.').pop()
-  if (process.env.NODE_ENV === 'development') {
+  if (isDev) {
     return getLocalUrl(ext, { path })
   }
   return `https://github.com/${user || defaultUser}/${repo || defaultRepos[ext]}/blob/${branch || defaultBranch}/${path}`
