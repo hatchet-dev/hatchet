@@ -428,7 +428,7 @@ model EventKey {
 model Event {
   // base fields
   id        String    @id @unique @default(uuid()) @db.Uuid
-  createdAt DateTime  @default(now())
+  createdAt DateTime  @default(dbgenerated("CLOCK_TIMESTAMP()")) @db.Timestamp(6)
   updatedAt DateTime  @default(now()) @updatedAt
   deletedAt DateTime?
 

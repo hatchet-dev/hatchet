@@ -5,6 +5,7 @@ import { PostHogProvider } from "posthog-js/react";
 
 import "../styles/global.css";
 import { useRouter } from "next/router";
+import { LanguageProvider } from "../context/LanguageContext";
 
 // const inter = Inter({ subsets: ["latin"] });
 
@@ -22,11 +23,13 @@ import { useRouter } from "next/router";
 
 function MyApp({ Component, pageProps }: AppProps) {
   return (
-    <PostHogProvider client={posthog}>
-      <main>
-        <Component {...pageProps} />
-      </main>
-    </PostHogProvider>
+    <LanguageProvider>
+      <PostHogProvider client={posthog}>
+        <main>
+          <Component {...pageProps} />
+        </main>
+      </PostHogProvider>
+    </LanguageProvider>
   );
 }
 

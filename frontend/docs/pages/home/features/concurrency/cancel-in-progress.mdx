@@ -1,4 +1,5 @@
 import { Tabs } from "nextra/components";
+import UniversalTabs from "../../../../components/UniversalTabs";
 
 # The CANCEL_IN_PROGRESS Concurrency Limit Strategy in Hatchet
 
@@ -35,7 +36,7 @@ To use the `CANCEL_IN_PROGRESS` concurrency limit strategy, define a `concurrenc
 
 CEL expressions are evaluated on the Hatchet engine (not in your worker) and can be used to extract values from the workflow input or [additional metadata](/features/additional-metadata).
 
-<Tabs items={['Python', 'Typescript', 'Go']}>
+<UniversalTabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
 
 ```python
@@ -107,7 +108,7 @@ err = w.RegisterWorkflow(
 ```
 
   </Tabs.Tab>
-</Tabs>
+</UniversalTabs>
 In this example:
 
 - `maxRuns` sets the maximum number of concurrent instances allowed for this workflow.
@@ -117,7 +118,7 @@ In this example:
 </Tabs.Tab>
   <Tabs.Tab>
 In advanced use cases, you may want to use a custom function to determine the concurrency key. Concurrency key functions are evaluated on your Hatchet workers and can be used to extract values from the workflow input, context, and other sources (i.e. database, external API, etc.).
-<Tabs items={['Python', 'Typescript', 'Go']}>
+<UniversalTabs items={['Python', 'Typescript', 'Go']}>
 
   <Tabs.Tab>
 
@@ -199,7 +200,7 @@ err = w.RegisterWorkflow(
 ```
 
   </Tabs.Tab>
-</Tabs>
+</UniversalTabs>
 In this example:
 
 - `maxRuns` sets the maximum number of concurrent instances allowed for this workflow.

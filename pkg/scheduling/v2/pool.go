@@ -91,7 +91,7 @@ func (p *SchedulingPool) SetTenants(tenants []*dbsqlc.Tenant) {
 	for _, t := range tenants {
 		tenantId := sqlchelpers.UUIDToStr(t.ID)
 		tenantMap[tenantId] = true
-		p.getTenantManager(tenantId) // nolint: ineffassign
+		p.getTenantManager(tenantId, true) // nolint: ineffassign
 	}
 
 	toCleanup := make([]*tenantManager, 0)
@@ -141,29 +141,33 @@ func (p *SchedulingPool) cleanupTenants(toCleanup []*tenantManager) {
 }
 
 func (p *SchedulingPool) RefreshAll(ctx context.Context, tenantId string) {
-	tm := p.getTenantManager(tenantId)
-
-	tm.refreshAll(ctx)
+	if tm := p.getTenantManager(tenantId, false); tm != nil {
+		tm.refreshAll(ctx)
+	}
 }
 
 func (p *SchedulingPool) Replenish(ctx context.Context, tenantId string) {
-	tm := p.getTenantManager(tenantId)
-
-	tm.replenish(ctx)
+	if tm := p.getTenantManager(tenantId, false); tm != nil {
+		tm.replenish(ctx)
+	}
 }
 
 func (p *SchedulingPool) Queue(ctx context.Context, tenantId string, queueName string) {
-	tm := p.getTenantManager(tenantId)
-
-	tm.queue(queueName)
+	if tm := p.getTenantManager(tenantId, false); tm != nil {
+		tm.queue(queueName)
+	}
 }
 
-func (p *SchedulingPool) getTenantManager(tenantId string) *tenantManager {
+func (p *SchedulingPool) getTenantManager(tenantId string, storeIfNotFound bool) *tenantManager {
 	tm, ok := p.tenants.Load(tenantId)
 
 	if !ok {
-		tm = newTenantManager(p.cf, tenantId, p.eventBuffer, p.resultsCh)
-		p.tenants.Store(tenantId, tm)
+		if storeIfNotFound {
+			tm = newTenantManager(p.cf, tenantId, p.eventBuffer, p.resultsCh)
+			p.tenants.Store(tenantId, tm)
+		} else {
+			return nil
+		}
 	}
 
 	return tm.(*tenantManager)

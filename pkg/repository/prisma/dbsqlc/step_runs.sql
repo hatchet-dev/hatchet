@@ -671,7 +671,7 @@ step_runs_to_reassign AS (
     FROM
         step_runs_on_inactive_workers
     WHERE
-        "internalRetryCount" < 1
+        "internalRetryCount" < @maxInternalRetryCount::int
 ),
 step_runs_to_fail AS (
     SELECT
@@ -679,7 +679,7 @@ step_runs_to_fail AS (
     FROM
         step_runs_on_inactive_workers
     WHERE
-        "internalRetryCount" >= 1
+        "internalRetryCount" >= @maxInternalRetryCount::int
 ),
 deleted_sqis AS (
     DELETE FROM
