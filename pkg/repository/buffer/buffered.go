@@ -40,6 +40,13 @@ func getGID() uint64 {
 	return n
 }
 
+type BuffStrategy string
+
+const (
+	Dynamic BuffStrategy = "DYNAMIC"
+	Static  BuffStrategy = "STATIC"
+)
+
 // e.g. T is eventOpts and U is *dbsqlc.Event
 
 type IngestBuf[T any, U any] struct {
@@ -56,17 +63,23 @@ type IngestBuf[T any, U any] struct {
 	internalArr        []*inputWrapper[T, U]
 	sizeOfData         int // size of data in buffer
 	maxDataSizeInQueue int // max number of bytes to hold in buffer before we flush
+	strategy           BuffStrategy
 
-	l                 *zerolog.Logger
-	lock              sync.Mutex
-	ctx               context.Context
-	cancel            context.CancelFunc
-	flushSemaphore    *semaphore.Weighted
-	waitForFlush      time.Duration
-	maxConcurrent     int
-	fmux              sync.Mutex
+	l              *zerolog.Logger
+	ctx            context.Context
+	cancel         context.CancelFunc
+	flushSemaphore *semaphore.Weighted
+	waitForFlush   time.Duration
+	maxConcurrent  int
+
 	currentlyFlushing int
 	debugMap          sync.Map
+
+	currentlyFlushingLock sync.Mutex
+	internalArrLock       sync.Mutex
+	sizeOfDataLock        sync.Mutex
+	lastFlushLock         sync.Mutex
+	stateLock             sync.Mutex
 }
 
 type inputWrapper[T any, U any] struct {
@@ -85,6 +98,7 @@ type IngestBufOpts[T any, U any] struct {
 	L                  *zerolog.Logger                                   `validate:"required"`
 	MaxConcurrent      int                                               `validate:"omitempty,gt=0"`
 	WaitForFlush       time.Duration                                     `validate:"omitempty,gt=0"`
+	FlushStrategy      BuffStrategy                                      `validate:"required"`
 }
 
 // NewIngestBuffer creates a new buffer for any type T
@@ -104,7 +118,7 @@ func NewIngestBuffer[T any, U any](opts IngestBufOpts[T, U]) *IngestBuf[T, U] {
 	}
 
 	if opts.WaitForFlush == 0 {
-		opts.WaitForFlush = 1 * time.Millisecond
+		opts.WaitForFlush = 2 * time.Millisecond
 
 	}
 
@@ -127,51 +141,86 @@ func NewIngestBuffer[T any, U any](opts IngestBufOpts[T, U]) *IngestBuf[T, U] {
 		waitForFlush:       opts.WaitForFlush,
 		maxConcurrent:      opts.MaxConcurrent,
 		currentlyFlushing:  0,
+		strategy:           opts.FlushStrategy,
 	}
 }
 
 func (b *IngestBuf[T, U]) safeAppendInternalArray(e *inputWrapper[T, U]) {
-	b.lock.Lock()
-	defer b.lock.Unlock()
+
+	b.internalArrLock.Lock()
+	defer b.internalArrLock.Unlock()
 
 	b.internalArr = append(b.internalArr, e)
 }
 
 func (b *IngestBuf[T, U]) safeFetchSizeOfData() int {
-	b.lock.Lock()
-	defer b.lock.Unlock()
 
+	b.sizeOfDataLock.Lock()
+	defer b.sizeOfDataLock.Unlock()
 	return b.sizeOfData
 }
 
 func (b *IngestBuf[T, U]) safeIncSizeOfData(size int) {
-	b.lock.Lock()
-	defer b.lock.Unlock()
+
+	b.sizeOfDataLock.Lock()
+	defer b.sizeOfDataLock.Unlock()
 
 	b.sizeOfData += size
 
 }
 
 func (b *IngestBuf[T, U]) safeDecSizeOfData(size int) {
-	b.lock.Lock()
-	defer b.lock.Unlock()
+
+	b.sizeOfDataLock.Lock()
+	defer b.sizeOfDataLock.Unlock()
 
 	b.sizeOfData -= size
 
 }
 
 func (b *IngestBuf[T, U]) safeSetLastFlush(t time.Time) {
-	b.lock.Lock()
-	defer b.lock.Unlock()
+
+	b.lastFlushLock.Lock()
+	defer b.lastFlushLock.Unlock()
 
 	b.lastFlush = t
 
 }
 
 func (b *IngestBuf[T, U]) safeFetchLastFlush() time.Time {
-	b.lock.Lock()
-	defer b.lock.Unlock()
+
+	b.lastFlushLock.Lock()
+	defer b.lastFlushLock.Unlock()
 	return b.lastFlush
+}
+func Fibonacci(n int) int {
+
+	if n <= 1 {
+		return 1
+	}
+	return Fibonacci(n-1) + Fibonacci(n-2)
+
+}
+
+func (b *IngestBuf[T, U]) safeFetchMaxSize() int {
+	return b.maxCapacity
+
+}
+
+func (b *IngestBuf[T, U]) safeFetchTriggerSize() int {
+	if b.strategy == Static {
+		return b.maxCapacity
+	}
+
+	b.currentlyFlushingLock.Lock()
+	defer b.currentlyFlushingLock.Unlock()
+
+	f := Fibonacci(b.currentlyFlushing)
+	if f > b.maxCapacity {
+		return b.maxCapacity
+	}
+	return f
+
 }
 
 // We take items from the input channel and add them to the internal array
@@ -190,7 +239,8 @@ func (b *IngestBuf[T, U]) buffWorker() {
 			b.safeAppendInternalArray(e)
 			b.safeIncSizeOfData(b.calcSizeOfData([]T{e.item}))
 
-			if b.safeCheckSizeOfBuffer() >= b.maxCapacity || b.safeFetchSizeOfData() >= b.maxDataSizeInQueue {
+			// this trigger size can be dynamic
+			if b.safeCheckSizeOfBuffer() >= b.safeFetchTriggerSize() || b.safeFetchSizeOfData() >= b.maxDataSizeInQueue {
 				b.flush()
 			}
 		case <-time.After(time.Until(b.safeFetchLastFlush().Add(b.flushPeriod))):
@@ -202,15 +252,16 @@ func (b *IngestBuf[T, U]) buffWorker() {
 }
 
 func (b *IngestBuf[T, U]) sliceInternalArray() (items []*inputWrapper[T, U]) {
+	b.internalArrLock.Lock()
+	defer b.internalArrLock.Unlock()
 
-	if b.safeCheckSizeOfBuffer() >= b.maxCapacity {
-		b.lock.Lock()
-		defer b.lock.Unlock()
-		items = b.internalArr[:b.maxCapacity]
-		b.internalArr = b.internalArr[b.maxCapacity:]
+	// here we always want to take the max size of the buffer if it is available (we don't do this dynamically)
+	maxSize := b.safeFetchMaxSize()
+	if len(b.internalArr) >= maxSize {
+		items = b.internalArr[:maxSize]
+		b.internalArr = b.internalArr[maxSize:]
 	} else {
-		b.lock.Lock()
-		defer b.lock.Unlock()
+
 		items = b.internalArr
 		b.internalArr = nil
 	}
@@ -231,8 +282,9 @@ func (b *IngestBuf[T, U]) calcSizeOfData(items []T) int {
 }
 
 func (b *IngestBuf[T, U]) safeCheckSizeOfBuffer() int {
-	b.lock.Lock()
-	defer b.lock.Unlock()
+	b.internalArrLock.Lock()
+	defer b.internalArrLock.Unlock()
+
 	return len(b.internalArr)
 }
 
@@ -274,9 +326,9 @@ func (b *IngestBuf[T, U]) flush() {
 
 	go func() {
 
-		b.fmux.Lock()
+		b.currentlyFlushingLock.Lock()
 		b.currentlyFlushing++
-		b.fmux.Unlock()
+		b.currentlyFlushingLock.Unlock()
 
 		defer func() {
 			if r := recover(); r != nil {
@@ -295,9 +347,9 @@ func (b *IngestBuf[T, U]) flush() {
 		}()
 
 		defer func() {
-			b.fmux.Lock()
+			b.currentlyFlushingLock.Lock()
 			b.currentlyFlushing--
-			b.fmux.Unlock()
+			b.currentlyFlushingLock.Unlock()
 		}()
 		defer b.flushSemaphore.Release(1)
 		// get goroutine id
@@ -334,9 +386,9 @@ func (b *IngestBuf[T, U]) flush() {
 
 func (b *IngestBuf[T, U]) cleanup() error {
 
-	b.lock.Lock()
+	b.stateLock.Lock()
 	b.state = finished
-	b.lock.Unlock()
+	b.stateLock.Unlock()
 
 	g := errgroup.Group{}
 	g.SetLimit(b.maxConcurrent)
@@ -355,9 +407,9 @@ func (b *IngestBuf[T, U]) cleanup() error {
 	// wait until currentlyFlushing is 0
 
 	for {
-		b.fmux.Lock()
+		b.currentlyFlushingLock.Lock()
 		flushingCount := b.currentlyFlushing
-		b.fmux.Unlock()
+		b.currentlyFlushingLock.Unlock()
 		if flushingCount == 0 {
 			break
 		}
@@ -373,8 +425,8 @@ func (b *IngestBuf[T, U]) cleanup() error {
 func (b *IngestBuf[T, U]) Start() (func() error, error) {
 	b.l.Debug().Msg("Starting buffer")
 
-	b.lock.Lock()
-	defer b.lock.Unlock()
+	b.stateLock.Lock()
+	defer b.stateLock.Unlock()
 
 	if b.state == started {
 		return nil, fmt.Errorf("buffer already started")
@@ -439,8 +491,8 @@ func (b *IngestBuf[T, U]) countDebugMapEntries() int {
 }
 func (b *IngestBuf[T, U]) debugBuffer() string {
 	var builder strings.Builder
-	b.fmux.Lock()
-	defer b.fmux.Unlock()
+	b.currentlyFlushingLock.Lock()
+	defer b.currentlyFlushingLock.Unlock()
 
 	builder.WriteString("============= Buffer =============\n")
 	builder.WriteString(fmt.Sprintf("%d items in buffer\n", b.safeCheckSizeOfBuffer()))

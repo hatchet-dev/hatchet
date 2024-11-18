@@ -69,6 +69,7 @@ func NewTenantBufManager[T any, U any](opts TenantBufManagerOpts[T, U]) (*Tenant
 		L:                  opts.L,
 		MaxConcurrent:      opts.Config.MaxConcurrent,
 		WaitForFlush:       opts.Config.WaitForFlush,
+		FlushStrategy:      opts.Config.FlushStrategy,
 	}
 
 	if opts.Config.FlushPeriodMilliseconds != 0 {
