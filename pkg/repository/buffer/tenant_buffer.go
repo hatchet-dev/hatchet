@@ -88,6 +88,10 @@ func NewTenantBufManager[T any, U any](opts TenantBufManagerOpts[T, U]) (*Tenant
 		defaultOpts.WaitForFlush = opts.Config.WaitForFlush
 	}
 
+	if defaultOpts.FlushStrategy == "" {
+		defaultOpts.FlushStrategy = Dynamic
+	}
+
 	opts.L.Debug().Msgf("creating new tenant buffer manager %s with default flush period %s and max capacity %d", opts.Name, defaultOpts.FlushPeriod, defaultOpts.MaxCapacity)
 
 	return &TenantBufferManager[T, U]{
