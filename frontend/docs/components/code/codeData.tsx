@@ -7,6 +7,12 @@ const defaultRepos = {
   'go': 'hatchet'
 }
 
+const localPaths = {
+  'ts': 'sdk-typescript',
+  'py': 'sdk-python',
+  'go': 'oss'
+}
+
 export const extToLanguage = {
   'ts': 'typescript',
   'py': 'python',
@@ -22,13 +28,23 @@ export type RepoProps = {
   path: string
 }
 
+const getLocalUrl = (ext: string, { path }: RepoProps) => {
+  return `http://localhost:4001/${localPaths[ext]}/${path}`
+}
+
 const getRawUrl = ({ user, repo, branch, path }: RepoProps) => {
   const ext = path.split('.').pop()
+  if (process.env.NODE_ENV === 'development') {
+    return getLocalUrl(ext, { path })
+  }
   return `https://raw.githubusercontent.com/${user || defaultUser}/${repo || defaultRepos[ext]}/refs/heads/${branch || defaultBranch}/${path}`
 }
 
 const getUIUrl = ({ user, repo, branch, path }: RepoProps) => {
   const ext = path.split('.').pop()
+  if (process.env.NODE_ENV === 'development') {
+    return getLocalUrl(ext, { path })
+  }
   return `https://github.com/${user || defaultUser}/${repo || defaultRepos[ext]}/blob/${branch || defaultBranch}/${path}`
 }
 
