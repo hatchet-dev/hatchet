@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from "react";
 
 import { BiLogoGoLang, BiLogoPython, BiLogoTypescript } from 'react-icons/bi';
+import { SiFastapi, SiExpress, SiDjango, SiFlask, SiNestjs, SiBun } from 'react-icons/si';
+import { RiNextjsFill } from 'react-icons/ri';
 
 export type PersistenceKeys = "worker" | "api-server";
 
@@ -15,6 +17,19 @@ const LANGUAGES: LanguageType[] = [
   { name: "Python", icon: <BiLogoPython /> },
   { name: "Typescript", icon: <BiLogoTypescript /> },
   { name: "Go", icon: <BiLogoGoLang /> },
+];
+
+const FRAMEWORKS: LanguageType[] = [
+  { name: "FastAPI", icon: <SiFastapi /> },
+  { name: "Express", icon: <SiExpress /> },
+  { name: "Django", icon: <SiDjango /> },
+  { name: "Flask", icon: <SiFlask /> },
+  { name: "NestJS", icon: <SiNestjs /> },
+  { name: "NextJS (App Router)", icon: <RiNextjsFill /> },
+  { name: "NextJS (Page Router)", icon: <RiNextjsFill /> },
+  { name: "Django REST Framework", icon: <SiDjango /> },
+  { name: "Bun", icon: <SiBun /> },
+  ...LANGUAGES,
 ];
 
 type LanguageContextType = {
@@ -49,7 +64,7 @@ export const LanguageProvider: React.FC<{ children: ReactNode }> = ({
 
   const languages = {
     worker: LANGUAGES,
-    "api-server": LANGUAGES,
+    "api-server": FRAMEWORKS,
   };
 
   useEffect(() => {

@@ -1,13 +1,18 @@
+"use client";
 import React from 'react';
 import { useLanguage } from '../context/LanguageContext';
 import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-  } from "@/components/ui/select"
-
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+    DialogClose,
+  } from "@/components/ui/dialog"
+import { Button } from '@/components/ui/button';
+import { BiChevronDown, BiPlus } from 'react-icons/bi';
+  
   
 interface FrameworkSelectorProps {
   className?: string;
@@ -17,54 +22,89 @@ export const FrameworkSelector: React.FC<FrameworkSelectorProps> = ({ className 
   const { selected, setSelectedLanguage, languages } = useLanguage();
 
   return (
-    <div>
-      <span className="text-sm font-medium mb-2 inline-block">Choose your worker language:</span>
-      <Select 
-        value={selected.worker?.name}
-        onValueChange={(value) => {
-          const selectedLang = languages.worker.find(lang => lang.name === value);
-          if (selectedLang) {
-            setSelectedLanguage("worker", selectedLang);
-          }
-        }}
-      >
-        <SelectTrigger className="w-[180px]">
-          <SelectValue placeholder="Language" />
-        </SelectTrigger>
-        <SelectContent>
-          {languages.worker.map((lang) => (
-            <SelectItem key={lang.name} value={lang.name}>
-              <span className="flex items-center gap-2">
-                {lang.icon} {lang.name}
-              </span>
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <span className="text-sm font-medium mb-2 inline-block">Choose your API server:</span>
-      <Select 
-        value={selected['api-server']?.name}
-        onValueChange={(value) => {
-          const selectedLang = languages.worker.find(lang => lang.name === value);
-          if (selectedLang) {
-            setSelectedLanguage("worker", selectedLang);
-          }
-        }}
-      >
-        <SelectTrigger className="w-[180px]">
-          <SelectValue placeholder="Language" />
-        </SelectTrigger>
-        <SelectContent>
-          {languages.worker.map((lang) => (
-            <SelectItem key={lang.name} value={lang.name}>
-              <span className="flex items-center gap-2">
-                {lang.icon} {lang.name}
-              </span>
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
+    <>
+      <Dialog>
+        <DialogTrigger asChild>
+          <Button className="inline-flex items-center gap-2 px-4 py-2 border rounded-md hover:bg-gray-100">
+            {selected.worker?.icon} {selected.worker?.name || "Select Language"}
+            {selected['api-server']?.name !== selected.worker?.name && <> <BiPlus /> {selected['api-server']?.icon} {selected['api-server']?.name}</>}
+            <BiChevronDown className="ml-2" />
+          </Button>
+        </DialogTrigger>
+        <DialogContent className="sm:max-w-[725px]">
+          <DialogHeader>
+            <DialogTitle>Personalize Your Docs</DialogTitle>
+            <DialogDescription>
+              Select the programming language and frameworks you want to use for code examples.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <h4 className="font-medium">Hatchet Worker Language</h4>
+              <p className="text-sm text-gray-500">
+                The worker language is the language that your hatchet functions and workflows will be written in.
+              </p>
+              <div className="grid grid-cols-6 gap-2">
+                {languages.worker.map((lang) => (
+                  <button
+                    key={lang.name}
+                    className={`
+                      aspect-square flex flex-col items-center justify-center gap-1.5 
+                      border rounded-md hover:bg-gray-50 transition-colors p-1
+                      ${selected.worker?.name === lang.name 
+                        ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500 ring-opacity-50 text-blue-900' 
+                        : ''}
+                    `}
+                    onClick={() => setSelectedLanguage("worker", lang)}
+                  >
+                    <div className="text-3xl">{lang.icon}</div>
+                    <div className="text-xs font-medium leading-none text-center whitespace-pre-line">
+                      {lang.name.replace('(', '\n(')}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <h4 className="font-medium">API Server</h4>
+              <p className="text-sm text-gray-500">
+                The API server framework is where you schedule work for your hatchet functions.
+              </p>
+              <div className="max-h-[230px] overflow-y-auto pr-2">
+                <div className="grid grid-cols-6 gap-2">
+                  {languages['api-server'].map((lang) => (
+                    <button
+                      key={lang.name}
+                      className={`
+                        aspect-square flex flex-col items-center justify-center gap-2.5 
+                        border rounded-md hover:bg-gray-50 transition-colors p-1
+                        ${selected['api-server']?.name === lang.name 
+                          ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500 ring-opacity-50 text-blue-900' 
+                          : ''}
+                      `}
+                      onClick={() => setSelectedLanguage("api-server", lang)}
+                    >
+                      <div className="text-3xl">{lang.icon}</div>
+                      <div className="text-xs font-medium leading-none text-center whitespace-pre-line">
+                        {lang.name.replace('(', '\n(')}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-end mt-6 pt-4 border-t">
+            <DialogClose asChild>
+              <Button variant="outline">Save Changes</Button>
+            </DialogClose>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 };
 
