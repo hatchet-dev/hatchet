@@ -27,7 +27,7 @@ export const FrameworkSelector: React.FC<FrameworkSelectorProps> = ({ className 
         <DialogTrigger asChild>
           <Button className="inline-flex items-center gap-2 px-4 py-2 border rounded-md hover:bg-gray-100">
             {selected.worker?.icon} {selected.worker?.name || "Select Language"}
-            {selected['api-server']?.name !== selected.worker?.name && <> <BiPlus /> {selected['api-server']?.icon} {selected['api-server']?.name}</>}
+            {selected['api-server'] && selected['api-server']?.name !== selected.worker?.name && <> <BiPlus /> {selected['api-server']?.icon} {selected['api-server']?.name}</>}
             <BiChevronDown className="ml-2" />
           </Button>
         </DialogTrigger>
