@@ -50,7 +50,6 @@
 
   "queue_concurrency": "Concurrency",
   "queue_rate-limits": "Rate Limits",
-  "queue_advanced": "Advanced",
 
   "--error-handling": {
     "title": "Failure & Error Handling",
@@ -61,7 +60,9 @@
   "errors_retry-policies": "Retry Policies",
   "errors_on-failure-step": "On Failure Step",
   "errors_cancellation-signaling": "Cancellation Signaling",
-  "errors_advanced": "Advanced",
+  "errors_dead-lettering": "Dead Lettering",
+  "errors_dashboard-manual-retries": "Dashboard Manual Retries",
+  "errors_script-based-retries": "Script-Based Retries",
 
   "--logging-and-monitoring": {
     "title": "Logging and Monitoring",
@@ -90,12 +91,15 @@
   "advanced_streaming": "Streaming",
   "advanced_eventing": "Eventing",
   "advanced_webhook-workers": "Webhook Workers",
+  "more_additional-metadata": "Additional Metadata",
+
+  "--more": {
+    "title": "More",
+    "type": "separator"
+  },
+
   "advanced_asyncio": "Working with AsyncIO",
-
-  "more": "More",
-
   "tutorials": "Tutorials",
-  "more_dashboard": "Dashboard",
   "about": {
     "title": "About Hatchet ↗",
     "href": "https://hatchet.run"
