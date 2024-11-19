@@ -75,7 +75,7 @@ export const LanguageProvider: React.FC<{ children: ReactNode }> = ({
           const storedState = JSON.parse(savedLanguage) as StoredLanguageState;
           const restoredState: LanguageContextType['selected'] = {
             worker: storedState.worker ? LANGUAGES.find(lang => lang.name === storedState.worker) : undefined,
-            "api-server": storedState["api-server"] ? LANGUAGES.find(lang => lang.name === storedState["api-server"]) : undefined,
+            "api-server": storedState["api-server"] ? FRAMEWORKS.find(lang => lang.name === storedState["api-server"]) : undefined,
           };
           setSelectedLanguage(restoredState);
         } catch (e) {
