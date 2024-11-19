@@ -1,4 +1,8 @@
 {
+  "--frameworks": {
+    "title": "Frameworks",
+    "type": "separator"
+  },
   "index": "Introduction",
   "hatchet-cloud-quickstart": "Hatchet Cloud Quickstart",
   "--guide": {
