@@ -346,6 +346,8 @@ func (b *IngestBuf[T, U]) flush() {
 	go func() {
 
 		b.safeIncCurrentlyFlushing()
+		defer b.safeDecCurrentlyFlushing()
+
 		defer func() {
 			if r := recover(); r != nil {
 				err := fmt.Errorf("[%s] panic recovered in flush: %v", b.name, r)
@@ -362,9 +364,6 @@ func (b *IngestBuf[T, U]) flush() {
 			}
 		}()
 
-		defer func() {
-			b.safeDecCurrentlyFlushing()
-		}()
 		defer b.flushSemaphore.Release(1)
 		// get goroutine id
 		goRoutineID := fmt.Sprintf("%d", getGID())
