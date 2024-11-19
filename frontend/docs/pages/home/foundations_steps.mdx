@@ -29,14 +29,14 @@ Often, Hatchet users will start by wrapping one large, existing function into a 
 
 ## Best Practices for Defining Independent Steps
 
-A step in Hatchet is a self-sufficient function that encapsulates a specific operation or task. This independence means that while steps can be orchestrated into larger [workflows](./workflows), each step is designed to function effectively in isolation.
+A step in Hatchet is a self-sufficient function that encapsulates a specific operation or task. This independence means that while steps can be orchestrated into larger [workflows](./foundations_workflows.mdx), each step is designed to function effectively in isolation.
 
 Here's some key best practices for defining independent steps in Hatchet:
 
 - **Consistent Input and Output Shapes:** Each step can accept an input and produce an output. The input to a step is typically a JSON object, allowing for flexibility and ease of integration. The output is also a JSON-serializable object, ensuring compatibility and ease of further processing or aggregation. Wherever possible, use consistent input and output shapes to ensure that steps produce predictable and uniform results.
 - **Reusability:** Due to their self-contained nature, steps can be reused across different workflows or even within the same workflow, maximizing code reuse and reducing redundancy.
 - **Testing**: Steps can be easily tested in isolation, ensuring that they function as expected and produce the desired output. This testing approach simplifies the debugging process and ensures that steps are reliable and robust.
-- **Logging**: Each step can log its operation, input, and output, providing valuable insights into the workflow's execution and enabling effective monitoring and troubleshooting. Logs can be streamed to the Hatchet dashboard through the [`context.log` method](../features/errors-and-logging.mdx).
+- **Logging**: Each step can log its operation, input, and output, providing valuable insights into the workflow's execution and enabling effective monitoring and troubleshooting. Logs can be streamed to the Hatchet dashboard through the [`context.log` method](./monitoring_logging.mdx).
 
 ### The Workflow Input Object
 
@@ -116,4 +116,4 @@ While Hatchet allows for payloads upto 4mb, it's advisable to maintain smaller p
 
 While each step in Hatchet stands on its own they can be further utilized through composition into workflows. In the next section, we'll explore how to combine these independent steps into declarative workflow definitions, where Hatchet seamlessly manages their ordering and execution, enabling you to orchestrate complex processes with ease.
 
-[Continue to Understanding Workflows →](./workflows)../../components/UniversalTabs
+[Continue to Understanding Workflows →](./foundations_workflows.mdx)

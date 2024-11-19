@@ -8,11 +8,13 @@
     "title": "Foundations",
     "type": "separator"
   },
-  "index": "Overview",
-  "basics_steps": "Step Functions",
-  "basics_workflows": "Workflows (DAGs)",
-  "basics_workers": "Workers",
-  "basics_environments": "Environments",
+
+  "index": "What is Hatchet?",
+  "foundations_steps": "Step Functions",
+  "foundations_timeouts": "Timeouts",
+  "foundations_workflows": "Workflows (DAGs)",
+  "foundations_workers": "Workers",
+  "foundations_environments": "Environments",
 
   "--quickstart": {
     "title": "Quickstart",
@@ -21,12 +23,60 @@
 
   "hatchet-cloud-quickstart": "Cloud Quickstart",
 
-  "basics": "Working With Hatchet",
-  
   "--triggers": {
     "title": "Triggers",
     "type": "separator"
   },
+
+  "trigger_run": "Run From API",
+  "trigger_child-workflows": "Run From Run (Spawn Child)",
+  "trigger_scheduled": "Run in Future (Scheduled)",
+  "trigger_cron": "Run on Cron (Recurring)",
+
+  "--queue-controls": {
+    "title": "Queue Controls",
+    "type": "separator"
+  },
+
+  "queue_concurrency": "Concurrency",
+  "queue_rate-limits": "Rate Limits",
+  "queue_advanced": "Advanced",
+
+  "--error-handling": {
+    "title": "Failure & Error Handling",
+    "type": "separator"
+  },
+
+  "errors_durable-execution": "Durable Execution",
+  "errors_retry-policies": "Retry Policies",
+  "errors_on-failure-step": "On Failure Step",
+  "errors_cancellation-signaling": "Cancellation Signaling",
+  "errors_advanced": "Advanced",
+
+  "--worker-assignment": {
+    "title": "Worker Assignment",
+    "type": "separator"
+  },
+
+  "assignment_worker-affinity": "Worker Affinity Labels",
+  "assignment_sticky-assignment": "Sticky Assignment",
+  "assignment_manual-slot-release": "Manual Slot Release",
+
+  "--logging-and-monitoring": {
+    "title": "Logging and Monitoring",
+    "type": "separator"
+  },
+
+  "monitoring_logging": "Logging",
+
+  "--advanced": {
+    "title": "Advanced",
+    "type": "separator"
+  },
+
+  "advanced_streaming": "Streaming",
+  "advanced_eventing": "Eventing",
+  "advanced_webhook-workers": "Webhook Workers",
 
   "features": "Features",
   "--more": {

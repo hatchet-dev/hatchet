@@ -1,5 +1,5 @@
 import { Tabs, Callout } from "nextra/components";
-import UniversalTabs from "../../../../components/UniversalTabs";
+import UniversalTabs from "@/components/UniversalTabs";
 
 # Worker Affinity Assignment (Beta)
 
@@ -9,7 +9,7 @@ import UniversalTabs from "../../../../components/UniversalTabs";
 
 It is often desirable to assign workflows to specific workers based on certain criteria, such as worker capabilities, resource availability, or location. Worker affinity allows you to specify that a workflow should be assigned to a specific worker based on worker label state. Labels can be set dynamically on workers to reflect their current state, such as a specific model loaded into memory or specific disk requirements.
 
-Specific steps can then specify desired label state to ensure that workflows are assigned to workers that meet specific criteria. If no worker meets the specified criteria, the step run will remain in a pending state until a suitable worker becomes available or the step is cancelled. (See [Scheduling Timeouts](../timeouts.mdx))
+Specific steps can then specify desired label state to ensure that workflows are assigned to workers that meet specific criteria. If no worker meets the specified criteria, the step run will remain in a pending state until a suitable worker becomes available or the step is cancelled. (See [Scheduling Timeouts](./foundations_timeouts.mdx#scheduling-timeouts))
 
 ## Specifying Worker Labels
 
@@ -148,10 +148,10 @@ const affinity: Workflow = {
 
 <Callout type="warning">
   Use extra care when using worker affinity with [sticky assignment `HARD`
-  strategy](./sticky-assignment.mdx). In this case, it is recommended to set
-  desired labels on the first step of the workflow to ensure that the workflow
-  is assigned to a worker that meets the desired criteria and remains on that
-  worker for the duration of the workflow.
+  strategy](./assignment_sticky-assignment.mdx). In this case, it is recommended
+  to set desired labels on the first step of the workflow to ensure that the
+  workflow is assigned to a worker that meets the desired criteria and remains
+  on that worker for the duration of the workflow.
 </Callout>
 
 ### Dynamic Worker Labels

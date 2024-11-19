@@ -1,9 +1,9 @@
 import { Tabs } from "nextra/components";
-import UniversalTabs from "../../../components/UniversalTabs";
+import UniversalTabs from "@/components/UniversalTabs";
 
 # Cancellation in Hatchet Workflows
 
-Hatchet provides a mechanism for canceling workflow executions gracefully, allowing you to stop running workflows and their associated steps when needed. Cancellation can be triggered on graceful termination of a worker or automatically through concurrency control strategies like [`CANCEL_IN_PROGRESS`](./concurrency/cancel-in-progress), which cancels currently running workflow instances to free up slots for new instances when the concurrency limit is reached.
+Hatchet provides a mechanism for canceling workflow executions gracefully, allowing you to stop running workflows and their associated steps when needed. Cancellation can be triggered on graceful termination of a worker or automatically through concurrency control strategies like [`CANCEL_IN_PROGRESS`](./queue_concurrency/cancel-in-progress.mdx), which cancels currently running workflow instances to free up slots for new instances when the concurrency limit is reached.
 
 When a workflow is canceled, Hatchet sends a cancellation signal to all the currently executing steps. The steps can then check for the cancellation signal and take appropriate action, such as cleaning up resources, aborting network requests, or gracefully terminating their execution.
 
