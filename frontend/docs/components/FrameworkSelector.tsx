@@ -32,7 +32,7 @@ export const FrameworkSelector: React.FC<FrameworkSelectorProps> = ({ className 
             <BiChevronDown className="ml-2" />
           </Button>
         </DialogTrigger>
-        <DialogContent className="sm:max-w-[725px]">
+        <DialogContent className="sm:max-w-[725px] w-[95vw] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Personalize Your Docs</DialogTitle>
             <DialogDescription>
@@ -46,7 +46,7 @@ export const FrameworkSelector: React.FC<FrameworkSelectorProps> = ({ className 
               <p className="text-sm">
                 The worker language is the language that your hatchet functions and workflows will be written in.
               </p>
-              <div className="grid grid-cols-6 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
                 {languages.worker.map((lang) => (
                   <button
                     key={lang.name}
@@ -74,7 +74,7 @@ export const FrameworkSelector: React.FC<FrameworkSelectorProps> = ({ className 
                 The API server framework is where you schedule work for your hatchet functions.
               </p>
               <div className="max-h-[230px] overflow-y-auto pr-2">
-                <div className="grid grid-cols-6 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
                   {languages['api-server'].map((lang) => (
                     <button
                       key={lang.name}
@@ -98,13 +98,12 @@ export const FrameworkSelector: React.FC<FrameworkSelectorProps> = ({ className 
             </div>
           </div>
 
-          <div className="flex justify-between mt-6 pt-4 border-t">
-            
+          <div className="flex flex-col sm:flex-row justify-between mt-6 pt-4 border-t gap-4">
             <p className="text-sm">
               Don't see your favorite framework?
-            <a href="https://github.com/hatchet-dev/hatchet/issues/new?template=feature_request.md&labels=feature-request&title=Framework+Request:" target="_blank">
-              <Button variant="link" size="sm">Request a Framework</Button>
-            </a>
+              <a href="https://github.com/hatchet-dev/hatchet/issues/new?template=feature_request.md&labels=feature-request&title=Framework+Request:" target="_blank">
+                <Button variant="link" size="sm">Request a Framework</Button>
+              </a>
             </p>
             <DialogClose asChild>
               <Button variant="outline">Save Changes</Button>
