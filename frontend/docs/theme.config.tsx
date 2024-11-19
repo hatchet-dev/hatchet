@@ -36,7 +36,7 @@ const config: DocsThemeConfig = {
     </>
   ),
   sidebar: {
-    defaultMenuCollapseLevel: 2,
+    defaultMenuCollapseLevel: 1,
     titleComponent: ({ title, type, route }) => {
       if (type === 'separator' && title === 'Frameworks') {
         return <FrameworkSelector />

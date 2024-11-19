@@ -3,19 +3,38 @@
     "title": "Frameworks",
     "type": "separator"
   },
-  "index": "Introduction",
-  "hatchet-cloud-quickstart": "Hatchet Cloud Quickstart",
-  "--guide": {
-    "title": "Guide",
+
+  "--foundations": {
+    "title": "Foundations",
     "type": "separator"
   },
+  "index": "Overview",
+  "basics_steps": "Step Functions",
+  "basics_workflows": "Workflows (DAGs)",
+  "basics_workers": "Workers",
+  "basics_environments": "Environments",
+
+  "--quickstart": {
+    "title": "Quickstart",
+    "type": "separator"
+  },
+
+  "hatchet-cloud-quickstart": "Cloud Quickstart",
+
   "basics": "Working With Hatchet",
-  "tutorials": "Tutorials",
+  
+  "--triggers": {
+    "title": "Triggers",
+    "type": "separator"
+  },
+
   "features": "Features",
   "--more": {
     "title": "More",
     "type": "separator"
   },
+  "tutorials": "Tutorials",
+  "dashboard": "Dashboard",
   "about": {
     "title": "About Hatchet ↗",
     "href": "https://hatchet.run"
