@@ -21,14 +21,15 @@
     "type": "separator"
   },
 
-  "hatchet-cloud-quickstart": "Cloud Quickstart",
+  "quickstart_cloud": "Cloud Quickstart",
+  "quickstart_deploying_to_prod": "Deploying to Production",
 
   "--triggers": {
     "title": "Triggers",
     "type": "separator"
   },
 
-  "trigger_run": "Run From API",
+  "trigger_run_from_api": "Awaitable Run From API",
   "trigger_child-workflows": "Run From Run (Spawn Child)",
   "trigger_scheduled": "Run in Future (Scheduled)",
   "trigger_cron": "Run on Cron (Recurring)",
@@ -77,14 +78,12 @@
   "advanced_streaming": "Streaming",
   "advanced_eventing": "Eventing",
   "advanced_webhook-workers": "Webhook Workers",
+  "advanced_asyncio": "Working with AsyncIO",
 
-  "features": "Features",
-  "--more": {
-    "title": "More",
-    "type": "separator"
-  },
+  "more": "More",
+
   "tutorials": "Tutorials",
-  "dashboard": "Dashboard",
+  "more_dashboard": "Dashboard",
   "about": {
     "title": "About Hatchet ↗",
     "href": "https://hatchet.run"

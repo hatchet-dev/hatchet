@@ -1,0 +1,356 @@
+import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
+import UniversalTabs from "@/components/UniversalTabs";
+
+# Dockerizing Workers
+
+This guide explains how to create Dockerfiles for Hatchet applications. Hatchet workers need proper containerization to ensure reliable execution of workflows in production environments.
+
+<UniversalTabs items={['Python', 'Typescript', 'Go']}>
+  <Tabs.Tab>
+## Entry Point Configuration for Hatchet
+
+Before creating your Dockerfile, understand that Hatchet workers require specific entry point configuration:
+
+1. The entry point must run code that runs the Hatchet worker. This can be done by calling the `worker.start()` method. [See the Python SDK docs for more information](./worker.mdx#starting-a-worker)
+2. Proper environment variables must be set for Hatchet SDK
+3. The worker should be configured to handle your workflows using the `worker.register` method
+
+## Example Docker Files
+
+<Tabs items={['Poetry', 'PIP']}>
+  <Tabs.Tab>
+
+```dockerfile
+# Use the official Python image as the base
+FROM python:3.10-slim
+
+# Set environment variables
+
+ENV PYTHONUNBUFFERED=1 \
+ POETRY_VERSION=1.4.2 \
+ HATCHET_ENV=production
+
+# Install system dependencies and Poetry
+
+RUN apt-get update && \
+ apt-get install -y curl && \
+ curl -sSL https://install.python-poetry.org | python3 - && \
+ ln -s /root/.local/bin/poetry /usr/local/bin/poetry && \
+ apt-get clean && \
+ rm -rf /var/lib/apt/lists/\*
+
+# Set work directory
+
+WORKDIR /app
+
+# Copy dependency files first
+
+COPY pyproject.toml poetry.lock\* /app/
+
+# Install dependencies
+
+RUN poetry config virtualenvs.create false && \
+ poetry install --no-interaction --no-ansi
+
+# Copy Hatchet application code
+
+COPY . /app
+
+# Set the entrypoint to run the Hatchet worker
+
+CMD ["poetry", "run", "python", "worker.py"]
+
+```
+
+<Callout type="info">
+    If you're using a poetry script to run your worker, you can replace `poetry run python worker.py` with `poetry run <script-name>` in the CMD.
+</Callout>
+  </Tabs.Tab>
+  <Tabs.Tab>
+
+```dockerfile
+# Use the official Python image as base
+FROM python:3.10-slim
+
+# Set environment variables
+
+ENV PYTHONUNBUFFERED=1 \
+ HATCHET_ENV=production
+
+# Set work directory
+
+WORKDIR /app
+
+# Copy dependency files first
+
+COPY requirements.txt .
+
+# Install dependencies
+
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy Hatchet application code
+
+COPY . /app
+
+# Set the entrypoint to run the Hatchet worker
+
+CMD ["python", "worker.py"]
+
+```
+
+  </Tabs.Tab>
+</Tabs>
+  </Tabs.Tab>
+  <Tabs.Tab>
+## Entry Point Configuration for Hatchet
+
+Before creating your Dockerfile, ensure your TypeScript worker:
+
+1. Implements the Hatchet worker startup using `worker.start()`
+2. Has proper environment variables configured
+3. Registers workflows using the `worker.register` method
+
+## Example Docker Files
+
+<Tabs items={['npm', 'pnpm', 'yarn']}>
+  <Tabs.Tab>
+
+```dockerfile
+# Stage 1: Build
+FROM node:18 AS builder
+
+WORKDIR /app
+
+# Copy package files
+
+COPY package\*.json ./
+
+# Install dependencies
+
+RUN npm ci
+
+# Copy source code
+
+COPY . .
+
+# Build TypeScript
+
+RUN npm run build
+
+# Stage 2: Production
+
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Copy package files
+
+COPY package\*.json ./
+
+# Install production dependencies only
+
+RUN npm ci --omit=dev
+
+# Copy built assets from builder
+
+COPY --from=builder /app/dist ./dist
+
+# Set production environment
+
+ENV NODE_ENV=production
+
+# Start the worker
+
+CMD ["node", "dist/worker.js"]
+
+```
+
+<Callout type="info">
+    Use `npm ci` instead of `npm install` for more reliable builds. It's faster and ensures consistent installs across environments.
+</Callout>
+  </Tabs.Tab>
+
+  <Tabs.Tab>
+
+```dockerfile
+# Stage 1: Build
+FROM node:18 AS builder
+
+WORKDIR /app
+
+# Install pnpm
+RUN npm install -g pnpm
+
+# Copy package files
+COPY pnpm-lock.yaml package.json ./
+
+# Install dependencies
+RUN pnpm install --frozen-lockfile
+
+# Copy source code
+COPY . .
+
+# Build TypeScript
+RUN pnpm build
+
+# Stage 2: Production
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Install pnpm
+RUN npm install -g pnpm
+
+# Copy package files
+COPY pnpm-lock.yaml package.json ./
+
+# Install production dependencies only
+RUN pnpm install --frozen-lockfile --prod
+
+# Copy built assets from builder
+COPY --from=builder /app/dist ./dist
+
+# Set production environment
+ENV NODE_ENV=production
+
+# Start the worker
+CMD ["node", "dist/worker.js"]
+```
+
+<Callout type="info">
+    PNPM's `--frozen-lockfile` flag ensures consistent installs and fails if an update is needed.
+</Callout>
+  </Tabs.Tab>
+
+  <Tabs.Tab>
+
+```dockerfile
+# Stage 1: Build
+FROM node:18 AS builder
+
+WORKDIR /app
+
+# Copy package files
+
+COPY package.json yarn.lock ./
+
+# Install dependencies
+
+RUN yarn install --frozen-lockfile
+
+# Copy source code
+
+COPY . .
+
+# Build TypeScript
+
+RUN yarn build
+
+# Stage 2: Production
+
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Copy package files
+
+COPY package.json yarn.lock ./
+
+# Install production dependencies only
+
+RUN yarn install --frozen-lockfile --production
+
+# Copy built assets from builder
+
+COPY --from=builder /app/dist ./dist
+
+# Set production environment
+
+ENV NODE_ENV=production
+
+# Start the worker
+
+CMD ["node", "dist/worker.js"]
+
+```
+
+<Callout type="info">
+    Yarn's `--frozen-lockfile` ensures your dependencies match the lock file exactly.
+</Callout>
+  </Tabs.Tab>
+</Tabs>
+
+## Best Practices
+
+### 1. Multi-stage Builds
+
+Using multi-stage builds helps create smaller production images by excluding build tools and development dependencies.
+
+### 2. Dependency Caching
+
+```dockerfile
+# Copy only package files first
+COPY package*.json ./
+# or
+COPY pnpm-lock.yaml package.json ./
+# or
+COPY package.json yarn.lock ./
+
+# Install dependencies
+RUN <package-manager> install
+```
+
+### 3. Production Optimizations
+
+```dockerfile
+# Set production environment
+ENV NODE_ENV=production
+
+# Install only production dependencies
+RUN npm ci --omit=dev
+# or
+RUN pnpm install --frozen-lockfile --prod
+# or
+RUN yarn install --frozen-lockfile --production
+```
+
+### 4. TypeScript Configuration
+
+Ensure your `tsconfig.json` is properly configured:
+
+```json
+{
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "module": "commonjs",
+    "target": "es2020",
+    "esModuleInterop": true,
+    "strict": true
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
+}
+```
+
+### 5. `.dockerignore` File
+
+Remember to create a `.dockerignore` file to exclude unnecessary files:
+
+```
+node_modules
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+.git
+.gitignore
+.env
+dist
+coverage
+```
+  </Tabs.Tab>
+  <Tabs.Tab>
+Coming soon
+  </Tabs.Tab>
+</UniversalTabs>
