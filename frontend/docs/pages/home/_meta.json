@@ -22,17 +22,26 @@
   },
 
   "quickstart_cloud": "Cloud Quickstart",
-  "quickstart_deploying_to_prod": "Deploying to Production",
+  "quickstart_local": "Local Quickstart",
 
-  "--triggers": {
-    "title": "Running Work",
+  "--deploying-to-prod": {
+    "title": "Deploying to Production",
     "type": "separator"
   },
 
-  "trigger_run_from_api": "Awaitable Run From API",
-  "trigger_child-workflows": "Run From Run (Spawn Child)",
-  "trigger_scheduled": "Run in Future (Scheduled)",
-  "trigger_cron": "Run on Cron (Recurring)",
+  "deploying_dockerizing-workers": "Dockerizing Workers",
+  "deploying_managed-compute": "Managed Compute",
+  "deploying_self-hosting-workers": "Self-Hosting Workers",
+
+  "--triggers": {
+    "title": "Enqueuing Runs",
+    "type": "separator"
+  },
+
+  "trigger_run_from_api": "Enqueue From API",
+  "trigger_child-workflows": "Enqueue From Run (Spawn Child)",
+  "trigger_scheduled": "Enqueue for Future (Scheduled)",
+  "trigger_cron": "Enqueue on Cron (Recurring)",
 
   "--queue-controls": {
     "title": "Queue Controls",
