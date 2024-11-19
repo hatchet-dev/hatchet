@@ -1,4 +1,5 @@
 "use client";
+
 import React from 'react';
 import { useLanguage } from '../context/LanguageContext';
 import {
@@ -42,7 +43,7 @@ export const FrameworkSelector: React.FC<FrameworkSelectorProps> = ({ className 
           <div className="space-y-4">
             <div className="space-y-2">
               <h4 className="font-medium">Hatchet Worker Language</h4>
-              <p className="text-sm text-gray-500">
+              <p className="text-sm">
                 The worker language is the language that your hatchet functions and workflows will be written in.
               </p>
               <div className="grid grid-cols-6 gap-2">
@@ -69,7 +70,7 @@ export const FrameworkSelector: React.FC<FrameworkSelectorProps> = ({ className 
             
             <div className="space-y-2">
               <h4 className="font-medium">API Server</h4>
-              <p className="text-sm text-gray-500">
+              <p className="text-sm">
                 The API server framework is where you schedule work for your hatchet functions.
               </p>
               <div className="max-h-[230px] overflow-y-auto pr-2">
@@ -97,7 +98,14 @@ export const FrameworkSelector: React.FC<FrameworkSelectorProps> = ({ className 
             </div>
           </div>
 
-          <div className="flex justify-end mt-6 pt-4 border-t">
+          <div className="flex justify-between mt-6 pt-4 border-t">
+            
+            <p className="text-sm">
+              Don't see your favorite framework?
+            <a href="https://github.com/hatchet-dev/hatchet/issues/new?template=feature_request.md&labels=feature-request&title=Framework+Request:" target="_blank">
+              <Button variant="link" size="sm">Request a Framework</Button>
+            </a>
+            </p>
             <DialogClose asChild>
               <Button variant="outline">Save Changes</Button>
             </DialogClose>
