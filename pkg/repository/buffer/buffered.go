@@ -119,7 +119,7 @@ func NewIngestBuffer[T any, U any](opts IngestBufOpts[T, U]) *IngestBuf[T, U] {
 	}
 
 	if opts.WaitForFlush == 0 {
-		opts.WaitForFlush = 2 * time.Millisecond
+		opts.WaitForFlush = 1 * time.Millisecond
 
 	}
 
