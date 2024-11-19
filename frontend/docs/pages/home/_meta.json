@@ -11,9 +11,9 @@
 
   "index": "What is Hatchet?",
   "foundations_steps": "Step Functions",
-  "foundations_timeouts": "Timeouts",
   "foundations_workflows": "Workflows (DAGs)",
   "foundations_workers": "Workers",
+  "foundations_timeouts": "Lifecycle & Timeouts",
   "foundations_environments": "Environments",
 
   "--quickstart": {
@@ -54,6 +54,15 @@
   "errors_cancellation-signaling": "Cancellation Signaling",
   "errors_advanced": "Advanced",
 
+  "--logging-and-monitoring": {
+    "title": "Logging and Monitoring",
+    "type": "separator"
+  },
+
+  "monitoring_logging": "Logging",
+  "monitoring_opentelemetry": "OpenTelemetry",
+
+
   "--worker-assignment": {
     "title": "Worker Assignment",
     "type": "separator"
@@ -63,12 +72,6 @@
   "assignment_sticky-assignment": "Sticky Assignment",
   "assignment_manual-slot-release": "Manual Slot Release",
 
-  "--logging-and-monitoring": {
-    "title": "Logging and Monitoring",
-    "type": "separator"
-  },
-
-  "monitoring_logging": "Logging",
 
   "--advanced": {
     "title": "Advanced",
