@@ -318,8 +318,8 @@ func (b *IngestBuf[T, U]) flush() {
 	err := b.flushSemaphore.Acquire(sCtx, 1)
 
 	if err != nil {
-		b.l.Warn().Msg(b.debugBuffer())
-		b.l.Warn().Msgf("could not acquire semaphore in: %s  %v", b.waitForFlush, err)
+		b.l.Error().Msg(b.debugBuffer())
+		b.l.Error().Msgf("could not acquire semaphore in: %s  %v", b.waitForFlush, err)
 		return
 	}
 
