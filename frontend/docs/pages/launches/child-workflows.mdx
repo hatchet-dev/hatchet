@@ -26,7 +26,7 @@ We've had support for spawning new workflows programmatically for a while, but t
 
 For a practical example, say we have a workflow which extracts text from PDFs. PDF parsing and extraction is an expensive operation, so we'd like to parse each page separately, collect the text from each PDF, and pass it downstream to a future step in our workflow. We can model each page as a child workflow. For example, in the Typescript SDK:
 
-<UniversalTabs items={['Typescript', 'Python', 'Go']}>
+<UniversalTabs key="worker" items={['Typescript', 'Python', 'Go']}>
   <Tabs.Tab>
     ```ts
     async function f(ctx) {

@@ -11,7 +11,7 @@ A simple feature to throttle the rate at which your workflow steps consume share
 
 We’ve designed this feature to help your system conform to external limitations (like pesky OpenAI token limits) that are normally very difficult to keep tabs on.
 
-<UniversalTabs items={['Python', 'Typescript', 'Go']}>
+<UniversalTabs key="worker">
   <Tabs.Tab>
 1) Define your rate limits in code:
 
@@ -102,7 +102,7 @@ Imagine your customer kicks off a long batch job, then stare at the "In Progress
 
 Keep them in the loop by streaming arbitrary data (text, intermediate image frames, etc) from within the step run execution!
 
-<UniversalTabs items={['Python', 'Typescript']}>
+<UniversalTabs key="worker" items={['Python', 'Typescript']}>
   <Tabs.Tab>
 ```python
 @hatchet.step()

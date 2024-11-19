@@ -1,20 +1,24 @@
 import React from 'react';
 import { Tabs } from 'nextra/components';
-import { useLanguage } from '../context/LanguageContext';
+import { PersistenceKeys, useLanguage } from '../context/LanguageContext';
 
 interface UniversalTabsProps {
-  items: string[];
   children: React.ReactNode;
+  key?: PersistenceKeys;
 }
 
-export const UniversalTabs: React.FC<UniversalTabsProps> = ({ items, children }) => {
-  const { selectedLanguage, setSelectedLanguage } = useLanguage();
+export const UniversalTabs: React.FC<UniversalTabsProps> = ({ children, key = "worker" }) => {
+  const { selected, setSelectedLanguage, languages } = useLanguage();
+  
+  const selectedIndex = selected[key] 
+    ? languages[key].findIndex(lang => lang.name === selected[key]?.name)
+    : 0;
 
   return (
     <Tabs
-      items={items}
-      selectedIndex={items.includes(selectedLanguage) ? items.indexOf(selectedLanguage) : 0}
-      onChange={(index) => setSelectedLanguage(items[index])}
+      items={languages[key].map(lang => lang.name)}
+      selectedIndex={selectedIndex}
+      onChange={(index) => setSelectedLanguage(key, languages[key][index])}
     >
       {children}
     </Tabs>

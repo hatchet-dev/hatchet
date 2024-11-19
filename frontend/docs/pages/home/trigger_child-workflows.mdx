@@ -11,7 +11,7 @@ Note that spawning child workflows is a **durable** operation, meaning that spaw
 
 To loop through a list and create a new workflow per element in the list, you can simply use `spawnWorkflow` in a loop. For example:
 
-<UniversalTabs items={['Python', 'Typescript', 'Go']}>
+<UniversalTabs key="worker">
   <Tabs.Tab>
 
 ```python
@@ -93,7 +93,7 @@ The advantage of doing this over spawning workflows in a sequentially in a loop 
 
 There is a maximum limit of 1000 workflows that can be spawned in a single request.
 
-<UniversalTabs items={['Python', 'Typescript', 'Go']}>
+<UniversalTabs key="worker">
   <Tabs.Tab>
 
 ```python
@@ -193,7 +193,7 @@ w.RegisterWorkflow(
 
 To run all child workflows in parallel, and then wait for all of them to complete, you can use the `result` method on the returned method.
 
-<UniversalTabs items={['Python', 'Typescript', 'Go']}>
+<UniversalTabs key="worker">
   <Tabs.Tab>
 
 ```python
@@ -323,7 +323,7 @@ w.RegisterWorkflow(
 If child workflows fail, an error will be raised to the parent, which can be caught and handled as needed.
 For example, to spawn a recovery workflow if a child workflow fails:
 
-<UniversalTabs items={['Python', 'Typescript', 'Go']}>
+<UniversalTabs key="worker">
   <Tabs.Tab>
 
 ```python

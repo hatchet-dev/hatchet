@@ -37,7 +37,7 @@ This pattern is especially useful for:
 
 ### Declaring and Consuming Dynamic Rate Limits
 
-<UniversalTabs items={['Python', 'Typescript', 'Go']}>
+<UniversalTabs key="worker">
   <Tabs.Tab>
 > Note: `dynamic_key` must be a CEL expression. `units` and `limits` can be either an integer or a CEL expression.
 
@@ -132,7 +132,7 @@ If a step run exceeds the rate limit, Hatchet re-queues the step run until the r
 
 Define the static rate limits that can be consumed by any step run across all workflow runs using the `put_rate_limit` method in the `Admin` client within your code.
 
-<UniversalTabs items={['Python', 'Typescript', 'Go']}>
+<UniversalTabs key="worker">
   <Tabs.Tab>
 ```python
 hatchet.admin.put_rate_limit('example-limit', 10, RateLimitDuration.MINUTE)
@@ -157,7 +157,7 @@ err = c.Admin().PutRateLimit("example-limit", &types.RateLimitOpts{
 
 With your rate limit key defined, specify the units of consumption for a specific key in each step definition by adding the `rate_limits` configuration to your step definition in your workflow.
 
-<UniversalTabs items={['Python', 'Typescript', 'Go']}>
+<UniversalTabs key="worker">
   <Tabs.Tab>
 ```python
 @hatchet.step(rate_limits=[RateLimit(key='example-limit', units=1)])

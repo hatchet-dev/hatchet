@@ -20,7 +20,7 @@ This simple retry mechanism can help to mitigate transient failures, such as net
 
 To enable retries for a step in your workflow, simply add the `retries` property to the step object in your workflow definition:
 
-<UniversalTabs items={['Python', 'Typescript', 'Go']}>
+<UniversalTabs key="worker">
   <Tabs.Tab>
 ```python
 @hatchet.step(timeout='30s', retries=3)
@@ -70,7 +70,7 @@ Additionally, if a step interacts with external services or databases, you shoul
 
 If you need to access the current retry count within a step, you can use the `retryCount` method available in the step context:
 
-<UniversalTabs items={['Python', 'Typescript', 'Go']}>
+<UniversalTabs key="worker">
   <Tabs.Tab>
 
 ```python

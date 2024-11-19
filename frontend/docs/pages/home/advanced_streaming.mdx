@@ -28,7 +28,7 @@ Listeners are used to subscribe to the event stream for a specific workflow run.
 
 Here's an example of how to create a listener:
 
-<UniversalTabs items={['Python', 'Typescript']}>
+<UniversalTabs key="worker" items={['Python', 'Typescript']}>
   <Tabs.Tab>
 
 ```python
@@ -88,7 +88,7 @@ panic(err)
 
 You can also stream events from a specific step context, enabling you to stream arbitrary events, progress, intermediate inference, or debugging information from a step.
 
-<UniversalTabs items={['Python', 'Typescript']}>
+<UniversalTabs key="worker" items={['Python', 'Typescript']}>
   <Tabs.Tab>
 
 ```python
@@ -121,7 +121,7 @@ Hatchet supports streaming base64 encoded files as part of the event payload, al
 
 To stream a file from a step context, encode the file data as base64 and stream it as a payload:
 
-<UniversalTabs items={['Python', 'Typescript']}>
+<UniversalTabs key="worker" items={['Python', 'Typescript']}>
   <Tabs.Tab>
 
 ```python
@@ -181,7 +181,7 @@ async function step1(ctx: Context) {
 
 For the listener, decode the base64-encoded payload and write it to a file:
 
-<UniversalTabs items={['Python', 'Typescript']}>
+<UniversalTabs key="worker" items={['Python', 'Typescript']}>
   <Tabs.Tab>
 
 ```python
@@ -257,7 +257,7 @@ Since additinoal metadata is propegated from parent to child workflows, this can
 
 Here's an example of how to create a listener:
 
-<UniversalTabs items={['Python', 'Typescript', 'Go']}>
+<UniversalTabs key="worker">
   <Tabs.Tab>
 
 ```python

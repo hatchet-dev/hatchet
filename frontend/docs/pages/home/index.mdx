@@ -36,9 +36,9 @@ export const Stars = () => {
 
 # What is Hatchet?
 
-Hatchet is an "Async Compute" platform backed by an [open-source low latency task queue](https://github.com/hatchet-dev/hatchet).
+Hatchet is an "Async Compute" platform backed by an [open-source, low latency task queue](https://github.com/hatchet-dev/hatchet).
 
-Instead of processing background tasks and functions in your application handlers, which can lead to complex code, hard-to-debug errors, and resource contention, you can distribute work between a set of `workers`. Workers are long-running processes which listen for events, so you can easily run long or complex jobs.
+Instead of processing background tasks and functions in your application handlers, which can lead to complex code, hard-to-debug errors, and resource contention, you can distribute work between a set of [workers](./foundations_workers.mdx). Workers are long-running processes which listen for assigned work, so you can easily run long, low priority, or compute-intensive jobs.
 
 <div className="mt-4">
   <Stars />
@@ -46,7 +46,30 @@ Instead of processing background tasks and functions in your application handler
 
 ## Simple to Start
 
-Hatchet offers Python, Typescript, and Go SDKs, so you can start running functions in minutes. You can run a worker in a few lines of code.
+Hatchet offers Python, Typescript, and Go SDKs, so you can start running functions in minutes. You can run a worker in a few lines of code and fits seamlessly into your existing codebase.
+
+Workers can run simple [step functions](./foundations_steps.mdx), or more complex [workflows with multiple steps](./foundations_workflows.mdx).
+
+Hatchet runs in a separate process from your API, so you can easily scale it independently.
+
+```mermaid
+flowchart LR
+    client[Frontend Service]
+    api[API Server]
+    db[(Application Database)]
+    worker[Hatchet Worker]
+
+    client <--> api
+    api <--> db
+    api <-->|trigger*| worker
+    worker <--> db
+
+    style client fill:#f9f,stroke:#333
+    style api fill:#9cf,stroke:#333
+    style db fill:#fc9,stroke:#333
+    style worker fill:#9f9,stroke:#333
+```
+_* trigger is a simplification. scheduling work is actually done through a push based engine._
 
 
 ## Features to Scale

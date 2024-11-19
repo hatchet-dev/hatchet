@@ -11,7 +11,7 @@ You can attach additional metadata when pushing events or triggering workflow ru
 
 <Tabs items={['Event Push', 'Workflow Run Trigger']}>
   <Tabs.Tab>
-<UniversalTabs items={['Python', 'Typescript', 'Go']}>
+<UniversalTabs key="worker">
   <Tabs.Tab>
 ```python
 hatchet.event.push("user:create", {'userId': '1234'}, options={
@@ -51,7 +51,7 @@ err := c.Event().Push(
 </UniversalTabs>
   </Tabs.Tab>
   <Tabs.Tab>
-<UniversalTabs items={['Python', 'Typescript', 'Go']}>
+<UniversalTabs key="worker">
   <Tabs.Tab>
 ```python
 workflowRunId = hatchet.admin.run_workflow(

@@ -40,7 +40,7 @@ export const CodeTabs: React.FC<CodeTabsProps> = ({ children }) => {
 
   return (
     <>
-      <UniversalTabs items={languages}>
+      <UniversalTabs key="worker" items={languages}>
         {orderedChildren}
       </UniversalTabs>
     </>

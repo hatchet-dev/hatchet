@@ -30,7 +30,7 @@ There are several reasons why you might want to use concurrency control in your 
 
 In addition to setting concurrency limits at the workflow level, you can also control concurrency at the worker level by passing the `maxRuns` option when creating a new `Worker` instance:
 
-<UniversalTabs items={['Python', 'Typescript', 'Go']}>
+<UniversalTabs key="worker">
   <Tabs.Tab>
 ```python
 worker = hatchet.worker("my-worker", max_runs=5)

@@ -36,7 +36,7 @@ To use the `GROUP_ROUND_ROBIN` concurrency limit strategy, define a `concurrency
 
 CEL expressions are evaluated on the Hatchet engine (not in your worker) and can be used to extract values from the workflow input or [additional metadata](/features/additional-metadata).
 
-<UniversalTabs items={['Python', 'Typescript', 'Go']}>
+<UniversalTabs key="worker">
   <Tabs.Tab>
 
 ```python
@@ -119,7 +119,7 @@ In this example:
 </Tabs.Tab>
   <Tabs.Tab>
 In advanced use cases, you may want to use a custom function to determine the concurrency key. Concurrency key functions are evaluated on your Hatchet workers and can be used to extract values from the workflow input, context, and other sources (i.e. database, external API, etc.).
-<UniversalTabs items={['Python', 'Typescript', 'Go']}>
+<UniversalTabs key="worker">
 
   <Tabs.Tab>
 

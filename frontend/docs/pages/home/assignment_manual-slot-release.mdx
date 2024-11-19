@@ -17,7 +17,7 @@ In some cases, you may have a step in your workflow that is resource-intensive a
 
 You can manually release a slot in from within a running step in your Workflow using the Hatchet context param:
 
-<UniversalTabs items={['Python', 'Typescript', 'Go']}>
+<UniversalTabs key="worker">
 <Tabs.Tab>
 ```python
 @hatchet.workflow(on_events=["user:create"])

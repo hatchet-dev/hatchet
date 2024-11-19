@@ -14,29 +14,56 @@ interface FrameworkSelectorProps {
 }
 
 export const FrameworkSelector: React.FC<FrameworkSelectorProps> = ({ className }) => {
-  const { selectedLanguage, setSelectedLanguage, languages } = useLanguage();
-
+  const { selected, setSelectedLanguage, languages } = useLanguage();
 
   return (
     <div>
-        <span className="text-sm font-medium mb-2 inline-block">Choose your language:</span><br />
-        <Select 
-            value={selectedLanguage}
-            onValueChange={(value) => setSelectedLanguage(value)}
-        >
-            <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Language" />
-            </SelectTrigger>
-            <SelectContent>
-                {languages.map(({ name, icon }) => (
-                    <SelectItem key={name} value={name}>
-                        <span className="flex items-center gap-2">
-                            {icon} {name}
-                        </span>
-                    </SelectItem>
-                ))}
-            </SelectContent>
-        </Select>
+      <span className="text-sm font-medium mb-2 inline-block">Choose your worker language:</span>
+      <Select 
+        value={selected.worker?.name}
+        onValueChange={(value) => {
+          const selectedLang = languages.worker.find(lang => lang.name === value);
+          if (selectedLang) {
+            setSelectedLanguage("worker", selectedLang);
+          }
+        }}
+      >
+        <SelectTrigger className="w-[180px]">
+          <SelectValue placeholder="Language" />
+        </SelectTrigger>
+        <SelectContent>
+          {languages.worker.map((lang) => (
+            <SelectItem key={lang.name} value={lang.name}>
+              <span className="flex items-center gap-2">
+                {lang.icon} {lang.name}
+              </span>
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <span className="text-sm font-medium mb-2 inline-block">Choose your API server:</span>
+      <Select 
+        value={selected['api-server']?.name}
+        onValueChange={(value) => {
+          const selectedLang = languages.worker.find(lang => lang.name === value);
+          if (selectedLang) {
+            setSelectedLanguage("worker", selectedLang);
+          }
+        }}
+      >
+        <SelectTrigger className="w-[180px]">
+          <SelectValue placeholder="Language" />
+        </SelectTrigger>
+        <SelectContent>
+          {languages.worker.map((lang) => (
+            <SelectItem key={lang.name} value={lang.name}>
+              <span className="flex items-center gap-2">
+                {lang.icon} {lang.name}
+              </span>
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   );
 };
