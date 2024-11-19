@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
+	"github.com/sasha-s/go-deadlock"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 	"google.golang.org/grpc/codes"
@@ -75,11 +76,11 @@ type IngestBuf[T any, U any] struct {
 	currentlyFlushing int
 	debugMap          sync.Map
 
-	currentlyFlushingLock sync.Mutex
-	internalArrLock       sync.Mutex
-	sizeOfDataLock        sync.Mutex
-	lastFlushLock         sync.Mutex
-	stateLock             sync.Mutex
+	currentlyFlushingLock deadlock.Mutex
+	internalArrLock       deadlock.Mutex
+	sizeOfDataLock        deadlock.Mutex
+	lastFlushLock         deadlock.Mutex
+	stateLock             deadlock.Mutex
 }
 
 type inputWrapper[T any, U any] struct {
@@ -212,15 +213,33 @@ func (b *IngestBuf[T, U]) safeFetchTriggerSize() int {
 		return b.maxCapacity
 	}
 
-	b.currentlyFlushingLock.Lock()
-	defer b.currentlyFlushingLock.Unlock()
-
-	f := Fibonacci(b.currentlyFlushing)
+	f := Fibonacci(b.safeFetchCurrentlyFlushing())
 	if f > b.maxCapacity {
 		return b.maxCapacity
 	}
 	return f
 
+}
+
+func (b *IngestBuf[T, U]) safeIncCurrentlyFlushing() {
+	b.currentlyFlushingLock.Lock()
+	defer b.currentlyFlushingLock.Unlock()
+
+	b.currentlyFlushing++
+}
+
+func (b *IngestBuf[T, U]) safeDecCurrentlyFlushing() {
+	b.currentlyFlushingLock.Lock()
+	defer b.currentlyFlushingLock.Unlock()
+
+	b.currentlyFlushing--
+}
+
+func (b *IngestBuf[T, U]) safeFetchCurrentlyFlushing() int {
+	b.currentlyFlushingLock.Lock()
+	defer b.currentlyFlushingLock.Unlock()
+
+	return b.currentlyFlushing
 }
 
 // We take items from the input channel and add them to the internal array
@@ -326,10 +345,7 @@ func (b *IngestBuf[T, U]) flush() {
 
 	go func() {
 
-		b.currentlyFlushingLock.Lock()
-		b.currentlyFlushing++
-		b.currentlyFlushingLock.Unlock()
-
+		b.safeIncCurrentlyFlushing()
 		defer func() {
 			if r := recover(); r != nil {
 				err := fmt.Errorf("[%s] panic recovered in flush: %v", b.name, r)
@@ -347,9 +363,7 @@ func (b *IngestBuf[T, U]) flush() {
 		}()
 
 		defer func() {
-			b.currentlyFlushingLock.Lock()
-			b.currentlyFlushing--
-			b.currentlyFlushingLock.Unlock()
+			b.safeDecCurrentlyFlushing()
 		}()
 		defer b.flushSemaphore.Release(1)
 		// get goroutine id
@@ -407,9 +421,8 @@ func (b *IngestBuf[T, U]) cleanup() error {
 	// wait until currentlyFlushing is 0
 
 	for {
-		b.currentlyFlushingLock.Lock()
-		flushingCount := b.currentlyFlushing
-		b.currentlyFlushingLock.Unlock()
+		flushingCount := b.safeFetchCurrentlyFlushing()
+
 		if flushingCount == 0 {
 			break
 		}
@@ -491,8 +504,6 @@ func (b *IngestBuf[T, U]) countDebugMapEntries() int {
 }
 func (b *IngestBuf[T, U]) debugBuffer() string {
 	var builder strings.Builder
-	b.currentlyFlushingLock.Lock()
-	defer b.currentlyFlushingLock.Unlock()
 
 	builder.WriteString("============= Buffer =============\n")
 	builder.WriteString(fmt.Sprintf("%d items in buffer\n", b.safeCheckSizeOfBuffer()))
@@ -504,7 +515,7 @@ func (b *IngestBuf[T, U]) debugBuffer() string {
 	builder.WriteString(fmt.Sprintf("%v wait for flush\n", b.waitForFlush))
 	builder.WriteString(fmt.Sprintf("%d max concurrent\n", b.maxConcurrent))
 	builder.WriteString(fmt.Sprintf("In state %v\n", b.state))
-	builder.WriteString(fmt.Sprintf("%d currently flushing\n", b.currentlyFlushing))
+	builder.WriteString(fmt.Sprintf("%d currently flushing\n", b.safeFetchCurrentlyFlushing()))
 	builder.WriteString(fmt.Sprintf("The following %d goroutines are flushing\n", b.countDebugMapEntries()))
 
 	b.debugMap.Range(func(key, value interface{}) bool {
