@@ -1,34 +1,73 @@
-# Introduction to Hatchet
+import { useData } from 'nextra/data'
+import { BiLogoGithub } from "react-icons/bi";
+import { Button } from "@/components/ui/button";
+import { Callout } from "nextra/components";
 
-Welcome to the Hatchet User Guide! Hatchet is a distributed, fault-tolerant task queue designed to solve scaling problems like **concurrency**, **fairness**, and **rate limiting**. Instead of managing your own task queue or pub/sub system, you can use Hatchet to distribute your functions between a set of workers with minimal configuration/infrastructure.
+export const getStaticProps = ({ params }) => {
+  return fetch(`https://api.github.com/repos/hatchet-dev/hatchet`)
+    .then(res => res.json())
+    .then(repo => ({
+      props: {
+        // We add an `ssg` field to the page props,
+        // which will be provided to the Nextra `useData` hook.
+        ssg: {
+          stars: repo.stargazers_count
+        }
+      },
+      // The page will be considered as stale and regenerated every 60 seconds.
+      revalidate: 60
+    }))
+}
 
-## Concepts
+export const Stars = () => {
+  const { stars } = useData();
+  
+  return (
+    <a href="https://github.com/hatchet-dev/hatchet" target="_blank">
+      <Button 
+        variant="outline" 
+    >
+      <BiLogoGithub className="mr-2 w-6 h-6" /> 
+      <strong className="ml-2">{stars.toLocaleString()}</strong>
+    </Button>
+    </a>
+  );
+};
 
-**You run your workers, we manage the rest.**
+# What is Hatchet?
 
-Hatchet is an orchestrator, which means it manages the execution of your workflows. However, the individual steps of each workflow are executed by your own workers (don't worry, each SDK comes with a worker implementation). This means you can run your workers in your own infrastructure, and Hatchet will manage the scheduling, retries, and monitoring of your workflows.
+Hatchet is an "Async Compute" platform backed by an [open-source low latency task queue](https://github.com/hatchet-dev/hatchet).
 
-**What is a workflow?**
+Instead of processing background tasks and functions in your application handlers, which can lead to complex code, hard-to-debug errors, and resource contention, you can distribute work between a set of `workers`. Workers are long-running processes which listen for events, so you can easily run long or complex jobs.
 
-The term `workflow` tends to be overloaded, so let's make things more clear - in Hatchet, a workflow is a set of functions which are executed in response to an external trigger (an event, schedule, or API call). For example, if you'd like to send notifications to a user after they've signed up, you could create a workflow for that.
+<div className="mt-4">
+  <Stars />
+</div>
 
-**Why is that useful?**
+## Simple to Start
 
-Instead of processing background tasks and functions in your application handlers, which can lead to complex code, hard-to-debug errors, and resource contention, you can distribute these workflows between a set of `workers`. Workers are long-running processes which listen for events, and execute the functions defined in your workflows.
+Hatchet offers Python, Typescript, and Go SDKs, so you can start running functions in minutes. You can run a worker in a few lines of code.
 
-**A managed queue**
 
-Hatchet is built on top of a low-latency queue, which means it can handle real-time interactions and mission-critical tasks. This is particularly useful if you're building a real-time application, or if you're running tasks which need to be completed quickly. It can scale to millions of queued tasks and can handle hundreds of tasks per second. We are continuously working to improve our throughput and latency.
+## Features to Scale
 
-## Quick Starts
+- **Low Latency**: Hatchet is built on top of a low-latency queue, which means it can handle real-time interactions and mission-critical tasks. This is particularly useful if you're building a real-time application, or if you're running tasks which need to be completed quickly. It can scale to millions of queued tasks and can handle hundreds of tasks per second. We are continuously working to improve our throughput and latency.
+- **High Throughput**: Hatchet is designed to scale horizontally, so you can add more workers to handle more tasks. Unlike other task queues, Hatchet can handle thousands of concurrent task assignments per second.
+- **Fault Tolerance**: Hatchet is designed to be fault-tolerant, so you can continue processing tasks even if some workers fail.
+- **Simple Queue**: Hatchet uses a simple queue model, so you have direct control over things like [concurrency](./queue_concurrency/index.mdx), [retries](./errors_retry-policies.mdx), and [rate limits](./rate_limits.mdx).
 
-We have a number of quick start tutorials for getting up and running quickly with Hatchet:
 
-- [Hatchet Cloud Quickstart](hatchet-cloud-quickstart)
-- [Hatchet Self-Hosted Quickstarts](https://docs.hatchet.run/self-hosting)
+## Getting Started
+We want to help you get up and running as quickly as possible! If you haven't already head over to [hatchet.run](https://hatchet.run) to sign up for a Hatchet Cloud account.
 
-We also have a number of guides for getting started with the Hatchet SDKs:
+We have a great [Quickstart Guide](./quickstart_cloud.mdx) to help you get started with Hatchet.
 
-- [Go SDK Quickstart](https://github.com/hatchet-dev/hatchet-go-quickstart)
-- [Python SDK Quickstart](https://github.com/hatchet-dev/hatchet-python-quickstart)
-- [Typescript SDK Quickstart](https://github.com/hatchet-dev/hatchet-typescript-quickstart)
+
+## Support 
+
+
+If you need help getting started, please join our community [Discord server](https://discord.gg/hatchet) or don't hesitate to reach out to [support@hatchet.run](mailto:support@hatchet.run).
+
+<Callout type="info" >
+  <p>Planning on self-hosting? We provide a fully open-source version of Hatchet that you can run on your own infrastructure and offer enterprise support. [Reach out to us for more information](mailto:support@hatchet.run)</p>
+</Callout>
