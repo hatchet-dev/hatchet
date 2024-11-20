@@ -72,7 +72,7 @@ func Run(ctx context.Context, cf *loader.ConfigLoader, version string) error {
 	deadlock.Opts.DeadlockTimeout = 100 * time.Millisecond
 
 	deadlock.Opts.LogBuf = sc.Logger
-	deadlock.Opts.PrintAllCurrentGoroutines = true
+	deadlock.Opts.PrintAllCurrentGoroutines = false
 
 	teardown, err := RunWithConfig(ctx, sc)
 

@@ -323,12 +323,13 @@ func (b *IngestBuf[T, U]) flush() {
 		b.l.Error().Msgf("could not acquire semaphore in: %s  %v", b.waitForFlush, err)
 		return
 	}
-
+	b.safeIncCurrentlyFlushing()
 	items := b.sliceInternalArray()
 	numItems := len(items)
 	if numItems == 0 {
 		b.safeSetLastFlush(time.Now())
 		// nothing to flush
+		b.safeDecCurrentlyFlushing()
 		b.flushSemaphore.Release(1)
 
 		return
@@ -346,7 +347,6 @@ func (b *IngestBuf[T, U]) flush() {
 
 	go func() {
 
-		b.safeIncCurrentlyFlushing()
 		defer b.safeDecCurrentlyFlushing()
 
 		defer func() {
@@ -470,12 +470,14 @@ func (b *IngestBuf[T, U]) BuffItem(item T) (chan *FlushResponse[U], error) {
 		return nil, fmt.Errorf("buffer not ready, in state '%v'", b.state.String())
 	}
 
-	if b.safeCheckSizeOfBuffer() >= b.maxCapacity*50 {
-		return nil, status.Errorf(codes.ResourceExhausted, "buffer is out of space %v", b.safeCheckSizeOfBuffer())
+	sizeOfBuf := b.safeCheckSizeOfBuffer()
+
+	if sizeOfBuf >= b.maxCapacity*50 {
+		return nil, status.Errorf(codes.ResourceExhausted, "buffer is out of space %v", sizeOfBuf)
 	}
 
-	if b.safeCheckSizeOfBuffer() > b.maxCapacity*10 && b.safeCheckSizeOfBuffer()%1000 == 0 {
-		b.l.Warn().Msgf("buffer is backed up with %d items", b.safeCheckSizeOfBuffer())
+	if sizeOfBuf > b.maxCapacity*10 && sizeOfBuf%1000 == 0 {
+		b.l.Warn().Msgf("buffer is backed up with %d items", sizeOfBuf)
 	}
 
 	doneChan := make(chan *FlushResponse[U], 1)
