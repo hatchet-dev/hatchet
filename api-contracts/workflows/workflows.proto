@@ -149,6 +149,15 @@ message ScheduleWorkflowRequest {
     // (optional) the key for the child. if this is set, matches on the index or the
     // child key will be a no-op, even if the schedule has changed.
     optional string child_key = 7;
+
+    // (optional) the additional metadata for the workflow
+    optional string additional_metadata = 8;
+}
+
+// ScheduledWorkflow represents a scheduled workflow.
+message ScheduledWorkflow {
+    string id = 1;
+    google.protobuf.Timestamp trigger_at = 2;
 }
 
 // WorkflowVersion represents the WorkflowVersion model.
@@ -157,9 +166,11 @@ message WorkflowVersion {
     google.protobuf.Timestamp created_at = 2;
     google.protobuf.Timestamp updated_at = 3;
     string version = 5;
-    int32 order = 6;
+    int64 order = 6;
     string workflow_id = 7;
+    repeated ScheduledWorkflow scheduled_workflows = 8;
 }
+
 
 // WorkflowTriggerEventRef represents the WorkflowTriggerEventRef model.
 message WorkflowTriggerEventRef {

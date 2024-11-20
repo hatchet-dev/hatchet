@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
 	"github.com/rs/zerolog"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
@@ -465,7 +466,7 @@ func (d *DispatcherImpl) handleStepRunAssignedTask(ctx context.Context, task *ms
 
 	// if the step run has a job run in a non-running state, we should not send it to the worker
 	if repository.IsFinalJobRunStatus(stepRun.JobRunStatus) {
-		d.l.Warn().Msgf("job run %s is in a final state %s, ignoring", sqlchelpers.UUIDToStr(stepRun.JobRunId), string(stepRun.JobRunStatus))
+		d.l.Debug().Msgf("job run %s is in a final state %s, ignoring", sqlchelpers.UUIDToStr(stepRun.JobRunId), string(stepRun.JobRunStatus))
 
 		// release the semaphore
 		return d.repo.StepRun().ReleaseStepRunSemaphore(ctx, metadata.TenantId, payload.StepRunId, false)
@@ -553,6 +554,11 @@ func (d *DispatcherImpl) handleStepRunBulkAssignedTask(ctx context.Context, task
 	ctx, span := telemetry.NewSpanWithCarrier(ctx, "step-run-assigned-bulk", task.OtelCarrier)
 	defer span.End()
 
+	// we set a timeout of 25 seconds because we don't want to hold the semaphore for longer than the visibility timeout (30 seconds)
+	// on the worker
+	ctx, cancel := context.WithTimeout(ctx, 25*time.Second)
+	defer cancel()
+
 	payload := tasktypes.StepRunAssignedBulkTaskPayload{}
 	metadata := tasktypes.StepRunAssignedBulkTaskMetadata{}
 
@@ -588,97 +594,119 @@ func (d *DispatcherImpl) handleStepRunBulkAssignedTask(ctx context.Context, task
 		stepRunIdToData[sqlchelpers.UUIDToStr(sr.SRID)] = sr
 	}
 
-	var outerErr error
+	outerEg := errgroup.Group{}
 
 	for workerId, stepRunIds := range payload.WorkerIdToStepRunIds {
 		workerId := workerId
 
-		d.l.Debug().Msgf("worker %s has %d step runs", workerId, len(stepRunIds))
+		outerEg.Go(func() error {
+			d.l.Debug().Msgf("worker %s has %d step runs", workerId, len(stepRunIds))
 
-		// get the worker for this task
-		workers, err := d.workers.Get(workerId)
+			// get the worker for this task
+			workers, err := d.workers.Get(workerId)
 
-		if err != nil && !errors.Is(err, ErrWorkerNotFound) {
-			outerErr = multierror.Append(outerErr, fmt.Errorf("could not get worker: %w", err))
-			continue
-		}
-
-		for _, stepRunId := range stepRunIds {
-			stepRunId := stepRunId
-
-			stepRun := stepRunIdToData[stepRunId]
-
-			// if the step run has a job run in a non-running state, we should not send it to the worker
-			if repository.IsFinalJobRunStatus(stepRun.JobRunStatus) {
-				d.l.Warn().Msgf("job run %s is in a final state %s, ignoring", sqlchelpers.UUIDToStr(stepRun.JobRunId), string(stepRun.JobRunStatus))
-
-				// release the semaphore
-				return d.repo.StepRun().ReleaseStepRunSemaphore(ctx, metadata.TenantId, stepRunId, false)
+			if err != nil && !errors.Is(err, ErrWorkerNotFound) {
+				return fmt.Errorf("could not get worker: %w", err)
 			}
 
-			// if the step run is in a final state, we should not send it to the worker
-			if repository.IsFinalStepRunStatus(stepRun.Status) {
-				d.l.Warn().Msgf("step run %s is in a final state %s, ignoring", stepRunId, string(stepRun.Status))
+			innerEg := errgroup.Group{}
 
-				return d.repo.StepRun().ReleaseStepRunSemaphore(ctx, metadata.TenantId, stepRunId, false)
+			for _, stepRunId := range stepRunIds {
+				stepRunId := stepRunId
+
+				innerEg.Go(func() error {
+					stepRun := stepRunIdToData[stepRunId]
+
+					requeue := func() error {
+						// we were unable to send the step run to any worker, requeue the step run with an internal retry
+						_, err = d.repo.StepRun().QueueStepRun(ctx, metadata.TenantId, sqlchelpers.UUIDToStr(stepRun.SRID), &repository.QueueStepRunOpts{
+							IsInternalRetry: true,
+						})
+
+						if err != nil && !errors.Is(err, repository.ErrAlreadyRunning) {
+							return fmt.Errorf("💥 could not requeue step run in dispatcher: %w", err)
+						}
+
+						return nil
+					}
+
+					// if we've reached the context deadline, this should be requeued
+					if ctx.Err() != nil {
+						return requeue()
+					}
+
+					// if the step run has a job run in a non-running state, we should not send it to the worker
+					if repository.IsFinalJobRunStatus(stepRun.JobRunStatus) {
+						d.l.Debug().Msgf("job run %s is in a final state %s, ignoring", sqlchelpers.UUIDToStr(stepRun.JobRunId), string(stepRun.JobRunStatus))
+
+						// release the semaphore
+						return d.repo.StepRun().ReleaseStepRunSemaphore(ctx, metadata.TenantId, stepRunId, false)
+					}
+
+					// if the step run is in a final state, we should not send it to the worker
+					if repository.IsFinalStepRunStatus(stepRun.Status) {
+						d.l.Warn().Msgf("step run %s is in a final state %s, ignoring", stepRunId, string(stepRun.Status))
+
+						return d.repo.StepRun().ReleaseStepRunSemaphore(ctx, metadata.TenantId, stepRunId, false)
+					}
+
+					var multiErr error
+					var success bool
+
+					for i, w := range workers {
+						err := w.StartStepRunFromBulk(ctx, metadata.TenantId, stepRun)
+
+						if err != nil {
+							multiErr = multierror.Append(multiErr, fmt.Errorf("could not send step action to worker (%d): %w", i, err))
+						} else {
+							success = true
+							break
+						}
+					}
+
+					now := time.Now().UTC()
+
+					if success {
+						defer d.repo.StepRun().DeferredStepRunEvent(
+							metadata.TenantId,
+							repository.CreateStepRunEventOpts{
+								StepRunId:     sqlchelpers.UUIDToStr(stepRun.SRID),
+								EventMessage:  repository.StringPtr("Sent step run to the assigned worker"),
+								EventReason:   repository.StepRunEventReasonPtr(dbsqlc.StepRunEventReasonSENTTOWORKER),
+								EventSeverity: repository.StepRunEventSeverityPtr(dbsqlc.StepRunEventSeverityINFO),
+								Timestamp:     &now,
+								EventData:     map[string]interface{}{"worker_id": workerId},
+							},
+						)
+
+						return nil
+					}
+
+					defer d.repo.StepRun().DeferredStepRunEvent(
+						metadata.TenantId,
+						repository.CreateStepRunEventOpts{
+							StepRunId:     sqlchelpers.UUIDToStr(stepRun.SRID),
+							EventMessage:  repository.StringPtr("Could not send step run to assigned worker"),
+							EventReason:   repository.StepRunEventReasonPtr(dbsqlc.StepRunEventReasonREASSIGNED),
+							EventSeverity: repository.StepRunEventSeverityPtr(dbsqlc.StepRunEventSeverityWARNING),
+							Timestamp:     &now,
+							EventData:     map[string]interface{}{"worker_id": workerId},
+						},
+					)
+
+					if err := requeue(); err != nil {
+						multiErr = multierror.Append(multiErr, err)
+					}
+
+					return multiErr
+				})
 			}
 
-			var multiErr error
-			var success bool
-
-			for i, w := range workers {
-				err = w.StartStepRunFromBulk(ctx, metadata.TenantId, stepRun)
-
-				if err != nil {
-					multiErr = multierror.Append(multiErr, fmt.Errorf("could not send step action to worker (%d): %w", i, err))
-				} else {
-					success = true
-					break
-				}
-			}
-
-			now := time.Now().UTC()
-
-			if success {
-				defer d.repo.StepRun().DeferredStepRunEvent(
-					metadata.TenantId,
-					repository.CreateStepRunEventOpts{
-						StepRunId:     sqlchelpers.UUIDToStr(stepRun.SRID),
-						EventMessage:  repository.StringPtr("Sent step run to the assigned worker"),
-						EventReason:   repository.StepRunEventReasonPtr(dbsqlc.StepRunEventReasonSENTTOWORKER),
-						EventSeverity: repository.StepRunEventSeverityPtr(dbsqlc.StepRunEventSeverityINFO),
-						Timestamp:     &now,
-						EventData:     map[string]interface{}{"worker_id": workerId},
-					},
-				)
-
-				continue
-			}
-
-			defer d.repo.StepRun().DeferredStepRunEvent(
-				metadata.TenantId,
-				repository.CreateStepRunEventOpts{
-					StepRunId:     sqlchelpers.UUIDToStr(stepRun.SRID),
-					EventMessage:  repository.StringPtr("Could not send step run to assigned worker"),
-					EventReason:   repository.StepRunEventReasonPtr(dbsqlc.StepRunEventReasonREASSIGNED),
-					EventSeverity: repository.StepRunEventSeverityPtr(dbsqlc.StepRunEventSeverityWARNING),
-					Timestamp:     &now,
-					EventData:     map[string]interface{}{"worker_id": workerId},
-				},
-			)
-
-			// we were unable to send the step run to any worker, requeue the step run with an internal retry
-			_, err = d.repo.StepRun().QueueStepRun(ctx, metadata.TenantId, sqlchelpers.UUIDToStr(stepRun.SRID), &repository.QueueStepRunOpts{
-				IsInternalRetry: true,
-			})
-
-			if err != nil && !errors.Is(err, repository.ErrAlreadyRunning) {
-				outerErr = multierror.Append(outerErr, fmt.Errorf("💥 could not requeue step run in dispatcher: %w", err))
-			}
-		}
+			return innerEg.Wait()
+		})
 	}
 
-	return outerErr
+	return outerEg.Wait()
 }
 
 func (d *DispatcherImpl) handleStepRunCancelled(ctx context.Context, task *msgqueue.Message) error {

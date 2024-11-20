@@ -9,7 +9,7 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import StepRunNode, { StepRunNodeProps } from './step-run-node';
-import { StepRun, StepRunStatus, WorkflowRun } from '@/lib/api';
+import { StepRun, StepRunStatus, WorkflowRunShape } from '@/lib/api';
 import dagre from 'dagre';
 import invariant from 'tiny-invariant';
 import { useTheme } from '@/components/theme-provider';
@@ -25,11 +25,11 @@ const nodeTypes = {
 };
 
 const WorkflowRunVisualizer = ({
-  workflowRun,
+  shape,
   selectedStepRun,
   setSelectedStepRun,
 }: {
-  workflowRun: WorkflowRun;
+  shape: WorkflowRunShape;
   selectedStepRun?: StepRun;
   setSelectedStepRun: (stepRun: StepRun) => void;
 }) => {
@@ -42,7 +42,7 @@ const WorkflowRunVisualizer = ({
 
   useEffect(() => {
     const stepEdges =
-      workflowRun.jobRuns
+      shape.jobRuns
         ?.map((job) => {
           invariant(job.stepRuns, 'has stepRuns');
           return job.stepRuns
@@ -72,7 +72,7 @@ const WorkflowRunVisualizer = ({
         .flat() || [];
 
     const stepNodes =
-      workflowRun.jobRuns
+      shape.jobRuns
         ?.map((jobRun) => {
           invariant(jobRun.stepRuns, 'has stepRuns');
 
@@ -116,7 +116,7 @@ const WorkflowRunVisualizer = ({
 
     setNodes(stepNodes);
     setEdges(stepEdges);
-  }, [workflowRun, setNodes, setEdges, setSelectedStepRun, selectedStepRun]);
+  }, [shape, setNodes, setEdges, setSelectedStepRun, selectedStepRun]);
 
   const nodeWidth = 230;
   const nodeHeight = 70;

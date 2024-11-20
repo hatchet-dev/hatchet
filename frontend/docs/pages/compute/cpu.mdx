@@ -1,0 +1,189 @@
+import { Tabs, Callout } from "nextra/components";
+import UniversalTabs from "../../components/UniversalTabs";
+
+# CPU Instance Configuration
+
+<Callout type="warning">
+  This feature is currently in beta and may be subject to change.
+</Callout>
+
+## Overview
+
+The Hatchet SDK provides a `Compute` class that allows you to define and manage compute resources for your workflows. Each step in your workflow can have its own compute configuration, enabling fine-grained control over resource allocation.
+
+## Basic Configuration
+
+<UniversalTabs items={['Python', 'TypeScript', 'Go']}>
+  <Tabs.Tab>
+
+```python
+from hatchet_sdk.compute.configs import Compute
+
+compute = Compute(
+cpu_kind="shared", # "shared" or "performance"
+cpus=2, # Number of CPU cores
+memory_mb=1024, # Memory in MB
+num_replicas=2, # Number of instances
+regions=["ewr"] # Region codes
+)
+
+```
+
+  </Tabs.Tab>
+</UniversalTabs>
+
+## CPU Types and Memory Scaling
+
+### Shared CPU
+
+- **Memory Ratio**: 2GB per CPU core
+- **Minimum Memory**: 256MB per CPU core
+- **Use Case**: Development, testing, and lighter workloads
+
+### Performance CPU
+
+- **Memory Ratio**: 8GB per CPU core
+- **Minimum Memory**: 2048MB per CPU core
+- **Use Case**: Production and compute-intensive workloads
+
+### Memory Calculation Examples
+
+#### Shared CPU
+
+```python
+# 4 shared CPUs
+max_memory = 2048 * 4  # = 8192 MB (8GB)
+min_memory = 256 * 4   # = 1024 MB (1GB)
+
+compute = Compute(
+    cpu_kind="shared",
+    cpus=4,
+    memory_mb=4096,    # Must be between min_memory and max_memory
+    num_replicas=1,
+    regions=["ewr"]
+)
+```
+
+#### Performance CPU
+
+```python
+# 4 performance CPUs
+max_memory = 8192 * 4  # = 32768 MB (32GB)
+min_memory = 2048 * 4  # = 8192 MB (8GB)
+
+compute = Compute(
+    cpu_kind="performance",
+    cpus=4,
+    memory_mb=16384,   # Must be between min_memory and max_memory
+    num_replicas=1,
+    regions=["ewr"]
+)
+```
+
+## Available Regions
+
+| Region Code | Location                     |
+| ----------- | ---------------------------- |
+| ams         | Amsterdam, Netherlands       |
+| arn         | Stockholm, Sweden            |
+| atl         | Atlanta, Georgia (US)        |
+| bog         | Bogotá, Colombia             |
+| bom         | Mumbai, India                |
+| bos         | Boston, Massachusetts (US)   |
+| cdg         | Paris, France                |
+| den         | Denver, Colorado (US)        |
+| dfw         | Dallas, Texas (US)           |
+| ewr         | Secaucus, NJ (US)            |
+| eze         | Ezeiza, Argentina            |
+| fra         | Frankfurt, Germany           |
+| gdl         | Guadalajara, Mexico          |
+| gig         | Rio de Janeiro, Brazil       |
+| gru         | Sao Paulo, Brazil            |
+| hkg         | Hong Kong                    |
+| iad         | Ashburn, Virginia (US)       |
+| lax         | Los Angeles, California (US) |
+| lhr         | London, United Kingdom       |
+| mad         | Madrid, Spain                |
+| mia         | Miami, Florida (US)          |
+| nrt         | Tokyo, Japan                 |
+| ord         | Chicago, Illinois (US)       |
+| otp         | Bucharest, Romania           |
+| phx         | Phoenix, Arizona (US)        |
+| qro         | Querétaro, Mexico            |
+| scl         | Santiago, Chile              |
+| sea         | Seattle, Washington (US)     |
+| sin         | Singapore                    |
+| sjc         | San Jose, California (US)    |
+| syd         | Sydney, Australia            |
+| waw         | Warsaw, Poland               |
+| yul         | Montreal, Canada             |
+| yyz         | Toronto, Canada              |
+
+## Replica Configuration
+
+The `num_replicas` parameter determines the total number of machines that will run your workload. These instances are randomly distributed across the specified regions.
+
+### Example Configurations
+
+```python
+# Single region, multiple replicas
+compute = Compute(
+    cpu_kind="shared",
+    cpus=2,
+    memory_mb=1024,
+    num_replicas=3,
+    regions=["ewr"]    # All 3 replicas in ewr
+)
+
+# Multiple regions, multiple replicas
+compute = Compute(
+    cpu_kind="shared",
+    cpus=2,
+    memory_mb=1024,
+    num_replicas=6,
+    regions=["ewr", "lax", "lhr"]    # 6 replicas randomly distributed across the three regions
+)
+```
+
+## Usage in Workflows
+
+```python
+from hatchet_sdk import Hatchet, Context
+
+hatchet = Hatchet()
+
+@hatchet.workflow()
+class MyWorkflow:
+    @hatchet.step(compute=compute)
+    def process_data(self, context: Context):
+        # Your code here
+        pass
+```
+
+## Best Practices
+
+1. **Resource Allocation**
+
+   - Start with minimum required resources
+   - Scale up based on monitoring and performance needs
+   - Consider using performance CPUs for production workloads
+
+2. **Region Selection**
+
+   - Select regions close to your data sources and users
+   - Include multiple regions for global availability
+   - Consider selecting regions in different geographical areas for better redundancy
+
+3. **Memory Configuration**
+
+   - Stay within the allowed memory ranges for your CPU type
+   - Monitor memory usage to optimize allocation
+   - Consider workload memory requirements when selecting CPU type
+
+4. **Replica Strategy**
+   - Use multiple replicas for high availability
+   - Set enough replicas to handle your workload across regions
+   - Account for random distribution when setting replica count
+   - Consider potential region failures in your replica count
+
+Remember to monitor your workload performance and adjust these configurations as needed to optimize for your specific use case. Keep in mind that replicas are randomly distributed across regions, so you may need to provision more replicas than you would with an even distribution to ensure minimum coverage in all regions.

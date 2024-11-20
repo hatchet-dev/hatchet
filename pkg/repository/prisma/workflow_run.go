@@ -38,7 +38,7 @@ type workflowRunAPIRepository struct {
 	m       *metered.Metered
 	cf      *server.ConfigFileRuntime
 
-	createCallbacks []repository.Callback[*dbsqlc.WorkflowRun]
+	createCallbacks []repository.TenantScopedCallback[*dbsqlc.WorkflowRun]
 
 	bulkCreateBuffer *buffer.TenantBufferManager[*repository.CreateWorkflowRunOpts, *dbsqlc.WorkflowRun]
 }
@@ -92,9 +92,9 @@ func (w *workflowRunAPIRepository) startBuffer(conf buffer.ConfigFileBuffer) err
 
 }
 
-func (w *workflowRunAPIRepository) RegisterCreateCallback(callback repository.Callback[*dbsqlc.WorkflowRun]) {
+func (w *workflowRunAPIRepository) RegisterCreateCallback(callback repository.TenantScopedCallback[*dbsqlc.WorkflowRun]) {
 	if w.createCallbacks == nil {
-		w.createCallbacks = make([]repository.Callback[*dbsqlc.WorkflowRun], 0)
+		w.createCallbacks = make([]repository.TenantScopedCallback[*dbsqlc.WorkflowRun], 0)
 	}
 
 	w.createCallbacks = append(w.createCallbacks, callback)
@@ -114,6 +114,197 @@ func (w *workflowRunAPIRepository) WorkflowRunMetricsCount(ctx context.Context, 
 	}
 
 	return workflowRunMetricsCount(context.Background(), w.pool, w.queries, tenantId, opts)
+}
+
+func (w *workflowRunAPIRepository) ListScheduledWorkflows(ctx context.Context, tenantId string, opts *repository.ListScheduledWorkflowsOpts) ([]*dbsqlc.ListScheduledWorkflowsRow, int64, error) {
+	if err := w.v.Validate(opts); err != nil {
+		return nil, 0, err
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, time.Second*30)
+	defer cancel()
+
+	listOpts := dbsqlc.ListScheduledWorkflowsParams{
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+	}
+
+	countParams := dbsqlc.CountScheduledWorkflowsParams{
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+	}
+
+	if opts.WorkflowId != nil {
+		pgWorkflowId := sqlchelpers.UUIDFromStr(*opts.WorkflowId)
+
+		listOpts.Workflowid = pgWorkflowId
+		countParams.Workflowid = pgWorkflowId
+	}
+
+	if opts.AdditionalMetadata != nil {
+		additionalMetadataBytes, err := json.Marshal(opts.AdditionalMetadata)
+		if err != nil {
+			return nil, 0, err
+		}
+
+		listOpts.AdditionalMetadata = additionalMetadataBytes
+		countParams.AdditionalMetadata = additionalMetadataBytes
+	}
+
+	if opts.ParentWorkflowRunId != nil {
+		pgParentId := sqlchelpers.UUIDFromStr(*opts.ParentWorkflowRunId)
+
+		listOpts.Parentworkflowrunid = pgParentId
+		countParams.Parentworkflowrunid = pgParentId
+	}
+
+	if opts.ParentStepRunId != nil {
+		pgParentStepRunId := sqlchelpers.UUIDFromStr(*opts.ParentStepRunId)
+
+		listOpts.Parentsteprunid = pgParentStepRunId
+		countParams.Parentsteprunid = pgParentStepRunId
+	}
+
+	if opts.Statuses != nil {
+		statuses := make([]string, 0)
+
+		for _, status := range *opts.Statuses {
+			if status == "SCHEDULED" {
+				listOpts.Includescheduled = true
+				countParams.Includescheduled = true
+				continue
+			}
+
+			statuses = append(statuses, string(status))
+		}
+
+		listOpts.Statuses = statuses
+		countParams.Statuses = statuses
+	}
+
+	count, err := w.queries.CountScheduledWorkflows(ctx, w.pool, countParams)
+
+	if err != nil {
+		return nil, 0, err
+	}
+
+	if opts.Limit != nil {
+		listOpts.Limit = pgtype.Int4{
+			Int32: int32(*opts.Limit), // nolint: gosec
+			Valid: true,
+		}
+	}
+
+	if opts.Offset != nil {
+		listOpts.Offset = pgtype.Int4{
+			Int32: int32(*opts.Offset), // nolint: gosec
+			Valid: true,
+		}
+	}
+
+	orderByField := "triggerAt"
+
+	if opts.OrderBy != nil {
+		orderByField = *opts.OrderBy
+	}
+
+	orderByDirection := "DESC"
+
+	if opts.OrderDirection != nil {
+		orderByDirection = *opts.OrderDirection
+	}
+
+	listOpts.Orderby = orderByField + " " + orderByDirection
+
+	scheduledWorkflows, err := w.queries.ListScheduledWorkflows(ctx, w.pool, listOpts)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return scheduledWorkflows, count, nil
+}
+
+func (w *workflowRunAPIRepository) DeleteScheduledWorkflow(ctx context.Context, tenantId, scheduledWorkflowId string) error {
+	return w.queries.DeleteScheduledWorkflow(ctx, w.pool, sqlchelpers.UUIDFromStr(scheduledWorkflowId))
+}
+
+func (w *workflowRunAPIRepository) GetScheduledWorkflow(ctx context.Context, tenantId, scheduledWorkflowId string) (*dbsqlc.ListScheduledWorkflowsRow, error) {
+
+	listOpts := dbsqlc.ListScheduledWorkflowsParams{
+		Tenantid:   sqlchelpers.UUIDFromStr(tenantId),
+		Scheduleid: sqlchelpers.UUIDFromStr(scheduledWorkflowId),
+	}
+
+	scheduledWorkflows, err := w.queries.ListScheduledWorkflows(ctx, w.pool, listOpts)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(scheduledWorkflows) == 0 {
+		return nil, nil
+	}
+
+	return scheduledWorkflows[0], nil
+
+}
+
+func (w *workflowRunAPIRepository) UpdateScheduledWorkflow(ctx context.Context, tenantId, scheduledWorkflowId string, triggerAt time.Time) error {
+	return w.queries.UpdateScheduledWorkflow(ctx, w.pool, dbsqlc.UpdateScheduledWorkflowParams{
+		Scheduleid: sqlchelpers.UUIDFromStr(scheduledWorkflowId),
+		Triggerat:  sqlchelpers.TimestampFromTime(triggerAt),
+	})
+}
+
+func (w *workflowRunAPIRepository) ListCronWorkflows(ctx context.Context, tenantId string, opts *repository.ListCronWorkflowsOpts) ([]*dbsqlc.ListCronWorkflowsRow, int64, error) {
+	if err := w.v.Validate(opts); err != nil {
+		return nil, 0, err
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, time.Second*30)
+	defer cancel()
+
+	count, err := w.queries.CountCronWorkflows(ctx, w.pool, sqlchelpers.UUIDFromStr(tenantId))
+
+	if err != nil {
+		return nil, 0, err
+	}
+
+	listOpts := dbsqlc.ListCronWorkflowsParams{
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+	}
+
+	if opts.Limit != nil {
+		listOpts.Limit = pgtype.Int4{
+			Int32: int32(*opts.Limit), // nolint: gosec
+			Valid: true,
+		}
+	}
+
+	if opts.Offset != nil {
+		listOpts.Offset = pgtype.Int4{
+			Int32: int32(*opts.Offset), // nolint: gosec
+			Valid: true,
+		}
+	}
+
+	orderByField := "createdAt"
+
+	if opts.OrderBy != nil {
+		orderByField = *opts.OrderBy
+	}
+
+	orderByDirection := "DESC"
+
+	if opts.OrderDirection != nil {
+		orderByDirection = *opts.OrderDirection
+	}
+
+	listOpts.Orderby = orderByField + " " + orderByDirection
+
+	cronWorkflows, err := w.queries.ListCronWorkflows(ctx, w.pool, listOpts)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return cronWorkflows, count, nil
 }
 
 func (w *workflowRunEngineRepository) GetWorkflowRunInputData(tenantId, workflowRunId string) (map[string]interface{}, error) {
@@ -504,13 +695,13 @@ type workflowRunEngineRepository struct {
 	cf                *server.ConfigFileRuntime
 	stepRunRepository *stepRunEngineRepository
 
-	createCallbacks []repository.Callback[*dbsqlc.WorkflowRun]
-	queuedCallbacks []repository.Callback[pgtype.UUID]
+	createCallbacks []repository.TenantScopedCallback[*dbsqlc.WorkflowRun]
+	queuedCallbacks []repository.TenantScopedCallback[pgtype.UUID]
 
 	bulkCreateBuffer *buffer.TenantBufferManager[*repository.CreateWorkflowRunOpts, *dbsqlc.WorkflowRun]
 }
 
-func NewWorkflowRunEngineRepository(stepRunRepository *stepRunEngineRepository, pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, m *metered.Metered, cf *server.ConfigFileRuntime, cbs ...repository.Callback[*dbsqlc.WorkflowRun]) (repository.WorkflowRunEngineRepository, func() error, error) {
+func NewWorkflowRunEngineRepository(stepRunRepository *stepRunEngineRepository, pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, m *metered.Metered, cf *server.ConfigFileRuntime, cbs ...repository.TenantScopedCallback[*dbsqlc.WorkflowRun]) (repository.WorkflowRunEngineRepository, func() error, error) {
 	queries := dbsqlc.New()
 
 	w := workflowRunEngineRepository{
@@ -569,17 +760,17 @@ func sizeOfData(data *repository.CreateWorkflowRunOpts) int {
 	return size
 }
 
-func (w *workflowRunEngineRepository) RegisterCreateCallback(callback repository.Callback[*dbsqlc.WorkflowRun]) {
+func (w *workflowRunEngineRepository) RegisterCreateCallback(callback repository.TenantScopedCallback[*dbsqlc.WorkflowRun]) {
 	if w.createCallbacks == nil {
-		w.createCallbacks = make([]repository.Callback[*dbsqlc.WorkflowRun], 0)
+		w.createCallbacks = make([]repository.TenantScopedCallback[*dbsqlc.WorkflowRun], 0)
 	}
 
 	w.createCallbacks = append(w.createCallbacks, callback)
 }
 
-func (w *workflowRunEngineRepository) RegisterQueuedCallback(callback repository.Callback[pgtype.UUID]) {
+func (w *workflowRunEngineRepository) RegisterQueuedCallback(callback repository.TenantScopedCallback[pgtype.UUID]) {
 	if w.queuedCallbacks == nil {
-		w.queuedCallbacks = make([]repository.Callback[pgtype.UUID], 0)
+		w.queuedCallbacks = make([]repository.TenantScopedCallback[pgtype.UUID], 0)
 	}
 
 	w.queuedCallbacks = append(w.queuedCallbacks, callback)
@@ -655,6 +846,20 @@ func (w *workflowRunEngineRepository) GetWorkflowRunByIds(ctx context.Context, t
 	}
 
 	return runs, nil
+}
+
+func (w *workflowRunEngineRepository) GetFailureDetails(ctx context.Context, tenantId, workflowRunId string) ([]*dbsqlc.GetFailureDetailsRow, error) {
+
+	steps, err := w.queries.GetFailureDetails(ctx, w.pool, dbsqlc.GetFailureDetailsParams{
+		Tenantid:      sqlchelpers.UUIDFromStr(tenantId),
+		Workflowrunid: sqlchelpers.UUIDFromStr(workflowRunId),
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return steps, nil
 }
 
 func (w *workflowRunEngineRepository) GetWorkflowRunAdditionalMeta(ctx context.Context, tenantId, workflowRunId string) (*dbsqlc.GetWorkflowRunAdditionalMetaRow, error) {

@@ -1,4 +1,5 @@
 import { Tabs, Callout } from "nextra/components";
+import UniversalTabs from "../../../../components/UniversalTabs";
 
 # Sticky Worker Assignment (Beta)
 
@@ -30,8 +31,9 @@ There are two strategies for setting sticky assignment:
 - `SOFT`: The all steps in the workflow will attempt to be assigned to the same worker, but if that worker is unavailable, it will be assigned to another worker.
 - `HARD`: The all steps in the workflow will only be assigned to the same worker. If that worker is unavailable, the step run will not be assigned to another worker and will remain in a pending state until the original worker becomes available or timeout is reached. (See [Scheduling Timeouts](../timeouts.mdx))
 
-<Tabs items={['Python', 'Typescript', 'Golang']}>
+<UniversalTabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
+
 ```python
 @hatchet.workflow(
     on_events=["user:create"],
@@ -50,9 +52,11 @@ class StickyWorkflow:
     def step2(self, context: Context):
         return {"worker": context.worker.id()}
 
-````
+```
+
   </Tabs.Tab>
   <Tabs.Tab>
+
 ```typescript
 const myWorkflow: Workflow = {
   id: "my-workflow",
@@ -65,10 +69,11 @@ const myWorkflow: Workflow = {
     // Define your workflow steps here
   ],
 };
-````
+```
 
   </Tabs.Tab>
   <Tabs.Tab>
+
 ```go
 	err = w.RegisterWorkflow(
 		&worker.WorkflowJob{
@@ -96,8 +101,9 @@ const myWorkflow: Workflow = {
 		},
 	)
 ```
+
   </Tabs.Tab>
-</Tabs>
+</UniversalTabs>
 
 In this example, the `sticky` property is set to `SOFT`, which means that the workflow will attempt to be assigned to the same worker for the duration of its execution. If the original worker is unavailable, the workflow will be assigned to another worker.
 
@@ -112,8 +118,9 @@ However, the child workflow must:
 
 If either condition is not met, an error will be thrown when the child workflow is spawned.
 
-<Tabs items={['Python', 'Typescript', 'Golang']}>
+<UniversalTabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
+
 ```python
 @hatchet.workflow(
     on_events=["sticky:parent"],
@@ -124,7 +131,8 @@ class StickyWorkflow:
         ref = context.spawn_workflow('StickyChildWorkflow', {}, options={"sticky": True})
         await ref.result()
         return {"worker": context.worker.id()}
-````
+```
+
 ```python
 @hatchet.workflow(
 on_events=["sticky:child"],
@@ -135,37 +143,42 @@ class StickyChildWorkflow:
 def child(self, context: Context):
 return {"worker": context.worker.id()}
 
-````
+```
+
   </Tabs.Tab>
   <Tabs.Tab>
+
 ```typescript
 const parentWorkflow: Workflow = {
-  id: 'parent-sticky-workflow',
-  description: 'test',
+  id: "parent-sticky-workflow",
+  description: "test",
   steps: [
     {
-      name: 'step1',
+      name: "step1",
       run: async (ctx) => {
         const results: Promise<any>[] = [];
 
         for (let i = 0; i < 50; i++) {
-          const result = await ctx.spawnWorkflow(childWorkflow, {}, { sticky: true });
+          const result = await ctx.spawnWorkflow(
+            childWorkflow,
+            {},
+            { sticky: true },
+          );
           results.push(result.result());
         }
 
-        console.log('Results:', await Promise.all(results));
+        console.log("Results:", await Promise.all(results));
 
-        return { step1: 'step1 results!' };
+        return { step1: "step1 results!" };
       },
     },
-
-],
+  ],
 };
-
-````
+```
 
   </Tabs.Tab>
   <Tabs.Tab>
+
 ```go
 	err = w.RegisterWorkflow(
 		&worker.WorkflowJob{
@@ -194,6 +207,6 @@ const parentWorkflow: Workflow = {
     )
 
 ```
+
   </Tabs.Tab>
-</Tabs>
-```
+</UniversalTabs>

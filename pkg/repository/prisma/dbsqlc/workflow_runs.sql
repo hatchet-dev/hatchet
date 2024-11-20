@@ -57,7 +57,7 @@ WITH runs AS (
         ) AND
         (
             sqlc.narg('statuses')::text[] IS NULL OR
-            "status" = ANY(cast(sqlc.narg('statuses')::text[] as "WorkflowRunStatus"[]))
+            runs."status" = ANY(cast(sqlc.narg('statuses')::text[] as "WorkflowRunStatus"[]))
         ) AND
         (
             sqlc.narg('createdAfter')::timestamp IS NULL OR
@@ -212,7 +212,7 @@ WHERE
     ) AND
     (
         sqlc.narg('statuses')::text[] IS NULL OR
-        "status" = ANY(cast(sqlc.narg('statuses')::text[] as "WorkflowRunStatus"[]))
+        runs."status" = ANY(cast(sqlc.narg('statuses')::text[] as "WorkflowRunStatus"[]))
     ) AND
     (
         sqlc.narg('createdAfter')::timestamp IS NULL OR
@@ -1210,6 +1210,8 @@ WITH QueuedRuns AS (
         wr."tenantId" = @tenantId::uuid
         AND wr."status" = 'QUEUED'
 		AND wr."concurrencyGroupId" IS NOT NULL
+        AND wr."deletedAt" IS NULL
+        AND wv."deletedAt" IS NULL
     ORDER BY wr."workflowVersionId"
 )
 SELECT
@@ -1415,3 +1417,135 @@ WHERE
     sre."workflowRunId" = @workflowRunId::uuid
 ORDER BY
     sre."id" DESC;
+
+-- name: GetFailureDetails :many
+SELECT
+	wr."status",
+	wr."id",
+	jr."status" as "jrStatus",
+	sr."status" as "srStatus",
+	sr."cancelledReason",
+	sr."error"
+FROM "WorkflowRun" wr
+JOIN
+	"JobRun" jr on jr."workflowRunId" = wr."id"
+JOIN
+	"StepRun" sr on sr."jobRunId" = jr."id"
+WHERE
+	wr."status" = 'FAILED' AND
+    sr."status" IN ('FAILED', 'CANCELLED') AND
+    (
+        sr."cancelledReason" IS NULL OR
+        sr."cancelledReason" NOT IN ('CANCELLED_BY_USER', 'PREVIOUS_STEP_TIMED_OUT', 'PREVIOUS_STEP_FAILED', 'PREVIOUS_STEP_CANCELLED', 'CANCELLED_BY_CONCURRENCY_LIMIT')
+    ) AND
+	wr."id" = @workflowRunId::uuid AND
+    wr."tenantId" = @tenantId::uuid;
+
+-- name: ListScheduledWorkflows :many
+SELECT
+    w."name",
+    w."id" as "workflowId",
+    v."id" as "workflowVersionId",
+    w."tenantId",
+    t.*,
+    wr."createdAt" as "workflowRunCreatedAt",
+    wr."status" as "workflowRunStatus",
+    wr."id" as "workflowRunId",
+    wr."displayName" as "workflowRunName"
+FROM "WorkflowTriggerScheduledRef" t
+JOIN "WorkflowVersion" v ON t."parentId" = v."id"
+JOIN "Workflow" w on v."workflowId" = w."id"
+LEFT JOIN "WorkflowRunTriggeredBy" tb ON t."id" = tb."scheduledId"
+LEFT JOIN "WorkflowRun" wr ON tb."parentId" = wr."id"
+WHERE v."deletedAt" IS NULL
+	AND w."tenantId" = @tenantId::uuid
+    AND (@scheduleId::uuid IS NULL OR t."id" = @scheduleId::uuid)
+    AND (@workflowId::uuid IS NULL OR w."id" = @workflowId::uuid)
+    AND (@parentWorkflowRunId::uuid IS NULL OR t."id" = @parentWorkflowRunId::uuid)
+    AND (@parentStepRunId::uuid IS NULL OR t."parentStepRunId" = @parentStepRunId::uuid)
+    AND (sqlc.narg('additionalMetadata')::jsonb IS NULL OR
+        t."additionalMetadata" @> sqlc.narg('additionalMetadata')::jsonb)
+    AND (
+        sqlc.narg('statuses')::text[] IS NULL OR
+        wr."status" = ANY(cast(sqlc.narg('statuses')::text[] as "WorkflowRunStatus"[]))
+        or (
+            @includeScheduled::boolean IS TRUE AND
+            wr."status" IS NULL
+        )
+    )
+ORDER BY
+    case when @orderBy = 'triggerAt ASC' THEN t."triggerAt" END ASC ,
+    case when @orderBy = 'triggerAt DESC' THEN t."triggerAt" END DESC,
+    case when @orderBy = 'createdAt ASC' THEN t."createdAt" END ASC ,
+    case when @orderBy = 'createdAt DESC' THEN t."createdAt" END DESC,
+    t."id" ASC
+OFFSET
+    COALESCE(sqlc.narg('offset'), 0)
+LIMIT
+    COALESCE(sqlc.narg('limit'), 50);
+
+-- name: CountScheduledWorkflows :one
+SELECT count(*)
+FROM "WorkflowTriggerScheduledRef" t
+JOIN "WorkflowVersion" v ON t."parentId" = v."id"
+JOIN "Workflow" w on v."workflowId" = w."id"
+LEFT JOIN "WorkflowRunTriggeredBy" tb ON t."id" = tb."scheduledId"
+LEFT JOIN "WorkflowRun" wr ON tb."parentId" = wr."id"
+WHERE v."deletedAt" IS NULL
+	AND w."tenantId" = @tenantId::uuid
+    AND (@scheduleId::uuid IS NULL OR t."id" = @scheduleId::uuid)
+    AND (@workflowId::uuid IS NULL OR w."id" = @workflowId::uuid)
+    AND (@parentWorkflowRunId::uuid IS NULL OR t."id" = @parentWorkflowRunId::uuid)
+    AND (@parentStepRunId::uuid IS NULL OR t."parentStepRunId" = @parentStepRunId::uuid)
+    AND (sqlc.narg('additionalMetadata')::jsonb IS NULL OR
+        t."additionalMetadata" @> sqlc.narg('additionalMetadata')::jsonb)
+    AND (
+        sqlc.narg('statuses')::text[] IS NULL OR
+        wr."status" = ANY(cast(sqlc.narg('statuses')::text[] as "WorkflowRunStatus"[]))
+        or (
+            @includeScheduled::boolean IS TRUE AND
+            wr."status" IS NULL
+        )
+    );
+
+-- name: UpdateScheduledWorkflow :exec
+UPDATE "WorkflowTriggerScheduledRef"
+SET "triggerAt" = @triggerAt::timestamp
+WHERE
+    "id" = @scheduleId::uuid;
+
+-- name: DeleteScheduledWorkflow :exec
+DELETE FROM "WorkflowTriggerScheduledRef"
+WHERE
+    "id" = @scheduleId::uuid;
+
+-- name: ListCronWorkflows :many
+SELECT
+    w."name",
+    w."id" as "workflowId",
+    v."id" as "workflowVersionId",
+    w."tenantId",
+    t.*,
+    c.*
+FROM "WorkflowTriggerCronRef" c
+JOIN "WorkflowTriggers" t ON c."parentId" = t."id"
+JOIN "WorkflowVersion" v ON t."workflowVersionId" = v."id"
+JOIN "Workflow" w on v."workflowId" = w."id"
+WHERE v."deletedAt" IS NULL
+	AND w."tenantId" = @tenantId::uuid
+ORDER BY
+    case when @orderBy = 'createdAt ASC' THEN t."createdAt" END ASC ,
+    case when @orderBy = 'createdAt DESC' THEN t."createdAt" END DESC,
+    t."id" ASC
+OFFSET
+    COALESCE(sqlc.narg('offset'), 0)
+LIMIT
+    COALESCE(sqlc.narg('limit'), 50);
+
+-- name: CountCronWorkflows :one
+SELECT count(*)
+FROM "WorkflowTriggerCronRef" c
+JOIN "WorkflowTriggers" t ON c."parentId" = t."id"
+JOIN "WorkflowVersion" v ON t."workflowVersionId" = v."id"
+JOIN "Workflow" w on v."workflowId" = w."id"
+WHERE v."deletedAt" IS NULL AND w."tenantId" = @tenantId::uuid;

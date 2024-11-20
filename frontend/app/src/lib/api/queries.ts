@@ -14,6 +14,8 @@ type WorkflowRunMetrics = Parameters<typeof api.workflowRunGetMetrics>[1];
 type WorkflowRunEventsMetrics = Parameters<
   typeof cloudApi.workflowRunEventsGetMetrics
 >[1];
+type WorkflowScheduledQuery = Parameters<typeof api.workflowScheduledList>[1];
+type CronWorkflowsQuery = Parameters<typeof api.cronWorkflowList>[1];
 
 export const queries = createQueryKeyStore({
   cloud: {
@@ -50,6 +52,15 @@ export const queries = createQueryKeyStore({
       queryKey: ['build-logs:list', buildId],
       queryFn: async () => (await cloudApi.buildLogsList(buildId)).data,
     }),
+    getIacLogs: (managedWorkerId: string, deployKey: string) => ({
+      queryKey: ['iac-logs:list', managedWorkerId, deployKey],
+      queryFn: async () =>
+        (
+          await cloudApi.iacLogsList(managedWorkerId, {
+            deployKey,
+          })
+        ).data,
+    }),
     getManagedWorkerCpuMetrics: (
       managedWorkerId: string,
       query: GetCloudMetricsQuery,
@@ -62,7 +73,7 @@ export const queries = createQueryKeyStore({
       managedWorkerId: string,
       query: GetCloudMetricsQuery,
     ) => ({
-      queryKey: ['managed-worker:get:memory-metrics', managedWorkerId],
+      queryKey: ['managed-worker:get:memory-metrics', managedWorkerId, query],
       queryFn: async () =>
         (await cloudApi.metricsMemoryGet(managedWorkerId, query)).data,
     }),
@@ -70,7 +81,7 @@ export const queries = createQueryKeyStore({
       managedWorkerId: string,
       query: GetCloudMetricsQuery,
     ) => ({
-      queryKey: ['managed-worker:get:disk-metrics', managedWorkerId],
+      queryKey: ['managed-worker:get:disk-metrics', managedWorkerId, query],
       queryFn: async () =>
         (await cloudApi.metricsDiskGet(managedWorkerId, query)).data,
     }),
@@ -178,6 +189,19 @@ export const queries = createQueryKeyStore({
     //       })
     //     ).data,
     // }),
+  },
+  scheduledRuns: {
+    list: (tenant: string, query: WorkflowScheduledQuery) => ({
+      queryKey: ['scheduled-run:list', tenant, query],
+      queryFn: async () =>
+        (await api.workflowScheduledList(tenant, query)).data,
+    }),
+  },
+  cronRuns: {
+    list: (tenant: string, query: CronWorkflowsQuery) => ({
+      queryKey: ['cron-run:list', tenant, query],
+      queryFn: async () => (await api.cronWorkflowList(tenant, query)).data,
+    }),
   },
   workflowRuns: {
     list: (tenant: string, query: ListWorkflowRunsQuery) => ({

@@ -1,4 +1,5 @@
 import { Tabs } from "nextra/components";
+import UniversalTabs from "../../../components/UniversalTabs";
 
 # Error Handling and Logging in Hatchet
 
@@ -35,7 +36,7 @@ In addition to automatic error handling for uncaught errors, Hatchet provides a 
 
 Here's an example of how to use `context.log()` to log information during step execution:
 
-<Tabs items={['Python', 'Typescript', 'Go']}>
+<UniversalTabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
 
 ```python
@@ -98,7 +99,7 @@ err = w.RegisterWorkflow(
 ```
 
   </Tabs.Tab>
-</Tabs>
+</UniversalTabs>
 
 In this example, the step uses `context.log()` to log messages at different points during its execution. The logged messages, along with any additional metadata, will be associated with the specific step run and can be viewed in the Hatchet dashboard.
 

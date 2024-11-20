@@ -5,14 +5,20 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net/http"
+	"time"
 
+	grpc_retry "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/retry"
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/hatchet-dev/hatchet/pkg/client/loader"
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
+
+	cloudrest "github.com/hatchet-dev/hatchet/pkg/client/cloud/rest"
+
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	"github.com/hatchet-dev/hatchet/pkg/config/client"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
@@ -25,8 +31,11 @@ type Client interface {
 	Event() EventClient
 	Subscribe() SubscribeClient
 	API() *rest.ClientWithResponses
+	CloudAPI() *cloudrest.ClientWithResponses
 	TenantId() string
 	Namespace() string
+	CloudRegisterID() *string
+	RunnableActions() []string
 }
 
 type clientImpl struct {
@@ -37,11 +46,15 @@ type clientImpl struct {
 	event      EventClient
 	subscribe  SubscribeClient
 	rest       *rest.ClientWithResponses
+	cloudrest  *cloudrest.ClientWithResponses
 
 	// the tenant id
 	tenantId string
 
 	namespace string
+
+	cloudRegisterID *string
+	runnableActions []string
 
 	l *zerolog.Logger
 
@@ -61,6 +74,9 @@ type ClientOpts struct {
 	serverURL string
 	token     string
 	namespace string
+
+	cloudRegisterID *string
+	runnableActions []string
 
 	filesLoader   filesLoaderFunc
 	initWorkflows bool
@@ -95,15 +111,17 @@ func defaultClientOpts(token *string, cf *client.ClientConfigFile) *ClientOpts {
 	logger := logger.NewDefaultLogger("client")
 
 	return &ClientOpts{
-		tenantId:    clientConfig.TenantId,
-		token:       clientConfig.Token,
-		l:           &logger,
-		v:           validator.NewDefaultValidator(),
-		tls:         clientConfig.TLSConfig,
-		hostPort:    clientConfig.GRPCBroadcastAddress,
-		serverURL:   clientConfig.ServerURL,
-		filesLoader: types.DefaultLoader,
-		namespace:   clientConfig.Namespace,
+		tenantId:        clientConfig.TenantId,
+		token:           clientConfig.Token,
+		l:               &logger,
+		v:               validator.NewDefaultValidator(),
+		tls:             clientConfig.TLSConfig,
+		hostPort:        clientConfig.GRPCBroadcastAddress,
+		serverURL:       clientConfig.ServerURL,
+		filesLoader:     types.DefaultLoader,
+		namespace:       clientConfig.Namespace,
+		cloudRegisterID: clientConfig.CloudRegisterID,
+		runnableActions: clientConfig.RunnableActions,
 	}
 }
 
@@ -215,9 +233,25 @@ func newFromOpts(opts *ClientOpts) (Client, error) {
 		transportCreds = credentials.NewTLS(opts.tls)
 	}
 
+	grpcOpts := []grpc.DialOption{
+		grpc.WithTransportCredentials(transportCreds),
+	}
+
+	retryOpts := []grpc_retry.CallOption{
+		grpc_retry.WithBackoff(grpc_retry.BackoffExponentialWithJitter(5*time.Second, 0.10)),
+		grpc_retry.WithMax(5),
+		grpc_retry.WithPerRetryTimeout(30 * time.Second),
+		grpc_retry.WithCodes(codes.ResourceExhausted, codes.Unavailable),
+		grpc_retry.WithOnRetryCallback(grpc_retry.OnRetryCallback(func(ctx context.Context, attempt uint, err error) {
+			opts.l.Debug().Msgf("grpc_retry attempt: %d, backoff for %v", attempt, err)
+		})),
+	}
+	grpcOpts = append(grpcOpts, grpc.WithStreamInterceptor(grpc_retry.StreamClientInterceptor(retryOpts...)))
+	grpcOpts = append(grpcOpts, grpc.WithUnaryInterceptor(grpc_retry.UnaryClientInterceptor(retryOpts...)))
+
 	conn, err := grpc.NewClient(
 		opts.hostPort,
-		grpc.WithTransportCredentials(transportCreds),
+		grpcOpts...,
 	)
 
 	if err != nil {
@@ -246,6 +280,15 @@ func newFromOpts(opts *ClientOpts) (Client, error) {
 		return nil, fmt.Errorf("could not create rest client: %w", err)
 	}
 
+	cloudrest, err := cloudrest.NewClientWithResponses(opts.serverURL, cloudrest.WithRequestEditorFn(func(ctx context.Context, req *http.Request) error {
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", opts.token))
+		return nil
+	}))
+
+	if err != nil {
+		return nil, fmt.Errorf("could not create cloud REST client: %w", err)
+	}
+
 	// if init workflows is set, then we need to initialize the workflows
 	if opts.initWorkflows {
 		if err := initWorkflows(opts.filesLoader, admin); err != nil {
@@ -254,16 +297,19 @@ func newFromOpts(opts *ClientOpts) (Client, error) {
 	}
 
 	return &clientImpl{
-		conn:       conn,
-		tenantId:   opts.tenantId,
-		l:          opts.l,
-		admin:      admin,
-		dispatcher: dispatcher,
-		subscribe:  subscribe,
-		event:      event,
-		v:          opts.v,
-		rest:       rest,
-		namespace:  opts.namespace,
+		conn:            conn,
+		tenantId:        opts.tenantId,
+		l:               opts.l,
+		admin:           admin,
+		dispatcher:      dispatcher,
+		subscribe:       subscribe,
+		event:           event,
+		v:               opts.v,
+		rest:            rest,
+		cloudrest:       cloudrest,
+		namespace:       opts.namespace,
+		cloudRegisterID: opts.cloudRegisterID,
+		runnableActions: opts.runnableActions,
 	}, nil
 }
 
@@ -287,12 +333,24 @@ func (c *clientImpl) API() *rest.ClientWithResponses {
 	return c.rest
 }
 
+func (c *clientImpl) CloudAPI() *cloudrest.ClientWithResponses {
+	return c.cloudrest
+}
+
 func (c *clientImpl) TenantId() string {
 	return c.tenantId
 }
 
 func (c *clientImpl) Namespace() string {
 	return c.namespace
+}
+
+func (c *clientImpl) CloudRegisterID() *string {
+	return c.cloudRegisterID
+}
+
+func (c *clientImpl) RunnableActions() []string {
+	return c.runnableActions
 }
 
 func initWorkflows(fl filesLoaderFunc, adminClient AdminClient) error {

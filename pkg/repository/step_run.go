@@ -175,13 +175,14 @@ type ProcessStepRunUpdatesResultV2 struct {
 }
 
 type StepRunEngineRepository interface {
-	RegisterWorkflowRunCompletedCallback(callback Callback[*dbsqlc.ResolveWorkflowRunStatusRow])
+	RegisterWorkflowRunCompletedCallback(callback TenantScopedCallback[*dbsqlc.ResolveWorkflowRunStatusRow])
 
-	// ListStepRunsForWorkflowRun returns a list of step runs for a workflow run.
 	ListStepRuns(ctx context.Context, tenantId string, opts *ListStepRunsOpts) ([]*dbsqlc.GetStepRunForEngineRow, error)
 
+	ListStepRunsToCancel(ctx context.Context, tenantId, jobRunId string) ([]*dbsqlc.GetStepRunForEngineRow, error)
+
 	// ListStepRunsToReassign returns a list of step runs which are in a reassignable state.
-	ListStepRunsToReassign(ctx context.Context, tenantId string) ([]string, error)
+	ListStepRunsToReassign(ctx context.Context, tenantId string) (reassignedStepRunIds []string, failedStepRuns []*dbsqlc.GetStepRunForEngineRow, err error)
 
 	ListStepRunsToTimeout(ctx context.Context, tenantId string) (bool, []*dbsqlc.GetStepRunForEngineRow, error)
 
@@ -191,7 +192,7 @@ type StepRunEngineRepository interface {
 
 	StepRunSucceeded(ctx context.Context, tenantId, workflowRunId, stepRunId string, finishedAt time.Time, output []byte) error
 
-	StepRunCancelled(ctx context.Context, tenantId, workflowRunId, stepRunId string, cancelledAt time.Time, cancelledReason string) error
+	StepRunCancelled(ctx context.Context, tenantId, workflowRunId, stepRunId string, cancelledAt time.Time, cancelledReason string, propagate bool) error
 
 	StepRunFailed(ctx context.Context, tenantId, workflowRunId, stepRunId string, failedAt time.Time, errStr string, retryCount int) error
 

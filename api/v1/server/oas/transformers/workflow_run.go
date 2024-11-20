@@ -504,3 +504,67 @@ func ToWorkflowRunFromSQLC(row *dbsqlc.ListWorkflowRunsRow) *gen.WorkflowRun {
 
 	return res
 }
+
+func ToScheduledWorkflowsFromSQLC(scheduled *dbsqlc.ListScheduledWorkflowsRow) *gen.ScheduledWorkflows {
+
+	var additionalMetadata map[string]interface{}
+
+	if scheduled.AdditionalMetadata != nil {
+		err := json.Unmarshal(scheduled.AdditionalMetadata, &additionalMetadata)
+		if err != nil {
+			return nil
+		}
+	}
+
+	var workflowRunStatus gen.WorkflowRunStatus
+
+	if scheduled.WorkflowRunStatus.Valid {
+		workflowRunStatus = gen.WorkflowRunStatus(scheduled.WorkflowRunStatus.WorkflowRunStatus)
+	}
+
+	var workflowRunIdPtr *uuid.UUID
+
+	if scheduled.WorkflowRunId.Valid {
+		workflowRunId := uuid.MustParse(sqlchelpers.UUIDToStr(scheduled.WorkflowRunId))
+		workflowRunIdPtr = &workflowRunId
+	}
+
+	res := &gen.ScheduledWorkflows{
+		Metadata:             *toAPIMetadata(sqlchelpers.UUIDToStr(scheduled.ID), scheduled.CreatedAt.Time, scheduled.UpdatedAt.Time),
+		WorkflowVersionId:    sqlchelpers.UUIDToStr(scheduled.WorkflowVersionId),
+		WorkflowId:           sqlchelpers.UUIDToStr(scheduled.WorkflowId),
+		WorkflowName:         scheduled.Name,
+		TenantId:             sqlchelpers.UUIDToStr(scheduled.TenantId),
+		TriggerAt:            scheduled.TriggerAt.Time,
+		AdditionalMetadata:   &additionalMetadata,
+		WorkflowRunCreatedAt: &scheduled.WorkflowRunCreatedAt.Time,
+		WorkflowRunStatus:    &workflowRunStatus,
+		WorkflowRunId:        workflowRunIdPtr,
+		WorkflowRunName:      &scheduled.WorkflowRunName.String,
+	}
+
+	return res
+}
+
+func ToCronWorkflowsFromSQLC(cron *dbsqlc.ListCronWorkflowsRow) *gen.CronWorkflows {
+	var additionalMetadata map[string]interface{}
+
+	if cron.AdditionalMetadata != nil {
+		err := json.Unmarshal(cron.AdditionalMetadata, &additionalMetadata)
+		if err != nil {
+			return nil
+		}
+	}
+
+	res := &gen.CronWorkflows{
+		Metadata:           *toAPIMetadata(sqlchelpers.UUIDToStr(cron.ID), cron.CreatedAt.Time, cron.UpdatedAt.Time),
+		WorkflowVersionId:  sqlchelpers.UUIDToStr(cron.WorkflowVersionId),
+		WorkflowId:         sqlchelpers.UUIDToStr(cron.WorkflowId),
+		WorkflowName:       cron.Name,
+		TenantId:           sqlchelpers.UUIDToStr(cron.TenantId),
+		Cron:               cron.Cron,
+		AdditionalMetadata: &additionalMetadata,
+	}
+
+	return res
+}

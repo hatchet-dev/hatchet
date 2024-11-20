@@ -135,7 +135,7 @@ const LoggingComponent: React.FC<LogProps> = ({
       return 0;
     }
 
-    return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
+    return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
   });
 
   return (

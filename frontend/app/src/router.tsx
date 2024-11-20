@@ -133,6 +133,24 @@ const routes: RouteObject[] = [
                   }),
               },
               {
+                path: '/scheduled',
+                lazy: async () =>
+                  import('./pages/main/scheduled-runs').then((res) => {
+                    return {
+                      Component: res.default,
+                    };
+                  }),
+              },
+              {
+                path: '/cron-jobs',
+                lazy: async () =>
+                  import('./pages/main/recurring').then((res) => {
+                    return {
+                      Component: res.default,
+                    };
+                  }),
+              },
+              {
                 path: '/workflows',
                 lazy: async () =>
                   import('./pages/main/workflows').then((res) => {
@@ -208,18 +226,9 @@ const routes: RouteObject[] = [
                   }),
               },
               {
-                path: '/workers/managed-workers',
+                path: '/managed-workers',
                 lazy: async () =>
-                  import('./pages/main/workers/managed-workers').then((res) => {
-                    return {
-                      Component: res.default,
-                    };
-                  }),
-              },
-              {
-                path: '/workers/managed-workers/create',
-                lazy: async () =>
-                  import('./pages/main/workers/managed-workers/create').then(
+                  import('./pages/main/managed-workers/index.tsx').then(
                     (res) => {
                       return {
                         Component: res.default,
@@ -228,10 +237,21 @@ const routes: RouteObject[] = [
                   ),
               },
               {
-                path: '/workers/managed-workers/:managed-worker',
+                path: '/managed-workers/create',
+                lazy: async () =>
+                  import('./pages/main/managed-workers/create/index.tsx').then(
+                    (res) => {
+                      return {
+                        Component: res.default,
+                      };
+                    },
+                  ),
+              },
+              {
+                path: '/managed-workers/:managed-worker',
                 lazy: async () =>
                   import(
-                    './pages/main/workers/managed-workers/$managed-worker'
+                    './pages/main/managed-workers/$managed-worker/index.tsx'
                   ).then((res) => {
                     return {
                       Component: res.default,

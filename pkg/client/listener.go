@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	grpc_retry "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/retry"
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
@@ -45,7 +46,7 @@ func (r *subscribeClientImpl) newWorkflowRunsListener(
 	ctx context.Context,
 ) (*WorkflowRunsListener, error) {
 	constructor := func(ctx context.Context) (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, error) {
-		return r.client.SubscribeToWorkflowRuns(r.ctx.newContext(ctx))
+		return r.client.SubscribeToWorkflowRuns(r.ctx.newContext(ctx), grpc_retry.Disable())
 	}
 
 	w := &WorkflowRunsListener{
@@ -259,7 +260,7 @@ func newSubscribe(conn *grpc.ClientConn, opts *sharedClientOpts) SubscribeClient
 func (r *subscribeClientImpl) On(ctx context.Context, workflowRunId string, handler RunHandler) error {
 	stream, err := r.client.SubscribeToWorkflowEvents(r.ctx.newContext(ctx), &dispatchercontracts.SubscribeToWorkflowEventsRequest{
 		WorkflowRunId: &workflowRunId,
-	})
+	}, grpc_retry.Disable())
 
 	if err != nil {
 		return err
@@ -289,7 +290,7 @@ func (r *subscribeClientImpl) On(ctx context.Context, workflowRunId string, hand
 func (r *subscribeClientImpl) Stream(ctx context.Context, workflowRunId string, handler StreamHandler) error {
 	stream, err := r.client.SubscribeToWorkflowEvents(r.ctx.newContext(ctx), &dispatchercontracts.SubscribeToWorkflowEventsRequest{
 		WorkflowRunId: &workflowRunId,
-	})
+	}, grpc_retry.Disable())
 
 	if err != nil {
 		return err

@@ -1316,35 +1316,36 @@ type StepRateLimit struct {
 }
 
 type StepRun struct {
-	ID                pgtype.UUID      `json:"id"`
-	CreatedAt         pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt         pgtype.Timestamp `json:"updatedAt"`
-	DeletedAt         pgtype.Timestamp `json:"deletedAt"`
-	TenantId          pgtype.UUID      `json:"tenantId"`
-	JobRunId          pgtype.UUID      `json:"jobRunId"`
-	StepId            pgtype.UUID      `json:"stepId"`
-	Order             int64            `json:"order"`
-	WorkerId          pgtype.UUID      `json:"workerId"`
-	TickerId          pgtype.UUID      `json:"tickerId"`
-	Status            StepRunStatus    `json:"status"`
-	Input             []byte           `json:"input"`
-	Output            []byte           `json:"output"`
-	RequeueAfter      pgtype.Timestamp `json:"requeueAfter"`
-	ScheduleTimeoutAt pgtype.Timestamp `json:"scheduleTimeoutAt"`
-	Error             pgtype.Text      `json:"error"`
-	StartedAt         pgtype.Timestamp `json:"startedAt"`
-	FinishedAt        pgtype.Timestamp `json:"finishedAt"`
-	TimeoutAt         pgtype.Timestamp `json:"timeoutAt"`
-	CancelledAt       pgtype.Timestamp `json:"cancelledAt"`
-	CancelledReason   pgtype.Text      `json:"cancelledReason"`
-	CancelledError    pgtype.Text      `json:"cancelledError"`
-	InputSchema       []byte           `json:"inputSchema"`
-	CallerFiles       []byte           `json:"callerFiles"`
-	GitRepoBranch     pgtype.Text      `json:"gitRepoBranch"`
-	RetryCount        int32            `json:"retryCount"`
-	SemaphoreReleased bool             `json:"semaphoreReleased"`
-	Queue             string           `json:"queue"`
-	Priority          pgtype.Int4      `json:"priority"`
+	ID                 pgtype.UUID      `json:"id"`
+	CreatedAt          pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt          pgtype.Timestamp `json:"updatedAt"`
+	DeletedAt          pgtype.Timestamp `json:"deletedAt"`
+	TenantId           pgtype.UUID      `json:"tenantId"`
+	JobRunId           pgtype.UUID      `json:"jobRunId"`
+	StepId             pgtype.UUID      `json:"stepId"`
+	Order              int64            `json:"order"`
+	WorkerId           pgtype.UUID      `json:"workerId"`
+	TickerId           pgtype.UUID      `json:"tickerId"`
+	Status             StepRunStatus    `json:"status"`
+	Input              []byte           `json:"input"`
+	Output             []byte           `json:"output"`
+	RequeueAfter       pgtype.Timestamp `json:"requeueAfter"`
+	ScheduleTimeoutAt  pgtype.Timestamp `json:"scheduleTimeoutAt"`
+	Error              pgtype.Text      `json:"error"`
+	StartedAt          pgtype.Timestamp `json:"startedAt"`
+	FinishedAt         pgtype.Timestamp `json:"finishedAt"`
+	TimeoutAt          pgtype.Timestamp `json:"timeoutAt"`
+	CancelledAt        pgtype.Timestamp `json:"cancelledAt"`
+	CancelledReason    pgtype.Text      `json:"cancelledReason"`
+	CancelledError     pgtype.Text      `json:"cancelledError"`
+	InputSchema        []byte           `json:"inputSchema"`
+	CallerFiles        []byte           `json:"callerFiles"`
+	GitRepoBranch      pgtype.Text      `json:"gitRepoBranch"`
+	RetryCount         int32            `json:"retryCount"`
+	SemaphoreReleased  bool             `json:"semaphoreReleased"`
+	Queue              string           `json:"queue"`
+	Priority           pgtype.Int4      `json:"priority"`
+	InternalRetryCount int32            `json:"internalRetryCount"`
 }
 
 type StepRunEvent struct {
@@ -1780,11 +1781,15 @@ type WorkflowToWorkflowTag struct {
 }
 
 type WorkflowTriggerCronRef struct {
-	ParentId pgtype.UUID `json:"parentId"`
-	Cron     string      `json:"cron"`
-	TickerId pgtype.UUID `json:"tickerId"`
-	Input    []byte      `json:"input"`
-	Enabled  bool        `json:"enabled"`
+	ParentId           pgtype.UUID      `json:"parentId"`
+	Cron               string           `json:"cron"`
+	TickerId           pgtype.UUID      `json:"tickerId"`
+	Input              []byte           `json:"input"`
+	Enabled            bool             `json:"enabled"`
+	AdditionalMetadata []byte           `json:"additionalMetadata"`
+	CreatedAt          pgtype.Timestamp `json:"createdAt"`
+	DeletedAt          pgtype.Timestamp `json:"deletedAt"`
+	UpdatedAt          pgtype.Timestamp `json:"updatedAt"`
 }
 
 type WorkflowTriggerEventRef struct {
@@ -1802,6 +1807,10 @@ type WorkflowTriggerScheduledRef struct {
 	ChildKey            pgtype.Text      `json:"childKey"`
 	ParentStepRunId     pgtype.UUID      `json:"parentStepRunId"`
 	ParentWorkflowRunId pgtype.UUID      `json:"parentWorkflowRunId"`
+	AdditionalMetadata  []byte           `json:"additionalMetadata"`
+	CreatedAt           pgtype.Timestamp `json:"createdAt"`
+	DeletedAt           pgtype.Timestamp `json:"deletedAt"`
+	UpdatedAt           pgtype.Timestamp `json:"updatedAt"`
 }
 
 type WorkflowTriggers struct {
