@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
-	"github.com/sasha-s/go-deadlock"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 	"google.golang.org/grpc/codes"
@@ -76,11 +75,11 @@ type IngestBuf[T any, U any] struct {
 	currentlyFlushing int
 	debugMap          sync.Map
 
-	currentlyFlushingLock deadlock.RWMutex
-	internalArrLock       deadlock.RWMutex
-	sizeOfDataLock        deadlock.RWMutex
-	lastFlushLock         deadlock.RWMutex
-	stateLock             deadlock.RWMutex
+	currentlyFlushingLock sync.RWMutex
+	internalArrLock       sync.RWMutex
+	sizeOfDataLock        sync.RWMutex
+	lastFlushLock         sync.RWMutex
+	stateLock             sync.RWMutex
 }
 
 type inputWrapper[T any, U any] struct {

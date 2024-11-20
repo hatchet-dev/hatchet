@@ -25,9 +25,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 
-	// just want this to work
-	"github.com/sasha-s/go-deadlock"
-
 	"golang.org/x/sync/errgroup"
 )
 
@@ -69,10 +66,6 @@ func Run(ctx context.Context, cf *loader.ConfigLoader, version string) error {
 	}
 
 	var l = sc.Logger
-	deadlock.Opts.DeadlockTimeout = 100 * time.Millisecond
-
-	deadlock.Opts.LogBuf = sc.Logger
-	deadlock.Opts.PrintAllCurrentGoroutines = false
 
 	teardown, err := RunWithConfig(ctx, sc)
 
