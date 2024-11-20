@@ -31,9 +31,9 @@ For those who would like to dive deeper into code or view full query examples th
 
 There are lots of reasons to store events in your system — in this post, I'd like to focus on the three common use-cases that we've recently seen while building Hatchet:
 
-- [Exposing state transitions to users](#state-transitions)
-- [Aggregates](#aggregate-data)
-- [Log data](#logs)
+- [Exposing state transitions to users](#state-transitions) - used in our system to provide a timeline of events for a task.
+- [Aggregates](#aggregate-data) - used for tracking the percentage of succeeded/failed tasks over time.
+- [Log data](#logs) - used for storing logs for debugging and auditing purposes.
 
 For each use-case and example events table, I've documented common pitfalls and some strategies for scaling these events under higher load.
 
@@ -120,7 +120,7 @@ At Hatchet, our step run events table on our largest database is currently at bi
 
 Aggregate event data is perhaps the most difficult type of data to support, because it's extremely sensitive to small variations in use-case. For example, adding support for new filters on existing aggregate data can lead to re-indexing potentially terabytes of data.
 
-Note that Postgres is not a good fit if you need to construct arbitrary aggregate queries which are either ad-hoc or user-defined. If you need true OLAP at scale, check out [Clickhouse](https://clickhouse.com/).
+Note that Postgres is not a good fit if you need to construct arbitrary aggregate queries which are either ad-hoc or user-defined. If you need true OLAP at scale, check out [Clickhouse](https://clickhouse.com/), or if you want something with less overhead, [DuckDB](https://duckdb.org/).
 
 In our case, we didn't need true OLAP — we just needed to provide an overview of which tasks had succeeded and failed in Hatchet, and allow users to get a birds-eye view of the health of the system:
 
@@ -208,7 +208,7 @@ Will return:
 
 There are a couple of gotchas when it comes to continuous aggregates. First off, Timescale benefits heavily from bulk writes (if you skipped ahead because you're excited about Timescale, see [above](#scaling-event-writes)).
 
-Additionally, you should set a cleanup policy on your hypertables. This is available in Timescale via `add_retention_policy` — for example, to limit retention to 24 hours:
+Additionally, you should set a cleanup policy on your hypertables in order to prevent too many chunks from being created, causing additional overhead on queries. This is available in Timescale via `add_retention_policy` — for example, to limit retention to 24 hours:
 
 ```sql
 SELECT add_retention_policy('metric_events', INTERVAL '24 hours');
