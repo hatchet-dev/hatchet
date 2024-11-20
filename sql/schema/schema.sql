@@ -477,6 +477,9 @@ CREATE TABLE "StepRateLimit" (
     "kind" "StepRateLimitKind" NOT NULL DEFAULT 'STATIC'
 );
 
+CREATE SEQUENCE steprun_identity_id_seq START 1;
+
+
 -- CreateTable
 CREATE TABLE
     "StepRun" (
@@ -509,10 +512,15 @@ CREATE TABLE
         "semaphoreReleased" BOOLEAN NOT NULL DEFAULT false,
         "queue" TEXT NOT NULL DEFAULT 'default',
         "priority" INTEGER,
+        "internalRetryCount" INTEGER NOT NULL DEFAULT 0,
+         "identityId" BIGINT NOT NULL DEFAULT nextval('steprun_identity_id_seq'::regclass),
         CONSTRAINT "StepRun_pkey" PRIMARY KEY ("status", "id")
     )
 PARTITION BY
     LIST ("status");
+
+ALTER TABLE "StepRun"
+ADD CONSTRAINT step_run_identity_id_unique UNIQUE ("identityId","status");
 
 CREATE TABLE
     "StepRun_volatile" PARTITION OF "StepRun" FOR
