@@ -663,9 +663,7 @@ WITH step_runs_on_inactive_workers AS (
         "Step" s ON sr."stepId" = s."id"
     WHERE
         w."tenantId" = @tenantId::uuid
-        AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
-        AND sr."status" in ('PENDING','PENDING_ASSIGNMENT','ASSIGNED','RUNNING','CANCELLING' )
-),
+        AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'),
 step_runs_to_reassign AS (
     SELECT
         *
