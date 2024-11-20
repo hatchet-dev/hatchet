@@ -15,15 +15,15 @@ export const CodeBlock = ({ source, target }: CodeRendererProps) => {
     const [plainText, setPlainText] = React.useState(false);
     const [copied, setCopied] = React.useState(false);
 
-    const parsed = parseDocComments(source.raw, target, collapsed);
+    const { text: parsed, expandable } = parseDocComments(source.raw, target, collapsed);
 
     return <>
-        <div className="sticky top-0 z-10 bg-background flex flex-row gap-4 justify-between items-center pl-2 mb-2">
+        <div className="sticky top-0 z-10 flex flex-row gap-4 justify-between items-center pl-2 mb-2">
             <a href={source.githubUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-gray-500 font-mono hover:underline">{source.props.path}</a>
             <div className="flex gap-2 justify-end">
-                <Button variant="ghost" size="sm" onClick={() => setCollapsed(!collapsed)}>
+                {expandable &&<Button variant="ghost" size="sm" onClick={() => setCollapsed(!collapsed)}>
                     {collapsed ? <><UnfoldVertical className="w-4 h-4 mr-2" />Expand</> : <><FoldVertical className="w-4 h-4 mr-2" />Collapse</>}
-                </Button>
+                </Button>}
                 <Button variant="outline" size="sm" onClick={() => {
                     navigator.clipboard.writeText(parsed);
                     setCopied(true);
