@@ -41,7 +41,6 @@ func init() {
 	collectorURL := os.Getenv("SERVER_OTEL_COLLECTOR_URL")
 	insecure := os.Getenv("SERVER_OTEL_INSECURE")
 	traceIdRatio := os.Getenv("SERVER_OTEL_TRACE_ID_RATIO")
-	deadlock.Opts.DeadlockTimeout = 10 * time.Millisecond
 
 	var insecureBool bool
 
@@ -70,6 +69,10 @@ func Run(ctx context.Context, cf *loader.ConfigLoader, version string) error {
 	}
 
 	var l = sc.Logger
+	deadlock.Opts.DeadlockTimeout = 10 * time.Millisecond
+
+	deadlock.Opts.LogBuf = sc.Logger
+	deadlock.Opts.PrintAllCurrentGoroutines = true
 
 	teardown, err := RunWithConfig(ctx, sc)
 

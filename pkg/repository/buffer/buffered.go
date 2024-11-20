@@ -76,11 +76,11 @@ type IngestBuf[T any, U any] struct {
 	currentlyFlushing int
 	debugMap          sync.Map
 
-	currentlyFlushingLock deadlock.Mutex
-	internalArrLock       deadlock.Mutex
-	sizeOfDataLock        deadlock.Mutex
-	lastFlushLock         deadlock.Mutex
-	stateLock             deadlock.Mutex
+	currentlyFlushingLock deadlock.RWMutex
+	internalArrLock       deadlock.RWMutex
+	sizeOfDataLock        deadlock.RWMutex
+	lastFlushLock         deadlock.RWMutex
+	stateLock             deadlock.RWMutex
 }
 
 type inputWrapper[T any, U any] struct {
@@ -156,8 +156,8 @@ func (b *IngestBuf[T, U]) safeAppendInternalArray(e *inputWrapper[T, U]) {
 
 func (b *IngestBuf[T, U]) safeFetchSizeOfData() int {
 
-	b.sizeOfDataLock.Lock()
-	defer b.sizeOfDataLock.Unlock()
+	b.sizeOfDataLock.RLock()
+	defer b.sizeOfDataLock.RUnlock()
 	return b.sizeOfData
 }
 
@@ -190,8 +190,8 @@ func (b *IngestBuf[T, U]) safeSetLastFlush(t time.Time) {
 
 func (b *IngestBuf[T, U]) safeFetchLastFlush() time.Time {
 
-	b.lastFlushLock.Lock()
-	defer b.lastFlushLock.Unlock()
+	b.lastFlushLock.RLock()
+	defer b.lastFlushLock.RUnlock()
 	return b.lastFlush
 }
 func Fibonacci(n int) int {
@@ -236,8 +236,8 @@ func (b *IngestBuf[T, U]) safeDecCurrentlyFlushing() {
 }
 
 func (b *IngestBuf[T, U]) safeFetchCurrentlyFlushing() int {
-	b.currentlyFlushingLock.Lock()
-	defer b.currentlyFlushingLock.Unlock()
+	b.currentlyFlushingLock.RLock()
+	defer b.currentlyFlushingLock.RUnlock()
 
 	return b.currentlyFlushing
 }
@@ -302,8 +302,8 @@ func (b *IngestBuf[T, U]) calcSizeOfData(items []T) int {
 }
 
 func (b *IngestBuf[T, U]) safeCheckSizeOfBuffer() int {
-	b.internalArrLock.Lock()
-	defer b.internalArrLock.Unlock()
+	b.internalArrLock.RLock()
+	defer b.internalArrLock.RUnlock()
 
 	return len(b.internalArr)
 }
