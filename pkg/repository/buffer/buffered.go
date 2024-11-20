@@ -81,6 +81,7 @@ type IngestBuf[T any, U any] struct {
 	sizeOfDataLock        deadlock.RWMutex
 	lastFlushLock         deadlock.RWMutex
 	stateLock             deadlock.RWMutex
+	flushLock             deadlock.Mutex
 }
 
 type inputWrapper[T any, U any] struct {
@@ -194,12 +195,19 @@ func (b *IngestBuf[T, U]) safeFetchLastFlush() time.Time {
 	defer b.lastFlushLock.RUnlock()
 	return b.lastFlush
 }
-func Fibonacci(n int) int {
 
+var memo = make(map[int]int)
+
+func Fibonacci(n int) int {
+	if val, exists := memo[n]; exists {
+		return val
+	}
 	if n <= 1 {
 		return 1
 	}
-	return Fibonacci(n-1) + Fibonacci(n-2)
+	memo[n] = Fibonacci(n-1) + Fibonacci(n-2)
+
+	return memo[n]
 
 }
 
@@ -253,7 +261,6 @@ func (b *IngestBuf[T, U]) buffWorker() {
 	for {
 		select {
 		case <-b.ctx.Done():
-			b.l.Error().Msg("context done, stopping buffer")
 			return
 		case e := <-b.inputChan:
 			b.safeAppendInternalArray(e)
@@ -310,17 +317,23 @@ func (b *IngestBuf[T, U]) safeCheckSizeOfBuffer() int {
 
 func (b *IngestBuf[T, U]) flush() {
 
+	if !b.flushLock.TryLock() {
+		// we are already flushing
+		return
+	}
+
 	// need to set this before we acquire the semaphore so that we don't spin
 	b.safeSetLastFlush(time.Now())
 
 	// wait for a waitForFlush amount to acquire a semaphore
 	sCtx, _ := context.WithTimeoutCause(context.Background(), b.waitForFlush, fmt.Errorf("timed out waiting for semaphore in flush"))
 
+	b.flushLock.Unlock()
 	err := b.flushSemaphore.Acquire(sCtx, 1)
 
 	if err != nil {
-		b.l.Error().Msg(b.debugBuffer())
-		b.l.Error().Msgf("could not acquire semaphore in: %s  %v", b.waitForFlush, err)
+		b.l.Warn().Msg(b.debugBuffer())
+		b.l.Warn().Msgf("could not acquire semaphore in: %s  %v", b.waitForFlush, err)
 		return
 	}
 	b.safeIncCurrentlyFlushing()
