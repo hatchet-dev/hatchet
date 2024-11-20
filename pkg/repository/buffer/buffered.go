@@ -196,27 +196,16 @@ func (b *IngestBuf[T, U]) safeFetchLastFlush() time.Time {
 	return b.lastFlush
 }
 
-var memo = make(map[int]int)
-var memoLock sync.RWMutex
-
 func Fibonacci(n int) int {
-	memoLock.RLock()
-
-	if val, exists := memo[n]; exists {
-		return val
-	}
 	if n <= 1 {
 		return 1
 	}
 
-	memoLock.RUnlock()
-	memoLock.Lock()
-	defer memoLock.Unlock()
-
-	memo[n] = Fibonacci(n-1) + Fibonacci(n-2)
-
-	return memo[n]
-
+	a, b := 1, 1
+	for i := 2; i <= n; i++ {
+		a, b = b, a+b
+	}
+	return b
 }
 
 func (b *IngestBuf[T, U]) safeFetchMaxSize() int {
