@@ -81,7 +81,6 @@ type IngestBuf[T any, U any] struct {
 	sizeOfDataLock        deadlock.RWMutex
 	lastFlushLock         deadlock.RWMutex
 	stateLock             deadlock.RWMutex
-	flushLock             deadlock.Mutex
 }
 
 type inputWrapper[T any, U any] struct {
@@ -314,23 +313,11 @@ func (b *IngestBuf[T, U]) safeCheckSizeOfBuffer() int {
 
 func (b *IngestBuf[T, U]) flush() {
 
-	if !b.flushLock.TryLock() {
-		// we are already flushing
-		return
-	}
-
-	// need to set this before we acquire the semaphore so that we don't spin
 	b.safeSetLastFlush(time.Now())
 
-	// wait for a waitForFlush amount to acquire a semaphore
-	sCtx, _ := context.WithTimeoutCause(context.Background(), b.waitForFlush, fmt.Errorf("timed out waiting for semaphore in flush"))
-
-	b.flushLock.Unlock()
-	err := b.flushSemaphore.Acquire(sCtx, 1)
-
-	if err != nil {
+	if !b.flushSemaphore.TryAcquire(1) {
 		b.l.Warn().Msg(b.debugBuffer())
-		b.l.Warn().Msgf("could not acquire semaphore in: %s  %v", b.waitForFlush, err)
+
 		return
 	}
 	b.safeIncCurrentlyFlushing()
