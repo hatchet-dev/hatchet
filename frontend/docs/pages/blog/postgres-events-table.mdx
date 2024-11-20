@@ -67,10 +67,10 @@ CREATE TABLE simple_events (
     PRIMARY KEY (id)
 );
 
-CREATE INDEX ON simple_events (resource_id, tenant_id);
+CREATE INDEX ON simple_events (tenant_id, resource_id);
 ```
 
-Note the single index on `(resource_id, tenant_id)` — we don't want too many indexes so we can reduce the write overhead on this query. To query this, simply query by the resource ID and tenant ID, ordered by the primary key:
+Note the single index on `(tenant_id, resource_id)` — we don't want too many indexes so we can reduce the write overhead on this query. To query this, simply query by the resource ID and tenant ID, ordered by the primary key:
 
 ```sql
 SELECT *
