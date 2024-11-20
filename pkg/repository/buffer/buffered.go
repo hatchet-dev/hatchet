@@ -253,6 +253,7 @@ func (b *IngestBuf[T, U]) buffWorker() {
 	for {
 		select {
 		case <-b.ctx.Done():
+			b.l.Error().Msg("context done, stopping buffer")
 			return
 		case e := <-b.inputChan:
 			b.safeAppendInternalArray(e)

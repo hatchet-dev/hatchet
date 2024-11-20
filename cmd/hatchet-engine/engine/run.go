@@ -25,6 +25,9 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 
+	// just want this to work
+	"github.com/sasha-s/go-deadlock"
+
 	"golang.org/x/sync/errgroup"
 )
 
@@ -38,6 +41,7 @@ func init() {
 	collectorURL := os.Getenv("SERVER_OTEL_COLLECTOR_URL")
 	insecure := os.Getenv("SERVER_OTEL_INSECURE")
 	traceIdRatio := os.Getenv("SERVER_OTEL_TRACE_ID_RATIO")
+	deadlock.Opts.DeadlockTimeout = 10 * time.Millisecond
 
 	var insecureBool bool
 
