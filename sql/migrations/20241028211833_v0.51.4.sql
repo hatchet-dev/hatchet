@@ -227,3 +227,17 @@ DROP INDEX "StepRun_updatedAt_idx";
 CREATE UNIQUE INDEX "StepRun_id_key" ON "StepRun" ("id", "status");
 -- Create index "StepRun_jobRunId_status_tenantId_idx" to table: "StepRun"
 CREATE INDEX "StepRun_jobRunId_status_tenantId_idx" ON "StepRun" ("jobRunId", "status", "tenantId") WHERE (status = 'PENDING'::"StepRunStatus");
+
+
+-- Modify "StepRun" table
+ALTER TABLE "StepRun" ADD COLUMN "identityId" bigserial NOT NULL, ADD CONSTRAINT "step_run_identity_id_unique" UNIQUE ("identityId", "status");
+-- Modify "Event" table
+ALTER TABLE "Event" ADD COLUMN "identityId" bigint NOT NULL GENERATED ALWAYS AS IDENTITY;
+-- Modify "JobRun" table
+ALTER TABLE "JobRun" ADD COLUMN "identityId" bigint NOT NULL GENERATED ALWAYS AS IDENTITY;
+-- Modify "JobRunLookupData" table
+ALTER TABLE "JobRunLookupData" ADD COLUMN "identityId" bigint NOT NULL GENERATED ALWAYS AS IDENTITY;
+-- Modify "WorkflowRun" table
+ALTER TABLE "WorkflowRun" ADD COLUMN "identityId" bigint NOT NULL GENERATED ALWAYS AS IDENTITY;
+-- Modify "WorkflowRunTriggeredBy" table
+ALTER TABLE "WorkflowRunTriggeredBy" ADD COLUMN "identityId" bigint NOT NULL GENERATED ALWAYS AS IDENTITY;
