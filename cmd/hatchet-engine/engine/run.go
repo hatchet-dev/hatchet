@@ -69,7 +69,7 @@ func Run(ctx context.Context, cf *loader.ConfigLoader, version string) error {
 	}
 
 	var l = sc.Logger
-	deadlock.Opts.DeadlockTimeout = 10 * time.Millisecond
+	deadlock.Opts.DeadlockTimeout = 100 * time.Millisecond
 
 	deadlock.Opts.LogBuf = sc.Logger
 	deadlock.Opts.PrintAllCurrentGoroutines = true
