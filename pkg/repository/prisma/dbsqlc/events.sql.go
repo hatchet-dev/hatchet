@@ -159,7 +159,7 @@ INSERT INTO "Event" (
     $7::uuid,
     $8::jsonb,
     $9::jsonb
-) RETURNING id, "createdAt", "updatedAt", "deletedAt", key, "tenantId", "replayedFromId", data, "additionalMetadata", "insertOrder"
+) RETURNING id, "createdAt", "updatedAt", "deletedAt", key, "tenantId", "replayedFromId", data, "additionalMetadata", "insertOrder", "identityId"
 `
 
 type CreateEventParams struct {
@@ -198,6 +198,7 @@ func (q *Queries) CreateEvent(ctx context.Context, db DBTX, arg CreateEventParam
 		&i.Data,
 		&i.AdditionalMetadata,
 		&i.InsertOrder,
+		&i.IdentityId,
 	)
 	return &i, err
 }
@@ -235,7 +236,7 @@ type CreateEventsParams struct {
 
 const getEventForEngine = `-- name: GetEventForEngine :one
 SELECT
-    id, "createdAt", "updatedAt", "deletedAt", key, "tenantId", "replayedFromId", data, "additionalMetadata", "insertOrder"
+    id, "createdAt", "updatedAt", "deletedAt", key, "tenantId", "replayedFromId", data, "additionalMetadata", "insertOrder", "identityId"
 FROM
     "Event"
 WHERE
@@ -257,6 +258,7 @@ func (q *Queries) GetEventForEngine(ctx context.Context, db DBTX, id pgtype.UUID
 		&i.Data,
 		&i.AdditionalMetadata,
 		&i.InsertOrder,
+		&i.IdentityId,
 	)
 	return &i, err
 }
@@ -302,7 +304,7 @@ func (q *Queries) GetEventsForRange(ctx context.Context, db DBTX) ([]*GetEventsF
 }
 
 const getInsertedEvents = `-- name: GetInsertedEvents :many
-SELECT id, "createdAt", "updatedAt", "deletedAt", key, "tenantId", "replayedFromId", data, "additionalMetadata", "insertOrder" FROM "Event"
+SELECT id, "createdAt", "updatedAt", "deletedAt", key, "tenantId", "replayedFromId", data, "additionalMetadata", "insertOrder", "identityId" FROM "Event"
 WHERE "id" = ANY($1::uuid[])
 ORDER BY "insertOrder" ASC
 `
@@ -327,6 +329,7 @@ func (q *Queries) GetInsertedEvents(ctx context.Context, db DBTX, ids []pgtype.U
 			&i.Data,
 			&i.AdditionalMetadata,
 			&i.InsertOrder,
+			&i.IdentityId,
 		); err != nil {
 			return nil, err
 		}
@@ -439,7 +442,7 @@ event_run_counts AS (
         events."id"
 )
 SELECT
-    events.id, events."createdAt", events."updatedAt", events."deletedAt", events.key, events."tenantId", events."replayedFromId", events.data, events."additionalMetadata", events."insertOrder",
+    events.id, events."createdAt", events."updatedAt", events."deletedAt", events.key, events."tenantId", events."replayedFromId", events.data, events."additionalMetadata", events."insertOrder", events."identityId",
     COALESCE(erc.pendingRuns, 0) AS pendingRuns,
     COALESCE(erc.queuedRuns, 0) AS queuedRuns,
     COALESCE(erc.runningRuns, 0) AS runningRuns,
@@ -509,6 +512,7 @@ func (q *Queries) ListEvents(ctx context.Context, db DBTX, arg ListEventsParams)
 			&i.Event.Data,
 			&i.Event.AdditionalMetadata,
 			&i.Event.InsertOrder,
+			&i.Event.IdentityId,
 			&i.Pendingruns,
 			&i.Queuedruns,
 			&i.Runningruns,
@@ -527,7 +531,7 @@ func (q *Queries) ListEvents(ctx context.Context, db DBTX, arg ListEventsParams)
 
 const listEventsByIDs = `-- name: ListEventsByIDs :many
 SELECT
-    id, "createdAt", "updatedAt", "deletedAt", key, "tenantId", "replayedFromId", data, "additionalMetadata", "insertOrder"
+    id, "createdAt", "updatedAt", "deletedAt", key, "tenantId", "replayedFromId", data, "additionalMetadata", "insertOrder", "identityId"
 FROM
     "Event" as events
 WHERE
@@ -561,6 +565,7 @@ func (q *Queries) ListEventsByIDs(ctx context.Context, db DBTX, arg ListEventsBy
 			&i.Data,
 			&i.AdditionalMetadata,
 			&i.InsertOrder,
+			&i.IdentityId,
 		); err != nil {
 			return nil, err
 		}

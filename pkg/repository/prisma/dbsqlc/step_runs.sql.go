@@ -2093,9 +2093,7 @@ WITH step_runs_on_inactive_workers AS (
         "Step" s ON sr."stepId" = s."id"
     WHERE
         w."tenantId" = $1::uuid
-        AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
-        AND sr."status" in ('PENDING','PENDING_ASSIGNMENT','ASSIGNED','RUNNING','CANCELLING' )
-),
+        AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'),
 step_runs_to_reassign AS (
     SELECT
         id, "tenantId", "scheduleTimeoutAt", "retryCount", "internalRetryCount", "workerId", "actionId", "stepId", "stepTimeout", "scheduleTimeout"
@@ -2454,7 +2452,7 @@ SET
     "cancelledError" = NULL
 WHERE
     "id" = $1::uuid
-RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "jobId", "tickerId", status, result, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError", "workflowRunId"
+RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "jobId", "tickerId", status, result, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError", "workflowRunId", "identityId"
 `
 
 func (q *Queries) ReplayStepRunResetJobRun(ctx context.Context, db DBTX, jobrunid pgtype.UUID) (*JobRun, error) {
@@ -2477,6 +2475,7 @@ func (q *Queries) ReplayStepRunResetJobRun(ctx context.Context, db DBTX, jobruni
 		&i.CancelledReason,
 		&i.CancelledError,
 		&i.WorkflowRunId,
+		&i.IdentityId,
 	)
 	return &i, err
 }
@@ -2594,7 +2593,7 @@ SET
     "error" = NULL
 WHERE
     "id" =  $1::uuid
-RETURNING "createdAt", "updatedAt", "deletedAt", "tenantId", "workflowVersionId", status, error, "startedAt", "finishedAt", "concurrencyGroupId", "displayName", id, "childIndex", "childKey", "parentId", "parentStepRunId", "additionalMetadata", duration, priority, "insertOrder"
+RETURNING "createdAt", "updatedAt", "deletedAt", "tenantId", "workflowVersionId", status, error, "startedAt", "finishedAt", "concurrencyGroupId", "displayName", id, "childIndex", "childKey", "parentId", "parentStepRunId", "additionalMetadata", duration, priority, "insertOrder", "identityId"
 `
 
 func (q *Queries) ReplayStepRunResetWorkflowRun(ctx context.Context, db DBTX, workflowrunid pgtype.UUID) (*WorkflowRun, error) {
@@ -2621,6 +2620,7 @@ func (q *Queries) ReplayStepRunResetWorkflowRun(ctx context.Context, db DBTX, wo
 		&i.Duration,
 		&i.Priority,
 		&i.InsertOrder,
+		&i.IdentityId,
 	)
 	return &i, err
 }
