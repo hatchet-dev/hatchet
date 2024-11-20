@@ -50,6 +50,7 @@ func TestIngestBufInitialization(t *testing.T) {
 		OutputFunc:         mockOutputFunc,
 		SizeFunc:           mockSizeFunc,
 		L:                  &logger,
+		FlushStrategy:      Dynamic,
 	}
 
 	// Initialize the buffer
