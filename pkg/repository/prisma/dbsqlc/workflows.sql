@@ -764,7 +764,7 @@ JOIN
 WHERE
     t."deletedAt" IS NULL
     AND w."tenantId" = @tenantId::uuid
-    AND (@cronId::uuid IS NULL OR t."id" = @cronId::uuid)
+    AND (@cronTriggerId::uuid IS NULL OR c."id" = @cronTriggerId::uuid)
     AND (@workflowId::uuid IS NULL OR w."id" = @workflowId::uuid)
     AND (sqlc.narg('additionalMetadata')::jsonb IS NULL OR
         c."additionalMetadata" @> sqlc.narg('additionalMetadata')::jsonb)

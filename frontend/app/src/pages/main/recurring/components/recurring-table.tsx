@@ -46,9 +46,7 @@ export function CronsTable() {
     return [];
   });
 
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
-    createdAt: false,
-  });
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
 
   const [pagination, setPagination] = useState<PaginationState>(() => {
     const pageIndex = Number(searchParams.get('pageIndex')) || 0;
@@ -92,7 +90,7 @@ export function CronsTable() {
     }
 
     switch (sorting[0]?.id) {
-      case 'triggerAt':
+      case 'createdAt':
         return CronWorkflowsOrderByField.CreatedAt;
       default:
         return CronWorkflowsOrderByField.CreatedAt;

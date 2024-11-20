@@ -61,6 +61,7 @@ export function TriggerWorkflowForm({
     new Date(),
   );
   const [cronExpression, setCronExpression] = useState<string>('* * * * *');
+  const [cronName, setCronName] = useState<string>('');
 
   const [selectedWorkflowId, setSelectedWorkflowId] = useState<
     string | undefined
@@ -163,7 +164,6 @@ export function TriggerWorkflowForm({
         return;
       }
 
-      // TODO: navigate to the scheduled workflow runs page
       navigate(`/scheduled`);
     },
     onError: handleApiError,
@@ -175,6 +175,7 @@ export function TriggerWorkflowForm({
       input: object;
       addlMeta: object;
       cron: string;
+      cronName: string;
     }) => {
       if (!workflow) {
         return;
@@ -186,7 +187,7 @@ export function TriggerWorkflowForm({
         {
           input: data.input,
           additionalMetadata: data.addlMeta,
-          cronName: 'helloworld',
+          cronName: data.cronName,
           cronExpression: data.cron,
         },
       );
@@ -200,7 +201,7 @@ export function TriggerWorkflowForm({
       if (!workflowRun) {
         return;
       }
-      // TODO: navigate to the cron workflow runs page
+      onClose();
       navigate(`/cron-jobs`);
     },
     onError: handleApiError,
@@ -239,6 +240,7 @@ export function TriggerWorkflowForm({
         input: inputObj,
         addlMeta: addlMetaObj,
         cron: cronExpression,
+        cronName: cronName,
       });
     }
   };
@@ -256,7 +258,8 @@ export function TriggerWorkflowForm({
         <DialogHeader>
           <DialogTitle>Trigger Workflow</DialogTitle>
           <DialogDescription>
-            You can change the input to your workflow here.
+            Trigger a workflow to run now, at a scheduled time, or on a cron
+            schedule.
           </DialogDescription>
         </DialogHeader>
 
@@ -393,6 +396,14 @@ export function TriggerWorkflowForm({
             </TabsContent>
             <TabsContent value="cron">
               <div className="mt-4">
+                <div className="font-bold mb-2">Cron Expression</div>
+                <Input
+                  type="text"
+                  value={cronName}
+                  onChange={(e) => setCronName(e.target.value)}
+                  placeholder="e.g., cron-name"
+                  className="w-full mb-2"
+                />
                 <div className="font-bold mb-2">Cron Expression</div>
                 <Input
                   type="text"

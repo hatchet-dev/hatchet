@@ -337,8 +337,8 @@ func (w *workflowAPIRepository) ListCronWorkflows(ctx context.Context, tenantId 
 
 func (w *workflowAPIRepository) GetCronWorkflow(ctx context.Context, tenantId, cronWorkflowId string) (*dbsqlc.ListCronWorkflowsRow, error) {
 	listOpts := dbsqlc.ListCronWorkflowsParams{
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
-		Cronid:   sqlchelpers.UUIDFromStr(cronWorkflowId),
+		Tenantid:      sqlchelpers.UUIDFromStr(tenantId),
+		Crontriggerid: sqlchelpers.UUIDFromStr(cronWorkflowId),
 	}
 
 	cronWorkflows, err := w.queries.ListCronWorkflows(ctx, w.pool, listOpts)
@@ -348,7 +348,7 @@ func (w *workflowAPIRepository) GetCronWorkflow(ctx context.Context, tenantId, c
 	}
 
 	if len(cronWorkflows) == 0 {
-		return nil, nil
+		return nil, fmt.Errorf("cron workflow not found")
 	}
 
 	return cronWorkflows[0], nil
@@ -394,12 +394,17 @@ func (w *workflowAPIRepository) CreateCronWorkflow(ctx context.Context, tenantId
 	}
 
 	row, err := w.queries.ListCronWorkflows(ctx, w.pool, dbsqlc.ListCronWorkflowsParams{
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
-		Cronid:   cronTrigger.ID,
+		Tenantid:      sqlchelpers.UUIDFromStr(tenantId),
+		Crontriggerid: cronTrigger.ID,
+		Limit:         1,
 	})
 
 	if err != nil {
 		return nil, err
+	}
+
+	if len(row) == 0 {
+		return nil, fmt.Errorf("failed to fetch cron workflow")
 	}
 
 	return row[0], nil

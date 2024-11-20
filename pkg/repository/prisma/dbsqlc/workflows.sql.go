@@ -1527,7 +1527,7 @@ JOIN
 WHERE
     t."deletedAt" IS NULL
     AND w."tenantId" = $1::uuid
-    AND ($2::uuid IS NULL OR t."id" = $2::uuid)
+    AND ($2::uuid IS NULL OR c."id" = $2::uuid)
     AND ($3::uuid IS NULL OR w."id" = $3::uuid)
     AND ($4::jsonb IS NULL OR
         c."additionalMetadata" @> $4::jsonb)
@@ -1543,7 +1543,7 @@ LIMIT
 
 type ListCronWorkflowsParams struct {
 	Tenantid           pgtype.UUID `json:"tenantid"`
-	Cronid             pgtype.UUID `json:"cronid"`
+	Crontriggerid      pgtype.UUID `json:"crontriggerid"`
 	Workflowid         pgtype.UUID `json:"workflowid"`
 	AdditionalMetadata []byte      `json:"additionalMetadata"`
 	Orderby            interface{} `json:"orderby"`
@@ -1581,7 +1581,7 @@ type ListCronWorkflowsRow struct {
 func (q *Queries) ListCronWorkflows(ctx context.Context, db DBTX, arg ListCronWorkflowsParams) ([]*ListCronWorkflowsRow, error) {
 	rows, err := db.Query(ctx, listCronWorkflows,
 		arg.Tenantid,
-		arg.Cronid,
+		arg.Crontriggerid,
 		arg.Workflowid,
 		arg.AdditionalMetadata,
 		arg.Orderby,
