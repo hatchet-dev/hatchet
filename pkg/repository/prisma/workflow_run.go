@@ -868,7 +868,7 @@ func (w *workflowRunEngineRepository) GetChildWorkflowRun(ctx context.Context, p
 		Parentid:        sqlchelpers.UUIDFromStr(parentId),
 		Parentsteprunid: sqlchelpers.UUIDFromStr(parentStepRunId),
 		Childindex: pgtype.Int4{
-			Int32: int32(childIndex),
+			Int32: int32(childIndex), // nolint: gosec
 			Valid: true,
 		},
 	}
@@ -956,7 +956,7 @@ func (w *workflowRunEngineRepository) GetScheduledChildWorkflowRun(ctx context.C
 		Parentid:        sqlchelpers.UUIDFromStr(parentId),
 		Parentsteprunid: sqlchelpers.UUIDFromStr(parentStepRunId),
 		Childindex: pgtype.Int4{
-			Int32: int32(childIndex),
+			Int32: int32(childIndex), // nolint: gosec
 			Valid: true,
 		},
 	}
@@ -978,7 +978,7 @@ func (w *workflowRunEngineRepository) PopWorkflowRunsRoundRobin(ctx context.Cont
 	defer rollback()
 
 	res, err := w.queries.PopWorkflowRunsRoundRobin(ctx, tx, dbsqlc.PopWorkflowRunsRoundRobinParams{
-		Maxruns:    int32(maxRuns),
+		Maxruns:    int32(maxRuns), // nolint: gosec
 		Tenantid:   sqlchelpers.UUIDFromStr(tenantId),
 		Workflowid: sqlchelpers.UUIDFromStr(workflowId),
 	})
@@ -1377,7 +1377,7 @@ func listWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbsqlc.Q
 		countParams.AdditionalMetadata = additionalMetadataBytes
 	}
 
-	if opts.Ids != nil && len(opts.Ids) > 0 {
+	if len(opts.Ids) > 0 {
 		pgIds := make([]pgtype.UUID, len(opts.Ids))
 
 		for i, id := range opts.Ids {

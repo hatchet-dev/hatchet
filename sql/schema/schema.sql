@@ -440,6 +440,10 @@ CREATE TABLE "Step" (
     "timeout" TEXT,
     "customUserData" JSONB,
     "retries" INTEGER NOT NULL DEFAULT 0,
+    -- a factor to use for exponential backoff: min(retryMaxBackoff, retryBackoffFactor^retryCount)
+    "retryBackoffFactor" DOUBLE PRECISION,
+    -- the maximum amount of time in seconds to wait between retries
+    "retryMaxBackoff" INTEGER,
     "scheduleTimeout" TEXT NOT NULL DEFAULT '5m',
 
     CONSTRAINT "Step_pkey" PRIMARY KEY ("id")
@@ -1810,3 +1814,15 @@ WHERE
     "deletedAt" IS NULL;
 
 CREATE INDEX IF NOT EXISTS "StepRun_status_tenantId_idx" ON "StepRun" ("status", "tenantId");
+
+-- CreateTable
+CREATE TABLE "RetryQueueItem" (
+    "id" BIGSERIAL PRIMARY KEY,
+    "retryAfter" TIMESTAMP(3) NOT NULL,
+    "stepRunId" UUID NOT NULL,
+    "tenantId" UUID NOT NULL,
+    "isQueued" BOOLEAN NOT NULL
+);
+
+-- CreateIndex
+CREATE INDEX "RetryQueueItem_isQueued_tenantId_retryAfter_idx" ON "RetryQueueItem" ("isQueued" ASC, "tenantId" ASC, "retryAfter" ASC);

@@ -1,7 +1,6 @@
 package webhookutils
 
 import (
-	"fmt"
 	"net/http"
 
 	"github.com/rs/zerolog"
@@ -81,16 +80,14 @@ func (j *DefaultRequestDecoderValidator) DecodeAndValidateNoWrite(
 	r *http.Request,
 	v interface{},
 ) error {
-	var requestErr error
-
 	// decode the request parameters (body and query)
-	if requestErr = j.decoder.Decode(v, r); requestErr != nil {
-		return fmt.Errorf(requestErr.Error())
+	if requestErr := j.decoder.Decode(v, r); requestErr != nil {
+		return requestErr
 	}
 
 	// validate the request object
-	if requestErr = j.validator.Validate(v); requestErr != nil {
-		return fmt.Errorf(requestErr.Error())
+	if requestErr := j.validator.Validate(v); requestErr != nil {
+		return requestErr
 	}
 
 	return nil

@@ -163,6 +163,12 @@ type CreateWorkflowStepOpts struct {
 
 	// (optional) desired worker affinity state for this step
 	DesiredWorkerLabels map[string]DesiredWorkerLabelOpts `validate:"omitempty"`
+
+	// (optional) the step retry backoff factor
+	RetryBackoffFactor *float64 `validate:"omitnil,min=1,max=1000"`
+
+	// (optional) the step retry backoff max seconds (can't be greater than 86400)
+	RetryBackoffMaxSeconds *int `validate:"omitnil,min=1,max=86400"`
 }
 
 type DesiredWorkerLabelOpts struct {

@@ -1170,7 +1170,7 @@ func (r *workflowEngineRepository) createJobTx(ctx context.Context, tx pgx.Tx, t
 		if stepOpts.Retries != nil {
 			retries = pgtype.Int4{
 				Valid: true,
-				Int32: int32(*stepOpts.Retries),
+				Int32: int32(*stepOpts.Retries), // nolint: gosec
 			}
 		}
 
@@ -1203,6 +1203,20 @@ func (r *workflowEngineRepository) createJobTx(ctx context.Context, tx pgx.Tx, t
 			createStepParams.ScheduleTimeout = sqlchelpers.TextFromStr(*opts.ScheduleTimeout)
 		}
 
+		if stepOpts.RetryBackoffFactor != nil {
+			createStepParams.RetryBackoffFactor = pgtype.Float8{
+				Float64: *stepOpts.RetryBackoffFactor,
+				Valid:   true,
+			}
+		}
+
+		if stepOpts.RetryBackoffMaxSeconds != nil {
+			createStepParams.RetryMaxBackoff = pgtype.Int4{
+				Int32: int32(*stepOpts.RetryBackoffMaxSeconds), // nolint: gosec
+				Valid: true,
+			}
+		}
+
 		_, err = r.queries.CreateStep(
 			ctx,
 			tx,
@@ -1213,7 +1227,7 @@ func (r *workflowEngineRepository) createJobTx(ctx context.Context, tx pgx.Tx, t
 			return "", err
 		}
 
-		if stepOpts.DesiredWorkerLabels != nil && len(stepOpts.DesiredWorkerLabels) > 0 {
+		if len(stepOpts.DesiredWorkerLabels) > 0 {
 			for i := range stepOpts.DesiredWorkerLabels {
 				key := (stepOpts.DesiredWorkerLabels)[i].Key
 				value := (stepOpts.DesiredWorkerLabels)[i]

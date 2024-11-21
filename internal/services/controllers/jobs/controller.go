@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"sync"
 	"time"
 
@@ -446,14 +447,35 @@ func (ec *JobsControllerImpl) handleStepRunRetry(ctx context.Context, task *msgq
 
 	retryCount := int(stepRun.SRRetryCount) + 1
 
+	eventMessage := fmt.Sprintf("Retrying step run. This is retry %d / %d", retryCount, stepRun.StepRetries)
+	var retryAfter *time.Time
+
+	if stepRun.StepRetryMaxBackoff.Valid && stepRun.StepRetryBackoffFactor.Valid {
+		maxBackoffSeconds := int(stepRun.StepRetryMaxBackoff.Int32)
+		backoffFactor := stepRun.StepRetryBackoffFactor.Float64
+
+		// compute the backoff duration
+		durationMilliseconds := 1000 * min(float64(maxBackoffSeconds), math.Pow(backoffFactor, float64(retryCount)))
+		retryDur := time.Duration(int(durationMilliseconds)) * time.Millisecond
+		retryTime := time.Now().Add(retryDur)
+		retryAfter = &retryTime
+
+		eventMessage = fmt.Sprintf("%s. Retrying in %s (%s).", eventMessage, retryDur.String(), retryTime.Format(time.RFC3339))
+	}
+
 	// write an event
 	defer ec.repo.StepRun().DeferredStepRunEvent(metadata.TenantId, repository.CreateStepRunEventOpts{
 		StepRunId:   sqlchelpers.UUIDToStr(stepRun.SRID),
 		EventReason: repository.StepRunEventReasonPtr(dbsqlc.StepRunEventReasonRETRYING),
 		EventMessage: repository.StringPtr(
-			fmt.Sprintf("Retrying step run. This is retry %d / %d", retryCount, stepRun.StepRetries),
+			eventMessage,
 		),
 	})
+
+	// if the step has retry backoff enabled, then we should calculate the backoff time and insert into the retry queue
+	if retryAfter != nil {
+		return ec.repo.StepRun().StepRunRetryBackoff(ctx, metadata.TenantId, sqlchelpers.UUIDToStr(stepRun.SRID), *retryAfter)
+	}
 
 	return ec.queueStepRun(ctx, metadata.TenantId, sqlchelpers.UUIDToStr(stepRun.StepId), sqlchelpers.UUIDToStr(stepRun.SRID), true)
 }
