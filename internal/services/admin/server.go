@@ -230,6 +230,7 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWo
 				ctx,
 				tenantId,
 				createOpts,
+				oldWorkflowVersion,
 			)
 
 			if err != nil {

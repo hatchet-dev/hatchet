@@ -197,9 +197,9 @@ export const queries = createQueryKeyStore({
         (await api.workflowScheduledList(tenant, query)).data,
     }),
   },
-  cronRuns: {
+  cronJobs: {
     list: (tenant: string, query: CronWorkflowsQuery) => ({
-      queryKey: ['cron-run:list', tenant, query],
+      queryKey: ['cron-job:list', tenant, query],
       queryFn: async () => (await api.cronWorkflowList(tenant, query)).data,
     }),
   },

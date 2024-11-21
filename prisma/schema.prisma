@@ -645,6 +645,10 @@ model WorkflowTriggerEventRef {
 }
 
 model WorkflowTriggerCronRef {
+  id String @unique @default(uuid()) @db.Uuid
+
+  name String?
+
   // the parent workflow
   parent   WorkflowTriggers @relation(fields: [parentId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   parentId String           @db.Uuid
@@ -670,7 +674,7 @@ model WorkflowTriggerCronRef {
   additionalMetadata Json?
 
   // cron references must be unique per workflow
-  @@unique([parentId, cron])
+  @@unique([parentId, cron, name])
 }
 
 model WorkflowTriggerScheduledRef {
@@ -1102,9 +1106,10 @@ model WorkflowRunTriggeredBy {
   eventId String? @db.Uuid
 
   // the cron reference that triggered this workflow
-  cron         WorkflowTriggerCronRef? @relation(fields: [cronParentId, cronSchedule], references: [parentId, cron])
+  cron         WorkflowTriggerCronRef? @relation(fields: [cronParentId, cronSchedule, cronName], references: [parentId, cron, name])
   cronParentId String?                 @db.Uuid
   cronSchedule String?
+  cronName     String?
 
   // a specific time that triggered this workflow
   scheduled   WorkflowTriggerScheduledRef? @relation(fields: [scheduledId], references: [id])

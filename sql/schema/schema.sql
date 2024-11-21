@@ -993,6 +993,7 @@ CREATE TABLE "WorkflowRunTriggeredBy" (
     "scheduledId" UUID,
     "input" JSONB,
     "parentId" UUID NOT NULL,
+    "cronName" TEXT,
     "identityId" BIGINT GENERATED ALWAYS AS IDENTITY,
 
     CONSTRAINT "WorkflowRunTriggeredBy_pkey" PRIMARY KEY ("id")
@@ -1010,6 +1011,13 @@ CREATE TABLE "WorkflowTag" (
     CONSTRAINT "WorkflowTag_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateEnum
+CREATE TYPE "WorkflowTriggerCronRefMethods" AS ENUM (
+    'DEFAULT',
+    'API'
+);
+
+
 -- CreateTable
 CREATE TABLE "WorkflowTriggerCronRef" (
     "parentId" UUID NOT NULL,
@@ -1020,13 +1028,22 @@ CREATE TABLE "WorkflowTriggerCronRef" (
     "additionalMetadata" JSONB,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "deletedAt" TIMESTAMP(3),
-    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "name" TEXT,
+    "id" UUID NOT NULL,
+    "method" "WorkflowTriggerCronRefMethods" NOT NULL DEFAULT 'DEFAULT'
 );
 
 -- CreateTable
 CREATE TABLE "WorkflowTriggerEventRef" (
     "parentId" UUID NOT NULL,
     "eventKey" TEXT NOT NULL
+);
+
+-- CreateEnum
+CREATE TYPE "WorkflowTriggerScheduledRefMethods" AS ENUM (
+    'DEFAULT',
+    'API'
 );
 
 -- CreateTable
@@ -1044,7 +1061,7 @@ CREATE TABLE "WorkflowTriggerScheduledRef" (
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "deletedAt" TIMESTAMP(3),
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
+    "method" "WorkflowTriggerScheduledRefMethods" NOT NULL DEFAULT 'DEFAULT',
     CONSTRAINT "WorkflowTriggerScheduledRef_pkey" PRIMARY KEY ("id")
 );
 
@@ -1488,9 +1505,6 @@ CREATE UNIQUE INDEX "WorkflowTag_id_key" ON "WorkflowTag" ("id" ASC);
 CREATE UNIQUE INDEX "WorkflowTag_tenantId_name_key" ON "WorkflowTag" ("tenantId" ASC, "name" ASC);
 
 -- CreateIndex
-CREATE UNIQUE INDEX "WorkflowTriggerCronRef_parentId_cron_key" ON "WorkflowTriggerCronRef" ("parentId" ASC, "cron" ASC);
-
--- CreateIndex
 CREATE UNIQUE INDEX "WorkflowTriggerEventRef_parentId_eventKey_key" ON "WorkflowTriggerEventRef" ("parentId" ASC, "eventKey" ASC);
 
 -- CreateIndex
@@ -1684,9 +1698,6 @@ ALTER TABLE "WorkflowRun" ADD CONSTRAINT "WorkflowRun_parentId_fkey" FOREIGN KEY
 ALTER TABLE "WorkflowRunStickyState" ADD CONSTRAINT "WorkflowRunStickyState_workflowRunId_fkey" FOREIGN KEY ("workflowRunId") REFERENCES "WorkflowRun" ("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "WorkflowRunTriggeredBy" ADD CONSTRAINT "WorkflowRunTriggeredBy_cronParentId_cronSchedule_fkey" FOREIGN KEY ("cronParentId", "cronSchedule") REFERENCES "WorkflowTriggerCronRef" ("parentId", "cron") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "WorkflowRunTriggeredBy" ADD CONSTRAINT "WorkflowRunTriggeredBy_scheduledId_fkey" FOREIGN KEY ("scheduledId") REFERENCES "WorkflowTriggerScheduledRef" ("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -1700,6 +1711,10 @@ ALTER TABLE "WorkflowTriggerCronRef" ADD CONSTRAINT "WorkflowTriggerCronRef_tick
 
 -- AddForeignKey
 ALTER TABLE "WorkflowTriggerEventRef" ADD CONSTRAINT "WorkflowTriggerEventRef_parentId_fkey" FOREIGN KEY ("parentId") REFERENCES "WorkflowTriggers" ("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "WorkflowTriggerCronRef" ADD CONSTRAINT "WorkflowTriggerCronRef_parentId_cron_name_key" UNIQUE ("parentId", "cron", "name");
+ALTER TABLE "WorkflowRunTriggeredBy" ADD CONSTRAINT "WorkflowRunTriggeredBy_cronParentId_cronSchedule_cronName_fkey" FOREIGN KEY ("cronParentId", "cronSchedule", "cronName") REFERENCES "WorkflowTriggerCronRef"("parentId", "cron", "name") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "WorkflowTriggerScheduledRef" ADD CONSTRAINT "WorkflowTriggerScheduledRef_parentId_fkey" FOREIGN KEY ("parentId") REFERENCES "WorkflowVersion" ("id") ON DELETE CASCADE ON UPDATE CASCADE;

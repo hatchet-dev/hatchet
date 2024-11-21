@@ -15,6 +15,7 @@ ScheduledWorkflowsOrderByField:
 CronWorkflowsOrderByField:
   type: string
   enum:
+    - name
     - createdAt
 
 WorkflowRunOrderByDirection:
@@ -207,6 +208,8 @@ ScheduledWorkflows:
       minLength: 36
       maxLength: 36
       format: uuid
+    method:
+      $ref: "#/ScheduledWorkflowsMethod"
   required:
     - metadata
     - tenantId
@@ -214,6 +217,14 @@ ScheduledWorkflows:
     - workflowName
     - workflowId
     - triggerAt
+    - method
+
+
+ScheduledWorkflowsMethod:
+  type: string
+  enum:
+    - DEFAULT
+    - API
 
 ScheduledWorkflowsList:
   type: object
@@ -224,6 +235,12 @@ ScheduledWorkflowsList:
         $ref: "#/ScheduledWorkflows"
     pagination:
       $ref: "./metadata.yaml#/PaginationResponse"
+
+CronWorkflowsMethod:
+  type: string
+  enum:
+    - DEFAULT
+    - API
 
 CronWorkflows:
   type: object
@@ -240,12 +257,18 @@ CronWorkflows:
       type: string
     cron:
       type: string
+    name:
+      type: string
     input:
       type: object
       additionalProperties: true
     additionalMetadata:
       type: object
       additionalProperties: true
+    enabled:
+      type: boolean
+    method:
+      $ref: "#/CronWorkflowsMethod"
   required:
     - metadata
     - tenantId
@@ -253,6 +276,8 @@ CronWorkflows:
     - workflowName
     - workflowId
     - cron
+    - enabled
+    - method
 
 CronWorkflowsList:
   type: object
@@ -635,6 +660,36 @@ TriggerWorkflowRunRequest:
       type: object
   required:
     - input
+
+CreateCronWorkflowTriggerRequest:
+  properties:
+    input:
+      type: object
+    additionalMetadata:
+      type: object
+    cronName:
+      type: string
+    cronExpression:
+      type: string
+  required:
+    - input
+    - additionalMetadata
+    - cronName
+    - cronExpression
+
+ScheduleWorkflowRunRequest:
+  properties:
+    input:
+      type: object
+    additionalMetadata:
+      type: object
+    triggerAt:
+      type: string
+      format: date-time
+  required:
+    - input
+    - additionalMetadata
+    - triggerAt
 
 CreatePullRequestFromStepRun:
   properties:

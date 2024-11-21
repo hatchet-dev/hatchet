@@ -2,9 +2,11 @@ package prisma
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -279,6 +281,160 @@ func (r *workflowAPIRepository) GetWorkflowMetrics(tenantId, workflowId string, 
 	}, nil
 }
 
+func (w *workflowAPIRepository) ListCronWorkflows(ctx context.Context, tenantId string, opts *repository.ListCronWorkflowsOpts) ([]*dbsqlc.ListCronWorkflowsRow, int64, error) {
+	if err := w.v.Validate(opts); err != nil {
+		return nil, 0, err
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, time.Second*30)
+	defer cancel()
+
+	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
+
+	listOpts := dbsqlc.ListCronWorkflowsParams{
+		Tenantid: pgTenantId,
+	}
+
+	countOpts := dbsqlc.CountCronWorkflowsParams{
+		Tenantid: pgTenantId,
+	}
+
+	if opts.Limit != nil {
+		listOpts.Limit = pgtype.Int4{
+			Int32: int32(*opts.Limit), // nolint: gosec
+			Valid: true,
+		}
+	}
+
+	if opts.Offset != nil {
+		listOpts.Offset = pgtype.Int4{
+			Int32: int32(*opts.Offset), // nolint: gosec
+			Valid: true,
+		}
+	}
+
+	orderByField := "createdAt"
+
+	if opts.OrderBy != nil {
+		orderByField = *opts.OrderBy
+	}
+
+	orderByDirection := "DESC"
+
+	if opts.OrderDirection != nil {
+		orderByDirection = *opts.OrderDirection
+	}
+
+	listOpts.Orderby = orderByField + " " + orderByDirection
+
+	if opts.AdditionalMetadata != nil {
+		additionalMetadataBytes, err := json.Marshal(opts.AdditionalMetadata)
+		if err != nil {
+			return nil, 0, err
+		}
+
+		listOpts.AdditionalMetadata = additionalMetadataBytes
+		countOpts.AdditionalMetadata = additionalMetadataBytes
+	}
+
+	if opts.WorkflowId != nil {
+		listOpts.Workflowid = sqlchelpers.UUIDFromStr(*opts.WorkflowId)
+		countOpts.Workflowid = sqlchelpers.UUIDFromStr(*opts.WorkflowId)
+	}
+
+	cronWorkflows, err := w.queries.ListCronWorkflows(ctx, w.pool, listOpts)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	count, err := w.queries.CountCronWorkflows(ctx, w.pool, countOpts)
+
+	if err != nil {
+		return nil, count, err
+	}
+
+	return cronWorkflows, count, nil
+}
+
+func (w *workflowAPIRepository) GetCronWorkflow(ctx context.Context, tenantId, cronWorkflowId string) (*dbsqlc.ListCronWorkflowsRow, error) {
+	listOpts := dbsqlc.ListCronWorkflowsParams{
+		Tenantid:      sqlchelpers.UUIDFromStr(tenantId),
+		Crontriggerid: sqlchelpers.UUIDFromStr(cronWorkflowId),
+	}
+
+	cronWorkflows, err := w.queries.ListCronWorkflows(ctx, w.pool, listOpts)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if len(cronWorkflows) == 0 {
+		return nil, fmt.Errorf("cron workflow not found")
+	}
+
+	return cronWorkflows[0], nil
+}
+
+func (w *workflowAPIRepository) DeleteCronWorkflow(ctx context.Context, tenantId, id string) error {
+	return w.queries.DeleteWorkflowTriggerCronRef(ctx, w.pool, sqlchelpers.UUIDFromStr(id))
+}
+
+func (w *workflowAPIRepository) CreateCronWorkflow(ctx context.Context, tenantId string, opts *repository.CreateCronWorkflowTriggerOpts) (*dbsqlc.ListCronWorkflowsRow, error) {
+
+	var input, additionalMetadata []byte
+	var err error
+
+	if opts.Input != nil {
+		input, err = json.Marshal(opts.Input)
+
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if opts.AdditionalMetadata != nil {
+		additionalMetadata, err = json.Marshal(opts.AdditionalMetadata)
+
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	createParams := dbsqlc.CreateWorkflowTriggerCronRefForWorkflowParams{
+		Workflowid:         sqlchelpers.UUIDFromStr(opts.WorkflowId),
+		Crontrigger:        opts.Cron,
+		Name:               sqlchelpers.TextFromStr(opts.Name),
+		Input:              input,
+		AdditionalMetadata: additionalMetadata,
+		Method: dbsqlc.NullWorkflowTriggerCronRefMethods{
+			Valid:                         true,
+			WorkflowTriggerCronRefMethods: dbsqlc.WorkflowTriggerCronRefMethodsAPI,
+		},
+	}
+
+	cronTrigger, err := w.queries.CreateWorkflowTriggerCronRefForWorkflow(ctx, w.pool, createParams)
+
+	if err != nil {
+		return nil, err
+	}
+
+	row, err := w.queries.ListCronWorkflows(ctx, w.pool, dbsqlc.ListCronWorkflowsParams{
+		Tenantid:      sqlchelpers.UUIDFromStr(tenantId),
+		Crontriggerid: cronTrigger.ID,
+		Limit:         1,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	if len(row) == 0 {
+		return nil, fmt.Errorf("failed to fetch cron workflow")
+	}
+
+	return row[0], nil
+}
+
 type workflowEngineRepository struct {
 	pool    *pgxpool.Pool
 	v       validator.Validator
@@ -385,7 +541,7 @@ func (r *workflowEngineRepository) CreateNewWorkflow(ctx context.Context, tenant
 		}
 	}
 
-	workflowVersionId, err := r.createWorkflowVersionTxs(ctx, tx, pgTenantId, workflowId, opts)
+	workflowVersionId, err := r.createWorkflowVersionTxs(ctx, tx, pgTenantId, workflowId, opts, nil)
 
 	if err != nil {
 		return nil, err
@@ -413,7 +569,7 @@ func (r *workflowEngineRepository) CreateNewWorkflow(ctx context.Context, tenant
 	return workflowVersion[0], nil
 }
 
-func (r *workflowEngineRepository) CreateWorkflowVersion(ctx context.Context, tenantId string, opts *repository.CreateWorkflowVersionOpts) (*dbsqlc.GetWorkflowVersionForEngineRow, error) {
+func (r *workflowEngineRepository) CreateWorkflowVersion(ctx context.Context, tenantId string, opts *repository.CreateWorkflowVersionOpts, oldWorkflowVersion *dbsqlc.GetWorkflowVersionForEngineRow) (*dbsqlc.GetWorkflowVersionForEngineRow, error) {
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
@@ -454,7 +610,7 @@ func (r *workflowEngineRepository) CreateWorkflowVersion(ctx context.Context, te
 
 	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
 
-	workflowVersionId, err := r.createWorkflowVersionTxs(ctx, tx, pgTenantId, workflow.ID, opts)
+	workflowVersionId, err := r.createWorkflowVersionTxs(ctx, tx, pgTenantId, workflow.ID, opts, oldWorkflowVersion)
 
 	if err != nil {
 		return nil, err
@@ -503,6 +659,55 @@ func (r *workflowEngineRepository) CreateSchedules(
 	}
 
 	return r.queries.CreateSchedules(ctx, r.pool, createParams)
+}
+
+func (r *workflowAPIRepository) CreateScheduledWorkflow(ctx context.Context, tenantId string, opts *repository.CreateScheduledWorkflowRunForWorkflowOpts) (*dbsqlc.ListScheduledWorkflowsRow, error) {
+	if err := r.v.Validate(opts); err != nil {
+		return nil, err
+	}
+
+	var input, additionalMetadata []byte
+	var err error
+
+	if opts.Input != nil {
+		input, err = json.Marshal(opts.Input)
+	}
+
+	if opts.AdditionalMetadata != nil {
+		additionalMetadata, err = json.Marshal(opts.AdditionalMetadata)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	createParams := dbsqlc.CreateWorkflowTriggerScheduledRefForWorkflowParams{
+		Workflowid:         sqlchelpers.UUIDFromStr(opts.WorkflowId),
+		Scheduledtrigger:   sqlchelpers.TimestampFromTime(opts.ScheduledTrigger),
+		Input:              input,
+		Additionalmetadata: additionalMetadata,
+		Method: dbsqlc.NullWorkflowTriggerScheduledRefMethods{
+			Valid:                              true,
+			WorkflowTriggerScheduledRefMethods: dbsqlc.WorkflowTriggerScheduledRefMethodsAPI,
+		},
+	}
+
+	created, err := r.queries.CreateWorkflowTriggerScheduledRefForWorkflow(ctx, r.pool, createParams)
+
+	if err != nil {
+		return nil, err
+	}
+
+	scheduled, err := r.queries.ListScheduledWorkflows(ctx, r.pool, dbsqlc.ListScheduledWorkflowsParams{
+		Tenantid:   sqlchelpers.UUIDFromStr(tenantId),
+		Scheduleid: created.ID,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return scheduled[0], nil
 }
 
 func (r *workflowEngineRepository) GetLatestWorkflowVersions(ctx context.Context, tenantId string, workflowIds []string) ([]*dbsqlc.GetWorkflowVersionForEngineRow, error) {
@@ -693,7 +898,7 @@ func (r *workflowAPIRepository) GetWorkflowWorkerCount(tenantId, workflowId stri
 
 }
 
-func (r *workflowEngineRepository) createWorkflowVersionTxs(ctx context.Context, tx pgx.Tx, tenantId, workflowId pgtype.UUID, opts *repository.CreateWorkflowVersionOpts) (string, error) {
+func (r *workflowEngineRepository) createWorkflowVersionTxs(ctx context.Context, tx pgx.Tx, tenantId, workflowId pgtype.UUID, opts *repository.CreateWorkflowVersionOpts, oldWorkflowVersion *dbsqlc.GetWorkflowVersionForEngineRow) (string, error) {
 	workflowVersionId := uuid.New().String()
 
 	var version pgtype.Text
@@ -902,6 +1107,32 @@ func (r *workflowEngineRepository) createWorkflowVersionTxs(ctx context.Context,
 
 		if err != nil {
 			return "", err
+		}
+	}
+
+	if oldWorkflowVersion != nil {
+
+		fmt.Println("oldWorkflowVersion", sqlchelpers.UUIDToStr(oldWorkflowVersion.WorkflowVersion.ID))
+		fmt.Println("sqlcWorkflowTriggers", sqlchelpers.UUIDToStr(sqlcWorkflowTriggers.ID))
+
+		// move existing api crons to the new workflow version
+		err = r.queries.MoveCronTriggerToNewWorkflowTriggers(ctx, tx, dbsqlc.MoveCronTriggerToNewWorkflowTriggersParams{
+			Oldworkflowversionid: oldWorkflowVersion.WorkflowVersion.ID,
+			Newworkflowtriggerid: sqlcWorkflowTriggers.ID,
+		})
+
+		if err != nil {
+			return "", fmt.Errorf("could not move existing cron triggers to new workflow triggers: %w", err)
+		}
+
+		// move existing scheduled triggers to the new workflow version
+		err = r.queries.MoveScheduledTriggerToNewWorkflowTriggers(ctx, tx, dbsqlc.MoveScheduledTriggerToNewWorkflowTriggersParams{
+			Oldworkflowversionid: oldWorkflowVersion.WorkflowVersion.ID,
+			Newworkflowtriggerid: sqlcWorkflowTriggers.ID,
+		})
+
+		if err != nil {
+			return "", fmt.Errorf("could not move existing scheduled triggers to new workflow triggers: %w", err)
 		}
 	}
 

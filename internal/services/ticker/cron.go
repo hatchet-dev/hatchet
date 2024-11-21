@@ -2,6 +2,7 @@ package ticker
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -79,11 +80,19 @@ func (t *TickerImpl) handleScheduleCron(ctx context.Context, cron *dbsqlc.PollCr
 	workflowVersionId := sqlchelpers.UUIDToStr(cron.WorkflowVersionId)
 	cronParentId := sqlchelpers.UUIDToStr(cron.ParentId)
 
+	var additionalMetadata map[string]interface{}
+
+	if cron.AdditionalMetadata != nil {
+		if err := json.Unmarshal(cron.AdditionalMetadata, &additionalMetadata); err != nil {
+			return fmt.Errorf("could not unmarshal additional metadata: %w", err)
+		}
+	}
+
 	// schedule the cron
 	_, err = s.NewJob(
 		gocron.CronJob(cron.Cron, false),
 		gocron.NewTask(
-			t.runCronWorkflow(tenantId, workflowVersionId, cron.Cron, cronParentId, cron.Input),
+			t.runCronWorkflow(tenantId, workflowVersionId, cron.Cron, cronParentId, &cron.Name.String, cron.Input, additionalMetadata),
 		),
 	)
 
@@ -99,7 +108,7 @@ func (t *TickerImpl) handleScheduleCron(ctx context.Context, cron *dbsqlc.PollCr
 	return nil
 }
 
-func (t *TickerImpl) runCronWorkflow(tenantId, workflowVersionId, cron, cronParentId string, input []byte) func() {
+func (t *TickerImpl) runCronWorkflow(tenantId, workflowVersionId, cron, cronParentId string, cronName *string, input []byte, additionalMetadata map[string]interface{}) func() {
 	return func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
@@ -113,8 +122,7 @@ func (t *TickerImpl) runCronWorkflow(tenantId, workflowVersionId, cron, cronPare
 			return
 		}
 		// create a new workflow run in the database
-		// FIXME additionalMetadata is not used for cron runs
-		createOpts, err := repository.GetCreateWorkflowRunOptsFromCron(cron, cronParentId, workflowVersion, input, nil)
+		createOpts, err := repository.GetCreateWorkflowRunOptsFromCron(cron, cronParentId, cronName, workflowVersion, input, additionalMetadata)
 
 		if err != nil {
 			t.l.Err(err).Msg("could not get create workflow run opts")
