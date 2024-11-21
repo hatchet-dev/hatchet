@@ -117,7 +117,10 @@ export const columns = ({
               {
                 label: 'Delete',
                 onClick: () => onDeleteClick(row.original),
-                disabled: row.original.method !== 'API',
+                disabled:
+                  row.original.method !== 'API'
+                    ? 'Cannot delete recurring workflow created via workflow code definition'
+                    : undefined,
               },
             ]}
           />

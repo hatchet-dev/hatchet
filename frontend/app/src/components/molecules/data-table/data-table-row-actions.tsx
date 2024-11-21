@@ -10,6 +10,12 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 import { IDGetter } from './data-table';
+import {
+  Tooltip,
+  TooltipProvider,
+  TooltipTrigger,
+  TooltipContent,
+} from '@/components/ui/tooltip';
 
 interface DataTableRowActionsProps<TData extends IDGetter> {
   row: Row<TData>;
@@ -41,13 +47,22 @@ export function DataTableRowActions<TData extends IDGetter>({
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-[160px]">
         {actions?.map((action) => (
-          <DropdownMenuItem
-            key={action.label}
-            onClick={() => action.onClick(row.original)}
-            disabled={!!action.disabled}
-          >
-            {action.label}
-          </DropdownMenuItem>
+          <TooltipProvider key={action.label}>
+            <Tooltip>
+              <TooltipTrigger className="w-full">
+                <DropdownMenuItem
+                  onClick={() => action.onClick(row.original)}
+                  disabled={!!action.disabled}
+                  className="w-full"
+                >
+                  {action.label}
+                </DropdownMenuItem>
+              </TooltipTrigger>
+              {action.disabled && (
+                <TooltipContent>{action.disabled}</TooltipContent>
+              )}
+            </Tooltip>
+          </TooltipProvider>
         ))}
       </DropdownMenuContent>
     </DropdownMenu>
