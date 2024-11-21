@@ -541,6 +541,7 @@ func ToScheduledWorkflowsFromSQLC(scheduled *dbsqlc.ListScheduledWorkflowsRow) *
 		WorkflowRunStatus:    &workflowRunStatus,
 		WorkflowRunId:        workflowRunIdPtr,
 		WorkflowRunName:      &scheduled.WorkflowRunName.String,
+		Method:               gen.ScheduledWorkflowsMethod(scheduled.Method),
 	}
 
 	return res

@@ -697,19 +697,19 @@ type ScheduledRunStatus string
 
 // ScheduledWorkflows defines model for ScheduledWorkflows.
 type ScheduledWorkflows struct {
-	AdditionalMetadata   *map[string]interface{}   `json:"additionalMetadata,omitempty"`
-	Input                *map[string]interface{}   `json:"input,omitempty"`
-	Metadata             APIResourceMeta           `json:"metadata"`
-	Method               *ScheduledWorkflowsMethod `json:"method,omitempty"`
-	TenantId             string                    `json:"tenantId"`
-	TriggerAt            time.Time                 `json:"triggerAt"`
-	WorkflowId           string                    `json:"workflowId"`
-	WorkflowName         string                    `json:"workflowName"`
-	WorkflowRunCreatedAt *time.Time                `json:"workflowRunCreatedAt,omitempty"`
-	WorkflowRunId        *openapi_types.UUID       `json:"workflowRunId,omitempty"`
-	WorkflowRunName      *string                   `json:"workflowRunName,omitempty"`
-	WorkflowRunStatus    *WorkflowRunStatus        `json:"workflowRunStatus,omitempty"`
-	WorkflowVersionId    string                    `json:"workflowVersionId"`
+	AdditionalMetadata   *map[string]interface{}  `json:"additionalMetadata,omitempty"`
+	Input                *map[string]interface{}  `json:"input,omitempty"`
+	Metadata             APIResourceMeta          `json:"metadata"`
+	Method               ScheduledWorkflowsMethod `json:"method"`
+	TenantId             string                   `json:"tenantId"`
+	TriggerAt            time.Time                `json:"triggerAt"`
+	WorkflowId           string                   `json:"workflowId"`
+	WorkflowName         string                   `json:"workflowName"`
+	WorkflowRunCreatedAt *time.Time               `json:"workflowRunCreatedAt,omitempty"`
+	WorkflowRunId        *openapi_types.UUID      `json:"workflowRunId,omitempty"`
+	WorkflowRunName      *string                  `json:"workflowRunName,omitempty"`
+	WorkflowRunStatus    *WorkflowRunStatus       `json:"workflowRunStatus,omitempty"`
+	WorkflowVersionId    string                   `json:"workflowVersionId"`
 }
 
 // ScheduledWorkflowsMethod defines model for ScheduledWorkflows.Method.

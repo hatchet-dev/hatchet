@@ -781,7 +781,7 @@ export interface ScheduledWorkflows {
    * @example "bb214807-246e-43a5-a25d-41761d1cff9e"
    */
   workflowRunId?: string;
-  method?: 'DEFAULT' | 'API';
+  method: 'DEFAULT' | 'API';
 }
 
 export interface ScheduledWorkflowsList {
