@@ -19,4 +19,7 @@ type ConfigFileBuffer struct {
 
 	// SerialBuffer is a flag to determine if the buffer should be serial or bulk
 	SerialBuffer bool `mapstructure:"serialBuffer" json:"serialBuffer,omitempty" default:"false"`
+
+	// FlushStrategy is the strategy to use for flushing the buffer
+	FlushStrategy BuffStrategy `mapstructure:"flushStrategy" json:"flushStrategy" default:"DYNAMIC"`
 }
