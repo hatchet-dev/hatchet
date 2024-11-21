@@ -48,6 +48,7 @@ BEGIN
                 "semaphoreReleased" boolean NOT NULL DEFAULT false,
                 "queue" text NOT NULL DEFAULT 'default'::text,
                 "priority" integer,
+                "internalRetryCount" INTEGER NOT NULL DEFAULT 0,
                 PRIMARY KEY ( "status", "id")
             ) PARTITION BY LIST ("status");
 

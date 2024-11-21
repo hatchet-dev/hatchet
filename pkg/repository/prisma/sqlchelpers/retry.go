@@ -56,9 +56,10 @@ var genericRetry = func(l *zerolog.Event, maxRetries int, f func() error, msg st
 
 // sleepWithJitter sleeps for a random duration between min and max duration.
 // min and max are time.Duration values, specifying the minimum and maximum sleep times.
-func sleepWithJitter(min, max time.Duration) {
+func sleepWithJitter(min, max time.Duration) { // nolint: revive
 	if min > max {
-		min, max = max, min // Swap if min is greater than max
+		// Swap if min is greater than max
+		min, max = max, min // nolint: revive
 	}
 
 	jitter := max - min

@@ -240,7 +240,7 @@ func (d *dispatcherClientImpl) newActionListener(ctx context.Context, req *GetAc
 	}
 
 	if req.MaxRuns != nil {
-		mr := int32(*req.MaxRuns)
+		mr := int32(*req.MaxRuns) // nolint: gosec
 		registerReq.MaxRuns = &mr
 	}
 
@@ -601,12 +601,12 @@ func mapLabels(req map[string]interface{}) map[string]*dispatchercontracts.Worke
 			strValue := value
 			label.StrValue = &strValue
 		case int:
-			intValue := int32(value)
+			intValue := int32(value) // nolint: gosec
 			label.IntValue = &intValue
 		case int32:
 			label.IntValue = &value
 		case int64:
-			intValue := int32(value)
+			intValue := int32(value) // nolint: gosec
 			label.IntValue = &intValue
 		default:
 			// For any other type, convert to string

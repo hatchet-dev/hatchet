@@ -24,18 +24,20 @@ linters-settings:
   staticcheck:
     checks:
       - all
-      - '-ST1003'
-      - '-SA4006'
-      - '-SA1029'
+      - "-ST1003"
+      - "-SA4006"
+      - "-SA1029"
   stylecheck:
     checks:
       - all
-      - '-ST1003'
-      - '-SA4006'
-      - '-ST1016'
-      - '-ST1005'
+      - "-ST1003"
+      - "-SA4006"
+      - "-ST1016"
+      - "-ST1005"
 
 issues:
+  exclude-files:
+    - "pkg/repository/prisma/db/db_gen.go"
   exclude:
     - "by other packages, and that stutters; consider calling this"
     - "var-naming:"

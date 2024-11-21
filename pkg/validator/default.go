@@ -9,6 +9,8 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/errors"
+
+	goerrors "errors"
 )
 
 const (
@@ -146,7 +148,7 @@ func NewErrFailedRequestValidation(valErrors ...string) error {
 	var err error
 
 	for _, valErr := range valErrors {
-		err = multierror.Append(err, fmt.Errorf(valErr))
+		err = multierror.Append(err, goerrors.New(valErr))
 	}
 
 	return errors.NewError(

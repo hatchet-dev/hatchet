@@ -1216,6 +1216,14 @@ type RateLimit struct {
 	LastRefill pgtype.Timestamp `json:"lastRefill"`
 }
 
+type RetryQueueItem struct {
+	ID         int64            `json:"id"`
+	RetryAfter pgtype.Timestamp `json:"retryAfter"`
+	StepRunId  pgtype.UUID      `json:"stepRunId"`
+	TenantId   pgtype.UUID      `json:"tenantId"`
+	IsQueued   bool             `json:"isQueued"`
+}
+
 type SNSIntegration struct {
 	ID        pgtype.UUID      `json:"id"`
 	CreatedAt pgtype.Timestamp `json:"createdAt"`
@@ -1271,18 +1279,20 @@ type SlackAppWebhook struct {
 }
 
 type Step struct {
-	ID              pgtype.UUID      `json:"id"`
-	CreatedAt       pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt       pgtype.Timestamp `json:"updatedAt"`
-	DeletedAt       pgtype.Timestamp `json:"deletedAt"`
-	ReadableId      pgtype.Text      `json:"readableId"`
-	TenantId        pgtype.UUID      `json:"tenantId"`
-	JobId           pgtype.UUID      `json:"jobId"`
-	ActionId        string           `json:"actionId"`
-	Timeout         pgtype.Text      `json:"timeout"`
-	CustomUserData  []byte           `json:"customUserData"`
-	Retries         int32            `json:"retries"`
-	ScheduleTimeout string           `json:"scheduleTimeout"`
+	ID                 pgtype.UUID      `json:"id"`
+	CreatedAt          pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt          pgtype.Timestamp `json:"updatedAt"`
+	DeletedAt          pgtype.Timestamp `json:"deletedAt"`
+	ReadableId         pgtype.Text      `json:"readableId"`
+	TenantId           pgtype.UUID      `json:"tenantId"`
+	JobId              pgtype.UUID      `json:"jobId"`
+	ActionId           string           `json:"actionId"`
+	Timeout            pgtype.Text      `json:"timeout"`
+	CustomUserData     []byte           `json:"customUserData"`
+	Retries            int32            `json:"retries"`
+	RetryBackoffFactor pgtype.Float8    `json:"retryBackoffFactor"`
+	RetryMaxBackoff    pgtype.Int4      `json:"retryMaxBackoff"`
+	ScheduleTimeout    string           `json:"scheduleTimeout"`
 }
 
 type StepDesiredWorkerLabel struct {
