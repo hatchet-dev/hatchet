@@ -327,6 +327,19 @@ func (w *workflowAPIRepository) ListCronWorkflows(ctx context.Context, tenantId 
 
 	listOpts.Orderby = orderByField + " " + orderByDirection
 
+	if opts.AdditionalMetadata != nil {
+		additionalMetadataBytes, err := json.Marshal(opts.AdditionalMetadata)
+		if err != nil {
+			return nil, 0, err
+		}
+
+		listOpts.AdditionalMetadata = additionalMetadataBytes
+	}
+
+	if opts.WorkflowId != nil {
+		listOpts.Workflowid = sqlchelpers.UUIDFromStr(*opts.WorkflowId)
+	}
+
 	cronWorkflows, err := w.queries.ListCronWorkflows(ctx, w.pool, listOpts)
 	if err != nil {
 		return nil, 0, err

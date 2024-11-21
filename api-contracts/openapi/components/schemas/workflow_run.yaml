@@ -217,6 +217,7 @@ ScheduledWorkflows:
     - workflowName
     - workflowId
     - triggerAt
+    - method
 
 
 ScheduledWorkflowsMethod:

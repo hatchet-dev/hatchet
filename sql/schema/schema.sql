@@ -1505,9 +1505,6 @@ CREATE UNIQUE INDEX "WorkflowTag_id_key" ON "WorkflowTag" ("id" ASC);
 CREATE UNIQUE INDEX "WorkflowTag_tenantId_name_key" ON "WorkflowTag" ("tenantId" ASC, "name" ASC);
 
 -- CreateIndex
-CREATE UNIQUE INDEX "WorkflowTriggerCronRef_parentId_cron_key" ON "WorkflowTriggerCronRef" ("parentId" ASC, "cron" ASC);
-
--- CreateIndex
 CREATE UNIQUE INDEX "WorkflowTriggerEventRef_parentId_eventKey_key" ON "WorkflowTriggerEventRef" ("parentId" ASC, "eventKey" ASC);
 
 -- CreateIndex
