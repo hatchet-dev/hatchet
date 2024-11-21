@@ -227,23 +227,24 @@ FROM
     active_cron_schedules
 WHERE
     cronSchedules."parentId" = active_cron_schedules."parentId"
-RETURNING cronschedules."parentId", cronschedules.cron, cronschedules."tickerId", cronschedules.input, cronschedules.enabled, cronschedules."additionalMetadata", cronschedules."createdAt", cronschedules."deletedAt", cronschedules."updatedAt", cronschedules.name, cronschedules.id, active_cron_schedules."workflowVersionId", active_cron_schedules."tenantId"
+RETURNING cronschedules."parentId", cronschedules.cron, cronschedules."tickerId", cronschedules.input, cronschedules.enabled, cronschedules."additionalMetadata", cronschedules."createdAt", cronschedules."deletedAt", cronschedules."updatedAt", cronschedules.name, cronschedules.id, cronschedules.method, active_cron_schedules."workflowVersionId", active_cron_schedules."tenantId"
 `
 
 type PollCronSchedulesRow struct {
-	ParentId           pgtype.UUID      `json:"parentId"`
-	Cron               string           `json:"cron"`
-	TickerId           pgtype.UUID      `json:"tickerId"`
-	Input              []byte           `json:"input"`
-	Enabled            bool             `json:"enabled"`
-	AdditionalMetadata []byte           `json:"additionalMetadata"`
-	CreatedAt          pgtype.Timestamp `json:"createdAt"`
-	DeletedAt          pgtype.Timestamp `json:"deletedAt"`
-	UpdatedAt          pgtype.Timestamp `json:"updatedAt"`
-	Name               pgtype.Text      `json:"name"`
-	ID                 pgtype.UUID      `json:"id"`
-	WorkflowVersionId  pgtype.UUID      `json:"workflowVersionId"`
-	TenantId           pgtype.UUID      `json:"tenantId"`
+	ParentId           pgtype.UUID                   `json:"parentId"`
+	Cron               string                        `json:"cron"`
+	TickerId           pgtype.UUID                   `json:"tickerId"`
+	Input              []byte                        `json:"input"`
+	Enabled            bool                          `json:"enabled"`
+	AdditionalMetadata []byte                        `json:"additionalMetadata"`
+	CreatedAt          pgtype.Timestamp              `json:"createdAt"`
+	DeletedAt          pgtype.Timestamp              `json:"deletedAt"`
+	UpdatedAt          pgtype.Timestamp              `json:"updatedAt"`
+	Name               pgtype.Text                   `json:"name"`
+	ID                 pgtype.UUID                   `json:"id"`
+	Method             WorkflowTriggerCronRefMethods `json:"method"`
+	WorkflowVersionId  pgtype.UUID                   `json:"workflowVersionId"`
+	TenantId           pgtype.UUID                   `json:"tenantId"`
 }
 
 func (q *Queries) PollCronSchedules(ctx context.Context, db DBTX, tickerid pgtype.UUID) ([]*PollCronSchedulesRow, error) {
@@ -267,6 +268,7 @@ func (q *Queries) PollCronSchedules(ctx context.Context, db DBTX, tickerid pgtyp
 			&i.UpdatedAt,
 			&i.Name,
 			&i.ID,
+			&i.Method,
 			&i.WorkflowVersionId,
 			&i.TenantId,
 		); err != nil {
@@ -467,25 +469,26 @@ FROM
     active_scheduled_workflows
 WHERE
     scheduledWorkflows."id" = active_scheduled_workflows."id"
-RETURNING scheduledworkflows.id, scheduledworkflows."parentId", scheduledworkflows."triggerAt", scheduledworkflows."tickerId", scheduledworkflows.input, scheduledworkflows."childIndex", scheduledworkflows."childKey", scheduledworkflows."parentStepRunId", scheduledworkflows."parentWorkflowRunId", scheduledworkflows."additionalMetadata", scheduledworkflows."createdAt", scheduledworkflows."deletedAt", scheduledworkflows."updatedAt", active_scheduled_workflows."workflowVersionId", active_scheduled_workflows."tenantId"
+RETURNING scheduledworkflows.id, scheduledworkflows."parentId", scheduledworkflows."triggerAt", scheduledworkflows."tickerId", scheduledworkflows.input, scheduledworkflows."childIndex", scheduledworkflows."childKey", scheduledworkflows."parentStepRunId", scheduledworkflows."parentWorkflowRunId", scheduledworkflows."additionalMetadata", scheduledworkflows."createdAt", scheduledworkflows."deletedAt", scheduledworkflows."updatedAt", scheduledworkflows.method, active_scheduled_workflows."workflowVersionId", active_scheduled_workflows."tenantId"
 `
 
 type PollScheduledWorkflowsRow struct {
-	ID                  pgtype.UUID      `json:"id"`
-	ParentId            pgtype.UUID      `json:"parentId"`
-	TriggerAt           pgtype.Timestamp `json:"triggerAt"`
-	TickerId            pgtype.UUID      `json:"tickerId"`
-	Input               []byte           `json:"input"`
-	ChildIndex          pgtype.Int4      `json:"childIndex"`
-	ChildKey            pgtype.Text      `json:"childKey"`
-	ParentStepRunId     pgtype.UUID      `json:"parentStepRunId"`
-	ParentWorkflowRunId pgtype.UUID      `json:"parentWorkflowRunId"`
-	AdditionalMetadata  []byte           `json:"additionalMetadata"`
-	CreatedAt           pgtype.Timestamp `json:"createdAt"`
-	DeletedAt           pgtype.Timestamp `json:"deletedAt"`
-	UpdatedAt           pgtype.Timestamp `json:"updatedAt"`
-	WorkflowVersionId   pgtype.UUID      `json:"workflowVersionId"`
-	TenantId            pgtype.UUID      `json:"tenantId"`
+	ID                  pgtype.UUID                        `json:"id"`
+	ParentId            pgtype.UUID                        `json:"parentId"`
+	TriggerAt           pgtype.Timestamp                   `json:"triggerAt"`
+	TickerId            pgtype.UUID                        `json:"tickerId"`
+	Input               []byte                             `json:"input"`
+	ChildIndex          pgtype.Int4                        `json:"childIndex"`
+	ChildKey            pgtype.Text                        `json:"childKey"`
+	ParentStepRunId     pgtype.UUID                        `json:"parentStepRunId"`
+	ParentWorkflowRunId pgtype.UUID                        `json:"parentWorkflowRunId"`
+	AdditionalMetadata  []byte                             `json:"additionalMetadata"`
+	CreatedAt           pgtype.Timestamp                   `json:"createdAt"`
+	DeletedAt           pgtype.Timestamp                   `json:"deletedAt"`
+	UpdatedAt           pgtype.Timestamp                   `json:"updatedAt"`
+	Method              WorkflowTriggerScheduledRefMethods `json:"method"`
+	WorkflowVersionId   pgtype.UUID                        `json:"workflowVersionId"`
+	TenantId            pgtype.UUID                        `json:"tenantId"`
 }
 
 // Finds workflows that are either past their execution time or will be in the next 5 seconds and assigns them
@@ -513,6 +516,7 @@ func (q *Queries) PollScheduledWorkflows(ctx context.Context, db DBTX, tickerid 
 			&i.CreatedAt,
 			&i.DeletedAt,
 			&i.UpdatedAt,
+			&i.Method,
 			&i.WorkflowVersionId,
 			&i.TenantId,
 		); err != nil {

@@ -311,7 +311,7 @@ type WorkflowEngineRepository interface {
 
 	// CreateWorkflowVersion creates a new workflow version for a given tenant. This will fail if there is
 	// not a parent workflow with the same name already in the database.
-	CreateWorkflowVersion(ctx context.Context, tenantId string, opts *CreateWorkflowVersionOpts) (*dbsqlc.GetWorkflowVersionForEngineRow, error)
+	CreateWorkflowVersion(ctx context.Context, tenantId string, opts *CreateWorkflowVersionOpts, oldWorkflowVersion *dbsqlc.GetWorkflowVersionForEngineRow) (*dbsqlc.GetWorkflowVersionForEngineRow, error)
 
 	// CreateSchedules creates schedules for a given workflow version.
 	CreateSchedules(ctx context.Context, tenantId, workflowVersionId string, opts *CreateWorkflowSchedulesOpts) ([]*dbsqlc.WorkflowTriggerScheduledRef, error)

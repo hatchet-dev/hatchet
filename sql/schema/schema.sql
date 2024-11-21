@@ -1007,6 +1007,13 @@ CREATE TABLE "WorkflowTag" (
     CONSTRAINT "WorkflowTag_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateEnum
+CREATE TYPE "WorkflowTriggerCronRefMethods" AS ENUM (
+    'DEFAULT',
+    'API'
+);
+
+
 -- CreateTable
 CREATE TABLE "WorkflowTriggerCronRef" (
     "parentId" UUID NOT NULL,
@@ -1019,13 +1026,20 @@ CREATE TABLE "WorkflowTriggerCronRef" (
     "deletedAt" TIMESTAMP(3),
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "name" TEXT,
-    "id" UUID NOT NULL
+    "id" UUID NOT NULL,
+    "method" "WorkflowTriggerCronRefMethods" NOT NULL DEFAULT 'DEFAULT'
 );
 
 -- CreateTable
 CREATE TABLE "WorkflowTriggerEventRef" (
     "parentId" UUID NOT NULL,
     "eventKey" TEXT NOT NULL
+);
+
+-- CreateEnum
+CREATE TYPE "WorkflowTriggerScheduledRefMethods" AS ENUM (
+    'DEFAULT',
+    'API'
 );
 
 -- CreateTable
@@ -1043,7 +1057,7 @@ CREATE TABLE "WorkflowTriggerScheduledRef" (
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "deletedAt" TIMESTAMP(3),
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
+    "method" "WorkflowTriggerScheduledRefMethods" NOT NULL DEFAULT 'DEFAULT',
     CONSTRAINT "WorkflowTriggerScheduledRef_pkey" PRIMARY KEY ("id")
 );
 

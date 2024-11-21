@@ -138,27 +138,27 @@ INSERT INTO "WorkflowVersion" (
     sqlc.narg('defaultPriority')::integer
 ) RETURNING *;
 
--- name: MoveCronTriggerToNewWorkflowTriggers :one
+-- name: MoveCronTriggerToNewWorkflowTriggers :exec
 WITH triggersToUpdate AS (
     SELECT cronTrigger."id" FROM "WorkflowTriggerCronRef" cronTrigger
     JOIN "WorkflowTriggers" triggers ON triggers."id" = cronTrigger."parentId"
     WHERE triggers."workflowVersionId" = @oldWorkflowVersionId::uuid
+    AND cronTrigger."method" = 'API'
 )
 UPDATE "WorkflowTriggerCronRef"
 SET "parentId" = @newWorkflowTriggerId::uuid
-WHERE "parentId" IN (SELECT "id" FROM triggersToUpdate)
-RETURNING *;
+WHERE "id" IN (SELECT "id" FROM triggersToUpdate);
 
--- name: MoveScheduledTriggerToNewWorkflowTriggers :one
+-- name: MoveScheduledTriggerToNewWorkflowTriggers :exec
 WITH triggersToUpdate AS (
     SELECT scheduledTrigger."id" FROM "WorkflowTriggerScheduledRef" scheduledTrigger
     JOIN "WorkflowTriggers" triggers ON triggers."id" = scheduledTrigger."parentId"
     WHERE triggers."workflowVersionId" = @oldWorkflowVersionId::uuid
+    AND scheduledTrigger."method" = 'API'
 )
 UPDATE "WorkflowTriggerScheduledRef"
 SET "parentId" = @newWorkflowTriggerId::uuid
-WHERE "id" IN (SELECT "id" FROM triggersToUpdate)
-RETURNING *;
+WHERE "id" IN (SELECT "id" FROM triggersToUpdate);
 
 -- name: CreateWorkflowConcurrency :one
 INSERT INTO "WorkflowConcurrency" (
@@ -356,14 +356,16 @@ INSERT INTO "WorkflowTriggerCronRef" (
     "name",
     "input",
     "additionalMetadata",
-    "id"
+    "id",
+    "method"
 ) VALUES (
     @workflowTriggersId::uuid,
     @cronTrigger::text,
     sqlc.narg('name')::text,
     sqlc.narg('input')::jsonb,
     sqlc.narg('additionalMetadata')::jsonb,
-    gen_random_uuid()
+    gen_random_uuid(),
+    COALESCE(sqlc.narg('method')::"WorkflowTriggerCronRefMethods", 'DEFAULT')
 ) RETURNING *;
 
 
@@ -386,14 +388,16 @@ INSERT INTO "WorkflowTriggerCronRef" (
     "name",
     "input",
     "additionalMetadata",
-    "id"
+    "id",
+    "method"
 ) VALUES (
     (SELECT "id" FROM latest_trigger),
     @cronTrigger::text,
     sqlc.narg('name')::text,
     sqlc.narg('input')::jsonb,
     sqlc.narg('additionalMetadata')::jsonb,
-    gen_random_uuid()
+    gen_random_uuid(),
+    COALESCE(sqlc.narg('method')::"WorkflowTriggerCronRefMethods", 'DEFAULT')
 ) RETURNING *;
 
 -- name: CreateWorkflowTriggerScheduledRefForWorkflow :one
@@ -414,13 +418,15 @@ INSERT INTO "WorkflowTriggerScheduledRef" (
     "parentId",
     "triggerAt",
     "input",
-    "additionalMetadata"
+    "additionalMetadata",
+    "method"
 ) VALUES (
     gen_random_uuid(),
     (SELECT "id" FROM latest_version),
     @scheduledTrigger::timestamp,
     @input::jsonb,
-    @additionalMetadata::jsonb
+    @additionalMetadata::jsonb,
+    COALESCE(sqlc.narg('method')::"WorkflowTriggerScheduledRefMethods", 'DEFAULT')
 ) RETURNING *;
 
 -- name: CreateWorkflowTriggerScheduledRef :one

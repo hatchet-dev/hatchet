@@ -1029,6 +1029,90 @@ func (ns NullWorkflowRunStatus) Value() (driver.Value, error) {
 	return string(ns.WorkflowRunStatus), nil
 }
 
+type WorkflowTriggerCronRefMethods string
+
+const (
+	WorkflowTriggerCronRefMethodsDEFAULT WorkflowTriggerCronRefMethods = "DEFAULT"
+	WorkflowTriggerCronRefMethodsAPI     WorkflowTriggerCronRefMethods = "API"
+)
+
+func (e *WorkflowTriggerCronRefMethods) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = WorkflowTriggerCronRefMethods(s)
+	case string:
+		*e = WorkflowTriggerCronRefMethods(s)
+	default:
+		return fmt.Errorf("unsupported scan type for WorkflowTriggerCronRefMethods: %T", src)
+	}
+	return nil
+}
+
+type NullWorkflowTriggerCronRefMethods struct {
+	WorkflowTriggerCronRefMethods WorkflowTriggerCronRefMethods `json:"WorkflowTriggerCronRefMethods"`
+	Valid                         bool                          `json:"valid"` // Valid is true if WorkflowTriggerCronRefMethods is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullWorkflowTriggerCronRefMethods) Scan(value interface{}) error {
+	if value == nil {
+		ns.WorkflowTriggerCronRefMethods, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.WorkflowTriggerCronRefMethods.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullWorkflowTriggerCronRefMethods) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.WorkflowTriggerCronRefMethods), nil
+}
+
+type WorkflowTriggerScheduledRefMethods string
+
+const (
+	WorkflowTriggerScheduledRefMethodsDEFAULT WorkflowTriggerScheduledRefMethods = "DEFAULT"
+	WorkflowTriggerScheduledRefMethodsAPI     WorkflowTriggerScheduledRefMethods = "API"
+)
+
+func (e *WorkflowTriggerScheduledRefMethods) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = WorkflowTriggerScheduledRefMethods(s)
+	case string:
+		*e = WorkflowTriggerScheduledRefMethods(s)
+	default:
+		return fmt.Errorf("unsupported scan type for WorkflowTriggerScheduledRefMethods: %T", src)
+	}
+	return nil
+}
+
+type NullWorkflowTriggerScheduledRefMethods struct {
+	WorkflowTriggerScheduledRefMethods WorkflowTriggerScheduledRefMethods `json:"WorkflowTriggerScheduledRefMethods"`
+	Valid                              bool                               `json:"valid"` // Valid is true if WorkflowTriggerScheduledRefMethods is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullWorkflowTriggerScheduledRefMethods) Scan(value interface{}) error {
+	if value == nil {
+		ns.WorkflowTriggerScheduledRefMethods, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.WorkflowTriggerScheduledRefMethods.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullWorkflowTriggerScheduledRefMethods) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.WorkflowTriggerScheduledRefMethods), nil
+}
+
 type APIToken struct {
 	ID          pgtype.UUID      `json:"id"`
 	CreatedAt   pgtype.Timestamp `json:"createdAt"`
@@ -1792,17 +1876,18 @@ type WorkflowToWorkflowTag struct {
 }
 
 type WorkflowTriggerCronRef struct {
-	ParentId           pgtype.UUID      `json:"parentId"`
-	Cron               string           `json:"cron"`
-	TickerId           pgtype.UUID      `json:"tickerId"`
-	Input              []byte           `json:"input"`
-	Enabled            bool             `json:"enabled"`
-	AdditionalMetadata []byte           `json:"additionalMetadata"`
-	CreatedAt          pgtype.Timestamp `json:"createdAt"`
-	DeletedAt          pgtype.Timestamp `json:"deletedAt"`
-	UpdatedAt          pgtype.Timestamp `json:"updatedAt"`
-	Name               pgtype.Text      `json:"name"`
-	ID                 pgtype.UUID      `json:"id"`
+	ParentId           pgtype.UUID                   `json:"parentId"`
+	Cron               string                        `json:"cron"`
+	TickerId           pgtype.UUID                   `json:"tickerId"`
+	Input              []byte                        `json:"input"`
+	Enabled            bool                          `json:"enabled"`
+	AdditionalMetadata []byte                        `json:"additionalMetadata"`
+	CreatedAt          pgtype.Timestamp              `json:"createdAt"`
+	DeletedAt          pgtype.Timestamp              `json:"deletedAt"`
+	UpdatedAt          pgtype.Timestamp              `json:"updatedAt"`
+	Name               pgtype.Text                   `json:"name"`
+	ID                 pgtype.UUID                   `json:"id"`
+	Method             WorkflowTriggerCronRefMethods `json:"method"`
 }
 
 type WorkflowTriggerEventRef struct {
@@ -1811,19 +1896,20 @@ type WorkflowTriggerEventRef struct {
 }
 
 type WorkflowTriggerScheduledRef struct {
-	ID                  pgtype.UUID      `json:"id"`
-	ParentId            pgtype.UUID      `json:"parentId"`
-	TriggerAt           pgtype.Timestamp `json:"triggerAt"`
-	TickerId            pgtype.UUID      `json:"tickerId"`
-	Input               []byte           `json:"input"`
-	ChildIndex          pgtype.Int4      `json:"childIndex"`
-	ChildKey            pgtype.Text      `json:"childKey"`
-	ParentStepRunId     pgtype.UUID      `json:"parentStepRunId"`
-	ParentWorkflowRunId pgtype.UUID      `json:"parentWorkflowRunId"`
-	AdditionalMetadata  []byte           `json:"additionalMetadata"`
-	CreatedAt           pgtype.Timestamp `json:"createdAt"`
-	DeletedAt           pgtype.Timestamp `json:"deletedAt"`
-	UpdatedAt           pgtype.Timestamp `json:"updatedAt"`
+	ID                  pgtype.UUID                        `json:"id"`
+	ParentId            pgtype.UUID                        `json:"parentId"`
+	TriggerAt           pgtype.Timestamp                   `json:"triggerAt"`
+	TickerId            pgtype.UUID                        `json:"tickerId"`
+	Input               []byte                             `json:"input"`
+	ChildIndex          pgtype.Int4                        `json:"childIndex"`
+	ChildKey            pgtype.Text                        `json:"childKey"`
+	ParentStepRunId     pgtype.UUID                        `json:"parentStepRunId"`
+	ParentWorkflowRunId pgtype.UUID                        `json:"parentWorkflowRunId"`
+	AdditionalMetadata  []byte                             `json:"additionalMetadata"`
+	CreatedAt           pgtype.Timestamp                   `json:"createdAt"`
+	DeletedAt           pgtype.Timestamp                   `json:"deletedAt"`
+	UpdatedAt           pgtype.Timestamp                   `json:"updatedAt"`
+	Method              WorkflowTriggerScheduledRefMethods `json:"method"`
 }
 
 type WorkflowTriggers struct {

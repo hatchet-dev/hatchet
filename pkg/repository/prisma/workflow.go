@@ -385,6 +385,10 @@ func (w *workflowAPIRepository) CreateCronWorkflow(ctx context.Context, tenantId
 		Name:               sqlchelpers.TextFromStr(opts.Name),
 		Input:              input,
 		AdditionalMetadata: additionalMetadata,
+		Method: dbsqlc.NullWorkflowTriggerCronRefMethods{
+			Valid:                         true,
+			WorkflowTriggerCronRefMethods: dbsqlc.WorkflowTriggerCronRefMethodsAPI,
+		},
 	}
 
 	cronTrigger, err := w.queries.CreateWorkflowTriggerCronRefForWorkflow(ctx, w.pool, createParams)
@@ -516,7 +520,7 @@ func (r *workflowEngineRepository) CreateNewWorkflow(ctx context.Context, tenant
 		}
 	}
 
-	workflowVersionId, err := r.createWorkflowVersionTxs(ctx, tx, pgTenantId, workflowId, opts)
+	workflowVersionId, err := r.createWorkflowVersionTxs(ctx, tx, pgTenantId, workflowId, opts, nil)
 
 	if err != nil {
 		return nil, err
@@ -544,7 +548,7 @@ func (r *workflowEngineRepository) CreateNewWorkflow(ctx context.Context, tenant
 	return workflowVersion[0], nil
 }
 
-func (r *workflowEngineRepository) CreateWorkflowVersion(ctx context.Context, tenantId string, opts *repository.CreateWorkflowVersionOpts) (*dbsqlc.GetWorkflowVersionForEngineRow, error) {
+func (r *workflowEngineRepository) CreateWorkflowVersion(ctx context.Context, tenantId string, opts *repository.CreateWorkflowVersionOpts, oldWorkflowVersion *dbsqlc.GetWorkflowVersionForEngineRow) (*dbsqlc.GetWorkflowVersionForEngineRow, error) {
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
@@ -585,7 +589,7 @@ func (r *workflowEngineRepository) CreateWorkflowVersion(ctx context.Context, te
 
 	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
 
-	workflowVersionId, err := r.createWorkflowVersionTxs(ctx, tx, pgTenantId, workflow.ID, opts)
+	workflowVersionId, err := r.createWorkflowVersionTxs(ctx, tx, pgTenantId, workflow.ID, opts, oldWorkflowVersion)
 
 	if err != nil {
 		return nil, err
@@ -661,6 +665,10 @@ func (r *workflowAPIRepository) CreateScheduledWorkflow(ctx context.Context, ten
 		Scheduledtrigger:   sqlchelpers.TimestampFromTime(opts.ScheduledTrigger),
 		Input:              input,
 		Additionalmetadata: additionalMetadata,
+		Method: dbsqlc.NullWorkflowTriggerScheduledRefMethods{
+			Valid:                              true,
+			WorkflowTriggerScheduledRefMethods: dbsqlc.WorkflowTriggerScheduledRefMethodsAPI,
+		},
 	}
 
 	created, err := r.queries.CreateWorkflowTriggerScheduledRefForWorkflow(ctx, r.pool, createParams)
@@ -869,7 +877,7 @@ func (r *workflowAPIRepository) GetWorkflowWorkerCount(tenantId, workflowId stri
 
 }
 
-func (r *workflowEngineRepository) createWorkflowVersionTxs(ctx context.Context, tx pgx.Tx, tenantId, workflowId pgtype.UUID, opts *repository.CreateWorkflowVersionOpts) (string, error) {
+func (r *workflowEngineRepository) createWorkflowVersionTxs(ctx context.Context, tx pgx.Tx, tenantId, workflowId pgtype.UUID, opts *repository.CreateWorkflowVersionOpts, oldWorkflowVersion *dbsqlc.GetWorkflowVersionForEngineRow) (string, error) {
 	workflowVersionId := uuid.New().String()
 
 	var version pgtype.Text
@@ -1078,6 +1086,32 @@ func (r *workflowEngineRepository) createWorkflowVersionTxs(ctx context.Context,
 
 		if err != nil {
 			return "", err
+		}
+	}
+
+	if oldWorkflowVersion != nil {
+
+		fmt.Println("oldWorkflowVersion", sqlchelpers.UUIDToStr(oldWorkflowVersion.WorkflowVersion.ID))
+		fmt.Println("sqlcWorkflowTriggers", sqlchelpers.UUIDToStr(sqlcWorkflowTriggers.ID))
+
+		// move existing api crons to the new workflow version
+		err = r.queries.MoveCronTriggerToNewWorkflowTriggers(ctx, tx, dbsqlc.MoveCronTriggerToNewWorkflowTriggersParams{
+			Oldworkflowversionid: oldWorkflowVersion.WorkflowVersion.ID,
+			Newworkflowtriggerid: sqlcWorkflowTriggers.ID,
+		})
+
+		if err != nil {
+			return "", fmt.Errorf("could not move existing cron triggers to new workflow triggers: %w", err)
+		}
+
+		// move existing scheduled triggers to the new workflow version
+		err = r.queries.MoveScheduledTriggerToNewWorkflowTriggers(ctx, tx, dbsqlc.MoveScheduledTriggerToNewWorkflowTriggersParams{
+			Oldworkflowversionid: oldWorkflowVersion.WorkflowVersion.ID,
+			Newworkflowtriggerid: sqlcWorkflowTriggers.ID,
+		})
+
+		if err != nil {
+			return "", fmt.Errorf("could not move existing scheduled triggers to new workflow triggers: %w", err)
 		}
 	}
 
