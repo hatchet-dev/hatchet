@@ -108,15 +108,17 @@ type DesiredWorkerLabel struct {
 }
 
 type WorkflowStep struct {
-	Name          string                         `yaml:"name,omitempty"`
-	ID            string                         `yaml:"id,omitempty"`
-	ActionID      string                         `yaml:"action"`
-	Timeout       string                         `yaml:"timeout,omitempty"`
-	With          map[string]interface{}         `yaml:"with,omitempty"`
-	Parents       []string                       `yaml:"parents,omitempty"`
-	Retries       int                            `yaml:"retries"`
-	RateLimits    []RateLimit                    `yaml:"rateLimits,omitempty"`
-	DesiredLabels map[string]*DesiredWorkerLabel `yaml:"desiredLabels,omitempty"`
+	Name                   string                         `yaml:"name,omitempty"`
+	ID                     string                         `yaml:"id,omitempty"`
+	ActionID               string                         `yaml:"action"`
+	Timeout                string                         `yaml:"timeout,omitempty"`
+	With                   map[string]interface{}         `yaml:"with,omitempty"`
+	Parents                []string                       `yaml:"parents,omitempty"`
+	Retries                int                            `yaml:"retries"`
+	RateLimits             []RateLimit                    `yaml:"rateLimits,omitempty"`
+	DesiredLabels          map[string]*DesiredWorkerLabel `yaml:"desiredLabels,omitempty"`
+	RetryBackoffFactor     *float32                       `yaml:"retryBackoffFactor,omitempty"`
+	RetryMaxBackoffSeconds *int32                         `yaml:"retryMaxBackoffSeconds,omitempty"`
 }
 
 type RateLimit struct {

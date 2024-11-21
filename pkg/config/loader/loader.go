@@ -163,11 +163,11 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile, runtime *server.Co
 	config.ConnConfig.Tracer = otelpgx.NewTracer()
 
 	if cf.MaxConns != 0 {
-		config.MaxConns = int32(cf.MaxConns)
+		config.MaxConns = int32(cf.MaxConns) // nolint: gosec
 	}
 
 	if cf.MinConns != 0 {
-		config.MinConns = int32(cf.MinConns)
+		config.MinConns = int32(cf.MinConns) // nolint: gosec
 	}
 
 	config.MaxConnLifetime = 15 * 60 * time.Second

@@ -59,7 +59,7 @@ func (w *workerAPIRepository) ListWorkerState(tenantId, workerId string, maxRuns
 		Workerid: sqlchelpers.UUIDFromStr(workerId),
 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
 		Limit: pgtype.Int4{
-			Int32: int32(maxRuns),
+			Int32: int32(maxRuns), // nolint: gosec
 			Valid: true,
 		},
 	})
@@ -72,7 +72,7 @@ func (w *workerAPIRepository) ListWorkerState(tenantId, workerId string, maxRuns
 	assignedEvents, err := w.queries.ListRecentAssignedEventsForWorker(context.Background(), w.pool, dbsqlc.ListRecentAssignedEventsForWorkerParams{
 		Workerid: sqlchelpers.UUIDFromStr(workerId),
 		Limit: pgtype.Int4{
-			Int32: int32(maxRuns),
+			Int32: int32(maxRuns), // nolint: gosec
 			Valid: true,
 		},
 	})
@@ -259,7 +259,7 @@ func (w *workerEngineRepository) CreateNewWorker(ctx context.Context, tenantId s
 
 		if opts.MaxRuns != nil {
 			createParams.MaxRuns = pgtype.Int4{
-				Int32: int32(*opts.MaxRuns),
+				Int32: int32(*opts.MaxRuns), // nolint: gosec
 				Valid: true,
 			}
 		} else {

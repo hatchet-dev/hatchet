@@ -203,7 +203,9 @@ INSERT INTO "Step" (
     "timeout",
     "customUserData",
     "retries",
-    "scheduleTimeout"
+    "scheduleTimeout",
+    "retryBackoffFactor",
+    "retryMaxBackoff"
 ) VALUES (
     @id::uuid,
     coalesce(sqlc.narg('createdAt')::timestamp, CURRENT_TIMESTAMP),
@@ -216,7 +218,9 @@ INSERT INTO "Step" (
     sqlc.narg('timeout')::text,
     coalesce(sqlc.narg('customUserData')::jsonb, '{}'),
     coalesce(sqlc.narg('retries')::integer, 0),
-    coalesce(sqlc.narg('scheduleTimeout')::text, '5m')
+    coalesce(sqlc.narg('scheduleTimeout')::text, '5m'),
+    sqlc.narg('retryBackoffFactor'),
+    sqlc.narg('retryMaxBackoff')
 ) RETURNING *;
 
 -- name: AddStepParents :exec

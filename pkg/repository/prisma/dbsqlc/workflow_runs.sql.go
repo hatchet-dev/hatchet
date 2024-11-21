@@ -1506,7 +1506,7 @@ func (q *Queries) GetStepRunsForJobRunsWithOutput(ctx context.Context, db DBTX, 
 const getStepsForJobs = `-- name: GetStepsForJobs :many
 SELECT
 	j."id" as "jobId",
-    s.id, s."createdAt", s."updatedAt", s."deletedAt", s."readableId", s."tenantId", s."jobId", s."actionId", s.timeout, s."customUserData", s.retries, s."scheduleTimeout",
+    s.id, s."createdAt", s."updatedAt", s."deletedAt", s."readableId", s."tenantId", s."jobId", s."actionId", s.timeout, s."customUserData", s.retries, s."retryBackoffFactor", s."retryMaxBackoff", s."scheduleTimeout",
     (
         SELECT array_agg(so."A")::uuid[]  -- Casting the array_agg result to uuid[]
         FROM "_StepOrder" so
@@ -1553,6 +1553,8 @@ func (q *Queries) GetStepsForJobs(ctx context.Context, db DBTX, arg GetStepsForJ
 			&i.Step.Timeout,
 			&i.Step.CustomUserData,
 			&i.Step.Retries,
+			&i.Step.RetryBackoffFactor,
+			&i.Step.RetryMaxBackoff,
 			&i.Step.ScheduleTimeout,
 			&i.Parents,
 		); err != nil {
@@ -1569,7 +1571,7 @@ func (q *Queries) GetStepsForJobs(ctx context.Context, db DBTX, arg GetStepsForJ
 const getStepsForWorkflowVersion = `-- name: GetStepsForWorkflowVersion :many
 
 SELECT
-    "Step".id, "Step"."createdAt", "Step"."updatedAt", "Step"."deletedAt", "Step"."readableId", "Step"."tenantId", "Step"."jobId", "Step"."actionId", "Step".timeout, "Step"."customUserData", "Step".retries, "Step"."scheduleTimeout"  from "Step"
+    "Step".id, "Step"."createdAt", "Step"."updatedAt", "Step"."deletedAt", "Step"."readableId", "Step"."tenantId", "Step"."jobId", "Step"."actionId", "Step".timeout, "Step"."customUserData", "Step".retries, "Step"."retryBackoffFactor", "Step"."retryMaxBackoff", "Step"."scheduleTimeout"  from "Step"
 JOIN "Job" j ON "Step"."jobId" = j."id"
 WHERE
     j."workflowVersionId" = ANY($1::uuid[])
@@ -1596,6 +1598,8 @@ func (q *Queries) GetStepsForWorkflowVersion(ctx context.Context, db DBTX, workf
 			&i.Timeout,
 			&i.CustomUserData,
 			&i.Retries,
+			&i.RetryBackoffFactor,
+			&i.RetryMaxBackoff,
 			&i.ScheduleTimeout,
 		); err != nil {
 			return nil, err

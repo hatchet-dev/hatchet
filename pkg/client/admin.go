@@ -284,7 +284,7 @@ func (a *adminClientImpl) RunChildWorkflow(workflowName string, input interface{
 		workflowName = fmt.Sprintf("%s%s", a.namespace, workflowName)
 	}
 
-	childIndex := int32(opts.ChildIndex)
+	childIndex := int32(opts.ChildIndex) // nolint: gosec
 
 	metadataBytes, err := json.Marshal(opts.AdditionalMetadata)
 	if err != nil {
@@ -387,7 +387,7 @@ func (a *adminClientImpl) PutRateLimit(key string, opts *types.RateLimitOpts) er
 
 	putParams := &admincontracts.PutRateLimitRequest{
 		Key:   key,
-		Limit: int32(opts.Max),
+		Limit: int32(opts.Max), // nolint: gosec
 	}
 
 	switch opts.Duration {
@@ -507,12 +507,14 @@ func (a *adminClientImpl) getJobOpts(jobName string, job *types.WorkflowJob) (*a
 		}
 
 		stepOpt := &admincontracts.CreateWorkflowStepOpts{
-			ReadableId: step.ID,
-			Action:     step.ActionID,
-			Timeout:    step.Timeout,
-			Inputs:     string(inputBytes),
-			Parents:    step.Parents,
-			Retries:    int32(step.Retries),
+			ReadableId:        step.ID,
+			Action:            step.ActionID,
+			Timeout:           step.Timeout,
+			Inputs:            string(inputBytes),
+			Parents:           step.Parents,
+			Retries:           int32(step.Retries), // nolint: gosec
+			BackoffFactor:     step.RetryBackoffFactor,
+			BackoffMaxSeconds: step.RetryMaxBackoffSeconds,
 		}
 
 		for _, rateLimit := range step.RateLimits {
@@ -544,12 +546,12 @@ func (a *adminClientImpl) getJobOpts(jobName string, job *types.WorkflowJob) (*a
 					strValue := value
 					stepOpt.WorkerLabels[key].StrValue = &strValue
 				case int:
-					intValue := int32(value)
+					intValue := int32(value) // nolint: gosec
 					stepOpt.WorkerLabels[key].IntValue = &intValue
 				case int32:
 					stepOpt.WorkerLabels[key].IntValue = &value
 				case int64:
-					intValue := int32(value)
+					intValue := int32(value) // nolint: gosec
 					stepOpt.WorkerLabels[key].IntValue = &intValue
 				default:
 					// For any other type, convert to string

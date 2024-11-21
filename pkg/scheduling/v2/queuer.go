@@ -423,6 +423,7 @@ func (d *queuerDbQueries) MarkQueueItemsProcessed(ctx context.Context, r *assign
 		}
 
 		d.bulkStepRunsAssigned(sqlchelpers.UUIDToStr(d.tenantId), time.Now().UTC(), assignedStepRuns, assignedWorkerIds)
+		d.bulkStepRunsUnassigned(sqlchelpers.UUIDToStr(d.tenantId), unassignedStepRunIds)
 		d.bulkStepRunsRateLimited(sqlchelpers.UUIDToStr(d.tenantId), r.rateLimited)
 	}()
 
@@ -756,12 +757,6 @@ type Queuer struct {
 
 	unassigned   map[int64]*dbsqlc.QueueItem
 	unassignedMu mutex
-}
-
-type alreadyAssigned struct {
-	assignedQi      *dbsqlc.QueueItem
-	assignedAtBatch int
-	assignedAtCount int
 }
 
 func newQueuer(conf *sharedConfig, tenantId pgtype.UUID, queueName string, s *Scheduler, eventBuffer *buffer.BulkEventWriter, resultsCh chan<- *QueueResults) *Queuer {
