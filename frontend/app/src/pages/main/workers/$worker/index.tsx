@@ -212,7 +212,7 @@ export default function ExpandedWorkflowRun() {
         <div className="mb-4 text-sm text-gray-700 dark:text-gray-300">
           A slot represents one step run on a worker to limit load.{' '}
           <a
-            href="https://docs.hatchet.run/sdks/python-sdk/worker"
+            href="https://docs.hatchet.run/home/foundations_workers"
             className="underline"
           >
             Learn more.
@@ -267,7 +267,7 @@ export default function ExpandedWorkflowRun() {
           assignment of steps to specific workers.{' '}
           <a
             className="underline"
-            href="https://docs.hatchet.run/home/features/worker-assignment/worker-affinity#specifying-worker-labels"
+            href="https://docs.hatchet.run/home/assignment_worker-affinity"
           >
             Learn more.
           </a>

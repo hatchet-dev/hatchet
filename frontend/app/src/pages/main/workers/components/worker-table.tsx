@@ -82,7 +82,7 @@ export function WorkersTable() {
       </CardHeader>
       <CardFooter>
         <a
-          href="https://docs.hatchet.run/home/basics/workers"
+          href="https://docs.hatchet.run/home/foundations_workers"
           className="flex flex-row item-center"
         >
           <Button onClick={() => {}} variant="link" className="p-0 w-fit">
