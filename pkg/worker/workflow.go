@@ -317,6 +317,10 @@ type WorkflowStep struct {
 
 	Retries int
 
+	RetryBackoffFactor *float32
+
+	RetryMaxBackoffSeconds *int32
+
 	RateLimit []RateLimit
 
 	DesiredLabels map[string]*types.DesiredWorkerLabel
@@ -370,6 +374,16 @@ func (w *WorkflowStep) SetTimeout(timeout string) *WorkflowStep {
 
 func (w *WorkflowStep) SetRetries(retries int) *WorkflowStep {
 	w.Retries = retries
+	return w
+}
+
+func (w *WorkflowStep) SetRetryBackoffFactor(retryBackoffFactor float32) *WorkflowStep {
+	w.RetryBackoffFactor = &retryBackoffFactor
+	return w
+}
+
+func (w *WorkflowStep) SetRetryMaxBackoffSeconds(retryMaxBackoffSeconds int32) *WorkflowStep {
+	w.RetryMaxBackoffSeconds = &retryMaxBackoffSeconds
 	return w
 }
 
@@ -429,13 +443,15 @@ func (w *WorkflowStep) ToWorkflowStep(svcName string, index int, namespace strin
 	res.Id = w.GetStepId(index)
 
 	res.APIStep = types.WorkflowStep{
-		Name:          res.Id,
-		ID:            w.GetStepId(index),
-		Timeout:       w.Timeout,
-		ActionID:      w.GetActionId(svcName, index),
-		Parents:       []string{},
-		Retries:       w.Retries,
-		DesiredLabels: w.DesiredLabels,
+		Name:                   res.Id,
+		ID:                     w.GetStepId(index),
+		Timeout:                w.Timeout,
+		ActionID:               w.GetActionId(svcName, index),
+		Parents:                []string{},
+		Retries:                w.Retries,
+		DesiredLabels:          w.DesiredLabels,
+		RetryBackoffFactor:     w.RetryBackoffFactor,
+		RetryMaxBackoffSeconds: w.RetryMaxBackoffSeconds,
 	}
 
 	for _, rateLimit := range w.RateLimit {

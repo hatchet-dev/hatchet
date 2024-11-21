@@ -303,7 +303,7 @@ func ToWorkflowVersionFromSQLC(row *dbsqlc.WorkflowVersion, workflow *gen.Workfl
 		Metadata:   *toAPIMetadata(pgUUIDToStr(row.ID), row.CreatedAt.Time, row.UpdatedAt.Time),
 		Version:    row.Version.String,
 		WorkflowId: pgUUIDToStr(row.WorkflowId),
-		Order:      int32(row.Order),
+		Order:      int32(row.Order), // nolint: gosec
 		Workflow:   workflow,
 	}
 

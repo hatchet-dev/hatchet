@@ -37,6 +37,7 @@ type queue struct {
 	updateStepRunOperations   *queueutils.OperationPool
 	updateStepRunV2Operations *queueutils.OperationPool
 	timeoutStepRunOperations  *queueutils.OperationPool
+	retryStepRunOperations    *queueutils.OperationPool
 }
 
 func newQueue(
@@ -68,6 +69,7 @@ func newQueue(
 	q.updateStepRunOperations = queueutils.NewOperationPool(ql, time.Second*30, "update step runs", q.processStepRunUpdates)
 	q.updateStepRunV2Operations = queueutils.NewOperationPool(ql, time.Second*30, "update step runs (v2)", q.processStepRunUpdatesV2)
 	q.timeoutStepRunOperations = queueutils.NewOperationPool(ql, time.Second*30, "timeout step runs", q.processStepRunTimeouts)
+	q.retryStepRunOperations = queueutils.NewOperationPool(ql, time.Second*30, "retry step runs", q.processStepRunRetries)
 
 	return q, nil
 }
@@ -100,6 +102,18 @@ func (q *queue) Start() (func() error, error) {
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("could not schedule step run timeout: %w", err)
+	}
+
+	_, err = q.s.NewJob(
+		gocron.DurationJob(time.Second*1),
+		gocron.NewTask(
+			q.runTenantRetryStepRuns(ctx),
+		),
+	)
+
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("could not schedule step run retry: %w", err)
 	}
 
 	_, err = q.s.NewJob(
@@ -422,6 +436,28 @@ func (q *queue) runTenantTimeoutStepRuns(ctx context.Context) func() {
 	}
 }
 
+func (q *queue) runTenantRetryStepRuns(ctx context.Context) func() {
+	return func() {
+		q.l.Debug().Msgf("partition: running retry for step runs")
+
+		// list all tenants
+		tenants, err := q.repo.Tenant().ListTenantsByControllerPartition(ctx, q.p.GetControllerPartitionId())
+
+		if err != nil {
+			q.l.Err(err).Msg("could not list tenants")
+			return
+		}
+
+		q.retryStepRunOperations.SetTenants(tenants)
+
+		for i := range tenants {
+			tenantId := sqlchelpers.UUIDToStr(tenants[i].ID)
+
+			q.retryStepRunOperations.RunOrContinue(tenantId)
+		}
+	}
+}
+
 func (q *queue) processStepRunTimeouts(ctx context.Context, tenantId string) (bool, error) {
 	ctx, span := telemetry.NewSpan(ctx, "handle-step-run-timeout")
 	defer span.End()
@@ -466,6 +502,52 @@ func (q *queue) processStepRunTimeouts(ctx context.Context, tenantId string) (bo
 
 	if err != nil {
 		return false, fmt.Errorf("could not process step run timeouts: %w", err)
+	}
+
+	return shouldContinue, nil
+}
+
+func (q *queue) processStepRunRetries(ctx context.Context, tenantId string) (bool, error) {
+	ctx, span := telemetry.NewSpan(ctx, "handle-step-run-timeout")
+	defer span.End()
+
+	shouldContinue, stepRuns, err := q.repo.StepRun().ListRetryableStepRuns(ctx, tenantId)
+
+	if err != nil {
+		return false, fmt.Errorf("could not list step runs to retry for tenant %s: %w", tenantId, err)
+	}
+
+	if num := len(stepRuns); num > 0 {
+		q.l.Info().Msgf("retrying %d step runs", num)
+	}
+
+	err = queueutils.BatchConcurrent(10, stepRuns, func(group []*dbsqlc.GetStepRunForEngineRow) error {
+		scheduleCtx, cancel := context.WithTimeout(context.Background(), time.Minute)
+		defer cancel()
+
+		scheduleCtx, span := telemetry.NewSpan(scheduleCtx, "handle-step-run-retry-step-run")
+		defer span.End()
+
+		for i := range group {
+			stepRunCp := group[i]
+			stepRunCp.SRRetryCount++
+
+			if err := q.mq.AddMessage(
+				scheduleCtx,
+				msgqueue.JOB_PROCESSING_QUEUE,
+				tasktypes.StepRunQueuedToTask(
+					stepRunCp,
+				),
+			); err != nil {
+				q.l.Error().Err(err).Msg("could not add step run retry task to job controller queue")
+			}
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return false, fmt.Errorf("could not process step run retries: %w", err)
 	}
 
 	return shouldContinue, nil

@@ -128,6 +128,7 @@ func GetClientConfigFromConfigFile(cf *client.ClientConfigFile) (res *client.Cli
 		Namespace:            namespace,
 		CloudRegisterID:      cf.CloudRegisterID,
 		RunnableActions:      rawRunnableActions,
+		NoGrpcRetry:          cf.NoGrpcRetry,
 	}, nil
 }
 

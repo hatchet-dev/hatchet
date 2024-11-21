@@ -204,6 +204,8 @@ SELECT
     s."scheduleTimeout" AS "stepScheduleTimeout",
     s."readableId" AS "stepReadableId",
     s."customUserData" AS "stepCustomUserData",
+    s."retryBackoffFactor" AS "stepRetryBackoffFactor",
+    s."retryMaxBackoff" AS "stepRetryMaxBackoff",
     j."name" AS "jobName",
     j."id" AS "jobId",
     j."kind" AS "jobKind",
@@ -663,8 +665,7 @@ WITH step_runs_on_inactive_workers AS (
         "Step" s ON sr."stepId" = s."id"
     WHERE
         w."tenantId" = @tenantId::uuid
-        AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
-),
+        AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'),
 step_runs_to_reassign AS (
     SELECT
         *

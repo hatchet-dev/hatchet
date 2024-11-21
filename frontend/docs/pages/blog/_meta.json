@@ -1,4 +1,7 @@
 {
+  "postgres-events-table": {
+    "title": "Use Postgres for your events table"
+  },
   "migrating-off-prisma": {
     "title": "Why we moved off Prisma"
   },

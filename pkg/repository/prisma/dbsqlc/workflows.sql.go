@@ -312,7 +312,9 @@ INSERT INTO "Step" (
     "timeout",
     "customUserData",
     "retries",
-    "scheduleTimeout"
+    "scheduleTimeout",
+    "retryBackoffFactor",
+    "retryMaxBackoff"
 ) VALUES (
     $1::uuid,
     coalesce($2::timestamp, CURRENT_TIMESTAMP),
@@ -325,23 +327,27 @@ INSERT INTO "Step" (
     $9::text,
     coalesce($10::jsonb, '{}'),
     coalesce($11::integer, 0),
-    coalesce($12::text, '5m')
-) RETURNING id, "createdAt", "updatedAt", "deletedAt", "readableId", "tenantId", "jobId", "actionId", timeout, "customUserData", retries, "scheduleTimeout"
+    coalesce($12::text, '5m'),
+    $13,
+    $14
+) RETURNING id, "createdAt", "updatedAt", "deletedAt", "readableId", "tenantId", "jobId", "actionId", timeout, "customUserData", retries, "retryBackoffFactor", "retryMaxBackoff", "scheduleTimeout"
 `
 
 type CreateStepParams struct {
-	ID              pgtype.UUID      `json:"id"`
-	CreatedAt       pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt       pgtype.Timestamp `json:"updatedAt"`
-	Deletedat       pgtype.Timestamp `json:"deletedat"`
-	Readableid      string           `json:"readableid"`
-	Tenantid        pgtype.UUID      `json:"tenantid"`
-	Jobid           pgtype.UUID      `json:"jobid"`
-	Actionid        string           `json:"actionid"`
-	Timeout         pgtype.Text      `json:"timeout"`
-	CustomUserData  []byte           `json:"customUserData"`
-	Retries         pgtype.Int4      `json:"retries"`
-	ScheduleTimeout pgtype.Text      `json:"scheduleTimeout"`
+	ID                 pgtype.UUID      `json:"id"`
+	CreatedAt          pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt          pgtype.Timestamp `json:"updatedAt"`
+	Deletedat          pgtype.Timestamp `json:"deletedat"`
+	Readableid         string           `json:"readableid"`
+	Tenantid           pgtype.UUID      `json:"tenantid"`
+	Jobid              pgtype.UUID      `json:"jobid"`
+	Actionid           string           `json:"actionid"`
+	Timeout            pgtype.Text      `json:"timeout"`
+	CustomUserData     []byte           `json:"customUserData"`
+	Retries            pgtype.Int4      `json:"retries"`
+	ScheduleTimeout    pgtype.Text      `json:"scheduleTimeout"`
+	RetryBackoffFactor pgtype.Float8    `json:"retryBackoffFactor"`
+	RetryMaxBackoff    pgtype.Int4      `json:"retryMaxBackoff"`
 }
 
 func (q *Queries) CreateStep(ctx context.Context, db DBTX, arg CreateStepParams) (*Step, error) {
@@ -358,6 +364,8 @@ func (q *Queries) CreateStep(ctx context.Context, db DBTX, arg CreateStepParams)
 		arg.CustomUserData,
 		arg.Retries,
 		arg.ScheduleTimeout,
+		arg.RetryBackoffFactor,
+		arg.RetryMaxBackoff,
 	)
 	var i Step
 	err := row.Scan(
@@ -372,6 +380,8 @@ func (q *Queries) CreateStep(ctx context.Context, db DBTX, arg CreateStepParams)
 		&i.Timeout,
 		&i.CustomUserData,
 		&i.Retries,
+		&i.RetryBackoffFactor,
+		&i.RetryMaxBackoff,
 		&i.ScheduleTimeout,
 	)
 	return &i, err
@@ -1480,7 +1490,7 @@ func (q *Queries) ListWorkflowsForEvent(ctx context.Context, db DBTX, arg ListWo
 
 const listWorkflowsLatestRuns = `-- name: ListWorkflowsLatestRuns :many
 SELECT
-    DISTINCT ON (workflow."id") runs."createdAt", runs."updatedAt", runs."deletedAt", runs."tenantId", runs."workflowVersionId", runs.status, runs.error, runs."startedAt", runs."finishedAt", runs."concurrencyGroupId", runs."displayName", runs.id, runs."childIndex", runs."childKey", runs."parentId", runs."parentStepRunId", runs."additionalMetadata", runs.duration, runs.priority, runs."insertOrder", workflow."id" as "workflowId"
+    DISTINCT ON (workflow."id") runs."createdAt", runs."updatedAt", runs."deletedAt", runs."tenantId", runs."workflowVersionId", runs.status, runs.error, runs."startedAt", runs."finishedAt", runs."concurrencyGroupId", runs."displayName", runs.id, runs."childIndex", runs."childKey", runs."parentId", runs."parentStepRunId", runs."additionalMetadata", runs.duration, runs.priority, runs."insertOrder", runs."identityId", workflow."id" as "workflowId"
 FROM
     "WorkflowRun" as runs
 LEFT JOIN
@@ -1562,6 +1572,7 @@ func (q *Queries) ListWorkflowsLatestRuns(ctx context.Context, db DBTX, arg List
 			&i.WorkflowRun.Duration,
 			&i.WorkflowRun.Priority,
 			&i.WorkflowRun.InsertOrder,
+			&i.WorkflowRun.IdentityId,
 			&i.WorkflowId,
 		); err != nil {
 			return nil, err

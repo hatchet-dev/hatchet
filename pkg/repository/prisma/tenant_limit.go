@@ -52,22 +52,22 @@ func (t *tenantLimitRepository) DefaultLimits() []repository.Limit {
 	return []repository.Limit{
 		{
 			Resource:         dbsqlc.LimitResourceWORKFLOWRUN,
-			Limit:            int32(t.config.Limits.DefaultWorkflowRunLimit),
-			Alarm:            int32(t.config.Limits.DefaultWorkflowRunAlarmLimit),
+			Limit:            int32(t.config.Limits.DefaultWorkflowRunLimit),      // nolint: gosec
+			Alarm:            int32(t.config.Limits.DefaultWorkflowRunAlarmLimit), // nolint: gosec
 			Window:           &t.config.Limits.DefaultWorkflowRunWindow,
 			CustomValueMeter: false,
 		},
 		{
 			Resource:         dbsqlc.LimitResourceEVENT,
-			Limit:            int32(t.config.Limits.DefaultEventLimit),
-			Alarm:            int32(t.config.Limits.DefaultEventAlarmLimit),
+			Limit:            int32(t.config.Limits.DefaultEventLimit),      // nolint: gosec
+			Alarm:            int32(t.config.Limits.DefaultEventAlarmLimit), // nolint: gosec
 			Window:           &t.config.Limits.DefaultEventWindow,
 			CustomValueMeter: false,
 		},
 		{
 			Resource:         dbsqlc.LimitResourceWORKER,
-			Limit:            int32(t.config.Limits.DefaultWorkerLimit),
-			Alarm:            int32(t.config.Limits.DefaultWorkerAlarmLimit),
+			Limit:            int32(t.config.Limits.DefaultWorkerLimit),      // nolint: gosec
+			Alarm:            int32(t.config.Limits.DefaultWorkerAlarmLimit), // nolint: gosec
 			Window:           nil,
 			CustomValueMeter: true,
 		},
@@ -194,7 +194,7 @@ func (t *tenantLimitRepository) GetLimits(ctx context.Context, tenantId string) 
 			if err != nil {
 				return nil, err
 			}
-			limit.Value = int32(workerCount)
+			limit.Value = int32(workerCount) // nolint: gosec
 		}
 
 	}
@@ -235,7 +235,7 @@ func (t *tenantLimitRepository) CanCreate(ctx context.Context, resource dbsqlc.L
 	// patch custom worker limits aggregate methods
 	if resource == dbsqlc.LimitResourceWORKER {
 		count, err := t.queries.CountTenantWorkers(ctx, t.pool, sqlchelpers.UUIDFromStr(tenantId))
-		value = int32(count)
+		value = int32(count) // nolint: gosec
 
 		if err != nil {
 			return false, 0, err

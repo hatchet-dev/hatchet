@@ -334,7 +334,9 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 			workerIds = append(workerIds, sqlchelpers.UUIDToStr(assigned.WorkerId))
 		}
 
-		dispatcherIdWorkerIds, err := s.repo.Worker().GetDispatcherIdsForWorkers(ctx, tenantId, workerIds)
+		var dispatcherIdWorkerIds map[string][]string
+
+		dispatcherIdWorkerIds, err = s.repo.Worker().GetDispatcherIdsForWorkers(ctx, tenantId, workerIds)
 
 		if err != nil {
 			s.internalRetry(ctx, tenantId, res.Assigned...)
