@@ -9,8 +9,8 @@ interface UniversalTabsProps {
 
 export const UniversalTabs: React.FC<UniversalTabsProps> = ({ children, key = "worker" }) => {
   const { selected, setSelectedLanguage, languages } = useLanguage();
-  
-  const selectedIndex = selected[key] 
+
+  const selectedIndex = selected[key]
     ? languages[key].findIndex(lang => lang.name === selected[key]?.name)
     : 0;
 

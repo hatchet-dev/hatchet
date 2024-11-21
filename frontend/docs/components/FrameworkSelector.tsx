@@ -13,8 +13,8 @@ import {
   } from "@/components/ui/dialog"
 import { Button } from '@/components/ui/button';
 import { BiChevronDown, BiPlus } from 'react-icons/bi';
-  
-  
+
+
 interface FrameworkSelectorProps {
   className?: string;
 }
@@ -39,7 +39,7 @@ export const FrameworkSelector: React.FC<FrameworkSelectorProps> = ({ className 
               Select the programming language and frameworks you want to use for code examples.
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="space-y-4">
             <div className="space-y-2">
               <h4 className="font-medium">Hatchet Worker Language</h4>
@@ -51,10 +51,10 @@ export const FrameworkSelector: React.FC<FrameworkSelectorProps> = ({ className 
                   <button
                     key={lang.name}
                     className={`
-                      aspect-square flex flex-col items-center justify-center gap-1.5 
+                      aspect-square flex flex-col items-center justify-center gap-1.5
                       border rounded-md hover:bg-gray-50 transition-colors p-1
-                      ${selected.worker?.name === lang.name 
-                        ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500 ring-opacity-50 text-blue-900' 
+                      ${selected.worker?.name === lang.name
+                        ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500 ring-opacity-50 text-blue-900'
                         : ''}
                     `}
                     onClick={() => setSelectedLanguage("worker", lang)}
@@ -67,7 +67,7 @@ export const FrameworkSelector: React.FC<FrameworkSelectorProps> = ({ className 
                 ))}
               </div>
             </div>
-            
+
             <div className="space-y-2">
               <h4 className="font-medium">API Server</h4>
               <p className="text-sm">
@@ -79,10 +79,10 @@ export const FrameworkSelector: React.FC<FrameworkSelectorProps> = ({ className 
                     <button
                       key={lang.name}
                       className={`
-                        aspect-square flex flex-col items-center justify-center gap-2.5 
+                        aspect-square flex flex-col items-center justify-center gap-2.5
                         border rounded-md hover:bg-gray-50 transition-colors p-1
-                        ${selected['api-server']?.name === lang.name 
-                          ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500 ring-opacity-50 text-blue-900' 
+                        ${selected['api-server']?.name === lang.name
+                          ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500 ring-opacity-50 text-blue-900'
                           : ''}
                       `}
                       onClick={() => setSelectedLanguage("api-server", lang)}
