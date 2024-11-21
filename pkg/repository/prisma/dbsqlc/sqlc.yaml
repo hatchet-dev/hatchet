@@ -25,7 +25,7 @@ sql:
       - queue.sql
       - lease.sql
     schema:
-      - schema.sql
+      - ../../../../sql/schema/schema.sql
     strict_order_by: false
     gen:
       go:

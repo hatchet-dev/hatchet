@@ -117,8 +117,10 @@ export HATCHET_CLIENT_TOKEN="$(go run ./cmd/hatchet-admin token create --tenant-
 
 ## Working with Database Models
 
-1. Add or modify the model schema in `./prisma/schema.prisma`
-2. Create or modify the required SQL queries in `./pkg/repository/prisma/dbsqlc`
-3. Add new queries files to `./pkg/repository/prisma/dbsqlc/sqlc.yaml`
-4. Create a new migration file with `task prisma-migrate`
-5. Generate Go with `task generate-all`
+1. Create or modify the required SQL queries in `./pkg/repository/prisma/dbsqlc`
+2. Add new queries files to `./pkg/repository/prisma/dbsqlc/sqlc.yaml`
+3. Make schema changes in `./sql/schema/schema.sql`
+4. Create a new migration file with `task migrate`
+5. Rename the migration file in `./sql/migrations/` to match the latest tag.
+6. Generate Go with `task generate-all`
+7. Run ```atlas migrate hash --dir "file://sql/migrations"``` to generate the atlas hash.
