@@ -6,6 +6,7 @@ import RelativeDate from '@/components/molecules/relative-date';
 import { Link } from 'react-router-dom';
 import { DataTableRowActions } from '@/components/molecules/data-table/data-table-row-actions';
 import { AdditionalMetadata } from '../../events/components/additional-metadata';
+import { Badge } from '@/components/ui/badge';
 
 export const columns = ({
   onDeleteClick,
@@ -42,7 +43,15 @@ export const columns = ({
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title="Name" />
       ),
-      cell: ({ row }) => <div>{row.original.name}</div>,
+      cell: ({ row }) => (
+        <div>
+          {row.original.method === 'API' ? (
+            row.original.name
+          ) : (
+            <Badge variant="outline">Defined in code</Badge>
+          )}
+        </div>
+      ),
     },
     {
       accessorKey: 'Workflow',
