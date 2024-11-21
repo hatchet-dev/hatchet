@@ -6,7 +6,7 @@ import {
   SortingState,
   VisibilityState,
 } from '@tanstack/react-table';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import {
   CronWorkflows,
   CronWorkflowsOrderByField,
@@ -25,7 +25,6 @@ import { DeleteCron } from './delete-cron';
 export function CronsTable() {
   const { tenant } = useOutletContext<TenantContextType>();
   const [searchParams, setSearchParams] = useSearchParams();
-  const queryClient = useQueryClient();
 
   invariant(tenant);
 

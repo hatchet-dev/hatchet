@@ -17,7 +17,7 @@ import { Button } from '@/components/ui/button';
 import invariant from 'tiny-invariant';
 import { useApiError } from '@/lib/hooks';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { ChevronDownIcon, PlusIcon } from '@heroicons/react/24/outline';
+import { PlusIcon } from '@heroicons/react/24/outline';
 import { cn } from '@/lib/utils';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import { TenantContextType } from '@/lib/outlet';
@@ -26,12 +26,9 @@ import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import CronPrettifier from 'cronstrue';
 import { DateTimePicker } from '@/components/molecules/time-picker/date-time-picker';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import { ToolbarType } from '@/components/molecules/data-table/data-table-toolbar';
+import { BiDownArrowCircle } from 'react-icons/bi';
+import { Combobox } from '@/components/molecules/combobox/combobox';
 
 type TimingOption = 'now' | 'schedule' | 'cron';
 
@@ -82,11 +79,7 @@ export function TriggerWorkflowForm({
     setErrors,
   });
 
-  const {
-    data: workflowKeys,
-    isLoading: workflowKeysIsLoading,
-    error: workflowKeysError,
-  } = useQuery({
+  const { data: workflowKeys } = useQuery({
     ...queries.workflows.list(tenant.metadata.id),
   });
 
@@ -163,7 +156,7 @@ export function TriggerWorkflowForm({
       if (!workflowRun) {
         return;
       }
-
+      onClose();
       navigate(`/scheduled`);
     },
     onError: handleApiError,
@@ -254,42 +247,29 @@ export function TriggerWorkflowForm({
         }
       }}
     >
-      <DialogContent className="sm:max-w-[625px] py-12">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-[625px] py-12 max-h-screen overflow-auto">
+        <DialogHeader className="gap-2">
           <DialogTitle>Trigger Workflow</DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-muted-foreground">
             Trigger a workflow to run now, at a scheduled time, or on a cron
             schedule.
           </DialogDescription>
         </DialogHeader>
 
         <div className="font-bold">Workflow</div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button aria-label="Select Workflow" variant="outline">
-              {workflow?.name} <ChevronDownIcon className="h-4 w-4 ml-2" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent>
-            {workflowKeysIsLoading && (
-              <DropdownMenuItem>Loading workflows...</DropdownMenuItem>
-            )}
-            {workflowKeysError && (
-              <DropdownMenuItem disabled>
-                Error loading workflows
-              </DropdownMenuItem>
-            )}
-            {workflowKeys?.rows?.map((w) => (
-              <DropdownMenuItem
-                key={w.metadata.id}
-                onClick={() => setSelectedWorkflowId(w.metadata.id)}
-              >
-                {w.name}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-
+        <Combobox
+          values={selectedWorkflowId ? [selectedWorkflowId] : []}
+          setValues={(values) => setSelectedWorkflowId(values[0])}
+          title="Select Workflow"
+          options={workflowKeys?.rows?.map((w) => ({
+            value: w.metadata.id,
+            label: w.name,
+          }))}
+          type={ToolbarType.Radio}
+          icon={
+            <BiDownArrowCircle className="h-5 w-5 text-gray-700 dark:text-gray-300 mr-2" />
+          }
+        />
         <div className="font-bold">Input</div>
         <CodeEditor
           code={input || '{}'}
