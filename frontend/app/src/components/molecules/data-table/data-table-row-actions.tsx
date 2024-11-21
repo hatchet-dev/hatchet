@@ -16,6 +16,7 @@ interface DataTableRowActionsProps<TData extends IDGetter> {
   actions?: {
     label: string;
     onClick: (data: TData) => void;
+    disabled?: boolean | string;
   }[];
 }
 
@@ -43,6 +44,7 @@ export function DataTableRowActions<TData extends IDGetter>({
           <DropdownMenuItem
             key={action.label}
             onClick={() => action.onClick(row.original)}
+            disabled={!!action.disabled}
           >
             {action.label}
           </DropdownMenuItem>

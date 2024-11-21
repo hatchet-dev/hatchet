@@ -781,6 +781,7 @@ export interface ScheduledWorkflows {
    * @example "bb214807-246e-43a5-a25d-41761d1cff9e"
    */
   workflowRunId?: string;
+  method?: 'DEFAULT' | 'API';
 }
 
 export interface ScheduledWorkflowsList {
@@ -813,6 +814,8 @@ export interface CronWorkflows {
   name?: string;
   input?: Record<string, any>;
   additionalMetadata?: Record<string, any>;
+  enabled: boolean;
+  method: 'DEFAULT' | 'API';
 }
 
 export interface CronWorkflowsList {

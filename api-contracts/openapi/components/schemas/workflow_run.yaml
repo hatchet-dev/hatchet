@@ -208,6 +208,8 @@ ScheduledWorkflows:
       minLength: 36
       maxLength: 36
       format: uuid
+    method:
+      $ref: "#/ScheduledWorkflowsMethod"
   required:
     - metadata
     - tenantId
@@ -215,6 +217,13 @@ ScheduledWorkflows:
     - workflowName
     - workflowId
     - triggerAt
+
+
+ScheduledWorkflowsMethod:
+  type: string
+  enum:
+    - DEFAULT
+    - API
 
 ScheduledWorkflowsList:
   type: object
@@ -225,6 +234,12 @@ ScheduledWorkflowsList:
         $ref: "#/ScheduledWorkflows"
     pagination:
       $ref: "./metadata.yaml#/PaginationResponse"
+
+CronWorkflowsMethod:
+  type: string
+  enum:
+    - DEFAULT
+    - API
 
 CronWorkflows:
   type: object
@@ -249,6 +264,10 @@ CronWorkflows:
     additionalMetadata:
       type: object
       additionalProperties: true
+    enabled:
+      type: boolean
+    method:
+      $ref: "#/CronWorkflowsMethod"
   required:
     - metadata
     - tenantId
@@ -256,6 +275,8 @@ CronWorkflows:
     - workflowName
     - workflowId
     - cron
+    - enabled
+    - method
 
 CronWorkflowsList:
   type: object

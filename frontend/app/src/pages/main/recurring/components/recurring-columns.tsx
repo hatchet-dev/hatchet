@@ -5,6 +5,7 @@ import CronPrettifier from 'cronstrue';
 import RelativeDate from '@/components/molecules/relative-date';
 import { Link } from 'react-router-dom';
 import { DataTableRowActions } from '@/components/molecules/data-table/data-table-row-actions';
+import { AdditionalMetadata } from '../../events/components/additional-metadata';
 
 export const columns = ({
   onDeleteClick,
@@ -18,8 +19,20 @@ export const columns = ({
         <DataTableColumnHeader column={column} title="Cron" />
       ),
       cell: ({ row }) => (
-        <div className="flex flex-row items-center gap-4 pl-4">
+        <div className="flex flex-row items-center gap-4 pl-4 whitespace-nowrap">
           {row.original.cron}
+        </div>
+      ),
+      enableSorting: false,
+    },
+    {
+      accessorKey: 'readable',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Readable" />
+      ),
+      cell: ({ row }) => (
+        <div className="flex flex-row items-center gap-4 pl-4">
+          runs {CronPrettifier.toString(row.original.cron).toLowerCase()} UTC
         </div>
       ),
       enableSorting: false,
@@ -30,18 +43,6 @@ export const columns = ({
         <DataTableColumnHeader column={column} title="Name" />
       ),
       cell: ({ row }) => <div>{row.original.name}</div>,
-    },
-    {
-      accessorKey: 'readable',
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Readable" />
-      ),
-      cell: ({ row }) => (
-        <div className="flex flex-row items-center gap-4 pl-4">
-          (runs {CronPrettifier.toString(row.original.cron).toLowerCase()} UTC)
-        </div>
-      ),
-      enableSorting: false,
     },
     {
       accessorKey: 'Workflow',
@@ -60,20 +61,22 @@ export const columns = ({
       enableSorting: false,
       enableHiding: true,
     },
-    // {
-    //   accessorKey: 'Metadata',
-    //   header: ({ column }) => (
-    //     <DataTableColumnHeader column={column} title="Metadata" />
-    //   ),
-    //   cell: ({ row }) => {
-    //     if (!row.original.additionalMetadata) {
-    //       return <div></div>;
-    //     }
+    {
+      accessorKey: 'Metadata',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Metadata" />
+      ),
+      cell: ({ row }) => {
+        if (!row.original.additionalMetadata) {
+          return <div></div>;
+        }
 
-    //     return <AdditionalMetadata metadata={row.original.additionalMetadata} />;
-    //   },
-    //   enableSorting: false,
-    // },
+        return (
+          <AdditionalMetadata metadata={row.original.additionalMetadata} />
+        );
+      },
+      enableSorting: false,
+    },
     {
       accessorKey: 'createdAt',
       header: ({ column }) => (
@@ -87,6 +90,20 @@ export const columns = ({
       enableSorting: true,
       enableHiding: true,
     },
+    // {
+    //   accessorKey: 'method',
+    //   header: ({ column }) => (
+    //     <DataTableColumnHeader column={column} title="Create Method" />
+    //   ),
+    //   cell: ({ row }) => <div>{row.original.method}</div>,
+    // },
+    // {
+    //   accessorKey: 'enabled',
+    //   header: ({ column }) => (
+    //     <DataTableColumnHeader column={column} title="Enabled" />
+    //   ),
+    //   cell: ({ row }) => <div>{row.original.enabled ? 'Yes' : 'No'}</div>,
+    // },
     {
       accessorKey: 'actions',
       header: ({ column }) => (
@@ -100,6 +117,7 @@ export const columns = ({
               {
                 label: 'Delete',
                 onClick: () => onDeleteClick(row.original),
+                disabled: row.original.method !== 'API',
               },
             ]}
           />

@@ -23,6 +23,12 @@ const (
 	CookieAuthScopes = "cookieAuth.Scopes"
 )
 
+// Defines values for CronWorkflowsMethod.
+const (
+	CronWorkflowsMethodAPI     CronWorkflowsMethod = "API"
+	CronWorkflowsMethodDEFAULT CronWorkflowsMethod = "DEFAULT"
+)
+
 // Defines values for CronWorkflowsOrderByField.
 const (
 	CronWorkflowsOrderByFieldCreatedAt CronWorkflowsOrderByField = "createdAt"
@@ -90,6 +96,12 @@ const (
 	ScheduledRunStatusRUNNING   ScheduledRunStatus = "RUNNING"
 	ScheduledRunStatusSCHEDULED ScheduledRunStatus = "SCHEDULED"
 	ScheduledRunStatusSUCCEEDED ScheduledRunStatus = "SUCCEEDED"
+)
+
+// Defines values for ScheduledWorkflowsMethod.
+const (
+	ScheduledWorkflowsMethodAPI     ScheduledWorkflowsMethod = "API"
+	ScheduledWorkflowsMethodDEFAULT ScheduledWorkflowsMethod = "DEFAULT"
 )
 
 // Defines values for ScheduledWorkflowsOrderByField.
@@ -389,14 +401,19 @@ type CreateTenantRequest struct {
 type CronWorkflows struct {
 	AdditionalMetadata *map[string]interface{} `json:"additionalMetadata,omitempty"`
 	Cron               string                  `json:"cron"`
+	Enabled            bool                    `json:"enabled"`
 	Input              *map[string]interface{} `json:"input,omitempty"`
 	Metadata           APIResourceMeta         `json:"metadata"`
+	Method             CronWorkflowsMethod     `json:"method"`
 	Name               *string                 `json:"name,omitempty"`
 	TenantId           string                  `json:"tenantId"`
 	WorkflowId         string                  `json:"workflowId"`
 	WorkflowName       string                  `json:"workflowName"`
 	WorkflowVersionId  string                  `json:"workflowVersionId"`
 }
+
+// CronWorkflowsMethod defines model for CronWorkflows.Method.
+type CronWorkflowsMethod string
 
 // CronWorkflowsList defines model for CronWorkflowsList.
 type CronWorkflowsList struct {
@@ -680,19 +697,23 @@ type ScheduledRunStatus string
 
 // ScheduledWorkflows defines model for ScheduledWorkflows.
 type ScheduledWorkflows struct {
-	AdditionalMetadata   *map[string]interface{} `json:"additionalMetadata,omitempty"`
-	Input                *map[string]interface{} `json:"input,omitempty"`
-	Metadata             APIResourceMeta         `json:"metadata"`
-	TenantId             string                  `json:"tenantId"`
-	TriggerAt            time.Time               `json:"triggerAt"`
-	WorkflowId           string                  `json:"workflowId"`
-	WorkflowName         string                  `json:"workflowName"`
-	WorkflowRunCreatedAt *time.Time              `json:"workflowRunCreatedAt,omitempty"`
-	WorkflowRunId        *openapi_types.UUID     `json:"workflowRunId,omitempty"`
-	WorkflowRunName      *string                 `json:"workflowRunName,omitempty"`
-	WorkflowRunStatus    *WorkflowRunStatus      `json:"workflowRunStatus,omitempty"`
-	WorkflowVersionId    string                  `json:"workflowVersionId"`
+	AdditionalMetadata   *map[string]interface{}   `json:"additionalMetadata,omitempty"`
+	Input                *map[string]interface{}   `json:"input,omitempty"`
+	Metadata             APIResourceMeta           `json:"metadata"`
+	Method               *ScheduledWorkflowsMethod `json:"method,omitempty"`
+	TenantId             string                    `json:"tenantId"`
+	TriggerAt            time.Time                 `json:"triggerAt"`
+	WorkflowId           string                    `json:"workflowId"`
+	WorkflowName         string                    `json:"workflowName"`
+	WorkflowRunCreatedAt *time.Time                `json:"workflowRunCreatedAt,omitempty"`
+	WorkflowRunId        *openapi_types.UUID       `json:"workflowRunId,omitempty"`
+	WorkflowRunName      *string                   `json:"workflowRunName,omitempty"`
+	WorkflowRunStatus    *WorkflowRunStatus        `json:"workflowRunStatus,omitempty"`
+	WorkflowVersionId    string                    `json:"workflowVersionId"`
 }
+
+// ScheduledWorkflowsMethod defines model for ScheduledWorkflows.Method.
+type ScheduledWorkflowsMethod string
 
 // ScheduledWorkflowsList defines model for ScheduledWorkflowsList.
 type ScheduledWorkflowsList struct {

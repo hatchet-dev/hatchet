@@ -565,6 +565,8 @@ func ToCronWorkflowsFromSQLC(cron *dbsqlc.ListCronWorkflowsRow) *gen.CronWorkflo
 		Cron:               cron.Cron,
 		AdditionalMetadata: &additionalMetadata,
 		Name:               &cron.Name.String,
+		Enabled:            cron.Enabled,
+		Method:             gen.CronWorkflowsMethod(cron.Method),
 	}
 
 	return res
