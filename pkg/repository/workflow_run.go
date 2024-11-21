@@ -465,7 +465,7 @@ type WorkflowRunAPIRepository interface {
 	ListCronWorkflows(ctx context.Context, tenantId string, opts *ListCronWorkflowsOpts) ([]*dbsqlc.ListCronWorkflowsRow, int64, error)
 
 	// CreateNewWorkflowRun creates a new workflow run for a workflow version.
-	CreateNewWorkflowRun(ctx context.Context, tenantId string, opts *CreateWorkflowRunOpts) (*dbsqlc.WorkflowRun, error)
+	CreateNewWorkflowRun(ctx context.Context, tenantId string, opts *CreateWorkflowRunOpts) (*dbsqlc.GetWorkflowRunsInsertedInThisTxnRow, error)
 
 	// GetWorkflowRunById returns a workflow run by id.
 	GetWorkflowRunById(ctx context.Context, tenantId, runId string) (*dbsqlc.GetWorkflowRunByIdRow, error)
@@ -518,10 +518,10 @@ type WorkflowRunEngineRepository interface {
 	PopWorkflowRunsRoundRobin(ctx context.Context, tenantId, workflowId string, maxRuns int) ([]*dbsqlc.WorkflowRun, error)
 
 	// CreateNewWorkflowRun creates a new workflow run for a workflow version.
-	CreateNewWorkflowRun(ctx context.Context, tenantId string, opts *CreateWorkflowRunOpts) (*dbsqlc.WorkflowRun, error)
+	CreateNewWorkflowRun(ctx context.Context, tenantId string, opts *CreateWorkflowRunOpts) (*dbsqlc.GetWorkflowRunsInsertedInThisTxnRow, error)
 
 	// CreateNewWorkflowRuns creates new workflow runs in bulk
-	CreateNewWorkflowRuns(ctx context.Context, tenantId string, opts []*CreateWorkflowRunOpts) ([]*dbsqlc.WorkflowRun, error)
+	CreateNewWorkflowRuns(ctx context.Context, tenantId string, opts []*CreateWorkflowRunOpts) ([]*dbsqlc.GetWorkflowRunsInsertedInThisTxnRow, error)
 
 	CreateDeDupeKey(ctx context.Context, tenantId, workflowRunId, worrkflowVersionId, dedupeValue string) error
 

@@ -14,6 +14,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
+	"github.com/hatchet-dev/hatchet/pkg/repository/prisma"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
@@ -95,21 +96,22 @@ func (t *WorkflowService) WorkflowRunCreate(ctx echo.Context, request gen.Workfl
 		return nil, fmt.Errorf("trigger.go could not create workflow run: %w", err)
 	}
 
-	// send to workflow processing queue
-	err = t.config.MessageQueue.AddMessage(
-		ctx.Request().Context(),
-		msgqueue.WORKFLOW_PROCESSING_QUEUE,
-		tasktypes.WorkflowRunQueuedToTask(
-			sqlchelpers.UUIDToStr(createdWorkflowRun.TenantId),
-			sqlchelpers.UUIDToStr(createdWorkflowRun.ID),
-		),
-	)
+	if !prisma.CanShortCircuit(createdWorkflowRun) {
+		// send to workflow processing queue
+		err = t.config.MessageQueue.AddMessage(
+			ctx.Request().Context(),
+			msgqueue.WORKFLOW_PROCESSING_QUEUE,
+			tasktypes.WorkflowRunQueuedToTask(
+				sqlchelpers.UUIDToStr(createdWorkflowRun.WorkflowRun.TenantId),
+				sqlchelpers.UUIDToStr(createdWorkflowRun.WorkflowRun.ID),
+			),
+		)
 
-	if err != nil {
-		return nil, fmt.Errorf("could not add workflow run to queue: %w", err)
+		if err != nil {
+			return nil, fmt.Errorf("could not add workflow run to queue: %w", err)
+		}
 	}
-
-	workflowRun, err := t.config.APIRepository.WorkflowRun().GetWorkflowRunById(ctx.Request().Context(), tenant.ID, sqlchelpers.UUIDToStr(createdWorkflowRun.ID))
+	workflowRun, err := t.config.APIRepository.WorkflowRun().GetWorkflowRunById(ctx.Request().Context(), tenant.ID, sqlchelpers.UUIDToStr(createdWorkflowRun.WorkflowRun.ID))
 
 	if err != nil {
 		return nil, fmt.Errorf("could not get workflow run: %w", err)

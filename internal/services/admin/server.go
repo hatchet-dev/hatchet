@@ -19,6 +19,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
+	"github.com/hatchet-dev/hatchet/pkg/repository/prisma"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 )
@@ -68,17 +69,19 @@ func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.T
 		return nil, fmt.Errorf("Trigger Workflow - could not create workflow run: %w", err)
 	}
 
-	workflowRunId := sqlchelpers.UUIDToStr(workflowRun.ID)
+	workflowRunId := sqlchelpers.UUIDToStr(workflowRun.WorkflowRun.ID)
 
-	// send to workflow processing queue
-	err = a.mq.AddMessage(
-		context.Background(),
-		msgqueue.WORKFLOW_PROCESSING_QUEUE,
-		tasktypes.WorkflowRunQueuedToTask(tenantId, workflowRunId),
-	)
+	if !prisma.CanShortCircuit(workflowRun) {
+		// send to workflow processing queue
+		err = a.mq.AddMessage(
+			context.Background(),
+			msgqueue.WORKFLOW_PROCESSING_QUEUE,
+			tasktypes.WorkflowRunQueuedToTask(tenantId, workflowRunId),
+		)
 
-	if err != nil {
-		return nil, fmt.Errorf("could not queue workflow run: %w", err)
+		if err != nil {
+			return nil, fmt.Errorf("could not queue workflow run: %w", err)
+		}
 	}
 
 	return &contracts.TriggerWorkflowResponse{
@@ -127,19 +130,20 @@ func (a *AdminServiceImpl) BulkTriggerWorkflow(ctx context.Context, req *contrac
 
 	var workflowRunIds []string
 	for _, workflowRun := range workflowRuns {
-		workflowRunIds = append(workflowRunIds, sqlchelpers.UUIDToStr(workflowRun.ID))
-	}
 
-	for _, workflowRunId := range workflowRunIds {
-		err = a.mq.AddMessage(
-			context.Background(),
-			msgqueue.WORKFLOW_PROCESSING_QUEUE,
-			tasktypes.WorkflowRunQueuedToTask(tenantId, workflowRunId),
-		)
+		if !prisma.CanShortCircuit(workflowRun) {
+
+			err = a.mq.AddMessage(
+				context.Background(),
+				msgqueue.WORKFLOW_PROCESSING_QUEUE,
+				tasktypes.WorkflowRunQueuedToTask(tenantId, sqlchelpers.UUIDToStr(workflowRun.WorkflowRun.ID)),
+			)
+		}
 
 		if err != nil {
 			return nil, fmt.Errorf("could not queue workflow run: %w", err)
 		}
+		workflowRunIds = append(workflowRunIds, sqlchelpers.UUIDToStr(workflowRun.WorkflowRun.ID))
 	}
 
 	// adding in the pre-existing workflows to the response.

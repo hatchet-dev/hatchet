@@ -11,6 +11,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/prisma"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 )
@@ -189,24 +190,24 @@ func (t *TickerImpl) runScheduledWorkflow(tenantId, workflowVersionId, scheduled
 
 		workflowRun, err := t.repo.WorkflowRun().CreateNewWorkflowRun(ctx, tenantId, createOpts)
 
-		workflowRunId := sqlchelpers.UUIDToStr(workflowRun.ID)
+		workflowRunId := sqlchelpers.UUIDToStr(workflowRun.WorkflowRun.ID)
 
 		if err != nil {
 			t.l.Err(err).Msg("could not create workflow run")
 			return
 		}
+		if !prisma.CanShortCircuit(workflowRun) {
+			err = t.mq.AddMessage(
+				context.Background(),
+				msgqueue.WORKFLOW_PROCESSING_QUEUE,
+				tasktypes.WorkflowRunQueuedToTask(tenantId, workflowRunId),
+			)
 
-		err = t.mq.AddMessage(
-			context.Background(),
-			msgqueue.WORKFLOW_PROCESSING_QUEUE,
-			tasktypes.WorkflowRunQueuedToTask(tenantId, workflowRunId),
-		)
-
-		if err != nil {
-			t.l.Err(err).Msg("could not add workflow run queued task")
-			return
+			if err != nil {
+				t.l.Err(err).Msg("could not add workflow run queued task")
+				return
+			}
 		}
-
 		// get the scheduler
 		schedulerVal, ok := t.scheduledWorkflows.Load(getScheduledWorkflowKey(workflowVersionId, scheduledWorkflowId))
 

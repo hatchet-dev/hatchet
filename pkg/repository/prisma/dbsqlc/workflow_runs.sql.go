@@ -528,6 +528,7 @@ func (q *Queries) CreateJobRunLookupDatas(ctx context.Context, db DBTX, arg Crea
 }
 
 const createJobRuns = `-- name: CreateJobRuns :many
+
 INSERT INTO "JobRun" (
     "id",
     "createdAt",
@@ -544,22 +545,29 @@ SELECT
     $1::uuid,
     $2::uuid,
     "id",
-    'PENDING' -- default status
+    $3::"JobRunStatus" -- default status
 FROM
     "Job"
 WHERE
-    "workflowVersionId" = $3::uuid
+    "workflowVersionId" = $4::uuid
 RETURNING "id"
 `
 
 type CreateJobRunsParams struct {
-	Tenantid          pgtype.UUID `json:"tenantid"`
-	Workflowrunid     pgtype.UUID `json:"workflowrunid"`
-	Workflowversionid pgtype.UUID `json:"workflowversionid"`
+	Tenantid          pgtype.UUID  `json:"tenantid"`
+	Workflowrunid     pgtype.UUID  `json:"workflowrunid"`
+	Status            JobRunStatus `json:"status"`
+	Workflowversionid pgtype.UUID  `json:"workflowversionid"`
 }
 
+// ---- maybe we add them here in the right JobRun state ?
 func (q *Queries) CreateJobRuns(ctx context.Context, db DBTX, arg CreateJobRunsParams) ([]pgtype.UUID, error) {
-	rows, err := db.Query(ctx, createJobRuns, arg.Tenantid, arg.Workflowrunid, arg.Workflowversionid)
+	rows, err := db.Query(ctx, createJobRuns,
+		arg.Tenantid,
+		arg.Workflowrunid,
+		arg.Status,
+		arg.Workflowversionid,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -584,7 +592,9 @@ WITH input_data AS (
     SELECT
         UNNEST($1::uuid[]) AS tenantId,
         UNNEST($2::uuid[]) AS workflowRunId,
-        UNNEST($3::uuid[]) AS workflowVersionId
+        UNNEST($3::uuid[]) AS workflowVersionId,
+        UNNEST(CAST($4::text[] AS "JobRunStatus"[])) AS status
+
 )
 INSERT INTO "JobRun" (
     "id",
@@ -602,7 +612,7 @@ SELECT
     input_data.tenantId,
     input_data.workflowRunId,
     "Job"."id",
-    'PENDING'
+    input_data.status
 FROM
     input_data
 JOIN
@@ -616,6 +626,7 @@ type CreateManyJobRunsParams struct {
 	Tenantids          []pgtype.UUID `json:"tenantids"`
 	Workflowrunids     []pgtype.UUID `json:"workflowrunids"`
 	Workflowversionids []pgtype.UUID `json:"workflowversionids"`
+	Status             []string      `json:"status"`
 }
 
 type CreateManyJobRunsRow struct {
@@ -625,7 +636,12 @@ type CreateManyJobRunsRow struct {
 }
 
 func (q *Queries) CreateManyJobRuns(ctx context.Context, db DBTX, arg CreateManyJobRunsParams) ([]*CreateManyJobRunsRow, error) {
-	rows, err := db.Query(ctx, createManyJobRuns, arg.Tenantids, arg.Workflowrunids, arg.Workflowversionids)
+	rows, err := db.Query(ctx, createManyJobRuns,
+		arg.Tenantids,
+		arg.Workflowrunids,
+		arg.Workflowversionids,
+		arg.Status,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -760,6 +776,7 @@ type CreateStepRunsParams struct {
 }
 
 const createStepRunsForJobRunIds = `-- name: CreateStepRunsForJobRunIds :many
+
 WITH job_ids AS (
     SELECT DISTINCT "jobId", "id" as jobRunId, "tenantId"
     FROM "JobRun"
@@ -802,6 +819,8 @@ type CreateStepRunsForJobRunIdsParams struct {
 	Jobrunids []pgtype.UUID `json:"jobrunids"`
 }
 
+// ----- maybe some of these I bounce straight to a different step run
+// -- always one? I think so maybe it's job runs?
 func (q *Queries) CreateStepRunsForJobRunIds(ctx context.Context, db DBTX, arg CreateStepRunsForJobRunIdsParams) ([]pgtype.UUID, error) {
 	rows, err := db.Query(ctx, createStepRunsForJobRunIds, arg.Priority, arg.Jobrunids)
 	if err != nil {
@@ -2061,42 +2080,113 @@ func (q *Queries) GetWorkflowRunTrigger(ctx context.Context, db DBTX, arg GetWor
 }
 
 const getWorkflowRunsInsertedInThisTxn = `-- name: GetWorkflowRunsInsertedInThisTxn :many
-SELECT "createdAt", "updatedAt", "deletedAt", "tenantId", "workflowVersionId", status, error, "startedAt", "finishedAt", "concurrencyGroupId", "displayName", id, "childIndex", "childKey", "parentId", "parentStepRunId", "additionalMetadata", duration, priority, "insertOrder" FROM "WorkflowRun"
-WHERE xmin::text = (txid_current() % (2^32)::bigint)::text
-AND ("createdAt" = CURRENT_TIMESTAMP::timestamp(3))
-ORDER BY "insertOrder" ASC
+SELECT
+    runs."createdAt", runs."updatedAt", runs."deletedAt", runs."tenantId", runs."workflowVersionId", runs.status, runs.error, runs."startedAt", runs."finishedAt", runs."concurrencyGroupId", runs."displayName", runs.id, runs."childIndex", runs."childKey", runs."parentId", runs."parentStepRunId", runs."additionalMetadata", runs.duration, runs.priority, runs."insertOrder",
+    runtriggers.id, runtriggers."createdAt", runtriggers."updatedAt", runtriggers."deletedAt", runtriggers."tenantId", runtriggers."eventId", runtriggers."cronParentId", runtriggers."cronSchedule", runtriggers."scheduledId", runtriggers.input, runtriggers."parentId",
+    workflowversion.id, workflowversion."createdAt", workflowversion."updatedAt", workflowversion."deletedAt", workflowversion.version, workflowversion."order", workflowversion."workflowId", workflowversion.checksum, workflowversion."scheduleTimeout", workflowversion."onFailureJobId", workflowversion.sticky, workflowversion.kind, workflowversion."defaultPriority",
+    workflow."name" as "workflowName",
+    -- waiting on https://github.com/sqlc-dev/sqlc/pull/2858 for nullable fields
+    wc."limitStrategy" as "concurrencyLimitStrategy",
+    wc."maxRuns" as "concurrencyMaxRuns",
+    workflow."isPaused" as "isPaused",
+    wc."concurrencyGroupExpression" as "concurrencyGroupExpression",
+    groupKeyRun."id" as "getGroupKeyRunId",
+    dedupe."value" as "dedupeValue"
+
+FROM
+    "WorkflowRun" as runs
+LEFT JOIN
+    "WorkflowRunTriggeredBy" as runTriggers ON runTriggers."parentId" = runs."id"
+LEFT JOIN
+    "WorkflowVersion" as workflowVersion ON runs."workflowVersionId" = workflowVersion."id"
+LEFT JOIN
+    "Workflow" as workflow ON workflowVersion."workflowId" = workflow."id"
+LEFT JOIN
+    "WorkflowConcurrency" as wc ON wc."workflowVersionId" = workflowVersion."id"
+LEFT JOIN
+    "GetGroupKeyRun" as groupKeyRun ON groupKeyRun."workflowRunId" = runs."id"
+LEFT JOIN
+    "WorkflowRunDedupe" as dedupe ON dedupe."workflowRunId" = runs."id"
+WHERE
+    runs.xmin::text = (txid_current() % (2^32)::bigint)::text
+    AND (runs."createdAt" = CURRENT_TIMESTAMP::timestamp(3))
+    ORDER BY "insertOrder" ASC
 `
 
-func (q *Queries) GetWorkflowRunsInsertedInThisTxn(ctx context.Context, db DBTX) ([]*WorkflowRun, error) {
+type GetWorkflowRunsInsertedInThisTxnRow struct {
+	WorkflowRun                WorkflowRun                  `json:"workflow_run"`
+	WorkflowRunTriggeredBy     WorkflowRunTriggeredBy       `json:"workflow_run_triggered_by"`
+	WorkflowVersion            WorkflowVersion              `json:"workflow_version"`
+	WorkflowName               pgtype.Text                  `json:"workflowName"`
+	ConcurrencyLimitStrategy   NullConcurrencyLimitStrategy `json:"concurrencyLimitStrategy"`
+	ConcurrencyMaxRuns         pgtype.Int4                  `json:"concurrencyMaxRuns"`
+	IsPaused                   pgtype.Bool                  `json:"isPaused"`
+	ConcurrencyGroupExpression pgtype.Text                  `json:"concurrencyGroupExpression"`
+	GetGroupKeyRunId           pgtype.UUID                  `json:"getGroupKeyRunId"`
+	DedupeValue                pgtype.Text                  `json:"dedupeValue"`
+}
+
+func (q *Queries) GetWorkflowRunsInsertedInThisTxn(ctx context.Context, db DBTX) ([]*GetWorkflowRunsInsertedInThisTxnRow, error) {
 	rows, err := db.Query(ctx, getWorkflowRunsInsertedInThisTxn)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*WorkflowRun
+	var items []*GetWorkflowRunsInsertedInThisTxnRow
 	for rows.Next() {
-		var i WorkflowRun
+		var i GetWorkflowRunsInsertedInThisTxnRow
 		if err := rows.Scan(
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.DeletedAt,
-			&i.TenantId,
-			&i.WorkflowVersionId,
-			&i.Status,
-			&i.Error,
-			&i.StartedAt,
-			&i.FinishedAt,
-			&i.ConcurrencyGroupId,
-			&i.DisplayName,
-			&i.ID,
-			&i.ChildIndex,
-			&i.ChildKey,
-			&i.ParentId,
-			&i.ParentStepRunId,
-			&i.AdditionalMetadata,
-			&i.Duration,
-			&i.Priority,
-			&i.InsertOrder,
+			&i.WorkflowRun.CreatedAt,
+			&i.WorkflowRun.UpdatedAt,
+			&i.WorkflowRun.DeletedAt,
+			&i.WorkflowRun.TenantId,
+			&i.WorkflowRun.WorkflowVersionId,
+			&i.WorkflowRun.Status,
+			&i.WorkflowRun.Error,
+			&i.WorkflowRun.StartedAt,
+			&i.WorkflowRun.FinishedAt,
+			&i.WorkflowRun.ConcurrencyGroupId,
+			&i.WorkflowRun.DisplayName,
+			&i.WorkflowRun.ID,
+			&i.WorkflowRun.ChildIndex,
+			&i.WorkflowRun.ChildKey,
+			&i.WorkflowRun.ParentId,
+			&i.WorkflowRun.ParentStepRunId,
+			&i.WorkflowRun.AdditionalMetadata,
+			&i.WorkflowRun.Duration,
+			&i.WorkflowRun.Priority,
+			&i.WorkflowRun.InsertOrder,
+			&i.WorkflowRunTriggeredBy.ID,
+			&i.WorkflowRunTriggeredBy.CreatedAt,
+			&i.WorkflowRunTriggeredBy.UpdatedAt,
+			&i.WorkflowRunTriggeredBy.DeletedAt,
+			&i.WorkflowRunTriggeredBy.TenantId,
+			&i.WorkflowRunTriggeredBy.EventId,
+			&i.WorkflowRunTriggeredBy.CronParentId,
+			&i.WorkflowRunTriggeredBy.CronSchedule,
+			&i.WorkflowRunTriggeredBy.ScheduledId,
+			&i.WorkflowRunTriggeredBy.Input,
+			&i.WorkflowRunTriggeredBy.ParentId,
+			&i.WorkflowVersion.ID,
+			&i.WorkflowVersion.CreatedAt,
+			&i.WorkflowVersion.UpdatedAt,
+			&i.WorkflowVersion.DeletedAt,
+			&i.WorkflowVersion.Version,
+			&i.WorkflowVersion.Order,
+			&i.WorkflowVersion.WorkflowId,
+			&i.WorkflowVersion.Checksum,
+			&i.WorkflowVersion.ScheduleTimeout,
+			&i.WorkflowVersion.OnFailureJobId,
+			&i.WorkflowVersion.Sticky,
+			&i.WorkflowVersion.Kind,
+			&i.WorkflowVersion.DefaultPriority,
+			&i.WorkflowName,
+			&i.ConcurrencyLimitStrategy,
+			&i.ConcurrencyMaxRuns,
+			&i.IsPaused,
+			&i.ConcurrencyGroupExpression,
+			&i.GetGroupKeyRunId,
+			&i.DedupeValue,
 		); err != nil {
 			return nil, err
 		}
