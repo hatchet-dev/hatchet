@@ -551,11 +551,6 @@ INSERT INTO "WorkflowRun" (
 );
 
 
--- name: GetWorkflowRunsInsertedInThisTxn :many
-SELECT * FROM "WorkflowRun"
-WHERE xmin::text = (txid_current() % (2^32)::bigint)::text
-AND ("createdAt" = CURRENT_TIMESTAMP::timestamp(3))
-ORDER BY "insertOrder" ASC;
 
 -- name: CreateWorkflowRunDedupe :one
 WITH workflow_id AS (
@@ -788,6 +783,9 @@ INSERT INTO "GetGroupKeyRun" (
 
 );
 
+
+------ maybe we add them here in the right JobRun state ?
+
 -- name: CreateJobRuns :many
 INSERT INTO "JobRun" (
     "id",
@@ -805,7 +803,7 @@ SELECT
     @tenantId::uuid,
     @workflowRunId::uuid,
     "id",
-    'PENDING' -- default status
+    @status::"JobRunStatus" -- default status
 FROM
     "Job"
 WHERE
@@ -818,7 +816,9 @@ WITH input_data AS (
     SELECT
         UNNEST(@tenantIds::uuid[]) AS tenantId,
         UNNEST(@workflowRunIds::uuid[]) AS workflowRunId,
-        UNNEST(@workflowVersionIds::uuid[]) AS workflowVersionId
+        UNNEST(@workflowVersionIds::uuid[]) AS workflowVersionId,
+        UNNEST(CAST(@status::text[] AS "JobRunStatus"[])) AS status
+
 )
 INSERT INTO "JobRun" (
     "id",
@@ -836,7 +836,7 @@ SELECT
     input_data.tenantId,
     input_data.workflowRunId,
     "Job"."id",
-    'PENDING'
+    input_data.status
 FROM
     input_data
 JOIN
@@ -976,6 +976,10 @@ FROM
 WHERE
     s."jobId" = job_id."jobId";
 
+
+------- maybe some of these I bounce straight to a different step run
+---- always one? I think so maybe it's job runs?
+
 -- name: CreateStepRunsForJobRunIds :many
 WITH job_ids AS (
     SELECT DISTINCT "jobId", "id" as jobRunId, "tenantId"
@@ -1037,6 +1041,39 @@ SELECT
     parent_child_step_runs."B" AS "B"
 FROM
     parent_child_step_runs;
+
+-- name: GetWorkflowRunsInsertedInThisTxn :many
+SELECT
+    sqlc.embed(runs),
+    sqlc.embed(runTriggers),
+    sqlc.embed(workflowVersion),
+    workflow."name" as "workflowName",
+    -- waiting on https://github.com/sqlc-dev/sqlc/pull/2858 for nullable fields
+    wc."limitStrategy" as "concurrencyLimitStrategy",
+    wc."maxRuns" as "concurrencyMaxRuns",
+    workflow."isPaused" as "isPaused",
+    wc."concurrencyGroupExpression" as "concurrencyGroupExpression",
+    groupKeyRun."id" as "getGroupKeyRunId",
+    dedupe."value" as "dedupeValue"
+
+FROM
+    "WorkflowRun" as runs
+LEFT JOIN
+    "WorkflowRunTriggeredBy" as runTriggers ON runTriggers."parentId" = runs."id"
+LEFT JOIN
+    "WorkflowVersion" as workflowVersion ON runs."workflowVersionId" = workflowVersion."id"
+LEFT JOIN
+    "Workflow" as workflow ON workflowVersion."workflowId" = workflow."id"
+LEFT JOIN
+    "WorkflowConcurrency" as wc ON wc."workflowVersionId" = workflowVersion."id"
+LEFT JOIN
+    "GetGroupKeyRun" as groupKeyRun ON groupKeyRun."workflowRunId" = runs."id"
+LEFT JOIN
+    "WorkflowRunDedupe" as dedupe ON dedupe."workflowRunId" = runs."id"
+WHERE
+    runs.xmin::text = (txid_current() % (2^32)::bigint)::text
+    AND (runs."createdAt" = CURRENT_TIMESTAMP::timestamp(3))
+    ORDER BY "insertOrder" ASC;
 
 -- name: GetWorkflowRun :many
 SELECT

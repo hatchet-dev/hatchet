@@ -16,6 +16,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/prisma"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 )
 
@@ -206,7 +207,6 @@ func (ec *EventsControllerImpl) processEvent(ctx context.Context, tenantId, even
 	if err != nil {
 		return fmt.Errorf("could not query workflows for event: %w", err)
 	}
-
 	// create a new workflow run in the database
 	var g = new(errgroup.Group)
 
@@ -222,6 +222,15 @@ func (ec *EventsControllerImpl) processEvent(ctx context.Context, tenantId, even
 				return fmt.Errorf("could not get create workflow run opts: %w", err)
 			}
 
+			// marshall the createOpts to json log it
+
+			jsonCreateOpts, err := json.Marshal(createOpts)
+
+			if err != nil {
+				return fmt.Errorf("could not marshal createOpts: %w", err)
+			}
+
+			fmt.Println("createOpts", string(jsonCreateOpts))
 			workflowRun, err := ec.repo.WorkflowRun().CreateNewWorkflowRun(ctx, tenantId, createOpts)
 
 			if err != nil {
@@ -246,18 +255,19 @@ func (ec *EventsControllerImpl) processEvent(ctx context.Context, tenantId, even
 				}
 			}
 
-			workflowRunId := sqlchelpers.UUIDToStr(workflowRun.ID)
+			if !prisma.CanShortCircuit(workflowRun) {
+				workflowRunId := sqlchelpers.UUIDToStr(workflowRun.WorkflowRun.ID)
 
-			// send to workflow processing queue
-			err = ec.mq.AddMessage(
-				ctx,
-				msgqueue.WORKFLOW_PROCESSING_QUEUE,
-				tasktypes.WorkflowRunQueuedToTask(
-					tenantId,
-					workflowRunId,
-				),
-			)
-
+				// send to workflow processing queue
+				err = ec.mq.AddMessage(
+					ctx,
+					msgqueue.WORKFLOW_PROCESSING_QUEUE,
+					tasktypes.WorkflowRunQueuedToTask(
+						tenantId,
+						workflowRunId,
+					),
+				)
+			}
 			if err != nil {
 				return fmt.Errorf("could not add workflow run queued task: %w", err)
 			}
