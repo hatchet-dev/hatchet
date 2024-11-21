@@ -26,6 +26,7 @@ const (
 // Defines values for CronWorkflowsOrderByField.
 const (
 	CronWorkflowsOrderByFieldCreatedAt CronWorkflowsOrderByField = "createdAt"
+	CronWorkflowsOrderByFieldName      CronWorkflowsOrderByField = "name"
 )
 
 // Defines values for EventOrderByDirection.

@@ -1532,8 +1532,10 @@ WHERE
     AND ($4::jsonb IS NULL OR
         c."additionalMetadata" @> $4::jsonb)
 ORDER BY
-    case when $5 = 'createdAt ASC' THEN t."createdAt" END ASC ,
-    case when $5 = 'createdAt DESC' THEN t."createdAt" END DESC,
+    case when $5 = 'name ASC' THEN w."name" END ASC,
+    case when $5 = 'name DESC' THEN w."name" END DESC,
+    case when $5 = 'createdAt ASC' THEN c."createdAt" END ASC ,
+    case when $5 = 'createdAt DESC' THEN c."createdAt" END DESC,
     t."id" ASC
 OFFSET
     COALESCE($6, 0)
@@ -1869,6 +1871,80 @@ func (q *Queries) ListWorkflowsLatestRuns(ctx context.Context, db DBTX, arg List
 		return nil, err
 	}
 	return items, nil
+}
+
+const moveCronTriggerToNewWorkflowTriggers = `-- name: MoveCronTriggerToNewWorkflowTriggers :one
+WITH triggersToUpdate AS (
+    SELECT cronTrigger."id" FROM "WorkflowTriggerCronRef" cronTrigger
+    JOIN "WorkflowTriggers" triggers ON triggers."id" = cronTrigger."parentId"
+    WHERE triggers."workflowVersionId" = $2::uuid
+)
+UPDATE "WorkflowTriggerCronRef"
+SET "parentId" = $1::uuid
+WHERE "parentId" IN (SELECT "id" FROM triggersToUpdate)
+RETURNING "parentId", cron, "tickerId", input, enabled, "additionalMetadata", "createdAt", "deletedAt", "updatedAt", name, id
+`
+
+type MoveCronTriggerToNewWorkflowTriggersParams struct {
+	Newworkflowtriggerid pgtype.UUID `json:"newworkflowtriggerid"`
+	Oldworkflowversionid pgtype.UUID `json:"oldworkflowversionid"`
+}
+
+func (q *Queries) MoveCronTriggerToNewWorkflowTriggers(ctx context.Context, db DBTX, arg MoveCronTriggerToNewWorkflowTriggersParams) (*WorkflowTriggerCronRef, error) {
+	row := db.QueryRow(ctx, moveCronTriggerToNewWorkflowTriggers, arg.Newworkflowtriggerid, arg.Oldworkflowversionid)
+	var i WorkflowTriggerCronRef
+	err := row.Scan(
+		&i.ParentId,
+		&i.Cron,
+		&i.TickerId,
+		&i.Input,
+		&i.Enabled,
+		&i.AdditionalMetadata,
+		&i.CreatedAt,
+		&i.DeletedAt,
+		&i.UpdatedAt,
+		&i.Name,
+		&i.ID,
+	)
+	return &i, err
+}
+
+const moveScheduledTriggerToNewWorkflowTriggers = `-- name: MoveScheduledTriggerToNewWorkflowTriggers :one
+WITH triggersToUpdate AS (
+    SELECT scheduledTrigger."id" FROM "WorkflowTriggerScheduledRef" scheduledTrigger
+    JOIN "WorkflowTriggers" triggers ON triggers."id" = scheduledTrigger."parentId"
+    WHERE triggers."workflowVersionId" = $2::uuid
+)
+UPDATE "WorkflowTriggerScheduledRef"
+SET "parentId" = $1::uuid
+WHERE "id" IN (SELECT "id" FROM triggersToUpdate)
+RETURNING id, "parentId", "triggerAt", "tickerId", input, "childIndex", "childKey", "parentStepRunId", "parentWorkflowRunId", "additionalMetadata", "createdAt", "deletedAt", "updatedAt"
+`
+
+type MoveScheduledTriggerToNewWorkflowTriggersParams struct {
+	Newworkflowtriggerid pgtype.UUID `json:"newworkflowtriggerid"`
+	Oldworkflowversionid pgtype.UUID `json:"oldworkflowversionid"`
+}
+
+func (q *Queries) MoveScheduledTriggerToNewWorkflowTriggers(ctx context.Context, db DBTX, arg MoveScheduledTriggerToNewWorkflowTriggersParams) (*WorkflowTriggerScheduledRef, error) {
+	row := db.QueryRow(ctx, moveScheduledTriggerToNewWorkflowTriggers, arg.Newworkflowtriggerid, arg.Oldworkflowversionid)
+	var i WorkflowTriggerScheduledRef
+	err := row.Scan(
+		&i.ID,
+		&i.ParentId,
+		&i.TriggerAt,
+		&i.TickerId,
+		&i.Input,
+		&i.ChildIndex,
+		&i.ChildKey,
+		&i.ParentStepRunId,
+		&i.ParentWorkflowRunId,
+		&i.AdditionalMetadata,
+		&i.CreatedAt,
+		&i.DeletedAt,
+		&i.UpdatedAt,
+	)
+	return &i, err
 }
 
 const softDeleteWorkflow = `-- name: SoftDeleteWorkflow :one

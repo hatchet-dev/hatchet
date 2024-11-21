@@ -92,6 +92,8 @@ export function CronsTable() {
     switch (sorting[0]?.id) {
       case 'createdAt':
         return CronWorkflowsOrderByField.CreatedAt;
+      case 'name':
+        return CronWorkflowsOrderByField.Name;
       default:
         return CronWorkflowsOrderByField.CreatedAt;
     }
@@ -132,6 +134,7 @@ export function CronsTable() {
   const handleConfirmDelete = () => {
     if (showDeleteCron) {
       setShowDeleteCron(undefined);
+      refetch();
     }
   };
 

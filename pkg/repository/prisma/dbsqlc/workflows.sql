@@ -138,6 +138,28 @@ INSERT INTO "WorkflowVersion" (
     sqlc.narg('defaultPriority')::integer
 ) RETURNING *;
 
+-- name: MoveCronTriggerToNewWorkflowTriggers :one
+WITH triggersToUpdate AS (
+    SELECT cronTrigger."id" FROM "WorkflowTriggerCronRef" cronTrigger
+    JOIN "WorkflowTriggers" triggers ON triggers."id" = cronTrigger."parentId"
+    WHERE triggers."workflowVersionId" = @oldWorkflowVersionId::uuid
+)
+UPDATE "WorkflowTriggerCronRef"
+SET "parentId" = @newWorkflowTriggerId::uuid
+WHERE "parentId" IN (SELECT "id" FROM triggersToUpdate)
+RETURNING *;
+
+-- name: MoveScheduledTriggerToNewWorkflowTriggers :one
+WITH triggersToUpdate AS (
+    SELECT scheduledTrigger."id" FROM "WorkflowTriggerScheduledRef" scheduledTrigger
+    JOIN "WorkflowTriggers" triggers ON triggers."id" = scheduledTrigger."parentId"
+    WHERE triggers."workflowVersionId" = @oldWorkflowVersionId::uuid
+)
+UPDATE "WorkflowTriggerScheduledRef"
+SET "parentId" = @newWorkflowTriggerId::uuid
+WHERE "id" IN (SELECT "id" FROM triggersToUpdate)
+RETURNING *;
+
 -- name: CreateWorkflowConcurrency :one
 INSERT INTO "WorkflowConcurrency" (
     "id",
@@ -769,8 +791,10 @@ WHERE
     AND (sqlc.narg('additionalMetadata')::jsonb IS NULL OR
         c."additionalMetadata" @> sqlc.narg('additionalMetadata')::jsonb)
 ORDER BY
-    case when @orderBy = 'createdAt ASC' THEN t."createdAt" END ASC ,
-    case when @orderBy = 'createdAt DESC' THEN t."createdAt" END DESC,
+    case when @orderBy = 'name ASC' THEN w."name" END ASC,
+    case when @orderBy = 'name DESC' THEN w."name" END DESC,
+    case when @orderBy = 'createdAt ASC' THEN c."createdAt" END ASC ,
+    case when @orderBy = 'createdAt DESC' THEN c."createdAt" END DESC,
     t."id" ASC
 OFFSET
     COALESCE(sqlc.narg('offset'), 0)

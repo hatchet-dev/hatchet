@@ -821,6 +821,7 @@ export interface CronWorkflowsList {
 }
 
 export enum CronWorkflowsOrderByField {
+  Name = 'name',
   CreatedAt = 'createdAt',
 }
 

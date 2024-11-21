@@ -432,7 +432,7 @@ type ListCronWorkflowsOpts struct {
 	Limit *int
 
 	// (optional) the order by field
-	OrderBy *string `validate:"omitempty,oneof=createdAt"`
+	OrderBy *string `validate:"omitempty,oneof=createdAt name"`
 
 	// (optional) the order direction
 	OrderDirection *string `validate:"omitempty,oneof=ASC DESC"`

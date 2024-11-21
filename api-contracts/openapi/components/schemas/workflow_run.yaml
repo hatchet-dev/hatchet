@@ -15,6 +15,7 @@ ScheduledWorkflowsOrderByField:
 CronWorkflowsOrderByField:
   type: string
   enum:
+    - name
     - createdAt
 
 WorkflowRunOrderByDirection:
