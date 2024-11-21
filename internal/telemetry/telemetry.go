@@ -141,7 +141,7 @@ func WithAttributes(span trace.Span, attrs ...AttributeKV) {
 			case int32:
 				span.SetAttributes(attribute.Int64(prefixSpanKey(string(attr.Key)), int64(val)))
 			case uint:
-				span.SetAttributes(attribute.Int(prefixSpanKey(string(attr.Key)), int(val)))
+				span.SetAttributes(attribute.Int(prefixSpanKey(string(attr.Key)), int(val))) // nolint: gosec
 			case float64:
 				span.SetAttributes(attribute.Float64(prefixSpanKey(string(attr.Key)), val))
 			case bool:

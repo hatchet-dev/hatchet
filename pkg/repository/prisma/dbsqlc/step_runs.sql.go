@@ -1201,6 +1201,8 @@ SELECT
     s."scheduleTimeout" AS "stepScheduleTimeout",
     s."readableId" AS "stepReadableId",
     s."customUserData" AS "stepCustomUserData",
+    s."retryBackoffFactor" AS "stepRetryBackoffFactor",
+    s."retryMaxBackoff" AS "stepRetryMaxBackoff",
     j."name" AS "jobName",
     j."id" AS "jobId",
     j."kind" AS "jobKind",
@@ -1242,46 +1244,48 @@ type GetStepRunForEngineParams struct {
 }
 
 type GetStepRunForEngineRow struct {
-	SRID                pgtype.UUID        `json:"SR_id"`
-	SRCreatedAt         pgtype.Timestamp   `json:"SR_createdAt"`
-	SRUpdatedAt         pgtype.Timestamp   `json:"SR_updatedAt"`
-	SRDeletedAt         pgtype.Timestamp   `json:"SR_deletedAt"`
-	SRTenantId          pgtype.UUID        `json:"SR_tenantId"`
-	SRQueue             string             `json:"SR_queue"`
-	SROrder             int64              `json:"SR_order"`
-	SRWorkerId          pgtype.UUID        `json:"SR_workerId"`
-	SRTickerId          pgtype.UUID        `json:"SR_tickerId"`
-	SRStatus            StepRunStatus      `json:"SR_status"`
-	SRRequeueAfter      pgtype.Timestamp   `json:"SR_requeueAfter"`
-	SRScheduleTimeoutAt pgtype.Timestamp   `json:"SR_scheduleTimeoutAt"`
-	SRStartedAt         pgtype.Timestamp   `json:"SR_startedAt"`
-	SRFinishedAt        pgtype.Timestamp   `json:"SR_finishedAt"`
-	SRTimeoutAt         pgtype.Timestamp   `json:"SR_timeoutAt"`
-	SRCancelledAt       pgtype.Timestamp   `json:"SR_cancelledAt"`
-	SRCancelledReason   pgtype.Text        `json:"SR_cancelledReason"`
-	SRCancelledError    pgtype.Text        `json:"SR_cancelledError"`
-	SRCallerFiles       []byte             `json:"SR_callerFiles"`
-	SRGitRepoBranch     pgtype.Text        `json:"SR_gitRepoBranch"`
-	SRRetryCount        int32              `json:"SR_retryCount"`
-	SRSemaphoreReleased bool               `json:"SR_semaphoreReleased"`
-	SRPriority          pgtype.Int4        `json:"SR_priority"`
-	SRChildCount        int64              `json:"SR_childCount"`
-	JobRunId            pgtype.UUID        `json:"jobRunId"`
-	StepId              pgtype.UUID        `json:"stepId"`
-	StepRetries         int32              `json:"stepRetries"`
-	StepTimeout         pgtype.Text        `json:"stepTimeout"`
-	StepScheduleTimeout string             `json:"stepScheduleTimeout"`
-	StepReadableId      pgtype.Text        `json:"stepReadableId"`
-	StepCustomUserData  []byte             `json:"stepCustomUserData"`
-	JobName             string             `json:"jobName"`
-	JobId               pgtype.UUID        `json:"jobId"`
-	JobKind             JobKind            `json:"jobKind"`
-	WorkflowVersionId   pgtype.UUID        `json:"workflowVersionId"`
-	JobRunStatus        JobRunStatus       `json:"jobRunStatus"`
-	WorkflowRunId       pgtype.UUID        `json:"workflowRunId"`
-	ActionId            string             `json:"actionId"`
-	StickyStrategy      NullStickyStrategy `json:"stickyStrategy"`
-	DesiredWorkerId     pgtype.UUID        `json:"desiredWorkerId"`
+	SRID                   pgtype.UUID        `json:"SR_id"`
+	SRCreatedAt            pgtype.Timestamp   `json:"SR_createdAt"`
+	SRUpdatedAt            pgtype.Timestamp   `json:"SR_updatedAt"`
+	SRDeletedAt            pgtype.Timestamp   `json:"SR_deletedAt"`
+	SRTenantId             pgtype.UUID        `json:"SR_tenantId"`
+	SRQueue                string             `json:"SR_queue"`
+	SROrder                int64              `json:"SR_order"`
+	SRWorkerId             pgtype.UUID        `json:"SR_workerId"`
+	SRTickerId             pgtype.UUID        `json:"SR_tickerId"`
+	SRStatus               StepRunStatus      `json:"SR_status"`
+	SRRequeueAfter         pgtype.Timestamp   `json:"SR_requeueAfter"`
+	SRScheduleTimeoutAt    pgtype.Timestamp   `json:"SR_scheduleTimeoutAt"`
+	SRStartedAt            pgtype.Timestamp   `json:"SR_startedAt"`
+	SRFinishedAt           pgtype.Timestamp   `json:"SR_finishedAt"`
+	SRTimeoutAt            pgtype.Timestamp   `json:"SR_timeoutAt"`
+	SRCancelledAt          pgtype.Timestamp   `json:"SR_cancelledAt"`
+	SRCancelledReason      pgtype.Text        `json:"SR_cancelledReason"`
+	SRCancelledError       pgtype.Text        `json:"SR_cancelledError"`
+	SRCallerFiles          []byte             `json:"SR_callerFiles"`
+	SRGitRepoBranch        pgtype.Text        `json:"SR_gitRepoBranch"`
+	SRRetryCount           int32              `json:"SR_retryCount"`
+	SRSemaphoreReleased    bool               `json:"SR_semaphoreReleased"`
+	SRPriority             pgtype.Int4        `json:"SR_priority"`
+	SRChildCount           int64              `json:"SR_childCount"`
+	JobRunId               pgtype.UUID        `json:"jobRunId"`
+	StepId                 pgtype.UUID        `json:"stepId"`
+	StepRetries            int32              `json:"stepRetries"`
+	StepTimeout            pgtype.Text        `json:"stepTimeout"`
+	StepScheduleTimeout    string             `json:"stepScheduleTimeout"`
+	StepReadableId         pgtype.Text        `json:"stepReadableId"`
+	StepCustomUserData     []byte             `json:"stepCustomUserData"`
+	StepRetryBackoffFactor pgtype.Float8      `json:"stepRetryBackoffFactor"`
+	StepRetryMaxBackoff    pgtype.Int4        `json:"stepRetryMaxBackoff"`
+	JobName                string             `json:"jobName"`
+	JobId                  pgtype.UUID        `json:"jobId"`
+	JobKind                JobKind            `json:"jobKind"`
+	WorkflowVersionId      pgtype.UUID        `json:"workflowVersionId"`
+	JobRunStatus           JobRunStatus       `json:"jobRunStatus"`
+	WorkflowRunId          pgtype.UUID        `json:"workflowRunId"`
+	ActionId               string             `json:"actionId"`
+	StickyStrategy         NullStickyStrategy `json:"stickyStrategy"`
+	DesiredWorkerId        pgtype.UUID        `json:"desiredWorkerId"`
 }
 
 func (q *Queries) GetStepRunForEngine(ctx context.Context, db DBTX, arg GetStepRunForEngineParams) ([]*GetStepRunForEngineRow, error) {
@@ -1325,6 +1329,8 @@ func (q *Queries) GetStepRunForEngine(ctx context.Context, db DBTX, arg GetStepR
 			&i.StepScheduleTimeout,
 			&i.StepReadableId,
 			&i.StepCustomUserData,
+			&i.StepRetryBackoffFactor,
+			&i.StepRetryMaxBackoff,
 			&i.JobName,
 			&i.JobId,
 			&i.JobKind,

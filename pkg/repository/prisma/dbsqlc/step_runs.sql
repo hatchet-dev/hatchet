@@ -204,6 +204,8 @@ SELECT
     s."scheduleTimeout" AS "stepScheduleTimeout",
     s."readableId" AS "stepReadableId",
     s."customUserData" AS "stepCustomUserData",
+    s."retryBackoffFactor" AS "stepRetryBackoffFactor",
+    s."retryMaxBackoff" AS "stepRetryMaxBackoff",
     j."name" AS "jobName",
     j."id" AS "jobId",
     j."kind" AS "jobKind",

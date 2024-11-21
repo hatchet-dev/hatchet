@@ -19,7 +19,6 @@ import (
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/hatchet-dev/hatchet/internal/services/shared/defaults"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
@@ -735,7 +734,7 @@ func (s *stepRunEngineRepository) ListStepRunsToTimeout(ctx context.Context, ten
 	stepRunIds, err := s.queries.PopTimeoutQueueItems(ctx, tx, dbsqlc.PopTimeoutQueueItemsParams{
 		Tenantid: pgTenantId,
 		Limit: pgtype.Int4{
-			Int32: int32(limit),
+			Int32: int32(limit), // nolint: gosec
 			Valid: true,
 		},
 	})
@@ -1012,7 +1011,7 @@ func (s *stepRunEngineRepository) QueueStepRuns(ctx context.Context, qlp *zerolo
 	}
 
 	pgLimit := pgtype.Int4{
-		Int32: int32(limit),
+		Int32: int32(limit), // nolint: gosec
 		Valid: true,
 	}
 
@@ -2700,6 +2699,42 @@ func (s *stepRunEngineRepository) StepRunFailed(ctx context.Context, tenantId, w
 	return innerErr
 }
 
+func (s *stepRunEngineRepository) StepRunRetryBackoff(ctx context.Context, tenantId, stepRunId string, retryAfter time.Time) error {
+	ctx, span := telemetry.NewSpan(ctx, "step-run-retry-backoff-db")
+	defer span.End()
+
+	return s.queries.CreateRetryQueueItem(ctx, s.pool, dbsqlc.CreateRetryQueueItemParams{
+		Steprunid:  sqlchelpers.UUIDFromStr(stepRunId),
+		Tenantid:   sqlchelpers.UUIDFromStr(tenantId),
+		Retryafter: sqlchelpers.TimestampFromTime(retryAfter),
+	})
+}
+
+func (s *stepRunEngineRepository) ListRetryableStepRuns(ctx context.Context, tenantId string) (bool, []*dbsqlc.GetStepRunForEngineRow, error) {
+	ctx, span := telemetry.NewSpan(ctx, "list-retryable-step-runs-db")
+	defer span.End()
+
+	rows, err := s.queries.ListStepRunsToRetry(ctx, s.pool, sqlchelpers.UUIDFromStr(tenantId))
+
+	if err != nil {
+		return false, nil, fmt.Errorf("could not list retryable step runs: %w", err)
+	}
+
+	ids := make([]pgtype.UUID, 0, len(rows))
+
+	for _, row := range rows {
+		ids = append(ids, row.StepRunId)
+	}
+
+	// get step runs for engine
+	stepRuns, err := s.queries.GetStepRunForEngine(ctx, s.pool, dbsqlc.GetStepRunForEngineParams{
+		Ids:      ids,
+		TenantId: sqlchelpers.UUIDFromStr(tenantId),
+	})
+
+	return len(stepRuns) == 1000, stepRuns, err
+}
+
 func (s *stepRunEngineRepository) ReplayStepRun(ctx context.Context, tenantId, stepRunId string, input []byte) (*dbsqlc.GetStepRunForEngineRow, error) {
 	ctx, span := telemetry.NewSpan(ctx, "replay-step-run")
 	defer span.End()
@@ -3619,23 +3654,6 @@ func printQueueDebugInfo(
 	).Dur(
 		"duration_pop_queue_items", durationPopQueueItems,
 	).Msg(msg)
-}
-
-func getScheduleTimeout(stepRun *dbsqlc.GetStepRunForEngineRow) pgtype.Timestamp {
-	var timeoutDuration time.Duration
-
-	// get the schedule timeout from the step
-	stepScheduleTimeout := stepRun.StepScheduleTimeout
-
-	if stepScheduleTimeout != "" {
-		timeoutDuration, _ = time.ParseDuration(stepScheduleTimeout)
-	} else {
-		timeoutDuration = defaults.DefaultScheduleTimeout
-	}
-
-	timeout := time.Now().UTC().Add(timeoutDuration)
-
-	return sqlchelpers.TimestampFromTime(timeout)
 }
 
 func hashToBucket(id pgtype.UUID, buckets int) int {

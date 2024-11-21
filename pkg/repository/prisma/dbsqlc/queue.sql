@@ -552,3 +552,61 @@ WHERE
     AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
     AND w."isActive" = true
     AND w."isPaused" = false;
+
+-- name: ListStepRunsToRetry :many
+WITH retries AS (
+    SELECT
+        *
+    FROM
+        "RetryQueueItem" rqi
+    WHERE
+        rqi."isQueued" = true
+        AND rqi."tenantId" = @tenantId::uuid
+        AND rqi."retryAfter" <= NOW()
+    ORDER BY
+        rqi."retryAfter" ASC
+    LIMIT
+        1000
+    FOR UPDATE SKIP LOCKED
+), updated_rqis AS (
+    UPDATE
+        "RetryQueueItem" rqi
+    SET
+        "isQueued" = false
+    FROM
+        retries
+    WHERE
+        rqi."stepRunId" = retries."stepRunId"
+)
+SELECT
+    retries.*
+FROM
+    retries
+JOIN
+    "StepRun" sr ON retries."stepRunId" = sr."id"
+WHERE
+    -- we remove any step runs in a finalized state from the retry queue
+    sr."status" NOT IN ('SUCCEEDED', 'FAILED', 'CANCELLED', 'CANCELLING');
+
+-- name: CreateRetryQueueItem :exec
+INSERT INTO
+    "RetryQueueItem" (
+        "stepRunId",
+        "retryAfter",
+        "tenantId",
+        "isQueued"
+    )
+VALUES
+    (
+        @stepRunId::uuid,
+        @retryAfter::timestamp,
+        @tenantId::uuid,
+        true
+    );
+
+-- name: CleanupRetryQueueItems :exec
+DELETE FROM
+    "RetryQueueItem"
+WHERE
+    "isQueued" = false
+    AND rqi."tenantId" = @tenantId::uuid;

@@ -196,6 +196,10 @@ type StepRunEngineRepository interface {
 
 	StepRunFailed(ctx context.Context, tenantId, workflowRunId, stepRunId string, failedAt time.Time, errStr string, retryCount int) error
 
+	StepRunRetryBackoff(ctx context.Context, tenantId, stepRunId string, retryAfter time.Time) error
+
+	ListRetryableStepRuns(ctx context.Context, tenantId string) (bool, []*dbsqlc.GetStepRunForEngineRow, error)
+
 	ReplayStepRun(ctx context.Context, tenantId, stepRunId string, input []byte) (*dbsqlc.GetStepRunForEngineRow, error)
 
 	// PreflightCheckReplayStepRun checks if a step run can be replayed. If it can, it will return nil.
