@@ -90,23 +90,6 @@ func (q *Queries) BulkCreateWorkflowRunEvent(ctx context.Context, db DBTX, arg B
 	return err
 }
 
-const countCronWorkflows = `-- name: CountCronWorkflows :one
-SELECT count(*)
-FROM "WorkflowTriggerCronRef" c
-JOIN "WorkflowTriggers" t ON c."parentId" = t."id"
-JOIN "WorkflowVersion" v ON t."workflowVersionId" = v."id"
-JOIN "Workflow" w on v."workflowId" = w."id"
-WHERE v."deletedAt" IS NULL AND w."tenantId" = $1::uuid
-`
-
-// TODO move this to workflow.sql
-func (q *Queries) CountCronWorkflows(ctx context.Context, db DBTX, tenantid pgtype.UUID) (int64, error) {
-	row := db.QueryRow(ctx, countCronWorkflows, tenantid)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
 const countScheduledWorkflows = `-- name: CountScheduledWorkflows :one
 SELECT count(*)
 FROM "WorkflowTriggerScheduledRef" t

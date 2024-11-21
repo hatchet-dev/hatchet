@@ -1520,12 +1520,3 @@ WHERE
 DELETE FROM "WorkflowTriggerScheduledRef"
 WHERE
     "id" = @scheduleId::uuid;
-
--- TODO move this to workflow.sql
--- name: CountCronWorkflows :one
-SELECT count(*)
-FROM "WorkflowTriggerCronRef" c
-JOIN "WorkflowTriggers" t ON c."parentId" = t."id"
-JOIN "WorkflowVersion" v ON t."workflowVersionId" = v."id"
-JOIN "Workflow" w on v."workflowId" = w."id"
-WHERE v."deletedAt" IS NULL AND w."tenantId" = @tenantId::uuid;

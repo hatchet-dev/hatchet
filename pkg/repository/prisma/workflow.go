@@ -289,14 +289,14 @@ func (w *workflowAPIRepository) ListCronWorkflows(ctx context.Context, tenantId 
 	ctx, cancel := context.WithTimeout(ctx, time.Second*30)
 	defer cancel()
 
-	count, err := w.queries.CountCronWorkflows(ctx, w.pool, sqlchelpers.UUIDFromStr(tenantId))
-
-	if err != nil {
-		return nil, 0, err
-	}
+	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
 
 	listOpts := dbsqlc.ListCronWorkflowsParams{
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Tenantid: pgTenantId,
+	}
+
+	countOpts := dbsqlc.CountCronWorkflowsParams{
+		Tenantid: pgTenantId,
 	}
 
 	if opts.Limit != nil {
@@ -334,15 +334,23 @@ func (w *workflowAPIRepository) ListCronWorkflows(ctx context.Context, tenantId 
 		}
 
 		listOpts.AdditionalMetadata = additionalMetadataBytes
+		countOpts.AdditionalMetadata = additionalMetadataBytes
 	}
 
 	if opts.WorkflowId != nil {
 		listOpts.Workflowid = sqlchelpers.UUIDFromStr(*opts.WorkflowId)
+		countOpts.Workflowid = sqlchelpers.UUIDFromStr(*opts.WorkflowId)
 	}
 
 	cronWorkflows, err := w.queries.ListCronWorkflows(ctx, w.pool, listOpts)
 	if err != nil {
 		return nil, 0, err
+	}
+
+	count, err := w.queries.CountCronWorkflows(ctx, w.pool, countOpts)
+
+	if err != nil {
+		return nil, count, err
 	}
 
 	return cronWorkflows, count, nil

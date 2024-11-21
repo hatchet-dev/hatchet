@@ -49,6 +49,59 @@ func (q *Queries) AddWorkflowTag(ctx context.Context, db DBTX, arg AddWorkflowTa
 	return err
 }
 
+const countCronWorkflows = `-- name: CountCronWorkflows :one
+WITH latest_versions AS (
+    SELECT DISTINCT ON("workflowId")
+        workflowVersions."id" AS "workflowVersionId",
+        workflowVersions."workflowId"
+    FROM
+        "WorkflowVersion" as workflowVersions
+    JOIN
+        "Workflow" as workflow ON workflow."id" = workflowVersions."workflowId"
+    WHERE
+        workflow."tenantId" = $1::uuid
+        AND workflowVersions."deletedAt" IS NULL
+    ORDER BY "workflowId", "order" DESC
+)
+SELECT
+    count(c.*)
+FROM
+    latest_versions
+JOIN
+    "WorkflowTriggers" as t ON t."workflowVersionId" = latest_versions."workflowVersionId"
+JOIN
+    "WorkflowTriggerCronRef" as c ON c."parentId" = t."id"
+JOIN
+    "Workflow" w on w."id" = latest_versions."workflowId"
+WHERE
+    t."deletedAt" IS NULL
+    AND w."tenantId" = $1::uuid
+    AND ($2::uuid IS NULL OR c."id" = $2::uuid)
+    AND ($3::uuid IS NULL OR w."id" = $3::uuid)
+    AND ($4::jsonb IS NULL OR
+        c."additionalMetadata" @> $4::jsonb)
+`
+
+type CountCronWorkflowsParams struct {
+	Tenantid           pgtype.UUID `json:"tenantid"`
+	Crontriggerid      pgtype.UUID `json:"crontriggerid"`
+	Workflowid         pgtype.UUID `json:"workflowid"`
+	AdditionalMetadata []byte      `json:"additionalMetadata"`
+}
+
+// Get all of the latest workflow versions for the tenant
+func (q *Queries) CountCronWorkflows(ctx context.Context, db DBTX, arg CountCronWorkflowsParams) (int64, error) {
+	row := db.QueryRow(ctx, countCronWorkflows,
+		arg.Tenantid,
+		arg.Crontriggerid,
+		arg.Workflowid,
+		arg.AdditionalMetadata,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countRoundRobinGroupKeys = `-- name: CountRoundRobinGroupKeys :one
 SELECT
     COUNT(DISTINCT "concurrencyGroupId") AS total

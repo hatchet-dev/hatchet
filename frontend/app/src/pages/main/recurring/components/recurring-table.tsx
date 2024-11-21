@@ -132,7 +132,7 @@ export function CronsTable() {
       orderByField,
       orderByDirection,
       offset,
-      limit: pagination.pageSize,
+      limit: pageSize,
       workflowId: workflow,
       additionalMetadata: columnFilters.find(
         (filter) => filter.id === 'Metadata',

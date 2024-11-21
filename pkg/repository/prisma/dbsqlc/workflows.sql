@@ -811,6 +811,39 @@ OFFSET
 LIMIT
     COALESCE(sqlc.narg('limit'), 50);
 
+-- name: CountCronWorkflows :one
+-- Get all of the latest workflow versions for the tenant
+WITH latest_versions AS (
+    SELECT DISTINCT ON("workflowId")
+        workflowVersions."id" AS "workflowVersionId",
+        workflowVersions."workflowId"
+    FROM
+        "WorkflowVersion" as workflowVersions
+    JOIN
+        "Workflow" as workflow ON workflow."id" = workflowVersions."workflowId"
+    WHERE
+        workflow."tenantId" = @tenantId::uuid
+        AND workflowVersions."deletedAt" IS NULL
+    ORDER BY "workflowId", "order" DESC
+)
+SELECT
+    count(c.*)
+FROM
+    latest_versions
+JOIN
+    "WorkflowTriggers" as t ON t."workflowVersionId" = latest_versions."workflowVersionId"
+JOIN
+    "WorkflowTriggerCronRef" as c ON c."parentId" = t."id"
+JOIN
+    "Workflow" w on w."id" = latest_versions."workflowId"
+WHERE
+    t."deletedAt" IS NULL
+    AND w."tenantId" = @tenantId::uuid
+    AND (@cronTriggerId::uuid IS NULL OR c."id" = @cronTriggerId::uuid)
+    AND (@workflowId::uuid IS NULL OR w."id" = @workflowId::uuid)
+    AND (sqlc.narg('additionalMetadata')::jsonb IS NULL OR
+        c."additionalMetadata" @> sqlc.narg('additionalMetadata')::jsonb);
+
 -- name: DeleteWorkflowTriggerCronRef :exec
 DELETE FROM "WorkflowTriggerCronRef"
 WHERE
