@@ -66,15 +66,22 @@ func (q *Queries) CleanupQueueItems(ctx context.Context, db DBTX, arg CleanupQue
 }
 
 const cleanupRetryQueueItems = `-- name: CleanupRetryQueueItems :exec
-DELETE FROM
-    "RetryQueueItem"
-WHERE
-    "isQueued" = false
-    AND rqi."tenantId" = $1::uuid
+DELETE FROM "RetryQueueItem"
+WHERE "isQueued" = 'f'
+AND
+    "retryAfter" >= $1::timestamp
+    AND "retryAfter" <= $2::timestamp
+    AND "tenantId" = $3::uuid
 `
 
-func (q *Queries) CleanupRetryQueueItems(ctx context.Context, db DBTX, tenantid pgtype.UUID) error {
-	_, err := db.Exec(ctx, cleanupRetryQueueItems, tenantid)
+type CleanupRetryQueueItemsParams struct {
+	Minretryafter pgtype.Timestamp `json:"minretryafter"`
+	Maxretryafter pgtype.Timestamp `json:"maxretryafter"`
+	Tenantid      pgtype.UUID      `json:"tenantid"`
+}
+
+func (q *Queries) CleanupRetryQueueItems(ctx context.Context, db DBTX, arg CleanupRetryQueueItemsParams) error {
+	_, err := db.Exec(ctx, cleanupRetryQueueItems, arg.Minretryafter, arg.Maxretryafter, arg.Tenantid)
 	return err
 }
 
@@ -355,6 +362,29 @@ func (q *Queries) GetMinMaxProcessedQueueItems(ctx context.Context, db DBTX, ten
 	row := db.QueryRow(ctx, getMinMaxProcessedQueueItems, tenantid)
 	var i GetMinMaxProcessedQueueItemsRow
 	err := row.Scan(&i.MinId, &i.MaxId)
+	return &i, err
+}
+
+const getMinMaxProcessedRetryQueueItems = `-- name: GetMinMaxProcessedRetryQueueItems :one
+SELECT
+    COALESCE(MIN("retryAfter"), NOW())::timestamp AS "minRetryAfter",
+    COALESCE(MAX("retryAfter"), NOW())::timestamp AS "maxRetryAfter"
+FROM
+    "RetryQueueItem"
+WHERE
+    "isQueued" = 'f'
+    AND "tenantId" = $1::uuid
+`
+
+type GetMinMaxProcessedRetryQueueItemsRow struct {
+	MinRetryAfter pgtype.Timestamp `json:"minRetryAfter"`
+	MaxRetryAfter pgtype.Timestamp `json:"maxRetryAfter"`
+}
+
+func (q *Queries) GetMinMaxProcessedRetryQueueItems(ctx context.Context, db DBTX, tenantid pgtype.UUID) (*GetMinMaxProcessedRetryQueueItemsRow, error) {
+	row := db.QueryRow(ctx, getMinMaxProcessedRetryQueueItems, tenantid)
+	var i GetMinMaxProcessedRetryQueueItemsRow
+	err := row.Scan(&i.MinRetryAfter, &i.MaxRetryAfter)
 	return &i, err
 }
 

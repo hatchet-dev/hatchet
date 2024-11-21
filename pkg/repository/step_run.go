@@ -237,6 +237,8 @@ type StepRunEngineRepository interface {
 
 	CleanupInternalQueueItems(ctx context.Context, tenantId string) error
 
+	CleanupRetryQueueItems(ctx context.Context, tenantId string) error
+
 	ListInitialStepRunsForJobRun(ctx context.Context, tenantId, jobRunId string) ([]*dbsqlc.GetStepRunForEngineRow, error)
 
 	// ListStartableStepRuns returns a list of step runs that are in a startable state, assuming that the parentStepRunId has succeeded.

@@ -2455,6 +2455,45 @@ func (s *stepRunEngineRepository) CleanupInternalQueueItems(ctx context.Context,
 	return nil
 }
 
+func (s *stepRunEngineRepository) CleanupRetryQueueItems(ctx context.Context, tenantId string) error {
+	// setup telemetry
+	ctx, span := telemetry.NewSpan(ctx, "cleanup-retry-queue-items-database")
+	defer span.End()
+
+	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
+
+	// get the min and max queue items
+	minMax, err := s.queries.GetMinMaxProcessedRetryQueueItems(ctx, s.pool, pgTenantId)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil
+		}
+
+		return fmt.Errorf("could not get min max processed retry queue items: %w", err)
+	}
+
+	if minMax == nil {
+		return nil
+	}
+
+	err = s.queries.CleanupRetryQueueItems(ctx, s.pool, dbsqlc.CleanupRetryQueueItemsParams{
+		Minretryafter: minMax.MinRetryAfter,
+		Maxretryafter: minMax.MaxRetryAfter,
+		Tenantid:      pgTenantId,
+	})
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil
+		}
+
+		return fmt.Errorf("could not cleanup queue items: %w", err)
+	}
+
+	return nil
+}
+
 func (s *stepRunEngineRepository) StepRunStarted(ctx context.Context, tenantId, workflowRunId, stepRunId string, startedAt time.Time) error {
 	ctx, span := telemetry.NewSpan(ctx, "step-run-started-db") // nolint: ineffassign
 	defer span.End()
@@ -2706,7 +2745,7 @@ func (s *stepRunEngineRepository) StepRunRetryBackoff(ctx context.Context, tenan
 	return s.queries.CreateRetryQueueItem(ctx, s.pool, dbsqlc.CreateRetryQueueItemParams{
 		Steprunid:  sqlchelpers.UUIDFromStr(stepRunId),
 		Tenantid:   sqlchelpers.UUIDFromStr(tenantId),
-		Retryafter: sqlchelpers.TimestampFromTime(retryAfter),
+		Retryafter: sqlchelpers.TimestampFromTime(retryAfter.UTC()),
 	})
 }
 

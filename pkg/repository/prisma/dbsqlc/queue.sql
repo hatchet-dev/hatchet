@@ -604,9 +604,20 @@ VALUES
         true
     );
 
--- name: CleanupRetryQueueItems :exec
-DELETE FROM
+-- name: GetMinMaxProcessedRetryQueueItems :one
+SELECT
+    COALESCE(MIN("retryAfter"), NOW())::timestamp AS "minRetryAfter",
+    COALESCE(MAX("retryAfter"), NOW())::timestamp AS "maxRetryAfter"
+FROM
     "RetryQueueItem"
 WHERE
-    "isQueued" = false
-    AND rqi."tenantId" = @tenantId::uuid;
+    "isQueued" = 'f'
+    AND "tenantId" = @tenantId::uuid;
+
+-- name: CleanupRetryQueueItems :exec
+DELETE FROM "RetryQueueItem"
+WHERE "isQueued" = 'f'
+AND
+    "retryAfter" >= @minRetryAfter::timestamp
+    AND "retryAfter" <= @maxRetryAfter::timestamp
+    AND "tenantId" = @tenantId::uuid;
