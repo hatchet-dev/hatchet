@@ -21,6 +21,11 @@ import { columns } from './recurring-columns';
 import { Button } from '@/components/ui/button';
 import { ArrowPathIcon } from '@heroicons/react/24/outline';
 import { DeleteCron } from './delete-cron';
+import {
+  FilterOption,
+  ToolbarFilters,
+  ToolbarType,
+} from '@/components/molecules/data-table/data-table-toolbar';
 
 export function CronsTable() {
   const { tenant } = useOutletContext<TenantContextType>();
@@ -72,6 +77,17 @@ export function CronsTable() {
     setSearchParams(newSearchParams);
   }, [sorting, columnFilters, pagination, setSearchParams, searchParams]);
 
+  const workflow = useMemo<string | undefined>(() => {
+    const filter = columnFilters.find((filter) => filter.id === 'Workflow');
+
+    if (!filter) {
+      return;
+    }
+
+    const vals = filter?.value as Array<string>;
+    return vals[0];
+  }, [columnFilters]);
+
   const orderByDirection = useMemo<
     WorkflowRunOrderByDirection | undefined
   >(() => {
@@ -114,11 +130,14 @@ export function CronsTable() {
     refetch,
   } = useQuery({
     ...queries.cronJobs.list(tenant.metadata.id, {
-      // TODO: add filters
       orderByField,
       orderByDirection,
       offset,
-      limit: pageSize,
+      limit: pagination.pageSize,
+      workflowId: workflow,
+      additionalMetadata: columnFilters.find(
+        (filter) => filter.id === 'Metadata',
+      )?.value as string[] | undefined,
     }),
     refetchInterval: 2000,
   });
@@ -137,6 +156,33 @@ export function CronsTable() {
       refetch();
     }
   };
+
+  const { data: workflowKeys } = useQuery({
+    ...queries.workflows.list(tenant.metadata.id),
+  });
+
+  const workflowKeyFilters = useMemo((): FilterOption[] => {
+    return (
+      workflowKeys?.rows?.map((key) => ({
+        value: key.metadata.id,
+        label: key.name,
+      })) || []
+    );
+  }, [workflowKeys]);
+
+  const filters: ToolbarFilters = [
+    {
+      columnId: 'Workflow',
+      title: 'Workflow',
+      options: workflowKeyFilters,
+      type: ToolbarType.Radio,
+    },
+    {
+      columnId: 'Metadata',
+      title: 'Metadata',
+      type: ToolbarType.KeyValue,
+    },
+  ];
 
   const actions = [
     <Button
@@ -170,7 +216,7 @@ export function CronsTable() {
           onDeleteClick: handleDeleteClick,
         })}
         data={data?.rows || []}
-        filters={[]}
+        filters={filters}
         showColumnToggle={true}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
