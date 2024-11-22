@@ -35,9 +35,9 @@ export const getStaticProps = ({}) =>
 A [Cron](https://en.wikipedia.org/wiki/Cron) is a time-based job scheduler that allows you to define when a workflow should be executed automatically. This feature is particularly useful for recurring tasks, such as daily data updates, weekly reports, or periodic maintenance jobs.
 
 Hatchet supports cron triggers to run on a schedule defined in a few different ways:
- - [Workflow Definitions](./cron-trigger#defining-a-cron-in-your-workflow-definition): Define a cron expression in your workflow definition to trigger the workflow on a predefined schedule.
- - [APIs](./cron-trigger#defining-dynamic-crons-via-apis): Use the Hatchet SDKs to dynamically set the cron schedule of a workflow (i.e. customer defined schedule).
- - [Hatchet Dashboard](./cron-trigger#managing-cron-jobs-in-the-hatchet-dashboard): Manually create cron triggers from the Hatchet Dashboard.
+ - [Workflow Definitions](./cron-trigger.mdx#defining-a-cron-in-your-workflow-definition): Define a cron expression in your workflow definition to trigger the workflow on a predefined schedule.
+ - [Dynamic Programatically](./cron-trigger.mdx#programatically-creating-cron-triggers): Use the Hatchet SDKs to dynamically set the cron schedule of a workflow (i.e. customer defined schedule).
+ - [Hatchet Dashboard](./cron-trigger.mdx#managing-cron-jobs-in-the-hatchet-dashboard): Manually create cron triggers from the Hatchet Dashboard.
 
 <Callout type="info">
   The expression is when Hatchet **enqueues** the workflow, not when the run starts. Scheduling constraints like concurrency limits, rate limits, and retry policies can affect run start times.
@@ -144,7 +144,7 @@ You can list all cron triggers by passing in a query object to the list method.
   </Tabs.Tab>
 </UniversalTabs>
 
-## Managing Cron Jobs in the Hatchet Dashboard
+## Managing Cron Triggers in the Hatchet Dashboard
 
 In the Hatchet Dashboard, you can view and manage cron triggers for your workflows.
 
