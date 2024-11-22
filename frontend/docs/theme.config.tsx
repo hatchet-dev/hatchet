@@ -1,6 +1,7 @@
 import React from "react";
 import { DocsThemeConfig } from "nextra-theme-docs";
 import Image from "next/image";
+import FrameworkSelector from "./components/FrameworkSelector";
 
 const config: DocsThemeConfig = {
   logo: (
@@ -35,7 +36,13 @@ const config: DocsThemeConfig = {
     </>
   ),
   sidebar: {
-    defaultMenuCollapseLevel: 2,
+    defaultMenuCollapseLevel: 1,
+    titleComponent: ({ title, type, route }) => {
+      if (type === 'separator' && title === 'Frameworks') {
+        return <FrameworkSelector />
+      }
+      return <div>{title}</div>
+    }
   },
 };
 

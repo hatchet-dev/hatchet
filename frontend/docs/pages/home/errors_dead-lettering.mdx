@@ -1,0 +1,7 @@
+# A Note on Dead Letter Queues
+
+A dead letter queue (DLQ) is a messaging concept used to handle messages that cannot be processed successfully. In the context of workflow management, a DLQ can be used to store failed workflow instances that require manual intervention or further analysis.
+
+While Hatchet does not have a built-in dead letter queue feature, the persistence of failed workflow instances in the dashboard serves a similar purpose. By keeping a record of failed instances, Hatchet allows you to track and manage failures, perform root cause analysis, and take appropriate actions, such as modifying input data or updating your workflow code before manually retrying the failed instances.
+
+It's important to note that the term "dead letter queue" is more commonly associated with messaging systems like Apache Kafka or Amazon SQS, where unprocessed messages are automatically moved to a separate queue for manual handling. In Hatchet, the failed instances are not automatically moved to a separate queue but are instead persisted in the dashboard for manual management.

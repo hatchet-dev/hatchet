@@ -69,7 +69,7 @@ export function WorkflowTable() {
       </CardHeader>
       <CardFooter>
         <a
-          href="https://docs.hatchet.run/home/basics/workflows"
+          href="https://docs.hatchet.run/home/foundations_workflows"
           className="flex flex-row item-center"
         >
           <Button onClick={() => {}} variant="link" className="p-0 w-fit">

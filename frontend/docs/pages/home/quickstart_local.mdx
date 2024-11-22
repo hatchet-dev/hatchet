@@ -1,61 +1,26 @@
-import { Tabs, Steps, Callout } from "nextra/components";
+import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
 import UniversalTabs from "@/components/UniversalTabs";
 
-# Kubernetes Quickstart
+# Hatchet Local Quickstart
 
-## Prerequisites
-
-- A Kubernetes cluster currently set as the current context in `kubectl`
-- `kubectl` and `helm` installed
+Welcome to Hatchet! This guide walks you through getting set up on Hatchet Cloud. If you'd like to self-host Hatchet, please see the [self-hosted quickstart](../../self-hosting/) instead.
 
 ## Quickstart
 
 <Steps>
-### Get Hatchet Running
 
-To deploy `hatchet-stack`, run the following commands:
+### Sign up
 
-```sh
-helm repo add hatchet https://hatchet-dev.github.io/hatchet-charts
-helm install hatchet-stack hatchet/hatchet-stack --set caddy.enabled=true
-```
+If you haven't already signed up for Hatchet Cloud, please register [here](https://cloud.onhatchet.run).
 
-This default installation will run the Hatchet server as an internal service in the cluster and spins up a reverse proxy via `Caddy` to get local access. To view the Hatchet server, run the following command:
+### Set up your tenant
 
-```sh
-export NAMESPACE=default # TODO: replace with your namespace
-export POD_NAME=$(kubectl get pods --namespace $NAMESPACE -l "app=caddy" -o jsonpath="{.items[0].metadata.name}")
-export CONTAINER_PORT=$(kubectl get pod --namespace $NAMESPACE $POD_NAME -o jsonpath="{.spec.containers[0].ports[0].containerPort}")
-kubectl --namespace $NAMESPACE port-forward $POD_NAME 8080:$CONTAINER_PORT
-```
+In Hatchet Cloud, you'll be shown a screen to create your first tenant. A tenant is a logical separation of your environments (e.g. `dev`, `staging`, `production`). Each tenant has its own set of users who can access it.
 
-And then navigate to `http://localhost:8080` to see the Hatchet frontend running. You can log into Hatchet with the following credentials:
-
-```
-Email: admin@example.com
-Password: Admin123!!
-```
-
-### Port forward to the Hatchet engine
+After creating your tenant, navigate to your Hatchet dashboard and navigate to your settings tab. You should see a section called "API Keys". Click "Create API Key", input a name for the key and copy the key. Place the following in a `.env` file:
 
 ```sh
-export NAMESPACE=default # TODO: replace with your namespace
-export POD_NAME=$(kubectl get pods --namespace $NAMESPACE -l "app.kubernetes.io/name=hatchet-engine" -o jsonpath="{.items[0].metadata.name}")
-export CONTAINER_PORT=$(kubectl get pod --namespace $NAMESPACE $POD_NAME -o jsonpath="{.spec.containers[0].ports[0].containerPort}")
-kubectl --namespace $NAMESPACE port-forward $POD_NAME 7070:$CONTAINER_PORT
-```
-
-This will spin up the Hatchet engine service on `localhost:7070` which you can then connect to from the examples.
-
-### Generate an API token
-
-To generate an API token, navigate to the `Settings` tab in the Hatchet frontend and click on the `API Tokens` tab. Click the `Generate API Token` button to create a new token. Save this to a `.env` file in the root of your project.
-
-```sh
-cat <<EOF > .env
-HATCHET_CLIENT_TOKEN="<your token here>"
-HATCHET_CLIENT_TLS_STRATEGY=none
-EOF
+HATCHET_CLIENT_TOKEN="<your-api-key>"
 ```
 
 ### Run your first worker
@@ -170,7 +135,13 @@ npm run worker
 
   </Tabs.Tab>
   <Tabs.Tab>
-  In a new Go project, copy the following code into a `main.go` file:
+Run the following to initialize a new Go project:
+
+```sh
+go mod init my-hatchet-project
+```
+
+Then copy the following code into a `main.go` file:
 
 ```go filename="main.go" copy
 package main
@@ -213,7 +184,7 @@ func main() {
 		&worker.WorkflowJob{
 			Name:        "simple-workflow",
 			Description: "Simple one-step workflow.",
-      On:          worker.Events("simple"),
+			On:          worker.Events("simple"),
 			Steps: []*worker.WorkflowStep{
 				worker.Fn(func(ctx worker.HatchetContext) (result *stepOutput, err error) {
 					fmt.Println("executed step 1")
@@ -243,7 +214,7 @@ func main() {
 }
 ```
 
-Next, run the following command to start the worker:
+Next, run `go mod tidy` to install the dependencies, and finally run the following to start the worker:
 
 ```sh
 go run main.go
@@ -265,3 +236,11 @@ You can now trigger your first workflow by navigating to the `Workflows` tab, se
 That's it! You've successfully deployed Hatchet and run your first workflow.
 
 </Steps>
+
+## Next Steps
+
+Check out the SDK-specific documentation for more guides on how to integrate with your runtime:
+
+- [Python SDK](/sdks/python-sdk/)
+- [Typescript SDK](/sdks/typescript-sdk/)
+- [Go SDK](/sdks/go-sdk/)

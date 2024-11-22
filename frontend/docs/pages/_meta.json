@@ -10,6 +10,7 @@
     },
     "sdks": {
         "title": "SDK Reference",
+        "display": "hidden",
         "type": "menu",
         "items": {
             "python": {

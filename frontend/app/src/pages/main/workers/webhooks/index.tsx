@@ -53,7 +53,7 @@ export default function Webhooks() {
           <a
             className="underline"
             target="_blank"
-            href="https://docs.hatchet.run/home/features/webhooks"
+            href="https://docs.hatchet.run/home/advanced_webhook-workers"
             rel="noreferrer"
           >
             Learn more.

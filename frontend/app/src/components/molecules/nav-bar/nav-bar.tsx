@@ -95,7 +95,7 @@ export default function MainNav({ user }: MainNavProps) {
               <DropdownMenuItem
                 onClick={() =>
                   window.open(
-                    'https://docs.hatchet.run/home/basics/steps',
+                    'https://docs.hatchet.run/home/foundations_steps',
                     '_blank',
                   )
                 }

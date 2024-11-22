@@ -64,14 +64,14 @@ Hatchet replaces difficult to manage legacy queues or pub/sub systems so you can
 
 Hatchet is available as a cloud version or self-hosted. See the following docs to get up and running quickly:
 
-- [Hatchet Cloud Quickstart](https://docs.hatchet.run/home/hatchet-cloud-quickstart)
+- [Hatchet Cloud Quickstart](https://docs.hatchet.run/home/quickstart_cloud)
 - [Hatchet Self-Hosted](https://docs.hatchet.run/self-hosting)
 
 Hatchet supports your technology stack with open-source SDKs for Python, Typescript, and Go. To get started, see the language-specific guides here:
 
-- [Python SDK Docs](https://docs.hatchet.run/sdks/python-sdk) | [Python SDK Quickstart](https://github.com/hatchet-dev/hatchet-python-quickstart)
-- [Typescript SDK Docs](https://docs.hatchet.run/sdks/typescript-sdk) | [Typescript SDK Quickstart](https://github.com/hatchet-dev/hatchet-typescript-quickstart)
-- [Go SDK Docs](https://docs.hatchet.run/sdks/go-sdk) | [Go SDK Quickstart](https://github.com/hatchet-dev/hatchet-go-quickstart)
+- [Python SDK Docs](https://docs.hatchet.run/) | [Python SDK Quickstart](https://github.com/hatchet-dev/hatchet-python-quickstart)
+- [Typescript SDK Docs](https://docs.hatchet.run/) | [Typescript SDK Quickstart](https://github.com/hatchet-dev/hatchet-typescript-quickstart)
+- [Go SDK Docs](https://docs.hatchet.run/) | [Go SDK Quickstart](https://github.com/hatchet-dev/hatchet-go-quickstart)
 
 ### SDK repositories
 

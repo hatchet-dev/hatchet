@@ -375,7 +375,7 @@ export function StepRunPlayground({
                       Attempt Cancel
                     </>
                   </Button>
-                  <a href="https://docs.hatchet.run/home/features/cancellation">
+                  <a href="https://docs.hatchet.run/home/errors_cancellation-signaling">
                     <Button
                       onClick={handleOnCancel}
                       variant="link"

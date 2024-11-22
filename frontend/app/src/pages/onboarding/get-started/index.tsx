@@ -291,7 +291,7 @@ export default function GetStarted() {
                 onClick={() => {
                   // Explore advanced topics in the docs
                   window.open(
-                    'https://docs.hatchet.run/home/basics/steps',
+                    'https://docs.hatchet.run/home/foundations_steps',
                     '_blank',
                   );
                 }}

@@ -20,11 +20,12 @@ export const parseDocComments = (
     source: string,
     target: string,
     collapsed: boolean = false,
-): string => {
+): { text: string, expandable: boolean } => {
     const lines = source.split('\n');
     let isSnippet = false;
     let isCollecting = false;
     const resultLines: string[] = [];
+    let expandable = false;
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
@@ -50,6 +51,7 @@ export const parseDocComments = (
 
         // Collect until '...'
         if (isCollecting && startsWithPrefixAndChar(line, '...')) {
+            expandable = true;
             if (collapsed) {
                 isCollecting = false;
                 resultLines.push(line);
@@ -59,7 +61,7 @@ export const parseDocComments = (
         }
 
         // Stop at ‼️
-        if (isSnippet && line.includes('‼️')) {
+        if (isSnippet && (line.includes('‼️') || line.includes('!!'))) {
             break;
         }
       }
@@ -75,8 +77,8 @@ export const parseDocComments = (
     }
 
     if (resultLines.length === 0) {
-      return `🚨 No snippet found for ${target} \n\n${source}`;
+      return { text: `🚨 No snippet found for ${target} \n\n${source}`, expandable: false };
     }
 
-    return resultLines.join('\n');
+    return { text: resultLines.join('\n'), expandable };
   };
