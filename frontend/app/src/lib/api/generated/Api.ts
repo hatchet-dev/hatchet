@@ -1269,21 +1269,11 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
     tenant: string,
     workflow: string,
     data: CreateCronWorkflowTriggerRequest,
-    query?: {
-      /**
-       * The workflow version. If not supplied, the latest version is fetched.
-       * @format uuid
-       * @minLength 36
-       * @maxLength 36
-       */
-      version?: string;
-    },
     params: RequestParams = {},
   ) =>
     this.request<CronWorkflows, APIErrors>({
       path: `/api/v1/tenants/${tenant}/workflows/${workflow}/crons`,
       method: 'POST',
-      query: query,
       body: data,
       secure: true,
       type: ContentType.Json,
