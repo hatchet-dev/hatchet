@@ -25,7 +25,7 @@ For example, if you're already using an observability platform like [Honeycomb](
 export HATCHET_CLIENT_OTEL_SERVICE_NAME=hello-from-hatchet
 export HATCHET_CLIENT_OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
 export HATCHET_CLIENT_OTEL_EXPORTER_OTLP_ENDPOINT="https://api.honeycomb.io/v1/traces"
-export HATCHET_CLIENT_OTEL_EXPORTER_OTLP_HEADERS='{"x-honeycomb-team": "<< your-api-key >>"}'
+export HATCHET_CLIENT_OTEL_EXPORTER_OTLP_HEADERS="x-honeycomb-team=<< your-api-key >>"
 ```
 
 ## Usage
