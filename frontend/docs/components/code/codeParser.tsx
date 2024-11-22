@@ -11,7 +11,7 @@ const startsWithPrefixAndChar = (line: string, specialChar: string) => {
 }
 
 const isTargetLine = (line: string, target: string) => {
-  const split = line.split('❓');
+  const split = line.split(/[❓?]/);
   return split[1].trim() === target.trim();
 }
 
@@ -30,7 +30,7 @@ export const parseDocComments = (
       const line = lines[i];
 
       // Start collecting at ❓
-      if (isCommentLine(line) && startsWithPrefixAndChar(line, '❓') && isTargetLine(line, target)) {
+      if (isCommentLine(line) && (startsWithPrefixAndChar(line, '❓') || startsWithPrefixAndChar(line, '?')) && isTargetLine(line, target)) {
           isSnippet = true;
           isCollecting = true;
           continue;
@@ -59,7 +59,7 @@ export const parseDocComments = (
         }
 
         // Stop at ‼️
-        if (isSnippet && line.includes('‼️')) {
+        if (isSnippet && (startsWithPrefixAndChar(line, '‼️') || startsWithPrefixAndChar(line, '!!'))) {
             break;
         }
       }
