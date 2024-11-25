@@ -176,7 +176,7 @@ export function TriggerWorkflowForm({
 
       const res = await api.cronWorkflowTriggerCreate(
         tenant.metadata.id,
-        workflow?.name,
+        workflow?.metadata.id,
         {
           input: data.input,
           additionalMetadata: data.addlMeta,

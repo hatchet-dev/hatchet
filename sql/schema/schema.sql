@@ -192,7 +192,6 @@ CREATE TABLE "Event" (
     "data" JSONB,
     "additionalMetadata" JSONB,
     "insertOrder" INTEGER,
-    "identityId" BIGINT GENERATED ALWAYS AS IDENTITY,
 
     CONSTRAINT "Event_pkey" PRIMARY KEY ("id")
 );
@@ -279,7 +278,6 @@ CREATE TABLE "JobRun" (
     "cancelledReason" TEXT,
     "cancelledError" TEXT,
     "workflowRunId" UUID NOT NULL,
-    "identityId" BIGINT GENERATED ALWAYS AS IDENTITY,
 
     CONSTRAINT "JobRun_pkey" PRIMARY KEY ("id")
 );
@@ -293,7 +291,6 @@ CREATE TABLE "JobRunLookupData" (
     "jobRunId" UUID NOT NULL,
     "tenantId" UUID NOT NULL,
     "data" JSONB,
-    "identityId" BIGINT GENERATED ALWAYS AS IDENTITY,
 
     CONSTRAINT "JobRunLookupData_pkey" PRIMARY KEY ("id")
 );
@@ -486,78 +483,40 @@ CREATE TABLE "StepRateLimit" (
 
 CREATE SEQUENCE steprun_identity_id_seq START 1;
 
-
 -- CreateTable
-CREATE TABLE
-    "StepRun" (
-        "id" UUID NOT NULL,
-        "createdAt" TIMESTAMP(3) without time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "updatedAt" TIMESTAMP(3) without time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "deletedAt" TIMESTAMP(3) without time zone,
-        "tenantId" UUID NOT NULL,
-        "jobRunId" UUID NOT NULL,
-        "stepId" UUID NOT NULL,
-        "order" BIGSERIAL NOT NULL,
-        "workerId" UUID,
-        "tickerId" UUID,
-        "status" "StepRunStatus" NOT NULL DEFAULT 'PENDING',
-        "input" JSONB,
-        "output" JSONB,
-        "requeueAfter" TIMESTAMP(3),
-        "scheduleTimeoutAt" TIMESTAMP(3),
-        "error" TEXT,
-        "startedAt" TIMESTAMP(3),
-        "finishedAt" TIMESTAMP(3),
-        "timeoutAt" TIMESTAMP(3),
-        "cancelledAt" TIMESTAMP(3),
-        "cancelledReason" TEXT,
-        "cancelledError" TEXT,
-        "inputSchema" JSONB,
-        "callerFiles" JSONB,
-        "gitRepoBranch" TEXT,
-        "retryCount" INTEGER NOT NULL DEFAULT 0,
-        "semaphoreReleased" BOOLEAN NOT NULL DEFAULT false,
-        "queue" TEXT NOT NULL DEFAULT 'default',
-        "priority" INTEGER,
-        "internalRetryCount" INTEGER NOT NULL DEFAULT 0,
-         "identityId" BIGINT NOT NULL DEFAULT nextval('steprun_identity_id_seq'::regclass),
-        CONSTRAINT "StepRun_pkey" PRIMARY KEY ("status", "id")
-    )
-PARTITION BY
-    LIST ("status");
-
-ALTER TABLE "StepRun"
-ADD CONSTRAINT step_run_identity_id_unique UNIQUE ("identityId","status");
-
-CREATE TABLE
-    "StepRun_volatile" PARTITION OF "StepRun" FOR
-VALUES
-    IN (
-        'PENDING',
-        'PENDING_ASSIGNMENT',
-        'ASSIGNED',
-        'RUNNING',
-        'CANCELLING'
-    )
-WITH
-    (fillfactor = 50);
-
-ALTER TABLE "StepRun_volatile"
-SET
-    (
-        autovacuum_vacuum_threshold = '1000',
-        autovacuum_vacuum_scale_factor = '0.01',
-        autovacuum_analyze_threshold = '500',
-        autovacuum_analyze_scale_factor = '0.01'
-    );
-
-CREATE TABLE
-    "StepRun_stable" PARTITION OF "StepRun" FOR
-VALUES
-    IN ('FAILED', 'CANCELLED', 'SUCCEEDED')
-WITH
-    (fillfactor = 100);
-
+CREATE TABLE "StepRun" (
+    "id" UUID NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "deletedAt" TIMESTAMP(3),
+    "tenantId" UUID NOT NULL,
+    "jobRunId" UUID NOT NULL,
+    "stepId" UUID NOT NULL,
+    "order" BIGSERIAL NOT NULL,
+    "workerId" UUID,
+    "tickerId" UUID,
+    "status" "StepRunStatus" NOT NULL DEFAULT 'PENDING',
+    "input" JSONB,
+    "output" JSONB,
+    "requeueAfter" TIMESTAMP(3),
+    "scheduleTimeoutAt" TIMESTAMP(3),
+    "error" TEXT,
+    "startedAt" TIMESTAMP(3),
+    "finishedAt" TIMESTAMP(3),
+    "timeoutAt" TIMESTAMP(3),
+    "cancelledAt" TIMESTAMP(3),
+    "cancelledReason" TEXT,
+    "cancelledError" TEXT,
+    "inputSchema" JSONB,
+    "callerFiles" JSONB,
+    "gitRepoBranch" TEXT,
+    "retryCount" INTEGER NOT NULL DEFAULT 0,
+    "semaphoreReleased" BOOLEAN NOT NULL DEFAULT false,
+    "queue" TEXT NOT NULL DEFAULT 'default',
+    "priority" INTEGER,
+    "internalRetryCount" INTEGER NOT NULL DEFAULT 0,
+    CONSTRAINT "StepRun_pkey" PRIMARY KEY ("id")
+);
 
 -- CreateTable
 CREATE TABLE "StepRunEvent" (
@@ -951,7 +910,6 @@ CREATE TABLE "WorkflowRun" (
     "duration" BIGINT,
     "priority" INTEGER,
     "insertOrder" INTEGER,
-    "identityId" BIGINT GENERATED ALWAYS AS IDENTITY,
 
     CONSTRAINT "WorkflowRun_pkey" PRIMARY KEY ("id")
 );
@@ -994,7 +952,6 @@ CREATE TABLE "WorkflowRunTriggeredBy" (
     "input" JSONB,
     "parentId" UUID NOT NULL,
     "cronName" TEXT,
-    "identityId" BIGINT GENERATED ALWAYS AS IDENTITY,
 
     CONSTRAINT "WorkflowRunTriggeredBy_pkey" PRIMARY KEY ("id")
 );
