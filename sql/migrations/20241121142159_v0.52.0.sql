@@ -1,19 +1,20 @@
 -- atlas:txmode none
 
+
+
 -- 'Creating an updatedAt index that will be useful later';
 create index CONCURRENTLY IF NOT EXISTS "StepRun_updatedAt_idx" on "StepRun" ("updatedAt");
 -- 'Created index';
 DO $$
 DECLARE
     retry_count INT := 0;
-    max_retries INT := 10;
+    max_retries INT := 20;
     sleep_interval INT := 5000;
     rec RECORD;
     sql_statement TEXT;
     newest_record RECORD;
 BEGIN
-    WHILE retry_count < max_retries LOOP
-        BEGIN
+
 
             SET LOCAL lock_timeout = '30s';
 
@@ -49,8 +50,13 @@ BEGIN
                 "queue" text NOT NULL DEFAULT 'default'::text,
                 "priority" integer,
                 "internalRetryCount" INTEGER NOT NULL DEFAULT 0,
-                PRIMARY KEY ( "status", "id")
+                "identityId" BIGINT NOT NULL GENERATED ALWAYS AS IDENTITY,
+
+                PRIMARY KEY ( "status", "id"),
+                UNIQUE ("status", "identityId")
+
             ) PARTITION BY LIST ("status");
+            
 
             RAISE NOTICE 'Created table "StepRun_new"';
 
@@ -98,10 +104,21 @@ BEGIN
             CREATE INDEX "StepRun_workerId_idx" ON "StepRun_new" ("workerId");
             CREATE INDEX "StepRun_status_tenantId_idx" ON "StepRun_new" ("status", "tenantId");
 
+-- Create index "StepRun_id_key" to table: "StepRun"
+CREATE UNIQUE INDEX IF NOT EXISTS  "StepRun_new_id_key" ON "StepRun_new" ("id", "status");
+-- Create index "StepRun_jobRunId_status_tenantId_idx" to table: "StepRun"
+CREATE INDEX IF NOT EXISTS "StepRun_new_jobRunId_status_tenantId_idx" ON "StepRun_new" ("jobRunId", "status", "tenantId") WHERE (status = 'PENDING'::"StepRunStatus");
+   RAISE NOTICE 'Created indexes for "StepRun_new"';
 
-            RAISE NOTICE 'Created indexes for "StepRun_new"';
+   RAISE NOTICE 'StepRun_new table created successfully now we try and swap the tables';
 
-            RAISE NOTICE 'Checking for data since the last select';
+    WHILE retry_count < max_retries LOOP
+        BEGIN
+
+
+         
+
+        RAISE NOTICE 'Checking for data since the last select';
 
 
             INSERT INTO "StepRun_new" SELECT * FROM "StepRun" where "updatedAt" >= (SELECT max("updatedAt") FROM "StepRun_new") AND NOT EXISTS (
@@ -116,8 +133,19 @@ BEGIN
 
             RAISE NOTICE 'Renaming tables and copying any new data';
             BEGIN
-                LOCK TABLE "StepRun" IN SHARE MODE;
-                LOCK TABLE "StepRun_new" IN SHARE MODE;
+                LOCK TABLE "StepRun" IN ACCESS EXCLUSIVE MODE;
+
+
+                LOCK TABLE "_StepRunOrder" IN ACCESS EXCLUSIVE MODE;
+                LOCK TABLE "StepRunResultArchive" IN ACCESS EXCLUSIVE MODE;
+                LOCK TABLE "LogLine" IN ACCESS EXCLUSIVE MODE;
+                LOCK TABLE "WorkflowTriggerScheduledRef" IN ACCESS EXCLUSIVE MODE;
+                LOCK TABLE "WorkflowRun" IN ACCESS EXCLUSIVE MODE;
+                LOCK TABLE "StreamEvent" IN ACCESS EXCLUSIVE MODE;
+
+
+
+              
 
                 INSERT INTO "StepRun_new"
                 SELECT *
@@ -128,10 +156,13 @@ BEGIN
             );
 
 
+
+
+
                 ALTER TABLE "StepRun" RENAME TO "StepRun_old";
                 ALTER TABLE "StepRun_new" RENAME TO "StepRun";
-            END;
 
+                RAISE NOTICE 'Renamed tables now we try and create the triggers';
 
             FOR rec IN
                 SELECT
@@ -197,8 +228,9 @@ BEGIN
 
 
             END LOOP;
+            END;
 
-
+  
 
             RAISE NOTICE 'Migration successful EXIT';
             EXIT;
@@ -206,39 +238,59 @@ BEGIN
             WHEN OTHERS THEN
                 RAISE NOTICE 'Migration failed, retrying...';
                 RAISE NOTICE 'SQLSTATE: %, Message: %', SQLSTATE, SQLERRM;
-                ROLLBACK;
+                -- ROLLBACK;
                 retry_count := retry_count + 1;
                 RAISE NOTICE 'Attempt %', retry_count;
                 PERFORM pg_sleep(sleep_interval / 1000.0);
         END;
     END LOOP;
-
-
-    IF retry_count = max_retries THEN
-        RAISE EXCEPTION 'Migration failed after % attempts.', max_retries;
-    END IF;
-    RAISE NOTICE 'Migration successful COMMIT';
-    DROP TABLE "StepRun_old";
-    COMMIT;
 END $$;
 
--- Drop index "StepRun_updatedAt_idx" from table: "StepRun"
-DROP INDEX "StepRun_updatedAt_idx";
--- Create index "StepRun_id_key" to table: "StepRun"
-CREATE UNIQUE INDEX "StepRun_id_key" ON "StepRun" ("id", "status");
--- Create index "StepRun_jobRunId_status_tenantId_idx" to table: "StepRun"
-CREATE INDEX "StepRun_jobRunId_status_tenantId_idx" ON "StepRun" ("jobRunId", "status", "tenantId") WHERE (status = 'PENDING'::"StepRunStatus");
+CREATE TABLE "Event_new" (
+    LIKE "Event" INCLUDING CONSTRAINTS, 
+    "identityId" bigint NOT NULL GENERATED ALWAYS AS IDENTITY
+);
+
+INSERT INTO "Event_new" SELECT * FROM "Event";
+
+ALTER TABLE "Event" RENAME TO "Event_backup";
+ALTER TABLE "Event_new" RENAME TO "Event";
+
+DROP TABLE "Event_backup" CASCADE;
 
 
--- Modify "StepRun" table
-ALTER TABLE "StepRun" ADD COLUMN "identityId" bigserial NOT NULL, ADD CONSTRAINT "step_run_identity_id_unique" UNIQUE ("identityId", "status");
--- Modify "Event" table
-ALTER TABLE "Event" ADD COLUMN "identityId" bigint NOT NULL GENERATED ALWAYS AS IDENTITY;
--- Modify "JobRun" table
-ALTER TABLE "JobRun" ADD COLUMN "identityId" bigint NOT NULL GENERATED ALWAYS AS IDENTITY;
--- Modify "JobRunLookupData" table
-ALTER TABLE "JobRunLookupData" ADD COLUMN "identityId" bigint NOT NULL GENERATED ALWAYS AS IDENTITY;
--- Modify "WorkflowRun" table
-ALTER TABLE "WorkflowRun" ADD COLUMN "identityId" bigint NOT NULL GENERATED ALWAYS AS IDENTITY;
--- Modify "WorkflowRunTriggeredBy" table
-ALTER TABLE "WorkflowRunTriggeredBy" ADD COLUMN "identityId" bigint NOT NULL GENERATED ALWAYS AS IDENTITY;
+CREATE TABLE "JobRun_new" (
+    LIKE "JobRun" INCLUDING CONSTRAINTS, 
+    "identityId" bigint NOT NULL GENERATED ALWAYS AS IDENTITY
+);
+
+INSERT INTO "JobRun_new" SELECT * FROM "JobRun";
+
+ALTER TABLE "JobRun" RENAME TO "JobRun_backup";
+ALTER TABLE "JobRun_new" RENAME TO "JobRun";
+
+DROP TABLE "JobRun_backup" CASCADE;
+CREATE TABLE "JobRunLookupData_new" (
+    LIKE "JobRunLookupData" INCLUDING CONSTRAINTS,  
+    "identityId" bigint NOT NULL GENERATED ALWAYS AS IDENTITY
+);
+
+INSERT INTO "JobRunLookupData_new" SELECT * FROM "JobRunLookupData";
+
+ALTER TABLE "JobRunLookupData" RENAME TO "JobRunLookupData_backup";
+ALTER TABLE "JobRunLookupData_new" RENAME TO "JobRunLookupData";
+
+DROP TABLE "JobRunLookupData_backup" CASCADE;
+CREATE TABLE "WorkflowRunTriggeredBy_new" (
+    LIKE "WorkflowRunTriggeredBy" INCLUDING CONSTRAINTS,  
+    "identityId" bigint NOT NULL GENERATED ALWAYS AS IDENTITY
+);
+
+INSERT INTO "WorkflowRunTriggeredBy_new" SELECT * FROM "WorkflowRunTriggeredBy";
+
+ALTER TABLE "WorkflowRunTriggeredBy" RENAME TO "WorkflowRunTriggeredBy_backup";
+ALTER TABLE "WorkflowRunTriggeredBy_new" RENAME TO "WorkflowRunTriggeredBy";
+
+DROP TABLE "WorkflowRunTriggeredBy_backup" CASCADE;
+
+DROP TABLE "StepRun_old" CASCADE;
