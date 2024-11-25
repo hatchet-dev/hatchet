@@ -1,0 +1,41 @@
+import { Callout } from "nextra/components";
+
+# High Availability
+
+If you are running Hatchet in a high-throughput production environment, you may want to set up an HA (High Availability) configuration to ensure that your system remains available in the event of infrastructure failures or other issues.
+
+There are multiple levels that you can configure Hatchet to be high availability:
+
+- At the **database level** by using a managed Postgres provider like AWS RDS or Google Cloud SQL which supports HA options.
+- At the **RabbitMQ level** by configuring the RabbitMQ cluster to have at least 3 replicas across multiple zones within a region.
+- At the **Hatchet Engine/API level** by running multiple instances of the Hatchet engine behind a load balancer and splitting the different Hatchet services into separate deployments.
+
+This guide will focus on the last level of high availability.
+
+<Callout type="info" emoji="🪓">
+
+To view an end-to-end example of configuring Hatchet for high availability on GCP using Terraform, check out the GCP deployment guide [here](github.com/hatchet-dev/hatchet-infra-examples/blob/main/self-hosting/gcp)
+
+</Callout>
+
+## HA Helm Chart
+
+Hatchet offers an HA Helm chart that can be used to deploy Hatchet in a high availability configuration. To use this Helm chart:
+
+```sh
+helm repo add hatchet https://hatchet-dev.github.io/hatchet-charts
+helm install hatchet-ha hatchet/hatchet-ha
+```
+
+This chart accepts the same parameters as `hatchet-stack` for the top-level `api`, `frontend`, `postgres` and `rabbitmq` objects, but you can additionally configure the following services:
+
+```yaml
+grpc:
+  replicaCount: 4
+controllers:
+  replicaCount: 2
+scheduler:
+  replicaCount: 2
+```
+
+See the [Helm configuration](./kubernetes-helm-configuration) guide for more information on configuring the Hatchet Helm charts.

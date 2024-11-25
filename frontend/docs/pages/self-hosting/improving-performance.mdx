@@ -166,7 +166,7 @@ const parentWorkflow: Workflow = {
         }));
 
         const spawnedWorkflows = await ctx.spawnWorkflows<string, string>(
-          workflowRequests,
+          workflowRequests
         );
 
         return spawnedWorkflows;
@@ -327,4 +327,4 @@ By default, the Hatchet engine runs all internal services on a single instance. 
 - **controllers**: the internal service that manages the lifecycle of workflow runs, step runs, and events. This service is write-heavy on the database and read-heavy from the message queue.
 - **scheduler**: the internal service that schedules step runs to workers. This service is both read-heavy and write-heavy on the database.
 
-It is possible to horizontally scale the Hatchet engine by running multiple instances of the engine. However, if you are seeing a large number of warnings from the scheduler when running the other services in the same engine instance, we recommend running the scheduler on a separate instance.
+It is possible to horizontally scale the Hatchet engine by running multiple instances of the engine. However, if you are seeing a large number of warnings from the scheduler when running the other services in the same engine instance, we recommend running the scheduler on a separate instance. See the [high availability](./high-availability) documentation for more information on how to run the scheduler on a separate instance.

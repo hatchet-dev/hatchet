@@ -40,7 +40,7 @@ Password: Admin123!!
 
 ```sh
 export NAMESPACE=default # TODO: replace with your namespace
-export POD_NAME=$(kubectl get pods --namespace $NAMESPACE -l "app.kubernetes.io/name=hatchet-engine" -o jsonpath="{.items[0].metadata.name}")
+export POD_NAME=$(kubectl get pods --namespace $NAMESPACE -l "app.kubernetes.io/name=engine" -o jsonpath="{.items[0].metadata.name}")
 export CONTAINER_PORT=$(kubectl get pod --namespace $NAMESPACE $POD_NAME -o jsonpath="{.spec.containers[0].ports[0].containerPort}")
 kubectl --namespace $NAMESPACE port-forward $POD_NAME 7070:$CONTAINER_PORT
 ```
@@ -134,7 +134,7 @@ const workflow: Workflow = {
       run: async (ctx) => {
         console.log(
           "starting step1 with the following input",
-          ctx.workflowInput(),
+          ctx.workflowInput()
         );
 
         return {
