@@ -1698,12 +1698,6 @@ type WorkflowScheduledListParams struct {
 	Statuses *[]ScheduledRunStatus `form:"statuses,omitempty" json:"statuses,omitempty"`
 }
 
-// ScheduledWorkflowRunCreateParams defines parameters for ScheduledWorkflowRunCreate.
-type ScheduledWorkflowRunCreateParams struct {
-	// Version The workflow version. If not supplied, the latest version is fetched.
-	Version *openapi_types.UUID `form:"version,omitempty" json:"version,omitempty"`
-}
-
 // WorkflowGetMetricsParams defines parameters for WorkflowGetMetrics.
 type WorkflowGetMetricsParams struct {
 	// Status A status of workflow run statuses to filter by
@@ -2109,9 +2103,9 @@ type ClientInterface interface {
 	CronWorkflowTriggerCreate(ctx context.Context, tenant openapi_types.UUID, workflow string, body CronWorkflowTriggerCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ScheduledWorkflowRunCreateWithBody request with any body
-	ScheduledWorkflowRunCreateWithBody(ctx context.Context, tenant openapi_types.UUID, workflow openapi_types.UUID, params *ScheduledWorkflowRunCreateParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	ScheduledWorkflowRunCreateWithBody(ctx context.Context, tenant openapi_types.UUID, workflow string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	ScheduledWorkflowRunCreate(ctx context.Context, tenant openapi_types.UUID, workflow openapi_types.UUID, params *ScheduledWorkflowRunCreateParams, body ScheduledWorkflowRunCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	ScheduledWorkflowRunCreate(ctx context.Context, tenant openapi_types.UUID, workflow string, body ScheduledWorkflowRunCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// WorkflowGetWorkersCount request
 	WorkflowGetWorkersCount(ctx context.Context, tenant openapi_types.UUID, workflow openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -3201,8 +3195,8 @@ func (c *Client) CronWorkflowTriggerCreate(ctx context.Context, tenant openapi_t
 	return c.Client.Do(req)
 }
 
-func (c *Client) ScheduledWorkflowRunCreateWithBody(ctx context.Context, tenant openapi_types.UUID, workflow openapi_types.UUID, params *ScheduledWorkflowRunCreateParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewScheduledWorkflowRunCreateRequestWithBody(c.Server, tenant, workflow, params, contentType, body)
+func (c *Client) ScheduledWorkflowRunCreateWithBody(ctx context.Context, tenant openapi_types.UUID, workflow string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewScheduledWorkflowRunCreateRequestWithBody(c.Server, tenant, workflow, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -3213,8 +3207,8 @@ func (c *Client) ScheduledWorkflowRunCreateWithBody(ctx context.Context, tenant 
 	return c.Client.Do(req)
 }
 
-func (c *Client) ScheduledWorkflowRunCreate(ctx context.Context, tenant openapi_types.UUID, workflow openapi_types.UUID, params *ScheduledWorkflowRunCreateParams, body ScheduledWorkflowRunCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewScheduledWorkflowRunCreateRequest(c.Server, tenant, workflow, params, body)
+func (c *Client) ScheduledWorkflowRunCreate(ctx context.Context, tenant openapi_types.UUID, workflow string, body ScheduledWorkflowRunCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewScheduledWorkflowRunCreateRequest(c.Server, tenant, workflow, body)
 	if err != nil {
 		return nil, err
 	}
@@ -7270,18 +7264,18 @@ func NewCronWorkflowTriggerCreateRequestWithBody(server string, tenant openapi_t
 }
 
 // NewScheduledWorkflowRunCreateRequest calls the generic ScheduledWorkflowRunCreate builder with application/json body
-func NewScheduledWorkflowRunCreateRequest(server string, tenant openapi_types.UUID, workflow openapi_types.UUID, params *ScheduledWorkflowRunCreateParams, body ScheduledWorkflowRunCreateJSONRequestBody) (*http.Request, error) {
+func NewScheduledWorkflowRunCreateRequest(server string, tenant openapi_types.UUID, workflow string, body ScheduledWorkflowRunCreateJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewScheduledWorkflowRunCreateRequestWithBody(server, tenant, workflow, params, "application/json", bodyReader)
+	return NewScheduledWorkflowRunCreateRequestWithBody(server, tenant, workflow, "application/json", bodyReader)
 }
 
 // NewScheduledWorkflowRunCreateRequestWithBody generates requests for ScheduledWorkflowRunCreate with any type of body
-func NewScheduledWorkflowRunCreateRequestWithBody(server string, tenant openapi_types.UUID, workflow openapi_types.UUID, params *ScheduledWorkflowRunCreateParams, contentType string, body io.Reader) (*http.Request, error) {
+func NewScheduledWorkflowRunCreateRequestWithBody(server string, tenant openapi_types.UUID, workflow string, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -7311,28 +7305,6 @@ func NewScheduledWorkflowRunCreateRequestWithBody(server string, tenant openapi_
 	queryURL, err := serverURL.Parse(operationPath)
 	if err != nil {
 		return nil, err
-	}
-
-	if params != nil {
-		queryValues := queryURL.Query()
-
-		if params.Version != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "version", runtime.ParamLocationQuery, *params.Version); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		queryURL.RawQuery = queryValues.Encode()
 	}
 
 	req, err := http.NewRequest("POST", queryURL.String(), body)
@@ -8566,9 +8538,9 @@ type ClientWithResponsesInterface interface {
 	CronWorkflowTriggerCreateWithResponse(ctx context.Context, tenant openapi_types.UUID, workflow string, body CronWorkflowTriggerCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*CronWorkflowTriggerCreateResponse, error)
 
 	// ScheduledWorkflowRunCreateWithBodyWithResponse request with any body
-	ScheduledWorkflowRunCreateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, workflow openapi_types.UUID, params *ScheduledWorkflowRunCreateParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ScheduledWorkflowRunCreateResponse, error)
+	ScheduledWorkflowRunCreateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, workflow string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ScheduledWorkflowRunCreateResponse, error)
 
-	ScheduledWorkflowRunCreateWithResponse(ctx context.Context, tenant openapi_types.UUID, workflow openapi_types.UUID, params *ScheduledWorkflowRunCreateParams, body ScheduledWorkflowRunCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*ScheduledWorkflowRunCreateResponse, error)
+	ScheduledWorkflowRunCreateWithResponse(ctx context.Context, tenant openapi_types.UUID, workflow string, body ScheduledWorkflowRunCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*ScheduledWorkflowRunCreateResponse, error)
 
 	// WorkflowGetWorkersCountWithResponse request
 	WorkflowGetWorkersCountWithResponse(ctx context.Context, tenant openapi_types.UUID, workflow openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkflowGetWorkersCountResponse, error)
@@ -11606,16 +11578,16 @@ func (c *ClientWithResponses) CronWorkflowTriggerCreateWithResponse(ctx context.
 }
 
 // ScheduledWorkflowRunCreateWithBodyWithResponse request with arbitrary body returning *ScheduledWorkflowRunCreateResponse
-func (c *ClientWithResponses) ScheduledWorkflowRunCreateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, workflow openapi_types.UUID, params *ScheduledWorkflowRunCreateParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ScheduledWorkflowRunCreateResponse, error) {
-	rsp, err := c.ScheduledWorkflowRunCreateWithBody(ctx, tenant, workflow, params, contentType, body, reqEditors...)
+func (c *ClientWithResponses) ScheduledWorkflowRunCreateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, workflow string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ScheduledWorkflowRunCreateResponse, error) {
+	rsp, err := c.ScheduledWorkflowRunCreateWithBody(ctx, tenant, workflow, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
 	return ParseScheduledWorkflowRunCreateResponse(rsp)
 }
 
-func (c *ClientWithResponses) ScheduledWorkflowRunCreateWithResponse(ctx context.Context, tenant openapi_types.UUID, workflow openapi_types.UUID, params *ScheduledWorkflowRunCreateParams, body ScheduledWorkflowRunCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*ScheduledWorkflowRunCreateResponse, error) {
-	rsp, err := c.ScheduledWorkflowRunCreate(ctx, tenant, workflow, params, body, reqEditors...)
+func (c *ClientWithResponses) ScheduledWorkflowRunCreateWithResponse(ctx context.Context, tenant openapi_types.UUID, workflow string, body ScheduledWorkflowRunCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*ScheduledWorkflowRunCreateResponse, error) {
+	rsp, err := c.ScheduledWorkflowRunCreate(ctx, tenant, workflow, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}

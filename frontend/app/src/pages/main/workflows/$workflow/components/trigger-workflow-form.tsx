@@ -139,7 +139,7 @@ export function TriggerWorkflowForm({
 
       const res = await api.scheduledWorkflowRunCreate(
         tenant.metadata.id,
-        workflow?.metadata.id,
+        workflow?.name,
         {
           input: data.input,
           additionalMetadata: data.addlMeta,

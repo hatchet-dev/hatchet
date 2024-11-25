@@ -843,24 +843,12 @@ scheduledCreate:
           format: uuid
           minLength: 36
           maxLength: 36
-      - description: The workflow id
+      - description: The workflow name
         in: path
         name: workflow
         required: true
         schema:
           type: string
-          format: uuid
-          minLength: 36
-          maxLength: 36
-      - description: The workflow version. If not supplied, the latest version is fetched.
-        in: query
-        name: version
-        required: false
-        schema:
-          type: string
-          format: uuid
-          minLength: 36
-          maxLength: 36
     requestBody:
       content:
         application/json:
