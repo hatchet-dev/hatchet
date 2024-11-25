@@ -2,7 +2,9 @@
 extend-exclude = [
     ".git/",
     "go.mod",
+    "go.sum",
     "frontend/docs/pages/blog/*.json",
+    "frontend/docs/*-lock.yaml",
 ]
 ignore-hidden = false
 
