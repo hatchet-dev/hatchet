@@ -183,7 +183,7 @@ WITH steps AS (
         jr."workflowRunId" = $1::uuid
 )
 SELECT
-    jr.id, jr."createdAt", jr."updatedAt", jr."deletedAt", jr."tenantId", jr."jobId", jr."tickerId", jr.status, jr.result, jr."startedAt", jr."finishedAt", jr."timeoutAt", jr."cancelledAt", jr."cancelledReason", jr."cancelledError", jr."workflowRunId", jr."identityId",
+    jr.id, jr."createdAt", jr."updatedAt", jr."deletedAt", jr."tenantId", jr."jobId", jr."tickerId", jr.status, jr.result, jr."startedAt", jr."finishedAt", jr."timeoutAt", jr."cancelledAt", jr."cancelledReason", jr."cancelledError", jr."workflowRunId",
     j.id, j."createdAt", j."updatedAt", j."deletedAt", j."tenantId", j."workflowVersionId", j.name, j.description, j.timeout, j.kind
 FROM "JobRun" jr
 JOIN "Job" j
@@ -214,7 +214,6 @@ type ListJobRunsForWorkflowRunFullRow struct {
 	CancelledReason pgtype.Text      `json:"cancelledReason"`
 	CancelledError  pgtype.Text      `json:"cancelledError"`
 	WorkflowRunId   pgtype.UUID      `json:"workflowRunId"`
-	IdentityId      pgtype.Int8      `json:"identityId"`
 	Job             Job              `json:"job"`
 }
 
@@ -244,7 +243,6 @@ func (q *Queries) ListJobRunsForWorkflowRunFull(ctx context.Context, db DBTX, ar
 			&i.CancelledReason,
 			&i.CancelledError,
 			&i.WorkflowRunId,
-			&i.IdentityId,
 			&i.Job.ID,
 			&i.Job.CreatedAt,
 			&i.Job.UpdatedAt,
@@ -393,7 +391,7 @@ const updateJobRunStatus = `-- name: UpdateJobRunStatus :one
 UPDATE "JobRun"
 SET "status" = $1::"JobRunStatus"
 WHERE "id" = $2::uuid AND "tenantId" = $3::uuid
-RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "jobId", "tickerId", status, result, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError", "workflowRunId", "identityId"
+RETURNING id, "createdAt", "updatedAt", "deletedAt", "tenantId", "jobId", "tickerId", status, result, "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError", "workflowRunId"
 `
 
 type UpdateJobRunStatusParams struct {
@@ -422,7 +420,6 @@ func (q *Queries) UpdateJobRunStatus(ctx context.Context, db DBTX, arg UpdateJob
 		&i.CancelledReason,
 		&i.CancelledError,
 		&i.WorkflowRunId,
-		&i.IdentityId,
 	)
 	return &i, err
 }

@@ -192,7 +192,6 @@ CREATE TABLE "Event" (
     "data" JSONB,
     "additionalMetadata" JSONB,
     "insertOrder" INTEGER,
-    "identityId" BIGINT GENERATED ALWAYS AS IDENTITY,
 
     CONSTRAINT "Event_pkey" PRIMARY KEY ("id")
 );
@@ -279,7 +278,6 @@ CREATE TABLE "JobRun" (
     "cancelledReason" TEXT,
     "cancelledError" TEXT,
     "workflowRunId" UUID NOT NULL,
-    "identityId" BIGINT GENERATED ALWAYS AS IDENTITY,
 
     CONSTRAINT "JobRun_pkey" PRIMARY KEY ("id")
 );
@@ -293,7 +291,6 @@ CREATE TABLE "JobRunLookupData" (
     "jobRunId" UUID NOT NULL,
     "tenantId" UUID NOT NULL,
     "data" JSONB,
-    "identityId" BIGINT GENERATED ALWAYS AS IDENTITY,
 
     CONSTRAINT "JobRunLookupData_pkey" PRIMARY KEY ("id")
 );
@@ -913,7 +910,6 @@ CREATE TABLE "WorkflowRun" (
     "duration" BIGINT,
     "priority" INTEGER,
     "insertOrder" INTEGER,
-    "identityId" BIGINT GENERATED ALWAYS AS IDENTITY,
 
     CONSTRAINT "WorkflowRun_pkey" PRIMARY KEY ("id")
 );
@@ -956,7 +952,6 @@ CREATE TABLE "WorkflowRunTriggeredBy" (
     "input" JSONB,
     "parentId" UUID NOT NULL,
     "cronName" TEXT,
-    "identityId" BIGINT GENERATED ALWAYS AS IDENTITY,
 
     CONSTRAINT "WorkflowRunTriggeredBy_pkey" PRIMARY KEY ("id")
 );

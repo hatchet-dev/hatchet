@@ -1165,7 +1165,6 @@ type Event struct {
 	Data               []byte           `json:"data"`
 	AdditionalMetadata []byte           `json:"additionalMetadata"`
 	InsertOrder        pgtype.Int4      `json:"insertOrder"`
-	IdentityId         pgtype.Int8      `json:"identityId"`
 }
 
 type EventKey struct {
@@ -1237,18 +1236,16 @@ type JobRun struct {
 	CancelledReason pgtype.Text      `json:"cancelledReason"`
 	CancelledError  pgtype.Text      `json:"cancelledError"`
 	WorkflowRunId   pgtype.UUID      `json:"workflowRunId"`
-	IdentityId      pgtype.Int8      `json:"identityId"`
 }
 
 type JobRunLookupData struct {
-	ID         pgtype.UUID      `json:"id"`
-	CreatedAt  pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt  pgtype.Timestamp `json:"updatedAt"`
-	DeletedAt  pgtype.Timestamp `json:"deletedAt"`
-	JobRunId   pgtype.UUID      `json:"jobRunId"`
-	TenantId   pgtype.UUID      `json:"tenantId"`
-	Data       []byte           `json:"data"`
-	IdentityId pgtype.Int8      `json:"identityId"`
+	ID        pgtype.UUID      `json:"id"`
+	CreatedAt pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt pgtype.Timestamp `json:"updatedAt"`
+	DeletedAt pgtype.Timestamp `json:"deletedAt"`
+	JobRunId  pgtype.UUID      `json:"jobRunId"`
+	TenantId  pgtype.UUID      `json:"tenantId"`
+	Data      []byte           `json:"data"`
 }
 
 type Lease struct {
@@ -1763,7 +1760,6 @@ type WorkflowRun struct {
 	Duration           pgtype.Int8       `json:"duration"`
 	Priority           pgtype.Int4       `json:"priority"`
 	InsertOrder        pgtype.Int4       `json:"insertOrder"`
-	IdentityId         pgtype.Int8       `json:"identityId"`
 }
 
 type WorkflowRunDedupe struct {
@@ -1799,7 +1795,6 @@ type WorkflowRunTriggeredBy struct {
 	Input        []byte           `json:"input"`
 	ParentId     pgtype.UUID      `json:"parentId"`
 	CronName     pgtype.Text      `json:"cronName"`
-	IdentityId   pgtype.Int8      `json:"identityId"`
 }
 
 type WorkflowTag struct {
