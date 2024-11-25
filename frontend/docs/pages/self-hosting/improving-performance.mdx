@@ -166,7 +166,7 @@ const parentWorkflow: Workflow = {
         }));
 
         const spawnedWorkflows = await ctx.spawnWorkflows<string, string>(
-          workflowRequests
+          workflowRequests,
         );
 
         return spawnedWorkflows;
