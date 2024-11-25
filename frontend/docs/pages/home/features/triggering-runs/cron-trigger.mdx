@@ -48,7 +48,7 @@ A [Cron](https://en.wikipedia.org/wiki/Cron) is a time-based job scheduler that 
 Hatchet supports cron triggers to run on a schedule defined in a few different ways:
 
 - [Workflow Definitions](./cron-trigger.mdx#defining-a-cron-in-your-workflow-definition): Define a cron expression in your workflow definition to trigger the workflow on a predefined schedule.
-- [Dynamic Programatically](./cron-trigger.mdx#programatically-creating-cron-triggers): Use the Hatchet SDKs to dynamically set the cron schedule of a workflow (i.e. customer defined schedule).
+- [Dynamic Programmatically](./cron-trigger.mdx#programmatically-creating-cron-triggers): Use the Hatchet SDKs to dynamically set the cron schedule of a workflow (i.e. customer defined schedule).
 - [Hatchet Dashboard](./cron-trigger.mdx#managing-cron-jobs-in-the-hatchet-dashboard): Manually create cron triggers from the Hatchet Dashboard.
 
 <Callout type="info">
@@ -116,11 +116,11 @@ In the examples above, we set the `on cron` property of the workflows. The prope
   crons created via the API or Dashboard will still be respected.
 </Callout>
 
-## Programatically Creating Cron Triggers
+## Programmatically Creating Cron Triggers
 
 ### Create a Cron Trigger
 
-You can create dynamic cron triggers programatically via the API. This is useful if you want to create a cron trigger that is not known at the time of workflow definition,
+You can create dynamic cron triggers programmatically via the API. This is useful if you want to create a cron trigger that is not known at the time of workflow definition,
 
 Here's an example of creating a a cron to trigger a report for a specific customer every day at noon:
 
@@ -198,7 +198,7 @@ In the Hatchet Dashboard, you can view and manage cron triggers for your workflo
 
 Navigate to "Triggers" > "Cron Jobs" in the left sidebar and click "Create Cron Job" at the top right.
 
-You can specify run paramaters such as Input, Additional Metadata, and the Expression.
+You can specify run parameters such as Input, Additional Metadata, and the Expression.
 
 ![Create Cron Job](../../../../public/cron-dash.gif)
 
