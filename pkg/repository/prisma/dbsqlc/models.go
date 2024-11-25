@@ -1165,7 +1165,6 @@ type Event struct {
 	Data               []byte           `json:"data"`
 	AdditionalMetadata []byte           `json:"additionalMetadata"`
 	InsertOrder        pgtype.Int4      `json:"insertOrder"`
-	IdentityId         pgtype.Int8      `json:"identityId"`
 }
 
 type EventKey struct {
@@ -1237,18 +1236,16 @@ type JobRun struct {
 	CancelledReason pgtype.Text      `json:"cancelledReason"`
 	CancelledError  pgtype.Text      `json:"cancelledError"`
 	WorkflowRunId   pgtype.UUID      `json:"workflowRunId"`
-	IdentityId      pgtype.Int8      `json:"identityId"`
 }
 
 type JobRunLookupData struct {
-	ID         pgtype.UUID      `json:"id"`
-	CreatedAt  pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt  pgtype.Timestamp `json:"updatedAt"`
-	DeletedAt  pgtype.Timestamp `json:"deletedAt"`
-	JobRunId   pgtype.UUID      `json:"jobRunId"`
-	TenantId   pgtype.UUID      `json:"tenantId"`
-	Data       []byte           `json:"data"`
-	IdentityId pgtype.Int8      `json:"identityId"`
+	ID        pgtype.UUID      `json:"id"`
+	CreatedAt pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt pgtype.Timestamp `json:"updatedAt"`
+	DeletedAt pgtype.Timestamp `json:"deletedAt"`
+	JobRunId  pgtype.UUID      `json:"jobRunId"`
+	TenantId  pgtype.UUID      `json:"tenantId"`
+	Data      []byte           `json:"data"`
 }
 
 type Lease struct {
@@ -1443,7 +1440,6 @@ type StepRun struct {
 	Queue              string           `json:"queue"`
 	Priority           pgtype.Int4      `json:"priority"`
 	InternalRetryCount int32            `json:"internalRetryCount"`
-	IdentityId         int64            `json:"identityId"`
 }
 
 type StepRunEvent struct {
@@ -1489,74 +1485,6 @@ type StepRunResultArchive struct {
 	CancelledReason pgtype.Text      `json:"cancelledReason"`
 	CancelledError  pgtype.Text      `json:"cancelledError"`
 	RetryCount      int32            `json:"retryCount"`
-}
-
-type StepRunStable struct {
-	ID                 pgtype.UUID      `json:"id"`
-	CreatedAt          pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt          pgtype.Timestamp `json:"updatedAt"`
-	DeletedAt          pgtype.Timestamp `json:"deletedAt"`
-	TenantId           pgtype.UUID      `json:"tenantId"`
-	JobRunId           pgtype.UUID      `json:"jobRunId"`
-	StepId             pgtype.UUID      `json:"stepId"`
-	Order              int64            `json:"order"`
-	WorkerId           pgtype.UUID      `json:"workerId"`
-	TickerId           pgtype.UUID      `json:"tickerId"`
-	Status             StepRunStatus    `json:"status"`
-	Input              []byte           `json:"input"`
-	Output             []byte           `json:"output"`
-	RequeueAfter       pgtype.Timestamp `json:"requeueAfter"`
-	ScheduleTimeoutAt  pgtype.Timestamp `json:"scheduleTimeoutAt"`
-	Error              pgtype.Text      `json:"error"`
-	StartedAt          pgtype.Timestamp `json:"startedAt"`
-	FinishedAt         pgtype.Timestamp `json:"finishedAt"`
-	TimeoutAt          pgtype.Timestamp `json:"timeoutAt"`
-	CancelledAt        pgtype.Timestamp `json:"cancelledAt"`
-	CancelledReason    pgtype.Text      `json:"cancelledReason"`
-	CancelledError     pgtype.Text      `json:"cancelledError"`
-	InputSchema        []byte           `json:"inputSchema"`
-	CallerFiles        []byte           `json:"callerFiles"`
-	GitRepoBranch      pgtype.Text      `json:"gitRepoBranch"`
-	RetryCount         int32            `json:"retryCount"`
-	SemaphoreReleased  bool             `json:"semaphoreReleased"`
-	Queue              string           `json:"queue"`
-	Priority           pgtype.Int4      `json:"priority"`
-	InternalRetryCount int32            `json:"internalRetryCount"`
-	IdentityId         int64            `json:"identityId"`
-}
-
-type StepRunVolatile struct {
-	ID                 pgtype.UUID      `json:"id"`
-	CreatedAt          pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt          pgtype.Timestamp `json:"updatedAt"`
-	DeletedAt          pgtype.Timestamp `json:"deletedAt"`
-	TenantId           pgtype.UUID      `json:"tenantId"`
-	JobRunId           pgtype.UUID      `json:"jobRunId"`
-	StepId             pgtype.UUID      `json:"stepId"`
-	Order              int64            `json:"order"`
-	WorkerId           pgtype.UUID      `json:"workerId"`
-	TickerId           pgtype.UUID      `json:"tickerId"`
-	Status             StepRunStatus    `json:"status"`
-	Input              []byte           `json:"input"`
-	Output             []byte           `json:"output"`
-	RequeueAfter       pgtype.Timestamp `json:"requeueAfter"`
-	ScheduleTimeoutAt  pgtype.Timestamp `json:"scheduleTimeoutAt"`
-	Error              pgtype.Text      `json:"error"`
-	StartedAt          pgtype.Timestamp `json:"startedAt"`
-	FinishedAt         pgtype.Timestamp `json:"finishedAt"`
-	TimeoutAt          pgtype.Timestamp `json:"timeoutAt"`
-	CancelledAt        pgtype.Timestamp `json:"cancelledAt"`
-	CancelledReason    pgtype.Text      `json:"cancelledReason"`
-	CancelledError     pgtype.Text      `json:"cancelledError"`
-	InputSchema        []byte           `json:"inputSchema"`
-	CallerFiles        []byte           `json:"callerFiles"`
-	GitRepoBranch      pgtype.Text      `json:"gitRepoBranch"`
-	RetryCount         int32            `json:"retryCount"`
-	SemaphoreReleased  bool             `json:"semaphoreReleased"`
-	Queue              string           `json:"queue"`
-	Priority           pgtype.Int4      `json:"priority"`
-	InternalRetryCount int32            `json:"internalRetryCount"`
-	IdentityId         int64            `json:"identityId"`
 }
 
 type StreamEvent struct {
@@ -1832,7 +1760,6 @@ type WorkflowRun struct {
 	Duration           pgtype.Int8       `json:"duration"`
 	Priority           pgtype.Int4       `json:"priority"`
 	InsertOrder        pgtype.Int4       `json:"insertOrder"`
-	IdentityId         pgtype.Int8       `json:"identityId"`
 }
 
 type WorkflowRunDedupe struct {
@@ -1868,7 +1795,6 @@ type WorkflowRunTriggeredBy struct {
 	Input        []byte           `json:"input"`
 	ParentId     pgtype.UUID      `json:"parentId"`
 	CronName     pgtype.Text      `json:"cronName"`
-	IdentityId   pgtype.Int8      `json:"identityId"`
 }
 
 type WorkflowTag struct {
