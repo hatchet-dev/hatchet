@@ -1,4 +1,4 @@
-import { Tabs, Callout} from "nextra/components";
+import { Tabs, Callout } from "nextra/components";
 import UniversalTabs from "../../../../components/UniversalTabs";
 import { GithubSnippet, getSnippets } from "../../../../components/code";
 
@@ -26,17 +26,19 @@ export const getStaticProps = ({}) =>
     ScheduleTriggerGo,
   ]);
 
-
 # Scheduled Runs
 
 Scheduled runs allow you to trigger a workflow at a specific time in the future. This is useful when you need to execute a workflow at a specific time, such as sending a reminder email at a specific hour or a one-time maintenance task at a predetermined time.
 
 Hatchet supports scheduled runs to run on a schedule defined in a few different ways:
- - [Programatically](./schedule-trigger.mdx#programatically-creating-scheduled-runs): Use the Hatchet SDKs to dynamically set the schedule of a workflow (i.e. customer defined schedule).
- - [Hatchet Dashboard](./schedule-trigger.mdx#managing-scheduled-runs-in-the-hatchet-dashboard): Manually create scheduled runs from the Hatchet Dashboard.
+
+- [Programatically](./schedule-trigger.mdx#programatically-creating-scheduled-runs): Use the Hatchet SDKs to dynamically set the schedule of a workflow (i.e. customer defined schedule).
+- [Hatchet Dashboard](./schedule-trigger.mdx#managing-scheduled-runs-in-the-hatchet-dashboard): Manually create scheduled runs from the Hatchet Dashboard.
 
 <Callout type="info">
-  The scheduled time is when Hatchet **enqueues** the workflow, not when the run starts. Scheduling constraints like concurrency limits, rate limits, and retry policies can affect run start times.
+  The scheduled time is when Hatchet **enqueues** the workflow, not when the run
+  starts. Scheduling constraints like concurrency limits, rate limits, and retry
+  policies can affect run start times.
 </Callout>
 
 ## Programatically Creating Scheduled Runs
@@ -69,7 +71,8 @@ When creating a scheduled run via the API, you will receive a scheduled run obje
 {/* Inputs and additional metadata follow the same rules as [workflow inputs](../workflows/inputs.mdx) and [additional metadata](../workflows/additional-metadata.mdx). */}
 
 <Callout>
-  Note: Be mindful of the time zone of the scheduled run. Scheduled runs are always stored and returned in UTC.
+  Note: Be mindful of the time zone of the scheduled run. Scheduled runs are
+  always stored and returned in UTC.
 </Callout>
 
 ### Delete a Scheduled Run
@@ -92,7 +95,8 @@ You can delete a scheduled run by passing the scheduled run object or a schedule
 </UniversalTabs>
 
 <Callout>
-  Note: Deleting a scheduled run will not cancel any scheduled runs that have already entered the queue, but it will prevent future runs from starting.
+  Note: Deleting a scheduled run will not cancel any scheduled runs that have
+  already entered the queue, but it will prevent future runs from starting.
 </Callout>
 
 ### List Scheduled Runs
@@ -123,7 +127,6 @@ Navigate to "Triggers" > "Scheduled Runs" in the left sidebar and click "Create 
 You can specify run paramaters such as Input, Additional Metadata, and the Scheduled Time.
 
 ![Create Scheduled Run](../../../../public/schedule-dash.gif)
-
 
 ## Scheduled Run Considerations
 
