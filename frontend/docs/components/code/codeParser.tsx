@@ -11,7 +11,7 @@ const startsWithPrefixAndChar = (line: string, specialChar: string) => {
 }
 
 const isTargetLine = (line: string, target: string) => {
-  const split = line.split('❓');
+  const split = line.split(/[❓?]/);
   return split[1].trim() === target.trim();
 }
 
@@ -29,8 +29,12 @@ export const parseDocComments = (
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
 
-      // Start collecting at ❓
-      if (isCommentLine(line) && startsWithPrefixAndChar(line, '❓') && isTargetLine(line, target)) {
+      // Start collecting at ❓ or ?
+      if (
+        isCommentLine(line) &&
+        (startsWithPrefixAndChar(line, '❓') || startsWithPrefixAndChar(line, '?')) &&
+        isTargetLine(line, target)
+      ) {
           isSnippet = true;
           isCollecting = true;
           continue;
@@ -58,8 +62,8 @@ export const parseDocComments = (
             }
         }
 
-        // Stop at ‼️
-        if (isSnippet && line.includes('‼️')) {
+        // Stop at ‼️ or !!
+        if (isSnippet && (startsWithPrefixAndChar(line, '‼️') || startsWithPrefixAndChar(line, '!!'))) {
             break;
         }
       }
@@ -78,5 +82,16 @@ export const parseDocComments = (
       return `🚨 No snippet found for ${target} \n\n${source}`;
     }
 
-    return resultLines.join('\n');
-  };
+    // Shift indentation to the least indented level
+    const nonEmptyLines = resultLines.filter(line => line.trim() !== '');
+    const indents = nonEmptyLines.map(line => line.match(/^(\s*)/)?.[1].length || 0);
+    const minIndent = Math.min(...indents);
+
+    const shiftedLines = resultLines.map(line => {
+      return line.startsWith(' '.repeat(minIndent))
+        ? line.slice(minIndent)
+        : line.replace(/^\s+/, '');
+    });
+
+    return shiftedLines.join('\n');
+};
