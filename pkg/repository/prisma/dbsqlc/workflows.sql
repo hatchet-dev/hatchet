@@ -138,6 +138,28 @@ INSERT INTO "WorkflowVersion" (
     sqlc.narg('defaultPriority')::integer
 ) RETURNING *;
 
+-- name: MoveCronTriggerToNewWorkflowTriggers :exec
+WITH triggersToUpdate AS (
+    SELECT cronTrigger."id" FROM "WorkflowTriggerCronRef" cronTrigger
+    JOIN "WorkflowTriggers" triggers ON triggers."id" = cronTrigger."parentId"
+    WHERE triggers."workflowVersionId" = @oldWorkflowVersionId::uuid
+    AND cronTrigger."method" = 'API'
+)
+UPDATE "WorkflowTriggerCronRef"
+SET "parentId" = @newWorkflowTriggerId::uuid
+WHERE "id" IN (SELECT "id" FROM triggersToUpdate);
+
+-- name: MoveScheduledTriggerToNewWorkflowTriggers :exec
+WITH triggersToUpdate AS (
+    SELECT scheduledTrigger."id" FROM "WorkflowTriggerScheduledRef" scheduledTrigger
+    JOIN "WorkflowTriggers" triggers ON triggers."id" = scheduledTrigger."parentId"
+    WHERE triggers."workflowVersionId" = @oldWorkflowVersionId::uuid
+    AND scheduledTrigger."method" = 'API'
+)
+UPDATE "WorkflowTriggerScheduledRef"
+SET "parentId" = @newWorkflowTriggerId::uuid
+WHERE "id" IN (SELECT "id" FROM triggersToUpdate);
+
 -- name: CreateWorkflowConcurrency :one
 INSERT INTO "WorkflowConcurrency" (
     "id",
@@ -203,7 +225,9 @@ INSERT INTO "Step" (
     "timeout",
     "customUserData",
     "retries",
-    "scheduleTimeout"
+    "scheduleTimeout",
+    "retryBackoffFactor",
+    "retryMaxBackoff"
 ) VALUES (
     @id::uuid,
     coalesce(sqlc.narg('createdAt')::timestamp, CURRENT_TIMESTAMP),
@@ -216,7 +240,9 @@ INSERT INTO "Step" (
     sqlc.narg('timeout')::text,
     coalesce(sqlc.narg('customUserData')::jsonb, '{}'),
     coalesce(sqlc.narg('retries')::integer, 0),
-    coalesce(sqlc.narg('scheduleTimeout')::text, '5m')
+    coalesce(sqlc.narg('scheduleTimeout')::text, '5m'),
+    sqlc.narg('retryBackoffFactor'),
+    sqlc.narg('retryMaxBackoff')
 ) RETURNING *;
 
 -- name: AddStepParents :exec
@@ -331,11 +357,80 @@ INSERT INTO "WorkflowTriggerEventRef" (
 INSERT INTO "WorkflowTriggerCronRef" (
     "parentId",
     "cron",
-    "input"
+    "name",
+    "input",
+    "additionalMetadata",
+    "id",
+    "method"
 ) VALUES (
     @workflowTriggersId::uuid,
     @cronTrigger::text,
-    sqlc.narg('input')::jsonb
+    sqlc.narg('name')::text,
+    sqlc.narg('input')::jsonb,
+    sqlc.narg('additionalMetadata')::jsonb,
+    gen_random_uuid(),
+    COALESCE(sqlc.narg('method')::"WorkflowTriggerCronRefMethods", 'DEFAULT')
+) RETURNING *;
+
+
+-- name: CreateWorkflowTriggerCronRefForWorkflow :one
+WITH latest_version AS (
+    SELECT "id" FROM "WorkflowVersion"
+    WHERE "workflowId" = @workflowId::uuid
+    ORDER BY "order" DESC
+    LIMIT 1
+),
+latest_trigger AS (
+    SELECT "id" FROM "WorkflowTriggers"
+    WHERE "workflowVersionId" = (SELECT "id" FROM latest_version)
+    ORDER BY "createdAt" DESC
+    LIMIT 1
+)
+INSERT INTO "WorkflowTriggerCronRef" (
+    "parentId",
+    "cron",
+    "name",
+    "input",
+    "additionalMetadata",
+    "id",
+    "method"
+) VALUES (
+    (SELECT "id" FROM latest_trigger),
+    @cronTrigger::text,
+    sqlc.narg('name')::text,
+    sqlc.narg('input')::jsonb,
+    sqlc.narg('additionalMetadata')::jsonb,
+    gen_random_uuid(),
+    COALESCE(sqlc.narg('method')::"WorkflowTriggerCronRefMethods", 'DEFAULT')
+) RETURNING *;
+
+-- name: CreateWorkflowTriggerScheduledRefForWorkflow :one
+WITH latest_version AS (
+    SELECT "id" FROM "WorkflowVersion"
+    WHERE "workflowId" = @workflowId::uuid
+    ORDER BY "order" DESC
+    LIMIT 1
+),
+latest_trigger AS (
+    SELECT "id" FROM "WorkflowTriggers"
+    WHERE "workflowVersionId" = (SELECT "id" FROM latest_version)
+    ORDER BY "createdAt" DESC
+    LIMIT 1
+)
+INSERT INTO "WorkflowTriggerScheduledRef" (
+    "id",
+    "parentId",
+    "triggerAt",
+    "input",
+    "additionalMetadata",
+    "method"
+) VALUES (
+    gen_random_uuid(),
+    (SELECT "id" FROM latest_version),
+    @scheduledTrigger::timestamp,
+    @input::jsonb,
+    @additionalMetadata::jsonb,
+    COALESCE(sqlc.narg('method')::"WorkflowTriggerScheduledRefMethods", 'DEFAULT')
 ) RETURNING *;
 
 -- name: CreateWorkflowTriggerScheduledRef :one
@@ -343,14 +438,14 @@ INSERT INTO "WorkflowTriggerScheduledRef" (
     "id",
     "parentId",
     "triggerAt",
-    "tickerId",
-    "input"
+    "input",
+    "additionalMetadata"
 ) VALUES (
     gen_random_uuid(),
     @workflowVersionId::uuid,
     @scheduledTrigger::timestamp,
-    NULL, -- or provide a tickerId if applicable
-    NULL -- or provide input if applicable
+    @input::jsonb,
+    @additionalMetadata::jsonb
 ) RETURNING *;
 
 -- name: ListWorkflowsForEvent :many
@@ -664,3 +759,92 @@ WHERE
 ORDER BY
     wv."order" DESC
 LIMIT 1;
+
+
+-- name: ListCronWorkflows :many
+-- Get all of the latest workflow versions for the tenant
+WITH latest_versions AS (
+    SELECT DISTINCT ON("workflowId")
+        workflowVersions."id" AS "workflowVersionId",
+        workflowVersions."workflowId"
+    FROM
+        "WorkflowVersion" as workflowVersions
+    JOIN
+        "Workflow" as workflow ON workflow."id" = workflowVersions."workflowId"
+    WHERE
+        workflow."tenantId" = @tenantId::uuid
+        AND workflowVersions."deletedAt" IS NULL
+    ORDER BY "workflowId", "order" DESC
+)
+SELECT
+    latest_versions."workflowVersionId",
+    w."name" as "workflowName",
+    w."id" as "workflowId",
+    w."tenantId",
+    t."id" as "triggerId",
+    c."id" as "cronId",
+    t.*,
+    c.*
+FROM
+    latest_versions
+JOIN
+    "WorkflowTriggers" as t ON t."workflowVersionId" = latest_versions."workflowVersionId"
+JOIN
+    "WorkflowTriggerCronRef" as c ON c."parentId" = t."id"
+JOIN
+    "Workflow" w on w."id" = latest_versions."workflowId"
+WHERE
+    t."deletedAt" IS NULL
+    AND w."tenantId" = @tenantId::uuid
+    AND (@cronTriggerId::uuid IS NULL OR c."id" = @cronTriggerId::uuid)
+    AND (@workflowId::uuid IS NULL OR w."id" = @workflowId::uuid)
+    AND (sqlc.narg('additionalMetadata')::jsonb IS NULL OR
+        c."additionalMetadata" @> sqlc.narg('additionalMetadata')::jsonb)
+ORDER BY
+    case when @orderBy = 'name ASC' THEN w."name" END ASC,
+    case when @orderBy = 'name DESC' THEN w."name" END DESC,
+    case when @orderBy = 'createdAt ASC' THEN c."createdAt" END ASC ,
+    case when @orderBy = 'createdAt DESC' THEN c."createdAt" END DESC,
+    t."id" ASC
+OFFSET
+    COALESCE(sqlc.narg('offset'), 0)
+LIMIT
+    COALESCE(sqlc.narg('limit'), 50);
+
+-- name: CountCronWorkflows :one
+-- Get all of the latest workflow versions for the tenant
+WITH latest_versions AS (
+    SELECT DISTINCT ON("workflowId")
+        workflowVersions."id" AS "workflowVersionId",
+        workflowVersions."workflowId"
+    FROM
+        "WorkflowVersion" as workflowVersions
+    JOIN
+        "Workflow" as workflow ON workflow."id" = workflowVersions."workflowId"
+    WHERE
+        workflow."tenantId" = @tenantId::uuid
+        AND workflowVersions."deletedAt" IS NULL
+    ORDER BY "workflowId", "order" DESC
+)
+SELECT
+    count(c.*)
+FROM
+    latest_versions
+JOIN
+    "WorkflowTriggers" as t ON t."workflowVersionId" = latest_versions."workflowVersionId"
+JOIN
+    "WorkflowTriggerCronRef" as c ON c."parentId" = t."id"
+JOIN
+    "Workflow" w on w."id" = latest_versions."workflowId"
+WHERE
+    t."deletedAt" IS NULL
+    AND w."tenantId" = @tenantId::uuid
+    AND (@cronTriggerId::uuid IS NULL OR c."id" = @cronTriggerId::uuid)
+    AND (@workflowId::uuid IS NULL OR w."id" = @workflowId::uuid)
+    AND (sqlc.narg('additionalMetadata')::jsonb IS NULL OR
+        c."additionalMetadata" @> sqlc.narg('additionalMetadata')::jsonb);
+
+-- name: DeleteWorkflowTriggerCronRef :exec
+DELETE FROM "WorkflowTriggerCronRef"
+WHERE
+    "id" = @id::uuid;

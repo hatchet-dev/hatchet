@@ -52,6 +52,15 @@ export const queries = createQueryKeyStore({
       queryKey: ['build-logs:list', buildId],
       queryFn: async () => (await cloudApi.buildLogsList(buildId)).data,
     }),
+    getIacLogs: (managedWorkerId: string, deployKey: string) => ({
+      queryKey: ['iac-logs:list', managedWorkerId, deployKey],
+      queryFn: async () =>
+        (
+          await cloudApi.iacLogsList(managedWorkerId, {
+            deployKey,
+          })
+        ).data,
+    }),
     getManagedWorkerCpuMetrics: (
       managedWorkerId: string,
       query: GetCloudMetricsQuery,
@@ -64,7 +73,7 @@ export const queries = createQueryKeyStore({
       managedWorkerId: string,
       query: GetCloudMetricsQuery,
     ) => ({
-      queryKey: ['managed-worker:get:memory-metrics', managedWorkerId],
+      queryKey: ['managed-worker:get:memory-metrics', managedWorkerId, query],
       queryFn: async () =>
         (await cloudApi.metricsMemoryGet(managedWorkerId, query)).data,
     }),
@@ -72,7 +81,7 @@ export const queries = createQueryKeyStore({
       managedWorkerId: string,
       query: GetCloudMetricsQuery,
     ) => ({
-      queryKey: ['managed-worker:get:disk-metrics', managedWorkerId],
+      queryKey: ['managed-worker:get:disk-metrics', managedWorkerId, query],
       queryFn: async () =>
         (await cloudApi.metricsDiskGet(managedWorkerId, query)).data,
     }),
@@ -188,9 +197,9 @@ export const queries = createQueryKeyStore({
         (await api.workflowScheduledList(tenant, query)).data,
     }),
   },
-  cronRuns: {
+  cronJobs: {
     list: (tenant: string, query: CronWorkflowsQuery) => ({
-      queryKey: ['cron-run:list', tenant, query],
+      queryKey: ['cron-job:list', tenant, query],
       queryFn: async () => (await api.cronWorkflowList(tenant, query)).data,
     }),
   },

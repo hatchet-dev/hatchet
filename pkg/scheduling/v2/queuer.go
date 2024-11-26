@@ -423,6 +423,7 @@ func (d *queuerDbQueries) MarkQueueItemsProcessed(ctx context.Context, r *assign
 		}
 
 		d.bulkStepRunsAssigned(sqlchelpers.UUIDToStr(d.tenantId), time.Now().UTC(), assignedStepRuns, assignedWorkerIds)
+		d.bulkStepRunsUnassigned(sqlchelpers.UUIDToStr(d.tenantId), unassignedStepRunIds)
 		d.bulkStepRunsRateLimited(sqlchelpers.UUIDToStr(d.tenantId), r.rateLimited)
 	}()
 
@@ -692,18 +693,6 @@ func (d *queuerDbQueries) GetStepRunRateLimits(ctx context.Context, queueItems [
 		}
 	}
 
-	rateLimitsForTenant, err := d.queries.ListRateLimitsForTenantWithMutate(ctx, d.pool, d.tenantId)
-
-	if err != nil {
-		return nil, fmt.Errorf("could not list rate limits for tenant: %w", err)
-	}
-
-	mapRateLimitsForTenant := make(map[string]*dbsqlc.ListRateLimitsForTenantWithMutateRow)
-
-	for _, row := range rateLimitsForTenant {
-		mapRateLimitsForTenant[row.Key] = row
-	}
-
 	// store all step ids in the cache, so we can skip rate limiting for steps without rate limits
 	for stepId := range stepIdToStepRuns {
 		hasRateLimit := stepsWithRateLimits[stepId]
@@ -768,12 +757,6 @@ type Queuer struct {
 
 	unassigned   map[int64]*dbsqlc.QueueItem
 	unassignedMu mutex
-}
-
-type alreadyAssigned struct {
-	assignedQi      *dbsqlc.QueueItem
-	assignedAtBatch int
-	assignedAtCount int
 }
 
 func newQueuer(conf *sharedConfig, tenantId pgtype.UUID, queueName string, s *Scheduler, eventBuffer *buffer.BulkEventWriter, resultsCh chan<- *QueueResults) *Queuer {
@@ -880,6 +863,8 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 
 		if err != nil {
 			q.l.Error().Err(err).Msg("error getting rate limits")
+
+			q.unackedToUnassigned(qis)
 			continue
 		}
 
@@ -896,6 +881,8 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 
 		if err != nil {
 			q.l.Error().Err(err).Msg("error getting desired labels")
+
+			q.unackedToUnassigned(qis)
 			continue
 		}
 
@@ -904,8 +891,12 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 
 		assignCh := q.s.tryAssign(ctx, qis, labels, rls)
 		count := 0
+
 		countMu := sync.Mutex{}
 		wg := sync.WaitGroup{}
+
+		startingQiLength := len(qis)
+		processedQiLength := 0
 
 		for r := range assignCh {
 			wg.Add(1)
@@ -920,6 +911,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 
 				countMu.Lock()
 				count += numFlushed
+				processedQiLength += len(ar.assigned) + len(ar.unassigned) + len(ar.schedulingTimedOut) + len(ar.rateLimited)
 				countMu.Unlock()
 
 				if sinceStart := time.Since(startFlush); sinceStart > 100*time.Millisecond {
@@ -954,6 +946,11 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 			if len(prevQis) > 0 && count == len(prevQis) {
 				q.queue()
 			}
+
+			if startingQiLength != processedQiLength {
+				q.l.Error().Int("starting", startingQiLength).Int("processed", processedQiLength).Msg("queue items processed mismatch")
+			}
+
 			countMu.Unlock()
 
 			if sinceStart := time.Since(originalStart); sinceStart > 100*time.Millisecond {
@@ -1054,6 +1051,19 @@ func (q *Queuer) ack(r *assignResults) {
 	for _, rateLimitedItem := range r.rateLimited {
 		delete(q.unacked, rateLimitedItem.qi.ID)
 		q.unassigned[rateLimitedItem.qi.ID] = rateLimitedItem.qi
+	}
+}
+
+func (q *Queuer) unackedToUnassigned(items []*dbsqlc.QueueItem) {
+	q.unackedMu.Lock()
+	defer q.unackedMu.Unlock()
+
+	q.unassignedMu.Lock()
+	defer q.unassignedMu.Unlock()
+
+	for _, item := range items {
+		delete(q.unacked, item.ID)
+		q.unassigned[item.ID] = item
 	}
 }
 

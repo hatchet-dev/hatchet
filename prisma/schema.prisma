@@ -428,7 +428,7 @@ model EventKey {
 model Event {
   // base fields
   id        String    @id @unique @default(uuid()) @db.Uuid
-  createdAt DateTime  @default(now())
+  createdAt DateTime  @default(dbgenerated("CLOCK_TIMESTAMP()")) @db.Timestamp(6)
   updatedAt DateTime  @default(now()) @updatedAt
   deletedAt DateTime?
 
@@ -645,6 +645,10 @@ model WorkflowTriggerEventRef {
 }
 
 model WorkflowTriggerCronRef {
+  id String @unique @default(uuid()) @db.Uuid
+
+  name String?
+
   // the parent workflow
   parent   WorkflowTriggers @relation(fields: [parentId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   parentId String           @db.Uuid
@@ -670,7 +674,7 @@ model WorkflowTriggerCronRef {
   additionalMetadata Json?
 
   // cron references must be unique per workflow
-  @@unique([parentId, cron])
+  @@unique([parentId, cron, name])
 }
 
 model WorkflowTriggerScheduledRef {
@@ -1102,9 +1106,10 @@ model WorkflowRunTriggeredBy {
   eventId String? @db.Uuid
 
   // the cron reference that triggered this workflow
-  cron         WorkflowTriggerCronRef? @relation(fields: [cronParentId, cronSchedule], references: [parentId, cron])
+  cron         WorkflowTriggerCronRef? @relation(fields: [cronParentId, cronSchedule, cronName], references: [parentId, cron, name])
   cronParentId String?                 @db.Uuid
   cronSchedule String?
+  cronName     String?
 
   // a specific time that triggered this workflow
   scheduled   WorkflowTriggerScheduledRef? @relation(fields: [scheduledId], references: [id])
@@ -1296,6 +1301,9 @@ model StepRun {
 
   // which retry we're on for this step run
   retryCount Int @default(0)
+
+  // the internal retry count for this step run
+  internalRetryCount Int @default(0)
 
   // the run error
   error String?

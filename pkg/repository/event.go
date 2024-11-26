@@ -89,7 +89,7 @@ type EventAPIRepository interface {
 }
 
 type EventEngineRepository interface {
-	RegisterCreateCallback(callback Callback[*dbsqlc.Event])
+	RegisterCreateCallback(callback TenantScopedCallback[*dbsqlc.Event])
 
 	// CreateEvent creates a new event for a given tenant.
 	CreateEvent(ctx context.Context, opts *CreateEventOpts) (*dbsqlc.Event, error)

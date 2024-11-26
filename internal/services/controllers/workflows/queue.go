@@ -67,7 +67,7 @@ func (wc *WorkflowsControllerImpl) handleWorkflowRunQueued(ctx context.Context, 
 
 		wc.l.Debug().Msgf("dedupe error is %v", err)
 
-		// return nil to avoid requeueing the message
+		// return nil to avoid requeuing the message
 		return nil
 	}
 
@@ -81,7 +81,7 @@ func (wc *WorkflowsControllerImpl) handleWorkflowRunQueued(ctx context.Context, 
 
 	// determine if we should start this workflow run or we need to limit its concurrency
 	// if the workflow has concurrency settings, then we need to check if we can start it
-	if workflowRun.ConcurrencyLimitStrategy.Valid && workflowRun.GetGroupKeyRunId.Valid {
+	if workflowRun.ConcurrencyLimitStrategy.Valid && workflowRun.GetGroupKeyRunId.Valid { // nolint: gocritic
 		wc.l.Info().Msgf("workflow %s has concurrency settings", workflowRunId)
 
 		groupKeyRunId := sqlchelpers.UUIDToStr(workflowRun.GetGroupKeyRunId)
@@ -372,7 +372,7 @@ func (wc *WorkflowsControllerImpl) scheduleGetGroupAction(
 
 	if err != nil {
 		if errors.Is(err, repository.ErrNoWorkerAvailable) {
-			wc.l.Debug().Msgf("no worker available for get group key run %s, requeueing", getGroupKeyRunId)
+			wc.l.Debug().Msgf("no worker available for get group key run %s, requeuing", getGroupKeyRunId)
 			return nil
 		}
 
@@ -523,7 +523,7 @@ func (ec *WorkflowsControllerImpl) runGetGroupKeyRunRequeueTenant(ctx context.Co
 
 			getGroupKeyRunId := sqlchelpers.UUIDToStr(getGroupKeyRunCp.ID)
 
-			ec.l.Debug().Msgf("requeueing group key run %s", getGroupKeyRunId)
+			ec.l.Debug().Msgf("requeuing group key run %s", getGroupKeyRunId)
 
 			now := time.Now().UTC().UTC()
 

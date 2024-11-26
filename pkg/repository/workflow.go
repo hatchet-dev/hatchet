@@ -58,6 +58,19 @@ type CreateWorkflowVersionOpts struct {
 	DefaultPriority *int32 `validate:"omitempty,min=1,max=3"`
 }
 
+type CreateCronWorkflowTriggerOpts struct {
+	// (required) the workflow id
+	WorkflowId string `validate:"required,uuid"`
+
+	// (required) the workflow name
+	Name string `validate:"required"`
+
+	Cron string `validate:"required,cron"`
+
+	Input              map[string]interface{}
+	AdditionalMetadata map[string]interface{}
+}
+
 type CreateWorkflowConcurrencyOpts struct {
 	// (optional) the action id for getting the concurrency group
 	Action *string `validate:"omitempty,actionId"`
@@ -94,6 +107,15 @@ type CreateWorkflowSchedulesOpts struct {
 
 	Input              []byte
 	AdditionalMetadata []byte
+}
+
+type CreateScheduledWorkflowRunForWorkflowOpts struct {
+	WorkflowId string `validate:"required,uuid"`
+
+	ScheduledTrigger time.Time
+
+	Input              map[string]interface{}
+	AdditionalMetadata map[string]interface{}
 }
 
 type CreateWorkflowTagOpts struct {
@@ -141,6 +163,12 @@ type CreateWorkflowStepOpts struct {
 
 	// (optional) desired worker affinity state for this step
 	DesiredWorkerLabels map[string]DesiredWorkerLabelOpts `validate:"omitempty"`
+
+	// (optional) the step retry backoff factor
+	RetryBackoffFactor *float64 `validate:"omitnil,min=1,max=1000"`
+
+	// (optional) the step retry backoff max seconds (can't be greater than 86400)
+	RetryBackoffMaxSeconds *int `validate:"omitnil,min=1,max=86400"`
 }
 
 type DesiredWorkerLabelOpts struct {
@@ -265,6 +293,21 @@ type WorkflowAPIRepository interface {
 
 	// GetWorkflowWorkerCount returns the number of workers for a given workflow.
 	GetWorkflowWorkerCount(tenantId, workflowId string) (int, int, error)
+
+	// CreateCronWorkflow creates a cron trigger
+	CreateCronWorkflow(ctx context.Context, tenantId string, opts *CreateCronWorkflowTriggerOpts) (*dbsqlc.ListCronWorkflowsRow, error)
+
+	// List ScheduledWorkflows lists workflows by scheduled trigger
+	ListCronWorkflows(ctx context.Context, tenantId string, opts *ListCronWorkflowsOpts) ([]*dbsqlc.ListCronWorkflowsRow, int64, error)
+
+	// GetCronWorkflow gets a cron workflow run
+	GetCronWorkflow(ctx context.Context, tenantId, cronWorkflowId string) (*dbsqlc.ListCronWorkflowsRow, error)
+
+	// DeleteCronWorkflow deletes a cron workflow run
+	DeleteCronWorkflow(ctx context.Context, tenantId, id string) error
+
+	// CreateScheduledWorkflow creates a scheduled workflow run
+	CreateScheduledWorkflow(ctx context.Context, tenantId string, opts *CreateScheduledWorkflowRunForWorkflowOpts) (*dbsqlc.ListScheduledWorkflowsRow, error)
 }
 
 type WorkflowEngineRepository interface {
@@ -274,7 +317,7 @@ type WorkflowEngineRepository interface {
 
 	// CreateWorkflowVersion creates a new workflow version for a given tenant. This will fail if there is
 	// not a parent workflow with the same name already in the database.
-	CreateWorkflowVersion(ctx context.Context, tenantId string, opts *CreateWorkflowVersionOpts) (*dbsqlc.GetWorkflowVersionForEngineRow, error)
+	CreateWorkflowVersion(ctx context.Context, tenantId string, opts *CreateWorkflowVersionOpts, oldWorkflowVersion *dbsqlc.GetWorkflowVersionForEngineRow) (*dbsqlc.GetWorkflowVersionForEngineRow, error)
 
 	// CreateSchedules creates schedules for a given workflow version.
 	CreateSchedules(ctx context.Context, tenantId, workflowVersionId string, opts *CreateWorkflowSchedulesOpts) ([]*dbsqlc.WorkflowTriggerScheduledRef, error)

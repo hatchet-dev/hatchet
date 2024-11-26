@@ -116,12 +116,18 @@ paths:
     $ref: "./paths/event/event.yaml#/keys"
   /api/v1/tenants/{tenant}/workflows:
     $ref: "./paths/workflow/workflow.yaml#/withTenant"
+  /api/v1/tenants/{tenant}/workflows/{workflow}/scheduled:
+    $ref: "./paths/workflow/workflow.yaml#/scheduledCreate"
   /api/v1/tenants/{tenant}/workflows/scheduled:
     $ref: "./paths/workflow/workflow.yaml#/scheduledList"
-  /api/v1/tenants/{tenant}/workflows/scheduled/{scheduledId}:
+  /api/v1/tenants/{tenant}/workflows/scheduled/{scheduled-workflow-run}:
     $ref: "./paths/workflow/workflow.yaml#/scheduled"
+  /api/v1/tenants/{tenant}/workflows/{workflow}/crons:
+    $ref: "./paths/workflow/workflow.yaml#/cronsCreate"
   /api/v1/tenants/{tenant}/workflows/crons:
     $ref: "./paths/workflow/workflow.yaml#/cronsList"
+  /api/v1/tenants/{tenant}/workflows/crons/{cron-workflow}:
+    $ref: "./paths/workflow/workflow.yaml#/crons"
   /api/v1/tenants/{tenant}/workflows/cancel:
     $ref: "./paths/workflow/workflow.yaml#/cancelWorkflowRuns"
   /api/v1/workflows/{workflow}:

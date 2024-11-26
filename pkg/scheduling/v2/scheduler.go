@@ -469,12 +469,15 @@ func (s *Scheduler) tryAssignBatch(
 	rlAcks := make([]func(), len(qis))
 	rlNacks := make([]func(), len(qis))
 
+	noop := func() {}
+
 	// first, check rate limits for each of the queue items
 	for i := range res {
 		r := res[i]
 		qi := qis[i]
-		var rateLimitAck func()
-		var rateLimitNack func()
+
+		rateLimitAck := noop
+		rateLimitNack := noop
 
 		rls := make(map[string]int32)
 
@@ -518,6 +521,7 @@ func (s *Scheduler) tryAssignBatch(
 		// if the action is not in the map, then we have no slots to assign to
 		for i := range res {
 			res[i].noSlots = true
+			rlNacks[i]()
 		}
 
 		return res, newRingOffset, nil
@@ -543,6 +547,7 @@ func (s *Scheduler) tryAssignBatch(
 
 		if denom == 0 {
 			res[i].noSlots = true
+			rlNacks[i]()
 			wg.Done()
 
 			continue
@@ -567,6 +572,10 @@ func (s *Scheduler) tryAssignBatch(
 
 			if err != nil {
 				s.l.Error().Err(err).Msg("error assigning queue item")
+			}
+
+			if !singleRes.succeeded {
+				rlNacks[i]()
 			}
 
 			res[i] = &singleRes
@@ -699,14 +708,11 @@ func (s *Scheduler) tryAssign(
 
 			go func(actionId string, qis []*dbsqlc.QueueItem) {
 				defer wg.Done()
-				assigned := make([]*AssignedQueueItem, 0, len(qis))
-				unassigned := make([]*dbsqlc.QueueItem, 0, len(qis))
-				schedulingTimedOut := make([]*dbsqlc.QueueItem, 0, len(qis))
-				rateLimited := make([]*scheduleRateLimitResult, 0, len(qis))
 
 				ringOffset := 0
 
 				batched := make([]*dbsqlc.QueueItem, 0)
+				schedulingTimedOut := make([]*dbsqlc.QueueItem, 0, len(qis))
 
 				for i := range qis {
 					qi := qis[i]
@@ -719,8 +725,14 @@ func (s *Scheduler) tryAssign(
 					batched = append(batched, qi)
 				}
 
+				resultsCh <- &assignResults{
+					schedulingTimedOut: schedulingTimedOut,
+				}
+
 				err := queueutils.BatchLinear(50, batched, func(batchQis []*dbsqlc.QueueItem) error {
 					batchAssigned := make([]*AssignedQueueItem, 0, len(batchQis))
+					batchRateLimited := make([]*scheduleRateLimitResult, 0, len(batchQis))
+					batchUnassigned := make([]*dbsqlc.QueueItem, 0, len(batchQis))
 
 					batchStart := time.Now()
 
@@ -735,9 +747,13 @@ func (s *Scheduler) tryAssign(
 					for _, singleRes := range results {
 						if !singleRes.succeeded {
 							if singleRes.rateLimitResult != nil {
-								rateLimited = append(rateLimited, singleRes.rateLimitResult)
-							} else if singleRes.noSlots {
-								unassigned = append(unassigned, singleRes.qi)
+								batchRateLimited = append(batchRateLimited, singleRes.rateLimitResult)
+							} else {
+								batchUnassigned = append(batchUnassigned, singleRes.qi)
+
+								if !singleRes.noSlots {
+									s.l.Error().Msgf("scheduling failed for queue item %d: expected assignment to fail with either no slots or rate limit exceeded, but failed with neither", singleRes.qi.ID)
+								}
 							}
 
 							continue
@@ -755,7 +771,9 @@ func (s *Scheduler) tryAssign(
 					}
 
 					resultsCh <- &assignResults{
-						assigned: batchAssigned,
+						assigned:    batchAssigned,
+						rateLimited: batchRateLimited,
+						unassigned:  batchUnassigned,
 					}
 
 					return nil
@@ -763,14 +781,6 @@ func (s *Scheduler) tryAssign(
 
 				if err != nil {
 					s.l.Error().Err(err).Msg("error assigning queue items")
-					return
-				}
-
-				resultsCh <- &assignResults{
-					assigned:           assigned,
-					unassigned:         unassigned,
-					schedulingTimedOut: schedulingTimedOut,
-					rateLimited:        rateLimited,
 				}
 			}(actionId, qis)
 		}

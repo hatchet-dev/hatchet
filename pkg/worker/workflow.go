@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hatchet-dev/hatchet/pkg/client/compute"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 )
 
@@ -125,7 +126,7 @@ func (e eventsArr) ToWorkflowTriggers(wt *types.WorkflowTriggers, namespace stri
 
 type workflowConverter interface {
 	ToWorkflow(svcName string, namespace string) types.Workflow
-	ToActionMap(svcName string) map[string]any
+	ToActionMap(svcName string) ActionMap
 	ToWorkflowTrigger() triggerConverter
 }
 
@@ -264,17 +265,30 @@ func (j *WorkflowJob) ToWorkflowTrigger() triggerConverter {
 	return j.On
 }
 
-func (j *WorkflowJob) ToActionMap(svcName string) map[string]any {
-	res := map[string]any{}
+type ActionWithCompute struct {
+	fn      any
+	compute *compute.Compute
+}
+
+type ActionMap map[string]ActionWithCompute
+
+func (j *WorkflowJob) ToActionMap(svcName string) ActionMap {
+	res := ActionMap{}
 
 	for i, step := range j.Steps {
 		actionId := step.GetActionId(svcName, i)
 
-		res[actionId] = step.Function
+		res[actionId] = ActionWithCompute{
+			fn:      step.Function,
+			compute: step.Compute,
+		}
 	}
 
 	if j.Concurrency != nil && j.Concurrency.fn != nil {
-		res["concurrency:"+getFnName(j.Concurrency.fn)] = j.Concurrency.fn
+		res["concurrency:"+getFnName(j.Concurrency.fn)] = ActionWithCompute{
+			fn:      j.Concurrency.fn,
+			compute: nil, // TODO add compute to concurrency
+		}
 	}
 
 	if j.OnFailure != nil {
@@ -303,9 +317,15 @@ type WorkflowStep struct {
 
 	Retries int
 
+	RetryBackoffFactor *float32
+
+	RetryMaxBackoffSeconds *int32
+
 	RateLimit []RateLimit
 
 	DesiredLabels map[string]*types.DesiredWorkerLabel
+
+	Compute *compute.Compute
 }
 
 type RateLimit struct {
@@ -332,6 +352,11 @@ func (w *WorkflowStep) SetName(name string) *WorkflowStep {
 	return w
 }
 
+func (w *WorkflowStep) SetCompute(compute *compute.Compute) *WorkflowStep {
+	w.Compute = compute
+	return w
+}
+
 func (w *WorkflowStep) SetDesiredLabels(labels map[string]*types.DesiredWorkerLabel) *WorkflowStep {
 	w.DesiredLabels = labels
 	return w
@@ -349,6 +374,16 @@ func (w *WorkflowStep) SetTimeout(timeout string) *WorkflowStep {
 
 func (w *WorkflowStep) SetRetries(retries int) *WorkflowStep {
 	w.Retries = retries
+	return w
+}
+
+func (w *WorkflowStep) SetRetryBackoffFactor(retryBackoffFactor float32) *WorkflowStep {
+	w.RetryBackoffFactor = &retryBackoffFactor
+	return w
+}
+
+func (w *WorkflowStep) SetRetryMaxBackoffSeconds(retryMaxBackoffSeconds int32) *WorkflowStep {
+	w.RetryMaxBackoffSeconds = &retryMaxBackoffSeconds
 	return w
 }
 
@@ -377,11 +412,14 @@ func (w *WorkflowStep) ToWorkflow(svcName string, namespace string) types.Workfl
 	return workflowJob.ToWorkflow(svcName, namespace)
 }
 
-func (w *WorkflowStep) ToActionMap(svcName string) map[string]any {
+func (w *WorkflowStep) ToActionMap(svcName string) ActionMap {
 	step := *w
 
-	return map[string]any{
-		step.GetActionId(svcName, 0): w.Function,
+	return ActionMap{
+		step.GetActionId(svcName, 0): ActionWithCompute{
+			fn:      w.Function,
+			compute: w.Compute,
+		},
 	}
 }
 
@@ -405,13 +443,15 @@ func (w *WorkflowStep) ToWorkflowStep(svcName string, index int, namespace strin
 	res.Id = w.GetStepId(index)
 
 	res.APIStep = types.WorkflowStep{
-		Name:          res.Id,
-		ID:            w.GetStepId(index),
-		Timeout:       w.Timeout,
-		ActionID:      w.GetActionId(svcName, index),
-		Parents:       []string{},
-		Retries:       w.Retries,
-		DesiredLabels: w.DesiredLabels,
+		Name:                   res.Id,
+		ID:                     w.GetStepId(index),
+		Timeout:                w.Timeout,
+		ActionID:               w.GetActionId(svcName, index),
+		Parents:                []string{},
+		Retries:                w.Retries,
+		DesiredLabels:          w.DesiredLabels,
+		RetryBackoffFactor:     w.RetryBackoffFactor,
+		RetryMaxBackoffSeconds: w.RetryMaxBackoffSeconds,
 	}
 
 	for _, rateLimit := range w.RateLimit {

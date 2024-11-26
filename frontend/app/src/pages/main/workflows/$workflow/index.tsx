@@ -171,7 +171,7 @@ export default function ExpandedWorkflow() {
           </div>
           <TriggerWorkflowForm
             show={triggerWorkflow}
-            workflow={workflow}
+            defaultWorkflow={workflow}
             onClose={() => setTriggerWorkflow(false)}
           />
         </div>

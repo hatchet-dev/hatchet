@@ -71,26 +71,29 @@ engine:
     ingressClassName: nginx
     labels: {}
     annotations:
-        cert-manager.io/cluster-issuer: letsencrypt-prod
-        nginx.ingress.kubernetes.io/auth-tls-verify-client: "optional"
-        nginx.ingress.kubernetes.io/auth-tls-secret: "${kubernetes_namespace.cloud.metadata[0].name}/engine-cert"
-        nginx.ingress.kubernetes.io/auth-tls-verify-depth: "1"
-        nginx.ingress.kubernetes.io/auth-tls-pass-certificate-to-upstream: "true"
-        nginx.ingress.kubernetes.io/backend-protocol: "GRPC"
-        nginx.ingress.kubernetes.io/ssl-redirect: "true"
-        nginx.ingress.kubernetes.io/grpc-backend: "true"
-        nginx.ingress.kubernetes.io/server-snippet: |
-          grpc_read_timeout 1d;
-          grpc_send_timeout 1h;
-          client_header_timeout 1h;
-          client_body_timeout 1h;
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+      nginx.ingress.kubernetes.io/auth-tls-verify-client: "optional"
+      nginx.ingress.kubernetes.io/auth-tls-secret: "${kubernetes_namespace.cloud.metadata[0].name}/engine-cert"
+      nginx.ingress.kubernetes.io/auth-tls-verify-depth: "1"
+      nginx.ingress.kubernetes.io/auth-tls-pass-certificate-to-upstream: "true"
+      nginx.ingress.kubernetes.io/backend-protocol: "GRPC"
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/grpc-backend: "true"
+      nginx.ingress.kubernetes.io/server-snippet: |
+        grpc_read_timeout 1d;
+        grpc_send_timeout 1h;
+        client_header_timeout 1h;
+        client_body_timeout 1h;
     hosts:
-    - host: engine.hatchet.example.com
+      - host: engine.hatchet.example.com
         paths:
-        - path: /
+          - path: /
+        backend:
+          serviceName: hatchet-engine
+          servicePort: 7070
     tls:
-        - hosts:
-            - engine.hatchet.example.com
+      - hosts:
+          - engine.hatchet.example.com
         secretName: engine-cert
         servicePort: 7070
 
@@ -100,25 +103,24 @@ frontend:
     ingressClassName: nginx
     labels: {}
     annotations:
-        nginx.ingress.kubernetes.io/proxy-body-size: 50m
-        nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
-        nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
-        nginx.ingress.kubernetes.io/proxy-connect-timeout: "60"
-        cert-manager.io/cluster-issuer: letsencrypt-prod
+      nginx.ingress.kubernetes.io/proxy-body-size: 50m
+      nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
+      nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+      nginx.ingress.kubernetes.io/proxy-connect-timeout: "60"
+      cert-manager.io/cluster-issuer: letsencrypt-prod
     hosts:
-    - host: hatchet.example.com
+      - host: hatchet.example.com
         paths:
-        - path: /api
-        backend:
-            serviceName: hatchet-api
-            servicePort: 8080
-        - path: /
-        backend:
-            serviceName: hatchet-frontend
-            servicePort: 8080
+          - path: /api
+            backend:
+              serviceName: hatchet-api
+              servicePort: 8080
+          - path: /
+            backend:
+              serviceName: hatchet-frontend
+              servicePort: 8080
     tls:
-    - secretName: hatchet-api
+      - secretName: hatchet-api
         hosts:
-        - hatchet.example.com
-        servicePort: 8080
+          - hatchet.example.com
 ```

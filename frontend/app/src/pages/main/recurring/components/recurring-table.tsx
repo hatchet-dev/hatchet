@@ -8,6 +8,7 @@ import {
 } from '@tanstack/react-table';
 import { useQuery } from '@tanstack/react-query';
 import {
+  CronWorkflows,
   CronWorkflowsOrderByField,
   WorkflowRunOrderByDirection,
   queries,
@@ -17,6 +18,14 @@ import { useOutletContext, useSearchParams } from 'react-router-dom';
 import { TenantContextType } from '@/lib/outlet';
 import { DataTable } from '@/components/molecules/data-table/data-table';
 import { columns } from './recurring-columns';
+import { Button } from '@/components/ui/button';
+import { ArrowPathIcon } from '@heroicons/react/24/outline';
+import { DeleteCron } from './delete-cron';
+import {
+  FilterOption,
+  ToolbarFilters,
+  ToolbarType,
+} from '@/components/molecules/data-table/data-table-toolbar';
 
 export function CronsTable() {
   const { tenant } = useOutletContext<TenantContextType>();
@@ -32,6 +41,7 @@ export function CronsTable() {
     }
     return [];
   });
+
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>(() => {
     const filtersParam = searchParams.get('filters');
     if (filtersParam) {
@@ -39,15 +49,15 @@ export function CronsTable() {
     }
     return [];
   });
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
-    createdAt: false,
-  });
+
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
 
   const [pagination, setPagination] = useState<PaginationState>(() => {
     const pageIndex = Number(searchParams.get('pageIndex')) || 0;
     const pageSize = Number(searchParams.get('pageSize')) || 50;
     return { pageIndex, pageSize };
   });
+
   const [pageSize, setPageSize] = useState<number>(
     Number(searchParams.get('pageSize')) || 50,
   );
@@ -66,9 +76,20 @@ export function CronsTable() {
     setSearchParams(newSearchParams);
   }, [sorting, columnFilters, pagination, setSearchParams, searchParams]);
 
-  const orderByDirection = useMemo(():
-    | WorkflowRunOrderByDirection
-    | undefined => {
+  const workflow = useMemo<string | undefined>(() => {
+    const filter = columnFilters.find((filter) => filter.id === 'Workflow');
+
+    if (!filter) {
+      return;
+    }
+
+    const vals = filter?.value as Array<string>;
+    return vals[0];
+  }, [columnFilters]);
+
+  const orderByDirection = useMemo<
+    WorkflowRunOrderByDirection | undefined
+  >(() => {
     if (!sorting.length) {
       return;
     }
@@ -78,14 +99,16 @@ export function CronsTable() {
       : WorkflowRunOrderByDirection.ASC;
   }, [sorting]);
 
-  const orderByField = useMemo((): CronWorkflowsOrderByField | undefined => {
+  const orderByField = useMemo<CronWorkflowsOrderByField | undefined>(() => {
     if (!sorting.length) {
       return;
     }
 
     switch (sorting[0]?.id) {
-      case 'triggerAt':
+      case 'createdAt':
         return CronWorkflowsOrderByField.CreatedAt;
+      case 'name':
+        return CronWorkflowsOrderByField.Name;
       default:
         return CronWorkflowsOrderByField.CreatedAt;
     }
@@ -103,38 +126,112 @@ export function CronsTable() {
     data,
     isLoading: queryIsLoading,
     error: queryError,
+    refetch,
   } = useQuery({
-    ...queries.cronRuns.list(tenant.metadata.id, {
-      // TODO: add filters
+    ...queries.cronJobs.list(tenant.metadata.id, {
       orderByField,
       orderByDirection,
       offset,
       limit: pageSize,
+      workflowId: workflow,
+      additionalMetadata: columnFilters.find(
+        (filter) => filter.id === 'Metadata',
+      )?.value as string[] | undefined,
     }),
     refetchInterval: 2000,
   });
 
+  const [showDeleteCron, setShowDeleteCron] = useState<
+    CronWorkflows | undefined
+  >();
+
+  const handleDeleteClick = (cron: CronWorkflows) => {
+    setShowDeleteCron(cron);
+  };
+
+  const handleConfirmDelete = () => {
+    if (showDeleteCron) {
+      setShowDeleteCron(undefined);
+      refetch();
+    }
+  };
+
+  const { data: workflowKeys } = useQuery({
+    ...queries.workflows.list(tenant.metadata.id),
+  });
+
+  const workflowKeyFilters = useMemo((): FilterOption[] => {
+    return (
+      workflowKeys?.rows?.map((key) => ({
+        value: key.metadata.id,
+        label: key.name,
+      })) || []
+    );
+  }, [workflowKeys]);
+
+  const filters: ToolbarFilters = [
+    {
+      columnId: 'Workflow',
+      title: 'Workflow',
+      options: workflowKeyFilters,
+      type: ToolbarType.Radio,
+    },
+    {
+      columnId: 'Metadata',
+      title: 'Metadata',
+      type: ToolbarType.KeyValue,
+    },
+  ];
+
+  const actions = [
+    <Button
+      key="refresh"
+      className="h-8 px-2 lg:px-3"
+      size="sm"
+      onClick={() => {
+        refetch();
+      }}
+      variant={'outline'}
+      aria-label="Refresh crons list"
+    >
+      <ArrowPathIcon className={`h-4 w-4`} />
+    </Button>,
+  ];
+
   return (
-    <DataTable
-      error={queryError}
-      isLoading={queryIsLoading}
-      columns={columns}
-      data={data?.rows || []}
-      filters={[]}
-      showColumnToggle={true}
-      columnVisibility={columnVisibility}
-      setColumnVisibility={setColumnVisibility}
-      sorting={sorting}
-      setSorting={setSorting}
-      columnFilters={columnFilters}
-      setColumnFilters={setColumnFilters}
-      pagination={pagination}
-      setPagination={setPagination}
-      onSetPageSize={setPageSize}
-      pageCount={data?.pagination?.num_pages || 0}
-      rowSelection={rowSelection}
-      setRowSelection={setRowSelection}
-      getRowId={(row) => row.metadata.id}
-    />
+    <>
+      {showDeleteCron && (
+        <DeleteCron
+          tenant={tenant.metadata.id}
+          cron={showDeleteCron}
+          setShowCronRevoke={setShowDeleteCron}
+          onSuccess={handleConfirmDelete}
+        />
+      )}
+      <DataTable
+        error={queryError}
+        isLoading={queryIsLoading}
+        columns={columns({
+          onDeleteClick: handleDeleteClick,
+        })}
+        data={data?.rows || []}
+        filters={filters}
+        showColumnToggle={true}
+        columnVisibility={columnVisibility}
+        setColumnVisibility={setColumnVisibility}
+        sorting={sorting}
+        setSorting={setSorting}
+        columnFilters={columnFilters}
+        setColumnFilters={setColumnFilters}
+        pagination={pagination}
+        setPagination={setPagination}
+        onSetPageSize={setPageSize}
+        pageCount={data?.pagination?.num_pages || 0}
+        rowSelection={rowSelection}
+        setRowSelection={setRowSelection}
+        actions={actions}
+        getRowId={(row) => row.metadata.id}
+      />
+    </>
   );
 }

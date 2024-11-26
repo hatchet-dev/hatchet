@@ -125,7 +125,7 @@ func (r *rateLimitEngineRepository) UpsertRateLimit(ctx context.Context, tenantI
 	upsertParams := dbsqlc.UpsertRateLimitParams{
 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
 		Key:      key,
-		Limit:    int32(opts.Limit),
+		Limit:    int32(opts.Limit), // nolint: gosec
 	}
 
 	if opts.Duration != nil {

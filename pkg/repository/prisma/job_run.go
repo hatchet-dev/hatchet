@@ -23,7 +23,7 @@ type jobRunAPIRepository struct {
 	queries *dbsqlc.Queries
 	l       *zerolog.Logger
 
-	wrRunningCallbacks []repository.Callback[pgtype.UUID]
+	wrRunningCallbacks []repository.TenantScopedCallback[pgtype.UUID]
 }
 
 func NewJobRunAPIRepository(client *db.PrismaClient, pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger) repository.JobRunAPIRepository {
@@ -38,9 +38,9 @@ func NewJobRunAPIRepository(client *db.PrismaClient, pool *pgxpool.Pool, v valid
 	}
 }
 
-func (j *jobRunAPIRepository) RegisterWorkflowRunRunningCallback(callback repository.Callback[pgtype.UUID]) {
+func (j *jobRunAPIRepository) RegisterWorkflowRunRunningCallback(callback repository.TenantScopedCallback[pgtype.UUID]) {
 	if j.wrRunningCallbacks == nil {
-		j.wrRunningCallbacks = make([]repository.Callback[pgtype.UUID], 0)
+		j.wrRunningCallbacks = make([]repository.TenantScopedCallback[pgtype.UUID], 0)
 	}
 
 	j.wrRunningCallbacks = append(j.wrRunningCallbacks, callback)
@@ -75,7 +75,7 @@ type jobRunEngineRepository struct {
 	queries *dbsqlc.Queries
 	l       *zerolog.Logger
 
-	wrRunningCallbacks []repository.Callback[pgtype.UUID]
+	wrRunningCallbacks []repository.TenantScopedCallback[pgtype.UUID]
 }
 
 func NewJobRunEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger) repository.JobRunEngineRepository {
@@ -89,9 +89,9 @@ func NewJobRunEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zer
 	}
 }
 
-func (j *jobRunEngineRepository) RegisterWorkflowRunRunningCallback(callback repository.Callback[pgtype.UUID]) {
+func (j *jobRunEngineRepository) RegisterWorkflowRunRunningCallback(callback repository.TenantScopedCallback[pgtype.UUID]) {
 	if j.wrRunningCallbacks == nil {
-		j.wrRunningCallbacks = make([]repository.Callback[pgtype.UUID], 0)
+		j.wrRunningCallbacks = make([]repository.TenantScopedCallback[pgtype.UUID], 0)
 	}
 
 	j.wrRunningCallbacks = append(j.wrRunningCallbacks, callback)

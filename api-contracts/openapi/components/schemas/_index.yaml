@@ -234,6 +234,10 @@ RerunStepRunRequest:
   $ref: "./workflow_run.yaml#/RerunStepRunRequest"
 TriggerWorkflowRunRequest:
   $ref: "./workflow_run.yaml#/TriggerWorkflowRunRequest"
+ScheduleWorkflowRunRequest:
+  $ref: "./workflow_run.yaml#/ScheduleWorkflowRunRequest"
+CreateCronWorkflowTriggerRequest:
+  $ref: "./workflow_run.yaml#/CreateCronWorkflowTriggerRequest"
 CreatePullRequestFromStepRun:
   $ref: "./workflow_run.yaml#/CreatePullRequestFromStepRun"
 GetStepRunDiffResponse:

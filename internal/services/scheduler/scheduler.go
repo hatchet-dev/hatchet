@@ -334,7 +334,9 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 			workerIds = append(workerIds, sqlchelpers.UUIDToStr(assigned.WorkerId))
 		}
 
-		dispatcherIdWorkerIds, err := s.repo.Worker().GetDispatcherIdsForWorkers(ctx, tenantId, workerIds)
+		var dispatcherIdWorkerIds map[string][]string
+
+		dispatcherIdWorkerIds, err = s.repo.Worker().GetDispatcherIdsForWorkers(ctx, tenantId, workerIds)
 
 		if err != nil {
 			s.internalRetry(ctx, tenantId, res.Assigned...)
@@ -423,8 +425,9 @@ func (s *Scheduler) internalRetry(ctx context.Context, tenantId string, assigned
 
 func getStepRunCancelTask(tenantId, stepRunId, reason string) *msgqueue.Message {
 	payload, _ := datautils.ToJSONMap(tasktypes.StepRunCancelTaskPayload{
-		StepRunId:       stepRunId,
-		CancelledReason: reason,
+		StepRunId:           stepRunId,
+		CancelledReason:     reason,
+		PropagateToChildren: true,
 	})
 
 	metadata, _ := datautils.ToJSONMap(tasktypes.StepRunCancelTaskMetadata{

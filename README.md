@@ -55,6 +55,7 @@ Hatchet replaces difficult to manage legacy queues or pub/sub systems so you can
 
 **Example Use Cases:**
 
+- **AI Agents:** define your agentic workflows as code and leverage Hatchet to retry failures and parallelize agent actions. 
 - **Fairness for Generative AI:** Don't let busy users overwhelm your system. Hatchet lets you distribute requests to your workers fairly with configurable policies.
 - **Batch Processing for Document Indexing:** Hatchet can handle large-scale batch processing of documents, images, and other data and resume mid-job on failure.
 - **Workflow Orchestration for Multi-Modal Systems:** Hatchet can handle orchestrating multi-modal inputs and outputs, with full DAG-style execution.

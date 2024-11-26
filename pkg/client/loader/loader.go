@@ -110,6 +110,15 @@ func GetClientConfigFromConfigFile(cf *client.ClientConfigFile) (res *client.Cli
 		namespace = strings.ToLower(namespace + "_")
 	}
 
+	var rawRunnableActions []string
+	if cf.RawRunnableActions != nil {
+		rawRunnableActions = []string{}
+
+		for _, action := range cf.RawRunnableActions {
+			rawRunnableActions = append(rawRunnableActions, namespace+strings.TrimSpace(action))
+		}
+	}
+
 	return &client.ClientConfig{
 		TenantId:             cf.TenantId,
 		TLSConfig:            tlsConf,
@@ -117,6 +126,9 @@ func GetClientConfigFromConfigFile(cf *client.ClientConfigFile) (res *client.Cli
 		ServerURL:            serverURL,
 		GRPCBroadcastAddress: grpcBroadcastAddress,
 		Namespace:            namespace,
+		CloudRegisterID:      cf.CloudRegisterID,
+		RunnableActions:      rawRunnableActions,
+		NoGrpcRetry:          cf.NoGrpcRetry,
 	}, nil
 }
 

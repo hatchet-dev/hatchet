@@ -114,6 +114,8 @@ message CreateWorkflowStepOpts {
     int32 retries = 7; // (optional) the number of retries for the step, default 0
     repeated CreateStepRateLimit rate_limits = 8; // (optional) the rate limits for the step
     map<string, DesiredWorkerLabels> worker_labels = 9; // (optional) the desired worker affinity state for the step
+    optional float backoff_factor = 10; // (optional) the retry backoff factor for the step
+    optional int32 backoff_max_seconds = 11; // (optional) the maximum backoff time for the step
 }
 
 message CreateStepRateLimit {

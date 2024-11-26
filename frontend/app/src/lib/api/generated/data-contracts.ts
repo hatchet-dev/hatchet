@@ -781,6 +781,7 @@ export interface ScheduledWorkflows {
    * @example "bb214807-246e-43a5-a25d-41761d1cff9e"
    */
   workflowRunId?: string;
+  method: 'DEFAULT' | 'API';
 }
 
 export interface ScheduledWorkflowsList {
@@ -810,8 +811,11 @@ export interface CronWorkflows {
   workflowId: string;
   workflowName: string;
   cron: string;
+  name?: string;
   input?: Record<string, any>;
   additionalMetadata?: Record<string, any>;
+  enabled: boolean;
+  method: 'DEFAULT' | 'API';
 }
 
 export interface CronWorkflowsList {
@@ -820,6 +824,7 @@ export interface CronWorkflowsList {
 }
 
 export enum CronWorkflowsOrderByField {
+  Name = 'name',
   CreatedAt = 'createdAt',
 }
 
@@ -1193,6 +1198,20 @@ export interface RerunStepRunRequest {
 export interface TriggerWorkflowRunRequest {
   input: object;
   additionalMetadata?: object;
+}
+
+export interface ScheduleWorkflowRunRequest {
+  input: object;
+  additionalMetadata: object;
+  /** @format date-time */
+  triggerAt: string;
+}
+
+export interface CreateCronWorkflowTriggerRequest {
+  input: object;
+  additionalMetadata: object;
+  cronName: string;
+  cronExpression: string;
 }
 
 export interface CreatePullRequestFromStepRun {

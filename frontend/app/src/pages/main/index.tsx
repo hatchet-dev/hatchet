@@ -3,6 +3,7 @@ import { cn } from '@/lib/utils';
 import {
   AdjustmentsHorizontalIcon,
   CalendarDaysIcon,
+  CpuChipIcon,
   QueueListIcon,
   ScaleIcon,
   ServerStackIcon,
@@ -93,18 +94,6 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
     />,
   ];
 
-  if (featureFlags?.data['managed-worker']) {
-    workers.push(
-      <SidebarButtonSecondary
-        key={2}
-        onNavLinkClick={onNavLinkClick}
-        to="/workers/managed-workers"
-        prefix="/workers/managed-workers"
-        name="Managed Worker Pools"
-      />,
-    );
-  }
-
   return (
     <div
       className={cn(
@@ -177,8 +166,17 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
                 prefix="/workers"
                 collapsibleChildren={workers}
               />
+              {featureFlags?.data['managed-worker'] && (
+                <SidebarButtonPrimary
+                  key={3}
+                  onNavLinkClick={onNavLinkClick}
+                  to="/managed-workers"
+                  name="Managed Compute"
+                  icon={<CpuChipIcon className="mr-2 h-4 w-4" />}
+                />
+              )}
               <SidebarButtonPrimary
-                key={3}
+                key={4}
                 onNavLinkClick={onNavLinkClick}
                 to="/rate-limits"
                 name="Rate Limits"

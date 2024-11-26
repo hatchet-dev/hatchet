@@ -65,6 +65,26 @@ func (q *Queries) CleanupQueueItems(ctx context.Context, db DBTX, arg CleanupQue
 	return err
 }
 
+const cleanupRetryQueueItems = `-- name: CleanupRetryQueueItems :exec
+DELETE FROM "RetryQueueItem"
+WHERE "isQueued" = 'f'
+AND
+    "retryAfter" >= $1::timestamp
+    AND "retryAfter" <= $2::timestamp
+    AND "tenantId" = $3::uuid
+`
+
+type CleanupRetryQueueItemsParams struct {
+	Minretryafter pgtype.Timestamp `json:"minretryafter"`
+	Maxretryafter pgtype.Timestamp `json:"maxretryafter"`
+	Tenantid      pgtype.UUID      `json:"tenantid"`
+}
+
+func (q *Queries) CleanupRetryQueueItems(ctx context.Context, db DBTX, arg CleanupRetryQueueItemsParams) error {
+	_, err := db.Exec(ctx, cleanupRetryQueueItems, arg.Minretryafter, arg.Maxretryafter, arg.Tenantid)
+	return err
+}
+
 const cleanupTimeoutQueueItems = `-- name: CleanupTimeoutQueueItems :exec
 DELETE FROM "TimeoutQueueItem"
 WHERE "isQueued" = 'f'
@@ -194,6 +214,34 @@ type CreateQueueItemsBulkParams struct {
 	DesiredWorkerId   pgtype.UUID        `json:"desiredWorkerId"`
 }
 
+const createRetryQueueItem = `-- name: CreateRetryQueueItem :exec
+INSERT INTO
+    "RetryQueueItem" (
+        "stepRunId",
+        "retryAfter",
+        "tenantId",
+        "isQueued"
+    )
+VALUES
+    (
+        $1::uuid,
+        $2::timestamp,
+        $3::uuid,
+        true
+    )
+`
+
+type CreateRetryQueueItemParams struct {
+	Steprunid  pgtype.UUID      `json:"steprunid"`
+	Retryafter pgtype.Timestamp `json:"retryafter"`
+	Tenantid   pgtype.UUID      `json:"tenantid"`
+}
+
+func (q *Queries) CreateRetryQueueItem(ctx context.Context, db DBTX, arg CreateRetryQueueItemParams) error {
+	_, err := db.Exec(ctx, createRetryQueueItem, arg.Steprunid, arg.Retryafter, arg.Tenantid)
+	return err
+}
+
 const createTimeoutQueueItem = `-- name: CreateTimeoutQueueItem :exec
 INSERT INTO
     "InternalQueueItem" (
@@ -314,6 +362,29 @@ func (q *Queries) GetMinMaxProcessedQueueItems(ctx context.Context, db DBTX, ten
 	row := db.QueryRow(ctx, getMinMaxProcessedQueueItems, tenantid)
 	var i GetMinMaxProcessedQueueItemsRow
 	err := row.Scan(&i.MinId, &i.MaxId)
+	return &i, err
+}
+
+const getMinMaxProcessedRetryQueueItems = `-- name: GetMinMaxProcessedRetryQueueItems :one
+SELECT
+    COALESCE(MIN("retryAfter"), NOW())::timestamp AS "minRetryAfter",
+    COALESCE(MAX("retryAfter"), NOW())::timestamp AS "maxRetryAfter"
+FROM
+    "RetryQueueItem"
+WHERE
+    "isQueued" = 'f'
+    AND "tenantId" = $1::uuid
+`
+
+type GetMinMaxProcessedRetryQueueItemsRow struct {
+	MinRetryAfter pgtype.Timestamp `json:"minRetryAfter"`
+	MaxRetryAfter pgtype.Timestamp `json:"maxRetryAfter"`
+}
+
+func (q *Queries) GetMinMaxProcessedRetryQueueItems(ctx context.Context, db DBTX, tenantid pgtype.UUID) (*GetMinMaxProcessedRetryQueueItemsRow, error) {
+	row := db.QueryRow(ctx, getMinMaxProcessedRetryQueueItems, tenantid)
+	var i GetMinMaxProcessedRetryQueueItemsRow
+	err := row.Scan(&i.MinRetryAfter, &i.MaxRetryAfter)
 	return &i, err
 }
 
@@ -516,6 +587,10 @@ LEFT JOIN
 WHERE
     w."tenantId" = $1::uuid
     AND w."id" = ANY($2::uuid[])
+    AND w."dispatcherId" IS NOT NULL
+    AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+    AND w."isActive" = true
+    AND w."isPaused" = false
 `
 
 type ListActionsForWorkersParams struct {
@@ -903,6 +978,76 @@ func (q *Queries) ListQueues(ctx context.Context, db DBTX, tenantid pgtype.UUID)
 			&i.TenantId,
 			&i.Name,
 			&i.LastActive,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listStepRunsToRetry = `-- name: ListStepRunsToRetry :many
+WITH retries AS (
+    SELECT
+        id, "retryAfter", "stepRunId", "tenantId", "isQueued"
+    FROM
+        "RetryQueueItem" rqi
+    WHERE
+        rqi."isQueued" = true
+        AND rqi."tenantId" = $1::uuid
+        AND rqi."retryAfter" <= NOW()
+    ORDER BY
+        rqi."retryAfter" ASC
+    LIMIT
+        1000
+    FOR UPDATE SKIP LOCKED
+), updated_rqis AS (
+    UPDATE
+        "RetryQueueItem" rqi
+    SET
+        "isQueued" = false
+    FROM
+        retries
+    WHERE
+        rqi."stepRunId" = retries."stepRunId"
+)
+SELECT
+    retries.id, retries."retryAfter", retries."stepRunId", retries."tenantId", retries."isQueued"
+FROM
+    retries
+JOIN
+    "StepRun" sr ON retries."stepRunId" = sr."id"
+WHERE
+    -- we remove any step runs in a finalized state from the retry queue
+    sr."status" NOT IN ('SUCCEEDED', 'FAILED', 'CANCELLED', 'CANCELLING')
+`
+
+type ListStepRunsToRetryRow struct {
+	ID         int64            `json:"id"`
+	RetryAfter pgtype.Timestamp `json:"retryAfter"`
+	StepRunId  pgtype.UUID      `json:"stepRunId"`
+	TenantId   pgtype.UUID      `json:"tenantId"`
+	IsQueued   bool             `json:"isQueued"`
+}
+
+func (q *Queries) ListStepRunsToRetry(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]*ListStepRunsToRetryRow, error) {
+	rows, err := db.Query(ctx, listStepRunsToRetry, tenantid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListStepRunsToRetryRow
+	for rows.Next() {
+		var i ListStepRunsToRetryRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.RetryAfter,
+			&i.StepRunId,
+			&i.TenantId,
+			&i.IsQueued,
 		); err != nil {
 			return nil, err
 		}

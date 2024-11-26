@@ -230,6 +230,7 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWo
 				ctx,
 				tenantId,
 				createOpts,
+				oldWorkflowVersion,
 			)
 
 			if err != nil {
@@ -537,6 +538,19 @@ func getCreateJobOpts(req *contracts.CreateWorkflowJobOpts, kind string) (*repos
 			Parents:             stepCp.Parents,
 			Retries:             &retries,
 			DesiredWorkerLabels: affinity,
+		}
+
+		if stepCp.BackoffFactor != nil {
+			f64 := float64(*stepCp.BackoffFactor)
+			steps[j].RetryBackoffFactor = &f64
+
+			if stepCp.BackoffMaxSeconds != nil {
+				maxInt := int(*stepCp.BackoffMaxSeconds)
+				steps[j].RetryBackoffMaxSeconds = &maxInt
+			} else {
+				maxInt := 24 * 60 * 60
+				steps[j].RetryBackoffMaxSeconds = &maxInt
+			}
 		}
 
 		if stepCp.Timeout != "" {

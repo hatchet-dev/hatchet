@@ -1,4 +1,5 @@
 import { Tabs } from "nextra/components";
+import UniversalTabs from "../../../../components/UniversalTabs";
 
 # The GROUP_ROUND_ROBIN Concurrency Limit Strategy in Hatchet
 
@@ -35,7 +36,7 @@ To use the `GROUP_ROUND_ROBIN` concurrency limit strategy, define a `concurrency
 
 CEL expressions are evaluated on the Hatchet engine (not in your worker) and can be used to extract values from the workflow input or [additional metadata](/features/additional-metadata).
 
-<Tabs items={['Python', 'Typescript', 'Go']}>
+<UniversalTabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
 
 ```python
@@ -107,7 +108,7 @@ err = w.RegisterWorkflow(
 ```
 
   </Tabs.Tab>
-</Tabs>
+</UniversalTabs>
 
 In this example:
 
@@ -118,7 +119,7 @@ In this example:
 </Tabs.Tab>
   <Tabs.Tab>
 In advanced use cases, you may want to use a custom function to determine the concurrency key. Concurrency key functions are evaluated on your Hatchet workers and can be used to extract values from the workflow input, context, and other sources (i.e. database, external API, etc.).
-<Tabs items={['Python', 'Typescript', 'Go']}>
+<UniversalTabs items={['Python', 'Typescript', 'Go']}>
 
   <Tabs.Tab>
 
@@ -200,7 +201,7 @@ err = w.RegisterWorkflow(
 ```
 
   </Tabs.Tab>
-</Tabs>
+</UniversalTabs>
 
 In this example:
 

@@ -37,6 +37,8 @@ type UpdateUserOpts struct {
 }
 
 type UserRepository interface {
+	RegisterCreateCallback(callback UnscopedCallback[*db.UserModel])
+
 	// GetUserByID returns the user with the given id
 	GetUserByID(id string) (*db.UserModel, error)
 

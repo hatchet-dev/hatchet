@@ -76,15 +76,15 @@ func (t *WorkflowService) CronWorkflowList(ctx echo.Context, request gen.CronWor
 	dbCtx, cancel := context.WithTimeout(ctx.Request().Context(), 30*time.Second)
 	defer cancel()
 
-	scheduled, count, err := t.config.APIRepository.WorkflowRun().ListCronWorkflows(dbCtx, tenant.ID, listOpts)
+	crons, count, err := t.config.APIRepository.Workflow().ListCronWorkflows(dbCtx, tenant.ID, listOpts)
 
 	if err != nil {
 		return nil, err
 	}
 
-	rows := make([]gen.CronWorkflows, len(scheduled))
+	rows := make([]gen.CronWorkflows, len(crons))
 
-	for i, workflow := range scheduled {
+	for i, workflow := range crons {
 		workflowCp := workflow
 		rows[i] = *transformers.ToCronWorkflowsFromSQLC(workflowCp)
 	}

@@ -112,6 +112,10 @@ export const columns = ({
               {
                 label: 'Delete',
                 onClick: () => onDeleteClick(row.original),
+                disabled:
+                  row.original.method !== 'API'
+                    ? 'Cannot delete scheduled workflow created via workflow code definition'
+                    : undefined,
               },
             ]}
           />

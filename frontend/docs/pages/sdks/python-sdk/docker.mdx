@@ -1,0 +1,101 @@
+import { Tabs, Callout } from "nextra/components";
+
+# Dockerizing Hatchet Applications
+
+This guide explains how to create Dockerfiles for Hatchet applications, focusing on both Poetry and PIP implementations. Hatchet workers need proper containerization to ensure reliable execution of workflows in production environments.
+
+## Entry Point Configuration for Hatchet
+
+Before creating your Dockerfile, understand that Hatchet workers require specific entry point configuration:
+
+1. The entry point must run code that runs the Hatchet worker. This can be done by calling the `worker.start()` method. [See the Python SDK docs for more information](./worker.mdx#starting-a-worker)
+2. Proper environment variables must be set for Hatchet SDK
+3. The worker should be configured to handle your workflows using the `worker.register` method
+
+## Example Docker Files
+
+<Tabs items={['Poetry', 'PIP']}>
+  <Tabs.Tab>
+
+```dockerfile
+# Use the official Python image as the base
+FROM python:3.10-slim
+
+# Set environment variables
+
+ENV PYTHONUNBUFFERED=1 \
+ POETRY_VERSION=1.4.2 \
+ HATCHET_ENV=production
+
+# Install system dependencies and Poetry
+
+RUN apt-get update && \
+ apt-get install -y curl && \
+ curl -sSL https://install.python-poetry.org | python3 - && \
+ ln -s /root/.local/bin/poetry /usr/local/bin/poetry && \
+ apt-get clean && \
+ rm -rf /var/lib/apt/lists/\*
+
+# Set work directory
+
+WORKDIR /app
+
+# Copy dependency files first
+
+COPY pyproject.toml poetry.lock\* /app/
+
+# Install dependencies
+
+RUN poetry config virtualenvs.create false && \
+ poetry install --no-interaction --no-ansi
+
+# Copy Hatchet application code
+
+COPY . /app
+
+# Set the entrypoint to run the Hatchet worker
+
+CMD ["poetry", "run", "python", "worker.py"]
+
+```
+
+<Callout type="info">
+    If you're using a poetry script to run your worker, you can replace `poetry run python worker.py` with `poetry run <script-name>` in the CMD.
+</Callout>
+  </Tabs.Tab>
+  <Tabs.Tab>
+
+```dockerfile
+# Use the official Python image as base
+FROM python:3.10-slim
+
+# Set environment variables
+
+ENV PYTHONUNBUFFERED=1 \
+ HATCHET_ENV=production
+
+# Set work directory
+
+WORKDIR /app
+
+# Copy dependency files first
+
+COPY requirements.txt .
+
+# Install dependencies
+
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy Hatchet application code
+
+COPY . /app
+
+# Set the entrypoint to run the Hatchet worker
+
+CMD ["python", "worker.py"]
+
+```
+
+  </Tabs.Tab>
+</Tabs>
+```

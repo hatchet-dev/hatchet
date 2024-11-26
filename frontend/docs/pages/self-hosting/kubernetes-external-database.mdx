@@ -2,20 +2,10 @@
 
 ## Connecting to Postgres
 
-To connect to Postgres, the `hatchet-stack` chart requires the following configuration options:
+To connect to an external Postgres instance, set `postgres.enabled` to `false` in the `values.yaml` file. This will disable the internal Postgres instance and allow you to connect to an external database. You should then add the following configuration for the `hatchet-stack` or `hatchet-ha` charts:
 
 ```yaml
-hatchet-api:
-  env:
-    DATABASE_URL: "postgres://<user>:<password>@<host>:5432/<db-name>?sslmode=disable"
-    DATABASE_POSTGRES_HOST: "<host>"
-    DATABASE_POSTGRES_PORT: "5432"
-    DATABASE_POSTGRES_USERNAME: "<user>"
-    DATABASE_POSTGRES_PASSWORD: "<password>"
-    DATABASE_POSTGRES_DB_NAME: "<db-name>"
-    DATABASE_POSTGRES_SSL_MODE: "disable"
-
-hatchet-engine:
+sharedConfig:
   env:
     DATABASE_URL: "postgres://<user>:<password>@<host>:5432/<db-name>?sslmode=disable"
     DATABASE_POSTGRES_HOST: "<host>"

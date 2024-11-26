@@ -1,4 +1,5 @@
 import { Tabs, Steps, Callout } from "nextra/components";
+import UniversalTabs from "../../components/UniversalTabs";
 
 # Kubernetes Quickstart
 
@@ -39,7 +40,7 @@ Password: Admin123!!
 
 ```sh
 export NAMESPACE=default # TODO: replace with your namespace
-export POD_NAME=$(kubectl get pods --namespace $NAMESPACE -l "app.kubernetes.io/name=hatchet-engine" -o jsonpath="{.items[0].metadata.name}")
+export POD_NAME=$(kubectl get pods --namespace $NAMESPACE -l "app.kubernetes.io/name=engine" -o jsonpath="{.items[0].metadata.name}")
 export CONTAINER_PORT=$(kubectl get pod --namespace $NAMESPACE $POD_NAME -o jsonpath="{.spec.containers[0].ports[0].containerPort}")
 kubectl --namespace $NAMESPACE port-forward $POD_NAME 7070:$CONTAINER_PORT
 ```
@@ -59,7 +60,7 @@ EOF
 
 ### Run your first worker
 
-<Tabs items={['Python', 'Typescript', 'Go']}>
+<UniversalTabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
 Make sure you have the following dependencies installed:
 
@@ -249,7 +250,7 @@ go run main.go
 ```
 
 </Tabs.Tab>
-</Tabs>
+</UniversalTabs>
 
 ### Run your first workflow
 

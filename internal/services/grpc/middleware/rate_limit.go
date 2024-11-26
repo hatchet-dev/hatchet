@@ -44,6 +44,7 @@ func (rl *HatchetRateLimiter) GetOrCreateTenantRateLimiter(rateLimitToken string
 }
 
 func NewHatchetRateLimiter(r rate.Limit, b int, l *zerolog.Logger) *HatchetRateLimiter {
+	l.Info().Msgf("grpc rate limit set to %v per second with a burst of %v (10X rate for Dispatcher)", r, b)
 	return &HatchetRateLimiter{
 		rateLimiters: make(map[string]*HatchetApiTokenRateLimiter),
 		rate:         r,
@@ -69,19 +70,19 @@ func (r *HatchetRateLimiter) Limit(ctx context.Context) error {
 	case "dispatcher":
 
 		if !r.GetOrCreateTenantRateLimiter(rateLimitToken).dispatcherLimiter.Allow() {
-			r.l.Info().Msg("dispatcher rate limit exceeded")
+			r.l.Info().Msgf("dispatcher rate limit (%v per second) exceeded", r.GetOrCreateTenantRateLimiter(rateLimitToken).dispatcherLimiter.Limit())
 			return status.Errorf(codes.ResourceExhausted, "dispatcher rate limit exceeded")
 		}
 
 	case "events":
 		if !r.GetOrCreateTenantRateLimiter(rateLimitToken).eventsLimiter.Allow() {
-			r.l.Info().Msg("ingest rate limit exceeded")
+			r.l.Info().Msgf("ingest rate limit (%v per second) exceeded", r.GetOrCreateTenantRateLimiter(rateLimitToken).eventsLimiter.Limit())
 			return status.Errorf(codes.ResourceExhausted, "ingest rate limit exceeded")
 		}
 
 	case "workflow":
 		if !r.GetOrCreateTenantRateLimiter(rateLimitToken).workflowLimiter.Allow() {
-			r.l.Info().Msg("workflow rate limit exceeded")
+			r.l.Info().Msgf("workflow rate limit (%v per second) exceeded", r.GetOrCreateTenantRateLimiter(rateLimitToken).workflowLimiter.Limit())
 			return status.Errorf(codes.ResourceExhausted, "admin rate limit exceeded")
 		}
 

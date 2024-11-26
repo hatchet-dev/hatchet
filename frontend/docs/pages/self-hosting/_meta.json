@@ -13,7 +13,9 @@
   "kubernetes-quickstart": "Quickstart",
   "kubernetes-glasskube": "Installing with Glasskube",
   "networking": "Networking",
+  "kubernetes-helm-configuration": "Configuring the Helm Chart",
   "kubernetes-external-database": "Setting up an External Database",
+  "high-availability": "High Availability",
   "-- Managing Hatchet": {
     "type": "separator",
     "title": "Managing Hatchet"

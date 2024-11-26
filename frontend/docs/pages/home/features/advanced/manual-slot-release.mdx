@@ -1,4 +1,5 @@
 import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
+import UniversalTabs from "../../../../components/UniversalTabs";
 
 # Manual Slot Release
 
@@ -16,7 +17,7 @@ In some cases, you may have a step in your workflow that is resource-intensive a
 
 You can manually release a slot in from within a running step in your Workflow using the Hatchet context param:
 
-<Tabs items={['Python', 'Typescript', 'Go']}>
+<UniversalTabs items={['Python', 'Typescript', 'Go']}>
 <Tabs.Tab>
 ```python
 @hatchet.workflow(on_events=["user:create"])
@@ -70,7 +71,7 @@ func StepOne(ctx worker.HatchetContext) (result \*stepOneOutput, err error) {
 ```
 
 </Tabs.Tab>
-</Tabs>
+</UniversalTabs>
 
 In the above examples, the release_slot() method is called after the resource-intensive process has completed. This allows other steps in the workflow to start executing while the current step continues with non-resource-intensive tasks.
 

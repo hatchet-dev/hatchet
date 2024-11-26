@@ -38,7 +38,7 @@ func (s *securityRequirement) IsOptional() bool {
 }
 
 func (s *securityRequirement) NoAuth() bool {
-	return s.requirements == nil || len(s.requirements) == 0
+	return len(s.requirements) == 0
 }
 
 func (s *securityRequirement) CookieAuth() bool {

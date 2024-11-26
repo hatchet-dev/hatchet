@@ -1,4 +1,5 @@
 import { Tabs, Callout } from "nextra/components";
+import UniversalTabs from "../../components/UniversalTabs";
 
 # Tuning Hatchet for Performance
 
@@ -20,7 +21,7 @@ There are two main ways to initiate workflows, by sending events to Hatchet and 
 
 #### Events
 
- <Tabs items={['Python', 'Typescript', 'Golang']}>
+ <UniversalTabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
 
 ```python
@@ -111,7 +112,7 @@ c.Event().BulkPush(
 ```
 
   </Tabs.Tab>
-</Tabs>
+</UniversalTabs>
 
 <Callout type="warning">
   There is a maximum limit of 1000 events per request.
@@ -119,7 +120,7 @@ c.Event().BulkPush(
 
 #### Workflows
 
-<Tabs items={['Python', 'Typescript', 'Go']}>
+<UniversalTabs items={['Python', 'Typescript', 'Go']}>
   <Tabs.Tab>
 
 ```python
@@ -213,7 +214,7 @@ w.RegisterWorkflow(
 ```
 
   </Tabs.Tab>
-</Tabs>
+</UniversalTabs>
 
 <Callout type="warning">
   There is a maximum limit of 1000 workflows per bulk request.
@@ -326,4 +327,4 @@ By default, the Hatchet engine runs all internal services on a single instance. 
 - **controllers**: the internal service that manages the lifecycle of workflow runs, step runs, and events. This service is write-heavy on the database and read-heavy from the message queue.
 - **scheduler**: the internal service that schedules step runs to workers. This service is both read-heavy and write-heavy on the database.
 
-It is possible to horizontally scale the Hatchet engine by running multiple instances of the engine. However, if you are seeing a large number of warnings from the scheduler when running the other services in the same engine instance, we recommend running the scheduler on a separate instance.
+It is possible to horizontally scale the Hatchet engine by running multiple instances of the engine. However, if you are seeing a large number of warnings from the scheduler when running the other services in the same engine instance, we recommend running the scheduler on a separate instance. See the [high availability](./high-availability) documentation for more information on how to run the scheduler on a separate instance.

@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"sync"
 	"time"
 
 	"github.com/go-co-op/gocron/v2"
 	"github.com/goccy/go-json"
+	"github.com/hashicorp/go-multierror"
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
 
@@ -16,6 +18,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/datautils/merge"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
+	"github.com/hatchet-dev/hatchet/internal/queueutils"
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
@@ -375,9 +378,7 @@ func (ec *JobsControllerImpl) handleJobRunCancelled(ctx context.Context, task *m
 		return fmt.Errorf("could not decode job task metadata: %w", err)
 	}
 
-	stepRuns, err := ec.repo.StepRun().ListStepRuns(ctx, metadata.TenantId, &repository.ListStepRunsOpts{
-		JobRunId: &payload.JobRunId,
-	})
+	stepRuns, err := ec.repo.StepRun().ListStepRunsToCancel(ctx, metadata.TenantId, payload.JobRunId)
 
 	if err != nil {
 		return fmt.Errorf("could not list step runs: %w", err)
@@ -398,7 +399,7 @@ func (ec *JobsControllerImpl) handleJobRunCancelled(ctx context.Context, task *m
 			return ec.mq.AddMessage(
 				ctx,
 				msgqueue.JOB_PROCESSING_QUEUE,
-				tasktypes.StepRunCancelToTask(stepRunCp, reason),
+				tasktypes.StepRunCancelToTask(stepRunCp, reason, false),
 			)
 		})
 	}
@@ -446,14 +447,35 @@ func (ec *JobsControllerImpl) handleStepRunRetry(ctx context.Context, task *msgq
 
 	retryCount := int(stepRun.SRRetryCount) + 1
 
+	eventMessage := fmt.Sprintf("Retrying step run. This is retry %d / %d", retryCount, stepRun.StepRetries)
+	var retryAfter *time.Time
+
+	if stepRun.StepRetryMaxBackoff.Valid && stepRun.StepRetryBackoffFactor.Valid {
+		maxBackoffSeconds := int(stepRun.StepRetryMaxBackoff.Int32)
+		backoffFactor := stepRun.StepRetryBackoffFactor.Float64
+
+		// compute the backoff duration
+		durationMilliseconds := 1000 * min(float64(maxBackoffSeconds), math.Pow(backoffFactor, float64(retryCount)))
+		retryDur := time.Duration(int(durationMilliseconds)) * time.Millisecond
+		retryTime := time.Now().Add(retryDur)
+		retryAfter = &retryTime
+
+		eventMessage = fmt.Sprintf("%s. Retrying in %s (%s).", eventMessage, retryDur.String(), retryTime.Format(time.RFC3339))
+	}
+
 	// write an event
 	defer ec.repo.StepRun().DeferredStepRunEvent(metadata.TenantId, repository.CreateStepRunEventOpts{
 		StepRunId:   sqlchelpers.UUIDToStr(stepRun.SRID),
 		EventReason: repository.StepRunEventReasonPtr(dbsqlc.StepRunEventReasonRETRYING),
 		EventMessage: repository.StringPtr(
-			fmt.Sprintf("Retrying step run. This is retry %d / %d", retryCount, stepRun.StepRetries),
+			eventMessage,
 		),
 	})
+
+	// if the step has retry backoff enabled, then we should calculate the backoff time and insert into the retry queue
+	if retryAfter != nil {
+		return ec.repo.StepRun().StepRunRetryBackoff(ctx, metadata.TenantId, sqlchelpers.UUIDToStr(stepRun.SRID), *retryAfter)
+	}
 
 	return ec.queueStepRun(ctx, metadata.TenantId, sqlchelpers.UUIDToStr(stepRun.StepId), sqlchelpers.UUIDToStr(stepRun.SRID), true)
 }
@@ -667,13 +689,31 @@ func (ec *JobsControllerImpl) runStepRunReassignTenant(ctx context.Context, tena
 	ctx, span := telemetry.NewSpan(ctx, "handle-step-run-reassign")
 	defer span.End()
 
-	_, err := ec.repo.StepRun().ListStepRunsToReassign(ctx, tenantId)
+	_, stepRunsToFail, err := ec.repo.StepRun().ListStepRunsToReassign(ctx, tenantId)
 
 	if err != nil {
 		return fmt.Errorf("could not list step runs to reassign for tenant %s: %w", tenantId, err)
 	}
 
-	return nil
+	return queueutils.BatchConcurrent(50, stepRunsToFail, func(stepRuns []*dbsqlc.GetStepRunForEngineRow) error {
+		var innerErr error
+
+		for _, stepRun := range stepRuns {
+			err := ec.failStepRun(
+				ctx,
+				tenantId,
+				sqlchelpers.UUIDToStr(stepRun.SRID),
+				"Worker has become inactive, and we exhausted all retries.",
+				time.Now(),
+			)
+
+			if err != nil {
+				innerErr = multierror.Append(innerErr, err)
+			}
+		}
+
+		return innerErr
+	})
 }
 
 func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId, stepId, stepRunId string, isRetry bool) error {
@@ -1168,10 +1208,10 @@ func (ec *JobsControllerImpl) handleStepRunCancel(ctx context.Context, task *msg
 		return fmt.Errorf("could not decode step run notify cancel task metadata: %w", err)
 	}
 
-	return ec.cancelStepRun(ctx, metadata.TenantId, payload.StepRunId, payload.CancelledReason)
+	return ec.cancelStepRun(ctx, metadata.TenantId, payload.StepRunId, payload.CancelledReason, payload.PropagateToChildren)
 }
 
-func (ec *JobsControllerImpl) cancelStepRun(ctx context.Context, tenantId, stepRunId, reason string) error {
+func (ec *JobsControllerImpl) cancelStepRun(ctx context.Context, tenantId, stepRunId, reason string, propagate bool) error {
 	ctx, span := telemetry.NewSpan(ctx, "cancel-step-run")
 	defer span.End()
 
@@ -1185,7 +1225,7 @@ func (ec *JobsControllerImpl) cancelStepRun(ctx context.Context, tenantId, stepR
 		return fmt.Errorf("could not get step run: %w", err)
 	}
 
-	err = ec.repo.StepRun().StepRunCancelled(ctx, tenantId, sqlchelpers.UUIDToStr(oldStepRun.WorkflowRunId), stepRunId, now, reason)
+	err = ec.repo.StepRun().StepRunCancelled(ctx, tenantId, sqlchelpers.UUIDToStr(oldStepRun.WorkflowRunId), stepRunId, now, reason, propagate)
 
 	if err != nil {
 		return fmt.Errorf("could not cancel step run: %w", err)
@@ -1193,7 +1233,7 @@ func (ec *JobsControllerImpl) cancelStepRun(ctx context.Context, tenantId, stepR
 
 	if !oldStepRun.SRWorkerId.Valid {
 		// this is not a fatal error
-		ec.l.Warn().Msgf("[cancelStepRun] step run %s has no worker id, skipping send of cancellation", stepRunId)
+		ec.l.Debug().Msgf("[cancelStepRun] step run %s has no worker id, skipping send of cancellation", stepRunId)
 
 		return nil
 	}

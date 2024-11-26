@@ -139,6 +139,9 @@ type ConfigFileRuntime struct {
 	// DisableTenantPubs controls whether tenant pubsub is disabled
 	DisableTenantPubs bool `mapstructure:"disableTenantPubs" json:"disableTenantPubs,omitempty"`
 
+	// MaxInternalRetryCount is the maximum number of internal retries before a step run is considered failed (default: 3)
+	MaxInternalRetryCount int32 `mapstructure:"maxInternalRetryCount" json:"maxInternalRetryCount,omitempty" default:"3"`
+
 	// WaitForFlush is the time to wait for the buffer to flush used for exerting some back pressure on writers
 	WaitForFlush time.Duration `mapstructure:"waitForFlush" json:"waitForFlush,omitempty" default:"1ms"`
 
@@ -150,6 +153,9 @@ type ConfigFileRuntime struct {
 
 	// FlushItemsThreshold is the default number of items to hold in memory until flushing to the database
 	FlushItemsThreshold int `mapstructure:"flushItemsThreshold" json:"flushItemsThreshold,omitempty" default:"100"`
+
+	// FlushStrategy is the strategy to use for flushing the buffer
+	FlushStrategy buffer.BuffStrategy `mapstructure:"flushStrategy" json:"flushStrategy" default:"DYNAMIC"`
 
 	// WorkflowRunBuffer represents the buffer settings for workflow runs
 	WorkflowRunBuffer buffer.ConfigFileBuffer `mapstructure:"workflowRunBuffer" json:"workflowRunBuffer,omitempty"`
@@ -456,6 +462,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.allowChangePassword", "SERVER_ALLOW_CHANGE_PASSWORD")
 	_ = v.BindEnv("runtime.bufferCreateWorkflowRuns", "SERVER_BUFFER_CREATE_WORKFLOW_RUNS")
 	_ = v.BindEnv("runtime.disableTenantPubs", "SERVER_DISABLE_TENANT_PUBS")
+	_ = v.BindEnv("runtime.maxInternalRetryCount", "SERVER_MAX_INTERNAL_RETRY_COUNT")
 
 	// security check options
 	_ = v.BindEnv("securityCheck.enabled", "SERVER_SECURITY_CHECK_ENABLED")
@@ -486,27 +493,32 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.workflowRunBuffer.maxConcurrent", "SERVER_WORKFLOWRUNBUFFER_MAX_CONCURRENT")
 	_ = v.BindEnv("runtime.workflowRunBuffer.flushPeriodMilliseconds", "SERVER_WORKFLOWRUNBUFFER_FLUSH_PERIOD_MILLISECONDS")
 	_ = v.BindEnv("runtime.workflowRunBuffer.flushItemsThreshold", "SERVER_WORKFLOWRUNBUFFER_FLUSH_ITEMS_THRESHOLD")
+	_ = v.BindEnv("runtime.workflowRunBuffer.flushStrategy", "SERVER_WORKFLOWRUNBUFFER_FLUSH_STRATEGY")
 
 	_ = v.BindEnv("runtime.eventBuffer.waitForFlush", "SERVER_EVENTBUFFER_WAIT_FOR_FLUSH")
 	_ = v.BindEnv("runtime.eventBuffer.maxConcurrent", "SERVER_EVENTBUFFER_MAX_CONCURRENT")
 	_ = v.BindEnv("runtime.eventBuffer.flushPeriodMilliseconds", "SERVER_EVENTBUFFER_FLUSH_PERIOD_MILLISECONDS")
 	_ = v.BindEnv("runtime.eventBuffer.flushItemsThreshold", "SERVER_EVENTBUFFER_FLUSH_ITEMS_THRESHOLD")
 	_ = v.BindEnv("runtime.eventBuffer.serialBuffer", "SERVER_EVENTBUFFER_SERIAL_BUFFER")
+	_ = v.BindEnv("runtime.eventBuffer.flushStrategy", "SERVER_EVENTBUFFER_FLUSH_STRATEGY")
 
 	_ = v.BindEnv(("runtime.releaseSemaphoreBuffer.waitForFlush"), "SERVER_RELEASESEMAPHOREBUFFER_WAIT_FOR_FLUSH")
 	_ = v.BindEnv("runtime.releaseSemaphoreBuffer.maxConcurrent", "SERVER_RELEASESEMAPHOREBUFFER_MAX_CONCURRENT")
 	_ = v.BindEnv("runtime.releaseSemaphoreBuffer.flushPeriodMilliseconds", "SERVER_RELEASESEMAPHOREBUFFER_FLUSH_PERIOD_MILLISECONDS")
 	_ = v.BindEnv("runtime.releaseSemaphoreBuffer.flushItemsThreshold", "SERVER_RELEASESEMAPHOREBUFFER_FLUSH_ITEMS_THRESHOLD")
+	_ = v.BindEnv("runtime.releaseSemaphoreBuffer.flushStrategy", "SERVER_RELEASESEMAPHOREBUFFER_FLUSH_STRATEGY")
 
 	_ = v.BindEnv("runtime.queueStepRunBuffer.waitForFlush", "SERVER_QUEUESTEPRUNBUFFER_WAIT_FOR_FLUSH")
 	_ = v.BindEnv("runtime.queueStepRunBuffer.maxConcurrent", "SERVER_QUEUESTEPRUNBUFFER_MAX_CONCURRENT")
 	_ = v.BindEnv("runtime.queueStepRunBuffer.flushPeriodMilliseconds", "SERVER_QUEUESTEPRUNBUFFER_FLUSH_PERIOD_MILLISECONDS")
 	_ = v.BindEnv("runtime.queueStepRunBuffer.flushItemsThreshold", "SERVER_QUEUESTEPRUNBUFFER_FLUSH_ITEMS_THRESHOLD")
+	_ = v.BindEnv("runtime.queueStepRunBuffer.flushStrategy", "SERVER_QUEUESTEPRUNBUFFER_FLUSH_STRATEGY")
 
 	_ = v.BindEnv("runtime.waitForFlush", "SERVER_WAIT_FOR_FLUSH")
 	_ = v.BindEnv("runtime.maxConcurrent", "SERVER_MAX_CONCURRENT")
 	_ = v.BindEnv("runtime.flushPeriodMilliseconds", "SERVER_FLUSH_PERIOD_MILLISECONDS")
 	_ = v.BindEnv("runtime.flushItemsThreshold", "SERVER_FLUSH_ITEMS_THRESHOLD")
+	_ = v.BindEnv("runtime.flushStrategy", "SERVER_FLUSH_STRATEGY")
 
 	// alerting options
 	_ = v.BindEnv("alerting.sentry.enabled", "SERVER_ALERTING_SENTRY_ENABLED")

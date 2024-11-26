@@ -129,18 +129,22 @@ func (c *ConfigLoader) LoadServerConfig(version string, overrides ...ServerConfi
 func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile, runtime *server.ConfigFileRuntime) (res *database.Config, err error) {
 	l := logger.NewStdErr(&cf.Logger, "database")
 
-	databaseUrl := fmt.Sprintf(
-		"postgresql://%s:%s@%s:%d/%s?sslmode=%s",
-		cf.PostgresUsername,
-		cf.PostgresPassword,
-		cf.PostgresHost,
-		cf.PostgresPort,
-		cf.PostgresDbName,
-		cf.PostgresSSLMode,
-	)
+	databaseUrl := os.Getenv("DATABASE_URL")
 
-	// TODO db.WithDatasourceURL(databaseUrl) is not working
-	_ = os.Setenv("DATABASE_URL", databaseUrl)
+	if databaseUrl == "" {
+		databaseUrl = fmt.Sprintf(
+			"postgresql://%s:%s@%s:%d/%s?sslmode=%s",
+			cf.PostgresUsername,
+			cf.PostgresPassword,
+			cf.PostgresHost,
+			cf.PostgresPort,
+			cf.PostgresDbName,
+			cf.PostgresSSLMode,
+		)
+
+		// FIXME: needed for Prisma client, as db.WithDatasourceURL(databaseUrl) is not working
+		_ = os.Setenv("DATABASE_URL", databaseUrl)
+	}
 
 	c := db.NewClient()
 
@@ -163,11 +167,11 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile, runtime *server.Co
 	config.ConnConfig.Tracer = otelpgx.NewTracer()
 
 	if cf.MaxConns != 0 {
-		config.MaxConns = int32(cf.MaxConns)
+		config.MaxConns = int32(cf.MaxConns) // nolint: gosec
 	}
 
 	if cf.MinConns != 0 {
-		config.MinConns = int32(cf.MinConns)
+		config.MinConns = int32(cf.MinConns) // nolint: gosec
 	}
 
 	config.MaxConnLifetime = 15 * 60 * time.Second

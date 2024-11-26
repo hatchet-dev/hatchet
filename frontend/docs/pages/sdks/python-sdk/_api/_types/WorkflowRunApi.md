@@ -60,7 +60,7 @@ with hatchet_sdk.clients.rest.ApiClient(configuration) as api_client:
         # Trigger workflow run
         api_response = api_instance.workflow_run_create(workflow, trigger_workflow_run_request, version=version)
         print("The response of WorkflowRunApi->workflow_run_create:\n")
-        pprint(api_response)
+        print(api_response)
     except Exception as e:
         print("Exception when calling WorkflowRunApi->workflow_run_create: %s\n" % e)
 ```
