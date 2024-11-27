@@ -520,14 +520,13 @@ CREATE TABLE
         "queue" TEXT NOT NULL DEFAULT 'default',
         "priority" INTEGER,
         "internalRetryCount" INTEGER NOT NULL DEFAULT 0,
-         "identityId" BIGINT NOT NULL DEFAULT nextval('steprun_identity_id_seq'::regclass),
-        CONSTRAINT "StepRun_pkey" PRIMARY KEY ("status", "id")
+         "identityId"  BIGINT NOT NULL GENERATED ALWAYS AS IDENTITY,
+        CONSTRAINT "StepRun_pkey" PRIMARY KEY ("status", "id"),
+        CONSTRAINT "StepRun_new_identityId_status_unique" UNIQUE ("identityId","status")
     )
 PARTITION BY
     LIST ("status");
 
-ALTER TABLE "StepRun"
-ADD CONSTRAINT step_run_identity_id_unique UNIQUE ("identityId","status");
 
 CREATE TABLE
     "StepRun_volatile" PARTITION OF "StepRun" FOR
@@ -951,8 +950,6 @@ CREATE TABLE "WorkflowRun" (
     "duration" BIGINT,
     "priority" INTEGER,
     "insertOrder" INTEGER,
-    "identityId" BIGINT GENERATED ALWAYS AS IDENTITY,
-
     CONSTRAINT "WorkflowRun_pkey" PRIMARY KEY ("id")
 );
 

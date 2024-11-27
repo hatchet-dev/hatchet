@@ -1832,7 +1832,6 @@ type WorkflowRun struct {
 	Duration           pgtype.Int8       `json:"duration"`
 	Priority           pgtype.Int4       `json:"priority"`
 	InsertOrder        pgtype.Int4       `json:"insertOrder"`
-	IdentityId         pgtype.Int8       `json:"identityId"`
 }
 
 type WorkflowRunDedupe struct {

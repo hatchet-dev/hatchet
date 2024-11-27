@@ -40,16 +40,23 @@ func main() {
 		panic(fmt.Errorf("error creating client: %w", err))
 	}
 
-	_, err = registerWorkflow(c, workflowName)
+	w, err := registerWorkflow(c, workflowName)
 
 	if err != nil {
 		panic(fmt.Errorf("error registering workflow: %w", err))
 	}
 
-	quantity := 999
+	cleanup, err := w.Start()
+	fmt.Println("Starting the worker")
+
+	if err != nil {
+		panic(fmt.Errorf("error starting worker: %w", err))
+	}
+
+	quantity := 600
 
 	overallStart := time.Now()
-	iterations := 10
+	iterations := 1000
 	for i := 0; i < iterations; i++ {
 		startTime := time.Now()
 
@@ -60,6 +67,8 @@ func main() {
 			panic(err)
 		}
 		fmt.Printf("Time taken to queue %dth bulk workflow: %v\n", i, time.Since(startTime))
+
+		time.Sleep(1 * time.Second)
 	}
 	fmt.Println("Overall time taken: ", time.Since(overallStart))
 	fmt.Printf("That is %d workflows per second\n", int(float64(quantity*iterations)/time.Since(overallStart).Seconds()))
@@ -76,18 +85,6 @@ func main() {
 
 	// I want to start the wofklow worker here
 
-	w, err := registerWorkflow(c, workflowName)
-	if err != nil {
-		panic(fmt.Errorf("error creating worker: %w", err))
-	}
-
-	cleanup, err := w.Start()
-	fmt.Println("Starting the worker")
-
-	if err != nil {
-		panic(fmt.Errorf("error starting worker: %w", err))
-	}
-
 	<-ch
 
 	if err := cleanup(); err != nil {
@@ -102,6 +99,7 @@ func registerWorkflow(c client.Client, workflowName string) (w *worker.Worker, e
 		worker.WithClient(
 			c,
 		),
+		worker.WithMaxRuns(200),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("error creating worker: %w", err)
