@@ -464,7 +464,12 @@ export default function UpdateWorkerForm({
                   </TabsTrigger>
                 </TabsList>
                 <TabsContent value="iac" className="pt-4 grid gap-4">
-                  TODO: LINK TO DOCS!
+                  <a
+                    href="https://docs.hatchet.run/compute/cpu"
+                    className="underline"
+                  >
+                    Learn how to configure infra-as-code.
+                  </a>
                 </TabsContent>
                 <TabsContent value="ui" className="pt-4 grid gap-4">
                   <Label htmlFor="region">Region</Label>
