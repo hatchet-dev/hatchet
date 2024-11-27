@@ -725,10 +725,6 @@ func NewWorkflowRunEngineRepository(stepRunRepository *stepRunEngineRepository, 
 
 }
 
-func ShouldShortCircuit(w dbsqlc.WorkflowRun) bool {
-	return !w.ConcurrencyGroupId.Valid
-}
-
 func (w *workflowRunEngineRepository) cleanup() error {
 
 	return w.bulkCreateBuffer.Cleanup()
@@ -1695,7 +1691,9 @@ func (w *workflowRunEngineRepository) createNewWorkflowRuns(ctx context.Context,
 				Status:             "PENDING",
 				InsertOrder:        pgtype.Int4{Int32: int32(order), Valid: true},
 			}
-			// TODO we can short circuit
+
+			// we can short circuit and skip the "PENDING" state
+			// TODO is this logic correct for the new expressions?
 			if opt.GetGroupKeyRun == nil && opt.DedupeValue == nil {
 
 				crp.Status = "RUNNING"
@@ -1764,8 +1762,8 @@ func (w *workflowRunEngineRepository) createNewWorkflowRuns(ctx context.Context,
 
 			jrStatus := dbsqlc.JobRunStatusPENDING
 
-			// TODO or whatever the correct check is
-			if opt.GetGroupKeyRun == nil {
+			// TODO is this the correct logic?
+			if opt.GetGroupKeyRun == nil && opt.DedupeValue == nil {
 				jrStatus = dbsqlc.JobRunStatusRUNNING
 			}
 
@@ -1875,9 +1873,6 @@ func (w *workflowRunEngineRepository) createNewWorkflowRuns(ctx context.Context,
 				jobRunStatuses = append(jobRunStatuses, string(jobRunParam.Status))
 			}
 
-			/// perhaps we branch here - create JobrRuns in running state for the workflow runs that are not part of a concurrency group
-			// then update the step runs for them
-
 			// update to relate jobrunId to workflowRunId
 			createJobRunResults, err := queries.CreateManyJobRuns(
 				tx1Ctx,
@@ -1975,21 +1970,6 @@ func (w *workflowRunEngineRepository) createNewWorkflowRuns(ctx context.Context,
 
 		}
 
-		// if no concurrency stuff
-
-		// so long as step runs are inserted
-		// we can skip queueing the workflow run
-		// just put everything to running for no concurrency
-		// also need to tell the scheduler to check the queue
-
-		// if no concurrency key  - place workflow run in running and place job runs in running
-		// find all step runs that should be started and place them into the queue
-
-		// for step runs we want to start we should set the input that queueStepRun sets
-		// we can move the logic further down into the data layer (into the repo)
-
-		// also prevent the workflow run from being added to rabbitmq
-
 		err = commit(tx1Ctx)
 
 		if err != nil {
@@ -1997,7 +1977,6 @@ func (w *workflowRunEngineRepository) createNewWorkflowRuns(ctx context.Context,
 
 			return nil, err
 		}
-		// need to finish the previous transaction so we can access the newly created step runs
 		tx2, commit2, rollback2, err := sqlchelpers.PrepareTx(tx1Ctx, pool, l, 15000)
 		defer rollback2()
 		if err != nil {
