@@ -222,15 +222,6 @@ func (ec *EventsControllerImpl) processEvent(ctx context.Context, tenantId, even
 				return fmt.Errorf("could not get create workflow run opts: %w", err)
 			}
 
-			// marshall the createOpts to json log it
-
-			jsonCreateOpts, err := json.Marshal(createOpts)
-
-			if err != nil {
-				return fmt.Errorf("could not marshal createOpts: %w", err)
-			}
-
-			fmt.Println("createOpts", string(jsonCreateOpts))
 			workflowRun, err := ec.repo.WorkflowRun().CreateNewWorkflowRun(ctx, tenantId, createOpts)
 
 			if err != nil {

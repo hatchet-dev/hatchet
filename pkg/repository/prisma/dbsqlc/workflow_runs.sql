@@ -976,10 +976,6 @@ FROM
 WHERE
     s."jobId" = job_id."jobId";
 
-
-------- maybe some of these I bounce straight to a different step run
----- always one? I think so maybe it's job runs?
-
 -- name: CreateStepRunsForJobRunIds :many
 WITH job_ids AS (
     SELECT DISTINCT "jobId", "id" as jobRunId, "tenantId"
