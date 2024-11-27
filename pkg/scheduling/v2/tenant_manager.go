@@ -151,7 +151,7 @@ func (t *tenantManager) refreshAll(ctx context.Context) {
 
 		eg.Go(func() error {
 			queuer := t.queuers[index]
-			queuer.queue()
+			queuer.queue(ctx)
 			return nil
 		})
 	}
@@ -171,13 +171,13 @@ func (t *tenantManager) replenish(ctx context.Context) {
 	}
 }
 
-func (t *tenantManager) queue(queueName string) {
+func (t *tenantManager) queue(ctx context.Context, queueName string) {
 	t.queuersMu.RLock()
 
 	for _, q := range t.queuers {
 		if q.queueName == queueName {
 			t.queuersMu.RUnlock()
-			q.queue()
+			q.queue(ctx)
 			return
 		}
 	}

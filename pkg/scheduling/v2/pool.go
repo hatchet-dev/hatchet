@@ -154,7 +154,7 @@ func (p *SchedulingPool) Replenish(ctx context.Context, tenantId string) {
 
 func (p *SchedulingPool) Queue(ctx context.Context, tenantId string, queueName string) {
 	if tm := p.getTenantManager(tenantId, false); tm != nil {
-		tm.queue(queueName)
+		tm.queue(ctx, queueName)
 	}
 }
 

@@ -269,7 +269,7 @@ func (s *Scheduler) handleTask(ctx context.Context, task *msgqueue.Message) (err
 }
 
 func (s *Scheduler) handleCheckQueue(ctx context.Context, task *msgqueue.Message) error {
-	_, span := telemetry.NewSpanWithCarrier(ctx, "handle-check-queue", task.OtelCarrier)
+	ctx, span := telemetry.NewSpanWithCarrier(ctx, "handle-check-queue", task.OtelCarrier)
 	defer span.End()
 
 	payload := tasktypes.CheckTenantQueuePayload{}

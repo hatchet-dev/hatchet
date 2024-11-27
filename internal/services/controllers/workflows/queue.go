@@ -28,7 +28,7 @@ func (wc *WorkflowsControllerImpl) handleWorkflowRunQueued(ctx context.Context, 
 	// TODO remove de dupes and fail if they are clashing
 	// write a cancellation step run for the failed workflow run (failWorkflowRun)
 
-	ctx, span := telemetry.NewSpan(ctx, "handle-workflow-run-queued")
+	ctx, span := telemetry.NewSpanWithCarrier(ctx, "handle-workflow-run-queued", task.OtelCarrier)
 	defer span.End()
 
 	payload := tasktypes.WorkflowRunQueuedTaskPayload{}

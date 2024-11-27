@@ -3132,7 +3132,7 @@ func (s *stepRunEngineRepository) QueueStepRun(ctx context.Context, tenantId, st
 		priority = 4
 	}
 
-	_, err = s.bulkQueuer.BuffItem(tenantId, buffer.BulkQueueStepRunOpts{
+	done, err := s.bulkQueuer.BuffItem(tenantId, buffer.BulkQueueStepRunOpts{
 		GetStepRunForEngineRow: innerStepRun,
 		Priority:               priority,
 		IsRetry:                opts.IsRetry,
@@ -3141,6 +3141,28 @@ func (s *stepRunEngineRepository) QueueStepRun(ctx context.Context, tenantId, st
 
 	if err != nil {
 		return nil, err
+	}
+
+	_, err = s.bulkSemaphoreReleaser.BuffItem(tenantId, buffer.SemaphoreReleaseOpts{
+		StepRunId: sqlchelpers.UUIDFromStr(stepRunId),
+		TenantId:  sqlchelpers.UUIDFromStr(tenantId),
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("could not buffer semaphore release: %w", err)
+	}
+
+	var response *buffer.FlushResponse[pgtype.UUID]
+
+	select {
+	case response = <-done:
+		if response.Err != nil {
+			return nil, response.Err
+		}
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-time.After(15 * time.Second):
+		return nil, fmt.Errorf("timeout waiting for queue item to be flushed to db")
 	}
 
 	return innerStepRun, nil
