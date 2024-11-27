@@ -85,7 +85,7 @@ func run() (func() error, error) {
 
 	// 20000 times to test the bulk push
 
-	for i := 0; i < 20000; i++ {
+	for i := 0; i < 999; i++ {
 		testEvent := userCreateEvent{
 			Username: "echo-test",
 			UserID:   "1234 " + fmt.Sprint(i),

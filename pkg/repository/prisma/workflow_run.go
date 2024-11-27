@@ -31,30 +31,32 @@ import (
 )
 
 type workflowRunAPIRepository struct {
-	client  *db.PrismaClient
-	pool    *pgxpool.Pool
-	v       validator.Validator
-	queries *dbsqlc.Queries
-	l       *zerolog.Logger
-	m       *metered.Metered
-	cf      *server.ConfigFileRuntime
+	client            *db.PrismaClient
+	pool              *pgxpool.Pool
+	v                 validator.Validator
+	queries           *dbsqlc.Queries
+	l                 *zerolog.Logger
+	m                 *metered.Metered
+	cf                *server.ConfigFileRuntime
+	stepRunRepository *stepRunEngineRepository
 
 	createCallbacks []repository.TenantScopedCallback[*dbsqlc.WorkflowRun]
 
 	bulkCreateBuffer *buffer.TenantBufferManager[*repository.CreateWorkflowRunOpts, *dbsqlc.GetWorkflowRunsInsertedInThisTxnRow]
 }
 
-func NewWorkflowRunRepository(client *db.PrismaClient, pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, m *metered.Metered, cf *server.ConfigFileRuntime) (repository.WorkflowRunAPIRepository, func() error, error) {
+func NewWorkflowRunRepository(client *db.PrismaClient, pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, m *metered.Metered, cf *server.ConfigFileRuntime, srr *stepRunEngineRepository) (repository.WorkflowRunAPIRepository, func() error, error) {
 	queries := dbsqlc.New()
 
 	w := workflowRunAPIRepository{
-		client:  client,
-		v:       v,
-		pool:    pool,
-		queries: queries,
-		l:       l,
-		m:       m,
-		cf:      cf,
+		client:            client,
+		v:                 v,
+		pool:              pool,
+		queries:           queries,
+		l:                 l,
+		m:                 m,
+		cf:                cf,
+		stepRunRepository: srr,
 	}
 
 	err := w.startBuffer(cf.WorkflowRunBuffer)
@@ -297,7 +299,7 @@ func (w *workflowRunAPIRepository) CreateNewWorkflowRun(ctx context.Context, ten
 			wfr = res.Result
 
 		} else {
-			workflowRuns, err := apiCreateNewWorkflowRuns(ctx, w.pool, w.queries, w.l, []*repository.CreateWorkflowRunOpts{opts})
+			workflowRuns, err := createNewWorkflowRuns(ctx, w.pool, w.queries, w.l, []*repository.CreateWorkflowRunOpts{opts}, w.stepRunRepository)
 
 			if err != nil {
 				return nil, nil, err
@@ -950,7 +952,7 @@ func (w *workflowRunAPIRepository) BulkCreateWorkflowRuns(ctx context.Context, o
 
 	w.l.Debug().Msgf("bulk creating %d workflow runs", len(opts))
 
-	return apiCreateNewWorkflowRuns(ctx, w.pool, w.queries, w.l, opts)
+	return createNewWorkflowRuns(ctx, w.pool, w.queries, w.l, opts, w.stepRunRepository)
 }
 
 func (w *workflowRunEngineRepository) BulkCreateWorkflowRuns(ctx context.Context, opts []*repository.CreateWorkflowRunOpts) ([]*dbsqlc.GetWorkflowRunsInsertedInThisTxnRow, error) {
@@ -960,7 +962,7 @@ func (w *workflowRunEngineRepository) BulkCreateWorkflowRuns(ctx context.Context
 
 	w.l.Debug().Msgf("bulk creating %d workflow runs", len(opts))
 
-	return w.createNewWorkflowRuns(ctx, w.pool, w.queries, w.l, opts)
+	return createNewWorkflowRuns(ctx, w.pool, w.queries, w.l, opts, w.stepRunRepository)
 }
 
 // this is single tenant
@@ -983,7 +985,7 @@ func (w *workflowRunEngineRepository) CreateNewWorkflowRuns(ctx context.Context,
 
 	wfrs, err := metered.MakeMetered(ctx, w.m, dbsqlc.LimitResourceWORKFLOWRUN, tenantId, int32(meteredAmount), func() (*string, *[]*dbsqlc.GetWorkflowRunsInsertedInThisTxnRow, error) { // nolint: gosec
 
-		wfrs, err := w.createNewWorkflowRuns(ctx, w.pool, w.queries, w.l, opts)
+		wfrs, err := createNewWorkflowRuns(ctx, w.pool, w.queries, w.l, opts, w.stepRunRepository)
 
 		if err != nil {
 			return nil, nil, err
@@ -1039,7 +1041,7 @@ func (w *workflowRunEngineRepository) CreateNewWorkflowRun(ctx context.Context, 
 			}
 			workflowRun = res.Result
 		} else {
-			wfrs, err := w.createNewWorkflowRuns(ctx, w.pool, w.queries, w.l, []*repository.CreateWorkflowRunOpts{opts})
+			wfrs, err := createNewWorkflowRuns(ctx, w.pool, w.queries, w.l, []*repository.CreateWorkflowRunOpts{opts}, w.stepRunRepository)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -1511,7 +1513,7 @@ func workflowRunMetricsCount(ctx context.Context, pool *pgxpool.Pool, queries *d
 	return workflowRunsCount, nil
 }
 
-func (w *workflowRunEngineRepository) createNewWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbsqlc.Queries, l *zerolog.Logger, inputOpts []*repository.CreateWorkflowRunOpts) ([]*dbsqlc.GetWorkflowRunsInsertedInThisTxnRow, error) {
+func createNewWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbsqlc.Queries, l *zerolog.Logger, inputOpts []*repository.CreateWorkflowRunOpts, srr *stepRunEngineRepository) ([]*dbsqlc.GetWorkflowRunsInsertedInThisTxnRow, error) {
 
 	ctx, span := telemetry.NewSpan(ctx, "db-create-new-workflow-runs")
 	defer span.End()
@@ -1627,7 +1629,6 @@ func (w *workflowRunEngineRepository) createNewWorkflowRuns(ctx context.Context,
 			// we can short circuit and skip the "PENDING" state
 			// TODO is this logic correct for the new expressions?
 			if opt.GetGroupKeyRun == nil && opt.DedupeValue == nil {
-
 				crp.Status = "RUNNING"
 			}
 
@@ -1924,7 +1925,7 @@ func (w *workflowRunEngineRepository) createNewWorkflowRuns(ctx context.Context,
 
 			// unsure what this concurrency check looks like
 			if CanShortCircuit(workflowRun) {
-				err := w.shortCircuitWorkflowRun(ctx, tx2, workflowRun, queries)
+				err := shortCircuitWorkflowRun(ctx, tx2, workflowRun, srr, queries)
 
 				if err != nil {
 					return nil, err
@@ -1950,427 +1951,7 @@ func (w *workflowRunEngineRepository) createNewWorkflowRuns(ctx context.Context,
 	return sqlcWorkflowRuns, nil
 }
 
-func apiCreateNewWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbsqlc.Queries, l *zerolog.Logger, inputOpts []*repository.CreateWorkflowRunOpts) ([]*dbsqlc.GetWorkflowRunsInsertedInThisTxnRow, error) {
-
-	ctx, span := telemetry.NewSpan(ctx, "db-create-new-workflow-runs")
-	defer span.End()
-
-	sqlcWorkflowRuns, err := func() ([]*dbsqlc.GetWorkflowRunsInsertedInThisTxnRow, error) {
-		tx1Ctx, tx1Span := telemetry.NewSpan(ctx, "db-create-new-workflow-runs-tx")
-		defer tx1Span.End()
-
-		// begin a transaction
-		tx, commit, rollback, err := sqlchelpers.PrepareTx(tx1Ctx, pool, l, 15000)
-
-		if err != nil {
-			return nil, err
-		}
-
-		var createRunsParams []dbsqlc.CreateWorkflowRunsParams
-
-		workflowRunOptsMap := make(map[string]*repository.CreateWorkflowRunOpts)
-
-		type stickyInfo struct {
-			workflowRunId     pgtype.UUID
-			workflowVersionId pgtype.UUID
-			desiredWorkerId   pgtype.UUID
-			tenantId          pgtype.UUID
-		}
-
-		var stickyInfos []stickyInfo
-		var triggeredByParams []dbsqlc.CreateWorkflowRunTriggeredBysParams
-		var groupKeyParams []dbsqlc.CreateGetGroupKeyRunsParams
-		var jobRunParams []dbsqlc.CreateJobRunsParams
-
-		for order, opt := range inputOpts {
-
-			// begin a transaction
-			workflowRunId := uuid.New().String()
-
-			workflowRunOptsMap[workflowRunId] = opt
-
-			defer rollback()
-
-			createParams := dbsqlc.CreateWorkflowRunParams{
-				ID:                sqlchelpers.UUIDFromStr(workflowRunId),
-				Tenantid:          sqlchelpers.UUIDFromStr(opt.TenantId),
-				Workflowversionid: sqlchelpers.UUIDFromStr(opt.WorkflowVersionId),
-			}
-
-			if opt.DisplayName != nil {
-				createParams.DisplayName = sqlchelpers.TextFromStr(*opt.DisplayName)
-			}
-
-			if opt.ChildIndex != nil {
-
-				if *opt.ChildIndex < -1 {
-					l.Error().Msgf("child index must be greater than or equal to -1 but it is : %d", *opt.ChildIndex)
-					return nil, errors.New("child index must be greater than or equal to -1 but it is : " + strconv.Itoa(*opt.ChildIndex))
-				}
-
-				if *opt.ChildIndex < math.MinInt32 || *opt.ChildIndex > math.MaxInt32 {
-					return nil, errors.New("child index must be within the range of a 32-bit signed integer")
-				}
-				createParams.ChildIndex = pgtype.Int4{
-					Int32: int32(*opt.ChildIndex), // nolint: gosec
-					Valid: true,
-				}
-			}
-
-			if opt.ChildKey != nil {
-				createParams.ChildKey = sqlchelpers.TextFromStr(*opt.ChildKey)
-			}
-
-			if opt.ParentId != nil {
-				createParams.ParentId = sqlchelpers.UUIDFromStr(*opt.ParentId)
-			}
-
-			if opt.ParentStepRunId != nil {
-				createParams.ParentStepRunId = sqlchelpers.UUIDFromStr(*opt.ParentStepRunId)
-			}
-
-			if opt.AdditionalMetadata != nil {
-				additionalMetadataBytes, err := json.Marshal(opt.AdditionalMetadata)
-				if err != nil {
-					return nil, err
-				}
-				createParams.Additionalmetadata = additionalMetadataBytes
-
-			}
-
-			if opt.Priority != nil {
-				createParams.Priority = pgtype.Int4{
-					Int32: *opt.Priority,
-					Valid: true,
-				}
-			}
-			if order > math.MaxInt32 || order < math.MinInt32 {
-				return nil, errors.New("order must be within the range of a 32-bit signed integer")
-			}
-
-			crp := dbsqlc.CreateWorkflowRunsParams{
-				ID:                 createParams.ID,
-				TenantId:           createParams.Tenantid,
-				WorkflowVersionId:  createParams.Workflowversionid,
-				DisplayName:        createParams.DisplayName,
-				ChildIndex:         createParams.ChildIndex,
-				ChildKey:           createParams.ChildKey,
-				ParentId:           createParams.ParentId,
-				ParentStepRunId:    createParams.ParentStepRunId,
-				AdditionalMetadata: createParams.Additionalmetadata,
-				Priority:           createParams.Priority,
-				Status:             "PENDING",
-				InsertOrder:        pgtype.Int4{Int32: int32(order), Valid: true},
-			}
-
-			createRunsParams = append(createRunsParams, crp)
-
-			var desiredWorkerId pgtype.UUID
-
-			if opt.DesiredWorkerId != nil {
-
-				desiredWorkerId = sqlchelpers.UUIDFromStr(*opt.DesiredWorkerId)
-			}
-
-			stickyInfos = append(stickyInfos, stickyInfo{
-				workflowRunId:     sqlchelpers.UUIDFromStr(workflowRunId),
-				workflowVersionId: sqlchelpers.UUIDFromStr(opt.WorkflowVersionId),
-				tenantId:          sqlchelpers.UUIDFromStr(opt.TenantId),
-				desiredWorkerId:   desiredWorkerId,
-			})
-
-			var (
-				eventId, cronParentId, scheduledWorkflowId pgtype.UUID
-				cronSchedule                               pgtype.Text
-			)
-
-			if opt.TriggeringEventId != nil {
-				eventId = sqlchelpers.UUIDFromStr(*opt.TriggeringEventId)
-			}
-
-			if opt.CronParentId != nil {
-				cronParentId = sqlchelpers.UUIDFromStr(*opt.CronParentId)
-
-			}
-			if opt.Cron != nil {
-				cronSchedule = sqlchelpers.TextFromStr(*opt.Cron)
-			}
-
-			if opt.ScheduledWorkflowId != nil {
-				scheduledWorkflowId = sqlchelpers.UUIDFromStr(*opt.ScheduledWorkflowId)
-			}
-
-			cp := dbsqlc.CreateWorkflowRunTriggeredBysParams{
-				ID:           sqlchelpers.UUIDFromStr(uuid.New().String()),
-				TenantId:     sqlchelpers.UUIDFromStr(opt.TenantId),
-				ParentId:     sqlchelpers.UUIDFromStr(workflowRunId),
-				EventId:      eventId,
-				CronParentId: cronParentId,
-				ScheduledId:  scheduledWorkflowId,
-				CronSchedule: cronSchedule,
-			}
-
-			triggeredByParams = append(triggeredByParams, cp)
-
-			if opt.GetGroupKeyRun != nil {
-				groupKeyParams = append(groupKeyParams, dbsqlc.CreateGetGroupKeyRunsParams{
-					TenantId:          sqlchelpers.UUIDFromStr(opt.TenantId),
-					WorkflowRunId:     sqlchelpers.UUIDFromStr(workflowRunId),
-					Input:             opt.GetGroupKeyRun.Input,
-					RequeueAfter:      sqlchelpers.TimestampFromTime(time.Now().UTC().Add(5 * time.Second)),
-					ScheduleTimeoutAt: sqlchelpers.TimestampFromTime(time.Now().UTC().Add(defaults.DefaultScheduleTimeout)),
-					Status:            "PENDING",
-					ID:                sqlchelpers.UUIDFromStr(uuid.New().String()),
-				})
-			}
-
-			jobRunParams = append(jobRunParams, dbsqlc.CreateJobRunsParams{
-				Tenantid:          sqlchelpers.UUIDFromStr(opt.TenantId),
-				Workflowrunid:     sqlchelpers.UUIDFromStr(workflowRunId),
-				Workflowversionid: sqlchelpers.UUIDFromStr(opt.WorkflowVersionId),
-			})
-
-		}
-
-		_, err = queries.CreateWorkflowRuns(
-			tx1Ctx,
-			tx,
-			createRunsParams,
-		)
-
-		if err != nil {
-			l.Error().Err(err).Msg("failed to create workflow runs")
-			return nil, err
-		}
-
-		workflowRuns, err := queries.GetWorkflowRunsInsertedInThisTxn(tx1Ctx, tx)
-
-		if err != nil {
-			l.Error().Err(err).Msg("failed to get inserted workflow runs")
-			return nil, err
-		}
-
-		if len(workflowRuns) == 0 {
-			l.Error().Msg("no new workflow runs created in transaction")
-			return nil, errors.New("no new workflow runs created")
-		}
-
-		if len(workflowRuns) != len(createRunsParams) {
-			l.Error().Msg("number of created workflow runs does not match number of returned workflow runs")
-			return nil, errors.New("number of created workflow runs does not match number of returned workflow runs")
-		}
-
-		if len(stickyInfos) > 0 {
-
-			stickyWorkflowRunIds := make([]pgtype.UUID, 0)
-			workflowVersionIds := make([]pgtype.UUID, 0)
-			desiredWorkerIds := make([]pgtype.UUID, 0)
-			tenantIds := make([]pgtype.UUID, 0)
-
-			for _, stickyInfo := range stickyInfos {
-				stickyWorkflowRunIds = append(stickyWorkflowRunIds, stickyInfo.workflowRunId)
-
-				workflowVersionIds = append(workflowVersionIds, stickyInfo.workflowVersionId)
-				desiredWorkerIds = append(desiredWorkerIds, stickyInfo.desiredWorkerId)
-				tenantIds = append(tenantIds, stickyInfo.tenantId)
-			}
-
-			err = queries.CreateMultipleWorkflowRunStickyStates(tx1Ctx, tx, dbsqlc.CreateMultipleWorkflowRunStickyStatesParams{
-				Tenantid:           tenantIds,
-				Workflowrunids:     stickyWorkflowRunIds,
-				Workflowversionids: workflowVersionIds,
-				Desiredworkerids:   desiredWorkerIds,
-			})
-
-			if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-
-				return nil, fmt.Errorf("failed to create workflow run sticky state: %w", err)
-			}
-		}
-
-		if len(triggeredByParams) > 0 {
-
-			_, err = queries.CreateWorkflowRunTriggeredBys(tx1Ctx, tx, triggeredByParams)
-
-			if err != nil {
-
-				l.Info().Msgf("failed to create workflow run triggered by %+v", triggeredByParams)
-				l.Error().Err(err).Msg("failed to create workflow run triggered by")
-				return nil, err
-			}
-
-		}
-
-		if len(groupKeyParams) > 0 {
-
-			_, err = queries.CreateGetGroupKeyRuns(
-				tx1Ctx,
-				tx,
-				groupKeyParams,
-			)
-
-			if err != nil {
-				l.Error().Err(err).Msg("failed to create get group key runs")
-				return nil, err
-			}
-
-		}
-
-		if len(jobRunParams) > 0 {
-			tenantIds := make([]pgtype.UUID, 0)
-			workflowRunIds := make([]pgtype.UUID, 0)
-			workflowVersionIds := make([]pgtype.UUID, 0)
-
-			for _, jobRunParam := range jobRunParams {
-				tenantIds = append(tenantIds, jobRunParam.Tenantid)
-				workflowRunIds = append(workflowRunIds, jobRunParam.Workflowrunid)
-				workflowVersionIds = append(workflowVersionIds, jobRunParam.Workflowversionid)
-			}
-			// update to relate jobrunId to workflowRunId
-			createJobRunResults, err := queries.CreateManyJobRuns(
-				tx1Ctx,
-				tx,
-				dbsqlc.CreateManyJobRunsParams{
-					Tenantids:          tenantIds,
-					Workflowrunids:     workflowRunIds,
-					Workflowversionids: workflowVersionIds,
-				},
-			)
-
-			if err != nil {
-				l.Error().Err(err).Msg("failed to create job runs")
-				return nil, err
-			}
-
-			jobRunLookupDataParams := make([]dbsqlc.CreateJobRunLookupDataParams, 0)
-			for _, jobRunResult := range createJobRunResults {
-
-				workflowRunId := jobRunResult.WorkflowRunId
-				jobRunId := jobRunResult.ID
-
-				workflowRunOpts := workflowRunOptsMap[sqlchelpers.UUIDToStr(workflowRunId)]
-
-				lookupParams := dbsqlc.CreateJobRunLookupDataParams{
-					Tenantid:    jobRunResult.TenantId,
-					Triggeredby: workflowRunOpts.TriggeredBy,
-					Jobrunid:    jobRunId,
-				}
-
-				if workflowRunOpts.InputData != nil {
-					lookupParams.Input = workflowRunOpts.InputData
-				}
-
-				jobRunLookupDataParams = append(jobRunLookupDataParams, lookupParams)
-
-			}
-
-			ids := make([]pgtype.UUID, 0)
-
-			triggeredByIds := make([]string, 0)
-			inputs := make([][]byte, 0)
-			jobRunIds := make([]pgtype.UUID, 0)
-			tenantIds = make([]pgtype.UUID, 0)
-
-			for j := range jobRunLookupDataParams {
-
-				ids = append(ids, sqlchelpers.UUIDFromStr(uuid.New().String()))
-				jobRunIds = append(jobRunIds, jobRunLookupDataParams[j].Jobrunid)
-				tenantIds = append(tenantIds, jobRunLookupDataParams[j].Tenantid)
-				triggeredByIds = append(triggeredByIds, jobRunLookupDataParams[j].Triggeredby)
-				inputs = append(inputs, jobRunLookupDataParams[j].Input)
-
-			}
-
-			_, err = queries.CreateJobRunLookupDatas(
-				tx1Ctx,
-				tx,
-				dbsqlc.CreateJobRunLookupDatasParams{
-					Ids:          ids,
-					Tenantids:    tenantIds,
-					Jobrunids:    jobRunIds,
-					Triggeredbys: triggeredByIds,
-					Inputs:       inputs,
-				},
-			)
-
-			if err != nil {
-				l.Error().Err(err).Msg("failed to create job run lookup data")
-				return nil, err
-			}
-
-			stepRunIds, err := queries.CreateStepRunsForJobRunIds(tx1Ctx, tx, dbsqlc.CreateStepRunsForJobRunIdsParams{
-				Jobrunids: jobRunIds,
-				Priority:  1,
-			},
-			)
-
-			if err != nil {
-				l.Error().Err(err).Msg("failed to create step runs")
-				return nil, err
-			}
-
-			err = queries.LinkStepRunParents(
-				tx1Ctx,
-				tx,
-				stepRunIds,
-			)
-
-			if err != nil {
-				l.Err(err).Msg("failed to link step run parents")
-				return nil, err
-			}
-
-		}
-
-		// if no concurrency stuff
-
-		// so long as step runs are inserted
-		// we can skip queueing the workflow run
-		// just put everything to running for no concurrency
-		// also need to tell the scheduler to check the queue
-
-		// if no concurrency key  - place workflow run in running and place job runs in running
-		// find all step runs that should be started and place them into the queue
-
-		// for step runs we want to start we should set the input that queueStepRun sets
-		// we can move the logic further down into the data layer (into the repo)
-
-		// also prevent the workflow run from being added to rabbitmq
-
-		for _, w := range workflowRuns {
-			// unsure what this concurrency check looks like
-			if CanShortCircuit(w) {
-				// TODO implement for API
-				panic("implement this")
-				// err := shortCircuitWorkflowRun(ctx, tx, w, queries)
-
-				if err != nil {
-					return nil, err
-				}
-
-				panic("this is not correct")
-
-			}
-		}
-
-		err = commit(tx1Ctx)
-
-		if err != nil {
-			l.Error().Err(err).Msg("failed to commit transaction")
-
-			return nil, err
-		}
-		return workflowRuns, nil
-	}()
-
-	if err != nil {
-		return nil, err
-	}
-
-	return sqlcWorkflowRuns, nil
-}
-
-func (w *workflowRunEngineRepository) shortCircuitWorkflowRun(ctx context.Context, tx pgx.Tx, workflowRun *dbsqlc.GetWorkflowRunsInsertedInThisTxnRow, queries *dbsqlc.Queries) error {
+func shortCircuitWorkflowRun(ctx context.Context, tx pgx.Tx, workflowRun *dbsqlc.GetWorkflowRunsInsertedInThisTxnRow, srr *stepRunEngineRepository, queries *dbsqlc.Queries) error {
 
 	jobRuns, err := queries.ListJobRunsForWorkflowRun(ctx, tx, workflowRun.WorkflowRun.ID)
 
@@ -2402,7 +1983,7 @@ func (w *workflowRunEngineRepository) shortCircuitWorkflowRun(ctx context.Contex
 
 		// TODO go func
 		for _, stepRun := range startableStepRuns {
-			err = setDataForStepRun(ctx, tenantId, stepRun, err, queries, tx, w)
+			err = setDataForStepRun(ctx, tenantId, stepRun, err, queries, tx, srr)
 			if err != nil {
 				panic(err)
 			}
@@ -2435,7 +2016,7 @@ func (w *workflowRunEngineRepository) shortCircuitWorkflowRun(ctx context.Contex
 
 }
 
-func setDataForStepRun(ctx context.Context, tenantId string, stepRun *dbsqlc.GetStepRunForEngineRow, err error, queries *dbsqlc.Queries, tx pgx.Tx, w *workflowRunEngineRepository) error {
+func setDataForStepRun(ctx context.Context, tenantId string, stepRun *dbsqlc.GetStepRunForEngineRow, err error, queries *dbsqlc.Queries, tx pgx.Tx, srr *stepRunEngineRepository) error {
 	errData := map[string]interface{}{
 		"tenant_id":   tenantId,
 		"step_id":     stepRun.StepId,
@@ -2552,7 +2133,7 @@ func setDataForStepRun(ctx context.Context, tenantId string, stepRun *dbsqlc.Get
 		}
 
 	}
-	_, err = w.stepRunRepository.QueueStepRun(ctx, tenantId, sqlchelpers.UUIDToStr(stepRun.SRID), queueOpts)
+	_, err = srr.QueueStepRun(ctx, tenantId, sqlchelpers.UUIDToStr(stepRun.SRID), queueOpts)
 	if err != nil {
 		return fmt.Errorf("could not queue step run: %w", err)
 	}
@@ -2657,9 +2238,7 @@ func bulkWorkflowRunEvents(
 	}
 }
 
-// TODO is there a better location for this util function?
-
 func CanShortCircuit(workflowRunRow *dbsqlc.GetWorkflowRunsInsertedInThisTxnRow) bool {
 
-	return !(workflowRunRow.ConcurrencyGroupExpression.Valid || workflowRunRow.GetGroupKeyRunId.Valid || workflowRunRow.WorkflowRun.ConcurrencyGroupId.Valid || workflowRunRow.DedupeValue.Valid)
+	return !(workflowRunRow.ConcurrencyLimitStrategy.Valid || workflowRunRow.ConcurrencyGroupExpression.Valid || workflowRunRow.GetGroupKeyRunId.Valid || workflowRunRow.WorkflowRun.ConcurrencyGroupId.Valid || workflowRunRow.DedupeValue.Valid)
 }

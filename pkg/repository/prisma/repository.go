@@ -89,29 +89,44 @@ func NewAPIRepository(client *db.PrismaClient, pool *pgxpool.Pool, cf *server.Co
 	if opts.cache == nil {
 		opts.cache = cache.New(1 * time.Millisecond)
 	}
-	workflowRunRepository, cleanupWorkflowRunRepository, err := NewWorkflowRunRepository(client, pool, opts.v, opts.l, opts.metered, cf)
+
+	srr, cleanupStepRunRepo, err := NewStepRunEngineRepository(pool, opts.v, opts.l, cf, cache.New(5*time.Minute), cache.New(5*time.Minute))
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	workflowRunRepository, cleanupWorkflowRunRepository, err := NewWorkflowRunRepository(client, pool, opts.v, opts.l, opts.metered, cf, srr)
 
 	return &apiRepository{
-		apiToken:       NewAPITokenRepository(client, opts.v, opts.cache),
-		event:          NewEventAPIRepository(client, pool, opts.v, opts.l),
-		log:            NewLogAPIRepository(pool, opts.v, opts.l),
-		tenant:         NewTenantAPIRepository(pool, client, opts.v, opts.l, opts.cache),
-		tenantAlerting: NewTenantAlertingAPIRepository(client, opts.v, opts.cache),
-		tenantInvite:   NewTenantInviteRepository(client, opts.v),
-		workflow:       NewWorkflowRepository(client, pool, opts.v, opts.l),
-		workflowRun:    workflowRunRepository,
-		jobRun:         NewJobRunAPIRepository(client, pool, opts.v, opts.l),
-		stepRun:        NewStepRunAPIRepository(client, pool, opts.v, opts.l),
-		step:           NewStepRepository(pool, opts.v, opts.l),
-		slack:          NewSlackRepository(client, opts.v),
-		sns:            NewSNSRepository(client, opts.v),
-		worker:         NewWorkerAPIRepository(client, pool, opts.v, opts.l, opts.metered),
-		userSession:    NewUserSessionRepository(client, opts.v),
-		user:           NewUserRepository(client, opts.l, opts.v),
-		health:         NewHealthAPIRepository(client, pool),
-		securityCheck:  NewSecurityCheckRepository(client, pool),
-		webhookWorker:  NewWebhookWorkerRepository(client, opts.v),
-	}, cleanupWorkflowRunRepository, err
+
+			apiToken:       NewAPITokenRepository(client, opts.v, opts.cache),
+			event:          NewEventAPIRepository(client, pool, opts.v, opts.l),
+			log:            NewLogAPIRepository(pool, opts.v, opts.l),
+			tenant:         NewTenantAPIRepository(pool, client, opts.v, opts.l, opts.cache),
+			tenantAlerting: NewTenantAlertingAPIRepository(client, opts.v, opts.cache),
+			tenantInvite:   NewTenantInviteRepository(client, opts.v),
+			workflow:       NewWorkflowRepository(client, pool, opts.v, opts.l),
+			workflowRun:    workflowRunRepository,
+			jobRun:         NewJobRunAPIRepository(client, pool, opts.v, opts.l),
+			stepRun:        NewStepRunAPIRepository(client, pool, opts.v, opts.l),
+			step:           NewStepRepository(pool, opts.v, opts.l),
+			slack:          NewSlackRepository(client, opts.v),
+			sns:            NewSNSRepository(client, opts.v),
+			worker:         NewWorkerAPIRepository(client, pool, opts.v, opts.l, opts.metered),
+			userSession:    NewUserSessionRepository(client, opts.v),
+			user:           NewUserRepository(client, opts.l, opts.v),
+			health:         NewHealthAPIRepository(client, pool),
+			securityCheck:  NewSecurityCheckRepository(client, pool),
+			webhookWorker:  NewWebhookWorkerRepository(client, opts.v),
+		}, func() error {
+			err := cleanupStepRunRepo()
+			if err != nil {
+				return err
+			}
+
+			return cleanupWorkflowRunRepository()
+		}, err
 }
 
 func (r *apiRepository) Health() repository.HealthRepository {
