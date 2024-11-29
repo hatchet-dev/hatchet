@@ -10,7 +10,9 @@ In some cases, you may have a step in your workflow that is resource-intensive a
 <Callout type="warning">
   This is an advanced feature and should be used with caution. Manually
   releasing the slot can have unintended side effects on system performance and
-  concurrency.
+  concurrency. For example, if the worker running the step dies, the step will
+  not be reassigned and will remain in a running state untill manually
+  terminated.
 </Callout>
 
 ## Using Manual Slot Release
