@@ -261,9 +261,9 @@ func (ec *EventsControllerImpl) processEvent(ctx context.Context, tenantId, even
 				)
 			}
 
-			for _, queueName := range workflowRun.StepRunQueueNames {
+			if tenant.SchedulerPartitionId.Valid {
+				for _, queueName := range workflowRun.StepRunQueueNames {
 
-				if tenant.SchedulerPartitionId.Valid {
 					err = ec.mq.AddMessage(
 						ctx,
 						msgqueue.QueueTypeFromPartitionIDAndController(tenant.SchedulerPartitionId.String, msgqueue.Scheduler),

@@ -1929,7 +1929,6 @@ func createNewWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbs
 		for _, workflowRun := range workflowRuns {
 			var queueNames []string
 
-			// unsure what this concurrency check looks like
 			if CanShortCircuit(workflowRun) {
 				queueNames, err = shortCircuitWorkflowRun(ctx, tx2, workflowRun, srr, queries)
 
@@ -2252,6 +2251,7 @@ func bulkWorkflowRunEvents(
 	}
 }
 
+// TODO verify this logic is correct
 func CanShortCircuit(workflowRunRow *dbsqlc.GetWorkflowRunsInsertedInThisTxnRow) bool {
 
 	return !(workflowRunRow.ConcurrencyLimitStrategy.Valid || workflowRunRow.ConcurrencyGroupExpression.Valid || workflowRunRow.GetGroupKeyRunId.Valid || workflowRunRow.WorkflowRun.ConcurrencyGroupId.Valid || workflowRunRow.DedupeValue.Valid)

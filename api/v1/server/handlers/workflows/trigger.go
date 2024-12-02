@@ -111,6 +111,21 @@ func (t *WorkflowService) WorkflowRunCreate(ctx echo.Context, request gen.Workfl
 			return nil, fmt.Errorf("could not add workflow run to queue: %w", err)
 		}
 	}
+
+	for _, queueName := range createdWorkflowRun.StepRunQueueNames {
+
+		if schedPartitionId, ok := tenant.SchedulerPartitionID(); ok {
+			err = t.config.MessageQueue.AddMessage(
+				ctx.Request().Context(),
+				msgqueue.QueueTypeFromPartitionIDAndController(schedPartitionId, msgqueue.Scheduler),
+				tasktypes.CheckTenantQueueToTask(tenant.ID, queueName, true, false),
+			)
+
+			if err != nil {
+				t.config.Logger.Err(err).Msg("could not add message to scheduler partition queue")
+			}
+		}
+	}
 	workflowRun, err := t.config.APIRepository.WorkflowRun().GetWorkflowRunById(ctx.Request().Context(), tenant.ID, sqlchelpers.UUIDToStr(createdWorkflowRun.Row.WorkflowRun.ID))
 
 	if err != nil {

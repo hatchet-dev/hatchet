@@ -207,6 +207,62 @@ func (t *TickerImpl) runScheduledWorkflow(tenantId, workflowVersionId, scheduled
 				t.l.Err(err).Msg("could not add workflow run queued task")
 				return
 			}
+		} else {
+
+			tenant, err := t.repo.Tenant().GetTenantByID(ctx, tenantId)
+
+			if err != nil {
+				t.l.Err(err).Msg("could not get tenant")
+				return
+			}
+
+			if tenant.ControllerPartitionId.Valid {
+				err = t.mq.AddMessage(
+					ctx,
+					msgqueue.QueueTypeFromPartitionIDAndController(tenant.ControllerPartitionId.String, msgqueue.WorkflowController),
+
+					tasktypes.CheckTenantQueueToTask(tenantId, "", false, false),
+				)
+
+				if err != nil {
+					t.l.Err(err).Msg("could not add message to tenant partition queue")
+				}
+			}
+
+			if !prisma.CanShortCircuit(workflowRun.Row) {
+				workflowRunId := sqlchelpers.UUIDToStr(workflowRun.Row.WorkflowRun.ID)
+
+				// send to workflow processing queue
+				err = t.mq.AddMessage(
+					context.Background(),
+					msgqueue.WORKFLOW_PROCESSING_QUEUE,
+					tasktypes.WorkflowRunQueuedToTask(
+						tenantId,
+						workflowRunId,
+					),
+				)
+
+				if err != nil {
+					t.l.Err(err).Msg("could not add workflow run queued task")
+					return
+				}
+			}
+
+			if tenant.SchedulerPartitionId.Valid {
+				for _, queueName := range workflowRun.StepRunQueueNames {
+
+					err = t.mq.AddMessage(
+						ctx,
+						msgqueue.QueueTypeFromPartitionIDAndController(tenant.SchedulerPartitionId.String, msgqueue.Scheduler),
+						tasktypes.CheckTenantQueueToTask(tenantId, queueName, true, false),
+					)
+
+					if err != nil {
+						t.l.Err(err).Msg("could not add message to scheduler partition queue")
+					}
+				}
+			}
+
 		}
 		// get the scheduler
 		schedulerVal, ok := t.scheduledWorkflows.Load(getScheduledWorkflowKey(workflowVersionId, scheduledWorkflowId))
