@@ -99,7 +99,6 @@ func NewAPIRepository(client *db.PrismaClient, pool *pgxpool.Pool, cf *server.Co
 	workflowRunRepository, cleanupWorkflowRunRepository, err := NewWorkflowRunRepository(client, pool, opts.v, opts.l, opts.metered, cf, srr)
 
 	return &apiRepository{
-
 			apiToken:       NewAPITokenRepository(client, opts.v, opts.cache),
 			event:          NewEventAPIRepository(client, pool, opts.v, opts.l),
 			log:            NewLogAPIRepository(pool, opts.v, opts.l),

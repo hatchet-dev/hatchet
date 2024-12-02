@@ -238,13 +238,29 @@ func (ec *EventsControllerImpl) processEvent(ctx context.Context, tenantId, even
 				err = ec.mq.AddMessage(
 					ctx,
 					msgqueue.QueueTypeFromPartitionIDAndController(tenant.ControllerPartitionId.String, msgqueue.WorkflowController),
-					tasktypes.CheckTenantQueueToTask(tenantId, workflowRun.Queue.String, false, false),
+
+					tasktypes.CheckTenantQueueToTask(tenantId, "", false, false),
 				)
 
 				if err != nil {
 					ec.l.Err(err).Msg("could not add message to tenant partition queue")
 				}
 			}
+
+			if !prisma.CanShortCircuit(workflowRun) {
+				workflowRunId := sqlchelpers.UUIDToStr(workflowRun.WorkflowRun.ID)
+
+				// send to workflow processing queue
+				err = ec.mq.AddMessage(
+					context.Background(),
+					msgqueue.WORKFLOW_PROCESSING_QUEUE,
+					tasktypes.WorkflowRunQueuedToTask(
+						tenantId,
+						workflowRunId,
+					),
+				)
+			}
+
 			if tenant.SchedulerPartitionId.Valid {
 				err = ec.mq.AddMessage(
 					ctx,
