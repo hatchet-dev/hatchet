@@ -760,7 +760,6 @@ type CreateStepRunsParams struct {
 }
 
 const createStepRunsForJobRunIds = `-- name: CreateStepRunsForJobRunIds :many
-
 WITH job_ids AS (
     SELECT DISTINCT "jobId", "id" as jobRunId, "tenantId"
     FROM "JobRun"
@@ -803,8 +802,6 @@ type CreateStepRunsForJobRunIdsParams struct {
 	Jobrunids []pgtype.UUID `json:"jobrunids"`
 }
 
-// ----- maybe some of these I bounce straight to a different step run
-// -- always one? I think so maybe it's job runs?
 func (q *Queries) CreateStepRunsForJobRunIds(ctx context.Context, db DBTX, arg CreateStepRunsForJobRunIdsParams) ([]pgtype.UUID, error) {
 	rows, err := db.Query(ctx, createStepRunsForJobRunIds, arg.Priority, arg.Jobrunids)
 	if err != nil {
@@ -2084,8 +2081,10 @@ func (q *Queries) GetWorkflowRunTrigger(ctx context.Context, db DBTX, arg GetWor
 const getWorkflowRunsInsertedInThisTxn = `-- name: GetWorkflowRunsInsertedInThisTxn :many
 SELECT
     runs."createdAt", runs."updatedAt", runs."deletedAt", runs."tenantId", runs."workflowVersionId", runs.status, runs.error, runs."startedAt", runs."finishedAt", runs."concurrencyGroupId", runs."displayName", runs.id, runs."childIndex", runs."childKey", runs."parentId", runs."parentStepRunId", runs."additionalMetadata", runs.duration, runs.priority, runs."insertOrder",
-    runtriggers.id, runtriggers."createdAt", runtriggers."updatedAt", runtriggers."deletedAt", runtriggers."tenantId", runtriggers."eventId", runtriggers."cronParentId", runtriggers."cronSchedule", runtriggers."scheduledId", runtriggers.input, runtriggers."parentId",
+    runtriggers.id, runtriggers."createdAt", runtriggers."updatedAt", runtriggers."deletedAt", runtriggers."tenantId", runtriggers."eventId", runtriggers."cronParentId", runtriggers."cronSchedule", runtriggers."scheduledId", runtriggers.input, runtriggers."parentId", runtriggers."cronName",
     workflowversion.id, workflowversion."createdAt", workflowversion."updatedAt", workflowversion."deletedAt", workflowversion.version, workflowversion."order", workflowversion."workflowId", workflowversion.checksum, workflowversion."scheduleTimeout", workflowversion."onFailureJobId", workflowversion.sticky, workflowversion.kind, workflowversion."defaultPriority",
+
+    stepRuns.queue as "queue",
     workflow."name" as "workflowName",
     -- waiting on https://github.com/sqlc-dev/sqlc/pull/2858 for nullable fields
     wc."limitStrategy" as "concurrencyLimitStrategy",
@@ -2109,6 +2108,10 @@ LEFT JOIN
     "GetGroupKeyRun" as groupKeyRun ON groupKeyRun."workflowRunId" = runs."id"
 LEFT JOIN
     "WorkflowRunDedupe" as dedupe ON dedupe."workflowRunId" = runs."id"
+LEFT JOIN
+    "JobRun" as jobRuns ON jobRuns."workflowRunId" = runs."id"
+LEFT JOIN
+    "StepRun" as stepRuns ON stepRuns."jobRunId" = jobRuns."id"
 WHERE
     runs.xmin::text = (txid_current() % (2^32)::bigint)::text
     AND (runs."createdAt" = CURRENT_TIMESTAMP::timestamp(3))
@@ -2119,6 +2122,7 @@ type GetWorkflowRunsInsertedInThisTxnRow struct {
 	WorkflowRun                WorkflowRun                  `json:"workflow_run"`
 	WorkflowRunTriggeredBy     WorkflowRunTriggeredBy       `json:"workflow_run_triggered_by"`
 	WorkflowVersion            WorkflowVersion              `json:"workflow_version"`
+	Queue                      pgtype.Text                  `json:"queue"`
 	WorkflowName               pgtype.Text                  `json:"workflowName"`
 	ConcurrencyLimitStrategy   NullConcurrencyLimitStrategy `json:"concurrencyLimitStrategy"`
 	ConcurrencyMaxRuns         pgtype.Int4                  `json:"concurrencyMaxRuns"`
@@ -2169,6 +2173,7 @@ func (q *Queries) GetWorkflowRunsInsertedInThisTxn(ctx context.Context, db DBTX)
 			&i.WorkflowRunTriggeredBy.ScheduledId,
 			&i.WorkflowRunTriggeredBy.Input,
 			&i.WorkflowRunTriggeredBy.ParentId,
+			&i.WorkflowRunTriggeredBy.CronName,
 			&i.WorkflowVersion.ID,
 			&i.WorkflowVersion.CreatedAt,
 			&i.WorkflowVersion.UpdatedAt,
@@ -2182,6 +2187,7 @@ func (q *Queries) GetWorkflowRunsInsertedInThisTxn(ctx context.Context, db DBTX)
 			&i.WorkflowVersion.Sticky,
 			&i.WorkflowVersion.Kind,
 			&i.WorkflowVersion.DefaultPriority,
+			&i.Queue,
 			&i.WorkflowName,
 			&i.ConcurrencyLimitStrategy,
 			&i.ConcurrencyMaxRuns,

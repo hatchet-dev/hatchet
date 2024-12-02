@@ -1043,6 +1043,8 @@ SELECT
     sqlc.embed(runs),
     sqlc.embed(runTriggers),
     sqlc.embed(workflowVersion),
+
+    stepRuns.queue as "queue",
     workflow."name" as "workflowName",
     -- waiting on https://github.com/sqlc-dev/sqlc/pull/2858 for nullable fields
     wc."limitStrategy" as "concurrencyLimitStrategy",
@@ -1066,6 +1068,10 @@ LEFT JOIN
     "GetGroupKeyRun" as groupKeyRun ON groupKeyRun."workflowRunId" = runs."id"
 LEFT JOIN
     "WorkflowRunDedupe" as dedupe ON dedupe."workflowRunId" = runs."id"
+LEFT JOIN
+    "JobRun" as jobRuns ON jobRuns."workflowRunId" = runs."id"
+LEFT JOIN
+    "StepRun" as stepRuns ON stepRuns."jobRunId" = jobRuns."id"
 WHERE
     runs.xmin::text = (txid_current() % (2^32)::bigint)::text
     AND (runs."createdAt" = CURRENT_TIMESTAMP::timestamp(3))

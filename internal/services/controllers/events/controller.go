@@ -238,11 +238,22 @@ func (ec *EventsControllerImpl) processEvent(ctx context.Context, tenantId, even
 				err = ec.mq.AddMessage(
 					ctx,
 					msgqueue.QueueTypeFromPartitionIDAndController(tenant.ControllerPartitionId.String, msgqueue.WorkflowController),
-					tasktypes.CheckTenantQueueToTask(tenantId, "", false, false),
+					tasktypes.CheckTenantQueueToTask(tenantId, workflowRun.Queue.String, false, false),
 				)
 
 				if err != nil {
 					ec.l.Err(err).Msg("could not add message to tenant partition queue")
+				}
+			}
+			if tenant.SchedulerPartitionId.Valid {
+				err = ec.mq.AddMessage(
+					ctx,
+					msgqueue.QueueTypeFromPartitionIDAndController(tenant.SchedulerPartitionId.String, msgqueue.Scheduler),
+					tasktypes.CheckTenantQueueToTask(tenantId, workflowRun.Queue.String, true, false),
+				)
+
+				if err != nil {
+					ec.l.Err(err).Msg("could not add message to scheduler partition queue")
 				}
 			}
 
