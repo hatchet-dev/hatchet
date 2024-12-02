@@ -247,8 +247,8 @@ func (ec *EventsControllerImpl) processEvent(ctx context.Context, tenantId, even
 				}
 			}
 
-			if !prisma.CanShortCircuit(workflowRun) {
-				workflowRunId := sqlchelpers.UUIDToStr(workflowRun.WorkflowRun.ID)
+			if !prisma.CanShortCircuit(workflowRun.WorkflowRunRow) {
+				workflowRunId := sqlchelpers.UUIDToStr(workflowRun.WorkflowRunRow.WorkflowRun.ID)
 
 				// send to workflow processing queue
 				err = ec.mq.AddMessage(
@@ -261,20 +261,23 @@ func (ec *EventsControllerImpl) processEvent(ctx context.Context, tenantId, even
 				)
 			}
 
-			if tenant.SchedulerPartitionId.Valid {
-				err = ec.mq.AddMessage(
-					ctx,
-					msgqueue.QueueTypeFromPartitionIDAndController(tenant.SchedulerPartitionId.String, msgqueue.Scheduler),
-					tasktypes.CheckTenantQueueToTask(tenantId, workflowRun.Queue.String, true, false),
-				)
+			for _, queueName := range workflowRun.StepRunQueueNames {
 
-				if err != nil {
-					ec.l.Err(err).Msg("could not add message to scheduler partition queue")
+				if tenant.SchedulerPartitionId.Valid {
+					err = ec.mq.AddMessage(
+						ctx,
+						msgqueue.QueueTypeFromPartitionIDAndController(tenant.SchedulerPartitionId.String, msgqueue.Scheduler),
+						tasktypes.CheckTenantQueueToTask(tenantId, queueName, true, false),
+					)
+
+					if err != nil {
+						ec.l.Err(err).Msg("could not add message to scheduler partition queue")
+					}
 				}
 			}
 
-			if !prisma.CanShortCircuit(workflowRun) {
-				workflowRunId := sqlchelpers.UUIDToStr(workflowRun.WorkflowRun.ID)
+			if !prisma.CanShortCircuit(workflowRun.WorkflowRunRow) {
+				workflowRunId := sqlchelpers.UUIDToStr(workflowRun.WorkflowRunRow.WorkflowRun.ID)
 
 				// send to workflow processing queue
 				err = ec.mq.AddMessage(

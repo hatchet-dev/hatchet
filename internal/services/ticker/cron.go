@@ -137,9 +137,9 @@ func (t *TickerImpl) runCronWorkflow(tenantId, workflowVersionId, cron, cronPare
 			return
 		}
 
-		workflowRunId := sqlchelpers.UUIDToStr(workflowRun.WorkflowRun.ID)
+		workflowRunId := sqlchelpers.UUIDToStr(workflowRun.WorkflowRunRow.WorkflowRun.ID)
 
-		if !prisma.CanShortCircuit(workflowRun) {
+		if !prisma.CanShortCircuit(workflowRun.WorkflowRunRow) {
 			err = t.mq.AddMessage(
 				context.Background(),
 				msgqueue.WORKFLOW_PROCESSING_QUEUE,

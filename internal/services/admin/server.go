@@ -69,9 +69,9 @@ func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.T
 		return nil, fmt.Errorf("Trigger Workflow - could not create workflow run: %w", err)
 	}
 
-	workflowRunId := sqlchelpers.UUIDToStr(workflowRun.WorkflowRun.ID)
+	workflowRunId := sqlchelpers.UUIDToStr(workflowRun.WorkflowRunRow.WorkflowRun.ID)
 
-	if !prisma.CanShortCircuit(workflowRun) {
+	if !prisma.CanShortCircuit(workflowRun.WorkflowRunRow) {
 		// send to workflow processing queue
 		err = a.mq.AddMessage(
 			context.Background(),
@@ -131,19 +131,19 @@ func (a *AdminServiceImpl) BulkTriggerWorkflow(ctx context.Context, req *contrac
 	var workflowRunIds []string
 	for _, workflowRun := range workflowRuns {
 
-		if !prisma.CanShortCircuit(workflowRun) {
+		if !prisma.CanShortCircuit(workflowRun.WorkflowRunRow) {
 
 			err = a.mq.AddMessage(
 				context.Background(),
 				msgqueue.WORKFLOW_PROCESSING_QUEUE,
-				tasktypes.WorkflowRunQueuedToTask(tenantId, sqlchelpers.UUIDToStr(workflowRun.WorkflowRun.ID)),
+				tasktypes.WorkflowRunQueuedToTask(tenantId, sqlchelpers.UUIDToStr(workflowRun.WorkflowRunRow.WorkflowRun.ID)),
 			)
 		}
 
 		if err != nil {
 			return nil, fmt.Errorf("could not queue workflow run: %w", err)
 		}
-		workflowRunIds = append(workflowRunIds, sqlchelpers.UUIDToStr(workflowRun.WorkflowRun.ID))
+		workflowRunIds = append(workflowRunIds, sqlchelpers.UUIDToStr(workflowRun.WorkflowRunRow.WorkflowRun.ID))
 	}
 
 	// adding in the pre-existing workflows to the response.

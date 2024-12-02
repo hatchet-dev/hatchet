@@ -96,14 +96,14 @@ func (t *WorkflowService) WorkflowRunCreate(ctx echo.Context, request gen.Workfl
 		return nil, fmt.Errorf("trigger.go could not create workflow run: %w", err)
 	}
 
-	if !prisma.CanShortCircuit(createdWorkflowRun) {
+	if !prisma.CanShortCircuit(createdWorkflowRun.WorkflowRunRow) {
 		// send to workflow processing queue
 		err = t.config.MessageQueue.AddMessage(
 			ctx.Request().Context(),
 			msgqueue.WORKFLOW_PROCESSING_QUEUE,
 			tasktypes.WorkflowRunQueuedToTask(
-				sqlchelpers.UUIDToStr(createdWorkflowRun.WorkflowRun.TenantId),
-				sqlchelpers.UUIDToStr(createdWorkflowRun.WorkflowRun.ID),
+				sqlchelpers.UUIDToStr(createdWorkflowRun.WorkflowRunRow.WorkflowRun.TenantId),
+				sqlchelpers.UUIDToStr(createdWorkflowRun.WorkflowRunRow.WorkflowRun.ID),
 			),
 		)
 
@@ -111,7 +111,7 @@ func (t *WorkflowService) WorkflowRunCreate(ctx echo.Context, request gen.Workfl
 			return nil, fmt.Errorf("could not add workflow run to queue: %w", err)
 		}
 	}
-	workflowRun, err := t.config.APIRepository.WorkflowRun().GetWorkflowRunById(ctx.Request().Context(), tenant.ID, sqlchelpers.UUIDToStr(createdWorkflowRun.WorkflowRun.ID))
+	workflowRun, err := t.config.APIRepository.WorkflowRun().GetWorkflowRunById(ctx.Request().Context(), tenant.ID, sqlchelpers.UUIDToStr(createdWorkflowRun.WorkflowRunRow.WorkflowRun.ID))
 
 	if err != nil {
 		return nil, fmt.Errorf("could not get workflow run: %w", err)
