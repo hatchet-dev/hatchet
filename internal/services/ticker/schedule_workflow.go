@@ -190,13 +190,13 @@ func (t *TickerImpl) runScheduledWorkflow(tenantId, workflowVersionId, scheduled
 
 		workflowRun, err := t.repo.WorkflowRun().CreateNewWorkflowRun(ctx, tenantId, createOpts)
 
-		workflowRunId := sqlchelpers.UUIDToStr(workflowRun.WorkflowRunRow.WorkflowRun.ID)
+		workflowRunId := sqlchelpers.UUIDToStr(workflowRun.Row.WorkflowRun.ID)
 
 		if err != nil {
 			t.l.Err(err).Msg("could not create workflow run")
 			return
 		}
-		if !prisma.CanShortCircuit(workflowRun.WorkflowRunRow) {
+		if !prisma.CanShortCircuit(workflowRun.Row) {
 			err = t.mq.AddMessage(
 				context.Background(),
 				msgqueue.WORKFLOW_PROCESSING_QUEUE,

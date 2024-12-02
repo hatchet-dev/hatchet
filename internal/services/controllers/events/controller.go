@@ -247,8 +247,8 @@ func (ec *EventsControllerImpl) processEvent(ctx context.Context, tenantId, even
 				}
 			}
 
-			if !prisma.CanShortCircuit(workflowRun.WorkflowRunRow) {
-				workflowRunId := sqlchelpers.UUIDToStr(workflowRun.WorkflowRunRow.WorkflowRun.ID)
+			if !prisma.CanShortCircuit(workflowRun.Row) {
+				workflowRunId := sqlchelpers.UUIDToStr(workflowRun.Row.WorkflowRun.ID)
 
 				// send to workflow processing queue
 				err = ec.mq.AddMessage(
@@ -276,8 +276,8 @@ func (ec *EventsControllerImpl) processEvent(ctx context.Context, tenantId, even
 				}
 			}
 
-			if !prisma.CanShortCircuit(workflowRun.WorkflowRunRow) {
-				workflowRunId := sqlchelpers.UUIDToStr(workflowRun.WorkflowRunRow.WorkflowRun.ID)
+			if !prisma.CanShortCircuit(workflowRun.Row) {
+				workflowRunId := sqlchelpers.UUIDToStr(workflowRun.Row.WorkflowRun.ID)
 
 				// send to workflow processing queue
 				err = ec.mq.AddMessage(

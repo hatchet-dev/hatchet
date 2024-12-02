@@ -309,10 +309,10 @@ func (w *workflowRunAPIRepository) CreateNewWorkflowRun(ctx context.Context, ten
 			wfr = workflowRuns[0]
 		}
 
-		id := sqlchelpers.UUIDToStr(wfr.WorkflowRunRow.WorkflowRun.ID)
+		id := sqlchelpers.UUIDToStr(wfr.Row.WorkflowRun.ID)
 
 		for _, cb := range w.createCallbacks {
-			cb.Do(w.l, tenantId, &wfr.WorkflowRunRow.WorkflowRun)
+			cb.Do(w.l, tenantId, &wfr.Row.WorkflowRun)
 		}
 
 		return &id, wfr, nil
@@ -995,14 +995,14 @@ func (w *workflowRunEngineRepository) CreateNewWorkflowRuns(ctx context.Context,
 
 		for _, cb := range w.createCallbacks {
 			for _, wfr := range wfrs {
-				cb.Do(w.l, tenantId, &wfr.WorkflowRunRow.WorkflowRun) // nolint: errcheck
+				cb.Do(w.l, tenantId, &wfr.Row.WorkflowRun) // nolint: errcheck
 			}
 		}
 
 		ids := make([]string, len(wfrs))
 
 		for i, wfr := range wfrs {
-			ids[i] = sqlchelpers.UUIDToStr(wfr.WorkflowRunRow.WorkflowRun.ID)
+			ids[i] = sqlchelpers.UUIDToStr(wfr.Row.WorkflowRun.ID)
 		}
 
 		str := strings.Join(ids, ",")
@@ -1051,7 +1051,7 @@ func (w *workflowRunEngineRepository) CreateNewWorkflowRun(ctx context.Context, 
 			createdWorkflowRun = wfrs[0]
 		}
 
-		meterKey := sqlchelpers.UUIDToStr(createdWorkflowRun.WorkflowRunRow.WorkflowRun.ID)
+		meterKey := sqlchelpers.UUIDToStr(createdWorkflowRun.Row.WorkflowRun.ID)
 		return &meterKey, createdWorkflowRun, nil
 	})
 
@@ -1940,7 +1940,7 @@ func createNewWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbs
 			}
 
 			createdWorkflowRuns = append(createdWorkflowRuns, &repository.CreatedWorkflowRun{
-				WorkflowRunRow:    workflowRun,
+				Row:               workflowRun,
 				StepRunQueueNames: queueNames,
 			})
 
