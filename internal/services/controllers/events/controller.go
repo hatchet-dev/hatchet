@@ -149,6 +149,9 @@ func (ec *EventsControllerImpl) Start() (func() error, error) {
 }
 
 func (ec *EventsControllerImpl) handleTask(ctx context.Context, task *msgqueue.Message) error {
+	ctx, span := telemetry.NewSpanWithCarrier(ctx, "process-event", task.OtelCarrier)
+	defer span.End()
+
 	payload := tasktypes.EventTaskPayload{}
 	metadata := tasktypes.EventTaskMetadata{}
 
@@ -191,9 +194,6 @@ func cleanAdditionalMetadata(additionalMetadata map[string]interface{}) map[stri
 }
 
 func (ec *EventsControllerImpl) processEvent(ctx context.Context, tenantId, eventId, eventKey string, data []byte, additionalMetadata map[string]interface{}) error {
-	ctx, span := telemetry.NewSpan(ctx, "process-event")
-	defer span.End()
-
 	additionalMetadata = cleanAdditionalMetadata(additionalMetadata)
 
 	additionalMetadata["hatchet__event_id"] = eventId
@@ -232,7 +232,7 @@ func (ec *EventsControllerImpl) processEvent(ctx context.Context, tenantId, even
 
 			// send to workflow processing queue
 			err = ec.mq.AddMessage(
-				context.Background(),
+				ctx,
 				msgqueue.WORKFLOW_PROCESSING_QUEUE,
 				tasktypes.WorkflowRunQueuedToTask(
 					tenantId,

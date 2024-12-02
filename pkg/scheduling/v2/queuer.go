@@ -744,7 +744,7 @@ type Queuer struct {
 
 	resultsCh chan<- *QueueResults
 
-	notifyQueueCh chan struct{}
+	notifyQueueCh chan map[string]string
 
 	queueMu mutex
 
@@ -768,7 +768,7 @@ func newQueuer(conf *sharedConfig, tenantId pgtype.UUID, queueName string, s *Sc
 
 	repo, cleanupRepo := newQueueItemDbQueries(conf, tenantId, eventBuffer, queueName)
 
-	notifyQueueCh := make(chan struct{}, 1)
+	notifyQueueCh := make(chan map[string]string, 1)
 
 	q := &Queuer{
 		repo:          repo,
@@ -810,7 +810,7 @@ func (q *Queuer) Cleanup() {
 	q.cleanup()
 }
 
-func (q *Queuer) queue() {
+func (q *Queuer) queue(ctx context.Context) {
 	if ok := q.queueMu.TryLock(); !ok {
 		return
 	}
@@ -818,7 +818,10 @@ func (q *Queuer) queue() {
 	go func() {
 		defer q.queueMu.Unlock()
 
-		q.notifyQueueCh <- struct{}{}
+		ctx, span := telemetry.NewSpan(ctx, "notify-queue")
+		defer span.End()
+
+		q.notifyQueueCh <- telemetry.GetCarrier(ctx)
 	}()
 }
 
@@ -826,14 +829,16 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 	ticker := time.NewTicker(1 * time.Second)
 
 	for {
+		var carrier map[string]string
+
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-		case <-q.notifyQueueCh:
+		case carrier = <-q.notifyQueueCh:
 		}
 
-		ctx, span := telemetry.NewSpan(ctx, "queue")
+		ctx, span := telemetry.NewSpanWithCarrier(ctx, "queue", carrier)
 
 		telemetry.WithAttributes(span, telemetry.AttributeKV{
 			Key:   "queue",
@@ -944,7 +949,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 
 			countMu.Lock()
 			if len(prevQis) > 0 && count == len(prevQis) {
-				q.queue()
+				q.queue(context.Background())
 			}
 
 			if startingQiLength != processedQiLength {
