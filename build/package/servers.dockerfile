@@ -31,11 +31,11 @@ RUN go generate ./...
 FROM node:16-alpine as build-openapi
 WORKDIR /openapi
 
-RUN npm install -g npm@8.1 @apidevtools/swagger-cli prisma
+RUN npm install -g npm@8.1 @redocly/cli@latest prisma
 
 COPY /api-contracts/openapi ./openapi
 
-RUN swagger-cli bundle ./openapi/openapi.yaml --outfile ./bin/oas/openapi.yaml --type yaml
+RUN npx @redocly/cli bundle ./openapi/openapi.yaml --output ./bin/oas/openapi.yaml --ext yaml
 
 # Go build environment
 # --------------------

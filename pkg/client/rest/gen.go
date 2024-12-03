@@ -23,6 +23,14 @@ const (
 	CookieAuthScopes = "cookieAuth.Scopes"
 )
 
+// Defines values for ConcurrencyLimitStrategy.
+const (
+	CANCELINPROGRESS ConcurrencyLimitStrategy = "CANCEL_IN_PROGRESS"
+	DROPNEWEST       ConcurrencyLimitStrategy = "DROP_NEWEST"
+	GROUPROUNDROBIN  ConcurrencyLimitStrategy = "GROUP_ROUND_ROBIN"
+	QUEUENEWEST      ConcurrencyLimitStrategy = "QUEUE_NEWEST"
+)
+
 // Defines values for CronWorkflowsMethod.
 const (
 	CronWorkflowsMethodAPI     CronWorkflowsMethod = "API"
@@ -173,13 +181,6 @@ const (
 	PAUSED   WorkerStatus = "PAUSED"
 )
 
-// Defines values for WorkerType.
-const (
-	MANAGED    WorkerType = "MANAGED"
-	SELFHOSTED WorkerType = "SELFHOSTED"
-	WEBHOOK    WorkerType = "WEBHOOK"
-)
-
 // Defines values for WorkerRuntimeSDKs.
 const (
 	GOLANG     WorkerRuntimeSDKs = "GOLANG"
@@ -187,12 +188,11 @@ const (
 	TYPESCRIPT WorkerRuntimeSDKs = "TYPESCRIPT"
 )
 
-// Defines values for WorkflowConcurrencyLimitStrategy.
+// Defines values for WorkerType.
 const (
-	CANCELINPROGRESS WorkflowConcurrencyLimitStrategy = "CANCEL_IN_PROGRESS"
-	DROPNEWEST       WorkflowConcurrencyLimitStrategy = "DROP_NEWEST"
-	GROUPROUNDROBIN  WorkflowConcurrencyLimitStrategy = "GROUP_ROUND_ROBIN"
-	QUEUENEWEST      WorkflowConcurrencyLimitStrategy = "QUEUE_NEWEST"
+	MANAGED    WorkerType = "MANAGED"
+	SELFHOSTED WorkerType = "SELFHOSTED"
+	WEBHOOK    WorkerType = "WEBHOOK"
 )
 
 // Defines values for WorkflowKind.
@@ -322,17 +322,13 @@ type BulkCreateEventRequest struct {
 	Events []CreateEventRequest `json:"events"`
 }
 
-// BulkCreateEventResponse defines model for BulkCreateEventResponse.
-type BulkCreateEventResponse struct {
-	// Events The events.
-	Events   []Event         `json:"events"`
-	Metadata APIResourceMeta `json:"metadata"`
-}
-
 // CancelEventRequest defines model for CancelEventRequest.
 type CancelEventRequest struct {
 	EventIds []openapi_types.UUID `json:"eventIds"`
 }
+
+// ConcurrencyLimitStrategy defines model for ConcurrencyLimitStrategy.
+type ConcurrencyLimitStrategy string
 
 // CreateAPITokenRequest defines model for CreateAPITokenRequest.
 type CreateAPITokenRequest struct {
@@ -412,14 +408,14 @@ type CronWorkflows struct {
 	WorkflowVersionId  string                  `json:"workflowVersionId"`
 }
 
-// CronWorkflowsMethod defines model for CronWorkflows.Method.
-type CronWorkflowsMethod string
-
 // CronWorkflowsList defines model for CronWorkflowsList.
 type CronWorkflowsList struct {
 	Pagination *PaginationResponse `json:"pagination,omitempty"`
 	Rows       *[]CronWorkflows    `json:"rows,omitempty"`
 }
+
+// CronWorkflowsMethod defines model for CronWorkflowsMethod.
+type CronWorkflowsMethod string
 
 // CronWorkflowsOrderByField defines model for CronWorkflowsOrderByField.
 type CronWorkflowsOrderByField string
@@ -485,6 +481,13 @@ type EventWorkflowRunSummary struct {
 
 	// Succeeded The number of succeeded runs.
 	Succeeded *int64 `json:"succeeded,omitempty"`
+}
+
+// Events defines model for Events.
+type Events struct {
+	// Events The events.
+	Events   []Event         `json:"events"`
+	Metadata APIResourceMeta `json:"metadata"`
 }
 
 // Job defines model for Job.
@@ -712,14 +715,14 @@ type ScheduledWorkflows struct {
 	WorkflowVersionId    string                   `json:"workflowVersionId"`
 }
 
-// ScheduledWorkflowsMethod defines model for ScheduledWorkflows.Method.
-type ScheduledWorkflowsMethod string
-
 // ScheduledWorkflowsList defines model for ScheduledWorkflowsList.
 type ScheduledWorkflowsList struct {
 	Pagination *PaginationResponse   `json:"pagination,omitempty"`
 	Rows       *[]ScheduledWorkflows `json:"rows,omitempty"`
 }
+
+// ScheduledWorkflowsMethod defines model for ScheduledWorkflowsMethod.
+type ScheduledWorkflowsMethod string
 
 // ScheduledWorkflowsOrderByField defines model for ScheduledWorkflowsOrderByField.
 type ScheduledWorkflowsOrderByField string
@@ -1217,9 +1220,6 @@ type Worker struct {
 // WorkerStatus The status of the worker.
 type WorkerStatus string
 
-// WorkerType defines model for Worker.Type.
-type WorkerType string
-
 // WorkerLabel defines model for WorkerLabel.
 type WorkerLabel struct {
 	// Key The key of the label.
@@ -1248,6 +1248,9 @@ type WorkerRuntimeInfo struct {
 // WorkerRuntimeSDKs defines model for WorkerRuntimeSDKs.
 type WorkerRuntimeSDKs string
 
+// WorkerType defines model for WorkerType.
+type WorkerType string
+
 // Workflow defines model for Workflow.
 type Workflow struct {
 	// Description The description of the workflow.
@@ -1271,17 +1274,12 @@ type Workflow struct {
 // WorkflowConcurrency defines model for WorkflowConcurrency.
 type WorkflowConcurrency struct {
 	// GetConcurrencyGroup An action which gets the concurrency group for the WorkflowRun.
-	GetConcurrencyGroup string `json:"getConcurrencyGroup"`
-
-	// LimitStrategy The strategy to use when the concurrency limit is reached.
-	LimitStrategy WorkflowConcurrencyLimitStrategy `json:"limitStrategy"`
+	GetConcurrencyGroup string                   `json:"getConcurrencyGroup"`
+	LimitStrategy       ConcurrencyLimitStrategy `json:"limitStrategy"`
 
 	// MaxRuns The maximum number of concurrent workflow runs.
 	MaxRuns int32 `json:"maxRuns"`
 }
-
-// WorkflowConcurrencyLimitStrategy The strategy to use when the concurrency limit is reached.
-type WorkflowConcurrencyLimitStrategy string
 
 // WorkflowID A workflow ID.
 type WorkflowID = string
@@ -9229,7 +9227,7 @@ func (r EventCreateResponse) StatusCode() int {
 type EventCreateBulkResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *BulkCreateEventResponse
+	JSON200      *Events
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON429      *APIErrors
@@ -12836,7 +12834,7 @@ func ParseEventCreateBulkResponse(rsp *http.Response) (*EventCreateBulkResponse,
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest BulkCreateEventResponse
+		var dest Events
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
