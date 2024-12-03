@@ -148,7 +148,7 @@ func ToWorkflowVersionConcurrency(concurrency *WorkflowConcurrency) *gen.Workflo
 
 	res := &gen.WorkflowConcurrency{
 		MaxRuns:             concurrency.MaxRuns.Int32,
-		LimitStrategy:       gen.WorkflowConcurrencyLimitStrategy(concurrency.LimitStrategy.ConcurrencyLimitStrategy),
+		LimitStrategy:       gen.ConcurrencyLimitStrategy(concurrency.LimitStrategy.ConcurrencyLimitStrategy),
 		GetConcurrencyGroup: sqlchelpers.UUIDToStr(concurrency.GetConcurrencyGroupId),
 	}
 
