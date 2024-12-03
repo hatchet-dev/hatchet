@@ -89,8 +89,10 @@ func NewAPIRepository(client *db.PrismaClient, pool *pgxpool.Pool, cf *server.Co
 	if opts.cache == nil {
 		opts.cache = cache.New(1 * time.Millisecond)
 	}
+	rlCache := cache.New(5 * time.Minute)
+	queueCache := cache.New(5 * time.Minute)
 
-	srr, cleanupStepRunRepo, err := NewStepRunEngineRepository(pool, opts.v, opts.l, cf, cache.New(5*time.Minute), cache.New(5*time.Minute))
+	srr, cleanupStepRunRepo, err := NewStepRunEngineRepository(pool, opts.v, opts.l, cf, rlCache, queueCache)
 
 	if err != nil {
 		return nil, nil, err
@@ -120,6 +122,10 @@ func NewAPIRepository(client *db.PrismaClient, pool *pgxpool.Pool, cf *server.Co
 			webhookWorker:  NewWebhookWorkerRepository(client, opts.v),
 		}, func() error {
 			err := cleanupStepRunRepo()
+
+			rlCache.Stop()
+			queueCache.Stop()
+
 			if err != nil {
 				return err
 			}

@@ -280,10 +280,6 @@ type stepRunEngineRepository struct {
 
 func (s *stepRunEngineRepository) cleanup() error {
 
-	s.queueActionTenantCache.Stop()
-
-	s.cachedStepIdHasRateLimit.Stop()
-
 	if err := s.bulkStatusBuffer.Cleanup(); err != nil {
 		return err
 	}
