@@ -1041,21 +1041,14 @@ FROM
 -- name: GetWorkflowRunsInsertedInThisTxn :many
 SELECT
     sqlc.embed(runs),
-    sqlc.embed(runTriggers),
-    sqlc.embed(workflowVersion),
-    workflow."name" as "workflowName",
-    -- waiting on https://github.com/sqlc-dev/sqlc/pull/2858 for nullable fields
     wc."limitStrategy" as "concurrencyLimitStrategy",
     wc."maxRuns" as "concurrencyMaxRuns",
-    workflow."isPaused" as "isPaused",
     wc."concurrencyGroupExpression" as "concurrencyGroupExpression",
     groupKeyRun."id" as "getGroupKeyRunId",
     dedupe."value" as "dedupeValue"
 
 FROM
     "WorkflowRun" as runs
-LEFT JOIN
-    "WorkflowRunTriggeredBy" as runTriggers ON runTriggers."parentId" = runs."id"
 LEFT JOIN
     "WorkflowVersion" as workflowVersion ON runs."workflowVersionId" = workflowVersion."id"
 LEFT JOIN

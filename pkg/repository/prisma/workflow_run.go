@@ -2016,22 +2016,6 @@ func shortCircuitWorkflowRun(ctx context.Context, tx pgx.Tx, wr *dbsqlc.GetWorkf
 
 		}
 	}
-	_, err = queries.UpdateWorkflowRun(
-		context.Background(),
-		tx,
-		dbsqlc.UpdateWorkflowRunParams{
-			ID:       wr.WorkflowRun.ID,
-			Tenantid: wr.WorkflowRun.TenantId,
-			Status: dbsqlc.NullWorkflowRunStatus{
-				WorkflowRunStatus: dbsqlc.WorkflowRunStatusRUNNING,
-				Valid:             true,
-			},
-		},
-	)
-
-	if err != nil {
-		return nil, fmt.Errorf("could not update workflow run status: %w", err)
-	}
 
 	return startedStepRunQueueNames, nil
 
@@ -2265,6 +2249,7 @@ func CanShortCircuit(workflowRunRow *dbsqlc.GetWorkflowRunsInsertedInThisTxnRow)
 	return !(workflowRunRow.ConcurrencyLimitStrategy.Valid || workflowRunRow.ConcurrencyGroupExpression.Valid || workflowRunRow.GetGroupKeyRunId.Valid || workflowRunRow.WorkflowRun.ConcurrencyGroupId.Valid || workflowRunRow.DedupeValue.Valid)
 }
 
+// TODO is this the best place for this? Feels like a utils kind of function
 func NotifyQueues(ctx context.Context, mq msgqueue.MessageQueue, l *zerolog.Logger, repo repository.EngineRepository, tenantId string, workflowRun *repository.CreatedWorkflowRun) error {
 	tenant, err := repo.Tenant().GetTenantByID(ctx, tenantId)
 

@@ -2081,21 +2081,14 @@ func (q *Queries) GetWorkflowRunTrigger(ctx context.Context, db DBTX, arg GetWor
 const getWorkflowRunsInsertedInThisTxn = `-- name: GetWorkflowRunsInsertedInThisTxn :many
 SELECT
     runs."createdAt", runs."updatedAt", runs."deletedAt", runs."tenantId", runs."workflowVersionId", runs.status, runs.error, runs."startedAt", runs."finishedAt", runs."concurrencyGroupId", runs."displayName", runs.id, runs."childIndex", runs."childKey", runs."parentId", runs."parentStepRunId", runs."additionalMetadata", runs.duration, runs.priority, runs."insertOrder",
-    runtriggers.id, runtriggers."createdAt", runtriggers."updatedAt", runtriggers."deletedAt", runtriggers."tenantId", runtriggers."eventId", runtriggers."cronParentId", runtriggers."cronSchedule", runtriggers."scheduledId", runtriggers.input, runtriggers."parentId", runtriggers."cronName",
-    workflowversion.id, workflowversion."createdAt", workflowversion."updatedAt", workflowversion."deletedAt", workflowversion.version, workflowversion."order", workflowversion."workflowId", workflowversion.checksum, workflowversion."scheduleTimeout", workflowversion."onFailureJobId", workflowversion.sticky, workflowversion.kind, workflowversion."defaultPriority",
-    workflow."name" as "workflowName",
-    -- waiting on https://github.com/sqlc-dev/sqlc/pull/2858 for nullable fields
     wc."limitStrategy" as "concurrencyLimitStrategy",
     wc."maxRuns" as "concurrencyMaxRuns",
-    workflow."isPaused" as "isPaused",
     wc."concurrencyGroupExpression" as "concurrencyGroupExpression",
     groupKeyRun."id" as "getGroupKeyRunId",
     dedupe."value" as "dedupeValue"
 
 FROM
     "WorkflowRun" as runs
-LEFT JOIN
-    "WorkflowRunTriggeredBy" as runTriggers ON runTriggers."parentId" = runs."id"
 LEFT JOIN
     "WorkflowVersion" as workflowVersion ON runs."workflowVersionId" = workflowVersion."id"
 LEFT JOIN
@@ -2114,12 +2107,8 @@ WHERE
 
 type GetWorkflowRunsInsertedInThisTxnRow struct {
 	WorkflowRun                WorkflowRun                  `json:"workflow_run"`
-	WorkflowRunTriggeredBy     WorkflowRunTriggeredBy       `json:"workflow_run_triggered_by"`
-	WorkflowVersion            WorkflowVersion              `json:"workflow_version"`
-	WorkflowName               pgtype.Text                  `json:"workflowName"`
 	ConcurrencyLimitStrategy   NullConcurrencyLimitStrategy `json:"concurrencyLimitStrategy"`
 	ConcurrencyMaxRuns         pgtype.Int4                  `json:"concurrencyMaxRuns"`
-	IsPaused                   pgtype.Bool                  `json:"isPaused"`
 	ConcurrencyGroupExpression pgtype.Text                  `json:"concurrencyGroupExpression"`
 	GetGroupKeyRunId           pgtype.UUID                  `json:"getGroupKeyRunId"`
 	DedupeValue                pgtype.Text                  `json:"dedupeValue"`
@@ -2155,35 +2144,8 @@ func (q *Queries) GetWorkflowRunsInsertedInThisTxn(ctx context.Context, db DBTX)
 			&i.WorkflowRun.Duration,
 			&i.WorkflowRun.Priority,
 			&i.WorkflowRun.InsertOrder,
-			&i.WorkflowRunTriggeredBy.ID,
-			&i.WorkflowRunTriggeredBy.CreatedAt,
-			&i.WorkflowRunTriggeredBy.UpdatedAt,
-			&i.WorkflowRunTriggeredBy.DeletedAt,
-			&i.WorkflowRunTriggeredBy.TenantId,
-			&i.WorkflowRunTriggeredBy.EventId,
-			&i.WorkflowRunTriggeredBy.CronParentId,
-			&i.WorkflowRunTriggeredBy.CronSchedule,
-			&i.WorkflowRunTriggeredBy.ScheduledId,
-			&i.WorkflowRunTriggeredBy.Input,
-			&i.WorkflowRunTriggeredBy.ParentId,
-			&i.WorkflowRunTriggeredBy.CronName,
-			&i.WorkflowVersion.ID,
-			&i.WorkflowVersion.CreatedAt,
-			&i.WorkflowVersion.UpdatedAt,
-			&i.WorkflowVersion.DeletedAt,
-			&i.WorkflowVersion.Version,
-			&i.WorkflowVersion.Order,
-			&i.WorkflowVersion.WorkflowId,
-			&i.WorkflowVersion.Checksum,
-			&i.WorkflowVersion.ScheduleTimeout,
-			&i.WorkflowVersion.OnFailureJobId,
-			&i.WorkflowVersion.Sticky,
-			&i.WorkflowVersion.Kind,
-			&i.WorkflowVersion.DefaultPriority,
-			&i.WorkflowName,
 			&i.ConcurrencyLimitStrategy,
 			&i.ConcurrencyMaxRuns,
-			&i.IsPaused,
 			&i.ConcurrencyGroupExpression,
 			&i.GetGroupKeyRunId,
 			&i.DedupeValue,
