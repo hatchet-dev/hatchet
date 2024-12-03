@@ -13,9 +13,7 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
-	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
@@ -71,26 +69,6 @@ func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.T
 
 	workflowRunId := sqlchelpers.UUIDToStr(workflowRun.Row.WorkflowRun.ID)
 
-	if !prisma.CanShortCircuit(workflowRun.Row) {
-		// send to workflow processing queue
-		err = a.mq.AddMessage(
-			context.Background(),
-			msgqueue.WORKFLOW_PROCESSING_QUEUE,
-			tasktypes.WorkflowRunQueuedToTask(tenantId, workflowRunId),
-		)
-
-		if err != nil {
-			return nil, fmt.Errorf("could not queue workflow run: %w", err)
-		}
-	}
-
-	// add to the tenant partition queue
-
-	tenant, err = a.repo.Tenant().GetTenantByID(ctx, tenantId)
-	if err != nil {
-		return nil, fmt.Errorf("could not get tenant: %w", err)
-	}
-
 	err = prisma.NotifyQueues(ctx, a.mq, a.l, a.repo, tenantId, workflowRun)
 
 	if err != nil {
@@ -144,17 +122,9 @@ func (a *AdminServiceImpl) BulkTriggerWorkflow(ctx context.Context, req *contrac
 	var workflowRunIds []string
 	for _, workflowRun := range workflowRuns {
 
-		if !prisma.CanShortCircuit(workflowRun.Row) {
-
-			err = a.mq.AddMessage(
-				context.Background(),
-				msgqueue.WORKFLOW_PROCESSING_QUEUE,
-				tasktypes.WorkflowRunQueuedToTask(tenantId, sqlchelpers.UUIDToStr(workflowRun.Row.WorkflowRun.ID)),
-			)
-		}
-
+		err = prisma.NotifyQueues(ctx, a.mq, a.l, a.repo, tenantId, workflowRun)
 		if err != nil {
-			return nil, fmt.Errorf("could not queue workflow run: %w", err)
+			return nil, fmt.Errorf("could not notify queues: %w", err)
 		}
 		workflowRunIds = append(workflowRunIds, sqlchelpers.UUIDToStr(workflowRun.Row.WorkflowRun.ID))
 	}

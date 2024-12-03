@@ -678,6 +678,12 @@ func NewWorkflowRunEngineRepository(stepRunRepository *stepRunEngineRepository, 
 }
 
 func (w *workflowRunEngineRepository) cleanup() error {
+	err := w.stepRunRepository.cleanup()
+
+	if err != nil {
+		return err
+
+	}
 
 	return w.bulkCreateBuffer.Cleanup()
 }
