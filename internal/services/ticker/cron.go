@@ -8,8 +8,6 @@ import (
 
 	"github.com/go-co-op/gocron/v2"
 
-	"github.com/hatchet-dev/hatchet/internal/msgqueue"
-	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
@@ -137,76 +135,10 @@ func (t *TickerImpl) runCronWorkflow(tenantId, workflowVersionId, cron, cronPare
 			return
 		}
 
-		workflowRunId := sqlchelpers.UUIDToStr(workflowRun.Row.WorkflowRun.ID)
+		err = prisma.NotifyQueues(ctx, t.mq, t.l, t.repo, tenantId, workflowRun)
 
-		if !prisma.CanShortCircuit(workflowRun.Row) {
-			err = t.mq.AddMessage(
-				context.Background(),
-				msgqueue.WORKFLOW_PROCESSING_QUEUE,
-				tasktypes.WorkflowRunQueuedToTask(tenantId, workflowRunId),
-			)
-
-			if err != nil {
-				t.l.Err(err).Msg("could not add workflow run queued task")
-				return
-			}
-		} else {
-			// get the tenant
-
-			tenant, err := t.repo.Tenant().GetTenantByID(ctx, tenantId)
-
-			if err != nil {
-				t.l.Err(err).Msg("could not get tenant")
-				return
-			}
-
-			if tenant.ControllerPartitionId.Valid {
-				err = t.mq.AddMessage(
-					ctx,
-					msgqueue.QueueTypeFromPartitionIDAndController(tenant.ControllerPartitionId.String, msgqueue.WorkflowController),
-
-					tasktypes.CheckTenantQueueToTask(tenantId, "", false, false),
-				)
-
-				if err != nil {
-					t.l.Err(err).Msg("could not add message to tenant partition queue")
-				}
-			}
-
-			if !prisma.CanShortCircuit(workflowRun.Row) {
-				workflowRunId := sqlchelpers.UUIDToStr(workflowRun.Row.WorkflowRun.ID)
-
-				// send to workflow processing queue
-				err = t.mq.AddMessage(
-					context.Background(),
-					msgqueue.WORKFLOW_PROCESSING_QUEUE,
-					tasktypes.WorkflowRunQueuedToTask(
-						tenantId,
-						workflowRunId,
-					),
-				)
-
-				if err != nil {
-
-					t.l.Err(err).Msg("could not add workflow run queued task")
-					return
-				}
-			}
-
-			if tenant.SchedulerPartitionId.Valid {
-				for _, queueName := range workflowRun.StepRunQueueNames {
-
-					err = t.mq.AddMessage(
-						ctx,
-						msgqueue.QueueTypeFromPartitionIDAndController(tenant.SchedulerPartitionId.String, msgqueue.Scheduler),
-						tasktypes.CheckTenantQueueToTask(tenantId, queueName, true, false),
-					)
-
-					if err != nil {
-						t.l.Err(err).Msg("could not add message to scheduler partition queue")
-					}
-				}
-			}
+		if err != nil {
+			t.l.Err(err).Msg("could not notify queues")
 		}
 
 	}

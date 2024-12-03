@@ -17,7 +17,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 )
 
 type EventsController interface {
@@ -227,68 +226,8 @@ func (ec *EventsControllerImpl) processEvent(ctx context.Context, tenantId, even
 			if err != nil {
 				return fmt.Errorf("processEvent: could not create workflow run: %w", err)
 			}
-			tenant, err := ec.repo.Tenant().GetTenantByID(ctx, tenantId)
-
-			if err != nil {
-				ec.l.Err(err).Msg("could not add message to tenant partition queue")
-				return fmt.Errorf("could not get tenant: %w", err)
-			}
-
-			if tenant.ControllerPartitionId.Valid {
-				err = ec.mq.AddMessage(
-					ctx,
-					msgqueue.QueueTypeFromPartitionIDAndController(tenant.ControllerPartitionId.String, msgqueue.WorkflowController),
-
-					tasktypes.CheckTenantQueueToTask(tenantId, "", false, false),
-				)
-
-				if err != nil {
-					ec.l.Err(err).Msg("could not add message to tenant partition queue")
-				}
-			}
-
-			if !prisma.CanShortCircuit(workflowRun.Row) {
-				workflowRunId := sqlchelpers.UUIDToStr(workflowRun.Row.WorkflowRun.ID)
-
-				// send to workflow processing queue
-				err = ec.mq.AddMessage(
-					context.Background(),
-					msgqueue.WORKFLOW_PROCESSING_QUEUE,
-					tasktypes.WorkflowRunQueuedToTask(
-						tenantId,
-						workflowRunId,
-					),
-				)
-			}
-
-			if tenant.SchedulerPartitionId.Valid {
-				for _, queueName := range workflowRun.StepRunQueueNames {
-
-					err = ec.mq.AddMessage(
-						ctx,
-						msgqueue.QueueTypeFromPartitionIDAndController(tenant.SchedulerPartitionId.String, msgqueue.Scheduler),
-						tasktypes.CheckTenantQueueToTask(tenantId, queueName, true, false),
-					)
-
-					if err != nil {
-						ec.l.Err(err).Msg("could not add message to scheduler partition queue")
-					}
-				}
-			}
-
-			if !prisma.CanShortCircuit(workflowRun.Row) {
-				workflowRunId := sqlchelpers.UUIDToStr(workflowRun.Row.WorkflowRun.ID)
-
-				// send to workflow processing queue
-				err = ec.mq.AddMessage(
-					ctx,
-					msgqueue.WORKFLOW_PROCESSING_QUEUE,
-					tasktypes.WorkflowRunQueuedToTask(
-						tenantId,
-						workflowRunId,
-					),
-				)
-			}
+			// send to workflow processing queue
+			err = prisma.NotifyQueues(ctx, ec.mq, ec.l, ec.repo, tenantId, workflowRun)
 			if err != nil {
 				return fmt.Errorf("could not add workflow run queued task: %w", err)
 			}

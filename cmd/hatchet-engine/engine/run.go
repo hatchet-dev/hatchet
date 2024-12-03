@@ -370,6 +370,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			admin.WithRepository(sc.EngineRepository),
 			admin.WithMessageQueue(sc.MessageQueue),
 			admin.WithEntitlementsRepository(sc.EntitlementRepository),
+			admin.WithLogger(sc.Logger),
 		)
 		if err != nil {
 			return nil, fmt.Errorf("could not create admin service: %w", err)
@@ -730,6 +731,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			admin.WithRepository(sc.EngineRepository),
 			admin.WithMessageQueue(sc.MessageQueue),
 			admin.WithEntitlementsRepository(sc.EntitlementRepository),
+			admin.WithLogger(sc.Logger),
 		)
 
 		if err != nil {

@@ -91,31 +91,10 @@ func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.T
 		return nil, fmt.Errorf("could not get tenant: %w", err)
 	}
 
-	if tenant.ControllerPartitionId.Valid {
-		err = a.mq.AddMessage(
-			ctx,
-			msgqueue.QueueTypeFromPartitionIDAndController(tenant.ControllerPartitionId.String, msgqueue.WorkflowController),
-			tasktypes.CheckTenantQueueToTask(tenantId, "", false, false),
-		)
+	err = prisma.NotifyQueues(ctx, a.mq, a.l, a.repo, tenantId, workflowRun)
 
-		if err != nil {
-			return nil, fmt.Errorf("could not add message to tenant partition queue: %w", err)
-		}
-	}
-
-	for _, queueName := range workflowRun.StepRunQueueNames {
-
-		if tenant.SchedulerPartitionId.Valid {
-			err = a.mq.AddMessage(
-				ctx,
-				msgqueue.QueueTypeFromPartitionIDAndController(tenant.SchedulerPartitionId.String, msgqueue.Scheduler),
-				tasktypes.CheckTenantQueueToTask(tenantId, queueName, true, false),
-			)
-
-			if err != nil {
-				return nil, fmt.Errorf("could not add message to scheduler partition queue: %w", err)
-			}
-		}
+	if err != nil {
+		return nil, fmt.Errorf("could not notify queues: %w", err)
 	}
 
 	return &contracts.TriggerWorkflowResponse{

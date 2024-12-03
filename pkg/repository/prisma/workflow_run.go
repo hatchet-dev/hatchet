@@ -18,7 +18,9 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/cel"
 	"github.com/hatchet-dev/hatchet/internal/datautils"
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/defaults"
+	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
@@ -2255,4 +2257,58 @@ func bulkWorkflowRunEvents(
 func CanShortCircuit(workflowRunRow *dbsqlc.GetWorkflowRunsInsertedInThisTxnRow) bool {
 
 	return !(workflowRunRow.ConcurrencyLimitStrategy.Valid || workflowRunRow.ConcurrencyGroupExpression.Valid || workflowRunRow.GetGroupKeyRunId.Valid || workflowRunRow.WorkflowRun.ConcurrencyGroupId.Valid || workflowRunRow.DedupeValue.Valid)
+}
+
+func NotifyQueues(ctx context.Context, mq msgqueue.MessageQueue, l *zerolog.Logger, repo repository.EngineRepository, tenantId string, workflowRun *repository.CreatedWorkflowRun) error {
+	tenant, err := repo.Tenant().GetTenantByID(ctx, tenantId)
+
+	if err != nil {
+		l.Err(err).Msg("could not add message to tenant partition queue")
+		return fmt.Errorf("could not get tenant: %w", err)
+	}
+
+	if tenant.ControllerPartitionId.Valid {
+		err = mq.AddMessage(
+			ctx,
+			msgqueue.QueueTypeFromPartitionIDAndController(tenant.ControllerPartitionId.String, msgqueue.WorkflowController),
+
+			tasktypes.CheckTenantQueueToTask(tenantId, "", false, false),
+		)
+
+		if err != nil {
+			l.Err(err).Msg("could not add message to tenant partition queue")
+		}
+	}
+
+	if !CanShortCircuit(workflowRun.Row) {
+		workflowRunId := sqlchelpers.UUIDToStr(workflowRun.Row.WorkflowRun.ID)
+
+		err = mq.AddMessage(
+			ctx,
+			msgqueue.WORKFLOW_PROCESSING_QUEUE,
+			tasktypes.WorkflowRunQueuedToTask(
+				tenantId,
+				workflowRunId,
+			),
+		)
+		if err != nil {
+			return fmt.Errorf("could not add workflow run queued task: %w", err)
+		}
+	} else if tenant.SchedulerPartitionId.Valid {
+
+		for _, queueName := range workflowRun.StepRunQueueNames {
+
+			err = mq.AddMessage(
+				ctx,
+				msgqueue.QueueTypeFromPartitionIDAndController(tenant.SchedulerPartitionId.String, msgqueue.Scheduler),
+				tasktypes.CheckTenantQueueToTask(tenantId, queueName, true, false),
+			)
+
+			if err != nil {
+				l.Err(err).Msg("could not add message to scheduler partition queue")
+			}
+		}
+	}
+
+	return nil
 }
