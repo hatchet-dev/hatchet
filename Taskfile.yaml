@@ -116,7 +116,7 @@ tasks:
     cmds:
       - sh ./hack/dev/generate-local-encryption-keys.sh ./hack/dev/encryption-keys
   init-dev-env:
-      - sh ./hack/dev/init-dev-token-and-env.sh
+    - sh ./hack/dev/init-dev-token-and-env.sh
   generate-dev-api-token:
     cmds:
       - sh ./hack/dev/generate-dev-api-token.sh
@@ -167,7 +167,7 @@ tasks:
       - mkdir -p ./python-sdk/certs/ && cp ./hack/dev/certs/ca.cert ./python-sdk/certs/
   pre-commit-install:
     cmds:
-      - pip install pre-commit
+      - brew install pre-commit
       - pre-commit install
   pre-commit-run:
     deps:
