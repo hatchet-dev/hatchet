@@ -108,17 +108,15 @@ func main() {
 // !!
 
 func ListScheduledWorkflows() {
-	// ❓ List
-	// ... initialize client
-
 	c, err := client.New()
 
 	if err != nil {
 		panic(err)
 	}
 
-	// ,
+	// ❓ List
 	schedules, err := c.Schedule().List(context.Background())
+	// !!
 
 	if err != nil {
 		panic(err)
@@ -127,25 +125,21 @@ func ListScheduledWorkflows() {
 	for _, schedule := range *schedules.Rows {
 		fmt.Println(schedule.TriggerAt, schedule.WorkflowName)
 	}
-	// !!
 }
 
 func DeleteScheduledWorkflow(id string) {
-	// ❓ Delete
-	// ... initialize client
-
 	c, err := client.New()
 
 	if err != nil {
 		panic(err)
 	}
 
-	// ,
+	// ❓ Delete
 	// 👀 id is the schedule's metadata id, can get it via schedule.Metadata.Id
 	err = c.Schedule().Delete(context.Background(), id)
+	// !!
 
 	if err != nil {
 		panic(err)
 	}
-	// !!
 }
