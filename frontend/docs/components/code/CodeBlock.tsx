@@ -76,7 +76,7 @@ export const CodeBlock = ({ source, target }: CodeRendererProps) => {
           </Button>
         </div>
       </div>
-      <div className="overflow-x-auto">
+      <div>
         {!plainText && (
           <CodeStyleRender
             parsed={parsed}

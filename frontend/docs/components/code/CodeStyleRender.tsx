@@ -5,8 +5,8 @@ import React, { useEffect, useState, useMemo } from "react";
 import { codeToHtml } from "shiki";
 
 interface CodeStyleRenderProps {
-  parsed: string
-  language: string
+  parsed: string;
+  language: string;
 }
 
 const CodeStyleRender = ({ parsed, language }: CodeStyleRenderProps) => {
@@ -14,25 +14,27 @@ const CodeStyleRender = ({ parsed, language }: CodeStyleRenderProps) => {
   const theme = useTheme();
 
   const themeName = useMemo(() => {
-    return theme.resolvedTheme === "dark" ? "github-dark" : "github-light"
-  }, [theme.resolvedTheme])
+    return theme.resolvedTheme === "dark" ? "github-dark" : "github-light";
+  }, [theme.resolvedTheme]);
 
   useEffect(() => {
     const asyncHighlight = async () => {
-        const highlightedHtml = await codeToHtml(parsed, {
-            lang: language.toLowerCase(),
-            theme: themeName,
-        });
+      const highlightedHtml = await codeToHtml(parsed, {
+        lang: language.toLowerCase(),
+        theme: themeName,
+      });
 
-        setHtml(highlightedHtml);
-    }
+      setHtml(highlightedHtml);
+    };
 
     asyncHighlight();
   }, [parsed, language, themeName]);
 
-  return <>
-    <div dangerouslySetInnerHTML={{ __html: html }}></div>
-  </>
+  return (
+    <>
+      <div dangerouslySetInnerHTML={{ __html: html }}></div>
+    </>
+  );
 };
 
 export default CodeStyleRender;
