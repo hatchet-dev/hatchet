@@ -167,10 +167,8 @@ tasks:
       - mkdir -p ./python-sdk/certs/ && cp ./hack/dev/certs/ca.cert ./python-sdk/certs/
   pre-commit-install:
     cmds:
-      - brew install pre-commit
+      - pip install pre-commit # can use brew install pre-commit if you are on macOS
       - pre-commit install
   pre-commit-run:
-    deps:
-      - pre-commit-install
     cmds:
       - pre-commit run --all-files || pre-commit run --all-files
