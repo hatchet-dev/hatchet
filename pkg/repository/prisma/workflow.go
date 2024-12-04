@@ -1111,10 +1111,6 @@ func (r *workflowEngineRepository) createWorkflowVersionTxs(ctx context.Context,
 	}
 
 	if oldWorkflowVersion != nil {
-
-		fmt.Println("oldWorkflowVersion", sqlchelpers.UUIDToStr(oldWorkflowVersion.WorkflowVersion.ID))
-		fmt.Println("sqlcWorkflowTriggers", sqlchelpers.UUIDToStr(sqlcWorkflowTriggers.ID))
-
 		// move existing api crons to the new workflow version
 		err = r.queries.MoveCronTriggerToNewWorkflowTriggers(ctx, tx, dbsqlc.MoveCronTriggerToNewWorkflowTriggersParams{
 			Oldworkflowversionid: oldWorkflowVersion.WorkflowVersion.ID,

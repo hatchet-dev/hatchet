@@ -827,10 +827,9 @@ workflowWorkersCount:
     tags:
       - Workflow
 
-
 scheduledCreate:
   post:
-    x-resources: ["tenant", "workflow"]
+    x-resources: ["tenant"]
     description: Schedule a new workflow run for a tenant
     operationId: scheduled-workflow-run:create
     parameters:
@@ -1024,30 +1023,30 @@ scheduled:
           minLength: 36
           maxLength: 36
     responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: "../../components/schemas/_index.yaml#/ScheduledWorkflows"
-          description: Successfully retrieved the workflow runs
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: "../../components/schemas/_index.yaml#/APIErrors"
-          description: A malformed or bad request
-        "403":
-          content:
-            application/json:
-              schema:
-                $ref: "../../components/schemas/_index.yaml#/APIErrors"
-          description: Forbidden
-        "404":
-          content:
-            application/json:
-              schema:
-                $ref: "../../components/schemas/_index.yaml#/APIErrors"
-          description: Forbidden
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/ScheduledWorkflows"
+        description: Successfully retrieved the workflow runs
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+      "404":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
     summary: Get scheduled workflow run
     tags:
       - Workflow
@@ -1118,30 +1117,30 @@ crons:
           minLength: 36
           maxLength: 36
     responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: "../../components/schemas/_index.yaml#/CronWorkflows"
-          description: Successfully retrieved the workflow runs
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: "../../components/schemas/_index.yaml#/APIErrors"
-          description: A malformed or bad request
-        "403":
-          content:
-            application/json:
-              schema:
-                $ref: "../../components/schemas/_index.yaml#/APIErrors"
-          description: Forbidden
-        "404":
-          content:
-            application/json:
-              schema:
-                $ref: "../../components/schemas/_index.yaml#/APIErrors"
-          description: Forbidden
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/CronWorkflows"
+        description: Successfully retrieved the workflow runs
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+      "404":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
     summary: Get cron job workflow run
     tags:
       - Workflow

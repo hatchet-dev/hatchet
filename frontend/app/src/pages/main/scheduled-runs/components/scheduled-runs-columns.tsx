@@ -48,7 +48,7 @@ export const columns = ({
         <DataTableColumnHeader column={column} title="Trigger At" />
       ),
       cell: ({ row }) => (
-        <div className="flex flex-row items-center gap-4 pl-4">
+        <div className="flex flex-row items-center gap-4">
           <RelativeDate date={row.original.triggerAt} />
         </div>
       ),
@@ -59,7 +59,7 @@ export const columns = ({
         <DataTableColumnHeader column={column} title="Workflow" />
       ),
       cell: ({ row }) => (
-        <div className="flex flex-row items-center gap-4 pl-4">
+        <div className="flex flex-row items-center gap-4">
           <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">
             <a href={`/workflows/${row.original.workflowId}`}>
               {row.original.workflowName}
@@ -92,7 +92,7 @@ export const columns = ({
         <DataTableColumnHeader column={column} title="Created At" />
       ),
       cell: ({ row }) => (
-        <div className="flex flex-row items-center gap-4 pl-4">
+        <div className="flex flex-row items-center gap-4">
           <RelativeDate date={row.original.metadata.createdAt} />
         </div>
       ),

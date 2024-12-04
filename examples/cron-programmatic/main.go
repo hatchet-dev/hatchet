@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/joho/godotenv"
 
@@ -50,8 +49,8 @@ func main() {
 	err = w.RegisterWorkflow(
 		&worker.WorkflowJob{
 			On:          worker.NoTrigger(),
-			Name:        "schedule-workflow",
-			Description: "Demonstrates a simple scheduled workflow",
+			Name:        "cron-workflow",
+			Description: "Demonstrates a simple cron workflow",
 			Steps: []*worker.WorkflowStep{
 				worker.Fn(print),
 			},
@@ -73,13 +72,13 @@ func main() {
 	// ,
 
 	go func() {
-		// 👀 define the scheduled workflow to run in a minute
-		schedule, err := c.Schedule().Create(
+		// 👀 define the cron expression to run every minute
+		cron, err := c.Cron().Create(
 			context.Background(),
-			"schedule-workflow",
-			&client.ScheduleOpts{
-				// 👀 define the time to run the scheduled workflow, in UTC
-				TriggerAt: time.Now().UTC().Add(time.Minute),
+			"cron-workflow",
+			&client.CronOpts{
+				Name:       "every-minute",
+				Expression: "* * * * *",
 				Input: map[string]interface{}{
 					"message": "Hello, world!",
 				},
@@ -91,7 +90,7 @@ func main() {
 			panic(err)
 		}
 
-		fmt.Println(schedule.TriggerAt, schedule.WorkflowName)
+		fmt.Println(*cron.Name, cron.Cron)
 	}()
 
 	// ... wait for interrupt signal
@@ -107,7 +106,8 @@ func main() {
 
 // !!
 
-func ListScheduledWorkflows() {
+func ListCrons() {
+
 	c, err := client.New()
 
 	if err != nil {
@@ -115,19 +115,19 @@ func ListScheduledWorkflows() {
 	}
 
 	// ❓ List
-	schedules, err := c.Schedule().List(context.Background())
+	crons, err := c.Cron().List(context.Background())
 	// !!
 
 	if err != nil {
 		panic(err)
 	}
 
-	for _, schedule := range *schedules.Rows {
-		fmt.Println(schedule.TriggerAt, schedule.WorkflowName)
+	for _, cron := range *crons.Rows {
+		fmt.Println(cron.Cron, *cron.Name)
 	}
 }
 
-func DeleteScheduledWorkflow(id string) {
+func DeleteCron(id string) {
 	c, err := client.New()
 
 	if err != nil {
@@ -135,11 +135,12 @@ func DeleteScheduledWorkflow(id string) {
 	}
 
 	// ❓ Delete
-	// 👀 id is the schedule's metadata id, can get it via schedule.Metadata.Id
-	err = c.Schedule().Delete(context.Background(), id)
+	// 👀 id is the cron's metadata id, can get it via cron.Metadata.Id
+	err = c.Cron().Delete(context.Background(), id)
 	// !!
 
 	if err != nil {
 		panic(err)
 	}
+
 }
