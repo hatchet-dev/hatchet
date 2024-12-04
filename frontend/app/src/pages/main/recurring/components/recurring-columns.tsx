@@ -20,7 +20,7 @@ export const columns = ({
         <DataTableColumnHeader column={column} title="Cron" />
       ),
       cell: ({ row }) => (
-        <div className="flex flex-row items-center gap-4 pl-4 whitespace-nowrap">
+        <div className="flex flex-row items-center gap-4 whitespace-nowrap">
           {row.original.cron}
         </div>
       ),
@@ -29,11 +29,11 @@ export const columns = ({
     {
       accessorKey: 'readable',
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title="Readable" />
+        <DataTableColumnHeader column={column} title="Description" />
       ),
       cell: ({ row }) => (
-        <div className="flex flex-row items-center gap-4 pl-4">
-          runs {CronPrettifier.toString(row.original.cron).toLowerCase()} UTC
+        <div className="flex flex-row items-center gap-4">
+          Runs {CronPrettifier.toString(row.original.cron).toLowerCase()} UTC
         </div>
       ),
       enableSorting: false,
@@ -59,7 +59,7 @@ export const columns = ({
         <DataTableColumnHeader column={column} title="Workflow" />
       ),
       cell: ({ row }) => (
-        <div className="flex flex-row items-center gap-4 pl-4">
+        <div className="flex flex-row items-center gap-4">
           <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">
             <Link to={`/workflows/${row.original.workflowId}`}>
               {row.original.workflowName}
@@ -92,7 +92,7 @@ export const columns = ({
         <DataTableColumnHeader column={column} title="Created At" />
       ),
       cell: ({ row }) => (
-        <div className="flex flex-row items-center gap-4 pl-4">
+        <div className="flex flex-row items-center gap-4">
           <RelativeDate date={row.original.metadata.createdAt} />
         </div>
       ),
@@ -128,7 +128,7 @@ export const columns = ({
                 onClick: () => onDeleteClick(row.original),
                 disabled:
                   row.original.method !== 'API'
-                    ? 'Cannot delete recurring workflow created via workflow code definition'
+                    ? 'This cron was created via the workflow code definition. Delete it from the workflow definition instead.'
                     : undefined,
               },
             ]}

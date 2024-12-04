@@ -38,6 +38,7 @@ jobs:
       - name: Generate
         run: |
           sh ./hack/db/atlas-apply.sh
+          task pre-commit-install
           task generate-all
 
       - name: Check for diff
