@@ -113,7 +113,6 @@ func (j *jobRunEngineRepository) SetJobRunStatusRunning(ctx context.Context, ten
 		return err
 	}
 
-	// TODO check if we do this before or after the callbacks
 	err = commit(ctx)
 	if err != nil {
 		return err
