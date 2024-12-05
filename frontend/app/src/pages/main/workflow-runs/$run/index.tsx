@@ -136,7 +136,11 @@ export default function ExpandedWorkflowRun() {
             <CodeHighlighter
               className="my-4"
               language="json"
-              code={JSON.stringify(shape.data?.additionalMetadata, null, 2)}
+              code={JSON.stringify(
+                shape.data?.additionalMetadata || {},
+                null,
+                2,
+              )}
             />
           </TabsContent>
         </Tabs>
