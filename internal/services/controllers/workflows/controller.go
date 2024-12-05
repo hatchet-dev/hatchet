@@ -740,15 +740,7 @@ func (wc *WorkflowsControllerImpl) unpauseWorkflowRuns(ctx context.Context, tena
 	dbCtx, cancel := context.WithTimeout(ctx, 300*time.Second)
 	defer cancel()
 
-	tx, commit, rollback, err := wc.repo.WorkflowRun().StartTransaction(dbCtx, wc.l, 300000)
-
-	if err != nil {
-		return false, fmt.Errorf("could not start transaction: %w", err)
-	}
-
-	defer rollback()
-
-	toQueue, res, err := wc.repo.WorkflowRun().ProcessUnpausedWorkflowRunsWithTx(dbCtx, tx, tenantId)
+	toQueue, res, err := wc.repo.WorkflowRun().ProcessUnpausedWorkflowRuns(dbCtx, tenantId)
 
 	if err != nil {
 		return false, fmt.Errorf("could not process unpaused workflow runs: %w", err)
@@ -764,7 +756,8 @@ func (wc *WorkflowsControllerImpl) unpauseWorkflowRuns(ctx context.Context, tena
 				workflowRunId := sqlchelpers.UUIDToStr(row.WorkflowRun.ID)
 
 				wc.l.Info().Msgf("popped workflow run %s", workflowRunId)
-				workflowRun, err := wc.repo.WorkflowRun().GetWorkflowRunByIdWithTx(ctx, tx, tenantId, workflowRunId)
+
+				workflowRun, err := wc.repo.WorkflowRun().GetWorkflowRunById(ctx, tenantId, workflowRunId)
 
 				if err != nil {
 					return fmt.Errorf("could not get workflow run: %w", err)
@@ -772,17 +765,31 @@ func (wc *WorkflowsControllerImpl) unpauseWorkflowRuns(ctx context.Context, tena
 
 				isPaused := workflowRun.IsPaused.Valid && workflowRun.IsPaused.Bool
 
-				return wc.queueWorkflowRunJobs(ctx, tx, workflowRun, isPaused)
+				tx, commit, rollback, err := wc.repo.WorkflowRun().StartTransaction(dbCtx, wc.l, 300000)
+
+				if err != nil {
+					return fmt.Errorf("could not start transaction: %w", err)
+				}
+
+				defer rollback()
+
+				err = wc.queueWorkflowRunJobs(ctx, tx, workflowRun, isPaused)
+
+				if err != nil {
+					return fmt.Errorf("could not queue workflow run jobs: %w", err)
+				}
+
+				if err := commit(dbCtx); err != nil {
+					return fmt.Errorf("could not commit transaction: %w", err)
+				}
+
+				return nil
 			})
 		}
 
 		if err := errGroup.Wait(); err != nil {
 			return false, fmt.Errorf("could not queue workflow runs: %w", err)
 		}
-	}
-
-	if err := commit(dbCtx); err != nil {
-		return false, fmt.Errorf("could not commit transaction: %w", err)
 	}
 
 	return res, nil
