@@ -98,7 +98,33 @@ func (j *jobRunEngineRepository) RegisterWorkflowRunRunningCallback(callback rep
 }
 
 func (j *jobRunEngineRepository) SetJobRunStatusRunning(ctx context.Context, tenantId, jobRunId string) error {
-	wrId, err := setJobRunStatusRunning(ctx, j.pool, j.queries, j.l, tenantId, jobRunId)
+
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, j.pool, j.l, 5000)
+
+	if err != nil {
+		return err
+	}
+
+	defer rollback()
+
+	err = j.SetJobRunStatusRunningWithTx(ctx, tx, tenantId, jobRunId)
+
+	if err != nil {
+		return err
+	}
+
+	// TODO check if we do this before or after the callbacks
+	err = commit(ctx)
+	if err != nil {
+		return err
+
+	}
+
+	return nil
+}
+
+func (j *jobRunEngineRepository) SetJobRunStatusRunningWithTx(ctx context.Context, tx dbsqlc.DBTX, tenantId, jobRunId string) error {
+	wrId, err := setJobRunStatusRunning(ctx, tx, j.queries, j.l, tenantId, jobRunId)
 
 	if err != nil {
 		return err
@@ -110,9 +136,12 @@ func (j *jobRunEngineRepository) SetJobRunStatusRunning(ctx context.Context, ten
 
 	return nil
 }
-
 func (j *jobRunEngineRepository) ListJobRunsForWorkflowRun(ctx context.Context, tenantId, workflowRunId string) ([]*dbsqlc.ListJobRunsForWorkflowRunRow, error) {
 	return j.queries.ListJobRunsForWorkflowRun(ctx, j.pool, sqlchelpers.UUIDFromStr(workflowRunId))
+}
+
+func (j *jobRunEngineRepository) ListJobRunsForWorkflowRunWithTx(ctx context.Context, tx dbsqlc.DBTX, tenantId, workflowRunId string) ([]*dbsqlc.ListJobRunsForWorkflowRunRow, error) {
+	return j.queries.ListJobRunsForWorkflowRun(ctx, tx, sqlchelpers.UUIDFromStr(workflowRunId))
 }
 
 func (j *jobRunEngineRepository) GetJobRunByWorkflowRunIdAndJobId(ctx context.Context, tenantId, workflowRunId, jobId string) (*dbsqlc.GetJobRunByWorkflowRunIdAndJobIdRow, error) {
@@ -130,14 +159,7 @@ func (j *jobRunEngineRepository) GetJobRunsByWorkflowRunId(ctx context.Context, 
 	})
 }
 
-func setJobRunStatusRunning(ctx context.Context, pool *pgxpool.Pool, queries *dbsqlc.Queries, l *zerolog.Logger, tenantId, jobRunId string) (*pgtype.UUID, error) {
-	tx, err := pool.Begin(ctx)
-
-	if err != nil {
-		return nil, err
-	}
-
-	defer sqlchelpers.DeferRollback(context.Background(), l, tx.Rollback)
+func setJobRunStatusRunning(ctx context.Context, tx dbsqlc.DBTX, queries *dbsqlc.Queries, l *zerolog.Logger, tenantId, jobRunId string) (*pgtype.UUID, error) {
 
 	jobRun, err := queries.UpdateJobRunStatus(context.Background(), tx, dbsqlc.UpdateJobRunStatusParams{
 		ID:       sqlchelpers.UUIDFromStr(jobRunId),
@@ -163,10 +185,6 @@ func setJobRunStatusRunning(ctx context.Context, pool *pgxpool.Pool, queries *db
 	)
 
 	if err != nil {
-		return nil, err
-	}
-
-	if err := tx.Commit(context.Background()); err != nil {
 		return nil, err
 	}
 

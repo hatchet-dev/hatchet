@@ -657,7 +657,24 @@ func (wc *WorkflowsControllerImpl) cancelGetGroupKeyRun(ctx context.Context, ten
 		return fmt.Errorf("could not get workflow run: %w", err)
 	}
 
-	return wc.cancelWorkflowRunJobs(ctx, workflowRun, "")
+	tx, commit, rolloback, err := wc.repo.WorkflowRun().StartTransaction(ctx, wc.l, 15000)
+	if err != nil {
+		return fmt.Errorf("could not start transaction: %w", err)
+	}
+
+	defer rolloback()
+
+	err = wc.cancelWorkflowRunJobs(ctx, tx, workflowRun, "")
+
+	if err != nil {
+		return fmt.Errorf("could not cancel workflow run jobs: %w", err)
+	}
+
+	if err := commit(ctx); err != nil {
+		return fmt.Errorf("could not commit transaction: %w", err)
+	}
+
+	return nil
 }
 
 func (wc *WorkflowsControllerImpl) runTenantProcessWorkflowRunEvents(ctx context.Context) func() {
@@ -723,7 +740,15 @@ func (wc *WorkflowsControllerImpl) unpauseWorkflowRuns(ctx context.Context, tena
 	dbCtx, cancel := context.WithTimeout(ctx, 300*time.Second)
 	defer cancel()
 
-	toQueue, res, err := wc.repo.WorkflowRun().ProcessUnpausedWorkflowRuns(dbCtx, tenantId)
+	tx, commit, rollback, err := wc.repo.WorkflowRun().StartTransaction(dbCtx, wc.l, 300000)
+
+	if err != nil {
+		return false, fmt.Errorf("could not start transaction: %w", err)
+	}
+
+	defer rollback()
+
+	toQueue, res, err := wc.repo.WorkflowRun().ProcessUnpausedWorkflowRunsWithTx(dbCtx, tx, tenantId)
 
 	if err != nil {
 		return false, fmt.Errorf("could not process unpaused workflow runs: %w", err)
@@ -739,7 +764,7 @@ func (wc *WorkflowsControllerImpl) unpauseWorkflowRuns(ctx context.Context, tena
 				workflowRunId := sqlchelpers.UUIDToStr(row.WorkflowRun.ID)
 
 				wc.l.Info().Msgf("popped workflow run %s", workflowRunId)
-				workflowRun, err := wc.repo.WorkflowRun().GetWorkflowRunById(ctx, tenantId, workflowRunId)
+				workflowRun, err := wc.repo.WorkflowRun().GetWorkflowRunByIdWithTx(ctx, tx, tenantId, workflowRunId)
 
 				if err != nil {
 					return fmt.Errorf("could not get workflow run: %w", err)
@@ -747,7 +772,7 @@ func (wc *WorkflowsControllerImpl) unpauseWorkflowRuns(ctx context.Context, tena
 
 				isPaused := workflowRun.IsPaused.Valid && workflowRun.IsPaused.Bool
 
-				return wc.queueWorkflowRunJobs(ctx, workflowRun, isPaused)
+				return wc.queueWorkflowRunJobs(ctx, tx, workflowRun, isPaused)
 			})
 		}
 
@@ -756,13 +781,17 @@ func (wc *WorkflowsControllerImpl) unpauseWorkflowRuns(ctx context.Context, tena
 		}
 	}
 
+	if err := commit(dbCtx); err != nil {
+		return false, fmt.Errorf("could not commit transaction: %w", err)
+	}
+
 	return res, nil
 }
 
-func (wc *WorkflowsControllerImpl) startManyJobRuns(ctx context.Context, tenantId string, jobRunIds []string) error {
+func (wc *WorkflowsControllerImpl) startManyJobRuns(ctx context.Context, tx dbsqlc.DBTX, tenantId string, jobRunIds []string) error {
 	return queueutils.BatchConcurrent(50, jobRunIds, func(group []string) error {
 		for i := range group {
-			err := wc.startJobRun(ctx, tenantId, group[i])
+			err := wc.startJobRun(ctx, tx, tenantId, group[i])
 
 			if err != nil {
 				return err
@@ -773,18 +802,18 @@ func (wc *WorkflowsControllerImpl) startManyJobRuns(ctx context.Context, tenantI
 	})
 }
 
-func (wc *WorkflowsControllerImpl) startJobRun(ctx context.Context, tenantId, jobRunId string) error {
+func (wc *WorkflowsControllerImpl) startJobRun(ctx context.Context, tx dbsqlc.DBTX, tenantId, jobRunId string) error {
 	ctx, span := telemetry.NewSpan(ctx, "handle-start-job-run")
 	defer span.End()
 
-	err := wc.repo.JobRun().SetJobRunStatusRunning(ctx, tenantId, jobRunId)
+	err := wc.repo.JobRun().SetJobRunStatusRunningWithTx(ctx, tx, tenantId, jobRunId)
 
 	if err != nil {
 		return fmt.Errorf("could not set job run status to running: %w", err)
 	}
 
 	// list the step runs which are startable
-	startableStepRuns, err := wc.repo.StepRun().ListInitialStepRunsForJobRun(ctx, tenantId, jobRunId)
+	startableStepRuns, err := wc.repo.StepRun().ListInitialStepRunsForJobRunWithTx(ctx, tx, tenantId, jobRunId)
 
 	if err != nil {
 		return fmt.Errorf("could not list startable step runs: %w", err)
