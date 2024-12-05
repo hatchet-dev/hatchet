@@ -738,55 +738,52 @@ func (wc *WorkflowsControllerImpl) queueByCancelInProgress(ctx context.Context, 
 	// Calculate how many runs we need to cancel
 	toCancel := max(0, runningCount+queuedCount-maxRuns)
 
-	errGroup := new(errgroup.Group)
-
 	// Cancel the oldest running workflows
 	for i := 0; i < toCancel && i < runningCount; i++ {
 		row := runningWorkflowRuns.Rows[i]
 		workflowRunId := sqlchelpers.UUIDToStr(row.WorkflowRun.ID)
 
-		errGroup.Go(func() error {
-			return wc.cancelWorkflowRun(ctx, tenantId, workflowRunId)
-		})
+		err = wc.cancelWorkflowRun(ctx, tenantId, workflowRunId)
 
-		errGroup.Go(func() error {
-			workflowRun, err := wc.repo.WorkflowRun().GetWorkflowRunByIdWithTx(ctx, tx, tenantId, workflowRunId)
-			if err != nil {
-				return err
-			}
-			return wc.cancelWorkflowRunJobs(ctx, tx, workflowRun, "CANCEL_IN_PROGRESS")
-		})
-	}
+		if err != nil {
+			return fmt.Errorf("could not cancel workflow run: %w", err)
+		}
 
-	if err := errGroup.Wait(); err != nil {
-		return fmt.Errorf("could not cancel workflow runs: %w", err)
+		workflowRun, err := wc.repo.WorkflowRun().GetWorkflowRunByIdWithTx(ctx, tx, tenantId, workflowRunId)
+		if err != nil {
+			return err
+		}
+		err = wc.cancelWorkflowRunJobs(ctx, tx, workflowRun, "CANCEL_IN_PROGRESS")
+
+		if err != nil {
+			return fmt.Errorf("could not cancel workflow run jobs: %w", err)
+		}
+
 	}
 
 	// Queue new runs
 	toQueue := min(maxRuns-(runningCount-toCancel), queuedCount)
-	errGroup = new(errgroup.Group)
 
 	for i := 0; i < toQueue; i++ {
 		row := queuedWorkflowRuns.Rows[i]
 		workflowRunId := sqlchelpers.UUIDToStr(row.WorkflowRun.ID)
 
-		errGroup.Go(func() error {
-			workflowRun, err := wc.repo.WorkflowRun().GetWorkflowRunByIdWithTx(ctx, tx, tenantId, workflowRunId)
-			if err != nil {
-				return fmt.Errorf("could not get workflow run: %w", err)
-			}
+		workflowRun, err := wc.repo.WorkflowRun().GetWorkflowRunByIdWithTx(ctx, tx, tenantId, workflowRunId)
+		if err != nil {
+			return fmt.Errorf("could not get workflow run: %w", err)
+		}
 
-			isPaused := workflowRun.IsPaused.Valid && workflowRun.IsPaused.Bool
-			if isPaused {
-				return nil
-			}
+		isPaused := workflowRun.IsPaused.Valid && workflowRun.IsPaused.Bool
+		if isPaused {
+			return nil
+		}
 
-			return wc.queueWorkflowRunJobs(ctx, tx, workflowRun, isPaused)
-		})
-	}
+		err = wc.queueWorkflowRunJobs(ctx, tx, workflowRun, isPaused)
 
-	if err := errGroup.Wait(); err != nil {
-		return fmt.Errorf("could not queue workflow runs: %w", err)
+		if err != nil {
+			return fmt.Errorf("could not queue workflow run jobs: %w", err)
+		}
+
 	}
 
 	err = commit(ctx)
@@ -821,34 +818,32 @@ func (wc *WorkflowsControllerImpl) queueByGroupRoundRobin(ctx context.Context, t
 		return fmt.Errorf("could not list queued workflow runs: %w", err)
 	}
 
-	errGroup := new(errgroup.Group)
-
 	for i := range poppedWorkflowRuns {
 		row := poppedWorkflowRuns[i]
 
-		errGroup.Go(func() error {
-			workflowRunId := sqlchelpers.UUIDToStr(row.ID)
+		workflowRunId := sqlchelpers.UUIDToStr(row.ID)
 
-			wc.l.Info().Msgf("popped workflow run %s", workflowRunId)
-			workflowRun, err := wc.repo.WorkflowRun().GetWorkflowRunByIdWithTx(ctx, tx, tenantId, workflowRunId)
+		wc.l.Info().Msgf("popped workflow run %s", workflowRunId)
+		workflowRun, err := wc.repo.WorkflowRun().GetWorkflowRunByIdWithTx(ctx, tx, tenantId, workflowRunId)
 
-			if err != nil {
-				return fmt.Errorf("could not get workflow run: %w", err)
-			}
+		if err != nil {
+			return fmt.Errorf("could not get workflow run: %w", err)
+		}
 
-			isPaused := workflowRun.IsPaused.Valid && workflowRun.IsPaused.Bool
+		isPaused := workflowRun.IsPaused.Valid && workflowRun.IsPaused.Bool
 
-			if isPaused {
-				return nil
-			}
+		if isPaused {
+			return nil
+		}
 
-			return wc.queueWorkflowRunJobs(ctx, tx, workflowRun, isPaused)
-		})
+		err = wc.queueWorkflowRunJobs(ctx, tx, workflowRun, isPaused)
+
+		if err != nil {
+			return fmt.Errorf("could not queue workflow run jobs: %w", err)
+		}
+
 	}
 
-	if err := errGroup.Wait(); err != nil {
-		return fmt.Errorf("could not queue workflow runs: %w", err)
-	}
 	err = commit(ctx)
 	if err != nil {
 		return fmt.Errorf("could not commit transaction: %w", err)
