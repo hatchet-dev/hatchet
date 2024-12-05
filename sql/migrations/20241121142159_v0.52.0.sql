@@ -8,8 +8,22 @@ CREATE INDEX "RetryQueueItem_isQueued_tenantId_retryAfter_idx" ON "RetryQueueIte
 CREATE TYPE "WorkflowTriggerCronRefMethods" AS ENUM ('DEFAULT', 'API');
 -- Create enum type "WorkflowTriggerScheduledRefMethods"
 CREATE TYPE "WorkflowTriggerScheduledRefMethods" AS ENUM ('DEFAULT', 'API');
--- Modify "WorkflowTriggerCronRef" table
-ALTER TABLE "WorkflowTriggerCronRef" ADD COLUMN "name" text NULL, ADD COLUMN "id" uuid NOT NULL, ADD COLUMN "method" "WorkflowTriggerCronRefMethods" NOT NULL DEFAULT 'DEFAULT', ADD CONSTRAINT "WorkflowTriggerCronRef_parentId_cron_name_key" UNIQUE ("parentId", "cron", "name");
+
+-- Step 1: Add the new columns with "id" as nullable
+ALTER TABLE "WorkflowTriggerCronRef" 
+ADD COLUMN "name" text NULL, 
+ADD COLUMN "id" uuid NULL, 
+ADD COLUMN "method" "WorkflowTriggerCronRefMethods" NOT NULL DEFAULT 'DEFAULT', 
+ADD CONSTRAINT "WorkflowTriggerCronRef_parentId_cron_name_key" UNIQUE ("parentId", "cron", "name");
+
+-- Step 2: Populate "id" column with UUIDs for existing rows
+UPDATE "WorkflowTriggerCronRef" 
+SET "id" = gen_random_uuid() 
+WHERE "id" IS NULL;
+
+-- Step 3: Alter "id" column to be NOT NULL
+ALTER TABLE "WorkflowTriggerCronRef" 
+ALTER COLUMN "id" SET NOT NULL;
 
 UPDATE "WorkflowTriggerCronRef" SET "name" = '' WHERE "name" IS NULL;
 
