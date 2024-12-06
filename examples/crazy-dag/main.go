@@ -125,7 +125,6 @@ func run(ctx context.Context, results chan<- *stepOutput) error {
 		for i := 0; i < 10; i++ {
 			data := giantData()
 
-			fmt.Println("the size of the data is ", len(data))
 			testEvent := userCreateEvent{
 				Username: "echo-test",
 				UserID:   "1234",
@@ -134,8 +133,6 @@ func run(ctx context.Context, results chan<- *stepOutput) error {
 					"data": data,
 				},
 			}
-
-			log.Printf("pushing event crazy-dag")
 
 			// push an event
 			err = c.Event().Push(

@@ -40,7 +40,6 @@ outer:
 
 		case <-results:
 			count++
-			fmt.Println("count is now ", count)
 			if count == 90 {
 				// 90 is the number of steps in the DAG
 				break outer
@@ -56,7 +55,6 @@ outer:
 		t.Fatalf("expected 90 steps to complete, got %d", count)
 	}
 
-	fmt.Println("TestCrazyDAG done")
 	// give the worker time to handle the last event
 	time.Sleep(50 * time.Millisecond)
 }
