@@ -37,13 +37,13 @@ func (t *TickerImpl) runPollCronSchedules(ctx context.Context) func() {
 		})
 
 		for _, cron := range crons {
-			workflowVersionId := sqlchelpers.UUIDToStr(cron.WorkflowVersionId)
+			cronKey := getCronKey(cron)
 
-			t.l.Debug().Msgf("ticker: handling cron %s for version %s", cron.Cron, workflowVersionId)
+			t.l.Debug().Msgf("ticker: handling cron %s", cronKey)
 
 			// if the cron is already scheduled, mark it as existing
-			if _, ok := existingCrons[getCronKey(workflowVersionId, cron.Cron)]; ok {
-				existingCrons[getCronKey(workflowVersionId, cron.Cron)] = true
+			if _, ok := existingCrons[cronKey]; ok {
+				existingCrons[cronKey] = true
 				continue
 			}
 
@@ -52,7 +52,7 @@ func (t *TickerImpl) runPollCronSchedules(ctx context.Context) func() {
 				t.l.Err(err).Msg("could not schedule cron")
 			}
 
-			existingCrons[getCronKey(workflowVersionId, cron.Cron)] = true
+			existingCrons[cronKey] = true
 		}
 
 		// cancel any crons that are no longer assigned to this ticker
@@ -101,7 +101,7 @@ func (t *TickerImpl) handleScheduleCron(ctx context.Context, cron *dbsqlc.PollCr
 	}
 
 	// store the schedule in the cron map
-	t.crons.Store(getCronKey(workflowVersionId, cron.Cron), s)
+	t.crons.Store(getCronKey(cron), s)
 
 	s.Start()
 
@@ -178,6 +178,13 @@ func (t *TickerImpl) handleCancelCron(ctx context.Context, key string) error {
 	return nil
 }
 
-func getCronKey(workflowVersionId, schedule string) string {
-	return fmt.Sprintf("%s-%s", workflowVersionId, schedule)
+func getCronKey(cron *dbsqlc.PollCronSchedulesRow) string {
+	workflowVersionId := sqlchelpers.UUIDToStr(cron.WorkflowVersionId)
+
+	switch cron.Method {
+	case dbsqlc.WorkflowTriggerCronRefMethodsAPI:
+		return fmt.Sprintf("API-%s-%s-%s", workflowVersionId, cron.Cron, cron.Name.String)
+	default:
+		return fmt.Sprintf("DEFAULT-%s-%s", workflowVersionId, cron.Cron)
+	}
 }
