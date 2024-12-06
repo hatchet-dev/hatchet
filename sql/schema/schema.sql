@@ -1371,6 +1371,10 @@ CREATE UNIQUE INDEX "Worker_id_key" ON "Worker" ("id" ASC);
 CREATE UNIQUE INDEX "Worker_webhookId_key" ON "Worker" ("webhookId" ASC);
 
 -- CreateIndex
+
+CREATE INDEX "Worker_lastHeartbeatAt_idx" ON "Worker" ("lastHeartbeatAt", "tenantId");
+
+-- CreateIndex
 CREATE INDEX "WorkerAssignEvent_workerId_id_idx" ON "WorkerAssignEvent" ("workerId" ASC, "id" ASC);
 
 -- CreateIndex
