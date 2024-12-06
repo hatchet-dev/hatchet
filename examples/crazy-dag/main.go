@@ -167,17 +167,17 @@ func generateRandomName() string {
 	b := make([]byte, nameLength)
 
 	for i := range b {
-		b[i] = charset[rand.Intn(len(charset))]
+		b[i] = charset[rand.Intn(len(charset))] //nolint
 	}
 	return string(b)
 }
 
 func generateRandomSleep() time.Duration {
-	return time.Duration(10+rand.Intn(30)) * time.Millisecond
+	return time.Duration(10+rand.Intn(30)) * time.Millisecond //nolint
 }
 
 func giantData() string {
-	// create a 1 MB string and return it
+	// create a 100kb string and return it
 	// this is to simulate a large payload
 
 	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"

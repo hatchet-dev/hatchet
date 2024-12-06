@@ -348,7 +348,8 @@ func (b *IngestBuf[T, U]) flush() {
 		defer func() {
 			if r := recover(); r != nil {
 				err := fmt.Errorf("[%s] panic recovered in flush: %v", b.name, r)
-				b.l.Error().Msgf("Panic recovered: %v. Stack %s", err, string(debug.Stack()))
+				b.l.Error().Msgf("Panic recovered: %v. Stack: \n %s", err, string(debug.Stack()))
+				fmt.Printf("Panic recovered: %v. Stack %s \n", err, string(debug.Stack()))
 
 				// Send error to all done channels
 				for _, doneChan := range doneChans {
@@ -380,6 +381,12 @@ func (b *IngestBuf[T, U]) flush() {
 				}
 			}
 			return
+		}
+
+		if len(result) != len(doneChans) {
+			err = fmt.Errorf("result length %d does not match doneChans length %d", len(result), len(doneChans))
+			b.l.Error().Msg(err.Error())
+			panic(err)
 		}
 
 		for i, d := range doneChans {
