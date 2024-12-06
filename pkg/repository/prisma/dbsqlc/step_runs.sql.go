@@ -834,6 +834,276 @@ func (q *Queries) GetLaterStepRuns(ctx context.Context, db DBTX, steprunid pgtyp
 	return items, nil
 }
 
+const getStartableStepRunsForWorkflowRuns = `-- name: GetStartableStepRunsForWorkflowRuns :many
+WITH JobRuns AS (
+    SELECT
+        jr."id" AS "jobRunId"
+    FROM
+        "JobRun" jr
+    WHERE
+        jr."workflowRunId" = ANY($1::uuid[])
+),
+
+InitialStepRuns AS (
+    SELECT
+        DISTINCT ON (child_run."id")
+        child_run."id" AS "stepRunId",
+        child_run."jobRunId"
+    FROM
+        "StepRun" AS child_run
+    LEFT JOIN
+        "_StepRunOrder" AS step_run_order ON step_run_order."B" = child_run."id"
+    WHERE
+        child_run."jobRunId" IN (SELECT "jobRunId" FROM JobRuns)
+        AND child_run."status" = 'PENDING'
+        AND step_run_order."A" IS NULL
+),
+ChildCount AS (
+    SELECT
+        COUNT(*) AS "childCount",
+        sr."stepRunId" AS "id"
+    FROM
+       InitialStepRuns sr
+    GROUP BY
+        sr."stepRunId"),
+
+ExprCount AS (
+    SELECT
+        COUNT(*) AS "exprCount",
+        sr."id" AS "id"
+    FROM
+        "StepRun" sr
+    JOIN
+        "Step" s ON sr."stepId" = s."id"
+    JOIN
+        "StepExpression" se ON s."id" = se."stepId"
+    JOIN
+        InitialStepRuns isr ON sr."id" = isr."stepRunId"
+    GROUP BY
+        sr."id"
+),
+
+
+
+
+StepRunDetails AS (
+    SELECT
+        DISTINCT ON (sr."id")
+        --data
+        sr."input",
+        sr."output",
+        sr."error",
+        jrld."data" AS "jobRunLookupData",
+        wr."additionalMetadata",
+        wr."childIndex",
+        wr."childKey",
+        wr."parentId",
+        COALESCE(ec."exprCount", 0) AS "exprCount",
+        --
+
+
+        sr."id" AS "SR_id",
+        sr."tenantId" AS "SR_tenantId",
+        sr."createdAt" AS "SR_createdAt",
+        sr."updatedAt" AS "SR_updatedAt",
+        sr."deletedAt" AS "SR_deletedAt",
+        sr."queue" AS "SR_queue",
+        sr."order" AS "SR_order",
+        sqi."workerId" AS "SR_workerId",
+        sr."tickerId" AS "SR_tickerId",
+        sr."status" AS "SR_status",
+        sr."requeueAfter" AS "SR_requeueAfter",
+        sr."scheduleTimeoutAt" AS "SR_scheduleTimeoutAt",
+        sr."startedAt" AS "SR_startedAt",
+        sr."finishedAt" AS "SR_finishedAt",
+        sr."timeoutAt" AS "SR_timeoutAt",
+        sr."cancelledAt" AS "SR_cancelledAt",
+        sr."cancelledReason" AS "SR_cancelledReason",
+        sr."cancelledError" AS "SR_cancelledError",
+        sr."callerFiles" AS "SR_callerFiles",
+        sr."gitRepoBranch" AS "SR_gitRepoBranch",
+        sr."retryCount" AS "SR_retryCount",
+        sr."semaphoreReleased" AS "SR_semaphoreReleased",
+        sr."priority" AS "SR_priority",
+        COALESCE(cc."childCount", 0) AS "SR_childCount",
+        jr."id" AS "jobRunId",
+        s."id" AS "stepId",
+        s."retries" AS "stepRetries",
+        s."timeout" AS "stepTimeout",
+        s."scheduleTimeout" AS "stepScheduleTimeout",
+        s."readableId" AS "stepReadableId",
+        s."customUserData" AS "stepCustomUserData",
+        s."retryBackoffFactor" AS "stepRetryBackoffFactor",
+        s."retryMaxBackoff" AS "stepRetryMaxBackoff",
+        j."name" AS "jobName",
+        j."id" AS "jobId",
+        j."kind" AS "jobKind",
+        j."workflowVersionId" AS "workflowVersionId",
+        jr."status" AS "jobRunStatus",
+        jr."workflowRunId" AS "workflowRunId",
+        a."actionId" AS "actionId",
+        sticky."strategy" AS "stickyStrategy",
+        sticky."desiredWorkerId" AS "desiredWorkerId"
+    FROM
+        InitialStepRuns AS isr
+    JOIN
+        "StepRun" sr ON sr."id" = isr."stepRunId"
+    JOIN
+        ChildCount cc ON sr."id" = cc."id"
+    LEFT JOIN
+        "_StepRunOrder" AS step_run_order ON sr."id" = step_run_order."A"
+    LEFT JOIN
+        "SemaphoreQueueItem" sqi ON sr."id" = sqi."stepRunId"
+    LEFT JOIN
+        "WorkflowRunStickyState" sticky ON sr."jobRunId" = sticky."workflowRunId"
+    LEFT JOIN
+        ExprCount ec ON sr."id" = ec."id"
+    JOIN
+        "Step" s ON sr."stepId" = s."id"
+    JOIN
+        "Action" a ON s."actionId" = a."actionId" AND s."tenantId" = a."tenantId"
+    JOIN
+        "JobRun" jr ON sr."jobRunId" = jr."id"
+    JOIN
+    -- Take advantage of composite index on "JobRun"("workflowRunId", "tenantId")
+    "WorkflowRun" wr ON jr."workflowRunId" = wr."id" AND wr."tenantId" = jr."tenantId"
+    JOIN
+        "JobRunLookupData" jrld ON jr."id" = jrld."jobRunId"
+    JOIN
+        "Job" j ON jr."jobId" = j."id"
+    WHERE
+        sr."deletedAt" IS NULL
+        AND jr."deletedAt" IS NULL
+)
+SELECT input, output, error, "jobRunLookupData", "additionalMetadata", "childIndex", "childKey", "parentId", "exprCount", "SR_id", "SR_tenantId", "SR_createdAt", "SR_updatedAt", "SR_deletedAt", "SR_queue", "SR_order", "SR_workerId", "SR_tickerId", "SR_status", "SR_requeueAfter", "SR_scheduleTimeoutAt", "SR_startedAt", "SR_finishedAt", "SR_timeoutAt", "SR_cancelledAt", "SR_cancelledReason", "SR_cancelledError", "SR_callerFiles", "SR_gitRepoBranch", "SR_retryCount", "SR_semaphoreReleased", "SR_priority", "SR_childCount", "jobRunId", "stepId", "stepRetries", "stepTimeout", "stepScheduleTimeout", "stepReadableId", "stepCustomUserData", "stepRetryBackoffFactor", "stepRetryMaxBackoff", "jobName", "jobId", "jobKind", "workflowVersionId", "jobRunStatus", "workflowRunId", "actionId", "stickyStrategy", "desiredWorkerId" FROM StepRunDetails
+`
+
+type GetStartableStepRunsForWorkflowRunsRow struct {
+	Input                  []byte             `json:"input"`
+	Output                 []byte             `json:"output"`
+	Error                  pgtype.Text        `json:"error"`
+	JobRunLookupData       []byte             `json:"jobRunLookupData"`
+	AdditionalMetadata     []byte             `json:"additionalMetadata"`
+	ChildIndex             pgtype.Int4        `json:"childIndex"`
+	ChildKey               pgtype.Text        `json:"childKey"`
+	ParentId               pgtype.UUID        `json:"parentId"`
+	ExprCount              int64              `json:"exprCount"`
+	SRID                   pgtype.UUID        `json:"SR_id"`
+	SRTenantId             pgtype.UUID        `json:"SR_tenantId"`
+	SRCreatedAt            pgtype.Timestamp   `json:"SR_createdAt"`
+	SRUpdatedAt            pgtype.Timestamp   `json:"SR_updatedAt"`
+	SRDeletedAt            pgtype.Timestamp   `json:"SR_deletedAt"`
+	SRQueue                string             `json:"SR_queue"`
+	SROrder                int64              `json:"SR_order"`
+	SRWorkerId             pgtype.UUID        `json:"SR_workerId"`
+	SRTickerId             pgtype.UUID        `json:"SR_tickerId"`
+	SRStatus               StepRunStatus      `json:"SR_status"`
+	SRRequeueAfter         pgtype.Timestamp   `json:"SR_requeueAfter"`
+	SRScheduleTimeoutAt    pgtype.Timestamp   `json:"SR_scheduleTimeoutAt"`
+	SRStartedAt            pgtype.Timestamp   `json:"SR_startedAt"`
+	SRFinishedAt           pgtype.Timestamp   `json:"SR_finishedAt"`
+	SRTimeoutAt            pgtype.Timestamp   `json:"SR_timeoutAt"`
+	SRCancelledAt          pgtype.Timestamp   `json:"SR_cancelledAt"`
+	SRCancelledReason      pgtype.Text        `json:"SR_cancelledReason"`
+	SRCancelledError       pgtype.Text        `json:"SR_cancelledError"`
+	SRCallerFiles          []byte             `json:"SR_callerFiles"`
+	SRGitRepoBranch        pgtype.Text        `json:"SR_gitRepoBranch"`
+	SRRetryCount           int32              `json:"SR_retryCount"`
+	SRSemaphoreReleased    bool               `json:"SR_semaphoreReleased"`
+	SRPriority             pgtype.Int4        `json:"SR_priority"`
+	SRChildCount           int64              `json:"SR_childCount"`
+	JobRunId               pgtype.UUID        `json:"jobRunId"`
+	StepId                 pgtype.UUID        `json:"stepId"`
+	StepRetries            int32              `json:"stepRetries"`
+	StepTimeout            pgtype.Text        `json:"stepTimeout"`
+	StepScheduleTimeout    string             `json:"stepScheduleTimeout"`
+	StepReadableId         pgtype.Text        `json:"stepReadableId"`
+	StepCustomUserData     []byte             `json:"stepCustomUserData"`
+	StepRetryBackoffFactor pgtype.Float8      `json:"stepRetryBackoffFactor"`
+	StepRetryMaxBackoff    pgtype.Int4        `json:"stepRetryMaxBackoff"`
+	JobName                string             `json:"jobName"`
+	JobId                  pgtype.UUID        `json:"jobId"`
+	JobKind                JobKind            `json:"jobKind"`
+	WorkflowVersionId      pgtype.UUID        `json:"workflowVersionId"`
+	JobRunStatus           JobRunStatus       `json:"jobRunStatus"`
+	WorkflowRunId          pgtype.UUID        `json:"workflowRunId"`
+	ActionId               string             `json:"actionId"`
+	StickyStrategy         NullStickyStrategy `json:"stickyStrategy"`
+	DesiredWorkerId        pgtype.UUID        `json:"desiredWorkerId"`
+}
+
+func (q *Queries) GetStartableStepRunsForWorkflowRuns(ctx context.Context, db DBTX, workflowrunids []pgtype.UUID) ([]*GetStartableStepRunsForWorkflowRunsRow, error) {
+	rows, err := db.Query(ctx, getStartableStepRunsForWorkflowRuns, workflowrunids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*GetStartableStepRunsForWorkflowRunsRow
+	for rows.Next() {
+		var i GetStartableStepRunsForWorkflowRunsRow
+		if err := rows.Scan(
+			&i.Input,
+			&i.Output,
+			&i.Error,
+			&i.JobRunLookupData,
+			&i.AdditionalMetadata,
+			&i.ChildIndex,
+			&i.ChildKey,
+			&i.ParentId,
+			&i.ExprCount,
+			&i.SRID,
+			&i.SRTenantId,
+			&i.SRCreatedAt,
+			&i.SRUpdatedAt,
+			&i.SRDeletedAt,
+			&i.SRQueue,
+			&i.SROrder,
+			&i.SRWorkerId,
+			&i.SRTickerId,
+			&i.SRStatus,
+			&i.SRRequeueAfter,
+			&i.SRScheduleTimeoutAt,
+			&i.SRStartedAt,
+			&i.SRFinishedAt,
+			&i.SRTimeoutAt,
+			&i.SRCancelledAt,
+			&i.SRCancelledReason,
+			&i.SRCancelledError,
+			&i.SRCallerFiles,
+			&i.SRGitRepoBranch,
+			&i.SRRetryCount,
+			&i.SRSemaphoreReleased,
+			&i.SRPriority,
+			&i.SRChildCount,
+			&i.JobRunId,
+			&i.StepId,
+			&i.StepRetries,
+			&i.StepTimeout,
+			&i.StepScheduleTimeout,
+			&i.StepReadableId,
+			&i.StepCustomUserData,
+			&i.StepRetryBackoffFactor,
+			&i.StepRetryMaxBackoff,
+			&i.JobName,
+			&i.JobId,
+			&i.JobKind,
+			&i.WorkflowVersionId,
+			&i.JobRunStatus,
+			&i.WorkflowRunId,
+			&i.ActionId,
+			&i.StickyStrategy,
+			&i.DesiredWorkerId,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getStepDesiredWorkerLabels = `-- name: GetStepDesiredWorkerLabels :one
 SELECT
     jsonb_agg(
@@ -1349,6 +1619,199 @@ func (q *Queries) GetStepRunForEngine(ctx context.Context, db DBTX, arg GetStepR
 	return items, nil
 }
 
+const getStepRunForEngineNoTenant = `-- name: GetStepRunForEngineNoTenant :many
+WITH child_count AS (
+    SELECT
+        COUNT(*) AS "childCount",
+        sr."id" AS "id"
+    FROM
+        "StepRun" sr
+    LEFT JOIN
+        "_StepRunOrder" AS step_run_order ON sr."id" = step_run_order."A"
+    WHERE
+        sr."id" = ANY($1::uuid[])
+        AND step_run_order IS NOT NULL
+    GROUP BY
+        sr."id"
+)
+SELECT
+    DISTINCT ON (sr."id")
+    sr."id" AS "SR_id",
+    sr."tenantId" AS "SR_tenantId",
+    sr."createdAt" AS "SR_createdAt",
+    sr."updatedAt" AS "SR_updatedAt",
+    sr."deletedAt" AS "SR_deletedAt",
+    sr."tenantId" AS "SR_tenantId",
+    sr."queue" AS "SR_queue",
+    sr."order" AS "SR_order",
+    sqi."workerId" AS "SR_workerId",
+    sr."tickerId" AS "SR_tickerId",
+    sr."status" AS "SR_status",
+    sr."requeueAfter" AS "SR_requeueAfter",
+    sr."scheduleTimeoutAt" AS "SR_scheduleTimeoutAt",
+    sr."startedAt" AS "SR_startedAt",
+    sr."finishedAt" AS "SR_finishedAt",
+    sr."timeoutAt" AS "SR_timeoutAt",
+    sr."cancelledAt" AS "SR_cancelledAt",
+    sr."cancelledReason" AS "SR_cancelledReason",
+    sr."cancelledError" AS "SR_cancelledError",
+    sr."callerFiles" AS "SR_callerFiles",
+    sr."gitRepoBranch" AS "SR_gitRepoBranch",
+    sr."retryCount" AS "SR_retryCount",
+    sr."semaphoreReleased" AS "SR_semaphoreReleased",
+    sr."priority" AS "SR_priority",
+    COALESCE(cc."childCount", 0) AS "SR_childCount",
+    -- TODO: everything below this line is cacheable and should be moved to a separate query
+    jr."id" AS "jobRunId",
+    s."id" AS "stepId",
+    s."retries" AS "stepRetries",
+    s."timeout" AS "stepTimeout",
+    s."scheduleTimeout" AS "stepScheduleTimeout",
+    s."readableId" AS "stepReadableId",
+    s."customUserData" AS "stepCustomUserData",
+    s."retryBackoffFactor" AS "stepRetryBackoffFactor",
+    s."retryMaxBackoff" AS "stepRetryMaxBackoff",
+    j."name" AS "jobName",
+    j."id" AS "jobId",
+    j."kind" AS "jobKind",
+    j."workflowVersionId" AS "workflowVersionId",
+    jr."status" AS "jobRunStatus",
+    jr."workflowRunId" AS "workflowRunId",
+    a."actionId" AS "actionId",
+    sticky."strategy" AS "stickyStrategy",
+    sticky."desiredWorkerId" AS "desiredWorkerId"
+FROM
+    "StepRun" sr
+LEFT JOIN
+    child_count cc ON sr."id" = cc."id"
+JOIN
+    "Step" s ON sr."stepId" = s."id"
+JOIN
+    "Action" a ON s."actionId" = a."actionId" AND s."tenantId" = a."tenantId"
+JOIN
+    "JobRun" jr ON sr."jobRunId" = jr."id"
+JOIN
+    "Job" j ON jr."jobId" = j."id"
+LEFT JOIN
+    "SemaphoreQueueItem" sqi ON sr."id" = sqi."stepRunId"
+LEFT JOIN
+    "WorkflowRunStickyState" sticky ON jr."workflowRunId" = sticky."workflowRunId"
+WHERE
+    sr."id" = ANY($1::uuid[]) AND
+    sr."deletedAt" IS NULL AND
+    jr."deletedAt" IS NULL
+`
+
+type GetStepRunForEngineNoTenantRow struct {
+	SRID                   pgtype.UUID        `json:"SR_id"`
+	SRTenantId             pgtype.UUID        `json:"SR_tenantId"`
+	SRCreatedAt            pgtype.Timestamp   `json:"SR_createdAt"`
+	SRUpdatedAt            pgtype.Timestamp   `json:"SR_updatedAt"`
+	SRDeletedAt            pgtype.Timestamp   `json:"SR_deletedAt"`
+	SRTenantId_2           pgtype.UUID        `json:"SR_tenantId_2"`
+	SRQueue                string             `json:"SR_queue"`
+	SROrder                int64              `json:"SR_order"`
+	SRWorkerId             pgtype.UUID        `json:"SR_workerId"`
+	SRTickerId             pgtype.UUID        `json:"SR_tickerId"`
+	SRStatus               StepRunStatus      `json:"SR_status"`
+	SRRequeueAfter         pgtype.Timestamp   `json:"SR_requeueAfter"`
+	SRScheduleTimeoutAt    pgtype.Timestamp   `json:"SR_scheduleTimeoutAt"`
+	SRStartedAt            pgtype.Timestamp   `json:"SR_startedAt"`
+	SRFinishedAt           pgtype.Timestamp   `json:"SR_finishedAt"`
+	SRTimeoutAt            pgtype.Timestamp   `json:"SR_timeoutAt"`
+	SRCancelledAt          pgtype.Timestamp   `json:"SR_cancelledAt"`
+	SRCancelledReason      pgtype.Text        `json:"SR_cancelledReason"`
+	SRCancelledError       pgtype.Text        `json:"SR_cancelledError"`
+	SRCallerFiles          []byte             `json:"SR_callerFiles"`
+	SRGitRepoBranch        pgtype.Text        `json:"SR_gitRepoBranch"`
+	SRRetryCount           int32              `json:"SR_retryCount"`
+	SRSemaphoreReleased    bool               `json:"SR_semaphoreReleased"`
+	SRPriority             pgtype.Int4        `json:"SR_priority"`
+	SRChildCount           int64              `json:"SR_childCount"`
+	JobRunId               pgtype.UUID        `json:"jobRunId"`
+	StepId                 pgtype.UUID        `json:"stepId"`
+	StepRetries            int32              `json:"stepRetries"`
+	StepTimeout            pgtype.Text        `json:"stepTimeout"`
+	StepScheduleTimeout    string             `json:"stepScheduleTimeout"`
+	StepReadableId         pgtype.Text        `json:"stepReadableId"`
+	StepCustomUserData     []byte             `json:"stepCustomUserData"`
+	StepRetryBackoffFactor pgtype.Float8      `json:"stepRetryBackoffFactor"`
+	StepRetryMaxBackoff    pgtype.Int4        `json:"stepRetryMaxBackoff"`
+	JobName                string             `json:"jobName"`
+	JobId                  pgtype.UUID        `json:"jobId"`
+	JobKind                JobKind            `json:"jobKind"`
+	WorkflowVersionId      pgtype.UUID        `json:"workflowVersionId"`
+	JobRunStatus           JobRunStatus       `json:"jobRunStatus"`
+	WorkflowRunId          pgtype.UUID        `json:"workflowRunId"`
+	ActionId               string             `json:"actionId"`
+	StickyStrategy         NullStickyStrategy `json:"stickyStrategy"`
+	DesiredWorkerId        pgtype.UUID        `json:"desiredWorkerId"`
+}
+
+func (q *Queries) GetStepRunForEngineNoTenant(ctx context.Context, db DBTX, ids []pgtype.UUID) ([]*GetStepRunForEngineNoTenantRow, error) {
+	rows, err := db.Query(ctx, getStepRunForEngineNoTenant, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*GetStepRunForEngineNoTenantRow
+	for rows.Next() {
+		var i GetStepRunForEngineNoTenantRow
+		if err := rows.Scan(
+			&i.SRID,
+			&i.SRTenantId,
+			&i.SRCreatedAt,
+			&i.SRUpdatedAt,
+			&i.SRDeletedAt,
+			&i.SRTenantId_2,
+			&i.SRQueue,
+			&i.SROrder,
+			&i.SRWorkerId,
+			&i.SRTickerId,
+			&i.SRStatus,
+			&i.SRRequeueAfter,
+			&i.SRScheduleTimeoutAt,
+			&i.SRStartedAt,
+			&i.SRFinishedAt,
+			&i.SRTimeoutAt,
+			&i.SRCancelledAt,
+			&i.SRCancelledReason,
+			&i.SRCancelledError,
+			&i.SRCallerFiles,
+			&i.SRGitRepoBranch,
+			&i.SRRetryCount,
+			&i.SRSemaphoreReleased,
+			&i.SRPriority,
+			&i.SRChildCount,
+			&i.JobRunId,
+			&i.StepId,
+			&i.StepRetries,
+			&i.StepTimeout,
+			&i.StepScheduleTimeout,
+			&i.StepReadableId,
+			&i.StepCustomUserData,
+			&i.StepRetryBackoffFactor,
+			&i.StepRetryMaxBackoff,
+			&i.JobName,
+			&i.JobId,
+			&i.JobKind,
+			&i.WorkflowVersionId,
+			&i.JobRunStatus,
+			&i.WorkflowRunId,
+			&i.ActionId,
+			&i.StickyStrategy,
+			&i.DesiredWorkerId,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getStepRunMeta = `-- name: GetStepRunMeta :one
 SELECT
     jr."workflowRunId" AS "workflowRunId",
@@ -1556,6 +2019,41 @@ WHERE
 
 func (q *Queries) ListInitialStepRuns(ctx context.Context, db DBTX, jobrunid pgtype.UUID) ([]pgtype.UUID, error) {
 	rows, err := db.Query(ctx, listInitialStepRuns, jobrunid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []pgtype.UUID
+	for rows.Next() {
+		var id pgtype.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listInitialStepRunsForJobRuns = `-- name: ListInitialStepRunsForJobRuns :many
+SELECT
+    DISTINCT ON (child_run."id")
+    child_run."id" AS "id"
+
+FROM
+    "StepRun" AS child_run
+LEFT JOIN
+    "_StepRunOrder" AS step_run_order ON step_run_order."B" = child_run."id"
+WHERE
+    child_run."jobRunId" = ANY($1::uuid[])
+    AND child_run."status" = 'PENDING'
+    AND step_run_order."A" IS NULL
+`
+
+func (q *Queries) ListInitialStepRunsForJobRuns(ctx context.Context, db DBTX, jobrunids []pgtype.UUID) ([]pgtype.UUID, error) {
+	rows, err := db.Query(ctx, listInitialStepRunsForJobRuns, jobrunids)
 	if err != nil {
 		return nil, err
 	}

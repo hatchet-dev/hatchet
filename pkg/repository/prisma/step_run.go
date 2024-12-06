@@ -3060,6 +3060,18 @@ func (s *stepRunEngineRepository) doCachedUpsertOfQueue(ctx context.Context, tx 
 }
 
 func (s *stepRunEngineRepository) QueueStepRun(ctx context.Context, tenantId, stepRunId string, opts *repository.QueueStepRunOpts) (*dbsqlc.GetStepRunForEngineRow, error) {
+
+	cb, err := s.QueueStepRunWithTx(ctx, s.pool, tenantId, stepRunId, opts)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return cb()
+
+}
+
+func (s *stepRunEngineRepository) QueueStepRunWithTx(ctx context.Context, tx dbsqlc.DBTX, tenantId, stepRunId string, opts *repository.QueueStepRunOpts) (func() (*dbsqlc.GetStepRunForEngineRow, error), error) {
 	ctx, span := telemetry.NewSpan(ctx, "queue-step-run-database")
 	defer span.End()
 
@@ -3093,13 +3105,13 @@ func (s *stepRunEngineRepository) QueueStepRun(ctx context.Context, tenantId, st
 		}
 	}
 
-	innerStepRun, err := s.getStepRunForEngineTx(ctx, s.pool, tenantId, stepRunId)
+	innerStepRun, err := s.getStepRunForEngineTx(ctx, tx, tenantId, stepRunId)
 
 	if err != nil {
 		return nil, err
 	}
 
-	err = s.doCachedUpsertOfQueue(ctx, s.pool, tenantId, innerStepRun)
+	err = s.doCachedUpsertOfQueue(ctx, tx, tenantId, innerStepRun)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not upsert queue with actionId: %w", err)
@@ -3117,56 +3129,60 @@ func (s *stepRunEngineRepository) QueueStepRun(ctx context.Context, tenantId, st
 		return nil, repository.ErrAlreadyQueued
 	}
 
-	if opts.IsRetry || opts.IsInternalRetry {
-		// if this is a retry, write a queue item to release the worker semaphore
-		//
-		// FIXME: there is a race condition here where we can delete a worker semaphore slot that has already been reassigned,
-		// but the step run was not in a RUNNING state. The fix for this would be to track an total retry count on the step run
-		// and use this to identify semaphore slots, but this involves a big refactor of semaphore slots.
-		err := s.releaseWorkerSemaphoreSlot(ctx, tenantId, stepRunId)
+	postCommit := func() (*dbsqlc.GetStepRunForEngineRow, error) {
+
+		if opts.IsRetry || opts.IsInternalRetry {
+			// if this is a retry, write a queue item to release the worker semaphore
+			//
+			// FIXME: there is a race condition here where we can delete a worker semaphore slot that has already been reassigned,
+			// but the step run was not in a RUNNING state. The fix for this would be to track an total retry count on the step run
+			// and use this to identify semaphore slots, but this involves a big refactor of semaphore slots.
+			err := s.releaseWorkerSemaphoreSlot(ctx, tenantId, stepRunId)
+
+			if err != nil {
+				return nil, fmt.Errorf("could not release worker semaphore queue items: %w", err)
+			}
+
+			// retries get highest priority to ensure that they're run immediately
+			priority = 4
+		}
+
+		done, err := s.bulkQueuer.BuffItem(tenantId, buffer.BulkQueueStepRunOpts{
+			GetStepRunForEngineRow: innerStepRun,
+			Priority:               priority,
+			IsRetry:                opts.IsRetry,
+			Input:                  opts.Input,
+		})
 
 		if err != nil {
-			return nil, fmt.Errorf("could not release worker semaphore queue items: %w", err)
+			return nil, err
 		}
 
-		// retries get highest priority to ensure that they're run immediately
-		priority = 4
-	}
+		_, err = s.bulkSemaphoreReleaser.BuffItem(tenantId, buffer.SemaphoreReleaseOpts{
+			StepRunId: sqlchelpers.UUIDFromStr(stepRunId),
+			TenantId:  sqlchelpers.UUIDFromStr(tenantId),
+		})
 
-	done, err := s.bulkQueuer.BuffItem(tenantId, buffer.BulkQueueStepRunOpts{
-		GetStepRunForEngineRow: innerStepRun,
-		Priority:               priority,
-		IsRetry:                opts.IsRetry,
-		Input:                  opts.Input,
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	_, err = s.bulkSemaphoreReleaser.BuffItem(tenantId, buffer.SemaphoreReleaseOpts{
-		StepRunId: sqlchelpers.UUIDFromStr(stepRunId),
-		TenantId:  sqlchelpers.UUIDFromStr(tenantId),
-	})
-
-	if err != nil {
-		return nil, fmt.Errorf("could not buffer semaphore release: %w", err)
-	}
-
-	var response *buffer.FlushResponse[pgtype.UUID]
-
-	select {
-	case response = <-done:
-		if response.Err != nil {
-			return nil, response.Err
+		if err != nil {
+			return nil, fmt.Errorf("could not buffer semaphore release: %w", err)
 		}
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	case <-time.After(15 * time.Second):
-		return nil, fmt.Errorf("timeout waiting for queue item to be flushed to db")
-	}
 
-	return innerStepRun, nil
+		var response *buffer.FlushResponse[pgtype.UUID]
+
+		select {
+		case response = <-done:
+			if response.Err != nil {
+				return nil, response.Err
+			}
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(15 * time.Second):
+			return nil, fmt.Errorf("timeout waiting for queue item to be flushed to db")
+		}
+
+		return innerStepRun, nil
+	}
+	return postCommit, nil
 }
 
 func (s *stepRunEngineRepository) createExpressionEvals(ctx context.Context, dbtx dbsqlc.DBTX, stepRunId string, opts []repository.CreateExpressionEvalOpt) error {

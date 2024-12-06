@@ -22,7 +22,8 @@ type userCreateEvent struct {
 }
 
 type stepOutput struct {
-	Message string `json:"message"`
+	Message   string `json:"message"`
+	GiantData string `json:"giant_data"`
 }
 
 func main() {
@@ -76,9 +77,16 @@ func run(ctx context.Context, results chan<- *stepOutput) error {
 
 	for i, name := range stepNames {
 		steps[i] = worker.Fn(func(ctx worker.HatchetContext) (result *stepOutput, err error) {
+			input := &userCreateEvent{}
+			err = ctx.WorkflowInput(input)
+
+			if err != nil {
+				panic(err)
+			}
 			time.Sleep(generateRandomSleep())
 			output := stepOutput{
-				Message: "Completed step " + name,
+				Message:   "Completed step " + name,
+				GiantData: input.Data["data"],
 			}
 
 			results <- &output
@@ -115,11 +123,15 @@ func run(ctx context.Context, results chan<- *stepOutput) error {
 
 	go func() {
 		for i := 0; i < 10; i++ {
+			data := giantData()
+
+			fmt.Println("the size of the data is ", len(data))
 			testEvent := userCreateEvent{
 				Username: "echo-test",
 				UserID:   "1234",
 				Data: map[string]string{
 					"test": "test",
+					"data": data,
 				},
 			}
 
@@ -162,4 +174,18 @@ func generateRandomName() string {
 
 func generateRandomSleep() time.Duration {
 	return time.Duration(10+rand.Intn(30)) * time.Millisecond
+}
+
+func giantData() string {
+	// create a 1 MB string and return it
+	// this is to simulate a large payload
+
+	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	b := make([]byte, 1e5)
+
+	for i := range b {
+		b[i] = charset[rand.Intn(len(charset))] //nolint
+	}
+
+	return string(b)
 }

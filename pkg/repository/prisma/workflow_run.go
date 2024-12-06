@@ -1919,6 +1919,40 @@ func createNewWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbs
 
 		}
 
+		if err != nil {
+			return nil, err
+		}
+
+		var createdWorkflowRuns []*repository.CreatedWorkflowRun
+		var postcommitCbs []func() (*dbsqlc.GetStepRunForEngineRow, error)
+		shortcircuitableWorkflowRuns := make([]*dbsqlc.GetWorkflowRunsInsertedInThisTxnRow, 0)
+		var queueNames []string
+		for _, workflowRun := range workflowRuns {
+
+			if CanShortCircuit(workflowRun) {
+
+				shortcircuitableWorkflowRuns = append(shortcircuitableWorkflowRuns, workflowRun)
+			}
+
+		}
+
+		queueNames, postcommitCbs, err = shortCircuitWorkflowRuns(ctx, tx, shortcircuitableWorkflowRuns, srr, queries)
+
+		if err != nil {
+			return nil, err
+		}
+
+		for _, wfr := range shortcircuitableWorkflowRuns {
+
+			createdWorkflowRuns = append(createdWorkflowRuns, &repository.CreatedWorkflowRun{
+				Row: wfr,
+			})
+		}
+
+		if len(queueNames) > 0 {
+			createdWorkflowRuns[0].StepRunQueueNames = queueNames
+		}
+
 		err = commit(tx1Ctx)
 
 		if err != nil {
@@ -1926,39 +1960,16 @@ func createNewWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbs
 
 			return nil, err
 		}
-		tx2, commit2, rollback2, err := sqlchelpers.PrepareTx(tx1Ctx, pool, l, 15000)
-		defer rollback2()
-		if err != nil {
-			return nil, err
-		}
 
-		var createdWorkflowRuns []*repository.CreatedWorkflowRun
+		for _, cb := range postcommitCbs {
+			_, err := cb()
 
-		for _, workflowRun := range workflowRuns {
-			var queueNames []string
-
-			if CanShortCircuit(workflowRun) {
-				queueNames, err = shortCircuitWorkflowRun(ctx, tx2, workflowRun, srr, queries)
-
-				if err != nil {
-					return nil, err
-				}
-
+			if err != nil {
+				l.Error().Err(err).Msg("failed to execute post commit callback")
+				return nil, err
 			}
-
-			createdWorkflowRuns = append(createdWorkflowRuns, &repository.CreatedWorkflowRun{
-				Row:               workflowRun,
-				StepRunQueueNames: queueNames,
-			})
-
 		}
-		err = commit2(tx1Ctx)
 
-		if err != nil {
-			l.Error().Err(err).Msg("failed to commit transaction")
-
-			return nil, err
-		}
 		return createdWorkflowRuns, nil
 	}()
 
@@ -1969,76 +1980,95 @@ func createNewWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbs
 	return createdWorkflowRuns, nil
 }
 
-func shortCircuitWorkflowRun(ctx context.Context, tx pgx.Tx, wr *dbsqlc.GetWorkflowRunsInsertedInThisTxnRow, srr *stepRunEngineRepository, queries *dbsqlc.Queries) ([]string, error) {
-
-	jobRuns, err := queries.ListJobRunsForWorkflowRun(ctx, tx, wr.WorkflowRun.ID)
-
-	if err != nil {
-		return nil, fmt.Errorf("could not list job runs: %w", err)
-	}
-	tenantId := sqlchelpers.UUIDToStr(wr.WorkflowRun.TenantId)
-	jobRunIds := make([]string, 0)
+func shortCircuitWorkflowRuns(ctx context.Context, tx pgx.Tx, wfrs []*dbsqlc.GetWorkflowRunsInsertedInThisTxnRow, srr *stepRunEngineRepository, queries *dbsqlc.Queries) ([]string, []func() (*dbsqlc.GetStepRunForEngineRow, error), error) {
 
 	startedStepRunQueueNames := make([]string, 0)
-	for i := range jobRuns {
+	postCommitCallbacks := make([]func() (*dbsqlc.GetStepRunForEngineRow, error), 0)
 
-		jobRunIds = append(jobRunIds, sqlchelpers.UUIDToStr(jobRuns[i].ID))
+	var workflowRunIds []pgtype.UUID
+
+	for _, wfr := range wfrs {
+		workflowRunIds = append(workflowRunIds, wfr.WorkflowRun.ID)
 	}
 
-	for _, jobRunId := range jobRunIds {
-		srs, err := queries.ListInitialStepRuns(ctx, tx, sqlchelpers.UUIDFromStr(jobRunId))
+	startableStepRuns, err := queries.GetStartableStepRunsForWorkflowRuns(ctx, tx, workflowRunIds)
 
-		if err != nil {
-			return nil, fmt.Errorf("could not list initial step runs: %w", err)
-		}
-
-		startableStepRuns, err := queries.GetStepRunForEngine(ctx, tx, dbsqlc.GetStepRunForEngineParams{
-			Ids:      srs,
-			TenantId: sqlchelpers.UUIDFromStr(tenantId),
-		})
-
-		if err != nil {
-			return nil, fmt.Errorf("could not list startable step runs: %w", err)
-		}
-
-		// TODO go func
-		for _, stepRun := range startableStepRuns {
-			err = setDataForStepRun(ctx, tenantId, stepRun, err, queries, tx, srr)
-			if err != nil {
-				panic(err)
-			}
-			startedStepRunQueueNames = append(startedStepRunQueueNames, stepRun.SRQueue)
-
-		}
-
-		if err != nil {
-			return nil, fmt.Errorf("could not queue step runs: %w", err)
-
-		}
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not list startable step runs: %w", err)
 	}
 
-	return startedStepRunQueueNames, nil
+	for _, stepRun := range startableStepRuns {
+		cb, err := setDataForStepRun(ctx, sqlchelpers.UUIDToStr(stepRun.SRTenantId), stepRun, queries, tx, srr)
+
+		if err != nil {
+			return nil, nil, fmt.Errorf("could not queue step runs: %w", err)
+
+		}
+		startedStepRunQueueNames = append(startedStepRunQueueNames, stepRun.SRQueue)
+		postCommitCallbacks = append(postCommitCallbacks, cb)
+
+	}
+
+	return startedStepRunQueueNames, postCommitCallbacks, nil
 
 }
 
-func setDataForStepRun(ctx context.Context, tenantId string, stepRun *dbsqlc.GetStepRunForEngineRow, err error, queries *dbsqlc.Queries, tx pgx.Tx, srr *stepRunEngineRepository) error {
+// func shortCircuitWorkflowRun(ctx context.Context, tx pgx.Tx, wr *dbsqlc.GetWorkflowRunsInsertedInThisTxnRow, srr *stepRunEngineRepository, queries *dbsqlc.Queries) ([]string, []func() (*dbsqlc.GetStepRunForEngineRow, error), error) {
+
+// 	jobRuns, err := queries.ListJobRunsForWorkflowRun(ctx, tx, wr.WorkflowRun.ID)
+
+// 	if err != nil {
+// 		return nil, nil, fmt.Errorf("could not list job runs: %w", err)
+// 	}
+// 	tenantId := sqlchelpers.UUIDToStr(wr.WorkflowRun.TenantId)
+// 	jobRunIds := make([]string, 0)
+
+// 	startedStepRunQueueNames := make([]string, 0)
+// 	postCommitCallbacks := make([]func() (*dbsqlc.GetStepRunForEngineRow, error), 0)
+// 	for i := range jobRuns {
+
+// 		jobRunIds = append(jobRunIds, sqlchelpers.UUIDToStr(jobRuns[i].ID))
+// 	}
+
+// 	for _, jobRunId := range jobRunIds {
+// 		srs, err := queries.ListInitialStepRuns(ctx, tx, sqlchelpers.UUIDFromStr(jobRunId))
+
+// 		if err != nil {
+// 			return nil, nil, fmt.Errorf("could not list initial step runs: %w", err)
+// 		}
+
+// 		startableStepRuns, err := queries.GetStepRunForEngine(ctx, tx, dbsqlc.GetStepRunForEngineParams{
+// 			Ids:      srs,
+// 			TenantId: sqlchelpers.UUIDFromStr(tenantId),
+// 		})
+
+// 		if err != nil {
+// 			return nil, nil, fmt.Errorf("could not list startable step runs: %w", err)
+// 		}
+
+// 		for _, stepRun := range startableStepRuns {
+// 			cb, err := setDataForStepRun(ctx, tenantId, stepRun, err, queries, tx, srr)
+
+// 			if err != nil {
+// 				return nil, nil, fmt.Errorf("could not queue step runs: %w", err)
+
+// 			}
+// 			startedStepRunQueueNames = append(startedStepRunQueueNames, stepRun.SRQueue)
+// 			postCommitCallbacks = append(postCommitCallbacks, cb)
+
+// 		}
+
+// 	}
+
+// 	return startedStepRunQueueNames, postCommitCallbacks, nil
+
+// }
+
+func setDataForStepRun(ctx context.Context, tenantId string, data *dbsqlc.GetStartableStepRunsForWorkflowRunsRow, queries *dbsqlc.Queries, tx pgx.Tx, srr *stepRunEngineRepository) (func() (*dbsqlc.GetStepRunForEngineRow, error), error) {
 	errData := map[string]interface{}{
 		"tenant_id":   tenantId,
-		"step_id":     stepRun.StepId,
-		"step_run_id": stepRun.SRID,
-	}
-
-	if err != nil {
-		return fmt.Errorf("could not get step run: %w %v", err, errData)
-	}
-
-	data, err := queries.GetStepRunDataForEngine(ctx, tx, dbsqlc.GetStepRunDataForEngineParams{
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
-		ID:       stepRun.SRID,
-	})
-
-	if err != nil {
-		return fmt.Errorf("could not get step run data: %w %v", err, errData)
+		"step_id":     data.StepId,
+		"step_run_id": data.SRID,
 	}
 
 	queueOpts := &repository.QueueStepRunOpts{
@@ -2057,16 +2087,16 @@ func setDataForStepRun(ctx context.Context, tenantId string, stepRun *dbsqlc.Get
 
 			if err != nil {
 
-				return fmt.Errorf("could not get job run lookup data: %w %v", err, errData)
+				return nil, fmt.Errorf("could not get job run lookup data: %w %v", err, errData)
 			}
 
 			userData := map[string]interface{}{}
 
-			if setUserData := stepRun.StepCustomUserData; len(setUserData) > 0 {
+			if setUserData := data.StepCustomUserData; len(setUserData) > 0 {
 				err := json.Unmarshal(setUserData, &userData)
 
 				if err != nil {
-					return fmt.Errorf("could not unmarshal custom user data: %w", err)
+					return nil, fmt.Errorf("could not unmarshal custom user data: %w", err)
 				}
 			}
 
@@ -2081,7 +2111,7 @@ func setDataForStepRun(ctx context.Context, tenantId string, stepRun *dbsqlc.Get
 			inputDataBytes, err = json.Marshal(inputData)
 
 			if err != nil {
-				return fmt.Errorf("could not convert input data to json: %w %v", err, errData)
+				return nil, fmt.Errorf("could not convert input data to json: %w %v", err, errData)
 			}
 
 			queueOpts.Input = inputDataBytes
@@ -2089,10 +2119,10 @@ func setDataForStepRun(ctx context.Context, tenantId string, stepRun *dbsqlc.Get
 	}
 
 	if data.ExprCount > 0 {
-		expressions, err := queries.GetStepExpressions(ctx, tx, stepRun.StepId)
+		expressions, err := queries.GetStepExpressions(ctx, tx, data.StepId)
 
 		if err != nil {
-			return fmt.Errorf("could not list step expressions: %w %v", err, errData)
+			return nil, fmt.Errorf("could not list step expressions: %w %v", err, errData)
 		}
 
 		additionalMeta := map[string]interface{}{}
@@ -2101,7 +2131,7 @@ func setDataForStepRun(ctx context.Context, tenantId string, stepRun *dbsqlc.Get
 			err = json.Unmarshal(data.AdditionalMetadata, &additionalMeta)
 
 			if err != nil {
-				return fmt.Errorf("could not unmarshal additional metadata: %w %v", err, errData)
+				return nil, fmt.Errorf("could not unmarshal additional metadata: %w %v", err, errData)
 			}
 		}
 
@@ -2110,7 +2140,7 @@ func setDataForStepRun(ctx context.Context, tenantId string, stepRun *dbsqlc.Get
 		err = json.Unmarshal(inputDataBytes, &parsedInputData)
 
 		if err != nil {
-			return fmt.Errorf("could not unmarshal input data: %w %v", err, errData)
+			return nil, fmt.Errorf("could not unmarshal input data: %w %v", err, errData)
 		}
 
 		input := cel.NewInput(
@@ -2126,7 +2156,7 @@ func setDataForStepRun(ctx context.Context, tenantId string, stepRun *dbsqlc.Get
 			res, err := celParser.ParseAndEvalStepRun(expression.Expression, input)
 
 			if err != nil {
-				return fmt.Errorf("could not parse step expression: %w %v", err, errData)
+				return nil, fmt.Errorf("could not parse step expression: %w %v", err, errData)
 			}
 
 			queueOpts.ExpressionEvals = append(queueOpts.ExpressionEvals, repository.CreateExpressionEvalOpt{
@@ -2138,11 +2168,11 @@ func setDataForStepRun(ctx context.Context, tenantId string, stepRun *dbsqlc.Get
 		}
 
 	}
-	_, err = srr.QueueStepRun(ctx, tenantId, sqlchelpers.UUIDToStr(stepRun.SRID), queueOpts)
+	cb, err := srr.QueueStepRunWithTx(ctx, tx, tenantId, sqlchelpers.UUIDToStr(data.SRID), queueOpts)
 	if err != nil {
-		return fmt.Errorf("could not queue step run: %w", err)
+		return nil, fmt.Errorf("could not queue step run: %w", err)
 	}
-	return nil
+	return cb, nil
 }
 
 func isUniqueViolationOnDedupe(err error) bool {
