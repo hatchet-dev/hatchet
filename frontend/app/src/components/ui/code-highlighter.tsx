@@ -26,7 +26,7 @@ export function CodeHighlighter({
   maxHeight,
   minHeight,
   maxWidth,
-  copy,
+  copy = true,
   wrapLines = true,
 }: {
   code: string;
@@ -80,6 +80,7 @@ export function CodeHighlighter({
             fontSize: '0.75rem',
             lineHeight: '1rem',
             padding: '0.5rem',
+            paddingRight: '2rem',
             flex: '1',
             background: 'transparent',
           }}
@@ -87,7 +88,12 @@ export function CodeHighlighter({
           {code.trim()}
         </SyntaxHighlighter>
       </div>
-      {copy && <CopyToClipboard text={(copyCode || code).trim()} withText />}
+      {copy && (
+        <CopyToClipboard
+          className="absolute top-2 right-2"
+          text={(copyCode || code).trim()}
+        />
+      )}
     </div>
   );
 }

@@ -79,7 +79,7 @@ export function TriggerWorkflowForm({
     setErrors,
   });
 
-  const { data: workflowKeys } = useQuery({
+  const { data: workflowKeys, isFetched } = useQuery({
     ...queries.workflows.list(tenant.metadata.id),
   });
 
@@ -237,6 +237,28 @@ export function TriggerWorkflowForm({
       });
     }
   };
+
+  if (!workflow && isFetched) {
+    return (
+      <Dialog
+        open={show}
+        onOpenChange={(open) => {
+          if (!open) {
+            onClose();
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-[625px] py-12 max-h-screen overflow-auto">
+          <DialogHeader className="gap-2">
+            <DialogTitle>Trigger Workflow</DialogTitle>
+            <DialogDescription className="text-muted-foreground">
+              No workflows found. Create a workflow first.
+            </DialogDescription>
+          </DialogHeader>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   return (
     <Dialog

@@ -501,7 +501,7 @@ function EventsTable() {
 
 function ExpandedEventContent({ event }: { event: Event }) {
   return (
-    <DialogContent className="w-fit max-w-[80%] min-w-[500px]">
+    <DialogContent className="w-fit max-w-[700px] overflow-hidden">
       <DialogHeader>
         <DialogTitle>Event {event.key}</DialogTitle>
         <DialogDescription>
@@ -559,15 +559,17 @@ function EventWorkflowRunsList({ event }: { event: Event }) {
   });
 
   return (
-    <DataTable
-      columns={workflowRunsColumns()}
-      data={listWorkflowRunsQuery.data?.rows || []}
-      filters={[]}
-      pageCount={listWorkflowRunsQuery.data?.pagination?.num_pages || 0}
-      columnVisibility={{
-        'Triggered by': false,
-      }}
-      isLoading={listWorkflowRunsQuery.isLoading}
-    />
+    <div className="w-full overflow-x-auto max-w-full">
+      <DataTable
+        columns={workflowRunsColumns()}
+        data={listWorkflowRunsQuery.data?.rows || []}
+        filters={[]}
+        pageCount={listWorkflowRunsQuery.data?.pagination?.num_pages || 0}
+        columnVisibility={{
+          'Triggered by': false,
+        }}
+        isLoading={listWorkflowRunsQuery.isLoading}
+      />
+    </div>
   );
 }
