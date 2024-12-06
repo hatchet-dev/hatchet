@@ -2081,6 +2081,16 @@ func (q *Queries) GetWorkflowRunTrigger(ctx context.Context, db DBTX, arg GetWor
 const getWorkflowRunsInsertedInThisTxn = `-- name: GetWorkflowRunsInsertedInThisTxn :many
 SELECT
     runs."createdAt", runs."updatedAt", runs."deletedAt", runs."tenantId", runs."workflowVersionId", runs.status, runs.error, runs."startedAt", runs."finishedAt", runs."concurrencyGroupId", runs."displayName", runs.id, runs."childIndex", runs."childKey", runs."parentId", runs."parentStepRunId", runs."additionalMetadata", runs.duration, runs.priority, runs."insertOrder",
+    CASE
+    WHEN EXISTS (
+        SELECT 1
+        FROM "JobRun" AS jr
+        JOIN "Job" AS j ON jr."jobId" = j."id"
+        WHERE jr."workflowRunId" = runs."id" AND j."kind" = 'ON_FAILURE'
+    )
+    THEN true
+    ELSE false
+    END AS "FailureJob",
     wc."limitStrategy" as "concurrencyLimitStrategy",
     wc."maxRuns" as "concurrencyMaxRuns",
     wc."concurrencyGroupExpression" as "concurrencyGroupExpression",
@@ -2099,6 +2109,7 @@ LEFT JOIN
     "GetGroupKeyRun" as groupKeyRun ON groupKeyRun."workflowRunId" = runs."id"
 LEFT JOIN
     "WorkflowRunDedupe" as dedupe ON dedupe."workflowRunId" = runs."id"
+
 WHERE
     runs.xmin::text = (txid_current() % (2^32)::bigint)::text
     AND (runs."createdAt" = CURRENT_TIMESTAMP::timestamp(3))
@@ -2107,6 +2118,7 @@ WHERE
 
 type GetWorkflowRunsInsertedInThisTxnRow struct {
 	WorkflowRun                WorkflowRun                  `json:"workflow_run"`
+	FailureJob                 bool                         `json:"FailureJob"`
 	ConcurrencyLimitStrategy   NullConcurrencyLimitStrategy `json:"concurrencyLimitStrategy"`
 	ConcurrencyMaxRuns         pgtype.Int4                  `json:"concurrencyMaxRuns"`
 	ConcurrencyGroupExpression pgtype.Text                  `json:"concurrencyGroupExpression"`
@@ -2144,6 +2156,7 @@ func (q *Queries) GetWorkflowRunsInsertedInThisTxn(ctx context.Context, db DBTX)
 			&i.WorkflowRun.Duration,
 			&i.WorkflowRun.Priority,
 			&i.WorkflowRun.InsertOrder,
+			&i.FailureJob,
 			&i.ConcurrencyLimitStrategy,
 			&i.ConcurrencyMaxRuns,
 			&i.ConcurrencyGroupExpression,
@@ -2998,6 +3011,20 @@ func (q *Queries) ResolveWorkflowRunStatus(ctx context.Context, db DBTX, arg Res
 		return nil, err
 	}
 	return items, nil
+}
+
+const setWorklowRunRunning = `-- name: SetWorklowRunRunning :exec
+UPDATE "WorkflowRun"
+SET
+    "status" = 'RUNNING'::"WorkflowRunStatus"
+WHERE
+    "id" = ANY($1::uuid[])
+    AND "status" != 'RUNNING'::"WorkflowRunStatus"
+`
+
+func (q *Queries) SetWorklowRunRunning(ctx context.Context, db DBTX, workflowrunids []pgtype.UUID) error {
+	_, err := db.Exec(ctx, setWorklowRunRunning, workflowrunids)
+	return err
 }
 
 const softDeleteExpiredWorkflowRunsWithDependencies = `-- name: SoftDeleteExpiredWorkflowRunsWithDependencies :one

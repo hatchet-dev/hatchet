@@ -1637,11 +1637,11 @@ func createNewWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbs
 				InsertOrder:        pgtype.Int4{Int32: int32(order), Valid: true},
 			}
 
-			// we can short circuit and skip the "PENDING" state
-			// TODO is this logic correct for the new expressions?
-			if opt.GetGroupKeyRun == nil && opt.DedupeValue == nil {
-				crp.Status = "RUNNING"
-			}
+			// // we can short circuit and skip the "PENDING" state
+			// // TODO is this logic correct for the new expressions?
+			// if opt.GetGroupKeyRun == nil && opt.DedupeValue == nil {
+			// 	crp.Status = "RUNNING"
+			// }
 
 			createRunsParams = append(createRunsParams, crp)
 
@@ -1711,10 +1711,10 @@ func createNewWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbs
 
 			jrStatus := dbsqlc.JobRunStatusPENDING
 
-			// TODO is this the correct logic?
-			if opt.GetGroupKeyRun == nil && opt.DedupeValue == nil {
-				jrStatus = dbsqlc.JobRunStatusRUNNING
-			}
+			// // TODO is this the correct logic? maybe we can just do this later
+			// if opt.GetGroupKeyRun == nil && opt.DedupeValue == nil {
+			// 	jrStatus = dbsqlc.JobRunStatusRUNNING
+			// }
 
 			jobRunParams = append(jobRunParams, dbsqlc.CreateJobRunsParams{
 				Tenantid:          sqlchelpers.UUIDFromStr(opt.TenantId),
@@ -1983,7 +1983,7 @@ func createNewWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbs
 	if err != nil {
 		return nil, err
 	}
-	fmt.Printf("createdWorkflowRuns: %+v ", createdWorkflowRuns)
+
 	return createdWorkflowRuns, nil
 }
 
@@ -1996,6 +1996,14 @@ func shortCircuitWorkflowRuns(ctx context.Context, tx pgx.Tx, wfrs []*dbsqlc.Get
 
 	for _, wfr := range wfrs {
 		workflowRunIds = append(workflowRunIds, wfr.WorkflowRun.ID)
+	}
+
+	// update the workflow run status to running
+
+	err := queries.SetWorklowRunRunning(ctx, tx, workflowRunIds)
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not set workflow run to running: %w", err)
 	}
 
 	startableStepRuns, err := queries.GetStartableStepRunsForWorkflowRuns(ctx, tx, workflowRunIds)
@@ -2231,13 +2239,11 @@ func bulkWorkflowRunEvents(
 	}
 }
 
-// TODO verify this logic is correct
 func CanShortCircuit(workflowRunRow *dbsqlc.GetWorkflowRunsInsertedInThisTxnRow) bool {
 
-	return !(workflowRunRow.ConcurrencyLimitStrategy.Valid || workflowRunRow.ConcurrencyGroupExpression.Valid || workflowRunRow.GetGroupKeyRunId.Valid || workflowRunRow.WorkflowRun.ConcurrencyGroupId.Valid || workflowRunRow.DedupeValue.Valid)
+	return !(workflowRunRow.ConcurrencyLimitStrategy.Valid || workflowRunRow.ConcurrencyGroupExpression.Valid || workflowRunRow.GetGroupKeyRunId.Valid || workflowRunRow.WorkflowRun.ConcurrencyGroupId.Valid || workflowRunRow.DedupeValue.Valid || workflowRunRow.FailureJob)
 }
 
-// TODO is this the best place for this? Feels like a utils kind of function
 func NotifyQueues(ctx context.Context, mq msgqueue.MessageQueue, l *zerolog.Logger, repo repository.EngineRepository, tenantId string, workflowRun *repository.CreatedWorkflowRun) error {
 	tenant, err := repo.Tenant().GetTenantByID(ctx, tenantId)
 
