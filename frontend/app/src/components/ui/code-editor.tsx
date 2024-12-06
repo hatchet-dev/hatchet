@@ -23,7 +23,7 @@ export function CodeEditor({
   className,
   height,
   width,
-  copy,
+  copy = true,
   wrapLines = true,
   lineNumbers = false,
 }: CodeEditorProps) {
@@ -73,7 +73,7 @@ export function CodeEditor({
       />
       {copy && (
         <CopyToClipboard
-          className="absolute top-1 right-1"
+          className="absolute top-2 right-2"
           text={code.trim()}
         />
       )}
@@ -131,7 +131,7 @@ export function DiffCodeEditor({
       />
       {copy && (
         <CopyToClipboard
-          className="absolute top-1 right-1"
+          className="absolute top-2 right-2"
           text={code.trim()}
         />
       )}

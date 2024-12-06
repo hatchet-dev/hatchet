@@ -22,6 +22,7 @@ export const StepRunOutput: React.FC<StepRunOutputProps> = ({
         language="json"
         className="mb-4"
         height="400px"
+        copy={true}
         code={JSON.stringify(
           errors.length > 0
             ? errors.map((error) => error.split('\\n')).flat()
