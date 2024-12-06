@@ -783,9 +783,6 @@ INSERT INTO "GetGroupKeyRun" (
 
 );
 
-
------- maybe we add them here in the right JobRun state ?
-
 -- name: CreateJobRuns :many
 INSERT INTO "JobRun" (
     "id",
@@ -1558,7 +1555,7 @@ DELETE FROM "WorkflowTriggerScheduledRef"
 WHERE
     "id" = @scheduleId::uuid;
 
--- name: SetWorklowRunRunning :exec
+-- name: SetWorkflowRunRunning :exec
 UPDATE "WorkflowRun"
 SET
     "status" = 'RUNNING'::"WorkflowRunStatus"

@@ -264,35 +264,6 @@ func (q *Queries) ListJobRunsForWorkflowRunFull(ctx context.Context, db DBTX, ar
 	return items, nil
 }
 
-const listJobRunsForWorkflowRuns = `-- name: ListJobRunsForWorkflowRuns :many
-SELECT
-    "id"
-FROM
-    "JobRun" jr
-WHERE
-    jr."workflowRunId" = ANY($1::uuid[])
-`
-
-func (q *Queries) ListJobRunsForWorkflowRuns(ctx context.Context, db DBTX, workflowrunids []pgtype.UUID) ([]pgtype.UUID, error) {
-	rows, err := db.Query(ctx, listJobRunsForWorkflowRuns, workflowrunids)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []pgtype.UUID
-	for rows.Next() {
-		var id pgtype.UUID
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		items = append(items, id)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const resolveJobRunStatus = `-- name: ResolveJobRunStatus :many
 WITH stepRuns AS (
     SELECT

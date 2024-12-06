@@ -1637,12 +1637,6 @@ func createNewWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbs
 				InsertOrder:        pgtype.Int4{Int32: int32(order), Valid: true},
 			}
 
-			// // we can short circuit and skip the "PENDING" state
-			// // TODO is this logic correct for the new expressions?
-			// if opt.GetGroupKeyRun == nil && opt.DedupeValue == nil {
-			// 	crp.Status = "RUNNING"
-			// }
-
 			createRunsParams = append(createRunsParams, crp)
 
 			var desiredWorkerId pgtype.UUID
@@ -1710,11 +1704,6 @@ func createNewWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbs
 			}
 
 			jrStatus := dbsqlc.JobRunStatusPENDING
-
-			// // TODO is this the correct logic? maybe we can just do this later
-			// if opt.GetGroupKeyRun == nil && opt.DedupeValue == nil {
-			// 	jrStatus = dbsqlc.JobRunStatusRUNNING
-			// }
 
 			jobRunParams = append(jobRunParams, dbsqlc.CreateJobRunsParams{
 				Tenantid:          sqlchelpers.UUIDFromStr(opt.TenantId),
@@ -2000,7 +1989,7 @@ func shortCircuitWorkflowRuns(ctx context.Context, tx pgx.Tx, wfrs []*dbsqlc.Get
 
 	// update the workflow run status to running
 
-	err := queries.SetWorklowRunRunning(ctx, tx, workflowRunIds)
+	err := queries.SetWorkflowRunRunning(ctx, tx, workflowRunIds)
 
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not set workflow run to running: %w", err)

@@ -289,10 +289,6 @@ ExprCount AS (
     GROUP BY
         sr."id"
 ),
-
-
-
-
 StepRunDetails AS (
     SELECT
         DISTINCT ON (sr."id")
@@ -306,9 +302,6 @@ StepRunDetails AS (
         wr."childKey",
         wr."parentId",
         COALESCE(ec."exprCount", 0) AS "exprCount",
-        --
-
-
         sr."id" AS "SR_id",
         sr."tenantId" AS "SR_tenantId",
         sr."createdAt" AS "SR_createdAt",
@@ -384,90 +377,6 @@ StepRunDetails AS (
 )
 SELECT * FROM StepRunDetails;
 
-
-
--- name: GetStepRunForEngineNoTenant :many
-WITH child_count AS (
-    SELECT
-        COUNT(*) AS "childCount",
-        sr."id" AS "id"
-    FROM
-        "StepRun" sr
-    LEFT JOIN
-        "_StepRunOrder" AS step_run_order ON sr."id" = step_run_order."A"
-    WHERE
-        sr."id" = ANY(@ids::uuid[])
-        AND step_run_order IS NOT NULL
-    GROUP BY
-        sr."id"
-)
-SELECT
-    DISTINCT ON (sr."id")
-    sr."id" AS "SR_id",
-    sr."tenantId" AS "SR_tenantId",
-    sr."createdAt" AS "SR_createdAt",
-    sr."updatedAt" AS "SR_updatedAt",
-    sr."deletedAt" AS "SR_deletedAt",
-    sr."tenantId" AS "SR_tenantId",
-    sr."queue" AS "SR_queue",
-    sr."order" AS "SR_order",
-    sqi."workerId" AS "SR_workerId",
-    sr."tickerId" AS "SR_tickerId",
-    sr."status" AS "SR_status",
-    sr."requeueAfter" AS "SR_requeueAfter",
-    sr."scheduleTimeoutAt" AS "SR_scheduleTimeoutAt",
-    sr."startedAt" AS "SR_startedAt",
-    sr."finishedAt" AS "SR_finishedAt",
-    sr."timeoutAt" AS "SR_timeoutAt",
-    sr."cancelledAt" AS "SR_cancelledAt",
-    sr."cancelledReason" AS "SR_cancelledReason",
-    sr."cancelledError" AS "SR_cancelledError",
-    sr."callerFiles" AS "SR_callerFiles",
-    sr."gitRepoBranch" AS "SR_gitRepoBranch",
-    sr."retryCount" AS "SR_retryCount",
-    sr."semaphoreReleased" AS "SR_semaphoreReleased",
-    sr."priority" AS "SR_priority",
-    COALESCE(cc."childCount", 0) AS "SR_childCount",
-    -- TODO: everything below this line is cacheable and should be moved to a separate query
-    jr."id" AS "jobRunId",
-    s."id" AS "stepId",
-    s."retries" AS "stepRetries",
-    s."timeout" AS "stepTimeout",
-    s."scheduleTimeout" AS "stepScheduleTimeout",
-    s."readableId" AS "stepReadableId",
-    s."customUserData" AS "stepCustomUserData",
-    s."retryBackoffFactor" AS "stepRetryBackoffFactor",
-    s."retryMaxBackoff" AS "stepRetryMaxBackoff",
-    j."name" AS "jobName",
-    j."id" AS "jobId",
-    j."kind" AS "jobKind",
-    j."workflowVersionId" AS "workflowVersionId",
-    jr."status" AS "jobRunStatus",
-    jr."workflowRunId" AS "workflowRunId",
-    a."actionId" AS "actionId",
-    sticky."strategy" AS "stickyStrategy",
-    sticky."desiredWorkerId" AS "desiredWorkerId"
-FROM
-    "StepRun" sr
-LEFT JOIN
-    child_count cc ON sr."id" = cc."id"
-JOIN
-    "Step" s ON sr."stepId" = s."id"
-JOIN
-    "Action" a ON s."actionId" = a."actionId" AND s."tenantId" = a."tenantId"
-JOIN
-    "JobRun" jr ON sr."jobRunId" = jr."id"
-JOIN
-    "Job" j ON jr."jobId" = j."id"
-LEFT JOIN
-    "SemaphoreQueueItem" sqi ON sr."id" = sqi."stepRunId"
-LEFT JOIN
-    "WorkflowRunStickyState" sticky ON jr."workflowRunId" = sticky."workflowRunId"
-WHERE
-    sr."id" = ANY(@ids::uuid[]) AND
-    sr."deletedAt" IS NULL AND
-    jr."deletedAt" IS NULL ;
-
 -- name: ListInitialStepRuns :many
 SELECT
     DISTINCT ON (child_run."id")
@@ -478,20 +387,6 @@ LEFT JOIN
     "_StepRunOrder" AS step_run_order ON step_run_order."B" = child_run."id"
 WHERE
     child_run."jobRunId" = @jobRunId::uuid
-    AND child_run."status" = 'PENDING'
-    AND step_run_order."A" IS NULL;
-
--- name: ListInitialStepRunsForJobRuns :many
-SELECT
-    DISTINCT ON (child_run."id")
-    child_run."id" AS "id"
-
-FROM
-    "StepRun" AS child_run
-LEFT JOIN
-    "_StepRunOrder" AS step_run_order ON step_run_order."B" = child_run."id"
-WHERE
-    child_run."jobRunId" = ANY(@jobRunIds::uuid[])
     AND child_run."status" = 'PENDING'
     AND step_run_order."A" IS NULL;
 

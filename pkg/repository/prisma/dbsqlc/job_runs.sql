@@ -126,13 +126,6 @@ WHERE
     jr."workflowRunId" = @workflowRunId::uuid;
 
 
--- name: ListJobRunsForWorkflowRuns :many
-SELECT
-    "id"
-FROM
-    "JobRun" jr
-WHERE
-    jr."workflowRunId" = ANY(@workflowRunIds::uuid[]);
 
 -- name: ListJobRunsForWorkflowRunFull :many
 WITH steps AS (

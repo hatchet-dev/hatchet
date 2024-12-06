@@ -512,7 +512,6 @@ func (q *Queries) CreateJobRunLookupDatas(ctx context.Context, db DBTX, arg Crea
 }
 
 const createJobRuns = `-- name: CreateJobRuns :many
-
 INSERT INTO "JobRun" (
     "id",
     "createdAt",
@@ -544,7 +543,6 @@ type CreateJobRunsParams struct {
 	Workflowversionid pgtype.UUID  `json:"workflowversionid"`
 }
 
-// ---- maybe we add them here in the right JobRun state ?
 func (q *Queries) CreateJobRuns(ctx context.Context, db DBTX, arg CreateJobRunsParams) ([]pgtype.UUID, error) {
 	rows, err := db.Query(ctx, createJobRuns,
 		arg.Tenantid,
@@ -3013,7 +3011,7 @@ func (q *Queries) ResolveWorkflowRunStatus(ctx context.Context, db DBTX, arg Res
 	return items, nil
 }
 
-const setWorklowRunRunning = `-- name: SetWorklowRunRunning :exec
+const setWorkflowRunRunning = `-- name: SetWorkflowRunRunning :exec
 UPDATE "WorkflowRun"
 SET
     "status" = 'RUNNING'::"WorkflowRunStatus"
@@ -3022,8 +3020,8 @@ WHERE
     AND "status" != 'RUNNING'::"WorkflowRunStatus"
 `
 
-func (q *Queries) SetWorklowRunRunning(ctx context.Context, db DBTX, workflowrunids []pgtype.UUID) error {
-	_, err := db.Exec(ctx, setWorklowRunRunning, workflowrunids)
+func (q *Queries) SetWorkflowRunRunning(ctx context.Context, db DBTX, workflowrunids []pgtype.UUID) error {
+	_, err := db.Exec(ctx, setWorkflowRunRunning, workflowrunids)
 	return err
 }
 
