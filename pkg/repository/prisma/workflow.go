@@ -1086,6 +1086,10 @@ func (r *workflowEngineRepository) createWorkflowVersionTxs(ctx context.Context,
 				Workflowtriggersid: sqlcWorkflowTriggers.ID,
 				Crontrigger:        cronTrigger,
 				Input:              opts.CronInput,
+				Name: pgtype.Text{
+					String: "",
+					Valid:  true,
+				},
 			},
 		)
 
