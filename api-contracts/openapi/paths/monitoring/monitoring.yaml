@@ -44,4 +44,3 @@ probe:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Not authorized to perform this action
-    security: []
