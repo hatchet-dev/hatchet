@@ -6,7 +6,7 @@ import "time"
 type ConfigFileBuffer struct {
 
 	// WaitForFlush is the time to wait for the buffer to flush used for backpressure on writers
-	WaitForFlush time.Duration `mapstructure:"waitForFlush" json:"waitForFlush,omitempty" default:"1ms"`
+	WaitForFlush time.Duration `mapstructure:"waitForFlush" json:"waitForFlush,omitempty" default:"1"`
 
 	// MaxConcurrent is the maximum number of concurrent flushes
 	MaxConcurrent int `mapstructure:"maxConcurrent" json:"maxConcurrent,omitempty" default:"50"`

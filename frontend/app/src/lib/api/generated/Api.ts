@@ -53,6 +53,7 @@ import {
   ReplayWorkflowRunsRequest,
   ReplayWorkflowRunsResponse,
   RerunStepRunRequest,
+  RunProbe,
   SNSIntegration,
   ScheduleWorkflowRunRequest,
   ScheduledRunStatus,
@@ -2092,6 +2093,22 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       path: `/api/v1/tenants/${tenant}/workflow-runs/${workflowRun}/input`,
       method: 'GET',
       secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Triggers a workflow to check the status of the instance
+   *
+   * @name MonitoringPostRunProbe
+   * @summary Detailed Health Probe For the Instance
+   * @request POST:/api/v1/monitoring/{tenant}/probe
+   */
+  monitoringPostRunProbe = (tenant: string, data: RunProbe, params: RequestParams = {}) =>
+    this.request<RunProbe, APIErrors>({
+      path: `/api/v1/monitoring/${tenant}/probe`,
+      method: 'POST',
+      body: data,
+      type: ContentType.Json,
       format: 'json',
       ...params,
     });

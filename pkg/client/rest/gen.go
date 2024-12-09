@@ -675,6 +675,11 @@ type RerunStepRunRequest struct {
 	Input map[string]interface{} `json:"input"`
 }
 
+// RunProbe defines model for RunProbe.
+type RunProbe struct {
+	TenantId *string `json:"tenantId,omitempty"`
+}
+
 // SNSIntegration defines model for SNSIntegration.
 type SNSIntegration struct {
 	// IngestUrl The URL to send SNS messages to.
@@ -1720,6 +1725,9 @@ type WorkflowVersionGetParams struct {
 // AlertEmailGroupUpdateJSONRequestBody defines body for AlertEmailGroupUpdate for application/json ContentType.
 type AlertEmailGroupUpdateJSONRequestBody = UpdateTenantAlertEmailGroupRequest
 
+// MonitoringPostRunProbeJSONRequestBody defines body for MonitoringPostRunProbe for application/json ContentType.
+type MonitoringPostRunProbeJSONRequestBody = RunProbe
+
 // TenantCreateJSONRequestBody defines body for TenantCreate for application/json ContentType.
 type TenantCreateJSONRequestBody = CreateTenantRequest
 
@@ -1899,6 +1907,11 @@ type ClientInterface interface {
 
 	// MetadataListIntegrations request
 	MetadataListIntegrations(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// MonitoringPostRunProbeWithBody request with any body
+	MonitoringPostRunProbeWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	MonitoringPostRunProbe(ctx context.Context, tenant openapi_types.UUID, body MonitoringPostRunProbeJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// SlackWebhookDelete request
 	SlackWebhookDelete(ctx context.Context, slack openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -2319,6 +2332,30 @@ func (c *Client) MetadataGet(ctx context.Context, reqEditors ...RequestEditorFn)
 
 func (c *Client) MetadataListIntegrations(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewMetadataListIntegrationsRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) MonitoringPostRunProbeWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewMonitoringPostRunProbeRequestWithBody(c.Server, tenant, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) MonitoringPostRunProbe(ctx context.Context, tenant openapi_types.UUID, body MonitoringPostRunProbeJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewMonitoringPostRunProbeRequest(c.Server, tenant, body)
 	if err != nil {
 		return nil, err
 	}
@@ -3927,6 +3964,53 @@ func NewMetadataListIntegrationsRequest(server string) (*http.Request, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	return req, nil
+}
+
+// NewMonitoringPostRunProbeRequest calls the generic MonitoringPostRunProbe builder with application/json body
+func NewMonitoringPostRunProbeRequest(server string, tenant openapi_types.UUID, body MonitoringPostRunProbeJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewMonitoringPostRunProbeRequestWithBody(server, tenant, "application/json", bodyReader)
+}
+
+// NewMonitoringPostRunProbeRequestWithBody generates requests for MonitoringPostRunProbe with any type of body
+func NewMonitoringPostRunProbeRequestWithBody(server string, tenant openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/monitoring/%s/probe", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -8335,6 +8419,11 @@ type ClientWithResponsesInterface interface {
 	// MetadataListIntegrationsWithResponse request
 	MetadataListIntegrationsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*MetadataListIntegrationsResponse, error)
 
+	// MonitoringPostRunProbeWithBodyWithResponse request with any body
+	MonitoringPostRunProbeWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*MonitoringPostRunProbeResponse, error)
+
+	MonitoringPostRunProbeWithResponse(ctx context.Context, tenant openapi_types.UUID, body MonitoringPostRunProbeJSONRequestBody, reqEditors ...RequestEditorFn) (*MonitoringPostRunProbeResponse, error)
+
 	// SlackWebhookDeleteWithResponse request
 	SlackWebhookDeleteWithResponse(ctx context.Context, slack openapi_types.UUID, reqEditors ...RequestEditorFn) (*SlackWebhookDeleteResponse, error)
 
@@ -8855,6 +8944,31 @@ func (r MetadataListIntegrationsResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r MetadataListIntegrationsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type MonitoringPostRunProbeResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *RunProbe
+	JSON400      *APIErrors
+	JSON401      *APIErrors
+	JSON403      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r MonitoringPostRunProbeResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r MonitoringPostRunProbeResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -10943,6 +11057,23 @@ func (c *ClientWithResponses) MetadataListIntegrationsWithResponse(ctx context.C
 	return ParseMetadataListIntegrationsResponse(rsp)
 }
 
+// MonitoringPostRunProbeWithBodyWithResponse request with arbitrary body returning *MonitoringPostRunProbeResponse
+func (c *ClientWithResponses) MonitoringPostRunProbeWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*MonitoringPostRunProbeResponse, error) {
+	rsp, err := c.MonitoringPostRunProbeWithBody(ctx, tenant, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseMonitoringPostRunProbeResponse(rsp)
+}
+
+func (c *ClientWithResponses) MonitoringPostRunProbeWithResponse(ctx context.Context, tenant openapi_types.UUID, body MonitoringPostRunProbeJSONRequestBody, reqEditors ...RequestEditorFn) (*MonitoringPostRunProbeResponse, error) {
+	rsp, err := c.MonitoringPostRunProbe(ctx, tenant, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseMonitoringPostRunProbeResponse(rsp)
+}
+
 // SlackWebhookDeleteWithResponse request returning *SlackWebhookDeleteResponse
 func (c *ClientWithResponses) SlackWebhookDeleteWithResponse(ctx context.Context, slack openapi_types.UUID, reqEditors ...RequestEditorFn) (*SlackWebhookDeleteResponse, error) {
 	rsp, err := c.SlackWebhookDelete(ctx, slack, reqEditors...)
@@ -12192,6 +12323,53 @@ func ParseMetadataListIntegrationsResponse(rsp *http.Response) (*MetadataListInt
 			return nil, err
 		}
 		response.JSON400 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseMonitoringPostRunProbeResponse parses an HTTP response from a MonitoringPostRunProbeWithResponse call
+func ParseMonitoringPostRunProbeResponse(rsp *http.Response) (*MonitoringPostRunProbeResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &MonitoringPostRunProbeResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest RunProbe
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
 
 	}
 

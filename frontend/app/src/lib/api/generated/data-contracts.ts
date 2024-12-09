@@ -1374,6 +1374,10 @@ export interface WebhookWorkerRequestListResponse {
   requests?: WebhookWorkerRequest[];
 }
 
+export interface RunProbe {
+  tenantId?: string;
+}
+
 export interface TenantList {
   pagination?: PaginationResponse;
   rows?: Tenant[];
@@ -1423,3 +1427,5 @@ export interface WebhookWorkerCreateResponse {
 }
 
 export type BulkCreateEventResponse = Events;
+
+export type MonitoringRunProbe = RunProbe;
