@@ -346,10 +346,38 @@ func (w *Worker) registerAction(service, verb string, method any, compute *compu
 	return nil
 }
 
-// Start starts the worker in blocking fashion
+// Start starts the worker in non-blocking fashion, returning a cleanup function and an error if the
+// worker could not be started.
 func (w *Worker) Start() (func() error, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
+	go func() {
+		err := w.startBlocking(ctx)
+
+		if err != nil {
+			// NOTE: this matches the behavior of the old worker, until we change the signature of Start
+			panic(err)
+		}
+	}()
+
+	cleanup := func() error {
+		cancel()
+
+		w.l.Debug().Msgf("worker %s is stopping...", w.name)
+
+		return nil
+	}
+
+	return cleanup, nil
+}
+
+// Run starts the worker in blocking fashion, returning an error if the worker could not be started
+// or if the worker stopped due to a networking issue.
+func (w *Worker) Run(ctx context.Context) error {
+	return w.startBlocking(ctx)
+}
+
+func (w *Worker) startBlocking(ctx context.Context) error {
 	actionNames := []string{}
 
 	for _, action := range w.actions {
@@ -377,21 +405,35 @@ func (w *Worker) Start() (func() error, error) {
 	w.id = id
 
 	if err != nil {
-		cancel()
-		return nil, fmt.Errorf("could not get action listener: %w", err)
+		return fmt.Errorf("could not get action listener: %w", err)
 	}
 
-	actionCh, err := listener.Actions(ctx)
+	defer func() {
+		err := listener.Unregister()
+
+		if err != nil {
+			w.l.Error().Err(err).Msg("could not unregister worker")
+		}
+	}()
+
+	listenerCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	actionCh, errCh, err := listener.Actions(listenerCtx)
 
 	if err != nil {
-		cancel()
-		return nil, fmt.Errorf("could not get action channel: %w", err)
+		return fmt.Errorf("could not get action channel: %w", err)
 	}
 
 	go func() {
 		for {
 			select {
-			case action := <-actionCh:
+			case action, ok := <-actionCh:
+				if !ok {
+					w.l.Debug().Msgf("worker %s received action channel closed, stopping", w.name)
+					return
+				}
+
 				go func(action *client.Action) {
 					err := w.executeAction(context.Background(), action)
 
@@ -408,22 +450,14 @@ func (w *Worker) Start() (func() error, error) {
 		}
 	}()
 
-	cleanup := func() error {
-		cancel()
-
-		w.l.Debug().Msgf("worker %s is stopping...", w.name)
-
-		err := listener.Unregister()
-		if err != nil {
-			return fmt.Errorf("could not unregister worker: %w", err)
-		}
-
-		w.l.Debug().Msgf("worker %s stopped", w.name)
-
+	select {
+	case <-ctx.Done():
+		w.l.Debug().Msgf("worker %s received context done, stopping", w.name)
 		return nil
+	case err := <-errCh:
+		w.l.Error().Err(err).Msg("error from listener")
+		return err
 	}
-
-	return cleanup, nil
 }
 
 func (w *Worker) executeAction(ctx context.Context, assignedAction *client.Action) error {
