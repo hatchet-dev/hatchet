@@ -2,7 +2,6 @@ package monitoring
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -159,28 +158,16 @@ func (m *MonitoringService) run(ctx context.Context, events chan<- string, error
 	err = w.RegisterWorkflow(
 		&worker.WorkflowJob{
 			On:          worker.Events(m.eventName),
-			Name:        "probey",
+			Name:        "probe",
 			Concurrency: worker.Concurrency(getConcurrencyKey).MaxRuns(1).LimitStrategy(types.CancelInProgress),
 			Description: "This is part of the monitoring system for testing the readiness of this Hatchet installation.",
 			Steps: []*worker.WorkflowStep{
 				worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
-					fmt.Println("step one")
-
-					out, err := json.MarshalIndent(ctx, "", "  ")
-					if err != nil {
-						fmt.Println("the error is ", err)
-						return nil, err
-					}
-
-					fmt.Println("the context is ", string(out))
-
-					fmt.Println("the context is ", ctx)
 
 					input := &probeEvent{}
 
 					err = ctx.WorkflowInput(input)
 					if err != nil {
-						fmt.Println("the error is ", err)
 						return nil, err
 					}
 
@@ -240,7 +227,6 @@ func (m *MonitoringService) run(ctx context.Context, events chan<- string, error
 	go func() {
 		testEvent := probeEvent{
 			UniqueStreamId: streamValue,
-			StaticField:    "staticFieldyForProbey",
 		}
 
 		err := c.Event().Push(
