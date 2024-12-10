@@ -2,6 +2,7 @@ package monitoring
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/client"
+	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 )
@@ -50,7 +52,6 @@ func (m *MonitoringService) MonitoringPostRunProbe(ctx echo.Context, request gen
 
 	os.Setenv("HATCHET_CLIENT_TLS_ROOT_CA_FILE", os.Getenv("SERVER_TLS_ROOT_CA_FILE"))
 	os.Setenv("HATCHET_CLIENT_TOKEN", token)
-	os.Setenv("HATCHET_CLIENT_NAMESPACE", generateRandomNamespace(tenant))
 
 	events := make(chan string, 50)
 	errorChan := make(chan error, 50)
@@ -128,10 +129,13 @@ func (m *MonitoringService) MonitoringPostRunProbe(ctx echo.Context, request gen
 }
 
 type probeEvent struct {
+	UniqueStreamId string
+	StaticField    string
 }
 
 type stepOneOutput struct {
-	Message string `json:"message"`
+	Message        string `json:"message"`
+	UniqueStreamId string
 }
 
 func (m *MonitoringService) run(ctx context.Context, events chan<- string, errors chan<- error) (func() error, error) {
@@ -155,29 +159,63 @@ func (m *MonitoringService) run(ctx context.Context, events chan<- string, error
 	err = w.RegisterWorkflow(
 		&worker.WorkflowJob{
 			On:          worker.Events(m.eventName),
-			Name:        "probe",
+			Name:        "probey",
+			Concurrency: worker.Concurrency(getConcurrencyKey).MaxRuns(1).LimitStrategy(types.CancelInProgress),
 			Description: "This is part of the monitoring system for testing the readiness of this Hatchet installation.",
 			Steps: []*worker.WorkflowStep{
 				worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
+					fmt.Println("step one")
+
+					out, err := json.MarshalIndent(ctx, "", "  ")
+					if err != nil {
+						fmt.Println("the error is ", err)
+						return nil, err
+					}
+
+					fmt.Println("the context is ", string(out))
+
+					fmt.Println("the context is ", ctx)
+
 					input := &probeEvent{}
 
 					err = ctx.WorkflowInput(input)
-
 					if err != nil {
+						fmt.Println("the error is ", err)
 						return nil, err
 					}
+
+					if input.UniqueStreamId == "" {
+						return nil, fmt.Errorf("uniqueStreamId is required")
+					}
+
+					if input.UniqueStreamId != streamValue {
+						return nil, fmt.Errorf("uniqueStreamId does not match stream value")
+					}
+
 					ctx.StreamEvent([]byte("This is a stream event for step-one"))
 
-					return &stepOneOutput{}, nil
+					return &stepOneOutput{
+						Message:        "This is a message for step-one",
+						UniqueStreamId: streamValue,
+					}, nil
 				},
 				).SetName("step-one"),
 				worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
-					input := &stepOneOutput{}
+					input := &probeEvent{}
 					err = ctx.StepOutput("step-one", input)
 
 					if err != nil {
 						return nil, err
 					}
+
+					if input.UniqueStreamId == "" {
+						return nil, fmt.Errorf("uniqueStreamId is required")
+					}
+
+					if input.UniqueStreamId != streamValue {
+						return nil, fmt.Errorf("uniqueStreamId does not match stream value")
+					}
+
 					ctx.StreamEvent([]byte("This is a stream event for step-two"))
 
 					return &stepOneOutput{}, nil
@@ -200,7 +238,10 @@ func (m *MonitoringService) run(ctx context.Context, events chan<- string, error
 	}()
 
 	go func() {
-		testEvent := probeEvent{}
+		testEvent := probeEvent{
+			UniqueStreamId: streamValue,
+			StaticField:    "staticFieldyForProbey",
+		}
 
 		err := c.Event().Push(
 			context.Background(),
@@ -239,6 +280,6 @@ func getBearerTokenFromRequest(r *http.Request) (string, error) {
 	return reqToken, nil
 }
 
-func generateRandomNamespace(tenant uuid.UUID) string {
-	return fmt.Sprintf("monitoring-%s-%s", tenant.String(), uuid.New().String()[0:8])
+func getConcurrencyKey(ctx worker.HatchetContext) (string, error) {
+	return "probe", nil
 }
