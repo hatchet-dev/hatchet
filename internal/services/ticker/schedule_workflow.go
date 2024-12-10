@@ -189,12 +189,12 @@ func (t *TickerImpl) runScheduledWorkflow(tenantId, workflowVersionId, scheduled
 
 		workflowRun, err := t.repo.WorkflowRun().CreateNewWorkflowRun(ctx, tenantId, createOpts)
 
-		workflowRunId := sqlchelpers.UUIDToStr(workflowRun.ID)
-
 		if err != nil {
 			t.l.Err(err).Msg("could not create workflow run")
 			return
 		}
+
+		workflowRunId := sqlchelpers.UUIDToStr(workflowRun.ID)
 
 		err = t.mq.AddMessage(
 			context.Background(),
