@@ -84,6 +84,8 @@ func newQueuer(conf *sharedConfig, tenantId pgtype.UUID, queueName string, s *Sc
 
 		q.isCleanedUp = true
 		cancel()
+
+		queueRepo.Cleanup()
 	}
 
 	go q.loopQueue(ctx)
