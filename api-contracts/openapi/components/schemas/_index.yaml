@@ -292,5 +292,3 @@ WebhookWorkerCreateResponse:
   $ref: "./webhook_worker.yaml#/WebhookWorkerCreateResponse"
 WebhookWorkerListResponse:
   $ref: "./webhook_worker.yaml#/WebhookWorkerListResponse"
-MonitoringRunProbe:
-  $ref: "./monitoring.yaml#/RunProbe"

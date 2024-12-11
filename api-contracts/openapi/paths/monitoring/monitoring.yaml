@@ -14,11 +14,6 @@ probe:
           format: uuid
           minLength: 36
           maxLength: 36
-    requestBody:
-      content:
-        application/json:
-          schema:
-            $ref: "../../components/schemas/_index.yaml#/MonitoringRunProbe"
     responses:
       "200":
         content:
