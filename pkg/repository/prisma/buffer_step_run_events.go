@@ -1,4 +1,4 @@
-package buffer
+package prisma
 
 import (
 	"context"
@@ -8,63 +8,38 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/buffer"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
-	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
-type BulkEventWriter struct {
-	*TenantBufferManager[*repository.CreateStepRunEventOpts, int]
-
-	pool    *pgxpool.Pool
-	v       validator.Validator
-	l       *zerolog.Logger
-	queries *dbsqlc.Queries
-}
-
-func NewBulkEventWriter(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, conf ConfigFileBuffer) (*BulkEventWriter, error) {
-	queries := dbsqlc.New()
-
-	w := &BulkEventWriter{
-		pool:    pool,
-		v:       v,
-		l:       l,
-		queries: queries,
-	}
-
-	eventBufOpts := TenantBufManagerOpts[*repository.CreateStepRunEventOpts, int]{
+func newBulkEventWriter(shared *sharedRepository, conf buffer.ConfigFileBuffer) (*buffer.TenantBufferManager[*repository.CreateStepRunEventOpts, int], error) {
+	eventBufOpts := buffer.TenantBufManagerOpts[*repository.CreateStepRunEventOpts, int]{
 		Name:     "step_run_event_buffer",
 		SizeFunc: sizeOfEventData,
-		L:        w.l,
-		V:        w.v,
+		L:        shared.l,
+		V:        shared.v,
 		Config:   conf,
 	}
 
 	if conf.SerialBuffer {
-		l.Warn().Msg("using serial buffer for step run events")
-		eventBufOpts.OutputFunc = w.SerialWriteStepRunEvent
+		shared.l.Warn().Msg("using serial buffer for step run events")
+		eventBufOpts.OutputFunc = shared.serialWriteStepRunEvent
 	} else {
-		eventBufOpts.OutputFunc = w.BulkWriteStepRunEvents
+		eventBufOpts.OutputFunc = shared.bulkWriteStepRunEvents
 	}
 
-	manager, err := NewTenantBufManager(eventBufOpts)
+	manager, err := buffer.NewTenantBufManager(eventBufOpts)
 
 	if err != nil {
-		l.Err(err).Msg("could not create tenant buffer manager")
+		shared.l.Err(err).Msg("could not create tenant buffer manager")
 		return nil, err
 	}
 
-	w.TenantBufferManager = manager
-
-	return w, nil
-}
-
-func (w *BulkEventWriter) Cleanup() error {
-	return w.TenantBufferManager.Cleanup()
+	return manager, nil
 }
 
 func sizeOfEventData(item *repository.CreateStepRunEventOpts) int {
@@ -86,12 +61,12 @@ func sortByStepRunId(opts []*repository.CreateStepRunEventOpts) []*repository.Cr
 	return opts
 }
 
-func (w *BulkEventWriter) SerialWriteStepRunEvent(ctx context.Context, opts []*repository.CreateStepRunEventOpts) ([]int, error) {
-	res := make([]int, 0, len(opts))
+func (w *sharedRepository) serialWriteStepRunEvent(ctx context.Context, opts []*repository.CreateStepRunEventOpts) ([]*int, error) {
+	res := make([]*int, 0, len(opts))
 
 	for i, item := range opts {
-
-		res = append(res, i)
+		index := i
+		res = append(res, &index)
 		var eventData []byte
 		var err error
 
@@ -130,8 +105,8 @@ func (w *BulkEventWriter) SerialWriteStepRunEvent(ctx context.Context, opts []*r
 
 }
 
-func (w *BulkEventWriter) BulkWriteStepRunEvents(ctx context.Context, opts []*repository.CreateStepRunEventOpts) ([]int, error) {
-	res := make([]int, 0, len(opts))
+func (w *sharedRepository) bulkWriteStepRunEvents(ctx context.Context, opts []*repository.CreateStepRunEventOpts) ([]*int, error) {
+	res := make([]*int, 0, len(opts))
 	eventTimeSeen := make([]pgtype.Timestamp, 0, len(opts))
 	eventReasons := make([]dbsqlc.StepRunEventReason, 0, len(opts))
 	eventStepRunIds := make([]pgtype.UUID, 0, len(opts))
@@ -143,7 +118,8 @@ func (w *BulkEventWriter) BulkWriteStepRunEvents(ctx context.Context, opts []*re
 	orderedOpts := sortByStepRunId(opts)
 
 	for i, item := range orderedOpts {
-		res = append(res, i)
+		index := i
+		res = append(res, &index)
 
 		if item.EventMessage == nil || item.EventReason == nil || item.StepRunId == "" {
 			continue
