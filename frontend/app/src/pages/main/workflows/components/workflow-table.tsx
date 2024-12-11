@@ -77,16 +77,15 @@ export function WorkflowTable() {
     searchParams,
   ]);
 
-  // want this to update if any of the searchParams change
   const data = useMemo(() => {
 
     const data = listWorkflowQuery.data?.rows || [];
     setPageIndex(listWorkflowQuery.data?.pagination?.num_pages || 0);
 
     return data;
-  }, [listWorkflowQuery.data?.rows , searchParams, pageIndex,pageSize]);
+  }, [listWorkflowQuery.data?.rows , searchParams]);
 
-  if (listWorkflowQuery.isLoading && !listWorkflowQuery.data) {
+  if (listWorkflowQuery.isLoading ) {
     return <Loading />;
   }
 
