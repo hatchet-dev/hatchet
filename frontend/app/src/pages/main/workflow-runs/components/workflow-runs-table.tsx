@@ -59,6 +59,8 @@ import {
 import { DateTimePicker } from '@/components/molecules/time-picker/date-time-picker';
 import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
 import { AdditionalMetadataClick } from '../../events/components/additional-metadata';
+import { Workflow } from '../../../../lib/api/generated/data-contracts';
+import Workflows from '../../workflows/index';
 
 export interface WorkflowRunsTableProps {
   createdAfter?: string;
@@ -310,6 +312,8 @@ export function WorkflowRunsTable({
     refetchInterval,
   });
 
+
+
   const metricsQuery = useQuery({
     ...queries.workflowRuns.metrics(tenant.metadata.id, {
       workflowId: workflow,
@@ -326,13 +330,14 @@ export function WorkflowRunsTable({
     ...queries.metrics.getStepRunQueueMetrics(tenant.metadata.id),
     refetchInterval,
   });
+  const [searchName, setSearchName] = useState<string | "">();
 
   const {
     data: workflowKeys,
     isLoading: workflowKeysIsLoading,
     error: workflowKeysError,
   } = useQuery({
-    ...queries.workflows.list(tenant.metadata.id),
+    ...queries.workflows.list(tenant.metadata.id, {name: searchName, limit: 100}),
   });
 
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
@@ -384,7 +389,18 @@ export function WorkflowRunsTable({
     onError: handleApiError,
   });
 
+
+  const fetchWorkflowNames = useQuery({
+    ...queries.workflows.list(tenant.metadata.id, {limit: 100, name: searchName}),
+  });
+
+  useMemo(() => {
+    fetchWorkflowNames.refetch();
+  } , [searchName]);
+
+
   const workflowKeyFilters = useMemo((): FilterOption[] => {
+
     return (
       workflowKeys?.rows?.map((key) => ({
         value: key.metadata.id,
@@ -419,11 +435,14 @@ export function WorkflowRunsTable({
   }, []);
 
   const filters: ToolbarFilters = [
+
+
     {
       columnId: 'Workflow',
       title: 'Workflow',
       options: workflowKeyFilters,
-      type: ToolbarType.Radio,
+      type: ToolbarType.Search,
+
     },
     {
       columnId: 'status',

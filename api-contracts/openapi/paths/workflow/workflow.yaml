@@ -13,6 +13,28 @@ withTenant:
           format: uuid
           minLength: 36
           maxLength: 36
+      - description: The number to skip
+        in: query
+        name: offset
+        required: false
+        schema:
+          type: integer
+          format: int
+          default: 0
+      - description: The number to limit by
+        in: query
+        name: limit
+        required: false
+        schema:
+          type: integer
+          format: int
+          default: 50
+      - description: Search by name
+        in: query
+        name: name
+        required: false
+        schema:
+          type: string
     responses:
       "200":
         content:

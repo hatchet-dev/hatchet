@@ -1,9 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Workflow, queries } from '@/lib/api';
 import invariant from 'tiny-invariant';
 import { TenantContextType } from '@/lib/outlet';
-import { Link, useOutletContext } from 'react-router-dom';
+import { Link, useOutletContext, useSearchParams } from 'react-router-dom';
 import { DataTable } from '@/components/molecules/data-table/data-table.tsx';
 import { columns } from './workflow-columns';
 import { Loading } from '@/components/ui/loading.tsx';
@@ -20,12 +20,14 @@ import {
   ArrowPathIcon,
   QuestionMarkCircleIcon,
 } from '@heroicons/react/24/outline';
-import { SortingState, VisibilityState } from '@tanstack/react-table';
+import { PaginationState, SortingState, VisibilityState } from '@tanstack/react-table';
 import { BiCard, BiTable } from 'react-icons/bi';
 import RelativeDate from '@/components/molecules/relative-date';
 import { Badge } from '@/components/ui/badge';
+import { off } from 'process';
 
 export function WorkflowTable() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const { tenant } = useOutletContext<TenantContextType>();
   invariant(tenant);
 
@@ -40,18 +42,52 @@ export function WorkflowTable() {
 
   const [cardToggle, setCardToggle] = useState(true);
 
+  const [pagination, setPagination] = useState<PaginationState>(() => {
+    const pageIndex = Number(searchParams.get('pageIndex')) || 0;
+    const pageSize = Number(searchParams.get('pageSize')) || 50;
+
+    return { pageIndex, pageSize };
+  });
+  const [pageSize, setPageSize] = useState<number>(
+    Number(searchParams.get('pageSize')) || 50,
+  );
+
+  const [pageIndex, setPageIndex] = useState<number>(
+    Number(searchParams.get('pageIndex')) || 0,
+  );
+
+
+
   const listWorkflowQuery = useQuery({
-    ...queries.workflows.list(tenant.metadata.id),
+    ...queries.workflows.list(tenant.metadata.id,{limit: pagination.pageSize ,offset: pagination.pageIndex * pageSize}),
     refetchInterval: 5000,
+
   });
 
+
+
+  useEffect(() => {
+
+    const newSearchParams = new URLSearchParams(searchParams);
+    newSearchParams.set('pageIndex', pagination.pageIndex.toString());
+    newSearchParams.set('pageSize', pagination.pageSize.toString());
+    setSearchParams(newSearchParams);
+  }, [
+    pagination,
+    setSearchParams,
+    searchParams,
+  ]);
+
+  // want this to update if any of the searchParams change
   const data = useMemo(() => {
+
     const data = listWorkflowQuery.data?.rows || [];
+    setPageIndex(listWorkflowQuery.data?.pagination?.num_pages || 0);
 
     return data;
-  }, [listWorkflowQuery.data?.rows]);
+  }, [listWorkflowQuery.data?.rows , searchParams, pageIndex,pageSize]);
 
-  if (listWorkflowQuery.isLoading) {
+  if (listWorkflowQuery.isLoading && !listWorkflowQuery.data) {
     return <Loading />;
   }
 
@@ -152,13 +188,18 @@ export function WorkflowTable() {
     <DataTable
       columns={columns}
       data={data}
-      pageCount={1}
       filters={[]}
       emptyState={emptyState}
       columnVisibility={columnVisibility}
       setColumnVisibility={setColumnVisibility}
+      pagination={pagination}
+      setPagination={setPagination}
+      onSetPageSize={setPageSize}
+      showSelectedRows={false}
+      pageCount={pageIndex}
       sorting={sorting}
       setSorting={setSorting}
+      isLoading={listWorkflowQuery.isLoading}
       manualSorting={false}
       actions={actions}
       manualFiltering={false}

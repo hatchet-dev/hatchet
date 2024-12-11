@@ -82,7 +82,8 @@ SELECT
 FROM
     "Workflow" as workflows
 WHERE
-    workflows."tenantId" = $1 AND
+    workflows."tenantId" = @tenantId::uuid AND
+    workflows."name" LIKE '%' || @name::text || '%' AND
     workflows."deletedAt" IS NULL
 ORDER BY
     case when @orderBy = 'createdAt ASC' THEN workflows."createdAt" END ASC ,

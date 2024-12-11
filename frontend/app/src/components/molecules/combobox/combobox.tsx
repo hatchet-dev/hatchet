@@ -290,6 +290,52 @@ export function Combobox({
             </CommandList>
           </Command>
         )}
+
+
+        {[ToolbarType.Search].includes(type) && (
+          <Command>
+            <CommandInput placeholder={title} />
+            <CommandList>
+              <CommandEmpty>No results found.</CommandEmpty>
+              <CommandGroup>
+                {options?.map((option) => {
+                  const isSelected = values.indexOf(option.value) != -1;
+                  return (
+                    <CommandItem
+                      key={option.value}
+                      onSelect={() => {
+                        // if (isSelected) {
+                          // values.splice(values.indexOf(option.value), 1);
+                        // } else {
+                            values = [];
+
+                          values.push(option.value);
+                        // }
+                        setValues(values);
+                      }}
+                    >
+
+                      <span>{option.label}</span>
+                    </CommandItem>
+                  );
+                })}
+              </CommandGroup>
+              {values.length > 0 && (
+                <>
+                  <CommandSeparator />
+                  <CommandGroup>
+                    <CommandItem
+                      onSelect={() => setValues([])}
+                      className="justify-center text-center"
+                    >
+                      Reset
+                    </CommandItem>
+                  </CommandGroup>
+                </>
+              )}
+            </CommandList>
+          </Command>
+        )}
       </PopoverContent>
     </Popover>
   );

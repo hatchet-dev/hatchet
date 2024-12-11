@@ -1753,19 +1753,21 @@ SELECT
 FROM
     "Workflow" as workflows
 WHERE
-    workflows."tenantId" = $1 AND
+    workflows."tenantId" = $1::uuid AND
+    workflows."name" LIKE '%' || $2::text || '%' AND
     workflows."deletedAt" IS NULL
 ORDER BY
-    case when $2 = 'createdAt ASC' THEN workflows."createdAt" END ASC ,
-    case when $2 = 'createdAt DESC' then workflows."createdAt" END DESC
+    case when $3 = 'createdAt ASC' THEN workflows."createdAt" END ASC ,
+    case when $3 = 'createdAt DESC' then workflows."createdAt" END DESC
 OFFSET
-    COALESCE($3, 0)
+    COALESCE($4, 0)
 LIMIT
-    COALESCE($4, 50)
+    COALESCE($5, 50)
 `
 
 type ListWorkflowsParams struct {
-	TenantId pgtype.UUID `json:"tenantId"`
+	Tenantid pgtype.UUID `json:"tenantid"`
+	Name     string      `json:"name"`
 	Orderby  interface{} `json:"orderby"`
 	Offset   interface{} `json:"offset"`
 	Limit    interface{} `json:"limit"`
@@ -1777,7 +1779,8 @@ type ListWorkflowsRow struct {
 
 func (q *Queries) ListWorkflows(ctx context.Context, db DBTX, arg ListWorkflowsParams) ([]*ListWorkflowsRow, error) {
 	rows, err := db.Query(ctx, listWorkflows,
-		arg.TenantId,
+		arg.Tenantid,
+		arg.Name,
 		arg.Orderby,
 		arg.Offset,
 		arg.Limit,

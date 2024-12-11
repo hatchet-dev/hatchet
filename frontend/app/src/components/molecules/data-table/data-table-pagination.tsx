@@ -19,20 +19,28 @@ import { Label } from '@radix-ui/react-label';
 interface DataTablePaginationProps<TData> {
   table: Table<TData>;
   onSetPageSize?: (pageSize: number) => void;
+  showSelectedRows?: boolean;
 }
 
 export function DataTablePagination<TData>({
   table,
   onSetPageSize,
+  showSelectedRows = true
 }: DataTablePaginationProps<TData>) {
   const pagination = table.getState().pagination;
 
   return (
     <div className="flex items-center justify-between px-2">
-      <div className="flex-1 text-sm text-gray-600 dark:text-gray-400">
-        {table.getFilteredSelectedRowModel().rows.length} of{' '}
-        {table.getFilteredRowModel().rows.length} row(s) selected.
-      </div>
+
+        <div className="flex-1 text-sm text-gray-600 dark:text-gray-400">
+        {showSelectedRows && (
+          <div>
+          {table.getFilteredSelectedRowModel().rows.length} of{' '}
+          {table.getFilteredRowModel().rows.length} row(s) selected.
+          </div>
+            )}
+        </div>
+
       <div className="flex items-center space-x-6 lg:space-x-8">
         <div className="flex items-center space-x-2">
           <Label

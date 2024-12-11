@@ -22,6 +22,7 @@ export function DataTableFacetedFilter<TData, TValue>({
   options,
 }: DataTableFacetedFilterProps<TData, TValue>) {
   return (
+
     <Combobox
       values={column?.getFilterValue() as string[]}
       title={title}

@@ -7,6 +7,7 @@ import { DataTableViewOptions } from './data-table-view-options';
 import { DataTableFacetedFilter } from './data-table-faceted-filter';
 import { Input } from '@/components/ui/input.tsx';
 import { Spinner } from '@/components/ui/loading';
+import { Combobox } from '../combobox/combobox';
 
 export interface FilterOption {
   label: string;
@@ -19,6 +20,7 @@ export enum ToolbarType {
   Radio = 'radio',
   KeyValue = 'key-value',
   Array = 'array',
+  Search = 'search',
 }
 
 export type ToolbarFilters = {
@@ -48,10 +50,12 @@ export function DataTableToolbar<TData>({
   isLoading = false,
 }: DataTableToolbarProps<TData>) {
   const isFiltered = table.getState().columnFilters?.length > 0;
-
   return (
+
     <div className="flex items-center justify-between">
+
       <div className="flex flex-1 items-center space-x-2">
+
         {setSearch && (
           <Input
             placeholder="Search..."
@@ -60,6 +64,7 @@ export function DataTableToolbar<TData>({
             className="h-8 w-[150px] lg:w-[250px]"
           />
         )}
+
         {filters.map((filter) => (
           <DataTableFacetedFilter
             key={filter.columnId}
@@ -69,6 +74,7 @@ export function DataTableToolbar<TData>({
             options={filter.options}
           />
         ))}
+
         {isFiltered && (
           <Button
             variant="ghost"
