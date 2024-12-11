@@ -7,6 +7,7 @@ import (
 	"os"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
@@ -14,8 +15,10 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/client"
-	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
+	clientconfig "github.com/hatchet-dev/hatchet/pkg/config/client"
+	"github.com/hatchet-dev/hatchet/pkg/config/shared"
+	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 )
 
@@ -49,9 +52,6 @@ func (m *MonitoringService) MonitoringPostRunProbe(ctx echo.Context, request gen
 		return nil, err
 	}
 
-	os.Setenv("HATCHET_CLIENT_TLS_ROOT_CA_FILE", os.Getenv("SERVER_TLS_ROOT_CA_FILE"))
-	os.Setenv("HATCHET_CLIENT_TOKEN", token)
-
 	events := make(chan string, 50)
 	errorChan := make(chan error, 50)
 	interrupt := cmdutils.InterruptChan()
@@ -61,8 +61,20 @@ func (m *MonitoringService) MonitoringPostRunProbe(ctx echo.Context, request gen
 	defer cancel()
 	var cleanup func() error
 
+	cf := clientconfig.ClientConfigFile{
+		Token:     token,
+		TenantId:  tenant.String(),
+		Namespace: randomNamespace(),
+		TLS: clientconfig.ClientTLSConfigFile{
+			Base: shared.TLSConfigFile{
+				TLSRootCAFile: os.Getenv("SERVER_TLS_ROOT_CA_FILE"),
+			},
+		},
+	}
+	workflowName := "probe-workflow"
+	var wfrId *string
 	go func() {
-		cleanup, err = m.run(cancellableContext, events, errorChan)
+		wfrId, cleanup, err = m.run(cancellableContext, cf, workflowName, events, errorChan)
 		if err != nil {
 			errorChan <- err
 		}
@@ -89,6 +101,33 @@ func (m *MonitoringService) MonitoringPostRunProbe(ctx echo.Context, request gen
 		}
 	}()
 
+	defer func() {
+
+		time.Sleep(50 * time.Millisecond)
+
+		if wfrId != nil && *wfrId != "" {
+
+			wrfRow, err := m.config.APIRepository.WorkflowRun().GetWorkflowRunById(context.Background(), cf.TenantId, *wfrId)
+
+			if err != nil {
+				m.l.Error().Msgf("error getting workflow run: %s", err)
+
+			}
+
+			workflowId := sqlchelpers.UUIDToStr(wrfRow.Workflow.ID)
+
+			_, err = m.config.APIRepository.Workflow().DeleteWorkflow(cf.TenantId, workflowId)
+
+			m.l.Info().Msgf("deleted workflow %s", workflowId)
+			if err != nil {
+				m.l.Error().Msgf("error deleting workflow: %s", err)
+			}
+		} else {
+			m.l.Warn().Msg("workflow run id was never set")
+		}
+
+	}()
+
 	messages := []string{"This is a stream event for step-one", "This is a stream event for step-two"}
 	messageIndex := 0
 
@@ -103,7 +142,7 @@ func (m *MonitoringService) MonitoringPostRunProbe(ctx echo.Context, request gen
 			messageIndex++
 			if messageIndex == len(messages) {
 				m.l.Debug().Msg("probe completed successfully")
-				return nil, nil
+				return gen.MonitoringPostRunProbe200JSONResponse{}, nil
 			}
 
 		case <-cancellableContext.Done():
@@ -113,7 +152,7 @@ func (m *MonitoringService) MonitoringPostRunProbe(ctx echo.Context, request gen
 				return nil, fmt.Errorf("timed out waiting for probe to complete")
 			} else {
 				m.l.Debug().Msg("probe completed successfully")
-				return nil, nil
+				return gen.MonitoringPostRunProbe200JSONResponse{}, nil
 			}
 
 		case err := <-errorChan:
@@ -137,29 +176,33 @@ type stepOneOutput struct {
 	UniqueStreamId string
 }
 
-func (m *MonitoringService) run(ctx context.Context, events chan<- string, errors chan<- error) (func() error, error) {
-	c, err := client.New()
+func (m *MonitoringService) run(ctx context.Context, cf clientconfig.ClientConfigFile, workflowName string, events chan<- string, errors chan<- error) (*string, func() error, error) {
+
+	c, err := client.NewFromConfigFile(
+		&cf, client.WithLogLevel("info"),
+	)
 
 	if err != nil {
-		return nil, fmt.Errorf("error creating client: %w", err)
+		return nil, nil, fmt.Errorf("error creating client: %w", err)
 	}
 
 	w, err := worker.NewWorker(
+
 		worker.WithClient(
 			c,
-		),
+		), worker.WithLogLevel("info"),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("error creating worker: %w", err)
+		return nil, nil, fmt.Errorf("error creating worker: %w", err)
 	}
 	streamKey := "streamKey"
 	streamValue := fmt.Sprintf("stream-event-%d", rand.Intn(100)+1)
+	var wfrId string
 
 	err = w.RegisterWorkflow(
 		&worker.WorkflowJob{
 			On:          worker.Events(m.eventName),
-			Name:        "probe",
-			Concurrency: worker.Concurrency(getConcurrencyKey).MaxRuns(1).LimitStrategy(types.CancelInProgress),
+			Name:        workflowName,
 			Description: "This is part of the monitoring system for testing the readiness of this Hatchet installation.",
 			Steps: []*worker.WorkflowStep{
 				worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
@@ -170,6 +213,8 @@ func (m *MonitoringService) run(ctx context.Context, events chan<- string, error
 					if err != nil {
 						return nil, err
 					}
+
+					wfrId = ctx.WorkflowRunId()
 
 					if input.UniqueStreamId == "" {
 						return nil, fmt.Errorf("uniqueStreamId is required")
@@ -211,12 +256,13 @@ func (m *MonitoringService) run(ctx context.Context, events chan<- string, error
 		},
 	)
 	if err != nil {
-		return nil, fmt.Errorf("error registering workflow: %w", err)
+		return &wfrId, nil, fmt.Errorf("error registering workflow: %w", err)
 	}
 
 	go func() {
 		err = c.Subscribe().StreamByAdditionalMetadata(ctx, streamKey, streamValue, func(event client.StreamEvent) error {
 			events <- string(event.Message)
+
 			return nil
 		})
 		if err != nil {
@@ -247,10 +293,10 @@ func (m *MonitoringService) run(ctx context.Context, events chan<- string, error
 	cleanup, err := w.Start()
 
 	if err != nil {
-		return nil, fmt.Errorf("error starting worker: %w", err)
+		return &wfrId, nil, fmt.Errorf("error starting worker: %w", err)
 	}
 
-	return cleanup, nil
+	return &wfrId, cleanup, nil
 }
 
 func getBearerTokenFromRequest(r *http.Request) (string, error) {
@@ -266,6 +312,6 @@ func getBearerTokenFromRequest(r *http.Request) (string, error) {
 	return reqToken, nil
 }
 
-func getConcurrencyKey(ctx worker.HatchetContext) (string, error) {
-	return "probe", nil
+func randomNamespace() string {
+	return "ns_" + uuid.New().String()[0:8]
 }

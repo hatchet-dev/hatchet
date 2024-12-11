@@ -13,8 +13,8 @@ type MonitoringService struct {
 	permittedTenants []string
 	eventName        string
 	probeTimeout     time.Duration
-
-	l *zerolog.Logger
+	config           *server.ServerConfig
+	l                *zerolog.Logger
 }
 
 func NewMonitoringService(config *server.ServerConfig) *MonitoringService {
@@ -24,5 +24,6 @@ func NewMonitoringService(config *server.ServerConfig) *MonitoringService {
 		permittedTenants: config.Runtime.Monitoring.PermittedTenants,
 		eventName:        "monitoring:probe",
 		probeTimeout:     config.Runtime.Monitoring.ProbeTimeout,
+		config:           config,
 	}
 }

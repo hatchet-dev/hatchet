@@ -282,7 +282,7 @@ func (wc *WorkflowsControllerImpl) handleWorkflowRunFinished(ctx context.Context
 	workflowRun, err := wc.repo.WorkflowRun().GetWorkflowRunById(ctx, metadata.TenantId, payload.WorkflowRunId)
 
 	if err != nil {
-		return fmt.Errorf("could not get job run: %w", err)
+		return fmt.Errorf("handleWorkflowRunFinished - could not get job run: %w", err)
 	}
 
 	workflowRunId := sqlchelpers.UUIDToStr(workflowRun.WorkflowRun.ID)
