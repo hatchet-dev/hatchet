@@ -103,7 +103,7 @@ func (m *MonitoringService) MonitoringPostRunProbe(ctx echo.Context, request gen
 
 	defer func() {
 
-		time.Sleep(50 * time.Millisecond)
+		time.Sleep(250 * time.Millisecond)
 
 		if wfrId != nil && *wfrId != "" {
 
