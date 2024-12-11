@@ -117,7 +117,7 @@ func WithPostCommitCallback[T any](cb TenantScopedCallback[T]) CallbackOptFunc[T
 }
 
 func RunPreCommit[T any](l *zerolog.Logger, tenantId string, v T, opts []CallbackOptFunc[T]) {
-	// initilize the opts
+	// initialize the opts
 	o := &TenantCallbackOpts[T]{
 		cbs: make([]TenantScopedCallback[T], 0),
 	}
@@ -131,7 +131,7 @@ func RunPreCommit[T any](l *zerolog.Logger, tenantId string, v T, opts []Callbac
 }
 
 func RunPostCommit[T any](l *zerolog.Logger, tenantId string, v T, opts []CallbackOptFunc[T]) {
-	// initilize the opts
+	// initialize the opts
 	o := &TenantCallbackOpts[T]{
 		cbs: make([]TenantScopedCallback[T], 0),
 	}
