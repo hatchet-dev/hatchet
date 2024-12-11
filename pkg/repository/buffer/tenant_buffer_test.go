@@ -25,13 +25,13 @@ type testMockResult struct {
 	ID int
 }
 
-func testMockOutputFunc(ctx context.Context, items []testMockEvent) ([]testMockResult, error) {
-	var results []testMockResult
+func testMockOutputFunc(ctx context.Context, items []testMockEvent) ([]*testMockResult, error) {
+	var results []*testMockResult
 	//nolint:gosec
 	time.Sleep(time.Duration(rand.Intn(50)) * time.Millisecond) // Simulate output function execution time with some randomness
 
 	for _, item := range items {
-		results = append(results, testMockResult{ID: item.ID})
+		results = append(results, &testMockResult{ID: item.ID})
 	}
 	return results, nil
 }
@@ -74,13 +74,9 @@ func TestTenantBufferManager_BuffItem(t *testing.T) {
 	tenantKey := "tenant_1"
 	event := testMockEvent{ID: 1, Value: "test_event", Size: 10}
 
-	respChan, err := manager.BuffItem(tenantKey, event)
+	resp, err := manager.FireAndWait(context.Background(), tenantKey, event)
 	require.NoError(t, err)
-
-	// Collect the result after the item is flushed
-	resp := <-respChan
-	require.NoError(t, resp.Err)
-	assert.Equal(t, event.ID, resp.Result.ID)
+	assert.Equal(t, event.ID, resp.ID)
 }
 
 func generateTestCases(numTenants int) []struct {
@@ -143,12 +139,9 @@ func TestTenantBufferManager_CreateMultipleBuffers(t *testing.T) {
 			defer wg.Done()
 
 			// Buff events for the given tenant
-			respChan, err := manager.BuffItem(tc.tenantKey, tc.event)
+			resp, err := manager.FireAndWait(context.Background(), tc.tenantKey, tc.event)
 			require.NoError(t, err)
-
-			resp := <-respChan
-			require.NoError(t, resp.Err)
-			assert.Equal(t, tc.event.ID, resp.Result.ID)
+			assert.Equal(t, tc.event.ID, resp.ID)
 		}(tc)
 	}
 
@@ -184,13 +177,10 @@ func TestTenantBufferManager_OrderPreservation(t *testing.T) {
 		go func(id int) {
 			defer wg.Done()
 			event := testMockEvent{ID: id, Value: fmt.Sprintf("test-%d", id), Size: 10}
-			respChan, err := manager.BuffItem(tenantKey, event)
-			require.NoError(t, err)
 
-			// Collect the result after the item is flushed
-			resp := <-respChan
-			require.NoError(t, resp.Err)
-			assert.Equal(t, id, resp.Result.ID)
+			resp, err := manager.FireAndWait(context.Background(), tenantKey, event)
+			require.NoError(t, err)
+			assert.Equal(t, id, resp.ID)
 		}(id)
 	}
 
@@ -215,7 +205,7 @@ func TestTenantBufferManager_Cleanup(t *testing.T) {
 	tenantKey := "tenant_cleanup"
 	event := testMockEvent{ID: 1, Value: "cleanup_event", Size: 10}
 
-	_, err = manager.BuffItem(tenantKey, event)
+	err = manager.FireForget(tenantKey, event)
 	require.NoError(t, err)
 
 	// Ensure buffers are cleaned up
@@ -223,6 +213,6 @@ func TestTenantBufferManager_Cleanup(t *testing.T) {
 	require.NoError(t, err)
 
 	// Try to buff an item after cleanup, should return an error
-	_, err = manager.BuffItem(tenantKey, event)
+	err = manager.FireForget(tenantKey, event)
 	require.Error(t, err)
 }

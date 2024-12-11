@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
+	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 )
 
@@ -22,22 +23,22 @@ func (m *mockLeaseRepo) ListQueues(ctx context.Context, tenantId pgtype.UUID) ([
 	return args.Get(0).([]*dbsqlc.Queue), args.Error(1)
 }
 
-func (m *mockLeaseRepo) ListActiveWorkers(ctx context.Context, tenantId pgtype.UUID) ([]*ListActiveWorkersResult, error) {
+func (m *mockLeaseRepo) ListActiveWorkers(ctx context.Context, tenantId pgtype.UUID) ([]*repository.ListActiveWorkersResult, error) {
 	args := m.Called(ctx, tenantId)
-	return args.Get(0).([]*ListActiveWorkersResult), args.Error(1)
+	return args.Get(0).([]*repository.ListActiveWorkersResult), args.Error(1)
 }
 
-func (m *mockLeaseRepo) AcquireOrExtendLeases(ctx context.Context, kind dbsqlc.LeaseKind, resourceIds []string, existingLeases []*dbsqlc.Lease) ([]*dbsqlc.Lease, error) {
+func (m *mockLeaseRepo) AcquireOrExtendLeases(ctx context.Context, tenantId pgtype.UUID, kind dbsqlc.LeaseKind, resourceIds []string, existingLeases []*dbsqlc.Lease) ([]*dbsqlc.Lease, error) {
 	args := m.Called(ctx, kind, resourceIds, existingLeases)
 	return args.Get(0).([]*dbsqlc.Lease), args.Error(1)
 }
 
-func (m *mockLeaseRepo) RenewLeases(ctx context.Context, leases []*dbsqlc.Lease) ([]*dbsqlc.Lease, error) {
+func (m *mockLeaseRepo) RenewLeases(ctx context.Context, tenantId pgtype.UUID, leases []*dbsqlc.Lease) ([]*dbsqlc.Lease, error) {
 	args := m.Called(ctx, leases)
 	return args.Get(0).([]*dbsqlc.Lease), args.Error(1)
 }
 
-func (m *mockLeaseRepo) ReleaseLeases(ctx context.Context, leases []*dbsqlc.Lease) error {
+func (m *mockLeaseRepo) ReleaseLeases(ctx context.Context, tenantId pgtype.UUID, leases []*dbsqlc.Lease) error {
 	args := m.Called(ctx, leases)
 	return args.Error(0)
 }
@@ -52,7 +53,7 @@ func TestLeaseManager_AcquireWorkerLeases(t *testing.T) {
 		tenantId: tenantId,
 	}
 
-	mockWorkers := []*ListActiveWorkersResult{
+	mockWorkers := []*repository.ListActiveWorkersResult{
 		{ID: pgtype.UUID{}, Labels: nil},
 		{ID: pgtype.UUID{}, Labels: nil},
 	}
@@ -98,13 +99,13 @@ func TestLeaseManager_AcquireQueueLeases(t *testing.T) {
 
 func TestLeaseManager_SendWorkerIds(t *testing.T) {
 	tenantId := pgtype.UUID{}
-	workersCh := make(chan []*ListActiveWorkersResult)
+	workersCh := make(chan []*repository.ListActiveWorkersResult)
 	leaseManager := &LeaseManager{
 		tenantId:  tenantId,
 		workersCh: workersCh,
 	}
 
-	mockWorkers := []*ListActiveWorkersResult{
+	mockWorkers := []*repository.ListActiveWorkersResult{
 		{ID: pgtype.UUID{}, Labels: nil},
 	}
 
@@ -132,16 +133,16 @@ func TestLeaseManager_SendQueues(t *testing.T) {
 
 func TestLeaseManager_AcquireWorkersBeforeListenerReady(t *testing.T) {
 	tenantId := pgtype.UUID{}
-	workersCh := make(chan []*ListActiveWorkersResult)
+	workersCh := make(chan []*repository.ListActiveWorkersResult)
 	leaseManager := &LeaseManager{
 		tenantId:  tenantId,
 		workersCh: workersCh,
 	}
 
-	mockWorkers1 := []*ListActiveWorkersResult{
+	mockWorkers1 := []*repository.ListActiveWorkersResult{
 		{ID: pgtype.UUID{}, Labels: nil},
 	}
-	mockWorkers2 := []*ListActiveWorkersResult{
+	mockWorkers2 := []*repository.ListActiveWorkersResult{
 		{ID: pgtype.UUID{}, Labels: nil},
 		{ID: pgtype.UUID{}, Labels: nil},
 	}
@@ -149,7 +150,7 @@ func TestLeaseManager_AcquireWorkersBeforeListenerReady(t *testing.T) {
 	// Send workers before listener is ready
 	go leaseManager.sendWorkerIds(mockWorkers1)
 	time.Sleep(100 * time.Millisecond)
-	resultCh := make(chan []*ListActiveWorkersResult)
+	resultCh := make(chan []*repository.ListActiveWorkersResult)
 	go func() {
 		resultCh <- <-workersCh
 	}()
