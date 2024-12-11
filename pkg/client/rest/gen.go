@@ -1725,9 +1725,6 @@ type WorkflowVersionGetParams struct {
 // AlertEmailGroupUpdateJSONRequestBody defines body for AlertEmailGroupUpdate for application/json ContentType.
 type AlertEmailGroupUpdateJSONRequestBody = UpdateTenantAlertEmailGroupRequest
 
-// MonitoringPostRunProbeJSONRequestBody defines body for MonitoringPostRunProbe for application/json ContentType.
-type MonitoringPostRunProbeJSONRequestBody = RunProbe
-
 // TenantCreateJSONRequestBody defines body for TenantCreate for application/json ContentType.
 type TenantCreateJSONRequestBody = CreateTenantRequest
 
@@ -1908,10 +1905,8 @@ type ClientInterface interface {
 	// MetadataListIntegrations request
 	MetadataListIntegrations(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// MonitoringPostRunProbeWithBody request with any body
-	MonitoringPostRunProbeWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	MonitoringPostRunProbe(ctx context.Context, tenant openapi_types.UUID, body MonitoringPostRunProbeJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// MonitoringPostRunProbe request
+	MonitoringPostRunProbe(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// SlackWebhookDelete request
 	SlackWebhookDelete(ctx context.Context, slack openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -2342,20 +2337,8 @@ func (c *Client) MetadataListIntegrations(ctx context.Context, reqEditors ...Req
 	return c.Client.Do(req)
 }
 
-func (c *Client) MonitoringPostRunProbeWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewMonitoringPostRunProbeRequestWithBody(c.Server, tenant, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) MonitoringPostRunProbe(ctx context.Context, tenant openapi_types.UUID, body MonitoringPostRunProbeJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewMonitoringPostRunProbeRequest(c.Server, tenant, body)
+func (c *Client) MonitoringPostRunProbe(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewMonitoringPostRunProbeRequest(c.Server, tenant)
 	if err != nil {
 		return nil, err
 	}
@@ -3968,19 +3951,8 @@ func NewMetadataListIntegrationsRequest(server string) (*http.Request, error) {
 	return req, nil
 }
 
-// NewMonitoringPostRunProbeRequest calls the generic MonitoringPostRunProbe builder with application/json body
-func NewMonitoringPostRunProbeRequest(server string, tenant openapi_types.UUID, body MonitoringPostRunProbeJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewMonitoringPostRunProbeRequestWithBody(server, tenant, "application/json", bodyReader)
-}
-
-// NewMonitoringPostRunProbeRequestWithBody generates requests for MonitoringPostRunProbe with any type of body
-func NewMonitoringPostRunProbeRequestWithBody(server string, tenant openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
+// NewMonitoringPostRunProbeRequest generates requests for MonitoringPostRunProbe
+func NewMonitoringPostRunProbeRequest(server string, tenant openapi_types.UUID) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -4005,12 +3977,10 @@ func NewMonitoringPostRunProbeRequestWithBody(server string, tenant openapi_type
 		return nil, err
 	}
 
-	req, err := http.NewRequest("POST", queryURL.String(), body)
+	req, err := http.NewRequest("POST", queryURL.String(), nil)
 	if err != nil {
 		return nil, err
 	}
-
-	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -8419,10 +8389,8 @@ type ClientWithResponsesInterface interface {
 	// MetadataListIntegrationsWithResponse request
 	MetadataListIntegrationsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*MetadataListIntegrationsResponse, error)
 
-	// MonitoringPostRunProbeWithBodyWithResponse request with any body
-	MonitoringPostRunProbeWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*MonitoringPostRunProbeResponse, error)
-
-	MonitoringPostRunProbeWithResponse(ctx context.Context, tenant openapi_types.UUID, body MonitoringPostRunProbeJSONRequestBody, reqEditors ...RequestEditorFn) (*MonitoringPostRunProbeResponse, error)
+	// MonitoringPostRunProbeWithResponse request
+	MonitoringPostRunProbeWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*MonitoringPostRunProbeResponse, error)
 
 	// SlackWebhookDeleteWithResponse request
 	SlackWebhookDeleteWithResponse(ctx context.Context, slack openapi_types.UUID, reqEditors ...RequestEditorFn) (*SlackWebhookDeleteResponse, error)
@@ -11057,17 +11025,9 @@ func (c *ClientWithResponses) MetadataListIntegrationsWithResponse(ctx context.C
 	return ParseMetadataListIntegrationsResponse(rsp)
 }
 
-// MonitoringPostRunProbeWithBodyWithResponse request with arbitrary body returning *MonitoringPostRunProbeResponse
-func (c *ClientWithResponses) MonitoringPostRunProbeWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*MonitoringPostRunProbeResponse, error) {
-	rsp, err := c.MonitoringPostRunProbeWithBody(ctx, tenant, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseMonitoringPostRunProbeResponse(rsp)
-}
-
-func (c *ClientWithResponses) MonitoringPostRunProbeWithResponse(ctx context.Context, tenant openapi_types.UUID, body MonitoringPostRunProbeJSONRequestBody, reqEditors ...RequestEditorFn) (*MonitoringPostRunProbeResponse, error) {
-	rsp, err := c.MonitoringPostRunProbe(ctx, tenant, body, reqEditors...)
+// MonitoringPostRunProbeWithResponse request returning *MonitoringPostRunProbeResponse
+func (c *ClientWithResponses) MonitoringPostRunProbeWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*MonitoringPostRunProbeResponse, error) {
+	rsp, err := c.MonitoringPostRunProbe(ctx, tenant, reqEditors...)
 	if err != nil {
 		return nil, err
 	}

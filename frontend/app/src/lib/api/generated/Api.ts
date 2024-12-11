@@ -2104,13 +2104,11 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @request POST:/api/v1/monitoring/{tenant}/probe
    * @secure
    */
-  monitoringPostRunProbe = (tenant: string, data: RunProbe, params: RequestParams = {}) =>
+  monitoringPostRunProbe = (tenant: string, params: RequestParams = {}) =>
     this.request<RunProbe, APIErrors>({
       path: `/api/v1/monitoring/${tenant}/probe`,
       method: 'POST',
-      body: data,
       secure: true,
-      type: ContentType.Json,
       format: 'json',
       ...params,
     });

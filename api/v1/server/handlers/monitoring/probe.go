@@ -18,6 +18,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	clientconfig "github.com/hatchet-dev/hatchet/pkg/config/client"
 	"github.com/hatchet-dev/hatchet/pkg/config/shared"
+	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 )
@@ -27,13 +28,13 @@ func (m *MonitoringService) MonitoringPostRunProbe(ctx echo.Context, request gen
 		return nil, fmt.Errorf("monitoring is not enabled")
 	}
 
-	tenant := request.Tenant
+	tenant := ctx.Get("tenant").(*db.TenantModel)
 
-	if tenant == uuid.Nil {
+	if tenant == nil || tenant.ID == "" {
 		return nil, fmt.Errorf("tenant is required")
 	}
 
-	if !slices.Contains[[]string](m.permittedTenants, tenant.String()) {
+	if !slices.Contains[[]string](m.permittedTenants, tenant.ID) {
 
 		err := fmt.Errorf("tenant is not a monitoring tenant for this instance")
 
@@ -63,7 +64,7 @@ func (m *MonitoringService) MonitoringPostRunProbe(ctx echo.Context, request gen
 
 	cf := clientconfig.ClientConfigFile{
 		Token:     token,
-		TenantId:  tenant.String(),
+		TenantId:  tenant.ID,
 		Namespace: randomNamespace(),
 		TLS: clientconfig.ClientTLSConfigFile{
 			Base: shared.TLSConfigFile{
