@@ -13,7 +13,6 @@ interface DataTableFacetedFilterProps<TData, TValue> {
     value: string;
     icon?: React.ComponentType<{ className?: string }>;
   }[];
-  updateSearch?: (search: string) => void;
 }
 
 export function DataTableFacetedFilter<TData, TValue>({
@@ -21,17 +20,14 @@ export function DataTableFacetedFilter<TData, TValue>({
   title,
   type = ToolbarType.Checkbox,
   options,
-  updateSearch,
 }: DataTableFacetedFilterProps<TData, TValue>) {
   return (
-
     <Combobox
       values={column?.getFilterValue() as string[]}
       title={title}
       type={type}
       options={options}
       setValues={(values) => column?.setFilterValue(values)}
-      updateSearch= {updateSearch}
     />
   );
 }

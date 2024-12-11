@@ -19,7 +19,6 @@ export enum ToolbarType {
   Radio = 'radio',
   KeyValue = 'key-value',
   Array = 'array',
-  Search = 'search',
 }
 
 export type ToolbarFilters = {
@@ -27,7 +26,6 @@ export type ToolbarFilters = {
   title: string;
   type?: ToolbarType;
   options?: FilterOption[];
-  updateSearch?: (search: string) => void;
 }[];
 
 interface DataTableToolbarProps<TData> {
@@ -50,12 +48,10 @@ export function DataTableToolbar<TData>({
   isLoading = false,
 }: DataTableToolbarProps<TData>) {
   const isFiltered = table.getState().columnFilters?.length > 0;
+
   return (
-
     <div className="flex items-center justify-between">
-
       <div className="flex flex-1 items-center space-x-2">
-
         {setSearch && (
           <Input
             placeholder="Search..."
@@ -64,7 +60,6 @@ export function DataTableToolbar<TData>({
             className="h-8 w-[150px] lg:w-[250px]"
           />
         )}
-
         {filters.map((filter) => (
           <DataTableFacetedFilter
             key={filter.columnId}
@@ -72,10 +67,8 @@ export function DataTableToolbar<TData>({
             title={filter.title}
             type={filter.type}
             options={filter.options}
-            updateSearch={filter.updateSearch}
           />
         ))}
-
         {isFiltered && (
           <Button
             variant="ghost"
