@@ -7,7 +7,6 @@ import { DataTableViewOptions } from './data-table-view-options';
 import { DataTableFacetedFilter } from './data-table-faceted-filter';
 import { Input } from '@/components/ui/input.tsx';
 import { Spinner } from '@/components/ui/loading';
-import { Combobox } from '../combobox/combobox';
 
 export interface FilterOption {
   label: string;
@@ -28,6 +27,7 @@ export type ToolbarFilters = {
   title: string;
   type?: ToolbarType;
   options?: FilterOption[];
+  updateSearch?: (search: string) => void;
 }[];
 
 interface DataTableToolbarProps<TData> {
@@ -72,6 +72,7 @@ export function DataTableToolbar<TData>({
             title={filter.title}
             type={filter.type}
             options={filter.options}
+            updateSearch={filter.updateSearch}
           />
         ))}
 

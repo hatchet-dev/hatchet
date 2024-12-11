@@ -59,10 +59,8 @@ import {
 import { DateTimePicker } from '@/components/molecules/time-picker/date-time-picker';
 import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
 import { AdditionalMetadataClick } from '../../events/components/additional-metadata';
-import { Workflow } from '../../../../lib/api/generated/data-contracts';
-import Workflows from '../../workflows/index';
 
-export interface WorkflowRunsTableProps {
+  export interface WorkflowRunsTableProps {
   createdAfter?: string;
   createdBefore?: string;
   workflowId?: string;
@@ -332,6 +330,7 @@ export function WorkflowRunsTable({
   });
   const [searchName, setSearchName] = useState<string | "">();
 
+
   const {
     data: workflowKeys,
     isLoading: workflowKeysIsLoading,
@@ -442,7 +441,10 @@ export function WorkflowRunsTable({
       title: 'Workflow',
       options: workflowKeyFilters,
       type: ToolbarType.Search,
-
+      onChange: (search: string) => {
+        console.log("hey " , search);
+        setSearchName(search);
+      }
     },
     {
       columnId: 'status',

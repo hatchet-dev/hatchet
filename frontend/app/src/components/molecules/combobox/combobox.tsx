@@ -74,6 +74,7 @@ export function Combobox({
   type = ToolbarType.Checkbox,
   options,
   setValues,
+  updateSearch,
 }: {
   values?: string[];
   icon?: JSX.Element;
@@ -83,7 +84,9 @@ export function Combobox({
     label: string;
     value: string;
     icon?: React.ComponentType<{ className?: string }>;
+
   }[];
+  updateSearch?: (search: string) => void;
   setValues: (selectedValues: string[]) => void;
 }) {
   const { register, handleSubmit, reset } = useForm<KeyValuePair | ArrayInput>({
@@ -100,6 +103,7 @@ export function Combobox({
     } else {
       data.values.split(',').forEach((value) => values.push(value.trim()));
     }
+
     setValues(values);
     reset();
   };
@@ -292,9 +296,9 @@ export function Combobox({
         )}
 
 
-        {[ToolbarType.Search].includes(type) && (
+{[ToolbarType.Search].includes(type) && (
           <Command>
-            <CommandInput placeholder={title} />
+            <CommandInput placeholder={title}  onChange={(e) => updateSearch && updateSearch(e.target.value) } />
             <CommandList>
               <CommandEmpty>No results found.</CommandEmpty>
               <CommandGroup>
@@ -303,18 +307,25 @@ export function Combobox({
                   return (
                     <CommandItem
                       key={option.value}
-                      onSelect={() => {
-                        // if (isSelected) {
-                          // values.splice(values.indexOf(option.value), 1);
-                        // } else {
-                            values = [];
 
-                          values.push(option.value);
-                        // }
-                        setValues(values);
-                      }}
                     >
-
+                      <div
+                        className={cn(
+                          'mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary',
+                          isSelected
+                            ? 'bg-primary text-primary-foreground'
+                            : 'opacity-50 [&_svg]:invisible',
+                        )}
+                      >
+                        {type === 'checkbox' ? (
+                          <CheckIcon className={cn('h-4 w-4')} />
+                        ) : (
+                          <CircleIcon className={cn('h-4 w-4')} />
+                        )}
+                      </div>
+                      {option.icon && (
+                        <option.icon className="mr-2 h-4 w-4 text-gray-700 dark:text-gray-300" />
+                      )}
                       <span>{option.label}</span>
                     </CommandItem>
                   );
@@ -336,6 +347,10 @@ export function Combobox({
             </CommandList>
           </Command>
         )}
+
+
+
+
       </PopoverContent>
     </Popover>
   );
