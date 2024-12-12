@@ -9,7 +9,6 @@ import {
   atomOneLight,
 } from 'react-syntax-highlighter/dist/esm/styles/hljs';
 import CopyToClipboard from './copy-to-clipboard';
-import { useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { useTheme } from '../theme-provider';
 
@@ -20,18 +19,16 @@ SyntaxHighlighter.registerLanguage('json', json);
 export function CodeHighlighter({
   code,
   copyCode,
-  setCode,
   language,
   className,
   maxHeight,
   minHeight,
   maxWidth,
-  copy,
+  copy = true,
   wrapLines = true,
 }: {
   code: string;
   copyCode?: string;
-  setCode?: (code: string) => void;
   language: string;
   className?: string;
   maxHeight?: string;
@@ -42,52 +39,39 @@ export function CodeHighlighter({
 }) {
   const { theme } = useTheme();
 
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-
   return (
     <div className={cn('w-full h-fit relative bg-muted rounded-lg', className)}>
-      <div
-        role="button"
-        tabIndex={0}
-        onKeyDown={() => textareaRef.current?.focus()}
-        onClick={() => textareaRef.current?.focus()}
-        className="relative flex"
+      <SyntaxHighlighter
+        language={language}
+        style={theme == 'dark' ? anOldHope : atomOneLight}
+        wrapLines={wrapLines}
+        lineProps={{
+          style: { wordBreak: 'break-all', whiteSpace: 'pre-wrap' },
+        }}
+        customStyle={{
+          cursor: 'default',
+          borderRadius: '0.5rem',
+          maxHeight: maxHeight,
+          minHeight: minHeight,
+          maxWidth: maxWidth,
+          fontFamily:
+            "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
+          fontSize: '0.75rem',
+          lineHeight: '1rem',
+          padding: '0.5rem',
+          paddingRight: '2rem',
+          flex: '1',
+          background: 'transparent',
+        }}
       >
-        {setCode && (
-          <textarea
-            className="absolute rounded-lg text-xs inset-0 resize-none bg-transparent p-2 font-mono text-transparent caret-white outline-none"
-            ref={textareaRef}
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-            autoCorrect="off"
-          />
-        )}
-        <SyntaxHighlighter
-          language={language}
-          style={theme == 'dark' ? anOldHope : atomOneLight}
-          wrapLines={wrapLines}
-          lineProps={{
-            style: { wordBreak: 'break-all', whiteSpace: 'pre-wrap' },
-          }}
-          customStyle={{
-            cursor: setCode ? 'pointer' : 'default',
-            borderRadius: '0.5rem',
-            maxHeight: maxHeight,
-            minHeight: minHeight,
-            maxWidth: maxWidth,
-            fontFamily:
-              "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
-            fontSize: '0.75rem',
-            lineHeight: '1rem',
-            padding: '0.5rem',
-            flex: '1',
-            background: 'transparent',
-          }}
-        >
-          {code.trim()}
-        </SyntaxHighlighter>
-      </div>
-      {copy && <CopyToClipboard text={(copyCode || code).trim()} withText />}
+        {code.trim()}
+      </SyntaxHighlighter>
+      {copy && (
+        <CopyToClipboard
+          className="absolute top-2 right-2"
+          text={(copyCode || code).trim()}
+        />
+      )}
     </div>
   );
 }

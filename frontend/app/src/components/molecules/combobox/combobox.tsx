@@ -125,7 +125,11 @@ export function Combobox({
                 variant="secondary"
                 className="rounded-sm px-1 font-normal lg:hidden"
               >
-                {values.length}
+                {type == ToolbarType.Radio
+                  ? // get the label of the value
+                    options?.find(({ value }) => value == values[0])?.label ||
+                    values[0]
+                  : values.length}
               </Badge>
               <div className="hidden space-x-1 lg:flex">
                 {values.length > 2 ? (
@@ -168,7 +172,7 @@ export function Combobox({
                 <Badge
                   key={index}
                   variant="secondary"
-                  className="mr-2 mb-2 rounded-sm px-1 font-normal flex items-center space-x-1 font-normal pl-2"
+                  className="mr-2 mb-2 rounded-sm px-1 font-normal flex items-center space-x-1 pl-2"
                 >
                   <span className="grow">{filter}</span>
                   <Button

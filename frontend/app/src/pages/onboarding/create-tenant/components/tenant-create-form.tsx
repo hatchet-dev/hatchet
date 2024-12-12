@@ -6,7 +6,7 @@ import { Spinner } from '@/components/ui/loading.tsx';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 
 const schema = z.object({
   name: z.string().min(4).max(32),
@@ -24,14 +24,10 @@ export function TenantCreateForm({
   className,
   ...props
 }: TenantCreateFormProps) {
-  //   const [isSlugModified, setIsSlugModified] = useState(false);
-  const [isSlugSuffixed, setIsSlugSuffixed] = useState(false);
-
   const {
     register,
     handleSubmit,
     setValue,
-    getValues,
     watch,
     formState: { errors },
   } = useForm<z.infer<typeof schema>>({
@@ -42,12 +38,15 @@ export function TenantCreateForm({
     const subscription = watch((value, { name }) => {
       switch (name) {
         case 'name':
-          if (!isSlugSuffixed) {
-            const slug = value.name
-              ?.toLowerCase()
-              .replace(/[^a-z0-9-]/g, '-')
-              .replace(/-+/g, '-')
-              .replace(/^-|-$/g, '');
+          if (value.name) {
+            const slug =
+              value.name
+                ?.toLowerCase()
+                .replace(/[^a-z0-9-]/g, '-')
+                .replace(/-+/g, '-')
+                .replace(/^-|-$/g, '') +
+              '-' +
+              Math.random().toString(36).substr(2, 5);
 
             if (slug) {
               setValue('slug', slug);
@@ -61,7 +60,7 @@ export function TenantCreateForm({
     });
 
     return () => subscription.unsubscribe();
-  }, [isSlugSuffixed, setValue, watch]);
+  }, [setValue, watch]);
 
   const nameError =
     errors.name?.message?.toString() || props.fieldErrors?.email;
@@ -90,15 +89,12 @@ export function TenantCreateForm({
               autoCorrect="off"
               disabled={props.isLoading}
               spellCheck={false}
-              onBlur={() => {
-                // add a random suffix to the slug if it's not modified
-                if (!isSlugSuffixed) {
-                  const newSlug =
-                    getValues('slug') +
-                    '-' +
-                    Math.random().toString(36).substr(2, 5);
-                  setValue('slug', newSlug);
-                  setIsSlugSuffixed(true);
+              onChange={(e) => {
+                setValue('name', e.target.value);
+
+                // if value is unset, reset the slug
+                if (!e.target.value) {
+                  setValue('slug', '');
                 }
               }}
             />
@@ -125,7 +121,7 @@ export function TenantCreateForm({
               <div className="text-sm text-red-500">{slugError}</div>
             )}
           </div>
-          <Button disabled={props.isLoading || !isSlugSuffixed}>
+          <Button disabled={props.isLoading}>
             {props.isLoading && <Spinner />}
             Create
           </Button>
