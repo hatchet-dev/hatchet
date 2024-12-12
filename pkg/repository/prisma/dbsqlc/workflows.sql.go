@@ -1754,8 +1754,11 @@ FROM
     "Workflow" as workflows
 WHERE
     workflows."tenantId" = $1::uuid AND
-    workflows."name" LIKE '%' || $2::text || '%' AND
-    workflows."deletedAt" IS NULL
+    workflows."deletedAt" IS NULL AND
+    (
+        $2::text IS NULL OR
+        workflows.name like concat('%', $2::text, '%')
+    )
 ORDER BY
     case when $3 = 'createdAt ASC' THEN workflows."createdAt" END ASC ,
     case when $3 = 'createdAt DESC' then workflows."createdAt" END DESC
@@ -1767,7 +1770,7 @@ LIMIT
 
 type ListWorkflowsParams struct {
 	Tenantid pgtype.UUID `json:"tenantid"`
-	Name     string      `json:"name"`
+	Search   pgtype.Text `json:"search"`
 	Orderby  interface{} `json:"orderby"`
 	Offset   interface{} `json:"offset"`
 	Limit    interface{} `json:"limit"`
@@ -1780,7 +1783,7 @@ type ListWorkflowsRow struct {
 func (q *Queries) ListWorkflows(ctx context.Context, db DBTX, arg ListWorkflowsParams) ([]*ListWorkflowsRow, error) {
 	rows, err := db.Query(ctx, listWorkflows,
 		arg.Tenantid,
-		arg.Name,
+		arg.Search,
 		arg.Orderby,
 		arg.Offset,
 		arg.Limit,

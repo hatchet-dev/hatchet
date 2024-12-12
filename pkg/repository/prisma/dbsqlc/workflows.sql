@@ -83,8 +83,11 @@ FROM
     "Workflow" as workflows
 WHERE
     workflows."tenantId" = @tenantId::uuid AND
-    workflows."name" LIKE '%' || @name::text || '%' AND
-    workflows."deletedAt" IS NULL
+    workflows."deletedAt" IS NULL AND
+    (
+        sqlc.narg('search')::text IS NULL OR
+        workflows.name like concat('%', sqlc.narg('search')::text, '%')
+    )
 ORDER BY
     case when @orderBy = 'createdAt ASC' THEN workflows."createdAt" END ASC ,
     case when @orderBy = 'createdAt DESC' then workflows."createdAt" END DESC

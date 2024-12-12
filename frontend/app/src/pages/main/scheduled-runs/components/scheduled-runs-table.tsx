@@ -199,7 +199,7 @@ export function ScheduledRunsTable({
     isLoading: workflowKeysIsLoading,
     error: workflowKeysError,
   } = useQuery({
-    ...queries.workflows.list(tenant.metadata.id, {limit: 200}),
+    ...queries.workflows.list(tenant.metadata.id, { limit: 200 }),
   });
 
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});

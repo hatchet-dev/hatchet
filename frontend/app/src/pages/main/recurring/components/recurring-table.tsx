@@ -157,7 +157,7 @@ export function CronsTable() {
   };
 
   const { data: workflowKeys } = useQuery({
-    ...queries.workflows.list(tenant.metadata.id, {limit: 200}),
+    ...queries.workflows.list(tenant.metadata.id, { limit: 200 }),
   });
 
   const workflowKeyFilters = useMemo((): FilterOption[] => {

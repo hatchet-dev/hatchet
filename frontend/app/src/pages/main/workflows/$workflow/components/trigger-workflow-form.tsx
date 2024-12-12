@@ -80,7 +80,7 @@ export function TriggerWorkflowForm({
   });
 
   const { data: workflowKeys, isFetched } = useQuery({
-    ...queries.workflows.list(tenant.metadata.id, {limit: 200}),
+    ...queries.workflows.list(tenant.metadata.id, { limit: 200 }),
   });
 
   const workflow = useMemo(() => {

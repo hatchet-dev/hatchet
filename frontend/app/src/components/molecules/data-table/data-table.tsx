@@ -261,7 +261,11 @@ export function DataTable<TData extends IDGetter, TValue>({
         {!card ? getTable() : getCards()}
       </div>
       {pagination && (
-        <DataTablePagination table={table} onSetPageSize={onSetPageSize} showSelectedRows={showSelectedRows} />
+        <DataTablePagination
+          table={table}
+          onSetPageSize={onSetPageSize}
+          showSelectedRows={showSelectedRows}
+        />
       )}
     </div>
   );

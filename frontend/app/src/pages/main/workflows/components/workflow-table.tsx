@@ -20,7 +20,11 @@ import {
   ArrowPathIcon,
   QuestionMarkCircleIcon,
 } from '@heroicons/react/24/outline';
-import { PaginationState, SortingState, VisibilityState } from '@tanstack/react-table';
+import {
+  PaginationState,
+  SortingState,
+  VisibilityState,
+} from '@tanstack/react-table';
 import { BiCard, BiTable } from 'react-icons/bi';
 import RelativeDate from '@/components/molecules/relative-date';
 import { Badge } from '@/components/ui/badge';
@@ -55,37 +59,29 @@ export function WorkflowTable() {
     Number(searchParams.get('pageIndex')) || 0,
   );
 
-
-
   const listWorkflowQuery = useQuery({
-    ...queries.workflows.list(tenant.metadata.id,{limit: pagination.pageSize ,offset: pagination.pageIndex * pageSize}),
+    ...queries.workflows.list(tenant.metadata.id, {
+      limit: pagination.pageSize,
+      offset: pagination.pageIndex * pageSize,
+    }),
     refetchInterval: 5000,
-
   });
 
-
-
   useEffect(() => {
-
     const newSearchParams = new URLSearchParams(searchParams);
     newSearchParams.set('pageIndex', pagination.pageIndex.toString());
     newSearchParams.set('pageSize', pagination.pageSize.toString());
     setSearchParams(newSearchParams);
-  }, [
-    pagination,
-    setSearchParams,
-    searchParams,
-  ]);
+  }, [pagination, setSearchParams, searchParams]);
 
   const data = useMemo(() => {
-
     const data = listWorkflowQuery.data?.rows || [];
     setPageIndex(listWorkflowQuery.data?.pagination?.num_pages || 0);
 
     return data;
-  }, [listWorkflowQuery.data?.rows , searchParams]);
+  }, [listWorkflowQuery.data?.rows, searchParams]);
 
-  if (listWorkflowQuery.isLoading ) {
+  if (listWorkflowQuery.isLoading) {
     return <Loading />;
   }
 
