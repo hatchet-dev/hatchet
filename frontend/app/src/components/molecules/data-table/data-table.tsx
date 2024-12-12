@@ -55,6 +55,7 @@ interface DataTableProps<TData extends IDGetter, TValue> {
   setColumnFilters?: OnChangeFn<ColumnFiltersState>;
   pagination?: PaginationState;
   setPagination?: OnChangeFn<PaginationState>;
+  showSelectedRows?: boolean;
   pageCount?: number;
   onSetPageSize?: (pageSize: number) => void;
   showColumnToggle?: boolean;
@@ -99,6 +100,7 @@ export function DataTable<TData extends IDGetter, TValue>({
   setPagination,
   pageCount,
   onSetPageSize,
+  showSelectedRows = true,
   showColumnToggle,
   columnVisibility,
   setColumnVisibility,
@@ -259,7 +261,11 @@ export function DataTable<TData extends IDGetter, TValue>({
         {!card ? getTable() : getCards()}
       </div>
       {pagination && (
-        <DataTablePagination table={table} onSetPageSize={onSetPageSize} />
+        <DataTablePagination
+          table={table}
+          onSetPageSize={onSetPageSize}
+          showSelectedRows={showSelectedRows}
+        />
       )}
     </div>
   );
