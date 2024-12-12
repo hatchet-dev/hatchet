@@ -45,6 +45,7 @@ type EngineRepository interface {
 	Log() LogsEngineRepository
 	RateLimit() RateLimitEngineRepository
 	WebhookWorker() WebhookWorkerEngineRepository
+	Scheduler() SchedulerRepository
 }
 
 type EntitlementsRepository interface {
@@ -99,4 +100,56 @@ func (c UnscopedCallback[T]) Do(l *zerolog.Logger, v T) {
 			l.Error().Err(err).Msg("callback failed")
 		}
 	}()
+}
+
+type CallbackOptFunc[T any] func(*TenantCallbackOpts[T])
+
+func WithPreCommitCallback[T any](cb TenantScopedCallback[T]) CallbackOptFunc[T] {
+	return func(opts *TenantCallbackOpts[T]) {
+		opts.cbs = append(opts.cbs, cb)
+	}
+}
+
+func WithPostCommitCallback[T any](cb TenantScopedCallback[T]) CallbackOptFunc[T] {
+	return func(opts *TenantCallbackOpts[T]) {
+		opts.cbs = append(opts.cbs, cb)
+	}
+}
+
+func RunPreCommit[T any](l *zerolog.Logger, tenantId string, v T, opts []CallbackOptFunc[T]) {
+	// initialize the opts
+	o := &TenantCallbackOpts[T]{
+		cbs: make([]TenantScopedCallback[T], 0),
+	}
+
+	// apply the opts
+	for _, opt := range opts {
+		opt(o)
+	}
+
+	o.Run(l, tenantId, v)
+}
+
+func RunPostCommit[T any](l *zerolog.Logger, tenantId string, v T, opts []CallbackOptFunc[T]) {
+	// initialize the opts
+	o := &TenantCallbackOpts[T]{
+		cbs: make([]TenantScopedCallback[T], 0),
+	}
+
+	// apply the opts
+	for _, opt := range opts {
+		opt(o)
+	}
+
+	o.Run(l, tenantId, v)
+}
+
+type TenantCallbackOpts[T any] struct {
+	cbs []TenantScopedCallback[T]
+}
+
+func (o *TenantCallbackOpts[T]) Run(l *zerolog.Logger, tenantId string, v T) {
+	for _, cb := range o.cbs {
+		cb.Do(l, tenantId, v)
+	}
 }

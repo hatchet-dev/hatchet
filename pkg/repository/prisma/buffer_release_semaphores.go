@@ -1,67 +1,41 @@
-package buffer
+package prisma
 
 import (
 	"context"
 	"sort"
 
 	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/rs/zerolog"
 
+	"github.com/hatchet-dev/hatchet/pkg/repository/buffer"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
-	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
-type BulkSemaphoreReleaser struct {
-	*TenantBufferManager[SemaphoreReleaseOpts, pgtype.UUID]
-
-	pool    *pgxpool.Pool
-	v       validator.Validator
-	l       *zerolog.Logger
-	queries *dbsqlc.Queries
-}
-
-func NewBulkSemaphoreReleaser(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, conf ConfigFileBuffer) (*BulkSemaphoreReleaser, error) {
-	queries := dbsqlc.New()
-
-	w := &BulkSemaphoreReleaser{
-		pool:    pool,
-		v:       v,
-		l:       l,
-		queries: queries,
-	}
-
-	eventBufOpts := TenantBufManagerOpts[SemaphoreReleaseOpts, pgtype.UUID]{
+func NewBulkSemaphoreReleaser(shared *sharedRepository, conf buffer.ConfigFileBuffer) (*buffer.TenantBufferManager[semaphoreReleaseOpts, pgtype.UUID], error) {
+	eventBufOpts := buffer.TenantBufManagerOpts[semaphoreReleaseOpts, pgtype.UUID]{
 		Name:       "semaphore_releaser",
-		OutputFunc: w.BulkReleaseSemaphores,
-		SizeFunc:   sizeOfData,
-		L:          w.l,
-		V:          w.v,
+		OutputFunc: shared.bulkReleaseSemaphores,
+		SizeFunc:   sizeOfSemaphoreReleaseData,
+		L:          shared.l,
+		V:          shared.v,
 		Config:     conf,
 	}
 
-	manager, err := NewTenantBufManager(eventBufOpts)
+	manager, err := buffer.NewTenantBufManager(eventBufOpts)
 
 	if err != nil {
-		l.Err(err).Msg("could not create tenant buffer manager")
+		shared.l.Err(err).Msg("could not create tenant buffer manager")
 		return nil, err
 	}
 
-	w.TenantBufferManager = manager
-
-	return w, nil
+	return manager, nil
 }
 
-func (w *BulkSemaphoreReleaser) Cleanup() error {
-	return w.TenantBufferManager.Cleanup()
-}
-
-func sizeOfData(item SemaphoreReleaseOpts) int {
+func sizeOfSemaphoreReleaseData(item semaphoreReleaseOpts) int {
 	return len(item.StepRunId.Bytes) + len(item.TenantId.Bytes)
 }
 
-func sortForSemaphoreRelease(opts []SemaphoreReleaseOpts) []SemaphoreReleaseOpts {
+func sortForSemaphoreRelease(opts []semaphoreReleaseOpts) []semaphoreReleaseOpts {
 	sort.SliceStable(opts, func(i, j int) bool {
 		return sqlchelpers.UUIDToStr(opts[i].StepRunId) < sqlchelpers.UUIDToStr(opts[j].StepRunId)
 	})
@@ -69,19 +43,20 @@ func sortForSemaphoreRelease(opts []SemaphoreReleaseOpts) []SemaphoreReleaseOpts
 	return opts
 }
 
-type SemaphoreReleaseOpts struct {
+type semaphoreReleaseOpts struct {
 	StepRunId pgtype.UUID
 	TenantId  pgtype.UUID
 }
 
-func (w *BulkSemaphoreReleaser) BulkReleaseSemaphores(ctx context.Context, opts []SemaphoreReleaseOpts) ([]pgtype.UUID, error) {
-	res := make([]pgtype.UUID, 0, len(opts))
-
-	for _, o := range opts {
-		res = append(res, o.StepRunId)
-	}
-
+func (w *sharedRepository) bulkReleaseSemaphores(ctx context.Context, opts []semaphoreReleaseOpts) ([]*pgtype.UUID, error) {
 	orderedOpts := sortForSemaphoreRelease(opts)
+
+	res := make([]*pgtype.UUID, 0, len(orderedOpts))
+
+	for _, o := range orderedOpts {
+		srId := o.StepRunId
+		res = append(res, &srId)
+	}
 
 	stepRunIds := make([]pgtype.UUID, 0, len(orderedOpts))
 	tenantIds := make([]pgtype.UUID, 0, len(orderedOpts))

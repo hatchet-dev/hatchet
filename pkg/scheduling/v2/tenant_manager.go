@@ -9,7 +9,7 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository/buffer"
+	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 )
 
@@ -27,16 +27,14 @@ type tenantManager struct {
 
 	leaseManager *LeaseManager
 
-	workersCh <-chan []*ListActiveWorkersResult
+	workersCh <-chan []*repository.ListActiveWorkersResult
 	queuesCh  <-chan []string
 	resultsCh chan *QueueResults
 
 	cleanup func()
-
-	eventBuffer *buffer.BulkEventWriter
 }
 
-func newTenantManager(cf *sharedConfig, tenantId string, eventBuffer *buffer.BulkEventWriter, resultsCh chan *QueueResults) *tenantManager {
+func newTenantManager(cf *sharedConfig, tenantId string, resultsCh chan *QueueResults) *tenantManager {
 	tenantIdUUID := sqlchelpers.UUIDFromStr(tenantId)
 
 	rl := newRateLimiter(cf, tenantIdUUID)
@@ -52,7 +50,6 @@ func newTenantManager(cf *sharedConfig, tenantId string, eventBuffer *buffer.Bul
 		queuesCh:     queuesCh,
 		resultsCh:    resultsCh,
 		rl:           rl,
-		eventBuffer:  eventBuffer,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -135,7 +132,7 @@ func (t *tenantManager) setQueuers(queueNames []string) {
 	}
 
 	for queueName := range queueNamesSet {
-		newQueueArr = append(newQueueArr, newQueuer(t.cf, t.tenantId, queueName, t.scheduler, t.eventBuffer, t.resultsCh))
+		newQueueArr = append(newQueueArr, newQueuer(t.cf, t.tenantId, queueName, t.scheduler, t.resultsCh))
 	}
 
 	t.queuers = newQueueArr

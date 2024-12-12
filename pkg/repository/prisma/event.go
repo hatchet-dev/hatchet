@@ -181,20 +181,6 @@ func (r *eventAPIRepository) ListEventKeys(tenantId string) ([]string, error) {
 	return keys, nil
 }
 
-func sizeOfEvent(item *repository.CreateEventOpts) int {
-	return len(item.Data) + len(item.AdditionalMetadata)
-}
-
-func (e *eventEngineRepository) startBufferLoop(conf buffer.ConfigFileBuffer) error {
-
-	tenantBufOpts := buffer.TenantBufManagerOpts[*repository.CreateEventOpts, *dbsqlc.Event]{Name: "create_events", OutputFunc: e.BulkCreateEventSharedTenant, SizeFunc: sizeOfEvent, L: e.l, V: e.v, Config: conf}
-	var err error
-	e.bulkCreateBuffer, err = buffer.NewTenantBufManager(tenantBufOpts)
-
-	return err
-
-}
-
 func (r *eventAPIRepository) GetEventById(id string) (*db.EventModel, error) {
 	return r.client.Event.FindFirst(
 		db.Event.ID.Equals(id),
@@ -211,36 +197,21 @@ func (r *eventAPIRepository) ListEventsById(tenantId string, ids []string) ([]db
 }
 
 type eventEngineRepository struct {
-	pool                *pgxpool.Pool
-	v                   validator.Validator
-	queries             *dbsqlc.Queries
-	l                   *zerolog.Logger
+	*sharedRepository
+
 	m                   *metered.Metered
-	bulkCreateBuffer    *buffer.TenantBufferManager[*repository.CreateEventOpts, *dbsqlc.Event]
 	callbacks           []repository.TenantScopedCallback[*dbsqlc.Event]
 	createEventKeyCache *lru.Cache[string, bool]
 }
 
-func (r *eventEngineRepository) cleanup() error {
-	return r.bulkCreateBuffer.Cleanup()
-}
-
-func NewEventEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, m *metered.Metered, bufferConf buffer.ConfigFileBuffer) (repository.EventEngineRepository, func() error, error) {
-	queries := dbsqlc.New()
-
+func NewEventEngineRepository(shared *sharedRepository, m *metered.Metered, bufferConf buffer.ConfigFileBuffer) repository.EventEngineRepository {
 	createEventKeyCache, _ := lru.New[string, bool](2000) // nolint: errcheck - this only returns an error if the size is less than 0
 
-	e := eventEngineRepository{
-		pool:                pool,
-		v:                   v,
-		queries:             queries,
-		l:                   l,
+	return &eventEngineRepository{
+		sharedRepository:    shared,
 		m:                   m,
 		createEventKeyCache: createEventKeyCache,
 	}
-	err := e.startBufferLoop(bufferConf)
-
-	return &e, e.cleanup, err
 }
 
 func (r *eventEngineRepository) RegisterCreateCallback(callback repository.TenantScopedCallback[*dbsqlc.Event]) {
@@ -311,40 +282,26 @@ func (r *eventEngineRepository) CreateEvent(ctx context.Context, opts *repositor
 			ReplayedEvent:      opts.ReplayedEvent,
 		}
 
-		done, err := r.bulkCreateBuffer.BuffItem(opts.TenantId, &createOpts)
+		event, err := r.bulkUserEventBuffer.FireAndWait(ctx, opts.TenantId, &createOpts)
 
 		if err != nil {
 			return nil, nil, fmt.Errorf("could not buffer event: %w", err)
 		}
-		var response *buffer.FlushResponse[*dbsqlc.Event]
-
-		select {
-		case response = <-done:
-		case <-ctx.Done():
-			return nil, nil, ctx.Err()
-		case <-time.After(20 * time.Second):
-			return nil, nil, fmt.Errorf("timeout waiting for event to be flushed to db")
-		}
-
-		if response.Err != nil {
-			return nil, nil, fmt.Errorf("could not create event: %w", response.Err)
-		}
-
-		e := response.Result
 
 		for _, cb := range r.callbacks {
-			cb.Do(r.l, opts.TenantId, e)
+			cb.Do(r.l, opts.TenantId, event)
 		}
 
-		id := sqlchelpers.UUIDToStr(e.ID)
+		id := sqlchelpers.UUIDToStr(event.ID)
 
-		if e.TenantId != sqlchelpers.UUIDFromStr(opts.TenantId) {
+		if event.TenantId != sqlchelpers.UUIDFromStr(opts.TenantId) {
 			panic("tenant id mismatch")
 		}
 
-		return &id, e, nil
+		return &id, event, nil
 	})
 }
+
 func (r *eventEngineRepository) BulkCreateEvent(ctx context.Context, opts *repository.BulkCreateEventOpts) (*repository.BulkCreateEventResult, error) {
 
 	numberOfResources := len(opts.Events)
