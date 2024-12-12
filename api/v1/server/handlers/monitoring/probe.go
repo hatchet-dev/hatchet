@@ -169,7 +169,6 @@ func (m *MonitoringService) MonitoringPostRunProbe(ctx echo.Context, request gen
 
 type probeEvent struct {
 	UniqueStreamId string
-	StaticField    string
 }
 
 type stepOneOutput struct {
