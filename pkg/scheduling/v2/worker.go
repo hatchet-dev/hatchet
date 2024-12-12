@@ -1,11 +1,12 @@
 package v2
 
 import (
+	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 )
 
 type worker struct {
-	*ListActiveWorkersResult
+	*repository.ListActiveWorkersResult
 }
 
 // computeWeight computes the weight of a worker based on the desired labels. If the worker does not
