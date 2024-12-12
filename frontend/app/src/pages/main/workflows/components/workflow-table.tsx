@@ -79,7 +79,10 @@ export function WorkflowTable() {
     setPageIndex(listWorkflowQuery.data?.pagination?.num_pages || 0);
 
     return data;
-  }, [listWorkflowQuery.data?.rows, searchParams]);
+  }, [
+    listWorkflowQuery.data?.rows,
+    listWorkflowQuery.data?.pagination?.num_pages,
+  ]);
 
   if (listWorkflowQuery.isLoading) {
     return <Loading />;
