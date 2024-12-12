@@ -4,19 +4,18 @@ import (
 	"context"
 	"sync"
 
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository/buffer"
+	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
-	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
 type sharedConfig struct {
-	queries          *dbsqlc.Queries
-	pool             *pgxpool.Pool
-	l                *zerolog.Logger
+	repo repository.SchedulerRepository
+
+	l *zerolog.Logger
+
 	singleQueueLimit int
 }
 
@@ -28,36 +27,22 @@ type SchedulingPool struct {
 	cf *sharedConfig
 
 	resultsCh chan *QueueResults
-
-	eventBuffer *buffer.BulkEventWriter
 }
 
-func NewSchedulingPool(l *zerolog.Logger, p *pgxpool.Pool, v validator.Validator, singleQueueLimit int, buffSettings buffer.ConfigFileBuffer) (*SchedulingPool, func() error, error) {
+func NewSchedulingPool(repo repository.SchedulerRepository, l *zerolog.Logger, singleQueueLimit int) (*SchedulingPool, func() error, error) {
 	resultsCh := make(chan *QueueResults, 1000)
-
-	eventBuffer, err := buffer.NewBulkEventWriter(p, v, l, buffSettings)
-
-	if err != nil {
-		return nil, nil, err
-	}
 
 	s := &SchedulingPool{
 		cf: &sharedConfig{
-			queries:          dbsqlc.New(),
-			pool:             p,
+			repo:             repo,
 			l:                l,
 			singleQueueLimit: singleQueueLimit,
 		},
-		resultsCh:   resultsCh,
-		eventBuffer: eventBuffer,
-		setMu:       newMu(l),
+		resultsCh: resultsCh,
+		setMu:     newMu(l),
 	}
 
 	return s, func() error {
-		if err := eventBuffer.Cleanup(); err != nil {
-			return err
-		}
-
 		s.cleanup()
 		return nil
 	}, nil
@@ -163,7 +148,7 @@ func (p *SchedulingPool) getTenantManager(tenantId string, storeIfNotFound bool)
 
 	if !ok {
 		if storeIfNotFound {
-			tm = newTenantManager(p.cf, tenantId, p.eventBuffer, p.resultsCh)
+			tm = newTenantManager(p.cf, tenantId, p.resultsCh)
 			p.tenants.Store(tenantId, tm)
 		} else {
 			return nil

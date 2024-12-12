@@ -20,7 +20,7 @@ require (
 	github.com/jackc/pgx/v5 v5.7.1
 	github.com/jackc/puddle/v2 v2.2.2
 	github.com/joho/godotenv v1.5.1
-	github.com/labstack/echo/v4 v4.13.0
+	github.com/labstack/echo/v4 v4.13.1
 	github.com/oapi-codegen/runtime v1.1.1
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/pingcap/errors v0.11.4
@@ -41,9 +41,9 @@ require (
 	golang.org/x/time v0.8.0
 	google.golang.org/api v0.210.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20241113202542-65e8d215514f
-	k8s.io/api v0.31.3
-	k8s.io/apimachinery v0.31.3
-	k8s.io/client-go v0.31.3
+	k8s.io/api v0.31.4
+	k8s.io/apimachinery v0.31.4
+	k8s.io/client-go v0.31.4
 	sigs.k8s.io/yaml v1.4.0
 )
 
@@ -129,7 +129,7 @@ require (
 	github.com/go-chi/chi v1.5.5
 	github.com/go-playground/validator/v10 v10.23.0
 	github.com/go-test/deep v1.1.0 // indirect
-	github.com/goccy/go-json v0.10.3
+	github.com/goccy/go-json v0.10.4
 	github.com/google/cel-go v0.22.1
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/schema v1.4.1

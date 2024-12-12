@@ -6,96 +6,10 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository"
 )
-
-type rateLimitRepo interface {
-	ListCandidateRateLimits(ctx context.Context, tenantId pgtype.UUID) ([]string, error)
-	UpdateRateLimits(ctx context.Context, tenantId pgtype.UUID, updates map[string]int) (map[string]int, error)
-}
-
-type rateLimitDbQueries struct {
-	queries *dbsqlc.Queries
-	pool    *pgxpool.Pool
-
-	l *zerolog.Logger
-}
-
-func newRateLimitDbQueries(queries *dbsqlc.Queries, pool *pgxpool.Pool, l *zerolog.Logger) *rateLimitDbQueries {
-	return &rateLimitDbQueries{
-		queries: queries,
-		pool:    pool,
-		l:       l,
-	}
-}
-
-func (d *rateLimitDbQueries) ListCandidateRateLimits(ctx context.Context, tenantId pgtype.UUID) ([]string, error) {
-	rls, err := d.queries.ListRateLimitsForTenantNoMutate(ctx, d.pool, dbsqlc.ListRateLimitsForTenantNoMutateParams{
-		Tenantid: tenantId,
-		Limit:    10000,
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	ids := make([]string, len(rls))
-
-	for i, rl := range rls {
-		ids[i] = rl.Key
-	}
-
-	return ids, nil
-}
-
-func (d *rateLimitDbQueries) UpdateRateLimits(ctx context.Context, tenantId pgtype.UUID, updates map[string]int) (map[string]int, error) {
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, d.pool, d.l, 5000)
-
-	if err != nil {
-		return nil, err
-	}
-
-	defer rollback()
-
-	params := dbsqlc.BulkUpdateRateLimitsParams{
-		Tenantid: tenantId,
-		Keys:     make([]string, 0, len(updates)),
-		Units:    make([]int32, 0, len(updates)),
-	}
-
-	for k, v := range updates {
-		params.Keys = append(params.Keys, k)
-		params.Units = append(params.Units, int32(v)) // nolint: gosec
-	}
-
-	_, err = d.queries.BulkUpdateRateLimits(ctx, tx, params)
-
-	if err != nil {
-		return nil, err
-	}
-
-	newRls, err := d.queries.ListRateLimitsForTenantWithMutate(ctx, tx, tenantId)
-
-	if err != nil {
-		return nil, err
-	}
-
-	if err := commit(ctx); err != nil {
-		return nil, err
-	}
-
-	res := make(map[string]int, len(newRls))
-
-	for _, rl := range newRls {
-		res[rl.Key] = int(rl.Value)
-	}
-
-	return res, err
-}
 
 type rateLimit struct {
 	key string
@@ -105,7 +19,7 @@ type rateLimit struct {
 type rateLimitSet map[string]*rateLimit
 
 type rateLimiter struct {
-	rateLimitRepo rateLimitRepo
+	rateLimitRepo repository.RateLimitRepository
 
 	tenantId pgtype.UUID
 
@@ -125,10 +39,8 @@ type rateLimiter struct {
 }
 
 func newRateLimiter(conf *sharedConfig, tenantId pgtype.UUID) *rateLimiter {
-	repo := newRateLimitDbQueries(conf.queries, conf.pool, conf.l)
-
 	rl := &rateLimiter{
-		rateLimitRepo: repo,
+		rateLimitRepo: conf.repo.RateLimit(),
 		tenantId:      tenantId,
 		l:             conf.l,
 		unacked:       make(map[string]rateLimitSet),

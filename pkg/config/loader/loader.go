@@ -444,11 +444,9 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 	v := validator.NewDefaultValidator()
 
 	schedulingPool, cleanupSchedulingPool, err := v2.NewSchedulingPool(
+		dc.EngineRepository.Scheduler(),
 		&queueLogger,
-		dc.QueuePool,
-		v,
 		cf.Runtime.SingleQueueLimit,
-		cf.Runtime.EventBuffer,
 	)
 
 	if err != nil {
