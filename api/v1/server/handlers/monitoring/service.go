@@ -12,9 +12,11 @@ type MonitoringService struct {
 	enabled          bool
 	permittedTenants []string
 	eventName        string
+	workflowName     string
 	probeTimeout     time.Duration
 	config           *server.ServerConfig
 	l                *zerolog.Logger
+	tlsRootCAFile    string
 }
 
 func NewMonitoringService(config *server.ServerConfig) *MonitoringService {
@@ -23,7 +25,9 @@ func NewMonitoringService(config *server.ServerConfig) *MonitoringService {
 		l:                config.Logger,
 		permittedTenants: config.Runtime.Monitoring.PermittedTenants,
 		eventName:        "monitoring:probe",
+		workflowName:     "probe-workflow",
 		probeTimeout:     config.Runtime.Monitoring.ProbeTimeout,
+		tlsRootCAFile:    config.Runtime.Monitoring.TLSRootCAFile,
 		config:           config,
 	}
 }

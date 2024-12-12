@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"os"
 	"slices"
 	"strings"
 	"time"
@@ -19,6 +18,7 @@ import (
 	clientconfig "github.com/hatchet-dev/hatchet/pkg/config/client"
 	"github.com/hatchet-dev/hatchet/pkg/config/shared"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 )
@@ -30,10 +30,6 @@ func (m *MonitoringService) MonitoringPostRunProbe(ctx echo.Context, request gen
 
 	tenant := ctx.Get("tenant").(*db.TenantModel)
 
-	if tenant == nil || tenant.ID == "" {
-		return nil, fmt.Errorf("tenant is required")
-	}
-
 	if !slices.Contains[[]string](m.permittedTenants, tenant.ID) {
 
 		err := fmt.Errorf("tenant is not a monitoring tenant for this instance")
@@ -44,7 +40,7 @@ func (m *MonitoringService) MonitoringPostRunProbe(ctx echo.Context, request gen
 			m.l.Error().Err(err).Msg("no monitoring tenants are configured")
 		}
 
-		return gen.MonitoringPostRunProbe403JSONResponse{}, err
+		return gen.MonitoringPostRunProbe403JSONResponse{}, nil
 	}
 
 	token, err := getBearerTokenFromRequest(ctx.Request())
@@ -54,6 +50,7 @@ func (m *MonitoringService) MonitoringPostRunProbe(ctx echo.Context, request gen
 	}
 
 	events := make(chan string, 50)
+	stepChan := make(chan string, 50)
 	errorChan := make(chan error, 50)
 	interrupt := cmdutils.InterruptChan()
 
@@ -68,27 +65,16 @@ func (m *MonitoringService) MonitoringPostRunProbe(ctx echo.Context, request gen
 		Namespace: randomNamespace(),
 		TLS: clientconfig.ClientTLSConfigFile{
 			Base: shared.TLSConfigFile{
-				TLSRootCAFile: os.Getenv("SERVER_TLS_ROOT_CA_FILE"),
+				TLSRootCAFile: m.tlsRootCAFile,
 			},
 		},
 	}
-	workflowName := "probe-workflow"
-	var wfrId *string
-	go func() {
-		wfrId, cleanup, err = m.run(cancellableContext, cf, workflowName, events, errorChan)
-		if err != nil {
-			errorChan <- err
-		}
 
-		// check if the context was cancelled in the meantime
-
-		if cancellableContext.Err() != nil {
-			cleanupErr := cleanup()
-			if cleanupErr != nil {
-				m.l.Error().Msgf("error cleaning up probe worker: %s", cleanupErr)
-			}
-		}
-	}()
+	wfrId, cleanup, err := m.run(cancellableContext, cf, m.workflowName, events, stepChan, errorChan)
+	if err != nil {
+		m.l.Error().Msgf("error running probe: %s", err)
+		return nil, err
+	}
 
 	defer func() {
 		var cleanupErr error
@@ -103,11 +89,12 @@ func (m *MonitoringService) MonitoringPostRunProbe(ctx echo.Context, request gen
 	}()
 
 	defer func() {
+		if wfrId == nil || *wfrId == "" {
+			m.l.Warn().Msg("workflow run id was never set for probe")
+			return
+		}
 
-		time.Sleep(250 * time.Millisecond)
-
-		if wfrId != nil && *wfrId != "" {
-
+		for i := 0; i < 10; i++ {
 			wrfRow, err := m.config.APIRepository.WorkflowRun().GetWorkflowRunById(context.Background(), cf.TenantId, *wfrId)
 
 			if err != nil {
@@ -115,54 +102,64 @@ func (m *MonitoringService) MonitoringPostRunProbe(ctx echo.Context, request gen
 
 			}
 
-			workflowId := sqlchelpers.UUIDToStr(wrfRow.Workflow.ID)
+			if wrfRow.Status != dbsqlc.WorkflowRunStatusRUNNING {
 
-			_, err = m.config.APIRepository.Workflow().DeleteWorkflow(cf.TenantId, workflowId)
+				workflowId := sqlchelpers.UUIDToStr(wrfRow.Workflow.ID)
 
-			m.l.Info().Msgf("deleted workflow %s", workflowId)
-			if err != nil {
-				m.l.Error().Msgf("error deleting workflow: %s", err)
+				_, err = m.config.APIRepository.Workflow().DeleteWorkflow(cf.TenantId, workflowId)
+
+				m.l.Info().Msgf("deleted workflow %s", workflowId)
+				if err != nil {
+					m.l.Error().Msgf("error deleting workflow: %s", err)
+				}
+				return
 			}
-		} else {
-			m.l.Warn().Msg("workflow run id was never set")
+
+			time.Sleep(50 * time.Millisecond)
+
 		}
+
+		m.l.Error().Msg("could not clean up workflow after 10 attempts")
 
 	}()
 
 	messages := []string{"This is a stream event for step-one", "This is a stream event for step-two"}
 	messageIndex := 0
-
+	stepMessages := []string{"step-one", "step-two"}
 	for {
 
 		select {
-		case e := <-events:
-			if e != messages[messageIndex] {
-				return nil, fmt.Errorf("expected message %s, got %s", messages[messageIndex], e)
-			}
-
-			messageIndex++
-			if messageIndex == len(messages) {
-				m.l.Debug().Msg("probe completed successfully")
-				return gen.MonitoringPostRunProbe200JSONResponse{}, nil
-			}
-
 		case <-cancellableContext.Done():
 
 			if cancellableContext.Err() == context.DeadlineExceeded {
 				m.l.Error().Msg("timed out waiting for probe to complete")
 				return nil, fmt.Errorf("timed out waiting for probe to complete")
-			} else {
-				m.l.Debug().Msg("probe completed successfully")
-				return gen.MonitoringPostRunProbe200JSONResponse{}, nil
 			}
 
 		case err := <-errorChan:
 			m.l.Error().Msgf("error during probe: %s", err)
 			return nil, err
+
 		case <-interrupt:
 			return nil, fmt.Errorf("interrupted during probe")
-		}
 
+		case e := <-events:
+			if e != messages[messageIndex] {
+				return nil, fmt.Errorf("expected message %s, got %s", messages[messageIndex], e)
+			}
+			messageIndex++
+
+			if messageIndex == len(messages) {
+				for i := range stepMessages {
+					stepMessage := <-stepChan
+					if stepMessage != stepMessages[i] {
+
+						return nil, fmt.Errorf("probe did not complete successfully - step messages failed")
+					}
+				}
+				return nil, nil
+			}
+		}
 	}
 
 }
@@ -176,10 +173,10 @@ type stepOneOutput struct {
 	UniqueStreamId string
 }
 
-func (m *MonitoringService) run(ctx context.Context, cf clientconfig.ClientConfigFile, workflowName string, events chan<- string, errors chan<- error) (*string, func() error, error) {
+func (m *MonitoringService) run(ctx context.Context, cf clientconfig.ClientConfigFile, workflowName string, events chan<- string, stepChan chan<- string, errors chan<- error) (*string, func() error, error) {
 
 	c, err := client.NewFromConfigFile(
-		&cf, client.WithLogLevel("info"),
+		&cf, client.WithLogLevel(m.l.GetLevel().String()),
 	)
 
 	if err != nil {
@@ -190,7 +187,7 @@ func (m *MonitoringService) run(ctx context.Context, cf clientconfig.ClientConfi
 
 		worker.WithClient(
 			c,
-		), worker.WithLogLevel("info"),
+		), worker.WithLogLevel(m.l.GetLevel().String()),
 	)
 	if err != nil {
 		return nil, nil, fmt.Errorf("error creating worker: %w", err)
@@ -226,6 +223,8 @@ func (m *MonitoringService) run(ctx context.Context, cf clientconfig.ClientConfi
 
 					ctx.StreamEvent([]byte("This is a stream event for step-one"))
 
+					stepChan <- "step-one"
+
 					return &stepOneOutput{
 						Message:        "This is a message for step-one",
 						UniqueStreamId: streamValue,
@@ -249,8 +248,12 @@ func (m *MonitoringService) run(ctx context.Context, cf clientconfig.ClientConfi
 					}
 
 					ctx.StreamEvent([]byte("This is a stream event for step-two"))
+					stepChan <- "step-two"
 
-					return &stepOneOutput{}, nil
+					return &stepOneOutput{
+						Message:        "This is a message for step-two",
+						UniqueStreamId: streamValue,
+					}, nil
 				}).SetName("step-two").AddParents("step-one"),
 			},
 		},

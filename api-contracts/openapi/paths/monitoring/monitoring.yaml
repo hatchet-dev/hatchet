@@ -16,23 +16,7 @@ probe:
           maxLength: 36
     responses:
       "200":
-        content:
-          application/json:
-            schema:
-              $ref: "../../components/schemas/_index.yaml#/MonitoringRunProbe"
         description: Successfully created the webhook
-      "400":
-        content:
-          application/json:
-            schema:
-              $ref: "../../components/schemas/_index.yaml#/APIErrors"
-        description: A malformed or bad request
-      "401":
-        content:
-          application/json:
-            schema:
-              $ref: "../../components/schemas/_index.yaml#/APIErrors"
-        description: Unauthorized
       "403":
         content:
           application/json:

@@ -675,11 +675,6 @@ type RerunStepRunRequest struct {
 	Input map[string]interface{} `json:"input"`
 }
 
-// RunProbe defines model for RunProbe.
-type RunProbe struct {
-	TenantId *string `json:"tenantId,omitempty"`
-}
-
 // SNSIntegration defines model for SNSIntegration.
 type SNSIntegration struct {
 	// IngestUrl The URL to send SNS messages to.
@@ -8921,9 +8916,6 @@ func (r MetadataListIntegrationsResponse) StatusCode() int {
 type MonitoringPostRunProbeResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *RunProbe
-	JSON400      *APIErrors
-	JSON401      *APIErrors
 	JSON403      *APIErrors
 }
 
@@ -12303,27 +12295,6 @@ func ParseMonitoringPostRunProbeResponse(rsp *http.Response) (*MonitoringPostRun
 	}
 
 	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest RunProbe
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest APIErrors
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest APIErrors
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
 		var dest APIErrors
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {

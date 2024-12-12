@@ -361,6 +361,9 @@ type ConfigFileMonitoring struct {
 
 	// ProbeTimeout is the time to wait for the probe to complete
 	ProbeTimeout time.Duration `mapstructure:"probeTimeout" json:"probeTimeout,omitempty" default:"30s"`
+
+	// TLSRootCAFile is the path to the root CA file for the monitoring service
+	TLSRootCAFile string `mapstructure:"tlsRootCAFile" json:"tlsRootCAFile,omitempty"`
 }
 
 type PostmarkConfigFile struct {
@@ -638,5 +641,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.monitoring.enabled", "SERVER_MONITORING_ENABLED")
 	_ = v.BindEnv("runtime.monitoring.permittedTenants", "SERVER_MONITORING_PERMITTED_TENANTS")
 	_ = v.BindEnv("runtime.monitoring.probeTimeout", "SERVER_MONITORING_PROBE_TIMEOUT")
+	// we will fill this in from the server config if it is not set
+	_ = v.BindEnv("runtime.monitoring.tlsRootCAFile", "SERVER_MONITORING_TLS_ROOT_CA_FILE")
 
 }

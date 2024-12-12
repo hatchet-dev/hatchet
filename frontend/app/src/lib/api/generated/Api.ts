@@ -53,7 +53,6 @@ import {
   ReplayWorkflowRunsRequest,
   ReplayWorkflowRunsResponse,
   RerunStepRunRequest,
-  RunProbe,
   SNSIntegration,
   ScheduleWorkflowRunRequest,
   ScheduledRunStatus,
@@ -2105,11 +2104,10 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @secure
    */
   monitoringPostRunProbe = (tenant: string, params: RequestParams = {}) =>
-    this.request<RunProbe, APIErrors>({
+    this.request<void, APIErrors>({
       path: `/api/v1/monitoring/${tenant}/probe`,
       method: 'POST',
       secure: true,
-      format: 'json',
       ...params,
     });
 }
