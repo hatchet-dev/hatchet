@@ -265,6 +265,18 @@ func (rc *RetentionControllerImpl) Start() (func() error, error) {
 			cancel()
 			return nil, fmt.Errorf("could not set up runDeleteRetryQueueItems: %w", err)
 		}
+
+		_, err = rc.s.NewJob(
+			gocron.DurationJob(queueInterval),
+			gocron.NewTask(
+				rc.runDeleteMessageQueueItems(ctx),
+			),
+		)
+
+		if err != nil {
+			cancel()
+			return nil, fmt.Errorf("could not set up runDeleteMessageQueueItems: %w", err)
+		}
 	}
 
 	rc.s.Start()

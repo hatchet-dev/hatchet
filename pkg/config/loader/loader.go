@@ -21,6 +21,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/integrations/email"
 	"github.com/hatchet-dev/hatchet/internal/integrations/email/postmark"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
+	"github.com/hatchet-dev/hatchet/internal/msgqueue/postgres"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue/rabbitmq"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
@@ -279,12 +280,17 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 	var ing ingestor.Ingestor
 
 	if cf.MessageQueue.Enabled {
-		cleanup1, mq = rabbitmq.New(
-			rabbitmq.WithURL(cf.MessageQueue.RabbitMQ.URL),
-			rabbitmq.WithLogger(&l),
-			rabbitmq.WithQos(cf.MessageQueue.RabbitMQ.Qos),
-			rabbitmq.WithDisableTenantExchangePubs(cf.Runtime.DisableTenantPubs),
-		)
+		switch strings.ToLower(cf.MessageQueue.Kind) {
+		case "postgres":
+			mq = postgres.NewPostgresMQ(dc.EngineRepository.MessageQueue())
+		case "rabbitmq":
+			cleanup1, mq = rabbitmq.New(
+				rabbitmq.WithURL(cf.MessageQueue.RabbitMQ.URL),
+				rabbitmq.WithLogger(&l),
+				rabbitmq.WithQos(cf.MessageQueue.RabbitMQ.Qos),
+				rabbitmq.WithDisableTenantExchangePubs(cf.Runtime.DisableTenantPubs),
+			)
+		}
 
 		ing, err = ingestor.NewIngestor(
 			ingestor.WithEventRepository(dc.EngineRepository.Event()),

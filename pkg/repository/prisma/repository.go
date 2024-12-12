@@ -215,6 +215,7 @@ type engineRepository struct {
 	rateLimit      repository.RateLimitEngineRepository
 	webhookWorker  repository.WebhookWorkerEngineRepository
 	scheduler      repository.SchedulerRepository
+	mq             repository.MessageQueueRepository
 }
 
 func (r *engineRepository) Health() repository.HealthRepository {
@@ -293,6 +294,10 @@ func (r *engineRepository) Scheduler() repository.SchedulerRepository {
 	return r.scheduler
 }
 
+func (r *engineRepository) MessageQueue() repository.MessageQueueRepository {
+	return r.mq
+}
+
 func NewEngineRepository(pool *pgxpool.Pool, essentialPool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ...PrismaRepositoryOpt) (func() error, repository.EngineRepository, error) {
 	opts := defaultPrismaRepositoryOpts()
 
@@ -343,6 +348,7 @@ func NewEngineRepository(pool *pgxpool.Pool, essentialPool *pgxpool.Pool, cf *se
 			rateLimit:      NewRateLimitEngineRepository(pool, opts.v, opts.l),
 			webhookWorker:  NewWebhookWorkerEngineRepository(pool, opts.v, opts.l),
 			scheduler:      newSchedulerRepository(shared),
+			mq:             NewMessageQueueRepository(shared),
 		},
 		err
 }

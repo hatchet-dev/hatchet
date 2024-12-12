@@ -1073,6 +1073,37 @@ CREATE TABLE
 CREATE TABLE
     "_WorkflowToWorkflowTag" ("A" UUID NOT NULL, "B" UUID NOT NULL);
 
+-- CreateTable
+CREATE TABLE "MessageQueue" (
+    "name" TEXT NOT NULL,
+    "durable" BOOLEAN NOT NULL DEFAULT true,
+    "autoDeleted" BOOLEAN NOT NULL DEFAULT false,
+    "exclusive" BOOLEAN NOT NULL DEFAULT false,
+    "exclusiveConsumerId" UUID,
+    CONSTRAINT "MessageQueue_pkey" PRIMARY KEY ("name")
+);
+
+-- CreateEnum
+CREATE TYPE "MessageQueueItemStatus" AS ENUM (
+    'PENDING',
+    'ASSIGNED'
+);
+
+-- CreateTable
+CREATE TABLE "MessageQueueItem" (
+    "id" bigint GENERATED ALWAYS AS IDENTITY,
+    "payload" JSONB NOT NULL,
+    "readAfter" TIMESTAMP(3),
+    "expiresAt" TIMESTAMP(3),
+    "queueId" TEXT NOT NULL,
+    "status" "MessageQueueItemStatus" NOT NULL DEFAULT 'PENDING',
+    CONSTRAINT "MessageQueueItem_pkey" PRIMARY KEY ("id"),
+    CONSTRAINT "MessageQueueItem_queueId_fkey" FOREIGN KEY ("queueId") REFERENCES "MessageQueue" ("name") ON DELETE SET NULL
+);
+
+-- Create an index for message queue item
+CREATE INDEX "MessageQueueItem_queueId_expiresAt_readAfter_status_id_idx" ON "MessageQueueItem" ("expiresAt", "queueId", "readAfter", "status", "id");
+
 -- CreateIndex
 CREATE UNIQUE INDEX "APIToken_id_key" ON "APIToken" ("id" ASC);
 

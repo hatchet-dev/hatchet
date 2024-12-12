@@ -583,9 +583,8 @@ func (w *workflowRunAPIRepository) GetStepRunsForJobRuns(ctx context.Context, te
 type workflowRunEngineRepository struct {
 	*sharedRepository
 
-	m                 *metered.Metered
-	cf                *server.ConfigFileRuntime
-	stepRunRepository *stepRunEngineRepository
+	m  *metered.Metered
+	cf *server.ConfigFileRuntime
 
 	createCallbacks []repository.TenantScopedCallback[*dbsqlc.WorkflowRun]
 	queuedCallbacks []repository.TenantScopedCallback[pgtype.UUID]
@@ -1045,7 +1044,7 @@ func (s *workflowRunEngineRepository) ReplayWorkflowRun(ctx context.Context, ten
 			sev := dbsqlc.StepRunEventSeverityINFO
 			reason := dbsqlc.StepRunEventReasonRETRIEDBYUSER
 
-			defer s.stepRunRepository.deferredStepRunEvent(
+			defer s.deferredStepRunEvent(
 				tenantId,
 				repository.CreateStepRunEventOpts{
 					StepRunId:     stepRunIdStr,
