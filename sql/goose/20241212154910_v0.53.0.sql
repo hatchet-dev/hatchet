@@ -1,3 +1,4 @@
+-- +goose Up
 -- Create enum type "MessageQueueItemStatus"
 CREATE TYPE "MessageQueueItemStatus" AS ENUM('PENDING', 'ASSIGNED');
 
@@ -35,6 +36,7 @@ CREATE INDEX "MessageQueueItem_queueId_expiresAt_readAfter_status_id_idx" ON "Me
 );
 
 -- Function to publish NOTIFY message on insert into MessageQueueItem
+-- +goose StatementBegin
 CREATE OR REPLACE FUNCTION notify_message_queue_item () RETURNS TRIGGER AS $$
 BEGIN
     PERFORM pg_notify(
@@ -44,6 +46,7 @@ BEGIN
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
+-- +goose StatementEnd
 
 -- Trigger to invoke the notify function after insert
 CREATE TRIGGER trigger_notify_message_queue_item
@@ -51,8 +54,10 @@ AFTER INSERT ON "MessageQueueItem" FOR EACH ROW
 EXECUTE FUNCTION notify_message_queue_item ();
 
 -- Update the existing function to prevent internal name or slug to be a no-op
+-- +goose StatementBegin
 CREATE OR REPLACE FUNCTION prevent_internal_name_or_slug () RETURNS trigger AS $$
 BEGIN
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
+-- +goose StatementEnd
