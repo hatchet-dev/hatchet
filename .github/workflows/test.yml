@@ -411,6 +411,7 @@ jobs:
           DATABASE_LOGGER_LEVEL=warn
           DATABASE_LOGGER_FORMAT=console
           SERVER_TASKQUEUE_KIND=postgres
+          RAMP_UP_DURATION_TIMEOUT=20s
           EOF
 
       - name: Generate
