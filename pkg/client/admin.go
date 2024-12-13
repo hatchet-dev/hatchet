@@ -506,11 +506,18 @@ func (a *adminClientImpl) getJobOpts(jobName string, job *types.WorkflowJob) (*a
 			return nil, fmt.Errorf("could not marshal step inputs: %w", err)
 		}
 
+		userDataBytes, err := json.Marshal(step.UserData)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not marshal step user data: %w", err)
+		}
+
 		stepOpt := &admincontracts.CreateWorkflowStepOpts{
 			ReadableId:        step.ID,
 			Action:            step.ActionID,
 			Timeout:           step.Timeout,
 			Inputs:            string(inputBytes),
+			UserData:          string(userDataBytes),
 			Parents:           step.Parents,
 			Retries:           int32(step.Retries), // nolint: gosec
 			BackoffFactor:     step.RetryBackoffFactor,

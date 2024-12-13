@@ -32,6 +32,10 @@ func (c *testHatchetContext) WorkflowInput(target interface{}) error {
 	return nil
 }
 
+func (c *testHatchetContext) UserData(target interface{}) error {
+	return nil
+}
+
 func (c *testHatchetContext) AdditionalMetadata() map[string]string {
 	return nil
 }
