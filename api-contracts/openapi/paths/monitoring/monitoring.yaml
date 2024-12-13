@@ -16,7 +16,7 @@ probe:
           maxLength: 36
     responses:
       "200":
-        description: Successfully created the webhook
+        description: Successfully executed the probe.
       "403":
         content:
           application/json:

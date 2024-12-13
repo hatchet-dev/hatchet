@@ -283,7 +283,7 @@ func (m *MonitoringService) run(ctx context.Context, cf clientconfig.ClientConfi
 					return
 				}
 
-				time.Sleep(100 * time.Millisecond)
+				time.Sleep(200 * time.Millisecond)
 
 			}
 
