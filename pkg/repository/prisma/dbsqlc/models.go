@@ -1309,11 +1309,12 @@ type LogLine struct {
 }
 
 type MessageQueue struct {
-	Name                string      `json:"name"`
-	Durable             bool        `json:"durable"`
-	AutoDeleted         bool        `json:"autoDeleted"`
-	Exclusive           bool        `json:"exclusive"`
-	ExclusiveConsumerId pgtype.UUID `json:"exclusiveConsumerId"`
+	Name                string           `json:"name"`
+	LastActive          pgtype.Timestamp `json:"lastActive"`
+	Durable             bool             `json:"durable"`
+	AutoDeleted         bool             `json:"autoDeleted"`
+	Exclusive           bool             `json:"exclusive"`
+	ExclusiveConsumerId pgtype.UUID      `json:"exclusiveConsumerId"`
 }
 
 type MessageQueueItem struct {

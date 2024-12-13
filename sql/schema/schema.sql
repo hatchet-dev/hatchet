@@ -1076,6 +1076,7 @@ CREATE TABLE
 -- CreateTable
 CREATE TABLE "MessageQueue" (
     "name" TEXT NOT NULL,
+    "lastActive" TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP,
     "durable" BOOLEAN NOT NULL DEFAULT true,
     "autoDeleted" BOOLEAN NOT NULL DEFAULT false,
     "exclusive" BOOLEAN NOT NULL DEFAULT false,
@@ -1095,7 +1096,7 @@ CREATE TABLE "MessageQueueItem" (
     "payload" JSONB NOT NULL,
     "readAfter" TIMESTAMP(3),
     "expiresAt" TIMESTAMP(3),
-    "queueId" TEXT NOT NULL,
+    "queueId" TEXT,
     "status" "MessageQueueItemStatus" NOT NULL DEFAULT 'PENDING',
     CONSTRAINT "MessageQueueItem_pkey" PRIMARY KEY ("id"),
     CONSTRAINT "MessageQueueItem_queueId_fkey" FOREIGN KEY ("queueId") REFERENCES "MessageQueue" ("name") ON DELETE SET NULL

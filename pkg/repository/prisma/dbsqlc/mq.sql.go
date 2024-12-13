@@ -51,6 +51,26 @@ func (q *Queries) BulkAckMessages(ctx context.Context, db DBTX, ids []int64) err
 	return err
 }
 
+type BulkAddMessageParams struct {
+	Payload   []byte           `json:"payload"`
+	QueueId   string           `json:"queueId"`
+	ReadAfter pgtype.Timestamp `json:"readAfter"`
+	ExpiresAt pgtype.Timestamp `json:"expiresAt"`
+}
+
+const cleanupMessageQueue = `-- name: CleanupMessageQueue :exec
+DELETE FROM
+    "MessageQueue"
+WHERE
+    "lastActive" < NOW() - INTERVAL '1 hour'
+    AND "autoDeleted" = true
+`
+
+func (q *Queries) CleanupMessageQueue(ctx context.Context, db DBTX) error {
+	_, err := db.Exec(ctx, cleanupMessageQueue)
+	return err
+}
+
 const cleanupMessageQueueItems = `-- name: CleanupMessageQueueItems :exec
 DELETE FROM "MessageQueueItem"
 WHERE "expiresAt" < NOW()
@@ -172,6 +192,20 @@ func (q *Queries) ReadMessages(ctx context.Context, db DBTX, arg ReadMessagesPar
 	return items, nil
 }
 
+const updateMessageQueueActive = `-- name: UpdateMessageQueueActive :exec
+UPDATE
+    "MessageQueue"
+SET
+    "lastActive" = NOW()
+WHERE
+    "name" = $1::text
+`
+
+func (q *Queries) UpdateMessageQueueActive(ctx context.Context, db DBTX, name string) error {
+	_, err := db.Exec(ctx, updateMessageQueueActive, name)
+	return err
+}
+
 const upsertMessageQueue = `-- name: UpsertMessageQueue :one
 INSERT INTO
     "MessageQueue" (
@@ -193,7 +227,7 @@ SET
     "autoDeleted" = $3::boolean,
     "exclusive" = $4::boolean,
     "exclusiveConsumerId" = CASE WHEN $5::uuid IS NOT NULL THEN $5::uuid ELSE NULL END
-RETURNING name, durable, "autoDeleted", exclusive, "exclusiveConsumerId"
+RETURNING name, "lastActive", durable, "autoDeleted", exclusive, "exclusiveConsumerId"
 `
 
 type UpsertMessageQueueParams struct {
@@ -215,6 +249,7 @@ func (q *Queries) UpsertMessageQueue(ctx context.Context, db DBTX, arg UpsertMes
 	var i MessageQueue
 	err := row.Scan(
 		&i.Name,
+		&i.LastActive,
 		&i.Durable,
 		&i.AutoDeleted,
 		&i.Exclusive,

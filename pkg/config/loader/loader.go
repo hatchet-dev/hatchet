@@ -282,7 +282,11 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 	if cf.MessageQueue.Enabled {
 		switch strings.ToLower(cf.MessageQueue.Kind) {
 		case "postgres":
-			mq = postgres.NewPostgresMQ(dc.EngineRepository.MessageQueue())
+			mq = postgres.NewPostgresMQ(
+				dc.EngineRepository.MessageQueue(),
+				postgres.WithLogger(&l),
+				postgres.WithQos(cf.MessageQueue.Postgres.Qos),
+			)
 		case "rabbitmq":
 			cleanup1, mq = rabbitmq.New(
 				rabbitmq.WithURL(cf.MessageQueue.RabbitMQ.URL),

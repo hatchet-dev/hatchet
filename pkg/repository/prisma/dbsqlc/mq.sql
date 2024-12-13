@@ -21,6 +21,21 @@ SET
     "exclusiveConsumerId" = CASE WHEN sqlc.narg('exclusiveConsumerId')::uuid IS NOT NULL THEN sqlc.narg('exclusiveConsumerId')::uuid ELSE NULL END
 RETURNING *;
 
+-- name: UpdateMessageQueueActive :exec
+UPDATE
+    "MessageQueue"
+SET
+    "lastActive" = NOW()
+WHERE
+    "name" = @name::text;
+
+-- name: CleanupMessageQueue :exec
+DELETE FROM
+    "MessageQueue"
+WHERE
+    "lastActive" < NOW() - INTERVAL '1 hour'
+    AND "autoDeleted" = true;
+
 -- name: AddMessage :exec
 INSERT INTO
     "MessageQueueItem" (
@@ -36,6 +51,21 @@ VALUES
         NOW(),
         NOW() + INTERVAL '5 minutes'
     );
+
+-- name: BulkAddMessage :copyfrom
+INSERT INTO
+    "MessageQueueItem" (
+        "payload",
+        "queueId",
+        "readAfter",
+        "expiresAt"
+    )
+VALUES (
+    $1,
+    $2,
+    $3,
+    $4
+);
 
 -- name: ReadMessages :many
 WITH messages AS (

@@ -63,10 +63,13 @@ func (m *messageQueueRepository) Notify(ctx context.Context, name string, payloa
 }
 
 func (m *messageQueueRepository) AddMessage(ctx context.Context, queue string, payload []byte) error {
-	return m.queries.AddMessage(ctx, m.pool, dbsqlc.AddMessageParams{
-		Queueid: queue,
-		Payload: payload,
+	// NOTE: hack for tenant, just passing in an empty string for now
+	_, err := m.bulkAddMQBuffer.FireAndWait(ctx, "", addMessage{
+		queue:   queue,
+		payload: payload,
 	})
+
+	return err
 }
 
 func (m *messageQueueRepository) BindQueue(ctx context.Context, queue string, durable, autoDeleted, exclusive bool, exclusiveConsumer *string) error {
@@ -91,7 +94,18 @@ func (m *messageQueueRepository) BindQueue(ctx context.Context, queue string, du
 	return err
 }
 
+func (m *messageQueueRepository) UpdateQueueLastActive(ctx context.Context, queue string) error {
+	return m.queries.UpdateMessageQueueActive(ctx, m.pool, queue)
+}
+
+func (m *messageQueueRepository) CleanupQueues(ctx context.Context) error {
+	return m.queries.CleanupMessageQueue(ctx, m.pool)
+}
+
 func (m *messageQueueRepository) ReadMessages(ctx context.Context, queue string, qos int) ([]*dbsqlc.ReadMessagesRow, error) {
+	ctx, span := telemetry.NewSpan(ctx, "pgmq-read-messages")
+	defer span.End()
+
 	return m.queries.ReadMessages(ctx, m.pool, dbsqlc.ReadMessagesParams{
 		Queueid: queue,
 		Limit:   pgtype.Int4{Int32: int32(qos), Valid: true}, // nolint: gosec
@@ -100,12 +114,10 @@ func (m *messageQueueRepository) ReadMessages(ctx context.Context, queue string,
 
 func (m *messageQueueRepository) AckMessage(ctx context.Context, id int64) error {
 	// NOTE: hack for tenant, just passing in an empty string for now
-	_, err := m.bulkAckMQBuffer.FireAndWait(ctx, "", id)
-
-	return err
+	return m.bulkAckMQBuffer.FireForget("", id)
 }
 
-func (m *messageQueueRepository) CleanupMessageQueues(ctx context.Context) error {
+func (m *messageQueueRepository) CleanupMessageQueueItems(ctx context.Context) error {
 	// setup telemetry
 	ctx, span := telemetry.NewSpan(ctx, "cleanup-message-queues-database")
 	defer span.End()

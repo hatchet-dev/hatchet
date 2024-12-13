@@ -5,6 +5,7 @@ CREATE TYPE "MessageQueueItemStatus" AS ENUM('PENDING', 'ASSIGNED');
 CREATE TABLE
     "MessageQueue" (
         "name" text NOT NULL,
+        "lastActive" TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP,
         "durable" boolean NOT NULL DEFAULT true,
         "autoDeleted" boolean NOT NULL DEFAULT false,
         "exclusive" boolean NOT NULL DEFAULT false,
@@ -19,7 +20,7 @@ CREATE TABLE
         "payload" jsonb NOT NULL,
         "readAfter" timestamp(3) NULL,
         "expiresAt" timestamp(3) NULL,
-        "queueId" text NOT NULL,
+        "queueId" text,
         "status" "MessageQueueItemStatus" NOT NULL DEFAULT 'PENDING',
         PRIMARY KEY ("id"),
         CONSTRAINT "MessageQueueItem_queueId_fkey" FOREIGN KEY ("queueId") REFERENCES "MessageQueue" ("name") ON UPDATE NO ACTION ON DELETE SET NULL

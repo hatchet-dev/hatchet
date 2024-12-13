@@ -31,5 +31,11 @@ func (rc *RetentionControllerImpl) runDeleteMessageQueueItemsTenant(ctx context.
 		return nil
 	}
 
-	return rc.repo.MessageQueue().CleanupMessageQueues(ctx)
+	err := rc.repo.MessageQueue().CleanupQueues(ctx)
+
+	if err != nil {
+		return err
+	}
+
+	return rc.repo.MessageQueue().CleanupMessageQueueItems(ctx)
 }

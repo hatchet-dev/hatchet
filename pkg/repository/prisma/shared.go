@@ -26,6 +26,7 @@ type sharedRepository struct {
 	bulkUserEventBuffer   *buffer.TenantBufferManager[*repository.CreateEventOpts, dbsqlc.Event]
 	bulkWorkflowRunBuffer *buffer.TenantBufferManager[*repository.CreateWorkflowRunOpts, dbsqlc.WorkflowRun]
 	bulkAckMQBuffer       *buffer.TenantBufferManager[int64, int]
+	bulkAddMQBuffer       *buffer.TenantBufferManager[addMessage, int]
 }
 
 func newSharedRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, cf *server.ConfigFileRuntime) (*sharedRepository, func() error, error) {
@@ -80,6 +81,12 @@ func newSharedRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.L
 		return nil, nil, err
 	}
 
+	addMQBuffer, err := newAddMQBuffer(s)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
 	s.bulkStatusBuffer = statusBuffer
 	s.bulkEventBuffer = eventBuffer
 	s.bulkSemaphoreReleaser = semaphoreReleaser
@@ -87,6 +94,7 @@ func newSharedRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.L
 	s.bulkUserEventBuffer = userEventBuffer
 	s.bulkWorkflowRunBuffer = workflowRunBuffer
 	s.bulkAckMQBuffer = ackMQBuffer
+	s.bulkAddMQBuffer = addMQBuffer
 
 	return s, func() error {
 		var multiErr error
@@ -128,6 +136,12 @@ func newSharedRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.L
 		}
 
 		err = ackMQBuffer.Cleanup()
+
+		if err != nil {
+			multiErr = multierror.Append(multiErr, err)
+		}
+
+		err = addMQBuffer.Cleanup()
 
 		if err != nil {
 			multiErr = multierror.Append(multiErr, err)

@@ -9,8 +9,11 @@ import (
 	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
 	"github.com/rs/zerolog"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
+	"github.com/hatchet-dev/hatchet/internal/queueutils"
+	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
@@ -85,6 +88,14 @@ func (p *PostgresMessageQueue) SetQOS(prefetchCount int) {
 }
 
 func (p *PostgresMessageQueue) AddMessage(ctx context.Context, queue msgqueue.Queue, task *msgqueue.Message) error {
+	ctx, span := telemetry.NewSpan(ctx, "add-message")
+	defer span.End()
+
+	// inject otel carrier into the message
+	if task.OtelCarrier == nil {
+		task.OtelCarrier = telemetry.GetCarrier(ctx)
+	}
+
 	err := p.upsertQueue(ctx, queue)
 
 	if err != nil {
@@ -120,6 +131,25 @@ func (p *PostgresMessageQueue) Subscribe(queue msgqueue.Queue, preAck msgqueue.A
 	}
 
 	subscribeCtx, cancel := context.WithCancel(context.Background())
+
+	// spawn a goroutine to update the lastActive time on the message queue every 60 seconds, if the queue is autoDeleted
+	go func() {
+		ticker := time.NewTicker(60 * time.Second)
+
+		for {
+			select {
+			case <-subscribeCtx.Done():
+				ticker.Stop()
+				return
+			case <-ticker.C:
+				err := p.repo.UpdateQueueLastActive(subscribeCtx, queue.Name())
+
+				if err != nil {
+					p.l.Error().Err(err).Msg("error updating lastActive time")
+				}
+			}
+		}
+	}()
 
 	doTask := func(task msgqueue.Message, ackId *int64) error {
 		err = preAck(&task)
@@ -171,25 +201,27 @@ func (p *PostgresMessageQueue) Subscribe(queue msgqueue.Queue, preAck msgqueue.A
 		return errs
 	}
 
-	mu := sync.Mutex{}
-
-	// TODO: CASE ON EXCHANGE QUEUES, AS THEY SHOULDN'T BE READING FROM THE DATABASE
-	poll := func() error {
-		if !mu.TryLock() {
-			return nil
-		}
-
-		defer mu.Unlock()
-
+	op := queueutils.NewOperationPool(p.l, 60*time.Second, "postgresmq", queueutils.OpMethod(func(ctx context.Context, id string) (bool, error) {
 		messages, err := p.repo.ReadMessages(subscribeCtx, queue.Name(), p.qos)
 
 		if err != nil {
 			p.l.Error().Err(err).Msg("error reading messages")
-			return err
 		}
 
-		return do(messages)
-	}
+		var eg errgroup.Group
+
+		eg.Go(func() error {
+			return do(messages)
+		})
+
+		err = eg.Wait()
+
+		if err != nil {
+			p.l.Error().Err(err).Msg("error processing messages")
+		}
+
+		return len(messages) == p.qos, nil
+	}))
 
 	// we poll once per second for new messages
 	ticker := time.NewTicker(time.Second)
@@ -230,17 +262,9 @@ func (p *PostgresMessageQueue) Subscribe(queue msgqueue.Queue, preAck msgqueue.A
 			case <-subscribeCtx.Done():
 				return
 			case <-ticker.C:
-				err := poll()
-
-				if err != nil {
-					p.l.Error().Err(err).Msg("error polling for messages")
-				}
+				op.RunOrContinue(queue.Name())
 			case <-newMsgCh:
-				err := poll()
-
-				if err != nil {
-					p.l.Error().Err(err).Msg("error polling for messages")
-				}
+				op.RunOrContinue(queue.Name())
 			}
 		}
 	}()
@@ -274,15 +298,24 @@ func (p *PostgresMessageQueue) upsertQueue(ctx context.Context, queue msgqueue.Q
 	// otherwise, lock for writing
 	p.upsertedQueuesMu.RUnlock()
 
+	exclusive := queue.Exclusive()
+
+	// If the queue is a fanout exchange, then it is not exclusive. This is different from the RabbitMQ
+	// implementation, where a fanout exchange will map to an exclusively bound queue which has a random
+	// suffix appended to the queue name. In this implementation, there is no concept of an exchange.
+	if queue.FanoutExchangeKey() != "" {
+		exclusive = false
+	}
+
 	var consumer *string
 
-	if queue.Exclusive() {
+	if exclusive {
 		str := uuid.New().String()
 		consumer = &str
 	}
 
 	// bind the queue
-	err := p.repo.BindQueue(ctx, queue.Name(), queue.Durable(), queue.AutoDeleted(), queue.Exclusive(), consumer)
+	err := p.repo.BindQueue(ctx, queue.Name(), queue.Durable(), queue.AutoDeleted(), exclusive, consumer)
 
 	if err != nil {
 		p.l.Error().Err(err).Msg("error binding queue")
