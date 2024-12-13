@@ -69,6 +69,8 @@ type adminClientImpl struct {
 	namespace string
 
 	subscriber SubscribeClient
+
+	sharedMeta map[string]string
 }
 
 func newAdmin(conn *grpc.ClientConn, opts *sharedClientOpts, subscriber SubscribeClient) AdminClient {
@@ -79,6 +81,7 @@ func newAdmin(conn *grpc.ClientConn, opts *sharedClientOpts, subscriber Subscrib
 		ctx:        opts.ctxLoader,
 		namespace:  opts.namespace,
 		subscriber: subscriber,
+		sharedMeta: opts.sharedMeta,
 	}
 }
 
@@ -286,10 +289,12 @@ func (a *adminClientImpl) RunChildWorkflow(workflowName string, input interface{
 
 	childIndex := int32(opts.ChildIndex) // nolint: gosec
 
-	metadataBytes, err := json.Marshal(opts.AdditionalMetadata)
+	metadataBytes, err := a.getAdditionalMetaBytes(opts.AdditionalMetadata)
+
 	if err != nil {
-		return "", fmt.Errorf("could not marshal additional metadata: %w", err)
+		return "", fmt.Errorf("could not get additional metadata: %w", err)
 	}
+
 	metadata := string(metadataBytes)
 
 	res, err := a.client.TriggerWorkflow(a.ctx.newContext(context.Background()), &admincontracts.TriggerWorkflowRequest{
@@ -349,10 +354,12 @@ func (a *adminClientImpl) RunChildWorkflows(workflows []*RunChildWorkflowsOpts) 
 		}
 		childIndex := int32(workflow.Opts.ChildIndex) // nolint: gosec
 
-		metadataBytes, err := json.Marshal(workflow.Opts.AdditionalMetadata)
+		metadataBytes, err := a.getAdditionalMetaBytes(workflow.Opts.AdditionalMetadata)
+
 		if err != nil {
-			return nil, fmt.Errorf("could not marshal additional metadata: %w", err)
+			return nil, fmt.Errorf("could not get additional metadata: %w", err)
 		}
+
 		metadata := string(metadataBytes)
 
 		triggerWorkflowRequests[i] = &admincontracts.TriggerWorkflowRequest{
@@ -580,4 +587,26 @@ func (a *adminClientImpl) getJobOpts(jobName string, job *types.WorkflowJob) (*a
 	jobOpt.Steps = stepOpts
 
 	return jobOpt, nil
+}
+
+func (a *adminClientImpl) getAdditionalMetaBytes(opt *map[string]string) ([]byte, error) {
+	additionalMeta := make(map[string]string)
+
+	for key, value := range a.sharedMeta {
+		additionalMeta[key] = value
+	}
+
+	if opt != nil {
+		for key, value := range *opt {
+			additionalMeta[key] = value
+		}
+	}
+
+	metadataBytes, err := json.Marshal(additionalMeta)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not marshal additional metadata: %w", err)
+	}
+
+	return metadataBytes, nil
 }
