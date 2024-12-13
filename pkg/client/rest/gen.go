@@ -1573,6 +1573,18 @@ type WorkflowRunListStepRunEventsParams struct {
 	LastId *int32 `form:"lastId,omitempty" json:"lastId,omitempty"`
 }
 
+// WorkflowListParams defines parameters for WorkflowList.
+type WorkflowListParams struct {
+	// Offset The number to skip
+	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
+
+	// Limit The number to limit by
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Name Search by name
+	Name *string `form:"name,omitempty" json:"name,omitempty"`
+}
+
 // CronWorkflowListParams defines parameters for CronWorkflowList.
 type CronWorkflowListParams struct {
 	// Offset The number to skip
@@ -2067,7 +2079,7 @@ type ClientInterface interface {
 	WorkflowRunListStepRunEvents(ctx context.Context, tenant openapi_types.UUID, workflowRun openapi_types.UUID, params *WorkflowRunListStepRunEventsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// WorkflowList request
-	WorkflowList(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+	WorkflowList(ctx context.Context, tenant openapi_types.UUID, params *WorkflowListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// WorkflowRunCancelWithBody request with any body
 	WorkflowRunCancelWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -3052,8 +3064,8 @@ func (c *Client) WorkflowRunListStepRunEvents(ctx context.Context, tenant openap
 	return c.Client.Do(req)
 }
 
-func (c *Client) WorkflowList(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewWorkflowListRequest(c.Server, tenant)
+func (c *Client) WorkflowList(ctx context.Context, tenant openapi_types.UUID, params *WorkflowListParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWorkflowListRequest(c.Server, tenant, params)
 	if err != nil {
 		return nil, err
 	}
@@ -6260,7 +6272,7 @@ func NewWorkflowRunListStepRunEventsRequest(server string, tenant openapi_types.
 }
 
 // NewWorkflowListRequest generates requests for WorkflowList
-func NewWorkflowListRequest(server string, tenant openapi_types.UUID) (*http.Request, error) {
+func NewWorkflowListRequest(server string, tenant openapi_types.UUID, params *WorkflowListParams) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -6283,6 +6295,60 @@ func NewWorkflowListRequest(server string, tenant openapi_types.UUID) (*http.Req
 	queryURL, err := serverURL.Parse(operationPath)
 	if err != nil {
 		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Offset != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "offset", runtime.ParamLocationQuery, *params.Offset); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Name != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "name", runtime.ParamLocationQuery, *params.Name); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
 	}
 
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
@@ -8551,7 +8617,7 @@ type ClientWithResponsesInterface interface {
 	WorkflowRunListStepRunEventsWithResponse(ctx context.Context, tenant openapi_types.UUID, workflowRun openapi_types.UUID, params *WorkflowRunListStepRunEventsParams, reqEditors ...RequestEditorFn) (*WorkflowRunListStepRunEventsResponse, error)
 
 	// WorkflowListWithResponse request
-	WorkflowListWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkflowListResponse, error)
+	WorkflowListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *WorkflowListParams, reqEditors ...RequestEditorFn) (*WorkflowListResponse, error)
 
 	// WorkflowRunCancelWithBodyWithResponse request with any body
 	WorkflowRunCancelWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WorkflowRunCancelResponse, error)
@@ -11544,8 +11610,8 @@ func (c *ClientWithResponses) WorkflowRunListStepRunEventsWithResponse(ctx conte
 }
 
 // WorkflowListWithResponse request returning *WorkflowListResponse
-func (c *ClientWithResponses) WorkflowListWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkflowListResponse, error) {
-	rsp, err := c.WorkflowList(ctx, tenant, reqEditors...)
+func (c *ClientWithResponses) WorkflowListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *WorkflowListParams, reqEditors ...RequestEditorFn) (*WorkflowListResponse, error) {
+	rsp, err := c.WorkflowList(ctx, tenant, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
