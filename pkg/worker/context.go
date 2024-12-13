@@ -41,6 +41,8 @@ type HatchetContext interface {
 
 	WorkflowInput(target interface{}) error
 
+	UserData(target interface{}) error
+
 	AdditionalMetadata() map[string]string
 
 	StepName() string
@@ -91,6 +93,7 @@ type StepRunData struct {
 	TriggeredBy        TriggeredBy            `json:"triggered_by"`
 	Parents            map[string]StepData    `json:"parents"`
 	AdditionalMetadata map[string]string      `json:"additional_metadata"`
+	UserData           map[string]interface{} `json:"user_data"`
 }
 
 type StepData map[string]interface{}
@@ -187,6 +190,10 @@ func (h *hatchetContext) TriggeredByEvent() bool {
 
 func (h *hatchetContext) WorkflowInput(target interface{}) error {
 	return toTarget(h.stepData.Input, target)
+}
+
+func (h *hatchetContext) UserData(target interface{}) error {
+	return toTarget(h.stepData.UserData, target)
 }
 
 func (h *hatchetContext) AdditionalMetadata() map[string]string {

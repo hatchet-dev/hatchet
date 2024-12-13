@@ -217,6 +217,9 @@ type ListWorkflowsOpts struct {
 
 	// (optional) number of workflows to return
 	Limit *int
+
+	// (optional) the workflow name to filter by
+	Name *string
 }
 
 type ListWorkflowsResult struct {

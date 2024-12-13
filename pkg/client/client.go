@@ -80,6 +80,7 @@ type ClientOpts struct {
 	token       string
 	namespace   string
 	noGrpcRetry bool
+	sharedMeta  map[string]string
 
 	cloudRegisterID *string
 	runnableActions []string
@@ -129,6 +130,7 @@ func defaultClientOpts(token *string, cf *client.ClientConfigFile) *ClientOpts {
 		cloudRegisterID: clientConfig.CloudRegisterID,
 		runnableActions: clientConfig.RunnableActions,
 		noGrpcRetry:     clientConfig.NoGrpcRetry,
+		sharedMeta:      make(map[string]string),
 	}
 }
 
@@ -169,6 +171,18 @@ func WithNamespace(namespace string) ClientOpt {
 	}
 }
 
+func WithSharedMeta(meta map[string]string) ClientOpt {
+	return func(opts *ClientOpts) {
+		if opts.sharedMeta == nil {
+			opts.sharedMeta = make(map[string]string)
+		}
+
+		for k, v := range meta {
+			opts.sharedMeta[k] = v
+		}
+	}
+}
+
 func InitWorkflows() ClientOpt {
 	return func(opts *ClientOpts) {
 		opts.initWorkflows = true
@@ -186,11 +200,12 @@ func WithWorkflows(files []*types.Workflow) ClientOpt {
 }
 
 type sharedClientOpts struct {
-	tenantId  string
-	namespace string
-	l         *zerolog.Logger
-	v         validator.Validator
-	ctxLoader *contextLoader
+	tenantId   string
+	namespace  string
+	l          *zerolog.Logger
+	v          validator.Validator
+	ctxLoader  *contextLoader
+	sharedMeta map[string]string
 }
 
 // New creates a new client instance.
@@ -275,11 +290,12 @@ func newFromOpts(opts *ClientOpts) (Client, error) {
 	}
 
 	shared := &sharedClientOpts{
-		tenantId:  opts.tenantId,
-		namespace: opts.namespace,
-		l:         opts.l,
-		v:         opts.v,
-		ctxLoader: newContextLoader(opts.token),
+		tenantId:   opts.tenantId,
+		namespace:  opts.namespace,
+		l:          opts.l,
+		v:          opts.v,
+		ctxLoader:  newContextLoader(opts.token),
+		sharedMeta: opts.sharedMeta,
 	}
 
 	subscribe := newSubscribe(conn, shared)

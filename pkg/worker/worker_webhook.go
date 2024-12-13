@@ -67,7 +67,7 @@ func (w *Worker) StartWebhook(ww WebhookWorkerOpts) (func() error, error) {
 		return nil, fmt.Errorf("could not get action listener: %w", err)
 	}
 
-	actionCh, err := listener.Actions(ctx)
+	actionCh, errCh, err := listener.Actions(ctx)
 
 	if err != nil {
 		cancel()
@@ -77,6 +77,9 @@ func (w *Worker) StartWebhook(ww WebhookWorkerOpts) (func() error, error) {
 	go func() {
 		for {
 			select {
+			case err := <-errCh:
+				// NOTE: this matches the behavior of the old worker, until we change the signature of the webhook workers
+				panic(err)
 			case action := <-actionCh:
 				go func(action *client.Action) {
 					err := w.sendWebhook(context.Background(), action, ww)
