@@ -520,7 +520,7 @@ type WorkflowRunEngineRepository interface {
 
 	GetScheduledChildWorkflowRun(ctx context.Context, parentId, parentStepRunId string, childIndex int, childkey *string) (*dbsqlc.WorkflowTriggerScheduledRef, error)
 
-	PopWorkflowRunsRoundRobin(ctx context.Context, tx dbsqlc.DBTX, tenantId, workflowId string, maxRuns int) ([]*dbsqlc.WorkflowRun, error)
+	PopWorkflowRunsRoundRobin(ctx context.Context, tenantId, workflowId string, maxRuns int) ([]*dbsqlc.WorkflowRun, []*dbsqlc.GetStepRunForEngineRow, error)
 
 	// CreateNewWorkflowRun creates a new workflow run for a workflow version.
 	CreateNewWorkflowRun(ctx context.Context, tenantId string, opts *CreateWorkflowRunOpts) (*dbsqlc.WorkflowRun, error)
@@ -547,6 +547,10 @@ type WorkflowRunEngineRepository interface {
 	QueuePausedWorkflowRun(ctx context.Context, tenantId, workflowId, workflowRunId string) error
 
 	QueuePausedWorkflowRunWithTx(ctx context.Context, tx dbsqlc.DBTX, tenantId, workflowId, workflowRunId string) error
+
+	QueueWorkflowRunJobs(ctx context.Context, tenant string, workflowRun string) ([]*dbsqlc.GetStepRunForEngineRow, error)
+
+	CancelWorkflowRunJobs(ctx context.Context, tenantId, workflowRunId, reason string) ([]*dbsqlc.ListJobRunsForWorkflowRunRow, error)
 
 	ProcessUnpausedWorkflowRuns(ctx context.Context, tenantId string) ([]*dbsqlc.GetWorkflowRunRow, bool, error)
 

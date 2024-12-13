@@ -43,15 +43,13 @@ type JobRunEngineRepository interface {
 	// run is being manually replayed, but shouldn't be used by most callers.
 	SetJobRunStatusRunning(ctx context.Context, tenantId, jobRunId string) error
 
-	SetJobRunStatusRunningWithTx(ctx context.Context, tx dbsqlc.DBTX, tenantId, jobRunId string) error
-
 	ListJobRunsForWorkflowRun(ctx context.Context, tenantId, workflowRunId string) ([]*dbsqlc.ListJobRunsForWorkflowRunRow, error)
-
-	ListJobRunsForWorkflowRunWithTx(ctx context.Context, tx dbsqlc.DBTX, tenantId, workflowRunId string) ([]*dbsqlc.ListJobRunsForWorkflowRunRow, error)
 
 	GetJobRunByWorkflowRunIdAndJobId(ctx context.Context, tenantId, workflowRunId, jobId string) (*dbsqlc.GetJobRunByWorkflowRunIdAndJobIdRow, error)
 
 	GetJobRunsByWorkflowRunId(ctx context.Context, tenantId, workflowRunId string) ([]*dbsqlc.GetJobRunsByWorkflowRunIdRow, error)
 
 	ClearJobRunPayloadData(ctx context.Context, tenantId string) (bool, error)
+
+	StartJobRun(ctx context.Context, tenantId, jobId string) ([]*dbsqlc.GetStepRunForEngineRow, error)
 }

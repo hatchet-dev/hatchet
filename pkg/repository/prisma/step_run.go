@@ -1921,7 +1921,7 @@ func (s *stepRunEngineRepository) GetStepRunBulkDataForEngine(ctx context.Contex
 	})
 }
 
-func (s *stepRunEngineRepository) ListInitialStepRunsForJobRun(ctx context.Context, tenantId, jobRunId string) ([]*dbsqlc.GetStepRunForEngineRow, error) {
+func (s *sharedRepository) ListInitialStepRunsForJobRun(ctx context.Context, tenantId, jobRunId string) ([]*dbsqlc.GetStepRunForEngineRow, error) {
 	tx, err := s.pool.Begin(ctx)
 
 	if err != nil {
@@ -1941,7 +1941,7 @@ func (s *stepRunEngineRepository) ListInitialStepRunsForJobRun(ctx context.Conte
 	return res, err
 }
 
-func (s *stepRunEngineRepository) ListInitialStepRunsForJobRunWithTx(ctx context.Context, tx dbsqlc.DBTX, tenantId, jobRunId string) ([]*dbsqlc.GetStepRunForEngineRow, error) {
+func (s *sharedRepository) ListInitialStepRunsForJobRunWithTx(ctx context.Context, tx dbsqlc.DBTX, tenantId, jobRunId string) ([]*dbsqlc.GetStepRunForEngineRow, error) {
 
 	srs, err := s.queries.ListInitialStepRuns(ctx, tx, sqlchelpers.UUIDFromStr(jobRunId))
 
