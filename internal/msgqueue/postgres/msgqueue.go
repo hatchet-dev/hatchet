@@ -76,13 +76,11 @@ func (p *PostgresMessageQueue) cleanup() error {
 }
 
 func (p *PostgresMessageQueue) Clone() (func() error, msgqueue.MessageQueue) {
-	// TODO: switch out with a new instance of the message queue
 	pCp := NewPostgresMQ(p.repo)
 
 	return pCp.cleanup, pCp
 }
 
-// TODO: actually use QOS to set a limit on the number of messages that can be processed at once
 func (p *PostgresMessageQueue) SetQOS(prefetchCount int) {
 	p.qos = prefetchCount
 }
@@ -233,7 +231,7 @@ func (p *PostgresMessageQueue) Subscribe(queue msgqueue.Queue, preAck msgqueue.A
 	go func() {
 		err = p.repo.Listen(subscribeCtx, queue.Name(), func(ctx context.Context, notification *repository.PubMessage) error {
 			// if this is an exchange queue, and the message starts with JSON '{', then we process the message directly
-			if queue.FanoutExchangeKey() != "" && notification.Payload[0] == '{' {
+			if queue.FanoutExchangeKey() != "" && len(notification.Payload) >= 1 && notification.Payload[0] == '{' {
 				var task msgqueue.Message
 
 				err := json.Unmarshal([]byte(notification.Payload), &task)
