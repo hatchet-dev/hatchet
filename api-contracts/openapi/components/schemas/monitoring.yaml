@@ -1,4 +1,0 @@
-RunProbe:
-  properties:
-    tenantId:
-      type: string

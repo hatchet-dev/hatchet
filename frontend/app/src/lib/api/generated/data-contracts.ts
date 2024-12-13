@@ -1422,10 +1422,4 @@ export interface WebhookWorkerCreateResponse {
   worker?: WebhookWorkerCreated;
 }
 
-export interface RunProbe {
-  tenantId?: string;
-}
-
 export type BulkCreateEventResponse = Events;
-
-export type MonitoringRunProbe = RunProbe;

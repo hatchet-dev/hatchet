@@ -14,7 +14,6 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/client"
-	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	clientconfig "github.com/hatchet-dev/hatchet/pkg/config/client"
 	"github.com/hatchet-dev/hatchet/pkg/config/shared"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
@@ -52,12 +51,10 @@ func (m *MonitoringService) MonitoringPostRunProbe(ctx echo.Context, request gen
 	events := make(chan string, 50)
 	stepChan := make(chan string, 50)
 	errorChan := make(chan error, 50)
-	interrupt := cmdutils.InterruptChan()
 
 	cancellableContext, cancel := context.WithTimeout(ctx.Request().Context(), m.probeTimeout)
 
 	defer cancel()
-	var cleanup func() error
 
 	cf := clientconfig.ClientConfigFile{
 		Token:     token,
@@ -70,60 +67,15 @@ func (m *MonitoringService) MonitoringPostRunProbe(ctx echo.Context, request gen
 		},
 	}
 
-	wfrId, cleanup, err := m.run(cancellableContext, cf, m.workflowName, events, stepChan, errorChan)
+	cleanup, err := m.run(cancellableContext, cf, m.workflowName, events, stepChan, errorChan)
 	if err != nil {
 		m.l.Error().Msgf("error running probe: %s", err)
 		return nil, err
 	}
 
-	defer func() {
-		var cleanupErr error
-		if cleanup != nil {
-			cleanupErr = cleanup()
-		} else {
-			m.l.Warn().Msg("cleanup function was never set for probe")
-		}
-		if cleanupErr != nil {
-			m.l.Error().Msgf("error cleaning up probe worker: %s", err)
-		}
-	}()
-
-	defer func() {
-		if wfrId == nil || *wfrId == "" {
-			m.l.Warn().Msg("workflow run id was never set for probe")
-			return
-		}
-
-		for i := 0; i < 10; i++ {
-			wrfRow, err := m.config.APIRepository.WorkflowRun().GetWorkflowRunById(context.Background(), cf.TenantId, *wfrId)
-
-			if err != nil {
-				m.l.Error().Msgf("error getting workflow run: %s", err)
-
-			}
-
-			if wrfRow.Status != dbsqlc.WorkflowRunStatusRUNNING {
-
-				workflowId := sqlchelpers.UUIDToStr(wrfRow.Workflow.ID)
-
-				_, err = m.config.APIRepository.Workflow().DeleteWorkflow(cf.TenantId, workflowId)
-
-				m.l.Info().Msgf("deleted workflow %s", workflowId)
-				if err != nil {
-					m.l.Error().Msgf("error deleting workflow: %s", err)
-				}
-				return
-			}
-
-			time.Sleep(50 * time.Millisecond)
-
-		}
-
-		m.l.Error().Msg("could not clean up workflow after 10 attempts")
-
-	}()
-
-	messages := []string{"This is a stream event for step-one", "This is a stream event for step-two"}
+	defer cleanup()
+	// Stream events are not necessarily received in order so we don't distinguish between them
+	messages := []string{"This is a stream event", "This is a stream event"}
 	messageIndex := 0
 	stepMessages := []string{"step-one", "step-two"}
 	for {
@@ -140,12 +92,9 @@ func (m *MonitoringService) MonitoringPostRunProbe(ctx echo.Context, request gen
 			m.l.Error().Msgf("error during probe: %s", err)
 			return nil, err
 
-		case <-interrupt:
-			return nil, fmt.Errorf("interrupted during probe")
-
 		case e := <-events:
-			if e != messages[messageIndex] {
-				return nil, fmt.Errorf("expected message %s, got %s", messages[messageIndex], e)
+			if !strings.HasPrefix(e, messages[messageIndex]) {
+				return nil, fmt.Errorf("expected message %s, to start with %s", messages[messageIndex], e)
 			}
 			messageIndex++
 
@@ -173,14 +122,14 @@ type stepOneOutput struct {
 	UniqueStreamId string
 }
 
-func (m *MonitoringService) run(ctx context.Context, cf clientconfig.ClientConfigFile, workflowName string, events chan<- string, stepChan chan<- string, errors chan<- error) (*string, func() error, error) {
+func (m *MonitoringService) run(ctx context.Context, cf clientconfig.ClientConfigFile, workflowName string, events chan<- string, stepChan chan<- string, errors chan<- error) (func(), error) {
 
 	c, err := client.NewFromConfigFile(
 		&cf, client.WithLogLevel(m.l.GetLevel().String()),
 	)
 
 	if err != nil {
-		return nil, nil, fmt.Errorf("error creating client: %w", err)
+		return nil, fmt.Errorf("error creating client: %w", err)
 	}
 
 	w, err := worker.NewWorker(
@@ -190,7 +139,7 @@ func (m *MonitoringService) run(ctx context.Context, cf clientconfig.ClientConfi
 		), worker.WithLogLevel(m.l.GetLevel().String()),
 	)
 	if err != nil {
-		return nil, nil, fmt.Errorf("error creating worker: %w", err)
+		return nil, fmt.Errorf("error creating worker: %w", err)
 	}
 	streamKey := "streamKey"
 	streamValue := fmt.Sprintf("stream-event-%d", rand.Intn(100)+1)
@@ -259,7 +208,7 @@ func (m *MonitoringService) run(ctx context.Context, cf clientconfig.ClientConfi
 		},
 	)
 	if err != nil {
-		return &wfrId, nil, fmt.Errorf("error registering workflow: %w", err)
+		return nil, fmt.Errorf("error registering workflow: %w", err)
 	}
 
 	go func() {
@@ -279,7 +228,7 @@ func (m *MonitoringService) run(ctx context.Context, cf clientconfig.ClientConfi
 		}
 
 		err := c.Event().Push(
-			context.Background(),
+			ctx,
 			m.eventName,
 			testEvent,
 			client.WithEventMetadata(map[string]string{
@@ -293,13 +242,57 @@ func (m *MonitoringService) run(ctx context.Context, cf clientconfig.ClientConfi
 		}
 	}()
 
-	cleanup, err := w.Start()
+	cleanupWorker, err := w.Start()
 
 	if err != nil {
-		return &wfrId, nil, fmt.Errorf("error starting worker: %w", err)
+		return nil, fmt.Errorf("error starting worker: %w", err)
 	}
 
-	return &wfrId, cleanup, nil
+	cleanup := func() {
+		err := cleanupWorker()
+		if err != nil {
+			m.l.Error().Msgf("error cleaning up worker: %s", err)
+		}
+		defer func() {
+			if wfrId == "" {
+				m.l.Warn().Msg("workflow run id was never set for probe")
+				return
+			}
+
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+
+			for i := 0; i < 10; i++ {
+				wrfRow, err := m.config.APIRepository.WorkflowRun().GetWorkflowRunById(ctx, cf.TenantId, wfrId)
+
+				if err != nil {
+					m.l.Error().Msgf("error getting workflow run: %s", err)
+
+				}
+
+				if wrfRow.Status != dbsqlc.WorkflowRunStatusRUNNING {
+
+					workflowId := sqlchelpers.UUIDToStr(wrfRow.Workflow.ID)
+
+					_, err = m.config.APIRepository.Workflow().DeleteWorkflow(ctx, cf.TenantId, workflowId)
+
+					m.l.Info().Msgf("deleted workflow %s", workflowId)
+					if err != nil {
+						m.l.Error().Msgf("error deleting workflow: %s", err)
+					}
+					return
+				}
+
+				time.Sleep(100 * time.Millisecond)
+
+			}
+
+			m.l.Error().Msg("could not clean up workflow after 10 attempts")
+
+		}()
+	}
+
+	return cleanup, nil
 }
 
 func getBearerTokenFromRequest(r *http.Request) (string, error) {
