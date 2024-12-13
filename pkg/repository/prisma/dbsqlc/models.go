@@ -1322,7 +1322,7 @@ type MessageQueueItem struct {
 	Payload   []byte                 `json:"payload"`
 	ReadAfter pgtype.Timestamp       `json:"readAfter"`
 	ExpiresAt pgtype.Timestamp       `json:"expiresAt"`
-	QueueId   string                 `json:"queueId"`
+	QueueId   pgtype.Text            `json:"queueId"`
 	Status    MessageQueueItemStatus `json:"status"`
 }
 

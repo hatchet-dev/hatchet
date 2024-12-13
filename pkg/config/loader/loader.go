@@ -282,6 +282,8 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 	if cf.MessageQueue.Enabled {
 		switch strings.ToLower(cf.MessageQueue.Kind) {
 		case "postgres":
+			l.Warn().Msg("Using a Postgres-backed message queue. This feature is still in beta.")
+
 			mq = postgres.NewPostgresMQ(
 				dc.EngineRepository.MessageQueue(),
 				postgres.WithLogger(&l),

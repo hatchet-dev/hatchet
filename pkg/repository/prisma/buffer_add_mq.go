@@ -8,6 +8,8 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/buffer"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 func newAddMQBuffer(shared *sharedRepository) (*buffer.TenantBufferManager[addMessage, int], error) {
@@ -47,7 +49,10 @@ func (r *sharedRepository) bulkAddMessages(ctx context.Context, opts []addMessag
 		res = append(res, &i)
 
 		p = append(p, dbsqlc.BulkAddMessageParams{
-			QueueId:   opt.queue,
+			QueueId: pgtype.Text{
+				String: opt.queue,
+				Valid:  true,
+			},
 			Payload:   opt.payload,
 			ExpiresAt: sqlchelpers.TimestampFromTime(time.Now().UTC().Add(5 * time.Minute)),
 			ReadAfter: sqlchelpers.TimestampFromTime(time.Now().UTC()),
