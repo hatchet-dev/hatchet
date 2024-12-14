@@ -655,7 +655,7 @@ func (wc *WorkflowsControllerImpl) cancelWorkflowRunJobs(ctx context.Context, te
 
 	workflowRun, err := wc.repo.WorkflowRun().GetWorkflowRunById(ctx, tenantId, workflowRunId)
 	if err != nil {
-		return fmt.Errorf("could not get workflow run: %w", err)
+		return fmt.Errorf("could not get workflow run (%s) : %w", workflowRunId, err)
 	}
 
 	jobRuns, err := wc.repo.JobRun().GetJobRunsByWorkflowRunId(ctx, tenantId, workflowRunId)

@@ -328,11 +328,28 @@ func (wc *WorkflowsControllerImpl) handleWorkflowRunFinished(ctx context.Context
 
 				startableJobRuns, err := wc.repo.JobRun().StartJobRun(ctx, metadata.TenantId, sqlchelpers.UUIDToStr(jobRun.ID))
 
-				// TODO do I need to do anything with these?
-				fmt.Println("startableJobRuns", startableJobRuns)
+				if err != nil {
+					return fmt.Errorf("could not start job run: %w", err)
+				}
+
+				g := new(errgroup.Group)
+				for _, stepRun := range startableJobRuns {
+					stepRunCp := stepRun
+
+					g.Go(func() error {
+						return wc.mq.AddMessage(
+							ctx,
+							msgqueue.JOB_PROCESSING_QUEUE,
+							tasktypes.StepRunQueuedToTask(stepRunCp),
+						)
+					})
+				}
+
+				err = g.Wait()
 
 				if err != nil {
-					return err
+					return fmt.Errorf("could not start workflow run: %w", err)
+
 				}
 
 			} else if jobRun.Status != dbsqlc.JobRunStatus(db.JobRunStatusCancelled) {
@@ -646,10 +663,10 @@ func (wc *WorkflowsControllerImpl) queueByCancelInProgress(ctx context.Context, 
 			return fmt.Errorf("could not cancel workflow run: %w", err)
 		}
 
-		err := wc.cancelWorkflowRunJobs(ctx, workflowRunId, tenantId, "CANCEL_IN_PROGRESS")
+		err := wc.cancelWorkflowRunJobs(ctx, tenantId, workflowRunId, "CANCEL_IN_PROGRESS")
 
 		if err != nil {
-			return fmt.Errorf("could not cancel workflow run jobs: %w", err)
+			return fmt.Errorf("queueByCancelInProgress: could not cancel workflow run jobs: %w", err)
 		}
 
 	}
@@ -667,9 +684,24 @@ func (wc *WorkflowsControllerImpl) queueByCancelInProgress(ctx context.Context, 
 			return fmt.Errorf("could not queue workflow run jobs: %w", err)
 		}
 
-		// TODO do we need to do anything with these?
-		fmt.Println("queuedStepRuns", queuedStepRuns)
+		g := new(errgroup.Group)
+		for _, stepRun := range queuedStepRuns {
+			stepRunCp := stepRun
 
+			g.Go(func() error {
+				return wc.mq.AddMessage(
+					ctx,
+					msgqueue.JOB_PROCESSING_QUEUE,
+					tasktypes.StepRunQueuedToTask(stepRunCp),
+				)
+			})
+		}
+
+		err = g.Wait()
+
+		if err != nil {
+			return fmt.Errorf("could not start workflow run: %w", err)
+		}
 	}
 
 	return nil
