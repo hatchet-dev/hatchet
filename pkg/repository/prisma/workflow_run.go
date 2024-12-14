@@ -2094,9 +2094,3 @@ func bulkWorkflowRunEvents(
 		l.Err(err).Msg("could not create bulk workflow run event")
 	}
 }
-
-func (w workflowRunEngineRepository) StartTransaction(ctx context.Context, l *zerolog.Logger, timeout int) (dbsqlc.DBTX, func(context.Context) error, func(), error) {
-
-	return sqlchelpers.PrepareTx(ctx, w.pool, w.l, timeout)
-
-}

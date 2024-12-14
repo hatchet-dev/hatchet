@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/go-co-op/gocron/v2"
+	"github.com/hashicorp/go-multierror"
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
 
@@ -647,18 +648,44 @@ func (wc *WorkflowsControllerImpl) cancelGetGroupKeyRun(ctx context.Context, ten
 	if err != nil {
 		return fmt.Errorf("could not update step run: %w", err)
 	}
+	return wc.cancelWorkflowRunJobs(ctx, tenantId, sqlchelpers.UUIDToStr(groupKeyRun.WorkflowRunId), reason)
+}
 
-	cancellableJobsRuns, err := wc.repo.WorkflowRun().CancelWorkflowRunJobs(ctx, sqlchelpers.UUIDToStr(groupKeyRun.GetGroupKeyRun.TenantId), sqlchelpers.UUIDToStr(groupKeyRun.WorkflowRunId), "")
+func (wc *WorkflowsControllerImpl) cancelWorkflowRunJobs(ctx context.Context, tenantId string, workflowRunId string, reason string) error {
+
+	workflowRun, err := wc.repo.WorkflowRun().GetWorkflowRunById(ctx, tenantId, workflowRunId)
+	if err != nil {
+		return fmt.Errorf("could not get workflow run: %w", err)
+	}
+
+	jobRuns, err := wc.repo.JobRun().GetJobRunsByWorkflowRunId(ctx, tenantId, workflowRunId)
 
 	if err != nil {
 		return fmt.Errorf("could not cancel workflow run jobs: %w", err)
 	}
+	var returnErr error
 
-	// TODO do we need to do something with these jobruns?
+	for i := range jobRuns {
+		// don't cancel job runs that are onFailure
 
-	fmt.Println(cancellableJobsRuns)
+		if workflowRun.WorkflowVersion.OnFailureJobId.Valid && jobRuns[i].JobId == workflowRun.WorkflowVersion.OnFailureJobId {
+			continue
+		}
 
-	return nil
+		jobRunId := sqlchelpers.UUIDToStr(jobRuns[i].ID)
+
+		err := wc.mq.AddMessage(
+			context.Background(),
+			msgqueue.JOB_PROCESSING_QUEUE,
+			tasktypes.JobRunCancelledToTask(tenantId, jobRunId, &reason),
+		)
+
+		if err != nil {
+			returnErr = multierror.Append(err, fmt.Errorf("could not add job run to task queue: %w", err))
+		}
+	}
+
+	return returnErr
 }
 
 func (wc *WorkflowsControllerImpl) runTenantProcessWorkflowRunEvents(ctx context.Context) func() {

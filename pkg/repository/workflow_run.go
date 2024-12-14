@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/rs/zerolog"
-
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
@@ -550,8 +548,6 @@ type WorkflowRunEngineRepository interface {
 
 	QueueWorkflowRunJobs(ctx context.Context, tenant string, workflowRun string) ([]*dbsqlc.GetStepRunForEngineRow, error)
 
-	CancelWorkflowRunJobs(ctx context.Context, tenantId, workflowRunId, reason string) ([]*dbsqlc.ListJobRunsForWorkflowRunRow, error)
-
 	ProcessUnpausedWorkflowRuns(ctx context.Context, tenantId string) ([]*dbsqlc.GetWorkflowRunRow, bool, error)
 
 	ProcessUnpausedWorkflowRunsWithTx(ctx context.Context, tx dbsqlc.DBTX, tenantId string) ([]*dbsqlc.GetWorkflowRunRow, bool, error)
@@ -565,6 +561,4 @@ type WorkflowRunEngineRepository interface {
 	// DeleteExpiredWorkflowRuns deletes workflow runs that were created before the given time. It returns the number of deleted runs
 	// and the number of non-deleted runs that match the conditions.
 	SoftDeleteExpiredWorkflowRuns(ctx context.Context, tenantId string, statuses []dbsqlc.WorkflowRunStatus, before time.Time) (bool, error)
-
-	StartTransaction(ctx context.Context, l *zerolog.Logger, timeout int) (dbsqlc.DBTX, func(context.Context) error, func(), error)
 }

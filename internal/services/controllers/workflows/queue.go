@@ -116,11 +116,7 @@ func (wc *WorkflowsControllerImpl) handleWorkflowRunQueued(ctx context.Context, 
 		if groupKey == nil {
 			// fail the workflow run
 
-			jobruns, err := wc.repo.WorkflowRun().CancelWorkflowRunJobs(ctx, workflowRunId, metadata.TenantId, "GROUP_KEY_REQUIRED")
-
-			// TODO do we need to do anything with these?
-			fmt.Println("jobrubs", jobruns)
-
+			err := wc.cancelWorkflowRunJobs(ctx, metadata.TenantId, workflowRunId, "GROUP_KEY_REQUIRED")
 			if err != nil {
 				return fmt.Errorf("could not cancel workflow run jobs: %w", err)
 			}
@@ -136,9 +132,24 @@ func (wc *WorkflowsControllerImpl) handleWorkflowRunQueued(ctx context.Context, 
 
 	queueJobRuns, err := wc.repo.WorkflowRun().QueueWorkflowRunJobs(ctx, metadata.TenantId, sqlchelpers.UUIDToStr(workflowRun.WorkflowRun.ID))
 
-	// TODO do we need to do anything with these?
+	if err != nil {
+		return fmt.Errorf("could not queue workflow run jobs: %w", err)
+	}
 
-	fmt.Println("queueJobRuns", queueJobRuns)
+	g := new(errgroup.Group)
+	for _, stepRun := range queueJobRuns {
+		stepRunCp := stepRun
+
+		g.Go(func() error {
+			return wc.mq.AddMessage(
+				ctx,
+				msgqueue.JOB_PROCESSING_QUEUE,
+				tasktypes.StepRunQueuedToTask(stepRunCp),
+			)
+		})
+	}
+
+	err = g.Wait()
 
 	if err != nil {
 		return fmt.Errorf("could not start workflow run: %w", err)
@@ -591,20 +602,12 @@ func (wc *WorkflowsControllerImpl) queueByCancelInProgress(ctx context.Context, 
 
 	defer mutex.Unlock()
 
-	tx, commit, rollback, err := wc.repo.WorkflowRun().StartTransaction(ctx, wc.l, 15000)
-
-	if err != nil {
-		return err
-	}
-
-	defer rollback()
-
 	running := db.WorkflowRunStatusRunning
 	queued := db.WorkflowRunStatusQueued
 	workflowVersionId := sqlchelpers.UUIDToStr(workflowVersion.WorkflowVersion.ID)
 	maxRuns := int(workflowVersion.ConcurrencyMaxRuns.Int32)
 
-	runningWorkflowRuns, err := wc.repo.WorkflowRun().ListWorkflowRunsWithTx(ctx, tx, tenantId, &repository.ListWorkflowRunsOpts{
+	runningWorkflowRuns, err := wc.repo.WorkflowRun().ListWorkflowRuns(ctx, tenantId, &repository.ListWorkflowRunsOpts{
 		WorkflowVersionId: &workflowVersionId,
 		GroupKey:          &groupKey,
 		Statuses:          &[]db.WorkflowRunStatus{running},
@@ -615,7 +618,7 @@ func (wc *WorkflowsControllerImpl) queueByCancelInProgress(ctx context.Context, 
 		return fmt.Errorf("could not list running workflow runs: %w", err)
 	}
 
-	queuedWorkflowRuns, err := wc.repo.WorkflowRun().ListWorkflowRunsWithTx(ctx, tx, tenantId, &repository.ListWorkflowRunsOpts{
+	queuedWorkflowRuns, err := wc.repo.WorkflowRun().ListWorkflowRuns(ctx, tenantId, &repository.ListWorkflowRunsOpts{
 		WorkflowVersionId: &workflowVersionId,
 		GroupKey:          &groupKey,
 		Statuses:          &[]db.WorkflowRunStatus{queued},
@@ -643,14 +646,11 @@ func (wc *WorkflowsControllerImpl) queueByCancelInProgress(ctx context.Context, 
 			return fmt.Errorf("could not cancel workflow run: %w", err)
 		}
 
-		cancelJobRuns, err := wc.repo.WorkflowRun().CancelWorkflowRunJobs(ctx, workflowRunId, tenantId, "CANCEL_IN_PROGRESS")
+		err := wc.cancelWorkflowRunJobs(ctx, workflowRunId, tenantId, "CANCEL_IN_PROGRESS")
 
 		if err != nil {
 			return fmt.Errorf("could not cancel workflow run jobs: %w", err)
 		}
-
-		// TODO do we need to do anything with these?
-		fmt.Println("cancelJobRuns", cancelJobRuns)
 
 	}
 
@@ -672,11 +672,6 @@ func (wc *WorkflowsControllerImpl) queueByCancelInProgress(ctx context.Context, 
 
 	}
 
-	err = commit(ctx)
-	if err != nil {
-		return fmt.Errorf("could not commit transaction: %w", err)
-	}
-
 	return nil
 }
 
@@ -690,15 +685,31 @@ func (wc *WorkflowsControllerImpl) queueByGroupRoundRobin(ctx context.Context, t
 
 	wc.l.Info().Msgf("handling queue with strategy GROUP_ROUND_ROBIN for workflow version %s", workflowVersionId)
 
-	wfrs, stepRunJobs, err := wc.repo.WorkflowRun().PopWorkflowRunsRoundRobin(ctx, tenantId, workflowId, maxRuns)
+	_, startableStepRuns, err := wc.repo.WorkflowRun().PopWorkflowRunsRoundRobin(ctx, tenantId, workflowId, maxRuns)
 
 	if err != nil {
 		return fmt.Errorf("could not pop workflow runs: %w", err)
 	}
+	g := new(errgroup.Group)
 
-	// TODO do we need to do anything with these?
-	fmt.Println("wfrs", wfrs)
-	fmt.Println("stepRunJobs", stepRunJobs)
+	for _, stepRun := range startableStepRuns {
+		stepRunCp := stepRun
+
+		g.Go(func() error {
+			return wc.mq.AddMessage(
+				ctx,
+				msgqueue.JOB_PROCESSING_QUEUE,
+				tasktypes.StepRunQueuedToTask(stepRunCp),
+			)
+		})
+	}
+
+	err = g.Wait()
+
+	if err != nil {
+		wc.l.Err(err).Msg("could not handle start job run")
+		return err
+	}
 
 	return nil
 }

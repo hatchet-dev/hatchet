@@ -3,13 +3,11 @@ package prisma
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
 
-	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
@@ -188,70 +186,4 @@ func (r *jobRunEngineRepository) ClearJobRunPayloadData(ctx context.Context, ten
 	}
 
 	return hasMore, nil
-}
-
-func (w workflowRunEngineRepository) CancelWorkflowRunJobs(ctx context.Context, tenantId, workflowRunId, reason string) ([]*dbsqlc.ListJobRunsForWorkflowRunRow, error) {
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, w.l, 5000)
-
-	if err != nil {
-		return nil, err
-	}
-
-	defer rollback()
-
-	workflowRun, err := w.GetWorkflowRunByIdWithTx(ctx, tx, tenantId, workflowRunId)
-
-	if err != nil {
-		return nil, fmt.Errorf("could not get workflow run: %w", err)
-	}
-
-	jobRuns, err := w.cancelWorkflowRunJobs(ctx, tx, workflowRun, reason)
-
-	if err != nil {
-		return nil, fmt.Errorf("could not cancel workflow run jobs: %w", err)
-	}
-
-	err = commit(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	return jobRuns, nil
-}
-
-func (wc *sharedRepository) cancelWorkflowRunJobs(ctx context.Context, tx dbsqlc.DBTX, workflowRun *dbsqlc.GetWorkflowRunRow, reason string) ([]*dbsqlc.ListJobRunsForWorkflowRunRow, error) {
-	ctx, span := telemetry.NewSpan(ctx, "cancel-workflow-run-jobs") // nolint:ineffassign
-	defer span.End()
-
-	tenantId := sqlchelpers.UUIDToStr(workflowRun.WorkflowRun.TenantId)
-	workflowRunId := sqlchelpers.UUIDToStr(workflowRun.WorkflowRun.ID)
-
-	jobRuns, err := wc.ListJobRunsForWorkflowRunWithTx(ctx, tx, tenantId, workflowRunId)
-
-	if err != nil {
-		return nil, fmt.Errorf("could not list job runs: %w", err)
-	}
-
-	// var returnErr error
-
-	// for i := range jobRuns {
-	// 	// don't cancel job runs that are onFailure
-	// 	if workflowRun.WorkflowVersion.OnFailureJobId.Valid && jobRuns[i].JobId == workflowRun.WorkflowVersion.OnFailureJobId {
-	// 		continue
-	// 	}
-
-	// 	jobRunId := sqlchelpers.UUIDToStr(jobRuns[i].ID)
-
-	// 	err := wc.mq.AddMessage(
-	// 		context.Background(),
-	// 		msgqueue.JOB_PROCESSING_QUEUE,
-	// 		tasktypes.JobRunCancelledToTask(tenantId, jobRunId, &reason),
-	// 	)
-
-	// 	if err != nil {
-	// 		returnErr = multierror.Append(err, fmt.Errorf("could not add job run to task queue: %w", err))
-	// 	}
-	// }
-
-	return jobRuns, nil
 }
