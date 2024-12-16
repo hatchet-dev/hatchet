@@ -756,7 +756,7 @@ func (wc *WorkflowsControllerImpl) unpauseWorkflowRuns(ctx context.Context, tena
 	if err != nil {
 		return false, fmt.Errorf("could not process unpaused workflow runs: %w", err)
 	}
-	var startableJobRuns []*dbsqlc.GetStepRunForEngineRow
+	var startableStepRuns []*dbsqlc.GetStepRunForEngineRow
 	if toQueue != nil {
 		errGroup := new(errgroup.Group)
 
@@ -773,20 +773,28 @@ func (wc *WorkflowsControllerImpl) unpauseWorkflowRuns(ctx context.Context, tena
 				if err != nil {
 					return fmt.Errorf("could not queue workflow run jobs: %w", err)
 				}
-				startableJobRuns = append(startableJobRuns, ssr...)
+				startableStepRuns = append(startableStepRuns, ssr...)
+
+				for _, stepRunCp := range ssr {
+					err = wc.mq.AddMessage(
+						ctx,
+						msgqueue.JOB_PROCESSING_QUEUE,
+						tasktypes.StepRunQueuedToTask(stepRunCp),
+					)
+					if err != nil {
+						return fmt.Errorf("could not queue step run: %w", err)
+					}
+				}
 
 				return nil
 			})
 		}
 
 		if err := errGroup.Wait(); err != nil {
-			return false, fmt.Errorf("could not queue workflow runs: %w", err)
+			return false, fmt.Errorf("unpauseWorkflows could not start step runs: %w", err)
 		}
-	}
 
-	// do we need to start any job runs?
-	// TODO
-	// startableJobRuns
+	}
 
 	return res, nil
 }
