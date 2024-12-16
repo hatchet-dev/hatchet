@@ -725,33 +725,13 @@ func (w *workflowRunEngineRepository) GetWorkflowRunAdditionalMeta(ctx context.C
 
 func (w *workflowRunEngineRepository) ListWorkflowRuns(ctx context.Context, tenantId string, opts *repository.ListWorkflowRunsOpts) (*repository.ListWorkflowRunsResult, error) {
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, w.l, 25000)
-	if err != nil {
-		return nil, err
-	}
-	defer rollback()
-
-	res, err := w.listWorkflowRuns(ctx, tx, tenantId, opts)
+	res, err := w.listWorkflowRuns(ctx, w.pool, tenantId, opts)
 
 	if err != nil {
 		return nil, err
-	}
-
-	err = commit(ctx)
-
-	if err != nil {
-		return nil, fmt.Errorf("could not commit transaction: %w", err)
 	}
 
 	return res, nil
-}
-
-func (w *workflowRunEngineRepository) ListWorkflowRunsWithTx(ctx context.Context, tx dbsqlc.DBTX, tenantId string, opts *repository.ListWorkflowRunsOpts) (*repository.ListWorkflowRunsResult, error) {
-	if err := w.v.Validate(opts); err != nil {
-		return nil, err
-	}
-
-	return w.listWorkflowRuns(ctx, tx, tenantId, opts)
 }
 
 func (w *workflowRunEngineRepository) GetChildWorkflowRun(ctx context.Context, parentId, parentStepRunId string, childIndex int, childkey *string) (*dbsqlc.WorkflowRun, error) {
@@ -892,7 +872,7 @@ func (w *workflowRunEngineRepository) PopWorkflowRunsRoundRobin(ctx context.Cont
 		isPaused := workflowRun.IsPaused.Valid && workflowRun.IsPaused.Bool
 
 		if isPaused {
-			return nil, nil, nil
+			continue
 		}
 
 		ssr, err := w.queueWorkflowRunJobs(ctx, tx, workflowRun, isPaused)
