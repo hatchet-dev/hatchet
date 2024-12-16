@@ -756,7 +756,6 @@ func (wc *WorkflowsControllerImpl) unpauseWorkflowRuns(ctx context.Context, tena
 	if err != nil {
 		return false, fmt.Errorf("could not process unpaused workflow runs: %w", err)
 	}
-	var startableStepRuns []*dbsqlc.GetStepRunForEngineRow
 	if toQueue != nil {
 		errGroup := new(errgroup.Group)
 
@@ -773,7 +772,6 @@ func (wc *WorkflowsControllerImpl) unpauseWorkflowRuns(ctx context.Context, tena
 				if err != nil {
 					return fmt.Errorf("could not queue workflow run jobs: %w", err)
 				}
-				startableStepRuns = append(startableStepRuns, ssr...)
 
 				for _, stepRunCp := range ssr {
 					err = wc.mq.AddMessage(

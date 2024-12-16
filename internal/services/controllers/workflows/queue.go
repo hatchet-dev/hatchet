@@ -69,8 +69,6 @@ func (wc *WorkflowsControllerImpl) handleWorkflowRunQueued(ctx context.Context, 
 		// return nil to avoid requeuing the message
 		return nil
 	}
-	// TODO check if we need to do anything with this
-	// isPaused := workflowRun.IsPaused.Valid && workflowRun.IsPaused.Bool
 
 	workflowRunId := sqlchelpers.UUIDToStr(workflowRun.WorkflowRun.ID)
 

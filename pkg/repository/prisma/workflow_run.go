@@ -1038,32 +1038,8 @@ func (w *sharedRepository) startJobRun(ctx context.Context, tx dbsqlc.DBTX, tena
 	}
 
 	return startableStepRuns, nil
-	// g := new(errgroup.Group)
-
-	// for _, stepRun := range startableStepRuns {
-	// 	stepRunCp := stepRun
-
-	// 	g.Go(func() error {
-	// 		return wc.mq.AddMessage(
-	// 			ctx,
-	// 			msgqueue.JOB_PROCESSING_QUEUE,
-	// 			tasktypes.StepRunQueuedToTask(stepRunCp),
-	// 		)
-	// 	})
-	// }
-
-	// err = g.Wait()
-
-	// if err != nil {
-	// 	w.l.Err(err).Msg("could not handle start job run")
-	// 	return err
-	// }
 
 }
-
-// func (w *workflowRunEngineRepository) PopWorkflowRunsRoundRobin(ctx context.Context, tx dbsqlc.DBTX, tenantId, workflowId string, maxRuns int) ([]*dbsqlc.WorkflowRun, error) {
-
-// }
 
 func (w *workflowRunAPIRepository) BulkCreateWorkflowRuns(ctx context.Context, opts []*repository.CreateWorkflowRunOpts) ([]*dbsqlc.WorkflowRun, error) {
 	if len(opts) == 0 {
