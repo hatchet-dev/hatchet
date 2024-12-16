@@ -8,6 +8,7 @@ type ListEventQuery = Parameters<typeof api.eventList>[1];
 type ListRateLimitsQuery = Parameters<typeof api.rateLimitList>[1];
 type ListLogLineQuery = Parameters<typeof api.logLineList>[1];
 type ListWorkflowRunsQuery = Parameters<typeof api.workflowRunList>[1];
+type ListWorkflowsQuery = Parameters<typeof api.workflowList>[1];
 export type ListCloudLogsQuery = Parameters<typeof cloudApi.logList>[1];
 export type GetCloudMetricsQuery = Parameters<typeof cloudApi.metricsCpuGet>[1];
 type WorkflowRunMetrics = Parameters<typeof api.workflowRunGetMetrics>[1];
@@ -159,9 +160,9 @@ export const queries = createQueryKeyStore({
     }),
   },
   workflows: {
-    list: (tenant: string) => ({
+    list: (tenant: string, query?: ListWorkflowsQuery) => ({
       queryKey: ['workflow:list', tenant],
-      queryFn: async () => (await api.workflowList(tenant)).data,
+      queryFn: async () => (await api.workflowList(tenant, query)).data,
     }),
     get: (workflow: string) => ({
       queryKey: ['workflow:get', workflow],

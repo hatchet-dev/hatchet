@@ -1116,10 +1116,30 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @request GET:/api/v1/tenants/{tenant}/workflows
    * @secure
    */
-  workflowList = (tenant: string, params: RequestParams = {}) =>
+  workflowList = (
+    tenant: string,
+    query?: {
+      /**
+       * The number to skip
+       * @format int
+       * @default 0
+       */
+      offset?: number;
+      /**
+       * The number to limit by
+       * @format int
+       * @default 50
+       */
+      limit?: number;
+      /** Search by name */
+      name?: string;
+    },
+    params: RequestParams = {},
+  ) =>
     this.request<WorkflowList, APIErrors>({
       path: `/api/v1/tenants/${tenant}/workflows`,
       method: 'GET',
+      query: query,
       secure: true,
       format: 'json',
       ...params,
