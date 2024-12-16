@@ -510,8 +510,6 @@ type WorkflowRunEngineRepository interface {
 	// ListWorkflowRuns returns workflow runs for a given workflow version id.
 	ListWorkflowRuns(ctx context.Context, tenantId string, opts *ListWorkflowRunsOpts) (*ListWorkflowRunsResult, error)
 
-	ListWorkflowRunsWithTx(ctx context.Context, tx dbsqlc.DBTX, tenantId string, opts *ListWorkflowRunsOpts) (*ListWorkflowRunsResult, error)
-
 	GetChildWorkflowRun(ctx context.Context, parentId, parentStepRunId string, childIndex int, childkey *string) (*dbsqlc.WorkflowRun, error)
 
 	GetChildWorkflowRuns(ctx context.Context, childWorkflowRuns []ChildWorkflowRun) ([]*dbsqlc.WorkflowRun, error)
@@ -537,20 +535,14 @@ type WorkflowRunEngineRepository interface {
 	// GetWorkflowRunById returns a workflow run by id.
 	GetWorkflowRunById(ctx context.Context, tenantId, runId string) (*dbsqlc.GetWorkflowRunRow, error)
 
-	GetWorkflowRunByIdWithTx(ctx context.Context, tx dbsqlc.DBTX, tenantId, runId string) (*dbsqlc.GetWorkflowRunRow, error)
-
 	// TODO maybe we don't need this?
 	GetWorkflowRunByIds(ctx context.Context, tenantId string, runId []string) ([]*dbsqlc.GetWorkflowRunRow, error)
 
 	QueuePausedWorkflowRun(ctx context.Context, tenantId, workflowId, workflowRunId string) error
 
-	QueuePausedWorkflowRunWithTx(ctx context.Context, tx dbsqlc.DBTX, tenantId, workflowId, workflowRunId string) error
-
 	QueueWorkflowRunJobs(ctx context.Context, tenant string, workflowRun string) ([]*dbsqlc.GetStepRunForEngineRow, error)
 
 	ProcessUnpausedWorkflowRuns(ctx context.Context, tenantId string) ([]*dbsqlc.GetWorkflowRunRow, bool, error)
-
-	ProcessUnpausedWorkflowRunsWithTx(ctx context.Context, tx dbsqlc.DBTX, tenantId string) ([]*dbsqlc.GetWorkflowRunRow, bool, error)
 
 	GetWorkflowRunAdditionalMeta(ctx context.Context, tenantId, workflowRunId string) (*dbsqlc.GetWorkflowRunAdditionalMetaRow, error)
 

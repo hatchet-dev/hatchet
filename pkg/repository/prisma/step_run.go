@@ -1930,7 +1930,7 @@ func (s *sharedRepository) ListInitialStepRunsForJobRun(ctx context.Context, ten
 
 	defer sqlchelpers.DeferRollback(ctx, s.l, tx.Rollback)
 
-	res, err := s.ListInitialStepRunsForJobRunWithTx(ctx, tx, tenantId, jobRunId)
+	res, err := s.listInitialStepRunsForJobRunWithTx(ctx, tx, tenantId, jobRunId)
 
 	if err != nil {
 		return nil, err
@@ -1941,7 +1941,7 @@ func (s *sharedRepository) ListInitialStepRunsForJobRun(ctx context.Context, ten
 	return res, err
 }
 
-func (s *sharedRepository) ListInitialStepRunsForJobRunWithTx(ctx context.Context, tx dbsqlc.DBTX, tenantId, jobRunId string) ([]*dbsqlc.GetStepRunForEngineRow, error) {
+func (s *sharedRepository) listInitialStepRunsForJobRunWithTx(ctx context.Context, tx dbsqlc.DBTX, tenantId, jobRunId string) ([]*dbsqlc.GetStepRunForEngineRow, error) {
 
 	srs, err := s.queries.ListInitialStepRuns(ctx, tx, sqlchelpers.UUIDFromStr(jobRunId))
 

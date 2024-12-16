@@ -225,8 +225,6 @@ type StepRunEngineRepository interface {
 
 	ListInitialStepRunsForJobRun(ctx context.Context, tenantId, jobRunId string) ([]*dbsqlc.GetStepRunForEngineRow, error)
 
-	ListInitialStepRunsForJobRunWithTx(ctx context.Context, tx dbsqlc.DBTX, tenantId, jobRunId string) ([]*dbsqlc.GetStepRunForEngineRow, error)
-
 	// ListStartableStepRuns returns a list of step runs that are in a startable state, assuming that the parentStepRunId has succeeded.
 	// The singleParent flag is used to determine if we should reject listing step runs with many parents. This is important to avoid
 	// race conditions where a step run is started by multiple parents completing at the same time. As a result, singleParent=false should

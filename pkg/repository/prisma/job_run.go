@@ -6,7 +6,6 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
@@ -36,7 +35,7 @@ func (j *jobRunAPIRepository) RegisterWorkflowRunRunningCallback(callback reposi
 }
 
 func (j *jobRunAPIRepository) SetJobRunStatusRunning(tenantId, jobRunId string) error {
-	wrId, err := setJobRunStatusRunning(context.Background(), j.pool, j.queries, j.l, tenantId, jobRunId)
+	wrId, err := j.setJobRunStatusRunning(context.Background(), j.pool, tenantId, jobRunId)
 
 	if err != nil {
 		return err
@@ -87,7 +86,7 @@ func (j *jobRunEngineRepository) SetJobRunStatusRunning(ctx context.Context, ten
 
 	defer rollback()
 
-	err = j.SetJobRunStatusRunningWithTx(ctx, tx, tenantId, jobRunId)
+	err = j.setJobRunStatusRunningWithTx(ctx, tx, tenantId, jobRunId)
 
 	if err != nil {
 		return err
@@ -102,8 +101,8 @@ func (j *jobRunEngineRepository) SetJobRunStatusRunning(ctx context.Context, ten
 	return nil
 }
 
-func (s *sharedRepository) SetJobRunStatusRunningWithTx(ctx context.Context, tx dbsqlc.DBTX, tenantId, jobRunId string) error {
-	wrId, err := setJobRunStatusRunning(ctx, tx, s.queries, s.l, tenantId, jobRunId)
+func (s *sharedRepository) setJobRunStatusRunningWithTx(ctx context.Context, tx dbsqlc.DBTX, tenantId, jobRunId string) error {
+	wrId, err := s.setJobRunStatusRunning(ctx, tx, tenantId, jobRunId)
 
 	if err != nil {
 		return err
@@ -120,7 +119,7 @@ func (j *sharedRepository) ListJobRunsForWorkflowRun(ctx context.Context, tenant
 	return j.queries.ListJobRunsForWorkflowRun(ctx, j.pool, sqlchelpers.UUIDFromStr(workflowRunId))
 }
 
-func (j *sharedRepository) ListJobRunsForWorkflowRunWithTx(ctx context.Context, tx dbsqlc.DBTX, tenantId, workflowRunId string) ([]*dbsqlc.ListJobRunsForWorkflowRunRow, error) {
+func (j *sharedRepository) listJobRunsForWorkflowRunWithTx(ctx context.Context, tx dbsqlc.DBTX, tenantId, workflowRunId string) ([]*dbsqlc.ListJobRunsForWorkflowRunRow, error) {
 	return j.queries.ListJobRunsForWorkflowRun(ctx, tx, sqlchelpers.UUIDFromStr(workflowRunId))
 }
 
@@ -139,9 +138,9 @@ func (j *jobRunEngineRepository) GetJobRunsByWorkflowRunId(ctx context.Context, 
 	})
 }
 
-func setJobRunStatusRunning(ctx context.Context, tx dbsqlc.DBTX, queries *dbsqlc.Queries, l *zerolog.Logger, tenantId, jobRunId string) (*pgtype.UUID, error) {
+func (s *sharedRepository) setJobRunStatusRunning(ctx context.Context, tx dbsqlc.DBTX, tenantId, jobRunId string) (*pgtype.UUID, error) {
 
-	jobRun, err := queries.UpdateJobRunStatus(context.Background(), tx, dbsqlc.UpdateJobRunStatusParams{
+	jobRun, err := s.queries.UpdateJobRunStatus(context.Background(), tx, dbsqlc.UpdateJobRunStatusParams{
 		ID:       sqlchelpers.UUIDFromStr(jobRunId),
 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
 		Status:   dbsqlc.JobRunStatusRUNNING,
@@ -151,7 +150,7 @@ func setJobRunStatusRunning(ctx context.Context, tx dbsqlc.DBTX, queries *dbsqlc
 		return nil, err
 	}
 
-	wr, err := queries.UpdateWorkflowRun(
+	wr, err := s.queries.UpdateWorkflowRun(
 		context.Background(),
 		tx,
 		dbsqlc.UpdateWorkflowRunParams{
