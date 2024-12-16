@@ -14,12 +14,30 @@ import (
 func (t *WorkflowService) WorkflowList(ctx echo.Context, request gen.WorkflowListRequestObject) (gen.WorkflowListResponseObject, error) {
 	tenant := ctx.Get("tenant").(*db.TenantModel)
 
-	limit := 50
-	offset := 0
+	if request.Params.Limit == nil {
+		request.Params.Limit = new(int)
+		*request.Params.Limit = 50
+	}
+
+	if request.Params.Offset == nil {
+		request.Params.Offset = new(int)
+		*request.Params.Offset = 0
+	}
+
+	if request.Params.Name == nil {
+		request.Params.Name = new(string)
+
+	}
+
+	name := *request.Params.Name
+
+	limit := *request.Params.Limit
+	offset := *request.Params.Offset
 
 	listOpts := &repository.ListWorkflowsOpts{
 		Limit:  &limit,
 		Offset: &offset,
+		Name:   &name,
 	}
 
 	listResp, err := t.config.APIRepository.Workflow().ListWorkflows(tenant.ID, listOpts)

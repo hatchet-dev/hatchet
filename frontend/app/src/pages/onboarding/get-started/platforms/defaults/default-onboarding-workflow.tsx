@@ -18,7 +18,7 @@ export const DefaultOnboardingWorkflow: React.FC<{
   const { handleApiError } = useApiError({});
 
   const listWorkflows = useQuery({
-    ...queries.workflows.list(tenantId),
+    ...queries.workflows.list(tenantId, { limit: 200 }),
     refetchInterval: 5000,
   });
 

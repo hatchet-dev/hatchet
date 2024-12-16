@@ -66,7 +66,6 @@ func newQueue(
 		ql:   ql,
 	}
 
-	q.updateStepRunOperations = queueutils.NewOperationPool(ql, time.Second*30, "update step runs", q.processStepRunUpdates)
 	q.updateStepRunV2Operations = queueutils.NewOperationPool(ql, time.Second*30, "update step runs (v2)", q.processStepRunUpdatesV2)
 	q.timeoutStepRunOperations = queueutils.NewOperationPool(ql, time.Second*30, "timeout step runs", q.processStepRunTimeouts)
 	q.retryStepRunOperations = queueutils.NewOperationPool(ql, time.Second*30, "retry step runs", q.processStepRunRetries)
@@ -81,18 +80,6 @@ func (q *queue) Start() (func() error, error) {
 	wg := sync.WaitGroup{}
 
 	_, err := q.s.NewJob(
-		gocron.DurationJob(time.Second*1),
-		gocron.NewTask(
-			q.runTenantUpdateStepRuns(ctx),
-		),
-	)
-
-	if err != nil {
-		cancel()
-		return nil, fmt.Errorf("could not schedule step run update: %w", err)
-	}
-
-	_, err = q.s.NewJob(
 		gocron.DurationJob(time.Second*1),
 		gocron.NewTask(
 			q.runTenantTimeoutStepRuns(ctx),
@@ -214,108 +201,10 @@ func (q *queue) handleCheckQueue(ctx context.Context, task *msgqueue.Message) er
 		q.updateStepRunV2Operations.RunOrContinue(metadata.TenantId)
 	default:
 		// check the step run updates
-		q.updateStepRunOperations.RunOrContinue(metadata.TenantId)
 		q.updateStepRunV2Operations.RunOrContinue(metadata.TenantId)
 	}
 
 	return nil
-}
-
-func (q *queue) runTenantUpdateStepRuns(ctx context.Context) func() {
-	return func() {
-		q.l.Debug().Msgf("partition: updating step run statuses")
-
-		// list all tenants
-		tenants, err := q.repo.Tenant().ListTenantsByControllerPartition(ctx, q.p.GetControllerPartitionId())
-
-		if err != nil {
-			q.l.Err(err).Msg("could not list tenants")
-			return
-		}
-
-		q.updateStepRunOperations.SetTenants(tenants)
-
-		for i := range tenants {
-			tenantId := sqlchelpers.UUIDToStr(tenants[i].ID)
-
-			q.updateStepRunOperations.RunOrContinue(tenantId)
-		}
-	}
-}
-
-func (q *queue) processStepRunUpdates(ctx context.Context, tenantId string) (bool, error) {
-	ctx, span := telemetry.NewSpan(ctx, "process-worker-semaphores")
-	defer span.End()
-
-	dbCtx, cancel := context.WithTimeout(ctx, 300*time.Second)
-	defer cancel()
-
-	res, err := q.repo.StepRun().ProcessStepRunUpdates(dbCtx, q.ql, tenantId)
-
-	if err != nil {
-		return false, fmt.Errorf("could not process step run updates: %w", err)
-	}
-
-	// for all succeeded step runs, check for startable child step runs
-	err = queueutils.BatchConcurrent(20, res.SucceededStepRuns, func(group []*dbsqlc.GetStepRunForEngineRow) error {
-
-		for _, stepRun := range group {
-			if stepRun.SRChildCount == 0 {
-				continue
-			}
-
-			// queue the next step runs
-			tenantId := sqlchelpers.UUIDToStr(stepRun.SRTenantId)
-			stepRunId := sqlchelpers.UUIDToStr(stepRun.SRID)
-
-			nextStepRuns, err := q.repo.StepRun().ListStartableStepRuns(ctx, tenantId, stepRunId, false)
-
-			if err != nil {
-				q.l.Error().Err(err).Msg("could not list startable step runs")
-				continue
-			}
-
-			for _, nextStepRun := range nextStepRuns {
-				err := q.mq.AddMessage(
-					context.Background(),
-					msgqueue.JOB_PROCESSING_QUEUE,
-					tasktypes.StepRunQueuedToTask(nextStepRun),
-				)
-
-				if err != nil {
-					q.l.Error().Err(err).Msg("could not queue next step run")
-				}
-			}
-		}
-
-		return nil
-	})
-
-	if err != nil {
-		return false, fmt.Errorf("could not process succeeded step runs: %w", err)
-	}
-
-	// for all finished workflow runs, send a message
-	for _, finished := range res.CompletedWorkflowRuns {
-		workflowRunId := sqlchelpers.UUIDToStr(finished.ID)
-		status := string(finished.Status)
-
-		err := q.mq.AddMessage(
-			context.Background(),
-			msgqueue.WORKFLOW_PROCESSING_QUEUE,
-			tasktypes.WorkflowRunFinishedToTask(
-				tenantId,
-				workflowRunId,
-				status,
-			),
-		)
-
-		if err != nil {
-			q.l.Error().Err(err).Msg("could not add workflow run finished task to task queue")
-		}
-	}
-
-	return res.Continue, nil
 }
 
 func (q *queue) runTenantUpdateStepRunsV2(ctx context.Context) func() {

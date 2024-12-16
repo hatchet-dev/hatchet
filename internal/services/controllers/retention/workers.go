@@ -26,23 +26,17 @@ func (rc *RetentionControllerImpl) runDeleteOldWorkers(ctx context.Context) func
 }
 
 func (wc *RetentionControllerImpl) runDeleteOldWorkerDataTenant(ctx context.Context, tenant dbsqlc.Tenant) error {
-	// simultenously delete old workers and worker assign events
-	errCh := make(chan error, 2)
 
-	go func() {
-		errCh <- wc.runDeleteOldWorkersTenant(ctx, tenant)
-	}()
+	err := wc.runDeleteOldWorkersTenant(ctx, tenant)
 
-	go func() {
-		errCh <- wc.runDeleteOldWorkerAssignEventsTenant(ctx, tenant)
-	}()
+	if err != nil {
+		return err
+	}
 
-	for i := 0; i < 2; i++ {
-		err := <-errCh
+	err = wc.runDeleteOldWorkerAssignEventsTenant(ctx, tenant)
 
-		if err != nil {
-			return err
-		}
+	if err != nil {
+		return err
 	}
 
 	return nil

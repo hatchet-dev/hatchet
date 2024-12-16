@@ -7,6 +7,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 )
@@ -29,8 +30,8 @@ func TestGetRankedSlots(t *testing.T) {
 				DesiredWorkerId: sqlchelpers.UUIDFromStr(stableWorkerId1),
 			},
 			slots: []*slot{
-				newSlot(&worker{ListActiveWorkersResult: &ListActiveWorkersResult{ID: sqlchelpers.UUIDFromStr(stableWorkerId1)}}, []string{}),
-				newSlot(&worker{ListActiveWorkersResult: &ListActiveWorkersResult{ID: sqlchelpers.UUIDFromStr(uuid.New().String())}}, []string{}),
+				newSlot(&worker{ListActiveWorkersResult: &repository.ListActiveWorkersResult{ID: sqlchelpers.UUIDFromStr(stableWorkerId1)}}, []string{}),
+				newSlot(&worker{ListActiveWorkersResult: &repository.ListActiveWorkersResult{ID: sqlchelpers.UUIDFromStr(uuid.New().String())}}, []string{}),
 			},
 			expectedWorker: []string{stableWorkerId1},
 		},
@@ -41,8 +42,8 @@ func TestGetRankedSlots(t *testing.T) {
 				DesiredWorkerId: sqlchelpers.UUIDFromStr(uuid.New().String()),
 			},
 			slots: []*slot{
-				newSlot(&worker{ListActiveWorkersResult: &ListActiveWorkersResult{ID: sqlchelpers.UUIDFromStr(uuid.New().String())}}, []string{}),
-				newSlot(&worker{ListActiveWorkersResult: &ListActiveWorkersResult{ID: sqlchelpers.UUIDFromStr(uuid.New().String())}}, []string{}),
+				newSlot(&worker{ListActiveWorkersResult: &repository.ListActiveWorkersResult{ID: sqlchelpers.UUIDFromStr(uuid.New().String())}}, []string{}),
+				newSlot(&worker{ListActiveWorkersResult: &repository.ListActiveWorkersResult{ID: sqlchelpers.UUIDFromStr(uuid.New().String())}}, []string{}),
 			},
 			expectedWorker: []string{},
 		},
@@ -53,9 +54,9 @@ func TestGetRankedSlots(t *testing.T) {
 				DesiredWorkerId: sqlchelpers.UUIDFromStr(stableWorkerId1),
 			},
 			slots: []*slot{
-				newSlot(&worker{ListActiveWorkersResult: &ListActiveWorkersResult{ID: sqlchelpers.UUIDFromStr(stableWorkerId2)}}, []string{}),
-				newSlot(&worker{ListActiveWorkersResult: &ListActiveWorkersResult{ID: sqlchelpers.UUIDFromStr(stableWorkerId1)}}, []string{}),
-				newSlot(&worker{ListActiveWorkersResult: &ListActiveWorkersResult{ID: sqlchelpers.UUIDFromStr(stableWorkerId1)}}, []string{}),
+				newSlot(&worker{ListActiveWorkersResult: &repository.ListActiveWorkersResult{ID: sqlchelpers.UUIDFromStr(stableWorkerId2)}}, []string{}),
+				newSlot(&worker{ListActiveWorkersResult: &repository.ListActiveWorkersResult{ID: sqlchelpers.UUIDFromStr(stableWorkerId1)}}, []string{}),
+				newSlot(&worker{ListActiveWorkersResult: &repository.ListActiveWorkersResult{ID: sqlchelpers.UUIDFromStr(stableWorkerId1)}}, []string{}),
 			},
 			expectedWorker: []string{stableWorkerId1, stableWorkerId1, stableWorkerId2},
 		},
@@ -79,11 +80,11 @@ func TestGetRankedSlots(t *testing.T) {
 				},
 			},
 			slots: []*slot{
-				newSlot(&worker{ListActiveWorkersResult: &ListActiveWorkersResult{ID: sqlchelpers.UUIDFromStr(stableWorkerId1), Labels: []*dbsqlc.ListManyWorkerLabelsRow{{
+				newSlot(&worker{ListActiveWorkersResult: &repository.ListActiveWorkersResult{ID: sqlchelpers.UUIDFromStr(stableWorkerId1), Labels: []*dbsqlc.ListManyWorkerLabelsRow{{
 					Key:      "key1",
 					IntValue: pgtype.Int4{Int32: 2, Valid: true},
 				}}}}, []string{}),
-				newSlot(&worker{ListActiveWorkersResult: &ListActiveWorkersResult{ID: sqlchelpers.UUIDFromStr(stableWorkerId2), Labels: []*dbsqlc.ListManyWorkerLabelsRow{{
+				newSlot(&worker{ListActiveWorkersResult: &repository.ListActiveWorkersResult{ID: sqlchelpers.UUIDFromStr(stableWorkerId2), Labels: []*dbsqlc.ListManyWorkerLabelsRow{{
 					Key:      "key1",
 					IntValue: pgtype.Int4{Int32: 4, Valid: true},
 				}, {

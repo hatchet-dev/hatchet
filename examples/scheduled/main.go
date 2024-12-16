@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -11,33 +12,19 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 )
 
-type scheduledInput struct {
-	ScheduledAt time.Time `json:"scheduled_at"`
-	ExecuteAt   time.Time `json:"scheduled_for"`
+// ❓ Create
+// ... normal workflow definition
+type printOutput struct{}
+
+func print(ctx context.Context) (result *printOutput, err error) {
+	fmt.Println("called print:print")
+
+	return &printOutput{}, nil
 }
 
-type stepOneOutput struct {
-	Message string `json:"message"`
-}
-
-func StepOne(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
-	input := &scheduledInput{}
-
-	err = ctx.WorkflowInput(input)
-
-	if err != nil {
-		return nil, err
-	}
-
-	// get time between execute at and scheduled at
-	timeBetween := time.Since(input.ScheduledAt)
-
-	return &stepOneOutput{
-		Message: fmt.Sprintf("This ran %s after scheduling", timeBetween),
-	}, nil
-}
-
+// ,
 func main() {
+	// ... initialize client, worker and workflow
 	err := godotenv.Load()
 
 	if err != nil {
@@ -60,13 +47,13 @@ func main() {
 		panic(err)
 	}
 
-	err = w.On(
-		worker.NoTrigger(),
+	err = w.RegisterWorkflow(
 		&worker.WorkflowJob{
-			Name:        "scheduled-workflow",
-			Description: "This runs at a scheduled time.",
+			On:          worker.NoTrigger(),
+			Name:        "schedule-workflow",
+			Description: "Demonstrates a simple scheduled workflow",
 			Steps: []*worker.WorkflowStep{
-				worker.Fn(StepOne).SetName("step-one"),
+				worker.Fn(print),
 			},
 		},
 	)
@@ -75,44 +62,84 @@ func main() {
 		panic(err)
 	}
 
-	interruptCtx, cancel := cmdutils.InterruptContextFromChan(cmdutils.InterruptChan())
-	defer cancel()
+	interrupt := cmdutils.InterruptChan()
 
 	cleanup, err := w.Start()
+
 	if err != nil {
-		panic(fmt.Errorf("error cleaning up: %w", err))
+		panic(err)
 	}
 
+	// ,
+
 	go func() {
-		time.Sleep(5 * time.Second)
-
-		executeAt := time.Now().Add(time.Second * 10)
-		executeAt2 := time.Now().Add(time.Second * 20)
-		executeAt3 := time.Now().Add(time.Second * 30)
-
-		err = c.Admin().ScheduleWorkflow(
-			"scheduled-workflow",
-			client.WithSchedules(executeAt, executeAt2, executeAt3),
-			client.WithInput(&scheduledInput{
-				ScheduledAt: time.Now(),
-				ExecuteAt:   executeAt,
-			}),
+		// 👀 define the scheduled workflow to run in a minute
+		schedule, err := c.Schedule().Create(
+			context.Background(),
+			"schedule-workflow",
+			&client.ScheduleOpts{
+				// 👀 define the time to run the scheduled workflow, in UTC
+				TriggerAt: time.Now().UTC().Add(time.Minute),
+				Input: map[string]interface{}{
+					"message": "Hello, world!",
+				},
+				AdditionalMetadata: map[string]string{},
+			},
 		)
 
 		if err != nil {
 			panic(err)
 		}
+
+		fmt.Println(schedule.TriggerAt, schedule.WorkflowName)
 	}()
 
-	for {
-		select {
-		case <-interruptCtx.Done():
-			if err := cleanup(); err != nil {
-				panic(fmt.Errorf("error cleaning up: %w", err))
-			}
-			return
-		default:
-			time.Sleep(time.Second)
-		}
+	// ... wait for interrupt signal
+
+	<-interrupt
+
+	if err := cleanup(); err != nil {
+		panic(fmt.Errorf("error cleaning up: %w", err))
+	}
+
+	// ,
+}
+
+// !!
+
+func ListScheduledWorkflows() {
+	c, err := client.New()
+
+	if err != nil {
+		panic(err)
+	}
+
+	// ❓ List
+	schedules, err := c.Schedule().List(context.Background())
+	// !!
+
+	if err != nil {
+		panic(err)
+	}
+
+	for _, schedule := range *schedules.Rows {
+		fmt.Println(schedule.TriggerAt, schedule.WorkflowName)
+	}
+}
+
+func DeleteScheduledWorkflow(id string) {
+	c, err := client.New()
+
+	if err != nil {
+		panic(err)
+	}
+
+	// ❓ Delete
+	// 👀 id is the schedule's metadata id, can get it via schedule.Metadata.Id
+	err = c.Schedule().Delete(context.Background(), id)
+	// !!
+
+	if err != nil {
+		panic(err)
 	}
 }

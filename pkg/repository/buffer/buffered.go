@@ -51,7 +51,7 @@ const (
 
 type IngestBuf[T any, U any] struct {
 	name       string // a human readable name for the buffer
-	outputFunc func(ctx context.Context, items []T) ([]U, error)
+	outputFunc func(ctx context.Context, items []T) ([]*U, error)
 	sizeFunc   func(T) int
 
 	state       ingestBufState
@@ -90,15 +90,15 @@ type inputWrapper[T any, U any] struct {
 type IngestBufOpts[T any, U any] struct {
 	Name string `validate:"required"`
 	// MaxCapacity is the maximum number of items to hold in buffer before we initiate a flush
-	MaxCapacity        int                                               `validate:"required,gt=0"`
-	FlushPeriod        time.Duration                                     `validate:"required,gt=0"`
-	MaxDataSizeInQueue int                                               `validate:"required,gt=0"`
-	OutputFunc         func(ctx context.Context, items []T) ([]U, error) `validate:"required"`
-	SizeFunc           func(T) int                                       `validate:"required"`
-	L                  *zerolog.Logger                                   `validate:"required"`
-	MaxConcurrent      int                                               `validate:"omitempty,gt=0"`
-	WaitForFlush       time.Duration                                     `validate:"omitempty,gt=0"`
-	FlushStrategy      BuffStrategy                                      `validate:"required"`
+	MaxCapacity        int                                                `validate:"required,gt=0"`
+	FlushPeriod        time.Duration                                      `validate:"required,gt=0"`
+	MaxDataSizeInQueue int                                                `validate:"required,gt=0"`
+	OutputFunc         func(ctx context.Context, items []T) ([]*U, error) `validate:"required"`
+	SizeFunc           func(T) int                                        `validate:"required"`
+	L                  *zerolog.Logger                                    `validate:"required"`
+	MaxConcurrent      int                                                `validate:"omitempty,gt=0"`
+	WaitForFlush       time.Duration                                      `validate:"omitempty,gt=0"`
+	FlushStrategy      BuffStrategy                                       `validate:"required"`
 }
 
 // NewIngestBuffer creates a new buffer for any type T
@@ -291,7 +291,7 @@ func (b *IngestBuf[T, U]) sliceInternalArray() (items []*inputWrapper[T, U]) {
 }
 
 type FlushResponse[U any] struct {
-	Result U
+	Result *U
 	Err    error
 }
 
@@ -460,7 +460,28 @@ func (b *IngestBuf[T, U]) StartDebugLoop() {
 	}
 }
 
-func (b *IngestBuf[T, U]) BuffItem(item T) (chan *FlushResponse[U], error) {
+func (b *IngestBuf[T, U]) FireForget(item T) error {
+	_, err := b.buffItem(item)
+	return err
+}
+
+func (b *IngestBuf[T, U]) FireAndWait(ctx context.Context, item T) (*U, error) {
+	doneChan, err := b.buffItem(item)
+	if err != nil {
+		return nil, err
+	}
+
+	select {
+	case resp := <-doneChan:
+		return resp.Result, resp.Err
+	case <-b.ctx.Done():
+		return nil, fmt.Errorf("buffer is closed")
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
+func (b *IngestBuf[T, U]) buffItem(item T) (chan *FlushResponse[U], error) {
 
 	if b.state != started {
 		return nil, fmt.Errorf("buffer not ready, in state '%v'", b.state.String())

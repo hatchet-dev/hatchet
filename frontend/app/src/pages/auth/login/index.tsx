@@ -77,14 +77,21 @@ export default function Login() {
             <p className="text-left text-sm text-gray-700 dark:text-gray-300 w-full">
               By clicking continue, you agree to our{' '}
               <Link
-                to="/terms"
+                to="https://www.iubenda.com/terms-and-conditions/76608149"
                 className="underline underline-offset-4 hover:text-primary"
               >
                 Terms of Service
-              </Link>{' '}
-              and{' '}
+              </Link>
+              ,{' '}
               <Link
-                to="/privacy"
+                to="https://www.iubenda.com/privacy-policy/76608149/cookie-policy"
+                className="underline underline-offset-4 hover:text-primary"
+              >
+                Cookie Policy
+              </Link>
+              , and{' '}
+              <Link
+                to="https://www.iubenda.com/privacy-policy/76608149"
                 className="underline underline-offset-4 hover:text-primary"
               >
                 Privacy Policy

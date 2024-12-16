@@ -28,6 +28,8 @@ import (
 
 type Client interface {
 	Admin() AdminClient
+	Cron() CronClient
+	Schedule() ScheduleClient
 	Dispatcher() DispatcherClient
 	Event() EventClient
 	Subscribe() SubscribeClient
@@ -43,6 +45,8 @@ type clientImpl struct {
 	conn *grpc.ClientConn
 
 	admin      AdminClient
+	cron       CronClient
+	schedule   ScheduleClient
 	dispatcher DispatcherClient
 	event      EventClient
 	subscribe  SubscribeClient
@@ -76,6 +80,7 @@ type ClientOpts struct {
 	token       string
 	namespace   string
 	noGrpcRetry bool
+	sharedMeta  map[string]string
 
 	cloudRegisterID *string
 	runnableActions []string
@@ -125,6 +130,7 @@ func defaultClientOpts(token *string, cf *client.ClientConfigFile) *ClientOpts {
 		cloudRegisterID: clientConfig.CloudRegisterID,
 		runnableActions: clientConfig.RunnableActions,
 		noGrpcRetry:     clientConfig.NoGrpcRetry,
+		sharedMeta:      make(map[string]string),
 	}
 }
 
@@ -165,6 +171,18 @@ func WithNamespace(namespace string) ClientOpt {
 	}
 }
 
+func WithSharedMeta(meta map[string]string) ClientOpt {
+	return func(opts *ClientOpts) {
+		if opts.sharedMeta == nil {
+			opts.sharedMeta = make(map[string]string)
+		}
+
+		for k, v := range meta {
+			opts.sharedMeta[k] = v
+		}
+	}
+}
+
 func InitWorkflows() ClientOpt {
 	return func(opts *ClientOpts) {
 		opts.initWorkflows = true
@@ -182,11 +200,12 @@ func WithWorkflows(files []*types.Workflow) ClientOpt {
 }
 
 type sharedClientOpts struct {
-	tenantId  string
-	namespace string
-	l         *zerolog.Logger
-	v         validator.Validator
-	ctxLoader *contextLoader
+	tenantId   string
+	namespace  string
+	l          *zerolog.Logger
+	v          validator.Validator
+	ctxLoader  *contextLoader
+	sharedMeta map[string]string
 }
 
 // New creates a new client instance.
@@ -271,11 +290,12 @@ func newFromOpts(opts *ClientOpts) (Client, error) {
 	}
 
 	shared := &sharedClientOpts{
-		tenantId:  opts.tenantId,
-		namespace: opts.namespace,
-		l:         opts.l,
-		v:         opts.v,
-		ctxLoader: newContextLoader(opts.token),
+		tenantId:   opts.tenantId,
+		namespace:  opts.namespace,
+		l:          opts.l,
+		v:          opts.v,
+		ctxLoader:  newContextLoader(opts.token),
+		sharedMeta: opts.sharedMeta,
 	}
 
 	subscribe := newSubscribe(conn, shared)
@@ -301,6 +321,18 @@ func newFromOpts(opts *ClientOpts) (Client, error) {
 		return nil, fmt.Errorf("could not create cloud REST client: %w", err)
 	}
 
+	cronClient, err := NewCronClient(rest, opts.l, opts.v, opts.tenantId, opts.namespace)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not create cron client: %w", err)
+	}
+
+	scheduleClient, err := NewScheduleClient(rest, opts.l, opts.v, opts.tenantId, opts.namespace)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not create schedule client: %w", err)
+	}
+
 	// if init workflows is set, then we need to initialize the workflows
 	if opts.initWorkflows {
 		if err := initWorkflows(opts.filesLoader, admin); err != nil {
@@ -313,6 +345,8 @@ func newFromOpts(opts *ClientOpts) (Client, error) {
 		tenantId:        opts.tenantId,
 		l:               opts.l,
 		admin:           admin,
+		cron:            cronClient,
+		schedule:        scheduleClient,
 		dispatcher:      dispatcher,
 		subscribe:       subscribe,
 		event:           event,
@@ -327,6 +361,14 @@ func newFromOpts(opts *ClientOpts) (Client, error) {
 
 func (c *clientImpl) Admin() AdminClient {
 	return c.admin
+}
+
+func (c *clientImpl) Cron() CronClient {
+	return c.cron
+}
+
+func (c *clientImpl) Schedule() ScheduleClient {
+	return c.schedule
 }
 
 func (c *clientImpl) Dispatcher() DispatcherClient {

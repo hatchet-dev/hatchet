@@ -72,7 +72,11 @@ const RelativeDate: React.FC<RelativeDateProps> = ({
   return (
     <TooltipProvider>
       <Tooltip>
-        <TooltipTrigger>
+        <TooltipTrigger
+          onFocusCapture={(e) => {
+            e.stopPropagation();
+          }}
+        >
           {future && countdown ? (
             <>{countdown}</>
           ) : (

@@ -253,7 +253,7 @@ for await (const event of listener) {
 
 Often it is helpful to stream from multiple workflows (i.e. child workflows spawned from a parent) to achieve this, you can specify an [additional meta](/features/additional-metadata) key-value pair before running a workflow that can then be used to subscribe to all events from workflows that have the same key-value pair.
 
-Since additinoal metadata is propegated from parent to child workflows, this can be used to track all events from a specific workflow run.
+Since additinoal metadata is propagated from parent to child workflows, this can be used to track all events from a specific workflow run.
 
 Here's an example of how to create a listener:
 

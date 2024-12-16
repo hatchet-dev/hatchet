@@ -156,18 +156,6 @@ type QueuedStepRun struct {
 	DispatcherId string
 }
 
-type QueueStepRunsResult struct {
-	Queued             []QueuedStepRun
-	SchedulingTimedOut []string
-	Continue           bool
-}
-
-type ProcessStepRunUpdatesResult struct {
-	SucceededStepRuns     []*dbsqlc.GetStepRunForEngineRow
-	CompletedWorkflowRuns []*dbsqlc.ResolveWorkflowRunStatusRow
-	Continue              bool
-}
-
 type ProcessStepRunUpdatesResultV2 struct {
 	SucceededStepRuns     []*dbsqlc.GetStepRunForEngineRow
 	CompletedWorkflowRuns []*dbsqlc.ResolveWorkflowRunStatusRow
@@ -227,11 +215,7 @@ type StepRunEngineRepository interface {
 
 	GetQueueCounts(ctx context.Context, tenantId string) (map[string]int, error)
 
-	ProcessStepRunUpdates(ctx context.Context, qlp *zerolog.Logger, tenantId string) (ProcessStepRunUpdatesResult, error)
-
 	ProcessStepRunUpdatesV2(ctx context.Context, qlp *zerolog.Logger, tenantId string) (ProcessStepRunUpdatesResultV2, error)
-
-	QueueStepRuns(ctx context.Context, ql *zerolog.Logger, tenantId string) (QueueStepRunsResult, error)
 
 	CleanupQueueItems(ctx context.Context, tenantId string) error
 

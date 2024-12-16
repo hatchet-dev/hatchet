@@ -60,7 +60,7 @@ func (r *workflowAPIRepository) ListWorkflows(tenantId string, opts *repository.
 	}
 
 	queryParams := dbsqlc.ListWorkflowsParams{
-		TenantId: *pgTenantId,
+		Tenantid: *pgTenantId,
 	}
 
 	countParams := dbsqlc.CountWorkflowsParams{
@@ -73,6 +73,10 @@ func (r *workflowAPIRepository) ListWorkflows(tenantId string, opts *repository.
 
 	if opts.Limit != nil {
 		queryParams.Limit = *opts.Limit
+	}
+
+	if opts.Name != nil {
+		queryParams.Search = pgtype.Text{String: *opts.Name, Valid: true}
 	}
 
 	orderByField := "createdAt"
@@ -1086,6 +1090,10 @@ func (r *workflowEngineRepository) createWorkflowVersionTxs(ctx context.Context,
 				Workflowtriggersid: sqlcWorkflowTriggers.ID,
 				Crontrigger:        cronTrigger,
 				Input:              opts.CronInput,
+				Name: pgtype.Text{
+					String: "",
+					Valid:  true,
+				},
 			},
 		)
 
@@ -1111,10 +1119,6 @@ func (r *workflowEngineRepository) createWorkflowVersionTxs(ctx context.Context,
 	}
 
 	if oldWorkflowVersion != nil {
-
-		fmt.Println("oldWorkflowVersion", sqlchelpers.UUIDToStr(oldWorkflowVersion.WorkflowVersion.ID))
-		fmt.Println("sqlcWorkflowTriggers", sqlchelpers.UUIDToStr(sqlcWorkflowTriggers.ID))
-
 		// move existing api crons to the new workflow version
 		err = r.queries.MoveCronTriggerToNewWorkflowTriggers(ctx, tx, dbsqlc.MoveCronTriggerToNewWorkflowTriggersParams{
 			Oldworkflowversionid: oldWorkflowVersion.WorkflowVersion.ID,

@@ -115,7 +115,7 @@ type Action struct {
 }
 
 type WorkerActionListener interface {
-	Actions(ctx context.Context) (<-chan *Action, error)
+	Actions(ctx context.Context) (<-chan *Action, <-chan error, error)
 
 	Unregister() error
 }
@@ -274,8 +274,9 @@ func (d *dispatcherClientImpl) newActionListener(ctx context.Context, req *GetAc
 	}, &resp.WorkerId, nil
 }
 
-func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, error) {
+func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, <-chan error, error) {
 	ch := make(chan *Action)
+	errCh := make(chan error)
 
 	a.l.Debug().Msgf("Starting to listen for actions")
 
@@ -316,7 +317,9 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, error
 	}()
 
 	go func() {
-		for {
+		retries := 0
+
+		for retries < DefaultActionListenerRetryCount {
 			assignedAction, err := a.listenClient.Recv()
 
 			if err != nil {
@@ -325,15 +328,18 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, error
 					a.l.Debug().Msgf("Context cancelled, closing channel")
 
 					defer close(ch)
+					defer close(errCh)
+
 					err := a.listenClient.CloseSend()
 
 					if err != nil {
 						a.l.Error().Msgf("Failed to close send: %v", err)
-						panic(fmt.Errorf("failed to close send: %w", err))
 					}
 
 					return
 				}
+
+				retries++
 
 				// if this is an unimplemented error, default to v1
 				if a.listenerStrategy == ListenerStrategyV2 && status.Code(err) == codes.Unimplemented {
@@ -345,11 +351,15 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, error
 
 				if err != nil {
 					a.l.Error().Msgf("Failed to resubscribe: %v", err)
-					panic(fmt.Errorf("failed to resubscribe: %w", err))
+					errCh <- fmt.Errorf("failed to resubscribe: %w", err)
 				}
+
+				time.Sleep(DefaultActionListenerRetryInterval)
 
 				continue
 			}
+
+			retries = 0
 
 			var actionType ActionType
 
@@ -401,9 +411,20 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, error
 				ParentWorkflowRunId: assignedAction.ParentWorkflowRunId,
 			}
 		}
+
+		errCh <- fmt.Errorf("could not subscribe to the worker after %d retries", retries)
+
+		defer close(ch)
+		defer close(errCh)
+
+		err := a.listenClient.CloseSend()
+
+		if err != nil {
+			a.l.Error().Msgf("Failed to close send: %v", err)
+		}
 	}()
 
-	return ch, nil
+	return ch, errCh, nil
 }
 
 func (a *actionListenerImpl) retrySubscribe(ctx context.Context) error {

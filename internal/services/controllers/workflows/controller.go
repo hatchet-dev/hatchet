@@ -647,7 +647,7 @@ func (wc *WorkflowsControllerImpl) cancelGetGroupKeyRun(ctx context.Context, ten
 	})
 
 	if err != nil {
-		return fmt.Errorf("could not update step run: %w", err)
+		return fmt.Errorf("could not update get group key run: %w", err)
 	}
 
 	// cancel all existing jobs on the workflow run

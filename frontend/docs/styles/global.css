@@ -222,6 +222,10 @@ nav {
   background-color: rgba(40, 99, 159, 0.05) !important;
 }
 
+pre.shiki {
+  overflow-x: auto;
+}
+
 .dark .shiki {
   background-color: #1e293b !important;
 }
