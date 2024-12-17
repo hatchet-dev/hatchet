@@ -17,6 +17,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
+	"github.com/hatchet-dev/hatchet/internal/queueutils"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/defaults"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
@@ -59,7 +60,7 @@ func (w *workflowRunAPIRepository) ListWorkflowRuns(ctx context.Context, tenantI
 		return nil, err
 	}
 
-	return listWorkflowRuns(ctx, w.pool, w.queries, w.l, tenantId, opts)
+	return w.listWorkflowRuns(ctx, w.pool, tenantId, opts)
 }
 
 func (w *workflowRunAPIRepository) WorkflowRunMetricsCount(ctx context.Context, tenantId string, opts *repository.WorkflowRunsMetricsOpts) (*dbsqlc.WorkflowRunsMetricsCountRow, error) {
@@ -282,6 +283,19 @@ func (w *workflowRunEngineRepository) QueuePausedWorkflowRun(ctx context.Context
 	)
 }
 
+func (w *workflowRunEngineRepository) queuePausedWorkflowRunWithTx(ctx context.Context, tx dbsqlc.DBTX, tenantId, workflowId, workflowRunId string) error {
+	return insertPausedWorkflowRunQueueItem(
+		ctx,
+		tx,
+		w.queries,
+		sqlchelpers.UUIDFromStr(tenantId),
+		unpauseWorkflowRunQueueData{
+			WorkflowId:    workflowId,
+			WorkflowRunId: workflowRunId,
+		},
+	)
+}
+
 func (w *workflowRunEngineRepository) ProcessWorkflowRunUpdates(ctx context.Context, tenantId string) (bool, error) {
 	ctx, span := telemetry.NewSpan(ctx, "process-workflow-run-updates-database")
 	defer span.End()
@@ -397,12 +411,6 @@ type unpauseWorkflowRunQueueData struct {
 }
 
 func (w *workflowRunEngineRepository) ProcessUnpausedWorkflowRuns(ctx context.Context, tenantId string) ([]*dbsqlc.GetWorkflowRunRow, bool, error) {
-	ctx, span := telemetry.NewSpan(ctx, "process-workflow-run-updates-database")
-	defer span.End()
-
-	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
-
-	limit := 1000
 
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, w.l, 25000)
 
@@ -411,6 +419,29 @@ func (w *workflowRunEngineRepository) ProcessUnpausedWorkflowRuns(ctx context.Co
 	}
 
 	defer rollback()
+
+	toQueue, res, err := w.processUnpausedWorkflowRunsWithTx(ctx, tx, tenantId)
+
+	if err != nil {
+		return nil, false, err
+	}
+
+	err = commit(ctx)
+
+	if err != nil {
+		return nil, false, fmt.Errorf("could not commit transaction: %w", err)
+	}
+
+	return toQueue, res, nil
+
+}
+func (w *workflowRunEngineRepository) processUnpausedWorkflowRunsWithTx(ctx context.Context, tx dbsqlc.DBTX, tenantId string) ([]*dbsqlc.GetWorkflowRunRow, bool, error) {
+	ctx, span := telemetry.NewSpan(ctx, "process-workflow-run-updates-database")
+	defer span.End()
+
+	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
+
+	limit := 1000
 
 	// list queues
 	queueItems, err := w.queries.ListInternalQueueItems(ctx, tx, dbsqlc.ListInternalQueueItemsParams{
@@ -486,12 +517,6 @@ func (w *workflowRunEngineRepository) ProcessUnpausedWorkflowRuns(ctx context.Co
 
 	if err != nil {
 		return nil, false, fmt.Errorf("could not get workflow runs by id: %w", err)
-	}
-
-	err = commit(ctx)
-
-	if err != nil {
-		return nil, false, fmt.Errorf("could not commit transaction: %w", err)
 	}
 
 	// if we reached this point, it means that some of the workflows in the queue were unpaused, so
@@ -614,9 +639,8 @@ func (w *workflowRunEngineRepository) RegisterQueuedCallback(callback repository
 
 	w.queuedCallbacks = append(w.queuedCallbacks, callback)
 }
-
-func (w *workflowRunEngineRepository) GetWorkflowRunById(ctx context.Context, tenantId, id string) (*dbsqlc.GetWorkflowRunRow, error) {
-	runs, err := w.queries.GetWorkflowRun(ctx, w.pool, dbsqlc.GetWorkflowRunParams{
+func (w *workflowRunEngineRepository) getWorkflowRunByIdWithTx(ctx context.Context, tx dbsqlc.DBTX, tenantId, id string) (*dbsqlc.GetWorkflowRunRow, error) {
+	runs, err := w.queries.GetWorkflowRun(ctx, tx, dbsqlc.GetWorkflowRunParams{
 		Ids: []pgtype.UUID{
 			sqlchelpers.UUIDFromStr(id),
 		},
@@ -632,6 +656,10 @@ func (w *workflowRunEngineRepository) GetWorkflowRunById(ctx context.Context, te
 	}
 
 	return runs[0], nil
+}
+
+func (w *workflowRunEngineRepository) GetWorkflowRunById(ctx context.Context, tenantId, id string) (*dbsqlc.GetWorkflowRunRow, error) {
+	return w.getWorkflowRunByIdWithTx(ctx, w.pool, tenantId, id)
 }
 
 func (w *workflowRunEngineRepository) GetWorkflowRunByIds(ctx context.Context, tenantId string, ids []string) ([]*dbsqlc.GetWorkflowRunRow, error) {
@@ -695,11 +723,14 @@ func (w *workflowRunEngineRepository) GetWorkflowRunAdditionalMeta(ctx context.C
 }
 
 func (w *workflowRunEngineRepository) ListWorkflowRuns(ctx context.Context, tenantId string, opts *repository.ListWorkflowRunsOpts) (*repository.ListWorkflowRunsResult, error) {
-	if err := w.v.Validate(opts); err != nil {
+
+	res, err := w.listWorkflowRuns(ctx, w.pool, tenantId, opts)
+
+	if err != nil {
 		return nil, err
 	}
 
-	return listWorkflowRuns(ctx, w.pool, w.queries, w.l, tenantId, opts)
+	return res, nil
 }
 
 func (w *workflowRunEngineRepository) GetChildWorkflowRun(ctx context.Context, parentId, parentStepRunId string, childIndex int, childkey *string) (*dbsqlc.WorkflowRun, error) {
@@ -806,8 +837,59 @@ func (w *workflowRunEngineRepository) GetScheduledChildWorkflowRun(ctx context.C
 
 	return w.queries.GetScheduledChildWorkflowRun(ctx, w.pool, childParams)
 }
+func (w *workflowRunEngineRepository) PopWorkflowRunsRoundRobin(ctx context.Context, tenantId string, workflowId string, maxRuns int) ([]*dbsqlc.WorkflowRun, []*dbsqlc.GetStepRunForEngineRow, error) {
 
-func (w *workflowRunEngineRepository) PopWorkflowRunsRoundRobin(ctx context.Context, tenantId, workflowId string, maxRuns int) ([]*dbsqlc.WorkflowRun, error) {
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, w.l, 15000)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	defer rollback()
+	poppedWorkflowRuns, err := w.queries.PopWorkflowRunsRoundRobin(ctx, tx, dbsqlc.PopWorkflowRunsRoundRobinParams{
+		Maxruns:    int32(maxRuns), // nolint: gosec
+		Tenantid:   sqlchelpers.UUIDFromStr(tenantId),
+		Workflowid: sqlchelpers.UUIDFromStr(workflowId),
+	})
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not list queued workflow runs: %w", err)
+	}
+	var startableStepRuns []*dbsqlc.GetStepRunForEngineRow
+	for i := range poppedWorkflowRuns {
+		row := poppedWorkflowRuns[i]
+
+		workflowRunId := sqlchelpers.UUIDToStr(row.ID)
+
+		w.l.Info().Msgf("popped workflow run %s", workflowRunId)
+		workflowRun, err := w.getWorkflowRunByIdWithTx(ctx, tx, tenantId, workflowRunId)
+
+		if err != nil {
+			return nil, nil, fmt.Errorf("could not get workflow run: %w", err)
+		}
+
+		isPaused := workflowRun.IsPaused.Valid && workflowRun.IsPaused.Bool
+
+		if isPaused {
+			continue
+		}
+
+		ssr, err := w.queueWorkflowRunJobs(ctx, tx, workflowRun, isPaused)
+
+		if err != nil {
+			return nil, nil, fmt.Errorf("could not queue workflow run jobs: %w", err)
+		}
+
+		startableStepRuns = append(startableStepRuns, ssr...)
+	}
+
+	err = commit(ctx)
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not commit transaction: %w", err)
+	}
+	return poppedWorkflowRuns, startableStepRuns, nil
+}
+func (w *workflowRunEngineRepository) QueueWorkflowRunJobs(ctx context.Context, tenantId, workflowRunId string) ([]*dbsqlc.GetStepRunForEngineRow, error) {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, w.l, 15000)
 
 	if err != nil {
@@ -816,11 +898,93 @@ func (w *workflowRunEngineRepository) PopWorkflowRunsRoundRobin(ctx context.Cont
 
 	defer rollback()
 
-	res, err := w.queries.PopWorkflowRunsRoundRobin(ctx, tx, dbsqlc.PopWorkflowRunsRoundRobinParams{
-		Maxruns:    int32(maxRuns), // nolint: gosec
-		Tenantid:   sqlchelpers.UUIDFromStr(tenantId),
-		Workflowid: sqlchelpers.UUIDFromStr(workflowId),
+	workflowRun, err := w.getWorkflowRunByIdWithTx(ctx, tx, tenantId, workflowRunId)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not get workflow run: %w", err)
+	}
+
+	isPaused := workflowRun.IsPaused.Valid && workflowRun.IsPaused.Bool
+
+	if isPaused {
+		return nil, nil
+	}
+
+	ssr, err := w.queueWorkflowRunJobs(ctx, tx, workflowRun, isPaused)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not queue workflow run jobs: %w", err)
+	}
+
+	err = commit(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("could not commit transaction: %w", err)
+	}
+
+	return ssr, nil
+}
+
+func (w *workflowRunEngineRepository) queueWorkflowRunJobs(ctx context.Context, tx dbsqlc.DBTX, workflowRun *dbsqlc.GetWorkflowRunRow, isPaused bool) ([]*dbsqlc.GetStepRunForEngineRow, error) {
+	ctx, span := telemetry.NewSpan(ctx, "queue-workflow-run-jobs") // nolint:ineffassign
+	defer span.End()
+
+	tenantId := sqlchelpers.UUIDToStr(workflowRun.WorkflowRun.TenantId)
+	workflowRunId := sqlchelpers.UUIDToStr(workflowRun.WorkflowRun.ID)
+	workflowId := sqlchelpers.UUIDToStr(workflowRun.WorkflowVersion.WorkflowId)
+
+	if isPaused {
+		return nil, w.queuePausedWorkflowRunWithTx(ctx, tx, tenantId, workflowId, workflowRunId)
+	}
+
+	jobRuns, err := w.listJobRunsForWorkflowRunWithTx(ctx, tx, tenantId, workflowRunId)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not list job runs: %w", err)
+	}
+
+	jobRunIds := make([]string, 0)
+
+	for i := range jobRuns {
+		// don't start job runs that are onFailure
+		if workflowRun.WorkflowVersion.OnFailureJobId.Valid && jobRuns[i].JobId == workflowRun.WorkflowVersion.OnFailureJobId {
+			continue
+		}
+
+		jobRunIds = append(jobRunIds, sqlchelpers.UUIDToStr(jobRuns[i].ID))
+	}
+
+	return w.startManyJobRuns(ctx, tx, tenantId, jobRunIds)
+}
+
+func (w workflowRunEngineRepository) startManyJobRuns(ctx context.Context, tx dbsqlc.DBTX, tenantId string, jobRunIds []string) ([]*dbsqlc.GetStepRunForEngineRow, error) {
+	var startableStepRuns []*dbsqlc.GetStepRunForEngineRow
+
+	err := queueutils.BatchConcurrent(50, jobRunIds, func(group []string) error {
+		for i := range group {
+			ssr, err := w.startJobRun(ctx, tx, tenantId, group[i])
+
+			if err != nil {
+				return err
+			}
+			startableStepRuns = append(startableStepRuns, ssr...)
+		}
+
+		return nil
 	})
+
+	return startableStepRuns, err
+}
+
+func (j *jobRunEngineRepository) StartJobRun(ctx context.Context, tenantId, jobRunId string) ([]*dbsqlc.GetStepRunForEngineRow, error) {
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, j.pool, j.l, 15000)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer rollback()
+
+	startedJobRuns, err := j.startJobRun(ctx, tx, tenantId, jobRunId)
 
 	if err != nil {
 		return nil, err
@@ -829,10 +993,31 @@ func (w *workflowRunEngineRepository) PopWorkflowRunsRoundRobin(ctx context.Cont
 	err = commit(ctx)
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("could not commit transaction: %w", err)
 	}
 
-	return res, nil
+	return startedJobRuns, nil
+}
+
+func (w *sharedRepository) startJobRun(ctx context.Context, tx dbsqlc.DBTX, tenantId, jobRunId string) ([]*dbsqlc.GetStepRunForEngineRow, error) {
+	ctx, span := telemetry.NewSpan(ctx, "handle-start-job-run")
+	defer span.End()
+
+	err := w.setJobRunStatusRunningWithTx(ctx, tx, tenantId, jobRunId)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not set job run status to running: %w", err)
+	}
+
+	// list the step runs which are startable
+	startableStepRuns, err := w.listInitialStepRunsForJobRunWithTx(ctx, tx, tenantId, jobRunId)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not list startable step runs: %w", err)
+	}
+
+	return startableStepRuns, nil
+
 }
 
 func (w *workflowRunAPIRepository) BulkCreateWorkflowRuns(ctx context.Context, opts []*repository.CreateWorkflowRunOpts) ([]*dbsqlc.WorkflowRun, error) {
@@ -1151,7 +1336,7 @@ func (s *workflowRunEngineRepository) UpdateWorkflowRunFromGroupKeyEval(ctx cont
 	return nil
 }
 
-func listWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbsqlc.Queries, l *zerolog.Logger, tenantId string, opts *repository.ListWorkflowRunsOpts) (*repository.ListWorkflowRunsResult, error) {
+func (s *sharedRepository) listWorkflowRuns(ctx context.Context, tx dbsqlc.DBTX, tenantId string, opts *repository.ListWorkflowRunsOpts) (*repository.ListWorkflowRunsResult, error) {
 	res := &repository.ListWorkflowRunsResult{}
 
 	pgTenantId := &pgtype.UUID{}
@@ -1294,29 +1479,15 @@ func listWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbsqlc.Q
 	queryParams.Orderby = orderByField + " " + orderByDirection
 	countParams.Orderby = orderByField + " " + orderByDirection
 
-	tx, err := pool.Begin(ctx)
+	workflowRuns, err := s.queries.ListWorkflowRuns(ctx, tx, queryParams)
 
 	if err != nil {
 		return nil, err
 	}
 
-	defer sqlchelpers.DeferRollback(ctx, l, tx.Rollback)
-
-	workflowRuns, err := queries.ListWorkflowRuns(ctx, tx, queryParams)
-
-	if err != nil {
-		return nil, err
-	}
-
-	count, err := queries.CountWorkflowRuns(ctx, tx, countParams)
+	count, err := s.queries.CountWorkflowRuns(ctx, tx, countParams)
 
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return nil, err
-	}
-
-	err = tx.Commit(ctx)
-
-	if err != nil {
 		return nil, err
 	}
 

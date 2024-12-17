@@ -18,6 +18,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/ingestors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/logs"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/metadata"
+	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/monitoring"
 	rate_limits "github.com/hatchet-dev/hatchet/api/v1/server/handlers/rate-limits"
 	slackapp "github.com/hatchet-dev/hatchet/api/v1/server/handlers/slack-app"
 	stepruns "github.com/hatchet-dev/hatchet/api/v1/server/handlers/step-runs"
@@ -49,6 +50,7 @@ type apiService struct {
 	*slackapp.SlackAppService
 	*webhookworker.WebhookWorkersService
 	*workflowruns.WorkflowRunsService
+	*monitoring.MonitoringService
 }
 
 func newAPIService(config *server.ServerConfig) *apiService {
@@ -67,6 +69,7 @@ func newAPIService(config *server.ServerConfig) *apiService {
 		IngestorsService:      ingestors.NewIngestorsService(config),
 		SlackAppService:       slackapp.NewSlackAppService(config),
 		WebhookWorkersService: webhookworker.NewWebhookWorkersService(config),
+		MonitoringService:     monitoring.NewMonitoringService(config),
 	}
 }
 

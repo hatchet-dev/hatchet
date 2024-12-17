@@ -27,6 +27,8 @@ type sharedRepository struct {
 	bulkWorkflowRunBuffer *buffer.TenantBufferManager[*repository.CreateWorkflowRunOpts, dbsqlc.WorkflowRun]
 	bulkAckMQBuffer       *buffer.TenantBufferManager[int64, int]
 	bulkAddMQBuffer       *buffer.TenantBufferManager[addMessage, int]
+
+	wrRunningCallbacks []repository.TenantScopedCallback[pgtype.UUID]
 }
 
 func newSharedRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, cf *server.ConfigFileRuntime) (*sharedRepository, func() error, error) {

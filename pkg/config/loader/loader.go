@@ -61,7 +61,6 @@ func LoadServerConfigFile(files ...[]byte) (*server.ServerConfigFile, error) {
 	f := server.BindAllEnv
 
 	_, err := loaderutils.LoadConfigFromViper(f, configFile, files...)
-
 	return configFile, err
 }
 
@@ -483,6 +482,10 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 	// edge case to support backwards-compatibility with the services array in the config file
 	if cf.ServicesString != "" {
 		services = strings.Split(cf.ServicesString, " ")
+	}
+
+	if cf.Runtime.Monitoring.TLSRootCAFile == "" {
+		cf.Runtime.Monitoring.TLSRootCAFile = cf.TLS.TLSRootCAFile
 	}
 
 	return cleanup, &server.ServerConfig{

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/go-co-op/gocron/v2"
+	"github.com/hashicorp/go-multierror"
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
 
@@ -647,17 +648,44 @@ func (wc *WorkflowsControllerImpl) cancelGetGroupKeyRun(ctx context.Context, ten
 	if err != nil {
 		return fmt.Errorf("could not update get group key run: %w", err)
 	}
+	return wc.cancelWorkflowRunJobs(ctx, tenantId, sqlchelpers.UUIDToStr(groupKeyRun.WorkflowRunId), reason)
+}
 
-	// cancel all existing jobs on the workflow run
-	workflowRunId := sqlchelpers.UUIDToStr(groupKeyRun.WorkflowRunId)
+func (wc *WorkflowsControllerImpl) cancelWorkflowRunJobs(ctx context.Context, tenantId string, workflowRunId string, reason string) error {
 
 	workflowRun, err := wc.repo.WorkflowRun().GetWorkflowRunById(ctx, tenantId, workflowRunId)
-
 	if err != nil {
-		return fmt.Errorf("could not get workflow run: %w", err)
+		return fmt.Errorf("could not get workflow run (%s) : %w", workflowRunId, err)
 	}
 
-	return wc.cancelWorkflowRunJobs(ctx, workflowRun, "")
+	jobRuns, err := wc.repo.JobRun().GetJobRunsByWorkflowRunId(ctx, tenantId, workflowRunId)
+
+	if err != nil {
+		return fmt.Errorf("could not cancel workflow run jobs: %w", err)
+	}
+	var returnErr error
+
+	for i := range jobRuns {
+		// don't cancel job runs that are onFailure
+
+		if workflowRun.WorkflowVersion.OnFailureJobId.Valid && jobRuns[i].JobId == workflowRun.WorkflowVersion.OnFailureJobId {
+			continue
+		}
+
+		jobRunId := sqlchelpers.UUIDToStr(jobRuns[i].ID)
+
+		err := wc.mq.AddMessage(
+			context.Background(),
+			msgqueue.JOB_PROCESSING_QUEUE,
+			tasktypes.JobRunCancelledToTask(tenantId, jobRunId, &reason),
+		)
+
+		if err != nil {
+			returnErr = multierror.Append(err, fmt.Errorf("could not add job run to task queue: %w", err))
+		}
+	}
+
+	return returnErr
 }
 
 func (wc *WorkflowsControllerImpl) runTenantProcessWorkflowRunEvents(ctx context.Context) func() {
@@ -728,7 +756,6 @@ func (wc *WorkflowsControllerImpl) unpauseWorkflowRuns(ctx context.Context, tena
 	if err != nil {
 		return false, fmt.Errorf("could not process unpaused workflow runs: %w", err)
 	}
-
 	if toQueue != nil {
 		errGroup := new(errgroup.Group)
 
@@ -739,77 +766,33 @@ func (wc *WorkflowsControllerImpl) unpauseWorkflowRuns(ctx context.Context, tena
 				workflowRunId := sqlchelpers.UUIDToStr(row.WorkflowRun.ID)
 
 				wc.l.Info().Msgf("popped workflow run %s", workflowRunId)
-				workflowRun, err := wc.repo.WorkflowRun().GetWorkflowRunById(ctx, tenantId, workflowRunId)
+
+				ssr, err := wc.repo.WorkflowRun().QueueWorkflowRunJobs(ctx, tenantId, workflowRunId)
 
 				if err != nil {
-					return fmt.Errorf("could not get workflow run: %w", err)
+					return fmt.Errorf("could not queue workflow run jobs: %w", err)
 				}
 
-				isPaused := workflowRun.IsPaused.Valid && workflowRun.IsPaused.Bool
+				for _, stepRunCp := range ssr {
+					err = wc.mq.AddMessage(
+						ctx,
+						msgqueue.JOB_PROCESSING_QUEUE,
+						tasktypes.StepRunQueuedToTask(stepRunCp),
+					)
+					if err != nil {
+						return fmt.Errorf("could not queue step run: %w", err)
+					}
+				}
 
-				return wc.queueWorkflowRunJobs(ctx, workflowRun, isPaused)
+				return nil
 			})
 		}
 
 		if err := errGroup.Wait(); err != nil {
-			return false, fmt.Errorf("could not queue workflow runs: %w", err)
+			return false, fmt.Errorf("unpauseWorkflows could not start step runs: %w", err)
 		}
+
 	}
 
 	return res, nil
-}
-
-func (wc *WorkflowsControllerImpl) startManyJobRuns(ctx context.Context, tenantId string, jobRunIds []string) error {
-	return queueutils.BatchConcurrent(50, jobRunIds, func(group []string) error {
-		for i := range group {
-			err := wc.startJobRun(ctx, tenantId, group[i])
-
-			if err != nil {
-				return err
-			}
-		}
-
-		return nil
-	})
-}
-
-func (wc *WorkflowsControllerImpl) startJobRun(ctx context.Context, tenantId, jobRunId string) error {
-	ctx, span := telemetry.NewSpan(ctx, "handle-start-job-run")
-	defer span.End()
-
-	err := wc.repo.JobRun().SetJobRunStatusRunning(ctx, tenantId, jobRunId)
-
-	if err != nil {
-		return fmt.Errorf("could not set job run status to running: %w", err)
-	}
-
-	// list the step runs which are startable
-	startableStepRuns, err := wc.repo.StepRun().ListInitialStepRunsForJobRun(ctx, tenantId, jobRunId)
-
-	if err != nil {
-		return fmt.Errorf("could not list startable step runs: %w", err)
-	}
-
-	g := new(errgroup.Group)
-
-	for _, stepRun := range startableStepRuns {
-		stepRunCp := stepRun
-
-		g.Go(func() error {
-			return wc.mq.AddMessage(
-				ctx,
-				msgqueue.JOB_PROCESSING_QUEUE,
-				tasktypes.StepRunQueuedToTask(stepRunCp),
-			)
-		})
-	}
-
-	err = g.Wait()
-
-	if err != nil {
-		wc.l.Err(err).Msg("could not handle start job run")
-		return err
-	}
-
-	return nil
 }

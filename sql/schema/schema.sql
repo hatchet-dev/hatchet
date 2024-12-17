@@ -319,6 +319,9 @@ CREATE TABLE "LogLine" (
     CONSTRAINT "LogLine_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateIndex
+CREATE INDEX "LogLine_tenantId_stepRunId_idx" ON "LogLine" ("tenantId", "stepRunId" ASC);
+
 -- CreateTable
 CREATE TABLE "Queue" (
     "id" BIGSERIAL NOT NULL,

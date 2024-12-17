@@ -2115,4 +2115,19 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       format: 'json',
       ...params,
     });
+  /**
+   * @description Triggers a workflow to check the status of the instance
+   *
+   * @name MonitoringPostRunProbe
+   * @summary Detailed Health Probe For the Instance
+   * @request POST:/api/v1/monitoring/{tenant}/probe
+   * @secure
+   */
+  monitoringPostRunProbe = (tenant: string, params: RequestParams = {}) =>
+    this.request<void, APIErrors>({
+      path: `/api/v1/monitoring/${tenant}/probe`,
+      method: 'POST',
+      secure: true,
+      ...params,
+    });
 }

@@ -178,3 +178,5 @@ paths:
     $ref: "./paths/webhook-worker/webhook-worker.yaml#/webhookworkerRequests"
   /api/v1/tenants/{tenant}/workflow-runs/{workflow-run}/input:
     $ref: "./paths/workflow-run/workflow-run.yaml#/getWorkflowRunInput"
+  /api/v1/monitoring/{tenant}/probe:
+    $ref: "./paths/monitoring/monitoring.yaml#/probe"

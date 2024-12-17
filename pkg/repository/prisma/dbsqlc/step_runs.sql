@@ -311,7 +311,7 @@ WHERE
 
 -- name: ListStepRuns :many
 SELECT
-    DISTINCT ON ("StepRun"."id")
+    DISTINCT ON ("StepRun"."order","StepRun"."id")
     "StepRun"."id"
 FROM
     "StepRun"
@@ -339,7 +339,9 @@ WHERE
     AND (
         sqlc.narg('tickerId')::uuid IS NULL OR
         "StepRun"."tickerId" = sqlc.narg('tickerId')::uuid
-    );
+    )
+
+ORDER BY "StepRun"."order" ASC    ;
 
 -- name: ListStepRunsToCancel :many
 SELECT
