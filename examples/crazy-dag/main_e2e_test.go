@@ -5,7 +5,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"os"
 	"testing"
 	"time"
 
@@ -13,7 +12,6 @@ import (
 )
 
 func TestCrazyDAG(t *testing.T) {
-	os.Setenv("HATCHET_CLIENT_NAMESPACE", randomNamespace())
 
 	testutils.Prepare(t)
 
@@ -40,19 +38,20 @@ outer:
 
 		case <-results:
 			count++
-			if count == 90 {
-				// 90 is the number of steps in the DAG
+			if count == 40 {
+				// 40 is the number of steps in the DAG
 				break outer
 			}
 
 		// timeout is longer because of how long it takes things to start up
 		case <-time.After(120 * time.Second):
-			t.Fatalf("timeout waiting for DAG to complete finished %d of %d steps", count, 90)
+			t.Fatalf("timeout waiting for DAG to complete finished %d of %d steps", count, 40)
 		}
 	}
 
-	if count != 90 {
-		t.Fatalf("expected 90 steps to complete, got %d", count)
+	if count != 40 {
+		t.Fatalf("expected 40 steps to complete, got %d", count)
+
 	}
 
 	// give the worker time to handle the last event

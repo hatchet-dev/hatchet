@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
-	"os"
 	"time"
 
 	"github.com/joho/godotenv"
 
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
+	clientconfig "github.com/hatchet-dev/hatchet/pkg/config/client"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 )
 
@@ -27,7 +27,6 @@ type stepOutput struct {
 }
 
 func main() {
-	os.Setenv("HATCHET_CLIENT_NAMESPACE", randomNamespace())
 
 	err := godotenv.Load()
 	if err != nil {
@@ -47,10 +46,18 @@ func main() {
 	if err := run(ctx, results); err != nil {
 		panic(err)
 	}
+
+	fmt.Println("DAG complete")
 }
 
 func run(ctx context.Context, results chan<- *stepOutput) error {
-	c, err := client.New()
+	cf := clientconfig.ClientConfigFile{
+
+		Namespace: randomNamespace(),
+	}
+	c, err := client.NewFromConfigFile(
+		&cf,
+	)
 
 	if err != nil {
 		return fmt.Errorf("error creating client: %w", err)
@@ -83,7 +90,9 @@ func run(ctx context.Context, results chan<- *stepOutput) error {
 			if err != nil {
 				panic(err)
 			}
-			time.Sleep(generateRandomSleep())
+			sleepTime := generateRandomSleep()
+			log.Printf("step %s sleeping for %s", name, sleepTime)
+			time.Sleep(sleepTime)
 			output := stepOutput{
 				Message:   "Completed step " + name,
 				GiantData: input.Data["data"],
@@ -121,33 +130,27 @@ func run(ctx context.Context, results chan<- *stepOutput) error {
 		return fmt.Errorf("error starting worker: %w", err)
 	}
 
-	go func() {
-		for i := 0; i < 10; i++ {
-			data := giantData()
+	data := giantData()
 
-			testEvent := userCreateEvent{
-				Username: "echo-test",
-				UserID:   "1234",
-				Data: map[string]string{
-					"test": "test",
-					"data": data,
-				},
-			}
+	testEvent := userCreateEvent{
+		Username: "echo-test",
+		UserID:   "1234",
+		Data: map[string]string{
+			"test": "test",
+			"data": data,
+		},
+	}
 
-			// push an event
-			err = c.Event().Push(
-				context.Background(),
-				"crazy-dag",
-				testEvent,
-			)
+	// push an event
+	err = c.Event().Push(
+		context.Background(),
+		"crazy-dag",
+		testEvent,
+	)
 
-			if err != nil {
-				log.Printf("error pushing event: %s", err.Error())
-			}
-
-			time.Sleep(5 * time.Millisecond)
-		}
-	}()
+	if err != nil {
+		return fmt.Errorf("error pushing event: %w", err)
+	}
 
 	<-interruptCtx.Done()
 	return cleanup()
