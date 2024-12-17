@@ -317,7 +317,7 @@ func (wc *WorkflowsControllerImpl) handleTask(ctx context.Context, task *msgqueu
 	case "replay-workflow-run":
 		return wc.handleReplayWorkflowRun(ctx, task)
 	case "workflow-run-queued":
-		// we only do this now for certain workflows
+		// we only do this now for workflows that cannot be short circuited
 		return wc.handleWorkflowRunQueued(ctx, task)
 
 	case "get-group-key-run-started":

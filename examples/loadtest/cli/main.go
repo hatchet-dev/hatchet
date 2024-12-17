@@ -1,10 +1,7 @@
 package main
 
 import (
-	"fmt"
 	"log"
-	"math/rand"
-	"os"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -25,7 +22,6 @@ func main() {
 	var delay time.Duration
 	var workerDelay time.Duration
 	var logLevel string
-	os.Setenv("HATCHET_CLIENT_NAMESPACE", fmt.Sprintf("loadtest-ns-%d", rand.Intn(100000))) //nolint
 	var loadtest = &cobra.Command{
 		Use: "loadtest",
 		Run: func(cmd *cobra.Command, args []string) {
