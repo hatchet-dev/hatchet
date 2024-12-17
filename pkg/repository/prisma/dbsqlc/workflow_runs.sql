@@ -96,7 +96,7 @@ FROM
 -- name: WorkflowRunsMetricsCount :one
 SELECT
     COUNT(CASE WHEN runs."status" = 'PENDING' THEN 1 END) AS "PENDING",
-    COUNT(CASE WHEN runs."status" = 'RUNNING' THEN 1 END) AS "RUNNING",
+    COUNT(CASE WHEN runs."status" = 'RUNNING' OR runs."status" = 'CANCELLING' THEN 1 END) AS "RUNNING",
     COUNT(CASE WHEN runs."status" = 'SUCCEEDED' THEN 1 END) AS "SUCCEEDED",
     COUNT(CASE WHEN runs."status" = 'FAILED' THEN 1 END) AS "FAILED",
     COUNT(CASE WHEN runs."status" = 'QUEUED' THEN 1 END) AS "QUEUED"
@@ -277,7 +277,7 @@ WHERE
     workflowVersion."workflowId" = @workflowId::uuid AND
     wr."concurrencyGroupId" IN (SELECT "concurrencyGroupId" FROM queued_wrs)
 ORDER BY
-    wr."createdAt" ASC
+    wr."createdAt" ASC, wr."insertOrder" ASC
 FOR UPDATE;
 
 -- name: MarkWorkflowRunsCancelling :exec

@@ -536,11 +536,7 @@ func (wc *WorkflowsControllerImpl) runPollActiveQueuesTenant(ctx context.Context
 		errGroup.Go(func() error {
 			workflowVersionId := sqlchelpers.UUIDToStr(toQueue.WorkflowVersionId)
 			tenantId := sqlchelpers.UUIDToStr(toQueue.TenantId)
-			var key *string
-			if toQueue.ConcurrencyGroupId.Valid {
-				key = &toQueue.ConcurrencyGroupId.String
-			}
-			err := wc.bumpQueue(ctx, tenantId, workflowVersionId, key)
+			err := wc.bumpQueue(ctx, tenantId, workflowVersionId)
 			return err
 		})
 	}
@@ -548,7 +544,7 @@ func (wc *WorkflowsControllerImpl) runPollActiveQueuesTenant(ctx context.Context
 	return false, errGroup.Wait()
 }
 
-func (wc *WorkflowsControllerImpl) bumpQueue(ctx context.Context, tenantId string, workflowVersionId string, groupKey *string) error {
+func (wc *WorkflowsControllerImpl) bumpQueue(ctx context.Context, tenantId string, workflowVersionId string) error {
 	workflowVersion, err := wc.repo.Workflow().GetWorkflowVersionById(ctx, tenantId, workflowVersionId)
 
 	if err != nil {
@@ -558,12 +554,11 @@ func (wc *WorkflowsControllerImpl) bumpQueue(ctx context.Context, tenantId strin
 	if workflowVersion.ConcurrencyLimitStrategy.Valid {
 		switch workflowVersion.ConcurrencyLimitStrategy.ConcurrencyLimitStrategy {
 		case dbsqlc.ConcurrencyLimitStrategyCANCELINPROGRESS:
-			if groupKey == nil {
-				return fmt.Errorf("group key is required for cancel in progress strategy")
-			}
 			err = wc.queueByCancelInProgress(ctx, tenantId, workflowVersion)
 		case dbsqlc.ConcurrencyLimitStrategyGROUPROUNDROBIN:
 			err = wc.queueByGroupRoundRobin(ctx, tenantId, workflowVersion)
+		case dbsqlc.ConcurrencyLimitStrategyCANCELNEWEST:
+			err = wc.queueByCancelNewest(ctx, tenantId, workflowVersion)
 		default:
 			return fmt.Errorf("unimplemented concurrency limit strategy: %s", workflowVersion.ConcurrencyLimitStrategy.ConcurrencyLimitStrategy)
 		}

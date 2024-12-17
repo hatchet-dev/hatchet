@@ -518,6 +518,8 @@ type WorkflowRunEngineRepository interface {
 
 	PopWorkflowRunsCancelInProgress(ctx context.Context, tenantId, workflowId string, maxRuns int) (toCancel []*dbsqlc.WorkflowRun, toStart []*dbsqlc.WorkflowRun, err error)
 
+	PopWorkflowRunsCancelNewest(ctx context.Context, tenantId, workflowId string, maxRuns int) (toCancel []*dbsqlc.WorkflowRun, toStart []*dbsqlc.WorkflowRun, err error)
+
 	PopWorkflowRunsRoundRobin(ctx context.Context, tenantId, workflowId string, maxRuns int) ([]*dbsqlc.WorkflowRun, []*dbsqlc.GetStepRunForEngineRow, error)
 
 	// CreateNewWorkflowRun creates a new workflow run for a workflow version.

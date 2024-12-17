@@ -668,6 +668,71 @@ func (wc *WorkflowsControllerImpl) queueByCancelInProgress(ctx context.Context, 
 	return nil
 }
 
+func (wc *WorkflowsControllerImpl) queueByCancelNewest(ctx context.Context, tenantId string, workflowVersion *dbsqlc.GetWorkflowVersionForEngineRow) error {
+	ctx, span := telemetry.NewSpan(ctx, "queue-by-cancel-newest")
+	defer span.End()
+
+	workflowId := sqlchelpers.UUIDToStr(workflowVersion.WorkflowVersion.WorkflowId)
+	maxRuns := int(workflowVersion.ConcurrencyMaxRuns.Int32)
+
+	mutex := wc.getLock(fmt.Sprintf("%s:%s", tenantId, workflowId))
+
+	if ok := mutex.TryLock(); !ok {
+		return nil
+	}
+
+	defer mutex.Unlock()
+
+	toCancel, toStart, err := wc.repo.WorkflowRun().PopWorkflowRunsCancelNewest(ctx, tenantId, workflowId, maxRuns)
+
+	if err != nil {
+		return fmt.Errorf("could not pop workflow runs: %w", err)
+	}
+
+	// Cancel the oldest running workflows
+	for i := range toCancel {
+		row := toCancel[i]
+		workflowRunId := sqlchelpers.UUIDToStr(row.ID)
+
+		err = wc.cancelWorkflowRun(ctx, tenantId, workflowRunId)
+
+		if err != nil {
+			return fmt.Errorf("could not cancel workflow run: %w", err)
+		}
+	}
+
+	for i := range toStart {
+		row := toStart[i]
+		workflowRunId := sqlchelpers.UUIDToStr(row.ID)
+		queuedStepRuns, err := wc.repo.WorkflowRun().QueueWorkflowRunJobs(ctx, tenantId, workflowRunId)
+
+		if err != nil {
+			return fmt.Errorf("could not queue workflow run jobs: %w", err)
+		}
+
+		g := new(errgroup.Group)
+		for _, stepRun := range queuedStepRuns {
+			stepRunCp := stepRun
+
+			g.Go(func() error {
+				return wc.mq.AddMessage(
+					ctx,
+					msgqueue.JOB_PROCESSING_QUEUE,
+					tasktypes.StepRunQueuedToTask(stepRunCp),
+				)
+			})
+		}
+
+		err = g.Wait()
+
+		if err != nil {
+			return fmt.Errorf("could not start workflow run: %w", err)
+		}
+	}
+
+	return nil
+}
+
 func (wc *WorkflowsControllerImpl) queueByGroupRoundRobin(ctx context.Context, tenantId string, workflowVersion *dbsqlc.GetWorkflowVersionForEngineRow) error {
 	ctx, span := telemetry.NewSpan(ctx, "queue-by-group-round-robin")
 	defer span.End()
@@ -709,9 +774,7 @@ func (wc *WorkflowsControllerImpl) queueByGroupRoundRobin(ctx context.Context, t
 
 func (wc *WorkflowsControllerImpl) cancelWorkflowRun(ctx context.Context, tenantId, workflowRunId string) error {
 	// cancel all running step runs
-	runningStatus := dbsqlc.StepRunStatusRUNNING
 	stepRuns, err := wc.repo.StepRun().ListStepRuns(ctx, tenantId, &repository.ListStepRunsOpts{
-		Status: &runningStatus,
 		WorkflowRunIds: []string{
 			workflowRunId,
 		},
