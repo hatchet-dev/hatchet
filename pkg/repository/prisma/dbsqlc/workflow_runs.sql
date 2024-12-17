@@ -800,7 +800,7 @@ SELECT
     @tenantId::uuid,
     @workflowRunId::uuid,
     "id",
-    @status::"JobRunStatus" -- default status
+    @status::"JobRunStatus"
 FROM
     "Job"
 WHERE

@@ -1998,7 +1998,7 @@ func (s *sharedRepository) setDataForStepRun(ctx context.Context, tenantId strin
 		}
 
 	}
-	cb, err := s.QueueStepRunWithTx(ctx, tx, tenantId, sqlchelpers.UUIDToStr(data.SRID), queueOpts)
+	cb, err := s.queueStepRunWithTx(ctx, tx, tenantId, sqlchelpers.UUIDToStr(data.SRID), queueOpts)
 	if err != nil {
 		return nil, fmt.Errorf("could not queue step run: %w", err)
 	}

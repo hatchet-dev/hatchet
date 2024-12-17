@@ -1715,7 +1715,7 @@ func (s *sharedRepository) doCachedUpsertOfQueue(ctx context.Context, tenantId s
 
 func (s *sharedRepository) QueueStepRun(ctx context.Context, tenantId, stepRunId string, opts *repository.QueueStepRunOpts) (*dbsqlc.GetStepRunForEngineRow, error) {
 
-	cb, err := s.QueueStepRunWithTx(ctx, s.pool, tenantId, stepRunId, opts)
+	cb, err := s.queueStepRunWithTx(ctx, s.pool, tenantId, stepRunId, opts)
 
 	if err != nil {
 		return nil, err
@@ -1725,7 +1725,7 @@ func (s *sharedRepository) QueueStepRun(ctx context.Context, tenantId, stepRunId
 
 }
 
-func (s *sharedRepository) QueueStepRunWithTx(ctx context.Context, tx dbsqlc.DBTX, tenantId, stepRunId string, opts *repository.QueueStepRunOpts) (func() (*dbsqlc.GetStepRunForEngineRow, error), error) {
+func (s *sharedRepository) queueStepRunWithTx(ctx context.Context, tx dbsqlc.DBTX, tenantId, stepRunId string, opts *repository.QueueStepRunOpts) (func() (*dbsqlc.GetStepRunForEngineRow, error), error) {
 	ctx, span := telemetry.NewSpan(ctx, "queue-step-run-database")
 	defer span.End()
 
