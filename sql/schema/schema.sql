@@ -319,6 +319,9 @@ CREATE TABLE "LogLine" (
     CONSTRAINT "LogLine_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateIndex
+CREATE INDEX "LogLine_tenantId_stepRunId_idx" ON "LogLine" ("tenantId", "stepRunId" ASC);
+
 -- CreateTable
 CREATE TABLE "Queue" (
     "id" BIGSERIAL NOT NULL,
@@ -841,7 +844,7 @@ CREATE TABLE "Worker" (
 -- CreateTable
 CREATE TABLE "WorkerAssignEvent" (
     "id" BIGSERIAL NOT NULL,
-    "workerId" UUID NOT NULL,
+    "workerId" UUID,
     "assignedStepRuns" JSONB,
 
     CONSTRAINT "WorkerAssignEvent_pkey" PRIMARY KEY ("id")
@@ -1371,6 +1374,10 @@ CREATE UNIQUE INDEX "Worker_id_key" ON "Worker" ("id" ASC);
 CREATE UNIQUE INDEX "Worker_webhookId_key" ON "Worker" ("webhookId" ASC);
 
 -- CreateIndex
+
+CREATE INDEX "Worker_tenantId_lastHeartbeatAt_idx" ON "Worker" ("tenantId", "lastHeartbeatAt");
+
+-- CreateIndex
 CREATE INDEX "WorkerAssignEvent_workerId_id_idx" ON "WorkerAssignEvent" ("workerId" ASC, "id" ASC);
 
 -- CreateIndex
@@ -1637,7 +1644,7 @@ ALTER TABLE "Worker" ADD CONSTRAINT "Worker_dispatcherId_fkey" FOREIGN KEY ("dis
 ALTER TABLE "Worker" ADD CONSTRAINT "Worker_webhookId_fkey" FOREIGN KEY ("webhookId") REFERENCES "WebhookWorker" ("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "WorkerAssignEvent" ADD CONSTRAINT "WorkerAssignEvent_workerId_fkey" FOREIGN KEY ("workerId") REFERENCES "Worker" ("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "WorkerAssignEvent" ADD CONSTRAINT "WorkerAssignEvent_workerId_fkey" FOREIGN KEY ("workerId") REFERENCES "Worker" ("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "WorkerLabel" ADD CONSTRAINT "WorkerLabel_workerId_fkey" FOREIGN KEY ("workerId") REFERENCES "Worker" ("id") ON DELETE CASCADE ON UPDATE CASCADE;

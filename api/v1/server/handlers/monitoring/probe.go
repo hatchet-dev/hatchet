@@ -261,6 +261,7 @@ func (m *MonitoringService) run(ctx context.Context, cf clientconfig.ClientConfi
 			}
 
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+
 			defer cancel()
 
 			for i := 0; i < 10; i++ {
@@ -276,6 +277,7 @@ func (m *MonitoringService) run(ctx context.Context, cf clientconfig.ClientConfi
 					workflowId := sqlchelpers.UUIDToStr(wrfRow.Workflow.ID)
 
 					_, err = m.config.APIRepository.Workflow().DeleteWorkflow(ctx, cf.TenantId, workflowId)
+
 
 					if err != nil {
 						m.l.Error().Msgf("error deleting workflow: %s", err)

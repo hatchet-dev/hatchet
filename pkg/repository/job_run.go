@@ -50,4 +50,6 @@ type JobRunEngineRepository interface {
 	GetJobRunsByWorkflowRunId(ctx context.Context, tenantId, workflowRunId string) ([]*dbsqlc.GetJobRunsByWorkflowRunIdRow, error)
 
 	ClearJobRunPayloadData(ctx context.Context, tenantId string) (bool, error)
+
+	StartJobRun(ctx context.Context, tenantId, jobId string) ([]*dbsqlc.GetStepRunForEngineRow, error)
 }
