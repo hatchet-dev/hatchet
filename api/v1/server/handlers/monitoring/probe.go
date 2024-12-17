@@ -24,7 +24,8 @@ import (
 
 func (m *MonitoringService) MonitoringPostRunProbe(ctx echo.Context, request gen.MonitoringPostRunProbeRequestObject) (gen.MonitoringPostRunProbeResponseObject, error) {
 	if !m.enabled {
-		return nil, fmt.Errorf("monitoring is not enabled")
+		m.l.Error().Msg("monitoring is not enabled")
+		return gen.MonitoringPostRunProbe403JSONResponse{}, nil
 	}
 
 	tenant := ctx.Get("tenant").(*db.TenantModel)
@@ -259,7 +260,7 @@ func (m *MonitoringService) run(ctx context.Context, cf clientconfig.ClientConfi
 				return
 			}
 
-			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 
 			for i := 0; i < 10; i++ {
@@ -276,11 +277,13 @@ func (m *MonitoringService) run(ctx context.Context, cf clientconfig.ClientConfi
 
 					_, err = m.config.APIRepository.Workflow().DeleteWorkflow(ctx, cf.TenantId, workflowId)
 
-					m.l.Info().Msgf("deleted workflow %s", workflowId)
 					if err != nil {
 						m.l.Error().Msgf("error deleting workflow: %s", err)
+					} else {
+						m.l.Info().Msgf("deleted workflow %s", workflowId)
+						return
 					}
-					return
+
 				}
 
 				time.Sleep(200 * time.Millisecond)
