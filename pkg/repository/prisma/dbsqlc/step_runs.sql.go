@@ -1967,7 +1967,7 @@ func (q *Queries) ListStepRunExpressionEvals(ctx context.Context, db DBTX, stepr
 
 const listStepRuns = `-- name: ListStepRuns :many
 SELECT
-    DISTINCT ON ("StepRun"."id")
+    DISTINCT ON ("StepRun"."order","StepRun"."id")
     "StepRun"."id"
 FROM
     "StepRun"
@@ -1996,6 +1996,8 @@ WHERE
         $5::uuid IS NULL OR
         "StepRun"."tickerId" = $5::uuid
     )
+
+ORDER BY "StepRun"."order" ASC
 `
 
 type ListStepRunsParams struct {
