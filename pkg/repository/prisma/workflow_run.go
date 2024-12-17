@@ -1799,14 +1799,12 @@ func (s *sharedRepository) createNewWorkflowRuns(ctx context.Context, inputOpts 
 
 		for _, workflowRun := range workflowRuns {
 
+			createdWorkflowRuns = append(createdWorkflowRuns, &repository.CreatedWorkflowRun{
+				Row: workflowRun,
+			})
+
 			if CanShortCircuit(workflowRun) {
-
 				shortcircuitableWorkflowRuns = append(shortcircuitableWorkflowRuns, workflowRun)
-			} else {
-
-				createdWorkflowRuns = append(createdWorkflowRuns, &repository.CreatedWorkflowRun{
-					Row: workflowRun,
-				})
 			}
 
 		}
@@ -1817,15 +1815,12 @@ func (s *sharedRepository) createNewWorkflowRuns(ctx context.Context, inputOpts 
 			return nil, err
 		}
 
-		for _, wfr := range shortcircuitableWorkflowRuns {
-
-			createdWorkflowRuns = append(createdWorkflowRuns, &repository.CreatedWorkflowRun{
-				Row: wfr,
-			})
-		}
-
 		if len(createdWorkflowRuns) > 0 && len(queueNames) > 0 {
-			// TODO: this is a hack to just set the first queue names for all the workflow runs
+			// NOTE: this is a hack to just set the first queue names for all the workflow runs
+			// We need to have an array of a single struct return from the buffer function.
+			// We do this because we bunch all the workflow runs in a single query to get the queue names and after we return we will just
+			// hit the mq with all the queue names.
+
 			createdWorkflowRuns[0].StepRunQueueNames = queueNames
 		}
 
@@ -2112,6 +2107,10 @@ func CanShortCircuit(workflowRunRow *dbsqlc.GetWorkflowRunsInsertedInThisTxnRow)
 
 	return !(workflowRunRow.ConcurrencyLimitStrategy.Valid || workflowRunRow.ConcurrencyGroupExpression.Valid || workflowRunRow.GetGroupKeyRunId.Valid || workflowRunRow.WorkflowRun.ConcurrencyGroupId.Valid || workflowRunRow.DedupeValue.Valid || workflowRunRow.FailureJob)
 }
+
+// TODO this shouldn't be in the repo probably, should be at the controller layer but I'm not sure where.
+// I'd rather not pass a repo to it - maybe it's best somewhere tenant related but otherwise we are going to have to pass a tenant
+// and force all the callers to grab a tenant from the DB
 
 func NotifyQueues(ctx context.Context, mq msgqueue.MessageQueue, l *zerolog.Logger, repo repository.EngineRepository, tenantId string, workflowRun *repository.CreatedWorkflowRun) error {
 	tenant, err := repo.Tenant().GetTenantByID(ctx, tenantId)
