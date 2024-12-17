@@ -25,6 +25,8 @@ type sharedRepository struct {
 	bulkQueuer            *buffer.TenantBufferManager[bulkQueueStepRunOpts, pgtype.UUID]
 	bulkUserEventBuffer   *buffer.TenantBufferManager[*repository.CreateEventOpts, dbsqlc.Event]
 	bulkWorkflowRunBuffer *buffer.TenantBufferManager[*repository.CreateWorkflowRunOpts, dbsqlc.WorkflowRun]
+
+	wrRunningCallbacks []repository.TenantScopedCallback[pgtype.UUID]
 }
 
 func newSharedRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, cf *server.ConfigFileRuntime) (*sharedRepository, func() error, error) {

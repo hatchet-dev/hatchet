@@ -440,25 +440,18 @@ func (w *workflowAPIRepository) CreateCronWorkflow(ctx context.Context, tenantId
 }
 
 type workflowEngineRepository struct {
-	pool    *pgxpool.Pool
-	v       validator.Validator
-	queries *dbsqlc.Queries
-	l       *zerolog.Logger
-	m       *metered.Metered
+	*sharedRepository
+	m *metered.Metered
 
 	cache cache.Cacheable
 }
 
-func NewWorkflowEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, m *metered.Metered, cache cache.Cacheable) repository.WorkflowEngineRepository {
-	queries := dbsqlc.New()
+func NewWorkflowEngineRepository(shared *sharedRepository, m *metered.Metered, cache cache.Cacheable) repository.WorkflowEngineRepository {
 
 	return &workflowEngineRepository{
-		v:       v,
-		queries: queries,
-		pool:    pool,
-		l:       l,
-		m:       m,
-		cache:   cache,
+		sharedRepository: shared,
+		m:                m,
+		cache:            cache,
 	}
 }
 

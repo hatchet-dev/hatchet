@@ -8,6 +8,7 @@ import (
 	"github.com/joho/godotenv"
 
 	"github.com/hatchet-dev/hatchet/pkg/client"
+	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 )
@@ -96,6 +97,10 @@ func main() {
 
 }
 
+func getConcurrencyKey(ctx worker.HatchetContext) (string, error) {
+	return "my-key", nil
+}
+
 func registerWorkflow(c client.Client, workflowName string) (w *worker.Worker, err error) {
 
 	w, err = worker.NewWorker(
@@ -111,6 +116,7 @@ func registerWorkflow(c client.Client, workflowName string) (w *worker.Worker, e
 		&worker.WorkflowJob{
 			On:          worker.Events("user:create:bulk-simple"),
 			Name:        workflowName,
+			Concurrency: worker.Concurrency(getConcurrencyKey).MaxRuns(2).LimitStrategy(types.GroupRoundRobin),
 			Description: "This runs after an update to the user model.",
 			Steps: []*worker.WorkflowStep{
 				worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
