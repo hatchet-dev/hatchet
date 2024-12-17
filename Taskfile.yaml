@@ -66,7 +66,13 @@ tasks:
   migrate:
     cmds:
       - task: generate-sqlc
-      - sh ./hack/dev/atlas-migrate.sh {{.CLI_ARGS}}
+      - task: atlas-compare-schema-to-migrations-dir
+      - task: atlas-apply-migrations
+  atlas-compare-schema-to-migrations-dir:
+    cmds:
+       - sh ./hack/dev/atlas-migrate.sh {{.CLI_ARGS}}
+  atlas-apply-migrations:
+    cmds:
       - DATABASE_URL='postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet' sh ./hack/db/atlas-apply.sh
   seed-dev:
     cmds:

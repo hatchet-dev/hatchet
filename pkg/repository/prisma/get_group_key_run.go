@@ -190,14 +190,16 @@ func (s *getGroupKeyRunRepository) UpdateGetGroupKeyRun(ctx context.Context, ten
 		return nil, err
 	}
 
-	if len(getGroupKeyRuns) == 0 {
-		return nil, fmt.Errorf("could not find get group key run for engine")
-	}
-
 	err = tx.Commit(ctx)
 
 	if err != nil {
 		return nil, err
+	}
+
+	// in this case, we've committed the update (so we can update timeouts), but we're hitting a case where the Workflow or
+	// WorkflowRun has been deleted, so we return an error.
+	if len(getGroupKeyRuns) == 0 {
+		return nil, fmt.Errorf("could not find get group key run for engine")
 	}
 
 	return getGroupKeyRuns[0], nil

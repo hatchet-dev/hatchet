@@ -60,7 +60,7 @@ func (r *workflowAPIRepository) ListWorkflows(tenantId string, opts *repository.
 	}
 
 	queryParams := dbsqlc.ListWorkflowsParams{
-		TenantId: *pgTenantId,
+		Tenantid: *pgTenantId,
 	}
 
 	countParams := dbsqlc.CountWorkflowsParams{
@@ -73,6 +73,10 @@ func (r *workflowAPIRepository) ListWorkflows(tenantId string, opts *repository.
 
 	if opts.Limit != nil {
 		queryParams.Limit = *opts.Limit
+	}
+
+	if opts.Name != nil {
+		queryParams.Search = pgtype.Text{String: *opts.Name, Valid: true}
 	}
 
 	orderByField := "createdAt"
