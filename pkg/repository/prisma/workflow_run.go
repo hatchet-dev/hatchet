@@ -838,6 +838,115 @@ func (w *workflowRunEngineRepository) GetScheduledChildWorkflowRun(ctx context.C
 
 	return w.queries.GetScheduledChildWorkflowRun(ctx, w.pool, childParams)
 }
+
+func (w *workflowRunEngineRepository) PopWorkflowRunsCancelInProgress(ctx context.Context, tenantId, workflowId string, maxRuns int) ([]*dbsqlc.WorkflowRun, []*dbsqlc.WorkflowRun, error) {
+	ctx, span := telemetry.NewSpan(ctx, "queue-by-cancel-in-progress")
+	defer span.End()
+
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, w.l, 15000)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	defer rollback()
+
+	// place a FOR UPDATE lock on queued and running workflow runs to prevent concurrent updates
+	allToProcess, err := w.queries.LockWorkflowRunsForQueueing(ctx, tx, dbsqlc.LockWorkflowRunsForQueueingParams{
+		Tenantid:   sqlchelpers.UUIDFromStr(tenantId),
+		Workflowid: sqlchelpers.UUIDFromStr(workflowId),
+	})
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not lock workflow runs for queueing: %w", err)
+	}
+
+	// group each workflow run by concurrency key
+	keyToWorkflowRuns := make(map[string][]*dbsqlc.WorkflowRun)
+
+	for _, row := range allToProcess {
+		key := row.ConcurrencyGroupId.String
+
+		if _, ok := keyToWorkflowRuns[key]; !ok {
+			keyToWorkflowRuns[key] = make([]*dbsqlc.WorkflowRun, 0)
+		}
+
+		keyToWorkflowRuns[key] = append(keyToWorkflowRuns[key], row)
+	}
+
+	allToCancel := make([]*dbsqlc.WorkflowRun, 0)
+	allToStart := make([]*dbsqlc.WorkflowRun, 0)
+	cancelIds := make([]pgtype.UUID, 0)
+
+	for _, toProcess := range keyToWorkflowRuns {
+		runningWorkflowRuns := make([]*dbsqlc.WorkflowRun, 0, len(toProcess))
+		queuedWorkflowRuns := make([]*dbsqlc.WorkflowRun, 0, len(toProcess))
+
+		for _, row := range toProcess {
+			if row.Status == dbsqlc.WorkflowRunStatusRUNNING {
+				runningWorkflowRuns = append(runningWorkflowRuns, row)
+			} else if row.Status == dbsqlc.WorkflowRunStatusQUEUED {
+				queuedWorkflowRuns = append(queuedWorkflowRuns, row)
+			}
+		}
+
+		// iterate over the running workflow runs and cancel them
+		toCancel := max(0, len(runningWorkflowRuns)+len(queuedWorkflowRuns)-maxRuns)
+
+		workflowRunsToCancel := make([]*dbsqlc.WorkflowRun, 0, toCancel)
+		workflowRunsToStart := make([]*dbsqlc.WorkflowRun, 0, len(queuedWorkflowRuns))
+
+		for i := 0; i < toCancel && i < len(runningWorkflowRuns); i++ {
+			row := runningWorkflowRuns[i]
+
+			workflowRunsToCancel = append(workflowRunsToCancel, row)
+		}
+
+		toCancel -= len(workflowRunsToCancel)
+
+		// additionally, cancel any queued workflow runs that aren't running but should be cancelled
+		for i := 0; i < toCancel && i < len(queuedWorkflowRuns); i++ {
+			row := queuedWorkflowRuns[i]
+
+			workflowRunsToCancel = append(workflowRunsToCancel, row)
+		}
+
+		//  start the new runs. anything leftover in the queuedWorkflowRuns slice should be started
+		for i := toCancel; i < len(queuedWorkflowRuns); i++ {
+			row := queuedWorkflowRuns[i]
+
+			workflowRunsToStart = append(workflowRunsToStart, row)
+		}
+
+		for _, row := range workflowRunsToCancel {
+			cancelIds = append(cancelIds, row.ID)
+		}
+
+		allToCancel = append(allToCancel, workflowRunsToCancel...)
+		allToStart = append(allToStart, workflowRunsToStart...)
+	}
+
+	// cancel the workflow runs
+	err = w.queries.MarkWorkflowRunsCancelling(ctx, tx, dbsqlc.MarkWorkflowRunsCancellingParams{
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Ids:      cancelIds,
+	})
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not mark workflow runs as cancelling: %w", err)
+	}
+
+	// commit the transaction
+	err = commit(ctx)
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not commit transaction: %w", err)
+	}
+
+	// return the workflow runs to cancel and the ones to start
+	return allToCancel, allToStart, nil
+}
+
 func (w *workflowRunEngineRepository) PopWorkflowRunsRoundRobin(ctx context.Context, tenantId string, workflowId string, maxRuns int) ([]*dbsqlc.WorkflowRun, []*dbsqlc.GetStepRunForEngineRow, error) {
 
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, w.l, 15000)

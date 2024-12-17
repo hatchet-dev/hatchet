@@ -561,7 +561,7 @@ func (wc *WorkflowsControllerImpl) bumpQueue(ctx context.Context, tenantId strin
 			if groupKey == nil {
 				return fmt.Errorf("group key is required for cancel in progress strategy")
 			}
-			err = wc.queueByCancelInProgress(ctx, tenantId, *groupKey, workflowVersion)
+			err = wc.queueByCancelInProgress(ctx, tenantId, workflowVersion)
 		case dbsqlc.ConcurrencyLimitStrategyGROUPROUNDROBIN:
 			err = wc.queueByGroupRoundRobin(ctx, tenantId, workflowVersion)
 		default:

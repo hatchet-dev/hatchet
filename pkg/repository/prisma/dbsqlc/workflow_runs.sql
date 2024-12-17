@@ -246,6 +246,50 @@ OFFSET
 LIMIT
     COALESCE(sqlc.narg('limit'), 50);
 
+-- name: LockWorkflowRunsForQueueing :many
+-- Locks any workflow runs which are in a RUNNING or QUEUED state, and have a matching concurrencyGroupId in a QUEUED state
+WITH queued_wrs AS (
+    SELECT
+        DISTINCT ON (wr."concurrencyGroupId")
+        wr."concurrencyGroupId"
+    FROM
+        "WorkflowRun" wr
+    LEFT JOIN
+        "WorkflowVersion" workflowVersion ON wr."workflowVersionId" = workflowVersion."id"
+    WHERE
+        wr."tenantId" = @tenantId::uuid AND
+        wr."deletedAt" IS NULL AND
+        workflowVersion."deletedAt" IS NULL AND
+        wr."status" = 'QUEUED' AND
+        workflowVersion."workflowId" = @workflowId::uuid
+)
+SELECT
+    wr.*
+FROM
+    "WorkflowRun" wr
+LEFT JOIN
+    "WorkflowVersion" workflowVersion ON wr."workflowVersionId" = workflowVersion."id"
+WHERE
+    wr."tenantId" = @tenantId::uuid AND
+    wr."deletedAt" IS NULL AND
+    workflowVersion."deletedAt" IS NULL AND
+    (wr."status" = 'QUEUED' OR wr."status" = 'RUNNING') AND
+    workflowVersion."workflowId" = @workflowId::uuid AND
+    wr."concurrencyGroupId" IN (SELECT "concurrencyGroupId" FROM queued_wrs)
+ORDER BY
+    wr."createdAt" ASC
+FOR UPDATE;
+
+-- name: MarkWorkflowRunsCancelling :exec
+UPDATE
+    "WorkflowRun"
+SET
+    "status" = 'CANCELLING'
+WHERE
+    "tenantId" = @tenantId::uuid AND
+    "id" = ANY(@ids::uuid[]) AND
+    ("status" = 'PENDING' OR "status" = 'QUEUED' OR "status" = 'RUNNING');
+
 -- name: PopWorkflowRunsRoundRobin :many
 WITH workflow_runs AS (
     SELECT
@@ -1195,7 +1239,6 @@ WHERE
     wr."tenantId" = @tenantId::uuid
 RETURNING
     (SELECT has_more FROM has_more) as has_more;
-
 
 -- name: ListActiveQueuedWorkflowVersions :many
 WITH QueuedRuns AS (
