@@ -1,9 +1,10 @@
 -- CreateEnum
 CREATE TYPE "ConcurrencyLimitStrategy" AS ENUM (
     'CANCEL_IN_PROGRESS',
-    'DROP_NEWEST',
-    'QUEUE_NEWEST',
-    'GROUP_ROUND_ROBIN'
+    'DROP_NEWEST', -- DEPRECATED
+    'QUEUE_NEWEST', -- DEPRECATED
+    'GROUP_ROUND_ROBIN',
+    'CANCEL_NEWEST'
 );
 
 
@@ -130,7 +131,7 @@ CREATE TYPE "WorkerType" AS ENUM ('WEBHOOK', 'MANAGED', 'SELFHOSTED');
 CREATE TYPE "WorkflowKind" AS ENUM ('FUNCTION', 'DURABLE', 'DAG');
 
 -- CreateEnum
-CREATE TYPE "WorkflowRunStatus" AS ENUM ('PENDING', 'RUNNING', 'SUCCEEDED', 'FAILED', 'QUEUED');
+CREATE TYPE "WorkflowRunStatus" AS ENUM ('PENDING', 'RUNNING', 'SUCCEEDED', 'FAILED', 'QUEUED', 'CANCELLING', 'CANCELLED');
 
 -- CreateTable
 CREATE TABLE "APIToken" (
@@ -318,6 +319,9 @@ CREATE TABLE "LogLine" (
 
     CONSTRAINT "LogLine_pkey" PRIMARY KEY ("id")
 );
+
+-- CreateIndex
+CREATE INDEX "LogLine_tenantId_stepRunId_idx" ON "LogLine" ("tenantId", "stepRunId" ASC);
 
 -- CreateTable
 CREATE TABLE "Queue" (

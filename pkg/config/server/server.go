@@ -61,6 +61,8 @@ type ServerConfigFile struct {
 	TenantAlerting ConfigFileTenantAlerting `mapstructure:"tenantAlerting" json:"tenantAlerting,omitempty"`
 
 	Email ConfigFileEmail `mapstructure:"email" json:"email,omitempty"`
+
+	Monitoring ConfigFileMonitoring `mapstructure:"monitoring" json:"monitoring,omitempty"`
 }
 
 type ConfigFileAdditionalLoggers struct {
@@ -143,7 +145,7 @@ type ConfigFileRuntime struct {
 	MaxInternalRetryCount int32 `mapstructure:"maxInternalRetryCount" json:"maxInternalRetryCount,omitempty" default:"3"`
 
 	// WaitForFlush is the time to wait for the buffer to flush used for exerting some back pressure on writers
-	WaitForFlush time.Duration `mapstructure:"waitForFlush" json:"waitForFlush,omitempty" default:"1ms"`
+	WaitForFlush time.Duration `mapstructure:"waitForFlush" json:"waitForFlush,omitempty" default:"1"`
 
 	// MaxConcurrent is the maximum number of concurrent flushes
 	MaxConcurrent int `mapstructure:"maxConcurrent" json:"maxConcurrent,omitempty" default:"50"`
@@ -168,6 +170,8 @@ type ConfigFileRuntime struct {
 
 	// QueueStepRunBuffer represents the buffer settings for inserting step runs into the queue
 	QueueStepRunBuffer buffer.ConfigFileBuffer `mapstructure:"queueStepRunBuffer" json:"queueStepRunBuffer,omitempty"`
+
+	Monitoring ConfigFileMonitoring `mapstructure:"monitoring" json:"monitoring,omitempty"`
 }
 
 type SecurityCheckConfigFile struct {
@@ -346,6 +350,20 @@ type RabbitMQConfigFile struct {
 
 type ConfigFileEmail struct {
 	Postmark PostmarkConfigFile `mapstructure:"postmark" json:"postmark,omitempty"`
+}
+
+type ConfigFileMonitoring struct {
+	// Enabled controls whether the monitoring service is enabled for this Hatchet instance.
+	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty" default:"true"`
+
+	// PermittedTenants is a list of tenant IDs that are allowed to use the monitoring service.
+	PermittedTenants []string `mapstructure:"permittedTenants" json:"permittedTenants"`
+
+	// ProbeTimeout is the time to wait for the probe to complete
+	ProbeTimeout time.Duration `mapstructure:"probeTimeout" json:"probeTimeout,omitempty" default:"30s"`
+
+	// TLSRootCAFile is the path to the root CA file for the monitoring service
+	TLSRootCAFile string `mapstructure:"tlsRootCAFile" json:"tlsRootCAFile,omitempty"`
 }
 
 type PostmarkConfigFile struct {
@@ -618,5 +636,12 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("email.postmark.fromEmail", "SERVER_EMAIL_POSTMARK_FROM_EMAIL")
 	_ = v.BindEnv("email.postmark.fromName", "SERVER_EMAIL_POSTMARK_FROM_NAME")
 	_ = v.BindEnv("email.postmark.supportEmail", "SERVER_EMAIL_POSTMARK_SUPPORT_EMAIL")
+
+	// monitoring options
+	_ = v.BindEnv("runtime.monitoring.enabled", "SERVER_MONITORING_ENABLED")
+	_ = v.BindEnv("runtime.monitoring.permittedTenants", "SERVER_MONITORING_PERMITTED_TENANTS")
+	_ = v.BindEnv("runtime.monitoring.probeTimeout", "SERVER_MONITORING_PROBE_TIMEOUT")
+	// we will fill this in from the server config if it is not set
+	_ = v.BindEnv("runtime.monitoring.tlsRootCAFile", "SERVER_MONITORING_TLS_ROOT_CA_FILE")
 
 }

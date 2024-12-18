@@ -1954,7 +1954,7 @@ func (s *stepRunEngineRepository) GetStepRunBulkDataForEngine(ctx context.Contex
 	})
 }
 
-func (s *stepRunEngineRepository) ListInitialStepRunsForJobRun(ctx context.Context, tenantId, jobRunId string) ([]*dbsqlc.GetStepRunForEngineRow, error) {
+func (s *sharedRepository) ListInitialStepRunsForJobRun(ctx context.Context, tenantId, jobRunId string) ([]*dbsqlc.GetStepRunForEngineRow, error) {
 	tx, err := s.pool.Begin(ctx)
 
 	if err != nil {
@@ -1962,6 +1962,19 @@ func (s *stepRunEngineRepository) ListInitialStepRunsForJobRun(ctx context.Conte
 	}
 
 	defer sqlchelpers.DeferRollback(ctx, s.l, tx.Rollback)
+
+	res, err := s.listInitialStepRunsForJobRunWithTx(ctx, tx, tenantId, jobRunId)
+
+	if err != nil {
+		return nil, err
+	}
+
+	err = tx.Commit(ctx)
+
+	return res, err
+}
+
+func (s *sharedRepository) listInitialStepRunsForJobRunWithTx(ctx context.Context, tx dbsqlc.DBTX, tenantId, jobRunId string) ([]*dbsqlc.GetStepRunForEngineRow, error) {
 
 	srs, err := s.queries.ListInitialStepRuns(ctx, tx, sqlchelpers.UUIDFromStr(jobRunId))
 
@@ -1973,12 +1986,6 @@ func (s *stepRunEngineRepository) ListInitialStepRunsForJobRun(ctx context.Conte
 		Ids:      srs,
 		TenantId: sqlchelpers.UUIDFromStr(tenantId),
 	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	err = tx.Commit(ctx)
 
 	return res, err
 }

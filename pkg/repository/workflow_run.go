@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgtype"
+
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/pkg/random"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
-
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type CreatedWorkflowRun struct {
@@ -521,7 +521,11 @@ type WorkflowRunEngineRepository interface {
 
 	GetScheduledChildWorkflowRun(ctx context.Context, parentId, parentStepRunId string, childIndex int, childkey *string) (*dbsqlc.WorkflowTriggerScheduledRef, error)
 
-	PopWorkflowRunsRoundRobin(ctx context.Context, tenantId, workflowId string, maxRuns int) ([]*dbsqlc.WorkflowRun, error)
+	PopWorkflowRunsCancelInProgress(ctx context.Context, tenantId, workflowVersionId string, maxRuns int) (toCancel []*dbsqlc.WorkflowRun, toStart []*dbsqlc.WorkflowRun, err error)
+
+	PopWorkflowRunsCancelNewest(ctx context.Context, tenantId, workflowVersionId string, maxRuns int) (toCancel []*dbsqlc.WorkflowRun, toStart []*dbsqlc.WorkflowRun, err error)
+
+	PopWorkflowRunsRoundRobin(ctx context.Context, tenantId, workflowVersionId string, maxRuns int) ([]*dbsqlc.WorkflowRun, []*dbsqlc.GetStepRunForEngineRow, error)
 
 	// CreateNewWorkflowRun creates a new workflow run for a workflow version.
 	CreateNewWorkflowRun(ctx context.Context, tenantId string, opts *CreateWorkflowRunOpts) (*CreatedWorkflowRun, error)
@@ -544,6 +548,8 @@ type WorkflowRunEngineRepository interface {
 	GetWorkflowRunByIds(ctx context.Context, tenantId string, runId []string) ([]*dbsqlc.GetWorkflowRunRow, error)
 
 	QueuePausedWorkflowRun(ctx context.Context, tenantId, workflowId, workflowRunId string) error
+
+	QueueWorkflowRunJobs(ctx context.Context, tenant string, workflowRun string) ([]*dbsqlc.GetStepRunForEngineRow, error)
 
 	ProcessUnpausedWorkflowRuns(ctx context.Context, tenantId string) ([]*dbsqlc.GetWorkflowRunRow, bool, error)
 

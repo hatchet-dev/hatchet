@@ -79,7 +79,7 @@ type CreateWorkflowConcurrencyOpts struct {
 	MaxRuns *int32
 
 	// (optional) the strategy to use when the concurrency limit is reached, default CANCEL_IN_PROGRESS
-	LimitStrategy *string `validate:"omitnil,oneof=CANCEL_IN_PROGRESS DROP_NEWEST QUEUE_NEWEST GROUP_ROUND_ROBIN"`
+	LimitStrategy *string `validate:"omitnil,oneof=CANCEL_IN_PROGRESS GROUP_ROUND_ROBIN CANCEL_NEWEST"`
 
 	// (optional) a concurrency expression for evaluating the concurrency key
 	Expression *string `validate:"omitempty,celworkflowrunstr"`
@@ -286,7 +286,7 @@ type WorkflowAPIRepository interface {
 		error)
 
 	// DeleteWorkflow deletes a workflow for a given tenant.
-	DeleteWorkflow(tenantId, workflowId string) (*dbsqlc.Workflow, error)
+	DeleteWorkflow(ctx context.Context, tenantId, workflowId string) (*dbsqlc.Workflow, error)
 
 	// GetWorkflowVersionMetrics returns the metrics for a given workflow version.
 	GetWorkflowMetrics(tenantId, workflowId string, opts *GetWorkflowMetricsOpts) (*WorkflowMetrics, error)

@@ -2752,6 +2752,108 @@ func (q *Queries) ListWorkflowRuns(ctx context.Context, db DBTX, arg ListWorkflo
 	return items, nil
 }
 
+const lockWorkflowRunsForQueueing = `-- name: LockWorkflowRunsForQueueing :many
+WITH queued_wrs AS (
+    SELECT
+        DISTINCT ON (wr."concurrencyGroupId")
+        wr."concurrencyGroupId"
+    FROM
+        "WorkflowRun" wr
+    LEFT JOIN
+        "WorkflowVersion" workflowVersion ON wr."workflowVersionId" = workflowVersion."id"
+    WHERE
+        wr."tenantId" = $1::uuid AND
+        wr."deletedAt" IS NULL AND
+        workflowVersion."deletedAt" IS NULL AND
+        wr."status" = 'QUEUED' AND
+        workflowVersion."id" = $2::uuid
+)
+SELECT
+    wr."createdAt", wr."updatedAt", wr."deletedAt", wr."tenantId", wr."workflowVersionId", wr.status, wr.error, wr."startedAt", wr."finishedAt", wr."concurrencyGroupId", wr."displayName", wr.id, wr."childIndex", wr."childKey", wr."parentId", wr."parentStepRunId", wr."additionalMetadata", wr.duration, wr.priority, wr."insertOrder"
+FROM
+    "WorkflowRun" wr
+LEFT JOIN
+    "WorkflowVersion" workflowVersion ON wr."workflowVersionId" = workflowVersion."id"
+WHERE
+    wr."tenantId" = $1::uuid AND
+    wr."deletedAt" IS NULL AND
+    workflowVersion."deletedAt" IS NULL AND
+    (wr."status" = 'QUEUED' OR wr."status" = 'RUNNING') AND
+    workflowVersion."id" = $2::uuid AND
+    wr."concurrencyGroupId" IN (SELECT "concurrencyGroupId" FROM queued_wrs)
+ORDER BY
+    wr."createdAt" ASC, wr."insertOrder" ASC
+FOR UPDATE
+`
+
+type LockWorkflowRunsForQueueingParams struct {
+	Tenantid          pgtype.UUID `json:"tenantid"`
+	Workflowversionid pgtype.UUID `json:"workflowversionid"`
+}
+
+// Locks any workflow runs which are in a RUNNING or QUEUED state, and have a matching concurrencyGroupId in a QUEUED state
+func (q *Queries) LockWorkflowRunsForQueueing(ctx context.Context, db DBTX, arg LockWorkflowRunsForQueueingParams) ([]*WorkflowRun, error) {
+	rows, err := db.Query(ctx, lockWorkflowRunsForQueueing, arg.Tenantid, arg.Workflowversionid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*WorkflowRun
+	for rows.Next() {
+		var i WorkflowRun
+		if err := rows.Scan(
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.TenantId,
+			&i.WorkflowVersionId,
+			&i.Status,
+			&i.Error,
+			&i.StartedAt,
+			&i.FinishedAt,
+			&i.ConcurrencyGroupId,
+			&i.DisplayName,
+			&i.ID,
+			&i.ChildIndex,
+			&i.ChildKey,
+			&i.ParentId,
+			&i.ParentStepRunId,
+			&i.AdditionalMetadata,
+			&i.Duration,
+			&i.Priority,
+			&i.InsertOrder,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const markWorkflowRunsCancelling = `-- name: MarkWorkflowRunsCancelling :exec
+UPDATE
+    "WorkflowRun"
+SET
+    "status" = 'CANCELLING'
+WHERE
+    "tenantId" = $1::uuid AND
+    "id" = ANY($2::uuid[]) AND
+    ("status" = 'PENDING' OR "status" = 'QUEUED' OR "status" = 'RUNNING')
+`
+
+type MarkWorkflowRunsCancellingParams struct {
+	Tenantid pgtype.UUID   `json:"tenantid"`
+	Ids      []pgtype.UUID `json:"ids"`
+}
+
+func (q *Queries) MarkWorkflowRunsCancelling(ctx context.Context, db DBTX, arg MarkWorkflowRunsCancellingParams) error {
+	_, err := db.Exec(ctx, markWorkflowRunsCancelling, arg.Tenantid, arg.Ids)
+	return err
+}
+
 const popWorkflowRunsRoundRobin = `-- name: PopWorkflowRunsRoundRobin :many
 WITH workflow_runs AS (
     SELECT
@@ -2768,7 +2870,7 @@ WITH workflow_runs AS (
         r2."deletedAt" IS NULL AND
         workflowVersion."deletedAt" IS NULL AND
         (r2."status" = 'QUEUED' OR r2."status" = 'RUNNING') AND
-        workflowVersion."workflowId" = $2::uuid
+        workflowVersion."id" = $2::uuid
     ORDER BY
         rn, seqnum ASC
 ), min_rn AS (
@@ -2817,13 +2919,13 @@ RETURNING
 `
 
 type PopWorkflowRunsRoundRobinParams struct {
-	Tenantid   pgtype.UUID `json:"tenantid"`
-	Workflowid pgtype.UUID `json:"workflowid"`
-	Maxruns    int32       `json:"maxruns"`
+	Tenantid          pgtype.UUID `json:"tenantid"`
+	Workflowversionid pgtype.UUID `json:"workflowversionid"`
+	Maxruns           int32       `json:"maxruns"`
 }
 
 func (q *Queries) PopWorkflowRunsRoundRobin(ctx context.Context, db DBTX, arg PopWorkflowRunsRoundRobinParams) ([]*WorkflowRun, error) {
-	rows, err := db.Query(ctx, popWorkflowRunsRoundRobin, arg.Tenantid, arg.Workflowid, arg.Maxruns)
+	rows, err := db.Query(ctx, popWorkflowRunsRoundRobin, arg.Tenantid, arg.Workflowversionid, arg.Maxruns)
 	if err != nil {
 		return nil, err
 	}
@@ -3404,7 +3506,7 @@ func (q *Queries) UpdateWorkflowRunStickyState(ctx context.Context, db DBTX, arg
 const workflowRunsMetricsCount = `-- name: WorkflowRunsMetricsCount :one
 SELECT
     COUNT(CASE WHEN runs."status" = 'PENDING' THEN 1 END) AS "PENDING",
-    COUNT(CASE WHEN runs."status" = 'RUNNING' THEN 1 END) AS "RUNNING",
+    COUNT(CASE WHEN runs."status" = 'RUNNING' OR runs."status" = 'CANCELLING' THEN 1 END) AS "RUNNING",
     COUNT(CASE WHEN runs."status" = 'SUCCEEDED' THEN 1 END) AS "SUCCEEDED",
     COUNT(CASE WHEN runs."status" = 'FAILED' THEN 1 END) AS "FAILED",
     COUNT(CASE WHEN runs."status" = 'QUEUED' THEN 1 END) AS "QUEUED"
