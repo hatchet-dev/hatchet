@@ -4,31 +4,39 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 
 	"github.com/hatchet-dev/hatchet/internal/testutils"
+	"github.com/hatchet-dev/hatchet/pkg/client"
 )
 
 func TestConcurrency(t *testing.T) {
 	testutils.Prepare(t)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
 	events := make(chan string, 50)
+	wfrIds := make(chan *client.Workflow, 50)
+	c, err := client.New()
 
-	cleanup, err := run(events)
+	if err != nil {
+		panic("error creating client: " + err.Error())
+	}
+	cleanup, err := run(c, events, wfrIds)
 	if err != nil {
 		t.Fatalf("/run() error = %v", err)
 	}
 
 	var items []string
-
+	var workflowRunIds []*client.WorkflowResult
 outer:
 	for {
+
 		select {
 		case item := <-events:
 			items = append(items, item)
@@ -37,16 +45,58 @@ outer:
 			}
 		case <-ctx.Done():
 			break outer
+
+		case wfrId := <-wfrIds:
+			go func(workflow *client.Workflow) {
+				wfr, err := workflow.Result()
+				workflowRunIds = append(workflowRunIds, wfr)
+				if err != nil {
+					panic(fmt.Errorf("error getting workflow run result: %w", err))
+				}
+			}(wfrId)
+
 		}
 	}
 
-	assert.Equal(t, []string{
-		"step-one",
-		"step-two",
-	}, items)
+	// our workflow run ids should have only one succeeded everyone else should have failed
+	stateCount := make(map[string]int)
+
+	for _, wfrId := range workflowRunIds {
+		state, err := getWorkflowStateForWorkflowRunId(c, ctx, wfrId)
+		if err != nil {
+			t.Fatalf("error getting workflow state: %v", err)
+		}
+		stateCount[state]++
+	}
+
+	assert.Equal(t, 1, stateCount["SUCCEEDED"])
+	assert.Equal(t, 9, stateCount["CANCELLED_BY_CONCURRENCY_LIMIT"])
 
 	if err := cleanup(); err != nil {
 		t.Fatalf("cleanup() error = %v", err)
 	}
 
+}
+
+func getWorkflowStateForWorkflowRunId(client client.Client, ctx context.Context, wfr *client.WorkflowResult) (string, error) {
+
+	stepOneOutput := &stepOneOutput{}
+
+	err := wfr.StepOutput("step-one", stepOneOutput)
+	if err != nil {
+
+		if err.Error() == "step run failed: this step run was cancelled due to CANCELLED_BY_CONCURRENCY_LIMIT" {
+			return "CANCELLED_BY_CONCURRENCY_LIMIT", nil
+		}
+
+		// this happens if we cancel before the workflow is run
+		if err.Error() == "step output for step-one not found" {
+			return "CANCELLED_BY_CONCURRENCY_LIMIT", nil
+		}
+
+		fmt.Println("error getting step output: %w", err)
+		return "", err
+	}
+
+	return "SUCCEEDED", nil
 }
