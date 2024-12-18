@@ -830,6 +830,10 @@ func cleanResults(results []*contracts.StepRunResult) []*contracts.StepRunResult
 		return results
 	}
 
+	if sizeOfOutputs >= 3*1024*1024 {
+		return nil
+	}
+
 	// otherwise, attempt to clean the results by removing large error fields
 	cleanedResults := make([]*contracts.StepRunResult, 0, len(results))
 
