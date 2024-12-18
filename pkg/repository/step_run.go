@@ -186,7 +186,7 @@ type StepRunEngineRepository interface {
 
 	StepRunRetryBackoff(ctx context.Context, tenantId, stepRunId string, retryAfter time.Time) error
 
-	ListRetryableStepRuns(ctx context.Context, tenantId string) (bool, []*dbsqlc.GetStepRunForEngineRow, error)
+	RetryStepRuns(ctx context.Context, tenantId string) (bool, error)
 
 	ReplayStepRun(ctx context.Context, tenantId, stepRunId string, input []byte) (*dbsqlc.GetStepRunForEngineRow, error)
 

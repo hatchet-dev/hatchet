@@ -110,11 +110,16 @@ func run(c client.Client, events chan<- string, wfrIds chan<- *client.Workflow) 
 					err = ctx.WorkflowInput(input)
 
 					// we sleep to simulate a long running task
+
 					time.Sleep(5 * time.Second)
 
 					if err != nil {
 
 						return nil, err
+					}
+
+					if ctx.Err() != nil {
+						return nil, ctx.Err()
 					}
 
 					log.Printf("step-one")
@@ -135,6 +140,10 @@ func run(c client.Client, events chan<- string, wfrIds chan<- *client.Workflow) 
 							return nil, nil
 						}
 
+					}
+
+					if ctx.Err() != nil {
+						return nil, ctx.Err()
 					}
 
 					log.Printf("step-two")

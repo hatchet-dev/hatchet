@@ -1404,29 +1404,17 @@ func (s *stepRunEngineRepository) StepRunRetryBackoff(ctx context.Context, tenan
 	})
 }
 
-func (s *stepRunEngineRepository) ListRetryableStepRuns(ctx context.Context, tenantId string) (bool, []*dbsqlc.GetStepRunForEngineRow, error) {
-	ctx, span := telemetry.NewSpan(ctx, "list-retryable-step-runs-db")
+func (s *stepRunEngineRepository) RetryStepRuns(ctx context.Context, tenantId string) (bool, error) {
+	ctx, span := telemetry.NewSpan(ctx, "retry-step-runs-db")
 	defer span.End()
 
-	rows, err := s.queries.ListStepRunsToRetry(ctx, s.pool, sqlchelpers.UUIDFromStr(tenantId))
+	count, err := s.queries.RetryStepRuns(ctx, s.pool, sqlchelpers.UUIDFromStr(tenantId))
 
 	if err != nil {
-		return false, nil, fmt.Errorf("could not list retryable step runs: %w", err)
+		return false, fmt.Errorf("could not list retryable step runs: %w", err)
 	}
 
-	ids := make([]pgtype.UUID, 0, len(rows))
-
-	for _, row := range rows {
-		ids = append(ids, row.StepRunId)
-	}
-
-	// get step runs for engine
-	stepRuns, err := s.queries.GetStepRunForEngine(ctx, s.pool, dbsqlc.GetStepRunForEngineParams{
-		Ids:      ids,
-		TenantId: sqlchelpers.UUIDFromStr(tenantId),
-	})
-
-	return len(stepRuns) == 1000, stepRuns, err
+	return count == 1000, err
 }
 
 func (s *stepRunEngineRepository) ReplayStepRun(ctx context.Context, tenantId, stepRunId string, input []byte) (*dbsqlc.GetStepRunForEngineRow, error) {

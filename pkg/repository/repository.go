@@ -46,6 +46,7 @@ type EngineRepository interface {
 	RateLimit() RateLimitEngineRepository
 	WebhookWorker() WebhookWorkerEngineRepository
 	Scheduler() SchedulerRepository
+	MessageQueue() MessageQueueRepository
 }
 
 type EntitlementsRepository interface {
