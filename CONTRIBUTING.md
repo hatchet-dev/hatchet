@@ -4,7 +4,7 @@
 
 1. Make sure all prerequisite dependencies are installed:
 
-   - [Go 1.22+](https://go.dev/doc/install)
+   - [Go 1.23+](https://go.dev/doc/install)
    - [Node.js v18+](https://nodejs.org/en/download) - we recommend using [nvm](https://github.com/nvm-sh/nvm) for managing node versions.
    - [pnpm](https://pnpm.io/installation) installed globally (`npm i -g pnpm`)
    - [Docker Desktop](https://docs.docker.com/desktop/install/mac-install/)
@@ -123,4 +123,4 @@ export HATCHET_CLIENT_TOKEN="$(go run ./cmd/hatchet-admin token create --tenant-
 4. Create a new migration file with `task migrate`
 5. Rename the migration file in `./sql/migrations/` to match the latest tag.
 6. Generate Go with `task generate-all`
-7. Run ```atlas migrate hash --dir "file://sql/migrations"``` to generate the atlas hash.
+7. Run `atlas migrate hash --dir "file://sql/migrations"` to generate the atlas hash.
