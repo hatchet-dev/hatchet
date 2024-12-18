@@ -528,7 +528,7 @@ SELECT
     $1::uuid,
     $2::uuid,
     "id",
-    $3::"JobRunStatus" -- default status
+    $3::"JobRunStatus"
 FROM
     "Job"
 WHERE
