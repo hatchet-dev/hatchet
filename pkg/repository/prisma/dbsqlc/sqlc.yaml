@@ -24,6 +24,7 @@ sql:
       - webhook_workers.sql
       - queue.sql
       - lease.sql
+      - mq.sql
     schema:
       - ../../../../sql/schema/schema.sql
     strict_order_by: false

@@ -5,6 +5,7 @@ package rampup
 import (
 	"context"
 	"log"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -41,6 +42,20 @@ func TestRampUp(t *testing.T) {
 		"loadtest",
 	)
 
+	// get ramp up duration from env
+	maxAcceptableDurationSeconds := 2 * time.Second
+
+	if os.Getenv("RAMP_UP_DURATION_TIMEOUT") != "" {
+		var parseErr error
+		maxAcceptableDurationSeconds, parseErr = time.ParseDuration(os.Getenv("RAMP_UP_DURATION_TIMEOUT"))
+
+		if parseErr != nil {
+			t.Fatalf("could not parse RAMP_UP_DURATION_TIMEOUT %s: %s", os.Getenv("RAMP_UP_DURATION_TIMEOUT"), parseErr)
+		}
+	}
+
+	log.Printf("TestRampUp with maxAcceptableDurationSeconds: %s", maxAcceptableDurationSeconds.String())
+
 	tests := []struct {
 		name    string
 		args    args
@@ -55,7 +70,7 @@ func TestRampUp(t *testing.T) {
 			delay:                 0 * time.Second,
 			wait:                  30 * time.Second,
 			includeDroppedEvents:  true,
-			maxAcceptableDuration: 2 * time.Second,
+			maxAcceptableDuration: maxAcceptableDurationSeconds,
 			maxAcceptableSchedule: 2 * time.Second,
 			concurrency:           0,
 		},

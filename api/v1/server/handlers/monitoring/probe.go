@@ -278,7 +278,6 @@ func (m *MonitoringService) run(ctx context.Context, cf clientconfig.ClientConfi
 
 					_, err = m.config.APIRepository.Workflow().DeleteWorkflow(ctx, cf.TenantId, workflowId)
 
-
 					if err != nil {
 						m.l.Error().Msgf("error deleting workflow: %s", err)
 					} else {
