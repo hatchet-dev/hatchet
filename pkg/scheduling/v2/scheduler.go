@@ -39,10 +39,11 @@ type Scheduler struct {
 	unackedSlots map[int]*slot
 	unackedMu    mutex
 
-	rl *rateLimiter
+	rl   *rateLimiter
+	exts *Extensions
 }
 
-func newScheduler(cf *sharedConfig, tenantId pgtype.UUID, rl *rateLimiter) *Scheduler {
+func newScheduler(cf *sharedConfig, tenantId pgtype.UUID, rl *rateLimiter, exts *Extensions) *Scheduler {
 	l := cf.l.With().Str("tenant_id", sqlchelpers.UUIDToStr(tenantId)).Logger()
 
 	return &Scheduler{
@@ -57,6 +58,7 @@ func newScheduler(cf *sharedConfig, tenantId pgtype.UUID, rl *rateLimiter) *Sche
 		workersMu:       newMu(cf.l),
 		assignedCountMu: newMu(cf.l),
 		unackedMu:       newMu(cf.l),
+		exts:            exts,
 	}
 }
 
@@ -752,12 +754,53 @@ func (s *Scheduler) tryAssign(
 		span.End()
 		close(resultsCh)
 
+		extInput := s.getExtensionInput()
+
+		s.exts.PostSchedule(sqlchelpers.UUIDToStr(s.tenantId), extInput)
+
 		if sinceStart := time.Since(startTotal); sinceStart > 100*time.Millisecond {
 			s.l.Warn().Dur("duration", sinceStart).Msgf("assigning queue items took longer than 100ms")
 		}
 	}()
 
 	return resultsCh
+}
+
+func (s *Scheduler) getExtensionInput() *PostScheduleInput {
+	workers := s.getWorkers()
+
+	res := &PostScheduleInput{
+		Workers: make(map[string]*WorkerCp),
+	}
+
+	for workerId, worker := range workers {
+		res.Workers[workerId] = &WorkerCp{
+			WorkerId: workerId,
+			Labels:   worker.Labels,
+		}
+	}
+
+	s.actionsMu.RLock()
+	defer s.actionsMu.RUnlock()
+
+	actionsToSlots := make(map[string][]*SlotCp)
+
+	for actionId, action := range s.actions {
+		slots := make([]*SlotCp, 0, len(action.slots))
+
+		for _, slot := range action.slots {
+			slots = append(slots, &SlotCp{
+				WorkerId: slot.getWorkerId(),
+				Used:     slot.used,
+			})
+		}
+
+		actionsToSlots[actionId] = slots
+	}
+
+	res.ActionsToSlots = actionsToSlots
+
+	return res
 }
 
 func isTimedOut(qi *dbsqlc.QueueItem) bool {
