@@ -989,76 +989,6 @@ func (q *Queries) ListQueues(ctx context.Context, db DBTX, tenantid pgtype.UUID)
 	return items, nil
 }
 
-const listStepRunsToRetry = `-- name: ListStepRunsToRetry :many
-WITH retries AS (
-    SELECT
-        id, "retryAfter", "stepRunId", "tenantId", "isQueued"
-    FROM
-        "RetryQueueItem" rqi
-    WHERE
-        rqi."isQueued" = true
-        AND rqi."tenantId" = $1::uuid
-        AND rqi."retryAfter" <= NOW()
-    ORDER BY
-        rqi."retryAfter" ASC
-    LIMIT
-        1000
-    FOR UPDATE SKIP LOCKED
-), updated_rqis AS (
-    UPDATE
-        "RetryQueueItem" rqi
-    SET
-        "isQueued" = false
-    FROM
-        retries
-    WHERE
-        rqi."stepRunId" = retries."stepRunId"
-)
-SELECT
-    retries.id, retries."retryAfter", retries."stepRunId", retries."tenantId", retries."isQueued"
-FROM
-    retries
-JOIN
-    "StepRun" sr ON retries."stepRunId" = sr."id"
-WHERE
-    -- we remove any step runs in a finalized state from the retry queue
-    sr."status" NOT IN ('SUCCEEDED', 'FAILED', 'CANCELLED', 'CANCELLING')
-`
-
-type ListStepRunsToRetryRow struct {
-	ID         int64            `json:"id"`
-	RetryAfter pgtype.Timestamp `json:"retryAfter"`
-	StepRunId  pgtype.UUID      `json:"stepRunId"`
-	TenantId   pgtype.UUID      `json:"tenantId"`
-	IsQueued   bool             `json:"isQueued"`
-}
-
-func (q *Queries) ListStepRunsToRetry(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]*ListStepRunsToRetryRow, error) {
-	rows, err := db.Query(ctx, listStepRunsToRetry, tenantid)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []*ListStepRunsToRetryRow
-	for rows.Next() {
-		var i ListStepRunsToRetryRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.RetryAfter,
-			&i.StepRunId,
-			&i.TenantId,
-			&i.IsQueued,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const markInternalQueueItemsProcessed = `-- name: MarkInternalQueueItemsProcessed :exec
 UPDATE
     "InternalQueueItem" qi
@@ -1143,6 +1073,96 @@ type RemoveTimeoutQueueItemParams struct {
 func (q *Queries) RemoveTimeoutQueueItem(ctx context.Context, db DBTX, arg RemoveTimeoutQueueItemParams) error {
 	_, err := db.Exec(ctx, removeTimeoutQueueItem, arg.Steprunid, arg.Retrycount)
 	return err
+}
+
+const retryStepRuns = `-- name: RetryStepRuns :one
+WITH retries AS (
+    SELECT
+        id, "retryAfter", "stepRunId", "tenantId", "isQueued"
+    FROM
+        "RetryQueueItem" rqi
+    WHERE
+        rqi."isQueued" = true
+        AND rqi."tenantId" = $1::uuid
+        AND rqi."retryAfter" <= NOW()
+    ORDER BY
+        rqi."retryAfter" ASC
+    LIMIT
+        1000
+    FOR UPDATE SKIP LOCKED
+), updated_rqis AS (
+    UPDATE
+        "RetryQueueItem" rqi
+    SET
+        "isQueued" = false
+    FROM
+        retries
+    WHERE
+        rqi."stepRunId" = retries."stepRunId"
+), srs AS (
+    SELECT
+        sr."id",
+        sr."tenantId",
+        sr."scheduleTimeoutAt",
+        sr."retryCount",
+        sr."internalRetryCount",
+        s."actionId",
+        s."id" AS "stepId",
+        s."timeout" AS "stepTimeout",
+        s."scheduleTimeout" AS "scheduleTimeout"
+    FROM
+        retries
+    JOIN
+        "StepRun" sr ON retries."stepRunId" = sr."id"
+    JOIN
+        "Step" s ON sr."stepId" = s."id"
+    WHERE
+        sr."status" NOT IN ('SUCCEEDED', 'FAILED', 'CANCELLED')
+), updated_step_runs AS (
+    UPDATE "StepRun" sr
+    SET
+        "status" = 'PENDING_ASSIGNMENT',
+        "scheduleTimeoutAt" = CURRENT_TIMESTAMP + COALESCE(convert_duration_to_interval(srs."scheduleTimeout"), INTERVAL '5 minutes'),
+        "updatedAt" = CURRENT_TIMESTAMP,
+        "retryCount" = srs."retryCount" + 1
+    FROM srs
+    WHERE sr."id" = srs."id"
+    RETURNING sr."id"
+), inserted_sqs AS (
+    INSERT INTO "QueueItem" (
+        "stepRunId",
+        "stepId",
+        "actionId",
+        "scheduleTimeoutAt",
+        "stepTimeout",
+        "priority",
+        "isQueued",
+        "tenantId",
+        "queue"
+    )
+    SELECT
+        srs."id",
+        srs."stepId",
+        srs."actionId",
+        CURRENT_TIMESTAMP + COALESCE(convert_duration_to_interval(srs."scheduleTimeout"), INTERVAL '5 minutes'),
+        srs."stepTimeout",
+        -- Queue with priority 4 so that retry gets highest priority
+        4,
+        true,
+        srs."tenantId",
+        srs."actionId"
+    FROM
+        srs
+    RETURNING "stepRunId"
+)
+SELECT COUNT(*) FROM retries
+`
+
+func (q *Queries) RetryStepRuns(ctx context.Context, db DBTX, tenantid pgtype.UUID) (int64, error) {
+	row := db.QueryRow(ctx, retryStepRuns, tenantid)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }
 
 const upsertQueue = `-- name: UpsertQueue :exec
