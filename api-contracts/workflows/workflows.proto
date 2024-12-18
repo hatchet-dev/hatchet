@@ -48,9 +48,10 @@ message CreateWorkflowVersionOpts {
 
 enum ConcurrencyLimitStrategy {
     CANCEL_IN_PROGRESS = 0;
-    DROP_NEWEST = 1;
-    QUEUE_NEWEST = 2;
+    DROP_NEWEST = 1; // deprecated
+    QUEUE_NEWEST = 2; // deprecated
     GROUP_ROUND_ROBIN = 3;
+    CANCEL_NEWEST = 4;
 }
 
 message WorkflowConcurrencyOpts {
