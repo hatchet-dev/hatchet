@@ -2705,7 +2705,7 @@ WITH queued_wrs AS (
         wr."deletedAt" IS NULL AND
         workflowVersion."deletedAt" IS NULL AND
         wr."status" = 'QUEUED' AND
-        workflowVersion."workflowId" = $2::uuid
+        workflowVersion."id" = $2::uuid
 )
 SELECT
     wr."createdAt", wr."updatedAt", wr."deletedAt", wr."tenantId", wr."workflowVersionId", wr.status, wr.error, wr."startedAt", wr."finishedAt", wr."concurrencyGroupId", wr."displayName", wr.id, wr."childIndex", wr."childKey", wr."parentId", wr."parentStepRunId", wr."additionalMetadata", wr.duration, wr.priority, wr."insertOrder"
@@ -2718,7 +2718,7 @@ WHERE
     wr."deletedAt" IS NULL AND
     workflowVersion."deletedAt" IS NULL AND
     (wr."status" = 'QUEUED' OR wr."status" = 'RUNNING') AND
-    workflowVersion."workflowId" = $2::uuid AND
+    workflowVersion."id" = $2::uuid AND
     wr."concurrencyGroupId" IN (SELECT "concurrencyGroupId" FROM queued_wrs)
 ORDER BY
     wr."createdAt" ASC, wr."insertOrder" ASC
@@ -2726,13 +2726,13 @@ FOR UPDATE
 `
 
 type LockWorkflowRunsForQueueingParams struct {
-	Tenantid   pgtype.UUID `json:"tenantid"`
-	Workflowid pgtype.UUID `json:"workflowid"`
+	Tenantid          pgtype.UUID `json:"tenantid"`
+	Workflowversionid pgtype.UUID `json:"workflowversionid"`
 }
 
 // Locks any workflow runs which are in a RUNNING or QUEUED state, and have a matching concurrencyGroupId in a QUEUED state
 func (q *Queries) LockWorkflowRunsForQueueing(ctx context.Context, db DBTX, arg LockWorkflowRunsForQueueingParams) ([]*WorkflowRun, error) {
-	rows, err := db.Query(ctx, lockWorkflowRunsForQueueing, arg.Tenantid, arg.Workflowid)
+	rows, err := db.Query(ctx, lockWorkflowRunsForQueueing, arg.Tenantid, arg.Workflowversionid)
 	if err != nil {
 		return nil, err
 	}
@@ -2809,7 +2809,7 @@ WITH workflow_runs AS (
         r2."deletedAt" IS NULL AND
         workflowVersion."deletedAt" IS NULL AND
         (r2."status" = 'QUEUED' OR r2."status" = 'RUNNING') AND
-        workflowVersion."workflowId" = $2::uuid
+        workflowVersion."id" = $2::uuid
     ORDER BY
         rn, seqnum ASC
 ), min_rn AS (
@@ -2858,13 +2858,13 @@ RETURNING
 `
 
 type PopWorkflowRunsRoundRobinParams struct {
-	Tenantid   pgtype.UUID `json:"tenantid"`
-	Workflowid pgtype.UUID `json:"workflowid"`
-	Maxruns    int32       `json:"maxruns"`
+	Tenantid          pgtype.UUID `json:"tenantid"`
+	Workflowversionid pgtype.UUID `json:"workflowversionid"`
+	Maxruns           int32       `json:"maxruns"`
 }
 
 func (q *Queries) PopWorkflowRunsRoundRobin(ctx context.Context, db DBTX, arg PopWorkflowRunsRoundRobinParams) ([]*WorkflowRun, error) {
-	rows, err := db.Query(ctx, popWorkflowRunsRoundRobin, arg.Tenantid, arg.Workflowid, arg.Maxruns)
+	rows, err := db.Query(ctx, popWorkflowRunsRoundRobin, arg.Tenantid, arg.Workflowversionid, arg.Maxruns)
 	if err != nil {
 		return nil, err
 	}

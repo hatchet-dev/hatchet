@@ -840,7 +840,7 @@ func (w *workflowRunEngineRepository) GetScheduledChildWorkflowRun(ctx context.C
 	return w.queries.GetScheduledChildWorkflowRun(ctx, w.pool, childParams)
 }
 
-func (w *workflowRunEngineRepository) PopWorkflowRunsCancelInProgress(ctx context.Context, tenantId, workflowId string, maxRuns int) ([]*dbsqlc.WorkflowRun, []*dbsqlc.WorkflowRun, error) {
+func (w *workflowRunEngineRepository) PopWorkflowRunsCancelInProgress(ctx context.Context, tenantId, workflowVersionId string, maxRuns int) ([]*dbsqlc.WorkflowRun, []*dbsqlc.WorkflowRun, error) {
 	ctx, span := telemetry.NewSpan(ctx, "queue-by-cancel-in-progress")
 	defer span.End()
 
@@ -854,8 +854,8 @@ func (w *workflowRunEngineRepository) PopWorkflowRunsCancelInProgress(ctx contex
 
 	// place a FOR UPDATE lock on queued and running workflow runs to prevent concurrent updates
 	allToProcess, err := w.queries.LockWorkflowRunsForQueueing(ctx, tx, dbsqlc.LockWorkflowRunsForQueueingParams{
-		Tenantid:   sqlchelpers.UUIDFromStr(tenantId),
-		Workflowid: sqlchelpers.UUIDFromStr(workflowId),
+		Tenantid:          sqlchelpers.UUIDFromStr(tenantId),
+		Workflowversionid: sqlchelpers.UUIDFromStr(workflowVersionId),
 	})
 
 	if err != nil {
@@ -948,7 +948,7 @@ func (w *workflowRunEngineRepository) PopWorkflowRunsCancelInProgress(ctx contex
 	return allToCancel, allToStart, nil
 }
 
-func (w *workflowRunEngineRepository) PopWorkflowRunsCancelNewest(ctx context.Context, tenantId, workflowId string, maxRuns int) ([]*dbsqlc.WorkflowRun, []*dbsqlc.WorkflowRun, error) {
+func (w *workflowRunEngineRepository) PopWorkflowRunsCancelNewest(ctx context.Context, tenantId, workflowVersionId string, maxRuns int) ([]*dbsqlc.WorkflowRun, []*dbsqlc.WorkflowRun, error) {
 	ctx, span := telemetry.NewSpan(ctx, "queue-by-cancel-newest")
 	defer span.End()
 
@@ -962,8 +962,8 @@ func (w *workflowRunEngineRepository) PopWorkflowRunsCancelNewest(ctx context.Co
 
 	// place a FOR UPDATE lock on queued and running workflow runs to prevent concurrent updates
 	allToProcess, err := w.queries.LockWorkflowRunsForQueueing(ctx, tx, dbsqlc.LockWorkflowRunsForQueueingParams{
-		Tenantid:   sqlchelpers.UUIDFromStr(tenantId),
-		Workflowid: sqlchelpers.UUIDFromStr(workflowId),
+		Tenantid:          sqlchelpers.UUIDFromStr(tenantId),
+		Workflowversionid: sqlchelpers.UUIDFromStr(workflowVersionId),
 	})
 
 	if err != nil {
@@ -1054,7 +1054,7 @@ func (w *workflowRunEngineRepository) PopWorkflowRunsCancelNewest(ctx context.Co
 	return allToCancel, allToStart, nil
 }
 
-func (w *workflowRunEngineRepository) PopWorkflowRunsRoundRobin(ctx context.Context, tenantId string, workflowId string, maxRuns int) ([]*dbsqlc.WorkflowRun, []*dbsqlc.GetStepRunForEngineRow, error) {
+func (w *workflowRunEngineRepository) PopWorkflowRunsRoundRobin(ctx context.Context, tenantId string, workflowVersionId string, maxRuns int) ([]*dbsqlc.WorkflowRun, []*dbsqlc.GetStepRunForEngineRow, error) {
 
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, w.l, 15000)
 
@@ -1064,9 +1064,9 @@ func (w *workflowRunEngineRepository) PopWorkflowRunsRoundRobin(ctx context.Cont
 
 	defer rollback()
 	poppedWorkflowRuns, err := w.queries.PopWorkflowRunsRoundRobin(ctx, tx, dbsqlc.PopWorkflowRunsRoundRobinParams{
-		Maxruns:    int32(maxRuns), // nolint: gosec
-		Tenantid:   sqlchelpers.UUIDFromStr(tenantId),
-		Workflowid: sqlchelpers.UUIDFromStr(workflowId),
+		Maxruns:           int32(maxRuns), // nolint: gosec
+		Tenantid:          sqlchelpers.UUIDFromStr(tenantId),
+		Workflowversionid: sqlchelpers.UUIDFromStr(workflowVersionId),
 	})
 
 	if err != nil {

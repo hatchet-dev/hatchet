@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"sync"
 	"time"
 
 	"golang.org/x/sync/errgroup"
@@ -598,27 +597,14 @@ func (ec *WorkflowsControllerImpl) runGetGroupKeyRunReassignTenant(ctx context.C
 	return g.Wait()
 }
 
-func (wc *WorkflowsControllerImpl) getLock(key string) *sync.Mutex {
-	actual, _ := wc.queueMutex.LoadOrStore(key, &sync.Mutex{})
-	return actual.(*sync.Mutex)
-}
-
 func (wc *WorkflowsControllerImpl) queueByCancelInProgress(ctx context.Context, tenantId string, workflowVersion *dbsqlc.GetWorkflowVersionForEngineRow) error {
 	ctx, span := telemetry.NewSpan(ctx, "queue-by-cancel-in-progress")
 	defer span.End()
 
-	workflowId := sqlchelpers.UUIDToStr(workflowVersion.WorkflowVersion.WorkflowId)
+	workflowVersionId := sqlchelpers.UUIDToStr(workflowVersion.WorkflowVersion.ID)
 	maxRuns := int(workflowVersion.ConcurrencyMaxRuns.Int32)
 
-	mutex := wc.getLock(fmt.Sprintf("%s:%s", tenantId, workflowId))
-
-	if ok := mutex.TryLock(); !ok {
-		return nil
-	}
-
-	defer mutex.Unlock()
-
-	toCancel, toStart, err := wc.repo.WorkflowRun().PopWorkflowRunsCancelInProgress(ctx, tenantId, workflowId, maxRuns)
+	toCancel, toStart, err := wc.repo.WorkflowRun().PopWorkflowRunsCancelInProgress(ctx, tenantId, workflowVersionId, maxRuns)
 
 	if err != nil {
 		return fmt.Errorf("could not pop workflow runs: %w", err)
@@ -672,18 +658,10 @@ func (wc *WorkflowsControllerImpl) queueByCancelNewest(ctx context.Context, tena
 	ctx, span := telemetry.NewSpan(ctx, "queue-by-cancel-newest")
 	defer span.End()
 
-	workflowId := sqlchelpers.UUIDToStr(workflowVersion.WorkflowVersion.WorkflowId)
+	workflowVersionId := sqlchelpers.UUIDToStr(workflowVersion.WorkflowVersion.ID)
 	maxRuns := int(workflowVersion.ConcurrencyMaxRuns.Int32)
 
-	mutex := wc.getLock(fmt.Sprintf("%s:%s", tenantId, workflowId))
-
-	if ok := mutex.TryLock(); !ok {
-		return nil
-	}
-
-	defer mutex.Unlock()
-
-	toCancel, toStart, err := wc.repo.WorkflowRun().PopWorkflowRunsCancelNewest(ctx, tenantId, workflowId, maxRuns)
+	toCancel, toStart, err := wc.repo.WorkflowRun().PopWorkflowRunsCancelNewest(ctx, tenantId, workflowVersionId, maxRuns)
 
 	if err != nil {
 		return fmt.Errorf("could not pop workflow runs: %w", err)
@@ -738,12 +716,11 @@ func (wc *WorkflowsControllerImpl) queueByGroupRoundRobin(ctx context.Context, t
 	defer span.End()
 
 	workflowVersionId := sqlchelpers.UUIDToStr(workflowVersion.WorkflowVersion.ID)
-	workflowId := sqlchelpers.UUIDToStr(workflowVersion.WorkflowVersion.WorkflowId)
 	maxRuns := int(workflowVersion.ConcurrencyMaxRuns.Int32)
 
 	wc.l.Info().Msgf("handling queue with strategy GROUP_ROUND_ROBIN for workflow version %s", workflowVersionId)
 
-	_, startableStepRuns, err := wc.repo.WorkflowRun().PopWorkflowRunsRoundRobin(ctx, tenantId, workflowId, maxRuns)
+	_, startableStepRuns, err := wc.repo.WorkflowRun().PopWorkflowRunsRoundRobin(ctx, tenantId, workflowVersionId, maxRuns)
 
 	if err != nil {
 		return fmt.Errorf("could not pop workflow runs: %w", err)

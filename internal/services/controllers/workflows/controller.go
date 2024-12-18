@@ -23,6 +23,7 @@ import (
 	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
@@ -45,7 +46,8 @@ type WorkflowsControllerImpl struct {
 	processWorkflowEventsOps *queueutils.OperationPool
 	unpausedWorkflowRunsOps  *queueutils.OperationPool
 	bumpQueueOps             *queueutils.OperationPool
-	queueMutex               sync.Map
+
+	workflowVersionCache *cache.Cache
 }
 
 type WorkflowsControllerOpt func(*WorkflowsControllerOpts)
@@ -169,6 +171,10 @@ func New(fs ...WorkflowsControllerOpt) (*WorkflowsControllerImpl, error) {
 
 func (wc *WorkflowsControllerImpl) Start() (func() error, error) {
 	wc.l.Debug().Msg("starting workflows controller")
+
+	workflowVersionCache := cache.New(60 * time.Second)
+
+	wc.workflowVersionCache = workflowVersionCache
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -296,6 +302,8 @@ func (wc *WorkflowsControllerImpl) Start() (func() error, error) {
 		if err := wc.s.Shutdown(); err != nil {
 			return fmt.Errorf("could not shutdown scheduler: %w", err)
 		}
+
+		workflowVersionCache.Stop()
 
 		return nil
 	}
@@ -545,7 +553,7 @@ func (wc *WorkflowsControllerImpl) runPollActiveQueuesTenant(ctx context.Context
 }
 
 func (wc *WorkflowsControllerImpl) bumpQueue(ctx context.Context, tenantId string, workflowVersionId string) error {
-	workflowVersion, err := wc.repo.Workflow().GetWorkflowVersionById(ctx, tenantId, workflowVersionId)
+	workflowVersion, err := wc.getWorkflowVersion(ctx, tenantId, workflowVersionId)
 
 	if err != nil {
 		return fmt.Errorf("could not get workflow version: %w", err)
@@ -565,6 +573,24 @@ func (wc *WorkflowsControllerImpl) bumpQueue(ctx context.Context, tenantId strin
 	}
 
 	return err
+}
+
+func (wc *WorkflowsControllerImpl) getWorkflowVersion(ctx context.Context, tenantId, workflowVersionId string) (*dbsqlc.GetWorkflowVersionForEngineRow, error) {
+	cachedWorkflowVersion, ok := wc.workflowVersionCache.Get(workflowVersionId)
+
+	if ok {
+		return cachedWorkflowVersion.(*dbsqlc.GetWorkflowVersionForEngineRow), nil
+	}
+
+	workflowVersion, err := wc.repo.Workflow().GetWorkflowVersionById(ctx, tenantId, workflowVersionId)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not get workflow version: %w", err)
+	}
+
+	wc.workflowVersionCache.Set(workflowVersionId, workflowVersion)
+
+	return workflowVersion, nil
 }
 
 func (wc *WorkflowsControllerImpl) handleGroupKeyRunFailed(ctx context.Context, task *msgqueue.Message) error {

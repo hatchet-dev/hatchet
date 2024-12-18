@@ -261,7 +261,7 @@ WITH queued_wrs AS (
         wr."deletedAt" IS NULL AND
         workflowVersion."deletedAt" IS NULL AND
         wr."status" = 'QUEUED' AND
-        workflowVersion."workflowId" = @workflowId::uuid
+        workflowVersion."id" = @workflowVersionId::uuid
 )
 SELECT
     wr.*
@@ -274,7 +274,7 @@ WHERE
     wr."deletedAt" IS NULL AND
     workflowVersion."deletedAt" IS NULL AND
     (wr."status" = 'QUEUED' OR wr."status" = 'RUNNING') AND
-    workflowVersion."workflowId" = @workflowId::uuid AND
+    workflowVersion."id" = @workflowVersionId::uuid AND
     wr."concurrencyGroupId" IN (SELECT "concurrencyGroupId" FROM queued_wrs)
 ORDER BY
     wr."createdAt" ASC, wr."insertOrder" ASC
@@ -306,7 +306,7 @@ WITH workflow_runs AS (
         r2."deletedAt" IS NULL AND
         workflowVersion."deletedAt" IS NULL AND
         (r2."status" = 'QUEUED' OR r2."status" = 'RUNNING') AND
-        workflowVersion."workflowId" = @workflowId::uuid
+        workflowVersion."id" = @workflowVersionId::uuid
     ORDER BY
         rn, seqnum ASC
 ), min_rn AS (
