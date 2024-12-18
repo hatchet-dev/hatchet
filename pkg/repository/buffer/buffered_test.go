@@ -27,10 +27,10 @@ type mockResult struct {
 	ID int
 }
 
-func mockOutputFunc(ctx context.Context, items []mockItem) ([]mockResult, error) {
-	var results []mockResult
+func mockOutputFunc(ctx context.Context, items []mockItem) ([]*mockResult, error) {
+	var results []*mockResult
 	for _, item := range items {
-		results = append(results, mockResult{ID: item.ID})
+		results = append(results, &mockResult{ID: item.ID})
 	}
 	return results, nil
 }
@@ -105,16 +105,12 @@ func TestIngestBufBuffering(t *testing.T) {
 	require.NoError(t, err)
 
 	item := mockItem{ID: 1, Size: 10, Value: "test"}
-	doneChan, err := buf.BuffItem(item)
-	require.NoError(t, err)
-
-	resp := <-doneChan
-	assert.NoError(t, resp.Err)
-	assert.Equal(t, 1, resp.Result.ID)
+	resp, err := buf.FireAndWait(context.Background(), item)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, resp.ID)
 
 	assert.Equal(t, 0, buf.safeFetchSizeOfData())
 	assert.Equal(t, 0, buf.safeCheckSizeOfBuffer())
-
 }
 
 func TestIngestBufAutoFlushOnCapacity(t *testing.T) {
@@ -142,12 +138,9 @@ func TestIngestBufAutoFlushOnCapacity(t *testing.T) {
 		go func(i int) {
 			defer wg.Done()
 			item := mockItem{ID: i, Size: 10, Value: "test"}
-			doneChan, err := buf.BuffItem(item)
-			require.NoError(t, err)
-
-			resp := <-doneChan
-			assert.NoError(t, resp.Err)
-			assert.Equal(t, i, resp.Result.ID)
+			resp, err := buf.FireAndWait(context.Background(), item)
+			assert.NoError(t, err)
+			assert.Equal(t, i, resp.ID)
 		}(i)
 	}
 
@@ -177,12 +170,9 @@ func TestIngestBufAutoFlushOnSize(t *testing.T) {
 	require.NoError(t, err)
 
 	item := mockItem{ID: 1, Size: 25, Value: "test"}
-	doneChan, err := buf.BuffItem(item)
-	require.NoError(t, err)
-
-	resp := <-doneChan
-	assert.NoError(t, resp.Err)
-	assert.Equal(t, 1, resp.Result.ID)
+	resp, err := buf.FireAndWait(context.Background(), item)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, resp.ID)
 
 	assert.Equal(t, 0, buf.safeFetchSizeOfData())
 	assert.Equal(t, 0, buf.safeCheckSizeOfBuffer())
@@ -208,13 +198,17 @@ func TestIngestBufTimeoutFlush(t *testing.T) {
 	require.NoError(t, err)
 
 	item := mockItem{ID: 1, Size: 1, Value: "test"}
-	doneChan, err := buf.BuffItem(item)
-	require.NoError(t, err)
+	doneChan := make(chan *mockResult)
+
+	go func() {
+		resp, err := buf.FireAndWait(context.Background(), item)
+		assert.NoError(t, err)
+		doneChan <- resp
+	}()
 
 	select {
 	case resp := <-doneChan:
-		assert.NoError(t, resp.Err)
-		assert.Equal(t, 1, resp.Result.ID)
+		assert.Equal(t, 1, resp.ID)
 	case <-time.After(500 * time.Millisecond):
 		t.Error("Flush should have been triggered by timeout")
 	}
@@ -231,10 +225,10 @@ func TestIngestBufOrderPreservation(t *testing.T) {
 		MaxCapacity:        5,
 		FlushPeriod:        5 * time.Second,
 		MaxDataSizeInQueue: 100,
-		OutputFunc: func(ctx context.Context, items []mockItem) ([]mockResult, error) {
-			var results []mockResult
+		OutputFunc: func(ctx context.Context, items []mockItem) ([]*mockResult, error) {
+			var results []*mockResult
 			for _, item := range items {
-				results = append(results, mockResult{ID: item.ID})
+				results = append(results, &mockResult{ID: item.ID})
 			}
 			return results, nil
 		},
@@ -259,13 +253,9 @@ func TestIngestBufOrderPreservation(t *testing.T) {
 		go func(id int) {
 			defer wg.Done()
 			item := mockItem{ID: id, Size: 10, Value: fmt.Sprintf("test-%d", id)}
-			doneChan, err := buf.BuffItem(item)
+			resp, err := buf.FireAndWait(context.Background(), item)
 			require.NoError(t, err)
-
-			resp := <-doneChan
-			require.NoError(t, resp.Err)
-
-			assert.Equal(t, id, resp.Result.ID)
+			assert.Equal(t, id, resp.ID)
 		}(id)
 	}
 

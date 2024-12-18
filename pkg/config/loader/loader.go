@@ -21,6 +21,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/integrations/email"
 	"github.com/hatchet-dev/hatchet/internal/integrations/email/postmark"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
+	"github.com/hatchet-dev/hatchet/internal/msgqueue/postgres"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue/rabbitmq"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
@@ -60,7 +61,6 @@ func LoadServerConfigFile(files ...[]byte) (*server.ServerConfigFile, error) {
 	f := server.BindAllEnv
 
 	_, err := loaderutils.LoadConfigFromViper(f, configFile, files...)
-
 	return configFile, err
 }
 
@@ -279,12 +279,23 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 	var ing ingestor.Ingestor
 
 	if cf.MessageQueue.Enabled {
-		cleanup1, mq = rabbitmq.New(
-			rabbitmq.WithURL(cf.MessageQueue.RabbitMQ.URL),
-			rabbitmq.WithLogger(&l),
-			rabbitmq.WithQos(cf.MessageQueue.RabbitMQ.Qos),
-			rabbitmq.WithDisableTenantExchangePubs(cf.Runtime.DisableTenantPubs),
-		)
+		switch strings.ToLower(cf.MessageQueue.Kind) {
+		case "postgres":
+			l.Warn().Msg("Using a Postgres-backed message queue. This feature is still in beta.")
+
+			mq = postgres.NewPostgresMQ(
+				dc.EngineRepository.MessageQueue(),
+				postgres.WithLogger(&l),
+				postgres.WithQos(cf.MessageQueue.Postgres.Qos),
+			)
+		case "rabbitmq":
+			cleanup1, mq = rabbitmq.New(
+				rabbitmq.WithURL(cf.MessageQueue.RabbitMQ.URL),
+				rabbitmq.WithLogger(&l),
+				rabbitmq.WithQos(cf.MessageQueue.RabbitMQ.Qos),
+				rabbitmq.WithDisableTenantExchangePubs(cf.Runtime.DisableTenantPubs),
+			)
+		}
 
 		ing, err = ingestor.NewIngestor(
 			ingestor.WithEventRepository(dc.EngineRepository.Event()),
@@ -444,11 +455,9 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 	v := validator.NewDefaultValidator()
 
 	schedulingPool, cleanupSchedulingPool, err := v2.NewSchedulingPool(
+		dc.EngineRepository.Scheduler(),
 		&queueLogger,
-		dc.QueuePool,
-		v,
 		cf.Runtime.SingleQueueLimit,
-		cf.Runtime.EventBuffer,
 	)
 
 	if err != nil {
@@ -473,6 +482,10 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 	// edge case to support backwards-compatibility with the services array in the config file
 	if cf.ServicesString != "" {
 		services = strings.Split(cf.ServicesString, " ")
+	}
+
+	if cf.Runtime.Monitoring.TLSRootCAFile == "" {
+		cf.Runtime.Monitoring.TLSRootCAFile = cf.TLS.TLSRootCAFile
 	}
 
 	return cleanup, &server.ServerConfig{

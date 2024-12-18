@@ -1573,6 +1573,18 @@ type WorkflowRunListStepRunEventsParams struct {
 	LastId *int32 `form:"lastId,omitempty" json:"lastId,omitempty"`
 }
 
+// WorkflowListParams defines parameters for WorkflowList.
+type WorkflowListParams struct {
+	// Offset The number to skip
+	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
+
+	// Limit The number to limit by
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Name Search by name
+	Name *string `form:"name,omitempty" json:"name,omitempty"`
+}
+
 // CronWorkflowListParams defines parameters for CronWorkflowList.
 type CronWorkflowListParams struct {
 	// Offset The number to skip
@@ -1900,6 +1912,9 @@ type ClientInterface interface {
 	// MetadataListIntegrations request
 	MetadataListIntegrations(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// MonitoringPostRunProbe request
+	MonitoringPostRunProbe(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// SlackWebhookDelete request
 	SlackWebhookDelete(ctx context.Context, slack openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -2064,7 +2079,7 @@ type ClientInterface interface {
 	WorkflowRunListStepRunEvents(ctx context.Context, tenant openapi_types.UUID, workflowRun openapi_types.UUID, params *WorkflowRunListStepRunEventsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// WorkflowList request
-	WorkflowList(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+	WorkflowList(ctx context.Context, tenant openapi_types.UUID, params *WorkflowListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// WorkflowRunCancelWithBody request with any body
 	WorkflowRunCancelWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -2319,6 +2334,18 @@ func (c *Client) MetadataGet(ctx context.Context, reqEditors ...RequestEditorFn)
 
 func (c *Client) MetadataListIntegrations(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewMetadataListIntegrationsRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) MonitoringPostRunProbe(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewMonitoringPostRunProbeRequest(c.Server, tenant)
 	if err != nil {
 		return nil, err
 	}
@@ -3037,8 +3064,8 @@ func (c *Client) WorkflowRunListStepRunEvents(ctx context.Context, tenant openap
 	return c.Client.Do(req)
 }
 
-func (c *Client) WorkflowList(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewWorkflowListRequest(c.Server, tenant)
+func (c *Client) WorkflowList(ctx context.Context, tenant openapi_types.UUID, params *WorkflowListParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWorkflowListRequest(c.Server, tenant, params)
 	if err != nil {
 		return nil, err
 	}
@@ -3924,6 +3951,40 @@ func NewMetadataListIntegrationsRequest(server string) (*http.Request, error) {
 	}
 
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewMonitoringPostRunProbeRequest generates requests for MonitoringPostRunProbe
+func NewMonitoringPostRunProbeRequest(server string, tenant openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/monitoring/%s/probe", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -6211,7 +6272,7 @@ func NewWorkflowRunListStepRunEventsRequest(server string, tenant openapi_types.
 }
 
 // NewWorkflowListRequest generates requests for WorkflowList
-func NewWorkflowListRequest(server string, tenant openapi_types.UUID) (*http.Request, error) {
+func NewWorkflowListRequest(server string, tenant openapi_types.UUID, params *WorkflowListParams) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -6234,6 +6295,60 @@ func NewWorkflowListRequest(server string, tenant openapi_types.UUID) (*http.Req
 	queryURL, err := serverURL.Parse(operationPath)
 	if err != nil {
 		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Offset != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "offset", runtime.ParamLocationQuery, *params.Offset); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Name != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "name", runtime.ParamLocationQuery, *params.Name); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
 	}
 
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
@@ -8335,6 +8450,9 @@ type ClientWithResponsesInterface interface {
 	// MetadataListIntegrationsWithResponse request
 	MetadataListIntegrationsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*MetadataListIntegrationsResponse, error)
 
+	// MonitoringPostRunProbeWithResponse request
+	MonitoringPostRunProbeWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*MonitoringPostRunProbeResponse, error)
+
 	// SlackWebhookDeleteWithResponse request
 	SlackWebhookDeleteWithResponse(ctx context.Context, slack openapi_types.UUID, reqEditors ...RequestEditorFn) (*SlackWebhookDeleteResponse, error)
 
@@ -8499,7 +8617,7 @@ type ClientWithResponsesInterface interface {
 	WorkflowRunListStepRunEventsWithResponse(ctx context.Context, tenant openapi_types.UUID, workflowRun openapi_types.UUID, params *WorkflowRunListStepRunEventsParams, reqEditors ...RequestEditorFn) (*WorkflowRunListStepRunEventsResponse, error)
 
 	// WorkflowListWithResponse request
-	WorkflowListWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkflowListResponse, error)
+	WorkflowListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *WorkflowListParams, reqEditors ...RequestEditorFn) (*WorkflowListResponse, error)
 
 	// WorkflowRunCancelWithBodyWithResponse request with any body
 	WorkflowRunCancelWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WorkflowRunCancelResponse, error)
@@ -8855,6 +8973,28 @@ func (r MetadataListIntegrationsResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r MetadataListIntegrationsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type MonitoringPostRunProbeResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON403      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r MonitoringPostRunProbeResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r MonitoringPostRunProbeResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -10943,6 +11083,15 @@ func (c *ClientWithResponses) MetadataListIntegrationsWithResponse(ctx context.C
 	return ParseMetadataListIntegrationsResponse(rsp)
 }
 
+// MonitoringPostRunProbeWithResponse request returning *MonitoringPostRunProbeResponse
+func (c *ClientWithResponses) MonitoringPostRunProbeWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*MonitoringPostRunProbeResponse, error) {
+	rsp, err := c.MonitoringPostRunProbe(ctx, tenant, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseMonitoringPostRunProbeResponse(rsp)
+}
+
 // SlackWebhookDeleteWithResponse request returning *SlackWebhookDeleteResponse
 func (c *ClientWithResponses) SlackWebhookDeleteWithResponse(ctx context.Context, slack openapi_types.UUID, reqEditors ...RequestEditorFn) (*SlackWebhookDeleteResponse, error) {
 	rsp, err := c.SlackWebhookDelete(ctx, slack, reqEditors...)
@@ -11461,8 +11610,8 @@ func (c *ClientWithResponses) WorkflowRunListStepRunEventsWithResponse(ctx conte
 }
 
 // WorkflowListWithResponse request returning *WorkflowListResponse
-func (c *ClientWithResponses) WorkflowListWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkflowListResponse, error) {
-	rsp, err := c.WorkflowList(ctx, tenant, reqEditors...)
+func (c *ClientWithResponses) WorkflowListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *WorkflowListParams, reqEditors ...RequestEditorFn) (*WorkflowListResponse, error) {
+	rsp, err := c.WorkflowList(ctx, tenant, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -12192,6 +12341,32 @@ func ParseMetadataListIntegrationsResponse(rsp *http.Response) (*MetadataListInt
 			return nil, err
 		}
 		response.JSON400 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseMonitoringPostRunProbeResponse parses an HTTP response from a MonitoringPostRunProbeWithResponse call
+func ParseMonitoringPostRunProbeResponse(rsp *http.Response) (*MonitoringPostRunProbeResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &MonitoringPostRunProbeResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
 
 	}
 

@@ -1,9 +1,10 @@
 -- CreateEnum
 CREATE TYPE "ConcurrencyLimitStrategy" AS ENUM (
     'CANCEL_IN_PROGRESS',
-    'DROP_NEWEST',
-    'QUEUE_NEWEST',
-    'GROUP_ROUND_ROBIN'
+    'DROP_NEWEST', -- DEPRECATED
+    'QUEUE_NEWEST', -- DEPRECATED
+    'GROUP_ROUND_ROBIN',
+    'CANCEL_NEWEST'
 );
 
 
@@ -130,7 +131,7 @@ CREATE TYPE "WorkerType" AS ENUM ('WEBHOOK', 'MANAGED', 'SELFHOSTED');
 CREATE TYPE "WorkflowKind" AS ENUM ('FUNCTION', 'DURABLE', 'DAG');
 
 -- CreateEnum
-CREATE TYPE "WorkflowRunStatus" AS ENUM ('PENDING', 'RUNNING', 'SUCCEEDED', 'FAILED', 'QUEUED');
+CREATE TYPE "WorkflowRunStatus" AS ENUM ('PENDING', 'RUNNING', 'SUCCEEDED', 'FAILED', 'QUEUED', 'CANCELLING', 'CANCELLED');
 
 -- CreateTable
 CREATE TABLE "APIToken" (
@@ -318,6 +319,9 @@ CREATE TABLE "LogLine" (
 
     CONSTRAINT "LogLine_pkey" PRIMARY KEY ("id")
 );
+
+-- CreateIndex
+CREATE INDEX "LogLine_tenantId_stepRunId_idx" ON "LogLine" ("tenantId", "stepRunId" ASC);
 
 -- CreateTable
 CREATE TABLE "Queue" (
@@ -841,7 +845,7 @@ CREATE TABLE "Worker" (
 -- CreateTable
 CREATE TABLE "WorkerAssignEvent" (
     "id" BIGSERIAL NOT NULL,
-    "workerId" UUID NOT NULL,
+    "workerId" UUID,
     "assignedStepRuns" JSONB,
 
     CONSTRAINT "WorkerAssignEvent_pkey" PRIMARY KEY ("id")
@@ -1072,6 +1076,38 @@ CREATE TABLE
 -- CreateTable
 CREATE TABLE
     "_WorkflowToWorkflowTag" ("A" UUID NOT NULL, "B" UUID NOT NULL);
+
+-- CreateTable
+CREATE TABLE "MessageQueue" (
+    "name" TEXT NOT NULL,
+    "lastActive" TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP,
+    "durable" BOOLEAN NOT NULL DEFAULT true,
+    "autoDeleted" BOOLEAN NOT NULL DEFAULT false,
+    "exclusive" BOOLEAN NOT NULL DEFAULT false,
+    "exclusiveConsumerId" UUID,
+    CONSTRAINT "MessageQueue_pkey" PRIMARY KEY ("name")
+);
+
+-- CreateEnum
+CREATE TYPE "MessageQueueItemStatus" AS ENUM (
+    'PENDING',
+    'ASSIGNED'
+);
+
+-- CreateTable
+CREATE TABLE "MessageQueueItem" (
+    "id" bigint GENERATED ALWAYS AS IDENTITY,
+    "payload" JSONB NOT NULL,
+    "readAfter" TIMESTAMP(3),
+    "expiresAt" TIMESTAMP(3),
+    "queueId" TEXT,
+    "status" "MessageQueueItemStatus" NOT NULL DEFAULT 'PENDING',
+    CONSTRAINT "MessageQueueItem_pkey" PRIMARY KEY ("id"),
+    CONSTRAINT "MessageQueueItem_queueId_fkey" FOREIGN KEY ("queueId") REFERENCES "MessageQueue" ("name") ON DELETE SET NULL
+);
+
+-- Create an index for message queue item
+CREATE INDEX "MessageQueueItem_queueId_expiresAt_readAfter_status_id_idx" ON "MessageQueueItem" ("expiresAt", "queueId", "readAfter", "status", "id");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "APIToken_id_key" ON "APIToken" ("id" ASC);
@@ -1371,6 +1407,10 @@ CREATE UNIQUE INDEX "Worker_id_key" ON "Worker" ("id" ASC);
 CREATE UNIQUE INDEX "Worker_webhookId_key" ON "Worker" ("webhookId" ASC);
 
 -- CreateIndex
+
+CREATE INDEX "Worker_tenantId_lastHeartbeatAt_idx" ON "Worker" ("tenantId", "lastHeartbeatAt");
+
+-- CreateIndex
 CREATE INDEX "WorkerAssignEvent_workerId_id_idx" ON "WorkerAssignEvent" ("workerId" ASC, "id" ASC);
 
 -- CreateIndex
@@ -1637,7 +1677,7 @@ ALTER TABLE "Worker" ADD CONSTRAINT "Worker_dispatcherId_fkey" FOREIGN KEY ("dis
 ALTER TABLE "Worker" ADD CONSTRAINT "Worker_webhookId_fkey" FOREIGN KEY ("webhookId") REFERENCES "WebhookWorker" ("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "WorkerAssignEvent" ADD CONSTRAINT "WorkerAssignEvent_workerId_fkey" FOREIGN KEY ("workerId") REFERENCES "Worker" ("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "WorkerAssignEvent" ADD CONSTRAINT "WorkerAssignEvent_workerId_fkey" FOREIGN KEY ("workerId") REFERENCES "Worker" ("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "WorkerLabel" ADD CONSTRAINT "WorkerLabel_workerId_fkey" FOREIGN KEY ("workerId") REFERENCES "Worker" ("id") ON DELETE CASCADE ON UPDATE CASCADE;

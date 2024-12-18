@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
@@ -12,7 +13,11 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
-type PushOpFunc func(*eventcontracts.PushEventRequest) error
+type pushOpt struct {
+	additionalMetadata map[string]string
+}
+
+type PushOpFunc func(*pushOpt) error
 
 type BulkPushOpFunc func(*eventcontracts.BulkPushEventRequest) error
 
@@ -44,29 +49,25 @@ type eventClientImpl struct {
 	v validator.Validator
 
 	ctx *contextLoader
+
+	sharedMeta map[string]string
 }
 
 func newEvent(conn *grpc.ClientConn, opts *sharedClientOpts) EventClient {
 	return &eventClientImpl{
-		client:    eventcontracts.NewEventsServiceClient(conn),
-		tenantId:  opts.tenantId,
-		namespace: opts.namespace,
-		l:         opts.l,
-		v:         opts.v,
-		ctx:       opts.ctxLoader,
+		client:     eventcontracts.NewEventsServiceClient(conn),
+		tenantId:   opts.tenantId,
+		namespace:  opts.namespace,
+		l:          opts.l,
+		v:          opts.v,
+		ctx:        opts.ctxLoader,
+		sharedMeta: opts.sharedMeta,
 	}
 }
 
-func WithEventMetadata(metadata interface{}) PushOpFunc {
-	return func(r *eventcontracts.PushEventRequest) error {
-		metadataBytes, err := json.Marshal(metadata)
-		if err != nil {
-			return err
-		}
-
-		metadataString := string(metadataBytes)
-
-		r.AdditionalMetadata = &metadataString
+func WithEventMetadata(metadata map[string]string) PushOpFunc {
+	return func(r *pushOpt) error {
+		r.additionalMetadata = metadata
 
 		return nil
 	}
@@ -87,12 +88,24 @@ func (a *eventClientImpl) Push(ctx context.Context, eventKey string, payload int
 
 	request.Payload = string(payloadBytes)
 
+	opts := &pushOpt{}
+
 	for _, optionFunc := range options {
-		err = optionFunc(&request)
+		err = optionFunc(opts)
 		if err != nil {
 			return err
 		}
 	}
+
+	additionalMetaBytes, err := a.getAdditionalMetaBytes(&opts.additionalMetadata)
+
+	if err != nil {
+		return err
+	}
+
+	additionalMetaString := string(additionalMetaBytes)
+
+	request.AdditionalMetadata = &additionalMetaString
 
 	_, err = a.client.Push(a.ctx.newContext(ctx), &request)
 
@@ -158,4 +171,26 @@ func (a *eventClientImpl) PutStreamEvent(ctx context.Context, stepRunId string, 
 	})
 
 	return err
+}
+
+func (e *eventClientImpl) getAdditionalMetaBytes(opt *map[string]string) ([]byte, error) {
+	additionalMeta := make(map[string]string)
+
+	for key, value := range e.sharedMeta {
+		additionalMeta[key] = value
+	}
+
+	if opt != nil {
+		for key, value := range *opt {
+			additionalMeta[key] = value
+		}
+	}
+
+	metadataBytes, err := json.Marshal(additionalMeta)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not marshal additional metadata: %w", err)
+	}
+
+	return metadataBytes, nil
 }

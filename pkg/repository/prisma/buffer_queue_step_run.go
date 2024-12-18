@@ -1,4 +1,4 @@
-package buffer
+package prisma
 
 import (
 	"context"
@@ -7,64 +7,38 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/services/shared/defaults"
+	"github.com/hatchet-dev/hatchet/pkg/repository/buffer"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
-	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
-type BulkStepRunQueuer struct {
-	*TenantBufferManager[BulkQueueStepRunOpts, pgtype.UUID]
-
-	pool    *pgxpool.Pool
-	v       validator.Validator
-	l       *zerolog.Logger
-	queries *dbsqlc.Queries
-}
-
-func NewBulkStepRunQueuer(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, conf ConfigFileBuffer) (*BulkStepRunQueuer, error) {
-	queries := dbsqlc.New()
-
-	w := &BulkStepRunQueuer{
-		pool:    pool,
-		v:       v,
-		l:       l,
-		queries: queries,
-	}
-
-	eventBufOpts := TenantBufManagerOpts[BulkQueueStepRunOpts, pgtype.UUID]{
+func newBulkStepRunQueuer(shared *sharedRepository, conf buffer.ConfigFileBuffer) (*buffer.TenantBufferManager[bulkQueueStepRunOpts, pgtype.UUID], error) {
+	stepRunQueuerBufOpts := buffer.TenantBufManagerOpts[bulkQueueStepRunOpts, pgtype.UUID]{
 		Name:       "step_run_queuer",
-		OutputFunc: w.BulkQueueStepRuns,
+		OutputFunc: shared.bulkQueueStepRuns,
 		SizeFunc:   sizeOfQueueData,
-		L:          w.l,
-		V:          w.v,
+		L:          shared.l,
+		V:          shared.v,
 		Config:     conf,
 	}
 
-	manager, err := NewTenantBufManager(eventBufOpts)
+	manager, err := buffer.NewTenantBufManager(stepRunQueuerBufOpts)
 
 	if err != nil {
-		l.Err(err).Msg("could not create tenant buffer manager")
+		shared.l.Err(err).Msg("could not create tenant buffer manager")
 		return nil, err
 	}
 
-	w.TenantBufferManager = manager
-
-	return w, nil
+	return manager, nil
 }
 
-func (w *BulkStepRunQueuer) Cleanup() error {
-	return w.TenantBufferManager.Cleanup()
-}
-
-func sizeOfQueueData(item BulkQueueStepRunOpts) int {
+func sizeOfQueueData(item bulkQueueStepRunOpts) int {
 	return len(item.GetStepRunForEngineRow.SRID.Bytes) + len(item.Input)
 }
 
-func sortForQueueStepRuns(opts []BulkQueueStepRunOpts) []BulkQueueStepRunOpts {
+func sortForQueueStepRuns(opts []bulkQueueStepRunOpts) []bulkQueueStepRunOpts {
 	sort.SliceStable(opts, func(i, j int) bool {
 		return sqlchelpers.UUIDToStr(opts[i].GetStepRunForEngineRow.SRID) < sqlchelpers.UUIDToStr(opts[j].GetStepRunForEngineRow.SRID)
 	})
@@ -72,7 +46,7 @@ func sortForQueueStepRuns(opts []BulkQueueStepRunOpts) []BulkQueueStepRunOpts {
 	return opts
 }
 
-type BulkQueueStepRunOpts struct {
+type bulkQueueStepRunOpts struct {
 	*dbsqlc.GetStepRunForEngineRow
 
 	Priority int
@@ -80,8 +54,8 @@ type BulkQueueStepRunOpts struct {
 	Input    []byte
 }
 
-func (w *BulkStepRunQueuer) BulkQueueStepRuns(ctx context.Context, opts []BulkQueueStepRunOpts) ([]pgtype.UUID, error) {
-	res := make([]pgtype.UUID, 0, len(opts))
+func (w *sharedRepository) bulkQueueStepRuns(ctx context.Context, opts []bulkQueueStepRunOpts) ([]*pgtype.UUID, error) {
+	res := make([]*pgtype.UUID, 0, len(opts))
 	orderedOpts := sortForQueueStepRuns(opts)
 
 	err := sqlchelpers.DeadlockRetry(w.l, func() (err error) {
@@ -100,10 +74,11 @@ func (w *BulkStepRunQueuer) BulkQueueStepRuns(ctx context.Context, opts []BulkQu
 		stepRunIdWithoutInputs := make([]pgtype.UUID, 0, len(orderedOpts))
 		retryCountsWithInputs := make([]int32, 0, len(orderedOpts))
 		retryCountsWithoutInputs := make([]int32, 0, len(orderedOpts))
-		res = make([]pgtype.UUID, 0, len(orderedOpts))
+		res = make([]*pgtype.UUID, 0, len(orderedOpts))
 
 		for _, o := range orderedOpts {
-			res = append(res, o.GetStepRunForEngineRow.SRID)
+			srId := o.GetStepRunForEngineRow.SRID
+			res = append(res, &srId)
 
 			var retryCount int32
 

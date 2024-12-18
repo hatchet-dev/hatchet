@@ -7,56 +7,19 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/queueutils"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
+	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 )
 
-type schedulerRepo interface {
-	ListActionsForWorkers(ctx context.Context, workerIds []pgtype.UUID) ([]*dbsqlc.ListActionsForWorkersRow, error)
-	ListAvailableSlotsForWorkers(ctx context.Context, params dbsqlc.ListAvailableSlotsForWorkersParams) ([]*dbsqlc.ListAvailableSlotsForWorkersRow, error)
-}
-
-type schedulerDbQueries struct {
-	queries *dbsqlc.Queries
-	pool    *pgxpool.Pool
-
-	tenantId pgtype.UUID
-}
-
-func newSchedulerDbQueries(queries *dbsqlc.Queries, pool *pgxpool.Pool, tenantId pgtype.UUID) *schedulerDbQueries {
-	return &schedulerDbQueries{
-		queries:  queries,
-		pool:     pool,
-		tenantId: tenantId,
-	}
-}
-
-func (d *schedulerDbQueries) ListActionsForWorkers(ctx context.Context, workerIds []pgtype.UUID) ([]*dbsqlc.ListActionsForWorkersRow, error) {
-	ctx, span := telemetry.NewSpan(ctx, "list-actions-for-workers")
-	defer span.End()
-
-	return d.queries.ListActionsForWorkers(ctx, d.pool, dbsqlc.ListActionsForWorkersParams{
-		Tenantid:  d.tenantId,
-		Workerids: workerIds,
-	})
-}
-
-func (d *schedulerDbQueries) ListAvailableSlotsForWorkers(ctx context.Context, params dbsqlc.ListAvailableSlotsForWorkersParams) ([]*dbsqlc.ListAvailableSlotsForWorkersRow, error) {
-	ctx, span := telemetry.NewSpan(ctx, "list-available-slots-for-workers")
-	defer span.End()
-
-	return d.queries.ListAvailableSlotsForWorkers(ctx, d.pool, params)
-}
-
 // Scheduler is responsible for scheduling steps to workers as efficiently as possible.
 // This is tenant-scoped, so each tenant will have its own scheduler.
 type Scheduler struct {
-	repo     schedulerRepo
+	repo     repository.AssignmentRepository
 	tenantId pgtype.UUID
 
 	l *zerolog.Logger
@@ -83,7 +46,7 @@ func newScheduler(cf *sharedConfig, tenantId pgtype.UUID, rl *rateLimiter) *Sche
 	l := cf.l.With().Str("tenant_id", sqlchelpers.UUIDToStr(tenantId)).Logger()
 
 	return &Scheduler{
-		repo:            newSchedulerDbQueries(cf.queries, cf.pool, tenantId),
+		repo:            cf.repo.Assignment(),
 		tenantId:        tenantId,
 		l:               &l,
 		actions:         make(map[string]*action),
@@ -121,7 +84,7 @@ func (s *Scheduler) nack(ids []int) {
 	}
 }
 
-func (s *Scheduler) setWorkers(workers []*ListActiveWorkersResult) {
+func (s *Scheduler) setWorkers(workers []*repository.ListActiveWorkersResult) {
 	s.workersMu.Lock()
 	defer s.workersMu.Unlock()
 
@@ -166,7 +129,7 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 	start := time.Now()
 	checkpoint := start
 
-	workersToActiveActions, err := s.repo.ListActionsForWorkers(ctx, workerIds)
+	workersToActiveActions, err := s.repo.ListActionsForWorkers(ctx, s.tenantId, workerIds)
 
 	if err != nil {
 		return err
@@ -290,7 +253,7 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 	s.unackedMu.Lock()
 	defer s.unackedMu.Unlock()
 
-	availableSlots, err := s.repo.ListAvailableSlotsForWorkers(ctx, dbsqlc.ListAvailableSlotsForWorkersParams{
+	availableSlots, err := s.repo.ListAvailableSlotsForWorkers(ctx, s.tenantId, dbsqlc.ListAvailableSlotsForWorkersParams{
 		Tenantid:  s.tenantId,
 		Workerids: workerUUIDs,
 	})
@@ -659,7 +622,7 @@ func (s *Scheduler) tryAssignSingleton(
 	return res, nil
 }
 
-type AssignedQueueItem struct {
+type assignedQueueItem struct {
 	AckId    int
 	WorkerId pgtype.UUID
 
@@ -667,7 +630,7 @@ type AssignedQueueItem struct {
 }
 
 type assignResults struct {
-	assigned           []*AssignedQueueItem
+	assigned           []*assignedQueueItem
 	unassigned         []*dbsqlc.QueueItem
 	schedulingTimedOut []*dbsqlc.QueueItem
 	rateLimited        []*scheduleRateLimitResult
@@ -730,7 +693,7 @@ func (s *Scheduler) tryAssign(
 				}
 
 				err := queueutils.BatchLinear(50, batched, func(batchQis []*dbsqlc.QueueItem) error {
-					batchAssigned := make([]*AssignedQueueItem, 0, len(batchQis))
+					batchAssigned := make([]*assignedQueueItem, 0, len(batchQis))
 					batchRateLimited := make([]*scheduleRateLimitResult, 0, len(batchQis))
 					batchUnassigned := make([]*dbsqlc.QueueItem, 0, len(batchQis))
 
@@ -759,7 +722,7 @@ func (s *Scheduler) tryAssign(
 							continue
 						}
 
-						batchAssigned = append(batchAssigned, &AssignedQueueItem{
+						batchAssigned = append(batchAssigned, &assignedQueueItem{
 							WorkerId:  singleRes.workerId,
 							QueueItem: singleRes.qi,
 							AckId:     singleRes.ackId,

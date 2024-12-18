@@ -13,7 +13,7 @@ func (t *WorkflowService) WorkflowDelete(ctx echo.Context, request gen.WorkflowD
 	tenant := ctx.Get("tenant").(*db.TenantModel)
 	workflow := ctx.Get("workflow").(*dbsqlc.GetWorkflowByIdRow)
 
-	_, err := t.config.APIRepository.Workflow().DeleteWorkflow(tenant.ID, sqlchelpers.UUIDToStr(workflow.Workflow.ID))
+	_, err := t.config.APIRepository.Workflow().DeleteWorkflow(ctx.Request().Context(), tenant.ID, sqlchelpers.UUIDToStr(workflow.Workflow.ID))
 
 	if err != nil {
 		return nil, err

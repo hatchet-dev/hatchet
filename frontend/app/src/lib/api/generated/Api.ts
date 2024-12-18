@@ -1116,10 +1116,30 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @request GET:/api/v1/tenants/{tenant}/workflows
    * @secure
    */
-  workflowList = (tenant: string, params: RequestParams = {}) =>
+  workflowList = (
+    tenant: string,
+    query?: {
+      /**
+       * The number to skip
+       * @format int
+       * @default 0
+       */
+      offset?: number;
+      /**
+       * The number to limit by
+       * @format int
+       * @default 50
+       */
+      limit?: number;
+      /** Search by name */
+      name?: string;
+    },
+    params: RequestParams = {},
+  ) =>
     this.request<WorkflowList, APIErrors>({
       path: `/api/v1/tenants/${tenant}/workflows`,
       method: 'GET',
+      query: query,
       secure: true,
       format: 'json',
       ...params,
@@ -2093,6 +2113,21 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       method: 'GET',
       secure: true,
       format: 'json',
+      ...params,
+    });
+  /**
+   * @description Triggers a workflow to check the status of the instance
+   *
+   * @name MonitoringPostRunProbe
+   * @summary Detailed Health Probe For the Instance
+   * @request POST:/api/v1/monitoring/{tenant}/probe
+   * @secure
+   */
+  monitoringPostRunProbe = (tenant: string, params: RequestParams = {}) =>
+    this.request<void, APIErrors>({
+      path: `/api/v1/monitoring/${tenant}/probe`,
+      method: 'POST',
+      secure: true,
       ...params,
     });
 }

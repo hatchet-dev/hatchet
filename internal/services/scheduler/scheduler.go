@@ -409,7 +409,7 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 	return err
 }
 
-func (s *Scheduler) internalRetry(ctx context.Context, tenantId string, assigned ...*v2.AssignedQueueItem) {
+func (s *Scheduler) internalRetry(ctx context.Context, tenantId string, assigned ...*repository.AssignedItem) {
 	for _, a := range assigned {
 		stepRunId := sqlchelpers.UUIDToStr(a.QueueItem.StepRunId)
 

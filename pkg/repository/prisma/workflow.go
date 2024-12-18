@@ -60,7 +60,7 @@ func (r *workflowAPIRepository) ListWorkflows(tenantId string, opts *repository.
 	}
 
 	queryParams := dbsqlc.ListWorkflowsParams{
-		TenantId: *pgTenantId,
+		Tenantid: *pgTenantId,
 	}
 
 	countParams := dbsqlc.CountWorkflowsParams{
@@ -73,6 +73,10 @@ func (r *workflowAPIRepository) ListWorkflows(tenantId string, opts *repository.
 
 	if opts.Limit != nil {
 		queryParams.Limit = *opts.Limit
+	}
+
+	if opts.Name != nil {
+		queryParams.Search = pgtype.Text{String: *opts.Name, Valid: true}
 	}
 
 	orderByField := "createdAt"
@@ -227,8 +231,8 @@ func (r *workflowAPIRepository) GetWorkflowVersionById(tenantId, workflowVersion
 	return row, crons, events, scheduled, nil
 }
 
-func (r *workflowAPIRepository) DeleteWorkflow(tenantId, workflowId string) (*dbsqlc.Workflow, error) {
-	return r.queries.SoftDeleteWorkflow(context.Background(), r.pool, sqlchelpers.UUIDFromStr(workflowId))
+func (r *workflowAPIRepository) DeleteWorkflow(ctx context.Context, tenantId, workflowId string) (*dbsqlc.Workflow, error) {
+	return r.queries.SoftDeleteWorkflow(ctx, r.pool, sqlchelpers.UUIDFromStr(workflowId))
 }
 
 func (r *workflowAPIRepository) GetWorkflowMetrics(tenantId, workflowId string, opts *repository.GetWorkflowMetricsOpts) (*repository.WorkflowMetrics, error) {
@@ -436,25 +440,18 @@ func (w *workflowAPIRepository) CreateCronWorkflow(ctx context.Context, tenantId
 }
 
 type workflowEngineRepository struct {
-	pool    *pgxpool.Pool
-	v       validator.Validator
-	queries *dbsqlc.Queries
-	l       *zerolog.Logger
-	m       *metered.Metered
+	*sharedRepository
+	m *metered.Metered
 
 	cache cache.Cacheable
 }
 
-func NewWorkflowEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, m *metered.Metered, cache cache.Cacheable) repository.WorkflowEngineRepository {
-	queries := dbsqlc.New()
+func NewWorkflowEngineRepository(shared *sharedRepository, m *metered.Metered, cache cache.Cacheable) repository.WorkflowEngineRepository {
 
 	return &workflowEngineRepository{
-		v:       v,
-		queries: queries,
-		pool:    pool,
-		l:       l,
-		m:       m,
-		cache:   cache,
+		sharedRepository: shared,
+		m:                m,
+		cache:            cache,
 	}
 }
 

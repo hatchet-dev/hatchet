@@ -39,12 +39,12 @@ type TenantBufferManager[T any, U any] struct {
 }
 
 type TenantBufManagerOpts[T any, U any] struct {
-	Name       string                                            `validate:"required"`
-	OutputFunc func(ctx context.Context, items []T) ([]U, error) `validate:"required"`
-	SizeFunc   func(T) int                                       `validate:"required"`
-	L          *zerolog.Logger                                   `validate:"required"`
-	V          validator.Validator                               `validate:"required"`
-	Config     ConfigFileBuffer                                  `validate:"required"`
+	Name       string                                             `validate:"required"`
+	OutputFunc func(ctx context.Context, items []T) ([]*U, error) `validate:"required"`
+	SizeFunc   func(T) int                                        `validate:"required"`
+	L          *zerolog.Logger                                    `validate:"required"`
+	V          validator.Validator                                `validate:"required"`
+	Config     ConfigFileBuffer                                   `validate:"required"`
 }
 
 // Create a new TenantBufferManager with generic types T for input and U for output
@@ -171,10 +171,33 @@ func (t *TenantBufferManager[T, U]) getOrCreateTenantBuf(
 	return t.createTenantBuf(tenantBufKey, opts)
 }
 
-func (t *TenantBufferManager[T, U]) BuffItem(tenantKey string, eventOps T) (chan *FlushResponse[U], error) {
+func (t *TenantBufferManager[T, U]) FireForget(tenantKey string, item T) error {
+	_, err := t.buffItem(tenantKey, item)
+	return err
+}
+
+func (t *TenantBufferManager[T, U]) FireAndWait(ctx context.Context, tenantKey string, item T) (*U, error) {
+	doneChan, err := t.buffItem(tenantKey, item)
+	if err != nil {
+		return nil, err
+	}
+
+	select {
+	case resp, ok := <-doneChan:
+		if !ok {
+			return nil, fmt.Errorf("error flushing tenant buffer for tenant %s: channel is closed", tenantKey)
+		}
+
+		return resp.Result, resp.Err
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
+func (t *TenantBufferManager[T, U]) buffItem(tenantKey string, eventOps T) (chan *FlushResponse[U], error) {
 	tenantBuf, err := t.getOrCreateTenantBuf(tenantKey, t.defaultOpts)
 	if err != nil {
 		return nil, err
 	}
-	return tenantBuf.BuffItem(eventOps)
+	return tenantBuf.buffItem(eventOps)
 }

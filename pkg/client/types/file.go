@@ -44,6 +44,7 @@ type WorkflowConcurrencyLimitStrategy string
 
 const (
 	CancelInProgress WorkflowConcurrencyLimitStrategy = "CANCEL_IN_PROGRESS"
+	CancelNewest     WorkflowConcurrencyLimitStrategy = "CANCEL_NEWEST"
 	GroupRoundRobin  WorkflowConcurrencyLimitStrategy = "GROUP_ROUND_ROBIN"
 )
 
@@ -108,11 +109,15 @@ type DesiredWorkerLabel struct {
 }
 
 type WorkflowStep struct {
-	Name                   string                         `yaml:"name,omitempty"`
-	ID                     string                         `yaml:"id,omitempty"`
-	ActionID               string                         `yaml:"action"`
-	Timeout                string                         `yaml:"timeout,omitempty"`
-	With                   map[string]interface{}         `yaml:"with,omitempty"`
+	Name     string `yaml:"name,omitempty"`
+	ID       string `yaml:"id,omitempty"`
+	ActionID string `yaml:"action"`
+	Timeout  string `yaml:"timeout,omitempty"`
+
+	// Deprecated: this field has no effect and will be removed in a future release.
+	With map[string]interface{} `yaml:"with,omitempty"`
+
+	UserData               map[string]interface{}         `yaml:"userData,omitempty"`
 	Parents                []string                       `yaml:"parents,omitempty"`
 	Retries                int                            `yaml:"retries"`
 	RateLimits             []RateLimit                    `yaml:"rateLimits,omitempty"`

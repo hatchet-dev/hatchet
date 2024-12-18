@@ -18,6 +18,7 @@ const (
 	ConcurrencyLimitStrategyDROPNEWEST       ConcurrencyLimitStrategy = "DROP_NEWEST"
 	ConcurrencyLimitStrategyQUEUENEWEST      ConcurrencyLimitStrategy = "QUEUE_NEWEST"
 	ConcurrencyLimitStrategyGROUPROUNDROBIN  ConcurrencyLimitStrategy = "GROUP_ROUND_ROBIN"
+	ConcurrencyLimitStrategyCANCELNEWEST     ConcurrencyLimitStrategy = "CANCEL_NEWEST"
 )
 
 func (e *ConcurrencyLimitStrategy) Scan(src interface{}) error {
@@ -359,6 +360,48 @@ func (ns NullLogLineLevel) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.LogLineLevel), nil
+}
+
+type MessageQueueItemStatus string
+
+const (
+	MessageQueueItemStatusPENDING  MessageQueueItemStatus = "PENDING"
+	MessageQueueItemStatusASSIGNED MessageQueueItemStatus = "ASSIGNED"
+)
+
+func (e *MessageQueueItemStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = MessageQueueItemStatus(s)
+	case string:
+		*e = MessageQueueItemStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for MessageQueueItemStatus: %T", src)
+	}
+	return nil
+}
+
+type NullMessageQueueItemStatus struct {
+	MessageQueueItemStatus MessageQueueItemStatus `json:"MessageQueueItemStatus"`
+	Valid                  bool                   `json:"valid"` // Valid is true if MessageQueueItemStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullMessageQueueItemStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.MessageQueueItemStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.MessageQueueItemStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullMessageQueueItemStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.MessageQueueItemStatus), nil
 }
 
 type StepExpressionKind string
@@ -987,11 +1030,13 @@ func (ns NullWorkflowKind) Value() (driver.Value, error) {
 type WorkflowRunStatus string
 
 const (
-	WorkflowRunStatusPENDING   WorkflowRunStatus = "PENDING"
-	WorkflowRunStatusRUNNING   WorkflowRunStatus = "RUNNING"
-	WorkflowRunStatusSUCCEEDED WorkflowRunStatus = "SUCCEEDED"
-	WorkflowRunStatusFAILED    WorkflowRunStatus = "FAILED"
-	WorkflowRunStatusQUEUED    WorkflowRunStatus = "QUEUED"
+	WorkflowRunStatusPENDING    WorkflowRunStatus = "PENDING"
+	WorkflowRunStatusRUNNING    WorkflowRunStatus = "RUNNING"
+	WorkflowRunStatusSUCCEEDED  WorkflowRunStatus = "SUCCEEDED"
+	WorkflowRunStatusFAILED     WorkflowRunStatus = "FAILED"
+	WorkflowRunStatusQUEUED     WorkflowRunStatus = "QUEUED"
+	WorkflowRunStatusCANCELLING WorkflowRunStatus = "CANCELLING"
+	WorkflowRunStatusCANCELLED  WorkflowRunStatus = "CANCELLED"
 )
 
 func (e *WorkflowRunStatus) Scan(src interface{}) error {
@@ -1264,6 +1309,24 @@ type LogLine struct {
 	Message   string           `json:"message"`
 	Level     LogLineLevel     `json:"level"`
 	Metadata  []byte           `json:"metadata"`
+}
+
+type MessageQueue struct {
+	Name                string           `json:"name"`
+	LastActive          pgtype.Timestamp `json:"lastActive"`
+	Durable             bool             `json:"durable"`
+	AutoDeleted         bool             `json:"autoDeleted"`
+	Exclusive           bool             `json:"exclusive"`
+	ExclusiveConsumerId pgtype.UUID      `json:"exclusiveConsumerId"`
+}
+
+type MessageQueueItem struct {
+	ID        int64                  `json:"id"`
+	Payload   []byte                 `json:"payload"`
+	ReadAfter pgtype.Timestamp       `json:"readAfter"`
+	ExpiresAt pgtype.Timestamp       `json:"expiresAt"`
+	QueueId   pgtype.Text            `json:"queueId"`
+	Status    MessageQueueItemStatus `json:"status"`
 }
 
 type Queue struct {

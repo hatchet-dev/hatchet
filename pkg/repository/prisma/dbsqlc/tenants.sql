@@ -230,8 +230,7 @@ tenants_to_update AS (
         ROW_NUMBER() OVER () AS row_number
     FROM
         "Tenant" AS tenants
-    WHERE
-        tenants."slug" != 'internal'
+    -- For the controller partition, we DO use the internal tenant as well
 )
 UPDATE
     "Tenant" AS tenants
@@ -267,11 +266,8 @@ WITH active_partitions AS (
     FROM
         "Tenant" AS tenants
     WHERE
-        tenants."slug" != 'internal' AND
-        (
-            "controllerPartitionId" IS NULL OR
-            "controllerPartitionId" IN (SELECT "id" FROM inactive_partitions)
-        )
+        "controllerPartitionId" IS NULL OR
+        "controllerPartitionId" IN (SELECT "id" FROM inactive_partitions)
 ), update_tenants AS (
     UPDATE "Tenant" AS tenants
     SET "controllerPartitionId" = partitions."id"
