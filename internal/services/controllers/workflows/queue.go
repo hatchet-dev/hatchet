@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"sync"
 	"time"
 
 	"golang.org/x/sync/errgroup"
@@ -598,84 +597,91 @@ func (ec *WorkflowsControllerImpl) runGetGroupKeyRunReassignTenant(ctx context.C
 	return g.Wait()
 }
 
-func (wc *WorkflowsControllerImpl) getLock(key string) *sync.Mutex {
-	actual, _ := wc.queueMutex.LoadOrStore(key, &sync.Mutex{})
-	return actual.(*sync.Mutex)
-}
-
-func (wc *WorkflowsControllerImpl) queueByCancelInProgress(ctx context.Context, tenantId, groupKey string, workflowVersion *dbsqlc.GetWorkflowVersionForEngineRow) error {
+func (wc *WorkflowsControllerImpl) queueByCancelInProgress(ctx context.Context, tenantId string, workflowVersion *dbsqlc.GetWorkflowVersionForEngineRow) error {
 	ctx, span := telemetry.NewSpan(ctx, "queue-by-cancel-in-progress")
 	defer span.End()
 
-	wc.l.Info().Msgf("handling queue with strategy CANCEL_IN_PROGRESS for %s", groupKey)
-
-	mutex := wc.getLock(fmt.Sprintf("%s:%s", tenantId, groupKey))
-
-	if ok := mutex.TryLock(); !ok {
-		return nil
-	}
-
-	defer mutex.Unlock()
-
-	running := db.WorkflowRunStatusRunning
-	queued := db.WorkflowRunStatusQueued
 	workflowVersionId := sqlchelpers.UUIDToStr(workflowVersion.WorkflowVersion.ID)
 	maxRuns := int(workflowVersion.ConcurrencyMaxRuns.Int32)
 
-	runningWorkflowRuns, err := wc.repo.WorkflowRun().ListWorkflowRuns(ctx, tenantId, &repository.ListWorkflowRunsOpts{
-		WorkflowVersionId: &workflowVersionId,
-		GroupKey:          &groupKey,
-		Statuses:          &[]db.WorkflowRunStatus{running},
-		OrderBy:           repository.StringPtr("createdAt"),
-		OrderDirection:    repository.StringPtr("ASC"),
-	})
+	toCancel, toStart, err := wc.repo.WorkflowRun().PopWorkflowRunsCancelInProgress(ctx, tenantId, workflowVersionId, maxRuns)
+
 	if err != nil {
-		return fmt.Errorf("could not list running workflow runs: %w", err)
+		return fmt.Errorf("could not pop workflow runs: %w", err)
 	}
-
-	queuedWorkflowRuns, err := wc.repo.WorkflowRun().ListWorkflowRuns(ctx, tenantId, &repository.ListWorkflowRunsOpts{
-		WorkflowVersionId: &workflowVersionId,
-		GroupKey:          &groupKey,
-		Statuses:          &[]db.WorkflowRunStatus{queued},
-		OrderBy:           repository.StringPtr("createdAt"),
-		OrderDirection:    repository.StringPtr("ASC"),
-	})
-	if err != nil {
-		return fmt.Errorf("could not list queued workflow runs: %w", err)
-	}
-
-	runningCount := len(runningWorkflowRuns.Rows)
-	queuedCount := len(queuedWorkflowRuns.Rows)
-
-	// Calculate how many runs we need to cancel
-	toCancel := max(0, runningCount+queuedCount-maxRuns)
 
 	// Cancel the oldest running workflows
-	for i := 0; i < toCancel && i < runningCount; i++ {
-		row := runningWorkflowRuns.Rows[i]
-		workflowRunId := sqlchelpers.UUIDToStr(row.WorkflowRun.ID)
+	for i := range toCancel {
+		row := toCancel[i]
+		workflowRunId := sqlchelpers.UUIDToStr(row.ID)
 
 		err = wc.cancelWorkflowRun(ctx, tenantId, workflowRunId)
 
 		if err != nil {
 			return fmt.Errorf("could not cancel workflow run: %w", err)
 		}
-
-		err := wc.cancelWorkflowRunJobs(ctx, tenantId, workflowRunId, "CANCEL_IN_PROGRESS")
-
-		if err != nil {
-			return fmt.Errorf("queueByCancelInProgress: could not cancel workflow run jobs: %w", err)
-		}
-
 	}
 
-	// Queue new runs
-	toQueue := min(maxRuns-(runningCount-toCancel), queuedCount)
+	for i := range toStart {
+		row := toStart[i]
+		workflowRunId := sqlchelpers.UUIDToStr(row.ID)
+		queuedStepRuns, err := wc.repo.WorkflowRun().QueueWorkflowRunJobs(ctx, tenantId, workflowRunId)
 
-	for i := 0; i < toQueue; i++ {
-		row := queuedWorkflowRuns.Rows[i]
-		workflowRunId := sqlchelpers.UUIDToStr(row.WorkflowRun.ID)
+		if err != nil {
+			return fmt.Errorf("could not queue workflow run jobs: %w", err)
+		}
 
+		g := new(errgroup.Group)
+		for _, stepRun := range queuedStepRuns {
+			stepRunCp := stepRun
+
+			g.Go(func() error {
+				return wc.mq.AddMessage(
+					ctx,
+					msgqueue.JOB_PROCESSING_QUEUE,
+					tasktypes.StepRunQueuedToTask(stepRunCp),
+				)
+			})
+		}
+
+		err = g.Wait()
+
+		if err != nil {
+			return fmt.Errorf("could not start workflow run: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func (wc *WorkflowsControllerImpl) queueByCancelNewest(ctx context.Context, tenantId string, workflowVersion *dbsqlc.GetWorkflowVersionForEngineRow) error {
+	ctx, span := telemetry.NewSpan(ctx, "queue-by-cancel-newest")
+	defer span.End()
+
+	workflowVersionId := sqlchelpers.UUIDToStr(workflowVersion.WorkflowVersion.ID)
+	maxRuns := int(workflowVersion.ConcurrencyMaxRuns.Int32)
+
+	toCancel, toStart, err := wc.repo.WorkflowRun().PopWorkflowRunsCancelNewest(ctx, tenantId, workflowVersionId, maxRuns)
+
+	if err != nil {
+		return fmt.Errorf("could not pop workflow runs: %w", err)
+	}
+
+	// Cancel the oldest running workflows
+	for i := range toCancel {
+		row := toCancel[i]
+		workflowRunId := sqlchelpers.UUIDToStr(row.ID)
+
+		err = wc.cancelWorkflowRun(ctx, tenantId, workflowRunId)
+
+		if err != nil {
+			return fmt.Errorf("could not cancel workflow run: %w", err)
+		}
+	}
+
+	for i := range toStart {
+		row := toStart[i]
+		workflowRunId := sqlchelpers.UUIDToStr(row.ID)
 		queuedStepRuns, err := wc.repo.WorkflowRun().QueueWorkflowRunJobs(ctx, tenantId, workflowRunId)
 
 		if err != nil {
@@ -710,12 +716,11 @@ func (wc *WorkflowsControllerImpl) queueByGroupRoundRobin(ctx context.Context, t
 	defer span.End()
 
 	workflowVersionId := sqlchelpers.UUIDToStr(workflowVersion.WorkflowVersion.ID)
-	workflowId := sqlchelpers.UUIDToStr(workflowVersion.WorkflowVersion.WorkflowId)
 	maxRuns := int(workflowVersion.ConcurrencyMaxRuns.Int32)
 
 	wc.l.Info().Msgf("handling queue with strategy GROUP_ROUND_ROBIN for workflow version %s", workflowVersionId)
 
-	_, startableStepRuns, err := wc.repo.WorkflowRun().PopWorkflowRunsRoundRobin(ctx, tenantId, workflowId, maxRuns)
+	_, startableStepRuns, err := wc.repo.WorkflowRun().PopWorkflowRunsRoundRobin(ctx, tenantId, workflowVersionId, maxRuns)
 
 	if err != nil {
 		return fmt.Errorf("could not pop workflow runs: %w", err)
@@ -746,9 +751,7 @@ func (wc *WorkflowsControllerImpl) queueByGroupRoundRobin(ctx context.Context, t
 
 func (wc *WorkflowsControllerImpl) cancelWorkflowRun(ctx context.Context, tenantId, workflowRunId string) error {
 	// cancel all running step runs
-	runningStatus := dbsqlc.StepRunStatusRUNNING
 	stepRuns, err := wc.repo.StepRun().ListStepRuns(ctx, tenantId, &repository.ListStepRunsOpts{
-		Status: &runningStatus,
 		WorkflowRunIds: []string{
 			workflowRunId,
 		},

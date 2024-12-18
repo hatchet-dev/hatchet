@@ -96,7 +96,7 @@ FROM
 -- name: WorkflowRunsMetricsCount :one
 SELECT
     COUNT(CASE WHEN runs."status" = 'PENDING' THEN 1 END) AS "PENDING",
-    COUNT(CASE WHEN runs."status" = 'RUNNING' THEN 1 END) AS "RUNNING",
+    COUNT(CASE WHEN runs."status" = 'RUNNING' OR runs."status" = 'CANCELLING' THEN 1 END) AS "RUNNING",
     COUNT(CASE WHEN runs."status" = 'SUCCEEDED' THEN 1 END) AS "SUCCEEDED",
     COUNT(CASE WHEN runs."status" = 'FAILED' THEN 1 END) AS "FAILED",
     COUNT(CASE WHEN runs."status" = 'QUEUED' THEN 1 END) AS "QUEUED"
@@ -246,6 +246,50 @@ OFFSET
 LIMIT
     COALESCE(sqlc.narg('limit'), 50);
 
+-- name: LockWorkflowRunsForQueueing :many
+-- Locks any workflow runs which are in a RUNNING or QUEUED state, and have a matching concurrencyGroupId in a QUEUED state
+WITH queued_wrs AS (
+    SELECT
+        DISTINCT ON (wr."concurrencyGroupId")
+        wr."concurrencyGroupId"
+    FROM
+        "WorkflowRun" wr
+    LEFT JOIN
+        "WorkflowVersion" workflowVersion ON wr."workflowVersionId" = workflowVersion."id"
+    WHERE
+        wr."tenantId" = @tenantId::uuid AND
+        wr."deletedAt" IS NULL AND
+        workflowVersion."deletedAt" IS NULL AND
+        wr."status" = 'QUEUED' AND
+        workflowVersion."id" = @workflowVersionId::uuid
+)
+SELECT
+    wr.*
+FROM
+    "WorkflowRun" wr
+LEFT JOIN
+    "WorkflowVersion" workflowVersion ON wr."workflowVersionId" = workflowVersion."id"
+WHERE
+    wr."tenantId" = @tenantId::uuid AND
+    wr."deletedAt" IS NULL AND
+    workflowVersion."deletedAt" IS NULL AND
+    (wr."status" = 'QUEUED' OR wr."status" = 'RUNNING') AND
+    workflowVersion."id" = @workflowVersionId::uuid AND
+    wr."concurrencyGroupId" IN (SELECT "concurrencyGroupId" FROM queued_wrs)
+ORDER BY
+    wr."createdAt" ASC, wr."insertOrder" ASC
+FOR UPDATE;
+
+-- name: MarkWorkflowRunsCancelling :exec
+UPDATE
+    "WorkflowRun"
+SET
+    "status" = 'CANCELLING'
+WHERE
+    "tenantId" = @tenantId::uuid AND
+    "id" = ANY(@ids::uuid[]) AND
+    ("status" = 'PENDING' OR "status" = 'QUEUED' OR "status" = 'RUNNING');
+
 -- name: PopWorkflowRunsRoundRobin :many
 WITH workflow_runs AS (
     SELECT
@@ -262,7 +306,7 @@ WITH workflow_runs AS (
         r2."deletedAt" IS NULL AND
         workflowVersion."deletedAt" IS NULL AND
         (r2."status" = 'QUEUED' OR r2."status" = 'RUNNING') AND
-        workflowVersion."workflowId" = @workflowId::uuid
+        workflowVersion."id" = @workflowVersionId::uuid
     ORDER BY
         rn, seqnum ASC
 ), min_rn AS (
@@ -1195,7 +1239,6 @@ WHERE
     wr."tenantId" = @tenantId::uuid
 RETURNING
     (SELECT has_more FROM has_more) as has_more;
-
 
 -- name: ListActiveQueuedWorkflowVersions :many
 WITH QueuedRuns AS (

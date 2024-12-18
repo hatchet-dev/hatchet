@@ -444,6 +444,8 @@ func (a *adminClientImpl) getPutRequest(workflow *types.Workflow) (*admincontrac
 			limitStrat = admincontracts.ConcurrencyLimitStrategy_CANCEL_IN_PROGRESS
 		case types.GroupRoundRobin:
 			limitStrat = admincontracts.ConcurrencyLimitStrategy_GROUP_ROUND_ROBIN
+		case types.CancelNewest:
+			limitStrat = admincontracts.ConcurrencyLimitStrategy_CANCEL_NEWEST
 		default:
 			limitStrat = admincontracts.ConcurrencyLimitStrategy_CANCEL_IN_PROGRESS
 		}
