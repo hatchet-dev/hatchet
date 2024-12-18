@@ -869,7 +869,6 @@ func (s *DispatcherImpl) SubscribeToWorkflowRuns(server contracts.Dispatcher_Sub
 		sendMu.Unlock()
 
 		if err != nil {
-			cancel() // FIXME is this necessary?
 			s.l.Error().Err(err).Msgf("could not subscribe to workflow events for run %s", e.WorkflowRunId)
 			return err
 		}
