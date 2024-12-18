@@ -823,21 +823,23 @@ func (s *sendTimeFilter) canSend() bool {
 	return true
 }
 
+const payloadSizeThreshold = 3 * 1024 * 1024
+
 func cleanResults(results []*contracts.StepRunResult) []*contracts.StepRunResult {
 	totalSize, sizeOfOutputs, _ := calculateResultsSize(results)
 
-	if totalSize < 3*1024*1024 {
+	if totalSize < payloadSizeThreshold {
 		return results
 	}
 
-	if sizeOfOutputs >= 3*1024*1024 {
+	if sizeOfOutputs >= payloadSizeThreshold {
 		return nil
 	}
 
 	// otherwise, attempt to clean the results by removing large error fields
 	cleanedResults := make([]*contracts.StepRunResult, 0, len(results))
 
-	fieldThreshold := (3*1024*1024 - sizeOfOutputs) / len(results) // how much overhead we'd have per result or error field, in the worst case
+	fieldThreshold := (payloadSizeThreshold - sizeOfOutputs) / len(results) // how much overhead we'd have per result or error field, in the worst case
 
 	for _, result := range results {
 		if result == nil {
@@ -853,7 +855,7 @@ func cleanResults(results []*contracts.StepRunResult) []*contracts.StepRunResult
 	}
 
 	// if we are still over the limit, we just return nil
-	if totalSize, _, _ := calculateResultsSize(cleanedResults); totalSize > 3*1024*1024 {
+	if totalSize, _, _ := calculateResultsSize(cleanedResults); totalSize > payloadSizeThreshold {
 		return nil
 	}
 
