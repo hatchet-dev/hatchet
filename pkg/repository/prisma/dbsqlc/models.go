@@ -18,6 +18,7 @@ const (
 	ConcurrencyLimitStrategyDROPNEWEST       ConcurrencyLimitStrategy = "DROP_NEWEST"
 	ConcurrencyLimitStrategyQUEUENEWEST      ConcurrencyLimitStrategy = "QUEUE_NEWEST"
 	ConcurrencyLimitStrategyGROUPROUNDROBIN  ConcurrencyLimitStrategy = "GROUP_ROUND_ROBIN"
+	ConcurrencyLimitStrategyCANCELNEWEST     ConcurrencyLimitStrategy = "CANCEL_NEWEST"
 )
 
 func (e *ConcurrencyLimitStrategy) Scan(src interface{}) error {
@@ -1029,11 +1030,13 @@ func (ns NullWorkflowKind) Value() (driver.Value, error) {
 type WorkflowRunStatus string
 
 const (
-	WorkflowRunStatusPENDING   WorkflowRunStatus = "PENDING"
-	WorkflowRunStatusRUNNING   WorkflowRunStatus = "RUNNING"
-	WorkflowRunStatusSUCCEEDED WorkflowRunStatus = "SUCCEEDED"
-	WorkflowRunStatusFAILED    WorkflowRunStatus = "FAILED"
-	WorkflowRunStatusQUEUED    WorkflowRunStatus = "QUEUED"
+	WorkflowRunStatusPENDING    WorkflowRunStatus = "PENDING"
+	WorkflowRunStatusRUNNING    WorkflowRunStatus = "RUNNING"
+	WorkflowRunStatusSUCCEEDED  WorkflowRunStatus = "SUCCEEDED"
+	WorkflowRunStatusFAILED     WorkflowRunStatus = "FAILED"
+	WorkflowRunStatusQUEUED     WorkflowRunStatus = "QUEUED"
+	WorkflowRunStatusCANCELLING WorkflowRunStatus = "CANCELLING"
+	WorkflowRunStatusCANCELLED  WorkflowRunStatus = "CANCELLED"
 )
 
 func (e *WorkflowRunStatus) Scan(src interface{}) error {
