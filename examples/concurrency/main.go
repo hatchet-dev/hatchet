@@ -111,7 +111,7 @@ func run(c client.Client, events chan<- string, wfrIds chan<- *client.Workflow) 
 
 					// we sleep to simulate a long running task
 
-					time.Sleep(5 * time.Second)
+					time.Sleep(20 * time.Second)
 
 					if err != nil {
 
@@ -166,9 +166,28 @@ func run(c client.Client, events chan<- string, wfrIds chan<- *client.Workflow) 
 			"test": "test",
 		},
 	}
+
+	// I want some to be in Running and some to be in Pending so we cancel both
+
 	go func() {
 		// do this 10 times to test concurrency
-		for i := 0; i < 10; i++ {
+		for i := 0; i < 7; i++ {
+
+			wfr_id, err := c.Admin().RunWorkflow("simple-concurrency", testEvent)
+
+			log.Println("Starting workflow run id: ", wfr_id.WorkflowRunId())
+
+			if err != nil {
+				panic(fmt.Errorf("error running workflow: %w", err))
+			}
+
+			wfrIds <- wfr_id
+			time.Sleep(400 * time.Millisecond)
+		}
+	}()
+	go func() {
+		// do this 10 times to test concurrency
+		for i := 0; i < 13; i++ {
 
 			wfr_id, err := c.Admin().RunWorkflow("simple-concurrency", testEvent)
 

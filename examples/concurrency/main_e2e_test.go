@@ -73,8 +73,6 @@ outer:
 
 	select {
 
-	case <-done:
-		fmt.Println("done")
 	case <-time.After(10 * time.Second):
 		fmt.Println("timeout waiting for workflow run results")
 	}
@@ -82,8 +80,8 @@ outer:
 	// our workflow run ids should have only one succeeded everyone else should have failed
 	stateCount := make(map[string]int)
 
-	if len(workflowRunIds) != 10 {
-		t.Fatalf("expected 10 workflow run ids, got %d", len(workflowRunIds))
+	if len(workflowRunIds) != 20 {
+		t.Fatalf("expected 20 workflow run ids, got %d", len(workflowRunIds))
 	}
 
 	for _, wfrId := range workflowRunIds {
@@ -97,7 +95,7 @@ outer:
 	}
 
 	assert.Equal(t, 1, stateCount["SUCCEEDED"])
-	assert.Equal(t, 9, stateCount["CANCELLED_BY_CONCURRENCY_LIMIT"])
+	assert.Equal(t, 19, stateCount["CANCELLED_BY_CONCURRENCY_LIMIT"])
 
 	if err := cleanup(); err != nil {
 		t.Fatalf("cleanup() error = %v", err)
