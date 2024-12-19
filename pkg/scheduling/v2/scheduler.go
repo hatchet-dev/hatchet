@@ -771,6 +771,7 @@ func (s *Scheduler) getExtensionInput() *PostScheduleInput {
 
 	res := &PostScheduleInput{
 		Workers: make(map[string]*WorkerCp),
+		Slots:   make([]*SlotCp, 0),
 	}
 
 	for workerId, worker := range workers {
@@ -784,22 +785,24 @@ func (s *Scheduler) getExtensionInput() *PostScheduleInput {
 	s.actionsMu.RLock()
 	defer s.actionsMu.RUnlock()
 
-	actionsToSlots := make(map[string][]*SlotCp)
+	uniqueSlots := make(map[*slot]*SlotCp)
 
-	for actionId, action := range s.actions {
-		slots := make([]*SlotCp, 0, len(action.slots))
-
+	for _, action := range s.actions {
 		for _, slot := range action.slots {
-			slots = append(slots, &SlotCp{
+			if _, ok := uniqueSlots[slot]; ok {
+				continue
+			}
+
+			uniqueSlots[slot] = &SlotCp{
 				WorkerId: slot.getWorkerId(),
 				Used:     slot.used,
-			})
+			}
 		}
-
-		actionsToSlots[actionId] = slots
 	}
 
-	res.ActionsToSlots = actionsToSlots
+	for _, slot := range uniqueSlots {
+		res.Slots = append(res.Slots, slot)
+	}
 
 	return res
 }

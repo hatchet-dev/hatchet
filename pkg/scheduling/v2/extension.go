@@ -11,7 +11,7 @@ import (
 type PostScheduleInput struct {
 	Workers map[string]*WorkerCp
 
-	ActionsToSlots map[string][]*SlotCp
+	Slots []*SlotCp
 }
 
 type WorkerCp struct {
