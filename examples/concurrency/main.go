@@ -179,7 +179,6 @@ func run(c client.Client, events chan<- string, wfrIds chan<- *client.Workflow) 
 			}
 
 			wfrIds <- wfr_id
-			time.Sleep(1 * time.Second)
 
 		}
 	}()
