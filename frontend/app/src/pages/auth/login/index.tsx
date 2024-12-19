@@ -23,13 +23,14 @@ export default function Login() {
   const basicEnabled = schemes.includes('basic');
   const googleEnabled = schemes.includes('google');
   const githubEnabled = schemes.includes('github');
+  const customEnabled = schemes.includes('custom');
 
   let prompt = 'Enter your email and password below.';
 
-  if (basicEnabled && (googleEnabled || githubEnabled)) {
+  if (basicEnabled && (googleEnabled || githubEnabled || customEnabled)) {
     prompt =
       'Enter your email and password below, or continue with a supported provider.';
-  } else if (googleEnabled || githubEnabled) {
+  } else if (googleEnabled || githubEnabled || customEnabled) {
     prompt = 'Continue with a supported provider.';
   } else if (basicEnabled) {
     prompt = 'Enter your email and password below.';
@@ -41,6 +42,7 @@ export default function Login() {
     basicEnabled && <BasicLogin />,
     googleEnabled && <GoogleLogin />,
     githubEnabled && <GithubLogin />,
+    customEnabled && <CustomLogin />,
   ].filter(Boolean);
 
   return (
@@ -153,6 +155,16 @@ export function GoogleLogin() {
         Google
       </Button>
     </a>
+  );
+}
+
+export function CustomLogin() {
+  return (
+      <a href="/api/v1/users/custom/start" className="w-full">
+        <Button variant="outline" type="button" className="w-full py-2">
+          SSO
+        </Button>
+      </a>
   );
 }
 

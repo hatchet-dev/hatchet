@@ -412,6 +412,34 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 		})
 	}
 
+	if cf.Auth.Custom.Enabled {
+		if cf.Auth.Custom.ClientID == "" {
+			return nil, nil, fmt.Errorf("github client id is required")
+		}
+
+		if cf.Auth.Custom.ClientSecret == "" {
+			return nil, nil, fmt.Errorf("github client secret is required")
+		}
+
+		if cf.Auth.Custom.AuthorizationURL == "" {
+			return nil, nil, fmt.Errorf("custom authorization url is required")
+		}
+
+		if cf.Auth.Custom.AccessTokenURL == "" {
+			return nil, nil, fmt.Errorf("custom token url is required")
+		}
+
+		auth.CustomOAuthConfig = oauth.NewCustomClient(&oauth.Config{
+			ClientID:     cf.Auth.Custom.ClientID,
+			ClientSecret: cf.Auth.Custom.ClientSecret,
+			BaseURL:      cf.Runtime.ServerURL,
+			Scopes:       cf.Auth.Custom.Scopes,
+		}, &oauth.CustomConfig{
+			AuthURL:  cf.Auth.Custom.AuthorizationURL,
+			TokenURL: cf.Auth.Custom.AccessTokenURL,
+		})
+	}
+
 	encryptionSvc, err := loadEncryptionSvc(cf)
 
 	if err != nil {

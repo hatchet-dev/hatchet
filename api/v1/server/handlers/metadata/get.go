@@ -21,6 +21,10 @@ func (u *MetadataService) MetadataGet(ctx echo.Context, request gen.MetadataGetR
 		authTypes = append(authTypes, "github")
 	}
 
+	if u.config.Auth.ConfigFile.Custom.Enabled {
+		authTypes = append(authTypes, "custom")
+	}
+
 	pylonAppID := u.config.Pylon.AppID
 
 	var posthogConfig *gen.APIMetaPosthog
