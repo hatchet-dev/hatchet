@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -34,6 +35,8 @@ func TestConcurrency(t *testing.T) {
 
 	var items []string
 	var workflowRunIds []*client.WorkflowResult
+	var wg sync.WaitGroup
+	done := make(chan struct{})
 outer:
 	for {
 
@@ -41,13 +44,18 @@ outer:
 		case item := <-events:
 			items = append(items, item)
 			if len(items) > 2 {
+				fmt.Println("got 2 events")
 				break outer
 			}
 		case <-ctx.Done():
+			fmt.Println("context done")
 			break outer
 
 		case wfrId := <-wfrIds:
+			fmt.Println("got wfr id")
 			go func(workflow *client.Workflow) {
+				wg.Add(1)
+				defer wg.Done()
 				wfr, err := workflow.Result()
 				workflowRunIds = append(workflowRunIds, wfr)
 				if err != nil {
@@ -58,11 +66,30 @@ outer:
 		}
 	}
 
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+
+	select {
+
+	case <-done:
+		fmt.Println("done")
+	case <-time.After(10 * time.Second):
+		fmt.Println("timeout waiting for workflow run results")
+	}
+
 	// our workflow run ids should have only one succeeded everyone else should have failed
 	stateCount := make(map[string]int)
 
+	if len(workflowRunIds) != 10 {
+		t.Fatalf("expected 10 workflow run ids, got %d", len(workflowRunIds))
+	}
+
 	for _, wfrId := range workflowRunIds {
 		state, err := getWorkflowStateForWorkflowRunId(c, ctx, wfrId)
+
+		fmt.Println("state: ", state)
 		if err != nil {
 			t.Fatalf("error getting workflow state: %v", err)
 		}
