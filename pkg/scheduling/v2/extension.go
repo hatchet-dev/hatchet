@@ -16,6 +16,7 @@ type PostScheduleInput struct {
 
 type WorkerCp struct {
 	WorkerId string
+	MaxRuns  int
 	Labels   []*dbsqlc.ListManyWorkerLabelsRow
 }
 

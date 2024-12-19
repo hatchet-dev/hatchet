@@ -776,6 +776,7 @@ func (s *Scheduler) getExtensionInput() *PostScheduleInput {
 	for workerId, worker := range workers {
 		res.Workers[workerId] = &WorkerCp{
 			WorkerId: workerId,
+			MaxRuns:  worker.MaxRuns,
 			Labels:   worker.Labels,
 		}
 	}
