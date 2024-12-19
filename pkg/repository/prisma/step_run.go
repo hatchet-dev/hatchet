@@ -1793,17 +1793,6 @@ func (s *sharedRepository) queueStepRunWithTx(ctx context.Context, tx dbsqlc.DBT
 			return nil, fmt.Errorf("could not buffer semaphore release: %w", err)
 		}
 
-		_, err = s.bulkQueuer.FireAndWait(ctx, tenantId, bulkQueueStepRunOpts{
-			GetStepRunForEngineRow: innerStepRun,
-			Priority:               priority,
-			IsRetry:                opts.IsRetry,
-			Input:                  opts.Input,
-		})
-
-		if err != nil {
-			return nil, err
-		}
-
 		err = s.releaseWorkerSemaphoreSlot(ctx, tenantId, stepRunId)
 
 		if err != nil {

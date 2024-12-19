@@ -14,12 +14,7 @@ type Event struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
-func emit(ctx context.Context, amountPerSecond int, duration time.Duration, scheduled chan<- time.Duration) int64 {
-	c, err := client.New()
-
-	if err != nil {
-		panic(err)
-	}
+func emit(ctx context.Context, c client.Client, amountPerSecond int, duration time.Duration, scheduled chan<- time.Duration) int64 {
 
 	var id int64
 	mx := sync.Mutex{}

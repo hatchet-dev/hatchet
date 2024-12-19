@@ -18,14 +18,7 @@ func getConcurrencyKey(ctx worker.HatchetContext) (string, error) {
 	return "my-key", nil
 }
 
-func run(ctx context.Context, delay time.Duration, executions chan<- time.Duration, concurrency int) (int64, int64) {
-	c, err := client.New(
-		client.WithLogLevel("warn"),
-	)
-
-	if err != nil {
-		panic(err)
-	}
+func run(ctx context.Context, c client.Client, delay time.Duration, executions chan<- time.Duration, concurrency int) (int64, int64) {
 
 	w, err := worker.NewWorker(
 		worker.WithClient(
@@ -77,7 +70,7 @@ func run(ctx context.Context, delay time.Duration, executions chan<- time.Durati
 						}
 					}
 					if duplicate {
-						l.Warn().Str("step-run-id", ctx.StepRunId()).Msgf("duplicate %d", input.ID)
+						l.Fatal().Str("step-run-id", ctx.StepRunId()).Msgf("duplicate %d", input.ID)
 					}
 					if !duplicate {
 						uniques++

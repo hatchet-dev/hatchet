@@ -5,6 +5,10 @@ import (
 	"fmt"
 	"log"
 	"time"
+
+	clientconfig "github.com/hatchet-dev/hatchet/pkg/config/client"
+
+	"github.com/hatchet-dev/hatchet/pkg/client"
 )
 
 func do(duration time.Duration, eventsPerSecond int, delay time.Duration, wait time.Duration, concurrency int, workerDelay time.Duration) error {
@@ -20,6 +24,14 @@ func do(duration time.Duration, eventsPerSecond int, delay time.Duration, wait t
 		cancel()
 	}()
 
+	c, err := client.NewFromConfigFile(&clientconfig.ClientConfigFile{
+		Namespace: generateNameSpace(),
+	}, client.WithLogLevel("warn"))
+
+	if err != nil {
+		panic(err)
+	}
+
 	ch := make(chan int64, 2)
 	durations := make(chan time.Duration, eventsPerSecond*int(duration.Seconds())*3)
 	go func() {
@@ -28,7 +40,7 @@ func do(duration time.Duration, eventsPerSecond int, delay time.Duration, wait t
 			time.Sleep(workerDelay)
 		}
 		l.Info().Msg("starting worker now")
-		count, uniques := run(ctx, delay, durations, concurrency)
+		count, uniques := run(ctx, c, delay, durations, concurrency)
 		ch <- count
 		ch <- uniques
 	}()
@@ -36,7 +48,7 @@ func do(duration time.Duration, eventsPerSecond int, delay time.Duration, wait t
 	time.Sleep(after)
 
 	scheduled := make(chan time.Duration, eventsPerSecond*int(duration.Seconds())*2)
-	emitted := emit(ctx, eventsPerSecond, duration, scheduled)
+	emitted := emit(ctx, c, eventsPerSecond, duration, scheduled)
 	executed := <-ch
 	uniques := <-ch
 
@@ -72,4 +84,8 @@ func do(duration time.Duration, eventsPerSecond int, delay time.Duration, wait t
 	log.Printf("✅ success")
 
 	return nil
+}
+
+func generateNameSpace() string {
+	return fmt.Sprintf("loadtest-%d", time.Now().Unix())
 }
