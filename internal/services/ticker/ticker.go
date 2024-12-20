@@ -339,11 +339,6 @@ func (t *TickerImpl) runPollOrphanedStepRuns(ctx context.Context) any {
 			t.l.Debug().Msgf("ticker: orphaned step run %s", sqlchelpers.UUIDToStr(orphanedStepRun.ID))
 		}
 
-		// err := t.repo.WorkflowRun().PollStuckWorkflowRuns(ctx)
-
-		// if err != nil {
-		// 	t.l.Err(err).Msg("could not poll stuck workflow runs")
-		// }
 	}
 }
 
