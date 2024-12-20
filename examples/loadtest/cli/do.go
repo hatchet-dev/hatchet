@@ -4,6 +4,9 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	clientconfig "github.com/hatchet-dev/hatchet/pkg/config/client"
@@ -13,22 +16,32 @@ import (
 
 func do(duration time.Duration, eventsPerSecond int, delay time.Duration, wait time.Duration, concurrency int, workerDelay time.Duration) error {
 	l.Info().Msgf("testing with duration=%s, eventsPerSecond=%d, delay=%s, wait=%s, concurrency=%d", duration, eventsPerSecond, delay, wait, concurrency)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	after := 10 * time.Second
-
-	go func() {
-		time.Sleep(duration + after + wait + 5*time.Second)
-		cancel()
-	}()
-
-	c, err := client.NewFromConfigFile(&clientconfig.ClientConfigFile{}, client.WithLogLevel("warn"))
+	c, err := client.NewFromConfigFile(&clientconfig.ClientConfigFile{})
 
 	if err != nil {
 		panic(err)
 	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// catch an interrupt signal
+	sigChan := make(chan os.Signal, 1)
+
+	// Notify the channel of interrupt and terminate signals
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+
+	go func(ctx context.Context) {
+
+		select {
+		case <-ctx.Done():
+			log.Println("context cancelled")
+		case <-sigChan:
+			log.Println("interrupt signal received")
+			cancel()
+		}
+	}(ctx)
+
+	after := 10 * time.Second
 
 	ch := make(chan int64, 2)
 	durations := make(chan time.Duration, eventsPerSecond*int(duration.Seconds())*3)
@@ -38,12 +51,12 @@ func do(duration time.Duration, eventsPerSecond int, delay time.Duration, wait t
 			time.Sleep(workerDelay)
 		}
 		l.Info().Msg("starting worker now")
-		c, err := client.New()
+
 		if err != nil {
 			panic(err)
 		}
 
-		count, uniques := run(ctx, c, delay, durations, concurrency)
+		count, uniques := runWorker(ctx, c, delay, durations, concurrency)
 		ch <- count
 		ch <- uniques
 	}()
@@ -52,6 +65,12 @@ func do(duration time.Duration, eventsPerSecond int, delay time.Duration, wait t
 
 	scheduled := make(chan time.Duration, eventsPerSecond*int(duration.Seconds())*2)
 	emitted := emit(ctx, c, eventsPerSecond, duration, scheduled)
+	l.Info().Msgf("emitted %d events", emitted)
+
+	time.Sleep(after) // giving the worker some time to finish
+
+	cancel() // now cancelling the worker
+
 	executed := <-ch
 	uniques := <-ch
 

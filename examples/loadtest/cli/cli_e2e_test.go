@@ -5,7 +5,10 @@ package main
 import (
 	"context"
 	"log"
+	"os"
+	"os/signal"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -26,11 +29,12 @@ func TestLoadCLI(t *testing.T) {
 		wait            time.Duration
 		workerDelay     time.Duration
 		concurrency     int
+		timeout         time.Duration
 	}
 
 	l = logger.NewStdErr(
 		&shared.LoggerConfigFile{
-			Level:  "warn",
+			Level:  "info",
 			Format: "console",
 		},
 		"loadtest",
@@ -40,37 +44,58 @@ func TestLoadCLI(t *testing.T) {
 		name    string
 		args    args
 		wantErr bool
-	}{{
-		name: "test simple with unlimited concurrency",
-		args: args{
-			duration:        10 * time.Second,
-			eventsPerSecond: 10,
-			delay:           0 * time.Second,
-			wait:            60 * time.Second,
-			concurrency:     0,
+	}{
+		{
+			name: "test simple with unlimited concurrency",
+			args: args{
+				duration:        10 * time.Second,
+				eventsPerSecond: 10,
+				delay:           0 * time.Second,
+				wait:            60 * time.Second,
+				concurrency:     0,
+				timeout:         2 * time.Minute,
+			},
+		}, {
+			name: "test with high step delay",
+			args: args{
+				duration:        10 * time.Second,
+				eventsPerSecond: 10,
+				delay:           10 * time.Second,
+				wait:            60 * time.Second,
+				concurrency:     0,
+				timeout:         2 * time.Minute,
+			},
 		},
-	}, {
-		name: "test with high step delay",
-		args: args{
-			duration:        10 * time.Second,
-			eventsPerSecond: 10,
-			delay:           10 * time.Second,
-			wait:            60 * time.Second,
-			concurrency:     0,
-		},
-	}, {
-		name: "test for many queued events and little worker throughput",
-		args: args{
-			duration:        60 * time.Second,
-			eventsPerSecond: 100,
-			delay:           0 * time.Second,
-			workerDelay:     60 * time.Second,
-			wait:            240 * time.Second,
-			concurrency:     0,
-		},
-	}}
+		{
+			name: "test for many queued events and little worker throughput",
+			args: args{
+				duration:        60 * time.Second,
+				eventsPerSecond: 100,
+				delay:           0 * time.Second,
+				workerDelay:     60 * time.Second,
+				wait:            240 * time.Second,
+				concurrency:     0,
+				timeout:         6 * time.Minute,
+			},
+		}}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+
+	// catch an interrupt signal
+	sigChan := make(chan os.Signal, 1)
+
+	// Notify the channel of interrupt and terminate signals
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+
+	go func(ctx context.Context) {
+		select {
+		case <-ctx.Done():
+			log.Println("context cancelled")
+		case <-sigChan:
+			log.Println("interrupt signal received")
+			cancel()
+		}
+	}(ctx)
 
 	setup := sync.WaitGroup{}
 
@@ -86,11 +111,25 @@ func TestLoadCLI(t *testing.T) {
 	time.Sleep(15 * time.Second)
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if err := do(tt.args.duration, tt.args.eventsPerSecond, tt.args.delay, tt.args.wait, tt.args.concurrency, tt.args.workerDelay); (err != nil) != tt.wantErr {
-				t.Errorf("do() error = %v, wantErr %v", err, tt.wantErr)
-			}
-		})
+		ctx2, cancel2 := context.WithTimeout(context.Background(), tt.args.timeout)
+		doneCh := make(chan bool)
+		go func() {
+			doneCh <- t.Run(tt.name, func(t *testing.T) {
+				if err := do(tt.args.duration, tt.args.eventsPerSecond, tt.args.delay, tt.args.wait, tt.args.concurrency, tt.args.workerDelay); (err != nil) != tt.wantErr {
+					t.Errorf("do() error = %v, wantErr %v", err, tt.wantErr)
+				}
+
+			})
+		}()
+		select {
+		case <-ctx2.Done():
+			cancel2()
+			cancel()
+		case <-doneCh:
+			cancel2()
+		case <-ctx.Done():
+			cancel2()
+		}
 	}
 
 	cancel()

@@ -16,9 +16,11 @@ type Event struct {
 
 func emit(ctx context.Context, c client.Client, amountPerSecond int, duration time.Duration, scheduled chan<- time.Duration) int64 {
 
+	var done = make(chan struct{})
 	var id int64
 	mx := sync.Mutex{}
 	go func() {
+		defer close(done)
 		ticker := time.NewTicker(time.Second / time.Duration(amountPerSecond))
 		defer ticker.Stop()
 
@@ -46,6 +48,7 @@ func emit(ctx context.Context, c client.Client, amountPerSecond int, duration ti
 				mx.Unlock()
 			case <-timer:
 				l.Info().Msg("done emitting events due to timer")
+
 				return
 			case <-ctx.Done():
 				l.Info().Msgf("done emitting events due to interruption at %d", id)
@@ -56,12 +59,17 @@ func emit(ctx context.Context, c client.Client, amountPerSecond int, duration ti
 
 	for {
 		select {
-		case <-ctx.Done():
+		case <-done:
+			l.Info().Msgf("done emitting events at %d", id)
 			mx.Lock()
 			defer mx.Unlock()
 			return id
-		default:
-			time.Sleep(time.Second)
+		case <-ctx.Done():
+			l.Info().Msgf("context done s done emitting events at %d", id)
+			mx.Lock()
+			defer mx.Unlock()
+			return id
+
 		}
 	}
 }

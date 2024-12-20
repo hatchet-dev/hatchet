@@ -18,13 +18,12 @@ func getConcurrencyKey(ctx worker.HatchetContext) (string, error) {
 	return "my-key", nil
 }
 
-func run(ctx context.Context, c client.Client, delay time.Duration, executions chan<- time.Duration, concurrency int) (int64, int64) {
+func runWorker(ctx context.Context, c client.Client, delay time.Duration, executions chan<- time.Duration, concurrency int) (int64, int64) {
 
 	w, err := worker.NewWorker(
 		worker.WithClient(
 			c,
 		),
-		worker.WithLogLevel("warn"),
 		worker.WithMaxRuns(200),
 	)
 
@@ -50,6 +49,7 @@ func run(ctx context.Context, c client.Client, delay time.Duration, executions c
 			Concurrency: concurrencyOpts,
 			Steps: []*worker.WorkflowStep{
 				worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
+					l.Info().Msgf("executing %s", ctx.StepRunId())
 					var input Event
 					err = ctx.WorkflowInput(&input)
 					if err != nil {
@@ -71,7 +71,7 @@ func run(ctx context.Context, c client.Client, delay time.Duration, executions c
 					}
 					if duplicate {
 						l.Error().Str("step-run-id", ctx.StepRunId()).Msgf("duplicate %d", input.ID)
-						// return nil, fmt.Errorf("duplicate %d", input.ID)
+						return nil, fmt.Errorf("duplicate %d", input.ID)
 					}
 					if !duplicate {
 						uniques++
@@ -79,8 +79,9 @@ func run(ctx context.Context, c client.Client, delay time.Duration, executions c
 					count++
 					executed = append(executed, input.ID)
 					mx.Unlock()
-
+					l.Info().Msgf("executed %d now delaying", input.ID)
 					time.Sleep(delay)
+					l.Info().Msgf("executed %d now done after %s", input.ID, delay)
 
 					return &stepOneOutput{
 						Message: "This ran at: " + time.Now().Format(time.RFC3339Nano),
@@ -99,7 +100,9 @@ func run(ctx context.Context, c client.Client, delay time.Duration, executions c
 		panic(fmt.Errorf("error starting worker: %w", err))
 	}
 
+	l.Info().Msg("worker started waiting for context done")
 	<-ctx.Done()
+	l.Info().Msg("context done")
 
 	if err := cleanup(); err != nil {
 		panic(fmt.Errorf("error cleaning up: %w", err))
