@@ -414,11 +414,11 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 
 	if cf.Auth.Custom.Enabled {
 		if cf.Auth.Custom.ClientID == "" {
-			return nil, nil, fmt.Errorf("github client id is required")
+			return nil, nil, fmt.Errorf("custom client id is required")
 		}
 
 		if cf.Auth.Custom.ClientSecret == "" {
-			return nil, nil, fmt.Errorf("github client secret is required")
+			return nil, nil, fmt.Errorf("custom client secret is required")
 		}
 
 		if cf.Auth.Custom.AuthorizationURL == "" {
