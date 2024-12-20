@@ -668,7 +668,6 @@ func (s *Scheduler) tryAssign(
 		startTotal := time.Now()
 
 		extensionResultsCh := make(chan *assignResults, len(actionIdToQueueItems))
-		defer close(extensionResultsCh)
 
 		// process each action id in parallel
 		for actionId, qis := range actionIdToQueueItems {
@@ -760,6 +759,7 @@ func (s *Scheduler) tryAssign(
 		wg.Wait()
 		span.End()
 		close(resultsCh)
+		close(extensionResultsCh)
 
 		extInput := s.getExtensionInput(extensionResultsCh)
 
