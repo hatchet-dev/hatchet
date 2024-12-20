@@ -553,7 +553,7 @@ WHERE
     AND w."isActive" = true
     AND w."isPaused" = false;
 
--- name: ListStepRunsToRetry :many
+-- name: RetryStepRuns :one
 WITH retries AS (
     SELECT
         *
@@ -577,16 +577,63 @@ WITH retries AS (
         retries
     WHERE
         rqi."stepRunId" = retries."stepRunId"
+), srs AS (
+    SELECT
+        sr."id",
+        sr."tenantId",
+        sr."scheduleTimeoutAt",
+        sr."retryCount",
+        sr."internalRetryCount",
+        s."actionId",
+        s."id" AS "stepId",
+        s."timeout" AS "stepTimeout",
+        s."scheduleTimeout" AS "scheduleTimeout"
+    FROM
+        retries
+    JOIN
+        "StepRun" sr ON retries."stepRunId" = sr."id"
+    JOIN
+        "Step" s ON sr."stepId" = s."id"
+    WHERE
+        sr."status" NOT IN ('SUCCEEDED', 'FAILED', 'CANCELLED')
+), updated_step_runs AS (
+    UPDATE "StepRun" sr
+    SET
+        "status" = 'PENDING_ASSIGNMENT',
+        "scheduleTimeoutAt" = CURRENT_TIMESTAMP + COALESCE(convert_duration_to_interval(srs."scheduleTimeout"), INTERVAL '5 minutes'),
+        "updatedAt" = CURRENT_TIMESTAMP,
+        "retryCount" = srs."retryCount" + 1
+    FROM srs
+    WHERE sr."id" = srs."id"
+    RETURNING sr."id"
+), inserted_sqs AS (
+    INSERT INTO "QueueItem" (
+        "stepRunId",
+        "stepId",
+        "actionId",
+        "scheduleTimeoutAt",
+        "stepTimeout",
+        "priority",
+        "isQueued",
+        "tenantId",
+        "queue"
+    )
+    SELECT
+        srs."id",
+        srs."stepId",
+        srs."actionId",
+        CURRENT_TIMESTAMP + COALESCE(convert_duration_to_interval(srs."scheduleTimeout"), INTERVAL '5 minutes'),
+        srs."stepTimeout",
+        -- Queue with priority 4 so that retry gets highest priority
+        4,
+        true,
+        srs."tenantId",
+        srs."actionId"
+    FROM
+        srs
+    RETURNING "stepRunId"
 )
-SELECT
-    retries.*
-FROM
-    retries
-JOIN
-    "StepRun" sr ON retries."stepRunId" = sr."id"
-WHERE
-    -- we remove any step runs in a finalized state from the retry queue
-    sr."status" NOT IN ('SUCCEEDED', 'FAILED', 'CANCELLED', 'CANCELLING');
+SELECT COUNT(*) FROM retries;
 
 -- name: CreateRetryQueueItem :exec
 INSERT INTO

@@ -74,11 +74,15 @@ func run(events chan<- string) (func() error, error) {
 					err = ctx.WorkflowInput(input)
 
 					// we sleep to simulate a long running task
-					time.Sleep(30 * time.Second)
+					time.Sleep(10 * time.Second)
 
 					if err != nil {
 
 						return nil, err
+					}
+
+					if ctx.Err() != nil {
+						return nil, ctx.Err()
 					}
 
 					log.Printf("step-one")
@@ -95,6 +99,10 @@ func run(events chan<- string) (func() error, error) {
 
 					if err != nil {
 						return nil, err
+					}
+
+					if ctx.Err() != nil {
+						return nil, ctx.Err()
 					}
 
 					log.Printf("step-two")

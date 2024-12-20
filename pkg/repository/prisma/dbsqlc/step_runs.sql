@@ -356,7 +356,7 @@ WHERE
     "JobRun"."deletedAt" IS NULL AND
     "StepRun"."tenantId" = @tenantId::uuid AND
     "StepRun"."jobRunId" = @jobRunId::uuid AND
-    "StepRun"."status" = ANY(ARRAY['PENDING', 'PENDING_ASSIGNMENT', 'ASSIGNED', 'RUNNING']::"StepRunStatus"[]);
+    "StepRun"."status" = ANY(ARRAY['PENDING', 'PENDING_ASSIGNMENT', 'ASSIGNED', 'RUNNING', 'CANCELLING']::"StepRunStatus"[]);
 
 -- name: QueueStepRun :exec
 UPDATE
