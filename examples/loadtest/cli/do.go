@@ -24,9 +24,7 @@ func do(duration time.Duration, eventsPerSecond int, delay time.Duration, wait t
 		cancel()
 	}()
 
-	c, err := client.NewFromConfigFile(&clientconfig.ClientConfigFile{
-		Namespace: generateNameSpace(),
-	}, client.WithLogLevel("warn"))
+	c, err := client.NewFromConfigFile(&clientconfig.ClientConfigFile{}, client.WithLogLevel("warn"))
 
 	if err != nil {
 		panic(err)
@@ -40,6 +38,11 @@ func do(duration time.Duration, eventsPerSecond int, delay time.Duration, wait t
 			time.Sleep(workerDelay)
 		}
 		l.Info().Msg("starting worker now")
+		c, err := client.New()
+		if err != nil {
+			panic(err)
+		}
+
 		count, uniques := run(ctx, c, delay, durations, concurrency)
 		ch <- count
 		ch <- uniques
@@ -84,8 +87,4 @@ func do(duration time.Duration, eventsPerSecond int, delay time.Duration, wait t
 	log.Printf("✅ success")
 
 	return nil
-}
-
-func generateNameSpace() string {
-	return fmt.Sprintf("loadtest-%d", time.Now().Unix())
 }

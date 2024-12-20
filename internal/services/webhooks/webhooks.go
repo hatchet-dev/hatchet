@@ -236,8 +236,12 @@ func (c *WebhooksController) healthcheck(ww *dbsqlc.WebhookWorker) (*HealthCheck
 		c.sc.Logger.Err(err).Msgf("could not insert webhook worker request")
 	}
 
-	if err != nil || *statusCode != http.StatusOK {
+	if err != nil {
 		return nil, fmt.Errorf("health check request: %w", err)
+	}
+
+	if *statusCode != http.StatusOK {
+		return nil, fmt.Errorf("health check request failed with status code %d", *statusCode)
 	}
 
 	var res HealthCheckResponse
