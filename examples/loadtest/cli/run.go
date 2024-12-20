@@ -70,7 +70,8 @@ func run(ctx context.Context, c client.Client, delay time.Duration, executions c
 						}
 					}
 					if duplicate {
-						l.Fatal().Str("step-run-id", ctx.StepRunId()).Msgf("duplicate %d", input.ID)
+						l.Error().Str("step-run-id", ctx.StepRunId()).Msgf("duplicate %d", input.ID)
+						return nil, fmt.Errorf("duplicate %d", input.ID)
 					}
 					if !duplicate {
 						uniques++
