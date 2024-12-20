@@ -172,6 +172,8 @@ type StepRunEngineRepository interface {
 	// ListStepRunsToReassign returns a list of step runs which are in a reassignable state.
 	ListStepRunsToReassign(ctx context.Context, tenantId string) (reassignedStepRunIds []string, failedStepRuns []*dbsqlc.GetStepRunForEngineRow, err error)
 
+	InternalRetryStepRuns(ctx context.Context, tenantId string, srIdsIn []string) (reassignedStepRunIds []string, failedStepRuns []*dbsqlc.GetStepRunForEngineRow, err error)
+
 	ListStepRunsToTimeout(ctx context.Context, tenantId string) (bool, []*dbsqlc.GetStepRunForEngineRow, error)
 
 	StepRunAcked(ctx context.Context, tenantId, workflowRunId, stepRunId string, ackedAt time.Time) error

@@ -1504,6 +1504,144 @@ func (q *Queries) HasActiveWorkersForActionId(ctx context.Context, db DBTX, arg 
 	return total, err
 }
 
+const internalRetryStepRuns = `-- name: InternalRetryStepRuns :many
+WITH step_runs AS (
+    SELECT
+        sr."id",
+        sr."tenantId",
+        sr."scheduleTimeoutAt",
+        sr."retryCount",
+        sr."internalRetryCount",
+        s."actionId",
+        s."id" AS "stepId",
+        s."timeout" AS "stepTimeout",
+        s."scheduleTimeout" AS "scheduleTimeout"
+    FROM
+        "StepRun" sr
+    JOIN
+        "Step" s ON sr."stepId" = s."id"
+    WHERE
+        sr."tenantId" = $1::uuid
+        AND sr."id" = ANY($2::uuid[])
+),
+step_runs_to_reassign AS (
+    SELECT
+        id, "tenantId", "scheduleTimeoutAt", "retryCount", "internalRetryCount", "actionId", "stepId", "stepTimeout", "scheduleTimeout"
+    FROM
+        step_runs
+    WHERE
+        "internalRetryCount" < $3::int
+),
+step_runs_to_fail AS (
+    SELECT
+        id, "tenantId", "scheduleTimeoutAt", "retryCount", "internalRetryCount", "actionId", "stepId", "stepTimeout", "scheduleTimeout"
+    FROM
+        step_runs
+    WHERE
+        "internalRetryCount" >= $3::int
+),
+deleted_sqis AS (
+    DELETE FROM
+        "SemaphoreQueueItem" sqi
+    USING
+        step_runs srs
+    WHERE
+        sqi."stepRunId" = srs."id"
+),
+deleted_tqis AS (
+    DELETE FROM
+        "TimeoutQueueItem" tqi
+    -- delete when step run id AND retry count tuples match
+    USING
+        step_runs srs
+    WHERE
+        tqi."stepRunId" = srs."id"
+        AND tqi."retryCount" = srs."retryCount"
+),
+inserted_queue_items AS (
+    INSERT INTO "QueueItem" (
+        "stepRunId",
+        "stepId",
+        "actionId",
+        "scheduleTimeoutAt",
+        "stepTimeout",
+        "priority",
+        "isQueued",
+        "tenantId",
+        "queue"
+    )
+    SELECT
+        srs."id",
+        srs."stepId",
+        srs."actionId",
+        CURRENT_TIMESTAMP + COALESCE(convert_duration_to_interval(srs."scheduleTimeout"), INTERVAL '5 minutes'),
+        srs."stepTimeout",
+        -- Queue with priority 4 so that reassignment gets highest priority
+        4,
+        true,
+        srs."tenantId",
+        srs."actionId"
+    FROM
+        step_runs_to_reassign srs
+),
+updated_step_runs AS (
+    UPDATE "StepRun" sr
+    SET
+        "status" = 'PENDING_ASSIGNMENT',
+        "scheduleTimeoutAt" = CURRENT_TIMESTAMP + COALESCE(convert_duration_to_interval(srs."scheduleTimeout"), INTERVAL '5 minutes'),
+        "updatedAt" = CURRENT_TIMESTAMP,
+        "internalRetryCount" = sr."internalRetryCount" + 1
+    FROM step_runs_to_reassign srs
+    WHERE sr."id" = srs."id"
+    RETURNING sr."id"
+)
+SELECT
+    srs1."id",
+    srs1."retryCount",
+    'REASSIGNED' AS "operation"
+FROM
+    step_runs_to_reassign srs1
+UNION ALL
+SELECT
+    srs2."id",
+    srs2."retryCount",
+    'FAILED' AS "operation"
+FROM
+    step_runs_to_fail srs2
+`
+
+type InternalRetryStepRunsParams struct {
+	Tenantid              pgtype.UUID   `json:"tenantid"`
+	Steprunids            []pgtype.UUID `json:"steprunids"`
+	Maxinternalretrycount int32         `json:"maxinternalretrycount"`
+}
+
+type InternalRetryStepRunsRow struct {
+	ID         pgtype.UUID `json:"id"`
+	RetryCount int32       `json:"retryCount"`
+	Operation  string      `json:"operation"`
+}
+
+func (q *Queries) InternalRetryStepRuns(ctx context.Context, db DBTX, arg InternalRetryStepRunsParams) ([]*InternalRetryStepRunsRow, error) {
+	rows, err := db.Query(ctx, internalRetryStepRuns, arg.Tenantid, arg.Steprunids, arg.Maxinternalretrycount)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*InternalRetryStepRunsRow
+	for rows.Next() {
+		var i InternalRetryStepRunsRow
+		if err := rows.Scan(&i.ID, &i.RetryCount, &i.Operation); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listChildWorkflowRunIds = `-- name: ListChildWorkflowRunIds :many
 SELECT
     "id"
