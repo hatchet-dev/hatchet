@@ -15,6 +15,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
+	"github.com/hatchet-dev/hatchet/internal/queueutils"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
@@ -358,8 +359,6 @@ func (d *DispatcherImpl) handleTask(ctx context.Context, task *msgqueue.Message)
 	switch task.ID {
 	case "group-key-action-assigned":
 		err = d.a.WrapErr(d.handleGroupKeyActionAssignedTask(ctx, task), map[string]interface{}{})
-	case "step-run-assigned":
-		err = d.a.WrapErr(d.handleStepRunAssignedTask(ctx, task), map[string]interface{}{})
 	case "step-run-assigned-bulk":
 		err = d.a.WrapErr(d.handleStepRunBulkAssignedTask(ctx, task), map[string]interface{}{})
 	case "step-run-cancelled":
@@ -438,118 +437,6 @@ func (d *DispatcherImpl) handleGroupKeyActionAssignedTask(ctx context.Context, t
 	return multiErr
 }
 
-func (d *DispatcherImpl) handleStepRunAssignedTask(ctx context.Context, task *msgqueue.Message) error {
-	ctx, span := telemetry.NewSpanWithCarrier(ctx, "step-run-assigned", task.OtelCarrier)
-	defer span.End()
-
-	payload := tasktypes.StepRunAssignedTaskPayload{}
-	metadata := tasktypes.StepRunAssignedTaskMetadata{}
-
-	err := d.dv.DecodeAndValidate(task.Payload, &payload)
-
-	if err != nil {
-		return fmt.Errorf("could not decode dispatcher task payload: %w", err)
-	}
-
-	err = d.dv.DecodeAndValidate(task.Metadata, &metadata)
-
-	if err != nil {
-		return fmt.Errorf("could not decode dispatcher task metadata: %w", err)
-	}
-
-	// load the step run from the database
-	stepRun, err := d.repo.StepRun().GetStepRunForEngine(ctx, metadata.TenantId, payload.StepRunId)
-
-	if err != nil {
-		return fmt.Errorf("could not get step run: %w", err)
-	}
-
-	// if the step run has a job run in a non-running state, we should not send it to the worker
-	if repository.IsFinalJobRunStatus(stepRun.JobRunStatus) {
-		d.l.Debug().Msgf("job run %s is in a final state %s, ignoring", sqlchelpers.UUIDToStr(stepRun.JobRunId), string(stepRun.JobRunStatus))
-
-		// release the semaphore
-		return d.repo.StepRun().ReleaseStepRunSemaphore(ctx, metadata.TenantId, payload.StepRunId, false)
-	}
-
-	// if the step run is in a final state, we should not send it to the worker
-	if repository.IsFinalStepRunStatus(stepRun.SRStatus) {
-		d.l.Warn().Msgf("step run %s is in a final state %s, ignoring", payload.StepRunId, string(stepRun.SRStatus))
-
-		return d.repo.StepRun().ReleaseStepRunSemaphore(ctx, metadata.TenantId, payload.StepRunId, false)
-	}
-
-	data, err := d.repo.StepRun().GetStepRunDataForEngine(ctx, metadata.TenantId, payload.StepRunId)
-
-	if err != nil {
-		return fmt.Errorf("could not get step run data: %w", err)
-	}
-
-	servertel.WithStepRunModel(span, stepRun)
-
-	var multiErr error
-	var success bool
-
-	// get the worker for this task
-	workers, err := d.workers.Get(payload.WorkerId)
-
-	if err != nil && !errors.Is(err, ErrWorkerNotFound) {
-		return fmt.Errorf("could not get worker: %w", err)
-	}
-
-	for i, w := range workers {
-		err = w.StartStepRun(ctx, metadata.TenantId, stepRun, data)
-
-		if err != nil {
-			multiErr = multierror.Append(multiErr, fmt.Errorf("could not send step action to worker (%d): %w", i, err))
-		} else {
-			success = true
-			break
-		}
-	}
-
-	now := time.Now().UTC()
-
-	if success {
-		defer d.repo.StepRun().DeferredStepRunEvent(
-			metadata.TenantId,
-			repository.CreateStepRunEventOpts{
-				StepRunId:     sqlchelpers.UUIDToStr(stepRun.SRID),
-				EventMessage:  repository.StringPtr("Sent step run to the assigned worker"),
-				EventReason:   repository.StepRunEventReasonPtr(dbsqlc.StepRunEventReasonSENTTOWORKER),
-				EventSeverity: repository.StepRunEventSeverityPtr(dbsqlc.StepRunEventSeverityINFO),
-				Timestamp:     &now,
-				EventData:     map[string]interface{}{"worker_id": payload.WorkerId},
-			},
-		)
-
-		return nil
-	}
-
-	defer d.repo.StepRun().DeferredStepRunEvent(
-		metadata.TenantId,
-		repository.CreateStepRunEventOpts{
-			StepRunId:     sqlchelpers.UUIDToStr(stepRun.SRID),
-			EventMessage:  repository.StringPtr("Could not send step run to assigned worker"),
-			EventReason:   repository.StepRunEventReasonPtr(dbsqlc.StepRunEventReasonREASSIGNED),
-			EventSeverity: repository.StepRunEventSeverityPtr(dbsqlc.StepRunEventSeverityWARNING),
-			Timestamp:     &now,
-			EventData:     map[string]interface{}{"worker_id": payload.WorkerId},
-		},
-	)
-
-	// we were unable to send the step run to any worker, requeue the step run with an internal retry
-	_, err = d.repo.StepRun().QueueStepRun(ctx, metadata.TenantId, sqlchelpers.UUIDToStr(stepRun.SRID), &repository.QueueStepRunOpts{
-		IsInternalRetry: true,
-	})
-
-	if err != nil && !errors.Is(err, repository.ErrAlreadyRunning) {
-		multiErr = multierror.Append(multiErr, fmt.Errorf("💥 could not requeue step run in dispatcher: %w", err))
-	}
-
-	return multiErr
-}
-
 func (d *DispatcherImpl) handleStepRunBulkAssignedTask(ctx context.Context, task *msgqueue.Message) error {
 	ctx, span := telemetry.NewSpanWithCarrier(ctx, "step-run-assigned-bulk", task.OtelCarrier)
 	defer span.End()
@@ -611,28 +498,25 @@ func (d *DispatcherImpl) handleStepRunBulkAssignedTask(ctx context.Context, task
 
 			innerEg := errgroup.Group{}
 
+			toRetry := []string{}
+			toRetryMu := sync.Mutex{}
+
 			for _, stepRunId := range stepRunIds {
 				stepRunId := stepRunId
 
 				innerEg.Go(func() error {
 					stepRun := stepRunIdToData[stepRunId]
 
-					requeue := func() error {
-						// we were unable to send the step run to any worker, requeue the step run with an internal retry
-						_, err = d.repo.StepRun().QueueStepRun(ctx, metadata.TenantId, sqlchelpers.UUIDToStr(stepRun.SRID), &repository.QueueStepRunOpts{
-							IsInternalRetry: true,
-						})
-
-						if err != nil && !errors.Is(err, repository.ErrAlreadyRunning) {
-							return fmt.Errorf("💥 could not requeue step run in dispatcher: %w", err)
-						}
-
-						return nil
+					requeue := func() {
+						toRetryMu.Lock()
+						toRetry = append(toRetry, stepRunId)
+						toRetryMu.Unlock()
 					}
 
 					// if we've reached the context deadline, this should be requeued
 					if ctx.Err() != nil {
-						return requeue()
+						requeue()
+						return nil
 					}
 
 					// if the step run has a job run in a non-running state, we should not send it to the worker
@@ -657,6 +541,7 @@ func (d *DispatcherImpl) handleStepRunBulkAssignedTask(ctx context.Context, task
 						err := w.StartStepRunFromBulk(ctx, metadata.TenantId, stepRun)
 
 						if err != nil {
+							d.l.Err(err).Msgf("could not send step run to worker (%d)", i)
 							multiErr = multierror.Append(multiErr, fmt.Errorf("could not send step action to worker (%d): %w", i, err))
 						} else {
 							success = true
@@ -694,15 +579,56 @@ func (d *DispatcherImpl) handleStepRunBulkAssignedTask(ctx context.Context, task
 						},
 					)
 
-					if err := requeue(); err != nil {
-						multiErr = multierror.Append(multiErr, err)
-					}
+					requeue()
 
 					return multiErr
 				})
 			}
 
-			return innerEg.Wait()
+			innerErr := innerEg.Wait()
+
+			if len(toRetry) > 0 {
+				retryCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+				defer cancel()
+
+				_, stepRunsToFail, err := d.repo.StepRun().InternalRetryStepRuns(retryCtx, metadata.TenantId, toRetry)
+
+				if err != nil {
+					innerErr = multierror.Append(innerErr, fmt.Errorf("could not requeue step runs: %w", err))
+				}
+
+				if len(stepRunsToFail) > 0 {
+					now := time.Now()
+
+					batchErr := queueutils.BatchConcurrent(50, stepRunsToFail, func(stepRuns []*dbsqlc.GetStepRunForEngineRow) error {
+						var innerBatchErr error
+
+						for _, stepRun := range stepRuns {
+							err := d.mq.AddMessage(
+								retryCtx,
+								msgqueue.JOB_PROCESSING_QUEUE,
+								tasktypes.StepRunFailedToTask(
+									stepRun,
+									"Could not send step run to worker",
+									&now,
+								),
+							)
+
+							if err != nil {
+								innerBatchErr = multierror.Append(innerBatchErr, err)
+							}
+						}
+
+						return innerBatchErr
+					})
+
+					if batchErr != nil {
+						innerErr = multierror.Append(innerErr, fmt.Errorf("could not fail step runs: %w", batchErr))
+					}
+				}
+			}
+
+			return innerErr
 		})
 	}
 

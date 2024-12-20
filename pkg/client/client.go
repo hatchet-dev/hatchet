@@ -13,6 +13,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/status"
 
 	"github.com/hatchet-dev/hatchet/pkg/client/loader"
@@ -255,8 +256,15 @@ func newFromOpts(opts *ClientOpts) (Client, error) {
 		transportCreds = credentials.NewTLS(opts.tls)
 	}
 
+	keepAliveParams := keepalive.ClientParameters{
+		Time:                10 * time.Second, // grpc.keepalive_time_ms: 10 * 1000
+		Timeout:             60 * time.Second, // grpc.keepalive_timeout_ms: 60 * 1000
+		PermitWithoutStream: true,             // grpc.keepalive_permit_without_calls: 1
+	}
+
 	grpcOpts := []grpc.DialOption{
 		grpc.WithTransportCredentials(transportCreds),
+		grpc.WithKeepaliveParams(keepAliveParams),
 	}
 
 	if !opts.noGrpcRetry {
