@@ -111,7 +111,7 @@ func run(c client.Client, events chan<- string, wfrIds chan<- *client.Workflow) 
 
 					// we sleep to simulate a long running task
 
-					time.Sleep(20 * time.Second)
+					time.Sleep(7 * time.Second)
 
 					if err != nil {
 

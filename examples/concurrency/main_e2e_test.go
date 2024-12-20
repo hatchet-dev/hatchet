@@ -73,8 +73,10 @@ outer:
 
 	select {
 
-	case <-time.After(10 * time.Second):
-		fmt.Println("timeout waiting for workflow run results")
+	case <-time.After(20 * time.Second):
+		t.Fatalf("timed out waiting for workflow results")
+	case <-done:
+
 	}
 
 	// our workflow run ids should have only one succeeded everyone else should have failed
