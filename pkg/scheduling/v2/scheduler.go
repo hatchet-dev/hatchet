@@ -798,13 +798,27 @@ func (s *Scheduler) getExtensionInput(results []*assignResults) *PostScheduleInp
 		}
 	}
 
+	// NOTE: these locks are important because we must acquire locks in the same order as the replenish and tryAssignBatch
+	// functions. we always acquire actionsMu first and then the specific action's lock.
+	actionKeys := make([]string, 0, len(s.actions))
+
 	s.actionsMu.RLock()
-	defer s.actionsMu.RUnlock()
+
+	for actionId := range s.actions {
+		actionKeys = append(actionKeys, actionId)
+	}
+
+	s.actionsMu.RUnlock()
 
 	uniqueSlots := make(map[*slot]*SlotCp)
 	actionsToSlots := make(map[string][]*SlotCp)
 
-	for _, action := range s.actions {
+	for _, actionId := range actionKeys {
+		s.actionsMu.RLock()
+		action := s.actions[actionId]
+		s.actionsMu.RUnlock()
+
+		action.mu.RLock()
 		actionsToSlots[action.actionId] = make([]*SlotCp, 0, len(action.slots))
 
 		for _, slot := range action.slots {
@@ -819,6 +833,7 @@ func (s *Scheduler) getExtensionInput(results []*assignResults) *PostScheduleInp
 
 			actionsToSlots[action.actionId] = append(actionsToSlots[action.actionId], uniqueSlots[slot])
 		}
+		action.mu.RUnlock()
 	}
 
 	for _, slot := range uniqueSlots {
