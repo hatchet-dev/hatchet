@@ -667,7 +667,8 @@ func (s *Scheduler) tryAssign(
 		wg := sync.WaitGroup{}
 		startTotal := time.Now()
 
-		extensionResultsCh := make(chan *assignResults, len(actionIdToQueueItems))
+		extensionResults := make([]*assignResults, 0)
+		extensionResultsMu := sync.Mutex{}
 
 		// process each action id in parallel
 		for actionId, qis := range actionIdToQueueItems {
@@ -743,7 +744,9 @@ func (s *Scheduler) tryAssign(
 						unassigned:  batchUnassigned,
 					}
 
-					extensionResultsCh <- r
+					extensionResultsMu.Lock()
+					extensionResults = append(extensionResults, r)
+					extensionResultsMu.Unlock()
 
 					resultsCh <- r
 
@@ -759,9 +762,8 @@ func (s *Scheduler) tryAssign(
 		wg.Wait()
 		span.End()
 		close(resultsCh)
-		close(extensionResultsCh)
 
-		extInput := s.getExtensionInput(extensionResultsCh)
+		extInput := s.getExtensionInput(extensionResults)
 
 		s.exts.PostSchedule(sqlchelpers.UUIDToStr(s.tenantId), extInput)
 
@@ -773,10 +775,10 @@ func (s *Scheduler) tryAssign(
 	return resultsCh
 }
 
-func (s *Scheduler) getExtensionInput(ch <-chan *assignResults) *PostScheduleInput {
+func (s *Scheduler) getExtensionInput(results []*assignResults) *PostScheduleInput {
 	unassigned := make([]*dbsqlc.QueueItem, 0)
 
-	for res := range ch {
+	for _, res := range results {
 		unassigned = append(unassigned, res.unassigned...)
 	}
 
