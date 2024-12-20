@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/hashicorp/go-multierror"
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
 
@@ -149,7 +148,12 @@ func (p *PostgresMessageQueue) Subscribe(queue msgqueue.Queue, preAck msgqueue.A
 		}
 	}()
 
+	taskWg := sync.WaitGroup{}
+
 	doTask := func(task msgqueue.Message, ackId *int64) error {
+		taskWg.Add(1)
+		defer taskWg.Done()
+
 		err = preAck(&task)
 
 		if err != nil {
@@ -177,26 +181,34 @@ func (p *PostgresMessageQueue) Subscribe(queue msgqueue.Queue, preAck msgqueue.A
 	}
 
 	do := func(messages []*dbsqlc.ReadMessagesRow) error {
-		var errs error
+		var eg errgroup.Group
+
 		for _, message := range messages {
-			var task msgqueue.Message
+			payload := message.Payload
 
-			err := json.Unmarshal(message.Payload, &task)
+			eg.Go(func() error {
+				var task msgqueue.Message
 
-			if err != nil {
-				p.l.Error().Err(err).Msg("error unmarshalling message")
-				errs = multierror.Append(errs, err)
-			}
+				err := json.Unmarshal(payload, &task)
 
-			err = doTask(task, &message.ID)
+				if err != nil {
+					p.l.Error().Err(err).Msg("error unmarshalling message")
+					return err
+				}
 
-			if err != nil {
-				p.l.Error().Err(err).Msg("error running task")
-				errs = multierror.Append(errs, err)
-			}
+				err = doTask(task, &message.ID)
+
+				if err != nil {
+					p.l.Error().Err(err).Msg("error running task")
+					return err
+				}
+
+				return nil
+
+			})
 		}
 
-		return errs
+		return eg.Wait()
 	}
 
 	op := queueutils.NewOperationPool(p.l, 60*time.Second, "postgresmq", queueutils.OpMethod(func(ctx context.Context, id string) (bool, error) {
@@ -204,18 +216,14 @@ func (p *PostgresMessageQueue) Subscribe(queue msgqueue.Queue, preAck msgqueue.A
 
 		if err != nil {
 			p.l.Error().Err(err).Msg("error reading messages")
+			return false, err
 		}
 
-		var eg errgroup.Group
-
-		eg.Go(func() error {
-			return do(messages)
-		})
-
-		err = eg.Wait()
+		err = do(messages)
 
 		if err != nil {
 			p.l.Error().Err(err).Msg("error processing messages")
+			return false, err
 		}
 
 		return len(messages) == p.qos, nil
@@ -271,6 +279,7 @@ func (p *PostgresMessageQueue) Subscribe(queue msgqueue.Queue, preAck msgqueue.A
 		cancel()
 		ticker.Stop()
 		close(newMsgCh)
+		taskWg.Wait()
 		return nil
 	}, nil
 }
