@@ -30,6 +30,7 @@ type SlotCp struct {
 }
 
 type SchedulerExtension interface {
+	SetTenants(tenants []*dbsqlc.Tenant)
 	PostSchedule(tenantId string, input *PostScheduleInput)
 	Cleanup() error
 }
@@ -72,4 +73,14 @@ func (e *Extensions) Cleanup() error {
 	}
 
 	return eg.Wait()
+}
+
+func (e *Extensions) SetTenants(tenants []*dbsqlc.Tenant) {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+
+	for _, ext := range e.exts {
+		f := ext.SetTenants
+		go f(tenants)
+	}
 }

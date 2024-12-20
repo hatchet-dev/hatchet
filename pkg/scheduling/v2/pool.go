@@ -112,6 +112,8 @@ func (p *SchedulingPool) SetTenants(tenants []*dbsqlc.Tenant) {
 		// any cleaned up tenants in the map
 		p.cleanupTenants(toCleanup)
 	}()
+
+	go p.Extensions.SetTenants(tenants)
 }
 
 func (p *SchedulingPool) cleanupTenants(toCleanup []*tenantManager) {
