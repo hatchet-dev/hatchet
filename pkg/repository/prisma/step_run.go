@@ -534,7 +534,7 @@ func (s *stepRunEngineRepository) ListStepRunsToTimeout(ctx context.Context, ten
 
 	// mark the step runs as cancelling
 	defer func() {
-		_, err = s.queries.BulkMarkStepRunsAsCancelling(ctx, s.pool, stepRunIds)
+		_, err := s.queries.BulkMarkStepRunsAsCancelling(ctx, s.pool, stepRunIds)
 
 		if err != nil {
 			s.l.Err(err).Msg("could not bulk mark step runs as cancelling")

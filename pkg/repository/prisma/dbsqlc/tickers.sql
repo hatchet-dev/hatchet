@@ -362,3 +362,20 @@ WHERE
 	)
 	AND sr."updatedAt" < CURRENT_TIMESTAMP - INTERVAL '5 seconds'
 ;
+
+
+-- name: PollOrphanedStepRuns :many
+SELECT jr."workflowRunId", sr.*
+FROM "StepRun" sr
+JOIN "JobRun" jr ON jr."id" = sr."jobRunId"
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM "SemaphoreQueueItem" sqi
+    WHERE sqi."stepRunId" = sr."id"
+) AND NOT EXISTS (
+    SELECT 1
+    FROM "TimeoutQueueItem" tqi
+    WHERE tqi."stepRunId" = sr."id"
+)
+AND sr."status" = 'RUNNING'
+AND sr."deletedAt" IS NULL;

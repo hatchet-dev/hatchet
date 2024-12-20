@@ -14,8 +14,10 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/integrations/alerting"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
+	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 )
 
 type Ticker interface {
@@ -205,6 +207,19 @@ func (t *TickerImpl) Start() (func() error, error) {
 	}
 
 	_, err = t.s.NewJob(
+		// check every 30 seconds
+		gocron.DurationJob(time.Second*30),
+		gocron.NewTask(
+			t.runPollOrphanedStepRuns(ctx),
+		),
+	)
+
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("could not create poll orphaned step runs job: %w", err)
+	}
+
+	_, err = t.s.NewJob(
 		// we look ahead every 5 seconds
 		gocron.DurationJob(time.Second*5),
 		gocron.NewTask(
@@ -294,6 +309,42 @@ func (t *TickerImpl) Start() (func() error, error) {
 	}
 
 	return cleanup, nil
+}
+
+func (t *TickerImpl) runPollOrphanedStepRuns(ctx context.Context) any {
+	return func() {
+		t.l.Debug().Msgf("ticker: polling for orphaned step runs")
+
+		orphanedStepRuns, err := t.repo.Ticker().PollOrphanedStepRuns(ctx)
+
+		if err != nil {
+			t.l.Err(err).Msg("could not poll orphaned step runs")
+		}
+
+		for _, orphanedStepRun := range orphanedStepRuns {
+			stepRun, err := t.repo.StepRun().GetStepRunForEngine(ctx,
+				sqlchelpers.UUIDToStr(orphanedStepRun.TenantId),
+				sqlchelpers.UUIDToStr(orphanedStepRun.ID),
+			)
+
+			if err != nil {
+				t.l.Err(err).Msg("could not get step run")
+			}
+
+			t.mq.AddMessage(ctx,
+				msgqueue.JOB_PROCESSING_QUEUE,
+				tasktypes.StepRunCancelToTask(stepRun, "STUCK_STEP_RUN_DETECTED", false),
+			)
+
+			t.l.Debug().Msgf("ticker: orphaned step run %s", sqlchelpers.UUIDToStr(orphanedStepRun.ID))
+		}
+
+		// err := t.repo.WorkflowRun().PollStuckWorkflowRuns(ctx)
+
+		// if err != nil {
+		// 	t.l.Err(err).Msg("could not poll stuck workflow runs")
+		// }
+	}
 }
 
 func (t *TickerImpl) runUpdateHeartbeat(ctx context.Context) func() {

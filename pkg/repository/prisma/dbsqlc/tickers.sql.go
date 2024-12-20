@@ -416,6 +416,109 @@ func (q *Queries) PollGetGroupKeyRuns(ctx context.Context, db DBTX, tickerid pgt
 	return items, nil
 }
 
+const pollOrphanedStepRuns = `-- name: PollOrphanedStepRuns :many
+SELECT jr."workflowRunId", sr.id, sr."createdAt", sr."updatedAt", sr."deletedAt", sr."tenantId", sr."jobRunId", sr."stepId", sr."order", sr."workerId", sr."tickerId", sr.status, sr.input, sr.output, sr."requeueAfter", sr."scheduleTimeoutAt", sr.error, sr."startedAt", sr."finishedAt", sr."timeoutAt", sr."cancelledAt", sr."cancelledReason", sr."cancelledError", sr."inputSchema", sr."callerFiles", sr."gitRepoBranch", sr."retryCount", sr."semaphoreReleased", sr.queue, sr.priority, sr."internalRetryCount"
+FROM "StepRun" sr
+JOIN "JobRun" jr ON jr."id" = sr."jobRunId"
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM "SemaphoreQueueItem" sqi
+    WHERE sqi."stepRunId" = sr."id"
+) AND NOT EXISTS (
+    SELECT 1
+    FROM "TimeoutQueueItem" tqi
+    WHERE tqi."stepRunId" = sr."id"
+)
+AND sr."status" = 'RUNNING'
+AND sr."deletedAt" IS NULL
+`
+
+type PollOrphanedStepRunsRow struct {
+	WorkflowRunId      pgtype.UUID      `json:"workflowRunId"`
+	ID                 pgtype.UUID      `json:"id"`
+	CreatedAt          pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt          pgtype.Timestamp `json:"updatedAt"`
+	DeletedAt          pgtype.Timestamp `json:"deletedAt"`
+	TenantId           pgtype.UUID      `json:"tenantId"`
+	JobRunId           pgtype.UUID      `json:"jobRunId"`
+	StepId             pgtype.UUID      `json:"stepId"`
+	Order              int64            `json:"order"`
+	WorkerId           pgtype.UUID      `json:"workerId"`
+	TickerId           pgtype.UUID      `json:"tickerId"`
+	Status             StepRunStatus    `json:"status"`
+	Input              []byte           `json:"input"`
+	Output             []byte           `json:"output"`
+	RequeueAfter       pgtype.Timestamp `json:"requeueAfter"`
+	ScheduleTimeoutAt  pgtype.Timestamp `json:"scheduleTimeoutAt"`
+	Error              pgtype.Text      `json:"error"`
+	StartedAt          pgtype.Timestamp `json:"startedAt"`
+	FinishedAt         pgtype.Timestamp `json:"finishedAt"`
+	TimeoutAt          pgtype.Timestamp `json:"timeoutAt"`
+	CancelledAt        pgtype.Timestamp `json:"cancelledAt"`
+	CancelledReason    pgtype.Text      `json:"cancelledReason"`
+	CancelledError     pgtype.Text      `json:"cancelledError"`
+	InputSchema        []byte           `json:"inputSchema"`
+	CallerFiles        []byte           `json:"callerFiles"`
+	GitRepoBranch      pgtype.Text      `json:"gitRepoBranch"`
+	RetryCount         int32            `json:"retryCount"`
+	SemaphoreReleased  bool             `json:"semaphoreReleased"`
+	Queue              string           `json:"queue"`
+	Priority           pgtype.Int4      `json:"priority"`
+	InternalRetryCount int32            `json:"internalRetryCount"`
+}
+
+func (q *Queries) PollOrphanedStepRuns(ctx context.Context, db DBTX) ([]*PollOrphanedStepRunsRow, error) {
+	rows, err := db.Query(ctx, pollOrphanedStepRuns)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*PollOrphanedStepRunsRow
+	for rows.Next() {
+		var i PollOrphanedStepRunsRow
+		if err := rows.Scan(
+			&i.WorkflowRunId,
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.TenantId,
+			&i.JobRunId,
+			&i.StepId,
+			&i.Order,
+			&i.WorkerId,
+			&i.TickerId,
+			&i.Status,
+			&i.Input,
+			&i.Output,
+			&i.RequeueAfter,
+			&i.ScheduleTimeoutAt,
+			&i.Error,
+			&i.StartedAt,
+			&i.FinishedAt,
+			&i.TimeoutAt,
+			&i.CancelledAt,
+			&i.CancelledReason,
+			&i.CancelledError,
+			&i.InputSchema,
+			&i.CallerFiles,
+			&i.GitRepoBranch,
+			&i.RetryCount,
+			&i.SemaphoreReleased,
+			&i.Queue,
+			&i.Priority,
+			&i.InternalRetryCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const pollScheduledWorkflows = `-- name: PollScheduledWorkflows :many
 WITH latest_workflow_versions AS (
     SELECT
