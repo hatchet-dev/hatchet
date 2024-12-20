@@ -815,8 +815,12 @@ func (s *Scheduler) getExtensionInput(results []*assignResults) *PostScheduleInp
 
 	for _, actionId := range actionKeys {
 		s.actionsMu.RLock()
-		action := s.actions[actionId]
+		action, ok := s.actions[actionId]
 		s.actionsMu.RUnlock()
+
+		if !ok || action == nil {
+			continue
+		}
 
 		action.mu.RLock()
 		actionsToSlots[action.actionId] = make([]*SlotCp, 0, len(action.slots))
