@@ -667,6 +667,9 @@ func (s *Scheduler) tryAssign(
 		wg := sync.WaitGroup{}
 		startTotal := time.Now()
 
+		extensionResultsCh := make(chan *assignResults, len(actionIdToQueueItems))
+		defer close(extensionResultsCh)
+
 		// process each action id in parallel
 		for actionId, qis := range actionIdToQueueItems {
 			wg.Add(1)
@@ -735,11 +738,15 @@ func (s *Scheduler) tryAssign(
 						s.l.Warn().Dur("duration", sinceStart).Msgf("processing batch of %d queue items took longer than 100ms", len(batchQis))
 					}
 
-					resultsCh <- &assignResults{
+					r := &assignResults{
 						assigned:    batchAssigned,
 						rateLimited: batchRateLimited,
 						unassigned:  batchUnassigned,
 					}
+
+					extensionResultsCh <- r
+
+					resultsCh <- r
 
 					return nil
 				})
@@ -754,7 +761,7 @@ func (s *Scheduler) tryAssign(
 		span.End()
 		close(resultsCh)
 
-		extInput := s.getExtensionInput()
+		extInput := s.getExtensionInput(extensionResultsCh)
 
 		s.exts.PostSchedule(sqlchelpers.UUIDToStr(s.tenantId), extInput)
 
@@ -766,12 +773,19 @@ func (s *Scheduler) tryAssign(
 	return resultsCh
 }
 
-func (s *Scheduler) getExtensionInput() *PostScheduleInput {
+func (s *Scheduler) getExtensionInput(ch <-chan *assignResults) *PostScheduleInput {
+	unassigned := make([]*dbsqlc.QueueItem, 0)
+
+	for res := range ch {
+		unassigned = append(unassigned, res.unassigned...)
+	}
+
 	workers := s.getWorkers()
 
 	res := &PostScheduleInput{
-		Workers: make(map[string]*WorkerCp),
-		Slots:   make([]*SlotCp, 0),
+		Workers:    make(map[string]*WorkerCp),
+		Slots:      make([]*SlotCp, 0),
+		Unassigned: unassigned,
 	}
 
 	for workerId, worker := range workers {
@@ -786,8 +800,11 @@ func (s *Scheduler) getExtensionInput() *PostScheduleInput {
 	defer s.actionsMu.RUnlock()
 
 	uniqueSlots := make(map[*slot]*SlotCp)
+	actionsToSlots := make(map[string][]*SlotCp)
 
 	for _, action := range s.actions {
+		actionsToSlots[action.actionId] = make([]*SlotCp, 0, len(action.slots))
+
 		for _, slot := range action.slots {
 			if _, ok := uniqueSlots[slot]; ok {
 				continue
@@ -797,12 +814,16 @@ func (s *Scheduler) getExtensionInput() *PostScheduleInput {
 				WorkerId: slot.getWorkerId(),
 				Used:     slot.used,
 			}
+
+			actionsToSlots[action.actionId] = append(actionsToSlots[action.actionId], uniqueSlots[slot])
 		}
 	}
 
 	for _, slot := range uniqueSlots {
 		res.Slots = append(res.Slots, slot)
 	}
+
+	res.ActionsToSlots = actionsToSlots
 
 	return res
 }
