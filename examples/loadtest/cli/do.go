@@ -58,11 +58,12 @@ func do(ctx context.Context, duration time.Duration, eventsPerSecond int, delay 
 
 		select {
 		case ch <- uniques:
-		case <-workerCtx.Done():
-			l.Error().Msg("worker cancelled before finishing")
+		case <-ctx.Done():
+			l.Info().Msg("ctx done exciting goroutine")
+
 		}
 
-		l.Info().Msg("worker finished")
+		l.Info().Msg("run worker finished")
 	}()
 
 	// we need to wait for the worker to start so that the workflow is registered and we don't miss any events
