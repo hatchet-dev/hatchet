@@ -27,7 +27,7 @@ func do(ctx context.Context, duration time.Duration, eventsPerSecond int, delay 
 	if err != nil {
 		panic(err)
 	}
-	ctx, cancel := context.WithCancel(ctx)
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Minute)
 	defer cancel()
 
 	// catch an interrupt signal
@@ -56,21 +56,33 @@ func do(ctx context.Context, duration time.Duration, eventsPerSecond int, delay 
 
 		uniques := runWorker(workerCtx, c, delay, durations, concurrency, executedChan, duplicateChan)
 
-		ch <- uniques
+		select {
+		case ch <- uniques:
+		case <-workerCtx.Done():
+			l.Error().Msg("worker cancelled before finishing")
+		}
+
 		l.Info().Msg("worker finished")
 	}()
 
 	// we need to wait for the worker to start so that the workflow is registered and we don't miss any events
 	// otherwise we could process the events before we have a workflow registered for them
 
-	time.Sleep(5 * time.Second) // wait for the worker to start
+	time.Sleep(15 * time.Second) // wait for the worker to start
 
 	scheduled := make(chan time.Duration, eventsPerSecond*int(duration.Seconds())*2)
 	var emittedCount int64
 
 	startedAt := time.Now()
 	go func() {
-		emittedChan <- emit(ctx, c, eventsPerSecond, duration, scheduled)
+
+		select {
+
+		case <-ctx.Done():
+			l.Error().Msg("context done before finishing emit")
+			return
+		case emittedChan <- emit(ctx, c, eventsPerSecond, duration, scheduled):
+		}
 
 	}()
 

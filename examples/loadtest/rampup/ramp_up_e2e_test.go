@@ -76,7 +76,7 @@ func TestRampUp(t *testing.T) {
 		},
 	}}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
 
 	setup := sync.WaitGroup{}
 
