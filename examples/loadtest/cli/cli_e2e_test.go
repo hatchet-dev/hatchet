@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"log"
+	"sync"
 	"testing"
 	"time"
 
@@ -78,18 +79,18 @@ func TestLoadCLI(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 
-	// setupWg := sync.WaitGroup{}
-	// setupWg.Add(1)
+	engineCleanupWg := sync.WaitGroup{}
 
 	go func() {
 		log.Printf("setup start")
+		engineCleanupWg.Add(1)
 		testutils.SetupEngine(ctx, t)
-		// setupWg.Done()
+		engineCleanupWg.Done()
 		log.Printf("setup end")
 	}()
 
 	log.Printf("waiting for engine to start")
-	// setupWg.Wait()
+
 	time.Sleep(15 * time.Second)
 
 	for _, tt := range tests {
@@ -103,11 +104,11 @@ func TestLoadCLI(t *testing.T) {
 		l.Info().Msgf("test %s complete", tt.name)
 
 	}
-
-	cancel()
-
 	log.Printf("test complete")
-	// setupWg.Wait()
+	cancel()
+	// wait for engine to cleanup
+	engineCleanupWg.Wait()
+
 	log.Printf("cleanup complete")
 
 	goleak.VerifyNone(

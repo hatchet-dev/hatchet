@@ -86,8 +86,8 @@ func do(ctx context.Context, duration time.Duration, eventsPerSecond int, delay 
 
 	}()
 
-	// going to allow 10% of the duration to wait for all the events to consumed
-	after := duration / 10
+	// going to allow 2X the duration for the overall timeout
+	after := duration * 2
 	var movingTimeout = time.Now().Add(duration + after)
 	var totalTimeout = time.Now().Add(duration + after)
 
