@@ -4,7 +4,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
@@ -15,7 +14,7 @@ func TestCrazyDAG(t *testing.T) {
 
 	testutils.Prepare(t)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
 
 	results := make(chan *stepOutput, 50)
@@ -33,7 +32,7 @@ outer:
 	for {
 		select {
 		case <-ctx.Done():
-			fmt.Println("ctx.Done()")
+			t.Fatalf("ctx done waiting for DAG to complete finished %d of %d steps", count, 40)
 			break outer
 
 		case <-results:
