@@ -93,16 +93,19 @@ func runWorker(ctx context.Context, c client.Client, delay time.Duration, execut
 	}
 
 	cleanup, err := w.Start()
+
 	if err != nil {
 		panic(fmt.Errorf("error starting worker: %w", err))
 	}
+	defer func() {
+		err := cleanup()
+		if err != nil {
+			panic(fmt.Errorf("error cleaning up worker: %w", err))
+		}
+	}()
 
 	l.Info().Msg("worker started")
 	<-ctx.Done()
-
-	if err := cleanup(); err != nil {
-		panic(fmt.Errorf("error cleaning up: %w", err))
-	}
 
 	mx.Lock()
 	defer mx.Unlock()

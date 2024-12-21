@@ -40,8 +40,8 @@ func main() {
 				},
 				"loadtest",
 			)
-
-			if err := do(duration, events, delay, concurrency, workerDelay, maxPerEventTime, maxPerExecution); err != nil {
+			ctx := cmd.Context()
+			if err := do(ctx, duration, events, delay, concurrency, workerDelay, maxPerEventTime, maxPerExecution); err != nil {
 				log.Println(err)
 				panic("load test failed")
 			}

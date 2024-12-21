@@ -83,8 +83,7 @@ func TestLoadCLI(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	// catch an interrupt signal
-	sigChan := make(chan os.Signal, 1)
-
+	sigChan := make(chan os.Signal, 2)
 	// Notify the channel of interrupt and terminate signals
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 
@@ -99,9 +98,9 @@ func TestLoadCLI(t *testing.T) {
 	}(ctx)
 
 	setup := sync.WaitGroup{}
+	setup.Add(1)
 
 	go func() {
-		setup.Add(1)
 		log.Printf("setup start")
 		testutils.SetupEngine(ctx, t)
 		setup.Done()
@@ -115,7 +114,7 @@ func TestLoadCLI(t *testing.T) {
 		fmt.Println("++++++ " + tt.name)
 		l.Info().Msgf("running test %s", tt.name)
 		t.Run(tt.name, func(t *testing.T) {
-			if err := do(tt.args.duration, tt.args.eventsPerSecond, tt.args.delay, tt.args.concurrency, tt.args.workerDelay, tt.args.maxPerEventTime, tt.args.maxPerExecution); (err != nil) != tt.wantErr {
+			if err := do(ctx, tt.args.duration, tt.args.eventsPerSecond, tt.args.delay, tt.args.concurrency, tt.args.workerDelay, tt.args.maxPerEventTime, tt.args.maxPerExecution); (err != nil) != tt.wantErr {
 				t.Errorf("do() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})

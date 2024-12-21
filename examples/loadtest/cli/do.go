@@ -18,7 +18,7 @@ func generateNamespace() string {
 	return fmt.Sprintf("loadtest-%d", time.Now().Unix())
 }
 
-func do(duration time.Duration, eventsPerSecond int, delay time.Duration, concurrency int, workerDelay time.Duration, maxPerEventTime time.Duration, maxPerExecution time.Duration) error {
+func do(ctx context.Context, duration time.Duration, eventsPerSecond int, delay time.Duration, concurrency int, workerDelay time.Duration, maxPerEventTime time.Duration, maxPerExecution time.Duration) error {
 	l.Info().Msgf("testing with duration=%s, eventsPerSecond=%d, delay=%s,  concurrency=%d", duration, eventsPerSecond, delay, concurrency)
 	c, err := client.NewFromConfigFile(&clientconfig.ClientConfigFile{
 		Namespace: generateNamespace(),
@@ -27,7 +27,7 @@ func do(duration time.Duration, eventsPerSecond int, delay time.Duration, concur
 	if err != nil {
 		panic(err)
 	}
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	// catch an interrupt signal
