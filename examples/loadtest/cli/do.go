@@ -60,8 +60,8 @@ func do(duration time.Duration, eventsPerSecond int, delay time.Duration, concur
 		l.Info().Msg("worker finished")
 	}()
 
-	// with a namespace set if we do not have the worker running before we send the events we will not receive them
-	// unsure if this is expected behavior.
+	// we need to wait for the worker to start so that the workflow is registered and we don't miss any events
+	// otherwise we could process the events before we have a workflow registered for them
 
 	time.Sleep(5 * time.Second) // wait for the worker to start
 

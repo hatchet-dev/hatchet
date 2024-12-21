@@ -74,7 +74,7 @@ func TestLoadCLI(t *testing.T) {
 				duration:        60 * time.Second,
 				eventsPerSecond: 100,
 				delay:           0 * time.Second,
-				workerDelay:     60 * time.Second,
+				// workerDelay:     60 * time.Second,
 				concurrency:     0,
 				maxPerEventTime: 0,
 				maxPerExecution: 0,
