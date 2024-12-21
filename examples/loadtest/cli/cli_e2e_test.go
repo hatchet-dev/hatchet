@@ -4,12 +4,8 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
-	"os"
-	"os/signal"
 	"sync"
-	"syscall"
 	"testing"
 	"time"
 
@@ -81,21 +77,7 @@ func TestLoadCLI(t *testing.T) {
 			}, // 6000 events worker delay of 60 seconds should finish in 60 seconds + time taken to run events
 		}}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	// catch an interrupt signal
-	sigChan := make(chan os.Signal, 2)
-	// Notify the channel of interrupt and terminate signals
-	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-
-	go func(ctx context.Context) {
-		select {
-		case <-ctx.Done():
-			log.Println("context cancelled")
-		case <-sigChan:
-			log.Println("interrupt signal received")
-			cancel()
-		}
-	}(ctx)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 
 	setup := sync.WaitGroup{}
 	setup.Add(1)
@@ -108,10 +90,10 @@ func TestLoadCLI(t *testing.T) {
 	}()
 
 	setup.Wait()
-	time.Sleep(5 * time.Second)
+	time.Sleep(15 * time.Second)
 
 	for _, tt := range tests {
-		fmt.Println("++++++ " + tt.name)
+
 		l.Info().Msgf("running test %s", tt.name)
 		t.Run(tt.name, func(t *testing.T) {
 			if err := do(ctx, tt.args.duration, tt.args.eventsPerSecond, tt.args.delay, tt.args.concurrency, tt.args.workerDelay, tt.args.maxPerEventTime, tt.args.maxPerExecution); (err != nil) != tt.wantErr {
@@ -119,7 +101,7 @@ func TestLoadCLI(t *testing.T) {
 			}
 		})
 		l.Info().Msgf("test %s complete", tt.name)
-		fmt.Println("------ " + tt.name)
+
 	}
 
 	cancel()
