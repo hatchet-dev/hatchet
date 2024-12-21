@@ -148,7 +148,15 @@ outer:
 	}
 	timeTaken := time.Since(startedAt)
 	workerCancel()
-	executed := <-ch
+	var executed int64
+
+	select {
+
+	case executed = <-ch:
+	case <-ctx.Done():
+		return fmt.Errorf("❌ context done before finishing")
+
+	}
 
 	l.Info().Msgf("emitted %d, executed %d, using %d events/s", emittedCount, executed, eventsPerSecond)
 
