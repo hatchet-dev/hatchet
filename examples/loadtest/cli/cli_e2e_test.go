@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -29,7 +30,8 @@ func TestLoadCLI(t *testing.T) {
 		wait            time.Duration
 		workerDelay     time.Duration
 		concurrency     int
-		timeout         time.Duration
+		maxPerEventTime time.Duration
+		maxPerExecution time.Duration
 	}
 
 	l = logger.NewStdErr(
@@ -51,9 +53,9 @@ func TestLoadCLI(t *testing.T) {
 				duration:        10 * time.Second,
 				eventsPerSecond: 10,
 				delay:           0 * time.Second,
-				wait:            60 * time.Second,
 				concurrency:     0,
-				timeout:         2 * time.Minute,
+				maxPerEventTime: 0,
+				maxPerExecution: 0,
 			},
 		}, {
 			name: "test with high step delay",
@@ -61,9 +63,9 @@ func TestLoadCLI(t *testing.T) {
 				duration:        10 * time.Second,
 				eventsPerSecond: 10,
 				delay:           10 * time.Second,
-				wait:            60 * time.Second,
 				concurrency:     0,
-				timeout:         2 * time.Minute,
+				maxPerEventTime: 0,
+				maxPerExecution: 0,
 			},
 		},
 		{
@@ -73,14 +75,13 @@ func TestLoadCLI(t *testing.T) {
 				eventsPerSecond: 100,
 				delay:           0 * time.Second,
 				workerDelay:     60 * time.Second,
-				wait:            240 * time.Second,
 				concurrency:     0,
-				timeout:         6 * time.Minute,
-			},
+				maxPerEventTime: 0,
+				maxPerExecution: 0,
+			}, // 6000 events worker delay of 60 seconds should finish in 60 seconds + time taken to run events
 		}}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
-
+	ctx, cancel := context.WithCancel(context.Background())
 	// catch an interrupt signal
 	sigChan := make(chan os.Signal, 1)
 
@@ -107,29 +108,19 @@ func TestLoadCLI(t *testing.T) {
 		log.Printf("setup end")
 	}()
 
-	// TODO instead of waiting, figure out when the engine setup is complete
-	time.Sleep(15 * time.Second)
+	setup.Wait()
+	time.Sleep(5 * time.Second)
 
 	for _, tt := range tests {
-		ctx2, cancel2 := context.WithTimeout(context.Background(), tt.args.timeout)
-		doneCh := make(chan bool)
-		go func() {
-			doneCh <- t.Run(tt.name, func(t *testing.T) {
-				if err := do(tt.args.duration, tt.args.eventsPerSecond, tt.args.delay, tt.args.wait, tt.args.concurrency, tt.args.workerDelay); (err != nil) != tt.wantErr {
-					t.Errorf("do() error = %v, wantErr %v", err, tt.wantErr)
-				}
-
-			})
-		}()
-		select {
-		case <-ctx2.Done():
-			cancel2()
-			cancel()
-		case <-doneCh:
-			cancel2()
-		case <-ctx.Done():
-			cancel2()
-		}
+		fmt.Println("++++++ " + tt.name)
+		l.Info().Msgf("running test %s", tt.name)
+		t.Run(tt.name, func(t *testing.T) {
+			if err := do(tt.args.duration, tt.args.eventsPerSecond, tt.args.delay, tt.args.concurrency, tt.args.workerDelay, tt.args.maxPerEventTime, tt.args.maxPerExecution); (err != nil) != tt.wantErr {
+				t.Errorf("do() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+		l.Info().Msgf("test %s complete", tt.name)
+		fmt.Println("------ " + tt.name)
 	}
 
 	cancel()
