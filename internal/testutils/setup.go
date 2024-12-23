@@ -37,6 +37,7 @@ func SetupEngine(ctx context.Context, t *testing.T) {
 
 	cf := loader.NewConfigLoader(path.Join(dir, "./generated/"))
 
+	log.Println("starting engine")
 	if err := engine.Run(ctx, cf, ""); err != nil {
 		t.Fatalf("engine failure: %s", err.Error())
 	}

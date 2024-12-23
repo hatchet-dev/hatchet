@@ -14,8 +14,8 @@ import (
 var l zerolog.Logger
 
 func do(duration time.Duration, startEventsPerSecond, amount int, increase, delay, wait, maxAcceptableDuration, maxAcceptableSchedule time.Duration, includeDroppedEvents bool, concurrency int) error {
-	l.Debug().Msgf("testing with duration=%s, amount=%d, increase=%d, delay=%s, wait=%s, concurrency=%d", duration, amount, increase, delay, wait, concurrency)
-
+	l.Info().Msgf("testing with duration=%s, amount=%d, increase=%d, delay=%s, wait=%s, concurrency=%d", duration, amount, increase, delay, wait, concurrency)
+	fmt.Printf("testing with duration=%s, amount=%d, increase=%d, delay=%s, wait=%s, concurrency=%d \n", duration, amount, increase, delay, wait, concurrency)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -69,9 +69,14 @@ func do(duration time.Duration, startEventsPerSecond, amount int, increase, dela
 		}
 	}()
 
+	var startedChan chan time.Time
 	go func() {
-		run(ctx, delay, concurrency, maxAcceptableDuration, hook, executed)
+		run(ctx, delay, concurrency, maxAcceptableDuration, hook, executed, startedChan)
 	}()
+
+	workerStartedAt := <-startedChan
+
+	fmt.Println("worker started at can now emit", workerStartedAt)
 
 	emit(ctx, startEventsPerSecond, amount, increase, duration, maxAcceptableSchedule, hook, scheduled)
 

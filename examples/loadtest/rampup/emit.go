@@ -30,7 +30,7 @@ func emit(ctx context.Context, startEventsPerSecond, amount int, increase, durat
 		var eventsPerSecond int
 		go func() {
 			took := <-hook
-			panic(fmt.Errorf("event took too long to schedule: %s at %d events/s", took, eventsPerSecond))
+			panic(fmt.Errorf("gof event took too long to schedule: %s at %d events/s", took, eventsPerSecond))
 		}()
 		for {
 			// emit amount * increase events per second

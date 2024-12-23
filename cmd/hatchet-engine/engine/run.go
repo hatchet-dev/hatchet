@@ -67,6 +67,7 @@ func Run(ctx context.Context, cf *loader.ConfigLoader, version string) error {
 
 	var l = sc.Logger
 
+	fmt.Println("RunwithConfig")
 	teardown, err := RunWithConfig(ctx, sc)
 
 	if err != nil {
@@ -111,9 +112,10 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig) ([]Teardown, er
 	isV1 := sc.HasService("all") || sc.HasService("scheduler") || sc.HasService("controllers") || sc.HasService("grpc-api")
 
 	if isV1 {
+		fmt.Println("runV1Config")
 		return runV1Config(ctx, sc)
 	}
-
+	fmt.Println("runV0Config")
 	return runV0Config(ctx, sc)
 }
 
@@ -516,6 +518,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 	var h *health.Health
 
 	if healthProbes {
+		fmt.Println("creating health probes")
 		h = health.New(sc.EngineRepository, sc.MessageQueue)
 
 		cleanup, err := h.Start()
@@ -531,6 +534,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 	}
 
 	if sc.HasService("all") || sc.HasService("controllers") {
+		fmt.Println("starting controller partition")
 		partitionCleanup, err := p.StartControllerPartition(ctx)
 
 		if err != nil {
@@ -551,7 +555,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		if err != nil {
 			return nil, fmt.Errorf("could not create events controller: %w", err)
 		}
-
+		fmt.Println("starting events controller")
 		cleanup, err := ec.Start()
 
 		if err != nil {
@@ -574,7 +578,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		if err != nil {
 			return nil, fmt.Errorf("could not create ticker: %w", err)
 		}
-
+		fmt.Println("starting ticker")
 		cleanup, err = t.Start()
 
 		if err != nil {
@@ -599,7 +603,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		if err != nil {
 			return nil, fmt.Errorf("could not create jobs controller: %w", err)
 		}
-
+		fmt.Println("starting jobs controller")
 		cleanupJobs, err := jc.Start()
 
 		if err != nil {
@@ -672,7 +676,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		})
 
 		wh := webhooks.New(sc, p)
-
+		fmt.Println("starting webhooks controller")
 		cleanup2, err := wh.Start()
 
 		if err != nil {
@@ -701,7 +705,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		if err != nil {
 			return nil, fmt.Errorf("could not create dispatcher: %w", err)
 		}
-
+		fmt.Println("starting dispatcher")
 		dispatcherCleanup, err := d.Start()
 
 		if err != nil {
@@ -761,7 +765,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		if err != nil {
 			return nil, fmt.Errorf("could not create grpc server: %w", err)
 		}
-
+		fmt.Println("starting grpc server")
 		grpcServerCleanup, err := s.Start()
 		if err != nil {
 			return nil, fmt.Errorf("could not start grpc server: %w", err)
@@ -852,7 +856,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 	if healthProbes {
 		h.SetReady(true)
 	}
-
+	fmt.Printf("waiting for context to be done at %s \n", time.Now())
 	<-ctx.Done()
 
 	if healthProbes {

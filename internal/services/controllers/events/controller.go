@@ -17,6 +17,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma"
+	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 )
 
 type EventsController interface {
@@ -206,6 +207,12 @@ func (ec *EventsControllerImpl) processEvent(ctx context.Context, tenantId, even
 	if err != nil {
 		return fmt.Errorf("could not query workflows for event: %w", err)
 	}
+
+	ec.l.Info().Msgf("found %d workflows for event %s", len(workflowVersions), eventKey)
+	for _, w := range workflowVersions {
+		ec.l.Info().Msgf("workflow %s - %s ", w.WorkflowName, sqlchelpers.UUIDToStr(w.WorkflowVersion.ID))
+	}
+
 	// create a new workflow run in the database
 	var g = new(errgroup.Group)
 

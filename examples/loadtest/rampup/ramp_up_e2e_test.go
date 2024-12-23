@@ -4,16 +4,22 @@ package rampup
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/hatchet-dev/hatchet/internal/testutils"
 	"github.com/hatchet-dev/hatchet/pkg/config/shared"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 )
+
+func randomNamespace() string {
+	return "ns_" + uuid.New().String()[0:8]
+}
 
 func TestRampUp(t *testing.T) {
 	testutils.Prepare(t)
@@ -33,6 +39,8 @@ func TestRampUp(t *testing.T) {
 		concurrency           int
 		startEventsPerSecond  int
 	}
+
+	os.Setenv("HATCHET_CLIENT_NAMESPACE", randomNamespace())
 
 	l = logger.NewStdErr(
 		&shared.LoggerConfigFile{
@@ -76,21 +84,26 @@ func TestRampUp(t *testing.T) {
 		},
 	}}
 
+	// maybe add a concurrency test
+
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
 
-	setup := sync.WaitGroup{}
+	engineCleanup := sync.WaitGroup{}
 
 	go func() {
-		setup.Add(1)
-		log.Printf("setup start")
-		testutils.SetupEngine(ctx, t)
-		setup.Done()
-		log.Printf("setup end")
-	}()
+		engineCleanup.Add(1)
+		// log.Printf("setup start")
+		// testutils.SetupEngine(ctx, t)
+		// engineCleanup.Done()
+		// log.Printf("setup end")
+		<-ctx.Done()
+		engineCleanup.Done()
 
+	}()
+	fmt.Println("waiting for engine to start")
 	// TODO instead of waiting, figure out when the engine setup is complete
 	time.Sleep(15 * time.Second)
-
+	fmt.Println("running the tests")
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 
@@ -103,6 +116,6 @@ func TestRampUp(t *testing.T) {
 	cancel()
 
 	log.Printf("test complete")
-	setup.Wait()
+	engineCleanup.Wait()
 	log.Printf("cleanup complete")
 }
