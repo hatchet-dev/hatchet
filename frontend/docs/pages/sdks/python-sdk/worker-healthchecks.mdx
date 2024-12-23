@@ -55,10 +55,10 @@ hatchet_worker_status 1.0
 
 ```yaml
 scrape_configs:
-  - job_name: 'hatchet'
+  - job_name: "hatchet"
     scrape_interval: 5s
     static_configs:
-      - targets: ['localhost:8001']
+      - targets: ["localhost:8001"]
 ```
 
 #### Example Prometheus Query
@@ -68,4 +68,3 @@ An example query to check if the worker is healthy might look something like:
 ```
 (hatchet_worker_status{instance="localhost:8001", job="hatchet"}) or vector(0)
 ```
-
