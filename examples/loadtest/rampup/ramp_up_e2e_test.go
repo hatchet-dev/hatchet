@@ -4,7 +4,6 @@ package rampup
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"os"
 	"sync"
@@ -84,26 +83,21 @@ func TestRampUp(t *testing.T) {
 		},
 	}}
 
-	// maybe add a concurrency test
-
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
 
 	engineCleanup := sync.WaitGroup{}
 
 	go func() {
 		engineCleanup.Add(1)
-		// log.Printf("setup start")
-		// testutils.SetupEngine(ctx, t)
-		// engineCleanup.Done()
-		// log.Printf("setup end")
-		<-ctx.Done()
+		log.Printf("setup start")
+		testutils.SetupEngine(ctx, t)
 		engineCleanup.Done()
-
+		log.Printf("setup end")
 	}()
-	fmt.Println("waiting for engine to start")
+
 	// TODO instead of waiting, figure out when the engine setup is complete
 	time.Sleep(15 * time.Second)
-	fmt.Println("running the tests")
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 
