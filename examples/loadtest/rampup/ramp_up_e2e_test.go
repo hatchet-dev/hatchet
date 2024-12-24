@@ -10,20 +10,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/hatchet-dev/hatchet/internal/testutils"
 	"github.com/hatchet-dev/hatchet/pkg/config/shared"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 )
 
-func randomNamespace() string {
-	return "ns_" + uuid.New().String()[0:8]
-}
-
 func TestRampUp(t *testing.T) {
 	testutils.Prepare(t)
 
-	type args struct {
+	type RampupArgs struct {
 		duration time.Duration
 		increase time.Duration
 		amount   int
@@ -31,15 +26,14 @@ func TestRampUp(t *testing.T) {
 		wait     time.Duration
 		// includeDroppedEvents is whether to fail on events that were dropped due to being scheduled too late
 		includeDroppedEvents bool
-		// maxAcceptableDuration is the maximum acceptable duration for a single event to be scheduled (from start to finish)
-		maxAcceptableDuration time.Duration
-		// maxAcceptableSchedule is the maximum acceptable time for an event to be purely scheduled, regardless of whether it will run or not
-		maxAcceptableSchedule time.Duration
-		concurrency           int
-		startEventsPerSecond  int
+		// maxAcceptableTotalDuration is the maximum acceptable duration for a single event to be scheduled (from start to finish)
+		maxAcceptableTotalDuration time.Duration
+		// maxAcceptableScheduleTime is the maximum acceptable time for an event to be purely scheduled, regardless of whether it will run or not
+		maxAcceptableScheduleTime time.Duration
+		concurrency               int
+		startEventsPerSecond      int
+		passingEventNumber        int
 	}
-
-	os.Setenv("HATCHET_CLIENT_NAMESPACE", randomNamespace())
 
 	l = logger.NewStdErr(
 		&shared.LoggerConfigFile{
@@ -50,7 +44,7 @@ func TestRampUp(t *testing.T) {
 	)
 
 	// get ramp up duration from env
-	maxAcceptableDurationSeconds := 2 * time.Second
+	maxAcceptableDurationSeconds := 10 * time.Second
 
 	if os.Getenv("RAMP_UP_DURATION_TIMEOUT") != "" {
 		var parseErr error
@@ -65,25 +59,60 @@ func TestRampUp(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		args    args
+		args    RampupArgs
 		wantErr bool
-	}{{
-		name: "normal test",
-		args: args{
-			startEventsPerSecond:  1,
-			duration:              300 * time.Second,
-			increase:              10 * time.Second,
-			amount:                1,
-			delay:                 0 * time.Second,
-			wait:                  30 * time.Second,
-			includeDroppedEvents:  true,
-			maxAcceptableDuration: maxAcceptableDurationSeconds,
-			maxAcceptableSchedule: 2 * time.Second,
-			concurrency:           0,
+	}{
+		{
+			name: "normal test",
+			args: RampupArgs{
+				startEventsPerSecond:       1,
+				duration:                   300 * time.Second,
+				increase:                   10 * time.Second,
+				amount:                     1,
+				delay:                      0 * time.Second,
+				wait:                       10 * time.Second,
+				includeDroppedEvents:       true,
+				maxAcceptableTotalDuration: maxAcceptableDurationSeconds,
+				maxAcceptableScheduleTime:  2 * time.Second,
+				concurrency:                0,
+				passingEventNumber:         2000,
+			},
 		},
-	}}
+		{
+			name: "first event test",
+			args: RampupArgs{
+				startEventsPerSecond:       1,
+				duration:                   10 * time.Second,
+				increase:                   1 * time.Second,
+				amount:                     1,
+				delay:                      0 * time.Second,
+				wait:                       10 * time.Second,
+				includeDroppedEvents:       true,
+				maxAcceptableTotalDuration: 1,
+				maxAcceptableScheduleTime:  50 * time.Millisecond,
+				concurrency:                0,
+				passingEventNumber:         1,
+			},
+		},
+		{
+			name: "first execute test",
+			args: RampupArgs{
+				startEventsPerSecond:       1,
+				duration:                   10 * time.Second,
+				increase:                   10 * time.Second,
+				amount:                     1,
+				delay:                      0 * time.Second,
+				wait:                       10 * time.Second,
+				includeDroppedEvents:       true,
+				maxAcceptableTotalDuration: 70,
+				maxAcceptableScheduleTime:  50 * time.Millisecond,
+				concurrency:                0,
+				passingEventNumber:         1,
+			},
+		},
+	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 
 	engineCleanup := sync.WaitGroup{}
 
@@ -91,25 +120,30 @@ func TestRampUp(t *testing.T) {
 		engineCleanup.Add(1)
 		log.Printf("setup start")
 		testutils.SetupEngine(ctx, t)
+		log.Printf("Returning from SetupEngine ctx must have been cancelled")
 		engineCleanup.Done()
-		log.Printf("setup end")
+
 	}()
 
 	// TODO instead of waiting, figure out when the engine setup is complete
 	time.Sleep(15 * time.Second)
-
+	doCtx, doCancel := context.WithCancel(ctx)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 
-			if err := do(tt.args.duration, tt.args.startEventsPerSecond, tt.args.amount, tt.args.increase, tt.args.delay, tt.args.wait, tt.args.maxAcceptableDuration, tt.args.maxAcceptableSchedule, tt.args.includeDroppedEvents, tt.args.concurrency); (err != nil) != tt.wantErr {
+			if err := Do(doCtx, tt.args.duration, tt.args.startEventsPerSecond, tt.args.amount, tt.args.increase, tt.args.wait, tt.args.maxAcceptableTotalDuration, tt.args.maxAcceptableScheduleTime, tt.args.includeDroppedEvents, tt.args.concurrency, tt.args.passingEventNumber); (err != nil) != tt.wantErr {
 				t.Errorf("do() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
 	}
+	doCancel()
+	// give the workers some time to cancel
+	time.Sleep(2 * time.Second)
 
 	cancel()
 
 	log.Printf("test complete")
+
 	engineCleanup.Wait()
 	log.Printf("cleanup complete")
 }

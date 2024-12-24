@@ -14,12 +14,7 @@ type Event struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
-func emit(ctx context.Context, startEventsPerSecond, amount int, increase, duration, maxAcceptableSchedule time.Duration, hook <-chan time.Duration, scheduled chan<- int64) int64 {
-	c, err := client.New()
-
-	if err != nil {
-		panic(err)
-	}
+func emit(ctx context.Context, client client.Client, startEventsPerSecond, amount int, increase, duration, maxAcceptableSchedule time.Duration, errChan chan<- error) int64 {
 
 	var id int64
 	mx := sync.Mutex{}
@@ -28,14 +23,11 @@ func emit(ctx context.Context, startEventsPerSecond, amount int, increase, durat
 		start := time.Now()
 
 		var eventsPerSecond int
-		go func() {
-			took := <-hook
-			panic(fmt.Errorf("gof event took too long to schedule: %s at %d events/s", took, eventsPerSecond))
-		}()
+
 		for {
 			// emit amount * increase events per second
 			eventsPerSecond = startEventsPerSecond + (amount * int(time.Since(start).Seconds()) / int(increase.Seconds()))
-			increase += 1
+			increase++
 			if eventsPerSecond < 1 {
 				eventsPerSecond = 1
 			}
@@ -43,24 +35,25 @@ func emit(ctx context.Context, startEventsPerSecond, amount int, increase, durat
 			select {
 			case <-time.After(time.Second / time.Duration(eventsPerSecond)):
 				mx.Lock()
-				id += 1
+				id++
 
 				go func(id int64) {
 					var err error
 					ev := Event{CreatedAt: time.Now(), ID: id}
 					l.Debug().Msgf("pushed event %d", ev.ID)
-					err = c.Event().Push(context.Background(), "load-test:event", ev)
+					err = client.Event().Push(context.Background(), "load-test:event", ev)
 					if err != nil {
-						panic(fmt.Errorf("error pushing event: %w", err))
+						errChan <- fmt.Errorf("error pushing event %d: %w", id, err)
+						return
 					}
 					took := time.Since(ev.CreatedAt)
 					l.Debug().Msgf("pushed event %d took %s", ev.ID, took)
 
 					if took > maxAcceptableSchedule {
-						panic(fmt.Errorf("event took too long to schedule: %s at %d events/s", took, eventsPerSecond))
+						errChan <- fmt.Errorf("event %d took too long to schedule: %s at %d events/s", id, took, eventsPerSecond)
+						return
 					}
 
-					scheduled <- id
 				}(id)
 
 				mx.Unlock()
@@ -74,14 +67,9 @@ func emit(ctx context.Context, startEventsPerSecond, amount int, increase, durat
 		}
 	}()
 
-	for {
-		select {
-		case <-ctx.Done():
-			mx.Lock()
-			defer mx.Unlock()
-			return id
-		default:
-			time.Sleep(time.Second)
-		}
-	}
+	<-ctx.Done()
+	mx.Lock()
+	defer mx.Unlock()
+	return id
+
 }
