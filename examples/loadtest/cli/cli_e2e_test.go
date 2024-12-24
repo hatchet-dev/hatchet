@@ -58,7 +58,7 @@ func TestLoadCLI(t *testing.T) {
 			args: args{
 				duration:        10 * time.Second,
 				eventsPerSecond: 10,
-				delay:           10 * time.Second,
+				delay:           4 * time.Second, // can't go higher than 5 seconds here because we timeout without activity
 				concurrency:     0,
 				maxPerEventTime: 0,
 				maxPerExecution: 0,

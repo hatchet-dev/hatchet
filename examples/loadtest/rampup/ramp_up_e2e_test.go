@@ -68,18 +68,18 @@ func TestRampUp(t *testing.T) {
 				startEventsPerSecond:       1,
 				duration:                   300 * time.Second,
 				increase:                   10 * time.Second,
-				amount:                     1,
+				amount:                     5,
 				delay:                      0 * time.Second,
 				wait:                       10 * time.Second,
 				includeDroppedEvents:       true,
 				maxAcceptableTotalDuration: maxAcceptableDurationSeconds,
 				maxAcceptableScheduleTime:  2 * time.Second,
 				concurrency:                0,
-				passingEventNumber:         2000,
+				passingEventNumber:         10000,
 			},
 		},
 		{
-			name: "first event test",
+			name: "time to first event test",
 			args: RampupArgs{
 				startEventsPerSecond:       1,
 				duration:                   10 * time.Second,
@@ -95,7 +95,7 @@ func TestRampUp(t *testing.T) {
 			},
 		},
 		{
-			name: "first execute test",
+			name: "time to first execute test",
 			args: RampupArgs{
 				startEventsPerSecond:       1,
 				duration:                   10 * time.Second,
@@ -104,7 +104,7 @@ func TestRampUp(t *testing.T) {
 				delay:                      0 * time.Second,
 				wait:                       10 * time.Second,
 				includeDroppedEvents:       true,
-				maxAcceptableTotalDuration: 70,
+				maxAcceptableTotalDuration: 100 * time.Millisecond,
 				maxAcceptableScheduleTime:  50 * time.Millisecond,
 				concurrency:                0,
 				passingEventNumber:         1,
@@ -127,16 +127,17 @@ func TestRampUp(t *testing.T) {
 
 	// TODO instead of waiting, figure out when the engine setup is complete
 	time.Sleep(15 * time.Second)
-	doCtx, doCancel := context.WithCancel(ctx)
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
 
+	for _, tt := range tests {
+
+		t.Run(tt.name, func(t *testing.T) {
+			doCtx, doCancel := context.WithCancel(ctx)
 			if err := Do(doCtx, tt.args.duration, tt.args.startEventsPerSecond, tt.args.amount, tt.args.increase, tt.args.wait, tt.args.maxAcceptableTotalDuration, tt.args.maxAcceptableScheduleTime, tt.args.includeDroppedEvents, tt.args.concurrency, tt.args.passingEventNumber); (err != nil) != tt.wantErr {
 				t.Errorf("do() error = %v, wantErr %v", err, tt.wantErr)
 			}
+			doCancel()
 		})
 	}
-	doCancel()
 	// give the workers some time to cancel
 	time.Sleep(2 * time.Second)
 
