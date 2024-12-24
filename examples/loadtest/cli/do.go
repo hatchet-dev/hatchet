@@ -108,21 +108,22 @@ outer:
 			return nil
 
 		case dupeId := <-duplicateChan:
+			l.Error().Msgf("❌ duplicate event %d", dupeId)
 			return fmt.Errorf("❌ duplicate event %d", dupeId)
 
 		case <-totalTimeoutTimer.C:
-			l.Info().Msg("timed out")
+			l.Error().Msg("timed out")
 			return fmt.Errorf("❌ timed out after %s", duration+after)
 
 		case <-movingTimeoutTimer.C:
-			l.Info().Msg("timeout")
+			l.Error().Msg("timeout waiting for test activity")
 			return fmt.Errorf("❌ timed out waiting for activity")
 
 		case executed := <-executedChan:
-			l.Info().Msgf("executed %d", executed)
+			l.Debug().Msgf("executed %d", executed)
 			executedCount++
 			movingTimeout = time.Now().Add(5 * time.Second)
-			l.Info().Msgf("Set the timeout to %s", movingTimeout)
+			l.Debug().Msgf("Set the timeout to %s", movingTimeout)
 			if !movingTimeoutTimer.Stop() {
 				<-movingTimeoutTimer.C
 			}
@@ -132,6 +133,7 @@ outer:
 
 				if executedCount == emittedCount {
 					// this is the finished condition
+					l.Info().Msg("finished test")
 					break outer
 				}
 				if executedCount > emittedCount {
@@ -142,7 +144,7 @@ outer:
 
 		case emittedCount = <-emittedChan:
 
-			l.Info().Msgf("emitted %d", emittedCount)
+			l.Debug().Msgf("emitted %d", emittedCount)
 		}
 
 	}
