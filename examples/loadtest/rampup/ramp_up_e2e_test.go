@@ -88,7 +88,7 @@ func TestRampUp(t *testing.T) {
 				delay:                      0 * time.Second,
 				wait:                       10 * time.Second,
 				includeDroppedEvents:       true,
-				maxAcceptableTotalDuration: 1,
+				maxAcceptableTotalDuration: 1 * time.Second,
 				maxAcceptableScheduleTime:  50 * time.Millisecond,
 				concurrency:                0,
 				passingEventNumber:         1,
