@@ -20,8 +20,6 @@ func getConcurrencyKey(ctx worker.HatchetContext) (string, error) {
 
 func runWorker(ctx context.Context, client client.Client, concurrency int, maxAcceptableDuration time.Duration, workerStarted chan<- time.Time, errChan chan<- error, resultChan chan<- Event) (int64, int64) {
 
-	fmt.Println("running")
-
 	w, err := worker.NewWorker(
 		worker.WithClient(
 			client,
@@ -43,7 +41,6 @@ func runWorker(ctx context.Context, client client.Client, concurrency int, maxAc
 	if concurrency > 0 {
 		concurrencyOpts = worker.Concurrency(getConcurrencyKey).MaxRuns(int32(concurrency))
 	}
-	fmt.Println("defining worker")
 	err = w.RegisterWorkflow(
 		&worker.WorkflowJob{
 			On:          worker.Event("load-test:event"),
@@ -98,19 +95,14 @@ func runWorker(ctx context.Context, client client.Client, concurrency int, maxAc
 		},
 	)
 
-	fmt.Println("registered workflow")
-
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println("starting worker")
 	cleanup, err := w.Start()
 	if err != nil {
 		panic(fmt.Errorf("error starting worker: %w", err))
 	}
-	fmt.Println("worker started")
 	workerStarted <- time.Now()
-	fmt.Println("waiting for context to be done")
 	<-ctx.Done()
 
 	if err := cleanup(); err != nil {

@@ -21,7 +21,6 @@ func generateNamespace() string {
 
 func Do(ctx context.Context, duration time.Duration, startEventsPerSecond, amount int, increase, wait, maxAcceptableDuration, maxAcceptableSchedule time.Duration, includeDroppedEvents bool, concurrency int, passingEventNumber int) error {
 	l.Info().Msgf("testing with duration=%s, amount=%d, increase=%d,  wait=%s, concurrency=%d", duration, amount, increase, wait, concurrency)
-	fmt.Printf("testing with duration=%s, amount=%d, increase=%d,  wait=%s, concurrency=%d \n", duration, amount, increase, wait, concurrency)
 
 	after := 10 * time.Second
 
@@ -55,12 +54,12 @@ func Do(ctx context.Context, duration time.Duration, startEventsPerSecond, amoun
 	}()
 
 	go func() {
-		fmt.Println("waiting for worker to start")
+
 		workerStartedAt := <-startedChan
 		// we give it wait seconds after the worker has started before we start emitting
 		time.Sleep(wait)
 
-		fmt.Println("worker started at can now emit", workerStartedAt)
+		l.Info().Msgf("worker started at can now emit: %s", workerStartedAt)
 
 		emit(ctx, client, startEventsPerSecond, amount, increase, duration, maxAcceptableSchedule, emitErrChan)
 		l.Info().Msg("done emitting")
@@ -77,16 +76,16 @@ func Do(ctx context.Context, duration time.Duration, startEventsPerSecond, amoun
 	for {
 		select {
 		case workerErr := <-errChan:
-			fmt.Println("error in worker: ", workerErr)
+			l.Error().Msgf("error in worker: %s", workerErr)
 			return workerErr
 		case e := <-emitErrChan:
-			fmt.Println("error in emit: ", e)
+			l.Error().Msgf("error in emit: %s", e)
 			return e
 		case <-timer:
-			fmt.Printf("no events received within %d seconds \n", timeout)
+			l.Error().Msgf("no events received within %d seconds \n", timeout)
 			return fmt.Errorf("no events received within %d seconds", timeout)
 		case event := <-resultChan:
-			fmt.Printf("received event %d \n", event.ID)
+			l.Info().Msgf("received event %d \n", event.ID)
 			if event.ID == int64(passingEventNumber) {
 				fmt.Printf("✅ success \n")
 				return nil
