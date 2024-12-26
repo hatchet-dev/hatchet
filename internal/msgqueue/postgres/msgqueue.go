@@ -154,7 +154,7 @@ func (p *PostgresMessageQueue) Subscribe(queue msgqueue.Queue, preAck msgqueue.A
 		taskWg.Add(1)
 		defer taskWg.Done()
 
-		err = preAck(&task)
+		err := preAck(&task)
 
 		if err != nil {
 			p.l.Error().Err(err).Msg("error pre-acking message")
