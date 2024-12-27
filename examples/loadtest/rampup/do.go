@@ -59,7 +59,7 @@ func Do(ctx context.Context, duration time.Duration, startEventsPerSecond, amoun
 		// we give it wait seconds after the worker has started before we start emitting
 		time.Sleep(wait)
 
-		l.Info().Msgf("worker started at can now emit: %s", workerStartedAt)
+		l.Info().Msgf("worker started, can now emit: %s", workerStartedAt)
 
 		emit(ctx, client, startEventsPerSecond, amount, increase, duration, maxAcceptableSchedule, emitErrChan)
 		l.Info().Msg("done emitting")

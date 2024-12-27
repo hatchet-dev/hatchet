@@ -2335,7 +2335,6 @@ func (s *sharedRepository) setDataForStepRun(ctx context.Context, tenantId strin
 	}
 
 	if data.ExprCount > 0 {
-		// TODO join this if it is used
 		expressions, err := s.queries.GetStepExpressions(ctx, tx, data.StepId)
 
 		if err != nil {
