@@ -894,6 +894,111 @@ SELECT
 FROM
     step_runs_to_fail srs2;
 
+-- name: InternalRetryStepRuns :many
+WITH step_runs AS (
+    SELECT
+        sr."id",
+        sr."tenantId",
+        sr."scheduleTimeoutAt",
+        sr."retryCount",
+        sr."internalRetryCount",
+        s."actionId",
+        s."id" AS "stepId",
+        s."timeout" AS "stepTimeout",
+        s."scheduleTimeout" AS "scheduleTimeout"
+    FROM
+        "StepRun" sr
+    JOIN
+        "Step" s ON sr."stepId" = s."id"
+    WHERE
+        sr."tenantId" = @tenantId::uuid
+        AND sr."id" = ANY(@stepRunIds::uuid[])
+),
+step_runs_to_reassign AS (
+    SELECT
+        *
+    FROM
+        step_runs
+    WHERE
+        "internalRetryCount" < @maxInternalRetryCount::int
+),
+step_runs_to_fail AS (
+    SELECT
+        *
+    FROM
+        step_runs
+    WHERE
+        "internalRetryCount" >= @maxInternalRetryCount::int
+),
+deleted_sqis AS (
+    DELETE FROM
+        "SemaphoreQueueItem" sqi
+    USING
+        step_runs srs
+    WHERE
+        sqi."stepRunId" = srs."id"
+),
+deleted_tqis AS (
+    DELETE FROM
+        "TimeoutQueueItem" tqi
+    -- delete when step run id AND retry count tuples match
+    USING
+        step_runs srs
+    WHERE
+        tqi."stepRunId" = srs."id"
+        AND tqi."retryCount" = srs."retryCount"
+),
+inserted_queue_items AS (
+    INSERT INTO "QueueItem" (
+        "stepRunId",
+        "stepId",
+        "actionId",
+        "scheduleTimeoutAt",
+        "stepTimeout",
+        "priority",
+        "isQueued",
+        "tenantId",
+        "queue"
+    )
+    SELECT
+        srs."id",
+        srs."stepId",
+        srs."actionId",
+        CURRENT_TIMESTAMP + COALESCE(convert_duration_to_interval(srs."scheduleTimeout"), INTERVAL '5 minutes'),
+        srs."stepTimeout",
+        -- Queue with priority 4 so that reassignment gets highest priority
+        4,
+        true,
+        srs."tenantId",
+        srs."actionId"
+    FROM
+        step_runs_to_reassign srs
+),
+updated_step_runs AS (
+    UPDATE "StepRun" sr
+    SET
+        "status" = 'PENDING_ASSIGNMENT',
+        "scheduleTimeoutAt" = CURRENT_TIMESTAMP + COALESCE(convert_duration_to_interval(srs."scheduleTimeout"), INTERVAL '5 minutes'),
+        "updatedAt" = CURRENT_TIMESTAMP,
+        "internalRetryCount" = sr."internalRetryCount" + 1
+    FROM step_runs_to_reassign srs
+    WHERE sr."id" = srs."id"
+    RETURNING sr."id"
+)
+SELECT
+    srs1."id",
+    srs1."retryCount",
+    'REASSIGNED' AS "operation"
+FROM
+    step_runs_to_reassign srs1
+UNION ALL
+SELECT
+    srs2."id",
+    srs2."retryCount",
+    'FAILED' AS "operation"
+FROM
+    step_runs_to_fail srs2;
+
 -- name: ListStepRunsToTimeout :many
 SELECT "id"
 FROM "StepRun"
