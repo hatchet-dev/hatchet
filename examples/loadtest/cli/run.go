@@ -23,7 +23,7 @@ func runWorker(ctx context.Context, c client.Client, delay time.Duration, execut
 	w, err := worker.NewWorker(
 		worker.WithClient(
 			c,
-		),
+		), worker.WithLogLevel("warn"),
 		worker.WithMaxRuns(200),
 	)
 
