@@ -1806,7 +1806,6 @@ CREATE INDEX IF NOT EXISTS "WorkflowRun_parentId_parentStepRunId_childIndex_key"
 WHERE
     "deletedAt" IS NULL;
 
-
 -- CreateTable
 CREATE TABLE "RetryQueueItem" (
     "id" BIGSERIAL PRIMARY KEY,
