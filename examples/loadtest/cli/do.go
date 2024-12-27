@@ -82,6 +82,7 @@ func do(ctx context.Context, duration time.Duration, eventsPerSecond int, delay 
 		case <-ctx.Done():
 			l.Error().Msg("context done before finishing emit")
 			return
+
 		case emittedChan <- emit(ctx, c, eventsPerSecond, duration, scheduled):
 		}
 
@@ -93,10 +94,13 @@ func do(ctx context.Context, duration time.Duration, eventsPerSecond int, delay 
 	var totalTimeout = time.Now().Add(duration + after)
 
 	totalTimeoutTimer := time.NewTimer(time.Until(totalTimeout))
+
 	defer totalTimeoutTimer.Stop()
 
 	movingTimeoutTimer := time.NewTimer(time.Until(movingTimeout))
+
 	defer movingTimeoutTimer.Stop()
+
 outer:
 	for {
 		select {
@@ -192,6 +196,7 @@ outer:
 	if maxPerExecution > 0 && durationPerEventExecuted > maxPerExecution {
 		return fmt.Errorf("❌ duration per event executed %s exceeds max %s", durationPerEventExecuted, maxPerExecution)
 	}
+
 	log.Printf("Executed %d events in %s for %.2f events per second",
 		executedCount,
 		timeTaken,

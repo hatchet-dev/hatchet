@@ -73,7 +73,7 @@ func runWorker(ctx context.Context, c client.Client, delay time.Duration, execut
 					uniques++
 
 					executed = append(executed, input.ID)
-					executedChan <- int64(input.ID)
+					executedChan <- input.ID
 					mx.Unlock()
 					if delay > 0 {
 						l.Info().Msgf("executed %d now delaying", input.ID)
