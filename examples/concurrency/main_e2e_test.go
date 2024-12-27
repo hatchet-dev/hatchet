@@ -45,7 +45,6 @@ outer:
 			break outer
 
 		case wfrId := <-wfrIds:
-			fmt.Println("got wfr id")
 			go func(workflow *client.Workflow) {
 				wfr, err := workflow.Result()
 				workflowRunIds = append(workflowRunIds, wfr)
@@ -67,7 +66,6 @@ outer:
 	for _, wfrId := range workflowRunIds {
 		state, err := getWorkflowStateForWorkflowRunId(c, ctx, wfrId)
 
-		fmt.Println("state: ", state)
 		if err != nil {
 			t.Fatalf("error getting workflow state: %v", err)
 		}
@@ -99,7 +97,6 @@ func getWorkflowStateForWorkflowRunId(client client.Client, ctx context.Context,
 			return "CANCELLED_BY_CONCURRENCY_LIMIT", nil
 		}
 
-		fmt.Println("error getting step output: %w", err)
 		return "", err
 	}
 

@@ -59,7 +59,7 @@ func do(ctx context.Context, duration time.Duration, eventsPerSecond int, delay 
 		select {
 		case ch <- uniques:
 		case <-ctx.Done():
-			l.Info().Msg("ctx done exciting goroutine")
+			l.Info().Msg("ctx done exiting goroutine")
 
 		}
 
