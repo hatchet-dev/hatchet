@@ -5,7 +5,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"sync"
 	"testing"
 	"time"
 
@@ -35,17 +34,12 @@ func TestConcurrency(t *testing.T) {
 
 	var items []string
 	var workflowRunIds []*client.WorkflowResult
-	var wg sync.WaitGroup
 outer:
 	for {
 
 		select {
 		case item := <-events:
 			items = append(items, item)
-			if len(items) > 2 {
-				fmt.Println("got 2 events")
-				break outer
-			}
 		case <-ctx.Done():
 			fmt.Println("context done")
 			break outer
@@ -53,8 +47,6 @@ outer:
 		case wfrId := <-wfrIds:
 			fmt.Println("got wfr id")
 			go func(workflow *client.Workflow) {
-				wg.Add(1)
-				defer wg.Done()
 				wfr, err := workflow.Result()
 				workflowRunIds = append(workflowRunIds, wfr)
 				if err != nil {
