@@ -482,10 +482,11 @@ func (b *IngestBuf[T, U]) FireAndWait(ctx context.Context, item T) (*U, error) {
 }
 
 func (b *IngestBuf[T, U]) buffItem(item T) (chan *FlushResponse[U], error) {
-
+	b.stateLock.RLock()
 	if b.state != started {
 		return nil, fmt.Errorf("buffer not ready, in state '%v'", b.state.String())
 	}
+	b.stateLock.RUnlock()
 
 	sizeOfBuf := b.safeCheckSizeOfBuffer()
 
@@ -533,7 +534,9 @@ func (b *IngestBuf[T, U]) debugBuffer() string {
 	builder.WriteString(fmt.Sprintf("%v flush period\n", b.flushPeriod))
 	builder.WriteString(fmt.Sprintf("%v wait for flush\n", b.waitForFlush))
 	builder.WriteString(fmt.Sprintf("%d max concurrent\n", b.maxConcurrent))
+	b.stateLock.RLock()
 	builder.WriteString(fmt.Sprintf("In state %v\n", b.state))
+	b.stateLock.RUnlock()
 	builder.WriteString(fmt.Sprintf("%d currently flushing\n", b.safeFetchCurrentlyFlushing()))
 	builder.WriteString(fmt.Sprintf("The following %d goroutines are flushing\n", b.countDebugMapEntries()))
 
