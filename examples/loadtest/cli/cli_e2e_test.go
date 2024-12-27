@@ -32,7 +32,7 @@ func TestLoadCLI(t *testing.T) {
 
 	l = logger.NewStdErr(
 		&shared.LoggerConfigFile{
-			Level:  "info",
+			Level:  "warn",
 			Format: "console",
 		},
 		"loadtest",
@@ -70,11 +70,22 @@ func TestLoadCLI(t *testing.T) {
 				duration:        60 * time.Second,
 				eventsPerSecond: 100,
 				delay:           0 * time.Second,
-				// workerDelay:     60 * time.Second,
 				concurrency:     0,
 				maxPerEventTime: 0,
 				maxPerExecution: 0,
-			}, // 6000 events worker delay of 60 seconds should finish in 60 seconds + time taken to run events
+			},
+		},
+
+		{
+			name: "test with scheduling and execution time limits",
+			args: args{
+				duration:        30 * time.Second,
+				eventsPerSecond: 50,
+				delay:           0 * time.Second,
+				concurrency:     0,
+				maxPerEventTime: 100 * time.Millisecond,
+				maxPerExecution: 1 * time.Second,
+			},
 		}}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
