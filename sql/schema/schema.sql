@@ -1806,7 +1806,6 @@ CREATE INDEX IF NOT EXISTS "WorkflowRun_parentId_parentStepRunId_childIndex_key"
 WHERE
     "deletedAt" IS NULL;
 
-CREATE INDEX IF NOT EXISTS "StepRun_status_tenantId_idx" ON "StepRun" ("status", "tenantId");
 
 -- CreateTable
 CREATE TABLE "RetryQueueItem" (
@@ -1831,3 +1830,4 @@ ALTER TABLE "WorkflowRun" ADD CONSTRAINT "WorkflowRun_parentStepRunId_fkey" FORE
 ALTER TABLE "WorkflowTriggerScheduledRef" ADD CONSTRAINT "WorkflowTriggerScheduledRef_parentStepRunId_fkey" FOREIGN KEY ("parentStepRunId") REFERENCES "StepRun"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 ALTER TABLE "_StepRunOrder" ADD CONSTRAINT "_StepRunOrder_A_fkey" FOREIGN KEY ("A") REFERENCES "StepRun"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "_StepRunOrder" ADD CONSTRAINT "_StepRunOrder_B_fkey" FOREIGN KEY ("B") REFERENCES "StepRun"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "StepRun" ADD CONSTRAINT "StepRun_workerId_fkey" FOREIGN KEY ("workerId") REFERENCES "Worker"("id") ON DELETE SET NULL ON UPDATE CASCADE;
