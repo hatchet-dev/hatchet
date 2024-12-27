@@ -170,7 +170,7 @@ func run(c client.Client, events chan<- string, wfrIds chan<- *client.Workflow) 
 	// I want some to be in Running and some to be in Pending so we cancel both
 
 	go func() {
-		// do this 10 times to test concurrency
+		// do this 7 times to test concurrency
 		for i := 0; i < 7; i++ {
 
 			wfr_id, err := c.Admin().RunWorkflow("simple-concurrency", testEvent)
@@ -186,7 +186,7 @@ func run(c client.Client, events chan<- string, wfrIds chan<- *client.Workflow) 
 		}
 	}()
 	go func() {
-		// do this 10 times to test concurrency
+		// do this 13 times to test concurrency (20 times total)
 		for i := 0; i < 13; i++ {
 
 			wfr_id, err := c.Admin().RunWorkflow("simple-concurrency", testEvent)
