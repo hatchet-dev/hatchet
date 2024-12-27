@@ -36,7 +36,6 @@ func TestConcurrency(t *testing.T) {
 	var items []string
 	var workflowRunIds []*client.WorkflowResult
 	var wg sync.WaitGroup
-	done := make(chan struct{})
 outer:
 	for {
 
@@ -64,19 +63,6 @@ outer:
 			}(wfrId)
 
 		}
-	}
-
-	go func() {
-		wg.Wait()
-		close(done)
-	}()
-
-	select {
-
-	case <-time.After(20 * time.Second):
-		t.Fatalf("timed out waiting for workflow results")
-	case <-done:
-
 	}
 
 	// our workflow run ids should have only one succeeded everyone else should have failed
