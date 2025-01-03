@@ -2175,6 +2175,9 @@ type ClientInterface interface {
 	// UserUpdateSlackOauthCallback request
 	UserUpdateSlackOauthCallback(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// InfoGetVersion request
+	InfoGetVersion(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// WebhookDelete request
 	WebhookDelete(ctx context.Context, webhook openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -3474,6 +3477,18 @@ func (c *Client) UserCreate(ctx context.Context, body UserCreateJSONRequestBody,
 
 func (c *Client) UserUpdateSlackOauthCallback(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewUserUpdateSlackOauthCallbackRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) InfoGetVersion(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewInfoGetVersionRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -7914,6 +7929,33 @@ func NewUserUpdateSlackOauthCallbackRequest(server string) (*http.Request, error
 	return req, nil
 }
 
+// NewInfoGetVersionRequest generates requests for InfoGetVersion
+func NewInfoGetVersionRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/version")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewWebhookDeleteRequest generates requests for WebhookDelete
 func NewWebhookDeleteRequest(server string, webhook openapi_types.UUID) (*http.Request, error) {
 	var err error
@@ -8712,6 +8754,9 @@ type ClientWithResponsesInterface interface {
 
 	// UserUpdateSlackOauthCallbackWithResponse request
 	UserUpdateSlackOauthCallbackWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*UserUpdateSlackOauthCallbackResponse, error)
+
+	// InfoGetVersionWithResponse request
+	InfoGetVersionWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*InfoGetVersionResponse, error)
 
 	// WebhookDeleteWithResponse request
 	WebhookDeleteWithResponse(ctx context.Context, webhook openapi_types.UUID, reqEditors ...RequestEditorFn) (*WebhookDeleteResponse, error)
@@ -10739,6 +10784,30 @@ func (r UserUpdateSlackOauthCallbackResponse) StatusCode() int {
 	return 0
 }
 
+type InfoGetVersionResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Version *string `json:"version,omitempty"`
+	}
+}
+
+// Status returns HTTPResponse.Status
+func (r InfoGetVersionResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r InfoGetVersionResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type WebhookDeleteResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -11914,6 +11983,15 @@ func (c *ClientWithResponses) UserUpdateSlackOauthCallbackWithResponse(ctx conte
 		return nil, err
 	}
 	return ParseUserUpdateSlackOauthCallbackResponse(rsp)
+}
+
+// InfoGetVersionWithResponse request returning *InfoGetVersionResponse
+func (c *ClientWithResponses) InfoGetVersionWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*InfoGetVersionResponse, error) {
+	rsp, err := c.InfoGetVersion(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseInfoGetVersionResponse(rsp)
 }
 
 // WebhookDeleteWithResponse request returning *WebhookDeleteResponse
@@ -15276,6 +15354,34 @@ func ParseUserUpdateSlackOauthCallbackResponse(rsp *http.Response) (*UserUpdateS
 	response := &UserUpdateSlackOauthCallbackResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
+	}
+
+	return response, nil
+}
+
+// ParseInfoGetVersionResponse parses an HTTP response from a InfoGetVersionWithResponse call
+func ParseInfoGetVersionResponse(rsp *http.Response) (*InfoGetVersionResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &InfoGetVersionResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Version *string `json:"version,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
 	}
 
 	return response, nil

@@ -2130,4 +2130,24 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       secure: true,
       ...params,
     });
+  /**
+   * @description Get the version of the server
+   *
+   * @name InfoGetVersion
+   * @summary We return the version for the currently running server
+   * @request GET:/api/v1/version
+   */
+  infoGetVersion = (params: RequestParams = {}) =>
+    this.request<
+      {
+        /** @example "1.0.0" */
+        version?: string;
+      },
+      any
+    >({
+      path: `/api/v1/version`,
+      method: 'GET',
+      format: 'json',
+      ...params,
+    });
 }

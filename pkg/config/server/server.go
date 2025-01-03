@@ -452,6 +452,8 @@ type ServerConfig struct {
 	AdditionalOAuthConfigs map[string]*oauth2.Config
 
 	SchedulingPool *v2.SchedulingPool
+
+	Version string
 }
 
 func (c *ServerConfig) HasService(name string) bool {

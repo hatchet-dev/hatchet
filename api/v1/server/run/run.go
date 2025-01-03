@@ -15,6 +15,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/authz"
 	apitokens "github.com/hatchet-dev/hatchet/api/v1/server/handlers/api-tokens"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/events"
+	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/info"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/ingestors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/logs"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/metadata"
@@ -51,6 +52,7 @@ type apiService struct {
 	*webhookworker.WebhookWorkersService
 	*workflowruns.WorkflowRunsService
 	*monitoring.MonitoringService
+	*info.InfoService
 }
 
 func newAPIService(config *server.ServerConfig) *apiService {
@@ -70,6 +72,7 @@ func newAPIService(config *server.ServerConfig) *apiService {
 		SlackAppService:       slackapp.NewSlackAppService(config),
 		WebhookWorkersService: webhookworker.NewWebhookWorkersService(config),
 		MonitoringService:     monitoring.NewMonitoringService(config),
+		InfoService:           info.NewInfoService(config),
 	}
 }
 
