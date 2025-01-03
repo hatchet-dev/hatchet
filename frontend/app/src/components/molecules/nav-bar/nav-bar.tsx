@@ -28,7 +28,7 @@ import {
 import { useTheme } from '@/components/theme-provider';
 import { useMemo } from 'react';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
-import {VersionInfo} from '@/pages/main/info/components/version-info';
+import { VersionInfo } from '@/pages/main/info/components/version-info';
 
 interface MainNavProps {
   user: User;
@@ -150,8 +150,8 @@ export default function MainNav({ user }: MainNavProps) {
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem >
-              <VersionInfo />
+              <DropdownMenuItem>
+                <VersionInfo />
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => toggleTheme()}>

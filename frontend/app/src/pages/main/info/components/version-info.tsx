@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 // import api from '@/lib/api';
-import {Spinner} from  '@/components/ui/loading';
+import { Spinner } from '@/components/ui/loading';
 import api from '@/lib/api';
 
 export const VersionInfo: React.FC = () => {
@@ -12,7 +12,6 @@ export const VersionInfo: React.FC = () => {
     try {
       const response = await api.infoGetVersion();
       setVersion(response.data.version || 'Unknown');
-
     } catch (err) {
       setError('Failed to fetch version info');
       console.error(err);
@@ -34,18 +33,13 @@ export const VersionInfo: React.FC = () => {
   }
 
   if (error) {
-    return (
-      <div className="text-red-500 text-xs">
-        {error}
-      </div>
-    );
+    return <div className="text-red-500 text-xs">{error}</div>;
   }
 
   return (
     <div className="text-sm">
       <p>
-        <span className="text-xs"> {version}
-        </span>
+        <span className="text-xs"> {version}</span>
       </p>
     </div>
   );
