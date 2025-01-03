@@ -22,6 +22,7 @@ export default function TenantSettings() {
           {capitalize(tenant.name)} Overview
         </h2>
         <Separator className="my-4" />
+        <Separator className="my-4" />
         <UpdateTenant tenant={tenant} />
         <Separator className="my-4" />
         <AnalyticsOptOut tenant={tenant} />

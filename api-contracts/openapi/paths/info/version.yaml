@@ -4,6 +4,7 @@ version:
     summary: We return the version for the currently running server
     operationId: info:get:version
     security: []
+    x-security-optional: true
     responses:
       "200":
         description: The version of the server
@@ -12,6 +13,7 @@ version:
           application/json:
             schema:
               type: object
+              required: ["version"]
               properties:
                 version:
                   type: string

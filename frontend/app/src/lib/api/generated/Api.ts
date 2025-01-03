@@ -2141,7 +2141,7 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
     this.request<
       {
         /** @example "1.0.0" */
-        version?: string;
+        version: string;
       },
       any
     >({

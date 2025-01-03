@@ -8,6 +8,6 @@ import (
 
 func (i *InfoService) InfoGetVersion(ctx echo.Context, req gen.InfoGetVersionRequestObject) (gen.InfoGetVersionResponseObject, error) {
 	return gen.InfoGetVersion200JSONResponse{
-		Version: &i.config.Version,
+		Version: i.config.Version,
 	}, nil
 }

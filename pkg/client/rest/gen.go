@@ -10788,7 +10788,7 @@ type InfoGetVersionResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *struct {
-		Version *string `json:"version,omitempty"`
+		Version string `json:"version"`
 	}
 }
 
@@ -15375,7 +15375,7 @@ func ParseInfoGetVersionResponse(rsp *http.Response) (*InfoGetVersionResponse, e
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest struct {
-			Version *string `json:"version,omitempty"`
+			Version string `json:"version"`
 		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
