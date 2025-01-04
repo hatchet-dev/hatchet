@@ -1,28 +1,12 @@
-import React, { useEffect, useState } from 'react';
-// import api from '@/lib/api';
+import React from 'react';
 import { Spinner } from '@/components/ui/loading';
-import api from '@/lib/api';
+import { queries } from '@/lib/api';
+import { useQuery } from '@tanstack/react-query';
 
 export const VersionInfo: React.FC = () => {
-  const [version, setVersion] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchVersion = async () => {
-    try {
-      const response = await api.infoGetVersion();
-      setVersion(response.data.version || 'Unknown');
-    } catch (err) {
-      setError('Failed to fetch version info');
-      console.error(err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchVersion();
-  }, []);
+  const { data, isLoading, isError, error } = useQuery({
+    ...queries.info.getVersion,
+  });
 
   if (isLoading) {
     return (
@@ -32,15 +16,11 @@ export const VersionInfo: React.FC = () => {
     );
   }
 
-  if (error) {
-    return <div className="text-red-500 text-xs">{error}</div>;
+  if (isError || !data?.version) {
+    const errorMessage =
+      error instanceof Error ? error.message : 'Failed to fetch version info';
+    return <div className="text-red-500 text-xs">{errorMessage}</div>;
   }
 
-  return (
-    <div className="text-sm">
-      <p>
-        <span className="text-xs"> {version}</span>
-      </p>
-    </div>
-  );
+  return <div className="text-xs">{data.version}</div>;
 };
