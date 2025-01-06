@@ -353,4 +353,11 @@ export const queries = createQueryKeyStore({
         (await api.webhookRequestsList(webhookWorkerId)).data,
     }),
   },
+
+  info: {
+    getVersion: {
+      queryKey: ['info:version'],
+      queryFn: async () => (await api.infoGetVersion()).data,
+    },
+  },
 });

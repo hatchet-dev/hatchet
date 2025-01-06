@@ -2,6 +2,7 @@ package health
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -13,14 +14,16 @@ import (
 )
 
 type Health struct {
-	ready bool
+	ready   bool
+	version string
 
 	repository repository.EngineRepository
 	queue      msgqueue.MessageQueue
 }
 
-func New(prisma repository.EngineRepository, queue msgqueue.MessageQueue) *Health {
+func New(prisma repository.EngineRepository, queue msgqueue.MessageQueue, version string) *Health {
 	return &Health{
+		version:    version,
 		repository: prisma,
 		queue:      queue,
 	}
@@ -51,6 +54,16 @@ func (h *Health) Start() (func() error, error) {
 		w.WriteHeader(http.StatusOK)
 	})
 
+	mux.HandleFunc("/version", func(w http.ResponseWriter, r *http.Request) {
+
+		w.WriteHeader(http.StatusOK)
+		e := json.NewEncoder(w).Encode(map[string]string{"version": h.version})
+		if e != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+	})
 	server := &http.Server{
 		Addr:         ":8733",
 		Handler:      mux,
