@@ -11,6 +11,11 @@ type Config struct {
 	BaseURL      string
 }
 
+type CustomConfig struct {
+	AuthURL  string
+	TokenURL string
+}
+
 const (
 	GoogleAuthURL  string = "https://accounts.google.com/o/oauth2/v2/auth"
 	GoogleTokenURL string = "https://oauth2.googleapis.com/token" // #nosec G101
@@ -56,5 +61,18 @@ func NewSlackClient(cfg *Config) *oauth2.Config {
 		},
 		RedirectURL: cfg.BaseURL + "/api/v1/users/slack/callback",
 		Scopes:      cfg.Scopes,
+	}
+}
+
+func NewCustomClient(cfg *Config, cfe *CustomConfig) *oauth2.Config {
+	return &oauth2.Config{
+		ClientID:     cfg.ClientID,
+		ClientSecret: cfg.ClientSecret,
+		RedirectURL:  cfg.BaseURL + "/api/v1/users/custom/callback",
+		Endpoint: oauth2.Endpoint{
+			AuthURL:  cfe.AuthURL,
+			TokenURL: cfe.TokenURL,
+		},
+		Scopes: cfg.Scopes,
 	}
 }

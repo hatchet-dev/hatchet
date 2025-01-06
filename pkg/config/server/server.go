@@ -298,6 +298,8 @@ type ConfigFileAuth struct {
 	Google ConfigFileAuthGoogle `mapstructure:"google" json:"google,omitempty"`
 
 	Github ConfigFileAuthGithub `mapstructure:"github" json:"github,omitempty"`
+
+	Custom ConfigFileAuthCustom `mapstructure:"custom" json:"custom,omitempty"`
 }
 
 type ConfigFileTenantAlerting struct {
@@ -326,6 +328,21 @@ type ConfigFileAuthGithub struct {
 	ClientID     string   `mapstructure:"clientID" json:"clientID,omitempty"`
 	ClientSecret string   `mapstructure:"clientSecret" json:"clientSecret,omitempty"`
 	Scopes       []string `mapstructure:"scopes" json:"scopes,omitempty" default:"[\"read:user\", \"user:email\"]"`
+}
+
+type ConfigFileAuthCustom struct {
+	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty" default:"false"`
+
+	ClientID     string `mapstructure:"clientID" json:"clientID,omitempty"`
+	ClientSecret string `mapstructure:"clientSecret" json:"clientSecret,omitempty"`
+
+	AuthorizationURL string `mapstructure:"authorizationURL" json:"authorizationURL,omitempty"`
+	AccessTokenURL   string `mapstructure:"accessTokenURL" json:"accessTokenURL,omitempty"`
+	ResourceURL      string `mapstructure:"resourceURL" json:"resourceURL,omitempty"`
+	RedirectURL      string `mapstructure:"redirectURL" json:"redirectURL,omitempty"`
+	UserIdentifier   string `mapstructure:"userIdentifier" json:"userIdentifier,omitempty"`
+
+	Scopes []string `mapstructure:"scopes" json:"scopes,omitempty"`
 }
 
 type ConfigFileAuthCookie struct {
@@ -389,6 +406,8 @@ type AuthConfig struct {
 	GoogleOAuthConfig *oauth2.Config
 
 	GithubOAuthConfig *oauth2.Config
+
+	CustomOAuthConfig *oauth2.Config
 
 	JWTManager token.JWTManager
 }
@@ -588,6 +607,13 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("auth.github.clientID", "SERVER_AUTH_GITHUB_CLIENT_ID")
 	_ = v.BindEnv("auth.github.clientSecret", "SERVER_AUTH_GITHUB_CLIENT_SECRET")
 	_ = v.BindEnv("auth.github.scopes", "SERVER_AUTH_GITHUB_SCOPES")
+	_ = v.BindEnv("auth.custom.enabled", "SERVER_AUTH_CUSTOM_ENABLED")
+	_ = v.BindEnv("auth.custom.clientID", "SERVER_AUTH_CUSTOM_CLIENT_ID")
+	_ = v.BindEnv("auth.custom.clientSecret", "SERVER_AUTH_CUSTOM_CLIENT_SECRET")
+	_ = v.BindEnv("auth.custom.authorizationURL", "SERVER_AUTH_CUSTOM_AUTHORIZATION_URL")
+	_ = v.BindEnv("auth.custom.accessTokenURL", "SERVER_AUTH_CUSTOM_ACCESS_TOKEN_URL")
+	_ = v.BindEnv("auth.custom.resourceURL", "SERVER_AUTH_CUSTOM_RESOURCE_URL")
+	_ = v.BindEnv("auth.custom.scopes", "SERVER_AUTH_CUSTOM_SCOPES")
 
 	// task queue options
 	// legacy options

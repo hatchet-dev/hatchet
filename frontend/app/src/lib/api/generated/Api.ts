@@ -262,6 +262,34 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @description Starts the OAuth flow
    *
    * @tags User
+   * @name UserUpdateCustomOauthStart
+   * @summary Start OAuth flow
+   * @request GET:/api/v1/users/custom/start
+   */
+  userUpdateCustomOauthStart = (params: RequestParams = {}) =>
+    this.request<any, void>({
+      path: `/api/v1/users/custom/start`,
+      method: 'GET',
+      ...params,
+    });
+  /**
+   * @description Completes the OAuth flow
+   *
+   * @tags User
+   * @name UserUpdateCustomOauthCallback
+   * @summary Complete OAuth flow
+   * @request GET:/api/v1/users/custom/callback
+   */
+  userUpdateCustomOauthCallback = (params: RequestParams = {}) =>
+    this.request<any, void>({
+      path: `/api/v1/users/custom/callback`,
+      method: 'GET',
+      ...params,
+    });
+  /**
+   * @description Starts the OAuth flow
+   *
+   * @tags User
    * @name UserUpdateSlackOauthStart
    * @summary Start OAuth flow
    * @request GET:/api/v1/tenants/{tenant}/slack/start
