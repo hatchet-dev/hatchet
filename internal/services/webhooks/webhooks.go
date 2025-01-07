@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"slices"
@@ -266,13 +265,7 @@ type HealthCheckResponse struct {
 	Actions []string `json:"actions"`
 }
 
-var ErrWorkerNotOnPartition = errors.New("worker not on partition")
-
 func (c *WebhooksController) healthcheck(ww *dbsqlc.WebhookWorker) (*HealthCheckResponse, error) {
-	if !c.registeredWorkerIds[sqlchelpers.UUIDToStr(ww.ID)] {
-		return nil, ErrWorkerNotOnPartition
-	}
-
 	secret, err := c.sc.Encryption.DecryptString(ww.Secret, sqlchelpers.UUIDToStr(ww.TenantId))
 	if err != nil {
 		return nil, err
@@ -349,13 +342,13 @@ func (c *WebhooksController) run(tenantId string, webhookWorker *dbsqlc.WebhookW
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
+
+				if !c.registeredWorkerIds[sqlchelpers.UUIDToStr(webhookWorker.ID)] {
+					return
+				}
+
 				h, err := c.healthcheck(webhookWorker)
 				if err != nil {
-					if errors.Is(err, ErrWorkerNotOnPartition) {
-						c.sc.Logger.Warn().Msgf("webhook worker %s of tenant %s is not on partition, skipping health check", id, tenantId)
-						cancel()
-						return
-					}
 					healthCheckErrors++
 					if healthCheckErrors > 3 {
 						c.sc.Logger.Warn().Msgf("webhook worker %s of tenant %s failed %d health checks, marking as inactive", id, tenantId, healthCheckErrors)
