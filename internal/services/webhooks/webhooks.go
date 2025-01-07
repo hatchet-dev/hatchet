@@ -52,7 +52,7 @@ func (c *WebhooksController) Start() (func() error, error) {
 		for {
 			select {
 			case <-ticker.C:
-				c.checkOps.RunOrContinue("check-webhooks")
+				c.checkOps.RunOrContinue(c.p.GetWorkerPartitionId())
 			case <-ctx.Done():
 				ticker.Stop()
 				return
