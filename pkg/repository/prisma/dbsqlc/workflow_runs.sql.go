@@ -2817,7 +2817,7 @@ WITH workflow_runs AS (
         "concurrencyGroupId",
         "rn"
     FROM workflow_runs
-    WHERE "rn" <= ($3::int) -- Ensure each group has at most maxRuns
+    WHERE "rn" <= ($3::int) -- we limit the number of runs per group to maxRuns
 ), eligible_runs AS (
     SELECT
         id
