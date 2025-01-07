@@ -2547,12 +2547,12 @@ WHERE
         runs."finishedAt" <= $15::timestamp
     )
 ORDER BY
-    case when $16 = 'createdAt ASC' THEN runs."createdAt" END ASC ,
-    case when $16 = 'createdAt DESC' THEN runs."createdAt" END DESC,
+    case when $16 = 'createdAt ASC' THEN (runs."createdAt", runs."insertOrder") END ASC ,
+    case when $16 = 'createdAt DESC' THEN (runs."createdAt", runs."insertOrder") END DESC,
     case when $16 = 'finishedAt ASC' THEN runs."finishedAt" END ASC ,
     case when $16 = 'finishedAt DESC' THEN runs."finishedAt" END DESC,
-    case when $16 = 'startedAt ASC' THEN runs."startedAt" END ASC ,
-    case when $16 = 'startedAt DESC' THEN runs."startedAt" END DESC,
+    case when $16 = 'startedAt ASC' THEN (runs."startedAt" ,runs."insertOrder") END ASC ,
+    case when $16 = 'startedAt DESC' THEN (runs."startedAt" ,runs."insertOrder") END DESC,
     case when $16 = 'duration ASC' THEN runs."duration" END ASC NULLS FIRST,
     case when $16 = 'duration DESC' THEN runs."duration" END DESC NULLS LAST,
     runs."id" ASC
@@ -2798,8 +2798,9 @@ WITH workflow_runs AS (
     SELECT
         r2.id,
         r2."status",
-        row_number() OVER (PARTITION BY r2."concurrencyGroupId" ORDER BY r2."createdAt") AS rn,
-        row_number() over (order by r2."createdAt" ASC) as seqnum
+        r2."concurrencyGroupId",
+        row_number() OVER (PARTITION BY r2."concurrencyGroupId" ORDER BY r2."createdAt", r2."insertOrder", r2.id) AS "rn",
+        row_number() OVER (ORDER BY r2."createdAt", r2."insertOrder", r2.id) AS "seqnum"
     FROM
         "WorkflowRun" r2
     LEFT JOIN
@@ -2810,39 +2811,24 @@ WITH workflow_runs AS (
         workflowVersion."deletedAt" IS NULL AND
         (r2."status" = 'QUEUED' OR r2."status" = 'RUNNING') AND
         workflowVersion."id" = $2::uuid
-    ORDER BY
-        rn, seqnum ASC
-), min_rn AS (
+), eligible_runs_per_group AS (
     SELECT
-        MIN(rn) as min_rn
-    FROM
-        workflow_runs
-), total_group_count AS ( -- counts the number of groups
-    SELECT
-        COUNT(*) as count
-    FROM
-        workflow_runs
-    WHERE
-        rn = (SELECT min_rn FROM min_rn)
+        id,
+        "concurrencyGroupId",
+        "rn"
+    FROM workflow_runs
+    WHERE "rn" <= ($3::int) -- Ensure each group has at most maxRuns
 ), eligible_runs AS (
     SELECT
         id
-    FROM
-        "WorkflowRun" wr
-    WHERE
-        wr."id" IN (
-            SELECT
-                id
-            FROM
-                workflow_runs
-            ORDER BY
-                rn, seqnum ASC
-            LIMIT
-                -- We can run up to maxRuns per group, so we multiple max runs by the number of groups, then subtract the
-                -- total number of running workflows.
-                ($3::int) * (SELECT count FROM total_group_count)
-        ) AND
-        wr."status" = 'QUEUED'
+    FROM workflow_runs
+    WHERE id IN (
+        SELECT
+            id
+        FROM eligible_runs_per_group
+        ORDER BY "rn", "seqnum" ASC
+        LIMIT ($3::int) * (SELECT COUNT(DISTINCT "concurrencyGroupId") FROM workflow_runs)
+    )
     FOR UPDATE SKIP LOCKED
 )
 UPDATE "WorkflowRun"
