@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hatchet-dev/hatchet/internal/queueutils"
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
 	"github.com/hatchet-dev/hatchet/internal/whrequest"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
@@ -26,15 +27,21 @@ type WebhooksController struct {
 	cleanups            map[string]func() error
 	p                   *partition.Partition
 	mu                  sync.Mutex // Add a mutex for concurrent map access
+	checkOps            *queueutils.OperationPool
 }
 
 func New(sc *server.ServerConfig, p *partition.Partition) *WebhooksController {
-	return &WebhooksController{
+
+	wc := &WebhooksController{
 		sc:                  sc,
 		registeredWorkerIds: map[string]bool{},
 		cleanups:            map[string]func() error{},
 		p:                   p,
 	}
+
+	wc.checkOps = queueutils.NewOperationPool(sc.Logger, time.Second*5, "check webhooks", wc.check)
+
+	return wc
 }
 
 func (c *WebhooksController) Start() (func() error, error) {
@@ -45,9 +52,7 @@ func (c *WebhooksController) Start() (func() error, error) {
 		for {
 			select {
 			case <-ticker.C:
-				if err := c.check(); err != nil {
-					c.sc.Logger.Warn().Err(err).Msgf("error checking webhooks")
-				}
+				c.checkOps.RunOrContinue("check-webhooks")
 			case <-ctx.Done():
 				ticker.Stop()
 				return
@@ -70,14 +75,14 @@ func (c *WebhooksController) Start() (func() error, error) {
 	}, nil
 }
 
-func (c *WebhooksController) check() error {
+func (c *WebhooksController) check(ctx context.Context, id string) (bool, error) {
 	wws, err := c.sc.EngineRepository.WebhookWorker().ListWebhookWorkersByPartitionId(
-		context.Background(),
+		ctx,
 		c.p.GetWorkerPartitionId(),
 	)
 
 	if err != nil {
-		return fmt.Errorf("could not get webhook workers: %w", err)
+		return false, fmt.Errorf("could not get webhook workers: %w", err)
 	}
 
 	currentRegisteredWorkerIds := map[string]bool{}
@@ -107,7 +112,7 @@ func (c *WebhooksController) check() error {
 	}
 	cleanupWG.Wait()
 
-	return nil
+	return true, nil
 }
 
 func (c *WebhooksController) processWebhookWorker(ww *dbsqlc.WebhookWorker) {
