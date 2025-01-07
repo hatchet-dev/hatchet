@@ -112,7 +112,7 @@ func (c *WebhooksController) check(ctx context.Context, id string) (bool, error)
 	}
 	cleanupWG.Wait()
 
-	return true, nil
+	return false, nil
 }
 
 func (c *WebhooksController) processWebhookWorker(ww *dbsqlc.WebhookWorker) {
