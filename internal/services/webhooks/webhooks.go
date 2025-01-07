@@ -86,15 +86,20 @@ func (c *WebhooksController) check(ctx context.Context, id string) (bool, error)
 	}
 
 	currentRegisteredWorkerIds := map[string]bool{}
+	var currentWorkersMu sync.Mutex // Add mutex to protect the map
 
 	var wg sync.WaitGroup
 	for _, ww := range wws {
-		ww := ww // Create a new variable for each goroutine
+		ww := ww
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			c.processWebhookWorker(ww)
+
+			// Protect map write with mutex
+			currentWorkersMu.Lock()
 			currentRegisteredWorkerIds[sqlchelpers.UUIDToStr(ww.ID)] = true
+			currentWorkersMu.Unlock()
 		}()
 	}
 	wg.Wait()
