@@ -343,10 +343,6 @@ func (c *WebhooksController) run(tenantId string, webhookWorker *dbsqlc.WebhookW
 				return
 			case <-ticker.C:
 
-				if !c.registeredWorkerIds[sqlchelpers.UUIDToStr(webhookWorker.ID)] {
-					return
-				}
-
 				h, err := c.healthcheck(webhookWorker)
 				if err != nil {
 					healthCheckErrors++
