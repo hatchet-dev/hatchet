@@ -150,9 +150,12 @@ const LoggingComponent: React.FC<LogProps> = ({
         </div>
       )}
       {sortedLogs.map((log, i) => {
-        const sanitizedHtml = DOMPurify.sanitize(convert.toHtml(log.line), {
-          USE_PROFILES: { html: true },
-        });
+        const sanitizedHtml = DOMPurify.sanitize(
+          convert.toHtml(log.line || ''),
+          {
+            USE_PROFILES: { html: true },
+          },
+        );
 
         const logHash = log.timestamp + generateHash(log.line);
 
@@ -188,7 +191,10 @@ const LoggingComponent: React.FC<LogProps> = ({
   );
 };
 
-const generateHash = (input: string): string => {
+const generateHash = (input: string | undefined): string => {
+  if (!input) {
+    return Math.random().toString(36).substring(2, 15);
+  }
   const trimmedInput = input.substring(0, 50);
   return cyrb53(trimmedInput) + '';
 };
