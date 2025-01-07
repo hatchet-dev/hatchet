@@ -95,11 +95,17 @@ func (c *WebhooksController) check() error {
 	wg.Wait()
 
 	// cleanup workers that have been moved to a different partition
+	var cleanupWG sync.WaitGroup
 	for id := range c.registeredWorkerIds {
 		if !currentRegisteredWorkerIds[id] {
-			c.cleanupMovedPartitionWorker(id)
+			cleanupWG.Add(1)
+			go func(id string) {
+				defer cleanupWG.Done()
+				c.cleanupMovedPartitionWorker(id)
+			}(id)
 		}
 	}
+	cleanupWG.Wait()
 
 	return nil
 }
