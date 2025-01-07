@@ -100,13 +100,6 @@ func (w *Worker) StartWebhook(ww WebhookWorkerOpts) (func() error, error) {
 	cleanup := func() error {
 		cancel()
 
-		w.l.Debug().Msgf("worker %s is stopping...", w.name)
-
-		err := listener.Unregister()
-		if err != nil {
-			return fmt.Errorf("could not unregister worker: %w", err)
-		}
-
 		w.l.Debug().Msgf("worker %s stopped", w.name)
 
 		return nil

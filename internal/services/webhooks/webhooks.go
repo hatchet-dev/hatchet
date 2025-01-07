@@ -71,11 +71,16 @@ func (c *WebhooksController) Start() (func() error, error) {
 }
 
 func (c *WebhooksController) check() error {
-	wws, err := c.sc.EngineRepository.WebhookWorker().ListWebhookWorkersByPartitionId(context.Background(), c.p.GetWorkerPartitionId())
+	wws, err := c.sc.EngineRepository.WebhookWorker().ListWebhookWorkersByPartitionId(
+		context.Background(),
+		c.p.GetWorkerPartitionId(),
+	)
 
 	if err != nil {
 		return fmt.Errorf("could not get webhook workers: %w", err)
 	}
+
+	currentRegisteredWorkerIds := map[string]bool{}
 
 	var wg sync.WaitGroup
 	for _, ww := range wws {
@@ -84,9 +89,17 @@ func (c *WebhooksController) check() error {
 		go func() {
 			defer wg.Done()
 			c.processWebhookWorker(ww)
+			currentRegisteredWorkerIds[sqlchelpers.UUIDToStr(ww.ID)] = true
 		}()
 	}
 	wg.Wait()
+
+	// cleanup workers that have been moved to a different partition
+	for id := range c.registeredWorkerIds {
+		if !currentRegisteredWorkerIds[id] {
+			c.cleanupMovedPartitionWorker(id)
+		}
+	}
 
 	return nil
 }
@@ -136,6 +149,25 @@ func (c *WebhooksController) processWebhookWorker(ww *dbsqlc.WebhookWorker) {
 		c.cleanups[id] = cleanup
 		c.mu.Unlock()
 	}
+}
+
+func (c *WebhooksController) cleanupMovedPartitionWorker(id string) {
+	c.mu.Lock()
+	cleanup, ok := c.cleanups[id]
+	c.mu.Unlock()
+
+	if ok {
+		if err := cleanup(); err != nil {
+			c.sc.Logger.Err(err).Msgf("error cleaning up webhook worker %s", id)
+		}
+	}
+
+	c.mu.Lock()
+	delete(c.registeredWorkerIds, id)
+	delete(c.cleanups, id)
+	c.mu.Unlock()
+
+	c.sc.Logger.Debug().Msgf("webhook worker %s has been removed from partition", id)
 }
 
 func (c *WebhooksController) cleanupDeletedWorker(id, tenantId string) {
