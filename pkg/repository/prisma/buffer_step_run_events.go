@@ -205,42 +205,44 @@ func bulkStepRunEvents(
 	messages []string,
 	data []map[string]interface{},
 ) error {
-	inputData := [][]byte{}
-	inputReasons := []string{}
-	inputSeverities := []string{}
-
-	for _, d := range data {
-		dataBytes, err := json.Marshal(d)
-
-		if err != nil {
-			l.Err(err).Msg("could not marshal deferred step run event data")
-			return err
-		}
-
-		inputData = append(inputData, dataBytes)
-	}
-
-	for _, r := range reasons {
-		inputReasons = append(inputReasons, string(r))
-	}
-
-	for _, s := range severities {
-		inputSeverities = append(inputSeverities, string(s))
-	}
-
-	err := queries.BulkCreateStepRunEvent(ctx, dbtx, dbsqlc.BulkCreateStepRunEventParams{
-		Steprunids: stepRunIds,
-		Reasons:    inputReasons,
-		Severities: inputSeverities,
-		Messages:   messages,
-		Data:       inputData,
-		Timeseen:   timeSeen,
-	})
-
-	if err != nil {
-		l.Error().Err(err).Msg("could not create deferred step run event")
-		return fmt.Errorf("bulk_events - could not create deferred step run event: %w", err)
-	}
-
 	return nil
+
+	// inputData := [][]byte{}
+	// inputReasons := []string{}
+	// inputSeverities := []string{}
+
+	// for _, d := range data {
+	// 	dataBytes, err := json.Marshal(d)
+
+	// 	if err != nil {
+	// 		l.Err(err).Msg("could not marshal deferred step run event data")
+	// 		return err
+	// 	}
+
+	// 	inputData = append(inputData, dataBytes)
+	// }
+
+	// for _, r := range reasons {
+	// 	inputReasons = append(inputReasons, string(r))
+	// }
+
+	// for _, s := range severities {
+	// 	inputSeverities = append(inputSeverities, string(s))
+	// }
+
+	// err := queries.BulkCreateStepRunEvent(ctx, dbtx, dbsqlc.BulkCreateStepRunEventParams{
+	// 	Steprunids: stepRunIds,
+	// 	Reasons:    inputReasons,
+	// 	Severities: inputSeverities,
+	// 	Messages:   messages,
+	// 	Data:       inputData,
+	// 	Timeseen:   timeSeen,
+	// })
+
+	// if err != nil {
+	// 	l.Error().Err(err).Msg("could not create deferred step run event")
+	// 	return fmt.Errorf("bulk_events - could not create deferred step run event: %w", err)
+	// }
+
+	// return nil
 }
