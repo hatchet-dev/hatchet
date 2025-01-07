@@ -51,7 +51,7 @@ type TickerEngineRepository interface {
 
 	PollUnresolvedFailedStepRuns(ctx context.Context) ([]*dbsqlc.PollUnresolvedFailedStepRunsRow, error)
 
-	PollOrphanedStepRuns(ctx context.Context) ([]*dbsqlc.PollOrphanedStepRunsRow, error)
+	PollOrphanedStepRuns(ctx context.Context, tenantId string) ([]*dbsqlc.PollOrphanedStepRunsRow, error)
 	// // AddJobRun assigns a job run to a ticker.
 	// AddJobRun(tickerId string, jobRun *db.JobRunModel) (*db.TickerModel, error)
 

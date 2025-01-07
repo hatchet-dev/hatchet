@@ -431,6 +431,7 @@ WHERE NOT EXISTS (
 )
 AND sr."status" = 'RUNNING'
 AND sr."deletedAt" IS NULL
+AND sr."tenantId" = $1::uuid
 `
 
 type PollOrphanedStepRunsRow struct {
@@ -467,8 +468,8 @@ type PollOrphanedStepRunsRow struct {
 	InternalRetryCount int32            `json:"internalRetryCount"`
 }
 
-func (q *Queries) PollOrphanedStepRuns(ctx context.Context, db DBTX) ([]*PollOrphanedStepRunsRow, error) {
-	rows, err := db.Query(ctx, pollOrphanedStepRuns)
+func (q *Queries) PollOrphanedStepRuns(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]*PollOrphanedStepRunsRow, error) {
+	rows, err := db.Query(ctx, pollOrphanedStepRuns, tenantid)
 	if err != nil {
 		return nil, err
 	}

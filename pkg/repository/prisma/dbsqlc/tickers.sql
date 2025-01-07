@@ -378,4 +378,5 @@ WHERE NOT EXISTS (
     WHERE tqi."stepRunId" = sr."id"
 )
 AND sr."status" = 'RUNNING'
-AND sr."deletedAt" IS NULL;
+AND sr."deletedAt" IS NULL
+AND sr."tenantId" = @tenantId::uuid;

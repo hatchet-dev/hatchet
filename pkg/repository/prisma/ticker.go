@@ -113,6 +113,6 @@ func (t *tickerRepository) PollUnresolvedFailedStepRuns(ctx context.Context) ([]
 	return t.queries.PollUnresolvedFailedStepRuns(ctx, t.pool)
 }
 
-func (t *tickerRepository) PollOrphanedStepRuns(ctx context.Context) ([]*dbsqlc.PollOrphanedStepRunsRow, error) {
-	return t.queries.PollOrphanedStepRuns(ctx, t.pool)
+func (t *tickerRepository) PollOrphanedStepRuns(ctx context.Context, tenantId string) ([]*dbsqlc.PollOrphanedStepRunsRow, error) {
+	return t.queries.PollOrphanedStepRuns(ctx, t.pool, sqlchelpers.UUIDFromStr(tenantId))
 }
