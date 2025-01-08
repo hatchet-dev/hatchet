@@ -43,6 +43,7 @@ func getConcurrencyKey(ctx worker.HatchetContext) (string, error) {
 }
 
 var done = make(chan struct{})
+var errChan = make(chan error)
 
 var workflowCount int
 var countMux sync.Mutex
@@ -92,7 +93,9 @@ func run(ctx context.Context) error {
 
 					if countMap[concurrencyKey]+1 > maxConcurrent {
 						countMux.Unlock()
-						return nil, fmt.Errorf("concurrency limit exceeded for %d we have %d workers running", input.UserId, countMap[concurrencyKey])
+						e := fmt.Errorf("concurrency limit exceeded for %d we have %d workers running", input.UserId, countMap[concurrencyKey])
+						errChan <- e
+						return nil, e
 					}
 					countMap[concurrencyKey]++
 
@@ -177,6 +180,8 @@ func run(ctx context.Context) error {
 			return nil
 		case <-time.After(20 * time.Second):
 			return fmt.Errorf("timeout")
+		case err := <-errChan:
+			return err
 		case <-done:
 			countMux.Lock()
 			workflowCount--
