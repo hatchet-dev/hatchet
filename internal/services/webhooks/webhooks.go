@@ -85,6 +85,7 @@ func (c *WebhooksController) check(ctx context.Context, id string) (bool, error)
 		return false, fmt.Errorf("could not get webhook workers: %w", err)
 	}
 
+	mapMux := sync.Mutex{}
 	currentRegisteredWorkerIds := map[string]bool{}
 
 	var wg sync.WaitGroup
@@ -94,6 +95,8 @@ func (c *WebhooksController) check(ctx context.Context, id string) (bool, error)
 		go func() {
 			defer wg.Done()
 			c.processWebhookWorker(ww)
+			mapMux.Lock()
+			defer mapMux.Unlock()
 			currentRegisteredWorkerIds[sqlchelpers.UUIDToStr(ww.ID)] = true
 		}()
 	}
@@ -102,7 +105,11 @@ func (c *WebhooksController) check(ctx context.Context, id string) (bool, error)
 	// cleanup workers that have been moved to a different partition
 	var cleanupWG sync.WaitGroup
 	for id := range c.registeredWorkerIds {
-		if !currentRegisteredWorkerIds[id] {
+		mapMux.Lock()
+		isRegisteredWorker := currentRegisteredWorkerIds[id]
+		defer mapMux.Unlock()
+
+		if !isRegisteredWorker {
 			cleanupWG.Add(1)
 			go func(id string) {
 				defer cleanupWG.Done()
