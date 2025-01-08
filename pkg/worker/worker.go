@@ -499,6 +499,7 @@ func (w *Worker) startStepRun(ctx context.Context, assignedAction *client.Action
 	runContext, cancel := context.WithCancel(context.Background())
 
 	w.cancelMap.Store(assignedAction.StepRunId, cancel)
+	defer w.cancelMap.Delete(assignedAction.StepRunId)
 
 	hCtx, err := newHatchetContext(runContext, assignedAction, w.client, w.l, w)
 
