@@ -180,3 +180,5 @@ paths:
     $ref: "./paths/workflow-run/workflow-run.yaml#/getWorkflowRunInput"
   /api/v1/monitoring/{tenant}/probe:
     $ref: "./paths/monitoring/monitoring.yaml#/probe"
+  /api/v1/version:
+    $ref: "./paths/info/version.yaml#/version"

@@ -502,6 +502,61 @@ func (s *stepRunEngineRepository) ListStepRunsToReassign(ctx context.Context, te
 	return stepRunIdsStr, failedStepRunResults, nil
 }
 
+func (s *stepRunEngineRepository) InternalRetryStepRuns(ctx context.Context, tenantId string, srIdsIn []string) ([]string, []*dbsqlc.GetStepRunForEngineRow, error) {
+	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
+	stepRuns := make([]pgtype.UUID, 0, len(srIdsIn))
+
+	for _, id := range srIdsIn {
+		stepRuns = append(stepRuns, sqlchelpers.UUIDFromStr(id))
+	}
+
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, s.pool, s.l, 5000)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	defer rollback()
+
+	// get the step run and make sure it's still in pending
+	results, err := s.queries.InternalRetryStepRuns(ctx, tx, dbsqlc.InternalRetryStepRunsParams{
+		Maxinternalretrycount: s.cf.MaxInternalRetryCount,
+		Tenantid:              pgTenantId,
+		Steprunids:            stepRuns,
+	})
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	stepRunIdsStr := make([]string, 0, len(results))
+
+	failedStepRunIds := make([]pgtype.UUID, 0, len(results))
+
+	for _, sr := range results {
+		if sr.Operation == "FAILED" {
+			failedStepRunIds = append(failedStepRunIds, sr.ID)
+		}
+	}
+
+	failedStepRunResults, err := s.queries.GetStepRunForEngine(ctx, tx, dbsqlc.GetStepRunForEngineParams{
+		Ids:      failedStepRunIds,
+		TenantId: pgTenantId,
+	})
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	err = commit(ctx)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return stepRunIdsStr, failedStepRunResults, nil
+}
+
 func (s *stepRunEngineRepository) ListStepRunsToTimeout(ctx context.Context, tenantId string) (bool, []*dbsqlc.GetStepRunForEngineRow, error) {
 	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
 
