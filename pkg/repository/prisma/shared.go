@@ -28,7 +28,10 @@ type sharedRepository struct {
 	bulkAckMQBuffer       *buffer.TenantBufferManager[int64, int]
 	bulkAddMQBuffer       *buffer.TenantBufferManager[addMessage, int]
 
+	// TODO is the following used?
 	wrRunningCallbacks []repository.TenantScopedCallback[pgtype.UUID]
+	// TODO it is unclear to how to register callbacks for step run creation
+	createStepRunCallbacks []repository.TenantScopedCallback[pgtype.UUID]
 }
 
 func newSharedRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, cf *server.ConfigFileRuntime) (*sharedRepository, func() error, error) {

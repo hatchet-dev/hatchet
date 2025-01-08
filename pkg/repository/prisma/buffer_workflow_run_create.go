@@ -45,5 +45,5 @@ func (w *sharedRepository) bulkCreateWorkflowRuns(ctx context.Context, opts []*r
 
 	w.l.Debug().Msgf("bulk creating %d workflow runs", len(opts))
 
-	return createNewWorkflowRuns(ctx, w.pool, w.queries, w.l, opts)
+	return createNewWorkflowRuns(ctx, w.pool, w.queries, w.l, opts, w.createStepRunCallbacks)
 }
