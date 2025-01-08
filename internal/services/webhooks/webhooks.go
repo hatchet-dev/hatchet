@@ -107,7 +107,7 @@ func (c *WebhooksController) check(ctx context.Context, id string) (bool, error)
 	for id := range c.registeredWorkerIds {
 		mapMux.Lock()
 		isRegisteredWorker := currentRegisteredWorkerIds[id]
-		defer mapMux.Unlock()
+		mapMux.Unlock()
 
 		if !isRegisteredWorker {
 			cleanupWG.Add(1)
