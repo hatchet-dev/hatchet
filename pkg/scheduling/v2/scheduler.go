@@ -39,10 +39,11 @@ type Scheduler struct {
 	unackedSlots map[int]*slot
 	unackedMu    mutex
 
-	rl *rateLimiter
+	rl   *rateLimiter
+	exts *Extensions
 }
 
-func newScheduler(cf *sharedConfig, tenantId pgtype.UUID, rl *rateLimiter) *Scheduler {
+func newScheduler(cf *sharedConfig, tenantId pgtype.UUID, rl *rateLimiter, exts *Extensions) *Scheduler {
 	l := cf.l.With().Str("tenant_id", sqlchelpers.UUIDToStr(tenantId)).Logger()
 
 	return &Scheduler{
@@ -57,6 +58,7 @@ func newScheduler(cf *sharedConfig, tenantId pgtype.UUID, rl *rateLimiter) *Sche
 		workersMu:       newMu(cf.l),
 		assignedCountMu: newMu(cf.l),
 		unackedMu:       newMu(cf.l),
+		exts:            exts,
 	}
 }
 
@@ -665,6 +667,9 @@ func (s *Scheduler) tryAssign(
 		wg := sync.WaitGroup{}
 		startTotal := time.Now()
 
+		extensionResults := make([]*assignResults, 0)
+		extensionResultsMu := sync.Mutex{}
+
 		// process each action id in parallel
 		for actionId, qis := range actionIdToQueueItems {
 			wg.Add(1)
@@ -733,11 +738,17 @@ func (s *Scheduler) tryAssign(
 						s.l.Warn().Dur("duration", sinceStart).Msgf("processing batch of %d queue items took longer than 100ms", len(batchQis))
 					}
 
-					resultsCh <- &assignResults{
+					r := &assignResults{
 						assigned:    batchAssigned,
 						rateLimited: batchRateLimited,
 						unassigned:  batchUnassigned,
 					}
+
+					extensionResultsMu.Lock()
+					extensionResults = append(extensionResults, r)
+					extensionResultsMu.Unlock()
+
+					resultsCh <- r
 
 					return nil
 				})
@@ -752,12 +763,90 @@ func (s *Scheduler) tryAssign(
 		span.End()
 		close(resultsCh)
 
+		extInput := s.getExtensionInput(extensionResults)
+
+		s.exts.PostSchedule(sqlchelpers.UUIDToStr(s.tenantId), extInput)
+
 		if sinceStart := time.Since(startTotal); sinceStart > 100*time.Millisecond {
 			s.l.Warn().Dur("duration", sinceStart).Msgf("assigning queue items took longer than 100ms")
 		}
 	}()
 
 	return resultsCh
+}
+
+func (s *Scheduler) getExtensionInput(results []*assignResults) *PostScheduleInput {
+	unassigned := make([]*dbsqlc.QueueItem, 0)
+
+	for _, res := range results {
+		unassigned = append(unassigned, res.unassigned...)
+	}
+
+	workers := s.getWorkers()
+
+	res := &PostScheduleInput{
+		Workers:    make(map[string]*WorkerCp),
+		Slots:      make([]*SlotCp, 0),
+		Unassigned: unassigned,
+	}
+
+	for workerId, worker := range workers {
+		res.Workers[workerId] = &WorkerCp{
+			WorkerId: workerId,
+			MaxRuns:  worker.MaxRuns,
+			Labels:   worker.Labels,
+		}
+	}
+
+	// NOTE: these locks are important because we must acquire locks in the same order as the replenish and tryAssignBatch
+	// functions. we always acquire actionsMu first and then the specific action's lock.
+	actionKeys := make([]string, 0, len(s.actions))
+
+	s.actionsMu.RLock()
+
+	for actionId := range s.actions {
+		actionKeys = append(actionKeys, actionId)
+	}
+
+	s.actionsMu.RUnlock()
+
+	uniqueSlots := make(map[*slot]*SlotCp)
+	actionsToSlots := make(map[string][]*SlotCp)
+
+	for _, actionId := range actionKeys {
+		s.actionsMu.RLock()
+		action, ok := s.actions[actionId]
+		s.actionsMu.RUnlock()
+
+		if !ok || action == nil {
+			continue
+		}
+
+		action.mu.RLock()
+		actionsToSlots[action.actionId] = make([]*SlotCp, 0, len(action.slots))
+
+		for _, slot := range action.slots {
+			if _, ok := uniqueSlots[slot]; ok {
+				continue
+			}
+
+			uniqueSlots[slot] = &SlotCp{
+				WorkerId: slot.getWorkerId(),
+				Used:     slot.used,
+			}
+
+			actionsToSlots[action.actionId] = append(actionsToSlots[action.actionId], uniqueSlots[slot])
+		}
+		action.mu.RUnlock()
+	}
+
+	for _, slot := range uniqueSlots {
+		res.Slots = append(res.Slots, slot)
+	}
+
+	res.ActionsToSlots = actionsToSlots
+
+	return res
 }
 
 func isTimedOut(qi *dbsqlc.QueueItem) bool {

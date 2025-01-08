@@ -34,11 +34,11 @@ type tenantManager struct {
 	cleanup func()
 }
 
-func newTenantManager(cf *sharedConfig, tenantId string, resultsCh chan *QueueResults) *tenantManager {
+func newTenantManager(cf *sharedConfig, tenantId string, resultsCh chan *QueueResults, exts *Extensions) *tenantManager {
 	tenantIdUUID := sqlchelpers.UUIDFromStr(tenantId)
 
 	rl := newRateLimiter(cf, tenantIdUUID)
-	s := newScheduler(cf, tenantIdUUID, rl)
+	s := newScheduler(cf, tenantIdUUID, rl, exts)
 	leaseManager, workersCh, queuesCh := newLeaseManager(cf, tenantIdUUID)
 
 	t := &tenantManager{
