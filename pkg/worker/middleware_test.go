@@ -55,6 +55,10 @@ func (c *testHatchetContext) StepRunId() string {
 	panic("not implemented")
 }
 
+func (c *testHatchetContext) StepId() string {
+	panic("not implemented")
+}
+
 func (c *testHatchetContext) WorkflowRunId() string {
 	panic("not implemented")
 }
