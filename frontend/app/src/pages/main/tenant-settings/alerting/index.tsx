@@ -9,7 +9,7 @@ import api, {
   UpdateTenantRequest,
   queries,
 } from '@/lib/api';
-import { useTenantContext } from '@/lib/atoms';
+import { useTenant } from '@/lib/atoms';
 import { Spinner } from '@/components/ui/loading';
 import { UpdateTenantAlertingSettings } from './components/update-tenant-alerting-settings-form';
 import invariant from 'tiny-invariant';
@@ -52,7 +52,7 @@ export default function Alerting() {
 }
 
 const AlertingSettings: React.FC = () => {
-  const { tenant } = useTenantContext();
+  const { tenant } = useTenant();
 
   invariant(tenant, 'tenant should be defined');
 

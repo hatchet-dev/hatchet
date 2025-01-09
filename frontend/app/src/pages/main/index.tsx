@@ -19,7 +19,7 @@ import {
   UserContextType,
   useContextFromParent,
 } from '@/lib/outlet';
-import { useTenantContext } from '@/lib/atoms';
+import { useTenant } from '@/lib/atoms';
 import { Loading } from '@/components/ui/loading.tsx';
 import { useSidebar } from '@/components/sidebar-provider';
 import { TenantSwitcher } from '@/components/molecules/nav-bar/tenant-switcher';
@@ -32,7 +32,7 @@ function Main() {
 
   const { user, memberships } = ctx;
 
-  const { tenant: currTenant } = useTenantContext();
+  const { tenant: currTenant } = useTenant();
 
   const childCtx = useContextFromParent({
     user,

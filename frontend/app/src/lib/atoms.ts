@@ -37,7 +37,7 @@ type TenantContext = {
 
 // search param sets the tenant, the last tenant set is used if the search param is empty,
 // otherwise the first membership is used
-export function useTenantContext(): TenantContext {
+export function useTenant(): TenantContext {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const setTenant = (tenant: Tenant) => {
