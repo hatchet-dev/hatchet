@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/rs/zerolog"
+	"github.com/sirupsen/logrus"
 
 	"github.com/hatchet-dev/hatchet/pkg/client"
 )
@@ -54,6 +55,10 @@ type HatchetContext interface {
 	WorkflowRunId() string
 
 	Log(message string)
+
+	NewCombinedLogrusLogger(logger *logrus.Logger) *logrus.Logger
+
+	NewCombinedZerologLogger(logger zerolog.Logger) zerolog.Logger
 
 	StreamEvent(message []byte)
 

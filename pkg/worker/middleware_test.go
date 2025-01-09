@@ -5,6 +5,9 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/rs/zerolog"
+	"github.com/sirupsen/logrus"
+
 	"github.com/hatchet-dev/hatchet/pkg/client"
 )
 
@@ -100,6 +103,14 @@ func (c *testHatchetContext) client() client.Client {
 }
 
 func (c *testHatchetContext) Worker() HatchetWorkerContext {
+	panic("not implemented")
+}
+
+func (c *testHatchetContext) NewCombinedLogrusLogger(originalLogger *logrus.Logger) *logrus.Logger {
+	panic("not implemented")
+}
+
+func (c *testHatchetContext) NewCombinedZerologLogger(originalLogger zerolog.Logger) zerolog.Logger {
 	panic("not implemented")
 }
 

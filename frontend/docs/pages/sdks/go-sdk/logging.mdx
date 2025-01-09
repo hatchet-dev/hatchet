@@ -1,0 +1,75 @@
+# Logging in Hatchet (Go)
+
+Hatchet provides built-in support for logging within your workflows, enabling you to capture debug messages, monitor workflow activity, and track logs step-by-step. Hatchet integrates seamlessly with popular logging libraries such as `logrus` and `zerolog`. You can also use the `HatchetContext.Log` method for simpler logging needs.
+
+---
+
+## Using Logrus Logger
+
+Hatchet allows you to forward logs from a `logrus` logger to the Hatchet logging system. This is done using the `NewCombinedLogrusLogger` method on the `HatchetContext`.
+
+### Example
+
+```go
+import (
+    "github.com/sirupsen/logrus"
+    "github.com/hatchet-dev/hatchet/pkg/worker"
+)
+
+func step1(context worker.HatchetContext) (map[string]string, error) {
+    logrusLogger := logrus.New()
+
+    // Create a combined logger that forwards to Hatchet
+    combinedLogger := context.NewCombinedLogrusLogger(logrusLogger)
+
+    // Log messages using the combined logger
+    combinedLogger.Info("This is a logrus log message")
+    combinedLogger.WithField("key", "value").Error("This is an error log with structured data")
+
+    return  nil
+}
+```
+## Using Zerolog Logger
+
+Hatchet allows you to forward logs from a `zerolog` logger to the Hatchet logging system. This is done using the `NewCombinedZerologLogger` method on the `HatchetContext`.
+
+### Example
+
+```go
+import (
+    "github.com/rs/zerolog"
+    "os"
+    "github.com/hatchet-dev/hatchet/pkg/worker"
+)
+
+func step1(context worker.HatchetContext) ( error) {
+    zerologLogger := zerolog.New(os.Stdout)
+
+    // Create a combined logger that forwards to Hatchet
+    combinedLogger := context.NewCombinedZerologLogger(zerologLogger)
+
+    // Log messages using the combined logger
+    combinedLogger.Info().Msg("This is a zerolog log message")
+    combinedLogger.Error().Str("key", "value").Msg("This is an error log with structured data")
+
+    return  nil
+}
+```
+
+## Using the `HatchetContext.Log` method
+
+You can also use the `HatchetContext.Log` method to log messages from your workflows. This method is available on the `HatchetContext` object that is passed to each step in your workflow. For example:
+
+```go
+func step1(context worker.HatchetContext) (map[string]string, error) {
+    for i := 0; i < 1000; i++ {
+        context.Log("Logging message %d", i)
+    }
+
+    return map[string]string{
+        "status": "success",
+    }, nil
+}
+```
+
+Logs are limited to 1000 per step.
