@@ -37,7 +37,7 @@ export function TenantSwitcher({
   currTenant,
 }: TenantSwitcherProps) {
   const meta = useApiMeta();
-  const setCurrTenant = useTenantContext()[1];
+  const { setTenant: setCurrTenant } = useTenantContext();
   const [open, setOpen] = React.useState(false);
 
   if (!currTenant) {

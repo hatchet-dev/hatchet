@@ -13,7 +13,7 @@ const SupportChat: React.FC<PropsWithChildren & SupportChatProps> = ({
 }) => {
   const meta = useApiMeta();
 
-  const [tenant] = useTenantContext();
+  const { tenant } = useTenantContext();
 
   const APP_ID = useMemo(() => {
     if (!meta.data?.pylonAppId) {

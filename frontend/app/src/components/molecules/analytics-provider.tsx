@@ -14,7 +14,7 @@ const AnalyticsProvider: React.FC<
 
   const [loaded, setLoaded] = React.useState(false);
 
-  const [tenant] = useTenantContext();
+  const { tenant } = useTenantContext();
 
   const config = useMemo(() => {
     return meta.data?.posthog;

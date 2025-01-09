@@ -32,7 +32,7 @@ function Main() {
 
   const { user, memberships } = ctx;
 
-  const [currTenant] = useTenantContext();
+  const { tenant: currTenant } = useTenantContext();
 
   const childCtx = useContextFromParent({
     user,

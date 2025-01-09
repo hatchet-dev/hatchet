@@ -26,7 +26,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 export default function ExpandedWorkflow() {
-  const [tenant] = useTenantContext();
+  const { tenant } = useTenantContext();
 
   // TODO list previous versions and make selectable
   const [selectedVersion] = useState<string | undefined>();

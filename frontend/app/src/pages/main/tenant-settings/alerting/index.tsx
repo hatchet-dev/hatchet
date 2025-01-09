@@ -52,7 +52,7 @@ export default function Alerting() {
 }
 
 const AlertingSettings: React.FC = () => {
-  const [tenant] = useTenantContext();
+  const { tenant } = useTenantContext();
 
   invariant(tenant, 'tenant should be defined');
 

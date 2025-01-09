@@ -56,7 +56,7 @@ const PLATFORMS: {
 export default function GetStarted() {
   const ctx = useOutletContext<UserContextType & MembershipsContextType>();
   const { user, memberships } = ctx;
-  const [currTenant] = useTenantContext();
+  const { tenant: currTenant } = useTenantContext();
 
   const [steps, setSteps] = useState(DEFAULT_OPEN);
   const [platform, setPlatform] = useState<(typeof PLATFORMS)[0] | undefined>();
