@@ -1,7 +1,7 @@
-import { atom, useAtom } from 'jotai';
+import { atom } from 'jotai';
 import { Tenant, queries } from './api';
 import { useSearchParams } from 'react-router-dom';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 
 const getInitialValue = <T>(key: string, defaultValue?: T): T | undefined => {
@@ -30,30 +30,39 @@ export const lastTenantAtom = atom(
   },
 );
 
+type TenantContext = {
+  tenant: Tenant | undefined;
+  setTenant: (tenant: Tenant) => void;
+};
+
 // search param sets the tenant, the last tenant set is used if the search param is empty,
 // otherwise the first membership is used
-export function useTenantContext(): [
-  Tenant | undefined,
-  (tenant: Tenant) => void,
-] {
-  const [lastTenant, setLastTenant] = useAtom(lastTenantAtom);
+export function useTenantContext(): TenantContext {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [currTenant, setCurrTenant] = useState<Tenant>();
 
-  const listMembershipsQuery = useQuery({
+  const setTenant = (tenant: Tenant) => {
+    const newSearchParams = new URLSearchParams(searchParams);
+    newSearchParams.set('tenant', tenant.metadata.id);
+    setSearchParams(newSearchParams, { replace: true });
+  };
+
+  const membershipsQuery = useQuery({
     ...queries.user.listTenantMemberships,
   });
+  const memberships = useMemo(
+    () => membershipsQuery.data?.rows || [],
+    [membershipsQuery.data],
+  );
 
-  const memberships = useMemo(() => {
-    return listMembershipsQuery.data?.rows || [];
-  }, [listMembershipsQuery]);
-
-  const computedCurrTenant = useMemo(() => {
-    const findTenant = (tenantId: string) => {
+  const findTenant = useCallback(
+    (tenantId: string) => {
       return memberships?.find((m) => m.tenant?.metadata.id === tenantId)
         ?.tenant;
-    };
+    },
+    [memberships],
+  );
 
+  const computedCurrTenant = useMemo(() => {
     const currTenantId = searchParams.get('tenant') || undefined;
 
     if (currTenantId) {
@@ -64,66 +73,18 @@ export function useTenantContext(): [
       }
     }
 
-    const lastTenantId = lastTenant?.metadata.id || undefined;
-
-    if (lastTenantId) {
-      const tenant = findTenant(lastTenantId);
-
-      if (tenant) {
-        return tenant;
-      }
-    }
-
     const firstMembershipTenant = memberships?.[0]?.tenant;
 
     return firstMembershipTenant;
-  }, [memberships, lastTenant?.metadata.id, searchParams]);
+  }, [memberships, searchParams, findTenant]);
 
-  // sets the current tenant if the search param changes
-  useEffect(() => {
-    if (searchParams.get('tenant') !== currTenant?.metadata.id) {
-      const newTenant = memberships?.find(
-        (m) => m.tenant?.metadata.id === searchParams.get('tenant'),
-      )?.tenant;
+  const currTenantId = searchParams.get('tenant');
+  const currTenant = currTenantId ? findTenant(currTenantId) : undefined;
 
-      if (newTenant) {
-        setCurrTenant(newTenant);
-      } else if (computedCurrTenant?.metadata.id) {
-        const newSearchParams = new URLSearchParams(searchParams);
-        newSearchParams.set('tenant', computedCurrTenant?.metadata.id);
-        setSearchParams(newSearchParams, { replace: true });
-      }
-    }
-  }, [
-    searchParams,
-    currTenant,
-    setCurrTenant,
-    memberships,
-    computedCurrTenant,
-    setSearchParams,
-  ]);
-
-  // sets the current tenant to the initial tenant
-  useEffect(() => {
-    if (!currTenant && computedCurrTenant) {
-      setCurrTenant(computedCurrTenant);
-    }
-  }, [computedCurrTenant, currTenant, setCurrTenant]);
-
-  // keeps the current tenant in sync with the last tenant
-  useEffect(() => {
-    if (currTenant && lastTenant?.metadata.id !== currTenant?.metadata.id) {
-      setLastTenant(currTenant);
-    }
-  }, [lastTenant, currTenant, setLastTenant]);
-
-  const setTenant = (tenant: Tenant) => {
-    const newSearchParams = new URLSearchParams(searchParams);
-    newSearchParams.set('tenant', tenant.metadata.id);
-    setSearchParams(newSearchParams, { replace: true });
+  return {
+    tenant: currTenant || computedCurrTenant,
+    setTenant,
   };
-
-  return [currTenant || computedCurrTenant, setTenant];
 }
 
 const lastTimeRange = 'lastTimeRange';
