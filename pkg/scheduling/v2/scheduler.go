@@ -499,58 +499,47 @@ func (s *Scheduler) tryAssignBatch(
 
 	candidateSlots := action.slots
 
-	wg := sync.WaitGroup{}
-
 	for i := range res {
 		if res[i].rateLimitResult != nil {
 			continue
 		}
-
-		wg.Add(1)
 
 		denom := len(candidateSlots)
 
 		if denom == 0 {
 			res[i].noSlots = true
 			rlNacks[i]()
-			wg.Done()
 
 			continue
 		}
 
 		childRingOffset := newRingOffset % denom
 
-		go func(i int) {
-			defer wg.Done()
+		qi := qis[i]
 
-			qi := qis[i]
+		singleRes, err := s.tryAssignSingleton(
+			ctx,
+			qi,
+			candidateSlots,
+			childRingOffset,
+			stepIdsToLabels[sqlchelpers.UUIDToStr(qi.StepId)],
+			rlAcks[i],
+			rlNacks[i],
+		)
 
-			singleRes, err := s.tryAssignSingleton(
-				ctx,
-				qi,
-				candidateSlots,
-				childRingOffset,
-				stepIdsToLabels[sqlchelpers.UUIDToStr(qi.StepId)],
-				rlAcks[i],
-				rlNacks[i],
-			)
+		if err != nil {
+			s.l.Error().Err(err).Msg("error assigning queue item")
+		}
 
-			if err != nil {
-				s.l.Error().Err(err).Msg("error assigning queue item")
-			}
+		if !singleRes.succeeded {
+			rlNacks[i]()
+		}
 
-			if !singleRes.succeeded {
-				rlNacks[i]()
-			}
-
-			res[i] = &singleRes
-			res[i].qi = qi
-		}(i)
+		res[i] = &singleRes
+		res[i].qi = qi
 
 		newRingOffset++
 	}
-
-	wg.Wait()
 
 	return res, newRingOffset, nil
 }
