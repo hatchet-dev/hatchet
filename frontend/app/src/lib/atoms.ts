@@ -1,4 +1,4 @@
-import { atom } from 'jotai';
+import { atom, useAtom } from 'jotai';
 import { Tenant, queries } from './api';
 import { useSearchParams } from 'react-router-dom';
 import { useCallback, useMemo } from 'react';
@@ -39,11 +39,13 @@ type TenantContext = {
 // otherwise the first membership is used
 export function useTenant(): TenantContext {
   const [searchParams, setSearchParams] = useSearchParams();
+  const [lastTenant, setLastTenant] = useAtom(lastTenantAtom);
 
   const setTenant = (tenant: Tenant) => {
     const newSearchParams = new URLSearchParams(searchParams);
     newSearchParams.set('tenant', tenant.metadata.id);
     setSearchParams(newSearchParams, { replace: true });
+    setLastTenant(tenant);
   };
 
   const membershipsQuery = useQuery({
@@ -64,7 +66,9 @@ export function useTenant(): TenantContext {
 
   const computedCurrTenant = useMemo(() => {
     const currTenantId = searchParams.get('tenant') || undefined;
+    const lastTenantId = lastTenant?.metadata.id || undefined;
 
+    // If the current tenant is set as a query param, use it
     if (currTenantId) {
       const tenant = findTenant(currTenantId);
 
@@ -73,10 +77,21 @@ export function useTenant(): TenantContext {
       }
     }
 
+    // Otherwise, if a tenant was set in Jotai, use that as a fallback
+    if (lastTenantId) {
+      const tenant = findTenant(lastTenantId);
+
+      if (tenant) {
+        return tenant;
+      }
+    }
+
+    // Finally, if neither a current tenant is set as a query param
+    // nor if a tenant was set in Jotai, use the first membership as a fallback
     const firstMembershipTenant = memberships?.[0]?.tenant;
 
     return firstMembershipTenant;
-  }, [memberships, searchParams, findTenant]);
+  }, [memberships, searchParams, findTenant, lastTenant]);
 
   const currTenantId = searchParams.get('tenant');
   const currTenant = currTenantId ? findTenant(currTenantId) : undefined;
