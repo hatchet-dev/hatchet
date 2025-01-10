@@ -39,6 +39,8 @@ type queueRepository struct {
 	gtId   pgtype.Int8
 	gtIdMu sync.RWMutex
 
+	updateMinIdMu sync.Mutex
+
 	cachedStepIdHasRateLimit *cache.Cache
 }
 
@@ -317,6 +319,11 @@ func (s *queueRepository) bulkStepRunsRateLimited(
 }
 
 func (d *queueRepository) updateMinId() {
+	if !d.updateMinIdMu.TryLock() {
+		return
+	}
+	defer d.updateMinIdMu.Unlock()
+
 	dbCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
