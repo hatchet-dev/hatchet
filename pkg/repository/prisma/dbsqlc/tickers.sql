@@ -144,15 +144,7 @@ RETURNING cronSchedules.*, active_cron_schedules."workflowVersionId", active_cro
 -- name: PollScheduledWorkflows :many
 -- Finds workflows that are either past their execution time or will be in the next 5 seconds and assigns them
 -- to a ticker, or finds workflows that were assigned to a ticker that is no longer active
-WITH latest_workflow_versions AS (
-    SELECT
-        "workflowId",
-        MAX("order") as max_order
-    FROM
-        "WorkflowVersion"
-    GROUP BY "workflowId"
-),
-not_run_scheduled_workflows AS (
+WITH not_run_scheduled_workflows AS (
     SELECT
         scheduledWorkflow."id",
         versions."id" AS "workflowVersionId",
@@ -162,8 +154,6 @@ not_run_scheduled_workflows AS (
         "WorkflowTriggerScheduledRef" as scheduledWorkflow
     JOIN
         "WorkflowVersion" as versions ON versions."id" = scheduledWorkflow."parentId"
-    JOIN
-        latest_workflow_versions l ON versions."workflowId" = l."workflowId" AND versions."order" = l.max_order
     JOIN
         "Workflow" as workflow ON workflow."id" = versions."workflowId"
     LEFT JOIN
