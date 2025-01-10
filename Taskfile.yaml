@@ -25,9 +25,6 @@ tasks:
 
         cat > .env <<EOF
         DATABASE_URL='postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet'
-        SERVER_TLS_CERT_FILE=./hack/dev/certs/cluster.pem
-        SERVER_TLS_KEY_FILE=./hack/dev/certs/cluster.key
-        SERVER_TLS_ROOT_CA_FILE=./hack/dev/certs/ca.cert
 
         SERVER_ENCRYPTION_MASTER_KEYSET_FILE=./hack/dev/encryption-keys/master.key
         SERVER_ENCRYPTION_JWT_PRIVATE_KEYSET_FILE=./hack/dev/encryption-keys/private_ec256.key
@@ -41,10 +38,17 @@ tasks:
         SERVER_AUTH_COOKIE_INSECURE=false
         SERVER_AUTH_SET_EMAIL_VERIFIED=true
 
-        SERVER_LOGGER_LEVEL=debug
+        SERVER_ADDITIONAL_LOGGERS_QUEUE_LEVEL=warn
+        SERVER_ADDITIONAL_LOGGERS_QUEUE_FORMAT=console
+        SERVER_ADDITIONAL_LOGGERS_PGXSTATS_LEVEL=error
+        SERVER_ADDITIONAL_LOGGERS_PGXSTATS_FORMAT=console
+        SERVER_LOGGER_LEVEL=error
         SERVER_LOGGER_FORMAT=console
-        DATABASE_LOGGER_LEVEL=debug
+        DATABASE_LOGGER_LEVEL=error
         DATABASE_LOGGER_FORMAT=console
+
+        SERVER_GRPC_BROADCAST_ADDRESS=grpc.dev.hatchet-tools.com:443
+        SERVER_GRPC_INSECURE=true
         EOF
   start-db:
     cmds:
@@ -70,7 +74,7 @@ tasks:
       - task: atlas-apply-migrations
   atlas-compare-schema-to-migrations-dir:
     cmds:
-       - sh ./hack/dev/atlas-migrate.sh {{.CLI_ARGS}}
+      - sh ./hack/dev/atlas-migrate.sh {{.CLI_ARGS}}
   atlas-apply-migrations:
     cmds:
       - DATABASE_URL='postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet' sh ./hack/db/atlas-apply.sh
