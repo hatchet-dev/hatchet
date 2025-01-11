@@ -2,6 +2,7 @@ package prisma
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository"
@@ -24,6 +25,21 @@ func NewTenantInviteRepository(client *db.PrismaClient, v validator.Validator) r
 func (r *tenantInviteRepository) CreateTenantInvite(tenantId string, opts *repository.CreateTenantInviteOpts) (*db.TenantInviteLinkModel, error) {
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
+	}
+
+	til, err := r.client.TenantInviteLink.FindFirst(
+		db.TenantInviteLink.InviteeEmail.Equals(opts.InviteeEmail),
+		db.TenantInviteLink.TenantID.Equals(tenantId),
+		db.TenantInviteLink.Status.Equals(db.InviteLinkStatusPending),
+		db.TenantInviteLink.Expires.Gt(time.Now()),
+	).Exec(context.Background())
+
+	if err != nil {
+		return nil, err
+	}
+
+	if til != nil {
+		return nil, fmt.Errorf("invite already exists")
 	}
 
 	return r.client.TenantInviteLink.CreateOne(
