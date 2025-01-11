@@ -45,7 +45,7 @@ type SeedConfigFile struct {
 	IsDevelopment bool `mapstructure:"isDevelopment" json:"isDevelopment,omitempty" default:"false"`
 }
 
-type Config struct {
+type Layer struct {
 	Disconnect func() error
 
 	Pool *pgxpool.Pool
