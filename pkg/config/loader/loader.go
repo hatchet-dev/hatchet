@@ -66,14 +66,14 @@ func LoadServerConfigFile(files ...[]byte) (*server.ServerConfigFile, error) {
 	return configFile, err
 }
 
-type repositoryOverrides struct {
-	logsEngineRepository func(*pgxpool.Pool, validator.Validator, *zerolog.Logger) repository.LogsEngineRepository
-	logsAPIRepository    func(*pgxpool.Pool, validator.Validator, *zerolog.Logger) repository.LogsAPIRepository
+type RepositoryOverrides struct {
+	LogsEngineRepository func(*pgxpool.Pool, validator.Validator, *zerolog.Logger) repository.LogsEngineRepository
+	LogsAPIRepository    func(*pgxpool.Pool, validator.Validator, *zerolog.Logger) repository.LogsAPIRepository
 }
 
 type ConfigLoader struct {
 	directory           string
-	repositoryOverrides repositoryOverrides
+	RepositoryOverrides RepositoryOverrides
 }
 
 func NewConfigLoader(directory string) *ConfigLoader {
@@ -192,8 +192,8 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 
 	opts = append(opts, prisma.WithLogger(&l), prisma.WithCache(ch), prisma.WithMetered(meter))
 
-	if c.repositoryOverrides.logsEngineRepository != nil {
-		opts = append(opts, prisma.WithLogsEngineRepository(c.repositoryOverrides.logsEngineRepository))
+	if c.RepositoryOverrides.LogsEngineRepository != nil {
+		opts = append(opts, prisma.WithLogsEngineRepository(c.RepositoryOverrides.LogsEngineRepository))
 	}
 
 	cleanupEngine, engineRepo, err := prisma.NewEngineRepository(pool, essentialPool, &scf.Runtime, opts...)
@@ -202,8 +202,8 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		return nil, fmt.Errorf("could not create engine repository: %w", err)
 	}
 
-	if c.repositoryOverrides.logsAPIRepository != nil {
-		opts = append(opts, prisma.WithLogsAPIRepository(c.repositoryOverrides.logsAPIRepository))
+	if c.RepositoryOverrides.LogsAPIRepository != nil {
+		opts = append(opts, prisma.WithLogsAPIRepository(c.RepositoryOverrides.LogsAPIRepository))
 	}
 
 	apiRepo, cleanupApiRepo, err := prisma.NewAPIRepository(client, pool, &scf.Runtime, opts...)
