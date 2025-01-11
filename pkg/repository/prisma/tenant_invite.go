@@ -32,6 +32,7 @@ func (r *tenantInviteRepository) CreateTenantInvite(tenantId string, opts *repos
 		db.TenantInviteLink.TenantID.Equals(tenantId),
 		db.TenantInviteLink.Status.Equals(db.InviteLinkStatusPending),
 		db.TenantInviteLink.Expires.Gt(time.Now()),
+		db.TenantInviteLink.Role.Equals(db.TenantMemberRole(opts.Role)),
 	).Exec(context.Background())
 
 	if err != nil {
