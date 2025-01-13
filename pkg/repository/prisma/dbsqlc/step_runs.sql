@@ -255,7 +255,8 @@ InitialStepRuns AS (
     SELECT
         DISTINCT ON (child_run."id")
         child_run."id" AS "stepRunId",
-        child_run."jobRunId"
+        child_run."jobRunId",
+        child_run."tenantId"
     FROM
         "StepRun" AS child_run
     LEFT JOIN
@@ -264,9 +265,9 @@ InitialStepRuns AS (
         child_run."jobRunId" IN (SELECT "jobRunId" FROM JobRuns)
         AND child_run."status" = 'PENDING'
         AND step_run_order."A" IS NULL
-),
+)
 
-SELECT id FROM InitialStepRuns;
+SELECT "stepRunId", "tenantId" FROM InitialStepRuns;
 
 -- name: ListInitialStepRuns :many
 SELECT

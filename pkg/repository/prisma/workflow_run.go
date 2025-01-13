@@ -2266,7 +2266,7 @@ func (s *sharedRepository) shortCircuitWorkflowRuns(ctx context.Context, tx pgx.
 
 	for _, stepRun := range startableStepRunIds {
 
-		stepRun, err := s.getStepRunForEngineTx(ctx, tx, sqlchelpers.UUIDToStr(stepRun.SRTenantId), sqlchelpers.UUIDToStr(stepRun.SRID))
+		stepRun, err := s.getStepRunForEngineTx(ctx, tx, sqlchelpers.UUIDToStr(stepRun.TenantId), sqlchelpers.UUIDToStr(stepRun.StepRunId))
 		if err != nil {
 			return nil, nil, fmt.Errorf("could not get step run for engine: %w", err)
 		}
