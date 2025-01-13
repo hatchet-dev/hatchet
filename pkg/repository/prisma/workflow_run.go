@@ -1107,6 +1107,7 @@ func (w *workflowRunEngineRepository) PopWorkflowRunsRoundRobin(ctx context.Cont
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not commit transaction: %w", err)
 	}
+
 	return poppedWorkflowRuns, startableStepRuns, nil
 }
 func (w *workflowRunEngineRepository) QueueWorkflowRunJobs(ctx context.Context, tenantId, workflowRunId string) ([]*dbsqlc.GetStepRunForEngineRow, error) {

@@ -16,8 +16,9 @@ type SchedulerRepository interface {
 }
 
 type ListActiveWorkersResult struct {
-	ID     pgtype.UUID
-	Labels []*dbsqlc.ListManyWorkerLabelsRow
+	ID      pgtype.UUID
+	MaxRuns int
+	Labels  []*dbsqlc.ListManyWorkerLabelsRow
 }
 
 type LeaseRepository interface {

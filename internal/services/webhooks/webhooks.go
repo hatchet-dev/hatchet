@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hatchet-dev/hatchet/internal/queueutils"
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
 	"github.com/hatchet-dev/hatchet/internal/whrequest"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
@@ -26,15 +27,21 @@ type WebhooksController struct {
 	cleanups            map[string]func() error
 	p                   *partition.Partition
 	mu                  sync.Mutex // Add a mutex for concurrent map access
+	checkOps            *queueutils.OperationPool
 }
 
 func New(sc *server.ServerConfig, p *partition.Partition) *WebhooksController {
-	return &WebhooksController{
+
+	wc := &WebhooksController{
 		sc:                  sc,
 		registeredWorkerIds: map[string]bool{},
 		cleanups:            map[string]func() error{},
 		p:                   p,
 	}
+
+	wc.checkOps = queueutils.NewOperationPool(sc.Logger, time.Second*5, "check webhooks", wc.check)
+
+	return wc
 }
 
 func (c *WebhooksController) Start() (func() error, error) {
@@ -45,9 +52,7 @@ func (c *WebhooksController) Start() (func() error, error) {
 		for {
 			select {
 			case <-ticker.C:
-				if err := c.check(); err != nil {
-					c.sc.Logger.Warn().Err(err).Msgf("error checking webhooks")
-				}
+				c.checkOps.RunOrContinue(c.p.GetWorkerPartitionId())
 			case <-ctx.Done():
 				ticker.Stop()
 				return
@@ -70,25 +75,49 @@ func (c *WebhooksController) Start() (func() error, error) {
 	}, nil
 }
 
-func (c *WebhooksController) check() error {
-	wws, err := c.sc.EngineRepository.WebhookWorker().ListWebhookWorkersByPartitionId(context.Background(), c.p.GetWorkerPartitionId())
+func (c *WebhooksController) check(ctx context.Context, id string) (bool, error) {
+	wws, err := c.sc.EngineRepository.WebhookWorker().ListWebhookWorkersByPartitionId(
+		ctx,
+		c.p.GetWorkerPartitionId(),
+	)
 
 	if err != nil {
-		return fmt.Errorf("could not get webhook workers: %w", err)
+		return false, fmt.Errorf("could not get webhook workers: %w", err)
 	}
+
+	currentRegisteredWorkerIds := map[string]bool{}
+	var currentWorkersMu sync.Mutex // Add mutex to protect the map
 
 	var wg sync.WaitGroup
 	for _, ww := range wws {
-		ww := ww // Create a new variable for each goroutine
+		ww := ww
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			c.processWebhookWorker(ww)
+
+			// Protect map write with mutex
+			currentWorkersMu.Lock()
+			currentRegisteredWorkerIds[sqlchelpers.UUIDToStr(ww.ID)] = true
+			currentWorkersMu.Unlock()
 		}()
 	}
 	wg.Wait()
 
-	return nil
+	// cleanup workers that have been moved to a different partition
+	var cleanupWG sync.WaitGroup
+	for id := range c.registeredWorkerIds {
+		if !currentRegisteredWorkerIds[id] {
+			cleanupWG.Add(1)
+			go func(id string) {
+				defer cleanupWG.Done()
+				c.cleanupMovedPartitionWorker(id)
+			}(id)
+		}
+	}
+	cleanupWG.Wait()
+
+	return false, nil
 }
 
 func (c *WebhooksController) processWebhookWorker(ww *dbsqlc.WebhookWorker) {
@@ -136,6 +165,25 @@ func (c *WebhooksController) processWebhookWorker(ww *dbsqlc.WebhookWorker) {
 		c.cleanups[id] = cleanup
 		c.mu.Unlock()
 	}
+}
+
+func (c *WebhooksController) cleanupMovedPartitionWorker(id string) {
+	c.mu.Lock()
+	cleanup, ok := c.cleanups[id]
+	c.mu.Unlock()
+
+	if ok {
+		if err := cleanup(); err != nil {
+			c.sc.Logger.Err(err).Msgf("error cleaning up webhook worker %s", id)
+		}
+	}
+
+	c.mu.Lock()
+	delete(c.registeredWorkerIds, id)
+	delete(c.cleanups, id)
+	c.mu.Unlock()
+
+	c.sc.Logger.Debug().Msgf("webhook worker %s has been removed from partition", id)
 }
 
 func (c *WebhooksController) cleanupDeletedWorker(id, tenantId string) {
@@ -298,6 +346,7 @@ func (c *WebhooksController) run(tenantId string, webhookWorker *dbsqlc.WebhookW
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
+
 				h, err := c.healthcheck(webhookWorker)
 				if err != nil {
 					healthCheckErrors++

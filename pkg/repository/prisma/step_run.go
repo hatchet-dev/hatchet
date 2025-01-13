@@ -1848,6 +1848,7 @@ func (s *sharedRepository) queueStepRunWithTx(ctx context.Context, tx dbsqlc.DBT
 		return innerStepRun, nil
 	}
 	return postCommit, nil
+
 }
 
 func (s *sharedRepository) createExpressionEvals(ctx context.Context, dbtx dbsqlc.DBTX, stepRunId string, opts []repository.CreateExpressionEvalOpt) error {

@@ -11,6 +11,8 @@
    - [protoc](https://grpc.io/docs/protoc-installation/)
    - [pip](https://pip.pypa.io/en/stable/installation/)
    - [Caddy](https://caddyserver.com/docs/install)
+   - [atlas](https://atlasgo.io/)
+   - [pre-commit](https://pre-commit.com/)
 
 2. Start the Database and RabbitMQ services:
 

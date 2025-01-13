@@ -9,7 +9,6 @@ import {
 } from '@/components/ui/popover';
 import { TimePicker } from './time-picker';
 import { CalendarIcon } from '@radix-ui/react-icons';
-import { useState } from 'react';
 
 type DateTimePickerProps = {
   date: Date | undefined;
@@ -18,8 +17,6 @@ type DateTimePickerProps = {
 };
 
 export function DateTimePicker({ date, setDate, label }: DateTimePickerProps) {
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(date);
-
   /**
    * carry over the current time when a user clicks a new day
    * instead of resetting to 00:00
@@ -39,13 +36,7 @@ export function DateTimePicker({ date, setDate, label }: DateTimePickerProps) {
   };
 
   return (
-    <Popover
-      onOpenChange={(isOpen) => {
-        if (!isOpen && selectedDate !== date) {
-          setDate(selectedDate);
-        }
-      }}
-    >
+    <Popover>
       <PopoverTrigger asChild>
         <Button
           variant={'outline'}
@@ -70,7 +61,7 @@ export function DateTimePicker({ date, setDate, label }: DateTimePickerProps) {
           initialFocus
         />
         <div className="p-3 border-t border-border">
-          <TimePicker setDate={setSelectedDate} date={selectedDate} />
+          <TimePicker setDate={setDate} date={date} />
         </div>
       </PopoverContent>
     </Popover>

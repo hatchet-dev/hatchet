@@ -17,7 +17,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import WorkflowGeneralSettings from './components/workflow-general-settings';
 import { WorkflowRunsTable } from '../../workflow-runs/components/workflow-runs-table';
 import { ConfirmDialog } from '@/components/molecules/confirm-dialog';
-import { useTenantContext } from '@/lib/atoms';
+import { useTenant } from '@/lib/atoms';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,7 +26,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 export default function ExpandedWorkflow() {
-  const [tenant] = useTenantContext();
+  const { tenant } = useTenant();
 
   // TODO list previous versions and make selectable
   const [selectedVersion] = useState<string | undefined>();

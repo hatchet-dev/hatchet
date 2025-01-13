@@ -21,6 +21,8 @@ type sharedConfig struct {
 
 // SchedulingPool is responsible for managing a pool of tenantManagers.
 type SchedulingPool struct {
+	Extensions *Extensions
+
 	tenants sync.Map
 	setMu   mutex
 
@@ -33,6 +35,7 @@ func NewSchedulingPool(repo repository.SchedulerRepository, l *zerolog.Logger, s
 	resultsCh := make(chan *QueueResults, 1000)
 
 	s := &SchedulingPool{
+		Extensions: &Extensions{},
 		cf: &sharedConfig{
 			repo:             repo,
 			l:                l,
@@ -62,6 +65,12 @@ func (p *SchedulingPool) cleanup() {
 	})
 
 	p.cleanupTenants(toCleanup)
+
+	err := p.Extensions.Cleanup()
+
+	if err != nil {
+		p.cf.l.Error().Err(err).Msg("failed to cleanup extensions")
+	}
 }
 
 func (p *SchedulingPool) SetTenants(tenants []*dbsqlc.Tenant) {
@@ -103,6 +112,8 @@ func (p *SchedulingPool) SetTenants(tenants []*dbsqlc.Tenant) {
 		// any cleaned up tenants in the map
 		p.cleanupTenants(toCleanup)
 	}()
+
+	go p.Extensions.SetTenants(tenants)
 }
 
 func (p *SchedulingPool) cleanupTenants(toCleanup []*tenantManager) {
@@ -148,7 +159,7 @@ func (p *SchedulingPool) getTenantManager(tenantId string, storeIfNotFound bool)
 
 	if !ok {
 		if storeIfNotFound {
-			tm = newTenantManager(p.cf, tenantId, p.resultsCh)
+			tm = newTenantManager(p.cf, tenantId, p.resultsCh, p.Extensions)
 			p.tenants.Store(tenantId, tm)
 		} else {
 			return nil
