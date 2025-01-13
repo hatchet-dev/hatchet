@@ -30,6 +30,20 @@ func (r *tenantInviteRepository) CreateTenantInvite(tenantId string, opts *repos
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
 	}
+	if opts.MaxPending != 0 {
+		invites, err := r.client.TenantInviteLink.FindMany(
+			db.TenantInviteLink.Status.Equals(db.InviteLinkStatusPending),
+			db.TenantInviteLink.Expires.Gt(time.Now())).Exec(context.Background())
+		if err != nil {
+			r.l.Error().Err(err).Msg("error counting pending invites")
+			return nil, err
+		}
+
+		if len(invites) >= opts.MaxPending {
+			r.l.Error().Msg("max pending invites reached")
+			return nil, fmt.Errorf("max pending invites reached")
+		}
+	}
 
 	til, err := r.client.TenantInviteLink.FindMany(
 		db.TenantInviteLink.InviteeEmail.Equals(opts.InviteeEmail),

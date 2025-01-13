@@ -55,6 +55,7 @@ func (t *TenantService) TenantInviteCreate(ctx echo.Context, request gen.TenantI
 		InviterEmail: user.Email,
 		ExpiresAt:    time.Now().Add(7 * 24 * time.Hour), // 1 week expiration
 		Role:         string(request.Body.Role),
+		MaxPending:   t.config.Runtime.MaxPendingInvites,
 	}
 
 	// create the invite
@@ -62,7 +63,10 @@ func (t *TenantService) TenantInviteCreate(ctx echo.Context, request gen.TenantI
 
 	if err != nil {
 		t.config.Logger.Err(err).Msg("could not create tenant invite")
-		return nil, err
+
+		return gen.TenantInviteCreate403JSONResponse{
+			Description: err.Error(),
+		}, nil
 	}
 
 	// send an email
