@@ -19,11 +19,11 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/cel"
 	"github.com/hatchet-dev/hatchet/internal/datautils"
-	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/queueutils"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/defaults"
-	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
+	srutils "github.com/hatchet-dev/hatchet/internal/steprunutils"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
+	wutils "github.com/hatchet-dev/hatchet/internal/workflowutils"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
@@ -2190,7 +2190,7 @@ func (s *sharedRepository) createNewWorkflowRuns(ctx context.Context, inputOpts 
 				Row: workflowRun,
 			})
 
-			if CanShortCircuit(workflowRun) {
+			if wutils.CanShortCircuit(workflowRun) {
 				shortcircuitableWorkflowRuns = append(shortcircuitableWorkflowRuns, workflowRun)
 			}
 
@@ -2208,7 +2208,7 @@ func (s *sharedRepository) createNewWorkflowRuns(ctx context.Context, inputOpts 
 			// We do this because we bunch all the workflow runs in a single query to get the queue names and after we return we will just
 			// hit the mq with all the queue names.
 
-			createdWorkflowRuns[0].StepRunQueueNames = queueNames
+			createdWorkflowRuns[0].InitialStepRunQueueNames = queueNames
 		}
 
 		err = commit(tx1Ctx)
@@ -2257,13 +2257,18 @@ func (s *sharedRepository) shortCircuitWorkflowRuns(ctx context.Context, tx pgx.
 		return nil, nil, fmt.Errorf("could not set workflow run to running: %w", err)
 	}
 
-	startableStepRuns, err := s.queries.GetStartableStepRunsForWorkflowRuns(ctx, tx, workflowRunIds)
+	startableStepRunIds, err := s.queries.GetStartableStepRunsForWorkflowRuns(ctx, tx, workflowRunIds)
 
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not list startable step runs: %w", err)
 	}
 
-	for _, stepRun := range startableStepRuns {
+	for _, stepRun := range startableStepRunIds {
+
+		stepRun, err := s.getStepRunForEngineTx(ctx, tx, sqlchelpers.UUIDToStr(stepRun.SRTenantId), sqlchelpers.UUIDToStr(stepRun.SRID))
+		if err != nil {
+			return nil, nil, fmt.Errorf("could not get step run for engine: %w", err)
+		}
 
 		cb, err := s.setDataForStepRun(ctx, sqlchelpers.UUIDToStr(stepRun.SRTenantId), stepRun, tx)
 
@@ -2280,20 +2285,25 @@ func (s *sharedRepository) shortCircuitWorkflowRuns(ctx context.Context, tx pgx.
 
 }
 
-func (s *sharedRepository) setDataForStepRun(ctx context.Context, tenantId string, data *dbsqlc.GetStartableStepRunsForWorkflowRunsRow, tx pgx.Tx) (func() (*dbsqlc.GetStepRunForEngineRow, error), error) {
+func (s *sharedRepository) setDataForStepRun(ctx context.Context, tenantId string, sr *dbsqlc.GetStepRunForEngineRow, tx pgx.Tx) (func() (*dbsqlc.GetStepRunForEngineRow, error), error) {
 	errData := map[string]interface{}{
 		"tenant_id":   tenantId,
-		"step_id":     data.StepId,
-		"step_run_id": data.SRID,
+		"step_id":     sr.StepId,
+		"step_run_id": sr.SRID,
 	}
 
 	queueOpts := &repository.QueueStepRunOpts{
 		IsRetry: false,
 	}
+	data, err := s.GetStepRunDataForEngineTx(ctx, tx, tenantId, sqlchelpers.UUIDToStr(sr.SRID))
 
-	inputDataBytes := data.Input
+	if err != nil {
+		return nil, fmt.Errorf("could not get step run data: %w %v", err, errData)
+	}
 
-	if in := data.Input; len(in) == 0 || string(in) == "{}" {
+	inputDataBytes := data.JobRunLookupData
+
+	if srutils.HasNoInput(data) {
 		lookupDataBytes := data.JobRunLookupData
 
 		if lookupDataBytes != nil {
@@ -2308,7 +2318,7 @@ func (s *sharedRepository) setDataForStepRun(ctx context.Context, tenantId strin
 
 			userData := map[string]interface{}{}
 
-			if setUserData := data.StepCustomUserData; len(setUserData) > 0 {
+			if setUserData := sr.StepCustomUserData; len(setUserData) > 0 {
 				err := json.Unmarshal(setUserData, &userData)
 
 				if err != nil {
@@ -2335,7 +2345,7 @@ func (s *sharedRepository) setDataForStepRun(ctx context.Context, tenantId strin
 	}
 
 	if data.ExprCount > 0 {
-		expressions, err := s.queries.GetStepExpressions(ctx, tx, data.StepId)
+		expressions, err := s.queries.GetStepExpressions(ctx, tx, sr.StepId)
 
 		if err != nil {
 			return nil, fmt.Errorf("could not list step expressions: %w %v", err, errData)
@@ -2384,7 +2394,7 @@ func (s *sharedRepository) setDataForStepRun(ctx context.Context, tenantId strin
 		}
 
 	}
-	cb, err := s.queueStepRunWithTx(ctx, tx, tenantId, sqlchelpers.UUIDToStr(data.SRID), queueOpts)
+	cb, err := s.queueStepRunWithTx(ctx, tx, tenantId, sqlchelpers.UUIDToStr(sr.SRID), queueOpts)
 	if err != nil {
 		return nil, fmt.Errorf("could not queue step run: %w", err)
 	}
@@ -2487,67 +2497,4 @@ func bulkWorkflowRunEvents(
 	if err != nil {
 		l.Err(err).Msg("could not create bulk workflow run event")
 	}
-}
-
-func CanShortCircuit(workflowRunRow *dbsqlc.GetWorkflowRunsInsertedInThisTxnRow) bool {
-
-	return !(workflowRunRow.ConcurrencyLimitStrategy.Valid || workflowRunRow.ConcurrencyGroupExpression.Valid || workflowRunRow.GetGroupKeyRunId.Valid || workflowRunRow.WorkflowRun.ConcurrencyGroupId.Valid || workflowRunRow.DedupeValue.Valid || workflowRunRow.FailureJob)
-}
-
-// TODO this shouldn't be in the repo probably, should be at the controller layer but I'm not sure where.
-// I'd rather not pass a repo to it - maybe it's best somewhere tenant related but otherwise we are going to have to pass a tenant
-// and force all the callers to grab a tenant from the DB
-
-func NotifyQueues(ctx context.Context, mq msgqueue.MessageQueue, l *zerolog.Logger, repo repository.EngineRepository, tenantId string, workflowRun *repository.CreatedWorkflowRun) error {
-	tenant, err := repo.Tenant().GetTenantByID(ctx, tenantId)
-
-	if err != nil {
-		l.Err(err).Msg("could not add message to tenant partition queue")
-		return fmt.Errorf("could not get tenant: %w", err)
-	}
-
-	if tenant.ControllerPartitionId.Valid {
-		err = mq.AddMessage(
-			ctx,
-			msgqueue.QueueTypeFromPartitionIDAndController(tenant.ControllerPartitionId.String, msgqueue.WorkflowController),
-
-			tasktypes.CheckTenantQueueToTask(tenantId, "", false, false),
-		)
-
-		if err != nil {
-			l.Err(err).Msg("could not add message to tenant partition queue")
-		}
-	}
-
-	if !CanShortCircuit(workflowRun.Row) {
-		workflowRunId := sqlchelpers.UUIDToStr(workflowRun.Row.WorkflowRun.ID)
-
-		err = mq.AddMessage(
-			ctx,
-			msgqueue.WORKFLOW_PROCESSING_QUEUE,
-			tasktypes.WorkflowRunQueuedToTask(
-				tenantId,
-				workflowRunId,
-			),
-		)
-		if err != nil {
-			return fmt.Errorf("could not add workflow run queued task: %w", err)
-		}
-	} else if tenant.SchedulerPartitionId.Valid {
-
-		for _, queueName := range workflowRun.StepRunQueueNames {
-
-			err = mq.AddMessage(
-				ctx,
-				msgqueue.QueueTypeFromPartitionIDAndController(tenant.SchedulerPartitionId.String, msgqueue.Scheduler),
-				tasktypes.CheckTenantQueueToTask(tenantId, queueName, true, false),
-			)
-
-			if err != nil {
-				l.Err(err).Msg("could not add message to scheduler partition queue")
-			}
-		}
-	}
-
-	return nil
 }

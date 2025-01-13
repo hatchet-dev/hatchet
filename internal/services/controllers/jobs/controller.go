@@ -22,6 +22,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
+	srutils "github.com/hatchet-dev/hatchet/internal/steprunutils"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/internal/telemetry/servertel"
 	"github.com/hatchet-dev/hatchet/pkg/config/shared"
@@ -749,7 +750,7 @@ func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId, stepId
 
 	// If the step run input is not set, then we should set it. This will be set upstream if we've rerun
 	// the step run manually with new inputs. It will not be set when the step is automatically queued.
-	if in := data.Input; len(in) == 0 || string(in) == "{}" {
+	if srutils.HasNoInput(data) {
 		lookupDataBytes := data.JobRunLookupData
 
 		if lookupDataBytes != nil {

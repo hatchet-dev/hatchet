@@ -1839,15 +1839,6 @@ func (s *sharedRepository) queueStepRunWithTx(ctx context.Context, tx dbsqlc.DBT
 			return nil, err
 		}
 
-		err = s.bulkSemaphoreReleaser.FireForget(tenantId, semaphoreReleaseOpts{
-			StepRunId: sqlchelpers.UUIDFromStr(stepRunId),
-			TenantId:  sqlchelpers.UUIDFromStr(tenantId),
-		})
-
-		if err != nil {
-			return nil, fmt.Errorf("could not buffer semaphore release: %w", err)
-		}
-
 		err = s.releaseWorkerSemaphoreSlot(ctx, tenantId, stepRunId)
 
 		if err != nil {
@@ -1945,7 +1936,7 @@ func (s *stepRunEngineRepository) CreateStepRunEvent(ctx context.Context, tenant
 }
 
 // performant query for step run id, only returns what the engine needs
-func (s *stepRunEngineRepository) GetStepRunForEngine(ctx context.Context, tenantId, stepRunId string) (*dbsqlc.GetStepRunForEngineRow, error) {
+func (s *sharedRepository) GetStepRunForEngine(ctx context.Context, tenantId, stepRunId string) (*dbsqlc.GetStepRunForEngineRow, error) {
 	return s.getStepRunForEngineTx(ctx, s.pool, tenantId, stepRunId)
 }
 
@@ -1966,11 +1957,16 @@ func (s *sharedRepository) getStepRunForEngineTx(ctx context.Context, dbtx dbsql
 	return res[0], nil
 }
 
-func (s *stepRunEngineRepository) GetStepRunDataForEngine(ctx context.Context, tenantId, stepRunId string) (*dbsqlc.GetStepRunDataForEngineRow, error) {
-	return s.queries.GetStepRunDataForEngine(ctx, s.pool, dbsqlc.GetStepRunDataForEngineParams{
+func (s *sharedRepository) GetStepRunDataForEngineTx(ctx context.Context, tx dbsqlc.DBTX, tenantId, stepRunId string) (*dbsqlc.GetStepRunDataForEngineRow, error) {
+	return s.queries.GetStepRunDataForEngine(ctx, tx, dbsqlc.GetStepRunDataForEngineParams{
 		ID:       sqlchelpers.UUIDFromStr(stepRunId),
 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
 	})
+}
+
+func (s *sharedRepository) GetStepRunDataForEngine(ctx context.Context, tenantId, stepRunId string) (*dbsqlc.GetStepRunDataForEngineRow, error) {
+
+	return s.GetStepRunDataForEngineTx(ctx, s.pool, tenantId, stepRunId)
 }
 
 func (s *stepRunEngineRepository) GetStepRunBulkDataForEngine(ctx context.Context, tenantId string, stepRunIds []string) ([]*dbsqlc.GetStepRunBulkDataForEngineRow, error) {

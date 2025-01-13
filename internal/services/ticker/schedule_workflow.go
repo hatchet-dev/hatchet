@@ -8,8 +8,8 @@ import (
 
 	"github.com/go-co-op/gocron/v2"
 
+	wutils "github.com/hatchet-dev/hatchet/internal/workflowutils"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 )
@@ -193,7 +193,7 @@ func (t *TickerImpl) runScheduledWorkflow(tenantId, workflowVersionId, scheduled
 			return
 		}
 
-		err = prisma.NotifyQueues(ctx, t.mq, t.l, t.repo, tenantId, workflowRun)
+		err = wutils.NotifyQueues(ctx, t.mq, t.l, t.repo, tenantId, workflowRun)
 
 		if err != nil {
 			t.l.Err(err).Msg("could not notify queues")

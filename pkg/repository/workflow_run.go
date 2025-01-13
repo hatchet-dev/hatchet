@@ -15,8 +15,8 @@ import (
 )
 
 type CreatedWorkflowRun struct {
-	Row               *dbsqlc.GetWorkflowRunsInsertedInThisTxnRow
-	StepRunQueueNames []string
+	Row                      *dbsqlc.GetWorkflowRunsInsertedInThisTxnRow
+	InitialStepRunQueueNames []string
 }
 
 type CreateWorkflowRunOpts struct {

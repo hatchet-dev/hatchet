@@ -12,9 +12,9 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
+	wutils "github.com/hatchet-dev/hatchet/internal/workflowutils"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
@@ -96,7 +96,7 @@ func (t *WorkflowService) WorkflowRunCreate(ctx echo.Context, request gen.Workfl
 		return nil, fmt.Errorf("trigger.go could not create workflow run: %w", err)
 	}
 
-	if !prisma.CanShortCircuit(createdWorkflowRun.Row) {
+	if !wutils.CanShortCircuit(createdWorkflowRun.Row) {
 		// send to workflow processing queue
 		err = t.config.MessageQueue.AddMessage(
 			ctx.Request().Context(),
@@ -112,7 +112,7 @@ func (t *WorkflowService) WorkflowRunCreate(ctx echo.Context, request gen.Workfl
 		}
 	}
 
-	for _, queueName := range createdWorkflowRun.StepRunQueueNames {
+	for _, queueName := range createdWorkflowRun.InitialStepRunQueueNames {
 
 		if schedPartitionId, ok := tenant.SchedulerPartitionID(); ok {
 			err = t.config.MessageQueue.AddMessage(

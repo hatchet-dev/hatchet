@@ -14,9 +14,9 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
+	wutils "github.com/hatchet-dev/hatchet/internal/workflowutils"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma"
 )
 
 type EventsController interface {
@@ -228,7 +228,7 @@ func (ec *EventsControllerImpl) processEvent(ctx context.Context, tenantId, even
 				return fmt.Errorf("processEvent: could not create workflow run: %w", err)
 			}
 			// send to workflow processing queue
-			err = prisma.NotifyQueues(ctx, ec.mq, ec.l, ec.repo, tenantId, workflowRun)
+			err = wutils.NotifyQueues(ctx, ec.mq, ec.l, ec.repo, tenantId, workflowRun)
 			if err != nil {
 				return fmt.Errorf("could not add workflow run queued task: %w", err)
 			}

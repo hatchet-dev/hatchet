@@ -14,10 +14,10 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
+	wutils "github.com/hatchet-dev/hatchet/internal/workflowutils"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 )
@@ -69,7 +69,7 @@ func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.T
 
 	workflowRunId := sqlchelpers.UUIDToStr(workflowRun.Row.WorkflowRun.ID)
 
-	err = prisma.NotifyQueues(ctx, a.mq, a.l, a.repo, tenantId, workflowRun)
+	err = wutils.NotifyQueues(ctx, a.mq, a.l, a.repo, tenantId, workflowRun)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not notify queues: %w", err)
@@ -122,7 +122,7 @@ func (a *AdminServiceImpl) BulkTriggerWorkflow(ctx context.Context, req *contrac
 	var workflowRunIds []string
 	for _, workflowRun := range workflowRuns {
 
-		err = prisma.NotifyQueues(ctx, a.mq, a.l, a.repo, tenantId, workflowRun)
+		err = wutils.NotifyQueues(ctx, a.mq, a.l, a.repo, tenantId, workflowRun)
 		if err != nil {
 			return nil, fmt.Errorf("could not notify queues: %w", err)
 		}
