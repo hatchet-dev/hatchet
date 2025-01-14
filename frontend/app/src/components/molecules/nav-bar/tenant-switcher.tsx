@@ -22,7 +22,7 @@ import {
   PopoverContent,
 } from '@radix-ui/react-popover';
 import React from 'react';
-import { useTenantContext } from '@/lib/atoms';
+import { useTenant } from '@/lib/atoms';
 import { Spinner } from '@/components/ui/loading.tsx';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 
@@ -37,7 +37,7 @@ export function TenantSwitcher({
   currTenant,
 }: TenantSwitcherProps) {
   const meta = useApiMeta();
-  const setCurrTenant = useTenantContext()[1];
+  const { setTenant: setCurrTenant } = useTenant();
   const [open, setOpen] = React.useState(false);
 
   if (!currTenant) {

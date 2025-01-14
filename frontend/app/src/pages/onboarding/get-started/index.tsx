@@ -1,5 +1,5 @@
 import { Loading } from '@/components/ui/loading';
-import { useTenantContext } from '@/lib/atoms';
+import { useTenant } from '@/lib/atoms';
 import { UserContextType, MembershipsContextType } from '@/lib/outlet';
 import { useOutletContext } from 'react-router-dom';
 import {
@@ -56,7 +56,7 @@ const PLATFORMS: {
 export default function GetStarted() {
   const ctx = useOutletContext<UserContextType & MembershipsContextType>();
   const { user, memberships } = ctx;
-  const [currTenant] = useTenantContext();
+  const { tenant: currTenant } = useTenant();
 
   const [steps, setSteps] = useState(DEFAULT_OPEN);
   const [platform, setPlatform] = useState<(typeof PLATFORMS)[0] | undefined>();
