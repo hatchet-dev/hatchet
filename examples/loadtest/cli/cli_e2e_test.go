@@ -23,7 +23,7 @@ func TestLoadCLI(t *testing.T) {
 	timeoutMultiplier := 1
 	if os.Getenv("SERVER_TASKQUEUE_KIND") == "postgres" {
 		log.Println("using postgres, increasing timings for load test")
-		timeoutMultiplier = 10
+		timeoutMultiplier = 20
 	}
 
 	type args struct {
@@ -91,7 +91,7 @@ func TestLoadCLI(t *testing.T) {
 				delay:           0 * time.Second,
 				concurrency:     0,
 				maxPerEventTime: 100 * time.Millisecond,
-				maxPerExecution: 1 * time.Second,
+				maxPerExecution: 1 * time.Second * time.Duration(timeoutMultiplier),
 			},
 		}}
 
@@ -128,6 +128,8 @@ func TestLoadCLI(t *testing.T) {
 	engineCleanupWg.Wait()
 
 	log.Printf("cleanup complete")
+
+	time.Sleep(500 * time.Millisecond) // pgxpool background health check needs time to quit https://github.com/jackc/pgx/issues/1641
 
 	goleak.VerifyNone(
 		t,
