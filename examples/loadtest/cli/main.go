@@ -41,7 +41,7 @@ func main() {
 				"loadtest",
 			)
 			ctx := cmd.Context()
-			if err := do(ctx, duration, events, delay, concurrency, workerDelay, maxPerEventTime, maxPerExecution); err != nil {
+			if err := do(ctx, duration, events, delay, concurrency, workerDelay, maxPerEventTime, maxPerExecution, 1); err != nil {
 				log.Println(err)
 				panic("load test failed")
 			}

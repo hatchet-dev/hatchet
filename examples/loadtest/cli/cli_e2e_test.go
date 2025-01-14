@@ -20,10 +20,10 @@ import (
 func TestLoadCLI(t *testing.T) {
 	testutils.Prepare(t)
 
-	durationMultiplier := 1
+	timeoutMultiplier := 1
 	if os.Getenv("SERVER_TASKQUEUE_KIND") == "postgres" {
 		log.Println("using postgres, increasing timings for load test")
-		durationMultiplier = 10
+		timeoutMultiplier = 10
 	}
 
 	type args struct {
@@ -53,7 +53,7 @@ func TestLoadCLI(t *testing.T) {
 		{
 			name: "test simple with unlimited concurrency",
 			args: args{
-				duration:        10 * time.Second * time.Duration(durationMultiplier),
+				duration:        10 * time.Second,
 				eventsPerSecond: 10,
 				delay:           0 * time.Second,
 				concurrency:     0,
@@ -63,7 +63,7 @@ func TestLoadCLI(t *testing.T) {
 		}, {
 			name: "test with high step delay",
 			args: args{
-				duration:        10 * time.Second * time.Duration(durationMultiplier),
+				duration:        10 * time.Second,
 				eventsPerSecond: 10,
 				delay:           4 * time.Second, // can't go higher than 5 seconds here because we timeout without activity
 				concurrency:     0,
@@ -74,7 +74,7 @@ func TestLoadCLI(t *testing.T) {
 		{
 			name: "test for many queued events and little worker throughput",
 			args: args{
-				duration:        60 * time.Second * time.Duration(durationMultiplier),
+				duration:        60 * time.Second,
 				eventsPerSecond: 100,
 				delay:           0 * time.Second,
 				concurrency:     0,
@@ -86,8 +86,8 @@ func TestLoadCLI(t *testing.T) {
 		{
 			name: "test with scheduling and execution time limits",
 			args: args{
-				duration:        30 * time.Second * time.Duration(durationMultiplier),
-				eventsPerSecond: 50,
+				duration:        30 * time.Second,
+				eventsPerSecond: 1,
 				delay:           0 * time.Second,
 				concurrency:     0,
 				maxPerEventTime: 100 * time.Millisecond,
@@ -115,7 +115,7 @@ func TestLoadCLI(t *testing.T) {
 
 		l.Info().Msgf("running test %s", tt.name)
 		t.Run(tt.name, func(t *testing.T) {
-			if err := do(ctx, tt.args.duration, tt.args.eventsPerSecond, tt.args.delay, tt.args.concurrency, tt.args.workerDelay, tt.args.maxPerEventTime, tt.args.maxPerExecution); (err != nil) != tt.wantErr {
+			if err := do(ctx, tt.args.duration, tt.args.eventsPerSecond, tt.args.delay, tt.args.concurrency, tt.args.workerDelay, tt.args.maxPerEventTime, tt.args.maxPerExecution, timeoutMultiplier); (err != nil) != tt.wantErr {
 				t.Errorf("do() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})

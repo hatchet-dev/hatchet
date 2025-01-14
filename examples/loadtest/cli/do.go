@@ -18,7 +18,7 @@ func generateNamespace() string {
 	return fmt.Sprintf("loadtest-%d", time.Now().Unix())
 }
 
-func do(ctx context.Context, duration time.Duration, eventsPerSecond int, delay time.Duration, concurrency int, workerDelay time.Duration, maxPerEventTime time.Duration, maxPerExecution time.Duration) error {
+func do(ctx context.Context, duration time.Duration, eventsPerSecond int, delay time.Duration, concurrency int, workerDelay time.Duration, maxPerEventTime time.Duration, maxPerExecution time.Duration, timeoutMultiplier int) error {
 	l.Info().Msgf("testing with duration=%s, eventsPerSecond=%d, delay=%s,  concurrency=%d", duration, eventsPerSecond, delay, concurrency)
 	c, err := client.NewFromConfigFile(&clientconfig.ClientConfigFile{
 		Namespace: generateNamespace(),
@@ -90,8 +90,8 @@ func do(ctx context.Context, duration time.Duration, eventsPerSecond int, delay 
 
 	// going to allow 2X the duration for the overall timeout
 	after := duration * 2
-	var movingTimeout = time.Now().Add(duration + after)
-	var totalTimeout = time.Now().Add(duration + after)
+	var movingTimeout = time.Now().Add((duration + after) * time.Duration(timeoutMultiplier))
+	var totalTimeout = time.Now().Add((duration + after) * time.Duration(timeoutMultiplier))
 
 	totalTimeoutTimer := time.NewTimer(time.Until(totalTimeout))
 
