@@ -186,10 +186,12 @@ func getRankedSlots(
 			continue
 		}
 
-		// if this is a HARD sticky strategy, it can only be assigned to the desired worker if the desired
-		// worker id is set. otherwise, it cannot be assigned.
+		// if this is a HARD sticky strategy, and there's a desired worker id, it can only be assigned to that
+		// worker. if there's no desired worker id, we assign to any worker.
 		if qi.Sticky.Valid && qi.Sticky.StickyStrategy == dbsqlc.StickyStrategyHARD {
 			if qi.DesiredWorkerId.Valid && workerId == sqlchelpers.UUIDToStr(qi.DesiredWorkerId) {
+				validSlots.addSlot(slot, 0)
+			} else if !qi.DesiredWorkerId.Valid {
 				validSlots.addSlot(slot, 0)
 			}
 
