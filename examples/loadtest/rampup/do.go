@@ -37,7 +37,7 @@ func Do(ctx context.Context, duration time.Duration, startEventsPerSecond, amoun
 	client, err := client.NewFromConfigFile(
 		&clientconfig.ClientConfigFile{
 			Namespace: generateNamespace(),
-		},
+		}, client.WithLogLevel("warn"),
 	)
 
 	if err != nil {

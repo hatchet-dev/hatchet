@@ -56,7 +56,7 @@ func run(ctx context.Context, results chan<- *stepOutput) error {
 		Namespace: randomNamespace(),
 	}
 	c, err := client.NewFromConfigFile(
-		&cf,
+		&cf, client.WithLogLevel("warn"),
 	)
 
 	if err != nil {
