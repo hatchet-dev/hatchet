@@ -144,10 +144,8 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 			continue
 		}
 
-		if len(qis) == 0 {
-			span.End()
-			continue
-		}
+		// NOTE: we don't terminate early out of this loop because calling `tryAssign` is necessary
+		// for calling the scheduling extensions.
 
 		refillTime := time.Since(checkpoint)
 		checkpoint = time.Now()
