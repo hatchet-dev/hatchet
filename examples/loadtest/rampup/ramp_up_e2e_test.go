@@ -57,6 +57,13 @@ func TestRampUp(t *testing.T) {
 
 	log.Printf("TestRampUp with maxAcceptableDurationSeconds: %s", maxAcceptableDurationSeconds.String())
 
+	timeMultiple := 1
+
+	if os.Getenv("SERVER_TASKQUEUE_KIND") == "postgres" {
+		log.Printf("postgres message queue detected, adjusting timings")
+		timeMultiple = 10
+	}
+
 	tests := []struct {
 		name    string
 		args    RampupArgs
@@ -72,8 +79,8 @@ func TestRampUp(t *testing.T) {
 				delay:                      0 * time.Second,
 				wait:                       10 * time.Second,
 				includeDroppedEvents:       true,
-				maxAcceptableTotalDuration: maxAcceptableDurationSeconds,
-				maxAcceptableScheduleTime:  2 * time.Second,
+				maxAcceptableTotalDuration: maxAcceptableDurationSeconds * time.Duration(timeMultiple),
+				maxAcceptableScheduleTime:  2 * time.Second * time.Duration(timeMultiple),
 				concurrency:                0,
 				passingEventNumber:         10000,
 			},
@@ -88,8 +95,8 @@ func TestRampUp(t *testing.T) {
 				delay:                      0 * time.Second,
 				wait:                       10 * time.Second,
 				includeDroppedEvents:       true,
-				maxAcceptableTotalDuration: 2 * time.Second,
-				maxAcceptableScheduleTime:  50 * time.Millisecond,
+				maxAcceptableTotalDuration: 2 * time.Second * time.Duration(timeMultiple),
+				maxAcceptableScheduleTime:  50 * time.Millisecond * time.Duration(timeMultiple),
 				concurrency:                0,
 				passingEventNumber:         1,
 			},
@@ -104,8 +111,8 @@ func TestRampUp(t *testing.T) {
 				delay:                      0 * time.Second,
 				wait:                       10 * time.Second,
 				includeDroppedEvents:       true,
-				maxAcceptableTotalDuration: 2 * time.Second,
-				maxAcceptableScheduleTime:  150 * time.Millisecond,
+				maxAcceptableTotalDuration: 2 * time.Second * time.Duration(timeMultiple),
+				maxAcceptableScheduleTime:  150 * time.Millisecond * time.Duration(timeMultiple),
 				concurrency:                0,
 				passingEventNumber:         1,
 			},
