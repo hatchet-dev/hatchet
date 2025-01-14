@@ -139,6 +139,22 @@ type logEngineRepository struct {
 	l       *zerolog.Logger
 }
 
+func (le *logAPIRepository) WithAdditionalConfig(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger) repository.LogsAPIRepository {
+	le.pool = pool
+	le.v = v
+	le.l = l
+
+	return le
+}
+
+func (le *logEngineRepository) WithAdditionalConfig(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger) repository.LogsEngineRepository {
+	le.pool = pool
+	le.v = v
+	le.l = l
+
+	return le
+}
+
 func NewLogEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger) repository.LogsEngineRepository {
 	queries := dbsqlc.New()
 

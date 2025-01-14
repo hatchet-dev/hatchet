@@ -44,8 +44,8 @@ type PrismaRepositoryOpts struct {
 	l                    *zerolog.Logger
 	cache                cache.Cacheable
 	metered              *metered.Metered
-	logsEngineRepository func(*pgxpool.Pool, validator.Validator, *zerolog.Logger) repository.LogsEngineRepository
-	logsAPIRepository    func(*pgxpool.Pool, validator.Validator, *zerolog.Logger) repository.LogsAPIRepository
+	logsEngineRepository repository.LogsEngineRepository
+	logsAPIRepository    repository.LogsAPIRepository
 }
 
 func defaultPrismaRepositoryOpts() *PrismaRepositoryOpts {
@@ -78,15 +78,15 @@ func WithMetered(metered *metered.Metered) PrismaRepositoryOpt {
 	}
 }
 
-func WithLogsEngineRepository(newLogsEngineFunc func(*pgxpool.Pool, validator.Validator, *zerolog.Logger) repository.LogsEngineRepository) PrismaRepositoryOpt {
+func WithLogsEngineRepository(newLogsEngine repository.LogsEngineRepository) PrismaRepositoryOpt {
 	return func(opts *PrismaRepositoryOpts) {
-		opts.logsEngineRepository = newLogsEngineFunc
+		opts.logsEngineRepository = newLogsEngine
 	}
 }
 
-func WithLogsAPIRepository(newLogsAPIFunc func(*pgxpool.Pool, validator.Validator, *zerolog.Logger) repository.LogsAPIRepository) PrismaRepositoryOpt {
+func WithLogsAPIRepository(newLogsAPI repository.LogsAPIRepository) PrismaRepositoryOpt {
 	return func(opts *PrismaRepositoryOpts) {
-		opts.logsAPIRepository = newLogsAPIFunc
+		opts.logsAPIRepository = newLogsAPI
 	}
 }
 
@@ -114,7 +114,7 @@ func NewAPIRepository(client *db.PrismaClient, pool *pgxpool.Pool, cf *server.Co
 	if opts.logsAPIRepository == nil {
 		logsAPIRepo = NewLogAPIRepository(pool, opts.v, opts.l)
 	} else {
-		logsAPIRepo = opts.logsAPIRepository(pool, opts.v, opts.l)
+		logsAPIRepo = opts.logsAPIRepository.WithAdditionalConfig(pool, opts.v, opts.l)
 	}
 
 	return &apiRepository{
@@ -343,12 +343,13 @@ func NewEngineRepository(pool *pgxpool.Pool, essentialPool *pgxpool.Pool, cf *se
 	if err != nil {
 		return nil, nil, err
 	}
+	var logRepo repository.LogsEngineRepository
 
 	if opts.logsEngineRepository == nil {
-		opts.logsEngineRepository = NewLogEngineRepository
+		logRepo = NewLogEngineRepository(pool, opts.v, opts.l)
+	} else {
+		logRepo = opts.logsEngineRepository.WithAdditionalConfig(pool, opts.v, opts.l)
 	}
-
-	logRepo := opts.logsEngineRepository(pool, opts.v, opts.l)
 
 	return func() error {
 			rlCache.Stop()

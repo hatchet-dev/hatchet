@@ -15,7 +15,6 @@ import (
 	pgxzero "github.com/jackc/pgx-zerolog"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/tracelog"
-	"github.com/rs/zerolog"
 	"golang.org/x/oauth2"
 
 	"github.com/hatchet-dev/hatchet/internal/integrations/alerting"
@@ -67,8 +66,8 @@ func LoadServerConfigFile(files ...[]byte) (*server.ServerConfigFile, error) {
 }
 
 type RepositoryOverrides struct {
-	LogsEngineRepository func(*pgxpool.Pool, validator.Validator, *zerolog.Logger) repository.LogsEngineRepository
-	LogsAPIRepository    func(*pgxpool.Pool, validator.Validator, *zerolog.Logger) repository.LogsAPIRepository
+	LogsEngineRepository repository.LogsEngineRepository
+	LogsAPIRepository    repository.LogsAPIRepository
 }
 
 type ConfigLoader struct {
@@ -76,11 +75,17 @@ type ConfigLoader struct {
 	RepositoryOverrides RepositoryOverrides
 }
 
+// Deprecated: use InitDataLayer instead
+func (c *ConfigLoader) LoadDatabaseConfig() (*database.Layer, error) {
+	fmt.Println("LoadDatabaseConfig is deprecated and will be removed in a later release, use InitDataLayer instead")
+	return c.InitDataLayer()
+}
+
 func NewConfigLoader(directory string) *ConfigLoader {
 	return &ConfigLoader{directory: directory}
 }
 
-// InitDataLayer intitalizes the database layer  from the configuration
+// InitDataLayer initializes the database layer  from the configuration
 func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 	sharedFilePath := filepath.Join(c.directory, "database.yaml")
 	configFileBytes, err := loaderutils.GetConfigBytes(sharedFilePath)
