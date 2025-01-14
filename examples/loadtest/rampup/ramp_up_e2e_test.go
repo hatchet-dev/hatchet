@@ -61,7 +61,7 @@ func TestRampUp(t *testing.T) {
 
 	if os.Getenv("SERVER_TASKQUEUE_KIND") == "postgres" {
 		log.Printf("postgres message queue detected, adjusting timings")
-		timeMultiple = 10
+		timeMultiple = 5
 	}
 
 	tests := []struct {
