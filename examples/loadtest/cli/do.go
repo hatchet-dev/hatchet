@@ -22,7 +22,7 @@ func do(ctx context.Context, duration time.Duration, eventsPerSecond int, delay 
 	l.Info().Msgf("testing with duration=%s, eventsPerSecond=%d, delay=%s,  concurrency=%d", duration, eventsPerSecond, delay, concurrency)
 	c, err := client.NewFromConfigFile(&clientconfig.ClientConfigFile{
 		Namespace: generateNamespace(),
-	})
+	}, client.WithLogLevel("warn"))
 
 	if err != nil {
 		panic(err)
