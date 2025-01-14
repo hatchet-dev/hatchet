@@ -165,6 +165,7 @@ export interface BuildStep {
 export interface ManagedWorkerRuntimeConfig {
   metadata: APIResourceMeta;
   numReplicas: number;
+  autoscaling?: AutoscalingConfig;
   /** The kind of CPU to use for the worker */
   cpuKind: string;
   /** The number of CPUs to use for the worker */
@@ -288,7 +289,8 @@ export interface CreateManagedWorkerRuntimeConfigRequest {
    * @min 0
    * @max 1000
    */
-  numReplicas: number;
+  numReplicas?: number;
+  autoscaling?: CreateOrUpdateAutoscalingRequest;
   /** The region to deploy the worker to */
   regions?: ManagedWorkerRegion[];
   /** The kind of CPU to use for the worker */
@@ -305,6 +307,14 @@ export interface CreateManagedWorkerRuntimeConfigRequest {
    * @max 65536
    */
   memoryMb: number;
+  /** The kind of GPU to use for the worker */
+  gpuKind?: "a10" | "l40s" | "a100-40gb" | "a100-80gb";
+  /**
+   * The number of GPUs to use for the worker
+   * @min 1
+   * @max 8
+   */
+  gpus?: number;
   actions?: string[];
   /**
    * @min 1
@@ -526,4 +536,48 @@ export interface WorkflowRunEventsMetric {
 
 export interface WorkflowRunEventsMetricsCounts {
   results?: WorkflowRunEventsMetric[];
+}
+
+export interface AutoscalingConfig {
+  waitDuration: string;
+  rollingWindowDuration: string;
+  utilizationScaleUpThreshold: number;
+  utilizationScaleDownThreshold: number;
+  increment: number;
+  targetKind: AutoscalingTargetKind;
+  minAwakeReplicas: number;
+  maxReplicas: number;
+  scaleToZero: boolean;
+}
+
+export enum AutoscalingTargetKind {
+  PORTER = "PORTER",
+  FLY = "FLY",
+}
+
+export interface CreateOrUpdateAutoscalingRequest {
+  waitDuration: string;
+  rollingWindowDuration: string;
+  utilizationScaleUpThreshold: number;
+  utilizationScaleDownThreshold: number;
+  increment: number;
+  targetKind?: AutoscalingTargetKind;
+  minAwakeReplicas: number;
+  maxReplicas: number;
+  scaleToZero: boolean;
+  porter?: CreatePorterAutoscalingRequest;
+  fly?: CreateFlyAutoscalingRequest;
+}
+
+export interface CreatePorterAutoscalingRequest {
+  token: string;
+  targetUrl: "CLOUD" | "DASHBOARD";
+  targetProject: string;
+  targetCluster: string;
+  targetAppName: string;
+}
+
+export interface CreateFlyAutoscalingRequest {
+  autoscalingKey: string;
+  currentReplicas: number;
 }
