@@ -45,10 +45,7 @@ func Middleware() middleware.MiddlewareFunc {
 
 			c.Response().Header().Set("Cross-Origin-Embedder-Policy", "require-corp")
 
-			// The document permits loading into BCGs that use COOP and contain only same-origin documents. This is used to provide cross-origin isolation for a BCG.
-
-			// Documents with same-origin will only open and be opened in the same BCG if both documents are same-origin and have the same-origin directive.
-
+			// Cross-Origin-Opener-Policy prevents a document from being opened in a browsing context that has a different opener than its own. This helps prevent attacks where a document is opened in a new tab or window and is able to navigate the opening document to a malicious URL.
 			c.Response().Header().Set("Cross-Origin-Opener-Policy", "same-origin")
 
 			// Only requests from the same origin (i.e. scheme + host + port) can read the resource.

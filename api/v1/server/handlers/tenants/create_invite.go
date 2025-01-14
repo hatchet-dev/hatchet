@@ -29,13 +29,13 @@ func (t *TenantService) TenantInviteCreate(ctx echo.Context, request gen.TenantI
 	if apiErrors, err := t.config.Validator.ValidateAPI(request.Body); err != nil {
 		return nil, err
 	} else if apiErrors != nil {
-		t.config.Logger.Error().Msg("invalid request")
+		t.config.Logger.Warn().Msg("invalid request")
 		return gen.TenantInviteCreate400JSONResponse(*apiErrors), nil
 	}
 
 	// ensure that this user isn't already a member of the tenant
 	if _, err := t.config.APIRepository.Tenant().GetTenantMemberByEmail(tenant.ID, request.Body.Email); err == nil {
-		t.config.Logger.Error().Msg("this user is already a member of this tenant")
+		t.config.Logger.Warn().Msg("this user is already a member of this tenant")
 		return gen.TenantInviteCreate400JSONResponse(
 			apierrors.NewAPIErrors("this user is already a member of this tenant"),
 		), nil
@@ -43,7 +43,7 @@ func (t *TenantService) TenantInviteCreate(ctx echo.Context, request gen.TenantI
 
 	// if user is not an owner, they cannot change a role to owner
 	if tenantMember.Role != db.TenantMemberRoleOwner && request.Body.Role == gen.OWNER {
-		t.config.Logger.Error().Msg("only an owner can change a role to owner")
+		t.config.Logger.Warn().Msg("only an owner can change a role to owner")
 		return gen.TenantInviteCreate400JSONResponse(
 			apierrors.NewAPIErrors("only an owner can change a role to owner"),
 		), nil

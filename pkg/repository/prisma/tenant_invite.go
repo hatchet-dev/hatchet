@@ -33,7 +33,9 @@ func (r *tenantInviteRepository) CreateTenantInvite(tenantId string, opts *repos
 	if opts.MaxPending != 0 {
 		invites, err := r.client.TenantInviteLink.FindMany(
 			db.TenantInviteLink.Status.Equals(db.InviteLinkStatusPending),
-			db.TenantInviteLink.Expires.Gt(time.Now())).Exec(context.Background())
+			db.TenantInviteLink.Expires.Gt(time.Now()),
+			db.TenantInviteLink.TenantID.Equals(tenantId)).Exec(context.Background())
+
 		if err != nil {
 			r.l.Error().Err(err).Msg("error counting pending invites")
 			return nil, err
