@@ -22,7 +22,7 @@ func TestLoadCLI(t *testing.T) {
 
 	durationMultiplier := 1
 	if os.Getenv("SERVER_TASKQUEUE_KIND") == "postgres" {
-		t.Logger().Info("using postgres, increasing timings for load test")
+		log.Println("using postgres, increasing timings for load test")
 		durationMultiplier = 10
 	}
 
