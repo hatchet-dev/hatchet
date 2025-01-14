@@ -144,7 +144,7 @@ function StickyStrategy({ workflow }: { workflow: WorkflowVersion }) {
 }
 
 function DefaultPriority({ workflow }: { workflow: WorkflowVersion }) {
-  if (!workflow.sticky) {
+  if (!workflow.defaultPriority) {
     return (
       <div className="text-[0.8rem] text-gray-700 dark:text-gray-300">
         There is no default priority set for this workflow.
