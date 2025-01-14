@@ -14,7 +14,7 @@ const workflow: Workflow = {
       name: "logger-step1",
       run: async (ctx) => {
         for (let i = 0; i < 1000; i++) {
-          ctx.Log(`log message ${i}`);
+          ctx.log(`log message ${i}`);
         }
 
         return { step1: "completed step run" };
