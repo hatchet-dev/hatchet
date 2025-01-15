@@ -238,6 +238,9 @@ export const regions = [
   },
 ];
 
+export type ScalingType = 'Autoscaling' | 'Static';
+export const scalingTypes: ScalingType[] = ['Static', 'Autoscaling'];
+
 const createManagedWorkerSchema = z.object({
   name: z.string(),
   buildConfig: z.object({
@@ -343,7 +346,7 @@ export default function CreateWorkerForm({
 
   const [envVars, setEnvVars] = useState<KeyValueType[]>([]);
   const [isIac, setIsIac] = useState(false);
-  const [hasAutoscaling, setHasAutoscaling] = useState(false);
+  const [scalingType, setScalingType] = useState<ScalingType>('Static');
 
   const nameError = errors.name?.message?.toString() || fieldErrors?.name;
   const buildDirError =
@@ -714,18 +717,21 @@ export default function CreateWorkerForm({
                         {...field}
                         value={machineType}
                         onValueChange={(value) => {
-                          const mt = machineTypes.find(
+                          const machineType = machineTypes.find(
                             (i) => i.title === value,
                           );
                           setMachineType(value);
-                          setValue('runtimeConfig.cpus', mt?.cpus || 1);
+                          setValue(
+                            'runtimeConfig.cpus',
+                            machineType?.cpus || 1,
+                          );
                           setValue(
                             'runtimeConfig.memoryMb',
-                            mt?.memoryMb || 1024,
+                            machineType?.memoryMb || 1024,
                           );
                           setValue(
                             'runtimeConfig.cpuKind',
-                            mt?.cpuKind || 'shared',
+                            machineType?.cpuKind || 'shared',
                           );
                         }}
                       >
@@ -757,16 +763,16 @@ export default function CreateWorkerForm({
                 )}
                 <Label>Scaling Method</Label>
                 <Tabs
-                  defaultValue="static"
-                  value={hasAutoscaling ? 'autoscaling' : 'static'}
+                  defaultValue="Static"
+                  value={scalingType}
                   onValueChange={(value) => {
-                    if (value === 'static') {
-                      setHasAutoscaling(false);
+                    if (value === 'Static') {
+                      setScalingType('Static');
                       setValue('runtimeConfig.numReplicas', 1);
                       setValue('runtimeConfig.autoscaling', undefined);
                       return;
                     } else {
-                      setHasAutoscaling(true);
+                      setScalingType('Autoscaling');
                       setValue('runtimeConfig.numReplicas', undefined);
                       setValue('runtimeConfig.autoscaling', {
                         waitDuration: '1m',
@@ -786,14 +792,13 @@ export default function CreateWorkerForm({
                   }}
                 >
                   <TabsList layout="underlined">
-                    <TabsTrigger variant="underlined" value="static">
-                      Static
-                    </TabsTrigger>
-                    <TabsTrigger variant="underlined" value="autoscaling">
-                      Autoscaling
-                    </TabsTrigger>
+                    {scalingTypes.map((type) => (
+                      <TabsTrigger variant="underlined" value={type} key={type}>
+                        {type}
+                      </TabsTrigger>
+                    ))}
                   </TabsList>
-                  <TabsContent value="static" className="pt-4 grid gap-4">
+                  <TabsContent value="Static" className="pt-4 grid gap-4">
                     <Label htmlFor="numReplicas">Number of replicas</Label>
                     <Controller
                       control={control}
@@ -824,7 +829,7 @@ export default function CreateWorkerForm({
                       </div>
                     )}
                   </TabsContent>
-                  <TabsContent value="autoscaling" className="pt-4 grid gap-4">
+                  <TabsContent value="Autoscaling" className="pt-4 grid gap-4">
                     <Label htmlFor="minAwakeReplicas">Min Replicas</Label>
                     <Controller
                       control={control}
@@ -901,7 +906,7 @@ export default function CreateWorkerForm({
                         <AccordionTrigger>
                           Advanced autoscaling settings
                         </AccordionTrigger>
-                        <AccordionContent className="flex flex-col gap-2">
+                        <AccordionContent className="flex flex-col gap-4">
                           <Label htmlFor="waitDuration">Wait Duration</Label>
                           <div className="text-sm text-muted-foreground">
                             How long to wait between autoscaling events. For

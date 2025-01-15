@@ -23,6 +23,8 @@ import {
   getRepoOwnerName,
   machineTypes,
   regions,
+  ScalingType,
+  scalingTypes,
 } from '../../create/components/create-worker-form';
 import {
   ManagedWorker,
@@ -202,9 +204,11 @@ export default function UpdateWorkerForm({
   );
 
   const [isIac, setIsIac] = useState(managedWorker.isIac);
-  const [hasAutoscaling, setHasAutoscaling] = useState(
+  const [scalingType, setScalingType] = useState<ScalingType>(
     managedWorker.runtimeConfigs?.length == 1 &&
-      managedWorker.runtimeConfigs[0].autoscaling != undefined,
+      managedWorker.runtimeConfigs[0].autoscaling != undefined
+      ? 'Autoscaling'
+      : 'Static',
   );
 
   const nameError = errors.name?.message?.toString() || fieldErrors?.name;
@@ -635,16 +639,16 @@ export default function UpdateWorkerForm({
                   )}
                   <Label>Scaling Method</Label>
                   <Tabs
-                    defaultValue="static"
-                    value={hasAutoscaling ? 'autoscaling' : 'static'}
+                    defaultValue="Static"
+                    value={scalingType}
                     onValueChange={(value) => {
-                      if (value === 'static') {
-                        setHasAutoscaling(false);
+                      if (value === 'Static') {
+                        setScalingType('Static');
                         setValue('runtimeConfig.numReplicas', 1);
                         setValue('runtimeConfig.autoscaling', undefined);
                         return;
                       } else {
-                        setHasAutoscaling(true);
+                        setScalingType('Autoscaling');
                         setValue('runtimeConfig.numReplicas', undefined);
                         setValue('runtimeConfig.autoscaling', {
                           waitDuration: '1m',
@@ -664,14 +668,17 @@ export default function UpdateWorkerForm({
                     }}
                   >
                     <TabsList layout="underlined">
-                      <TabsTrigger variant="underlined" value="static">
-                        Static
-                      </TabsTrigger>
-                      <TabsTrigger variant="underlined" value="autoscaling">
-                        Autoscaling
-                      </TabsTrigger>
+                      {scalingTypes.map((type) => (
+                        <TabsTrigger
+                          variant="underlined"
+                          value={type}
+                          key={type}
+                        >
+                          {type}
+                        </TabsTrigger>
+                      ))}
                     </TabsList>
-                    <TabsContent value="static" className="pt-4 grid gap-4">
+                    <TabsContent value="Static" className="pt-4 grid gap-4">
                       <Label htmlFor="numReplicas">Number of replicas</Label>
                       <Controller
                         control={control}
@@ -703,7 +710,7 @@ export default function UpdateWorkerForm({
                       )}
                     </TabsContent>
                     <TabsContent
-                      value="autoscaling"
+                      value="Autoscaling"
                       className="pt-4 grid gap-4"
                     >
                       <Label htmlFor="minAwakeReplicas">Min Replicas</Label>
@@ -782,7 +789,7 @@ export default function UpdateWorkerForm({
                           <AccordionTrigger>
                             Advanced autoscaling settings
                           </AccordionTrigger>
-                          <AccordionContent className="flex flex-col gap-2">
+                          <AccordionContent className="flex flex-col gap-4">
                             <Label htmlFor="waitDuration">Wait Duration</Label>
                             <div className="text-sm text-muted-foreground">
                               How long to wait between autoscaling events. For
