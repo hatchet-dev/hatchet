@@ -30,8 +30,25 @@ type sharedRepository struct {
 
 	// TODO is the following used?
 	wrRunningCallbacks []repository.TenantScopedCallback[pgtype.UUID]
-	// TODO it is unclear to how to register callbacks for step run creation
-	createStepRunCallbacks []repository.TenantScopedCallback[pgtype.UUID]
+
+	createWorkflowRunCallbacks []repository.TenantScopedCallback[*dbsqlc.WorkflowRun]
+	createStepRunCallbacks     []repository.TenantScopedCallback[pgtype.UUID]
+}
+
+func (s *sharedRepository) RegisterCreateWorkflowRunCallback(callback repository.TenantScopedCallback[*dbsqlc.WorkflowRun]) {
+	if s.createWorkflowRunCallbacks == nil {
+		s.createWorkflowRunCallbacks = make([]repository.TenantScopedCallback[*dbsqlc.WorkflowRun], 0)
+	}
+
+	s.createWorkflowRunCallbacks = append(s.createWorkflowRunCallbacks, callback)
+}
+
+func (s *sharedRepository) RegisterStepRunCreateCallback(callback repository.TenantScopedCallback[pgtype.UUID]) {
+	if s.createStepRunCallbacks == nil {
+		s.createStepRunCallbacks = make([]repository.TenantScopedCallback[pgtype.UUID], 0)
+	}
+
+	s.createStepRunCallbacks = append(s.createStepRunCallbacks, callback)
 }
 
 func newSharedRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, cf *server.ConfigFileRuntime) (*sharedRepository, func() error, error) {

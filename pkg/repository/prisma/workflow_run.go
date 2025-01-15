@@ -55,6 +55,9 @@ func (w *workflowRunAPIRepository) RegisterCreateCallback(callback repository.Te
 	}
 
 	w.createCallbacks = append(w.createCallbacks, callback)
+
+	// also register for the shared repository
+	w.sharedRepository.RegisterCreateWorkflowRunCallback(callback)
 }
 
 func (w *workflowRunAPIRepository) RegisterStepRunCreateCallback(callback repository.TenantScopedCallback[pgtype.UUID]) {
@@ -63,7 +66,9 @@ func (w *workflowRunAPIRepository) RegisterStepRunCreateCallback(callback reposi
 	}
 
 	w.stepRunCreateCallbacks = append(w.stepRunCreateCallbacks, callback)
-	fmt.Println("step run create callbacks A", len(w.stepRunCreateCallbacks))
+
+	// also register for the shared repository
+	w.sharedRepository.RegisterStepRunCreateCallback(callback)
 }
 
 func (w *workflowRunAPIRepository) ListWorkflowRuns(ctx context.Context, tenantId string, opts *repository.ListWorkflowRunsOpts) (*repository.ListWorkflowRunsResult, error) {
@@ -646,6 +651,9 @@ func (w *workflowRunEngineRepository) RegisterCreateCallback(callback repository
 	}
 
 	w.createCallbacks = append(w.createCallbacks, callback)
+
+	// also register for the shared repository
+	w.sharedRepository.RegisterCreateWorkflowRunCallback(callback)
 }
 
 func (w *workflowRunEngineRepository) RegisterQueuedCallback(callback repository.TenantScopedCallback[pgtype.UUID]) {
@@ -662,7 +670,9 @@ func (w *workflowRunEngineRepository) RegisterStepRunCreateCallback(callback rep
 	}
 
 	w.stepRunCreateCallbacks = append(w.stepRunCreateCallbacks, callback)
-	fmt.Println("step run create callbacks E", len(w.stepRunCreateCallbacks))
+
+	// also register for the shared repository
+	w.sharedRepository.RegisterStepRunCreateCallback(callback)
 }
 
 func (w *workflowRunEngineRepository) getWorkflowRunByIdWithTx(ctx context.Context, tx dbsqlc.DBTX, tenantId, id string) (*dbsqlc.GetWorkflowRunRow, error) {
@@ -2184,12 +2194,9 @@ func createNewWorkflowRuns(
 
 			fmt.Println("step run create callbacks", len(stepRunCreateCallbacks))
 			for _, cb := range stepRunCreateCallbacks {
-				fmt.Println("step run create callbacks")
 				for i := range tenantIds {
-					go func(tenantIdStr string, stepRunId pgtype.UUID) {
-						fmt.Println("step run create callbacks", tenantIdStr, stepRunId)
-						cb.Do(l, tenantIdStr, stepRunId)
-					}(sqlchelpers.UUIDToStr(tenantIds[i]), stepRunIds[i])
+					fmt.Println("step run create callbacks", sqlchelpers.UUIDToStr(tenantIds[i]), stepRunIds[i])
+					cb.Do(l, sqlchelpers.UUIDToStr(tenantIds[i]), stepRunIds[i])
 				}
 			}
 
