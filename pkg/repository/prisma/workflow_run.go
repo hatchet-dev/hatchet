@@ -2165,9 +2165,12 @@ func createNewWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbs
 				return nil, err
 			}
 
+			fmt.Println("step run create callbacks", len(stepRunCreateCallbacks))
 			for _, callback := range stepRunCreateCallbacks {
+				fmt.Println("step run create callbacks")
 				for i := range tenantIds {
 					go func(tenantIdStr string, stepRunId pgtype.UUID) {
+						fmt.Println("step run create callbacks", tenantIdStr, stepRunId)
 						callback(tenantIdStr, stepRunId)
 					}(sqlchelpers.UUIDToStr(tenantIds[i]), stepRunIds[i])
 				}
