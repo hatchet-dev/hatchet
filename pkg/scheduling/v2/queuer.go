@@ -3,6 +3,7 @@ package v2
 import (
 	"context"
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 
@@ -143,10 +144,8 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 			continue
 		}
 
-		if len(qis) == 0 {
-			span.End()
-			continue
-		}
+		// NOTE: we don't terminate early out of this loop because calling `tryAssign` is necessary
+		// for calling the scheduling extensions.
 
 		refillTime := time.Since(checkpoint)
 		checkpoint = time.Now()
@@ -305,6 +304,13 @@ func (q *Queuer) refillQueue(ctx context.Context) ([]*dbsqlc.QueueItem, error) {
 	for _, qi := range newCurr {
 		q.unacked[qi.ID] = struct{}{}
 	}
+
+	sort.Slice(newCurr, func(i, j int) bool {
+		if newCurr[i].Priority == newCurr[j].Priority {
+			return newCurr[i].ID < newCurr[j].ID
+		}
+		return newCurr[i].Priority > newCurr[j].Priority
+	})
 
 	return newCurr, nil
 }

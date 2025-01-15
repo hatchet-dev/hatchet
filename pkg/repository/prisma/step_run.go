@@ -1828,12 +1828,6 @@ func (s *stepRunEngineRepository) QueueStepRun(ctx context.Context, tenantId, st
 		return nil, err
 	}
 
-	err = s.releaseWorkerSemaphoreSlot(ctx, tenantId, stepRunId)
-
-	if err != nil {
-		return nil, err
-	}
-
 	return innerStepRun, nil
 }
 

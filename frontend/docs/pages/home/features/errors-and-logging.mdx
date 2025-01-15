@@ -88,9 +88,9 @@ err = w.RegisterWorkflow(
 		Description: "This is an example workflow with logging.",
 		Steps: []*worker.WorkflowStep{
 			worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
-				ctx.log("Starting step execution")
+				ctx.Log("Starting step execution")
         result := someOperation()
-        ctx.log(fmt.Sprintf("Operation result: %v", result))
+        ctx.Log(fmt.Sprintf("Operation result: %v", result))
 
     		}).SetName("step-one"),
     },

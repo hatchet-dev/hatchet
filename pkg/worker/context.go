@@ -49,6 +49,8 @@ type HatchetContext interface {
 
 	StepRunId() string
 
+	StepId() string
+
 	WorkflowRunId() string
 
 	Log(message string)
@@ -206,6 +208,10 @@ func (h *hatchetContext) StepName() string {
 
 func (h *hatchetContext) StepRunId() string {
 	return h.a.StepRunId
+}
+
+func (h *hatchetContext) StepId() string {
+	return h.a.StepId
 }
 
 func (h *hatchetContext) WorkflowRunId() string {
