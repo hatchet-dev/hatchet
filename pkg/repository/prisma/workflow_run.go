@@ -2192,10 +2192,8 @@ func createNewWorkflowRuns(
 				return nil, err
 			}
 
-			fmt.Println("step run create callbacks", len(stepRunCreateCallbacks))
 			for _, cb := range stepRunCreateCallbacks {
 				for i := range tenantIds {
-					fmt.Println("step run create callbacks", sqlchelpers.UUIDToStr(tenantIds[i]), stepRunIds[i])
 					cb.Do(l, sqlchelpers.UUIDToStr(tenantIds[i]), stepRunIds[i])
 				}
 			}
