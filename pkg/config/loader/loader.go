@@ -326,6 +326,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 			ingestor.WithLogRepository(dc.EngineRepository.Log()),
 			ingestor.WithMessageQueue(mq),
 			ingestor.WithEntitlementsRepository(dc.EntitlementRepository),
+			ingestor.WithStepRunRepository(dc.EngineRepository.StepRun()),
 		)
 
 		if err != nil {

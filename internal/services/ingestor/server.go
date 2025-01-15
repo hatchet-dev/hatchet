@@ -228,7 +228,13 @@ func (i *IngestorImpl) PutLog(ctx context.Context, req *contracts.PutLogRequest)
 		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", apiErrors.String())
 	}
 
-	_, err := i.logRepository.PutLog(ctx, tenantId, opts)
+	// TODO is this actually checked somewhere else?
+	_, err := i.stepRunRepository.GetStepRunForEngine(ctx, tenantId, req.StepRunId)
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = i.logRepository.PutLog(ctx, tenantId, opts)
 
 	if err != nil {
 		return nil, err

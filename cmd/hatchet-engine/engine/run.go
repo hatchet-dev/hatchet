@@ -360,6 +360,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			),
 			ingestor.WithMessageQueue(sc.MessageQueue),
 			ingestor.WithEntitlementsRepository(sc.EntitlementRepository),
+			ingestor.WithStepRunRepository(sc.EngineRepository.StepRun()),
 		)
 
 		if err != nil {
@@ -720,6 +721,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			),
 			ingestor.WithMessageQueue(sc.MessageQueue),
 			ingestor.WithEntitlementsRepository(sc.EntitlementRepository),
+			ingestor.WithStepRunRepository(sc.EngineRepository.StepRun()),
 		)
 
 		if err != nil {

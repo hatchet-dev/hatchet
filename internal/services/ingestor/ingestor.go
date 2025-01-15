@@ -30,6 +30,7 @@ type IngestorOpts struct {
 	streamEventRepository  repository.StreamEventsEngineRepository
 	logRepository          repository.LogsEngineRepository
 	entitlementsRepository repository.EntitlementsRepository
+	stepRunRepository      repository.StepRunEngineRepository
 	mq                     msgqueue.MessageQueue
 }
 
@@ -63,6 +64,12 @@ func WithMessageQueue(mq msgqueue.MessageQueue) IngestorOptFunc {
 	}
 }
 
+func WithStepRunRepository(r repository.StepRunEngineRepository) IngestorOptFunc {
+	return func(opts *IngestorOpts) {
+		opts.stepRunRepository = r
+	}
+}
+
 func defaultIngestorOpts() *IngestorOpts {
 	return &IngestorOpts{}
 }
@@ -74,6 +81,7 @@ type IngestorImpl struct {
 	logRepository          repository.LogsEngineRepository
 	streamEventRepository  repository.StreamEventsEngineRepository
 	entitlementsRepository repository.EntitlementsRepository
+	stepRunRepository      repository.StepRunEngineRepository
 
 	mq msgqueue.MessageQueue
 	v  validator.Validator
@@ -102,10 +110,15 @@ func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
 		return nil, fmt.Errorf("task queue is required. use WithMessageQueue")
 	}
 
+	if opts.stepRunRepository == nil {
+		return nil, fmt.Errorf("step run repository is required. use WithStepRunRepository")
+	}
+
 	return &IngestorImpl{
 		eventRepository:        opts.eventRepository,
 		streamEventRepository:  opts.streamEventRepository,
 		entitlementsRepository: opts.entitlementsRepository,
+		stepRunRepository:      opts.stepRunRepository,
 
 		logRepository: opts.logRepository,
 		mq:            opts.mq,
