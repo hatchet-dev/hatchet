@@ -9,7 +9,7 @@ import (
 
 func Start(cf *loader.ConfigLoader, interruptCh <-chan interface{}, version string) error {
 	// init the repository
-	configCleanup, sc, err := cf.LoadServerConfig(version)
+	configCleanup, sc, err := cf.CreateServerFromConfig(version)
 	if err != nil {
 		return fmt.Errorf("error loading server config: %w", err)
 	}

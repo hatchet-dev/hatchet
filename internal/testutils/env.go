@@ -58,7 +58,7 @@ func Prepare(t *testing.T) {
 	// read in the local config
 	configLoader := loader.NewConfigLoader(path.Join(testPath, baseDir, "generated"))
 
-	cleanup, serverConf, err := configLoader.LoadServerConfig("", func(scf *server.ServerConfigFile) {
+	cleanup, serverConf, err := configLoader.CreateServerFromConfig("", func(scf *server.ServerConfigFile) {
 		// disable security checks since we're not running the server
 		scf.SecurityCheck.Enabled = false
 	})

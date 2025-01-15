@@ -243,8 +243,8 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 
 type ServerConfigFileOverride func(*server.ServerConfigFile)
 
-// LoadServerConfig loads the server configuration and returns a running server
-func (c *ConfigLoader) LoadServerConfig(version string, overrides ...ServerConfigFileOverride) (cleanup func() error, res *server.ServerConfig, err error) {
+// CreateServerFromConfig loads the server configuration and returns a running server
+func (c *ConfigLoader) CreateServerFromConfig(version string, overrides ...ServerConfigFileOverride) (cleanup func() error, res *server.ServerConfig, err error) {
 
 	log.Printf("Loading server config from %s", c.directory)
 	sharedFilePath := filepath.Join(c.directory, "server.yaml")
@@ -254,7 +254,7 @@ func (c *ConfigLoader) LoadServerConfig(version string, overrides ...ServerConfi
 	if err != nil {
 		return nil, nil, err
 	}
-	// LoadDatabaseConfig actually loads all of the files
+
 	dc, err := c.InitDataLayer()
 	if err != nil {
 		return nil, nil, err
@@ -269,10 +269,10 @@ func (c *ConfigLoader) LoadServerConfig(version string, overrides ...ServerConfi
 		override(cf)
 	}
 
-	return GetServerConfigFromConfigfile(dc, cf, version)
+	return createControllerLayer(dc, cf, version)
 }
 
-func GetServerConfigFromConfigfile(dc *database.Layer, cf *server.ServerConfigFile, version string) (cleanup func() error, res *server.ServerConfig, err error) {
+func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, version string) (cleanup func() error, res *server.ServerConfig, err error) {
 	l := logger.NewStdErr(&cf.Logger, "server")
 	queueLogger := logger.NewStdErr(&cf.AdditionalLoggers.Queue, "queue")
 

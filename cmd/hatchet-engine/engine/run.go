@@ -60,7 +60,7 @@ func init() {
 }
 
 func Run(ctx context.Context, cf *loader.ConfigLoader, version string) error {
-	serverCleanup, sc, err := cf.LoadServerConfig(version)
+	serverCleanup, sc, err := cf.CreateServerFromConfig(version)
 	if err != nil {
 		return fmt.Errorf("could not load server config: %w", err)
 	}

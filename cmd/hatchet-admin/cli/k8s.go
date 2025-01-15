@@ -236,7 +236,7 @@ func runCreateWorkerToken() error {
 	// read in the local config
 	configLoader := loader.NewConfigLoader(configDirectory)
 
-	cleanup, serverConf, err := configLoader.LoadServerConfig("", func(scf *server.ServerConfigFile) {
+	cleanup, serverConf, err := configLoader.CreateServerFromConfig("", func(scf *server.ServerConfigFile) {
 		// disable rabbitmq since it's not needed to create the api token
 		scf.MessageQueue.Enabled = false
 
