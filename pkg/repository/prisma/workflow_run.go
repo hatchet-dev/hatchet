@@ -63,6 +63,7 @@ func (w *workflowRunAPIRepository) RegisterStepRunCreateCallback(callback reposi
 	}
 
 	w.stepRunCreateCallbacks = append(w.stepRunCreateCallbacks, callback)
+	fmt.Println("step run create callbacks A", len(w.stepRunCreateCallbacks))
 }
 
 func (w *workflowRunAPIRepository) ListWorkflowRuns(ctx context.Context, tenantId string, opts *repository.ListWorkflowRunsOpts) (*repository.ListWorkflowRunsResult, error) {
@@ -664,6 +665,7 @@ func (w *workflowRunEngineRepository) RegisterStepRunCreateCallback(callback rep
 	}
 
 	w.stepRunCreateCallbacks = append(w.stepRunCreateCallbacks, callback)
+	fmt.Println("step run create callbacks E", len(w.stepRunCreateCallbacks))
 }
 
 func (w *workflowRunEngineRepository) getWorkflowRunByIdWithTx(ctx context.Context, tx dbsqlc.DBTX, tenantId, id string) (*dbsqlc.GetWorkflowRunRow, error) {
