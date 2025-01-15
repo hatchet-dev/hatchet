@@ -262,6 +262,7 @@ func (w *workflowRunAPIRepository) CreateNewWorkflowRun(ctx context.Context, ten
 				w.queries,
 				w.l,
 				[]*repository.CreateWorkflowRunOpts{opts},
+				w.createCallbacks,
 				w.stepRunCreateCallbacks,
 			)
 
@@ -272,10 +273,6 @@ func (w *workflowRunAPIRepository) CreateNewWorkflowRun(ctx context.Context, ten
 		}
 
 		id := sqlchelpers.UUIDToStr(wfr.ID)
-
-		for _, cb := range w.createCallbacks {
-			cb.Do(w.l, tenantId, wfr)
-		}
 
 		return &id, wfr, nil
 	})
@@ -1272,7 +1269,7 @@ func (w *workflowRunAPIRepository) BulkCreateWorkflowRuns(ctx context.Context, o
 
 	w.l.Debug().Msgf("bulk creating %d workflow runs", len(opts))
 
-	return createNewWorkflowRuns(ctx, w.pool, w.queries, w.l, opts, w.stepRunCreateCallbacks)
+	return createNewWorkflowRuns(ctx, w.pool, w.queries, w.l, opts, w.createCallbacks, w.stepRunCreateCallbacks)
 }
 
 // this is single tenant
@@ -1295,16 +1292,18 @@ func (w *workflowRunEngineRepository) CreateNewWorkflowRuns(ctx context.Context,
 
 	wfrs, err := metered.MakeMetered(ctx, w.m, dbsqlc.LimitResourceWORKFLOWRUN, tenantId, int32(meteredAmount), func() (*string, *[]*dbsqlc.WorkflowRun, error) { // nolint: gosec
 
-		wfrs, err := createNewWorkflowRuns(ctx, w.pool, w.queries, w.l, opts, w.stepRunCreateCallbacks)
+		wfrs, err := createNewWorkflowRuns(
+			ctx,
+			w.pool,
+			w.queries,
+			w.l,
+			opts,
+			w.createCallbacks,
+			w.stepRunCreateCallbacks,
+		)
 
 		if err != nil {
 			return nil, nil, err
-		}
-
-		for _, cb := range w.createCallbacks {
-			for _, wfr := range wfrs {
-				cb.Do(w.l, tenantId, wfr) // nolint: errcheck
-			}
 		}
 
 		ids := make([]string, len(wfrs))
@@ -1345,7 +1344,15 @@ func (w *workflowRunEngineRepository) CreateNewWorkflowRun(ctx context.Context, 
 				return nil, nil, err
 			}
 		} else {
-			wfrs, err := createNewWorkflowRuns(ctx, w.pool, w.queries, w.l, []*repository.CreateWorkflowRunOpts{opts}, w.stepRunCreateCallbacks)
+			wfrs, err := createNewWorkflowRuns(
+				ctx,
+				w.pool,
+				w.queries,
+				w.l,
+				[]*repository.CreateWorkflowRunOpts{opts},
+				w.createCallbacks,
+				w.stepRunCreateCallbacks,
+			)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -1803,7 +1810,15 @@ func workflowRunMetricsCount(ctx context.Context, pool *pgxpool.Pool, queries *d
 	return workflowRunsCount, nil
 }
 
-func createNewWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbsqlc.Queries, l *zerolog.Logger, inputOpts []*repository.CreateWorkflowRunOpts, stepRunCreateCallbacks []repository.TenantScopedCallback[pgtype.UUID]) ([]*dbsqlc.WorkflowRun, error) {
+func createNewWorkflowRuns(
+	ctx context.Context,
+	pool *pgxpool.Pool,
+	queries *dbsqlc.Queries,
+	l *zerolog.Logger,
+	inputOpts []*repository.CreateWorkflowRunOpts,
+	createCallbacks []repository.TenantScopedCallback[*dbsqlc.WorkflowRun],
+	stepRunCreateCallbacks []repository.TenantScopedCallback[pgtype.UUID],
+) ([]*dbsqlc.WorkflowRun, error) {
 
 	ctx, span := telemetry.NewSpan(ctx, "db-create-new-workflow-runs")
 	defer span.End()
@@ -2168,12 +2183,12 @@ func createNewWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbs
 			}
 
 			fmt.Println("step run create callbacks", len(stepRunCreateCallbacks))
-			for _, callback := range stepRunCreateCallbacks {
+			for _, cb := range stepRunCreateCallbacks {
 				fmt.Println("step run create callbacks")
 				for i := range tenantIds {
 					go func(tenantIdStr string, stepRunId pgtype.UUID) {
 						fmt.Println("step run create callbacks", tenantIdStr, stepRunId)
-						callback(tenantIdStr, stepRunId)
+						cb.Do(l, tenantIdStr, stepRunId)
 					}(sqlchelpers.UUIDToStr(tenantIds[i]), stepRunIds[i])
 				}
 			}
@@ -2203,6 +2218,12 @@ func createNewWorkflowRuns(ctx context.Context, pool *pgxpool.Pool, queries *dbs
 
 	if err != nil {
 		return nil, err
+	}
+
+	for _, cb := range createCallbacks {
+		for _, wfr := range sqlcWorkflowRuns {
+			cb.Do(l, sqlchelpers.UUIDToStr(wfr.TenantId), wfr) // nolint: errcheck
+		}
 	}
 
 	return sqlcWorkflowRuns, nil
