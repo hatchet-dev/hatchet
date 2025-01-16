@@ -2266,3 +2266,12 @@ func bulkWorkflowRunEvents(
 		l.Err(err).Msg("could not create bulk workflow run event")
 	}
 }
+
+func getFailedStepErrors(
+	ctx context.Context,
+	queries *dbsqlc.Queries,
+	dbtx dbsqlc.DBTX,
+	stepRunId pgtype.UUID,
+) ([]*dbsqlc.GetUpstreamErrorsForOnFailureStepRow, error) {
+	return queries.GetUpstreamErrorsForOnFailureStep(ctx, dbtx, stepRunId)
+}

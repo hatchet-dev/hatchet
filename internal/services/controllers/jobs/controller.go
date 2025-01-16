@@ -750,6 +750,18 @@ func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId, stepId
 	// If the step run input is not set, then we should set it. This will be set upstream if we've rerun
 	// the step run manually with new inputs. It will not be set when the step is automatically queued.
 	if in := data.Input; len(in) == 0 || string(in) == "{}" {
+		upstreamErrors := make(map[string]string)
+
+		if stepRun.JobKind == dbsqlc.JobKindONFAILURE {
+			failedStepErrors, err := ec.repo.WorkflowRun().GetUpstreamErrorsForOnFailureStep(ctx, stepRunId)
+
+			if err == nil {
+				for _, failedStepError := range failedStepErrors {
+					upstreamErrors[failedStepError.StepReadableId.String] = failedStepError.Error.String
+				}
+			}
+		}
+
 		lookupDataBytes := data.JobRunLookupData
 
 		if lookupDataBytes != nil {
@@ -779,6 +791,7 @@ func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId, stepId
 				Parents:     lookupData.Steps,
 				UserData:    userData,
 				Overrides:   map[string]interface{}{},
+				Errors:      upstreamErrors,
 			}
 
 			inputDataBytes, err = json.Marshal(inputData)

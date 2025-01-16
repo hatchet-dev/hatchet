@@ -1596,7 +1596,7 @@ func (q *Queries) GetStepsForWorkflowVersion(ctx context.Context, db DBTX, workf
 	return items, nil
 }
 
-const getUpstreamErrors = `-- name: GetUpstreamErrors :many
+const getUpstreamErrorsForOnFailureStep = `-- name: GetUpstreamErrorsForOnFailureStep :many
 WITH workflow_run AS (
     SELECT wr."id"
     FROM "WorkflowRun" wr
@@ -1620,21 +1620,21 @@ WHERE
     AND sr."error" IS NOT NULL
 `
 
-type GetUpstreamErrorsRow struct {
+type GetUpstreamErrorsForOnFailureStepRow struct {
 	StepRunId      pgtype.UUID `json:"stepRunId"`
 	StepReadableId pgtype.Text `json:"stepReadableId"`
 	Error          pgtype.Text `json:"error"`
 }
 
-func (q *Queries) GetUpstreamErrors(ctx context.Context, db DBTX, steprunid pgtype.UUID) ([]*GetUpstreamErrorsRow, error) {
-	rows, err := db.Query(ctx, getUpstreamErrors, steprunid)
+func (q *Queries) GetUpstreamErrorsForOnFailureStep(ctx context.Context, db DBTX, onfailuresteprunid pgtype.UUID) ([]*GetUpstreamErrorsForOnFailureStepRow, error) {
+	rows, err := db.Query(ctx, getUpstreamErrorsForOnFailureStep, onfailuresteprunid)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*GetUpstreamErrorsRow
+	var items []*GetUpstreamErrorsForOnFailureStepRow
 	for rows.Next() {
-		var i GetUpstreamErrorsRow
+		var i GetUpstreamErrorsForOnFailureStepRow
 		if err := rows.Scan(&i.StepRunId, &i.StepReadableId, &i.Error); err != nil {
 			return nil, err
 		}
