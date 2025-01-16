@@ -1568,9 +1568,6 @@ FROM "WorkflowRun" wr
 JOIN "JobRun" jr ON wr."id" = jr."workflowRunId"
 JOIN "StepRun" sr ON jr."id" = sr."jobRunId"
 JOIN "Step" s ON sr."stepId" = s."id"
-JOIN "Job" j ON jr."jobId" = j.id
 WHERE
     wr."id" = (SELECT "id" FROM workflow_run)
-    -- Don't include the on-failure step in the step runs listed
-    AND j."kind" <> 'ON_FAILURE'
     AND sr."error" IS NOT NULL;
