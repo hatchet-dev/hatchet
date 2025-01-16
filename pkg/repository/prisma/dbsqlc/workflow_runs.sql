@@ -1552,7 +1552,7 @@ DELETE FROM "WorkflowTriggerScheduledRef"
 WHERE
     "id" = @scheduleId::uuid;
 
--- name: GetUpstreamErrors :one
+-- name: GetUpstreamErrors :many
 WITH workflow_run AS (
     SELECT wr."id"
     FROM "WorkflowRun" wr

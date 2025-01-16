@@ -1596,7 +1596,7 @@ func (q *Queries) GetStepsForWorkflowVersion(ctx context.Context, db DBTX, workf
 	return items, nil
 }
 
-const getUpstreamErrors = `-- name: GetUpstreamErrors :one
+const getUpstreamErrors = `-- name: GetUpstreamErrors :many
 WITH workflow_run AS (
     SELECT wr."id"
     FROM "WorkflowRun" wr
@@ -1626,11 +1626,24 @@ type GetUpstreamErrorsRow struct {
 	Error          pgtype.Text `json:"error"`
 }
 
-func (q *Queries) GetUpstreamErrors(ctx context.Context, db DBTX, steprunid pgtype.UUID) (*GetUpstreamErrorsRow, error) {
-	row := db.QueryRow(ctx, getUpstreamErrors, steprunid)
-	var i GetUpstreamErrorsRow
-	err := row.Scan(&i.StepRunId, &i.StepReadableId, &i.Error)
-	return &i, err
+func (q *Queries) GetUpstreamErrors(ctx context.Context, db DBTX, steprunid pgtype.UUID) ([]*GetUpstreamErrorsRow, error) {
+	rows, err := db.Query(ctx, getUpstreamErrors, steprunid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*GetUpstreamErrorsRow
+	for rows.Next() {
+		var i GetUpstreamErrorsRow
+		if err := rows.Scan(&i.StepRunId, &i.StepReadableId, &i.Error); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getWorkflowRun = `-- name: GetWorkflowRun :many
