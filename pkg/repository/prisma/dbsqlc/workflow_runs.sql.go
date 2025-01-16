@@ -2823,13 +2823,16 @@ WITH workflow_runs AS (
     SELECT
         wr."id"
     FROM "WorkflowRun" wr
-    WHERE wr."id" IN (
-        SELECT
-            id
-        FROM eligible_runs_per_group
-        ORDER BY "rn", "seqnum" ASC
-        LIMIT LEAST(500, ($3::int) * (SELECT COUNT(DISTINCT "concurrencyGroupId") FROM workflow_runs))
-    )
+    WHERE 
+        wr."id" IN (
+            SELECT
+                id
+            FROM eligible_runs_per_group
+            ORDER BY "rn", "seqnum" ASC
+            LIMIT ($3::int) * (SELECT COUNT(DISTINCT "concurrencyGroupId") FROM workflow_runs)
+        )
+        AND wr."status" = 'QUEUED'
+    LIMIT 500
     FOR UPDATE SKIP LOCKED
 )
 UPDATE "WorkflowRun"
@@ -2838,8 +2841,7 @@ SET
 FROM
     eligible_runs
 WHERE
-    "WorkflowRun".id = eligible_runs.id AND
-    "WorkflowRun"."status" = 'QUEUED'
+    "WorkflowRun".id = eligible_runs.id
 RETURNING
     "WorkflowRun"."createdAt", "WorkflowRun"."updatedAt", "WorkflowRun"."deletedAt", "WorkflowRun"."tenantId", "WorkflowRun"."workflowVersionId", "WorkflowRun".status, "WorkflowRun".error, "WorkflowRun"."startedAt", "WorkflowRun"."finishedAt", "WorkflowRun"."concurrencyGroupId", "WorkflowRun"."displayName", "WorkflowRun".id, "WorkflowRun"."childIndex", "WorkflowRun"."childKey", "WorkflowRun"."parentId", "WorkflowRun"."parentStepRunId", "WorkflowRun"."additionalMetadata", "WorkflowRun".duration, "WorkflowRun".priority, "WorkflowRun"."insertOrder"
 `
