@@ -160,15 +160,18 @@ type dispatcherClientImpl struct {
 	v validator.Validator
 
 	ctx *contextLoader
+
+	presetWorkerLabels map[string]string
 }
 
-func newDispatcher(conn *grpc.ClientConn, opts *sharedClientOpts) DispatcherClient {
+func newDispatcher(conn *grpc.ClientConn, opts *sharedClientOpts, presetWorkerLabels map[string]string) DispatcherClient {
 	return &dispatcherClientImpl{
-		client:   dispatchercontracts.NewDispatcherClient(conn),
-		tenantId: opts.tenantId,
-		l:        opts.l,
-		v:        opts.v,
-		ctx:      opts.ctxLoader,
+		client:             dispatchercontracts.NewDispatcherClient(conn),
+		tenantId:           opts.tenantId,
+		l:                  opts.l,
+		v:                  opts.v,
+		ctx:                opts.ctxLoader,
+		presetWorkerLabels: presetWorkerLabels,
 	}
 }
 
@@ -226,6 +229,7 @@ func (d *dispatcherClientImpl) newActionListener(ctx context.Context, req *GetAc
 		Actions:    req.Actions,
 		Services:   req.Services,
 		WebhookId:  req.WebhookId,
+		Labels:     map[string]*dispatchercontracts.WorkerLabels{},
 		RuntimeInfo: &dispatchercontracts.RuntimeInfo{
 			Language:        dispatchercontracts.SDKS_GO.Enum(),
 			LanguageVersion: &goVersion,
@@ -234,9 +238,20 @@ func (d *dispatcherClientImpl) newActionListener(ctx context.Context, req *GetAc
 		},
 	}
 
-	if req.Labels != nil {
+	registerReq.Labels = map[string]*dispatchercontracts.WorkerLabels{}
 
+	if req.Labels != nil {
 		registerReq.Labels = mapLabels(req.Labels)
+	}
+
+	if d.presetWorkerLabels != nil {
+		for k, v := range d.presetWorkerLabels {
+			label := dispatchercontracts.WorkerLabels{
+				StrValue: &v,
+			}
+
+			registerReq.Labels[k] = &label
+		}
 	}
 
 	if req.MaxRuns != nil {
