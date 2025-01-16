@@ -228,7 +228,7 @@ func (i *IngestorImpl) PutLog(ctx context.Context, req *contracts.PutLogRequest)
 		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", apiErrors.String())
 	}
 
-	// TODO is this actually checked somewhere else?
+	// Make sure we are writing to a step run owned by this tenant
 	_, err := i.stepRunRepository.GetStepRunForEngine(ctx, tenantId, req.StepRunId)
 	if err != nil {
 		return nil, err

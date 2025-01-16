@@ -79,7 +79,7 @@ func NewConfigLoader(directory string) *ConfigLoader {
 	return &ConfigLoader{directory: directory}
 }
 
-// InitDataLayer initializes the database layer  from the configuration
+// InitDataLayer initializes the database layer from the configuration
 func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 	sharedFilePath := filepath.Join(c.directory, "database.yaml")
 	configFileBytes, err := loaderutils.GetConfigBytes(sharedFilePath)
@@ -237,7 +237,7 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 
 type ServerConfigFileOverride func(*server.ServerConfigFile)
 
-// CreateServerFromConfig loads the server configuration and returns a running server
+// CreateServerFromConfig loads the server configuration and returns a server
 func (c *ConfigLoader) CreateServerFromConfig(version string, overrides ...ServerConfigFileOverride) (cleanup func() error, res *server.ServerConfig, err error) {
 
 	log.Printf("Loading server config from %s", c.directory)

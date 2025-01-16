@@ -58,7 +58,7 @@ func Prepare(t *testing.T) {
 	// read in the local config
 	configLoader := loader.NewConfigLoader(path.Join(testPath, baseDir, "generated"))
 
-	cleanup, serverConf, err := configLoader.CreateServerFromConfig("", func(scf *server.ServerConfigFile) {
+	cleanup, server, err := configLoader.CreateServerFromConfig("", func(scf *server.ServerConfigFile) {
 		// disable security checks since we're not running the server
 		scf.SecurityCheck.Enabled = false
 	})
@@ -67,10 +67,10 @@ func Prepare(t *testing.T) {
 	}
 
 	// check if tenant exists
-	_, err = serverConf.APIRepository.Tenant().GetTenantByID(tenantId)
+	_, err = server.APIRepository.Tenant().GetTenantByID(tenantId)
 	if err != nil {
 		if errors.Is(err, db.ErrNotFound) {
-			_, err = serverConf.APIRepository.Tenant().CreateTenant(&repository.CreateTenantOpts{
+			_, err = server.APIRepository.Tenant().CreateTenant(&repository.CreateTenantOpts{
 				ID:   &tenantId,
 				Name: "test-tenant",
 				Slug: "test-tenant",
@@ -83,14 +83,14 @@ func Prepare(t *testing.T) {
 		}
 	}
 
-	defaultTok, err := serverConf.Auth.JWTManager.GenerateTenantToken(context.Background(), tenantId, "default", false, nil)
+	defaultTok, err := server.Auth.JWTManager.GenerateTenantToken(context.Background(), tenantId, "default", false, nil)
 	if err != nil {
 		t.Fatalf("could not generate default token: %v", err)
 	}
 
 	_ = os.Setenv("HATCHET_CLIENT_TOKEN", defaultTok.Token)
 
-	if err := serverConf.Disconnect(); err != nil {
+	if err := server.Disconnect(); err != nil {
 		t.Fatalf("could not disconnect from server: %v", err)
 	}
 

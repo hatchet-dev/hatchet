@@ -236,7 +236,7 @@ func runCreateWorkerToken() error {
 	// read in the local config
 	configLoader := loader.NewConfigLoader(configDirectory)
 
-	cleanup, serverConf, err := configLoader.CreateServerFromConfig("", func(scf *server.ServerConfigFile) {
+	cleanup, server, err := configLoader.CreateServerFromConfig("", func(scf *server.ServerConfigFile) {
 		// disable rabbitmq since it's not needed to create the api token
 		scf.MessageQueue.Enabled = false
 
@@ -250,17 +250,17 @@ func runCreateWorkerToken() error {
 
 	defer cleanup() // nolint:errcheck
 
-	defer serverConf.Disconnect() // nolint:errcheck
+	defer server.Disconnect() // nolint:errcheck
 
 	expiresAt := time.Now().UTC().Add(100 * 365 * 24 * time.Hour)
 
 	tenantId := tokenTenantId
 
 	if tenantId == "" {
-		tenantId = serverConf.Seed.DefaultTenantID
+		tenantId = server.Seed.DefaultTenantID
 	}
 
-	defaultTok, err := serverConf.Auth.JWTManager.GenerateTenantToken(context.Background(), tenantId, tokenName, false, &expiresAt)
+	defaultTok, err := server.Auth.JWTManager.GenerateTenantToken(context.Background(), tenantId, tokenName, false, &expiresAt)
 
 	if err != nil {
 		return err
