@@ -1596,6 +1596,43 @@ func (q *Queries) GetStepsForWorkflowVersion(ctx context.Context, db DBTX, workf
 	return items, nil
 }
 
+const getUpstreamErrors = `-- name: GetUpstreamErrors :one
+WITH workflow_run AS (
+    SELECT wr."id"
+    FROM "WorkflowRun" wr
+    JOIN "JobRun" jr ON wr."id" = jr."workflowRunId"
+    JOIN "StepRun" sr ON jr."id" = sr."jobRunId"
+    WHERE sr."id" = $1::uuid
+)
+SELECT
+    sr."id" AS "stepRunId",
+    s."readableId" AS "stepReadableId",
+    sr."error"
+FROM "WorkflowRun" wr
+JOIN "JobRun" jr ON wr."id" = jr."workflowRunId"
+JOIN "StepRun" sr ON jr."id" = sr."jobRunId"
+JOIN "Step" s ON sr."stepId" = s."id"
+JOIN "Job" j ON jr."jobId" = j.id
+WHERE
+    wr."id" = (SELECT "id" FROM workflow_run)
+    -- Don't include the on-failure step in the step runs listed
+    AND j."kind" <> 'ON_FAILURE'
+    AND sr."error" IS NOT NULL
+`
+
+type GetUpstreamErrorsRow struct {
+	StepRunId      pgtype.UUID `json:"stepRunId"`
+	StepReadableId pgtype.Text `json:"stepReadableId"`
+	Error          pgtype.Text `json:"error"`
+}
+
+func (q *Queries) GetUpstreamErrors(ctx context.Context, db DBTX, steprunid pgtype.UUID) (*GetUpstreamErrorsRow, error) {
+	row := db.QueryRow(ctx, getUpstreamErrors, steprunid)
+	var i GetUpstreamErrorsRow
+	err := row.Scan(&i.StepRunId, &i.StepReadableId, &i.Error)
+	return &i, err
+}
+
 const getWorkflowRun = `-- name: GetWorkflowRun :many
 SELECT
     runs."createdAt", runs."updatedAt", runs."deletedAt", runs."tenantId", runs."workflowVersionId", runs.status, runs.error, runs."startedAt", runs."finishedAt", runs."concurrencyGroupId", runs."displayName", runs.id, runs."childIndex", runs."childKey", runs."parentId", runs."parentStepRunId", runs."additionalMetadata", runs.duration, runs.priority, runs."insertOrder",
