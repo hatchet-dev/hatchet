@@ -1055,7 +1055,7 @@ func (w *workflowRunEngineRepository) PopWorkflowRunsCancelNewest(ctx context.Co
 
 func (w *workflowRunEngineRepository) PopWorkflowRunsRoundRobin(ctx context.Context, tenantId string, workflowVersionId string, maxRuns int) ([]*dbsqlc.WorkflowRun, []*dbsqlc.GetStepRunForEngineRow, error) {
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, w.l, 15000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, w.l, 25000)
 
 	if err != nil {
 		return nil, nil, err
