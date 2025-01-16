@@ -114,7 +114,7 @@ func NewAPIRepository(client *db.PrismaClient, pool *pgxpool.Pool, cf *server.Co
 	if opts.logsAPIRepository == nil {
 		logsAPIRepo = NewLogAPIRepository(pool, opts.v, opts.l)
 	} else {
-		logsAPIRepo = opts.logsAPIRepository.WithAdditionalConfig(pool, opts.v, opts.l)
+		logsAPIRepo = opts.logsAPIRepository.WithAdditionalConfig(opts.v, opts.l)
 	}
 
 	return &apiRepository{
@@ -348,7 +348,7 @@ func NewEngineRepository(pool *pgxpool.Pool, essentialPool *pgxpool.Pool, cf *se
 	if opts.logsEngineRepository == nil {
 		logRepo = NewLogEngineRepository(pool, opts.v, opts.l)
 	} else {
-		logRepo = opts.logsEngineRepository.WithAdditionalConfig(pool, opts.v, opts.l)
+		logRepo = opts.logsEngineRepository.WithAdditionalConfig(opts.v, opts.l)
 	}
 
 	return func() error {

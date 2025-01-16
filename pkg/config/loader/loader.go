@@ -75,12 +75,6 @@ type ConfigLoader struct {
 	RepositoryOverrides RepositoryOverrides
 }
 
-// Deprecated: use InitDataLayer instead
-func (c *ConfigLoader) LoadDatabaseConfig() (*database.Layer, error) {
-	fmt.Println("LoadDatabaseConfig is deprecated and will be removed in a later release, use InitDataLayer instead")
-	return c.InitDataLayer()
-}
-
 func NewConfigLoader(directory string) *ConfigLoader {
 	return &ConfigLoader{directory: directory}
 }
