@@ -313,19 +313,20 @@ WITH workflow_runs AS (
     SELECT
         id,
         "concurrencyGroupId",
-        "rn"
+        "rn",
+        "seqnum"
     FROM workflow_runs
     WHERE "rn" <= (@maxRuns::int) -- we limit the number of runs per group to maxRuns
 ), eligible_runs AS (
     SELECT
-        id
-    FROM workflow_runs
-    WHERE id IN (
+        wr."id"
+    FROM "WorkflowRun" wr
+    WHERE wr."id" IN (
         SELECT
             id
         FROM eligible_runs_per_group
         ORDER BY "rn", "seqnum" ASC
-        LIMIT (@maxRuns::int) * (SELECT COUNT(DISTINCT "concurrencyGroupId") FROM workflow_runs)
+        LIMIT LEAST(500, (@maxRuns::int) * (SELECT COUNT(DISTINCT "concurrencyGroupId") FROM workflow_runs))
     )
     FOR UPDATE SKIP LOCKED
 )
