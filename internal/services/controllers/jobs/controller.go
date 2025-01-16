@@ -786,12 +786,12 @@ func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId, stepId
 
 			// input data is the triggering event data and any parent step data
 			inputData := datautils.StepRunData{
-				Input:       lookupData.Input,
-				TriggeredBy: lookupData.TriggeredBy,
-				Parents:     lookupData.Steps,
-				UserData:    userData,
-				Overrides:   map[string]interface{}{},
-				Errors:      upstreamErrors,
+				Input:         lookupData.Input,
+				TriggeredBy:   lookupData.TriggeredBy,
+				Parents:       lookupData.Steps,
+				UserData:      userData,
+				Overrides:     map[string]interface{}{},
+				StepRunErrors: upstreamErrors,
 			}
 
 			inputDataBytes, err = json.Marshal(inputData)
