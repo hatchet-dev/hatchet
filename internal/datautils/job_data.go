@@ -28,5 +28,5 @@ type StepRunData struct {
 	Overrides map[string]interface{} `json:"overrides"`
 
 	// errors in upstream steps (only used in on-failure step)
-	StepRunErrors map[string]string `json:"errors,omitempty"`
+	StepRunErrors map[string]string `json:"step_run_errors,omitempty"`
 }
