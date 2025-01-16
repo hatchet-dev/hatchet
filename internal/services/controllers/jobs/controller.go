@@ -757,7 +757,7 @@ func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId, stepId
 
 			if err == nil {
 				for _, failedStepError := range failedStepErrors {
-					upstreamErrors[failedStepError.StepReadableId.String] = failedStepError.Error.String
+					upstreamErrors[failedStepError.StepReadableId.String] = failedStepError.StepRunError.String
 				}
 			}
 		}

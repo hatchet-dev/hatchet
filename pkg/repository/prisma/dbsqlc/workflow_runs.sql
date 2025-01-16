@@ -1563,7 +1563,7 @@ WITH workflow_run AS (
 SELECT
     sr."id" AS "stepRunId",
     s."readableId" AS "stepReadableId",
-    sr."error"
+    sr."error" AS "stepRunError"
 FROM "WorkflowRun" wr
 JOIN "JobRun" jr ON wr."id" = jr."workflowRunId"
 JOIN "StepRun" sr ON jr."id" = sr."jobRunId"

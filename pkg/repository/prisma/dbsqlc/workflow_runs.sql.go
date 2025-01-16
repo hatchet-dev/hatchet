@@ -1607,7 +1607,7 @@ WITH workflow_run AS (
 SELECT
     sr."id" AS "stepRunId",
     s."readableId" AS "stepReadableId",
-    sr."error"
+    sr."error" AS "stepRunError"
 FROM "WorkflowRun" wr
 JOIN "JobRun" jr ON wr."id" = jr."workflowRunId"
 JOIN "StepRun" sr ON jr."id" = sr."jobRunId"
@@ -1620,7 +1620,7 @@ WHERE
 type GetUpstreamErrorsForOnFailureStepRow struct {
 	StepRunId      pgtype.UUID `json:"stepRunId"`
 	StepReadableId pgtype.Text `json:"stepReadableId"`
-	Error          pgtype.Text `json:"error"`
+	StepRunError   pgtype.Text `json:"stepRunError"`
 }
 
 func (q *Queries) GetUpstreamErrorsForOnFailureStep(ctx context.Context, db DBTX, onfailuresteprunid pgtype.UUID) ([]*GetUpstreamErrorsForOnFailureStepRow, error) {
@@ -1632,7 +1632,7 @@ func (q *Queries) GetUpstreamErrorsForOnFailureStep(ctx context.Context, db DBTX
 	var items []*GetUpstreamErrorsForOnFailureStepRow
 	for rows.Next() {
 		var i GetUpstreamErrorsForOnFailureStepRow
-		if err := rows.Scan(&i.StepRunId, &i.StepReadableId, &i.Error); err != nil {
+		if err := rows.Scan(&i.StepRunId, &i.StepReadableId, &i.StepRunError); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)
