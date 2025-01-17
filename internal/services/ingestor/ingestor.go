@@ -3,9 +3,9 @@ package ingestor
 import (
 	"context"
 	"fmt"
-	"time"
 
-	"github.com/hashicorp/golang-lru/v2/expirable"
+	lru "github.com/hashicorp/golang-lru/v2"
+
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor/contracts"
@@ -84,7 +84,7 @@ type IngestorImpl struct {
 	streamEventRepository    repository.StreamEventsEngineRepository
 	entitlementsRepository   repository.EntitlementsRepository
 	stepRunRepository        repository.StepRunEngineRepository
-	steprunTenantLookupCache *expirable.LRU[string, string]
+	steprunTenantLookupCache *lru.Cache[string, string]
 
 	mq msgqueue.MessageQueue
 	v  validator.Validator
@@ -117,7 +117,11 @@ func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
 		return nil, fmt.Errorf("step run repository is required. use WithStepRunRepository")
 	}
 	// estimate of 1000 * 2 * UUID string size (roughly 104kb max)
-	stepRunCache := expirable.NewLRU[string, string](1000, nil, 5*time.Minute)
+	stepRunCache, err := lru.New[string, string](1000)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not create step run cache: %w", err)
+	}
 
 	return &IngestorImpl{
 		eventRepository:          opts.eventRepository,
