@@ -229,12 +229,20 @@ func (i *IngestorImpl) PutLog(ctx context.Context, req *contracts.PutLogRequest)
 	}
 
 	// Make sure we are writing to a step run owned by this tenant
-	_, err := i.stepRunRepository.GetStepRunForEngine(ctx, tenantId, req.StepRunId)
-	if err != nil {
-		return nil, err
+	if t, ok := i.steprunTenantLookupCache.Get(opts.StepRunId); ok {
+		if t != tenantId {
+			return nil, status.Errorf(codes.PermissionDenied, "Permission denied: step run does not belong to tenant")
+		}
+		// cache hit
+	} else {
+		if _, err := i.stepRunRepository.GetStepRunForEngine(ctx, tenantId, opts.StepRunId); err != nil {
+			return nil, err
+		}
+
+		i.steprunTenantLookupCache.Add(opts.StepRunId, tenantId)
 	}
 
-	_, err = i.logRepository.PutLog(ctx, tenantId, opts)
+	_, err := i.logRepository.PutLog(ctx, tenantId, opts)
 
 	if err != nil {
 		return nil, err
