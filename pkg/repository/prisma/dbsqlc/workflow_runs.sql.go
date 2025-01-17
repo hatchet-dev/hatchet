@@ -1598,7 +1598,7 @@ func (q *Queries) GetStepsForWorkflowVersion(ctx context.Context, db DBTX, workf
 
 const getUpstreamErrorsForOnFailureStep = `-- name: GetUpstreamErrorsForOnFailureStep :many
 WITH workflow_run AS (
-    SELECT wr."id"
+    SELECT wr."createdAt", wr."updatedAt", wr."deletedAt", wr."tenantId", wr."workflowVersionId", wr.status, wr.error, wr."startedAt", wr."finishedAt", wr."concurrencyGroupId", wr."displayName", wr.id, wr."childIndex", wr."childKey", wr."parentId", wr."parentStepRunId", wr."additionalMetadata", wr.duration, wr.priority, wr."insertOrder"
     FROM "WorkflowRun" wr
     JOIN "JobRun" jr ON wr."id" = jr."workflowRunId"
     JOIN "StepRun" sr ON jr."id" = sr."jobRunId"
@@ -1608,13 +1608,11 @@ SELECT
     sr."id" AS "stepRunId",
     s."readableId" AS "stepReadableId",
     sr."error" AS "stepRunError"
-FROM "WorkflowRun" wr
+FROM workflow_run wr
 JOIN "JobRun" jr ON wr."id" = jr."workflowRunId"
 JOIN "StepRun" sr ON jr."id" = sr."jobRunId"
 JOIN "Step" s ON sr."stepId" = s."id"
-WHERE
-    wr."id" = (SELECT "id" FROM workflow_run)
-    AND sr."error" IS NOT NULL
+WHERE sr."error" IS NOT NULL
 `
 
 type GetUpstreamErrorsForOnFailureStepRow struct {
