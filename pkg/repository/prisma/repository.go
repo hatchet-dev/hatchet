@@ -102,7 +102,7 @@ func NewAPIRepository(client *db.PrismaClient, pool *pgxpool.Pool, cf *server.Co
 		log:            NewLogAPIRepository(pool, opts.v, opts.l),
 		tenant:         NewTenantAPIRepository(pool, client, opts.v, opts.l, opts.cache),
 		tenantAlerting: NewTenantAlertingAPIRepository(client, opts.v, opts.cache),
-		tenantInvite:   NewTenantInviteRepository(client, opts.v),
+		tenantInvite:   NewTenantInviteRepository(client, opts.v, opts.l),
 		workflow:       NewWorkflowRepository(client, pool, opts.v, opts.l),
 		workflowRun:    NewWorkflowRunRepository(client, shared, opts.metered, cf),
 		jobRun:         NewJobRunAPIRepository(client, shared),

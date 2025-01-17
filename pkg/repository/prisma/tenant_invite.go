@@ -2,7 +2,10 @@ package prisma
 
 import (
 	"context"
+	"fmt"
 	"time"
+
+	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
@@ -12,18 +15,54 @@ import (
 type tenantInviteRepository struct {
 	client *db.PrismaClient
 	v      validator.Validator
+	l      *zerolog.Logger
 }
 
-func NewTenantInviteRepository(client *db.PrismaClient, v validator.Validator) repository.TenantInviteRepository {
+func NewTenantInviteRepository(client *db.PrismaClient, v validator.Validator, l *zerolog.Logger) repository.TenantInviteRepository {
 	return &tenantInviteRepository{
 		client: client,
 		v:      v,
+		l:      l,
 	}
 }
 
 func (r *tenantInviteRepository) CreateTenantInvite(tenantId string, opts *repository.CreateTenantInviteOpts) (*db.TenantInviteLinkModel, error) {
 	if err := r.v.Validate(opts); err != nil {
 		return nil, err
+	}
+	if opts.MaxPending != 0 {
+		invites, err := r.client.TenantInviteLink.FindMany(
+			db.TenantInviteLink.Status.Equals(db.InviteLinkStatusPending),
+			db.TenantInviteLink.Expires.Gt(time.Now()),
+			db.TenantInviteLink.TenantID.Equals(tenantId)).Exec(context.Background())
+
+		if err != nil {
+			r.l.Error().Err(err).Msg("error counting pending invites")
+			return nil, err
+		}
+
+		if len(invites) >= opts.MaxPending {
+			r.l.Error().Msg("max pending invites reached")
+			return nil, fmt.Errorf("max pending invites reached")
+		}
+	}
+
+	til, err := r.client.TenantInviteLink.FindMany(
+		db.TenantInviteLink.InviteeEmail.Equals(opts.InviteeEmail),
+		db.TenantInviteLink.TenantID.Equals(tenantId),
+		db.TenantInviteLink.Status.Equals(db.InviteLinkStatusPending),
+		db.TenantInviteLink.Expires.Gt(time.Now()),
+		db.TenantInviteLink.Role.Equals(db.TenantMemberRole(opts.Role)),
+	).Exec(context.Background())
+
+	if err != nil {
+		r.l.Error().Err(err).Msg("error checking for existing invite")
+		return nil, err
+	}
+
+	if len(til) > 0 {
+		r.l.Error().Msg("invite already exists")
+		return nil, fmt.Errorf("invite already exists")
 	}
 
 	return r.client.TenantInviteLink.CreateOne(
