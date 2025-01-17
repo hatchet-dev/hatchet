@@ -27,7 +27,7 @@ func StepOne(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
 func OnFailure(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
 	// run cleanup code or notifications here
 
-	// you can access the error from the failed step(s) like this
+	// 👀 you can access the error from the failed step(s) like this
 	fmt.Println(ctx.StepRunErrors())
 
 	return &stepOneOutput{
