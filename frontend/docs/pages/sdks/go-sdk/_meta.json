@@ -12,5 +12,6 @@
   "creating-a-workflow": "Creating a Workflow",
   "creating-a-worker": "Creating a Worker",
   "pushing-events": "Pushing Events",
-  "scheduling-workflows": "Scheduling Workflows"
+  "scheduling-workflows": "Scheduling Workflows",
+  "logging": "Logging"
 }
