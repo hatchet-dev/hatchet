@@ -201,7 +201,7 @@ func (h *hatchetContext) StepRunErrors() map[string]string {
 	errors := h.stepData.StepRunErrors
 
 	if len(errors) == 0 {
-		h.Log("No step run errors found. `ctx.StepRunErrors` is intended to be run in an on-failure step, and will only work on engine versions more recent than v0.53.10")
+		h.l.Error().Msg("No step run errors found. `ctx.StepRunErrors` is intended to be run in an on-failure step, and will only work on engine versions more recent than v0.53.10")
 	}
 
 	return errors
