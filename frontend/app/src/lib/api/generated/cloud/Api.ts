@@ -15,6 +15,7 @@ import {
   APIErrors,
   Build,
   CreateManagedWorkerRequest,
+  CreateOrUpdateAutoscalingRequest,
   FeatureFlags,
   InfraAsCodeRequest,
   InstanceList,
@@ -662,6 +663,28 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       query: query,
       secure: true,
       format: "json",
+      ...params,
+    });
+  /**
+   * @description Create autoscaling configuration for the tenant
+   *
+   * @tags Autoscaling Config
+   * @name ExternalAutoscalingConfigCreate
+   * @summary Create Autoscaling Config
+   * @request POST:/api/v1/cloud/tenants/{tenant}/autoscaling
+   * @secure
+   */
+  externalAutoscalingConfigCreate = (
+    tenant: string,
+    data: CreateOrUpdateAutoscalingRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<void, APIErrors>({
+      path: `/api/v1/cloud/tenants/${tenant}/autoscaling`,
+      method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
       ...params,
     });
 }

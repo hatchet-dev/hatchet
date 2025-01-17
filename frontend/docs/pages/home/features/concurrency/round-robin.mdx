@@ -97,7 +97,7 @@ err = w.RegisterWorkflow(
     &worker.WorkflowJob{
         Name: "concurrency-limit-per-user",
         On: worker.Events("concurrency-test-event"),
-        Description: "This limits concurrency to 1 run at a time per user.",
+        Description: "This limits concurrency to 10 run at a time per user.",
         Concurrency: worker.Concurrency(getConcurrencyKey).MaxRuns(10).LimitStrategy(types.GroupRoundRobin),
         Steps: []*worker.WorkflowStep{
             // your steps here...
@@ -190,7 +190,7 @@ err = w.RegisterWorkflow(
     &worker.WorkflowJob{
         Name: "concurrency-limit-per-user",
         On: worker.Events("concurrency-test-event"),
-        Description: "This limits concurrency to 1 run at a time per user.",
+        Description: "This limits concurrency to 10 run at a time per user.",
         Concurrency: worker.Concurrency(getConcurrencyKey).MaxRuns(10).LimitStrategy(types.GroupRoundRobin),
         Steps: []*worker.WorkflowStep{
             // your steps here...
