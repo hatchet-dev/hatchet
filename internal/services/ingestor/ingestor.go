@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	lru "github.com/hashicorp/golang-lru/v2"
+
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor/contracts"
@@ -30,6 +32,7 @@ type IngestorOpts struct {
 	streamEventRepository  repository.StreamEventsEngineRepository
 	logRepository          repository.LogsEngineRepository
 	entitlementsRepository repository.EntitlementsRepository
+	stepRunRepository      repository.StepRunEngineRepository
 	mq                     msgqueue.MessageQueue
 }
 
@@ -63,6 +66,12 @@ func WithMessageQueue(mq msgqueue.MessageQueue) IngestorOptFunc {
 	}
 }
 
+func WithStepRunRepository(r repository.StepRunEngineRepository) IngestorOptFunc {
+	return func(opts *IngestorOpts) {
+		opts.stepRunRepository = r
+	}
+}
+
 func defaultIngestorOpts() *IngestorOpts {
 	return &IngestorOpts{}
 }
@@ -70,10 +79,12 @@ func defaultIngestorOpts() *IngestorOpts {
 type IngestorImpl struct {
 	contracts.UnimplementedEventsServiceServer
 
-	eventRepository        repository.EventEngineRepository
-	logRepository          repository.LogsEngineRepository
-	streamEventRepository  repository.StreamEventsEngineRepository
-	entitlementsRepository repository.EntitlementsRepository
+	eventRepository          repository.EventEngineRepository
+	logRepository            repository.LogsEngineRepository
+	streamEventRepository    repository.StreamEventsEngineRepository
+	entitlementsRepository   repository.EntitlementsRepository
+	stepRunRepository        repository.StepRunEngineRepository
+	steprunTenantLookupCache *lru.Cache[string, string]
 
 	mq msgqueue.MessageQueue
 	v  validator.Validator
@@ -102,10 +113,22 @@ func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
 		return nil, fmt.Errorf("task queue is required. use WithMessageQueue")
 	}
 
+	if opts.stepRunRepository == nil {
+		return nil, fmt.Errorf("step run repository is required. use WithStepRunRepository")
+	}
+	// estimate of 1000 * 2 * UUID string size (roughly 104kb max)
+	stepRunCache, err := lru.New[string, string](1000)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not create step run cache: %w", err)
+	}
+
 	return &IngestorImpl{
-		eventRepository:        opts.eventRepository,
-		streamEventRepository:  opts.streamEventRepository,
-		entitlementsRepository: opts.entitlementsRepository,
+		eventRepository:          opts.eventRepository,
+		streamEventRepository:    opts.streamEventRepository,
+		entitlementsRepository:   opts.entitlementsRepository,
+		stepRunRepository:        opts.stepRunRepository,
+		steprunTenantLookupCache: stepRunCache,
 
 		logRepository: opts.logRepository,
 		mq:            opts.mq,

@@ -9,14 +9,14 @@ import (
 
 func Start(cf *loader.ConfigLoader, interruptCh <-chan interface{}, version string) error {
 	// init the repository
-	configCleanup, sc, err := cf.LoadServerConfig(version)
+	configCleanup, server, err := cf.CreateServerFromConfig(version)
 	if err != nil {
 		return fmt.Errorf("error loading server config: %w", err)
 	}
 
 	var teardown []func() error
 
-	runner := run.NewAPIServer(sc)
+	runner := run.NewAPIServer(server)
 
 	if err != nil {
 		return err
@@ -30,11 +30,11 @@ func Start(cf *loader.ConfigLoader, interruptCh <-chan interface{}, version stri
 	teardown = append(teardown, apiCleanup)
 	teardown = append(teardown, configCleanup)
 
-	sc.Logger.Debug().Msgf("api started successfully")
+	server.Logger.Debug().Msgf("api started successfully")
 
 	<-interruptCh
 
-	sc.Logger.Debug().Msgf("api is shutting down...")
+	server.Logger.Debug().Msgf("api is shutting down...")
 
 	for _, teardown := range teardown {
 		if err := teardown(); err != nil {
@@ -42,7 +42,7 @@ func Start(cf *loader.ConfigLoader, interruptCh <-chan interface{}, version stri
 		}
 	}
 
-	sc.Logger.Debug().Msgf("api successfully shut down")
+	server.Logger.Debug().Msgf("api successfully shut down")
 
 	return nil
 }

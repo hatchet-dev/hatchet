@@ -409,7 +409,7 @@ type FePosthogConfig struct {
 }
 
 type ServerConfig struct {
-	*database.Config
+	*database.Layer
 
 	Auth AuthConfig
 
