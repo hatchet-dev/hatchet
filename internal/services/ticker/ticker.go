@@ -13,9 +13,12 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/integrations/alerting"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
+	"github.com/hatchet-dev/hatchet/internal/queueutils"
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
+	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 )
 
 type Ticker interface {
@@ -39,7 +42,8 @@ type TickerImpl struct {
 
 	tickerId string
 
-	p *partition.Partition
+	p                       *partition.Partition
+	pollOrphanedStepRunsOps *queueutils.OperationPool
 }
 
 type TickerOpt func(*TickerOpts)
@@ -60,6 +64,7 @@ type TickerOpts struct {
 
 func defaultTickerOpts() *TickerOpts {
 	logger := logger.NewDefaultLogger("ticker")
+
 	return &TickerOpts{
 		l:        &logger,
 		tickerId: uuid.New().String(),
@@ -139,7 +144,7 @@ func New(fs ...TickerOpt) (*TickerImpl, error) {
 		return nil, fmt.Errorf("could not create scheduler: %w", err)
 	}
 
-	return &TickerImpl{
+	t := &TickerImpl{
 		mq:           opts.mq,
 		l:            opts.l,
 		repo:         opts.repo,
@@ -149,7 +154,11 @@ func New(fs ...TickerOpt) (*TickerImpl, error) {
 		tickerId:     opts.tickerId,
 		ta:           opts.ta,
 		p:            opts.p,
-	}, nil
+	}
+
+	t.pollOrphanedStepRunsOps = queueutils.NewOperationPool(t.l, time.Second*5, "poll orphaned step runs", t.runPollOrphanedStepRunsForTenant)
+
+	return t, nil
 }
 
 func (t *TickerImpl) Start() (func() error, error) {
@@ -202,6 +211,19 @@ func (t *TickerImpl) Start() (func() error, error) {
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("could not create poll cron schedules job: %w", err)
+	}
+
+	_, err = t.s.NewJob(
+		// check every 30 seconds
+		gocron.DurationJob(time.Second*30),
+		gocron.NewTask(
+			t.runPollOrphanedStepRuns(ctx),
+		),
+	)
+
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("could not create poll orphaned step runs job: %w", err)
 	}
 
 	_, err = t.s.NewJob(
@@ -294,6 +316,60 @@ func (t *TickerImpl) Start() (func() error, error) {
 	}
 
 	return cleanup, nil
+}
+
+func (t *TickerImpl) runPollOrphanedStepRunsForTenant(ctx context.Context, tenantId string) (bool, error) {
+	orphanedStepRuns, err := t.repo.Ticker().PollOrphanedStepRuns(ctx, tenantId)
+
+	if err != nil {
+		t.l.Err(err).Msg("could not poll orphaned step runs")
+		return false, err
+	}
+
+	for _, orphanedStepRun := range orphanedStepRuns {
+		stepRun, err := t.repo.StepRun().GetStepRunForEngine(ctx,
+			sqlchelpers.UUIDToStr(orphanedStepRun.TenantId),
+			sqlchelpers.UUIDToStr(orphanedStepRun.ID),
+		)
+
+		if err != nil {
+			t.l.Err(err).Msg("could not get step run")
+			return false, err
+		}
+
+		err = t.mq.AddMessage(ctx,
+			msgqueue.JOB_PROCESSING_QUEUE,
+			tasktypes.StepRunCancelToTask(stepRun, "STUCK_STEP_RUN_DETECTED", false),
+		)
+
+		if err != nil {
+			t.l.Err(err).Msg("could not add message to queue")
+			return false, err
+		}
+
+		t.l.Debug().Msgf("ticker: orphaned step run %s", sqlchelpers.UUIDToStr(orphanedStepRun.ID))
+	}
+
+	return true, nil
+}
+
+func (t *TickerImpl) runPollOrphanedStepRuns(ctx context.Context) any {
+	return func() {
+		t.l.Debug().Msgf("ticker: polling for orphaned step runs")
+
+		// list all tenants
+		tenants, err := t.repo.Tenant().ListTenantsByControllerPartition(ctx, t.p.GetControllerPartitionId())
+
+		if err != nil {
+			t.l.Err(err).Msg("could not list tenants")
+			return
+		}
+
+		for i := range tenants {
+			tenantId := sqlchelpers.UUIDToStr(tenants[i].ID)
+			t.pollOrphanedStepRunsOps.RunOrContinue(tenantId)
+		}
+	}
 }
 
 func (t *TickerImpl) runUpdateHeartbeat(ctx context.Context) func() {
