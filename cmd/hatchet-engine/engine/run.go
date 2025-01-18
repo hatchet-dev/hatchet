@@ -60,14 +60,14 @@ func init() {
 }
 
 func Run(ctx context.Context, cf *loader.ConfigLoader, version string) error {
-	serverCleanup, sc, err := cf.LoadServerConfig(version)
+	serverCleanup, server, err := cf.CreateServerFromConfig(version)
 	if err != nil {
 		return fmt.Errorf("could not load server config: %w", err)
 	}
 
-	var l = sc.Logger
+	var l = server.Logger
 
-	teardown, err := RunWithConfig(ctx, sc)
+	teardown, err := RunWithConfig(ctx, server)
 
 	if err != nil {
 		return fmt.Errorf("could not run with config: %w", err)
@@ -82,11 +82,11 @@ func Run(ctx context.Context, cf *loader.ConfigLoader, version string) error {
 	teardown = append(teardown, Teardown{
 		Name: "database",
 		Fn: func() error {
-			return sc.Disconnect()
+			return server.Disconnect()
 		},
 	})
 
-	time.Sleep(sc.Runtime.ShutdownWait)
+	time.Sleep(server.Runtime.ShutdownWait)
 
 	l.Debug().Msgf("interrupt received, shutting down")
 
@@ -359,6 +359,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			),
 			ingestor.WithMessageQueue(sc.MessageQueue),
 			ingestor.WithEntitlementsRepository(sc.EntitlementRepository),
+			ingestor.WithStepRunRepository(sc.EngineRepository.StepRun()),
 		)
 
 		if err != nil {
@@ -715,6 +716,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			),
 			ingestor.WithMessageQueue(sc.MessageQueue),
 			ingestor.WithEntitlementsRepository(sc.EntitlementRepository),
+			ingestor.WithStepRunRepository(sc.EngineRepository.StepRun()),
 		)
 
 		if err != nil {

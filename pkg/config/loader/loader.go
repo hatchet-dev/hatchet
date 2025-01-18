@@ -36,6 +36,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/errors/sentry"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
+	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma"
@@ -64,16 +65,22 @@ func LoadServerConfigFile(files ...[]byte) (*server.ServerConfigFile, error) {
 	return configFile, err
 }
 
+type RepositoryOverrides struct {
+	LogsEngineRepository repository.LogsEngineRepository
+	LogsAPIRepository    repository.LogsAPIRepository
+}
+
 type ConfigLoader struct {
-	directory string
+	directory           string
+	RepositoryOverrides RepositoryOverrides
 }
 
 func NewConfigLoader(directory string) *ConfigLoader {
-	return &ConfigLoader{directory}
+	return &ConfigLoader{directory: directory}
 }
 
-// LoadDatabaseConfig loads the database configuration
-func (c *ConfigLoader) LoadDatabaseConfig() (res *database.Config, err error) {
+// InitDataLayer initializes the database layer from the configuration
+func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 	sharedFilePath := filepath.Join(c.directory, "database.yaml")
 	configFileBytes, err := loaderutils.GetConfigBytes(sharedFilePath)
 
@@ -93,40 +100,6 @@ func (c *ConfigLoader) LoadDatabaseConfig() (res *database.Config, err error) {
 		return nil, err
 	}
 
-	return GetDatabaseConfigFromConfigFile(cf, &scf.Runtime)
-}
-
-type ServerConfigFileOverride func(*server.ServerConfigFile)
-
-// LoadServerConfig loads the server configuration
-func (c *ConfigLoader) LoadServerConfig(version string, overrides ...ServerConfigFileOverride) (cleanup func() error, res *server.ServerConfig, err error) {
-	log.Printf("Loading server config from %s", c.directory)
-	sharedFilePath := filepath.Join(c.directory, "server.yaml")
-	log.Printf("Shared file path: %s", sharedFilePath)
-
-	configFileBytes, err := loaderutils.GetConfigBytes(sharedFilePath)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	dc, err := c.LoadDatabaseConfig()
-	if err != nil {
-		return nil, nil, err
-	}
-
-	cf, err := LoadServerConfigFile(configFileBytes...)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	for _, override := range overrides {
-		override(cf)
-	}
-
-	return GetServerConfigFromConfigfile(dc, cf, version)
-}
-
-func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile, runtime *server.ConfigFileRuntime) (res *database.Config, err error) {
 	l := logger.NewStdErr(&cf.Logger, "database")
 
 	databaseUrl := os.Getenv("DATABASE_URL")
@@ -146,9 +119,9 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile, runtime *server.Co
 		_ = os.Setenv("DATABASE_URL", databaseUrl)
 	}
 
-	c := db.NewClient()
+	client := db.NewClient()
 
-	if err := c.Prisma.Connect(); err != nil {
+	if err := client.Prisma.Connect(); err != nil {
 		return nil, err
 	}
 
@@ -210,23 +183,35 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile, runtime *server.Co
 
 	ch := cache.New(cf.CacheDuration)
 
-	entitlementRepo := prisma.NewEntitlementRepository(pool, runtime, prisma.WithLogger(&l), prisma.WithCache(ch))
+	entitlementRepo := prisma.NewEntitlementRepository(pool, &scf.Runtime, prisma.WithLogger(&l), prisma.WithCache(ch))
 
 	meter := metered.NewMetered(entitlementRepo, &l)
 
-	cleanupEngine, engineRepo, err := prisma.NewEngineRepository(pool, essentialPool, runtime, prisma.WithLogger(&l), prisma.WithCache(ch), prisma.WithMetered(meter))
+	var opts []prisma.PrismaRepositoryOpt
+
+	opts = append(opts, prisma.WithLogger(&l), prisma.WithCache(ch), prisma.WithMetered(meter))
+
+	if c.RepositoryOverrides.LogsEngineRepository != nil {
+		opts = append(opts, prisma.WithLogsEngineRepository(c.RepositoryOverrides.LogsEngineRepository))
+	}
+
+	cleanupEngine, engineRepo, err := prisma.NewEngineRepository(pool, essentialPool, &scf.Runtime, opts...)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not create engine repository: %w", err)
 	}
 
-	apiRepo, cleanupApiRepo, err := prisma.NewAPIRepository(c, pool, runtime, prisma.WithLogger(&l), prisma.WithCache(ch), prisma.WithMetered(meter))
+	if c.RepositoryOverrides.LogsAPIRepository != nil {
+		opts = append(opts, prisma.WithLogsAPIRepository(c.RepositoryOverrides.LogsAPIRepository))
+	}
+
+	apiRepo, cleanupApiRepo, err := prisma.NewAPIRepository(client, pool, &scf.Runtime, opts...)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not create api repository: %w", err)
 	}
 
-	return &database.Config{
+	return &database.Layer{
 		Disconnect: func() error {
 			if err := cleanupEngine(); err != nil {
 				return err
@@ -237,7 +222,7 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile, runtime *server.Co
 			if err = cleanupApiRepo(); err != nil {
 				return err
 			}
-			return c.Prisma.Disconnect()
+			return client.Prisma.Disconnect()
 		},
 		Pool:                  pool,
 		EssentialPool:         essentialPool,
@@ -247,9 +232,41 @@ func GetDatabaseConfigFromConfigFile(cf *database.ConfigFile, runtime *server.Co
 		EntitlementRepository: entitlementRepo,
 		Seed:                  cf.Seed,
 	}, nil
+
 }
 
-func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigFile, version string) (cleanup func() error, res *server.ServerConfig, err error) {
+type ServerConfigFileOverride func(*server.ServerConfigFile)
+
+// CreateServerFromConfig loads the server configuration and returns a server
+func (c *ConfigLoader) CreateServerFromConfig(version string, overrides ...ServerConfigFileOverride) (cleanup func() error, res *server.ServerConfig, err error) {
+
+	log.Printf("Loading server config from %s", c.directory)
+	sharedFilePath := filepath.Join(c.directory, "server.yaml")
+	log.Printf("Shared file path: %s", sharedFilePath)
+
+	configFileBytes, err := loaderutils.GetConfigBytes(sharedFilePath)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	dc, err := c.InitDataLayer()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	cf, err := LoadServerConfigFile(configFileBytes...)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	for _, override := range overrides {
+		override(cf)
+	}
+
+	return createControllerLayer(dc, cf, version)
+}
+
+func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, version string) (cleanup func() error, res *server.ServerConfig, err error) {
 	l := logger.NewStdErr(&cf.Logger, "server")
 	queueLogger := logger.NewStdErr(&cf.AdditionalLoggers.Queue, "queue")
 
@@ -303,6 +320,7 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 			ingestor.WithLogRepository(dc.EngineRepository.Log()),
 			ingestor.WithMessageQueue(mq),
 			ingestor.WithEntitlementsRepository(dc.EntitlementRepository),
+			ingestor.WithStepRunRepository(dc.EngineRepository.StepRun()),
 		)
 
 		if err != nil {
@@ -496,7 +514,7 @@ func GetServerConfigFromConfigfile(dc *database.Config, cf *server.ServerConfigF
 		Runtime:                cf.Runtime,
 		Auth:                   auth,
 		Encryption:             encryptionSvc,
-		Config:                 dc,
+		Layer:                  dc,
 		MessageQueue:           mq,
 		Services:               services,
 		Logger:                 &l,

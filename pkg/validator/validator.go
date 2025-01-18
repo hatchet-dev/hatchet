@@ -77,6 +77,13 @@ func newValidator() *validator.Validate {
 		return err == nil
 	})
 
+	_ = validate.RegisterValidation("future", func(fl validator.FieldLevel) bool {
+		if t, ok := fl.Field().Interface().(time.Time); ok {
+			return t.After(time.Now())
+		}
+		return false
+	})
+
 	return validate
 }
 

@@ -91,7 +91,7 @@ func start(cf *loader.ConfigLoader, interruptCh <-chan interface{}, version stri
 		return fmt.Errorf("error parsing frontend URL: %w", err)
 	}
 
-	_, sc, err := cf.LoadServerConfig(version)
+	_, sc, err := cf.CreateServerFromConfig(version)
 
 	if err != nil {
 		return fmt.Errorf("error loading server config: %w", err)

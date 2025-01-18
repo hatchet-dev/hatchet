@@ -4,7 +4,10 @@ import (
 	"context"
 	"time"
 
+	"github.com/rs/zerolog"
+
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
 type CreateLogLineOpts struct {
@@ -55,9 +58,11 @@ type ListLogsResult struct {
 type LogsAPIRepository interface {
 	// ListLogLines returns a list of log lines for a given step run.
 	ListLogLines(tenantId string, opts *ListLogsOpts) (*ListLogsResult, error)
+	WithAdditionalConfig(validator.Validator, *zerolog.Logger) LogsAPIRepository
 }
 
 type LogsEngineRepository interface {
 	// PutLog creates a new log line.
 	PutLog(ctx context.Context, tenantId string, opts *CreateLogLineOpts) (*dbsqlc.LogLine, error)
+	WithAdditionalConfig(validator.Validator, *zerolog.Logger) LogsEngineRepository
 }

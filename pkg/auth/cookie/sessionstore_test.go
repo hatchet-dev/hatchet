@@ -18,7 +18,7 @@ import (
 
 func TestSessionStoreSave(t *testing.T) {
 	time.Sleep(10 * time.Second) // TODO temp hack for tenant non-upsert issue
-	testutils.RunTestWithDatabase(t, func(conf *database.Config) error {
+	testutils.RunTestWithDatabase(t, func(conf *database.Layer) error {
 		const cookieName = "hatchet"
 
 		ss := newSessionStore(t, conf, cookieName)
@@ -36,7 +36,7 @@ func TestSessionStoreSave(t *testing.T) {
 }
 
 func TestSessionStoreGet(t *testing.T) {
-	testutils.RunTestWithDatabase(t, func(conf *database.Config) error {
+	testutils.RunTestWithDatabase(t, func(conf *database.Layer) error {
 		const cookieName = "hatchet"
 
 		ss := newSessionStore(t, conf, cookieName)
@@ -64,7 +64,7 @@ func TestSessionStoreGet(t *testing.T) {
 	})
 }
 
-func newSessionStore(t *testing.T, conf *database.Config, cookieName string) *cookie.UserSessionStore {
+func newSessionStore(t *testing.T, conf *database.Layer, cookieName string) *cookie.UserSessionStore {
 	hashKey, err := random.Generate(16)
 
 	if err != nil {

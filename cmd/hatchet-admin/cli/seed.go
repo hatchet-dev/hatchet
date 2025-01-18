@@ -39,7 +39,7 @@ func init() {
 
 func runSeed(cf *loader.ConfigLoader) error {
 	// load the config
-	dc, err := cf.LoadDatabaseConfig()
+	dc, err := cf.InitDataLayer()
 
 	if err != nil {
 		panic(err)
