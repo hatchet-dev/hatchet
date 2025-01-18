@@ -1247,6 +1247,17 @@ func (w *workflowRunAPIRepository) BulkCreateWorkflowRuns(ctx context.Context, o
 	return createNewWorkflowRuns(ctx, w.pool, w.queries, w.l, opts)
 }
 
+func (w *workflowRunEngineRepository) GetUpstreamErrorsForOnFailureStep(
+	ctx context.Context,
+	onFailureStepRunId string,
+) ([]*dbsqlc.GetUpstreamErrorsForOnFailureStepRow, error) {
+	return w.queries.GetUpstreamErrorsForOnFailureStep(
+		ctx,
+		w.pool,
+		sqlchelpers.UUIDFromStr(onFailureStepRunId),
+	)
+}
+
 // this is single tenant
 func (w *workflowRunEngineRepository) CreateNewWorkflowRuns(ctx context.Context, tenantId string, opts []*repository.CreateWorkflowRunOpts) ([]*dbsqlc.WorkflowRun, error) {
 

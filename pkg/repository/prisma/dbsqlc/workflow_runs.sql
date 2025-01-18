@@ -1551,3 +1551,21 @@ WHERE
 DELETE FROM "WorkflowTriggerScheduledRef"
 WHERE
     "id" = @scheduleId::uuid;
+
+-- name: GetUpstreamErrorsForOnFailureStep :many
+WITH workflow_run AS (
+    SELECT wr.*
+    FROM "WorkflowRun" wr
+    JOIN "JobRun" jr ON wr."id" = jr."workflowRunId"
+    JOIN "StepRun" sr ON jr."id" = sr."jobRunId"
+    WHERE sr."id" = @onFailureStepRunId::uuid
+)
+SELECT
+    sr."id" AS "stepRunId",
+    s."readableId" AS "stepReadableId",
+    sr."error" AS "stepRunError"
+FROM workflow_run wr
+JOIN "JobRun" jr ON wr."id" = jr."workflowRunId"
+JOIN "StepRun" sr ON jr."id" = sr."jobRunId"
+JOIN "Step" s ON sr."stepId" = s."id"
+WHERE sr."error" IS NOT NULL;
