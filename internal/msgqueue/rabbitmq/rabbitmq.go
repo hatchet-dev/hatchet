@@ -34,7 +34,7 @@ type msgWithQueue struct {
 
 	q msgqueue.Queue
 
-	ackChan chan ack
+	ackChan chan<- ack
 }
 
 type ack struct {
@@ -442,7 +442,16 @@ func (t *MessageQueueImpl) startPublishing() func() error {
 						}
 
 						t.l.Debug().Msgf("published msg %s to queue %s", msg.ID, msg.q.Name())
-						msg.ackChan <- ack{e: nil}
+						select {
+						case msg.ackChan <- ack{e: nil}:
+							return
+						case <-ctx.Done():
+							return
+						case <-time.After(5 * time.Second):
+							t.l.Error().Msgf("timeout sending ack for message %s", msg.ID)
+							return
+						}
+
 					}(msg)
 				}
 			}
