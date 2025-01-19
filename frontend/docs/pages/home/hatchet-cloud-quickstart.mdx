@@ -54,10 +54,11 @@ class MyWorkflow:
             "result": "success"
         }
 
-worker = hatchet.worker('first-worker')
-worker.register_workflow(MyWorkflow())
+if __name__ == "__main__":
+	worker = hatchet.worker('first-worker')
+	worker.register_workflow(MyWorkflow())
 
-worker.start()
+	worker.start()
 ```
 
 Open a new terminal and start the worker with:
