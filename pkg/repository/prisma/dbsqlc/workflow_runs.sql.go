@@ -2844,8 +2844,9 @@ WITH workflow_runs AS (
         r2.id,
         r2."status",
         r2."concurrencyGroupId",
-        row_number() OVER (PARTITION BY r2."concurrencyGroupId" ORDER BY r2."createdAt", r2."insertOrder", r2.id) AS "rn",
-        row_number() OVER (ORDER BY r2."createdAt", r2."insertOrder", r2.id) AS "seqnum"
+        row_number() OVER (PARTITION BY r2."concurrencyGroupId" ORDER BY r2."createdAt", r2.id) AS "rn",
+        -- we order by r2.id as a second parameter to get a pseudo-random, stable order
+        row_number() OVER (ORDER BY r2."createdAt", r2.id) AS "seqnum"
     FROM
         "WorkflowRun" r2
     LEFT JOIN
@@ -2860,20 +2861,24 @@ WITH workflow_runs AS (
     SELECT
         id,
         "concurrencyGroupId",
-        "rn"
+        "rn",
+        "seqnum"
     FROM workflow_runs
     WHERE "rn" <= ($3::int) -- we limit the number of runs per group to maxRuns
 ), eligible_runs AS (
     SELECT
-        id
-    FROM workflow_runs
-    WHERE id IN (
-        SELECT
-            id
-        FROM eligible_runs_per_group
-        ORDER BY "rn", "seqnum" ASC
-        LIMIT ($3::int) * (SELECT COUNT(DISTINCT "concurrencyGroupId") FROM workflow_runs)
-    )
+        wr."id"
+    FROM "WorkflowRun" wr
+    WHERE
+        wr."id" IN (
+            SELECT
+                id
+            FROM eligible_runs_per_group
+            ORDER BY "rn", "seqnum" ASC
+            LIMIT ($3::int) * (SELECT COUNT(DISTINCT "concurrencyGroupId") FROM workflow_runs)
+        )
+        AND wr."status" = 'QUEUED'
+    LIMIT 500
     FOR UPDATE SKIP LOCKED
 )
 UPDATE "WorkflowRun"
@@ -2882,8 +2887,7 @@ SET
 FROM
     eligible_runs
 WHERE
-    "WorkflowRun".id = eligible_runs.id AND
-    "WorkflowRun"."status" = 'QUEUED'
+    "WorkflowRun".id = eligible_runs.id
 RETURNING
     "WorkflowRun"."createdAt", "WorkflowRun"."updatedAt", "WorkflowRun"."deletedAt", "WorkflowRun"."tenantId", "WorkflowRun"."workflowVersionId", "WorkflowRun".status, "WorkflowRun".error, "WorkflowRun"."startedAt", "WorkflowRun"."finishedAt", "WorkflowRun"."concurrencyGroupId", "WorkflowRun"."displayName", "WorkflowRun".id, "WorkflowRun"."childIndex", "WorkflowRun"."childKey", "WorkflowRun"."parentId", "WorkflowRun"."parentStepRunId", "WorkflowRun"."additionalMetadata", "WorkflowRun".duration, "WorkflowRun".priority, "WorkflowRun"."insertOrder"
 `
