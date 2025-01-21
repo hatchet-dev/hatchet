@@ -34,7 +34,13 @@ type msgWithQueue struct {
 
 	q msgqueue.Queue
 
+	// we use this to acknowledge the message
 	ackChan chan<- ack
+
+	// we use failed so we don't keep retrying a message that we have failed to send
+	// this prevents phantom messages from being sent but also prevents us from trying to ack a message we have already marked as failed.
+	failed      bool
+	failedMutex sync.Mutex
 }
 
 type ack struct {
@@ -228,6 +234,7 @@ func (t *MessageQueueImpl) AddMessage(ctx context.Context, q msgqueue.Queue, msg
 		Message: msg,
 		q:       q,
 		ackChan: ackC,
+		failed:  false,
 	}
 
 	select {
@@ -249,6 +256,9 @@ func (t *MessageQueueImpl) AddMessage(ctx context.Context, q msgqueue.Queue, msg
 				return nil // success
 			}
 		case <-time.After(5 * time.Second):
+			msgWithQueue.failedMutex.Lock()
+			defer msgWithQueue.failedMutex.Unlock()
+			msgWithQueue.failed = true
 
 			if ackErr != nil {
 				// we have additional context so lets send it
@@ -258,6 +268,9 @@ func (t *MessageQueueImpl) AddMessage(ctx context.Context, q msgqueue.Queue, msg
 
 			return fmt.Errorf("timeout adding message to %s queue", q.Name())
 		case <-ctx.Done():
+			msgWithQueue.failedMutex.Lock()
+			defer msgWithQueue.failedMutex.Unlock()
+			msgWithQueue.failed = true
 			return fmt.Errorf("failed to add message to queue %s: %w", q.Name(), ctx.Err())
 
 		}
@@ -384,6 +397,16 @@ func (t *MessageQueueImpl) startPublishing() func() error {
 					return
 				case msg := <-t.msgs:
 					go func(msg *msgWithQueue) {
+
+						// we don't allow the message to be failed when we are processing it
+						msg.failedMutex.Lock()
+						defer msg.failedMutex.Unlock()
+
+						if msg.failed {
+							t.l.Warn().Msgf("message %s has already failed, not publishing", msg.ID)
+							return
+						}
+
 						body, err := json.Marshal(msg)
 
 						if err != nil {
