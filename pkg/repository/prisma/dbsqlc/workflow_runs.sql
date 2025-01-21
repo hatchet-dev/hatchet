@@ -321,7 +321,7 @@ WITH workflow_runs AS (
     SELECT
         wr."id"
     FROM "WorkflowRun" wr
-    WHERE 
+    WHERE
         wr."id" IN (
             SELECT
                 id
