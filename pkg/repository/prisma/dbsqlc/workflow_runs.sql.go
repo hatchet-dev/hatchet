@@ -2799,8 +2799,9 @@ WITH workflow_runs AS (
         r2.id,
         r2."status",
         r2."concurrencyGroupId",
-        row_number() OVER (PARTITION BY r2."concurrencyGroupId" ORDER BY r2."createdAt", r2."insertOrder", r2.id) AS "rn",
-        row_number() OVER (ORDER BY r2."createdAt", r2."insertOrder", r2.id) AS "seqnum"
+        row_number() OVER (PARTITION BY r2."concurrencyGroupId" ORDER BY r2."createdAt", r2.id) AS "rn",
+        -- we order by r2.id as a second parameter to get a pseudo-random, stable order
+        row_number() OVER (ORDER BY r2."createdAt", r2.id) AS "seqnum"
     FROM
         "WorkflowRun" r2
     LEFT JOIN
