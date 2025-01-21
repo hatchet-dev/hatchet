@@ -1610,6 +1610,51 @@ func (q *Queries) GetStepsForWorkflowVersion(ctx context.Context, db DBTX, workf
 	return items, nil
 }
 
+const getUpstreamErrorsForOnFailureStep = `-- name: GetUpstreamErrorsForOnFailureStep :many
+WITH workflow_run AS (
+    SELECT wr."createdAt", wr."updatedAt", wr."deletedAt", wr."tenantId", wr."workflowVersionId", wr.status, wr.error, wr."startedAt", wr."finishedAt", wr."concurrencyGroupId", wr."displayName", wr.id, wr."childIndex", wr."childKey", wr."parentId", wr."parentStepRunId", wr."additionalMetadata", wr.duration, wr.priority, wr."insertOrder"
+    FROM "WorkflowRun" wr
+    JOIN "JobRun" jr ON wr."id" = jr."workflowRunId"
+    JOIN "StepRun" sr ON jr."id" = sr."jobRunId"
+    WHERE sr."id" = $1::uuid
+)
+SELECT
+    sr."id" AS "stepRunId",
+    s."readableId" AS "stepReadableId",
+    sr."error" AS "stepRunError"
+FROM workflow_run wr
+JOIN "JobRun" jr ON wr."id" = jr."workflowRunId"
+JOIN "StepRun" sr ON jr."id" = sr."jobRunId"
+JOIN "Step" s ON sr."stepId" = s."id"
+WHERE sr."error" IS NOT NULL
+`
+
+type GetUpstreamErrorsForOnFailureStepRow struct {
+	StepRunId      pgtype.UUID `json:"stepRunId"`
+	StepReadableId pgtype.Text `json:"stepReadableId"`
+	StepRunError   pgtype.Text `json:"stepRunError"`
+}
+
+func (q *Queries) GetUpstreamErrorsForOnFailureStep(ctx context.Context, db DBTX, onfailuresteprunid pgtype.UUID) ([]*GetUpstreamErrorsForOnFailureStepRow, error) {
+	rows, err := db.Query(ctx, getUpstreamErrorsForOnFailureStep, onfailuresteprunid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*GetUpstreamErrorsForOnFailureStepRow
+	for rows.Next() {
+		var i GetUpstreamErrorsForOnFailureStepRow
+		if err := rows.Scan(&i.StepRunId, &i.StepReadableId, &i.StepRunError); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getWorkflowRun = `-- name: GetWorkflowRun :many
 SELECT
     runs."createdAt", runs."updatedAt", runs."deletedAt", runs."tenantId", runs."workflowVersionId", runs.status, runs.error, runs."startedAt", runs."finishedAt", runs."concurrencyGroupId", runs."displayName", runs.id, runs."childIndex", runs."childKey", runs."parentId", runs."parentStepRunId", runs."additionalMetadata", runs.duration, runs.priority, runs."insertOrder",
