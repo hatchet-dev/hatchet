@@ -49,6 +49,10 @@ type EngineRepository interface {
 	MessageQueue() MessageQueueRepository
 }
 
+type OLAPRepository interface {
+	Event() OLAPEventRepository
+}
+
 type EntitlementsRepository interface {
 	TenantLimit() TenantLimitRepository
 }
