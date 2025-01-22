@@ -53,7 +53,7 @@ func TestLoadCLI(t *testing.T) {
 		{
 			name: "test simple with unlimited concurrency",
 			args: args{
-				duration:        10 * time.Second,
+				duration:        20 * time.Second,
 				eventsPerSecond: 10,
 				delay:           0 * time.Second,
 				concurrency:     0,
@@ -63,7 +63,7 @@ func TestLoadCLI(t *testing.T) {
 		}, {
 			name: "test with high step delay",
 			args: args{
-				duration:        10 * time.Second,
+				duration:        20 * time.Second,
 				eventsPerSecond: 10,
 				delay:           4 * time.Second, // can't go higher than 5 seconds here because we timeout without activity
 				concurrency:     0,
