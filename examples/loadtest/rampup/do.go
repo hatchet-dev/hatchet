@@ -70,9 +70,7 @@ func Do(ctx context.Context, duration time.Duration, startEventsPerSecond, amoun
 		cancel()
 	}()
 
-	timeout := time.Duration(60)
-	timer := time.After(timeout)
-
+	timeout := 15 // want to fail fast on these tests and not wait forever
 	for {
 		select {
 		case workerErr := <-errChan:
@@ -81,7 +79,7 @@ func Do(ctx context.Context, duration time.Duration, startEventsPerSecond, amoun
 		case e := <-emitErrChan:
 			l.Error().Msgf("error in emit: %s", e)
 			return e
-		case <-timer:
+		case <-time.After(time.Duration(timeout) * time.Second):
 			l.Error().Msgf("no events received within %d seconds \n", timeout)
 			return fmt.Errorf("no events received within %d seconds", timeout)
 		case event := <-resultChan:
@@ -90,8 +88,6 @@ func Do(ctx context.Context, duration time.Duration, startEventsPerSecond, amoun
 				fmt.Printf("✅ success \n")
 				return nil
 			}
-			timeout = 5
-			timer = time.After(timeout * time.Second)
 		case <-ctx.Done():
 			return nil
 

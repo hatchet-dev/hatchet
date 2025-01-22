@@ -90,14 +90,12 @@ func do(ctx context.Context, duration time.Duration, eventsPerSecond int, delay 
 
 	// going to allow 2X the duration for the overall timeout
 	after := duration * 2
-	movingTimeout := time.Duration(timeoutMultiplier) * (duration)
 
-	totalTimeout := time.Duration(timeoutMultiplier) * (duration + after)
+	timeout := time.Duration(timeoutMultiplier) * (duration + after)
 
-	fmt.Println("timeout", totalTimeout)
-	fmt.Println("moving timeout", movingTimeout)
+	fmt.Println("timeout", timeout)
 
-	timeoutCtx, cancelTimeout := context.WithTimeoutCause(ctx, totalTimeout, fmt.Errorf("test took longer than %d", totalTimeout))
+	timeoutCtx, cancelTimeout := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("test took longer than %d", timeout))
 	defer cancelTimeout()
 
 outer:
@@ -106,8 +104,9 @@ outer:
 		case <-timeoutCtx.Done():
 			l.Info().Msg("context done")
 			if timeoutCtx.Err() == context.DeadlineExceeded {
-				return fmt.Errorf("❌ timed out waiting for test to finish waited %s", totalTimeout)
+				return fmt.Errorf("❌ timed out waiting for test to finish waited %s", timeout)
 			} else {
+				l.Info().Msgf("context done with casuse %s", timeoutCtx.Err())
 				return nil
 			}
 		case <-sigChan:
@@ -121,14 +120,9 @@ outer:
 			l.Error().Msgf("❌ duplicate event %d", dupeId)
 			return fmt.Errorf("❌ duplicate event %d", dupeId)
 
-		case <-time.After(movingTimeout):
-			l.Error().Msg("timeout waiting for test activity")
-			return fmt.Errorf("❌ timed out waiting %s for activity", movingTimeout)
-
 		case executed := <-executedChan:
 			l.Debug().Msgf("executed %d", executed)
 			executedCount++
-			l.Debug().Msgf("Set the timeout to %s", movingTimeout)
 
 			if emittedCount > 0 {
 
