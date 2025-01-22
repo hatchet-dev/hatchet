@@ -135,16 +135,9 @@ func defaultClientOpts(token *string, cf *client.ClientConfigFile) *ClientOpts {
 	}
 }
 
-func WithLogLevel(lvl string) ClientOpt {
+func WithLogger(l *zerolog.Logger) ClientOpt {
 	return func(opts *ClientOpts) {
-		logger := logger.NewDefaultLogger("client")
-		lvl, err := zerolog.ParseLevel(lvl)
-
-		if err == nil {
-			logger = logger.Level(lvl)
-		}
-
-		opts.l = &logger
+		opts.l = l
 	}
 }
 
