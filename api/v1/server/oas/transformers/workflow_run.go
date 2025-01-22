@@ -516,10 +516,11 @@ func ToScheduledWorkflowsFromSQLC(scheduled *dbsqlc.ListScheduledWorkflowsRow) *
 		}
 	}
 
-	var workflowRunStatus gen.WorkflowRunStatus
+	var workflowRunStatus *gen.WorkflowRunStatus
 
 	if scheduled.WorkflowRunStatus.Valid {
-		workflowRunStatus = gen.WorkflowRunStatus(scheduled.WorkflowRunStatus.WorkflowRunStatus)
+		status := gen.WorkflowRunStatus(scheduled.WorkflowRunStatus.WorkflowRunStatus)
+		workflowRunStatus = &status
 	}
 
 	var workflowRunIdPtr *uuid.UUID
@@ -538,7 +539,7 @@ func ToScheduledWorkflowsFromSQLC(scheduled *dbsqlc.ListScheduledWorkflowsRow) *
 		TriggerAt:            scheduled.TriggerAt.Time,
 		AdditionalMetadata:   &additionalMetadata,
 		WorkflowRunCreatedAt: &scheduled.WorkflowRunCreatedAt.Time,
-		WorkflowRunStatus:    &workflowRunStatus,
+		WorkflowRunStatus:    workflowRunStatus,
 		WorkflowRunId:        workflowRunIdPtr,
 		WorkflowRunName:      &scheduled.WorkflowRunName.String,
 		Method:               gen.ScheduledWorkflowsMethod(scheduled.Method),
