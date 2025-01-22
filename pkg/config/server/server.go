@@ -558,6 +558,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("alerting.sentry.enabled", "SERVER_ALERTING_SENTRY_ENABLED")
 	_ = v.BindEnv("alerting.sentry.dsn", "SERVER_ALERTING_SENTRY_DSN")
 	_ = v.BindEnv("alerting.sentry.environment", "SERVER_ALERTING_SENTRY_ENVIRONMENT")
+	_ = v.BindEnv("alerting.sentry.sampleRate", "SERVER_ALERTING_SENTRY_SAMPLE_RATE")
 
 	// analytics options
 	_ = v.BindEnv("analytics.posthog.enabled", "SERVER_ANALYTICS_POSTHOG_ENABLED")
