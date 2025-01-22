@@ -90,16 +90,12 @@ func do(ctx context.Context, duration time.Duration, eventsPerSecond int, delay 
 
 	// going to allow 2X the duration for the overall timeout
 	after := duration * 2
-	var movingTimeout = time.Now().Add((duration + after) * time.Duration(timeoutMultiplier))
-	var totalTimeout = time.Now().Add((duration + after) * time.Duration(timeoutMultiplier))
+	var movingTimeout = (duration + after) * time.Duration(timeoutMultiplier)
+	var totalTimeout = time.Now().Add((duration + after) * time.Duration(timeoutMultiplier)).Add(10 * time.Second)
 
 	totalTimeoutTimer := time.NewTimer(time.Until(totalTimeout))
 
 	defer totalTimeoutTimer.Stop()
-
-	movingTimeoutTimer := time.NewTimer(time.Until(movingTimeout))
-
-	defer movingTimeoutTimer.Stop()
 
 outer:
 	for {
@@ -117,21 +113,16 @@ outer:
 
 		case <-totalTimeoutTimer.C:
 			l.Error().Msg("timed out")
-			return fmt.Errorf("❌ timed out after %s", duration+after)
+			return fmt.Errorf("❌ timed out after %s", totalTimeout)
 
-		case <-movingTimeoutTimer.C:
+		case <-time.After(movingTimeout):
 			l.Error().Msg("timeout waiting for test activity")
-			return fmt.Errorf("❌ timed out waiting for activity")
+			return fmt.Errorf("❌ timed out waiting %s for activity", movingTimeout)
 
 		case executed := <-executedChan:
 			l.Debug().Msgf("executed %d", executed)
 			executedCount++
-			movingTimeout = time.Now().Add(5 * time.Second)
 			l.Debug().Msgf("Set the timeout to %s", movingTimeout)
-			if !movingTimeoutTimer.Stop() {
-				<-movingTimeoutTimer.C
-			}
-			movingTimeoutTimer.Reset(time.Until(movingTimeout))
 
 			if emittedCount > 0 {
 
