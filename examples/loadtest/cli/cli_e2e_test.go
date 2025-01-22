@@ -23,7 +23,7 @@ func TestLoadCLI(t *testing.T) {
 	timeoutMultiplier := 1
 	if os.Getenv("SERVER_TASKQUEUE_KIND") == "postgres" {
 		log.Println("using postgres, increasing timings for load test")
-		timeoutMultiplier = 20
+		timeoutMultiplier = 2
 	}
 
 	type args struct {

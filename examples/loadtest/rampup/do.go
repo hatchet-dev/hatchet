@@ -71,7 +71,7 @@ func Do(ctx context.Context, duration time.Duration, startEventsPerSecond, amoun
 	}()
 
 	timeout := time.Duration(60)
-	timer := time.After(timeout * time.Second)
+	timer := time.After(timeout)
 
 	for {
 		select {

@@ -90,8 +90,12 @@ func do(ctx context.Context, duration time.Duration, eventsPerSecond int, delay 
 
 	// going to allow 2X the duration for the overall timeout
 	after := duration * 2
-	var movingTimeout = (duration + after) * time.Duration(timeoutMultiplier)
-	var totalTimeout = (duration + after) * time.Duration(timeoutMultiplier)
+	movingTimeout := time.Duration(timeoutMultiplier) * (duration)
+
+	totalTimeout := time.Duration(timeoutMultiplier) * (duration + after)
+
+	fmt.Println("timeout", totalTimeout)
+	fmt.Println("moving timeout", movingTimeout)
 
 	timeoutCtx, cancelTimeout := context.WithTimeoutCause(ctx, totalTimeout, fmt.Errorf("test took longer than %d", totalTimeout))
 	defer cancelTimeout()
@@ -102,7 +106,7 @@ outer:
 		case <-timeoutCtx.Done():
 			l.Info().Msg("context done")
 			if timeoutCtx.Err() == context.DeadlineExceeded {
-				return fmt.Errorf("❌ timed out waiting %s for activity", movingTimeout)
+				return fmt.Errorf("❌ timed out waiting for test to finish waited %s", totalTimeout)
 			} else {
 				return nil
 			}
