@@ -269,6 +269,7 @@ func newFromOpts(opts *ClientOpts) (Client, error) {
 
 	if !opts.noGrpcRetry {
 		retryOnCodes := []codes.Code{
+			codes.ResourceExhausted,
 			codes.DeadlineExceeded,
 			codes.FailedPrecondition,
 			codes.Internal,
