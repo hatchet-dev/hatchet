@@ -3,8 +3,6 @@ package sentry
 import (
 	"context"
 	"fmt"
-	"os"
-	"strconv"
 
 	"github.com/getsentry/sentry-go"
 )
@@ -20,28 +18,18 @@ func noIntegrations(ints []sentry.Integration) []sentry.Integration {
 type SentryAlerterOpts struct {
 	DSN         string
 	Environment string
+	SampleRate  float64
 }
 
 func NewSentryAlerter(opts *SentryAlerterOpts) (*SentryAlerter, error) {
-	value, exists := os.LookupEnv("SENTRY_SAMPLE_RATE")
-
-	if !exists {
-		value = "1.0"
-	}
-
-	sampleRate, err := strconv.ParseFloat(value, 64)
-
-	if err != nil {
-		sampleRate = 1.0
-	}
-
 	sentryClient, err := sentry.NewClient(sentry.ClientOptions{
 		Dsn:              opts.DSN,
 		AttachStacktrace: true,
 		Integrations:     noIntegrations,
 		Environment:      opts.Environment,
-		SampleRate:       sampleRate,
+		SampleRate:       opts.SampleRate,
 	})
+
 	if err != nil {
 		return nil, err
 	}
