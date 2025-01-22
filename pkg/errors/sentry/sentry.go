@@ -26,6 +26,7 @@ func NewSentryAlerter(opts *SentryAlerterOpts) (*SentryAlerter, error) {
 		AttachStacktrace: true,
 		Integrations:     noIntegrations,
 		Environment:      opts.Environment,
+		SampleRate:       0.025,
 	})
 	if err != nil {
 		return nil, err
