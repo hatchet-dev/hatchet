@@ -105,7 +105,6 @@ func (r *olapEventRepository) ReadTaskRuns(tenantId uuid.UUID) ([]olap.WorkflowR
 		SELECT
 			e.id,
 			e.task_id,
-			e.worker_id,
 			e.tenant_id,
 			e.status,
 			e.timestamp,
@@ -132,7 +131,6 @@ func (r *olapEventRepository) ReadTaskRuns(tenantId uuid.UUID) ([]olap.WorkflowR
 		err = rows.Scan(
 			&taskRun.Id,
 			&taskRun.TaskId,
-			&taskRun.WorkerId,
 			&taskRun.TenantId,
 			&taskRun.Status,
 			&taskRun.Timestamp,
@@ -157,7 +155,6 @@ func (r *olapEventRepository) ReadTaskRun(taskRunId int) (olap.WorkflowRun, erro
 		SELECT
 			id,
 			task_id,
-			worker_id,
 			tenant_id,
 			status,
 			timestamp,
@@ -175,7 +172,6 @@ func (r *olapEventRepository) ReadTaskRun(taskRunId int) (olap.WorkflowRun, erro
 	err := row.Scan(
 		&taskRun.Id,
 		&taskRun.TaskId,
-		&taskRun.WorkerId,
 		&taskRun.TenantId,
 		&taskRun.Status,
 		&taskRun.Timestamp,
@@ -282,8 +278,7 @@ func WriteTaskBatch(c context.Context, tasks []olap.Task) ([]*olap.Task, error) 
 			sticky,
 			desired_worker_id,
 			display_name,
-			input,
-			worker_id
+			input
 		)
 	`)
 
@@ -304,7 +299,6 @@ func WriteTaskBatch(c context.Context, tasks []olap.Task) ([]*olap.Task, error) 
 			task.DesiredWorkerId,
 			task.DisplayName,
 			task.Input,
-			task.WorkerId,
 		)
 
 		if err != nil {

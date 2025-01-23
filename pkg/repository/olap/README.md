@@ -20,7 +20,6 @@
         desired_worker_id UUID NULL DEFAULT NULL,
         display_name TEXT NOT NULL,
         input TEXT NOT NULL,
-        worker_id UUID NOT NULL,
         created_at DateTime('UTC') NOT NULL DEFAULT NOW(),
 
         PRIMARY KEY (tenant_id, id)
