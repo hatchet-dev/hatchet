@@ -6,7 +6,7 @@
 
 4. ```sql
     CREATE TABLE tasks (
-        id BIGINT NOT NULL,
+        id UUID NOT NULL,
         tenant_id UUID NOT NULL,
         queue TEXT NOT NULL,
         action_id TEXT NOT NULL,
@@ -18,13 +18,12 @@
             'SOFT' = 2,
         ),
         desired_worker_id UUID,
-        external_id UUID NOT NULL,
         display_name TEXT NOT NULL,
         input TEXT NOT NULL,
         worker_id UUID NOT NULL,
         created_at DateTime('UTC') NOT NULL DEFAULT NOW(),
 
-        PRIMARY KEY (task_id, status, retry_count)
+        PRIMARY KEY (id)
     )
     ENGINE = MergeTree()
 
@@ -34,8 +33,9 @@
     PARTITION BY (tenant_id, toMonday(created_at))
     ORDER BY (id)
 
-    CREATE TABLE events (
-        task_id BIGINT NOT NULL,
+    CREATE TABLE task_events (
+        id UUID NOT NULL DEFAULT generateUUIDv4(),
+        task_id UUID NOT NULL,
         tenant_id UUID NOT NULL,
         status Enum(
             'REQUEUED_NO_WORKER' = 1,
@@ -62,13 +62,13 @@
         timestamp DateTime('UTC') NOT NULL,
         retry_count INTEGER NOT NULL DEFAULT 0,
         error_message TEXT NULL DEFAULT NULL,
-        additional__event_data TEXT NOT NULL DEFAULT '{}',
-        additional__event_message TEXT NOT NULL,
+        additional__event_data TEXT,
+        additional__event_message TEXT,
         additional__event_severity Enum(
             'INFO' = 1,
             'WARNING' = 2,
             'CRITICAL' = 3
-        ) NOT NULL,
+        ),
         additional__event_reason Enum(
             'ACKNOWLEDGED' = 1,
             'ASSIGNED' = 2,
@@ -87,7 +87,7 @@
             'TIMEOUT_REFRESHED' = 15,
             'WORKFLOW_RUN_GROUP_KEY_FAILED' = 16,
             'WORKFLOW_RUN_GROUP_KEY_SUCCEEDED' = 17
-        ) NOT NULL,
+        ),
         created_at DateTime('UTC') NOT NULL DEFAULT NOW(),
 
         CONSTRAINT check__failed_state_has_error CHECK CASE WHEN status = 'FAILED' THEN error_message IS NOT NULL ELSE error_message IS NULL END,
