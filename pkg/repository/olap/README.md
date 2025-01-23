@@ -62,6 +62,7 @@
         timestamp DateTime('UTC') NOT NULL,
         retry_count INTEGER NOT NULL DEFAULT 0,
         error_message TEXT NULL DEFAULT NULL,
+        output TEXT NULL DEFAULT NULL,
         additional__event_data TEXT NULL DEFAULT NULL,
         additional__event_message TEXT NULL DEFAULT NULL,
         additional__event_severity Enum(

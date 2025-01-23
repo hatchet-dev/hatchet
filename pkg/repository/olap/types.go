@@ -40,6 +40,7 @@ type TaskEvent struct {
 	Timestamp               time.Time `json:"timestamp"`
 	RetryCount              int32     `json:"retry_count"`
 	ErrorMsg                *string   `json:"error_message,omitempty"`
+	Output                  *string   `json:"output,omitempty"`
 	AdditionalEventData     *string   `json:"additional__event_data"`
 	AdditionalEventMessage  *string   `json:"additional__event_message"`
 	AdditionalEventSeverity *string   `json:"additional__event_severity"`
