@@ -94,7 +94,7 @@ func do(ctx context.Context, duration time.Duration, eventsPerSecond int, delay 
 	timeout := time.Duration(timeoutMultiplier) * (duration + after)
 
 	fmt.Println("timeout", timeout)
-
+	l.Info().Msgf("waiting for %s", timeout)
 	timeoutCtx, cancelTimeout := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("test took longer than %d", timeout))
 	defer cancelTimeout()
 
