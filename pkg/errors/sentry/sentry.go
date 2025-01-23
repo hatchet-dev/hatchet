@@ -18,6 +18,7 @@ func noIntegrations(ints []sentry.Integration) []sentry.Integration {
 type SentryAlerterOpts struct {
 	DSN         string
 	Environment string
+	SampleRate  float64
 }
 
 func NewSentryAlerter(opts *SentryAlerterOpts) (*SentryAlerter, error) {
@@ -26,7 +27,9 @@ func NewSentryAlerter(opts *SentryAlerterOpts) (*SentryAlerter, error) {
 		AttachStacktrace: true,
 		Integrations:     noIntegrations,
 		Environment:      opts.Environment,
+		SampleRate:       opts.SampleRate,
 	})
+
 	if err != nil {
 		return nil, err
 	}
