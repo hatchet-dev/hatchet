@@ -35,6 +35,9 @@ const (
 	EVENT_PROCESSING_QUEUE    staticQueue = "event_processing_queue_v2"
 	JOB_PROCESSING_QUEUE      staticQueue = "job_processing_queue_v2"
 	WORKFLOW_PROCESSING_QUEUE staticQueue = "workflow_processing_queue_v2"
+
+	TASK_PROCESSING_QUEUE staticQueue = "task_processing_queue_v2"
+	TRIGGER_QUEUE         staticQueue = "trigger_queue_v2"
 )
 
 func (s staticQueue) Name() string {

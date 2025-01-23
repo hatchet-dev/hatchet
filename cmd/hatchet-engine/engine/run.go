@@ -11,6 +11,8 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/events"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/jobs"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/retention"
+	"github.com/hatchet-dev/hatchet/internal/services/controllers/v2/task"
+	"github.com/hatchet-dev/hatchet/internal/services/controllers/v2/trigger"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/workflows"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher"
 	"github.com/hatchet-dev/hatchet/internal/services/grpc"
@@ -611,6 +613,55 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			Fn:   cleanupJobs,
 		})
 
+		tasks, err := task.New(
+			task.WithAlerter(sc.Alerter),
+			task.WithMessageQueue(sc.MessageQueue),
+			task.WithRepository(sc.V2.Tasks()),
+			task.WithLogger(sc.Logger),
+			task.WithPartition(p),
+			task.WithQueueLoggerConfig(&sc.AdditionalLoggers.Queue),
+			task.WithPgxStatsLoggerConfig(&sc.AdditionalLoggers.PgxStats),
+		)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not create tasks controller: %w", err)
+		}
+
+		cleanupTasks, err := tasks.Start()
+
+		if err != nil {
+			return nil, fmt.Errorf("could not start tasks controller: %w", err)
+		}
+
+		teardown = append(teardown, Teardown{
+			Name: "tasks controller",
+			Fn:   cleanupTasks,
+		})
+
+		triggers, err := trigger.New(
+			trigger.WithAlerter(sc.Alerter),
+			trigger.WithMessageQueue(sc.MessageQueue),
+			trigger.WithRepository(sc.EngineRepository),
+			trigger.WithV2Repository(sc.V2),
+			trigger.WithLogger(sc.Logger),
+			trigger.WithPartition(p),
+		)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not create trigger controller: %w", err)
+		}
+
+		cleanupTriggers, err := triggers.Start()
+
+		if err != nil {
+			return nil, fmt.Errorf("could not start trigger controller: %w", err)
+		}
+
+		teardown = append(teardown, Teardown{
+			Name: "trigger controller",
+			Fn:   cleanupTriggers,
+		})
+
 		wc, err := workflows.New(
 			workflows.WithAlerter(sc.Alerter),
 			workflows.WithMessageQueue(sc.MessageQueue),
@@ -693,6 +744,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			dispatcher.WithAlerter(sc.Alerter),
 			dispatcher.WithMessageQueue(sc.MessageQueue),
 			dispatcher.WithRepository(sc.EngineRepository),
+			dispatcher.WithV2Repository(sc.V2),
 			dispatcher.WithLogger(sc.Logger),
 			dispatcher.WithEntitlementsRepository(sc.EntitlementRepository),
 			dispatcher.WithCache(cacheInstance),

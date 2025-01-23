@@ -180,6 +180,18 @@ func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl) {
 		return nil, nil
 	}
 
+	if _, err := t.initQueue(sub, msgqueue.TASK_PROCESSING_QUEUE); err != nil {
+		t.l.Debug().Msgf("error initializing queue: %v", err)
+		cancel()
+		return nil, nil
+	}
+
+	if _, err := t.initQueue(sub, msgqueue.TRIGGER_QUEUE); err != nil {
+		t.l.Debug().Msgf("error initializing queue: %v", err)
+		cancel()
+		return nil, nil
+	}
+
 	// create publisher go func
 	cleanup1 := t.startPublishing()
 

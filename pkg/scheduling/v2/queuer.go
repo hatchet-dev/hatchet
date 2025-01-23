@@ -11,13 +11,12 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
+	v2 "github.com/hatchet-dev/hatchet/pkg/repository/v2"
+	"github.com/hatchet-dev/hatchet/pkg/repository/v2/sqlcv2"
 )
 
 type Queuer struct {
-	repo      repository.QueueRepository
+	repo      v2.QueueRepository
 	tenantId  pgtype.UUID
 	queueName string
 
@@ -42,7 +41,7 @@ type Queuer struct {
 	unackedMu rwMutex
 	unacked   map[int64]struct{}
 
-	unassigned   map[int64]*dbsqlc.QueueItem
+	unassigned   map[int64]*sqlcv2.V2QueueItem
 	unassignedMu mutex
 }
 
@@ -69,7 +68,7 @@ func newQueuer(conf *sharedConfig, tenantId pgtype.UUID, queueName string, s *Sc
 		queueMu:       newMu(conf.l),
 		unackedMu:     newRWMu(conf.l),
 		unacked:       make(map[int64]struct{}),
-		unassigned:    make(map[int64]*dbsqlc.QueueItem),
+		unassigned:    make(map[int64]*sqlcv2.V2QueueItem),
 		unassignedMu:  newMu(conf.l),
 	}
 
@@ -150,14 +149,17 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		refillTime := time.Since(checkpoint)
 		checkpoint = time.Now()
 
-		rls, err := q.repo.GetStepRunRateLimits(ctx, qis)
+		// TODO: REVERT
+		rls := make(map[string]map[string]int32)
 
-		if err != nil {
-			q.l.Error().Err(err).Msg("error getting rate limits")
+		// rls, err := q.repo.GetStepRunRateLimits(ctx, qis)
 
-			q.unackedToUnassigned(qis)
-			continue
-		}
+		// if err != nil {
+		// 	q.l.Error().Err(err).Msg("error getting rate limits")
+
+		// 	q.unackedToUnassigned(qis)
+		// 	continue
+		// }
 
 		rateLimitTime := time.Since(checkpoint)
 		checkpoint = time.Now()
@@ -165,9 +167,10 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		stepIds := make([]pgtype.UUID, 0, len(qis))
 
 		for _, qi := range qis {
-			stepIds = append(stepIds, qi.StepId)
+			stepIds = append(stepIds, qi.StepID)
 		}
 
+		// TODO: REVERT
 		labels, err := q.repo.GetDesiredLabels(ctx, stepIds)
 
 		if err != nil {
@@ -253,14 +256,14 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 	}
 }
 
-func (q *Queuer) refillQueue(ctx context.Context) ([]*dbsqlc.QueueItem, error) {
+func (q *Queuer) refillQueue(ctx context.Context) ([]*sqlcv2.V2QueueItem, error) {
 	q.unackedMu.Lock()
 	defer q.unackedMu.Unlock()
 
 	q.unassignedMu.Lock()
 	defer q.unassignedMu.Unlock()
 
-	curr := make([]*dbsqlc.QueueItem, 0, len(q.unassigned))
+	curr := make([]*sqlcv2.V2QueueItem, 0, len(q.unassigned))
 
 	for _, qi := range q.unassigned {
 		curr = append(curr, qi)
@@ -292,7 +295,7 @@ func (q *Queuer) refillQueue(ctx context.Context) ([]*dbsqlc.QueueItem, error) {
 		}
 	}
 
-	newCurr := make([]*dbsqlc.QueueItem, 0, len(curr))
+	newCurr := make([]*sqlcv2.V2QueueItem, 0, len(curr))
 
 	for _, qi := range curr {
 		if _, ok := q.unacked[qi.ID]; !ok {
@@ -317,11 +320,11 @@ func (q *Queuer) refillQueue(ctx context.Context) ([]*dbsqlc.QueueItem, error) {
 
 type QueueResults struct {
 	TenantId pgtype.UUID
-	Assigned []*repository.AssignedItem
+	Assigned []*v2.AssignedItem
 
 	// A list of step run ids that were not assigned because they reached the scheduling
 	// timeout
-	SchedulingTimedOut []string
+	SchedulingTimedOut []int64
 }
 
 func (q *Queuer) ack(r *assignResults) {
@@ -352,7 +355,7 @@ func (q *Queuer) ack(r *assignResults) {
 	}
 }
 
-func (q *Queuer) unackedToUnassigned(items []*dbsqlc.QueueItem) {
+func (q *Queuer) unackedToUnassigned(items []*sqlcv2.V2QueueItem) {
 	q.unackedMu.Lock()
 	defer q.unackedMu.Unlock()
 
@@ -378,30 +381,30 @@ func (q *Queuer) flushToDatabase(ctx context.Context, r *assignResults) int {
 		return 0
 	}
 
-	opts := &repository.AssignResults{
-		Assigned:           make([]*repository.AssignedItem, 0, len(r.assigned)),
+	opts := &v2.AssignResults{
+		Assigned:           make([]*v2.AssignedItem, 0, len(r.assigned)),
 		Unassigned:         r.unassigned,
 		SchedulingTimedOut: r.schedulingTimedOut,
-		RateLimited:        make([]*repository.RateLimitResult, 0, len(r.rateLimited)),
+		RateLimited:        make([]*v2.RateLimitResult, 0, len(r.rateLimited)),
 	}
 
-	stepRunIdsToAcks := make(map[string]int, len(r.assigned))
+	stepRunIdsToAcks := make(map[int64]int, len(r.assigned))
 
 	for _, assignedItem := range r.assigned {
-		stepRunIdsToAcks[sqlchelpers.UUIDToStr(assignedItem.QueueItem.StepRunId)] = assignedItem.AckId
+		stepRunIdsToAcks[assignedItem.QueueItem.TaskID] = assignedItem.AckId
 
-		opts.Assigned = append(opts.Assigned, &repository.AssignedItem{
+		opts.Assigned = append(opts.Assigned, &v2.AssignedItem{
 			WorkerId:  assignedItem.WorkerId,
 			QueueItem: assignedItem.QueueItem,
 		})
 	}
 
 	for _, rateLimitedItem := range r.rateLimited {
-		opts.RateLimited = append(opts.RateLimited, &repository.RateLimitResult{
+		opts.RateLimited = append(opts.RateLimited, &v2.RateLimitResult{
 			ExceededKey:   rateLimitedItem.exceededKey,
 			ExceededUnits: rateLimitedItem.exceededUnits,
 			ExceededVal:   rateLimitedItem.exceededVal,
-			StepRunId:     rateLimitedItem.qi.StepRunId,
+			TaskId:        rateLimitedItem.qi.TaskID,
 		})
 	}
 
@@ -425,22 +428,22 @@ func (q *Queuer) flushToDatabase(ctx context.Context, r *assignResults) int {
 	ackIds := make([]int, 0, len(succeeded))
 
 	for _, failedItem := range failed {
-		nackId := stepRunIdsToAcks[sqlchelpers.UUIDToStr(failedItem.QueueItem.StepRunId)]
+		nackId := stepRunIdsToAcks[failedItem.QueueItem.TaskID]
 		nackIds = append(nackIds, nackId)
 	}
 
 	for _, assignedItem := range succeeded {
-		ackId := stepRunIdsToAcks[sqlchelpers.UUIDToStr(assignedItem.QueueItem.StepRunId)]
+		ackId := stepRunIdsToAcks[assignedItem.QueueItem.TaskID]
 		ackIds = append(ackIds, ackId)
 	}
 
 	q.s.nack(nackIds)
 	q.s.ack(ackIds)
 
-	schedulingTimedOut := make([]string, 0, len(r.schedulingTimedOut))
+	schedulingTimedOut := make([]int64, 0, len(r.schedulingTimedOut))
 
 	for _, id := range r.schedulingTimedOut {
-		schedulingTimedOut = append(schedulingTimedOut, sqlchelpers.UUIDToStr(id.StepRunId))
+		schedulingTimedOut = append(schedulingTimedOut, id.TaskID)
 	}
 
 	q.resultsCh <- &QueueResults{

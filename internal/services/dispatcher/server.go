@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -31,6 +32,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/v2/sqlcv2"
 )
 
 type subscribedWorker struct {
@@ -92,6 +94,82 @@ func (worker *subscribedWorker) StartStepRun(
 		parentId := sqlchelpers.UUIDToStr(stepRunData.ParentId)
 		action.ParentWorkflowRunId = &parentId
 	}
+
+	worker.sendMu.Lock()
+	defer worker.sendMu.Unlock()
+
+	return worker.stream.Send(action)
+}
+
+func (worker *subscribedWorker) StartTaskFromBulk(
+	ctx context.Context,
+	tenantId string,
+	task *sqlcv2.V2Task,
+) error {
+	ctx, span := telemetry.NewSpan(ctx, "start-step-run-from-bulk") // nolint:ineffassign
+	defer span.End()
+
+	inputBytes := []byte{}
+
+	if task.Input != nil {
+		// NOTE: hack to get around weird input types
+		unmarshalledIn := make(map[string]interface{})
+
+		err := json.Unmarshal(task.Input, &unmarshalledIn)
+
+		if err != nil {
+			return err
+		}
+
+		newIn := map[string]interface{}{
+			"input": unmarshalledIn,
+		}
+
+		inputBytes, err = json.Marshal(newIn)
+
+		if err != nil {
+			return err
+		}
+	}
+
+	// FIXME: that's not the step name
+	stepName := task.DisplayName
+
+	stepRunId := fmt.Sprintf("id-%d", task.ID)
+
+	action := &contracts.AssignedAction{
+		TenantId:      tenantId,
+		JobId:         sqlchelpers.UUIDToStr(task.StepID), // FIXME
+		JobName:       task.DisplayName,                   // FIXME
+		JobRunId:      sqlchelpers.UUIDToStr(task.StepID), // FIXME
+		StepId:        sqlchelpers.UUIDToStr(task.StepID), // FIXME
+		StepRunId:     stepRunId,                          // FIXME
+		ActionType:    contracts.ActionType_START_STEP_RUN,
+		ActionId:      task.ActionID,
+		ActionPayload: string(inputBytes),
+		StepName:      stepName,                           // FIXME
+		WorkflowRunId: sqlchelpers.UUIDToStr(task.StepID), // FIXME
+		RetryCount:    task.RetryCount,
+	}
+
+	// FIXME
+	// if stepRun.AdditionalMetadata != nil {
+	// 	metadataStr := string(stepRun.AdditionalMetadata)
+	// 	action.AdditionalMetadata = &metadataStr
+	// }
+
+	// if stepRun.ChildIndex.Valid {
+	// 	action.ChildWorkflowIndex = &stepRun.ChildIndex.Int32
+	// }
+
+	// if stepRun.ChildKey.Valid {
+	// 	action.ChildWorkflowKey = &stepRun.ChildKey.String
+	// }
+
+	// if stepRun.ParentId.Valid {
+	// 	parentId := sqlchelpers.UUIDToStr(stepRun.ParentId)
+	// 	action.ParentWorkflowRunId = &parentId
+	// }
 
 	worker.sendMu.Lock()
 	defer worker.sendMu.Unlock()
@@ -1061,6 +1139,26 @@ func waitFor(wg *sync.WaitGroup, timeout time.Duration, l *zerolog.Logger) {
 }
 
 func (s *DispatcherImpl) SendStepActionEvent(ctx context.Context, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
+	if strings.HasPrefix(request.StepRunId, "id-") {
+		taskIdStr := strings.TrimPrefix(request.StepRunId, "id-")
+		taskId, err := strconv.ParseInt(taskIdStr, 10, 64)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not parse task id: %w", err)
+		}
+
+		switch request.EventType {
+		case contracts.StepActionEventType_STEP_EVENT_TYPE_STARTED:
+			return s.handleTaskStarted(ctx, taskId, request)
+		case contracts.StepActionEventType_STEP_EVENT_TYPE_ACKNOWLEDGED:
+			panic("unimplemented")
+		case contracts.StepActionEventType_STEP_EVENT_TYPE_COMPLETED:
+			return s.handleTaskCompleted(ctx, taskId, request)
+		case contracts.StepActionEventType_STEP_EVENT_TYPE_FAILED:
+			panic("unimplemented")
+		}
+	}
+
 	switch request.EventType {
 	case contracts.StepActionEventType_STEP_EVENT_TYPE_STARTED:
 		return s.handleStepRunStarted(ctx, request)
@@ -1206,6 +1304,99 @@ func (s *DispatcherImpl) handleStepRunStarted(inputCtx context.Context, request 
 	if err != nil {
 		return nil, err
 	}
+
+	return &contracts.ActionEventResponse{
+		TenantId: tenantId,
+		WorkerId: request.WorkerId,
+	}, nil
+}
+
+func (s *DispatcherImpl) handleTaskStarted(inputCtx context.Context, taskId int64, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
+	tenant := inputCtx.Value("tenant").(*dbsqlc.Tenant)
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+
+	// run the rest on a separate context to always send to job controller
+	// ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	// defer cancel()
+
+	s.l.Debug().Msgf("Received step started event for step run %s", request.StepRunId)
+
+	// startedAt := request.EventTimestamp.AsTime()
+
+	// TODO
+	// sr, err := s.repo.StepRun().GetStepRunForEngine(ctx, tenantId, request.StepRunId)
+
+	// if err != nil {
+	// 	return nil, err
+	// }
+
+	// err = s.repo.StepRun().StepRunStarted(ctx, tenantId, sqlchelpers.UUIDToStr(sr.WorkflowRunId), request.StepRunId, startedAt)
+
+	// if err != nil {
+	// 	return nil, fmt.Errorf("could not mark step run started: %w", err)
+	// }
+
+	// we send the event directly to the tenant's event queue
+	// err = s.mq.AddMessage(ctx, msgqueue.TenantEventConsumerQueue(tenantId), &msgqueue.Message{
+	// 	ID:       "step-run-started",
+	// 	Payload:  payload,
+	// 	Metadata: metadata,
+	// 	Retries:  3,
+	// })
+
+	// if err != nil {
+	// 	return nil, err
+	// }
+
+	return &contracts.ActionEventResponse{
+		TenantId: tenantId,
+		WorkerId: request.WorkerId,
+	}, nil
+}
+
+func (s *DispatcherImpl) handleTaskCompleted(inputCtx context.Context, taskId int64, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
+	tenant := inputCtx.Value("tenant").(*dbsqlc.Tenant)
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+
+	// run the rest on a separate context to always send to job controller
+	// ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	// defer cancel()
+
+	s.l.Debug().Msgf("Received step started event for step run %s", request.StepRunId)
+
+	// TODO: RETRY COUNT SHOULD NOT BE 0
+	err := s.v2repo.Tasks().ReleaseQueueItems(inputCtx, tenantId, taskId, 0)
+
+	if err != nil {
+		return nil, err
+	}
+
+	// startedAt := request.EventTimestamp.AsTime()
+
+	// TODO
+	// sr, err := s.repo.StepRun().GetStepRunForEngine(ctx, tenantId, request.StepRunId)
+
+	// if err != nil {
+	// 	return nil, err
+	// }
+
+	// err = s.repo.StepRun().StepRunStarted(ctx, tenantId, sqlchelpers.UUIDToStr(sr.WorkflowRunId), request.StepRunId, startedAt)
+
+	// if err != nil {
+	// 	return nil, fmt.Errorf("could not mark step run started: %w", err)
+	// }
+
+	// we send the event directly to the tenant's event queue
+	// err = s.mq.AddMessage(ctx, msgqueue.TenantEventConsumerQueue(tenantId), &msgqueue.Message{
+	// 	ID:       "step-run-started",
+	// 	Payload:  payload,
+	// 	Metadata: metadata,
+	// 	Retries:  3,
+	// })
+
+	// if err != nil {
+	// 	return nil, err
+	// }
 
 	return &contracts.ActionEventResponse{
 		TenantId: tenantId,

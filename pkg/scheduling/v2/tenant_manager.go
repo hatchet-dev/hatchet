@@ -9,8 +9,8 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
+	v2 "github.com/hatchet-dev/hatchet/pkg/repository/v2"
 )
 
 // tenantManager manages the scheduler and queuers for a tenant and multiplexes
@@ -27,7 +27,7 @@ type tenantManager struct {
 
 	leaseManager *LeaseManager
 
-	workersCh <-chan []*repository.ListActiveWorkersResult
+	workersCh <-chan []*v2.ListActiveWorkersResult
 	queuesCh  <-chan []string
 	resultsCh chan *QueueResults
 

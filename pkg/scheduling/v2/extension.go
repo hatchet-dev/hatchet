@@ -6,6 +6,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/v2/sqlcv2"
 )
 
 type PostScheduleInput struct {
@@ -13,7 +14,7 @@ type PostScheduleInput struct {
 
 	Slots []*SlotCp
 
-	Unassigned []*dbsqlc.QueueItem
+	Unassigned []*sqlcv2.V2QueueItem
 
 	ActionsToSlots map[string][]*SlotCp
 }
@@ -21,7 +22,7 @@ type PostScheduleInput struct {
 type WorkerCp struct {
 	WorkerId string
 	MaxRuns  int
-	Labels   []*dbsqlc.ListManyWorkerLabelsRow
+	Labels   []*sqlcv2.ListManyWorkerLabelsRow
 }
 
 type SlotCp struct {

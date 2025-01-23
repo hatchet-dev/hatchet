@@ -9,34 +9,34 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
+	v2 "github.com/hatchet-dev/hatchet/pkg/repository/v2"
+	"github.com/hatchet-dev/hatchet/pkg/repository/v2/sqlcv2"
 )
 
 // LeaseManager is responsible for leases on multiple queues and multiplexing
 // queue results to callers. It is still tenant-scoped.
 type LeaseManager struct {
-	lr repository.LeaseRepository
+	lr v2.LeaseRepository
 
 	conf *sharedConfig
 
 	tenantId pgtype.UUID
 
 	workerLeasesMu sync.Mutex
-	workerLeases   []*dbsqlc.Lease
-	workersCh      chan<- []*repository.ListActiveWorkersResult
+	workerLeases   []*sqlcv2.Lease
+	workersCh      chan<- []*v2.ListActiveWorkersResult
 
 	queueLeasesMu sync.Mutex
-	queueLeases   []*dbsqlc.Lease
+	queueLeases   []*sqlcv2.Lease
 	queuesCh      chan<- []string
 
 	cleanedUp bool
 	cleanupMu sync.Mutex
 }
 
-func newLeaseManager(conf *sharedConfig, tenantId pgtype.UUID) (*LeaseManager, <-chan []*repository.ListActiveWorkersResult, <-chan []string) {
-	workersCh := make(chan []*repository.ListActiveWorkersResult)
+func newLeaseManager(conf *sharedConfig, tenantId pgtype.UUID) (*LeaseManager, <-chan []*v2.ListActiveWorkersResult, <-chan []string) {
+	workersCh := make(chan []*v2.ListActiveWorkersResult)
 	queuesCh := make(chan []string)
 
 	return &LeaseManager{
@@ -48,7 +48,7 @@ func newLeaseManager(conf *sharedConfig, tenantId pgtype.UUID) (*LeaseManager, <
 	}, workersCh, queuesCh
 }
 
-func (l *LeaseManager) sendWorkerIds(workerIds []*repository.ListActiveWorkersResult) {
+func (l *LeaseManager) sendWorkerIds(workerIds []*v2.ListActiveWorkersResult) {
 	defer func() {
 		if r := recover(); r != nil {
 			l.conf.l.Error().Interface("recovered", r).Msg("recovered from panic")
@@ -103,17 +103,17 @@ func (l *LeaseManager) acquireWorkerLeases(ctx context.Context) error {
 		return err
 	}
 
-	currResourceIdsToLease := make(map[string]*dbsqlc.Lease, len(l.workerLeases))
+	currResourceIdsToLease := make(map[string]*sqlcv2.Lease, len(l.workerLeases))
 
 	for _, lease := range l.workerLeases {
 		currResourceIdsToLease[lease.ResourceId] = lease
 	}
 
 	workerIdsStr := make([]string, len(activeWorkers))
-	activeWorkerIdsToResults := make(map[string]*repository.ListActiveWorkersResult, len(activeWorkers))
+	activeWorkerIdsToResults := make(map[string]*v2.ListActiveWorkersResult, len(activeWorkers))
 
-	leasesToExtend := make([]*dbsqlc.Lease, 0, len(activeWorkers))
-	leasesToRelease := make([]*dbsqlc.Lease, 0, len(currResourceIdsToLease))
+	leasesToExtend := make([]*sqlcv2.Lease, 0, len(activeWorkers))
+	leasesToRelease := make([]*sqlcv2.Lease, 0, len(currResourceIdsToLease))
 
 	for i, activeWorker := range activeWorkers {
 		aw := activeWorker
@@ -130,10 +130,10 @@ func (l *LeaseManager) acquireWorkerLeases(ctx context.Context) error {
 		leasesToRelease = append(leasesToRelease, lease)
 	}
 
-	successfullyAcquiredWorkerIds := make([]*repository.ListActiveWorkersResult, 0)
+	successfullyAcquiredWorkerIds := make([]*v2.ListActiveWorkersResult, 0)
 
 	if len(workerIdsStr) != 0 {
-		workerLeases, err := l.lr.AcquireOrExtendLeases(ctx, l.tenantId, dbsqlc.LeaseKindWORKER, workerIdsStr, leasesToExtend)
+		workerLeases, err := l.lr.AcquireOrExtendLeases(ctx, l.tenantId, sqlcv2.LeaseKindWORKER, workerIdsStr, leasesToExtend)
 
 		if err != nil {
 			return err
@@ -170,15 +170,15 @@ func (l *LeaseManager) acquireQueueLeases(ctx context.Context) error {
 		return err
 	}
 
-	currResourceIdsToLease := make(map[string]*dbsqlc.Lease, len(l.queueLeases))
+	currResourceIdsToLease := make(map[string]*sqlcv2.Lease, len(l.queueLeases))
 
 	for _, lease := range l.queueLeases {
 		currResourceIdsToLease[lease.ResourceId] = lease
 	}
 
 	queueIdsStr := make([]string, len(queues))
-	leasesToExtend := make([]*dbsqlc.Lease, 0, len(queues))
-	leasesToRelease := make([]*dbsqlc.Lease, 0, len(currResourceIdsToLease))
+	leasesToExtend := make([]*sqlcv2.Lease, 0, len(queues))
+	leasesToRelease := make([]*sqlcv2.Lease, 0, len(currResourceIdsToLease))
 
 	for i, q := range queues {
 		queueIdsStr[i] = q.Name
@@ -197,7 +197,7 @@ func (l *LeaseManager) acquireQueueLeases(ctx context.Context) error {
 
 	if len(queueIdsStr) != 0 {
 
-		queueLeases, err := l.lr.AcquireOrExtendLeases(ctx, l.tenantId, dbsqlc.LeaseKindQUEUE, queueIdsStr, leasesToExtend)
+		queueLeases, err := l.lr.AcquireOrExtendLeases(ctx, l.tenantId, sqlcv2.LeaseKindQUEUE, queueIdsStr, leasesToExtend)
 
 		if err != nil {
 			return err

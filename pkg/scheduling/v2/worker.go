@@ -1,17 +1,17 @@
 package v2
 
 import (
-	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
+	v2 "github.com/hatchet-dev/hatchet/pkg/repository/v2"
+	"github.com/hatchet-dev/hatchet/pkg/repository/v2/sqlcv2"
 )
 
 type worker struct {
-	*repository.ListActiveWorkersResult
+	*v2.ListActiveWorkersResult
 }
 
 // computeWeight computes the weight of a worker based on the desired labels. If the worker does not
 // meet the required labels, the weight is -1.
-func (w *worker) computeWeight(s []*dbsqlc.GetDesiredLabelsRow) int {
+func (w *worker) computeWeight(s []*sqlcv2.GetDesiredLabelsRow) int {
 	totalWeight := 0
 
 	for _, desiredLabel := range s {
@@ -22,34 +22,34 @@ func (w *worker) computeWeight(s []*dbsqlc.GetDesiredLabelsRow) int {
 				labelFound = true
 				conditionMet := false
 				switch desiredLabel.Comparator {
-				case dbsqlc.WorkerLabelComparatorEQUAL:
+				case sqlcv2.WorkerLabelComparatorEQUAL:
 					if (desiredLabel.StrValue.Valid && workerLabel.StrValue.Valid && desiredLabel.StrValue.String == workerLabel.StrValue.String) ||
 						(desiredLabel.IntValue.Valid && workerLabel.IntValue.Valid && desiredLabel.IntValue.Int32 == workerLabel.IntValue.Int32) {
 						totalWeight += int(desiredLabel.Weight)
 						conditionMet = true
 					}
-				case dbsqlc.WorkerLabelComparatorNOTEQUAL:
+				case sqlcv2.WorkerLabelComparatorNOTEQUAL:
 					if (desiredLabel.StrValue.Valid && workerLabel.StrValue.Valid && desiredLabel.StrValue.String != workerLabel.StrValue.String) ||
 						(desiredLabel.IntValue.Valid && workerLabel.IntValue.Valid && desiredLabel.IntValue.Int32 != workerLabel.IntValue.Int32) {
 						totalWeight += int(desiredLabel.Weight)
 						conditionMet = true
 					}
-				case dbsqlc.WorkerLabelComparatorGREATERTHAN:
+				case sqlcv2.WorkerLabelComparatorGREATERTHAN:
 					if desiredLabel.IntValue.Valid && workerLabel.IntValue.Valid && workerLabel.IntValue.Int32 > desiredLabel.IntValue.Int32 {
 						totalWeight += int(desiredLabel.Weight)
 						conditionMet = true
 					}
-				case dbsqlc.WorkerLabelComparatorLESSTHAN:
+				case sqlcv2.WorkerLabelComparatorLESSTHAN:
 					if desiredLabel.IntValue.Valid && workerLabel.IntValue.Valid && workerLabel.IntValue.Int32 < desiredLabel.IntValue.Int32 {
 						totalWeight += int(desiredLabel.Weight)
 						conditionMet = true
 					}
-				case dbsqlc.WorkerLabelComparatorGREATERTHANOREQUAL:
+				case sqlcv2.WorkerLabelComparatorGREATERTHANOREQUAL:
 					if desiredLabel.IntValue.Valid && workerLabel.IntValue.Valid && workerLabel.IntValue.Int32 >= desiredLabel.IntValue.Int32 {
 						totalWeight += int(desiredLabel.Weight)
 						conditionMet = true
 					}
-				case dbsqlc.WorkerLabelComparatorLESSTHANOREQUAL:
+				case sqlcv2.WorkerLabelComparatorLESSTHANOREQUAL:
 					if desiredLabel.IntValue.Valid && workerLabel.IntValue.Valid && workerLabel.IntValue.Int32 <= desiredLabel.IntValue.Int32 {
 						totalWeight += int(desiredLabel.Weight)
 						conditionMet = true

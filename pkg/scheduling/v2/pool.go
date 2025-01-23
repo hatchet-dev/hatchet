@@ -6,13 +6,13 @@ import (
 
 	"github.com/rs/zerolog"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
+	v2 "github.com/hatchet-dev/hatchet/pkg/repository/v2"
 )
 
 type sharedConfig struct {
-	repo repository.SchedulerRepository
+	repo v2.SchedulerRepository
 
 	l *zerolog.Logger
 
@@ -31,7 +31,7 @@ type SchedulingPool struct {
 	resultsCh chan *QueueResults
 }
 
-func NewSchedulingPool(repo repository.SchedulerRepository, l *zerolog.Logger, singleQueueLimit int) (*SchedulingPool, func() error, error) {
+func NewSchedulingPool(repo v2.SchedulerRepository, l *zerolog.Logger, singleQueueLimit int) (*SchedulingPool, func() error, error) {
 	resultsCh := make(chan *QueueResults, 1000)
 
 	s := &SchedulingPool{

@@ -32,7 +32,7 @@ func run(ctx context.Context, delay time.Duration, executions chan<- time.Durati
 			c,
 		),
 		worker.WithLogLevel("warn"),
-		worker.WithMaxRuns(200),
+		worker.WithMaxRuns(6000),
 	)
 
 	if err != nil {

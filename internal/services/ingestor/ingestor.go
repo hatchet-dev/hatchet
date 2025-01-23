@@ -160,10 +160,12 @@ func (i *IngestorImpl) IngestEvent(ctx context.Context, tenantId, key string, da
 		Value: event.ID,
 	})
 
-	err = i.mq.AddMessage(context.Background(), msgqueue.EVENT_PROCESSING_QUEUE, eventToTask(event))
+	err = i.mq.AddMessage(context.Background(), msgqueue.TRIGGER_QUEUE, eventToTask(event))
+
+	// err = i.mq.AddMessage(context.Background(), msgqueue.EVENT_PROCESSING_QUEUE, eventToTask(event))
+
 	if err != nil {
 		return nil, fmt.Errorf("could not add event to task queue: %w", err)
-
 	}
 
 	return event, nil
@@ -253,7 +255,7 @@ func eventToTask(e *dbsqlc.Event) *msgqueue.Message {
 	})
 
 	return &msgqueue.Message{
-		ID:       "event",
+		ID:       "process-trigger",
 		Payload:  payload,
 		Metadata: metadata,
 		Retries:  3,

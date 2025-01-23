@@ -21,6 +21,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
+	repov2 "github.com/hatchet-dev/hatchet/pkg/repository/v2"
 	v2 "github.com/hatchet-dev/hatchet/pkg/scheduling/v2"
 )
 
@@ -326,7 +327,7 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 
 	// bulk assign step runs
 	if len(res.Assigned) > 0 {
-		dispatcherIdToWorkerIdsToStepRuns := make(map[string]map[string][]string)
+		dispatcherIdToWorkerIdsToStepRuns := make(map[string]map[string][]int64)
 
 		workerIds := make([]string, 0)
 
@@ -364,16 +365,16 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 			}
 
 			if _, ok := dispatcherIdToWorkerIdsToStepRuns[dispatcherId]; !ok {
-				dispatcherIdToWorkerIdsToStepRuns[dispatcherId] = make(map[string][]string)
+				dispatcherIdToWorkerIdsToStepRuns[dispatcherId] = make(map[string][]int64)
 			}
 
 			workerId := sqlchelpers.UUIDToStr(bulkAssigned.WorkerId)
 
 			if _, ok := dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId]; !ok {
-				dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId] = make([]string, 0)
+				dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId] = make([]int64, 0)
 			}
 
-			dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId] = append(dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId], sqlchelpers.UUIDToStr(bulkAssigned.QueueItem.StepRunId))
+			dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId] = append(dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId], bulkAssigned.QueueItem.TaskID)
 		}
 
 		// for each dispatcher, send a bulk assigned task
@@ -381,7 +382,7 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 			err = s.mq.AddMessage(
 				ctx,
 				msgqueue.QueueTypeFromDispatcherID(dispatcherId),
-				stepRunBulkAssignedTask(tenantId, dispatcherId, workerIdsToStepRuns),
+				taskBulkAssignedTask(tenantId, dispatcherId, workerIdsToStepRuns),
 			)
 
 			if err != nil {
@@ -390,37 +391,40 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 		}
 	}
 
-	for _, toCancel := range res.SchedulingTimedOut {
-		innerErr := s.mq.AddMessage(
-			ctx,
-			msgqueue.JOB_PROCESSING_QUEUE,
-			getStepRunCancelTask(
-				tenantId,
-				toCancel,
-				"SCHEDULING_TIMED_OUT",
-			),
-		)
+	// TODO: FIXME
+	// for _, toCancel := range res.SchedulingTimedOut {
+	// 	innerErr := s.mq.AddMessage(
+	// 		ctx,
+	// 		msgqueue.JOB_PROCESSING_QUEUE,
+	// 		getStepRunCancelTask(
+	// 			tenantId,
+	// 			toCancel,
+	// 			"SCHEDULING_TIMED_OUT",
+	// 		),
+	// 	)
 
-		if innerErr != nil {
-			err = multierror.Append(err, fmt.Errorf("could not send cancel step run event: %w", innerErr))
-		}
-	}
+	// 	if innerErr != nil {
+	// 		err = multierror.Append(err, fmt.Errorf("could not send cancel step run event: %w", innerErr))
+	// 	}
+	// }
 
 	return err
 }
 
-func (s *Scheduler) internalRetry(ctx context.Context, tenantId string, assigned ...*repository.AssignedItem) {
-	for _, a := range assigned {
-		stepRunId := sqlchelpers.UUIDToStr(a.QueueItem.StepRunId)
+func (s *Scheduler) internalRetry(ctx context.Context, tenantId string, assigned ...*repov2.AssignedItem) {
+	panic("fixme")
 
-		_, err := s.repo.StepRun().QueueStepRun(ctx, tenantId, stepRunId, &repository.QueueStepRunOpts{
-			IsInternalRetry: true,
-		})
+	// for _, a := range assigned {
+	// 	stepRunId := sqlchelpers.UUIDToStr(a.QueueItem.StepRunId)
 
-		if err != nil {
-			s.l.Error().Err(err).Msg("could not requeue step run for internal retry")
-		}
-	}
+	// 	_, err := s.repo.StepRun().QueueStepRun(ctx, tenantId, stepRunId, &repov2.QueueStepRunOpts{
+	// 		IsInternalRetry: true,
+	// 	})
+
+	// 	if err != nil {
+	// 		s.l.Error().Err(err).Msg("could not requeue step run for internal retry")
+	// 	}
+	// }
 }
 
 func getStepRunCancelTask(tenantId, stepRunId, reason string) *msgqueue.Message {
@@ -442,18 +446,18 @@ func getStepRunCancelTask(tenantId, stepRunId, reason string) *msgqueue.Message 
 	}
 }
 
-func stepRunBulkAssignedTask(tenantId, dispatcherId string, workerIdsToStepRuns map[string][]string) *msgqueue.Message {
-	payload, _ := datautils.ToJSONMap(tasktypes.StepRunAssignedBulkTaskPayload{
-		WorkerIdToStepRunIds: workerIdsToStepRuns,
+func taskBulkAssignedTask(tenantId, dispatcherId string, workerIdsToTaskIds map[string][]int64) *msgqueue.Message {
+	payload, _ := datautils.ToJSONMap(tasktypes.TaskAssignedBulkTaskPayload{
+		WorkerIdToTaskIds: workerIdsToTaskIds,
 	})
 
-	metadata, _ := datautils.ToJSONMap(tasktypes.StepRunAssignedBulkTaskMetadata{
+	metadata, _ := datautils.ToJSONMap(tasktypes.TaskAssignedBulkTaskMetadata{
 		TenantId:     tenantId,
 		DispatcherId: dispatcherId,
 	})
 
 	return &msgqueue.Message{
-		ID:       "step-run-assigned-bulk",
+		ID:       "task-assigned-bulk",
 		Payload:  payload,
 		Metadata: metadata,
 		Retries:  3,

@@ -26,6 +26,8 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
+	v2 "github.com/hatchet-dev/hatchet/pkg/repository/v2"
+	"github.com/hatchet-dev/hatchet/pkg/repository/v2/sqlcv2"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 
 	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
@@ -45,8 +47,10 @@ type DispatcherImpl struct {
 	l            *zerolog.Logger
 	dv           datautils.DataDecoderValidator
 	v            validator.Validator
-	repo         repository.EngineRepository
-	cache        cache.Cacheable
+
+	v2repo v2.Repository
+	repo   repository.EngineRepository
+	cache  cache.Cacheable
 
 	entitlements repository.EntitlementsRepository
 
@@ -122,6 +126,7 @@ type DispatcherOpts struct {
 	mq           msgqueue.MessageQueue
 	l            *zerolog.Logger
 	dv           datautils.DataDecoderValidator
+	v2repo       v2.Repository
 	repo         repository.EngineRepository
 	entitlements repository.EntitlementsRepository
 	dispatcherId string
@@ -156,6 +161,12 @@ func WithAlerter(a hatcheterrors.Alerter) DispatcherOpt {
 func WithRepository(r repository.EngineRepository) DispatcherOpt {
 	return func(opts *DispatcherOpts) {
 		opts.repo = r
+	}
+}
+
+func WithV2Repository(r v2.Repository) DispatcherOpt {
+	return func(opts *DispatcherOpts) {
+		opts.v2repo = r
 	}
 }
 
@@ -204,6 +215,10 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 		return nil, fmt.Errorf("repository is required. use WithRepository")
 	}
 
+	if opts.v2repo == nil {
+		return nil, fmt.Errorf("v2 repository is required. use WithV2Repository")
+	}
+
 	if opts.entitlements == nil {
 		return nil, fmt.Errorf("entitlements repository is required. use WithEntitlementsRepository")
 	}
@@ -231,6 +246,7 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 		dv:           opts.dv,
 		v:            validator.NewDefaultValidator(),
 		repo:         opts.repo,
+		v2repo:       opts.v2repo,
 		entitlements: opts.entitlements,
 		dispatcherId: opts.dispatcherId,
 		workers:      &workers{},
@@ -359,6 +375,8 @@ func (d *DispatcherImpl) handleTask(ctx context.Context, task *msgqueue.Message)
 	switch task.ID {
 	case "group-key-action-assigned":
 		err = d.a.WrapErr(d.handleGroupKeyActionAssignedTask(ctx, task), map[string]interface{}{})
+	case "task-assigned-bulk":
+		err = d.a.WrapErr(d.handleTaskBulkAssignedTask(ctx, task), map[string]interface{}{})
 	case "step-run-assigned-bulk":
 		err = d.a.WrapErr(d.handleStepRunBulkAssignedTask(ctx, task), map[string]interface{}{})
 	case "step-run-cancelled":
@@ -435,6 +453,205 @@ func (d *DispatcherImpl) handleGroupKeyActionAssignedTask(ctx context.Context, t
 	}
 
 	return multiErr
+}
+
+func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, task *msgqueue.Message) error {
+	ctx, span := telemetry.NewSpanWithCarrier(ctx, "task-assigned-bulk", task.OtelCarrier)
+	defer span.End()
+
+	// we set a timeout of 25 seconds because we don't want to hold the semaphore for longer than the visibility timeout (30 seconds)
+	// on the worker
+	ctx, cancel := context.WithTimeout(ctx, 25*time.Second)
+	defer cancel()
+
+	payload := tasktypes.TaskAssignedBulkTaskPayload{}
+	metadata := tasktypes.TaskAssignedBulkTaskMetadata{}
+
+	err := d.dv.DecodeAndValidate(task.Payload, &payload)
+
+	if err != nil {
+		return fmt.Errorf("could not decode dispatcher task payload: %w", err)
+	}
+
+	err = d.dv.DecodeAndValidate(task.Metadata, &metadata)
+
+	if err != nil {
+		return fmt.Errorf("could not decode dispatcher task metadata: %w", err)
+	}
+
+	// load the step runs from the database
+	taskIds := make([]int64, 0)
+
+	for _, tasks := range payload.WorkerIdToTaskIds {
+		taskIds = append(taskIds, tasks...)
+	}
+
+	bulkDatas, err := d.v2repo.Tasks().ListTasks(ctx, metadata.TenantId, taskIds)
+
+	if err != nil {
+		return fmt.Errorf("could not bulk list step run data: %w", err)
+	}
+
+	taskIdToData := make(map[int64]*sqlcv2.V2Task)
+
+	for _, task := range bulkDatas {
+		taskIdToData[task.ID] = task
+	}
+
+	outerEg := errgroup.Group{}
+
+	for workerId, stepRunIds := range payload.WorkerIdToTaskIds {
+		workerId := workerId
+
+		outerEg.Go(func() error {
+			d.l.Debug().Msgf("worker %s has %d step runs", workerId, len(stepRunIds))
+
+			// get the worker for this task
+			workers, err := d.workers.Get(workerId)
+
+			if err != nil && !errors.Is(err, ErrWorkerNotFound) {
+				return fmt.Errorf("could not get worker: %w", err)
+			}
+
+			innerEg := errgroup.Group{}
+
+			// toRetry := []string{}
+			// toRetryMu := sync.Mutex{}
+
+			for _, stepRunId := range stepRunIds {
+				stepRunId := stepRunId
+
+				innerEg.Go(func() error {
+					task := taskIdToData[stepRunId]
+
+					// requeue := func() {
+					// 	toRetryMu.Lock()
+					// 	toRetry = append(toRetry, stepRunId)
+					// 	toRetryMu.Unlock()
+					// }
+
+					// if we've reached the context deadline, this should be requeued
+					if ctx.Err() != nil {
+						// FIXME
+						// requeue()
+						return nil
+					}
+
+					// // if the step run has a job run in a non-running state, we should not send it to the worker
+					// if repository.IsFinalJobRunStatus(stepRun.JobRunStatus) {
+					// 	d.l.Debug().Msgf("job run %s is in a final state %s, ignoring", sqlchelpers.UUIDToStr(stepRun.JobRunId), string(stepRun.JobRunStatus))
+
+					// 	// release the semaphore
+					// 	return d.repo.StepRun().ReleaseStepRunSemaphore(ctx, metadata.TenantId, stepRunId, false)
+					// }
+
+					// // if the step run is in a final state, we should not send it to the worker
+					// if repository.IsFinalStepRunStatus(stepRun.Status) {
+					// 	d.l.Warn().Msgf("step run %s is in a final state %s, ignoring", stepRunId, string(stepRun.Status))
+
+					// 	return d.repo.StepRun().ReleaseStepRunSemaphore(ctx, metadata.TenantId, stepRunId, false)
+					// }
+
+					var multiErr error
+					var success bool
+
+					for i, w := range workers {
+						err := w.StartTaskFromBulk(ctx, metadata.TenantId, task)
+
+						if err != nil {
+							d.l.Err(err).Msgf("could not send step run to worker (%d)", i)
+							multiErr = multierror.Append(multiErr, fmt.Errorf("could not send step action to worker (%d): %w", i, err))
+						} else {
+							success = true
+							break
+						}
+					}
+
+					// now := time.Now().UTC()
+
+					if success {
+						// defer d.repo.StepRun().DeferredStepRunEvent(
+						// 	metadata.TenantId,
+						// 	repository.CreateStepRunEventOpts{
+						// 		StepRunId:     sqlchelpers.UUIDToStr(stepRun.SRID),
+						// 		EventMessage:  repository.StringPtr("Sent step run to the assigned worker"),
+						// 		EventReason:   repository.StepRunEventReasonPtr(dbsqlc.StepRunEventReasonSENTTOWORKER),
+						// 		EventSeverity: repository.StepRunEventSeverityPtr(dbsqlc.StepRunEventSeverityINFO),
+						// 		Timestamp:     &now,
+						// 		EventData:     map[string]interface{}{"worker_id": workerId},
+						// 	},
+						// )
+
+						return nil
+					}
+
+					// defer d.repo.StepRun().DeferredStepRunEvent(
+					// 	metadata.TenantId,
+					// 	repository.CreateStepRunEventOpts{
+					// 		StepRunId:     sqlchelpers.UUIDToStr(stepRun.SRID),
+					// 		EventMessage:  repository.StringPtr("Could not send step run to assigned worker"),
+					// 		EventReason:   repository.StepRunEventReasonPtr(dbsqlc.StepRunEventReasonREASSIGNED),
+					// 		EventSeverity: repository.StepRunEventSeverityPtr(dbsqlc.StepRunEventSeverityWARNING),
+					// 		Timestamp:     &now,
+					// 		EventData:     map[string]interface{}{"worker_id": workerId},
+					// 	},
+					// )
+
+					// requeue()
+					// FIXME
+
+					return multiErr
+				})
+			}
+
+			innerErr := innerEg.Wait()
+
+			// if len(toRetry) > 0 {
+			// 	retryCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			// 	defer cancel()
+
+			// 	_, stepRunsToFail, err := d.repo.StepRun().InternalRetryStepRuns(retryCtx, metadata.TenantId, toRetry)
+
+			// 	if err != nil {
+			// 		innerErr = multierror.Append(innerErr, fmt.Errorf("could not requeue step runs: %w", err))
+			// 	}
+
+			// 	if len(stepRunsToFail) > 0 {
+			// 		now := time.Now()
+
+			// 		batchErr := queueutils.BatchConcurrent(50, stepRunsToFail, func(stepRuns []*dbsqlc.GetStepRunForEngineRow) error {
+			// 			var innerBatchErr error
+
+			// 			for _, stepRun := range stepRuns {
+			// 				err := d.mq.AddMessage(
+			// 					retryCtx,
+			// 					msgqueue.JOB_PROCESSING_QUEUE,
+			// 					tasktypes.StepRunFailedToTask(
+			// 						stepRun,
+			// 						"Could not send step run to worker",
+			// 						&now,
+			// 					),
+			// 				)
+
+			// 				if err != nil {
+			// 					innerBatchErr = multierror.Append(innerBatchErr, err)
+			// 				}
+			// 			}
+
+			// 			return innerBatchErr
+			// 		})
+
+			// 		if batchErr != nil {
+			// 			innerErr = multierror.Append(innerErr, fmt.Errorf("could not fail step runs: %w", batchErr))
+			// 		}
+			// 	}
+			// }
+
+			return innerErr
+		})
+	}
+
+	return outerEg.Wait()
 }
 
 func (d *DispatcherImpl) handleStepRunBulkAssignedTask(ctx context.Context, task *msgqueue.Message) error {

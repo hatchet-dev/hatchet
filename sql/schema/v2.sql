@@ -1,0 +1,164 @@
+
+-- CreateTable
+CREATE TABLE v2_queue (
+    tenant_id UUID NOT NULL,
+    name TEXT NOT NULL,
+    last_active TIMESTAMP(3),
+
+    CONSTRAINT v2_queue_pkey PRIMARY KEY (tenant_id, name)
+);
+
+-- CreateTable
+CREATE TABLE v2_task (
+    id bigint GENERATED ALWAYS AS IDENTITY,
+    tenant_id UUID NOT NULL,
+    queue TEXT NOT NULL,
+    action_id TEXT NOT NULL,
+    step_id UUID NOT NULL,
+    schedule_timeout TEXT NOT NULL,
+    step_timeout TEXT,
+    priority INTEGER DEFAULT 1,
+    sticky "StickyStrategy",
+    desired_worker_id UUID,
+    external_id UUID NOT NULL,
+    display_name TEXT NOT NULL,
+    input JSONB NOT NULL,
+    retry_count INTEGER NOT NULL DEFAULT 0,
+    CONSTRAINT v2_task_pkey PRIMARY KEY (id)
+);
+
+-- CreateTable
+CREATE TABLE v2_queue_item (
+    id bigint GENERATED ALWAYS AS IDENTITY,
+    tenant_id UUID NOT NULL,
+    queue TEXT NOT NULL,
+    task_id bigint NOT NULL,
+    action_id TEXT NOT NULL,
+    step_id UUID NOT NULL,
+    schedule_timeout_at TIMESTAMP(3),
+    step_timeout TEXT,
+    priority INTEGER NOT NULL DEFAULT 1,
+    sticky "StickyStrategy",
+    desired_worker_id UUID,
+    is_queued BOOLEAN NOT NULL,
+    CONSTRAINT v2_queue_item_pkey PRIMARY KEY (id)
+);
+
+CREATE INDEX v2_queue_item_isQueued_priority_tenantId_queue_id_idx ON v2_queue_item (
+    is_queued ASC,
+    tenant_id ASC,
+    queue ASC,
+    priority DESC,
+    id ASC
+);
+
+CREATE OR REPLACE FUNCTION v2_task_to_v2_queue_item_insert_function()
+RETURNS TRIGGER AS
+$$
+BEGIN
+    INSERT INTO v2_queue_item (
+        tenant_id,
+        queue,
+        task_id,
+        action_id,
+        step_id,
+        schedule_timeout_at,
+        step_timeout,
+        priority,
+        sticky,
+        desired_worker_id,
+        is_queued
+    )
+    VALUES (
+        NEW.tenant_id,
+        NEW.queue,
+        NEW.id,
+        NEW.action_id,
+        NEW.step_id,
+        CURRENT_TIMESTAMP + convert_duration_to_interval(NEW.schedule_timeout),
+        NEW.step_timeout,
+        COALESCE(NEW.priority, 1),
+        NEW.sticky,
+        NEW.desired_worker_id,
+        TRUE
+    );
+    RETURN NEW;
+END;
+$$
+LANGUAGE plpgsql;
+
+CREATE TRIGGER v2_task_to_v2_queue_item_insert_trigger
+AFTER INSERT ON v2_task
+FOR EACH ROW
+EXECUTE PROCEDURE v2_task_to_v2_queue_item_insert_function();
+
+CREATE OR REPLACE FUNCTION v2_task_to_v2_queue_item_update_retry_count_function()
+RETURNS TRIGGER AS
+$$
+BEGIN
+    INSERT INTO v2_queue_item (
+        tenant_id,
+        queue,
+        task_id,
+        action_id,
+        step_id,
+        schedule_timeout_at,
+        step_timeout,
+        priority,
+        sticky,
+        desired_worker_id,
+        is_queued
+    )
+    VALUES (
+        NEW.tenant_id,
+        NEW.queue,
+        NEW.id,
+        NEW.action_id,
+        NEW.step_id,
+        CURRENT_TIMESTAMP + convert_duration_to_interval(NEW.schedule_timeout),
+        NEW.step_timeout,
+        COALESCE(NEW.priority, 1),
+        NEW.sticky,
+        NEW.desired_worker_id,
+        TRUE
+    );
+    RETURN NEW;
+END;
+$$
+LANGUAGE plpgsql;
+
+CREATE TRIGGER v2_task_to_v2_queue_item_update_retry_count_trigger
+AFTER UPDATE OF retry_count ON v2_task
+FOR EACH ROW
+WHEN (OLD.retry_count IS DISTINCT FROM NEW.retry_count)
+EXECUTE PROCEDURE v2_task_to_v2_queue_item_update_retry_count_function();
+
+-- CreateTable
+CREATE TABLE v2_semaphore_queue_item (
+    task_id bigint NOT NULL,
+    retry_count INTEGER NOT NULL,
+    worker_id UUID NOT NULL,
+    tenant_id UUID NOT NULL,
+
+    CONSTRAINT v2_semaphore_queue_item_pkey PRIMARY KEY (task_id, retry_count)
+);
+
+-- CreateIndex
+CREATE UNIQUE INDEX v2_semaphore_queue_item_taskId_key ON v2_semaphore_queue_item (task_id ASC);
+
+-- CreateIndex
+CREATE INDEX v2_semaphore_queue_item_tenantId_workerId_idx ON v2_semaphore_queue_item (tenant_id ASC, worker_id ASC);
+
+-- CreateTable
+CREATE TABLE v2_timeout_queue_item (
+    task_id bigint NOT NULL,
+    retry_count INTEGER NOT NULL,
+    timeout_at TIMESTAMP(3) NOT NULL,
+    tenant_id UUID NOT NULL,
+    is_queued BOOLEAN NOT NULL,
+
+    CONSTRAINT v2_timeout_queue_item_pkey PRIMARY KEY (task_id, retry_count)
+);
+
+-- CreateIndex
+CREATE INDEX v2_timeout_queue_item_tenantId_isQueued_timeoutAt_idx ON v2_timeout_queue_item (tenant_id ASC, is_queued ASC, timeout_at ASC);

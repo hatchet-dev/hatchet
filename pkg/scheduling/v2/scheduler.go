@@ -11,15 +11,15 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/queueutils"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
+	v2 "github.com/hatchet-dev/hatchet/pkg/repository/v2"
+	"github.com/hatchet-dev/hatchet/pkg/repository/v2/sqlcv2"
 )
 
 // Scheduler is responsible for scheduling steps to workers as efficiently as possible.
 // This is tenant-scoped, so each tenant will have its own scheduler.
 type Scheduler struct {
-	repo     repository.AssignmentRepository
+	repo     v2.AssignmentRepository
 	tenantId pgtype.UUID
 
 	l *zerolog.Logger
@@ -86,7 +86,7 @@ func (s *Scheduler) nack(ids []int) {
 	}
 }
 
-func (s *Scheduler) setWorkers(workers []*repository.ListActiveWorkersResult) {
+func (s *Scheduler) setWorkers(workers []*v2.ListActiveWorkersResult) {
 	s.workersMu.Lock()
 	defer s.workersMu.Unlock()
 
@@ -255,7 +255,7 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 	s.unackedMu.Lock()
 	defer s.unackedMu.Unlock()
 
-	availableSlots, err := s.repo.ListAvailableSlotsForWorkers(ctx, s.tenantId, dbsqlc.ListAvailableSlotsForWorkersParams{
+	availableSlots, err := s.repo.ListAvailableSlotsForWorkers(ctx, s.tenantId, sqlcv2.ListAvailableSlotsForWorkersParams{
 		Tenantid:  s.tenantId,
 		Workerids: workerUUIDs,
 	})
@@ -387,11 +387,11 @@ func (s *Scheduler) start(ctx context.Context) {
 type scheduleRateLimitResult struct {
 	*rateLimitResult
 
-	qi *dbsqlc.QueueItem
+	qi *sqlcv2.V2QueueItem
 }
 
 type assignSingleResult struct {
-	qi *dbsqlc.QueueItem
+	qi *sqlcv2.V2QueueItem
 
 	workerId pgtype.UUID
 	ackId    int
@@ -405,13 +405,13 @@ type assignSingleResult struct {
 func (s *Scheduler) tryAssignBatch(
 	ctx context.Context,
 	actionId string,
-	qis []*dbsqlc.QueueItem,
+	qis []*sqlcv2.V2QueueItem,
 	// ringOffset is a hint for where to start the search for a slot. The search will wraparound the ring if necessary.
 	// If a slot is assigned, the caller should increment this value for the next call to tryAssignSingleton.
 	// Note that this is not guaranteed to be the actual offset of the latest assigned slot, since many actions may be scheduling
 	// slots concurrently.
 	ringOffset int,
-	stepIdsToLabels map[string][]*dbsqlc.GetDesiredLabelsRow,
+	stepIdsToLabels map[string][]*sqlcv2.GetDesiredLabelsRow,
 	stepRunIdsToRateLimits map[string]map[string]int32,
 ) (
 	res []*assignSingleResult, newRingOffset int, err error,
@@ -437,35 +437,36 @@ func (s *Scheduler) tryAssignBatch(
 	noop := func() {}
 
 	// first, check rate limits for each of the queue items
+	// TODO: REVERT
 	for i := range res {
-		r := res[i]
-		qi := qis[i]
+		// r := res[i]
+		// qi := qis[i]
 
 		rateLimitAck := noop
 		rateLimitNack := noop
 
-		rls := make(map[string]int32)
+		// rls := make(map[string]int32)
 
-		if stepRunIdsToRateLimits != nil {
-			if _, ok := stepRunIdsToRateLimits[sqlchelpers.UUIDToStr(qi.StepRunId)]; ok {
-				rls = stepRunIdsToRateLimits[sqlchelpers.UUIDToStr(qi.StepRunId)]
-			}
-		}
+		// if stepRunIdsToRateLimits != nil {
+		// 	if _, ok := stepRunIdsToRateLimits[sqlchelpers.UUIDToStr(qi.StepRunId)]; ok {
+		// 		rls = stepRunIdsToRateLimits[sqlchelpers.UUIDToStr(qi.StepRunId)]
+		// 	}
+		// }
 
-		// check rate limits
-		if len(rls) > 0 {
-			rlResult := s.rl.use(ctx, sqlchelpers.UUIDToStr(qi.StepRunId), rls)
+		// // check rate limits
+		// if len(rls) > 0 {
+		// 	rlResult := s.rl.use(ctx, sqlchelpers.UUIDToStr(qi.StepRunId), rls)
 
-			if !rlResult.succeeded {
-				r.rateLimitResult = &scheduleRateLimitResult{
-					rateLimitResult: &rlResult,
-					qi:              qi,
-				}
-			} else {
-				rateLimitAck = rlResult.ack
-				rateLimitNack = rlResult.nack
-			}
-		}
+		// 	if !rlResult.succeeded {
+		// 		r.rateLimitResult = &scheduleRateLimitResult{
+		// 			rateLimitResult: &rlResult,
+		// 			qi:              qi,
+		// 		}
+		// 	} else {
+		// 		rateLimitAck = rlResult.ack
+		// 		rateLimitNack = rlResult.nack
+		// 	}
+		// }
 
 		rlAcks[i] = rateLimitAck
 		rlNacks[i] = rateLimitNack
@@ -522,7 +523,7 @@ func (s *Scheduler) tryAssignBatch(
 			qi,
 			candidateSlots,
 			childRingOffset,
-			stepIdsToLabels[sqlchelpers.UUIDToStr(qi.StepId)],
+			stepIdsToLabels[sqlchelpers.UUIDToStr(qi.StepID)],
 			rlAcks[i],
 			rlNacks[i],
 		)
@@ -570,10 +571,10 @@ func findSlot(
 // tryAssignSingleton attempts to assign a singleton step to a worker.
 func (s *Scheduler) tryAssignSingleton(
 	ctx context.Context,
-	qi *dbsqlc.QueueItem,
+	qi *sqlcv2.V2QueueItem,
 	candidateSlots []*slot,
 	ringOffset int,
-	labels []*dbsqlc.GetDesiredLabelsRow,
+	labels []*sqlcv2.GetDesiredLabelsRow,
 	rateLimitAck func(),
 	rateLimitNack func(),
 ) (
@@ -617,34 +618,34 @@ type assignedQueueItem struct {
 	AckId    int
 	WorkerId pgtype.UUID
 
-	QueueItem *dbsqlc.QueueItem
+	QueueItem *sqlcv2.V2QueueItem
 }
 
 type assignResults struct {
 	assigned           []*assignedQueueItem
-	unassigned         []*dbsqlc.QueueItem
-	schedulingTimedOut []*dbsqlc.QueueItem
+	unassigned         []*sqlcv2.V2QueueItem
+	schedulingTimedOut []*sqlcv2.V2QueueItem
 	rateLimited        []*scheduleRateLimitResult
 }
 
 func (s *Scheduler) tryAssign(
 	ctx context.Context,
-	qis []*dbsqlc.QueueItem,
-	stepIdsToLabels map[string][]*dbsqlc.GetDesiredLabelsRow,
+	qis []*sqlcv2.V2QueueItem,
+	stepIdsToLabels map[string][]*sqlcv2.GetDesiredLabelsRow,
 	stepRunIdsToRateLimits map[string]map[string]int32,
 ) <-chan *assignResults {
 	ctx, span := telemetry.NewSpan(ctx, "try-assign")
 
 	// split into groups based on action ids, and process each action id in parallel
-	actionIdToQueueItems := make(map[string][]*dbsqlc.QueueItem)
+	actionIdToQueueItems := make(map[string][]*sqlcv2.V2QueueItem)
 
 	for i := range qis {
 		qi := qis[i]
 
-		actionId := qi.ActionId.String
+		actionId := qi.ActionID
 
 		if _, ok := actionIdToQueueItems[actionId]; !ok {
-			actionIdToQueueItems[actionId] = make([]*dbsqlc.QueueItem, 0)
+			actionIdToQueueItems[actionId] = make([]*sqlcv2.V2QueueItem, 0)
 		}
 
 		actionIdToQueueItems[actionId] = append(actionIdToQueueItems[actionId], qi)
@@ -663,13 +664,13 @@ func (s *Scheduler) tryAssign(
 		for actionId, qis := range actionIdToQueueItems {
 			wg.Add(1)
 
-			go func(actionId string, qis []*dbsqlc.QueueItem) {
+			go func(actionId string, qis []*sqlcv2.V2QueueItem) {
 				defer wg.Done()
 
 				ringOffset := 0
 
-				batched := make([]*dbsqlc.QueueItem, 0)
-				schedulingTimedOut := make([]*dbsqlc.QueueItem, 0, len(qis))
+				batched := make([]*sqlcv2.V2QueueItem, 0)
+				schedulingTimedOut := make([]*sqlcv2.V2QueueItem, 0, len(qis))
 
 				for i := range qis {
 					qi := qis[i]
@@ -686,10 +687,10 @@ func (s *Scheduler) tryAssign(
 					schedulingTimedOut: schedulingTimedOut,
 				}
 
-				err := queueutils.BatchLinear(50, batched, func(batchQis []*dbsqlc.QueueItem) error {
+				err := queueutils.BatchLinear(50, batched, func(batchQis []*sqlcv2.V2QueueItem) error {
 					batchAssigned := make([]*assignedQueueItem, 0, len(batchQis))
 					batchRateLimited := make([]*scheduleRateLimitResult, 0, len(batchQis))
-					batchUnassigned := make([]*dbsqlc.QueueItem, 0, len(batchQis))
+					batchUnassigned := make([]*sqlcv2.V2QueueItem, 0, len(batchQis))
 
 					batchStart := time.Now()
 
@@ -765,7 +766,7 @@ func (s *Scheduler) tryAssign(
 }
 
 func (s *Scheduler) getExtensionInput(results []*assignResults) *PostScheduleInput {
-	unassigned := make([]*dbsqlc.QueueItem, 0)
+	unassigned := make([]*sqlcv2.V2QueueItem, 0)
 
 	for _, res := range results {
 		unassigned = append(unassigned, res.unassigned...)
@@ -838,7 +839,7 @@ func (s *Scheduler) getExtensionInput(results []*assignResults) *PostScheduleInp
 	return res
 }
 
-func isTimedOut(qi *dbsqlc.QueueItem) bool {
+func isTimedOut(qi *sqlcv2.V2QueueItem) bool {
 	// if the current time is after the scheduleTimeoutAt, then mark this as timed out
 	now := time.Now().UTC().UTC()
 	scheduleTimeoutAt := qi.ScheduleTimeoutAt.Time

@@ -42,6 +42,9 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
 	v2 "github.com/hatchet-dev/hatchet/pkg/scheduling/v2"
+
+	repov2 "github.com/hatchet-dev/hatchet/pkg/repository/v2"
+
 	"github.com/hatchet-dev/hatchet/pkg/security"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
@@ -201,6 +204,8 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		return nil, fmt.Errorf("could not create engine repository: %w", err)
 	}
 
+	v2Repo := repov2.NewRepository(pool, &l)
+
 	if c.RepositoryOverrides.LogsAPIRepository != nil {
 		opts = append(opts, prisma.WithLogsAPIRepository(c.RepositoryOverrides.LogsAPIRepository))
 	}
@@ -229,6 +234,7 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		QueuePool:             pool,
 		APIRepository:         apiRepo,
 		EngineRepository:      engineRepo,
+		V2:                    v2Repo,
 		EntitlementRepository: entitlementRepo,
 		Seed:                  cf.Seed,
 	}, nil
@@ -473,7 +479,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 	v := validator.NewDefaultValidator()
 
 	schedulingPool, cleanupSchedulingPool, err := v2.NewSchedulingPool(
-		dc.EngineRepository.Scheduler(),
+		dc.V2.Scheduler(),
 		&queueLogger,
 		cf.Runtime.SingleQueueLimit,
 	)

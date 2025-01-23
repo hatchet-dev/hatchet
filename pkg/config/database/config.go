@@ -8,6 +8,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/pkg/config/shared"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
+	v2 "github.com/hatchet-dev/hatchet/pkg/repository/v2"
 )
 
 type ConfigFile struct {
@@ -57,6 +58,8 @@ type Layer struct {
 	APIRepository repository.APIRepository
 
 	EngineRepository repository.EngineRepository
+
+	V2 v2.Repository
 
 	EntitlementRepository repository.EntitlementsRepository
 
