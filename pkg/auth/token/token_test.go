@@ -20,7 +20,7 @@ import (
 )
 
 func TestCreateTenantToken(t *testing.T) { // make sure no cache is used for tests
-	testutils.RunTestWithDatabase(t, func(conf *database.Config) error {
+	testutils.RunTestWithDatabase(t, func(conf *database.Layer) error {
 		jwtManager := getJWTManager(t, conf)
 
 		tenantId := uuid.New().String()
@@ -61,7 +61,7 @@ func TestCreateTenantToken(t *testing.T) { // make sure no cache is used for tes
 func TestRevokeTenantToken(t *testing.T) {
 	_ = os.Setenv("CACHE_DURATION", "0")
 
-	testutils.RunTestWithDatabase(t, func(conf *database.Config) error {
+	testutils.RunTestWithDatabase(t, func(conf *database.Layer) error {
 		jwtManager := getJWTManager(t, conf)
 
 		tenantId := uuid.New().String()
@@ -121,7 +121,7 @@ func TestRevokeTenantToken(t *testing.T) {
 func TestRevokeTenantTokenCache(t *testing.T) {
 	_ = os.Setenv("CACHE_DURATION", "60s")
 
-	testutils.RunTestWithDatabase(t, func(conf *database.Config) error {
+	testutils.RunTestWithDatabase(t, func(conf *database.Layer) error {
 		jwtManager := getJWTManager(t, conf)
 
 		tenantId := uuid.New().String()
@@ -178,7 +178,7 @@ func TestRevokeTenantTokenCache(t *testing.T) {
 	})
 }
 
-func getJWTManager(t *testing.T, conf *database.Config) token.JWTManager {
+func getJWTManager(t *testing.T, conf *database.Layer) token.JWTManager {
 	t.Helper()
 
 	masterKeyBytes, privateJWTBytes, publicJWTBytes, err := encryption.GenerateLocalKeys()

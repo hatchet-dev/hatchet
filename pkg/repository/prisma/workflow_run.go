@@ -1090,7 +1090,7 @@ func (w *workflowRunEngineRepository) PopWorkflowRunsCancelNewest(ctx context.Co
 
 func (w *workflowRunEngineRepository) PopWorkflowRunsRoundRobin(ctx context.Context, tenantId string, workflowVersionId string, maxRuns int) ([]*dbsqlc.WorkflowRun, []*dbsqlc.GetStepRunForEngineRow, error) {
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, w.l, 15000)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, w.l, 5000)
 
 	if err != nil {
 		return nil, nil, err
@@ -1280,6 +1280,17 @@ func (w *workflowRunAPIRepository) BulkCreateWorkflowRuns(ctx context.Context, o
 	w.l.Debug().Msgf("bulk creating %d workflow runs", len(opts))
 
 	return createNewWorkflowRuns(ctx, w.pool, w.queries, w.l, opts, w.createCallbacks, w.stepRunCreateCallbacks)
+}
+
+func (w *workflowRunEngineRepository) GetUpstreamErrorsForOnFailureStep(
+	ctx context.Context,
+	onFailureStepRunId string,
+) ([]*dbsqlc.GetUpstreamErrorsForOnFailureStepRow, error) {
+	return w.queries.GetUpstreamErrorsForOnFailureStep(
+		ctx,
+		w.pool,
+		sqlchelpers.UUIDFromStr(onFailureStepRunId),
+	)
 }
 
 // this is single tenant

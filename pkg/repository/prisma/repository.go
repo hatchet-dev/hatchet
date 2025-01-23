@@ -40,10 +40,12 @@ type apiRepository struct {
 type PrismaRepositoryOpt func(*PrismaRepositoryOpts)
 
 type PrismaRepositoryOpts struct {
-	v       validator.Validator
-	l       *zerolog.Logger
-	cache   cache.Cacheable
-	metered *metered.Metered
+	v                    validator.Validator
+	l                    *zerolog.Logger
+	cache                cache.Cacheable
+	metered              *metered.Metered
+	logsEngineRepository repository.LogsEngineRepository
+	logsAPIRepository    repository.LogsAPIRepository
 }
 
 func defaultPrismaRepositoryOpts() *PrismaRepositoryOpts {
@@ -76,6 +78,18 @@ func WithMetered(metered *metered.Metered) PrismaRepositoryOpt {
 	}
 }
 
+func WithLogsEngineRepository(newLogsEngine repository.LogsEngineRepository) PrismaRepositoryOpt {
+	return func(opts *PrismaRepositoryOpts) {
+		opts.logsEngineRepository = newLogsEngine
+	}
+}
+
+func WithLogsAPIRepository(newLogsAPI repository.LogsAPIRepository) PrismaRepositoryOpt {
+	return func(opts *PrismaRepositoryOpts) {
+		opts.logsAPIRepository = newLogsAPI
+	}
+}
+
 func NewAPIRepository(client *db.PrismaClient, pool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ...PrismaRepositoryOpt) (repository.APIRepository, func() error, error) {
 	opts := defaultPrismaRepositoryOpts()
 
@@ -95,14 +109,21 @@ func NewAPIRepository(client *db.PrismaClient, pool *pgxpool.Pool, cf *server.Co
 	if err != nil {
 		return nil, nil, err
 	}
+	var logsAPIRepo repository.LogsAPIRepository
+
+	if opts.logsAPIRepository == nil {
+		logsAPIRepo = NewLogAPIRepository(pool, opts.v, opts.l)
+	} else {
+		logsAPIRepo = opts.logsAPIRepository.WithAdditionalConfig(opts.v, opts.l)
+	}
 
 	return &apiRepository{
 		apiToken:       NewAPITokenRepository(client, opts.v, opts.cache),
 		event:          NewEventAPIRepository(client, pool, opts.v, opts.l),
-		log:            NewLogAPIRepository(pool, opts.v, opts.l),
+		log:            logsAPIRepo,
 		tenant:         NewTenantAPIRepository(pool, client, opts.v, opts.l, opts.cache),
 		tenantAlerting: NewTenantAlertingAPIRepository(client, opts.v, opts.cache),
-		tenantInvite:   NewTenantInviteRepository(client, opts.v),
+		tenantInvite:   NewTenantInviteRepository(client, opts.v, opts.l),
 		workflow:       NewWorkflowRepository(client, pool, opts.v, opts.l),
 		workflowRun:    NewWorkflowRunRepository(client, shared, opts.metered, cf),
 		jobRun:         NewJobRunAPIRepository(client, shared),
@@ -322,6 +343,13 @@ func NewEngineRepository(pool *pgxpool.Pool, essentialPool *pgxpool.Pool, cf *se
 	if err != nil {
 		return nil, nil, err
 	}
+	var logRepo repository.LogsEngineRepository
+
+	if opts.logsEngineRepository == nil {
+		logRepo = NewLogEngineRepository(pool, opts.v, opts.l)
+	} else {
+		logRepo = opts.logsEngineRepository.WithAdditionalConfig(opts.v, opts.l)
+	}
 
 	return func() error {
 			rlCache.Stop()
@@ -344,7 +372,7 @@ func NewEngineRepository(pool *pgxpool.Pool, essentialPool *pgxpool.Pool, cf *se
 			workflow:       NewWorkflowEngineRepository(shared, opts.metered, opts.cache),
 			workflowRun:    NewWorkflowRunEngineRepository(shared, opts.metered, cf),
 			streamEvent:    NewStreamEventsEngineRepository(pool, opts.v, opts.l),
-			log:            NewLogEngineRepository(pool, opts.v, opts.l),
+			log:            logRepo,
 			rateLimit:      NewRateLimitEngineRepository(pool, opts.v, opts.l),
 			webhookWorker:  NewWebhookWorkerEngineRepository(pool, opts.v, opts.l),
 			scheduler:      newSchedulerRepository(shared),

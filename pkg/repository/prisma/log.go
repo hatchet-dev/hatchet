@@ -139,6 +139,17 @@ type logEngineRepository struct {
 	l       *zerolog.Logger
 }
 
+// Used as hook a hook to allow for additional configuration to be passed to the repository if it is instantiated a different way
+func (le *logAPIRepository) WithAdditionalConfig(v validator.Validator, l *zerolog.Logger) repository.LogsAPIRepository {
+	panic("not implemented in this repo")
+
+}
+
+// Used as hook a hook to allow for additional configuration to be passed to the repository if it is instantiated a different way
+func (le *logEngineRepository) WithAdditionalConfig(v validator.Validator, l *zerolog.Logger) repository.LogsEngineRepository {
+	panic("not implemented in this repo")
+}
+
 func NewLogEngineRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger) repository.LogsEngineRepository {
 	queries := dbsqlc.New()
 

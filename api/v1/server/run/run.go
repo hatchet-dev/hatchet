@@ -29,6 +29,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/workers"
 	workflowruns "github.com/hatchet-dev/hatchet/api/v1/server/handlers/workflow-runs"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/workflows"
+	"github.com/hatchet-dev/hatchet/api/v1/server/headers"
 	hatchetmiddleware "github.com/hatchet-dev/hatchet/api/v1/server/middleware"
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/populator"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
@@ -338,7 +339,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	if err != nil {
 		return nil, err
 	}
-
+	mw.Use(headers.Middleware())
 	mw.Use(populatorMW.Middleware)
 	mw.Use(authnMW.Middleware)
 	mw.Use(authzMW.Middleware)

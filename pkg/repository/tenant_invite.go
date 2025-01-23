@@ -14,10 +14,14 @@ type CreateTenantInviteOpts struct {
 	InviterEmail string `validate:"required,email"`
 
 	// (required) when the invite expires
-	ExpiresAt time.Time `validate:"required"`
+	ExpiresAt time.Time `validate:"required,future"`
 
 	// (required) the role of the invitee
 	Role string `validate:"omitempty,oneof=OWNER ADMIN MEMBER"`
+
+	// (optional) the maximum number pending of invites the inviter can have
+
+	MaxPending int `validate:"omitempty"`
 }
 
 type UpdateTenantInviteOpts struct {

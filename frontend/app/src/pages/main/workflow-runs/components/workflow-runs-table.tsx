@@ -11,11 +11,11 @@ import {
 import { useMutation, useQuery } from '@tanstack/react-query';
 import invariant from 'tiny-invariant';
 import api, {
+  queries,
   ReplayWorkflowRunsRequest,
   WorkflowRunOrderByDirection,
   WorkflowRunOrderByField,
   WorkflowRunStatus,
-  queries,
 } from '@/lib/api';
 import { TenantContextType } from '@/lib/outlet';
 import { useOutletContext, useSearchParams } from 'react-router-dom';
@@ -181,6 +181,13 @@ export function WorkflowRunsTable({
     return { pageIndex, pageSize };
   });
 
+  const setPageSize = (newPageSize: number) => {
+    setPagination((prev) => ({
+      ...prev,
+      pageSize: newPageSize,
+    }));
+  };
+
   useEffect(() => {
     const newSearchParams = new URLSearchParams(searchParams);
     if (sorting.length) {
@@ -216,8 +223,6 @@ export function WorkflowRunsTable({
     setSearchParams,
     searchParams,
   ]);
-
-  const [pageSize, setPageSize] = useState<number>(50);
 
   const offset = useMemo(() => {
     if (!pagination) {
@@ -295,7 +300,7 @@ export function WorkflowRunsTable({
   const listWorkflowRunsQuery = useQuery({
     ...queries.workflowRuns.list(tenant.metadata.id, {
       offset,
-      limit: pageSize,
+      limit: pagination.pageSize,
       statuses,
       workflowId: workflow,
       parentWorkflowRunId,

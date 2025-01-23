@@ -1596,6 +1596,51 @@ func (q *Queries) GetStepsForWorkflowVersion(ctx context.Context, db DBTX, workf
 	return items, nil
 }
 
+const getUpstreamErrorsForOnFailureStep = `-- name: GetUpstreamErrorsForOnFailureStep :many
+WITH workflow_run AS (
+    SELECT wr."createdAt", wr."updatedAt", wr."deletedAt", wr."tenantId", wr."workflowVersionId", wr.status, wr.error, wr."startedAt", wr."finishedAt", wr."concurrencyGroupId", wr."displayName", wr.id, wr."childIndex", wr."childKey", wr."parentId", wr."parentStepRunId", wr."additionalMetadata", wr.duration, wr.priority, wr."insertOrder"
+    FROM "WorkflowRun" wr
+    JOIN "JobRun" jr ON wr."id" = jr."workflowRunId"
+    JOIN "StepRun" sr ON jr."id" = sr."jobRunId"
+    WHERE sr."id" = $1::uuid
+)
+SELECT
+    sr."id" AS "stepRunId",
+    s."readableId" AS "stepReadableId",
+    sr."error" AS "stepRunError"
+FROM workflow_run wr
+JOIN "JobRun" jr ON wr."id" = jr."workflowRunId"
+JOIN "StepRun" sr ON jr."id" = sr."jobRunId"
+JOIN "Step" s ON sr."stepId" = s."id"
+WHERE sr."error" IS NOT NULL
+`
+
+type GetUpstreamErrorsForOnFailureStepRow struct {
+	StepRunId      pgtype.UUID `json:"stepRunId"`
+	StepReadableId pgtype.Text `json:"stepReadableId"`
+	StepRunError   pgtype.Text `json:"stepRunError"`
+}
+
+func (q *Queries) GetUpstreamErrorsForOnFailureStep(ctx context.Context, db DBTX, onfailuresteprunid pgtype.UUID) ([]*GetUpstreamErrorsForOnFailureStepRow, error) {
+	rows, err := db.Query(ctx, getUpstreamErrorsForOnFailureStep, onfailuresteprunid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*GetUpstreamErrorsForOnFailureStepRow
+	for rows.Next() {
+		var i GetUpstreamErrorsForOnFailureStepRow
+		if err := rows.Scan(&i.StepRunId, &i.StepReadableId, &i.StepRunError); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getWorkflowRun = `-- name: GetWorkflowRun :many
 SELECT
     runs."createdAt", runs."updatedAt", runs."deletedAt", runs."tenantId", runs."workflowVersionId", runs.status, runs.error, runs."startedAt", runs."finishedAt", runs."concurrencyGroupId", runs."displayName", runs.id, runs."childIndex", runs."childKey", runs."parentId", runs."parentStepRunId", runs."additionalMetadata", runs.duration, runs.priority, runs."insertOrder",
@@ -2799,8 +2844,9 @@ WITH workflow_runs AS (
         r2.id,
         r2."status",
         r2."concurrencyGroupId",
-        row_number() OVER (PARTITION BY r2."concurrencyGroupId" ORDER BY r2."createdAt", r2."insertOrder", r2.id) AS "rn",
-        row_number() OVER (ORDER BY r2."createdAt", r2."insertOrder", r2.id) AS "seqnum"
+        row_number() OVER (PARTITION BY r2."concurrencyGroupId" ORDER BY r2."createdAt", r2.id) AS "rn",
+        -- we order by r2.id as a second parameter to get a pseudo-random, stable order
+        row_number() OVER (ORDER BY r2."createdAt", r2.id) AS "seqnum"
     FROM
         "WorkflowRun" r2
     LEFT JOIN
@@ -2815,20 +2861,24 @@ WITH workflow_runs AS (
     SELECT
         id,
         "concurrencyGroupId",
-        "rn"
+        "rn",
+        "seqnum"
     FROM workflow_runs
     WHERE "rn" <= ($3::int) -- we limit the number of runs per group to maxRuns
 ), eligible_runs AS (
     SELECT
-        id
-    FROM workflow_runs
-    WHERE id IN (
-        SELECT
-            id
-        FROM eligible_runs_per_group
-        ORDER BY "rn", "seqnum" ASC
-        LIMIT ($3::int) * (SELECT COUNT(DISTINCT "concurrencyGroupId") FROM workflow_runs)
-    )
+        wr."id"
+    FROM "WorkflowRun" wr
+    WHERE
+        wr."id" IN (
+            SELECT
+                id
+            FROM eligible_runs_per_group
+            ORDER BY "rn", "seqnum" ASC
+            LIMIT ($3::int) * (SELECT COUNT(DISTINCT "concurrencyGroupId") FROM workflow_runs)
+        )
+        AND wr."status" = 'QUEUED'
+    LIMIT 500
     FOR UPDATE SKIP LOCKED
 )
 UPDATE "WorkflowRun"
@@ -2837,8 +2887,7 @@ SET
 FROM
     eligible_runs
 WHERE
-    "WorkflowRun".id = eligible_runs.id AND
-    "WorkflowRun"."status" = 'QUEUED'
+    "WorkflowRun".id = eligible_runs.id
 RETURNING
     "WorkflowRun"."createdAt", "WorkflowRun"."updatedAt", "WorkflowRun"."deletedAt", "WorkflowRun"."tenantId", "WorkflowRun"."workflowVersionId", "WorkflowRun".status, "WorkflowRun".error, "WorkflowRun"."startedAt", "WorkflowRun"."finishedAt", "WorkflowRun"."concurrencyGroupId", "WorkflowRun"."displayName", "WorkflowRun".id, "WorkflowRun"."childIndex", "WorkflowRun"."childKey", "WorkflowRun"."parentId", "WorkflowRun"."parentStepRunId", "WorkflowRun"."additionalMetadata", "WorkflowRun".duration, "WorkflowRun".priority, "WorkflowRun"."insertOrder"
 `

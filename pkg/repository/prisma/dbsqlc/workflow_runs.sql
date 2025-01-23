@@ -297,8 +297,9 @@ WITH workflow_runs AS (
         r2.id,
         r2."status",
         r2."concurrencyGroupId",
-        row_number() OVER (PARTITION BY r2."concurrencyGroupId" ORDER BY r2."createdAt", r2."insertOrder", r2.id) AS "rn",
-        row_number() OVER (ORDER BY r2."createdAt", r2."insertOrder", r2.id) AS "seqnum"
+        row_number() OVER (PARTITION BY r2."concurrencyGroupId" ORDER BY r2."createdAt", r2.id) AS "rn",
+        -- we order by r2.id as a second parameter to get a pseudo-random, stable order
+        row_number() OVER (ORDER BY r2."createdAt", r2.id) AS "seqnum"
     FROM
         "WorkflowRun" r2
     LEFT JOIN
@@ -313,20 +314,24 @@ WITH workflow_runs AS (
     SELECT
         id,
         "concurrencyGroupId",
-        "rn"
+        "rn",
+        "seqnum"
     FROM workflow_runs
     WHERE "rn" <= (@maxRuns::int) -- we limit the number of runs per group to maxRuns
 ), eligible_runs AS (
     SELECT
-        id
-    FROM workflow_runs
-    WHERE id IN (
-        SELECT
-            id
-        FROM eligible_runs_per_group
-        ORDER BY "rn", "seqnum" ASC
-        LIMIT (@maxRuns::int) * (SELECT COUNT(DISTINCT "concurrencyGroupId") FROM workflow_runs)
-    )
+        wr."id"
+    FROM "WorkflowRun" wr
+    WHERE
+        wr."id" IN (
+            SELECT
+                id
+            FROM eligible_runs_per_group
+            ORDER BY "rn", "seqnum" ASC
+            LIMIT (@maxRuns::int) * (SELECT COUNT(DISTINCT "concurrencyGroupId") FROM workflow_runs)
+        )
+        AND wr."status" = 'QUEUED'
+    LIMIT 500
     FOR UPDATE SKIP LOCKED
 )
 UPDATE "WorkflowRun"
@@ -335,8 +340,7 @@ SET
 FROM
     eligible_runs
 WHERE
-    "WorkflowRun".id = eligible_runs.id AND
-    "WorkflowRun"."status" = 'QUEUED'
+    "WorkflowRun".id = eligible_runs.id
 RETURNING
     "WorkflowRun".*;
 
@@ -1551,3 +1555,21 @@ WHERE
 DELETE FROM "WorkflowTriggerScheduledRef"
 WHERE
     "id" = @scheduleId::uuid;
+
+-- name: GetUpstreamErrorsForOnFailureStep :many
+WITH workflow_run AS (
+    SELECT wr.*
+    FROM "WorkflowRun" wr
+    JOIN "JobRun" jr ON wr."id" = jr."workflowRunId"
+    JOIN "StepRun" sr ON jr."id" = sr."jobRunId"
+    WHERE sr."id" = @onFailureStepRunId::uuid
+)
+SELECT
+    sr."id" AS "stepRunId",
+    s."readableId" AS "stepReadableId",
+    sr."error" AS "stepRunError"
+FROM workflow_run wr
+JOIN "JobRun" jr ON wr."id" = jr."workflowRunId"
+JOIN "StepRun" sr ON jr."id" = sr."jobRunId"
+JOIN "Step" s ON sr."stepId" = s."id"
+WHERE sr."error" IS NOT NULL;
