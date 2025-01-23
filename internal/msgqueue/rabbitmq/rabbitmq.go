@@ -452,10 +452,13 @@ func (t *MessageQueueImpl) startPublishing() func() error {
 
 						err = pub.PublishWithContext(ctx, "", msg.q.Name(), false, false, pubMsg)
 
-						// retry failed delivery on the next session
 						if err != nil {
-							msg.ackChan <- ack{e: &err}
-							t.msgs <- msg
+							select {
+							case msg.ackChan <- ack{e: &err}:
+								t.msgs <- msg
+							case <-time.After(100 * time.Millisecond):
+								t.l.Error().Msgf("ack channel blocked for %s", msg.ID)
+							}
 							return
 						}
 
