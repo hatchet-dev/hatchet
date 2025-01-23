@@ -59,7 +59,8 @@ type MessageQueueImpl struct {
 
 	l *zerolog.Logger
 
-	ready bool
+	readyMux sync.Mutex
+	ready    bool
 
 	disableTenantExchangePubs bool
 
@@ -67,8 +68,27 @@ type MessageQueueImpl struct {
 	tenantIdCache *lru.Cache[string, bool]
 }
 
-func (t *MessageQueueImpl) IsReady() bool {
+func (t *MessageQueueImpl) setNotReady() {
+	t.safeSetReady(false)
+}
+
+func (t *MessageQueueImpl) setReady() {
+	t.safeSetReady(true)
+}
+
+func (t *MessageQueueImpl) safeCheckReady() bool {
+	t.readyMux.Lock()
+	defer t.readyMux.Unlock()
 	return t.ready
+}
+func (t *MessageQueueImpl) safeSetReady(ready bool) {
+	t.readyMux.Lock()
+	defer t.readyMux.Unlock()
+	t.ready = ready
+}
+
+func (t *MessageQueueImpl) IsReady() bool {
+	return t.safeCheckReady()
 }
 
 type MessageQueueImplOpt func(*MessageQueueImplOpts)
@@ -676,11 +696,12 @@ func (t *MessageQueueImpl) redial(ctx context.Context, l *zerolog.Logger, pool *
 			newSession, err := t.establishSessionWithRetry(ctx, l, pool)
 			if err != nil {
 				l.Error().Msg("failed to establish session after retries")
-				t.ready = false
+				t.setNotReady()
+
 				return
 			}
 
-			t.ready = true
+			t.setReady()
 			t.monitorSession(ctx, l, newSession)
 
 			select {
@@ -723,7 +744,7 @@ func (t *MessageQueueImpl) monitorSession(ctx context.Context, l *zerolog.Logger
 		case <-ctx.Done():
 		case <-closeCh:
 			l.Warn().Msg("session closed, marking as not ready")
-			t.ready = false
+			t.setNotReady()
 		}
 	}()
 }
