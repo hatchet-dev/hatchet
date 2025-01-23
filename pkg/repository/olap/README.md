@@ -5,60 +5,72 @@
 3. `clickhouse client --host "$CLICKHOUSE_SECURE_NATIVE_HOSTNAME" --secure --password "$CLICKHOUSE_PASSWORD"`
 
 4. ```sql
-   CREATE TABLE events (
-       id UUID NOT NULL DEFAULT generateUUIDv4(),
-       tenant_id UUID NOT NULL,
-       queue TEXT NOT NULL,
-       action_id TEXT NOT NULL,
-       -- add step id?
-       schedule_timeout TEXT NOT NULL,
-       step_timeout TEXT,
-       priority INTEGER NOT NULL DEFAULT 1,
-       sticky Enum(
+    CREATE TABLE tasks (
+        id BIGINT NOT NULL,
+        tenant_id UUID NOT NULL,
+        queue TEXT NOT NULL,
+        action_id TEXT NOT NULL,
+        schedule_timeout TEXT NOT NULL,
+        step_timeout TEXT,
+        priority INTEGER NOT NULL DEFAULT 1,
+        sticky Enum(
             'HARD' = 1,
             'SOFT' = 2,
-       ),
-       desired_worker_id UUID,
-       external_id UUID NOT NULL,
-       display_name TEXT NOT NULL,
-       input TEXT NOT NULL,
-       task_id BIGINT NOT NULL,
-       worker_id UUID NOT NULL,
-       status Enum(
-           'REQUEUED_NO_WORKER' = 1,
-           'REQUEUED_RATE_LIMIT' = 2,
-           'SCHEDULING_TIMED_OUT' = 3,
-           'ASSIGNED' = 4,
-           'STARTED' = 5,
-           'FINISHED' = 6,
-           'FAILED' = 7,
-           'RETRYING' = 8,
-           'CANCELLED' = 9,
-           'TIMED_OUT' = 10,
-           'REASSIGNED' = 11,
-           'SLOT_RELEASED' = 12,
-           'TIMEOUT_REFRESHED' = 13,
-           'RETRIED_BY_USER' = 14,
-           'SENT_TO_WORKER' = 15,
-           'WORKFLOW_RUN_GROUP_KEY_SUCCEEDED' = 16,
-           'WORKFLOW_RUN_GROUP_KEY_FAILED' = 17,
-           'RATE_LIMIT_ERROR' = 18,
-           'ACKNOWLEDGED' = 19,
-           'CREATED' = 20
-       ) NOT NULL,
-       timestamp DateTime('UTC') NOT NULL,
-       created_at DateTime('UTC') NOT NULL DEFAULT NOW(),
-       retry_count INTEGER NOT NULL DEFAULT 0,
-       error_message TEXT NULL DEFAULT NULL,
-       additional__step_run_event_data TEXT NOT NULL DEFAULT '{}',
-       additional__step_run_event_message TEXT NOT NULL,
-       additional__step_run_event_severity Enum(
-           'INFO' = 1,
-           'WARNING' = 2,
-           'CRITICAL' = 3
-       ) NOT NULL,
-       additional__step_run_event_reason Enum(
-         'ACKNOWLEDGED' = 1,
+        ),
+        desired_worker_id UUID,
+        external_id UUID NOT NULL,
+        display_name TEXT NOT NULL,
+        input TEXT NOT NULL,
+        worker_id UUID NOT NULL,
+        created_at DateTime('UTC') NOT NULL DEFAULT NOW(),
+
+        PRIMARY KEY (task_id, status, retry_count)
+    )
+    ENGINE = MergeTree()
+
+    -- https://stackoverflow.com/a/75439879 for more on partitioning
+    -- partition by tenant id since we'll rarely (or never) query across tenants
+    -- partition by week so we can easily drop old data
+    PARTITION BY (tenant_id, toMonday(created_at))
+    ORDER BY (id)
+
+    CREATE TABLE events (
+        task_id BIGINT NOT NULL,
+        tenant_id UUID NOT NULL,
+        status Enum(
+            'REQUEUED_NO_WORKER' = 1,
+            'REQUEUED_RATE_LIMIT' = 2,
+            'SCHEDULING_TIMED_OUT' = 3,
+            'ASSIGNED' = 4,
+            'STARTED' = 5,
+            'FINISHED' = 6,
+            'FAILED' = 7,
+            'RETRYING' = 8,
+            'CANCELLED' = 9,
+            'TIMED_OUT' = 10,
+            'REASSIGNED' = 11,
+            'SLOT_RELEASED' = 12,
+            'TIMEOUT_REFRESHED' = 13,
+            'RETRIED_BY_USER' = 14,
+            'SENT_TO_WORKER' = 15,
+            'WORKFLOW_RUN_GROUP_KEY_SUCCEEDED' = 16,
+            'WORKFLOW_RUN_GROUP_KEY_FAILED' = 17,
+            'RATE_LIMIT_ERROR' = 18,
+            'ACKNOWLEDGED' = 19,
+            'CREATED' = 20
+        ) NOT NULL,
+        timestamp DateTime('UTC') NOT NULL,
+        retry_count INTEGER NOT NULL DEFAULT 0,
+        error_message TEXT NULL DEFAULT NULL,
+        additional__event_data TEXT NOT NULL DEFAULT '{}',
+        additional__event_message TEXT NOT NULL,
+        additional__event_severity Enum(
+            'INFO' = 1,
+            'WARNING' = 2,
+            'CRITICAL' = 3
+        ) NOT NULL,
+        additional__event_reason Enum(
+            'ACKNOWLEDGED' = 1,
             'ASSIGNED' = 2,
             'CANCELLED' = 3,
             'FAILED' = 4,
@@ -75,17 +87,22 @@
             'TIMEOUT_REFRESHED' = 15,
             'WORKFLOW_RUN_GROUP_KEY_FAILED' = 16,
             'WORKFLOW_RUN_GROUP_KEY_SUCCEEDED' = 17
-       ) NOT NULL,
+        ) NOT NULL,
+        created_at DateTime('UTC') NOT NULL DEFAULT NOW(),
 
-       CONSTRAINT check__failed_state_has_error CHECK CASE WHEN status = 'FAILED' THEN error_message IS NOT NULL ELSE error_message IS NULL END,
-       CONSTRAINT check__input_is_valid_json CHECK isValidJSON(input),
-       CONSTRAINT check__additional__step_run_event_data_is_valid_json CHECK isValidJSON(additional__step_run_event_data),
+        CONSTRAINT check__failed_state_has_error CHECK CASE WHEN status = 'FAILED' THEN error_message IS NOT NULL ELSE error_message IS NULL END,
+        CONSTRAINT check__input_is_valid_json CHECK isValidJSON(input),
+        CONSTRAINT check__additional__event_data_is_valid_json CHECK isValidJSON(additional__event_data),
 
-       PRIMARY KEY (task_id, status, retry_count)
-   )
-   ENGINE = MergeTree()
-   PARTITION BY (tenant_id, toHour(timestamp))
-   ORDER BY (task_id, status, retry_count)
+        PRIMARY KEY (task_id, timestamp, status)
+    )
+    ENGINE = MergeTree()
+
+    -- https://stackoverflow.com/a/75439879 for more on partitioning
+    -- partition by tenant id since we'll rarely (or never) query across tenants
+    -- partition by week so we can easily drop old data
+    PARTITION BY (tenant_id, toMonday(timestamp))
+    ORDER BY (task_id, timestamp, status)
    ```
 
 5. ```sql
