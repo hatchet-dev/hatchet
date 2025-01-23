@@ -1,0 +1,47 @@
+V2WorkflowRun:
+  properties:
+    metadata:
+      $ref: ".././metadata.yaml#/APIResourceMeta"
+    id:
+      type: string
+      description: The ID of the workflow run.
+      example: bb214807-246e-43a5-a25d-41761d1cff9e
+      minLength: 36
+      maxLength: 36
+      format: uuid
+    taskId:
+      type: string
+      description: The ID of the task associated with this workflow run.
+      example: bb214807-246e-43a5-a25d-41761d1cff9e
+      minLength: 36
+      maxLength: 36
+      format: uuid
+    status:
+      type: string
+      description: The status of the workflow run.
+    timestamp:
+      type: string
+      format: date-time
+      description: The timestamp of the workflow run.
+    errorMessage:
+      type: string
+      description: The error message of the workflow run.
+  required:
+    - metadata
+    - id
+    - taskId
+    - status
+    - timestamp
+
+V2WorkflowRuns:
+  properties:
+    metadata:
+      $ref: ".././metadata.yaml#/APIResourceMeta"
+    workflow_runs:
+      type: array
+      items:
+        $ref: "#/V2WorkflowRun"
+      description: The workflow runs.
+  required:
+    - metadata
+    - workflow_runs

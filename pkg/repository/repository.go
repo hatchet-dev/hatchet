@@ -47,6 +47,7 @@ type EngineRepository interface {
 	WebhookWorker() WebhookWorkerEngineRepository
 	Scheduler() SchedulerRepository
 	MessageQueue() MessageQueueRepository
+	OLAP() OLAPEventRepository
 }
 
 type EntitlementsRepository interface {

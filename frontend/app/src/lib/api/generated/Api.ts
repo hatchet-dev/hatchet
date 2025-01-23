@@ -83,6 +83,7 @@ import {
   UserLoginRequest,
   UserRegisterRequest,
   UserTenantMembershipsList,
+  V2WorkflowRuns,
   WebhookWorkerCreateRequest,
   WebhookWorkerCreated,
   WebhookWorkerListResponse,
@@ -135,7 +136,7 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
     },
     params: RequestParams = {},
   ) =>
-    this.request<EventList, APIErrors>({
+    this.request<V2WorkflowRuns, APIErrors>({
       path: `/api/v2/tenants/${tenant}/workflow-runs`,
       method: 'GET',
       query: query,

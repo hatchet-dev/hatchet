@@ -1110,6 +1110,33 @@ type UserTenantPublic struct {
 	Name *string `json:"name,omitempty"`
 }
 
+// V2WorkflowRun defines model for V2WorkflowRun.
+type V2WorkflowRun struct {
+	// ErrorMessage The error message of the workflow run.
+	ErrorMessage *string `json:"errorMessage,omitempty"`
+
+	// Id The ID of the workflow run.
+	Id       openapi_types.UUID `json:"id"`
+	Metadata APIResourceMeta    `json:"metadata"`
+
+	// Status The status of the workflow run.
+	Status string `json:"status"`
+
+	// TaskId The ID of the task associated with this workflow run.
+	TaskId openapi_types.UUID `json:"taskId"`
+
+	// Timestamp The timestamp of the workflow run.
+	Timestamp time.Time `json:"timestamp"`
+}
+
+// V2WorkflowRuns defines model for V2WorkflowRuns.
+type V2WorkflowRuns struct {
+	Metadata APIResourceMeta `json:"metadata"`
+
+	// WorkflowRuns The workflow runs.
+	WorkflowRuns []V2WorkflowRun `json:"workflow_runs"`
+}
+
 // WebhookWorker defines model for WebhookWorker.
 type WebhookWorker struct {
 	Metadata APIResourceMeta `json:"metadata"`
@@ -11156,7 +11183,7 @@ func (r WorkflowVersionGetResponse) StatusCode() int {
 type V2WorkflowRunsListResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *EventList
+	JSON200      *V2WorkflowRuns
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 }
@@ -15976,7 +16003,7 @@ func ParseV2WorkflowRunsListResponse(rsp *http.Response) (*V2WorkflowRunsListRes
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest EventList
+		var dest V2WorkflowRuns
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

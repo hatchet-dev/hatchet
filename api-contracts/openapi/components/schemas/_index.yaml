@@ -292,3 +292,5 @@ WebhookWorkerCreateResponse:
   $ref: "./webhook_worker.yaml#/WebhookWorkerCreateResponse"
 WebhookWorkerListResponse:
   $ref: "./webhook_worker.yaml#/WebhookWorkerListResponse"
+V2WorkflowRuns:
+  $ref: "./v2/workflow_run.yaml#/V2WorkflowRuns"

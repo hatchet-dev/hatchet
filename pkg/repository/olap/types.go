@@ -8,7 +8,7 @@ import (
 
 type WorkflowRun struct {
 	Id           uuid.UUID `json:"id"`
-	TaskId       int32     `json:"task_id"`
+	TaskId       uuid.UUID `json:"task_id"`
 	TenantId     uuid.UUID `json:"tenant_id"`
 	Status       string    `json:"status"`
 	Timestamp    time.Time `json:"timestamp"`
