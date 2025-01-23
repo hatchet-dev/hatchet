@@ -9,6 +9,137 @@
  * ---------------------------------------------------------------
  */
 
+/** @example {"next_page":3,"num_pages":10,"current_page":2} */
+export interface PaginationResponse {
+  /**
+   * the current page
+   * @format int64
+   * @example 2
+   */
+  current_page?: number;
+  /**
+   * the next page
+   * @format int64
+   * @example 3
+   */
+  next_page?: number;
+  /**
+   * the total number of pages for listing
+   * @format int64
+   * @example 10
+   */
+  num_pages?: number;
+}
+
+export interface APIResourceMeta {
+  /**
+   * the id of this resource, in UUID format
+   * @minLength 0
+   * @maxLength 36
+   * @example "bb214807-246e-43a5-a25d-41761d1cff9e"
+   */
+  id: string;
+  /**
+   * the time that this resource was created
+   * @format date-time
+   * @example "2022-12-13T15:06:48.888358-05:00"
+   */
+  createdAt: string;
+  /**
+   * the time that this resource was last updated
+   * @format date-time
+   * @example "2022-12-13T15:06:48.888358-05:00"
+   */
+  updatedAt: string;
+}
+
+export interface Tenant {
+  metadata: APIResourceMeta;
+  /** The name of the tenant. */
+  name: string;
+  /** The slug of the tenant. */
+  slug: string;
+  /** Whether the tenant has opted out of analytics. */
+  analyticsOptOut?: boolean;
+  /** Whether to alert tenant members. */
+  alertMemberEmails?: boolean;
+}
+
+export interface EventWorkflowRunSummary {
+  /**
+   * The number of pending runs.
+   * @format int64
+   */
+  pending?: number;
+  /**
+   * The number of running runs.
+   * @format int64
+   */
+  running?: number;
+  /**
+   * The number of queued runs.
+   * @format int64
+   */
+  queued?: number;
+  /**
+   * The number of succeeded runs.
+   * @format int64
+   */
+  succeeded?: number;
+  /**
+   * The number of failed runs.
+   * @format int64
+   */
+  failed?: number;
+}
+
+export interface Event {
+  metadata: APIResourceMeta;
+  /** The key for the event. */
+  key: string;
+  /** The tenant associated with this event. */
+  tenant?: Tenant;
+  /** The ID of the tenant associated with this event. */
+  tenantId: string;
+  /** The workflow run summary for this event. */
+  workflowRunSummary?: EventWorkflowRunSummary;
+  /** Additional metadata for the event. */
+  additionalMetadata?: object;
+}
+
+export interface EventList {
+  pagination?: PaginationResponse;
+  rows?: Event[];
+}
+
+export interface APIError {
+  /**
+   * a custom Hatchet error code
+   * @format uint64
+   * @example 1400
+   */
+  code?: number;
+  /**
+   * the field that this error is associated with, if applicable
+   * @example "name"
+   */
+  field?: string;
+  /**
+   * a description for this error
+   * @example "A descriptive error message"
+   */
+  description: string;
+  /**
+   * a link to the documentation for this error, if it exists
+   * @example "github.com/hatchet-dev/hatchet"
+   */
+  docs_link?: string;
+}
+
+export interface APIErrors {
+  errors: APIError[];
+}
+
 export interface APIMetaAuth {
   /**
    * the supported types of authentication
@@ -60,34 +191,6 @@ export interface APIMeta {
   allowChangePassword?: boolean;
 }
 
-export interface APIError {
-  /**
-   * a custom Hatchet error code
-   * @format uint64
-   * @example 1400
-   */
-  code?: number;
-  /**
-   * the field that this error is associated with, if applicable
-   * @example "name"
-   */
-  field?: string;
-  /**
-   * a description for this error
-   * @example "A descriptive error message"
-   */
-  description: string;
-  /**
-   * a link to the documentation for this error, if it exists
-   * @example "github.com/hatchet-dev/hatchet"
-   */
-  docs_link?: string;
-}
-
-export interface APIErrors {
-  errors: APIError[];
-}
-
 export interface APIMetaIntegration {
   /**
    * the name of the integration
@@ -110,28 +213,6 @@ export interface UserLoginRequest {
   password: string;
 }
 
-export interface APIResourceMeta {
-  /**
-   * the id of this resource, in UUID format
-   * @minLength 0
-   * @maxLength 36
-   * @example "bb214807-246e-43a5-a25d-41761d1cff9e"
-   */
-  id: string;
-  /**
-   * the time that this resource was created
-   * @format date-time
-   * @example "2022-12-13T15:06:48.888358-05:00"
-   */
-  createdAt: string;
-  /**
-   * the time that this resource was last updated
-   * @format date-time
-   * @example "2022-12-13T15:06:48.888358-05:00"
-   */
-  updatedAt: string;
-}
-
 export interface User {
   metadata: APIResourceMeta;
   /** The display name of the user. */
@@ -147,28 +228,6 @@ export interface User {
   hasPassword?: boolean;
   /** A hash of the user's email address for use with Pylon Support Chat */
   emailHash?: string;
-}
-
-/** @example {"next_page":3,"num_pages":10,"current_page":2} */
-export interface PaginationResponse {
-  /**
-   * the current page
-   * @format int64
-   * @example 2
-   */
-  current_page?: number;
-  /**
-   * the next page
-   * @format int64
-   * @example 3
-   */
-  next_page?: number;
-  /**
-   * the total number of pages for listing
-   * @format int64
-   * @example 10
-   */
-  num_pages?: number;
 }
 
 export interface SNSIntegration {
@@ -302,18 +361,6 @@ export enum TenantMemberRole {
   OWNER = 'OWNER',
   ADMIN = 'ADMIN',
   MEMBER = 'MEMBER',
-}
-
-export interface Tenant {
-  metadata: APIResourceMeta;
-  /** The name of the tenant. */
-  name: string;
-  /** The slug of the tenant. */
-  slug: string;
-  /** Whether the tenant has opted out of analytics. */
-  analyticsOptOut?: boolean;
-  /** Whether to alert tenant members. */
-  alertMemberEmails?: boolean;
 }
 
 export interface TenantMember {
@@ -506,53 +553,6 @@ export enum EventOrderByField {
 export enum EventOrderByDirection {
   Asc = 'asc',
   Desc = 'desc',
-}
-
-export interface EventWorkflowRunSummary {
-  /**
-   * The number of pending runs.
-   * @format int64
-   */
-  pending?: number;
-  /**
-   * The number of running runs.
-   * @format int64
-   */
-  running?: number;
-  /**
-   * The number of queued runs.
-   * @format int64
-   */
-  queued?: number;
-  /**
-   * The number of succeeded runs.
-   * @format int64
-   */
-  succeeded?: number;
-  /**
-   * The number of failed runs.
-   * @format int64
-   */
-  failed?: number;
-}
-
-export interface Event {
-  metadata: APIResourceMeta;
-  /** The key for the event. */
-  key: string;
-  /** The tenant associated with this event. */
-  tenant?: Tenant;
-  /** The ID of the tenant associated with this event. */
-  tenantId: string;
-  /** The workflow run summary for this event. */
-  workflowRunSummary?: EventWorkflowRunSummary;
-  /** Additional metadata for the event. */
-  additionalMetadata?: object;
-}
-
-export interface EventList {
-  pagination?: PaginationResponse;
-  rows?: Event[];
 }
 
 export interface CreateEventRequest {

@@ -20,6 +20,8 @@ components:
   schemas:
     $ref: "./components/schemas/_index.yaml"
 paths:
+  /api/v2/tenants/{tenant}/workflow-runs:
+    $ref: "./paths/v2/workflow-runs/workflow-runs.yaml#/listWorkflowRuns"
   /api/ready:
     $ref: "./paths/metadata/metadata.yaml#/readiness"
   /api/live:

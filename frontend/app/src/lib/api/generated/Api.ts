@@ -111,6 +111,39 @@ import { ContentType, HttpClient, RequestParams } from './http-client';
 
 export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType> {
   /**
+   * @description Lists all events for a tenant.
+   *
+   * @tags Workflow run
+   * @name V2WorkflowRunsList
+   * @summary List workflow runs
+   * @request GET:/api/v2/tenants/{tenant}/workflow-runs
+   * @secure
+   */
+  v2WorkflowRunsList = (
+    tenant: string,
+    query?: {
+      /**
+       * The number to skip
+       * @format int64
+       */
+      offset?: number;
+      /**
+       * The number to limit by
+       * @format int64
+       */
+      limit?: number;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<EventList, APIErrors>({
+      path: `/api/v2/tenants/${tenant}/workflow-runs`,
+      method: 'GET',
+      query: query,
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
    * @description Gets the readiness status
    *
    * @tags Healthcheck
