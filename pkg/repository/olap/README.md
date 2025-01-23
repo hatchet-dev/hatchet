@@ -12,7 +12,7 @@
         action_id TEXT NOT NULL,
         schedule_timeout TEXT NOT NULL,
         step_timeout TEXT NULL DEFAULT NULL,
-        priority INTEGER NOT NULL DEFAULT 1,
+        priority TINYINT UNSIGNED NOT NULL DEFAULT 1,
         sticky Enum(
             'HARD' = 1,
             'SOFT' = 2,
@@ -23,15 +23,14 @@
         worker_id UUID NOT NULL,
         created_at DateTime('UTC') NOT NULL DEFAULT NOW(),
 
-        PRIMARY KEY (id)
+        PRIMARY KEY (tenant_id, id)
     )
     ENGINE = MergeTree()
 
     -- https://stackoverflow.com/a/75439879 for more on partitioning
-    -- partition by tenant id since we'll rarely (or never) query across tenants
     -- partition by week so we can easily drop old data
-    PARTITION BY (tenant_id, toMonday(created_at))
-    ORDER BY (id)
+    PARTITION BY (toMonday(created_at))
+    ORDER BY (tenant_id, id)
 
     CREATE TABLE task_events (
         id UUID NOT NULL DEFAULT generateUUIDv4(),
@@ -60,7 +59,7 @@
             'CREATED' = 20
         ) NOT NULL,
         timestamp DateTime('UTC') NOT NULL,
-        retry_count INTEGER NOT NULL DEFAULT 0,
+        retry_count TINYINT UNSIGNED NOT NULL DEFAULT 0,
         error_message TEXT NULL DEFAULT NULL,
         output TEXT NULL DEFAULT NULL,
         additional__event_data TEXT NULL DEFAULT NULL,
@@ -91,15 +90,14 @@
         ) NULL DEFAULT NULL,
         created_at DateTime('UTC') NOT NULL DEFAULT NOW(),
 
-        PRIMARY KEY (task_id, timestamp, status)
+        PRIMARY KEY (tenant_id, task_id, timestamp, status)
     )
     ENGINE = MergeTree()
 
     -- https://stackoverflow.com/a/75439879 for more on partitioning
-    -- partition by tenant id since we'll rarely (or never) query across tenants
     -- partition by week so we can easily drop old data
-    PARTITION BY (tenant_id, toMonday(timestamp))
-    ORDER BY (task_id, timestamp, status)
+    PARTITION BY (toMonday(timestamp))
+    ORDER BY (tenant_id, task_id, timestamp, status)
    ```
 
 5. ```sql
