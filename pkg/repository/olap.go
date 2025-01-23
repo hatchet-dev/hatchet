@@ -102,7 +102,13 @@ func (r *olapEventRepository) ReadTaskRuns(tenantId uuid.UUID) ([]olap.WorkflowR
 			FROM task_events
 			WHERE tenant_id = ?
 		)
-		SELECT *
+		SELECT
+			id,
+			task_id,
+			tenant_id,
+			status,
+			timestamp,
+			error_message
 		FROM rows_assigned
 		WHERE row_num = 1
 		`,
@@ -126,8 +132,6 @@ func (r *olapEventRepository) ReadTaskRuns(tenantId uuid.UUID) ([]olap.WorkflowR
 			&taskRun.TenantId,
 			&taskRun.Status,
 			&taskRun.Timestamp,
-			&taskRun.CreatedAt,
-			&taskRun.RetryCount,
 			&taskRun.ErrorMessage,
 		)
 
@@ -162,14 +166,10 @@ func (r *olapEventRepository) ReadTaskRun(taskRunId int) (olap.WorkflowRun, erro
 	var taskRun olap.WorkflowRun
 
 	err := row.Scan(
-		&taskRun.Id,
 		&taskRun.TaskId,
 		&taskRun.TenantId,
 		&taskRun.Status,
 		&taskRun.Timestamp,
-		&taskRun.CreatedAt,
-		&taskRun.RetryCount,
-		&taskRun.ErrorMessage,
 	)
 
 	if err != nil {

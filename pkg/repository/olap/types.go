@@ -12,8 +12,6 @@ type WorkflowRun struct {
 	TenantId     uuid.UUID `json:"tenant_id"`
 	Status       string    `json:"status"`
 	Timestamp    time.Time `json:"timestamp"`
-	CreatedAt    time.Time `json:"created_at"`
-	RetryCount   int32     `json:"retry_count"`
 	ErrorMessage string    `json:"error_message"`
 }
 
