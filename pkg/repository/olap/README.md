@@ -11,13 +11,13 @@
         queue TEXT NOT NULL,
         action_id TEXT NOT NULL,
         schedule_timeout TEXT NOT NULL,
-        step_timeout TEXT,
+        step_timeout TEXT NULL DEFAULT NULL,
         priority INTEGER NOT NULL DEFAULT 1,
         sticky Enum(
             'HARD' = 1,
             'SOFT' = 2,
-        ),
-        desired_worker_id UUID,
+        ) NULL DEFAULT NULL,
+        desired_worker_id UUID NULL DEFAULT NULL,
         display_name TEXT NOT NULL,
         input TEXT NOT NULL,
         worker_id UUID NOT NULL,
@@ -62,13 +62,13 @@
         timestamp DateTime('UTC') NOT NULL,
         retry_count INTEGER NOT NULL DEFAULT 0,
         error_message TEXT NULL DEFAULT NULL,
-        additional__event_data TEXT,
-        additional__event_message TEXT,
+        additional__event_data TEXT NULL DEFAULT NULL,
+        additional__event_message TEXT NULL DEFAULT NULL,
         additional__event_severity Enum(
             'INFO' = 1,
             'WARNING' = 2,
             'CRITICAL' = 3
-        ),
+        ) NULL DEFAULT NULL,
         additional__event_reason Enum(
             'ACKNOWLEDGED' = 1,
             'ASSIGNED' = 2,
@@ -87,12 +87,8 @@
             'TIMEOUT_REFRESHED' = 15,
             'WORKFLOW_RUN_GROUP_KEY_FAILED' = 16,
             'WORKFLOW_RUN_GROUP_KEY_SUCCEEDED' = 17
-        ),
+        ) NULL DEFAULT NULL,
         created_at DateTime('UTC') NOT NULL DEFAULT NOW(),
-
-        CONSTRAINT check__failed_state_has_error CHECK CASE WHEN status = 'FAILED' THEN error_message IS NOT NULL ELSE error_message IS NULL END,
-        CONSTRAINT check__input_is_valid_json CHECK isValidJSON(input),
-        CONSTRAINT check__additional__event_data_is_valid_json CHECK isValidJSON(additional__event_data),
 
         PRIMARY KEY (task_id, timestamp, status)
     )

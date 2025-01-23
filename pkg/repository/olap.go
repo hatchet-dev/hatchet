@@ -17,32 +17,56 @@ type OLAPEventRepository interface {
 	Connect(ctx context.Context) error
 	ReadTaskRuns(tenantId uuid.UUID) ([]olap.WorkflowRun, error)
 	ReadTaskRun(stepRunId int) (olap.WorkflowRun, error)
-	CreateEvent(event olap.Event) error
-	CreateEvents(events []olap.Event) error
+	CreateTask(task olap.Task) error
+	CreateTasks(tasks []olap.Task) error
+	CreateTaskEvent(event olap.TaskEvent) error
+	CreateTaskEvents(events []olap.TaskEvent) error
 }
 
 type olapEventRepository struct {
-	conn   clickhouse.Conn
-	buffer *buffer.TenantBufferManager[olap.Event, olap.Event]
+	conn            clickhouse.Conn
+	taskBuffer      *buffer.TenantBufferManager[olap.Task, olap.Task]
+	taskEventBuffer *buffer.TenantBufferManager[olap.TaskEvent, olap.TaskEvent]
 }
 
 func NewOLAPEventRepository() OLAPEventRepository {
-	opts := buffer.TenantBufManagerOpts[olap.Event, olap.Event]{
-		Name:       "create-event-buffer",
-		OutputFunc: WriteEventBatch,
+	task_event_buffer_opts := buffer.TenantBufManagerOpts[olap.TaskEvent, olap.TaskEvent]{
+		Name:       "task-event-buffer",
+		OutputFunc: WriteTaskEventBatch,
 		L:          &zerolog.Logger{},
 		Config: buffer.ConfigFileBuffer{
 			FlushPeriodMilliseconds: 500,
 		},
-		SizeFunc: func(e olap.Event) int {
+		SizeFunc: func(e olap.TaskEvent) int {
 			return 16 + 16 + len(e.Status)
 		},
 		V: validator.NewDefaultValidator(),
 	}
 
-	buff, err := buffer.NewTenantBufManager(opts)
+	task_event_buffer, err := buffer.NewTenantBufManager(task_event_buffer_opts)
 
-	defer buff.Cleanup()
+	defer task_event_buffer.Cleanup()
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	task_buffer_opts := buffer.TenantBufManagerOpts[olap.Task, olap.Task]{
+		Name:       "task-event-buffer",
+		OutputFunc: WriteTaskBatch,
+		L:          &zerolog.Logger{},
+		Config: buffer.ConfigFileBuffer{
+			FlushPeriodMilliseconds: 500,
+		},
+		SizeFunc: func(e olap.Task) int {
+			return 16 + 16 + len(e.DisplayName)
+		},
+		V: validator.NewDefaultValidator(),
+	}
+
+	task_buffer, err := buffer.NewTenantBufManager(task_buffer_opts)
+
+	defer task_buffer.Cleanup()
 
 	if err != nil {
 		log.Fatal(err)
@@ -55,8 +79,9 @@ func NewOLAPEventRepository() OLAPEventRepository {
 	}
 
 	return &olapEventRepository{
-		conn:   conn,
-		buffer: buff,
+		conn:            conn,
+		taskBuffer:      task_buffer,
+		taskEventBuffer: task_event_buffer,
 	}
 }
 
@@ -166,7 +191,7 @@ func (r *olapEventRepository) ReadTaskRun(taskRunId int) (olap.WorkflowRun, erro
 	return taskRun, nil
 }
 
-func WriteEventBatch(c context.Context, events []olap.Event) ([]*olap.Event, error) {
+func WriteTaskEventBatch(c context.Context, events []olap.TaskEvent) ([]*olap.TaskEvent, error) {
 	conn, err := olap.CreateClickhouseConnection()
 
 	if err != nil {
@@ -179,14 +204,17 @@ func WriteEventBatch(c context.Context, events []olap.Event) ([]*olap.Event, err
 	// https://clickhouse.com/docs/en/integrations/go#batch-insert
 	// If https://clickhouse.com/docs/en/cloud/bestpractices/bulk-inserts#ingest-data-in-bulk
 	batch, err := conn.PrepareBatch(ctx, `
-		INSERT INTO events (
+		INSERT INTO task_events (
 			task_id,
-			worker_id,
 			tenant_id,
 			status,
 			timestamp,
 			retry_count,
-			error_message
+			error_message,
+			additional__event_data,
+			additional__event_message,
+			additional__event_severity,
+			additional__event_reason
 		)
 	`)
 
@@ -197,12 +225,15 @@ func WriteEventBatch(c context.Context, events []olap.Event) ([]*olap.Event, err
 	for _, event := range events {
 		err := batch.Append(
 			event.TaskId,
-			event.WorkerId,
 			event.TenantId,
 			event.Status,
 			event.Timestamp,
 			event.RetryCount,
 			event.ErrorMsg,
+			event.AdditionalEventData,
+			event.AdditionalEventMessage,
+			event.AdditionalEventSeverity,
+			event.AdditionalEventReason,
 		)
 
 		if err != nil {
@@ -216,7 +247,7 @@ func WriteEventBatch(c context.Context, events []olap.Event) ([]*olap.Event, err
 		return nil, err
 	}
 
-	eventPtrs := make([]*olap.Event, len(events))
+	eventPtrs := make([]*olap.TaskEvent, len(events))
 
 	for i := range events {
 		eventPtrs[i] = &events[i]
@@ -225,14 +256,95 @@ func WriteEventBatch(c context.Context, events []olap.Event) ([]*olap.Event, err
 	return eventPtrs, nil
 }
 
-func (r *olapEventRepository) CreateEvent(event olap.Event) error {
-	_, err := r.buffer.FireAndWait(context.Background(), event.TenantId.String(), event)
+func WriteTaskBatch(c context.Context, tasks []olap.Task) ([]*olap.Task, error) {
+	conn, err := olap.CreateClickhouseConnection()
+
+	if err != nil {
+		return nil, err
+	}
+
+	ctx := context.Background()
+
+	// Clickhouse recommends using bulk (batch) inserts for performance
+	// https://clickhouse.com/docs/en/integrations/go#batch-insert
+	// If https://clickhouse.com/docs/en/cloud/bestpractices/bulk-inserts#ingest-data-in-bulk
+	batch, err := conn.PrepareBatch(ctx, `
+		INSERT INTO tasks (
+			id,
+			tenant_id,
+			queue,
+			action_id,
+			schedule_timeout,
+			step_timeout,
+			priority,
+			sticky,
+			desired_worker_id,
+			display_name,
+			input,
+			worker_id
+		)
+	`)
+
+	if err != nil {
+		return nil, err
+	}
+
+	for _, task := range tasks {
+		err := batch.Append(
+			task.Id,
+			task.TenantId,
+			task.Queue,
+			task.ActionId,
+			task.ScheduleTimeout,
+			task.StepTimeout,
+			task.Priority,
+			task.Sticky,
+			task.DesiredWorkerId,
+			task.DisplayName,
+			task.Input,
+			task.WorkerId,
+		)
+
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	err = batch.Send()
+
+	if err != nil {
+		return nil, err
+	}
+
+	taskPtrs := make([]*olap.Task, len(tasks))
+
+	for i := range tasks {
+		taskPtrs[i] = &tasks[i]
+	}
+
+	return taskPtrs, nil
+}
+
+func (r *olapEventRepository) CreateTaskEvent(event olap.TaskEvent) error {
+	_, err := r.taskEventBuffer.FireAndWait(context.Background(), event.TenantId.String(), event)
 
 	return err
 }
 
-func (r *olapEventRepository) CreateEvents(events []olap.Event) error {
-	_, err := WriteEventBatch(context.Background(), events)
+func (r *olapEventRepository) CreateTaskEvents(events []olap.TaskEvent) error {
+	_, err := WriteTaskEventBatch(context.Background(), events)
+
+	return err
+}
+
+func (r *olapEventRepository) CreateTask(task olap.Task) error {
+	_, err := r.taskBuffer.FireAndWait(context.Background(), task.TenantId.String(), task)
+
+	return err
+}
+
+func (r *olapEventRepository) CreateTasks(task []olap.Task) error {
+	_, err := WriteTaskBatch(context.Background(), task)
 
 	return err
 }
