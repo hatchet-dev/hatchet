@@ -98,22 +98,14 @@ func (r *olapEventRepository) ReadTaskRuns(tenantId uuid.UUID) ([]olap.WorkflowR
 	ctx := context.Background()
 	rows, err := r.conn.Query(ctx, `
 		WITH rows_assigned AS (
-			SELECT id, ROW_NUMBER() OVER (PARTITION BY task_id ORDER BY timestamp DESC) AS row_num
-			FROM events
+			SELECT *, ROW_NUMBER() OVER (PARTITION BY task_id ORDER BY timestamp DESC) AS row_num
+			FROM task_events
 			WHERE tenant_id = ?
 		)
-		SELECT
-			e.id,
-			e.task_id,
-			e.tenant_id,
-			e.status,
-			e.timestamp,
-			e.created_at,
-			e.retry_count,
-			e.error_message
-		FROM events e
-		JOIN rows_assigned ra ON e.id = ra.id
-		WHERE ra.row_num = 1`,
+		SELECT *
+		FROM rows_assigned
+		WHERE row_num = 1
+		`,
 		tenantId,
 	)
 

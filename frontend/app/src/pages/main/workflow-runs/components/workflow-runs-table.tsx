@@ -298,7 +298,7 @@ export function WorkflowRunsTable({
   }, [sorting]);
 
   const listWorkflowRunsQuery = useQuery({
-    ...queries.workflowRuns.list(tenant.metadata.id, {
+    ...queries.v2WorkflowRuns.list(tenant.metadata.id, {
       offset,
       limit: pagination.pageSize,
       statuses,
@@ -314,6 +314,8 @@ export function WorkflowRunsTable({
     placeholderData: (prev) => prev,
     refetchInterval,
   });
+
+  console.log(listWorkflowRunsQuery.data);
 
   const metricsQuery = useQuery({
     ...queries.workflowRuns.metrics(tenant.metadata.id, {
