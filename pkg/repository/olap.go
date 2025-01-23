@@ -345,8 +345,8 @@ func (r *olapEventRepository) CreateTask(task olap.Task) error {
 	return err
 }
 
-func (r *olapEventRepository) CreateTasks(task []olap.Task) error {
-	_, err := WriteTaskBatch(context.Background(), task)
+func (r *olapEventRepository) CreateTasks(tasks []olap.Task) error {
+	_, err := WriteTaskBatch(context.Background(), tasks)
 
 	return err
 }
