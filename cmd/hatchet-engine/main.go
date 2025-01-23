@@ -10,6 +10,7 @@ import (
 	"context"
 
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-engine/engine"
+	"github.com/hatchet-dev/hatchet/internal/chaos"
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
 )
@@ -49,6 +50,12 @@ var rootCmd = &cobra.Command{
 var Version = "v0.1.0-alpha.0"
 
 func main() {
+
+	dev := os.Getenv("HATCHET_NON_PROD")
+	if dev == "true" {
+		chaos.Enable()
+	}
+
 	rootCmd.PersistentFlags().BoolVar(
 		&printVersion,
 		"version",

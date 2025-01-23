@@ -1027,6 +1027,50 @@ func (ns NullWorkflowKind) Value() (driver.Value, error) {
 	return string(ns.WorkflowKind), nil
 }
 
+type WorkflowRunProcessingState string
+
+const (
+	WorkflowRunProcessingStateWAITING    WorkflowRunProcessingState = "WAITING"
+	WorkflowRunProcessingStatePROCESSING WorkflowRunProcessingState = "PROCESSING"
+	WorkflowRunProcessingStateDONE       WorkflowRunProcessingState = "DONE"
+	WorkflowRunProcessingStateERROR      WorkflowRunProcessingState = "ERROR"
+)
+
+func (e *WorkflowRunProcessingState) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = WorkflowRunProcessingState(s)
+	case string:
+		*e = WorkflowRunProcessingState(s)
+	default:
+		return fmt.Errorf("unsupported scan type for WorkflowRunProcessingState: %T", src)
+	}
+	return nil
+}
+
+type NullWorkflowRunProcessingState struct {
+	WorkflowRunProcessingState WorkflowRunProcessingState `json:"WorkflowRunProcessingState"`
+	Valid                      bool                       `json:"valid"` // Valid is true if WorkflowRunProcessingState is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullWorkflowRunProcessingState) Scan(value interface{}) error {
+	if value == nil {
+		ns.WorkflowRunProcessingState, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.WorkflowRunProcessingState.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullWorkflowRunProcessingState) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.WorkflowRunProcessingState), nil
+}
+
 type WorkflowRunStatus string
 
 const (
@@ -1803,26 +1847,27 @@ type WorkflowConcurrency struct {
 }
 
 type WorkflowRun struct {
-	CreatedAt          pgtype.Timestamp  `json:"createdAt"`
-	UpdatedAt          pgtype.Timestamp  `json:"updatedAt"`
-	DeletedAt          pgtype.Timestamp  `json:"deletedAt"`
-	TenantId           pgtype.UUID       `json:"tenantId"`
-	WorkflowVersionId  pgtype.UUID       `json:"workflowVersionId"`
-	Status             WorkflowRunStatus `json:"status"`
-	Error              pgtype.Text       `json:"error"`
-	StartedAt          pgtype.Timestamp  `json:"startedAt"`
-	FinishedAt         pgtype.Timestamp  `json:"finishedAt"`
-	ConcurrencyGroupId pgtype.Text       `json:"concurrencyGroupId"`
-	DisplayName        pgtype.Text       `json:"displayName"`
-	ID                 pgtype.UUID       `json:"id"`
-	ChildIndex         pgtype.Int4       `json:"childIndex"`
-	ChildKey           pgtype.Text       `json:"childKey"`
-	ParentId           pgtype.UUID       `json:"parentId"`
-	ParentStepRunId    pgtype.UUID       `json:"parentStepRunId"`
-	AdditionalMetadata []byte            `json:"additionalMetadata"`
-	Duration           pgtype.Int8       `json:"duration"`
-	Priority           pgtype.Int4       `json:"priority"`
-	InsertOrder        pgtype.Int4       `json:"insertOrder"`
+	CreatedAt          pgtype.Timestamp           `json:"createdAt"`
+	UpdatedAt          pgtype.Timestamp           `json:"updatedAt"`
+	DeletedAt          pgtype.Timestamp           `json:"deletedAt"`
+	TenantId           pgtype.UUID                `json:"tenantId"`
+	WorkflowVersionId  pgtype.UUID                `json:"workflowVersionId"`
+	Status             WorkflowRunStatus          `json:"status"`
+	Error              pgtype.Text                `json:"error"`
+	StartedAt          pgtype.Timestamp           `json:"startedAt"`
+	FinishedAt         pgtype.Timestamp           `json:"finishedAt"`
+	ConcurrencyGroupId pgtype.Text                `json:"concurrencyGroupId"`
+	DisplayName        pgtype.Text                `json:"displayName"`
+	ID                 pgtype.UUID                `json:"id"`
+	ChildIndex         pgtype.Int4                `json:"childIndex"`
+	ChildKey           pgtype.Text                `json:"childKey"`
+	ParentId           pgtype.UUID                `json:"parentId"`
+	ParentStepRunId    pgtype.UUID                `json:"parentStepRunId"`
+	AdditionalMetadata []byte                     `json:"additionalMetadata"`
+	Duration           pgtype.Int8                `json:"duration"`
+	Priority           pgtype.Int4                `json:"priority"`
+	InsertOrder        pgtype.Int4                `json:"insertOrder"`
+	ProcessingState    WorkflowRunProcessingState `json:"processingState"`
 }
 
 type WorkflowRunDedupe struct {

@@ -141,7 +141,7 @@ func (wc *WorkflowsControllerImpl) handleWorkflowRunQueued(ctx context.Context, 
 			return wc.mq.AddMessage(
 				ctx,
 				msgqueue.JOB_PROCESSING_QUEUE,
-				tasktypes.StepRunQueuedToTask(stepRunCp),
+				tasktypes.StepRunQueuedToTask(stepRunCp, false),
 			)
 		})
 	}
@@ -337,7 +337,7 @@ func (wc *WorkflowsControllerImpl) handleWorkflowRunFinished(ctx context.Context
 						return wc.mq.AddMessage(
 							ctx,
 							msgqueue.JOB_PROCESSING_QUEUE,
-							tasktypes.StepRunQueuedToTask(stepRunCp),
+							tasktypes.StepRunQueuedToTask(stepRunCp, false),
 						)
 					})
 				}
@@ -639,7 +639,7 @@ func (wc *WorkflowsControllerImpl) queueByCancelInProgress(ctx context.Context, 
 				return wc.mq.AddMessage(
 					ctx,
 					msgqueue.JOB_PROCESSING_QUEUE,
-					tasktypes.StepRunQueuedToTask(stepRunCp),
+					tasktypes.StepRunQueuedToTask(stepRunCp, false),
 				)
 			})
 		}
@@ -696,7 +696,7 @@ func (wc *WorkflowsControllerImpl) queueByCancelNewest(ctx context.Context, tena
 				return wc.mq.AddMessage(
 					ctx,
 					msgqueue.JOB_PROCESSING_QUEUE,
-					tasktypes.StepRunQueuedToTask(stepRunCp),
+					tasktypes.StepRunQueuedToTask(stepRunCp, false),
 				)
 			})
 		}
@@ -734,7 +734,7 @@ func (wc *WorkflowsControllerImpl) queueByGroupRoundRobin(ctx context.Context, t
 			return wc.mq.AddMessage(
 				ctx,
 				msgqueue.JOB_PROCESSING_QUEUE,
-				tasktypes.StepRunQueuedToTask(stepRunCp),
+				tasktypes.StepRunQueuedToTask(stepRunCp, true),
 			)
 		})
 	}

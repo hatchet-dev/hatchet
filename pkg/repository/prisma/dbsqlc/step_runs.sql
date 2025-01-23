@@ -32,6 +32,7 @@ SELECT
     wr."childIndex",
     wr."childKey",
     wr."parentId",
+    wr."processingState",
     COALESCE(ec."exprCount", 0) AS "exprCount"
 FROM
     "StepRun" sr
@@ -47,6 +48,71 @@ LEFT JOIN
 WHERE
     sr."id" = @id::uuid AND
     sr."tenantId" = @tenantId::uuid;
+
+
+-- name: GetStepRunDataWithWorkflowRunUpdate :one
+WITH expr_count AS (
+    SELECT
+        COUNT(*) AS "exprCount",
+        sr."id" AS "id"
+    FROM
+        "StepRun" sr
+    JOIN
+        "Step" s ON sr."stepId" = s."id"
+    JOIN
+        "StepExpression" se ON s."id" = se."stepId"
+    WHERE
+        sr."id" = @id::uuid
+    GROUP BY
+        sr."id"
+),
+update_processing_state AS (
+    UPDATE
+        "WorkflowRun"
+    SET
+        "processingState" = 'PROCESSING'
+    FROM
+        "StepRun" sr
+    JOIN
+        "JobRun" jr ON sr."jobRunId" = jr."id"
+    WHERE
+        sr."id" = @id::uuid
+        AND sr."tenantId" = @tenantId::uuid
+        AND "WorkflowRun"."id" = jr."workflowRunId"
+        AND "WorkflowRun"."tenantId" = @tenantId::uuid
+        AND "WorkflowRun"."processingState" = 'WAITING'
+    RETURNING "WorkflowRun"."id"
+)
+SELECT
+    sr."input",
+    sr."output",
+    sr."error",
+    jrld."data" AS "jobRunLookupData",
+    wr."additionalMetadata",
+    wr."childIndex",
+    wr."childKey",
+    wr."parentId",
+    wr."processingState",
+    COALESCE(ec."exprCount", 0) AS "exprCount"
+FROM
+    "StepRun" sr
+JOIN
+    "JobRun" jr ON sr."jobRunId" = jr."id"
+JOIN
+    "JobRunLookupData" jrld ON jr."id" = jrld."jobRunId"
+JOIN
+    "WorkflowRun" wr ON jr."workflowRunId" = wr."id" AND wr."tenantId" = @tenantId::uuid
+LEFT JOIN
+    expr_count ec ON sr."id" = ec."id"
+WHERE
+    sr."id" = @id::uuid
+    AND sr."tenantId" = @tenantId::uuid
+    AND wr."id" IN (SELECT "id" FROM update_processing_state);
+
+
+
+
+
 
 -- name: GetStepRunBulkDataForEngine :many
 SELECT

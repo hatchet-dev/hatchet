@@ -1071,6 +1071,8 @@ func (w *workflowRunEngineRepository) PopWorkflowRunsRoundRobin(ctx context.Cont
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not list queued workflow runs: %w", err)
 	}
+	w.l.Warn().Msgf("popped %d workflow runs", len(poppedWorkflowRuns))
+
 	var startableStepRuns []*dbsqlc.GetStepRunForEngineRow
 	for i := range poppedWorkflowRuns {
 		row := poppedWorkflowRuns[i]

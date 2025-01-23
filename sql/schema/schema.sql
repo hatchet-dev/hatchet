@@ -133,6 +133,9 @@ CREATE TYPE "WorkflowKind" AS ENUM ('FUNCTION', 'DURABLE', 'DAG');
 -- CreateEnum
 CREATE TYPE "WorkflowRunStatus" AS ENUM ('PENDING', 'RUNNING', 'SUCCEEDED', 'FAILED', 'QUEUED', 'CANCELLING', 'CANCELLED');
 
+-- CreateEnum
+CREATE TYPE "WorkflowRunProcessingState" AS ENUM ('WAITING', 'PROCESSING', 'DONE', 'ERROR');
+
 -- CreateTable
 CREATE TABLE "APIToken" (
     "id" UUID NOT NULL,
@@ -914,6 +917,7 @@ CREATE TABLE "WorkflowRun" (
     "duration" BIGINT,
     "priority" INTEGER,
     "insertOrder" INTEGER,
+    "processingState" "WorkflowRunProcessingState" NOT NULL DEFAULT 'WAITING',
 
     CONSTRAINT "WorkflowRun_pkey" PRIMARY KEY ("id")
 );

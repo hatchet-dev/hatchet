@@ -205,6 +205,8 @@ type StepRunEngineRepository interface {
 
 	GetStepRunForEngine(ctx context.Context, tenantId, stepRunId string) (*dbsqlc.GetStepRunForEngineRow, error)
 
+	GetStepRunDataWithWorkflowRunUpdate(ctx context.Context, tenantId, stepRunId string) (*dbsqlc.GetStepRunDataWithWorkflowRunUpdateRow, error)
+
 	GetStepRunDataForEngine(ctx context.Context, tenantId, stepRunId string) (*dbsqlc.GetStepRunDataForEngineRow, error)
 
 	GetStepRunBulkDataForEngine(ctx context.Context, tenantId string, stepRunIds []string) ([]*dbsqlc.GetStepRunBulkDataForEngineRow, error)

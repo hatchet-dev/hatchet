@@ -247,6 +247,12 @@ func (t *MessageQueueImpl) AddMessage(ctx context.Context, q msgqueue.Queue, msg
 		msg.OtelCarrier = telemetry.GetCarrier(ctx)
 	}
 
+	if msg.ChaosMonkey {
+
+		t.l.Warn().Msgf("chaos monkey: dropping message %s - %+v", msg.ID, msg.Metadata)
+		return nil
+	}
+
 	// we can have multiple error acks
 	ackC := make(chan ack, 5)
 

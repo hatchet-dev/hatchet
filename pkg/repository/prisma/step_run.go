@@ -1916,6 +1916,13 @@ func (s *stepRunEngineRepository) CreateStepRunEvent(ctx context.Context, tenant
 	return nil
 }
 
+func (s *stepRunEngineRepository) GetStepRunDataWithWorkflowRunUpdate(ctx context.Context, tenantId, stepRunId string) (*dbsqlc.GetStepRunDataWithWorkflowRunUpdateRow, error) {
+	return s.queries.GetStepRunDataWithWorkflowRunUpdate(ctx, s.pool, dbsqlc.GetStepRunDataWithWorkflowRunUpdateParams{
+		ID:       sqlchelpers.UUIDFromStr(stepRunId),
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+	})
+}
+
 // performant query for step run id, only returns what the engine needs
 func (s *stepRunEngineRepository) GetStepRunForEngine(ctx context.Context, tenantId, stepRunId string) (*dbsqlc.GetStepRunForEngineRow, error) {
 	return s.getStepRunForEngineTx(ctx, s.pool, tenantId, stepRunId)

@@ -308,6 +308,7 @@ WITH workflow_runs AS (
         r2."deletedAt" IS NULL AND
         workflowVersion."deletedAt" IS NULL AND
         (r2."status" = 'QUEUED' OR r2."status" = 'RUNNING') AND
+
         workflowVersion."id" = @workflowVersionId::uuid
 ), eligible_runs_per_group AS (
     SELECT
@@ -336,7 +337,8 @@ FROM
     eligible_runs
 WHERE
     "WorkflowRun".id = eligible_runs.id AND
-    "WorkflowRun"."status" = 'QUEUED'
+    -- "WorkflowRun"."status" = 'QUEUED' AND
+    "WorkflowRun"."processingState" = 'WAITING'::"WorkflowRunProcessingState"
 RETURNING
     "WorkflowRun".*;
 

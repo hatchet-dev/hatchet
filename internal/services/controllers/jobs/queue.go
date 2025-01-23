@@ -264,7 +264,7 @@ func (q *queue) processStepRunUpdatesV2(ctx context.Context, tenantId string) (b
 				err := q.mq.AddMessage(
 					context.Background(),
 					msgqueue.JOB_PROCESSING_QUEUE,
-					tasktypes.StepRunQueuedToTask(nextStepRun),
+					tasktypes.StepRunQueuedToTask(nextStepRun, false),
 				)
 
 				if err != nil {

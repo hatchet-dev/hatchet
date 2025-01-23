@@ -1099,6 +1099,7 @@ SELECT
     wr."childIndex",
     wr."childKey",
     wr."parentId",
+    wr."processingState",
     COALESCE(ec."exprCount", 0) AS "exprCount"
 FROM
     "StepRun" sr
@@ -1122,15 +1123,16 @@ type GetStepRunDataForEngineParams struct {
 }
 
 type GetStepRunDataForEngineRow struct {
-	Input              []byte      `json:"input"`
-	Output             []byte      `json:"output"`
-	Error              pgtype.Text `json:"error"`
-	JobRunLookupData   []byte      `json:"jobRunLookupData"`
-	AdditionalMetadata []byte      `json:"additionalMetadata"`
-	ChildIndex         pgtype.Int4 `json:"childIndex"`
-	ChildKey           pgtype.Text `json:"childKey"`
-	ParentId           pgtype.UUID `json:"parentId"`
-	ExprCount          int64       `json:"exprCount"`
+	Input              []byte                     `json:"input"`
+	Output             []byte                     `json:"output"`
+	Error              pgtype.Text                `json:"error"`
+	JobRunLookupData   []byte                     `json:"jobRunLookupData"`
+	AdditionalMetadata []byte                     `json:"additionalMetadata"`
+	ChildIndex         pgtype.Int4                `json:"childIndex"`
+	ChildKey           pgtype.Text                `json:"childKey"`
+	ParentId           pgtype.UUID                `json:"parentId"`
+	ProcessingState    WorkflowRunProcessingState `json:"processingState"`
+	ExprCount          int64                      `json:"exprCount"`
 }
 
 func (q *Queries) GetStepRunDataForEngine(ctx context.Context, db DBTX, arg GetStepRunDataForEngineParams) (*GetStepRunDataForEngineRow, error) {
@@ -1145,6 +1147,103 @@ func (q *Queries) GetStepRunDataForEngine(ctx context.Context, db DBTX, arg GetS
 		&i.ChildIndex,
 		&i.ChildKey,
 		&i.ParentId,
+		&i.ProcessingState,
+		&i.ExprCount,
+	)
+	return &i, err
+}
+
+const getStepRunDataWithWorkflowRunUpdate = `-- name: GetStepRunDataWithWorkflowRunUpdate :one
+WITH expr_count AS (
+    SELECT
+        COUNT(*) AS "exprCount",
+        sr."id" AS "id"
+    FROM
+        "StepRun" sr
+    JOIN
+        "Step" s ON sr."stepId" = s."id"
+    JOIN
+        "StepExpression" se ON s."id" = se."stepId"
+    WHERE
+        sr."id" = $2::uuid
+    GROUP BY
+        sr."id"
+),
+update_processing_state AS (
+    UPDATE
+        "WorkflowRun"
+    SET
+        "processingState" = 'PROCESSING'
+    FROM
+        "StepRun" sr
+    JOIN
+        "JobRun" jr ON sr."jobRunId" = jr."id"
+    WHERE
+        sr."id" = $2::uuid
+        AND sr."tenantId" = $1::uuid
+        AND "WorkflowRun"."id" = jr."workflowRunId"
+        AND "WorkflowRun"."tenantId" = $1::uuid
+        AND "WorkflowRun"."processingState" = 'WAITING'
+    RETURNING "WorkflowRun"."id"
+)
+SELECT
+    sr."input",
+    sr."output",
+    sr."error",
+    jrld."data" AS "jobRunLookupData",
+    wr."additionalMetadata",
+    wr."childIndex",
+    wr."childKey",
+    wr."parentId",
+    wr."processingState",
+    COALESCE(ec."exprCount", 0) AS "exprCount"
+FROM
+    "StepRun" sr
+JOIN
+    "JobRun" jr ON sr."jobRunId" = jr."id"
+JOIN
+    "JobRunLookupData" jrld ON jr."id" = jrld."jobRunId"
+JOIN
+    "WorkflowRun" wr ON jr."workflowRunId" = wr."id" AND wr."tenantId" = $1::uuid
+LEFT JOIN
+    expr_count ec ON sr."id" = ec."id"
+WHERE
+    sr."id" = $2::uuid
+    AND sr."tenantId" = $1::uuid
+    AND wr."id" IN (SELECT "id" FROM update_processing_state)
+`
+
+type GetStepRunDataWithWorkflowRunUpdateParams struct {
+	Tenantid pgtype.UUID `json:"tenantid"`
+	ID       pgtype.UUID `json:"id"`
+}
+
+type GetStepRunDataWithWorkflowRunUpdateRow struct {
+	Input              []byte                     `json:"input"`
+	Output             []byte                     `json:"output"`
+	Error              pgtype.Text                `json:"error"`
+	JobRunLookupData   []byte                     `json:"jobRunLookupData"`
+	AdditionalMetadata []byte                     `json:"additionalMetadata"`
+	ChildIndex         pgtype.Int4                `json:"childIndex"`
+	ChildKey           pgtype.Text                `json:"childKey"`
+	ParentId           pgtype.UUID                `json:"parentId"`
+	ProcessingState    WorkflowRunProcessingState `json:"processingState"`
+	ExprCount          int64                      `json:"exprCount"`
+}
+
+func (q *Queries) GetStepRunDataWithWorkflowRunUpdate(ctx context.Context, db DBTX, arg GetStepRunDataWithWorkflowRunUpdateParams) (*GetStepRunDataWithWorkflowRunUpdateRow, error) {
+	row := db.QueryRow(ctx, getStepRunDataWithWorkflowRunUpdate, arg.Tenantid, arg.ID)
+	var i GetStepRunDataWithWorkflowRunUpdateRow
+	err := row.Scan(
+		&i.Input,
+		&i.Output,
+		&i.Error,
+		&i.JobRunLookupData,
+		&i.AdditionalMetadata,
+		&i.ChildIndex,
+		&i.ChildKey,
+		&i.ParentId,
+		&i.ProcessingState,
 		&i.ExprCount,
 	)
 	return &i, err
@@ -2734,7 +2833,7 @@ SET
     "error" = NULL
 WHERE
     "id" =  $1::uuid
-RETURNING "createdAt", "updatedAt", "deletedAt", "tenantId", "workflowVersionId", status, error, "startedAt", "finishedAt", "concurrencyGroupId", "displayName", id, "childIndex", "childKey", "parentId", "parentStepRunId", "additionalMetadata", duration, priority, "insertOrder"
+RETURNING "createdAt", "updatedAt", "deletedAt", "tenantId", "workflowVersionId", status, error, "startedAt", "finishedAt", "concurrencyGroupId", "displayName", id, "childIndex", "childKey", "parentId", "parentStepRunId", "additionalMetadata", duration, priority, "insertOrder", "processingState"
 `
 
 func (q *Queries) ReplayStepRunResetWorkflowRun(ctx context.Context, db DBTX, workflowrunid pgtype.UUID) (*WorkflowRun, error) {
@@ -2761,6 +2860,7 @@ func (q *Queries) ReplayStepRunResetWorkflowRun(ctx context.Context, db DBTX, wo
 		&i.Duration,
 		&i.Priority,
 		&i.InsertOrder,
+		&i.ProcessingState,
 	)
 	return &i, err
 }

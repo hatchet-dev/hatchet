@@ -142,6 +142,9 @@ type Message struct {
 
 	// OtelCarrier is the OpenTelemetry carrier for the task.
 	OtelCarrier map[string]string `json:"otel_carrier"`
+
+	// ChaosMonkey is true if the task should be processed by the chaos monkey.
+	ChaosMonkey bool `json:"chaos_monkey"`
 }
 
 func (t *Message) TenantID() string {

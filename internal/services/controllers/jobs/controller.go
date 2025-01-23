@@ -344,7 +344,8 @@ func (ec *JobsControllerImpl) handleJobRunQueued(ctx context.Context, task *msgq
 			return ec.mq.AddMessage(
 				ctx,
 				msgqueue.JOB_PROCESSING_QUEUE,
-				tasktypes.StepRunQueuedToTask(stepRunCp),
+				// dealing with the group round robin but this may need a similar strategy
+				tasktypes.StepRunQueuedToTask(stepRunCp, false),
 			)
 		})
 	}
@@ -477,7 +478,7 @@ func (ec *JobsControllerImpl) handleStepRunRetry(ctx context.Context, task *msgq
 		return ec.repo.StepRun().StepRunRetryBackoff(ctx, metadata.TenantId, sqlchelpers.UUIDToStr(stepRun.SRID), *retryAfter)
 	}
 
-	return ec.queueStepRun(ctx, metadata.TenantId, sqlchelpers.UUIDToStr(stepRun.StepId), sqlchelpers.UUIDToStr(stepRun.SRID), true)
+	return ec.queueStepRun(ctx, metadata.TenantId, sqlchelpers.UUIDToStr(stepRun.StepId), sqlchelpers.UUIDToStr(stepRun.SRID), true, false)
 }
 
 // handleStepRunReplay replays a step run from scratch - it resets the workflow run state, job run state, and
@@ -575,7 +576,7 @@ func (ec *JobsControllerImpl) handleStepRunReplay(ctx context.Context, task *msg
 		return fmt.Errorf("could not update step run for replay: %w", err)
 	}
 
-	return ec.queueStepRun(ctx, metadata.TenantId, sqlchelpers.UUIDToStr(stepRun.StepId), sqlchelpers.UUIDToStr(stepRun.SRID), true)
+	return ec.queueStepRun(ctx, metadata.TenantId, sqlchelpers.UUIDToStr(stepRun.StepId), sqlchelpers.UUIDToStr(stepRun.SRID), true, false)
 }
 
 func (ec *JobsControllerImpl) handleStepRunQueued(ctx context.Context, task *msgqueue.Message) error {
@@ -603,7 +604,7 @@ func (ec *JobsControllerImpl) handleStepRunQueued(ctx context.Context, task *msg
 		isRetry = true
 	}
 
-	return ec.queueStepRun(ctx, metadata.TenantId, metadata.StepId, payload.StepRunId, isRetry)
+	return ec.queueStepRun(ctx, metadata.TenantId, metadata.StepId, payload.StepRunId, isRetry, payload.FirstStepRun)
 }
 
 func (jc *JobsControllerImpl) runPgStat() func() {
@@ -716,12 +717,12 @@ func (ec *JobsControllerImpl) runStepRunReassignTenant(ctx context.Context, tena
 	})
 }
 
-func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId, stepId, stepRunId string, isRetry bool) error {
+func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId, stepId, stepRunId string, isRetry bool, firstStepRun bool) error {
 	ctx, span := telemetry.NewSpan(ctx, "queue-step-run")
 	defer span.End()
 
-	// add the rendered data to the step run
-	stepRun, err := ec.repo.StepRun().GetStepRunForEngine(ctx, tenantId, stepRunId)
+	var stepRun *dbsqlc.GetStepRunForEngineRow
+	var err error
 
 	errData := map[string]interface{}{
 		"tenant_id":   tenantId,
@@ -729,8 +730,28 @@ func (ec *JobsControllerImpl) queueStepRun(ctx context.Context, tenantId, stepId
 		"step_run_id": stepRunId,
 	}
 
-	if err != nil {
-		return ec.a.WrapErr(fmt.Errorf("could not get step run: %w", err), errData)
+	if firstStepRun {
+		// if this is the first step run, then we should set the workflow run to processing
+		_, e1 := ec.repo.StepRun().GetStepRunDataWithWorkflowRunUpdate(ctx, tenantId, stepRunId)
+
+		if e1 != nil {
+			// TODO clean up means we hit a repeat we should maybe just log this and return nil
+			return ec.a.WrapErr(fmt.Errorf("could not get step run data with workflow run update: %w", err), errData)
+		}
+		// right now we are regrabbing but we can combine these queries so the types don't blow up
+
+		var e2 error
+		stepRun, e2 = ec.repo.StepRun().GetStepRunForEngine(ctx, tenantId, stepRunId)
+		if e2 != nil {
+			return ec.a.WrapErr(fmt.Errorf("could not get step run: %w", err), errData)
+		}
+
+	} else {
+		// add the rendered data to the step run
+		stepRun, err = ec.repo.StepRun().GetStepRunForEngine(ctx, tenantId, stepRunId)
+		if err != nil {
+			return ec.a.WrapErr(fmt.Errorf("could not get step run: %w", err), errData)
+		}
 	}
 
 	data, err := ec.repo.StepRun().GetStepRunDataForEngine(ctx, tenantId, stepRunId)
@@ -1018,7 +1039,7 @@ func (ec *JobsControllerImpl) handleStepRunFinished(ctx context.Context, task *m
 			err := ec.mq.AddMessage(
 				context.Background(),
 				msgqueue.JOB_PROCESSING_QUEUE,
-				tasktypes.StepRunQueuedToTask(nextStepRun),
+				tasktypes.StepRunQueuedToTask(nextStepRun, false),
 			)
 
 			if err != nil {

@@ -798,7 +798,7 @@ func (wc *WorkflowsControllerImpl) unpauseWorkflowRuns(ctx context.Context, tena
 					err = wc.mq.AddMessage(
 						ctx,
 						msgqueue.JOB_PROCESSING_QUEUE,
-						tasktypes.StepRunQueuedToTask(stepRunCp),
+						tasktypes.StepRunQueuedToTask(stepRunCp, false),
 					)
 					if err != nil {
 						return fmt.Errorf("could not queue step run: %w", err)

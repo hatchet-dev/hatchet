@@ -3,6 +3,7 @@ package tasktypes
 import (
 	"time"
 
+	"github.com/hatchet-dev/hatchet/internal/chaos"
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
@@ -15,6 +16,7 @@ type StepRunTaskPayload struct {
 	JobRunId      string `json:"job_run_id" validate:"required,uuid"`
 	StepRetries   *int32 `json:"step_retries,omitempty"`
 	RetryCount    *int32 `json:"retry_count,omitempty"`
+	FirstStepRun  bool   `json:"first_step_run"`
 }
 
 type StepRunTaskMetadata struct {
@@ -280,13 +282,14 @@ func StepRunCancelToTask(stepRun *dbsqlc.GetStepRunForEngineRow, reason string, 
 	}
 }
 
-func StepRunQueuedToTask(stepRun *dbsqlc.GetStepRunForEngineRow) *msgqueue.Message {
+func StepRunQueuedToTask(stepRun *dbsqlc.GetStepRunForEngineRow, firstStepRun bool) *msgqueue.Message {
 	payload, _ := datautils.ToJSONMap(StepRunTaskPayload{
 		WorkflowRunId: sqlchelpers.UUIDToStr(stepRun.WorkflowRunId),
 		JobRunId:      sqlchelpers.UUIDToStr(stepRun.JobRunId),
 		StepRunId:     sqlchelpers.UUIDToStr(stepRun.SRID),
 		StepRetries:   &stepRun.StepRetries,
 		RetryCount:    &stepRun.SRRetryCount,
+		FirstStepRun:  firstStepRun,
 	})
 
 	metadata, _ := datautils.ToJSONMap(StepRunTaskMetadata{
@@ -298,10 +301,19 @@ func StepRunQueuedToTask(stepRun *dbsqlc.GetStepRunForEngineRow) *msgqueue.Messa
 		TenantId:          sqlchelpers.UUIDToStr(stepRun.SRTenantId),
 	})
 
+	var shouldChaos bool
+	if firstStepRun {
+		// for the current test I only want to drop the first step run (testing pop interface)
+		shouldChaos = chaos.ShouldChaos()
+	} else {
+		shouldChaos = false
+	}
+
 	return &msgqueue.Message{
-		ID:       "step-run-queued",
-		Payload:  payload,
-		Metadata: metadata,
-		Retries:  3,
+		ID:          "step-run-queued",
+		Payload:     payload,
+		Metadata:    metadata,
+		Retries:     3,
+		ChaosMonkey: shouldChaos,
 	}
 }
