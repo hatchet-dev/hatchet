@@ -91,7 +91,7 @@ func do(ctx context.Context, duration time.Duration, eventsPerSecond int, delay 
 	// going to allow 2X the duration for the overall timeout
 	after := duration * 2
 
-	timeout := time.Duration(timeoutMultiplier) * (duration + after)
+	timeout := time.Duration(timeoutMultiplier) * (duration + after) * 2
 
 	fmt.Println("timeout", timeout)
 	l.Info().Msgf("waiting for %s", timeout)
