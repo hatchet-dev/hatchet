@@ -18,17 +18,18 @@ type WorkflowRun struct {
 }
 
 type Task struct {
-	Id              uuid.UUID  `json:"id"`
-	TenantId        uuid.UUID  `json:"tenant_id"`
-	Queue           string     `json:"queue"`
-	ActionId        string     `json:"action_id"`
-	ScheduleTimeout string     `json:"schedule_timeout"`
-	StepTimeout     *string    `json:"step_timeout,omitempty"`
-	Priority        int32      `json:"priority"`
-	Sticky          *string    `json:"sticky"`
-	DesiredWorkerId *uuid.UUID `json:"desired_worker_id"`
-	DisplayName     string     `json:"display_name"`
-	Input           string     `json:"input"`
+	Id                 uuid.UUID  `json:"id"`
+	TenantId           uuid.UUID  `json:"tenant_id"`
+	Queue              string     `json:"queue"`
+	ActionId           string     `json:"action_id"`
+	ScheduleTimeout    string     `json:"schedule_timeout"`
+	StepTimeout        *string    `json:"step_timeout,omitempty"`
+	Priority           int32      `json:"priority"`
+	Sticky             *string    `json:"sticky"`
+	DesiredWorkerId    *uuid.UUID `json:"desired_worker_id"`
+	DisplayName        string     `json:"display_name"`
+	Input              string     `json:"input"`
+	AdditionalMetadata string     `json:"additional_metadata"`
 }
 
 type TaskEvent struct {

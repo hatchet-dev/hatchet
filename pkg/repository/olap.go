@@ -278,7 +278,8 @@ func WriteTaskBatch(c context.Context, tasks []olap.Task) ([]*olap.Task, error) 
 			sticky,
 			desired_worker_id,
 			display_name,
-			input
+			input,
+			additional_metadata
 		)
 	`)
 
@@ -299,6 +300,7 @@ func WriteTaskBatch(c context.Context, tasks []olap.Task) ([]*olap.Task, error) 
 			task.DesiredWorkerId,
 			task.DisplayName,
 			task.Input,
+			task.AdditionalMetadata,
 		)
 
 		if err != nil {

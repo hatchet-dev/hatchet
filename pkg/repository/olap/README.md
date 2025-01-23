@@ -19,7 +19,8 @@
         ) NULL DEFAULT NULL,
         desired_worker_id UUID NULL DEFAULT NULL,
         display_name TEXT NOT NULL,
-        input TEXT NOT NULL,
+        input TEXT NOT NULL DEFAULT '{}',
+        additional_metadata TEXT NOT NULL DEFAULT '{}',
         created_at DateTime('UTC') NOT NULL DEFAULT NOW(),
 
         PRIMARY KEY (tenant_id, id)
@@ -29,7 +30,7 @@
     -- https://stackoverflow.com/a/75439879 for more on partitioning
     -- partition by week so we can easily drop old data
     PARTITION BY (toMonday(created_at))
-    ORDER BY (tenant_id, id)
+    ORDER BY (tenant_id, id);
 
     CREATE TABLE task_events (
         id UUID NOT NULL DEFAULT generateUUIDv4(),
