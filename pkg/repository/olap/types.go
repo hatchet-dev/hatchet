@@ -36,8 +36,8 @@ type Event struct {
 	Timestamp                      time.Time `json:"timestamp"`
 	RetryCount                     int32     `json:"retry_count"`
 	ErrorMsg                       *string   `json:"error_message,omitempty"`
-	AdditionalStepRunEventData     string    `json:"additional_step_run_event_data"`
-	AdditionalStepRunEventMessage  string    `json:"additional_step_run_event_message"`
-	AdditionalStepRunEventSeverity string    `json:"additional_step_run_event_severity"`
-	AdditionalStepRunEventReason   string    `json:"additional_step_run_event_reason"`
+	AdditionalStepRunEventData     string    `json:"additional__step_run_event_data"`
+	AdditionalStepRunEventMessage  string    `json:"additional__step_run_event_message"`
+	AdditionalStepRunEventSeverity string    `json:"additional__step_run_event_severity"`
+	AdditionalStepRunEventReason   string    `json:"additional__step_run_event_reason"`
 }
