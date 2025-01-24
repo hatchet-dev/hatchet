@@ -24,6 +24,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/msgqueue/postgres"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue/rabbitmq"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
+	oommonitor "github.com/hatchet-dev/hatchet/internal/services/oom"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/analytics/posthog"
 	"github.com/hatchet-dev/hatchet/pkg/auth/cookie"
@@ -506,6 +507,21 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 	if cf.Runtime.Monitoring.TLSRootCAFile == "" {
 		cf.Runtime.Monitoring.TLSRootCAFile = cf.TLS.TLSRootCAFile
 	}
+	var oomMonitor *oommonitor.Monitor
+	if cf.OOM.Enabled {
+		oomMonitorOpts := &oommonitor.MonitorOpts{
+			ThresholdBytes: cf.OOM.ThresholdBytes,
+			Signal:         cf.OOM.Signal,
+			CheckInterval:  cf.OOM.CheckInterval,
+			L:              &l,
+		}
+
+		oomMonitor, err = oommonitor.NewMonitor(*oomMonitorOpts)
+
+		if err != nil {
+			return nil, nil, fmt.Errorf("could not create oom monitor: %w", err)
+		}
+	}
 
 	return cleanup, &server.ServerConfig{
 		Alerter:                alerter,
@@ -532,6 +548,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		EnableWorkerRetention:  cf.EnableWorkerRetention,
 		SchedulingPool:         schedulingPool,
 		Version:                version,
+		OOM:                    oomMonitor,
 	}, nil
 }
 

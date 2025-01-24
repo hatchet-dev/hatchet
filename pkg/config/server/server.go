@@ -12,6 +12,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/integrations/email"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
+	oommonitor "github.com/hatchet-dev/hatchet/internal/services/oom"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/auth/cookie"
 	"github.com/hatchet-dev/hatchet/pkg/auth/token"
@@ -63,6 +64,8 @@ type ServerConfigFile struct {
 	Email ConfigFileEmail `mapstructure:"email" json:"email,omitempty"`
 
 	Monitoring ConfigFileMonitoring `mapstructure:"monitoring" json:"monitoring,omitempty"`
+
+	OOM ConfigFileOOM `mapstructure:"oom" json:"oom,omitempty"`
 }
 
 type ConfigFileAdditionalLoggers struct {
@@ -379,6 +382,13 @@ type ConfigFileMonitoring struct {
 	TLSRootCAFile string `mapstructure:"tlsRootCAFile" json:"tlsRootCAFile,omitempty"`
 }
 
+type ConfigFileOOM struct {
+	Enabled        bool          `mapstructure:"enabled" json:"enabled,omitempty"`
+	ThresholdBytes uint64        `mapstructure:"thresholdBytes" json:"thresholdBytes,omitempty" default:"0"`
+	Signal         string        `mapstructure:"signal" json:"signal,omitempty" default:"SIGKILL"`
+	CheckInterval  time.Duration `mapstructure:"checkInterval" json:"checkInterval,omitempty" default:"10s"`
+}
+
 type PostmarkConfigFile struct {
 	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty"`
 
@@ -461,6 +471,8 @@ type ServerConfig struct {
 	SchedulingPool *v2.SchedulingPool
 
 	Version string
+
+	OOM *oommonitor.Monitor
 }
 
 func (c *ServerConfig) HasService(name string) bool {
@@ -661,4 +673,9 @@ func BindAllEnv(v *viper.Viper) {
 	// we will fill this in from the server config if it is not set
 	_ = v.BindEnv("runtime.monitoring.tlsRootCAFile", "SERVER_MONITORING_TLS_ROOT_CA_FILE")
 
+	// oom monitoring options
+	_ = v.BindEnv("oom.enabled", "SERVER_OOM_ENABLED")
+	_ = v.BindEnv("oom.thresholdBytes", "SERVER_OOM_THRESHOLD_BYTES")
+	_ = v.BindEnv("oom.signal", "SERVER_OOM_SIGNAL")
+	_ = v.BindEnv("oom.checkInterval", "SERVER_OOM_CHECK_INTERVAL")
 }
