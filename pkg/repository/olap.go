@@ -2,7 +2,6 @@ package repository
 
 import (
 	"context"
-	"fmt"
 	"log"
 
 	"github.com/google/uuid"
@@ -96,13 +95,7 @@ func (r *olapEventRepository) Connect(ctx context.Context) error {
 }
 
 func StringToReadableStatus(status string) olap.ReadableTaskStatus {
-	fmt.Println("\n\nStatus: ", status)
-
-	parsedStatus := status
-
-	fmt.Println("\n\nParsed: ", parsedStatus)
-
-	switch parsedStatus {
+	switch status {
 	case "QUEUED":
 		return olap.READABLE_TASK_STATUS_QUEUED
 	case "RUNNING":
@@ -189,8 +182,6 @@ func (r *olapEventRepository) ReadTaskRuns(tenantId uuid.UUID, limit, offset int
 		tenantId,
 	)
 
-	fmt.Println(err)
-
 	if err != nil {
 		return []olap.WorkflowRun{}, err
 	}
@@ -198,7 +189,6 @@ func (r *olapEventRepository) ReadTaskRuns(tenantId uuid.UUID, limit, offset int
 	records := make([]olap.WorkflowRun, 0)
 
 	for rows.Next() {
-		fmt.Println("Rows: ", rows)
 		var (
 			taskRun olap.WorkflowRun
 		)
@@ -218,7 +208,7 @@ func (r *olapEventRepository) ReadTaskRuns(tenantId uuid.UUID, limit, offset int
 		)
 
 		if err != nil {
-			fmt.Println(err)
+			log.Fatal(err)
 		}
 
 		taskRun.Status = string(StringToReadableStatus(taskRun.Status))
