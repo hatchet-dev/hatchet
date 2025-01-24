@@ -47,3 +47,26 @@ func ToWorkflowRuns(
 		Pagination: gen.PaginationResponse{},
 	}
 }
+
+func ToTaskRunEvent(
+	events []*olap.TaskRunEvent,
+) gen.V2ListStepRunEventsForWorkflowRun {
+	toReturn := make([]gen.V2StepRunEvent, len(events))
+
+	for i, event := range events {
+		data := jsonToMap(event.Data)
+
+		toReturn[i] = gen.V2StepRunEvent{
+			Data:      &data,
+			Id:        event.Id,
+			Message:   event.Message,
+			TaskId:    event.TaskId,
+			Timestamp: event.Timestamp,
+		}
+	}
+
+	return gen.V2ListStepRunEventsForWorkflowRun{
+		Rows:       &toReturn,
+		Pagination: &gen.PaginationResponse{},
+	}
+}

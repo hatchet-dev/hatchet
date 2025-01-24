@@ -16,7 +16,7 @@ import (
 type OLAPEventRepository interface {
 	Connect(ctx context.Context) error
 	ReadTaskRuns(tenantId uuid.UUID, limit, offset int64) ([]olap.WorkflowRun, error)
-	ReadTaskRun(stepRunId int) (olap.WorkflowRun, error)
+	ReadTaskRunEvents(tenantId, taskId uuid.UUID, limit, offset int64) ([]olap.TaskRunEvent, error)
 	CreateTask(task olap.Task) error
 	CreateTasks(tasks []olap.Task) error
 	CreateTaskEvent(event olap.TaskEvent) error
@@ -219,38 +219,49 @@ func (r *olapEventRepository) ReadTaskRuns(tenantId uuid.UUID, limit, offset int
 	return records, nil
 }
 
-func (r *olapEventRepository) ReadTaskRun(taskRunId int) (olap.WorkflowRun, error) {
+func (r *olapEventRepository) ReadTaskRunEvents(tenantId, taskRunId uuid.UUID, limit, offset int64) ([]olap.TaskRunEvent, error) {
 	ctx := context.Background()
-	row := r.conn.QueryRow(ctx, `
+	rows, err := r.conn.Query(ctx, `
 		SELECT
 			id,
 			task_id,
-			tenant_id,
-			status,
+			'this is a message' AS message,
 			timestamp,
-			created_at,
-			retry_count,
-			error_message
-		FROM events
-   		WHERE task_id = ?
+			additional__event_data
+		FROM task_events
+   		WHERE task_id = ? AND tenant_id = ?
 		`,
 		taskRunId,
-	)
-
-	var taskRun olap.WorkflowRun
-
-	err := row.Scan(
-		&taskRun.TaskId,
-		&taskRun.TenantId,
-		&taskRun.Status,
-		&taskRun.Timestamp,
+		tenantId,
 	)
 
 	if err != nil {
-		return olap.WorkflowRun{}, err
+		return []olap.TaskRunEvent{}, err
 	}
 
-	return taskRun, nil
+	records := make([]olap.TaskRunEvent, 0)
+
+	for rows.Next() {
+		var (
+			taskRunEvent olap.TaskRunEvent
+		)
+
+		err := rows.Scan(
+			&taskRunEvent.Id,
+			&taskRunEvent.TaskId,
+			&taskRunEvent.Message,
+			&taskRunEvent.Timestamp,
+			&taskRunEvent.Data,
+		)
+
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		records = append(records, taskRunEvent)
+	}
+
+	return records, nil
 }
 
 func WriteTaskEventBatch(c context.Context, events []olap.TaskEvent) ([]*olap.TaskEvent, error) {

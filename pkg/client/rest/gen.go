@@ -1128,7 +1128,7 @@ type V2ListStepRunEventsForWorkflowRun struct {
 // V2StepRunEvent defines model for V2StepRunEvent.
 type V2StepRunEvent struct {
 	Data      *map[string]interface{} `json:"data,omitempty"`
-	Id        int                     `json:"id"`
+	Id        openapi_types.UUID      `json:"id"`
 	Message   string                  `json:"message"`
 	TaskId    openapi_types.UUID      `json:"taskId"`
 	Timestamp time.Time               `json:"timestamp"`
@@ -1811,6 +1811,15 @@ type V2WorkflowRunsListParams struct {
 	Statuses *WorkflowRunStatusList `form:"statuses,omitempty" json:"statuses,omitempty"`
 }
 
+// V2WorkflowRunListStepRunEventsParams defines parameters for V2WorkflowRunListStepRunEvents.
+type V2WorkflowRunListStepRunEventsParams struct {
+	// Offset The number to skip
+	Offset *int64 `form:"offset,omitempty" json:"offset,omitempty"`
+
+	// Limit The number to limit by
+	Limit *int64 `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
 // AlertEmailGroupUpdateJSONRequestBody defines body for AlertEmailGroupUpdate for application/json ContentType.
 type AlertEmailGroupUpdateJSONRequestBody = UpdateTenantAlertEmailGroupRequest
 
@@ -2300,7 +2309,7 @@ type ClientInterface interface {
 	V2WorkflowRunsList(ctx context.Context, tenant openapi_types.UUID, params *V2WorkflowRunsListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// V2WorkflowRunListStepRunEvents request
-	V2WorkflowRunListStepRunEvents(ctx context.Context, tenant openapi_types.UUID, workflowRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+	V2WorkflowRunListStepRunEvents(ctx context.Context, tenant openapi_types.UUID, workflowRun openapi_types.UUID, params *V2WorkflowRunListStepRunEventsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 }
 
 func (c *Client) LivenessGet(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -3755,8 +3764,8 @@ func (c *Client) V2WorkflowRunsList(ctx context.Context, tenant openapi_types.UU
 	return c.Client.Do(req)
 }
 
-func (c *Client) V2WorkflowRunListStepRunEvents(ctx context.Context, tenant openapi_types.UUID, workflowRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewV2WorkflowRunListStepRunEventsRequest(c.Server, tenant, workflowRun)
+func (c *Client) V2WorkflowRunListStepRunEvents(ctx context.Context, tenant openapi_types.UUID, workflowRun openapi_types.UUID, params *V2WorkflowRunListStepRunEventsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV2WorkflowRunListStepRunEventsRequest(c.Server, tenant, workflowRun, params)
 	if err != nil {
 		return nil, err
 	}
@@ -8618,7 +8627,7 @@ func NewV2WorkflowRunsListRequest(server string, tenant openapi_types.UUID, para
 }
 
 // NewV2WorkflowRunListStepRunEventsRequest generates requests for V2WorkflowRunListStepRunEvents
-func NewV2WorkflowRunListStepRunEventsRequest(server string, tenant openapi_types.UUID, workflowRun openapi_types.UUID) (*http.Request, error) {
+func NewV2WorkflowRunListStepRunEventsRequest(server string, tenant openapi_types.UUID, workflowRun openapi_types.UUID, params *V2WorkflowRunListStepRunEventsParams) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -8648,6 +8657,44 @@ func NewV2WorkflowRunListStepRunEventsRequest(server string, tenant openapi_type
 	queryURL, err := serverURL.Parse(operationPath)
 	if err != nil {
 		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Offset != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "offset", runtime.ParamLocationQuery, *params.Offset); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
 	}
 
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
@@ -9039,7 +9086,7 @@ type ClientWithResponsesInterface interface {
 	V2WorkflowRunsListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V2WorkflowRunsListParams, reqEditors ...RequestEditorFn) (*V2WorkflowRunsListResponse, error)
 
 	// V2WorkflowRunListStepRunEventsWithResponse request
-	V2WorkflowRunListStepRunEventsWithResponse(ctx context.Context, tenant openapi_types.UUID, workflowRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*V2WorkflowRunListStepRunEventsResponse, error)
+	V2WorkflowRunListStepRunEventsWithResponse(ctx context.Context, tenant openapi_types.UUID, workflowRun openapi_types.UUID, params *V2WorkflowRunListStepRunEventsParams, reqEditors ...RequestEditorFn) (*V2WorkflowRunListStepRunEventsResponse, error)
 }
 
 type LivenessGetResponse struct {
@@ -12414,8 +12461,8 @@ func (c *ClientWithResponses) V2WorkflowRunsListWithResponse(ctx context.Context
 }
 
 // V2WorkflowRunListStepRunEventsWithResponse request returning *V2WorkflowRunListStepRunEventsResponse
-func (c *ClientWithResponses) V2WorkflowRunListStepRunEventsWithResponse(ctx context.Context, tenant openapi_types.UUID, workflowRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*V2WorkflowRunListStepRunEventsResponse, error) {
-	rsp, err := c.V2WorkflowRunListStepRunEvents(ctx, tenant, workflowRun, reqEditors...)
+func (c *ClientWithResponses) V2WorkflowRunListStepRunEventsWithResponse(ctx context.Context, tenant openapi_types.UUID, workflowRun openapi_types.UUID, params *V2WorkflowRunListStepRunEventsParams, reqEditors ...RequestEditorFn) (*V2WorkflowRunListStepRunEventsResponse, error) {
+	rsp, err := c.V2WorkflowRunListStepRunEvents(ctx, tenant, workflowRun, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}

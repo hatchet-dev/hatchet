@@ -41,6 +41,21 @@ type WorkflowRun struct {
 	Timestamp time.Time `json:"timestamp"`
 }
 
+type TaskRunEvent struct {
+	// Id The ID of the workflow run.
+	Id uuid.UUID `json:"id"`
+
+	// TaskId The ID of the task associated with this workflow run.
+	TaskId uuid.UUID `json:"taskId"`
+
+	// Timestamp The timestamp of the workflow run.
+	Timestamp time.Time `json:"timestamp"`
+
+	Message string `json:"message"`
+
+	Data string `json:"data"`
+}
+
 type Sticky string
 
 const (

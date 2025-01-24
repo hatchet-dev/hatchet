@@ -156,10 +156,27 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @request GET:/api/v2/tenants/{tenant}/workflow-runs/{workflow-run}/step-run-events
    * @secure
    */
-  v2WorkflowRunListStepRunEvents = (tenant: string, workflowRun: string, params: RequestParams = {}) =>
+  v2WorkflowRunListStepRunEvents = (
+    tenant: string,
+    workflowRun: string,
+    query?: {
+      /**
+       * The number to skip
+       * @format int64
+       */
+      offset?: number;
+      /**
+       * The number to limit by
+       * @format int64
+       */
+      limit?: number;
+    },
+    params: RequestParams = {},
+  ) =>
     this.request<V2ListStepRunEventsForWorkflowRun, APIErrors>({
       path: `/api/v2/tenants/${tenant}/workflow-runs/${workflowRun}/step-run-events`,
       method: 'GET',
+      query: query,
       secure: true,
       format: 'json',
       ...params,

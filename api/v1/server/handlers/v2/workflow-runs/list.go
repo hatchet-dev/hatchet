@@ -31,3 +31,26 @@ func (t *V2WorkflowRunsService) V2WorkflowRunsList(ctx echo.Context, request gen
 		result,
 	), nil
 }
+
+func (t *V2WorkflowRunsService) V2WorkflowRunListStepRunEvents(ctx echo.Context, request gen.V2WorkflowRunListStepRunEventsRequestObject) (gen.V2WorkflowRunListStepRunEventsResponseObject, error) {
+	taskRunEvents, err := t.config.EngineRepository.OLAP().ReadTaskRunEvents(request.Tenant, request.WorkflowRun, *request.Params.Limit, *request.Params.Offset)
+
+	if err != nil {
+		return nil, err
+	}
+
+	taskRunEventsPtr := make([]*olap.TaskRunEvent, len(taskRunEvents))
+
+	for i := range taskRunEvents {
+		taskRunEventsPtr[i] = &taskRunEvents[i]
+	}
+
+	result := transformers.ToTaskRunEvent(taskRunEventsPtr)
+
+	// Make transformer to transform clickhouse query result into this json object
+
+	// Search for api errors to see how we handle errors in other cases
+	return gen.V2WorkflowRunListStepRunEvents200JSONResponse(
+		result,
+	), nil
+}

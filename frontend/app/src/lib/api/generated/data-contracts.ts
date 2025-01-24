@@ -159,7 +159,8 @@ export interface APIErrors {
 }
 
 export interface V2StepRunEvent {
-  id: number;
+  /** @format uuid */
+  id: string;
   /** @format date-time */
   timestamp: string;
   /** @format uuid */

@@ -80,6 +80,20 @@ V2ListStepRunEventsForWorkflowRun:
           format: uuid
           minLength: 36
           maxLength: 36
+      - description: The number to skip
+        in: query
+        name: offset
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - description: The number to limit by
+        in: query
+        name: limit
+        required: false
+        schema:
+          type: integer
+          format: int64
     responses:
       "200":
         content:

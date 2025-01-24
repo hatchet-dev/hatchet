@@ -90,7 +90,8 @@ V2StepRunEvent:
   type: object
   properties:
     id:
-      type: integer
+      type: string
+      format: uuid
     timestamp:
       type: string
       format: date-time
