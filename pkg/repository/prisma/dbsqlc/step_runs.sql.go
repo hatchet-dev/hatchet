@@ -2225,7 +2225,8 @@ WITH step_runs_on_inactive_workers AS (
         s."actionId",
         s."id" AS "stepId",
         s."timeout" AS "stepTimeout",
-        s."scheduleTimeout" AS "scheduleTimeout"
+        s."scheduleTimeout" AS "scheduleTimeout",
+        s."createdAt" AS "stepCreatedAt",
     FROM
         "Worker" w
     LEFT JOIN
@@ -2244,6 +2245,7 @@ step_runs_to_reassign AS (
         step_runs_on_inactive_workers
     WHERE
         "internalRetryCount" < $2::int
+		AND EXTRACT(EPOCH FROM (NOW() - "stepCreatedAt")) > $3::int
 ),
 step_runs_to_fail AS (
     SELECT
@@ -2330,6 +2332,7 @@ FROM
 type ListStepRunsToReassignParams struct {
 	Tenantid              pgtype.UUID `json:"tenantid"`
 	Maxinternalretrycount int32       `json:"maxinternalretrycount"`
+	MinReassignBackoffSeconds int32       `json:"minreassignbackoffseconds"`
 }
 
 type ListStepRunsToReassignRow struct {
@@ -2340,7 +2343,7 @@ type ListStepRunsToReassignRow struct {
 }
 
 func (q *Queries) ListStepRunsToReassign(ctx context.Context, db DBTX, arg ListStepRunsToReassignParams) ([]*ListStepRunsToReassignRow, error) {
-	rows, err := db.Query(ctx, listStepRunsToReassign, arg.Tenantid, arg.Maxinternalretrycount)
+	rows, err := db.Query(ctx, listStepRunsToReassign, arg.Tenantid, arg.Maxinternalretrycount, arg.MinReassignBackoffSeconds)
 	if err != nil {
 		return nil, err
 	}
