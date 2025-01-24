@@ -9,6 +9,8 @@ import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { DataTable } from '@/components/molecules/data-table/data-table';
 import { ActivityEventData, columns } from './events-columns';
+import { useTenant } from '@/lib/atoms';
+import { useLocation } from 'react-router-dom';
 
 export function StepRunEvents({
   workflowRun,
@@ -19,29 +21,26 @@ export function StepRunEvents({
   filteredStepRunId?: string;
   onClick?: (stepRunId?: string) => void;
 }) {
+  const tenant = useTenant();
+  const tenantId = tenant.tenant?.metadata.id;
+  const location = useLocation();
+  const taskRunId = location.pathname.split('/')[-1];
+
   const eventsQuery = useQuery({
-    ...queries.workflowRuns.listStepRunEvents(
-      workflowRun.tenantId,
-      workflowRun.metadata.id,
-    ),
+    ...queries.v2StepRunEvents.list(tenantId, taskRunId, {
+      limit: 50,
+      offset: 0,
+    }),
     refetchInterval: () => {
-      if (workflowRun.status === WorkflowRunStatus.RUNNING) {
-        return 1000;
-      }
+      // if (workflowRun.status === WorkflowRunStatus.RUNNING) {
+      //   return 1000;
+      // }
 
       return 5000;
     },
   });
 
-  const filteredEvents = useMemo(() => {
-    if (!filteredStepRunId) {
-      return eventsQuery.data?.rows || [];
-    }
-
-    return eventsQuery.data?.rows?.filter(
-      (x) => x.stepRunId === filteredStepRunId,
-    );
-  }, [eventsQuery.data, filteredStepRunId]);
+  const events = eventsQuery.data?.rows || [];
 
   const stepRuns = useMemo(() => {
     return (
@@ -92,20 +91,18 @@ export function StepRunEvents({
   }, [steps, stepRuns]);
 
   const tableData: ActivityEventData[] =
-    filteredEvents?.map((item) => {
+    events?.map((item) => {
       return {
         metadata: {
           id: '' + item.id,
-          createdAt: item.timeFirstSeen,
-          updatedAt: item.timeLastSeen,
+          createdAt: item.timestamp,
+          updatedAt: item.timestamp,
         },
         event: item,
-        stepRun: item.stepRunId
-          ? normalizedStepRunsByStepRunId[item.stepRunId]
+        stepRun: item.taskId
+          ? normalizedStepRunsByStepRunId[item.taskId]
           : undefined,
-        step: item.stepRunId
-          ? normalizedStepsByStepRunId[item.stepRunId]
-          : undefined,
+        step: item.taskId ? normalizedStepsByStepRunId[item.taskId] : undefined,
       };
     }) || [];
 
