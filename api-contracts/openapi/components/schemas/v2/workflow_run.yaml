@@ -26,6 +26,31 @@ V2WorkflowRun:
     errorMessage:
       type: string
       description: The error message of the workflow run.
+    startedAt:
+      type: string
+      format: date-time
+      description: The timestamp the workflow run started.
+    finishedAt:
+      type: string
+      format: date-time
+      description: The timestamp the workflow run finished.
+    duration:
+      type: integer
+      description: The duration of the workflow run.
+    tenantId:
+      type: string
+      description: The ID of the tenant.
+      example: bb214807-246e-43a5-a25d-41761d1cff9e
+      minLength: 36
+      maxLength: 36
+      format: uuid
+    additionalMetadata:
+      type: object
+      description: Additional metadata for the workflow run.
+    displayName:
+      type: string
+      description: The display name of the workflow run.
+
   required:
     - metadata
     - id
@@ -34,14 +59,15 @@ V2WorkflowRun:
     - timestamp
 
 V2WorkflowRuns:
+  type: object
   properties:
-    metadata:
-      $ref: ".././metadata.yaml#/APIResourceMeta"
-    workflow_runs:
+    pagination:
+      $ref: ".././metadata.yaml#/PaginationResponse"
+    rows:
       type: array
       items:
         $ref: "#/V2WorkflowRun"
       description: The workflow runs.
   required:
-    - metadata
-    - workflow_runs
+    - pagination
+    - rows

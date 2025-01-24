@@ -9,6 +9,28 @@
  * ---------------------------------------------------------------
  */
 
+/** @example {"next_page":3,"num_pages":10,"current_page":2} */
+export interface PaginationResponse {
+  /**
+   * the current page
+   * @format int64
+   * @example 2
+   */
+  current_page?: number;
+  /**
+   * the next page
+   * @format int64
+   * @example 3
+   */
+  next_page?: number;
+  /**
+   * the total number of pages for listing
+   * @format int64
+   * @example 10
+   */
+  num_pages?: number;
+}
+
 export interface APIResourceMeta {
   /**
    * the id of this resource, in UUID format
@@ -58,12 +80,36 @@ export interface V2WorkflowRun {
   timestamp: string;
   /** The error message of the workflow run. */
   errorMessage?: string;
+  /**
+   * The timestamp the workflow run started.
+   * @format date-time
+   */
+  startedAt?: string;
+  /**
+   * The timestamp the workflow run finished.
+   * @format date-time
+   */
+  finishedAt?: string;
+  /** The duration of the workflow run. */
+  duration?: number;
+  /**
+   * The ID of the tenant.
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   * @example "bb214807-246e-43a5-a25d-41761d1cff9e"
+   */
+  tenantId?: string;
+  /** Additional metadata for the workflow run. */
+  additionalMetadata?: object;
+  /** The display name of the workflow run. */
+  displayName?: string;
 }
 
 export interface V2WorkflowRuns {
-  metadata: APIResourceMeta;
+  pagination: PaginationResponse;
   /** The workflow runs. */
-  workflow_runs: V2WorkflowRun[];
+  rows: V2WorkflowRun[];
 }
 
 export interface APIError {
@@ -182,28 +228,6 @@ export interface User {
   hasPassword?: boolean;
   /** A hash of the user's email address for use with Pylon Support Chat */
   emailHash?: string;
-}
-
-/** @example {"next_page":3,"num_pages":10,"current_page":2} */
-export interface PaginationResponse {
-  /**
-   * the current page
-   * @format int64
-   * @example 2
-   */
-  current_page?: number;
-  /**
-   * the next page
-   * @format int64
-   * @example 3
-   */
-  next_page?: number;
-  /**
-   * the total number of pages for listing
-   * @format int64
-   * @example 10
-   */
-  num_pages?: number;
 }
 
 export interface SNSIntegration {

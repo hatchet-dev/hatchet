@@ -7,12 +7,38 @@ import (
 )
 
 type WorkflowRun struct {
-	Id           uuid.UUID `json:"id"`
-	TaskId       uuid.UUID `json:"task_id"`
-	TenantId     uuid.UUID `json:"tenant_id"`
-	Status       string    `json:"status"`
-	Timestamp    time.Time `json:"timestamp"`
-	ErrorMessage string    `json:"error_message"`
+	// AdditionalMetadata Additional metadata for the workflow run.
+	AdditionalMetadata *map[string]interface{} `json:"additionalMetadata,omitempty"`
+
+	// DisplayName The display name of the workflow run.
+	DisplayName *string `json:"displayName,omitempty"`
+
+	// Duration The duration of the workflow run.
+	Duration *int `json:"duration,omitempty"`
+
+	// ErrorMessage The error message of the workflow run.
+	ErrorMessage *string `json:"errorMessage,omitempty"`
+
+	// FinishedAt The timestamp the workflow run finished.
+	FinishedAt *time.Time `json:"finishedAt,omitempty"`
+
+	// Id The ID of the workflow run.
+	Id uuid.UUID `json:"id"`
+
+	// StartedAt The timestamp the workflow run started.
+	StartedAt *time.Time `json:"startedAt,omitempty"`
+
+	// Status The status of the workflow run.
+	Status string `json:"status"`
+
+	// TaskId The ID of the task associated with this workflow run.
+	TaskId uuid.UUID `json:"taskId"`
+
+	// TenantId The ID of the tenant.
+	TenantId *uuid.UUID `json:"tenantId,omitempty"`
+
+	// Timestamp The timestamp of the workflow run.
+	Timestamp time.Time `json:"timestamp"`
 }
 
 type Task struct {

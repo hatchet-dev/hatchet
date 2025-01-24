@@ -1112,12 +1112,27 @@ type UserTenantPublic struct {
 
 // V2WorkflowRun defines model for V2WorkflowRun.
 type V2WorkflowRun struct {
+	// AdditionalMetadata Additional metadata for the workflow run.
+	AdditionalMetadata *map[string]interface{} `json:"additionalMetadata,omitempty"`
+
+	// DisplayName The display name of the workflow run.
+	DisplayName *string `json:"displayName,omitempty"`
+
+	// Duration The duration of the workflow run.
+	Duration *int `json:"duration,omitempty"`
+
 	// ErrorMessage The error message of the workflow run.
 	ErrorMessage *string `json:"errorMessage,omitempty"`
+
+	// FinishedAt The timestamp the workflow run finished.
+	FinishedAt *time.Time `json:"finishedAt,omitempty"`
 
 	// Id The ID of the workflow run.
 	Id       openapi_types.UUID `json:"id"`
 	Metadata APIResourceMeta    `json:"metadata"`
+
+	// StartedAt The timestamp the workflow run started.
+	StartedAt *time.Time `json:"startedAt,omitempty"`
 
 	// Status The status of the workflow run.
 	Status string `json:"status"`
@@ -1125,16 +1140,19 @@ type V2WorkflowRun struct {
 	// TaskId The ID of the task associated with this workflow run.
 	TaskId openapi_types.UUID `json:"taskId"`
 
+	// TenantId The ID of the tenant.
+	TenantId *openapi_types.UUID `json:"tenantId,omitempty"`
+
 	// Timestamp The timestamp of the workflow run.
 	Timestamp time.Time `json:"timestamp"`
 }
 
 // V2WorkflowRuns defines model for V2WorkflowRuns.
 type V2WorkflowRuns struct {
-	Metadata APIResourceMeta `json:"metadata"`
+	Pagination PaginationResponse `json:"pagination"`
 
-	// WorkflowRuns The workflow runs.
-	WorkflowRuns []V2WorkflowRun `json:"workflow_runs"`
+	// Rows The workflow runs.
+	Rows []V2WorkflowRun `json:"rows"`
 }
 
 // WebhookWorker defines model for WebhookWorker.

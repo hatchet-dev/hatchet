@@ -15,7 +15,7 @@ import (
 
 type OLAPEventRepository interface {
 	Connect(ctx context.Context) error
-	ReadTaskRuns(tenantId uuid.UUID) ([]olap.WorkflowRun, error)
+	ReadTaskRuns(tenantId uuid.UUID, limit, offset int64) ([]olap.WorkflowRun, error)
 	ReadTaskRun(stepRunId int) (olap.WorkflowRun, error)
 	CreateTask(task olap.Task) error
 	CreateTasks(tasks []olap.Task) error
@@ -94,24 +94,58 @@ func (r *olapEventRepository) Connect(ctx context.Context) error {
 	return nil
 }
 
-func (r *olapEventRepository) ReadTaskRuns(tenantId uuid.UUID) ([]olap.WorkflowRun, error) {
+func (r *olapEventRepository) ReadTaskRuns(tenantId uuid.UUID, limit, offset int64) ([]olap.WorkflowRun, error) {
 	ctx := context.Background()
 	rows, err := r.conn.Query(ctx, `
-		WITH rows_assigned AS (
-			SELECT *, ROW_NUMBER() OVER (PARTITION BY task_id ORDER BY timestamp DESC) AS row_num
-			FROM task_events
+		WITH candidate_tasks AS (
+			SELECT *
+			FROM tasks
 			WHERE tenant_id = ?
+			ORDER BY created_at DESC
+			LIMIT ?
+			OFFSET ?
+		), task_statuses AS (
+			SELECT task_id, LAST_VALUE(status) AS status
+			FROM task_events
+			WHERE
+				tenant_id = ?
+				AND task_id IN (SELECT id FROM candidate_tasks)
+			GROUP BY task_id
+		), task_durations AS (
+			SELECT
+				task_id,
+				-- NOTE: These are bugs, should filter by status to determine these
+				MIN(timestamp) AS started_at,
+				MAX(timestamp) AS finished_at,
+				MAX(timestamp) - MIN(timestamp) AS duration
+			FROM task_events
+			WHERE
+				tenant_id = ?
+				AND task_id IN (SELECT id FROM candidate_tasks)
 		)
+
 		SELECT
-			id,
-			task_id,
-			tenant_id,
-			status,
-			timestamp,
-			error_message
-		FROM rows_assigned
-		WHERE row_num = 1
+			ct.additional_metadata,
+			ct.display_name,
+			td.duration,
+			ct.error_message,
+			td.finished_at,
+			ct.id AS id,
+			td.started_at,
+			ts.status,
+			ct.id AS task_id,
+			ct.tenant_id,
+			-- NOTE: This is probably a bug, figure out which timestamp to use.
+			ct.created_at AS timestamp
+		FROM candidate_tasks ct
+		JOIN task_statuses ts ON ct.id = ts.task_id
+		JOIN task_durations td ON ct.id = td.task_id
+		ORDER BY ct.created_at DESC
 		`,
+		tenantId,
+		limit,
+		offset,
+		tenantId,
 		tenantId,
 	)
 
@@ -127,12 +161,17 @@ func (r *olapEventRepository) ReadTaskRuns(tenantId uuid.UUID) ([]olap.WorkflowR
 		)
 
 		err = rows.Scan(
+			&taskRun.AdditionalMetadata,
+			&taskRun.DisplayName,
+			&taskRun.Duration,
+			&taskRun.ErrorMessage,
+			&taskRun.FinishedAt,
 			&taskRun.Id,
+			&taskRun.StartedAt,
+			&taskRun.Status,
 			&taskRun.TaskId,
 			&taskRun.TenantId,
-			&taskRun.Status,
 			&taskRun.Timestamp,
-			&taskRun.ErrorMessage,
 		)
 
 		if err != nil {
