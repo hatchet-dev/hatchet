@@ -122,13 +122,23 @@ func (r *olapEventRepository) ReadTaskRuns(tenantId uuid.UUID, limit, offset int
 			WHERE
 				tenant_id = ?
 				AND task_id IN (SELECT id FROM candidate_tasks)
+			GROUP BY task_id
+		), error_messages AS (
+			SELECT
+				task_id,
+				error_message
+			FROM task_events
+			WHERE
+				tenant_id = ?
+				AND task_id IN (SELECT id FROM candidate_tasks)
+				AND status = 'FAILED'
 		)
 
 		SELECT
 			ct.additional_metadata,
 			ct.display_name,
 			td.duration,
-			ct.error_message,
+			em.error_message,
 			td.finished_at,
 			ct.id AS id,
 			td.started_at,
@@ -140,11 +150,13 @@ func (r *olapEventRepository) ReadTaskRuns(tenantId uuid.UUID, limit, offset int
 		FROM candidate_tasks ct
 		JOIN task_statuses ts ON ct.id = ts.task_id
 		JOIN task_durations td ON ct.id = td.task_id
+		LEFT JOIN error_messages em ON ct.id = em.task_id
 		ORDER BY ct.created_at DESC
 		`,
 		tenantId,
 		limit,
 		offset,
+		tenantId,
 		tenantId,
 		tenantId,
 	)

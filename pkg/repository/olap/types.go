@@ -8,13 +8,13 @@ import (
 
 type WorkflowRun struct {
 	// AdditionalMetadata Additional metadata for the workflow run.
-	AdditionalMetadata *map[string]interface{} `json:"additionalMetadata,omitempty"`
+	AdditionalMetadata *string `json:"additionalMetadata,omitempty"`
 
 	// DisplayName The display name of the workflow run.
 	DisplayName *string `json:"displayName,omitempty"`
 
 	// Duration The duration of the workflow run.
-	Duration *int `json:"duration,omitempty"`
+	Duration *int32 `json:"duration,omitempty"`
 
 	// ErrorMessage The error message of the workflow run.
 	ErrorMessage *string `json:"errorMessage,omitempty"`

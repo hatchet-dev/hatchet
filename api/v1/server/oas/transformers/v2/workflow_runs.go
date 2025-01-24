@@ -1,11 +1,18 @@
 package transformers
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/repository/olap"
 )
+
+func jsonToMap(jsonStr string) map[string]interface{} {
+	result := make(map[string]interface{})
+	json.Unmarshal([]byte(jsonStr), &result)
+	return result
+}
 
 func ToWorkflowRuns(
 	wfs []*olap.WorkflowRun,
@@ -13,15 +20,22 @@ func ToWorkflowRuns(
 	toReturn := make([]gen.V2WorkflowRun, len(wfs))
 
 	for i, wf := range wfs {
+		additionalMetadata := jsonToMap(*wf.AdditionalMetadata)
+		var duration *int
+		if wf.Duration != nil {
+			d := int(*wf.Duration)
+			duration = &d
+		}
+
 		toReturn[i] = gen.V2WorkflowRun{
-			AdditionalMetadata: wf.AdditionalMetadata,
+			AdditionalMetadata: &additionalMetadata,
 			DisplayName:        wf.DisplayName,
-			Duration:           wf.Duration,
+			Duration:           duration,
 			ErrorMessage:       wf.ErrorMessage,
 			FinishedAt:         wf.FinishedAt,
 			Id:                 wf.Id,
 			Metadata: gen.APIResourceMeta{
-				Id:        "1",
+				Id:        wf.TaskId.String(),
 				CreatedAt: time.Now(),
 				UpdatedAt: time.Now(),
 			},

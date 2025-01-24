@@ -11,7 +11,7 @@ import (
 func (t *V2WorkflowRunsService) V2WorkflowRunsList(ctx echo.Context, request gen.V2WorkflowRunsListRequestObject) (gen.V2WorkflowRunsListResponseObject, error) {
 	// tenant := ctx.Get("tenant").(*db.TenantModel)
 
-	workflow_runs, err := t.config.EngineRepository.OLAP().ReadTaskRuns(request.Tenant)
+	workflow_runs, err := t.config.EngineRepository.OLAP().ReadTaskRuns(request.Tenant, *request.Params.Limit, *request.Params.Offset)
 
 	if err != nil {
 		return nil, err
