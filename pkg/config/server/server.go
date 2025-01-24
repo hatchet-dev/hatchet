@@ -148,6 +148,9 @@ type ConfigFileRuntime struct {
 	// MaxInternalRetryCount is the maximum number of internal retries before a step run is considered failed (default: 3)
 	MaxInternalRetryCount int32 `mapstructure:"maxInternalRetryCount" json:"maxInternalRetryCount,omitempty" default:"3"`
 
+	// MinReassignBackoffSeconds is the minimum number of seconds before a step run is re-assigned to a worker (default: 0)
+	MinReassignBackoffSeconds int32 `mapstructure:"minReassignBackoffSeconds" json:"minReassignBackoffSeconds,omitempty" default:"0"`
+
 	// WaitForFlush is the time to wait for the buffer to flush used for exerting some back pressure on writers
 	WaitForFlush time.Duration `mapstructure:"waitForFlush" json:"waitForFlush,omitempty" default:"1"`
 
