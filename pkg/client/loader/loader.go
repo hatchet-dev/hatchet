@@ -119,6 +119,12 @@ func GetClientConfigFromConfigFile(cf *client.ClientConfigFile) (res *client.Cli
 		}
 	}
 
+	presetLabels := make(map[string]string)
+
+	if cf.AutoscalingTarget != "" {
+		presetLabels["hatchet-autoscaling-target"] = cf.AutoscalingTarget
+	}
+
 	return &client.ClientConfig{
 		TenantId:             cf.TenantId,
 		TLSConfig:            tlsConf,
@@ -129,6 +135,7 @@ func GetClientConfigFromConfigFile(cf *client.ClientConfigFile) (res *client.Cli
 		CloudRegisterID:      cf.CloudRegisterID,
 		RunnableActions:      rawRunnableActions,
 		NoGrpcRetry:          cf.NoGrpcRetry,
+		PresetWorkerLabels:   presetLabels,
 	}, nil
 }
 
