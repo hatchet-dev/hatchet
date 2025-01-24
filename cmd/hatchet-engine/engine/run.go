@@ -66,6 +66,10 @@ func Run(ctx context.Context, cf *loader.ConfigLoader, version string) error {
 	}
 
 	var l = server.Logger
+	if server.OOM != nil {
+		l.Info().Msgf("OOM Enabled: %s", server.OOM.Describe())
+		go server.OOM.StartMonitor(ctx)
+	}
 
 	teardown, err := RunWithConfig(ctx, server)
 
