@@ -315,8 +315,6 @@ export function WorkflowRunsTable({
     refetchInterval,
   });
 
-  console.log(listWorkflowRunsQuery.data);
-
   const metricsQuery = useQuery({
     ...queries.workflowRuns.metrics(tenant.metadata.id, {
       workflowId: workflow,

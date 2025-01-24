@@ -133,6 +133,37 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
        * @format int64
        */
       limit?: number;
+      /** A list of workflow run statuses to filter by */
+      statuses?: WorkflowRunStatusList;
+      /**
+       * A list of metadata key value pairs to filter by
+       * @example ["key1:value1","key2:value2"]
+       */
+      additionalMetadata?: string[];
+      /**
+       * The time after the workflow run was created
+       * @format date-time
+       * @example "2021-01-01T00:00:00Z"
+       */
+      createdAfter?: string;
+      /**
+       * The time before the workflow run was created
+       * @format date-time
+       * @example "2021-01-01T00:00:00Z"
+       */
+      createdBefore?: string;
+      /**
+       * The time after the workflow run was finished
+       * @format date-time
+       * @example "2021-01-01T00:00:00Z"
+       */
+      finishedAfter?: string;
+      /**
+       * The time before the workflow run was finished
+       * @format date-time
+       * @example "2021-01-01T00:00:00Z"
+       */
+      finishedBefore?: string;
     },
     params: RequestParams = {},
   ) =>

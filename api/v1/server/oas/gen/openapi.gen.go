@@ -1784,6 +1784,24 @@ type V2WorkflowRunsListParams struct {
 
 	// Limit The number to limit by
 	Limit *int64 `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Statuses A list of workflow run statuses to filter by
+	Statuses *WorkflowRunStatusList `form:"statuses,omitempty" json:"statuses,omitempty"`
+
+	// AdditionalMetadata A list of metadata key value pairs to filter by
+	AdditionalMetadata *[]string `form:"additionalMetadata,omitempty" json:"additionalMetadata,omitempty"`
+
+	// CreatedAfter The time after the workflow run was created
+	CreatedAfter *time.Time `form:"createdAfter,omitempty" json:"createdAfter,omitempty"`
+
+	// CreatedBefore The time before the workflow run was created
+	CreatedBefore *time.Time `form:"createdBefore,omitempty" json:"createdBefore,omitempty"`
+
+	// FinishedAfter The time after the workflow run was finished
+	FinishedAfter *time.Time `form:"finishedAfter,omitempty" json:"finishedAfter,omitempty"`
+
+	// FinishedBefore The time before the workflow run was finished
+	FinishedBefore *time.Time `form:"finishedBefore,omitempty" json:"finishedBefore,omitempty"`
 }
 
 // AlertEmailGroupUpdateJSONRequestBody defines body for AlertEmailGroupUpdate for application/json ContentType.
@@ -4544,6 +4562,48 @@ func (w *ServerInterfaceWrapper) V2WorkflowRunsList(ctx echo.Context) error {
 	err = runtime.BindQueryParameter("form", true, false, "limit", ctx.QueryParams(), &params.Limit)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter limit: %s", err))
+	}
+
+	// ------------- Optional query parameter "statuses" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "statuses", ctx.QueryParams(), &params.Statuses)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter statuses: %s", err))
+	}
+
+	// ------------- Optional query parameter "additionalMetadata" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "additionalMetadata", ctx.QueryParams(), &params.AdditionalMetadata)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter additionalMetadata: %s", err))
+	}
+
+	// ------------- Optional query parameter "createdAfter" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "createdAfter", ctx.QueryParams(), &params.CreatedAfter)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter createdAfter: %s", err))
+	}
+
+	// ------------- Optional query parameter "createdBefore" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "createdBefore", ctx.QueryParams(), &params.CreatedBefore)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter createdBefore: %s", err))
+	}
+
+	// ------------- Optional query parameter "finishedAfter" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "finishedAfter", ctx.QueryParams(), &params.FinishedAfter)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter finishedAfter: %s", err))
+	}
+
+	// ------------- Optional query parameter "finishedBefore" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "finishedBefore", ctx.QueryParams(), &params.FinishedBefore)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter finishedBefore: %s", err))
 	}
 
 	// Invoke the callback with all the unmarshaled arguments
@@ -11163,8 +11223,9 @@ var swaggerSpec = []string{
 	"2UuH8aRskU5/G/hZk9KSJ6RcQb2hxasN6QGbJlEaszyhOQhyo4ygsE7f4bPbmMNhzUJiydzd8lGpS9+9",
 	"hdrEQvnCWwkumVfG6BsiUyK0zfSyUIKXrZRcVxp22XUGE2bdximlDuj3GFcFgEBMMp5C2JlA4s2gb8om",
 	"nQv+LVekBBksmDXm1XLFKPC2ShLTpYbpUsOsITVMK9EsZAO2eNUqnORWYln41rwhE8zfQS6vWcpJh6nl",
-	"VMFO3m2VCpiT4rIq4KE5G9VObbXp3KGFFTkrFoqpOgv/dqjWFurKxGxJmZh1SqDilreJrOlyQxtsV9xD",
-	"pqE6A9NC6jLRlZ1+xxAkMMmcfntaN2DmRcr5NE0C98h1X25f/l8AAAD///yEBCiqDQIA",
+	"VMFO3m2VCpiT4rIq4KE5G9VObbXp3KGFFTkrFoqpOgv/dqjWFurKxGxrmZg3UgC4K4vWlUXrSu6+Tsnd",
+	"dWotxWOiTTRel0/eYO/mXnUNFV3YzaUue2U5UGAMQQKTLFCgpw0dYJ7n/GxPk8A9ct2X25f/FwAA//8E",
+	"Ep7H3hECAA==",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file
