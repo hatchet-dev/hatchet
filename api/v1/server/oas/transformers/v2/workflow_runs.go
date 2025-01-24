@@ -35,7 +35,7 @@ func ToWorkflowRuns(
 				UpdatedAt: time.Now(),
 			},
 			StartedAt: *wf.StartedAt,
-			Status:    wf.Status,
+			Status:    gen.V2TaskStatus(wf.Status),
 			TaskId:    wf.TaskId,
 			TenantId:  *wf.TenantId,
 			Timestamp: wf.Timestamp,
