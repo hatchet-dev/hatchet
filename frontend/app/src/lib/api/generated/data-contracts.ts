@@ -84,14 +84,14 @@ export interface V2WorkflowRun {
    * The timestamp the workflow run started.
    * @format date-time
    */
-  startedAt?: string;
+  startedAt: string;
   /**
    * The timestamp the workflow run finished.
    * @format date-time
    */
-  finishedAt?: string;
+  finishedAt: string;
   /** The duration of the workflow run. */
-  duration?: number;
+  duration: number;
   /**
    * The ID of the tenant.
    * @format uuid
@@ -99,11 +99,11 @@ export interface V2WorkflowRun {
    * @maxLength 36
    * @example "bb214807-246e-43a5-a25d-41761d1cff9e"
    */
-  tenantId?: string;
+  tenantId: string;
   /** Additional metadata for the workflow run. */
-  additionalMetadata?: object;
+  additionalMetadata: object;
   /** The display name of the workflow run. */
-  displayName?: string;
+  displayName: string;
 }
 
 export interface V2WorkflowRuns {

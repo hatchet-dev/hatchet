@@ -1113,26 +1113,26 @@ type UserTenantPublic struct {
 // V2WorkflowRun defines model for V2WorkflowRun.
 type V2WorkflowRun struct {
 	// AdditionalMetadata Additional metadata for the workflow run.
-	AdditionalMetadata *map[string]interface{} `json:"additionalMetadata,omitempty"`
+	AdditionalMetadata map[string]interface{} `json:"additionalMetadata"`
 
 	// DisplayName The display name of the workflow run.
-	DisplayName *string `json:"displayName,omitempty"`
+	DisplayName string `json:"displayName"`
 
 	// Duration The duration of the workflow run.
-	Duration *int `json:"duration,omitempty"`
+	Duration int `json:"duration"`
 
 	// ErrorMessage The error message of the workflow run.
 	ErrorMessage *string `json:"errorMessage,omitempty"`
 
 	// FinishedAt The timestamp the workflow run finished.
-	FinishedAt *time.Time `json:"finishedAt,omitempty"`
+	FinishedAt time.Time `json:"finishedAt"`
 
 	// Id The ID of the workflow run.
 	Id       openapi_types.UUID `json:"id"`
 	Metadata APIResourceMeta    `json:"metadata"`
 
 	// StartedAt The timestamp the workflow run started.
-	StartedAt *time.Time `json:"startedAt,omitempty"`
+	StartedAt time.Time `json:"startedAt"`
 
 	// Status The status of the workflow run.
 	Status string `json:"status"`
@@ -1141,7 +1141,7 @@ type V2WorkflowRun struct {
 	TaskId openapi_types.UUID `json:"taskId"`
 
 	// TenantId The ID of the tenant.
-	TenantId *openapi_types.UUID `json:"tenantId,omitempty"`
+	TenantId openapi_types.UUID `json:"tenantId"`
 
 	// Timestamp The timestamp of the workflow run.
 	Timestamp time.Time `json:"timestamp"`

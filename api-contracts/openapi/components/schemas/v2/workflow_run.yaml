@@ -57,6 +57,13 @@ V2WorkflowRun:
     - taskId
     - status
     - timestamp
+    - tenantId
+    - displayName
+    - startedAt
+    - finishedAt
+    - duration
+    - additionalMetadata
+
 
 V2WorkflowRuns:
   type: object

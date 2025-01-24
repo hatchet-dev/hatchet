@@ -21,28 +21,23 @@ func ToWorkflowRuns(
 
 	for i, wf := range wfs {
 		additionalMetadata := jsonToMap(*wf.AdditionalMetadata)
-		var duration *int
-		if wf.Duration != nil {
-			d := int(*wf.Duration)
-			duration = &d
-		}
 
 		toReturn[i] = gen.V2WorkflowRun{
-			AdditionalMetadata: &additionalMetadata,
-			DisplayName:        wf.DisplayName,
-			Duration:           duration,
+			AdditionalMetadata: additionalMetadata,
+			DisplayName:        *wf.DisplayName,
+			Duration:           int(*wf.Duration),
 			ErrorMessage:       wf.ErrorMessage,
-			FinishedAt:         wf.FinishedAt,
+			FinishedAt:         *wf.FinishedAt,
 			Id:                 wf.Id,
 			Metadata: gen.APIResourceMeta{
 				Id:        wf.TaskId.String(),
 				CreatedAt: time.Now(),
 				UpdatedAt: time.Now(),
 			},
-			StartedAt: wf.StartedAt,
+			StartedAt: *wf.StartedAt,
 			Status:    wf.Status,
 			TaskId:    wf.TaskId,
-			TenantId:  wf.TenantId,
+			TenantId:  *wf.TenantId,
 			Timestamp: wf.Timestamp,
 		}
 	}

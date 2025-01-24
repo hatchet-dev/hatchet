@@ -524,6 +524,12 @@ export function WorkflowRunsTable({
     });
   };
 
+  const data = (listWorkflowRunsQuery.data?.rows || []).map((row) => ({
+    ...row,
+    workflowVersionId: 'first version',
+    triggeredBy: 'manual',
+  }));
+
   return (
     <>
       {showMetrics && (
@@ -672,7 +678,7 @@ export function WorkflowRunsTable({
         columns={columns(onAdditionalMetadataClick)}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
-        data={listWorkflowRunsQuery.data?.rows || []}
+        data={data}
         filters={filters}
         actions={actions}
         sorting={sorting}
