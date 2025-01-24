@@ -10,13 +10,14 @@
         tenant_id UUID NOT NULL,
         queue TEXT NOT NULL,
         action_id TEXT NOT NULL,
-        schedule_timeout TEXT NOT NULL,
-        step_timeout TEXT NULL DEFAULT NULL,
+        schedule_timeout TEXT NOT NULL DEFAULT '5m',
+        step_timeout TEXT NOT NULL DEFAULT '1m',
         priority TINYINT UNSIGNED NOT NULL DEFAULT 1,
         sticky Enum(
-            'HARD' = 1,
-            'SOFT' = 2,
-        ) NULL DEFAULT NULL,
+            'NONE' = 1,
+            'HARD' = 2,
+            'SOFT' = 3,
+        ) NOT NULL DEFAULT 'NONE',
         desired_worker_id UUID NULL DEFAULT NULL,
         display_name TEXT NOT NULL,
         input TEXT NOT NULL DEFAULT '{}',
@@ -36,7 +37,7 @@
         id UUID NOT NULL DEFAULT generateUUIDv4(),
         task_id UUID NOT NULL,
         tenant_id UUID NOT NULL,
-        status Enum(
+        event_type Enum(
             'REQUEUED_NO_WORKER' = 1,
             'REQUEUED_RATE_LIMIT' = 2,
             'SCHEDULING_TIMED_OUT' = 3,
@@ -52,52 +53,34 @@
             'TIMEOUT_REFRESHED' = 13,
             'RETRIED_BY_USER' = 14,
             'SENT_TO_WORKER' = 15,
-            'WORKFLOW_RUN_GROUP_KEY_SUCCEEDED' = 16,
-            'WORKFLOW_RUN_GROUP_KEY_FAILED' = 17,
-            'RATE_LIMIT_ERROR' = 18,
-            'ACKNOWLEDGED' = 19,
-            'CREATED' = 20
+            'RATE_LIMIT_ERROR' = 16,
+            'ACKNOWLEDGED' = 17,
+            'CREATED' = 18
         ) NOT NULL,
+        readable_status Enum(
+            'QUEUED' = 1,
+            'RUNNING' = 2,
+            'COMPLETED' = 3,
+            'CANCELLED' = 4,
+            'FAILED' = 5
+        ),
         timestamp DateTime('UTC') NOT NULL,
-        retry_count TINYINT UNSIGNED NOT NULL DEFAULT 0,
-        error_message TEXT NULL DEFAULT NULL,
-        output TEXT NULL DEFAULT NULL,
-        additional__event_data TEXT NULL DEFAULT NULL,
-        additional__event_message TEXT NULL DEFAULT NULL,
-        additional__event_severity Enum(
-            'INFO' = 1,
-            'WARNING' = 2,
-            'CRITICAL' = 3
-        ) NULL DEFAULT NULL,
-        additional__event_reason Enum(
-            'ACKNOWLEDGED' = 1,
-            'ASSIGNED' = 2,
-            'CANCELLED' = 3,
-            'FAILED' = 4,
-            'FINISHED' = 5,
-            'REASSIGNED' = 6,
-            'REQUEUED_NO_WORKER' = 7,
-            'REQUEUED_RATE_LIMIT' = 8,
-            'RETRIED_BY_USER' = 9,
-            'RETRYING' = 10,
-            'SCHEDULING_TIMED_OUT' = 11,
-            'SLOT_RELEASED' = 12,
-            'STARTED' = 13,
-            'TIMED_OUT' = 14,
-            'TIMEOUT_REFRESHED' = 15,
-            'WORKFLOW_RUN_GROUP_KEY_FAILED' = 16,
-            'WORKFLOW_RUN_GROUP_KEY_SUCCEEDED' = 17
-        ) NULL DEFAULT NULL,
+        retry_count SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+        error_message TEXT NOT NULL DEFAULT '',
+        output TEXT NOT NULL DEFAULT '{}',
+        worker_id UUID NULL DEFAULT NULL,
+        additional__event_data TEXT NOT NULL DEFAULT '{}',
+        additional__event_message TEXT NOT NULL DEFAULT '',
         created_at DateTime('UTC') NOT NULL DEFAULT NOW(),
 
-        PRIMARY KEY (tenant_id, task_id, timestamp, status)
+        PRIMARY KEY (tenant_id, task_id, timestamp, event_type, retry_count)
     )
     ENGINE = MergeTree()
 
     -- https://stackoverflow.com/a/75439879 for more on partitioning
     -- partition by week so we can easily drop old data
     PARTITION BY (toMonday(timestamp))
-    ORDER BY (tenant_id, task_id, timestamp, status)
+    ORDER BY (tenant_id, task_id, timestamp, event_type, retry_count);
    ```
 
 5. ```sql

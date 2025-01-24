@@ -298,7 +298,7 @@ export function WorkflowRunsTable({
   }, [sorting]);
 
   const listWorkflowRunsQuery = useQuery({
-    ...queries.workflowRuns.list(tenant.metadata.id, {
+    ...queries.v2WorkflowRuns.list(tenant.metadata.id, {
       offset,
       limit: pagination.pageSize,
       statuses,
@@ -522,6 +522,12 @@ export function WorkflowRunsTable({
     });
   };
 
+  const data = (listWorkflowRunsQuery.data?.rows || []).map((row) => ({
+    ...row,
+    workflowVersionId: 'first version',
+    triggeredBy: 'manual',
+  }));
+
   return (
     <>
       {showMetrics && (
@@ -670,7 +676,7 @@ export function WorkflowRunsTable({
         columns={columns(onAdditionalMetadataClick)}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
-        data={listWorkflowRunsQuery.data?.rows || []}
+        data={data}
         filters={filters}
         actions={actions}
         sorting={sorting}

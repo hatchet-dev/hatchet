@@ -15,7 +15,7 @@ import (
 
 type OLAPEventRepository interface {
 	Connect(ctx context.Context) error
-	ReadTaskRuns(tenantId uuid.UUID) ([]olap.WorkflowRun, error)
+	ReadTaskRuns(tenantId uuid.UUID, limit, offset int64) ([]olap.WorkflowRun, error)
 	ReadTaskRun(stepRunId int) (olap.WorkflowRun, error)
 	CreateTask(task olap.Task) error
 	CreateTasks(tasks []olap.Task) error
@@ -38,7 +38,7 @@ func NewOLAPEventRepository() OLAPEventRepository {
 			FlushPeriodMilliseconds: 500,
 		},
 		SizeFunc: func(e olap.TaskEvent) int {
-			return 16 + 16 + len(e.Status)
+			return 16 + 16 + len(e.EventType)
 		},
 		V: validator.NewDefaultValidator(),
 	}
@@ -94,26 +94,82 @@ func (r *olapEventRepository) Connect(ctx context.Context) error {
 	return nil
 }
 
-func (r *olapEventRepository) ReadTaskRuns(tenantId uuid.UUID) ([]olap.WorkflowRun, error) {
+// CASE status WHEN 'QUEUED' THEN 0 WHEN 'RUNNING' THEN 1 WHEN 'COMPLETED' THEN 2 WHEN 'CANCELLED' THEN 3 WHEN 'FAILED' THEN 4 ELSE -1 END
+// Look into if we can encode this into an enum and do `MAX()` over that
+
+func (r *olapEventRepository) ReadTaskRuns(tenantId uuid.UUID, limit, offset int64) ([]olap.WorkflowRun, error) {
 	ctx := context.Background()
 	rows, err := r.conn.Query(ctx, `
-		WITH rows_assigned AS (
-			SELECT id, ROW_NUMBER() OVER (PARTITION BY task_id ORDER BY timestamp DESC) AS row_num
-			FROM events
+		WITH candidate_tasks AS (
+			SELECT *
+			FROM tasks
 			WHERE tenant_id = ?
+			ORDER BY created_at DESC
+			LIMIT ?
+			OFFSET ?
+		), relevant_task_events AS (
+			SELECT *
+			FROM task_events
+			WHERE
+				tenant_id = ?
+				AND status IN (
+				  ...
+				)
+				-- Add filter for max retry within task & its events
+		), most_recent_task_events AS (
+			SELECT *
+			FROM relevant_task_events
+			WHERE
+				tenant_id = ?
+				AND task_id IN (SELECT id FROM candidate_tasks)
+			GROUP BY task_id
+		), task_durations AS (
+			SELECT
+				task_id,
+				-- NOTE: These are bugs, should filter by status to determine these
+				MIN(timestamp) AS started_at,
+				MAX(timestamp) AS finished_at,
+				MAX(timestamp) - MIN(timestamp) AS duration
+			FROM task_events
+			WHERE
+				tenant_id = ?
+				AND task_id IN (SELECT id FROM candidate_tasks)
+			GROUP BY task_id
+		), error_messages AS (
+			SELECT
+				task_id,
+				error_message
+			FROM task_events
+			WHERE
+				tenant_id = ?
+				AND task_id IN (SELECT id FROM candidate_tasks)
+				AND status = 'FAILED'
 		)
+
 		SELECT
-			e.id,
-			e.task_id,
-			e.tenant_id,
-			e.status,
-			e.timestamp,
-			e.created_at,
-			e.retry_count,
-			e.error_message
-		FROM events e
-		JOIN rows_assigned ra ON e.id = ra.id
-		WHERE ra.row_num = 1`,
+			ct.additional_metadata,
+			ct.display_name,
+			td.duration,
+			em.error_message,
+			td.finished_at,
+			ct.id AS id,
+			td.started_at,
+			ts.status,
+			ct.id AS task_id,
+			ct.tenant_id,
+			-- NOTE: This is probably a bug, figure out which timestamp to use.
+			ct.created_at AS timestamp
+		FROM candidate_tasks ct
+		JOIN task_statuses ts ON ct.id = ts.task_id
+		JOIN task_durations td ON ct.id = td.task_id
+		LEFT JOIN error_messages em ON ct.id = em.task_id
+		ORDER BY ct.created_at DESC
+		`,
+		tenantId,
+		limit,
+		offset,
+		tenantId,
+		tenantId,
 		tenantId,
 	)
 
@@ -129,14 +185,17 @@ func (r *olapEventRepository) ReadTaskRuns(tenantId uuid.UUID) ([]olap.WorkflowR
 		)
 
 		err = rows.Scan(
+			&taskRun.AdditionalMetadata,
+			&taskRun.DisplayName,
+			&taskRun.Duration,
+			&taskRun.ErrorMessage,
+			&taskRun.FinishedAt,
 			&taskRun.Id,
+			&taskRun.StartedAt,
+			&taskRun.Status,
 			&taskRun.TaskId,
 			&taskRun.TenantId,
-			&taskRun.Status,
 			&taskRun.Timestamp,
-			&taskRun.CreatedAt,
-			&taskRun.RetryCount,
-			&taskRun.ErrorMessage,
 		)
 
 		if err != nil {
@@ -170,14 +229,10 @@ func (r *olapEventRepository) ReadTaskRun(taskRunId int) (olap.WorkflowRun, erro
 	var taskRun olap.WorkflowRun
 
 	err := row.Scan(
-		&taskRun.Id,
 		&taskRun.TaskId,
 		&taskRun.TenantId,
 		&taskRun.Status,
 		&taskRun.Timestamp,
-		&taskRun.CreatedAt,
-		&taskRun.RetryCount,
-		&taskRun.ErrorMessage,
 	)
 
 	if err != nil {
@@ -203,15 +258,15 @@ func WriteTaskEventBatch(c context.Context, events []olap.TaskEvent) ([]*olap.Ta
 		INSERT INTO task_events (
 			task_id,
 			tenant_id,
-			status,
+			event_type,
+			readable_status,
 			timestamp,
 			retry_count,
 			error_message,
 			output,
+			worker_id,
 			additional__event_data,
-			additional__event_message,
-			additional__event_severity,
-			additional__event_reason
+			additional__event_message
 		)
 	`)
 
@@ -220,18 +275,59 @@ func WriteTaskEventBatch(c context.Context, events []olap.TaskEvent) ([]*olap.Ta
 	}
 
 	for _, event := range events {
+		readableStatus := olap.READABLE_TASK_STATUS_QUEUED
+
+		switch event.EventType {
+		case olap.EVENT_TYPE_REQUEUED_NO_WORKER:
+			readableStatus = olap.READABLE_TASK_STATUS_QUEUED
+		case olap.EVENT_TYPE_REQUEUED_RATE_LIMIT:
+			readableStatus = olap.READABLE_TASK_STATUS_QUEUED
+		case olap.EVENT_TYPE_SCHEDULING_TIMED_OUT:
+			readableStatus = olap.READABLE_TASK_STATUS_FAILED
+		case olap.EVENT_TYPE_ASSIGNED:
+			readableStatus = olap.READABLE_TASK_STATUS_RUNNING
+		case olap.EVENT_TYPE_STARTED:
+			readableStatus = olap.READABLE_TASK_STATUS_RUNNING
+		case olap.EVENT_TYPE_FINISHED:
+			readableStatus = olap.READABLE_TASK_STATUS_COMPLETED
+		case olap.EVENT_TYPE_FAILED:
+			readableStatus = olap.READABLE_TASK_STATUS_FAILED
+		case olap.EVENT_TYPE_RETRYING:
+			readableStatus = olap.READABLE_TASK_STATUS_RUNNING
+		case olap.EVENT_TYPE_CANCELLED:
+			readableStatus = olap.READABLE_TASK_STATUS_CANCELLED
+		case olap.EVENT_TYPE_TIMED_OUT:
+			readableStatus = olap.READABLE_TASK_STATUS_FAILED
+		case olap.EVENT_TYPE_REASSIGNED:
+			readableStatus = olap.READABLE_TASK_STATUS_RUNNING
+		case olap.EVENT_TYPE_SLOT_RELEASED:
+			readableStatus = olap.READABLE_TASK_STATUS_QUEUED
+		case olap.EVENT_TYPE_TIMEOUT_REFRESHED:
+			readableStatus = olap.READABLE_TASK_STATUS_RUNNING
+		case olap.EVENT_TYPE_RETRIED_BY_USER:
+			readableStatus = olap.READABLE_TASK_STATUS_RUNNING
+		case olap.EVENT_TYPE_SENT_TO_WORKER:
+			readableStatus = olap.READABLE_TASK_STATUS_RUNNING
+		case olap.EVENT_TYPE_RATE_LIMIT_ERROR:
+			readableStatus = olap.READABLE_TASK_STATUS_FAILED
+		case olap.EVENT_TYPE_ACKNOWLEDGED:
+			readableStatus = olap.READABLE_TASK_STATUS_RUNNING
+		case olap.EVENT_TYPE_CREATED:
+			readableStatus = olap.READABLE_TASK_STATUS_QUEUED
+		}
+
 		err := batch.Append(
 			event.TaskId,
 			event.TenantId,
-			event.Status,
+			string(event.EventType),
+			string(readableStatus),
 			event.Timestamp,
 			event.RetryCount,
 			event.ErrorMsg,
 			event.Output,
+			event.WorkerId,
 			event.AdditionalEventData,
 			event.AdditionalEventMessage,
-			event.AdditionalEventSeverity,
-			event.AdditionalEventReason,
 		)
 
 		if err != nil {
@@ -296,7 +392,7 @@ func WriteTaskBatch(c context.Context, tasks []olap.Task) ([]*olap.Task, error) 
 			task.ScheduleTimeout,
 			task.StepTimeout,
 			task.Priority,
-			task.Sticky,
+			string(task.Sticky),
 			task.DesiredWorkerId,
 			task.DisplayName,
 			task.Input,

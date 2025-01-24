@@ -9,6 +9,155 @@
  * ---------------------------------------------------------------
  */
 
+export enum WorkflowRunStatus {
+  PENDING = 'PENDING',
+  RUNNING = 'RUNNING',
+  SUCCEEDED = 'SUCCEEDED',
+  FAILED = 'FAILED',
+  CANCELLED = 'CANCELLED',
+  QUEUED = 'QUEUED',
+}
+
+export type WorkflowRunStatusList = WorkflowRunStatus[];
+
+/** @example {"next_page":3,"num_pages":10,"current_page":2} */
+export interface PaginationResponse {
+  /**
+   * the current page
+   * @format int64
+   * @example 2
+   */
+  current_page?: number;
+  /**
+   * the next page
+   * @format int64
+   * @example 3
+   */
+  next_page?: number;
+  /**
+   * the total number of pages for listing
+   * @format int64
+   * @example 10
+   */
+  num_pages?: number;
+}
+
+export interface APIResourceMeta {
+  /**
+   * the id of this resource, in UUID format
+   * @minLength 0
+   * @maxLength 36
+   * @example "bb214807-246e-43a5-a25d-41761d1cff9e"
+   */
+  id: string;
+  /**
+   * the time that this resource was created
+   * @format date-time
+   * @example "2022-12-13T15:06:48.888358-05:00"
+   */
+  createdAt: string;
+  /**
+   * the time that this resource was last updated
+   * @format date-time
+   * @example "2022-12-13T15:06:48.888358-05:00"
+   */
+  updatedAt: string;
+}
+
+export enum V2TaskStatus {
+  QUEUED = 'QUEUED',
+  RUNNING = 'RUNNING',
+  COMPLETED = 'COMPLETED',
+  CANCELLED = 'CANCELLED',
+  FAILED = 'FAILED',
+}
+
+export interface V2WorkflowRun {
+  metadata: APIResourceMeta;
+  /**
+   * The ID of the workflow run.
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   * @example "bb214807-246e-43a5-a25d-41761d1cff9e"
+   */
+  id: string;
+  /**
+   * The ID of the task associated with this workflow run.
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   * @example "bb214807-246e-43a5-a25d-41761d1cff9e"
+   */
+  taskId: string;
+  status: V2TaskStatus;
+  /**
+   * The timestamp of the workflow run.
+   * @format date-time
+   */
+  timestamp: string;
+  /** The error message of the workflow run. */
+  errorMessage?: string;
+  /**
+   * The timestamp the workflow run started.
+   * @format date-time
+   */
+  startedAt: string;
+  /**
+   * The timestamp the workflow run finished.
+   * @format date-time
+   */
+  finishedAt: string;
+  /** The duration of the workflow run. */
+  duration: number;
+  /**
+   * The ID of the tenant.
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   * @example "bb214807-246e-43a5-a25d-41761d1cff9e"
+   */
+  tenantId: string;
+  /** Additional metadata for the workflow run. */
+  additionalMetadata: object;
+  /** The display name of the workflow run. */
+  displayName: string;
+}
+
+export interface V2WorkflowRuns {
+  pagination: PaginationResponse;
+  /** The workflow runs. */
+  rows: V2WorkflowRun[];
+}
+
+export interface APIError {
+  /**
+   * a custom Hatchet error code
+   * @format uint64
+   * @example 1400
+   */
+  code?: number;
+  /**
+   * the field that this error is associated with, if applicable
+   * @example "name"
+   */
+  field?: string;
+  /**
+   * a description for this error
+   * @example "A descriptive error message"
+   */
+  description: string;
+  /**
+   * a link to the documentation for this error, if it exists
+   * @example "github.com/hatchet-dev/hatchet"
+   */
+  docs_link?: string;
+}
+
+export interface APIErrors {
+  errors: APIError[];
+}
+
 export interface APIMetaAuth {
   /**
    * the supported types of authentication
@@ -60,34 +209,6 @@ export interface APIMeta {
   allowChangePassword?: boolean;
 }
 
-export interface APIError {
-  /**
-   * a custom Hatchet error code
-   * @format uint64
-   * @example 1400
-   */
-  code?: number;
-  /**
-   * the field that this error is associated with, if applicable
-   * @example "name"
-   */
-  field?: string;
-  /**
-   * a description for this error
-   * @example "A descriptive error message"
-   */
-  description: string;
-  /**
-   * a link to the documentation for this error, if it exists
-   * @example "github.com/hatchet-dev/hatchet"
-   */
-  docs_link?: string;
-}
-
-export interface APIErrors {
-  errors: APIError[];
-}
-
 export interface APIMetaIntegration {
   /**
    * the name of the integration
@@ -110,28 +231,6 @@ export interface UserLoginRequest {
   password: string;
 }
 
-export interface APIResourceMeta {
-  /**
-   * the id of this resource, in UUID format
-   * @minLength 0
-   * @maxLength 36
-   * @example "bb214807-246e-43a5-a25d-41761d1cff9e"
-   */
-  id: string;
-  /**
-   * the time that this resource was created
-   * @format date-time
-   * @example "2022-12-13T15:06:48.888358-05:00"
-   */
-  createdAt: string;
-  /**
-   * the time that this resource was last updated
-   * @format date-time
-   * @example "2022-12-13T15:06:48.888358-05:00"
-   */
-  updatedAt: string;
-}
-
 export interface User {
   metadata: APIResourceMeta;
   /** The display name of the user. */
@@ -147,28 +246,6 @@ export interface User {
   hasPassword?: boolean;
   /** A hash of the user's email address for use with Pylon Support Chat */
   emailHash?: string;
-}
-
-/** @example {"next_page":3,"num_pages":10,"current_page":2} */
-export interface PaginationResponse {
-  /**
-   * the current page
-   * @format int64
-   * @example 2
-   */
-  current_page?: number;
-  /**
-   * the next page
-   * @format int64
-   * @example 3
-   */
-  next_page?: number;
-  /**
-   * the total number of pages for listing
-   * @format int64
-   * @example 10
-   */
-  num_pages?: number;
 }
 
 export interface SNSIntegration {
@@ -485,17 +562,6 @@ export interface TenantStepRunQueueMetrics {
 
 /** The key for the event. */
 export type EventKey = string;
-
-export enum WorkflowRunStatus {
-  PENDING = 'PENDING',
-  RUNNING = 'RUNNING',
-  SUCCEEDED = 'SUCCEEDED',
-  FAILED = 'FAILED',
-  CANCELLED = 'CANCELLED',
-  QUEUED = 'QUEUED',
-}
-
-export type WorkflowRunStatusList = WorkflowRunStatus[];
 
 export type EventSearch = string;
 

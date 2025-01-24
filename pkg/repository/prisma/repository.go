@@ -237,6 +237,7 @@ type engineRepository struct {
 	webhookWorker  repository.WebhookWorkerEngineRepository
 	scheduler      repository.SchedulerRepository
 	mq             repository.MessageQueueRepository
+	olap           repository.OLAPEventRepository
 }
 
 func (r *engineRepository) Health() repository.HealthRepository {
@@ -319,6 +320,10 @@ func (r *engineRepository) MessageQueue() repository.MessageQueueRepository {
 	return r.mq
 }
 
+func (r *engineRepository) OLAP() repository.OLAPEventRepository {
+	return r.olap
+}
+
 func NewEngineRepository(pool *pgxpool.Pool, essentialPool *pgxpool.Pool, cf *server.ConfigFileRuntime, fs ...PrismaRepositoryOpt) (func() error, repository.EngineRepository, error) {
 	opts := defaultPrismaRepositoryOpts()
 
@@ -377,6 +382,7 @@ func NewEngineRepository(pool *pgxpool.Pool, essentialPool *pgxpool.Pool, cf *se
 			webhookWorker:  NewWebhookWorkerEngineRepository(pool, opts.v, opts.l),
 			scheduler:      newSchedulerRepository(shared),
 			mq:             NewMessageQueueRepository(shared),
+			olap:           repository.NewOLAPEventRepository(),
 		},
 		err
 }

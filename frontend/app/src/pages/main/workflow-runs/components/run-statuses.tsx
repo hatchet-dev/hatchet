@@ -16,48 +16,34 @@ type RunStatusVariant = {
   variant: 'inProgress' | 'successful' | 'failed' | 'outline';
 };
 
-const RUN_STATUS_VARIANTS: Record<RunStatusType, RunStatusVariant> = {
-  SUCCEEDED: {
-    text: 'Succeeded',
-    variant: 'successful',
-  },
-  FAILED: {
-    text: 'Failed',
-    variant: 'failed',
-  },
-  CANCELLED: {
-    text: 'Cancelled',
-    variant: 'failed',
-  },
-  CANCELLING: {
-    text: 'Cancelling',
-    variant: 'inProgress',
-  },
-  RUNNING: {
-    text: 'Running',
-    variant: 'inProgress',
-  },
-  QUEUED: {
-    text: 'Queued',
-    variant: 'outline',
-  },
-  PENDING: {
-    text: 'Pending',
-    variant: 'outline',
-  },
-  PENDING_ASSIGNMENT: {
-    text: 'Pending',
-    variant: 'outline',
-  },
-  ASSIGNED: {
-    text: 'Assigned',
-    variant: 'inProgress',
-  },
-  SCHEDULED: {
-    text: 'Scheduled',
-    variant: 'outline',
-  },
-};
+export function createRunStatusVariant(
+  status: RunStatusType,
+): RunStatusVariant {
+  switch (status) {
+    case 'SUCCEEDED':
+      return { text: 'Succeeded', variant: 'successful' };
+    case 'FAILED':
+      return { text: 'Failed', variant: 'failed' };
+    case 'CANCELLED':
+      return { text: 'Cancelled', variant: 'failed' };
+    case 'CANCELLING':
+      return { text: 'Cancelling', variant: 'inProgress' };
+    case 'RUNNING':
+      return { text: 'Running', variant: 'inProgress' };
+    case 'QUEUED':
+      return { text: 'Queued', variant: 'outline' };
+    case 'PENDING':
+      return { text: 'Pending', variant: 'outline' };
+    case 'PENDING_ASSIGNMENT':
+      return { text: 'Pending', variant: 'outline' };
+    case 'ASSIGNED':
+      return { text: 'Assigned', variant: 'inProgress' };
+    case 'SCHEDULED':
+      return { text: 'Scheduled', variant: 'outline' };
+    default:
+      return { text: 'Unknown', variant: 'outline' };
+  }
+}
 
 const RUN_STATUS_REASONS: Record<string, string> = {
   TIMED_OUT: 'Runtime Timed Out',
@@ -90,7 +76,7 @@ export function RunStatus({
   reason?: string;
   className?: string;
 }) {
-  const { text, variant } = RUN_STATUS_VARIANTS[status];
+  const { text, variant } = createRunStatusVariant(status);
   const { text: overrideText, variant: overrideVariant } =
     (reason && RUN_STATUS_VARIANTS_REASON_OVERRIDES[reason]) || {};
 
@@ -129,7 +115,7 @@ export function RunIndicator({
   status: RunStatusType;
   reason?: string;
 }) {
-  const variant = RUN_STATUS_VARIANTS[status].variant;
+  const variant = createRunStatusVariant(status).variant;
 
   return (
     <div
