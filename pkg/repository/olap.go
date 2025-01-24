@@ -38,7 +38,7 @@ func NewOLAPEventRepository() OLAPEventRepository {
 			FlushPeriodMilliseconds: 500,
 		},
 		SizeFunc: func(e olap.TaskEvent) int {
-			return 16 + 16 + len(e.Status)
+			return 16 + 16 + len(e.EventType)
 		},
 		V: validator.NewDefaultValidator(),
 	}
@@ -258,15 +258,14 @@ func WriteTaskEventBatch(c context.Context, events []olap.TaskEvent) ([]*olap.Ta
 		INSERT INTO task_events (
 			task_id,
 			tenant_id,
-			status,
+			event_type,
 			timestamp,
 			retry_count,
 			error_message,
 			output,
+			worker_id,
 			additional__event_data,
-			additional__event_message,
-			additional__event_severity,
-			additional__event_reason
+			additional__event_message
 		)
 	`)
 
@@ -278,15 +277,14 @@ func WriteTaskEventBatch(c context.Context, events []olap.TaskEvent) ([]*olap.Ta
 		err := batch.Append(
 			event.TaskId,
 			event.TenantId,
-			event.Status,
+			event.EventType,
 			event.Timestamp,
 			event.RetryCount,
 			event.ErrorMsg,
 			event.Output,
+			event.WorkerId,
 			event.AdditionalEventData,
 			event.AdditionalEventMessage,
-			event.AdditionalEventSeverity,
-			event.AdditionalEventReason,
 		)
 
 		if err != nil {
