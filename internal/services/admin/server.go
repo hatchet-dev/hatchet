@@ -13,9 +13,8 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
-	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
+	wutils "github.com/hatchet-dev/hatchet/internal/workflowutils"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
@@ -68,17 +67,12 @@ func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.T
 		return nil, fmt.Errorf("Trigger Workflow - could not create workflow run: %w", err)
 	}
 
-	workflowRunId := sqlchelpers.UUIDToStr(workflowRun.ID)
+	workflowRunId := sqlchelpers.UUIDToStr(workflowRun.Row.WorkflowRun.ID)
 
-	// send to workflow processing queue
-	err = a.mq.AddMessage(
-		context.Background(),
-		msgqueue.WORKFLOW_PROCESSING_QUEUE,
-		tasktypes.WorkflowRunQueuedToTask(tenantId, workflowRunId),
-	)
+	err = wutils.NotifyQueues(ctx, a.mq, a.l, a.repo, tenantId, workflowRun)
 
 	if err != nil {
-		return nil, fmt.Errorf("could not queue workflow run: %w", err)
+		return nil, fmt.Errorf("could not notify queues: %w", err)
 	}
 
 	return &contracts.TriggerWorkflowResponse{
@@ -127,19 +121,12 @@ func (a *AdminServiceImpl) BulkTriggerWorkflow(ctx context.Context, req *contrac
 
 	var workflowRunIds []string
 	for _, workflowRun := range workflowRuns {
-		workflowRunIds = append(workflowRunIds, sqlchelpers.UUIDToStr(workflowRun.ID))
-	}
 
-	for _, workflowRunId := range workflowRunIds {
-		err = a.mq.AddMessage(
-			context.Background(),
-			msgqueue.WORKFLOW_PROCESSING_QUEUE,
-			tasktypes.WorkflowRunQueuedToTask(tenantId, workflowRunId),
-		)
-
+		err = wutils.NotifyQueues(ctx, a.mq, a.l, a.repo, tenantId, workflowRun)
 		if err != nil {
-			return nil, fmt.Errorf("could not queue workflow run: %w", err)
+			return nil, fmt.Errorf("could not notify queues: %w", err)
 		}
+		workflowRunIds = append(workflowRunIds, sqlchelpers.UUIDToStr(workflowRun.Row.WorkflowRun.ID))
 	}
 
 	// adding in the pre-existing workflows to the response.

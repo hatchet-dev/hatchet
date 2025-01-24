@@ -8,8 +8,7 @@ import (
 
 	"github.com/go-co-op/gocron/v2"
 
-	"github.com/hatchet-dev/hatchet/internal/msgqueue"
-	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
+	wutils "github.com/hatchet-dev/hatchet/internal/workflowutils"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
@@ -136,17 +135,10 @@ func (t *TickerImpl) runCronWorkflow(tenantId, workflowVersionId, cron, cronPare
 			return
 		}
 
-		workflowRunId := sqlchelpers.UUIDToStr(workflowRun.ID)
-
-		err = t.mq.AddMessage(
-			context.Background(),
-			msgqueue.WORKFLOW_PROCESSING_QUEUE,
-			tasktypes.WorkflowRunQueuedToTask(tenantId, workflowRunId),
-		)
+		err = wutils.NotifyQueues(ctx, t.mq, t.l, t.repo, tenantId, workflowRun)
 
 		if err != nil {
-			t.l.Err(err).Msg("could not add workflow run queued task")
-			return
+			t.l.Err(err).Msg("could not notify queues")
 		}
 
 	}

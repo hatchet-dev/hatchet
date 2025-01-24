@@ -3,6 +3,8 @@ package admin
 import (
 	"fmt"
 
+	"github.com/rs/zerolog"
+
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
@@ -20,6 +22,7 @@ type AdminServiceImpl struct {
 	repo         repository.EngineRepository
 	mq           msgqueue.MessageQueue
 	v            validator.Validator
+	l            *zerolog.Logger
 }
 
 type AdminServiceOpt func(*AdminServiceOpts)
@@ -29,6 +32,7 @@ type AdminServiceOpts struct {
 	repo         repository.EngineRepository
 	mq           msgqueue.MessageQueue
 	v            validator.Validator
+	l            *zerolog.Logger
 }
 
 func defaultAdminServiceOpts() *AdminServiceOpts {
@@ -48,6 +52,12 @@ func WithRepository(r repository.EngineRepository) AdminServiceOpt {
 func WithEntitlementsRepository(r repository.EntitlementsRepository) AdminServiceOpt {
 	return func(opts *AdminServiceOpts) {
 		opts.entitlements = r
+	}
+}
+
+func WithLogger(l *zerolog.Logger) AdminServiceOpt {
+	return func(opts *AdminServiceOpts) {
+		opts.l = l
 	}
 }
 
@@ -78,10 +88,15 @@ func NewAdminService(fs ...AdminServiceOpt) (AdminService, error) {
 		return nil, fmt.Errorf("task queue is required. use WithMessageQueue")
 	}
 
+	if opts.l == nil {
+		return nil, fmt.Errorf("logger is required. use WithLogger")
+	}
+
 	return &AdminServiceImpl{
 		repo:         opts.repo,
 		entitlements: opts.entitlements,
 		mq:           opts.mq,
 		v:            opts.v,
+		l:            opts.l,
 	}, nil
 }

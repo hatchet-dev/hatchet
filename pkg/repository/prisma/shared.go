@@ -9,36 +9,39 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/buffer"
+	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
 type sharedRepository struct {
-	pool    *pgxpool.Pool
-	v       validator.Validator
-	l       *zerolog.Logger
-	queries *dbsqlc.Queries
+	pool                   *pgxpool.Pool
+	v                      validator.Validator
+	l                      *zerolog.Logger
+	queries                *dbsqlc.Queries
+	queueActionTenantCache *cache.Cache
 
 	bulkStatusBuffer      *buffer.TenantBufferManager[*updateStepRunQueueData, pgtype.UUID]
 	bulkEventBuffer       *buffer.TenantBufferManager[*repository.CreateStepRunEventOpts, int]
 	bulkSemaphoreReleaser *buffer.TenantBufferManager[semaphoreReleaseOpts, pgtype.UUID]
 	bulkQueuer            *buffer.TenantBufferManager[bulkQueueStepRunOpts, pgtype.UUID]
 	bulkUserEventBuffer   *buffer.TenantBufferManager[*repository.CreateEventOpts, dbsqlc.Event]
-	bulkWorkflowRunBuffer *buffer.TenantBufferManager[*repository.CreateWorkflowRunOpts, dbsqlc.WorkflowRun]
+	bulkWorkflowRunBuffer *buffer.TenantBufferManager[*repository.CreateWorkflowRunOpts, repository.CreatedWorkflowRun]
 	bulkAckMQBuffer       *buffer.TenantBufferManager[int64, int]
 	bulkAddMQBuffer       *buffer.TenantBufferManager[addMessage, int]
 
 	wrRunningCallbacks []repository.TenantScopedCallback[pgtype.UUID]
 }
 
-func newSharedRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, cf *server.ConfigFileRuntime) (*sharedRepository, func() error, error) {
+func newSharedRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, cf *server.ConfigFileRuntime, cache *cache.Cache) (*sharedRepository, func() error, error) {
 	queries := dbsqlc.New()
 
 	s := &sharedRepository{
-		pool:    pool,
-		v:       v,
-		l:       l,
-		queries: queries,
+		pool:                   pool,
+		v:                      v,
+		l:                      l,
+		queries:                queries,
+		queueActionTenantCache: cache,
 	}
 
 	statusBuffer, err := newBulkStepRunStatusBuffer(s)

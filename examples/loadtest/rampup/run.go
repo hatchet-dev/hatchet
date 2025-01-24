@@ -18,18 +18,11 @@ func getConcurrencyKey(ctx worker.HatchetContext) (string, error) {
 	return "my-key", nil
 }
 
-func run(ctx context.Context, delay time.Duration, concurrency int, maxAcceptableDuration time.Duration, hook chan<- time.Duration, executedCh chan<- int64) (int64, int64) {
-	c, err := client.New(
-		client.WithLogLevel("warn"),
-	)
-
-	if err != nil {
-		panic(err)
-	}
+func runWorker(ctx context.Context, client client.Client, concurrency int, maxAcceptableDuration time.Duration, workerStarted chan<- time.Time, errChan chan<- error, resultChan chan<- Event) (int64, int64) {
 
 	w, err := worker.NewWorker(
 		worker.WithClient(
-			c,
+			client,
 		),
 		worker.WithLogLevel("warn"),
 		worker.WithMaxRuns(200),
@@ -48,10 +41,9 @@ func run(ctx context.Context, delay time.Duration, concurrency int, maxAcceptabl
 	if concurrency > 0 {
 		concurrencyOpts = worker.Concurrency(getConcurrencyKey).MaxRuns(int32(concurrency))
 	}
-
-	err = w.On(
-		worker.Event("load-test:event"),
+	err = w.RegisterWorkflow(
 		&worker.WorkflowJob{
+			On:          worker.Event("load-test:event"),
 			Name:        "load-test",
 			Description: "Load testing",
 			Concurrency: concurrencyOpts,
@@ -68,12 +60,11 @@ func run(ctx context.Context, delay time.Duration, concurrency int, maxAcceptabl
 					l.Debug().Msgf("executing %d took %s", input.ID, took)
 
 					if took > maxAcceptableDuration {
-						hook <- took
+						errChan <- fmt.Errorf("event %d took too long to execute: %s", input.ID, took)
 					}
 
-					executedCh <- input.ID
-
 					mx.Lock()
+					defer mx.Unlock()
 
 					// detect duplicate in executed slice
 					var duplicate bool
@@ -83,15 +74,18 @@ func run(ctx context.Context, delay time.Duration, concurrency int, maxAcceptabl
 						}
 					}
 					if duplicate {
-						l.Warn().Str("step-run-id", ctx.StepRunId()).Msgf("duplicate %d", input.ID)
-					} else {
-						uniques += 1
-					}
-					count += 1
-					executed = append(executed, input.ID)
-					mx.Unlock()
+						l.Error().Str("step-run-id", ctx.StepRunId()).Msgf("duplicate %d", input.ID)
+						e := fmt.Errorf("duplicate %d", input.ID)
+						errChan <- e
+						return nil, e
 
-					time.Sleep(delay)
+					}
+
+					uniques++
+					resultChan <- input
+
+					count++
+					executed = append(executed, input.ID)
 
 					return &stepOneOutput{
 						Message: "This ran at: " + time.Now().Format(time.RFC3339Nano),
@@ -104,12 +98,11 @@ func run(ctx context.Context, delay time.Duration, concurrency int, maxAcceptabl
 	if err != nil {
 		panic(err)
 	}
-
 	cleanup, err := w.Start()
 	if err != nil {
 		panic(fmt.Errorf("error starting worker: %w", err))
 	}
-
+	workerStarted <- time.Now()
 	<-ctx.Done()
 
 	if err := cleanup(); err != nil {

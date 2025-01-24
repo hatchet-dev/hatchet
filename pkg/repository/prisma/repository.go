@@ -104,7 +104,7 @@ func NewAPIRepository(client *db.PrismaClient, pool *pgxpool.Pool, cf *server.Co
 		opts.cache = cache.New(1 * time.Millisecond)
 	}
 
-	shared, cleanup, err := newSharedRepository(pool, opts.v, opts.l, cf)
+	shared, cleanup, err := newSharedRepository(pool, opts.v, opts.l, cf, opts.cache.(*cache.Cache))
 
 	if err != nil {
 		return nil, nil, err
@@ -338,7 +338,7 @@ func NewEngineRepository(pool *pgxpool.Pool, essentialPool *pgxpool.Pool, cf *se
 	rlCache := cache.New(5 * time.Minute)
 	queueCache := cache.New(5 * time.Minute)
 
-	shared, cleanup, err := newSharedRepository(pool, opts.v, opts.l, cf)
+	shared, cleanup, err := newSharedRepository(pool, opts.v, opts.l, cf, queueCache)
 
 	if err != nil {
 		return nil, nil, err
@@ -362,8 +362,8 @@ func NewEngineRepository(pool *pgxpool.Pool, essentialPool *pgxpool.Pool, cf *se
 			dispatcher:     NewDispatcherRepository(pool, essentialPool, opts.v, opts.l),
 			event:          NewEventEngineRepository(shared, opts.metered, cf.EventBuffer),
 			getGroupKeyRun: NewGetGroupKeyRunRepository(pool, opts.v, opts.l),
+			stepRun:        NewStepRunEngineRepository(shared, cf),
 			jobRun:         NewJobRunEngineRepository(shared),
-			stepRun:        NewStepRunEngineRepository(shared, cf, rlCache, queueCache),
 			step:           NewStepRepository(pool, opts.v, opts.l),
 			tenant:         NewTenantEngineRepository(pool, opts.v, opts.l, opts.cache),
 			tenantAlerting: NewTenantAlertingEngineRepository(pool, opts.v, opts.l, opts.cache),

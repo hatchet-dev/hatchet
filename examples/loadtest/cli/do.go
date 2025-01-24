@@ -4,43 +4,158 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
+
+	clientconfig "github.com/hatchet-dev/hatchet/pkg/config/client"
+
+	"github.com/hatchet-dev/hatchet/pkg/client"
 )
 
-func do(duration time.Duration, eventsPerSecond int, delay time.Duration, wait time.Duration, concurrency int, workerDelay time.Duration) error {
-	l.Info().Msgf("testing with duration=%s, eventsPerSecond=%d, delay=%s, wait=%s, concurrency=%d", duration, eventsPerSecond, delay, wait, concurrency)
+func generateNamespace() string {
+	return fmt.Sprintf("loadtest-%d", time.Now().Unix())
+}
 
-	ctx, cancel := context.WithCancel(context.Background())
+func do(ctx context.Context, duration time.Duration, eventsPerSecond int, delay time.Duration, concurrency int, workerDelay time.Duration, maxPerEventTime time.Duration, maxPerExecution time.Duration, timeoutMultiplier int) error {
+	l.Info().Msgf("testing with duration=%s, eventsPerSecond=%d, delay=%s,  concurrency=%d", duration, eventsPerSecond, delay, concurrency)
+	c, err := client.NewFromConfigFile(&clientconfig.ClientConfigFile{
+		Namespace: generateNamespace(),
+	}, client.WithLogLevel("warn"))
+
+	if err != nil {
+		panic(err)
+	}
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Minute)
 	defer cancel()
 
-	after := 10 * time.Second
+	// catch an interrupt signal
+	sigChan := make(chan os.Signal, 1)
 
-	go func() {
-		time.Sleep(duration + after + wait + 5*time.Second)
-		cancel()
-	}()
+	// Notify the channel of interrupt and terminate signals
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 
 	ch := make(chan int64, 2)
 	durations := make(chan time.Duration, eventsPerSecond*int(duration.Seconds())*3)
+	workerCtx, workerCancel := context.WithCancel(context.Background())
+
+	defer workerCancel()
+	executedChan := make(chan int64, eventsPerSecond*int(duration.Seconds())*2)
+	emittedChan := make(chan int64, 1)
+	duplicateChan := make(chan int64, 1)
+	executedCount := int64(0)
+
 	go func() {
 		if workerDelay.Seconds() > 0 {
+
 			l.Info().Msgf("wait %s before starting the worker", workerDelay)
 			time.Sleep(workerDelay)
 		}
 		l.Info().Msg("starting worker now")
-		count, uniques := run(ctx, delay, durations, concurrency)
-		ch <- count
-		ch <- uniques
+
+		uniques := runWorker(workerCtx, c, delay, durations, concurrency, executedChan, duplicateChan)
+
+		select {
+		case ch <- uniques:
+		case <-ctx.Done():
+			l.Info().Msg("ctx done exiting goroutine")
+
+		}
+
+		l.Info().Msg("run worker finished")
 	}()
 
-	time.Sleep(after)
+	// we need to wait for the worker to start so that the workflow is registered and we don't miss any events
+	// otherwise we could process the events before we have a workflow registered for them
+
+	time.Sleep(15 * time.Second) // wait for the worker to start
 
 	scheduled := make(chan time.Duration, eventsPerSecond*int(duration.Seconds())*2)
-	emitted := emit(ctx, eventsPerSecond, duration, scheduled)
-	executed := <-ch
-	uniques := <-ch
+	var emittedCount int64
 
-	l.Info().Msgf("emitted %d, executed %d, uniques %d, using %d events/s", emitted, executed, uniques, eventsPerSecond)
+	startedAt := time.Now()
+	go func() {
+
+		select {
+
+		case <-ctx.Done():
+			l.Error().Msg("context done before finishing emit")
+			return
+
+		case emittedChan <- emit(ctx, c, eventsPerSecond, duration, scheduled):
+		}
+
+	}()
+
+	// going to allow 2X the duration for the overall timeout
+	after := duration * 2
+
+	timeout := time.Duration(timeoutMultiplier) * (duration + after) * 2
+
+	fmt.Println("timeout", timeout)
+	l.Info().Msgf("waiting for %s", timeout)
+	timeoutCtx, cancelTimeout := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("test took longer than %d", timeout))
+	defer cancelTimeout()
+
+outer:
+	for {
+		select {
+		case <-timeoutCtx.Done():
+			l.Info().Msg("context done")
+			if timeoutCtx.Err() == context.DeadlineExceeded {
+				return fmt.Errorf("❌ timed out waiting for test to finish waited %s", timeout)
+			} else {
+				l.Info().Msgf("context done with casuse %s", timeoutCtx.Err())
+				return nil
+			}
+		case <-sigChan:
+			l.Info().Msg("interrupted")
+			return nil
+		case <-ctx.Done():
+			l.Info().Msg("context done")
+			return nil
+
+		case dupeId := <-duplicateChan:
+			l.Error().Msgf("❌ duplicate event %d", dupeId)
+			return fmt.Errorf("❌ duplicate event %d", dupeId)
+
+		case executed := <-executedChan:
+			l.Debug().Msgf("executed %d", executed)
+			executedCount++
+
+			if emittedCount > 0 {
+
+				if executedCount == emittedCount {
+					// this is the finished condition
+					l.Info().Msg("finished test")
+					break outer
+				}
+				if executedCount > emittedCount {
+					l.Error().Msgf("❌ executed more events than emitted executed=%d, emitted=%d", executedCount, emittedCount)
+					return fmt.Errorf("❌ executed more events than emitted")
+				}
+			}
+
+		case emittedCount = <-emittedChan:
+
+			l.Debug().Msgf("emitted %d", emittedCount)
+		}
+
+	}
+	timeTaken := time.Since(startedAt)
+	workerCancel()
+	var executed int64
+
+	select {
+
+	case executed = <-ch:
+	case <-ctx.Done():
+		return fmt.Errorf("❌ context done before finishing")
+
+	}
+
+	l.Info().Msgf("emitted %d, executed %d, using %d events/s", emittedCount, executed, eventsPerSecond)
 
 	if executed == 0 {
 		return fmt.Errorf("❌ no events executed")
@@ -54,20 +169,29 @@ func do(duration time.Duration, eventsPerSecond int, delay time.Duration, wait t
 	log.Printf("ℹ️ average duration per executed event: %s", durationPerEventExecuted)
 
 	var totalDurationScheduled time.Duration
-	for i := 0; i < int(emitted); i++ {
+	for i := 0; i < int(emittedCount); i++ {
 		totalDurationScheduled += <-scheduled
 	}
-	scheduleTimePerEvent := totalDurationScheduled / time.Duration(emitted)
+	scheduleTimePerEvent := totalDurationScheduled / time.Duration(emittedCount)
 
 	log.Printf("ℹ️ average scheduling time per event: %s", scheduleTimePerEvent)
 
-	if emitted != executed {
-		log.Printf("⚠️ warning: emitted and executed counts do not match: %d != %d", emitted, executed)
+	if emittedCount != executed {
+		return fmt.Errorf("❌ emitted and executed counts do not match: %d != %d", emittedCount, executed)
 	}
 
-	if emitted != uniques {
-		return fmt.Errorf("❌ emitted and unique executed counts do not match: %d != %d", emitted, uniques)
+	if maxPerEventTime > 0 && scheduleTimePerEvent > maxPerEventTime {
+		return fmt.Errorf("❌ scheduling time per event %s exceeds max %s", scheduleTimePerEvent, maxPerEventTime)
 	}
+
+	if maxPerExecution > 0 && durationPerEventExecuted > maxPerExecution {
+		return fmt.Errorf("❌ duration per event executed %s exceeds max %s", durationPerEventExecuted, maxPerExecution)
+	}
+
+	log.Printf("Executed %d events in %s for %.2f events per second",
+		executedCount,
+		timeTaken,
+		float64(executedCount)/timeTaken.Seconds())
 
 	log.Printf("✅ success")
 

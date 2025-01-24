@@ -12,6 +12,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
+	wutils "github.com/hatchet-dev/hatchet/internal/workflowutils"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
@@ -95,21 +96,37 @@ func (t *WorkflowService) WorkflowRunCreate(ctx echo.Context, request gen.Workfl
 		return nil, fmt.Errorf("trigger.go could not create workflow run: %w", err)
 	}
 
-	// send to workflow processing queue
-	err = t.config.MessageQueue.AddMessage(
-		ctx.Request().Context(),
-		msgqueue.WORKFLOW_PROCESSING_QUEUE,
-		tasktypes.WorkflowRunQueuedToTask(
-			sqlchelpers.UUIDToStr(createdWorkflowRun.TenantId),
-			sqlchelpers.UUIDToStr(createdWorkflowRun.ID),
-		),
-	)
+	if !wutils.CanShortCircuit(createdWorkflowRun.Row) {
+		// send to workflow processing queue
+		err = t.config.MessageQueue.AddMessage(
+			ctx.Request().Context(),
+			msgqueue.WORKFLOW_PROCESSING_QUEUE,
+			tasktypes.WorkflowRunQueuedToTask(
+				sqlchelpers.UUIDToStr(createdWorkflowRun.Row.WorkflowRun.TenantId),
+				sqlchelpers.UUIDToStr(createdWorkflowRun.Row.WorkflowRun.ID),
+			),
+		)
 
-	if err != nil {
-		return nil, fmt.Errorf("could not add workflow run to queue: %w", err)
+		if err != nil {
+			return nil, fmt.Errorf("could not add workflow run to queue: %w", err)
+		}
 	}
 
-	workflowRun, err := t.config.APIRepository.WorkflowRun().GetWorkflowRunById(ctx.Request().Context(), tenant.ID, sqlchelpers.UUIDToStr(createdWorkflowRun.ID))
+	for _, queueName := range createdWorkflowRun.InitialStepRunQueueNames {
+
+		if schedPartitionId, ok := tenant.SchedulerPartitionID(); ok {
+			err = t.config.MessageQueue.AddMessage(
+				ctx.Request().Context(),
+				msgqueue.QueueTypeFromPartitionIDAndController(schedPartitionId, msgqueue.Scheduler),
+				tasktypes.CheckTenantQueueToTask(tenant.ID, queueName, true, false),
+			)
+
+			if err != nil {
+				t.config.Logger.Err(err).Msg("could not add message to scheduler partition queue")
+			}
+		}
+	}
+	workflowRun, err := t.config.APIRepository.WorkflowRun().GetWorkflowRunById(ctx.Request().Context(), tenant.ID, sqlchelpers.UUIDToStr(createdWorkflowRun.Row.WorkflowRun.ID))
 
 	if err != nil {
 		return nil, fmt.Errorf("could not get workflow run: %w", err)

@@ -36,13 +36,11 @@ type Partition struct {
 
 func NewPartition(l *zerolog.Logger, repo repository.TenantEngineRepository) (*Partition, error) {
 	s1, err := gocron.NewScheduler(gocron.WithLocation(time.UTC))
-
 	if err != nil {
 		return nil, err
 	}
 
 	s2, err := gocron.NewScheduler(gocron.WithLocation(time.UTC))
-
 	if err != nil {
 		return nil, err
 	}
@@ -52,7 +50,6 @@ func NewPartition(l *zerolog.Logger, repo repository.TenantEngineRepository) (*P
 	if err != nil {
 		return nil, err
 	}
-
 	return &Partition{
 		repo:           repo,
 		l:              l,

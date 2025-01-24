@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"log"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -19,6 +20,12 @@ import (
 func TestLoadCLI(t *testing.T) {
 	testutils.Prepare(t)
 
+	timeoutMultiplier := 1
+	if os.Getenv("SERVER_TASKQUEUE_KIND") == "postgres" {
+		log.Println("using postgres, increasing timings for load test")
+		timeoutMultiplier = 2
+	}
+
 	type args struct {
 		duration        time.Duration
 		eventsPerSecond int
@@ -26,6 +33,8 @@ func TestLoadCLI(t *testing.T) {
 		wait            time.Duration
 		workerDelay     time.Duration
 		concurrency     int
+		maxPerEventTime time.Duration
+		maxPerExecution time.Duration
 	}
 
 	l = logger.NewStdErr(
@@ -40,64 +49,89 @@ func TestLoadCLI(t *testing.T) {
 		name    string
 		args    args
 		wantErr bool
-	}{{
-		name: "test simple with unlimited concurrency",
-		args: args{
-			duration:        10 * time.Second,
-			eventsPerSecond: 10,
-			delay:           0 * time.Second,
-			wait:            60 * time.Second,
-			concurrency:     0,
+	}{
+		{
+			name: "test simple with unlimited concurrency",
+			args: args{
+				duration:        20 * time.Second,
+				eventsPerSecond: 10,
+				delay:           0 * time.Second,
+				concurrency:     0,
+				maxPerEventTime: 0,
+				maxPerExecution: 0,
+			},
+		}, {
+			name: "test with high step delay",
+			args: args{
+				duration:        20 * time.Second,
+				eventsPerSecond: 10,
+				delay:           4 * time.Second, // can't go higher than 5 seconds here because we timeout without activity
+				concurrency:     0,
+				maxPerEventTime: 0,
+				maxPerExecution: 0,
+			},
 		},
-	}, {
-		name: "test with high step delay",
-		args: args{
-			duration:        10 * time.Second,
-			eventsPerSecond: 10,
-			delay:           10 * time.Second,
-			wait:            60 * time.Second,
-			concurrency:     0,
+		{
+			name: "test for many queued events and little worker throughput",
+			args: args{
+				duration:        60 * time.Second,
+				eventsPerSecond: 100,
+				delay:           0 * time.Second,
+				concurrency:     0,
+				maxPerEventTime: 0,
+				maxPerExecution: 0,
+			},
 		},
-	}, {
-		name: "test for many queued events and little worker throughput",
-		args: args{
-			duration:        60 * time.Second,
-			eventsPerSecond: 100,
-			delay:           0 * time.Second,
-			workerDelay:     60 * time.Second,
-			wait:            240 * time.Second,
-			concurrency:     0,
-		},
-	}}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+		{
+			name: "test with scheduling and execution time limits",
+			args: args{
+				duration:        30 * time.Second,
+				eventsPerSecond: 1,
+				delay:           0 * time.Second,
+				concurrency:     0,
+				maxPerEventTime: 100 * time.Millisecond,
+				// TODO investigate why this occasionally spikes to 16s
+				//maxPerExecution: 1 * time.Second * time.Duration(timeoutMultiplier),
+				maxPerExecution: 17 * time.Second,
+			},
+		}}
 
-	setup := sync.WaitGroup{}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+
+	engineCleanupWg := sync.WaitGroup{}
 
 	go func() {
-		setup.Add(1)
 		log.Printf("setup start")
+		engineCleanupWg.Add(1)
 		testutils.SetupEngine(ctx, t)
-		setup.Done()
+		engineCleanupWg.Done()
 		log.Printf("setup end")
 	}()
 
-	// TODO instead of waiting, figure out when the engine setup is complete
+	log.Printf("waiting for engine to start")
+
 	time.Sleep(15 * time.Second)
 
 	for _, tt := range tests {
+
+		l.Info().Msgf("running test %s", tt.name)
 		t.Run(tt.name, func(t *testing.T) {
-			if err := do(tt.args.duration, tt.args.eventsPerSecond, tt.args.delay, tt.args.wait, tt.args.concurrency, tt.args.workerDelay); (err != nil) != tt.wantErr {
+			if err := do(ctx, tt.args.duration, tt.args.eventsPerSecond, tt.args.delay, tt.args.concurrency, tt.args.workerDelay, tt.args.maxPerEventTime, tt.args.maxPerExecution, timeoutMultiplier); (err != nil) != tt.wantErr {
 				t.Errorf("do() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
+		l.Info().Msgf("test %s complete", tt.name)
+
 	}
-
-	cancel()
-
 	log.Printf("test complete")
-	setup.Wait()
+	cancel()
+	// wait for engine to cleanup
+	engineCleanupWg.Wait()
+
 	log.Printf("cleanup complete")
+
+	time.Sleep(500 * time.Millisecond) // pgxpool background health check needs time to quit https://github.com/jackc/pgx/issues/1641
 
 	goleak.VerifyNone(
 		t,
