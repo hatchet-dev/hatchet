@@ -29,7 +29,7 @@ type WorkflowRun struct {
 	StartedAt *time.Time `json:"startedAt,omitempty"`
 
 	// Status The status of the workflow run.
-	Status string `json:"status"`
+	Status ReadableTaskStatus `json:"status"`
 
 	// TaskId The ID of the task associated with this workflow run.
 	TaskId uuid.UUID `json:"taskId"`
@@ -44,32 +44,42 @@ type WorkflowRun struct {
 type Sticky string
 
 const (
-	HARD Sticky = "HARD"
-	SOFT Sticky = "SOFT"
-	NONE Sticky = "NONE"
+	STICKY_HARD Sticky = "HARD"
+	STICKY_SOFT Sticky = "SOFT"
+	STICKY_NONE Sticky = "NONE"
 )
 
 type EventType string
 
 const (
-	REQUEUED_NO_WORKER   EventType = "REQUEUED_NO_WORKER"
-	REQUEUED_RATE_LIMIT  EventType = "REQUEUED_RATE_LIMIT"
-	SCHEDULING_TIMED_OUT EventType = "SCHEDULING_TIMED_OUT"
-	ASSIGNED             EventType = "ASSIGNED"
-	STARTED              EventType = "STARTED"
-	FINISHED             EventType = "FINISHED"
-	FAILED               EventType = "FAILED"
-	RETRYING             EventType = "RETRYING"
-	CANCELLED            EventType = "CANCELLED"
-	TIMED_OUT            EventType = "TIMED_OUT"
-	REASSIGNED           EventType = "REASSIGNED"
-	SLOT_RELEASED        EventType = "SLOT_RELEASED"
-	TIMEOUT_REFRESHED    EventType = "TIMEOUT_REFRESHED"
-	RETRIED_BY_USER      EventType = "RETRIED_BY_USER"
-	SENT_TO_WORKER       EventType = "SENT_TO_WORKER"
-	RATE_LIMIT_ERROR     EventType = "RATE_LIMIT_ERROR"
-	ACKNOWLEDGED         EventType = "ACKNOWLEDGED"
-	CREATED              EventType = "CREATED"
+	EVENT_TYPE_REQUEUED_NO_WORKER   EventType = "REQUEUED_NO_WORKER"
+	EVENT_TYPE_REQUEUED_RATE_LIMIT  EventType = "REQUEUED_RATE_LIMIT"
+	EVENT_TYPE_SCHEDULING_TIMED_OUT EventType = "SCHEDULING_TIMED_OUT"
+	EVENT_TYPE_ASSIGNED             EventType = "ASSIGNED"
+	EVENT_TYPE_STARTED              EventType = "STARTED"
+	EVENT_TYPE_FINISHED             EventType = "FINISHED"
+	EVENT_TYPE_FAILED               EventType = "FAILED"
+	EVENT_TYPE_RETRYING             EventType = "RETRYING"
+	EVENT_TYPE_CANCELLED            EventType = "CANCELLED"
+	EVENT_TYPE_TIMED_OUT            EventType = "TIMED_OUT"
+	EVENT_TYPE_REASSIGNED           EventType = "REASSIGNED"
+	EVENT_TYPE_SLOT_RELEASED        EventType = "SLOT_RELEASED"
+	EVENT_TYPE_TIMEOUT_REFRESHED    EventType = "TIMEOUT_REFRESHED"
+	EVENT_TYPE_RETRIED_BY_USER      EventType = "RETRIED_BY_USER"
+	EVENT_TYPE_SENT_TO_WORKER       EventType = "SENT_TO_WORKER"
+	EVENT_TYPE_RATE_LIMIT_ERROR     EventType = "RATE_LIMIT_ERROR"
+	EVENT_TYPE_ACKNOWLEDGED         EventType = "ACKNOWLEDGED"
+	EVENT_TYPE_CREATED              EventType = "CREATED"
+)
+
+type ReadableTaskStatus string
+
+const (
+	READABLE_TASK_STATUS_QUEUED    ReadableTaskStatus = "QUEUED"
+	READABLE_TASK_STATUS_RUNNING   ReadableTaskStatus = "RUNNING"
+	READABLE_TASK_STATUS_COMPLETED ReadableTaskStatus = "COMPLETED"
+	READABLE_TASK_STATUS_CANCELLED ReadableTaskStatus = "CANCELLED"
+	READABLE_TASK_STATUS_FAILED    ReadableTaskStatus = "FAILED"
 )
 
 type Task struct {

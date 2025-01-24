@@ -57,6 +57,13 @@
             'ACKNOWLEDGED' = 17,
             'CREATED' = 18
         ) NOT NULL,
+        readable_status Enum(
+            'QUEUED' = 1,
+            'RUNNING' = 2,
+            'COMPLETED' = 3,
+            'CANCELLED' = 4,
+            'FAILED' = 5
+        ),
         timestamp DateTime('UTC') NOT NULL,
         retry_count SMALLINT UNSIGNED NOT NULL DEFAULT 0,
         error_message TEXT NOT NULL DEFAULT '',

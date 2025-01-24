@@ -259,6 +259,7 @@ func WriteTaskEventBatch(c context.Context, events []olap.TaskEvent) ([]*olap.Ta
 			task_id,
 			tenant_id,
 			event_type,
+			readable_status,
 			timestamp,
 			retry_count,
 			error_message,
@@ -274,10 +275,52 @@ func WriteTaskEventBatch(c context.Context, events []olap.TaskEvent) ([]*olap.Ta
 	}
 
 	for _, event := range events {
+		readableStatus := olap.READABLE_TASK_STATUS_QUEUED
+
+		switch event.EventType {
+		case olap.EVENT_TYPE_REQUEUED_NO_WORKER:
+			readableStatus = olap.READABLE_TASK_STATUS_QUEUED
+		case olap.EVENT_TYPE_REQUEUED_RATE_LIMIT:
+			readableStatus = olap.READABLE_TASK_STATUS_QUEUED
+		case olap.EVENT_TYPE_SCHEDULING_TIMED_OUT:
+			readableStatus = olap.READABLE_TASK_STATUS_FAILED
+		case olap.EVENT_TYPE_ASSIGNED:
+			readableStatus = olap.READABLE_TASK_STATUS_RUNNING
+		case olap.EVENT_TYPE_STARTED:
+			readableStatus = olap.READABLE_TASK_STATUS_RUNNING
+		case olap.EVENT_TYPE_FINISHED:
+			readableStatus = olap.READABLE_TASK_STATUS_COMPLETED
+		case olap.EVENT_TYPE_FAILED:
+			readableStatus = olap.READABLE_TASK_STATUS_FAILED
+		case olap.EVENT_TYPE_RETRYING:
+			readableStatus = olap.READABLE_TASK_STATUS_RUNNING
+		case olap.EVENT_TYPE_CANCELLED:
+			readableStatus = olap.READABLE_TASK_STATUS_CANCELLED
+		case olap.EVENT_TYPE_TIMED_OUT:
+			readableStatus = olap.READABLE_TASK_STATUS_FAILED
+		case olap.EVENT_TYPE_REASSIGNED:
+			readableStatus = olap.READABLE_TASK_STATUS_RUNNING
+		case olap.EVENT_TYPE_SLOT_RELEASED:
+			readableStatus = olap.READABLE_TASK_STATUS_QUEUED
+		case olap.EVENT_TYPE_TIMEOUT_REFRESHED:
+			readableStatus = olap.READABLE_TASK_STATUS_RUNNING
+		case olap.EVENT_TYPE_RETRIED_BY_USER:
+			readableStatus = olap.READABLE_TASK_STATUS_RUNNING
+		case olap.EVENT_TYPE_SENT_TO_WORKER:
+			readableStatus = olap.READABLE_TASK_STATUS_RUNNING
+		case olap.EVENT_TYPE_RATE_LIMIT_ERROR:
+			readableStatus = olap.READABLE_TASK_STATUS_FAILED
+		case olap.EVENT_TYPE_ACKNOWLEDGED:
+			readableStatus = olap.READABLE_TASK_STATUS_RUNNING
+		case olap.EVENT_TYPE_CREATED:
+			readableStatus = olap.READABLE_TASK_STATUS_QUEUED
+		}
+
 		err := batch.Append(
 			event.TaskId,
 			event.TenantId,
 			event.EventType,
+			readableStatus,
 			event.Timestamp,
 			event.RetryCount,
 			event.ErrorMsg,
