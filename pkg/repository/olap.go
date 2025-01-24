@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"fmt"
 	"log"
 
 	"github.com/google/uuid"
@@ -94,8 +95,28 @@ func (r *olapEventRepository) Connect(ctx context.Context) error {
 	return nil
 }
 
-// CASE status WHEN 'QUEUED' THEN 0 WHEN 'RUNNING' THEN 1 WHEN 'COMPLETED' THEN 2 WHEN 'CANCELLED' THEN 3 WHEN 'FAILED' THEN 4 ELSE -1 END
-// Look into if we can encode this into an enum and do `MAX()` over that
+func StringToReadableStatus(status string) olap.ReadableTaskStatus {
+	fmt.Println("\n\nStatus: ", status)
+
+	parsedStatus := status
+
+	fmt.Println("\n\nParsed: ", parsedStatus)
+
+	switch parsedStatus {
+	case "QUEUED":
+		return olap.READABLE_TASK_STATUS_QUEUED
+	case "RUNNING":
+		return olap.READABLE_TASK_STATUS_RUNNING
+	case "COMPLETED":
+		return olap.READABLE_TASK_STATUS_COMPLETED
+	case "CANCELLED":
+		return olap.READABLE_TASK_STATUS_CANCELLED
+	case "FAILED":
+		return olap.READABLE_TASK_STATUS_FAILED
+	default:
+		return olap.READABLE_TASK_STATUS_QUEUED
+	}
+}
 
 func (r *olapEventRepository) ReadTaskRuns(tenantId uuid.UUID, limit, offset int64) ([]olap.WorkflowRun, error) {
 	ctx := context.Background()
@@ -107,61 +128,57 @@ func (r *olapEventRepository) ReadTaskRuns(tenantId uuid.UUID, limit, offset int
 			ORDER BY created_at DESC
 			LIMIT ?
 			OFFSET ?
-		), relevant_task_events AS (
-			SELECT *
+		), max_retry_counts AS (
+			SELECT task_id, MAX(retry_count) AS max_retry_count
 			FROM task_events
-			WHERE
-				tenant_id = ?
-				AND status IN (
-				  ...
-				)
-				-- Add filter for max retry within task & its events
-		), most_recent_task_events AS (
-			SELECT *
-			FROM relevant_task_events
 			WHERE
 				tenant_id = ?
 				AND task_id IN (SELECT id FROM candidate_tasks)
 			GROUP BY task_id
-		), task_durations AS (
+		), relevant_task_events AS (
+			SELECT te.*
+			FROM task_events te
+			JOIN max_retry_counts mrc ON te.task_id = mrc.task_id AND te.retry_count = mrc.max_retry_count
+			WHERE
+				te.tenant_id = ?
+				AND task_id IN (SELECT id FROM candidate_tasks)
+				-- Filter for the max retry count within the task here
+				-- AND status IN (
+				--  ...
+				-- )
+		), task_event_metadata AS (
 			SELECT
 				task_id,
 				-- NOTE: These are bugs, should filter by status to determine these
 				MIN(timestamp) AS started_at,
 				MAX(timestamp) AS finished_at,
-				MAX(timestamp) - MIN(timestamp) AS duration
-			FROM task_events
-			WHERE
-				tenant_id = ?
-				AND task_id IN (SELECT id FROM candidate_tasks)
+				timeDiff(MIN(timestamp), MAX(timestamp)) * 1000 AS duration,
+				MAX(readable_status) AS status
+			FROM relevant_task_events
 			GROUP BY task_id
 		), error_messages AS (
 			SELECT
 				task_id,
 				error_message
-			FROM task_events
-			WHERE
-				tenant_id = ?
-				AND task_id IN (SELECT id FROM candidate_tasks)
-				AND status = 'FAILED'
+			FROM relevant_task_events
+			WHERE readable_status = 'FAILED'
 		)
 
 		SELECT
 			ct.additional_metadata,
 			ct.display_name,
-			td.duration,
+			tem.duration,
 			em.error_message,
-			td.finished_at,
+			tem.finished_at,
 			ct.id AS id,
-			td.started_at,
-			ts.status,
+			tem.started_at,
+			toString(tem.status) AS status,
 			ct.id AS task_id,
 			ct.tenant_id,
 			-- NOTE: This is probably a bug, figure out which timestamp to use.
 			ct.created_at AS timestamp
 		FROM candidate_tasks ct
-		JOIN task_statuses ts ON ct.id = ts.task_id
-		JOIN task_durations td ON ct.id = td.task_id
+		JOIN task_event_metadata tem ON ct.id = tem.task_id
 		LEFT JOIN error_messages em ON ct.id = em.task_id
 		ORDER BY ct.created_at DESC
 		`,
@@ -170,8 +187,9 @@ func (r *olapEventRepository) ReadTaskRuns(tenantId uuid.UUID, limit, offset int
 		offset,
 		tenantId,
 		tenantId,
-		tenantId,
 	)
+
+	fmt.Println(err)
 
 	if err != nil {
 		return []olap.WorkflowRun{}, err
@@ -180,6 +198,7 @@ func (r *olapEventRepository) ReadTaskRuns(tenantId uuid.UUID, limit, offset int
 	records := make([]olap.WorkflowRun, 0)
 
 	for rows.Next() {
+		fmt.Println("Rows: ", rows)
 		var (
 			taskRun olap.WorkflowRun
 		)
@@ -199,8 +218,10 @@ func (r *olapEventRepository) ReadTaskRuns(tenantId uuid.UUID, limit, offset int
 		)
 
 		if err != nil {
-			log.Fatal(err)
+			fmt.Println(err)
 		}
+
+		taskRun.Status = string(StringToReadableStatus(taskRun.Status))
 
 		records = append(records, taskRun)
 	}

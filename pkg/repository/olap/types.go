@@ -14,7 +14,7 @@ type WorkflowRun struct {
 	DisplayName *string `json:"displayName,omitempty"`
 
 	// Duration The duration of the workflow run.
-	Duration *int32 `json:"duration,omitempty"`
+	Duration *int64 `json:"duration,omitempty"`
 
 	// ErrorMessage The error message of the workflow run.
 	ErrorMessage *string `json:"errorMessage,omitempty"`
@@ -29,7 +29,7 @@ type WorkflowRun struct {
 	StartedAt *time.Time `json:"startedAt,omitempty"`
 
 	// Status The status of the workflow run.
-	Status ReadableTaskStatus `json:"status"`
+	Status string `json:"status"`
 
 	// TaskId The ID of the task associated with this workflow run.
 	TaskId uuid.UUID `json:"taskId"`
