@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
 )
 
 type WorkflowRun struct {
@@ -42,31 +41,61 @@ type WorkflowRun struct {
 	Timestamp time.Time `json:"timestamp"`
 }
 
+type Sticky string
+
+const (
+	HARD Sticky = "HARD"
+	SOFT Sticky = "SOFT"
+	NONE Sticky = "NONE"
+)
+
+type EventType string
+
+const (
+	REQUEUED_NO_WORKER   EventType = "REQUEUED_NO_WORKER"
+	REQUEUED_RATE_LIMIT  EventType = "REQUEUED_RATE_LIMIT"
+	SCHEDULING_TIMED_OUT EventType = "SCHEDULING_TIMED_OUT"
+	ASSIGNED             EventType = "ASSIGNED"
+	STARTED              EventType = "STARTED"
+	FINISHED             EventType = "FINISHED"
+	FAILED               EventType = "FAILED"
+	RETRYING             EventType = "RETRYING"
+	CANCELLED            EventType = "CANCELLED"
+	TIMED_OUT            EventType = "TIMED_OUT"
+	REASSIGNED           EventType = "REASSIGNED"
+	SLOT_RELEASED        EventType = "SLOT_RELEASED"
+	TIMEOUT_REFRESHED    EventType = "TIMEOUT_REFRESHED"
+	RETRIED_BY_USER      EventType = "RETRIED_BY_USER"
+	SENT_TO_WORKER       EventType = "SENT_TO_WORKER"
+	RATE_LIMIT_ERROR     EventType = "RATE_LIMIT_ERROR"
+	ACKNOWLEDGED         EventType = "ACKNOWLEDGED"
+	CREATED              EventType = "CREATED"
+)
+
 type Task struct {
 	Id                 uuid.UUID  `json:"id"`
 	TenantId           uuid.UUID  `json:"tenant_id"`
 	Queue              string     `json:"queue"`
 	ActionId           string     `json:"action_id"`
 	ScheduleTimeout    string     `json:"schedule_timeout"`
-	StepTimeout        *string    `json:"step_timeout,omitempty"`
+	StepTimeout        string     `json:"step_timeout"`
 	Priority           int32      `json:"priority"`
-	Sticky             *string    `json:"sticky"`
-	DesiredWorkerId    *uuid.UUID `json:"desired_worker_id"`
+	Sticky             Sticky     `json:"sticky"`
+	DesiredWorkerId    *uuid.UUID `json:"desired_worker_id,omitempty"`
 	DisplayName        string     `json:"display_name"`
 	Input              string     `json:"input"`
 	AdditionalMetadata string     `json:"additional_metadata"`
 }
 
 type TaskEvent struct {
-	TaskId                  uuid.UUID        `json:"task_id"`
-	TenantId                uuid.UUID        `json:"tenant_id"`
-	Status                  db.StepRunStatus `json:"status"`
-	Timestamp               time.Time        `json:"timestamp"`
-	RetryCount              int32            `json:"retry_count"`
-	ErrorMsg                *string          `json:"error_message,omitempty"`
-	Output                  *string          `json:"output,omitempty"`
-	AdditionalEventData     *string          `json:"additional__event_data"`
-	AdditionalEventMessage  *string          `json:"additional__event_message"`
-	AdditionalEventSeverity *string          `json:"additional__event_severity"`
-	AdditionalEventReason   *string          `json:"additional__event_reason"`
+	TaskId                 uuid.UUID  `json:"task_id"`
+	TenantId               uuid.UUID  `json:"tenant_id"`
+	EventType              EventType  `json:"event_type"`
+	Timestamp              time.Time  `json:"timestamp"`
+	RetryCount             uint32     `json:"retry_count"`
+	ErrorMsg               string     `json:"error_message"`
+	Output                 string     `json:"output"`
+	WorkerId               *uuid.UUID `json:"worker_id,omitempty"`
+	AdditionalEventData    string     `json:"additional__event_data"`
+	AdditionalEventMessage string     `json:"additional__event_message"`
 }

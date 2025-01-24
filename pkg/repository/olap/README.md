@@ -59,21 +59,21 @@
         ) NOT NULL,
         timestamp DateTime('UTC') NOT NULL,
         retry_count SMALLINT UNSIGNED NOT NULL DEFAULT 0,
-        error_message TEXT NULL DEFAULT NULL,
+        error_message TEXT NOT NULL DEFAULT '',
         output TEXT NOT NULL DEFAULT '{}',
         worker_id UUID NULL DEFAULT NULL,
         additional__event_data TEXT NOT NULL DEFAULT '{}',
         additional__event_message TEXT NOT NULL DEFAULT '',
         created_at DateTime('UTC') NOT NULL DEFAULT NOW(),
 
-        PRIMARY KEY (tenant_id, timestamp, task_id, status, retry_count)
+        PRIMARY KEY (tenant_id, task_id, timestamp, event_type, retry_count)
     )
     ENGINE = MergeTree()
 
     -- https://stackoverflow.com/a/75439879 for more on partitioning
     -- partition by week so we can easily drop old data
     PARTITION BY (toMonday(timestamp))
-    ORDER BY (tenant_id, task_id, timestamp, status)
+    ORDER BY (tenant_id, task_id, timestamp, event_type, retry_count);
    ```
 
 5. ```sql

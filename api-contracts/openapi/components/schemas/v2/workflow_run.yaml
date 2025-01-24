@@ -18,7 +18,6 @@ V2WorkflowRun:
       format: uuid
     status:
       $ref: "#/V2TaskStatus"
-
     timestamp:
       type: string
       format: date-time
@@ -87,3 +86,25 @@ V2TaskStatus:
     - COMPLETED
     - CANCELLED
     - FAILED
+
+V2EventType:
+  type: string
+  enum:
+    - REQUEUED_NO_WORKER
+    - REQUEUED_RATE_LIMIT
+    - SCHEDULING_TIMED_OUT
+    - ASSIGNED
+    - STARTED
+    - FINISHED
+    - FAILED
+    - RETRYING
+    - CANCELLED
+    - TIMED_OUT
+    - REASSIGNED
+    - SLOT_RELEASED
+    - TIMEOUT_REFRESHED
+    - RETRIED_BY_USER
+    - SENT_TO_WORKER
+    - RATE_LIMIT_ERROR
+    - ACKNOWLEDGED
+    - CREATED
