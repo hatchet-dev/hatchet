@@ -64,6 +64,14 @@ export interface APIResourceMeta {
   updatedAt: string;
 }
 
+export enum V2TaskStatus {
+  QUEUED = 'QUEUED',
+  RUNNING = 'RUNNING',
+  COMPLETED = 'COMPLETED',
+  CANCELLED = 'CANCELLED',
+  FAILED = 'FAILED',
+}
+
 export interface V2WorkflowRun {
   metadata: APIResourceMeta;
   /**
@@ -82,8 +90,7 @@ export interface V2WorkflowRun {
    * @example "bb214807-246e-43a5-a25d-41761d1cff9e"
    */
   taskId: string;
-  /** The status of the workflow run. */
-  status: string;
+  status: V2TaskStatus;
   /**
    * The timestamp of the workflow run.
    * @format date-time

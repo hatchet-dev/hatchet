@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
 )
 
 type WorkflowRun struct {
@@ -57,15 +58,15 @@ type Task struct {
 }
 
 type TaskEvent struct {
-	TaskId                  uuid.UUID `json:"task_id"`
-	TenantId                uuid.UUID `json:"tenant_id"`
-	Status                  string    `json:"status"`
-	Timestamp               time.Time `json:"timestamp"`
-	RetryCount              int32     `json:"retry_count"`
-	ErrorMsg                *string   `json:"error_message,omitempty"`
-	Output                  *string   `json:"output,omitempty"`
-	AdditionalEventData     *string   `json:"additional__event_data"`
-	AdditionalEventMessage  *string   `json:"additional__event_message"`
-	AdditionalEventSeverity *string   `json:"additional__event_severity"`
-	AdditionalEventReason   *string   `json:"additional__event_reason"`
+	TaskId                  uuid.UUID        `json:"task_id"`
+	TenantId                uuid.UUID        `json:"tenant_id"`
+	Status                  db.StepRunStatus `json:"status"`
+	Timestamp               time.Time        `json:"timestamp"`
+	RetryCount              int32            `json:"retry_count"`
+	ErrorMsg                *string          `json:"error_message,omitempty"`
+	Output                  *string          `json:"output,omitempty"`
+	AdditionalEventData     *string          `json:"additional__event_data"`
+	AdditionalEventMessage  *string          `json:"additional__event_message"`
+	AdditionalEventSeverity *string          `json:"additional__event_severity"`
+	AdditionalEventReason   *string          `json:"additional__event_reason"`
 }

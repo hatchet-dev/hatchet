@@ -174,6 +174,15 @@ const (
 	WORKFLOWRUN TenantResource = "WORKFLOW_RUN"
 )
 
+// Defines values for V2TaskStatus.
+const (
+	V2TaskStatusCANCELLED V2TaskStatus = "CANCELLED"
+	V2TaskStatusCOMPLETED V2TaskStatus = "COMPLETED"
+	V2TaskStatusFAILED    V2TaskStatus = "FAILED"
+	V2TaskStatusQUEUED    V2TaskStatus = "QUEUED"
+	V2TaskStatusRUNNING   V2TaskStatus = "RUNNING"
+)
+
 // Defines values for WorkerStatus.
 const (
 	ACTIVE   WorkerStatus = "ACTIVE"
@@ -218,12 +227,12 @@ const (
 
 // Defines values for WorkflowRunStatus.
 const (
-	CANCELLED WorkflowRunStatus = "CANCELLED"
-	FAILED    WorkflowRunStatus = "FAILED"
-	PENDING   WorkflowRunStatus = "PENDING"
-	QUEUED    WorkflowRunStatus = "QUEUED"
-	RUNNING   WorkflowRunStatus = "RUNNING"
-	SUCCEEDED WorkflowRunStatus = "SUCCEEDED"
+	WorkflowRunStatusCANCELLED WorkflowRunStatus = "CANCELLED"
+	WorkflowRunStatusFAILED    WorkflowRunStatus = "FAILED"
+	WorkflowRunStatusPENDING   WorkflowRunStatus = "PENDING"
+	WorkflowRunStatusQUEUED    WorkflowRunStatus = "QUEUED"
+	WorkflowRunStatusRUNNING   WorkflowRunStatus = "RUNNING"
+	WorkflowRunStatusSUCCEEDED WorkflowRunStatus = "SUCCEEDED"
 )
 
 // APIError defines model for APIError.
@@ -1110,6 +1119,9 @@ type UserTenantPublic struct {
 	Name *string `json:"name,omitempty"`
 }
 
+// V2TaskStatus defines model for V2TaskStatus.
+type V2TaskStatus string
+
 // V2WorkflowRun defines model for V2WorkflowRun.
 type V2WorkflowRun struct {
 	// AdditionalMetadata Additional metadata for the workflow run.
@@ -1132,10 +1144,8 @@ type V2WorkflowRun struct {
 	Metadata APIResourceMeta    `json:"metadata"`
 
 	// StartedAt The timestamp the workflow run started.
-	StartedAt time.Time `json:"startedAt"`
-
-	// Status The status of the workflow run.
-	Status string `json:"status"`
+	StartedAt time.Time    `json:"startedAt"`
+	Status    V2TaskStatus `json:"status"`
 
 	// TaskId The ID of the task associated with this workflow run.
 	TaskId openapi_types.UUID `json:"taskId"`
@@ -1784,21 +1794,6 @@ type V2WorkflowRunsListParams struct {
 
 	// Statuses A list of workflow run statuses to filter by
 	Statuses *WorkflowRunStatusList `form:"statuses,omitempty" json:"statuses,omitempty"`
-
-	// AdditionalMetadata A list of metadata key value pairs to filter by
-	AdditionalMetadata *[]string `form:"additionalMetadata,omitempty" json:"additionalMetadata,omitempty"`
-
-	// CreatedAfter The time after the workflow run was created
-	CreatedAfter *time.Time `form:"createdAfter,omitempty" json:"createdAfter,omitempty"`
-
-	// CreatedBefore The time before the workflow run was created
-	CreatedBefore *time.Time `form:"createdBefore,omitempty" json:"createdBefore,omitempty"`
-
-	// FinishedAfter The time after the workflow run was finished
-	FinishedAfter *time.Time `form:"finishedAfter,omitempty" json:"finishedAfter,omitempty"`
-
-	// FinishedBefore The time before the workflow run was finished
-	FinishedBefore *time.Time `form:"finishedBefore,omitempty" json:"finishedBefore,omitempty"`
 }
 
 // AlertEmailGroupUpdateJSONRequestBody defines body for AlertEmailGroupUpdate for application/json ContentType.
@@ -8568,86 +8563,6 @@ func NewV2WorkflowRunsListRequest(server string, tenant openapi_types.UUID, para
 		if params.Statuses != nil {
 
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "statuses", runtime.ParamLocationQuery, *params.Statuses); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.AdditionalMetadata != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "additionalMetadata", runtime.ParamLocationQuery, *params.AdditionalMetadata); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.CreatedAfter != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "createdAfter", runtime.ParamLocationQuery, *params.CreatedAfter); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.CreatedBefore != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "createdBefore", runtime.ParamLocationQuery, *params.CreatedBefore); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.FinishedAfter != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "finishedAfter", runtime.ParamLocationQuery, *params.FinishedAfter); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.FinishedBefore != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "finishedBefore", runtime.ParamLocationQuery, *params.FinishedBefore); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err

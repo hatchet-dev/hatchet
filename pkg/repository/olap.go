@@ -94,6 +94,9 @@ func (r *olapEventRepository) Connect(ctx context.Context) error {
 	return nil
 }
 
+// CASE status WHEN 'QUEUED' THEN 0 WHEN 'RUNNING' THEN 1 WHEN 'COMPLETED' THEN 2 WHEN 'CANCELLED' THEN 3 WHEN 'FAILED' THEN 4 ELSE -1 END
+// Look into if we can encode this into an enum and do `MAX()` over that
+
 func (r *olapEventRepository) ReadTaskRuns(tenantId uuid.UUID, limit, offset int64) ([]olap.WorkflowRun, error) {
 	ctx := context.Background()
 	rows, err := r.conn.Query(ctx, `
@@ -104,9 +107,18 @@ func (r *olapEventRepository) ReadTaskRuns(tenantId uuid.UUID, limit, offset int
 			ORDER BY created_at DESC
 			LIMIT ?
 			OFFSET ?
-		), task_statuses AS (
-			SELECT task_id, LAST_VALUE(status) AS status
+		), relevant_task_events AS (
+			SELECT *
 			FROM task_events
+			WHERE
+				tenant_id = ?
+				AND status IN (
+				  ...
+				)
+				-- Add filter for max retry within task & its events
+		), most_recent_task_events AS (
+			SELECT *
+			FROM relevant_task_events
 			WHERE
 				tenant_id = ?
 				AND task_id IN (SELECT id FROM candidate_tasks)

@@ -17,8 +17,8 @@ V2WorkflowRun:
       maxLength: 36
       format: uuid
     status:
-      type: string
-      description: The status of the workflow run.
+      $ref: "#/V2TaskStatus"
+
     timestamp:
       type: string
       format: date-time
@@ -78,3 +78,12 @@ V2WorkflowRuns:
   required:
     - pagination
     - rows
+
+V2TaskStatus:
+  type: string
+  enum:
+    - QUEUED
+    - RUNNING
+    - COMPLETED
+    - CANCELLED
+    - FAILED
