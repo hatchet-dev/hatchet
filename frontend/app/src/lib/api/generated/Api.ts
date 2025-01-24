@@ -83,6 +83,7 @@ import {
   UserLoginRequest,
   UserRegisterRequest,
   UserTenantMembershipsList,
+  V2ListStepRunEventsForWorkflowRun,
   V2WorkflowRuns,
   WebhookWorkerCreateRequest,
   WebhookWorkerCreated,
@@ -142,6 +143,23 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       path: `/api/v2/tenants/${tenant}/workflow-runs`,
       method: 'GET',
       query: query,
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description List events for all step runs for a workflow run
+   *
+   * @tags Step Run
+   * @name V2WorkflowRunListStepRunEvents
+   * @summary List events for all step runs for a workflow run
+   * @request GET:/api/v2/tenants/{tenant}/workflow-runs/{workflow-run}/step-run-events
+   * @secure
+   */
+  v2WorkflowRunListStepRunEvents = (tenant: string, workflowRun: string, params: RequestParams = {}) =>
+    this.request<V2ListStepRunEventsForWorkflowRun, APIErrors>({
+      path: `/api/v2/tenants/${tenant}/workflow-runs/${workflowRun}/step-run-events`,
+      method: 'GET',
       secure: true,
       format: 'json',
       ...params,

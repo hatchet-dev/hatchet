@@ -49,7 +49,6 @@ V2WorkflowRun:
     displayName:
       type: string
       description: The display name of the workflow run.
-
   required:
     - metadata
     - id
@@ -77,6 +76,40 @@ V2WorkflowRuns:
   required:
     - pagination
     - rows
+
+V2ListStepRunEventsForWorkflowRun:
+  properties:
+    pagination:
+      $ref: ".././metadata.yaml#/PaginationResponse"
+    rows:
+      items:
+        $ref: "#/V2StepRunEvent"
+      type: array
+
+V2StepRunEvent:
+  type: object
+  properties:
+    id:
+      type: integer
+    timestamp:
+      type: string
+      format: date-time
+    taskId:
+      type: string
+      format: uuid
+    message:
+      type: string
+    data:
+      type: object
+  required:
+    - id
+    - status
+    - timestamp
+    - taskId
+    - severity
+    - message
+
+
 
 V2TaskStatus:
   type: string

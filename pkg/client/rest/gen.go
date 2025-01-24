@@ -1119,6 +1119,21 @@ type UserTenantPublic struct {
 	Name *string `json:"name,omitempty"`
 }
 
+// V2ListStepRunEventsForWorkflowRun defines model for V2ListStepRunEventsForWorkflowRun.
+type V2ListStepRunEventsForWorkflowRun struct {
+	Pagination *PaginationResponse `json:"pagination,omitempty"`
+	Rows       *[]V2StepRunEvent   `json:"rows,omitempty"`
+}
+
+// V2StepRunEvent defines model for V2StepRunEvent.
+type V2StepRunEvent struct {
+	Data      *map[string]interface{} `json:"data,omitempty"`
+	Id        int                     `json:"id"`
+	Message   string                  `json:"message"`
+	TaskId    openapi_types.UUID      `json:"taskId"`
+	Timestamp time.Time               `json:"timestamp"`
+}
+
 // V2TaskStatus defines model for V2TaskStatus.
 type V2TaskStatus string
 
@@ -2283,6 +2298,9 @@ type ClientInterface interface {
 
 	// V2WorkflowRunsList request
 	V2WorkflowRunsList(ctx context.Context, tenant openapi_types.UUID, params *V2WorkflowRunsListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V2WorkflowRunListStepRunEvents request
+	V2WorkflowRunListStepRunEvents(ctx context.Context, tenant openapi_types.UUID, workflowRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 }
 
 func (c *Client) LivenessGet(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -3727,6 +3745,18 @@ func (c *Client) WorkflowVersionGet(ctx context.Context, workflow openapi_types.
 
 func (c *Client) V2WorkflowRunsList(ctx context.Context, tenant openapi_types.UUID, params *V2WorkflowRunsListParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewV2WorkflowRunsListRequest(c.Server, tenant, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V2WorkflowRunListStepRunEvents(ctx context.Context, tenant openapi_types.UUID, workflowRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV2WorkflowRunListStepRunEventsRequest(c.Server, tenant, workflowRun)
 	if err != nil {
 		return nil, err
 	}
@@ -8587,6 +8617,47 @@ func NewV2WorkflowRunsListRequest(server string, tenant openapi_types.UUID, para
 	return req, nil
 }
 
+// NewV2WorkflowRunListStepRunEventsRequest generates requests for V2WorkflowRunListStepRunEvents
+func NewV2WorkflowRunListStepRunEventsRequest(server string, tenant openapi_types.UUID, workflowRun openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "workflow-run", runtime.ParamLocationPath, workflowRun)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v2/tenants/%s/workflow-runs/%s/step-run-events", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 func (c *Client) applyEditors(ctx context.Context, req *http.Request, additionalEditors []RequestEditorFn) error {
 	for _, r := range c.RequestEditors {
 		if err := r(ctx, req); err != nil {
@@ -8966,6 +9037,9 @@ type ClientWithResponsesInterface interface {
 
 	// V2WorkflowRunsListWithResponse request
 	V2WorkflowRunsListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V2WorkflowRunsListParams, reqEditors ...RequestEditorFn) (*V2WorkflowRunsListResponse, error)
+
+	// V2WorkflowRunListStepRunEventsWithResponse request
+	V2WorkflowRunListStepRunEventsWithResponse(ctx context.Context, tenant openapi_types.UUID, workflowRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*V2WorkflowRunListStepRunEventsResponse, error)
 }
 
 type LivenessGetResponse struct {
@@ -11251,6 +11325,31 @@ func (r V2WorkflowRunsListResponse) StatusCode() int {
 	return 0
 }
 
+type V2WorkflowRunListStepRunEventsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *V2ListStepRunEventsForWorkflowRun
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON404      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V2WorkflowRunListStepRunEventsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V2WorkflowRunListStepRunEventsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 // LivenessGetWithResponse request returning *LivenessGetResponse
 func (c *ClientWithResponses) LivenessGetWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*LivenessGetResponse, error) {
 	rsp, err := c.LivenessGet(ctx, reqEditors...)
@@ -12312,6 +12411,15 @@ func (c *ClientWithResponses) V2WorkflowRunsListWithResponse(ctx context.Context
 		return nil, err
 	}
 	return ParseV2WorkflowRunsListResponse(rsp)
+}
+
+// V2WorkflowRunListStepRunEventsWithResponse request returning *V2WorkflowRunListStepRunEventsResponse
+func (c *ClientWithResponses) V2WorkflowRunListStepRunEventsWithResponse(ctx context.Context, tenant openapi_types.UUID, workflowRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*V2WorkflowRunListStepRunEventsResponse, error) {
+	rsp, err := c.V2WorkflowRunListStepRunEvents(ctx, tenant, workflowRun, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV2WorkflowRunListStepRunEventsResponse(rsp)
 }
 
 // ParseLivenessGetResponse parses an HTTP response from a LivenessGetWithResponse call
@@ -16069,6 +16177,53 @@ func ParseV2WorkflowRunsListResponse(rsp *http.Response) (*V2WorkflowRunsListRes
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV2WorkflowRunListStepRunEventsResponse parses an HTTP response from a V2WorkflowRunListStepRunEventsWithResponse call
+func ParseV2WorkflowRunListStepRunEventsResponse(rsp *http.Response) (*V2WorkflowRunListStepRunEventsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V2WorkflowRunListStepRunEventsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V2ListStepRunEventsForWorkflowRun
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	}
 

@@ -158,6 +158,21 @@ export interface APIErrors {
   errors: APIError[];
 }
 
+export interface V2StepRunEvent {
+  id: number;
+  /** @format date-time */
+  timestamp: string;
+  /** @format uuid */
+  taskId: string;
+  message: string;
+  data?: object;
+}
+
+export interface V2ListStepRunEventsForWorkflowRun {
+  pagination?: PaginationResponse;
+  rows?: V2StepRunEvent[];
+}
+
 export interface APIMetaAuth {
   /**
    * the supported types of authentication
