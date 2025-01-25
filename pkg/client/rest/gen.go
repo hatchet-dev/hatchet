@@ -1152,14 +1152,17 @@ type V2ListStepRunEventsForWorkflowRun struct {
 
 // V2StepRunEvent defines model for V2StepRunEvent.
 type V2StepRunEvent struct {
-	Data         *map[string]interface{} `json:"data,omitempty"`
-	ErrorMessage *string                 `json:"error_message,omitempty"`
-	EventType    *V2EventType            `json:"event_type,omitempty"`
-	Id           openapi_types.UUID      `json:"id"`
-	Message      string                  `json:"message"`
-	TaskId       openapi_types.UUID      `json:"taskId"`
-	Timestamp    time.Time               `json:"timestamp"`
-	WorkerId     *openapi_types.UUID     `json:"worker_id,omitempty"`
+	AdditionalMetadata *map[string]interface{} `json:"additionalMetadata,omitempty"`
+	Data               *map[string]interface{} `json:"data,omitempty"`
+	ErrorMessage       *string                 `json:"error_message,omitempty"`
+	EventType          *V2EventType            `json:"event_type,omitempty"`
+	Id                 openapi_types.UUID      `json:"id"`
+	Message            string                  `json:"message"`
+	TaskDisplayName    *string                 `json:"taskDisplayName,omitempty"`
+	TaskId             openapi_types.UUID      `json:"taskId"`
+	TaskInput          *map[string]interface{} `json:"taskInput,omitempty"`
+	Timestamp          time.Time               `json:"timestamp"`
+	WorkerId           *openapi_types.UUID     `json:"worker_id,omitempty"`
 }
 
 // V2TaskStatus defines model for V2TaskStatus.

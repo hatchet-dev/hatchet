@@ -60,6 +60,12 @@ type TaskRunEvent struct {
 	ErrorMsg string `json:"errorMsg"`
 
 	WorkerId *uuid.UUID `json:"workerId,omitempty"`
+
+	TaskDisplayName string `json:"taskDisplayName"`
+
+	TaskInput string `json:"taskInput"`
+
+	AdditionalMetadata string `json:"additionalMetadata"`
 }
 
 type Sticky string

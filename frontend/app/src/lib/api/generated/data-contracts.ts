@@ -186,12 +186,15 @@ export interface V2StepRunEvent {
   timestamp: string;
   /** @format uuid */
   taskId: string;
+  taskDisplayName?: string;
+  taskInput?: object;
   message: string;
   data?: object;
   error_message?: string;
   event_type?: V2EventType;
   /** @format uuid */
   worker_id?: string;
+  additionalMetadata?: object;
 }
 
 export interface V2ListStepRunEventsForWorkflowRun {

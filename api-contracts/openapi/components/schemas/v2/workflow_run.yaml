@@ -98,6 +98,10 @@ V2StepRunEvent:
     taskId:
       type: string
       format: uuid
+    taskDisplayName:
+      type: string
+    taskInput:
+      type: object
     message:
       type: string
     data:
@@ -109,6 +113,8 @@ V2StepRunEvent:
     worker_id:
       type: string
       format: uuid
+    additionalMetadata:
+      type: object
 
 
   required:

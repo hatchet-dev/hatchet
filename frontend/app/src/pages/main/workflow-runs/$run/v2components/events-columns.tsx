@@ -71,7 +71,7 @@ export const columns = ({
             >
               <ArrowLeftEndOnRectangleIcon className="w-4 h-4 mr-1" />
               <div className="truncate max-w-[150px]">
-                {row.original.taskId}
+                {row.original.taskDisplayName}
               </div>
             </Badge>
           </div>

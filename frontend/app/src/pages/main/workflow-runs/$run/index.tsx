@@ -51,8 +51,6 @@ export default function ExpandedWorkflowRun() {
     }
   }, [params.run, sidebarState]);
 
-  const [view] = useAtom(preferredWorkflowRunViewAtom);
-
   console.log(params.run, tenant.metadata.id);
 
   const { data: _events, isLoading } = useQuery({
@@ -63,11 +61,13 @@ export default function ExpandedWorkflowRun() {
   });
 
   const events = _events?.rows || [];
-  const inputData = events[0]?.data || {};
+  const inputData = events[0]?.taskInput || {};
+  const additionalMetadata = events[0]?.additionalMetadata || {};
 
   return (
     <div className="flex-grow h-full w-full">
       <div className="mx-auto max-w-7xl pt-2 px-4 sm:px-6 lg:px-8">
+        {/* TODO: Re-enable this header */}
         {/* <RunDetailHeader
           loading={isLoading}
           data={shape.data}
@@ -120,18 +120,19 @@ export default function ExpandedWorkflowRun() {
             }
           </TabsContent>
           <TabsContent value="input">
-            {inputData && <WorkflowRunInputDialog run={inputData} />}
+            {inputData && <WorkflowRunInputDialog input={inputData} />}
           </TabsContent>
           <TabsContent value="additional-metadata">
             <CodeHighlighter
               className="my-4"
               language="json"
-              code={JSON.stringify(inputData, null, 2)}
+              code={JSON.stringify(additionalMetadata, null, 2)}
             />
           </TabsContent>
         </Tabs>
       </div>
-      {inputData && (
+      {/* TODO: Re-enable this sidebar */}
+      {/* {inputData && (
         <Sheet
           open={!!sidebarState}
           onOpenChange={(open) =>
@@ -148,7 +149,7 @@ export default function ExpandedWorkflowRun() {
             )}
           </SheetContent>
         </Sheet>
-      )}
+      )} */}
     </div>
   );
 }

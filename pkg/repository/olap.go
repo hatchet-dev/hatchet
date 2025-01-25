@@ -223,15 +223,19 @@ func (r *olapEventRepository) ReadTaskRunEvents(tenantId, taskRunId uuid.UUID, l
 	ctx := context.Background()
 	rows, err := r.conn.Query(ctx, `
 		SELECT
-			id,
-			task_id,
-			additional__event_message AS message,
-			timestamp,
-			additional__event_data,
-			event_type,
-			error_message,
-			worker_id
-		FROM task_events
+			te.id,
+			te.task_id,
+			te.additional__event_message AS message,
+			te.timestamp,
+			te.additional__event_data,
+			te.event_type,
+			te.error_message,
+			te.worker_id,
+			t.display_name AS task_display_name,
+			t.input AS task_input,
+			t.additional_metadata
+		FROM task_events te
+		JOIN tasks t ON te.task_id = t.id
    		WHERE task_id = ? AND tenant_id = ?
 		`,
 		taskRunId,
@@ -258,6 +262,9 @@ func (r *olapEventRepository) ReadTaskRunEvents(tenantId, taskRunId uuid.UUID, l
 			&taskRunEvent.EventType,
 			&taskRunEvent.ErrorMsg,
 			&taskRunEvent.WorkerId,
+			&taskRunEvent.TaskDisplayName,
+			&taskRunEvent.TaskInput,
+			&taskRunEvent.AdditionalMetadata,
 		)
 
 		if err != nil {

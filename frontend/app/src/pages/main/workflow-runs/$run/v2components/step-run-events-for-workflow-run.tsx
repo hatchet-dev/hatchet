@@ -50,7 +50,7 @@ export function StepRunEvents({
     <DataTable
       emptyState={<>No events found.</>}
       isLoading={eventsQuery.isLoading}
-      columns={cols}
+      columns={cols as any} // TODO: This is a hack, figure out how to type this properly later
       filters={[]}
       data={events}
     />
