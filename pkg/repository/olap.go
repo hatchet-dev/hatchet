@@ -225,9 +225,12 @@ func (r *olapEventRepository) ReadTaskRunEvents(tenantId, taskRunId uuid.UUID, l
 		SELECT
 			id,
 			task_id,
-			'this is a message' AS message,
+			additional__event_message AS message,
 			timestamp,
-			additional__event_data
+			additional__event_data,
+			event_type,
+			error_message,
+			worker_id
 		FROM task_events
    		WHERE task_id = ? AND tenant_id = ?
 		`,
@@ -252,6 +255,9 @@ func (r *olapEventRepository) ReadTaskRunEvents(tenantId, taskRunId uuid.UUID, l
 			&taskRunEvent.Message,
 			&taskRunEvent.Timestamp,
 			&taskRunEvent.Data,
+			&taskRunEvent.EventType,
+			&taskRunEvent.ErrorMsg,
+			&taskRunEvent.WorkerId,
 		)
 
 		if err != nil {

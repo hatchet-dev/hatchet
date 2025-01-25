@@ -158,6 +158,27 @@ export interface APIErrors {
   errors: APIError[];
 }
 
+export enum V2EventType {
+  REQUEUED_NO_WORKER = 'REQUEUED_NO_WORKER',
+  REQUEUED_RATE_LIMIT = 'REQUEUED_RATE_LIMIT',
+  SCHEDULING_TIMED_OUT = 'SCHEDULING_TIMED_OUT',
+  ASSIGNED = 'ASSIGNED',
+  STARTED = 'STARTED',
+  FINISHED = 'FINISHED',
+  FAILED = 'FAILED',
+  RETRYING = 'RETRYING',
+  CANCELLED = 'CANCELLED',
+  TIMED_OUT = 'TIMED_OUT',
+  REASSIGNED = 'REASSIGNED',
+  SLOT_RELEASED = 'SLOT_RELEASED',
+  TIMEOUT_REFRESHED = 'TIMEOUT_REFRESHED',
+  RETRIED_BY_USER = 'RETRIED_BY_USER',
+  SENT_TO_WORKER = 'SENT_TO_WORKER',
+  RATE_LIMIT_ERROR = 'RATE_LIMIT_ERROR',
+  ACKNOWLEDGED = 'ACKNOWLEDGED',
+  CREATED = 'CREATED',
+}
+
 export interface V2StepRunEvent {
   /** @format uuid */
   id: string;
@@ -167,6 +188,10 @@ export interface V2StepRunEvent {
   taskId: string;
   message: string;
   data?: object;
+  error_message?: string;
+  event_type?: V2EventType;
+  /** @format uuid */
+  worker_id?: string;
 }
 
 export interface V2ListStepRunEventsForWorkflowRun {

@@ -4,6 +4,8 @@ import {
   Step,
   StepRun,
   StepRunEvent,
+  V2EventType,
+  V2StepRunEvent,
   StepRunEventReason,
   StepRunEventSeverity,
   queries,
@@ -30,21 +32,14 @@ import {
 } from '@/components/ui/popover';
 import StepRunError from './step-run-detail/step-run-error';
 
-export type Event = {
-  taskName: string;
-  timestamp: string;
-  eventName: string;
-  description: string;
-};
-
 export const columns = ({
   onRowClick,
 }: {
-  onRowClick?: (row: Event) => void;
-}): ColumnDef<Event>[] => {
-  const res: ColumnDef<Event>[] = [];
+  onRowClick?: (row: V2StepRunEvent) => void;
+}): ColumnDef<V2StepRunEvent>[] => {
+  const res: ColumnDef<V2StepRunEvent>[] = [];
 
-  if (onRowClick) {
+  if (true) {
     res.push({
       accessorKey: 'resource',
       header: ({ column }) => (
@@ -60,7 +55,7 @@ export const columns = ({
             >
               <ArrowLeftEndOnRectangleIcon className="w-4 h-4 mr-1" />
               <div className="truncate max-w-[150px]">
-                {row.original.taskName}
+                {row.original.taskId}
               </div>
             </Badge>
           </div>
@@ -94,7 +89,7 @@ export const columns = ({
         return (
           <div className="flex flex-row items-center gap-2">
             <div className="tracking-wide text-sm flex flex-row gap-4">
-              {getTitleFromReason(event.eventName, event.eventName)}
+              {getTitleFromReason(event.event_type, event.event_type)}
             </div>
           </div>
         );
@@ -111,37 +106,33 @@ export const columns = ({
         const items: JSX.Element[] = [];
         const event = row.original;
 
-        // TODO: Reimplement error later
-        // if (event.eventName === StepRunEventReason.FAILED) {
-        //   items.push(
-        //     <ErrorWithHoverCard event={row.original} rows={allEvents} />,
-        //   );
-        // }
+        if (event.event_type === V2EventType.FAILED) {
+          items.push(<ErrorWithHoverCard event={row.original} rows={[]} />);
+        }
 
-        // TODO: Reimplement this link to worker later
-        // if (event.data) {
-        //   const data = event.data as any;
+        if (event.data) {
+          const data = event.data as any;
 
-        //   if (data.worker_id) {
-        //     items.push(
-        //       <Link to={`/workers/${data.worker_id}`}>
-        //         <Button
-        //           variant="link"
-        //           size="xs"
-        //           className="font-mono text-xs text-muted-foreground tracking-tight brightness-150"
-        //         >
-        //           <ServerStackIcon className="w-4 h-4 mr-1" />
-        //           View Worker
-        //         </Button>
-        //       </Link>,
-        //     );
-        //   }
-        // }
+          if (data.worker_id) {
+            items.push(
+              <Link to={`/workers/${data.worker_id}`}>
+                <Button
+                  variant="link"
+                  size="xs"
+                  className="font-mono text-xs text-muted-foreground tracking-tight brightness-150"
+                >
+                  <ServerStackIcon className="w-4 h-4 mr-1" />
+                  View Worker
+                </Button>
+              </Link>,
+            );
+          }
+        }
 
         return (
           <div>
             <div className="text-xs text-muted-foreground font-mono tracking-tight">
-              {event.description}
+              {event.message}
             </div>
             {items.length > 0 && (
               <div className="flex flex-col gap-2 mt-2">{items}</div>

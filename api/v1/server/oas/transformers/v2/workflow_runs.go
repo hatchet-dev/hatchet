@@ -56,12 +56,17 @@ func ToTaskRunEvent(
 	for i, event := range events {
 		data := jsonToMap(event.Data)
 
+		eventTypePtr := gen.V2EventType(event.EventType)
+
 		toReturn[i] = gen.V2StepRunEvent{
-			Data:      &data,
-			Id:        event.Id,
-			Message:   event.Message,
-			TaskId:    event.TaskId,
-			Timestamp: event.Timestamp,
+			Data:         &data,
+			ErrorMessage: &event.ErrorMsg,
+			EventType:    &eventTypePtr,
+			Id:           event.Id,
+			Message:      event.Message,
+			TaskId:       event.TaskId,
+			Timestamp:    event.Timestamp,
+			WorkerId:     event.WorkerId,
 		}
 	}
 

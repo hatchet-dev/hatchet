@@ -54,6 +54,12 @@ type TaskRunEvent struct {
 	Message string `json:"message"`
 
 	Data string `json:"data"`
+
+	EventType string `json:"eventType"`
+
+	ErrorMsg string `json:"errorMsg"`
+
+	WorkerId *uuid.UUID `json:"workerId,omitempty"`
 }
 
 type Sticky string

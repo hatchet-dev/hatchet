@@ -174,6 +174,28 @@ const (
 	WORKFLOWRUN TenantResource = "WORKFLOW_RUN"
 )
 
+// Defines values for V2EventType.
+const (
+	V2EventTypeACKNOWLEDGED       V2EventType = "ACKNOWLEDGED"
+	V2EventTypeASSIGNED           V2EventType = "ASSIGNED"
+	V2EventTypeCANCELLED          V2EventType = "CANCELLED"
+	V2EventTypeCREATED            V2EventType = "CREATED"
+	V2EventTypeFAILED             V2EventType = "FAILED"
+	V2EventTypeFINISHED           V2EventType = "FINISHED"
+	V2EventTypeRATELIMITERROR     V2EventType = "RATE_LIMIT_ERROR"
+	V2EventTypeREASSIGNED         V2EventType = "REASSIGNED"
+	V2EventTypeREQUEUEDNOWORKER   V2EventType = "REQUEUED_NO_WORKER"
+	V2EventTypeREQUEUEDRATELIMIT  V2EventType = "REQUEUED_RATE_LIMIT"
+	V2EventTypeRETRIEDBYUSER      V2EventType = "RETRIED_BY_USER"
+	V2EventTypeRETRYING           V2EventType = "RETRYING"
+	V2EventTypeSCHEDULINGTIMEDOUT V2EventType = "SCHEDULING_TIMED_OUT"
+	V2EventTypeSENTTOWORKER       V2EventType = "SENT_TO_WORKER"
+	V2EventTypeSLOTRELEASED       V2EventType = "SLOT_RELEASED"
+	V2EventTypeSTARTED            V2EventType = "STARTED"
+	V2EventTypeTIMEDOUT           V2EventType = "TIMED_OUT"
+	V2EventTypeTIMEOUTREFRESHED   V2EventType = "TIMEOUT_REFRESHED"
+)
+
 // Defines values for V2TaskStatus.
 const (
 	V2TaskStatusCANCELLED V2TaskStatus = "CANCELLED"
@@ -227,12 +249,12 @@ const (
 
 // Defines values for WorkflowRunStatus.
 const (
-	WorkflowRunStatusCANCELLED WorkflowRunStatus = "CANCELLED"
-	WorkflowRunStatusFAILED    WorkflowRunStatus = "FAILED"
-	WorkflowRunStatusPENDING   WorkflowRunStatus = "PENDING"
-	WorkflowRunStatusQUEUED    WorkflowRunStatus = "QUEUED"
-	WorkflowRunStatusRUNNING   WorkflowRunStatus = "RUNNING"
-	WorkflowRunStatusSUCCEEDED WorkflowRunStatus = "SUCCEEDED"
+	CANCELLED WorkflowRunStatus = "CANCELLED"
+	FAILED    WorkflowRunStatus = "FAILED"
+	PENDING   WorkflowRunStatus = "PENDING"
+	QUEUED    WorkflowRunStatus = "QUEUED"
+	RUNNING   WorkflowRunStatus = "RUNNING"
+	SUCCEEDED WorkflowRunStatus = "SUCCEEDED"
 )
 
 // APIError defines model for APIError.
@@ -1119,6 +1141,9 @@ type UserTenantPublic struct {
 	Name *string `json:"name,omitempty"`
 }
 
+// V2EventType defines model for V2EventType.
+type V2EventType string
+
 // V2ListStepRunEventsForWorkflowRun defines model for V2ListStepRunEventsForWorkflowRun.
 type V2ListStepRunEventsForWorkflowRun struct {
 	Pagination *PaginationResponse `json:"pagination,omitempty"`
@@ -1127,11 +1152,14 @@ type V2ListStepRunEventsForWorkflowRun struct {
 
 // V2StepRunEvent defines model for V2StepRunEvent.
 type V2StepRunEvent struct {
-	Data      *map[string]interface{} `json:"data,omitempty"`
-	Id        openapi_types.UUID      `json:"id"`
-	Message   string                  `json:"message"`
-	TaskId    openapi_types.UUID      `json:"taskId"`
-	Timestamp time.Time               `json:"timestamp"`
+	Data         *map[string]interface{} `json:"data,omitempty"`
+	ErrorMessage *string                 `json:"error_message,omitempty"`
+	EventType    *V2EventType            `json:"event_type,omitempty"`
+	Id           openapi_types.UUID      `json:"id"`
+	Message      string                  `json:"message"`
+	TaskId       openapi_types.UUID      `json:"taskId"`
+	Timestamp    time.Time               `json:"timestamp"`
+	WorkerId     *openapi_types.UUID     `json:"worker_id,omitempty"`
 }
 
 // V2TaskStatus defines model for V2TaskStatus.

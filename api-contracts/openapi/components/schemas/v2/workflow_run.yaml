@@ -102,6 +102,14 @@ V2StepRunEvent:
       type: string
     data:
       type: object
+    error_message:
+      type: string
+    event_type:
+      $ref: "#/V2EventType"
+    worker_id:
+      type: string
+      format: uuid
+
   required:
     - id
     - status
