@@ -30,21 +30,19 @@ import {
 } from '@/components/ui/popover';
 import StepRunError from './step-run-detail/step-run-error';
 
-export type ActivityEventData = {
-  metadata: APIResourceMeta;
-  event: StepRunEvent;
-  stepRun?: StepRun;
-  step?: Step;
+export type Event = {
+  taskName: string;
+  timestamp: string;
+  eventName: string;
+  description: string;
 };
 
 export const columns = ({
   onRowClick,
-  allEvents,
 }: {
-  onRowClick?: (row: ActivityEventData) => void;
-  allEvents: ActivityEventData[];
-}): ColumnDef<ActivityEventData>[] => {
-  const res: ColumnDef<ActivityEventData>[] = [];
+  onRowClick?: (row: Event) => void;
+}): ColumnDef<Event>[] => {
+  const res: ColumnDef<Event>[] = [];
 
   if (onRowClick) {
     res.push({
@@ -53,9 +51,6 @@ export const columns = ({
         <DataTableColumnHeader column={column} title="Task" />
       ),
       cell: ({ row }) => {
-        if (!row.original.stepRun) {
-          return null;
-        }
         return (
           <div className="min-w-[120px] max-w-[180px]">
             <Badge
@@ -65,7 +60,7 @@ export const columns = ({
             >
               <ArrowLeftEndOnRectangleIcon className="w-4 h-4 mr-1" />
               <div className="truncate max-w-[150px]">
-                {row.original.step?.readableId}
+                {row.original.taskName}
               </div>
             </Badge>
           </div>
@@ -83,7 +78,7 @@ export const columns = ({
       ),
       cell: ({ row }) => (
         <div className="w-fit min-w-[120px]">
-          <RelativeDate date={row.original.event.timeFirstSeen} />
+          <RelativeDate date={row.original.timestamp} />
         </div>
       ),
       enableSorting: false,
@@ -98,9 +93,8 @@ export const columns = ({
         const event = row.original;
         return (
           <div className="flex flex-row items-center gap-2">
-            <EventIndicator severity={event.event.severity} />
             <div className="tracking-wide text-sm flex flex-row gap-4">
-              {getTitleFromReason(event.event.reason, event.event.message)}
+              {getTitleFromReason(event.eventName, event.eventName)}
             </div>
           </div>
         );
@@ -115,37 +109,39 @@ export const columns = ({
       ),
       cell: ({ row }) => {
         const items: JSX.Element[] = [];
-        const event = row.original.event;
+        const event = row.original;
 
-        if (event.reason === StepRunEventReason.FAILED) {
-          items.push(
-            <ErrorWithHoverCard event={row.original} rows={allEvents} />,
-          );
-        }
+        // TODO: Reimplement error later
+        // if (event.eventName === StepRunEventReason.FAILED) {
+        //   items.push(
+        //     <ErrorWithHoverCard event={row.original} rows={allEvents} />,
+        //   );
+        // }
 
-        if (event.data) {
-          const data = event.data as any;
+        // TODO: Reimplement this link to worker later
+        // if (event.data) {
+        //   const data = event.data as any;
 
-          if (data.worker_id) {
-            items.push(
-              <Link to={`/workers/${data.worker_id}`}>
-                <Button
-                  variant="link"
-                  size="xs"
-                  className="font-mono text-xs text-muted-foreground tracking-tight brightness-150"
-                >
-                  <ServerStackIcon className="w-4 h-4 mr-1" />
-                  View Worker
-                </Button>
-              </Link>,
-            );
-          }
-        }
+        //   if (data.worker_id) {
+        //     items.push(
+        //       <Link to={`/workers/${data.worker_id}`}>
+        //         <Button
+        //           variant="link"
+        //           size="xs"
+        //           className="font-mono text-xs text-muted-foreground tracking-tight brightness-150"
+        //         >
+        //           <ServerStackIcon className="w-4 h-4 mr-1" />
+        //           View Worker
+        //         </Button>
+        //       </Link>,
+        //     );
+        //   }
+        // }
 
         return (
           <div>
             <div className="text-xs text-muted-foreground font-mono tracking-tight">
-              {row.original.event.message}
+              {event.description}
             </div>
             {items.length > 0 && (
               <div className="flex flex-col gap-2 mt-2">{items}</div>

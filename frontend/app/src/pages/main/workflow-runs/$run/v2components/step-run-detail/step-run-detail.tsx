@@ -267,10 +267,7 @@ const StepRunDetail: React.FC<StepRunDetailProps> = ({
         <h3 className="text-lg font-semibold leading-tight text-foreground flex flex-row gap-4 items-center">
           Events
         </h3>
-        <StepRunEvents
-          workflowRun={workflowRun}
-          filteredStepRunId={stepRunId}
-        />
+        <StepRunEvents taskRunId={stepRunId} />
       </div>
     </div>
   );

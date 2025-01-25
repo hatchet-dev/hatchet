@@ -41,11 +41,6 @@ export default function ExpandedWorkflowRun() {
   const params = useParams();
   invariant(params.run);
 
-  const shape = useQuery({
-    ...queries.workflowRuns.shape(tenant.metadata.id, params.run),
-    refetchInterval: 1000,
-  });
-
   useEffect(() => {
     if (
       sidebarState?.workflowRunId &&
@@ -58,16 +53,28 @@ export default function ExpandedWorkflowRun() {
 
   const [view] = useAtom(preferredWorkflowRunViewAtom);
 
+  console.log(params.run, tenant.metadata.id);
+
+  const { data: _events, isLoading } = useQuery({
+    ...queries.v2StepRunEvents.list(tenant.metadata.id, params.run, {
+      limit: 50,
+      offset: 0,
+    }),
+  });
+
+  const events = _events?.rows || [];
+  const inputData = events[0]?.data || {};
+
   return (
     <div className="flex-grow h-full w-full">
       <div className="mx-auto max-w-7xl pt-2 px-4 sm:px-6 lg:px-8">
-        <RunDetailHeader
-          loading={shape.isLoading}
+        {/* <RunDetailHeader
+          loading={isLoading}
           data={shape.data}
           refetch={() => shape.refetch()}
-        />
+        /> */}
         <Separator className="my-4" />
-        <div className="w-full h-fit flex overflow-auto relative bg-slate-100 dark:bg-slate-900">
+        {/* <div className="w-full h-fit flex overflow-auto relative bg-slate-100 dark:bg-slate-900">
           {shape.data && view == 'graph' && hasChildSteps(shape.data) && (
             <WorkflowRunVisualizer
               shape={shape.data}
@@ -81,25 +88,8 @@ export default function ExpandedWorkflowRun() {
               }}
             />
           )}
-          {shape.data && (view == 'minimap' || !hasChildSteps(shape.data)) && (
-            <MiniMap
-              shape={shape.data}
-              selectedStepRunId={sidebarState?.stepRunId}
-              onClick={(stepRunId, defaultOpenTab?: TabOption) =>
-                setSidebarState(
-                  stepRunId == sidebarState?.stepRunId
-                    ? undefined
-                    : {
-                        stepRunId,
-                        defaultOpenTab,
-                        workflowRunId: params.run,
-                      },
-                )
-              }
-            />
-          )}
           {shape.data && <ViewToggle shape={shape.data} />}
-        </div>
+        </div> */}
         <div className="h-4" />
         <Tabs defaultValue="activity">
           <TabsList layout="underlined">
@@ -116,9 +106,9 @@ export default function ExpandedWorkflowRun() {
           </TabsList>
           <TabsContent value="activity">
             <div className="h-4" />
-            {!shape.isLoading && shape.data && (
+            {
               <StepRunEvents
-                workflowRun={shape.data}
+                taskRunId={params.run}
                 onClick={(stepRunId) =>
                   setSidebarState(
                     stepRunId == sidebarState?.stepRunId
@@ -127,25 +117,21 @@ export default function ExpandedWorkflowRun() {
                   )
                 }
               />
-            )}
+            }
           </TabsContent>
           <TabsContent value="input">
-            {shape.data && <WorkflowRunInputDialog run={shape.data} />}
+            {inputData && <WorkflowRunInputDialog run={inputData} />}
           </TabsContent>
           <TabsContent value="additional-metadata">
             <CodeHighlighter
               className="my-4"
               language="json"
-              code={JSON.stringify(
-                shape.data?.additionalMetadata || {},
-                null,
-                2,
-              )}
+              code={JSON.stringify(inputData, null, 2)}
             />
           </TabsContent>
         </Tabs>
       </div>
-      {shape.data && (
+      {inputData && (
         <Sheet
           open={!!sidebarState}
           onOpenChange={(open) =>
@@ -156,7 +142,7 @@ export default function ExpandedWorkflowRun() {
             {sidebarState?.stepRunId && (
               <StepRunDetail
                 stepRunId={sidebarState?.stepRunId}
-                workflowRun={shape.data}
+                workflowRun={inputData}
                 defaultOpenTab={sidebarState?.defaultOpenTab}
               />
             )}
