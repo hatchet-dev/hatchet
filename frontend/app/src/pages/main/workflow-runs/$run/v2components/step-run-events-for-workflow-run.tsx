@@ -1,4 +1,4 @@
-import { queries } from '@/lib/api';
+import { queries, V2StepRunEvent } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 import { DataTable } from '@/components/molecules/data-table/data-table';
 import { columns } from './events-columns';
@@ -9,7 +9,7 @@ export function StepRunEvents({
   onClick,
 }: {
   taskRunId: string;
-  onClick?: (stepRunId?: string) => void;
+  onClick: (stepRunId?: string) => void;
 }) {
   const tenant = useTenant();
   const tenantId = tenant.tenant?.metadata.id;
@@ -28,13 +28,22 @@ export function StepRunEvents({
     },
   });
 
-  const events = eventsQuery.data?.rows || [];
+  type EventWithMetadata = V2StepRunEvent & {
+    metadata: {
+      id: string;
+    };
+  };
+
+  const events: EventWithMetadata[] =
+    eventsQuery.data?.rows?.map((row) => ({
+      ...row,
+      metadata: {
+        id: row.taskId,
+      },
+    })) || [];
 
   const cols = columns({
-    onRowClick: undefined,
-    // onClick
-    //   ? (row) => onClick(row.stepRun?.metadata.id)
-    //   : undefined,
+    onRowClick: (row) => onClick(row.taskId),
   });
 
   return (
