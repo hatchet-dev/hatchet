@@ -24,8 +24,6 @@ func (t *V2WorkflowRunsService) V2WorkflowRunsList(ctx echo.Context, request gen
 
 	result := transformers.ToWorkflowRuns(workflowRunsPtr)
 
-	// Make transformer to transform clickhouse query result into this json object
-
 	// Search for api errors to see how we handle errors in other cases
 	return gen.V2WorkflowRunsList200JSONResponse(
 		result,
@@ -46,8 +44,6 @@ func (t *V2WorkflowRunsService) V2WorkflowRunListStepRunEvents(ctx echo.Context,
 	}
 
 	result := transformers.ToTaskRunEvent(taskRunEventsPtr)
-
-	// Make transformer to transform clickhouse query result into this json object
 
 	// Search for api errors to see how we handle errors in other cases
 	return gen.V2WorkflowRunListStepRunEvents200JSONResponse(
