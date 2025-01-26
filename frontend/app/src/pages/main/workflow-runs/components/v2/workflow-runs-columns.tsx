@@ -1,18 +1,18 @@
 import { ColumnDef } from '@tanstack/react-table';
-import { DataTableColumnHeader } from '../../../../components/molecules/data-table/data-table-column-header';
-import { WorkflowRun } from '@/lib/api';
+import { DataTableColumnHeader } from '../../../../../components/molecules/data-table/data-table-column-header';
+import { V2WorkflowRun } from '@/lib/api';
 import { Link } from 'react-router-dom';
-import { RunStatus } from './run-statuses';
+import { RunStatus } from '.././run-statuses';
 import {
   AdditionalMetadata,
   AdditionalMetadataClick,
-} from '../../events/components/additional-metadata';
+} from '../../../events/components/additional-metadata';
 import RelativeDate from '@/components/molecules/relative-date';
 import { Checkbox } from '@/components/ui/checkbox';
 
 export const columns: (
   onAdditionalMetadataClick?: (click: AdditionalMetadataClick) => void,
-) => ColumnDef<WorkflowRun>[] = (onAdditionalMetadataClick) => [
+) => ColumnDef<V2WorkflowRun>[] = (onAdditionalMetadataClick) => [
   {
     id: 'select',
     header: ({ table }) => (
@@ -61,41 +61,20 @@ export const columns: (
     enableSorting: false,
     enableHiding: false,
   },
-  {
-    accessorKey: 'Workflow',
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Workflow" />
-    ),
-    cell: ({ row }) => {
-      const workflow = row.original.workflowVersion?.workflow;
-      const workflowName = workflow?.name;
-      const workflowId = workflow?.metadata.id;
+  // TODO: Add this back
+  // {
+  //   accessorKey: 'Triggered by',
+  //   header: ({ column }) => (
+  //     <DataTableColumnHeader column={column} title="Triggered by" />
+  //   ),
+  //   cell: () => {
+  //     const eventKey = 'N/A'; // FIXME: add back event keys, crons, etc
 
-      return (
-        <div className="min-w-fit whitespace-nowrap">
-          {(workflow && (
-            <a href={`/workflows/${workflowId}`}>{workflowName}</a>
-          )) ||
-            'N/A'}
-        </div>
-      );
-    },
-    enableSorting: false,
-    enableHiding: true,
-  },
-  {
-    accessorKey: 'Triggered by',
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Triggered by" />
-    ),
-    cell: () => {
-      const eventKey = 'N/A'; // FIXME: add back event keys, crons, etc
-
-      return <div>{eventKey}</div>;
-    },
-    enableSorting: false,
-    enableHiding: true,
-  },
+  //     return <div>{eventKey}</div>;
+  //   },
+  //   enableSorting: false,
+  //   enableHiding: true,
+  // },
   {
     accessorKey: 'Created at',
     header: ({ column }) => (
@@ -109,7 +88,7 @@ export const columns: (
       return (
         <div className="whitespace-nowrap">
           {row.original.metadata.createdAt ? (
-            <RelativeDate date={row.original.metadata.createdAt} />
+            <RelativeDate date={row.original.createdAt} />
           ) : (
             'N/A'
           )}

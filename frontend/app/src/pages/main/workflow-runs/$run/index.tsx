@@ -7,7 +7,9 @@ import { WorkflowRunInputDialog } from './v2components/workflow-run-input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { StepRunEvents } from './v2components/step-run-events-for-workflow-run';
 import { useEffect, useState } from 'react';
-import StepRunDetail, { TabOption } from './v2components/step-run-detail/step-run-detail';
+import StepRunDetail, {
+  TabOption,
+} from './v2components/step-run-detail/step-run-detail';
 import { Separator } from '@/components/ui/separator';
 import { CodeHighlighter } from '@/components/ui/code-highlighter';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
@@ -45,14 +47,14 @@ export default function ExpandedWorkflowRun() {
 
   console.log(params.run, tenant.metadata.id);
 
-  const { data: _events, isLoading } = useQuery({
+  const { data: rawEvents, isLoading } = useQuery({
     ...queries.v2StepRunEvents.list(tenant.metadata.id, params.run, {
       limit: 50,
       offset: 0,
     }),
   });
 
-  const events = _events?.rows || [];
+  const events = rawEvents?.rows || [];
   const inputData = events[0]?.taskInput || {};
   const additionalMetadata = events[0]?.additionalMetadata || {};
 
@@ -139,8 +141,7 @@ export default function ExpandedWorkflowRun() {
           <SheetContent className="w-fit min-w-[56rem] max-w-4xl sm:max-w-2xl z-[60]">
             {sidebarState?.stepRunId && (
               <StepRunDetail
-                stepRunId={sidebarState?.stepRunId}
-                workflowRun={inputData}
+                taskRunId={params.run}
                 defaultOpenTab={sidebarState?.defaultOpenTab}
               />
             )}
