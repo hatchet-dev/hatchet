@@ -75,7 +75,7 @@ export enum V2TaskStatus {
 export interface V2WorkflowRun {
   metadata: APIResourceMeta;
   /**
-   * The ID of the workflow run.
+   * The ID of the task run.
    * @format uuid
    * @minLength 36
    * @maxLength 36
@@ -83,7 +83,7 @@ export interface V2WorkflowRun {
    */
   id: string;
   /**
-   * The ID of the task associated with this workflow run.
+   * The ID of the task associated with this task run.
    * @format uuid
    * @minLength 36
    * @maxLength 36
@@ -92,23 +92,28 @@ export interface V2WorkflowRun {
   taskId: string;
   status: V2TaskStatus;
   /**
-   * The timestamp of the workflow run.
+   * The timestamp of the task run.
    * @format date-time
    */
   timestamp: string;
-  /** The error message of the workflow run. */
+  /** The error message of the task run. */
   errorMessage?: string;
   /**
-   * The timestamp the workflow run started.
+   * The timestamp the task run was created.
+   * @format date-time
+   */
+  createdAt: string;
+  /**
+   * The timestamp the task run started.
    * @format date-time
    */
   startedAt: string;
   /**
-   * The timestamp the workflow run finished.
+   * The timestamp the task run finished.
    * @format date-time
    */
   finishedAt: string;
-  /** The duration of the workflow run. */
+  /** The duration of the task run. */
   duration: number;
   /**
    * The ID of the tenant.
@@ -118,9 +123,9 @@ export interface V2WorkflowRun {
    * @example "bb214807-246e-43a5-a25d-41761d1cff9e"
    */
   tenantId: string;
-  /** Additional metadata for the workflow run. */
+  /** Additional metadata for the task run. */
   additionalMetadata: object;
-  /** The display name of the workflow run. */
+  /** The display name of the task run. */
   displayName: string;
 }
 

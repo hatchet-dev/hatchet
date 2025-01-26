@@ -33,8 +33,7 @@ export enum TabOption {
 }
 
 interface StepRunDetailProps {
-  stepRunId: string;
-  workflowRun: WorkflowRunShape;
+  taskRunId: string;
   defaultOpenTab?: TabOption;
 }
 
@@ -46,8 +45,7 @@ export const STEP_RUN_TERMINAL_STATUSES = [
 ];
 
 const StepRunDetail: React.FC<StepRunDetailProps> = ({
-  stepRunId,
-  workflowRun,
+  taskRunId,
   defaultOpenTab = TabOption.Output,
 }) => {
   const [errors, setErrors] = useState<string[]>([]);
@@ -260,7 +258,7 @@ const StepRunDetail: React.FC<StepRunDetailProps> = ({
           />
         </TabsContent>
 
-        {/* <TabsContent value="logs">App Logs</TabsContent> */}
+        <TabsContent value="logs">App Logs</TabsContent>
       </Tabs>
       <Separator className="my-4" />
       <div className="mb-8">

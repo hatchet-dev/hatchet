@@ -676,7 +676,7 @@ export function WorkflowRunsTable({
         columns={columns(onAdditionalMetadataClick)}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
-        data={data}
+        data={data as any}
         filters={filters}
         actions={actions}
         sorting={sorting}

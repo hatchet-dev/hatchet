@@ -10,6 +10,8 @@ type WorkflowRun struct {
 	// AdditionalMetadata Additional metadata for the workflow run.
 	AdditionalMetadata *string `json:"additionalMetadata,omitempty"`
 
+	CreatedAt time.Time `json:"createdAt"`
+
 	// DisplayName The display name of the workflow run.
 	DisplayName *string `json:"displayName,omitempty"`
 

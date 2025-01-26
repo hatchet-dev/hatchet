@@ -4,14 +4,14 @@ V2WorkflowRun:
       $ref: ".././metadata.yaml#/APIResourceMeta"
     id:
       type: string
-      description: The ID of the workflow run.
+      description: The ID of the task run.
       example: bb214807-246e-43a5-a25d-41761d1cff9e
       minLength: 36
       maxLength: 36
       format: uuid
     taskId:
       type: string
-      description: The ID of the task associated with this workflow run.
+      description: The ID of the task associated with this task run.
       example: bb214807-246e-43a5-a25d-41761d1cff9e
       minLength: 36
       maxLength: 36
@@ -21,21 +21,25 @@ V2WorkflowRun:
     timestamp:
       type: string
       format: date-time
-      description: The timestamp of the workflow run.
+      description: The timestamp of the task run.
     errorMessage:
       type: string
-      description: The error message of the workflow run.
+      description: The error message of the task run.
+    createdAt:
+      type: string
+      format: date-time
+      description: The timestamp the task run was created.
     startedAt:
       type: string
       format: date-time
-      description: The timestamp the workflow run started.
+      description: The timestamp the task run started.
     finishedAt:
       type: string
       format: date-time
-      description: The timestamp the workflow run finished.
+      description: The timestamp the task run finished.
     duration:
       type: integer
-      description: The duration of the workflow run.
+      description: The duration of the task run.
     tenantId:
       type: string
       description: The ID of the tenant.
@@ -45,10 +49,10 @@ V2WorkflowRun:
       format: uuid
     additionalMetadata:
       type: object
-      description: Additional metadata for the workflow run.
+      description: Additional metadata for the task run.
     displayName:
       type: string
-      description: The display name of the workflow run.
+      description: The display name of the task run.
   required:
     - metadata
     - id
@@ -61,6 +65,7 @@ V2WorkflowRun:
     - finishedAt
     - duration
     - additionalMetadata
+    - createdAt
 
 
 V2WorkflowRuns:

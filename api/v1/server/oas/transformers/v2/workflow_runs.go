@@ -2,7 +2,6 @@ package transformers
 
 import (
 	"encoding/json"
-	"time"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/repository/olap"
@@ -24,6 +23,7 @@ func ToWorkflowRuns(
 
 		toReturn[i] = gen.V2WorkflowRun{
 			AdditionalMetadata: additionalMetadata,
+			CreatedAt:          wf.CreatedAt,
 			DisplayName:        *wf.DisplayName,
 			Duration:           int(*wf.Duration),
 			ErrorMessage:       wf.ErrorMessage,
@@ -31,8 +31,8 @@ func ToWorkflowRuns(
 			Id:                 wf.Id,
 			Metadata: gen.APIResourceMeta{
 				Id:        wf.TaskId.String(),
-				CreatedAt: time.Now(),
-				UpdatedAt: time.Now(),
+				CreatedAt: wf.CreatedAt,
+				UpdatedAt: wf.CreatedAt,
 			},
 			StartedAt: *wf.StartedAt,
 			Status:    gen.V2TaskStatus(wf.Status),

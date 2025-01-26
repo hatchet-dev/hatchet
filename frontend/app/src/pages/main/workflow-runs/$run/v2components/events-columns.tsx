@@ -1,9 +1,4 @@
-import {
-  AccessorFnColumnDef,
-  ColumnDef,
-  createColumnHelper,
-  DisplayColumnDef,
-} from '@tanstack/react-table';
+import { createColumnHelper } from '@tanstack/react-table';
 import { V2EventType, V2StepRunEvent, StepRunEventSeverity } from '@/lib/api';
 import RelativeDate from '@/components/molecules/relative-date';
 import { Badge } from '@/components/ui/badge';
@@ -25,7 +20,6 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import StepRunError from './step-run-detail/step-run-error';
-import { IDGetter } from '@/components/molecules/data-table/data-table';
 
 function eventTypeToSeverity(
   eventType: V2EventType | undefined,

@@ -139,16 +139,40 @@ func (r *olapEventRepository) ReadTaskRuns(tenantId uuid.UUID, limit, offset int
 				-- AND status IN (
 				--  ...
 				-- )
-		), task_event_metadata AS (
+		), task_creation_times AS (
 			SELECT
 				task_id,
-				-- NOTE: These are bugs, should filter by status to determine these
-				MIN(timestamp) AS started_at,
-				MAX(timestamp) AS finished_at,
-				timeDiff(MIN(timestamp), MAX(timestamp)) * 1000 AS duration,
-				MAX(readable_status) AS status
+				MIN(timestamp) AS created_at
 			FROM relevant_task_events
 			GROUP BY task_id
+		), task_start_times AS (
+			SELECT
+				task_id,
+				MIN(timestamp) AS started_at
+			FROM relevant_task_events
+			WHERE event_type = 'STARTED'
+			GROUP BY task_id
+		), task_finish_times AS (
+			SELECT
+				task_id,
+				MAX(timestamp) AS finished_at,
+				MAX(readable_status) AS status
+			FROM relevant_task_events
+
+			-- 3 indicates a terminal event. See enum definition
+			WHERE event_type >= 3
+			GROUP BY task_id
+		), task_event_metadata AS (
+			SELECT
+				tct.task_id AS task_id,
+				tct.created_at AS created_at,
+				tst.started_at AS started_at,
+				tft.finished_at AS finished_at,
+				timeDiff(tst.started_at, tft.finished_at) * 1000 AS duration,
+				tft.status AS status
+			FROM task_creation_times tct
+			JOIN task_start_times tst ON tct.task_id = tst.task_id
+			JOIN task_finish_times tft ON tct.task_id = tft.task_id
 		), error_messages AS (
 			SELECT
 				task_id,
@@ -165,6 +189,7 @@ func (r *olapEventRepository) ReadTaskRuns(tenantId uuid.UUID, limit, offset int
 			tem.finished_at,
 			ct.id AS id,
 			tem.started_at,
+			tem.created_at,
 			toString(tem.status) AS status,
 			ct.id AS task_id,
 			ct.tenant_id,
@@ -201,6 +226,7 @@ func (r *olapEventRepository) ReadTaskRuns(tenantId uuid.UUID, limit, offset int
 			&taskRun.FinishedAt,
 			&taskRun.Id,
 			&taskRun.StartedAt,
+			&taskRun.CreatedAt,
 			&taskRun.Status,
 			&taskRun.TaskId,
 			&taskRun.TenantId,

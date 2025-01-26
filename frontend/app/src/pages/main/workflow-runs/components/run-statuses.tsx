@@ -5,7 +5,12 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { JobRunStatus, StepRunStatus, WorkflowRunStatus } from '@/lib/api';
+import {
+  JobRunStatus,
+  StepRunStatus,
+  V2TaskStatus,
+  WorkflowRunStatus,
+} from '@/lib/api';
 import { capitalize, cn } from '@/lib/utils';
 
 type RunStatusType =
@@ -17,9 +22,10 @@ type RunStatusVariant = {
 };
 
 export function createRunStatusVariant(
-  status: RunStatusType,
+  status: RunStatusType | 'COMPLETED',
 ): RunStatusVariant {
   switch (status) {
+    case 'COMPLETED':
     case 'SUCCEEDED':
       return { text: 'Succeeded', variant: 'successful' };
     case 'FAILED':
@@ -72,7 +78,7 @@ export function RunStatus({
   reason,
   className,
 }: {
-  status: RunStatusType;
+  status: V2TaskStatus;
   reason?: string;
   className?: string;
 }) {

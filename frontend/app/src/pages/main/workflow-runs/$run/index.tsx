@@ -3,22 +3,14 @@ import { TenantContextType } from '@/lib/outlet';
 import { useQuery } from '@tanstack/react-query';
 import { useOutletContext, useParams } from 'react-router-dom';
 import invariant from 'tiny-invariant';
-import RunDetailHeader from './v2components/header';
 import { WorkflowRunInputDialog } from './v2components/workflow-run-input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { StepRunEvents } from './v2components/step-run-events-for-workflow-run';
 import { useEffect, useState } from 'react';
-import { MiniMap } from './v2components/mini-map';
-import { Sheet, SheetContent } from '@/components/ui/sheet';
-import StepRunDetail, {
-  TabOption,
-} from './v2components/step-run-detail/step-run-detail';
+import StepRunDetail, { TabOption } from './v2components/step-run-detail/step-run-detail';
 import { Separator } from '@/components/ui/separator';
 import { CodeHighlighter } from '@/components/ui/code-highlighter';
-import WorkflowRunVisualizer from './v2components/workflow-run-visualizer-v2';
-import { useAtom } from 'jotai';
-import { preferredWorkflowRunViewAtom } from '@/lib/atoms';
-import { hasChildSteps, ViewToggle } from './v2components/view-toggle';
+import { Sheet, SheetContent } from '@/components/ui/sheet';
 
 export const WORKFLOW_RUN_TERMINAL_STATUSES = [
   WorkflowRunStatus.CANCELLED,
@@ -63,6 +55,11 @@ export default function ExpandedWorkflowRun() {
   const events = _events?.rows || [];
   const inputData = events[0]?.taskInput || {};
   const additionalMetadata = events[0]?.additionalMetadata || {};
+
+  if (isLoading) {
+    // TODO: Loading state
+    return null;
+  }
 
   return (
     <div className="flex-grow h-full w-full">
@@ -132,7 +129,7 @@ export default function ExpandedWorkflowRun() {
         </Tabs>
       </div>
       {/* TODO: Re-enable this sidebar */}
-      {/* {inputData && (
+      {inputData && (
         <Sheet
           open={!!sidebarState}
           onOpenChange={(open) =>
@@ -149,7 +146,7 @@ export default function ExpandedWorkflowRun() {
             )}
           </SheetContent>
         </Sheet>
-      )} */}
+      )}
     </div>
   );
 }
