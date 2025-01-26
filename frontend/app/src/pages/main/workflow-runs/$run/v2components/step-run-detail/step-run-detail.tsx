@@ -44,7 +44,7 @@ const StepRunDetail: React.FC<StepRunDetailProps> = ({
     throw new Error('Tenant not found');
   }
 
-  const errors = [];
+  const errors: string[] = [];
   // const [errors, setErrors] = useState<string[]>([]);
 
   // const {} = useApiError({
