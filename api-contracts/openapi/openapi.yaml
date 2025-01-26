@@ -22,6 +22,8 @@ components:
 paths:
   /api/v2/tenants/{tenant}/workflow-runs:
     $ref: "./paths/v2/workflow-runs/workflow-runs.yaml#/listWorkflowRuns"
+  /api/v2/tenants/{tenant}/workflow-runs/{workflow-run}:
+    $ref: "./paths/v2/workflow-runs/workflow-runs.yaml#/getWorkflowRun"
   /api/v2/tenants/{tenant}/workflow-runs/{workflow-run}/step-run-events:
     $ref: "./paths/v2/workflow-runs/workflow-runs.yaml#/V2ListStepRunEventsForWorkflowRun"
   /api/ready:

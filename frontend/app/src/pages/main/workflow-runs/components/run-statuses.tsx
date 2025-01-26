@@ -8,6 +8,7 @@ import {
 import {
   JobRunStatus,
   StepRunStatus,
+  V2EventType,
   V2TaskStatus,
   WorkflowRunStatus,
 } from '@/lib/api';
@@ -22,10 +23,10 @@ type RunStatusVariant = {
 };
 
 export function createRunStatusVariant(
-  status: RunStatusType | 'COMPLETED',
+  // TODO: This is a hack for typing, remove it
+  status: RunStatusType,
 ): RunStatusVariant {
   switch (status) {
-    case 'COMPLETED':
     case 'SUCCEEDED':
       return { text: 'Succeeded', variant: 'successful' };
     case 'FAILED':
@@ -116,6 +117,21 @@ const indicatorVariants = {
   outline: 'border-transparent rounded-full bg-muted',
 };
 
+export function createV2IndicatorVariant(eventType: V2TaskStatus | undefined) {
+  switch (eventType) {
+    case V2TaskStatus.CANCELLED:
+    case V2TaskStatus.FAILED:
+      return 'border-transparent rounded-full bg-red-500';
+    case V2TaskStatus.RUNNING:
+    case V2TaskStatus.QUEUED:
+      return 'border-transparent rounded-full bg-yellow-500';
+    case V2TaskStatus.COMPLETED:
+      return 'border-transparent rounded-full bg-green-500';
+    default:
+      return 'border-transparent rounded-full bg-muted';
+  }
+}
+
 export function RunIndicator({
   status,
 }: {
@@ -129,4 +145,10 @@ export function RunIndicator({
       className={cn(indicatorVariants[variant], 'rounded-full h-[6px] w-[6px]')}
     />
   );
+}
+
+export function V2RunIndicator({ status }: { status: V2TaskStatus }) {
+  const indicator = createV2IndicatorVariant(status);
+
+  return <div className={cn(indicator, 'rounded-full h-[6px] w-[6px]')} />;
 }

@@ -8,6 +8,22 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/olap"
 )
 
+func (t *V2WorkflowRunsService) V2WorkflowRunGet(ctx echo.Context, request gen.V2WorkflowRunGetRequestObject) (gen.V2WorkflowRunGetResponseObject, error) {
+
+	workflow_run, err := t.config.EngineRepository.OLAP().ReadTaskRun(request.Tenant, request.WorkflowRun)
+
+	if err != nil {
+		return nil, err
+	}
+
+	result := transformers.ToWorkflowRun(&workflow_run)
+
+	// Search for api errors to see how we handle errors in other cases
+	return gen.V2WorkflowRunGet200JSONResponse(
+		result,
+	), nil
+}
+
 func (t *V2WorkflowRunsService) V2WorkflowRunsList(ctx echo.Context, request gen.V2WorkflowRunsListRequestObject) (gen.V2WorkflowRunsListResponseObject, error) {
 	// tenant := ctx.Get("tenant").(*db.TenantModel)
 

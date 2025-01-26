@@ -2222,6 +2222,9 @@ type ServerInterface interface {
 	// List workflow runs
 	// (GET /api/v2/tenants/{tenant}/workflow-runs)
 	V2WorkflowRunsList(ctx echo.Context, tenant openapi_types.UUID, params V2WorkflowRunsListParams) error
+	// Get workflow run
+	// (GET /api/v2/tenants/{tenant}/workflow-runs/{workflow-run})
+	V2WorkflowRunGet(ctx echo.Context, tenant openapi_types.UUID, workflowRun openapi_types.UUID) error
 	// List events for all step runs for a workflow run
 	// (GET /api/v2/tenants/{tenant}/workflow-runs/{workflow-run}/step-run-events)
 	V2WorkflowRunListStepRunEvents(ctx echo.Context, tenant openapi_types.UUID, workflowRun openapi_types.UUID, params V2WorkflowRunListStepRunEventsParams) error
@@ -4632,6 +4635,34 @@ func (w *ServerInterfaceWrapper) V2WorkflowRunsList(ctx echo.Context) error {
 	return err
 }
 
+// V2WorkflowRunGet converts echo context to params.
+func (w *ServerInterfaceWrapper) V2WorkflowRunGet(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "tenant" -------------
+	var tenant openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithLocation("simple", false, "tenant", runtime.ParamLocationPath, ctx.Param("tenant"), &tenant)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter tenant: %s", err))
+	}
+
+	// ------------- Path parameter "workflow-run" -------------
+	var workflowRun openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithLocation("simple", false, "workflow-run", runtime.ParamLocationPath, ctx.Param("workflow-run"), &workflowRun)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter workflow-run: %s", err))
+	}
+
+	ctx.Set(BearerAuthScopes, []string{})
+
+	ctx.Set(CookieAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.V2WorkflowRunGet(ctx, tenant, workflowRun)
+	return err
+}
+
 // V2WorkflowRunListStepRunEvents converts echo context to params.
 func (w *ServerInterfaceWrapper) V2WorkflowRunListStepRunEvents(ctx echo.Context) error {
 	var err error
@@ -4799,6 +4830,7 @@ func RegisterHandlersWithBaseURL(router EchoRouter, si ServerInterface, baseURL 
 	router.POST(baseURL+"/api/v1/workflows/:workflow/trigger", wrapper.WorkflowRunCreate)
 	router.GET(baseURL+"/api/v1/workflows/:workflow/versions", wrapper.WorkflowVersionGet)
 	router.GET(baseURL+"/api/v2/tenants/:tenant/workflow-runs", wrapper.V2WorkflowRunsList)
+	router.GET(baseURL+"/api/v2/tenants/:tenant/workflow-runs/:workflow-run", wrapper.V2WorkflowRunGet)
 	router.GET(baseURL+"/api/v2/tenants/:tenant/workflow-runs/:workflow-run/step-run-events", wrapper.V2WorkflowRunListStepRunEvents)
 
 }
@@ -8359,6 +8391,42 @@ func (response V2WorkflowRunsList403JSONResponse) VisitV2WorkflowRunsListRespons
 	return json.NewEncoder(w).Encode(response)
 }
 
+type V2WorkflowRunGetRequestObject struct {
+	Tenant      openapi_types.UUID `json:"tenant"`
+	WorkflowRun openapi_types.UUID `json:"workflow-run"`
+}
+
+type V2WorkflowRunGetResponseObject interface {
+	VisitV2WorkflowRunGetResponse(w http.ResponseWriter) error
+}
+
+type V2WorkflowRunGet200JSONResponse V2WorkflowRun
+
+func (response V2WorkflowRunGet200JSONResponse) VisitV2WorkflowRunGetResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type V2WorkflowRunGet400JSONResponse APIErrors
+
+func (response V2WorkflowRunGet400JSONResponse) VisitV2WorkflowRunGetResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type V2WorkflowRunGet403JSONResponse APIErrors
+
+func (response V2WorkflowRunGet403JSONResponse) VisitV2WorkflowRunGetResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type V2WorkflowRunListStepRunEventsRequestObject struct {
 	Tenant      openapi_types.UUID `json:"tenant"`
 	WorkflowRun openapi_types.UUID `json:"workflow-run"`
@@ -8595,6 +8663,8 @@ type StrictServerInterface interface {
 	WorkflowVersionGet(ctx echo.Context, request WorkflowVersionGetRequestObject) (WorkflowVersionGetResponseObject, error)
 
 	V2WorkflowRunsList(ctx echo.Context, request V2WorkflowRunsListRequestObject) (V2WorkflowRunsListResponseObject, error)
+
+	V2WorkflowRunGet(ctx echo.Context, request V2WorkflowRunGetRequestObject) (V2WorkflowRunGetResponseObject, error)
 
 	V2WorkflowRunListStepRunEvents(ctx echo.Context, request V2WorkflowRunListStepRunEventsRequestObject) (V2WorkflowRunListStepRunEventsResponseObject, error)
 }
@@ -11134,6 +11204,32 @@ func (sh *strictHandler) V2WorkflowRunsList(ctx echo.Context, tenant openapi_typ
 	return nil
 }
 
+// V2WorkflowRunGet operation middleware
+func (sh *strictHandler) V2WorkflowRunGet(ctx echo.Context, tenant openapi_types.UUID, workflowRun openapi_types.UUID) error {
+	var request V2WorkflowRunGetRequestObject
+
+	request.Tenant = tenant
+	request.WorkflowRun = workflowRun
+
+	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.V2WorkflowRunGet(ctx, request.(V2WorkflowRunGetRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "V2WorkflowRunGet")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		return err
+	} else if validResponse, ok := response.(V2WorkflowRunGetResponseObject); ok {
+		return validResponse.VisitV2WorkflowRunGetResponse(ctx.Response())
+	} else if response != nil {
+		return fmt.Errorf("Unexpected response type: %T", response)
+	}
+	return nil
+}
+
 // V2WorkflowRunListStepRunEvents operation middleware
 func (sh *strictHandler) V2WorkflowRunListStepRunEvents(ctx echo.Context, tenant openapi_types.UUID, workflowRun openapi_types.UUID, params V2WorkflowRunListStepRunEventsParams) error {
 	var request V2WorkflowRunListStepRunEventsRequestObject
@@ -11368,9 +11464,10 @@ var swaggerSpec = []string{
 	"Sm367i20JhbKF95IcMm8MsbYEJkSoWmml4USvGyl5LrSsMu+M5gw7zZOKHVAr8u4ygcEYpLyFMLOBBJ3",
 	"Bj1TNulM8G+5ISXIYMGsMa+WK0aBt1GSmDY1TJsaZg2pYRqJZiEbsMWtVk6TW4llEVuzQy6YX0Eur1nK",
 	"yYCp5UzBVt5tlQmYkeKyJuCxORvVXmW16SyghRU5yxeKKQcL/zhWawu1ZWK2tUzMNhUAXqd4zNNjk2c/",
-	"beJqg2ONh+/UlI5gJpJNmrw6wZRZRaxcxAEmMKJ/7XFxVCm3ciLL99NyNSUfHLfnKiQZHU0UsenzeXc+",
-	"b16+bI/epFtz4vpfXuyuV7KViPJzGDc59OZNQcFPrQG4IQOQVZWQ9bMeAWZHF51FuIAkk9KYUkdtwtLi",
-	"25AxBDGM07chXe1rEfbYgAu+JPY7Hzudl9uX/xcAAP//a8frZosYAgA=",
+	"beJqg2ONh+/UlI5gJpJNmrw6wZRZRWm5iKo89SiY+tAhAN8zeh4/c6FSIaR2OSt9us4622yHM9DnNqtl",
+	"4DWUptsg+x5gAiP61x63JirNjpzF4ftptamSC52voYLH6WiiBlWfz7vzaS+3gOt/eatpvWKtRJSfw7iJ",
+	"qMuf5AQ/tee3DZ3fWFEYWf7uEWDmedAd6BaQZFIaU+qozTdcfNo1hiCGcfq0q6t97MXeCnHBl8R+52On",
+	"83L78v8CAAD//4vzcz9KHAIA",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

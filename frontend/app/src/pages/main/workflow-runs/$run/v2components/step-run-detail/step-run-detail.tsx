@@ -1,5 +1,11 @@
 import React from 'react';
-import { StepRun, StepRunStatus, WorkflowRun, queries } from '@/lib/api';
+import {
+  StepRun,
+  StepRunStatus,
+  V2EventType,
+  WorkflowRun,
+  queries,
+} from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 import invariant from 'tiny-invariant';
 import { Button } from '@/components/ui/button';
@@ -12,6 +18,7 @@ import { useOutletContext } from 'react-router-dom';
 import { TenantContextType } from '@/lib/outlet';
 import { WorkflowRunsTable } from '../../../components/workflow-runs-table';
 import { useTenant } from '@/lib/atoms';
+import { RunIndicator, V2RunIndicator } from '../../../components/run-statuses';
 
 export enum TabOption {
   Output = 'output',
@@ -62,6 +69,13 @@ const StepRunDetail: React.FC<StepRunDetailProps> = ({
       return 5000;
     },
   });
+
+  const taskRunQuery = useQuery({
+    ...queries.v2WorkflowRuns.get(tenantId, taskRunId),
+  });
+
+  const events = eventsQuery.data?.rows || [];
+  const taskRun = taskRunQuery.data;
 
   // const step = useMemo(() => {
   //   return workflowRun.jobRuns
@@ -135,21 +149,22 @@ const StepRunDetail: React.FC<StepRunDetailProps> = ({
   //   onError: handleApiError,
   // });
 
-  if (eventsQuery.isLoading) {
+  if (eventsQuery.isLoading || taskRunQuery.isLoading) {
     return <Loading />;
   }
 
-  // const events = eventsQuery.data?.rows || [];
-  // TODO: Add query for taskRun (not events) here to show statuses and such?
+  if (events.length === 0 || !taskRun) {
+    return <div>No events found</div>;
+  }
 
   return (
     <div className="w-full h-screen overflow-y-scroll flex flex-col gap-4">
       <div className="flex flex-row justify-between items-center">
         <div className="flex flex-row justify-between items-center w-full">
           <div className="flex flex-row gap-4 items-center">
-            {/* <RunIndicator status={stepRun.status} /> */}
+            {taskRun.status && <V2RunIndicator status={taskRun.status} />}
             <h3 className="text-lg font-mono font-semibold leading-tight tracking-tight text-foreground flex flex-row gap-4 items-center">
-              {/* {step?.readableId || 'Step Run Detail'} */}
+              {taskRun.displayName || 'Step Run Detail'}
             </h3>
           </div>
         </div>

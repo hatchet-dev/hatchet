@@ -56,6 +56,53 @@ listWorkflowRuns:
     tags:
       - Workflow run
 
+getWorkflowRun:
+  get:
+    x-resources: ["tenant"]
+    description: Get a single task run by id
+    operationId: v2:workflow-run:get
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The task run id
+        in: path
+        name: workflow-run
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/V2WorkflowRun"
+        description: Successfully listed the workflow runs
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+    summary: Get workflow run
+    tags:
+      - Workflow run
+
 V2ListStepRunEventsForWorkflowRun:
   get:
     x-resources: ["tenant"]
