@@ -263,6 +263,7 @@ func (r *olapEventRepository) ReadTaskRunEvents(tenantId, taskRunId uuid.UUID, l
 		FROM task_events te
 		JOIN tasks t ON te.task_id = t.id
    		WHERE task_id = ? AND tenant_id = ?
+		ORDER BY te.retry_count, te.readable_status DESC
 		`,
 		taskRunId,
 		tenantId,
