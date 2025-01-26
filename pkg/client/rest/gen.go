@@ -1189,8 +1189,11 @@ type V2WorkflowRun struct {
 	FinishedAt time.Time `json:"finishedAt"`
 
 	// Id The ID of the task run.
-	Id       openapi_types.UUID `json:"id"`
-	Metadata APIResourceMeta    `json:"metadata"`
+	Id openapi_types.UUID `json:"id"`
+
+	// Input The input of the task run.
+	Input    map[string]interface{} `json:"input"`
+	Metadata APIResourceMeta        `json:"metadata"`
 
 	// StartedAt The timestamp the task run started.
 	StartedAt time.Time    `json:"startedAt"`

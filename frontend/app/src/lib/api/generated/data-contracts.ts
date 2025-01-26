@@ -127,6 +127,8 @@ export interface V2WorkflowRun {
   additionalMetadata: object;
   /** The display name of the task run. */
   displayName: string;
+  /** The input of the task run. */
+  input: object;
 }
 
 export interface V2WorkflowRuns {

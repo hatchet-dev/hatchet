@@ -27,6 +27,8 @@ type WorkflowRun struct {
 	// Id The ID of the workflow run.
 	Id uuid.UUID `json:"id"`
 
+	Input string `json:"input"`
+
 	// StartedAt The timestamp the workflow run started.
 	StartedAt *time.Time `json:"startedAt,omitempty"`
 

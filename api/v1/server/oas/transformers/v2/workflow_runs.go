@@ -15,6 +15,7 @@ func jsonToMap(jsonStr string) map[string]interface{} {
 
 func ToWorkflowRun(wf *olap.WorkflowRun) gen.V2WorkflowRun {
 	additionalMetadata := jsonToMap(*wf.AdditionalMetadata)
+	input := jsonToMap(wf.Input)
 
 	return gen.V2WorkflowRun{
 		AdditionalMetadata: additionalMetadata,
@@ -24,6 +25,7 @@ func ToWorkflowRun(wf *olap.WorkflowRun) gen.V2WorkflowRun {
 		ErrorMessage:       wf.ErrorMessage,
 		FinishedAt:         *wf.FinishedAt,
 		Id:                 wf.Id,
+		Input:              input,
 		Metadata: gen.APIResourceMeta{
 			Id:        wf.TaskId.String(),
 			CreatedAt: wf.CreatedAt,

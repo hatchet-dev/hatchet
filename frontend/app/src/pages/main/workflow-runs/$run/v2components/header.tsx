@@ -3,7 +3,12 @@ import { Link, useOutletContext } from 'react-router-dom';
 
 import CronPrettifier from 'cronstrue';
 
-import api, { WorkflowRunShape, WorkflowRunStatus, queries } from '@/lib/api';
+import api, {
+  V2TaskStatus,
+  WorkflowRunShape,
+  WorkflowRunStatus,
+  queries,
+} from '@/lib/api';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import invariant from 'tiny-invariant';
 import { useApiError } from '@/lib/hooks';
@@ -26,11 +31,17 @@ import {
 import { formatDuration } from '@/lib/utils';
 import RelativeDate from '@/components/molecules/relative-date';
 import { useToast } from '@/components/hooks/use-toast';
+import { useTenant } from '@/lib/atoms';
 
 interface RunDetailHeaderProps {
   data?: WorkflowRunShape;
   loading?: boolean;
   refetch: () => void;
+}
+
+interface V2RunDetailHeaderProps {
+  taskRunId: string;
+  loading?: boolean;
 }
 
 export const WORKFLOW_RUN_TERMINAL_STATUSES = [
@@ -184,6 +195,101 @@ const RunDetailHeader: React.FC<RunDetailHeaderProps> = ({
   );
 };
 
+export const V2RunDetailHeader: React.FC<V2RunDetailHeaderProps> = ({
+  taskRunId,
+}) => {
+  const { tenant } = useOutletContext<TenantContextType>();
+  invariant(tenant);
+
+  const { isLoading: loading, data } = useQuery({
+    ...queries.v2WorkflowRuns.get(tenant.metadata.id, taskRunId),
+  });
+
+  if (loading || !data) {
+    return <div>Loading...</div>;
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <Breadcrumb>
+        <BreadcrumbList>
+          <BreadcrumbItem>
+            <BreadcrumbLink href="/">Home</BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem>
+            <BreadcrumbLink href="/workflow-runs">Workflow Runs</BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem>
+            <BreadcrumbPage>{data.displayName}</BreadcrumbPage>
+          </BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
+      <div className="flex flex-row justify-between items-center">
+        <div className="flex flex-row justify-between items-center w-full">
+          <div>
+            <h2 className="text-2xl font-bold leading-tight text-foreground flex flex-row gap-4 items-center">
+              <AdjustmentsHorizontalIcon className="w-5 h-5 mt-1" />
+              {data?.displayName}
+            </h2>
+          </div>
+          <div className="flex flex-row gap-2 items-center">
+            <a
+              href={`/workflows/${data.taskId}`}
+              target="_blank"
+              rel="noreferrer"
+            >
+              <Button
+                size={'sm'}
+                className="px-2 py-2 gap-2"
+                variant="outline"
+                disabled
+              >
+                <ArrowTopRightIcon className="w-4 h-4" />
+                Workflow Definition
+              </Button>
+            </a>
+            <Button
+              size={'sm'}
+              className="px-2 py-2 gap-2"
+              variant={'outline'}
+              disabled
+            >
+              <ArrowPathIcon className="w-4 h-4" />
+              Replay
+            </Button>
+            <Button
+              size={'sm'}
+              className="px-2 py-2 gap-2"
+              variant={'outline'}
+              disabled
+            >
+              <XCircleIcon className="w-4 h-4" />
+              Cancel
+            </Button>
+          </div>
+        </div>
+      </div>
+      {/* {data.triggeredBy?.parentWorkflowRunId && (
+        <TriggeringParentWorkflowRunSection
+          tenantId={data.tenantId}
+          parentWorkflowRunId={data.triggeredBy.parentWorkflowRunId}
+        />
+      )} */}
+      {/* {data.triggeredBy?.eventId && (
+        <TriggeringEventSection eventId={data.triggeredBy.eventId} />
+      )} */}
+      {/* {data.triggeredBy?.cronSchedule && (
+        <TriggeringCronSection cron={data.triggeredBy.cronSchedule} />
+      )} */}
+      <div className="flex flex-row gap-2 items-center">
+        <V2RunSummary taskRunId={taskRunId} />
+      </div>
+    </div>
+  );
+};
+
 export default RunDetailHeader;
 
 const RunSummary: React.FC<{ data: WorkflowRunShape }> = ({ data }) => {
@@ -230,6 +336,96 @@ const RunSummary: React.FC<{ data: WorkflowRunShape }> = ({ data }) => {
   }
 
   if (data.status === WorkflowRunStatus.SUCCEEDED && data.finishedAt) {
+    timings.push(
+      <div key="finished" className="text-sm text-muted-foreground">
+        {'Succeeded '}
+        <RelativeDate date={data.finishedAt} />
+      </div>,
+    );
+  }
+
+  if (data.duration) {
+    timings.push(
+      <div key="duration" className="text-sm text-muted-foreground">
+        Run took {formatDuration(data.duration)}
+      </div>,
+    );
+  }
+
+  // interleave the timings with a dot
+  const interleavedTimings: JSX.Element[] = [];
+
+  timings.forEach((timing, index) => {
+    interleavedTimings.push(timing);
+    if (index < timings.length - 1) {
+      interleavedTimings.push(
+        <div key={`dot-${index}`} className="text-sm text-muted-foreground">
+          |
+        </div>,
+      );
+    }
+  });
+
+  return (
+    <div className="flex flex-row gap-4 items-center">{interleavedTimings}</div>
+  );
+};
+
+export const V2RunSummary = ({ taskRunId }: { taskRunId: string }) => {
+  const { tenant } = useTenant();
+  invariant(tenant);
+
+  const { isLoading: loading, data } = useQuery({
+    ...queries.v2WorkflowRuns.get(tenant.metadata?.id, taskRunId),
+  });
+
+  const timings = [];
+
+  if (!data) {
+    return null;
+  }
+
+  timings.push(
+    <div key="created" className="text-sm text-muted-foreground">
+      {'Created '}
+      <RelativeDate date={data.metadata.createdAt} />
+    </div>,
+  );
+
+  if (data.startedAt) {
+    timings.push(
+      <div key="created" className="text-sm text-muted-foreground">
+        {'Started '}
+        <RelativeDate date={data.startedAt} />
+      </div>,
+    );
+  } else {
+    timings.push(
+      <div key="created" className="text-sm text-muted-foreground">
+        Running
+      </div>,
+    );
+  }
+
+  if (data.status === V2TaskStatus.CANCELLED && data.finishedAt) {
+    timings.push(
+      <div key="finished" className="text-sm text-muted-foreground">
+        {'Cancelled '}
+        <RelativeDate date={data.finishedAt} />
+      </div>,
+    );
+  }
+
+  if (data.status === V2TaskStatus.FAILED && data.finishedAt) {
+    timings.push(
+      <div key="finished" className="text-sm text-muted-foreground">
+        {'Failed '}
+        <RelativeDate date={data.finishedAt} />
+      </div>,
+    );
+  }
+
+  if (data.status === V2TaskStatus.COMPLETED && data.finishedAt) {
     timings.push(
       <div key="finished" className="text-sm text-muted-foreground">
         {'Succeeded '}

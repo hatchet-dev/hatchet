@@ -189,6 +189,7 @@ func (r *olapEventRepository) ReadTaskRuns(tenantId uuid.UUID, limit, offset int
 			em.error_message,
 			tem.finished_at,
 			ct.id AS id,
+			ct.input,
 			tem.started_at,
 			tem.created_at,
 			toString(tem.status) AS status,
@@ -226,6 +227,7 @@ func (r *olapEventRepository) ReadTaskRuns(tenantId uuid.UUID, limit, offset int
 			&taskRun.ErrorMessage,
 			&taskRun.FinishedAt,
 			&taskRun.Id,
+			&taskRun.Input,
 			&taskRun.StartedAt,
 			&taskRun.CreatedAt,
 			&taskRun.Status,
@@ -312,6 +314,7 @@ func (r *olapEventRepository) ReadTaskRun(tenantId, taskRunId uuid.UUID) (olap.W
 			em.error_message,
 			tem.finished_at,
 			ct.id AS id,
+			ct.input,
 			tem.started_at,
 			tem.created_at,
 			toString(tem.status) AS status,
@@ -342,6 +345,7 @@ func (r *olapEventRepository) ReadTaskRun(tenantId, taskRunId uuid.UUID) (olap.W
 		&taskRun.ErrorMessage,
 		&taskRun.FinishedAt,
 		&taskRun.Id,
+		&taskRun.Input,
 		&taskRun.StartedAt,
 		&taskRun.CreatedAt,
 		&taskRun.Status,
@@ -354,6 +358,8 @@ func (r *olapEventRepository) ReadTaskRun(tenantId, taskRunId uuid.UUID) (olap.W
 		log.Fatal(err)
 		return olap.WorkflowRun{}, err
 	}
+
+	taskRun.Status = string(StringToReadableStatus(taskRun.Status))
 
 	return taskRun, nil
 }
