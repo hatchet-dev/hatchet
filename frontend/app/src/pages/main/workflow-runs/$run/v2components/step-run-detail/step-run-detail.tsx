@@ -3,6 +3,7 @@ import {
   StepRun,
   StepRunStatus,
   V2EventType,
+  V2TaskStatus,
   WorkflowRun,
   queries,
 } from '@/lib/api';
@@ -19,6 +20,10 @@ import { TenantContextType } from '@/lib/outlet';
 import { WorkflowRunsTable } from '../../../components/workflow-runs-table';
 import { useTenant } from '@/lib/atoms';
 import { RunIndicator, V2RunIndicator } from '../../../components/run-statuses';
+import RelativeDate from '@/components/molecules/relative-date';
+import { formatDuration } from '@/lib/utils';
+import StepRunOutput, { V2StepRunOutput } from './step-run-output';
+import { CodeHighlighter } from '@/components/ui/code-highlighter';
 
 export enum TabOption {
   Output = 'output',
@@ -52,13 +57,6 @@ const StepRunDetail: React.FC<StepRunDetailProps> = ({
   }
 
   const errors: string[] = [];
-  // const [errors, setErrors] = useState<string[]>([]);
-
-  // const {} = useApiError({
-  //   setErrors,
-  // });
-
-  // const queryClient = useQueryClient();
 
   const eventsQuery = useQuery({
     ...queries.v2StepRunEvents.list(tenantId, taskRunId, {
@@ -76,78 +74,6 @@ const StepRunDetail: React.FC<StepRunDetailProps> = ({
 
   const events = eventsQuery.data?.rows || [];
   const taskRun = taskRunQuery.data;
-
-  // const step = useMemo(() => {
-  //   return workflowRun.jobRuns
-  //     ?.flatMap((jr) => jr.job?.steps)
-  //     .filter((x) => !!x)
-  //     .find((x) => x?.metadata.id === stepRun?.stepId);
-  // }, [workflowRun, stepRun]);
-
-  // const rerunStepMutation = useMutation({
-  //   mutationKey: [
-  //     'step-run:update:rerun',
-  //     stepRun?.tenantId,
-  //     stepRun?.metadata.id,
-  //   ],
-  //   mutationFn: async (input: object) => {
-  //     invariant(stepRun?.tenantId, 'has tenantId');
-
-  //     const res = await api.stepRunUpdateRerun(
-  //       stepRun?.tenantId,
-  //       stepRun?.metadata.id,
-  //       {
-  //         input,
-  //       },
-  //     );
-
-  //     return res.data;
-  //   },
-  //   onMutate: () => {
-  //     setErrors([]);
-  //   },
-  //   onSuccess: (stepRun: StepRun) => {
-  //     queryClient.invalidateQueries({
-  //       queryKey: queries.workflowRuns.get(
-  //         stepRun?.tenantId,
-  //         workflowRun.metadata.id,
-  //       ).queryKey,
-  //     });
-  //   },
-  //   onError: handleApiError,
-  // });
-
-  // const cancelStepMutation = useMutation({
-  //   mutationKey: [
-  //     'step-run:update:cancel',
-  //     stepRun?.tenantId,
-  //     stepRun?.metadata.id,
-  //   ],
-  //   mutationFn: async () => {
-  //     invariant(stepRun?.tenantId, 'has tenantId');
-
-  //     const res = await api.stepRunUpdateCancel(
-  //       stepRun?.tenantId,
-  //       stepRun?.metadata.id,
-  //     );
-
-  //     return res.data;
-  //   },
-  //   onMutate: () => {
-  //     setErrors([]);
-  //   },
-  //   onSuccess: (stepRun: StepRun) => {
-  //     queryClient.invalidateQueries({
-  //       queryKey: queries.workflowRuns.get(
-  //         stepRun?.tenantId,
-  //         workflowRun.metadata.id,
-  //       ).queryKey,
-  //     });
-
-  //     getStepRunQuery.refetch();
-  //   },
-  //   onError: handleApiError,
-  // });
 
   if (eventsQuery.isLoading || taskRunQuery.isLoading) {
     return <Loading />;
@@ -214,8 +140,7 @@ const StepRunDetail: React.FC<StepRunDetailProps> = ({
         </div>
       )}
       <div className="flex flex-row gap-2 items-center">
-        {/* TODO: Filter to retry number to show this? */}
-        {/* {stepRun && <StepRunSummary data={stepRun} />} */}
+        <V2StepRunSummary taskRunId={taskRunId} />
       </div>
       <Tabs defaultValue={defaultOpenTab}>
         <TabsList layout="underlined">
@@ -239,8 +164,7 @@ const StepRunDetail: React.FC<StepRunDetailProps> = ({
           </TabsTrigger>
         </TabsList>
         <TabsContent value={TabOption.Output}>
-          {/* TODO: Filter to retry number to show this? */}
-          {/* <StepRunOutput stepRun={stepRun} workflowRun={workflowRun} /> */}
+          <V2StepRunOutput taskRunId={taskRunId} />
         </TabsContent>
         <TabsContent value={TabOption.ChildWorkflowRuns}>
           {/* <ChildWorkflowRuns
@@ -250,16 +174,15 @@ const StepRunDetail: React.FC<StepRunDetailProps> = ({
           /> */}
         </TabsContent>
         <TabsContent value={TabOption.Input}>
-          {/* TODO: Filter to retry number to show this? */}
-          {/* {stepRun.input && (
+          {taskRun.input && (
             <CodeHighlighter
               className="my-4 h-[400px] max-h-[400px] overflow-y-auto"
               maxHeight="400px"
               minHeight="400px"
               language="json"
-              code={JSON.stringify(JSON.parse(stepRun?.input || '{}'), null, 2)}
+              code={JSON.stringify(taskRun.input, null, 2)}
             />
-          )} */}
+          )}
         </TabsContent>
         <TabsContent value={TabOption.Logs}>
           {/* TODO Add this back */}
@@ -285,77 +208,156 @@ const StepRunDetail: React.FC<StepRunDetailProps> = ({
 
 export default StepRunDetail;
 
-// const StepRunSummary: React.FC<{ data: StepRun }> = ({ data }) => {
-//   const timings = [];
+const StepRunSummary: React.FC<{ data: StepRun }> = ({ data }) => {
+  const timings = [];
 
-//   if (data.startedAt) {
-//     timings.push(
-//       <div key="created" className="text-sm text-muted-foreground">
-//         {'Started '}
-//         <RelativeDate date={data.startedAt} />
-//       </div>,
-//     );
-//   } else {
-//     timings.push(
-//       <div key="created" className="text-sm text-muted-foreground">
-//         Running
-//       </div>,
-//     );
-//   }
+  if (data.startedAt) {
+    timings.push(
+      <div key="created" className="text-sm text-muted-foreground">
+        {'Started '}
+        <RelativeDate date={data.startedAt} />
+      </div>,
+    );
+  } else {
+    timings.push(
+      <div key="created" className="text-sm text-muted-foreground">
+        Running
+      </div>,
+    );
+  }
 
-//   if (data.status === StepRunStatus.CANCELLED && data.cancelledAt) {
-//     timings.push(
-//       <div key="finished" className="text-sm text-muted-foreground">
-//         {'Cancelled '}
-//         <RelativeDate date={data.cancelledAt} />
-//       </div>,
-//     );
-//   }
+  if (data.status === StepRunStatus.CANCELLED && data.cancelledAt) {
+    timings.push(
+      <div key="finished" className="text-sm text-muted-foreground">
+        {'Cancelled '}
+        <RelativeDate date={data.cancelledAt} />
+      </div>,
+    );
+  }
 
-//   if (data.status === StepRunStatus.FAILED && data.finishedAt) {
-//     timings.push(
-//       <div key="finished" className="text-sm text-muted-foreground">
-//         {'Failed '}
-//         <RelativeDate date={data.finishedAt} />
-//       </div>,
-//     );
-//   }
+  if (data.status === StepRunStatus.FAILED && data.finishedAt) {
+    timings.push(
+      <div key="finished" className="text-sm text-muted-foreground">
+        {'Failed '}
+        <RelativeDate date={data.finishedAt} />
+      </div>,
+    );
+  }
 
-//   if (data.status === StepRunStatus.SUCCEEDED && data.finishedAt) {
-//     timings.push(
-//       <div key="finished" className="text-sm text-muted-foreground">
-//         {'Succeeded '}
-//         <RelativeDate date={data.finishedAt} />
-//       </div>,
-//     );
-//   }
+  if (data.status === StepRunStatus.SUCCEEDED && data.finishedAt) {
+    timings.push(
+      <div key="finished" className="text-sm text-muted-foreground">
+        {'Succeeded '}
+        <RelativeDate date={data.finishedAt} />
+      </div>,
+    );
+  }
 
-//   if (data.finishedAtEpoch && data.startedAtEpoch) {
-//     timings.push(
-//       <div key="duration" className="text-sm text-muted-foreground">
-//         Run took {formatDuration(data.finishedAtEpoch - data.startedAtEpoch)}
-//       </div>,
-//     );
-//   }
+  if (data.finishedAtEpoch && data.startedAtEpoch) {
+    timings.push(
+      <div key="duration" className="text-sm text-muted-foreground">
+        Run took {formatDuration(data.finishedAtEpoch - data.startedAtEpoch)}
+      </div>,
+    );
+  }
 
-//   // interleave the timings with a dot
-//   const interleavedTimings: JSX.Element[] = [];
+  // interleave the timings with a dot
+  const interleavedTimings: JSX.Element[] = [];
 
-//   timings.forEach((timing, index) => {
-//     interleavedTimings.push(timing);
-//     if (index < timings.length - 1) {
-//       interleavedTimings.push(
-//         <div key={`dot-${index}`} className="text-sm text-muted-foreground">
-//           |
-//         </div>,
-//       );
-//     }
-//   });
+  timings.forEach((timing, index) => {
+    interleavedTimings.push(timing);
+    if (index < timings.length - 1) {
+      interleavedTimings.push(
+        <div key={`dot-${index}`} className="text-sm text-muted-foreground">
+          |
+        </div>,
+      );
+    }
+  });
 
-//   return (
-//     <div className="flex flex-row gap-4 items-center">{interleavedTimings}</div>
-//   );
-// };
+  return (
+    <div className="flex flex-row gap-4 items-center">{interleavedTimings}</div>
+  );
+};
+
+const V2StepRunSummary = ({ taskRunId }: { taskRunId: string }) => {
+  const { tenantId } = useTenant();
+
+  if (!tenantId) {
+    throw new Error('Tenant not found');
+  }
+
+  const taskRunQuery = useQuery({
+    ...queries.v2WorkflowRuns.get(tenantId, taskRunId),
+  });
+
+  const timings = [];
+
+  const data = taskRunQuery.data;
+
+  if (taskRunQuery.isLoading || !data) {
+    return <Loading />;
+  }
+
+  if (data.startedAt) {
+    timings.push(
+      <div key="created" className="text-sm text-muted-foreground">
+        {'Started '}
+        <RelativeDate date={data.startedAt} />
+      </div>,
+    );
+  } else {
+    timings.push(
+      <div key="created" className="text-sm text-muted-foreground">
+        Running
+      </div>,
+    );
+  }
+
+  if (data.status === V2TaskStatus.FAILED && data.finishedAt) {
+    timings.push(
+      <div key="finished" className="text-sm text-muted-foreground">
+        {'Failed '}
+        <RelativeDate date={data.finishedAt} />
+      </div>,
+    );
+  }
+
+  if (data.status === V2TaskStatus.COMPLETED && data.finishedAt) {
+    timings.push(
+      <div key="finished" className="text-sm text-muted-foreground">
+        {'Succeeded '}
+        <RelativeDate date={data.finishedAt} />
+      </div>,
+    );
+  }
+
+  if (data.duration) {
+    timings.push(
+      <div key="duration" className="text-sm text-muted-foreground">
+        Run took {formatDuration(data.duration)}
+      </div>,
+    );
+  }
+
+  // interleave the timings with a dot
+  const interleavedTimings: JSX.Element[] = [];
+
+  timings.forEach((timing, index) => {
+    interleavedTimings.push(timing);
+    if (index < timings.length - 1) {
+      interleavedTimings.push(
+        <div key={`dot-${index}`} className="text-sm text-muted-foreground">
+          |
+        </div>,
+      );
+    }
+  });
+
+  return (
+    <div className="flex flex-row gap-4 items-center">{interleavedTimings}</div>
+  );
+};
 
 export function ChildWorkflowRuns({
   stepRun,

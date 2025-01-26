@@ -29,6 +29,8 @@ type WorkflowRun struct {
 
 	Input string `json:"input"`
 
+	Output string `json:"output"`
+
 	// StartedAt The timestamp the workflow run started.
 	StartedAt *time.Time `json:"startedAt,omitempty"`
 

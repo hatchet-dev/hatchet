@@ -56,6 +56,9 @@ V2WorkflowRun:
     input:
       type: object
       description: The input of the task run.
+    output:
+      type: object
+      description: The output of the task run.
   required:
     - metadata
     - id

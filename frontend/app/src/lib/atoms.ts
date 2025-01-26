@@ -3,6 +3,7 @@ import { Tenant, queries } from './api';
 import { useSearchParams } from 'react-router-dom';
 import { useCallback, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import invariant from 'tiny-invariant';
 
 const getInitialValue = <T>(key: string, defaultValue?: T): T | undefined => {
   const item = localStorage.getItem(key);
@@ -32,6 +33,7 @@ export const lastTenantAtom = atom(
 
 type TenantContext = {
   tenant: Tenant | undefined;
+  tenantId: string | undefined;
   setTenant: (tenant: Tenant) => void;
 };
 
@@ -96,8 +98,11 @@ export function useTenant(): TenantContext {
   const currTenantId = searchParams.get('tenant');
   const currTenant = currTenantId ? findTenant(currTenantId) : undefined;
 
+  const tenant = currTenant || computedCurrTenant;
+
   return {
-    tenant: currTenant || computedCurrTenant,
+    tenant,
+    tenantId: tenant?.metadata.id,
     setTenant,
   };
 }

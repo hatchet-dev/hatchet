@@ -180,6 +180,12 @@ func (r *olapEventRepository) ReadTaskRuns(tenantId uuid.UUID, limit, offset int
 				error_message
 			FROM relevant_task_events
 			WHERE readable_status = 'FAILED'
+		), outputs AS (
+			SELECT
+				task_id,
+				LAST_VALUE(output) OVER(PARTITION BY task_id ORDER BY retry_count) AS output
+			FROM relevant_task_events
+			WHERE readable_status = 'COMPLETED'
 		)
 
 		SELECT
@@ -190,6 +196,7 @@ func (r *olapEventRepository) ReadTaskRuns(tenantId uuid.UUID, limit, offset int
 			tem.finished_at,
 			ct.id AS id,
 			ct.input,
+			o.output,
 			tem.started_at,
 			tem.created_at,
 			toString(tem.status) AS status,
@@ -200,6 +207,7 @@ func (r *olapEventRepository) ReadTaskRuns(tenantId uuid.UUID, limit, offset int
 		FROM candidate_tasks ct
 		JOIN task_event_metadata tem ON ct.id = tem.task_id
 		LEFT JOIN error_messages em ON ct.id = em.task_id
+		LEFT JOIN outputs o ON ct.id = o.task_id
 		ORDER BY ct.created_at DESC
 		`,
 		tenantId,
@@ -228,6 +236,7 @@ func (r *olapEventRepository) ReadTaskRuns(tenantId uuid.UUID, limit, offset int
 			&taskRun.FinishedAt,
 			&taskRun.Id,
 			&taskRun.Input,
+			&taskRun.Output,
 			&taskRun.StartedAt,
 			&taskRun.CreatedAt,
 			&taskRun.Status,
@@ -305,6 +314,12 @@ func (r *olapEventRepository) ReadTaskRun(tenantId, taskRunId uuid.UUID) (olap.W
 				error_message
 			FROM relevant_task_events
 			WHERE readable_status = 'FAILED'
+		), outputs AS (
+			SELECT
+				LAST_VALUE(task_id) AS task_id,
+				LAST_VALUE(output) AS output
+			FROM relevant_task_events
+			WHERE readable_status = 'COMPLETED'
 		)
 
 		SELECT
@@ -315,6 +330,7 @@ func (r *olapEventRepository) ReadTaskRun(tenantId, taskRunId uuid.UUID) (olap.W
 			tem.finished_at,
 			ct.id AS id,
 			ct.input,
+			o.output,
 			tem.started_at,
 			tem.created_at,
 			toString(tem.status) AS status,
@@ -325,6 +341,7 @@ func (r *olapEventRepository) ReadTaskRun(tenantId, taskRunId uuid.UUID) (olap.W
 		FROM tasks ct
 		JOIN task_event_metadata tem ON ct.id = tem.task_id
 		LEFT JOIN error_messages em ON ct.id = em.task_id
+		LEFT JOIN outputs o ON ct.id = o.task_id
 		WHERE ct.id = ?
 		`,
 		tenantId,
@@ -346,6 +363,7 @@ func (r *olapEventRepository) ReadTaskRun(tenantId, taskRunId uuid.UUID) (olap.W
 		&taskRun.FinishedAt,
 		&taskRun.Id,
 		&taskRun.Input,
+		&taskRun.Output,
 		&taskRun.StartedAt,
 		&taskRun.CreatedAt,
 		&taskRun.Status,

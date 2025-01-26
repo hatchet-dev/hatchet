@@ -1195,6 +1195,9 @@ type V2WorkflowRun struct {
 	Input    map[string]interface{} `json:"input"`
 	Metadata APIResourceMeta        `json:"metadata"`
 
+	// Output The output of the task run.
+	Output *map[string]interface{} `json:"output,omitempty"`
+
 	// StartedAt The timestamp the task run started.
 	StartedAt time.Time    `json:"startedAt"`
 	Status    V2TaskStatus `json:"status"`
