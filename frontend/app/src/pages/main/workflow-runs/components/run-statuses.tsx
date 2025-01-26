@@ -78,7 +78,8 @@ export function RunStatus({
   reason,
   className,
 }: {
-  status: V2TaskStatus;
+  // TODO: Remove this - it's a hack to fix type checking for now
+  status: V2TaskStatus | RunStatusType;
   reason?: string;
   className?: string;
 }) {
