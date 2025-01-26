@@ -375,7 +375,7 @@ export const V2RunSummary = ({ taskRunId }: { taskRunId: string }) => {
   const { tenant } = useTenant();
   invariant(tenant);
 
-  const { isLoading: loading, data } = useQuery({
+  const { data } = useQuery({
     ...queries.v2WorkflowRuns.get(tenant.metadata?.id, taskRunId),
   });
 

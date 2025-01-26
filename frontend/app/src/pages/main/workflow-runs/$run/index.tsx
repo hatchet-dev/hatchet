@@ -13,7 +13,7 @@ import StepRunDetail, {
 import { Separator } from '@/components/ui/separator';
 import { CodeHighlighter } from '@/components/ui/code-highlighter';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
-import RunDetailHeader, { V2RunDetailHeader } from './v2components/header';
+import { V2RunDetailHeader } from './v2components/header';
 
 export const WORKFLOW_RUN_TERMINAL_STATUSES = [
   WorkflowRunStatus.CANCELLED,
@@ -52,14 +52,7 @@ export default function ExpandedWorkflowRun() {
     ...queries.v2WorkflowRuns.get(tenantId, params.run),
   });
 
-  const { data: rawEvents, isLoading } = useQuery({
-    ...queries.v2StepRunEvents.list(tenant.metadata.id, params.run, {
-      limit: 50,
-      offset: 0,
-    }),
-  });
-
-  if (isLoading || taskRunQuery.isLoading) {
+  if (taskRunQuery.isLoading) {
     // TODO: Loading state
     return null;
   }
@@ -70,7 +63,6 @@ export default function ExpandedWorkflowRun() {
     return null;
   }
 
-  const events = rawEvents?.rows || [];
   const inputData = taskRun.input;
   const additionalMetadata = taskRun.additionalMetadata;
 

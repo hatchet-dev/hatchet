@@ -2,7 +2,6 @@ import React from 'react';
 import {
   StepRun,
   StepRunStatus,
-  V2EventType,
   V2TaskStatus,
   WorkflowRun,
   queries,
@@ -19,10 +18,10 @@ import { useOutletContext } from 'react-router-dom';
 import { TenantContextType } from '@/lib/outlet';
 import { WorkflowRunsTable } from '../../../components/workflow-runs-table';
 import { useTenant } from '@/lib/atoms';
-import { RunIndicator, V2RunIndicator } from '../../../components/run-statuses';
+import { V2RunIndicator } from '../../../components/run-statuses';
 import RelativeDate from '@/components/molecules/relative-date';
 import { formatDuration } from '@/lib/utils';
-import StepRunOutput, { V2StepRunOutput } from './step-run-output';
+import { V2StepRunOutput } from './step-run-output';
 import { CodeHighlighter } from '@/components/ui/code-highlighter';
 
 export enum TabOption {
@@ -208,7 +207,7 @@ const StepRunDetail: React.FC<StepRunDetailProps> = ({
 
 export default StepRunDetail;
 
-const StepRunSummary: React.FC<{ data: StepRun }> = ({ data }) => {
+export const StepRunSummary: React.FC<{ data: StepRun }> = ({ data }) => {
   const timings = [];
 
   if (data.startedAt) {

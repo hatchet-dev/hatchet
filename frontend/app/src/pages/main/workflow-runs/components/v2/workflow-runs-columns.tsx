@@ -2,7 +2,7 @@ import { ColumnDef } from '@tanstack/react-table';
 import { DataTableColumnHeader } from '../../../../../components/molecules/data-table/data-table-column-header';
 import { V2WorkflowRun } from '@/lib/api';
 import { Link } from 'react-router-dom';
-import { RunStatus } from '.././run-statuses';
+import { V2RunStatus } from '.././run-statuses';
 import {
   AdditionalMetadata,
   AdditionalMetadataClick,
@@ -57,7 +57,7 @@ export const columns: (
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Status" />
     ),
-    cell: ({ row }) => <RunStatus status={row.original.status} />,
+    cell: ({ row }) => <V2RunStatus status={row.original.status} />,
     enableSorting: false,
     enableHiding: false,
   },

@@ -3,7 +3,6 @@ import { Tenant, queries } from './api';
 import { useSearchParams } from 'react-router-dom';
 import { useCallback, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import invariant from 'tiny-invariant';
 
 const getInitialValue = <T>(key: string, defaultValue?: T): T | undefined => {
   const item = localStorage.getItem(key);

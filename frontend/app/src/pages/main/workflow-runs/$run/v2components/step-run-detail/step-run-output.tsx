@@ -1,11 +1,5 @@
 import { CodeHighlighter } from '@/components/ui/code-highlighter';
-import {
-  queries,
-  StepRun,
-  StepRunStatus,
-  V2TaskStatus,
-  WorkflowRunShape,
-} from '@/lib/api';
+import { queries, StepRun, StepRunStatus, WorkflowRunShape } from '@/lib/api';
 import React from 'react';
 import StepRunCodeText from './step-run-error';
 import LoggingComponent from '@/components/cloud/logging/logs';
@@ -108,14 +102,6 @@ const OUTPUT_STATE_MAP: Record<StepRunStatus, React.FC<StepRunOutputProps>> = {
   [StepRunStatus.CANCELLING]: StepRunOutputCancelling,
 };
 
-const V2OUTPUT_STATE_MAP: Record<V2TaskStatus, React.FC<StepRunOutputProps>> = {
-  [V2TaskStatus.CANCELLED]: StepRunOutputCancelled,
-  [V2TaskStatus.RUNNING]: StepRunOutputRunning,
-  [V2TaskStatus.COMPLETED]: StepRunOutputSucceeded,
-  [V2TaskStatus.FAILED]: StepRunOutputFailed,
-  [V2TaskStatus.QUEUED]: StepRunOutputPending,
-};
-
 const StepRunOutput: React.FC<StepRunOutputProps> = (props) => {
   const Component = OUTPUT_STATE_MAP[props.stepRun.status];
   return <Component {...props} />;
@@ -123,6 +109,11 @@ const StepRunOutput: React.FC<StepRunOutputProps> = (props) => {
 
 export const V2StepRunOutput = (props: { taskRunId: string }) => {
   const { tenantId } = useTenant();
+
+  if (!tenantId) {
+    return null;
+  }
+
   const { isLoading, data } = useQuery({
     ...queries.v2WorkflowRuns.get(tenantId, props.taskRunId),
   });
