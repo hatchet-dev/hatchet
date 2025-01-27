@@ -179,43 +179,43 @@ func (t *TickerImpl) Start() (func() error, error) {
 		return nil, fmt.Errorf("could not create update heartbeat job: %w", err)
 	}
 
-	_, err = t.s.NewJob(
-		gocron.DurationJob(time.Second*1),
-		gocron.NewTask(
-			t.runPollGetGroupKeyRuns(ctx),
-		),
-	)
+	// _, err = t.s.NewJob(
+	// 	gocron.DurationJob(time.Second*1),
+	// 	gocron.NewTask(
+	// 		t.runPollGetGroupKeyRuns(ctx),
+	// 	),
+	// )
 
-	if err != nil {
-		cancel()
-		return nil, fmt.Errorf("could not create update heartbeat job: %w", err)
-	}
+	// if err != nil {
+	// 	cancel()
+	// 	return nil, fmt.Errorf("could not create update heartbeat job: %w", err)
+	// }
 
-	_, err = t.s.NewJob(
-		// crons only have a resolution of 1 minute, so only poll every 15 seconds
-		gocron.DurationJob(time.Second*15),
-		gocron.NewTask(
-			t.runPollCronSchedules(ctx),
-		),
-	)
+	// _, err = t.s.NewJob(
+	// 	// crons only have a resolution of 1 minute, so only poll every 15 seconds
+	// 	gocron.DurationJob(time.Second*15),
+	// 	gocron.NewTask(
+	// 		t.runPollCronSchedules(ctx),
+	// 	),
+	// )
 
-	if err != nil {
-		cancel()
-		return nil, fmt.Errorf("could not create poll cron schedules job: %w", err)
-	}
+	// if err != nil {
+	// 	cancel()
+	// 	return nil, fmt.Errorf("could not create poll cron schedules job: %w", err)
+	// }
 
-	_, err = t.s.NewJob(
-		// we look ahead every 5 seconds
-		gocron.DurationJob(time.Second*5),
-		gocron.NewTask(
-			t.runPollSchedules(ctx),
-		),
-	)
+	// _, err = t.s.NewJob(
+	// 	// we look ahead every 5 seconds
+	// 	gocron.DurationJob(time.Second*5),
+	// 	gocron.NewTask(
+	// 		t.runPollSchedules(ctx),
+	// 	),
+	// )
 
-	if err != nil {
-		cancel()
-		return nil, fmt.Errorf("could not create poll cron schedules job: %w", err)
-	}
+	// if err != nil {
+	// 	cancel()
+	// 	return nil, fmt.Errorf("could not create poll cron schedules job: %w", err)
+	// }
 
 	_, err = t.s.NewJob(
 		gocron.DurationJob(time.Minute*5),

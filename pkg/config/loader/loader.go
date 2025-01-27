@@ -233,6 +233,7 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		EssentialPool:         essentialPool,
 		QueuePool:             pool,
 		APIRepository:         apiRepo,
+		OLAPRepository:        repository.NewOLAPEventRepository(),
 		EngineRepository:      engineRepo,
 		V2:                    v2Repo,
 		EntitlementRepository: entitlementRepo,

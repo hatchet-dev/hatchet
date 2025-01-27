@@ -13,18 +13,14 @@ WITH latest_versions AS (
     ORDER BY "workflowId", "order" DESC
 ), events AS (
     SELECT
-        "id", "key", "data"
-    FROM
-        "Event" as event
-    WHERE
-        event."id" = ANY(@eventIds::uuid[])
+        unnest(@eventIds::uuid[]) AS "eventId",
+        unnest(@eventKeys::text[]) AS "eventKey"
 )
 -- select the workflow versions that have the event trigger
 SELECT
     latest_versions."workflowVersionId",
-    events."id" as "eventId",
-    events."key" as "eventKey",
-    events."data" as "eventData"
+    events."eventId"::uuid as "eventId",
+    events."eventKey"::text as "eventKey"
 FROM
     latest_versions
 JOIN
@@ -32,4 +28,4 @@ JOIN
 JOIN
     "WorkflowTriggerEventRef" as eventRef ON eventRef."parentId" = triggers."id"
 JOIN
-    events ON events."key" = eventRef."eventKey";
+    events ON events."eventKey" = eventRef."eventKey";

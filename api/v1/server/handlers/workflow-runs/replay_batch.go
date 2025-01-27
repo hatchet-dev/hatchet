@@ -1,83 +1,75 @@
 package workflowruns
 
 import (
-	"context"
-	"time"
-
-	"github.com/hashicorp/go-multierror"
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
-	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
-	"github.com/hatchet-dev/hatchet/internal/msgqueue"
-	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 )
 
 func (t *WorkflowRunsService) WorkflowRunUpdateReplay(ctx echo.Context, request gen.WorkflowRunUpdateReplayRequestObject) (gen.WorkflowRunUpdateReplayResponseObject, error) {
-	tenant := ctx.Get("tenant").(*db.TenantModel)
+	panic("not implemented in v2")
 
-	workflowRunIds := make([]string, len(request.Body.WorkflowRunIds))
+	// tenant := ctx.Get("tenant").(*db.TenantModel)
 
-	for i := range request.Body.WorkflowRunIds {
-		workflowRunIds[i] = request.Body.WorkflowRunIds[i].String()
-	}
+	// workflowRunIds := make([]string, len(request.Body.WorkflowRunIds))
 
-	limit := 500
+	// for i := range request.Body.WorkflowRunIds {
+	// 	workflowRunIds[i] = request.Body.WorkflowRunIds[i].String()
+	// }
 
-	// make sure all workflow runs belong to the tenant
-	filteredWorkflowRuns, err := t.config.EngineRepository.WorkflowRun().ListWorkflowRuns(ctx.Request().Context(), tenant.ID, &repository.ListWorkflowRunsOpts{
-		Ids:   workflowRunIds,
-		Limit: &limit,
-	})
+	// limit := 500
 
-	if err != nil {
-		return nil, err
-	}
+	// // make sure all workflow runs belong to the tenant
+	// filteredWorkflowRuns, err := t.config.EngineRepository.WorkflowRun().ListWorkflowRuns(ctx.Request().Context(), tenant.ID, &repository.ListWorkflowRunsOpts{
+	// 	Ids:   workflowRunIds,
+	// 	Limit: &limit,
+	// })
 
-	var allErrs error
+	// if err != nil {
+	// 	return nil, err
+	// }
 
-	for i := range filteredWorkflowRuns.Rows {
-		// push to task queue
-		err = t.config.MessageQueue.AddMessage(
-			ctx.Request().Context(),
-			msgqueue.WORKFLOW_PROCESSING_QUEUE,
-			tasktypes.WorkflowRunReplayToTask(tenant.ID, sqlchelpers.UUIDToStr(filteredWorkflowRuns.Rows[i].WorkflowRun.ID)),
-		)
+	// var allErrs error
 
-		if err != nil {
-			allErrs = multierror.Append(allErrs, err)
-		}
-	}
+	// for i := range filteredWorkflowRuns.Rows {
+	// 	// push to task queue
+	// 	err = t.config.MessageQueue.SendMessage(
+	// 		ctx.Request().Context(),
+	// 		msgqueue.WORKFLOW_PROCESSING_QUEUE,
+	// 		tasktypes.WorkflowRunReplayToTask(tenant.ID, sqlchelpers.UUIDToStr(filteredWorkflowRuns.Rows[i].WorkflowRun.ID)),
+	// 	)
 
-	if allErrs != nil {
-		return nil, allErrs
-	}
+	// 	if err != nil {
+	// 		allErrs = multierror.Append(allErrs, err)
+	// 	}
+	// }
 
-	dbCtx, cancel := context.WithTimeout(ctx.Request().Context(), 60*time.Second)
-	defer cancel()
+	// if allErrs != nil {
+	// 	return nil, allErrs
+	// }
 
-	newWorkflowRuns, err := t.config.APIRepository.WorkflowRun().ListWorkflowRuns(dbCtx, tenant.ID, &repository.ListWorkflowRunsOpts{
-		Ids:   workflowRunIds,
-		Limit: &limit,
-	})
+	// dbCtx, cancel := context.WithTimeout(ctx.Request().Context(), 60*time.Second)
+	// defer cancel()
 
-	if err != nil {
-		return nil, err
-	}
+	// newWorkflowRuns, err := t.config.APIRepository.WorkflowRun().ListWorkflowRuns(dbCtx, tenant.ID, &repository.ListWorkflowRunsOpts{
+	// 	Ids:   workflowRunIds,
+	// 	Limit: &limit,
+	// })
 
-	rows := make([]gen.WorkflowRun, len(newWorkflowRuns.Rows))
+	// if err != nil {
+	// 	return nil, err
+	// }
 
-	for i, workflow := range newWorkflowRuns.Rows {
-		workflowCp := workflow
-		rows[i] = *transformers.ToWorkflowRunFromSQLC(workflowCp)
-	}
+	// rows := make([]gen.WorkflowRun, len(newWorkflowRuns.Rows))
 
-	return gen.WorkflowRunUpdateReplay200JSONResponse(
-		gen.ReplayWorkflowRunsResponse{
-			WorkflowRuns: rows,
-		},
-	), nil
+	// for i, workflow := range newWorkflowRuns.Rows {
+	// 	workflowCp := workflow
+	// 	rows[i] = *transformers.ToWorkflowRunFromSQLC(workflowCp)
+	// }
+
+	// return gen.WorkflowRunUpdateReplay200JSONResponse(
+	// 	gen.ReplayWorkflowRunsResponse{
+	// 		WorkflowRuns: rows,
+	// 	},
+	// ), nil
 }

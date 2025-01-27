@@ -26,7 +26,7 @@ type sharedRepository struct {
 	bulkUserEventBuffer   *buffer.TenantBufferManager[*repository.CreateEventOpts, dbsqlc.Event]
 	bulkWorkflowRunBuffer *buffer.TenantBufferManager[*repository.CreateWorkflowRunOpts, dbsqlc.WorkflowRun]
 	bulkAckMQBuffer       *buffer.TenantBufferManager[int64, int]
-	bulkAddMQBuffer       *buffer.TenantBufferManager[addMessage, int]
+	bulkAddMQBuffer       *buffer.TenantBufferManager[SendMessage, int]
 
 	wrRunningCallbacks []repository.TenantScopedCallback[pgtype.UUID]
 }

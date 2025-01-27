@@ -2,17 +2,13 @@ package ingestor
 
 import (
 	"context"
-	"strconv"
 	"time"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/hatchet-dev/hatchet/internal/datautils"
-	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor/contracts"
-	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
@@ -145,56 +141,58 @@ func (i *IngestorImpl) ReplaySingleEvent(ctx context.Context, req *contracts.Rep
 }
 
 func (i *IngestorImpl) PutStreamEvent(ctx context.Context, req *contracts.PutStreamEventRequest) (*contracts.PutStreamEventResponse, error) {
-	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
+	panic("not implemented in v2")
 
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	// tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
 
-	var createdAt *time.Time
+	// tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
-	if t := req.CreatedAt.AsTime().UTC(); !t.IsZero() {
-		createdAt = &t
-	}
+	// var createdAt *time.Time
 
-	var metadata []byte
+	// if t := req.CreatedAt.AsTime().UTC(); !t.IsZero() {
+	// 	createdAt = &t
+	// }
 
-	if req.Metadata != "" {
-		metadata = []byte(req.Metadata)
-	}
+	// var metadata []byte
 
-	opts := repository.CreateStreamEventOpts{
-		StepRunId: req.StepRunId,
-		CreatedAt: createdAt,
-		Message:   req.Message,
-		Metadata:  metadata,
-	}
+	// if req.Metadata != "" {
+	// 	metadata = []byte(req.Metadata)
+	// }
 
-	if err := i.v.Validate(opts); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
-	}
+	// opts := repository.CreateStreamEventOpts{
+	// 	StepRunId: req.StepRunId,
+	// 	CreatedAt: createdAt,
+	// 	Message:   req.Message,
+	// 	Metadata:  metadata,
+	// }
 
-	meta, err := i.streamEventRepository.GetStreamEventMeta(ctx, tenantId, req.StepRunId)
+	// if err := i.v.Validate(opts); err != nil {
+	// 	return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", err)
+	// }
 
-	if err != nil {
-		return nil, err
-	}
+	// meta, err := i.streamEventRepository.GetStreamEventMeta(ctx, tenantId, req.StepRunId)
 
-	streamEvent, err := i.streamEventRepository.PutStreamEvent(ctx, tenantId, &opts)
+	// if err != nil {
+	// 	return nil, err
+	// }
 
-	if err != nil {
-		return nil, err
-	}
+	// streamEvent, err := i.streamEventRepository.PutStreamEvent(ctx, tenantId, &opts)
 
-	q := msgqueue.TenantEventConsumerQueue(tenantId)
+	// if err != nil {
+	// 	return nil, err
+	// }
 
-	e := streamEventToTask(streamEvent, sqlchelpers.UUIDToStr(meta.WorkflowRunId), &meta.RetryCount, &meta.Retries)
+	// q := msgqueue.TenantEventConsumerQueue(tenantId)
 
-	err = i.mq.AddMessage(context.Background(), q, e)
+	// e := streamEventToTask(streamEvent, sqlchelpers.UUIDToStr(meta.WorkflowRunId), &meta.RetryCount, &meta.Retries)
 
-	if err != nil {
-		return nil, err
-	}
+	// err = i.mq.SendMessage(context.Background(), q, e)
 
-	return &contracts.PutStreamEventResponse{}, nil
+	// if err != nil {
+	// 	return nil, err
+	// }
+
+	// return &contracts.PutStreamEventResponse{}, nil
 }
 
 func (i *IngestorImpl) PutLog(ctx context.Context, req *contracts.PutLogRequest) (*contracts.PutLogResponse, error) {
@@ -251,42 +249,41 @@ func (i *IngestorImpl) PutLog(ctx context.Context, req *contracts.PutLogRequest)
 	return &contracts.PutLogResponse{}, nil
 }
 
-func toEvent(e *dbsqlc.Event) (*contracts.Event, error) {
-	tenantId := sqlchelpers.UUIDToStr(e.TenantId)
-	eventId := sqlchelpers.UUIDToStr(e.ID)
+func toEvent(e *EventResult) (*contracts.Event, error) {
+	now := time.Now()
 
 	return &contracts.Event{
-		TenantId:       tenantId,
-		EventId:        eventId,
-		Key:            e.Key,
+		TenantId:       e.TenantId,
+		EventId:        e.EventId,
+		Key:            e.EventKey,
 		Payload:        string(e.Data),
-		EventTimestamp: timestamppb.New(e.CreatedAt.Time),
+		EventTimestamp: timestamppb.New(now),
 	}, nil
 }
 
-func streamEventToTask(e *dbsqlc.StreamEvent, workflowRunId string, retryCount *int32, retries *int32) *msgqueue.Message {
-	tenantId := sqlchelpers.UUIDToStr(e.TenantId)
+// func streamEventToTask(e *dbsqlc.StreamEvent, workflowRunId string, retryCount *int32, retries *int32) *msgqueue.Message {
+// 	tenantId := sqlchelpers.UUIDToStr(e.TenantId)
 
-	payloadTyped := tasktypes.StepRunStreamEventTaskPayload{
-		WorkflowRunId: workflowRunId,
-		StepRunId:     sqlchelpers.UUIDToStr(e.StepRunId),
-		CreatedAt:     e.CreatedAt.Time.String(),
-		StreamEventId: strconv.FormatInt(e.ID, 10),
-		RetryCount:    retryCount,
-		StepRetries:   retries,
-	}
+// 	payloadTyped := tasktypes.StepRunStreamEventTaskPayload{
+// 		WorkflowRunId: workflowRunId,
+// 		StepRunId:     sqlchelpers.UUIDToStr(e.StepRunId),
+// 		CreatedAt:     e.CreatedAt.Time.String(),
+// 		StreamEventId: strconv.FormatInt(e.ID, 10),
+// 		RetryCount:    retryCount,
+// 		StepRetries:   retries,
+// 	}
 
-	payload, _ := datautils.ToJSONMap(payloadTyped)
+// 	payload, _ := datautils.ToJSONMap(payloadTyped)
 
-	metadata, _ := datautils.ToJSONMap(tasktypes.StepRunStreamEventTaskMetadata{
-		TenantId:      tenantId,
-		StreamEventId: strconv.FormatInt(e.ID, 10),
-	})
+// 	metadata, _ := datautils.ToJSONMap(tasktypes.StepRunStreamEventTaskMetadata{
+// 		TenantId:      tenantId,
+// 		StreamEventId: strconv.FormatInt(e.ID, 10),
+// 	})
 
-	return &msgqueue.Message{
-		ID:       "step-run-stream-event",
-		Payload:  payload,
-		Metadata: metadata,
-		Retries:  3,
-	}
-}
+// 	return &msgqueue.Message{
+// 		ID:       "step-run-stream-event",
+// 		Payload:  payload,
+// 		Metadata: metadata,
+// 		Retries:  3,
+// 	}
+// }

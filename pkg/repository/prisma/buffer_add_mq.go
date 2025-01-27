@@ -12,10 +12,10 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-func newAddMQBuffer(shared *sharedRepository) (*buffer.TenantBufferManager[addMessage, int], error) {
-	userEventBufOpts := buffer.TenantBufManagerOpts[addMessage, int]{
+func newAddMQBuffer(shared *sharedRepository) (*buffer.TenantBufferManager[SendMessage, int], error) {
+	userEventBufOpts := buffer.TenantBufManagerOpts[SendMessage, int]{
 		Name:       "add_mq",
-		OutputFunc: shared.bulkAddMessages,
+		OutputFunc: shared.bulkSendMessages,
 		SizeFunc:   sizeOfMQMessage,
 		L:          shared.l,
 		V:          shared.v,
@@ -31,24 +31,24 @@ func newAddMQBuffer(shared *sharedRepository) (*buffer.TenantBufferManager[addMe
 	return manager, nil
 }
 
-func sizeOfMQMessage(item addMessage) int {
+func sizeOfMQMessage(item SendMessage) int {
 	return len(item.payload)
 }
 
-type addMessage struct {
+type SendMessage struct {
 	queue   string
 	payload []byte
 }
 
-func (r *sharedRepository) bulkAddMessages(ctx context.Context, opts []addMessage) ([]*int, error) {
+func (r *sharedRepository) bulkSendMessages(ctx context.Context, opts []SendMessage) ([]*int, error) {
 	res := make([]*int, 0, len(opts))
-	p := []dbsqlc.BulkAddMessageParams{}
+	p := []dbsqlc.BulkSendMessageParams{}
 
 	for index, opt := range opts {
 		i := index
 		res = append(res, &i)
 
-		p = append(p, dbsqlc.BulkAddMessageParams{
+		p = append(p, dbsqlc.BulkSendMessageParams{
 			QueueId: pgtype.Text{
 				String: opt.queue,
 				Valid:  true,
@@ -67,7 +67,7 @@ func (r *sharedRepository) bulkAddMessages(ctx context.Context, opts []addMessag
 
 	defer rollback()
 
-	_, err = r.queries.BulkAddMessage(ctx, tx, p)
+	_, err = r.queries.BulkSendMessage(ctx, tx, p)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not ack messages: %w", err)

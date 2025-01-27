@@ -1,73 +1,69 @@
 package events
 
 import (
-	"github.com/hashicorp/go-multierror"
 	"github.com/labstack/echo/v4"
 
-	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
-	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
-	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 )
 
 func (t *EventService) EventUpdateReplay(ctx echo.Context, request gen.EventUpdateReplayRequestObject) (gen.EventUpdateReplayResponseObject, error) {
-	tenant := ctx.Get("tenant").(*db.TenantModel)
+	panic("no longer implemented")
 
-	eventIds := make([]string, len(request.Body.EventIds))
+	// tenant := ctx.Get("tenant").(*db.TenantModel)
 
-	for i := range request.Body.EventIds {
-		eventIds[i] = request.Body.EventIds[i].String()
-	}
+	// eventIds := make([]string, len(request.Body.EventIds))
 
-	events, err := t.config.EngineRepository.Event().ListEventsByIds(ctx.Request().Context(), tenant.ID, eventIds)
+	// for i := range request.Body.EventIds {
+	// 	eventIds[i] = request.Body.EventIds[i].String()
+	// }
 
-	if err != nil {
-		return nil, err
-	}
+	// events, err := t.config.EngineRepository.Event().ListEventsByIds(ctx.Request().Context(), tenant.ID, eventIds)
 
-	newEventIds := make([]string, len(events))
+	// if err != nil {
+	// 	return nil, err
+	// }
 
-	var allErrs error
+	// newEventIds := make([]string, len(events))
 
-	for i := range events {
-		event := events[i]
+	// var allErrs error
 
-		newEvent, err := t.config.Ingestor.IngestReplayedEvent(ctx.Request().Context(), tenant.ID, event)
+	// for i := range events {
+	// 	event := events[i]
 
-		if err == metered.ErrResourceExhausted {
-			return gen.EventUpdateReplay429JSONResponse(
-				apierrors.NewAPIErrors("Event limit exceeded"),
-			), nil
-		}
+	// 	newEvent, err := t.config.Ingestor.IngestReplayedEvent(ctx.Request().Context(), tenant.ID, event)
 
-		if err != nil {
-			allErrs = multierror.Append(allErrs, err)
-		}
+	// 	if err == metered.ErrResourceExhausted {
+	// 		return gen.EventUpdateReplay429JSONResponse(
+	// 			apierrors.NewAPIErrors("Event limit exceeded"),
+	// 		), nil
+	// 	}
 
-		newEventIds[i] = sqlchelpers.UUIDToStr(newEvent.ID)
-	}
+	// 	if err != nil {
+	// 		allErrs = multierror.Append(allErrs, err)
+	// 	}
 
-	if allErrs != nil {
-		return nil, allErrs
-	}
+	// 	newEventIds[i] = sqlchelpers.UUIDToStr(newEvent.ID)
+	// }
 
-	newEvents, err := t.config.APIRepository.Event().ListEventsById(tenant.ID, newEventIds)
+	// if allErrs != nil {
+	// 	return nil, allErrs
+	// }
 
-	if err != nil {
-		return nil, err
-	}
+	// newEvents, err := t.config.APIRepository.Event().ListEventsById(tenant.ID, newEventIds)
 
-	rows := make([]gen.Event, len(newEvents))
+	// if err != nil {
+	// 	return nil, err
+	// }
 
-	for i := range newEvents {
-		rows[i] = *transformers.ToEvent(&newEvents[i])
-	}
+	// rows := make([]gen.Event, len(newEvents))
 
-	return gen.EventUpdateReplay200JSONResponse(
-		gen.EventList{
-			Rows: &rows,
-		},
-	), nil
+	// for i := range newEvents {
+	// 	rows[i] = *transformers.ToEvent(&newEvents[i])
+	// }
+
+	// return gen.EventUpdateReplay200JSONResponse(
+	// 	gen.EventList{
+	// 		Rows: &rows,
+	// 	},
+	// ), nil
 }

@@ -85,7 +85,11 @@ func (p *PostgresMessageQueue) SetQOS(prefetchCount int) {
 	p.qos = prefetchCount
 }
 
-func (p *PostgresMessageQueue) AddMessage(ctx context.Context, queue msgqueue.Queue, task *msgqueue.Message) error {
+func (p *PostgresMessageQueue) SendMessage(ctx context.Context, queue msgqueue.Queue, task *msgqueue.Message) error {
+	return p.addMessage(ctx, queue, task)
+}
+
+func (p *PostgresMessageQueue) addMessage(ctx context.Context, queue msgqueue.Queue, task *msgqueue.Message) error {
 	ctx, span := telemetry.NewSpan(ctx, "add-message")
 	defer span.End()
 
@@ -107,15 +111,15 @@ func (p *PostgresMessageQueue) AddMessage(ctx context.Context, queue msgqueue.Qu
 		return err
 	}
 
-	err = p.repo.AddMessage(ctx, queue.Name(), msgBytes)
+	err = p.repo.SendMessage(ctx, queue.Name(), msgBytes)
 
 	if err != nil {
 		p.l.Error().Err(err).Msg("error adding message")
 		return err
 	}
 
-	if task.TenantID() != "" {
-		return p.addTenantExchangeMessage(ctx, task.TenantID(), msgBytes)
+	if task.TenantID != "" {
+		return p.addTenantExchangeMessage(ctx, task.TenantID, msgBytes)
 	}
 
 	return nil

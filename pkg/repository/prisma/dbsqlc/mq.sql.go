@@ -11,7 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const addMessage = `-- name: AddMessage :exec
+const SendMessage = `-- name: SendMessage :exec
 INSERT INTO
     "MessageQueueItem" (
         "payload",
@@ -28,13 +28,13 @@ VALUES
     )
 `
 
-type AddMessageParams struct {
+type SendMessageParams struct {
 	Payload []byte `json:"payload"`
 	Queueid string `json:"queueid"`
 }
 
-func (q *Queries) AddMessage(ctx context.Context, db DBTX, arg AddMessageParams) error {
-	_, err := db.Exec(ctx, addMessage, arg.Payload, arg.Queueid)
+func (q *Queries) SendMessage(ctx context.Context, db DBTX, arg SendMessageParams) error {
+	_, err := db.Exec(ctx, SendMessage, arg.Payload, arg.Queueid)
 	return err
 }
 
@@ -51,7 +51,7 @@ func (q *Queries) BulkAckMessages(ctx context.Context, db DBTX, ids []int64) err
 	return err
 }
 
-type BulkAddMessageParams struct {
+type BulkSendMessageParams struct {
 	Payload   []byte           `json:"payload"`
 	QueueId   pgtype.Text      `json:"queueId"`
 	ReadAfter pgtype.Timestamp `json:"readAfter"`

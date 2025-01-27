@@ -10,9 +10,9 @@ import (
 	"time"
 
 	lru "github.com/hashicorp/golang-lru/v2"
-	"github.com/jackc/puddle/v2"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/rs/zerolog"
+	"golang.org/x/exp/rand"
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
@@ -23,23 +23,9 @@ import (
 const MAX_RETRY_COUNT = 15
 const RETRY_INTERVAL = 2 * time.Second
 
-// session composes an amqp.Connection with an amqp.Channel
-type session struct {
-	*amqp.Connection
-	*amqp.Channel
-}
-
-type msgWithQueue struct {
-	*msgqueue.Message
-
-	q msgqueue.Queue
-}
-
 // MessageQueueImpl implements MessageQueue interface using AMQP.
 type MessageQueueImpl struct {
 	ctx      context.Context
-	sessions chan chan session
-	msgs     chan *msgWithQueue
 	identity string
 	configFs []MessageQueueImplOpt
 
@@ -47,16 +33,17 @@ type MessageQueueImpl struct {
 
 	l *zerolog.Logger
 
-	ready bool
-
 	disableTenantExchangePubs bool
 
 	// lru cache for tenant ids
 	tenantIdCache *lru.Cache[string, bool]
+
+	connections *connectionPool
+	channels    *channelPool
 }
 
 func (t *MessageQueueImpl) IsReady() bool {
-	return t.ready
+	return t.connections.hasActiveConnection()
 }
 
 type MessageQueueImplOpt func(*MessageQueueImplOpts)
@@ -111,8 +98,23 @@ func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl) {
 		f(opts)
 	}
 
-	newLogger := opts.l.With().Str("service", "events-controller").Logger()
+	newLogger := opts.l.With().Str("service", "rabbitmq").Logger()
 	opts.l = &newLogger
+
+	// initialize the connection and channel pools
+	connectionPool, err := newConnectionPool(ctx, opts.l, opts.url)
+
+	if err != nil {
+		cancel()
+		return nil, nil
+	}
+
+	channelPool, err := newChannelPool(ctx, opts.l, connectionPool)
+
+	if err != nil {
+		cancel()
+		return nil, nil
+	}
 
 	t := &MessageQueueImpl{
 		ctx:                       ctx,
@@ -121,92 +123,66 @@ func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl) {
 		qos:                       opts.qos,
 		configFs:                  fs,
 		disableTenantExchangePubs: opts.disableTenantExchangePubs,
+		connections:               connectionPool,
+		channels:                  channelPool,
 	}
-
-	constructor := func(context.Context) (*amqp.Connection, error) {
-		conn, err := amqp.Dial(opts.url)
-
-		if err != nil {
-			opts.l.Error().Msgf("cannot (re)dial: %v: %q", err, opts.url)
-			return nil, err
-		}
-
-		return conn, nil
-	}
-
-	destructor := func(conn *amqp.Connection) {
-		if !conn.IsClosed() {
-			err := conn.Close()
-
-			if err != nil {
-				opts.l.Error().Msgf("error closing connection: %v", err)
-			}
-		}
-	}
-
-	maxPoolSize := int32(10)
-
-	pool, err := puddle.NewPool(&puddle.Config[*amqp.Connection]{Constructor: constructor, Destructor: destructor, MaxSize: maxPoolSize})
-
-	if err != nil {
-		t.l.Error().Err(err).Msg("cannot create connection pool")
-		cancel()
-		return nil, nil
-	}
-
-	t.sessions = t.redial(ctx, opts.l, pool)
-	t.msgs = make(chan *msgWithQueue)
 
 	// create a new lru cache for tenant ids
 	t.tenantIdCache, _ = lru.New[string, bool](2000) // nolint: errcheck - this only returns an error if the size is less than 0
 
 	// init the queues in a blocking fashion
-	sub := <-<-t.sessions
-	if _, err := t.initQueue(sub, msgqueue.EVENT_PROCESSING_QUEUE); err != nil {
+	poolCh, err := channelPool.Acquire(ctx)
+
+	if err != nil {
+		t.l.Error().Msgf("cannot acquire channel: %v", err)
+		cancel()
+		return nil, nil
+	}
+
+	ch := poolCh.Value()
+
+	defer poolCh.Release()
+
+	if _, err := t.initQueue(ch, msgqueue.EVENT_PROCESSING_QUEUE); err != nil {
 		t.l.Debug().Msgf("error initializing queue: %v", err)
 		cancel()
 		return nil, nil
 	}
 
-	if _, err := t.initQueue(sub, msgqueue.JOB_PROCESSING_QUEUE); err != nil {
+	if _, err := t.initQueue(ch, msgqueue.JOB_PROCESSING_QUEUE); err != nil {
 		t.l.Debug().Msgf("error initializing queue: %v", err)
 		cancel()
 		return nil, nil
 	}
 
-	if _, err := t.initQueue(sub, msgqueue.WORKFLOW_PROCESSING_QUEUE); err != nil {
+	if _, err := t.initQueue(ch, msgqueue.WORKFLOW_PROCESSING_QUEUE); err != nil {
 		t.l.Debug().Msgf("error initializing queue: %v", err)
 		cancel()
 		return nil, nil
 	}
 
-	if _, err := t.initQueue(sub, msgqueue.TASK_PROCESSING_QUEUE); err != nil {
+	if _, err := t.initQueue(ch, msgqueue.TASK_PROCESSING_QUEUE); err != nil {
 		t.l.Debug().Msgf("error initializing queue: %v", err)
 		cancel()
 		return nil, nil
 	}
 
-	if _, err := t.initQueue(sub, msgqueue.TRIGGER_QUEUE); err != nil {
+	if _, err := t.initQueue(ch, msgqueue.TRIGGER_QUEUE); err != nil {
 		t.l.Debug().Msgf("error initializing queue: %v", err)
 		cancel()
 		return nil, nil
 	}
 
-	// create publisher go func
-	cleanup1 := t.startPublishing()
-
-	cleanup := func() error {
+	if _, err := t.initQueue(ch, msgqueue.OLAP_QUEUE); err != nil {
+		t.l.Debug().Msgf("error initializing queue: %v", err)
 		cancel()
-		if err := cleanup1(); err != nil {
-			return fmt.Errorf("error cleaning up rabbitmq publisher: %w", err)
-		}
+		return nil, nil
+	}
 
-		pool.Close()
-
+	return func() error {
+		cancel()
 		return nil
-	}
-
-	return cleanup, t
+	}, t
 }
 
 func (t *MessageQueueImpl) Clone() (func() error, msgqueue.MessageQueue) {
@@ -217,20 +193,82 @@ func (t *MessageQueueImpl) SetQOS(prefetchCount int) {
 	t.qos = prefetchCount
 }
 
-// AddMessage adds a msg to the queue.
-func (t *MessageQueueImpl) AddMessage(ctx context.Context, q msgqueue.Queue, msg *msgqueue.Message) error {
-	ctx, span := telemetry.NewSpan(ctx, "add-message")
+func (t *MessageQueueImpl) SendMessage(ctx context.Context, q msgqueue.Queue, msg *msgqueue.Message) error {
+	return t.pubMessage(ctx, q, msg)
+}
+
+func (t *MessageQueueImpl) pubMessage(ctx context.Context, q msgqueue.Queue, msg *msgqueue.Message) error {
+	otelCarrier := telemetry.GetCarrier(ctx)
+
+	ctx, span := telemetry.NewSpanWithCarrier(ctx, "publish-message", otelCarrier)
 	defer span.End()
 
-	// inject otel carrier into the message
-	if msg.OtelCarrier == nil {
-		msg.OtelCarrier = telemetry.GetCarrier(ctx)
+	msg.SetOtelCarrier(otelCarrier)
+
+	poolCh, err := t.channels.Acquire(ctx)
+
+	if err != nil {
+		t.l.Error().Msgf("cannot acquire channel: %v", err)
+		return err
 	}
 
-	t.msgs <- &msgWithQueue{
-		Message: msg,
-		q:       q,
+	pub := poolCh.Value()
+
+	defer poolCh.Release()
+
+	body, err := json.Marshal(msg)
+
+	if err != nil {
+		t.l.Error().Msgf("error marshaling msg queue: %v", err)
+		return err
 	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	t.l.Debug().Msgf("publishing msg to queue %s", q.Name())
+
+	pubMsg := amqp.Publishing{
+		Body: body,
+	}
+
+	if msg.ImmediatelyExpire {
+		pubMsg.Expiration = "0"
+	}
+
+	err = pub.PublishWithContext(ctx, "", q.Name(), false, false, pubMsg)
+
+	// retry failed delivery on the next session
+	if err != nil {
+		return err
+	}
+
+	// if this is a tenant msg, publish to the tenant exchange
+	if !t.disableTenantExchangePubs && msg.TenantID != "" {
+		// determine if the tenant exchange exists
+		if _, ok := t.tenantIdCache.Get(msg.TenantID); !ok {
+			// register the tenant exchange
+			err = t.RegisterTenant(ctx, msg.TenantID)
+
+			if err != nil {
+				t.l.Error().Msgf("error registering tenant exchange: %v", err)
+				return err
+			}
+		}
+
+		t.l.Debug().Msgf("publishing tenant msg to exchange %s", msg.TenantID)
+
+		err = pub.PublishWithContext(ctx, msg.TenantID, "", false, false, amqp.Publishing{
+			Body: body,
+		})
+
+		if err != nil {
+			t.l.Error().Msgf("error publishing tenant msg: %v", err)
+			return err
+		}
+	}
+
+	t.l.Debug().Msgf("published msg to queue %s", q.Name())
 
 	return nil
 }
@@ -241,21 +279,47 @@ func (t *MessageQueueImpl) Subscribe(
 	preAck msgqueue.AckHook,
 	postAck msgqueue.AckHook,
 ) (func() error, error) {
+	ctx, cancel := context.WithCancel(context.Background())
+
 	t.l.Debug().Msgf("subscribing to queue: %s", q.Name())
 
-	cleanup := t.subscribe(t.identity, q, t.sessions, preAck, postAck)
-	return cleanup, nil
+	cleanupSub, err := t.subscribe(ctx, t.identity, q, preAck, postAck)
+
+	if err != nil {
+		cancel()
+		return nil, err
+	}
+
+	return func() error {
+		cancel()
+
+		if err := cleanupSub(); err != nil {
+			t.l.Error().Msgf("error cleaning up subscriber: %v", err)
+			return nil
+		}
+
+		return nil
+	}, nil
 }
 
 func (t *MessageQueueImpl) RegisterTenant(ctx context.Context, tenantId string) error {
 	// create a new fanout exchange for the tenant
-	sub := <-<-t.sessions
+	poolCh, err := t.channels.Acquire(ctx)
+
+	if err != nil {
+		t.l.Error().Msgf("cannot acquire channel: %v", err)
+		return err
+	}
+
+	sub := poolCh.Value()
+
+	defer poolCh.Release()
 
 	t.l.Debug().Msgf("registering tenant exchange: %s", tenantId)
 
 	// create a fanout exchange for the tenant. each consumer of the fanout exchange will get notified
 	// with the tenant events.
-	err := sub.ExchangeDeclare(
+	err = sub.ExchangeDeclare(
 		tenantId,
 		"fanout",
 		true,  // durable
@@ -275,7 +339,7 @@ func (t *MessageQueueImpl) RegisterTenant(ctx context.Context, tenantId string) 
 	return nil
 }
 
-func (t *MessageQueueImpl) initQueue(sub session, q msgqueue.Queue) (string, error) {
+func (t *MessageQueueImpl) initQueue(ch *channelWithId, q msgqueue.Queue) (string, error) {
 	args := make(amqp.Table)
 	name := q.Name()
 
@@ -302,13 +366,13 @@ func (t *MessageQueueImpl) initQueue(sub session, q msgqueue.Queue) (string, err
 		dlqArgs["x-message-ttl"] = 5000 // 5 seconds
 
 		// declare the dead letter queue
-		if _, err := sub.QueueDeclare(q.DLX(), true, false, false, false, dlqArgs); err != nil {
+		if _, err := ch.QueueDeclare(q.DLX(), true, false, false, false, dlqArgs); err != nil {
 			t.l.Error().Msgf("cannot declare dead letter exchange/queue: %q, %v", q.DLX(), err)
 			return "", err
 		}
 	}
 
-	if _, err := sub.QueueDeclare(name, q.Durable(), q.AutoDeleted(), q.Exclusive(), false, args); err != nil {
+	if _, err := ch.QueueDeclare(name, q.Durable(), q.AutoDeleted(), q.Exclusive(), false, args); err != nil {
 		t.l.Error().Msgf("cannot declare queue: %q, %v", name, err)
 		return "", err
 	}
@@ -317,7 +381,7 @@ func (t *MessageQueueImpl) initQueue(sub session, q msgqueue.Queue) (string, err
 	if q.FanoutExchangeKey() != "" {
 		t.l.Debug().Msgf("binding queue: %s to exchange: %s", name, q.FanoutExchangeKey())
 
-		if err := sub.QueueBind(name, "", q.FanoutExchangeKey(), false, nil); err != nil {
+		if err := ch.QueueBind(name, "", q.FanoutExchangeKey(), false, nil); err != nil {
 			t.l.Error().Msgf("cannot bind queue: %q, %v", name, err)
 			return "", err
 		}
@@ -326,336 +390,243 @@ func (t *MessageQueueImpl) initQueue(sub session, q msgqueue.Queue) (string, err
 	return name, nil
 }
 
-func (t *MessageQueueImpl) startPublishing() func() error {
-	ctx, cancel := context.WithCancel(t.ctx)
+// deleteQueue is a helper function for removing durable queues which are used for tests.
+func (t *MessageQueueImpl) deleteQueue(q msgqueue.Queue) error {
+	poolCh, err := t.channels.Acquire(context.Background())
 
-	cleanup := func() error {
-		cancel()
-		return nil
+	if err != nil {
+		t.l.Error().Msgf("cannot acquire channel for deleting queue: %v", err)
+		return err
 	}
 
-	go func() {
-		for session := range t.sessions {
-			pub := <-session
+	ch := poolCh.Value()
 
-			conn := pub.Connection
+	defer poolCh.Release()
 
-			t.l.Debug().Msgf("starting publisher: %s", conn.LocalAddr().String())
+	_, err = ch.QueueDelete(q.Name(), true, true, true)
 
-			for {
-				if pub.Channel.IsClosed() {
-					break
-				} else if conn.IsClosed() {
-					t.l.Error().Msgf("connection is closed, reconnecting")
-					break
-				}
+	if err != nil {
+		t.l.Error().Msgf("cannot delete queue: %q, %v", q.Name(), err)
+		return err
+	}
 
-				select {
-				case <-ctx.Done():
-					return
-				case msg := <-t.msgs:
-					go func(msg *msgWithQueue) {
-						body, err := json.Marshal(msg)
+	if q.DLX() != "" {
+		_, err = ch.QueueDelete(q.DLX(), true, true, true)
 
-						if err != nil {
-							t.l.Error().Msgf("error marshaling msg queue: %v", err)
-							return
-						}
-
-						ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-						defer cancel()
-
-						ctx, span := telemetry.NewSpanWithCarrier(ctx, "publish-message", msg.OtelCarrier)
-						defer span.End()
-
-						t.l.Debug().Msgf("publishing msg %s to queue %s", msg.ID, msg.q.Name())
-
-						pubMsg := amqp.Publishing{
-							Body: body,
-						}
-
-						if msg.ImmediatelyExpire {
-							pubMsg.Expiration = "0"
-						}
-
-						err = pub.PublishWithContext(ctx, "", msg.q.Name(), false, false, pubMsg)
-
-						// retry failed delivery on the next session
-						if err != nil {
-							t.msgs <- msg
-							return
-						}
-
-						// if this is a tenant msg, publish to the tenant exchange
-						if !t.disableTenantExchangePubs && msg.TenantID() != "" {
-							// determine if the tenant exchange exists
-							if _, ok := t.tenantIdCache.Get(msg.TenantID()); !ok {
-								// register the tenant exchange
-								err = t.RegisterTenant(ctx, msg.TenantID())
-
-								if err != nil {
-									t.l.Error().Msgf("error registering tenant exchange: %v", err)
-									return
-								}
-							}
-
-							t.l.Debug().Msgf("publishing tenant msg %s to exchange %s", msg.ID, msg.TenantID())
-
-							err = pub.PublishWithContext(ctx, msg.TenantID(), "", false, false, amqp.Publishing{
-								Body: body,
-							})
-
-							if err != nil {
-								t.l.Error().Msgf("error publishing tenant msg: %v", err)
-								return
-							}
-						}
-
-						t.l.Debug().Msgf("published msg %s to queue %s", msg.ID, msg.q.Name())
-					}(msg)
-				}
-			}
-
-			if !pub.Channel.IsClosed() {
-				err := pub.Channel.Close()
-
-				if err != nil {
-					t.l.Error().Msgf("cannot close channel: %s, %v", conn.LocalAddr().String(), err)
-				}
-			}
+		if err != nil {
+			t.l.Error().Msgf("cannot delete dead letter queue: %q, %v", q.DLX(), err)
+			return err
 		}
-	}()
+	}
 
-	return cleanup
+	return nil
 }
 
 func (t *MessageQueueImpl) subscribe(
+	ctx context.Context,
 	subId string,
 	q msgqueue.Queue,
-	sessions chan chan session,
 	preAck msgqueue.AckHook,
 	postAck msgqueue.AckHook,
-) func() error {
-	ctx, cancel := context.WithCancel(context.Background())
-
+) (func() error, error) {
 	sessionCount := 0
+	retryCount := 0
 
 	wg := sync.WaitGroup{}
+	var queueName string
+
+	if !q.Exclusive() {
+		poolCh, err := t.channels.Acquire(ctx)
+
+		if err != nil {
+			return nil, fmt.Errorf("cannot acquire channel for initializing queue: %v", err)
+		}
+
+		sub := poolCh.Value()
+
+		// we initialize the queue here because exclusive queues are bound to the session/connection. however, it's not clear
+		// if the exclusive queue will be available to the next session.
+		queueName, err = t.initQueue(sub, q)
+
+		if err != nil {
+			poolCh.Release()
+			return nil, fmt.Errorf("error initializing queue: %v", err)
+		}
+
+		poolCh.Release()
+	}
+
+	inner := func() error {
+		poolCh, err := t.channels.Acquire(ctx)
+
+		if err != nil {
+			return err
+		}
+
+		sub := poolCh.Value()
+
+		defer poolCh.Release()
+
+		// we initialize the queue here because exclusive queues are bound to the session/connection. however, it's not clear
+		// if the exclusive queue will be available to the next session.
+		if q.Exclusive() {
+			queueName, err = t.initQueue(sub, q)
+
+			if err != nil {
+				return err
+			}
+		}
+
+		// We'd like to limit to 1k TPS per engine. The max channels on an instance is 10.
+		err = sub.Qos(t.qos, 0, false)
+
+		if err != nil {
+			return err
+		}
+
+		deliveries, err := sub.ConsumeWithContext(ctx, queueName, subId, false, q.Exclusive(), false, false, nil)
+
+		if err != nil {
+			return err
+		}
+
+	inner:
+		for {
+			select {
+			case <-ctx.Done():
+				return nil
+			case rabbitMsg, ok := <-deliveries:
+				if !ok {
+					t.l.Info().Msg("deliveries channel closed")
+					break inner
+				}
+
+				wg.Add(1)
+
+				go func(rabbitMsg amqp.Delivery) {
+					defer wg.Done()
+
+					msg := &msgqueue.Message{}
+
+					if len(rabbitMsg.Body) == 0 {
+						t.l.Error().Msgf("empty message body for message: %s", rabbitMsg.MessageId)
+
+						// reject this message
+						if err := rabbitMsg.Reject(false); err != nil {
+							t.l.Error().Msgf("error rejecting message: %v", err)
+						}
+
+						return
+					}
+
+					if err := json.Unmarshal(rabbitMsg.Body, msg); err != nil {
+						t.l.Error().Msgf("error unmarshalling message: %v", err)
+
+						// reject this message
+						if err := rabbitMsg.Reject(false); err != nil {
+							t.l.Error().Msgf("error rejecting message: %v", err)
+						}
+
+						return
+					}
+
+					// determine if we've hit the max number of retries
+					xDeath, exists := rabbitMsg.Headers["x-death"].([]interface{})
+
+					if exists {
+						// message was rejected before
+						deathCount := xDeath[0].(amqp.Table)["count"].(int64)
+
+						t.l.Debug().Msgf("message has been rejected %d times", deathCount)
+
+						if deathCount > int64(msg.Retries) {
+							t.l.Debug().Msgf("message has been rejected %d times, not requeuing", deathCount)
+
+							// acknowledge so it's removed from the queue
+							if err := rabbitMsg.Ack(false); err != nil {
+								t.l.Error().Msgf("error acknowledging message: %v", err)
+							}
+
+							return
+						}
+					}
+
+					t.l.Debug().Msgf("(session: %d) got msg", sessionCount)
+
+					if err := preAck(msg); err != nil {
+						t.l.Error().Msgf("error in pre-ack: %v", err)
+
+						// nack the message
+						if err := rabbitMsg.Reject(false); err != nil {
+							t.l.Error().Msgf("error rejecting message: %v", err)
+						}
+
+						return
+					}
+
+					if err := sub.Ack(rabbitMsg.DeliveryTag, false); err != nil {
+						t.l.Error().Msgf("error acknowledging message: %v", err)
+						return
+					}
+
+					if err := postAck(msg); err != nil {
+						t.l.Error().Msgf("error in post-ack: %v", err)
+						return
+					}
+				}(rabbitMsg)
+			}
+		}
+
+		return nil
+	}
 
 	go func() {
-		for session := range sessions {
+		for {
+			if ctx.Err() != nil {
+				return
+			}
+
 			sessionCount++
-			sub := <-session
 
-			sessionWg := sync.WaitGroup{}
-
-			conn := sub.Connection
-
-			t.l.Debug().Msgf("starting subscriber %s on: %s", subId, conn.LocalAddr().String())
-
-			// we initialize the queue here because exclusive queues are bound to the session/connection. however, it's not clear
-			// if the exclusive queue will be available to the next session.
-			queueName, err := t.initQueue(sub, q)
-
-			if err != nil {
-				return
-			}
-
-			// We'd like to limit to 1k TPS per engine. The max channels on an instance is 10.
-			err = sub.Qos(t.qos, 0, false)
-
-			if err != nil {
+			if err := inner(); err != nil {
 				t.l.Error().Msgf("cannot set qos: %v", err)
-				return
+				sleepWithExponentialBackoff(10*time.Millisecond, 5*time.Second, retryCount)
+				retryCount++
+				continue
 			}
-
-			deliveries, err := sub.Consume(queueName, subId, false, q.Exclusive(), false, false, nil)
-
-			if err != nil {
-				t.l.Error().Msgf("cannot consume from: %s, %v", queueName, err)
-				return
-			}
-
-			closeChannel := func() {
-				sessionWg.Wait()
-
-				if !sub.Channel.IsClosed() {
-					err = sub.Channel.Close()
-
-					if err != nil {
-						t.l.Error().Msgf("cannot close channel: %s, %v", conn.LocalAddr().String(), err)
-					}
-				}
-			}
-
-		inner:
-			for {
-				select {
-				case <-ctx.Done():
-					closeChannel()
-					return
-				case rabbitMsg, ok := <-deliveries:
-					if !ok {
-						t.l.Info().Msg("deliveries channel closed")
-						break inner
-					}
-
-					wg.Add(1)
-					sessionWg.Add(1)
-
-					go func(rabbitMsg amqp.Delivery) {
-						defer wg.Done()
-						defer sessionWg.Done()
-
-						msg := &msgWithQueue{}
-
-						if len(rabbitMsg.Body) == 0 {
-							t.l.Error().Msgf("empty message body for message: %s", rabbitMsg.MessageId)
-
-							// reject this message
-							if err := rabbitMsg.Reject(false); err != nil {
-								t.l.Error().Msgf("error rejecting message: %v", err)
-							}
-
-							return
-						}
-
-						if err := json.Unmarshal(rabbitMsg.Body, msg); err != nil {
-							t.l.Error().Msgf("error unmarshalling message: %v", err)
-
-							// reject this message
-							if err := rabbitMsg.Reject(false); err != nil {
-								t.l.Error().Msgf("error rejecting message: %v", err)
-							}
-
-							return
-						}
-
-						// determine if we've hit the max number of retries
-						xDeath, exists := rabbitMsg.Headers["x-death"].([]interface{})
-
-						if exists {
-							// message was rejected before
-							deathCount := xDeath[0].(amqp.Table)["count"].(int64)
-
-							t.l.Debug().Msgf("message %s has been rejected %d times", msg.ID, deathCount)
-
-							if deathCount > int64(msg.Retries) {
-								t.l.Debug().Msgf("message %s has been rejected %d times, not requeuing", msg.ID, deathCount)
-
-								// acknowledge so it's removed from the queue
-								if err := rabbitMsg.Ack(false); err != nil {
-									t.l.Error().Msgf("error acknowledging message: %v", err)
-								}
-
-								return
-							}
-						}
-
-						t.l.Debug().Msgf("(session: %d) got msg: %v", sessionCount, msg.ID)
-
-						if err := preAck(msg.Message); err != nil {
-							t.l.Error().Msgf("error in pre-ack: %v", err)
-
-							// nack the message
-							if err := rabbitMsg.Reject(false); err != nil {
-								t.l.Error().Msgf("error rejecting message: %v", err)
-							}
-
-							return
-						}
-
-						if err := sub.Ack(rabbitMsg.DeliveryTag, false); err != nil {
-							t.l.Error().Msgf("error acknowledging message: %v", err)
-							return
-						}
-
-						if err := postAck(msg.Message); err != nil {
-							t.l.Error().Msgf("error in post-ack: %v", err)
-							return
-						}
-					}(rabbitMsg)
-				}
-			}
-
-			go closeChannel()
 		}
 	}()
 
 	cleanup := func() error {
-		cancel()
-
 		t.l.Debug().Msgf("shutting down subscriber: %s", subId)
 		wg.Wait()
 		t.l.Debug().Msgf("successfully shut down subscriber: %s", subId)
+
 		return nil
 	}
 
-	return cleanup
+	return cleanup, nil
 }
 
-// redial continually connects to the URL, exiting the program when no longer possible
-func (t *MessageQueueImpl) redial(ctx context.Context, l *zerolog.Logger, pool *puddle.Pool[*amqp.Connection]) chan chan session {
-	sessions := make(chan chan session)
+// sleepWithExponentialBackoff sleeps for a duration calculated using exponential backoff and jitter,
+// based on the retry count. The base sleep time and maximum sleep time are provided as inputs.
+// retryCount determines the exponential backoff multiplier.
+func sleepWithExponentialBackoff(base, max time.Duration, retryCount int) { // nolint: revive
+	if retryCount < 0 {
+		retryCount = 0
+	}
 
-	go func() {
-		sess := make(chan session)
-		defer close(sessions)
+	// Calculate exponential backoff
+	backoff := base * (1 << retryCount)
+	if backoff > max {
+		backoff = max
+	}
 
-		for {
-			select {
-			case sessions <- sess:
-			case <-ctx.Done():
-				l.Info().Msgf("shutting down session factory")
-				return
-			}
+	// Apply jitter
+	jitter := time.Duration(rand.Int63n(int64(backoff / 2))) // nolint: gosec
+	sleepDuration := backoff/2 + jitter
 
-			var newSession session
-			var err error
-
-			for i := 0; i < MAX_RETRY_COUNT; i++ {
-				newSession, err = getSession(ctx, l, pool)
-				if err == nil {
-					if i > 0 {
-						l.Info().Msgf("re-established session after %d attempts", i)
-					}
-
-					break
-				}
-
-				l.Error().Msgf("error getting session (attempt %d): %v", i+1, err)
-				time.Sleep(RETRY_INTERVAL)
-			}
-
-			if err != nil {
-				l.Error().Msgf("failed to get session after %d attempts", MAX_RETRY_COUNT)
-				t.ready = false
-				return
-			}
-
-			t.ready = true
-
-			ch := newSession.Connection.NotifyClose(make(chan *amqp.Error, 1))
-
-			go func() {
-				select {
-				case <-ctx.Done():
-					return
-				case <-ch:
-					t.ready = false
-				}
-			}()
-
-			select {
-			case sess <- newSession:
-			case <-ctx.Done():
-				l.Info().Msgf("shutting down new session")
-				return
-			}
-		}
-	}()
-
-	return sessions
+	time.Sleep(sleepDuration)
 }
 
 // identity returns the same host/process unique string for the lifetime of
@@ -667,30 +638,4 @@ func identity() string {
 	_, _ = fmt.Fprint(h, err)
 	_, _ = fmt.Fprint(h, os.Getpid())
 	return fmt.Sprintf("%x", h.Sum(nil))
-}
-
-func getSession(ctx context.Context, l *zerolog.Logger, pool *puddle.Pool[*amqp.Connection]) (session, error) {
-	connFromPool, err := pool.Acquire(ctx)
-
-	if err != nil {
-		l.Error().Msgf("cannot acquire connection: %v", err)
-		return session{}, err
-	}
-
-	conn := connFromPool.Value()
-
-	ch, err := conn.Channel()
-
-	if err != nil {
-		connFromPool.Destroy()
-		l.Error().Msgf("cannot create channel: %v", err)
-		return session{}, err
-	}
-
-	connFromPool.Release()
-
-	return session{
-		Channel:    ch,
-		Connection: conn,
-	}, nil
 }

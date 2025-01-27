@@ -160,12 +160,10 @@ FROM (
 ) AS combined_priorities;
 
 -- name: BulkQueueItems :exec
-UPDATE
-    v2_queue_item qi
-SET
-    is_queued = false
+DELETE FROM
+    v2_queue_item
 WHERE
-    qi.id = ANY(@ids::bigint[]);
+    id = ANY(@ids::bigint[]);
 
 -- name: UpdateTasksToAssigned :many
 WITH input AS (

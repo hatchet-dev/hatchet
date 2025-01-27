@@ -24,7 +24,36 @@ CREATE TABLE v2_task (
     display_name TEXT NOT NULL,
     input JSONB NOT NULL,
     retry_count INTEGER NOT NULL DEFAULT 0,
+    internal_retry_count INTEGER NOT NULL DEFAULT 0,
+    app_retry_count INTEGER NOT NULL DEFAULT 0,
     CONSTRAINT v2_task_pkey PRIMARY KEY (id)
+);
+
+alter table v2_task set (
+    autovacuum_vacuum_scale_factor = '0.1', 
+    autovacuum_analyze_scale_factor='0.05',
+    autovacuum_vacuum_threshold='25',
+    autovacuum_analyze_threshold='25',
+    autovacuum_vacuum_cost_delay='10',
+    autovacuum_vacuum_cost_limit='1000'
+);
+
+CREATE TYPE v2_task_event_type AS ENUM (
+    'COMPLETED',
+    'FAILED',
+    'CANCELLED'
+);
+
+-- CreateTable
+CREATE TABLE v2_task_event (
+    id bigint GENERATED ALWAYS AS IDENTITY,
+    tenant_id UUID NOT NULL,
+    task_id bigint NOT NULL,
+    retry_count INTEGER NOT NULL,
+    event_type v2_task_event_type NOT NULL,
+    created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    data JSONB,
+    CONSTRAINT v2_task_event_pkey PRIMARY KEY (id)
 );
 
 -- CreateTable
@@ -41,7 +70,17 @@ CREATE TABLE v2_queue_item (
     sticky "StickyStrategy",
     desired_worker_id UUID,
     is_queued BOOLEAN NOT NULL,
+    retry_count INTEGER NOT NULL DEFAULT 0,
     CONSTRAINT v2_queue_item_pkey PRIMARY KEY (id)
+);
+
+alter table v2_queue_item set (
+    autovacuum_vacuum_scale_factor = '0.1', 
+    autovacuum_analyze_scale_factor='0.05',
+    autovacuum_vacuum_threshold='25',
+    autovacuum_analyze_threshold='25',
+    autovacuum_vacuum_cost_delay='10',
+    autovacuum_vacuum_cost_limit='1000'
 );
 
 CREATE INDEX v2_queue_item_isQueued_priority_tenantId_queue_id_idx ON v2_queue_item (
@@ -67,7 +106,8 @@ BEGIN
         priority,
         sticky,
         desired_worker_id,
-        is_queued
+        is_queued,
+        retry_count
     )
     VALUES (
         NEW.tenant_id,
@@ -80,7 +120,8 @@ BEGIN
         COALESCE(NEW.priority, 1),
         NEW.sticky,
         NEW.desired_worker_id,
-        TRUE
+        TRUE,
+        NEW.retry_count
     );
     RETURN NEW;
 END;
@@ -107,7 +148,8 @@ BEGIN
         priority,
         sticky,
         desired_worker_id,
-        is_queued
+        is_queued,
+        retry_count
     )
     VALUES (
         NEW.tenant_id,
@@ -117,10 +159,12 @@ BEGIN
         NEW.step_id,
         CURRENT_TIMESTAMP + convert_duration_to_interval(NEW.schedule_timeout),
         NEW.step_timeout,
-        COALESCE(NEW.priority, 1),
+        -- retries are always given priority=4
+        4,
         NEW.sticky,
         NEW.desired_worker_id,
-        TRUE
+        TRUE,
+        NEW.retry_count
     );
     RETURN NEW;
 END;
@@ -143,6 +187,15 @@ CREATE TABLE v2_semaphore_queue_item (
     CONSTRAINT v2_semaphore_queue_item_pkey PRIMARY KEY (task_id, retry_count)
 );
 
+alter table v2_semaphore_queue_item set (
+    autovacuum_vacuum_scale_factor = '0.1', 
+    autovacuum_analyze_scale_factor='0.05',
+    autovacuum_vacuum_threshold='25',
+    autovacuum_analyze_threshold='25',
+    autovacuum_vacuum_cost_delay='10',
+    autovacuum_vacuum_cost_limit='1000'
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX v2_semaphore_queue_item_taskId_key ON v2_semaphore_queue_item (task_id ASC);
 
@@ -158,6 +211,15 @@ CREATE TABLE v2_timeout_queue_item (
     is_queued BOOLEAN NOT NULL,
 
     CONSTRAINT v2_timeout_queue_item_pkey PRIMARY KEY (task_id, retry_count)
+);
+
+alter table v2_timeout_queue_item set (
+    autovacuum_vacuum_scale_factor = '0.1', 
+    autovacuum_analyze_scale_factor='0.05',
+    autovacuum_vacuum_threshold='25',
+    autovacuum_analyze_threshold='25',
+    autovacuum_vacuum_cost_delay='10',
+    autovacuum_vacuum_cost_limit='1000'
 );
 
 -- CreateIndex

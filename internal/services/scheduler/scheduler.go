@@ -31,6 +31,7 @@ type SchedulerOpts struct {
 	mq          msgqueue.MessageQueue
 	l           *zerolog.Logger
 	repo        repository.EngineRepository
+	repov2      repov2.Repository
 	dv          datautils.DataDecoderValidator
 	alerter     hatcheterrors.Alerter
 	p           *partition.Partition
@@ -83,6 +84,12 @@ func WithRepository(r repository.EngineRepository) SchedulerOpt {
 	}
 }
 
+func WithV2Repository(r repov2.Repository) SchedulerOpt {
+	return func(opts *SchedulerOpts) {
+		opts.repov2 = r
+	}
+}
+
 func WithPartition(p *partition.Partition) SchedulerOpt {
 	return func(opts *SchedulerOpts) {
 		opts.p = p
@@ -102,13 +109,14 @@ func WithSchedulerPool(s *v2.SchedulingPool) SchedulerOpt {
 }
 
 type Scheduler struct {
-	mq   msgqueue.MessageQueue
-	l    *zerolog.Logger
-	repo repository.EngineRepository
-	dv   datautils.DataDecoderValidator
-	s    gocron.Scheduler
-	a    *hatcheterrors.Wrapped
-	p    *partition.Partition
+	mq     msgqueue.MessageQueue
+	l      *zerolog.Logger
+	repo   repository.EngineRepository
+	repov2 repov2.Repository
+	dv     datautils.DataDecoderValidator
+	s      gocron.Scheduler
+	a      *hatcheterrors.Wrapped
+	p      *partition.Partition
 
 	// a custom queue logger
 	ql *zerolog.Logger
@@ -133,6 +141,10 @@ func New(
 		return nil, fmt.Errorf("repository is required. use WithRepository")
 	}
 
+	if opts.repov2 == nil {
+		return nil, fmt.Errorf("v2 repository is required. use WithV2Repository")
+	}
+
 	if opts.p == nil {
 		return nil, fmt.Errorf("partition is required. use WithPartition")
 	}
@@ -151,15 +163,16 @@ func New(
 	a.WithData(map[string]interface{}{"service": "scheduler"})
 
 	q := &Scheduler{
-		mq:   opts.mq,
-		l:    opts.l,
-		repo: opts.repo,
-		dv:   opts.dv,
-		s:    s,
-		a:    a,
-		p:    opts.p,
-		ql:   opts.queueLogger,
-		pool: opts.pool,
+		mq:     opts.mq,
+		l:      opts.l,
+		repo:   opts.repo,
+		repov2: opts.repov2,
+		dv:     opts.dv,
+		s:      s,
+		a:      a,
+		p:      opts.p,
+		ql:     opts.queueLogger,
+		pool:   opts.pool,
 	}
 
 	return q, nil
@@ -269,35 +282,25 @@ func (s *Scheduler) handleTask(ctx context.Context, task *msgqueue.Message) (err
 	return fmt.Errorf("unknown task: %s", task.ID)
 }
 
-func (s *Scheduler) handleCheckQueue(ctx context.Context, task *msgqueue.Message) error {
-	ctx, span := telemetry.NewSpanWithCarrier(ctx, "handle-check-queue", task.OtelCarrier)
+func (s *Scheduler) handleCheckQueue(ctx context.Context, msg *msgqueue.Message) error {
+	ctx, span := telemetry.NewSpanWithCarrier(ctx, "handle-check-queue", msg.OtelCarrier)
 	defer span.End()
 
-	payload := tasktypes.CheckTenantQueuePayload{}
+	payloads := msgqueue.JSONConvert[tasktypes.CheckTenantQueuePayload](msg.Payloads)
 
-	if err := s.dv.DecodeAndValidate(task.Payload, &payload); err != nil {
-		return fmt.Errorf("could not decode check queue payload: %w", err)
-	}
+	for _, payload := range payloads {
+		switch {
+		case payload.IsStepQueued && payload.QueueName != "":
+			s.pool.Queue(ctx, msg.TenantID, payload.QueueName)
+		case payload.IsSlotReleased:
+			if payload.QueueName != "" {
+				s.pool.Queue(ctx, msg.TenantID, payload.QueueName)
+			}
 
-	metadata := tasktypes.CheckTenantQueueMetadata{}
-
-	err := s.dv.DecodeAndValidate(task.Metadata, &metadata)
-
-	if err != nil {
-		return fmt.Errorf("could not decode check queue metadata: %w", err)
-	}
-
-	switch {
-	case payload.IsStepQueued && payload.QueueName != "":
-		s.pool.Queue(ctx, metadata.TenantId, payload.QueueName)
-	case payload.IsSlotReleased:
-		if payload.QueueName != "" {
-			s.pool.Queue(ctx, metadata.TenantId, payload.QueueName)
+			s.pool.Replenish(ctx, msg.TenantID)
+		default:
+			s.pool.RefreshAll(ctx, msg.TenantID)
 		}
-
-		s.pool.Replenish(ctx, metadata.TenantId)
-	default:
-		s.pool.RefreshAll(ctx, metadata.TenantId)
 	}
 
 	return nil
@@ -379,10 +382,16 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 
 		// for each dispatcher, send a bulk assigned task
 		for dispatcherId, workerIdsToStepRuns := range dispatcherIdToWorkerIdsToStepRuns {
-			err = s.mq.AddMessage(
+			msg, err := taskBulkAssignedTask(tenantId, dispatcherId, workerIdsToStepRuns)
+
+			if err != nil {
+				err = multierror.Append(err, fmt.Errorf("could not create bulk assigned task: %w", err))
+			}
+
+			err = s.mq.SendMessage(
 				ctx,
 				msgqueue.QueueTypeFromDispatcherID(dispatcherId),
-				taskBulkAssignedTask(tenantId, dispatcherId, workerIdsToStepRuns),
+				msg,
 			)
 
 			if err != nil {
@@ -393,7 +402,7 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 
 	// TODO: FIXME
 	// for _, toCancel := range res.SchedulingTimedOut {
-	// 	innerErr := s.mq.AddMessage(
+	// 	innerErr := s.mq.SendMessage(
 	// 		ctx,
 	// 		msgqueue.JOB_PROCESSING_QUEUE,
 	// 		getStepRunCancelTask(
@@ -412,54 +421,51 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 }
 
 func (s *Scheduler) internalRetry(ctx context.Context, tenantId string, assigned ...*repov2.AssignedItem) {
-	panic("fixme")
+	opts := []repov2.FailTaskOpts{}
 
-	// for _, a := range assigned {
-	// 	stepRunId := sqlchelpers.UUIDToStr(a.QueueItem.StepRunId)
+	for _, a := range assigned {
+		opts = append(opts, repov2.FailTaskOpts{
+			TaskIdRetryCount: &repov2.TaskIdRetryCount{
+				Id:         a.QueueItem.TaskID,
+				RetryCount: a.QueueItem.RetryCount,
+			},
+			IsAppError: false,
+		})
+	}
 
-	// 	_, err := s.repo.StepRun().QueueStepRun(ctx, tenantId, stepRunId, &repov2.QueueStepRunOpts{
-	// 		IsInternalRetry: true,
-	// 	})
+	err := s.repov2.Tasks().FailTasks(ctx, tenantId, opts)
 
-	// 	if err != nil {
-	// 		s.l.Error().Err(err).Msg("could not requeue step run for internal retry")
-	// 	}
-	// }
-}
-
-func getStepRunCancelTask(tenantId, stepRunId, reason string) *msgqueue.Message {
-	payload, _ := datautils.ToJSONMap(tasktypes.StepRunCancelTaskPayload{
-		StepRunId:           stepRunId,
-		CancelledReason:     reason,
-		PropagateToChildren: true,
-	})
-
-	metadata, _ := datautils.ToJSONMap(tasktypes.StepRunCancelTaskMetadata{
-		TenantId: tenantId,
-	})
-
-	return &msgqueue.Message{
-		ID:       "step-run-cancel",
-		Payload:  payload,
-		Metadata: metadata,
-		Retries:  3,
+	if err != nil {
+		s.l.Error().Err(err).Msg("could not retry failed tasks")
 	}
 }
 
-func taskBulkAssignedTask(tenantId, dispatcherId string, workerIdsToTaskIds map[string][]int64) *msgqueue.Message {
-	payload, _ := datautils.ToJSONMap(tasktypes.TaskAssignedBulkTaskPayload{
-		WorkerIdToTaskIds: workerIdsToTaskIds,
-	})
+// func getStepRunCancelTask(tenantId, stepRunId, reason string) *msgqueue.Message {
+// 	payload, _ := datautils.ToJSONMap(tasktypes.StepRunCancelTaskPayload{
+// 		StepRunId:           stepRunId,
+// 		CancelledReason:     reason,
+// 		PropagateToChildren: true,
+// 	})
 
-	metadata, _ := datautils.ToJSONMap(tasktypes.TaskAssignedBulkTaskMetadata{
-		TenantId:     tenantId,
-		DispatcherId: dispatcherId,
-	})
+// 	metadata, _ := datautils.ToJSONMap(tasktypes.StepRunCancelTaskMetadata{
+// 		TenantId: tenantId,
+// 	})
 
-	return &msgqueue.Message{
-		ID:       "task-assigned-bulk",
-		Payload:  payload,
-		Metadata: metadata,
-		Retries:  3,
-	}
+// 	return &msgqueue.Message{
+// 		ID:       "step-run-cancel",
+// 		Payload:  payload,
+// 		Metadata: metadata,
+// 		Retries:  3,
+// 	}
+// }
+
+func taskBulkAssignedTask(tenantId, dispatcherId string, workerIdsToTaskIds map[string][]int64) (*msgqueue.Message, error) {
+	return msgqueue.NewSingletonTenantMessage(
+		tenantId,
+		"task-assigned-bulk",
+		tasktypes.TaskAssignedBulkTaskPayload{
+			WorkerIdToTaskIds: workerIdsToTaskIds,
+		},
+		false,
+	)
 }

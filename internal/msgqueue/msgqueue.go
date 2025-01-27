@@ -3,6 +3,8 @@ package msgqueue
 import (
 	"context"
 	"fmt"
+
+	"github.com/hatchet-dev/hatchet/pkg/random"
 )
 
 type Queue interface {
@@ -38,6 +40,7 @@ const (
 
 	TASK_PROCESSING_QUEUE staticQueue = "task_processing_queue_v2"
 	TRIGGER_QUEUE         staticQueue = "trigger_queue_v2"
+	OLAP_QUEUE            staticQueue = "olap_queue_v2"
 )
 
 func (s staticQueue) Name() string {
@@ -62,6 +65,11 @@ func (s staticQueue) FanoutExchangeKey() string {
 
 func (s staticQueue) DLX() string {
 	return fmt.Sprintf("%s_dlx_v2", s.Name())
+}
+
+func NewRandomStaticQueue() staticQueue {
+	randBytes, _ := random.Generate(8)
+	return staticQueue(fmt.Sprintf("random_static_queue_v2_%s", randBytes))
 }
 
 type consumerQueue string
@@ -124,45 +132,6 @@ func TenantEventConsumerQueue(t string) fanoutQueue {
 	}
 }
 
-type Message struct {
-	// ID is the ID of the task.
-	ID string `json:"id"`
-
-	// Payload is the payload of the task.
-	Payload map[string]interface{} `json:"payload"`
-
-	// Metadata is the metadata of the task.
-	Metadata map[string]interface{} `json:"metadata"`
-
-	// Retries is the number of retries for the task.
-	Retries int `json:"retries"`
-
-	// RetryDelay is the delay between retries.
-	RetryDelay int `json:"retry_delay"`
-
-	// Whether the message should immediately expire if it reaches the queue without an active consumer.
-	ImmediatelyExpire bool `json:"immediately_expire"`
-
-	// OtelCarrier is the OpenTelemetry carrier for the task.
-	OtelCarrier map[string]string `json:"otel_carrier"`
-}
-
-func (t *Message) TenantID() string {
-	tenantId, exists := t.Metadata["tenant_id"]
-
-	if !exists {
-		return ""
-	}
-
-	tenantIdStr, ok := tenantId.(string)
-
-	if !ok {
-		return ""
-	}
-
-	return tenantIdStr
-}
-
 type AckHook func(task *Message) error
 
 type MessageQueue interface {
@@ -172,8 +141,8 @@ type MessageQueue interface {
 	// SetQOS sets the quality of service for the message queue.
 	SetQOS(prefetchCount int)
 
-	// AddMessage adds a task to the queue
-	AddMessage(ctx context.Context, queue Queue, task *Message) error
+	// SendMessage sends a message to the message queue.
+	SendMessage(ctx context.Context, queue Queue, msg *Message) error
 
 	// Subscribe subscribes to the task queue. It returns a cleanup function that should be called when the
 	// subscription is no longer needed.

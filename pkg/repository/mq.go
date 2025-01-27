@@ -22,7 +22,7 @@ type MessageQueueRepository interface {
 	CleanupQueues(ctx context.Context) error
 
 	// Messages
-	AddMessage(ctx context.Context, queue string, payload []byte) error
+	SendMessage(ctx context.Context, queue string, payload []byte) error
 	ReadMessages(ctx context.Context, queue string, qos int) ([]*dbsqlc.ReadMessagesRow, error)
 	AckMessage(ctx context.Context, id int64) error
 	CleanupMessageQueueItems(ctx context.Context) error

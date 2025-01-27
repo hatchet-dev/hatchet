@@ -2,6 +2,7 @@ package msgqueue
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
@@ -10,11 +11,27 @@ import (
 const FLUSH_INTERVAL = 10 * time.Millisecond
 const BUFFER_SIZE = 1000
 
-type DstFunc func(tenantId, msgId string, msgs []*Message) error
+type DstFunc func(tenantId, msgId string, payloads [][]byte) error
 
-// MQBuffer buffers messages coming out of the task queue, groups them by tenantId and msgId, and then flushes them
+func JSONConvert[T any](payloads [][]byte) []*T {
+	ret := make([]*T, 0)
+
+	for _, p := range payloads {
+		var t T
+
+		if err := json.Unmarshal(p, &t); err != nil {
+			return nil
+		}
+
+		ret = append(ret, &t)
+	}
+
+	return ret
+}
+
+// MQSubBuffer buffers messages coming out of the task queue, groups them by tenantId and msgId, and then flushes them
 // to the task handler as necessary.
-type MQBuffer struct {
+type MQSubBuffer struct {
 	queue Queue
 
 	mq MessageQueue
@@ -26,22 +43,18 @@ type MQBuffer struct {
 	dst DstFunc
 }
 
-func NewMQBuffer(queue Queue, mq MessageQueue, dst DstFunc) *MQBuffer {
-	return &MQBuffer{
+func NewMQSubBuffer(queue Queue, mq MessageQueue, dst DstFunc) *MQSubBuffer {
+	return &MQSubBuffer{
 		queue: queue,
 		mq:    mq,
 		dst:   dst,
 	}
 }
 
-func (m *MQBuffer) Start() (func() error, error) {
+func (m *MQSubBuffer) Start() (func() error, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	f := func(msg *Message) error {
-		// TODO: MOVE WGS OUT TO TOP LEVEL
-		// wg.Add(1)
-		// defer wg.Done()
-
 		return m.handleMsg(ctx, msg)
 	}
 
@@ -71,8 +84,8 @@ type msgWithResultCh struct {
 	result chan error
 }
 
-func (m *MQBuffer) handleMsg(ctx context.Context, msg *Message) error {
-	if msg.TenantID() == "" || msg.ID == "" {
+func (m *MQSubBuffer) handleMsg(ctx context.Context, msg *Message) error {
+	if msg.TenantID == "" {
 		return nil
 	}
 
@@ -81,12 +94,12 @@ func (m *MQBuffer) handleMsg(ctx context.Context, msg *Message) error {
 		result: make(chan error),
 	}
 
-	k := getKey(msg.TenantID(), msg.ID)
+	k := getKey(msg.TenantID, msg.ID)
 
 	buf, ok := m.buffers.Load(k)
 
 	if !ok {
-		buf = newMsgIdBuffer(msg.TenantID(), msg.ID, m.dst)
+		buf = newMsgIdBuffer(msg.TenantID, msg.ID, m.dst)
 
 		m.buffers.Store(k, buf)
 	}
@@ -170,24 +183,25 @@ func (m *msgIdBuffer) flush() {
 	}()
 
 	msgsWithResultCh := make([]*msgWithResultCh, 0)
-	msgs := make([]*Message, 0)
+	payloads := make([][]byte, 0)
 
 	// read all messages currently in the buffer
 	for i := 0; i < BUFFER_SIZE; i++ {
 		select {
 		case msg := <-m.msgIdBufferCh:
 			msgsWithResultCh = append(msgsWithResultCh, msg)
-			msgs = append(msgs, msg.msg)
+
+			payloads = append(payloads, msg.msg.Payloads...)
 		default:
 			i = BUFFER_SIZE
 		}
 	}
 
-	if len(msgs) == 0 {
+	if len(payloads) == 0 {
 		return
 	}
 
-	err := m.dst(m.tenantId, m.msgId, msgs)
+	err := m.dst(m.tenantId, m.msgId, payloads)
 
 	if err != nil {
 		// write err to all the message channels

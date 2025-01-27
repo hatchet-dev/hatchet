@@ -10,16 +10,20 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/v2/sqlcv2"
 )
 
-type WorkflowVersionWithTriggeringEventId struct {
-	EventID   pgtype.UUID
-	EventKey  string
-	EventData []byte
+type WorkflowVersionWithTriggeringEvent struct {
+	EventId  string
+	EventKey string
 
 	WorkflowStartData *sqlcv2.GetWorkflowStartDataRow
 }
 
+type EventIdKey struct {
+	EventId string
+	Key     string
+}
+
 type EventRepository interface {
-	ListTriggeredWorkflowsForEvents(ctx context.Context, tenantId string, eventIds []string) ([]*WorkflowVersionWithTriggeringEventId, error)
+	ListTriggeredWorkflowsForEvents(ctx context.Context, tenantId string, tuples []EventIdKey) ([]*WorkflowVersionWithTriggeringEvent, error)
 }
 
 type EventRepositoryImpl struct {
@@ -32,17 +36,20 @@ func newEventRepository(s *sharedRepository) EventRepository {
 	}
 }
 
-func (r *EventRepositoryImpl) ListTriggeredWorkflowsForEvents(ctx context.Context, tenantId string, eventIds []string) ([]*WorkflowVersionWithTriggeringEventId, error) {
-	ids := make([]pgtype.UUID, 0, len(eventIds))
+func (r *EventRepositoryImpl) ListTriggeredWorkflowsForEvents(ctx context.Context, tenantId string, tuples []EventIdKey) ([]*WorkflowVersionWithTriggeringEvent, error) {
+	eventIds := make([]pgtype.UUID, 0, len(tuples))
+	eventKeys := make([]string, 0, len(tuples))
 
-	for _, id := range eventIds {
-		ids = append(ids, sqlchelpers.UUIDFromStr(id))
+	for _, tuple := range tuples {
+		eventIds = append(eventIds, sqlchelpers.UUIDFromStr(tuple.EventId))
+		eventKeys = append(eventKeys, tuple.Key)
 	}
 
 	// we don't run this in a transaction because workflow versions won't change during the course of this operation
 	workflowVersionIdsAndEvents, err := r.queries.ListWorkflowsForEvents(ctx, r.pool, sqlcv2.ListWorkflowsForEventsParams{
-		Eventids: ids,
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Eventids:  eventIds,
+		Eventkeys: eventKeys,
+		Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
 	})
 
 	if err != nil {
@@ -74,7 +81,7 @@ func (r *EventRepositoryImpl) ListTriggeredWorkflowsForEvents(ctx context.Contex
 	}
 
 	// join the workflow versions with the triggering event ids
-	result := make([]*WorkflowVersionWithTriggeringEventId, 0, len(workflowVersionIdsAndEvents))
+	result := make([]*WorkflowVersionWithTriggeringEvent, 0, len(workflowVersionIdsAndEvents))
 
 	workflowVersionsMap := make(map[string]*sqlcv2.GetWorkflowStartDataRow)
 
@@ -89,10 +96,9 @@ func (r *EventRepositoryImpl) ListTriggeredWorkflowsForEvents(ctx context.Contex
 			return nil, fmt.Errorf("could not find workflow version for workflow version id: %s", sqlchelpers.UUIDToStr(workflow.WorkflowVersionId))
 		}
 
-		result = append(result, &WorkflowVersionWithTriggeringEventId{
-			EventID:           workflow.EventId,
+		result = append(result, &WorkflowVersionWithTriggeringEvent{
 			EventKey:          workflow.EventKey,
-			EventData:         workflow.EventData,
+			EventId:           sqlchelpers.UUIDToStr(workflow.EventId),
 			WorkflowStartData: startData,
 		})
 	}

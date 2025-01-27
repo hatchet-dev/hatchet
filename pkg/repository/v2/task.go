@@ -12,6 +12,8 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/v2/sqlcv2"
 )
 
+const MAX_INTERNAL_RETRIES = 3
+
 type CreateTaskOpts struct {
 	// (required) the external id
 	ExternalId string `validate:"required,uuid"`
@@ -51,12 +53,31 @@ type CreateTaskOpts struct {
 	DesiredWorkerId *string
 }
 
+type TaskIdRetryCount struct {
+	// (required) the external id
+	Id int64 `validate:"required"`
+
+	// (required) the retry count
+	RetryCount int32
+}
+
+type FailTaskOpts struct {
+	*TaskIdRetryCount
+
+	// (required) whether this is an application-level error or an internal error on the Hatchet side
+	IsAppError bool
+}
+
 type TaskRepository interface {
 	CreateTasks(ctx context.Context, tenantId string, tasks []CreateTaskOpts) error
 
+	CompleteTasks(ctx context.Context, tenantId string, tasks []TaskIdRetryCount) error
+
+	FailTasks(ctx context.Context, tenantId string, tasks []FailTaskOpts) error
+
 	ListTasks(ctx context.Context, tenantId string, tasks []int64) ([]*sqlcv2.V2Task, error)
 
-	ReleaseQueueItems(ctx context.Context, tenantId string, taskId int64, retryCount int32) error
+	ListTaskMetas(ctx context.Context, tenantId string, tasks []int64) ([]*sqlcv2.ListTaskMetasRow, error)
 }
 
 type TaskRepositoryImpl struct {
@@ -121,6 +142,142 @@ func (r *TaskRepositoryImpl) CreateTasks(ctx context.Context, tenantId string, t
 	return nil
 }
 
+func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId string, tasks []TaskIdRetryCount) error {
+	// TODO: ADD BACK VALIDATION
+	// if err := r.v.Validate(tasks); err != nil {
+	// 	fmt.Println("FAILED VALIDATION HERE!!!")
+
+	// 	return err
+	// }
+
+	datas := make([][]byte, len(tasks))
+
+	for i := range tasks {
+		datas[i] = nil
+	}
+
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
+
+	if err != nil {
+		return err
+	}
+
+	defer rollback()
+
+	// release queue items
+	err = r.releaseQueueItems(ctx, tx, tenantId, tasks)
+
+	if err != nil {
+		return err
+	}
+
+	err = r.createTaskEvents(
+		ctx,
+		tx,
+		tenantId,
+		tasks,
+		datas,
+		sqlcv2.V2TaskEventTypeCOMPLETED,
+	)
+
+	if err != nil {
+		return err
+	}
+
+	// commit the transaction
+	if err := commit(ctx); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (r *TaskRepositoryImpl) FailTasks(ctx context.Context, tenantId string, failureOpts []FailTaskOpts) error {
+	// TODO: ADD BACK VALIDATION
+	// if err := r.v.Validate(tasks); err != nil {
+	// 	fmt.Println("FAILED VALIDATION HERE!!!")
+
+	// 	return err
+	// }
+
+	tasks := make([]TaskIdRetryCount, len(failureOpts))
+	appFailures := make([]int64, 0)
+	internalFailures := make([]int64, 0)
+	datas := make([][]byte, len(failureOpts))
+
+	for i, failureOpt := range failureOpts {
+		tasks[i] = *failureOpt.TaskIdRetryCount
+		datas[i] = nil
+
+		if failureOpt.IsAppError {
+			appFailures = append(appFailures, failureOpt.Id)
+		} else {
+			internalFailures = append(internalFailures, failureOpt.Id)
+		}
+	}
+
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
+
+	if err != nil {
+		return err
+	}
+
+	defer rollback()
+
+	// release queue items
+	err = r.releaseQueueItems(ctx, tx, tenantId, tasks)
+
+	if err != nil {
+		return err
+	}
+
+	// write app failures
+	if len(appFailures) > 0 {
+		err = r.queries.FailTaskAppFailure(ctx, tx, sqlcv2.FailTaskAppFailureParams{
+			Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+			Taskids:  appFailures,
+		})
+
+		if err != nil {
+			return err
+		}
+	}
+
+	// write internal failures
+	if len(internalFailures) > 0 {
+		err = r.queries.FailTaskInternalFailure(ctx, tx, sqlcv2.FailTaskInternalFailureParams{
+			Tenantid:           sqlchelpers.UUIDFromStr(tenantId),
+			Taskids:            internalFailures,
+			Maxinternalretries: MAX_INTERNAL_RETRIES,
+		})
+
+		if err != nil {
+			return err
+		}
+	}
+
+	// write task events
+	err = r.createTaskEvents(
+		ctx,
+		tx,
+		tenantId,
+		tasks,
+		datas,
+		sqlcv2.V2TaskEventTypeFAILED,
+	)
+
+	if err != nil {
+		return err
+	}
+
+	// commit the transaction
+	if err := commit(ctx); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (r *TaskRepositoryImpl) ListTasks(ctx context.Context, tenantId string, tasks []int64) ([]*sqlcv2.V2Task, error) {
 	return r.queries.ListTasks(ctx, r.pool, sqlcv2.ListTasksParams{
 		TenantID: sqlchelpers.UUIDFromStr(tenantId),
@@ -128,11 +285,25 @@ func (r *TaskRepositoryImpl) ListTasks(ctx context.Context, tenantId string, tas
 	})
 }
 
-func (r *TaskRepositoryImpl) ReleaseQueueItems(ctx context.Context, tenantId string, taskId int64, retryCount int32) error {
-	return r.queries.ReleaseQueueItems(ctx, r.pool, sqlcv2.ReleaseQueueItemsParams{
-		TaskID:     taskId,
-		TenantID:   sqlchelpers.UUIDFromStr(tenantId),
-		RetryCount: retryCount,
+func (r *TaskRepositoryImpl) ListTaskMetas(ctx context.Context, tenantId string, tasks []int64) ([]*sqlcv2.ListTaskMetasRow, error) {
+	return r.queries.ListTaskMetas(ctx, r.pool, sqlcv2.ListTaskMetasParams{
+		TenantID: sqlchelpers.UUIDFromStr(tenantId),
+		Ids:      tasks,
+	})
+}
+
+func (r *TaskRepositoryImpl) releaseQueueItems(ctx context.Context, tx sqlcv2.DBTX, tenantId string, tasks []TaskIdRetryCount) error {
+	taskIds := make([]int64, len(tasks))
+	retryCounts := make([]int32, len(tasks))
+
+	for i, task := range tasks {
+		taskIds[i] = task.Id
+		retryCounts[i] = task.RetryCount
+	}
+
+	return r.queries.ReleaseQueueItems(ctx, tx, sqlcv2.ReleaseQueueItemsParams{
+		Taskids:     taskIds,
+		Retrycounts: retryCounts,
 	})
 }
 
@@ -218,4 +389,42 @@ func (r *TaskRepositoryImpl) createTasks(ctx context.Context, tx sqlcv2.DBTX, te
 	}
 
 	return nil
+}
+
+func (r *TaskRepositoryImpl) createTaskEvents(
+	ctx context.Context,
+	dbtx sqlcv2.DBTX,
+	tenantId string,
+	tasks []TaskIdRetryCount,
+	eventDatas [][]byte,
+	eventType sqlcv2.V2TaskEventType,
+) error {
+	if len(tasks) != len(eventDatas) {
+		return fmt.Errorf("mismatched task and event data lengths")
+	}
+
+	taskIds := make([]int64, len(tasks))
+	retryCounts := make([]int32, len(tasks))
+	eventTypes := make([]string, len(tasks))
+	paramDatas := make([][]byte, len(tasks))
+
+	for i, task := range tasks {
+		taskIds[i] = task.Id
+		retryCounts[i] = task.RetryCount
+		eventTypes[i] = string(eventType)
+
+		if len(eventDatas[i]) == 0 {
+			paramDatas[i] = nil
+		} else {
+			paramDatas[i] = paramDatas[i]
+		}
+	}
+
+	return r.queries.CreateTaskEvents(ctx, dbtx, sqlcv2.CreateTaskEventsParams{
+		Tenantid:    sqlchelpers.UUIDFromStr(tenantId),
+		Taskids:     taskIds,
+		Retrycounts: retryCounts,
+		Eventtypes:  eventTypes,
+		Datas:       paramDatas,
+	})
 }

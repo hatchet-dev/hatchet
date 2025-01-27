@@ -62,9 +62,9 @@ func (m *messageQueueRepository) Notify(ctx context.Context, name string, payloa
 	return err
 }
 
-func (m *messageQueueRepository) AddMessage(ctx context.Context, queue string, payload []byte) error {
+func (m *messageQueueRepository) SendMessage(ctx context.Context, queue string, payload []byte) error {
 	// NOTE: hack for tenant, just passing in an empty string for now
-	_, err := m.bulkAddMQBuffer.FireAndWait(ctx, "", addMessage{
+	_, err := m.bulkAddMQBuffer.FireAndWait(ctx, "", SendMessage{
 		queue:   queue,
 		payload: payload,
 	})

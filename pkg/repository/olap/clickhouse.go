@@ -25,7 +25,7 @@ func CreateClickhouseConnection() (clickhouse.Conn, error) {
 		Protocol: clickhouse.Native,
 		// See docs on connection pooling with the Clickhouse Go client
 		// https://clickhouse.com/docs/en/integrations/go#connection-pooling
-		MaxIdleConns: 10,
-		MaxOpenConns: 15,
+		MaxIdleConns: 20,
+		MaxOpenConns: 40,
 	})
 }

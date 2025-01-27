@@ -25,17 +25,13 @@ WITH latest_versions AS (
     ORDER BY "workflowId", "order" DESC
 ), events AS (
     SELECT
-        "id", "key", "data"
-    FROM
-        "Event" as event
-    WHERE
-        event."id" = ANY($2::uuid[])
+        unnest($2::uuid[]) AS "eventId",
+        unnest($3::text[]) AS "eventKey"
 )
 SELECT
     latest_versions."workflowVersionId",
-    events."id" as "eventId",
-    events."key" as "eventKey",
-    events."data" as "eventData"
+    events."eventId"::uuid as "eventId",
+    events."eventKey"::text as "eventKey"
 FROM
     latest_versions
 JOIN
@@ -43,25 +39,25 @@ JOIN
 JOIN
     "WorkflowTriggerEventRef" as eventRef ON eventRef."parentId" = triggers."id"
 JOIN
-    events ON events."key" = eventRef."eventKey"
+    events ON events."eventKey" = eventRef."eventKey"
 `
 
 type ListWorkflowsForEventsParams struct {
-	Tenantid pgtype.UUID   `json:"tenantid"`
-	Eventids []pgtype.UUID `json:"eventids"`
+	Tenantid  pgtype.UUID   `json:"tenantid"`
+	Eventids  []pgtype.UUID `json:"eventids"`
+	Eventkeys []string      `json:"eventkeys"`
 }
 
 type ListWorkflowsForEventsRow struct {
 	WorkflowVersionId pgtype.UUID `json:"workflowVersionId"`
 	EventId           pgtype.UUID `json:"eventId"`
 	EventKey          string      `json:"eventKey"`
-	EventData         []byte      `json:"eventData"`
 }
 
 // Get all of the latest workflow versions
 // select the workflow versions that have the event trigger
 func (q *Queries) ListWorkflowsForEvents(ctx context.Context, db DBTX, arg ListWorkflowsForEventsParams) ([]*ListWorkflowsForEventsRow, error) {
-	rows, err := db.Query(ctx, listWorkflowsForEvents, arg.Tenantid, arg.Eventids)
+	rows, err := db.Query(ctx, listWorkflowsForEvents, arg.Tenantid, arg.Eventids, arg.Eventkeys)
 	if err != nil {
 		return nil, err
 	}
@@ -69,12 +65,7 @@ func (q *Queries) ListWorkflowsForEvents(ctx context.Context, db DBTX, arg ListW
 	var items []*ListWorkflowsForEventsRow
 	for rows.Next() {
 		var i ListWorkflowsForEventsRow
-		if err := rows.Scan(
-			&i.WorkflowVersionId,
-			&i.EventId,
-			&i.EventKey,
-			&i.EventData,
-		); err != nil {
+		if err := rows.Scan(&i.WorkflowVersionId, &i.EventId, &i.EventKey); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)

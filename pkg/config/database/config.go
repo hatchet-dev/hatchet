@@ -57,6 +57,8 @@ type Layer struct {
 
 	APIRepository repository.APIRepository
 
+	OLAPRepository repository.OLAPEventRepository
+
 	EngineRepository repository.EngineRepository
 
 	V2 v2.Repository

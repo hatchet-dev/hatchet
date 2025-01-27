@@ -36,7 +36,7 @@ WHERE
     "lastActive" < NOW() - INTERVAL '1 hour'
     AND "autoDeleted" = true;
 
--- name: AddMessage :exec
+-- name: SendMessage :exec
 INSERT INTO
     "MessageQueueItem" (
         "payload",
@@ -52,7 +52,7 @@ VALUES
         NOW() + INTERVAL '5 minutes'
     );
 
--- name: BulkAddMessage :copyfrom
+-- name: BulkSendMessage :copyfrom
 INSERT INTO
     "MessageQueueItem" (
         "payload",

@@ -12,12 +12,10 @@ import (
 )
 
 const bulkQueueItems = `-- name: BulkQueueItems :exec
-UPDATE
-    v2_queue_item qi
-SET
-    is_queued = false
+DELETE FROM
+    v2_queue_item
 WHERE
-    qi.id = ANY($1::bigint[])
+    id = ANY($1::bigint[])
 `
 
 func (q *Queries) BulkQueueItems(ctx context.Context, db DBTX, ids []int64) error {
@@ -273,7 +271,7 @@ func (q *Queries) ListAvailableSlotsForWorkers(ctx context.Context, db DBTX, arg
 
 const listQueueItemsForQueue = `-- name: ListQueueItemsForQueue :many
 SELECT
-    id, tenant_id, queue, task_id, action_id, step_id, schedule_timeout_at, step_timeout, priority, sticky, desired_worker_id, is_queued
+    id, tenant_id, queue, task_id, action_id, step_id, schedule_timeout_at, step_timeout, priority, sticky, desired_worker_id, is_queued, retry_count
 FROM
     v2_queue_item qi
 WHERE
@@ -327,6 +325,7 @@ func (q *Queries) ListQueueItemsForQueue(ctx context.Context, db DBTX, arg ListQ
 			&i.Sticky,
 			&i.DesiredWorkerID,
 			&i.IsQueued,
+			&i.RetryCount,
 		); err != nil {
 			return nil, err
 		}

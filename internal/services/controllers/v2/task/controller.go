@@ -15,6 +15,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
+	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/pkg/config/shared"
 	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
@@ -165,7 +166,7 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 }
 
 func (tc *TasksControllerImpl) Start() (func() error, error) {
-	mqBuffer := msgqueue.NewMQBuffer(msgqueue.TASK_PROCESSING_QUEUE, tc.mq, tc.handleBufferedMsgs)
+	mqBuffer := msgqueue.NewMQSubBuffer(msgqueue.TASK_PROCESSING_QUEUE, tc.mq, tc.handleBufferedMsgs)
 	wg := sync.WaitGroup{}
 
 	tc.s.Start()
@@ -193,7 +194,7 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 	return cleanup, nil
 }
 
-func (tc *TasksControllerImpl) handleBufferedMsgs(tenantId, msgId string, msgs []*msgqueue.Message) (err error) {
+func (tc *TasksControllerImpl) handleBufferedMsgs(tenantId, msgId string, payloads [][]byte) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			recoverErr := recoveryutils.RecoverWithAlert(tc.l, tc.a, r)
@@ -205,16 +206,12 @@ func (tc *TasksControllerImpl) handleBufferedMsgs(tenantId, msgId string, msgs [
 	}()
 
 	switch msgId {
-	case "create-task":
-		// return ec.handleJobRunQueued(ctx, task)
+	case "task-completed":
+		return tc.handleTaskCompleted(context.Background(), tenantId, payloads)
+	case "task-failed":
+		return tc.handleTaskFailed(context.Background(), tenantId, payloads)
 	case "replay-task":
 		// return ec.handleStepRunReplay(ctx, task)
-	case "fail-task":
-		// return ec.handleStepRunRetry(ctx, task)
-	case "complete-task":
-		// return ec.handleStepRunQueued(ctx, task)
-	case "start-task":
-		// return ec.handleStepRunStarted(ctx, task)
 	case "cancel-task":
 		// return ec.handleJobRunCancelled(ctx, task)
 	}
@@ -222,38 +219,35 @@ func (tc *TasksControllerImpl) handleBufferedMsgs(tenantId, msgId string, msgs [
 	return fmt.Errorf("unknown message id: %s", msgId)
 }
 
-// handleCreateTask is responsible for inserting tasks into the database. tasks are assigned a UUID externally which is
-// passed through the message queue. tasks are given an internal ID once inserted into the database.
-func (tc *TasksControllerImpl) handleCreateTask(ctx context.Context, tenantId string, msgs []*msgqueue.Message) error {
-	panic("not implemented")
+func (tc *TasksControllerImpl) handleTaskCompleted(ctx context.Context, tenantId string, payloads [][]byte) error {
+	opts := make([]v2.TaskIdRetryCount, 0)
+
+	msgs := msgqueue.JSONConvert[tasktypes.CompletedTaskPayload](payloads)
+
+	for _, msg := range msgs {
+		opts = append(opts, v2.TaskIdRetryCount{
+			Id:         msg.TaskId,
+			RetryCount: msg.RetryCount,
+		})
+	}
+
+	return tc.repo.CompleteTasks(ctx, tenantId, opts)
 }
 
-func (tc *TasksControllerImpl) handleReplayTask(ctx context.Context, tenantId string, msgs []*msgqueue.Message) error {
-	panic("not implemented")
+func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId string, payloads [][]byte) error {
+	opts := make([]v2.FailTaskOpts, 0)
 
-	// call repository method ReplayTask
-}
+	msgs := msgqueue.JSONConvert[tasktypes.FailedTaskPayload](payloads)
 
-func (tc *TasksControllerImpl) handleFailTask(ctx context.Context, tenantId string, msgs []*msgqueue.Message) error {
-	panic("not implemented")
+	for _, msg := range msgs {
+		opts = append(opts, v2.FailTaskOpts{
+			TaskIdRetryCount: &v2.TaskIdRetryCount{
+				Id:         msg.TaskId,
+				RetryCount: msg.RetryCount,
+			},
+			IsAppError: msg.IsAppError,
+		})
+	}
 
-	// call repository method FailTask
-}
-
-func (tc *TasksControllerImpl) handleCompleteTask(ctx context.Context, tenantId string, msgs []*msgqueue.Message) error {
-	panic("not implemented")
-
-	// call repository method CompleteTask
-}
-
-func (tc *TasksControllerImpl) handleStartTask(ctx context.Context, tenantId string, msgs []*msgqueue.Message) error {
-	panic("not implemented")
-
-	// call repository method StartTask
-}
-
-func (tc *TasksControllerImpl) handleCancelTask(ctx context.Context, tenantId string, msgs []*msgqueue.Message) error {
-	panic("not implemented")
-
-	// call repository method CancelTask
+	return tc.repo.FailTasks(ctx, tenantId, opts)
 }

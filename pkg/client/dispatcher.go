@@ -514,6 +514,7 @@ func (d *dispatcherClientImpl) SendStepActionEvent(ctx context.Context, in *Acti
 		EventTimestamp: timestamppb.New(*in.EventTimestamp),
 		EventType:      actionEventType,
 		EventPayload:   string(payloadBytes),
+		RetryCount:     &in.RetryCount,
 	})
 
 	if err != nil {

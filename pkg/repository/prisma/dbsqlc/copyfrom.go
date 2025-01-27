@@ -9,13 +9,13 @@ import (
 	"context"
 )
 
-// iteratorForBulkAddMessage implements pgx.CopyFromSource.
-type iteratorForBulkAddMessage struct {
-	rows                 []BulkAddMessageParams
+// iteratorForBulkSendMessage implements pgx.CopyFromSource.
+type iteratorForBulkSendMessage struct {
+	rows                 []BulkSendMessageParams
 	skippedFirstNextCall bool
 }
 
-func (r *iteratorForBulkAddMessage) Next() bool {
+func (r *iteratorForBulkSendMessage) Next() bool {
 	if len(r.rows) == 0 {
 		return false
 	}
@@ -27,7 +27,7 @@ func (r *iteratorForBulkAddMessage) Next() bool {
 	return len(r.rows) > 0
 }
 
-func (r iteratorForBulkAddMessage) Values() ([]interface{}, error) {
+func (r iteratorForBulkSendMessage) Values() ([]interface{}, error) {
 	return []interface{}{
 		r.rows[0].Payload,
 		r.rows[0].QueueId,
@@ -36,12 +36,12 @@ func (r iteratorForBulkAddMessage) Values() ([]interface{}, error) {
 	}, nil
 }
 
-func (r iteratorForBulkAddMessage) Err() error {
+func (r iteratorForBulkSendMessage) Err() error {
 	return nil
 }
 
-func (q *Queries) BulkAddMessage(ctx context.Context, db DBTX, arg []BulkAddMessageParams) (int64, error) {
-	return db.CopyFrom(ctx, []string{"MessageQueueItem"}, []string{"payload", "queueId", "readAfter", "expiresAt"}, &iteratorForBulkAddMessage{rows: arg})
+func (q *Queries) BulkSendMessage(ctx context.Context, db DBTX, arg []BulkSendMessageParams) (int64, error) {
+	return db.CopyFrom(ctx, []string{"MessageQueueItem"}, []string{"payload", "queueId", "readAfter", "expiresAt"}, &iteratorForBulkSendMessage{rows: arg})
 }
 
 // iteratorForCreateEvents implements pgx.CopyFromSource.

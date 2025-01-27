@@ -13,144 +13,145 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
-	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 )
 
 func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.TriggerWorkflowRequest) (*contracts.TriggerWorkflowResponse, error) {
-	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	panic("not implemented in v2")
 
-	createContext, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
+	// tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
+	// tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
-	createOpts, existingWorkflows, err := getOpts(ctx, []*contracts.TriggerWorkflowRequest{req}, a)
-	if err != nil {
-		return nil, err
-	}
+	// createContext, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	// defer cancel()
 
-	if len(existingWorkflows) > 0 {
-		return &contracts.TriggerWorkflowResponse{
-			WorkflowRunId: existingWorkflows[0],
-		}, nil
-	}
+	// createOpts, existingWorkflows, err := getOpts(ctx, []*contracts.TriggerWorkflowRequest{req}, a)
+	// if err != nil {
+	// 	return nil, err
+	// }
 
-	if len(createOpts) > 1 {
-		return nil, status.Error(
-			codes.Internal,
-			"multiple workflow options created from single request",
-		)
-	}
-	createOpt := createOpts[0]
+	// if len(existingWorkflows) > 0 {
+	// 	return &contracts.TriggerWorkflowResponse{
+	// 		WorkflowRunId: existingWorkflows[0],
+	// 	}, nil
+	// }
 
-	workflowRun, err := a.repo.WorkflowRun().CreateNewWorkflowRun(createContext, tenantId, createOpt)
+	// if len(createOpts) > 1 {
+	// 	return nil, status.Error(
+	// 		codes.Internal,
+	// 		"multiple workflow options created from single request",
+	// 	)
+	// }
+	// createOpt := createOpts[0]
 
-	dedupeTarget := repository.ErrDedupeValueExists{}
+	// workflowRun, err := a.repo.WorkflowRun().CreateNewWorkflowRun(createContext, tenantId, createOpt)
 
-	if errors.As(err, &dedupeTarget) {
-		return nil, status.Error(
-			codes.AlreadyExists,
-			fmt.Sprintf("workflow run with deduplication value %s already exists", dedupeTarget.DedupeValue),
-		)
-	}
+	// dedupeTarget := repository.ErrDedupeValueExists{}
 
-	if err == metered.ErrResourceExhausted {
-		return nil, status.Errorf(codes.ResourceExhausted, "resource exhausted: workflow run limit exceeded for tenant")
-	}
+	// if errors.As(err, &dedupeTarget) {
+	// 	return nil, status.Error(
+	// 		codes.AlreadyExists,
+	// 		fmt.Sprintf("workflow run with deduplication value %s already exists", dedupeTarget.DedupeValue),
+	// 	)
+	// }
 
-	if err != nil {
-		return nil, fmt.Errorf("Trigger Workflow - could not create workflow run: %w", err)
-	}
+	// if err == metered.ErrResourceExhausted {
+	// 	return nil, status.Errorf(codes.ResourceExhausted, "resource exhausted: workflow run limit exceeded for tenant")
+	// }
 
-	workflowRunId := sqlchelpers.UUIDToStr(workflowRun.ID)
+	// if err != nil {
+	// 	return nil, fmt.Errorf("Trigger Workflow - could not create workflow run: %w", err)
+	// }
 
-	// send to workflow processing queue
-	err = a.mq.AddMessage(
-		context.Background(),
-		msgqueue.WORKFLOW_PROCESSING_QUEUE,
-		tasktypes.WorkflowRunQueuedToTask(tenantId, workflowRunId),
-	)
+	// workflowRunId := sqlchelpers.UUIDToStr(workflowRun.ID)
 
-	if err != nil {
-		return nil, fmt.Errorf("could not queue workflow run: %w", err)
-	}
+	// // send to workflow processing queue
+	// err = a.mq.SendMessage(
+	// 	context.Background(),
+	// 	msgqueue.WORKFLOW_PROCESSING_QUEUE,
+	// 	tasktypes.WorkflowRunQueuedToTask(tenantId, workflowRunId),
+	// )
 
-	return &contracts.TriggerWorkflowResponse{
-		WorkflowRunId: workflowRunId,
-	}, nil
+	// if err != nil {
+	// 	return nil, fmt.Errorf("could not queue workflow run: %w", err)
+	// }
+
+	// return &contracts.TriggerWorkflowResponse{
+	// 	WorkflowRunId: workflowRunId,
+	// }, nil
 }
 
 func (a *AdminServiceImpl) BulkTriggerWorkflow(ctx context.Context, req *contracts.BulkTriggerWorkflowRequest) (*contracts.BulkTriggerWorkflowResponse, error) {
-	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	panic("not implemented in v2")
 
-	createContext, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	var opts []*repository.CreateWorkflowRunOpts
-	var existingWorkflows []string
+	// tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
+	// tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
-	if len(req.Workflows) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "no workflows provided")
-	}
+	// createContext, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	// defer cancel()
+	// var opts []*repository.CreateWorkflowRunOpts
+	// var existingWorkflows []string
 
-	if len(req.Workflows) > 1000 {
-		return nil, status.Error(codes.InvalidArgument, "maximum of 1000 workflows can be triggered at once")
-	}
+	// if len(req.Workflows) == 0 {
+	// 	return nil, status.Error(codes.InvalidArgument, "no workflows provided")
+	// }
 
-	opts, existingWorkflows, err := getOpts(ctx, req.Workflows, a)
-	if err != nil {
-		return nil, err
-	}
+	// if len(req.Workflows) > 1000 {
+	// 	return nil, status.Error(codes.InvalidArgument, "maximum of 1000 workflows can be triggered at once")
+	// }
 
-	if len(opts) == 0 {
-		if len(existingWorkflows) == 0 {
-			return nil, status.Error(codes.InvalidArgument, "no suitable new workflows provided")
-		}
-		return &contracts.BulkTriggerWorkflowResponse{WorkflowRunIds: existingWorkflows}, nil
+	// opts, existingWorkflows, err := getOpts(ctx, req.Workflows, a)
+	// if err != nil {
+	// 	return nil, err
+	// }
 
-	}
+	// if len(opts) == 0 {
+	// 	if len(existingWorkflows) == 0 {
+	// 		return nil, status.Error(codes.InvalidArgument, "no suitable new workflows provided")
+	// 	}
+	// 	return &contracts.BulkTriggerWorkflowResponse{WorkflowRunIds: existingWorkflows}, nil
 
-	workflowRuns, err := a.repo.WorkflowRun().CreateNewWorkflowRuns(createContext, tenantId, opts)
+	// }
 
-	if err == metered.ErrResourceExhausted {
-		return nil, status.Errorf(codes.ResourceExhausted, "resource exhausted: workflow run limit exceeded for tenant")
-	}
-	if err != nil {
-		return nil, fmt.Errorf("could not create workflow runs: %w", err)
-	}
+	// workflowRuns, err := a.repo.WorkflowRun().CreateNewWorkflowRuns(createContext, tenantId, opts)
 
-	var workflowRunIds []string
-	for _, workflowRun := range workflowRuns {
-		workflowRunIds = append(workflowRunIds, sqlchelpers.UUIDToStr(workflowRun.ID))
-	}
+	// if err == metered.ErrResourceExhausted {
+	// 	return nil, status.Errorf(codes.ResourceExhausted, "resource exhausted: workflow run limit exceeded for tenant")
+	// }
+	// if err != nil {
+	// 	return nil, fmt.Errorf("could not create workflow runs: %w", err)
+	// }
 
-	for _, workflowRunId := range workflowRunIds {
-		err = a.mq.AddMessage(
-			context.Background(),
-			msgqueue.WORKFLOW_PROCESSING_QUEUE,
-			tasktypes.WorkflowRunQueuedToTask(tenantId, workflowRunId),
-		)
+	// var workflowRunIds []string
+	// for _, workflowRun := range workflowRuns {
+	// 	workflowRunIds = append(workflowRunIds, sqlchelpers.UUIDToStr(workflowRun.ID))
+	// }
 
-		if err != nil {
-			return nil, fmt.Errorf("could not queue workflow run: %w", err)
-		}
-	}
+	// for _, workflowRunId := range workflowRunIds {
+	// 	err = a.mq.SendMessage(
+	// 		context.Background(),
+	// 		msgqueue.WORKFLOW_PROCESSING_QUEUE,
+	// 		tasktypes.WorkflowRunQueuedToTask(tenantId, workflowRunId),
+	// 	)
 
-	// adding in the pre-existing workflows to the response.
+	// 	if err != nil {
+	// 		return nil, fmt.Errorf("could not queue workflow run: %w", err)
+	// 	}
+	// }
 
-	workflowRunIds = append(workflowRunIds, existingWorkflows...)
+	// // adding in the pre-existing workflows to the response.
 
-	if len(workflowRunIds) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "no workflows created")
-	}
+	// workflowRunIds = append(workflowRunIds, existingWorkflows...)
 
-	return &contracts.BulkTriggerWorkflowResponse{WorkflowRunIds: workflowRunIds}, nil
+	// if len(workflowRunIds) == 0 {
+	// 	return nil, status.Error(codes.InvalidArgument, "no workflows created")
+	// }
+
+	// return &contracts.BulkTriggerWorkflowResponse{WorkflowRunIds: workflowRunIds}, nil
 
 }
 

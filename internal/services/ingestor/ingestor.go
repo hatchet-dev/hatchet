@@ -4,25 +4,23 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/google/uuid"
 	lru "github.com/hashicorp/golang-lru/v2"
 
-	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
 type Ingestor interface {
 	contracts.EventsServiceServer
-	IngestEvent(ctx context.Context, tenantId, eventName string, data []byte, metadata []byte) (*dbsqlc.Event, error)
-	BulkIngestEvent(ctx context.Context, tenantID string, eventOpts []*repository.CreateEventOpts) ([]*dbsqlc.Event, error)
-	IngestReplayedEvent(ctx context.Context, tenantId string, replayedEvent *dbsqlc.Event) (*dbsqlc.Event, error)
+	IngestEvent(ctx context.Context, tenantId, eventName string, data []byte, metadata []byte) (*EventResult, error)
+	BulkIngestEvent(ctx context.Context, tenantID string, eventOpts []*repository.CreateEventOpts) ([]*EventResult, error)
+	IngestReplayedEvent(ctx context.Context, tenantId string, replayedEvent *dbsqlc.Event) (*EventResult, error)
 }
 
 type IngestorOptFunc func(*IngestorOpts)
@@ -136,57 +134,67 @@ func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
 	}, nil
 }
 
-func (i *IngestorImpl) IngestEvent(ctx context.Context, tenantId, key string, data []byte, metadata []byte) (*dbsqlc.Event, error) {
+type EventResult struct {
+	TenantId           string
+	EventId            string
+	EventKey           string
+	Data               string
+	AdditionalMetadata string
+}
+
+func (i *IngestorImpl) IngestEvent(ctx context.Context, tenantId, key string, data []byte, metadata []byte) (*EventResult, error) {
 	ctx, span := telemetry.NewSpan(ctx, "ingest-event")
 	defer span.End()
 
-	event, err := i.eventRepository.CreateEvent(ctx, &repository.CreateEventOpts{
-		TenantId:           tenantId,
-		Key:                key,
-		Data:               data,
-		AdditionalMetadata: metadata,
-	})
+	return i.ingestSingleton(tenantId, key, data, metadata)
+}
 
-	if err == metered.ErrResourceExhausted {
-		return nil, metered.ErrResourceExhausted
-	}
+func (i *IngestorImpl) ingestSingleton(tenantId, key string, data []byte, metadata []byte) (*EventResult, error) {
+	eventId := uuid.New().String()
+
+	msg, err := eventToTask(
+		tenantId,
+		eventId,
+		key,
+		string(data),
+		string(metadata),
+	)
 
 	if err != nil {
-		return nil, fmt.Errorf("could not create events: %w", err)
+		return nil, fmt.Errorf("could not create event task: %w", err)
 	}
 
-	telemetry.WithAttributes(span, telemetry.AttributeKV{
-		Key:   "event_id",
-		Value: event.ID,
-	})
-
-	err = i.mq.AddMessage(context.Background(), msgqueue.TRIGGER_QUEUE, eventToTask(event))
-
-	// err = i.mq.AddMessage(context.Background(), msgqueue.EVENT_PROCESSING_QUEUE, eventToTask(event))
+	err = i.mq.SendMessage(context.Background(), msgqueue.TRIGGER_QUEUE, msg)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not add event to task queue: %w", err)
 	}
 
-	return event, nil
+	return &EventResult{
+		TenantId:           tenantId,
+		EventId:            eventId,
+		EventKey:           key,
+		Data:               string(data),
+		AdditionalMetadata: string(metadata),
+	}, nil
 }
 
-func (i *IngestorImpl) BulkIngestEvent(ctx context.Context, tenantId string, eventOpts []*repository.CreateEventOpts) ([]*dbsqlc.Event, error) {
+func (i *IngestorImpl) BulkIngestEvent(ctx context.Context, tenantId string, eventOpts []*repository.CreateEventOpts) ([]*EventResult, error) {
 	ctx, span := telemetry.NewSpan(ctx, "bulk-ingest-event")
 	defer span.End()
 
-	events, err := i.eventRepository.BulkCreateEvent(ctx, &repository.BulkCreateEventOpts{
-		Events:   eventOpts,
-		TenantId: tenantId,
-	})
+	// events, err := i.eventRepository.BulkCreateEvent(ctx, &repository.BulkCreateEventOpts{
+	// 	Events:   eventOpts,
+	// 	TenantId: tenantId,
+	// })
 
-	if err == metered.ErrResourceExhausted {
-		return nil, metered.ErrResourceExhausted
-	}
+	// if err == metered.ErrResourceExhausted {
+	// 	return nil, metered.ErrResourceExhausted
+	// }
 
-	if err != nil {
-		return nil, fmt.Errorf("could not create events: %w", err)
-	}
+	// if err != nil {
+	// 	return nil, fmt.Errorf("could not create events: %w", err)
+	// }
 
 	// TODO any attributes we want to add here? could jam in all the event ids? but could be a lot
 
@@ -195,69 +203,40 @@ func (i *IngestorImpl) BulkIngestEvent(ctx context.Context, tenantId string, eve
 	// 	Value: event.ID,
 	// })
 
-	for _, event := range events.Events {
-		err = i.mq.AddMessage(context.Background(), msgqueue.EVENT_PROCESSING_QUEUE, eventToTask(event))
+	results := make([]*EventResult, 0, len(eventOpts))
+
+	for _, event := range eventOpts {
+		res, err := i.ingestSingleton(tenantId, event.Key, event.Data, event.AdditionalMetadata)
+
 		if err != nil {
-			return nil, fmt.Errorf("could not add event to task queue: %w", err)
+			return nil, fmt.Errorf("could not ingest event: %w", err)
 		}
+
+		results = append(results, res)
 	}
 
-	return events.Events, nil
+	return results, nil
 }
 
-func (i *IngestorImpl) IngestReplayedEvent(ctx context.Context, tenantId string, replayedEvent *dbsqlc.Event) (*dbsqlc.Event, error) {
+func (i *IngestorImpl) IngestReplayedEvent(ctx context.Context, tenantId string, replayedEvent *dbsqlc.Event) (*EventResult, error) {
 	ctx, span := telemetry.NewSpan(ctx, "ingest-replayed-event")
 	defer span.End()
 
-	replayedId := sqlchelpers.UUIDToStr(replayedEvent.ID)
-
-	event, err := i.eventRepository.CreateEvent(ctx, &repository.CreateEventOpts{
-		TenantId:           tenantId,
-		Key:                replayedEvent.Key,
-		Data:               replayedEvent.Data,
-		AdditionalMetadata: replayedEvent.AdditionalMetadata,
-		ReplayedEvent:      &replayedId,
-	})
-
-	if err == metered.ErrResourceExhausted {
-		return nil, metered.ErrResourceExhausted
-	}
-
-	if err != nil {
-		return nil, fmt.Errorf("could not create event: %w", err)
-	}
-
-	err = i.mq.AddMessage(context.Background(), msgqueue.EVENT_PROCESSING_QUEUE, eventToTask(event))
-
-	if err != nil {
-		return nil, fmt.Errorf("could not add event to task queue: %w", err)
-	}
-
-	return event, nil
+	return i.ingestSingleton(tenantId, replayedEvent.Key, replayedEvent.Data, replayedEvent.AdditionalMetadata)
 }
 
-func eventToTask(e *dbsqlc.Event) *msgqueue.Message {
-	eventId := sqlchelpers.UUIDToStr(e.ID)
-	tenantId := sqlchelpers.UUIDToStr(e.TenantId)
-
+func eventToTask(tenantId, eventId, key, data, additionalMeta string) (*msgqueue.Message, error) {
 	payloadTyped := tasktypes.EventTaskPayload{
 		EventId:                 eventId,
-		EventKey:                e.Key,
-		EventData:               string(e.Data),
-		EventAdditionalMetadata: string(e.AdditionalMetadata),
+		EventKey:                key,
+		EventData:               string(data),
+		EventAdditionalMetadata: string(additionalMeta),
 	}
 
-	payload, _ := datautils.ToJSONMap(payloadTyped)
-
-	metadata, _ := datautils.ToJSONMap(tasktypes.EventTaskMetadata{
-		EventKey: e.Key,
-		TenantId: tenantId,
-	})
-
-	return &msgqueue.Message{
-		ID:       "process-trigger",
-		Payload:  payload,
-		Metadata: metadata,
-		Retries:  3,
-	}
+	return msgqueue.NewSingletonTenantMessage(
+		tenantId,
+		"process-trigger",
+		payloadTyped,
+		false,
+	)
 }

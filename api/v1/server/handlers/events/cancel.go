@@ -1,100 +1,92 @@
 package events
 
 import (
-	"fmt"
-	"sync"
-
-	"github.com/google/uuid"
-	"github.com/hashicorp/go-multierror"
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
-	"github.com/hatchet-dev/hatchet/internal/msgqueue"
-	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 )
 
 func (t *EventService) EventUpdateCancel(ctx echo.Context, request gen.EventUpdateCancelRequestObject) (gen.EventUpdateCancelResponseObject, error) {
-	tenant := ctx.Get("tenant").(*db.TenantModel)
+	panic("not implemented in v2")
 
-	eventIds := make([]string, len(request.Body.EventIds))
+	// tenant := ctx.Get("tenant").(*db.TenantModel)
 
-	runIds := make([]string, 0)
+	// eventIds := make([]string, len(request.Body.EventIds))
 
-	for i := range request.Body.EventIds {
-		eventIds[i] = request.Body.EventIds[i].String()
-	}
+	// runIds := make([]string, 0)
 
-	for i := range eventIds {
-		eventId := eventIds[i]
+	// for i := range request.Body.EventIds {
+	// 	eventIds[i] = request.Body.EventIds[i].String()
+	// }
 
-		runs, err := t.config.EngineRepository.WorkflowRun().ListWorkflowRuns(ctx.Request().Context(), tenant.ID, &repository.ListWorkflowRunsOpts{
-			EventId: &eventId,
-		})
+	// for i := range eventIds {
+	// 	eventId := eventIds[i]
 
-		if err != nil {
-			return nil, err
-		}
+	// 	runs, err := t.config.EngineRepository.WorkflowRun().ListWorkflowRuns(ctx.Request().Context(), tenant.ID, &repository.ListWorkflowRunsOpts{
+	// 		EventId: &eventId,
+	// 	})
 
-		for _, run := range runs.Rows {
-			runCp := run
-			runIds = append(runIds, sqlchelpers.UUIDToStr(runCp.WorkflowRun.ID))
-		}
-	}
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
 
-	var wg sync.WaitGroup
-	var mu sync.Mutex
-	var cancelledWorkflowRunIds []uuid.UUID
-	var returnErr error
+	// 	for _, run := range runs.Rows {
+	// 		runCp := run
+	// 		runIds = append(runIds, sqlchelpers.UUIDToStr(runCp.WorkflowRun.ID))
+	// 	}
+	// }
 
-	for _, runId := range runIds {
-		runIdCp := runId
-		wg.Add(1)
-		go func(runId string) {
-			defer wg.Done()
+	// var wg sync.WaitGroup
+	// var mu sync.Mutex
+	// var cancelledWorkflowRunIds []uuid.UUID
+	// var returnErr error
 
-			// Lookup step runs for the workflow run
-			jobRun, err := t.config.EngineRepository.JobRun().ListJobRunsForWorkflowRun(ctx.Request().Context(), tenant.ID, runId)
-			if err != nil {
-				returnErr = multierror.Append(err, fmt.Errorf("failed to list job runs for workflow run %s", runId))
-				return
-			}
+	// for _, runId := range runIds {
+	// 	runIdCp := runId
+	// 	wg.Add(1)
+	// 	go func(runId string) {
+	// 		defer wg.Done()
 
-			for _, jobRun := range jobRun {
-				// If the step run is not in a final state, send a task to the taskqueue to cancel it
-				var reason = "CANCELLED_BY_USER"
-				// send a task to the taskqueue
-				jobRunId := sqlchelpers.UUIDToStr(jobRun.ID)
-				err = t.config.MessageQueue.AddMessage(
-					ctx.Request().Context(),
-					msgqueue.JOB_PROCESSING_QUEUE,
-					tasktypes.JobRunCancelledToTask(tenant.ID, jobRunId, &reason),
-				)
-				if err != nil {
-					returnErr = multierror.Append(err, fmt.Errorf("failed to send cancel task for job run %s", jobRunId))
-					continue
-				}
-			}
+	// 		// Lookup step runs for the workflow run
+	// 		jobRun, err := t.config.EngineRepository.JobRun().ListJobRunsForWorkflowRun(ctx.Request().Context(), tenant.ID, runId)
+	// 		if err != nil {
+	// 			returnErr = multierror.Append(err, fmt.Errorf("failed to list job runs for workflow run %s", runId))
+	// 			return
+	// 		}
 
-			// Add the canceled workflow run ID to the slice
-			mu.Lock()
-			cancelledWorkflowRunIds = append(cancelledWorkflowRunIds, uuid.MustParse(runId))
-			mu.Unlock()
-		}(runIdCp)
-	}
+	// 		for _, jobRun := range jobRun {
+	// 			// If the step run is not in a final state, send a task to the taskqueue to cancel it
+	// 			var reason = "CANCELLED_BY_USER"
+	// 			// send a task to the taskqueue
+	// 			jobRunId := sqlchelpers.UUIDToStr(jobRun.ID)
+	// 			err = t.config.MessageQueue.SendMessage(
+	// 				ctx.Request().Context(),
+	// 				msgqueue.JOB_PROCESSING_QUEUE,
+	// 				tasktypes.JobRunCancelledToTask(tenant.ID, jobRunId, &reason),
+	// 			)
+	// 			if err != nil {
+	// 				returnErr = multierror.Append(err, fmt.Errorf("failed to send cancel task for job run %s", jobRunId))
+	// 				continue
+	// 			}
+	// 		}
 
-	wg.Wait()
+	// 		// Add the canceled workflow run ID to the slice
+	// 		mu.Lock()
+	// 		cancelledWorkflowRunIds = append(cancelledWorkflowRunIds, uuid.MustParse(runId))
+	// 		mu.Unlock()
+	// 	}(runIdCp)
+	// }
 
-	if returnErr != nil {
-		return nil, returnErr
-	}
+	// wg.Wait()
 
-	// Create a new instance of gen.WorkflowRunCancel200JSONResponse and assign canceledWorkflowRunUUIDs to its WorkflowRunIds field
-	response := gen.EventUpdateCancel200JSONResponse{
-		WorkflowRunIds: &cancelledWorkflowRunIds,
-	}
+	// if returnErr != nil {
+	// 	return nil, returnErr
+	// }
 
-	return response, nil
+	// // Create a new instance of gen.WorkflowRunCancel200JSONResponse and assign canceledWorkflowRunUUIDs to its WorkflowRunIds field
+	// response := gen.EventUpdateCancel200JSONResponse{
+	// 	WorkflowRunIds: &cancelledWorkflowRunIds,
+	// }
+
+	// return response, nil
 }
