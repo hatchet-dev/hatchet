@@ -14,7 +14,7 @@ import (
 
 type OLAPEventRepository interface {
 	ReadTaskRun(tenantId, taskRunId uuid.UUID) (olap.WorkflowRun, error)
-	ReadTaskRuns(tenantId uuid.UUID, since time.Time, statuses []gen.V2TaskRunStatus, limit, offset int64) ([]olap.WorkflowRun, error)
+	ReadTaskRuns(tenantId uuid.UUID, since time.Time, statuses []gen.V2TaskStatus, limit, offset int64) ([]olap.WorkflowRun, error)
 	ReadTaskRunEvents(tenantId, taskId uuid.UUID, limit, offset int64) ([]olap.TaskRunEvent, error)
 	ReadTaskRunMetrics(tenantId uuid.UUID, since time.Time) ([]olap.TaskRunMetric, error)
 	CreateTasks(tasks []olap.Task) error
@@ -54,7 +54,7 @@ func StringToReadableStatus(status string) olap.ReadableTaskStatus {
 	}
 }
 
-func (r *olapEventRepository) ReadTaskRuns(tenantId uuid.UUID, since time.Time, statuses []gen.V2TaskRunStatus, limit, offset int64) ([]olap.WorkflowRun, error) {
+func (r *olapEventRepository) ReadTaskRuns(tenantId uuid.UUID, since time.Time, statuses []gen.V2TaskStatus, limit, offset int64) ([]olap.WorkflowRun, error) {
 	var stringifiedStatuses = make([]string, len(statuses))
 	for i, status := range statuses {
 		stringifiedStatuses[i] = string(status)
@@ -155,7 +155,7 @@ func (r *olapEventRepository) ReadTaskRuns(tenantId uuid.UUID, since time.Time, 
 		JOIN task_event_metadata tem ON ct.id = tem.task_id
 		LEFT JOIN error_messages em ON ct.id = em.task_id
 		LEFT JOIN outputs o ON ct.id = o.task_id
-		WHERE toString(tem.status) IN ?
+		WHERE toString(tem.status) IN (?)
 		ORDER BY ct.created_at DESC
 		`,
 		tenantId,
