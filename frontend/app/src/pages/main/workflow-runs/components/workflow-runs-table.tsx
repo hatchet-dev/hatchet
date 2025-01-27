@@ -13,6 +13,7 @@ import invariant from 'tiny-invariant';
 import api, {
   queries,
   ReplayWorkflowRunsRequest,
+  V2TaskStatus,
   WorkflowRunOrderByDirection,
   WorkflowRunOrderByField,
   WorkflowRunStatus,
@@ -247,6 +248,22 @@ export function WorkflowRunsTable({
     return vals[0];
   }, [columnFilters, workflowId]);
 
+  function workflowRunStatusToV2TaskStatus(status: WorkflowRunStatus) {
+    switch (status) {
+      case WorkflowRunStatus.SUCCEEDED:
+        return V2TaskStatus.COMPLETED;
+      case WorkflowRunStatus.FAILED:
+        return V2TaskStatus.FAILED;
+      case WorkflowRunStatus.RUNNING:
+        return V2TaskStatus.RUNNING;
+      case WorkflowRunStatus.QUEUED:
+      case WorkflowRunStatus.PENDING:
+        return V2TaskStatus.QUEUED;
+      case WorkflowRunStatus.CANCELLED:
+        return V2TaskStatus.CANCELLED;
+    }
+  }
+
   const statuses = useMemo(() => {
     const filter = columnFilters.find((filter) => filter.id === 'status');
 
@@ -254,8 +271,12 @@ export function WorkflowRunsTable({
       return;
     }
 
-    return filter?.value as Array<WorkflowRunStatus>;
+    const statusFilters = filter?.value as Array<WorkflowRunStatus>;
+
+    return statusFilters.map(workflowRunStatusToV2TaskStatus);
   }, [columnFilters]);
+
+  console.log('STATUSES', statuses);
 
   const AdditionalMetadataFilter = useMemo(() => {
     const filter = columnFilters.find((filter) => filter.id === 'Metadata');

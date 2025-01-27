@@ -8,6 +8,7 @@ type ListEventQuery = Parameters<typeof api.eventList>[1];
 type ListRateLimitsQuery = Parameters<typeof api.rateLimitList>[1];
 type ListLogLineQuery = Parameters<typeof api.logLineList>[1];
 type ListWorkflowRunsQuery = Parameters<typeof api.workflowRunList>[1];
+type V2ListTaskRunsQuery = Parameters<typeof api.v2WorkflowRunsList>[1];
 type ListWorkflowsQuery = Parameters<typeof api.workflowList>[1];
 export type ListCloudLogsQuery = Parameters<typeof cloudApi.logList>[1];
 export type GetCloudMetricsQuery = Parameters<typeof cloudApi.metricsCpuGet>[1];
@@ -205,7 +206,7 @@ export const queries = createQueryKeyStore({
     }),
   },
   v2WorkflowRuns: {
-    list: (tenant: string, query: ListWorkflowRunsQuery) => ({
+    list: (tenant: string, query: V2ListTaskRunsQuery) => ({
       queryKey: ['v2:workflow-run:list:step-run-events', tenant, query],
       queryFn: async () => (await api.v2WorkflowRunsList(tenant, query)).data,
     }),
