@@ -108,6 +108,20 @@ func (q *Queries) ArchiveStepRunResultFromStepRun(ctx context.Context, db DBTX, 
 	return &i, err
 }
 
+const bulkBackoffStepRun = `-- name: BulkBackoffStepRun :exec
+UPDATE
+    "StepRun"
+SET
+    "status" = 'BACKOFF'
+WHERE
+    "id" = ANY($1::uuid[])
+`
+
+func (q *Queries) BulkBackoffStepRun(ctx context.Context, db DBTX, steprunids []pgtype.UUID) error {
+	_, err := db.Exec(ctx, bulkBackoffStepRun, steprunids)
+	return err
+}
+
 const bulkCancelStepRun = `-- name: BulkCancelStepRun :exec
 WITH input AS (
     SELECT
@@ -339,6 +353,20 @@ func (q *Queries) BulkMarkStepRunsAsCancelling(ctx context.Context, db DBTX, ste
 		return nil, err
 	}
 	return items, nil
+}
+
+const bulkRetryStepRun = `-- name: BulkRetryStepRun :exec
+UPDATE
+    "StepRun"
+SET
+    "status" = 'PENDING_ASSIGNMENT'
+WHERE
+    "id" = ANY($1::uuid[])
+`
+
+func (q *Queries) BulkRetryStepRun(ctx context.Context, db DBTX, steprunids []pgtype.UUID) error {
+	_, err := db.Exec(ctx, bulkRetryStepRun, steprunids)
+	return err
 }
 
 const bulkStartStepRun = `-- name: BulkStartStepRun :exec

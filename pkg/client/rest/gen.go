@@ -149,6 +149,7 @@ const (
 // Defines values for StepRunStatus.
 const (
 	StepRunStatusASSIGNED          StepRunStatus = "ASSIGNED"
+	StepRunStatusBACKOFF           StepRunStatus = "BACKOFF"
 	StepRunStatusCANCELLED         StepRunStatus = "CANCELLED"
 	StepRunStatusCANCELLING        StepRunStatus = "CANCELLING"
 	StepRunStatusFAILED            StepRunStatus = "FAILED"
@@ -218,6 +219,7 @@ const (
 
 // Defines values for WorkflowRunStatus.
 const (
+	BACKOFF   WorkflowRunStatus = "BACKOFF"
 	CANCELLED WorkflowRunStatus = "CANCELLED"
 	FAILED    WorkflowRunStatus = "FAILED"
 	PENDING   WorkflowRunStatus = "PENDING"

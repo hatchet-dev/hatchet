@@ -57,6 +57,10 @@ const RUN_STATUS_VARIANTS: Record<RunStatusType, RunStatusVariant> = {
     text: 'Scheduled',
     variant: 'outline',
   },
+  BACKOFF: {
+    text: 'Backoff',
+    variant: 'outline',
+  },
 };
 
 const RUN_STATUS_REASONS: Record<string, string> = {

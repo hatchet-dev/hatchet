@@ -493,6 +493,7 @@ export enum WorkflowRunStatus {
   FAILED = 'FAILED',
   CANCELLED = 'CANCELLED',
   QUEUED = 'QUEUED',
+  BACKOFF = 'BACKOFF',
 }
 
 export type WorkflowRunStatusList = WorkflowRunStatus[];
@@ -930,6 +931,7 @@ export enum StepRunStatus {
   FAILED = 'FAILED',
   CANCELLED = 'CANCELLED',
   CANCELLING = 'CANCELLING',
+  BACKOFF = 'BACKOFF',
 }
 
 export interface StepRun {

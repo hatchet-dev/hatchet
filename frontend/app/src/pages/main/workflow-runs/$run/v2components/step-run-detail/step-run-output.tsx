@@ -89,6 +89,10 @@ const StepRunOutputCancelling = () => {
   return oneLiner('Step run is being cancelled');
 };
 
+const StepRunOutputBackoff = () => {
+  return oneLiner('Step run is in a retry backoff state');
+};
+
 const OUTPUT_STATE_MAP: Record<StepRunStatus, React.FC<StepRunOutputProps>> = {
   [StepRunStatus.CANCELLED]: StepRunOutputCancelled,
   [StepRunStatus.PENDING]: StepRunOutputPending,
@@ -98,6 +102,7 @@ const OUTPUT_STATE_MAP: Record<StepRunStatus, React.FC<StepRunOutputProps>> = {
   [StepRunStatus.SUCCEEDED]: StepRunOutputSucceeded,
   [StepRunStatus.FAILED]: StepRunOutputFailed,
   [StepRunStatus.CANCELLING]: StepRunOutputCancelling,
+  [StepRunStatus.BACKOFF]: StepRunOutputBackoff,
 };
 
 const StepRunOutput: React.FC<StepRunOutputProps> = (props) => {

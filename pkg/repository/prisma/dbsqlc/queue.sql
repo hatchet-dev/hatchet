@@ -553,7 +553,7 @@ WHERE
     AND w."isActive" = true
     AND w."isPaused" = false;
 
--- name: RetryStepRuns :one
+-- name: RetryStepRuns :many
 WITH retries AS (
     SELECT
         *
@@ -633,7 +633,7 @@ WITH retries AS (
         srs
     RETURNING "stepRunId"
 )
-SELECT COUNT(*) FROM retries;
+SELECT * FROM retries;
 
 -- name: CreateRetryQueueItem :exec
 INSERT INTO

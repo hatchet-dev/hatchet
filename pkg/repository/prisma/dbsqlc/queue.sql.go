@@ -1075,7 +1075,7 @@ func (q *Queries) RemoveTimeoutQueueItem(ctx context.Context, db DBTX, arg Remov
 	return err
 }
 
-const retryStepRuns = `-- name: RetryStepRuns :one
+const retryStepRuns = `-- name: RetryStepRuns :many
 WITH retries AS (
     SELECT
         id, "retryAfter", "stepRunId", "tenantId", "isQueued"
@@ -1155,14 +1155,41 @@ WITH retries AS (
         srs
     RETURNING "stepRunId"
 )
-SELECT COUNT(*) FROM retries
+SELECT id, "retryAfter", "stepRunId", "tenantId", "isQueued" FROM retries
 `
 
-func (q *Queries) RetryStepRuns(ctx context.Context, db DBTX, tenantid pgtype.UUID) (int64, error) {
-	row := db.QueryRow(ctx, retryStepRuns, tenantid)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
+type RetryStepRunsRow struct {
+	ID         int64            `json:"id"`
+	RetryAfter pgtype.Timestamp `json:"retryAfter"`
+	StepRunId  pgtype.UUID      `json:"stepRunId"`
+	TenantId   pgtype.UUID      `json:"tenantId"`
+	IsQueued   bool             `json:"isQueued"`
+}
+
+func (q *Queries) RetryStepRuns(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]*RetryStepRunsRow, error) {
+	rows, err := db.Query(ctx, retryStepRuns, tenantid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*RetryStepRunsRow
+	for rows.Next() {
+		var i RetryStepRunsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.RetryAfter,
+			&i.StepRunId,
+			&i.TenantId,
+			&i.IsQueued,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const upsertQueue = `-- name: UpsertQueue :exec

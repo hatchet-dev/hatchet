@@ -29,7 +29,8 @@ CREATE TYPE "JobRunStatus" AS ENUM (
     'RUNNING',
     'SUCCEEDED',
     'FAILED',
-    'CANCELLED'
+    'CANCELLED',
+    'BACKOFF'
 );
 
 -- CreateEnum
@@ -93,7 +94,8 @@ CREATE TYPE "StepRunStatus" AS ENUM (
     'SUCCEEDED',
     'FAILED',
     'CANCELLED',
-    'CANCELLING'
+    'CANCELLING',
+    'BACKOFF'
 );
 
 -- CreateEnum
@@ -131,7 +133,7 @@ CREATE TYPE "WorkerType" AS ENUM ('WEBHOOK', 'MANAGED', 'SELFHOSTED');
 CREATE TYPE "WorkflowKind" AS ENUM ('FUNCTION', 'DURABLE', 'DAG');
 
 -- CreateEnum
-CREATE TYPE "WorkflowRunStatus" AS ENUM ('PENDING', 'RUNNING', 'SUCCEEDED', 'FAILED', 'QUEUED', 'CANCELLING', 'CANCELLED');
+CREATE TYPE "WorkflowRunStatus" AS ENUM ('PENDING', 'RUNNING', 'SUCCEEDED', 'FAILED', 'QUEUED', 'CANCELLING', 'CANCELLED', 'BACKOFF');
 
 -- CreateTable
 CREATE TABLE "APIToken" (

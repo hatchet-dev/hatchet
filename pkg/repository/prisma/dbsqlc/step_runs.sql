@@ -518,6 +518,24 @@ FROM (
 WHERE
     "StepRun"."id" = input."id";
 
+
+-- name: BulkBackoffStepRun :exec
+UPDATE
+    "StepRun"
+SET
+    "status" = 'BACKOFF'
+WHERE
+    "id" = ANY(@stepRunIds::uuid[]);
+
+
+-- name: BulkRetryStepRun :exec
+UPDATE
+    "StepRun"
+SET
+    "status" = 'PENDING_ASSIGNMENT'
+WHERE
+    "id" = ANY(@stepRunIds::uuid[]);
+
 -- name: ResolveLaterStepRuns :many
 WITH RECURSIVE currStepRun AS (
   SELECT "id", "status", "cancelledReason"
