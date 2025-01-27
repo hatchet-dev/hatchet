@@ -505,6 +505,8 @@ func (r *olapEventRepository) writeTaskEventBatch(c context.Context, events []ol
 			readableStatus = olap.READABLE_TASK_STATUS_RUNNING
 		case olap.EVENT_TYPE_CREATED:
 			readableStatus = olap.READABLE_TASK_STATUS_QUEUED
+		case olap.EVENT_TYPE_QUEUED:
+			readableStatus = olap.READABLE_TASK_STATUS_QUEUED
 		}
 
 		err := batch.Append(

@@ -103,6 +103,7 @@ const (
 	EVENT_TYPE_RATE_LIMIT_ERROR     EventType = "RATE_LIMIT_ERROR"
 	EVENT_TYPE_ACKNOWLEDGED         EventType = "ACKNOWLEDGED"
 	EVENT_TYPE_CREATED              EventType = "CREATED"
+	EVENT_TYPE_QUEUED               EventType = "QUEUED"
 )
 
 type ReadableTaskStatus string

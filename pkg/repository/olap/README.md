@@ -55,7 +55,8 @@
             'SENT_TO_WORKER' = 15,
             'RATE_LIMIT_ERROR' = 16,
             'ACKNOWLEDGED' = 17,
-            'CREATED' = 18
+            'CREATED' = 18,
+            'QUEUED' = 19
         ) NOT NULL,
         readable_status Enum(
             'QUEUED' = 1,
