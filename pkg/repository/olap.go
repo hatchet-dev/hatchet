@@ -67,8 +67,6 @@ func (r *olapEventRepository) ReadTaskRuns(tenantId uuid.UUID, since time.Time, 
 			FROM tasks
 			WHERE tenant_id = ? AND created_at > ?
 			ORDER BY created_at DESC
-			LIMIT ?
-			OFFSET ?
 		), max_retry_counts AS (
 			SELECT task_id, MAX(retry_count) AS max_retry_count
 			FROM task_events
@@ -157,14 +155,16 @@ func (r *olapEventRepository) ReadTaskRuns(tenantId uuid.UUID, since time.Time, 
 		LEFT JOIN outputs o ON ct.id = o.task_id
 		WHERE toString(tem.status) IN (?)
 		ORDER BY ct.created_at DESC
+		LIMIT ?
+		OFFSET ?
 		`,
 		tenantId,
 		since,
-		limit,
-		offset,
 		tenantId,
 		tenantId,
 		stringifiedStatuses,
+		limit,
+		offset,
 	)
 
 	if err != nil {
