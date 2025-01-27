@@ -1,8 +1,10 @@
 import { CodeHighlighter } from '@/components/ui/code-highlighter';
-import { StepRun, StepRunStatus, WorkflowRunShape } from '@/lib/api';
+import { queries, StepRun, StepRunStatus, WorkflowRunShape } from '@/lib/api';
 import React from 'react';
 import StepRunCodeText from './step-run-error';
 import LoggingComponent from '@/components/cloud/logging/logs';
+import { useQuery } from '@tanstack/react-query';
+import { useTenant } from '@/lib/atoms';
 
 const readableReason = (reason?: string): string => {
   return reason ? reason.toLowerCase().split('_').join(' ') : '';
@@ -103,6 +105,32 @@ const OUTPUT_STATE_MAP: Record<StepRunStatus, React.FC<StepRunOutputProps>> = {
 const StepRunOutput: React.FC<StepRunOutputProps> = (props) => {
   const Component = OUTPUT_STATE_MAP[props.stepRun.status];
   return <Component {...props} />;
+};
+
+export const V2StepRunOutput = (props: { taskRunId: string }) => {
+  const { tenantId } = useTenant();
+
+  if (!tenantId) {
+    return null;
+  }
+
+  const { isLoading, data } = useQuery({
+    ...queries.v2WorkflowRuns.get(tenantId, props.taskRunId),
+  });
+
+  if (isLoading || !data) {
+    return null;
+  }
+
+  return (
+    <CodeHighlighter
+      className="my-4 h-[400px] max-h-[400px] overflow-y-auto"
+      language="json"
+      maxHeight="400px"
+      minHeight="400px"
+      code={JSON.stringify(data.output, null, 2)}
+    />
+  );
 };
 
 export default StepRunOutput;

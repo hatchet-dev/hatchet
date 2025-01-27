@@ -10,6 +10,8 @@ type WorkflowRun struct {
 	// AdditionalMetadata Additional metadata for the workflow run.
 	AdditionalMetadata *string `json:"additionalMetadata,omitempty"`
 
+	CreatedAt time.Time `json:"createdAt"`
+
 	// DisplayName The display name of the workflow run.
 	DisplayName *string `json:"displayName,omitempty"`
 
@@ -24,6 +26,10 @@ type WorkflowRun struct {
 
 	// Id The ID of the workflow run.
 	Id uuid.UUID `json:"id"`
+
+	Input string `json:"input"`
+
+	Output string `json:"output"`
 
 	// StartedAt The timestamp the workflow run started.
 	StartedAt *time.Time `json:"startedAt,omitempty"`
@@ -54,6 +60,18 @@ type TaskRunEvent struct {
 	Message string `json:"message"`
 
 	Data string `json:"data"`
+
+	EventType string `json:"eventType"`
+
+	ErrorMsg string `json:"errorMsg"`
+
+	WorkerId *uuid.UUID `json:"workerId,omitempty"`
+
+	TaskDisplayName string `json:"taskDisplayName"`
+
+	TaskInput string `json:"taskInput"`
+
+	AdditionalMetadata string `json:"additionalMetadata"`
 }
 
 type Sticky string

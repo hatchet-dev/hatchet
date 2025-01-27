@@ -3,22 +3,17 @@ import { TenantContextType } from '@/lib/outlet';
 import { useQuery } from '@tanstack/react-query';
 import { useOutletContext, useParams } from 'react-router-dom';
 import invariant from 'tiny-invariant';
-import RunDetailHeader from './v2components/header';
 import { WorkflowRunInputDialog } from './v2components/workflow-run-input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { StepRunEvents } from './v2components/step-run-events-for-workflow-run';
 import { useEffect, useState } from 'react';
-import { MiniMap } from './v2components/mini-map';
-import { Sheet, SheetContent } from '@/components/ui/sheet';
 import StepRunDetail, {
   TabOption,
 } from './v2components/step-run-detail/step-run-detail';
 import { Separator } from '@/components/ui/separator';
 import { CodeHighlighter } from '@/components/ui/code-highlighter';
-import WorkflowRunVisualizer from './v2components/workflow-run-visualizer-v2';
-import { useAtom } from 'jotai';
-import { preferredWorkflowRunViewAtom } from '@/lib/atoms';
-import { hasChildSteps, ViewToggle } from './v2components/view-toggle';
+import { Sheet, SheetContent } from '@/components/ui/sheet';
+import { V2RunDetailHeader } from './v2components/header';
 
 export const WORKFLOW_RUN_TERMINAL_STATUSES = [
   WorkflowRunStatus.CANCELLED,
@@ -38,13 +33,10 @@ export default function ExpandedWorkflowRun() {
   const { tenant } = useOutletContext<TenantContextType>();
   invariant(tenant);
 
+  const tenantId = tenant.metadata.id;
+
   const params = useParams();
   invariant(params.run);
-
-  const shape = useQuery({
-    ...queries.workflowRuns.shape(tenant.metadata.id, params.run),
-    refetchInterval: 1000,
-  });
 
   useEffect(() => {
     if (
@@ -56,18 +48,31 @@ export default function ExpandedWorkflowRun() {
     }
   }, [params.run, sidebarState]);
 
-  const [view] = useAtom(preferredWorkflowRunViewAtom);
+  const taskRunQuery = useQuery({
+    ...queries.v2WorkflowRuns.get(tenantId, params.run),
+  });
+
+  if (taskRunQuery.isLoading) {
+    // TODO: Loading state
+    return null;
+  }
+
+  const taskRun = taskRunQuery.data;
+
+  if (!taskRun) {
+    return null;
+  }
+
+  const inputData = taskRun.input;
+  const additionalMetadata = taskRun.additionalMetadata;
 
   return (
     <div className="flex-grow h-full w-full">
       <div className="mx-auto max-w-7xl pt-2 px-4 sm:px-6 lg:px-8">
-        <RunDetailHeader
-          loading={shape.isLoading}
-          data={shape.data}
-          refetch={() => shape.refetch()}
-        />
+        {/* TODO: Re-enable this header */}
+        <V2RunDetailHeader taskRunId={params.run} />
         <Separator className="my-4" />
-        <div className="w-full h-fit flex overflow-auto relative bg-slate-100 dark:bg-slate-900">
+        {/* <div className="w-full h-fit flex overflow-auto relative bg-slate-100 dark:bg-slate-900">
           {shape.data && view == 'graph' && hasChildSteps(shape.data) && (
             <WorkflowRunVisualizer
               shape={shape.data}
@@ -81,25 +86,8 @@ export default function ExpandedWorkflowRun() {
               }}
             />
           )}
-          {shape.data && (view == 'minimap' || !hasChildSteps(shape.data)) && (
-            <MiniMap
-              shape={shape.data}
-              selectedStepRunId={sidebarState?.stepRunId}
-              onClick={(stepRunId, defaultOpenTab?: TabOption) =>
-                setSidebarState(
-                  stepRunId == sidebarState?.stepRunId
-                    ? undefined
-                    : {
-                        stepRunId,
-                        defaultOpenTab,
-                        workflowRunId: params.run,
-                      },
-                )
-              }
-            />
-          )}
           {shape.data && <ViewToggle shape={shape.data} />}
-        </div>
+        </div> */}
         <div className="h-4" />
         <Tabs defaultValue="activity">
           <TabsList layout="underlined">
@@ -116,9 +104,9 @@ export default function ExpandedWorkflowRun() {
           </TabsList>
           <TabsContent value="activity">
             <div className="h-4" />
-            {!shape.isLoading && shape.data && (
+            {
               <StepRunEvents
-                workflowRun={shape.data}
+                taskRunId={params.run}
                 onClick={(stepRunId) =>
                   setSidebarState(
                     stepRunId == sidebarState?.stepRunId
@@ -127,25 +115,22 @@ export default function ExpandedWorkflowRun() {
                   )
                 }
               />
-            )}
+            }
           </TabsContent>
           <TabsContent value="input">
-            {shape.data && <WorkflowRunInputDialog run={shape.data} />}
+            {inputData && <WorkflowRunInputDialog input={inputData} />}
           </TabsContent>
           <TabsContent value="additional-metadata">
             <CodeHighlighter
               className="my-4"
               language="json"
-              code={JSON.stringify(
-                shape.data?.additionalMetadata || {},
-                null,
-                2,
-              )}
+              code={JSON.stringify(additionalMetadata, null, 2)}
             />
           </TabsContent>
         </Tabs>
       </div>
-      {shape.data && (
+      {/* TODO: Re-enable this sidebar */}
+      {inputData && (
         <Sheet
           open={!!sidebarState}
           onOpenChange={(open) =>
@@ -155,8 +140,7 @@ export default function ExpandedWorkflowRun() {
           <SheetContent className="w-fit min-w-[56rem] max-w-4xl sm:max-w-2xl z-[60]">
             {sidebarState?.stepRunId && (
               <StepRunDetail
-                stepRunId={sidebarState?.stepRunId}
-                workflowRun={shape.data}
+                taskRunId={params.run}
                 defaultOpenTab={sidebarState?.defaultOpenTab}
               />
             )}

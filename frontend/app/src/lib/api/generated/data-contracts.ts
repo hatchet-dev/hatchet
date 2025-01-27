@@ -75,7 +75,7 @@ export enum V2TaskStatus {
 export interface V2WorkflowRun {
   metadata: APIResourceMeta;
   /**
-   * The ID of the workflow run.
+   * The ID of the task run.
    * @format uuid
    * @minLength 36
    * @maxLength 36
@@ -83,7 +83,7 @@ export interface V2WorkflowRun {
    */
   id: string;
   /**
-   * The ID of the task associated with this workflow run.
+   * The ID of the task associated with this task run.
    * @format uuid
    * @minLength 36
    * @maxLength 36
@@ -92,23 +92,28 @@ export interface V2WorkflowRun {
   taskId: string;
   status: V2TaskStatus;
   /**
-   * The timestamp of the workflow run.
+   * The timestamp of the task run.
    * @format date-time
    */
   timestamp: string;
-  /** The error message of the workflow run. */
+  /** The error message of the task run. */
   errorMessage?: string;
   /**
-   * The timestamp the workflow run started.
+   * The timestamp the task run was created.
+   * @format date-time
+   */
+  createdAt: string;
+  /**
+   * The timestamp the task run started.
    * @format date-time
    */
   startedAt: string;
   /**
-   * The timestamp the workflow run finished.
+   * The timestamp the task run finished.
    * @format date-time
    */
   finishedAt: string;
-  /** The duration of the workflow run. */
+  /** The duration of the task run. */
   duration: number;
   /**
    * The ID of the tenant.
@@ -118,10 +123,14 @@ export interface V2WorkflowRun {
    * @example "bb214807-246e-43a5-a25d-41761d1cff9e"
    */
   tenantId: string;
-  /** Additional metadata for the workflow run. */
+  /** Additional metadata for the task run. */
   additionalMetadata: object;
-  /** The display name of the workflow run. */
+  /** The display name of the task run. */
   displayName: string;
+  /** The input of the task run. */
+  input: object;
+  /** The output of the task run. */
+  output?: object;
 }
 
 export interface V2WorkflowRuns {
@@ -158,6 +167,27 @@ export interface APIErrors {
   errors: APIError[];
 }
 
+export enum V2EventType {
+  REQUEUED_NO_WORKER = 'REQUEUED_NO_WORKER',
+  REQUEUED_RATE_LIMIT = 'REQUEUED_RATE_LIMIT',
+  SCHEDULING_TIMED_OUT = 'SCHEDULING_TIMED_OUT',
+  ASSIGNED = 'ASSIGNED',
+  STARTED = 'STARTED',
+  FINISHED = 'FINISHED',
+  FAILED = 'FAILED',
+  RETRYING = 'RETRYING',
+  CANCELLED = 'CANCELLED',
+  TIMED_OUT = 'TIMED_OUT',
+  REASSIGNED = 'REASSIGNED',
+  SLOT_RELEASED = 'SLOT_RELEASED',
+  TIMEOUT_REFRESHED = 'TIMEOUT_REFRESHED',
+  RETRIED_BY_USER = 'RETRIED_BY_USER',
+  SENT_TO_WORKER = 'SENT_TO_WORKER',
+  RATE_LIMIT_ERROR = 'RATE_LIMIT_ERROR',
+  ACKNOWLEDGED = 'ACKNOWLEDGED',
+  CREATED = 'CREATED',
+}
+
 export interface V2StepRunEvent {
   /** @format uuid */
   id: string;
@@ -165,8 +195,15 @@ export interface V2StepRunEvent {
   timestamp: string;
   /** @format uuid */
   taskId: string;
+  taskDisplayName?: string;
+  taskInput?: object;
   message: string;
   data?: object;
+  error_message?: string;
+  event_type?: V2EventType;
+  /** @format uuid */
+  worker_id?: string;
+  additionalMetadata?: object;
 }
 
 export interface V2ListStepRunEventsForWorkflowRun {

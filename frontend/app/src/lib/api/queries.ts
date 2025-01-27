@@ -209,11 +209,22 @@ export const queries = createQueryKeyStore({
       queryKey: ['v2:workflow-run:list:step-run-events', tenant, query],
       queryFn: async () => (await api.v2WorkflowRunsList(tenant, query)).data,
     }),
+    get: (tenant: string, taskRunId: string) => ({
+      queryKey: ['v2:workflow-run:get', tenant, taskRunId],
+      queryFn: async () =>
+        (await api.v2WorkflowRunGet(tenant, taskRunId)).data,
+    })
   },
   v2StepRunEvents: {
-    list: (tenant: string, workflowRun: string, query: ListWorkflowRunsQuery) => ({
+    list: (
+      tenant: string,
+      workflowRun: string,
+      query: ListWorkflowRunsQuery,
+    ) => ({
       queryKey: ['v2:workflow-run:list', tenant, workflowRun, query],
-      queryFn: async () => (await api.v2WorkflowRunListStepRunEvents(tenant, workflowRun, query)).data,
+      queryFn: async () =>
+        (await api.v2WorkflowRunListStepRunEvents(tenant, workflowRun, query))
+          .data,
     }),
   },
   workflowRuns: {

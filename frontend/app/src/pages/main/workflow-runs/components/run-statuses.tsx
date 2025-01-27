@@ -5,7 +5,12 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { JobRunStatus, StepRunStatus, WorkflowRunStatus } from '@/lib/api';
+import {
+  JobRunStatus,
+  StepRunStatus,
+  V2TaskStatus,
+  WorkflowRunStatus,
+} from '@/lib/api';
 import { capitalize, cn } from '@/lib/utils';
 
 type RunStatusType =
@@ -40,6 +45,25 @@ export function createRunStatusVariant(
       return { text: 'Assigned', variant: 'inProgress' };
     case 'SCHEDULED':
       return { text: 'Scheduled', variant: 'outline' };
+    default:
+      return { text: 'Unknown', variant: 'outline' };
+  }
+}
+
+export function createV2RunStatusVariant(
+  status: V2TaskStatus,
+): RunStatusVariant {
+  switch (status) {
+    case V2TaskStatus.COMPLETED:
+      return { text: 'Succeeded', variant: 'successful' };
+    case V2TaskStatus.FAILED:
+      return { text: 'Failed', variant: 'failed' };
+    case V2TaskStatus.CANCELLED:
+      return { text: 'Cancelled', variant: 'failed' };
+    case V2TaskStatus.RUNNING:
+      return { text: 'Running', variant: 'inProgress' };
+    case V2TaskStatus.QUEUED:
+      return { text: 'Queued', variant: 'outline' };
     default:
       return { text: 'Unknown', variant: 'outline' };
   }
@@ -102,12 +126,62 @@ export function RunStatus({
   );
 }
 
+export function V2RunStatus({
+  status,
+  reason,
+  className,
+}: {
+  status: V2TaskStatus;
+  reason?: string;
+  className?: string;
+}) {
+  const { text, variant } = createV2RunStatusVariant(status);
+  const { text: overrideText, variant: overrideVariant } =
+    (reason && RUN_STATUS_VARIANTS_REASON_OVERRIDES[reason]) || {};
+
+  const StatusBadge = () => (
+    <Badge variant={overrideVariant || variant} className={className}>
+      {capitalize(overrideText || text)}
+    </Badge>
+  );
+
+  if (!reason) {
+    return <StatusBadge />;
+  }
+
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger>
+          <StatusBadge />
+        </TooltipTrigger>
+        <TooltipContent>{RUN_STATUS_REASONS[reason] || reason}</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
 const indicatorVariants = {
   successful: 'border-transparent rounded-full bg-green-500',
   failed: 'border-transparent rounded-full bg-red-500',
   inProgress: 'border-transparent rounded-full bg-yellow-500',
   outline: 'border-transparent rounded-full bg-muted',
 };
+
+export function createV2IndicatorVariant(eventType: V2TaskStatus | undefined) {
+  switch (eventType) {
+    case V2TaskStatus.CANCELLED:
+    case V2TaskStatus.FAILED:
+      return 'border-transparent rounded-full bg-red-500';
+    case V2TaskStatus.RUNNING:
+    case V2TaskStatus.QUEUED:
+      return 'border-transparent rounded-full bg-yellow-500';
+    case V2TaskStatus.COMPLETED:
+      return 'border-transparent rounded-full bg-green-500';
+    default:
+      return 'border-transparent rounded-full bg-muted';
+  }
+}
 
 export function RunIndicator({
   status,
@@ -122,4 +196,10 @@ export function RunIndicator({
       className={cn(indicatorVariants[variant], 'rounded-full h-[6px] w-[6px]')}
     />
   );
+}
+
+export function V2RunIndicator({ status }: { status: V2TaskStatus }) {
+  const indicator = createV2IndicatorVariant(status);
+
+  return <div className={cn(indicator, 'rounded-full h-[6px] w-[6px]')} />;
 }

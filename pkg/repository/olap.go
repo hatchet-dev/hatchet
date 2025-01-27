@@ -15,6 +15,7 @@ import (
 
 type OLAPEventRepository interface {
 	Connect(ctx context.Context) error
+	ReadTaskRun(tenantId, taskRunId uuid.UUID) (olap.WorkflowRun, error)
 	ReadTaskRuns(tenantId uuid.UUID, limit, offset int64) ([]olap.WorkflowRun, error)
 	ReadTaskRunEvents(tenantId, taskId uuid.UUID, limit, offset int64) ([]olap.TaskRunEvent, error)
 	CreateTask(task olap.Task) error
@@ -139,22 +140,52 @@ func (r *olapEventRepository) ReadTaskRuns(tenantId uuid.UUID, limit, offset int
 				-- AND status IN (
 				--  ...
 				-- )
-		), task_event_metadata AS (
+		), task_creation_times AS (
 			SELECT
 				task_id,
-				-- NOTE: These are bugs, should filter by status to determine these
-				MIN(timestamp) AS started_at,
-				MAX(timestamp) AS finished_at,
-				timeDiff(MIN(timestamp), MAX(timestamp)) * 1000 AS duration,
-				MAX(readable_status) AS status
+				MIN(timestamp) AS created_at
 			FROM relevant_task_events
 			GROUP BY task_id
+		), task_start_times AS (
+			SELECT
+				task_id,
+				MIN(timestamp) AS started_at
+			FROM relevant_task_events
+			WHERE event_type = 'STARTED'
+			GROUP BY task_id
+		), task_finish_times AS (
+			SELECT
+				task_id,
+				MAX(timestamp) AS finished_at,
+				MAX(readable_status) AS status
+			FROM relevant_task_events
+
+			-- 3 indicates a terminal event. See enum definition
+			WHERE event_type >= 3
+			GROUP BY task_id
+		), task_event_metadata AS (
+			SELECT
+				tct.task_id AS task_id,
+				tct.created_at AS created_at,
+				tst.started_at AS started_at,
+				tft.finished_at AS finished_at,
+				timeDiff(tst.started_at, tft.finished_at) * 1000 AS duration,
+				tft.status AS status
+			FROM task_creation_times tct
+			JOIN task_start_times tst ON tct.task_id = tst.task_id
+			JOIN task_finish_times tft ON tct.task_id = tft.task_id
 		), error_messages AS (
 			SELECT
 				task_id,
 				error_message
 			FROM relevant_task_events
 			WHERE readable_status = 'FAILED'
+		), outputs AS (
+			SELECT
+				task_id,
+				LAST_VALUE(output) OVER(PARTITION BY task_id ORDER BY retry_count) AS output
+			FROM relevant_task_events
+			WHERE readable_status = 'COMPLETED'
 		)
 
 		SELECT
@@ -164,7 +195,10 @@ func (r *olapEventRepository) ReadTaskRuns(tenantId uuid.UUID, limit, offset int
 			em.error_message,
 			tem.finished_at,
 			ct.id AS id,
+			ct.input,
+			o.output,
 			tem.started_at,
+			tem.created_at,
 			toString(tem.status) AS status,
 			ct.id AS task_id,
 			ct.tenant_id,
@@ -173,6 +207,7 @@ func (r *olapEventRepository) ReadTaskRuns(tenantId uuid.UUID, limit, offset int
 		FROM candidate_tasks ct
 		JOIN task_event_metadata tem ON ct.id = tem.task_id
 		LEFT JOIN error_messages em ON ct.id = em.task_id
+		LEFT JOIN outputs o ON ct.id = o.task_id
 		ORDER BY ct.created_at DESC
 		`,
 		tenantId,
@@ -200,7 +235,10 @@ func (r *olapEventRepository) ReadTaskRuns(tenantId uuid.UUID, limit, offset int
 			&taskRun.ErrorMessage,
 			&taskRun.FinishedAt,
 			&taskRun.Id,
+			&taskRun.Input,
+			&taskRun.Output,
 			&taskRun.StartedAt,
+			&taskRun.CreatedAt,
 			&taskRun.Status,
 			&taskRun.TaskId,
 			&taskRun.TenantId,
@@ -219,17 +257,150 @@ func (r *olapEventRepository) ReadTaskRuns(tenantId uuid.UUID, limit, offset int
 	return records, nil
 }
 
+func (r *olapEventRepository) ReadTaskRun(tenantId, taskRunId uuid.UUID) (olap.WorkflowRun, error) {
+	ctx := context.Background()
+	row := r.conn.QueryRow(ctx, `
+		WITH max_retry_counts AS (
+			SELECT task_id, MAX(retry_count) AS max_retry_count
+			FROM task_events
+			WHERE
+				tenant_id = ?
+				AND task_id = ?
+			GROUP BY task_id
+		), relevant_task_events AS (
+			SELECT te.*
+			FROM task_events te
+			JOIN max_retry_counts mrc ON te.task_id = mrc.task_id AND te.retry_count = mrc.max_retry_count
+			WHERE
+				te.tenant_id = ?
+				AND task_id = ?
+		), task_creation_times AS (
+			SELECT
+				task_id,
+				MIN(timestamp) AS created_at
+			FROM relevant_task_events
+			GROUP BY task_id
+		), task_start_times AS (
+			SELECT
+				task_id,
+				MIN(timestamp) AS started_at
+			FROM relevant_task_events
+			WHERE event_type = 'STARTED'
+			GROUP BY task_id
+		), task_finish_times AS (
+			SELECT
+				task_id,
+				MAX(timestamp) AS finished_at,
+				MAX(readable_status) AS status
+			FROM relevant_task_events
+
+			-- 3 indicates a terminal event. See enum definition
+			WHERE event_type >= 3
+			GROUP BY task_id
+		), task_event_metadata AS (
+			SELECT
+				tct.task_id AS task_id,
+				tct.created_at AS created_at,
+				tst.started_at AS started_at,
+				tft.finished_at AS finished_at,
+				timeDiff(tst.started_at, tft.finished_at) * 1000 AS duration,
+				tft.status AS status
+			FROM task_creation_times tct
+			JOIN task_start_times tst ON tct.task_id = tst.task_id
+			JOIN task_finish_times tft ON tct.task_id = tft.task_id
+		), error_messages AS (
+			SELECT
+				task_id,
+				error_message
+			FROM relevant_task_events
+			WHERE readable_status = 'FAILED'
+		), outputs AS (
+			SELECT
+				LAST_VALUE(task_id) AS task_id,
+				LAST_VALUE(output) AS output
+			FROM relevant_task_events
+			WHERE readable_status = 'COMPLETED'
+		)
+
+		SELECT
+			ct.additional_metadata,
+			ct.display_name,
+			tem.duration,
+			em.error_message,
+			tem.finished_at,
+			ct.id AS id,
+			ct.input,
+			o.output,
+			tem.started_at,
+			tem.created_at,
+			toString(tem.status) AS status,
+			ct.id AS task_id,
+			ct.tenant_id,
+			-- NOTE: This is probably a bug, figure out which timestamp to use.
+			ct.created_at AS timestamp
+		FROM tasks ct
+		JOIN task_event_metadata tem ON ct.id = tem.task_id
+		LEFT JOIN error_messages em ON ct.id = em.task_id
+		LEFT JOIN outputs o ON ct.id = o.task_id
+		WHERE ct.id = ?
+		`,
+		tenantId,
+		taskRunId,
+		tenantId,
+		taskRunId,
+		taskRunId,
+	)
+
+	var (
+		taskRun olap.WorkflowRun
+	)
+
+	err := row.Scan(
+		&taskRun.AdditionalMetadata,
+		&taskRun.DisplayName,
+		&taskRun.Duration,
+		&taskRun.ErrorMessage,
+		&taskRun.FinishedAt,
+		&taskRun.Id,
+		&taskRun.Input,
+		&taskRun.Output,
+		&taskRun.StartedAt,
+		&taskRun.CreatedAt,
+		&taskRun.Status,
+		&taskRun.TaskId,
+		&taskRun.TenantId,
+		&taskRun.Timestamp,
+	)
+
+	if err != nil {
+		log.Fatal(err)
+		return olap.WorkflowRun{}, err
+	}
+
+	taskRun.Status = string(StringToReadableStatus(taskRun.Status))
+
+	return taskRun, nil
+}
+
 func (r *olapEventRepository) ReadTaskRunEvents(tenantId, taskRunId uuid.UUID, limit, offset int64) ([]olap.TaskRunEvent, error) {
 	ctx := context.Background()
 	rows, err := r.conn.Query(ctx, `
 		SELECT
-			id,
-			task_id,
-			'this is a message' AS message,
-			timestamp,
-			additional__event_data
-		FROM task_events
+			te.id,
+			te.task_id,
+			te.additional__event_message AS message,
+			te.timestamp,
+			te.additional__event_data,
+			te.event_type,
+			te.error_message,
+			te.worker_id,
+			t.display_name AS task_display_name,
+			t.input AS task_input,
+			t.additional_metadata
+		FROM task_events te
+		JOIN tasks t ON te.task_id = t.id
    		WHERE task_id = ? AND tenant_id = ?
+		ORDER BY te.retry_count, te.readable_status DESC
 		`,
 		taskRunId,
 		tenantId,
@@ -252,6 +423,12 @@ func (r *olapEventRepository) ReadTaskRunEvents(tenantId, taskRunId uuid.UUID, l
 			&taskRunEvent.Message,
 			&taskRunEvent.Timestamp,
 			&taskRunEvent.Data,
+			&taskRunEvent.EventType,
+			&taskRunEvent.ErrorMsg,
+			&taskRunEvent.WorkerId,
+			&taskRunEvent.TaskDisplayName,
+			&taskRunEvent.TaskInput,
+			&taskRunEvent.AdditionalMetadata,
 		)
 
 		if err != nil {
