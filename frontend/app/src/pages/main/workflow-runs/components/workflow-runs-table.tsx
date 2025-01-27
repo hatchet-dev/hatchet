@@ -14,8 +14,6 @@ import api, {
   queries,
   ReplayWorkflowRunsRequest,
   V2TaskStatus,
-  WorkflowRunOrderByDirection,
-  WorkflowRunOrderByField,
   WorkflowRunStatus,
 } from '@/lib/api';
 import { TenantContextType } from '@/lib/outlet';
@@ -88,11 +86,8 @@ export const getCreatedAfterFromTimeRange = (timeRange?: string) => {
 
 export function WorkflowRunsTable({
   createdAfter: createdAfterProp,
-  workflowId,
   initColumnVisibility = {},
   filterVisibility = {},
-  parentWorkflowRunId,
-  parentStepRunId,
   refetchInterval = 5000,
   showMetrics = false,
 }: WorkflowRunsTableProps) {
@@ -233,21 +228,6 @@ export function WorkflowRunsTable({
     return pagination.pageIndex * pagination.pageSize;
   }, [pagination]);
 
-  const workflow = useMemo<string | undefined>(() => {
-    if (workflowId) {
-      return workflowId;
-    }
-
-    const filter = columnFilters.find((filter) => filter.id === 'Workflow');
-
-    if (!filter) {
-      return;
-    }
-
-    const vals = filter?.value as Array<string>;
-    return vals[0];
-  }, [columnFilters, workflowId]);
-
   function workflowRunStatusToV2TaskStatus(status: WorkflowRunStatus) {
     switch (status) {
       case WorkflowRunStatus.SUCCEEDED:
@@ -276,61 +256,12 @@ export function WorkflowRunsTable({
     return statusFilters.map(workflowRunStatusToV2TaskStatus);
   }, [columnFilters]);
 
-  console.log('STATUSES', statuses);
-
-  const AdditionalMetadataFilter = useMemo(() => {
-    const filter = columnFilters.find((filter) => filter.id === 'Metadata');
-
-    if (!filter) {
-      return;
-    }
-
-    return filter?.value as Array<string>;
-  }, [columnFilters]);
-
-  const orderByDirection = useMemo(():
-    | WorkflowRunOrderByDirection
-    | undefined => {
-    if (!sorting.length) {
-      return;
-    }
-
-    return sorting[0]?.desc
-      ? WorkflowRunOrderByDirection.DESC
-      : WorkflowRunOrderByDirection.ASC;
-  }, [sorting]);
-
-  const orderByField = useMemo((): WorkflowRunOrderByField | undefined => {
-    if (!sorting.length) {
-      return;
-    }
-
-    switch (sorting[0]?.id) {
-      case 'Duration':
-        return WorkflowRunOrderByField.Duration;
-      case 'Finished at':
-        return WorkflowRunOrderByField.FinishedAt;
-      case 'Started at':
-        return WorkflowRunOrderByField.StartedAt;
-      case 'Seen at':
-      default:
-        return WorkflowRunOrderByField.CreatedAt;
-    }
-  }, [sorting]);
-
   const listWorkflowRunsQuery = useQuery({
     ...queries.v2WorkflowRuns.list(tenant.metadata.id, {
       offset,
       limit: pagination.pageSize,
       statuses,
-      workflowId: workflow,
-      parentWorkflowRunId,
-      parentStepRunId,
-      orderByDirection,
-      orderByField,
-      additionalMetadata: AdditionalMetadataFilter,
-      createdAfter,
-      finishedBefore,
+      since: createdAfter,
     }),
     placeholderData: (prev) => prev,
     refetchInterval,
