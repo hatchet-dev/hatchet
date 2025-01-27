@@ -9,16 +9,13 @@
  * ---------------------------------------------------------------
  */
 
-export enum WorkflowRunStatus {
+export enum V2TaskRunStatus {
   PENDING = 'PENDING',
   RUNNING = 'RUNNING',
-  SUCCEEDED = 'SUCCEEDED',
+  COMPLETED = 'COMPLETED',
   FAILED = 'FAILED',
   CANCELLED = 'CANCELLED',
-  QUEUED = 'QUEUED',
 }
-
-export type WorkflowRunStatusList = WorkflowRunStatus[];
 
 /** @example {"next_page":3,"num_pages":10,"current_page":2} */
 export interface PaginationResponse {
@@ -615,6 +612,17 @@ export interface TenantStepRunQueueMetrics {
 
 /** The key for the event. */
 export type EventKey = string;
+
+export enum WorkflowRunStatus {
+  PENDING = 'PENDING',
+  RUNNING = 'RUNNING',
+  SUCCEEDED = 'SUCCEEDED',
+  FAILED = 'FAILED',
+  CANCELLED = 'CANCELLED',
+  QUEUED = 'QUEUED',
+}
+
+export type WorkflowRunStatusList = WorkflowRunStatus[];
 
 export type EventSearch = string;
 

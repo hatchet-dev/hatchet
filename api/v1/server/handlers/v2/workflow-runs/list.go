@@ -1,6 +1,8 @@
 package v2workflowruns
 
 import (
+	"time"
+
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
@@ -25,9 +27,44 @@ func (t *V2WorkflowRunsService) V2WorkflowRunGet(ctx echo.Context, request gen.V
 }
 
 func (t *V2WorkflowRunsService) V2WorkflowRunsList(ctx echo.Context, request gen.V2WorkflowRunsListRequestObject) (gen.V2WorkflowRunsListResponseObject, error) {
-	// tenant := ctx.Get("tenant").(*db.TenantModel)
+	var (
+		statuses = []gen.V2TaskRunStatus{
+			gen.V2TaskRunStatusCANCELLED,
+			gen.V2TaskRunStatusCOMPLETED,
+			gen.V2TaskRunStatusFAILED,
+			gen.V2TaskRunStatusPENDING,
+			gen.V2TaskRunStatusRUNNING,
+		}
+		since        = time.Now().Add(-24 * time.Hour)
+		limit  int64 = 50
+		offset int64 = 0
+	)
 
-	workflow_runs, err := t.config.EngineRepository.OLAP().ReadTaskRuns(request.Tenant, *request.Params.Limit, *request.Params.Offset)
+	if request.Params.Statuses != nil {
+		if len(*request.Params.Statuses) > 0 {
+			statuses = *request.Params.Statuses
+		}
+	}
+
+	if request.Params.Since != nil {
+		since = *request.Params.Since
+	}
+
+	if request.Params.Limit != nil {
+		limit = *request.Params.Limit
+	}
+
+	if request.Params.Offset != nil {
+		offset = *request.Params.Offset
+	}
+
+	workflow_runs, err := t.config.EngineRepository.OLAP().ReadTaskRuns(
+		request.Tenant,
+		since,
+		statuses,
+		limit,
+		offset,
+	)
 
 	if err != nil {
 		return nil, err

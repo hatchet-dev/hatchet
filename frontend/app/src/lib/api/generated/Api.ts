@@ -85,6 +85,7 @@ import {
   UserTenantMembershipsList,
   V2ListStepRunEventsForWorkflowRun,
   V2TaskRunMetrics,
+  V2TaskRunStatus,
   V2WorkflowRun,
   V2WorkflowRuns,
   WebhookWorkerCreateRequest,
@@ -137,7 +138,12 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
        */
       limit?: number;
       /** A list of workflow run statuses to filter by */
-      statuses?: WorkflowRunStatusList;
+      statuses?: V2TaskRunStatus[];
+      /**
+       * The earliest date to filter by
+       * @format date-time
+       */
+      since?: string;
     },
     params: RequestParams = {},
   ) =>

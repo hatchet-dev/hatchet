@@ -8,12 +8,13 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
+	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/repository/olap"
 )
 
 type OLAPEventRepository interface {
 	ReadTaskRun(tenantId, taskRunId uuid.UUID) (olap.WorkflowRun, error)
-	ReadTaskRuns(tenantId uuid.UUID, limit, offset int64) ([]olap.WorkflowRun, error)
+	ReadTaskRuns(tenantId uuid.UUID, since time.Time, statuses []gen.V2TaskRunStatus, limit, offset int64) ([]olap.WorkflowRun, error)
 	ReadTaskRunEvents(tenantId, taskId uuid.UUID, limit, offset int64) ([]olap.TaskRunEvent, error)
 	ReadTaskRunMetrics(tenantId uuid.UUID, since time.Time) ([]olap.TaskRunMetric, error)
 	CreateTasks(tasks []olap.Task) error
@@ -53,13 +54,18 @@ func StringToReadableStatus(status string) olap.ReadableTaskStatus {
 	}
 }
 
-func (r *olapEventRepository) ReadTaskRuns(tenantId uuid.UUID, limit, offset int64) ([]olap.WorkflowRun, error) {
+func (r *olapEventRepository) ReadTaskRuns(tenantId uuid.UUID, since time.Time, statuses []gen.V2TaskRunStatus, limit, offset int64) ([]olap.WorkflowRun, error) {
+	var stringifiedStatuses = make([]string, len(statuses))
+	for i, status := range statuses {
+		stringifiedStatuses[i] = string(status)
+	}
+
 	ctx := context.Background()
 	rows, err := r.conn.Query(ctx, `
 		WITH candidate_tasks AS (
 			SELECT *
 			FROM tasks
-			WHERE tenant_id = ?
+			WHERE tenant_id = ? AND created_at > ?
 			ORDER BY created_at DESC
 			LIMIT ?
 			OFFSET ?
@@ -149,13 +155,16 @@ func (r *olapEventRepository) ReadTaskRuns(tenantId uuid.UUID, limit, offset int
 		JOIN task_event_metadata tem ON ct.id = tem.task_id
 		LEFT JOIN error_messages em ON ct.id = em.task_id
 		LEFT JOIN outputs o ON ct.id = o.task_id
+		WHERE toString(tem.status) IN ?
 		ORDER BY ct.created_at DESC
 		`,
 		tenantId,
+		since,
 		limit,
 		offset,
 		tenantId,
 		tenantId,
+		stringifiedStatuses,
 	)
 
 	if err != nil {
@@ -206,21 +215,27 @@ func (r *olapEventRepository) ReadTaskRunMetrics(tenantId uuid.UUID, since time.
 			FROM tasks
 			WHERE tenant_id = ? AND created_at > ?
 		), max_retry_counts AS (
-			SELECT task_id, MAX(retry_count) AS max_retry_count
+			SELECT
+				task_id,
+				MAX(retry_count) AS max_retry_count
 			FROM task_events
 			WHERE
 				tenant_id = ?
 				AND task_id IN (SELECT id FROM candidate_tasks)
 			GROUP BY task_id
+		), candidate_events AS (
+			SELECT te.task_id, MAX(readable_status) AS readable_status
+			FROM task_events te
+			JOIN max_retry_counts mrc ON te.task_id = mrc.task_id AND te.retry_count = mrc.max_retry_count
+			WHERE
+				te.tenant_id = ?
+				AND te.task_id IN (SELECT id FROM candidate_tasks)
+			GROUP BY te.task_id
 		)
 
-		SELECT te.readable_status, COUNT(te.readable_status) AS count
-		FROM task_events te
-		JOIN max_retry_counts mrc ON te.task_id = mrc.task_id AND te.retry_count = mrc.max_retry_count
-		WHERE
-			te.tenant_id = ?
-			AND te.task_id IN (SELECT id FROM candidate_tasks)
-		GROUP BY te.readable_status
+		SELECT readable_status, COUNT(readable_status) AS count
+		FROM candidate_events
+		GROUP BY readable_status
 		`,
 		tenantId,
 		since,

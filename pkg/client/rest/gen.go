@@ -196,6 +196,15 @@ const (
 	V2EventTypeTIMEOUTREFRESHED   V2EventType = "TIMEOUT_REFRESHED"
 )
 
+// Defines values for V2TaskRunStatus.
+const (
+	V2TaskRunStatusCANCELLED V2TaskRunStatus = "CANCELLED"
+	V2TaskRunStatusCOMPLETED V2TaskRunStatus = "COMPLETED"
+	V2TaskRunStatusFAILED    V2TaskRunStatus = "FAILED"
+	V2TaskRunStatusPENDING   V2TaskRunStatus = "PENDING"
+	V2TaskRunStatusRUNNING   V2TaskRunStatus = "RUNNING"
+)
+
 // Defines values for V2TaskStatus.
 const (
 	V2TaskStatusCANCELLED V2TaskStatus = "CANCELLED"
@@ -249,12 +258,12 @@ const (
 
 // Defines values for WorkflowRunStatus.
 const (
-	CANCELLED WorkflowRunStatus = "CANCELLED"
-	FAILED    WorkflowRunStatus = "FAILED"
-	PENDING   WorkflowRunStatus = "PENDING"
-	QUEUED    WorkflowRunStatus = "QUEUED"
-	RUNNING   WorkflowRunStatus = "RUNNING"
-	SUCCEEDED WorkflowRunStatus = "SUCCEEDED"
+	WorkflowRunStatusCANCELLED WorkflowRunStatus = "CANCELLED"
+	WorkflowRunStatusFAILED    WorkflowRunStatus = "FAILED"
+	WorkflowRunStatusPENDING   WorkflowRunStatus = "PENDING"
+	WorkflowRunStatusQUEUED    WorkflowRunStatus = "QUEUED"
+	WorkflowRunStatusRUNNING   WorkflowRunStatus = "RUNNING"
+	WorkflowRunStatusSUCCEEDED WorkflowRunStatus = "SUCCEEDED"
 )
 
 // APIError defines model for APIError.
@@ -1174,6 +1183,9 @@ type V2TaskRunMetric struct {
 // V2TaskRunMetrics defines model for V2TaskRunMetrics.
 type V2TaskRunMetrics = []V2TaskRunMetric
 
+// V2TaskRunStatus defines model for V2TaskRunStatus.
+type V2TaskRunStatus string
+
 // V2TaskStatus defines model for V2TaskStatus.
 type V2TaskStatus string
 
@@ -1863,7 +1875,10 @@ type V2WorkflowRunsListParams struct {
 	Limit *int64 `form:"limit,omitempty" json:"limit,omitempty"`
 
 	// Statuses A list of workflow run statuses to filter by
-	Statuses *WorkflowRunStatusList `form:"statuses,omitempty" json:"statuses,omitempty"`
+	Statuses *[]V2TaskRunStatus `form:"statuses,omitempty" json:"statuses,omitempty"`
+
+	// Since The earliest date to filter by
+	Since *time.Time `form:"since,omitempty" json:"since,omitempty"`
 }
 
 // V2WorkflowRunListStepRunEventsParams defines parameters for V2WorkflowRunListStepRunEvents.
@@ -8743,6 +8758,22 @@ func NewV2WorkflowRunsListRequest(server string, tenant openapi_types.UUID, para
 		if params.Statuses != nil {
 
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "statuses", runtime.ParamLocationQuery, *params.Statuses); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Since != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "since", runtime.ParamLocationQuery, *params.Since); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err
