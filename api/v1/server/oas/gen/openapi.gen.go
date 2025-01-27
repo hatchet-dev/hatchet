@@ -1866,7 +1866,10 @@ type V2WorkflowRunsListParams struct {
 	Limit *int64 `form:"limit,omitempty" json:"limit,omitempty"`
 
 	// Statuses A list of workflow run statuses to filter by
-	Statuses *WorkflowRunStatusList `form:"statuses,omitempty" json:"statuses,omitempty"`
+	Statuses *[]V2TaskStatus `form:"statuses,omitempty" json:"statuses,omitempty"`
+
+	// Since The earliest date to filter by
+	Since *time.Time `form:"since,omitempty" json:"since,omitempty"`
 }
 
 // V2WorkflowRunListStepRunEventsParams defines parameters for V2WorkflowRunListStepRunEvents.
@@ -4681,6 +4684,13 @@ func (w *ServerInterfaceWrapper) V2WorkflowRunsList(ctx echo.Context) error {
 	err = runtime.BindQueryParameter("form", true, false, "statuses", ctx.QueryParams(), &params.Statuses)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter statuses: %s", err))
+	}
+
+	// ------------- Optional query parameter "since" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "since", ctx.QueryParams(), &params.Since)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter since: %s", err))
 	}
 
 	// Invoke the callback with all the unmarshaled arguments
@@ -11583,11 +11593,11 @@ var swaggerSpec = []string{
 	"3fJSqU3fvYXWxEL5whsJLplXxhgbIlMiNM30slCCl62UXFcadtl3BhPm3cYJpQ7odRlX+YBATFKeQtiZ",
 	"QOLOoGfKJp0J/i03pAQZLJg15tVyxSjwNkoS06aGaVPDrCE1TCPRLGQDtrjVymlyK7EsYmt2yAXzK8jl",
 	"NUs5GTC1nCnYyrutMgEzUlzWBDwuZ6MiAN8vWiGO9rUvDncF8P2vURiOJTDglaNEzRAFAaaDKwrcLav/",
-	"9ONYbMliB8ji7rdupzXWfTo255Hbq6wTn4WisfKEeR4th/n/OFargrUFnra1wNM2le5er4xS6bHJg702",
-	"5bxBNvHAu5qiL+xwswrBlJ1n0kIvVcYFCqa+olrGz1yoVAipXa4nka6z7lS1w7UjcpvVMvAajIsNsu8B",
-	"JjCif+1xa6LS7MhZHL6f1okrXX7xNVTwOB1NVI/r83l3PmHtFnD9L281rVeslYjycxg3EXX505Tgp9bz",
-	"siHPCz/Hi8KVjwAzn6HOFbOAJJPSmFJHbabw4qPMMQQxjNNHmV3tM032yo8LviT2Ox87nZfbl/8XAAD/",
-	"//Tb/0aWIQIA",
+	"9ONYbMliB8ji7rdupzXWfTo255Hbq6wTn4WisfKEeR4th/n/OFargrUFnra1wNO6SndblYfhgsNYGEZf",
+	"TBPEPqImGHesW4C3jQJTZY4mrwfb/PcGQcmjAGsq0LCT1iqkZHa4SqvOVFk6KJj6ip4bP3MJVyExd7m4",
+	"RbrOuiPeDheyyG1Wy8BrsHQ2yL4HmMCI/rXHTZtKGyhn/vh+WrSudBPH11DB43Q0Ucquz+fd+ey5W8D1",
+	"v7wJt16xViLKz2HcRNTlj3aCn1o30IbcQNypIKpoPgLMHJg6v9ACkkxKY0odtWnLiy9ExxDEME5fiHa1",
+	"b0bZk0Mu+JLY73zsdF5uX/5fAAAA///fW5AxIyICAA==",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

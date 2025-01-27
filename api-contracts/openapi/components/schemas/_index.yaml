@@ -188,6 +188,8 @@ WorkflowRunsCancelRequest:
   $ref: "./workflow_run.yaml#/WorkflowRunsCancelRequest"
 JobRunStatus:
   $ref: "./workflow_run.yaml#/JobRunStatus"
+V2TaskRunStatus:
+  $ref: "./workflow_run.yaml#/V2TaskRunStatus"
 StepRunStatus:
   $ref: "./workflow_run.yaml#/StepRunStatus"
 JobRun:
@@ -300,3 +302,5 @@ V2WorkflowRun:
   $ref: "./v2/workflow_run.yaml#/V2WorkflowRun"
 V2ListStepRunEventsForWorkflowRun:
   $ref: "./v2/workflow_run.yaml#/V2ListStepRunEventsForWorkflowRun"
+V2TaskStatus:
+  $ref: "./v2/workflow_run.yaml#/V2TaskStatus"

@@ -13,8 +13,7 @@ import invariant from 'tiny-invariant';
 import api, {
   queries,
   ReplayWorkflowRunsRequest,
-  WorkflowRunOrderByDirection,
-  WorkflowRunOrderByField,
+  V2TaskStatus,
   WorkflowRunStatus,
 } from '@/lib/api';
 import { TenantContextType } from '@/lib/outlet';
@@ -87,11 +86,8 @@ export const getCreatedAfterFromTimeRange = (timeRange?: string) => {
 
 export function WorkflowRunsTable({
   createdAfter: createdAfterProp,
-  workflowId,
   initColumnVisibility = {},
   filterVisibility = {},
-  parentWorkflowRunId,
-  parentStepRunId,
   refetchInterval = 5000,
   showMetrics = false,
 }: WorkflowRunsTableProps) {
@@ -232,20 +228,21 @@ export function WorkflowRunsTable({
     return pagination.pageIndex * pagination.pageSize;
   }, [pagination]);
 
-  const workflow = useMemo<string | undefined>(() => {
-    if (workflowId) {
-      return workflowId;
+  function workflowRunStatusToV2TaskStatus(status: WorkflowRunStatus) {
+    switch (status) {
+      case WorkflowRunStatus.SUCCEEDED:
+        return V2TaskStatus.COMPLETED;
+      case WorkflowRunStatus.FAILED:
+        return V2TaskStatus.FAILED;
+      case WorkflowRunStatus.RUNNING:
+        return V2TaskStatus.RUNNING;
+      case WorkflowRunStatus.QUEUED:
+      case WorkflowRunStatus.PENDING:
+        return V2TaskStatus.QUEUED;
+      case WorkflowRunStatus.CANCELLED:
+        return V2TaskStatus.CANCELLED;
     }
-
-    const filter = columnFilters.find((filter) => filter.id === 'Workflow');
-
-    if (!filter) {
-      return;
-    }
-
-    const vals = filter?.value as Array<string>;
-    return vals[0];
-  }, [columnFilters, workflowId]);
+  }
 
   const statuses = useMemo(() => {
     const filter = columnFilters.find((filter) => filter.id === 'status');
@@ -254,62 +251,17 @@ export function WorkflowRunsTable({
       return;
     }
 
-    return filter?.value as Array<WorkflowRunStatus>;
+    const statusFilters = filter?.value as Array<WorkflowRunStatus>;
+
+    return statusFilters.map(workflowRunStatusToV2TaskStatus);
   }, [columnFilters]);
-
-  const AdditionalMetadataFilter = useMemo(() => {
-    const filter = columnFilters.find((filter) => filter.id === 'Metadata');
-
-    if (!filter) {
-      return;
-    }
-
-    return filter?.value as Array<string>;
-  }, [columnFilters]);
-
-  const orderByDirection = useMemo(():
-    | WorkflowRunOrderByDirection
-    | undefined => {
-    if (!sorting.length) {
-      return;
-    }
-
-    return sorting[0]?.desc
-      ? WorkflowRunOrderByDirection.DESC
-      : WorkflowRunOrderByDirection.ASC;
-  }, [sorting]);
-
-  const orderByField = useMemo((): WorkflowRunOrderByField | undefined => {
-    if (!sorting.length) {
-      return;
-    }
-
-    switch (sorting[0]?.id) {
-      case 'Duration':
-        return WorkflowRunOrderByField.Duration;
-      case 'Finished at':
-        return WorkflowRunOrderByField.FinishedAt;
-      case 'Started at':
-        return WorkflowRunOrderByField.StartedAt;
-      case 'Seen at':
-      default:
-        return WorkflowRunOrderByField.CreatedAt;
-    }
-  }, [sorting]);
 
   const listWorkflowRunsQuery = useQuery({
     ...queries.v2WorkflowRuns.list(tenant.metadata.id, {
       offset,
       limit: pagination.pageSize,
       statuses,
-      workflowId: workflow,
-      parentWorkflowRunId,
-      parentStepRunId,
-      orderByDirection,
-      orderByField,
-      additionalMetadata: AdditionalMetadataFilter,
-      createdAfter,
-      finishedBefore,
+      since: createdAfter,
     }),
     placeholderData: (prev) => prev,
     refetchInterval,

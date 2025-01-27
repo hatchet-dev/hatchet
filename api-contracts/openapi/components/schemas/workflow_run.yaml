@@ -361,6 +361,15 @@ JobRunStatus:
     - FAILED
     - CANCELLED
 
+V2TaskRunStatus:
+  type: string
+  enum:
+    - PENDING
+    - RUNNING
+    - COMPLETED
+    - FAILED
+    - CANCELLED
+
 WorkflowRunStatus:
   type: string
   enum:

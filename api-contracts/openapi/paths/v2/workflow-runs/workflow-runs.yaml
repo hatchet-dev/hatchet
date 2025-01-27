@@ -32,7 +32,16 @@ listWorkflowRuns:
         name: statuses
         required: false
         schema:
-          $ref: "../../../components/schemas/_index.yaml#/WorkflowRunStatusList"
+          type: array
+          items:
+            $ref: "../../../components/schemas/_index.yaml#/V2TaskStatus"
+      - description: The earliest date to filter by
+        in: query
+        name: since
+        required: false
+        schema:
+          type: string
+          format: date-time
     responses:
       "200":
         content:

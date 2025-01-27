@@ -9,16 +9,13 @@
  * ---------------------------------------------------------------
  */
 
-export enum WorkflowRunStatus {
-  PENDING = 'PENDING',
-  RUNNING = 'RUNNING',
-  SUCCEEDED = 'SUCCEEDED',
-  FAILED = 'FAILED',
-  CANCELLED = 'CANCELLED',
+export enum V2TaskStatus {
   QUEUED = 'QUEUED',
+  RUNNING = 'RUNNING',
+  COMPLETED = 'COMPLETED',
+  CANCELLED = 'CANCELLED',
+  FAILED = 'FAILED',
 }
-
-export type WorkflowRunStatusList = WorkflowRunStatus[];
 
 /** @example {"next_page":3,"num_pages":10,"current_page":2} */
 export interface PaginationResponse {
@@ -62,14 +59,6 @@ export interface APIResourceMeta {
    * @example "2022-12-13T15:06:48.888358-05:00"
    */
   updatedAt: string;
-}
-
-export enum V2TaskStatus {
-  QUEUED = 'QUEUED',
-  RUNNING = 'RUNNING',
-  COMPLETED = 'COMPLETED',
-  CANCELLED = 'CANCELLED',
-  FAILED = 'FAILED',
 }
 
 export interface V2WorkflowRun {
@@ -615,6 +604,17 @@ export interface TenantStepRunQueueMetrics {
 
 /** The key for the event. */
 export type EventKey = string;
+
+export enum WorkflowRunStatus {
+  PENDING = 'PENDING',
+  RUNNING = 'RUNNING',
+  SUCCEEDED = 'SUCCEEDED',
+  FAILED = 'FAILED',
+  CANCELLED = 'CANCELLED',
+  QUEUED = 'QUEUED',
+}
+
+export type WorkflowRunStatusList = WorkflowRunStatus[];
 
 export type EventSearch = string;
 
@@ -1508,6 +1508,14 @@ export interface TenantList {
 export interface WorkflowVersionDefinition {
   /** The raw YAML definition of the workflow. */
   rawDefinition: string;
+}
+
+export enum V2TaskRunStatus {
+  PENDING = 'PENDING',
+  RUNNING = 'RUNNING',
+  COMPLETED = 'COMPLETED',
+  FAILED = 'FAILED',
+  CANCELLED = 'CANCELLED',
 }
 
 export interface CreatePullRequestFromStepRun {

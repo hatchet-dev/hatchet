@@ -1863,7 +1863,10 @@ type V2WorkflowRunsListParams struct {
 	Limit *int64 `form:"limit,omitempty" json:"limit,omitempty"`
 
 	// Statuses A list of workflow run statuses to filter by
-	Statuses *WorkflowRunStatusList `form:"statuses,omitempty" json:"statuses,omitempty"`
+	Statuses *[]V2TaskStatus `form:"statuses,omitempty" json:"statuses,omitempty"`
+
+	// Since The earliest date to filter by
+	Since *time.Time `form:"since,omitempty" json:"since,omitempty"`
 }
 
 // V2WorkflowRunListStepRunEventsParams defines parameters for V2WorkflowRunListStepRunEvents.
@@ -8743,6 +8746,22 @@ func NewV2WorkflowRunsListRequest(server string, tenant openapi_types.UUID, para
 		if params.Statuses != nil {
 
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "statuses", runtime.ParamLocationQuery, *params.Statuses); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Since != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "since", runtime.ParamLocationQuery, *params.Since); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err
