@@ -1,11 +1,25 @@
 import React from 'react';
 
-import { WorkflowRunStatus, WorkflowRunsMetrics } from '@/lib/api';
-import { Badge } from '@/components/ui/badge';
+import {
+  V2TaskRunMetric,
+  V2TaskRunMetrics,
+  V2TaskStatus,
+  WorkflowRunStatus,
+  WorkflowRunsMetrics,
+} from '@/lib/api';
+import { Badge, badgeVariants } from '@/components/ui/badge';
+import { VariantProps } from 'class-variance-authority';
 
 interface WorkflowRunsMetricsProps {
   metrics: WorkflowRunsMetrics;
   onClick?: (status?: WorkflowRunStatus) => void;
+  onViewQueueMetricsClick?: () => void;
+  showQueueMetrics?: boolean;
+}
+
+interface V2TaskRunMetricsProps {
+  metrics: V2TaskRunMetric[];
+  onClick?: (status?: V2TaskStatus) => void;
   onViewQueueMetricsClick?: () => void;
   showQueueMetrics?: boolean;
 }
@@ -82,6 +96,102 @@ export const WorkflowRunsMetricsView: React.FC<WorkflowRunsMetricsProps> = ({
       >
         {counts?.QUEUED?.toLocaleString('en-US')} Queued ({queuedPercentage}%)
       </Badge>
+      {showQueueMetrics && (
+        <Badge
+          variant="outline"
+          className="cursor-pointer rounded-sm font-normal text-sm px-2 py-1 w-fit"
+          onClick={() => onViewQueueMetricsClick()}
+        >
+          Queue metrics
+        </Badge>
+      )}
+    </dl>
+  );
+};
+
+function MetricBadge({
+  metrics,
+  status,
+  total,
+  onClick,
+  variant,
+  className,
+}: {
+  metrics: V2TaskRunMetrics;
+  status: V2TaskStatus;
+  total: number;
+  onClick: (status: V2TaskStatus) => void;
+  variant: VariantProps<typeof badgeVariants>['variant'];
+  className: string;
+}) {
+  const metric = metrics.find((m) => m.status === status);
+
+  if (!metric) {
+    return null;
+  }
+
+  const percentage = calculatePercentage(metric.count, total);
+  const friendlyName = status.toLowerCase().replace('_', ' ');
+
+  return (
+    <Badge
+      variant={variant}
+      className={className}
+      onClick={() => onClick(status)}
+    >
+      {metric.count.toLocaleString('en-US')} {friendlyName} ({percentage}%)
+    </Badge>
+  );
+}
+
+export const V2WorkflowRunsMetricsView = ({
+  metrics,
+  showQueueMetrics = false,
+  onClick = () => {},
+  onViewQueueMetricsClick = () => {},
+}: V2TaskRunMetricsProps) => {
+  const total = metrics
+    .map((m) => m.count)
+    .reduce((acc, curr) => acc + curr, 0);
+
+  return (
+    <dl className="flex flex-row justify-start gap-6">
+      <MetricBadge
+        metrics={metrics}
+        status={V2TaskStatus.COMPLETED}
+        total={total}
+        onClick={onClick}
+        variant="successful"
+        className="cursor-pointer text-sm px-2 py-1 w-fit"
+      />
+
+      <MetricBadge
+        metrics={metrics}
+        status={V2TaskStatus.RUNNING}
+        total={total}
+        onClick={onClick}
+        variant="inProgress"
+        className="cursor-pointer text-sm px-2 py-1 w-fit"
+      />
+
+      <MetricBadge
+        metrics={metrics}
+        status={V2TaskStatus.FAILED}
+        total={total}
+        onClick={onClick}
+        variant="failed"
+        className="cursor-pointer text-sm px-2 py-1 w-fit"
+      />
+
+      <MetricBadge
+        metrics={metrics}
+        status={V2TaskStatus.QUEUED}
+        total={total}
+        onClick={onClick}
+        variant="outline"
+        className="cursor-pointer rounded-sm font-normal text-sm px-2 py-1 w-fit"
+      />
+
       {showQueueMetrics && (
         <Badge
           variant="outline"

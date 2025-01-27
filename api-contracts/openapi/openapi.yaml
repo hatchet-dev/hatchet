@@ -160,6 +160,8 @@ paths:
     $ref: "./paths/workflow-run/workflow-run.yaml#/replayWorkflowRuns"
   /api/v1/tenants/{tenant}/workflows/runs/metrics:
     $ref: "./paths/workflow/workflow.yaml#/workflowRunsMetrics"
+  /api/v2/tenants/{tenant}/tasks/runs/metrics:
+    $ref: "./paths/workflow/workflow.yaml#/v2TaskRunMetrics"
   /api/v1/tenants/{tenant}/workflow-runs/{workflow-run}:
     $ref: "./paths/workflow/workflow.yaml#/workflowRun"
   /api/v1/tenants/{tenant}/workflow-runs/{workflow-run}/shape:

@@ -654,6 +654,50 @@ workflowRunsMetrics:
     summary: Get workflow runs metrics
     tags:
       - Workflow
+v2TaskRunMetrics:
+  get:
+    x-resources: ["tenant"]
+    description: Get a summary of task run metrics for a tenant
+    operationId: task-run:get:metrics
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The start time to get metrics for
+        in: query
+        name: since
+        required: false
+        schema:
+          type: string
+          format: date-time
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/V2TaskRunMetrics"
+        description: Successfully retrieved the task run metrics
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+    summary: Get workflow runs metrics
+    tags:
+      - Workflow
 workflowRun:
   get:
     x-resources: ["tenant", "workflow-run"]

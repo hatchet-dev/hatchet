@@ -84,6 +84,7 @@ import {
   UserRegisterRequest,
   UserTenantMembershipsList,
   V2ListStepRunEventsForWorkflowRun,
+  V2TaskRunMetrics,
   V2WorkflowRun,
   V2WorkflowRuns,
   WebhookWorkerCreateRequest,
@@ -1959,6 +1960,34 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   ) =>
     this.request<WorkflowRunsMetrics, APIErrors>({
       path: `/api/v1/tenants/${tenant}/workflows/runs/metrics`,
+      method: 'GET',
+      query: query,
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Get a summary of task run metrics for a tenant
+   *
+   * @tags Workflow
+   * @name TaskRunGetMetrics
+   * @summary Get workflow runs metrics
+   * @request GET:/api/v2/tenants/{tenant}/tasks/runs/metrics
+   * @secure
+   */
+  taskRunGetMetrics = (
+    tenant: string,
+    query?: {
+      /**
+       * The start time to get metrics for
+       * @format date-time
+       */
+      since?: string;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<V2TaskRunMetrics, APIErrors>({
+      path: `/api/v2/tenants/${tenant}/tasks/runs/metrics`,
       method: 'GET',
       query: query,
       secure: true,

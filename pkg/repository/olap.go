@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"log"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -14,6 +15,7 @@ type OLAPEventRepository interface {
 	ReadTaskRun(tenantId, taskRunId uuid.UUID) (olap.WorkflowRun, error)
 	ReadTaskRuns(tenantId uuid.UUID, limit, offset int64) ([]olap.WorkflowRun, error)
 	ReadTaskRunEvents(tenantId, taskId uuid.UUID, limit, offset int64) ([]olap.TaskRunEvent, error)
+	ReadTaskRunMetrics(tenantId uuid.UUID, since time.Time) ([]olap.TaskRunMetric, error)
 	CreateTasks(tasks []olap.Task) error
 	CreateTaskEvents(events []olap.TaskEvent) error
 }
@@ -191,6 +193,64 @@ func (r *olapEventRepository) ReadTaskRuns(tenantId uuid.UUID, limit, offset int
 		taskRun.Status = string(StringToReadableStatus(taskRun.Status))
 
 		records = append(records, taskRun)
+	}
+
+	return records, nil
+}
+
+func (r *olapEventRepository) ReadTaskRunMetrics(tenantId uuid.UUID, since time.Time) ([]olap.TaskRunMetric, error) {
+	ctx := context.Background()
+	rows, err := r.conn.Query(ctx, `
+		WITH candidate_tasks AS (
+			SELECT *
+			FROM tasks
+			WHERE tenant_id = ? AND created_at > ?
+		), max_retry_counts AS (
+			SELECT task_id, MAX(retry_count) AS max_retry_count
+			FROM task_events
+			WHERE
+				tenant_id = ?
+				AND task_id IN (SELECT id FROM candidate_tasks)
+			GROUP BY task_id
+		)
+
+		SELECT te.readable_status, COUNT(te.readable_status) AS count
+		FROM task_events te
+		JOIN max_retry_counts mrc ON te.task_id = mrc.task_id AND te.retry_count = mrc.max_retry_count
+		WHERE
+			te.tenant_id = ?
+			AND te.task_id IN (SELECT id FROM candidate_tasks)
+		GROUP BY te.readable_status
+		`,
+		tenantId,
+		since,
+		tenantId,
+		tenantId,
+	)
+
+	if err != nil {
+		return []olap.TaskRunMetric{}, err
+	}
+
+	records := make([]olap.TaskRunMetric, 0)
+
+	for rows.Next() {
+		var (
+			metric olap.TaskRunMetric
+		)
+
+		err = rows.Scan(
+			&metric.Status,
+			&metric.Count,
+		)
+
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		metric.Status = string(StringToReadableStatus(metric.Status))
+
+		records = append(records, metric)
 	}
 
 	return records, nil

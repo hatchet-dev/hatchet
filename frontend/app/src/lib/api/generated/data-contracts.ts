@@ -1268,6 +1268,13 @@ export interface WorkflowRunsMetrics {
   counts?: WorkflowRunsMetricsCounts;
 }
 
+export interface V2TaskRunMetric {
+  status: V2TaskStatus;
+  count: number;
+}
+
+export type V2TaskRunMetrics = V2TaskRunMetric[];
+
 export interface WorkflowRunShape {
   metadata: APIResourceMeta;
   tenantId: string;

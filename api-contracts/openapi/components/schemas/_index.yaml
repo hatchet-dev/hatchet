@@ -172,6 +172,8 @@ WorkflowRunOrderByDirection:
   $ref: "./workflow_run.yaml#/WorkflowRunOrderByDirection"
 WorkflowRunsMetrics:
   $ref: "./workflow_run.yaml#/WorkflowRunsMetrics"
+V2TaskRunMetrics:
+  $ref: "./workflow_run.yaml#/V2TaskRunMetrics"
 WorkflowRunsMetricsCounts:
   $ref: "./workflow_run.yaml#/WorkflowRunsMetricsCounts"
 WorkflowRunStatus:

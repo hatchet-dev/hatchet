@@ -31,7 +31,7 @@ import {
   XCircleIcon,
   XMarkIcon,
 } from '@heroicons/react/24/outline';
-import { WorkflowRunsMetricsView } from './workflow-runs-metrics';
+import { V2WorkflowRunsMetricsView } from './workflow-runs-metrics';
 import queryClient from '@/query-client';
 import { useApiError } from '@/lib/hooks';
 import {
@@ -316,16 +316,12 @@ export function WorkflowRunsTable({
   });
 
   const metricsQuery = useQuery({
-    ...queries.workflowRuns.metrics(tenant.metadata.id, {
-      workflowId: workflow,
-      parentWorkflowRunId,
-      parentStepRunId,
-      additionalMetadata: AdditionalMetadataFilter,
-      createdAfter,
-    }),
+    ...queries.v2TaskRuns.metrics(tenant.metadata.id, createdAfter),
     placeholderData: (prev) => prev,
     refetchInterval,
   });
+
+  const metrics = metricsQuery.data || [];
 
   const tenantMetricsQuery = useQuery({
     ...queries.metrics.getStepRunQueueMetrics(tenant.metadata.id),
@@ -632,9 +628,9 @@ export function WorkflowRunsTable({
         />
       )}
       <div className="flex flex-row justify-between items-center my-4">
-        {metricsQuery.data ? (
-          <WorkflowRunsMetricsView
-            metrics={metricsQuery.data}
+        {metrics.length > 0 ? (
+          <V2WorkflowRunsMetricsView
+            metrics={metrics}
             onViewQueueMetricsClick={() => {
               setViewQueueMetrics(true);
             }}

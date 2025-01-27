@@ -303,12 +303,42 @@ WorkflowRunsMetricsCounts:
     QUEUED:
       type: integer
 
+TaskRunMetricsCounts:
+  type: object
+  properties:
+    PENDING:
+      type: integer
+    RUNNING:
+      type: integer
+    SUCCEEDED:
+      type: integer
+    FAILED:
+      type: integer
+    QUEUED:
+      type: integer
+
 WorkflowRunsMetrics:
   type: object
   properties:
     counts:
       type: object
       $ref: "#/WorkflowRunsMetricsCounts"
+
+V2TaskRunMetrics:
+  type: array
+  items:
+    $ref: "#/V2TaskRunMetric"
+
+V2TaskRunMetric:
+  type: object
+  properties:
+    status:
+      $ref: "./v2/workflow_run.yaml#/V2TaskStatus"
+    count:
+      type: integer
+  required:
+    - status
+    - count
 
 StepRunStatus:
   type: string

@@ -227,6 +227,15 @@ export const queries = createQueryKeyStore({
           .data,
     }),
   },
+  v2TaskRuns: {
+    metrics: (tenant: string, since: string | undefined) => ({
+      queryKey: ['v2:task-run:metrics', tenant],
+      queryFn: async () =>
+        (await api.taskRunGetMetrics(tenant, {
+          since,
+        })).data,
+    }),
+  },
   workflowRuns: {
     list: (tenant: string, query: ListWorkflowRunsQuery) => ({
       queryKey: ['workflow-run:list', tenant, query],

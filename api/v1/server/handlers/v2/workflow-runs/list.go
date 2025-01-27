@@ -66,3 +66,18 @@ func (t *V2WorkflowRunsService) V2WorkflowRunListStepRunEvents(ctx echo.Context,
 		result,
 	), nil
 }
+
+func (t *V2WorkflowRunsService) TaskRunGetMetrics(ctx echo.Context, request gen.TaskRunGetMetricsRequestObject) (gen.TaskRunGetMetricsResponseObject, error) {
+	metrics, err := t.config.EngineRepository.OLAP().ReadTaskRunMetrics(request.Tenant, *request.Params.Since)
+
+	if err != nil {
+		return nil, err
+	}
+
+	result := transformers.ToTaskRunMetrics(&metrics)
+
+	// Search for api errors to see how we handle errors in other cases
+	return gen.TaskRunGetMetrics200JSONResponse(
+		result,
+	), nil
+}

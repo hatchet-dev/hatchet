@@ -142,3 +142,8 @@ type TaskEvent struct {
 	AdditionalEventData    string     `json:"additional__event_data"`
 	AdditionalEventMessage string     `json:"additional__event_message"`
 }
+
+type TaskRunMetric struct {
+	Status string `json:"status"`
+	Count  uint64 `json:"count"`
+}

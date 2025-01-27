@@ -88,3 +88,16 @@ func ToTaskRunEvent(
 		Pagination: &gen.PaginationResponse{},
 	}
 }
+
+func ToTaskRunMetrics(metrics *[]olap.TaskRunMetric) gen.V2TaskRunMetrics {
+	toReturn := make([]gen.V2TaskRunMetric, len(*metrics))
+
+	for i, metric := range *metrics {
+		toReturn[i] = gen.V2TaskRunMetric{
+			Count:  int(metric.Count),
+			Status: gen.V2TaskStatus(metric.Status),
+		}
+	}
+
+	return toReturn
+}
