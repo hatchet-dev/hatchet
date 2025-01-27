@@ -34,7 +34,7 @@ listWorkflowRuns:
         schema:
           type: array
           items:
-            $ref: "../../../components/schemas/_index.yaml#/V2TaskRunStatus"
+            $ref: "../../../components/schemas/_index.yaml#/V2TaskStatus"
       - description: The earliest date to filter by
         in: query
         name: since

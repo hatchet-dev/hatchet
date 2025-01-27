@@ -302,3 +302,5 @@ V2WorkflowRun:
   $ref: "./v2/workflow_run.yaml#/V2WorkflowRun"
 V2ListStepRunEventsForWorkflowRun:
   $ref: "./v2/workflow_run.yaml#/V2ListStepRunEventsForWorkflowRun"
+V2TaskStatus:
+  $ref: "./v2/workflow_run.yaml#/V2TaskStatus"

@@ -28,12 +28,12 @@ func (t *V2WorkflowRunsService) V2WorkflowRunGet(ctx echo.Context, request gen.V
 
 func (t *V2WorkflowRunsService) V2WorkflowRunsList(ctx echo.Context, request gen.V2WorkflowRunsListRequestObject) (gen.V2WorkflowRunsListResponseObject, error) {
 	var (
-		statuses = []gen.V2TaskRunStatus{
-			gen.V2TaskRunStatusCANCELLED,
-			gen.V2TaskRunStatusCOMPLETED,
-			gen.V2TaskRunStatusFAILED,
-			gen.V2TaskRunStatusPENDING,
-			gen.V2TaskRunStatusRUNNING,
+		statuses = []gen.V2TaskStatus{
+			gen.V2TaskStatusCANCELLED,
+			gen.V2TaskStatusCOMPLETED,
+			gen.V2TaskStatusFAILED,
+			gen.V2TaskStatusQUEUED,
+			gen.V2TaskStatusRUNNING,
 		}
 		since        = time.Now().Add(-24 * time.Hour)
 		limit  int64 = 50
