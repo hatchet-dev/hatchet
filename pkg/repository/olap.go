@@ -16,7 +16,7 @@ import (
 
 type OLAPEventRepository interface {
 	ReadTaskRun(tenantId, taskRunId uuid.UUID) (olap.WorkflowRun, error)
-	ReadTaskRuns(tenantId uuid.UUID, since time.Time, statuses []gen.V2TaskStatus, limit, offset int64) ([]olap.WorkflowRun, uint64, error)
+	ReadTaskRuns(tenantId uuid.UUID, since time.Time, statuses []gen.V2TaskStatus, workflowIds []uuid.UUID, limit, offset int64) ([]olap.WorkflowRun, uint64, error)
 	ReadTaskRunEvents(tenantId, taskId uuid.UUID, limit, offset int64) ([]olap.TaskRunEvent, error)
 	ReadTaskRunMetrics(tenantId uuid.UUID, since time.Time) ([]olap.TaskRunMetric, error)
 	CreateTasks(tasks []olap.Task) error
@@ -65,7 +65,7 @@ func StringToReadableStatus(status string) olap.ReadableTaskStatus {
 	}
 }
 
-func (r *olapEventRepository) ReadTaskRuns(tenantId uuid.UUID, since time.Time, statuses []gen.V2TaskStatus, limit, offset int64) ([]olap.WorkflowRun, uint64, error) {
+func (r *olapEventRepository) ReadTaskRuns(tenantId uuid.UUID, since time.Time, statuses []gen.V2TaskStatus, workflowIds []uuid.UUID, limit, offset int64) ([]olap.WorkflowRun, uint64, error) {
 	var stringifiedStatuses = make([]string, len(statuses))
 	for i, status := range statuses {
 		stringifiedStatuses[i] = string(status)

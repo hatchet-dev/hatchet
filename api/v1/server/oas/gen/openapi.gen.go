@@ -1871,6 +1871,9 @@ type V2WorkflowRunsListParams struct {
 
 	// Since The earliest date to filter by
 	Since *time.Time `form:"since,omitempty" json:"since,omitempty"`
+
+	// WorkflowIds The workflow id to find runs for
+	WorkflowIds *[]openapi_types.UUID `form:"workflow_ids,omitempty" json:"workflow_ids,omitempty"`
 }
 
 // V2WorkflowRunListStepRunEventsParams defines parameters for V2WorkflowRunListStepRunEvents.
@@ -4692,6 +4695,13 @@ func (w *ServerInterfaceWrapper) V2WorkflowRunsList(ctx echo.Context) error {
 	err = runtime.BindQueryParameter("form", true, false, "since", ctx.QueryParams(), &params.Since)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter since: %s", err))
+	}
+
+	// ------------- Optional query parameter "workflow_ids" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "workflow_ids", ctx.QueryParams(), &params.WorkflowIds)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter workflow_ids: %s", err))
 	}
 
 	// Invoke the callback with all the unmarshaled arguments
@@ -11595,10 +11605,10 @@ var swaggerSpec = []string{
 	"EHYmkLgz6JmySWeCf8sNKUEGC2aNebVcMQq8jZLEtKlh2tQwa0gN00g0C9mALW61cprcSiyL2JodcsH8",
 	"CnJ5zVJOBkwtZwq28m6rTMCMFJc1AY/L2agIwPeLVoijfe2Lw10BfP9rFIZjCQx45ShRM0RBgOngigJ3",
 	"y+o//TgWW7LYAbK4+63baY11n47NeeT2KuvEZ6ForDxhnkfLYf4/jtWqYG2Bp20t8LSu0t1W5WG44DAW",
-	"htEX0wSxj6gJxh3rFuBto8BUmaPJ68E2/71BUPIowJoKNOyktQopmR2u0qozVZYOCqa+oufGz1zCVUjM",
-	"XS5uka6z7oi3w4UscpvVMvAaLJ0Nsu8BJjCif+1x06bSBsqZP76fFq0r3cTxNVTwOB1NlLLr83l3Pnvu",
-	"FnD9L2/CrVeslYjycxg3EXX5o53gp9YNtCE3EHcqiCqajwAzB6bOL7SAJJPSmFJHbdry4gvRMQQxjNMX",
-	"ol3tm1H25JALviT2Ox87nZfbl/8XAAD//+/wrB8sIgIA",
+	"htEX0wSxj6gJxh3rFuAtJjBtqjxNUOClZZ5qqjzdIc+AoaVIdqPVdPJM3eTVY5u33yDgefRiTeUcdkJc",
+	"hXTPDoVptZwqCw0FU1/Rz+NnLpkrJP0uF+VI11l3NN3hAhy5zWoZeA0W2gbZ9wATGNG/9rhJVmm75cw2",
+	"30+L7ZVuEPkaKnicjiZK8PX5vDuf9XcLuP6XNz3XK9ZKRPk5jJuIuvyRVPBT677akPuKO0NE9c9HgJnj",
+	"VefPWkCSSWlMqaM23XrxZesYghjG6cvWrvatK3sqyQVfEvudj53Oy+3L/wsAAP//6sAdB+QiAgA=",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file
