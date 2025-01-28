@@ -78,6 +78,7 @@ func (t *WorkflowService) WorkflowRunGetMetrics(ctx echo.Context, request gen.Wo
 	queued := int(workflowRunsMetricsCount.QUEUED)
 	running := int(workflowRunsMetricsCount.RUNNING)
 	succeeded := int(workflowRunsMetricsCount.SUCCEEDED)
+	cancelled := int(workflowRunsMetricsCount.CANCELLED)
 
 	return gen.WorkflowRunGetMetrics200JSONResponse(
 		gen.WorkflowRunsMetrics{
@@ -87,6 +88,7 @@ func (t *WorkflowService) WorkflowRunGetMetrics(ctx echo.Context, request gen.Wo
 				QUEUED:    &queued,
 				RUNNING:   &running,
 				SUCCEEDED: &succeeded,
+				CANCELLED: &cancelled,
 			},
 		},
 	), nil

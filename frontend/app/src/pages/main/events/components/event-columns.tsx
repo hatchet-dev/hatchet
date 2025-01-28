@@ -151,7 +151,7 @@ function WorkflowRunSummary({ event }: { event: Event }) {
   invariant(tenant);
 
   const [hoverCardOpen, setPopoverOpen] = useState<
-    'failed' | 'succeeded' | 'running' | 'queued' | 'pending'
+    'failed' | 'succeeded' | 'running' | 'queued' | 'pending' | 'cancelled'
   >();
 
   const numFailed = event.workflowRunSummary?.failed || 0;
@@ -159,6 +159,7 @@ function WorkflowRunSummary({ event }: { event: Event }) {
   const numRunning = event.workflowRunSummary?.running || 0;
   const numPending = event.workflowRunSummary?.pending || 0;
   const numQueued = event.workflowRunSummary?.queued || 0;
+  const numCancelled = event.workflowRunSummary?.cancelled || 0;
 
   const listWorkflowRunsQuery = useQuery({
     ...queries.workflowRuns.list(tenant.metadata.id, {
@@ -187,6 +188,9 @@ function WorkflowRunSummary({ event }: { event: Event }) {
           }
           if (hoverCardOpen == 'queued') {
             return run.status == 'QUEUED';
+          }
+          if (hoverCardOpen == 'cancelled') {
+            return run.status == 'CANCELLED';
           }
         }
 
@@ -219,7 +223,6 @@ function WorkflowRunSummary({ event }: { event: Event }) {
       {numFailed > 0 && (
         <Popover
           open={hoverCardOpen == 'failed'}
-          // open={true}
           onOpenChange={(open) => {
             if (!open) {
               setPopoverOpen(undefined);
@@ -345,6 +348,26 @@ function WorkflowRunSummary({ event }: { event: Event }) {
           >
             {hoverCardContent}
           </PopoverContent>
+        </Popover>
+      )}
+      {numCancelled > 0 && (
+        <Popover
+          open={hoverCardOpen == 'cancelled'}
+          onOpenChange={(open) => {
+            if (!open) {
+              setPopoverOpen(undefined);
+            }
+          }}
+        >
+          <PopoverTrigger>
+            <Badge
+              variant="outlineDestructive"
+              className="cursor-pointer"
+              onClick={() => setPopoverOpen('cancelled')}
+            >
+              {numCancelled} Cancelled
+            </Badge>
+          </PopoverTrigger>
         </Popover>
       )}
     </div>
