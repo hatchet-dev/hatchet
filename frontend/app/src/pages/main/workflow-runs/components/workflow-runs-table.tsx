@@ -236,22 +236,6 @@ export function WorkflowRunsTable({
     return pagination.pageIndex * pagination.pageSize;
   }, [pagination]);
 
-  function workflowRunStatusToV2TaskStatus(status: WorkflowRunStatus) {
-    switch (status) {
-      case WorkflowRunStatus.SUCCEEDED:
-        return V2TaskStatus.COMPLETED;
-      case WorkflowRunStatus.FAILED:
-        return V2TaskStatus.FAILED;
-      case WorkflowRunStatus.RUNNING:
-        return V2TaskStatus.RUNNING;
-      case WorkflowRunStatus.QUEUED:
-      case WorkflowRunStatus.PENDING:
-        return V2TaskStatus.QUEUED;
-      case WorkflowRunStatus.CANCELLED:
-        return V2TaskStatus.CANCELLED;
-    }
-  }
-
   const workflow = useMemo<string | undefined>(() => {
     const filter = columnFilters.find((filter) => filter.id === 'Workflow');
 
@@ -270,9 +254,7 @@ export function WorkflowRunsTable({
       return;
     }
 
-    const statusFilters = filter?.value as Array<WorkflowRunStatus>;
-
-    return statusFilters.map(workflowRunStatusToV2TaskStatus);
+    return filter?.value as Array<V2TaskStatus>;
   }, [columnFilters]);
 
   const listWorkflowRunsQuery = useQuery({

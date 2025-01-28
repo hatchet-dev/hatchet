@@ -1193,13 +1193,13 @@ type V2WorkflowRun struct {
 	DisplayName string `json:"displayName"`
 
 	// Duration The duration of the task run.
-	Duration int `json:"duration"`
+	Duration *int64 `json:"duration"`
 
 	// ErrorMessage The error message of the task run.
 	ErrorMessage *string `json:"errorMessage,omitempty"`
 
 	// FinishedAt The timestamp the task run finished.
-	FinishedAt time.Time `json:"finishedAt"`
+	FinishedAt *time.Time `json:"finishedAt"`
 
 	// Id The ID of the task run.
 	Id openapi_types.UUID `json:"id"`
@@ -1212,7 +1212,7 @@ type V2WorkflowRun struct {
 	Output *map[string]interface{} `json:"output,omitempty"`
 
 	// StartedAt The timestamp the task run started.
-	StartedAt time.Time    `json:"startedAt"`
+	StartedAt *time.Time    `json:"startedAt"`
 	Status    V2TaskStatus `json:"status"`
 
 	// TaskId The ID of the task associated with this task run.
