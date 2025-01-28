@@ -437,11 +437,13 @@ WITH jobRuns AS (
     SET "status" = CASE
         -- Final states are final, cannot be updated
         WHEN "status" IN ('SUCCEEDED', 'FAILED') THEN "status"
-        -- We check for running first, because if a job run is running, then the workflow is running
+        -- We check for cancelled first, because if a job run is cancelled, then the workflow is cancelled
+        WHEN j.cancelledRuns > 0 THEN 'CANCELLED'
+        -- Then we check for running, because if a job run is running, then the workflow is running
         WHEN j.runningRuns > 0 THEN 'RUNNING'
-        -- When at least one job run has failed or been cancelled, then the workflow is failed
-        WHEN j.failedRuns > 0 OR j.cancelledRuns > 0 THEN 'FAILED'
-        -- When all job runs have succeeded, then the workflow is succeeded
+        -- Then we check for failed, because if a job run has failed, then the workflow is failed
+        WHEN j.failedRuns > 0 THEN 'FAILED'
+        -- Then we check for succeeded, because if all job runs have succeeded, then the workflow is succeeded
         WHEN j.succeededRuns > 0 AND j.pendingRuns = 0 AND j.runningRuns = 0 AND j.failedRuns = 0 AND j.cancelledRuns = 0 THEN 'SUCCEEDED'
         ELSE "status"
     END,
