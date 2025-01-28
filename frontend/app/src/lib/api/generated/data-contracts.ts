@@ -534,6 +534,11 @@ export interface EventWorkflowRunSummary {
    * @format int64
    */
   failed?: number;
+  /**
+   * The number of cancelled runs.
+   * @format int64
+   */
+  cancelled?: number;
 }
 
 export interface Event {

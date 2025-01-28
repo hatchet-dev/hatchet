@@ -426,7 +426,8 @@ event_run_counts AS (
         COUNT(CASE WHEN runs."status" = 'QUEUED' THEN 1 END) AS queuedRuns,
         COUNT(CASE WHEN runs."status" = 'RUNNING' THEN 1 END) AS runningRuns,
         COUNT(CASE WHEN runs."status" = 'SUCCEEDED' THEN 1 END) AS succeededRuns,
-        COUNT(CASE WHEN runs."status" = 'FAILED' THEN 1 END) AS failedRuns
+        COUNT(CASE WHEN runs."status" = 'FAILED' THEN 1 END) AS failedRuns,
+        COUNT(CASE WHEN runs."status" = 'CANCELLED' THEN 1 END) AS cancelledRuns
     FROM
         filtered_events
     JOIN
@@ -444,7 +445,8 @@ SELECT
     COALESCE(erc.queuedRuns, 0) AS queuedRuns,
     COALESCE(erc.runningRuns, 0) AS runningRuns,
     COALESCE(erc.succeededRuns, 0) AS succeededRuns,
-    COALESCE(erc.failedRuns, 0) AS failedRuns
+    COALESCE(erc.failedRuns, 0) AS failedRuns,
+    COALESCE(erc.cancelledRuns, 0) AS cancelledRuns
 FROM
     filtered_events fe
 JOIN
@@ -476,6 +478,7 @@ type ListEventsRow struct {
 	Runningruns   int64 `json:"runningruns"`
 	Succeededruns int64 `json:"succeededruns"`
 	Failedruns    int64 `json:"failedruns"`
+	Cancelledruns int64 `json:"cancelledruns"`
 }
 
 func (q *Queries) ListEvents(ctx context.Context, db DBTX, arg ListEventsParams) ([]*ListEventsRow, error) {
@@ -514,6 +517,7 @@ func (q *Queries) ListEvents(ctx context.Context, db DBTX, arg ListEventsParams)
 			&i.Runningruns,
 			&i.Succeededruns,
 			&i.Failedruns,
+			&i.Cancelledruns,
 		); err != nil {
 			return nil, err
 		}
