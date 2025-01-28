@@ -1471,8 +1471,6 @@ func (s *stepRunEngineRepository) StepRunRetryBackoff(ctx context.Context, tenan
 	ctx, span := telemetry.NewSpan(ctx, "step-run-retry-backoff-db")
 	defer span.End()
 
-	// TODO update backoff after picked up
-
 	backoff := string(dbsqlc.StepRunStatusBACKOFF)
 
 	err := s.bulkStatusBuffer.FireForget(tenantId, &updateStepRunQueueData{
