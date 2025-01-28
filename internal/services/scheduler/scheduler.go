@@ -545,5 +545,6 @@ func taskBulkAssignedTask(tenantId, dispatcherId string, workerIdsToTaskIds map[
 			WorkerIdToTaskIds: workerIdsToTaskIds,
 		},
 		false,
+		true,
 	)
 }

@@ -238,5 +238,6 @@ func eventToTask(tenantId, eventId, key, data, additionalMeta string) (*msgqueue
 		"event-trigger",
 		payloadTyped,
 		false,
+		true,
 	)
 }

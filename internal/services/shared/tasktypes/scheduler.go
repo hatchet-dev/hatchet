@@ -17,6 +17,7 @@ func CheckTenantQueueToTask(tenantId, queueName string, isStepQueued bool, isSlo
 			IsSlotReleased: isSlotReleased,
 			QueueName:      queueName,
 		},
+		true,
 		false,
 	)
 }

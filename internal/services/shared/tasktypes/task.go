@@ -30,6 +30,7 @@ func TriggerTaskMessage(tenantId string, taskExternalId, name string, data []byt
 			AdditionalMetadata: additionalMetadata,
 		},
 		false,
+		true,
 	)
 }
 
@@ -50,6 +51,7 @@ func CompletedTaskMessage(tenantId string, taskId int64, retryCount int32) (*msg
 			RetryCount: retryCount,
 		},
 		false,
+		true,
 	)
 }
 
@@ -74,6 +76,7 @@ func FailedTaskMessage(tenantId string, taskId int64, retryCount int32, isAppErr
 			IsAppError: isAppError,
 		},
 		false,
+		true,
 	)
 }
 
@@ -98,5 +101,6 @@ func CancelledTaskMessage(tenantId string, taskId int64, retryCount int32, event
 			EventType:  eventType,
 		},
 		false,
+		true,
 	)
 }

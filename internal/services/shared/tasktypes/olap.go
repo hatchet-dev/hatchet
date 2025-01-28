@@ -79,6 +79,7 @@ func CreatedTaskMessage(tenantId string, task *sqlcv2.V2Task) (*msgqueue.Message
 			// DesiredWorkerId:    task.DesiredWorkerId,
 		},
 		false,
+		true,
 	)
 }
 
@@ -123,6 +124,7 @@ func MonitoringEventMessageFromActionEvent(tenantId string, taskId int64, retryC
 		"create-monitoring-event",
 		payload,
 		false,
+		false,
 	)
 }
 
@@ -131,6 +133,7 @@ func MonitoringEventMessageFromInternal(tenantId string, payload CreateMonitorin
 		tenantId,
 		"create-monitoring-event",
 		payload,
+		false,
 		false,
 	)
 }

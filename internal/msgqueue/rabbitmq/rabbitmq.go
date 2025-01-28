@@ -232,6 +232,10 @@ func (t *MessageQueueImpl) pubMessage(ctx context.Context, q msgqueue.Queue, msg
 		Body: body,
 	}
 
+	if msg.Persistent {
+		pubMsg.DeliveryMode = amqp.Persistent
+	}
+
 	if msg.ImmediatelyExpire {
 		pubMsg.Expiration = "0"
 	}
