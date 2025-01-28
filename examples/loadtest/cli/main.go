@@ -4,7 +4,6 @@ import (
 	"log"
 	"time"
 
-	"github.com/joho/godotenv"
 	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
 
@@ -26,11 +25,6 @@ func main() {
 	var loadtest = &cobra.Command{
 		Use: "loadtest",
 		Run: func(cmd *cobra.Command, args []string) {
-			err := godotenv.Load()
-			if err != nil {
-				panic(err)
-			}
-
 			l = logger.NewStdErr(
 				&shared.LoggerConfigFile{
 					Level:  logLevel,
