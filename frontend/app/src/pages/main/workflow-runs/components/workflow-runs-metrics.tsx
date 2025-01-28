@@ -109,6 +109,24 @@ export const WorkflowRunsMetricsView: React.FC<WorkflowRunsMetricsProps> = ({
   );
 };
 
+function statusToFriendlyName(status: V2TaskStatus) {
+  switch (status) {
+    case V2TaskStatus.CANCELLED:
+      return 'Cancelled';
+    case V2TaskStatus.COMPLETED:
+      return 'Succeeded';
+    case V2TaskStatus.FAILED:
+      return 'Failed';
+    case V2TaskStatus.QUEUED:
+      return 'Queued';
+    case V2TaskStatus.RUNNING:
+      return 'Running';
+    default:
+      const exhaustivenessCheck: never = status;
+      throw new Error(`Unknown status: ${exhaustivenessCheck}`);
+  }
+}
+
 function MetricBadge({
   metrics,
   status,
@@ -131,7 +149,6 @@ function MetricBadge({
   }
 
   const percentage = calculatePercentage(metric.count, total);
-  const friendlyName = status.toLowerCase().replace('_', ' ');
 
   return (
     <Badge
@@ -139,7 +156,8 @@ function MetricBadge({
       className={className}
       onClick={() => onClick(status)}
     >
-      {metric.count.toLocaleString('en-US')} {friendlyName} ({percentage}%)
+      {metric.count.toLocaleString('en-US')} {statusToFriendlyName(status)} (
+      {percentage}%)
     </Badge>
   );
 }
