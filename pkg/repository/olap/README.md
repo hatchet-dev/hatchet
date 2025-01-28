@@ -9,6 +9,7 @@
         id UUID NOT NULL,
         source_id BIGINT UNSIGNED NOT NULL,
         tenant_id UUID NOT NULL,
+        workflow_id UUID NOT NULL,
         queue TEXT NOT NULL,
         action_id TEXT NOT NULL,
         schedule_timeout TEXT NOT NULL DEFAULT '5m',
