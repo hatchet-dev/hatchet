@@ -188,7 +188,7 @@ func getRankedSlots(
 
 		// if this is a HARD sticky strategy, and there's a desired worker id, it can only be assigned to that
 		// worker. if there's no desired worker id, we assign to any worker.
-		if qi.Sticky.Valid && qi.Sticky.StickyStrategy == sqlcv2.StickyStrategyHARD {
+		if qi.Sticky == sqlcv2.V2StickyStrategyHARD {
 			if qi.DesiredWorkerID.Valid && workerId == sqlchelpers.UUIDToStr(qi.DesiredWorkerID) {
 				validSlots.addSlot(slot, 0)
 			} else if !qi.DesiredWorkerID.Valid {
@@ -200,7 +200,7 @@ func getRankedSlots(
 
 		// if this is a SOFT sticky strategy, we should prefer the desired worker, but if it is not
 		// available, we can assign to any worker.
-		if qi.Sticky.Valid && qi.Sticky.StickyStrategy == sqlcv2.StickyStrategySOFT {
+		if qi.Sticky == sqlcv2.V2StickyStrategySOFT {
 			if qi.DesiredWorkerID.Valid && workerId == sqlchelpers.UUIDToStr(qi.DesiredWorkerID) {
 				validSlots.addSlot(slot, 1)
 			} else {

@@ -585,7 +585,7 @@ func (s *Scheduler) tryAssignSingleton(
 	ctx, span := telemetry.NewSpan(ctx, "try-assign-singleton") // nolint: ineffassign
 	defer span.End()
 
-	if qi.Sticky.Valid || len(labels) > 0 {
+	if (qi.Sticky != sqlcv2.V2StickyStrategyNONE) || len(labels) > 0 {
 		candidateSlots = getRankedSlots(qi, labels, candidateSlots)
 	}
 

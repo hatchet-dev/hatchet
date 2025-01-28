@@ -1808,20 +1808,20 @@ type V2Queue struct {
 }
 
 type V2QueueItem struct {
-	ID                int64              `json:"id"`
-	TenantID          pgtype.UUID        `json:"tenant_id"`
-	Queue             string             `json:"queue"`
-	TaskID            int64              `json:"task_id"`
-	ActionID          string             `json:"action_id"`
-	StepID            pgtype.UUID        `json:"step_id"`
-	WorkflowID        pgtype.UUID        `json:"workflow_id"`
-	ScheduleTimeoutAt pgtype.Timestamp   `json:"schedule_timeout_at"`
-	StepTimeout       pgtype.Text        `json:"step_timeout"`
-	Priority          int32              `json:"priority"`
-	Sticky            NullStickyStrategy `json:"sticky"`
-	DesiredWorkerID   pgtype.UUID        `json:"desired_worker_id"`
-	IsQueued          bool               `json:"is_queued"`
-	RetryCount        int32              `json:"retry_count"`
+	ID                int64            `json:"id"`
+	TenantID          pgtype.UUID      `json:"tenant_id"`
+	Queue             string           `json:"queue"`
+	TaskID            int64            `json:"task_id"`
+	ActionID          string           `json:"action_id"`
+	StepID            pgtype.UUID      `json:"step_id"`
+	WorkflowID        pgtype.UUID      `json:"workflow_id"`
+	ScheduleTimeoutAt pgtype.Timestamp `json:"schedule_timeout_at"`
+	StepTimeout       pgtype.Text      `json:"step_timeout"`
+	Priority          int32            `json:"priority"`
+	Sticky            V2StickyStrategy `json:"sticky"`
+	DesiredWorkerID   pgtype.UUID      `json:"desired_worker_id"`
+	IsQueued          bool             `json:"is_queued"`
+	RetryCount        int32            `json:"retry_count"`
 }
 
 type V2Task struct {

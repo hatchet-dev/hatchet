@@ -27,7 +27,7 @@ func TestGetRankedSlots(t *testing.T) {
 		{
 			name: "HARD sticky strategy with desired worker available",
 			qi: &sqlcv2.V2QueueItem{
-				Sticky:          sqlcv2.NullStickyStrategy{Valid: true, StickyStrategy: sqlcv2.StickyStrategyHARD},
+				Sticky:          sqlcv2.V2StickyStrategyHARD,
 				DesiredWorkerID: sqlchelpers.UUIDFromStr(stableWorkerId1),
 			},
 			slots: []*slot{
@@ -39,7 +39,7 @@ func TestGetRankedSlots(t *testing.T) {
 		{
 			name: "HARD sticky strategy without desired worker",
 			qi: &sqlcv2.V2QueueItem{
-				Sticky:          sqlcv2.NullStickyStrategy{Valid: true, StickyStrategy: sqlcv2.StickyStrategyHARD},
+				Sticky:          sqlcv2.V2StickyStrategyHARD,
 				DesiredWorkerID: sqlchelpers.UUIDFromStr(uuid.New().String()),
 			},
 			slots: []*slot{
@@ -51,7 +51,7 @@ func TestGetRankedSlots(t *testing.T) {
 		{
 			name: "SOFT sticky strategy with desired worker available",
 			qi: &sqlcv2.V2QueueItem{
-				Sticky:          sqlcv2.NullStickyStrategy{Valid: true, StickyStrategy: sqlcv2.StickyStrategySOFT},
+				Sticky:          sqlcv2.V2StickyStrategySOFT,
 				DesiredWorkerID: sqlchelpers.UUIDFromStr(stableWorkerId1),
 			},
 			slots: []*slot{
