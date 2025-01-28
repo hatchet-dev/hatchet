@@ -3,6 +3,7 @@ package transformers
 import (
 	"encoding/json"
 	"math"
+	"time"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/repository/olap"
@@ -19,13 +20,28 @@ func ToWorkflowRun(wf *olap.WorkflowRun) gen.V2WorkflowRun {
 	input := jsonToMap(wf.Input)
 	output := jsonToMap(wf.Output)
 
+	var finishedAt time.Time
+	if wf.FinishedAt != nil {
+		finishedAt = *wf.FinishedAt
+	}
+
+	var startedAt time.Time
+	if wf.StartedAt != nil {
+		startedAt = *wf.StartedAt
+	}
+
+	var duration int64
+	if wf.Duration != nil {
+		duration = *wf.Duration
+	}
+
 	return gen.V2WorkflowRun{
 		AdditionalMetadata: additionalMetadata,
 		CreatedAt:          wf.CreatedAt,
 		DisplayName:        *wf.DisplayName,
-		Duration:           wf.Duration,
+		Duration:           int(duration),
 		ErrorMessage:       wf.ErrorMessage,
-		FinishedAt:         wf.FinishedAt,
+		FinishedAt:         finishedAt,
 		Id:                 wf.Id,
 		Input:              input,
 		Output:             &output,
@@ -34,7 +50,7 @@ func ToWorkflowRun(wf *olap.WorkflowRun) gen.V2WorkflowRun {
 			CreatedAt: wf.CreatedAt,
 			UpdatedAt: wf.CreatedAt,
 		},
-		StartedAt:  wf.StartedAt,
+		StartedAt:  startedAt,
 		Status:     gen.V2TaskStatus(wf.Status),
 		TaskId:     wf.TaskId,
 		TenantId:   *wf.TenantId,
