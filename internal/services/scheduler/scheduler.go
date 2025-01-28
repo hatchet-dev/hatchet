@@ -20,6 +20,7 @@ import (
 	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/olap"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 	repov2 "github.com/hatchet-dev/hatchet/pkg/repository/v2"
 	v2 "github.com/hatchet-dev/hatchet/pkg/scheduling/v2"
@@ -109,14 +110,15 @@ func WithSchedulerPool(s *v2.SchedulingPool) SchedulerOpt {
 }
 
 type Scheduler struct {
-	mq     msgqueue.MessageQueue
-	l      *zerolog.Logger
-	repo   repository.EngineRepository
-	repov2 repov2.Repository
-	dv     datautils.DataDecoderValidator
-	s      gocron.Scheduler
-	a      *hatcheterrors.Wrapped
-	p      *partition.Partition
+	mq        msgqueue.MessageQueue
+	pubBuffer *msgqueue.MQPubBuffer
+	l         *zerolog.Logger
+	repo      repository.EngineRepository
+	repov2    repov2.Repository
+	dv        datautils.DataDecoderValidator
+	s         gocron.Scheduler
+	a         *hatcheterrors.Wrapped
+	p         *partition.Partition
 
 	// a custom queue logger
 	ql *zerolog.Logger
@@ -162,17 +164,20 @@ func New(
 	a := hatcheterrors.NewWrapped(opts.alerter)
 	a.WithData(map[string]interface{}{"service": "scheduler"})
 
+	pubBuffer := msgqueue.NewMQPubBuffer(opts.mq)
+
 	q := &Scheduler{
-		mq:     opts.mq,
-		l:      opts.l,
-		repo:   opts.repo,
-		repov2: opts.repov2,
-		dv:     opts.dv,
-		s:      s,
-		a:      a,
-		p:      opts.p,
-		ql:     opts.queueLogger,
-		pool:   opts.pool,
+		mq:        opts.mq,
+		pubBuffer: pubBuffer,
+		l:         opts.l,
+		repo:      opts.repo,
+		repov2:    opts.repov2,
+		dv:        opts.dv,
+		s:         s,
+		a:         a,
+		p:         opts.p,
+		ql:        opts.queueLogger,
+		pool:      opts.pool,
 	}
 
 	return q, nil
@@ -356,6 +361,8 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 			}
 		}
 
+		assignedMsgs := make([]*msgqueue.Message, 0)
+
 		for _, bulkAssigned := range res.Assigned {
 			dispatcherId, ok := workerIdToDispatcherId[sqlchelpers.UUIDToStr(bulkAssigned.WorkerId)]
 
@@ -378,6 +385,26 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 			}
 
 			dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId] = append(dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId], bulkAssigned.QueueItem.TaskID)
+
+			taskId := bulkAssigned.QueueItem.TaskID
+
+			assignedMsg, err := tasktypes.MonitoringEventMessageFromInternal(
+				tenantId,
+				tasktypes.CreateMonitoringEventPayload{
+					TaskId:         &taskId,
+					RetryCount:     bulkAssigned.QueueItem.RetryCount,
+					WorkerId:       &workerId,
+					EventType:      olap.EVENT_TYPE_ASSIGNED,
+					EventTimestamp: time.Now(),
+				},
+			)
+
+			if err != nil {
+				err = multierror.Append(err, fmt.Errorf("could not create monitoring event message: %w", err))
+				continue
+			}
+
+			assignedMsgs = append(assignedMsgs, assignedMsg)
 		}
 
 		// for each dispatcher, send a bulk assigned task
@@ -398,45 +425,96 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 				err = multierror.Append(err, fmt.Errorf("could not send bulk assigned task: %w", err))
 			}
 		}
+
+		for _, assignedMsg := range assignedMsgs {
+			s.pubBuffer.Pub(
+				ctx,
+				msgqueue.OLAP_QUEUE,
+				assignedMsg,
+			)
+		}
 	}
 
-	// TODO: FIXME
-	// for _, toCancel := range res.SchedulingTimedOut {
-	// 	innerErr := s.mq.SendMessage(
-	// 		ctx,
-	// 		msgqueue.JOB_PROCESSING_QUEUE,
-	// 		getStepRunCancelTask(
-	// 			tenantId,
-	// 			toCancel,
-	// 			"SCHEDULING_TIMED_OUT",
-	// 		),
-	// 	)
+	if len(res.SchedulingTimedOut) > 0 {
+		for _, schedulingTimedOut := range res.SchedulingTimedOut {
+			msg, err := tasktypes.CancelledTaskMessage(
+				tenantId,
+				schedulingTimedOut.TaskID,
+				schedulingTimedOut.RetryCount,
+				olap.EVENT_TYPE_SCHEDULING_TIMED_OUT,
+			)
 
-	// 	if innerErr != nil {
-	// 		err = multierror.Append(err, fmt.Errorf("could not send cancel step run event: %w", innerErr))
-	// 	}
-	// }
+			if err != nil {
+				err = multierror.Append(err, fmt.Errorf("could not create cancelled task: %w", err))
+				continue
+			}
+
+			err = s.mq.SendMessage(
+				ctx,
+				msgqueue.TASK_PROCESSING_QUEUE,
+				msg,
+			)
+
+			if err != nil {
+				err = multierror.Append(err, fmt.Errorf("could not send cancelled task: %w", err))
+			}
+		}
+	}
+
+	if len(res.Unassigned) > 0 {
+		for _, unassigned := range res.Unassigned {
+			taskId := unassigned.TaskID
+
+			msg, err := tasktypes.MonitoringEventMessageFromInternal(
+				tenantId,
+				tasktypes.CreateMonitoringEventPayload{
+					TaskId:         &taskId,
+					RetryCount:     unassigned.RetryCount,
+					EventType:      olap.EVENT_TYPE_REQUEUED_NO_WORKER,
+					EventTimestamp: time.Now(),
+				},
+			)
+
+			if err != nil {
+				err = multierror.Append(err, fmt.Errorf("could not create cancelled task: %w", err))
+				continue
+			}
+
+			s.pubBuffer.Pub(
+				ctx,
+				msgqueue.OLAP_QUEUE,
+				msg,
+			)
+		}
+	}
 
 	return err
 }
 
 func (s *Scheduler) internalRetry(ctx context.Context, tenantId string, assigned ...*repov2.AssignedItem) {
-	opts := []repov2.FailTaskOpts{}
-
 	for _, a := range assigned {
-		opts = append(opts, repov2.FailTaskOpts{
-			TaskIdRetryCount: &repov2.TaskIdRetryCount{
-				Id:         a.QueueItem.TaskID,
-				RetryCount: a.QueueItem.RetryCount,
-			},
-			IsAppError: false,
-		})
-	}
+		msg, err := tasktypes.FailedTaskMessage(
+			tenantId,
+			a.QueueItem.TaskID,
+			a.QueueItem.RetryCount,
+			false,
+		)
 
-	err := s.repov2.Tasks().FailTasks(ctx, tenantId, opts)
+		if err != nil {
+			s.l.Error().Err(err).Msg("could not create failed task")
+			continue
+		}
 
-	if err != nil {
-		s.l.Error().Err(err).Msg("could not retry failed tasks")
+		err = s.mq.SendMessage(
+			ctx,
+			msgqueue.TASK_PROCESSING_QUEUE,
+			msg,
+		)
+
+		if err != nil {
+			s.l.Error().Err(err).Msg("could not send failed task")
+			continue
+		}
 	}
 }
 

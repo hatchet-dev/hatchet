@@ -8,17 +8,21 @@ import (
 	"time"
 
 	"github.com/go-co-op/gocron/v2"
+	"github.com/hashicorp/go-multierror"
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/cel"
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
+	"github.com/hatchet-dev/hatchet/internal/queueutils"
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/pkg/config/shared"
 	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
+	"github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/olap"
 	v2 "github.com/hatchet-dev/hatchet/pkg/repository/v2"
 )
 
@@ -27,18 +31,20 @@ type TasksController interface {
 }
 
 type TasksControllerImpl struct {
-	mq             msgqueue.MessageQueue
-	l              *zerolog.Logger
-	queueLogger    *zerolog.Logger
-	pgxStatsLogger *zerolog.Logger
-	repo           v2.TaskRepository
-	dv             datautils.DataDecoderValidator
-	s              gocron.Scheduler
-	a              *hatcheterrors.Wrapped
-	p              *partition.Partition
-	celParser      *cel.CELParser
-
-	reassignMutexes sync.Map
+	mq                     msgqueue.MessageQueue
+	pubBuffer              *msgqueue.MQPubBuffer
+	l                      *zerolog.Logger
+	queueLogger            *zerolog.Logger
+	pgxStatsLogger         *zerolog.Logger
+	repo                   repository.EngineRepository
+	repov2                 v2.TaskRepository
+	dv                     datautils.DataDecoderValidator
+	s                      gocron.Scheduler
+	a                      *hatcheterrors.Wrapped
+	p                      *partition.Partition
+	celParser              *cel.CELParser
+	timeoutTaskOperations  *queueutils.OperationPool
+	reassignTaskOperations *queueutils.OperationPool
 }
 
 type TasksControllerOpt func(*TasksControllerOpts)
@@ -46,7 +52,8 @@ type TasksControllerOpt func(*TasksControllerOpts)
 type TasksControllerOpts struct {
 	mq             msgqueue.MessageQueue
 	l              *zerolog.Logger
-	repo           v2.TaskRepository
+	repo           repository.EngineRepository
+	repov2         v2.TaskRepository
 	dv             datautils.DataDecoderValidator
 	alerter        hatcheterrors.Alerter
 	p              *partition.Partition
@@ -102,9 +109,15 @@ func WithAlerter(a hatcheterrors.Alerter) TasksControllerOpt {
 	}
 }
 
-func WithRepository(r v2.TaskRepository) TasksControllerOpt {
+func WithRepository(r repository.EngineRepository) TasksControllerOpt {
 	return func(opts *TasksControllerOpts) {
 		opts.repo = r
+	}
+}
+
+func WithV2Repository(r v2.TaskRepository) TasksControllerOpt {
+	return func(opts *TasksControllerOpts) {
+		opts.repov2 = r
 	}
 }
 
@@ -131,6 +144,10 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 		return nil, fmt.Errorf("task queue is required. use WithMessageQueue")
 	}
 
+	if opts.repov2 == nil {
+		return nil, fmt.Errorf("v2 repository is required. use WithV2Repository")
+	}
+
 	if opts.repo == nil {
 		return nil, fmt.Errorf("repository is required. use WithRepository")
 	}
@@ -151,18 +168,27 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 	a := hatcheterrors.NewWrapped(opts.alerter)
 	a.WithData(map[string]interface{}{"service": "tasks-controller"})
 
-	return &TasksControllerImpl{
+	pubBuffer := msgqueue.NewMQPubBuffer(opts.mq)
+
+	t := &TasksControllerImpl{
 		mq:             opts.mq,
+		pubBuffer:      pubBuffer,
 		l:              opts.l,
 		queueLogger:    opts.queueLogger,
 		pgxStatsLogger: opts.pgxStatsLogger,
 		repo:           opts.repo,
+		repov2:         opts.repov2,
 		dv:             opts.dv,
 		s:              s,
 		a:              a,
 		p:              opts.p,
 		celParser:      cel.NewCELParser(),
-	}, nil
+	}
+
+	t.timeoutTaskOperations = queueutils.NewOperationPool(opts.l, time.Second*5, "timeout step runs", t.processTaskTimeouts)
+	t.reassignTaskOperations = queueutils.NewOperationPool(opts.l, time.Second*5, "reassign step runs", t.processTaskReassignments)
+
+	return t, nil
 }
 
 func (tc *TasksControllerImpl) Start() (func() error, error) {
@@ -177,7 +203,35 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 		return nil, fmt.Errorf("could not start message queue buffer: %w", err)
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
+
+	_, err = tc.s.NewJob(
+		gocron.DurationJob(time.Second*1),
+		gocron.NewTask(
+			tc.runTenantTimeoutTasks(ctx),
+		),
+	)
+
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("could not schedule step run timeout: %w", err)
+	}
+
+	_, err = tc.s.NewJob(
+		gocron.DurationJob(time.Second*1),
+		gocron.NewTask(
+			tc.runTenantReassignTasks(ctx),
+		),
+	)
+
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("could not schedule step run reassignment: %w", err)
+	}
+
 	cleanup := func() error {
+		cancel()
+
 		if err := cleanupBuffer(); err != nil {
 			return err
 		}
@@ -212,8 +266,8 @@ func (tc *TasksControllerImpl) handleBufferedMsgs(tenantId, msgId string, payloa
 		return tc.handleTaskFailed(context.Background(), tenantId, payloads)
 	case "replay-task":
 		// return ec.handleStepRunReplay(ctx, task)
-	case "cancel-task":
-		// return ec.handleJobRunCancelled(ctx, task)
+	case "task-cancelled":
+		return tc.handleTaskCancelled(context.Background(), tenantId, payloads)
 	}
 
 	return fmt.Errorf("unknown message id: %s", msgId)
@@ -231,7 +285,15 @@ func (tc *TasksControllerImpl) handleTaskCompleted(ctx context.Context, tenantId
 		})
 	}
 
-	return tc.repo.CompleteTasks(ctx, tenantId, opts)
+	queues, err := tc.repov2.CompleteTasks(ctx, tenantId, opts)
+
+	if err != nil {
+		return err
+	}
+
+	tc.notifyQueuesOnCompletion(ctx, tenantId, queues)
+
+	return nil
 }
 
 func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId string, payloads [][]byte) error {
@@ -249,5 +311,123 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId st
 		})
 	}
 
-	return tc.repo.FailTasks(ctx, tenantId, opts)
+	retriedTasks, queues, err := tc.repov2.FailTasks(ctx, tenantId, opts)
+
+	if err != nil {
+		return err
+	}
+
+	tc.notifyQueuesOnCompletion(ctx, tenantId, queues)
+
+	// send retried tasks to the olap repository
+	for _, task := range retriedTasks {
+		taskId := task.Id
+
+		olapMsg, err := tasktypes.MonitoringEventMessageFromInternal(
+			tenantId,
+			tasktypes.CreateMonitoringEventPayload{
+				TaskId:         &taskId,
+				RetryCount:     task.RetryCount,
+				EventType:      olap.EVENT_TYPE_QUEUED,
+				EventTimestamp: time.Now(),
+			},
+		)
+
+		if err != nil {
+			err = multierror.Append(err, fmt.Errorf("could not create monitoring event message: %w", err))
+			continue
+		}
+
+		tc.pubBuffer.Pub(
+			ctx,
+			msgqueue.OLAP_QUEUE,
+			olapMsg,
+		)
+	}
+
+	return err
+}
+
+func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId string, payloads [][]byte) error {
+	opts := make([]v2.TaskIdRetryCount, 0)
+
+	msgs := msgqueue.JSONConvert[tasktypes.CancelledTaskPayload](payloads)
+
+	for _, msg := range msgs {
+		opts = append(opts, v2.TaskIdRetryCount{
+			Id:         msg.TaskId,
+			RetryCount: msg.RetryCount,
+		})
+	}
+
+	queues, err := tc.repov2.CancelTasks(ctx, tenantId, opts)
+
+	if err != nil {
+		return err
+	}
+
+	tc.notifyQueuesOnCompletion(ctx, tenantId, queues)
+
+	for _, msg := range msgs {
+		taskId := msg.TaskId
+
+		olapMsg, err := tasktypes.MonitoringEventMessageFromInternal(
+			tenantId,
+			tasktypes.CreateMonitoringEventPayload{
+				TaskId:         &taskId,
+				RetryCount:     msg.RetryCount,
+				EventType:      msg.EventType,
+				EventTimestamp: time.Now(),
+			},
+		)
+
+		if err != nil {
+			err = multierror.Append(err, fmt.Errorf("could not create monitoring event message: %w", err))
+			continue
+		}
+
+		tc.pubBuffer.Pub(
+			ctx,
+			msgqueue.OLAP_QUEUE,
+			olapMsg,
+		)
+	}
+
+	return err
+}
+
+func (tc *TasksControllerImpl) notifyQueuesOnCompletion(ctx context.Context, tenantId string, queues []string) {
+	tenant, err := tc.repo.Tenant().GetTenantByID(ctx, tenantId)
+
+	if err != nil {
+		tc.l.Err(err).Msg("could not get tenant")
+		return
+	}
+
+	uniqueQueues := make(map[string]struct{})
+
+	for _, queue := range queues {
+		uniqueQueues[queue] = struct{}{}
+	}
+
+	for queue := range uniqueQueues {
+		if tenant.SchedulerPartitionId.Valid {
+			msg, err := tasktypes.CheckTenantQueueToTask(tenantId, queue, false, true)
+
+			if err != nil {
+				tc.l.Err(err).Msg("could not create message for scheduler partition queue")
+				continue
+			}
+
+			err = tc.mq.SendMessage(
+				ctx,
+				msgqueue.QueueTypeFromPartitionIDAndController(tenant.SchedulerPartitionId.String, msgqueue.Scheduler),
+				msg,
+			)
+
+			if err != nil {
+				tc.l.Err(err).Msg("could not add message to scheduler partition queue")
+			}
+		}
+	}
 }

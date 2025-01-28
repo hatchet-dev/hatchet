@@ -27,6 +27,7 @@ sql:
       - mq.sql
     schema:
       - ../../../../sql/schema/schema.sql
+      - ../../../../sql/schema/v2.sql
     strict_order_by: false
     gen:
       go:

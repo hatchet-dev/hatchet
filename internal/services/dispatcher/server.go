@@ -1329,7 +1329,7 @@ func (s *DispatcherImpl) handleTaskStarted(inputCtx context.Context, taskId int6
 		return nil, fmt.Errorf("retry count is required in v2")
 	}
 
-	msg, err := tasktypes.ToMonitoringEventMessage(
+	msg, err := tasktypes.MonitoringEventMessageFromActionEvent(
 		tenantId,
 		taskId,
 		*request.RetryCount,
@@ -1360,7 +1360,7 @@ func (s *DispatcherImpl) handleTaskCompleted(inputCtx context.Context, taskId in
 		return nil, fmt.Errorf("retry count is required in v2")
 	}
 
-	msg, err := tasktypes.ToMonitoringEventMessage(
+	msg, err := tasktypes.MonitoringEventMessageFromActionEvent(
 		tenantId,
 		taskId,
 		*request.RetryCount,
@@ -1399,7 +1399,7 @@ func (s *DispatcherImpl) handleTaskFailed(inputCtx context.Context, taskId int64
 		return nil, fmt.Errorf("retry count is required in v2")
 	}
 
-	msg, err := tasktypes.ToMonitoringEventMessage(
+	msg, err := tasktypes.MonitoringEventMessageFromActionEvent(
 		tenantId,
 		taskId,
 		*request.RetryCount,
@@ -1412,7 +1412,7 @@ func (s *DispatcherImpl) handleTaskFailed(inputCtx context.Context, taskId int64
 
 	s.pubBuffer.Pub(inputCtx, msgqueue.OLAP_QUEUE, msg)
 
-	msg, err = tasktypes.FailedTaskMessage(tenantId, taskId, *request.RetryCount)
+	msg, err = tasktypes.FailedTaskMessage(tenantId, taskId, *request.RetryCount, true)
 
 	if err != nil {
 		return nil, err

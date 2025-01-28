@@ -204,21 +204,10 @@ func (d *queueRepository) MarkQueueItemsProcessed(ctx context.Context, r *Assign
 		unassignedTaskIds = append(unassignedTaskIds, id.TaskID)
 	}
 
-	// timedOutStepRuns := make([]pgtype.UUID, 0, len(r.SchedulingTimedOut))
+	for _, id := range r.SchedulingTimedOut {
+		idsToUnqueue = append(idsToUnqueue, id.ID)
+	}
 
-	// for _, id := range r.SchedulingTimedOut {
-	// 	idsToUnqueue = append(idsToUnqueue, id.ID)
-	// 	timedOutStepRuns = append(timedOutStepRuns, id.StepRunId)
-	// }
-
-	// TODO: CANCEL TASKS
-	// _, err = d.queries.BulkMarkStepRunsAsCancelling(ctx, tx, timedOutStepRuns)
-
-	// if err != nil {
-	// 	return nil, nil, fmt.Errorf("could not bulk mark step runs as cancelling: %w", err)
-	// }
-
-	// TODO: SEMAPHORE QUEUE ITEM AND TIMEOUT QUEUE ITEMS
 	updatedTasks, err := d.queries.UpdateTasksToAssigned(ctx, tx, sqlcv2.UpdateTasksToAssignedParams{
 		Taskids:   taskIds,
 		Workerids: workerIds,
@@ -247,18 +236,6 @@ func (d *queueRepository) MarkQueueItemsProcessed(ctx context.Context, r *Assign
 	go func() {
 		// if we committed, we can update the min id
 		d.updateMinId()
-
-		// assignedStepRuns := make([]pgtype.UUID, len(updatedStepRuns))
-		// assignedWorkerIds := make([]pgtype.UUID, len(updatedStepRuns))
-
-		// for i, row := range updatedStepRuns {
-		// 	assignedStepRuns[i] = row.StepRunId
-		// 	assignedWorkerIds[i] = row.WorkerId
-		// }
-
-		// d.bulkStepRunsAssigned(sqlchelpers.UUIDToStr(d.tenantId), time.Now().UTC(), assignedStepRuns, assignedWorkerIds)
-		// d.bulkStepRunsUnassigned(sqlchelpers.UUIDToStr(d.tenantId), unassignedStepRunIds)
-		// d.bulkStepRunsRateLimited(sqlchelpers.UUIDToStr(d.tenantId), r.RateLimited)
 	}()
 
 	taskIdToAssignedItem := make(map[int64]*AssignedItem, len(updatedTasks))

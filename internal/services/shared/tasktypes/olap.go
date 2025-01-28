@@ -1,8 +1,12 @@
 package tasktypes
 
 import (
+	"fmt"
+	"time"
+
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
+	"github.com/hatchet-dev/hatchet/pkg/repository/olap"
 	v2 "github.com/hatchet-dev/hatchet/pkg/repository/v2"
 )
 
@@ -72,32 +76,54 @@ func TaskOptToMessage(tenantId string, opt v2.CreateTaskOpts) (*msgqueue.Message
 }
 
 type CreateMonitoringEventPayload struct {
-	TaskId     int64 `json:"task_id" validate:"required"`
+	// Either one of TaskId or TaskExternalId must be set
+	TaskId         *int64  `json:"task_id"`
+	TaskExternalId *string `json:"task_external_id"`
+
 	RetryCount int32 `json:"retry_count"`
 
-	WorkerId string `json:"worker_id" validate:"required,uuid"`
+	WorkerId *string `json:"worker_id,omitempty"`
 
-	EventTimestamp string `json:"event_timestamp" validate:"required"`
-	EventType      string `json:"event_type" validate:"required"`
-	EventPayload   string `json:"event_payload" validate:"required"`
+	EventType olap.EventType `json:"event_type"`
+
+	EventTimestamp time.Time `json:"event_timestamp" validate:"required"`
+	EventPayload   string    `json:"event_payload" validate:"required"`
+	EventMessage   string    `json:"event_message,omitempty"`
 }
 
-type CreateMonitoringEventMetadata struct {
-	TenantId string `json:"tenant_id" validate:"required,uuid"`
-}
+func MonitoringEventMessageFromActionEvent(tenantId string, taskId int64, retryCount int32, request *contracts.StepActionEvent) (*msgqueue.Message, error) {
+	payload := CreateMonitoringEventPayload{
+		TaskId:         &taskId,
+		RetryCount:     retryCount,
+		WorkerId:       &request.WorkerId,
+		EventTimestamp: request.EventTimestamp.AsTime(),
+		EventPayload:   request.EventPayload,
+	}
 
-func ToMonitoringEventMessage(tenantId string, taskId int64, retryCount int32, request *contracts.StepActionEvent) (*msgqueue.Message, error) {
+	switch request.EventType {
+	case contracts.StepActionEventType_STEP_EVENT_TYPE_COMPLETED:
+		payload.EventType = olap.EVENT_TYPE_FINISHED
+	case contracts.StepActionEventType_STEP_EVENT_TYPE_FAILED:
+		payload.EventType = olap.EVENT_TYPE_FAILED
+	case contracts.StepActionEventType_STEP_EVENT_TYPE_STARTED:
+		payload.EventType = olap.EVENT_TYPE_STARTED
+	default:
+		return nil, fmt.Errorf("unknown event type: %s", request.EventType.String())
+	}
+
 	return msgqueue.NewSingletonTenantMessage(
 		tenantId,
 		"create-monitoring-event",
-		CreateMonitoringEventPayload{
-			TaskId:         taskId,
-			RetryCount:     retryCount,
-			WorkerId:       request.WorkerId,
-			EventTimestamp: request.EventTimestamp.String(), // TODO: FORMAT?
-			EventType:      request.EventType.String(),
-			EventPayload:   request.EventPayload,
-		},
+		payload,
+		false,
+	)
+}
+
+func MonitoringEventMessageFromInternal(tenantId string, payload CreateMonitoringEventPayload) (*msgqueue.Message, error) {
+	return msgqueue.NewSingletonTenantMessage(
+		tenantId,
+		"create-monitoring-event",
+		payload,
 		false,
 	)
 }

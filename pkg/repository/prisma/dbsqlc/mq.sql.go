@@ -11,33 +11,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const SendMessage = `-- name: SendMessage :exec
-INSERT INTO
-    "MessageQueueItem" (
-        "payload",
-        "queueId",
-        "readAfter",
-        "expiresAt"
-    )
-VALUES
-    (
-        $1::jsonb,
-        $2::text,
-        NOW(),
-        NOW() + INTERVAL '5 minutes'
-    )
-`
-
-type SendMessageParams struct {
-	Payload []byte `json:"payload"`
-	Queueid string `json:"queueid"`
-}
-
-func (q *Queries) SendMessage(ctx context.Context, db DBTX, arg SendMessageParams) error {
-	_, err := db.Exec(ctx, SendMessage, arg.Payload, arg.Queueid)
-	return err
-}
-
 const bulkAckMessages = `-- name: BulkAckMessages :exec
 DELETE FROM
     "MessageQueueItem"
@@ -190,6 +163,33 @@ func (q *Queries) ReadMessages(ctx context.Context, db DBTX, arg ReadMessagesPar
 		return nil, err
 	}
 	return items, nil
+}
+
+const sendMessage = `-- name: SendMessage :exec
+INSERT INTO
+    "MessageQueueItem" (
+        "payload",
+        "queueId",
+        "readAfter",
+        "expiresAt"
+    )
+VALUES
+    (
+        $1::jsonb,
+        $2::text,
+        NOW(),
+        NOW() + INTERVAL '5 minutes'
+    )
+`
+
+type SendMessageParams struct {
+	Payload []byte `json:"payload"`
+	Queueid string `json:"queueid"`
+}
+
+func (q *Queries) SendMessage(ctx context.Context, db DBTX, arg SendMessageParams) error {
+	_, err := db.Exec(ctx, sendMessage, arg.Payload, arg.Queueid)
+	return err
 }
 
 const updateMessageQueueActive = `-- name: UpdateMessageQueueActive :exec

@@ -456,7 +456,7 @@ func (t *MessageQueueImpl) subscribe(
 		poolCh.Release()
 	}
 
-	inner := func() error {
+	innerFn := func() error {
 		poolCh, err := t.channels.Acquire(ctx)
 
 		if err != nil {
@@ -588,8 +588,8 @@ func (t *MessageQueueImpl) subscribe(
 
 			sessionCount++
 
-			if err := inner(); err != nil {
-				t.l.Error().Msgf("cannot set qos: %v", err)
+			if err := innerFn(); err != nil {
+				t.l.Error().Msgf("could not run inner loop: %v", err)
 				sleepWithExponentialBackoff(10*time.Millisecond, 5*time.Second, retryCount)
 				retryCount++
 				continue

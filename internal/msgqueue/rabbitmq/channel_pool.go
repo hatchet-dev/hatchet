@@ -115,10 +115,12 @@ func newChannelPool(ctx context.Context, l *zerolog.Logger, connectionPool *conn
 
 					if val, ok := p.channels[v.id]; !ok || !val {
 						ch.Destroy()
+						continue
 					}
 
 					if v.IsClosed() {
 						ch.Destroy()
+						continue
 					}
 
 					ch.Release()

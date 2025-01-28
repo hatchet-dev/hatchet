@@ -1780,13 +1780,6 @@ type V2QueueItem struct {
 	RetryCount        int32              `json:"retry_count"`
 }
 
-type V2SemaphoreQueueItem struct {
-	TaskID     int64       `json:"task_id"`
-	RetryCount int32       `json:"retry_count"`
-	WorkerID   pgtype.UUID `json:"worker_id"`
-	TenantID   pgtype.UUID `json:"tenant_id"`
-}
-
 type V2Task struct {
 	ID                 int64              `json:"id"`
 	TenantID           pgtype.UUID        `json:"tenant_id"`
@@ -1816,12 +1809,12 @@ type V2TaskEvent struct {
 	Data       []byte           `json:"data"`
 }
 
-type V2TimeoutQueueItem struct {
+type V2TaskRuntime struct {
 	TaskID     int64            `json:"task_id"`
 	RetryCount int32            `json:"retry_count"`
-	TimeoutAt  pgtype.Timestamp `json:"timeout_at"`
+	WorkerID   pgtype.UUID      `json:"worker_id"`
 	TenantID   pgtype.UUID      `json:"tenant_id"`
-	IsQueued   bool             `json:"is_queued"`
+	TimeoutAt  pgtype.Timestamp `json:"timeout_at"`
 }
 
 type WebhookWorker struct {

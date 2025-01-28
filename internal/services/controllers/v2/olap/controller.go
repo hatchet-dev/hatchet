@@ -11,7 +11,6 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
-	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
@@ -20,7 +19,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/olap"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 	v2 "github.com/hatchet-dev/hatchet/pkg/repository/v2"
-	"github.com/hatchet-dev/hatchet/pkg/repository/v2/sqlcv2"
 )
 
 type OLAPController interface {
@@ -216,57 +214,73 @@ func (tc *OLAPControllerImpl) handleCreatedTask(ctx context.Context, tenantId st
 
 // handleCreateMonitoringEvent is responsible for sending a group of monitoring events to the OLAP repository
 func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, tenantId string, payloads [][]byte) error {
-	taskIds := make([]int64, 0)
-	retryCounts := make([]int32, 0)
-	workerIds := make([]string, 0)
-	eventTypes := make([]contracts.StepActionEventType, 0)
-	eventPayloads := make([]string, 0)
-	timestamps := make([]time.Time, 0)
 	msgs := msgqueue.JSONConvert[tasktypes.CreateMonitoringEventPayload](payloads)
 
-	for _, msg := range msgs {
-		eventTimeAt, err := time.Parse(time.RFC3339, msg.EventTimestamp)
+	taskIdsToLookup := make([]int64, len(msgs))
 
-		if err != nil {
-			eventTimeAt = time.Now()
+	for i, msg := range msgs {
+		taskId := msg.TaskId
+		if taskId != nil {
+			taskIdsToLookup[i] = *taskId
 		}
-
-		enumVal, ok := contracts.StepActionEventType_value[msg.EventType]
-
-		if !ok {
-			continue
-		}
-
-		taskIds = append(taskIds, msg.TaskId)
-		retryCounts = append(retryCounts, msg.RetryCount)
-		workerIds = append(workerIds, msg.WorkerId)
-		eventTypes = append(eventTypes, contracts.StepActionEventType(enumVal))
-		eventPayloads = append(eventPayloads, msg.EventPayload)
-		timestamps = append(timestamps, eventTimeAt)
 	}
 
-	metas, err := tc.v2repo.ListTaskMetas(ctx, tenantId, taskIds)
+	metas, err := tc.v2repo.ListTaskMetas(ctx, tenantId, taskIdsToLookup)
 
 	if err != nil {
 		return err
 	}
 
-	taskIdsToMeta := make(map[int64]*sqlcv2.ListTaskMetasRow)
+	taskIdsToExternalIds := make(map[int64]string)
 
 	for _, taskMeta := range metas {
-		taskIdsToMeta[taskMeta.ID] = taskMeta
+		taskIdsToExternalIds[taskMeta.ID] = sqlchelpers.UUIDToStr(taskMeta.ExternalID)
+	}
+
+	taskExternalIds := make([]string, 0)
+	retryCounts := make([]int32, 0)
+	workerIds := make([]string, 0)
+	eventTypes := make([]olap.EventType, 0)
+	eventPayloads := make([]string, 0)
+	eventMessages := make([]string, 0)
+	timestamps := make([]time.Time, 0)
+
+	for _, msg := range msgs {
+		var externalId string
+
+		if msg.TaskExternalId != nil {
+			externalId = *msg.TaskExternalId
+		} else if msg.TaskId != nil {
+			externalIdLookup, ok := taskIdsToExternalIds[*msg.TaskId]
+
+			if !ok {
+				tc.l.Error().Msgf("could not find external id for task id %d", *msg.TaskId)
+				continue
+			}
+
+			externalId = externalIdLookup
+		} else {
+			tc.l.Error().Msg("task id or external id must be set")
+			continue
+		}
+
+		taskExternalIds = append(taskExternalIds, externalId)
+		retryCounts = append(retryCounts, msg.RetryCount)
+		eventTypes = append(eventTypes, msg.EventType)
+		eventPayloads = append(eventPayloads, msg.EventPayload)
+		eventMessages = append(eventMessages, msg.EventMessage)
+		timestamps = append(timestamps, msg.EventTimestamp)
+
+		if msg.WorkerId != nil {
+			workerIds = append(workerIds, *msg.WorkerId)
+		} else {
+			workerIds = append(workerIds, "")
+		}
 	}
 
 	opts := make([]olap.TaskEvent, 0)
 
-	for i, taskId := range taskIds {
-
-		taskMeta, ok := taskIdsToMeta[taskId]
-
-		if !ok {
-			continue
-		}
-
+	for i, taskId := range taskExternalIds {
 		var workerId *uuid.UUID
 
 		if workerIds[i] != "" {
@@ -278,24 +292,21 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		}
 
 		event := olap.TaskEvent{
-			TaskId:     uuid.MustParse(sqlchelpers.UUIDToStr(taskMeta.ExternalID)),
+			TaskId:     uuid.MustParse(taskId),
 			TenantId:   uuid.MustParse(tenantId),
 			Timestamp:  timestamps[i],
 			RetryCount: uint32(retryCounts[i]),
 			WorkerId:   workerId,
+			EventType:  eventTypes[i],
 		}
 
 		switch eventTypes[i] {
-		case contracts.StepActionEventType_STEP_EVENT_TYPE_COMPLETED:
-			event.EventType = olap.EVENT_TYPE_FINISHED
+		case olap.EVENT_TYPE_FINISHED:
 			event.Output = eventPayloads[i]
-		case contracts.StepActionEventType_STEP_EVENT_TYPE_FAILED:
-			event.EventType = olap.EVENT_TYPE_FAILED
+		case olap.EVENT_TYPE_FAILED:
 			event.ErrorMsg = eventPayloads[i]
-		case contracts.StepActionEventType_STEP_EVENT_TYPE_STARTED:
-			event.EventType = olap.EVENT_TYPE_STARTED
-		default:
-			continue
+		case olap.EVENT_TYPE_CANCELLED:
+			event.AdditionalEventMessage = eventMessages[i]
 		}
 
 		opts = append(opts, event)

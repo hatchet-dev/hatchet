@@ -11,6 +11,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 )
 
 const (
@@ -165,6 +166,10 @@ func (p *Partition) StartControllerPartition(ctx context.Context) (func() error,
 	p.controllerCron.Start()
 
 	return cleanup, nil
+}
+
+func (p *Partition) ListTenantsForController(ctx context.Context) ([]*dbsqlc.Tenant, error) {
+	return p.repo.ListTenantsByControllerPartition(ctx, p.GetControllerPartitionId())
 }
 
 func (p *Partition) runControllerPartitionHeartbeat(ctx context.Context) func() {

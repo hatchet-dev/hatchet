@@ -29,3 +29,17 @@ JOIN
     "WorkflowTriggerEventRef" as eventRef ON eventRef."parentId" = triggers."id"
 JOIN
     events ON events."eventKey" = eventRef."eventKey";
+
+-- name: ListWorkflowsByNames :many
+SELECT DISTINCT ON("workflowId")
+    workflowVersions."id" AS "workflowVersionId",
+    workflow."name" AS "workflowName"
+FROM
+    "WorkflowVersion" as workflowVersions
+JOIN
+    "Workflow" as workflow ON workflow."id" = workflowVersions."workflowId"
+WHERE
+    workflow."tenantId" = @tenantId::uuid
+    AND workflowVersions."deletedAt" IS NULL
+    AND workflow."name" = ANY(@workflowNames::text[])
+ORDER BY "workflowId", "order" DESC;

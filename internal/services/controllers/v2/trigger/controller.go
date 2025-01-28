@@ -20,6 +20,7 @@ import (
 	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/olap"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 	v2 "github.com/hatchet-dev/hatchet/pkg/repository/v2"
 )
@@ -30,6 +31,7 @@ type TriggerController interface {
 
 type TriggerControllerImpl struct {
 	mq        msgqueue.MessageQueue
+	pubBuffer *msgqueue.MQPubBuffer
 	l         *zerolog.Logger
 	repo      repository.EngineRepository
 	v2repo    v2.Repository
@@ -140,8 +142,11 @@ func New(fs ...TriggerControllerOpt) (*TriggerControllerImpl, error) {
 	a := hatcheterrors.NewWrapped(opts.alerter)
 	a.WithData(map[string]interface{}{"service": "trigger-controller"})
 
+	pubBuffer := msgqueue.NewMQPubBuffer(opts.mq)
+
 	return &TriggerControllerImpl{
 		mq:        opts.mq,
+		pubBuffer: pubBuffer,
 		l:         opts.l,
 		repo:      opts.repo,
 		v2repo:    opts.v2repo,
@@ -194,8 +199,10 @@ func (tc *TriggerControllerImpl) handleBufferedMsgs(tenantId, msgId string, payl
 	}()
 
 	switch msgId {
-	case "process-trigger":
-		return tc.handleProcessTrigger(context.Background(), tenantId, payloads)
+	case "event-trigger":
+		return tc.handleProcessEventTrigger(context.Background(), tenantId, payloads)
+	case "task-trigger":
+		return tc.handleProcessTaskTrigger(context.Background(), tenantId, payloads)
 	}
 
 	tc.l.Error().Msgf("unknown message id: %s", msgId)
@@ -203,8 +210,8 @@ func (tc *TriggerControllerImpl) handleBufferedMsgs(tenantId, msgId string, payl
 	return nil
 }
 
-// handleProcessTrigger is responsible for inserting tasks into the database based on event triggers.
-func (tc *TriggerControllerImpl) handleProcessTrigger(ctx context.Context, tenantId string, payloads [][]byte) error {
+// handleProcessEventTrigger is responsible for inserting tasks into the database based on event triggers.
+func (tc *TriggerControllerImpl) handleProcessEventTrigger(ctx context.Context, tenantId string, payloads [][]byte) error {
 	// parse out event ids from the messages
 	tuples := make([]v2.EventIdKey, 0, len(payloads))
 	idsToData := make(map[string][]byte, len(payloads))
@@ -221,21 +228,57 @@ func (tc *TriggerControllerImpl) handleProcessTrigger(ctx context.Context, tenan
 	}
 
 	// get a list of workflow versions which correspond to events
-	startDatas, err := tc.v2repo.Events().ListTriggeredWorkflowsForEvents(ctx, tenantId, tuples)
+	startDatas, err := tc.v2repo.Triggers().ListTriggeredWorkflowsForEvents(ctx, tenantId, tuples)
 
 	if err != nil {
 		return fmt.Errorf("could not query workflows for events: %w", err)
 	}
 
 	// parse the workflow versions into a list of CreateTaskOpts
-	opts, err := tc.getTaskCreateOpts(startDatas, idsToData)
+	opts, err := tc.getTaskCreateOptsFromEvents(startDatas, idsToData)
 
 	if err != nil {
 		return fmt.Errorf("could not get task create options: %w", err)
 	}
 
+	return tc.createTasks(ctx, tenantId, opts)
+}
+
+// handleProcessEventTrigger is responsible for inserting tasks into the database based on event triggers.
+func (tc *TriggerControllerImpl) handleProcessTaskTrigger(ctx context.Context, tenantId string, payloads [][]byte) error {
+	msgs := msgqueue.JSONConvert[tasktypes.TriggerTaskPayload](payloads)
+
+	taskIdNames := make([]v2.TaskIdName, 0, len(msgs))
+	idsToData := make(map[string][]byte, len(msgs))
+
+	for _, msg := range msgs {
+		taskIdNames = append(taskIdNames, v2.TaskIdName{
+			TaskId: msg.TaskExternalId,
+			Name:   msg.WorkflowName,
+		})
+
+		idsToData[msg.TaskExternalId] = msg.Data
+	}
+
+	startDatas, err := tc.v2repo.Triggers().ListTriggeredWorkflowsByNames(ctx, tenantId, taskIdNames)
+
+	if err != nil {
+		return fmt.Errorf("could not query workflows for events: %w", err)
+	}
+
+	// parse the workflow versions into a list of CreateTaskOpts
+	opts, err := tc.getTaskCreateOptsFromTaskIds(startDatas, idsToData)
+
+	if err != nil {
+		return fmt.Errorf("could not get task create options: %w", err)
+	}
+
+	return tc.createTasks(ctx, tenantId, opts)
+}
+
+func (tc *TriggerControllerImpl) createTasks(ctx context.Context, tenantId string, opts []v2.CreateTaskOpts) error {
 	// create the tasks
-	err = tc.v2repo.Tasks().CreateTasks(ctx, tenantId, opts)
+	err := tc.v2repo.Tasks().CreateTasks(ctx, tenantId, opts)
 
 	if err != nil {
 		return fmt.Errorf("could not create tasks: %w", err)
@@ -276,7 +319,7 @@ func (tc *TriggerControllerImpl) handleProcessTrigger(ctx context.Context, tenan
 	}
 
 	// notify the OLAP processor that tasks have been created
-	// TODO: make this transactionally safe
+	// TODO: make this transactionally safe?
 	for _, opt := range opts {
 		msg, err := tasktypes.TaskOptToMessage(tenantId, opt)
 
@@ -289,13 +332,37 @@ func (tc *TriggerControllerImpl) handleProcessTrigger(ctx context.Context, tenan
 
 		if err != nil {
 			tc.l.Err(err).Msg("could not add message to olap queue")
+			continue
 		}
+
+		taskExternalId := opt.ExternalId
+
+		olapMsg, err := tasktypes.MonitoringEventMessageFromInternal(
+			tenantId,
+			tasktypes.CreateMonitoringEventPayload{
+				TaskExternalId: &taskExternalId,
+				RetryCount:     0,
+				EventType:      olap.EVENT_TYPE_QUEUED,
+				EventTimestamp: time.Now(),
+			},
+		)
+
+		if err != nil {
+			tc.l.Err(err).Msg("could not create monitoring event message")
+			continue
+		}
+
+		tc.pubBuffer.Pub(
+			ctx,
+			msgqueue.OLAP_QUEUE,
+			olapMsg,
+		)
 	}
 
 	return nil
 }
 
-func (tc *TriggerControllerImpl) getTaskCreateOpts(startDatas []*v2.WorkflowVersionWithTriggeringEvent, idsToData map[string][]byte) ([]v2.CreateTaskOpts, error) {
+func (tc *TriggerControllerImpl) getTaskCreateOptsFromEvents(startDatas []*v2.WorkflowVersionWithTriggeringEvent, idsToData map[string][]byte) ([]v2.CreateTaskOpts, error) {
 	opts := make([]v2.CreateTaskOpts, 0, len(startDatas))
 
 	for _, startData := range startDatas {
@@ -318,6 +385,36 @@ func (tc *TriggerControllerImpl) getTaskCreateOpts(startDatas []*v2.WorkflowVers
 			StepTimeout:     startData.WorkflowStartData.Timeout.String,
 			DisplayName:     startData.WorkflowStartData.WorkflowName,
 			Input:           eventData,
+			// TODO: OTHER RELEVANT FIELDS
+		}
+
+		opts = append(opts, opt)
+	}
+
+	return opts, nil
+}
+
+func (tc *TriggerControllerImpl) getTaskCreateOptsFromTaskIds(startDatas []*v2.WorkflowVersionWithTriggeringTask, idsToData map[string][]byte) ([]v2.CreateTaskOpts, error) {
+	opts := make([]v2.CreateTaskOpts, 0, len(startDatas))
+
+	for _, startData := range startDatas {
+		inputData, ok := idsToData[startData.TaskId]
+
+		if !ok {
+			tc.l.Error().Msgf("could not find input data for task id: %s", startData.TaskId)
+			continue
+		}
+
+		// parse the start data into a CreateTaskOpts
+		opt := v2.CreateTaskOpts{
+			ExternalId:      startData.TaskId,
+			Queue:           startData.WorkflowStartData.ActionId,
+			ActionId:        startData.WorkflowStartData.ActionId,
+			StepId:          sqlchelpers.UUIDToStr(startData.WorkflowStartData.ID),
+			ScheduleTimeout: startData.WorkflowStartData.ScheduleTimeout,
+			StepTimeout:     startData.WorkflowStartData.Timeout.String,
+			DisplayName:     startData.WorkflowStartData.WorkflowName,
+			Input:           inputData,
 			// TODO: OTHER RELEVANT FIELDS
 		}
 

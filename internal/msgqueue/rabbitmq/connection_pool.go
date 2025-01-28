@@ -104,10 +104,12 @@ func newConnectionPool(ctx context.Context, l *zerolog.Logger, url string) (*con
 
 					if val, ok := p.connections[v.id]; !ok || !val {
 						conn.Destroy()
+						continue
 					}
 
 					if v.IsClosed() {
 						conn.Destroy()
+						continue
 					}
 
 					conn.Release()

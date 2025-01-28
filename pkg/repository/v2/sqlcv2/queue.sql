@@ -44,7 +44,7 @@ WITH worker_max_runs AS (
         worker_id,
         COUNT(task_id) AS "filledSlots"
     FROM
-        v2_semaphore_queue_item
+        v2_task_runtime
     WHERE
         tenant_id = @tenantId::uuid
         AND worker_id = ANY(@workerIds::uuid[])
@@ -190,47 +190,24 @@ WITH input AS (
         v2_task t ON t.id = input.id
     ORDER BY t.id
 ), assigned_tasks AS (
-    INSERT INTO v2_semaphore_queue_item (
+    INSERT INTO v2_task_runtime (
         task_id,
         retry_count,
         worker_id,
-        tenant_id
+        tenant_id,
+        timeout_at
     )
     SELECT
         t.id,
         t.retry_count,
         t.worker_id,
-        @tenantId::uuid
+        @tenantId::uuid, 
+        t.timeout_at
     FROM
         updated_tasks t
-    ON CONFLICT (task_id) DO NOTHING
+    ON CONFLICT (task_id, retry_count) DO NOTHING
     -- only return the task ids that were successfully assigned
     RETURNING task_id, worker_id
-), timeout_insert AS (
-    -- bulk insert into timeout queue items
-    INSERT INTO
-        v2_timeout_queue_item (
-            task_id,
-            retry_count,
-            timeout_at,
-            tenant_id,
-            is_queued
-        )
-    SELECT
-        t.id,
-        t.retry_count,
-        t.timeout_at,
-        t.tenant_id,
-        true
-    FROM
-        updated_tasks t
-    JOIN
-        assigned_tasks asr ON t.id = asr.task_id
-    ON CONFLICT (task_id, retry_count) DO UPDATE
-    SET
-        timeout_at = EXCLUDED.timeout_at
-    RETURNING
-        task_id
 )
 SELECT
     asr.task_id,
