@@ -61,7 +61,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("cloudRegisterID", "HATCHET_CLOUD_REGISTER_ID")
 	_ = v.BindEnv("runnableActions", "HATCHET_CLOUD_ACTIONS")
 	_ = v.BindEnv("noGrpcRetry", "HATCHET_CLIENT_NO_GRPC_RETRY")
-	_ = v.BindEnv("autoscalingTarget", "HATCHET_AUTOSCALING_TARGET")
+	_ = v.BindEnv("autoscalingTarget", "HATCHET_CLIENT_AUTOSCALING_TARGET")
 
 	// tls options
 	_ = v.BindEnv("tls.base.tlsStrategy", "HATCHET_CLIENT_TLS_STRATEGY")
