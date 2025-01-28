@@ -2,6 +2,7 @@ package transformers
 
 import (
 	"encoding/json"
+	"math"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/repository/olap"
@@ -43,6 +44,7 @@ func ToWorkflowRun(wf *olap.WorkflowRun) gen.V2WorkflowRun {
 
 func ToWorkflowRuns(
 	wfs []*olap.WorkflowRun,
+	total uint64, limit, offset int64,
 ) gen.V2WorkflowRuns {
 	toReturn := make([]gen.V2WorkflowRun, len(wfs))
 
@@ -50,9 +52,17 @@ func ToWorkflowRuns(
 		toReturn[i] = ToWorkflowRun(wf)
 	}
 
+	currentPage := (offset / limit) + 1
+	nextPage := currentPage + 1
+	numPages := int64(math.Ceil(float64(total) / float64(limit)))
+
 	return gen.V2WorkflowRuns{
-		Rows:       toReturn,
-		Pagination: gen.PaginationResponse{},
+		Rows: toReturn,
+		Pagination: gen.PaginationResponse{
+			CurrentPage: &currentPage,
+			NextPage:    &nextPage,
+			NumPages:    &numPages,
+		},
 	}
 }
 
