@@ -21,14 +21,14 @@ jobs:
       - name: Build
         run: |
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
-            -t ghcr.io/hatchet-dev/hatchet/hatchet-api:${{steps.tag_name.outputs.tag}}-amd64 \
+            -t ghcr.io/hatchet-dev/hatchet-v2-experimental/hatchet-api:${{steps.tag_name.outputs.tag}}-amd64 \
             --build-arg SERVER_TARGET=api \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
             --platform linux/amd64 \
             .
       - name: Push to GHCR
         run: |
-          docker push ghcr.io/hatchet-dev/hatchet/hatchet-api:${{steps.tag_name.outputs.tag}}-amd64
+          docker push ghcr.io/hatchet-dev/hatchet-v2-experimental/hatchet-api:${{steps.tag_name.outputs.tag}}-amd64
   build-push-hatchet-api-arm:
     name: hatchet-api
     runs-on: hatchet-arm64-2
@@ -46,14 +46,14 @@ jobs:
       - name: Build
         run: |
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
-            -t ghcr.io/hatchet-dev/hatchet/hatchet-api:${{steps.tag_name.outputs.tag}}-arm64 \
+            -t ghcr.io/hatchet-dev/hatchet-v2-experimental/hatchet-api:${{steps.tag_name.outputs.tag}}-arm64 \
             --build-arg SERVER_TARGET=api \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
             --platform linux/arm64 \
             .
       - name: Push to GHCR
         run: |
-          docker push ghcr.io/hatchet-dev/hatchet/hatchet-api:${{steps.tag_name.outputs.tag}}-arm64
+          docker push ghcr.io/hatchet-dev/hatchet-v2-experimental/hatchet-api:${{steps.tag_name.outputs.tag}}-arm64
   build-push-hatchet-api:
     name: Combine hatchet-api
     runs-on: ubuntu-latest
@@ -72,15 +72,15 @@ jobs:
         id: login-ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - name: Pull amd64
-        run: docker pull ghcr.io/hatchet-dev/hatchet/hatchet-api:${{steps.tag_name.outputs.tag}}-amd64
+        run: docker pull ghcr.io/hatchet-dev/hatchet-v2-experimental/hatchet-api:${{steps.tag_name.outputs.tag}}-amd64
       - name: Pull arm64
-        run: docker pull ghcr.io/hatchet-dev/hatchet/hatchet-api:${{steps.tag_name.outputs.tag}}-arm64
+        run: docker pull ghcr.io/hatchet-dev/hatchet-v2-experimental/hatchet-api:${{steps.tag_name.outputs.tag}}-arm64
       - name: Combine
         run: |
-          docker manifest create ghcr.io/hatchet-dev/hatchet/hatchet-api:${{steps.tag_name.outputs.tag}} \
-            ghcr.io/hatchet-dev/hatchet/hatchet-api:${{steps.tag_name.outputs.tag}}-amd64 \
-            ghcr.io/hatchet-dev/hatchet/hatchet-api:${{steps.tag_name.outputs.tag}}-arm64
-          docker manifest push ghcr.io/hatchet-dev/hatchet/hatchet-api:${{steps.tag_name.outputs.tag}}
+          docker manifest create ghcr.io/hatchet-dev/hatchet-v2-experimental/hatchet-api:${{steps.tag_name.outputs.tag}} \
+            ghcr.io/hatchet-dev/hatchet-v2-experimental/hatchet-api:${{steps.tag_name.outputs.tag}}-amd64 \
+            ghcr.io/hatchet-dev/hatchet-v2-experimental/hatchet-api:${{steps.tag_name.outputs.tag}}-arm64
+          docker manifest push ghcr.io/hatchet-dev/hatchet-v2-experimental/hatchet-api:${{steps.tag_name.outputs.tag}}
   build-push-hatchet-admin-amd:
     name: hatchet-admin
     runs-on: ubuntu-latest
@@ -98,14 +98,14 @@ jobs:
       - name: Build
         run: |
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
-            -t ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{steps.tag_name.outputs.tag}}-amd64 \
+            -t ghcr.io/hatchet-dev/hatchet-v2-experimental/hatchet-admin:${{steps.tag_name.outputs.tag}}-amd64 \
             --build-arg SERVER_TARGET=admin \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
             --platform linux/amd64 \
             .
       - name: Push to GHCR
         run: |
-          docker push ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{steps.tag_name.outputs.tag}}-amd64
+          docker push ghcr.io/hatchet-dev/hatchet-v2-experimental/hatchet-admin:${{steps.tag_name.outputs.tag}}-amd64
   build-push-hatchet-admin-arm:
     name: hatchet-admin
     runs-on: hatchet-arm64-2
@@ -123,14 +123,14 @@ jobs:
       - name: Build
         run: |
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
-            -t ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{steps.tag_name.outputs.tag}}-arm64 \
+            -t ghcr.io/hatchet-dev/hatchet-v2-experimental/hatchet-admin:${{steps.tag_name.outputs.tag}}-arm64 \
             --build-arg SERVER_TARGET=admin \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
             --platform linux/arm64 \
             .
       - name: Push to GHCR
         run: |
-          docker push ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{steps.tag_name.outputs.tag}}-arm64
+          docker push ghcr.io/hatchet-dev/hatchet-v2-experimental/hatchet-admin:${{steps.tag_name.outputs.tag}}-arm64
   build-push-hatchet-admin:
     name: Combine hatchet-admin
     runs-on: ubuntu-latest
@@ -149,15 +149,15 @@ jobs:
         id: login-ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - name: Pull amd64
-        run: docker pull ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{steps.tag_name.outputs.tag}}-amd64
+        run: docker pull ghcr.io/hatchet-dev/hatchet-v2-experimental/hatchet-admin:${{steps.tag_name.outputs.tag}}-amd64
       - name: Pull arm64
-        run: docker pull ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{steps.tag_name.outputs.tag}}-arm64
+        run: docker pull ghcr.io/hatchet-dev/hatchet-v2-experimental/hatchet-admin:${{steps.tag_name.outputs.tag}}-arm64
       - name: Combine
         run: |
-          docker manifest create ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{steps.tag_name.outputs.tag}} \
-            ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{steps.tag_name.outputs.tag}}-amd64 \
-            ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{steps.tag_name.outputs.tag}}-arm64
-          docker manifest push ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{steps.tag_name.outputs.tag}}
+          docker manifest create ghcr.io/hatchet-dev/hatchet-v2-experimental/hatchet-admin:${{steps.tag_name.outputs.tag}} \
+            ghcr.io/hatchet-dev/hatchet-v2-experimental/hatchet-admin:${{steps.tag_name.outputs.tag}}-amd64 \
+            ghcr.io/hatchet-dev/hatchet-v2-experimental/hatchet-admin:${{steps.tag_name.outputs.tag}}-arm64
+          docker manifest push ghcr.io/hatchet-dev/hatchet-v2-experimental/hatchet-admin:${{steps.tag_name.outputs.tag}}
   build-push-hatchet-engine-amd:
     name: hatchet-engine
     runs-on: ubuntu-latest
@@ -175,14 +175,14 @@ jobs:
       - name: Build
         run: |
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
-            -t ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{steps.tag_name.outputs.tag}}-amd64 \
+            -t ghcr.io/hatchet-dev/hatchet-v2-experimental/hatchet-engine:${{steps.tag_name.outputs.tag}}-amd64 \
             --build-arg SERVER_TARGET=engine \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
             --platform linux/amd64 \
             .
       - name: Push to GHCR
         run: |
-          docker push ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{steps.tag_name.outputs.tag}}-amd64
+          docker push ghcr.io/hatchet-dev/hatchet-v2-experimental/hatchet-engine:${{steps.tag_name.outputs.tag}}-amd64
   build-push-hatchet-engine-arm:
     name: hatchet-engine
     runs-on: hatchet-arm64-2
@@ -200,14 +200,14 @@ jobs:
       - name: Build
         run: |
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
-            -t ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{steps.tag_name.outputs.tag}}-arm64 \
+            -t ghcr.io/hatchet-dev/hatchet-v2-experimental/hatchet-engine:${{steps.tag_name.outputs.tag}}-arm64 \
             --build-arg SERVER_TARGET=engine \
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
             --platform linux/arm64 \
             .
       - name: Push to GHCR
         run: |
-          docker push ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{steps.tag_name.outputs.tag}}-arm64
+          docker push ghcr.io/hatchet-dev/hatchet-v2-experimental/hatchet-engine:${{steps.tag_name.outputs.tag}}-arm64
   build-push-hatchet-engine:
     name: Combine hatchet-engine
     runs-on: ubuntu-latest
@@ -226,15 +226,15 @@ jobs:
         id: login-ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - name: Pull amd64
-        run: docker pull ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{steps.tag_name.outputs.tag}}-amd64
+        run: docker pull ghcr.io/hatchet-dev/hatchet-v2-experimental/hatchet-engine:${{steps.tag_name.outputs.tag}}-amd64
       - name: Pull arm64
-        run: docker pull ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{steps.tag_name.outputs.tag}}-arm64
+        run: docker pull ghcr.io/hatchet-dev/hatchet-v2-experimental/hatchet-engine:${{steps.tag_name.outputs.tag}}-arm64
       - name: Combine
         run: |
-          docker manifest create ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{steps.tag_name.outputs.tag}} \
-            ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{steps.tag_name.outputs.tag}}-amd64 \
-            ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{steps.tag_name.outputs.tag}}-arm64
-          docker manifest push ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{steps.tag_name.outputs.tag}}
+          docker manifest create ghcr.io/hatchet-dev/hatchet-v2-experimental/hatchet-engine:${{steps.tag_name.outputs.tag}} \
+            ghcr.io/hatchet-dev/hatchet-v2-experimental/hatchet-engine:${{steps.tag_name.outputs.tag}}-amd64 \
+            ghcr.io/hatchet-dev/hatchet-v2-experimental/hatchet-engine:${{steps.tag_name.outputs.tag}}-arm64
+          docker manifest push ghcr.io/hatchet-dev/hatchet-v2-experimental/hatchet-engine:${{steps.tag_name.outputs.tag}}
   build-push-hatchet-migrate-amd:
     name: hatchet-migrate
     runs-on: ubuntu-latest
@@ -252,12 +252,12 @@ jobs:
       - name: Build
         run: |
           DOCKER_BUILDKIT=1 docker build -f ./build/package/migrate.dockerfile \
-            -t ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{steps.tag_name.outputs.tag}}-amd64 \
+            -t ghcr.io/hatchet-dev/hatchet-v2-experimental/hatchet-migrate:${{steps.tag_name.outputs.tag}}-amd64 \
             --platform linux/amd64 \
             .
       - name: Push to GHCR
         run: |
-          docker push ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{steps.tag_name.outputs.tag}}-amd64
+          docker push ghcr.io/hatchet-dev/hatchet-v2-experimental/hatchet-migrate:${{steps.tag_name.outputs.tag}}-amd64
   build-push-hatchet-migrate-arm:
     name: hatchet-migrate
     runs-on: hatchet-arm64-2
@@ -275,12 +275,12 @@ jobs:
       - name: Build
         run: |
           DOCKER_BUILDKIT=1 docker build -f ./build/package/migrate.dockerfile \
-            -t ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{steps.tag_name.outputs.tag}}-arm64 \
+            -t ghcr.io/hatchet-dev/hatchet-v2-experimental/hatchet-migrate:${{steps.tag_name.outputs.tag}}-arm64 \
             --platform linux/arm64 \
             .
       - name: Push to GHCR
         run: |
-          docker push ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{steps.tag_name.outputs.tag}}-arm64
+          docker push ghcr.io/hatchet-dev/hatchet-v2-experimental/hatchet-migrate:${{steps.tag_name.outputs.tag}}-arm64
   build-push-hatchet-migrate:
     name: Combine hatchet-migrate
     runs-on: ubuntu-latest
@@ -299,15 +299,15 @@ jobs:
         id: login-ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - name: Pull amd64
-        run: docker pull ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{steps.tag_name.outputs.tag}}-amd64
+        run: docker pull ghcr.io/hatchet-dev/hatchet-v2-experimental/hatchet-migrate:${{steps.tag_name.outputs.tag}}-amd64
       - name: Pull arm64
-        run: docker pull ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{steps.tag_name.outputs.tag}}-arm64
+        run: docker pull ghcr.io/hatchet-dev/hatchet-v2-experimental/hatchet-migrate:${{steps.tag_name.outputs.tag}}-arm64
       - name: Combine
         run: |
-          docker manifest create ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{steps.tag_name.outputs.tag}} \
-            ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{steps.tag_name.outputs.tag}}-amd64 \
-            ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{steps.tag_name.outputs.tag}}-arm64
-          docker manifest push ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{steps.tag_name.outputs.tag}}
+          docker manifest create ghcr.io/hatchet-dev/hatchet-v2-experimental/hatchet-migrate:${{steps.tag_name.outputs.tag}} \
+            ghcr.io/hatchet-dev/hatchet-v2-experimental/hatchet-migrate:${{steps.tag_name.outputs.tag}}-amd64 \
+            ghcr.io/hatchet-dev/hatchet-v2-experimental/hatchet-migrate:${{steps.tag_name.outputs.tag}}-arm64
+          docker manifest push ghcr.io/hatchet-dev/hatchet-v2-experimental/hatchet-migrate:${{steps.tag_name.outputs.tag}}
   build-push-hatchet-frontend-amd:
     name: hatchet-frontend
     runs-on: ubuntu-latest
@@ -325,12 +325,12 @@ jobs:
       - name: Build
         run: |
           DOCKER_BUILDKIT=1 docker build -f ./build/package/frontend.dockerfile \
-            -t ghcr.io/hatchet-dev/hatchet/hatchet-frontend:${{steps.tag_name.outputs.tag}}-amd64 \
+            -t ghcr.io/hatchet-dev/hatchet-v2-experimental/hatchet-frontend:${{steps.tag_name.outputs.tag}}-amd64 \
             --platform linux/amd64 \
             .
       - name: Push to GHCR
         run: |
-          docker push ghcr.io/hatchet-dev/hatchet/hatchet-frontend:${{steps.tag_name.outputs.tag}}-amd64
+          docker push ghcr.io/hatchet-dev/hatchet-v2-experimental/hatchet-frontend:${{steps.tag_name.outputs.tag}}-amd64
   build-push-hatchet-frontend-arm:
     name: hatchet-frontend
     runs-on: hatchet-arm64-2
@@ -348,12 +348,12 @@ jobs:
       - name: Build
         run: |
           DOCKER_BUILDKIT=1 docker build -f ./build/package/frontend.dockerfile \
-            -t ghcr.io/hatchet-dev/hatchet/hatchet-frontend:${{steps.tag_name.outputs.tag}}-arm64 \
+            -t ghcr.io/hatchet-dev/hatchet-v2-experimental/hatchet-frontend:${{steps.tag_name.outputs.tag}}-arm64 \
             --platform linux/arm64 \
             .
       - name: Push to GHCR
         run: |
-          docker push ghcr.io/hatchet-dev/hatchet/hatchet-frontend:${{steps.tag_name.outputs.tag}}-arm64
+          docker push ghcr.io/hatchet-dev/hatchet-v2-experimental/hatchet-frontend:${{steps.tag_name.outputs.tag}}-arm64
   build-push-hatchet-frontend:
     name: Combine hatchet-frontend
     runs-on: ubuntu-latest
@@ -372,15 +372,15 @@ jobs:
         id: login-ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - name: Pull amd64
-        run: docker pull ghcr.io/hatchet-dev/hatchet/hatchet-frontend:${{steps.tag_name.outputs.tag}}-amd64
+        run: docker pull ghcr.io/hatchet-dev/hatchet-v2-experimental/hatchet-frontend:${{steps.tag_name.outputs.tag}}-amd64
       - name: Pull arm64
-        run: docker pull ghcr.io/hatchet-dev/hatchet/hatchet-frontend:${{steps.tag_name.outputs.tag}}-arm64
+        run: docker pull ghcr.io/hatchet-dev/hatchet-v2-experimental/hatchet-frontend:${{steps.tag_name.outputs.tag}}-arm64
       - name: Combine
         run: |
-          docker manifest create ghcr.io/hatchet-dev/hatchet/hatchet-frontend:${{steps.tag_name.outputs.tag}} \
-            ghcr.io/hatchet-dev/hatchet/hatchet-frontend:${{steps.tag_name.outputs.tag}}-amd64 \
-            ghcr.io/hatchet-dev/hatchet/hatchet-frontend:${{steps.tag_name.outputs.tag}}-arm64
-          docker manifest push ghcr.io/hatchet-dev/hatchet/hatchet-frontend:${{steps.tag_name.outputs.tag}}
+          docker manifest create ghcr.io/hatchet-dev/hatchet-v2-experimental/hatchet-frontend:${{steps.tag_name.outputs.tag}} \
+            ghcr.io/hatchet-dev/hatchet-v2-experimental/hatchet-frontend:${{steps.tag_name.outputs.tag}}-amd64 \
+            ghcr.io/hatchet-dev/hatchet-v2-experimental/hatchet-frontend:${{steps.tag_name.outputs.tag}}-arm64
+          docker manifest push ghcr.io/hatchet-dev/hatchet-v2-experimental/hatchet-frontend:${{steps.tag_name.outputs.tag}}
   build-push-hatchet-lite-amd:
     name: hatchet-lite-amd
     runs-on: ubuntu-latest
@@ -416,14 +416,14 @@ jobs:
           wait
 
           DOCKER_BUILDKIT=1 docker build -f ./build/package/lite.dockerfile \
-            -t ghcr.io/hatchet-dev/hatchet/hatchet-lite:${{steps.tag_name.outputs.tag}}-amd64 \
+            -t ghcr.io/hatchet-dev/hatchet-v2-experimental/hatchet-lite:${{steps.tag_name.outputs.tag}}-amd64 \
             --platform linux/amd64 \
             --build-arg HATCHET_LITE_IMAGE=hatchet-lite-tmp:amd64 \
             --build-arg HATCHET_ADMIN_IMAGE=hatchet-admin-tmp:amd64 \
             .
       - name: Push to GHCR
         run: |
-          docker push ghcr.io/hatchet-dev/hatchet/hatchet-lite:${{steps.tag_name.outputs.tag}}-amd64
+          docker push ghcr.io/hatchet-dev/hatchet-v2-experimental/hatchet-lite:${{steps.tag_name.outputs.tag}}-amd64
   build-push-hatchet-lite-arm:
     name: hatchet-lite-arm
     runs-on: hatchet-arm64-2
@@ -459,14 +459,14 @@ jobs:
           wait
 
           DOCKER_BUILDKIT=1 docker build -f ./build/package/lite.dockerfile \
-            -t ghcr.io/hatchet-dev/hatchet/hatchet-lite:${{steps.tag_name.outputs.tag}}-arm64 \
+            -t ghcr.io/hatchet-dev/hatchet-v2-experimental/hatchet-lite:${{steps.tag_name.outputs.tag}}-arm64 \
             --platform linux/arm64 \
             --build-arg HATCHET_LITE_IMAGE=hatchet-lite-tmp:arm64 \
             --build-arg HATCHET_ADMIN_IMAGE=hatchet-admin-tmp:arm64 \
             .
       - name: Push to GHCR
         run: |
-          docker push ghcr.io/hatchet-dev/hatchet/hatchet-lite:${{steps.tag_name.outputs.tag}}-arm64
+          docker push ghcr.io/hatchet-dev/hatchet-v2-experimental/hatchet-lite:${{steps.tag_name.outputs.tag}}-arm64
   combine-hatchet-lite:
     name: Combine hatchet-lite
     runs-on: ubuntu-latest
@@ -485,15 +485,15 @@ jobs:
         id: login-ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - name: Pull amd64
-        run: docker pull ghcr.io/hatchet-dev/hatchet/hatchet-lite:${{steps.tag_name.outputs.tag}}-amd64
+        run: docker pull ghcr.io/hatchet-dev/hatchet-v2-experimental/hatchet-lite:${{steps.tag_name.outputs.tag}}-amd64
       - name: Pull arm64
-        run: docker pull ghcr.io/hatchet-dev/hatchet/hatchet-lite:${{steps.tag_name.outputs.tag}}-arm64
+        run: docker pull ghcr.io/hatchet-dev/hatchet-v2-experimental/hatchet-lite:${{steps.tag_name.outputs.tag}}-arm64
       - name: Combine
         run: |
-          docker manifest create ghcr.io/hatchet-dev/hatchet/hatchet-lite:${{steps.tag_name.outputs.tag}} \
-            ghcr.io/hatchet-dev/hatchet/hatchet-lite:${{steps.tag_name.outputs.tag}}-amd64 \
-            ghcr.io/hatchet-dev/hatchet/hatchet-lite:${{steps.tag_name.outputs.tag}}-arm64
-          docker manifest push ghcr.io/hatchet-dev/hatchet/hatchet-lite:${{steps.tag_name.outputs.tag}}
+          docker manifest create ghcr.io/hatchet-dev/hatchet-v2-experimental/hatchet-lite:${{steps.tag_name.outputs.tag}} \
+            ghcr.io/hatchet-dev/hatchet-v2-experimental/hatchet-lite:${{steps.tag_name.outputs.tag}}-amd64 \
+            ghcr.io/hatchet-dev/hatchet-v2-experimental/hatchet-lite:${{steps.tag_name.outputs.tag}}-arm64
+          docker manifest push ghcr.io/hatchet-dev/hatchet-v2-experimental/hatchet-lite:${{steps.tag_name.outputs.tag}}
   build-push-hatchet-dashboard-amd:
     name: hatchet-dashboard-amd
     runs-on: ubuntu-latest
@@ -521,13 +521,13 @@ jobs:
             .
 
           DOCKER_BUILDKIT=1 docker build -f ./build/package/dashboard.dockerfile \
-            -t ghcr.io/hatchet-dev/hatchet/hatchet-dashboard:${{steps.tag_name.outputs.tag}}-amd64 \
+            -t ghcr.io/hatchet-dev/hatchet-v2-experimental/hatchet-dashboard:${{steps.tag_name.outputs.tag}}-amd64 \
             --platform linux/amd64 \
             --build-arg HATCHET_API_IMAGE=hatchet-api-tmp:amd64 \
             .
       - name: Push to GHCR
         run: |
-          docker push ghcr.io/hatchet-dev/hatchet/hatchet-dashboard:${{steps.tag_name.outputs.tag}}-amd64
+          docker push ghcr.io/hatchet-dev/hatchet-v2-experimental/hatchet-dashboard:${{steps.tag_name.outputs.tag}}-amd64
   build-push-hatchet-dashboard-arm:
     name: hatchet-dashboard-arm
     runs-on: hatchet-arm64-2
@@ -555,13 +555,13 @@ jobs:
             .
 
           DOCKER_BUILDKIT=1 docker build -f ./build/package/dashboard.dockerfile \
-            -t ghcr.io/hatchet-dev/hatchet/hatchet-dashboard:${{steps.tag_name.outputs.tag}}-arm64 \
+            -t ghcr.io/hatchet-dev/hatchet-v2-experimental/hatchet-dashboard:${{steps.tag_name.outputs.tag}}-arm64 \
             --platform linux/arm64 \
             --build-arg HATCHET_API_IMAGE=hatchet-api-tmp:arm64 \
             .
       - name: Push to GHCR
         run: |
-          docker push ghcr.io/hatchet-dev/hatchet/hatchet-dashboard:${{steps.tag_name.outputs.tag}}-arm64
+          docker push ghcr.io/hatchet-dev/hatchet-v2-experimental/hatchet-dashboard:${{steps.tag_name.outputs.tag}}-arm64
   combine-hatchet-dashboard:
     name: Combine hatchet-dashboard
     runs-on: ubuntu-latest
@@ -580,12 +580,12 @@ jobs:
         id: login-ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - name: Pull amd64
-        run: docker pull ghcr.io/hatchet-dev/hatchet/hatchet-dashboard:${{steps.tag_name.outputs.tag}}-amd64
+        run: docker pull ghcr.io/hatchet-dev/hatchet-v2-experimental/hatchet-dashboard:${{steps.tag_name.outputs.tag}}-amd64
       - name: Pull arm64
-        run: docker pull ghcr.io/hatchet-dev/hatchet/hatchet-dashboard:${{steps.tag_name.outputs.tag}}-arm64
+        run: docker pull ghcr.io/hatchet-dev/hatchet-v2-experimental/hatchet-dashboard:${{steps.tag_name.outputs.tag}}-arm64
       - name: Combine
         run: |
-          docker manifest create ghcr.io/hatchet-dev/hatchet/hatchet-dashboard:${{steps.tag_name.outputs.tag}} \
-            ghcr.io/hatchet-dev/hatchet/hatchet-dashboard:${{steps.tag_name.outputs.tag}}-amd64 \
-            ghcr.io/hatchet-dev/hatchet/hatchet-dashboard:${{steps.tag_name.outputs.tag}}-arm64
-          docker manifest push ghcr.io/hatchet-dev/hatchet/hatchet-dashboard:${{steps.tag_name.outputs.tag}}
+          docker manifest create ghcr.io/hatchet-dev/hatchet-v2-experimental/hatchet-dashboard:${{steps.tag_name.outputs.tag}} \
+            ghcr.io/hatchet-dev/hatchet-v2-experimental/hatchet-dashboard:${{steps.tag_name.outputs.tag}}-amd64 \
+            ghcr.io/hatchet-dev/hatchet-v2-experimental/hatchet-dashboard:${{steps.tag_name.outputs.tag}}-arm64
+          docker manifest push ghcr.io/hatchet-dev/hatchet-v2-experimental/hatchet-dashboard:${{steps.tag_name.outputs.tag}}
