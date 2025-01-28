@@ -118,6 +118,7 @@ const (
 
 type Task struct {
 	Id                 uuid.UUID  `json:"id"`
+	SourceId           uint64     `json:"source_id"`
 	TenantId           uuid.UUID  `json:"tenant_id"`
 	Queue              string     `json:"queue"`
 	ActionId           string     `json:"action_id"`
@@ -129,6 +130,7 @@ type Task struct {
 	DisplayName        string     `json:"display_name"`
 	Input              string     `json:"input"`
 	AdditionalMetadata string     `json:"additional_metadata"`
+	InsertedAt         time.Time  `json:"inserted_at"`
 }
 
 type TaskEvent struct {

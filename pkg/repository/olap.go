@@ -609,6 +609,7 @@ func (r *olapEventRepository) writeTaskBatch(c context.Context, tasks []olap.Tas
 	batch, err := r.conn.PrepareBatch(c, `
 		INSERT INTO tasks (
 			id,
+			source_id,
 			tenant_id,
 			queue,
 			action_id,
@@ -619,7 +620,8 @@ func (r *olapEventRepository) writeTaskBatch(c context.Context, tasks []olap.Tas
 			desired_worker_id,
 			display_name,
 			input,
-			additional_metadata
+			additional_metadata,
+			inserted_at
 		)
 	`)
 
@@ -630,6 +632,7 @@ func (r *olapEventRepository) writeTaskBatch(c context.Context, tasks []olap.Tas
 	for _, task := range tasks {
 		err := batch.Append(
 			task.Id,
+			task.SourceId,
 			task.TenantId,
 			task.Queue,
 			task.ActionId,
@@ -641,6 +644,7 @@ func (r *olapEventRepository) writeTaskBatch(c context.Context, tasks []olap.Tas
 			task.DisplayName,
 			task.Input,
 			task.AdditionalMetadata,
+			task.InsertedAt,
 		)
 
 		if err != nil {

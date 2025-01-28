@@ -7,6 +7,7 @@
 4. ```sql
     CREATE TABLE tasks (
         id UUID NOT NULL,
+        source_id BIGINT UNSIGNED NOT NULL,
         tenant_id UUID NOT NULL,
         queue TEXT NOT NULL,
         action_id TEXT NOT NULL,
@@ -22,6 +23,7 @@
         display_name TEXT NOT NULL,
         input TEXT NOT NULL DEFAULT '{}',
         additional_metadata TEXT NOT NULL DEFAULT '{}',
+        inserted_at DateTime('UTC') NOT NULL DEFAULT NOW(),
         created_at DateTime('UTC') NOT NULL DEFAULT NOW(),
 
         PRIMARY KEY (tenant_id, id)
