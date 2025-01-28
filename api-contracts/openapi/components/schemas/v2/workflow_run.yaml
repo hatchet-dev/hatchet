@@ -169,3 +169,4 @@ V2EventType:
     - RATE_LIMIT_ERROR
     - ACKNOWLEDGED
     - CREATED
+    - QUEUED

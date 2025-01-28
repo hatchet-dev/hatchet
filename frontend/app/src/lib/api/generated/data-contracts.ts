@@ -175,6 +175,7 @@ export enum V2EventType {
   RATE_LIMIT_ERROR = 'RATE_LIMIT_ERROR',
   ACKNOWLEDGED = 'ACKNOWLEDGED',
   CREATED = 'CREATED',
+  QUEUED = 'QUEUED',
 }
 
 export interface V2StepRunEvent {

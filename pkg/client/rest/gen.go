@@ -182,6 +182,7 @@ const (
 	V2EventTypeCREATED            V2EventType = "CREATED"
 	V2EventTypeFAILED             V2EventType = "FAILED"
 	V2EventTypeFINISHED           V2EventType = "FINISHED"
+	V2EventTypeQUEUED             V2EventType = "QUEUED"
 	V2EventTypeRATELIMITERROR     V2EventType = "RATE_LIMIT_ERROR"
 	V2EventTypeREASSIGNED         V2EventType = "REASSIGNED"
 	V2EventTypeREQUEUEDNOWORKER   V2EventType = "REQUEUED_NO_WORKER"

@@ -20,6 +20,7 @@ export function StepRunEvents({
 
   const eventsQuery = useQuery({
     ...queries.v2StepRunEvents.list(tenantId, taskRunId, {
+      // TODO: Pagination here
       limit: 50,
       offset: 0,
     }),

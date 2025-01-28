@@ -195,8 +195,13 @@ function mapEventTypeToTitle(eventType: V2EventType | undefined): string {
       return 'Rate limit error';
     case V2EventType.SENT_TO_WORKER:
       return 'Sent to worker';
+    case V2EventType.QUEUED:
+      return 'Queued';
+    case undefined:
+      return 'Unknown';
     default:
-      return 'Unknown event';
+      const exhaustiveCheck: never = eventType;
+      throw new Error(`Unhandled case: ${exhaustiveCheck}`);
   }
 }
 
