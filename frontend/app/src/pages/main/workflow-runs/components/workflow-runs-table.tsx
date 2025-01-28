@@ -351,25 +351,25 @@ export function WorkflowRunsTable({
   const workflowRunStatusFilters = useMemo((): FilterOption[] => {
     return [
       {
-        value: WorkflowRunStatus.SUCCEEDED,
+        value: V2TaskStatus.COMPLETED,
         label: 'Succeeded',
       },
       {
-        value: WorkflowRunStatus.FAILED,
+        value: V2TaskStatus.FAILED,
         label: 'Failed',
       },
       {
-        value: WorkflowRunStatus.RUNNING,
+        value: V2TaskStatus.RUNNING,
         label: 'Running',
       },
       {
-        value: WorkflowRunStatus.QUEUED,
+        value: V2TaskStatus.QUEUED,
         label: 'Queued',
       },
-      {
-        value: WorkflowRunStatus.PENDING,
-        label: 'Pending',
-      },
+      // {
+      //   value: V2TaskStatus.CANCELLED,
+      //   label: 'Cancelled',
+      // },
     ];
   }, []);
 
