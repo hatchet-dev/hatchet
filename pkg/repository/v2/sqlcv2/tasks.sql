@@ -1,9 +1,45 @@
--- name: CreateTasks :copyfrom
+-- name: CreateTablePartition :exec
+SELECT create_v2_task_partition(
+    @date::date
+);
+
+-- name: ListTablePartitionsBeforeDate :many
+SELECT 
+    p::text AS partition_name
+FROM 
+    get_v2_task_partitions_before(
+        @date::date
+    ) AS p;
+
+-- name: CreateTasks :many
+WITH input AS (
+    SELECT
+        *
+    FROM
+        (
+            SELECT
+                unnest(@tenantIds::uuid[]) AS tenant_id,
+                unnest(@queues::text[]) AS queue,
+                unnest(@actionIds::text[]) AS action_id,
+                unnest(@stepIds::uuid[]) AS step_id,
+                unnest(@workflowIds::uuid[]) AS workflow_id,
+                unnest(@scheduleTimeouts::text[]) AS schedule_timeout,
+                unnest(@stepTimeouts::text[]) AS step_timeout,
+                unnest(@priorities::integer[]) AS priority,
+                unnest(cast(@stickies::text[] as v2_sticky_strategy[])) AS sticky,
+                unnest(@desiredWorkerIds::uuid[]) AS desired_worker_id,
+                unnest(@externalIds::uuid[]) AS external_id,
+                unnest(@displayNames::text[]) AS display_name,
+                unnest(@inputs::jsonb[]) AS input,
+                unnest(@retryCounts::integer[]) AS retry_count
+        ) AS subquery
+)
 INSERT INTO v2_task (
     tenant_id,
     queue,
     action_id,
     step_id,
+    workflow_id,
     schedule_timeout,
     step_timeout,
     priority,
@@ -13,21 +49,26 @@ INSERT INTO v2_task (
     display_name,
     input,
     retry_count
-) VALUES (
-    $1,
-    $2,
-    $3,
-    $4,
-    $5,
-    $6,
-    $7,
-    $8,
-    $9,
-    $10,
-    $11,
-    $12,
-    $13
-);
+) 
+SELECT
+    i.tenant_id,
+    i.queue,
+    i.action_id,
+    i.step_id,
+    i.workflow_id,
+    i.schedule_timeout,
+    i.step_timeout,
+    i.priority,
+    i.sticky,
+    i.desired_worker_id,
+    i.external_id,
+    i.display_name,
+    i.input,
+    i.retry_count
+FROM
+    input i 
+RETURNING
+    *;
 
 -- name: ListTasks :many
 SELECT

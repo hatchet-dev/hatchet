@@ -27,6 +27,9 @@ type CreateTaskOpts struct {
 	// (required) the step id
 	StepId string `validate:"required,uuid"`
 
+	// (required) the workflow id
+	WorkflowId string `validate:"required,uuid"`
+
 	// (required) the schedule timeout
 	ScheduleTimeout string `validate:"required,duration"`
 
@@ -69,7 +72,9 @@ type FailTaskOpts struct {
 }
 
 type TaskRepository interface {
-	CreateTasks(ctx context.Context, tenantId string, tasks []CreateTaskOpts) error
+	UpdateTablePartitions(ctx context.Context) error
+
+	CreateTasks(ctx context.Context, tenantId string, tasks []CreateTaskOpts) ([]*sqlcv2.V2Task, error)
 
 	CompleteTasks(ctx context.Context, tenantId string, tasks []TaskIdRetryCount) ([]string, error)
 
@@ -101,7 +106,62 @@ func newTaskRepository(s *sharedRepository) TaskRepository {
 	}
 }
 
-func (r *TaskRepositoryImpl) CreateTasks(ctx context.Context, tenantId string, tasks []CreateTaskOpts) error {
+func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
+	today := time.Now().UTC()
+	tomorrow := today.AddDate(0, 0, 1)
+	sevenDaysAgo := today.AddDate(0, 0, -7)
+
+	err := r.queries.CreateTablePartition(ctx, r.pool, pgtype.Date{
+		Time:  today,
+		Valid: true,
+	})
+
+	if err != nil {
+		return err
+	}
+
+	err = r.queries.CreateTablePartition(ctx, r.pool, pgtype.Date{
+		Time:  tomorrow,
+		Valid: true,
+	})
+
+	if err != nil {
+		return err
+	}
+
+	partitions, err := r.queries.ListTablePartitionsBeforeDate(ctx, r.pool, pgtype.Date{
+		Time:  sevenDaysAgo,
+		Valid: true,
+	})
+
+	if err != nil {
+		return err
+	}
+
+	for _, partition := range partitions {
+		_, err := r.pool.Exec(
+			ctx,
+			fmt.Sprintf("ALTER TABLE v2_task DETACH PARTITION %s CONCURRENTLY", partition),
+		)
+
+		if err != nil {
+			return err
+		}
+
+		_, err = r.pool.Exec(
+			ctx,
+			fmt.Sprintf("DROP TABLE %s", partition),
+		)
+
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (r *TaskRepositoryImpl) CreateTasks(ctx context.Context, tenantId string, tasks []CreateTaskOpts) ([]*sqlcv2.V2Task, error) {
 	// TODO: ADD BACK VALIDATION
 	// if err := r.v.Validate(tasks); err != nil {
 	// 	fmt.Println("FAILED VALIDATION HERE!!!")
@@ -112,7 +172,7 @@ func (r *TaskRepositoryImpl) CreateTasks(ctx context.Context, tenantId string, t
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
 
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	defer rollback()
@@ -131,21 +191,23 @@ func (r *TaskRepositoryImpl) CreateTasks(ctx context.Context, tenantId string, t
 	}
 
 	if err := r.upsertQueues(ctx, tx, tenantId, queues); err != nil {
-		return err
+		return nil, err
 	}
 
-	if err := r.createTasks(ctx, tx, tenantId, tasks); err != nil {
-		return err
+	res, err := r.createTasks(ctx, tx, tenantId, tasks)
+
+	if err != nil {
+		return nil, err
 	}
 
 	// commit the transaction
 	if err := commit(ctx); err != nil {
-		return err
+		return nil, err
 	}
 
 	// TODO: push task created events to the OLAP repository
 
-	return nil
+	return res, nil
 }
 
 func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId string, tasks []TaskIdRetryCount) ([]string, error) {
@@ -507,56 +569,78 @@ func getQueueCacheKey(tenantId string, queue string) string {
 
 // createTasks inserts new tasks into the database. note that we're using Postgres rules to automatically insert the created
 // tasks into the queue_items table.
-func (r *TaskRepositoryImpl) createTasks(ctx context.Context, tx sqlcv2.DBTX, tenantId string, tasks []CreateTaskOpts) error {
-	params := make([]sqlcv2.CreateTasksParams, len(tasks))
+func (r *TaskRepositoryImpl) createTasks(ctx context.Context, tx sqlcv2.DBTX, tenantId string, tasks []CreateTaskOpts) ([]*sqlcv2.V2Task, error) {
+	tenantIds := make([]pgtype.UUID, len(tasks))
+	queues := make([]string, len(tasks))
+	actionIds := make([]string, len(tasks))
+	stepIds := make([]pgtype.UUID, len(tasks))
+	workflowIds := make([]pgtype.UUID, len(tasks))
+	scheduleTimeouts := make([]string, len(tasks))
+	stepTimeouts := make([]string, len(tasks))
+	priorities := make([]int32, len(tasks))
+	stickies := make([]string, len(tasks))
+	desiredWorkerIds := make([]pgtype.UUID, len(tasks))
+	externalIds := make([]pgtype.UUID, len(tasks))
+	displayNames := make([]string, len(tasks))
+	inputs := make([][]byte, len(tasks))
+	retryCounts := make([]int32, len(tasks))
 
 	for i, task := range tasks {
-		p := sqlcv2.CreateTasksParams{
-			TenantID:        sqlchelpers.UUIDFromStr(tenantId),
-			Queue:           task.Queue,
-			ActionID:        task.ActionId,
-			StepID:          sqlchelpers.UUIDFromStr(task.StepId),
-			ScheduleTimeout: task.ScheduleTimeout,
-			ExternalID:      sqlchelpers.UUIDFromStr(task.ExternalId),
-			DisplayName:     task.DisplayName,
-			Input:           task.Input,
-			RetryCount:      0,
-		}
-
-		if task.StepTimeout != "" {
-			p.StepTimeout = sqlchelpers.TextFromStr(task.StepTimeout)
-		} else {
-			p.StepTimeout = sqlchelpers.TextFromStr("1m")
-		}
+		tenantIds[i] = sqlchelpers.UUIDFromStr(tenantId)
+		queues[i] = task.Queue
+		actionIds[i] = task.ActionId
+		stepIds[i] = sqlchelpers.UUIDFromStr(task.StepId)
+		workflowIds[i] = sqlchelpers.UUIDFromStr(task.WorkflowId)
+		scheduleTimeouts[i] = task.ScheduleTimeout
+		stepTimeouts[i] = task.StepTimeout
+		externalIds[i] = sqlchelpers.UUIDFromStr(task.ExternalId)
+		displayNames[i] = task.DisplayName
+		inputs[i] = task.Input
+		retryCounts[i] = 0
 
 		if task.Priority != nil {
-			p.Priority = pgtype.Int4{
-				Int32: int32(*task.Priority),
-				Valid: true,
-			}
+			priorities[i] = int32(*task.Priority)
+		} else {
+			priorities[i] = 1
 		}
 
 		if task.StickyStrategy != nil {
-			p.Sticky = sqlcv2.NullStickyStrategy{
-				StickyStrategy: sqlcv2.StickyStrategy(*task.StickyStrategy),
-				Valid:          true,
-			}
+			stickies[i] = *task.StickyStrategy
+		} else {
+			stickies[i] = string(sqlcv2.V2StickyStrategyNONE)
 		}
 
 		if task.DesiredWorkerId != nil {
-			p.DesiredWorkerID = sqlchelpers.UUIDFromStr(*task.DesiredWorkerId)
+			desiredWorkerIds[i] = sqlchelpers.UUIDFromStr(*task.DesiredWorkerId)
+		} else {
+			desiredWorkerIds[i] = pgtype.UUID{
+				Valid: false,
+			}
 		}
-
-		params[i] = p
 	}
 
-	_, err := r.queries.CreateTasks(ctx, tx, params)
+	res, err := r.queries.CreateTasks(ctx, tx, sqlcv2.CreateTasksParams{
+		Tenantids:        tenantIds,
+		Queues:           queues,
+		Actionids:        actionIds,
+		Stepids:          stepIds,
+		Workflowids:      workflowIds,
+		Scheduletimeouts: scheduleTimeouts,
+		Steptimeouts:     stepTimeouts,
+		Priorities:       priorities,
+		Stickies:         stickies,
+		Desiredworkerids: desiredWorkerIds,
+		Externalids:      externalIds,
+		Displaynames:     displayNames,
+		Inputs:           inputs,
+		Retrycounts:      retryCounts,
+	})
 
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return nil
+	return res, nil
 }
 
 func (r *TaskRepositoryImpl) createTaskEvents(
