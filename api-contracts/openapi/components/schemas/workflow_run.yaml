@@ -302,6 +302,8 @@ WorkflowRunsMetricsCounts:
       type: integer
     QUEUED:
       type: integer
+    CANCELLED:
+      type: integer
 
 WorkflowRunsMetrics:
   type: object

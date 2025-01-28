@@ -470,6 +470,9 @@ type EventSearch = string
 
 // EventWorkflowRunSummary defines model for EventWorkflowRunSummary.
 type EventWorkflowRunSummary struct {
+	// Cancelled The number of cancelled runs.
+	Cancelled *int64 `json:"cancelled,omitempty"`
+
 	// Failed The number of failed runs.
 	Failed *int64 `json:"failed,omitempty"`
 
@@ -1389,6 +1392,7 @@ type WorkflowRunsMetrics struct {
 
 // WorkflowRunsMetricsCounts defines model for WorkflowRunsMetricsCounts.
 type WorkflowRunsMetricsCounts struct {
+	CANCELLED *int `json:"CANCELLED,omitempty"`
 	FAILED    *int `json:"FAILED,omitempty"`
 	PENDING   *int `json:"PENDING,omitempty"`
 	QUEUED    *int `json:"QUEUED,omitempty"`
