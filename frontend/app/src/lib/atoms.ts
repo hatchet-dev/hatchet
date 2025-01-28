@@ -34,13 +34,13 @@ type TenantContextPresent = {
   tenant: Tenant;
   tenantId: string;
   setTenant: (tenant: Tenant) => void;
-}
+};
 
 type TenantContextMissing = {
   tenant: undefined;
   tenantId: undefined;
   setTenant: (tenant: Tenant) => void;
-}
+};
 
 type TenantContext = TenantContextPresent | TenantContextMissing;
 
@@ -50,12 +50,15 @@ export function useTenant(): TenantContext {
   const [lastTenant, setLastTenant] = useAtom(lastTenantAtom);
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const setTenant = (tenant: Tenant) => {
-    const newSearchParams = new URLSearchParams(searchParams);
-    newSearchParams.set('tenant', tenant.metadata.id);
-    setSearchParams(newSearchParams, { replace: true });
-    setLastTenant(tenant);
-  };
+  const setTenant = useCallback(
+    (tenant: Tenant) => {
+      const newSearchParams = new URLSearchParams(searchParams);
+      newSearchParams.set('tenant', tenant.metadata.id);
+      setSearchParams(newSearchParams, { replace: true });
+      setLastTenant(tenant);
+    },
+    [searchParams, setSearchParams, setLastTenant],
+  );
 
   const membershipsQuery = useQuery({
     ...queries.user.listTenantMemberships,
@@ -116,7 +119,7 @@ export function useTenant(): TenantContext {
     if (!currentTenantParam && tenant) {
       setTenant(tenant);
     }
-  }, [searchParams, tenant])
+  }, [searchParams, tenant, setTenant]);
 
   if (!tenant) {
     return {
