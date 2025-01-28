@@ -194,6 +194,7 @@ const (
 	JobRunStatusSUCCEEDED JobRunStatus = "SUCCEEDED"
 	JobRunStatusFAILED    JobRunStatus = "FAILED"
 	JobRunStatusCANCELLED JobRunStatus = "CANCELLED"
+	JobRunStatusBACKOFF   JobRunStatus = "BACKOFF"
 )
 
 func (e *JobRunStatus) Scan(src interface{}) error {
@@ -603,6 +604,7 @@ const (
 	StepRunStatusFAILED            StepRunStatus = "FAILED"
 	StepRunStatusCANCELLED         StepRunStatus = "CANCELLED"
 	StepRunStatusCANCELLING        StepRunStatus = "CANCELLING"
+	StepRunStatusBACKOFF           StepRunStatus = "BACKOFF"
 )
 
 func (e *StepRunStatus) Scan(src interface{}) error {
@@ -1037,6 +1039,7 @@ const (
 	WorkflowRunStatusQUEUED     WorkflowRunStatus = "QUEUED"
 	WorkflowRunStatusCANCELLING WorkflowRunStatus = "CANCELLING"
 	WorkflowRunStatusCANCELLED  WorkflowRunStatus = "CANCELLED"
+	WorkflowRunStatusBACKOFF    WorkflowRunStatus = "BACKOFF"
 )
 
 func (e *WorkflowRunStatus) Scan(src interface{}) error {

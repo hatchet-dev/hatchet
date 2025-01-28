@@ -269,6 +269,7 @@ WITH stepRuns AS (
     SELECT
         runs."jobRunId",
         sum(case when runs."status" IN ('PENDING', 'PENDING_ASSIGNMENT') then 1 else 0 end) AS pendingRuns,
+        sum(case when runs."status" = 'BACKOFF' then 1 else 0 end) AS backoffRuns,
         sum(case when runs."status" IN ('RUNNING', 'ASSIGNED') then 1 else 0 end) AS runningRuns,
         sum(case when runs."status" = 'SUCCEEDED' then 1 else 0 end) AS succeededRuns,
         sum(case when runs."status" = 'FAILED' then 1 else 0 end) AS failedRuns,
@@ -287,6 +288,8 @@ SET "status" = CASE
     -- Final states are final, cannot be updated
     WHEN "status" IN ('SUCCEEDED', 'FAILED', 'CANCELLED') THEN "status"
     -- NOTE: Order of the following conditions is important
+    -- When one step run is backoff AND no other step runs are running, then the job is backoff
+    WHEN s.backoffRuns > 0 AND s.runningRuns = 0 THEN 'BACKOFF'
     -- When one step run is running, then the job is running
     WHEN (s.runningRuns > 0 OR s.pendingRuns > 0) THEN 'RUNNING'
     -- When one step run has failed, then the job is failed
