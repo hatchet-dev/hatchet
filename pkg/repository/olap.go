@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"time"
 
@@ -14,7 +15,7 @@ import (
 
 type OLAPEventRepository interface {
 	ReadTaskRun(tenantId, taskRunId uuid.UUID) (olap.WorkflowRun, error)
-	ReadTaskRuns(tenantId uuid.UUID, since time.Time, statuses []gen.V2TaskStatus, limit, offset int64) ([]olap.WorkflowRun, error)
+	ReadTaskRuns(tenantId uuid.UUID, since time.Time, statuses []gen.V2TaskStatus, limit, offset int64) ([]olap.WorkflowRun, uint64, error)
 	ReadTaskRunEvents(tenantId, taskId uuid.UUID, limit, offset int64) ([]olap.TaskRunEvent, error)
 	ReadTaskRunMetrics(tenantId uuid.UUID, since time.Time) ([]olap.TaskRunMetric, error)
 	CreateTasks(tasks []olap.Task) error
@@ -54,7 +55,7 @@ func StringToReadableStatus(status string) olap.ReadableTaskStatus {
 	}
 }
 
-func (r *olapEventRepository) ReadTaskRuns(tenantId uuid.UUID, since time.Time, statuses []gen.V2TaskStatus, limit, offset int64) ([]olap.WorkflowRun, error) {
+func (r *olapEventRepository) ReadTaskRuns(tenantId uuid.UUID, since time.Time, statuses []gen.V2TaskStatus, limit, offset int64) ([]olap.WorkflowRun, uint64, error) {
 	var stringifiedStatuses = make([]string, len(statuses))
 	for i, status := range statuses {
 		stringifiedStatuses[i] = string(status)
@@ -168,7 +169,7 @@ func (r *olapEventRepository) ReadTaskRuns(tenantId uuid.UUID, since time.Time, 
 	)
 
 	if err != nil {
-		return []olap.WorkflowRun{}, err
+		return []olap.WorkflowRun{}, 0, err
 	}
 
 	records := make([]olap.WorkflowRun, 0)
@@ -204,7 +205,21 @@ func (r *olapEventRepository) ReadTaskRuns(tenantId uuid.UUID, since time.Time, 
 		records = append(records, taskRun)
 	}
 
-	return records, nil
+	count := r.conn.QueryRow(ctx, `
+		SELECT COUNT(id) AS count
+		FROM tasks
+		WHERE tenant_id = ? AND created_at > ?
+		`,
+		tenantId,
+		since,
+	)
+
+	var total uint64
+	if err := count.Scan(&total); err != nil {
+		return []olap.WorkflowRun{}, 0, fmt.Errorf("failed to scan count: %w", err)
+	}
+
+	return records, total, nil
 }
 
 func (r *olapEventRepository) ReadTaskRunMetrics(tenantId uuid.UUID, since time.Time) ([]olap.TaskRunMetric, error) {

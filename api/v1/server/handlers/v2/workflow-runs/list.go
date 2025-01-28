@@ -58,7 +58,7 @@ func (t *V2WorkflowRunsService) V2WorkflowRunsList(ctx echo.Context, request gen
 		offset = *request.Params.Offset
 	}
 
-	workflow_runs, err := t.config.EngineRepository.OLAP().ReadTaskRuns(
+	workflow_runs, total, err := t.config.EngineRepository.OLAP().ReadTaskRuns(
 		request.Tenant,
 		since,
 		statuses,
@@ -75,7 +75,7 @@ func (t *V2WorkflowRunsService) V2WorkflowRunsList(ctx echo.Context, request gen
 		workflowRunsPtr[i] = &workflow_runs[i]
 	}
 
-	result := transformers.ToWorkflowRuns(workflowRunsPtr)
+	result := transformers.ToWorkflowRuns(workflowRunsPtr, total, limit, offset)
 
 	// Search for api errors to see how we handle errors in other cases
 	return gen.V2WorkflowRunsList200JSONResponse(
