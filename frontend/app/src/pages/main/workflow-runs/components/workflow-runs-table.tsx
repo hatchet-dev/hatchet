@@ -15,7 +15,6 @@ import api, {
   ReplayWorkflowRunsRequest,
   V2TaskStatus,
   V2WorkflowRun,
-  WorkflowRunStatus,
 } from '@/lib/api';
 import { TenantContextType } from '@/lib/outlet';
 import { useOutletContext, useSearchParams } from 'react-router-dom';
