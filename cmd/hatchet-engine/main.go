@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -12,6 +13,8 @@ import (
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-engine/engine"
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
+
+	_ "net/http/pprof"
 )
 
 var printVersion bool
@@ -36,6 +39,13 @@ var rootCmd = &cobra.Command{
 			ctx, cancel := cmdutils.NewInterruptContext()
 			defer cancel()
 			context = ctx
+		}
+
+		// enable pprof if requested
+		if os.Getenv("PPROF_ENABLED") == "true" {
+			go func() {
+				log.Println(http.ListenAndServe("localhost:6060", nil))
+			}()
 		}
 
 		if err := engine.Run(context, cf, Version); err != nil {
