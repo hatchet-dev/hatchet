@@ -45,6 +45,8 @@ type WorkflowRun struct {
 
 	// Timestamp The timestamp of the workflow run.
 	Timestamp time.Time `json:"timestamp"`
+
+	WorkflowId uuid.UUID `json:"workflowId"`
 }
 
 type TaskRunEvent struct {

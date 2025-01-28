@@ -1219,7 +1219,8 @@ type V2WorkflowRun struct {
 	TenantId openapi_types.UUID `json:"tenantId"`
 
 	// Timestamp The timestamp of the task run.
-	Timestamp time.Time `json:"timestamp"`
+	Timestamp  time.Time           `json:"timestamp"`
+	WorkflowId *openapi_types.UUID `json:"workflowId,omitempty"`
 }
 
 // V2WorkflowRuns defines model for V2WorkflowRuns.

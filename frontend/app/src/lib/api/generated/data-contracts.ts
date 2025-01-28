@@ -120,6 +120,8 @@ export interface V2WorkflowRun {
   input: object;
   /** The output of the task run. */
   output?: object;
+  /** @format uuid */
+  workflowId?: string;
 }
 
 export interface V2WorkflowRuns {

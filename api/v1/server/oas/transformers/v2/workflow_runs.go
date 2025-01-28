@@ -34,11 +34,12 @@ func ToWorkflowRun(wf *olap.WorkflowRun) gen.V2WorkflowRun {
 			CreatedAt: wf.CreatedAt,
 			UpdatedAt: wf.CreatedAt,
 		},
-		StartedAt: *wf.StartedAt,
-		Status:    gen.V2TaskStatus(wf.Status),
-		TaskId:    wf.TaskId,
-		TenantId:  *wf.TenantId,
-		Timestamp: wf.Timestamp,
+		StartedAt:  *wf.StartedAt,
+		Status:     gen.V2TaskStatus(wf.Status),
+		TaskId:     wf.TaskId,
+		TenantId:   *wf.TenantId,
+		Timestamp:  wf.Timestamp,
+		WorkflowId: &wf.WorkflowId,
 	}
 }
 

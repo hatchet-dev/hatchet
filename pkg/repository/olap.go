@@ -76,7 +76,13 @@ func (r *olapEventRepository) ReadTaskRuns(tenantId uuid.UUID, since time.Time, 
 		WITH candidate_tasks AS (
 			SELECT *
 			FROM tasks
-			WHERE tenant_id = ? AND created_at > ?
+			WHERE
+				tenant_id = ?
+				AND created_at > ?
+				AND (
+					? = []
+					OR workflow_id IN (?)
+				)
 			ORDER BY created_at DESC
 		), max_retry_counts AS (
 			SELECT task_id, MAX(retry_count) AS max_retry_count
@@ -159,7 +165,8 @@ func (r *olapEventRepository) ReadTaskRuns(tenantId uuid.UUID, since time.Time, 
 			ct.id AS task_id,
 			ct.tenant_id,
 			-- NOTE: This is probably a bug, figure out which timestamp to use.
-			ct.created_at AS timestamp
+			ct.created_at AS timestamp,
+			ct.workflow_id
 		FROM candidate_tasks ct
 		JOIN task_event_metadata tem ON ct.id = tem.task_id
 		LEFT JOIN error_messages em ON ct.id = em.task_id
@@ -171,6 +178,8 @@ func (r *olapEventRepository) ReadTaskRuns(tenantId uuid.UUID, since time.Time, 
 		`,
 		tenantId,
 		since,
+		workflowIds,
+		workflowIds,
 		tenantId,
 		tenantId,
 		stringifiedStatuses,
@@ -204,6 +213,7 @@ func (r *olapEventRepository) ReadTaskRuns(tenantId uuid.UUID, since time.Time, 
 			&taskRun.TaskId,
 			&taskRun.TenantId,
 			&taskRun.Timestamp,
+			&taskRun.WorkflowId,
 		)
 
 		if err != nil {
@@ -218,10 +228,18 @@ func (r *olapEventRepository) ReadTaskRuns(tenantId uuid.UUID, since time.Time, 
 	count := r.conn.QueryRow(ctx, `
 		SELECT COUNT(id) AS count
 		FROM tasks
-		WHERE tenant_id = ? AND created_at > ?
+		WHERE
+			tenant_id = ?
+			AND created_at > ?
+			AND (
+				? = []
+				OR workflow_id IN (?)
+			)
 		`,
 		tenantId,
 		since,
+		workflowIds,
+		workflowIds,
 	)
 
 	var total uint64
@@ -376,7 +394,8 @@ func (r *olapEventRepository) ReadTaskRun(tenantId, taskRunId uuid.UUID) (olap.W
 			ct.id AS task_id,
 			ct.tenant_id,
 			-- NOTE: This is probably a bug, figure out which timestamp to use.
-			ct.created_at AS timestamp
+			ct.created_at AS timestamp,
+			ct.workflow_id
 		FROM tasks ct
 		JOIN task_event_metadata tem ON ct.id = tem.task_id
 		LEFT JOIN error_messages em ON ct.id = em.task_id
@@ -409,6 +428,7 @@ func (r *olapEventRepository) ReadTaskRun(tenantId, taskRunId uuid.UUID) (olap.W
 		&taskRun.TaskId,
 		&taskRun.TenantId,
 		&taskRun.Timestamp,
+		&taskRun.WorkflowId,
 	)
 
 	if err != nil {

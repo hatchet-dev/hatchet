@@ -14,6 +14,7 @@ import api, {
   queries,
   ReplayWorkflowRunsRequest,
   V2TaskStatus,
+  V2WorkflowRun,
   WorkflowRunStatus,
 } from '@/lib/api';
 import { TenantContextType } from '@/lib/outlet';
@@ -70,6 +71,13 @@ export interface WorkflowRunsTableProps {
   refetchInterval?: number;
   showMetrics?: boolean;
 }
+
+// TODO: Clean this up
+export type ListableWorkflowRun = V2WorkflowRun & {
+  workflowName: string | undefined;
+  triggeredBy: string;
+  workflowVersionId: string;
+};
 
 export const getCreatedAfterFromTimeRange = (timeRange?: string) => {
   switch (timeRange) {
@@ -244,6 +252,17 @@ export function WorkflowRunsTable({
     }
   }
 
+  const workflow = useMemo<string | undefined>(() => {
+    const filter = columnFilters.find((filter) => filter.id === 'Workflow');
+
+    if (!filter) {
+      return;
+    }
+
+    const vals = filter?.value as Array<string>;
+    return vals[0];
+  }, [columnFilters]);
+
   const statuses = useMemo(() => {
     const filter = columnFilters.find((filter) => filter.id === 'status');
 
@@ -261,6 +280,7 @@ export function WorkflowRunsTable({
       offset,
       limit: pagination.pageSize,
       statuses,
+      workflow_ids: workflow ? [workflow] : [],
       since: createdAfter,
     }),
     placeholderData: (prev) => prev,
@@ -470,10 +490,15 @@ export function WorkflowRunsTable({
     });
   };
 
-  const data = (listWorkflowRunsQuery.data?.rows || []).map((row) => ({
+  const data: ListableWorkflowRun[] = (
+    listWorkflowRunsQuery.data?.rows || []
+  ).map((row) => ({
     ...row,
     workflowVersionId: 'first version',
     triggeredBy: 'manual',
+    workflowName: workflowKeys?.rows?.find(
+      (r) => r.metadata.id == row.workflowId,
+    )?.name,
   }));
 
   return (
@@ -624,6 +649,7 @@ export function WorkflowRunsTable({
         columns={columns(onAdditionalMetadataClick)}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
+        // TODO: This is a hack - fix this type
         data={data as any}
         filters={filters}
         actions={actions}

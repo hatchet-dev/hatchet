@@ -3,6 +3,7 @@ package v2workflowruns
 import (
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
@@ -35,9 +36,10 @@ func (t *V2WorkflowRunsService) V2WorkflowRunsList(ctx echo.Context, request gen
 			gen.V2TaskStatusQUEUED,
 			gen.V2TaskStatusRUNNING,
 		}
-		since        = time.Now().Add(-24 * time.Hour)
-		limit  int64 = 50
-		offset int64 = 0
+		since             = time.Now().Add(-24 * time.Hour)
+		workflowIds       = []uuid.UUID{}
+		limit       int64 = 50
+		offset      int64 = 0
 	)
 
 	if request.Params.Statuses != nil {
@@ -58,10 +60,15 @@ func (t *V2WorkflowRunsService) V2WorkflowRunsList(ctx echo.Context, request gen
 		offset = *request.Params.Offset
 	}
 
+	if request.Params.WorkflowIds != nil {
+		workflowIds = *request.Params.WorkflowIds
+	}
+
 	workflow_runs, total, err := t.config.EngineRepository.OLAP().ReadTaskRuns(
 		request.Tenant,
 		since,
 		statuses,
+		workflowIds,
 		limit,
 		offset,
 	)

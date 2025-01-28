@@ -1,6 +1,5 @@
 import { ColumnDef } from '@tanstack/react-table';
 import { DataTableColumnHeader } from '../../../../../components/molecules/data-table/data-table-column-header';
-import { V2WorkflowRun } from '@/lib/api';
 import { Link } from 'react-router-dom';
 import { V2RunStatus } from '.././run-statuses';
 import {
@@ -9,10 +8,11 @@ import {
 } from '../../../events/components/additional-metadata';
 import RelativeDate from '@/components/molecules/relative-date';
 import { Checkbox } from '@/components/ui/checkbox';
+import { ListableWorkflowRun } from '../workflow-runs-table';
 
 export const columns: (
   onAdditionalMetadataClick?: (click: AdditionalMetadataClick) => void,
-) => ColumnDef<V2WorkflowRun>[] = (onAdditionalMetadataClick) => [
+) => ColumnDef<ListableWorkflowRun>[] = (onAdditionalMetadataClick) => [
   {
     id: 'select',
     header: ({ table }) => (
@@ -36,6 +36,28 @@ export const columns: (
     ),
     enableSorting: false,
     enableHiding: false,
+  },
+  {
+    accessorKey: 'Workflow',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Workflow" />
+    ),
+    cell: ({ row }) => {
+      const workflowId = row.original?.workflowId;
+      const workflowName = row.original.workflowName;
+
+      return (
+        <div className="min-w-fit whitespace-nowrap">
+          {(workflowId && workflowName && (
+            <a href={`/workflows/${workflowId}`}>{workflowName}</a>
+          )) ||
+            'N/A'}
+        </div>
+      );
+    },
+    show: false,
+    enableSorting: false,
+    enableHiding: true,
   },
   {
     accessorKey: 'id',
