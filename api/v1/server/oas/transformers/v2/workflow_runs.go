@@ -101,12 +101,29 @@ func ToTaskRunEvent(
 }
 
 func ToTaskRunMetrics(metrics *[]olap.TaskRunMetric) gen.V2TaskRunMetrics {
-	toReturn := make([]gen.V2TaskRunMetric, len(*metrics))
+	statuses := []gen.V2TaskStatus{
+		gen.V2TaskStatusCANCELLED,
+		gen.V2TaskStatusCOMPLETED,
+		gen.V2TaskStatusFAILED,
+		gen.V2TaskStatusQUEUED,
+		gen.V2TaskStatusRUNNING,
+	}
 
-	for i, metric := range *metrics {
+	toReturn := make([]gen.V2TaskRunMetric, len(statuses))
+
+	for i, status := range statuses {
+		metric := olap.TaskRunMetric{Count: 0}
+
+		for _, m := range *metrics {
+			if m.Status == string(status) {
+				metric = m
+				break
+			}
+		}
+
 		toReturn[i] = gen.V2TaskRunMetric{
 			Count:  int(metric.Count),
-			Status: gen.V2TaskStatus(metric.Status),
+			Status: status,
 		}
 	}
 
