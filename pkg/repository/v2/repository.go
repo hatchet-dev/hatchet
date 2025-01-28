@@ -7,13 +7,13 @@ import (
 )
 
 type Repository interface {
-	Events() EventRepository
+	Triggers() TriggerRepository
 	Tasks() TaskRepository
 	Scheduler() SchedulerRepository
 }
 
 type repositoryImpl struct {
-	events    EventRepository
+	triggers  TriggerRepository
 	tasks     TaskRepository
 	scheduler SchedulerRepository
 }
@@ -24,7 +24,7 @@ func NewRepository(pool *pgxpool.Pool, l *zerolog.Logger) Repository {
 	shared := newSharedRepository(pool, v, l)
 
 	impl := &repositoryImpl{
-		events:    newEventRepository(shared),
+		triggers:  newTriggerRepository(shared),
 		tasks:     newTaskRepository(shared),
 		scheduler: newSchedulerRepository(shared),
 	}
@@ -32,8 +32,8 @@ func NewRepository(pool *pgxpool.Pool, l *zerolog.Logger) Repository {
 	return impl
 }
 
-func (r *repositoryImpl) Events() EventRepository {
-	return r.events
+func (r *repositoryImpl) Triggers() TriggerRepository {
+	return r.triggers
 }
 
 func (r *repositoryImpl) Tasks() TaskRepository {

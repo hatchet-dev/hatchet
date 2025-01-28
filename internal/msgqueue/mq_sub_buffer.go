@@ -10,6 +10,7 @@ import (
 
 const FLUSH_INTERVAL = 10 * time.Millisecond
 const BUFFER_SIZE = 1000
+const MAX_CONCURRENCY = 10
 
 type DstFunc func(tenantId, msgId string, payloads [][]byte) error
 
@@ -125,12 +126,16 @@ func getKey(tenantId, msgId string) string {
 }
 
 type msgIdBuffer struct {
-	tenantId      string
-	msgId         string
-	lastFlushedAt time.Time
+	tenantId string
+	msgId    string
+
+	lastFlushedAt   time.Time
+	lastFlushedAtMu sync.Mutex
 
 	msgIdBufferCh chan *msgWithResultCh
 	notifier      chan struct{}
+
+	semaphore chan struct{}
 
 	dst DstFunc
 }
@@ -142,6 +147,7 @@ func newMsgIdBuffer(tenantId, msgId string, dst DstFunc) *msgIdBuffer {
 		msgIdBufferCh: make(chan *msgWithResultCh, BUFFER_SIZE),
 		notifier:      make(chan struct{}),
 		dst:           dst,
+		semaphore:     make(chan struct{}, MAX_CONCURRENCY),
 	}
 
 	err := b.startFlusher()
@@ -161,9 +167,9 @@ func (m *msgIdBuffer) startFlusher() error {
 		for {
 			select {
 			case <-ticker.C:
-				m.flush()
+				go m.flush()
 			case <-m.notifier:
-				m.flush()
+				go m.flush()
 			}
 		}
 	}()
@@ -171,16 +177,36 @@ func (m *msgIdBuffer) startFlusher() error {
 	return nil
 }
 
-func (m *msgIdBuffer) flush() {
-	// TODO: PROTECT THIS WITH A MUTEX
+func (m *msgIdBuffer) isBeforeWindow(t time.Time) bool {
+	m.lastFlushedAtMu.Lock()
+	defer m.lastFlushedAtMu.Unlock()
 
-	if m.lastFlushedAt.Add(FLUSH_INTERVAL).After(time.Now()) {
+	return m.lastFlushedAt.Add(FLUSH_INTERVAL).After(t)
+}
+
+func (m *msgIdBuffer) setLastFlushedAt(t time.Time) {
+	m.lastFlushedAtMu.Lock()
+	defer m.lastFlushedAtMu.Unlock()
+
+	m.lastFlushedAt = t
+}
+
+func (m *msgIdBuffer) flush() {
+	select {
+	case m.semaphore <- struct{}{}:
+	default:
 		return
 	}
 
-	defer func() {
-		m.lastFlushedAt = time.Now()
-	}()
+	defer func() { <-m.semaphore }()
+
+	now := time.Now()
+
+	if m.isBeforeWindow(now) {
+		return
+	}
+
+	defer m.setLastFlushedAt(now)
 
 	msgsWithResultCh := make([]*msgWithResultCh, 0)
 	payloads := make([][]byte, 0)

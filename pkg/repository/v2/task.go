@@ -71,13 +71,19 @@ type FailTaskOpts struct {
 type TaskRepository interface {
 	CreateTasks(ctx context.Context, tenantId string, tasks []CreateTaskOpts) error
 
-	CompleteTasks(ctx context.Context, tenantId string, tasks []TaskIdRetryCount) error
+	CompleteTasks(ctx context.Context, tenantId string, tasks []TaskIdRetryCount) ([]string, error)
 
-	FailTasks(ctx context.Context, tenantId string, tasks []FailTaskOpts) error
+	FailTasks(ctx context.Context, tenantId string, tasks []FailTaskOpts) (retriedTasks []TaskIdRetryCount, queues []string, err error)
+
+	CancelTasks(ctx context.Context, tenantId string, tasks []TaskIdRetryCount) ([]string, error)
 
 	ListTasks(ctx context.Context, tenantId string, tasks []int64) ([]*sqlcv2.V2Task, error)
 
 	ListTaskMetas(ctx context.Context, tenantId string, tasks []int64) ([]*sqlcv2.ListTaskMetasRow, error)
+
+	ProcessTaskTimeouts(ctx context.Context, tenantId string) ([]*sqlcv2.ProcessTaskTimeoutsRow, bool, error)
+
+	ProcessTaskReassignments(ctx context.Context, tenantId string) ([]*sqlcv2.ProcessTaskReassignmentsRow, bool, error)
 }
 
 type TaskRepositoryImpl struct {
@@ -142,7 +148,7 @@ func (r *TaskRepositoryImpl) CreateTasks(ctx context.Context, tenantId string, t
 	return nil
 }
 
-func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId string, tasks []TaskIdRetryCount) error {
+func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId string, tasks []TaskIdRetryCount) ([]string, error) {
 	// TODO: ADD BACK VALIDATION
 	// if err := r.v.Validate(tasks); err != nil {
 	// 	fmt.Println("FAILED VALIDATION HERE!!!")
@@ -159,16 +165,16 @@ func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId string,
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
 
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	defer rollback()
 
 	// release queue items
-	err = r.releaseQueueItems(ctx, tx, tenantId, tasks)
+	queues, err := r.releaseTasks(ctx, tx, tenantId, tasks)
 
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	err = r.createTaskEvents(
@@ -181,18 +187,18 @@ func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId string,
 	)
 
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// commit the transaction
 	if err := commit(ctx); err != nil {
-		return err
+		return nil, err
 	}
 
-	return nil
+	return queues, nil
 }
 
-func (r *TaskRepositoryImpl) FailTasks(ctx context.Context, tenantId string, failureOpts []FailTaskOpts) error {
+func (r *TaskRepositoryImpl) FailTasks(ctx context.Context, tenantId string, failureOpts []FailTaskOpts) ([]TaskIdRetryCount, []string, error) {
 	// TODO: ADD BACK VALIDATION
 	// if err := r.v.Validate(tasks); err != nil {
 	// 	fmt.Println("FAILED VALIDATION HERE!!!")
@@ -219,40 +225,56 @@ func (r *TaskRepositoryImpl) FailTasks(ctx context.Context, tenantId string, fai
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
 
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 
 	defer rollback()
 
 	// release queue items
-	err = r.releaseQueueItems(ctx, tx, tenantId, tasks)
+	queues, err := r.releaseTasks(ctx, tx, tenantId, tasks)
 
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
+
+	retriedTasks := make([]TaskIdRetryCount, 0)
 
 	// write app failures
 	if len(appFailures) > 0 {
-		err = r.queries.FailTaskAppFailure(ctx, tx, sqlcv2.FailTaskAppFailureParams{
+		appFailureRetries, err := r.queries.FailTaskAppFailure(ctx, tx, sqlcv2.FailTaskAppFailureParams{
 			Tenantid: sqlchelpers.UUIDFromStr(tenantId),
 			Taskids:  appFailures,
 		})
 
 		if err != nil {
-			return err
+			return nil, nil, err
+		}
+
+		for _, task := range appFailureRetries {
+			retriedTasks = append(retriedTasks, TaskIdRetryCount{
+				Id:         task.ID,
+				RetryCount: task.RetryCount,
+			})
 		}
 	}
 
 	// write internal failures
 	if len(internalFailures) > 0 {
-		err = r.queries.FailTaskInternalFailure(ctx, tx, sqlcv2.FailTaskInternalFailureParams{
+		internalFailureRetries, err := r.queries.FailTaskInternalFailure(ctx, tx, sqlcv2.FailTaskInternalFailureParams{
 			Tenantid:           sqlchelpers.UUIDFromStr(tenantId),
 			Taskids:            internalFailures,
 			Maxinternalretries: MAX_INTERNAL_RETRIES,
 		})
 
 		if err != nil {
-			return err
+			return nil, nil, err
+		}
+
+		for _, task := range internalFailureRetries {
+			retriedTasks = append(retriedTasks, TaskIdRetryCount{
+				Id:         task.ID,
+				RetryCount: task.RetryCount,
+			})
 		}
 	}
 
@@ -267,15 +289,60 @@ func (r *TaskRepositoryImpl) FailTasks(ctx context.Context, tenantId string, fai
 	)
 
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 
 	// commit the transaction
 	if err := commit(ctx); err != nil {
-		return err
+		return nil, nil, err
 	}
 
-	return nil
+	return retriedTasks, queues, nil
+}
+
+func (r *TaskRepositoryImpl) CancelTasks(ctx context.Context, tenantId string, tasks []TaskIdRetryCount) ([]string, error) {
+	// TODO: ADD BACK VALIDATION
+	// if err := r.v.Validate(tasks); err != nil {
+	// 	fmt.Println("FAILED VALIDATION HERE!!!")
+
+	// 	return err
+	// }
+
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer rollback()
+
+	// release queue items
+	queues, err := r.releaseTasks(ctx, tx, tenantId, tasks)
+
+	if err != nil {
+		return nil, err
+	}
+
+	// write task events
+	err = r.createTaskEvents(
+		ctx,
+		tx,
+		tenantId,
+		tasks,
+		make([][]byte, len(tasks)),
+		sqlcv2.V2TaskEventTypeCANCELLED,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	// commit the transaction
+	if err := commit(ctx); err != nil {
+		return nil, err
+	}
+
+	return queues, nil
 }
 
 func (r *TaskRepositoryImpl) ListTasks(ctx context.Context, tenantId string, tasks []int64) ([]*sqlcv2.V2Task, error) {
@@ -292,7 +359,103 @@ func (r *TaskRepositoryImpl) ListTaskMetas(ctx context.Context, tenantId string,
 	})
 }
 
-func (r *TaskRepositoryImpl) releaseQueueItems(ctx context.Context, tx sqlcv2.DBTX, tenantId string, tasks []TaskIdRetryCount) error {
+func (r *TaskRepositoryImpl) ProcessTaskTimeouts(ctx context.Context, tenantId string) ([]*sqlcv2.ProcessTaskTimeoutsRow, bool, error) {
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
+
+	if err != nil {
+		return nil, false, err
+	}
+
+	defer rollback()
+
+	// TODO: make limit configurable
+	limit := 1000
+
+	// get task timeouts
+	res, err := r.queries.ProcessTaskTimeouts(ctx, tx, sqlcv2.ProcessTaskTimeoutsParams{
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Limit: pgtype.Int4{
+			Int32: int32(limit),
+			Valid: true,
+		},
+	})
+
+	if err != nil {
+		return nil, false, err
+	}
+
+	// commit the transaction
+	if err := commit(ctx); err != nil {
+		return nil, false, err
+	}
+
+	return res, len(res) == limit, nil
+}
+
+func (r *TaskRepositoryImpl) ProcessTaskReassignments(ctx context.Context, tenantId string) ([]*sqlcv2.ProcessTaskReassignmentsRow, bool, error) {
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
+
+	if err != nil {
+		return nil, false, err
+	}
+
+	defer rollback()
+
+	// TODO: make limit configurable
+	limit := 1000
+
+	// get task reassignments
+	res, err := r.queries.ProcessTaskReassignments(ctx, tx, sqlcv2.ProcessTaskReassignmentsParams{
+		Tenantid:           sqlchelpers.UUIDFromStr(tenantId),
+		Maxinternalretries: MAX_INTERNAL_RETRIES,
+		Limit: pgtype.Int4{
+			Int32: int32(limit),
+			Valid: true,
+		},
+	})
+
+	if err != nil {
+		return nil, false, err
+	}
+
+	// write failed tasks as task events
+	failedTasks := make([]TaskIdRetryCount, 0)
+
+	for _, task := range res {
+		if task.Operation == "FAILED" {
+			failedTasks = append(failedTasks, TaskIdRetryCount{
+				Id:         task.ID,
+				RetryCount: task.RetryCount,
+			})
+		}
+	}
+
+	failedTaskDatas := make([][]byte, len(failedTasks))
+
+	if len(failedTasks) > 0 {
+		err = r.createTaskEvents(
+			ctx,
+			tx,
+			tenantId,
+			failedTasks,
+			failedTaskDatas,
+			sqlcv2.V2TaskEventTypeFAILED,
+		)
+
+		if err != nil {
+			return nil, false, err
+		}
+	}
+
+	// commit the transaction
+	if err := commit(ctx); err != nil {
+		return nil, false, err
+	}
+
+	return res, len(res) == limit, nil
+}
+
+func (r *TaskRepositoryImpl) releaseTasks(ctx context.Context, tx sqlcv2.DBTX, tenantId string, tasks []TaskIdRetryCount) ([]string, error) {
 	taskIds := make([]int64, len(tasks))
 	retryCounts := make([]int32, len(tasks))
 
@@ -301,7 +464,7 @@ func (r *TaskRepositoryImpl) releaseQueueItems(ctx context.Context, tx sqlcv2.DB
 		retryCounts[i] = task.RetryCount
 	}
 
-	return r.queries.ReleaseQueueItems(ctx, tx, sqlcv2.ReleaseQueueItemsParams{
+	return r.queries.ReleaseTasks(ctx, tx, sqlcv2.ReleaseTasksParams{
 		Taskids:     taskIds,
 		Retrycounts: retryCounts,
 	})
@@ -354,11 +517,16 @@ func (r *TaskRepositoryImpl) createTasks(ctx context.Context, tx sqlcv2.DBTX, te
 			ActionID:        task.ActionId,
 			StepID:          sqlchelpers.UUIDFromStr(task.StepId),
 			ScheduleTimeout: task.ScheduleTimeout,
-			StepTimeout:     sqlchelpers.TextFromStr(task.StepTimeout),
 			ExternalID:      sqlchelpers.UUIDFromStr(task.ExternalId),
 			DisplayName:     task.DisplayName,
 			Input:           task.Input,
 			RetryCount:      0,
+		}
+
+		if task.StepTimeout != "" {
+			p.StepTimeout = sqlchelpers.TextFromStr(task.StepTimeout)
+		} else {
+			p.StepTimeout = sqlchelpers.TextFromStr("1m")
 		}
 
 		if task.Priority != nil {

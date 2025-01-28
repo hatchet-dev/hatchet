@@ -692,10 +692,10 @@ SELECT
     ww."id" AS "webhookId",
     workers."maxRuns" - (
         SELECT COUNT(*)
-        FROM "SemaphoreQueueItem" sqi
+        FROM v2_task_runtime runtime
         WHERE
-            sqi."tenantId" = workers."tenantId" AND
-            sqi."workerId" = workers."id"
+            runtime.tenant_id = workers."tenantId" AND
+            runtime.worker_id = workers."id"
     ) AS "remainingSlots"
 FROM
     "Worker" workers

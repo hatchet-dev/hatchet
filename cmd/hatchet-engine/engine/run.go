@@ -614,7 +614,8 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		tasks, err := task.New(
 			task.WithAlerter(sc.Alerter),
 			task.WithMessageQueue(sc.MessageQueue),
-			task.WithRepository(sc.V2.Tasks()),
+			task.WithRepository(sc.EngineRepository),
+			task.WithV2Repository(sc.V2.Tasks()),
 			task.WithLogger(sc.Logger),
 			task.WithPartition(p),
 			task.WithQueueLoggerConfig(&sc.AdditionalLoggers.Queue),

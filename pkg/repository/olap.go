@@ -2,10 +2,12 @@ package repository
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"time"
 
 	"github.com/google/uuid"
+	lru "github.com/hashicorp/golang-lru/v2"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
@@ -23,6 +25,8 @@ type OLAPEventRepository interface {
 
 type olapEventRepository struct {
 	conn clickhouse.Conn
+
+	eventCache *lru.Cache[string, bool]
 }
 
 func NewOLAPEventRepository() OLAPEventRepository {
@@ -32,8 +36,15 @@ func NewOLAPEventRepository() OLAPEventRepository {
 		log.Fatal(err)
 	}
 
+	eventCache, err := lru.New[string, bool](100000)
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	return &olapEventRepository{
-		conn: conn,
+		conn:       conn,
+		eventCache: eventCache,
 	}
 }
 
@@ -455,7 +466,30 @@ func (r *olapEventRepository) ReadTaskRunEvents(tenantId, taskRunId uuid.UUID, l
 	return records, nil
 }
 
+func (r *olapEventRepository) saveEventsToCache(events []olap.TaskEvent) {
+	for _, event := range events {
+		key := getCacheKey(event)
+		r.eventCache.Add(key, true)
+	}
+}
+
+func getCacheKey(event olap.TaskEvent) string {
+	// key on the task_id, retry_count, and event_type
+	return fmt.Sprintf("%s-%s-%d", event.TaskId.String(), event.EventType, event.RetryCount)
+}
+
 func (r *olapEventRepository) writeTaskEventBatch(c context.Context, events []olap.TaskEvent) error {
+	// skip any events which have a corresponding event already
+	eventsToWrite := make([]olap.TaskEvent, 0)
+
+	for _, event := range events {
+		key := getCacheKey(event)
+
+		if _, ok := r.eventCache.Get(key); !ok {
+			eventsToWrite = append(eventsToWrite, event)
+		}
+	}
+
 	// Clickhouse recommends using bulk (batch) inserts for performance
 	// https://clickhouse.com/docs/en/integrations/go#batch-insert
 	// If https://clickhouse.com/docs/en/cloud/bestpractices/bulk-inserts#ingest-data-in-bulk
@@ -543,7 +577,15 @@ func (r *olapEventRepository) writeTaskEventBatch(c context.Context, events []ol
 		}
 	}
 
-	return batch.Send()
+	err = batch.Send()
+
+	if err != nil {
+		return err
+	}
+
+	r.saveEventsToCache(eventsToWrite)
+
+	return nil
 }
 
 func (r *olapEventRepository) writeTaskBatch(c context.Context, tasks []olap.Task) error {

@@ -235,7 +235,7 @@ func eventToTask(tenantId, eventId, key, data, additionalMeta string) (*msgqueue
 
 	return msgqueue.NewSingletonTenantMessage(
 		tenantId,
-		"process-trigger",
+		"event-trigger",
 		payloadTyped,
 		false,
 	)

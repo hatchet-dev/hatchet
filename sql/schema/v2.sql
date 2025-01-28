@@ -69,6 +69,7 @@ CREATE TABLE v2_queue_item (
     priority INTEGER NOT NULL DEFAULT 1,
     sticky "StickyStrategy",
     desired_worker_id UUID,
+    -- TODO: REMOVE is_queued
     is_queued BOOLEAN NOT NULL,
     retry_count INTEGER NOT NULL DEFAULT 0,
     CONSTRAINT v2_queue_item_pkey PRIMARY KEY (id)
@@ -178,42 +179,21 @@ WHEN (OLD.retry_count IS DISTINCT FROM NEW.retry_count)
 EXECUTE PROCEDURE v2_task_to_v2_queue_item_update_retry_count_function();
 
 -- CreateTable
-CREATE TABLE v2_semaphore_queue_item (
+CREATE TABLE v2_task_runtime (
     task_id bigint NOT NULL,
     retry_count INTEGER NOT NULL,
     worker_id UUID NOT NULL,
     tenant_id UUID NOT NULL,
-
-    CONSTRAINT v2_semaphore_queue_item_pkey PRIMARY KEY (task_id, retry_count)
-);
-
-alter table v2_semaphore_queue_item set (
-    autovacuum_vacuum_scale_factor = '0.1', 
-    autovacuum_analyze_scale_factor='0.05',
-    autovacuum_vacuum_threshold='25',
-    autovacuum_analyze_threshold='25',
-    autovacuum_vacuum_cost_delay='10',
-    autovacuum_vacuum_cost_limit='1000'
-);
-
--- CreateIndex
-CREATE UNIQUE INDEX v2_semaphore_queue_item_taskId_key ON v2_semaphore_queue_item (task_id ASC);
-
--- CreateIndex
-CREATE INDEX v2_semaphore_queue_item_tenantId_workerId_idx ON v2_semaphore_queue_item (tenant_id ASC, worker_id ASC);
-
--- CreateTable
-CREATE TABLE v2_timeout_queue_item (
-    task_id bigint NOT NULL,
-    retry_count INTEGER NOT NULL,
     timeout_at TIMESTAMP(3) NOT NULL,
-    tenant_id UUID NOT NULL,
-    is_queued BOOLEAN NOT NULL,
 
-    CONSTRAINT v2_timeout_queue_item_pkey PRIMARY KEY (task_id, retry_count)
+    CONSTRAINT v2_task_runtime_pkey PRIMARY KEY (task_id, retry_count)
 );
 
-alter table v2_timeout_queue_item set (
+CREATE INDEX v2_task_runtime_tenantId_workerId_idx ON v2_task_runtime (tenant_id ASC, worker_id ASC);
+
+CREATE INDEX v2_task_runtime_tenantId_timeoutAt_idx ON v2_task_runtime (tenant_id ASC, timeout_at ASC);
+
+alter table v2_task_runtime set (
     autovacuum_vacuum_scale_factor = '0.1', 
     autovacuum_analyze_scale_factor='0.05',
     autovacuum_vacuum_threshold='25',
@@ -221,6 +201,3 @@ alter table v2_timeout_queue_item set (
     autovacuum_vacuum_cost_delay='10',
     autovacuum_vacuum_cost_limit='1000'
 );
-
--- CreateIndex
-CREATE INDEX v2_timeout_queue_item_tenantId_isQueued_timeoutAt_idx ON v2_timeout_queue_item (tenant_id ASC, is_queued ASC, timeout_at ASC);

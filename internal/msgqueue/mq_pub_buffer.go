@@ -55,14 +55,18 @@ func getPubKey(q Queue, tenantId, msgId string) string {
 }
 
 type msgIdPubBuffer struct {
-	tenantId      string
-	msgId         string
-	lastFlushedAt time.Time
+	tenantId string
+	msgId    string
+
+	lastFlushedAt   time.Time
+	lastFlushedAtMu sync.Mutex
 
 	msgIdPubBufferCh chan *Message
 	notifier         chan struct{}
 
 	pub PubFunc
+
+	semaphore chan struct{}
 
 	serialize func(t any) ([]byte, error)
 }
@@ -75,6 +79,7 @@ func newMsgIdPubBuffer(tenantId, msgId string, pub PubFunc) *msgIdPubBuffer {
 		notifier:         make(chan struct{}),
 		pub:              pub,
 		serialize:        json.Marshal,
+		semaphore:        make(chan struct{}, MAX_CONCURRENCY),
 	}
 
 	err := b.startFlusher()
@@ -94,9 +99,9 @@ func (m *msgIdPubBuffer) startFlusher() error {
 		for {
 			select {
 			case <-ticker.C:
-				m.flush()
+				go m.flush()
 			case <-m.notifier:
-				m.flush()
+				go m.flush()
 			}
 		}
 	}()
@@ -104,16 +109,36 @@ func (m *msgIdPubBuffer) startFlusher() error {
 	return nil
 }
 
-func (m *msgIdPubBuffer) flush() {
-	// TODO: PROTECT THIS WITH A MUTEX
+func (m *msgIdPubBuffer) isBeforeWindow(t time.Time) bool {
+	m.lastFlushedAtMu.Lock()
+	defer m.lastFlushedAtMu.Unlock()
 
-	if m.lastFlushedAt.Add(FLUSH_INTERVAL).After(time.Now()) {
+	return m.lastFlushedAt.Add(FLUSH_INTERVAL).After(t)
+}
+
+func (m *msgIdPubBuffer) setLastFlushedAt(t time.Time) {
+	m.lastFlushedAtMu.Lock()
+	defer m.lastFlushedAtMu.Unlock()
+
+	m.lastFlushedAt = t
+}
+
+func (m *msgIdPubBuffer) flush() {
+	select {
+	case m.semaphore <- struct{}{}:
+	default:
 		return
 	}
 
-	defer func() {
-		m.lastFlushedAt = time.Now()
-	}()
+	defer func() { <-m.semaphore }()
+
+	now := time.Now()
+
+	if m.isBeforeWindow(now) {
+		return
+	}
+
+	defer m.setLastFlushedAt(now)
 
 	msgsWithResultCh := make([]*Message, 0)
 	payloadBytes := make([][]byte, 0)

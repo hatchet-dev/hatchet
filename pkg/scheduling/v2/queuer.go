@@ -322,9 +322,9 @@ type QueueResults struct {
 	TenantId pgtype.UUID
 	Assigned []*v2.AssignedItem
 
-	// A list of step run ids that were not assigned because they reached the scheduling
-	// timeout
-	SchedulingTimedOut []int64
+	Unassigned         []*sqlcv2.V2QueueItem
+	SchedulingTimedOut []*sqlcv2.V2QueueItem
+	RateLimited        []*v2.RateLimitResult
 }
 
 func (q *Queuer) ack(r *assignResults) {
@@ -449,7 +449,9 @@ func (q *Queuer) flushToDatabase(ctx context.Context, r *assignResults) int {
 	q.resultsCh <- &QueueResults{
 		TenantId:           q.tenantId,
 		Assigned:           succeeded,
-		SchedulingTimedOut: schedulingTimedOut,
+		SchedulingTimedOut: r.schedulingTimedOut,
+		RateLimited:        opts.RateLimited,
+		Unassigned:         r.unassigned,
 	}
 
 	q.l.Debug().Int("succeeded", len(succeeded)).Int("failed", len(failed)).Msg("flushed to database")
