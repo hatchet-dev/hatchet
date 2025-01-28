@@ -250,7 +250,10 @@ LEFT JOIN
     "_StepRunOrder" AS step_run_order ON step_run_order."B" = child_run."id"
 WHERE
     child_run."jobRunId" = @jobRunId::uuid
-    AND child_run."status" = 'PENDING'
+    AND (
+        child_run."status" = 'PENDING' OR
+        child_run."status" = 'BACKOFF'
+    )
     AND step_run_order."A" IS NULL;
 
 -- name: ListStartableStepRunsManyParents :many
@@ -265,7 +268,10 @@ JOIN
     "StepRun" AS child_run ON step_run_order."B" = child_run."id"
 WHERE
     parent_run."id" = @parentStepRunId::uuid
-    AND child_run."status" = 'PENDING'
+    AND (
+        child_run."status" = 'PENDING' OR
+        child_run."status" = 'BACKOFF'
+    )
     -- we look for whether the step run is startable by ensuring that all parent step runs have succeeded
     AND NOT EXISTS (
         SELECT 1
@@ -297,7 +303,10 @@ JOIN
     "StepRun" AS child_run ON step_run_order."B" = child_run."id"
 WHERE
     parent_run."id" = @parentStepRunId::uuid
-    AND child_run."status" = 'PENDING'
+    AND (
+        child_run."status" = 'PENDING' OR
+        child_run."status" = 'BACKOFF'
+    )
     -- we look for whether the step run is startable ASSUMING that parentStepRunId has succeeded,
     -- but we only have one parent step run
     AND NOT EXISTS (
