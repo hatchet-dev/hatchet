@@ -32,7 +32,7 @@ func run(ctx context.Context, delay time.Duration, executions chan<- time.Durati
 			c,
 		),
 		worker.WithLogLevel("warn"),
-		worker.WithMaxRuns(6000),
+		worker.WithMaxRuns(400),
 	)
 
 	if err != nil {
@@ -55,6 +55,7 @@ func run(ctx context.Context, delay time.Duration, executions chan<- time.Durati
 			Name:        "load-test",
 			Description: "Load testing",
 			Concurrency: concurrencyOpts,
+			// ScheduleTimeout: "30s",
 			Steps: []*worker.WorkflowStep{
 				worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
 					var input Event
@@ -91,7 +92,7 @@ func run(ctx context.Context, delay time.Duration, executions chan<- time.Durati
 					return &stepOneOutput{
 						Message: "This ran at: " + time.Now().Format(time.RFC3339Nano),
 					}, nil
-				}).SetName("step-one"),
+				}).SetName("step-one").SetTimeout("5m"),
 			},
 		},
 	)
