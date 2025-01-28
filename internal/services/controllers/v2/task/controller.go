@@ -203,6 +203,11 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 		return nil, fmt.Errorf("could not start message queue buffer: %w", err)
 	}
 
+	// always create table partition on startup
+	if err := tc.createTablePartition(context.Background()); err != nil {
+		return nil, fmt.Errorf("could not create table partition: %w", err)
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 
 	_, err = tc.s.NewJob(
@@ -227,6 +232,18 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("could not schedule step run reassignment: %w", err)
+	}
+
+	_, err = tc.s.NewJob(
+		gocron.DurationJob(time.Minute*15),
+		gocron.NewTask(
+			tc.runTaskTablePartition(ctx),
+		),
+	)
+
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("could not schedule task partition method: %w", err)
 	}
 
 	cleanup := func() error {

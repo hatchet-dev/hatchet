@@ -16,7 +16,8 @@ WITH workflow_versions_with_steps AS (
     SELECT
         s.id, s."createdAt", s."updatedAt", s."deletedAt", s."readableId", s."tenantId", s."jobId", s."actionId", s.timeout, s."customUserData", s.retries, s."retryBackoffFactor", s."retryMaxBackoff", s."scheduleTimeout",
         wv."id" as "workflowVersionId",
-        w."name" as "workflowName"
+        w."name" as "workflowName",
+        w."id" as "workflowId"
     FROM
         "WorkflowVersion" as wv
     JOIN
@@ -40,7 +41,7 @@ WITH workflow_versions_with_steps AS (
         wv."workflowVersionId"
 )
 SELECT
-    wv.id, wv."createdAt", wv."updatedAt", wv."deletedAt", wv."readableId", wv."tenantId", wv."jobId", wv."actionId", wv.timeout, wv."customUserData", wv.retries, wv."retryBackoffFactor", wv."retryMaxBackoff", wv."scheduleTimeout", wv."workflowVersionId", wv."workflowName"
+    wv.id, wv."createdAt", wv."updatedAt", wv."deletedAt", wv."readableId", wv."tenantId", wv."jobId", wv."actionId", wv.timeout, wv."customUserData", wv.retries, wv."retryBackoffFactor", wv."retryMaxBackoff", wv."scheduleTimeout", wv."workflowVersionId", wv."workflowName", wv."workflowId"
 FROM
     workflow_versions_with_steps as wv
 JOIN
@@ -71,6 +72,7 @@ type GetWorkflowStartDataRow struct {
 	ScheduleTimeout    string           `json:"scheduleTimeout"`
 	WorkflowVersionId  pgtype.UUID      `json:"workflowVersionId"`
 	WorkflowName       string           `json:"workflowName"`
+	WorkflowId         pgtype.UUID      `json:"workflowId"`
 }
 
 // If the workflow has multiple steps, this does not return any data
@@ -101,6 +103,7 @@ func (q *Queries) GetWorkflowStartData(ctx context.Context, db DBTX, arg GetWork
 			&i.ScheduleTimeout,
 			&i.WorkflowVersionId,
 			&i.WorkflowName,
+			&i.WorkflowId,
 		); err != nil {
 			return nil, err
 		}

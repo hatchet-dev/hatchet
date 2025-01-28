@@ -8,17 +8,21 @@ CREATE TABLE v2_queue (
     CONSTRAINT v2_queue_pkey PRIMARY KEY (tenant_id, name)
 );
 
+CREATE TYPE v2_sticky_strategy AS ENUM ('NONE', 'SOFT', 'HARD');
+
 -- CreateTable
 CREATE TABLE v2_task (
     id bigint GENERATED ALWAYS AS IDENTITY,
+    inserted_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     tenant_id UUID NOT NULL,
     queue TEXT NOT NULL,
     action_id TEXT NOT NULL,
     step_id UUID NOT NULL,
+    workflow_id UUID NOT NULL,
     schedule_timeout TEXT NOT NULL,
     step_timeout TEXT,
     priority INTEGER DEFAULT 1,
-    sticky "StickyStrategy",
+    sticky v2_sticky_strategy NOT NULL,
     desired_worker_id UUID,
     external_id UUID NOT NULL,
     display_name TEXT NOT NULL,
@@ -26,17 +30,63 @@ CREATE TABLE v2_task (
     retry_count INTEGER NOT NULL DEFAULT 0,
     internal_retry_count INTEGER NOT NULL DEFAULT 0,
     app_retry_count INTEGER NOT NULL DEFAULT 0,
-    CONSTRAINT v2_task_pkey PRIMARY KEY (id)
-);
+    CONSTRAINT v2_task_pkey PRIMARY KEY (id, inserted_at)
+) PARTITION BY RANGE(inserted_at);
 
-alter table v2_task set (
-    autovacuum_vacuum_scale_factor = '0.1', 
-    autovacuum_analyze_scale_factor='0.05',
-    autovacuum_vacuum_threshold='25',
-    autovacuum_analyze_threshold='25',
-    autovacuum_vacuum_cost_delay='10',
-    autovacuum_vacuum_cost_limit='1000'
-);
+CREATE OR REPLACE FUNCTION create_v2_task_partition(
+    targetDate date
+) RETURNS integer
+    LANGUAGE plpgsql AS
+$$
+DECLARE
+    targetDateStr varchar;
+    targetDatePlusOneDayStr varchar;
+    newTableName varchar;
+BEGIN
+    SELECT to_char(targetDate, 'YYYYMMDD') INTO targetDateStr;
+    SELECT to_char(targetDate + INTERVAL '1 day', 'YYYYMMDD') INTO targetDatePlusOneDayStr;
+    SELECT format('v2_task_%s', targetDateStr) INTO newTableName;
+    -- exit if the table exists
+    IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename = newTableName) THEN
+        RETURN 0;
+    END IF;
+
+    EXECUTE
+        format('CREATE TABLE %s (LIKE v2_task INCLUDING INDEXES)', newTableName);
+    EXECUTE
+        format('ALTER TABLE %s SET (
+            autovacuum_vacuum_scale_factor = ''0.1'', 
+            autovacuum_analyze_scale_factor=''0.05'',
+            autovacuum_vacuum_threshold=''25'',
+            autovacuum_analyze_threshold=''25'',
+            autovacuum_vacuum_cost_delay=''10'',
+            autovacuum_vacuum_cost_limit=''1000''
+        )', newTableName);
+    EXECUTE
+        format('ALTER TABLE v2_task ATTACH PARTITION %s FOR VALUES FROM (''%s'') TO (''%s'')', newTableName, targetDateStr, targetDatePlusOneDayStr);
+    RETURN 1;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION get_v2_task_partitions_before(
+    targetDate date
+) RETURNS TABLE(partition_name text) 
+    LANGUAGE plpgsql AS
+$$
+BEGIN
+    RETURN QUERY
+    SELECT
+        inhrelid::regclass::text AS partition_name
+    FROM
+        pg_inherits
+    WHERE
+        inhparent = 'v2_task'::regclass
+        AND substring(inhrelid::regclass::text, 'v2_task_(\d{8})') ~ '^\d{8}'
+        AND (substring(inhrelid::regclass::text, 'v2_task_(\d{8})')::date) < targetDate;
+END;
+$$;
+
+SELECT create_v2_task_partition(DATE 'today');
 
 CREATE TYPE v2_task_event_type AS ENUM (
     'COMPLETED',
@@ -64,10 +114,11 @@ CREATE TABLE v2_queue_item (
     task_id bigint NOT NULL,
     action_id TEXT NOT NULL,
     step_id UUID NOT NULL,
+    workflow_id UUID NOT NULL,
     schedule_timeout_at TIMESTAMP(3),
     step_timeout TEXT,
     priority INTEGER NOT NULL DEFAULT 1,
-    sticky "StickyStrategy",
+    sticky v2_sticky_strategy NOT NULL,
     desired_worker_id UUID,
     -- TODO: REMOVE is_queued
     is_queued BOOLEAN NOT NULL,
@@ -102,6 +153,7 @@ BEGIN
         task_id,
         action_id,
         step_id,
+        workflow_id,
         schedule_timeout_at,
         step_timeout,
         priority,
@@ -116,6 +168,7 @@ BEGIN
         NEW.id,
         NEW.action_id,
         NEW.step_id,
+        NEW.workflow_id,
         CURRENT_TIMESTAMP + convert_duration_to_interval(NEW.schedule_timeout),
         NEW.step_timeout,
         COALESCE(NEW.priority, 1),
@@ -144,6 +197,7 @@ BEGIN
         task_id,
         action_id,
         step_id,
+        workflow_id,
         schedule_timeout_at,
         step_timeout,
         priority,
@@ -158,6 +212,7 @@ BEGIN
         NEW.id,
         NEW.action_id,
         NEW.step_id,
+        NEW.workflow_id,
         CURRENT_TIMESTAMP + convert_duration_to_interval(NEW.schedule_timeout),
         NEW.step_timeout,
         -- retries are always given priority=4

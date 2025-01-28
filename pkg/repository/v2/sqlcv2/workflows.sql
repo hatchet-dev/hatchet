@@ -5,7 +5,8 @@ WITH workflow_versions_with_steps AS (
     SELECT
         s.*,
         wv."id" as "workflowVersionId",
-        w."name" as "workflowName"
+        w."name" as "workflowName",
+        w."id" as "workflowId"
     FROM
         "WorkflowVersion" as wv
     JOIN

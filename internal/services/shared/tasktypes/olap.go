@@ -7,12 +7,17 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/pkg/repository/olap"
-	v2 "github.com/hatchet-dev/hatchet/pkg/repository/v2"
+	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/v2/sqlcv2"
 )
 
 type CreatedTaskPayload struct {
 	// (required) the external id
 	ExternalId string `validate:"required,uuid"`
+
+	SourceId uint64 `json:"source_id"`
+
+	InsertedAt time.Time `json:"inserted_at"`
 
 	// (required) the queue
 	Queue string
@@ -22,6 +27,9 @@ type CreatedTaskPayload struct {
 
 	// (required) the step id
 	StepId string `validate:"required,uuid"`
+
+	// (required) the workflow id
+	WorkflowId string `validate:"required,uuid"`
 
 	// (required) the schedule timeout
 	ScheduleTimeout string `validate:"required,duration"`
@@ -49,27 +57,26 @@ type CreatedTaskPayload struct {
 	DesiredWorkerId *string
 }
 
-type CreatedTaskMetadata struct {
-	TenantId string `json:"tenant_id" validate:"required,uuid"`
-}
-
-func TaskOptToMessage(tenantId string, opt v2.CreateTaskOpts) (*msgqueue.Message, error) {
+func CreatedTaskMessage(tenantId string, task *sqlcv2.V2Task) (*msgqueue.Message, error) {
 	return msgqueue.NewSingletonTenantMessage(
 		tenantId,
 		"created-task",
 		CreatedTaskPayload{
-			ExternalId:         opt.ExternalId,
-			Queue:              opt.Queue,
-			ActionId:           opt.ActionId,
-			StepId:             opt.StepId,
-			ScheduleTimeout:    opt.ScheduleTimeout,
-			StepTimeout:        opt.StepTimeout,
-			DisplayName:        opt.DisplayName,
-			Input:              string(opt.Input),
-			AdditionalMetadata: opt.AdditionalMetadata,
-			Priority:           opt.Priority,
-			StickyStrategy:     opt.StickyStrategy,
-			DesiredWorkerId:    opt.DesiredWorkerId,
+			ExternalId:      sqlchelpers.UUIDToStr(task.ExternalID),
+			SourceId:        uint64(task.ID),
+			InsertedAt:      task.InsertedAt.Time,
+			Queue:           task.Queue,
+			ActionId:        task.ActionID,
+			StepId:          sqlchelpers.UUIDToStr(task.StepID),
+			WorkflowId:      sqlchelpers.UUIDToStr(task.WorkflowID),
+			ScheduleTimeout: task.ScheduleTimeout,
+			StepTimeout:     task.StepTimeout.String,
+			DisplayName:     task.DisplayName,
+			Input:           string(task.Input),
+			// AdditionalMetadata: task.AdditionalMetadata,
+			// Priority:           task.Priority,
+			// StickyStrategy:     task.StickyStrategy,
+			// DesiredWorkerId:    task.DesiredWorkerId,
 		},
 		false,
 	)

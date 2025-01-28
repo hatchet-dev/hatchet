@@ -278,7 +278,7 @@ func (tc *TriggerControllerImpl) handleProcessTaskTrigger(ctx context.Context, t
 
 func (tc *TriggerControllerImpl) createTasks(ctx context.Context, tenantId string, opts []v2.CreateTaskOpts) error {
 	// create the tasks
-	err := tc.v2repo.Tasks().CreateTasks(ctx, tenantId, opts)
+	tasks, err := tc.v2repo.Tasks().CreateTasks(ctx, tenantId, opts)
 
 	if err != nil {
 		return fmt.Errorf("could not create tasks: %w", err)
@@ -320,8 +320,9 @@ func (tc *TriggerControllerImpl) createTasks(ctx context.Context, tenantId strin
 
 	// notify the OLAP processor that tasks have been created
 	// TODO: make this transactionally safe?
-	for _, opt := range opts {
-		msg, err := tasktypes.TaskOptToMessage(tenantId, opt)
+	for _, task := range tasks {
+		taskCp := task
+		msg, err := tasktypes.CreatedTaskMessage(tenantId, taskCp)
 
 		if err != nil {
 			tc.l.Err(err).Msg("could not create message for olap queue")
@@ -335,7 +336,7 @@ func (tc *TriggerControllerImpl) createTasks(ctx context.Context, tenantId strin
 			continue
 		}
 
-		taskExternalId := opt.ExternalId
+		taskExternalId := sqlchelpers.UUIDToStr(task.ExternalID)
 
 		olapMsg, err := tasktypes.MonitoringEventMessageFromInternal(
 			tenantId,
@@ -381,6 +382,7 @@ func (tc *TriggerControllerImpl) getTaskCreateOptsFromEvents(startDatas []*v2.Wo
 			Queue:           startData.WorkflowStartData.ActionId,
 			ActionId:        startData.WorkflowStartData.ActionId,
 			StepId:          sqlchelpers.UUIDToStr(startData.WorkflowStartData.ID),
+			WorkflowId:      sqlchelpers.UUIDToStr(startData.WorkflowStartData.WorkflowId),
 			ScheduleTimeout: startData.WorkflowStartData.ScheduleTimeout,
 			StepTimeout:     startData.WorkflowStartData.Timeout.String,
 			DisplayName:     startData.WorkflowStartData.WorkflowName,
@@ -411,6 +413,7 @@ func (tc *TriggerControllerImpl) getTaskCreateOptsFromTaskIds(startDatas []*v2.W
 			Queue:           startData.WorkflowStartData.ActionId,
 			ActionId:        startData.WorkflowStartData.ActionId,
 			StepId:          sqlchelpers.UUIDToStr(startData.WorkflowStartData.ID),
+			WorkflowId:      sqlchelpers.UUIDToStr(startData.WorkflowStartData.WorkflowId),
 			ScheduleTimeout: startData.WorkflowStartData.ScheduleTimeout,
 			StepTimeout:     startData.WorkflowStartData.Timeout.String,
 			DisplayName:     startData.WorkflowStartData.WorkflowName,

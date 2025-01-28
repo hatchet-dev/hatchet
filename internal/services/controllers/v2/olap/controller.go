@@ -197,11 +197,14 @@ func (tc *OLAPControllerImpl) handleCreatedTask(ctx context.Context, tenantId st
 
 		opts = append(opts, olap.Task{
 			Id:              uuid.MustParse(msg.ExternalId),
+			SourceId:        msg.SourceId,
+			InsertedAt:      msg.InsertedAt,
 			TenantId:        uuid.MustParse(tenantId),
 			Queue:           msg.Queue,
 			ActionId:        msg.ActionId,
 			ScheduleTimeout: msg.ScheduleTimeout,
 			StepTimeout:     msg.StepTimeout,
+			WorkflowId:      uuid.MustParse(msg.WorkflowId),
 			Priority:        priority,
 			Sticky:          olap.STICKY_NONE,
 			DisplayName:     msg.DisplayName,

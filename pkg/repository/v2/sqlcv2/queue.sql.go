@@ -271,7 +271,7 @@ func (q *Queries) ListAvailableSlotsForWorkers(ctx context.Context, db DBTX, arg
 
 const listQueueItemsForQueue = `-- name: ListQueueItemsForQueue :many
 SELECT
-    id, tenant_id, queue, task_id, action_id, step_id, schedule_timeout_at, step_timeout, priority, sticky, desired_worker_id, is_queued, retry_count
+    id, tenant_id, queue, task_id, action_id, step_id, workflow_id, schedule_timeout_at, step_timeout, priority, sticky, desired_worker_id, is_queued, retry_count
 FROM
     v2_queue_item qi
 WHERE
@@ -319,6 +319,7 @@ func (q *Queries) ListQueueItemsForQueue(ctx context.Context, db DBTX, arg ListQ
 			&i.TaskID,
 			&i.ActionID,
 			&i.StepID,
+			&i.WorkflowID,
 			&i.ScheduleTimeoutAt,
 			&i.StepTimeout,
 			&i.Priority,

@@ -767,6 +767,49 @@ func (ns NullTenantResourceLimitAlertType) Value() (driver.Value, error) {
 	return string(ns.TenantResourceLimitAlertType), nil
 }
 
+type V2StickyStrategy string
+
+const (
+	V2StickyStrategyNONE V2StickyStrategy = "NONE"
+	V2StickyStrategySOFT V2StickyStrategy = "SOFT"
+	V2StickyStrategyHARD V2StickyStrategy = "HARD"
+)
+
+func (e *V2StickyStrategy) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = V2StickyStrategy(s)
+	case string:
+		*e = V2StickyStrategy(s)
+	default:
+		return fmt.Errorf("unsupported scan type for V2StickyStrategy: %T", src)
+	}
+	return nil
+}
+
+type NullV2StickyStrategy struct {
+	V2StickyStrategy V2StickyStrategy `json:"v2_sticky_strategy"`
+	Valid            bool             `json:"valid"` // Valid is true if V2StickyStrategy is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullV2StickyStrategy) Scan(value interface{}) error {
+	if value == nil {
+		ns.V2StickyStrategy, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.V2StickyStrategy.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullV2StickyStrategy) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.V2StickyStrategy), nil
+}
+
 type V2TaskEventType string
 
 const (
@@ -1771,6 +1814,7 @@ type V2QueueItem struct {
 	TaskID            int64              `json:"task_id"`
 	ActionID          string             `json:"action_id"`
 	StepID            pgtype.UUID        `json:"step_id"`
+	WorkflowID        pgtype.UUID        `json:"workflow_id"`
 	ScheduleTimeoutAt pgtype.Timestamp   `json:"schedule_timeout_at"`
 	StepTimeout       pgtype.Text        `json:"step_timeout"`
 	Priority          int32              `json:"priority"`
@@ -1781,22 +1825,24 @@ type V2QueueItem struct {
 }
 
 type V2Task struct {
-	ID                 int64              `json:"id"`
-	TenantID           pgtype.UUID        `json:"tenant_id"`
-	Queue              string             `json:"queue"`
-	ActionID           string             `json:"action_id"`
-	StepID             pgtype.UUID        `json:"step_id"`
-	ScheduleTimeout    string             `json:"schedule_timeout"`
-	StepTimeout        pgtype.Text        `json:"step_timeout"`
-	Priority           pgtype.Int4        `json:"priority"`
-	Sticky             NullStickyStrategy `json:"sticky"`
-	DesiredWorkerID    pgtype.UUID        `json:"desired_worker_id"`
-	ExternalID         pgtype.UUID        `json:"external_id"`
-	DisplayName        string             `json:"display_name"`
-	Input              []byte             `json:"input"`
-	RetryCount         int32              `json:"retry_count"`
-	InternalRetryCount int32              `json:"internal_retry_count"`
-	AppRetryCount      int32              `json:"app_retry_count"`
+	ID                 int64            `json:"id"`
+	InsertedAt         pgtype.Timestamp `json:"inserted_at"`
+	TenantID           pgtype.UUID      `json:"tenant_id"`
+	Queue              string           `json:"queue"`
+	ActionID           string           `json:"action_id"`
+	StepID             pgtype.UUID      `json:"step_id"`
+	WorkflowID         pgtype.UUID      `json:"workflow_id"`
+	ScheduleTimeout    string           `json:"schedule_timeout"`
+	StepTimeout        pgtype.Text      `json:"step_timeout"`
+	Priority           pgtype.Int4      `json:"priority"`
+	Sticky             V2StickyStrategy `json:"sticky"`
+	DesiredWorkerID    pgtype.UUID      `json:"desired_worker_id"`
+	ExternalID         pgtype.UUID      `json:"external_id"`
+	DisplayName        string           `json:"display_name"`
+	Input              []byte           `json:"input"`
+	RetryCount         int32            `json:"retry_count"`
+	InternalRetryCount int32            `json:"internal_retry_count"`
+	AppRetryCount      int32            `json:"app_retry_count"`
 }
 
 type V2TaskEvent struct {
