@@ -3469,7 +3469,8 @@ SELECT
     COUNT(CASE WHEN runs."status" = 'RUNNING' OR runs."status" = 'CANCELLING' THEN 1 END) AS "RUNNING",
     COUNT(CASE WHEN runs."status" = 'SUCCEEDED' THEN 1 END) AS "SUCCEEDED",
     COUNT(CASE WHEN runs."status" = 'FAILED' THEN 1 END) AS "FAILED",
-    COUNT(CASE WHEN runs."status" = 'QUEUED' THEN 1 END) AS "QUEUED"
+    COUNT(CASE WHEN runs."status" = 'QUEUED' THEN 1 END) AS "QUEUED",
+    COUNT(CASE WHEN runs."status" = 'CANCELLED' THEN 1 END) AS "CANCELLED"
 FROM
     "WorkflowRun" as runs
 LEFT JOIN
@@ -3532,6 +3533,7 @@ type WorkflowRunsMetricsCountRow struct {
 	SUCCEEDED int64 `json:"SUCCEEDED"`
 	FAILED    int64 `json:"FAILED"`
 	QUEUED    int64 `json:"QUEUED"`
+	CANCELLED int64 `json:"CANCELLED"`
 }
 
 func (q *Queries) WorkflowRunsMetricsCount(ctx context.Context, db DBTX, arg WorkflowRunsMetricsCountParams) (*WorkflowRunsMetricsCountRow, error) {
@@ -3552,6 +3554,7 @@ func (q *Queries) WorkflowRunsMetricsCount(ctx context.Context, db DBTX, arg Wor
 		&i.SUCCEEDED,
 		&i.FAILED,
 		&i.QUEUED,
+		&i.CANCELLED,
 	)
 	return &i, err
 }

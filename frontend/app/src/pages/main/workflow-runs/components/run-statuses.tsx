@@ -13,7 +13,12 @@ type RunStatusType =
 
 type RunStatusVariant = {
   text: string;
-  variant: 'inProgress' | 'successful' | 'failed' | 'outline';
+  variant:
+    | 'inProgress'
+    | 'successful'
+    | 'failed'
+    | 'outline'
+    | 'outlineDestructive';
 };
 
 const RUN_STATUS_VARIANTS: Record<RunStatusType, RunStatusVariant> = {
@@ -27,7 +32,7 @@ const RUN_STATUS_VARIANTS: Record<RunStatusType, RunStatusVariant> = {
   },
   CANCELLED: {
     text: 'Cancelled',
-    variant: 'failed',
+    variant: 'outlineDestructive',
   },
   CANCELLING: {
     text: 'Cancelling',
@@ -121,6 +126,7 @@ const indicatorVariants = {
   failed: 'border-transparent rounded-full bg-red-500',
   inProgress: 'border-transparent rounded-full bg-yellow-500',
   outline: 'border-transparent rounded-full bg-muted',
+  outlineDestructive: 'border-transparent rounded-full bg-red-500',
 };
 
 export function RunIndicator({

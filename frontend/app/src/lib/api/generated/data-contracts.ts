@@ -1148,6 +1148,7 @@ export interface WorkflowRunsMetricsCounts {
   SUCCEEDED?: number;
   FAILED?: number;
   QUEUED?: number;
+  CANCELLED?: number;
 }
 
 export interface WorkflowRunsMetrics {

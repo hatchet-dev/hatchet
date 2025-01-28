@@ -361,7 +361,7 @@ function WorkflowRunSummary({ event }: { event: Event }) {
         >
           <PopoverTrigger>
             <Badge
-              variant="outline"
+              variant="outlineDestructive"
               className="cursor-pointer"
               onClick={() => setPopoverOpen('cancelled')}
             >

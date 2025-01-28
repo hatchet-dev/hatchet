@@ -99,7 +99,8 @@ SELECT
     COUNT(CASE WHEN runs."status" = 'RUNNING' OR runs."status" = 'CANCELLING' THEN 1 END) AS "RUNNING",
     COUNT(CASE WHEN runs."status" = 'SUCCEEDED' THEN 1 END) AS "SUCCEEDED",
     COUNT(CASE WHEN runs."status" = 'FAILED' THEN 1 END) AS "FAILED",
-    COUNT(CASE WHEN runs."status" = 'QUEUED' THEN 1 END) AS "QUEUED"
+    COUNT(CASE WHEN runs."status" = 'QUEUED' THEN 1 END) AS "QUEUED",
+    COUNT(CASE WHEN runs."status" = 'CANCELLED' THEN 1 END) AS "CANCELLED"
 FROM
     "WorkflowRun" as runs
 LEFT JOIN
