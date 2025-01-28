@@ -59,6 +59,9 @@ V2WorkflowRun:
     output:
       type: object
       description: The output of the task run.
+    workflowId:
+      type: string
+      format: uuid
   required:
     - metadata
     - id

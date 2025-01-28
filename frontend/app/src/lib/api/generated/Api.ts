@@ -144,6 +144,8 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
        * @format date-time
        */
       since?: string;
+      /** The workflow id to find runs for */
+      workflow_ids?: string[];
     },
     params: RequestParams = {},
   ) =>
