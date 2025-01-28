@@ -65,13 +65,20 @@ func StringToReadableStatus(status string) olap.ReadableTaskStatus {
 	}
 }
 
+func CreateContext() context.Context {
+	return clickhouse.Context(context.Background(), clickhouse.WithSettings(clickhouse.Settings{
+		"join_use_nulls": "1",
+	}))
+}
+
 func (r *olapEventRepository) ReadTaskRuns(tenantId uuid.UUID, since time.Time, statuses []gen.V2TaskStatus, workflowIds []uuid.UUID, limit, offset int64) ([]olap.WorkflowRun, uint64, error) {
 	var stringifiedStatuses = make([]string, len(statuses))
 	for i, status := range statuses {
 		stringifiedStatuses[i] = string(status)
 	}
 
-	ctx := context.Background()
+	ctx := CreateContext()
+
 	rows, err := r.conn.Query(ctx, `
 		WITH candidate_tasks AS (
 			SELECT *
@@ -105,7 +112,8 @@ func (r *olapEventRepository) ReadTaskRuns(tenantId uuid.UUID, since time.Time, 
 		), task_creation_times AS (
 			SELECT
 				task_id,
-				MIN(timestamp) AS created_at
+				MIN(timestamp) AS created_at,
+				MAX(readable_status) AS status
 			FROM relevant_task_events
 			GROUP BY task_id
 		), task_start_times AS (
@@ -123,7 +131,7 @@ func (r *olapEventRepository) ReadTaskRuns(tenantId uuid.UUID, since time.Time, 
 			FROM relevant_task_events
 
 			-- 3 indicates a terminal event. See enum definition
-			WHERE event_type >= 3
+			WHERE readable_status >= 3
 			GROUP BY task_id
 		), task_event_metadata AS (
 			SELECT
@@ -132,10 +140,10 @@ func (r *olapEventRepository) ReadTaskRuns(tenantId uuid.UUID, since time.Time, 
 				tst.started_at AS started_at,
 				tft.finished_at AS finished_at,
 				timeDiff(tst.started_at, tft.finished_at) * 1000 AS duration,
-				tft.status AS status
+				tct.status AS status
 			FROM task_creation_times tct
-			JOIN task_start_times tst ON tct.task_id = tst.task_id
-			JOIN task_finish_times tft ON tct.task_id = tft.task_id
+			LEFT JOIN task_start_times tst ON tct.task_id = tst.task_id
+			LEFT JOIN task_finish_times tft ON tct.task_id = tft.task_id
 		), error_messages AS (
 			SELECT
 				task_id,
@@ -251,7 +259,7 @@ func (r *olapEventRepository) ReadTaskRuns(tenantId uuid.UUID, since time.Time, 
 }
 
 func (r *olapEventRepository) ReadTaskRunMetrics(tenantId uuid.UUID, since time.Time) ([]olap.TaskRunMetric, error) {
-	ctx := context.Background()
+	ctx := CreateContext()
 	rows, err := r.conn.Query(ctx, `
 		WITH candidate_tasks AS (
 			SELECT *
@@ -315,7 +323,7 @@ func (r *olapEventRepository) ReadTaskRunMetrics(tenantId uuid.UUID, since time.
 }
 
 func (r *olapEventRepository) ReadTaskRun(tenantId, taskRunId uuid.UUID) (olap.WorkflowRun, error) {
-	ctx := context.Background()
+	ctx := CreateContext()
 	row := r.conn.QueryRow(ctx, `
 		WITH max_retry_counts AS (
 			SELECT task_id, MAX(retry_count) AS max_retry_count
@@ -334,7 +342,8 @@ func (r *olapEventRepository) ReadTaskRun(tenantId, taskRunId uuid.UUID) (olap.W
 		), task_creation_times AS (
 			SELECT
 				task_id,
-				MIN(timestamp) AS created_at
+				MIN(timestamp) AS created_at,
+				MAX(readable_status) AS status
 			FROM relevant_task_events
 			GROUP BY task_id
 		), task_start_times AS (
@@ -352,7 +361,7 @@ func (r *olapEventRepository) ReadTaskRun(tenantId, taskRunId uuid.UUID) (olap.W
 			FROM relevant_task_events
 
 			-- 3 indicates a terminal event. See enum definition
-			WHERE event_type >= 3
+			WHERE readable_status >= 3
 			GROUP BY task_id
 		), task_event_metadata AS (
 			SELECT
@@ -361,10 +370,10 @@ func (r *olapEventRepository) ReadTaskRun(tenantId, taskRunId uuid.UUID) (olap.W
 				tst.started_at AS started_at,
 				tft.finished_at AS finished_at,
 				timeDiff(tst.started_at, tft.finished_at) * 1000 AS duration,
-				tft.status AS status
+				tct.status AS status
 			FROM task_creation_times tct
-			JOIN task_start_times tst ON tct.task_id = tst.task_id
-			JOIN task_finish_times tft ON tct.task_id = tft.task_id
+			LEFT JOIN task_start_times tst ON tct.task_id = tst.task_id
+			LEFT JOIN task_finish_times tft ON tct.task_id = tft.task_id
 		), error_messages AS (
 			SELECT
 				task_id,
@@ -442,7 +451,7 @@ func (r *olapEventRepository) ReadTaskRun(tenantId, taskRunId uuid.UUID) (olap.W
 }
 
 func (r *olapEventRepository) ReadTaskRunEvents(tenantId, taskRunId uuid.UUID, limit, offset int64) ([]olap.TaskRunEvent, error) {
-	ctx := context.Background()
+	ctx := CreateContext()
 	rows, err := r.conn.Query(ctx, `
 		SELECT
 			te.id,
