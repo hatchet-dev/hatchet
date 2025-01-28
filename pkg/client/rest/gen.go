@@ -56,6 +56,7 @@ const (
 
 // Defines values for JobRunStatus.
 const (
+	JobRunStatusBACKOFF   JobRunStatus = "BACKOFF"
 	JobRunStatusCANCELLED JobRunStatus = "CANCELLED"
 	JobRunStatusFAILED    JobRunStatus = "FAILED"
 	JobRunStatusPENDING   JobRunStatus = "PENDING"

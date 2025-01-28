@@ -974,6 +974,7 @@ export enum JobRunStatus {
   SUCCEEDED = 'SUCCEEDED',
   FAILED = 'FAILED',
   CANCELLED = 'CANCELLED',
+  BACKOFF = 'BACKOFF',
 }
 
 export interface WorkflowRunTriggeredBy {
