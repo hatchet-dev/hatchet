@@ -110,14 +110,26 @@ func (s *Scheduler) getWorkers() map[string]*worker {
 
 // replenish loads new slots from the database.
 func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
-	if mustReplenish {
-		s.replenishMu.Lock()
-	} else if ok := s.replenishMu.TryLock(); !ok {
+	if ok := s.replenishMu.TryLock(); !ok {
 		s.l.Debug().Msg("skipping replenish because another replenish is in progress")
 		return nil
 	}
 
 	defer s.replenishMu.Unlock()
+
+	// we get a lock on the actions mutexes here because we want to acquire the locks in the same order
+	// as the tryAssignBatch function. otherwise, we could deadlock when tryAssignBatch has a lock
+	// on the actionsMu and tries to acquire the unackedMu lock.
+	// additionally, we have to acquire a lock this early (before the database read) to prevent slots
+	// from being assigned while we read slots from the database.
+	if mustReplenish {
+		s.actionsMu.Lock()
+	} else if ok := s.actionsMu.TryLock(); !ok {
+		s.l.Debug().Msg("skipping replenish because we can't acquire the actions mutex")
+		return nil
+	}
+
+	defer s.actionsMu.Unlock()
 
 	s.l.Debug().Msg("replenishing slots")
 
@@ -161,7 +173,6 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 	// - more workers available for an action than previously: fully replenish
 	// - otherwise, do not replenish
 	actionsToReplenish := make(map[string]*action)
-	s.actionsMu.Lock()
 
 	for actionId, workers := range actionsToWorkerIds {
 		// if the action is not in the map, it should be replenished
@@ -218,8 +229,6 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 		}
 	}
 
-	s.actionsMu.Unlock()
-
 	s.l.Debug().Msgf("determining which actions to replenish took %s", time.Since(checkpoint))
 	checkpoint = time.Now()
 
@@ -239,14 +248,6 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 	for workerId := range uniqueWorkerIds {
 		workerUUIDs = append(workerUUIDs, sqlchelpers.UUIDFromStr(workerId))
 	}
-
-	// we get a lock on the actions mutexes here because we want to acquire the locks in the same order
-	// as the tryAssignBatch function. otherwise, we could deadlock when tryAssignBatch has a lock
-	// on the actionsMu and tries to acquire the unackedMu lock.
-	// additionally, we have to acquire a lock this early (before the database read) to prevent slots
-	// from being assigned while we read slots from the database.
-	s.actionsMu.Lock()
-	defer s.actionsMu.Unlock()
 
 	orderedLock(actionsToReplenish)
 	unlock := orderedUnlock(actionsToReplenish)
@@ -753,9 +754,9 @@ func (s *Scheduler) tryAssign(
 		span.End()
 		close(resultsCh)
 
-		extInput := s.getExtensionInput(extensionResults)
+		// extInput := s.getExtensionInput(extensionResults)
 
-		s.exts.PostSchedule(sqlchelpers.UUIDToStr(s.tenantId), extInput)
+		// s.exts.PostSchedule(sqlchelpers.UUIDToStr(s.tenantId), extInput)
 
 		if sinceStart := time.Since(startTotal); sinceStart > 100*time.Millisecond {
 			s.l.Warn().Dur("duration", sinceStart).Msgf("assigning queue items took longer than 100ms")
