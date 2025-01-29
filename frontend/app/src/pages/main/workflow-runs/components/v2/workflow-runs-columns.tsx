@@ -38,28 +38,6 @@ export const columns: (
     enableHiding: false,
   },
   {
-    accessorKey: 'Workflow',
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Workflow" />
-    ),
-    cell: ({ row }) => {
-      const workflowId = row.original?.workflowId;
-      const workflowName = row.original.workflowName;
-
-      return (
-        <div className="min-w-fit whitespace-nowrap">
-          {(workflowId && workflowName && (
-            <a href={`/workflows/${workflowId}`}>{workflowName}</a>
-          )) ||
-            'N/A'}
-        </div>
-      );
-    },
-    show: false,
-    enableSorting: false,
-    enableHiding: true,
-  },
-  {
     accessorKey: 'id',
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Run Id" />
@@ -82,6 +60,28 @@ export const columns: (
     cell: ({ row }) => <V2RunStatus status={row.original.status} />,
     enableSorting: false,
     enableHiding: false,
+  },
+  {
+    accessorKey: 'Workflow',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Workflow" />
+    ),
+    cell: ({ row }) => {
+      const workflowId = row.original?.workflowId;
+      const workflowName = row.original.workflowName;
+
+      return (
+        <div className="min-w-fit whitespace-nowrap">
+          {(workflowId && workflowName && (
+            <a href={`/workflows/${workflowId}`}>{workflowName}</a>
+          )) ||
+            'N/A'}
+        </div>
+      );
+    },
+    show: false,
+    enableSorting: false,
+    enableHiding: true,
   },
   // TODO: Add this back
   // {

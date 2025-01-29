@@ -92,6 +92,7 @@ export const getCreatedAfterFromTimeRange = (timeRange?: string) => {
 };
 
 export function WorkflowRunsTable({
+  workflowId,
   createdAfter: createdAfterProp,
   initColumnVisibility = {},
   filterVisibility = {},
@@ -236,6 +237,10 @@ export function WorkflowRunsTable({
   }, [pagination]);
 
   const workflow = useMemo<string | undefined>(() => {
+    if (workflowId) {
+      return workflowId;
+    }
+
     const filter = columnFilters.find((filter) => filter.id === 'Workflow');
 
     if (!filter) {

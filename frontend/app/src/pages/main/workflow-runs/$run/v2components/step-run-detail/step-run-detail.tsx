@@ -112,6 +112,7 @@ const StepRunDetail: React.FC<StepRunDetailProps> = ({
             // }
             // rerunStepMutation.mutate(parsedInput);
           }}
+          disabled
         >
           <ArrowPathIcon className="w-4 h-4" />
           Replay
@@ -124,6 +125,7 @@ const StepRunDetail: React.FC<StepRunDetailProps> = ({
           onClick={() => {
             // cancelStepMutation.mutate();
           }}
+          disabled
         >
           <XCircleIcon className="w-4 h-4" />
           Cancel

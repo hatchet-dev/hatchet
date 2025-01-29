@@ -1,4 +1,4 @@
-import { queries, WorkflowRunStatus } from '@/lib/api';
+import { queries, V2TaskStatus, WorkflowRunStatus } from '@/lib/api';
 import { TenantContextType } from '@/lib/outlet';
 import { useQuery } from '@tanstack/react-query';
 import { useOutletContext, useParams } from 'react-router-dom';
@@ -14,6 +14,7 @@ import { Separator } from '@/components/ui/separator';
 import { CodeHighlighter } from '@/components/ui/code-highlighter';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { V2RunDetailHeader } from './v2components/header';
+import { Badge } from '@/components/ui/badge';
 
 export const WORKFLOW_RUN_TERMINAL_STATUSES = [
   WorkflowRunStatus.CANCELLED,
@@ -25,6 +26,18 @@ interface WorkflowRunSidebarState {
   workflowRunId?: string;
   stepRunId?: string;
   defaultOpenTab?: TabOption;
+}
+
+function statusToBadgeVariant(status: V2TaskStatus) {
+  switch (status) {
+    case V2TaskStatus.COMPLETED:
+      return 'successful';
+    case V2TaskStatus.FAILED:
+    case V2TaskStatus.CANCELLED:
+      return 'failed';
+    default:
+      return 'inProgress';
+  }
 }
 
 export default function ExpandedWorkflowRun() {
@@ -69,9 +82,14 @@ export default function ExpandedWorkflowRun() {
   return (
     <div className="flex-grow h-full w-full">
       <div className="mx-auto max-w-7xl pt-2 px-4 sm:px-6 lg:px-8">
-        {/* TODO: Re-enable this header */}
         <V2RunDetailHeader taskRunId={params.run} />
         <Separator className="my-4" />
+        <div className="flex flex-row gap-x-4">
+          <p className="font-semibold">Status</p>
+          <Badge variant={statusToBadgeVariant(taskRun.status)}>
+            {taskRun.status}
+          </Badge>
+        </div>
         {/* <div className="w-full h-fit flex overflow-auto relative bg-slate-100 dark:bg-slate-900">
           {shape.data && view == 'graph' && hasChildSteps(shape.data) && (
             <WorkflowRunVisualizer
@@ -129,7 +147,6 @@ export default function ExpandedWorkflowRun() {
           </TabsContent>
         </Tabs>
       </div>
-      {/* TODO: Re-enable this sidebar */}
       {inputData && (
         <Sheet
           open={!!sidebarState}

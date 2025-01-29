@@ -86,4 +86,3 @@ export const DefaultOnboardingWorkflow: React.FC<{
     </div>
   );
 };
-// TODO
