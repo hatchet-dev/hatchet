@@ -21,6 +21,7 @@ func main() {
 	var delay time.Duration
 	var workerDelay time.Duration
 	var logLevel string
+	var slots int
 
 	var loadtest = &cobra.Command{
 		Use: "loadtest",
@@ -33,7 +34,7 @@ func main() {
 				"loadtest",
 			)
 
-			if err := do(duration, events, delay, wait, concurrency, workerDelay); err != nil {
+			if err := do(duration, events, delay, wait, concurrency, workerDelay, slots); err != nil {
 				log.Println(err)
 				panic("load test failed")
 			}
@@ -47,6 +48,7 @@ func main() {
 	loadtest.Flags().DurationVarP(&wait, "wait", "w", 10*time.Second, "wait specifies the total time to wait until events complete")
 	loadtest.Flags().DurationVarP(&workerDelay, "workerDelay", "p", 0*time.Second, "workerDelay specifies the time to wait before starting the worker")
 	loadtest.Flags().StringVarP(&logLevel, "level", "l", "info", "logLevel specifies the log level (debug, info, warn, error)")
+	loadtest.Flags().IntVarP(&slots, "slots", "s", 0, "slots specifies the number of slots to use in the worker")
 
 	cmd := &cobra.Command{Use: "app"}
 	cmd.AddCommand(loadtest)

@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-func do(duration time.Duration, eventsPerSecond int, delay time.Duration, wait time.Duration, concurrency int, workerDelay time.Duration) error {
+func do(duration time.Duration, eventsPerSecond int, delay time.Duration, wait time.Duration, concurrency int, workerDelay time.Duration, slots int) error {
 	l.Info().Msgf("testing with duration=%s, eventsPerSecond=%d, delay=%s, wait=%s, concurrency=%d", duration, eventsPerSecond, delay, wait, concurrency)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -28,7 +28,7 @@ func do(duration time.Duration, eventsPerSecond int, delay time.Duration, wait t
 			time.Sleep(workerDelay)
 		}
 		l.Info().Msg("starting worker now")
-		count, uniques := run(ctx, delay, durations, concurrency)
+		count, uniques := run(ctx, delay, durations, concurrency, slots)
 		ch <- count
 		ch <- uniques
 	}()
