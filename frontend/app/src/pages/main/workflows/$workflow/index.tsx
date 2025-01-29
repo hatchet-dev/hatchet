@@ -266,12 +266,10 @@ function RecentRunsList() {
   invariant(params.workflow);
 
   return (
-    <>
-      <WorkflowRunsTable
-        workflowId={params.workflow}
-        initColumnVisibility={{ Workflow: false }}
-        filterVisibility={{ Workflow: false }}
-      />
-    </>
+    <WorkflowRunsTable
+      workflowId={params.workflow}
+      initColumnVisibility={{ Workflow: false }}
+      filterVisibility={{ Workflow: false }}
+    />
   );
 }
