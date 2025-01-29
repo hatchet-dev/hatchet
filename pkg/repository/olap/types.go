@@ -118,6 +118,23 @@ const (
 	READABLE_TASK_STATUS_FAILED    ReadableTaskStatus = "FAILED"
 )
 
+func (s ReadableTaskStatus) EnumValue() int {
+	switch s {
+	case READABLE_TASK_STATUS_QUEUED:
+		return 1
+	case READABLE_TASK_STATUS_RUNNING:
+		return 2
+	case READABLE_TASK_STATUS_COMPLETED:
+		return 3
+	case READABLE_TASK_STATUS_CANCELLED:
+		return 4
+	case READABLE_TASK_STATUS_FAILED:
+		return 5
+	default:
+		return -1
+	}
+}
+
 type Task struct {
 	Id                 uuid.UUID  `json:"id"`
 	SourceId           uint64     `json:"source_id"`

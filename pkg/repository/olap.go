@@ -71,183 +71,203 @@ func CreateContext() context.Context {
 	}))
 }
 
+type getRelevantTaskEventsRow struct {
+	TaskId         uuid.UUID
+	Timestamp      time.Time
+	EventType      string
+	ReadableStatus string
+}
+
+type getTaskRow struct {
+	Id                 uuid.UUID
+	AdditionalMetadata string
+	DisplayName        string
+	TenantId           uuid.UUID
+	CreatedAt          time.Time
+	WorkflowId         uuid.UUID
+}
+
 func (r *olapEventRepository) ReadTaskRuns(tenantId uuid.UUID, since time.Time, statuses []gen.V2TaskStatus, workflowIds []uuid.UUID, limit, offset int64) ([]olap.WorkflowRun, uint64, error) {
 	var stringifiedStatuses = make([]string, len(statuses))
 	for i, status := range statuses {
 		stringifiedStatuses[i] = string(status)
 	}
 
+	if len(stringifiedStatuses) == 0 {
+		stringifiedStatuses = []string{
+			string(olap.READABLE_TASK_STATUS_QUEUED),
+		}
+	}
+
 	ctx := CreateContext()
 
-	rows, err := r.conn.Query(ctx, `
-		WITH candidate_tasks AS (
-			SELECT *
-			FROM tasks
-			WHERE
-				tenant_id = ?
-				AND created_at > ?
-				AND (
-					? = []
-					OR workflow_id IN (?)
-				)
-			ORDER BY created_at DESC
-		), max_retry_counts AS (
-			SELECT task_id, MAX(retry_count) AS max_retry_count
-			FROM task_events
-			WHERE
-				tenant_id = ?
-				AND task_id IN (SELECT id FROM candidate_tasks)
-			GROUP BY task_id
-		), relevant_task_events AS (
-			SELECT te.*
-			FROM task_events te
-			JOIN max_retry_counts mrc ON te.task_id = mrc.task_id AND te.retry_count = mrc.max_retry_count
-			WHERE
-				te.tenant_id = ?
-				AND task_id IN (SELECT id FROM candidate_tasks)
-				-- Filter for the max retry count within the task here
-				-- AND status IN (
-				--  ...
-				-- )
-		), task_creation_times AS (
-			SELECT
-				task_id,
-				MIN(timestamp) AS created_at,
-				MAX(readable_status) AS status
-			FROM relevant_task_events
-			GROUP BY task_id
-		), task_start_times AS (
-			SELECT
-				task_id,
-				MIN(timestamp) AS started_at
-			FROM relevant_task_events
-			WHERE event_type = 'STARTED'
-			GROUP BY task_id
-		), task_finish_times AS (
-			SELECT
-				task_id,
-				MAX(timestamp) AS finished_at,
-				MAX(readable_status) AS status
-			FROM relevant_task_events
+	// when we need to get all "queued" tasks, we need an unpaginated query of all tasks which have a queued event,
+	// and then filter out the tasks which have a later event which is not "queued"
 
-			-- 3 indicates a terminal event. See enum definition
-			WHERE readable_status >= 3
-			GROUP BY task_id
-		), task_event_metadata AS (
-			SELECT
-				tct.task_id AS task_id,
-				tct.created_at AS created_at,
-				tst.started_at AS started_at,
-				tft.finished_at AS finished_at,
-				timeDiff(tst.started_at, tft.finished_at) * 1000 AS duration,
-				tct.status AS status
-			FROM task_creation_times tct
-			LEFT JOIN task_start_times tst ON tct.task_id = tst.task_id
-			LEFT JOIN task_finish_times tft ON tct.task_id = tft.task_id
-		), error_messages AS (
-			SELECT
-				task_id,
-				error_message
-			FROM relevant_task_events
-			WHERE readable_status = 'FAILED'
-		), outputs AS (
-			SELECT
-				task_id,
-				LAST_VALUE(output) OVER(PARTITION BY task_id ORDER BY retry_count) AS output
-			FROM relevant_task_events
-			WHERE readable_status = 'COMPLETED'
-		)
+	var eventRows []getRelevantTaskEventsRow
+	var err error
 
+	// FIXME: this is ugly, but the frontend will pass in all statuses in which case we don't need a status filter
+	if len(stringifiedStatuses) > 0 && len(stringifiedStatuses) != 5 {
+		eventRows, err = r.getRelevantRowsWithStatusFilter(ctx, tenantId, since, limit, offset, stringifiedStatuses)
+	} else {
+		eventRows, err = r.getRelevantRowsNoStatusFilter(ctx, tenantId, since, limit, offset)
+	}
+
+	if err != nil {
+		return nil, 0, err
+	}
+
+	greatestTaskStatus := make(map[string]int)
+	taskStatuses := make(map[string]olap.ReadableTaskStatus)
+	taskStartedAt := make(map[string]time.Time)
+	taskFinishedAt := make(map[string]time.Time)
+
+	for _, row := range eventRows {
+		strVal := olap.ReadableTaskStatus(row.ReadableStatus)
+		enumVal := strVal.EnumValue()
+
+		currVal, ok := greatestTaskStatus[row.TaskId.String()]
+
+		if !ok {
+			greatestTaskStatus[row.TaskId.String()] = enumVal
+			taskStatuses[row.TaskId.String()] = strVal
+		} else if enumVal > currVal {
+			greatestTaskStatus[row.TaskId.String()] = enumVal
+			taskStatuses[row.TaskId.String()] = strVal
+		}
+
+		if row.EventType == string(olap.EVENT_TYPE_STARTED) {
+			taskStartedAt[row.TaskId.String()] = row.Timestamp
+		}
+
+		if enumVal >= 3 {
+			taskFinishedAt[row.TaskId.String()] = row.Timestamp
+		}
+	}
+
+	taskDuration := make(map[string]int64)
+
+	for taskId, finishedAt := range taskFinishedAt {
+		startedAt, ok := taskStartedAt[taskId]
+
+		if !ok {
+			continue
+		}
+
+		taskDuration[taskId] = finishedAt.Sub(startedAt).Milliseconds()
+	}
+
+	taskIds := make([]string, 0)
+
+	for taskId := range taskStatuses {
+		taskIds = append(taskIds, taskId)
+	}
+
+	taskRows, err := r.conn.Query(ctx, `
 		SELECT
-			ct.additional_metadata,
-			ct.display_name,
-			tem.duration,
-			em.error_message,
-			tem.finished_at,
-			ct.id AS id,
-			ct.input,
-			o.output,
-			tem.started_at,
-			tem.created_at,
-			toString(tem.status) AS status,
-			ct.id AS task_id,
-			ct.tenant_id,
-			-- NOTE: This is probably a bug, figure out which timestamp to use.
-			ct.created_at AS timestamp,
-			ct.workflow_id
-		FROM candidate_tasks ct
-		JOIN task_event_metadata tem ON ct.id = tem.task_id
-		LEFT JOIN error_messages em ON ct.id = em.task_id
-		LEFT JOIN outputs o ON ct.id = o.task_id
-		WHERE toString(tem.status) IN (?)
-		ORDER BY ct.created_at DESC
-		LIMIT ?
-		OFFSET ?
+			t.id AS id,
+			t.additional_metadata,
+			t.display_name,
+			t.tenant_id,
+			t.created_at AS timestamp,
+			t.workflow_id
+		FROM tasks t
+		WHERE
+			t.tenant_id = ?
+			AND t.id IN (?)
+		ORDER BY t.created_at DESC, t.id ASC
 		`,
 		tenantId,
-		since,
-		workflowIds,
-		workflowIds,
-		tenantId,
-		tenantId,
-		stringifiedStatuses,
-		limit,
-		offset,
+		taskIds,
 	)
 
 	if err != nil {
-		return []olap.WorkflowRun{}, 0, err
+		panic(err)
 	}
 
-	records := make([]olap.WorkflowRun, 0)
+	tasks := make([]getTaskRow, 0)
 
-	for rows.Next() {
-		var (
-			taskRun olap.WorkflowRun
-		)
+	for taskRows.Next() {
+		var row getTaskRow
 
-		err = rows.Scan(
-			&taskRun.AdditionalMetadata,
-			&taskRun.DisplayName,
-			&taskRun.Duration,
-			&taskRun.ErrorMessage,
-			&taskRun.FinishedAt,
-			&taskRun.Id,
-			&taskRun.Input,
-			&taskRun.Output,
-			&taskRun.StartedAt,
-			&taskRun.CreatedAt,
-			&taskRun.Status,
-			&taskRun.TaskId,
-			&taskRun.TenantId,
-			&taskRun.Timestamp,
-			&taskRun.WorkflowId,
+		err := taskRows.Scan(
+			&row.Id,
+			&row.AdditionalMetadata,
+			&row.DisplayName,
+			&row.TenantId,
+			&row.CreatedAt,
+			&row.WorkflowId,
 		)
 
 		if err != nil {
-			log.Fatal(err)
+			panic(err)
 		}
 
-		taskRun.Status = string(StringToReadableStatus(taskRun.Status))
+		tasks = append(tasks, row)
+	}
 
-		records = append(records, taskRun)
+	res := make([]olap.WorkflowRun, 0)
+
+	for _, task := range tasks {
+		status, ok := taskStatuses[task.Id.String()]
+
+		if !ok {
+			status = olap.READABLE_TASK_STATUS_QUEUED
+		}
+
+		startedAt, ok := taskStartedAt[task.Id.String()]
+
+		if !ok {
+			startedAt = time.Time{}
+		}
+
+		finishedAt, ok := taskFinishedAt[task.Id.String()]
+
+		if !ok {
+			finishedAt = time.Time{}
+		}
+
+		duration, ok := taskDuration[task.Id.String()]
+
+		if !ok {
+			duration = 0
+		}
+
+		res = append(res, olap.WorkflowRun{
+			AdditionalMetadata: &task.AdditionalMetadata,
+			DisplayName:        &task.DisplayName,
+			Duration:           &duration,
+			ErrorMessage:       nil,
+			CreatedAt:          task.CreatedAt,
+			FinishedAt:         &finishedAt,
+			Id:                 task.Id,
+			Input:              "",
+			Output:             "",
+			StartedAt:          &startedAt,
+			Status:             string(status),
+			TaskId:             task.Id,
+			TenantId:           &task.TenantId,
+			Timestamp:          task.CreatedAt,
+			WorkflowId:         task.WorkflowId,
+		})
 	}
 
 	count := r.conn.QueryRow(ctx, `
-		SELECT COUNT(id) AS count
-		FROM tasks
-		WHERE
-			tenant_id = ?
-			AND created_at > ?
-			AND (
-				? = []
-				OR workflow_id IN (?)
-			)
+		WITH task_ids AS (
+			SELECT DISTINCT(task_id)
+			FROM task_events
+			WHERE 
+				tenant_id = ?
+				AND timestamp > ?
+				AND readable_status IN (?)
+		)
+		SELECT COUNT(*)
+		FROM task_ids
 		`,
 		tenantId,
 		since,
-		workflowIds,
-		workflowIds,
+		stringifiedStatuses,
 	)
 
 	var total uint64
@@ -255,7 +275,173 @@ func (r *olapEventRepository) ReadTaskRuns(tenantId uuid.UUID, since time.Time, 
 		return []olap.WorkflowRun{}, 0, fmt.Errorf("failed to scan count: %w", err)
 	}
 
-	return records, total, nil
+	return res, 0, nil
+}
+
+func (r *olapEventRepository) getRelevantRowsNoStatusFilter(ctx context.Context, tenantId uuid.UUID, since time.Time, limit, offset int64) ([]getRelevantTaskEventsRow, error) {
+	taskEventRows, err := r.conn.Query(ctx, `
+		-- name: GetRelevantTaskEvents
+		WITH task_ids AS (
+			SELECT DISTINCT(task_id), tenant_id
+			FROM task_events
+			JOIN tasks t ON task_events.tenant_id = t.tenant_id AND task_events.task_id = t.id
+			WHERE 
+				tenant_id = ?
+				AND timestamp > ?
+				AND event_type = 'CREATED'
+			ORDER BY t.created_at DESC, t.id ASC
+			LIMIT ?
+			OFFSET ?
+		), max_retry_counts AS (
+			SELECT task_id, MAX(retry_count) AS max_retry_count
+			FROM task_events
+			WHERE 
+				tenant_id = ?
+				AND timestamp > ?
+				AND task_id = ANY((
+					SELECT task_id FROM task_ids
+				))
+			GROUP BY task_id
+		)
+		SELECT 
+			te.task_id,
+			te.timestamp,
+			te.event_type,
+			te.readable_status
+		FROM task_events te
+		JOIN max_retry_counts mrc ON te.task_id = mrc.task_id AND te.retry_count = mrc.max_retry_count
+		WHERE
+			te.tenant_id = ?
+			AND te.timestamp > ?
+			AND te.task_id = ANY((
+				SELECT task_id FROM task_ids
+			))
+		`,
+		tenantId,
+		since,
+		limit,
+		offset,
+		tenantId,
+		since,
+		tenantId,
+		since,
+	)
+
+	if err != nil {
+		panic(err)
+	}
+
+	resRows := make([]getRelevantTaskEventsRow, 0)
+
+	for taskEventRows.Next() {
+		var row getRelevantTaskEventsRow
+
+		err := taskEventRows.Scan(
+			&row.TaskId,
+			&row.Timestamp,
+			&row.EventType,
+			&row.ReadableStatus,
+		)
+
+		if err != nil {
+			panic(err)
+		}
+
+		resRows = append(resRows, row)
+	}
+
+	return resRows, nil
+}
+
+func (r *olapEventRepository) getRelevantRowsWithStatusFilter(ctx context.Context, tenantId uuid.UUID, since time.Time, limit, offset int64, statuses []string) ([]getRelevantTaskEventsRow, error) {
+	taskEventRows, err := r.conn.Query(ctx, `
+		-- name: GetRelevantTaskEvents
+		WITH task_ids AS (
+			SELECT DISTINCT(task_id), tenant_id
+			FROM task_events
+			WHERE 
+				tenant_id = ?
+				AND timestamp > ?
+				AND readable_status IN (?)
+		), max_retry_counts AS (
+			SELECT task_id, MAX(retry_count) AS max_retry_count
+			FROM task_events
+			WHERE 
+				tenant_id = ?
+				AND timestamp > ?
+				AND task_id = ANY((
+					SELECT task_id FROM task_ids
+				))
+			GROUP BY task_id
+		), max_readable_statuses AS (
+			SELECT te.task_id, MAX(te.readable_status) AS max_readable_status
+			FROM task_events te
+			JOIN max_retry_counts mrc ON te.task_id = mrc.task_id AND te.retry_count = mrc.max_retry_count
+			WHERE 
+				te.tenant_id = ?
+				AND te.timestamp > ?
+				AND te.task_id = ANY((
+					SELECT task_id FROM task_ids
+				))
+			GROUP BY te.task_id
+		)
+		SELECT 
+			te.task_id,
+			te.timestamp,
+			te.event_type,
+			te.readable_status
+		FROM task_events te
+		JOIN max_readable_statuses mrs ON te.task_id = mrs.task_id AND te.readable_status = mrs.max_readable_status
+		JOIN tasks t ON task_events.tenant_id = t.tenant_id AND task_events.task_id = t.id
+		WHERE
+			te.tenant_id = ?
+			AND te.timestamp > ?
+			AND te.task_id = ANY((
+				SELECT task_id FROM task_ids
+			))
+			AND readable_status IN (?)
+		ORDER BY t.created_at DESC, t.id ASC
+		LIMIT ?
+		OFFSET ?
+		`,
+		tenantId,
+		since,
+		statuses,
+		tenantId,
+		since,
+		tenantId,
+		since,
+		tenantId,
+		since,
+		statuses,
+		limit,
+		offset,
+	)
+
+	if err != nil {
+		panic(err)
+	}
+
+	resRows := make([]getRelevantTaskEventsRow, 0)
+
+	for taskEventRows.Next() {
+		var row getRelevantTaskEventsRow
+
+		err := taskEventRows.Scan(
+			&row.TaskId,
+			&row.Timestamp,
+			&row.EventType,
+			&row.ReadableStatus,
+		)
+
+		if err != nil {
+			panic(err)
+		}
+
+		resRows = append(resRows, row)
+	}
+
+	return resRows, nil
 }
 
 func (r *olapEventRepository) ReadTaskRunMetrics(tenantId uuid.UUID, since time.Time) ([]olap.TaskRunMetric, error) {
@@ -263,35 +449,28 @@ func (r *olapEventRepository) ReadTaskRunMetrics(tenantId uuid.UUID, since time.
 	rows, err := r.conn.Query(ctx, `
 		WITH candidate_tasks AS (
 			SELECT *
-			FROM tasks
-			WHERE tenant_id = ? AND created_at > ?
+			FROM task_events
+			WHERE 
+				tenant_id = ?
+				AND timestamp > ?
 		), max_retry_counts AS (
 			SELECT
 				task_id,
 				MAX(retry_count) AS max_retry_count
-			FROM task_events
-			WHERE
-				tenant_id = ?
-				AND task_id IN (SELECT id FROM candidate_tasks)
+			FROM candidate_tasks
 			GROUP BY task_id
-		), candidate_events AS (
-			SELECT te.task_id, MAX(readable_status) AS readable_status
-			FROM task_events te
-			JOIN max_retry_counts mrc ON te.task_id = mrc.task_id AND te.retry_count = mrc.max_retry_count
-			WHERE
-				te.tenant_id = ?
-				AND te.task_id IN (SELECT id FROM candidate_tasks)
-			GROUP BY te.task_id
+		), final_status_events AS (
+			SELECT ct.task_id, MAX(readable_status) AS readable_status
+			FROM candidate_tasks ct
+			JOIN max_retry_counts mrc ON ct.task_id = mrc.task_id AND ct.retry_count = mrc.max_retry_count
+			GROUP BY ct.task_id
 		)
-
 		SELECT readable_status, COUNT(readable_status) AS count
-		FROM candidate_events
+		FROM final_status_events
 		GROUP BY readable_status
 		`,
 		tenantId,
 		since,
-		tenantId,
-		tenantId,
 	)
 
 	if err != nil {

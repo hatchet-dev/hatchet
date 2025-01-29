@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
@@ -180,7 +181,8 @@ func (tc *OLAPControllerImpl) handleBufferedMsgs(tenantId, msgId string, payload
 
 // handleCreatedTask is responsible for flushing a created task to the OLAP repository
 func (tc *OLAPControllerImpl) handleCreatedTask(ctx context.Context, tenantId string, payloads [][]byte) error {
-	opts := make([]olap.Task, 0)
+	createTaskEventOpts := make([]olap.TaskEvent, 0)
+	createTaskOpts := make([]olap.Task, 0)
 
 	msgs := msgqueue.JSONConvert[tasktypes.CreatedTaskPayload](payloads)
 
@@ -195,7 +197,7 @@ func (tc *OLAPControllerImpl) handleCreatedTask(ctx context.Context, tenantId st
 
 		// TODO: ADD ADDITIONAL METADATA
 
-		opts = append(opts, olap.Task{
+		createTaskOpts = append(createTaskOpts, olap.Task{
 			Id:              uuid.MustParse(msg.ExternalId),
 			SourceId:        msg.SourceId,
 			InsertedAt:      msg.InsertedAt,
@@ -210,9 +212,27 @@ func (tc *OLAPControllerImpl) handleCreatedTask(ctx context.Context, tenantId st
 			DisplayName:     msg.DisplayName,
 			Input:           string(msg.Input),
 		})
+
+		createTaskEventOpts = append(createTaskEventOpts, olap.TaskEvent{
+			TaskId:     uuid.MustParse(msg.ExternalId),
+			TenantId:   uuid.MustParse(tenantId),
+			Timestamp:  msg.InsertedAt,
+			RetryCount: 0,
+			EventType:  olap.EVENT_TYPE_CREATED,
+		})
 	}
 
-	return tc.repo.CreateTasks(opts)
+	eg := errgroup.Group{}
+
+	eg.Go(func() error {
+		return tc.repo.CreateTasks(createTaskOpts)
+	})
+
+	eg.Go(func() error {
+		return tc.repo.CreateTaskEvents(createTaskEventOpts)
+	})
+
+	return eg.Wait()
 }
 
 // handleCreateMonitoringEvent is responsible for sending a group of monitoring events to the OLAP repository

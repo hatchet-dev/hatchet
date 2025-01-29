@@ -376,6 +376,8 @@ func (tc *TriggerControllerImpl) getTaskCreateOptsFromEvents(startDatas []*v2.Wo
 
 		eventData := idsToData[startData.EventId]
 
+		unix := time.Now().UnixMilli()
+
 		// parse the start data into a CreateTaskOpts
 		opt := v2.CreateTaskOpts{
 			ExternalId:      id,
@@ -385,7 +387,7 @@ func (tc *TriggerControllerImpl) getTaskCreateOptsFromEvents(startDatas []*v2.Wo
 			WorkflowId:      sqlchelpers.UUIDToStr(startData.WorkflowStartData.WorkflowId),
 			ScheduleTimeout: startData.WorkflowStartData.ScheduleTimeout,
 			StepTimeout:     startData.WorkflowStartData.Timeout.String,
-			DisplayName:     startData.WorkflowStartData.WorkflowName,
+			DisplayName:     fmt.Sprintf("%s-%d", startData.WorkflowStartData.WorkflowName, unix),
 			Input:           eventData,
 			// TODO: OTHER RELEVANT FIELDS
 		}
