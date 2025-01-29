@@ -71,12 +71,12 @@ func run(ctx context.Context, delay time.Duration, executions chan<- time.Durati
 					executions <- took
 					// detect duplicate in executed slice
 					var duplicate bool
-					for i := 0; i < len(executed)-1; i++ {
-						if executed[i] == input.ID {
-							duplicate = true
-							break
-						}
-					}
+					// for i := 0; i < len(executed)-1; i++ {
+					// 	if executed[i] == input.ID {
+					// 		duplicate = true
+					// 		break
+					// 	}
+					// }
 					if duplicate {
 						l.Warn().Str("step-run-id", ctx.StepRunId()).Msgf("duplicate %d", input.ID)
 					}

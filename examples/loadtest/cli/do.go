@@ -40,7 +40,7 @@ func do(duration time.Duration, eventsPerSecond int, delay time.Duration, wait t
 	executed := <-ch
 	uniques := <-ch
 
-	l.Info().Msgf("emitted %d, executed %d, uniques %d, using %d events/s", emitted, executed, uniques, eventsPerSecond)
+	log.Printf("ℹ️ emitted %d, executed %d, uniques %d, using %d events/s", emitted, executed, uniques, eventsPerSecond)
 
 	if executed == 0 {
 		return fmt.Errorf("❌ no events executed")
