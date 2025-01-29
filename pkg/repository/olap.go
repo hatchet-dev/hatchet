@@ -176,14 +176,20 @@ func (r *olapEventRepository) ReadTaskRuns(tenantId uuid.UUID, since time.Time, 
 		WHERE
 			t.tenant_id = ?
 			AND t.id IN (?)
+			AND (
+				? = []
+				OR workflow_id IN (?)
+			)
 		ORDER BY t.created_at DESC, t.id ASC
 		`,
 		tenantId,
 		taskIds,
+		workflowIds,
+		workflowIds,
 	)
 
 	if err != nil {
-		panic(err)
+		return nil, 0, err
 	}
 
 	tasks := make([]getTaskRow, 0)
@@ -201,7 +207,7 @@ func (r *olapEventRepository) ReadTaskRuns(tenantId uuid.UUID, since time.Time, 
 		)
 
 		if err != nil {
-			panic(err)
+			return nil, 0, err
 		}
 
 		tasks = append(tasks, row)
@@ -328,7 +334,7 @@ func (r *olapEventRepository) getRelevantRowsNoStatusFilter(ctx context.Context,
 	)
 
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	resRows := make([]getRelevantTaskEventsRow, 0)
@@ -344,7 +350,7 @@ func (r *olapEventRepository) getRelevantRowsNoStatusFilter(ctx context.Context,
 		)
 
 		if err != nil {
-			panic(err)
+			return nil, err
 		}
 
 		resRows = append(resRows, row)
@@ -419,7 +425,7 @@ func (r *olapEventRepository) getRelevantRowsWithStatusFilter(ctx context.Contex
 	)
 
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	resRows := make([]getRelevantTaskEventsRow, 0)
@@ -435,7 +441,7 @@ func (r *olapEventRepository) getRelevantRowsWithStatusFilter(ctx context.Contex
 		)
 
 		if err != nil {
-			panic(err)
+			return nil, err
 		}
 
 		resRows = append(resRows, row)
