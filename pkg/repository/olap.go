@@ -288,14 +288,14 @@ func (r *olapEventRepository) getRelevantRowsNoStatusFilter(ctx context.Context,
 	taskEventRows, err := r.conn.Query(ctx, `
 		-- name: GetRelevantTaskEvents
 		WITH task_ids AS (
-			SELECT DISTINCT(task_id), tenant_id
-			FROM task_events
-			JOIN tasks t ON task_events.tenant_id = t.tenant_id AND task_events.task_id = t.id
+			SELECT
+				id AS task_id,
+				tenant_id
+			FROM tasks
 			WHERE
 				tenant_id = ?
-				AND timestamp > ?
-				AND event_type = 'CREATED'
-			ORDER BY t.inserted_at DESC, t.id ASC
+				AND inserted_at > ?
+			ORDER BY inserted_at DESC, id ASC
 			LIMIT ?
 			OFFSET ?
 		), max_retry_counts AS (
