@@ -82,7 +82,6 @@ export default function ExpandedWorkflowRun() {
   return (
     <div className="flex-grow h-full w-full">
       <div className="mx-auto max-w-7xl pt-2 px-4 sm:px-6 lg:px-8">
-        {/* TODO: Re-enable this header */}
         <V2RunDetailHeader taskRunId={params.run} />
         <Separator className="my-4" />
         <div className="flex flex-row gap-x-4">
@@ -148,7 +147,6 @@ export default function ExpandedWorkflowRun() {
           </TabsContent>
         </Tabs>
       </div>
-      {/* TODO: Re-enable this sidebar */}
       {inputData && (
         <Sheet
           open={!!sidebarState}
