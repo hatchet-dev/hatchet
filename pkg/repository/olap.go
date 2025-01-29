@@ -170,7 +170,7 @@ func (r *olapEventRepository) ReadTaskRuns(tenantId uuid.UUID, since time.Time, 
 			t.additional_metadata,
 			t.display_name,
 			t.tenant_id,
-			t.created_at AS timestamp,
+			t.inserted_at AS timestamp,
 			t.workflow_id
 		FROM tasks t
 		WHERE
@@ -180,7 +180,7 @@ func (r *olapEventRepository) ReadTaskRuns(tenantId uuid.UUID, since time.Time, 
 				? = []
 				OR workflow_id IN (?)
 			)
-		ORDER BY t.created_at DESC, t.id ASC
+		ORDER BY t.inserted_at DESC, t.id ASC
 		`,
 		tenantId,
 		taskIds,
@@ -263,7 +263,7 @@ func (r *olapEventRepository) ReadTaskRuns(tenantId uuid.UUID, since time.Time, 
 		WITH task_ids AS (
 			SELECT DISTINCT(task_id)
 			FROM task_events
-			WHERE 
+			WHERE
 				tenant_id = ?
 				AND timestamp > ?
 				AND readable_status IN (?)
@@ -291,17 +291,17 @@ func (r *olapEventRepository) getRelevantRowsNoStatusFilter(ctx context.Context,
 			SELECT DISTINCT(task_id), tenant_id
 			FROM task_events
 			JOIN tasks t ON task_events.tenant_id = t.tenant_id AND task_events.task_id = t.id
-			WHERE 
+			WHERE
 				tenant_id = ?
 				AND timestamp > ?
 				AND event_type = 'CREATED'
-			ORDER BY t.created_at DESC, t.id ASC
+			ORDER BY t.inserted_at DESC, t.id ASC
 			LIMIT ?
 			OFFSET ?
 		), max_retry_counts AS (
 			SELECT task_id, MAX(retry_count) AS max_retry_count
 			FROM task_events
-			WHERE 
+			WHERE
 				tenant_id = ?
 				AND timestamp > ?
 				AND task_id = ANY((
@@ -309,7 +309,7 @@ func (r *olapEventRepository) getRelevantRowsNoStatusFilter(ctx context.Context,
 				))
 			GROUP BY task_id
 		)
-		SELECT 
+		SELECT
 			te.task_id,
 			te.timestamp,
 			te.event_type,
@@ -365,14 +365,14 @@ func (r *olapEventRepository) getRelevantRowsWithStatusFilter(ctx context.Contex
 		WITH task_ids AS (
 			SELECT DISTINCT(task_id), tenant_id
 			FROM task_events
-			WHERE 
+			WHERE
 				tenant_id = ?
 				AND timestamp > ?
 				AND readable_status IN (?)
 		), max_retry_counts AS (
 			SELECT task_id, MAX(retry_count) AS max_retry_count
 			FROM task_events
-			WHERE 
+			WHERE
 				tenant_id = ?
 				AND timestamp > ?
 				AND task_id = ANY((
@@ -383,7 +383,7 @@ func (r *olapEventRepository) getRelevantRowsWithStatusFilter(ctx context.Contex
 			SELECT te.task_id, MAX(te.readable_status) AS max_readable_status
 			FROM task_events te
 			JOIN max_retry_counts mrc ON te.task_id = mrc.task_id AND te.retry_count = mrc.max_retry_count
-			WHERE 
+			WHERE
 				te.tenant_id = ?
 				AND te.timestamp > ?
 				AND te.task_id = ANY((
@@ -391,7 +391,7 @@ func (r *olapEventRepository) getRelevantRowsWithStatusFilter(ctx context.Contex
 				))
 			GROUP BY te.task_id
 		)
-		SELECT 
+		SELECT
 			te.task_id,
 			te.timestamp,
 			te.event_type,
@@ -406,7 +406,7 @@ func (r *olapEventRepository) getRelevantRowsWithStatusFilter(ctx context.Contex
 				SELECT task_id FROM task_ids
 			))
 			AND readable_status IN (?)
-		ORDER BY t.created_at DESC, t.id ASC
+		ORDER BY t.inserted_at DESC, t.id ASC
 		LIMIT ?
 		OFFSET ?
 		`,
@@ -456,7 +456,7 @@ func (r *olapEventRepository) ReadTaskRunMetrics(tenantId uuid.UUID, since time.
 		WITH candidate_tasks AS (
 			SELECT *
 			FROM task_events
-			WHERE 
+			WHERE
 				tenant_id = ?
 				AND timestamp > ?
 		), max_retry_counts AS (
@@ -527,21 +527,21 @@ func (r *olapEventRepository) ReadTaskRun(tenantId, taskRunId uuid.UUID) (olap.W
 		), task_creation_times AS (
 			SELECT
 				task_id,
-				MIN(timestamp) AS created_at,
+				MIN(timestamp) AS value,
 				MAX(readable_status) AS status
 			FROM relevant_task_events
 			GROUP BY task_id
 		), task_start_times AS (
 			SELECT
 				task_id,
-				MIN(timestamp) AS started_at
+				MIN(timestamp) AS value
 			FROM relevant_task_events
 			WHERE event_type = 'STARTED'
 			GROUP BY task_id
 		), task_finish_times AS (
 			SELECT
 				task_id,
-				MAX(timestamp) AS finished_at,
+				MAX(timestamp) AS value,
 				MAX(readable_status) AS status
 			FROM relevant_task_events
 
@@ -551,10 +551,10 @@ func (r *olapEventRepository) ReadTaskRun(tenantId, taskRunId uuid.UUID) (olap.W
 		), task_event_metadata AS (
 			SELECT
 				tct.task_id AS task_id,
-				tct.created_at AS created_at,
-				tst.started_at AS started_at,
-				tft.finished_at AS finished_at,
-				timeDiff(tst.started_at, tft.finished_at) AS duration,
+				tct.value AS created_at,
+				tst.value AS started_at,
+				tft.value AS finished_at,
+				timeDiff(tst.value, tft.value) AS duration,
 				tct.status AS status
 			FROM task_creation_times tct
 			LEFT JOIN task_start_times tst ON tct.task_id = tst.task_id
@@ -588,7 +588,7 @@ func (r *olapEventRepository) ReadTaskRun(tenantId, taskRunId uuid.UUID) (olap.W
 			ct.id AS task_id,
 			ct.tenant_id,
 			-- NOTE: This is probably a bug, figure out which timestamp to use.
-			ct.created_at AS timestamp,
+			ct.inserted_at AS timestamp,
 			ct.workflow_id
 		FROM tasks ct
 		JOIN task_event_metadata tem ON ct.id = tem.task_id
