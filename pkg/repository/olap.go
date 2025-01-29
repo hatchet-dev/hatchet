@@ -139,7 +139,7 @@ func (r *olapEventRepository) ReadTaskRuns(tenantId uuid.UUID, since time.Time, 
 				tct.created_at AS created_at,
 				tst.started_at AS started_at,
 				tft.finished_at AS finished_at,
-				timeDiff(tst.started_at, tft.finished_at) * 1000 AS duration,
+				timeDiff(tst.started_at, tft.finished_at) AS duration,
 				tct.status AS status
 			FROM task_creation_times tct
 			LEFT JOIN task_start_times tst ON tct.task_id = tst.task_id
@@ -369,7 +369,7 @@ func (r *olapEventRepository) ReadTaskRun(tenantId, taskRunId uuid.UUID) (olap.W
 				tct.created_at AS created_at,
 				tst.started_at AS started_at,
 				tft.finished_at AS finished_at,
-				timeDiff(tst.started_at, tft.finished_at) * 1000 AS duration,
+				timeDiff(tst.started_at, tft.finished_at) AS duration,
 				tct.status AS status
 			FROM task_creation_times tct
 			LEFT JOIN task_start_times tst ON tct.task_id = tst.task_id
