@@ -557,7 +557,7 @@ func (r *olapEventRepository) writeTaskEventBatch(c context.Context, events []ol
 		return err
 	}
 
-	for _, event := range events {
+	for _, event := range eventsToWrite {
 		readableStatus := olap.READABLE_TASK_STATUS_QUEUED
 
 		switch event.EventType {
