@@ -86,8 +86,9 @@ type ClientOpts struct {
 	cloudRegisterID *string
 	runnableActions []string
 
-	filesLoader   filesLoaderFunc
-	initWorkflows bool
+	filesLoader        filesLoaderFunc
+	initWorkflows      bool
+	presetWorkerLabels map[string]string
 }
 
 func defaultClientOpts(token *string, cf *client.ClientConfigFile) *ClientOpts {
@@ -119,19 +120,20 @@ func defaultClientOpts(token *string, cf *client.ClientConfigFile) *ClientOpts {
 	logger := logger.NewDefaultLogger("client")
 
 	return &ClientOpts{
-		tenantId:        clientConfig.TenantId,
-		token:           clientConfig.Token,
-		l:               &logger,
-		v:               validator.NewDefaultValidator(),
-		tls:             clientConfig.TLSConfig,
-		hostPort:        clientConfig.GRPCBroadcastAddress,
-		serverURL:       clientConfig.ServerURL,
-		filesLoader:     types.DefaultLoader,
-		namespace:       clientConfig.Namespace,
-		cloudRegisterID: clientConfig.CloudRegisterID,
-		runnableActions: clientConfig.RunnableActions,
-		noGrpcRetry:     clientConfig.NoGrpcRetry,
-		sharedMeta:      make(map[string]string),
+		tenantId:           clientConfig.TenantId,
+		token:              clientConfig.Token,
+		l:                  &logger,
+		v:                  validator.NewDefaultValidator(),
+		tls:                clientConfig.TLSConfig,
+		hostPort:           clientConfig.GRPCBroadcastAddress,
+		serverURL:          clientConfig.ServerURL,
+		filesLoader:        types.DefaultLoader,
+		namespace:          clientConfig.Namespace,
+		cloudRegisterID:    clientConfig.CloudRegisterID,
+		runnableActions:    clientConfig.RunnableActions,
+		noGrpcRetry:        clientConfig.NoGrpcRetry,
+		sharedMeta:         make(map[string]string),
+		presetWorkerLabels: clientConfig.PresetWorkerLabels,
 	}
 }
 
@@ -312,7 +314,7 @@ func newFromOpts(opts *ClientOpts) (Client, error) {
 
 	subscribe := newSubscribe(conn, shared)
 	admin := newAdmin(conn, shared, subscribe)
-	dispatcher := newDispatcher(conn, shared)
+	dispatcher := newDispatcher(conn, shared, opts.presetWorkerLabels)
 	event := newEvent(conn, shared)
 
 	rest, err := rest.NewClientWithResponses(opts.serverURL, rest.WithRequestEditorFn(func(ctx context.Context, req *http.Request) error {

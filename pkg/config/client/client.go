@@ -23,6 +23,8 @@ type ClientConfigFile struct {
 
 	CloudRegisterID    *string  `mapstructure:"cloudRegisterID" json:"cloudRegisterID,omitempty"`
 	RawRunnableActions []string `mapstructure:"runnableActions" json:"runnableActions,omitempty"`
+
+	AutoscalingTarget string `mapstructure:"autoscalingTarget" json:"autoscalingTarget,omitempty"`
 }
 
 type ClientTLSConfigFile struct {
@@ -46,6 +48,8 @@ type ClientConfig struct {
 
 	CloudRegisterID *string
 	RunnableActions []string
+
+	PresetWorkerLabels map[string]string
 }
 
 func BindAllEnv(v *viper.Viper) {
@@ -57,6 +61,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("cloudRegisterID", "HATCHET_CLOUD_REGISTER_ID")
 	_ = v.BindEnv("runnableActions", "HATCHET_CLOUD_ACTIONS")
 	_ = v.BindEnv("noGrpcRetry", "HATCHET_CLIENT_NO_GRPC_RETRY")
+	_ = v.BindEnv("autoscalingTarget", "HATCHET_CLIENT_AUTOSCALING_TARGET")
 
 	// tls options
 	_ = v.BindEnv("tls.base.tlsStrategy", "HATCHET_CLIENT_TLS_STRATEGY")

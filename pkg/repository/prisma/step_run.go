@@ -840,7 +840,11 @@ func (s *stepRunEngineRepository) processStepRunUpdatesV2(
 	tenantId string,
 	outerTx dbsqlc.DBTX,
 	data []updateStepRunQueueData,
-) (succeededStepRuns []*dbsqlc.GetStepRunForEngineRow, completedWorkflowRuns []*dbsqlc.ResolveWorkflowRunStatusRow, err error) {
+) (
+	succeededStepRuns []*dbsqlc.GetStepRunForEngineRow,
+	completedWorkflowRuns []*dbsqlc.ResolveWorkflowRunStatusRow,
+	err error,
+) {
 	// startedAt := time.Now().UTC()
 	pgTenantId := sqlchelpers.UUIDFromStr(tenantId)
 
@@ -867,6 +871,7 @@ func (s *stepRunEngineRepository) processStepRunUpdatesV2(
 			failParams := dbsqlc.BulkFailStepRunParams{}
 			cancelParams := dbsqlc.BulkCancelStepRunParams{}
 			finishParams := dbsqlc.BulkFinishStepRunParams{}
+			backoffParams := []pgtype.UUID{}
 			batchStepRunIds := []pgtype.UUID{}
 
 			for _, item := range batch {
@@ -890,10 +895,12 @@ func (s *stepRunEngineRepository) processStepRunUpdatesV2(
 					finishParams.Steprunids = append(finishParams.Steprunids, stepRunId)
 					finishParams.Finishedats = append(finishParams.Finishedats, sqlchelpers.TimestampFromTime(*item.FinishedAt))
 					finishParams.Outputs = append(finishParams.Outputs, item.Output)
+				case dbsqlc.StepRunStatusBACKOFF:
+					backoffParams = append(backoffParams, stepRunId)
 				}
 			}
 
-			innerCompletedWorkflowRuns, err := s.bulkProcessStepRunUpdates(ctx, startParams, failParams, cancelParams, finishParams, batchStepRunIds, pgTenantId)
+			innerCompletedWorkflowRuns, err := s.bulkProcessStepRunUpdates(ctx, startParams, failParams, cancelParams, finishParams, backoffParams, batchStepRunIds, pgTenantId)
 
 			if err != nil && strings.Contains(err.Error(), "SQLSTATE 22P02") {
 				// attempt to validate json for outputs
@@ -920,7 +927,7 @@ func (s *stepRunEngineRepository) processStepRunUpdatesV2(
 					}
 				}
 
-				innerCompletedWorkflowRuns, err = s.bulkProcessStepRunUpdates(ctx, startParams, failParams, cancelParams, finishParams, batchStepRunIds, pgTenantId)
+				innerCompletedWorkflowRuns, err = s.bulkProcessStepRunUpdates(ctx, startParams, failParams, cancelParams, finishParams, backoffParams, batchStepRunIds, pgTenantId)
 
 				if err != nil {
 					return fmt.Errorf("could not process step run updates: %w", err)
@@ -963,6 +970,7 @@ func (s *stepRunEngineRepository) bulkProcessStepRunUpdates(ctx context.Context,
 	failParams dbsqlc.BulkFailStepRunParams,
 	cancelParams dbsqlc.BulkCancelStepRunParams,
 	finishParams dbsqlc.BulkFinishStepRunParams,
+	backoffParams []pgtype.UUID,
 	batchStepRunIds []pgtype.UUID,
 	pgTenantId pgtype.UUID,
 ) (completedWorkflowRuns []*dbsqlc.ResolveWorkflowRunStatusRow, err error) {
@@ -1005,6 +1013,14 @@ func (s *stepRunEngineRepository) bulkProcessStepRunUpdates(ctx context.Context,
 
 		if err != nil {
 			return nil, fmt.Errorf("could not cancel step runs: %w", err)
+		}
+	}
+
+	if len(backoffParams) > 0 {
+		err = s.queries.BulkBackoffStepRun(ctx, tx, backoffParams)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not backoff step runs: %w", err)
 		}
 	}
 
@@ -1452,9 +1468,25 @@ func (s *stepRunEngineRepository) StepRunFailed(ctx context.Context, tenantId, w
 	return innerErr
 }
 
-func (s *stepRunEngineRepository) StepRunRetryBackoff(ctx context.Context, tenantId, stepRunId string, retryAfter time.Time) error {
+func (s *stepRunEngineRepository) StepRunRetryBackoff(ctx context.Context, tenantId, stepRunId string, retryAfter time.Time, retryCount int) error {
 	ctx, span := telemetry.NewSpan(ctx, "step-run-retry-backoff-db")
 	defer span.End()
+
+	backoff := string(dbsqlc.StepRunStatusBACKOFF)
+
+	err := s.bulkStatusBuffer.FireForget(tenantId, &updateStepRunQueueData{
+		Hash:       hashToBucket(sqlchelpers.UUIDFromStr(stepRunId), s.maxHashFactor),
+		StepRunId:  stepRunId,
+		TenantId:   tenantId,
+		RetryCount: retryCount,
+		FinishedAt: nil,
+		Error:      nil,
+		Status:     &backoff,
+	})
+
+	if err != nil {
+		return fmt.Errorf("could not buffer step run backoff: %w", err)
+	}
 
 	return s.queries.CreateRetryQueueItem(ctx, s.pool, dbsqlc.CreateRetryQueueItemParams{
 		Steprunid:  sqlchelpers.UUIDFromStr(stepRunId),
@@ -1467,13 +1499,31 @@ func (s *stepRunEngineRepository) RetryStepRuns(ctx context.Context, tenantId st
 	ctx, span := telemetry.NewSpan(ctx, "retry-step-runs-db")
 	defer span.End()
 
-	count, err := s.queries.RetryStepRuns(ctx, s.pool, sqlchelpers.UUIDFromStr(tenantId))
+	rows, err := s.queries.RetryStepRuns(ctx, s.pool, sqlchelpers.UUIDFromStr(tenantId))
 
 	if err != nil {
 		return false, fmt.Errorf("could not list retryable step runs: %w", err)
 	}
 
-	return count == 1000, err
+	// for _, row := range rows {
+	// 	status := string(dbsqlc.StepRunStatusPENDINGASSIGNMENT)
+
+	// 	err := s.bulkStatusBuffer.FireForget(tenantId, &updateStepRunQueueData{
+	// 		Hash:       hashToBucket(row.StepRunId, s.maxHashFactor),
+	// 		StepRunId:  sqlchelpers.UUIDToStr(row.StepRunId),
+	// 		TenantId:   tenantId,
+	// 		RetryCount: 0,
+	// 		FinishedAt: nil,
+	// 		Error:      nil,
+	// 		Status:     &status,
+	// 	})
+
+	// 	if err != nil {
+	// 		return false, fmt.Errorf("could not buffer step run backoff: %w", err)
+	// 	}
+	// }
+
+	return len(rows) == 1000, nil
 }
 
 func (s *stepRunEngineRepository) ReplayStepRun(ctx context.Context, tenantId, stepRunId string, input []byte) (*dbsqlc.GetStepRunForEngineRow, error) {

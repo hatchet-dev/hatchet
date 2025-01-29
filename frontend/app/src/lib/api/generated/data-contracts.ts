@@ -493,6 +493,7 @@ export enum WorkflowRunStatus {
   FAILED = 'FAILED',
   CANCELLED = 'CANCELLED',
   QUEUED = 'QUEUED',
+  BACKOFF = 'BACKOFF',
 }
 
 export type WorkflowRunStatusList = WorkflowRunStatus[];
@@ -534,6 +535,11 @@ export interface EventWorkflowRunSummary {
    * @format int64
    */
   failed?: number;
+  /**
+   * The number of cancelled runs.
+   * @format int64
+   */
+  cancelled?: number;
 }
 
 export interface Event {
@@ -930,6 +936,7 @@ export enum StepRunStatus {
   FAILED = 'FAILED',
   CANCELLED = 'CANCELLED',
   CANCELLING = 'CANCELLING',
+  BACKOFF = 'BACKOFF',
 }
 
 export interface StepRun {
@@ -972,6 +979,7 @@ export enum JobRunStatus {
   SUCCEEDED = 'SUCCEEDED',
   FAILED = 'FAILED',
   CANCELLED = 'CANCELLED',
+  BACKOFF = 'BACKOFF',
 }
 
 export interface WorkflowRunTriggeredBy {
@@ -1143,6 +1151,7 @@ export interface WorkflowRunsMetricsCounts {
   SUCCEEDED?: number;
   FAILED?: number;
   QUEUED?: number;
+  CANCELLED?: number;
 }
 
 export interface WorkflowRunsMetrics {

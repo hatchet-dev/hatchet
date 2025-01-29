@@ -56,6 +56,7 @@ const (
 
 // Defines values for JobRunStatus.
 const (
+	JobRunStatusBACKOFF   JobRunStatus = "BACKOFF"
 	JobRunStatusCANCELLED JobRunStatus = "CANCELLED"
 	JobRunStatusFAILED    JobRunStatus = "FAILED"
 	JobRunStatusPENDING   JobRunStatus = "PENDING"
@@ -149,6 +150,7 @@ const (
 // Defines values for StepRunStatus.
 const (
 	StepRunStatusASSIGNED          StepRunStatus = "ASSIGNED"
+	StepRunStatusBACKOFF           StepRunStatus = "BACKOFF"
 	StepRunStatusCANCELLED         StepRunStatus = "CANCELLED"
 	StepRunStatusCANCELLING        StepRunStatus = "CANCELLING"
 	StepRunStatusFAILED            StepRunStatus = "FAILED"
@@ -218,6 +220,7 @@ const (
 
 // Defines values for WorkflowRunStatus.
 const (
+	BACKOFF   WorkflowRunStatus = "BACKOFF"
 	CANCELLED WorkflowRunStatus = "CANCELLED"
 	FAILED    WorkflowRunStatus = "FAILED"
 	PENDING   WorkflowRunStatus = "PENDING"
@@ -467,6 +470,9 @@ type EventSearch = string
 
 // EventWorkflowRunSummary defines model for EventWorkflowRunSummary.
 type EventWorkflowRunSummary struct {
+	// Cancelled The number of cancelled runs.
+	Cancelled *int64 `json:"cancelled,omitempty"`
+
 	// Failed The number of failed runs.
 	Failed *int64 `json:"failed,omitempty"`
 
@@ -1386,6 +1392,7 @@ type WorkflowRunsMetrics struct {
 
 // WorkflowRunsMetricsCounts defines model for WorkflowRunsMetricsCounts.
 type WorkflowRunsMetricsCounts struct {
+	CANCELLED *int `json:"CANCELLED,omitempty"`
 	FAILED    *int `json:"FAILED,omitempty"`
 	PENDING   *int `json:"PENDING,omitempty"`
 	QUEUED    *int `json:"QUEUED,omitempty"`

@@ -115,6 +115,10 @@ EventWorkflowRunSummary:
       type: integer
       format: int64
       description: The number of failed runs.
+    cancelled:
+      type: integer
+      format: int64
+      description: The number of cancelled runs.
 
 EventKeyList:
   properties:

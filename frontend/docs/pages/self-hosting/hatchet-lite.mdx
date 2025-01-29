@@ -65,7 +65,7 @@ services:
       DATABASE_LOGGER_LEVEL: warn
       DATABASE_LOGGER_FORMAT: console
     volumes:
-      - "hatchet_lite_rabbitmq_data:/var/lib/rabbitmq/mnesia"
+      - "hatchet_lite_rabbitmq_data:/var/lib/rabbitmq"
       - "hatchet_lite_config:/config"
 
 volumes:

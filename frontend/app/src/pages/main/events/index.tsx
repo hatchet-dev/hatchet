@@ -337,6 +337,10 @@ function EventsTable() {
         label: 'Failed',
       },
       {
+        value: WorkflowRunStatus.CANCELLED,
+        label: 'Cancelled',
+      },
+      {
         value: WorkflowRunStatus.RUNNING,
         label: 'Running',
       },
