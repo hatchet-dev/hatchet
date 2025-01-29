@@ -765,21 +765,23 @@ func (s *Scheduler) tryAssign(
 }
 
 func (s *Scheduler) getExtensionInput(results []*assignResults) *PostScheduleInput {
-	unassigned := make([]*dbsqlc.QueueItem, 0)
-
-	for _, res := range results {
-		unassigned = append(unassigned, res.unassigned...)
-	}
-
+	// Pre-allocate maps and slices with capacity to reduce reallocations
+	unassigned := make([]*dbsqlc.QueueItem, 0, len(results)*10) // Estimate capacity
 	workers := s.getWorkers()
 
 	res := &PostScheduleInput{
-		Workers:    make(map[string]*WorkerCp),
-		Slots:      make([]*SlotCp, 0),
+		Workers:    make(map[string]*WorkerCp, len(workers)),
+		Slots:      make([]*SlotCp, 0, 1000), // Set reasonable initial capacity
 		Unassigned: unassigned,
 	}
 
+	// Reuse worker IDs where possible instead of converting UUID multiple times
+	workerIDCache := make(map[pgtype.UUID]string, len(workers))
+
 	for workerId, worker := range workers {
+		// Cache the string version of worker ID
+		workerIDCache[worker.ListActiveWorkersResult.ID] = workerId
+
 		res.Workers[workerId] = &WorkerCp{
 			WorkerId: workerId,
 			MaxRuns:  worker.MaxRuns,
@@ -787,20 +789,24 @@ func (s *Scheduler) getExtensionInput(results []*assignResults) *PostScheduleInp
 		}
 	}
 
-	// NOTE: these locks are important because we must acquire locks in the same order as the replenish and tryAssignBatch
-	// functions. we always acquire actionsMu first and then the specific action's lock.
-	actionKeys := make([]string, 0, len(s.actions))
+	for _, r := range results {
+		unassigned = append(unassigned, r.unassigned...)
+	}
 
+	// Get action keys once
 	s.actionsMu.RLock()
-
+	actionKeys := make([]string, 0, len(s.actions))
 	for actionId := range s.actions {
 		actionKeys = append(actionKeys, actionId)
 	}
-
 	s.actionsMu.RUnlock()
 
-	uniqueSlots := make(map[*slot]*SlotCp)
-	actionsToSlots := make(map[string][]*SlotCp)
+	// Use a map to deduplicate slots with a reasonable initial capacity
+	uniqueSlots := make(map[*slot]struct{}, 1000)
+	actionsToSlots := make(map[string][]*SlotCp, len(actionKeys))
+
+	// Preallocate slot copies to reduce GC pressure
+	slotCopies := make([]*SlotCp, 0, 1000)
 
 	for _, actionId := range actionKeys {
 		s.actionsMu.RLock()
@@ -812,28 +818,35 @@ func (s *Scheduler) getExtensionInput(results []*assignResults) *PostScheduleInp
 		}
 
 		action.mu.RLock()
+		// Pre-allocate the slice for this action's slots
 		actionsToSlots[action.actionId] = make([]*SlotCp, 0, len(action.slots))
 
 		for _, slot := range action.slots {
-			if _, ok := uniqueSlots[slot]; ok {
+			if _, exists := uniqueSlots[slot]; exists {
 				continue
 			}
+			uniqueSlots[slot] = struct{}{}
 
-			uniqueSlots[slot] = &SlotCp{
-				WorkerId: slot.getWorkerId(),
+			// Reuse cached worker ID instead of converting UUID again
+			workerId := workerIDCache[slot.worker.ID]
+
+			// Create slot copy
+			slotCp := &SlotCp{
+				WorkerId: workerId,
 				Used:     slot.used,
 			}
+			slotCopies = append(slotCopies, slotCp)
 
-			actionsToSlots[action.actionId] = append(actionsToSlots[action.actionId], uniqueSlots[slot])
+			// Reference the same slot copy in actionsToSlots
+			actionsToSlots[action.actionId] = append(actionsToSlots[action.actionId], slotCp)
 		}
 		action.mu.RUnlock()
 	}
 
-	for _, slot := range uniqueSlots {
-		res.Slots = append(res.Slots, slot)
-	}
-
+	// Set final slots slice
+	res.Slots = slotCopies
 	res.ActionsToSlots = actionsToSlots
+	res.Unassigned = unassigned
 
 	return res
 }
