@@ -247,7 +247,7 @@ func (t *TenantAlertManager) SendTenantResourceLimitAlert(tenantId string, alert
 	}
 
 	payload := &alerttypes.ResourceLimitAlert{
-		Link:          fmt.Sprintf("%s/tenant-settings/resource-limits?tenant=%s", t.serverURL, tenantId),
+		Link:          fmt.Sprintf("%s/tenant-settings/billing-and-limits?tenant=%s", t.serverURL, tenantId),
 		Resource:      string(alert.Resource),
 		AlertType:     string(alert.AlertType),
 		CurrentValue:  int(alert.Value),
