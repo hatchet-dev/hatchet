@@ -362,8 +362,8 @@ func (r *olapEventRepository) getRelevantRowsNoStatusFilter(ctx context.Context,
 func (r *olapEventRepository) getRelevantRowsWithStatusFilter(ctx context.Context, tenantId uuid.UUID, since time.Time, limit, offset int64, statuses []string) ([]getRelevantTaskEventsRow, error) {
 	taskEventRows, err := r.conn.Query(ctx, `
 		-- name: GetRelevantTaskEvents
-		WITH task_ids AS (
-			SELECT DISTINCT(task_id), tenant_id
+		WITH selected_tasks AS (
+			SELECT *
 			FROM task_events
 			WHERE
 				tenant_id = ?
@@ -371,41 +371,28 @@ func (r *olapEventRepository) getRelevantRowsWithStatusFilter(ctx context.Contex
 				AND readable_status IN (?)
 		), max_retry_counts AS (
 			SELECT task_id, MAX(retry_count) AS max_retry_count
-			FROM task_events
-			WHERE
-				tenant_id = ?
-				AND timestamp > ?
-				AND task_id = ANY((
-					SELECT task_id FROM task_ids
-				))
+			FROM selected_tasks
 			GROUP BY task_id
 		), max_readable_statuses AS (
 			SELECT te.task_id, MAX(te.readable_status) AS max_readable_status
 			FROM task_events te
 			JOIN max_retry_counts mrc ON te.task_id = mrc.task_id AND te.retry_count = mrc.max_retry_count
-			WHERE
-				te.tenant_id = ?
-				AND te.timestamp > ?
-				AND te.task_id = ANY((
-					SELECT task_id FROM task_ids
-				))
+			WHERE te.task_id IN (
+				SELECT task_id
+				FROM selected_tasks
+			)
 			GROUP BY te.task_id
 		)
+
 		SELECT
 			te.task_id,
 			te.timestamp,
 			te.event_type,
 			te.readable_status
-		FROM task_events te
-		JOIN max_readable_statuses mrs ON te.task_id = mrs.task_id AND te.readable_status = mrs.max_readable_status
-		JOIN tasks t ON task_events.tenant_id = t.tenant_id AND task_events.task_id = t.id
-		WHERE
-			te.tenant_id = ?
-			AND te.timestamp > ?
-			AND te.task_id = ANY((
-				SELECT task_id FROM task_ids
-			))
-			AND readable_status IN (?)
+		FROM selected_tasks te
+		INNER JOIN max_readable_statuses mrs ON te.task_id = mrs.task_id AND te.readable_status = mrs.max_readable_status
+		JOIN tasks t ON te.task_id = t.id
+		WHERE t.tenant_id = ?
 		ORDER BY t.inserted_at DESC, t.id ASC
 		LIMIT ?
 		OFFSET ?
@@ -414,12 +401,6 @@ func (r *olapEventRepository) getRelevantRowsWithStatusFilter(ctx context.Contex
 		since,
 		statuses,
 		tenantId,
-		since,
-		tenantId,
-		since,
-		tenantId,
-		since,
-		statuses,
 		limit,
 		offset,
 	)
