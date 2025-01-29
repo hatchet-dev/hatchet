@@ -11,11 +11,7 @@ import (
 type PostScheduleInput struct {
 	Workers map[string]*WorkerCp
 
-	Slots []*SlotCp
-
 	Unassigned []*dbsqlc.QueueItem
-
-	ActionsToSlots map[string][]*SlotCp
 }
 
 type WorkerCp struct {
