@@ -118,7 +118,7 @@ export const columns = ({
         const event = row.original;
 
         if (event.event_type === V2EventType.FAILED) {
-          items.push(<ErrorWithHoverCard event={row.original} rows={[]} />);
+          items.push(<ErrorWithHoverCard event={row.original} />);
         }
 
         if (event.data) {
@@ -222,13 +222,7 @@ function EventIndicator({ severity }: { severity: StepRunEventSeverity }) {
   );
 }
 
-function ErrorWithHoverCard({
-  event,
-  rows,
-}: {
-  event: V2StepRunEvent;
-  rows: V2StepRunEvent[];
-}) {
+function ErrorWithHoverCard({ event }: { event: V2StepRunEvent }) {
   const { tenant } = useOutletContext<TenantContextType>();
   invariant(tenant);
   invariant(event.taskId);
@@ -272,40 +266,22 @@ function ErrorWithHoverCard({
           align="start"
           container={containerRef.current}
         >
-          <ErrorHoverContents event={event} rows={rows} />
+          <ErrorHoverContents event={event} />
         </PopoverContent>
       </Popover>
     </div>
   );
 }
 
-function ErrorHoverContents({
-  event,
-  rows,
-}: {
-  event: V2StepRunEvent;
-  rows: V2StepRunEvent[];
-}) {
+function ErrorHoverContents({ event }: { event: V2StepRunEvent }) {
   // We cannot call this component without stepRun being defined.
   invariant(event.taskId);
 
-  const errorText = rows
-    .filter(
-      (row) =>
-        row.event_type === V2EventType.FAILED ||
-        row.event_type === V2EventType.CANCELLED,
-    )
-    .sort((a, b) => {
-      const lhs = new Date(a.timestamp);
-      const rhs = new Date(b.timestamp);
+  const errorText = event.error_message;
 
-      return lhs.getTime() - rhs.getTime();
-    })
-    .at(0);
-
-  if (!errorText || !errorText.error_message) {
+  if (!errorText) {
     return <StepRunError text="No error message found" />;
   }
 
-  return <StepRunError text={errorText.error_message} />;
+  return <StepRunError text={errorText} />;
 }
