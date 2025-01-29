@@ -774,8 +774,7 @@ func (s *Scheduler) getExtensionInput(results []*assignResults) *PostScheduleInp
 	workers := s.getWorkers()
 
 	res := &PostScheduleInput{
-		Workers:    make(map[string]*WorkerCp),
-		Unassigned: unassigned,
+		Workers: make(map[string]*WorkerCp),
 	}
 
 	for workerId, worker := range workers {
@@ -785,6 +784,60 @@ func (s *Scheduler) getExtensionInput(results []*assignResults) *PostScheduleInp
 			Labels:   worker.Labels,
 		}
 	}
+
+	// NOTE: these locks are important because we must acquire locks in the same order as the replenish and tryAssignBatch
+	// functions. we always acquire actionsMu first and then the specific action's lock.
+	actionKeys := make([]string, 0, len(s.actions))
+
+	s.actionsMu.RLock()
+
+	for actionId := range s.actions {
+		actionKeys = append(actionKeys, actionId)
+	}
+
+	s.actionsMu.RUnlock()
+
+	uniqueSlots := make(map[*slot]bool)
+
+	workerSlotUtilization := make(map[string]*SlotUtilization)
+
+	for _, actionId := range actionKeys {
+		s.actionsMu.RLock()
+		action, ok := s.actions[actionId]
+		s.actionsMu.RUnlock()
+
+		if !ok || action == nil {
+			continue
+		}
+
+		action.mu.RLock()
+		for _, slot := range action.slots {
+			if _, ok := uniqueSlots[slot]; ok {
+				continue
+			}
+
+			workerId := slot.getWorkerId()
+
+			if _, ok := workerSlotUtilization[workerId]; !ok {
+				// initialize the worker slot utilization
+				workerSlotUtilization[workerId] = &SlotUtilization{
+					UtilizedSlots:    0,
+					NonUtilizedSlots: 0,
+				}
+			}
+
+			uniqueSlots[slot] = true
+
+			if slot.used {
+				workerSlotUtilization[workerId].UtilizedSlots++
+			} else {
+				workerSlotUtilization[workerId].NonUtilizedSlots++
+			}
+		}
+		action.mu.RUnlock()
+	}
+
+	res.WorkerSlotUtilization = workerSlotUtilization
 
 	return res
 }
