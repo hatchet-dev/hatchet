@@ -24,8 +24,8 @@
         display_name TEXT NOT NULL,
         input TEXT NOT NULL DEFAULT '{}',
         additional_metadata TEXT NOT NULL DEFAULT '{}',
-        inserted_at DateTime('UTC') NOT NULL DEFAULT NOW(),
-        created_at DateTime('UTC') NOT NULL DEFAULT NOW(),
+        inserted_at DateTime64(3, 'UTC')  NOT NULL DEFAULT NOW(),
+        created_at DateTime64(3, 'UTC')  NOT NULL DEFAULT NOW(),
 
         PRIMARY KEY (tenant_id, id)
     )
@@ -34,7 +34,8 @@
     -- https://stackoverflow.com/a/75439879 for more on partitioning
     -- partition by week so we can easily drop old data
     PARTITION BY (toMonday(created_at))
-    ORDER BY (tenant_id, id);
+    ORDER BY (tenant_id, id)
+    ;
 
     CREATE TABLE task_events (
         id UUID NOT NULL DEFAULT generateUUIDv4(),
@@ -68,23 +69,25 @@
             'CANCELLED' = 4,
             'FAILED' = 5
         ),
-        timestamp DateTime('UTC') NOT NULL,
+        timestamp DateTime64(3, 'UTC') NOT NULL,
         retry_count SMALLINT UNSIGNED NOT NULL DEFAULT 0,
         error_message TEXT NOT NULL DEFAULT '',
         output TEXT NOT NULL DEFAULT '{}',
         worker_id UUID NULL DEFAULT NULL,
         additional__event_data TEXT NOT NULL DEFAULT '{}',
         additional__event_message TEXT NOT NULL DEFAULT '',
-        created_at DateTime('UTC') NOT NULL DEFAULT NOW(),
+        created_at DateTime64(3, 'UTC')  NOT NULL DEFAULT NOW(),
 
-        PRIMARY KEY (tenant_id, task_id, timestamp, event_type, retry_count)
+        PRIMARY KEY (tenant_id, timestamp, event_type, retry_count, task_id)
     )
     ENGINE = MergeTree()
 
     -- https://stackoverflow.com/a/75439879 for more on partitioning
     -- partition by week so we can easily drop old data
     PARTITION BY (toMonday(timestamp))
-    ORDER BY (tenant_id, task_id, timestamp, event_type, retry_count);
+    ORDER BY (tenant_id, timestamp, event_type, retry_count, task_id)
+    ALTER TABLE task_events ADD INDEX ix_task_events_skip_task_id task_id TYPE set(2048) GRANULARITY 4;
+    ;
    ```
 
 5. ```sql
