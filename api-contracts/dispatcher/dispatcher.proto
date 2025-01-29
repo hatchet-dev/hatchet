@@ -247,6 +247,9 @@ message StepActionEvent {
 
     // the event payload
     string eventPayload = 9;
+
+    // the retry count
+    optional int32 retryCount = 10;
 }
 
 message ActionEventResponse {

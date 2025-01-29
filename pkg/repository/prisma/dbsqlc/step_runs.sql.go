@@ -108,6 +108,20 @@ func (q *Queries) ArchiveStepRunResultFromStepRun(ctx context.Context, db DBTX, 
 	return &i, err
 }
 
+const bulkBackoffStepRun = `-- name: BulkBackoffStepRun :exec
+UPDATE
+    "StepRun"
+SET
+    "status" = 'BACKOFF'
+WHERE
+    "id" = ANY($1::uuid[])
+`
+
+func (q *Queries) BulkBackoffStepRun(ctx context.Context, db DBTX, steprunids []pgtype.UUID) error {
+	_, err := db.Exec(ctx, bulkBackoffStepRun, steprunids)
+	return err
+}
+
 const bulkCancelStepRun = `-- name: BulkCancelStepRun :exec
 WITH input AS (
     SELECT
@@ -339,6 +353,20 @@ func (q *Queries) BulkMarkStepRunsAsCancelling(ctx context.Context, db DBTX, ste
 		return nil, err
 	}
 	return items, nil
+}
+
+const bulkRetryStepRun = `-- name: BulkRetryStepRun :exec
+UPDATE
+    "StepRun"
+SET
+    "status" = 'PENDING_ASSIGNMENT'
+WHERE
+    "id" = ANY($1::uuid[])
+`
+
+func (q *Queries) BulkRetryStepRun(ctx context.Context, db DBTX, steprunids []pgtype.UUID) error {
+	_, err := db.Exec(ctx, bulkRetryStepRun, steprunids)
+	return err
 }
 
 const bulkStartStepRun = `-- name: BulkStartStepRun :exec
@@ -1688,7 +1716,10 @@ LEFT JOIN
     "_StepRunOrder" AS step_run_order ON step_run_order."B" = child_run."id"
 WHERE
     child_run."jobRunId" = $1::uuid
-    AND child_run."status" = 'PENDING'
+    AND (
+        child_run."status" = 'PENDING' OR
+        child_run."status" = 'BACKOFF'
+    )
     AND step_run_order."A" IS NULL
 `
 
@@ -1807,7 +1838,10 @@ JOIN
     "StepRun" AS child_run ON step_run_order."B" = child_run."id"
 WHERE
     parent_run."id" = $1::uuid
-    AND child_run."status" = 'PENDING'
+    AND (
+        child_run."status" = 'PENDING' OR
+        child_run."status" = 'BACKOFF'
+    )
     -- we look for whether the step run is startable by ensuring that all parent step runs have succeeded
     AND NOT EXISTS (
         SELECT 1
@@ -1860,7 +1894,10 @@ JOIN
     "StepRun" AS child_run ON step_run_order."B" = child_run."id"
 WHERE
     parent_run."id" = $1::uuid
-    AND child_run."status" = 'PENDING'
+    AND (
+        child_run."status" = 'PENDING' OR
+        child_run."status" = 'BACKOFF'
+    )
     -- we look for whether the step run is startable ASSUMING that parentStepRunId has succeeded,
     -- but we only have one parent step run
     AND NOT EXISTS (

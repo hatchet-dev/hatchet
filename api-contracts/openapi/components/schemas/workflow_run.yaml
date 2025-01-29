@@ -302,6 +302,8 @@ WorkflowRunsMetricsCounts:
       type: integer
     QUEUED:
       type: integer
+    CANCELLED:
+      type: integer
 
 WorkflowRunsMetrics:
   type: object
@@ -321,6 +323,7 @@ StepRunStatus:
     - FAILED
     - CANCELLED
     - CANCELLING
+    - BACKOFF
 
 JobRunStatus:
   type: string
@@ -330,6 +333,7 @@ JobRunStatus:
     - SUCCEEDED
     - FAILED
     - CANCELLED
+    - BACKOFF
 
 WorkflowRunStatus:
   type: string
@@ -340,6 +344,7 @@ WorkflowRunStatus:
     - FAILED
     - CANCELLED
     - QUEUED
+    - BACKOFF
 
 ScheduledRunStatus:
   type: string

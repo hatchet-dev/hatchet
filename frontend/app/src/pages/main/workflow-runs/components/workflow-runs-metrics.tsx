@@ -31,7 +31,8 @@ export const WorkflowRunsMetricsView: React.FC<WorkflowRunsMetricsProps> = ({
     (counts?.RUNNING ?? 0) +
     (counts?.SUCCEEDED ?? 0) +
     (counts?.QUEUED ?? 0) +
-    (counts?.FAILED ?? 0);
+    (counts?.FAILED ?? 0) +
+    (counts?.CANCELLED ?? 0);
 
   const succeededPercentage = calculatePercentage(
     counts?.SUCCEEDED ?? 0,
@@ -41,7 +42,10 @@ export const WorkflowRunsMetricsView: React.FC<WorkflowRunsMetricsProps> = ({
   const failedPercentage = calculatePercentage(counts?.FAILED ?? 0, total);
   const pendingPercentage = calculatePercentage(counts?.PENDING ?? 0, total);
   const queuedPercentage = calculatePercentage(counts?.QUEUED ?? 0, total);
-
+  const cancelledPercentage = calculatePercentage(
+    counts?.CANCELLED ?? 0,
+    total,
+  );
   return (
     <dl className="flex flex-row justify-start gap-6">
       <Badge
@@ -66,6 +70,14 @@ export const WorkflowRunsMetricsView: React.FC<WorkflowRunsMetricsProps> = ({
         onClick={() => onClick(WorkflowRunStatus.FAILED)}
       >
         {counts?.FAILED?.toLocaleString('en-US')} Failed ({failedPercentage}%)
+      </Badge>
+      <Badge
+        variant="outlineDestructive"
+        className="cursor-pointer text-sm px-2 py-1 w-fit"
+        onClick={() => onClick(WorkflowRunStatus.CANCELLED)}
+      >
+        {counts?.CANCELLED?.toLocaleString('en-US')} Cancelled (
+        {cancelledPercentage}%)
       </Badge>
       <Badge
         variant="outline"

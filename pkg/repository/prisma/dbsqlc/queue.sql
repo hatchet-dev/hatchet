@@ -553,7 +553,7 @@ WHERE
     AND w."isActive" = true
     AND w."isPaused" = false;
 
--- name: RetryStepRuns :one
+-- name: RetryStepRuns :many
 WITH retries AS (
     SELECT
         *
@@ -587,53 +587,39 @@ WITH retries AS (
         s."actionId",
         s."id" AS "stepId",
         s."timeout" AS "stepTimeout",
-        s."scheduleTimeout" AS "scheduleTimeout"
+        s."scheduleTimeout" AS "scheduleTimeout",
+        wr."id" AS "workflowRunId"
     FROM
         retries
     JOIN
         "StepRun" sr ON retries."stepRunId" = sr."id"
     JOIN
         "Step" s ON sr."stepId" = s."id"
+    JOIN
+        "JobRun" jr ON sr."jobRunId" = jr."id"
+    JOIN
+        "WorkflowRun" wr ON jr."workflowRunId" = wr."id"
     WHERE
         sr."status" NOT IN ('SUCCEEDED', 'FAILED', 'CANCELLED')
 ), updated_step_runs AS (
     UPDATE "StepRun" sr
     SET
-        "status" = 'PENDING_ASSIGNMENT',
         "scheduleTimeoutAt" = CURRENT_TIMESTAMP + COALESCE(convert_duration_to_interval(srs."scheduleTimeout"), INTERVAL '5 minutes'),
         "updatedAt" = CURRENT_TIMESTAMP,
         "retryCount" = srs."retryCount" + 1
     FROM srs
     WHERE sr."id" = srs."id"
     RETURNING sr."id"
-), inserted_sqs AS (
-    INSERT INTO "QueueItem" (
-        "stepRunId",
-        "stepId",
-        "actionId",
-        "scheduleTimeoutAt",
-        "stepTimeout",
-        "priority",
-        "isQueued",
-        "tenantId",
-        "queue"
-    )
-    SELECT
-        srs."id",
-        srs."stepId",
-        srs."actionId",
-        CURRENT_TIMESTAMP + COALESCE(convert_duration_to_interval(srs."scheduleTimeout"), INTERVAL '5 minutes'),
-        srs."stepTimeout",
-        -- Queue with priority 4 so that retry gets highest priority
-        4,
-        true,
-        srs."tenantId",
-        srs."actionId"
-    FROM
-        srs
-    RETURNING "stepRunId"
+), updated_workflow_runs AS (
+    UPDATE "WorkflowRun" wr
+    SET
+        "status" = 'QUEUED',
+        "updatedAt" = CURRENT_TIMESTAMP
+    FROM srs
+    WHERE wr."id" = srs."workflowRunId"
+    RETURNING wr."id"
 )
-SELECT COUNT(*) FROM retries;
+SELECT * FROM retries;
 
 -- name: CreateRetryQueueItem :exec
 INSERT INTO

@@ -334,6 +334,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		alerter, err = sentry.NewSentryAlerter(&sentry.SentryAlerterOpts{
 			DSN:         cf.Alerting.Sentry.DSN,
 			Environment: cf.Alerting.Sentry.Environment,
+			SampleRate:  cf.Alerting.Sentry.SampleRate,
 		})
 
 		if err != nil {

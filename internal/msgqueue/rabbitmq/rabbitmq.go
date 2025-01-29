@@ -33,6 +33,18 @@ type msgWithQueue struct {
 	*msgqueue.Message
 
 	q msgqueue.Queue
+
+	// we use this to acknowledge the message
+	ackChan chan<- ack
+
+	// we use failed so we don't keep retrying a message that we have failed to send
+	// this prevents phantom messages from being sent but also prevents us from trying to ack a message we have already marked as failed.
+	failed      bool
+	failedMutex sync.Mutex
+}
+
+type ack struct {
+	e *error
 }
 
 // MessageQueueImpl implements MessageQueue interface using AMQP.
@@ -47,7 +59,8 @@ type MessageQueueImpl struct {
 
 	l *zerolog.Logger
 
-	ready bool
+	readyMux sync.Mutex
+	ready    bool
 
 	disableTenantExchangePubs bool
 
@@ -55,8 +68,27 @@ type MessageQueueImpl struct {
 	tenantIdCache *lru.Cache[string, bool]
 }
 
-func (t *MessageQueueImpl) IsReady() bool {
+func (t *MessageQueueImpl) setNotReady() {
+	t.safeSetReady(false)
+}
+
+func (t *MessageQueueImpl) setReady() {
+	t.safeSetReady(true)
+}
+
+func (t *MessageQueueImpl) safeCheckReady() bool {
+	t.readyMux.Lock()
+	defer t.readyMux.Unlock()
 	return t.ready
+}
+func (t *MessageQueueImpl) safeSetReady(ready bool) {
+	t.readyMux.Lock()
+	defer t.readyMux.Unlock()
+	t.ready = ready
+}
+
+func (t *MessageQueueImpl) IsReady() bool {
+	return t.safeCheckReady()
 }
 
 type MessageQueueImplOpt func(*MessageQueueImplOpts)
@@ -181,11 +213,11 @@ func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl) {
 	}
 
 	// create publisher go func
-	cleanup1 := t.startPublishing()
+	cleanupPub := t.startPublishing()
 
 	cleanup := func() error {
 		cancel()
-		if err := cleanup1(); err != nil {
+		if err := cleanupPub(); err != nil {
 			return fmt.Errorf("error cleaning up rabbitmq publisher: %w", err)
 		}
 
@@ -215,12 +247,54 @@ func (t *MessageQueueImpl) AddMessage(ctx context.Context, q msgqueue.Queue, msg
 		msg.OtelCarrier = telemetry.GetCarrier(ctx)
 	}
 
-	t.msgs <- &msgWithQueue{
+	// we can have multiple error acks
+	ackC := make(chan ack, 5)
+
+	msgWithQueue := msgWithQueue{
 		Message: msg,
 		q:       q,
+		ackChan: ackC,
+		failed:  false,
 	}
 
-	return nil
+	select {
+	case t.msgs <- &msgWithQueue:
+	case <-time.After(5 * time.Second):
+		return fmt.Errorf("timeout sending message to %s queue", q.Name())
+	case <-ctx.Done():
+		return fmt.Errorf("failed to send message to queue %s: %w", q.Name(), ctx.Err())
+	}
+
+	var ackErr *error
+	for {
+		select {
+		case ack := <-ackC:
+			ackErr = ack.e
+			if ackErr != nil {
+				t.l.Err(*ackErr).Msg("error adding message")
+			} else {
+				return nil // success
+			}
+		case <-time.After(5 * time.Second):
+			msgWithQueue.failedMutex.Lock()
+			defer msgWithQueue.failedMutex.Unlock()
+			msgWithQueue.failed = true
+
+			if ackErr != nil {
+				// we have additional context so lets send it
+				t.l.Err(*ackErr).Msg("timeout adding message")
+				return *ackErr
+			}
+
+			return fmt.Errorf("timeout adding message to %s queue", q.Name())
+		case <-ctx.Done():
+			msgWithQueue.failedMutex.Lock()
+			defer msgWithQueue.failedMutex.Unlock()
+			msgWithQueue.failed = true
+			return fmt.Errorf("failed to add message to queue %s: %w", q.Name(), ctx.Err())
+
+		}
+	}
 }
 
 // Subscribe subscribes to the msg queue.
@@ -343,6 +417,16 @@ func (t *MessageQueueImpl) startPublishing() func() error {
 					return
 				case msg := <-t.msgs:
 					go func(msg *msgWithQueue) {
+
+						// we don't allow the message to be failed when we are processing it
+						msg.failedMutex.Lock()
+						defer msg.failedMutex.Unlock()
+
+						if msg.failed {
+							t.l.Warn().Msgf("message %s has already failed, not publishing", msg.ID)
+							return
+						}
+
 						body, err := json.Marshal(msg)
 
 						if err != nil {
@@ -368,9 +452,13 @@ func (t *MessageQueueImpl) startPublishing() func() error {
 
 						err = pub.PublishWithContext(ctx, "", msg.q.Name(), false, false, pubMsg)
 
-						// retry failed delivery on the next session
 						if err != nil {
-							t.msgs <- msg
+							select {
+							case msg.ackChan <- ack{e: &err}:
+								t.msgs <- msg
+							case <-time.After(100 * time.Millisecond):
+								t.l.Error().Msgf("ack channel blocked for %s", msg.ID)
+							}
 							return
 						}
 
@@ -400,6 +488,16 @@ func (t *MessageQueueImpl) startPublishing() func() error {
 						}
 
 						t.l.Debug().Msgf("published msg %s to queue %s", msg.ID, msg.q.Name())
+						select {
+						case msg.ackChan <- ack{e: nil}:
+							return
+						case <-ctx.Done():
+							return
+						case <-time.After(5 * time.Second):
+							t.l.Error().Msgf("timeout sending ack for message %s", msg.ID)
+							return
+						}
+
 					}(msg)
 				}
 			}
@@ -582,68 +680,76 @@ func (t *MessageQueueImpl) subscribe(
 	return cleanup
 }
 
-// redial continually connects to the URL, exiting the program when no longer possible
 func (t *MessageQueueImpl) redial(ctx context.Context, l *zerolog.Logger, pool *puddle.Pool[*amqp.Connection]) chan chan session {
 	sessions := make(chan chan session)
 
 	go func() {
-		sess := make(chan session)
 		defer close(sessions)
 
 		for {
+			sess := make(chan session)
+
 			select {
 			case sessions <- sess:
 			case <-ctx.Done():
-				l.Info().Msgf("shutting down session factory")
+				l.Info().Msg("shutting down session factory")
 				return
 			}
 
-			var newSession session
-			var err error
-
-			for i := 0; i < MAX_RETRY_COUNT; i++ {
-				newSession, err = getSession(ctx, l, pool)
-				if err == nil {
-					if i > 0 {
-						l.Info().Msgf("re-established session after %d attempts", i)
-					}
-
-					break
-				}
-
-				l.Error().Msgf("error getting session (attempt %d): %v", i+1, err)
-				time.Sleep(RETRY_INTERVAL)
-			}
-
+			newSession, err := t.establishSessionWithRetry(ctx, l, pool)
 			if err != nil {
-				l.Error().Msgf("failed to get session after %d attempts", MAX_RETRY_COUNT)
-				t.ready = false
+				l.Error().Msg("failed to establish session after retries")
+				t.setNotReady()
+
 				return
 			}
 
-			t.ready = true
-
-			ch := newSession.Connection.NotifyClose(make(chan *amqp.Error, 1))
-
-			go func() {
-				select {
-				case <-ctx.Done():
-					return
-				case <-ch:
-					t.ready = false
-				}
-			}()
+			t.setReady()
+			t.monitorSession(ctx, l, newSession)
 
 			select {
 			case sess <- newSession:
 			case <-ctx.Done():
-				l.Info().Msgf("shutting down new session")
+				l.Info().Msg("shutting down new session")
 				return
 			}
 		}
 	}()
 
 	return sessions
+}
+
+func (t *MessageQueueImpl) establishSessionWithRetry(ctx context.Context, l *zerolog.Logger, pool *puddle.Pool[*amqp.Connection]) (session, error) {
+	var newSession session
+	var err error
+
+	for i := 0; i < MAX_RETRY_COUNT; i++ {
+		newSession, err = getSession(ctx, l, pool)
+		if err == nil {
+			if i > 0 {
+				l.Info().Msgf("re-established session after %d attempts", i)
+			}
+			return newSession, nil
+		}
+
+		l.Error().Msgf("error getting session (attempt %d): %v", i+1, err)
+		time.Sleep(RETRY_INTERVAL)
+	}
+
+	return session{}, fmt.Errorf("failed to establish session after %d retries", MAX_RETRY_COUNT)
+}
+
+func (t *MessageQueueImpl) monitorSession(ctx context.Context, l *zerolog.Logger, newSession session) {
+	closeCh := newSession.Connection.NotifyClose(make(chan *amqp.Error, 1))
+
+	go func() {
+		select {
+		case <-ctx.Done():
+		case <-closeCh:
+			l.Warn().Msg("session closed, marking as not ready")
+			t.setNotReady()
+		}
+	}()
 }
 
 // identity returns the same host/process unique string for the lifetime of

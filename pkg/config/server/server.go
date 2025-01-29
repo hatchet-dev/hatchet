@@ -218,6 +218,9 @@ type SentryConfigFile struct {
 
 	// Environment is the environment that the instance is running in
 	Environment string `mapstructure:"environment" json:"environment,omitempty" default:"development"`
+
+	// Sample rate is the rate at which to sample events. Default is 1.0 to sample all events.
+	SampleRate float64 `mapstructure:"sampleRate" json:"sampleRate,omitempty" default:"1.0"`
 }
 
 type AnalyticsConfigFile struct {
@@ -555,6 +558,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("alerting.sentry.enabled", "SERVER_ALERTING_SENTRY_ENABLED")
 	_ = v.BindEnv("alerting.sentry.dsn", "SERVER_ALERTING_SENTRY_DSN")
 	_ = v.BindEnv("alerting.sentry.environment", "SERVER_ALERTING_SENTRY_ENVIRONMENT")
+	_ = v.BindEnv("alerting.sentry.sampleRate", "SERVER_ALERTING_SENTRY_SAMPLE_RATE")
 
 	// analytics options
 	_ = v.BindEnv("analytics.posthog.enabled", "SERVER_ANALYTICS_POSTHOG_ENABLED")

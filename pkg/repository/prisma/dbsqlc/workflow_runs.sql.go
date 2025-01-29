@@ -2986,6 +2986,7 @@ const resolveWorkflowRunStatus = `-- name: ResolveWorkflowRunStatus :many
 WITH jobRuns AS (
     SELECT
         runs."workflowRunId",
+        sum(case when runs."status" = 'BACKOFF' then 1 else 0 end) AS backoffRuns,
         sum(case when runs."status" = 'PENDING' then 1 else 0 end) AS pendingRuns,
         sum(case when runs."status" = 'RUNNING' then 1 else 0 end) AS runningRuns,
         sum(case when runs."status" = 'SUCCEEDED' then 1 else 0 end) AS succeededRuns,
@@ -3009,11 +3010,15 @@ WITH jobRuns AS (
     SET "status" = CASE
         -- Final states are final, cannot be updated
         WHEN "status" IN ('SUCCEEDED', 'FAILED') THEN "status"
-        -- We check for running first, because if a job run is running, then the workflow is running
+        -- When one job run is backoff AND no other job runs are running, then the workflow is backoff
+        WHEN j.backoffRuns > 0 AND j.runningRuns = 0 THEN 'BACKOFF'
+        -- Check for cancelled first, because if a job run is cancelled, then the workflow is cancelled
+        WHEN j.cancelledRuns > 0 THEN 'CANCELLED'
+        -- Then we check for running, because if a job run is running, then the workflow is running
         WHEN j.runningRuns > 0 THEN 'RUNNING'
-        -- When at least one job run has failed or been cancelled, then the workflow is failed
-        WHEN j.failedRuns > 0 OR j.cancelledRuns > 0 THEN 'FAILED'
-        -- When all job runs have succeeded, then the workflow is succeeded
+        -- Then we check for failed, because if a job run has failed, then the workflow is failed
+        WHEN j.failedRuns > 0 THEN 'FAILED'
+        -- Then we check for succeeded, because if all job runs have succeeded, then the workflow is succeeded
         WHEN j.succeededRuns > 0 AND j.pendingRuns = 0 AND j.runningRuns = 0 AND j.failedRuns = 0 AND j.cancelledRuns = 0 THEN 'SUCCEEDED'
         ELSE "status"
     END,
@@ -3469,7 +3474,8 @@ SELECT
     COUNT(CASE WHEN runs."status" = 'RUNNING' OR runs."status" = 'CANCELLING' THEN 1 END) AS "RUNNING",
     COUNT(CASE WHEN runs."status" = 'SUCCEEDED' THEN 1 END) AS "SUCCEEDED",
     COUNT(CASE WHEN runs."status" = 'FAILED' THEN 1 END) AS "FAILED",
-    COUNT(CASE WHEN runs."status" = 'QUEUED' THEN 1 END) AS "QUEUED"
+    COUNT(CASE WHEN runs."status" = 'QUEUED' THEN 1 END) AS "QUEUED",
+    COUNT(CASE WHEN runs."status" = 'CANCELLED' THEN 1 END) AS "CANCELLED"
 FROM
     "WorkflowRun" as runs
 LEFT JOIN
@@ -3532,6 +3538,7 @@ type WorkflowRunsMetricsCountRow struct {
 	SUCCEEDED int64 `json:"SUCCEEDED"`
 	FAILED    int64 `json:"FAILED"`
 	QUEUED    int64 `json:"QUEUED"`
+	CANCELLED int64 `json:"CANCELLED"`
 }
 
 func (q *Queries) WorkflowRunsMetricsCount(ctx context.Context, db DBTX, arg WorkflowRunsMetricsCountParams) (*WorkflowRunsMetricsCountRow, error) {
@@ -3552,6 +3559,7 @@ func (q *Queries) WorkflowRunsMetricsCount(ctx context.Context, db DBTX, arg Wor
 		&i.SUCCEEDED,
 		&i.FAILED,
 		&i.QUEUED,
+		&i.CANCELLED,
 	)
 	return &i, err
 }
