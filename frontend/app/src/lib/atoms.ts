@@ -1,7 +1,7 @@
 import { atom, useAtom } from 'jotai';
 import { Tenant, queries } from './api';
 import { useSearchParams } from 'react-router-dom';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 
 const getInitialValue = <T>(key: string, defaultValue?: T): T | undefined => {
@@ -30,10 +30,19 @@ export const lastTenantAtom = atom(
   },
 );
 
-type TenantContext = {
-  tenant: Tenant | undefined;
+type TenantContextPresent = {
+  tenant: Tenant;
+  tenantId: string;
   setTenant: (tenant: Tenant) => void;
 };
+
+type TenantContextMissing = {
+  tenant: undefined;
+  tenantId: undefined;
+  setTenant: (tenant: Tenant) => void;
+};
+
+type TenantContext = TenantContextPresent | TenantContextMissing;
 
 // search param sets the tenant, the last tenant set is used if the search param is empty,
 // otherwise the first membership is used
@@ -41,12 +50,15 @@ export function useTenant(): TenantContext {
   const [lastTenant, setLastTenant] = useAtom(lastTenantAtom);
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const setTenant = (tenant: Tenant) => {
-    const newSearchParams = new URLSearchParams(searchParams);
-    newSearchParams.set('tenant', tenant.metadata.id);
-    setSearchParams(newSearchParams, { replace: true });
-    setLastTenant(tenant);
-  };
+  const setTenant = useCallback(
+    (tenant: Tenant) => {
+      const newSearchParams = new URLSearchParams(searchParams);
+      newSearchParams.set('tenant', tenant.metadata.id);
+      setSearchParams(newSearchParams, { replace: true });
+      setLastTenant(tenant);
+    },
+    [searchParams, setSearchParams, setLastTenant],
+  );
 
   const membershipsQuery = useQuery({
     ...queries.user.listTenantMemberships,
@@ -88,7 +100,7 @@ export function useTenant(): TenantContext {
 
     // Finally, if neither a current tenant is set as a query param
     // nor if a tenant was set in Jotai, use the first membership as a fallback
-    const firstMembershipTenant = memberships?.[0]?.tenant;
+    const firstMembershipTenant = memberships.at(0)?.tenant;
 
     return firstMembershipTenant;
   }, [memberships, searchParams, findTenant, lastTenant]);
@@ -96,8 +108,30 @@ export function useTenant(): TenantContext {
   const currTenantId = searchParams.get('tenant');
   const currTenant = currTenantId ? findTenant(currTenantId) : undefined;
 
+  const tenant = currTenant || computedCurrTenant;
+
+  // If the tenant is not set as a query param at any point,
+  // set it.
+  // NOTE: This is helpful mostly for debugging to easily grab
+  // the tenant from the URL.
+  useEffect(() => {
+    const currentTenantParam = searchParams.get('tenant');
+    if (!currentTenantParam && tenant) {
+      setTenant(tenant);
+    }
+  }, [searchParams, tenant, setTenant]);
+
+  if (!tenant) {
+    return {
+      tenant: undefined,
+      tenantId: undefined,
+      setTenant,
+    };
+  }
+
   return {
-    tenant: currTenant || computedCurrTenant,
+    tenant,
+    tenantId: tenant.metadata.id,
     setTenant,
   };
 }
