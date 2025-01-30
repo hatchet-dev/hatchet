@@ -839,6 +839,8 @@ func (s *Scheduler) getExtensionInput(results []*assignResults) *PostScheduleInp
 
 	res.WorkerSlotUtilization = workerSlotUtilization
 
+	res.HasUnassignedStepRuns = len(unassigned) > 0
+
 	return res
 }
 
