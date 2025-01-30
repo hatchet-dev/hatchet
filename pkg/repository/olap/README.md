@@ -78,15 +78,14 @@
         additional__event_message TEXT NOT NULL DEFAULT '',
         created_at DateTime64(3, 'UTC')  NOT NULL DEFAULT NOW(),
 
-        PRIMARY KEY (tenant_id, timestamp, readable_status, retry_count, task_id)
+        PRIMARY KEY (tenant_id, readable_status, retry_count, timestamp, task_id)
     )
     ENGINE = MergeTree()
 
     -- https://stackoverflow.com/a/75439879 for more on partitioning
     -- partition by week so we can easily drop old data
     PARTITION BY (toMonday(timestamp))
-    ORDER BY (tenant_id, timestamp, readable_status, retry_count, task_id);
-    ALTER TABLE task_events ADD INDEX ix_task_events_skip_task_id task_id TYPE set(2048) GRANULARITY 4;
+    ORDER BY (tenant_id, readable_status, retry_count, timestamp, task_id);
    ```
 
 5. ```sql
