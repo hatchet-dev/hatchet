@@ -461,7 +461,9 @@ SELECT
     $1,
     unnest($2::text[]) AS name,
     NOW()
-ON CONFLICT (tenant_id, name) DO NOTHING
+ON CONFLICT (tenant_id, name) DO UPDATE
+SET
+    last_active = NOW()
 `
 
 type UpsertQueuesParams struct {
