@@ -27,10 +27,8 @@ type Scheduler struct {
 	actions     map[string]*action
 	actionsMu   rwMutex
 	replenishMu mutex
-	inputMu     mutex
-
-	workersMu mutex
-	workers   map[string]*worker
+	workersMu   mutex
+	workers     map[string]*worker
 
 	assignedCount   int
 	assignedCountMu mutex
@@ -56,7 +54,6 @@ func newScheduler(cf *sharedConfig, tenantId pgtype.UUID, rl *rateLimiter, exts 
 		rl:              rl,
 		actionsMu:       newRWMu(cf.l),
 		replenishMu:     newMu(cf.l),
-		inputMu:         newMu(cf.l),
 		workersMu:       newMu(cf.l),
 		assignedCountMu: newMu(cf.l),
 		unackedMu:       newMu(cf.l),
@@ -767,9 +764,6 @@ func (s *Scheduler) tryAssign(
 }
 
 func (s *Scheduler) getExtensionInput(results []*assignResults) *PostScheduleInput {
-	s.inputMu.Lock()
-	defer s.inputMu.Unlock()
-
 	unassigned := make([]*dbsqlc.QueueItem, 0)
 
 	for _, res := range results {
