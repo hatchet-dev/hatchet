@@ -228,7 +228,7 @@ func TestBufferedPubMessageQueueIntegration(t *testing.T) {
 
 	// send tasks to queue
 	for i := 0; i < 10; i++ {
-		pub.Pub(ctx, staticQueue, task)
+		err := pub.Pub(ctx, staticQueue, task, false)
 
 		if err != nil {
 			t.Fatalf("error sending task: %v", err)

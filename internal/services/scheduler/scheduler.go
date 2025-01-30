@@ -331,7 +331,7 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 	ctx, span := telemetry.NewSpan(ctx, "schedule-step-runs")
 	defer span.End()
 
-	var err error
+	var outerErr error
 
 	// bulk assign step runs
 	if len(res.Assigned) > 0 {
@@ -345,7 +345,7 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 
 		var dispatcherIdWorkerIds map[string][]string
 
-		dispatcherIdWorkerIds, err = s.repo.Worker().GetDispatcherIdsForWorkers(ctx, tenantId, workerIds)
+		dispatcherIdWorkerIds, err := s.repo.Worker().GetDispatcherIdsForWorkers(ctx, tenantId, workerIds)
 
 		if err != nil {
 			s.internalRetry(ctx, tenantId, res.Assigned...)
@@ -400,7 +400,7 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 			)
 
 			if err != nil {
-				err = multierror.Append(err, fmt.Errorf("could not create monitoring event message: %w", err))
+				outerErr = multierror.Append(outerErr, fmt.Errorf("could not create monitoring event message: %w", err))
 				continue
 			}
 
@@ -412,7 +412,7 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 			msg, err := taskBulkAssignedTask(tenantId, dispatcherId, workerIdsToStepRuns)
 
 			if err != nil {
-				err = multierror.Append(err, fmt.Errorf("could not create bulk assigned task: %w", err))
+				outerErr = multierror.Append(outerErr, fmt.Errorf("could not create bulk assigned task: %w", err))
 			}
 
 			err = s.mq.SendMessage(
@@ -422,16 +422,21 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 			)
 
 			if err != nil {
-				err = multierror.Append(err, fmt.Errorf("could not send bulk assigned task: %w", err))
+				outerErr = multierror.Append(outerErr, fmt.Errorf("could not send bulk assigned task: %w", err))
 			}
 		}
 
 		for _, assignedMsg := range assignedMsgs {
-			s.pubBuffer.Pub(
+			err = s.pubBuffer.Pub(
 				ctx,
 				msgqueue.OLAP_QUEUE,
 				assignedMsg,
+				false,
 			)
+
+			if err != nil {
+				outerErr = multierror.Append(outerErr, fmt.Errorf("could not send monitoring event message: %w", err))
+			}
 		}
 	}
 
@@ -445,7 +450,7 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 			)
 
 			if err != nil {
-				err = multierror.Append(err, fmt.Errorf("could not create cancelled task: %w", err))
+				outerErr = multierror.Append(outerErr, fmt.Errorf("could not create cancelled task: %w", err))
 				continue
 			}
 
@@ -456,7 +461,7 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 			)
 
 			if err != nil {
-				err = multierror.Append(err, fmt.Errorf("could not send cancelled task: %w", err))
+				outerErr = multierror.Append(outerErr, fmt.Errorf("could not send cancelled task: %w", err))
 			}
 		}
 	}
@@ -476,19 +481,24 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 			)
 
 			if err != nil {
-				err = multierror.Append(err, fmt.Errorf("could not create cancelled task: %w", err))
+				outerErr = multierror.Append(outerErr, fmt.Errorf("could not create cancelled task: %w", err))
 				continue
 			}
 
-			s.pubBuffer.Pub(
+			err = s.pubBuffer.Pub(
 				ctx,
 				msgqueue.OLAP_QUEUE,
 				msg,
+				false,
 			)
+
+			if err != nil {
+				outerErr = multierror.Append(outerErr, fmt.Errorf("could not send cancelled task: %w", err))
+			}
 		}
 	}
 
-	return err
+	return outerErr
 }
 
 func (s *Scheduler) internalRetry(ctx context.Context, tenantId string, assigned ...*repov2.AssignedItem) {

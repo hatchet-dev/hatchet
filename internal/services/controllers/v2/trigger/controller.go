@@ -329,7 +329,12 @@ func (tc *TriggerControllerImpl) createTasks(ctx context.Context, tenantId strin
 			continue
 		}
 
-		err = tc.mq.SendMessage(ctx, msgqueue.OLAP_QUEUE, msg)
+		err = tc.pubBuffer.Pub(
+			ctx,
+			msgqueue.OLAP_QUEUE,
+			msg,
+			false,
+		)
 
 		if err != nil {
 			tc.l.Err(err).Msg("could not add message to olap queue")
@@ -353,11 +358,17 @@ func (tc *TriggerControllerImpl) createTasks(ctx context.Context, tenantId strin
 			continue
 		}
 
-		tc.pubBuffer.Pub(
+		err = tc.pubBuffer.Pub(
 			ctx,
 			msgqueue.OLAP_QUEUE,
 			olapMsg,
+			false,
 		)
+
+		if err != nil {
+			tc.l.Err(err).Msg("could not add monitoring event message to olap queue")
+			continue
+		}
 	}
 
 	return nil

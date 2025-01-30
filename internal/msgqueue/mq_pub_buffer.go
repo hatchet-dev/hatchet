@@ -24,9 +24,14 @@ func NewMQPubBuffer(mq MessageQueue) *MQPubBuffer {
 	}
 }
 
-func (m *MQPubBuffer) Pub(ctx context.Context, queue Queue, msg *Message) {
+type msgWithErrCh struct {
+	msg   *Message
+	errCh chan error
+}
+
+func (m *MQPubBuffer) Pub(ctx context.Context, queue Queue, msg *Message, wait bool) error {
 	if msg.TenantID == "" {
-		return
+		return nil
 	}
 
 	k := getPubKey(queue, msg.TenantID, msg.ID)
@@ -42,12 +47,24 @@ func (m *MQPubBuffer) Pub(ctx context.Context, queue Queue, msg *Message) {
 		m.buffers.Store(k, buf)
 	}
 
+	msgWithErr := &msgWithErrCh{
+		msg: msg,
+	}
+
+	if wait {
+		msgWithErr.errCh = make(chan error)
+	}
+
 	// this places some backpressure on the consumer if buffers are full
 	msgBuf := buf.(*msgIdPubBuffer)
-	msgBuf.msgIdPubBufferCh <- msg
+	msgBuf.msgIdPubBufferCh <- msgWithErr
 	msgBuf.notifier <- struct{}{}
 
-	return
+	if wait {
+		return <-msgWithErr.errCh
+	}
+
+	return nil
 }
 
 func getPubKey(q Queue, tenantId, msgId string) string {
@@ -61,7 +78,7 @@ type msgIdPubBuffer struct {
 	lastFlushedAt   time.Time
 	lastFlushedAtMu sync.Mutex
 
-	msgIdPubBufferCh chan *Message
+	msgIdPubBufferCh chan *msgWithErrCh
 	notifier         chan struct{}
 
 	pub PubFunc
@@ -75,7 +92,7 @@ func newMsgIdPubBuffer(tenantId, msgId string, pub PubFunc) *msgIdPubBuffer {
 	b := &msgIdPubBuffer{
 		tenantId:         tenantId,
 		msgId:            msgId,
-		msgIdPubBufferCh: make(chan *Message, BUFFER_SIZE),
+		msgIdPubBufferCh: make(chan *msgWithErrCh, BUFFER_SIZE),
 		notifier:         make(chan struct{}),
 		pub:              pub,
 		serialize:        json.Marshal,
@@ -140,16 +157,16 @@ func (m *msgIdPubBuffer) flush() {
 
 	defer m.setLastFlushedAt(now)
 
-	msgsWithResultCh := make([]*Message, 0)
+	msgsWithErrCh := make([]*msgWithErrCh, 0)
 	payloadBytes := make([][]byte, 0)
 
 	// read all messages currently in the buffer
 	for i := 0; i < BUFFER_SIZE; i++ {
 		select {
 		case msg := <-m.msgIdPubBufferCh:
-			msgsWithResultCh = append(msgsWithResultCh, msg)
+			msgsWithErrCh = append(msgsWithErrCh, msg)
 
-			payloadBytes = append(payloadBytes, msg.Payloads...)
+			payloadBytes = append(payloadBytes, msg.msg.Payloads...)
 		default:
 			i = BUFFER_SIZE
 		}
@@ -159,9 +176,15 @@ func (m *msgIdPubBuffer) flush() {
 		return
 	}
 
-	m.pub(&Message{
+	err := m.pub(&Message{
 		TenantID: m.tenantId,
 		ID:       m.msgId,
 		Payloads: payloadBytes,
 	})
+
+	for _, msgWithErrCh := range msgsWithErrCh {
+		if msgWithErrCh != nil {
+			msgWithErrCh.errCh <- err
+		}
+	}
 }

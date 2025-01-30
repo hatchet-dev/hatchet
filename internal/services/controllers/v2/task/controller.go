@@ -336,6 +336,8 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId st
 
 	tc.notifyQueuesOnCompletion(ctx, tenantId, queues)
 
+	var outerErr error
+
 	// send retried tasks to the olap repository
 	for _, task := range retriedTasks {
 		taskId := task.Id
@@ -351,18 +353,23 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId st
 		)
 
 		if err != nil {
-			err = multierror.Append(err, fmt.Errorf("could not create monitoring event message: %w", err))
+			outerErr = multierror.Append(outerErr, fmt.Errorf("could not create monitoring event message: %w", err))
 			continue
 		}
 
-		tc.pubBuffer.Pub(
+		err = tc.pubBuffer.Pub(
 			ctx,
 			msgqueue.OLAP_QUEUE,
 			olapMsg,
+			false,
 		)
+
+		if err != nil {
+			outerErr = multierror.Append(outerErr, fmt.Errorf("could not publish monitoring event message: %w", err))
+		}
 	}
 
-	return err
+	return outerErr
 }
 
 func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId string, payloads [][]byte) error {
@@ -385,6 +392,8 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 
 	tc.notifyQueuesOnCompletion(ctx, tenantId, queues)
 
+	var outerErr error
+
 	for _, msg := range msgs {
 		taskId := msg.TaskId
 
@@ -399,15 +408,20 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 		)
 
 		if err != nil {
-			err = multierror.Append(err, fmt.Errorf("could not create monitoring event message: %w", err))
+			outerErr = multierror.Append(outerErr, fmt.Errorf("could not create monitoring event message: %w", err))
 			continue
 		}
 
-		tc.pubBuffer.Pub(
+		err = tc.pubBuffer.Pub(
 			ctx,
 			msgqueue.OLAP_QUEUE,
 			olapMsg,
+			false,
 		)
+
+		if err != nil {
+			outerErr = multierror.Append(outerErr, fmt.Errorf("could not publish monitoring event message: %w", err))
+		}
 	}
 
 	return err

@@ -1340,7 +1340,7 @@ func (s *DispatcherImpl) handleTaskStarted(inputCtx context.Context, taskId int6
 		return nil, err
 	}
 
-	s.pubBuffer.Pub(inputCtx, msgqueue.OLAP_QUEUE, msg)
+	err = s.pubBuffer.Pub(inputCtx, msgqueue.OLAP_QUEUE, msg, false)
 
 	if err != nil {
 		return nil, err
@@ -1360,20 +1360,27 @@ func (s *DispatcherImpl) handleTaskCompleted(inputCtx context.Context, taskId in
 		return nil, fmt.Errorf("retry count is required in v2")
 	}
 
-	msg, err := tasktypes.MonitoringEventMessageFromActionEvent(
-		tenantId,
-		taskId,
-		*request.RetryCount,
-		request,
-	)
+	go func() {
+		olapMsg, err := tasktypes.MonitoringEventMessageFromActionEvent(
+			tenantId,
+			taskId,
+			*request.RetryCount,
+			request,
+		)
 
-	if err != nil {
-		return nil, err
-	}
+		if err != nil {
+			s.l.Error().Err(err).Msg("could not create monitoring event message")
+			return
+		}
 
-	s.pubBuffer.Pub(inputCtx, msgqueue.OLAP_QUEUE, msg)
+		err = s.pubBuffer.Pub(inputCtx, msgqueue.OLAP_QUEUE, olapMsg, false)
 
-	msg, err = tasktypes.CompletedTaskMessage(tenantId, taskId, *request.RetryCount)
+		if err != nil {
+			s.l.Error().Err(err).Msg("could not publish to OLAP queue")
+		}
+	}()
+
+	msg, err := tasktypes.CompletedTaskMessage(tenantId, taskId, *request.RetryCount)
 
 	if err != nil {
 		return nil, err
@@ -1399,20 +1406,27 @@ func (s *DispatcherImpl) handleTaskFailed(inputCtx context.Context, taskId int64
 		return nil, fmt.Errorf("retry count is required in v2")
 	}
 
-	msg, err := tasktypes.MonitoringEventMessageFromActionEvent(
-		tenantId,
-		taskId,
-		*request.RetryCount,
-		request,
-	)
+	go func() {
+		olapMsg, err := tasktypes.MonitoringEventMessageFromActionEvent(
+			tenantId,
+			taskId,
+			*request.RetryCount,
+			request,
+		)
 
-	if err != nil {
-		return nil, err
-	}
+		if err != nil {
+			s.l.Error().Err(err).Msg("could not create monitoring event message")
+			return
+		}
 
-	s.pubBuffer.Pub(inputCtx, msgqueue.OLAP_QUEUE, msg)
+		err = s.pubBuffer.Pub(inputCtx, msgqueue.OLAP_QUEUE, olapMsg, false)
 
-	msg, err = tasktypes.FailedTaskMessage(tenantId, taskId, *request.RetryCount, true)
+		if err != nil {
+			s.l.Error().Err(err).Msg("could not publish to OLAP queue")
+		}
+	}()
+
+	msg, err := tasktypes.FailedTaskMessage(tenantId, taskId, *request.RetryCount, true)
 
 	if err != nil {
 		return nil, err

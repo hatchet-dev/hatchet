@@ -81,11 +81,16 @@ func (tc *TasksControllerImpl) processTaskReassignments(ctx context.Context, ten
 			continue
 		}
 
-		tc.pubBuffer.Pub(
+		innerErr = tc.pubBuffer.Pub(
 			ctx,
 			msgqueue.OLAP_QUEUE,
 			olapMsg,
+			false,
 		)
+
+		if innerErr != nil {
+			err = multierror.Append(err, fmt.Errorf("could not publish monitoring event message: %w", err))
+		}
 	}
 
 	if err != nil {

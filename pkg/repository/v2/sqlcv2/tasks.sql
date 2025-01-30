@@ -313,13 +313,16 @@ WITH tasks_on_inactive_workers AS (
         COALESCE(sqlc.narg('limit')::integer, 1000)
 ), locked_runtimes AS (
     SELECT
-        task_id,
-        retry_count,
-        worker_id
+        v2_task_runtime.task_id,
+        v2_task_runtime.retry_count,
+        tasks_on_inactive_workers.worker_id
     FROM
-        tasks_on_inactive_workers
+        v2_task_runtime
+    JOIN
+        tasks_on_inactive_workers ON tasks_on_inactive_workers.task_id = v2_task_runtime.task_id AND tasks_on_inactive_workers.retry_count = v2_task_runtime.retry_count
     ORDER BY
         task_id
+    -- We do a SKIP LOCKED because a lock on v2_task_runtime means its being deleted
     FOR UPDATE SKIP LOCKED
 ), locked_tasks AS (
     SELECT

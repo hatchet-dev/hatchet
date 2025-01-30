@@ -149,7 +149,12 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 		return err
 	}
 
-	s.l.Debug().Msgf("listing actions for workers took %s", time.Since(checkpoint))
+	if sinceStart := time.Since(start); sinceStart > 100*time.Millisecond {
+		s.l.Warn().Msgf("listing actions for workers took %s for %d workers", time.Since(checkpoint), len(workerIds))
+	} else {
+		s.l.Debug().Msgf("listing actions for workers took %s", time.Since(checkpoint))
+	}
+
 	checkpoint = time.Now()
 
 	actionsToWorkerIds := make(map[string][]string)
