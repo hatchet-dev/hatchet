@@ -5,75 +5,76 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/jackc/puddle/v2"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/rs/zerolog"
 )
 
-type channelWithId struct {
-	*amqp.Channel
-
-	id string
-}
-
 type channelPool struct {
-	*puddle.Pool[*channelWithId]
+	*puddle.Pool[*amqp.Channel]
 
-	// we keep a list of channel IDs to status. if channels are closed we store them as
-	// false
-	channels   map[string]bool
-	channelsMu sync.Mutex
+	l *zerolog.Logger
+
+	url string
+
+	conn   *amqp.Connection
+	connMu sync.Mutex
 }
 
-func newChannelPool(ctx context.Context, l *zerolog.Logger, connectionPool *connectionPool) (*channelPool, error) {
-	p := &channelPool{
-		channels: make(map[string]bool),
+func (p *channelPool) newConnection() error {
+	conn, err := amqp.Dial(p.url)
+
+	if err != nil {
+		p.l.Error().Msgf("cannot (re)dial: %v: %q", err, p.url)
+		return err
 	}
 
-	constructor := func(context.Context) (*channelWithId, error) {
-		id := uuid.New().String()
+	p.connMu.Lock()
+	p.conn = conn
+	p.connMu.Unlock()
+	return nil
+}
 
-		conn, err := connectionPool.Acquire(ctx)
+func (p *channelPool) getConnection() *amqp.Connection {
+	p.connMu.Lock()
+	defer p.connMu.Unlock()
+
+	return p.conn
+}
+
+func (p *channelPool) hasActiveConnection() bool {
+	p.connMu.Lock()
+	defer p.connMu.Unlock()
+
+	return p.conn != nil && !p.conn.IsClosed()
+}
+
+func newChannelPool(ctx context.Context, l *zerolog.Logger, url string) (*channelPool, error) {
+	p := &channelPool{
+		l:   l,
+		url: url,
+	}
+
+	err := p.newConnection()
+
+	if err != nil {
+		return nil, err
+	}
+
+	constructor := func(context.Context) (*amqp.Channel, error) {
+		conn := p.getConnection()
+
+		ch, err := conn.Channel()
 
 		if err != nil {
-			l.Error().Msgf("cannot acquire connection: %v", err)
-			return nil, err
-		}
-
-		ch, err := conn.Value().Channel()
-
-		if err != nil {
-			conn.Destroy()
 			l.Error().Msgf("cannot create channel: %v", err)
 			return nil, err
 		}
 
-		conn.Release()
-
-		closeCh := ch.NotifyClose(make(chan *amqp.Error, 1))
-
-		go func() {
-			select {
-			case <-ctx.Done():
-				return
-			case <-closeCh:
-				l.Info().Msgf("channel %s closed", id)
-				p.setChannelClosed(id)
-			}
-		}()
-
-		p.setChannelOpen(id)
-
-		return &channelWithId{
-			Channel: ch,
-			id:      id,
-		}, nil
+		return ch, nil
 	}
 
-	destructor := func(ch *channelWithId) {
-		p.removeChannel(ch.id)
-
+	destructor := func(ch *amqp.Channel) {
 		if !ch.IsClosed() {
 			err := ch.Close()
 
@@ -83,10 +84,38 @@ func newChannelPool(ctx context.Context, l *zerolog.Logger, connectionPool *conn
 		}
 	}
 
+	// periodically check if the connection is still open
+	go func() {
+		retries := 0
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
+
+			conn := p.getConnection()
+
+			if conn.IsClosed() {
+				err := p.newConnection()
+
+				if err != nil {
+					l.Error().Msgf("cannot (re)dial: %v: %q", err, p.url)
+					sleepWithExponentialBackoff(10*time.Millisecond, 5*time.Second, retries)
+					retries++
+					continue
+				}
+
+				retries = 0
+			}
+		}
+	}()
+
 	// FIXME: this is probably too many channels
 	maxPoolSize := int32(100)
 
-	pool, err := puddle.NewPool(&puddle.Config[*channelWithId]{
+	pool, err := puddle.NewPool(&puddle.Config[*amqp.Channel]{
 		Constructor: constructor,
 		Destructor:  destructor,
 		MaxSize:     maxPoolSize,
@@ -97,62 +126,7 @@ func newChannelPool(ctx context.Context, l *zerolog.Logger, connectionPool *conn
 		return nil, nil
 	}
 
-	// start a goroutine which periodically removes closed connections from the pool
-	go func() {
-		ticker := time.NewTicker(5 * time.Second)
-
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				chs := pool.AcquireAllIdle()
-
-				p.channelsMu.Lock()
-
-				for _, ch := range chs {
-					v := ch.Value()
-
-					if val, ok := p.channels[v.id]; !ok || !val {
-						ch.Destroy()
-						continue
-					}
-
-					if v.IsClosed() {
-						ch.Destroy()
-						continue
-					}
-
-					ch.Release()
-				}
-
-				p.channelsMu.Unlock()
-			}
-		}
-	}()
-
 	p.Pool = pool
 
 	return p, nil
-}
-
-func (p *channelPool) setChannelOpen(id string) {
-	p.channelsMu.Lock()
-	defer p.channelsMu.Unlock()
-
-	p.channels[id] = true
-}
-
-func (p *channelPool) setChannelClosed(id string) {
-	p.channelsMu.Lock()
-	defer p.channelsMu.Unlock()
-
-	p.channels[id] = false
-}
-
-func (p *channelPool) removeChannel(id string) {
-	p.channelsMu.Lock()
-	defer p.channelsMu.Unlock()
-
-	delete(p.channels, id)
 }

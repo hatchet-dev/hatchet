@@ -38,12 +38,11 @@ type MessageQueueImpl struct {
 	// lru cache for tenant ids
 	tenantIdCache *lru.Cache[string, bool]
 
-	connections *connectionPool
-	channels    *channelPool
+	channels *channelPool
 }
 
 func (t *MessageQueueImpl) IsReady() bool {
-	return t.connections.hasActiveConnection()
+	return t.channels.hasActiveConnection()
 }
 
 type MessageQueueImplOpt func(*MessageQueueImplOpts)
@@ -101,15 +100,7 @@ func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl) {
 	newLogger := opts.l.With().Str("service", "rabbitmq").Logger()
 	opts.l = &newLogger
 
-	// initialize the connection and channel pools
-	connectionPool, err := newConnectionPool(ctx, opts.l, opts.url)
-
-	if err != nil {
-		cancel()
-		return nil, nil
-	}
-
-	channelPool, err := newChannelPool(ctx, opts.l, connectionPool)
+	channelPool, err := newChannelPool(ctx, opts.l, opts.url)
 
 	if err != nil {
 		cancel()
@@ -123,7 +114,6 @@ func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl) {
 		qos:                       opts.qos,
 		configFs:                  fs,
 		disableTenantExchangePubs: opts.disableTenantExchangePubs,
-		connections:               connectionPool,
 		channels:                  channelPool,
 	}
 
@@ -213,6 +203,11 @@ func (t *MessageQueueImpl) pubMessage(ctx context.Context, q msgqueue.Queue, msg
 	}
 
 	pub := poolCh.Value()
+
+	if pub.IsClosed() {
+		poolCh.Destroy()
+		return fmt.Errorf("channel is closed")
+	}
 
 	defer poolCh.Release()
 
@@ -317,6 +312,11 @@ func (t *MessageQueueImpl) RegisterTenant(ctx context.Context, tenantId string) 
 
 	sub := poolCh.Value()
 
+	if sub.IsClosed() {
+		poolCh.Destroy()
+		return fmt.Errorf("channel is closed")
+	}
+
 	defer poolCh.Release()
 
 	t.l.Debug().Msgf("registering tenant exchange: %s", tenantId)
@@ -343,7 +343,7 @@ func (t *MessageQueueImpl) RegisterTenant(ctx context.Context, tenantId string) 
 	return nil
 }
 
-func (t *MessageQueueImpl) initQueue(ch *channelWithId, q msgqueue.Queue) (string, error) {
+func (t *MessageQueueImpl) initQueue(ch *amqp.Channel, q msgqueue.Queue) (string, error) {
 	args := make(amqp.Table)
 	name := q.Name()
 
@@ -405,6 +405,11 @@ func (t *MessageQueueImpl) deleteQueue(q msgqueue.Queue) error {
 
 	ch := poolCh.Value()
 
+	if ch.IsClosed() {
+		poolCh.Destroy()
+		return fmt.Errorf("channel is closed")
+	}
+
 	defer poolCh.Release()
 
 	_, err = ch.QueueDelete(q.Name(), true, true, true)
@@ -448,6 +453,11 @@ func (t *MessageQueueImpl) subscribe(
 
 		sub := poolCh.Value()
 
+		if sub.IsClosed() {
+			poolCh.Destroy()
+			return nil, fmt.Errorf("channel is closed")
+		}
+
 		// we initialize the queue here because exclusive queues are bound to the session/connection. however, it's not clear
 		// if the exclusive queue will be available to the next session.
 		queueName, err = t.initQueue(sub, q)
@@ -468,6 +478,11 @@ func (t *MessageQueueImpl) subscribe(
 		}
 
 		sub := poolCh.Value()
+
+		if sub.IsClosed() {
+			poolCh.Destroy()
+			return fmt.Errorf("channel is closed, destroying and retrying")
+		}
 
 		defer poolCh.Release()
 

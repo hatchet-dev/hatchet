@@ -183,7 +183,7 @@ func (m *msgIdPubBuffer) flush() {
 	})
 
 	for _, msgWithErrCh := range msgsWithErrCh {
-		if msgWithErrCh != nil {
+		if msgWithErrCh.errCh != nil {
 			msgWithErrCh.errCh <- err
 		}
 	}
