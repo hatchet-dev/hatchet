@@ -27,6 +27,7 @@ type Scheduler struct {
 	actions     map[string]*action
 	actionsMu   rwMutex
 	replenishMu mutex
+	inputMu     mutex
 
 	workersMu mutex
 	workers   map[string]*worker
@@ -55,6 +56,7 @@ func newScheduler(cf *sharedConfig, tenantId pgtype.UUID, rl *rateLimiter, exts 
 		rl:              rl,
 		actionsMu:       newRWMu(cf.l),
 		replenishMu:     newMu(cf.l),
+		inputMu:         newMu(cf.l),
 		workersMu:       newMu(cf.l),
 		assignedCountMu: newMu(cf.l),
 		unackedMu:       newMu(cf.l),
@@ -93,7 +95,7 @@ func (s *Scheduler) setWorkers(workers []*repository.ListActiveWorkersResult) {
 	newWorkers := make(map[string]*worker, len(workers))
 
 	for i := range workers {
-		newWorkers[sqlchelpers.UUIDToStr(workers[i].ID)] = &worker{
+		newWorkers[workers[i].ID] = &worker{
 			ListActiveWorkersResult: workers[i],
 		}
 	}
@@ -765,6 +767,9 @@ func (s *Scheduler) tryAssign(
 }
 
 func (s *Scheduler) getExtensionInput(results []*assignResults) *PostScheduleInput {
+	s.inputMu.Lock()
+	defer s.inputMu.Unlock()
+
 	unassigned := make([]*dbsqlc.QueueItem, 0)
 
 	for _, res := range results {
@@ -801,6 +806,13 @@ func (s *Scheduler) getExtensionInput(results []*assignResults) *PostScheduleInp
 
 	workerSlotUtilization := make(map[string]*SlotUtilization)
 
+	for workerId := range workers {
+		workerSlotUtilization[workerId] = &SlotUtilization{
+			UtilizedSlots:    0,
+			NonUtilizedSlots: 0,
+		}
+	}
+
 	for _, actionId := range actionKeys {
 		s.actionsMu.RLock()
 		action, ok := s.actions[actionId]
@@ -816,7 +828,7 @@ func (s *Scheduler) getExtensionInput(results []*assignResults) *PostScheduleInp
 				continue
 			}
 
-			workerId := slot.getWorkerId()
+			workerId := slot.worker.ID
 
 			if _, ok := workerSlotUtilization[workerId]; !ok {
 				// initialize the worker slot utilization
