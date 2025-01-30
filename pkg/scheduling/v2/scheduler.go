@@ -3,8 +3,6 @@ package v2
 import (
 	"context"
 	"math/rand"
-	"os"
-	"runtime/trace"
 	"sync"
 	"time"
 
@@ -766,11 +764,6 @@ func (s *Scheduler) tryAssign(
 }
 
 func (s *Scheduler) getExtensionInput(results []*assignResults) *PostScheduleInput {
-	f, _ := os.Create("trace.out")
-	defer f.Close()
-	trace.Start(f)
-	defer trace.Stop()
-
 	unassigned := make([]*dbsqlc.QueueItem, 0)
 
 	for _, res := range results {
