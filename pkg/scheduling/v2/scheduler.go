@@ -774,9 +774,7 @@ func (s *Scheduler) getExtensionInput(results []*assignResults) *PostScheduleInp
 	workers := s.getWorkers()
 
 	res := &PostScheduleInput{
-		Workers:    make(map[string]*WorkerCp),
-		Slots:      make([]*SlotCp, 0),
-		Unassigned: unassigned,
+		Workers: make(map[string]*WorkerCp),
 	}
 
 	for workerId, worker := range workers {
@@ -799,8 +797,9 @@ func (s *Scheduler) getExtensionInput(results []*assignResults) *PostScheduleInp
 
 	s.actionsMu.RUnlock()
 
-	uniqueSlots := make(map[*slot]*SlotCp)
-	actionsToSlots := make(map[string][]*SlotCp)
+	uniqueSlots := make(map[*slot]bool)
+
+	workerSlotUtilization := make(map[string]*SlotUtilization)
 
 	for _, actionId := range actionKeys {
 		s.actionsMu.RLock()
@@ -812,28 +811,35 @@ func (s *Scheduler) getExtensionInput(results []*assignResults) *PostScheduleInp
 		}
 
 		action.mu.RLock()
-		actionsToSlots[action.actionId] = make([]*SlotCp, 0, len(action.slots))
-
 		for _, slot := range action.slots {
 			if _, ok := uniqueSlots[slot]; ok {
 				continue
 			}
 
-			uniqueSlots[slot] = &SlotCp{
-				WorkerId: slot.getWorkerId(),
-				Used:     slot.used,
+			workerId := slot.getWorkerId()
+
+			if _, ok := workerSlotUtilization[workerId]; !ok {
+				// initialize the worker slot utilization
+				workerSlotUtilization[workerId] = &SlotUtilization{
+					UtilizedSlots:    0,
+					NonUtilizedSlots: 0,
+				}
 			}
 
-			actionsToSlots[action.actionId] = append(actionsToSlots[action.actionId], uniqueSlots[slot])
+			uniqueSlots[slot] = true
+
+			if slot.used {
+				workerSlotUtilization[workerId].UtilizedSlots++
+			} else {
+				workerSlotUtilization[workerId].NonUtilizedSlots++
+			}
 		}
 		action.mu.RUnlock()
 	}
 
-	for _, slot := range uniqueSlots {
-		res.Slots = append(res.Slots, slot)
-	}
+	res.WorkerSlotUtilization = workerSlotUtilization
 
-	res.ActionsToSlots = actionsToSlots
+	res.HasUnassignedStepRuns = len(unassigned) > 0
 
 	return res
 }

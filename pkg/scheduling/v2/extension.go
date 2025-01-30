@@ -9,13 +9,14 @@ import (
 )
 
 type PostScheduleInput struct {
-	Workers map[string]*WorkerCp
+	Workers               map[string]*WorkerCp
+	HasUnassignedStepRuns bool
+	WorkerSlotUtilization map[string]*SlotUtilization
+}
 
-	Slots []*SlotCp
-
-	Unassigned []*dbsqlc.QueueItem
-
-	ActionsToSlots map[string][]*SlotCp
+type SlotUtilization struct {
+	UtilizedSlots    int
+	NonUtilizedSlots int
 }
 
 type WorkerCp struct {
