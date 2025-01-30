@@ -54,8 +54,8 @@ func TestLeaseManager_AcquireWorkerLeases(t *testing.T) {
 	}
 
 	mockWorkers := []*repository.ListActiveWorkersResult{
-		{ID: pgtype.UUID{}, Labels: nil},
-		{ID: pgtype.UUID{}, Labels: nil},
+		{ID: "worker-1", Labels: nil},
+		{ID: "worker-2", Labels: nil},
 	}
 	mockLeases := []*dbsqlc.Lease{
 		{ID: 1, ResourceId: "worker-1"},
@@ -106,7 +106,7 @@ func TestLeaseManager_SendWorkerIds(t *testing.T) {
 	}
 
 	mockWorkers := []*repository.ListActiveWorkersResult{
-		{ID: pgtype.UUID{}, Labels: nil},
+		{ID: "worker-1", Labels: nil},
 	}
 
 	go leaseManager.sendWorkerIds(mockWorkers)
@@ -140,11 +140,11 @@ func TestLeaseManager_AcquireWorkersBeforeListenerReady(t *testing.T) {
 	}
 
 	mockWorkers1 := []*repository.ListActiveWorkersResult{
-		{ID: pgtype.UUID{}, Labels: nil},
+		{ID: "worker-1", Labels: nil},
 	}
 	mockWorkers2 := []*repository.ListActiveWorkersResult{
-		{ID: pgtype.UUID{}, Labels: nil},
-		{ID: pgtype.UUID{}, Labels: nil},
+		{ID: "worker-1", Labels: nil},
+		{ID: "worker-2", Labels: nil},
 	}
 
 	// Send workers before listener is ready
