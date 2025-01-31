@@ -11,6 +11,10 @@ export default function GithubButton({
   commitSha?: string;
   prefix?: string;
 }) {
+  if (!buildConfig?.githubRepository) {
+    return null;
+  }
+
   return (
     <div className="text-sm w-fit flex flex-row items-center gap-2 text-gray-700 dark:text-gray-300">
       {prefix}

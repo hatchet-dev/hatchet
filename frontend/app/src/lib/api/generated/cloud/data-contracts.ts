@@ -165,7 +165,7 @@ export interface BuildStep {
 export interface ManagedWorkerRuntimeConfig {
   metadata: APIResourceMeta;
   numReplicas: number;
-  autoscaling?: AutoscalingConfig;
+  autoscaling?: CreateOrUpdateAutoscalingRequest;
   /** The kind of CPU to use for the worker */
   cpuKind: string;
   /** The number of CPUs to use for the worker */
@@ -382,6 +382,11 @@ export enum TenantSubscriptionStatus {
   Canceled = "canceled",
 }
 
+export interface TenantUsage {
+  /** The usage of the tenant. */
+  usage: string;
+}
+
 export interface Coupon {
   /** The name of the coupon. */
   name: string;
@@ -538,30 +543,13 @@ export interface WorkflowRunEventsMetricsCounts {
   results?: WorkflowRunEventsMetric[];
 }
 
-export interface AutoscalingConfig {
-  waitDuration: string;
-  rollingWindowDuration: string;
-  utilizationScaleUpThreshold: number;
-  utilizationScaleDownThreshold: number;
-  increment: number;
-  targetKind: AutoscalingTargetKind;
-  minAwakeReplicas: number;
-  maxReplicas: number;
-  scaleToZero: boolean;
-}
-
-export enum AutoscalingTargetKind {
-  PORTER = "PORTER",
-  FLY = "FLY",
-}
-
 export interface CreateOrUpdateAutoscalingRequest {
   waitDuration: string;
   rollingWindowDuration: string;
   utilizationScaleUpThreshold: number;
   utilizationScaleDownThreshold: number;
   increment: number;
-  targetKind?: AutoscalingTargetKind;
+  targetKind?: "PORTER" | "FLY";
   minAwakeReplicas: number;
   maxReplicas: number;
   scaleToZero: boolean;
