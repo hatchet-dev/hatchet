@@ -40,7 +40,7 @@ func newSlot(worker *worker, actions []string) *slot {
 }
 
 func (s *slot) getWorkerId() string {
-	return sqlchelpers.UUIDToStr(s.worker.ID)
+	return s.worker.ID
 }
 
 func (s *slot) extendExpiry() {
