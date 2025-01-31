@@ -27,9 +27,8 @@ type Scheduler struct {
 	actions     map[string]*action
 	actionsMu   rwMutex
 	replenishMu mutex
-
-	workersMu mutex
-	workers   map[string]*worker
+	workersMu   mutex
+	workers     map[string]*worker
 
 	assignedCount   int
 	assignedCountMu mutex
@@ -93,7 +92,7 @@ func (s *Scheduler) setWorkers(workers []*repository.ListActiveWorkersResult) {
 	newWorkers := make(map[string]*worker, len(workers))
 
 	for i := range workers {
-		newWorkers[sqlchelpers.UUIDToStr(workers[i].ID)] = &worker{
+		newWorkers[workers[i].ID] = &worker{
 			ListActiveWorkersResult: workers[i],
 		}
 	}
@@ -801,6 +800,13 @@ func (s *Scheduler) getExtensionInput(results []*assignResults) *PostScheduleInp
 
 	workerSlotUtilization := make(map[string]*SlotUtilization)
 
+	for workerId := range workers {
+		workerSlotUtilization[workerId] = &SlotUtilization{
+			UtilizedSlots:    0,
+			NonUtilizedSlots: 0,
+		}
+	}
+
 	for _, actionId := range actionKeys {
 		s.actionsMu.RLock()
 		action, ok := s.actions[actionId]
@@ -816,7 +822,7 @@ func (s *Scheduler) getExtensionInput(results []*assignResults) *PostScheduleInp
 				continue
 			}
 
-			workerId := slot.getWorkerId()
+			workerId := slot.worker.ID
 
 			if _, ok := workerSlotUtilization[workerId]; !ok {
 				// initialize the worker slot utilization
