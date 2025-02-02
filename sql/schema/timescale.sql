@@ -108,6 +108,8 @@ CREATE INDEX v2_task_events_olap_task_id_idx ON v2_task_events_olap (task_id);
 
 SELECT * from create_hypertable('v2_task_events_olap', by_range('task_inserted_at',  INTERVAL '1 day'));
 
+SET timescaledb.enable_chunk_skipping = on;
+
 SELECT enable_chunk_skipping('v2_task_events_olap', 'inserted_at');
 
 CREATE MATERIALIZED VIEW v2_cagg_task_status

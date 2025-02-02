@@ -277,9 +277,11 @@ WITH relevant_events AS (
     FROM   
         v2_task_events_olap
     WHERE
-        tenant_id = $2::uuid
-        AND inserted_at >= $3::timestamptz
+        tenant_id = $1::uuid
+        AND inserted_at >= $2::timestamptz
         -- TODO: MORE FILTERS HERE
+    -- NOTE: we can limit in this CTE when there are no filters
+    LIMIT COALESCE($3::integer, 50)
 ), unique_tasks AS (
     SELECT
         tenant_id,
@@ -310,13 +312,12 @@ SELECT
 FROM all_task_events
 GROUP BY tenant_id, task_id, task_inserted_at
 ORDER BY task_inserted_at DESC, task_id DESC
-LIMIT COALESCE($1::integer, 50)
 `
 
 type ListTasksRealTimeParams struct {
-	Limit         pgtype.Int4        `json:"limit"`
 	Tenantid      pgtype.UUID        `json:"tenantid"`
 	Insertedafter pgtype.Timestamptz `json:"insertedafter"`
+	Limit         pgtype.Int4        `json:"limit"`
 }
 
 type ListTasksRealTimeRow struct {
@@ -328,7 +329,7 @@ type ListTasksRealTimeRow struct {
 }
 
 func (q *Queries) ListTasksRealTime(ctx context.Context, db DBTX, arg ListTasksRealTimeParams) ([]*ListTasksRealTimeRow, error) {
-	rows, err := db.Query(ctx, listTasksRealTime, arg.Limit, arg.Tenantid, arg.Insertedafter)
+	rows, err := db.Query(ctx, listTasksRealTime, arg.Tenantid, arg.Insertedafter, arg.Limit)
 	if err != nil {
 		return nil, err
 	}

@@ -159,6 +159,8 @@ WITH relevant_events AS (
         tenant_id = @tenantId::uuid
         AND inserted_at >= @insertedAfter::timestamptz
         -- TODO: MORE FILTERS HERE
+    -- NOTE: we can limit in this CTE when there are no filters
+    LIMIT COALESCE(sqlc.narg('limit')::integer, 50)
 ), unique_tasks AS (
     SELECT
         tenant_id,
@@ -188,8 +190,7 @@ SELECT
   max(retry_count)::integer AS max_retry_count
 FROM all_task_events
 GROUP BY tenant_id, task_id, task_inserted_at
-ORDER BY task_inserted_at DESC, task_id DESC
-LIMIT COALESCE(sqlc.narg('limit')::integer, 50);
+ORDER BY task_inserted_at DESC, task_id DESC;
 
 -- name: ListTasksFromAggregate :many
 SELECT 
