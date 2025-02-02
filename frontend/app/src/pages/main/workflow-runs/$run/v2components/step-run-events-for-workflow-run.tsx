@@ -3,7 +3,6 @@ import { useQuery } from '@tanstack/react-query';
 import { DataTable } from '@/components/molecules/data-table/data-table';
 import { columns } from './events-columns';
 import { useTenant } from '@/lib/atoms';
-import { Row } from 'react-day-picker';
 
 export function StepRunEvents({
   taskRunId,

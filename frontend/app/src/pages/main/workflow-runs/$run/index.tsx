@@ -46,8 +46,6 @@ export default function ExpandedWorkflowRun() {
   const { tenant } = useOutletContext<TenantContextType>();
   invariant(tenant);
 
-  const tenantId = tenant.metadata.id;
-
   const params = useParams();
   invariant(params.run);
 
