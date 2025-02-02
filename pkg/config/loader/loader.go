@@ -313,12 +313,19 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 				postgres.WithQos(cf.MessageQueue.Postgres.Qos),
 			)
 		case "rabbitmq":
-			cleanup1, mq = rabbitmq.New(
+			cleanupRabbit, rabbitMq := rabbitmq.New(
 				rabbitmq.WithURL(cf.MessageQueue.RabbitMQ.URL),
 				rabbitmq.WithLogger(&l),
 				rabbitmq.WithQos(cf.MessageQueue.RabbitMQ.Qos),
 				rabbitmq.WithDisableTenantExchangePubs(cf.Runtime.DisableTenantPubs),
 			)
+
+			if rabbitMq == nil {
+				return nil, nil, fmt.Errorf("could not create rabbitmq message queue")
+			}
+
+			cleanup1 = cleanupRabbit
+			mq = rabbitMq
 		}
 
 		ing, err = ingestor.NewIngestor(

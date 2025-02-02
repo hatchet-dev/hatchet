@@ -193,17 +193,29 @@ func (q *Queries) ListTaskEvents(ctx context.Context, db DBTX, arg ListTaskEvent
 const listTasks = `-- name: ListTasks :many
 WITH task_statuses AS (
     SELECT 
-        tenant_id::uuid,
-        task_id::bigint,
-        task_inserted_at::timestamptz,
-        status::v2_readable_status_olap,
-        max_retry_count::int
+        s.tenant_id::uuid as tenant_id,
+        s.task_id::bigint as id,
+        s.task_inserted_at::timestamptz as inserted_at,
+        s.status::v2_readable_status_olap as status,
+        s.max_retry_count::int as max_retry_count,
+        t.external_id as external_id,
+        t.queue as queue,
+        t.action_id as action_id,
+        t.step_id as step_id,
+        t.workflow_id as workflow_id,
+        t.schedule_timeout as schedule_timeout,
+        t.step_timeout as step_timeout,
+        t.priority as priority,
+        t.sticky as sticky,
+        t.display_name as display_name
     FROM 
-        v2_cagg_task_status
+        v2_cagg_task_status s
+    JOIN
+        v2_tasks_olap t ON t.tenant_id = s.tenant_id AND t.id = s.task_id AND t.inserted_at = s.task_inserted_at
     WHERE
-        tenant_id = $1::uuid
+        s.tenant_id = $1::uuid
         AND bucket >= $2::timestamptz
-    ORDER BY bucket DESC, task_inserted_at DESC, task_id DESC
+    ORDER BY bucket DESC, s.task_inserted_at DESC, s.task_id DESC
     LIMIT 50
 ), finished_ats AS (
     SELECT
@@ -212,7 +224,7 @@ WITH task_statuses AS (
     FROM
         v2_task_events_olap e
     JOIN    
-        task_statuses ts ON ts.task_id = e.task_id AND ts.tenant_id = e.tenant_id AND ts.task_inserted_at = e.task_inserted_at AND ts.max_retry_count = e.retry_count
+        task_statuses ts ON ts.id = e.task_id AND ts.tenant_id = e.tenant_id AND ts.inserted_at = e.task_inserted_at AND ts.max_retry_count = e.retry_count
     WHERE
         e.readable_status = ANY(ARRAY['COMPLETED', 'FAILED', 'CANCELLED']::v2_readable_status_olap[])
     GROUP BY e.task_id
@@ -223,37 +235,35 @@ WITH task_statuses AS (
     FROM
         v2_task_events_olap e
     JOIN    
-        task_statuses ts ON ts.task_id = e.task_id AND ts.tenant_id = e.tenant_id AND ts.task_inserted_at = e.task_inserted_at AND ts.max_retry_count = e.retry_count
+        task_statuses ts ON ts.id = e.task_id AND ts.tenant_id = e.tenant_id AND ts.inserted_at = e.task_inserted_at AND ts.max_retry_count = e.retry_count
     WHERE
         e.event_type = 'STARTED'
     GROUP BY e.task_id
 )
 SELECT
-    t.tenant_id,
-    t.id,
-    t.inserted_at,
-    t.external_id,
-    t.queue,
-    t.action_id,
-    t.step_id,
-    t.workflow_id,
-    t.schedule_timeout,
-    t.step_timeout,
-    t.priority,
-    t.sticky,
-    t.display_name,
+    ts.tenant_id,
+    ts.id,
+    ts.inserted_at,
+    ts.external_id,
+    ts.queue,
+    ts.action_id,
+    ts.step_id,
+    ts.workflow_id,
+    ts.schedule_timeout,
+    ts.step_timeout,
+    ts.priority,
+    ts.sticky,
+    ts.display_name,
     ts.status::v2_readable_status_olap as status,
     f.finished_at::timestamptz as finished_at,
     s.started_at::timestamptz as started_at
 FROM
-    v2_tasks_olap t
-JOIN
-    task_statuses ts ON ts.task_id = t.id AND ts.tenant_id = t.tenant_id AND ts.task_inserted_at = t.inserted_at
+    task_statuses ts
 LEFT JOIN
-    finished_ats f ON f.task_id = t.id
+    finished_ats f ON f.task_id = ts.id
 LEFT JOIN
-    started_ats s ON s.task_id = t.id
-ORDER BY t.inserted_at DESC, t.id DESC
+    started_ats s ON s.task_id = ts.id
+ORDER BY ts.inserted_at DESC, ts.id DESC
 `
 
 type ListTasksParams struct {

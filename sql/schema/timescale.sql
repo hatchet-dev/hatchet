@@ -108,7 +108,7 @@ CREATE INDEX v2_task_events_olap_task_id_idx ON v2_task_events_olap (task_id);
 SELECT * from create_hypertable('v2_task_events_olap', by_range('task_inserted_at',  INTERVAL '1 day'));
 
 CREATE MATERIALIZED VIEW v2_cagg_task_status
-WITH (timescaledb.continuous) AS
+WITH (timescaledb.continuous, timescaledb.materialized_only = false, timescaledb.create_group_indexes = false) AS
 SELECT
   tenant_id,
   task_id,
@@ -118,14 +118,18 @@ SELECT
   max(retry_count) AS max_retry_count
 FROM v2_task_events_olap
 GROUP BY tenant_id, task_id, task_inserted_at, bucket
-ORDER BY bucket DESC, task_inserted_at DESC;
+ORDER BY bucket DESC, task_inserted_at DESC
+WITH NO DATA;
 
-ALTER MATERIALIZED VIEW v2_cagg_task_status set (timescaledb.materialized_only = false);
+CREATE INDEX v2_cagg_task_status_bucket_tenant_id_status_idx ON v2_cagg_task_status (bucket, tenant_id, status);
 
-CREATE INDEX v2_cagg_task_status_tenant_id_status_idx ON v2_cagg_task_status (tenant_id, status);
+SELECT add_continuous_aggregate_policy('v2_cagg_task_status',
+  start_offset => NULL,
+  end_offset => INTERVAL '1 minute',
+  schedule_interval => INTERVAL '1 minute');
 
 CREATE  MATERIALIZED VIEW v2_cagg_status_metrics
-   WITH (timescaledb.continuous)
+   WITH (timescaledb.continuous, timescaledb.materialized_only = false)
    AS
       SELECT
         time_bucket('5 minutes', bucket) AS bucket_2,
@@ -137,46 +141,10 @@ CREATE  MATERIALIZED VIEW v2_cagg_status_metrics
         COUNT(*) FILTER (WHERE status = 'FAILED') AS failed_count
       FROM v2_cagg_task_status
       GROUP BY bucket_2, tenant_id
-      ORDER BY bucket_2;
+      ORDER BY bucket_2
+WITH NO DATA;
 
-ALTER MATERIALIZED VIEW v2_cagg_status_metrics set (timescaledb.materialized_only = false);
-
--- CREATE TABLE v2_task_statuses (
---     tenant_id UUID NOT NULL,
---     task_id BIGINT NOT NULL,
---     inserted_at TIMESTAMPTZ(3) NOT NULL,
---     readable_status v2_readable_status_olap NOT NULL,
---     retry_count INT NOT NULL DEFAULT 0,
-
---     PRIMARY KEY (tenant_id, task_id, inserted_at)
--- );
-
--- CREATE OR REPLACE FUNCTION v2_tasks_olap_status_insert_function()
--- RETURNS TRIGGER AS
--- $$
--- BEGIN
---     INSERT INTO v2_task_statuses (
---         tenant_id,
---         task_id,
---         inserted_at,
---         readable_status,
---         retry_count
---     )
---     VALUES (
---         NEW.tenant_id,
---         NEW.task_id,
---         NEW.task_inserted_at,
---         NEW.readable_status,
---         NEW.retry_count
---     ) ON CONFLICT (tenant_id, task_id, inserted_at) DO NOTHING;
---     RETURN NEW;
--- END;
--- $$
--- LANGUAGE plpgsql;
-
--- CREATE TRIGGER v2_tasks_olap_status_insert_trigger
--- AFTER INSERT ON v2_task_events_olap
--- FOR EACH ROW
--- EXECUTE PROCEDURE v2_tasks_olap_status_insert_function();
-
--- SELECT * from create_hypertable('v2_task_statuses', by_range('inserted_at',  INTERVAL '1 hour'));
+SELECT add_continuous_aggregate_policy('v2_cagg_status_metrics',
+  start_offset => NULL,
+  end_offset => INTERVAL '1 minute',
+  schedule_interval => INTERVAL '1 minute');
