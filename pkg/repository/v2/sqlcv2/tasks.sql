@@ -82,6 +82,7 @@ WHERE
 -- name: ListTaskMetas :many
 SELECT
     id,
+    inserted_at,
     external_id,
     retry_count
 FROM

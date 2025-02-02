@@ -25,7 +25,7 @@ import (
 	stepruns "github.com/hatchet-dev/hatchet/api/v1/server/handlers/step-runs"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/tenants"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/users"
-	v2workflowruns "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v2/workflow-runs"
+	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/v2/tasks"
 	webhookworker "github.com/hatchet-dev/hatchet/api/v1/server/handlers/webhook-worker"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/workers"
 	workflowruns "github.com/hatchet-dev/hatchet/api/v1/server/handlers/workflow-runs"
@@ -55,7 +55,7 @@ type apiService struct {
 	*workflowruns.WorkflowRunsService
 	*monitoring.MonitoringService
 	*info.InfoService
-	*v2workflowruns.V2WorkflowRunsService
+	*tasks.TasksService
 }
 
 func newAPIService(config *server.ServerConfig) *apiService {
@@ -76,8 +76,8 @@ func newAPIService(config *server.ServerConfig) *apiService {
 		WebhookWorkersService: webhookworker.NewWebhookWorkersService(config),
 		MonitoringService:     monitoring.NewMonitoringService(config),
 		InfoService:           info.NewInfoService(config),
-		V2WorkflowRunsService: v2workflowruns.NewV2WorkflowRunsService(config),
-}
+		TasksService:          tasks.NewTasksService(config),
+	}
 }
 
 type APIServer struct {
@@ -332,6 +332,15 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		}
 
 		return webhookWorker, webhookWorker.TenantID, nil
+	})
+
+	populatorMW.RegisterGetter("task", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
+		task, err := config.OLAPRepository.ReadTaskRun(id)
+		if err != nil {
+			return nil, "", err
+		}
+
+		return task, sqlchelpers.UUIDToStr(task.TenantID), nil
 	})
 
 	authnMW := authn.NewAuthN(t.config)

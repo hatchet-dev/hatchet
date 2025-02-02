@@ -219,7 +219,6 @@ ScheduledWorkflows:
     - triggerAt
     - method
 
-
 ScheduledWorkflowsMethod:
   type: string
   enum:
@@ -323,22 +322,6 @@ WorkflowRunsMetrics:
     counts:
       type: object
       $ref: "#/WorkflowRunsMetricsCounts"
-
-V2TaskRunMetrics:
-  type: array
-  items:
-    $ref: "#/V2TaskRunMetric"
-
-V2TaskRunMetric:
-  type: object
-  properties:
-    status:
-      $ref: "./v2/workflow_run.yaml#/V2TaskStatus"
-    count:
-      type: integer
-  required:
-    - status
-    - count
 
 StepRunStatus:
   type: string

@@ -4,11 +4,9 @@ import (
 	"context"
 	"fmt"
 	"sync"
-	"time"
 
-	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
-	"golang.org/x/sync/errgroup"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
@@ -17,9 +15,10 @@ import (
 	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/olap"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 	v2 "github.com/hatchet-dev/hatchet/pkg/repository/v2"
+	"github.com/hatchet-dev/hatchet/pkg/repository/v2/sqlcv2"
+	"github.com/hatchet-dev/hatchet/pkg/repository/v2/timescalev2"
 )
 
 type OLAPController interface {
@@ -181,58 +180,32 @@ func (tc *OLAPControllerImpl) handleBufferedMsgs(tenantId, msgId string, payload
 
 // handleCreatedTask is responsible for flushing a created task to the OLAP repository
 func (tc *OLAPControllerImpl) handleCreatedTask(ctx context.Context, tenantId string, payloads [][]byte) error {
-	createTaskEventOpts := make([]olap.TaskEvent, 0)
-	createTaskOpts := make([]olap.Task, 0)
+	createTaskOpts := make([]*sqlcv2.V2Task, 0)
+	createTaskEventOpts := make([]timescalev2.CreateTaskEventsOLAPParams, 0)
 
 	msgs := msgqueue.JSONConvert[tasktypes.CreatedTaskPayload](payloads)
 
 	for _, msg := range msgs {
-		var priority int32 = 1
+		createTaskOpts = append(createTaskOpts, msg.V2Task)
 
-		if msg.Priority != nil {
-			priority = int32(*msg.Priority)
-		}
-
-		// TODO: ADD STICKY AND DESIRED WORKER ID
-
-		// TODO: ADD ADDITIONAL METADATA
-
-		createTaskOpts = append(createTaskOpts, olap.Task{
-			Id:              uuid.MustParse(msg.ExternalId),
-			SourceId:        msg.SourceId,
-			InsertedAt:      msg.InsertedAt,
-			TenantId:        uuid.MustParse(tenantId),
-			Queue:           msg.Queue,
-			ActionId:        msg.ActionId,
-			ScheduleTimeout: msg.ScheduleTimeout,
-			StepTimeout:     msg.StepTimeout,
-			WorkflowId:      uuid.MustParse(msg.WorkflowId),
-			Priority:        priority,
-			Sticky:          olap.STICKY_NONE,
-			DisplayName:     msg.DisplayName,
-			Input:           string(msg.Input),
-		})
-
-		createTaskEventOpts = append(createTaskEventOpts, olap.TaskEvent{
-			TaskId:     uuid.MustParse(msg.ExternalId),
-			TenantId:   uuid.MustParse(tenantId),
-			Timestamp:  msg.InsertedAt,
-			RetryCount: 0,
-			EventType:  olap.EVENT_TYPE_CREATED,
+		createTaskEventOpts = append(createTaskEventOpts, timescalev2.CreateTaskEventsOLAPParams{
+			TenantID:       sqlchelpers.UUIDFromStr(tenantId),
+			TaskID:         msg.V2Task.ID,
+			TaskInsertedAt: msg.V2Task.InsertedAt,
+			EventType:      timescalev2.V2EventTypeOlapCREATED,
+			ReadableStatus: timescalev2.V2ReadableStatusOlapQUEUED,
+			RetryCount:     0,
+			EventTimestamp: msg.V2Task.InsertedAt,
 		})
 	}
 
-	eg := errgroup.Group{}
+	err := tc.repo.CreateTasks(tenantId, createTaskOpts)
 
-	eg.Go(func() error {
-		return tc.repo.CreateTasks(createTaskOpts)
-	})
+	if err != nil {
+		return err
+	}
 
-	eg.Go(func() error {
-		return tc.repo.CreateTaskEvents(createTaskEventOpts)
-	})
-
-	return eg.Wait()
+	return tc.repo.CreateTaskEvents(tenantId, createTaskEventOpts)
 }
 
 // handleCreateMonitoringEvent is responsible for sending a group of monitoring events to the OLAP repository
@@ -242,10 +215,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 	taskIdsToLookup := make([]int64, len(msgs))
 
 	for i, msg := range msgs {
-		taskId := msg.TaskId
-		if taskId != nil {
-			taskIdsToLookup[i] = *taskId
-		}
+		taskIdsToLookup[i] = msg.TaskId
 	}
 
 	metas, err := tc.v2repo.ListTaskMetas(ctx, tenantId, taskIdsToLookup)
@@ -254,86 +224,117 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		return err
 	}
 
-	taskIdsToExternalIds := make(map[int64]string)
+	taskIdsToMetas := make(map[int64]*sqlcv2.ListTaskMetasRow)
 
 	for _, taskMeta := range metas {
-		taskIdsToExternalIds[taskMeta.ID] = sqlchelpers.UUIDToStr(taskMeta.ExternalID)
+		taskIdsToMetas[taskMeta.ID] = taskMeta
 	}
 
-	taskExternalIds := make([]string, 0)
+	taskIds := make([]int64, 0)
+	taskInsertedAts := make([]pgtype.Timestamptz, 0)
 	retryCounts := make([]int32, 0)
 	workerIds := make([]string, 0)
-	eventTypes := make([]olap.EventType, 0)
+	eventTypes := make([]timescalev2.V2EventTypeOlap, 0)
+	readableStatuses := make([]timescalev2.V2ReadableStatusOlap, 0)
 	eventPayloads := make([]string, 0)
 	eventMessages := make([]string, 0)
-	timestamps := make([]time.Time, 0)
+	timestamps := make([]pgtype.Timestamptz, 0)
 
 	for _, msg := range msgs {
-		var externalId string
+		taskMeta := taskIdsToMetas[msg.TaskId]
 
-		if msg.TaskExternalId != nil {
-			externalId = *msg.TaskExternalId
-		} else if msg.TaskId != nil {
-			externalIdLookup, ok := taskIdsToExternalIds[*msg.TaskId]
-
-			if !ok {
-				tc.l.Error().Msgf("could not find external id for task id %d", *msg.TaskId)
-				continue
-			}
-
-			externalId = externalIdLookup
-		} else {
-			tc.l.Error().Msg("task id or external id must be set")
+		if taskMeta == nil {
+			tc.l.Error().Msgf("could not find task meta for task id %d", msg.TaskId)
 			continue
 		}
 
-		taskExternalIds = append(taskExternalIds, externalId)
+		taskIds = append(taskIds, msg.TaskId)
+		taskInsertedAts = append(taskInsertedAts, taskMeta.InsertedAt)
 		retryCounts = append(retryCounts, msg.RetryCount)
 		eventTypes = append(eventTypes, msg.EventType)
 		eventPayloads = append(eventPayloads, msg.EventPayload)
 		eventMessages = append(eventMessages, msg.EventMessage)
-		timestamps = append(timestamps, msg.EventTimestamp)
+		timestamps = append(timestamps, sqlchelpers.TimestamptzFromTime(msg.EventTimestamp))
 
 		if msg.WorkerId != nil {
 			workerIds = append(workerIds, *msg.WorkerId)
 		} else {
 			workerIds = append(workerIds, "")
 		}
+
+		switch msg.EventType {
+		case timescalev2.V2EventTypeOlapRETRYING:
+			readableStatuses = append(readableStatuses, timescalev2.V2ReadableStatusOlapQUEUED)
+		case timescalev2.V2EventTypeOlapREASSIGNED:
+			readableStatuses = append(readableStatuses, timescalev2.V2ReadableStatusOlapQUEUED)
+		case timescalev2.V2EventTypeOlapRETRIEDBYUSER:
+			readableStatuses = append(readableStatuses, timescalev2.V2ReadableStatusOlapQUEUED)
+		case timescalev2.V2EventTypeOlapCREATED:
+			readableStatuses = append(readableStatuses, timescalev2.V2ReadableStatusOlapQUEUED)
+		case timescalev2.V2EventTypeOlapQUEUED:
+			readableStatuses = append(readableStatuses, timescalev2.V2ReadableStatusOlapQUEUED)
+		case timescalev2.V2EventTypeOlapREQUEUEDNOWORKER:
+			readableStatuses = append(readableStatuses, timescalev2.V2ReadableStatusOlapQUEUED)
+		case timescalev2.V2EventTypeOlapREQUEUEDRATELIMIT:
+			readableStatuses = append(readableStatuses, timescalev2.V2ReadableStatusOlapQUEUED)
+		case timescalev2.V2EventTypeOlapASSIGNED:
+			readableStatuses = append(readableStatuses, timescalev2.V2ReadableStatusOlapRUNNING)
+		case timescalev2.V2EventTypeOlapACKNOWLEDGED:
+			readableStatuses = append(readableStatuses, timescalev2.V2ReadableStatusOlapRUNNING)
+		case timescalev2.V2EventTypeOlapSENTTOWORKER:
+			readableStatuses = append(readableStatuses, timescalev2.V2ReadableStatusOlapRUNNING)
+		case timescalev2.V2EventTypeOlapSLOTRELEASED:
+			readableStatuses = append(readableStatuses, timescalev2.V2ReadableStatusOlapRUNNING)
+		case timescalev2.V2EventTypeOlapSTARTED:
+			readableStatuses = append(readableStatuses, timescalev2.V2ReadableStatusOlapRUNNING)
+		case timescalev2.V2EventTypeOlapTIMEOUTREFRESHED:
+			readableStatuses = append(readableStatuses, timescalev2.V2ReadableStatusOlapRUNNING)
+		case timescalev2.V2EventTypeOlapSCHEDULINGTIMEDOUT:
+			readableStatuses = append(readableStatuses, timescalev2.V2ReadableStatusOlapFAILED)
+		case timescalev2.V2EventTypeOlapFINISHED:
+			readableStatuses = append(readableStatuses, timescalev2.V2ReadableStatusOlapCOMPLETED)
+		case timescalev2.V2EventTypeOlapFAILED:
+			readableStatuses = append(readableStatuses, timescalev2.V2ReadableStatusOlapFAILED)
+		case timescalev2.V2EventTypeOlapCANCELLED:
+			readableStatuses = append(readableStatuses, timescalev2.V2ReadableStatusOlapCANCELLED)
+		case timescalev2.V2EventTypeOlapTIMEDOUT:
+			readableStatuses = append(readableStatuses, timescalev2.V2ReadableStatusOlapFAILED)
+		case timescalev2.V2EventTypeOlapRATELIMITERROR:
+			readableStatuses = append(readableStatuses, timescalev2.V2ReadableStatusOlapFAILED)
+		}
 	}
 
-	opts := make([]olap.TaskEvent, 0)
+	opts := make([]timescalev2.CreateTaskEventsOLAPParams, 0)
 
-	for i, taskId := range taskExternalIds {
-		var workerId *uuid.UUID
+	for i, taskId := range taskIds {
+		var workerId pgtype.UUID
 
 		if workerIds[i] != "" {
-			parsedWorkerId, parseErr := uuid.Parse(workerIds[i])
-
-			if parseErr == nil {
-				workerId = &parsedWorkerId
-			}
+			workerId = sqlchelpers.UUIDFromStr(workerIds[i])
 		}
 
-		event := olap.TaskEvent{
-			TaskId:     uuid.MustParse(taskId),
-			TenantId:   uuid.MustParse(tenantId),
-			Timestamp:  timestamps[i],
-			RetryCount: uint32(retryCounts[i]),
-			WorkerId:   workerId,
-			EventType:  eventTypes[i],
+		event := timescalev2.CreateTaskEventsOLAPParams{
+			TenantID:       sqlchelpers.UUIDFromStr(tenantId),
+			TaskID:         taskId,
+			TaskInsertedAt: taskInsertedAts[i],
+			EventType:      eventTypes[i],
+			EventTimestamp: timestamps[i],
+			ReadableStatus: readableStatuses[i],
+			RetryCount:     retryCounts[i],
+			WorkerID:       workerId,
 		}
 
 		switch eventTypes[i] {
-		case olap.EVENT_TYPE_FINISHED:
-			event.Output = eventPayloads[i]
-		case olap.EVENT_TYPE_FAILED:
-			event.ErrorMsg = eventPayloads[i]
-		case olap.EVENT_TYPE_CANCELLED:
-			event.AdditionalEventMessage = eventMessages[i]
+		case timescalev2.V2EventTypeOlapFINISHED:
+			event.Output = []byte(eventPayloads[i])
+		case timescalev2.V2EventTypeOlapFAILED:
+			event.ErrorMessage = sqlchelpers.TextFromStr(eventPayloads[i])
+		case timescalev2.V2EventTypeOlapCANCELLED:
+			event.AdditionalEventMessage = sqlchelpers.TextFromStr(eventMessages[i])
 		}
 
 		opts = append(opts, event)
 	}
 
-	return tc.repo.CreateTaskEvents(opts)
+	return tc.repo.CreateTaskEvents(tenantId, opts)
 }

@@ -61,49 +61,28 @@ export interface APIResourceMeta {
   updatedAt: string;
 }
 
-export interface V2WorkflowRun {
+export interface V2TaskSummary {
   metadata: APIResourceMeta;
+  /** The ID of the task. */
+  taskId: number;
   /**
-   * The ID of the task run.
-   * @format uuid
-   * @minLength 36
-   * @maxLength 36
-   * @example "bb214807-246e-43a5-a25d-41761d1cff9e"
+   * The timestamp the task was inserted.
+   * @format date-time
    */
-  id: string;
-  /**
-   * The ID of the task associated with this task run.
-   * @format uuid
-   * @minLength 36
-   * @maxLength 36
-   * @example "bb214807-246e-43a5-a25d-41761d1cff9e"
-   */
-  taskId: string;
+  taskInsertedAt: string;
   status: V2TaskStatus;
-  /**
-   * The timestamp of the task run.
-   * @format date-time
-   */
-  timestamp: string;
-  /** The error message of the task run. */
-  errorMessage?: string;
-  /**
-   * The timestamp the task run was created.
-   * @format date-time
-   */
-  createdAt: string;
   /**
    * The timestamp the task run started.
    * @format date-time
    */
-  startedAt: string;
+  startedAt?: string;
   /**
    * The timestamp the task run finished.
    * @format date-time
    */
-  finishedAt: string;
-  /** The duration of the task run. */
-  duration: number;
+  finishedAt?: string;
+  /** The duration of the task run, in milliseconds. */
+  duration?: number;
   /**
    * The ID of the tenant.
    * @format uuid
@@ -113,21 +92,17 @@ export interface V2WorkflowRun {
    */
   tenantId: string;
   /** Additional metadata for the task run. */
-  additionalMetadata: object;
+  additionalMetadata?: object;
   /** The display name of the task run. */
   displayName: string;
-  /** The input of the task run. */
-  input: object;
-  /** The output of the task run. */
-  output?: object;
   /** @format uuid */
-  workflowId?: string;
+  workflowId: string;
 }
 
-export interface V2WorkflowRuns {
+export interface V2TaskSummaryList {
   pagination: PaginationResponse;
-  /** The workflow runs. */
-  rows: V2WorkflowRun[];
+  /** The list of tasks */
+  rows: V2TaskSummary[];
 }
 
 export interface APIError {
@@ -158,7 +133,47 @@ export interface APIErrors {
   errors: APIError[];
 }
 
-export enum V2EventType {
+export interface V2Task {
+  metadata: APIResourceMeta;
+  /** The ID of the task. */
+  taskId: number;
+  /**
+   * The timestamp the task was inserted.
+   * @format date-time
+   */
+  taskInsertedAt: string;
+  status: V2TaskStatus;
+  /**
+   * The timestamp the task run started.
+   * @format date-time
+   */
+  startedAt?: string;
+  /**
+   * The timestamp the task run finished.
+   * @format date-time
+   */
+  finishedAt?: string;
+  /** The duration of the task run, in milliseconds. */
+  duration?: number;
+  /**
+   * The ID of the tenant.
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   * @example "bb214807-246e-43a5-a25d-41761d1cff9e"
+   */
+  tenantId: string;
+  /** Additional metadata for the task run. */
+  additionalMetadata?: object;
+  /** The display name of the task run. */
+  displayName: string;
+  /** @format uuid */
+  workflowId: string;
+  /** The input for the task run. */
+  input: string;
+}
+
+export enum V2TaskEventType {
   REQUEUED_NO_WORKER = 'REQUEUED_NO_WORKER',
   REQUEUED_RATE_LIMIT = 'REQUEUED_RATE_LIMIT',
   SCHEDULING_TIMED_OUT = 'SCHEDULING_TIMED_OUT',
@@ -180,28 +195,31 @@ export enum V2EventType {
   QUEUED = 'QUEUED',
 }
 
-export interface V2StepRunEvent {
-  /** @format uuid */
-  id: string;
-  /** @format date-time */
-  timestamp: string;
+export interface V2TaskEvent {
+  id: number;
   /** @format uuid */
   taskId: string;
-  taskDisplayName?: string;
-  taskInput?: object;
+  /** @format date-time */
+  timestamp: string;
+  eventType: V2TaskEventType;
   message: string;
-  data?: object;
-  error_message?: string;
-  event_type?: V2EventType;
+  errorMessage?: string;
+  output?: string;
   /** @format uuid */
-  worker_id?: string;
-  additionalMetadata?: object;
+  workerId?: string;
 }
 
-export interface V2ListStepRunEventsForWorkflowRun {
+export interface V2TaskEventList {
   pagination?: PaginationResponse;
-  rows?: V2StepRunEvent[];
+  rows?: V2TaskEvent[];
 }
+
+export interface V2TaskRunMetric {
+  status: V2TaskStatus;
+  count: number;
+}
+
+export type V2TaskRunMetrics = V2TaskRunMetric[];
 
 export interface APIMetaAuth {
   /**
@@ -1270,13 +1288,6 @@ export interface WorkflowRunsMetricsCounts {
 export interface WorkflowRunsMetrics {
   counts?: WorkflowRunsMetricsCounts;
 }
-
-export interface V2TaskRunMetric {
-  status: V2TaskStatus;
-  count: number;
-}
-
-export type V2TaskRunMetrics = V2TaskRunMetric[];
 
 export interface WorkflowRunShape {
   metadata: APIResourceMeta;

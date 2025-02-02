@@ -20,9 +20,9 @@ import (
 	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/olap"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 	repov2 "github.com/hatchet-dev/hatchet/pkg/repository/v2"
+	"github.com/hatchet-dev/hatchet/pkg/repository/v2/timescalev2"
 	v2 "github.com/hatchet-dev/hatchet/pkg/scheduling/v2"
 )
 
@@ -391,10 +391,10 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 			assignedMsg, err := tasktypes.MonitoringEventMessageFromInternal(
 				tenantId,
 				tasktypes.CreateMonitoringEventPayload{
-					TaskId:         &taskId,
+					TaskId:         taskId,
 					RetryCount:     bulkAssigned.QueueItem.RetryCount,
 					WorkerId:       &workerId,
-					EventType:      olap.EVENT_TYPE_ASSIGNED,
+					EventType:      timescalev2.V2EventTypeOlapASSIGNED,
 					EventTimestamp: time.Now(),
 				},
 			)
@@ -446,7 +446,7 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 				tenantId,
 				schedulingTimedOut.TaskID,
 				schedulingTimedOut.RetryCount,
-				olap.EVENT_TYPE_SCHEDULING_TIMED_OUT,
+				timescalev2.V2EventTypeOlapSCHEDULINGTIMEDOUT,
 			)
 
 			if err != nil {
@@ -473,9 +473,9 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 			msg, err := tasktypes.MonitoringEventMessageFromInternal(
 				tenantId,
 				tasktypes.CreateMonitoringEventPayload{
-					TaskId:         &taskId,
+					TaskId:         taskId,
 					RetryCount:     unassigned.RetryCount,
-					EventType:      olap.EVENT_TYPE_REQUEUED_NO_WORKER,
+					EventType:      timescalev2.V2EventTypeOlapREQUEUEDNOWORKER,
 					EventTimestamp: time.Now(),
 				},
 			)

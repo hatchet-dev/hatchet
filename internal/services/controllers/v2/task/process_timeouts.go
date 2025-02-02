@@ -9,8 +9,8 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
-	"github.com/hatchet-dev/hatchet/pkg/repository/olap"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/v2/timescalev2"
 )
 
 func (tc *TasksControllerImpl) runTenantTimeoutTasks(ctx context.Context) func() {
@@ -55,9 +55,9 @@ func (tc *TasksControllerImpl) processTaskTimeouts(ctx context.Context, tenantId
 		olapMsg, innerErr := tasktypes.MonitoringEventMessageFromInternal(
 			tenantId,
 			tasktypes.CreateMonitoringEventPayload{
-				TaskId:         &taskId,
+				TaskId:         taskId,
 				RetryCount:     task.RetryCount,
-				EventType:      olap.EVENT_TYPE_TIMED_OUT,
+				EventType:      timescalev2.V2EventTypeOlapTIMEDOUT,
 				EventTimestamp: time.Now(),
 			},
 		)

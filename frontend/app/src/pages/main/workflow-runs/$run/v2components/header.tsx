@@ -202,7 +202,7 @@ export const V2RunDetailHeader: React.FC<V2RunDetailHeaderProps> = ({
   invariant(tenant);
 
   const { isLoading: loading, data } = useQuery({
-    ...queries.v2WorkflowRuns.get(tenant.metadata.id, taskRunId),
+    ...queries.v2Tasks.get(taskRunId),
   });
 
   if (loading || !data) {
@@ -376,7 +376,7 @@ export const V2RunSummary = ({ taskRunId }: { taskRunId: string }) => {
   invariant(tenant);
 
   const { data } = useQuery({
-    ...queries.v2WorkflowRuns.get(tenant.metadata?.id, taskRunId),
+    ...queries.v2Tasks.get(taskRunId),
   });
 
   const timings = [];
@@ -394,14 +394,14 @@ export const V2RunSummary = ({ taskRunId }: { taskRunId: string }) => {
 
   if (data.startedAt) {
     timings.push(
-      <div key="created" className="text-sm text-muted-foreground">
+      <div key="started" className="text-sm text-muted-foreground">
         {'Started '}
         <RelativeDate date={data.startedAt} />
       </div>,
     );
   } else {
     timings.push(
-      <div key="created" className="text-sm text-muted-foreground">
+      <div key="running" className="text-sm text-muted-foreground">
         Running
       </div>,
     );

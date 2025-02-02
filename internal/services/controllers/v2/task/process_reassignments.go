@@ -9,8 +9,8 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
-	"github.com/hatchet-dev/hatchet/pkg/repository/olap"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/v2/timescalev2"
 )
 
 func (tc *TasksControllerImpl) runTenantReassignTasks(ctx context.Context) func() {
@@ -54,7 +54,7 @@ func (tc *TasksControllerImpl) processTaskReassignments(ctx context.Context, ten
 		taskId := task.ID
 
 		monitoringEvent := tasktypes.CreateMonitoringEventPayload{
-			TaskId:         &taskId,
+			TaskId:         taskId,
 			RetryCount:     task.RetryCount,
 			WorkerId:       &workerId,
 			EventTimestamp: time.Now(),
@@ -62,9 +62,9 @@ func (tc *TasksControllerImpl) processTaskReassignments(ctx context.Context, ten
 
 		switch task.Operation {
 		case "REASSIGNED":
-			monitoringEvent.EventType = olap.EVENT_TYPE_REASSIGNED
+			monitoringEvent.EventType = timescalev2.V2EventTypeOlapREASSIGNED
 		case "FAILED":
-			monitoringEvent.EventType = olap.EVENT_TYPE_FAILED
+			monitoringEvent.EventType = timescalev2.V2EventTypeOlapFAILED
 			monitoringEvent.EventPayload = "Worker became inactive, and we reached the maximum number of internal retries"
 		default:
 			tc.l.Error().Msgf("unknown operation %s", task.Operation)

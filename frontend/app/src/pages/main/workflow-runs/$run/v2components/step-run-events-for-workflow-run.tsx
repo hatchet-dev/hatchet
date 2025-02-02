@@ -1,14 +1,17 @@
-import { queries, V2StepRunEvent } from '@/lib/api';
+import { queries, V2TaskEvent } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 import { DataTable } from '@/components/molecules/data-table/data-table';
 import { columns } from './events-columns';
 import { useTenant } from '@/lib/atoms';
+import { Row } from 'react-day-picker';
 
 export function StepRunEvents({
   taskRunId,
+  taskDisplayName,
   onClick,
 }: {
   taskRunId: string;
+  taskDisplayName: string;
   onClick: (stepRunId?: string) => void;
 }) {
   const tenant = useTenant();
@@ -19,7 +22,7 @@ export function StepRunEvents({
   }
 
   const eventsQuery = useQuery({
-    ...queries.v2StepRunEvents.list(tenantId, taskRunId, {
+    ...queries.v2TaskEvents.list(tenantId, taskRunId, {
       // TODO: Pagination here
       limit: 50,
       offset: 0,
@@ -29,7 +32,7 @@ export function StepRunEvents({
     },
   });
 
-  type EventWithMetadata = V2StepRunEvent & {
+  type EventWithMetadata = V2TaskEvent & {
     metadata: {
       id: string;
     };
@@ -39,12 +42,13 @@ export function StepRunEvents({
     eventsQuery.data?.rows?.map((row) => ({
       ...row,
       metadata: {
-        id: row.taskId,
+        id: `${row.id}`,
       },
     })) || [];
 
   const cols = columns({
-    onRowClick: (row) => onClick(row.taskId),
+    onRowClick: (row) => onClick(`${row.taskId}`),
+    taskDisplayName,
   });
 
   return (

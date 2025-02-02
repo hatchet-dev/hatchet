@@ -1,8 +1,8 @@
-listWorkflowRuns:
+listTasks:
   get:
     x-resources: ["tenant"]
-    description: Lists all events for a tenant.
-    operationId: v2:workflow-runs:list
+    description: Lists all tasks for a tenant.
+    operationId: v2-task:list
     parameters:
       - description: The tenant id
         in: path
@@ -27,7 +27,7 @@ listWorkflowRuns:
         schema:
           type: integer
           format: int64
-      - description: A list of workflow run statuses to filter by
+      - description: A list of task statuses to filter by
         in: query
         name: statuses
         required: false
@@ -58,8 +58,8 @@ listWorkflowRuns:
         content:
           application/json:
             schema:
-              $ref: "../../../components/schemas/_index.yaml#/V2WorkflowRuns"
-        description: Successfully listed the workflow runs
+              $ref: "../../../components/schemas/_index.yaml#/V2TaskSummaryList"
+        description: Successfully listed the tasks
       "400":
         content:
           application/json:
@@ -72,28 +72,19 @@ listWorkflowRuns:
             schema:
               $ref: "../../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
-    summary: List workflow runs
+    summary: List tasks
     tags:
-      - Workflow run
+      - Task
 
-getWorkflowRun:
+getTask:
   get:
-    x-resources: ["tenant"]
-    description: Get a single task run by id
-    operationId: v2:workflow-run:get
+    x-resources: ["tenant", "task"]
+    description: Get a task by id
+    operationId: v2-task:get
     parameters:
-      - description: The tenant id
+      - description: The task id
         in: path
-        name: tenant
-        required: true
-        schema:
-          type: string
-          format: uuid
-          minLength: 36
-          maxLength: 36
-      - description: The task run id
-        in: path
-        name: workflow-run
+        name: task
         required: true
         schema:
           type: string
@@ -105,8 +96,8 @@ getWorkflowRun:
         content:
           application/json:
             schema:
-              $ref: "../../../components/schemas/_index.yaml#/V2WorkflowRun"
-        description: Successfully listed the workflow runs
+              $ref: "../../../components/schemas/_index.yaml#/V2Task"
+        description: Successfully retrieved the task
       "400":
         content:
           application/json:
@@ -119,28 +110,25 @@ getWorkflowRun:
             schema:
               $ref: "../../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
-    summary: Get workflow run
+      "404":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: The task was not found
+    summary: Get a task
     tags:
-      - Workflow run
+      - Task
 
-V2ListStepRunEventsForWorkflowRun:
+listTaskEvents:
   get:
-    x-resources: ["tenant"]
-    description: List events for all step runs for a workflow run
-    operationId: v2:workflow-run:list:step-run-events
+    x-resources: ["tenant", "task"]
+    description: List events for a task
+    operationId: v2-task-event:list
     parameters:
-      - description: The tenant id
+      - description: The task id
         in: path
-        name: tenant
-        required: true
-        schema:
-          type: string
-          format: uuid
-          minLength: 36
-          maxLength: 36
-      - description: The workflow run id
-        in: path
-        name: workflow-run
+        name: task
         required: true
         schema:
           type: string
@@ -166,7 +154,7 @@ V2ListStepRunEventsForWorkflowRun:
         content:
           application/json:
             schema:
-              $ref: "../../../components/schemas/_index.yaml#/V2ListStepRunEventsForWorkflowRun"
+              $ref: "../../../components/schemas/_index.yaml#/V2TaskEventList"
         description: Successfully retrieved the events
       "400":
         content:
@@ -185,7 +173,53 @@ V2ListStepRunEventsForWorkflowRun:
           application/json:
             schema:
               $ref: "../../../components/schemas/_index.yaml#/APIErrors"
-        description: The step run was not found
-    summary: List events for all step runs for a workflow run
+        description: The task was not found
+    summary: List events for a task
     tags:
-      - Step Run
+      - Task
+
+getTaskStatusMetrics:
+  get:
+    x-resources: ["tenant"]
+    description: Get a summary of task run metrics for a tenant
+    operationId: v2-task:list:status-metrics
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The start time to get metrics for
+        in: query
+        name: since
+        required: false
+        schema:
+          type: string
+          format: date-time
+      # TODO: WORKFLOW ID
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/V2TaskRunMetrics"
+        description: Successfully retrieved the task run metrics
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+    summary: Get task metrics
+    tags:
+      - Task

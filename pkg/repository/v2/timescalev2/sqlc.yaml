@@ -1,0 +1,19 @@
+version: "2"
+sql:
+  - engine: "postgresql"
+    # database:
+    #   uri: "postgres://hatchet:hatchet@localhost:5431/hatchet"
+    queries:
+      - queries.sql
+    schema:
+      - ../../../../sql/schema/timescale.sql
+    strict_order_by: false
+    gen:
+      go:
+        package: "timescalev2"
+        sql_package: "pgx/v5"
+        out: "."
+        emit_exact_table_names: true
+        emit_methods_with_db_argument: true
+        emit_result_struct_pointers: true
+        emit_json_tags: true

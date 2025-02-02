@@ -58,7 +58,7 @@ const StepRunDetail: React.FC<StepRunDetailProps> = ({
   const errors: string[] = [];
 
   const eventsQuery = useQuery({
-    ...queries.v2StepRunEvents.list(tenantId, taskRunId, {
+    ...queries.v2TaskEvents.list(tenantId, taskRunId, {
       offset: 0,
       limit: 50,
     }),
@@ -68,7 +68,7 @@ const StepRunDetail: React.FC<StepRunDetailProps> = ({
   });
 
   const taskRunQuery = useQuery({
-    ...queries.v2WorkflowRuns.get(tenantId, taskRunId),
+    ...queries.v2Tasks.get(taskRunId),
   });
 
   const events = eventsQuery.data?.rows || [];
@@ -181,7 +181,7 @@ const StepRunDetail: React.FC<StepRunDetailProps> = ({
               maxHeight="400px"
               minHeight="400px"
               language="json"
-              code={JSON.stringify(taskRun.input, null, 2)}
+              code={JSON.stringify(JSON.parse(taskRun.input), null, 2)}
             />
           )}
         </TabsContent>
@@ -201,7 +201,11 @@ const StepRunDetail: React.FC<StepRunDetailProps> = ({
           Events
         </h3>
         {/* TODO: Real onclick callback here */}
-        <StepRunEvents taskRunId={taskRunId} onClick={() => {}} />
+        <StepRunEvents
+          taskRunId={taskRunId}
+          onClick={() => {}}
+          taskDisplayName={taskRun.displayName}
+        />
       </div>
     </div>
   );
@@ -289,7 +293,7 @@ const V2StepRunSummary = ({ taskRunId }: { taskRunId: string }) => {
   }
 
   const taskRunQuery = useQuery({
-    ...queries.v2WorkflowRuns.get(tenantId, taskRunId),
+    ...queries.v2Tasks.get(taskRunId),
   });
 
   const timings = [];

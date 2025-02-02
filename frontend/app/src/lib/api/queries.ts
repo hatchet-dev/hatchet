@@ -8,7 +8,7 @@ type ListEventQuery = Parameters<typeof api.eventList>[1];
 type ListRateLimitsQuery = Parameters<typeof api.rateLimitList>[1];
 type ListLogLineQuery = Parameters<typeof api.logLineList>[1];
 type ListWorkflowRunsQuery = Parameters<typeof api.workflowRunList>[1];
-type V2ListTaskRunsQuery = Parameters<typeof api.v2WorkflowRunsList>[1];
+type V2ListTaskRunsQuery = Parameters<typeof api.v2TaskList>[1];
 type ListWorkflowsQuery = Parameters<typeof api.workflowList>[1];
 export type ListCloudLogsQuery = Parameters<typeof cloudApi.logList>[1];
 export type GetCloudMetricsQuery = Parameters<typeof cloudApi.metricsCpuGet>[1];
@@ -205,36 +205,31 @@ export const queries = createQueryKeyStore({
       queryFn: async () => (await api.cronWorkflowList(tenant, query)).data,
     }),
   },
-  v2WorkflowRuns: {
+  v2Tasks: {
     list: (tenant: string, query: V2ListTaskRunsQuery) => ({
-      queryKey: ['v2:workflow-run:list:step-run-events', tenant, query],
-      queryFn: async () => (await api.v2WorkflowRunsList(tenant, query)).data,
+      queryKey: ['v2-task:list', tenant, query],
+      queryFn: async () => (await api.v2TaskList(tenant, query)).data,
     }),
-    get: (tenant: string, taskRunId: string) => ({
-      queryKey: ['v2:workflow-run:get', tenant, taskRunId],
-      queryFn: async () =>
-        (await api.v2WorkflowRunGet(tenant, taskRunId)).data,
-    })
+    get: (task: string) => ({
+      queryKey: ['v2-task:get', task],
+      queryFn: async () => (await api.v2TaskGet(task)).data,
+    }),
   },
-  v2StepRunEvents: {
-    list: (
-      tenant: string,
-      workflowRun: string,
-      query: ListWorkflowRunsQuery,
-    ) => ({
-      queryKey: ['v2:workflow-run:list', tenant, workflowRun, query],
-      queryFn: async () =>
-        (await api.v2WorkflowRunListStepRunEvents(tenant, workflowRun, query))
-          .data,
+  v2TaskEvents: {
+    list: (tenant: string, task: string, query: ListWorkflowRunsQuery) => ({
+      queryKey: ['v2:workflow-run:list', tenant, task, query],
+      queryFn: async () => (await api.v2TaskEventList(task, query)).data,
     }),
   },
   v2TaskRuns: {
     metrics: (tenant: string, since: string | undefined) => ({
       queryKey: ['v2:task-run:metrics', tenant],
       queryFn: async () =>
-        (await api.taskRunGetMetrics(tenant, {
-          since,
-        })).data,
+        (
+          await api.v2TaskListStatusMetrics(tenant, {
+            since,
+          })
+        ).data,
     }),
   },
   workflowRuns: {

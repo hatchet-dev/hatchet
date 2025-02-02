@@ -20,12 +20,14 @@ components:
   schemas:
     $ref: "./components/schemas/_index.yaml"
 paths:
-  /api/v2/tenants/{tenant}/workflow-runs:
-    $ref: "./paths/v2/workflow-runs/workflow-runs.yaml#/listWorkflowRuns"
-  /api/v2/tenants/{tenant}/workflow-runs/{workflow-run}:
-    $ref: "./paths/v2/workflow-runs/workflow-runs.yaml#/getWorkflowRun"
-  /api/v2/tenants/{tenant}/workflow-runs/{workflow-run}/step-run-events:
-    $ref: "./paths/v2/workflow-runs/workflow-runs.yaml#/V2ListStepRunEventsForWorkflowRun"
+  /api/v2/tenants/{tenant}/tasks:
+    $ref: "./paths/v2/tasks/tasks.yaml#/listTasks"
+  /api/v2/tasks/{task}:
+    $ref: "./paths/v2/tasks/tasks.yaml#/getTask"
+  /api/v2/tasks/{task}/task-events:
+    $ref: "./paths/v2/tasks/tasks.yaml#/listTaskEvents"
+  /api/v2/tenants/{tenant}/task-metrics:
+    $ref: "./paths/v2/tasks/tasks.yaml#/getTaskStatusMetrics"
   /api/ready:
     $ref: "./paths/metadata/metadata.yaml#/readiness"
   /api/live:
@@ -160,8 +162,6 @@ paths:
     $ref: "./paths/workflow-run/workflow-run.yaml#/replayWorkflowRuns"
   /api/v1/tenants/{tenant}/workflows/runs/metrics:
     $ref: "./paths/workflow/workflow.yaml#/workflowRunsMetrics"
-  /api/v2/tenants/{tenant}/tasks/runs/metrics:
-    $ref: "./paths/workflow/workflow.yaml#/v2TaskRunMetrics"
   /api/v1/tenants/{tenant}/workflow-runs/{workflow-run}:
     $ref: "./paths/workflow/workflow.yaml#/workflowRun"
   /api/v1/tenants/{tenant}/workflow-runs/{workflow-run}/shape:

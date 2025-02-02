@@ -6,48 +6,48 @@ import (
 	"github.com/google/uuid"
 )
 
-type WorkflowRun struct {
-	// AdditionalMetadata Additional metadata for the workflow run.
-	AdditionalMetadata *string `json:"additionalMetadata,omitempty"`
+// type WorkflowRun struct {
+// 	// AdditionalMetadata Additional metadata for the workflow run.
+// 	AdditionalMetadata *string `json:"additionalMetadata,omitempty"`
 
-	CreatedAt time.Time `json:"createdAt"`
+// 	CreatedAt time.Time `json:"createdAt"`
 
-	// DisplayName The display name of the workflow run.
-	DisplayName *string `json:"displayName,omitempty"`
+// 	// DisplayName The display name of the workflow run.
+// 	DisplayName *string `json:"displayName,omitempty"`
 
-	// Duration The duration of the workflow run.
-	Duration *int64 `json:"duration,omitempty"`
+// 	// Duration The duration of the workflow run.
+// 	Duration *int64 `json:"duration,omitempty"`
 
-	// ErrorMessage The error message of the workflow run.
-	ErrorMessage *string `json:"errorMessage,omitempty"`
+// 	// ErrorMessage The error message of the workflow run.
+// 	ErrorMessage *string `json:"errorMessage,omitempty"`
 
-	// FinishedAt The timestamp the workflow run finished.
-	FinishedAt *time.Time `json:"finishedAt,omitempty"`
+// 	// FinishedAt The timestamp the workflow run finished.
+// 	FinishedAt *time.Time `json:"finishedAt,omitempty"`
 
-	// Id The ID of the workflow run.
-	Id uuid.UUID `json:"id"`
+// 	// Id The ID of the workflow run.
+// 	Id uuid.UUID `json:"id"`
 
-	Input string `json:"input"`
+// 	Input string `json:"input"`
 
-	Output string `json:"output"`
+// 	Output string `json:"output"`
 
-	// StartedAt The timestamp the workflow run started.
-	StartedAt *time.Time `json:"startedAt,omitempty"`
+// 	// StartedAt The timestamp the workflow run started.
+// 	StartedAt *time.Time `json:"startedAt,omitempty"`
 
-	// Status The status of the workflow run.
-	Status string `json:"status"`
+// 	// Status The status of the workflow run.
+// 	Status string `json:"status"`
 
-	// TaskId The ID of the task associated with this workflow run.
-	TaskId uuid.UUID `json:"taskId"`
+// 	// TaskId The ID of the task associated with this workflow run.
+// 	TaskId uuid.UUID `json:"taskId"`
 
-	// TenantId The ID of the tenant.
-	TenantId *uuid.UUID `json:"tenantId,omitempty"`
+// 	// TenantId The ID of the tenant.
+// 	TenantId *uuid.UUID `json:"tenantId,omitempty"`
 
-	// Timestamp The timestamp of the workflow run.
-	Timestamp time.Time `json:"timestamp"`
+// 	// Timestamp The timestamp of the workflow run.
+// 	Timestamp time.Time `json:"timestamp"`
 
-	WorkflowId uuid.UUID `json:"workflowId"`
-}
+// 	WorkflowId uuid.UUID `json:"workflowId"`
+// }
 
 type TaskRunEvent struct {
 	// Id The ID of the workflow run.
@@ -133,37 +133,6 @@ func (s ReadableTaskStatus) EnumValue() int {
 	default:
 		return -1
 	}
-}
-
-type Task struct {
-	Id                 uuid.UUID  `json:"id"`
-	SourceId           uint64     `json:"source_id"`
-	TenantId           uuid.UUID  `json:"tenant_id"`
-	WorkflowId         uuid.UUID  `json:"workflow_id"`
-	Queue              string     `json:"queue"`
-	ActionId           string     `json:"action_id"`
-	ScheduleTimeout    string     `json:"schedule_timeout"`
-	StepTimeout        string     `json:"step_timeout"`
-	Priority           int32      `json:"priority"`
-	Sticky             Sticky     `json:"sticky"`
-	DesiredWorkerId    *uuid.UUID `json:"desired_worker_id,omitempty"`
-	DisplayName        string     `json:"display_name"`
-	Input              string     `json:"input"`
-	AdditionalMetadata string     `json:"additional_metadata"`
-	InsertedAt         time.Time  `json:"inserted_at"`
-}
-
-type TaskEvent struct {
-	TaskId                 uuid.UUID  `json:"task_id"`
-	TenantId               uuid.UUID  `json:"tenant_id"`
-	EventType              EventType  `json:"event_type"`
-	Timestamp              time.Time  `json:"timestamp"`
-	RetryCount             uint32     `json:"retry_count"`
-	ErrorMsg               string     `json:"error_message"`
-	Output                 string     `json:"output"`
-	WorkerId               *uuid.UUID `json:"worker_id,omitempty"`
-	AdditionalEventData    string     `json:"additional__event_data"`
-	AdditionalEventMessage string     `json:"additional__event_message"`
 }
 
 type TaskRunMetric struct {

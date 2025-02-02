@@ -13,7 +13,7 @@ CREATE TYPE v2_sticky_strategy AS ENUM ('NONE', 'SOFT', 'HARD');
 -- CreateTable
 CREATE TABLE v2_task (
     id bigint GENERATED ALWAYS AS IDENTITY,
-    inserted_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    inserted_at TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     tenant_id UUID NOT NULL,
     queue TEXT NOT NULL,
     action_id TEXT NOT NULL,

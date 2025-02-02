@@ -1,0 +1,203 @@
+V2TaskSummary:
+  properties:
+    metadata:
+      $ref: ".././metadata.yaml#/APIResourceMeta"
+    taskId:
+      type: integer
+      description: The ID of the task.
+    taskInsertedAt:
+      type: string
+      format: date-time
+      description: The timestamp the task was inserted.
+    status:
+      $ref: "#/V2TaskStatus"
+    startedAt:
+      type: string
+      format: date-time
+      description: The timestamp the task run started.
+    finishedAt:
+      type: string
+      format: date-time
+      description: The timestamp the task run finished.
+    duration:
+      type: integer
+      description: The duration of the task run, in milliseconds.
+    tenantId:
+      type: string
+      description: The ID of the tenant.
+      example: bb214807-246e-43a5-a25d-41761d1cff9e
+      minLength: 36
+      maxLength: 36
+      format: uuid
+    additionalMetadata:
+      type: object
+      description: Additional metadata for the task run.
+    displayName:
+      type: string
+      description: The display name of the task run.
+    workflowId:
+      type: string
+      format: uuid
+  required:
+    - metadata
+    - id
+    - taskId
+    - taskInsertedAt
+    - status
+    - tenantId
+    - displayName
+    - workflowId
+
+V2TaskSummaryList:
+  type: object
+  properties:
+    pagination:
+      $ref: ".././metadata.yaml#/PaginationResponse"
+    rows:
+      type: array
+      items:
+        $ref: "#/V2TaskSummary"
+      description: The list of tasks
+  required:
+    - pagination
+    - rows
+
+V2Task:
+  properties:
+    metadata:
+      $ref: ".././metadata.yaml#/APIResourceMeta"
+    taskId:
+      type: integer
+      description: The ID of the task.
+    taskInsertedAt:
+      type: string
+      format: date-time
+      description: The timestamp the task was inserted.
+    status:
+      $ref: "#/V2TaskStatus"
+    startedAt:
+      type: string
+      format: date-time
+      description: The timestamp the task run started.
+    finishedAt:
+      type: string
+      format: date-time
+      description: The timestamp the task run finished.
+    duration:
+      type: integer
+      description: The duration of the task run, in milliseconds.
+    tenantId:
+      type: string
+      description: The ID of the tenant.
+      example: bb214807-246e-43a5-a25d-41761d1cff9e
+      minLength: 36
+      maxLength: 36
+      format: uuid
+    additionalMetadata:
+      type: object
+      description: Additional metadata for the task run.
+    displayName:
+      type: string
+      description: The display name of the task run.
+    workflowId:
+      type: string
+      format: uuid
+    input:
+      type: string
+      description: The input for the task run.
+  required:
+    - metadata
+    - id
+    - taskId
+    - taskInsertedAt
+    - status
+    - tenantId
+    - displayName
+    - workflowId
+    - input
+
+V2TaskEventList:
+  properties:
+    pagination:
+      $ref: ".././metadata.yaml#/PaginationResponse"
+    rows:
+      items:
+        $ref: "#/V2TaskEvent"
+      type: array
+
+V2TaskEvent:
+  type: object
+  properties:
+    id:
+      type: integer
+    taskId:
+      type: string
+      format: uuid
+    timestamp:
+      type: string
+      format: date-time
+    eventType:
+      $ref: "#/V2TaskEventType"
+    message:
+      type: string
+    errorMessage:
+      type: string
+    output:
+      type: string
+    workerId:
+      type: string
+      format: uuid
+  required:
+    - id
+    - taskId
+    - timestamp
+    - eventType
+    - message
+
+V2TaskStatus:
+  type: string
+  enum:
+    - QUEUED
+    - RUNNING
+    - COMPLETED
+    - CANCELLED
+    - FAILED
+
+V2TaskEventType:
+  type: string
+  enum:
+    - REQUEUED_NO_WORKER
+    - REQUEUED_RATE_LIMIT
+    - SCHEDULING_TIMED_OUT
+    - ASSIGNED
+    - STARTED
+    - FINISHED
+    - FAILED
+    - RETRYING
+    - CANCELLED
+    - TIMED_OUT
+    - REASSIGNED
+    - SLOT_RELEASED
+    - TIMEOUT_REFRESHED
+    - RETRIED_BY_USER
+    - SENT_TO_WORKER
+    - RATE_LIMIT_ERROR
+    - ACKNOWLEDGED
+    - CREATED
+    - QUEUED
+
+V2TaskRunMetrics:
+  type: array
+  items:
+    $ref: "#/V2TaskRunMetric"
+
+V2TaskRunMetric:
+  type: object
+  properties:
+    status:
+      $ref: "#/V2TaskStatus"
+    count:
+      type: integer
+  required:
+    - status
+    - count

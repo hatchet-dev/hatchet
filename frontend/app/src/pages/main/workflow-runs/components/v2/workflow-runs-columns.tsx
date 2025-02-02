@@ -110,7 +110,7 @@ export const columns: (
       return (
         <div className="whitespace-nowrap">
           {row.original.metadata.createdAt ? (
-            <RelativeDate date={row.original.createdAt} />
+            <RelativeDate date={row.original.metadata.createdAt} />
           ) : (
             'N/A'
           )}

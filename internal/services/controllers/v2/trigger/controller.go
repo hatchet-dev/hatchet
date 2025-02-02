@@ -20,9 +20,9 @@ import (
 	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/olap"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 	v2 "github.com/hatchet-dev/hatchet/pkg/repository/v2"
+	"github.com/hatchet-dev/hatchet/pkg/repository/v2/timescalev2"
 )
 
 type TriggerController interface {
@@ -341,14 +341,12 @@ func (tc *TriggerControllerImpl) createTasks(ctx context.Context, tenantId strin
 			continue
 		}
 
-		taskExternalId := sqlchelpers.UUIDToStr(task.ExternalID)
-
 		olapMsg, err := tasktypes.MonitoringEventMessageFromInternal(
 			tenantId,
 			tasktypes.CreateMonitoringEventPayload{
-				TaskExternalId: &taskExternalId,
+				TaskId:         task.ID,
 				RetryCount:     0,
-				EventType:      olap.EVENT_TYPE_QUEUED,
+				EventType:      timescalev2.V2EventTypeOlapQUEUED,
 				EventTimestamp: time.Now(),
 			},
 		)

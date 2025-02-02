@@ -22,8 +22,8 @@ import (
 	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/olap"
 	v2 "github.com/hatchet-dev/hatchet/pkg/repository/v2"
+	"github.com/hatchet-dev/hatchet/pkg/repository/v2/timescalev2"
 )
 
 type TasksController interface {
@@ -345,9 +345,9 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId st
 		olapMsg, err := tasktypes.MonitoringEventMessageFromInternal(
 			tenantId,
 			tasktypes.CreateMonitoringEventPayload{
-				TaskId:         &taskId,
+				TaskId:         taskId,
 				RetryCount:     task.RetryCount,
-				EventType:      olap.EVENT_TYPE_QUEUED,
+				EventType:      timescalev2.V2EventTypeOlapQUEUED,
 				EventTimestamp: time.Now(),
 			},
 		)
@@ -400,7 +400,7 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 		olapMsg, err := tasktypes.MonitoringEventMessageFromInternal(
 			tenantId,
 			tasktypes.CreateMonitoringEventPayload{
-				TaskId:         &taskId,
+				TaskId:         taskId,
 				RetryCount:     msg.RetryCount,
 				EventType:      msg.EventType,
 				EventTimestamp: time.Now(),

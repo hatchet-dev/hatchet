@@ -1,5 +1,5 @@
 import { createColumnHelper } from '@tanstack/react-table';
-import { V2EventType, V2StepRunEvent, StepRunEventSeverity } from '@/lib/api';
+import { V2TaskEventType, V2TaskEvent, StepRunEventSeverity } from '@/lib/api';
 import RelativeDate from '@/components/molecules/relative-date';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -22,32 +22,34 @@ import {
 import StepRunError from './step-run-detail/step-run-error';
 
 function eventTypeToSeverity(
-  eventType: V2EventType | undefined,
+  eventType: V2TaskEventType | undefined,
 ): StepRunEventSeverity {
   switch (eventType) {
-    case V2EventType.FAILED:
-    case V2EventType.RATE_LIMIT_ERROR:
-    case V2EventType.SCHEDULING_TIMED_OUT:
-    case V2EventType.TIMED_OUT:
-    case V2EventType.CANCELLED:
+    case V2TaskEventType.FAILED:
+    case V2TaskEventType.RATE_LIMIT_ERROR:
+    case V2TaskEventType.SCHEDULING_TIMED_OUT:
+    case V2TaskEventType.TIMED_OUT:
+    case V2TaskEventType.CANCELLED:
       return StepRunEventSeverity.CRITICAL;
-    case V2EventType.REASSIGNED:
-    case V2EventType.REQUEUED_NO_WORKER:
-    case V2EventType.REQUEUED_RATE_LIMIT:
-    case V2EventType.RETRIED_BY_USER:
-    case V2EventType.RETRYING:
+    case V2TaskEventType.REASSIGNED:
+    case V2TaskEventType.REQUEUED_NO_WORKER:
+    case V2TaskEventType.REQUEUED_RATE_LIMIT:
+    case V2TaskEventType.RETRIED_BY_USER:
+    case V2TaskEventType.RETRYING:
       return StepRunEventSeverity.WARNING;
     default:
       return StepRunEventSeverity.INFO;
   }
 }
 
-const columnHelper = createColumnHelper<V2StepRunEvent>();
+const columnHelper = createColumnHelper<V2TaskEvent>();
 
 export const columns = ({
   onRowClick,
+  taskDisplayName,
 }: {
-  onRowClick: (row: V2StepRunEvent) => void;
+  onRowClick: (row: V2TaskEvent) => void;
+  taskDisplayName: string;
 }) => {
   return [
     columnHelper.accessor((row) => row.id, {
@@ -64,9 +66,7 @@ export const columns = ({
               onClick={() => onRowClick(row.original)}
             >
               <ArrowLeftEndOnRectangleIcon className="w-4 h-4 mr-1" />
-              <div className="truncate max-w-[150px]">
-                {row.original.taskDisplayName}
-              </div>
+              <div className="truncate max-w-[150px]">{taskDisplayName}</div>
             </Badge>
           </div>
         );
@@ -87,20 +87,20 @@ export const columns = ({
       enableSorting: false,
       enableHiding: false,
     }),
-    columnHelper.accessor((row) => eventTypeToSeverity(row.event_type), {
+    columnHelper.accessor((row) => eventTypeToSeverity(row.eventType), {
       id: 'event',
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title="Event" />
       ),
       cell: ({ row }) => {
         const event = row.original;
-        const severity = eventTypeToSeverity(event.event_type);
+        const severity = eventTypeToSeverity(event.eventType);
 
         return (
           <div className="flex flex-row items-center gap-2">
             <EventIndicator severity={severity} />
             <div className="tracking-wide text-sm flex flex-row gap-4">
-              {mapEventTypeToTitle(event.event_type)}
+              {mapEventTypeToTitle(event.eventType)}
             </div>
           </div>
         );
@@ -108,7 +108,7 @@ export const columns = ({
       enableSorting: false,
       enableHiding: false,
     }),
-    columnHelper.accessor((row) => row.worker_id, {
+    columnHelper.accessor((row) => row.workerId, {
       id: 'description',
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title="Description" />
@@ -117,27 +117,23 @@ export const columns = ({
         const items: JSX.Element[] = [];
         const event = row.original;
 
-        if (event.event_type === V2EventType.FAILED) {
+        if (event.eventType === V2TaskEventType.FAILED) {
           items.push(<ErrorWithHoverCard event={row.original} />);
         }
 
-        if (event.data) {
-          const data = event.data as any;
-
-          if (data.worker_id) {
-            items.push(
-              <Link to={`/workers/${data.worker_id}`}>
-                <Button
-                  variant="link"
-                  size="xs"
-                  className="font-mono text-xs text-muted-foreground tracking-tight brightness-150"
-                >
-                  <ServerStackIcon className="w-4 h-4 mr-1" />
-                  View Worker
-                </Button>
-              </Link>,
-            );
-          }
+        if (event.workerId) {
+          items.push(
+            <Link to={`/workers/${event.workerId}`}>
+              <Button
+                variant="link"
+                size="xs"
+                className="font-mono text-xs text-muted-foreground tracking-tight brightness-150"
+              >
+                <ServerStackIcon className="w-4 h-4 mr-1" />
+                View Worker
+              </Button>
+            </Link>,
+          );
         }
 
         return (
@@ -157,45 +153,45 @@ export const columns = ({
   ];
 };
 
-function mapEventTypeToTitle(eventType: V2EventType | undefined): string {
+function mapEventTypeToTitle(eventType: V2TaskEventType | undefined): string {
   switch (eventType) {
-    case V2EventType.ASSIGNED:
+    case V2TaskEventType.ASSIGNED:
       return 'Assigned to worker';
-    case V2EventType.STARTED:
+    case V2TaskEventType.STARTED:
       return 'Started';
-    case V2EventType.FINISHED:
+    case V2TaskEventType.FINISHED:
       return 'Completed';
-    case V2EventType.FAILED:
+    case V2TaskEventType.FAILED:
       return 'Failed';
-    case V2EventType.CANCELLED:
+    case V2TaskEventType.CANCELLED:
       return 'Cancelled';
-    case V2EventType.RETRYING:
+    case V2TaskEventType.RETRYING:
       return 'Retrying';
-    case V2EventType.REQUEUED_NO_WORKER:
+    case V2TaskEventType.REQUEUED_NO_WORKER:
       return 'Requeuing (no worker available)';
-    case V2EventType.REQUEUED_RATE_LIMIT:
+    case V2TaskEventType.REQUEUED_RATE_LIMIT:
       return 'Requeuing (rate limit)';
-    case V2EventType.SCHEDULING_TIMED_OUT:
+    case V2TaskEventType.SCHEDULING_TIMED_OUT:
       return 'Scheduling timed out';
-    case V2EventType.TIMEOUT_REFRESHED:
+    case V2TaskEventType.TIMEOUT_REFRESHED:
       return 'Timeout refreshed';
-    case V2EventType.REASSIGNED:
+    case V2TaskEventType.REASSIGNED:
       return 'Reassigned';
-    case V2EventType.TIMED_OUT:
+    case V2TaskEventType.TIMED_OUT:
       return 'Execution timed out';
-    case V2EventType.SLOT_RELEASED:
+    case V2TaskEventType.SLOT_RELEASED:
       return 'Slot released';
-    case V2EventType.RETRIED_BY_USER:
+    case V2TaskEventType.RETRIED_BY_USER:
       return 'Replayed by user';
-    case V2EventType.ACKNOWLEDGED:
+    case V2TaskEventType.ACKNOWLEDGED:
       return 'Acknowledged by worker';
-    case V2EventType.CREATED:
+    case V2TaskEventType.CREATED:
       return 'Created';
-    case V2EventType.RATE_LIMIT_ERROR:
+    case V2TaskEventType.RATE_LIMIT_ERROR:
       return 'Rate limit error';
-    case V2EventType.SENT_TO_WORKER:
+    case V2TaskEventType.SENT_TO_WORKER:
       return 'Sent to worker';
-    case V2EventType.QUEUED:
+    case V2TaskEventType.QUEUED:
       return 'Queued';
     case undefined:
       return 'Unknown';
@@ -222,10 +218,10 @@ function EventIndicator({ severity }: { severity: StepRunEventSeverity }) {
   );
 }
 
-function ErrorWithHoverCard({ event }: { event: V2StepRunEvent }) {
+function ErrorWithHoverCard({ event }: { event: V2TaskEvent }) {
   const { tenant } = useOutletContext<TenantContextType>();
   invariant(tenant);
-  invariant(event.taskId);
+  // invariant(event.taskId);
 
   const [popoverOpen, setPopoverOpen] = useState(false);
 
@@ -273,11 +269,11 @@ function ErrorWithHoverCard({ event }: { event: V2StepRunEvent }) {
   );
 }
 
-function ErrorHoverContents({ event }: { event: V2StepRunEvent }) {
+function ErrorHoverContents({ event }: { event: V2TaskEvent }) {
   // We cannot call this component without stepRun being defined.
-  invariant(event.taskId);
+  // invariant(event.taskId);
 
-  const errorText = event.error_message;
+  const errorText = event.errorMessage;
 
   if (!errorText) {
     return <StepRunError text="No error message found" />;

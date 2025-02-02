@@ -1825,24 +1825,24 @@ type V2QueueItem struct {
 }
 
 type V2Task struct {
-	ID                 int64            `json:"id"`
-	InsertedAt         pgtype.Timestamp `json:"inserted_at"`
-	TenantID           pgtype.UUID      `json:"tenant_id"`
-	Queue              string           `json:"queue"`
-	ActionID           string           `json:"action_id"`
-	StepID             pgtype.UUID      `json:"step_id"`
-	WorkflowID         pgtype.UUID      `json:"workflow_id"`
-	ScheduleTimeout    string           `json:"schedule_timeout"`
-	StepTimeout        pgtype.Text      `json:"step_timeout"`
-	Priority           pgtype.Int4      `json:"priority"`
-	Sticky             V2StickyStrategy `json:"sticky"`
-	DesiredWorkerID    pgtype.UUID      `json:"desired_worker_id"`
-	ExternalID         pgtype.UUID      `json:"external_id"`
-	DisplayName        string           `json:"display_name"`
-	Input              []byte           `json:"input"`
-	RetryCount         int32            `json:"retry_count"`
-	InternalRetryCount int32            `json:"internal_retry_count"`
-	AppRetryCount      int32            `json:"app_retry_count"`
+	ID                 int64              `json:"id"`
+	InsertedAt         pgtype.Timestamptz `json:"inserted_at"`
+	TenantID           pgtype.UUID        `json:"tenant_id"`
+	Queue              string             `json:"queue"`
+	ActionID           string             `json:"action_id"`
+	StepID             pgtype.UUID        `json:"step_id"`
+	WorkflowID         pgtype.UUID        `json:"workflow_id"`
+	ScheduleTimeout    string             `json:"schedule_timeout"`
+	StepTimeout        pgtype.Text        `json:"step_timeout"`
+	Priority           pgtype.Int4        `json:"priority"`
+	Sticky             V2StickyStrategy   `json:"sticky"`
+	DesiredWorkerID    pgtype.UUID        `json:"desired_worker_id"`
+	ExternalID         pgtype.UUID        `json:"external_id"`
+	DisplayName        string             `json:"display_name"`
+	Input              []byte             `json:"input"`
+	RetryCount         int32              `json:"retry_count"`
+	InternalRetryCount int32              `json:"internal_retry_count"`
+	AppRetryCount      int32              `json:"app_retry_count"`
 }
 
 type V2TaskEvent struct {

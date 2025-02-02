@@ -115,7 +115,7 @@ export const V2StepRunOutput = (props: { taskRunId: string }) => {
   }
 
   const { isLoading, data } = useQuery({
-    ...queries.v2WorkflowRuns.get(tenantId, props.taskRunId),
+    ...queries.v2Tasks.get(props.taskRunId),
   });
 
   if (isLoading || !data) {
@@ -128,7 +128,8 @@ export const V2StepRunOutput = (props: { taskRunId: string }) => {
       language="json"
       maxHeight="400px"
       minHeight="400px"
-      code={JSON.stringify(data.output, null, 2)}
+      // TODO: FIX
+      code={JSON.stringify({}, null, 2)}
     />
   );
 };

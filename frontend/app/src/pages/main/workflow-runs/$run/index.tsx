@@ -62,7 +62,7 @@ export default function ExpandedWorkflowRun() {
   }, [params.run, sidebarState]);
 
   const taskRunQuery = useQuery({
-    ...queries.v2WorkflowRuns.get(tenantId, params.run),
+    ...queries.v2Tasks.get(params.run),
   });
 
   if (taskRunQuery.isLoading) {
@@ -125,18 +125,21 @@ export default function ExpandedWorkflowRun() {
             {
               <StepRunEvents
                 taskRunId={params.run}
-                onClick={(stepRunId) =>
+                taskDisplayName={taskRun.displayName}
+                onClick={(stepRunId) => {
                   setSidebarState(
                     stepRunId == sidebarState?.stepRunId
                       ? undefined
                       : { stepRunId, workflowRunId: params.run },
-                  )
-                }
+                  );
+                }}
               />
             }
           </TabsContent>
           <TabsContent value="input">
-            {inputData && <WorkflowRunInputDialog input={inputData} />}
+            {inputData && (
+              <WorkflowRunInputDialog input={JSON.parse(inputData)} />
+            )}
           </TabsContent>
           <TabsContent value="additional-metadata">
             <CodeHighlighter

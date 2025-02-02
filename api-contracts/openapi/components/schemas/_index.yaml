@@ -172,8 +172,6 @@ WorkflowRunOrderByDirection:
   $ref: "./workflow_run.yaml#/WorkflowRunOrderByDirection"
 WorkflowRunsMetrics:
   $ref: "./workflow_run.yaml#/WorkflowRunsMetrics"
-V2TaskRunMetrics:
-  $ref: "./workflow_run.yaml#/V2TaskRunMetrics"
 WorkflowRunsMetricsCounts:
   $ref: "./workflow_run.yaml#/WorkflowRunsMetricsCounts"
 WorkflowRunStatus:
@@ -296,11 +294,15 @@ WebhookWorkerCreateResponse:
   $ref: "./webhook_worker.yaml#/WebhookWorkerCreateResponse"
 WebhookWorkerListResponse:
   $ref: "./webhook_worker.yaml#/WebhookWorkerListResponse"
-V2WorkflowRuns:
-  $ref: "./v2/workflow_run.yaml#/V2WorkflowRuns"
-V2WorkflowRun:
-  $ref: "./v2/workflow_run.yaml#/V2WorkflowRun"
-V2ListStepRunEventsForWorkflowRun:
-  $ref: "./v2/workflow_run.yaml#/V2ListStepRunEventsForWorkflowRun"
+V2TaskSummaryList:
+  $ref: "./v2/task.yaml#/V2TaskSummaryList"
+V2TaskSummary:
+  $ref: "./v2/task.yaml#/V2TaskSummary"
+V2Task:
+  $ref: "./v2/task.yaml#/V2Task"
+V2TaskEventList:
+  $ref: "./v2/task.yaml#/V2TaskEventList"
 V2TaskStatus:
-  $ref: "./v2/workflow_run.yaml#/V2TaskStatus"
+  $ref: "./v2/task.yaml#/V2TaskStatus"
+V2TaskRunMetrics:
+  $ref: "./v2/task.yaml#/V2TaskRunMetrics"

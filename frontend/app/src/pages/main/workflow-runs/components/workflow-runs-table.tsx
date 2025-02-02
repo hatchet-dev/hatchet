@@ -14,7 +14,7 @@ import api, {
   queries,
   ReplayWorkflowRunsRequest,
   V2TaskStatus,
-  V2WorkflowRun,
+  V2TaskSummary,
 } from '@/lib/api';
 import { TenantContextType } from '@/lib/outlet';
 import { useOutletContext, useSearchParams } from 'react-router-dom';
@@ -72,7 +72,7 @@ export interface WorkflowRunsTableProps {
 }
 
 // TODO: Clean this up
-export type ListableWorkflowRun = V2WorkflowRun & {
+export type ListableWorkflowRun = V2TaskSummary & {
   workflowName: string | undefined;
   triggeredBy: string;
   workflowVersionId: string;
@@ -261,8 +261,8 @@ export function WorkflowRunsTable({
     return filter?.value as Array<V2TaskStatus>;
   }, [columnFilters]);
 
-  const listWorkflowRunsQuery = useQuery({
-    ...queries.v2WorkflowRuns.list(tenant.metadata.id, {
+  const listTasksQuery = useQuery({
+    ...queries.v2Tasks.list(tenant.metadata.id, {
       offset,
       limit: pagination.pageSize,
       statuses,
@@ -299,8 +299,8 @@ export function WorkflowRunsTable({
   const selectedRuns = useMemo(() => {
     return Object.entries(rowSelection)
       .filter(([, selected]) => !!selected)
-      .map(([id]) => (listWorkflowRunsQuery.data?.rows || [])[Number(id)]);
-  }, [listWorkflowRunsQuery.data?.rows, rowSelection]);
+      .map(([id]) => (listTasksQuery.data?.rows || [])[Number(id)]);
+  }, [listTasksQuery.data?.rows, rowSelection]);
 
   const { handleApiError } = useApiError({});
 
@@ -337,7 +337,7 @@ export function WorkflowRunsTable({
 
       // bit hacky, but workflow run statuses aren't updated immediately after replay
       setTimeout(() => {
-        listWorkflowRunsQuery.refetch();
+        listTasksQuery.refetch();
       }, 1000);
     },
     onError: handleApiError,
@@ -399,7 +399,7 @@ export function WorkflowRunsTable({
   const [rotate, setRotate] = useState(false);
 
   const refetch = () => {
-    listWorkflowRunsQuery.refetch();
+    listTasksQuery.refetch();
     tenantMetricsQuery.refetch();
     metricsQuery.refetch();
   };
@@ -453,7 +453,7 @@ export function WorkflowRunsTable({
   ];
 
   const isLoading =
-    listWorkflowRunsQuery.isFetching ||
+    listTasksQuery.isFetching ||
     workflowKeysIsLoading ||
     metricsQuery.isLoading;
 
@@ -476,16 +476,16 @@ export function WorkflowRunsTable({
     });
   };
 
-  const data: ListableWorkflowRun[] = (
-    listWorkflowRunsQuery.data?.rows || []
-  ).map((row) => ({
-    ...row,
-    workflowVersionId: 'first version',
-    triggeredBy: 'manual',
-    workflowName: workflowKeys?.rows?.find(
-      (r) => r.metadata.id == row.workflowId,
-    )?.name,
-  }));
+  const data: ListableWorkflowRun[] = (listTasksQuery.data?.rows || []).map(
+    (row) => ({
+      ...row,
+      workflowVersionId: 'first version',
+      triggeredBy: 'manual',
+      workflowName: workflowKeys?.rows?.find(
+        (r) => r.metadata.id == row.workflowId,
+      )?.name,
+    }),
+  );
 
   return (
     <>
@@ -648,7 +648,7 @@ export function WorkflowRunsTable({
         onSetPageSize={setPageSize}
         rowSelection={rowSelection}
         setRowSelection={setRowSelection}
-        pageCount={listWorkflowRunsQuery.data?.pagination?.num_pages || 0}
+        pageCount={listTasksQuery.data?.pagination?.num_pages || 0}
         showColumnToggle={true}
       />
     </>

@@ -2,7 +2,7 @@ package tasktypes
 
 import (
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
-	"github.com/hatchet-dev/hatchet/pkg/repository/olap"
+	"github.com/hatchet-dev/hatchet/pkg/repository/v2/timescalev2"
 )
 
 type TriggerTaskPayload struct {
@@ -88,10 +88,10 @@ type CancelledTaskPayload struct {
 	RetryCount int32
 
 	// (required) the reason for cancellation
-	EventType olap.EventType
+	EventType timescalev2.V2EventTypeOlap
 }
 
-func CancelledTaskMessage(tenantId string, taskId int64, retryCount int32, eventType olap.EventType) (*msgqueue.Message, error) {
+func CancelledTaskMessage(tenantId string, taskId int64, retryCount int32, eventType timescalev2.V2EventTypeOlap) (*msgqueue.Message, error) {
 	return msgqueue.NewSingletonTenantMessage(
 		tenantId,
 		"task-cancelled",

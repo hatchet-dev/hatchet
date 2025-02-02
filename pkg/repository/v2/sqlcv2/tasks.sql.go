@@ -379,6 +379,7 @@ func (q *Queries) ListTablePartitionsBeforeDate(ctx context.Context, db DBTX, da
 const listTaskMetas = `-- name: ListTaskMetas :many
 SELECT
     id,
+    inserted_at,
     external_id,
     retry_count
 FROM
@@ -394,9 +395,10 @@ type ListTaskMetasParams struct {
 }
 
 type ListTaskMetasRow struct {
-	ID         int64       `json:"id"`
-	ExternalID pgtype.UUID `json:"external_id"`
-	RetryCount int32       `json:"retry_count"`
+	ID         int64              `json:"id"`
+	InsertedAt pgtype.Timestamptz `json:"inserted_at"`
+	ExternalID pgtype.UUID        `json:"external_id"`
+	RetryCount int32              `json:"retry_count"`
 }
 
 func (q *Queries) ListTaskMetas(ctx context.Context, db DBTX, arg ListTaskMetasParams) ([]*ListTaskMetasRow, error) {
@@ -408,7 +410,12 @@ func (q *Queries) ListTaskMetas(ctx context.Context, db DBTX, arg ListTaskMetasP
 	var items []*ListTaskMetasRow
 	for rows.Next() {
 		var i ListTaskMetasRow
-		if err := rows.Scan(&i.ID, &i.ExternalID, &i.RetryCount); err != nil {
+		if err := rows.Scan(
+			&i.ID,
+			&i.InsertedAt,
+			&i.ExternalID,
+			&i.RetryCount,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)
