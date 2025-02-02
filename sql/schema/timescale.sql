@@ -88,6 +88,7 @@ CREATE TYPE v2_readable_status_olap AS ENUM (
 CREATE TABLE v2_task_events_olap (
     tenant_id UUID NOT NULL,
     id bigint GENERATED ALWAYS AS IDENTITY,
+    inserted_at TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     task_id BIGINT NOT NULL,
     task_inserted_at TIMESTAMPTZ(3) NOT NULL,
     event_type v2_event_type_olap NOT NULL,
@@ -107,8 +108,10 @@ CREATE INDEX v2_task_events_olap_task_id_idx ON v2_task_events_olap (task_id);
 
 SELECT * from create_hypertable('v2_task_events_olap', by_range('task_inserted_at',  INTERVAL '1 day'));
 
+SELECT enable_chunk_skipping('v2_task_events_olap', 'inserted_at');
+
 CREATE MATERIALIZED VIEW v2_cagg_task_status
-WITH (timescaledb.continuous, timescaledb.materialized_only = false, timescaledb.create_group_indexes = false) AS
+WITH (timescaledb.continuous, timescaledb.materialized_only = true, timescaledb.create_group_indexes = false) AS
 SELECT
   tenant_id,
   task_id,
@@ -125,11 +128,11 @@ CREATE INDEX v2_cagg_task_status_bucket_tenant_id_status_idx ON v2_cagg_task_sta
 
 SELECT add_continuous_aggregate_policy('v2_cagg_task_status',
   start_offset => NULL,
-  end_offset => INTERVAL '1 minute',
-  schedule_interval => INTERVAL '1 minute');
+  end_offset => NULL,
+  schedule_interval => INTERVAL '15 seconds');
 
 CREATE  MATERIALIZED VIEW v2_cagg_status_metrics
-   WITH (timescaledb.continuous, timescaledb.materialized_only = false)
+   WITH (timescaledb.continuous, timescaledb.materialized_only = true)
    AS
       SELECT
         time_bucket('5 minutes', bucket) AS bucket_2,
@@ -146,5 +149,25 @@ WITH NO DATA;
 
 SELECT add_continuous_aggregate_policy('v2_cagg_status_metrics',
   start_offset => NULL,
-  end_offset => INTERVAL '1 minute',
-  schedule_interval => INTERVAL '1 minute');
+  end_offset => NULL,
+  schedule_interval => INTERVAL '15 seconds');
+
+CREATE MATERIALIZED VIEW v2_cagg_task_events_minute
+WITH (timescaledb.continuous, timescaledb.materialized_only = true) AS
+SELECT
+    time_bucket('1 minute', task_inserted_at) AS bucket,
+    tenant_id,
+    COUNT(*) FILTER (WHERE readable_status = 'QUEUED') AS queued_count,
+    COUNT(*) FILTER (WHERE readable_status = 'RUNNING') AS running_count,
+    COUNT(*) FILTER (WHERE readable_status = 'COMPLETED') AS completed_count,
+    COUNT(*) FILTER (WHERE readable_status = 'CANCELLED') AS cancelled_count,
+    COUNT(*) FILTER (WHERE readable_status = 'FAILED') AS failed_count
+FROM v2_task_events_olap
+GROUP BY bucket, tenant_id
+ORDER BY bucket
+WITH NO DATA;
+
+SELECT add_continuous_aggregate_policy('v2_cagg_task_events_minute',
+  start_offset => NULL,
+  end_offset => NULL, 
+  schedule_interval => INTERVAL '15 seconds');

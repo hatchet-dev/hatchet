@@ -158,8 +158,38 @@ func (ns NullV2StickyStrategyOlap) Value() (driver.Value, error) {
 	return string(ns.V2StickyStrategyOlap), nil
 }
 
+type TimescaledbInformationContinuousAggregates struct {
+	MaterializationHypertableName string `json:"materialization_hypertable_name"`
+}
+
+type TimescaledbInformationJobHistory struct {
+	JobID     int64            `json:"job_id"`
+	StartTime pgtype.Timestamp `json:"start_time"`
+	Succeeded bool             `json:"succeeded"`
+}
+
+type TimescaledbInformationJobStats struct {
+	JobID                int64            `json:"job_id"`
+	LastSuccessfulFinish pgtype.Timestamp `json:"last_successful_finish"`
+}
+
+type TimescaledbInformationJobs struct {
+	JobID          int64  `json:"job_id"`
+	HypertableName string `json:"hypertable_name"`
+}
+
 type V2CaggStatusMetrics struct {
 	Bucket2        interface{} `json:"bucket_2"`
+	TenantID       pgtype.UUID `json:"tenant_id"`
+	QueuedCount    int64       `json:"queued_count"`
+	RunningCount   int64       `json:"running_count"`
+	CompletedCount int64       `json:"completed_count"`
+	CancelledCount int64       `json:"cancelled_count"`
+	FailedCount    int64       `json:"failed_count"`
+}
+
+type V2CaggTaskEventsMinute struct {
+	Bucket         interface{} `json:"bucket"`
 	TenantID       pgtype.UUID `json:"tenant_id"`
 	QueuedCount    int64       `json:"queued_count"`
 	RunningCount   int64       `json:"running_count"`
@@ -180,6 +210,7 @@ type V2CaggTaskStatus struct {
 type V2TaskEventsOlap struct {
 	TenantID               pgtype.UUID          `json:"tenant_id"`
 	ID                     int64                `json:"id"`
+	InsertedAt             pgtype.Timestamptz   `json:"inserted_at"`
 	TaskID                 int64                `json:"task_id"`
 	TaskInsertedAt         pgtype.Timestamptz   `json:"task_inserted_at"`
 	EventType              V2EventTypeOlap      `json:"event_type"`

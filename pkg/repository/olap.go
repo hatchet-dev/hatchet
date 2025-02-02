@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	lru "github.com/hashicorp/golang-lru/v2"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -21,7 +23,7 @@ import (
 
 type OLAPEventRepository interface {
 	ReadTaskRun(taskExternalId string) (*timescalev2.V2TasksOlap, error)
-	ListTaskRuns(tenantId string, since time.Time, statuses []gen.V2TaskStatus, workflowIds []uuid.UUID, limit, offset int64) ([]*timescalev2.ListTasksRow, int, error)
+	ListTaskRuns(tenantId string, since time.Time, statuses []gen.V2TaskStatus, workflowIds []uuid.UUID, limit, offset int64) ([]*timescalev2.PopulateTaskRunDataRow, int, error)
 	ListTaskRunEvents(tenantId string, taskId int64, taskInsertedAt pgtype.Timestamptz, limit, offset int64) ([]*timescalev2.ListTaskEventsRow, error)
 	ReadTaskRunMetrics(tenantId string, since time.Time) ([]olap.TaskRunMetric, error)
 	CreateTasks(tenantId string, tasks []*sqlcv2.V2Task) error
@@ -110,13 +112,89 @@ func (r *olapEventRepository) ReadTaskRun(taskExternalId string) (*timescalev2.V
 	return r.queries.ReadTaskByExternalID(context.Background(), r.pool, sqlchelpers.UUIDFromStr(taskExternalId))
 }
 
-func (r *olapEventRepository) ListTaskRuns(tenantId string, since time.Time, statuses []gen.V2TaskStatus, workflowIds []uuid.UUID, limit, offset int64) ([]*timescalev2.ListTasksRow, int, error) {
-	rows, err := r.queries.ListTasks(context.Background(), r.pool, timescalev2.ListTasksParams{
-		Tenantid:     sqlchelpers.UUIDFromStr(tenantId),
-		Createdafter: sqlchelpers.TimestamptzFromTime(since),
-	})
+func (r *olapEventRepository) ListTaskRuns(tenantId string, since time.Time, statuses []gen.V2TaskStatus, workflowIds []uuid.UUID, limit, offset int64) ([]*timescalev2.PopulateTaskRunDataRow, int, error) {
+	tx, err := r.pool.Begin(context.Background())
 
 	if err != nil {
+		return nil, 0, err
+	}
+
+	defer tx.Rollback(context.Background())
+
+	lastSucceededAggTs, err := r.queries.LastSucceededStatusAggregate(context.Background(), tx)
+
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return nil, 0, err
+	}
+
+	if !lastSucceededAggTs.Valid {
+		lastSucceededAggTs = sqlchelpers.TimestamptzFromTime(time.Time{}) // zero value
+	}
+
+	taskIds := make([]int64, 0)
+	tenantIds := make([]pgtype.UUID, 0)
+	taskInsertedAts := make([]pgtype.Timestamptz, 0)
+	retryCounts := make([]int32, 0)
+	queryStatuses := make([]string, 0)
+
+	realTimeTasks, err := r.queries.ListTasksRealTime(context.Background(), tx, timescalev2.ListTasksRealTimeParams{
+		Tenantid:      sqlchelpers.UUIDFromStr(tenantId),
+		Insertedafter: lastSucceededAggTs,
+		Limit: pgtype.Int4{
+			Int32: int32(limit),
+			Valid: true,
+		},
+	})
+
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return nil, 0, err
+	}
+
+	for _, task := range realTimeTasks {
+		taskIds = append(taskIds, task.TaskID)
+		tenantIds = append(tenantIds, task.TenantID)
+		taskInsertedAts = append(taskInsertedAts, task.TaskInsertedAt)
+		retryCounts = append(retryCounts, task.MaxRetryCount)
+		queryStatuses = append(queryStatuses, string(task.Status))
+	}
+
+	if len(taskIds) != int(limit) {
+		historicalTasks, err := r.queries.ListTasksFromAggregate(context.Background(), tx, timescalev2.ListTasksFromAggregateParams{
+			Tenantid:     sqlchelpers.UUIDFromStr(tenantId),
+			Createdafter: sqlchelpers.TimestamptzFromTime(since),
+			Limit: pgtype.Int4{
+				Int32: int32(int(limit) - len(taskIds)),
+				Valid: true,
+			},
+		})
+
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return nil, 0, err
+		}
+
+		for _, task := range historicalTasks {
+			taskIds = append(taskIds, task.TaskID)
+			tenantIds = append(tenantIds, task.TenantID)
+			taskInsertedAts = append(taskInsertedAts, task.InsertedAt)
+			retryCounts = append(retryCounts, task.MaxRetryCount)
+			queryStatuses = append(queryStatuses, string(task.Status))
+		}
+	}
+
+	// get the task rows
+	rows, err := r.queries.PopulateTaskRunData(context.Background(), tx, timescalev2.PopulateTaskRunDataParams{
+		Taskids:         taskIds,
+		Tenantids:       tenantIds,
+		Taskinsertedats: taskInsertedAts,
+		Retrycounts:     retryCounts,
+		Statuses:        queryStatuses,
+	})
+
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return nil, 0, err
+	}
+
+	if err := tx.Commit(context.Background()); err != nil {
 		return nil, 0, err
 	}
 

@@ -6,6 +6,7 @@ sql:
     queries:
       - queries.sql
     schema:
+      - ./tsdb_tables.sql
       - ../../../../sql/schema/timescale.sql
     strict_order_by: false
     gen:

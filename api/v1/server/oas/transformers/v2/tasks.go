@@ -19,7 +19,7 @@ func jsonToMap(jsonStr string) map[string]interface{} {
 	return result
 }
 
-func ToTaskSummary(task *timescalev2.ListTasksRow) gen.V2TaskSummary {
+func ToTaskSummary(task *timescalev2.PopulateTaskRunDataRow) gen.V2TaskSummary {
 	// additionalMetadata := jsonToMap(*task.AdditionalMetadata)
 	// input := jsonToMap(wf.Input)
 	// output := jsonToMap(wf.Output)
@@ -63,7 +63,7 @@ func ToTaskSummary(task *timescalev2.ListTasksRow) gen.V2TaskSummary {
 }
 
 func ToTaskSummaryMany(
-	tasks []*timescalev2.ListTasksRow,
+	tasks []*timescalev2.PopulateTaskRunDataRow,
 	total int, limit, offset int64,
 ) gen.V2TaskSummaryList {
 	toReturn := make([]gen.V2TaskSummary, len(tasks))

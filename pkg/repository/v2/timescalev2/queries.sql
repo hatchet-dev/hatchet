@@ -92,81 +92,6 @@ FROM
 JOIN
     lookup_task lt ON lt.tenant_id = t.tenant_id AND lt.task_id = t.id AND lt.inserted_at = t.inserted_at;
 
--- name: ListTasks :many
-WITH task_statuses AS (
-    SELECT 
-        s.tenant_id::uuid as tenant_id,
-        s.task_id::bigint as id,
-        s.task_inserted_at::timestamptz as inserted_at,
-        s.status::v2_readable_status_olap as status,
-        s.max_retry_count::int as max_retry_count,
-        t.external_id as external_id,
-        t.queue as queue,
-        t.action_id as action_id,
-        t.step_id as step_id,
-        t.workflow_id as workflow_id,
-        t.schedule_timeout as schedule_timeout,
-        t.step_timeout as step_timeout,
-        t.priority as priority,
-        t.sticky as sticky,
-        t.display_name as display_name
-    FROM 
-        v2_cagg_task_status s
-    JOIN
-        v2_tasks_olap t ON t.tenant_id = s.tenant_id AND t.id = s.task_id AND t.inserted_at = s.task_inserted_at
-    WHERE
-        s.tenant_id = @tenantId::uuid
-        AND bucket >= @createdAfter::timestamptz
-    ORDER BY bucket DESC, s.task_inserted_at DESC, s.task_id DESC
-    LIMIT 50
-), finished_ats AS (
-    SELECT
-        e.task_id::bigint,
-        MAX(e.event_timestamp) AS finished_at
-    FROM
-        v2_task_events_olap e
-    JOIN    
-        task_statuses ts ON ts.id = e.task_id AND ts.tenant_id = e.tenant_id AND ts.inserted_at = e.task_inserted_at AND ts.max_retry_count = e.retry_count
-    WHERE
-        e.readable_status = ANY(ARRAY['COMPLETED', 'FAILED', 'CANCELLED']::v2_readable_status_olap[])
-    GROUP BY e.task_id
-), started_ats AS (
-    SELECT
-        e.task_id::bigint,
-        MAX(e.event_timestamp) AS started_at
-    FROM
-        v2_task_events_olap e
-    JOIN    
-        task_statuses ts ON ts.id = e.task_id AND ts.tenant_id = e.tenant_id AND ts.inserted_at = e.task_inserted_at AND ts.max_retry_count = e.retry_count
-    WHERE
-        e.event_type = 'STARTED'
-    GROUP BY e.task_id
-)
-SELECT
-    ts.tenant_id,
-    ts.id,
-    ts.inserted_at,
-    ts.external_id,
-    ts.queue,
-    ts.action_id,
-    ts.step_id,
-    ts.workflow_id,
-    ts.schedule_timeout,
-    ts.step_timeout,
-    ts.priority,
-    ts.sticky,
-    ts.display_name,
-    ts.status::v2_readable_status_olap as status,
-    f.finished_at::timestamptz as finished_at,
-    s.started_at::timestamptz as started_at
-FROM
-    task_statuses ts
-LEFT JOIN
-    finished_ats f ON f.task_id = ts.id
-LEFT JOIN
-    started_ats s ON s.task_id = ts.id
-ORDER BY ts.inserted_at DESC, ts.id DESC;
-
 -- name: ListTaskEvents :many
 WITH aggregated_events AS (
   SELECT
@@ -210,3 +135,157 @@ JOIN v2_task_events_olap t
   AND t.task_inserted_at = a.task_inserted_at
   AND t.id = a.first_id
 ORDER BY a.time_first_seen;
+
+-- name: LastSucceededStatusAggregate :one
+SELECT 
+    js.last_successful_finish::timestamptz as last_succeeded
+FROM
+    timescaledb_information.continuous_aggregates ca
+JOIN
+    timescaledb_information.jobs j ON j.hypertable_name = ca.materialization_hypertable_name
+JOIN
+    timescaledb_information.job_stats js ON j.job_id = js.job_id
+WHERE
+    ca.view_name = 'v2_cagg_task_status'
+LIMIT 1;
+
+-- name: ListTasksRealTime :many
+WITH relevant_events AS (
+    SELECT
+        *
+    FROM   
+        v2_task_events_olap
+    WHERE
+        tenant_id = @tenantId::uuid
+        AND inserted_at >= @insertedAfter::timestamptz
+        -- TODO: MORE FILTERS HERE
+), unique_tasks AS (
+    SELECT
+        tenant_id,
+        task_id,
+        task_inserted_at
+    FROM
+        relevant_events
+    GROUP BY tenant_id, task_id, task_inserted_at
+), all_task_events AS (
+    SELECT
+        e.id,
+        e.tenant_id,
+        e.task_id,
+        e.task_inserted_at,
+        e.readable_status,
+        e.retry_count
+    FROM
+        v2_task_events_olap e
+    JOIN
+        unique_tasks t ON t.tenant_id = e.tenant_id AND t.task_id = e.task_id AND t.task_inserted_at = e.task_inserted_at
+)
+SELECT
+  tenant_id,
+  task_id,
+  task_inserted_at,
+  (array_agg(readable_status ORDER BY retry_count DESC, readable_status DESC))[1]::v2_readable_status_olap AS status,
+  max(retry_count)::integer AS max_retry_count
+FROM all_task_events
+GROUP BY tenant_id, task_id, task_inserted_at
+ORDER BY task_inserted_at DESC, task_id DESC
+LIMIT COALESCE(sqlc.narg('limit')::integer, 50);
+
+-- name: ListTasksFromAggregate :many
+SELECT 
+    s.tenant_id::uuid as tenant_id,
+    s.task_id::bigint as task_id,
+    s.task_inserted_at::timestamptz as inserted_at,
+    s.status::v2_readable_status_olap as status,
+    s.max_retry_count::int as max_retry_count
+FROM 
+    v2_cagg_task_status s
+JOIN
+    v2_tasks_olap t ON t.tenant_id = s.tenant_id AND t.id = s.task_id AND t.inserted_at = s.task_inserted_at
+WHERE
+    s.tenant_id = @tenantId::uuid
+    AND bucket >= @createdAfter::timestamptz
+    -- TODO: MORE FILTERS HERE
+ORDER BY bucket DESC, s.task_inserted_at DESC, s.task_id DESC
+LIMIT COALESCE(sqlc.narg('limit')::integer, 50);
+
+-- name: PopulateTaskRunData :many
+WITH input AS (
+    SELECT
+        UNNEST(@tenantIds::uuid[]) AS tenant_id,
+        UNNEST(@taskIds::bigint[]) AS id,
+        UNNEST(@taskInsertedAts::timestamptz[]) AS inserted_at,
+        UNNEST(@retryCounts::int[]) AS retry_count,
+        unnest(cast(@statuses::text[] as v2_readable_status_olap[])) AS status
+), tasks AS (
+    SELECT
+        DISTINCT ON(t.tenant_id, t.id, t.inserted_at)
+        t.tenant_id,
+        t.id,
+        t.inserted_at,
+        t.queue,
+        t.action_id,
+        t.step_id,
+        t.workflow_id,
+        t.schedule_timeout,
+        t.step_timeout,
+        t.priority,
+        t.sticky,
+        t.desired_worker_id,
+        t.external_id,
+        t.display_name,
+        t.input,
+        i.retry_count,
+        i.status
+    FROM
+        v2_tasks_olap t
+    JOIN
+        input i ON i.tenant_id = t.tenant_id AND i.id = t.id AND i.inserted_at = t.inserted_at
+), finished_ats AS (
+    SELECT
+        e.task_id::bigint,
+        MAX(e.event_timestamp) AS finished_at
+    FROM
+        v2_task_events_olap e
+    JOIN    
+        tasks t ON t.id = e.task_id AND t.tenant_id = e.tenant_id AND t.inserted_at = e.task_inserted_at AND t.retry_count = e.retry_count
+    WHERE
+        e.readable_status = ANY(ARRAY['COMPLETED', 'FAILED', 'CANCELLED']::v2_readable_status_olap[])
+    GROUP BY e.task_id
+), started_ats AS (
+    SELECT
+        e.task_id::bigint,
+        MAX(e.event_timestamp) AS started_at
+    FROM
+        v2_task_events_olap e
+    JOIN    
+        tasks t ON t.id = e.task_id AND t.tenant_id = e.tenant_id AND t.inserted_at = e.task_inserted_at AND t.retry_count = e.retry_count
+    WHERE
+        e.event_type = 'STARTED'
+    GROUP BY e.task_id
+)
+SELECT
+    t.tenant_id,
+    t.id,
+    t.inserted_at,
+    t.external_id,
+    t.queue,
+    t.action_id,
+    t.step_id,
+    t.workflow_id,
+    t.schedule_timeout,
+    t.step_timeout,
+    t.priority,
+    t.sticky,
+    t.display_name,
+    t.retry_count,
+    t.status::v2_readable_status_olap as status,
+    f.finished_at::timestamptz as finished_at,
+    s.started_at::timestamptz as started_at
+FROM
+    tasks t
+LEFT JOIN
+    finished_ats f ON f.task_id = t.id
+LEFT JOIN
+    started_ats s ON s.task_id = t.id
+ORDER BY t.inserted_at DESC, t.id DESC;
