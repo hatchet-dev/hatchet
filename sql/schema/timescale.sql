@@ -143,7 +143,7 @@ SELECT add_continuous_aggregate_policy('v2_cagg_task_status_source',
   schedule_interval => INTERVAL '15 seconds');
 
 CREATE MATERIALIZED VIEW v2_cagg_task_status
-WITH (timescaledb.continuous, timescaledb.materialized_only = false, timescaledb.create_group_indexes = false) AS
+WITH (timescaledb.continuous, timescaledb.materialized_only = true, timescaledb.create_group_indexes = false) AS
 SELECT
   tenant_id,
   task_id,
@@ -158,7 +158,7 @@ GROUP BY tenant_id, task_id, task_inserted_at, workflow_id, worker_id, status, m
 ORDER BY bucket_2 DESC, task_inserted_at DESC
 WITH NO DATA;
 
-CREATE INDEX v2_cagg_task_status_bucket_tenant_id_status_idx ON v2_cagg_task_status (bucket_2, tenant_id, status, workflow_id);
+CREATE INDEX v2_cagg_task_tenant_id_bucket_inserted_at_status_idx ON v2_cagg_task_status (bucket_2 DESC, tenant_id, task_inserted_at DESC, status);
 
 CREATE INDEX v2_cagg_task_status_worker_id_idx ON v2_cagg_task_status (worker_id) WHERE worker_id IS NOT NULL;
 

@@ -229,8 +229,10 @@ SELECT
     s.max_retry_count::int as max_retry_count
 FROM 
     v2_cagg_task_status s
-JOIN
-    v2_tasks_olap t ON t.tenant_id = s.tenant_id AND t.id = s.task_id AND t.inserted_at = s.task_inserted_at
+-- FIXME: ideally we would have this join to check for existence of the task in the database, but this causes a
+-- large performance overhead for a rare edge case. Should look into this later.
+-- JOIN
+--     v2_tasks_olap t ON t.tenant_id = s.tenant_id AND t.id = s.task_id AND t.inserted_at = s.task_inserted_at
 WHERE
     s.tenant_id = @tenantId::uuid
     AND bucket_2 >= time_bucket('1 day', @createdAfter::timestamptz)
