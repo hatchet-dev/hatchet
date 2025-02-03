@@ -16,6 +16,7 @@ type CreateTaskEventsOLAPParams struct {
 	TaskID                 int64                `json:"task_id"`
 	TaskInsertedAt         pgtype.Timestamptz   `json:"task_inserted_at"`
 	EventType              V2EventTypeOlap      `json:"event_type"`
+	WorkflowID             pgtype.UUID          `json:"workflow_id"`
 	EventTimestamp         pgtype.Timestamptz   `json:"event_timestamp"`
 	ReadableStatus         V2ReadableStatusOlap `json:"readable_status"`
 	RetryCount             int32                `json:"retry_count"`
@@ -225,15 +226,22 @@ JOIN
 WHERE
     s.tenant_id = $1::uuid
     AND bucket >= $2::timestamptz
-    -- TODO: MORE FILTERS HERE
+    AND (
+        $3::text[] IS NULL OR status = ANY(cast($3::text[] as v2_readable_status_olap[]))
+    )
+    AND (
+        $4::uuid[] IS NULL OR s.workflow_id = ANY($4::uuid[])
+    )
 ORDER BY bucket DESC, s.task_inserted_at DESC, s.task_id DESC
-LIMIT COALESCE($3::integer, 50)
+LIMIT $5::integer
 `
 
 type ListTasksFromAggregateParams struct {
 	Tenantid     pgtype.UUID        `json:"tenantid"`
 	Createdafter pgtype.Timestamptz `json:"createdafter"`
-	Limit        pgtype.Int4        `json:"limit"`
+	Statuses     []string           `json:"statuses"`
+	WorkflowIds  []pgtype.UUID      `json:"workflowIds"`
+	Tasklimit    int32              `json:"tasklimit"`
 }
 
 type ListTasksFromAggregateRow struct {
@@ -245,7 +253,13 @@ type ListTasksFromAggregateRow struct {
 }
 
 func (q *Queries) ListTasksFromAggregate(ctx context.Context, db DBTX, arg ListTasksFromAggregateParams) ([]*ListTasksFromAggregateRow, error) {
-	rows, err := db.Query(ctx, listTasksFromAggregate, arg.Tenantid, arg.Createdafter, arg.Limit)
+	rows, err := db.Query(ctx, listTasksFromAggregate,
+		arg.Tenantid,
+		arg.Createdafter,
+		arg.Statuses,
+		arg.WorkflowIds,
+		arg.Tasklimit,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -273,15 +287,25 @@ func (q *Queries) ListTasksFromAggregate(ctx context.Context, db DBTX, arg ListT
 const listTasksRealTime = `-- name: ListTasksRealTime :many
 WITH relevant_events AS (
     SELECT
-        tenant_id, id, inserted_at, task_id, task_inserted_at, event_type, event_timestamp, readable_status, retry_count, error_message, output, worker_id, additional__event_data, additional__event_message
+        tenant_id, id, inserted_at, task_id, task_inserted_at, event_type, workflow_id, event_timestamp, readable_status, retry_count, error_message, output, worker_id, additional__event_data, additional__event_message
     FROM   
         v2_task_events_olap
     WHERE
-        tenant_id = $1::uuid
-        AND inserted_at >= $2::timestamptz
-        -- TODO: MORE FILTERS HERE
-    -- NOTE: we can limit in this CTE when there are no filters
-    LIMIT COALESCE($3::integer, 50)
+        tenant_id = $2::uuid
+        AND inserted_at >= $3::timestamptz
+        AND readable_status = ANY(cast($4::text[] as v2_readable_status_olap[]))
+        AND (
+            $5::uuid[] IS NULL OR workflow_id = ANY($5::uuid[])
+        )
+        AND (
+            $6::v2_event_type_olap IS NULL OR event_type = $6::v2_event_type_olap
+        )
+    ORDER BY
+        task_inserted_at DESC
+    -- NOTE: we can't always limit this CTE. We can limit when we're just querying for created tasks,
+    -- but we can't limit when we're querying for i.e. failed tasks, because we need to get the latest
+    -- event for each task.
+    LIMIT $7::integer
 ), unique_tasks AS (
     SELECT
         tenant_id,
@@ -312,12 +336,17 @@ SELECT
 FROM all_task_events
 GROUP BY tenant_id, task_id, task_inserted_at
 ORDER BY task_inserted_at DESC, task_id DESC
+LIMIT $1::integer
 `
 
 type ListTasksRealTimeParams struct {
-	Tenantid      pgtype.UUID        `json:"tenantid"`
-	Insertedafter pgtype.Timestamptz `json:"insertedafter"`
-	Limit         pgtype.Int4        `json:"limit"`
+	Tasklimit     int32               `json:"tasklimit"`
+	Tenantid      pgtype.UUID         `json:"tenantid"`
+	Insertedafter pgtype.Timestamptz  `json:"insertedafter"`
+	Statuses      []string            `json:"statuses"`
+	WorkflowIds   []pgtype.UUID       `json:"workflowIds"`
+	EventType     NullV2EventTypeOlap `json:"eventType"`
+	EventLimit    pgtype.Int4         `json:"eventLimit"`
 }
 
 type ListTasksRealTimeRow struct {
@@ -329,7 +358,15 @@ type ListTasksRealTimeRow struct {
 }
 
 func (q *Queries) ListTasksRealTime(ctx context.Context, db DBTX, arg ListTasksRealTimeParams) ([]*ListTasksRealTimeRow, error) {
-	rows, err := db.Query(ctx, listTasksRealTime, arg.Tenantid, arg.Insertedafter, arg.Limit)
+	rows, err := db.Query(ctx, listTasksRealTime,
+		arg.Tasklimit,
+		arg.Tenantid,
+		arg.Insertedafter,
+		arg.Statuses,
+		arg.WorkflowIds,
+		arg.EventType,
+		arg.EventLimit,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -357,11 +394,11 @@ func (q *Queries) ListTasksRealTime(ctx context.Context, db DBTX, arg ListTasksR
 const populateTaskRunData = `-- name: PopulateTaskRunData :many
 WITH input AS (
     SELECT
-        UNNEST($1::uuid[]) AS tenant_id,
-        UNNEST($2::bigint[]) AS id,
-        UNNEST($3::timestamptz[]) AS inserted_at,
-        UNNEST($4::int[]) AS retry_count,
-        unnest(cast($5::text[] as v2_readable_status_olap[])) AS status
+        UNNEST($2::uuid[]) AS tenant_id,
+        UNNEST($3::bigint[]) AS id,
+        UNNEST($4::timestamptz[]) AS inserted_at,
+        UNNEST($5::int[]) AS retry_count,
+        unnest(cast($6::text[] as v2_readable_status_olap[])) AS status
 ), tasks AS (
     SELECT
         DISTINCT ON(t.tenant_id, t.id, t.inserted_at)
@@ -434,9 +471,11 @@ LEFT JOIN
 LEFT JOIN
     started_ats s ON s.task_id = t.id
 ORDER BY t.inserted_at DESC, t.id DESC
+LIMIT $1::int
 `
 
 type PopulateTaskRunDataParams struct {
+	Tasklimit       int32                `json:"tasklimit"`
 	Tenantids       []pgtype.UUID        `json:"tenantids"`
 	Taskids         []int64              `json:"taskids"`
 	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
@@ -466,6 +505,7 @@ type PopulateTaskRunDataRow struct {
 
 func (q *Queries) PopulateTaskRunData(ctx context.Context, db DBTX, arg PopulateTaskRunDataParams) ([]*PopulateTaskRunDataRow, error) {
 	rows, err := db.Query(ctx, populateTaskRunData,
+		arg.Tasklimit,
 		arg.Tenantids,
 		arg.Taskids,
 		arg.Taskinsertedats,

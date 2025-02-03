@@ -202,6 +202,7 @@ type V2CaggTaskStatus struct {
 	TenantID       pgtype.UUID        `json:"tenant_id"`
 	TaskID         int64              `json:"task_id"`
 	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
+	WorkflowID     pgtype.UUID        `json:"workflow_id"`
 	Bucket         interface{}        `json:"bucket"`
 	Status         interface{}        `json:"status"`
 	MaxRetryCount  interface{}        `json:"max_retry_count"`
@@ -214,6 +215,7 @@ type V2TaskEventsOlap struct {
 	TaskID                 int64                `json:"task_id"`
 	TaskInsertedAt         pgtype.Timestamptz   `json:"task_inserted_at"`
 	EventType              V2EventTypeOlap      `json:"event_type"`
+	WorkflowID             pgtype.UUID          `json:"workflow_id"`
 	EventTimestamp         pgtype.Timestamptz   `json:"event_timestamp"`
 	ReadableStatus         V2ReadableStatusOlap `json:"readable_status"`
 	RetryCount             int32                `json:"retry_count"`

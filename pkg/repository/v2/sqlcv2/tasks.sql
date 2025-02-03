@@ -84,7 +84,8 @@ SELECT
     id,
     inserted_at,
     external_id,
-    retry_count
+    retry_count,
+    workflow_id
 FROM
     v2_task
 WHERE

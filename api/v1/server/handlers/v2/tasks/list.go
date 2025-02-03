@@ -51,6 +51,7 @@ func (t *TasksService) V2TaskList(ctx echo.Context, request gen.V2TaskListReques
 	}
 
 	tasks, total, err := t.config.EngineRepository.OLAP().ListTaskRuns(
+		ctx.Request().Context(),
 		tenant.ID,
 		since,
 		statuses,

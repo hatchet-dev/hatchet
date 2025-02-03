@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/labstack/echo/v4"
@@ -335,7 +336,10 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	})
 
 	populatorMW.RegisterGetter("task", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
-		task, err := config.OLAPRepository.ReadTaskRun(id)
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		task, err := config.OLAPRepository.ReadTaskRun(ctx, id)
 		if err != nil {
 			return nil, "", err
 		}

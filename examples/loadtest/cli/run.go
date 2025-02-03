@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"math/rand/v2"
 	"sync"
 	"time"
 
@@ -18,7 +19,7 @@ func getConcurrencyKey(ctx worker.HatchetContext) (string, error) {
 	return "my-key", nil
 }
 
-func run(ctx context.Context, delay time.Duration, executions chan<- time.Duration, concurrency, slots int) (int64, int64) {
+func run(ctx context.Context, delay time.Duration, executions chan<- time.Duration, concurrency, slots int, failureRate float32) (int64, int64) {
 	c, err := client.New(
 		client.WithLogLevel("warn"),
 	)
@@ -88,6 +89,12 @@ func run(ctx context.Context, delay time.Duration, executions chan<- time.Durati
 					mx.Unlock()
 
 					time.Sleep(delay)
+
+					if failureRate > 0 {
+						if rand.Float32() < failureRate {
+							return nil, fmt.Errorf("random failure")
+						}
+					}
 
 					return &stepOneOutput{
 						Message: "This ran at: " + time.Now().Format(time.RFC3339Nano),

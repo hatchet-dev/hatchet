@@ -193,19 +193,20 @@ func (tc *OLAPControllerImpl) handleCreatedTask(ctx context.Context, tenantId st
 			TaskID:         msg.V2Task.ID,
 			TaskInsertedAt: msg.V2Task.InsertedAt,
 			EventType:      timescalev2.V2EventTypeOlapCREATED,
+			WorkflowID:     msg.V2Task.WorkflowID,
 			ReadableStatus: timescalev2.V2ReadableStatusOlapQUEUED,
 			RetryCount:     0,
 			EventTimestamp: msg.V2Task.InsertedAt,
 		})
 	}
 
-	err := tc.repo.CreateTasks(tenantId, createTaskOpts)
+	err := tc.repo.CreateTasks(ctx, tenantId, createTaskOpts)
 
 	if err != nil {
 		return err
 	}
 
-	return tc.repo.CreateTaskEvents(tenantId, createTaskEventOpts)
+	return tc.repo.CreateTaskEvents(ctx, tenantId, createTaskEventOpts)
 }
 
 // handleCreateMonitoringEvent is responsible for sending a group of monitoring events to the OLAP repository
@@ -234,6 +235,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 	taskInsertedAts := make([]pgtype.Timestamptz, 0)
 	retryCounts := make([]int32, 0)
 	workerIds := make([]string, 0)
+	workflowIds := make([]pgtype.UUID, 0)
 	eventTypes := make([]timescalev2.V2EventTypeOlap, 0)
 	readableStatuses := make([]timescalev2.V2ReadableStatusOlap, 0)
 	eventPayloads := make([]string, 0)
@@ -250,6 +252,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 
 		taskIds = append(taskIds, msg.TaskId)
 		taskInsertedAts = append(taskInsertedAts, taskMeta.InsertedAt)
+		workflowIds = append(workflowIds, taskMeta.WorkflowID)
 		retryCounts = append(retryCounts, msg.RetryCount)
 		eventTypes = append(eventTypes, msg.EventType)
 		eventPayloads = append(eventPayloads, msg.EventPayload)
@@ -317,6 +320,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 			TenantID:       sqlchelpers.UUIDFromStr(tenantId),
 			TaskID:         taskId,
 			TaskInsertedAt: taskInsertedAts[i],
+			WorkflowID:     workflowIds[i],
 			EventType:      eventTypes[i],
 			EventTimestamp: timestamps[i],
 			ReadableStatus: readableStatuses[i],
@@ -336,5 +340,5 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		opts = append(opts, event)
 	}
 
-	return tc.repo.CreateTaskEvents(tenantId, opts)
+	return tc.repo.CreateTaskEvents(ctx, tenantId, opts)
 }

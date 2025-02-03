@@ -39,6 +39,7 @@ INSERT INTO v2_task_events_olap (
     task_id,
     task_inserted_at,
     event_type,
+    workflow_id,
     event_timestamp,
     readable_status,
     retry_count,
@@ -59,7 +60,8 @@ INSERT INTO v2_task_events_olap (
     $9,
     $10,
     $11,
-    $12
+    $12,
+    $13
 );
 
 -- name: GetTenantStatusMetrics :one
@@ -158,9 +160,19 @@ WITH relevant_events AS (
     WHERE
         tenant_id = @tenantId::uuid
         AND inserted_at >= @insertedAfter::timestamptz
-        -- TODO: MORE FILTERS HERE
-    -- NOTE: we can limit in this CTE when there are no filters
-    LIMIT COALESCE(sqlc.narg('limit')::integer, 50)
+        AND readable_status = ANY(cast(@statuses::text[] as v2_readable_status_olap[]))
+        AND (
+            sqlc.narg('workflowIds')::uuid[] IS NULL OR workflow_id = ANY(sqlc.narg('workflowIds')::uuid[])
+        )
+        AND (
+            sqlc.narg('eventType')::v2_event_type_olap IS NULL OR event_type = sqlc.narg('eventType')::v2_event_type_olap
+        )
+    ORDER BY
+        task_inserted_at DESC
+    -- NOTE: we can't always limit this CTE. We can limit when we're just querying for created tasks,
+    -- but we can't limit when we're querying for i.e. failed tasks, because we need to get the latest
+    -- event for each task.
+    LIMIT sqlc.narg('eventLimit')::integer
 ), unique_tasks AS (
     SELECT
         tenant_id,
@@ -190,7 +202,8 @@ SELECT
   max(retry_count)::integer AS max_retry_count
 FROM all_task_events
 GROUP BY tenant_id, task_id, task_inserted_at
-ORDER BY task_inserted_at DESC, task_id DESC;
+ORDER BY task_inserted_at DESC, task_id DESC
+LIMIT @taskLimit::integer;
 
 -- name: ListTasksFromAggregate :many
 SELECT 
@@ -206,9 +219,14 @@ JOIN
 WHERE
     s.tenant_id = @tenantId::uuid
     AND bucket >= @createdAfter::timestamptz
-    -- TODO: MORE FILTERS HERE
+    AND (
+        sqlc.narg('statuses')::text[] IS NULL OR status = ANY(cast(@statuses::text[] as v2_readable_status_olap[]))
+    )
+    AND (
+        sqlc.narg('workflowIds')::uuid[] IS NULL OR s.workflow_id = ANY(sqlc.narg('workflowIds')::uuid[])
+    )
 ORDER BY bucket DESC, s.task_inserted_at DESC, s.task_id DESC
-LIMIT COALESCE(sqlc.narg('limit')::integer, 50);
+LIMIT @taskLimit::integer;
 
 -- name: PopulateTaskRunData :many
 WITH input AS (
@@ -289,4 +307,5 @@ LEFT JOIN
     finished_ats f ON f.task_id = t.id
 LEFT JOIN
     started_ats s ON s.task_id = t.id
-ORDER BY t.inserted_at DESC, t.id DESC;
+ORDER BY t.inserted_at DESC, t.id DESC
+LIMIT @taskLimit::int;

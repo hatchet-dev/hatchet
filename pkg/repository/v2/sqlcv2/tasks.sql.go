@@ -381,7 +381,8 @@ SELECT
     id,
     inserted_at,
     external_id,
-    retry_count
+    retry_count,
+    workflow_id
 FROM
     v2_task
 WHERE
@@ -399,6 +400,7 @@ type ListTaskMetasRow struct {
 	InsertedAt pgtype.Timestamptz `json:"inserted_at"`
 	ExternalID pgtype.UUID        `json:"external_id"`
 	RetryCount int32              `json:"retry_count"`
+	WorkflowID pgtype.UUID        `json:"workflow_id"`
 }
 
 func (q *Queries) ListTaskMetas(ctx context.Context, db DBTX, arg ListTaskMetasParams) ([]*ListTaskMetasRow, error) {
@@ -415,6 +417,7 @@ func (q *Queries) ListTaskMetas(ctx context.Context, db DBTX, arg ListTaskMetasP
 			&i.InsertedAt,
 			&i.ExternalID,
 			&i.RetryCount,
+			&i.WorkflowID,
 		); err != nil {
 			return nil, err
 		}

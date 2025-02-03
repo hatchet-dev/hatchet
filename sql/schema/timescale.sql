@@ -92,6 +92,7 @@ CREATE TABLE v2_task_events_olap (
     task_id BIGINT NOT NULL,
     task_inserted_at TIMESTAMPTZ(3) NOT NULL,
     event_type v2_event_type_olap NOT NULL,
+    workflow_id UUID NOT NULL,
     event_timestamp TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     readable_status v2_readable_status_olap NOT NULL,
     retry_count INT NOT NULL DEFAULT 0,
@@ -106,6 +107,13 @@ CREATE TABLE v2_task_events_olap (
 
 CREATE INDEX v2_task_events_olap_task_id_idx ON v2_task_events_olap (task_id);
 
+CREATE INDEX v2_task_events_olap_realtime_idx ON v2_task_events_olap (
+    tenant_id, 
+    inserted_at DESC, 
+    readable_status, 
+    workflow_id
+);
+
 SELECT * from create_hypertable('v2_task_events_olap', by_range('task_inserted_at',  INTERVAL '1 day'));
 
 SET timescaledb.enable_chunk_skipping = on;
@@ -118,15 +126,16 @@ SELECT
   tenant_id,
   task_id,
   task_inserted_at,
+  workflow_id,
   time_bucket('5 minutes', task_inserted_at) AS bucket,
   (array_agg(readable_status ORDER BY retry_count DESC, readable_status DESC))[1] AS status,
   max(retry_count) AS max_retry_count
 FROM v2_task_events_olap
-GROUP BY tenant_id, task_id, task_inserted_at, bucket
+GROUP BY tenant_id, task_id, task_inserted_at, workflow_id, bucket
 ORDER BY bucket DESC, task_inserted_at DESC
 WITH NO DATA;
 
-CREATE INDEX v2_cagg_task_status_bucket_tenant_id_status_idx ON v2_cagg_task_status (bucket, tenant_id, status);
+CREATE INDEX v2_cagg_task_status_bucket_tenant_id_status_idx ON v2_cagg_task_status (bucket, tenant_id, status, workflow_id);
 
 SELECT add_continuous_aggregate_policy('v2_cagg_task_status',
   start_offset => NULL,

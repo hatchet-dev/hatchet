@@ -14,7 +14,7 @@ func (t *TasksService) V2TaskEventList(ctx echo.Context, request gen.V2TaskEvent
 	tenant := ctx.Get("tenant").(*db.TenantModel)
 	task := ctx.Get("task").(*timescalev2.V2TasksOlap)
 
-	taskRunEvents, err := t.config.EngineRepository.OLAP().ListTaskRunEvents(tenant.ID, task.ID, task.InsertedAt, *request.Params.Limit, *request.Params.Offset)
+	taskRunEvents, err := t.config.EngineRepository.OLAP().ListTaskRunEvents(ctx.Request().Context(), tenant.ID, task.ID, task.InsertedAt, *request.Params.Limit, *request.Params.Offset)
 
 	if err != nil {
 		return nil, err

@@ -10,7 +10,7 @@ import (
 func (t *TasksService) V2TaskListStatusMetrics(ctx echo.Context, request gen.V2TaskListStatusMetricsRequestObject) (gen.V2TaskListStatusMetricsResponseObject, error) {
 	tenant := ctx.Get("tenant").(*db.TenantModel)
 
-	metrics, err := t.config.EngineRepository.OLAP().ReadTaskRunMetrics(tenant.ID, *request.Params.Since)
+	metrics, err := t.config.EngineRepository.OLAP().ReadTaskRunMetrics(ctx.Request().Context(), tenant.ID, *request.Params.Since)
 
 	if err != nil {
 		return nil, err
