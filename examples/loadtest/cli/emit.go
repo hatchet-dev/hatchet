@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -12,11 +14,31 @@ import (
 type Event struct {
 	ID        int64     `json:"id"`
 	CreatedAt time.Time `json:"created_at"`
+	Payload   string    `json:"payload"`
 }
 
-func emit(ctx context.Context, amountPerSecond int, duration time.Duration, scheduled chan<- time.Duration) int64 {
-	c, err := client.New()
+func parseSize(s string) int {
+	s = strings.ToLower(strings.TrimSpace(s))
+	var multiplier int
+	if strings.HasSuffix(s, "kb") {
+		multiplier = 1024
+		s = strings.TrimSuffix(s, "kb")
+	} else if strings.HasSuffix(s, "mb") {
+		multiplier = 1024 * 1024
+		s = strings.TrimSuffix(s, "mb")
+	} else {
+		// Default to bytes if no suffix is provided.
+		multiplier = 1
+	}
+	num, err := strconv.Atoi(strings.TrimSpace(s))
+	if err != nil {
+		panic(fmt.Errorf("invalid size argument: %w", err))
+	}
+	return num * multiplier
+}
 
+func emit(ctx context.Context, amountPerSecond int, duration time.Duration, scheduled chan<- time.Duration, payloadArg string) int64 {
+	c, err := client.New()
 	if err != nil {
 		panic(err)
 	}
@@ -36,10 +58,16 @@ func emit(ctx context.Context, amountPerSecond int, duration time.Duration, sche
 				id++
 
 				go func(id int64) {
-					var err error
-					ev := Event{CreatedAt: time.Now(), ID: id}
+					payloadSize := parseSize(payloadArg)
+					payloadData := strings.Repeat("a", payloadSize)
+
+					ev := Event{
+						CreatedAt: time.Now(),
+						ID:        id,
+						Payload:   payloadData,
+					}
 					l.Info().Msgf("pushed event %d", ev.ID)
-					err = c.Event().Push(context.Background(), "load-test:event", ev, client.WithEventMetadata(map[string]string{
+					err := c.Event().Push(context.Background(), "load-test:event", ev, client.WithEventMetadata(map[string]string{
 						"event_id": fmt.Sprintf("%d", ev.ID),
 					}))
 					if err != nil {

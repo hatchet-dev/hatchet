@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-func do(duration time.Duration, eventsPerSecond int, delay time.Duration, wait time.Duration, concurrency int, workerDelay time.Duration, slots int, failureRate float32) error {
+func do(duration time.Duration, eventsPerSecond int, delay time.Duration, wait time.Duration, concurrency int, workerDelay time.Duration, slots int, failureRate float32, payloadSize string) error {
 	l.Info().Msgf("testing with duration=%s, eventsPerSecond=%d, delay=%s, wait=%s, concurrency=%d", duration, eventsPerSecond, delay, wait, concurrency)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -36,7 +36,7 @@ func do(duration time.Duration, eventsPerSecond int, delay time.Duration, wait t
 	time.Sleep(after)
 
 	scheduled := make(chan time.Duration, eventsPerSecond*int(duration.Seconds())*2)
-	emitted := emit(ctx, eventsPerSecond, duration, scheduled)
+	emitted := emit(ctx, eventsPerSecond, duration, scheduled, payloadSize)
 	executed := <-ch
 	uniques := <-ch
 
