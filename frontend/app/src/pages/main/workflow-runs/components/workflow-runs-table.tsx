@@ -56,7 +56,6 @@ import {
   ZoomableChart,
 } from '@/components/molecules/charts/zoomable';
 import { DateTimePicker } from '@/components/molecules/time-picker/date-time-picker';
-import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
 import { AdditionalMetadataClick } from '../../events/components/additional-metadata';
 
 export interface WorkflowRunsTableProps {
@@ -106,8 +105,6 @@ export function WorkflowRunsTable({
   const [searchParams, setSearchParams] = useSearchParams();
   const { tenant } = useOutletContext<TenantContextType>();
   invariant(tenant);
-
-  const cloudMeta = useCloudApiMeta();
 
   const [viewQueueMetrics, setViewQueueMetrics] = useState(false);
 
