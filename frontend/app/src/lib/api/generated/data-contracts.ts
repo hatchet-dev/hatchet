@@ -171,6 +171,8 @@ export interface V2Task {
   workflowId: string;
   /** The input for the task run. */
   input: string;
+  /** The output of the task run (for the latest run) */
+  output?: string;
 }
 
 export enum V2TaskEventType {
@@ -220,6 +222,17 @@ export interface V2TaskRunMetric {
 }
 
 export type V2TaskRunMetrics = V2TaskRunMetric[];
+
+export interface V2TaskPointMetric {
+  /** @format date-time */
+  time: string;
+  SUCCEEDED: number;
+  FAILED: number;
+}
+
+export interface V2TaskPointMetrics {
+  results?: V2TaskPointMetric[];
+}
 
 export interface APIMetaAuth {
   /**

@@ -105,6 +105,9 @@ V2Task:
     input:
       type: string
       description: The input for the task run.
+    output:
+      type: string
+      description: The output of the task run (for the latest run)
   required:
     - metadata
     - id
@@ -201,3 +204,26 @@ V2TaskRunMetric:
   required:
     - status
     - count
+
+V2TaskPointMetric:
+  type: object
+  properties:
+    time:
+      type: string
+      format: date-time
+    SUCCEEDED:
+      type: integer
+    FAILED:
+      type: integer
+  required:
+    - time
+    - SUCCEEDED
+    - FAILED
+
+V2TaskPointMetrics:
+  type: object
+  properties:
+    results:
+      type: array
+      items:
+        $ref: "#/V2TaskPointMetric"

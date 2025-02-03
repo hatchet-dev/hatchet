@@ -85,6 +85,7 @@ import {
   UserTenantMembershipsList,
   V2Task,
   V2TaskEventList,
+  V2TaskPointMetrics,
   V2TaskRunMetrics,
   V2TaskStatus,
   V2TaskSummaryList,
@@ -126,7 +127,7 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    */
   v2TaskList = (
     tenant: string,
-    query?: {
+    query: {
       /**
        * The number to skip
        * @format int64
@@ -143,9 +144,16 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
        * The earliest date to filter by
        * @format date-time
        */
-      since?: string;
+      since: string;
       /** The workflow id to find runs for */
       workflow_ids?: string[];
+      /**
+       * The worker id to filter by
+       * @format uuid
+       * @minLength 36
+       * @maxLength 36
+       */
+      worker_id?: string;
     },
     params: RequestParams = {},
   ) =>
@@ -218,17 +226,54 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    */
   v2TaskListStatusMetrics = (
     tenant: string,
-    query?: {
+    query: {
       /**
        * The start time to get metrics for
        * @format date-time
        */
-      since?: string;
+      since: string;
+      /** The workflow id to find runs for */
+      workflow_ids?: string[];
     },
     params: RequestParams = {},
   ) =>
     this.request<V2TaskRunMetrics, APIErrors>({
       path: `/api/v2/tenants/${tenant}/task-metrics`,
+      method: 'GET',
+      query: query,
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Get a minute by minute breakdown of task metrics for a tenant
+   *
+   * @tags Task
+   * @name V2TaskGetPointMetrics
+   * @summary Get task point metrics
+   * @request GET:/api/v2/tenants/{tenant}/task-point-metrics
+   * @secure
+   */
+  v2TaskGetPointMetrics = (
+    tenant: string,
+    query?: {
+      /**
+       * The time after the task was created
+       * @format date-time
+       * @example "2021-01-01T00:00:00Z"
+       */
+      createdAfter?: string;
+      /**
+       * The time before the task was completed
+       * @format date-time
+       * @example "2021-01-01T00:00:00Z"
+       */
+      finishedBefore?: string;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<V2TaskPointMetrics, APIErrors>({
+      path: `/api/v2/tenants/${tenant}/task-point-metrics`,
       method: 'GET',
       query: query,
       secure: true,

@@ -8,7 +8,11 @@ type ListEventQuery = Parameters<typeof api.eventList>[1];
 type ListRateLimitsQuery = Parameters<typeof api.rateLimitList>[1];
 type ListLogLineQuery = Parameters<typeof api.logLineList>[1];
 type ListWorkflowRunsQuery = Parameters<typeof api.workflowRunList>[1];
+type GetTaskMetricsQuery = Parameters<typeof api.v2TaskListStatusMetrics>[1];
 type V2ListTaskRunsQuery = Parameters<typeof api.v2TaskList>[1];
+type V2TaskGetPointMetricsQuery = Parameters<
+  typeof api.v2TaskGetPointMetrics
+>[1];
 type ListWorkflowsQuery = Parameters<typeof api.workflowList>[1];
 export type ListCloudLogsQuery = Parameters<typeof cloudApi.logList>[1];
 export type GetCloudMetricsQuery = Parameters<typeof cloudApi.metricsCpuGet>[1];
@@ -222,14 +226,15 @@ export const queries = createQueryKeyStore({
     }),
   },
   v2TaskRuns: {
-    metrics: (tenant: string, since: string | undefined) => ({
-      queryKey: ['v2:task-run:metrics', tenant],
+    metrics: (tenant: string, query: GetTaskMetricsQuery) => ({
+      queryKey: ['v2:task-run:metrics', tenant, query],
       queryFn: async () =>
-        (
-          await api.v2TaskListStatusMetrics(tenant, {
-            since,
-          })
-        ).data,
+        (await api.v2TaskListStatusMetrics(tenant, query)).data,
+    }),
+    pointMetrics: (tenant: string, query: V2TaskGetPointMetricsQuery) => ({
+      queryKey: ['v2-task:metrics', tenant, query],
+      queryFn: async () =>
+        (await api.v2TaskGetPointMetrics(tenant, query)).data,
     }),
   },
   workflowRuns: {

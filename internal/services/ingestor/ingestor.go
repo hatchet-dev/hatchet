@@ -156,8 +156,8 @@ func (i *IngestorImpl) ingestSingleton(tenantId, key string, data []byte, metada
 		tenantId,
 		eventId,
 		key,
-		string(data),
-		string(metadata),
+		data,
+		metadata,
 	)
 
 	if err != nil {
@@ -225,12 +225,12 @@ func (i *IngestorImpl) IngestReplayedEvent(ctx context.Context, tenantId string,
 	return i.ingestSingleton(tenantId, replayedEvent.Key, replayedEvent.Data, replayedEvent.AdditionalMetadata)
 }
 
-func eventToTask(tenantId, eventId, key, data, additionalMeta string) (*msgqueue.Message, error) {
+func eventToTask(tenantId, eventId, key string, data, additionalMeta []byte) (*msgqueue.Message, error) {
 	payloadTyped := tasktypes.EventTaskPayload{
 		EventId:                 eventId,
 		EventKey:                key,
-		EventData:               string(data),
-		EventAdditionalMetadata: string(additionalMeta),
+		EventData:               data,
+		EventAdditionalMetadata: additionalMeta,
 	}
 
 	return msgqueue.NewSingletonTenantMessage(

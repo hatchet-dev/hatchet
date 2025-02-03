@@ -181,6 +181,8 @@ type TimescaledbInformationJobs struct {
 type V2CaggStatusMetrics struct {
 	Bucket2        interface{} `json:"bucket_2"`
 	TenantID       pgtype.UUID `json:"tenant_id"`
+	WorkflowID     pgtype.UUID `json:"workflow_id"`
+	WorkerID       interface{} `json:"worker_id"`
 	QueuedCount    int64       `json:"queued_count"`
 	RunningCount   int64       `json:"running_count"`
 	CompletedCount int64       `json:"completed_count"`
@@ -191,6 +193,7 @@ type V2CaggStatusMetrics struct {
 type V2CaggTaskEventsMinute struct {
 	Bucket         interface{} `json:"bucket"`
 	TenantID       pgtype.UUID `json:"tenant_id"`
+	WorkflowID     pgtype.UUID `json:"workflow_id"`
 	QueuedCount    int64       `json:"queued_count"`
 	RunningCount   int64       `json:"running_count"`
 	CompletedCount int64       `json:"completed_count"`
@@ -203,6 +206,7 @@ type V2CaggTaskStatus struct {
 	TaskID         int64              `json:"task_id"`
 	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
 	WorkflowID     pgtype.UUID        `json:"workflow_id"`
+	WorkerID       interface{}        `json:"worker_id"`
 	Bucket         interface{}        `json:"bucket"`
 	Status         interface{}        `json:"status"`
 	MaxRetryCount  interface{}        `json:"max_retry_count"`
@@ -234,19 +238,20 @@ type V2TaskLookupTable struct {
 }
 
 type V2TasksOlap struct {
-	TenantID        pgtype.UUID          `json:"tenant_id"`
-	ID              int64                `json:"id"`
-	InsertedAt      pgtype.Timestamptz   `json:"inserted_at"`
-	ExternalID      pgtype.UUID          `json:"external_id"`
-	Queue           string               `json:"queue"`
-	ActionID        string               `json:"action_id"`
-	StepID          pgtype.UUID          `json:"step_id"`
-	WorkflowID      pgtype.UUID          `json:"workflow_id"`
-	ScheduleTimeout string               `json:"schedule_timeout"`
-	StepTimeout     pgtype.Text          `json:"step_timeout"`
-	Priority        pgtype.Int4          `json:"priority"`
-	Sticky          V2StickyStrategyOlap `json:"sticky"`
-	DesiredWorkerID pgtype.UUID          `json:"desired_worker_id"`
-	DisplayName     string               `json:"display_name"`
-	Input           []byte               `json:"input"`
+	TenantID           pgtype.UUID          `json:"tenant_id"`
+	ID                 int64                `json:"id"`
+	InsertedAt         pgtype.Timestamptz   `json:"inserted_at"`
+	ExternalID         pgtype.UUID          `json:"external_id"`
+	Queue              string               `json:"queue"`
+	ActionID           string               `json:"action_id"`
+	StepID             pgtype.UUID          `json:"step_id"`
+	WorkflowID         pgtype.UUID          `json:"workflow_id"`
+	ScheduleTimeout    string               `json:"schedule_timeout"`
+	StepTimeout        pgtype.Text          `json:"step_timeout"`
+	Priority           pgtype.Int4          `json:"priority"`
+	Sticky             V2StickyStrategyOlap `json:"sticky"`
+	DesiredWorkerID    pgtype.UUID          `json:"desired_worker_id"`
+	DisplayName        string               `json:"display_name"`
+	Input              []byte               `json:"input"`
+	AdditionalMetadata []byte               `json:"additional_metadata"`
 }

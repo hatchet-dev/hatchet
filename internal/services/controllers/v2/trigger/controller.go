@@ -214,7 +214,7 @@ func (tc *TriggerControllerImpl) handleBufferedMsgs(tenantId, msgId string, payl
 func (tc *TriggerControllerImpl) handleProcessEventTrigger(ctx context.Context, tenantId string, payloads [][]byte) error {
 	// parse out event ids from the messages
 	tuples := make([]v2.EventIdKey, 0, len(payloads))
-	idsToData := make(map[string][]byte, len(payloads))
+	idsToData := make(map[string]tasktypes.EventTaskPayload, len(payloads))
 
 	msgs := msgqueue.JSONConvert[tasktypes.EventTaskPayload](payloads)
 
@@ -224,7 +224,7 @@ func (tc *TriggerControllerImpl) handleProcessEventTrigger(ctx context.Context, 
 			Key:     msg.EventKey,
 		})
 
-		idsToData[msg.EventId] = []byte(msg.EventData)
+		idsToData[msg.EventId] = *msg
 	}
 
 	// get a list of workflow versions which correspond to events
@@ -249,7 +249,7 @@ func (tc *TriggerControllerImpl) handleProcessTaskTrigger(ctx context.Context, t
 	msgs := msgqueue.JSONConvert[tasktypes.TriggerTaskPayload](payloads)
 
 	taskIdNames := make([]v2.TaskIdName, 0, len(msgs))
-	idsToData := make(map[string][]byte, len(msgs))
+	idsToData := make(map[string]tasktypes.TriggerTaskPayload, len(msgs))
 
 	for _, msg := range msgs {
 		taskIdNames = append(taskIdNames, v2.TaskIdName{
@@ -257,7 +257,7 @@ func (tc *TriggerControllerImpl) handleProcessTaskTrigger(ctx context.Context, t
 			Name:   msg.WorkflowName,
 		})
 
-		idsToData[msg.TaskExternalId] = msg.Data
+		idsToData[msg.TaskExternalId] = *msg
 	}
 
 	startDatas, err := tc.v2repo.Triggers().ListTriggeredWorkflowsByNames(ctx, tenantId, taskIdNames)
@@ -372,7 +372,7 @@ func (tc *TriggerControllerImpl) createTasks(ctx context.Context, tenantId strin
 	return nil
 }
 
-func (tc *TriggerControllerImpl) getTaskCreateOptsFromEvents(startDatas []*v2.WorkflowVersionWithTriggeringEvent, idsToData map[string][]byte) ([]v2.CreateTaskOpts, error) {
+func (tc *TriggerControllerImpl) getTaskCreateOptsFromEvents(startDatas []*v2.WorkflowVersionWithTriggeringEvent, idsToData map[string]tasktypes.EventTaskPayload) ([]v2.CreateTaskOpts, error) {
 	opts := make([]v2.CreateTaskOpts, 0, len(startDatas))
 
 	for _, startData := range startDatas {
@@ -389,16 +389,16 @@ func (tc *TriggerControllerImpl) getTaskCreateOptsFromEvents(startDatas []*v2.Wo
 
 		// parse the start data into a CreateTaskOpts
 		opt := v2.CreateTaskOpts{
-			ExternalId:      id,
-			Queue:           startData.WorkflowStartData.ActionId,
-			ActionId:        startData.WorkflowStartData.ActionId,
-			StepId:          sqlchelpers.UUIDToStr(startData.WorkflowStartData.ID),
-			WorkflowId:      sqlchelpers.UUIDToStr(startData.WorkflowStartData.WorkflowId),
-			ScheduleTimeout: startData.WorkflowStartData.ScheduleTimeout,
-			StepTimeout:     startData.WorkflowStartData.Timeout.String,
-			DisplayName:     fmt.Sprintf("%s-%d", startData.WorkflowStartData.WorkflowName, unix),
-			Input:           eventData,
-			// TODO: OTHER RELEVANT FIELDS
+			ExternalId:         id,
+			Queue:              startData.WorkflowStartData.ActionId,
+			ActionId:           startData.WorkflowStartData.ActionId,
+			StepId:             sqlchelpers.UUIDToStr(startData.WorkflowStartData.ID),
+			WorkflowId:         sqlchelpers.UUIDToStr(startData.WorkflowStartData.WorkflowId),
+			ScheduleTimeout:    startData.WorkflowStartData.ScheduleTimeout,
+			StepTimeout:        startData.WorkflowStartData.Timeout.String,
+			DisplayName:        fmt.Sprintf("%s-%d", startData.WorkflowStartData.WorkflowName, unix),
+			Input:              eventData.EventData,
+			AdditionalMetadata: eventData.EventAdditionalMetadata,
 		}
 
 		opts = append(opts, opt)
@@ -407,7 +407,7 @@ func (tc *TriggerControllerImpl) getTaskCreateOptsFromEvents(startDatas []*v2.Wo
 	return opts, nil
 }
 
-func (tc *TriggerControllerImpl) getTaskCreateOptsFromTaskIds(startDatas []*v2.WorkflowVersionWithTriggeringTask, idsToData map[string][]byte) ([]v2.CreateTaskOpts, error) {
+func (tc *TriggerControllerImpl) getTaskCreateOptsFromTaskIds(startDatas []*v2.WorkflowVersionWithTriggeringTask, idsToData map[string]tasktypes.TriggerTaskPayload) ([]v2.CreateTaskOpts, error) {
 	opts := make([]v2.CreateTaskOpts, 0, len(startDatas))
 
 	for _, startData := range startDatas {
@@ -420,16 +420,16 @@ func (tc *TriggerControllerImpl) getTaskCreateOptsFromTaskIds(startDatas []*v2.W
 
 		// parse the start data into a CreateTaskOpts
 		opt := v2.CreateTaskOpts{
-			ExternalId:      startData.TaskId,
-			Queue:           startData.WorkflowStartData.ActionId,
-			ActionId:        startData.WorkflowStartData.ActionId,
-			StepId:          sqlchelpers.UUIDToStr(startData.WorkflowStartData.ID),
-			WorkflowId:      sqlchelpers.UUIDToStr(startData.WorkflowStartData.WorkflowId),
-			ScheduleTimeout: startData.WorkflowStartData.ScheduleTimeout,
-			StepTimeout:     startData.WorkflowStartData.Timeout.String,
-			DisplayName:     startData.WorkflowStartData.WorkflowName,
-			Input:           inputData,
-			// TODO: OTHER RELEVANT FIELDS
+			ExternalId:         startData.TaskId,
+			Queue:              startData.WorkflowStartData.ActionId,
+			ActionId:           startData.WorkflowStartData.ActionId,
+			StepId:             sqlchelpers.UUIDToStr(startData.WorkflowStartData.ID),
+			WorkflowId:         sqlchelpers.UUIDToStr(startData.WorkflowStartData.WorkflowId),
+			ScheduleTimeout:    startData.WorkflowStartData.ScheduleTimeout,
+			StepTimeout:        startData.WorkflowStartData.Timeout.String,
+			DisplayName:        startData.WorkflowStartData.WorkflowName,
+			Input:              inputData.Data,
+			AdditionalMetadata: inputData.AdditionalMetadata,
 		}
 
 		opts = append(opts, opt)

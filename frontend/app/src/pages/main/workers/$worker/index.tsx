@@ -24,11 +24,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import WorkerSlotGrid from './components/slot-grid';
 import { useState } from 'react';
-import { DataTable } from '@/components/molecules/data-table/data-table';
-import { columns } from './components/step-runs-columns';
 import { RecentWebhookRequests } from '../webhooks/components/recent-webhook-requests';
+import { WorkflowRunsTable } from '../../workflow-runs/components/workflow-runs-table';
 export const isHealthy = (worker?: Worker) => {
   const reasons = [];
 
@@ -219,19 +217,19 @@ export default function ExpandedWorkflowRun() {
           </a>
         </div>
 
-        <WorkerSlotGrid slots={worker.slots} />
+        {/* <WorkerSlotGrid slots={worker.slots} /> */}
 
         <Separator className="my-4" />
         <div className="flex flex-row justify-between items-center mb-4">
           <h3 className="text-xl font-bold leading-tight text-foreground">
-            Recent Step Runs
+            Recent Tasks
           </h3>
         </div>
-        <DataTable
-          isLoading={workerQuery.isLoading}
-          columns={columns}
-          data={worker.recentStepRuns || []}
-          filters={[]}
+        <WorkflowRunsTable
+          workerId={worker.metadata.id}
+          createdAfter={worker.metadata.createdAt}
+          showMetrics={false}
+          showCounts={false}
         />
         <Separator className="my-4" />
         <h3 className="text-xl font-bold leading-tight text-foreground mb-4">

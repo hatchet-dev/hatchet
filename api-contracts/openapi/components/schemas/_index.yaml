@@ -306,3 +306,7 @@ V2TaskStatus:
   $ref: "./v2/task.yaml#/V2TaskStatus"
 V2TaskRunMetrics:
   $ref: "./v2/task.yaml#/V2TaskRunMetrics"
+V2TaskPointMetric:
+  $ref: "./v2/task.yaml#/V2TaskPointMetric"
+V2TaskPointMetrics:
+  $ref: "./v2/task.yaml#/V2TaskPointMetrics"

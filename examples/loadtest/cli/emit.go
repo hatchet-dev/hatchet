@@ -39,7 +39,9 @@ func emit(ctx context.Context, amountPerSecond int, duration time.Duration, sche
 					var err error
 					ev := Event{CreatedAt: time.Now(), ID: id}
 					l.Info().Msgf("pushed event %d", ev.ID)
-					err = c.Event().Push(context.Background(), "load-test:event", ev)
+					err = c.Event().Push(context.Background(), "load-test:event", ev, client.WithEventMetadata(map[string]string{
+						"event_id": fmt.Sprintf("%d", ev.ID),
+					}))
 					if err != nil {
 						panic(fmt.Errorf("error pushing event: %w", err))
 					}

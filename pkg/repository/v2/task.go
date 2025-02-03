@@ -43,7 +43,7 @@ type CreateTaskOpts struct {
 	Input []byte
 
 	// (optional) the additional metadata for the task
-	AdditionalMetadata map[string]interface{}
+	AdditionalMetadata []byte
 
 	// (optional) the priority of the task
 	Priority *int
@@ -584,6 +584,7 @@ func (r *TaskRepositoryImpl) createTasks(ctx context.Context, tx sqlcv2.DBTX, te
 	displayNames := make([]string, len(tasks))
 	inputs := make([][]byte, len(tasks))
 	retryCounts := make([]int32, len(tasks))
+	additionalMetadatas := make([][]byte, len(tasks))
 
 	for i, task := range tasks {
 		tenantIds[i] = sqlchelpers.UUIDFromStr(tenantId)
@@ -617,23 +618,28 @@ func (r *TaskRepositoryImpl) createTasks(ctx context.Context, tx sqlcv2.DBTX, te
 				Valid: false,
 			}
 		}
+
+		if task.AdditionalMetadata != nil {
+			additionalMetadatas[i] = task.AdditionalMetadata
+		}
 	}
 
 	res, err := r.queries.CreateTasks(ctx, tx, sqlcv2.CreateTasksParams{
-		Tenantids:        tenantIds,
-		Queues:           queues,
-		Actionids:        actionIds,
-		Stepids:          stepIds,
-		Workflowids:      workflowIds,
-		Scheduletimeouts: scheduleTimeouts,
-		Steptimeouts:     stepTimeouts,
-		Priorities:       priorities,
-		Stickies:         stickies,
-		Desiredworkerids: desiredWorkerIds,
-		Externalids:      externalIds,
-		Displaynames:     displayNames,
-		Inputs:           inputs,
-		Retrycounts:      retryCounts,
+		Tenantids:           tenantIds,
+		Queues:              queues,
+		Actionids:           actionIds,
+		Stepids:             stepIds,
+		Workflowids:         workflowIds,
+		Scheduletimeouts:    scheduleTimeouts,
+		Steptimeouts:        stepTimeouts,
+		Priorities:          priorities,
+		Stickies:            stickies,
+		Desiredworkerids:    desiredWorkerIds,
+		Externalids:         externalIds,
+		Displaynames:        displayNames,
+		Inputs:              inputs,
+		Retrycounts:         retryCounts,
+		Additionalmetadatas: additionalMetadatas,
 	})
 
 	if err != nil {

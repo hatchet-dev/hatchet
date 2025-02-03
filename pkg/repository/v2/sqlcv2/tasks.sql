@@ -31,7 +31,8 @@ WITH input AS (
                 unnest(@externalIds::uuid[]) AS external_id,
                 unnest(@displayNames::text[]) AS display_name,
                 unnest(@inputs::jsonb[]) AS input,
-                unnest(@retryCounts::integer[]) AS retry_count
+                unnest(@retryCounts::integer[]) AS retry_count,
+                unnest(@additionalMetadatas::jsonb[]) AS additional_metadata
         ) AS subquery
 )
 INSERT INTO v2_task (
@@ -48,7 +49,8 @@ INSERT INTO v2_task (
     external_id,
     display_name,
     input,
-    retry_count
+    retry_count,
+    additional_metadata
 ) 
 SELECT
     i.tenant_id,
@@ -64,7 +66,8 @@ SELECT
     i.external_id,
     i.display_name,
     i.input,
-    i.retry_count
+    i.retry_count,
+    i.additional_metadata
 FROM
     input i 
 RETURNING

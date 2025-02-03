@@ -14,7 +14,8 @@ INSERT INTO v2_tasks_olap (
     desired_worker_id,
     external_id,
     display_name,
-    input
+    input,
+    additional_metadata
 ) VALUES (
     $1,
     $2,
@@ -30,7 +31,8 @@ INSERT INTO v2_tasks_olap (
     $12,
     $13,
     $14,
-    $15
+    $15,
+    $16
 );
 
 -- name: CreateTaskEventsOLAP :copyfrom
@@ -74,7 +76,10 @@ SELECT
 FROM v2_cagg_status_metrics
 WHERE 
     tenant_id = @tenantId::uuid
-    AND bucket_2 >= @createdAfter::timestamptz;
+    AND bucket_2 >= @createdAfter::timestamptz
+    AND (
+        sqlc.narg('workflowIds')::uuid[] IS NULL OR workflow_id = ANY(sqlc.narg('workflowIds')::uuid[])
+    );
 
 -- name: ReadTaskByExternalID :one
 WITH lookup_task AS (
@@ -136,7 +141,7 @@ JOIN v2_task_events_olap t
   AND t.task_id = a.task_id
   AND t.task_inserted_at = a.task_inserted_at
   AND t.id = a.first_id
-ORDER BY a.time_first_seen;
+ORDER BY a.time_first_seen DESC, t.event_timestamp DESC;
 
 -- name: LastSucceededStatusAggregate :one
 SELECT 
@@ -166,6 +171,9 @@ WITH relevant_events AS (
         )
         AND (
             sqlc.narg('eventType')::v2_event_type_olap IS NULL OR event_type = sqlc.narg('eventType')::v2_event_type_olap
+        )
+        AND (
+            sqlc.narg('workerId')::uuid IS NULL OR worker_id = sqlc.narg('workerId')::uuid
         )
     ORDER BY
         task_inserted_at DESC
@@ -232,8 +240,82 @@ WHERE
     AND (
         sqlc.narg('workflowIds')::uuid[] IS NULL OR s.workflow_id = ANY(sqlc.narg('workflowIds')::uuid[])
     )
+    AND (
+        sqlc.narg('workerId')::uuid IS NULL OR s.worker_id = sqlc.narg('workerId')::uuid
+    )
 ORDER BY bucket DESC, s.task_inserted_at DESC, s.task_id DESC
 LIMIT @taskLimit::integer;
+
+-- name: PopulateSingleTaskRunData :one
+WITH latest_retry_count AS (
+    SELECT
+        MAX(retry_count) AS retry_count
+    FROM
+        v2_task_events_olap
+    WHERE
+        tenant_id = @tenantId::uuid
+        AND task_id = @taskId::bigint
+        AND task_inserted_at = @taskInsertedAt::timestamptz
+), relevant_events AS (
+    SELECT
+        *
+    FROM
+        v2_task_events_olap
+    WHERE
+        tenant_id = @tenantId::uuid
+        AND task_id = @taskId::bigint
+        AND task_inserted_at = @taskInsertedAt::timestamptz
+        AND retry_count = (SELECT retry_count FROM latest_retry_count)
+    ORDER BY
+        event_timestamp DESC
+), finished_at AS (
+    SELECT
+        MAX(event_timestamp) AS finished_at
+    FROM
+        relevant_events
+    WHERE
+        readable_status = ANY(ARRAY['COMPLETED', 'FAILED', 'CANCELLED']::v2_readable_status_olap[])
+), started_at AS (
+    SELECT
+        MAX(event_timestamp) AS started_at
+    FROM
+        relevant_events
+    WHERE
+        event_type = 'STARTED'
+), task_output AS (
+    SELECT
+        output
+    FROM
+        relevant_events
+    WHERE
+        event_type = 'FINISHED'
+), status AS (
+    SELECT
+        readable_status
+    FROM
+        relevant_events
+    ORDER BY
+        readable_status DESC
+    LIMIT 1
+)
+SELECT
+    t.*,
+    st.readable_status::v2_readable_status_olap as status,
+    f.finished_at::timestamptz as finished_at,
+    s.started_at::timestamptz as started_at,
+    o.output::jsonb as output
+FROM
+    v2_tasks_olap t
+LEFT JOIN
+    finished_at f ON true
+LEFT JOIN
+    started_at s ON true
+LEFT JOIN
+    task_output o ON true
+LEFT JOIN
+    status st ON true
+WHERE
+    (t.tenant_id, t.id, t.inserted_at) = (@tenantId::uuid, @taskId::bigint, @taskInsertedAt::timestamptz);
 
 -- name: PopulateTaskRunData :many
 WITH input AS (
@@ -261,6 +343,7 @@ WITH input AS (
         t.external_id,
         t.display_name,
         t.input,
+        t.additional_metadata,
         i.retry_count,
         i.status
     FROM
@@ -305,6 +388,7 @@ SELECT
     t.sticky,
     t.display_name,
     t.retry_count,
+    t.additional_metadata,
     t.status::v2_readable_status_olap as status,
     f.finished_at::timestamptz as finished_at,
     s.started_at::timestamptz as started_at
@@ -316,3 +400,19 @@ LEFT JOIN
     started_ats s ON s.task_id = t.id
 ORDER BY t.inserted_at DESC, t.id DESC
 LIMIT @taskLimit::int;
+
+-- name: GetTaskPointMetrics :many
+SELECT
+    time_bucket(COALESCE(sqlc.narg('interval')::interval, '1 minute'), bucket)::timestamptz as bucket,
+    SUM(completed_count)::int as completed_count,
+    SUM(failed_count)::int as failed_count
+FROM
+    v2_cagg_task_events_minute
+WHERE
+    tenant_id = @tenantId::uuid AND
+    -- timestamptz makes this fast, apparently: 
+    -- https://www.timescale.com/forum/t/very-slow-query-planning-time-in-postgresql/255/8
+    bucket >= time_bucket('1 minute', @createdAfter::timestamptz) AND
+    bucket <= time_bucket('1 minute', @createdBefore::timestamptz)
+GROUP BY bucket
+ORDER BY bucket;

@@ -1843,6 +1843,7 @@ type V2Task struct {
 	RetryCount         int32              `json:"retry_count"`
 	InternalRetryCount int32              `json:"internal_retry_count"`
 	AppRetryCount      int32              `json:"app_retry_count"`
+	AdditionalMetadata []byte             `json:"additional_metadata"`
 }
 
 type V2TaskEvent struct {

@@ -63,12 +63,14 @@ export interface WorkflowRunsTableProps {
   createdAfter?: string;
   createdBefore?: string;
   workflowId?: string;
+  workerId?: string;
   parentWorkflowRunId?: string;
   parentStepRunId?: string;
   initColumnVisibility?: VisibilityState;
   filterVisibility?: { [key: string]: boolean };
   refetchInterval?: number;
   showMetrics?: boolean;
+  showCounts?: boolean;
 }
 
 // TODO: Clean this up
@@ -93,11 +95,13 @@ export const getCreatedAfterFromTimeRange = (timeRange?: string) => {
 
 export function WorkflowRunsTable({
   workflowId,
+  workerId,
   createdAfter: createdAfterProp,
   initColumnVisibility = {},
   filterVisibility = {},
   refetchInterval = 5000,
   showMetrics = false,
+  showCounts = true,
 }: WorkflowRunsTableProps) {
   const [searchParams, setSearchParams] = useSearchParams();
   const { tenant } = useOutletContext<TenantContextType>();
@@ -267,14 +271,22 @@ export function WorkflowRunsTable({
       limit: pagination.pageSize,
       statuses,
       workflow_ids: workflow ? [workflow] : [],
-      since: createdAfter,
+      worker_id: workerId,
+      since:
+        createdAfter ||
+        new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
     }),
     placeholderData: (prev) => prev,
     refetchInterval,
   });
 
   const metricsQuery = useQuery({
-    ...queries.v2TaskRuns.metrics(tenant.metadata.id, createdAfter),
+    ...queries.v2TaskRuns.metrics(tenant.metadata.id, {
+      since:
+        createdAfter ||
+        new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+      workflow_ids: workflow ? [workflow] : [],
+    }),
     placeholderData: (prev) => prev,
     refetchInterval,
   });
@@ -406,7 +418,8 @@ export function WorkflowRunsTable({
 
   const actions = [
     <Button
-      disabled={!Object.values(rowSelection).some((selected) => !!selected)}
+      // disabled={!Object.values(rowSelection).some((selected) => !!selected)}
+      disabled
       key="cancel"
       className="h-8 px-2 lg:px-3"
       size="sm"
@@ -420,7 +433,8 @@ export function WorkflowRunsTable({
       Cancel
     </Button>,
     <Button
-      disabled={!Object.values(rowSelection).some((selected) => !!selected)}
+      // disabled={!Object.values(rowSelection).some((selected) => !!selected)}
+      disabled
       key="replay"
       className="h-8 px-2 lg:px-3"
       size="sm"
@@ -579,7 +593,7 @@ export function WorkflowRunsTable({
           </Select>
         </div>
       )}
-      {showMetrics && cloudMeta && cloudMeta.data?.metricsEnabled && (
+      {showMetrics && (
         <GetWorkflowChart
           tenantId={tenant.metadata.id}
           createdAfter={createdAfter}
@@ -590,44 +604,46 @@ export function WorkflowRunsTable({
           refetchInterval={refetchInterval}
         />
       )}
-      <div className="flex flex-row justify-between items-center my-4">
-        {metrics.length > 0 ? (
-          <V2WorkflowRunsMetricsView
-            metrics={metrics}
-            onViewQueueMetricsClick={() => {
-              setViewQueueMetrics(true);
-            }}
-            showQueueMetrics={showMetrics}
-            onClick={(status) => {
-              setColumnFilters((prev) => {
-                const statusFilter = prev.find(
-                  (filter) => filter.id === 'status',
-                );
-                if (statusFilter) {
-                  prev = prev.filter((filter) => filter.id !== 'status');
-                }
+      {showCounts && (
+        <div className="flex flex-row justify-between items-center my-4">
+          {metrics.length > 0 ? (
+            <V2WorkflowRunsMetricsView
+              metrics={metrics}
+              onViewQueueMetricsClick={() => {
+                setViewQueueMetrics(true);
+              }}
+              showQueueMetrics={showMetrics}
+              onClick={(status) => {
+                setColumnFilters((prev) => {
+                  const statusFilter = prev.find(
+                    (filter) => filter.id === 'status',
+                  );
+                  if (statusFilter) {
+                    prev = prev.filter((filter) => filter.id !== 'status');
+                  }
 
-                if (
-                  JSON.stringify(statusFilter?.value) ===
-                  JSON.stringify([status])
-                ) {
-                  return prev;
-                }
+                  if (
+                    JSON.stringify(statusFilter?.value) ===
+                    JSON.stringify([status])
+                  ) {
+                    return prev;
+                  }
 
-                return [
-                  ...prev,
-                  {
-                    id: 'status',
-                    value: [status],
-                  },
-                ];
-              });
-            }}
-          />
-        ) : (
-          <Skeleton className="max-w-[800px] w-[40vw] h-8" />
-        )}
-      </div>
+                  return [
+                    ...prev,
+                    {
+                      id: 'status',
+                      value: [status],
+                    },
+                  ];
+                });
+              }}
+            />
+          ) : (
+            <Skeleton className="max-w-[800px] w-[40vw] h-8" />
+          )}
+        </div>
+      )}
       <DataTable
         emptyState={<>No workflow runs found with the given filters.</>}
         error={workflowKeysError}
@@ -669,7 +685,7 @@ const GetWorkflowChart = ({
   zoom: (startTime: string, endTime: string) => void;
 }) => {
   const workflowRunEventsMetricsQuery = useQuery({
-    ...queries.cloud.workflowRunMetrics(tenantId, {
+    ...queries.v2TaskRuns.pointMetrics(tenantId, {
       createdAfter,
       finishedBefore,
     }),

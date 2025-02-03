@@ -13,16 +13,14 @@ import (
 	"github.com/oapi-codegen/runtime/types"
 )
 
-func jsonToMap(jsonStr string) map[string]interface{} {
+func jsonToMap(jsonBytes []byte) map[string]interface{} {
 	result := make(map[string]interface{})
-	json.Unmarshal([]byte(jsonStr), &result)
+	json.Unmarshal(jsonBytes, &result)
 	return result
 }
 
 func ToTaskSummary(task *timescalev2.PopulateTaskRunDataRow) gen.V2TaskSummary {
-	// additionalMetadata := jsonToMap(*task.AdditionalMetadata)
-	// input := jsonToMap(wf.Input)
-	// output := jsonToMap(wf.Output)
+	additionalMetadata := jsonToMap(task.AdditionalMetadata)
 
 	var finishedAt *time.Time
 
@@ -49,16 +47,16 @@ func ToTaskSummary(task *timescalev2.PopulateTaskRunDataRow) gen.V2TaskSummary {
 			CreatedAt: task.InsertedAt.Time,
 			UpdatedAt: task.InsertedAt.Time,
 		},
-		TaskId:         int(task.ID),
-		TaskInsertedAt: task.InsertedAt.Time,
-		DisplayName:    task.DisplayName,
-		Duration:       durationPtr,
-		StartedAt:      startedAt,
-		FinishedAt:     finishedAt,
-
-		Status:     gen.V2TaskStatus(task.Status),
-		TenantId:   uuid.MustParse(sqlchelpers.UUIDToStr(task.TenantID)),
-		WorkflowId: uuid.MustParse(sqlchelpers.UUIDToStr(task.WorkflowID)),
+		TaskId:             int(task.ID),
+		TaskInsertedAt:     task.InsertedAt.Time,
+		DisplayName:        task.DisplayName,
+		Duration:           durationPtr,
+		StartedAt:          startedAt,
+		FinishedAt:         finishedAt,
+		AdditionalMetadata: &additionalMetadata,
+		Status:             gen.V2TaskStatus(task.Status),
+		TenantId:           uuid.MustParse(sqlchelpers.UUIDToStr(task.TenantID)),
+		WorkflowId:         uuid.MustParse(sqlchelpers.UUIDToStr(task.WorkflowID)),
 	}
 }
 
@@ -152,47 +150,52 @@ func ToTaskRunMetrics(metrics *[]olap.TaskRunMetric) gen.V2TaskRunMetrics {
 	return toReturn
 }
 
-func ToTask(task *timescalev2.V2TasksOlap) gen.V2Task {
-	// additionalMetadata := jsonToMap(*task.AdditionalMetadata)
-	// input := jsonToMap(wf.Input)
-	// output := jsonToMap(wf.Output)
+func ToTask(taskWithData *timescalev2.PopulateSingleTaskRunDataRow) gen.V2Task {
+	additionalMetadata := jsonToMap(taskWithData.AdditionalMetadata)
 
-	// var finishedAt *time.Time
+	var finishedAt *time.Time
 
-	// if task.FinishedAt.Valid {
-	// 	finishedAt = &task.FinishedAt.Time
-	// }
+	if taskWithData.FinishedAt.Valid {
+		finishedAt = &taskWithData.FinishedAt.Time
+	}
 
-	// var startedAt *time.Time
+	var startedAt *time.Time
 
-	// if task.StartedAt.Valid {
-	// 	startedAt = &task.StartedAt.Time
-	// }
+	if taskWithData.StartedAt.Valid {
+		startedAt = &taskWithData.StartedAt.Time
+	}
 
-	// var durationPtr *int
+	var durationPtr *int
 
-	// if task.FinishedAt.Valid && task.StartedAt.Valid {
-	// 	duration := int(task.FinishedAt.Time.Sub(task.StartedAt.Time).Milliseconds())
-	// 	durationPtr = &duration
-	// }
+	if taskWithData.FinishedAt.Valid && taskWithData.StartedAt.Valid {
+		duration := int(taskWithData.FinishedAt.Time.Sub(taskWithData.StartedAt.Time).Milliseconds())
+		durationPtr = &duration
+	}
+
+	var output *string
+
+	if taskWithData.Output != nil {
+		outputStr := string(taskWithData.Output)
+		output = &outputStr
+	}
 
 	return gen.V2Task{
 		Metadata: gen.APIResourceMeta{
-			Id:        sqlchelpers.UUIDToStr(task.ExternalID),
-			CreatedAt: task.InsertedAt.Time,
-			UpdatedAt: task.InsertedAt.Time,
+			Id:        sqlchelpers.UUIDToStr(taskWithData.ExternalID),
+			CreatedAt: taskWithData.InsertedAt.Time,
+			UpdatedAt: taskWithData.InsertedAt.Time,
 		},
-		TaskId:         int(task.ID),
-		TaskInsertedAt: task.InsertedAt.Time,
-		DisplayName:    task.DisplayName,
-		// Duration:       durationPtr,
-		// StartedAt:      startedAt,
-		// FinishedAt:     finishedAt,
-		// Status:     gen.V2TaskStatus(task.Status),
-		// TODO: FIX STATUS
-		Input:      string(task.Input),
-		Status:     gen.V2TaskStatusCOMPLETED,
-		TenantId:   uuid.MustParse(sqlchelpers.UUIDToStr(task.TenantID)),
-		WorkflowId: uuid.MustParse(sqlchelpers.UUIDToStr(task.WorkflowID)),
+		TaskId:             int(taskWithData.ID),
+		TaskInsertedAt:     taskWithData.InsertedAt.Time,
+		DisplayName:        taskWithData.DisplayName,
+		AdditionalMetadata: &additionalMetadata,
+		Duration:           durationPtr,
+		StartedAt:          startedAt,
+		FinishedAt:         finishedAt,
+		Output:             output,
+		Status:             gen.V2TaskStatus(taskWithData.Status),
+		Input:              string(taskWithData.Input),
+		TenantId:           uuid.MustParse(sqlchelpers.UUIDToStr(taskWithData.TenantID)),
+		WorkflowId:         uuid.MustParse(sqlchelpers.UUIDToStr(taskWithData.WorkflowID)),
 	}
 }

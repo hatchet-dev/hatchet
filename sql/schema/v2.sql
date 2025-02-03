@@ -30,6 +30,7 @@ CREATE TABLE v2_task (
     retry_count INTEGER NOT NULL DEFAULT 0,
     internal_retry_count INTEGER NOT NULL DEFAULT 0,
     app_retry_count INTEGER NOT NULL DEFAULT 0,
+    additional_metadata JSONB, 
     CONSTRAINT v2_task_pkey PRIMARY KEY (id, inserted_at)
 ) PARTITION BY RANGE(inserted_at);
 

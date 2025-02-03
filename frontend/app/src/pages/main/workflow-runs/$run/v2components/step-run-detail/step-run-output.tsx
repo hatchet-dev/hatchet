@@ -122,14 +122,17 @@ export const V2StepRunOutput = (props: { taskRunId: string }) => {
     return null;
   }
 
+  const outputData = data.output
+    ? JSON.stringify(JSON.parse(data.output), null, 2)
+    : '{}';
+
   return (
     <CodeHighlighter
       className="my-4 h-[400px] max-h-[400px] overflow-y-auto"
       language="json"
       maxHeight="400px"
       minHeight="400px"
-      // TODO: FIX
-      code={JSON.stringify({}, null, 2)}
+      code={outputData}
     />
   );
 };

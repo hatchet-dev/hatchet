@@ -28,21 +28,77 @@ type CreateTaskEventsOLAPParams struct {
 }
 
 type CreateTasksOLAPParams struct {
-	TenantID        pgtype.UUID          `json:"tenant_id"`
-	ID              int64                `json:"id"`
-	InsertedAt      pgtype.Timestamptz   `json:"inserted_at"`
-	Queue           string               `json:"queue"`
-	ActionID        string               `json:"action_id"`
-	StepID          pgtype.UUID          `json:"step_id"`
-	WorkflowID      pgtype.UUID          `json:"workflow_id"`
-	ScheduleTimeout string               `json:"schedule_timeout"`
-	StepTimeout     pgtype.Text          `json:"step_timeout"`
-	Priority        pgtype.Int4          `json:"priority"`
-	Sticky          V2StickyStrategyOlap `json:"sticky"`
-	DesiredWorkerID pgtype.UUID          `json:"desired_worker_id"`
-	ExternalID      pgtype.UUID          `json:"external_id"`
-	DisplayName     string               `json:"display_name"`
-	Input           []byte               `json:"input"`
+	TenantID           pgtype.UUID          `json:"tenant_id"`
+	ID                 int64                `json:"id"`
+	InsertedAt         pgtype.Timestamptz   `json:"inserted_at"`
+	Queue              string               `json:"queue"`
+	ActionID           string               `json:"action_id"`
+	StepID             pgtype.UUID          `json:"step_id"`
+	WorkflowID         pgtype.UUID          `json:"workflow_id"`
+	ScheduleTimeout    string               `json:"schedule_timeout"`
+	StepTimeout        pgtype.Text          `json:"step_timeout"`
+	Priority           pgtype.Int4          `json:"priority"`
+	Sticky             V2StickyStrategyOlap `json:"sticky"`
+	DesiredWorkerID    pgtype.UUID          `json:"desired_worker_id"`
+	ExternalID         pgtype.UUID          `json:"external_id"`
+	DisplayName        string               `json:"display_name"`
+	Input              []byte               `json:"input"`
+	AdditionalMetadata []byte               `json:"additional_metadata"`
+}
+
+const getTaskPointMetrics = `-- name: GetTaskPointMetrics :many
+SELECT
+    time_bucket(COALESCE($1::interval, '1 minute'), bucket)::timestamptz as bucket,
+    SUM(completed_count)::int as completed_count,
+    SUM(failed_count)::int as failed_count
+FROM
+    v2_cagg_task_events_minute
+WHERE
+    tenant_id = $2::uuid AND
+    -- timestamptz makes this fast, apparently: 
+    -- https://www.timescale.com/forum/t/very-slow-query-planning-time-in-postgresql/255/8
+    bucket >= time_bucket('1 minute', $3::timestamptz) AND
+    bucket <= time_bucket('1 minute', $4::timestamptz)
+GROUP BY bucket
+ORDER BY bucket
+`
+
+type GetTaskPointMetricsParams struct {
+	Interval      pgtype.Interval    `json:"interval"`
+	Tenantid      pgtype.UUID        `json:"tenantid"`
+	Createdafter  pgtype.Timestamptz `json:"createdafter"`
+	Createdbefore pgtype.Timestamptz `json:"createdbefore"`
+}
+
+type GetTaskPointMetricsRow struct {
+	Bucket         pgtype.Timestamptz `json:"bucket"`
+	CompletedCount int32              `json:"completed_count"`
+	FailedCount    int32              `json:"failed_count"`
+}
+
+func (q *Queries) GetTaskPointMetrics(ctx context.Context, db DBTX, arg GetTaskPointMetricsParams) ([]*GetTaskPointMetricsRow, error) {
+	rows, err := db.Query(ctx, getTaskPointMetrics,
+		arg.Interval,
+		arg.Tenantid,
+		arg.Createdafter,
+		arg.Createdbefore,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*GetTaskPointMetricsRow
+	for rows.Next() {
+		var i GetTaskPointMetricsRow
+		if err := rows.Scan(&i.Bucket, &i.CompletedCount, &i.FailedCount); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getTenantStatusMetrics = `-- name: GetTenantStatusMetrics :one
@@ -56,11 +112,15 @@ FROM v2_cagg_status_metrics
 WHERE 
     tenant_id = $1::uuid
     AND bucket_2 >= $2::timestamptz
+    AND (
+        $3::uuid[] IS NULL OR workflow_id = ANY($3::uuid[])
+    )
 `
 
 type GetTenantStatusMetricsParams struct {
 	Tenantid     pgtype.UUID        `json:"tenantid"`
 	Createdafter pgtype.Timestamptz `json:"createdafter"`
+	WorkflowIds  []pgtype.UUID      `json:"workflowIds"`
 }
 
 type GetTenantStatusMetricsRow struct {
@@ -72,7 +132,7 @@ type GetTenantStatusMetricsRow struct {
 }
 
 func (q *Queries) GetTenantStatusMetrics(ctx context.Context, db DBTX, arg GetTenantStatusMetricsParams) (*GetTenantStatusMetricsRow, error) {
-	row := db.QueryRow(ctx, getTenantStatusMetrics, arg.Tenantid, arg.Createdafter)
+	row := db.QueryRow(ctx, getTenantStatusMetrics, arg.Tenantid, arg.Createdafter, arg.WorkflowIds)
 	var i GetTenantStatusMetricsRow
 	err := row.Scan(
 		&i.TotalQueued,
@@ -147,7 +207,7 @@ JOIN v2_task_events_olap t
   AND t.task_id = a.task_id
   AND t.task_inserted_at = a.task_inserted_at
   AND t.id = a.first_id
-ORDER BY a.time_first_seen
+ORDER BY a.time_first_seen DESC, t.event_timestamp DESC
 `
 
 type ListTaskEventsParams struct {
@@ -232,8 +292,11 @@ WHERE
     AND (
         $4::uuid[] IS NULL OR s.workflow_id = ANY($4::uuid[])
     )
+    AND (
+        $5::uuid IS NULL OR s.worker_id = $5::uuid
+    )
 ORDER BY bucket DESC, s.task_inserted_at DESC, s.task_id DESC
-LIMIT $5::integer
+LIMIT $6::integer
 `
 
 type ListTasksFromAggregateParams struct {
@@ -241,6 +304,7 @@ type ListTasksFromAggregateParams struct {
 	Createdafter pgtype.Timestamptz `json:"createdafter"`
 	Statuses     []string           `json:"statuses"`
 	WorkflowIds  []pgtype.UUID      `json:"workflowIds"`
+	WorkerId     pgtype.UUID        `json:"workerId"`
 	Tasklimit    int32              `json:"tasklimit"`
 }
 
@@ -258,6 +322,7 @@ func (q *Queries) ListTasksFromAggregate(ctx context.Context, db DBTX, arg ListT
 		arg.Createdafter,
 		arg.Statuses,
 		arg.WorkflowIds,
+		arg.WorkerId,
 		arg.Tasklimit,
 	)
 	if err != nil {
@@ -300,12 +365,15 @@ WITH relevant_events AS (
         AND (
             $7::v2_event_type_olap IS NULL OR event_type = $7::v2_event_type_olap
         )
+        AND (
+            $8::uuid IS NULL OR worker_id = $8::uuid
+        )
     ORDER BY
         task_inserted_at DESC
     -- NOTE: we can't always limit this CTE. We can limit when we're just querying for created tasks,
     -- but we can't limit when we're querying for i.e. failed tasks, because we need to get the latest
     -- event for each task.
-    LIMIT $8::integer
+    LIMIT $9::integer
 ), unique_tasks AS (
     SELECT
         tenant_id,
@@ -354,6 +422,7 @@ type ListTasksRealTimeParams struct {
 	Eventstatuses []string            `json:"eventstatuses"`
 	WorkflowIds   []pgtype.UUID       `json:"workflowIds"`
 	EventType     NullV2EventTypeOlap `json:"eventType"`
+	WorkerId      pgtype.UUID         `json:"workerId"`
 	EventLimit    pgtype.Int4         `json:"eventLimit"`
 }
 
@@ -374,6 +443,7 @@ func (q *Queries) ListTasksRealTime(ctx context.Context, db DBTX, arg ListTasksR
 		arg.Eventstatuses,
 		arg.WorkflowIds,
 		arg.EventType,
+		arg.WorkerId,
 		arg.EventLimit,
 	)
 	if err != nil {
@@ -398,6 +468,135 @@ func (q *Queries) ListTasksRealTime(ctx context.Context, db DBTX, arg ListTasksR
 		return nil, err
 	}
 	return items, nil
+}
+
+const populateSingleTaskRunData = `-- name: PopulateSingleTaskRunData :one
+WITH latest_retry_count AS (
+    SELECT
+        MAX(retry_count) AS retry_count
+    FROM
+        v2_task_events_olap
+    WHERE
+        tenant_id = $1::uuid
+        AND task_id = $2::bigint
+        AND task_inserted_at = $3::timestamptz
+), relevant_events AS (
+    SELECT
+        tenant_id, id, inserted_at, task_id, task_inserted_at, event_type, workflow_id, event_timestamp, readable_status, retry_count, error_message, output, worker_id, additional__event_data, additional__event_message
+    FROM
+        v2_task_events_olap
+    WHERE
+        tenant_id = $1::uuid
+        AND task_id = $2::bigint
+        AND task_inserted_at = $3::timestamptz
+        AND retry_count = (SELECT retry_count FROM latest_retry_count)
+    ORDER BY
+        event_timestamp DESC
+), finished_at AS (
+    SELECT
+        MAX(event_timestamp) AS finished_at
+    FROM
+        relevant_events
+    WHERE
+        readable_status = ANY(ARRAY['COMPLETED', 'FAILED', 'CANCELLED']::v2_readable_status_olap[])
+), started_at AS (
+    SELECT
+        MAX(event_timestamp) AS started_at
+    FROM
+        relevant_events
+    WHERE
+        event_type = 'STARTED'
+), task_output AS (
+    SELECT
+        output
+    FROM
+        relevant_events
+    WHERE
+        event_type = 'FINISHED'
+), status AS (
+    SELECT
+        readable_status
+    FROM
+        relevant_events
+    ORDER BY
+        readable_status DESC
+    LIMIT 1
+)
+SELECT
+    t.tenant_id, t.id, t.inserted_at, t.external_id, t.queue, t.action_id, t.step_id, t.workflow_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.display_name, t.input, t.additional_metadata,
+    st.readable_status::v2_readable_status_olap as status,
+    f.finished_at::timestamptz as finished_at,
+    s.started_at::timestamptz as started_at,
+    o.output::jsonb as output
+FROM
+    v2_tasks_olap t
+LEFT JOIN
+    finished_at f ON true
+LEFT JOIN
+    started_at s ON true
+LEFT JOIN
+    task_output o ON true
+LEFT JOIN
+    status st ON true
+WHERE
+    (t.tenant_id, t.id, t.inserted_at) = ($1::uuid, $2::bigint, $3::timestamptz)
+`
+
+type PopulateSingleTaskRunDataParams struct {
+	Tenantid       pgtype.UUID        `json:"tenantid"`
+	Taskid         int64              `json:"taskid"`
+	Taskinsertedat pgtype.Timestamptz `json:"taskinsertedat"`
+}
+
+type PopulateSingleTaskRunDataRow struct {
+	TenantID           pgtype.UUID          `json:"tenant_id"`
+	ID                 int64                `json:"id"`
+	InsertedAt         pgtype.Timestamptz   `json:"inserted_at"`
+	ExternalID         pgtype.UUID          `json:"external_id"`
+	Queue              string               `json:"queue"`
+	ActionID           string               `json:"action_id"`
+	StepID             pgtype.UUID          `json:"step_id"`
+	WorkflowID         pgtype.UUID          `json:"workflow_id"`
+	ScheduleTimeout    string               `json:"schedule_timeout"`
+	StepTimeout        pgtype.Text          `json:"step_timeout"`
+	Priority           pgtype.Int4          `json:"priority"`
+	Sticky             V2StickyStrategyOlap `json:"sticky"`
+	DesiredWorkerID    pgtype.UUID          `json:"desired_worker_id"`
+	DisplayName        string               `json:"display_name"`
+	Input              []byte               `json:"input"`
+	AdditionalMetadata []byte               `json:"additional_metadata"`
+	Status             V2ReadableStatusOlap `json:"status"`
+	FinishedAt         pgtype.Timestamptz   `json:"finished_at"`
+	StartedAt          pgtype.Timestamptz   `json:"started_at"`
+	Output             []byte               `json:"output"`
+}
+
+func (q *Queries) PopulateSingleTaskRunData(ctx context.Context, db DBTX, arg PopulateSingleTaskRunDataParams) (*PopulateSingleTaskRunDataRow, error) {
+	row := db.QueryRow(ctx, populateSingleTaskRunData, arg.Tenantid, arg.Taskid, arg.Taskinsertedat)
+	var i PopulateSingleTaskRunDataRow
+	err := row.Scan(
+		&i.TenantID,
+		&i.ID,
+		&i.InsertedAt,
+		&i.ExternalID,
+		&i.Queue,
+		&i.ActionID,
+		&i.StepID,
+		&i.WorkflowID,
+		&i.ScheduleTimeout,
+		&i.StepTimeout,
+		&i.Priority,
+		&i.Sticky,
+		&i.DesiredWorkerID,
+		&i.DisplayName,
+		&i.Input,
+		&i.AdditionalMetadata,
+		&i.Status,
+		&i.FinishedAt,
+		&i.StartedAt,
+		&i.Output,
+	)
+	return &i, err
 }
 
 const populateTaskRunData = `-- name: PopulateTaskRunData :many
@@ -426,6 +625,7 @@ WITH input AS (
         t.external_id,
         t.display_name,
         t.input,
+        t.additional_metadata,
         i.retry_count,
         i.status
     FROM
@@ -470,6 +670,7 @@ SELECT
     t.sticky,
     t.display_name,
     t.retry_count,
+    t.additional_metadata,
     t.status::v2_readable_status_olap as status,
     f.finished_at::timestamptz as finished_at,
     s.started_at::timestamptz as started_at
@@ -493,23 +694,24 @@ type PopulateTaskRunDataParams struct {
 }
 
 type PopulateTaskRunDataRow struct {
-	TenantID        pgtype.UUID          `json:"tenant_id"`
-	ID              int64                `json:"id"`
-	InsertedAt      pgtype.Timestamptz   `json:"inserted_at"`
-	ExternalID      pgtype.UUID          `json:"external_id"`
-	Queue           string               `json:"queue"`
-	ActionID        string               `json:"action_id"`
-	StepID          pgtype.UUID          `json:"step_id"`
-	WorkflowID      pgtype.UUID          `json:"workflow_id"`
-	ScheduleTimeout string               `json:"schedule_timeout"`
-	StepTimeout     pgtype.Text          `json:"step_timeout"`
-	Priority        pgtype.Int4          `json:"priority"`
-	Sticky          V2StickyStrategyOlap `json:"sticky"`
-	DisplayName     string               `json:"display_name"`
-	RetryCount      interface{}          `json:"retry_count"`
-	Status          V2ReadableStatusOlap `json:"status"`
-	FinishedAt      pgtype.Timestamptz   `json:"finished_at"`
-	StartedAt       pgtype.Timestamptz   `json:"started_at"`
+	TenantID           pgtype.UUID          `json:"tenant_id"`
+	ID                 int64                `json:"id"`
+	InsertedAt         pgtype.Timestamptz   `json:"inserted_at"`
+	ExternalID         pgtype.UUID          `json:"external_id"`
+	Queue              string               `json:"queue"`
+	ActionID           string               `json:"action_id"`
+	StepID             pgtype.UUID          `json:"step_id"`
+	WorkflowID         pgtype.UUID          `json:"workflow_id"`
+	ScheduleTimeout    string               `json:"schedule_timeout"`
+	StepTimeout        pgtype.Text          `json:"step_timeout"`
+	Priority           pgtype.Int4          `json:"priority"`
+	Sticky             V2StickyStrategyOlap `json:"sticky"`
+	DisplayName        string               `json:"display_name"`
+	RetryCount         interface{}          `json:"retry_count"`
+	AdditionalMetadata []byte               `json:"additional_metadata"`
+	Status             V2ReadableStatusOlap `json:"status"`
+	FinishedAt         pgtype.Timestamptz   `json:"finished_at"`
+	StartedAt          pgtype.Timestamptz   `json:"started_at"`
 }
 
 func (q *Queries) PopulateTaskRunData(ctx context.Context, db DBTX, arg PopulateTaskRunDataParams) ([]*PopulateTaskRunDataRow, error) {
@@ -543,6 +745,7 @@ func (q *Queries) PopulateTaskRunData(ctx context.Context, db DBTX, arg Populate
 			&i.Sticky,
 			&i.DisplayName,
 			&i.RetryCount,
+			&i.AdditionalMetadata,
 			&i.Status,
 			&i.FinishedAt,
 			&i.StartedAt,
@@ -569,7 +772,7 @@ WITH lookup_task AS (
         external_id = $1::uuid
 )
 SELECT
-    t.tenant_id, t.id, t.inserted_at, t.external_id, t.queue, t.action_id, t.step_id, t.workflow_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.display_name, t.input
+    t.tenant_id, t.id, t.inserted_at, t.external_id, t.queue, t.action_id, t.step_id, t.workflow_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.display_name, t.input, t.additional_metadata
 FROM
     v2_tasks_olap t
 JOIN
@@ -595,6 +798,7 @@ func (q *Queries) ReadTaskByExternalID(ctx context.Context, db DBTX, externalid 
 		&i.DesiredWorkerID,
 		&i.DisplayName,
 		&i.Input,
+		&i.AdditionalMetadata,
 	)
 	return &i, err
 }

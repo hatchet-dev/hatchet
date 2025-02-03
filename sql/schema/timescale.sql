@@ -16,6 +16,7 @@ CREATE TABLE v2_tasks_olap (
     desired_worker_id UUID,
     display_name TEXT NOT NULL,
     input JSONB NOT NULL,
+    additional_metadata JSONB,
 
     PRIMARY KEY (tenant_id, id, inserted_at)
 );
@@ -127,6 +128,7 @@ SELECT
   task_id,
   task_inserted_at,
   workflow_id,
+  (array_agg(worker_id) FILTER (WHERE worker_id IS NOT NULL))[1] AS worker_id,
   time_bucket('5 minutes', task_inserted_at) AS bucket,
   (array_agg(readable_status ORDER BY retry_count DESC, readable_status DESC))[1] AS status,
   max(retry_count) AS max_retry_count
@@ -136,6 +138,8 @@ ORDER BY bucket DESC, task_inserted_at DESC
 WITH NO DATA;
 
 CREATE INDEX v2_cagg_task_status_bucket_tenant_id_status_idx ON v2_cagg_task_status (bucket, tenant_id, status, workflow_id);
+
+CREATE INDEX v2_cagg_task_status_worker_id_idx ON v2_cagg_task_status (worker_id) WHERE worker_id IS NOT NULL;
 
 SELECT add_continuous_aggregate_policy('v2_cagg_task_status',
   start_offset => NULL,
@@ -148,14 +152,16 @@ CREATE  MATERIALIZED VIEW v2_cagg_status_metrics
       SELECT
         time_bucket('5 minutes', bucket) AS bucket_2,
         tenant_id,
+        workflow_id,
+        worker_id,
         COUNT(*) FILTER (WHERE status = 'QUEUED') AS queued_count,
         COUNT(*) FILTER (WHERE status = 'RUNNING') AS running_count,
         COUNT(*) FILTER (WHERE status = 'COMPLETED') AS completed_count,
         COUNT(*) FILTER (WHERE status = 'CANCELLED') AS cancelled_count,
         COUNT(*) FILTER (WHERE status = 'FAILED') AS failed_count
       FROM v2_cagg_task_status
-      GROUP BY bucket_2, tenant_id
-      ORDER BY bucket_2
+      GROUP BY tenant_id, workflow_id, worker_id, bucket_2
+      ORDER BY bucket_2 DESC
 WITH NO DATA;
 
 SELECT add_continuous_aggregate_policy('v2_cagg_status_metrics',
@@ -168,13 +174,14 @@ WITH (timescaledb.continuous, timescaledb.materialized_only = true) AS
 SELECT
     time_bucket('1 minute', task_inserted_at) AS bucket,
     tenant_id,
+    workflow_id,
     COUNT(*) FILTER (WHERE readable_status = 'QUEUED') AS queued_count,
     COUNT(*) FILTER (WHERE readable_status = 'RUNNING') AS running_count,
     COUNT(*) FILTER (WHERE readable_status = 'COMPLETED') AS completed_count,
     COUNT(*) FILTER (WHERE readable_status = 'CANCELLED') AS cancelled_count,
     COUNT(*) FILTER (WHERE readable_status = 'FAILED') AS failed_count
 FROM v2_task_events_olap
-GROUP BY bucket, tenant_id
+GROUP BY bucket, tenant_id, workflow_id
 ORDER BY bucket
 WITH NO DATA;
 

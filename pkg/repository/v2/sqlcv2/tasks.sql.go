@@ -88,7 +88,7 @@ func (q *Queries) CreateTaskEvents(ctx context.Context, db DBTX, arg CreateTaskE
 const createTasks = `-- name: CreateTasks :many
 WITH input AS (
     SELECT
-        tenant_id, queue, action_id, step_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count
+        tenant_id, queue, action_id, step_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, additional_metadata
     FROM
         (
             SELECT
@@ -105,7 +105,8 @@ WITH input AS (
                 unnest($11::uuid[]) AS external_id,
                 unnest($12::text[]) AS display_name,
                 unnest($13::jsonb[]) AS input,
-                unnest($14::integer[]) AS retry_count
+                unnest($14::integer[]) AS retry_count,
+                unnest($15::jsonb[]) AS additional_metadata
         ) AS subquery
 )
 INSERT INTO v2_task (
@@ -122,7 +123,8 @@ INSERT INTO v2_task (
     external_id,
     display_name,
     input,
-    retry_count
+    retry_count,
+    additional_metadata
 ) 
 SELECT
     i.tenant_id,
@@ -138,28 +140,30 @@ SELECT
     i.external_id,
     i.display_name,
     i.input,
-    i.retry_count
+    i.retry_count,
+    i.additional_metadata
 FROM
     input i 
 RETURNING
-    id, inserted_at, tenant_id, queue, action_id, step_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count
+    id, inserted_at, tenant_id, queue, action_id, step_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, additional_metadata
 `
 
 type CreateTasksParams struct {
-	Tenantids        []pgtype.UUID `json:"tenantids"`
-	Queues           []string      `json:"queues"`
-	Actionids        []string      `json:"actionids"`
-	Stepids          []pgtype.UUID `json:"stepids"`
-	Workflowids      []pgtype.UUID `json:"workflowids"`
-	Scheduletimeouts []string      `json:"scheduletimeouts"`
-	Steptimeouts     []string      `json:"steptimeouts"`
-	Priorities       []int32       `json:"priorities"`
-	Stickies         []string      `json:"stickies"`
-	Desiredworkerids []pgtype.UUID `json:"desiredworkerids"`
-	Externalids      []pgtype.UUID `json:"externalids"`
-	Displaynames     []string      `json:"displaynames"`
-	Inputs           [][]byte      `json:"inputs"`
-	Retrycounts      []int32       `json:"retrycounts"`
+	Tenantids           []pgtype.UUID `json:"tenantids"`
+	Queues              []string      `json:"queues"`
+	Actionids           []string      `json:"actionids"`
+	Stepids             []pgtype.UUID `json:"stepids"`
+	Workflowids         []pgtype.UUID `json:"workflowids"`
+	Scheduletimeouts    []string      `json:"scheduletimeouts"`
+	Steptimeouts        []string      `json:"steptimeouts"`
+	Priorities          []int32       `json:"priorities"`
+	Stickies            []string      `json:"stickies"`
+	Desiredworkerids    []pgtype.UUID `json:"desiredworkerids"`
+	Externalids         []pgtype.UUID `json:"externalids"`
+	Displaynames        []string      `json:"displaynames"`
+	Inputs              [][]byte      `json:"inputs"`
+	Retrycounts         []int32       `json:"retrycounts"`
+	Additionalmetadatas [][]byte      `json:"additionalmetadatas"`
 }
 
 func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParams) ([]*V2Task, error) {
@@ -178,6 +182,7 @@ func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParam
 		arg.Displaynames,
 		arg.Inputs,
 		arg.Retrycounts,
+		arg.Additionalmetadatas,
 	)
 	if err != nil {
 		return nil, err
@@ -205,6 +210,7 @@ func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParam
 			&i.RetryCount,
 			&i.InternalRetryCount,
 			&i.AppRetryCount,
+			&i.AdditionalMetadata,
 		); err != nil {
 			return nil, err
 		}
@@ -431,7 +437,7 @@ func (q *Queries) ListTaskMetas(ctx context.Context, db DBTX, arg ListTaskMetasP
 
 const listTasks = `-- name: ListTasks :many
 SELECT
-    id, inserted_at, tenant_id, queue, action_id, step_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count
+    id, inserted_at, tenant_id, queue, action_id, step_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, additional_metadata
 FROM
     v2_task
 WHERE
@@ -472,6 +478,7 @@ func (q *Queries) ListTasks(ctx context.Context, db DBTX, arg ListTasksParams) (
 			&i.RetryCount,
 			&i.InternalRetryCount,
 			&i.AppRetryCount,
+			&i.AdditionalMetadata,
 		); err != nil {
 			return nil, err
 		}

@@ -236,16 +236,11 @@ export const V2RunDetailHeader: React.FC<V2RunDetailHeaderProps> = ({
           </div>
           <div className="flex flex-row gap-2 items-center">
             <a
-              href={`/workflows/${data.taskId}`}
+              href={`/workflows/${data.workflowId}`}
               target="_blank"
               rel="noreferrer"
             >
-              <Button
-                size={'sm'}
-                className="px-2 py-2 gap-2"
-                variant="outline"
-                disabled
-              >
+              <Button size={'sm'} className="px-2 py-2 gap-2" variant="outline">
                 <ArrowTopRightIcon className="w-4 h-4" />
                 Workflow Definition
               </Button>
