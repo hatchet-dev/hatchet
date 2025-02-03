@@ -160,7 +160,7 @@ WITH relevant_events AS (
     WHERE
         tenant_id = @tenantId::uuid
         AND inserted_at >= @insertedAfter::timestamptz
-        AND readable_status = ANY(cast(@statuses::text[] as v2_readable_status_olap[]))
+        AND readable_status = ANY(cast(@eventStatuses::text[] as v2_readable_status_olap[]))
         AND (
             sqlc.narg('workflowIds')::uuid[] IS NULL OR workflow_id = ANY(sqlc.narg('workflowIds')::uuid[])
         )
@@ -193,16 +193,23 @@ WITH relevant_events AS (
         v2_task_events_olap e
     JOIN
         unique_tasks t ON t.tenant_id = e.tenant_id AND t.task_id = e.task_id AND t.task_inserted_at = e.task_inserted_at
+), agg AS (
+    SELECT
+        tenant_id,
+        task_id,
+        task_inserted_at,
+        (array_agg(readable_status ORDER BY retry_count DESC, readable_status DESC))[1]::v2_readable_status_olap AS status,
+        max(retry_count)::integer AS max_retry_count
+    FROM all_task_events
+    GROUP BY tenant_id, task_id, task_inserted_at
+    ORDER BY task_inserted_at DESC, task_id DESC
 )
 SELECT
-  tenant_id,
-  task_id,
-  task_inserted_at,
-  (array_agg(readable_status ORDER BY retry_count DESC, readable_status DESC))[1]::v2_readable_status_olap AS status,
-  max(retry_count)::integer AS max_retry_count
-FROM all_task_events
-GROUP BY tenant_id, task_id, task_inserted_at
-ORDER BY task_inserted_at DESC, task_id DESC
+    *
+FROM   
+    agg
+WHERE
+    sqlc.narg('statuses')::text[] IS NULL OR status = ANY(cast(@statuses::text[] as v2_readable_status_olap[]))
 LIMIT @taskLimit::integer;
 
 -- name: ListTasksFromAggregate :many

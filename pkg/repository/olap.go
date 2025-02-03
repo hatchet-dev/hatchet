@@ -150,7 +150,7 @@ func (r *olapEventRepository) ListTaskRuns(ctx context.Context, tenantId string,
 			Valid: true,
 		}
 
-		realTimeParams.Statuses = []string{
+		realTimeParams.Eventstatuses = []string{
 			string(timescalev2.V2ReadableStatusOlapQUEUED),
 		}
 
@@ -159,9 +159,11 @@ func (r *olapEventRepository) ListTaskRuns(ctx context.Context, tenantId string,
 			Valid:           true,
 		}
 	} else {
+		realTimeParams.Eventstatuses = make([]string, 0)
 		realTimeParams.Statuses = make([]string, 0)
 
 		for _, status := range statuses {
+			realTimeParams.Eventstatuses = append(realTimeParams.Eventstatuses, string(status))
 			realTimeParams.Statuses = append(realTimeParams.Statuses, string(status))
 		}
 	}

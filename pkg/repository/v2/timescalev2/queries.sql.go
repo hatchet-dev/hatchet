@@ -291,21 +291,21 @@ WITH relevant_events AS (
     FROM   
         v2_task_events_olap
     WHERE
-        tenant_id = $2::uuid
-        AND inserted_at >= $3::timestamptz
-        AND readable_status = ANY(cast($4::text[] as v2_readable_status_olap[]))
+        tenant_id = $3::uuid
+        AND inserted_at >= $4::timestamptz
+        AND readable_status = ANY(cast($5::text[] as v2_readable_status_olap[]))
         AND (
-            $5::uuid[] IS NULL OR workflow_id = ANY($5::uuid[])
+            $6::uuid[] IS NULL OR workflow_id = ANY($6::uuid[])
         )
         AND (
-            $6::v2_event_type_olap IS NULL OR event_type = $6::v2_event_type_olap
+            $7::v2_event_type_olap IS NULL OR event_type = $7::v2_event_type_olap
         )
     ORDER BY
         task_inserted_at DESC
     -- NOTE: we can't always limit this CTE. We can limit when we're just querying for created tasks,
     -- but we can't limit when we're querying for i.e. failed tasks, because we need to get the latest
     -- event for each task.
-    LIMIT $7::integer
+    LIMIT $8::integer
 ), unique_tasks AS (
     SELECT
         tenant_id,
@@ -326,24 +326,32 @@ WITH relevant_events AS (
         v2_task_events_olap e
     JOIN
         unique_tasks t ON t.tenant_id = e.tenant_id AND t.task_id = e.task_id AND t.task_inserted_at = e.task_inserted_at
+), agg AS (
+    SELECT
+        tenant_id,
+        task_id,
+        task_inserted_at,
+        (array_agg(readable_status ORDER BY retry_count DESC, readable_status DESC))[1]::v2_readable_status_olap AS status,
+        max(retry_count)::integer AS max_retry_count
+    FROM all_task_events
+    GROUP BY tenant_id, task_id, task_inserted_at
+    ORDER BY task_inserted_at DESC, task_id DESC
 )
 SELECT
-  tenant_id,
-  task_id,
-  task_inserted_at,
-  (array_agg(readable_status ORDER BY retry_count DESC, readable_status DESC))[1]::v2_readable_status_olap AS status,
-  max(retry_count)::integer AS max_retry_count
-FROM all_task_events
-GROUP BY tenant_id, task_id, task_inserted_at
-ORDER BY task_inserted_at DESC, task_id DESC
-LIMIT $1::integer
+    tenant_id, task_id, task_inserted_at, status, max_retry_count
+FROM   
+    agg
+WHERE
+    $1::text[] IS NULL OR status = ANY(cast($1::text[] as v2_readable_status_olap[]))
+LIMIT $2::integer
 `
 
 type ListTasksRealTimeParams struct {
+	Statuses      []string            `json:"statuses"`
 	Tasklimit     int32               `json:"tasklimit"`
 	Tenantid      pgtype.UUID         `json:"tenantid"`
 	Insertedafter pgtype.Timestamptz  `json:"insertedafter"`
-	Statuses      []string            `json:"statuses"`
+	Eventstatuses []string            `json:"eventstatuses"`
 	WorkflowIds   []pgtype.UUID       `json:"workflowIds"`
 	EventType     NullV2EventTypeOlap `json:"eventType"`
 	EventLimit    pgtype.Int4         `json:"eventLimit"`
@@ -359,10 +367,11 @@ type ListTasksRealTimeRow struct {
 
 func (q *Queries) ListTasksRealTime(ctx context.Context, db DBTX, arg ListTasksRealTimeParams) ([]*ListTasksRealTimeRow, error) {
 	rows, err := db.Query(ctx, listTasksRealTime,
+		arg.Statuses,
 		arg.Tasklimit,
 		arg.Tenantid,
 		arg.Insertedafter,
-		arg.Statuses,
+		arg.Eventstatuses,
 		arg.WorkflowIds,
 		arg.EventType,
 		arg.EventLimit,
