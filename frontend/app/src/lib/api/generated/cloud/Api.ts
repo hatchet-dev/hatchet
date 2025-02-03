@@ -30,6 +30,7 @@ import {
   RuntimeConfigActionsResponse,
   TenantBillingState,
   TenantSubscription,
+  TenantUsage,
   UpdateManagedWorkerRequest,
   UpdateTenantSubscription,
   VectorPushRequest,
@@ -590,6 +591,23 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       APIErrors
     >({
       path: `/api/v1/billing/tenants/${tenant}/billing-portal-link`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Get usage for a tenant
+   *
+   * @tags Billing
+   * @name UsageGet
+   * @summary Get usage for a tenant
+   * @request GET:/api/v1/usage/tenants/{tenant}
+   * @secure
+   */
+  usageGet = (tenant: string, params: RequestParams = {}) =>
+    this.request<TenantUsage, any>({
+      path: `/api/v1/usage/tenants/${tenant}`,
       method: "GET",
       secure: true,
       format: "json",

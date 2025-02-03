@@ -11,7 +11,6 @@ import (
 
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 )
 
 // LeaseManager is responsible for leases on multiple queues and multiplexing
@@ -117,7 +116,7 @@ func (l *LeaseManager) acquireWorkerLeases(ctx context.Context) error {
 
 	for i, activeWorker := range activeWorkers {
 		aw := activeWorker
-		workerIdsStr[i] = sqlchelpers.UUIDToStr(activeWorker.ID)
+		workerIdsStr[i] = activeWorker.ID
 		activeWorkerIdsToResults[workerIdsStr[i]] = aw
 
 		if lease, ok := currResourceIdsToLease[workerIdsStr[i]]; ok {

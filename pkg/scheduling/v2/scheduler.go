@@ -14,6 +14,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/scheduling/v2/randomticker"
 )
 
 // Scheduler is responsible for scheduling steps to workers as efficiently as possible.
@@ -27,9 +28,8 @@ type Scheduler struct {
 	actions     map[string]*action
 	actionsMu   rwMutex
 	replenishMu mutex
-
-	workersMu mutex
-	workers   map[string]*worker
+	workersMu   mutex
+	workers     map[string]*worker
 
 	assignedCount   int
 	assignedCountMu mutex
@@ -93,7 +93,7 @@ func (s *Scheduler) setWorkers(workers []*repository.ListActiveWorkersResult) {
 	newWorkers := make(map[string]*worker, len(workers))
 
 	for i := range workers {
-		newWorkers[sqlchelpers.UUIDToStr(workers[i].ID)] = &worker{
+		newWorkers[workers[i].ID] = &worker{
 			ListActiveWorkersResult: workers[i],
 		}
 	}
@@ -380,8 +380,34 @@ func (s *Scheduler) loopReplenish(ctx context.Context) {
 	}
 }
 
+func (s *Scheduler) loopSnapshot(ctx context.Context) {
+	ticker := randomticker.NewRandomTicker(10*time.Millisecond, 90*time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		count := 0
+
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			// require that 1 out of every 20 snapshots is taken
+			must := count%20 == 0
+
+			in, ok := s.getSnapshotInput(must)
+
+			if !ok {
+				continue
+			}
+
+			s.exts.ReportSnapshot(sqlchelpers.UUIDToStr(s.tenantId), in)
+		}
+	}
+}
+
 func (s *Scheduler) start(ctx context.Context) {
 	go s.loopReplenish(ctx)
+	go s.loopSnapshot(ctx)
 }
 
 type scheduleRateLimitResult struct {
@@ -752,9 +778,7 @@ func (s *Scheduler) tryAssign(
 		span.End()
 		close(resultsCh)
 
-		extInput := s.getExtensionInput(extensionResults)
-
-		s.exts.PostSchedule(sqlchelpers.UUIDToStr(s.tenantId), extInput)
+		s.exts.PostAssign(sqlchelpers.UUIDToStr(s.tenantId), s.getExtensionInput(extensionResults))
 
 		if sinceStart := time.Since(startTotal); sinceStart > 100*time.Millisecond {
 			s.l.Warn().Dur("duration", sinceStart).Msgf("assigning queue items took longer than 100ms")
@@ -764,19 +788,33 @@ func (s *Scheduler) tryAssign(
 	return resultsCh
 }
 
-func (s *Scheduler) getExtensionInput(results []*assignResults) *PostScheduleInput {
+func (s *Scheduler) getExtensionInput(results []*assignResults) *PostAssignInput {
 	unassigned := make([]*dbsqlc.QueueItem, 0)
 
 	for _, res := range results {
 		unassigned = append(unassigned, res.unassigned...)
 	}
 
+	return &PostAssignInput{
+		HasUnassignedStepRuns: len(unassigned) > 0,
+	}
+}
+
+func (s *Scheduler) getSnapshotInput(mustSnapshot bool) (*SnapshotInput, bool) {
+	if mustSnapshot {
+		s.actionsMu.RLock()
+	} else {
+		if ok := s.actionsMu.TryRLock(); !ok {
+			return nil, false
+		}
+	}
+
+	defer s.actionsMu.RUnlock()
+
 	workers := s.getWorkers()
 
-	res := &PostScheduleInput{
-		Workers:    make(map[string]*WorkerCp),
-		Slots:      make([]*SlotCp, 0),
-		Unassigned: unassigned,
+	res := &SnapshotInput{
+		Workers: make(map[string]*WorkerCp),
 	}
 
 	for workerId, worker := range workers {
@@ -791,51 +829,58 @@ func (s *Scheduler) getExtensionInput(results []*assignResults) *PostScheduleInp
 	// functions. we always acquire actionsMu first and then the specific action's lock.
 	actionKeys := make([]string, 0, len(s.actions))
 
-	s.actionsMu.RLock()
-
 	for actionId := range s.actions {
 		actionKeys = append(actionKeys, actionId)
 	}
 
-	s.actionsMu.RUnlock()
+	uniqueSlots := make(map[*slot]bool)
 
-	uniqueSlots := make(map[*slot]*SlotCp)
-	actionsToSlots := make(map[string][]*SlotCp)
+	workerSlotUtilization := make(map[string]*SlotUtilization)
+
+	for workerId := range workers {
+		workerSlotUtilization[workerId] = &SlotUtilization{
+			UtilizedSlots:    0,
+			NonUtilizedSlots: 0,
+		}
+	}
 
 	for _, actionId := range actionKeys {
-		s.actionsMu.RLock()
 		action, ok := s.actions[actionId]
-		s.actionsMu.RUnlock()
 
 		if !ok || action == nil {
 			continue
 		}
 
 		action.mu.RLock()
-		actionsToSlots[action.actionId] = make([]*SlotCp, 0, len(action.slots))
-
 		for _, slot := range action.slots {
 			if _, ok := uniqueSlots[slot]; ok {
 				continue
 			}
 
-			uniqueSlots[slot] = &SlotCp{
-				WorkerId: slot.getWorkerId(),
-				Used:     slot.used,
+			workerId := slot.worker.ID
+
+			if _, ok := workerSlotUtilization[workerId]; !ok {
+				// initialize the worker slot utilization
+				workerSlotUtilization[workerId] = &SlotUtilization{
+					UtilizedSlots:    0,
+					NonUtilizedSlots: 0,
+				}
 			}
 
-			actionsToSlots[action.actionId] = append(actionsToSlots[action.actionId], uniqueSlots[slot])
+			uniqueSlots[slot] = true
+
+			if slot.used {
+				workerSlotUtilization[workerId].UtilizedSlots++
+			} else {
+				workerSlotUtilization[workerId].NonUtilizedSlots++
+			}
 		}
 		action.mu.RUnlock()
 	}
 
-	for _, slot := range uniqueSlots {
-		res.Slots = append(res.Slots, slot)
-	}
+	res.WorkerSlotUtilization = workerSlotUtilization
 
-	res.ActionsToSlots = actionsToSlots
-
-	return res
+	return res, true
 }
 
 func isTimedOut(qi *dbsqlc.QueueItem) bool {

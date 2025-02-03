@@ -8,14 +8,18 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 )
 
-type PostScheduleInput struct {
-	Workers map[string]*WorkerCp
+type PostAssignInput struct {
+	HasUnassignedStepRuns bool
+}
 
-	Slots []*SlotCp
+type SnapshotInput struct {
+	Workers               map[string]*WorkerCp
+	WorkerSlotUtilization map[string]*SlotUtilization
+}
 
-	Unassigned []*dbsqlc.QueueItem
-
-	ActionsToSlots map[string][]*SlotCp
+type SlotUtilization struct {
+	UtilizedSlots    int
+	NonUtilizedSlots int
 }
 
 type WorkerCp struct {
@@ -31,7 +35,8 @@ type SlotCp struct {
 
 type SchedulerExtension interface {
 	SetTenants(tenants []*dbsqlc.Tenant)
-	PostSchedule(tenantId string, input *PostScheduleInput)
+	ReportSnapshot(tenantId string, input *SnapshotInput)
+	PostAssign(tenantId string, input *PostAssignInput)
 	Cleanup() error
 }
 
@@ -51,12 +56,22 @@ func (e *Extensions) Add(ext SchedulerExtension) {
 	e.exts = append(e.exts, ext)
 }
 
-func (e *Extensions) PostSchedule(tenantId string, input *PostScheduleInput) {
+func (e *Extensions) ReportSnapshot(tenantId string, input *SnapshotInput) {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 
 	for _, ext := range e.exts {
-		f := ext.PostSchedule
+		f := ext.ReportSnapshot
+		go f(tenantId, input)
+	}
+}
+
+func (e *Extensions) PostAssign(tenantId string, input *PostAssignInput) {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+
+	for _, ext := range e.exts {
+		f := ext.PostAssign
 		go f(tenantId, input)
 	}
 }

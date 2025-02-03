@@ -146,7 +146,7 @@ func (d *leaseRepository) ListActiveWorkers(ctx context.Context, tenantId pgtype
 	for _, worker := range activeWorkers {
 		wId := sqlchelpers.UUIDToStr(worker.ID)
 		res = append(res, &repository.ListActiveWorkersResult{
-			ID:      worker.ID,
+			ID:      wId,
 			MaxRuns: int(worker.MaxRuns),
 			Labels:  workerIdsToLabels[wId],
 		})
