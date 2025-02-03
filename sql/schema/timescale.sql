@@ -121,7 +121,7 @@ SET timescaledb.enable_chunk_skipping = on;
 
 SELECT enable_chunk_skipping('v2_task_events_olap', 'inserted_at');
 
-CREATE MATERIALIZED VIEW v2_cagg_task_status
+CREATE MATERIALIZED VIEW v2_cagg_task_status_source
 WITH (timescaledb.continuous, timescaledb.materialized_only = true, timescaledb.create_group_indexes = false) AS
 SELECT
   tenant_id,
@@ -137,7 +137,28 @@ GROUP BY tenant_id, task_id, task_inserted_at, workflow_id, bucket
 ORDER BY bucket DESC, task_inserted_at DESC
 WITH NO DATA;
 
-CREATE INDEX v2_cagg_task_status_bucket_tenant_id_status_idx ON v2_cagg_task_status (bucket, tenant_id, status, workflow_id);
+SELECT add_continuous_aggregate_policy('v2_cagg_task_status_source',
+  start_offset => NULL,
+  end_offset => NULL,
+  schedule_interval => INTERVAL '15 seconds');
+
+CREATE MATERIALIZED VIEW v2_cagg_task_status
+WITH (timescaledb.continuous, timescaledb.materialized_only = false, timescaledb.create_group_indexes = false) AS
+SELECT
+  tenant_id,
+  task_id,
+  task_inserted_at,
+  workflow_id,
+  worker_id,
+  status,
+  max_retry_count,
+  time_bucket('1 day', bucket) AS bucket_2
+FROM v2_cagg_task_status_source
+GROUP BY tenant_id, task_id, task_inserted_at, workflow_id, worker_id, status, max_retry_count, bucket_2
+ORDER BY bucket_2 DESC, task_inserted_at DESC
+WITH NO DATA;
+
+CREATE INDEX v2_cagg_task_status_bucket_tenant_id_status_idx ON v2_cagg_task_status (bucket_2, tenant_id, status, workflow_id);
 
 CREATE INDEX v2_cagg_task_status_worker_id_idx ON v2_cagg_task_status (worker_id) WHERE worker_id IS NOT NULL;
 
@@ -147,7 +168,7 @@ SELECT add_continuous_aggregate_policy('v2_cagg_task_status',
   schedule_interval => INTERVAL '15 seconds');
 
 CREATE  MATERIALIZED VIEW v2_cagg_status_metrics
-   WITH (timescaledb.continuous, timescaledb.materialized_only = true)
+   WITH (timescaledb.continuous, timescaledb.materialized_only = false)
    AS
       SELECT
         time_bucket('5 minutes', bucket) AS bucket_2,
@@ -159,7 +180,7 @@ CREATE  MATERIALIZED VIEW v2_cagg_status_metrics
         COUNT(*) FILTER (WHERE status = 'COMPLETED') AS completed_count,
         COUNT(*) FILTER (WHERE status = 'CANCELLED') AS cancelled_count,
         COUNT(*) FILTER (WHERE status = 'FAILED') AS failed_count
-      FROM v2_cagg_task_status
+      FROM v2_cagg_task_status_source
       GROUP BY tenant_id, workflow_id, worker_id, bucket_2
       ORDER BY bucket_2 DESC
 WITH NO DATA;
@@ -170,7 +191,7 @@ SELECT add_continuous_aggregate_policy('v2_cagg_status_metrics',
   schedule_interval => INTERVAL '15 seconds');
 
 CREATE MATERIALIZED VIEW v2_cagg_task_events_minute
-WITH (timescaledb.continuous, timescaledb.materialized_only = true) AS
+WITH (timescaledb.continuous, timescaledb.materialized_only = false) AS
 SELECT
     time_bucket('1 minute', task_inserted_at) AS bucket,
     tenant_id,
@@ -187,5 +208,5 @@ WITH NO DATA;
 
 SELECT add_continuous_aggregate_policy('v2_cagg_task_events_minute',
   start_offset => NULL,
-  end_offset => NULL, 
+  end_offset => INTERVAL '1 minute', 
   schedule_interval => INTERVAL '15 seconds');

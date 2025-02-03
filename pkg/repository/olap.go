@@ -159,6 +159,9 @@ func (r *olapEventRepository) ListTaskRuns(ctx context.Context, tenantId string,
 
 	if !lastSucceededAggTs.Valid {
 		lastSucceededAggTs = sqlchelpers.TimestamptzFromTime(time.Time{}) // zero value
+	} else if lastSucceededAggTs.Time.After(time.Now().Add(-5 * time.Minute)) {
+		// always search the last 5 minutes of data
+		lastSucceededAggTs = sqlchelpers.TimestamptzFromTime(time.Now().Add(-5 * time.Minute))
 	}
 
 	taskIds := make([]int64, 0)

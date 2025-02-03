@@ -111,7 +111,7 @@ SELECT
 FROM v2_cagg_status_metrics
 WHERE 
     tenant_id = $1::uuid
-    AND bucket_2 >= $2::timestamptz
+    AND bucket_2 >= time_bucket('5 minutes', $2::timestamptz)
     AND (
         $3::uuid[] IS NULL OR workflow_id = ANY($3::uuid[])
     )
@@ -285,7 +285,8 @@ JOIN
     v2_tasks_olap t ON t.tenant_id = s.tenant_id AND t.id = s.task_id AND t.inserted_at = s.task_inserted_at
 WHERE
     s.tenant_id = $1::uuid
-    AND bucket >= $2::timestamptz
+    AND bucket_2 >= time_bucket('1 day', $2::timestamptz)
+    AND s.task_inserted_at >= $2::timestamptz
     AND (
         $3::text[] IS NULL OR status = ANY(cast($3::text[] as v2_readable_status_olap[]))
     )
@@ -295,7 +296,7 @@ WHERE
     AND (
         $5::uuid IS NULL OR s.worker_id = $5::uuid
     )
-ORDER BY bucket DESC, s.task_inserted_at DESC, s.task_id DESC
+ORDER BY bucket_2 DESC, s.task_inserted_at DESC, s.task_id DESC
 LIMIT $6::integer
 `
 

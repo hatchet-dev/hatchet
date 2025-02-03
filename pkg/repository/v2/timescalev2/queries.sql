@@ -76,7 +76,7 @@ SELECT
 FROM v2_cagg_status_metrics
 WHERE 
     tenant_id = @tenantId::uuid
-    AND bucket_2 >= @createdAfter::timestamptz
+    AND bucket_2 >= time_bucket('5 minutes', @createdAfter::timestamptz)
     AND (
         sqlc.narg('workflowIds')::uuid[] IS NULL OR workflow_id = ANY(sqlc.narg('workflowIds')::uuid[])
     );
@@ -233,7 +233,8 @@ JOIN
     v2_tasks_olap t ON t.tenant_id = s.tenant_id AND t.id = s.task_id AND t.inserted_at = s.task_inserted_at
 WHERE
     s.tenant_id = @tenantId::uuid
-    AND bucket >= @createdAfter::timestamptz
+    AND bucket_2 >= time_bucket('1 day', @createdAfter::timestamptz)
+    AND s.task_inserted_at >= @createdAfter::timestamptz
     AND (
         sqlc.narg('statuses')::text[] IS NULL OR status = ANY(cast(@statuses::text[] as v2_readable_status_olap[]))
     )
@@ -243,7 +244,7 @@ WHERE
     AND (
         sqlc.narg('workerId')::uuid IS NULL OR s.worker_id = sqlc.narg('workerId')::uuid
     )
-ORDER BY bucket DESC, s.task_inserted_at DESC, s.task_id DESC
+ORDER BY bucket_2 DESC, s.task_inserted_at DESC, s.task_id DESC
 LIMIT @taskLimit::integer;
 
 -- name: PopulateSingleTaskRunData :one

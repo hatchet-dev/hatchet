@@ -207,6 +207,17 @@ type V2CaggTaskStatus struct {
 	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
 	WorkflowID     pgtype.UUID        `json:"workflow_id"`
 	WorkerID       interface{}        `json:"worker_id"`
+	Status         interface{}        `json:"status"`
+	MaxRetryCount  interface{}        `json:"max_retry_count"`
+	Bucket2        interface{}        `json:"bucket_2"`
+}
+
+type V2CaggTaskStatusSource struct {
+	TenantID       pgtype.UUID        `json:"tenant_id"`
+	TaskID         int64              `json:"task_id"`
+	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
+	WorkflowID     pgtype.UUID        `json:"workflow_id"`
+	WorkerID       interface{}        `json:"worker_id"`
 	Bucket         interface{}        `json:"bucket"`
 	Status         interface{}        `json:"status"`
 	MaxRetryCount  interface{}        `json:"max_retry_count"`
