@@ -48,7 +48,7 @@ type CreateTasksOLAPParams struct {
 
 const getTaskPointMetrics = `-- name: GetTaskPointMetrics :many
 SELECT
-    time_bucket(COALESCE($1::interval, '1 minute'), bucket)::timestamptz as bucket,
+    time_bucket(COALESCE($1::interval, '1 minute'), bucket)::timestamptz as bucket_2,
     SUM(completed_count)::int as completed_count,
     SUM(failed_count)::int as failed_count
 FROM
@@ -59,8 +59,8 @@ WHERE
     -- https://www.timescale.com/forum/t/very-slow-query-planning-time-in-postgresql/255/8
     bucket >= time_bucket('1 minute', $3::timestamptz) AND
     bucket <= time_bucket('1 minute', $4::timestamptz)
-GROUP BY bucket
-ORDER BY bucket
+GROUP BY bucket_2
+ORDER BY bucket_2
 `
 
 type GetTaskPointMetricsParams struct {
@@ -71,7 +71,7 @@ type GetTaskPointMetricsParams struct {
 }
 
 type GetTaskPointMetricsRow struct {
-	Bucket         pgtype.Timestamptz `json:"bucket"`
+	Bucket2        pgtype.Timestamptz `json:"bucket_2"`
 	CompletedCount int32              `json:"completed_count"`
 	FailedCount    int32              `json:"failed_count"`
 }
@@ -90,7 +90,7 @@ func (q *Queries) GetTaskPointMetrics(ctx context.Context, db DBTX, arg GetTaskP
 	var items []*GetTaskPointMetricsRow
 	for rows.Next() {
 		var i GetTaskPointMetricsRow
-		if err := rows.Scan(&i.Bucket, &i.CompletedCount, &i.FailedCount); err != nil {
+		if err := rows.Scan(&i.Bucket2, &i.CompletedCount, &i.FailedCount); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)

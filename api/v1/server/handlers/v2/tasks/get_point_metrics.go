@@ -77,11 +77,11 @@ func convertToGenMetrics(metrics []*timescalev2.GetTaskPointMetricsRow) []gen.V2
 	converted := make([]gen.V2TaskPointMetric, len(metrics))
 
 	for i, metric := range metrics {
-		if metric == nil || !metric.Bucket.Valid {
+		if metric == nil || !metric.Bucket2.Valid {
 			continue
 		}
 
-		timeMinute := metric.Bucket.Time.UTC()
+		timeMinute := metric.Bucket2.Time.UTC()
 
 		converted[i] = gen.V2TaskPointMetric{
 			FAILED:    int(metric.FailedCount),

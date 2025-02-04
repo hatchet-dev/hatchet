@@ -406,7 +406,7 @@ LIMIT @taskLimit::int;
 
 -- name: GetTaskPointMetrics :many
 SELECT
-    time_bucket(COALESCE(sqlc.narg('interval')::interval, '1 minute'), bucket)::timestamptz as bucket,
+    time_bucket(COALESCE(sqlc.narg('interval')::interval, '1 minute'), bucket)::timestamptz as bucket_2,
     SUM(completed_count)::int as completed_count,
     SUM(failed_count)::int as failed_count
 FROM
@@ -417,5 +417,5 @@ WHERE
     -- https://www.timescale.com/forum/t/very-slow-query-planning-time-in-postgresql/255/8
     bucket >= time_bucket('1 minute', @createdAfter::timestamptz) AND
     bucket <= time_bucket('1 minute', @createdBefore::timestamptz)
-GROUP BY bucket
-ORDER BY bucket;
+GROUP BY bucket_2
+ORDER BY bucket_2;
