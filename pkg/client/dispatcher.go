@@ -397,11 +397,20 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, <-cha
 			var additionalMetadata map[string]string
 
 			if assignedAction.AdditionalMetadata != nil {
-				err := json.Unmarshal([]byte(*assignedAction.AdditionalMetadata), &additionalMetadata)
-
-				if err != nil {
+				// Try to unmarshal as map[string]string first
+				var rawMap map[string]interface{}
+				if err := json.Unmarshal([]byte(*assignedAction.AdditionalMetadata), &rawMap); err != nil {
+					// If that fails, try to unmarshal as a single string
 					a.l.Error().Err(err).Msgf("could not unmarshal additional metadata")
 					continue
+				} else {
+					// Only keep string values from the map
+					additionalMetadata = make(map[string]string)
+					for k, v := range rawMap {
+						if strVal, ok := v.(string); ok {
+							additionalMetadata[k] = strVal
+						}
+					}
 				}
 			}
 
