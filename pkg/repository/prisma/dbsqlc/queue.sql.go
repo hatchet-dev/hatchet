@@ -1125,7 +1125,7 @@ WITH retries AS (
         "WorkflowRun" wr ON jr."workflowRunId" = wr."id"
     WHERE
         sr."status" NOT IN ('SUCCEEDED', 'FAILED', 'CANCELLED')
-), 
+),
 srs_with_concurrency AS (
     SELECT
         srs.id, srs."tenantId", srs."scheduleTimeoutAt", srs."retryCount", srs."internalRetryCount", srs."actionId", srs."stepId", srs."stepTimeout", srs."scheduleTimeout", srs."jobRunId", srs."workflowRunId", srs."workflowConcurrencyGroupId",
@@ -1134,7 +1134,7 @@ srs_with_concurrency AS (
         srs
     WHERE
         srs."workflowConcurrencyGroupId" IS NOT NULL
-), 
+),
 srs_without_concurrency AS (
     SELECT
         srs.id, srs."tenantId", srs."scheduleTimeoutAt", srs."retryCount", srs."internalRetryCount", srs."actionId", srs."stepId", srs."stepTimeout", srs."scheduleTimeout", srs."jobRunId", srs."workflowRunId", srs."workflowConcurrencyGroupId",
@@ -1153,7 +1153,7 @@ updated_step_runs_with_concurrency AS (
     FROM srs_with_concurrency
     WHERE sr."id" = srs_with_concurrency."id"
     RETURNING sr."id"
-), 
+),
 updated_workflow_runs_with_concurrency AS (
     UPDATE "WorkflowRun" wr
     SET
@@ -1162,7 +1162,7 @@ updated_workflow_runs_with_concurrency AS (
     FROM srs_with_concurrency
     WHERE wr."id" = srs_with_concurrency."workflowRunId"
     RETURNING wr."id"
-), 
+),
 updated_step_runs_without_concurrency AS (
     UPDATE "StepRun" sr
     SET
@@ -1173,7 +1173,7 @@ updated_step_runs_without_concurrency AS (
     FROM srs_without_concurrency
     WHERE sr."id" = srs_without_concurrency."id"
     RETURNING sr."id"
-), 
+),
 updated_workflow_runs_without_concurrency AS (
     UPDATE "WorkflowRun" wr
     SET
@@ -1182,7 +1182,7 @@ updated_workflow_runs_without_concurrency AS (
     FROM srs_without_concurrency
     WHERE wr."id" = srs_without_concurrency."workflowRunId"
     RETURNING wr."id"
-), 
+),
 update_job_runs_without_concurrency AS (
     UPDATE "JobRun" jr
     SET
