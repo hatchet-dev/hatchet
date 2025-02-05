@@ -2222,7 +2222,7 @@ WHERE
     "JobRun"."deletedAt" IS NULL AND
     "StepRun"."tenantId" = $1::uuid AND
     "StepRun"."jobRunId" = $2::uuid AND
-    "StepRun"."status" = ANY(ARRAY['PENDING', 'PENDING_ASSIGNMENT', 'ASSIGNED', 'RUNNING', 'CANCELLING']::"StepRunStatus"[])
+    "StepRun"."status" = ANY(ARRAY['PENDING', 'PENDING_ASSIGNMENT', 'ASSIGNED', 'RUNNING', 'CANCELLING', 'BACKOFF']::"StepRunStatus"[])
 `
 
 type ListStepRunsToCancelParams struct {
