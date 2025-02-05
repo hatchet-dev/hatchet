@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"os"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -9,6 +10,9 @@ import (
 
 	"github.com/hatchet-dev/hatchet/pkg/config/shared"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
+
+	"net/http"
+	_ "net/http/pprof"
 )
 
 var l zerolog.Logger
@@ -35,6 +39,13 @@ func main() {
 				},
 				"loadtest",
 			)
+
+			// enable pprof if requested
+			if os.Getenv("PPROF_ENABLED") == "true" {
+				go func() {
+					log.Println(http.ListenAndServe("localhost:6060", nil))
+				}()
+			}
 
 			if err := do(duration, events, delay, wait, concurrency, workerDelay, slots, failureRate, payloadSize); err != nil {
 				log.Println(err)
