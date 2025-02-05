@@ -24,11 +24,13 @@ func (t *StepRunService) StepRunUpdateCancel(ctx echo.Context, request gen.StepR
 	// check to see if the step run is in a running or pending state
 	status := stepRun.Status
 
-	canCancel := status == dbsqlc.StepRunStatusRUNNING || status == dbsqlc.StepRunStatusPENDING
+	canCancel := status == dbsqlc.StepRunStatusRUNNING ||
+		status == dbsqlc.StepRunStatusPENDING ||
+		status == dbsqlc.StepRunStatusBACKOFF
 
 	if !canCancel {
 		return gen.StepRunUpdateCancel400JSONResponse(
-			apierrors.NewAPIErrors("step run is not in a running or pending state"),
+			apierrors.NewAPIErrors("step run is not in a running, pending, or backoff state"),
 		), nil
 	}
 
