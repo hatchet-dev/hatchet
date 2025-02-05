@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/hatchet-dev/hatchet/pkg/client"
@@ -27,7 +28,6 @@ func parseSize(s string) int {
 		multiplier = 1024 * 1024
 		s = strings.TrimSuffix(s, "mb")
 	} else {
-		// Default to bytes if no suffix is provided.
 		multiplier = 1
 	}
 	num, err := strconv.Atoi(strings.TrimSpace(s))
@@ -44,59 +44,66 @@ func emit(ctx context.Context, amountPerSecond int, duration time.Duration, sche
 	}
 
 	var id int64
-	mx := sync.Mutex{}
-	go func() {
-		ticker := time.NewTicker(time.Second / time.Duration(amountPerSecond))
-		defer ticker.Stop()
 
-		timer := time.After(duration)
+	// Precompute payload data.
+	payloadSize := parseSize(payloadArg)
+	payloadData := strings.Repeat("a", payloadSize)
 
-		for {
-			select {
-			case <-ticker.C:
-				mx.Lock()
-				id++
+	// Create a buffered channel for events.
+	jobCh := make(chan Event, amountPerSecond*2)
 
-				go func(id int64) {
-					payloadSize := parseSize(payloadArg)
-					payloadData := strings.Repeat("a", payloadSize)
-
-					ev := Event{
-						CreatedAt: time.Now(),
-						ID:        id,
-						Payload:   payloadData,
-					}
-					l.Info().Msgf("pushed event %d", ev.ID)
-					err := c.Event().Push(context.Background(), "load-test:event", ev, client.WithEventMetadata(map[string]string{
-						"event_id": fmt.Sprintf("%d", ev.ID),
-					}))
-					if err != nil {
-						panic(fmt.Errorf("error pushing event: %w", err))
-					}
-					took := time.Since(ev.CreatedAt)
-					l.Info().Msgf("pushed event %d took %s", ev.ID, took)
-					scheduled <- took
-				}(id)
-
-				mx.Unlock()
-			case <-timer:
-				l.Info().Msg("done emitting events due to timer")
-				return
-			case <-ctx.Done():
-				l.Info().Msgf("done emitting events due to interruption at %d", id)
-				return
+	// Worker pool to handle event pushes.
+	numWorkers := 10
+	var wg sync.WaitGroup
+	for i := 0; i < numWorkers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for ev := range jobCh {
+				l.Info().Msgf("pushing event %d", ev.ID)
+				err := c.Event().Push(context.Background(), "load-test:event", ev, client.WithEventMetadata(map[string]string{
+					"event_id": fmt.Sprintf("%d", ev.ID),
+				}))
+				if err != nil {
+					panic(fmt.Errorf("error pushing event: %w", err))
+				}
+				took := time.Since(ev.CreatedAt)
+				l.Info().Msgf("pushed event %d took %s", ev.ID, took)
+				scheduled <- took
 			}
-		}
-	}()
+		}()
+	}
 
+	ticker := time.NewTicker(time.Second / time.Duration(amountPerSecond))
+	defer ticker.Stop()
+	timer := time.NewTimer(duration)
+	defer timer.Stop()
+
+loop:
 	for {
 		select {
 		case <-ctx.Done():
-			mx.Lock()
-			defer mx.Unlock()
-			return id
-		default:
-			time.Sleep(time.Second)
+			l.Info().Msg("done emitting events due to interruption")
+			break loop
+		case <-timer.C:
+			l.Info().Msg("done emitting events due to timer")
+			break loop
+		case <-ticker.C:
+			newID := atomic.AddInt64(&id, 1)
+			ev := Event{
+				ID:        newID,
+				CreatedAt: time.Now(),
+				Payload:   payloadData,
+			}
+			select {
+			case jobCh <- ev:
+			case <-ctx.Done():
+				break loop
+			}
 		}
 	}
+
+	close(jobCh)
+	wg.Wait()
+	return id
 }
