@@ -40,15 +40,19 @@ type CompletedTaskPayload struct {
 
 	// (required) the retry count
 	RetryCount int32
+
+	// (optional) the output data
+	Output []byte
 }
 
-func CompletedTaskMessage(tenantId string, taskId int64, retryCount int32) (*msgqueue.Message, error) {
+func CompletedTaskMessage(tenantId string, taskId int64, retryCount int32, output []byte) (*msgqueue.Message, error) {
 	return msgqueue.NewSingletonTenantMessage(
 		tenantId,
 		"task-completed",
 		CompletedTaskPayload{
 			TaskId:     taskId,
 			RetryCount: retryCount,
+			Output:     output,
 		},
 		false,
 		true,
@@ -64,9 +68,12 @@ type FailedTaskPayload struct {
 
 	// (required) whether this is an application-level error or an internal error on the Hatchet side
 	IsAppError bool
+
+	// (optional) the error message
+	ErrorMsg string
 }
 
-func FailedTaskMessage(tenantId string, taskId int64, retryCount int32, isAppError bool) (*msgqueue.Message, error) {
+func FailedTaskMessage(tenantId string, taskId int64, retryCount int32, isAppError bool, errorMsg string) (*msgqueue.Message, error) {
 	return msgqueue.NewSingletonTenantMessage(
 		tenantId,
 		"task-failed",
@@ -74,6 +81,7 @@ func FailedTaskMessage(tenantId string, taskId int64, retryCount int32, isAppErr
 			TaskId:     taskId,
 			RetryCount: retryCount,
 			IsAppError: isAppError,
+			ErrorMsg:   errorMsg,
 		},
 		false,
 		true,

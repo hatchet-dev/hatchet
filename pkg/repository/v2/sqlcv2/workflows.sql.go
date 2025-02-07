@@ -11,51 +11,33 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const getWorkflowStartData = `-- name: GetWorkflowStartData :many
-WITH workflow_versions_with_steps AS (
-    SELECT
-        s.id, s."createdAt", s."updatedAt", s."deletedAt", s."readableId", s."tenantId", s."jobId", s."actionId", s.timeout, s."customUserData", s.retries, s."retryBackoffFactor", s."retryMaxBackoff", s."scheduleTimeout",
-        wv."id" as "workflowVersionId",
-        w."name" as "workflowName",
-        w."id" as "workflowId"
-    FROM
-        "WorkflowVersion" as wv
-    JOIN
-        "Workflow" as w ON w."id" = wv."workflowId"
-    JOIN
-        "Job" j ON j."workflowVersionId" = wv."id"
-    JOIN
-        "Step" s ON s."jobId" = j."id"
-    WHERE
-        wv."id" = ANY($1::uuid[])
-        AND w."tenantId" = $2::uuid
-        AND w."deletedAt" IS NULL 
-        AND wv."deletedAt" IS NULL
-), step_counts AS (
-    SELECT
-        DISTINCT ON (wv."workflowVersionId") wv."workflowVersionId" as "workflowVersionId",
-        COUNT(wv."id") as "numSteps"
-    FROM
-        workflow_versions_with_steps as wv
-    GROUP BY
-        wv."workflowVersionId"
-)
+const listStepsByIds = `-- name: ListStepsByIds :many
 SELECT
-    wv.id, wv."createdAt", wv."updatedAt", wv."deletedAt", wv."readableId", wv."tenantId", wv."jobId", wv."actionId", wv.timeout, wv."customUserData", wv.retries, wv."retryBackoffFactor", wv."retryMaxBackoff", wv."scheduleTimeout", wv."workflowVersionId", wv."workflowName", wv."workflowId"
+    s.id, s."createdAt", s."updatedAt", s."deletedAt", s."readableId", s."tenantId", s."jobId", s."actionId", s.timeout, s."customUserData", s.retries, s."retryBackoffFactor", s."retryMaxBackoff", s."scheduleTimeout",
+    wv."id" as "workflowVersionId",
+    w."name" as "workflowName",
+    w."id" as "workflowId"
 FROM
-    workflow_versions_with_steps as wv
+    "Step" s
 JOIN
-    step_counts sc ON sc."workflowVersionId" = wv."workflowVersionId"
+    "Job" j ON j."id" = s."jobId"
+JOIN
+    "WorkflowVersion" wv ON wv."id" = j."workflowVersionId"
+JOIN
+    "Workflow" w ON w."id" = wv."workflowId"
 WHERE
-    sc."numSteps" = 1
+    s."id" = ANY($1::uuid[])
+    AND w."tenantId" = $2::uuid
+    AND w."deletedAt" IS NULL
+    AND wv."deletedAt" IS NULL
 `
 
-type GetWorkflowStartDataParams struct {
+type ListStepsByIdsParams struct {
 	Ids      []pgtype.UUID `json:"ids"`
 	Tenantid pgtype.UUID   `json:"tenantid"`
 }
 
-type GetWorkflowStartDataRow struct {
+type ListStepsByIdsRow struct {
 	ID                 pgtype.UUID      `json:"id"`
 	CreatedAt          pgtype.Timestamp `json:"createdAt"`
 	UpdatedAt          pgtype.Timestamp `json:"updatedAt"`
@@ -75,17 +57,15 @@ type GetWorkflowStartDataRow struct {
 	WorkflowId         pgtype.UUID      `json:"workflowId"`
 }
 
-// If the workflow has multiple steps, this does not return any data
-// If the workflow has a single step, this returns step data along with workflowVersionId and workflowName
-func (q *Queries) GetWorkflowStartData(ctx context.Context, db DBTX, arg GetWorkflowStartDataParams) ([]*GetWorkflowStartDataRow, error) {
-	rows, err := db.Query(ctx, getWorkflowStartData, arg.Ids, arg.Tenantid)
+func (q *Queries) ListStepsByIds(ctx context.Context, db DBTX, arg ListStepsByIdsParams) ([]*ListStepsByIdsRow, error) {
+	rows, err := db.Query(ctx, listStepsByIds, arg.Ids, arg.Tenantid)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*GetWorkflowStartDataRow
+	var items []*ListStepsByIdsRow
 	for rows.Next() {
-		var i GetWorkflowStartDataRow
+		var i ListStepsByIdsRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.CreatedAt,
@@ -104,6 +84,114 @@ func (q *Queries) GetWorkflowStartData(ctx context.Context, db DBTX, arg GetWork
 			&i.WorkflowVersionId,
 			&i.WorkflowName,
 			&i.WorkflowId,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listStepsByWorkflowVersionIds = `-- name: ListStepsByWorkflowVersionIds :many
+WITH steps AS (
+    SELECT
+        s.id, s."createdAt", s."updatedAt", s."deletedAt", s."readableId", s."tenantId", s."jobId", s."actionId", s.timeout, s."customUserData", s.retries, s."retryBackoffFactor", s."retryMaxBackoff", s."scheduleTimeout",
+        wv."id" as "workflowVersionId",
+        w."name" as "workflowName",
+        w."id" as "workflowId",
+        j."kind" as "jobKind"
+    FROM
+        "WorkflowVersion" as wv
+    JOIN
+        "Workflow" as w ON w."id" = wv."workflowId"
+    JOIN
+        "Job" j ON j."workflowVersionId" = wv."id"
+    JOIN
+        "Step" s ON s."jobId" = j."id"
+    WHERE
+        wv."id" = ANY($1::uuid[])
+        AND w."tenantId" = $2::uuid
+        AND w."deletedAt" IS NULL
+        AND wv."deletedAt" IS NULL
+), step_orders AS (
+    SELECT
+        so."B" as "stepId",
+        array_agg(so."A")::uuid[] as "parents"
+    FROM
+        steps
+    JOIN
+        "_StepOrder" so ON so."B" = steps."id"
+    GROUP BY
+        so."B"
+)
+SELECT
+    s.id, s."createdAt", s."updatedAt", s."deletedAt", s."readableId", s."tenantId", s."jobId", s."actionId", s.timeout, s."customUserData", s.retries, s."retryBackoffFactor", s."retryMaxBackoff", s."scheduleTimeout", s."workflowVersionId", s."workflowName", s."workflowId", s."jobKind",
+    COALESCE(so."parents", '{}'::uuid[]) as "parents"
+FROM
+    steps s
+LEFT JOIN
+    step_orders so ON so."stepId" = s."id"
+`
+
+type ListStepsByWorkflowVersionIdsParams struct {
+	Ids      []pgtype.UUID `json:"ids"`
+	Tenantid pgtype.UUID   `json:"tenantid"`
+}
+
+type ListStepsByWorkflowVersionIdsRow struct {
+	ID                 pgtype.UUID      `json:"id"`
+	CreatedAt          pgtype.Timestamp `json:"createdAt"`
+	UpdatedAt          pgtype.Timestamp `json:"updatedAt"`
+	DeletedAt          pgtype.Timestamp `json:"deletedAt"`
+	ReadableId         pgtype.Text      `json:"readableId"`
+	TenantId           pgtype.UUID      `json:"tenantId"`
+	JobId              pgtype.UUID      `json:"jobId"`
+	ActionId           string           `json:"actionId"`
+	Timeout            pgtype.Text      `json:"timeout"`
+	CustomUserData     []byte           `json:"customUserData"`
+	Retries            int32            `json:"retries"`
+	RetryBackoffFactor pgtype.Float8    `json:"retryBackoffFactor"`
+	RetryMaxBackoff    pgtype.Int4      `json:"retryMaxBackoff"`
+	ScheduleTimeout    string           `json:"scheduleTimeout"`
+	WorkflowVersionId  pgtype.UUID      `json:"workflowVersionId"`
+	WorkflowName       string           `json:"workflowName"`
+	WorkflowId         pgtype.UUID      `json:"workflowId"`
+	JobKind            JobKind          `json:"jobKind"`
+	Parents            []pgtype.UUID    `json:"parents"`
+}
+
+func (q *Queries) ListStepsByWorkflowVersionIds(ctx context.Context, db DBTX, arg ListStepsByWorkflowVersionIdsParams) ([]*ListStepsByWorkflowVersionIdsRow, error) {
+	rows, err := db.Query(ctx, listStepsByWorkflowVersionIds, arg.Ids, arg.Tenantid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListStepsByWorkflowVersionIdsRow
+	for rows.Next() {
+		var i ListStepsByWorkflowVersionIdsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.ReadableId,
+			&i.TenantId,
+			&i.JobId,
+			&i.ActionId,
+			&i.Timeout,
+			&i.CustomUserData,
+			&i.Retries,
+			&i.RetryBackoffFactor,
+			&i.RetryMaxBackoff,
+			&i.ScheduleTimeout,
+			&i.WorkflowVersionId,
+			&i.WorkflowName,
+			&i.WorkflowId,
+			&i.JobKind,
+			&i.Parents,
 		); err != nil {
 			return nil, err
 		}

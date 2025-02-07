@@ -22,7 +22,9 @@ import (
 	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 	v2 "github.com/hatchet-dev/hatchet/pkg/repository/v2"
+	"github.com/hatchet-dev/hatchet/pkg/repository/v2/sqlcv2"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v2/timescalev2"
 )
 
@@ -292,6 +294,7 @@ func (tc *TasksControllerImpl) handleBufferedMsgs(tenantId, msgId string, payloa
 
 func (tc *TasksControllerImpl) handleTaskCompleted(ctx context.Context, tenantId string, payloads [][]byte) error {
 	opts := make([]v2.TaskIdRetryCount, 0)
+	idsToData := make(map[int64][]byte)
 
 	msgs := msgqueue.JSONConvert[tasktypes.CompletedTaskPayload](payloads)
 
@@ -300,15 +303,43 @@ func (tc *TasksControllerImpl) handleTaskCompleted(ctx context.Context, tenantId
 			Id:         msg.TaskId,
 			RetryCount: msg.RetryCount,
 		})
+
+		idsToData[msg.TaskId] = msg.Output
 	}
 
-	queues, err := tc.repov2.CompleteTasks(ctx, tenantId, opts)
+	releasedTasks, err := tc.repov2.CompleteTasks(ctx, tenantId, opts)
 
 	if err != nil {
 		return err
 	}
 
-	tc.notifyQueuesOnCompletion(ctx, tenantId, queues)
+	for _, task := range releasedTasks {
+		taskExternalId := sqlchelpers.UUIDToStr(task.ExternalID)
+
+		msg, err := tasktypes.NewInternalCompletedEventMessage(
+			tenantId,
+			time.Now(),
+			v2.GetTaskCompletedEventKey(taskExternalId),
+			task.StepReadableID,
+			idsToData[task.ID],
+		)
+
+		if err != nil {
+			return fmt.Errorf("could not create internal event message: %w", err)
+		}
+
+		err = tc.mq.SendMessage(
+			ctx,
+			msgqueue.TRIGGER_QUEUE,
+			msg,
+		)
+
+		if err != nil {
+			return fmt.Errorf("could not send message to trigger queue: %w", err)
+		}
+	}
+
+	tc.notifyQueuesOnCompletion(ctx, tenantId, releasedTasks)
 
 	return nil
 }
@@ -317,6 +348,7 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId st
 	opts := make([]v2.FailTaskOpts, 0)
 
 	msgs := msgqueue.JSONConvert[tasktypes.FailedTaskPayload](payloads)
+	idsToErrorMsg := make(map[int64]string)
 
 	for _, msg := range msgs {
 		opts = append(opts, v2.FailTaskOpts{
@@ -326,15 +358,56 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId st
 			},
 			IsAppError: msg.IsAppError,
 		})
+
+		if msg.ErrorMsg != "" {
+			idsToErrorMsg[msg.TaskId] = msg.ErrorMsg
+		}
 	}
 
-	retriedTasks, queues, err := tc.repov2.FailTasks(ctx, tenantId, opts)
+	retriedTasks, failedTasks, err := tc.repov2.FailTasks(ctx, tenantId, opts)
 
 	if err != nil {
 		return err
 	}
 
-	tc.notifyQueuesOnCompletion(ctx, tenantId, queues)
+	retriedTaskIds := make(map[int64]struct{})
+
+	for _, task := range retriedTasks {
+		retriedTaskIds[task.Id] = struct{}{}
+	}
+
+	for _, task := range failedTasks {
+		// if the task is retried, don't send a message to the trigger queue
+		if _, ok := retriedTaskIds[task.ID]; ok {
+			continue
+		}
+
+		taskExternalId := sqlchelpers.UUIDToStr(task.ExternalID)
+
+		msg, err := tasktypes.NewInternalFailureEventMessage(
+			tenantId,
+			time.Now(),
+			v2.GetTaskFailedEventKey(taskExternalId),
+			task.StepReadableID,
+			idsToErrorMsg[task.ID],
+		)
+
+		if err != nil {
+			return fmt.Errorf("could not create internal event message: %w", err)
+		}
+
+		err = tc.mq.SendMessage(
+			ctx,
+			msgqueue.TRIGGER_QUEUE,
+			msg,
+		)
+
+		if err != nil {
+			return fmt.Errorf("could not send message to trigger queue: %w", err)
+		}
+	}
+
+	tc.notifyQueuesOnCompletion(ctx, tenantId, failedTasks)
 
 	var outerErr error
 
@@ -427,7 +500,7 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 	return err
 }
 
-func (tc *TasksControllerImpl) notifyQueuesOnCompletion(ctx context.Context, tenantId string, queues []string) {
+func (tc *TasksControllerImpl) notifyQueuesOnCompletion(ctx context.Context, tenantId string, releasedTasks []*sqlcv2.ReleaseTasksRow) {
 	tenant, err := tc.repo.Tenant().GetTenantByID(ctx, tenantId)
 
 	if err != nil {
@@ -437,8 +510,8 @@ func (tc *TasksControllerImpl) notifyQueuesOnCompletion(ctx context.Context, ten
 
 	uniqueQueues := make(map[string]struct{})
 
-	for _, queue := range queues {
-		uniqueQueues[queue] = struct{}{}
+	for _, task := range releasedTasks {
+		uniqueQueues[task.Queue] = struct{}{}
 	}
 
 	for queue := range uniqueQueues {

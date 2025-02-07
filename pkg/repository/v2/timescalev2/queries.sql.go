@@ -55,7 +55,7 @@ FROM
     v2_cagg_task_events_minute
 WHERE
     tenant_id = $2::uuid AND
-    -- timestamptz makes this fast, apparently: 
+    -- timestamptz makes this fast, apparently:
     -- https://www.timescale.com/forum/t/very-slow-query-planning-time-in-postgresql/255/8
     bucket >= time_bucket('1 minute', $3::timestamptz) AND
     bucket <= time_bucket('1 minute', $4::timestamptz)
@@ -109,7 +109,7 @@ SELECT
   COALESCE(SUM(cancelled_count), 0)::bigint AS total_cancelled,
   COALESCE(SUM(failed_count), 0)::bigint AS total_failed
 FROM v2_cagg_status_metrics
-WHERE 
+WHERE
     tenant_id = $1::uuid
     AND bucket_2 >= time_bucket('5 minutes', $2::timestamptz)
     AND (
@@ -145,7 +145,7 @@ func (q *Queries) GetTenantStatusMetrics(ctx context.Context, db DBTX, arg GetTe
 }
 
 const lastSucceededStatusAggregate = `-- name: LastSucceededStatusAggregate :one
-SELECT 
+SELECT
     js.last_successful_finish::timestamptz as last_succeeded
 FROM
     timescaledb_information.continuous_aggregates ca
@@ -178,7 +178,7 @@ WITH aggregated_events AS (
     COUNT(*) AS count,
     MIN(id) AS first_id
   FROM v2_task_events_olap
-  WHERE 
+  WHERE
     tenant_id = $1::uuid
     AND task_id = $2::bigint
     AND task_inserted_at = $3::timestamptz
@@ -273,13 +273,13 @@ func (q *Queries) ListTaskEvents(ctx context.Context, db DBTX, arg ListTaskEvent
 }
 
 const listTasksFromAggregate = `-- name: ListTasksFromAggregate :many
-SELECT 
+SELECT
     s.tenant_id::uuid as tenant_id,
     s.task_id::bigint as task_id,
     s.task_inserted_at::timestamptz as inserted_at,
     s.status::v2_readable_status_olap as status,
     s.max_retry_count::int as max_retry_count
-FROM 
+FROM
     v2_cagg_task_status s
 WHERE
     s.tenant_id = $1::uuid
@@ -357,7 +357,7 @@ const listTasksRealTime = `-- name: ListTasksRealTime :many
 WITH relevant_events AS (
     SELECT
         tenant_id, id, inserted_at, task_id, task_inserted_at, event_type, workflow_id, event_timestamp, readable_status, retry_count, error_message, output, worker_id, additional__event_data, additional__event_message
-    FROM   
+    FROM
         v2_task_events_olap
     WHERE
         tenant_id = $3::uuid
@@ -411,7 +411,7 @@ WITH relevant_events AS (
 )
 SELECT
     tenant_id, task_id, task_inserted_at, status, max_retry_count
-FROM   
+FROM
     agg
 WHERE
     $1::text[] IS NULL OR status = ANY(cast($1::text[] as v2_readable_status_olap[]))
@@ -642,7 +642,7 @@ WITH input AS (
         MAX(e.event_timestamp) AS finished_at
     FROM
         v2_task_events_olap e
-    JOIN    
+    JOIN
         tasks t ON t.id = e.task_id AND t.tenant_id = e.tenant_id AND t.inserted_at = e.task_inserted_at AND t.retry_count = e.retry_count
     WHERE
         e.readable_status = ANY(ARRAY['COMPLETED', 'FAILED', 'CANCELLED']::v2_readable_status_olap[])
@@ -653,7 +653,7 @@ WITH input AS (
         MAX(e.event_timestamp) AS started_at
     FROM
         v2_task_events_olap e
-    JOIN    
+    JOIN
         tasks t ON t.id = e.task_id AND t.tenant_id = e.tenant_id AND t.inserted_at = e.task_inserted_at AND t.retry_count = e.retry_count
     WHERE
         e.event_type = 'STARTED'

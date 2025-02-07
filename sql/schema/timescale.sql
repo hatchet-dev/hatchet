@@ -109,9 +109,9 @@ CREATE TABLE v2_task_events_olap (
 CREATE INDEX v2_task_events_olap_task_id_idx ON v2_task_events_olap (task_id);
 
 CREATE INDEX v2_task_events_olap_realtime_idx ON v2_task_events_olap (
-    tenant_id, 
-    inserted_at DESC, 
-    readable_status, 
+    tenant_id,
+    inserted_at DESC,
+    readable_status,
     workflow_id
 );
 
@@ -208,5 +208,5 @@ WITH NO DATA;
 
 SELECT add_continuous_aggregate_policy('v2_cagg_task_events_minute',
   start_offset => NULL,
-  end_offset => INTERVAL '1 minute', 
+  end_offset => INTERVAL '1 minute',
   schedule_interval => INTERVAL '15 seconds');

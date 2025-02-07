@@ -767,6 +767,90 @@ func (ns NullTenantResourceLimitAlertType) Value() (driver.Value, error) {
 	return string(ns.TenantResourceLimitAlertType), nil
 }
 
+type V2EventType string
+
+const (
+	V2EventTypeUSER     V2EventType = "USER"
+	V2EventTypeINTERNAL V2EventType = "INTERNAL"
+)
+
+func (e *V2EventType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = V2EventType(s)
+	case string:
+		*e = V2EventType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for V2EventType: %T", src)
+	}
+	return nil
+}
+
+type NullV2EventType struct {
+	V2EventType V2EventType `json:"v2_event_type"`
+	Valid       bool        `json:"valid"` // Valid is true if V2EventType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullV2EventType) Scan(value interface{}) error {
+	if value == nil {
+		ns.V2EventType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.V2EventType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullV2EventType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.V2EventType), nil
+}
+
+type V2MatchKind string
+
+const (
+	V2MatchKindTRIGGER V2MatchKind = "TRIGGER"
+	V2MatchKindSIGNAL  V2MatchKind = "SIGNAL"
+)
+
+func (e *V2MatchKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = V2MatchKind(s)
+	case string:
+		*e = V2MatchKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for V2MatchKind: %T", src)
+	}
+	return nil
+}
+
+type NullV2MatchKind struct {
+	V2MatchKind V2MatchKind `json:"v2_match_kind"`
+	Valid       bool        `json:"valid"` // Valid is true if V2MatchKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullV2MatchKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.V2MatchKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.V2MatchKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullV2MatchKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.V2MatchKind), nil
+}
+
 type V2StickyStrategy string
 
 const (
@@ -1801,6 +1885,56 @@ type UserSession struct {
 	ExpiresAt pgtype.Timestamp `json:"expiresAt"`
 }
 
+type V2Dag struct {
+	ID                int64              `json:"id"`
+	InsertedAt        pgtype.Timestamptz `json:"inserted_at"`
+	TenantID          pgtype.UUID        `json:"tenant_id"`
+	ExternalID        pgtype.UUID        `json:"external_id"`
+	DisplayName       string             `json:"display_name"`
+	WorkflowID        pgtype.UUID        `json:"workflow_id"`
+	WorkflowVersionID pgtype.UUID        `json:"workflow_version_id"`
+}
+
+type V2DagData struct {
+	DagID              int64              `json:"dag_id"`
+	DagInsertedAt      pgtype.Timestamptz `json:"dag_inserted_at"`
+	Input              []byte             `json:"input"`
+	AdditionalMetadata []byte             `json:"additional_metadata"`
+}
+
+type V2DagToTask struct {
+	DagID          int64              `json:"dag_id"`
+	DagInsertedAt  pgtype.Timestamptz `json:"dag_inserted_at"`
+	TaskID         int64              `json:"task_id"`
+	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
+}
+
+type V2Match struct {
+	ID                     int64              `json:"id"`
+	TenantID               pgtype.UUID        `json:"tenant_id"`
+	Kind                   V2MatchKind        `json:"kind"`
+	IsSatisfied            bool               `json:"is_satisfied"`
+	SignalTargetID         pgtype.Int8        `json:"signal_target_id"`
+	SignalTargetInsertedAt pgtype.Timestamptz `json:"signal_target_inserted_at"`
+	TriggerDagID           pgtype.Int8        `json:"trigger_dag_id"`
+	TriggerDagInsertedAt   pgtype.Timestamptz `json:"trigger_dag_inserted_at"`
+	TriggerStepID          pgtype.UUID        `json:"trigger_step_id"`
+	TriggerExternalID      pgtype.UUID        `json:"trigger_external_id"`
+}
+
+type V2MatchCondition struct {
+	V2MatchID    int64              `json:"v2_match_id"`
+	ID           int64              `json:"id"`
+	TenantID     pgtype.UUID        `json:"tenant_id"`
+	RegisteredAt pgtype.Timestamptz `json:"registered_at"`
+	EventType    V2EventType        `json:"event_type"`
+	EventKey     string             `json:"event_key"`
+	IsSatisfied  bool               `json:"is_satisfied"`
+	OrGroupID    pgtype.UUID        `json:"or_group_id"`
+	Expression   pgtype.Text        `json:"expression"`
+	Data         []byte             `json:"data"`
+}
+
 type V2Queue struct {
 	TenantID   pgtype.UUID      `json:"tenant_id"`
 	Name       string           `json:"name"`
@@ -1831,6 +1965,7 @@ type V2Task struct {
 	Queue              string             `json:"queue"`
 	ActionID           string             `json:"action_id"`
 	StepID             pgtype.UUID        `json:"step_id"`
+	StepReadableID     string             `json:"step_readable_id"`
 	WorkflowID         pgtype.UUID        `json:"workflow_id"`
 	ScheduleTimeout    string             `json:"schedule_timeout"`
 	StepTimeout        pgtype.Text        `json:"step_timeout"`
@@ -1844,6 +1979,8 @@ type V2Task struct {
 	InternalRetryCount int32              `json:"internal_retry_count"`
 	AppRetryCount      int32              `json:"app_retry_count"`
 	AdditionalMetadata []byte             `json:"additional_metadata"`
+	DagID              pgtype.Int8        `json:"dag_id"`
+	DagInsertedAt      pgtype.Timestamptz `json:"dag_inserted_at"`
 }
 
 type V2TaskEvent struct {

@@ -74,7 +74,7 @@ SELECT
   COALESCE(SUM(cancelled_count), 0)::bigint AS total_cancelled,
   COALESCE(SUM(failed_count), 0)::bigint AS total_failed
 FROM v2_cagg_status_metrics
-WHERE 
+WHERE
     tenant_id = @tenantId::uuid
     AND bucket_2 >= time_bucket('5 minutes', @createdAfter::timestamptz)
     AND (
@@ -112,7 +112,7 @@ WITH aggregated_events AS (
     COUNT(*) AS count,
     MIN(id) AS first_id
   FROM v2_task_events_olap
-  WHERE 
+  WHERE
     tenant_id = @tenantId::uuid
     AND task_id = @taskId::bigint
     AND task_inserted_at = @taskInsertedAt::timestamptz
@@ -144,7 +144,7 @@ JOIN v2_task_events_olap t
 ORDER BY a.time_first_seen DESC, t.event_timestamp DESC;
 
 -- name: LastSucceededStatusAggregate :one
-SELECT 
+SELECT
     js.last_successful_finish::timestamptz as last_succeeded
 FROM
     timescaledb_information.continuous_aggregates ca
@@ -160,7 +160,7 @@ LIMIT 1;
 WITH relevant_events AS (
     SELECT
         *
-    FROM   
+    FROM
         v2_task_events_olap
     WHERE
         tenant_id = @tenantId::uuid
@@ -214,20 +214,20 @@ WITH relevant_events AS (
 )
 SELECT
     *
-FROM   
+FROM
     agg
 WHERE
     sqlc.narg('statuses')::text[] IS NULL OR status = ANY(cast(@statuses::text[] as v2_readable_status_olap[]))
 LIMIT @taskLimit::integer;
 
 -- name: ListTasksFromAggregate :many
-SELECT 
+SELECT
     s.tenant_id::uuid as tenant_id,
     s.task_id::bigint as task_id,
     s.task_inserted_at::timestamptz as inserted_at,
     s.status::v2_readable_status_olap as status,
     s.max_retry_count::int as max_retry_count
-FROM 
+FROM
     v2_cagg_task_status s
 -- FIXME: ideally we would have this join to check for existence of the task in the database, but this causes a
 -- large performance overhead for a rare edge case. Should look into this later.
@@ -359,7 +359,7 @@ WITH input AS (
         MAX(e.event_timestamp) AS finished_at
     FROM
         v2_task_events_olap e
-    JOIN    
+    JOIN
         tasks t ON t.id = e.task_id AND t.tenant_id = e.tenant_id AND t.inserted_at = e.task_inserted_at AND t.retry_count = e.retry_count
     WHERE
         e.readable_status = ANY(ARRAY['COMPLETED', 'FAILED', 'CANCELLED']::v2_readable_status_olap[])
@@ -370,7 +370,7 @@ WITH input AS (
         MAX(e.event_timestamp) AS started_at
     FROM
         v2_task_events_olap e
-    JOIN    
+    JOIN
         tasks t ON t.id = e.task_id AND t.tenant_id = e.tenant_id AND t.inserted_at = e.task_inserted_at AND t.retry_count = e.retry_count
     WHERE
         e.event_type = 'STARTED'
@@ -413,7 +413,7 @@ FROM
     v2_cagg_task_events_minute
 WHERE
     tenant_id = @tenantId::uuid AND
-    -- timestamptz makes this fast, apparently: 
+    -- timestamptz makes this fast, apparently:
     -- https://www.timescale.com/forum/t/very-slow-query-planning-time-in-postgresql/255/8
     bucket >= time_bucket('1 minute', @createdAfter::timestamptz) AND
     bucket <= time_bucket('1 minute', @createdBefore::timestamptz)

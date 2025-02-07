@@ -226,7 +226,7 @@ func (i *IngestorImpl) IngestReplayedEvent(ctx context.Context, tenantId string,
 }
 
 func eventToTask(tenantId, eventId, key string, data, additionalMeta []byte) (*msgqueue.Message, error) {
-	payloadTyped := tasktypes.EventTaskPayload{
+	payloadTyped := tasktypes.UserEventTaskPayload{
 		EventId:                 eventId,
 		EventKey:                key,
 		EventData:               data,
@@ -235,7 +235,7 @@ func eventToTask(tenantId, eventId, key string, data, additionalMeta []byte) (*m
 
 	return msgqueue.NewSingletonTenantMessage(
 		tenantId,
-		"event-trigger",
+		"user-event",
 		payloadTyped,
 		false,
 		true,

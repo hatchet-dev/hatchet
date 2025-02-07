@@ -85,147 +85,10 @@ func (q *Queries) CreateTaskEvents(ctx context.Context, db DBTX, arg CreateTaskE
 	return err
 }
 
-const createTasks = `-- name: CreateTasks :many
-WITH input AS (
-    SELECT
-        tenant_id, queue, action_id, step_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, additional_metadata
-    FROM
-        (
-            SELECT
-                unnest($1::uuid[]) AS tenant_id,
-                unnest($2::text[]) AS queue,
-                unnest($3::text[]) AS action_id,
-                unnest($4::uuid[]) AS step_id,
-                unnest($5::uuid[]) AS workflow_id,
-                unnest($6::text[]) AS schedule_timeout,
-                unnest($7::text[]) AS step_timeout,
-                unnest($8::integer[]) AS priority,
-                unnest(cast($9::text[] as v2_sticky_strategy[])) AS sticky,
-                unnest($10::uuid[]) AS desired_worker_id,
-                unnest($11::uuid[]) AS external_id,
-                unnest($12::text[]) AS display_name,
-                unnest($13::jsonb[]) AS input,
-                unnest($14::integer[]) AS retry_count,
-                unnest($15::jsonb[]) AS additional_metadata
-        ) AS subquery
-)
-INSERT INTO v2_task (
-    tenant_id,
-    queue,
-    action_id,
-    step_id,
-    workflow_id,
-    schedule_timeout,
-    step_timeout,
-    priority,
-    sticky,
-    desired_worker_id,
-    external_id,
-    display_name,
-    input,
-    retry_count,
-    additional_metadata
-) 
-SELECT
-    i.tenant_id,
-    i.queue,
-    i.action_id,
-    i.step_id,
-    i.workflow_id,
-    i.schedule_timeout,
-    i.step_timeout,
-    i.priority,
-    i.sticky,
-    i.desired_worker_id,
-    i.external_id,
-    i.display_name,
-    i.input,
-    i.retry_count,
-    i.additional_metadata
-FROM
-    input i 
-RETURNING
-    id, inserted_at, tenant_id, queue, action_id, step_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, additional_metadata
-`
-
-type CreateTasksParams struct {
-	Tenantids           []pgtype.UUID `json:"tenantids"`
-	Queues              []string      `json:"queues"`
-	Actionids           []string      `json:"actionids"`
-	Stepids             []pgtype.UUID `json:"stepids"`
-	Workflowids         []pgtype.UUID `json:"workflowids"`
-	Scheduletimeouts    []string      `json:"scheduletimeouts"`
-	Steptimeouts        []string      `json:"steptimeouts"`
-	Priorities          []int32       `json:"priorities"`
-	Stickies            []string      `json:"stickies"`
-	Desiredworkerids    []pgtype.UUID `json:"desiredworkerids"`
-	Externalids         []pgtype.UUID `json:"externalids"`
-	Displaynames        []string      `json:"displaynames"`
-	Inputs              [][]byte      `json:"inputs"`
-	Retrycounts         []int32       `json:"retrycounts"`
-	Additionalmetadatas [][]byte      `json:"additionalmetadatas"`
-}
-
-func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParams) ([]*V2Task, error) {
-	rows, err := db.Query(ctx, createTasks,
-		arg.Tenantids,
-		arg.Queues,
-		arg.Actionids,
-		arg.Stepids,
-		arg.Workflowids,
-		arg.Scheduletimeouts,
-		arg.Steptimeouts,
-		arg.Priorities,
-		arg.Stickies,
-		arg.Desiredworkerids,
-		arg.Externalids,
-		arg.Displaynames,
-		arg.Inputs,
-		arg.Retrycounts,
-		arg.Additionalmetadatas,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []*V2Task
-	for rows.Next() {
-		var i V2Task
-		if err := rows.Scan(
-			&i.ID,
-			&i.InsertedAt,
-			&i.TenantID,
-			&i.Queue,
-			&i.ActionID,
-			&i.StepID,
-			&i.WorkflowID,
-			&i.ScheduleTimeout,
-			&i.StepTimeout,
-			&i.Priority,
-			&i.Sticky,
-			&i.DesiredWorkerID,
-			&i.ExternalID,
-			&i.DisplayName,
-			&i.Input,
-			&i.RetryCount,
-			&i.InternalRetryCount,
-			&i.AppRetryCount,
-			&i.AdditionalMetadata,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const failTaskAppFailure = `-- name: FailTaskAppFailure :many
 WITH locked_tasks AS (
     SELECT
-        id, 
+        id,
         step_id
     FROM
         v2_task
@@ -256,7 +119,7 @@ FROM
 WHERE
     v2_task.id = tasks_to_steps.id
     AND tasks_to_steps."retries" > v2_task.app_retry_count
-RETURNING 
+RETURNING
     v2_task.id,
     v2_task.retry_count
 `
@@ -354,9 +217,9 @@ func (q *Queries) FailTaskInternalFailure(ctx context.Context, db DBTX, arg Fail
 }
 
 const listTablePartitionsBeforeDate = `-- name: ListTablePartitionsBeforeDate :many
-SELECT 
+SELECT
     p::text AS partition_name
-FROM 
+FROM
     get_v2_task_partitions_before(
         $1::date
     ) AS p
@@ -437,7 +300,7 @@ func (q *Queries) ListTaskMetas(ctx context.Context, db DBTX, arg ListTaskMetasP
 
 const listTasks = `-- name: ListTasks :many
 SELECT
-    id, inserted_at, tenant_id, queue, action_id, step_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, additional_metadata
+    id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, additional_metadata, dag_id, dag_inserted_at
 FROM
     v2_task
 WHERE
@@ -466,6 +329,7 @@ func (q *Queries) ListTasks(ctx context.Context, db DBTX, arg ListTasksParams) (
 			&i.Queue,
 			&i.ActionID,
 			&i.StepID,
+			&i.StepReadableID,
 			&i.WorkflowID,
 			&i.ScheduleTimeout,
 			&i.StepTimeout,
@@ -479,6 +343,8 @@ func (q *Queries) ListTasks(ctx context.Context, db DBTX, arg ListTasksParams) (
 			&i.InternalRetryCount,
 			&i.AppRetryCount,
 			&i.AdditionalMetadata,
+			&i.DagID,
+			&i.DagInsertedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -548,7 +414,7 @@ WITH tasks_on_inactive_workers AS (
     WHERE
         v2_task.id = locked_tasks.id
         AND $3::int > v2_task.internal_retry_count
-    RETURNING 
+    RETURNING
         v2_task.id,
         v2_task.retry_count
 ), updated_tasks AS (
@@ -579,7 +445,7 @@ SELECT
     t2.retry_count,
     t2.worker_id,
     'FAILED' AS "operation"
-FROM    
+FROM
     failed_tasks t2
 `
 
@@ -677,7 +543,7 @@ WITH expired_runtimes AS (
         AND tasks_to_steps."retries" > v2_task.app_retry_count
 )
 SELECT
-    id, retry_count, step_id   
+    id, retry_count, step_id
 FROM
     locked_tasks
 `
@@ -741,7 +607,11 @@ WITH input AS (
         (task_id, retry_count) IN (SELECT task_id, retry_count FROM runtimes_to_delete)
 )
 SELECT
-    t.queue
+    t.queue,
+    t.id,
+    t.inserted_at,
+    t.external_id,
+    t.step_readable_id
 FROM
     v2_task t
 JOIN
@@ -753,19 +623,33 @@ type ReleaseTasksParams struct {
 	Retrycounts []int32 `json:"retrycounts"`
 }
 
-func (q *Queries) ReleaseTasks(ctx context.Context, db DBTX, arg ReleaseTasksParams) ([]string, error) {
+type ReleaseTasksRow struct {
+	Queue          string             `json:"queue"`
+	ID             int64              `json:"id"`
+	InsertedAt     pgtype.Timestamptz `json:"inserted_at"`
+	ExternalID     pgtype.UUID        `json:"external_id"`
+	StepReadableID string             `json:"step_readable_id"`
+}
+
+func (q *Queries) ReleaseTasks(ctx context.Context, db DBTX, arg ReleaseTasksParams) ([]*ReleaseTasksRow, error) {
 	rows, err := db.Query(ctx, releaseTasks, arg.Taskids, arg.Retrycounts)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []string
+	var items []*ReleaseTasksRow
 	for rows.Next() {
-		var queue string
-		if err := rows.Scan(&queue); err != nil {
+		var i ReleaseTasksRow
+		if err := rows.Scan(
+			&i.Queue,
+			&i.ID,
+			&i.InsertedAt,
+			&i.ExternalID,
+			&i.StepReadableID,
+		); err != nil {
 			return nil, err
 		}
-		items = append(items, queue)
+		items = append(items, &i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

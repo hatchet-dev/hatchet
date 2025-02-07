@@ -7,7 +7,6 @@ import (
 
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v2/sqlcv2"
 )
@@ -18,42 +17,20 @@ type CreateTaskOpts struct {
 	// (required) the external id
 	ExternalId string `validate:"required,uuid"`
 
-	// (required) the queue
-	Queue string
-
-	// (required) the action id
-	ActionId string `validate:"required,actionId"`
-
 	// (required) the step id
 	StepId string `validate:"required,uuid"`
 
-	// (required) the workflow id
-	WorkflowId string `validate:"required,uuid"`
-
-	// (required) the schedule timeout
-	ScheduleTimeout string `validate:"required,duration"`
-
-	// (required) the step timeout
-	StepTimeout string `validate:"required,duration"`
-
-	// (required) the task display name
-	DisplayName string
-
 	// (required) the input bytes to the task
-	Input []byte
+	Input *TaskInput
 
 	// (optional) the additional metadata for the task
 	AdditionalMetadata []byte
 
-	// (optional) the priority of the task
-	Priority *int
+	// (optional) the DAG id for the task
+	DagId *int64
 
-	// (optional) the sticky strategy
-	// TODO: validation
-	StickyStrategy *string
-
-	// (optional) the desired worker id
-	DesiredWorkerId *string
+	// (optional) the DAG inserted at for the task
+	DagInsertedAt pgtype.Timestamptz
 }
 
 type TaskIdRetryCount struct {
@@ -74,13 +51,11 @@ type FailTaskOpts struct {
 type TaskRepository interface {
 	UpdateTablePartitions(ctx context.Context) error
 
-	CreateTasks(ctx context.Context, tenantId string, tasks []CreateTaskOpts) ([]*sqlcv2.V2Task, error)
+	CompleteTasks(ctx context.Context, tenantId string, tasks []TaskIdRetryCount) ([]*sqlcv2.ReleaseTasksRow, error)
 
-	CompleteTasks(ctx context.Context, tenantId string, tasks []TaskIdRetryCount) ([]string, error)
+	FailTasks(ctx context.Context, tenantId string, tasks []FailTaskOpts) (retriedTasks []TaskIdRetryCount, queues []*sqlcv2.ReleaseTasksRow, err error)
 
-	FailTasks(ctx context.Context, tenantId string, tasks []FailTaskOpts) (retriedTasks []TaskIdRetryCount, queues []string, err error)
-
-	CancelTasks(ctx context.Context, tenantId string, tasks []TaskIdRetryCount) ([]string, error)
+	CancelTasks(ctx context.Context, tenantId string, tasks []TaskIdRetryCount) ([]*sqlcv2.ReleaseTasksRow, error)
 
 	ListTasks(ctx context.Context, tenantId string, tasks []int64) ([]*sqlcv2.V2Task, error)
 
@@ -93,16 +68,11 @@ type TaskRepository interface {
 
 type TaskRepositoryImpl struct {
 	*sharedRepository
-
-	cache *cache.Cache
 }
 
 func newTaskRepository(s *sharedRepository) TaskRepository {
-	cache := cache.New(5 * time.Minute)
-
 	return &TaskRepositoryImpl{
 		sharedRepository: s,
-		cache:            cache,
 	}
 }
 
@@ -161,56 +131,7 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	return nil
 }
 
-func (r *TaskRepositoryImpl) CreateTasks(ctx context.Context, tenantId string, tasks []CreateTaskOpts) ([]*sqlcv2.V2Task, error) {
-	// TODO: ADD BACK VALIDATION
-	// if err := r.v.Validate(tasks); err != nil {
-	// 	fmt.Println("FAILED VALIDATION HERE!!!")
-
-	// 	return err
-	// }
-
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
-
-	if err != nil {
-		return nil, err
-	}
-
-	defer rollback()
-
-	// do a cached upsert on the queue
-	queueNames := make(map[string]struct{})
-
-	for _, task := range tasks {
-		queueNames[task.Queue] = struct{}{}
-	}
-
-	queues := make([]string, 0, len(queueNames))
-
-	for queue := range queueNames {
-		queues = append(queues, queue)
-	}
-
-	if err := r.upsertQueues(ctx, tx, tenantId, queues); err != nil {
-		return nil, err
-	}
-
-	res, err := r.createTasks(ctx, tx, tenantId, tasks)
-
-	if err != nil {
-		return nil, err
-	}
-
-	// commit the transaction
-	if err := commit(ctx); err != nil {
-		return nil, err
-	}
-
-	// TODO: push task created events to the OLAP repository
-
-	return res, nil
-}
-
-func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId string, tasks []TaskIdRetryCount) ([]string, error) {
+func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId string, tasks []TaskIdRetryCount) ([]*sqlcv2.ReleaseTasksRow, error) {
 	// TODO: ADD BACK VALIDATION
 	// if err := r.v.Validate(tasks); err != nil {
 	// 	fmt.Println("FAILED VALIDATION HERE!!!")
@@ -233,7 +154,7 @@ func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId string,
 	defer rollback()
 
 	// release queue items
-	queues, err := r.releaseTasks(ctx, tx, tenantId, tasks)
+	releasedTasks, err := r.releaseTasks(ctx, tx, tenantId, tasks)
 
 	if err != nil {
 		return nil, err
@@ -257,10 +178,10 @@ func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId string,
 		return nil, err
 	}
 
-	return queues, nil
+	return releasedTasks, nil
 }
 
-func (r *TaskRepositoryImpl) FailTasks(ctx context.Context, tenantId string, failureOpts []FailTaskOpts) ([]TaskIdRetryCount, []string, error) {
+func (r *TaskRepositoryImpl) FailTasks(ctx context.Context, tenantId string, failureOpts []FailTaskOpts) ([]TaskIdRetryCount, []*sqlcv2.ReleaseTasksRow, error) {
 	// TODO: ADD BACK VALIDATION
 	// if err := r.v.Validate(tasks); err != nil {
 	// 	fmt.Println("FAILED VALIDATION HERE!!!")
@@ -293,7 +214,7 @@ func (r *TaskRepositoryImpl) FailTasks(ctx context.Context, tenantId string, fai
 	defer rollback()
 
 	// release queue items
-	queues, err := r.releaseTasks(ctx, tx, tenantId, tasks)
+	releasedTasks, err := r.releaseTasks(ctx, tx, tenantId, tasks)
 
 	if err != nil {
 		return nil, nil, err
@@ -359,10 +280,10 @@ func (r *TaskRepositoryImpl) FailTasks(ctx context.Context, tenantId string, fai
 		return nil, nil, err
 	}
 
-	return retriedTasks, queues, nil
+	return retriedTasks, releasedTasks, nil
 }
 
-func (r *TaskRepositoryImpl) CancelTasks(ctx context.Context, tenantId string, tasks []TaskIdRetryCount) ([]string, error) {
+func (r *TaskRepositoryImpl) CancelTasks(ctx context.Context, tenantId string, tasks []TaskIdRetryCount) ([]*sqlcv2.ReleaseTasksRow, error) {
 	// TODO: ADD BACK VALIDATION
 	// if err := r.v.Validate(tasks); err != nil {
 	// 	fmt.Println("FAILED VALIDATION HERE!!!")
@@ -379,7 +300,7 @@ func (r *TaskRepositoryImpl) CancelTasks(ctx context.Context, tenantId string, t
 	defer rollback()
 
 	// release queue items
-	queues, err := r.releaseTasks(ctx, tx, tenantId, tasks)
+	releasedTasks, err := r.releaseTasks(ctx, tx, tenantId, tasks)
 
 	if err != nil {
 		return nil, err
@@ -404,7 +325,7 @@ func (r *TaskRepositoryImpl) CancelTasks(ctx context.Context, tenantId string, t
 		return nil, err
 	}
 
-	return queues, nil
+	return releasedTasks, nil
 }
 
 func (r *TaskRepositoryImpl) ListTasks(ctx context.Context, tenantId string, tasks []int64) ([]*sqlcv2.V2Task, error) {
@@ -517,7 +438,7 @@ func (r *TaskRepositoryImpl) ProcessTaskReassignments(ctx context.Context, tenan
 	return res, len(res) == limit, nil
 }
 
-func (r *TaskRepositoryImpl) releaseTasks(ctx context.Context, tx sqlcv2.DBTX, tenantId string, tasks []TaskIdRetryCount) ([]string, error) {
+func (r *TaskRepositoryImpl) releaseTasks(ctx context.Context, tx sqlcv2.DBTX, tenantId string, tasks []TaskIdRetryCount) ([]*sqlcv2.ReleaseTasksRow, error) {
 	taskIds := make([]int64, len(tasks))
 	retryCounts := make([]int32, len(tasks))
 
@@ -532,22 +453,32 @@ func (r *TaskRepositoryImpl) releaseTasks(ctx context.Context, tx sqlcv2.DBTX, t
 	})
 }
 
-func (r *TaskRepositoryImpl) upsertQueues(ctx context.Context, tx sqlcv2.DBTX, tenantId string, queues []string) error {
-	queuesToInsert := make([]string, 0)
+func (r *sharedRepository) upsertQueues(ctx context.Context, tx sqlcv2.DBTX, tenantId string, queues []string) error {
+	queuesToInsert := make(map[string]struct{}, 0)
 
 	for _, queue := range queues {
-		key := getQueueCacheKey(tenantId, queue)
-
-		if hasSetQueue, ok := r.cache.Get(key); ok && hasSetQueue.(bool) {
+		if _, ok := queuesToInsert[queue]; ok {
 			continue
 		}
 
-		queuesToInsert = append(queuesToInsert, queue)
+		key := getQueueCacheKey(tenantId, queue)
+
+		if hasSetQueue, ok := r.queueCache.Get(key); ok && hasSetQueue.(bool) {
+			continue
+		}
+
+		queuesToInsert[queue] = struct{}{}
+	}
+
+	uniqueQueues := make([]string, 0, len(queuesToInsert))
+
+	for queue := range queuesToInsert {
+		uniqueQueues = append(uniqueQueues, queue)
 	}
 
 	err := r.queries.UpsertQueues(ctx, tx, sqlcv2.UpsertQueuesParams{
 		TenantID: sqlchelpers.UUIDFromStr(tenantId),
-		Names:    queuesToInsert,
+		Names:    uniqueQueues,
 	})
 
 	if err != nil {
@@ -555,9 +486,9 @@ func (r *TaskRepositoryImpl) upsertQueues(ctx context.Context, tx sqlcv2.DBTX, t
 	}
 
 	// set all the queues to true in the cache
-	for _, queue := range queuesToInsert {
+	for _, queue := range uniqueQueues {
 		key := getQueueCacheKey(tenantId, queue)
-		r.cache.Set(key, true)
+		r.queueCache.Set(key, true)
 	}
 
 	return nil
@@ -567,13 +498,55 @@ func getQueueCacheKey(tenantId string, queue string) string {
 	return fmt.Sprintf("%s:%s", tenantId, queue)
 }
 
-// createTasks inserts new tasks into the database. note that we're using Postgres rules to automatically insert the created
+func (r *sharedRepository) createTasks(
+	ctx context.Context,
+	tx sqlcv2.DBTX,
+	tenantId string,
+	tasks []CreateTaskOpts,
+) ([]*sqlcv2.V2Task, error) {
+	// list the steps for the tasks
+	uniqueStepIds := make(map[string]struct{})
+	stepIds := make([]pgtype.UUID, 0)
+
+	for _, task := range tasks {
+		if _, ok := uniqueStepIds[task.StepId]; !ok {
+			uniqueStepIds[task.StepId] = struct{}{}
+			stepIds = append(stepIds, sqlchelpers.UUIDFromStr(task.StepId))
+		}
+	}
+
+	steps, err := r.queries.ListStepsByIds(ctx, tx, sqlcv2.ListStepsByIdsParams{
+		Ids:      stepIds,
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	stepIdsToConfig := make(map[string]*sqlcv2.ListStepsByIdsRow)
+
+	for _, step := range steps {
+		stepIdsToConfig[sqlchelpers.UUIDToStr(step.ID)] = step
+	}
+
+	return r.insertTasks(ctx, tx, tenantId, tasks, stepIdsToConfig)
+}
+
+// insertTasks inserts new tasks into the database. note that we're using Postgres rules to automatically insert the created
 // tasks into the queue_items table.
-func (r *TaskRepositoryImpl) createTasks(ctx context.Context, tx sqlcv2.DBTX, tenantId string, tasks []CreateTaskOpts) ([]*sqlcv2.V2Task, error) {
+func (r *sharedRepository) insertTasks(
+	ctx context.Context,
+	tx sqlcv2.DBTX,
+	tenantId string,
+	tasks []CreateTaskOpts,
+	stepIdsToConfig map[string]*sqlcv2.ListStepsByIdsRow,
+) ([]*sqlcv2.V2Task, error) {
 	tenantIds := make([]pgtype.UUID, len(tasks))
 	queues := make([]string, len(tasks))
 	actionIds := make([]string, len(tasks))
 	stepIds := make([]pgtype.UUID, len(tasks))
+	stepReadableIds := make([]string, len(tasks))
 	workflowIds := make([]pgtype.UUID, len(tasks))
 	scheduleTimeouts := make([]string, len(tasks))
 	stepTimeouts := make([]string, len(tasks))
@@ -585,43 +558,51 @@ func (r *TaskRepositoryImpl) createTasks(ctx context.Context, tx sqlcv2.DBTX, te
 	inputs := make([][]byte, len(tasks))
 	retryCounts := make([]int32, len(tasks))
 	additionalMetadatas := make([][]byte, len(tasks))
+	dagIds := make([]pgtype.Int8, len(tasks))
+	dagInsertedAts := make([]pgtype.Timestamptz, len(tasks))
+	unix := time.Now().UnixMilli()
 
 	for i, task := range tasks {
+		stepConfig := stepIdsToConfig[task.StepId]
 		tenantIds[i] = sqlchelpers.UUIDFromStr(tenantId)
-		queues[i] = task.Queue
-		actionIds[i] = task.ActionId
+		queues[i] = stepConfig.ActionId // FIXME: make the queue name dynamic
+		actionIds[i] = stepConfig.ActionId
 		stepIds[i] = sqlchelpers.UUIDFromStr(task.StepId)
-		workflowIds[i] = sqlchelpers.UUIDFromStr(task.WorkflowId)
-		scheduleTimeouts[i] = task.ScheduleTimeout
-		stepTimeouts[i] = task.StepTimeout
+		stepReadableIds[i] = stepConfig.ReadableId.String
+		workflowIds[i] = stepConfig.WorkflowId
+		scheduleTimeouts[i] = stepConfig.ScheduleTimeout
+		stepTimeouts[i] = stepConfig.Timeout.String
 		externalIds[i] = sqlchelpers.UUIDFromStr(task.ExternalId)
-		displayNames[i] = task.DisplayName
-		inputs[i] = task.Input
+		displayNames[i] = fmt.Sprintf("%s-%d", stepConfig.ReadableId.String, unix)
+
+		// TODO: case on whether this is a v1 or v2 task by looking at the step data. for now,
+		// we're assuming a v1 task.
+		inputs[i] = r.ToV1StepRunData(task.Input).Bytes()
 		retryCounts[i] = 0
-
-		if task.Priority != nil {
-			priorities[i] = int32(*task.Priority)
-		} else {
-			priorities[i] = 1
-		}
-
-		if task.StickyStrategy != nil {
-			stickies[i] = *task.StickyStrategy
-		} else {
-			stickies[i] = string(sqlcv2.V2StickyStrategyNONE)
-		}
-
-		if task.DesiredWorkerId != nil {
-			desiredWorkerIds[i] = sqlchelpers.UUIDFromStr(*task.DesiredWorkerId)
-		} else {
-			desiredWorkerIds[i] = pgtype.UUID{
-				Valid: false,
-			}
+		priorities[i] = 1
+		stickies[i] = string(sqlcv2.V2StickyStrategyNONE)
+		desiredWorkerIds[i] = pgtype.UUID{
+			Valid: false,
 		}
 
 		if task.AdditionalMetadata != nil {
 			additionalMetadatas[i] = task.AdditionalMetadata
 		}
+
+		if task.DagId != nil && task.DagInsertedAt.Valid {
+			dagIds[i] = pgtype.Int8{
+				Int64: *task.DagId,
+				Valid: true,
+			}
+
+			dagInsertedAts[i] = task.DagInsertedAt
+		}
+	}
+
+	err := r.upsertQueues(ctx, tx, tenantId, queues)
+
+	if err != nil {
+		return nil, err
 	}
 
 	res, err := r.queries.CreateTasks(ctx, tx, sqlcv2.CreateTasksParams{
@@ -629,6 +610,7 @@ func (r *TaskRepositoryImpl) createTasks(ctx context.Context, tx sqlcv2.DBTX, te
 		Queues:              queues,
 		Actionids:           actionIds,
 		Stepids:             stepIds,
+		Stepreadableids:     stepReadableIds,
 		Workflowids:         workflowIds,
 		Scheduletimeouts:    scheduleTimeouts,
 		Steptimeouts:        stepTimeouts,
@@ -640,6 +622,8 @@ func (r *TaskRepositoryImpl) createTasks(ctx context.Context, tx sqlcv2.DBTX, te
 		Inputs:              inputs,
 		Retrycounts:         retryCounts,
 		Additionalmetadatas: additionalMetadatas,
+		Dagids:              dagIds,
+		Daginsertedats:      dagInsertedAts,
 	})
 
 	if err != nil {

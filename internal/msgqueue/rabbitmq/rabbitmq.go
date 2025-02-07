@@ -22,6 +22,7 @@ import (
 
 const MAX_RETRY_COUNT = 15
 const RETRY_INTERVAL = 2 * time.Second
+const RETRY_RESET_INTERVAL = 30 * time.Second
 
 // MessageQueueImpl implements MessageQueue interface using AMQP.
 type MessageQueueImpl struct {
@@ -439,7 +440,6 @@ func (t *MessageQueueImpl) subscribe(
 	postAck msgqueue.AckHook,
 ) (func() error, error) {
 	sessionCount := 0
-	retryCount := 0
 
 	wg := sync.WaitGroup{}
 	var queueName string
@@ -600,6 +600,9 @@ func (t *MessageQueueImpl) subscribe(
 	}
 
 	go func() {
+		retryCount := 0
+		lastRetry := time.Now()
+
 		for {
 			if ctx.Err() != nil {
 				return
@@ -608,8 +611,13 @@ func (t *MessageQueueImpl) subscribe(
 			sessionCount++
 
 			if err := innerFn(); err != nil {
+				if time.Since(lastRetry) > RETRY_RESET_INTERVAL {
+					retryCount = 0
+				}
+
 				t.l.Error().Msgf("could not run inner loop: %v", err)
 				sleepWithExponentialBackoff(10*time.Millisecond, 5*time.Second, retryCount)
+				lastRetry = time.Now()
 				retryCount++
 				continue
 			}
@@ -641,9 +649,15 @@ func sleepWithExponentialBackoff(base, max time.Duration, retryCount int) { // n
 		backoff = max
 	}
 
+	backoffInterval := backoff / 2
+
+	if backoffInterval < 1*time.Millisecond {
+		backoffInterval = 1 * time.Millisecond
+	}
+
 	// Apply jitter
-	jitter := time.Duration(rand.Int63n(int64(backoff / 2))) // nolint: gosec
-	sleepDuration := backoff/2 + jitter
+	jitter := time.Duration(rand.Int63n(int64(backoffInterval))) // nolint: gosec
+	sleepDuration := backoffInterval + jitter
 
 	time.Sleep(sleepDuration)
 }

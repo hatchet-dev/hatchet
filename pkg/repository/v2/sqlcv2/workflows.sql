@@ -1,12 +1,11 @@
--- name: GetWorkflowStartData :many
--- If the workflow has multiple steps, this does not return any data
--- If the workflow has a single step, this returns step data along with workflowVersionId and workflowName
-WITH workflow_versions_with_steps AS (
+-- name: ListStepsByWorkflowVersionIds :many
+WITH steps AS (
     SELECT
         s.*,
         wv."id" as "workflowVersionId",
         w."name" as "workflowName",
-        w."id" as "workflowId"
+        w."id" as "workflowId",
+        j."kind" as "jobKind"
     FROM
         "WorkflowVersion" as wv
     JOIN
@@ -18,22 +17,43 @@ WITH workflow_versions_with_steps AS (
     WHERE
         wv."id" = ANY(@ids::uuid[])
         AND w."tenantId" = @tenantId::uuid
-        AND w."deletedAt" IS NULL 
+        AND w."deletedAt" IS NULL
         AND wv."deletedAt" IS NULL
-), step_counts AS (
+), step_orders AS (
     SELECT
-        DISTINCT ON (wv."workflowVersionId") wv."workflowVersionId" as "workflowVersionId",
-        COUNT(wv."id") as "numSteps"
+        so."B" as "stepId",
+        array_agg(so."A")::uuid[] as "parents"
     FROM
-        workflow_versions_with_steps as wv
+        steps
+    JOIN
+        "_StepOrder" so ON so."B" = steps."id"
     GROUP BY
-        wv."workflowVersionId"
+        so."B"
 )
 SELECT
-    wv.*
+    s.*,
+    COALESCE(so."parents", '{}'::uuid[]) as "parents"
 FROM
-    workflow_versions_with_steps as wv
+    steps s
+LEFT JOIN
+    step_orders so ON so."stepId" = s."id";
+
+-- name: ListStepsByIds :many
+SELECT
+    s.*,
+    wv."id" as "workflowVersionId",
+    w."name" as "workflowName",
+    w."id" as "workflowId"
+FROM
+    "Step" s
 JOIN
-    step_counts sc ON sc."workflowVersionId" = wv."workflowVersionId"
+    "Job" j ON j."id" = s."jobId"
+JOIN
+    "WorkflowVersion" wv ON wv."id" = j."workflowVersionId"
+JOIN
+    "Workflow" w ON w."id" = wv."workflowId"
 WHERE
-    sc."numSteps" = 1;
+    s."id" = ANY(@ids::uuid[])
+    AND w."tenantId" = @tenantId::uuid
+    AND w."deletedAt" IS NULL
+    AND wv."deletedAt" IS NULL;

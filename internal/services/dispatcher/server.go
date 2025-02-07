@@ -109,24 +109,7 @@ func (worker *subscribedWorker) StartTaskFromBulk(
 	inputBytes := []byte{}
 
 	if task.Input != nil {
-		// NOTE: hack to get around weird input types
-		unmarshalledIn := make(map[string]interface{})
-
-		err := json.Unmarshal(task.Input, &unmarshalledIn)
-
-		if err != nil {
-			return err
-		}
-
-		newIn := map[string]interface{}{
-			"input": unmarshalledIn,
-		}
-
-		inputBytes, err = json.Marshal(newIn)
-
-		if err != nil {
-			return err
-		}
+		inputBytes = task.Input
 	}
 
 	// FIXME: that's not the step name
@@ -1380,7 +1363,7 @@ func (s *DispatcherImpl) handleTaskCompleted(inputCtx context.Context, taskId in
 		}
 	}()
 
-	msg, err := tasktypes.CompletedTaskMessage(tenantId, taskId, *request.RetryCount)
+	msg, err := tasktypes.CompletedTaskMessage(tenantId, taskId, *request.RetryCount, []byte(request.EventPayload))
 
 	if err != nil {
 		return nil, err
@@ -1426,7 +1409,7 @@ func (s *DispatcherImpl) handleTaskFailed(inputCtx context.Context, taskId int64
 		}
 	}()
 
-	msg, err := tasktypes.FailedTaskMessage(tenantId, taskId, *request.RetryCount, true)
+	msg, err := tasktypes.FailedTaskMessage(tenantId, taskId, *request.RetryCount, true, request.EventPayload)
 
 	if err != nil {
 		return nil, err

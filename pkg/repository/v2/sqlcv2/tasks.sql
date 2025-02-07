@@ -4,74 +4,12 @@ SELECT create_v2_task_partition(
 );
 
 -- name: ListTablePartitionsBeforeDate :many
-SELECT 
+SELECT
     p::text AS partition_name
-FROM 
+FROM
     get_v2_task_partitions_before(
         @date::date
     ) AS p;
-
--- name: CreateTasks :many
-WITH input AS (
-    SELECT
-        *
-    FROM
-        (
-            SELECT
-                unnest(@tenantIds::uuid[]) AS tenant_id,
-                unnest(@queues::text[]) AS queue,
-                unnest(@actionIds::text[]) AS action_id,
-                unnest(@stepIds::uuid[]) AS step_id,
-                unnest(@workflowIds::uuid[]) AS workflow_id,
-                unnest(@scheduleTimeouts::text[]) AS schedule_timeout,
-                unnest(@stepTimeouts::text[]) AS step_timeout,
-                unnest(@priorities::integer[]) AS priority,
-                unnest(cast(@stickies::text[] as v2_sticky_strategy[])) AS sticky,
-                unnest(@desiredWorkerIds::uuid[]) AS desired_worker_id,
-                unnest(@externalIds::uuid[]) AS external_id,
-                unnest(@displayNames::text[]) AS display_name,
-                unnest(@inputs::jsonb[]) AS input,
-                unnest(@retryCounts::integer[]) AS retry_count,
-                unnest(@additionalMetadatas::jsonb[]) AS additional_metadata
-        ) AS subquery
-)
-INSERT INTO v2_task (
-    tenant_id,
-    queue,
-    action_id,
-    step_id,
-    workflow_id,
-    schedule_timeout,
-    step_timeout,
-    priority,
-    sticky,
-    desired_worker_id,
-    external_id,
-    display_name,
-    input,
-    retry_count,
-    additional_metadata
-) 
-SELECT
-    i.tenant_id,
-    i.queue,
-    i.action_id,
-    i.step_id,
-    i.workflow_id,
-    i.schedule_timeout,
-    i.step_timeout,
-    i.priority,
-    i.sticky,
-    i.desired_worker_id,
-    i.external_id,
-    i.display_name,
-    i.input,
-    i.retry_count,
-    i.additional_metadata
-FROM
-    input i 
-RETURNING
-    *;
 
 -- name: ListTasks :many
 SELECT
@@ -123,7 +61,11 @@ WITH input AS (
         (task_id, retry_count) IN (SELECT task_id, retry_count FROM runtimes_to_delete)
 )
 SELECT
-    t.queue
+    t.queue,
+    t.id,
+    t.inserted_at,
+    t.external_id,
+    t.step_readable_id
 FROM
     v2_task t
 JOIN
@@ -177,7 +119,7 @@ FROM
 -- Fails a task due to an application-level error
 WITH locked_tasks AS (
     SELECT
-        id, 
+        id,
         step_id
     FROM
         v2_task
@@ -208,7 +150,7 @@ FROM
 WHERE
     v2_task.id = tasks_to_steps.id
     AND tasks_to_steps."retries" > v2_task.app_retry_count
-RETURNING 
+RETURNING
     v2_task.id,
     v2_task.retry_count;
 
@@ -297,7 +239,7 @@ WITH expired_runtimes AS (
         AND tasks_to_steps."retries" > v2_task.app_retry_count
 )
 SELECT
-    *   
+    *
 FROM
     locked_tasks;
 
@@ -359,7 +301,7 @@ WITH tasks_on_inactive_workers AS (
     WHERE
         v2_task.id = locked_tasks.id
         AND @maxInternalRetries::int > v2_task.internal_retry_count
-    RETURNING 
+    RETURNING
         v2_task.id,
         v2_task.retry_count
 ), updated_tasks AS (
@@ -390,5 +332,5 @@ SELECT
     t2.retry_count,
     t2.worker_id,
     'FAILED' AS "operation"
-FROM    
+FROM
     failed_tasks t2;

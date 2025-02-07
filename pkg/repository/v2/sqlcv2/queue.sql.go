@@ -404,7 +404,7 @@ WITH input AS (
         t.id,
         t.retry_count,
         t.worker_id,
-        $3::uuid, 
+        $3::uuid,
         t.timeout_at
     FROM
         updated_tasks t

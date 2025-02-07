@@ -2,6 +2,7 @@
 -- Get all of the latest workflow versions
 WITH latest_versions AS (
     SELECT DISTINCT ON("workflowId")
+        "workflowId",
         workflowVersions."id" AS "workflowVersionId"
     FROM
         "WorkflowVersion" as workflowVersions
@@ -11,27 +12,24 @@ WITH latest_versions AS (
         workflow."tenantId" = @tenantId::uuid
         AND workflowVersions."deletedAt" IS NULL
     ORDER BY "workflowId", "order" DESC
-), events AS (
-    SELECT
-        unnest(@eventIds::uuid[]) AS "eventId",
-        unnest(@eventKeys::text[]) AS "eventKey"
 )
 -- select the workflow versions that have the event trigger
 SELECT
     latest_versions."workflowVersionId",
-    events."eventId"::uuid as "eventId",
-    events."eventKey"::text as "eventKey"
+    latest_versions."workflowId",
+    eventRef."eventKey" as "eventKey"
 FROM
     latest_versions
 JOIN
     "WorkflowTriggers" as triggers ON triggers."workflowVersionId" = latest_versions."workflowVersionId"
 JOIN
     "WorkflowTriggerEventRef" as eventRef ON eventRef."parentId" = triggers."id"
-JOIN
-    events ON events."eventKey" = eventRef."eventKey";
+WHERE
+    eventRef."eventKey" = ANY(@eventKeys::text[]);
 
 -- name: ListWorkflowsByNames :many
 SELECT DISTINCT ON("workflowId")
+    "workflowId",
     workflowVersions."id" AS "workflowVersionId",
     workflow."name" AS "workflowName"
 FROM

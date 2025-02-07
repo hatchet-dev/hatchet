@@ -18,6 +18,7 @@ CREATE TABLE v2_task (
     queue TEXT NOT NULL,
     action_id TEXT NOT NULL,
     step_id UUID NOT NULL,
+    step_readable_id TEXT NOT NULL,
     workflow_id UUID NOT NULL,
     schedule_timeout TEXT NOT NULL,
     step_timeout TEXT,
@@ -30,7 +31,9 @@ CREATE TABLE v2_task (
     retry_count INTEGER NOT NULL DEFAULT 0,
     internal_retry_count INTEGER NOT NULL DEFAULT 0,
     app_retry_count INTEGER NOT NULL DEFAULT 0,
-    additional_metadata JSONB, 
+    additional_metadata JSONB,
+    dag_id BIGINT,
+    dag_inserted_at TIMESTAMPTZ,
     CONSTRAINT v2_task_pkey PRIMARY KEY (id, inserted_at)
 ) PARTITION BY RANGE(inserted_at);
 
@@ -56,7 +59,7 @@ BEGIN
         format('CREATE TABLE %s (LIKE v2_task INCLUDING INDEXES)', newTableName);
     EXECUTE
         format('ALTER TABLE %s SET (
-            autovacuum_vacuum_scale_factor = ''0.1'', 
+            autovacuum_vacuum_scale_factor = ''0.1'',
             autovacuum_analyze_scale_factor=''0.05'',
             autovacuum_vacuum_threshold=''25'',
             autovacuum_analyze_threshold=''25'',
@@ -71,7 +74,7 @@ $$;
 
 CREATE OR REPLACE FUNCTION get_v2_task_partitions_before(
     targetDate date
-) RETURNS TABLE(partition_name text) 
+) RETURNS TABLE(partition_name text)
     LANGUAGE plpgsql AS
 $$
 BEGIN
@@ -128,7 +131,7 @@ CREATE TABLE v2_queue_item (
 );
 
 alter table v2_queue_item set (
-    autovacuum_vacuum_scale_factor = '0.1', 
+    autovacuum_vacuum_scale_factor = '0.1',
     autovacuum_analyze_scale_factor='0.05',
     autovacuum_vacuum_threshold='25',
     autovacuum_analyze_threshold='25',
@@ -144,7 +147,95 @@ CREATE INDEX v2_queue_item_isQueued_priority_tenantId_queue_id_idx ON v2_queue_i
     id ASC
 );
 
-CREATE OR REPLACE FUNCTION v2_task_to_v2_queue_item_insert_function()
+-- CreateTable
+CREATE TABLE v2_task_runtime (
+    task_id bigint NOT NULL,
+    retry_count INTEGER NOT NULL,
+    worker_id UUID NOT NULL,
+    tenant_id UUID NOT NULL,
+    timeout_at TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT v2_task_runtime_pkey PRIMARY KEY (task_id, retry_count)
+);
+
+CREATE INDEX v2_task_runtime_tenantId_workerId_idx ON v2_task_runtime (tenant_id ASC, worker_id ASC);
+
+CREATE INDEX v2_task_runtime_tenantId_timeoutAt_idx ON v2_task_runtime (tenant_id ASC, timeout_at ASC);
+
+alter table v2_task_runtime set (
+    autovacuum_vacuum_scale_factor = '0.1',
+    autovacuum_analyze_scale_factor='0.05',
+    autovacuum_vacuum_threshold='25',
+    autovacuum_analyze_threshold='25',
+    autovacuum_vacuum_cost_delay='10',
+    autovacuum_vacuum_cost_limit='1000'
+);
+
+CREATE TYPE v2_match_kind AS ENUM ('TRIGGER', 'SIGNAL');
+
+CREATE TABLE v2_match (
+    id bigint GENERATED ALWAYS AS IDENTITY,
+    tenant_id UUID NOT NULL,
+    kind v2_match_kind NOT NULL,
+    is_satisfied BOOLEAN NOT NULL DEFAULT FALSE,
+    signal_target_id bigint,
+    signal_target_inserted_at timestamptz,
+    -- references the parent DAG for the task, which we can use to get input + additional metadata
+    trigger_dag_id bigint,
+    trigger_dag_inserted_at timestamptz,
+    -- references the step id to instantiate the task
+    trigger_step_id UUID,
+    -- references the external id for the new task
+    trigger_external_id UUID,
+    CONSTRAINT v2_match_pkey PRIMARY KEY (id)
+);
+
+CREATE TYPE v2_event_type AS ENUM ('USER', 'INTERNAL');
+
+CREATE TABLE v2_match_condition (
+    v2_match_id bigint NOT NULL,
+    id bigint GENERATED ALWAYS AS IDENTITY,
+    tenant_id UUID NOT NULL,
+    registered_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    event_type v2_event_type NOT NULL,
+    event_key TEXT NOT NULL,
+    is_satisfied BOOLEAN NOT NULL DEFAULT FALSE,
+    or_group_id UUID NOT NULL,
+    expression TEXT,
+    data JSONB,
+    CONSTRAINT v2_match_condition_pkey PRIMARY KEY (v2_match_id, id)
+);
+
+-- TODO: index on tenant_id, registered_at, event_type, event_key, and is_satisfied
+
+CREATE TABLE v2_dag (
+    id bigint GENERATED ALWAYS AS IDENTITY,
+    inserted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    tenant_id UUID NOT NULL,
+    external_id UUID NOT NULL,
+    display_name TEXT NOT NULL,
+    workflow_id UUID NOT NULL,
+    workflow_version_id UUID NOT NULL,
+    CONSTRAINT v2_dag_pkey PRIMARY KEY (id, inserted_at)
+) PARTITION BY RANGE(inserted_at);
+
+CREATE TABLE v2_dag_to_task (
+    dag_id BIGINT NOT NULL,
+    dag_inserted_at TIMESTAMPTZ NOT NULL,
+    task_id BIGINT NOT NULL,
+    task_inserted_at TIMESTAMPTZ NOT NULL,
+    CONSTRAINT v2_dag_to_task_pkey PRIMARY KEY (dag_id, dag_inserted_at, task_id, task_inserted_at)
+);
+
+CREATE TABLE v2_dag_data (
+    dag_id BIGINT NOT NULL,
+    dag_inserted_at TIMESTAMPTZ NOT NULL,
+    input JSONB NOT NULL,
+    additional_metadata JSONB,
+    CONSTRAINT v2_dag_input_pkey PRIMARY KEY (dag_id, dag_inserted_at)
+);
+
+CREATE OR REPLACE FUNCTION v2_task_insert_function()
 RETURNS TRIGGER AS
 $$
 BEGIN
@@ -178,15 +269,32 @@ BEGIN
         TRUE,
         NEW.retry_count
     );
+
+    -- Create an entry in the v2_dag_to_task table if the task has a dag_id and dag_inserted_at
+    IF NEW.dag_id IS NOT NULL AND NEW.dag_inserted_at IS NOT NULL THEN
+        INSERT INTO v2_dag_to_task (
+            dag_id,
+            dag_inserted_at,
+            task_id,
+            task_inserted_at
+        )
+        VALUES (
+            NEW.dag_id,
+            NEW.dag_inserted_at,
+            NEW.id,
+            NEW.inserted_at
+        );
+    END IF;
+
     RETURN NEW;
 END;
 $$
 LANGUAGE plpgsql;
 
-CREATE TRIGGER v2_task_to_v2_queue_item_insert_trigger
+CREATE TRIGGER v2_task_insert_trigger
 AFTER INSERT ON v2_task
 FOR EACH ROW
-EXECUTE PROCEDURE v2_task_to_v2_queue_item_insert_function();
+EXECUTE PROCEDURE v2_task_insert_function();
 
 CREATE OR REPLACE FUNCTION v2_task_to_v2_queue_item_update_retry_count_function()
 RETURNS TRIGGER AS
@@ -234,26 +342,57 @@ FOR EACH ROW
 WHEN (OLD.retry_count IS DISTINCT FROM NEW.retry_count)
 EXECUTE PROCEDURE v2_task_to_v2_queue_item_update_retry_count_function();
 
--- CreateTable
-CREATE TABLE v2_task_runtime (
-    task_id bigint NOT NULL,
-    retry_count INTEGER NOT NULL,
-    worker_id UUID NOT NULL,
-    tenant_id UUID NOT NULL,
-    timeout_at TIMESTAMP(3) NOT NULL,
+CREATE OR REPLACE FUNCTION create_v2_dag_partition(
+    targetDate date
+) RETURNS integer
+    LANGUAGE plpgsql AS
+$$
+DECLARE
+    targetDateStr varchar;
+    targetDatePlusOneDayStr varchar;
+    newTableName varchar;
+BEGIN
+    SELECT to_char(targetDate, 'YYYYMMDD') INTO targetDateStr;
+    SELECT to_char(targetDate + INTERVAL '1 day', 'YYYYMMDD') INTO targetDatePlusOneDayStr;
+    SELECT format('v2_dag_%s', targetDateStr) INTO newTableName;
+    -- exit if the table exists
+    IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename = newTableName) THEN
+        RETURN 0;
+    END IF;
 
-    CONSTRAINT v2_task_runtime_pkey PRIMARY KEY (task_id, retry_count)
-);
+    EXECUTE
+        format('CREATE TABLE %s (LIKE v2_dag INCLUDING INDEXES)', newTableName);
+    EXECUTE
+        format('ALTER TABLE %s SET (
+            autovacuum_vacuum_scale_factor = ''0.1'',
+            autovacuum_analyze_scale_factor=''0.05'',
+            autovacuum_vacuum_threshold=''25'',
+            autovacuum_analyze_threshold=''25'',
+            autovacuum_vacuum_cost_delay=''10'',
+            autovacuum_vacuum_cost_limit=''1000''
+        )', newTableName);
+    EXECUTE
+        format('ALTER TABLE v2_dag ATTACH PARTITION %s FOR VALUES FROM (''%s'') TO (''%s'')', newTableName, targetDateStr, targetDatePlusOneDayStr);
+    RETURN 1;
+END;
+$$;
 
-CREATE INDEX v2_task_runtime_tenantId_workerId_idx ON v2_task_runtime (tenant_id ASC, worker_id ASC);
+CREATE OR REPLACE FUNCTION get_v2_dag_partitions_before(
+    targetDate date
+) RETURNS TABLE(partition_name text)
+    LANGUAGE plpgsql AS
+$$
+BEGIN
+    RETURN QUERY
+    SELECT
+        inhrelid::regclass::text AS partition_name
+    FROM
+        pg_inherits
+    WHERE
+        inhparent = 'v2_dag'::regclass
+        AND substring(inhrelid::regclass::text, 'v2_dag_(\d{8})') ~ '^\d{8}'
+        AND (substring(inhrelid::regclass::text, 'v2_dag_(\d{8})')::date) < targetDate;
+END;
+$$;
 
-CREATE INDEX v2_task_runtime_tenantId_timeoutAt_idx ON v2_task_runtime (tenant_id ASC, timeout_at ASC);
-
-alter table v2_task_runtime set (
-    autovacuum_vacuum_scale_factor = '0.1', 
-    autovacuum_analyze_scale_factor='0.05',
-    autovacuum_vacuum_threshold='25',
-    autovacuum_analyze_threshold='25',
-    autovacuum_vacuum_cost_delay='10',
-    autovacuum_vacuum_cost_limit='1000'
-);
+SELECT create_v2_dag_partition(DATE 'today');

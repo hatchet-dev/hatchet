@@ -203,7 +203,7 @@ WITH input AS (
         t.id,
         t.retry_count,
         t.worker_id,
-        @tenantId::uuid, 
+        @tenantId::uuid,
         t.timeout_at
     FROM
         updated_tasks t

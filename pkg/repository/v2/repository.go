@@ -10,12 +10,14 @@ type Repository interface {
 	Triggers() TriggerRepository
 	Tasks() TaskRepository
 	Scheduler() SchedulerRepository
+	Matches() MatchRepository
 }
 
 type repositoryImpl struct {
 	triggers  TriggerRepository
 	tasks     TaskRepository
 	scheduler SchedulerRepository
+	matches   MatchRepository
 }
 
 func NewRepository(pool *pgxpool.Pool, l *zerolog.Logger) Repository {
@@ -23,10 +25,17 @@ func NewRepository(pool *pgxpool.Pool, l *zerolog.Logger) Repository {
 
 	shared := newSharedRepository(pool, v, l)
 
+	matchRepo, err := newMatchRepository(shared)
+
+	if err != nil {
+		l.Fatal().Err(err).Msg("cannot create match repository")
+	}
+
 	impl := &repositoryImpl{
 		triggers:  newTriggerRepository(shared),
 		tasks:     newTaskRepository(shared),
 		scheduler: newSchedulerRepository(shared),
+		matches:   matchRepo,
 	}
 
 	return impl
@@ -42,4 +51,8 @@ func (r *repositoryImpl) Tasks() TaskRepository {
 
 func (r *repositoryImpl) Scheduler() SchedulerRepository {
 	return r.scheduler
+}
+
+func (r *repositoryImpl) Matches() MatchRepository {
+	return r.matches
 }

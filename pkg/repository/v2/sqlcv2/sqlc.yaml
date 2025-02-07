@@ -4,12 +4,14 @@ sql:
     # database:
     #   uri: "postgres://hatchet:hatchet@localhost:5431/hatchet"
     queries:
+      - dags.sql
       - tasks.sql
       - queue.sql
       - triggers.sql
       - workflows.sql
       - lease.sql
       - workers.sql
+      - matches.sql
     schema:
       - ../../../../sql/schema/schema.sql
       - ../../../../sql/schema/v2.sql

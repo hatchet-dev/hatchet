@@ -13,6 +13,7 @@ import (
 
 const listWorkflowsByNames = `-- name: ListWorkflowsByNames :many
 SELECT DISTINCT ON("workflowId")
+    "workflowId",
     workflowVersions."id" AS "workflowVersionId",
     workflow."name" AS "workflowName"
 FROM
@@ -32,6 +33,7 @@ type ListWorkflowsByNamesParams struct {
 }
 
 type ListWorkflowsByNamesRow struct {
+	WorkflowId        pgtype.UUID `json:"workflowId"`
 	WorkflowVersionId pgtype.UUID `json:"workflowVersionId"`
 	WorkflowName      string      `json:"workflowName"`
 }
@@ -45,7 +47,7 @@ func (q *Queries) ListWorkflowsByNames(ctx context.Context, db DBTX, arg ListWor
 	var items []*ListWorkflowsByNamesRow
 	for rows.Next() {
 		var i ListWorkflowsByNamesRow
-		if err := rows.Scan(&i.WorkflowVersionId, &i.WorkflowName); err != nil {
+		if err := rows.Scan(&i.WorkflowId, &i.WorkflowVersionId, &i.WorkflowName); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)
@@ -59,50 +61,46 @@ func (q *Queries) ListWorkflowsByNames(ctx context.Context, db DBTX, arg ListWor
 const listWorkflowsForEvents = `-- name: ListWorkflowsForEvents :many
 WITH latest_versions AS (
     SELECT DISTINCT ON("workflowId")
+        "workflowId",
         workflowVersions."id" AS "workflowVersionId"
     FROM
         "WorkflowVersion" as workflowVersions
     JOIN
         "Workflow" as workflow ON workflow."id" = workflowVersions."workflowId"
     WHERE
-        workflow."tenantId" = $1::uuid
+        workflow."tenantId" = $2::uuid
         AND workflowVersions."deletedAt" IS NULL
     ORDER BY "workflowId", "order" DESC
-), events AS (
-    SELECT
-        unnest($2::uuid[]) AS "eventId",
-        unnest($3::text[]) AS "eventKey"
 )
 SELECT
     latest_versions."workflowVersionId",
-    events."eventId"::uuid as "eventId",
-    events."eventKey"::text as "eventKey"
+    latest_versions."workflowId",
+    eventRef."eventKey" as "eventKey"
 FROM
     latest_versions
 JOIN
     "WorkflowTriggers" as triggers ON triggers."workflowVersionId" = latest_versions."workflowVersionId"
 JOIN
     "WorkflowTriggerEventRef" as eventRef ON eventRef."parentId" = triggers."id"
-JOIN
-    events ON events."eventKey" = eventRef."eventKey"
+WHERE
+    eventRef."eventKey" = ANY($1::text[])
 `
 
 type ListWorkflowsForEventsParams struct {
-	Tenantid  pgtype.UUID   `json:"tenantid"`
-	Eventids  []pgtype.UUID `json:"eventids"`
-	Eventkeys []string      `json:"eventkeys"`
+	Eventkeys []string    `json:"eventkeys"`
+	Tenantid  pgtype.UUID `json:"tenantid"`
 }
 
 type ListWorkflowsForEventsRow struct {
 	WorkflowVersionId pgtype.UUID `json:"workflowVersionId"`
-	EventId           pgtype.UUID `json:"eventId"`
+	WorkflowId        pgtype.UUID `json:"workflowId"`
 	EventKey          string      `json:"eventKey"`
 }
 
 // Get all of the latest workflow versions
 // select the workflow versions that have the event trigger
 func (q *Queries) ListWorkflowsForEvents(ctx context.Context, db DBTX, arg ListWorkflowsForEventsParams) ([]*ListWorkflowsForEventsRow, error) {
-	rows, err := db.Query(ctx, listWorkflowsForEvents, arg.Tenantid, arg.Eventids, arg.Eventkeys)
+	rows, err := db.Query(ctx, listWorkflowsForEvents, arg.Eventkeys, arg.Tenantid)
 	if err != nil {
 		return nil, err
 	}
@@ -110,7 +108,7 @@ func (q *Queries) ListWorkflowsForEvents(ctx context.Context, db DBTX, arg ListW
 	var items []*ListWorkflowsForEventsRow
 	for rows.Next() {
 		var i ListWorkflowsForEventsRow
-		if err := rows.Scan(&i.WorkflowVersionId, &i.EventId, &i.EventKey); err != nil {
+		if err := rows.Scan(&i.WorkflowVersionId, &i.WorkflowId, &i.EventKey); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)

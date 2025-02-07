@@ -10,6 +10,7 @@ import (
 	"github.com/go-co-op/gocron/v2"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/hatchet-dev/hatchet/internal/cel"
 	"github.com/hatchet-dev/hatchet/internal/datautils"
@@ -20,8 +21,8 @@ import (
 	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 	v2 "github.com/hatchet-dev/hatchet/pkg/repository/v2"
+	"github.com/hatchet-dev/hatchet/pkg/repository/v2/sqlcv2"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v2/timescalev2"
 )
 
@@ -199,10 +200,12 @@ func (tc *TriggerControllerImpl) handleBufferedMsgs(tenantId, msgId string, payl
 	}()
 
 	switch msgId {
-	case "event-trigger":
+	case "user-event":
 		return tc.handleProcessEventTrigger(context.Background(), tenantId, payloads)
 	case "task-trigger":
 		return tc.handleProcessTaskTrigger(context.Background(), tenantId, payloads)
+	case "internal-event":
+		return tc.handleProcessInternalEventMatches(context.Background(), tenantId, payloads)
 	}
 
 	tc.l.Error().Msgf("unknown message id: %s", msgId)
@@ -212,83 +215,107 @@ func (tc *TriggerControllerImpl) handleBufferedMsgs(tenantId, msgId string, payl
 
 // handleProcessEventTrigger is responsible for inserting tasks into the database based on event triggers.
 func (tc *TriggerControllerImpl) handleProcessEventTrigger(ctx context.Context, tenantId string, payloads [][]byte) error {
-	// parse out event ids from the messages
-	tuples := make([]v2.EventIdKey, 0, len(payloads))
-	idsToData := make(map[string]tasktypes.EventTaskPayload, len(payloads))
+	msgs := msgqueue.JSONConvert[tasktypes.UserEventTaskPayload](payloads)
 
-	msgs := msgqueue.JSONConvert[tasktypes.EventTaskPayload](payloads)
+	eg := &errgroup.Group{}
+
+	// TODO: RUN IN THE SAME TRANSACTION
+	eg.Go(func() error {
+		return tc.handleProcessUserEventTrigger(ctx, tenantId, msgs)
+	})
+
+	eg.Go(func() error {
+		return tc.handleProcessUserEventMatches(ctx, tenantId, msgs)
+	})
+
+	return eg.Wait()
+}
+
+// handleProcessEventTrigger is responsible for inserting tasks into the database based on event triggers.
+func (tc *TriggerControllerImpl) handleProcessUserEventTrigger(ctx context.Context, tenantId string, msgs []*tasktypes.UserEventTaskPayload) error {
+	opts := make([]v2.EventTriggerOpts, 0, len(msgs))
 
 	for _, msg := range msgs {
-		tuples = append(tuples, v2.EventIdKey{
-			EventId: msg.EventId,
-			Key:     msg.EventKey,
+		opts = append(opts, v2.EventTriggerOpts{
+			EventId:            msg.EventId,
+			Key:                msg.EventKey,
+			Data:               msg.EventData,
+			AdditionalMetadata: msg.EventAdditionalMetadata,
 		})
-
-		idsToData[msg.EventId] = *msg
 	}
 
-	// get a list of workflow versions which correspond to events
-	startDatas, err := tc.v2repo.Triggers().ListTriggeredWorkflowsForEvents(ctx, tenantId, tuples)
+	tasks, err := tc.v2repo.Triggers().TriggerFromEvents(ctx, tenantId, opts)
 
 	if err != nil {
-		return fmt.Errorf("could not query workflows for events: %w", err)
+		return fmt.Errorf("could not trigger tasks from events: %w", err)
 	}
 
-	// parse the workflow versions into a list of CreateTaskOpts
-	opts, err := tc.getTaskCreateOptsFromEvents(startDatas, idsToData)
+	return tc.signalTasksCreated(ctx, tenantId, tasks)
+}
 
-	if err != nil {
-		return fmt.Errorf("could not get task create options: %w", err)
-	}
-
-	return tc.createTasks(ctx, tenantId, opts)
+// handleProcessUserEventMatches is responsible for triggering tasks based on user event matches.
+func (tc *TriggerControllerImpl) handleProcessUserEventMatches(ctx context.Context, tenantId string, payloads []*tasktypes.UserEventTaskPayload) error {
+	tc.l.Error().Msg("not implemented")
+	return nil
 }
 
 // handleProcessEventTrigger is responsible for inserting tasks into the database based on event triggers.
 func (tc *TriggerControllerImpl) handleProcessTaskTrigger(ctx context.Context, tenantId string, payloads [][]byte) error {
 	msgs := msgqueue.JSONConvert[tasktypes.TriggerTaskPayload](payloads)
 
-	taskIdNames := make([]v2.TaskIdName, 0, len(msgs))
-	idsToData := make(map[string]tasktypes.TriggerTaskPayload, len(msgs))
+	opts := make([]v2.WorkflowNameTriggerOpts, 0, len(msgs))
 
 	for _, msg := range msgs {
-		taskIdNames = append(taskIdNames, v2.TaskIdName{
-			TaskId: msg.TaskExternalId,
-			Name:   msg.WorkflowName,
+		opts = append(opts, v2.WorkflowNameTriggerOpts{
+			WorkflowName:       msg.WorkflowName,
+			ExternalId:         msg.TaskExternalId,
+			Data:               msg.Data,
+			AdditionalMetadata: msg.AdditionalMetadata,
 		})
-
-		idsToData[msg.TaskExternalId] = *msg
 	}
 
-	startDatas, err := tc.v2repo.Triggers().ListTriggeredWorkflowsByNames(ctx, tenantId, taskIdNames)
+	tasks, err := tc.v2repo.Triggers().TriggerFromWorkflowNames(ctx, tenantId, opts)
 
 	if err != nil {
 		return fmt.Errorf("could not query workflows for events: %w", err)
 	}
 
-	// parse the workflow versions into a list of CreateTaskOpts
-	opts, err := tc.getTaskCreateOptsFromTaskIds(startDatas, idsToData)
-
-	if err != nil {
-		return fmt.Errorf("could not get task create options: %w", err)
-	}
-
-	return tc.createTasks(ctx, tenantId, opts)
+	return tc.signalTasksCreated(ctx, tenantId, tasks)
 }
 
-func (tc *TriggerControllerImpl) createTasks(ctx context.Context, tenantId string, opts []v2.CreateTaskOpts) error {
-	// create the tasks
-	tasks, err := tc.v2repo.Tasks().CreateTasks(ctx, tenantId, opts)
+// handleProcessUserEventMatches is responsible for triggering tasks based on user event matches.
+func (tc *TriggerControllerImpl) handleProcessInternalEventMatches(ctx context.Context, tenantId string, payloads [][]byte) error {
+	msgs := msgqueue.JSONConvert[tasktypes.InternalEventTaskPayload](payloads)
+	candidateMatches := make([]v2.CandidateEventMatch, 0)
 
-	if err != nil {
-		return fmt.Errorf("could not create tasks: %w", err)
+	for _, msg := range msgs {
+		candidateMatches = append(candidateMatches, v2.CandidateEventMatch{
+			ID:             uuid.NewString(),
+			EventTimestamp: msg.EventTimestamp,
+			Key:            msg.EventKey,
+			Data:           msg.EventData,
+		})
 	}
 
+	tasks, err := tc.v2repo.Matches().ProcessInternalEventMatches(ctx, tenantId, candidateMatches)
+
+	if err != nil {
+		return fmt.Errorf("could not process internal event matches: %w", err)
+	}
+
+	if len(tasks) == 0 {
+		return nil
+	}
+
+	return tc.signalTasksCreated(ctx, tenantId, tasks)
+}
+
+func (tc *TriggerControllerImpl) signalTasksCreated(ctx context.Context, tenantId string, tasks []*sqlcv2.V2Task) error {
 	// get all unique queues and notify them
 	queues := make(map[string]struct{})
 
-	for _, opt := range opts {
-		queues[opt.Queue] = struct{}{}
+	for _, task := range tasks {
+		queues[task.Queue] = struct{}{}
 	}
 
 	tenant, err := tc.repo.Tenant().GetTenantByID(ctx, tenantId)
@@ -370,70 +397,4 @@ func (tc *TriggerControllerImpl) createTasks(ctx context.Context, tenantId strin
 	}
 
 	return nil
-}
-
-func (tc *TriggerControllerImpl) getTaskCreateOptsFromEvents(startDatas []*v2.WorkflowVersionWithTriggeringEvent, idsToData map[string]tasktypes.EventTaskPayload) ([]v2.CreateTaskOpts, error) {
-	opts := make([]v2.CreateTaskOpts, 0, len(startDatas))
-
-	for _, startData := range startDatas {
-		// parse the start data into a CreateTaskOpts
-		// if startData.WorkflowStartData.IsDAG {
-		// 	tc.l.Error().Msgf("DAG workflows are not supported in v2 at the moment")
-		// }
-
-		id := uuid.New().String()
-
-		eventData := idsToData[startData.EventId]
-
-		unix := time.Now().UnixMilli()
-
-		// parse the start data into a CreateTaskOpts
-		opt := v2.CreateTaskOpts{
-			ExternalId:         id,
-			Queue:              startData.WorkflowStartData.ActionId,
-			ActionId:           startData.WorkflowStartData.ActionId,
-			StepId:             sqlchelpers.UUIDToStr(startData.WorkflowStartData.ID),
-			WorkflowId:         sqlchelpers.UUIDToStr(startData.WorkflowStartData.WorkflowId),
-			ScheduleTimeout:    startData.WorkflowStartData.ScheduleTimeout,
-			StepTimeout:        startData.WorkflowStartData.Timeout.String,
-			DisplayName:        fmt.Sprintf("%s-%d", startData.WorkflowStartData.WorkflowName, unix),
-			Input:              eventData.EventData,
-			AdditionalMetadata: eventData.EventAdditionalMetadata,
-		}
-
-		opts = append(opts, opt)
-	}
-
-	return opts, nil
-}
-
-func (tc *TriggerControllerImpl) getTaskCreateOptsFromTaskIds(startDatas []*v2.WorkflowVersionWithTriggeringTask, idsToData map[string]tasktypes.TriggerTaskPayload) ([]v2.CreateTaskOpts, error) {
-	opts := make([]v2.CreateTaskOpts, 0, len(startDatas))
-
-	for _, startData := range startDatas {
-		inputData, ok := idsToData[startData.TaskId]
-
-		if !ok {
-			tc.l.Error().Msgf("could not find input data for task id: %s", startData.TaskId)
-			continue
-		}
-
-		// parse the start data into a CreateTaskOpts
-		opt := v2.CreateTaskOpts{
-			ExternalId:         startData.TaskId,
-			Queue:              startData.WorkflowStartData.ActionId,
-			ActionId:           startData.WorkflowStartData.ActionId,
-			StepId:             sqlchelpers.UUIDToStr(startData.WorkflowStartData.ID),
-			WorkflowId:         sqlchelpers.UUIDToStr(startData.WorkflowStartData.WorkflowId),
-			ScheduleTimeout:    startData.WorkflowStartData.ScheduleTimeout,
-			StepTimeout:        startData.WorkflowStartData.Timeout.String,
-			DisplayName:        startData.WorkflowStartData.WorkflowName,
-			Input:              inputData.Data,
-			AdditionalMetadata: inputData.AdditionalMetadata,
-		}
-
-		opts = append(opts, opt)
-	}
-
-	return opts, nil
 }
