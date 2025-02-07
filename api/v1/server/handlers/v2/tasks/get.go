@@ -9,7 +9,7 @@ import (
 )
 
 func (t *TasksService) V2TaskGet(ctx echo.Context, request gen.V2TaskGetRequestObject) (gen.V2TaskGetResponseObject, error) {
-	task := ctx.Get("task").(*timescalev2.V2TasksOlap)
+	task := ctx.Get("task").(*timescalev2.V2TasksOlapCopy)
 
 	taskWithData, err := t.config.EngineRepository.OLAP().ReadTaskRunData(ctx.Request().Context(), task.TenantID, task.ID, task.InsertedAt)
 

@@ -111,7 +111,7 @@ SELECT
 FROM v2_cagg_status_metrics
 WHERE
     tenant_id = $1::uuid
-    AND bucket_2 >= time_bucket('5 minutes', $2::timestamptz)
+    AND bucket >= time_bucket('5 minutes', $2::timestamptz)
     AND (
         $3::uuid[] IS NULL OR workflow_id = ANY($3::uuid[])
     )
@@ -144,27 +144,6 @@ func (q *Queries) GetTenantStatusMetrics(ctx context.Context, db DBTX, arg GetTe
 	return &i, err
 }
 
-const lastSucceededStatusAggregate = `-- name: LastSucceededStatusAggregate :one
-SELECT
-    js.last_successful_finish::timestamptz as last_succeeded
-FROM
-    timescaledb_information.continuous_aggregates ca
-JOIN
-    timescaledb_information.jobs j ON j.hypertable_name = ca.materialization_hypertable_name
-JOIN
-    timescaledb_information.job_stats js ON j.job_id = js.job_id
-WHERE
-    ca.view_name = 'v2_cagg_task_status'
-LIMIT 1
-`
-
-func (q *Queries) LastSucceededStatusAggregate(ctx context.Context, db DBTX) (pgtype.Timestamptz, error) {
-	row := db.QueryRow(ctx, lastSucceededStatusAggregate)
-	var last_succeeded pgtype.Timestamptz
-	err := row.Scan(&last_succeeded)
-	return last_succeeded, err
-}
-
 const listTaskEvents = `-- name: ListTaskEvents :many
 WITH aggregated_events AS (
   SELECT
@@ -177,7 +156,7 @@ WITH aggregated_events AS (
     MAX(event_timestamp) AS time_last_seen,
     COUNT(*) AS count,
     MIN(id) AS first_id
-  FROM v2_task_events_olap
+  FROM v2_task_events_olap_copy
   WHERE
     tenant_id = $1::uuid
     AND task_id = $2::bigint
@@ -202,7 +181,7 @@ SELECT
   t.additional__event_data,
   t.additional__event_message
 FROM aggregated_events a
-JOIN v2_task_events_olap t
+JOIN v2_task_events_olap_copy t
   ON t.tenant_id = a.tenant_id
   AND t.task_id = a.task_id
   AND t.task_inserted_at = a.task_inserted_at
@@ -272,197 +251,67 @@ func (q *Queries) ListTaskEvents(ctx context.Context, db DBTX, arg ListTaskEvent
 	return items, nil
 }
 
-const listTasksFromAggregate = `-- name: ListTasksFromAggregate :many
+const listTasks = `-- name: ListTasks :many
 SELECT
-    s.tenant_id::uuid as tenant_id,
-    s.task_id::bigint as task_id,
-    s.task_inserted_at::timestamptz as inserted_at,
-    s.status::v2_readable_status_olap as status,
-    s.max_retry_count::int as max_retry_count
+    tenant_id, id, inserted_at, external_id, queue, action_id, step_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, display_name, input, additional_metadata, readable_status, latest_retry_count
 FROM
-    v2_cagg_task_status s
+    v2_tasks_olap_copy
 WHERE
-    s.tenant_id = $1::uuid
-    AND bucket_2 >= time_bucket('1 day', $2::timestamptz)
-    AND s.task_inserted_at >= $2::timestamptz
+    tenant_id = $1::uuid
+    AND inserted_at >= $2::timestamptz
     AND (
-        $3::text[] IS NULL OR status = ANY(cast($3::text[] as v2_readable_status_olap[]))
+        $3::text[] IS NULL OR readable_status = ANY(cast($3::text[] as v2_readable_status_olap[]))
     )
     AND (
-        $4::uuid[] IS NULL OR s.workflow_id = ANY($4::uuid[])
+        $4::uuid[] IS NULL OR workflow_id = ANY($4::uuid[])
     )
-    AND (
-        $5::uuid IS NULL OR s.worker_id = $5::uuid
-    )
-ORDER BY bucket_2 DESC, s.task_inserted_at DESC, s.task_id DESC
-LIMIT $6::integer
+ORDER BY
+    inserted_at DESC
+LIMIT $5::integer
 `
 
-type ListTasksFromAggregateParams struct {
-	Tenantid     pgtype.UUID        `json:"tenantid"`
-	Createdafter pgtype.Timestamptz `json:"createdafter"`
-	Statuses     []string           `json:"statuses"`
-	WorkflowIds  []pgtype.UUID      `json:"workflowIds"`
-	WorkerId     pgtype.UUID        `json:"workerId"`
-	Tasklimit    int32              `json:"tasklimit"`
+type ListTasksParams struct {
+	Tenantid      pgtype.UUID        `json:"tenantid"`
+	Insertedafter pgtype.Timestamptz `json:"insertedafter"`
+	Statuses      []string           `json:"statuses"`
+	WorkflowIds   []pgtype.UUID      `json:"workflowIds"`
+	Tasklimit     int32              `json:"tasklimit"`
 }
 
-type ListTasksFromAggregateRow struct {
-	TenantID      pgtype.UUID          `json:"tenant_id"`
-	TaskID        int64                `json:"task_id"`
-	InsertedAt    pgtype.Timestamptz   `json:"inserted_at"`
-	Status        V2ReadableStatusOlap `json:"status"`
-	MaxRetryCount int32                `json:"max_retry_count"`
-}
-
-// FIXME: ideally we would have this join to check for existence of the task in the database, but this causes a
-// large performance overhead for a rare edge case. Should look into this later.
-// JOIN
-//
-//	v2_tasks_olap t ON t.tenant_id = s.tenant_id AND t.id = s.task_id AND t.inserted_at = s.task_inserted_at
-func (q *Queries) ListTasksFromAggregate(ctx context.Context, db DBTX, arg ListTasksFromAggregateParams) ([]*ListTasksFromAggregateRow, error) {
-	rows, err := db.Query(ctx, listTasksFromAggregate,
-		arg.Tenantid,
-		arg.Createdafter,
-		arg.Statuses,
-		arg.WorkflowIds,
-		arg.WorkerId,
-		arg.Tasklimit,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []*ListTasksFromAggregateRow
-	for rows.Next() {
-		var i ListTasksFromAggregateRow
-		if err := rows.Scan(
-			&i.TenantID,
-			&i.TaskID,
-			&i.InsertedAt,
-			&i.Status,
-			&i.MaxRetryCount,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listTasksRealTime = `-- name: ListTasksRealTime :many
-WITH relevant_events AS (
-    SELECT
-        tenant_id, id, inserted_at, task_id, task_inserted_at, event_type, workflow_id, event_timestamp, readable_status, retry_count, error_message, output, worker_id, additional__event_data, additional__event_message
-    FROM
-        v2_task_events_olap
-    WHERE
-        tenant_id = $3::uuid
-        AND inserted_at >= $4::timestamptz
-        AND readable_status = ANY(cast($5::text[] as v2_readable_status_olap[]))
-        AND (
-            $6::uuid[] IS NULL OR workflow_id = ANY($6::uuid[])
-        )
-        AND (
-            $7::v2_event_type_olap IS NULL OR event_type = $7::v2_event_type_olap
-        )
-        AND (
-            $8::uuid IS NULL OR worker_id = $8::uuid
-        )
-    ORDER BY
-        task_inserted_at DESC
-    -- NOTE: we can't always limit this CTE. We can limit when we're just querying for created tasks,
-    -- but we can't limit when we're querying for i.e. failed tasks, because we need to get the latest
-    -- event for each task.
-    LIMIT $9::integer
-), unique_tasks AS (
-    SELECT
-        tenant_id,
-        task_id,
-        task_inserted_at
-    FROM
-        relevant_events
-    GROUP BY tenant_id, task_id, task_inserted_at
-), all_task_events AS (
-    SELECT
-        e.id,
-        e.tenant_id,
-        e.task_id,
-        e.task_inserted_at,
-        e.readable_status,
-        e.retry_count
-    FROM
-        v2_task_events_olap e
-    JOIN
-        unique_tasks t ON t.tenant_id = e.tenant_id AND t.task_id = e.task_id AND t.task_inserted_at = e.task_inserted_at
-), agg AS (
-    SELECT
-        tenant_id,
-        task_id,
-        task_inserted_at,
-        (array_agg(readable_status ORDER BY retry_count DESC, readable_status DESC))[1]::v2_readable_status_olap AS status,
-        max(retry_count)::integer AS max_retry_count
-    FROM all_task_events
-    GROUP BY tenant_id, task_id, task_inserted_at
-    ORDER BY task_inserted_at DESC, task_id DESC
-)
-SELECT
-    tenant_id, task_id, task_inserted_at, status, max_retry_count
-FROM
-    agg
-WHERE
-    $1::text[] IS NULL OR status = ANY(cast($1::text[] as v2_readable_status_olap[]))
-LIMIT $2::integer
-`
-
-type ListTasksRealTimeParams struct {
-	Statuses      []string            `json:"statuses"`
-	Tasklimit     int32               `json:"tasklimit"`
-	Tenantid      pgtype.UUID         `json:"tenantid"`
-	Insertedafter pgtype.Timestamptz  `json:"insertedafter"`
-	Eventstatuses []string            `json:"eventstatuses"`
-	WorkflowIds   []pgtype.UUID       `json:"workflowIds"`
-	EventType     NullV2EventTypeOlap `json:"eventType"`
-	WorkerId      pgtype.UUID         `json:"workerId"`
-	EventLimit    pgtype.Int4         `json:"eventLimit"`
-}
-
-type ListTasksRealTimeRow struct {
-	TenantID       pgtype.UUID          `json:"tenant_id"`
-	TaskID         int64                `json:"task_id"`
-	TaskInsertedAt pgtype.Timestamptz   `json:"task_inserted_at"`
-	Status         V2ReadableStatusOlap `json:"status"`
-	MaxRetryCount  int32                `json:"max_retry_count"`
-}
-
-func (q *Queries) ListTasksRealTime(ctx context.Context, db DBTX, arg ListTasksRealTimeParams) ([]*ListTasksRealTimeRow, error) {
-	rows, err := db.Query(ctx, listTasksRealTime,
-		arg.Statuses,
-		arg.Tasklimit,
+func (q *Queries) ListTasks(ctx context.Context, db DBTX, arg ListTasksParams) ([]*V2TasksOlapCopy, error) {
+	rows, err := db.Query(ctx, listTasks,
 		arg.Tenantid,
 		arg.Insertedafter,
-		arg.Eventstatuses,
+		arg.Statuses,
 		arg.WorkflowIds,
-		arg.EventType,
-		arg.WorkerId,
-		arg.EventLimit,
+		arg.Tasklimit,
 	)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*ListTasksRealTimeRow
+	var items []*V2TasksOlapCopy
 	for rows.Next() {
-		var i ListTasksRealTimeRow
+		var i V2TasksOlapCopy
 		if err := rows.Scan(
 			&i.TenantID,
-			&i.TaskID,
-			&i.TaskInsertedAt,
-			&i.Status,
-			&i.MaxRetryCount,
+			&i.ID,
+			&i.InsertedAt,
+			&i.ExternalID,
+			&i.Queue,
+			&i.ActionID,
+			&i.StepID,
+			&i.WorkflowID,
+			&i.ScheduleTimeout,
+			&i.StepTimeout,
+			&i.Priority,
+			&i.Sticky,
+			&i.DesiredWorkerID,
+			&i.DisplayName,
+			&i.Input,
+			&i.AdditionalMetadata,
+			&i.ReadableStatus,
+			&i.LatestRetryCount,
 		); err != nil {
 			return nil, err
 		}
@@ -479,7 +328,7 @@ WITH latest_retry_count AS (
     SELECT
         MAX(retry_count) AS retry_count
     FROM
-        v2_task_events_olap
+        v2_task_events_olap_copy
     WHERE
         tenant_id = $1::uuid
         AND task_id = $2::bigint
@@ -488,7 +337,7 @@ WITH latest_retry_count AS (
     SELECT
         tenant_id, id, inserted_at, task_id, task_inserted_at, event_type, workflow_id, event_timestamp, readable_status, retry_count, error_message, output, worker_id, additional__event_data, additional__event_message
     FROM
-        v2_task_events_olap
+        v2_task_events_olap_copy
     WHERE
         tenant_id = $1::uuid
         AND task_id = $2::bigint
@@ -527,13 +376,13 @@ WITH latest_retry_count AS (
     LIMIT 1
 )
 SELECT
-    t.tenant_id, t.id, t.inserted_at, t.external_id, t.queue, t.action_id, t.step_id, t.workflow_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.display_name, t.input, t.additional_metadata,
+    t.tenant_id, t.id, t.inserted_at, t.external_id, t.queue, t.action_id, t.step_id, t.workflow_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.display_name, t.input, t.additional_metadata, t.readable_status, t.latest_retry_count,
     st.readable_status::v2_readable_status_olap as status,
     f.finished_at::timestamptz as finished_at,
     s.started_at::timestamptz as started_at,
     o.output::jsonb as output
 FROM
-    v2_tasks_olap t
+    v2_tasks_olap_copy t
 LEFT JOIN
     finished_at f ON true
 LEFT JOIN
@@ -569,6 +418,8 @@ type PopulateSingleTaskRunDataRow struct {
 	DisplayName        string               `json:"display_name"`
 	Input              []byte               `json:"input"`
 	AdditionalMetadata []byte               `json:"additional_metadata"`
+	ReadableStatus     V2ReadableStatusOlap `json:"readable_status"`
+	LatestRetryCount   int32                `json:"latest_retry_count"`
 	Status             V2ReadableStatusOlap `json:"status"`
 	FinishedAt         pgtype.Timestamptz   `json:"finished_at"`
 	StartedAt          pgtype.Timestamptz   `json:"started_at"`
@@ -595,6 +446,8 @@ func (q *Queries) PopulateSingleTaskRunData(ctx context.Context, db DBTX, arg Po
 		&i.DisplayName,
 		&i.Input,
 		&i.AdditionalMetadata,
+		&i.ReadableStatus,
+		&i.LatestRetryCount,
 		&i.Status,
 		&i.FinishedAt,
 		&i.StartedAt,
@@ -633,7 +486,7 @@ WITH input AS (
         i.retry_count,
         i.status
     FROM
-        v2_tasks_olap t
+        v2_tasks_olap_copy t
     JOIN
         input i ON i.tenant_id = t.tenant_id AND i.id = t.id AND i.inserted_at = t.inserted_at
 ), finished_ats AS (
@@ -641,7 +494,7 @@ WITH input AS (
         e.task_id::bigint,
         MAX(e.event_timestamp) AS finished_at
     FROM
-        v2_task_events_olap e
+        v2_task_events_olap_copy e
     JOIN
         tasks t ON t.id = e.task_id AND t.tenant_id = e.tenant_id AND t.inserted_at = e.task_inserted_at AND t.retry_count = e.retry_count
     WHERE
@@ -652,7 +505,7 @@ WITH input AS (
         e.task_id::bigint,
         MAX(e.event_timestamp) AS started_at
     FROM
-        v2_task_events_olap e
+        v2_task_events_olap_copy e
     JOIN
         tasks t ON t.id = e.task_id AND t.tenant_id = e.tenant_id AND t.inserted_at = e.task_inserted_at AND t.retry_count = e.retry_count
     WHERE
@@ -776,16 +629,16 @@ WITH lookup_task AS (
         external_id = $1::uuid
 )
 SELECT
-    t.tenant_id, t.id, t.inserted_at, t.external_id, t.queue, t.action_id, t.step_id, t.workflow_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.display_name, t.input, t.additional_metadata
+    t.tenant_id, t.id, t.inserted_at, t.external_id, t.queue, t.action_id, t.step_id, t.workflow_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.display_name, t.input, t.additional_metadata, t.readable_status, t.latest_retry_count
 FROM
-    v2_tasks_olap t
+    v2_tasks_olap_copy t
 JOIN
     lookup_task lt ON lt.tenant_id = t.tenant_id AND lt.task_id = t.id AND lt.inserted_at = t.inserted_at
 `
 
-func (q *Queries) ReadTaskByExternalID(ctx context.Context, db DBTX, externalid pgtype.UUID) (*V2TasksOlap, error) {
+func (q *Queries) ReadTaskByExternalID(ctx context.Context, db DBTX, externalid pgtype.UUID) (*V2TasksOlapCopy, error) {
 	row := db.QueryRow(ctx, readTaskByExternalID, externalid)
-	var i V2TasksOlap
+	var i V2TasksOlapCopy
 	err := row.Scan(
 		&i.TenantID,
 		&i.ID,
@@ -803,6 +656,8 @@ func (q *Queries) ReadTaskByExternalID(ctx context.Context, db DBTX, externalid 
 		&i.DisplayName,
 		&i.Input,
 		&i.AdditionalMetadata,
+		&i.ReadableStatus,
+		&i.LatestRetryCount,
 	)
 	return &i, err
 }

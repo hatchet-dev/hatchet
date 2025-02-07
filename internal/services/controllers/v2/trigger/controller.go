@@ -255,7 +255,7 @@ func (tc *TriggerControllerImpl) handleProcessUserEventTrigger(ctx context.Conte
 
 // handleProcessUserEventMatches is responsible for triggering tasks based on user event matches.
 func (tc *TriggerControllerImpl) handleProcessUserEventMatches(ctx context.Context, tenantId string, payloads []*tasktypes.UserEventTaskPayload) error {
-	tc.l.Error().Msg("not implemented")
+	// tc.l.Error().Msg("not implemented")
 	return nil
 }
 

@@ -42,7 +42,7 @@ type ReadTaskRunMetricsOpts struct {
 }
 
 type OLAPEventRepository interface {
-	ReadTaskRun(ctx context.Context, taskExternalId string) (*timescalev2.V2TasksOlap, error)
+	ReadTaskRun(ctx context.Context, taskExternalId string) (*timescalev2.V2TasksOlapCopy, error)
 	ReadTaskRunData(ctx context.Context, tenantId pgtype.UUID, taskId int64, taskInsertedAt pgtype.Timestamptz) (*timescalev2.PopulateSingleTaskRunDataRow, error)
 	ListTaskRuns(ctx context.Context, tenantId string, opts ListTaskRunOpts) ([]*timescalev2.PopulateTaskRunDataRow, int, error)
 	ListTaskRunEvents(ctx context.Context, tenantId string, taskId int64, taskInsertedAt pgtype.Timestamptz, limit, offset int64) ([]*timescalev2.ListTaskEventsRow, error)
@@ -130,7 +130,7 @@ type getTaskRow struct {
 	WorkflowId         uuid.UUID
 }
 
-func (r *olapEventRepository) ReadTaskRun(ctx context.Context, taskExternalId string) (*timescalev2.V2TasksOlap, error) {
+func (r *olapEventRepository) ReadTaskRun(ctx context.Context, taskExternalId string) (*timescalev2.V2TasksOlapCopy, error) {
 	return r.queries.ReadTaskByExternalID(ctx, r.pool, sqlchelpers.UUIDFromStr(taskExternalId))
 }
 
@@ -151,18 +151,18 @@ func (r *olapEventRepository) ListTaskRuns(ctx context.Context, tenantId string,
 
 	defer tx.Rollback(ctx)
 
-	lastSucceededAggTs, err := r.queries.LastSucceededStatusAggregate(ctx, tx)
+	// lastSucceededAggTs, err := r.queries.LastSucceededStatusAggregate(ctx, tx)
 
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return nil, 0, err
-	}
+	// if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+	// 	return nil, 0, err
+	// }
 
-	if !lastSucceededAggTs.Valid {
-		lastSucceededAggTs = sqlchelpers.TimestamptzFromTime(time.Time{}) // zero value
-	} else if lastSucceededAggTs.Time.After(time.Now().Add(-5 * time.Minute)) {
-		// always search the last 5 minutes of data
-		lastSucceededAggTs = sqlchelpers.TimestamptzFromTime(time.Now().Add(-5 * time.Minute))
-	}
+	// if !lastSucceededAggTs.Valid {
+	// 	lastSucceededAggTs = sqlchelpers.TimestamptzFromTime(time.Time{}) // zero value
+	// } else if lastSucceededAggTs.Time.After(time.Now().Add(-5 * time.Minute)) {
+	// 	// always search the last 5 minutes of data
+	// 	lastSucceededAggTs = sqlchelpers.TimestamptzFromTime(time.Now().Add(-5 * time.Minute))
+	// }
 
 	taskIds := make([]int64, 0)
 	tenantIds := make([]pgtype.UUID, 0)
@@ -170,33 +170,17 @@ func (r *olapEventRepository) ListTaskRuns(ctx context.Context, tenantId string,
 	retryCounts := make([]int32, 0)
 	queryStatuses := make([]string, 0)
 
-	realTimeParams := timescalev2.ListTasksRealTimeParams{
+	realTimeParams := timescalev2.ListTasksParams{
 		Tenantid:      sqlchelpers.UUIDFromStr(tenantId),
-		Insertedafter: lastSucceededAggTs,
+		Insertedafter: sqlchelpers.TimestamptzFromTime(opts.CreatedAfter),
 		Tasklimit:     int32(opts.Limit),
 	}
 
-	// if we're filtering by all statuses or no statuses, we can provide an earlier CTE limit to speed up the query
-	if len(opts.Statuses) == 0 || len(opts.Statuses) == 5 {
-		realTimeParams.EventLimit = pgtype.Int4{
-			Int32: int32(opts.Limit),
-			Valid: true,
-		}
-
-		realTimeParams.Eventstatuses = []string{
-			string(timescalev2.V2ReadableStatusOlapQUEUED),
-		}
-
-		realTimeParams.EventType = timescalev2.NullV2EventTypeOlap{
-			V2EventTypeOlap: timescalev2.V2EventTypeOlapCREATED,
-			Valid:           true,
-		}
-	} else {
-		realTimeParams.Eventstatuses = make([]string, 0)
+	// if we're filtering by all statuses or no statuses, we don't pass status in
+	if len(opts.Statuses) != 0 && len(opts.Statuses) != 5 {
 		realTimeParams.Statuses = make([]string, 0)
 
 		for _, status := range opts.Statuses {
-			realTimeParams.Eventstatuses = append(realTimeParams.Eventstatuses, string(status))
 			realTimeParams.Statuses = append(realTimeParams.Statuses, string(status))
 		}
 	}
@@ -211,66 +195,28 @@ func (r *olapEventRepository) ListTaskRuns(ctx context.Context, tenantId string,
 		}
 	}
 
-	if opts.WorkerId != nil {
-		realTimeParams.WorkerId = sqlchelpers.UUIDFromStr(opts.WorkerId.String())
-	}
+	// TODO: FIX
+	// if opts.WorkerId != nil {
+	// 	realTimeParams.WorkerId = sqlchelpers.UUIDFromStr(opts.WorkerId.String())
+	// }
 
 	realTimeParams.WorkflowIds = workflowIdParams
 
 	uniqueTasks := make(map[int64]struct{}, 0)
 
-	realTimeTasks, err := r.queries.ListTasksRealTime(ctx, tx, realTimeParams)
+	realTimeTasks, err := r.queries.ListTasks(ctx, tx, realTimeParams)
 
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return nil, 0, err
 	}
 
 	for _, task := range realTimeTasks {
-		uniqueTasks[task.TaskID] = struct{}{}
-		taskIds = append(taskIds, task.TaskID)
+		uniqueTasks[task.ID] = struct{}{}
+		taskIds = append(taskIds, task.ID)
 		tenantIds = append(tenantIds, task.TenantID)
-		taskInsertedAts = append(taskInsertedAts, task.TaskInsertedAt)
-		retryCounts = append(retryCounts, task.MaxRetryCount)
-		queryStatuses = append(queryStatuses, string(task.Status))
-	}
-
-	if len(taskIds) != int(opts.Limit) {
-		historicalParams := timescalev2.ListTasksFromAggregateParams{
-			Tenantid:     sqlchelpers.UUIDFromStr(tenantId),
-			Createdafter: sqlchelpers.TimestamptzFromTime(opts.CreatedAfter),
-			Tasklimit:    int32(opts.Limit),
-			WorkflowIds:  workflowIdParams,
-		}
-
-		if len(opts.Statuses) != 0 && len(opts.Statuses) != 5 {
-			historicalParams.Statuses = make([]string, 0)
-
-			for _, status := range opts.Statuses {
-				historicalParams.Statuses = append(historicalParams.Statuses, string(status))
-			}
-		}
-
-		if opts.WorkerId != nil {
-			historicalParams.WorkerId = sqlchelpers.UUIDFromStr(opts.WorkerId.String())
-		}
-
-		historicalTasks, err := r.queries.ListTasksFromAggregate(ctx, tx, historicalParams)
-
-		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-			return nil, 0, err
-		}
-
-		for _, task := range historicalTasks {
-			if _, ok := uniqueTasks[task.TaskID]; ok {
-				continue
-			}
-
-			taskIds = append(taskIds, task.TaskID)
-			tenantIds = append(tenantIds, task.TenantID)
-			taskInsertedAts = append(taskInsertedAts, task.InsertedAt)
-			retryCounts = append(retryCounts, task.MaxRetryCount)
-			queryStatuses = append(queryStatuses, string(task.Status))
-		}
+		taskInsertedAts = append(taskInsertedAts, task.InsertedAt)
+		retryCounts = append(retryCounts, task.LatestRetryCount)
+		queryStatuses = append(queryStatuses, string(task.ReadableStatus))
 	}
 
 	// get the task rows
