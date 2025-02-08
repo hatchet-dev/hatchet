@@ -95,6 +95,7 @@ func NewOLAPEventRepository(l *zerolog.Logger) OLAPEventRepository {
 
 	return &olapEventRepository{
 		pool:       timescalePool,
+		l:          l,
 		queries:    queries,
 		eventCache: eventCache,
 	}
