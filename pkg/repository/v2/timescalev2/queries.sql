@@ -355,8 +355,6 @@ WITH locked_events AS (
         e.*
     FROM
         v2_task_events_olap_tmp e
-    JOIN
-        v2_tasks_olap t ON t.tenant_id = e.tenant_id AND t.id = e.task_id AND t.inserted_at = e.task_inserted_at
     WHERE
         e.tenant_id = @tenantId::uuid
     ORDER BY
