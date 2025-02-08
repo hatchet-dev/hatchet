@@ -218,22 +218,14 @@ type V2TaskEventsOlap struct {
 	AdditionalEventMessage pgtype.Text          `json:"additional__event_message"`
 }
 
-type V2TaskEventsOlapCopy struct {
-	TenantID               pgtype.UUID          `json:"tenant_id"`
-	ID                     int64                `json:"id"`
-	InsertedAt             pgtype.Timestamptz   `json:"inserted_at"`
-	TaskID                 int64                `json:"task_id"`
-	TaskInsertedAt         pgtype.Timestamptz   `json:"task_inserted_at"`
-	EventType              V2EventTypeOlap      `json:"event_type"`
-	WorkflowID             pgtype.UUID          `json:"workflow_id"`
-	EventTimestamp         pgtype.Timestamptz   `json:"event_timestamp"`
-	ReadableStatus         V2ReadableStatusOlap `json:"readable_status"`
-	RetryCount             int32                `json:"retry_count"`
-	ErrorMessage           pgtype.Text          `json:"error_message"`
-	Output                 []byte               `json:"output"`
-	WorkerID               pgtype.UUID          `json:"worker_id"`
-	AdditionalEventData    pgtype.Text          `json:"additional__event_data"`
-	AdditionalEventMessage pgtype.Text          `json:"additional__event_message"`
+type V2TaskEventsOlapTmp struct {
+	TenantID       pgtype.UUID          `json:"tenant_id"`
+	ID             int64                `json:"id"`
+	TaskID         int64                `json:"task_id"`
+	TaskInsertedAt pgtype.Timestamptz   `json:"task_inserted_at"`
+	EventType      V2EventTypeOlap      `json:"event_type"`
+	ReadableStatus V2ReadableStatusOlap `json:"readable_status"`
+	RetryCount     int32                `json:"retry_count"`
 }
 
 type V2TaskLookupTable struct {
@@ -244,27 +236,6 @@ type V2TaskLookupTable struct {
 }
 
 type V2TasksOlap struct {
-	TenantID           pgtype.UUID          `json:"tenant_id"`
-	ID                 int64                `json:"id"`
-	InsertedAt         pgtype.Timestamptz   `json:"inserted_at"`
-	ExternalID         pgtype.UUID          `json:"external_id"`
-	Queue              string               `json:"queue"`
-	ActionID           string               `json:"action_id"`
-	StepID             pgtype.UUID          `json:"step_id"`
-	WorkflowID         pgtype.UUID          `json:"workflow_id"`
-	ScheduleTimeout    string               `json:"schedule_timeout"`
-	StepTimeout        pgtype.Text          `json:"step_timeout"`
-	Priority           pgtype.Int4          `json:"priority"`
-	Sticky             V2StickyStrategyOlap `json:"sticky"`
-	DesiredWorkerID    pgtype.UUID          `json:"desired_worker_id"`
-	DisplayName        string               `json:"display_name"`
-	Input              []byte               `json:"input"`
-	AdditionalMetadata []byte               `json:"additional_metadata"`
-	ReadableStatus     V2ReadableStatusOlap `json:"readable_status"`
-	LatestRetryCount   int32                `json:"latest_retry_count"`
-}
-
-type V2TasksOlapCopy struct {
 	TenantID           pgtype.UUID          `json:"tenant_id"`
 	ID                 int64                `json:"id"`
 	InsertedAt         pgtype.Timestamptz   `json:"inserted_at"`

@@ -2,14 +2,19 @@ package olap
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
+	"time"
 
+	"github.com/go-co-op/gocron/v2"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
+	"github.com/hatchet-dev/hatchet/internal/queueutils"
+	"github.com/hatchet-dev/hatchet/internal/services/partition"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
@@ -26,12 +31,15 @@ type OLAPController interface {
 }
 
 type OLAPControllerImpl struct {
-	mq     msgqueue.MessageQueue
-	l      *zerolog.Logger
-	repo   repository.OLAPEventRepository
-	v2repo v2.TaskRepository
-	dv     datautils.DataDecoderValidator
-	a      *hatcheterrors.Wrapped
+	mq                         msgqueue.MessageQueue
+	l                          *zerolog.Logger
+	repo                       repository.OLAPEventRepository
+	v2repo                     v2.TaskRepository
+	dv                         datautils.DataDecoderValidator
+	a                          *hatcheterrors.Wrapped
+	p                          *partition.Partition
+	s                          gocron.Scheduler
+	updateTaskStatusOperations *queueutils.OperationPool
 }
 
 type OLAPControllerOpt func(*OLAPControllerOpts)
@@ -43,6 +51,7 @@ type OLAPControllerOpts struct {
 	v2repo  v2.TaskRepository
 	dv      datautils.DataDecoderValidator
 	alerter hatcheterrors.Alerter
+	p       *partition.Partition
 }
 
 func defaultOLAPControllerOpts() *OLAPControllerOpts {
@@ -86,6 +95,12 @@ func WithV2Repository(r v2.TaskRepository) OLAPControllerOpt {
 	}
 }
 
+func WithPartition(p *partition.Partition) OLAPControllerOpt {
+	return func(opts *OLAPControllerOpts) {
+		opts.p = p
+	}
+}
+
 func WithDataDecoderValidator(dv datautils.DataDecoderValidator) OLAPControllerOpt {
 	return func(opts *OLAPControllerOpts) {
 		opts.dv = dv
@@ -111,41 +126,80 @@ func New(fs ...OLAPControllerOpt) (*OLAPControllerImpl, error) {
 		return nil, fmt.Errorf("v2repository is required. use WithRepository")
 	}
 
+	if opts.p == nil {
+		return nil, errors.New("partition is required. use WithPartition")
+	}
+
 	newLogger := opts.l.With().Str("service", "olap-controller").Logger()
 	opts.l = &newLogger
+
+	s, err := gocron.NewScheduler(gocron.WithLocation(time.UTC))
+
+	if err != nil {
+		return nil, fmt.Errorf("could not create scheduler: %w", err)
+	}
 
 	a := hatcheterrors.NewWrapped(opts.alerter)
 	a.WithData(map[string]interface{}{"service": "olap-controller"})
 
-	return &OLAPControllerImpl{
+	o := &OLAPControllerImpl{
 		mq:     opts.mq,
 		l:      opts.l,
+		s:      s,
+		p:      opts.p,
 		repo:   opts.repo,
 		v2repo: opts.v2repo,
 		dv:     opts.dv,
 		a:      a,
-	}, nil
+	}
+
+	o.updateTaskStatusOperations = queueutils.NewOperationPool(opts.l, time.Second*5, "timeout step runs", o.updateTaskStatuses)
+
+	return o, nil
 }
 
-func (tc *OLAPControllerImpl) Start() (func() error, error) {
-	cleanupHeavyReadMQ, heavyReadMQ := tc.mq.Clone()
+func (o *OLAPControllerImpl) Start() (func() error, error) {
+	cleanupHeavyReadMQ, heavyReadMQ := o.mq.Clone()
 	heavyReadMQ.SetQOS(2000)
 
-	mqBuffer := msgqueue.NewMQSubBuffer(msgqueue.OLAP_QUEUE, heavyReadMQ, tc.handleBufferedMsgs)
+	o.s.Start()
+
+	mqBuffer := msgqueue.NewMQSubBuffer(msgqueue.OLAP_QUEUE, heavyReadMQ, o.handleBufferedMsgs)
 	wg := sync.WaitGroup{}
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	_, err := o.s.NewJob(
+		gocron.DurationJob(time.Second*1),
+		gocron.NewTask(
+			o.runTenantStatusUpdates(ctx),
+		),
+	)
+
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("could not schedule status updates: %w", err)
+	}
 
 	cleanupBuffer, err := mqBuffer.Start()
 
 	if err != nil {
+		cancel()
 		return nil, fmt.Errorf("could not start message queue buffer: %w", err)
 	}
 
 	cleanup := func() error {
+		cancel()
+
 		if err := cleanupBuffer(); err != nil {
 			return err
 		}
 
 		if err := cleanupHeavyReadMQ(); err != nil {
+			return err
+		}
+
+		if err := o.s.Shutdown(); err != nil {
 			return err
 		}
 

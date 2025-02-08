@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/repository/olap"
@@ -42,7 +43,7 @@ type ReadTaskRunMetricsOpts struct {
 }
 
 type OLAPEventRepository interface {
-	ReadTaskRun(ctx context.Context, taskExternalId string) (*timescalev2.V2TasksOlapCopy, error)
+	ReadTaskRun(ctx context.Context, taskExternalId string) (*timescalev2.V2TasksOlap, error)
 	ReadTaskRunData(ctx context.Context, tenantId pgtype.UUID, taskId int64, taskInsertedAt pgtype.Timestamptz) (*timescalev2.PopulateSingleTaskRunDataRow, error)
 	ListTaskRuns(ctx context.Context, tenantId string, opts ListTaskRunOpts) ([]*timescalev2.PopulateTaskRunDataRow, int, error)
 	ListTaskRunEvents(ctx context.Context, tenantId string, taskId int64, taskInsertedAt pgtype.Timestamptz, limit, offset int64) ([]*timescalev2.ListTaskEventsRow, error)
@@ -50,16 +51,18 @@ type OLAPEventRepository interface {
 	CreateTasks(ctx context.Context, tenantId string, tasks []*sqlcv2.V2Task) error
 	CreateTaskEvents(ctx context.Context, tenantId string, events []timescalev2.CreateTaskEventsOLAPParams) error
 	GetTaskPointMetrics(ctx context.Context, tenantId string, startTimestamp *time.Time, endTimestamp *time.Time, bucketInterval time.Duration) ([]*timescalev2.GetTaskPointMetricsRow, error)
+	UpdateTaskStatuses(ctx context.Context, tenantId string) (bool, error)
 }
 
 type olapEventRepository struct {
 	pool *pgxpool.Pool
+	l    *zerolog.Logger
 
 	eventCache *lru.Cache[string, bool]
 	queries    *timescalev2.Queries
 }
 
-func NewOLAPEventRepository() OLAPEventRepository {
+func NewOLAPEventRepository(l *zerolog.Logger) OLAPEventRepository {
 	timescaleUrl := os.Getenv("TIMESCALE_URL")
 
 	if timescaleUrl == "" {
@@ -130,7 +133,7 @@ type getTaskRow struct {
 	WorkflowId         uuid.UUID
 }
 
-func (r *olapEventRepository) ReadTaskRun(ctx context.Context, taskExternalId string) (*timescalev2.V2TasksOlapCopy, error) {
+func (r *olapEventRepository) ReadTaskRun(ctx context.Context, taskExternalId string) (*timescalev2.V2TasksOlap, error) {
 	return r.queries.ReadTaskByExternalID(ctx, r.pool, sqlchelpers.UUIDFromStr(taskExternalId))
 }
 
@@ -320,12 +323,22 @@ func getCacheKey(event timescalev2.CreateTaskEventsOLAPParams) string {
 func (r *olapEventRepository) writeTaskEventBatch(ctx context.Context, tenantId string, events []timescalev2.CreateTaskEventsOLAPParams) error {
 	// skip any events which have a corresponding event already
 	eventsToWrite := make([]timescalev2.CreateTaskEventsOLAPParams, 0)
+	tmpEventsToWrite := make([]timescalev2.CreateTaskEventsOLAPTmpParams, 0)
 
 	for _, event := range events {
 		key := getCacheKey(event)
 
 		if _, ok := r.eventCache.Get(key); !ok {
 			eventsToWrite = append(eventsToWrite, event)
+
+			tmpEventsToWrite = append(tmpEventsToWrite, timescalev2.CreateTaskEventsOLAPTmpParams{
+				TenantID:       event.TenantID,
+				TaskID:         event.TaskID,
+				TaskInsertedAt: event.TaskInsertedAt,
+				EventType:      event.EventType,
+				RetryCount:     event.RetryCount,
+				ReadableStatus: event.ReadableStatus,
+			})
 		}
 	}
 
@@ -333,15 +346,60 @@ func (r *olapEventRepository) writeTaskEventBatch(ctx context.Context, tenantId 
 		return nil
 	}
 
-	_, err := r.queries.CreateTaskEventsOLAP(ctx, r.pool, eventsToWrite)
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
 
 	if err != nil {
+		return err
+	}
+
+	defer rollback()
+
+	_, err = r.queries.CreateTaskEventsOLAP(ctx, tx, eventsToWrite)
+
+	if err != nil {
+		return err
+	}
+
+	_, err = r.queries.CreateTaskEventsOLAPTmp(ctx, tx, tmpEventsToWrite)
+
+	if err != nil {
+		return err
+	}
+
+	if err := commit(ctx); err != nil {
 		return err
 	}
 
 	r.saveEventsToCache(eventsToWrite)
 
 	return nil
+}
+
+func (r *olapEventRepository) UpdateTaskStatuses(ctx context.Context, tenantId string) (bool, error) {
+	var limit int32 = 1000
+
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
+
+	if err != nil {
+		return false, err
+	}
+
+	defer rollback()
+
+	count, err := r.queries.UpdateTaskStatuses(ctx, tx, timescalev2.UpdateTaskStatusesParams{
+		Tenantid:   sqlchelpers.UUIDFromStr(tenantId),
+		Eventlimit: limit,
+	})
+
+	if err != nil {
+		return false, err
+	}
+
+	if err := commit(ctx); err != nil {
+		return false, err
+	}
+
+	return int(count) == int(limit), nil
 }
 
 func (r *olapEventRepository) writeTaskBatch(ctx context.Context, tenantId string, tasks []*sqlcv2.V2Task) error {

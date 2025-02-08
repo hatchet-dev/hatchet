@@ -35,6 +35,23 @@ INSERT INTO v2_tasks_olap (
     $16
 );
 
+-- name: CreateTaskEventsOLAPTmp :copyfrom
+INSERT INTO v2_task_events_olap_tmp (
+    tenant_id,
+    task_id,
+    task_inserted_at,
+    event_type,
+    readable_status,
+    retry_count
+) VALUES (
+    $1,
+    $2,
+    $3,
+    $4,
+    $5,
+    $6
+);
+
 -- name: CreateTaskEventsOLAP :copyfrom
 INSERT INTO v2_task_events_olap (
     tenant_id,
@@ -95,7 +112,7 @@ WITH lookup_task AS (
 SELECT
     t.*
 FROM
-    v2_tasks_olap_copy t
+    v2_tasks_olap t
 JOIN
     lookup_task lt ON lt.tenant_id = t.tenant_id AND lt.task_id = t.id AND lt.inserted_at = t.inserted_at;
 
@@ -111,7 +128,7 @@ WITH aggregated_events AS (
     MAX(event_timestamp) AS time_last_seen,
     COUNT(*) AS count,
     MIN(id) AS first_id
-  FROM v2_task_events_olap_copy
+  FROM v2_task_events_olap
   WHERE
     tenant_id = @tenantId::uuid
     AND task_id = @taskId::bigint
@@ -136,7 +153,7 @@ SELECT
   t.additional__event_data,
   t.additional__event_message
 FROM aggregated_events a
-JOIN v2_task_events_olap_copy t
+JOIN v2_task_events_olap t
   ON t.tenant_id = a.tenant_id
   AND t.task_id = a.task_id
   AND t.task_inserted_at = a.task_inserted_at
@@ -147,7 +164,7 @@ ORDER BY a.time_first_seen DESC, t.event_timestamp DESC;
 SELECT
     *
 FROM
-    v2_tasks_olap_copy
+    v2_tasks_olap
 WHERE
     tenant_id = @tenantId::uuid
     AND inserted_at >= @insertedAfter::timestamptz
@@ -166,7 +183,7 @@ WITH latest_retry_count AS (
     SELECT
         MAX(retry_count) AS retry_count
     FROM
-        v2_task_events_olap_copy
+        v2_task_events_olap
     WHERE
         tenant_id = @tenantId::uuid
         AND task_id = @taskId::bigint
@@ -175,7 +192,7 @@ WITH latest_retry_count AS (
     SELECT
         *
     FROM
-        v2_task_events_olap_copy
+        v2_task_events_olap
     WHERE
         tenant_id = @tenantId::uuid
         AND task_id = @taskId::bigint
@@ -220,7 +237,7 @@ SELECT
     s.started_at::timestamptz as started_at,
     o.output::jsonb as output
 FROM
-    v2_tasks_olap_copy t
+    v2_tasks_olap t
 LEFT JOIN
     finished_at f ON true
 LEFT JOIN
@@ -262,7 +279,7 @@ WITH input AS (
         i.retry_count,
         i.status
     FROM
-        v2_tasks_olap_copy t
+        v2_tasks_olap t
     JOIN
         input i ON i.tenant_id = t.tenant_id AND i.id = t.id AND i.inserted_at = t.inserted_at
 ), finished_ats AS (
@@ -270,7 +287,7 @@ WITH input AS (
         e.task_id::bigint,
         MAX(e.event_timestamp) AS finished_at
     FROM
-        v2_task_events_olap_copy e
+        v2_task_events_olap e
     JOIN
         tasks t ON t.id = e.task_id AND t.tenant_id = e.tenant_id AND t.inserted_at = e.task_inserted_at AND t.retry_count = e.retry_count
     WHERE
@@ -281,7 +298,7 @@ WITH input AS (
         e.task_id::bigint,
         MAX(e.event_timestamp) AS started_at
     FROM
-        v2_task_events_olap_copy e
+        v2_task_events_olap e
     JOIN
         tasks t ON t.id = e.task_id AND t.tenant_id = e.tenant_id AND t.inserted_at = e.task_inserted_at AND t.retry_count = e.retry_count
     WHERE
@@ -331,3 +348,92 @@ WHERE
     bucket <= time_bucket('1 minute', @createdBefore::timestamptz)
 GROUP BY bucket_2
 ORDER BY bucket_2;
+
+-- name: UpdateTaskStatuses :one
+WITH locked_events AS (
+    SELECT
+        e.*
+    FROM
+        v2_task_events_olap_tmp e
+    JOIN
+        v2_tasks_olap t ON t.tenant_id = e.tenant_id AND t.id = e.task_id AND t.inserted_at = e.task_inserted_at
+    WHERE
+        e.tenant_id = @tenantId::uuid
+    ORDER BY
+        e.task_id
+    LIMIT
+        @eventLimit::int
+    FOR UPDATE SKIP LOCKED
+), max_retry_counts AS (
+    SELECT
+        tenant_id,
+        task_id,
+        task_inserted_at,
+        MAX(retry_count) AS max_retry_count
+    FROM
+        locked_events
+    GROUP BY
+        tenant_id, task_id, task_inserted_at
+), updatable_events AS (
+    SELECT
+        e.tenant_id,
+        e.task_id,
+        e.task_inserted_at,
+        e.retry_count,
+        MAX(e.readable_status) AS max_readable_status
+    FROM
+        locked_events e
+    JOIN
+        max_retry_counts mrc ON
+            e.tenant_id = mrc.tenant_id
+            AND e.task_id = mrc.task_id
+            AND e.task_inserted_at = mrc.task_inserted_at
+            AND e.retry_count = mrc.max_retry_count
+    GROUP BY
+        e.tenant_id, e.task_id, e.task_inserted_at, e.retry_count
+), locked_tasks AS (
+    SELECT
+        t.tenant_id,
+        t.id,
+        t.inserted_at,
+        e.retry_count,
+        e.max_readable_status
+    FROM
+        v2_tasks_olap t
+    JOIN
+        updatable_events e ON
+            (t.tenant_id, t.id, t.inserted_at) = (e.tenant_id, e.task_id, e.task_inserted_at)
+    ORDER BY
+        t.id
+    FOR UPDATE
+), updated_tasks AS (
+    UPDATE
+        v2_tasks_olap t
+    SET
+        readable_status = e.max_readable_status,
+        latest_retry_count = e.retry_count
+    FROM
+        updatable_events e
+    WHERE
+        (t.tenant_id, t.id, t.inserted_at) = (e.tenant_id, e.task_id, e.task_inserted_at)
+        AND e.retry_count >= t.latest_retry_count
+        AND e.max_readable_status > t.readable_status
+    RETURNING
+        t.tenant_id, t.id, t.inserted_at
+), events_to_delete AS (
+    SELECT
+        e.id
+    FROM
+        locked_events e
+    JOIN
+        updated_tasks t ON (e.tenant_id, e.task_id, e.task_inserted_at) = (t.tenant_id, t.id, t.inserted_at)
+), deleted_events AS (
+    DELETE FROM
+        v2_task_events_olap_tmp
+    WHERE
+        id IN (SELECT id FROM events_to_delete)
+)
+SELECT
+    COUNT(*)
+FROM
+    locked_events;

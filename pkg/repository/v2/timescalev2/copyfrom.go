@@ -53,6 +53,43 @@ func (q *Queries) CreateTaskEventsOLAP(ctx context.Context, db DBTX, arg []Creat
 	return db.CopyFrom(ctx, []string{"v2_task_events_olap"}, []string{"tenant_id", "task_id", "task_inserted_at", "event_type", "workflow_id", "event_timestamp", "readable_status", "retry_count", "error_message", "output", "worker_id", "additional__event_data", "additional__event_message"}, &iteratorForCreateTaskEventsOLAP{rows: arg})
 }
 
+// iteratorForCreateTaskEventsOLAPTmp implements pgx.CopyFromSource.
+type iteratorForCreateTaskEventsOLAPTmp struct {
+	rows                 []CreateTaskEventsOLAPTmpParams
+	skippedFirstNextCall bool
+}
+
+func (r *iteratorForCreateTaskEventsOLAPTmp) Next() bool {
+	if len(r.rows) == 0 {
+		return false
+	}
+	if !r.skippedFirstNextCall {
+		r.skippedFirstNextCall = true
+		return true
+	}
+	r.rows = r.rows[1:]
+	return len(r.rows) > 0
+}
+
+func (r iteratorForCreateTaskEventsOLAPTmp) Values() ([]interface{}, error) {
+	return []interface{}{
+		r.rows[0].TenantID,
+		r.rows[0].TaskID,
+		r.rows[0].TaskInsertedAt,
+		r.rows[0].EventType,
+		r.rows[0].ReadableStatus,
+		r.rows[0].RetryCount,
+	}, nil
+}
+
+func (r iteratorForCreateTaskEventsOLAPTmp) Err() error {
+	return nil
+}
+
+func (q *Queries) CreateTaskEventsOLAPTmp(ctx context.Context, db DBTX, arg []CreateTaskEventsOLAPTmpParams) (int64, error) {
+	return db.CopyFrom(ctx, []string{"v2_task_events_olap_tmp"}, []string{"tenant_id", "task_id", "task_inserted_at", "event_type", "readable_status", "retry_count"}, &iteratorForCreateTaskEventsOLAPTmp{rows: arg})
+}
+
 // iteratorForCreateTasksOLAP implements pgx.CopyFromSource.
 type iteratorForCreateTasksOLAP struct {
 	rows                 []CreateTasksOLAPParams

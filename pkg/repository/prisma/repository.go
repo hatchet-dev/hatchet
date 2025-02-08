@@ -382,7 +382,7 @@ func NewEngineRepository(pool *pgxpool.Pool, essentialPool *pgxpool.Pool, cf *se
 			webhookWorker:  NewWebhookWorkerEngineRepository(pool, opts.v, opts.l),
 			scheduler:      newSchedulerRepository(shared),
 			mq:             NewMessageQueueRepository(shared),
-			olap:           repository.NewOLAPEventRepository(),
+			olap:           repository.NewOLAPEventRepository(opts.l),
 		},
 		err
 }

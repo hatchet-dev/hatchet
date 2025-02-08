@@ -12,7 +12,7 @@ import (
 
 func (t *TasksService) V2TaskEventList(ctx echo.Context, request gen.V2TaskEventListRequestObject) (gen.V2TaskEventListResponseObject, error) {
 	tenant := ctx.Get("tenant").(*db.TenantModel)
-	task := ctx.Get("task").(*timescalev2.V2TasksOlapCopy)
+	task := ctx.Get("task").(*timescalev2.V2TasksOlap)
 
 	taskRunEvents, err := t.config.EngineRepository.OLAP().ListTaskRunEvents(ctx.Request().Context(), tenant.ID, task.ID, task.InsertedAt, *request.Params.Limit, *request.Params.Offset)
 

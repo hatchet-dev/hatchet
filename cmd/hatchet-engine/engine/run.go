@@ -643,6 +643,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			olap.WithRepository(sc.OLAPRepository),
 			olap.WithV2Repository(sc.V2.Tasks()),
 			olap.WithLogger(sc.Logger),
+			olap.WithPartition(p),
 		)
 
 		if err != nil {
