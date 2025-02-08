@@ -104,6 +104,15 @@ CREATE TABLE v2_task_events_olap_tmp (
     PRIMARY KEY (tenant_id, task_id, task_inserted_at, id)
 );
 
+alter table v2_task_events_olap_tmp set (
+    autovacuum_vacuum_scale_factor = '0.1',
+    autovacuum_analyze_scale_factor='0.05',
+    autovacuum_vacuum_threshold='25',
+    autovacuum_analyze_threshold='25',
+    autovacuum_vacuum_cost_delay='10',
+    autovacuum_vacuum_cost_limit='1000'
+);
+
 CREATE TABLE v2_task_events_olap (
     tenant_id UUID NOT NULL,
     id bigint GENERATED ALWAYS AS IDENTITY,

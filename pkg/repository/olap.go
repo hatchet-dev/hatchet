@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -14,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/repository/olap"
@@ -377,30 +379,49 @@ func (r *olapEventRepository) writeTaskEventBatch(ctx context.Context, tenantId 
 }
 
 func (r *olapEventRepository) UpdateTaskStatuses(ctx context.Context, tenantId string) (bool, error) {
-	var limit int32 = 10000
+	var limit int32 = 1000
+	eg := &errgroup.Group{}
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
+	var total int64 = 0
+	mu := sync.Mutex{}
 
-	if err != nil {
+	// TODO: make concurrency configurable
+	for i := 0; i < 5; i++ {
+		eg.Go(func() error {
+			tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
+
+			if err != nil {
+				return err
+			}
+
+			defer rollback()
+
+			count, err := r.queries.UpdateTaskStatuses(ctx, tx, timescalev2.UpdateTaskStatusesParams{
+				Tenantid:   sqlchelpers.UUIDFromStr(tenantId),
+				Eventlimit: limit,
+			})
+
+			if err != nil {
+				return err
+			}
+
+			if err := commit(ctx); err != nil {
+				return err
+			}
+
+			mu.Lock()
+			total += count
+			mu.Unlock()
+
+			return nil
+		})
+	}
+
+	if err := eg.Wait(); err != nil {
 		return false, err
 	}
 
-	defer rollback()
-
-	count, err := r.queries.UpdateTaskStatuses(ctx, tx, timescalev2.UpdateTaskStatusesParams{
-		Tenantid:   sqlchelpers.UUIDFromStr(tenantId),
-		Eventlimit: limit,
-	})
-
-	if err != nil {
-		return false, err
-	}
-
-	if err := commit(ctx); err != nil {
-		return false, err
-	}
-
-	return int(count) == int(limit), nil
+	return total >= int64(limit), nil
 }
 
 func (r *olapEventRepository) writeTaskBatch(ctx context.Context, tenantId string, tasks []*sqlcv2.V2Task) error {
