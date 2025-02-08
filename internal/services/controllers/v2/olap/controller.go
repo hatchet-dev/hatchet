@@ -153,7 +153,7 @@ func New(fs ...OLAPControllerOpt) (*OLAPControllerImpl, error) {
 		a:      a,
 	}
 
-	o.updateTaskStatusOperations = queueutils.NewOperationPool(opts.l, time.Second*5, "timeout step runs", o.updateTaskStatuses)
+	o.updateTaskStatusOperations = queueutils.NewOperationPool(opts.l, time.Second*5, "update task statuses", o.updateTaskStatuses)
 
 	return o, nil
 }

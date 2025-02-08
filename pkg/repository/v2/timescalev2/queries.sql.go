@@ -744,7 +744,10 @@ WITH locked_events AS (
         t.tenant_id, t.id, t.inserted_at
 ), events_to_delete AS (
     SELECT
-        e.id
+        e.id,
+        e.tenant_id,
+        e.task_id,
+        e.task_inserted_at
     FROM
         locked_events e
     JOIN
