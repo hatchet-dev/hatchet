@@ -377,7 +377,7 @@ func (r *olapEventRepository) writeTaskEventBatch(ctx context.Context, tenantId 
 }
 
 func (r *olapEventRepository) UpdateTaskStatuses(ctx context.Context, tenantId string) (bool, error) {
-	var limit int32 = 1000
+	var limit int32 = 10000
 
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
 

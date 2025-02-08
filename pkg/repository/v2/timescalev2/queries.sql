@@ -431,7 +431,7 @@ WITH locked_events AS (
     DELETE FROM
         v2_task_events_olap_tmp
     WHERE
-        id IN (SELECT id FROM events_to_delete)
+        (tenant_id, task_id, task_inserted_at, id) IN (SELECT tenant_id, task_id, task_inserted_at, id FROM events_to_delete)
 )
 SELECT
     COUNT(*)
