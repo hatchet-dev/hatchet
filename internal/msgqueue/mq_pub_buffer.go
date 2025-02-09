@@ -7,6 +7,10 @@ import (
 	"time"
 )
 
+const PUB_FLUSH_INTERVAL = 10 * time.Millisecond
+const PUB_BUFFER_SIZE = 1000
+const PUB_MAX_CONCURRENCY = 2
+
 type PubFunc func(m *Message) error
 
 // MQPubBuffer buffers messages coming out of the task queue, groups them by tenantId and msgId, and then flushes them
@@ -89,11 +93,11 @@ func newMsgIdPubBuffer(tenantId, msgId string, pub PubFunc) *msgIdPubBuffer {
 	b := &msgIdPubBuffer{
 		tenantId:         tenantId,
 		msgId:            msgId,
-		msgIdPubBufferCh: make(chan *msgWithErrCh, BUFFER_SIZE),
+		msgIdPubBufferCh: make(chan *msgWithErrCh, PUB_BUFFER_SIZE),
 		notifier:         make(chan struct{}),
 		pub:              pub,
 		serialize:        json.Marshal,
-		semaphore:        make(chan struct{}, MAX_CONCURRENCY),
+		semaphore:        make(chan struct{}, PUB_MAX_CONCURRENCY),
 	}
 
 	err := b.startFlusher()
@@ -107,7 +111,7 @@ func newMsgIdPubBuffer(tenantId, msgId string, pub PubFunc) *msgIdPubBuffer {
 }
 
 func (m *msgIdPubBuffer) startFlusher() error {
-	ticker := time.NewTicker(FLUSH_INTERVAL)
+	ticker := time.NewTicker(PUB_FLUSH_INTERVAL)
 
 	go func() {
 		for {
@@ -134,7 +138,7 @@ func (m *msgIdPubBuffer) flush() {
 
 	defer func() {
 		go func() {
-			<-time.After(FLUSH_INTERVAL - time.Since(startedFlush))
+			<-time.After(PUB_FLUSH_INTERVAL - time.Since(startedFlush))
 			<-m.semaphore
 		}()
 	}()
@@ -143,14 +147,14 @@ func (m *msgIdPubBuffer) flush() {
 	payloadBytes := make([][]byte, 0)
 
 	// read all messages currently in the buffer
-	for i := 0; i < BUFFER_SIZE; i++ {
+	for i := 0; i < PUB_BUFFER_SIZE; i++ {
 		select {
 		case msg := <-m.msgIdPubBufferCh:
 			msgsWithErrCh = append(msgsWithErrCh, msg)
 
 			payloadBytes = append(payloadBytes, msg.msg.Payloads...)
 		default:
-			i = BUFFER_SIZE
+			i = PUB_BUFFER_SIZE
 		}
 	}
 

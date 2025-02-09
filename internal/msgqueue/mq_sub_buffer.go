@@ -8,9 +8,9 @@ import (
 	"time"
 )
 
-const FLUSH_INTERVAL = 10 * time.Millisecond
-const BUFFER_SIZE = 1000
-const MAX_CONCURRENCY = 1
+const SUB_FLUSH_INTERVAL = 10 * time.Millisecond
+const SUB_BUFFER_SIZE = 1000
+const SUB_MAX_CONCURRENCY = 4
 
 type DstFunc func(tenantId, msgId string, payloads [][]byte) error
 
@@ -141,10 +141,10 @@ func newMsgIdBuffer(tenantId, msgId string, dst DstFunc) *msgIdBuffer {
 	b := &msgIdBuffer{
 		tenantId:      tenantId,
 		msgId:         msgId,
-		msgIdBufferCh: make(chan *msgWithResultCh, BUFFER_SIZE),
+		msgIdBufferCh: make(chan *msgWithResultCh, SUB_BUFFER_SIZE),
 		notifier:      make(chan struct{}),
 		dst:           dst,
-		semaphore:     make(chan struct{}, MAX_CONCURRENCY),
+		semaphore:     make(chan struct{}, SUB_MAX_CONCURRENCY),
 	}
 
 	err := b.startFlusher()
@@ -158,7 +158,7 @@ func newMsgIdBuffer(tenantId, msgId string, dst DstFunc) *msgIdBuffer {
 }
 
 func (m *msgIdBuffer) startFlusher() error {
-	ticker := time.NewTicker(FLUSH_INTERVAL)
+	ticker := time.NewTicker(SUB_FLUSH_INTERVAL)
 
 	go func() {
 		for {
@@ -185,7 +185,7 @@ func (m *msgIdBuffer) flush() {
 
 	defer func() {
 		go func() {
-			<-time.After(FLUSH_INTERVAL - time.Since(startedFlush))
+			<-time.After(SUB_FLUSH_INTERVAL - time.Since(startedFlush))
 			<-m.semaphore
 		}()
 	}()
@@ -194,14 +194,14 @@ func (m *msgIdBuffer) flush() {
 	payloads := make([][]byte, 0)
 
 	// read all messages currently in the buffer
-	for i := 0; i < BUFFER_SIZE; i++ {
+	for i := 0; i < SUB_BUFFER_SIZE; i++ {
 		select {
 		case msg := <-m.msgIdBufferCh:
 			msgsWithResultCh = append(msgsWithResultCh, msg)
 
 			payloads = append(payloads, msg.msg.Payloads...)
 		default:
-			i = BUFFER_SIZE
+			i = SUB_BUFFER_SIZE
 		}
 	}
 
