@@ -220,6 +220,8 @@ type V2TaskEventsOlap struct {
 
 type V2TaskEventsOlapTmp struct {
 	TenantID       pgtype.UUID          `json:"tenant_id"`
+	RequeueAfter   pgtype.Timestamptz   `json:"requeue_after"`
+	RequeueRetries int32                `json:"requeue_retries"`
 	ID             int64                `json:"id"`
 	TaskID         int64                `json:"task_id"`
 	TaskInsertedAt pgtype.Timestamptz   `json:"task_inserted_at"`

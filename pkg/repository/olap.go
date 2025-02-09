@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -14,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/repository/olap"
@@ -21,6 +23,9 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/v2/sqlcv2"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v2/timescalev2"
 )
+
+// TODO: make this dynamic for the instance
+const NUM_PARTITIONS = 4
 
 type ListTaskRunOpts struct {
 	CreatedAfter time.Time
@@ -92,6 +97,16 @@ func NewOLAPEventRepository(l *zerolog.Logger) OLAPEventRepository {
 	}
 
 	queries := timescalev2.New()
+
+	// create partitions of the events OLAP table
+	partitionCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	err = queries.CreateOLAPPartitions(partitionCtx, timescalePool, NUM_PARTITIONS)
+
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	return &olapEventRepository{
 		pool:       timescalePool,
@@ -379,28 +394,52 @@ func (r *olapEventRepository) writeTaskEventBatch(ctx context.Context, tenantId 
 func (r *olapEventRepository) UpdateTaskStatuses(ctx context.Context, tenantId string) (bool, error) {
 	var limit int32 = 10000
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
+	// each partition gets its own goroutine
+	eg := &errgroup.Group{}
+	mu := sync.Mutex{}
 
-	if err != nil {
+	// if any of the partitions are saturated, we return true
+	isSaturated := false
+
+	for i := 0; i < NUM_PARTITIONS; i++ {
+		partitionNumber := i
+
+		eg.Go(func() error {
+			tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
+
+			if err != nil {
+				return err
+			}
+
+			defer rollback()
+
+			count, err := r.queries.UpdateTaskStatuses(ctx, tx, timescalev2.UpdateTaskStatusesParams{
+				Partitionnumber: int32(partitionNumber), // nolint: gosec
+				Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
+				Eventlimit:      limit,
+			})
+
+			if err != nil {
+				return err
+			}
+
+			if err := commit(ctx); err != nil {
+				return err
+			}
+
+			mu.Lock()
+			isSaturated = isSaturated || count == int64(limit)
+			mu.Unlock()
+
+			return nil
+		})
+	}
+
+	if err := eg.Wait(); err != nil {
 		return false, err
 	}
 
-	defer rollback()
-
-	count, err := r.queries.UpdateTaskStatuses(ctx, tx, timescalev2.UpdateTaskStatusesParams{
-		Tenantid:   sqlchelpers.UUIDFromStr(tenantId),
-		Eventlimit: limit,
-	})
-
-	if err != nil {
-		return false, err
-	}
-
-	if err := commit(ctx); err != nil {
-		return false, err
-	}
-
-	return int(count) == int(limit), nil
+	return isSaturated, nil
 }
 
 func (r *olapEventRepository) writeTaskBatch(ctx context.Context, tenantId string, tasks []*sqlcv2.V2Task) error {

@@ -75,9 +75,6 @@ type msgIdPubBuffer struct {
 	tenantId string
 	msgId    string
 
-	lastFlushedAt   time.Time
-	lastFlushedAtMu sync.Mutex
-
 	msgIdPubBufferCh chan *msgWithErrCh
 	notifier         chan struct{}
 
@@ -126,20 +123,6 @@ func (m *msgIdPubBuffer) startFlusher() error {
 	return nil
 }
 
-func (m *msgIdPubBuffer) isBeforeWindow(t time.Time) bool {
-	m.lastFlushedAtMu.Lock()
-	defer m.lastFlushedAtMu.Unlock()
-
-	return m.lastFlushedAt.Add(FLUSH_INTERVAL).After(t)
-}
-
-func (m *msgIdPubBuffer) setLastFlushedAt(t time.Time) {
-	m.lastFlushedAtMu.Lock()
-	defer m.lastFlushedAtMu.Unlock()
-
-	m.lastFlushedAt = t
-}
-
 func (m *msgIdPubBuffer) flush() {
 	select {
 	case m.semaphore <- struct{}{}:
@@ -147,15 +130,14 @@ func (m *msgIdPubBuffer) flush() {
 		return
 	}
 
-	defer func() { <-m.semaphore }()
+	startedFlush := time.Now()
 
-	now := time.Now()
-
-	if m.isBeforeWindow(now) {
-		return
-	}
-
-	defer m.setLastFlushedAt(now)
+	defer func() {
+		go func() {
+			<-time.After(FLUSH_INTERVAL - time.Since(startedFlush))
+			<-m.semaphore
+		}()
+	}()
 
 	msgsWithErrCh := make([]*msgWithErrCh, 0)
 	payloadBytes := make([][]byte, 0)

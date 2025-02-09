@@ -11,6 +11,17 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const createOLAPPartitions = `-- name: CreateOLAPPartitions :exec
+SELECT create_v2_task_events_partitions(
+    $1::int
+)
+`
+
+func (q *Queries) CreateOLAPPartitions(ctx context.Context, db DBTX, partitions int32) error {
+	_, err := db.Exec(ctx, createOLAPPartitions, partitions)
+	return err
+}
+
 type CreateTaskEventsOLAPParams struct {
 	TenantID               pgtype.UUID          `json:"tenant_id"`
 	TaskID                 int64                `json:"task_id"`
@@ -674,16 +685,13 @@ func (q *Queries) ReadTaskByExternalID(ctx context.Context, db DBTX, externalid 
 const updateTaskStatuses = `-- name: UpdateTaskStatuses :one
 WITH locked_events AS (
     SELECT
-        e.tenant_id, e.id, e.task_id, e.task_inserted_at, e.event_type, e.readable_status, e.retry_count
+        tenant_id, requeue_after, requeue_retries, id, task_id, task_inserted_at, event_type, readable_status, retry_count
     FROM
-        v2_task_events_olap_tmp e
-    WHERE
-        e.tenant_id = $1::uuid
-    ORDER BY
-        e.task_id
-    LIMIT
-        $2::int
-    FOR UPDATE SKIP LOCKED
+        list_task_events(
+            $1::int,
+            $2::uuid,
+            $3::int
+        )
 ), max_retry_counts AS (
     SELECT
         tenant_id,
@@ -740,21 +748,55 @@ WITH locked_events AS (
         AND e.max_readable_status > t.readable_status
     RETURNING
         t.tenant_id, t.id, t.inserted_at
-), events_to_delete AS (
+), events_to_requeue AS (
+    -- Get events which don't have a corresponding updated_task
     SELECT
-        e.id,
         e.tenant_id,
+        e.requeue_retries,
         e.task_id,
-        e.task_inserted_at
+        e.task_inserted_at,
+        e.event_type,
+        e.readable_status,
+        e.retry_count
     FROM
         locked_events e
-    JOIN
-        updated_tasks t ON (e.tenant_id, e.task_id, e.task_inserted_at) = (t.tenant_id, t.id, t.inserted_at)
+    LEFT JOIN
+        locked_tasks t ON (e.tenant_id, e.task_id, e.task_inserted_at) = (t.tenant_id, t.id, t.inserted_at)
+    WHERE
+        t.id IS NULL
 ), deleted_events AS (
     DELETE FROM
         v2_task_events_olap_tmp
     WHERE
-        (tenant_id, task_id, task_inserted_at, id) IN (SELECT tenant_id, task_id, task_inserted_at, id FROM events_to_delete)
+        (tenant_id, requeue_after, task_id, id) IN (SELECT tenant_id, requeue_after, task_id, id FROM locked_events)
+), requeued_events AS (
+    INSERT INTO
+        v2_task_events_olap_tmp (
+            tenant_id,
+            requeue_after,
+            requeue_retries,
+            task_id,
+            task_inserted_at,
+            event_type,
+            readable_status,
+            retry_count
+        )
+    SELECT
+        tenant_id,
+        -- Exponential backoff, we limit to 10 retries which is 2048 seconds/34 minutes
+        CURRENT_TIMESTAMP + (2 ^ requeue_retries) * INTERVAL '2 seconds',
+        requeue_retries + 1,
+        task_id,
+        task_inserted_at,
+        event_type,
+        readable_status,
+        retry_count + 1
+    FROM
+        events_to_requeue
+    WHERE
+        retry_count < 10
+    RETURNING
+        tenant_id, requeue_after, requeue_retries, id, task_id, task_inserted_at, event_type, readable_status, retry_count
 )
 SELECT
     COUNT(*)
@@ -763,12 +805,13 @@ FROM
 `
 
 type UpdateTaskStatusesParams struct {
-	Tenantid   pgtype.UUID `json:"tenantid"`
-	Eventlimit int32       `json:"eventlimit"`
+	Partitionnumber int32       `json:"partitionnumber"`
+	Tenantid        pgtype.UUID `json:"tenantid"`
+	Eventlimit      int32       `json:"eventlimit"`
 }
 
 func (q *Queries) UpdateTaskStatuses(ctx context.Context, db DBTX, arg UpdateTaskStatusesParams) (int64, error) {
-	row := db.QueryRow(ctx, updateTaskStatuses, arg.Tenantid, arg.Eventlimit)
+	row := db.QueryRow(ctx, updateTaskStatuses, arg.Partitionnumber, arg.Tenantid, arg.Eventlimit)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
