@@ -10,7 +10,7 @@ import (
 
 const FLUSH_INTERVAL = 10 * time.Millisecond
 const BUFFER_SIZE = 1000
-const MAX_CONCURRENCY = 10
+const MAX_CONCURRENCY = 1
 
 type DstFunc func(tenantId, msgId string, payloads [][]byte) error
 
