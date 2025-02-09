@@ -47,14 +47,16 @@ INSERT INTO v2_task_events_olap_tmp (
     task_inserted_at,
     event_type,
     readable_status,
-    retry_count
+    retry_count,
+    worker_id
 ) VALUES (
     $1,
     $2,
     $3,
     $4,
     $5,
-    $6
+    $6,
+    $7
 );
 
 -- name: CreateTaskEventsOLAP :copyfrom
@@ -178,6 +180,9 @@ WHERE
     )
     AND (
         sqlc.narg('workflowIds')::uuid[] IS NULL OR workflow_id = ANY(sqlc.narg('workflowIds')::uuid[])
+    )
+    AND (
+        sqlc.narg('workerId')::uuid IS NULL OR latest_worker_id = sqlc.narg('workerId')::uuid
     )
 ORDER BY
     inserted_at DESC
@@ -380,6 +385,7 @@ WITH locked_events AS (
         e.task_id,
         e.task_inserted_at,
         e.retry_count,
+        e.worker_id,
         MAX(e.readable_status) AS max_readable_status
     FROM
         locked_events e
@@ -390,7 +396,7 @@ WITH locked_events AS (
             AND e.task_inserted_at = mrc.task_inserted_at
             AND e.retry_count = mrc.max_retry_count
     GROUP BY
-        e.tenant_id, e.task_id, e.task_inserted_at, e.retry_count
+        e.tenant_id, e.task_id, e.task_inserted_at, e.retry_count, e.worker_id
 ), locked_tasks AS (
     SELECT
         t.tenant_id,
@@ -411,7 +417,8 @@ WITH locked_events AS (
         v2_tasks_olap t
     SET
         readable_status = e.max_readable_status,
-        latest_retry_count = e.retry_count
+        latest_retry_count = e.retry_count,
+        latest_worker_id = CASE WHEN e.worker_id IS NOT NULL THEN e.worker_id ELSE t.latest_worker_id END
     FROM
         updatable_events e
     WHERE

@@ -79,6 +79,7 @@ func (r iteratorForCreateTaskEventsOLAPTmp) Values() ([]interface{}, error) {
 		r.rows[0].EventType,
 		r.rows[0].ReadableStatus,
 		r.rows[0].RetryCount,
+		r.rows[0].WorkerID,
 	}, nil
 }
 
@@ -87,7 +88,7 @@ func (r iteratorForCreateTaskEventsOLAPTmp) Err() error {
 }
 
 func (q *Queries) CreateTaskEventsOLAPTmp(ctx context.Context, db DBTX, arg []CreateTaskEventsOLAPTmpParams) (int64, error) {
-	return db.CopyFrom(ctx, []string{"v2_task_events_olap_tmp"}, []string{"tenant_id", "task_id", "task_inserted_at", "event_type", "readable_status", "retry_count"}, &iteratorForCreateTaskEventsOLAPTmp{rows: arg})
+	return db.CopyFrom(ctx, []string{"v2_task_events_olap_tmp"}, []string{"tenant_id", "task_id", "task_inserted_at", "event_type", "readable_status", "retry_count", "worker_id"}, &iteratorForCreateTaskEventsOLAPTmp{rows: arg})
 }
 
 // iteratorForCreateTasksOLAP implements pgx.CopyFromSource.

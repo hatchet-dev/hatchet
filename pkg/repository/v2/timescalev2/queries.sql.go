@@ -45,6 +45,7 @@ type CreateTaskEventsOLAPTmpParams struct {
 	EventType      V2EventTypeOlap      `json:"event_type"`
 	ReadableStatus V2ReadableStatusOlap `json:"readable_status"`
 	RetryCount     int32                `json:"retry_count"`
+	WorkerID       pgtype.UUID          `json:"worker_id"`
 }
 
 type CreateTasksOLAPParams struct {
@@ -273,7 +274,7 @@ func (q *Queries) ListTaskEvents(ctx context.Context, db DBTX, arg ListTaskEvent
 
 const listTasks = `-- name: ListTasks :many
 SELECT
-    tenant_id, id, inserted_at, external_id, queue, action_id, step_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, display_name, input, additional_metadata, readable_status, latest_retry_count
+    tenant_id, id, inserted_at, external_id, queue, action_id, step_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, display_name, input, additional_metadata, readable_status, latest_retry_count, latest_worker_id
 FROM
     v2_tasks_olap
 WHERE
@@ -285,9 +286,12 @@ WHERE
     AND (
         $4::uuid[] IS NULL OR workflow_id = ANY($4::uuid[])
     )
+    AND (
+        $5::uuid IS NULL OR latest_worker_id = $5::uuid
+    )
 ORDER BY
     inserted_at DESC
-LIMIT $5::integer
+LIMIT $6::integer
 `
 
 type ListTasksParams struct {
@@ -295,6 +299,7 @@ type ListTasksParams struct {
 	Insertedafter pgtype.Timestamptz `json:"insertedafter"`
 	Statuses      []string           `json:"statuses"`
 	WorkflowIds   []pgtype.UUID      `json:"workflowIds"`
+	WorkerId      pgtype.UUID        `json:"workerId"`
 	Tasklimit     int32              `json:"tasklimit"`
 }
 
@@ -304,6 +309,7 @@ func (q *Queries) ListTasks(ctx context.Context, db DBTX, arg ListTasksParams) (
 		arg.Insertedafter,
 		arg.Statuses,
 		arg.WorkflowIds,
+		arg.WorkerId,
 		arg.Tasklimit,
 	)
 	if err != nil {
@@ -332,6 +338,7 @@ func (q *Queries) ListTasks(ctx context.Context, db DBTX, arg ListTasksParams) (
 			&i.AdditionalMetadata,
 			&i.ReadableStatus,
 			&i.LatestRetryCount,
+			&i.LatestWorkerID,
 		); err != nil {
 			return nil, err
 		}
@@ -396,7 +403,7 @@ WITH latest_retry_count AS (
     LIMIT 1
 )
 SELECT
-    t.tenant_id, t.id, t.inserted_at, t.external_id, t.queue, t.action_id, t.step_id, t.workflow_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.display_name, t.input, t.additional_metadata, t.readable_status, t.latest_retry_count,
+    t.tenant_id, t.id, t.inserted_at, t.external_id, t.queue, t.action_id, t.step_id, t.workflow_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.display_name, t.input, t.additional_metadata, t.readable_status, t.latest_retry_count, t.latest_worker_id,
     st.readable_status::v2_readable_status_olap as status,
     f.finished_at::timestamptz as finished_at,
     s.started_at::timestamptz as started_at,
@@ -440,6 +447,7 @@ type PopulateSingleTaskRunDataRow struct {
 	AdditionalMetadata []byte               `json:"additional_metadata"`
 	ReadableStatus     V2ReadableStatusOlap `json:"readable_status"`
 	LatestRetryCount   int32                `json:"latest_retry_count"`
+	LatestWorkerID     pgtype.UUID          `json:"latest_worker_id"`
 	Status             V2ReadableStatusOlap `json:"status"`
 	FinishedAt         pgtype.Timestamptz   `json:"finished_at"`
 	StartedAt          pgtype.Timestamptz   `json:"started_at"`
@@ -468,6 +476,7 @@ func (q *Queries) PopulateSingleTaskRunData(ctx context.Context, db DBTX, arg Po
 		&i.AdditionalMetadata,
 		&i.ReadableStatus,
 		&i.LatestRetryCount,
+		&i.LatestWorkerID,
 		&i.Status,
 		&i.FinishedAt,
 		&i.StartedAt,
@@ -649,7 +658,7 @@ WITH lookup_task AS (
         external_id = $1::uuid
 )
 SELECT
-    t.tenant_id, t.id, t.inserted_at, t.external_id, t.queue, t.action_id, t.step_id, t.workflow_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.display_name, t.input, t.additional_metadata, t.readable_status, t.latest_retry_count
+    t.tenant_id, t.id, t.inserted_at, t.external_id, t.queue, t.action_id, t.step_id, t.workflow_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.display_name, t.input, t.additional_metadata, t.readable_status, t.latest_retry_count, t.latest_worker_id
 FROM
     v2_tasks_olap t
 JOIN
@@ -678,6 +687,7 @@ func (q *Queries) ReadTaskByExternalID(ctx context.Context, db DBTX, externalid 
 		&i.AdditionalMetadata,
 		&i.ReadableStatus,
 		&i.LatestRetryCount,
+		&i.LatestWorkerID,
 	)
 	return &i, err
 }
@@ -685,7 +695,7 @@ func (q *Queries) ReadTaskByExternalID(ctx context.Context, db DBTX, externalid 
 const updateTaskStatuses = `-- name: UpdateTaskStatuses :one
 WITH locked_events AS (
     SELECT
-        tenant_id, requeue_after, requeue_retries, id, task_id, task_inserted_at, event_type, readable_status, retry_count
+        tenant_id, requeue_after, requeue_retries, id, task_id, task_inserted_at, event_type, readable_status, retry_count, worker_id
     FROM
         list_task_events(
             $1::int,
@@ -708,6 +718,7 @@ WITH locked_events AS (
         e.task_id,
         e.task_inserted_at,
         e.retry_count,
+        e.worker_id,
         MAX(e.readable_status) AS max_readable_status
     FROM
         locked_events e
@@ -718,7 +729,7 @@ WITH locked_events AS (
             AND e.task_inserted_at = mrc.task_inserted_at
             AND e.retry_count = mrc.max_retry_count
     GROUP BY
-        e.tenant_id, e.task_id, e.task_inserted_at, e.retry_count
+        e.tenant_id, e.task_id, e.task_inserted_at, e.retry_count, e.worker_id
 ), locked_tasks AS (
     SELECT
         t.tenant_id,
@@ -739,7 +750,8 @@ WITH locked_events AS (
         v2_tasks_olap t
     SET
         readable_status = e.max_readable_status,
-        latest_retry_count = e.retry_count
+        latest_retry_count = e.retry_count,
+        latest_worker_id = CASE WHEN e.worker_id IS NOT NULL THEN e.worker_id ELSE t.latest_worker_id END
     FROM
         updatable_events e
     WHERE
@@ -749,7 +761,7 @@ WITH locked_events AS (
     RETURNING
         t.tenant_id, t.id, t.inserted_at
 ), events_to_requeue AS (
-    -- Get events which don't have a corresponding updated_task
+    -- Get events which don't have a corresponding locked_task
     SELECT
         e.tenant_id,
         e.requeue_retries,
@@ -796,7 +808,7 @@ WITH locked_events AS (
     WHERE
         retry_count < 10
     RETURNING
-        tenant_id, requeue_after, requeue_retries, id, task_id, task_inserted_at, event_type, readable_status, retry_count
+        tenant_id, requeue_after, requeue_retries, id, task_id, task_inserted_at, event_type, readable_status, retry_count, worker_id
 )
 SELECT
     COUNT(*)

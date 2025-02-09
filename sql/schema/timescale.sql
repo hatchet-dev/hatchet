@@ -27,6 +27,7 @@ CREATE TABLE v2_tasks_olap (
     additional_metadata JSONB,
     readable_status v2_readable_status_olap NOT NULL DEFAULT 'QUEUED',
     latest_retry_count INT NOT NULL DEFAULT 0,
+    latest_worker_id UUID,
 
     PRIMARY KEY (tenant_id, id, inserted_at)
 );
@@ -34,6 +35,8 @@ CREATE TABLE v2_tasks_olap (
 SELECT * from create_hypertable('v2_tasks_olap', by_range('inserted_at',  INTERVAL '1 day'));
 
 CREATE INDEX v2_tasks_olap_status_workflow_id_idx ON v2_tasks_olap (tenant_id, inserted_at DESC, readable_status, workflow_id);
+
+CREATE INDEX v2_tasks_olap_worker_id_idx ON v2_tasks_olap (tenant_id, inserted_at DESC, latest_worker_id) WHERE latest_worker_id IS NOT NULL;
 
 CREATE TABLE v2_task_lookup_table (
     tenant_id UUID NOT NULL,
@@ -102,6 +105,7 @@ CREATE TABLE v2_task_events_olap_tmp (
     event_type v2_event_type_olap NOT NULL,
     readable_status v2_readable_status_olap NOT NULL,
     retry_count INT NOT NULL DEFAULT 0,
+    worker_id UUID,
 
     PRIMARY KEY (tenant_id, requeue_after, task_id, id)
 ) PARTITION BY HASH(task_id);

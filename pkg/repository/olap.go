@@ -214,10 +214,9 @@ func (r *olapEventRepository) ListTaskRuns(ctx context.Context, tenantId string,
 		}
 	}
 
-	// TODO: FIX
-	// if opts.WorkerId != nil {
-	// 	realTimeParams.WorkerId = sqlchelpers.UUIDFromStr(opts.WorkerId.String())
-	// }
+	if opts.WorkerId != nil {
+		realTimeParams.WorkerId = sqlchelpers.UUIDFromStr(opts.WorkerId.String())
+	}
 
 	realTimeParams.WorkflowIds = workflowIdParams
 
@@ -354,6 +353,7 @@ func (r *olapEventRepository) writeTaskEventBatch(ctx context.Context, tenantId 
 				EventType:      event.EventType,
 				RetryCount:     event.RetryCount,
 				ReadableStatus: event.ReadableStatus,
+				WorkerID:       event.WorkerID,
 			})
 		}
 	}

@@ -228,6 +228,7 @@ type V2TaskEventsOlapTmp struct {
 	EventType      V2EventTypeOlap      `json:"event_type"`
 	ReadableStatus V2ReadableStatusOlap `json:"readable_status"`
 	RetryCount     int32                `json:"retry_count"`
+	WorkerID       pgtype.UUID          `json:"worker_id"`
 }
 
 type V2TaskLookupTable struct {
@@ -256,4 +257,5 @@ type V2TasksOlap struct {
 	AdditionalMetadata []byte               `json:"additional_metadata"`
 	ReadableStatus     V2ReadableStatusOlap `json:"readable_status"`
 	LatestRetryCount   int32                `json:"latest_retry_count"`
+	LatestWorkerID     pgtype.UUID          `json:"latest_worker_id"`
 }
