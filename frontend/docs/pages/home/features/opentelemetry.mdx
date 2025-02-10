@@ -8,66 +8,55 @@ import { Callout } from "nextra/components";
 
 Hatchet supports exporting traces from your workflows to an [OpenTelemetry Collector](https://opentelemetry.io/docs/collector/) to improve visibility into your Hatchet tasks.
 
-## Exporting Traces from Hatchet
-
-To export traces from Hatchet, all you'll need to do is set the following environment variables:
-
-```
-HATCHET_CLIENT_OTEL_SERVICE_NAME
-HATCHET_CLIENT_OTEL_EXPORTER_OTLP_PROTOCOL
-HATCHET_CLIENT_OTEL_EXPORTER_OTLP_ENDPOINT
-HATCHET_CLIENT_OTEL_EXPORTER_OTLP_HEADERS
-```
-
-Once set, Hatchet will read your exporter configuration from those variables, and traces will begin to populate in your collector.
-
-## Example Setup
-
-For example, if you're already using an observability platform like [Honeycomb](https://www.honeycomb.io/), you'd set the variables as follows:
-
-```
-export HATCHET_CLIENT_OTEL_SERVICE_NAME=hello-from-hatchet
-export HATCHET_CLIENT_OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
-export HATCHET_CLIENT_OTEL_EXPORTER_OTLP_ENDPOINT="https://api.honeycomb.io/v1/traces"
-export HATCHET_CLIENT_OTEL_EXPORTER_OTLP_HEADERS="x-honeycomb-team=<< your-api-key >>"
-```
-
 ## Usage
 
-### Sending Metadata
+###  Setup
 
-Any metadata that you send to Hatchet with the additional metadata will be sent along to your collector as attributes of the parent span in any traces that are created by your workflows:
+Hatchet's SDK provides an instrumentor that auto-instruments Hatchet code, if you opt in. Setup is straightforward:
 
 ```python
-hatchet.event.push("user:create", {'userId': '1234'}, options={
-    "additional_metadata": {
-        "hello": "world" # Set as attribute of parent span with key: hello, value: world
-    }
-})
+from path.to.your.trace.provider import trace_provider
+from hatchet_sdk.opentelemetry.instrumentor import HatchetInstrumentor
+
+HatchetInstrumentor(tracer_provider=trace_provider).instrument()
 ```
+
+You bring your own trace provider and plug it into the `HatchetInstrumentor`, call `instrument`, and that's it!
 
 ### Providing a `traceparent`
 
-In some cases, you might also want to provide a `traceparent` so any spans created in Hatchet are children of a parent that was created elsewhere in your application. You can do that by providing an `__otel_carrier` key:
+In some cases, you might also want to provide a `traceparent` so any spans created in Hatchet are children of a parent that was created elsewhere in your application. You can do that by providing a `traceparent` key in the `additional_metadata` field of the following methods:
+
+* `hatchet.event.push`
+* `hatchet.event.bulk_push`
+* `hatchet.admin.run_workflow`
+* `hatchet.admin.run_workflows`
+* `hatchet.admin.run_workflow_async`
+* `hatchet.admin.run_workflows_async`
+
+For example:
 
 ```python
-hatchet.event.push("user:create", {'userId': '1234'}, options={
+hatchet.event.push(
+    "user:create",
+    {'userId': '1234'},
+    options={
     "additional_metadata": {
-        "__otel_carrier": {"traceparent":"00-f1aff5c5ea45185eff2a06fd5c0ed6c5-6f4116aff54d54d1-01"} ## example traceparent
+        "traceparent":"00-f1aff5c5ea45185eff2a06fd5c0ed6c5-6f4116aff54d54d1-01" ## example traceparent
     }
 })
 ```
+
+The `HatchetInstrumentor` also has some methods for generating traceparents that might be helpful:
+
+1. `create_traceparent` creates a `traceparent`
+2. `inject_traceparent_into_metadata` injects a traceparent into the `additional_metadata` field
 
 ### Spans
 
 By default, Hatchet creates spans at the following points in the lifecycle of a workflow run:
 
 1. When a trigger is run on the client side, e.g. `run_workflow()` or `push()` is called.
-2. When the task is picked up by a worker.
-3. When the worker runs the task.
+2. When a worker handles a task event, like starting running the task or cancelling the task
 
-In addition, a number of events and attributes are set in each span, such as events marking work being started and completed.
-
-### Bulk Events
-
-If you send bulk events, a `bulk_push_correlation_id` will be set on the parent span of each trace, allowing you to correlate traces that are part of the same bulk event.
+In addition, you'll get a handful of attributes set (prefixed by `hatchet.`) on the step run events, such as the workflow name and the worker id, as well as success / failure states, and so on.
