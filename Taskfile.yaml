@@ -17,6 +17,7 @@ tasks:
       - |
         cat > .env <<EOF
         DATABASE_URL='postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet'
+        TIMESCALE_URL='postgresql://hatchet:hatchet@localhost:5444/hatchet'
         EOF
   set-env-all:
     cmds:
@@ -25,6 +26,7 @@ tasks:
 
         cat > .env <<EOF
         DATABASE_URL='postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet'
+        TIMESCALE_URL='postgresql://hatchet:hatchet@localhost:5444/hatchet'
 
         SERVER_ENCRYPTION_MASTER_KEYSET_FILE=./hack/dev/encryption-keys/master.key
         SERVER_ENCRYPTION_JWT_PRIVATE_KEYSET_FILE=./hack/dev/encryption-keys/private_ec256.key
