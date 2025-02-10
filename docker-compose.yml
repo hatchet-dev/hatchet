@@ -31,7 +31,22 @@ services:
       timeout: 10s
       retries: 5
 
+  timescale:
+    image: timescale/timescaledb-ha:pg15
+    command: postgres -c 'max_connections=200'
+    restart: always
+    environment:
+      - POSTGRES_USER=hatchet
+      - POSTGRES_PASSWORD=hatchet
+      - POSTGRES_DB=hatchet
+    ports:
+      - "5444:5432"
+    volumes:
+      - hatchet_timescale_data:/var/lib/postgresql/data
+    shm_size: 4g
+
 volumes:
+  hatchet_timescale_data:
   hatchet_postgres_data:
   hatchet_rabbitmq_data:
   hatchet_rabbitmq.conf:
