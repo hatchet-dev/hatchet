@@ -10,7 +10,7 @@ Hatchet supports exporting traces from your workflows to an [OpenTelemetry Colle
 
 ## Usage
 
-###  Setup
+### Setup
 
 Hatchet's SDK provides an instrumentor that auto-instruments Hatchet code, if you opt in. Setup is straightforward:
 
@@ -23,16 +23,22 @@ HatchetInstrumentor(tracer_provider=trace_provider).instrument()
 
 You bring your own trace provider and plug it into the `HatchetInstrumentor`, call `instrument`, and that's it!
 
+<Callout type="info" emoji="🔭">
+  Check out the [OpenTelemetry
+  documentation](https://opentelemetry.io/docs/languages/python/instrumentation/)
+  for more information on how to set up a trace provider.
+</Callout>
+
 ### Providing a `traceparent`
 
 In some cases, you might also want to provide a `traceparent` so any spans created in Hatchet are children of a parent that was created elsewhere in your application. You can do that by providing a `traceparent` key in the `additional_metadata` field of the following methods:
 
-* `hatchet.event.push`
-* `hatchet.event.bulk_push`
-* `hatchet.admin.run_workflow`
-* `hatchet.admin.run_workflows`
-* `hatchet.admin.run_workflow_async`
-* `hatchet.admin.run_workflows_async`
+- `hatchet.event.push`
+- `hatchet.event.bulk_push`
+- `hatchet.admin.run_workflow`
+- `hatchet.admin.run_workflows`
+- `hatchet.admin.run_workflow_async`
+- `hatchet.admin.run_workflows_async`
 
 For example:
 
