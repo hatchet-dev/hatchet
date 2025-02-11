@@ -14,6 +14,8 @@ Hatchet supports exporting traces from your workflows to an [OpenTelemetry Colle
 
 Hatchet's SDK provides an instrumentor that auto-instruments Hatchet code, if you opt in. Setup is straightforward:
 
+First, install the `otel` extra with (e.g.) `pip install hatchet-sdk[otel]`. Then, import the instrumentor:
+
 ```python
 from path.to.your.trace.provider import trace_provider
 from hatchet_sdk.opentelemetry.instrumentor import HatchetInstrumentor
