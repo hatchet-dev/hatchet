@@ -1,9 +1,9 @@
--- name: CreateTablePartition :exec
+-- name: CreateTaskPartition :exec
 SELECT create_v2_task_partition(
     @date::date
 );
 
--- name: ListTablePartitionsBeforeDate :many
+-- name: ListTaskPartitionsBeforeDate :many
 SELECT
     p::text AS partition_name
 FROM

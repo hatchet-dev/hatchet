@@ -3,6 +3,19 @@ SELECT create_v2_task_events_partitions(
     @partitions::int
 );
 
+-- name: CreateOLAPTaskPartition :exec
+SELECT create_v2_tasks_olap_partition(
+    @date::date
+);
+
+-- name: ListOLAPTaskPartitionsBeforeDate :many
+SELECT
+    p::text AS partition_name
+FROM
+    get_v2_tasks_olap_partitions_before(
+        @date::date
+    ) AS p;
+
 -- name: CreateTasksOLAP :copyfrom
 INSERT INTO v2_tasks_olap (
     tenant_id,

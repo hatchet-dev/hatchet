@@ -11,17 +11,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const createTablePartition = `-- name: CreateTablePartition :exec
-SELECT create_v2_task_partition(
-    $1::date
-)
-`
-
-func (q *Queries) CreateTablePartition(ctx context.Context, db DBTX, date pgtype.Date) error {
-	_, err := db.Exec(ctx, createTablePartition, date)
-	return err
-}
-
 const createTaskEvents = `-- name: CreateTaskEvents :exec
 WITH locked_tasks AS (
     SELECT
@@ -82,6 +71,17 @@ func (q *Queries) CreateTaskEvents(ctx context.Context, db DBTX, arg CreateTaskE
 		arg.Eventtypes,
 		arg.Datas,
 	)
+	return err
+}
+
+const createTaskPartition = `-- name: CreateTaskPartition :exec
+SELECT create_v2_task_partition(
+    $1::date
+)
+`
+
+func (q *Queries) CreateTaskPartition(ctx context.Context, db DBTX, date pgtype.Date) error {
+	_, err := db.Exec(ctx, createTaskPartition, date)
 	return err
 }
 
@@ -216,35 +216,6 @@ func (q *Queries) FailTaskInternalFailure(ctx context.Context, db DBTX, arg Fail
 	return items, nil
 }
 
-const listTablePartitionsBeforeDate = `-- name: ListTablePartitionsBeforeDate :many
-SELECT
-    p::text AS partition_name
-FROM
-    get_v2_task_partitions_before(
-        $1::date
-    ) AS p
-`
-
-func (q *Queries) ListTablePartitionsBeforeDate(ctx context.Context, db DBTX, date pgtype.Date) ([]string, error) {
-	rows, err := db.Query(ctx, listTablePartitionsBeforeDate, date)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []string
-	for rows.Next() {
-		var partition_name string
-		if err := rows.Scan(&partition_name); err != nil {
-			return nil, err
-		}
-		items = append(items, partition_name)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listTaskMetas = `-- name: ListTaskMetas :many
 SELECT
     id,
@@ -291,6 +262,35 @@ func (q *Queries) ListTaskMetas(ctx context.Context, db DBTX, arg ListTaskMetasP
 			return nil, err
 		}
 		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTaskPartitionsBeforeDate = `-- name: ListTaskPartitionsBeforeDate :many
+SELECT
+    p::text AS partition_name
+FROM
+    get_v2_task_partitions_before(
+        $1::date
+    ) AS p
+`
+
+func (q *Queries) ListTaskPartitionsBeforeDate(ctx context.Context, db DBTX, date pgtype.Date) ([]string, error) {
+	rows, err := db.Query(ctx, listTaskPartitionsBeforeDate, date)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var partition_name string
+		if err := rows.Scan(&partition_name); err != nil {
+			return nil, err
+		}
+		items = append(items, partition_name)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

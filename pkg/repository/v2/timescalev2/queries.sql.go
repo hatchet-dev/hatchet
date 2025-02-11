@@ -22,6 +22,17 @@ func (q *Queries) CreateOLAPPartitions(ctx context.Context, db DBTX, partitions 
 	return err
 }
 
+const createOLAPTaskPartition = `-- name: CreateOLAPTaskPartition :exec
+SELECT create_v2_tasks_olap_partition(
+    $1::date
+)
+`
+
+func (q *Queries) CreateOLAPTaskPartition(ctx context.Context, db DBTX, date pgtype.Date) error {
+	_, err := db.Exec(ctx, createOLAPTaskPartition, date)
+	return err
+}
+
 type CreateTaskEventsOLAPParams struct {
 	TenantID               pgtype.UUID          `json:"tenant_id"`
 	TaskID                 int64                `json:"task_id"`
@@ -163,6 +174,35 @@ func (q *Queries) GetTenantStatusMetrics(ctx context.Context, db DBTX, arg GetTe
 		&i.TotalFailed,
 	)
 	return &i, err
+}
+
+const listOLAPTaskPartitionsBeforeDate = `-- name: ListOLAPTaskPartitionsBeforeDate :many
+SELECT
+    p::text AS partition_name
+FROM
+    get_v2_tasks_olap_partitions_before(
+        $1::date
+    ) AS p
+`
+
+func (q *Queries) ListOLAPTaskPartitionsBeforeDate(ctx context.Context, db DBTX, date pgtype.Date) ([]string, error) {
+	rows, err := db.Query(ctx, listOLAPTaskPartitionsBeforeDate, date)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var partition_name string
+		if err := rows.Scan(&partition_name); err != nil {
+			return nil, err
+		}
+		items = append(items, partition_name)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listTaskEvents = `-- name: ListTaskEvents :many

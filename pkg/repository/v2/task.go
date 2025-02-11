@@ -81,7 +81,7 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	tomorrow := today.AddDate(0, 0, 1)
 	sevenDaysAgo := today.AddDate(0, 0, -7)
 
-	err := r.queries.CreateTablePartition(ctx, r.pool, pgtype.Date{
+	err := r.queries.CreateTaskPartition(ctx, r.pool, pgtype.Date{
 		Time:  today,
 		Valid: true,
 	})
@@ -90,7 +90,7 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		return err
 	}
 
-	err = r.queries.CreateTablePartition(ctx, r.pool, pgtype.Date{
+	err = r.queries.CreateTaskPartition(ctx, r.pool, pgtype.Date{
 		Time:  tomorrow,
 		Valid: true,
 	})
@@ -99,7 +99,7 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		return err
 	}
 
-	partitions, err := r.queries.ListTablePartitionsBeforeDate(ctx, r.pool, pgtype.Date{
+	partitions, err := r.queries.ListTaskPartitionsBeforeDate(ctx, r.pool, pgtype.Date{
 		Time:  sevenDaysAgo,
 		Valid: true,
 	})
@@ -109,6 +109,53 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	}
 
 	for _, partition := range partitions {
+		_, err := r.pool.Exec(
+			ctx,
+			fmt.Sprintf("ALTER TABLE v2_task DETACH PARTITION %s CONCURRENTLY", partition),
+		)
+
+		if err != nil {
+			return err
+		}
+
+		_, err = r.pool.Exec(
+			ctx,
+			fmt.Sprintf("DROP TABLE %s", partition),
+		)
+
+		if err != nil {
+			return err
+		}
+	}
+
+	err = r.queries.CreateDAGPartition(ctx, r.pool, pgtype.Date{
+		Time:  today,
+		Valid: true,
+	})
+
+	if err != nil {
+		return err
+	}
+
+	err = r.queries.CreateDAGPartition(ctx, r.pool, pgtype.Date{
+		Time:  tomorrow,
+		Valid: true,
+	})
+
+	if err != nil {
+		return err
+	}
+
+	dagPartitions, err := r.queries.ListDAGPartitionsBeforeDate(ctx, r.pool, pgtype.Date{
+		Time:  sevenDaysAgo,
+		Valid: true,
+	})
+
+	if err != nil {
+		return err
+	}
+
+	for _, partition := range dagPartitions {
 		_, err := r.pool.Exec(
 			ctx,
 			fmt.Sprintf("ALTER TABLE v2_task DETACH PARTITION %s CONCURRENTLY", partition),

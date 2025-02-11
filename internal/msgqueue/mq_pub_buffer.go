@@ -9,7 +9,7 @@ import (
 
 const PUB_FLUSH_INTERVAL = 10 * time.Millisecond
 const PUB_BUFFER_SIZE = 1000
-const PUB_MAX_CONCURRENCY = 2
+const PUB_MAX_CONCURRENCY = 1
 
 type PubFunc func(m *Message) error
 

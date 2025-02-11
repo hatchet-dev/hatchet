@@ -18,6 +18,17 @@ type CreateDAGDataParams struct {
 	AdditionalMetadata []byte             `json:"additional_metadata"`
 }
 
+const createDAGPartition = `-- name: CreateDAGPartition :exec
+SELECT create_v2_dag_partition(
+    $1::date
+)
+`
+
+func (q *Queries) CreateDAGPartition(ctx context.Context, db DBTX, date pgtype.Date) error {
+	_, err := db.Exec(ctx, createDAGPartition, date)
+	return err
+}
+
 const createDAGs = `-- name: CreateDAGs :many
 WITH input AS (
     SELECT
@@ -146,6 +157,35 @@ func (q *Queries) GetDAGData(ctx context.Context, db DBTX, arg GetDAGDataParams)
 			return nil, err
 		}
 		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDAGPartitionsBeforeDate = `-- name: ListDAGPartitionsBeforeDate :many
+SELECT
+    p::text AS partition_name
+FROM
+    get_v2_dag_partitions_before(
+        $1::date
+    ) AS p
+`
+
+func (q *Queries) ListDAGPartitionsBeforeDate(ctx context.Context, db DBTX, date pgtype.Date) ([]string, error) {
+	rows, err := db.Query(ctx, listDAGPartitionsBeforeDate, date)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var partition_name string
+		if err := rows.Scan(&partition_name); err != nil {
+			return nil, err
+		}
+		items = append(items, partition_name)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

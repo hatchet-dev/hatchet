@@ -1,3 +1,16 @@
+-- name: CreateDAGPartition :exec
+SELECT create_v2_dag_partition(
+    @date::date
+);
+
+-- name: ListDAGPartitionsBeforeDate :many
+SELECT
+    p::text AS partition_name
+FROM
+    get_v2_dag_partitions_before(
+        @date::date
+    ) AS p;
+
 -- name: GetDAGData :many
 WITH input AS (
     SELECT

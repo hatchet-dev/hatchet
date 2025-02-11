@@ -99,13 +99,64 @@ func NewOLAPEventRepository(l *zerolog.Logger) OLAPEventRepository {
 	queries := timescalev2.New()
 
 	// create partitions of the events OLAP table
-	partitionCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	partitionCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
 	err = queries.CreateOLAPPartitions(partitionCtx, timescalePool, NUM_PARTITIONS)
 
 	if err != nil {
 		log.Fatal(err)
+	}
+
+	today := time.Now().UTC()
+	tomorrow := today.AddDate(0, 0, 1)
+	sevenDaysAgo := today.AddDate(0, 0, -7)
+
+	err = queries.CreateOLAPTaskPartition(partitionCtx, timescalePool, pgtype.Date{
+		Time:  today,
+		Valid: true,
+	})
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	err = queries.CreateOLAPTaskPartition(partitionCtx, timescalePool, pgtype.Date{
+		Time:  tomorrow,
+		Valid: true,
+	})
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	partitions, err := queries.ListOLAPTaskPartitionsBeforeDate(partitionCtx, timescalePool, pgtype.Date{
+		Time:  sevenDaysAgo,
+		Valid: true,
+	})
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	for _, partition := range partitions {
+		_, err := timescalePool.Exec(
+			partitionCtx,
+			fmt.Sprintf("ALTER TABLE v2_task DETACH PARTITION %s CONCURRENTLY", partition),
+		)
+
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		_, err = timescalePool.Exec(
+			partitionCtx,
+			fmt.Sprintf("DROP TABLE %s", partition),
+		)
+
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
 
 	return &olapEventRepository{

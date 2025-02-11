@@ -238,6 +238,14 @@ type V2TaskLookupTable struct {
 	InsertedAt pgtype.Timestamptz `json:"inserted_at"`
 }
 
+type V2TaskStatusesOlap struct {
+	ID             int64                `json:"id"`
+	InsertedAt     pgtype.Timestamptz   `json:"inserted_at"`
+	TenantID       pgtype.UUID          `json:"tenant_id"`
+	WorkflowID     pgtype.UUID          `json:"workflow_id"`
+	ReadableStatus V2ReadableStatusOlap `json:"readable_status"`
+}
+
 type V2TasksOlap struct {
 	TenantID           pgtype.UUID          `json:"tenant_id"`
 	ID                 int64                `json:"id"`

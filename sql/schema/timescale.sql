@@ -29,14 +29,107 @@ CREATE TABLE v2_tasks_olap (
     latest_retry_count INT NOT NULL DEFAULT 0,
     latest_worker_id UUID,
 
-    PRIMARY KEY (tenant_id, id, inserted_at)
+    PRIMARY KEY (inserted_at, id, readable_status)
+) PARTITION BY RANGE(inserted_at);
+
+CREATE INDEX v2_tasks_olap_workflow_id_idx ON v2_tasks_olap (tenant_id, workflow_id);
+
+CREATE INDEX v2_tasks_olap_worker_id_idx ON v2_tasks_olap (tenant_id, latest_worker_id) WHERE latest_worker_id IS NOT NULL;
+
+CREATE OR REPLACE FUNCTION create_v2_tasks_olap_partition_with_status(
+    newTableName varchar,
+    status v2_readable_status_olap
+) RETURNS integer
+    LANGUAGE plpgsql AS
+$$
+DECLARE
+    targetNameWithStatus varchar;
+BEGIN
+    SELECT lower(format('%s_%s', newTableName, status::text)) INTO targetNameWithStatus;
+
+    -- exit if the table exists
+    IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename = targetNameWithStatus) THEN
+        RETURN 0;
+    END IF;
+
+    EXECUTE
+        format('CREATE TABLE %s (LIKE %s INCLUDING INDEXES)', targetNameWithStatus, newTableName);
+    EXECUTE
+        format('ALTER TABLE %s SET (
+            autovacuum_vacuum_scale_factor = ''0.1'',
+            autovacuum_analyze_scale_factor=''0.05'',
+            autovacuum_vacuum_threshold=''25'',
+            autovacuum_analyze_threshold=''25'',
+            autovacuum_vacuum_cost_delay=''10'',
+            autovacuum_vacuum_cost_limit=''1000''
+        )', targetNameWithStatus);
+    EXECUTE
+        format('ALTER TABLE %s ATTACH PARTITION %s FOR VALUES IN (''%s'')', newTableName, targetNameWithStatus, status);
+    RETURN 1;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION create_v2_tasks_olap_partition(
+    targetDate date
+) RETURNS integer
+    LANGUAGE plpgsql AS
+$$
+DECLARE
+    targetDateStr varchar;
+    targetDatePlusOneDayStr varchar;
+    newTableName varchar;
+BEGIN
+    SELECT to_char(targetDate, 'YYYYMMDD') INTO targetDateStr;
+    SELECT to_char(targetDate + INTERVAL '1 day', 'YYYYMMDD') INTO targetDatePlusOneDayStr;
+    SELECT format('v2_tasks_olap_%s', targetDateStr) INTO newTableName;
+    IF NOT EXISTS (SELECT 1 FROM pg_tables WHERE tablename = newTableName) THEN
+        EXECUTE format('CREATE TABLE %s (LIKE v2_tasks_olap INCLUDING INDEXES) PARTITION BY LIST (readable_status)', newTableName);
+    END IF;
+    
+    PERFORM create_v2_tasks_olap_partition_with_status(newTableName, 'QUEUED');
+    PERFORM create_v2_tasks_olap_partition_with_status(newTableName, 'RUNNING');
+    PERFORM create_v2_tasks_olap_partition_with_status(newTableName, 'COMPLETED');
+    PERFORM create_v2_tasks_olap_partition_with_status(newTableName, 'CANCELLED');
+    PERFORM create_v2_tasks_olap_partition_with_status(newTableName, 'FAILED');
+
+    -- If it's not already attached, attach the partition
+    IF NOT EXISTS (SELECT 1 FROM pg_inherits WHERE inhrelid = newTableName::regclass) THEN
+        EXECUTE format('ALTER TABLE v2_tasks_olap ATTACH PARTITION %s FOR VALUES FROM (''%s'') TO (''%s'')', newTableName, targetDateStr, targetDatePlusOneDayStr);
+    END IF;
+
+    RETURN 1;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION get_v2_tasks_olap_partitions_before(
+    targetDate date
+) RETURNS TABLE(partition_name text)
+    LANGUAGE plpgsql AS
+$$
+BEGIN
+    RETURN QUERY
+    SELECT
+        inhrelid::regclass::text AS partition_name
+    FROM
+        pg_inherits
+    WHERE
+        inhparent = 'v2_tasks_olap'::regclass
+        AND substring(inhrelid::regclass::text, 'v2_tasks_olap_(\d{8})') ~ '^\d{8}'
+        AND (substring(inhrelid::regclass::text, 'v2_tasks_olap_(\d{8})')::date) < targetDate;
+END;
+$$;
+
+CREATE TABLE v2_task_statuses_olap (
+    id BIGINT NOT NULL,
+    inserted_at TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    tenant_id UUID NOT NULL,
+    workflow_id UUID NOT NULL,
+    readable_status v2_readable_status_olap NOT NULL DEFAULT 'QUEUED',
+
+    PRIMARY KEY (id, inserted_at)
 );
 
-SELECT * from create_hypertable('v2_tasks_olap', by_range('inserted_at',  INTERVAL '1 day'));
-
-CREATE INDEX v2_tasks_olap_status_workflow_id_idx ON v2_tasks_olap (tenant_id, inserted_at DESC, readable_status, workflow_id);
-
-CREATE INDEX v2_tasks_olap_worker_id_idx ON v2_tasks_olap (tenant_id, inserted_at DESC, latest_worker_id) WHERE latest_worker_id IS NOT NULL;
+SELECT * from create_hypertable('v2_task_statuses_olap', by_range('inserted_at',  INTERVAL '1 day'));
 
 CREATE TABLE v2_task_lookup_table (
     tenant_id UUID NOT NULL,
@@ -47,31 +140,55 @@ CREATE TABLE v2_task_lookup_table (
     PRIMARY KEY (external_id)
 );
 
-CREATE OR REPLACE FUNCTION v2_tasks_olap_lookup_table_insert_function()
+CREATE OR REPLACE FUNCTION v2_tasks_olap_insert_function()
 RETURNS TRIGGER AS
 $$
 BEGIN
+    INSERT INTO v2_task_statuses_olap (id, inserted_at, tenant_id, workflow_id, readable_status)
+    SELECT id, inserted_at, tenant_id, workflow_id, readable_status
+    FROM new_rows;
+
     INSERT INTO v2_task_lookup_table (
         tenant_id,
         external_id,
         task_id,
         inserted_at
     )
-    VALUES (
-        NEW.tenant_id,
-        NEW.external_id,
-        NEW.id,
-        NEW.inserted_at
-    );
-    RETURN NEW;
+    SELECT tenant_id, external_id, id, inserted_at
+    FROM new_rows;
+    
+    RETURN NULL;
 END;
 $$
 LANGUAGE plpgsql;
 
-CREATE TRIGGER v2_tasks_olap_lookup_table_insert_trigger
+CREATE TRIGGER v2_tasks_olap_status_insert_trigger
 AFTER INSERT ON v2_tasks_olap
-FOR EACH ROW
-EXECUTE PROCEDURE v2_tasks_olap_lookup_table_insert_function();
+REFERENCING NEW TABLE AS new_rows
+FOR EACH STATEMENT
+EXECUTE FUNCTION v2_tasks_olap_insert_function();
+
+CREATE OR REPLACE FUNCTION v2_tasks_olap_status_update_function()
+RETURNS TRIGGER AS
+$$
+BEGIN
+    UPDATE v2_task_statuses_olap t
+    SET tenant_id = n.tenant_id,
+        workflow_id = n.workflow_id,
+        readable_status = n.readable_status
+    FROM new_rows n
+    WHERE t.id = n.id
+      AND t.inserted_at = n.inserted_at;
+    RETURN NULL;
+END;
+$$
+LANGUAGE plpgsql;
+
+CREATE TRIGGER v2_tasks_olap_status_update_trigger
+AFTER UPDATE ON v2_tasks_olap
+REFERENCING NEW TABLE AS new_rows
+FOR EACH STATEMENT
+EXECUTE FUNCTION v2_tasks_olap_status_update_function();
 
 CREATE TYPE v2_event_type_olap AS ENUM (
     'RETRYING',
@@ -213,7 +330,7 @@ CREATE  MATERIALIZED VIEW v2_cagg_status_metrics
         COUNT(*) FILTER (WHERE readable_status = 'COMPLETED') AS completed_count,
         COUNT(*) FILTER (WHERE readable_status = 'CANCELLED') AS cancelled_count,
         COUNT(*) FILTER (WHERE readable_status = 'FAILED') AS failed_count
-      FROM v2_tasks_olap
+      FROM v2_task_statuses_olap
       GROUP BY tenant_id, workflow_id, bucket
       ORDER BY bucket DESC
 WITH NO DATA;
