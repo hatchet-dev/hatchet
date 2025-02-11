@@ -404,10 +404,17 @@ That's it! You've successfully deployed Hatchet and run your first workflow.
 
 ## Connecting to the engine from within Docker
 
-If you're also running your worker application inside of `docker-compose`, you should modify the `SERVER_GRPC_BROADCAST_ADDRESS` environment variable in the `setup-config` service to use `host.docker.internal` as the hostname. For example:
+If you're also running your worker application inside of `docker-compose`, you should modify the `SERVER_GRPC_BROADCAST_ADDRESS` environment variable in the `setup-config` service to use `hatchet-engine` as the hostname. For example:
 
 ```yaml
-SERVER_GRPC_BROADCAST_ADDRESS: "host.docker.internal:7077"
+SERVER_GRPC_BROADCAST_ADDRESS: "hatchet-engine:7077"
+```
+Make sure your worker depends on hatchet-engine:
+```yaml
+worker:
+	depends_on:
+	      hatchet-engine:
+	        condition: service_started
 ```
 
 <Callout type="info">
