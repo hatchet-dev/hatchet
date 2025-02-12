@@ -567,7 +567,7 @@ func (i *AdminServiceImpl) ingestSingleton(tenantId, name string, data []byte, m
 		return "", fmt.Errorf("could not create event task: %w", err)
 	}
 
-	err = i.mq.SendMessage(context.Background(), msgqueue.TRIGGER_QUEUE, msg)
+	err = i.mq.SendMessage(context.Background(), msgqueue.TASK_PROCESSING_QUEUE, msg)
 
 	if err != nil {
 		return "", fmt.Errorf("could not add event to task queue: %w", err)

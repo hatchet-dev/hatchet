@@ -11,7 +11,6 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/retention"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/v2/olap"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/v2/task"
-	"github.com/hatchet-dev/hatchet/internal/services/controllers/v2/trigger"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher"
 	"github.com/hatchet-dev/hatchet/internal/services/grpc"
 	"github.com/hatchet-dev/hatchet/internal/services/health"
@@ -615,7 +614,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			task.WithAlerter(sc.Alerter),
 			task.WithMessageQueue(sc.MessageQueue),
 			task.WithRepository(sc.EngineRepository),
-			task.WithV2Repository(sc.V2.Tasks()),
+			task.WithV2Repository(sc.V2),
 			task.WithLogger(sc.Logger),
 			task.WithPartition(p),
 			task.WithQueueLoggerConfig(&sc.AdditionalLoggers.Queue),
@@ -659,30 +658,6 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 		teardown = append(teardown, Teardown{
 			Name: "olap controller",
 			Fn:   cleanupOlap,
-		})
-
-		triggers, err := trigger.New(
-			trigger.WithAlerter(sc.Alerter),
-			trigger.WithMessageQueue(sc.MessageQueue),
-			trigger.WithRepository(sc.EngineRepository),
-			trigger.WithV2Repository(sc.V2),
-			trigger.WithLogger(sc.Logger),
-			trigger.WithPartition(p),
-		)
-
-		if err != nil {
-			return nil, fmt.Errorf("could not create trigger controller: %w", err)
-		}
-
-		cleanupTriggers, err := triggers.Start()
-
-		if err != nil {
-			return nil, fmt.Errorf("could not start trigger controller: %w", err)
-		}
-
-		teardown = append(teardown, Teardown{
-			Name: "trigger controller",
-			Fn:   cleanupTriggers,
 		})
 
 		// wc, err := workflows.New(

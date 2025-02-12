@@ -52,9 +52,9 @@ type createDAGOpts struct {
 }
 
 type TriggerRepository interface {
-	TriggerFromEvents(ctx context.Context, tenantId string, opts []EventTriggerOpts) ([]*sqlcv2.V2Task, error)
+	TriggerFromEvents(ctx context.Context, tenantId string, opts []EventTriggerOpts) ([]*sqlcv2.V2Task, []*DAGWithData, error)
 
-	TriggerFromWorkflowNames(ctx context.Context, tenantId string, opts []WorkflowNameTriggerOpts) ([]*sqlcv2.V2Task, error)
+	TriggerFromWorkflowNames(ctx context.Context, tenantId string, opts []WorkflowNameTriggerOpts) ([]*sqlcv2.V2Task, []*DAGWithData, error)
 }
 
 type TriggerRepositoryImpl struct {
@@ -67,7 +67,7 @@ func newTriggerRepository(s *sharedRepository) TriggerRepository {
 	}
 }
 
-func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId string, opts []EventTriggerOpts) ([]*sqlcv2.V2Task, error) {
+func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId string, opts []EventTriggerOpts) ([]*sqlcv2.V2Task, []*DAGWithData, error) {
 	eventKeys := make([]string, 0, len(opts))
 	eventKeysToOpts := make(map[string][]EventTriggerOpts)
 	uniqueEventKeys := make(map[string]struct{})
@@ -90,7 +90,7 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 	})
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to list workflows for events: %w", err)
+		return nil, nil, fmt.Errorf("failed to list workflows for events: %w", err)
 	}
 
 	// each (workflowVersionId, eventKey, opt) is a separate workflow that we need to create
@@ -117,7 +117,7 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 	return r.triggerWorkflows(ctx, tenantId, triggerOpts)
 }
 
-func (r *TriggerRepositoryImpl) TriggerFromWorkflowNames(ctx context.Context, tenantId string, opts []WorkflowNameTriggerOpts) ([]*sqlcv2.V2Task, error) {
+func (r *TriggerRepositoryImpl) TriggerFromWorkflowNames(ctx context.Context, tenantId string, opts []WorkflowNameTriggerOpts) ([]*sqlcv2.V2Task, []*DAGWithData, error) {
 	workflowNames := make([]string, 0, len(opts))
 	uniqueNames := make(map[string]struct{})
 	namesToOpts := make(map[string][]WorkflowNameTriggerOpts)
@@ -140,7 +140,7 @@ func (r *TriggerRepositoryImpl) TriggerFromWorkflowNames(ctx context.Context, te
 	})
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to list workflows for names: %w", err)
+		return nil, nil, fmt.Errorf("failed to list workflows for names: %w", err)
 	}
 
 	// each (workflowVersionId, opt) is a separate workflow that we need to create
@@ -179,7 +179,7 @@ type triggerTuple struct {
 	additionalMetadata []byte
 }
 
-func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId string, tuples []triggerTuple) ([]*sqlcv2.V2Task, error) {
+func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId string, tuples []triggerTuple) ([]*sqlcv2.V2Task, []*DAGWithData, error) {
 	// get unique workflow version ids
 	uniqueWorkflowVersionIds := make(map[string]struct{})
 
@@ -201,7 +201,7 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 	})
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to get workflow versions for engine: %w", err)
+		return nil, nil, fmt.Errorf("failed to get workflow versions for engine: %w", err)
 	}
 
 	// group steps by workflow version ids
@@ -342,7 +342,7 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
 
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	defer rollback()
@@ -351,7 +351,7 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 	dags, err := r.createDAGs(ctx, tx, tenantId, dagOpts)
 
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// populate taskOpts with inserted DAG data
@@ -376,7 +376,7 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 	tasks, err := r.createTasks(ctx, tx, tenantId, createTaskOpts)
 
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// populate event matches with inserted DAG data
@@ -401,18 +401,26 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 	err = r.createEventMatches(ctx, tx, tenantId, createMatchOpts)
 
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// commit
 	if err := commit(ctx); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return tasks, nil
+	return tasks, dags, nil
 }
 
-func (r *TriggerRepositoryImpl) createDAGs(ctx context.Context, tx sqlcv2.DBTX, tenantId string, opts []createDAGOpts) ([]*sqlcv2.V2Dag, error) {
+type DAGWithData struct {
+	*sqlcv2.V2Dag
+
+	Input []byte
+
+	AdditionalMetadata []byte
+}
+
+func (r *TriggerRepositoryImpl) createDAGs(ctx context.Context, tx sqlcv2.DBTX, tenantId string, opts []createDAGOpts) ([]*DAGWithData, error) {
 	// Tenantids          []pgtype.UUID `json:"tenantids"`
 	// Externalids        []pgtype.UUID `json:"externalids"`
 	// Displaynames       []string      `json:"displaynames"`
@@ -447,6 +455,7 @@ func (r *TriggerRepositoryImpl) createDAGs(ctx context.Context, tx sqlcv2.DBTX, 
 	}
 
 	dagDataParams := make([]sqlcv2.CreateDAGDataParams, 0, len(createdDAGs))
+	res := make([]*DAGWithData, 0, len(createdDAGs))
 
 	for _, dag := range createdDAGs {
 		externalId := sqlchelpers.UUIDToStr(dag.ExternalID)
@@ -463,6 +472,12 @@ func (r *TriggerRepositoryImpl) createDAGs(ctx context.Context, tx sqlcv2.DBTX, 
 			Input:              opt.Input,
 			AdditionalMetadata: opt.AdditionalMetadata,
 		})
+
+		res = append(res, &DAGWithData{
+			V2Dag:              dag,
+			Input:              opt.Input,
+			AdditionalMetadata: opt.AdditionalMetadata,
+		})
 	}
 
 	_, err = r.queries.CreateDAGData(ctx, tx, dagDataParams)
@@ -471,7 +486,7 @@ func (r *TriggerRepositoryImpl) createDAGs(ctx context.Context, tx sqlcv2.DBTX, 
 		return nil, err
 	}
 
-	return createdDAGs, nil
+	return res, nil
 }
 
 func getParentCompletedGroupMatch(parentExternalId string) GroupMatchCondition {

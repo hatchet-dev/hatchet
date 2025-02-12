@@ -1,10 +1,18 @@
--- name: CreateOLAPPartitions :exec
-SELECT create_v2_task_events_partitions(
+-- name: CreateOLAPTaskEventTmpPartitions :exec
+SELECT create_v2_hash_partitions(
+    'v2_task_events_olap_tmp'::text,
+    @partitions::int
+);
+
+-- name: CreateOLAPTaskStatusUpdateTmpPartitions :exec
+SELECT create_v2_hash_partitions(
+    'v2_task_status_updates_tmp'::text,
     @partitions::int
 );
 
 -- name: CreateOLAPTaskPartition :exec
-SELECT create_v2_tasks_olap_partition(
+SELECT create_v2_olap_partition_with_date_and_status(
+    'v2_tasks_olap'::text,
     @date::date
 );
 
@@ -12,7 +20,8 @@ SELECT create_v2_tasks_olap_partition(
 SELECT
     p::text AS partition_name
 FROM
-    get_v2_tasks_olap_partitions_before(
+    get_v2_partitions_before_date(
+        'v2_tasks_olap'::text,
         @date::date
     ) AS p;
 
@@ -33,7 +42,9 @@ INSERT INTO v2_tasks_olap (
     external_id,
     display_name,
     input,
-    additional_metadata
+    additional_metadata,
+    dag_id,
+    dag_inserted_at
 ) VALUES (
     $1,
     $2,
@@ -50,7 +61,32 @@ INSERT INTO v2_tasks_olap (
     $13,
     $14,
     $15,
-    $16
+    $16,
+    $17,
+    $18
+);
+
+-- name: CreateDAGsOLAP :copyfrom
+INSERT INTO v2_dags_olap (
+    tenant_id,
+    id,
+    inserted_at,
+    external_id,
+    display_name,
+    workflow_id,
+    workflow_version_id,
+    input,
+    additional_metadata
+) VALUES (
+    $1,
+    $2,
+    $3,
+    $4,
+    $5,
+    $6,
+    $7,
+    $8,
+    $9
 );
 
 -- name: CreateTaskEventsOLAPTmp :copyfrom
@@ -125,7 +161,7 @@ WITH lookup_task AS (
         task_id,
         inserted_at
     FROM
-        v2_task_lookup_table
+        v2_lookup_table
     WHERE
         external_id = @externalId::uuid
 )
@@ -377,7 +413,7 @@ WITH locked_events AS (
     SELECT
         *
     FROM
-        list_task_events(
+        list_task_events_tmp(
             @partitionNumber::int,
             @tenantId::uuid,
             @eventLimit::int
@@ -482,11 +518,127 @@ WITH locked_events AS (
         task_inserted_at,
         event_type,
         readable_status,
-        retry_count + 1
+        retry_count
     FROM
         events_to_requeue
     WHERE
-        retry_count < 10
+        requeue_retries < 10
+    RETURNING
+        *
+)
+SELECT
+    COUNT(*)
+FROM
+    locked_events;
+
+-- name: UpdateDAGStatuses :one
+WITH locked_events AS (
+    SELECT
+        *
+    FROM
+        list_task_status_updates_tmp(
+            @partitionNumber::int,
+            @tenantId::uuid,
+            @eventLimit::int
+        )
+), distinct_dags AS (
+    SELECT
+        DISTINCT ON (e.tenant_id, e.dag_id, e.dag_inserted_at)
+        e.tenant_id,
+        e.dag_id,
+        e.dag_inserted_at
+    FROM
+        locked_events e
+), locked_dags AS (
+    SELECT
+        d.id,
+        d.inserted_at,
+        d.readable_status,
+        d.tenant_id
+    FROM
+        v2_dags_olap d
+    JOIN
+        distinct_dags dd ON
+            (d.tenant_id, d.id, d.inserted_at) = (dd.tenant_id, dd.dag_id, dd.dag_inserted_at)
+    ORDER BY
+        d.id, d.inserted_at
+    FOR UPDATE
+), dag_task_counts AS (
+    SELECT
+        d.id,
+        d.inserted_at,
+        COUNT(t.id) AS task_count,
+        COUNT(t.id) FILTER (WHERE t.readable_status = 'COMPLETED') AS completed_count,
+        COUNT(t.id) FILTER (WHERE t.readable_status = 'FAILED') AS failed_count,
+        COUNT(t.id) FILTER (WHERE t.readable_status = 'CANCELLED') AS cancelled_count,
+        COUNT(t.id) FILTER (WHERE t.readable_status = 'QUEUED') AS queued_count,
+        COUNT(t.id) FILTER (WHERE t.readable_status = 'RUNNING') AS running_count
+    FROM
+        locked_dags d
+    LEFT JOIN
+        v2_dag_to_task_olap dt ON
+            (d.id, d.inserted_at) = (dt.dag_id, dt.dag_inserted_at)
+    LEFT JOIN
+        v2_tasks_olap t ON
+            (dt.task_id, dt.task_inserted_at) = (t.id, t.inserted_at)
+    GROUP BY
+        d.id, d.inserted_at
+), updated_dags AS (
+    UPDATE
+        v2_dags_olap d
+    SET
+        readable_status = CASE
+            -- If we only have queued events, we should keep the status as is
+            WHEN dtc.queued_count = dtc.task_count THEN d.readable_status
+            -- If we have any running or queued tasks, we should set the status to running
+            WHEN dtc.running_count > 0 OR dtc.queued_count > 0 THEN 'RUNNING'
+            WHEN dtc.failed_count > 0 THEN 'FAILED'
+            WHEN dtc.cancelled_count > 0 THEN 'CANCELLED'
+            WHEN dtc.completed_count = dtc.task_count THEN 'COMPLETED'
+            ELSE 'RUNNING'
+        END
+    FROM
+        dag_task_counts dtc
+    WHERE
+        (d.id, d.inserted_at) = (dtc.id, dtc.inserted_at)
+), events_to_requeue AS (
+    -- Get events which don't have a corresponding locked_task
+    SELECT
+        e.tenant_id,
+        e.requeue_retries,
+        e.dag_id,
+        e.dag_inserted_at
+    FROM
+        locked_events e
+    LEFT JOIN
+        locked_dags d ON (e.tenant_id, e.dag_id, e.dag_inserted_at) = (d.tenant_id, d.id, d.inserted_at)
+    WHERE
+        d.id IS NULL
+), deleted_events AS (
+    DELETE FROM
+        v2_task_status_updates_tmp
+    WHERE
+        (tenant_id, requeue_after, dag_id, id) IN (SELECT tenant_id, requeue_after, dag_id, id FROM locked_events)
+), requeued_events AS (
+    INSERT INTO
+        v2_task_status_updates_tmp (
+            tenant_id,
+            requeue_after,
+            requeue_retries,
+            dag_id,
+            dag_inserted_at
+        )
+    SELECT
+        tenant_id,
+        -- Exponential backoff, we limit to 10 retries which is 2048 seconds/34 minutes
+        CURRENT_TIMESTAMP + (2 ^ requeue_retries) * INTERVAL '2 seconds',
+        requeue_retries + 1,
+        dag_id,
+        dag_inserted_at
+    FROM
+        events_to_requeue
+    WHERE
+        requeue_retries < 10
     RETURNING
         *
 )

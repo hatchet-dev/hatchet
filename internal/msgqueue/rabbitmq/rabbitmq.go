@@ -158,12 +158,6 @@ func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl) {
 		return nil, nil
 	}
 
-	if _, err := t.initQueue(ch, msgqueue.TRIGGER_QUEUE); err != nil {
-		t.l.Debug().Msgf("error initializing queue: %v", err)
-		cancel()
-		return nil, nil
-	}
-
 	if _, err := t.initQueue(ch, msgqueue.OLAP_QUEUE); err != nil {
 		t.l.Debug().Msgf("error initializing queue: %v", err)
 		cancel()

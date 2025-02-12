@@ -11,25 +11,51 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const createOLAPPartitions = `-- name: CreateOLAPPartitions :exec
-SELECT create_v2_task_events_partitions(
+type CreateDAGsOLAPParams struct {
+	TenantID           pgtype.UUID        `json:"tenant_id"`
+	ID                 int64              `json:"id"`
+	InsertedAt         pgtype.Timestamptz `json:"inserted_at"`
+	ExternalID         pgtype.UUID        `json:"external_id"`
+	DisplayName        string             `json:"display_name"`
+	WorkflowID         pgtype.UUID        `json:"workflow_id"`
+	WorkflowVersionID  pgtype.UUID        `json:"workflow_version_id"`
+	Input              []byte             `json:"input"`
+	AdditionalMetadata []byte             `json:"additional_metadata"`
+}
+
+const createOLAPTaskEventTmpPartitions = `-- name: CreateOLAPTaskEventTmpPartitions :exec
+SELECT create_v2_hash_partitions(
+    'v2_task_events_olap_tmp'::text,
     $1::int
 )
 `
 
-func (q *Queries) CreateOLAPPartitions(ctx context.Context, db DBTX, partitions int32) error {
-	_, err := db.Exec(ctx, createOLAPPartitions, partitions)
+func (q *Queries) CreateOLAPTaskEventTmpPartitions(ctx context.Context, db DBTX, partitions int32) error {
+	_, err := db.Exec(ctx, createOLAPTaskEventTmpPartitions, partitions)
 	return err
 }
 
 const createOLAPTaskPartition = `-- name: CreateOLAPTaskPartition :exec
-SELECT create_v2_tasks_olap_partition(
+SELECT create_v2_olap_partition_with_date_and_status(
+    'v2_tasks_olap'::text,
     $1::date
 )
 `
 
 func (q *Queries) CreateOLAPTaskPartition(ctx context.Context, db DBTX, date pgtype.Date) error {
 	_, err := db.Exec(ctx, createOLAPTaskPartition, date)
+	return err
+}
+
+const createOLAPTaskStatusUpdateTmpPartitions = `-- name: CreateOLAPTaskStatusUpdateTmpPartitions :exec
+SELECT create_v2_hash_partitions(
+    'v2_task_status_updates_tmp'::text,
+    $1::int
+)
+`
+
+func (q *Queries) CreateOLAPTaskStatusUpdateTmpPartitions(ctx context.Context, db DBTX, partitions int32) error {
+	_, err := db.Exec(ctx, createOLAPTaskStatusUpdateTmpPartitions, partitions)
 	return err
 }
 
@@ -76,6 +102,8 @@ type CreateTasksOLAPParams struct {
 	DisplayName        string               `json:"display_name"`
 	Input              []byte               `json:"input"`
 	AdditionalMetadata []byte               `json:"additional_metadata"`
+	DagID              pgtype.Int8          `json:"dag_id"`
+	DagInsertedAt      pgtype.Timestamptz   `json:"dag_inserted_at"`
 }
 
 const getTaskPointMetrics = `-- name: GetTaskPointMetrics :many
@@ -180,7 +208,8 @@ const listOLAPTaskPartitionsBeforeDate = `-- name: ListOLAPTaskPartitionsBeforeD
 SELECT
     p::text AS partition_name
 FROM
-    get_v2_tasks_olap_partitions_before(
+    get_v2_partitions_before_date(
+        'v2_tasks_olap'::text,
         $1::date
     ) AS p
 `
@@ -314,7 +343,7 @@ func (q *Queries) ListTaskEvents(ctx context.Context, db DBTX, arg ListTaskEvent
 
 const listTasks = `-- name: ListTasks :many
 SELECT
-    tenant_id, id, inserted_at, external_id, queue, action_id, step_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, display_name, input, additional_metadata, readable_status, latest_retry_count, latest_worker_id
+    tenant_id, id, inserted_at, external_id, queue, action_id, step_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, display_name, input, additional_metadata, readable_status, latest_retry_count, latest_worker_id, dag_id, dag_inserted_at
 FROM
     v2_tasks_olap
 WHERE
@@ -379,6 +408,8 @@ func (q *Queries) ListTasks(ctx context.Context, db DBTX, arg ListTasksParams) (
 			&i.ReadableStatus,
 			&i.LatestRetryCount,
 			&i.LatestWorkerID,
+			&i.DagID,
+			&i.DagInsertedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -443,7 +474,7 @@ WITH latest_retry_count AS (
     LIMIT 1
 )
 SELECT
-    t.tenant_id, t.id, t.inserted_at, t.external_id, t.queue, t.action_id, t.step_id, t.workflow_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.display_name, t.input, t.additional_metadata, t.readable_status, t.latest_retry_count, t.latest_worker_id,
+    t.tenant_id, t.id, t.inserted_at, t.external_id, t.queue, t.action_id, t.step_id, t.workflow_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.display_name, t.input, t.additional_metadata, t.readable_status, t.latest_retry_count, t.latest_worker_id, t.dag_id, t.dag_inserted_at,
     st.readable_status::v2_readable_status_olap as status,
     f.finished_at::timestamptz as finished_at,
     s.started_at::timestamptz as started_at,
@@ -488,6 +519,8 @@ type PopulateSingleTaskRunDataRow struct {
 	ReadableStatus     V2ReadableStatusOlap `json:"readable_status"`
 	LatestRetryCount   int32                `json:"latest_retry_count"`
 	LatestWorkerID     pgtype.UUID          `json:"latest_worker_id"`
+	DagID              pgtype.Int8          `json:"dag_id"`
+	DagInsertedAt      pgtype.Timestamptz   `json:"dag_inserted_at"`
 	Status             V2ReadableStatusOlap `json:"status"`
 	FinishedAt         pgtype.Timestamptz   `json:"finished_at"`
 	StartedAt          pgtype.Timestamptz   `json:"started_at"`
@@ -517,6 +550,8 @@ func (q *Queries) PopulateSingleTaskRunData(ctx context.Context, db DBTX, arg Po
 		&i.ReadableStatus,
 		&i.LatestRetryCount,
 		&i.LatestWorkerID,
+		&i.DagID,
+		&i.DagInsertedAt,
 		&i.Status,
 		&i.FinishedAt,
 		&i.StartedAt,
@@ -693,12 +728,12 @@ WITH lookup_task AS (
         task_id,
         inserted_at
     FROM
-        v2_task_lookup_table
+        v2_lookup_table
     WHERE
         external_id = $1::uuid
 )
 SELECT
-    t.tenant_id, t.id, t.inserted_at, t.external_id, t.queue, t.action_id, t.step_id, t.workflow_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.display_name, t.input, t.additional_metadata, t.readable_status, t.latest_retry_count, t.latest_worker_id
+    t.tenant_id, t.id, t.inserted_at, t.external_id, t.queue, t.action_id, t.step_id, t.workflow_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.display_name, t.input, t.additional_metadata, t.readable_status, t.latest_retry_count, t.latest_worker_id, t.dag_id, t.dag_inserted_at
 FROM
     v2_tasks_olap t
 JOIN
@@ -728,8 +763,140 @@ func (q *Queries) ReadTaskByExternalID(ctx context.Context, db DBTX, externalid 
 		&i.ReadableStatus,
 		&i.LatestRetryCount,
 		&i.LatestWorkerID,
+		&i.DagID,
+		&i.DagInsertedAt,
 	)
 	return &i, err
+}
+
+const updateDAGStatuses = `-- name: UpdateDAGStatuses :one
+WITH locked_events AS (
+    SELECT
+        tenant_id, requeue_after, requeue_retries, id, dag_id, dag_inserted_at
+    FROM
+        list_task_status_updates_tmp(
+            $1::int,
+            $2::uuid,
+            $3::int
+        )
+), distinct_dags AS (
+    SELECT
+        DISTINCT ON (e.tenant_id, e.dag_id, e.dag_inserted_at)
+        e.tenant_id,
+        e.dag_id,
+        e.dag_inserted_at
+    FROM
+        locked_events e
+), locked_dags AS (
+    SELECT
+        d.id,
+        d.inserted_at,
+        d.readable_status,
+        d.tenant_id
+    FROM
+        v2_dags_olap d
+    JOIN
+        distinct_dags dd ON
+            (d.tenant_id, d.id, d.inserted_at) = (dd.tenant_id, dd.dag_id, dd.dag_inserted_at)
+    ORDER BY
+        d.id, d.inserted_at
+    FOR UPDATE
+), dag_task_counts AS (
+    SELECT
+        d.id,
+        d.inserted_at,
+        COUNT(t.id) AS task_count,
+        COUNT(t.id) FILTER (WHERE t.readable_status = 'COMPLETED') AS completed_count,
+        COUNT(t.id) FILTER (WHERE t.readable_status = 'FAILED') AS failed_count,
+        COUNT(t.id) FILTER (WHERE t.readable_status = 'CANCELLED') AS cancelled_count,
+        COUNT(t.id) FILTER (WHERE t.readable_status = 'QUEUED') AS queued_count,
+        COUNT(t.id) FILTER (WHERE t.readable_status = 'RUNNING') AS running_count
+    FROM
+        locked_dags d
+    LEFT JOIN
+        v2_dag_to_task_olap dt ON
+            (d.id, d.inserted_at) = (dt.dag_id, dt.dag_inserted_at)
+    LEFT JOIN
+        v2_tasks_olap t ON
+            (dt.task_id, dt.task_inserted_at) = (t.id, t.inserted_at)
+    GROUP BY
+        d.id, d.inserted_at
+), updated_dags AS (
+    UPDATE
+        v2_dags_olap d
+    SET
+        readable_status = CASE
+            -- If we only have queued events, we should keep the status as is
+            WHEN dtc.queued_count = dtc.task_count THEN d.readable_status
+            -- If we have any running or queued tasks, we should set the status to running
+            WHEN dtc.running_count > 0 OR dtc.queued_count > 0 THEN 'RUNNING'
+            WHEN dtc.failed_count > 0 THEN 'FAILED'
+            WHEN dtc.cancelled_count > 0 THEN 'CANCELLED'
+            WHEN dtc.completed_count = dtc.task_count THEN 'COMPLETED'
+            ELSE 'RUNNING'
+        END
+    FROM
+        dag_task_counts dtc
+    WHERE
+        (d.id, d.inserted_at) = (dtc.id, dtc.inserted_at)
+), events_to_requeue AS (
+    -- Get events which don't have a corresponding locked_task
+    SELECT
+        e.tenant_id,
+        e.requeue_retries,
+        e.dag_id,
+        e.dag_inserted_at
+    FROM
+        locked_events e
+    LEFT JOIN
+        locked_dags d ON (e.tenant_id, e.dag_id, e.dag_inserted_at) = (d.tenant_id, d.id, d.inserted_at)
+    WHERE
+        d.id IS NULL
+), deleted_events AS (
+    DELETE FROM
+        v2_task_status_updates_tmp
+    WHERE
+        (tenant_id, requeue_after, dag_id, id) IN (SELECT tenant_id, requeue_after, dag_id, id FROM locked_events)
+), requeued_events AS (
+    INSERT INTO
+        v2_task_status_updates_tmp (
+            tenant_id,
+            requeue_after,
+            requeue_retries,
+            dag_id,
+            dag_inserted_at
+        )
+    SELECT
+        tenant_id,
+        -- Exponential backoff, we limit to 10 retries which is 2048 seconds/34 minutes
+        CURRENT_TIMESTAMP + (2 ^ requeue_retries) * INTERVAL '2 seconds',
+        requeue_retries + 1,
+        dag_id,
+        dag_inserted_at
+    FROM
+        events_to_requeue
+    WHERE
+        requeue_retries < 10
+    RETURNING
+        tenant_id, requeue_after, requeue_retries, id, dag_id, dag_inserted_at
+)
+SELECT
+    COUNT(*)
+FROM
+    locked_events
+`
+
+type UpdateDAGStatusesParams struct {
+	Partitionnumber int32       `json:"partitionnumber"`
+	Tenantid        pgtype.UUID `json:"tenantid"`
+	Eventlimit      int32       `json:"eventlimit"`
+}
+
+func (q *Queries) UpdateDAGStatuses(ctx context.Context, db DBTX, arg UpdateDAGStatusesParams) (int64, error) {
+	row := db.QueryRow(ctx, updateDAGStatuses, arg.Partitionnumber, arg.Tenantid, arg.Eventlimit)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }
 
 const updateTaskStatuses = `-- name: UpdateTaskStatuses :one
@@ -737,7 +904,7 @@ WITH locked_events AS (
     SELECT
         tenant_id, requeue_after, requeue_retries, id, task_id, task_inserted_at, event_type, readable_status, retry_count, worker_id
     FROM
-        list_task_events(
+        list_task_events_tmp(
             $1::int,
             $2::uuid,
             $3::int
@@ -842,11 +1009,11 @@ WITH locked_events AS (
         task_inserted_at,
         event_type,
         readable_status,
-        retry_count + 1
+        retry_count
     FROM
         events_to_requeue
     WHERE
-        retry_count < 10
+        requeue_retries < 10
     RETURNING
         tenant_id, requeue_after, requeue_retries, id, task_id, task_inserted_at, event_type, readable_status, retry_count, worker_id
 )

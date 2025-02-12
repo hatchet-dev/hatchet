@@ -37,7 +37,7 @@ func (tc *TasksControllerImpl) createTablePartition(ctx context.Context) error {
 	ctx, span := telemetry.NewSpan(ctx, "create-table-partition")
 	defer span.End()
 
-	err := tc.repov2.UpdateTablePartitions(ctx)
+	err := tc.repov2.Tasks().UpdateTablePartitions(ctx)
 
 	if err != nil {
 		return fmt.Errorf("could not create table partition: %w", err)

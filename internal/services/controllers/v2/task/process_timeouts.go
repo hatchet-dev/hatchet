@@ -39,7 +39,7 @@ func (tc *TasksControllerImpl) processTaskTimeouts(ctx context.Context, tenantId
 	ctx, span := telemetry.NewSpan(ctx, "process-task-timeout")
 	defer span.End()
 
-	tasks, shouldContinue, err := tc.repov2.ProcessTaskTimeouts(ctx, tenantId)
+	tasks, shouldContinue, err := tc.repov2.Tasks().ProcessTaskTimeouts(ctx, tenantId)
 
 	if err != nil {
 		return false, fmt.Errorf("could not list step runs to timeout for tenant %s: %w", tenantId, err)

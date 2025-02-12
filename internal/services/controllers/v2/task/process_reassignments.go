@@ -39,7 +39,7 @@ func (tc *TasksControllerImpl) processTaskReassignments(ctx context.Context, ten
 	ctx, span := telemetry.NewSpan(ctx, "process-task-reassignments")
 	defer span.End()
 
-	tasks, shouldContinue, err := tc.repov2.ProcessTaskReassignments(ctx, tenantId)
+	tasks, shouldContinue, err := tc.repov2.Tasks().ProcessTaskReassignments(ctx, tenantId)
 
 	if err != nil {
 		return false, fmt.Errorf("could not list step runs to reassign for tenant %s: %w", tenantId, err)

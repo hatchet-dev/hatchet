@@ -9,6 +9,46 @@ import (
 	"context"
 )
 
+// iteratorForCreateDAGsOLAP implements pgx.CopyFromSource.
+type iteratorForCreateDAGsOLAP struct {
+	rows                 []CreateDAGsOLAPParams
+	skippedFirstNextCall bool
+}
+
+func (r *iteratorForCreateDAGsOLAP) Next() bool {
+	if len(r.rows) == 0 {
+		return false
+	}
+	if !r.skippedFirstNextCall {
+		r.skippedFirstNextCall = true
+		return true
+	}
+	r.rows = r.rows[1:]
+	return len(r.rows) > 0
+}
+
+func (r iteratorForCreateDAGsOLAP) Values() ([]interface{}, error) {
+	return []interface{}{
+		r.rows[0].TenantID,
+		r.rows[0].ID,
+		r.rows[0].InsertedAt,
+		r.rows[0].ExternalID,
+		r.rows[0].DisplayName,
+		r.rows[0].WorkflowID,
+		r.rows[0].WorkflowVersionID,
+		r.rows[0].Input,
+		r.rows[0].AdditionalMetadata,
+	}, nil
+}
+
+func (r iteratorForCreateDAGsOLAP) Err() error {
+	return nil
+}
+
+func (q *Queries) CreateDAGsOLAP(ctx context.Context, db DBTX, arg []CreateDAGsOLAPParams) (int64, error) {
+	return db.CopyFrom(ctx, []string{"v2_dags_olap"}, []string{"tenant_id", "id", "inserted_at", "external_id", "display_name", "workflow_id", "workflow_version_id", "input", "additional_metadata"}, &iteratorForCreateDAGsOLAP{rows: arg})
+}
+
 // iteratorForCreateTaskEventsOLAP implements pgx.CopyFromSource.
 type iteratorForCreateTaskEventsOLAP struct {
 	rows                 []CreateTaskEventsOLAPParams
@@ -127,6 +167,8 @@ func (r iteratorForCreateTasksOLAP) Values() ([]interface{}, error) {
 		r.rows[0].DisplayName,
 		r.rows[0].Input,
 		r.rows[0].AdditionalMetadata,
+		r.rows[0].DagID,
+		r.rows[0].DagInsertedAt,
 	}, nil
 }
 
@@ -135,5 +177,5 @@ func (r iteratorForCreateTasksOLAP) Err() error {
 }
 
 func (q *Queries) CreateTasksOLAP(ctx context.Context, db DBTX, arg []CreateTasksOLAPParams) (int64, error) {
-	return db.CopyFrom(ctx, []string{"v2_tasks_olap"}, []string{"tenant_id", "id", "inserted_at", "queue", "action_id", "step_id", "workflow_id", "schedule_timeout", "step_timeout", "priority", "sticky", "desired_worker_id", "external_id", "display_name", "input", "additional_metadata"}, &iteratorForCreateTasksOLAP{rows: arg})
+	return db.CopyFrom(ctx, []string{"v2_tasks_olap"}, []string{"tenant_id", "id", "inserted_at", "queue", "action_id", "step_id", "workflow_id", "schedule_timeout", "step_timeout", "priority", "sticky", "desired_worker_id", "external_id", "display_name", "input", "additional_metadata", "dag_id", "dag_inserted_at"}, &iteratorForCreateTasksOLAP{rows: arg})
 }

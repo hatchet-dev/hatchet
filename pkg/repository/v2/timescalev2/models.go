@@ -115,6 +115,90 @@ func (ns NullV2ReadableStatusOlap) Value() (driver.Value, error) {
 	return string(ns.V2ReadableStatusOlap), nil
 }
 
+type V2RunKind string
+
+const (
+	V2RunKindTASK V2RunKind = "TASK"
+	V2RunKindDAG  V2RunKind = "DAG"
+)
+
+func (e *V2RunKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = V2RunKind(s)
+	case string:
+		*e = V2RunKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for V2RunKind: %T", src)
+	}
+	return nil
+}
+
+type NullV2RunKind struct {
+	V2RunKind V2RunKind `json:"v2_run_kind"`
+	Valid     bool      `json:"valid"` // Valid is true if V2RunKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullV2RunKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.V2RunKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.V2RunKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullV2RunKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.V2RunKind), nil
+}
+
+type V2StatusKind string
+
+const (
+	V2StatusKindTASK V2StatusKind = "TASK"
+	V2StatusKindDAG  V2StatusKind = "DAG"
+)
+
+func (e *V2StatusKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = V2StatusKind(s)
+	case string:
+		*e = V2StatusKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for V2StatusKind: %T", src)
+	}
+	return nil
+}
+
+type NullV2StatusKind struct {
+	V2StatusKind V2StatusKind `json:"v2_status_kind"`
+	Valid        bool         `json:"valid"` // Valid is true if V2StatusKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullV2StatusKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.V2StatusKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.V2StatusKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullV2StatusKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.V2StatusKind), nil
+}
+
 type V2StickyStrategyOlap string
 
 const (
@@ -200,6 +284,53 @@ type V2CaggTaskEventsMinute struct {
 	FailedCount    int64       `json:"failed_count"`
 }
 
+type V2DagToTaskOlap struct {
+	DagID          int64              `json:"dag_id"`
+	DagInsertedAt  pgtype.Timestamptz `json:"dag_inserted_at"`
+	TaskID         int64              `json:"task_id"`
+	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
+}
+
+type V2DagsOlap struct {
+	ID                 int64                `json:"id"`
+	InsertedAt         pgtype.Timestamptz   `json:"inserted_at"`
+	TenantID           pgtype.UUID          `json:"tenant_id"`
+	ExternalID         pgtype.UUID          `json:"external_id"`
+	DisplayName        string               `json:"display_name"`
+	WorkflowID         pgtype.UUID          `json:"workflow_id"`
+	WorkflowVersionID  pgtype.UUID          `json:"workflow_version_id"`
+	ReadableStatus     V2ReadableStatusOlap `json:"readable_status"`
+	Input              []byte               `json:"input"`
+	AdditionalMetadata []byte               `json:"additional_metadata"`
+}
+
+type V2LookupTable struct {
+	TenantID   pgtype.UUID        `json:"tenant_id"`
+	ExternalID pgtype.UUID        `json:"external_id"`
+	TaskID     pgtype.Int8        `json:"task_id"`
+	DagID      pgtype.Int8        `json:"dag_id"`
+	InsertedAt pgtype.Timestamptz `json:"inserted_at"`
+}
+
+type V2RunsOlap struct {
+	TenantID       pgtype.UUID          `json:"tenant_id"`
+	ID             int64                `json:"id"`
+	InsertedAt     pgtype.Timestamptz   `json:"inserted_at"`
+	ExternalID     pgtype.UUID          `json:"external_id"`
+	ReadableStatus V2ReadableStatusOlap `json:"readable_status"`
+	Kind           V2RunKind            `json:"kind"`
+	WorkflowID     pgtype.UUID          `json:"workflow_id"`
+}
+
+type V2StatusesOlap struct {
+	ExternalID     pgtype.UUID          `json:"external_id"`
+	InsertedAt     pgtype.Timestamptz   `json:"inserted_at"`
+	TenantID       pgtype.UUID          `json:"tenant_id"`
+	WorkflowID     pgtype.UUID          `json:"workflow_id"`
+	Kind           V2RunKind            `json:"kind"`
+	ReadableStatus V2ReadableStatusOlap `json:"readable_status"`
+}
+
 type V2TaskEventsOlap struct {
 	TenantID               pgtype.UUID          `json:"tenant_id"`
 	ID                     int64                `json:"id"`
@@ -231,19 +362,13 @@ type V2TaskEventsOlapTmp struct {
 	WorkerID       pgtype.UUID          `json:"worker_id"`
 }
 
-type V2TaskLookupTable struct {
-	TenantID   pgtype.UUID        `json:"tenant_id"`
-	ExternalID pgtype.UUID        `json:"external_id"`
-	TaskID     int64              `json:"task_id"`
-	InsertedAt pgtype.Timestamptz `json:"inserted_at"`
-}
-
-type V2TaskStatusesOlap struct {
-	ID             int64                `json:"id"`
-	InsertedAt     pgtype.Timestamptz   `json:"inserted_at"`
-	TenantID       pgtype.UUID          `json:"tenant_id"`
-	WorkflowID     pgtype.UUID          `json:"workflow_id"`
-	ReadableStatus V2ReadableStatusOlap `json:"readable_status"`
+type V2TaskStatusUpdatesTmp struct {
+	TenantID       pgtype.UUID        `json:"tenant_id"`
+	RequeueAfter   pgtype.Timestamptz `json:"requeue_after"`
+	RequeueRetries int32              `json:"requeue_retries"`
+	ID             int64              `json:"id"`
+	DagID          int64              `json:"dag_id"`
+	DagInsertedAt  pgtype.Timestamptz `json:"dag_inserted_at"`
 }
 
 type V2TasksOlap struct {
@@ -266,4 +391,6 @@ type V2TasksOlap struct {
 	ReadableStatus     V2ReadableStatusOlap `json:"readable_status"`
 	LatestRetryCount   int32                `json:"latest_retry_count"`
 	LatestWorkerID     pgtype.UUID          `json:"latest_worker_id"`
+	DagID              pgtype.Int8          `json:"dag_id"`
+	DagInsertedAt      pgtype.Timestamptz   `json:"dag_inserted_at"`
 }

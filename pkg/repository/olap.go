@@ -20,6 +20,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/repository/olap"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
+	v2 "github.com/hatchet-dev/hatchet/pkg/repository/v2"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v2/sqlcv2"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v2/timescalev2"
 )
@@ -55,8 +56,10 @@ type OLAPEventRepository interface {
 	ReadTaskRunMetrics(ctx context.Context, tenantId string, opts ReadTaskRunMetricsOpts) ([]olap.TaskRunMetric, error)
 	CreateTasks(ctx context.Context, tenantId string, tasks []*sqlcv2.V2Task) error
 	CreateTaskEvents(ctx context.Context, tenantId string, events []timescalev2.CreateTaskEventsOLAPParams) error
+	CreateDAGs(ctx context.Context, tenantId string, dags []*v2.DAGWithData) error
 	GetTaskPointMetrics(ctx context.Context, tenantId string, startTimestamp *time.Time, endTimestamp *time.Time, bucketInterval time.Duration) ([]*timescalev2.GetTaskPointMetricsRow, error)
 	UpdateTaskStatuses(ctx context.Context, tenantId string) (bool, error)
+	UpdateDAGStatuses(ctx context.Context, tenantId string) (bool, error)
 }
 
 type olapEventRepository struct {
@@ -102,7 +105,13 @@ func NewOLAPEventRepository(l *zerolog.Logger) OLAPEventRepository {
 	partitionCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
-	err = queries.CreateOLAPPartitions(partitionCtx, timescalePool, NUM_PARTITIONS)
+	err = queries.CreateOLAPTaskEventTmpPartitions(partitionCtx, timescalePool, NUM_PARTITIONS)
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	err = queries.CreateOLAPTaskStatusUpdateTmpPartitions(partitionCtx, timescalePool, NUM_PARTITIONS)
 
 	if err != nil {
 		log.Fatal(err)
@@ -493,6 +502,57 @@ func (r *olapEventRepository) UpdateTaskStatuses(ctx context.Context, tenantId s
 	return isSaturated, nil
 }
 
+func (r *olapEventRepository) UpdateDAGStatuses(ctx context.Context, tenantId string) (bool, error) {
+	var limit int32 = 10000
+
+	// each partition gets its own goroutine
+	eg := &errgroup.Group{}
+	mu := sync.Mutex{}
+
+	// if any of the partitions are saturated, we return true
+	isSaturated := false
+
+	for i := 0; i < NUM_PARTITIONS; i++ {
+		partitionNumber := i
+
+		eg.Go(func() error {
+			tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
+
+			if err != nil {
+				return err
+			}
+
+			defer rollback()
+
+			count, err := r.queries.UpdateDAGStatuses(ctx, tx, timescalev2.UpdateDAGStatusesParams{
+				Partitionnumber: int32(partitionNumber), // nolint: gosec
+				Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
+				Eventlimit:      limit,
+			})
+
+			if err != nil {
+				return err
+			}
+
+			if err := commit(ctx); err != nil {
+				return err
+			}
+
+			mu.Lock()
+			isSaturated = isSaturated || count == int64(limit)
+			mu.Unlock()
+
+			return nil
+		})
+	}
+
+	if err := eg.Wait(); err != nil {
+		return false, err
+	}
+
+	return isSaturated, nil
+}
+
 func (r *olapEventRepository) writeTaskBatch(ctx context.Context, tenantId string, tasks []*sqlcv2.V2Task) error {
 	params := make([]timescalev2.CreateTasksOLAPParams, 0)
 
@@ -514,10 +574,34 @@ func (r *olapEventRepository) writeTaskBatch(ctx context.Context, tenantId strin
 			DisplayName:        task.DisplayName,
 			Input:              task.Input,
 			AdditionalMetadata: task.AdditionalMetadata,
+			DagID:              task.DagID,
+			DagInsertedAt:      task.DagInsertedAt,
 		})
 	}
 
 	_, err := r.queries.CreateTasksOLAP(ctx, r.pool, params)
+
+	return err
+}
+
+func (r *olapEventRepository) writeDAGBatch(ctx context.Context, tenantId string, dags []*v2.DAGWithData) error {
+	params := make([]timescalev2.CreateDAGsOLAPParams, 0)
+
+	for _, dag := range dags {
+		params = append(params, timescalev2.CreateDAGsOLAPParams{
+			TenantID:           dag.TenantID,
+			ID:                 dag.ID,
+			InsertedAt:         dag.InsertedAt,
+			WorkflowID:         dag.WorkflowID,
+			WorkflowVersionID:  dag.WorkflowVersionID,
+			ExternalID:         dag.ExternalID,
+			DisplayName:        dag.DisplayName,
+			Input:              dag.Input,
+			AdditionalMetadata: dag.AdditionalMetadata,
+		})
+	}
+
+	_, err := r.queries.CreateDAGsOLAP(ctx, r.pool, params)
 
 	return err
 }
@@ -528,6 +612,10 @@ func (r *olapEventRepository) CreateTaskEvents(ctx context.Context, tenantId str
 
 func (r *olapEventRepository) CreateTasks(ctx context.Context, tenantId string, tasks []*sqlcv2.V2Task) error {
 	return r.writeTaskBatch(ctx, tenantId, tasks)
+}
+
+func (r *olapEventRepository) CreateDAGs(ctx context.Context, tenantId string, dags []*v2.DAGWithData) error {
+	return r.writeDAGBatch(ctx, tenantId, dags)
 }
 
 func (r *olapEventRepository) GetTaskPointMetrics(ctx context.Context, tenantId string, startTimestamp *time.Time, endTimestamp *time.Time, bucketInterval time.Duration) ([]*timescalev2.GetTaskPointMetricsRow, error) {

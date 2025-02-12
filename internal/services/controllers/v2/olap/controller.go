@@ -40,6 +40,7 @@ type OLAPControllerImpl struct {
 	p                          *partition.Partition
 	s                          gocron.Scheduler
 	updateTaskStatusOperations *queueutils.OperationPool
+	updateDAGStatusOperations  *queueutils.OperationPool
 }
 
 type OLAPControllerOpt func(*OLAPControllerOpts)
@@ -154,6 +155,7 @@ func New(fs ...OLAPControllerOpt) (*OLAPControllerImpl, error) {
 	}
 
 	o.updateTaskStatusOperations = queueutils.NewOperationPool(opts.l, time.Second*5, "update task statuses", o.updateTaskStatuses)
+	o.updateDAGStatusOperations = queueutils.NewOperationPool(opts.l, time.Second*5, "update dag statuses", o.updateDAGStatuses)
 
 	return o, nil
 }
@@ -172,13 +174,25 @@ func (o *OLAPControllerImpl) Start() (func() error, error) {
 	_, err := o.s.NewJob(
 		gocron.DurationJob(time.Second*1),
 		gocron.NewTask(
-			o.runTenantStatusUpdates(ctx),
+			o.runTenantTaskStatusUpdates(ctx),
 		),
 	)
 
 	if err != nil {
 		cancel()
-		return nil, fmt.Errorf("could not schedule status updates: %w", err)
+		return nil, fmt.Errorf("could not schedule task status updates: %w", err)
+	}
+
+	_, err = o.s.NewJob(
+		gocron.DurationJob(time.Second*1),
+		gocron.NewTask(
+			o.runTenantDAGStatusUpdates(ctx),
+		),
+	)
+
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("could not schedule dag status updates: %w", err)
 	}
 
 	cleanupBuffer, err := mqBuffer.Start()
@@ -225,6 +239,8 @@ func (tc *OLAPControllerImpl) handleBufferedMsgs(tenantId, msgId string, payload
 	switch msgId {
 	case "created-task":
 		return tc.handleCreatedTask(context.Background(), tenantId, payloads)
+	case "created-dag":
+		return tc.handleCreatedDAG(context.Background(), tenantId, payloads)
 	case "create-monitoring-event":
 		return tc.handleCreateMonitoringEvent(context.Background(), tenantId, payloads)
 	}
@@ -235,32 +251,26 @@ func (tc *OLAPControllerImpl) handleBufferedMsgs(tenantId, msgId string, payload
 // handleCreatedTask is responsible for flushing a created task to the OLAP repository
 func (tc *OLAPControllerImpl) handleCreatedTask(ctx context.Context, tenantId string, payloads [][]byte) error {
 	createTaskOpts := make([]*sqlcv2.V2Task, 0)
-	createTaskEventOpts := make([]timescalev2.CreateTaskEventsOLAPParams, 0)
 
 	msgs := msgqueue.JSONConvert[tasktypes.CreatedTaskPayload](payloads)
 
 	for _, msg := range msgs {
 		createTaskOpts = append(createTaskOpts, msg.V2Task)
-
-		createTaskEventOpts = append(createTaskEventOpts, timescalev2.CreateTaskEventsOLAPParams{
-			TenantID:       sqlchelpers.UUIDFromStr(tenantId),
-			TaskID:         msg.V2Task.ID,
-			TaskInsertedAt: msg.V2Task.InsertedAt,
-			EventType:      timescalev2.V2EventTypeOlapCREATED,
-			WorkflowID:     msg.V2Task.WorkflowID,
-			ReadableStatus: timescalev2.V2ReadableStatusOlapQUEUED,
-			RetryCount:     0,
-			EventTimestamp: msg.V2Task.InsertedAt,
-		})
 	}
 
-	err := tc.repo.CreateTasks(ctx, tenantId, createTaskOpts)
+	return tc.repo.CreateTasks(ctx, tenantId, createTaskOpts)
+}
 
-	if err != nil {
-		return err
+// handleCreatedTask is responsible for flushing a created task to the OLAP repository
+func (tc *OLAPControllerImpl) handleCreatedDAG(ctx context.Context, tenantId string, payloads [][]byte) error {
+	createDAGOpts := make([]*v2.DAGWithData, 0)
+	msgs := msgqueue.JSONConvert[tasktypes.CreatedDAGPayload](payloads)
+
+	for _, msg := range msgs {
+		createDAGOpts = append(createDAGOpts, msg.DAGWithData)
 	}
 
-	return tc.repo.CreateTaskEvents(ctx, tenantId, createTaskEventOpts)
+	return tc.repo.CreateDAGs(ctx, tenantId, createDAGOpts)
 }
 
 // handleCreateMonitoringEvent is responsible for sending a group of monitoring events to the OLAP repository

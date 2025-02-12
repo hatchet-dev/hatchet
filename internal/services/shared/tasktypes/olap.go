@@ -6,6 +6,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
+	v2 "github.com/hatchet-dev/hatchet/pkg/repository/v2"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v2/sqlcv2"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v2/timescalev2"
 )
@@ -20,6 +21,22 @@ func CreatedTaskMessage(tenantId string, task *sqlcv2.V2Task) (*msgqueue.Message
 		"created-task",
 		CreatedTaskPayload{
 			V2Task: task,
+		},
+		false,
+		true,
+	)
+}
+
+type CreatedDAGPayload struct {
+	*v2.DAGWithData
+}
+
+func CreatedDAGMessage(tenantId string, dag *v2.DAGWithData) (*msgqueue.Message, error) {
+	return msgqueue.NewSingletonTenantMessage(
+		tenantId,
+		"created-dag",
+		CreatedDAGPayload{
+			DAGWithData: dag,
 		},
 		false,
 		true,

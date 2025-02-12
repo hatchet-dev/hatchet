@@ -7,7 +7,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
 )
 
-func (o *OLAPControllerImpl) runTenantStatusUpdates(ctx context.Context) func() {
+func (o *OLAPControllerImpl) runTenantTaskStatusUpdates(ctx context.Context) func() {
 	return func() {
 		o.l.Debug().Msgf("partition: running status updates for tasks")
 
@@ -30,7 +30,7 @@ func (o *OLAPControllerImpl) runTenantStatusUpdates(ctx context.Context) func() 
 }
 
 func (o *OLAPControllerImpl) updateTaskStatuses(ctx context.Context, tenantId string) (bool, error) {
-	ctx, span := telemetry.NewSpan(ctx, "process-task-timeout")
+	ctx, span := telemetry.NewSpan(ctx, "update-task-statuses")
 	defer span.End()
 
 	return o.repo.UpdateTaskStatuses(ctx, tenantId)

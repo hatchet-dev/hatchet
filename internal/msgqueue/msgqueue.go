@@ -39,7 +39,6 @@ const (
 	WORKFLOW_PROCESSING_QUEUE staticQueue = "workflow_processing_queue_v2"
 
 	TASK_PROCESSING_QUEUE staticQueue = "task_processing_queue_v2"
-	TRIGGER_QUEUE         staticQueue = "trigger_queue_v2"
 	OLAP_QUEUE            staticQueue = "olap_queue_v2"
 )
 
