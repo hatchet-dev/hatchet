@@ -69,7 +69,7 @@ func (w *workflowRunAPIRepository) WorkflowRunMetricsCount(ctx context.Context, 
 		return nil, err
 	}
 
-	return workflowRunMetricsCount(context.Background(), w.pool, w.queries, tenantId, opts)
+	return workflowRunMetricsCount(ctx, w.pool, w.queries, tenantId, opts)
 }
 
 func (w *workflowRunAPIRepository) ListScheduledWorkflows(ctx context.Context, tenantId string, opts *repository.ListScheduledWorkflowsOpts) ([]*dbsqlc.ListScheduledWorkflowsRow, int64, error) {
