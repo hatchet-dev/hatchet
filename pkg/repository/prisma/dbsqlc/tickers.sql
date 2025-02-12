@@ -146,18 +146,28 @@ RETURNING cronSchedules.*, active_cron_schedules."workflowVersionId", active_cro
 -- to a ticker, or finds workflows that were assigned to a ticker that is no longer active
 WITH not_run_scheduled_workflows AS (
     SELECT
+        latestVersions."version",
         scheduledWorkflow."id",
-        versions."id" AS "workflowVersionId",
+        latestVersions."id" AS "workflowVersionId",
         workflow."tenantId" AS "tenantId",
         scheduledWorkflow."additionalMetadata" AS "additionalMetadata"
     FROM
-        "WorkflowTriggerScheduledRef" as scheduledWorkflow
+        "WorkflowTriggerScheduledRef" AS scheduledWorkflow
     JOIN
-        "WorkflowVersion" as versions ON versions."id" = scheduledWorkflow."parentId"
+        "WorkflowVersion" AS versions ON versions."id" = scheduledWorkflow."parentId"
     JOIN
-        "Workflow" as workflow ON workflow."id" = versions."workflowId"
+        "Workflow" AS workflow ON workflow."id" = versions."workflowId"
+    JOIN
+        (
+            -- Subquery to get the latest version per workflow
+            SELECT DISTINCT ON ("workflowId")
+                "id", "workflowId", "version"
+            FROM "WorkflowVersion"
+            WHERE "deletedAt" IS NULL
+            ORDER BY "workflowId", "version" DESC
+        ) AS latestVersions ON latestVersions."workflowId" = workflow."id"
     LEFT JOIN
-        "WorkflowRunTriggeredBy" as runTriggeredBy ON runTriggeredBy."scheduledId" = scheduledWorkflow."id"
+        "WorkflowRunTriggeredBy" AS runTriggeredBy ON runTriggeredBy."scheduledId" = scheduledWorkflow."id"
     WHERE
         "triggerAt" <= NOW() + INTERVAL '5 seconds'
         AND runTriggeredBy IS NULL
