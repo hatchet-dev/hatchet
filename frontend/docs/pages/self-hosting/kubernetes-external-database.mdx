@@ -4,6 +4,7 @@
 
 To connect to an external Postgres instance, set `postgres.enabled` to `false` in the `values.yaml` file. This will disable the internal Postgres instance and allow you to connect to an external database. You should then add the following configuration for the `hatchet-stack` or `hatchet-ha` charts:
 
+> Note: Either DATABASE_URL or DATABASE_POSTGRES_* are required
 ```yaml
 sharedConfig:
   env:
