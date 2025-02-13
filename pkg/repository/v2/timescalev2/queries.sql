@@ -25,6 +25,36 @@ FROM
         @date::date
     ) AS p;
 
+-- name: CreateOLAPDAGPartition :exec
+SELECT create_v2_olap_partition_with_date_and_status(
+    'v2_dags_olap'::text,
+    @date::date
+);
+
+-- name: ListOLAPDAGPartitionsBeforeDate :many
+SELECT
+    p::text AS partition_name
+FROM
+    get_v2_partitions_before_date(
+        'v2_dags_olap'::text,
+        @date::date
+    ) AS p;
+
+-- name: CreateOLAPRunsPartition :exec
+SELECT create_v2_olap_partition_with_date_and_status(
+    'v2_runs_olap'::text,
+    @date::date
+);
+
+-- name: ListOLAPRunsPartitionsBeforeDate :many
+SELECT
+    p::text AS partition_name
+FROM
+    get_v2_partitions_before_date(
+        'v2_runs_olap'::text,
+        @date::date
+    ) AS p;
+
 -- name: CreateTasksOLAP :copyfrom
 INSERT INTO v2_tasks_olap (
     tenant_id,
@@ -166,11 +196,16 @@ WITH lookup_task AS (
         external_id = @externalId::uuid
 )
 SELECT
-    t.*
+    t.*,
+    e.output,
+    e.error_message
 FROM
     v2_tasks_olap t
 JOIN
-    lookup_task lt ON lt.tenant_id = t.tenant_id AND lt.task_id = t.id AND lt.inserted_at = t.inserted_at;
+    lookup_task lt ON lt.tenant_id = t.tenant_id AND lt.task_id = t.id AND lt.inserted_at = t.inserted_at
+JOIN
+    v2_task_events_olap e ON (e.tenant_id, e.task_id, e.readable_status, e.retry_count) = (t.tenant_id, t.id, t.readable_status, t.latest_retry_count)
+;
 
 -- name: ListTaskEvents :many
 WITH aggregated_events AS (
@@ -288,13 +323,24 @@ WITH latest_retry_count AS (
     ORDER BY
         readable_status DESC
     LIMIT 1
+), error_message AS (
+    SELECT
+        error_message
+    FROM
+        relevant_events
+    WHERE
+        readable_status = 'FAILED'
+    ORDER BY
+        event_timestamp DESC
+    LIMIT 1
 )
 SELECT
     t.*,
     st.readable_status::v2_readable_status_olap as status,
     f.finished_at::timestamptz as finished_at,
     s.started_at::timestamptz as started_at,
-    o.output::jsonb as output
+    o.output::jsonb as output,
+    e.error_message as error_message
 FROM
     v2_tasks_olap t
 LEFT JOIN
@@ -305,6 +351,8 @@ LEFT JOIN
     task_output o ON true
 LEFT JOIN
     status st ON true
+LEFT JOIN
+    error_message e ON true
 WHERE
     (t.tenant_id, t.id, t.inserted_at) = (@tenantId::uuid, @taskId::bigint, @taskInsertedAt::timestamptz);
 
@@ -646,3 +694,165 @@ SELECT
     COUNT(*)
 FROM
     locked_events;
+
+
+-- name: ListWorkflowRuns :many
+WITH tasks AS (
+    SELECT
+        r.id AS run_id,
+        r.tenant_id,
+        r.inserted_at,
+        r.external_id,
+        d.id AS dag_id,
+        t.id AS task_id,
+        r.readable_status,
+        r.kind,
+        r.workflow_id,
+        COALESCE(t.display_name, d.display_name) AS display_name,
+        COALESCE(d.input, t.input) AS input,
+        COALESCE(d.additional_metadata, t.additional_metadata) AS additional_metadata,
+        t.latest_retry_count
+    FROM v2_runs_olap r
+    LEFT JOIN v2_dags_olap d ON (r.tenant_id, r.external_id, r.inserted_at) = (d.tenant_id, d.external_id, d.inserted_at)
+    LEFT JOIN v2_tasks_olap t ON (r.tenant_id, r.external_id, r.inserted_at) = (t.tenant_id, t.external_id, t.inserted_at)
+    WHERE
+        (
+            (r.kind = 'TASK' AND d.id IS NULL)
+            OR r.kind = 'DAG'
+        )
+        AND (
+            sqlc.narg('workflowIds')::uuid[] IS NULL
+            OR r.workflow_id = ANY(sqlc.narg('workflowIds')::uuid[])
+        )
+        AND (
+            sqlc.narg('statuses')::text[] IS NULL
+            OR r.readable_status = ANY(cast(sqlc.narg('statuses')::text[] as v2_readable_status_olap[]))
+        )
+        AND r.inserted_at >= @since::timestamptz
+        AND (
+            sqlc.narg('until')::timestamptz IS NULL
+            OR r.inserted_at <= sqlc.narg('until')::timestamptz
+        )
+        AND (
+            sqlc.narg('keys')::text[] IS NULL
+            OR sqlc.narg('values')::text[] IS NULL
+            OR COALESCE(d.additional_metadata, t.additional_metadata) IS NULL
+            OR EXISTS (
+                SELECT 1 FROM jsonb_each_text(COALESCE(d.additional_metadata, t.additional_metadata)) kv
+                JOIN LATERAL (
+                    SELECT unnest(sqlc.narg('keys')::text[]) AS k,
+                        unnest(sqlc.narg('values')::text[]) AS v
+                ) AS u ON kv.key = u.k AND kv.value = u.v
+            )
+        )
+        AND (
+            sqlc.narg('workerId')::uuid IS NULL
+            OR t.latest_worker_id = sqlc.narg('workerId')::uuid
+        )
+    LIMIT @listWorkflowRunsLimit::integer
+    OFFSET @listWorkflowRunsOffset::integer
+), metadata AS (
+    SELECT
+        t.run_id,
+        MIN(e.inserted_at)::timestamptz AS created_at,
+        MIN(e.inserted_at) FILTER (WHERE e.readable_status = 'RUNNING')::timestamptz AS started_at,
+        MAX(e.inserted_at) FILTER (WHERE e.readable_status IN ('COMPLETED', 'CANCELLED', 'FAILED'))::timestamptz AS finished_at
+    FROM tasks t
+    JOIN v2_task_events_olap e ON (e.tenant_id, e.task_id, e.retry_count) = (t.tenant_id, t.task_id, t.latest_retry_count)
+    GROUP BY t.run_id
+)
+
+SELECT
+    t.*,
+    COALESCE(m.created_at, t.inserted_at) AS created_at,
+    m.started_at,
+    m.finished_at,
+    e.output,
+    e.error_message
+FROM tasks t
+LEFT JOIN metadata m ON t.run_id = m.run_id
+-- NOTE: This is a bug - it only populates errors for tasks, but not dags or their children
+-- NOTE: JOIN v2_tasks_olap t ON (d.tenant_id, d.id) = (t.tenant_id, t.dag_id) is not going to be performant because the task's dag_id is not indexed. Use v2_dag_to_task_olap which indexes the dag_id which we can use instead
+LEFT JOIN v2_task_events_olap e ON (e.tenant_id, e.task_id, e.retry_count, e.readable_status) = (t.tenant_id, t.task_id, t.latest_retry_count, t.readable_status)
+ORDER BY t.inserted_at DESC
+;
+
+-- name: CountRuns :one
+SELECT COUNT(*)
+FROM v2_runs_olap r
+LEFT JOIN v2_dags_olap d ON (r.tenant_id, r.external_id, r.inserted_at) = (d.tenant_id, d.external_id, d.inserted_at)
+LEFT JOIN v2_tasks_olap t ON (r.tenant_id, r.external_id, r.inserted_at) = (t.tenant_id, t.external_id, t.inserted_at)
+WHERE
+    (
+        (r.kind = 'TASK' AND d.id IS NULL)
+        OR r.kind = 'DAG'
+    )
+    AND (
+        sqlc.narg('workflowIds')::uuid[] IS NULL
+        OR r.workflow_id = ANY(sqlc.narg('workflowIds')::uuid[])
+    )
+    AND (
+        sqlc.narg('statuses')::text[] IS NULL
+        OR r.readable_status = ANY(cast(sqlc.narg('statuses')::text[] as v2_readable_status_olap[]))
+    )
+    AND r.inserted_at >= @since::timestamptz
+    AND (
+        sqlc.narg('until')::timestamptz IS NULL
+        OR r.inserted_at <= sqlc.narg('until')::timestamptz
+    )
+    AND (
+        sqlc.narg('keys')::text[] IS NULL
+        OR sqlc.narg('values')::text[] IS NULL
+        OR COALESCE(d.additional_metadata, t.additional_metadata) IS NULL
+        OR EXISTS (
+            SELECT 1 FROM jsonb_each_text(COALESCE(d.additional_metadata, t.additional_metadata)) kv
+            JOIN LATERAL (
+                SELECT unnest(sqlc.narg('keys')::text[]) AS k,
+                    unnest(sqlc.narg('values')::text[]) AS v
+            ) AS u ON kv.key = u.k AND kv.value = u.v
+        )
+    )
+    AND (
+        sqlc.narg('workerId')::uuid IS NULL
+        OR t.latest_worker_id = sqlc.narg('workerId')::uuid
+    )
+;
+
+-- name: ListDAGChildren :many
+WITH tasks AS (
+    SELECT
+        r.id AS run_id,
+        r.tenant_id,
+        r.inserted_at,
+        t.external_id,
+        d.id AS dag_id,
+        t.id AS task_id,
+        t.readable_status,
+        r.kind,
+        r.workflow_id,
+        t.display_name,
+        t.input,
+        t.additional_metadata,
+        t.latest_retry_count
+    FROM v2_runs_olap r
+    JOIN v2_dags_olap d ON (r.tenant_id, r.external_id, r.inserted_at) = (d.tenant_id, d.external_id, d.inserted_at)
+    JOIN v2_tasks_olap t ON (d.tenant_id, d.id) = (t.tenant_id, t.dag_id)
+    WHERE
+        kind = 'DAG'
+        AND (sqlc.narg('dagIds')::bigint[] IS NULL OR d.id = ANY(sqlc.narg('dagIds')::bigint[]))
+), timers AS (
+    SELECT
+        t.task_id,
+        MIN(e.inserted_at)::timestamptz AS created_at,
+        MIN(e.inserted_at) FILTER (WHERE e.readable_status = 'RUNNING')::timestamptz AS started_at,
+        MAX(e.inserted_at) FILTER (WHERE e.readable_status IN ('COMPLETED', 'CANCELLED', 'FAILED'))::timestamptz AS finished_at
+    FROM tasks t
+    JOIN v2_task_events_olap e ON (e.tenant_id, e.task_id, e.retry_count) = (t.tenant_id, t.task_id, t.latest_retry_count)
+    GROUP BY t.task_id
+)
+
+SELECT t.*, COALESCE(ti.created_at, t.inserted_at) AS created_at, ti.started_at, ti.finished_at
+FROM tasks t
+LEFT JOIN timers ti ON t.task_id = ti.task_id
+ORDER BY t.inserted_at DESC
+;

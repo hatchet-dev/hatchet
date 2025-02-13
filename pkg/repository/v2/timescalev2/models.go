@@ -33,6 +33,7 @@ const (
 	V2EventTypeOlapCANCELLED          V2EventTypeOlap = "CANCELLED"
 	V2EventTypeOlapTIMEDOUT           V2EventTypeOlap = "TIMED_OUT"
 	V2EventTypeOlapRATELIMITERROR     V2EventTypeOlap = "RATE_LIMIT_ERROR"
+	V2EventTypeOlapSKIPPED            V2EventTypeOlap = "SKIPPED"
 )
 
 func (e *V2EventTypeOlap) Scan(src interface{}) error {

@@ -2,7 +2,10 @@ package v2
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
+
+	"github.com/hatchet-dev/hatchet/pkg/repository/v2/sqlcv2"
 )
 
 type TaskInput struct {
@@ -23,7 +26,37 @@ type FailedData struct {
 	Error string `json:"error"`
 }
 
-func (s *sharedRepository) newTaskInput(inputBytes []byte, triggerData []byte) *TaskInput {
+func (s *sharedRepository) parseTriggerData(triggerData []byte) (*sqlcv2.V2MatchConditionAction, map[string][]map[string]interface{}, error) {
+	var triggerDataMap map[string]map[string][]map[string]interface{}
+
+	if len(triggerData) > 0 {
+		err := json.Unmarshal(triggerData, &triggerDataMap)
+
+		if err != nil {
+			s.l.Error().Err(err).Msg("failed to unmarshal trigger data")
+		}
+	}
+
+	for k, v := range triggerDataMap {
+		switch k {
+		case "CREATE":
+			create := sqlcv2.V2MatchConditionActionCREATE
+			return &create, v, nil
+		case "CANCEL":
+			cancel := sqlcv2.V2MatchConditionActionCANCEL
+			return &cancel, v, nil
+		case "SKIP":
+			skip := sqlcv2.V2MatchConditionActionSKIP
+			return &skip, v, nil
+		default:
+			s.l.Error().Str("action", k).Msg("unknown action")
+		}
+	}
+
+	return nil, nil, fmt.Errorf("unknown action")
+}
+
+func (s *sharedRepository) newTaskInput(inputBytes []byte, triggerDataMap map[string][]map[string]interface{}) *TaskInput {
 	var input map[string]interface{}
 
 	if len(inputBytes) > 0 {
@@ -34,16 +67,6 @@ func (s *sharedRepository) newTaskInput(inputBytes []byte, triggerData []byte) *
 		}
 	}
 
-	var triggerDataMap map[string][]map[string]interface{}
-
-	if len(triggerData) > 0 {
-		err := json.Unmarshal(triggerData, &triggerDataMap)
-
-		if err != nil {
-			s.l.Error().Err(err).Msg("failed to unmarshal trigger data")
-		}
-	}
-
 	return &TaskInput{
 		Input:       input,
 		TriggerData: triggerDataMap,
@@ -51,6 +74,10 @@ func (s *sharedRepository) newTaskInput(inputBytes []byte, triggerData []byte) *
 }
 
 func (t *TaskInput) Bytes() []byte {
+	if t == nil {
+		return nil
+	}
+
 	out, err := json.Marshal(t)
 
 	if err != nil {
@@ -61,6 +88,10 @@ func (t *TaskInput) Bytes() []byte {
 }
 
 func (s *sharedRepository) ToV1StepRunData(t *TaskInput) *V1StepRunData {
+	if t == nil {
+		return nil
+	}
+
 	parents := make(map[string]map[string]interface{})
 	stepRunErrors := make(map[string]string)
 
@@ -143,7 +174,7 @@ func (v1 *V1StepRunData) Bytes() []byte {
 	out, err := json.Marshal(v1)
 
 	if err != nil {
-		return nil
+		return []byte("{}")
 	}
 
 	return out

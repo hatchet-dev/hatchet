@@ -47,10 +47,10 @@ SELECT
     ww."url" AS "webhookUrl",
     w."maxRuns" - (
         SELECT COUNT(*)
-        FROM "SemaphoreQueueItem" sqi
+        FROM v2_task_runtime runtime
         WHERE
-            sqi."tenantId" = w."tenantId" AND
-            sqi."workerId" = w."id"
+            runtime.tenant_id = w."tenantId" AND
+            runtime.worker_id = w."id"
     ) AS "remainingSlots"
 FROM
     "Worker" w
@@ -71,25 +71,14 @@ WHERE
 
 -- name: ListSemaphoreSlotsWithStateForWorker :many
 SELECT
-    sr."id" AS "stepRunId",
-    sr."status" AS "status",
-    s."actionId",
-    sr."timeoutAt" AS "timeoutAt",
-    sr."startedAt" AS "startedAt",
-    jr."workflowRunId" AS "workflowRunId"
+    *
 FROM
-    "SemaphoreQueueItem" sqi
+    v2_task_runtime runtime
 JOIN
-    "StepRun" sr ON sr."id" = sqi."stepRunId"
-JOIN
-    "JobRun" jr ON sr."jobRunId" = jr."id"
-JOIN
-    "Step" s ON sr."stepId" = s."id"
+    v2_task ON runtime.task_id = v2_task.id
 WHERE
-    sqi."tenantId" = @tenantId::uuid
-    AND sqi."workerId" = @workerId::uuid
-ORDER BY
-    sr."createdAt" DESC
+    runtime.tenant_id = @tenantId::uuid
+    AND runtime.worker_id = @workerId::uuid
 LIMIT
     COALESCE(sqlc.narg('limit')::int, 100);
 

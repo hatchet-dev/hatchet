@@ -368,6 +368,8 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 			readableStatuses = append(readableStatuses, timescalev2.V2ReadableStatusOlapFAILED)
 		case timescalev2.V2EventTypeOlapRATELIMITERROR:
 			readableStatuses = append(readableStatuses, timescalev2.V2ReadableStatusOlapFAILED)
+		case timescalev2.V2EventTypeOlapSKIPPED:
+			readableStatuses = append(readableStatuses, timescalev2.V2ReadableStatusOlapCOMPLETED)
 		}
 	}
 

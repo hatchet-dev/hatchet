@@ -158,6 +158,44 @@ func (q *Queries) GetMinUnprocessedQueueItemId(ctx context.Context, db DBTX, arg
 	return minId, err
 }
 
+const getQueuedCounts = `-- name: GetQueuedCounts :many
+SELECT
+    queue,
+    COUNT(*) AS count
+FROM
+    v2_queue_item qi
+WHERE
+    qi.is_queued = true
+    AND qi.tenant_id = $1::uuid
+GROUP BY
+    qi.queue
+`
+
+type GetQueuedCountsRow struct {
+	Queue string `json:"queue"`
+	Count int64  `json:"count"`
+}
+
+func (q *Queries) GetQueuedCounts(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]*GetQueuedCountsRow, error) {
+	rows, err := db.Query(ctx, getQueuedCounts, tenantid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*GetQueuedCountsRow
+	for rows.Next() {
+		var i GetQueuedCountsRow
+		if err := rows.Scan(&i.Queue, &i.Count); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listActionsForWorkers = `-- name: ListActionsForWorkers :many
 SELECT
     w."id" as "workerId",

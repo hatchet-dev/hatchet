@@ -282,7 +282,8 @@ CREATE TYPE v2_event_type_olap AS ENUM (
     'FAILED',
     'CANCELLED',
     'TIMED_OUT',
-    'RATE_LIMIT_ERROR'
+    'RATE_LIMIT_ERROR',
+    'SKIPPED'
 );
 
 -- this is a hash-partitioned table on the task_id, so that we can process batches of events in parallel

@@ -2,6 +2,7 @@ import * as React from 'react';
 import {
   ColumnDef,
   ColumnFiltersState,
+  ExpandedState,
   OnChangeFn,
   PaginationState,
   Row,
@@ -32,16 +33,17 @@ import { DataTableToolbar, ToolbarFilters } from './data-table-toolbar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 
-export interface IDGetter {
+export interface IDGetter<T> {
   metadata: {
     id: string;
   };
+  subRows?: T[];
   getRow?: () => JSX.Element;
   onClick?: () => void;
   isExpandable?: boolean;
 }
 
-interface DataTableProps<TData extends IDGetter, TValue> {
+interface DataTableProps<TData extends IDGetter<TData>, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
   error?: Error | null;
@@ -84,7 +86,7 @@ interface ExtraDataTableProps {
   };
 }
 
-export function DataTable<TData extends IDGetter, TValue>({
+export function DataTable<TData extends IDGetter<TData>, TValue>({
   columns,
   error,
   data,
@@ -113,6 +115,8 @@ export function DataTable<TData extends IDGetter, TValue>({
   manualSorting = true,
   manualFiltering = true,
 }: DataTableProps<TData, TValue> & ExtraDataTableProps) {
+  const [expanded, setExpanded] = React.useState<ExpandedState>({});
+
   const loadingNoData = isLoading && !data.length;
 
   const tableData = React.useMemo(
@@ -140,6 +144,7 @@ export function DataTable<TData extends IDGetter, TValue>({
       rowSelection: rowSelection || {},
       columnFilters,
       pagination,
+      expanded,
     },
     pageCount,
     enableRowSelection: !!rowSelection,
@@ -154,6 +159,9 @@ export function DataTable<TData extends IDGetter, TValue>({
     getSortedRowModel: getSortedRowModel(),
     getFacetedRowModel: getFacetedRowModel(),
     getFacetedUniqueValues: getFacetedUniqueValues(),
+    getSubRows: (row) => row.subRows || [],
+    onExpandedChange: setExpanded,
+    getRowCanExpand: (row) => (row.original.subRows || []).length > 0,
     manualSorting,
     manualFiltering,
     manualPagination: true,
@@ -211,7 +219,13 @@ export function DataTable<TData extends IDGetter, TValue>({
             </TableCell>
           </TableRow>
         ) : table.getRowModel().rows?.length ? (
-          table.getRowModel().rows.map((row) => getTableRow(row))
+          table.getRowModel().rows.map((row) => (
+            <React.Fragment key={row.id}>
+              {getTableRow(row)}
+              {row.getIsExpanded() &&
+                row.subRows.map((subRow) => getTableRow(subRow))}
+            </React.Fragment>
+          ))
         ) : (
           <TableRow>
             <TableCell colSpan={columns.length} className="h-24 text-center">

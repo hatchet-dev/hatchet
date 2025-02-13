@@ -258,10 +258,10 @@ SELECT
     ww."url" AS "webhookUrl",
     w."maxRuns" - (
         SELECT COUNT(*)
-        FROM "SemaphoreQueueItem" sqi
+        FROM v2_task_runtime runtime
         WHERE
-            sqi."tenantId" = w."tenantId" AND
-            sqi."workerId" = w."id"
+            runtime.tenant_id = w."tenantId" AND
+            runtime.worker_id = w."id"
     ) AS "remainingSlots"
 FROM
     "Worker" w
@@ -572,25 +572,14 @@ func (q *Queries) ListRecentAssignedEventsForWorker(ctx context.Context, db DBTX
 
 const listSemaphoreSlotsWithStateForWorker = `-- name: ListSemaphoreSlotsWithStateForWorker :many
 SELECT
-    sr."id" AS "stepRunId",
-    sr."status" AS "status",
-    s."actionId",
-    sr."timeoutAt" AS "timeoutAt",
-    sr."startedAt" AS "startedAt",
-    jr."workflowRunId" AS "workflowRunId"
+    task_id, runtime.retry_count, worker_id, runtime.tenant_id, timeout_at, id, inserted_at, v2_task.tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, v2_task.retry_count, internal_retry_count, app_retry_count, additional_metadata, dag_id, dag_inserted_at, parent_external_id, child_index, child_key, initial_state
 FROM
-    "SemaphoreQueueItem" sqi
+    v2_task_runtime runtime
 JOIN
-    "StepRun" sr ON sr."id" = sqi."stepRunId"
-JOIN
-    "JobRun" jr ON sr."jobRunId" = jr."id"
-JOIN
-    "Step" s ON sr."stepId" = s."id"
+    v2_task ON runtime.task_id = v2_task.id
 WHERE
-    sqi."tenantId" = $1::uuid
-    AND sqi."workerId" = $2::uuid
-ORDER BY
-    sr."createdAt" DESC
+    runtime.tenant_id = $1::uuid
+    AND runtime.worker_id = $2::uuid
 LIMIT
     COALESCE($3::int, 100)
 `
@@ -602,12 +591,37 @@ type ListSemaphoreSlotsWithStateForWorkerParams struct {
 }
 
 type ListSemaphoreSlotsWithStateForWorkerRow struct {
-	StepRunId     pgtype.UUID      `json:"stepRunId"`
-	Status        StepRunStatus    `json:"status"`
-	ActionId      string           `json:"actionId"`
-	TimeoutAt     pgtype.Timestamp `json:"timeoutAt"`
-	StartedAt     pgtype.Timestamp `json:"startedAt"`
-	WorkflowRunId pgtype.UUID      `json:"workflowRunId"`
+	TaskID             int64              `json:"task_id"`
+	RetryCount         int32              `json:"retry_count"`
+	WorkerID           pgtype.UUID        `json:"worker_id"`
+	TenantID           pgtype.UUID        `json:"tenant_id"`
+	TimeoutAt          pgtype.Timestamp   `json:"timeout_at"`
+	ID                 int64              `json:"id"`
+	InsertedAt         pgtype.Timestamptz `json:"inserted_at"`
+	TenantID_2         pgtype.UUID        `json:"tenant_id_2"`
+	Queue              string             `json:"queue"`
+	ActionID           string             `json:"action_id"`
+	StepID             pgtype.UUID        `json:"step_id"`
+	StepReadableID     string             `json:"step_readable_id"`
+	WorkflowID         pgtype.UUID        `json:"workflow_id"`
+	ScheduleTimeout    string             `json:"schedule_timeout"`
+	StepTimeout        pgtype.Text        `json:"step_timeout"`
+	Priority           pgtype.Int4        `json:"priority"`
+	Sticky             V2StickyStrategy   `json:"sticky"`
+	DesiredWorkerID    pgtype.UUID        `json:"desired_worker_id"`
+	ExternalID         pgtype.UUID        `json:"external_id"`
+	DisplayName        string             `json:"display_name"`
+	Input              []byte             `json:"input"`
+	RetryCount_2       int32              `json:"retry_count_2"`
+	InternalRetryCount int32              `json:"internal_retry_count"`
+	AppRetryCount      int32              `json:"app_retry_count"`
+	AdditionalMetadata []byte             `json:"additional_metadata"`
+	DagID              pgtype.Int8        `json:"dag_id"`
+	DagInsertedAt      pgtype.Timestamptz `json:"dag_inserted_at"`
+	ParentExternalID   pgtype.UUID        `json:"parent_external_id"`
+	ChildIndex         pgtype.Int4        `json:"child_index"`
+	ChildKey           pgtype.Text        `json:"child_key"`
+	InitialState       V2TaskInitialState `json:"initial_state"`
 }
 
 func (q *Queries) ListSemaphoreSlotsWithStateForWorker(ctx context.Context, db DBTX, arg ListSemaphoreSlotsWithStateForWorkerParams) ([]*ListSemaphoreSlotsWithStateForWorkerRow, error) {
@@ -620,12 +634,37 @@ func (q *Queries) ListSemaphoreSlotsWithStateForWorker(ctx context.Context, db D
 	for rows.Next() {
 		var i ListSemaphoreSlotsWithStateForWorkerRow
 		if err := rows.Scan(
-			&i.StepRunId,
-			&i.Status,
-			&i.ActionId,
+			&i.TaskID,
+			&i.RetryCount,
+			&i.WorkerID,
+			&i.TenantID,
 			&i.TimeoutAt,
-			&i.StartedAt,
-			&i.WorkflowRunId,
+			&i.ID,
+			&i.InsertedAt,
+			&i.TenantID_2,
+			&i.Queue,
+			&i.ActionID,
+			&i.StepID,
+			&i.StepReadableID,
+			&i.WorkflowID,
+			&i.ScheduleTimeout,
+			&i.StepTimeout,
+			&i.Priority,
+			&i.Sticky,
+			&i.DesiredWorkerID,
+			&i.ExternalID,
+			&i.DisplayName,
+			&i.Input,
+			&i.RetryCount_2,
+			&i.InternalRetryCount,
+			&i.AppRetryCount,
+			&i.AdditionalMetadata,
+			&i.DagID,
+			&i.DagInsertedAt,
+			&i.ParentExternalID,
+			&i.ChildIndex,
+			&i.ChildKey,
+			&i.InitialState,
 		); err != nil {
 			return nil, err
 		}

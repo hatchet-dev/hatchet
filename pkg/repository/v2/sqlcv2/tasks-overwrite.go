@@ -9,7 +9,7 @@ import (
 const createTasks = `-- name: CreateTasks :many
 WITH input AS (
     SELECT
-        tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, additional_metadata, dag_id, dag_inserted_at
+        tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, additional_metadata, initial_state, dag_id, dag_inserted_at
     FROM
         (
             SELECT
@@ -29,9 +29,10 @@ WITH input AS (
                 unnest($14::jsonb[]) AS input,
                 unnest($15::integer[]) AS retry_count,
                 unnest($16::jsonb[]) AS additional_metadata,
+				unnest(cast($17::text[] as v2_task_initial_state[])) AS initial_state,
                 -- NOTE: these are nullable, so sqlc doesn't support casting to a type
-                unnest($17::bigint[]) AS dag_id,
-                unnest($18::timestamptz[]) AS dag_inserted_at
+                unnest($18::bigint[]) AS dag_id,
+                unnest($19::timestamptz[]) AS dag_inserted_at
         ) AS subquery
 )
 INSERT INTO v2_task (
@@ -51,6 +52,7 @@ INSERT INTO v2_task (
     input,
     retry_count,
     additional_metadata,
+	initial_state,
     dag_id,
     dag_inserted_at
 )
@@ -71,12 +73,13 @@ SELECT
     i.input,
     i.retry_count,
     i.additional_metadata,
+	i.initial_state,
     i.dag_id,
     i.dag_inserted_at
 FROM
     input i
 RETURNING
-    id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, additional_metadata, dag_id, dag_inserted_at
+    id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, additional_metadata, initial_state, dag_id, dag_inserted_at
 `
 
 type CreateTasksParams struct {
@@ -96,6 +99,7 @@ type CreateTasksParams struct {
 	Inputs              [][]byte             `json:"inputs"`
 	Retrycounts         []int32              `json:"retrycounts"`
 	Additionalmetadatas [][]byte             `json:"additionalmetadatas"`
+	InitialStates       []string             `json:"initialstates"`
 	Dagids              []pgtype.Int8        `json:"dagids"`
 	Daginsertedats      []pgtype.Timestamptz `json:"daginsertedats"`
 }
@@ -118,6 +122,7 @@ func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParam
 		arg.Inputs,
 		arg.Retrycounts,
 		arg.Additionalmetadatas,
+		arg.InitialStates,
 		arg.Dagids,
 		arg.Daginsertedats,
 	)
@@ -149,6 +154,7 @@ func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParam
 			&i.InternalRetryCount,
 			&i.AppRetryCount,
 			&i.AdditionalMetadata,
+			&i.InitialState,
 			&i.DagID,
 			&i.DagInsertedAt,
 		); err != nil {
@@ -160,4 +166,73 @@ func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParam
 		return nil, err
 	}
 	return items, nil
+}
+
+const createTaskEvents = `-- name: CreateTaskEvents :exec
+WITH locked_tasks AS (
+    SELECT
+        id
+    FROM
+        v2_task
+    WHERE
+        id = ANY($2::bigint[])
+        AND tenant_id = $1::uuid
+    -- order by the task id to get a stable lock order
+    ORDER BY
+        id
+    FOR UPDATE
+), input AS (
+    SELECT
+        task_id, retry_count, event_type, event_key, data
+    FROM
+        (
+            SELECT
+                unnest($2::bigint[]) AS task_id,
+                unnest($3::integer[]) AS retry_count,
+                unnest(cast($4::text[] as v2_task_event_type[])) AS event_type,
+                unnest($5::text[]) AS event_key,
+                unnest($6::jsonb[]) AS data
+        ) AS subquery
+)
+INSERT INTO v2_task_event (
+    tenant_id,
+    task_id,
+    retry_count,
+    event_type,
+    event_key,
+    data
+)
+SELECT
+    $1::uuid,
+    i.task_id,
+    i.retry_count,
+    i.event_type,
+    i.event_key,
+    i.data
+FROM
+    input i
+ON CONFLICT (tenant_id, task_id, event_type, event_key) WHERE event_key IS NOT NULL DO NOTHING
+`
+
+type CreateTaskEventsParams struct {
+	Tenantid    pgtype.UUID   `json:"tenantid"`
+	Taskids     []int64       `json:"taskids"`
+	Retrycounts []int32       `json:"retrycounts"`
+	Eventtypes  []string      `json:"eventtypes"`
+	Eventkeys   []pgtype.Text `json:"eventkeys"`
+	Datas       [][]byte      `json:"datas"`
+}
+
+// We get a FOR UPDATE lock on tasks to prevent concurrent writes to the task events
+// tables for each task
+func (q *Queries) CreateTaskEvents(ctx context.Context, db DBTX, arg CreateTaskEventsParams) error {
+	_, err := db.Exec(ctx, createTaskEvents,
+		arg.Tenantid,
+		arg.Taskids,
+		arg.Retrycounts,
+		arg.Eventtypes,
+		arg.Eventkeys,
+		arg.Datas,
+	)
+	return err
 }

@@ -71,50 +71,6 @@ FROM
 JOIN
     runtimes_to_delete r ON r.task_id = t.id AND r.retry_count = t.retry_count;
 
-
--- name: CreateTaskEvents :exec
--- We get a FOR UPDATE lock on tasks to prevent concurrent writes to the task events
--- tables for each task
-WITH locked_tasks AS (
-    SELECT
-        id
-    FROM
-        v2_task
-    WHERE
-        id = ANY(@taskIds::bigint[])
-        AND tenant_id = @tenantId::uuid
-    -- order by the task id to get a stable lock order
-    ORDER BY
-        id
-    FOR UPDATE
-), input AS (
-    SELECT
-        *
-    FROM
-        (
-            SELECT
-                unnest(@taskIds::bigint[]) AS task_id,
-                unnest(@retryCounts::integer[]) AS retry_count,
-                unnest(cast(@eventTypes::text[] as v2_task_event_type[])) AS event_type,
-                unnest(@datas::jsonb[]) AS data
-        ) AS subquery
-)
-INSERT INTO v2_task_event (
-    tenant_id,
-    task_id,
-    retry_count,
-    event_type,
-    data
-)
-SELECT
-    @tenantId::uuid,
-    i.task_id,
-    i.retry_count,
-    i.event_type,
-    i.data
-FROM
-    input i;
-
 -- name: FailTaskAppFailure :many
 -- Fails a task due to an application-level error
 WITH locked_tasks AS (
@@ -334,3 +290,24 @@ SELECT
     'FAILED' AS "operation"
 FROM
     failed_tasks t2;
+
+-- name: ListMatchingSignalEvents :many
+WITH input AS (
+    SELECT
+        *
+    FROM
+        (
+            SELECT
+                unnest(@taskIds::bigint[]) AS task_id,
+                unnest(@signalKeys::text[]) AS signal_key
+        ) AS subquery
+)
+SELECT
+    e.*
+FROM
+    v2_task_event e
+JOIN
+    input i ON i.task_id = e.task_id AND i.signal_key = e.event_key
+WHERE
+    e.tenant_id = @tenantId::uuid
+    AND e.event_type = @eventType::v2_task_event_type;

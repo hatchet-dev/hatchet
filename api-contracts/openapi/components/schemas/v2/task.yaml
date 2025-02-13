@@ -1,4 +1,4 @@
-V2TaskSummary:
+V2TaskSummarySingle:
   properties:
     metadata:
       $ref: ".././metadata.yaml#/APIResourceMeta"
@@ -38,6 +38,12 @@ V2TaskSummary:
     workflowId:
       type: string
       format: uuid
+    output:
+      type: object
+      description: The output of the task run (for the latest run)
+    errorMessage:
+      type: string
+      description: The error message of the task run (for the latest run)
   required:
     - metadata
     - id
@@ -47,6 +53,23 @@ V2TaskSummary:
     - tenantId
     - displayName
     - workflowId
+    - output
+
+V2TaskSummary:
+  properties:
+    metadata:
+      $ref: ".././metadata.yaml#/APIResourceMeta"
+    parent:
+      $ref: "#/V2TaskSummarySingle"
+    children:
+      type: array
+      items:
+        $ref: "#/V2TaskSummarySingle"
+      description: The list of child tasks
+  required:
+    - metadata
+    - parent
+    - children
 
 V2TaskSummaryList:
   type: object
@@ -108,6 +131,9 @@ V2Task:
     output:
       type: string
       description: The output of the task run (for the latest run)
+    errorMessage:
+      type: string
+      description: The error message of the task run (for the latest run)
   required:
     - metadata
     - id
@@ -188,6 +214,7 @@ V2TaskEventType:
     - ACKNOWLEDGED
     - CREATED
     - QUEUED
+    - SKIPPED
 
 V2TaskRunMetrics:
   type: array

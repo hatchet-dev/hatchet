@@ -45,7 +45,7 @@ export const columns: (
     cell: ({ row }) => (
       <Link to={'/workflow-runs/' + row.original.metadata.id}>
         <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">
-          {row.original.displayName || row.original.metadata.id}
+          {row.original.parent.displayName || row.original.metadata.id}
         </div>
       </Link>
     ),
@@ -57,7 +57,7 @@ export const columns: (
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Status" />
     ),
-    cell: ({ row }) => <V2RunStatus status={row.original.status} />,
+    cell: ({ row }) => <V2RunStatus status={row.original.parent.status} />,
     enableSorting: false,
     enableHiding: false,
   },
@@ -67,7 +67,7 @@ export const columns: (
       <DataTableColumnHeader column={column} title="Workflow" />
     ),
     cell: ({ row }) => {
-      const workflowId = row.original?.workflowId;
+      const workflowId = row.original?.parent.workflowId;
       const workflowName = row.original.workflowName;
 
       return (
@@ -132,8 +132,8 @@ export const columns: (
     cell: ({ row }) => {
       return (
         <div className="whitespace-nowrap">
-          {row.original.startedAt ? (
-            <RelativeDate date={row.original.startedAt} />
+          {row.original.parent.startedAt ? (
+            <RelativeDate date={row.original.parent.startedAt} />
           ) : (
             'N/A'
           )}
@@ -153,8 +153,8 @@ export const columns: (
       />
     ),
     cell: ({ row }) => {
-      const finishedAt = row.original.finishedAt ? (
-        <RelativeDate date={row.original.finishedAt} />
+      const finishedAt = row.original.parent.finishedAt ? (
+        <RelativeDate date={row.original.parent.finishedAt} />
       ) : (
         'N/A'
       );
@@ -174,7 +174,9 @@ export const columns: (
       />
     ),
     cell: ({ row }) => {
-      return <div className="whitespace-nowrap">{row.original.duration}</div>;
+      return (
+        <div className="whitespace-nowrap">{row.original.parent.duration}</div>
+      );
     },
     enableSorting: true,
     enableHiding: true,
@@ -185,13 +187,13 @@ export const columns: (
       <DataTableColumnHeader column={column} title="Metadata" />
     ),
     cell: ({ row }) => {
-      if (!row.original.additionalMetadata) {
+      if (!row.original.parent.additionalMetadata) {
         return <div></div>;
       }
 
       return (
         <AdditionalMetadata
-          metadata={row.original.additionalMetadata}
+          metadata={row.original.parent.additionalMetadata}
           onClick={onAdditionalMetadataClick}
         />
       );

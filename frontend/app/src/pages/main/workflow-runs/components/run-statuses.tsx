@@ -1,4 +1,5 @@
 import { Badge } from '@/components/ui/badge';
+import { HoverCard, HoverCardTrigger } from '@/components/ui/hover-card';
 import {
   Tooltip,
   TooltipContent,
@@ -12,6 +13,7 @@ import {
   WorkflowRunStatus,
 } from '@/lib/api';
 import { capitalize, cn } from '@/lib/utils';
+import { HoverCardContent } from '@radix-ui/react-hover-card';
 
 type RunStatusType =
   `${StepRunStatus | WorkflowRunStatus | JobRunStatus | 'SCHEDULED'}`;
@@ -128,36 +130,34 @@ export function RunStatus({
 
 export function V2RunStatus({
   status,
-  reason,
+  errorMessage,
   className,
 }: {
   status: V2TaskStatus;
-  reason?: string;
+  errorMessage?: string;
   className?: string;
 }) {
   const { text, variant } = createV2RunStatusVariant(status);
-  const { text: overrideText, variant: overrideVariant } =
-    (reason && RUN_STATUS_VARIANTS_REASON_OVERRIDES[reason]) || {};
 
   const StatusBadge = () => (
-    <Badge variant={overrideVariant || variant} className={className}>
-      {capitalize(overrideText || text)}
+    <Badge variant={variant} className={className}>
+      {capitalize(text)}
     </Badge>
   );
 
-  if (!reason) {
+  if (!errorMessage) {
     return <StatusBadge />;
   }
 
   return (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger>
-          <StatusBadge />
-        </TooltipTrigger>
-        <TooltipContent>{RUN_STATUS_REASONS[reason] || reason}</TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+    <HoverCard>
+      <HoverCardTrigger>
+        <StatusBadge />
+      </HoverCardTrigger>
+      <HoverCardContent className="bg-card max-w-96 overflow-auto z-10 shadow-xl p-4 rounded-md">
+        <p className="text-xs">{errorMessage}</p>
+      </HoverCardContent>
+    </HoverCard>
   );
 }
 

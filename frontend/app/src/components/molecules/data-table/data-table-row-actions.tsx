@@ -1,4 +1,4 @@
-import { DotsHorizontalIcon } from '@radix-ui/react-icons';
+import { DotsVerticalIcon } from '@radix-ui/react-icons';
 import { Row } from '@tanstack/react-table';
 
 import { Button } from '@/components/ui/button';
@@ -17,7 +17,7 @@ import {
   TooltipContent,
 } from '@/components/ui/tooltip';
 
-interface DataTableRowActionsProps<TData extends IDGetter> {
+interface DataTableRowActionsProps<TData extends IDGetter<TData>> {
   row: Row<TData>;
   actions?: {
     label: string;
@@ -26,7 +26,7 @@ interface DataTableRowActionsProps<TData extends IDGetter> {
   }[];
 }
 
-export function DataTableRowActions<TData extends IDGetter>({
+export function DataTableRowActions<TData extends IDGetter<TData>>({
   row,
   actions,
 }: DataTableRowActionsProps<TData>) {
@@ -41,7 +41,7 @@ export function DataTableRowActions<TData extends IDGetter>({
           variant="ghost"
           className="flex h-8 w-8 p-0 data-[state=open]:bg-muted"
         >
-          <DotsHorizontalIcon className="h-4 w-4" />
+          <DotsVerticalIcon className="h-4 w-4" />
           <span className="sr-only">Open menu</span>
         </Button>
       </DropdownMenuTrigger>
@@ -53,7 +53,7 @@ export function DataTableRowActions<TData extends IDGetter>({
                 <DropdownMenuItem
                   onClick={() => action.onClick(row.original)}
                   disabled={!!action.disabled}
-                  className="w-full"
+                  className="w-full hover:cursor-pointer"
                 >
                   {action.label}
                 </DropdownMenuItem>

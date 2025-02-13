@@ -1,6 +1,8 @@
 package tasks
 
 import (
+	"strings"
+
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 
@@ -50,17 +52,36 @@ func (t *TasksService) V2TaskList(ctx echo.Context, request gen.V2TaskListReques
 		workerId = request.Params.WorkerId
 	}
 
+	opts := repository.ListTaskRunOpts{
+		CreatedAfter: since,
+		Statuses:     statuses,
+		WorkflowIds:  workflowIds,
+		WorkerId:     workerId,
+		Limit:        limit,
+		Offset:       offset,
+	}
+
+	additionalMetadataFilters := make(map[string]interface{})
+
+	if request.Params.AdditionalMetadata != nil {
+		for _, v := range *request.Params.AdditionalMetadata {
+			kv_pairs := strings.Split(v, ":")
+			if len(kv_pairs) == 2 {
+				additionalMetadataFilters[kv_pairs[0]] = kv_pairs[1]
+			}
+		}
+
+		opts.AdditionalMetadata = additionalMetadataFilters
+	}
+
+	if request.Params.Until != nil {
+		opts.FinishedBefore = request.Params.Until
+	}
+
 	tasks, total, err := t.config.EngineRepository.OLAP().ListTaskRuns(
 		ctx.Request().Context(),
 		tenant.ID,
-		repository.ListTaskRunOpts{
-			CreatedAfter: since,
-			Statuses:     statuses,
-			WorkflowIds:  workflowIds,
-			WorkerId:     workerId,
-			Limit:        limit,
-			Offset:       offset,
-		},
+		opts,
 	)
 
 	if err != nil {

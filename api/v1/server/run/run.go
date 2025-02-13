@@ -340,6 +340,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		defer cancel()
 
 		task, err := config.OLAPRepository.ReadTaskRun(ctx, id)
+
 		if err != nil {
 			return nil, "", err
 		}

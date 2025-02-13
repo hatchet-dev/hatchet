@@ -17,9 +17,18 @@ type TriggerTaskPayload struct {
 
 	// (optional) the workflow run metadata
 	AdditionalMetadata []byte `json:"additional_metadata"`
+
+	// (optional) the parent task id
+	ParentTaskId *int64 `json:"parent_task_id"`
+
+	// (optional) the child index
+	ChildIndex *int64 `json:"child_index"`
+
+	// (optional) the child key
+	ChildKey *string `json:"child_key"`
 }
 
-func TriggerTaskMessage(tenantId string, taskExternalId, name string, data []byte, additionalMetadata []byte) (*msgqueue.Message, error) {
+func TriggerTaskMessage(tenantId string, taskExternalId, name string, data []byte, additionalMetadata []byte, parentTaskId *int64, childIndex *int64, childKey *string) (*msgqueue.Message, error) {
 	return msgqueue.NewSingletonTenantMessage(
 		tenantId,
 		"task-trigger",
@@ -28,6 +37,9 @@ func TriggerTaskMessage(tenantId string, taskExternalId, name string, data []byt
 			WorkflowName:       name,
 			Data:               data,
 			AdditionalMetadata: additionalMetadata,
+			ParentTaskId:       parentTaskId,
+			ChildIndex:         childIndex,
+			ChildKey:           childKey,
 		},
 		false,
 		true,

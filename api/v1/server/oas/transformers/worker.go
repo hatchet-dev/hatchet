@@ -19,24 +19,20 @@ func ToSlotState(slots []*dbsqlc.ListSemaphoreSlotsWithStateForWorkerRow, remain
 		slot := slots[i]
 
 		var stepRunId uuid.UUID
-
-		if slot.StepRunId.Valid {
-			stepRunId = uuid.MustParse(sqlchelpers.UUIDToStr(slot.StepRunId))
-		}
-
 		var workflowRunId uuid.UUID
 
-		if slot.WorkflowRunId.Valid {
-			workflowRunId = uuid.MustParse(sqlchelpers.UUIDToStr(slot.WorkflowRunId))
+		if slot.ExternalID.Valid {
+			stepRunId = uuid.MustParse(sqlchelpers.UUIDToStr(slot.ExternalID))
+			workflowRunId = uuid.MustParse(sqlchelpers.UUIDToStr(slot.ExternalID))
 		}
 
 		resp[i] = gen.SemaphoreSlots{
 			StepRunId:     stepRunId,
-			Status:        gen.StepRunStatus(slot.Status),
-			ActionId:      slot.ActionId,
+			Status:        gen.StepRunStatusRUNNING,
+			ActionId:      slot.ActionID,
 			WorkflowRunId: workflowRunId,
 			TimeoutAt:     &slot.TimeoutAt.Time,
-			StartedAt:     &slot.StartedAt.Time,
+			StartedAt:     &slot.InsertedAt.Time,
 		}
 	}
 

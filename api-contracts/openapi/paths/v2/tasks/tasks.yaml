@@ -42,7 +42,22 @@ listTasks:
         schema:
           type: string
           format: date-time
-      - description: The workflow id to find runs for
+      - description: The earliest date to filter by
+        in: query
+        name: until
+        required: false
+        schema:
+          type: string
+          format: date-time
+      - description: Additional metadata k-v pairs to filter by
+        in: query
+        name: additional_metadata
+        required: false
+        schema:
+          type: array
+          items:
+            type: string
+      - description: The workflow ids to find runs for
         in: query
         name: workflow_ids
         required: false

@@ -10,7 +10,7 @@ import (
 func (t *TenantService) TenantGetStepRunQueueMetrics(ctx echo.Context, request gen.TenantGetStepRunQueueMetricsRequestObject) (gen.TenantGetStepRunQueueMetricsResponseObject, error) {
 	tenant := ctx.Get("tenant").(*db.TenantModel)
 
-	stepRunQueueCounts, err := t.config.EngineRepository.StepRun().GetQueueCounts(ctx.Request().Context(), tenant.ID)
+	stepRunQueueCounts, err := t.config.V2.Tasks().GetQueueCounts(ctx.Request().Context(), tenant.ID)
 
 	if err != nil {
 		return nil, err

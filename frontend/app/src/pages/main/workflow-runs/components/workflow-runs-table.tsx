@@ -250,7 +250,7 @@ export function WorkflowRunsTable({
 
     const vals = filter?.value as Array<string>;
     return vals[0];
-  }, [columnFilters]);
+  }, [columnFilters, workflowId]);
 
   const statuses = useMemo(() => {
     const filter = columnFilters.find((filter) => filter.id === 'status');
@@ -493,7 +493,7 @@ export function WorkflowRunsTable({
       workflowVersionId: 'first version',
       triggeredBy: 'manual',
       workflowName: workflowKeys?.rows?.find(
-        (r) => r.metadata.id == row.workflowId,
+        (r) => r.metadata.id == row.parent.workflowId,
       )?.name,
     }),
   );

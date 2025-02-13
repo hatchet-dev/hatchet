@@ -191,6 +191,7 @@ const (
 	V2TaskEventTypeRETRYING           V2TaskEventType = "RETRYING"
 	V2TaskEventTypeSCHEDULINGTIMEDOUT V2TaskEventType = "SCHEDULING_TIMED_OUT"
 	V2TaskEventTypeSENTTOWORKER       V2TaskEventType = "SENT_TO_WORKER"
+	V2TaskEventTypeSKIPPED            V2TaskEventType = "SKIPPED"
 	V2TaskEventTypeSLOTRELEASED       V2TaskEventType = "SLOT_RELEASED"
 	V2TaskEventTypeSTARTED            V2TaskEventType = "STARTED"
 	V2TaskEventTypeTIMEDOUT           V2TaskEventType = "TIMED_OUT"
@@ -1153,6 +1154,9 @@ type V2Task struct {
 	// Duration The duration of the task run, in milliseconds.
 	Duration *int `json:"duration,omitempty"`
 
+	// ErrorMessage The error message of the task run (for the latest run)
+	ErrorMessage *string `json:"errorMessage,omitempty"`
+
 	// FinishedAt The timestamp the task run finished.
 	FinishedAt *time.Time `json:"finishedAt,omitempty"`
 
@@ -1225,6 +1229,22 @@ type V2TaskStatus string
 
 // V2TaskSummary defines model for V2TaskSummary.
 type V2TaskSummary struct {
+	// Children The list of child tasks
+	Children []V2TaskSummarySingle `json:"children"`
+	Metadata APIResourceMeta       `json:"metadata"`
+	Parent   V2TaskSummarySingle   `json:"parent"`
+}
+
+// V2TaskSummaryList defines model for V2TaskSummaryList.
+type V2TaskSummaryList struct {
+	Pagination PaginationResponse `json:"pagination"`
+
+	// Rows The list of tasks
+	Rows []V2TaskSummary `json:"rows"`
+}
+
+// V2TaskSummarySingle defines model for V2TaskSummarySingle.
+type V2TaskSummarySingle struct {
 	// AdditionalMetadata Additional metadata for the task run.
 	AdditionalMetadata *map[string]interface{} `json:"additionalMetadata,omitempty"`
 
@@ -1234,9 +1254,15 @@ type V2TaskSummary struct {
 	// Duration The duration of the task run, in milliseconds.
 	Duration *int `json:"duration,omitempty"`
 
+	// ErrorMessage The error message of the task run (for the latest run)
+	ErrorMessage *string `json:"errorMessage,omitempty"`
+
 	// FinishedAt The timestamp the task run finished.
 	FinishedAt *time.Time      `json:"finishedAt,omitempty"`
 	Metadata   APIResourceMeta `json:"metadata"`
+
+	// Output The output of the task run (for the latest run)
+	Output map[string]interface{} `json:"output"`
 
 	// StartedAt The timestamp the task run started.
 	StartedAt *time.Time   `json:"startedAt,omitempty"`
@@ -1251,14 +1277,6 @@ type V2TaskSummary struct {
 	// TenantId The ID of the tenant.
 	TenantId   openapi_types.UUID `json:"tenantId"`
 	WorkflowId openapi_types.UUID `json:"workflowId"`
-}
-
-// V2TaskSummaryList defines model for V2TaskSummaryList.
-type V2TaskSummaryList struct {
-	Pagination PaginationResponse `json:"pagination"`
-
-	// Rows The list of tasks
-	Rows []V2TaskSummary `json:"rows"`
 }
 
 // WebhookWorker defines model for WebhookWorker.
@@ -1921,7 +1939,13 @@ type V2TaskListParams struct {
 	// Since The earliest date to filter by
 	Since time.Time `form:"since" json:"since"`
 
-	// WorkflowIds The workflow id to find runs for
+	// Until The earliest date to filter by
+	Until *time.Time `form:"until,omitempty" json:"until,omitempty"`
+
+	// AdditionalMetadata Additional metadata k-v pairs to filter by
+	AdditionalMetadata *[]string `form:"additional_metadata,omitempty" json:"additional_metadata,omitempty"`
+
+	// WorkflowIds The workflow ids to find runs for
 	WorkflowIds *[]openapi_types.UUID `form:"workflow_ids,omitempty" json:"workflow_ids,omitempty"`
 
 	// WorkerId The worker id to filter by
@@ -9024,6 +9048,38 @@ func NewV2TaskListRequest(server string, tenant openapi_types.UUID, params *V2Ta
 					queryValues.Add(k, v2)
 				}
 			}
+		}
+
+		if params.Until != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "until", runtime.ParamLocationQuery, *params.Until); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.AdditionalMetadata != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "additional_metadata", runtime.ParamLocationQuery, *params.AdditionalMetadata); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
 		}
 
 		if params.WorkflowIds != nil {

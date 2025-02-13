@@ -12,12 +12,13 @@ import (
 )
 
 type CreateMatchConditionsParams struct {
-	V2MatchID  int64       `json:"v2_match_id"`
-	TenantID   pgtype.UUID `json:"tenant_id"`
-	EventType  V2EventType `json:"event_type"`
-	EventKey   string      `json:"event_key"`
-	OrGroupID  pgtype.UUID `json:"or_group_id"`
-	Expression pgtype.Text `json:"expression"`
+	V2MatchID  int64                  `json:"v2_match_id"`
+	TenantID   pgtype.UUID            `json:"tenant_id"`
+	EventType  V2EventType            `json:"event_type"`
+	EventKey   string                 `json:"event_key"`
+	OrGroupID  pgtype.UUID            `json:"or_group_id"`
+	Expression pgtype.Text            `json:"expression"`
+	Action     V2MatchConditionAction `json:"action"`
 }
 
 const createMatchesForDAGTriggers = `-- name: CreateMatchesForDAGTriggers :many
@@ -53,7 +54,7 @@ SELECT
 FROM
     input i
 RETURNING
-    id, tenant_id, kind, is_satisfied, signal_target_id, signal_target_inserted_at, trigger_dag_id, trigger_dag_inserted_at, trigger_step_id, trigger_external_id
+    id, tenant_id, kind, is_satisfied, signal_target_id, signal_key, trigger_dag_id, trigger_dag_inserted_at, trigger_step_id, trigger_external_id
 `
 
 type CreateMatchesForDAGTriggersParams struct {
@@ -87,7 +88,80 @@ func (q *Queries) CreateMatchesForDAGTriggers(ctx context.Context, db DBTX, arg 
 			&i.Kind,
 			&i.IsSatisfied,
 			&i.SignalTargetID,
-			&i.SignalTargetInsertedAt,
+			&i.SignalKey,
+			&i.TriggerDagID,
+			&i.TriggerDagInsertedAt,
+			&i.TriggerStepID,
+			&i.TriggerExternalID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const createMatchesForSignalTriggers = `-- name: CreateMatchesForSignalTriggers :many
+WITH input AS (
+    SELECT
+        tenant_id, kind, signal_target_id, signal_key
+    FROM
+        (
+            SELECT
+                unnest($1::uuid[]) AS tenant_id,
+                unnest(cast($2::text[] as v2_match_kind[])) AS kind,
+                unnest($3::bigint[]) AS signal_target_id,
+                unnest($4::text[]) AS signal_key
+        ) AS subquery
+)
+INSERT INTO v2_match (
+    tenant_id,
+    kind,
+    signal_target_id,
+    signal_key
+)
+SELECT
+    i.tenant_id,
+    i.kind,
+    i.signal_target_id,
+    i.signal_key
+FROM
+    input i
+RETURNING
+    id, tenant_id, kind, is_satisfied, signal_target_id, signal_key, trigger_dag_id, trigger_dag_inserted_at, trigger_step_id, trigger_external_id
+`
+
+type CreateMatchesForSignalTriggersParams struct {
+	Tenantids       []pgtype.UUID `json:"tenantids"`
+	Kinds           []string      `json:"kinds"`
+	Signaltargetids []int64       `json:"signaltargetids"`
+	Signalkeys      []string      `json:"signalkeys"`
+}
+
+func (q *Queries) CreateMatchesForSignalTriggers(ctx context.Context, db DBTX, arg CreateMatchesForSignalTriggersParams) ([]*V2Match, error) {
+	rows, err := db.Query(ctx, createMatchesForSignalTriggers,
+		arg.Tenantids,
+		arg.Kinds,
+		arg.Signaltargetids,
+		arg.Signalkeys,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*V2Match
+	for rows.Next() {
+		var i V2Match
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.Kind,
+			&i.IsSatisfied,
+			&i.SignalTargetID,
+			&i.SignalKey,
 			&i.TriggerDagID,
 			&i.TriggerDagInsertedAt,
 			&i.TriggerStepID,
@@ -248,47 +322,80 @@ const saveSatisfiedMatchConditions = `-- name: SaveSatisfiedMatchConditions :man
 WITH match_counts AS (
     SELECT
         v2_match_id,
-        COUNT(DISTINCT or_group_id) AS total_groups,
-        COUNT(DISTINCT CASE WHEN is_satisfied THEN or_group_id END) AS satisfied_groups,
+        COUNT(DISTINCT CASE WHEN action = 'CREATE' THEN or_group_id END) AS total_create_groups,
+        COUNT(DISTINCT CASE WHEN is_satisfied AND action = 'CREATE' THEN or_group_id END) AS satisfied_create_groups,
+        COUNT(DISTINCT CASE WHEN action = 'CANCEL' THEN or_group_id END) AS total_cancel_groups,
+        COUNT(DISTINCT CASE WHEN is_satisfied AND action = 'CANCEL' THEN or_group_id END) AS satisfied_cancel_groups,
         (
-            SELECT jsonb_object_agg(event_key, data_array)
+            SELECT jsonb_object_agg(action, aggregated_1)
             FROM (
-                SELECT event_key, jsonb_agg(data) AS data_array
-                FROM v2_match_condition sub
-                WHERE sub.v2_match_id = ANY($1::bigint[])
-                AND is_satisfied
-                GROUP BY event_key
-            ) aggregated
+                SELECT action, jsonb_object_agg(event_key, data_array) AS aggregated_1
+                FROM (
+                    SELECT action, event_key, jsonb_agg(data) AS data_array
+                    FROM v2_match_condition sub
+                    WHERE sub.v2_match_id = ANY($1::bigint[])
+                    AND is_satisfied
+                    GROUP BY action, event_key
+                ) t
+                GROUP BY action
+            ) s
         ) AS aggregated_data
     FROM v2_match_condition main
     WHERE v2_match_id = ANY($1::bigint[])
     GROUP BY v2_match_id
+), result_matches AS (
+    SELECT
+        m.id, m.tenant_id, m.kind, m.is_satisfied, m.signal_target_id, m.signal_key, m.trigger_dag_id, m.trigger_dag_inserted_at, m.trigger_step_id, m.trigger_external_id,
+        mc.aggregated_data::jsonb as mc_aggregated_data
+    FROM
+        v2_match m
+    JOIN
+        match_counts mc ON m.id = mc.v2_match_id
+    WHERE
+        (
+            mc.total_create_groups = mc.satisfied_create_groups
+            OR mc.total_cancel_groups = mc.satisfied_cancel_groups
+        )
+), deleted_matches AS (
+    DELETE FROM
+        v2_match
+    WHERE
+        id IN (SELECT id FROM result_matches)
+), locked_conditions AS (
+    SELECT
+        m.v2_match_id,
+        m.id
+    FROM
+        v2_match_condition m
+    JOIN
+        result_matches r ON r.id = m.v2_match_id
+    ORDER BY
+        m.id
+    FOR UPDATE
+), deleted_conditions AS (
+    DELETE FROM
+        v2_match_condition
+    WHERE
+        (v2_match_id, id) IN (SELECT v2_match_id, id FROM locked_conditions)
 )
-UPDATE
-    v2_match m
-SET
-    is_satisfied = TRUE
+SELECT
+    id, tenant_id, kind, is_satisfied, signal_target_id, signal_key, trigger_dag_id, trigger_dag_inserted_at, trigger_step_id, trigger_external_id, mc_aggregated_data
 FROM
-    match_counts mc
-WHERE
-    m.id = mc.v2_match_id
-AND
-    mc.total_groups = mc.satisfied_groups
-RETURNING m.id, m.tenant_id, m.kind, m.is_satisfied, m.signal_target_id, m.signal_target_inserted_at, m.trigger_dag_id, m.trigger_dag_inserted_at, m.trigger_step_id, m.trigger_external_id, mc.aggregated_data::jsonb
+    result_matches
 `
 
 type SaveSatisfiedMatchConditionsRow struct {
-	ID                     int64              `json:"id"`
-	TenantID               pgtype.UUID        `json:"tenant_id"`
-	Kind                   V2MatchKind        `json:"kind"`
-	IsSatisfied            bool               `json:"is_satisfied"`
-	SignalTargetID         pgtype.Int8        `json:"signal_target_id"`
-	SignalTargetInsertedAt pgtype.Timestamptz `json:"signal_target_inserted_at"`
-	TriggerDagID           pgtype.Int8        `json:"trigger_dag_id"`
-	TriggerDagInsertedAt   pgtype.Timestamptz `json:"trigger_dag_inserted_at"`
-	TriggerStepID          pgtype.UUID        `json:"trigger_step_id"`
-	TriggerExternalID      pgtype.UUID        `json:"trigger_external_id"`
-	McAggregatedData       []byte             `json:"mc_aggregated_data"`
+	ID                   int64              `json:"id"`
+	TenantID             pgtype.UUID        `json:"tenant_id"`
+	Kind                 V2MatchKind        `json:"kind"`
+	IsSatisfied          bool               `json:"is_satisfied"`
+	SignalTargetID       pgtype.Int8        `json:"signal_target_id"`
+	SignalKey            pgtype.Text        `json:"signal_key"`
+	TriggerDagID         pgtype.Int8        `json:"trigger_dag_id"`
+	TriggerDagInsertedAt pgtype.Timestamptz `json:"trigger_dag_inserted_at"`
+	TriggerStepID        pgtype.UUID        `json:"trigger_step_id"`
+	TriggerExternalID    pgtype.UUID        `json:"trigger_external_id"`
+	McAggregatedData     []byte             `json:"mc_aggregated_data"`
 }
 
 // NOTE: we have to break this into a separate query because CTEs can't see modified rows
@@ -310,7 +417,7 @@ func (q *Queries) SaveSatisfiedMatchConditions(ctx context.Context, db DBTX, mat
 			&i.Kind,
 			&i.IsSatisfied,
 			&i.SignalTargetID,
-			&i.SignalTargetInsertedAt,
+			&i.SignalKey,
 			&i.TriggerDagID,
 			&i.TriggerDagInsertedAt,
 			&i.TriggerStepID,

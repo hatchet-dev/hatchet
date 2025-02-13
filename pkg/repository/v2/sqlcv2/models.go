@@ -809,6 +809,49 @@ func (ns NullV2EventType) Value() (driver.Value, error) {
 	return string(ns.V2EventType), nil
 }
 
+type V2MatchConditionAction string
+
+const (
+	V2MatchConditionActionCREATE V2MatchConditionAction = "CREATE"
+	V2MatchConditionActionCANCEL V2MatchConditionAction = "CANCEL"
+	V2MatchConditionActionSKIP   V2MatchConditionAction = "SKIP"
+)
+
+func (e *V2MatchConditionAction) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = V2MatchConditionAction(s)
+	case string:
+		*e = V2MatchConditionAction(s)
+	default:
+		return fmt.Errorf("unsupported scan type for V2MatchConditionAction: %T", src)
+	}
+	return nil
+}
+
+type NullV2MatchConditionAction struct {
+	V2MatchConditionAction V2MatchConditionAction `json:"v2_match_condition_action"`
+	Valid                  bool                   `json:"valid"` // Valid is true if V2MatchConditionAction is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullV2MatchConditionAction) Scan(value interface{}) error {
+	if value == nil {
+		ns.V2MatchConditionAction, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.V2MatchConditionAction.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullV2MatchConditionAction) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.V2MatchConditionAction), nil
+}
+
 type V2MatchKind string
 
 const (
@@ -897,9 +940,11 @@ func (ns NullV2StickyStrategy) Value() (driver.Value, error) {
 type V2TaskEventType string
 
 const (
-	V2TaskEventTypeCOMPLETED V2TaskEventType = "COMPLETED"
-	V2TaskEventTypeFAILED    V2TaskEventType = "FAILED"
-	V2TaskEventTypeCANCELLED V2TaskEventType = "CANCELLED"
+	V2TaskEventTypeCOMPLETED       V2TaskEventType = "COMPLETED"
+	V2TaskEventTypeFAILED          V2TaskEventType = "FAILED"
+	V2TaskEventTypeCANCELLED       V2TaskEventType = "CANCELLED"
+	V2TaskEventTypeSIGNALCREATED   V2TaskEventType = "SIGNAL_CREATED"
+	V2TaskEventTypeSIGNALCOMPLETED V2TaskEventType = "SIGNAL_COMPLETED"
 )
 
 func (e *V2TaskEventType) Scan(src interface{}) error {
@@ -935,6 +980,49 @@ func (ns NullV2TaskEventType) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.V2TaskEventType), nil
+}
+
+type V2TaskInitialState string
+
+const (
+	V2TaskInitialStateQUEUED    V2TaskInitialState = "QUEUED"
+	V2TaskInitialStateCANCELLED V2TaskInitialState = "CANCELLED"
+	V2TaskInitialStateSKIPPED   V2TaskInitialState = "SKIPPED"
+)
+
+func (e *V2TaskInitialState) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = V2TaskInitialState(s)
+	case string:
+		*e = V2TaskInitialState(s)
+	default:
+		return fmt.Errorf("unsupported scan type for V2TaskInitialState: %T", src)
+	}
+	return nil
+}
+
+type NullV2TaskInitialState struct {
+	V2TaskInitialState V2TaskInitialState `json:"v2_task_initial_state"`
+	Valid              bool               `json:"valid"` // Valid is true if V2TaskInitialState is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullV2TaskInitialState) Scan(value interface{}) error {
+	if value == nil {
+		ns.V2TaskInitialState, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.V2TaskInitialState.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullV2TaskInitialState) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.V2TaskInitialState), nil
 }
 
 type VcsProvider string
@@ -1910,29 +1998,30 @@ type V2DagToTask struct {
 }
 
 type V2Match struct {
-	ID                     int64              `json:"id"`
-	TenantID               pgtype.UUID        `json:"tenant_id"`
-	Kind                   V2MatchKind        `json:"kind"`
-	IsSatisfied            bool               `json:"is_satisfied"`
-	SignalTargetID         pgtype.Int8        `json:"signal_target_id"`
-	SignalTargetInsertedAt pgtype.Timestamptz `json:"signal_target_inserted_at"`
-	TriggerDagID           pgtype.Int8        `json:"trigger_dag_id"`
-	TriggerDagInsertedAt   pgtype.Timestamptz `json:"trigger_dag_inserted_at"`
-	TriggerStepID          pgtype.UUID        `json:"trigger_step_id"`
-	TriggerExternalID      pgtype.UUID        `json:"trigger_external_id"`
+	ID                   int64              `json:"id"`
+	TenantID             pgtype.UUID        `json:"tenant_id"`
+	Kind                 V2MatchKind        `json:"kind"`
+	IsSatisfied          bool               `json:"is_satisfied"`
+	SignalTargetID       pgtype.Int8        `json:"signal_target_id"`
+	SignalKey            pgtype.Text        `json:"signal_key"`
+	TriggerDagID         pgtype.Int8        `json:"trigger_dag_id"`
+	TriggerDagInsertedAt pgtype.Timestamptz `json:"trigger_dag_inserted_at"`
+	TriggerStepID        pgtype.UUID        `json:"trigger_step_id"`
+	TriggerExternalID    pgtype.UUID        `json:"trigger_external_id"`
 }
 
 type V2MatchCondition struct {
-	V2MatchID    int64              `json:"v2_match_id"`
-	ID           int64              `json:"id"`
-	TenantID     pgtype.UUID        `json:"tenant_id"`
-	RegisteredAt pgtype.Timestamptz `json:"registered_at"`
-	EventType    V2EventType        `json:"event_type"`
-	EventKey     string             `json:"event_key"`
-	IsSatisfied  bool               `json:"is_satisfied"`
-	OrGroupID    pgtype.UUID        `json:"or_group_id"`
-	Expression   pgtype.Text        `json:"expression"`
-	Data         []byte             `json:"data"`
+	V2MatchID    int64                  `json:"v2_match_id"`
+	ID           int64                  `json:"id"`
+	TenantID     pgtype.UUID            `json:"tenant_id"`
+	RegisteredAt pgtype.Timestamptz     `json:"registered_at"`
+	EventType    V2EventType            `json:"event_type"`
+	EventKey     string                 `json:"event_key"`
+	IsSatisfied  bool                   `json:"is_satisfied"`
+	Action       V2MatchConditionAction `json:"action"`
+	OrGroupID    pgtype.UUID            `json:"or_group_id"`
+	Expression   pgtype.Text            `json:"expression"`
+	Data         []byte                 `json:"data"`
 }
 
 type V2Queue struct {
@@ -1981,6 +2070,10 @@ type V2Task struct {
 	AdditionalMetadata []byte             `json:"additional_metadata"`
 	DagID              pgtype.Int8        `json:"dag_id"`
 	DagInsertedAt      pgtype.Timestamptz `json:"dag_inserted_at"`
+	ParentExternalID   pgtype.UUID        `json:"parent_external_id"`
+	ChildIndex         pgtype.Int4        `json:"child_index"`
+	ChildKey           pgtype.Text        `json:"child_key"`
+	InitialState       V2TaskInitialState `json:"initial_state"`
 }
 
 type V2TaskEvent struct {
@@ -1989,6 +2082,7 @@ type V2TaskEvent struct {
 	TaskID     int64            `json:"task_id"`
 	RetryCount int32            `json:"retry_count"`
 	EventType  V2TaskEventType  `json:"event_type"`
+	EventKey   pgtype.Text      `json:"event_key"`
 	CreatedAt  pgtype.Timestamp `json:"created_at"`
 	Data       []byte           `json:"data"`
 }

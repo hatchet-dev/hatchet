@@ -145,7 +145,14 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
        * @format date-time
        */
       since: string;
-      /** The workflow id to find runs for */
+      /**
+       * The earliest date to filter by
+       * @format date-time
+       */
+      until?: string;
+      /** Additional metadata k-v pairs to filter by */
+      additional_metadata?: string[];
+      /** The workflow ids to find runs for */
       workflow_ids?: string[];
       /**
        * The worker id to filter by

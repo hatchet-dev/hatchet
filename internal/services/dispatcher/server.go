@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"strconv"
 	"strings"
 	"sync"
@@ -29,6 +30,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
+	v2 "github.com/hatchet-dev/hatchet/pkg/repository/v2"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v2/sqlcv2"
 )
 
@@ -112,32 +114,29 @@ func (worker *subscribedWorker) StartTaskFromBulk(
 		inputBytes = task.Input
 	}
 
-	// FIXME: that's not the step name
-	stepName := task.DisplayName
-
 	stepRunId := fmt.Sprintf("id-%d", task.ID)
 
 	action := &contracts.AssignedAction{
 		TenantId:      tenantId,
 		JobId:         sqlchelpers.UUIDToStr(task.StepID), // FIXME
-		JobName:       task.DisplayName,                   // FIXME
-		JobRunId:      sqlchelpers.UUIDToStr(task.StepID), // FIXME
-		StepId:        sqlchelpers.UUIDToStr(task.StepID), // FIXME
-		StepRunId:     stepRunId,                          // FIXME
+		JobName:       task.StepReadableID,
+		JobRunId:      sqlchelpers.UUIDToStr(task.ExternalID), // FIXME
+		StepId:        sqlchelpers.UUIDToStr(task.StepID),
+		StepRunId:     stepRunId,
 		ActionType:    contracts.ActionType_START_STEP_RUN,
 		ActionId:      task.ActionID,
 		ActionPayload: string(inputBytes),
-		StepName:      stepName,                           // FIXME
-		WorkflowRunId: sqlchelpers.UUIDToStr(task.StepID), // FIXME
+		StepName:      task.StepReadableID,
+		WorkflowRunId: sqlchelpers.UUIDToStr(task.ExternalID),
 		RetryCount:    task.RetryCount,
 	}
 
-	// FIXME
-	// if stepRun.AdditionalMetadata != nil {
-	// 	metadataStr := string(stepRun.AdditionalMetadata)
-	// 	action.AdditionalMetadata = &metadataStr
-	// }
+	if task.AdditionalMetadata != nil {
+		metadataStr := string(task.AdditionalMetadata)
+		action.AdditionalMetadata = &metadataStr
+	}
 
+	// FIXME: THESE SHOULD BE POPULATED ON THE TASK
 	// if stepRun.ChildIndex.Valid {
 	// 	action.ChildWorkflowIndex = &stepRun.ChildIndex.Int32
 	// }
@@ -940,111 +939,172 @@ func calculateResultsSize(results []*contracts.StepRunResult) (totalSize int, si
 
 // SubscribeToWorkflowEvents registers workflow events with the dispatcher
 func (s *DispatcherImpl) SubscribeToWorkflowRuns(server contracts.Dispatcher_SubscribeToWorkflowRunsServer) error {
-	panic("not implemented in v2")
+	tenant := server.Context().Value("tenant").(*dbsqlc.Tenant)
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
-	// tenant := server.Context().Value("tenant").(*dbsqlc.Tenant)
-	// tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	s.l.Debug().Msgf("Received subscribe request for tenant: %s", tenantId)
 
-	// s.l.Debug().Msgf("Received subscribe request for tenant: %s", tenantId)
+	acks := &workflowRunAcks{
+		acks: make(map[string]bool),
+	}
 
-	// acks := &workflowRunAcks{
-	// 	acks: make(map[string]bool),
-	// }
+	ctx, cancel := context.WithCancel(server.Context())
+	defer cancel()
 
-	// ctx, cancel := context.WithCancel(server.Context())
-	// defer cancel()
+	wg := sync.WaitGroup{}
+	sendMu := sync.Mutex{}
 
-	// wg := sync.WaitGroup{}
-	// sendMu := sync.Mutex{}
+	sendEvent := func(e *contracts.WorkflowRunEvent) error {
+		results := cleanResults(e.Results)
 
-	// sendEvent := func(e *contracts.WorkflowRunEvent) error {
-	// 	results := cleanResults(e.Results)
+		if results == nil {
+			s.l.Warn().Msgf("results size for workflow run %s exceeds 3MB and cannot be reduced", e.WorkflowRunId)
+			e.Results = nil
+		}
 
-	// 	if results == nil {
-	// 		s.l.Warn().Msgf("results size for workflow run %s exceeds 3MB and cannot be reduced", e.WorkflowRunId)
-	// 		e.Results = nil
-	// 	}
+		// send the task to the client
+		sendMu.Lock()
+		err := server.Send(e)
+		sendMu.Unlock()
 
-	// 	// send the task to the client
-	// 	sendMu.Lock()
-	// 	err := server.Send(e)
-	// 	sendMu.Unlock()
+		if err != nil {
+			s.l.Error().Err(err).Msgf("could not subscribe to workflow events for run %s", e.WorkflowRunId)
+			return err
+		}
 
-	// 	if err != nil {
-	// 		s.l.Error().Err(err).Msgf("could not subscribe to workflow events for run %s", e.WorkflowRunId)
-	// 		return err
-	// 	}
+		acks.ackWorkflowRun(e.WorkflowRunId)
 
-	// 	acks.ackWorkflowRun(e.WorkflowRunId)
+		return nil
+	}
 
-	// 	return nil
-	// }
+	immediateSendFilter := &sendTimeFilter{}
+	iterSendFilter := &sendTimeFilter{}
 
-	// immediateSendFilter := &sendTimeFilter{}
-	// iterSendFilter := &sendTimeFilter{}
+	iter := func(workflowRunIds []string) error {
+		limit := 1000
 
-	// iter := func(workflowRunIds []string) error {
-	// 	limit := 1000
+		taskIdEventKeyTuples := make([]v2.TaskIdEventKeyTuple, 0, limit)
+		taskExternalIds := make([]string, 0, limit)
+		mapKeyToWorkflowRunIds := make(map[string]string)
 
-	// 	workflowRuns, err := s.repo.WorkflowRun().ListWorkflowRuns(ctx, tenantId, &repository.ListWorkflowRunsOpts{
-	// 		Ids:   workflowRunIds,
-	// 		Limit: &limit,
-	// 	})
+		for i := 0; i < limit; i++ {
+			// parse the workflow run id
+			if i >= len(workflowRunIds) {
+				break
+			}
 
-	// 	if err != nil {
-	// 		s.l.Error().Err(err).Msg("could not get workflow runs")
-	// 		return nil
-	// 	}
+			if strings.HasPrefix(workflowRunIds[i], "id-") {
+				taskIdStr := strings.TrimPrefix(workflowRunIds[i], "id-")
 
-	// 	events, err := s.toWorkflowRunEvent(tenantId, workflowRuns.Rows)
+				// parse by <parent>-<index>
+				parts := strings.Split(taskIdStr, "-")
 
-	// 	if err != nil {
-	// 		s.l.Error().Err(err).Msg("could not convert workflow run to event")
-	// 		return nil
-	// 	} else if events == nil {
-	// 		return nil
-	// 	}
+				if len(parts) != 2 {
+					s.l.Warn().Msgf("invalid task id %s", taskIdStr)
+					continue
+				}
 
-	// 	for _, event := range events {
-	// 		err := sendEvent(event)
+				taskIdInt, err := strconv.ParseInt(parts[0], 10, 64)
 
-	// 		if err != nil {
-	// 			return err
-	// 		}
-	// 	}
+				if err != nil {
+					s.l.Warn().Err(err).Msgf("invalid task id %s", taskIdStr)
+					continue
+				}
 
-	// 	return nil
-	// }
+				taskIdEventKeyTuples = append(taskIdEventKeyTuples, v2.TaskIdEventKeyTuple{
+					Id:       taskIdInt,
+					EventKey: fmt.Sprintf("%d.%s", taskIdInt, parts[1]),
+				})
 
-	// // start a new goroutine to handle client-side streaming
-	// go func() {
-	// 	for {
-	// 		req, err := server.Recv()
+				taskEventKey := getTaskEventKey(taskIdInt, fmt.Sprintf("%d.%s", taskIdInt, parts[1]))
 
-	// 		if err != nil {
-	// 			cancel()
-	// 			if errors.Is(err, io.EOF) || status.Code(err) == codes.Canceled {
-	// 				return
-	// 			}
+				mapKeyToWorkflowRunIds[taskEventKey] = workflowRunIds[i]
+			} else {
+				taskExternalIds = append(taskExternalIds, workflowRunIds[i])
+			}
+		}
 
-	// 			s.l.Error().Err(err).Msg("could not receive message from client")
-	// 			return
-	// 		}
+		var events []*contracts.WorkflowRunEvent
 
-	// 		if _, parseErr := uuid.Parse(req.WorkflowRunId); parseErr != nil {
-	// 			s.l.Warn().Err(parseErr).Msg("invalid workflow run id")
-	// 			continue
-	// 		}
+		if len(taskIdEventKeyTuples) > 0 {
+			signalEvents, err := s.v2repo.Tasks().ListCompletedTaskSignals(ctx, tenantId, taskIdEventKeyTuples)
 
-	// 		acks.addWorkflowRun(req.WorkflowRunId)
+			if err != nil {
+				s.l.Error().Err(err).Msg("could not get completed task signals")
+				return err
+			}
 
-	// 		if immediateSendFilter.canSend() {
-	// 			if err := iter([]string{req.WorkflowRunId}); err != nil {
-	// 				s.l.Error().Err(err).Msg("could not iterate over workflow runs")
-	// 			}
-	// 		}
-	// 	}
-	// }()
+			resEvents, err := s.taskEventsToWorkflowRunEvent(tenantId, mapKeyToWorkflowRunIds, signalEvents)
+
+			if err != nil {
+				s.l.Error().Err(err).Msg("could not convert task events to workflow run events")
+				return err
+			}
+
+			events = append(events, resEvents...)
+		}
+
+		if len(taskExternalIds) > 0 {
+			// workflowRuns, err := s.repo.WorkflowRun().ListWorkflowRuns(ctx, tenantId, &repository.ListWorkflowRunsOpts{
+			// 	Ids:   workflowRunIds,
+			// 	Limit: &limit,
+			// })
+
+			// if err != nil {
+			// 	s.l.Error().Err(err).Msg("could not get workflow runs")
+			// 	return nil
+			// }
+
+			// events, err := s.toWorkflowRunEvent(tenantId, workflowRuns.Rows)
+
+			// if err != nil {
+			// 	s.l.Error().Err(err).Msg("could not convert workflow run to event")
+			// 	return nil
+			// }
+		}
+
+		for _, event := range events {
+			err := sendEvent(event)
+
+			if err != nil {
+				return err
+			}
+		}
+
+		return nil
+	}
+
+	// start a new goroutine to handle client-side streaming
+	go func() {
+		for {
+			req, err := server.Recv()
+
+			if err != nil {
+				cancel()
+				if errors.Is(err, io.EOF) || status.Code(err) == codes.Canceled {
+					return
+				}
+
+				s.l.Error().Err(err).Msg("could not receive message from client")
+				return
+			}
+
+			if !strings.HasPrefix(req.WorkflowRunId, "id-") {
+				if _, parseErr := uuid.Parse(req.WorkflowRunId); parseErr != nil {
+					s.l.Warn().Err(parseErr).Msg("invalid workflow run id")
+					continue
+				}
+			}
+
+			acks.addWorkflowRun(req.WorkflowRunId)
+
+			if immediateSendFilter.canSend() {
+				if err := iter([]string{req.WorkflowRunId}); err != nil {
+					s.l.Error().Err(err).Msg("could not iterate over workflow runs")
+				}
+			}
+		}
+	}()
 
 	// f := func(task *msgqueue.Message) error {
 	// 	wg.Add(1)
@@ -1070,41 +1130,41 @@ func (s *DispatcherImpl) SubscribeToWorkflowRuns(server contracts.Dispatcher_Sub
 	// 	return err
 	// }
 
-	// // new goroutine to poll every second for finished workflow runs which are not ackd
-	// go func() {
-	// 	ticker := time.NewTicker(1 * time.Second)
+	// new goroutine to poll every second for finished workflow runs which are not ackd
+	go func() {
+		ticker := time.NewTicker(1 * time.Second)
 
-	// 	for {
-	// 		select {
-	// 		case <-ctx.Done():
-	// 			return
-	// 		case <-ticker.C:
-	// 			if !iterSendFilter.canSend() {
-	// 				continue
-	// 			}
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if !iterSendFilter.canSend() {
+					continue
+				}
 
-	// 			workflowRunIds := acks.getNonAckdWorkflowRuns()
+				workflowRunIds := acks.getNonAckdWorkflowRuns()
 
-	// 			if len(workflowRunIds) == 0 {
-	// 				continue
-	// 			}
+				if len(workflowRunIds) == 0 {
+					continue
+				}
 
-	// 			if err := iter(workflowRunIds); err != nil {
-	// 				s.l.Error().Err(err).Msg("could not iterate over workflow runs")
-	// 			}
-	// 		}
-	// 	}
-	// }()
+				if err := iter(workflowRunIds); err != nil {
+					s.l.Error().Err(err).Msg("could not iterate over workflow runs")
+				}
+			}
+		}
+	}()
 
-	// <-ctx.Done()
+	<-ctx.Done()
 
 	// if err := cleanupQueue(); err != nil {
 	// 	return fmt.Errorf("could not cleanup queue: %w", err)
 	// }
 
-	// waitFor(&wg, 60*time.Second, s.l)
+	waitFor(&wg, 60*time.Second, s.l)
 
-	// return nil
+	return nil
 }
 
 func waitFor(wg *sync.WaitGroup, timeout time.Duration, l *zerolog.Logger) {
@@ -2086,6 +2146,96 @@ func (s *DispatcherImpl) getStepResultsForWorkflowRun(tenantId string, workflowR
 	}
 
 	return res, nil
+}
+
+type stepResult struct {
+	Output []byte `json:"output,omitempty"`
+
+	StepReadableId string `json:"step_readable_id,omitempty"`
+
+	Error string `json:"error,omitempty"`
+}
+
+type signalEventData map[string]map[string][]stepResult
+
+func (s *DispatcherImpl) taskEventsToWorkflowRunEvent(tenantId string, keyToId map[string]string, events []*sqlcv2.V2TaskEvent) ([]*contracts.WorkflowRunEvent, error) {
+	res := make([]*contracts.WorkflowRunEvent, 0)
+
+	// TODO: this currently only does completed events
+	for _, event := range events {
+		parsedEventData := make(signalEventData)
+
+		err := json.Unmarshal([]byte(event.Data), &parsedEventData)
+
+		if err != nil {
+			s.l.Error().Err(err).Msg("could not unmarshal event data")
+			continue
+		}
+
+		stepRunResults := []*contracts.StepRunResult{}
+
+		for actionKind, eventDatas := range parsedEventData {
+			if actionKind != "CREATE" {
+				continue
+			}
+
+			for signalKey, stepResults := range eventDatas {
+				var taskExternalId string
+
+				if strings.HasPrefix(signalKey, "task.completed.") {
+					taskExternalId = strings.TrimPrefix(signalKey, "task.completed.")
+				} else if strings.HasPrefix(signalKey, "task.failed.") {
+					taskExternalId = strings.TrimPrefix(signalKey, "task.failed.")
+				} else if strings.HasPrefix(signalKey, "task.cancelled.") {
+					taskExternalId = strings.TrimPrefix(signalKey, "task.cancelled.")
+				}
+
+				if taskExternalId != "" {
+					for _, stepResult := range stepResults {
+						res := &contracts.StepRunResult{
+							StepRunId:      taskExternalId,
+							StepReadableId: stepResult.StepReadableId,
+							JobRunId:       taskExternalId,
+						}
+
+						if stepResult.Output != nil {
+							out := string(stepResult.Output)
+
+							res.Output = &out
+						}
+
+						if stepResult.Error != "" {
+							res.Error = &stepResult.Error
+						}
+
+						stepRunResults = append(stepRunResults, res)
+					}
+				}
+			}
+		}
+
+		mapKey := getTaskEventKey(event.TaskID, event.EventKey.String)
+
+		if keyToId[mapKey] == "" {
+			s.l.Warn().Msgf("could not find workflow run id for key %s", mapKey)
+			continue
+		}
+
+		workflowRunEvent := &contracts.WorkflowRunEvent{
+			EventType:      contracts.WorkflowRunEventType_WORKFLOW_RUN_EVENT_TYPE_FINISHED,
+			EventTimestamp: timestamppb.New(event.CreatedAt.Time),
+			WorkflowRunId:  keyToId[mapKey],
+			Results:        stepRunResults,
+		}
+
+		res = append(res, workflowRunEvent)
+	}
+
+	return res, nil
+}
+
+func getTaskEventKey(taskId int64, eventKey string) string {
+	return fmt.Sprintf("%d-%s", taskId, eventKey)
 }
 
 func contains(s []string, e string) bool {

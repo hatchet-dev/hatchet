@@ -61,7 +61,7 @@ export interface APIResourceMeta {
   updatedAt: string;
 }
 
-export interface V2TaskSummary {
+export interface V2TaskSummarySingle {
   metadata: APIResourceMeta;
   /** The ID of the task. */
   taskId: number;
@@ -97,6 +97,17 @@ export interface V2TaskSummary {
   displayName: string;
   /** @format uuid */
   workflowId: string;
+  /** The output of the task run (for the latest run) */
+  output: object;
+  /** The error message of the task run (for the latest run) */
+  errorMessage?: string;
+}
+
+export interface V2TaskSummary {
+  metadata: APIResourceMeta;
+  parent: V2TaskSummarySingle;
+  /** The list of child tasks */
+  children: V2TaskSummarySingle[];
 }
 
 export interface V2TaskSummaryList {
@@ -173,6 +184,8 @@ export interface V2Task {
   input: string;
   /** The output of the task run (for the latest run) */
   output?: string;
+  /** The error message of the task run (for the latest run) */
+  errorMessage?: string;
 }
 
 export enum V2TaskEventType {
@@ -195,6 +208,7 @@ export enum V2TaskEventType {
   ACKNOWLEDGED = 'ACKNOWLEDGED',
   CREATED = 'CREATED',
   QUEUED = 'QUEUED',
+  SKIPPED = 'SKIPPED',
 }
 
 export interface V2TaskEvent {

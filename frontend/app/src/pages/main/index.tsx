@@ -1,10 +1,9 @@
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import {
-  AdjustmentsHorizontalIcon,
   CalendarDaysIcon,
   CpuChipIcon,
-  QueueListIcon,
+  PlayIcon,
   ScaleIcon,
   ServerStackIcon,
   Squares2X2Icon,
@@ -61,8 +60,24 @@ interface SidebarProps extends React.HTMLAttributes<HTMLDivElement> {
   currTenant: Tenant;
 }
 
+function useSidebarButtonSelected() {
+  const location = useLocation();
+
+  function getSelectedAndOpenStates(prefix: string, to: string) {
+    return {
+      open: location.pathname.startsWith(prefix || to),
+      selected: !prefix && location.pathname === to,
+    };
+  }
+
+  return {
+    getSelectedAndOpenStates,
+  };
+}
+
 function Sidebar({ className, memberships, currTenant }: SidebarProps) {
   const { sidebarOpen, setSidebarOpen } = useSidebar();
+  const { getSelectedAndOpenStates } = useSidebarButtonSelected();
 
   const meta = useCloudApiMeta();
   const featureFlags = useCloudFeatureFlags(currTenant.metadata.id);
@@ -107,22 +122,13 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
             <h2 className="mb-2 text-lg font-semibold tracking-tight">
               Activity
             </h2>
-            <div className="space-y-1">
-              <SidebarButtonPrimary
-                key={1}
-                onNavLinkClick={onNavLinkClick}
-                to="/workflow-runs"
-                name="Workflow Runs"
-                icon={<AdjustmentsHorizontalIcon className="mr-2 h-4 w-4" />}
-              />
-              <SidebarButtonPrimary
-                key={2}
-                onNavLinkClick={onNavLinkClick}
-                to="/events"
-                name="Events"
-                icon={<QueueListIcon className="mr-2 h-4 w-4" />}
-              />
-            </div>
+            <SidebarButtonPrimary
+              key={1}
+              onNavLinkClick={onNavLinkClick}
+              to="/tasks"
+              name="Tasks"
+              icon={<PlayIcon className="mr-2 h-4 w-4" />}
+            />
           </div>
           <div className="py-2">
             <h2 className="mb-2 text-lg font-semibold tracking-tight">
@@ -130,19 +136,26 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
             </h2>
             <div className="space-y-1">
               <SidebarButtonPrimary
-                key={4}
+                key={3}
                 onNavLinkClick={onNavLinkClick}
                 to="/scheduled"
                 name="Scheduled Runs"
                 icon={<CalendarDaysIcon className="mr-2 h-4 w-4" />}
               />
               <SidebarButtonPrimary
-                key={5}
+                key={4}
                 onNavLinkClick={onNavLinkClick}
                 to="/cron-jobs"
                 name="Cron Jobs"
                 icon={<ClockIcon className="mr-2 h-4 w-4" />}
               />
+              {/* <SidebarButtonPrimary
+                key={5}
+                onNavLinkClick={onNavLinkClick}
+                to="/events"
+                name="Events"
+                icon={<QueueListIcon className="mr-2 h-4 w-4" />}
+              /> */}
             </div>
           </div>
           <div className="py-2">

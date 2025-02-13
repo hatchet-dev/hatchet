@@ -151,6 +151,15 @@ const routes: RouteObject[] = [
                   }),
               },
               {
+                path: '/tasks',
+                lazy: async () =>
+                  import('./pages/main/tasks').then((res) => {
+                    return {
+                      Component: res.default,
+                    };
+                  }),
+              },
+              {
                 path: '/workflows',
                 lazy: async () =>
                   import('./pages/main/workflows').then((res) => {

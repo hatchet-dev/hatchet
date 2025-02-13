@@ -230,3 +230,15 @@ FROM
     "StepDesiredWorkerLabel"
 WHERE
     "stepId" = ANY(@stepIds::uuid[]);
+
+-- name: GetQueuedCounts :many
+SELECT
+    queue,
+    COUNT(*) AS count
+FROM
+    v2_queue_item qi
+WHERE
+    qi.is_queued = true
+    AND qi.tenant_id = @tenantId::uuid
+GROUP BY
+    qi.queue;

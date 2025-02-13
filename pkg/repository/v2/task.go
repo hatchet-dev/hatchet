@@ -2,9 +2,11 @@ package v2
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
@@ -31,6 +33,9 @@ type CreateTaskOpts struct {
 
 	// (optional) the DAG inserted at for the task
 	DagInsertedAt pgtype.Timestamptz
+
+	// (required) the initial state for the task
+	InitialState sqlcv2.V2TaskInitialState
 }
 
 type TaskIdRetryCount struct {
@@ -48,6 +53,12 @@ type FailTaskOpts struct {
 	IsAppError bool
 }
 
+type TaskIdEventKeyTuple struct {
+	Id int64 `validate:"required"`
+
+	EventKey string `validate:"required"`
+}
+
 type TaskRepository interface {
 	UpdateTablePartitions(ctx context.Context) error
 
@@ -59,11 +70,15 @@ type TaskRepository interface {
 
 	ListTasks(ctx context.Context, tenantId string, tasks []int64) ([]*sqlcv2.V2Task, error)
 
+	ListCompletedTaskSignals(ctx context.Context, tenantId string, tasks []TaskIdEventKeyTuple) ([]*sqlcv2.V2TaskEvent, error)
+
 	ListTaskMetas(ctx context.Context, tenantId string, tasks []int64) ([]*sqlcv2.ListTaskMetasRow, error)
 
 	ProcessTaskTimeouts(ctx context.Context, tenantId string) ([]*sqlcv2.ProcessTaskTimeoutsRow, bool, error)
 
 	ProcessTaskReassignments(ctx context.Context, tenantId string) ([]*sqlcv2.ProcessTaskReassignmentsRow, bool, error)
+
+	GetQueueCounts(ctx context.Context, tenantId string) (map[string]int, error)
 }
 
 type TaskRepositoryImpl struct {
@@ -214,6 +229,7 @@ func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId string,
 		tasks,
 		datas,
 		sqlcv2.V2TaskEventTypeCOMPLETED,
+		make([]string, len(tasks)),
 	)
 
 	if err != nil {
@@ -316,6 +332,7 @@ func (r *TaskRepositoryImpl) FailTasks(ctx context.Context, tenantId string, fai
 		tasks,
 		datas,
 		sqlcv2.V2TaskEventTypeFAILED,
+		make([]string, len(tasks)),
 	)
 
 	if err != nil {
@@ -361,6 +378,7 @@ func (r *TaskRepositoryImpl) CancelTasks(ctx context.Context, tenantId string, t
 		tasks,
 		make([][]byte, len(tasks)),
 		sqlcv2.V2TaskEventTypeCANCELLED,
+		make([]string, len(tasks)),
 	)
 
 	if err != nil {
@@ -379,6 +397,23 @@ func (r *TaskRepositoryImpl) ListTasks(ctx context.Context, tenantId string, tas
 	return r.queries.ListTasks(ctx, r.pool, sqlcv2.ListTasksParams{
 		TenantID: sqlchelpers.UUIDFromStr(tenantId),
 		Ids:      tasks,
+	})
+}
+
+func (r *TaskRepositoryImpl) ListCompletedTaskSignals(ctx context.Context, tenantId string, tasks []TaskIdEventKeyTuple) ([]*sqlcv2.V2TaskEvent, error) {
+	taskIds := make([]int64, len(tasks))
+	eventKeys := make([]string, len(tasks))
+
+	for i, task := range tasks {
+		taskIds[i] = task.Id
+		eventKeys[i] = task.EventKey
+	}
+
+	return r.queries.ListMatchingSignalEvents(ctx, r.pool, sqlcv2.ListMatchingSignalEventsParams{
+		Tenantid:   sqlchelpers.UUIDFromStr(tenantId),
+		Taskids:    taskIds,
+		Signalkeys: eventKeys,
+		Eventtype:  sqlcv2.V2TaskEventTypeSIGNALCOMPLETED,
 	})
 }
 
@@ -470,6 +505,7 @@ func (r *TaskRepositoryImpl) ProcessTaskReassignments(ctx context.Context, tenan
 			failedTasks,
 			failedTaskDatas,
 			sqlcv2.V2TaskEventTypeFAILED,
+			make([]string, len(failedTasks)),
 		)
 
 		if err != nil {
@@ -483,6 +519,26 @@ func (r *TaskRepositoryImpl) ProcessTaskReassignments(ctx context.Context, tenan
 	}
 
 	return res, len(res) == limit, nil
+}
+
+func (r *TaskRepositoryImpl) GetQueueCounts(ctx context.Context, tenantId string) (map[string]int, error) {
+	counts, err := r.queries.GetQueuedCounts(ctx, r.pool, sqlchelpers.UUIDFromStr(tenantId))
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return map[string]int{}, nil
+		}
+
+		return nil, err
+	}
+
+	res := make(map[string]int)
+
+	for _, count := range counts {
+		res[count.Queue] = int(count.Count)
+	}
+
+	return res, nil
 }
 
 func (r *TaskRepositoryImpl) releaseTasks(ctx context.Context, tx sqlcv2.DBTX, tenantId string, tasks []TaskIdRetryCount) ([]*sqlcv2.ReleaseTasksRow, error) {
@@ -605,6 +661,7 @@ func (r *sharedRepository) insertTasks(
 	inputs := make([][]byte, len(tasks))
 	retryCounts := make([]int32, len(tasks))
 	additionalMetadatas := make([][]byte, len(tasks))
+	initialStates := make([]string, len(tasks))
 	dagIds := make([]pgtype.Int8, len(tasks))
 	dagInsertedAts := make([]pgtype.Timestamptz, len(tasks))
 	unix := time.Now().UnixMilli()
@@ -632,7 +689,9 @@ func (r *sharedRepository) insertTasks(
 			Valid: false,
 		}
 
-		if task.AdditionalMetadata != nil {
+		initialStates[i] = string(task.InitialState)
+
+		if len(task.AdditionalMetadata) > 0 {
 			additionalMetadatas[i] = task.AdditionalMetadata
 		}
 
@@ -649,7 +708,7 @@ func (r *sharedRepository) insertTasks(
 	err := r.upsertQueues(ctx, tx, tenantId, queues)
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to upsert queues: %w", err)
 	}
 
 	res, err := r.queries.CreateTasks(ctx, tx, sqlcv2.CreateTasksParams{
@@ -669,24 +728,26 @@ func (r *sharedRepository) insertTasks(
 		Inputs:              inputs,
 		Retrycounts:         retryCounts,
 		Additionalmetadatas: additionalMetadatas,
+		InitialStates:       initialStates,
 		Dagids:              dagIds,
 		Daginsertedats:      dagInsertedAts,
 	})
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create tasks: %w", err)
 	}
 
 	return res, nil
 }
 
-func (r *TaskRepositoryImpl) createTaskEvents(
+func (r *sharedRepository) createTaskEvents(
 	ctx context.Context,
 	dbtx sqlcv2.DBTX,
 	tenantId string,
 	tasks []TaskIdRetryCount,
 	eventDatas [][]byte,
 	eventType sqlcv2.V2TaskEventType,
+	eventKeys []string,
 ) error {
 	if len(tasks) != len(eventDatas) {
 		return fmt.Errorf("mismatched task and event data lengths")
@@ -696,6 +757,7 @@ func (r *TaskRepositoryImpl) createTaskEvents(
 	retryCounts := make([]int32, len(tasks))
 	eventTypes := make([]string, len(tasks))
 	paramDatas := make([][]byte, len(tasks))
+	paramKeys := make([]pgtype.Text, len(tasks))
 
 	for i, task := range tasks {
 		taskIds[i] = task.Id
@@ -705,7 +767,14 @@ func (r *TaskRepositoryImpl) createTaskEvents(
 		if len(eventDatas[i]) == 0 {
 			paramDatas[i] = nil
 		} else {
-			paramDatas[i] = paramDatas[i]
+			paramDatas[i] = eventDatas[i]
+		}
+
+		if eventKeys[i] != "" {
+			paramKeys[i] = pgtype.Text{
+				String: eventKeys[i],
+				Valid:  true,
+			}
 		}
 	}
 
@@ -715,5 +784,6 @@ func (r *TaskRepositoryImpl) createTaskEvents(
 		Retrycounts: retryCounts,
 		Eventtypes:  eventTypes,
 		Datas:       paramDatas,
+		Eventkeys:   paramKeys,
 	})
 }

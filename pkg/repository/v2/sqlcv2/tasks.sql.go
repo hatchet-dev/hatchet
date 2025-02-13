@@ -11,69 +11,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const createTaskEvents = `-- name: CreateTaskEvents :exec
-WITH locked_tasks AS (
-    SELECT
-        id
-    FROM
-        v2_task
-    WHERE
-        id = ANY($2::bigint[])
-        AND tenant_id = $1::uuid
-    -- order by the task id to get a stable lock order
-    ORDER BY
-        id
-    FOR UPDATE
-), input AS (
-    SELECT
-        task_id, retry_count, event_type, data
-    FROM
-        (
-            SELECT
-                unnest($2::bigint[]) AS task_id,
-                unnest($3::integer[]) AS retry_count,
-                unnest(cast($4::text[] as v2_task_event_type[])) AS event_type,
-                unnest($5::jsonb[]) AS data
-        ) AS subquery
-)
-INSERT INTO v2_task_event (
-    tenant_id,
-    task_id,
-    retry_count,
-    event_type,
-    data
-)
-SELECT
-    $1::uuid,
-    i.task_id,
-    i.retry_count,
-    i.event_type,
-    i.data
-FROM
-    input i
-`
-
-type CreateTaskEventsParams struct {
-	Tenantid    pgtype.UUID `json:"tenantid"`
-	Taskids     []int64     `json:"taskids"`
-	Retrycounts []int32     `json:"retrycounts"`
-	Eventtypes  []string    `json:"eventtypes"`
-	Datas       [][]byte    `json:"datas"`
-}
-
-// We get a FOR UPDATE lock on tasks to prevent concurrent writes to the task events
-// tables for each task
-func (q *Queries) CreateTaskEvents(ctx context.Context, db DBTX, arg CreateTaskEventsParams) error {
-	_, err := db.Exec(ctx, createTaskEvents,
-		arg.Tenantid,
-		arg.Taskids,
-		arg.Retrycounts,
-		arg.Eventtypes,
-		arg.Datas,
-	)
-	return err
-}
-
 const createTaskPartition = `-- name: CreateTaskPartition :exec
 SELECT create_v2_task_partition(
     $1::date
@@ -216,6 +153,69 @@ func (q *Queries) FailTaskInternalFailure(ctx context.Context, db DBTX, arg Fail
 	return items, nil
 }
 
+const listMatchingSignalEvents = `-- name: ListMatchingSignalEvents :many
+WITH input AS (
+    SELECT
+        task_id, signal_key
+    FROM
+        (
+            SELECT
+                unnest($3::bigint[]) AS task_id,
+                unnest($4::text[]) AS signal_key
+        ) AS subquery
+)
+SELECT
+    e.id, e.tenant_id, e.task_id, e.retry_count, e.event_type, e.event_key, e.created_at, e.data
+FROM
+    v2_task_event e
+JOIN
+    input i ON i.task_id = e.task_id AND i.signal_key = e.event_key
+WHERE
+    e.tenant_id = $1::uuid
+    AND e.event_type = $2::v2_task_event_type
+`
+
+type ListMatchingSignalEventsParams struct {
+	Tenantid   pgtype.UUID     `json:"tenantid"`
+	Eventtype  V2TaskEventType `json:"eventtype"`
+	Taskids    []int64         `json:"taskids"`
+	Signalkeys []string        `json:"signalkeys"`
+}
+
+func (q *Queries) ListMatchingSignalEvents(ctx context.Context, db DBTX, arg ListMatchingSignalEventsParams) ([]*V2TaskEvent, error) {
+	rows, err := db.Query(ctx, listMatchingSignalEvents,
+		arg.Tenantid,
+		arg.Eventtype,
+		arg.Taskids,
+		arg.Signalkeys,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*V2TaskEvent
+	for rows.Next() {
+		var i V2TaskEvent
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.TaskID,
+			&i.RetryCount,
+			&i.EventType,
+			&i.EventKey,
+			&i.CreatedAt,
+			&i.Data,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTaskMetas = `-- name: ListTaskMetas :many
 SELECT
     id,
@@ -300,7 +300,7 @@ func (q *Queries) ListTaskPartitionsBeforeDate(ctx context.Context, db DBTX, dat
 
 const listTasks = `-- name: ListTasks :many
 SELECT
-    id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, additional_metadata, dag_id, dag_inserted_at
+    id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, additional_metadata, dag_id, dag_inserted_at, parent_external_id, child_index, child_key, initial_state
 FROM
     v2_task
 WHERE
@@ -345,6 +345,10 @@ func (q *Queries) ListTasks(ctx context.Context, db DBTX, arg ListTasksParams) (
 			&i.AdditionalMetadata,
 			&i.DagID,
 			&i.DagInsertedAt,
+			&i.ParentExternalID,
+			&i.ChildIndex,
+			&i.ChildKey,
+			&i.InitialState,
 		); err != nil {
 			return nil, err
 		}
