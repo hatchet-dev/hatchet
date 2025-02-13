@@ -75,8 +75,6 @@ services:
     command: /hatchet/hatchet-admin quickstart --skip certs --generated-config-dir /hatchet/config --overwrite=false
     environment:
       DATABASE_URL: "postgres://hatchet:hatchet@postgres:5432/hatchet"
-      DATABASE_POSTGRES_PORT: "5432"
-      DATABASE_POSTGRES_HOST: "postgres"
       SERVER_TASKQUEUE_RABBITMQ_URL: amqp://user:password@rabbitmq:5672/
       SERVER_AUTH_COOKIE_DOMAIN: localhost:8080
       SERVER_AUTH_COOKIE_INSECURE: "t"
