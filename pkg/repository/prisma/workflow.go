@@ -461,11 +461,18 @@ func (r *workflowEngineRepository) CreateNewWorkflow(ctx context.Context, tenant
 	}
 
 	// ensure no cycles
-	for _, job := range opts.Jobs {
+	for i, job := range opts.Jobs {
 		if dagutils.HasCycle(job.Steps) {
 			return nil, &repository.JobRunHasCycleError{
 				JobName: job.Name,
 			}
+		}
+
+		var err error
+		opts.Jobs[i].Steps, err = dagutils.OrderWorkflowSteps(job.Steps)
+
+		if err != nil {
+			return nil, err
 		}
 	}
 
@@ -572,11 +579,18 @@ func (r *workflowEngineRepository) CreateWorkflowVersion(ctx context.Context, te
 	}
 
 	// ensure no cycles
-	for _, job := range opts.Jobs {
+	for i, job := range opts.Jobs {
 		if dagutils.HasCycle(job.Steps) {
 			return nil, &repository.JobRunHasCycleError{
 				JobName: job.Name,
 			}
+		}
+
+		var err error
+		opts.Jobs[i].Steps, err = dagutils.OrderWorkflowSteps(job.Steps)
+
+		if err != nil {
+			return nil, err
 		}
 	}
 
