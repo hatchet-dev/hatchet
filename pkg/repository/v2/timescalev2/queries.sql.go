@@ -12,40 +12,45 @@ import (
 )
 
 const countTasks = `-- name: CountTasks :one
-SELECT
-    COUNT(*)
-FROM
-    v2_tasks_olap
-WHERE
-    tenant_id = $1::uuid
-    AND inserted_at >= $2::timestamptz
-    AND (
-        $3::timestamptz IS NULL
-        OR inserted_at <= $3::timestamptz
-    )
-    AND (
-        $4::text[] IS NULL OR readable_status = ANY(cast($4::text[] as v2_readable_status_olap[]))
-    )
-    AND (
-        $5::uuid[] IS NULL OR workflow_id = ANY($5::uuid[])
-    )
-    AND (
-        $6::uuid IS NULL OR latest_worker_id = $6::uuid
-    )
-    AND (
-        $7::text[] IS NULL
-        OR $8::text[] IS NULL
-        OR EXISTS (
-            SELECT 1 FROM jsonb_each_text(additional_metadata) kv
-            JOIN LATERAL (
-                SELECT unnest($7::text[]) AS k,
-                    unnest($8::text[]) AS v
-            ) AS u ON kv.key = u.k AND kv.value = u.v
+WITH filtered AS (
+    SELECT
+        tenant_id, id, inserted_at, external_id, queue, action_id, step_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, display_name, input, additional_metadata, readable_status, latest_retry_count, latest_worker_id, dag_id, dag_inserted_at
+    FROM
+        v2_tasks_olap
+    WHERE
+        tenant_id = $1::uuid
+        AND inserted_at >= $2::timestamptz
+        AND (
+            $3::timestamptz IS NULL
+            OR inserted_at <= $3::timestamptz
         )
-    )
-ORDER BY
-    inserted_at DESC
-LIMIT 20000
+        AND (
+            $4::text[] IS NULL OR readable_status = ANY(cast($4::text[] as v2_readable_status_olap[]))
+        )
+        AND (
+            $5::uuid[] IS NULL OR workflow_id = ANY($5::uuid[])
+        )
+        AND (
+            $6::uuid IS NULL OR latest_worker_id = $6::uuid
+        )
+        AND (
+            $7::text[] IS NULL
+            OR $8::text[] IS NULL
+            OR EXISTS (
+                SELECT 1 FROM jsonb_each_text(additional_metadata) kv
+                JOIN LATERAL (
+                    SELECT unnest($7::text[]) AS k,
+                        unnest($8::text[]) AS v
+                ) AS u ON kv.key = u.k AND kv.value = u.v
+            )
+        )
+    ORDER BY
+        inserted_at DESC
+    LIMIT 20000
+)
+
+SELECT COUNT(*)
+FROM filtered
 `
 
 type CountTasksParams struct {
@@ -107,6 +112,7 @@ WITH filtered AS (
         )
     LIMIT 20000
 )
+
 SELECT COUNT(*)
 FROM filtered
 `
