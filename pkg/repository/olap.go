@@ -580,7 +580,7 @@ func (r *olapEventRepository) ListWorkflowRuns(ctx context.Context, tenantId str
 
 	populatedTasks, err := r.queries.PopulateTaskRunData(ctx, tx, timescalev2.PopulateTaskRunDataParams{
 		Taskids:         runIdsWithTasks,
-		Taskinsertedats: runInsertedAtsWithDAGs,
+		Taskinsertedats: runInsertedAtsWithTasks,
 		Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
 	})
 
