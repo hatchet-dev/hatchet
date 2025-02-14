@@ -366,10 +366,18 @@ func (r *olapEventRepository) ListTasks(ctx context.Context, tenantId string, op
 		statuses = append(statuses, string(status))
 	}
 
-	if len(statuses) != 0 && len(statuses) != 5 {
-		params.Statuses = statuses
-		countParams.Statuses = statuses
+	if len(statuses) == 0 {
+		statuses = []string{
+			string(timescalev2.V2ReadableStatusOlapQUEUED),
+			string(timescalev2.V2ReadableStatusOlapRUNNING),
+			string(timescalev2.V2ReadableStatusOlapCOMPLETED),
+			string(timescalev2.V2ReadableStatusOlapCANCELLED),
+			string(timescalev2.V2ReadableStatusOlapFAILED),
+		}
 	}
+
+	params.Statuses = statuses
+	countParams.Statuses = statuses
 
 	if len(opts.WorkflowIds) > 0 {
 		workflowIdParams := make([]pgtype.UUID, 0)
@@ -509,10 +517,18 @@ func (r *olapEventRepository) ListWorkflowRuns(ctx context.Context, tenantId str
 		statuses = append(statuses, string(status))
 	}
 
-	if len(statuses) != 0 && len(statuses) != 5 {
-		params.Statuses = statuses
-		countParams.Statuses = statuses
+	if len(statuses) == 0 {
+		statuses = []string{
+			string(timescalev2.V2ReadableStatusOlapQUEUED),
+			string(timescalev2.V2ReadableStatusOlapRUNNING),
+			string(timescalev2.V2ReadableStatusOlapCOMPLETED),
+			string(timescalev2.V2ReadableStatusOlapCANCELLED),
+			string(timescalev2.V2ReadableStatusOlapFAILED),
+		}
 	}
+
+	params.Statuses = statuses
+	countParams.Statuses = statuses
 
 	if len(opts.WorkflowIds) > 0 {
 		workflowIdParams := make([]pgtype.UUID, 0)
