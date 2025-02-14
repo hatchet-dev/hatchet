@@ -50,56 +50,75 @@ func run(ctx context.Context, delay time.Duration, executions chan<- time.Durati
 		concurrencyOpts = worker.Concurrency(getConcurrencyKey).MaxRuns(int32(concurrency))
 	}
 
-	err = w.On(
-		worker.Event("load-test:event"),
+	step := func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
+		var input Event
+		err = ctx.WorkflowInput(&input)
+		if err != nil {
+			return nil, err
+		}
+
+		took := time.Since(input.CreatedAt)
+		l.Info().Msgf("executing %d took %s", input.ID, took)
+
+		mx.Lock()
+		executions <- took
+		// detect duplicate in executed slice
+		var duplicate bool
+		// for i := 0; i < len(executed)-1; i++ {
+		// 	if executed[i] == input.ID {
+		// 		duplicate = true
+		// 		break
+		// 	}
+		// }
+		if duplicate {
+			l.Warn().Str("step-run-id", ctx.StepRunId()).Msgf("duplicate %d", input.ID)
+		}
+		if !duplicate {
+			uniques++
+		}
+		count++
+		executed = append(executed, input.ID)
+		mx.Unlock()
+
+		time.Sleep(delay)
+
+		if failureRate > 0 {
+			if rand.Float32() < failureRate {
+				return nil, fmt.Errorf("random failure")
+			}
+		}
+
+		return &stepOneOutput{
+			Message: "This ran at: " + time.Now().Format(time.RFC3339Nano),
+		}, nil
+	}
+
+	err = w.RegisterWorkflow(
 		&worker.WorkflowJob{
-			Name:        "load-test",
+			Name:        "load-test-1",
 			Description: "Load testing",
+			On:          worker.Event("load-test:event"),
 			Concurrency: concurrencyOpts,
 			// ScheduleTimeout: "30s",
 			Steps: []*worker.WorkflowStep{
-				worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
-					var input Event
-					err = ctx.WorkflowInput(&input)
-					if err != nil {
-						return nil, err
-					}
+				worker.Fn(step).SetName("step-one").SetTimeout("5m"),
+			},
+		},
+	)
 
-					took := time.Since(input.CreatedAt)
-					l.Info().Msgf("executing %d took %s", input.ID, took)
+	if err != nil {
+		panic(err)
+	}
 
-					mx.Lock()
-					executions <- took
-					// detect duplicate in executed slice
-					var duplicate bool
-					// for i := 0; i < len(executed)-1; i++ {
-					// 	if executed[i] == input.ID {
-					// 		duplicate = true
-					// 		break
-					// 	}
-					// }
-					if duplicate {
-						l.Warn().Str("step-run-id", ctx.StepRunId()).Msgf("duplicate %d", input.ID)
-					}
-					if !duplicate {
-						uniques++
-					}
-					count++
-					executed = append(executed, input.ID)
-					mx.Unlock()
-
-					time.Sleep(delay)
-
-					if failureRate > 0 {
-						if rand.Float32() < failureRate {
-							return nil, fmt.Errorf("random failure")
-						}
-					}
-
-					return &stepOneOutput{
-						Message: "This ran at: " + time.Now().Format(time.RFC3339Nano),
-					}, nil
-				}).SetName("step-one").SetTimeout("5m"),
+	err = w.RegisterWorkflow(
+		&worker.WorkflowJob{
+			Name:        "load-test-2",
+			Description: "Load testing",
+			On:          worker.Event("load-test:event"),
+			Concurrency: concurrencyOpts,
+			// ScheduleTimeout: "30s",
+			Steps: []*worker.WorkflowStep{
+				worker.Fn(step).SetName("step-one").SetTimeout("5m"),
 			},
 		},
 	)

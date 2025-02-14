@@ -83,12 +83,14 @@ import {
   UserLoginRequest,
   UserRegisterRequest,
   UserTenantMembershipsList,
+  V2DagChildren,
   V2Task,
   V2TaskEventList,
   V2TaskPointMetrics,
   V2TaskRunMetrics,
   V2TaskStatus,
   V2TaskSummaryList,
+  V2WorkflowRunList,
   WebhookWorkerCreateRequest,
   WebhookWorkerCreated,
   WebhookWorkerListResponse,
@@ -216,6 +218,86 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   ) =>
     this.request<V2TaskEventList, APIErrors>({
       path: `/api/v2/tasks/${task}/task-events`,
+      method: 'GET',
+      query: query,
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Lists all tasks that belong a specific list of dags
+   *
+   * @tags Task
+   * @name V2DagListTasks
+   * @summary List tasks
+   * @request GET:/api/v2/dags/tasks
+   * @secure
+   */
+  v2DagListTasks = (
+    query: {
+      /** The external id of the DAG */
+      dag_ids: string[];
+      /**
+       * The tenant id
+       * @format uuid
+       * @minLength 36
+       * @maxLength 36
+       */
+      tenant: string;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<V2DagChildren[], APIErrors>({
+      path: `/api/v2/dags/tasks`,
+      method: 'GET',
+      query: query,
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Lists workflow runs for a tenant.
+   *
+   * @tags Workflow Runs
+   * @name V2WorkflowRunList
+   * @summary List workflow runs
+   * @request GET:/api/v2/tenants/{tenant}/workflow-runs
+   * @secure
+   */
+  v2WorkflowRunList = (
+    tenant: string,
+    query: {
+      /**
+       * The number to skip
+       * @format int64
+       */
+      offset?: number;
+      /**
+       * The number to limit by
+       * @format int64
+       */
+      limit?: number;
+      /** A list of statuses to filter by */
+      statuses?: V2TaskStatus[];
+      /**
+       * The earliest date to filter by
+       * @format date-time
+       */
+      since: string;
+      /**
+       * The latest date to filter by
+       * @format date-time
+       */
+      until?: string;
+      /** Additional metadata k-v pairs to filter by */
+      additional_metadata?: string[];
+      /** The workflow ids to find runs for */
+      workflow_ids?: string[];
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<V2WorkflowRunList, APIErrors>({
+      path: `/api/v2/tenants/${tenant}/workflow-runs`,
       method: 'GET',
       query: query,
       secure: true,

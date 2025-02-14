@@ -76,6 +76,7 @@ interface DataTableProps<TData extends IDGetter<TData>, TValue> {
     | undefined;
   manualSorting?: boolean;
   manualFiltering?: boolean;
+  getSubRows?: (row: TData) => TData[];
 }
 
 interface ExtraDataTableProps {
@@ -114,6 +115,7 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
   card,
   manualSorting = true,
   manualFiltering = true,
+  getSubRows,
 }: DataTableProps<TData, TValue> & ExtraDataTableProps) {
   const [expanded, setExpanded] = React.useState<ExpandedState>({});
 
@@ -159,9 +161,10 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
     getSortedRowModel: getSortedRowModel(),
     getFacetedRowModel: getFacetedRowModel(),
     getFacetedUniqueValues: getFacetedUniqueValues(),
-    getSubRows: (row) => row.subRows || [],
+    getSubRows: getSubRows,
     onExpandedChange: setExpanded,
-    getRowCanExpand: (row) => (row.original.subRows || []).length > 0,
+    // TODO: Figure this out
+    getRowCanExpand: (row) => row.subRows.length > 0,
     manualSorting,
     manualFiltering,
     manualPagination: true,
@@ -222,8 +225,7 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
           table.getRowModel().rows.map((row) => (
             <React.Fragment key={row.id}>
               {getTableRow(row)}
-              {row.getIsExpanded() &&
-                row.subRows.map((subRow) => getTableRow(subRow))}
+              {row.getIsExpanded() && row.subRows.map((r) => getTableRow(r))}
             </React.Fragment>
           ))
         ) : (

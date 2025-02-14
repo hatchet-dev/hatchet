@@ -7,7 +7,7 @@ import {
 } from '../../../events/components/additional-metadata';
 import RelativeDate from '@/components/molecules/relative-date';
 import { Checkbox } from '@/components/ui/checkbox';
-import { ListableWorkflowRun } from '../task-runs-table';
+import { ListableWorkflowRun } from '../workflow-runs-table';
 import { ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';

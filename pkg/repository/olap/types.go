@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/hatchet-dev/hatchet/pkg/repository/v2/timescalev2"
 )
 
 // type WorkflowRun struct {
@@ -139,9 +138,4 @@ func (s ReadableTaskStatus) EnumValue() int {
 type TaskRunMetric struct {
 	Status string `json:"status"`
 	Count  uint64 `json:"count"`
-}
-
-type TaskRunDataRow struct {
-	Parent   *timescalev2.ListWorkflowRunsRow
-	Children []*timescalev2.ListDAGChildrenRow
 }

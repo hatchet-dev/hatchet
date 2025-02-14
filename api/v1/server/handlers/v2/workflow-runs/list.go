@@ -1,4 +1,4 @@
-package tasks
+package workflowruns
 
 import (
 	"strings"
@@ -12,7 +12,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
 )
 
-func (t *TasksService) V2TaskList(ctx echo.Context, request gen.V2TaskListRequestObject) (gen.V2TaskListResponseObject, error) {
+func (t *V2WorkflowRunsService) V2WorkflowRunList(ctx echo.Context, request gen.V2WorkflowRunListRequestObject) (gen.V2WorkflowRunListResponseObject, error) {
 	tenant := ctx.Get("tenant").(*db.TenantModel)
 
 	var (
@@ -27,7 +27,6 @@ func (t *TasksService) V2TaskList(ctx echo.Context, request gen.V2TaskListReques
 		workflowIds       = []uuid.UUID{}
 		limit       int64 = 50
 		offset      int64 = 0
-		workerId    *uuid.UUID
 	)
 
 	if request.Params.Statuses != nil {
@@ -48,15 +47,10 @@ func (t *TasksService) V2TaskList(ctx echo.Context, request gen.V2TaskListReques
 		workflowIds = *request.Params.WorkflowIds
 	}
 
-	if request.Params.WorkerId != nil {
-		workerId = request.Params.WorkerId
-	}
-
-	opts := repository.ListTaskRunOpts{
+	opts := repository.ListWorkflowRunOpts{
 		CreatedAfter: since,
 		Statuses:     statuses,
 		WorkflowIds:  workflowIds,
-		WorkerId:     workerId,
 		Limit:        limit,
 		Offset:       offset,
 	}
@@ -78,7 +72,7 @@ func (t *TasksService) V2TaskList(ctx echo.Context, request gen.V2TaskListReques
 		opts.FinishedBefore = request.Params.Until
 	}
 
-	tasks, total, err := t.config.EngineRepository.OLAP().ListTasks(
+	tasks, total, err := t.config.EngineRepository.OLAP().ListWorkflowRuns(
 		ctx.Request().Context(),
 		tenant.ID,
 		opts,
@@ -88,10 +82,10 @@ func (t *TasksService) V2TaskList(ctx echo.Context, request gen.V2TaskListReques
 		return nil, err
 	}
 
-	result := transformers.ToTaskSummaryMany(tasks, total, limit, offset)
+	result := transformers.ToWorkflowRunMany(tasks, total, limit, offset)
 
 	// Search for api errors to see how we handle errors in other cases
-	return gen.V2TaskList200JSONResponse(
+	return gen.V2WorkflowRunList200JSONResponse(
 		result,
 	), nil
 }

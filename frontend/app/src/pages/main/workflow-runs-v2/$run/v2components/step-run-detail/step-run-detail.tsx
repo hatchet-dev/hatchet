@@ -16,7 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { StepRunEvents } from '../step-run-events-for-workflow-run';
 import { useOutletContext } from 'react-router-dom';
 import { TenantContextType } from '@/lib/outlet';
-import { TaskRunsTable as WorkflowRunsTable } from '../../../components/task-runs-table';
+import { TaskRunsTable as WorkflowRunsTable } from '../../../components/workflow-runs-table';
 import { useTenant } from '@/lib/atoms';
 import { V2RunIndicator } from '../../../components/run-statuses';
 import RelativeDate from '@/components/molecules/relative-date';

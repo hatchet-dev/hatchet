@@ -100,6 +100,57 @@ listTasks:
     tags:
       - Task
 
+listTasksByDAGIds:
+  get:
+    description: Lists all tasks that belong a specific list of dags
+    operationId: v2-dag:list:tasks
+    parameters:
+      - description: The external id of the DAG
+        in: query
+        name: dag_ids
+        required: true
+        schema:
+          type: array
+          items:
+            type: string
+            format: uuid
+            minLength: 36
+            maxLength: 36
+      - description: The tenant id
+        in: query
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: "../../../components/schemas/_index.yaml#/V2DagChildren"
+              description: The list of tasks
+        description: Successfully listed the tasks
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+    summary: List tasks
+    tags:
+      - Task
+
 getTask:
   get:
     x-resources: ["tenant", "task"]

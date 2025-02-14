@@ -199,6 +199,7 @@ CREATE TABLE v2_runs_olap (
     readable_status v2_readable_status_olap NOT NULL DEFAULT 'QUEUED',
     kind v2_run_kind NOT NULL,
     workflow_id UUID NOT NULL,
+    additional_metadata JSONB,
 
     PRIMARY KEY (inserted_at, id, readable_status, kind)
 ) PARTITION BY RANGE(inserted_at);
@@ -421,7 +422,8 @@ BEGIN
         external_id,
         readable_status,
         kind,
-        workflow_id
+        workflow_id,
+        additional_metadata
     )
     SELECT
         tenant_id,
@@ -430,7 +432,8 @@ BEGIN
         external_id,
         readable_status,
         'TASK',
-        workflow_id
+        workflow_id,
+        additional_metadata
     FROM new_rows
     WHERE dag_id IS NULL;
 
@@ -522,7 +525,8 @@ BEGIN
         external_id,
         readable_status,
         kind,
-        workflow_id
+        workflow_id,
+        additional_metadata
     )
     SELECT
         tenant_id,
@@ -531,7 +535,8 @@ BEGIN
         external_id,
         readable_status,
         'DAG',
-        workflow_id
+        workflow_id,
+        additional_metadata
     FROM new_rows;
 
     INSERT INTO v2_lookup_table (

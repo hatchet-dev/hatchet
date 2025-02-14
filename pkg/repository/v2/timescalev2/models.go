@@ -314,13 +314,14 @@ type V2LookupTable struct {
 }
 
 type V2RunsOlap struct {
-	TenantID       pgtype.UUID          `json:"tenant_id"`
-	ID             int64                `json:"id"`
-	InsertedAt     pgtype.Timestamptz   `json:"inserted_at"`
-	ExternalID     pgtype.UUID          `json:"external_id"`
-	ReadableStatus V2ReadableStatusOlap `json:"readable_status"`
-	Kind           V2RunKind            `json:"kind"`
-	WorkflowID     pgtype.UUID          `json:"workflow_id"`
+	TenantID           pgtype.UUID          `json:"tenant_id"`
+	ID                 int64                `json:"id"`
+	InsertedAt         pgtype.Timestamptz   `json:"inserted_at"`
+	ExternalID         pgtype.UUID          `json:"external_id"`
+	ReadableStatus     V2ReadableStatusOlap `json:"readable_status"`
+	Kind               V2RunKind            `json:"kind"`
+	WorkflowID         pgtype.UUID          `json:"workflow_id"`
+	AdditionalMetadata []byte               `json:"additional_metadata"`
 }
 
 type V2StatusesOlap struct {

@@ -14,7 +14,7 @@ import api, {
   queries,
   ReplayWorkflowRunsRequest,
   V2TaskStatus,
-  V2TaskSummary,
+  V2WorkflowRun,
 } from '@/lib/api';
 import { TenantContextType } from '@/lib/outlet';
 import { useOutletContext, useSearchParams } from 'react-router-dom';
@@ -73,7 +73,7 @@ export interface WorkflowRunsTableProps {
 }
 
 // TODO: Clean this up
-export type ListableWorkflowRun = V2TaskSummary & {
+export type ListableWorkflowRun = V2WorkflowRun & {
   workflowName: string | undefined;
   triggeredBy: string;
   workflowVersionId: string;
@@ -272,6 +272,8 @@ export function WorkflowRunsTable({
       since:
         createdAfter ||
         new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+      additional_metadata: columnFilters.find((f) => f.id === 'Metadata')
+        ?.value as string[],
     }),
     placeholderData: (prev) => prev,
     refetchInterval,
@@ -493,7 +495,7 @@ export function WorkflowRunsTable({
       workflowVersionId: 'first version',
       triggeredBy: 'manual',
       workflowName: workflowKeys?.rows?.find(
-        (r) => r.metadata.id == row.parent.workflowId,
+        (r) => r.metadata.id == row.workflowId,
       )?.name,
     }),
   );
@@ -649,7 +651,7 @@ export function WorkflowRunsTable({
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
         // TODO: This is a hack - fix this type
-        data={data as any}
+        data={data}
         filters={filters}
         actions={actions}
         sorting={sorting}

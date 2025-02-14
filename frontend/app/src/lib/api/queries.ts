@@ -9,6 +9,7 @@ type ListRateLimitsQuery = Parameters<typeof api.rateLimitList>[1];
 type ListLogLineQuery = Parameters<typeof api.logLineList>[1];
 type ListWorkflowRunsQuery = Parameters<typeof api.workflowRunList>[1];
 type GetTaskMetricsQuery = Parameters<typeof api.v2TaskListStatusMetrics>[1];
+type V2ListWorkflowRunsQuery = Parameters<typeof api.v2WorkflowRunList>[1];
 type V2ListTaskRunsQuery = Parameters<typeof api.v2TaskList>[1];
 type V2TaskGetPointMetricsQuery = Parameters<
   typeof api.v2TaskGetPointMetrics
@@ -209,6 +210,12 @@ export const queries = createQueryKeyStore({
       queryFn: async () => (await api.cronWorkflowList(tenant, query)).data,
     }),
   },
+  v2WorkflowRuns: {
+    list: (tenant: string, query: V2ListWorkflowRunsQuery) => ({
+      queryKey: ['v2:workflow-run:list', tenant, query],
+      queryFn: async () => (await api.v2WorkflowRunList(tenant, query)).data,
+    }),
+  },
   v2Tasks: {
     list: (tenant: string, query: V2ListTaskRunsQuery) => ({
       queryKey: ['v2-task:list', tenant, query],
@@ -217,6 +224,16 @@ export const queries = createQueryKeyStore({
     get: (task: string) => ({
       queryKey: ['v2-task:get', task],
       queryFn: async () => (await api.v2TaskGet(task)).data,
+    }),
+    getByDagId: (tenant: string, dagIds: string[]) => ({
+      queryKey: ['v2-task:get-by-dag-id', dagIds],
+      queryFn: async () =>
+        (
+          await api.v2DagListTasks({
+            dag_ids: dagIds,
+            tenant,
+          })
+        ).data,
     }),
   },
   v2TaskEvents: {

@@ -94,12 +94,12 @@ func do(duration time.Duration, eventsPerSecond int, delay time.Duration, wait t
 	log.Printf("ℹ️ final average duration per executed event: %s", finalDurationResult.avg)
 	log.Printf("ℹ️ final average scheduling time per event: %s", finalScheduledResult.avg)
 
-	if emitted != executed {
-		log.Printf("⚠️ warning: emitted and executed counts do not match: %d != %d", emitted, executed)
+	if 2*emitted != executed {
+		log.Printf("⚠️ warning: emitted and executed counts do not match: %d != %d", 2*emitted, executed)
 	}
 
-	if emitted != uniques {
-		return fmt.Errorf("❌ emitted and unique executed counts do not match: %d != %d", emitted, uniques)
+	if 2*emitted != uniques {
+		return fmt.Errorf("❌ emitted and unique executed counts do not match: %d != %d", 2*emitted, uniques)
 	}
 
 	log.Printf("✅ success")

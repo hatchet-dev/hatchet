@@ -1,5 +1,5 @@
 import { DataTable } from '@/components/molecules/data-table/data-table.tsx';
-import { columns } from './v2/task-runs-columns';
+import { columns } from './v2/workflow-runs-columns';
 import { useEffect, useMemo, useState } from 'react';
 import {
   ColumnFiltersState,
@@ -14,7 +14,7 @@ import api, {
   queries,
   ReplayWorkflowRunsRequest,
   V2TaskStatus,
-  V2TaskSummarySingle,
+  V2WorkflowRun,
 } from '@/lib/api';
 import { TenantContextType } from '@/lib/outlet';
 import { useOutletContext, useSearchParams } from 'react-router-dom';
@@ -73,7 +73,7 @@ export interface TaskRunsTableProps {
 }
 
 // TODO: Clean this up
-export type ListableWorkflowRun = V2TaskSummarySingle & {
+export type ListableWorkflowRun = V2WorkflowRun & {
   workflowName: string | undefined;
   triggeredBy: string;
   workflowVersionId: string;
@@ -94,7 +94,6 @@ export const getCreatedAfterFromTimeRange = (timeRange?: string) => {
 
 export function TaskRunsTable({
   workflowId,
-  workerId,
   createdAfter: createdAfterProp,
   initColumnVisibility = {},
   filterVisibility = {},
@@ -263,12 +262,12 @@ export function TaskRunsTable({
   }, [columnFilters]);
 
   const listTasksQuery = useQuery({
-    ...queries.v2Tasks.list(tenant.metadata.id, {
+    ...queries.v2WorkflowRuns.list(tenant.metadata.id, {
       offset,
       limit: pagination.pageSize,
       statuses,
       workflow_ids: workflow ? [workflow] : [],
-      worker_id: workerId,
+      // worker_id: workerId,
       since:
         createdAfter ||
         new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
@@ -278,6 +277,13 @@ export function TaskRunsTable({
     }),
     placeholderData: (prev) => prev,
     refetchInterval,
+  });
+
+  const dagIds = listTasksQuery.data?.rows?.map((r) => r.metadata.id) || [];
+
+  const { data: dagChildrenRaw } = useQuery({
+    ...queries.v2Tasks.getByDagId(tenant.metadata.id, dagIds),
+    enabled: !!dagIds.length,
   });
 
   const metricsQuery = useQuery({
@@ -492,22 +498,26 @@ export function TaskRunsTable({
 
   const data: ListableWorkflowRun[] = (listTasksQuery.data?.rows || []).map(
     (row) => ({
-      ...row.parent,
+      ...row,
       workflowVersionId: 'first version',
       triggeredBy: 'manual',
       workflowName: workflowKeys?.rows?.find(
-        (r) => r.metadata.id == row.parent.workflowId,
+        (r) => r.metadata.id == row.workflowId,
       )?.name,
-      subRows: row.children.map((child) => ({
-        ...child,
-        workflowVersionId: 'first version',
-        triggeredBy: 'manual',
-        workflowName: workflowKeys?.rows?.find(
-          (r2) => r2.metadata.id == child.workflowId,
-        )?.name,
-      })),
     }),
   );
+
+  const dagChildren = (dagChildrenRaw || []).map((dag) => ({
+    dagId: dag.dagId,
+    children: dag.children?.map((child) => ({
+      ...child,
+      workflowVersionId: 'first version',
+      triggeredBy: 'manual',
+      workflowName: workflowKeys?.rows?.find(
+        (r2) => r2.metadata.id == child.workflowId,
+      )?.name,
+    })),
+  }));
 
   return (
     <>
@@ -673,6 +683,9 @@ export function TaskRunsTable({
         setRowSelection={setRowSelection}
         pageCount={listTasksQuery.data?.pagination?.num_pages || 0}
         showColumnToggle={true}
+        getSubRows={(row) =>
+          dagChildren.find((c) => c.dagId === row.metadata.id)?.children || []
+        }
       />
     </>
   );

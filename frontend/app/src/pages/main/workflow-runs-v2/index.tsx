@@ -1,5 +1,5 @@
 import { Separator } from '@/components/ui/separator';
-import { TaskRunsTable } from './components/task-runs-table';
+import { TaskRunsTable } from './components/workflow-runs-table';
 import { TriggerWorkflowForm } from '../workflows/$workflow/components/trigger-workflow-form';
 import { useState } from 'react';
 

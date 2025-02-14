@@ -151,13 +151,15 @@ const routes: RouteObject[] = [
                   }),
               },
               {
-                path: '/tasks',
+                path: '/workflow-runs',
                 lazy: async () =>
-                  import('./pages/main/tasks').then((res) => {
-                    return {
-                      Component: res.default,
-                    };
-                  }),
+                  import('./pages/main/workflow-runs-v2/index.tsx').then(
+                    (res) => {
+                      return {
+                        Component: res.default,
+                      };
+                    },
+                  ),
               },
               {
                 path: '/workflows',
@@ -172,15 +174,6 @@ const routes: RouteObject[] = [
                 path: '/workflows/:workflow',
                 lazy: async () =>
                   import('./pages/main/workflows/$workflow').then((res) => {
-                    return {
-                      Component: res.default,
-                    };
-                  }),
-              },
-              {
-                path: '/workflow-runs',
-                lazy: async () =>
-                  import('./pages/main/workflow-runs').then((res) => {
                     return {
                       Component: res.default,
                     };

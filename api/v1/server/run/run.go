@@ -27,6 +27,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/tenants"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/users"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/v2/tasks"
+	workflowrunsv2 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v2/workflow-runs"
 	webhookworker "github.com/hatchet-dev/hatchet/api/v1/server/handlers/webhook-worker"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/workers"
 	workflowruns "github.com/hatchet-dev/hatchet/api/v1/server/handlers/workflow-runs"
@@ -57,6 +58,7 @@ type apiService struct {
 	*monitoring.MonitoringService
 	*info.InfoService
 	*tasks.TasksService
+	*workflowrunsv2.V2WorkflowRunsService
 }
 
 func newAPIService(config *server.ServerConfig) *apiService {
@@ -78,6 +80,7 @@ func newAPIService(config *server.ServerConfig) *apiService {
 		MonitoringService:     monitoring.NewMonitoringService(config),
 		InfoService:           info.NewInfoService(config),
 		TasksService:          tasks.NewTasksService(config),
+		V2WorkflowRunsService: workflowrunsv2.NewV2WorkflowRunsService(config),
 	}
 }
 
@@ -347,6 +350,19 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 
 		return task, sqlchelpers.UUIDToStr(task.TenantID), nil
 	})
+
+	// populatorMW.RegisterGetter("dag", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
+	// 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	// 	defer cancel()
+
+	// 	dag, err := config.OLAPRepository.ReadDAG(ctx, id)
+
+	// 	if err != nil {
+	// 		return nil, "", err
+	// 	}
+
+	// 	return dag, sqlchelpers.UUIDToStr(dag.TenantID), nil
+	// })
 
 	authnMW := authn.NewAuthN(t.config)
 	authzMW := authz.NewAuthZ(t.config)
