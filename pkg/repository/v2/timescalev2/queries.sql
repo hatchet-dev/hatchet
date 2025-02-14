@@ -221,7 +221,8 @@ WHERE
 
 -- name: ListTasksByDAGIds :many
 SELECT
-    dt.*
+    dt.*,
+    lt.external_id AS dag_external_id
 FROM
     v2_lookup_table lt
 JOIN
@@ -387,7 +388,6 @@ WITH input AS (
         DISTINCT ON(t.tenant_id, t.id, t.inserted_at)
         t.tenant_id,
         t.id,
-        d.external_id AS dag_external_id,
         t.inserted_at,
         t.queue,
         t.action_id,
@@ -407,10 +407,6 @@ WITH input AS (
         v2_tasks_olap t
     JOIN
         input i ON i.id = t.id AND i.inserted_at = t.inserted_at
-    LEFT JOIN
-        v2_dag_to_task_olap dtt ON dtt.task_id = t.id
-    LEFT JOIN
-        v2_dags_olap d ON d.id = dtt.dag_id AND d.tenant_id = t.tenant_id
     WHERE
         t.tenant_id = @tenantId::uuid
 ), relevant_events AS (
@@ -480,7 +476,6 @@ WITH input AS (
 SELECT
     t.tenant_id,
     t.id,
-    t.dag_external_id,
     t.inserted_at,
     t.external_id,
     t.queue,

@@ -427,7 +427,8 @@ func (q *Queries) ListTaskEvents(ctx context.Context, db DBTX, arg ListTaskEvent
 
 const listTasksByDAGIds = `-- name: ListTasksByDAGIds :many
 SELECT
-    dt.dag_id, dt.dag_inserted_at, dt.task_id, dt.task_inserted_at
+    dt.dag_id, dt.dag_inserted_at, dt.task_id, dt.task_inserted_at,
+    lt.external_id AS dag_external_id
 FROM
     v2_lookup_table lt
 JOIN
@@ -442,20 +443,29 @@ type ListTasksByDAGIdsParams struct {
 	Tenantid pgtype.UUID   `json:"tenantid"`
 }
 
-func (q *Queries) ListTasksByDAGIds(ctx context.Context, db DBTX, arg ListTasksByDAGIdsParams) ([]*V2DagToTaskOlap, error) {
+type ListTasksByDAGIdsRow struct {
+	DagID          int64              `json:"dag_id"`
+	DagInsertedAt  pgtype.Timestamptz `json:"dag_inserted_at"`
+	TaskID         int64              `json:"task_id"`
+	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
+	DagExternalID  pgtype.UUID        `json:"dag_external_id"`
+}
+
+func (q *Queries) ListTasksByDAGIds(ctx context.Context, db DBTX, arg ListTasksByDAGIdsParams) ([]*ListTasksByDAGIdsRow, error) {
 	rows, err := db.Query(ctx, listTasksByDAGIds, arg.Dagids, arg.Tenantid)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*V2DagToTaskOlap
+	var items []*ListTasksByDAGIdsRow
 	for rows.Next() {
-		var i V2DagToTaskOlap
+		var i ListTasksByDAGIdsRow
 		if err := rows.Scan(
 			&i.DagID,
 			&i.DagInsertedAt,
 			&i.TaskID,
 			&i.TaskInsertedAt,
+			&i.DagExternalID,
 		); err != nil {
 			return nil, err
 		}
@@ -797,7 +807,6 @@ WITH input AS (
         DISTINCT ON(t.tenant_id, t.id, t.inserted_at)
         t.tenant_id,
         t.id,
-        d.external_id AS dag_external_id,
         t.inserted_at,
         t.queue,
         t.action_id,
@@ -817,10 +826,6 @@ WITH input AS (
         v2_tasks_olap t
     JOIN
         input i ON i.id = t.id AND i.inserted_at = t.inserted_at
-    LEFT JOIN
-        v2_dag_to_task_olap dtt ON dtt.task_id = t.id
-    LEFT JOIN
-        v2_dags_olap d ON d.id = dtt.dag_id AND d.tenant_id = t.tenant_id
     WHERE
         t.tenant_id = $3::uuid
 ), relevant_events AS (
@@ -890,7 +895,6 @@ WITH input AS (
 SELECT
     t.tenant_id,
     t.id,
-    t.dag_external_id,
     t.inserted_at,
     t.external_id,
     t.queue,
@@ -927,7 +931,6 @@ type PopulateTaskRunDataParams struct {
 type PopulateTaskRunDataRow struct {
 	TenantID           pgtype.UUID          `json:"tenant_id"`
 	ID                 int64                `json:"id"`
-	DagExternalID      pgtype.UUID          `json:"dag_external_id"`
 	InsertedAt         pgtype.Timestamptz   `json:"inserted_at"`
 	ExternalID         pgtype.UUID          `json:"external_id"`
 	Queue              string               `json:"queue"`
@@ -958,7 +961,6 @@ func (q *Queries) PopulateTaskRunData(ctx context.Context, db DBTX, arg Populate
 		if err := rows.Scan(
 			&i.TenantID,
 			&i.ID,
-			&i.DagExternalID,
 			&i.InsertedAt,
 			&i.ExternalID,
 			&i.Queue,
