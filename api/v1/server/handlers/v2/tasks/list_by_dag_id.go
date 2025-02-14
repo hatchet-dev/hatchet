@@ -18,7 +18,7 @@ func (t *TasksService) V2DagListTasks(ctx echo.Context, request gen.V2DagListTas
 		pguuids = append(pguuids, sqlchelpers.UUIDFromStr(dagId.String()))
 	}
 
-	tasks, err := t.config.EngineRepository.OLAP().ListTasksByDAGId(
+	tasks, taskIdToDagExternalId, err := t.config.EngineRepository.OLAP().ListTasksByDAGId(
 		ctx.Request().Context(),
 		tenant.String(),
 		pguuids,
@@ -28,7 +28,7 @@ func (t *TasksService) V2DagListTasks(ctx echo.Context, request gen.V2DagListTas
 		return nil, err
 	}
 
-	result := transformers.ToDagChildren(tasks)
+	result := transformers.ToDagChildren(tasks, taskIdToDagExternalId)
 
 	// Search for api errors to see how we handle errors in other cases
 	return gen.V2DagListTasks200JSONResponse(

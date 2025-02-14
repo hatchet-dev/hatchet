@@ -101,7 +101,7 @@ type OLAPEventRepository interface {
 	UpdateTaskStatuses(ctx context.Context, tenantId string) (bool, error)
 	UpdateDAGStatuses(ctx context.Context, tenantId string) (bool, error)
 	ReadDAG(ctx context.Context, dagExternalId string) (*timescalev2.V2DagsOlap, error)
-	ListTasksByDAGId(ctx context.Context, tenantId string, dagIds []pgtype.UUID) ([]*timescalev2.PopulateTaskRunDataRow, error)
+	ListTasksByDAGId(ctx context.Context, tenantId string, dagIds []pgtype.UUID) ([]*timescalev2.PopulateTaskRunDataRow, map[int64]uuid.UUID, error)
 }
 
 type olapEventRepository struct {
@@ -439,11 +439,12 @@ func (r *olapEventRepository) ListTasks(ctx context.Context, tenantId string, op
 	return tasksWithData, int(count), nil
 }
 
-func (r *olapEventRepository) ListTasksByDAGId(ctx context.Context, tenantId string, dagids []pgtype.UUID) ([]*timescalev2.PopulateTaskRunDataRow, error) {
+func (r *olapEventRepository) ListTasksByDAGId(ctx context.Context, tenantId string, dagids []pgtype.UUID) ([]*timescalev2.PopulateTaskRunDataRow, map[int64]uuid.UUID, error) {
 	tx, err := r.pool.Begin(ctx)
+	taskIdToDagExternalId := make(map[int64]uuid.UUID)
 
 	if err != nil {
-		return nil, err
+		return nil, taskIdToDagExternalId, err
 	}
 
 	defer tx.Rollback(ctx)
@@ -454,7 +455,11 @@ func (r *olapEventRepository) ListTasksByDAGId(ctx context.Context, tenantId str
 	})
 
 	if err != nil {
-		return nil, err
+		return nil, taskIdToDagExternalId, err
+	}
+
+	for _, row := range tasks {
+		taskIdToDagExternalId[row.TaskID] = uuid.MustParse(sqlchelpers.UUIDToStr(row.DagExternalID))
 	}
 
 	taskIds := make([]int64, 0)
@@ -472,14 +477,14 @@ func (r *olapEventRepository) ListTasksByDAGId(ctx context.Context, tenantId str
 	})
 
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return nil, err
+		return nil, taskIdToDagExternalId, err
 	}
 
 	if err := tx.Commit(ctx); err != nil {
-		return nil, err
+		return nil, taskIdToDagExternalId, err
 	}
 
-	return tasksWithData, nil
+	return tasksWithData, taskIdToDagExternalId, nil
 }
 
 func (r *olapEventRepository) ListWorkflowRuns(ctx context.Context, tenantId string, opts ListWorkflowRunOpts) ([]*WorkflowRunData, int, error) {
