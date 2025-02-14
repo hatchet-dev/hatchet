@@ -1118,7 +1118,6 @@ WITH input AS (
         v2_dag_to_task_olap dtt ON dtt.task_id = t.id
     LEFT JOIN
         v2_dags_olap d ON d.id = dtt.dag_id AND d.tenant_id = t.tenant_id
-
     WHERE
         t.tenant_id = $3::uuid
 ), relevant_events AS (
@@ -1128,10 +1127,6 @@ WITH input AS (
         v2_task_events_olap e
     JOIN
         tasks t ON t.id = e.task_id AND t.tenant_id = e.tenant_id AND t.inserted_at = e.task_inserted_at
-    WHERE
-        e.tenant_id = $3::uuid
-        AND e.task_id = ANY($1::bigint[])
-        AND e.task_inserted_at = ANY($2::timestamptz[])
 ), max_retry_counts AS (
     SELECT
         e.tenant_id,

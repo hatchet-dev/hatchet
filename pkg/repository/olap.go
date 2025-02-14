@@ -547,14 +547,16 @@ func (r *olapEventRepository) ListWorkflowRuns(ctx context.Context, tenantId str
 
 	runIdsWithDAGs := make([]int64, 0)
 	runInsertedAtsWithDAGs := make([]pgtype.Timestamptz, 0)
-	taskExternalIds := make([]pgtype.UUID, 0)
+	runIdsWithTasks := make([]int64, 0)
+	runInsertedAtsWithTasks := make([]pgtype.Timestamptz, 0)
 
 	for _, row := range workflowRunIds {
 		if row.Kind == timescalev2.V2RunKindDAG {
 			runIdsWithDAGs = append(runIdsWithDAGs, row.ID)
 			runInsertedAtsWithDAGs = append(runInsertedAtsWithDAGs, row.InsertedAt)
 		} else {
-			taskExternalIds = append(taskExternalIds, row.ExternalID)
+			runIdsWithTasks = append(runIdsWithTasks, row.ID)
+			runInsertedAtsWithTasks = append(runInsertedAtsWithTasks, row.InsertedAt)
 		}
 	}
 
@@ -576,26 +578,9 @@ func (r *olapEventRepository) ListWorkflowRuns(ctx context.Context, tenantId str
 		dagsToPopulated[externalId] = dag
 	}
 
-	tasksWithIds, err := r.queries.ListTasksByExternalIds(ctx, tx, timescalev2.ListTasksByExternalIdsParams{
-		Externalids: taskExternalIds,
-		Tenantid:    sqlchelpers.UUIDFromStr(tenantId),
-	})
-
-	if err != nil {
-		return nil, 0, err
-	}
-
-	taskIds := make([]int64, 0)
-	taskInsertedAts := make([]pgtype.Timestamptz, 0)
-
-	for _, row := range tasksWithIds {
-		taskIds = append(taskIds, row.TaskID.Int64)
-		taskInsertedAts = append(taskInsertedAts, row.InsertedAt)
-	}
-
 	populatedTasks, err := r.queries.PopulateTaskRunData(ctx, tx, timescalev2.PopulateTaskRunDataParams{
-		Taskids:         taskIds,
-		Taskinsertedats: taskInsertedAts,
+		Taskids:         runIdsWithTasks,
+		Taskinsertedats: runInsertedAtsWithDAGs,
 		Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
 	})
 
