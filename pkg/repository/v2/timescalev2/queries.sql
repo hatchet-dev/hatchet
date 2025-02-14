@@ -888,35 +888,40 @@ OFFSET @listWorkflowRunsOffset::integer
 ;
 
 -- name: CountWorkflowRuns :one
-SELECT COUNT(*)
-FROM v2_runs_olap
-WHERE
-    tenant_id = @tenantId::uuid
-    AND (
-        sqlc.narg('workflowIds')::uuid[] IS NULL
-        OR workflow_id = ANY(sqlc.narg('workflowIds')::uuid[])
-    )
-    AND (
-        sqlc.narg('statuses')::text[] IS NULL
-        OR readable_status = ANY(cast(sqlc.narg('statuses')::text[] as v2_readable_status_olap[]))
-    )
-    AND inserted_at >= @since::timestamptz
-    AND (
-        sqlc.narg('until')::timestamptz IS NULL
-        OR inserted_at <= sqlc.narg('until')::timestamptz
-    )
-    AND (
-        sqlc.narg('keys')::text[] IS NULL
-        OR sqlc.narg('values')::text[] IS NULL
-        OR EXISTS (
-            SELECT 1 FROM jsonb_each_text(additional_metadata) kv
-            JOIN LATERAL (
-                SELECT unnest(sqlc.narg('keys')::text[]) AS k,
-                    unnest(sqlc.narg('values')::text[]) AS v
-            ) AS u ON kv.key = u.k AND kv.value = u.v
+WITH filtered AS (
+    SELECT *
+    FROM v2_runs_olap
+    WHERE
+        tenant_id = @tenantId::uuid
+        AND (
+            sqlc.narg('workflowIds')::uuid[] IS NULL
+            OR workflow_id = ANY(sqlc.narg('workflowIds')::uuid[])
         )
-    )
-LIMIT 20000;
+        AND (
+            sqlc.narg('statuses')::text[] IS NULL
+            OR readable_status = ANY(cast(sqlc.narg('statuses')::text[] as v2_readable_status_olap[]))
+        )
+        AND inserted_at >= @since::timestamptz
+        AND (
+            sqlc.narg('until')::timestamptz IS NULL
+            OR inserted_at <= sqlc.narg('until')::timestamptz
+        )
+        AND (
+            sqlc.narg('keys')::text[] IS NULL
+            OR sqlc.narg('values')::text[] IS NULL
+            OR EXISTS (
+                SELECT 1 FROM jsonb_each_text(additional_metadata) kv
+                JOIN LATERAL (
+                    SELECT unnest(sqlc.narg('keys')::text[]) AS k,
+                        unnest(sqlc.narg('values')::text[]) AS v
+                ) AS u ON kv.key = u.k AND kv.value = u.v
+            )
+        )
+    LIMIT 20000
+)
+SELECT COUNT(*)
+FROM filtered
+;
 
 -- name: PopulateDAGMetadata :many
 WITH input AS (

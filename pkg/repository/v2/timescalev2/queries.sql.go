@@ -76,35 +76,39 @@ func (q *Queries) CountTasks(ctx context.Context, db DBTX, arg CountTasksParams)
 }
 
 const countWorkflowRuns = `-- name: CountWorkflowRuns :one
-SELECT COUNT(*)
-FROM v2_runs_olap
-WHERE
-    tenant_id = $1::uuid
-    AND (
-        $2::uuid[] IS NULL
-        OR workflow_id = ANY($2::uuid[])
-    )
-    AND (
-        $3::text[] IS NULL
-        OR readable_status = ANY(cast($3::text[] as v2_readable_status_olap[]))
-    )
-    AND inserted_at >= $4::timestamptz
-    AND (
-        $5::timestamptz IS NULL
-        OR inserted_at <= $5::timestamptz
-    )
-    AND (
-        $6::text[] IS NULL
-        OR $7::text[] IS NULL
-        OR EXISTS (
-            SELECT 1 FROM jsonb_each_text(additional_metadata) kv
-            JOIN LATERAL (
-                SELECT unnest($6::text[]) AS k,
-                    unnest($7::text[]) AS v
-            ) AS u ON kv.key = u.k AND kv.value = u.v
+WITH filtered AS (
+    SELECT tenant_id, id, inserted_at, external_id, readable_status, kind, workflow_id, additional_metadata
+    FROM v2_runs_olap
+    WHERE
+        tenant_id = $1::uuid
+        AND (
+            $2::uuid[] IS NULL
+            OR workflow_id = ANY($2::uuid[])
         )
-    )
-LIMIT 20000
+        AND (
+            $3::text[] IS NULL
+            OR readable_status = ANY(cast($3::text[] as v2_readable_status_olap[]))
+        )
+        AND inserted_at >= $4::timestamptz
+        AND (
+            $5::timestamptz IS NULL
+            OR inserted_at <= $5::timestamptz
+        )
+        AND (
+            $6::text[] IS NULL
+            OR $7::text[] IS NULL
+            OR EXISTS (
+                SELECT 1 FROM jsonb_each_text(additional_metadata) kv
+                JOIN LATERAL (
+                    SELECT unnest($6::text[]) AS k,
+                        unnest($7::text[]) AS v
+                ) AS u ON kv.key = u.k AND kv.value = u.v
+            )
+        )
+    LIMIT 20000
+)
+SELECT COUNT(*)
+FROM filtered
 `
 
 type CountWorkflowRunsParams struct {
