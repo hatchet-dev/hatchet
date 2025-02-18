@@ -16,7 +16,11 @@ import { V2RunStatus } from '@/pages/main/workflow-runs/components/run-statuses'
 
 export const columns: (
   onAdditionalMetadataClick?: (click: AdditionalMetadataClick) => void,
-) => ColumnDef<ListableWorkflowRun>[] = (onAdditionalMetadataClick) => [
+  onTaskRunIdClick?: (taskRunId: string) => void,
+) => ColumnDef<ListableWorkflowRun>[] = (
+  onAdditionalMetadataClick,
+  onTaskRunIdClick,
+) => [
   {
     id: 'select',
     header: ({ table }) => (
@@ -85,13 +89,30 @@ export const columns: (
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Task" />
     ),
-    cell: ({ row }) => (
-      <Link to={'/workflow-runs/' + row.original.metadata.id}>
-        <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">
-          {row.original.displayName}
-        </div>
-      </Link>
-    ),
+    cell: ({ row }) => {
+      if (row.getCanExpand()) {
+        return (
+          <Link to={'/workflow-runs/' + row.original.metadata.id}>
+            <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">
+              {row.original.displayName}
+            </div>
+          </Link>
+        );
+      } else {
+        return (
+          <div
+            className="cursor-pointer hover:underline min-w-fit whitespace-nowrap"
+            onClick={() =>
+              row.original.metadata.id &&
+              onTaskRunIdClick &&
+              onTaskRunIdClick(row.original.metadata.id)
+            }
+          >
+            {row.original.displayName}
+          </div>
+        );
+      }
+    },
     enableSorting: false,
     enableHiding: false,
   },

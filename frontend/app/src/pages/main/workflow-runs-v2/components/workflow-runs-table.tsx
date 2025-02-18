@@ -1,6 +1,6 @@
 import { DataTable } from '@/components/molecules/data-table/data-table.tsx';
 import { columns } from './v2/workflow-runs-columns';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ColumnFiltersState,
   PaginationState,
@@ -57,6 +57,10 @@ import {
 } from '@/components/molecules/charts/zoomable';
 import { DateTimePicker } from '@/components/molecules/time-picker/date-time-picker';
 import { AdditionalMetadataClick } from '../../events/components/additional-metadata';
+import { Sheet, SheetContent } from '@/components/ui/sheet';
+import StepRunDetail, {
+  TabOption,
+} from '../$run/v2components/step-run-detail/step-run-detail';
 
 export interface TaskRunsTableProps {
   createdAfter?: string;
@@ -92,6 +96,11 @@ export const getCreatedAfterFromTimeRange = (timeRange?: string) => {
   }
 };
 
+type StepDetailSheetState = {
+  isOpen: boolean;
+  taskRunId: string | undefined;
+};
+
 export function TaskRunsTable({
   workflowId,
   createdAfter: createdAfterProp,
@@ -108,6 +117,11 @@ export function TaskRunsTable({
   const [viewQueueMetrics, setViewQueueMetrics] = useState(false);
 
   const [defaultTimeRange, setDefaultTimeRange] = useAtom(lastTimeRangeAtom);
+  const [stepDetailSheetState, setStepDetailSheetState] =
+    useState<StepDetailSheetState>({
+      isOpen: false,
+      taskRunId: undefined,
+    });
 
   // customTimeRange does not get set in the atom,
   const [customTimeRange, setCustomTimeRange] = useState<string[] | undefined>(
@@ -360,6 +374,13 @@ export function TaskRunsTable({
     },
     onError: handleApiError,
   });
+
+  const onTaskRunIdClick = useCallback((taskRunId: string) => {
+    setStepDetailSheetState({
+      taskRunId,
+      isOpen: true,
+    });
+  }, []);
 
   const workflowKeyFilters = useMemo((): FilterOption[] => {
     return (
@@ -662,11 +683,29 @@ export function TaskRunsTable({
           )}
         </div>
       )}
+      {stepDetailSheetState.taskRunId && (
+        <Sheet
+          open={stepDetailSheetState.isOpen}
+          onOpenChange={(isOpen) =>
+            setStepDetailSheetState((prev) => ({
+              ...prev,
+              isOpen,
+            }))
+          }
+        >
+          <SheetContent className="w-fit min-w-[56rem] max-w-4xl sm:max-w-2xl z-[60]">
+            <StepRunDetail
+              taskRunId={stepDetailSheetState.taskRunId}
+              defaultOpenTab={TabOption.Output}
+            />
+          </SheetContent>
+        </Sheet>
+      )}
       <DataTable
         emptyState={<>No workflow runs found with the given filters.</>}
         error={workflowKeysError}
         isLoading={isLoading}
-        columns={columns(onAdditionalMetadataClick)}
+        columns={columns(onAdditionalMetadataClick, onTaskRunIdClick)}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
         data={data}
