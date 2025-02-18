@@ -528,22 +528,28 @@ SELECT
     $1::uuid,
     $2::uuid,
     "id",
-    'PENDING' -- default status
+    $3::"JobRunStatus"
 FROM
     "Job"
 WHERE
-    "workflowVersionId" = $3::uuid
+    "workflowVersionId" = $4::uuid
 RETURNING "id"
 `
 
 type CreateJobRunsParams struct {
-	Tenantid          pgtype.UUID `json:"tenantid"`
-	Workflowrunid     pgtype.UUID `json:"workflowrunid"`
-	Workflowversionid pgtype.UUID `json:"workflowversionid"`
+	Tenantid          pgtype.UUID  `json:"tenantid"`
+	Workflowrunid     pgtype.UUID  `json:"workflowrunid"`
+	Status            JobRunStatus `json:"status"`
+	Workflowversionid pgtype.UUID  `json:"workflowversionid"`
 }
 
 func (q *Queries) CreateJobRuns(ctx context.Context, db DBTX, arg CreateJobRunsParams) ([]pgtype.UUID, error) {
-	rows, err := db.Query(ctx, createJobRuns, arg.Tenantid, arg.Workflowrunid, arg.Workflowversionid)
+	rows, err := db.Query(ctx, createJobRuns,
+		arg.Tenantid,
+		arg.Workflowrunid,
+		arg.Status,
+		arg.Workflowversionid,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -568,7 +574,9 @@ WITH input_data AS (
     SELECT
         UNNEST($1::uuid[]) AS tenantId,
         UNNEST($2::uuid[]) AS workflowRunId,
-        UNNEST($3::uuid[]) AS workflowVersionId
+        UNNEST($3::uuid[]) AS workflowVersionId,
+        UNNEST(CAST($4::text[] AS "JobRunStatus"[])) AS status
+
 )
 INSERT INTO "JobRun" (
     "id",
@@ -586,7 +594,7 @@ SELECT
     input_data.tenantId,
     input_data.workflowRunId,
     "Job"."id",
-    'PENDING'
+    input_data.status
 FROM
     input_data
 JOIN
@@ -600,6 +608,7 @@ type CreateManyJobRunsParams struct {
 	Tenantids          []pgtype.UUID `json:"tenantids"`
 	Workflowrunids     []pgtype.UUID `json:"workflowrunids"`
 	Workflowversionids []pgtype.UUID `json:"workflowversionids"`
+	Status             []string      `json:"status"`
 }
 
 type CreateManyJobRunsRow struct {
@@ -609,7 +618,12 @@ type CreateManyJobRunsRow struct {
 }
 
 func (q *Queries) CreateManyJobRuns(ctx context.Context, db DBTX, arg CreateManyJobRunsParams) ([]*CreateManyJobRunsRow, error) {
-	rows, err := db.Query(ctx, createManyJobRuns, arg.Tenantids, arg.Workflowrunids, arg.Workflowversionids)
+	rows, err := db.Query(ctx, createManyJobRuns,
+		arg.Tenantids,
+		arg.Workflowrunids,
+		arg.Workflowversionids,
+		arg.Status,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -2108,42 +2122,89 @@ func (q *Queries) GetWorkflowRunTrigger(ctx context.Context, db DBTX, arg GetWor
 }
 
 const getWorkflowRunsInsertedInThisTxn = `-- name: GetWorkflowRunsInsertedInThisTxn :many
-SELECT "createdAt", "updatedAt", "deletedAt", "tenantId", "workflowVersionId", status, error, "startedAt", "finishedAt", "concurrencyGroupId", "displayName", id, "childIndex", "childKey", "parentId", "parentStepRunId", "additionalMetadata", duration, priority, "insertOrder" FROM "WorkflowRun"
-WHERE xmin::text = (txid_current() % (2^32)::bigint)::text
-AND ("createdAt" = CURRENT_TIMESTAMP::timestamp(3))
-ORDER BY "insertOrder" ASC
+SELECT
+    runs."createdAt", runs."updatedAt", runs."deletedAt", runs."tenantId", runs."workflowVersionId", runs.status, runs.error, runs."startedAt", runs."finishedAt", runs."concurrencyGroupId", runs."displayName", runs.id, runs."childIndex", runs."childKey", runs."parentId", runs."parentStepRunId", runs."additionalMetadata", runs.duration, runs.priority, runs."insertOrder",
+    CASE
+    WHEN EXISTS (
+        SELECT 1
+        FROM "JobRun" AS jr
+        JOIN "Job" AS j ON jr."jobId" = j."id"
+        WHERE jr."workflowRunId" = runs."id" AND j."kind" = 'ON_FAILURE'
+    )
+    THEN true
+    ELSE false
+    END AS "FailureJob",
+    wc."limitStrategy" as "concurrencyLimitStrategy",
+    wc."maxRuns" as "concurrencyMaxRuns",
+    wc."concurrencyGroupExpression" as "concurrencyGroupExpression",
+    groupKeyRun."id" as "getGroupKeyRunId",
+    dedupe."value" as "dedupeValue"
+
+FROM
+    "WorkflowRun" as runs
+LEFT JOIN
+    "WorkflowVersion" as workflowVersion ON runs."workflowVersionId" = workflowVersion."id"
+LEFT JOIN
+    "Workflow" as workflow ON workflowVersion."workflowId" = workflow."id"
+LEFT JOIN
+    "WorkflowConcurrency" as wc ON wc."workflowVersionId" = workflowVersion."id"
+LEFT JOIN
+    "GetGroupKeyRun" as groupKeyRun ON groupKeyRun."workflowRunId" = runs."id"
+LEFT JOIN
+    "WorkflowRunDedupe" as dedupe ON dedupe."workflowRunId" = runs."id"
+
+WHERE
+    runs.xmin::text = (txid_current() % (2^32)::bigint)::text
+    AND (runs."createdAt" = CURRENT_TIMESTAMP::timestamp(3))
+    ORDER BY "insertOrder" ASC
 `
 
-func (q *Queries) GetWorkflowRunsInsertedInThisTxn(ctx context.Context, db DBTX) ([]*WorkflowRun, error) {
+type GetWorkflowRunsInsertedInThisTxnRow struct {
+	WorkflowRun                WorkflowRun                  `json:"workflow_run"`
+	FailureJob                 bool                         `json:"FailureJob"`
+	ConcurrencyLimitStrategy   NullConcurrencyLimitStrategy `json:"concurrencyLimitStrategy"`
+	ConcurrencyMaxRuns         pgtype.Int4                  `json:"concurrencyMaxRuns"`
+	ConcurrencyGroupExpression pgtype.Text                  `json:"concurrencyGroupExpression"`
+	GetGroupKeyRunId           pgtype.UUID                  `json:"getGroupKeyRunId"`
+	DedupeValue                pgtype.Text                  `json:"dedupeValue"`
+}
+
+func (q *Queries) GetWorkflowRunsInsertedInThisTxn(ctx context.Context, db DBTX) ([]*GetWorkflowRunsInsertedInThisTxnRow, error) {
 	rows, err := db.Query(ctx, getWorkflowRunsInsertedInThisTxn)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*WorkflowRun
+	var items []*GetWorkflowRunsInsertedInThisTxnRow
 	for rows.Next() {
-		var i WorkflowRun
+		var i GetWorkflowRunsInsertedInThisTxnRow
 		if err := rows.Scan(
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.DeletedAt,
-			&i.TenantId,
-			&i.WorkflowVersionId,
-			&i.Status,
-			&i.Error,
-			&i.StartedAt,
-			&i.FinishedAt,
-			&i.ConcurrencyGroupId,
-			&i.DisplayName,
-			&i.ID,
-			&i.ChildIndex,
-			&i.ChildKey,
-			&i.ParentId,
-			&i.ParentStepRunId,
-			&i.AdditionalMetadata,
-			&i.Duration,
-			&i.Priority,
-			&i.InsertOrder,
+			&i.WorkflowRun.CreatedAt,
+			&i.WorkflowRun.UpdatedAt,
+			&i.WorkflowRun.DeletedAt,
+			&i.WorkflowRun.TenantId,
+			&i.WorkflowRun.WorkflowVersionId,
+			&i.WorkflowRun.Status,
+			&i.WorkflowRun.Error,
+			&i.WorkflowRun.StartedAt,
+			&i.WorkflowRun.FinishedAt,
+			&i.WorkflowRun.ConcurrencyGroupId,
+			&i.WorkflowRun.DisplayName,
+			&i.WorkflowRun.ID,
+			&i.WorkflowRun.ChildIndex,
+			&i.WorkflowRun.ChildKey,
+			&i.WorkflowRun.ParentId,
+			&i.WorkflowRun.ParentStepRunId,
+			&i.WorkflowRun.AdditionalMetadata,
+			&i.WorkflowRun.Duration,
+			&i.WorkflowRun.Priority,
+			&i.WorkflowRun.InsertOrder,
+			&i.FailureJob,
+			&i.ConcurrencyLimitStrategy,
+			&i.ConcurrencyMaxRuns,
+			&i.ConcurrencyGroupExpression,
+			&i.GetGroupKeyRunId,
+			&i.DedupeValue,
 		); err != nil {
 			return nil, err
 		}
@@ -3090,6 +3151,20 @@ func (q *Queries) ResolveWorkflowRunStatus(ctx context.Context, db DBTX, arg Res
 		return nil, err
 	}
 	return items, nil
+}
+
+const setWorkflowRunRunning = `-- name: SetWorkflowRunRunning :exec
+UPDATE "WorkflowRun"
+SET
+    "status" = 'RUNNING'::"WorkflowRunStatus"
+WHERE
+    "id" = ANY($1::uuid[])
+    AND "status" != 'RUNNING'::"WorkflowRunStatus"
+`
+
+func (q *Queries) SetWorkflowRunRunning(ctx context.Context, db DBTX, workflowrunids []pgtype.UUID) error {
+	_, err := db.Exec(ctx, setWorkflowRunRunning, workflowrunids)
+	return err
 }
 
 const softDeleteExpiredWorkflowRunsWithDependencies = `-- name: SoftDeleteExpiredWorkflowRunsWithDependencies :one

@@ -14,59 +14,62 @@ type Event struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
-func emit(ctx context.Context, amountPerSecond int, duration time.Duration, scheduled chan<- time.Duration) int64 {
-	c, err := client.New()
+// this function is going to emit on a schedule and then return
 
-	if err != nil {
-		panic(err)
-	}
+func emit(ctx context.Context, c client.Client, amountPerSecond int, duration time.Duration, scheduled chan<- time.Duration) int64 {
 
 	var id int64
 	mx := sync.Mutex{}
-	go func() {
-		ticker := time.NewTicker(time.Second / time.Duration(amountPerSecond))
-		defer ticker.Stop()
 
-		timer := time.After(duration)
+	ticker := time.NewTicker(time.Second / time.Duration(amountPerSecond))
+	defer ticker.Stop()
 
-		for {
-			select {
-			case <-ticker.C:
-				mx.Lock()
-				id++
-
-				go func(id int64) {
-					var err error
-					ev := Event{CreatedAt: time.Now(), ID: id}
-					l.Info().Msgf("pushed event %d", ev.ID)
-					err = c.Event().Push(context.Background(), "load-test:event", ev)
-					if err != nil {
-						panic(fmt.Errorf("error pushing event: %w", err))
-					}
-					took := time.Since(ev.CreatedAt)
-					l.Info().Msgf("pushed event %d took %s", ev.ID, took)
-					scheduled <- took
-				}(id)
-
-				mx.Unlock()
-			case <-timer:
-				l.Info().Msg("done emitting events due to timer")
-				return
-			case <-ctx.Done():
-				l.Info().Msgf("done emitting events due to interruption at %d", id)
-				return
-			}
-		}
-	}()
+	timer := time.After(duration)
+	wg := sync.WaitGroup{}
 
 	for {
 		select {
-		case <-ctx.Done():
+		case <-ticker.C:
+			mx.Lock()
+			id++
+
+			wg.Add(1)
+			go func(id int64) {
+
+				defer wg.Done()
+				var err error
+				ev := Event{CreatedAt: time.Now(), ID: id}
+				l.Info().Msgf("pushed event %d", ev.ID)
+				err = c.Event().Push(context.Background(), "load-test:event", ev)
+				if err != nil {
+					panic(fmt.Errorf("error pushing event: %w", err))
+				}
+				took := time.Since(ev.CreatedAt)
+				l.Info().Msgf("pushed event %d took %s", ev.ID, took)
+				scheduled <- took
+			}(id)
+
+			mx.Unlock()
+		case <-timer:
+			l.Info().Msg("done emitting events due to timer")
+
+			wg.Wait()
 			mx.Lock()
 			defer mx.Unlock()
 			return id
-		default:
-			time.Sleep(time.Second)
+		case <-ctx.Done():
+			wg.Wait()
+
+			l.Info().Msgf("done emitting events due to interruption at %d", id)
+			mx.Lock()
+			defer mx.Unlock()
+			return id
+		case <-time.After(duration + 20*time.Second):
+			l.Fatal().Msg("timed out emitting events")
+			mx.Lock()
+			defer mx.Unlock()
+			return id
 		}
 	}
+
 }
