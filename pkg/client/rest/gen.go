@@ -1188,22 +1188,10 @@ type V2Task struct {
 	WorkflowId openapi_types.UUID `json:"workflowId"`
 }
 
-// V2TaskEvent defines model for V2TaskEvent.
-type V2TaskEvent struct {
-	ErrorMessage *string             `json:"errorMessage,omitempty"`
-	EventType    V2TaskEventType     `json:"eventType"`
-	Id           int                 `json:"id"`
-	Message      string              `json:"message"`
-	Output       *string             `json:"output,omitempty"`
-	TaskId       openapi_types.UUID  `json:"taskId"`
-	Timestamp    time.Time           `json:"timestamp"`
-	WorkerId     *openapi_types.UUID `json:"workerId,omitempty"`
-}
-
 // V2TaskEventList defines model for V2TaskEventList.
 type V2TaskEventList struct {
-	Pagination *PaginationResponse `json:"pagination,omitempty"`
-	Rows       *[]V2TaskEvent      `json:"rows,omitempty"`
+	Pagination *PaginationResponse       `json:"pagination,omitempty"`
+	Rows       *[]V2WorkflowRunTaskEvent `json:"rows,omitempty"`
 }
 
 // V2TaskEventType defines model for V2TaskEventType.
@@ -1313,6 +1301,53 @@ type V2WorkflowRunList struct {
 
 	// Rows The list of workflow runs
 	Rows []V2WorkflowRun `json:"rows"`
+}
+
+// V2WorkflowRunTaskEvent defines model for V2WorkflowRunTaskEvent.
+type V2WorkflowRunTaskEvent struct {
+	// AdditionalEventData Additional data associated with the event.
+	AdditionalEventData *string `json:"additionalEventData"`
+
+	// AdditionalEventMessage Additional message associated with the event.
+	AdditionalEventMessage *string `json:"additionalEventMessage"`
+
+	// Count Count of events.
+	Count *int64 `json:"count,omitempty"`
+
+	// ErrorMessage Error message if any.
+	ErrorMessage *string `json:"errorMessage"`
+
+	// EventTimestamp Timestamp when the event occurred.
+	EventTimestamp *time.Time       `json:"eventTimestamp,omitempty"`
+	EventType      *V2TaskEventType `json:"eventType,omitempty"`
+
+	// Id Unique identifier for the event.
+	Id *int64 `json:"id,omitempty"`
+
+	// Output Binary output data.
+	Output         *[]byte       `json:"output,omitempty"`
+	ReadableStatus *V2TaskStatus `json:"readableStatus,omitempty"`
+
+	// RetryCount Number of retry attempts.
+	RetryCount *int32 `json:"retryCount,omitempty"`
+
+	// TaskId The ID of the task.
+	TaskId *int64 `json:"taskId,omitempty"`
+
+	// TaskInsertedAt The timestamp when the task was inserted.
+	TaskInsertedAt *time.Time `json:"taskInsertedAt,omitempty"`
+
+	// TenantId The ID of the tenant.
+	TenantId *openapi_types.UUID `json:"tenantId,omitempty"`
+
+	// TimeFirstSeen Timestamp when the event was first seen.
+	TimeFirstSeen *time.Time `json:"timeFirstSeen"`
+
+	// TimeLastSeen Timestamp when the event was last seen.
+	TimeLastSeen *time.Time `json:"timeLastSeen"`
+
+	// WorkerId ID of the worker processing the task.
+	WorkerId *openapi_types.UUID `json:"workerId,omitempty"`
 }
 
 // WebhookWorker defines model for WebhookWorker.

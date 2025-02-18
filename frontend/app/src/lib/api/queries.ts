@@ -242,9 +242,17 @@ export const queries = createQueryKeyStore({
     }),
   },
   v2TaskEvents: {
-    list: (tenant: string, task: string, query: ListWorkflowRunsQuery) => ({
+    list: (tenant: string, query: ListWorkflowRunsQuery, task?: string | undefined, workflowRunId?: string | undefined) => ({
       queryKey: ['v2:workflow-run:list', tenant, task, query],
-      queryFn: async () => (await api.v2TaskEventList(task, query)).data,
+      queryFn: async () => {
+        if (task) {
+          return (await api.v2TaskEventList(task, query)).data
+        } else if (workflowRunId) {
+          return (await api.v2WorkflowRunTaskEventsList(tenant, workflowRunId)).data
+        } else {
+          throw new Error('Either task or workflowRunId must be set')
+        }
+      },
     }),
   },
   v2TaskRuns: {
