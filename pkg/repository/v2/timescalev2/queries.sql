@@ -296,11 +296,12 @@ ORDER BY a.time_first_seen DESC, t.event_timestamp DESC;
 
 -- name: ListTaskEventsForWorkflowRun :many
 WITH tasks AS (
-    SELECT task_id
-    FROM v2_lookup_table
+    SELECT dt.task_id
+    FROM v2_lookup_table lt
+    JOIN v2_dag_to_task_olap dt ON lt.dag_id = dt.dag_id
     WHERE
-        external_id = @workflowRunId::uuid
-        AND tenant_id = @tenantId::uuid
+        lt.external_id = @workflowRunId::uuid
+        AND lt.tenant_id = @tenantId::uuid
 ), aggregated_events AS (
   SELECT
     tenant_id,

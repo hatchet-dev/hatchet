@@ -427,11 +427,12 @@ func (q *Queries) ListTaskEvents(ctx context.Context, db DBTX, arg ListTaskEvent
 
 const listTaskEventsForWorkflowRun = `-- name: ListTaskEventsForWorkflowRun :many
 WITH tasks AS (
-    SELECT task_id
-    FROM v2_lookup_table
+    SELECT dt.task_id
+    FROM v2_lookup_table lt
+    JOIN v2_dag_to_task_olap dt ON lt.dag_id = dt.dag_id
     WHERE
-        external_id = $1::uuid
-        AND tenant_id = $2::uuid
+        lt.external_id = $1::uuid
+        AND lt.tenant_id = $2::uuid
 ), aggregated_events AS (
   SELECT
     tenant_id,
