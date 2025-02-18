@@ -146,6 +146,15 @@ V2TaskEventList:
       $ref: ".././metadata.yaml#/PaginationResponse"
     rows:
       items:
+        $ref: "#/V2TaskEvent"
+      type: array
+
+V2TaskEventListForWorkflowRun:
+  properties:
+    pagination:
+      $ref: ".././metadata.yaml#/PaginationResponse"
+    rows:
+      items:
         $ref: "#/V2WorkflowRunTaskEvent"
       type: array
 

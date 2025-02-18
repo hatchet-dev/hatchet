@@ -204,77 +204,23 @@ export enum V2TaskEventType {
   SKIPPED = 'SKIPPED',
 }
 
-export interface V2WorkflowRunTaskEvent {
-  /**
-   * The ID of the tenant.
-   * @format uuid
-   */
-  tenantId?: string;
-  /**
-   * The ID of the task.
-   * @format int64
-   */
-  taskId?: number;
-  /**
-   * The timestamp when the task was inserted.
-   * @format date-time
-   */
-  taskInsertedAt?: string;
-  /**
-   * Number of retry attempts.
-   * @format int32
-   */
-  retryCount?: number;
-  /** Type of the event. */
-  eventType?: V2TaskEventType;
-  /**
-   * Timestamp when the event was first seen.
-   * @format date-time
-   */
-  timeFirstSeen?: string | null;
-  /**
-   * Timestamp when the event was last seen.
-   * @format date-time
-   */
-  timeLastSeen?: string | null;
-  /**
-   * Count of events.
-   * @format int64
-   */
-  count?: number;
-  /**
-   * Unique identifier for the event.
-   * @format int64
-   */
-  id?: number;
-  /**
-   * Timestamp when the event occurred.
-   * @format date-time
-   */
-  eventTimestamp?: string;
-  /** Human-readable status of the event. */
-  readableStatus?: V2TaskStatus;
-  /** Error message if any. */
-  errorMessage?: string | null;
-  /**
-   * Binary output data.
-   * @format byte
-   */
+export interface V2TaskEvent {
+  id: number;
+  /** @format uuid */
+  taskId: string;
+  /** @format date-time */
+  timestamp: string;
+  eventType: V2TaskEventType;
+  message: string;
+  errorMessage?: string;
   output?: string;
-  /**
-   * ID of the worker processing the task.
-   * @format uuid
-   */
+  /** @format uuid */
   workerId?: string;
-  /** Additional data associated with the event. */
-  additionalEventData?: string | null;
-  /** Additional message associated with the event. */
-  additionalEventMessage?: string | null;
 }
 
 export interface V2TaskEventList {
   pagination?: PaginationResponse;
-  rows?: V2WorkflowRunTaskEvent[];
+  rows?: V2TaskEvent[];
 }
 
 export interface V2DagChildren {
