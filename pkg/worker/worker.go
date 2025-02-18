@@ -133,16 +133,11 @@ func defaultWorkerOpts() *WorkerOpts {
 	}
 }
 
-func WithLogLevel(lvl string) WorkerOpt {
+func WithLogger(l *zerolog.Logger) WorkerOpt {
 	return func(opts *WorkerOpts) {
-		logger := logger.NewDefaultLogger("worker")
-		lvl, err := zerolog.ParseLevel(lvl)
-
-		if err == nil {
-			logger = logger.Level(lvl)
+		if l != nil {
+			opts.l = l
 		}
-
-		opts.l = &logger
 	}
 }
 
