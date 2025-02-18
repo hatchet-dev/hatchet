@@ -702,6 +702,7 @@ step_runs_to_reassign AS (
         step_runs_on_inactive_workers
     WHERE
         "internalRetryCount" < @maxInternalRetryCount::int
+        AND EXTRACT(EPOCH FROM (NOW() - "stepCreatedAt")) > @minReassignBackoffSeconds::int
 ),
 step_runs_to_fail AS (
     SELECT
@@ -811,6 +812,7 @@ step_runs_to_reassign AS (
         step_runs
     WHERE
         "internalRetryCount" < @maxInternalRetryCount::int
+        AND EXTRACT(EPOCH FROM (NOW() - "stepCreatedAt")) > @minReassignBackoffSeconds::int
 ),
 step_runs_to_fail AS (
     SELECT
