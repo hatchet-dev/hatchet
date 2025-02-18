@@ -101,7 +101,8 @@ err = w.RegisterWorkflow(
                     Units: 1,
                     KeyExpr: "input.user_id",
                     LimitValueExpr: '"10"',
-                    Duration: worker.RateLimitDurationMinute,
+                    // import "github.com/hatchet-dev/hatchet/pkg/client/types"
+                    Duration: types.Minute,
                 },
             ),
         },
