@@ -215,6 +215,11 @@ export const queries = createQueryKeyStore({
       queryKey: ['v2:workflow-run:list', tenant, query],
       queryFn: async () => (await api.v2WorkflowRunList(tenant, query)).data,
     }),
+    listTaskEvents: (tenant: string, workflowRunId: string) => ({
+      queryKey: ['v2:workflow-run:list-tasks', tenant, workflowRunId],
+      queryFn: async () =>
+        (await api.v2WorkflowRunTaskEventsList(tenant, workflowRunId)).data,
+    })
   },
   v2Tasks: {
     list: (tenant: string, query: V2ListTaskRunsQuery) => ({

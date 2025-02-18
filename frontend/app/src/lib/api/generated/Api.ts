@@ -308,12 +308,12 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @description List all tasks for a workflow run
    *
    * @tags Workflow Runs
-   * @name V2TaskEventsWorkflowRunList
+   * @name V2WorkflowRunTaskEventsList
    * @summary List tasks
    * @request GET:/api/v2/tenants/{tenant}/workflow-runs/{workflow_run_id}/task-events
    * @secure
    */
-  v2TaskEventsWorkflowRunList = (
+  v2WorkflowRunTaskEventsList = (
     tenant: string,
     workflowRunId: string,
     query?: {
