@@ -25,7 +25,7 @@ require (
 	github.com/pingcap/errors v0.11.4
 	github.com/posthog/posthog-go v1.3.1
 	github.com/shopspring/decimal v1.4.0
-	github.com/spf13/cobra v1.8.1
+	github.com/spf13/cobra v1.9.1
 	github.com/spf13/viper v1.19.0
 	github.com/steebchen/prisma-client-go v0.43.0
 	github.com/tink-crypto/tink-go v0.0.0-20230613075026-d6de17e3f164
@@ -149,7 +149,7 @@ require (
 	github.com/slack-go/slack v0.16.0
 	github.com/spf13/afero v1.11.0 // indirect
 	github.com/spf13/cast v1.6.0 // indirect
-	github.com/spf13/pflag v1.0.5 // indirect
+	github.com/spf13/pflag v1.0.6 // indirect
 	github.com/stretchr/testify v1.10.0
 	github.com/subosito/gotenv v1.6.0 // indirect
 	golang.org/x/crypto v0.33.0
