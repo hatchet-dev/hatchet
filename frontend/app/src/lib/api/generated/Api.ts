@@ -305,6 +305,40 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       ...params,
     });
   /**
+   * @description List all tasks for a workflow run
+   *
+   * @tags Workflow Runs
+   * @name V2TaskEventsWorkflowRunList
+   * @summary List tasks
+   * @request GET:/api/v2/tenants/{tenant}/workflow-runs/{workflow_run_id}/task-events
+   * @secure
+   */
+  v2TaskEventsWorkflowRunList = (
+    tenant: string,
+    workflowRunId: string,
+    query?: {
+      /**
+       * The number to skip
+       * @format int64
+       */
+      offset?: number;
+      /**
+       * The number to limit by
+       * @format int64
+       */
+      limit?: number;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<V2TaskEventList, APIErrors>({
+      path: `/api/v2/tenants/${tenant}/workflow-runs/${workflowRunId}/task-events`,
+      method: 'GET',
+      query: query,
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
    * @description Get a summary of task run metrics for a tenant
    *
    * @tags Task
