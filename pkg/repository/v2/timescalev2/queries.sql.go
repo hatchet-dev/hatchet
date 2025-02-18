@@ -425,6 +425,117 @@ func (q *Queries) ListTaskEvents(ctx context.Context, db DBTX, arg ListTaskEvent
 	return items, nil
 }
 
+const listTaskEventsForWorkflowRun = `-- name: ListTaskEventsForWorkflowRun :many
+WITH tasks AS (
+    SELECT task_id
+    FROM v2_lookup_table
+    WHERE
+        external_id = $1::uuid
+        AND tenant_id = $2::uuid
+), aggregated_events AS (
+  SELECT
+    tenant_id,
+    task_id,
+    task_inserted_at,
+    retry_count,
+    event_type,
+    MIN(event_timestamp) AS time_first_seen,
+    MAX(event_timestamp) AS time_last_seen,
+    COUNT(*) AS count,
+    MIN(id) AS first_id
+  FROM v2_task_events_olap
+  WHERE
+    tenant_id = $2::uuid
+    AND task_id IN (SELECT task_id FROM tasks)
+  GROUP BY tenant_id, task_id, task_inserted_at, retry_count, event_type
+)
+SELECT
+  a.tenant_id,
+  a.task_id,
+  a.task_inserted_at,
+  a.retry_count,
+  a.event_type,
+  a.time_first_seen,
+  a.time_last_seen,
+  a.count,
+  t.id,
+  t.event_timestamp,
+  t.readable_status,
+  t.error_message,
+  t.output,
+  t.worker_id,
+  t.additional__event_data,
+  t.additional__event_message
+FROM aggregated_events a
+JOIN v2_task_events_olap t
+  ON t.tenant_id = a.tenant_id
+  AND t.task_id = a.task_id
+  AND t.task_inserted_at = a.task_inserted_at
+  AND t.id = a.first_id
+ORDER BY a.time_first_seen DESC, t.event_timestamp DESC
+`
+
+type ListTaskEventsForWorkflowRunParams struct {
+	Workflowrunid pgtype.UUID `json:"workflowrunid"`
+	Tenantid      pgtype.UUID `json:"tenantid"`
+}
+
+type ListTaskEventsForWorkflowRunRow struct {
+	TenantID               pgtype.UUID          `json:"tenant_id"`
+	TaskID                 int64                `json:"task_id"`
+	TaskInsertedAt         pgtype.Timestamptz   `json:"task_inserted_at"`
+	RetryCount             int32                `json:"retry_count"`
+	EventType              V2EventTypeOlap      `json:"event_type"`
+	TimeFirstSeen          interface{}          `json:"time_first_seen"`
+	TimeLastSeen           interface{}          `json:"time_last_seen"`
+	Count                  int64                `json:"count"`
+	ID                     int64                `json:"id"`
+	EventTimestamp         pgtype.Timestamptz   `json:"event_timestamp"`
+	ReadableStatus         V2ReadableStatusOlap `json:"readable_status"`
+	ErrorMessage           pgtype.Text          `json:"error_message"`
+	Output                 []byte               `json:"output"`
+	WorkerID               pgtype.UUID          `json:"worker_id"`
+	AdditionalEventData    pgtype.Text          `json:"additional__event_data"`
+	AdditionalEventMessage pgtype.Text          `json:"additional__event_message"`
+}
+
+func (q *Queries) ListTaskEventsForWorkflowRun(ctx context.Context, db DBTX, arg ListTaskEventsForWorkflowRunParams) ([]*ListTaskEventsForWorkflowRunRow, error) {
+	rows, err := db.Query(ctx, listTaskEventsForWorkflowRun, arg.Workflowrunid, arg.Tenantid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListTaskEventsForWorkflowRunRow
+	for rows.Next() {
+		var i ListTaskEventsForWorkflowRunRow
+		if err := rows.Scan(
+			&i.TenantID,
+			&i.TaskID,
+			&i.TaskInsertedAt,
+			&i.RetryCount,
+			&i.EventType,
+			&i.TimeFirstSeen,
+			&i.TimeLastSeen,
+			&i.Count,
+			&i.ID,
+			&i.EventTimestamp,
+			&i.ReadableStatus,
+			&i.ErrorMessage,
+			&i.Output,
+			&i.WorkerID,
+			&i.AdditionalEventData,
+			&i.AdditionalEventMessage,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTasksByDAGIds = `-- name: ListTasksByDAGIds :many
 SELECT
     dt.dag_id, dt.dag_inserted_at, dt.task_id, dt.task_inserted_at,

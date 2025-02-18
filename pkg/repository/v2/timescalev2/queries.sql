@@ -294,6 +294,55 @@ JOIN v2_task_events_olap t
   AND t.id = a.first_id
 ORDER BY a.time_first_seen DESC, t.event_timestamp DESC;
 
+-- name: ListTaskEventsForWorkflowRun :many
+WITH tasks AS (
+    SELECT task_id
+    FROM v2_lookup_table
+    WHERE
+        external_id = @workflowRunId::uuid
+        AND tenant_id = @tenantId::uuid
+), aggregated_events AS (
+  SELECT
+    tenant_id,
+    task_id,
+    task_inserted_at,
+    retry_count,
+    event_type,
+    MIN(event_timestamp) AS time_first_seen,
+    MAX(event_timestamp) AS time_last_seen,
+    COUNT(*) AS count,
+    MIN(id) AS first_id
+  FROM v2_task_events_olap
+  WHERE
+    tenant_id = @tenantId::uuid
+    AND task_id IN (SELECT task_id FROM tasks)
+  GROUP BY tenant_id, task_id, task_inserted_at, retry_count, event_type
+)
+SELECT
+  a.tenant_id,
+  a.task_id,
+  a.task_inserted_at,
+  a.retry_count,
+  a.event_type,
+  a.time_first_seen,
+  a.time_last_seen,
+  a.count,
+  t.id,
+  t.event_timestamp,
+  t.readable_status,
+  t.error_message,
+  t.output,
+  t.worker_id,
+  t.additional__event_data,
+  t.additional__event_message
+FROM aggregated_events a
+JOIN v2_task_events_olap t
+  ON t.tenant_id = a.tenant_id
+  AND t.task_id = a.task_id
+  AND t.task_inserted_at = a.task_inserted_at
+  AND t.id = a.first_id
+ORDER BY a.time_first_seen DESC, t.event_timestamp DESC;
+
 -- name: PopulateSingleTaskRunData :one
 WITH latest_retry_count AS (
     SELECT
