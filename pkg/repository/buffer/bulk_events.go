@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"sort"
 	"time"
 
@@ -24,16 +25,24 @@ type BulkEventWriter struct {
 	v       validator.Validator
 	l       *zerolog.Logger
 	queries *dbsqlc.Queries
+	skip    bool
 }
 
 func NewBulkEventWriter(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger, conf ConfigFileBuffer) (*BulkEventWriter, error) {
 	queries := dbsqlc.New()
+
+	skip := false
+
+	if os.Getenv("SKIP_EVENT_BUFFER") == "true" {
+		skip = true
+	}
 
 	w := &BulkEventWriter{
 		pool:    pool,
 		v:       v,
 		l:       l,
 		queries: queries,
+		skip:    skip,
 	}
 
 	eventBufOpts := TenantBufManagerOpts[*repository.CreateStepRunEventOpts, int]{
@@ -92,6 +101,11 @@ func (w *BulkEventWriter) SerialWriteStepRunEvent(ctx context.Context, opts []*r
 	for i, item := range opts {
 
 		res = append(res, i)
+
+		if w.skip {
+			continue
+		}
+
 		var eventData []byte
 		var err error
 
@@ -145,6 +159,10 @@ func (w *BulkEventWriter) BulkWriteStepRunEvents(ctx context.Context, opts []*re
 	for i, item := range orderedOpts {
 		res = append(res, i)
 
+		if w.skip {
+			continue
+		}
+
 		if item.EventMessage == nil || item.EventReason == nil || item.StepRunId == "" {
 			continue
 		}
@@ -181,37 +199,39 @@ func (w *BulkEventWriter) BulkWriteStepRunEvents(ctx context.Context, opts []*re
 		}
 	}
 
-	err := sqlchelpers.DeadlockRetry(w.l, func() (err error) {
-		tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, w.l, 10000)
+	if !w.skip {
+		err := sqlchelpers.DeadlockRetry(w.l, func() (err error) {
+			tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, w.pool, w.l, 10000)
+
+			if err != nil {
+				return err
+			}
+
+			defer rollback()
+
+			err = bulkStepRunEvents(
+				ctx,
+				w.l,
+				tx,
+				w.queries,
+				eventStepRunIds,
+				eventTimeSeen,
+				eventReasons,
+				eventSeverities,
+				eventMessages,
+				eventData,
+			)
+
+			if err != nil {
+				return err
+			}
+
+			return commit(ctx)
+		})
 
 		if err != nil {
-			return err
+			return nil, err
 		}
-
-		defer rollback()
-
-		err = bulkStepRunEvents(
-			ctx,
-			w.l,
-			tx,
-			w.queries,
-			eventStepRunIds,
-			eventTimeSeen,
-			eventReasons,
-			eventSeverities,
-			eventMessages,
-			eventData,
-		)
-
-		if err != nil {
-			return err
-		}
-
-		return commit(ctx)
-	})
-
-	if err != nil {
-		return nil, err
 	}
 
 	return res, nil
