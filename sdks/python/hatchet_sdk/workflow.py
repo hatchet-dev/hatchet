@@ -86,7 +86,7 @@ class ConcurrencyExpression(BaseModel):
     limit_strategy: ConcurrencyLimitStrategy
 
 
-TWorkflowInput = TypeVar("TWorkflowInput", bound=BaseModel, default=EmptyModel)
+TWorkflowInput = TypeVar("TWorkflowInput", bound=BaseModel)
 
 
 class WorkflowConfig(BaseModel):

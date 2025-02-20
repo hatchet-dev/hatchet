@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from typing import TYPE_CHECKING, Any, Callable, Type, TypeVar, cast
+from typing import TYPE_CHECKING, Any, Callable, Type, TypeVar, cast, overload
 
 from hatchet_sdk.client import Client, new_client, new_client_raw
 from hatchet_sdk.clients.admin import AdminClient
@@ -206,8 +206,41 @@ class Hatchet:
             owned_loop=loop is None,
         )
 
+    @overload
     def declare_workflow(
         self,
+        *,
+        name: str = "",
+        on_events: list[str] = [],
+        on_crons: list[str] = [],
+        version: str = "",
+        timeout: str = "60m",
+        schedule_timeout: str = "5m",
+        sticky: StickyStrategy | None = None,
+        default_priority: int = 1,
+        concurrency: ConcurrencyExpression | None = None,
+        input_validator: None = None,
+    ) -> WorkflowDeclaration[EmptyModel]: ...
+
+    @overload
+    def declare_workflow(
+        self,
+        *,
+        name: str = "",
+        on_events: list[str] = [],
+        on_crons: list[str] = [],
+        version: str = "",
+        timeout: str = "60m",
+        schedule_timeout: str = "5m",
+        sticky: StickyStrategy | None = None,
+        default_priority: int = 1,
+        concurrency: ConcurrencyExpression | None = None,
+        input_validator: Type[TWorkflowInput],
+    ) -> WorkflowDeclaration[TWorkflowInput]: ...
+
+    def declare_workflow(
+        self,
+        *,
         name: str = "",
         on_events: list[str] = [],
         on_crons: list[str] = [],
@@ -218,7 +251,7 @@ class Hatchet:
         default_priority: int = 1,
         concurrency: ConcurrencyExpression | None = None,
         input_validator: Type[TWorkflowInput] | None = None,
-    ) -> WorkflowDeclaration[TWorkflowInput]:
+    ) -> WorkflowDeclaration[EmptyModel] | WorkflowDeclaration[TWorkflowInput]:
         return WorkflowDeclaration[TWorkflowInput](
             WorkflowConfig(
                 name=name,
