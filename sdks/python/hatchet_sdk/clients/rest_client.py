@@ -94,20 +94,69 @@ class RestApi:
             access_token=api_key,
         )
 
-        self.api_client = ApiClient(configuration=self.config)
-
-        self.workflow_api = WorkflowApi(self.api_client)
-        self.workflow_run_api = WorkflowRunApi(self.api_client)
-        self.step_run_api = StepRunApi(self.api_client)
-        self.event_api = EventApi(self.api_client)
-        self.log_api = LogApi(self.api_client)
-
         self._loop = asyncio.new_event_loop()
         self._thread = threading.Thread(target=self._run_event_loop, daemon=True)
         self._thread.start()
 
         # Register the cleanup method to be called on exit
         atexit.register(self._cleanup)
+
+        ## IMPORTANT: These clients need to be instantiated lazily because they rely on
+        ## an event loop to be running, which may not be the case when the `Hatchet` client is instantiated.
+        self._api_client: ApiClient | None = None
+        self._workflow_api: WorkflowApi | None = None
+        self._workflow_run_api: WorkflowRunApi | None = None
+        self._step_run_api: StepRunApi | None = None
+        self._event_api: EventApi | None = None
+        self._log_api: LogApi | None = None
+
+    @property
+    def api_client(self) -> ApiClient:
+        ## IMPORTANT: This client needs to be instantiated lazily because it relies on an event
+        ## loop to be running, which may not be the case when the `Hatchet` client is instantiated.
+        if self._api_client is None:
+            self._api_client = ApiClient(configuration=self.config)
+        return self._api_client
+
+    @property
+    def workflow_api(self) -> WorkflowApi:
+        ## IMPORTANT: This client needs to be instantiated lazily because it relies on an event
+        ## loop to be running, which may not be the case when the `Hatchet` client is instantiated.
+        if self._workflow_api is None:
+            self._workflow_api = WorkflowApi(self.api_client)
+        return self._workflow_api
+
+    @property
+    def workflow_run_api(self) -> WorkflowRunApi:
+        ## IMPORTANT: This client needs to be instantiated lazily because it relies on an event
+        ## loop to be running, which may not be the case when the `Hatchet` client is instantiated.
+        if self._workflow_run_api is None:
+            self._workflow_run_api = WorkflowRunApi(self.api_client)
+        return self._workflow_run_api
+
+    @property
+    def step_run_api(self) -> StepRunApi:
+        ## IMPORTANT: This client needs to be instantiated lazily because it relies on an event
+        ## loop to be running, which may not be the case when the `Hatchet` client is instantiated.
+        if self._step_run_api is None:
+            self._step_run_api = StepRunApi(self.api_client)
+        return self._step_run_api
+
+    @property
+    def event_api(self) -> EventApi:
+        ## IMPORTANT: This client needs to be instantiated lazily because it relies on an event
+        ## loop to be running, which may not be the case when the `Hatchet` client is instantiated.
+        if self._event_api is None:
+            self._event_api = EventApi(self.api_client)
+        return self._event_api
+
+    @property
+    def log_api(self) -> LogApi:
+        ## IMPORTANT: This client needs to be instantiated lazily because it relies on an event
+        ## loop to be running, which may not be the case when the `Hatchet` client is instantiated.
+        if self._log_api is None:
+            self._log_api = LogApi(self.api_client)
+        return self._log_api
 
     async def close(self) -> None:
         # Ensure the aiohttp client session is closed

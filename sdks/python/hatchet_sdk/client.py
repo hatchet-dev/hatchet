@@ -44,12 +44,6 @@ class Client:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
 
-        if config.tls_config is None:
-            raise ValueError("TLS config is required")
-
-        if config.host_port is None:
-            raise ValueError("Host and port are required")
-
         conn: grpc.Channel = new_conn(config, False)
 
         # Instantiate clients
