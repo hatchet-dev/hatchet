@@ -1,0 +1,71 @@
+diff --git a/hatchet_sdk/clients/rest/api/workflow_api.py b/hatchet_sdk/clients/rest/api/workflow_api.py
+index 5716532..c32ba44 100644
+--- a/hatchet_sdk/clients/rest/api/workflow_api.py
++++ b/hatchet_sdk/clients/rest/api/workflow_api.py
+@@ -2185,9 +2185,7 @@ class WorkflowApi:
+                 _query_params.append(
+                     (
+                         "createdAfter",
+-                        created_after.strftime(
+-                            self.api_client.configuration.datetime_format
+-                        ),
++                        created_after.isoformat(),
+                     )
+                 )
+             else:
+@@ -2198,9 +2196,7 @@ class WorkflowApi:
+                 _query_params.append(
+                     (
+                         "createdBefore",
+-                        created_before.strftime(
+-                            self.api_client.configuration.datetime_format
+-                        ),
++                        created_before.isoformat(),
+                     )
+                 )
+             else:
+@@ -2789,9 +2785,7 @@ class WorkflowApi:
+                 _query_params.append(
+                     (
+                         "createdAfter",
+-                        created_after.strftime(
+-                            self.api_client.configuration.datetime_format
+-                        ),
++                        created_after.isoformat(),
+                     )
+                 )
+             else:
+@@ -2802,9 +2796,7 @@ class WorkflowApi:
+                 _query_params.append(
+                     (
+                         "createdBefore",
+-                        created_before.strftime(
+-                            self.api_client.configuration.datetime_format
+-                        ),
++                        created_before.isoformat(),
+                     )
+                 )
+             else:
+diff --git a/hatchet_sdk/clients/rest/models/workflow_runs_metrics.py b/hatchet_sdk/clients/rest/models/workflow_runs_metrics.py
+index 71b6351..5f70c44 100644
+--- a/hatchet_sdk/clients/rest/models/workflow_runs_metrics.py
++++ b/hatchet_sdk/clients/rest/models/workflow_runs_metrics.py
+@@ -22,13 +22,17 @@ from typing import Any, ClassVar, Dict, List, Optional, Set
+ from pydantic import BaseModel, ConfigDict
+ from typing_extensions import Self
+ 
++from hatchet_sdk.clients.rest.models.workflow_runs_metrics_counts import (
++    WorkflowRunsMetricsCounts,
++)
++
+ 
+ class WorkflowRunsMetrics(BaseModel):
+     """
+     WorkflowRunsMetrics
+     """  # noqa: E501
+ 
+-    counts: Optional[Dict[str, Any]] = None
++    counts: Optional[WorkflowRunsMetricsCounts] = None
+     __properties: ClassVar[List[str]] = ["counts"]
+ 
+     model_config = ConfigDict(

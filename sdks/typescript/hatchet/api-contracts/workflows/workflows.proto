@@ -1,0 +1,256 @@
+syntax = "proto3";
+
+option go_package = "github.com/hatchet-dev/hatchet/internal/services/admin/contracts";
+
+import "google/protobuf/timestamp.proto";
+
+// WorkflowService represents a set of RPCs for managing workflows.
+service WorkflowService {
+    rpc PutWorkflow(PutWorkflowRequest) returns (WorkflowVersion);
+    rpc ScheduleWorkflow(ScheduleWorkflowRequest) returns (WorkflowVersion);
+    rpc TriggerWorkflow(TriggerWorkflowRequest) returns (TriggerWorkflowResponse);
+    rpc BulkTriggerWorkflow(BulkTriggerWorkflowRequest) returns (BulkTriggerWorkflowResponse);
+    rpc PutRateLimit(PutRateLimitRequest) returns (PutRateLimitResponse);
+}
+
+message PutWorkflowRequest {
+    CreateWorkflowVersionOpts opts = 1;
+}
+
+enum StickyStrategy {
+    SOFT = 0;
+    HARD = 1;
+}
+
+enum WorkflowKind {
+    FUNCTION = 0;
+    DURABLE = 1;
+    DAG = 2;
+}
+
+// CreateWorkflowVersionOpts represents options to create a workflow version.
+message CreateWorkflowVersionOpts {
+    string name = 1; // (required) the workflow name
+    string description = 2; // (optional) the workflow description
+    string version = 3; // (required) the workflow version
+    repeated string event_triggers = 4; // (optional) event triggers for the workflow
+    repeated string cron_triggers = 5; // (optional) cron triggers for the workflow
+    repeated google.protobuf.Timestamp scheduled_triggers = 6; // (optional) scheduled triggers for the workflow
+    repeated CreateWorkflowJobOpts jobs = 7; // (required) the workflow jobs
+    WorkflowConcurrencyOpts concurrency = 8; // (optional) the workflow concurrency options
+    optional string schedule_timeout = 9; // (optional) the timeout for the schedule
+    optional string cron_input = 10; // (optional) the input for the cron trigger
+    optional CreateWorkflowJobOpts on_failure_job = 11; // (optional) the job to run on failure
+    optional StickyStrategy sticky = 12; // (optional) the sticky strategy for assigning steps to workers
+    optional WorkflowKind kind = 13; // (optional) the kind of workflow
+    optional int32 default_priority = 14; // (optional) the priority of the workflow
+}
+
+enum ConcurrencyLimitStrategy {
+    CANCEL_IN_PROGRESS = 0;
+    DROP_NEWEST = 1; // deprecated
+    QUEUE_NEWEST = 2; // deprecated
+    GROUP_ROUND_ROBIN = 3;
+    CANCEL_NEWEST = 4;
+}
+
+message WorkflowConcurrencyOpts {
+    optional string action = 1; // (optional) the action id for getting the concurrency group
+    optional int32 max_runs = 2; // (optional) the maximum number of concurrent workflow runs, default 1
+    optional ConcurrencyLimitStrategy limit_strategy = 3; // (optional) the strategy to use when the concurrency limit is reached, default CANCEL_IN_PROGRESS
+    optional string expression = 4; // (optional) the expression to use for concurrency
+}
+
+// CreateWorkflowJobOpts represents options to create a workflow job.
+message CreateWorkflowJobOpts {
+    string name = 1; // (required) the job name
+    string description = 2; // (optional) the job description
+    reserved 3; // (deprecated) timeout
+    repeated CreateWorkflowStepOpts steps = 4; // (required) the job steps
+}
+
+enum WorkerLabelComparator {
+    EQUAL = 0;
+    NOT_EQUAL = 1;
+    GREATER_THAN = 2;
+    GREATER_THAN_OR_EQUAL = 3;
+    LESS_THAN = 4;
+    LESS_THAN_OR_EQUAL = 5;
+}
+
+message DesiredWorkerLabels {
+    // value of the affinity
+    optional string strValue = 1;
+    optional int32 intValue = 2;
+
+    /**
+    * (optional) Specifies whether the affinity setting is required.
+    * If required, the worker will not accept actions that do not have a truthy affinity setting.
+    *
+    * Defaults to false.
+    */
+    optional bool required = 3;
+
+    /**
+    * (optional) Specifies the comparator for the affinity setting.
+    * If not set, the default is EQUAL.
+    */
+    optional WorkerLabelComparator comparator = 4;
+
+    /**
+    * (optional) Specifies the weight of the affinity setting.
+    * If not set, the default is 100.
+    */
+    optional int32 weight = 5;
+}
+
+// CreateWorkflowStepOpts represents options to create a workflow step.
+message CreateWorkflowStepOpts {
+    string readable_id = 1; // (required) the step name
+    string action = 2; // (required) the step action id
+    string timeout = 3; // (optional) the step timeout
+    string inputs = 4; // (optional) the step inputs, assuming string representation of JSON
+    repeated string parents = 5; // (optional) the step parents. if none are passed in, this is a root step
+    string user_data = 6; // (optional) the custom step user data, assuming string representation of JSON
+    int32 retries = 7; // (optional) the number of retries for the step, default 0
+    repeated CreateStepRateLimit rate_limits = 8; // (optional) the rate limits for the step
+    map<string, DesiredWorkerLabels> worker_labels = 9; // (optional) the desired worker affinity state for the step
+    optional float backoff_factor = 10; // (optional) the retry backoff factor for the step
+    optional int32 backoff_max_seconds = 11; // (optional) the maximum backoff time for the step
+}
+
+message CreateStepRateLimit {
+    string key = 1; // (required) the key for the rate limit
+    optional int32 units = 2; // (optional) the number of units this step consumes
+    optional string key_expr = 3; // (optional) a CEL expression for determining the rate limit key
+    optional string units_expr = 4; // (optional) a CEL expression for determining the number of units consumed
+    optional string limit_values_expr = 5; // (optional) a CEL expression for determining the total amount of rate limit units
+    optional RateLimitDuration duration = 6; // (optional) the default rate limit window to use for dynamic rate limits
+}
+
+// ListWorkflowsRequest is the request for ListWorkflows.
+message ListWorkflowsRequest {}
+
+message ScheduleWorkflowRequest {
+    string name = 1;
+
+    repeated google.protobuf.Timestamp schedules = 2;
+
+    // (optional) the input data for the workflow
+    string input = 3;
+
+    // (optional) the parent workflow run id
+    optional string parent_id = 4;
+
+    // (optional) the parent step run id
+    optional string parent_step_run_id = 5;
+
+    // (optional) the index of the child workflow. if this is set, matches on the index or the
+    // child key will be a no-op, even if the schedule has changed.
+    optional int32 child_index = 6;
+
+    // (optional) the key for the child. if this is set, matches on the index or the
+    // child key will be a no-op, even if the schedule has changed.
+    optional string child_key = 7;
+
+    // (optional) the additional metadata for the workflow
+    optional string additional_metadata = 8;
+}
+
+// ScheduledWorkflow represents a scheduled workflow.
+message ScheduledWorkflow {
+    string id = 1;
+    google.protobuf.Timestamp trigger_at = 2;
+}
+
+// WorkflowVersion represents the WorkflowVersion model.
+message WorkflowVersion {
+    string id = 1;
+    google.protobuf.Timestamp created_at = 2;
+    google.protobuf.Timestamp updated_at = 3;
+    string version = 5;
+    int64 order = 6;
+    string workflow_id = 7;
+    repeated ScheduledWorkflow scheduled_workflows = 8;
+}
+
+
+// WorkflowTriggerEventRef represents the WorkflowTriggerEventRef model.
+message WorkflowTriggerEventRef {
+    string parent_id = 1;
+    string event_key = 2;
+}
+
+// WorkflowTriggerCronRef represents the WorkflowTriggerCronRef model.
+message WorkflowTriggerCronRef {
+    string parent_id = 1;
+    string cron = 2;
+}
+
+message BulkTriggerWorkflowRequest {
+    repeated TriggerWorkflowRequest workflows = 1;
+}
+
+message BulkTriggerWorkflowResponse {
+    repeated string workflow_run_ids = 1;
+}
+
+message TriggerWorkflowRequest {
+    string name = 1;
+
+    // (optional) the input data for the workflow
+    string input = 2;
+
+    // (optional) the parent workflow run id
+    optional string parent_id = 3;
+
+    // (optional) the parent step run id
+    optional string parent_step_run_id = 4;
+
+    // (optional) the index of the child workflow. if this is set, matches on the index or the
+    // child key will return an existing workflow run if the parent id, parent step run id, and
+    // child index/key match an existing workflow run.
+    optional int32 child_index = 5;
+
+    // (optional) the key for the child. if this is set, matches on the index or the
+    // child key will return an existing workflow run if the parent id, parent step run id, and
+    // child index/key match an existing workflow run.
+    optional string child_key = 6;
+
+    // (optional) additional metadata for the workflow
+    optional string additional_metadata = 7;
+
+    // (optional) desired worker id for the workflow run,
+    // requires the workflow definition to have a sticky strategy
+    optional string desired_worker_id = 8;
+
+    // (optional) override for the priority of the workflow steps, will set all steps to this priority
+    optional int32 priority = 9;
+}
+
+message TriggerWorkflowResponse {
+    string workflow_run_id = 1;
+}
+
+enum RateLimitDuration {
+    SECOND = 0;
+    MINUTE = 1;
+    HOUR = 2;
+    DAY = 3;
+    WEEK = 4;
+    MONTH = 5;
+    YEAR = 6;
+}
+
+message PutRateLimitRequest {
+    // (required) the global key for the rate limit
+    string key = 1;
+
+    // (required) the max limit for the rate limit (per unit of time)
+    int32 limit = 2;
+
+    // (required) the duration of time for the rate limit (second|minute|hour)
+    RateLimitDuration duration = 3;
+}
+
+message PutRateLimitResponse {}

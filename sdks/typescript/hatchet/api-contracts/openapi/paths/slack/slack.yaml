@@ -1,0 +1,82 @@
+slackWebhook:
+  get:
+    description: List Slack webhooks
+    operationId: slack-webhook:list
+    x-resources: ["tenant"]
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/ListSlackWebhooks"
+        description: Successfully retrieved Slack webhooks
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "401":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Unauthorized
+      "405":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Method not allowed
+    summary: List Slack integrations
+    tags:
+      - Slack
+deleteSlack:
+  delete:
+    description: Delete Slack webhook
+    operationId: slack-webhook:delete
+    x-resources: ["tenant", "slack"]
+    parameters:
+      - description: The Slack webhook id
+        in: path
+        name: slack
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+      "204":
+        description: Successfully deleted Slack webhook
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "401":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Unauthorized
+      "405":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Method not allowed
+    summary: Delete Slack webhook
+    tags:
+      - Slack

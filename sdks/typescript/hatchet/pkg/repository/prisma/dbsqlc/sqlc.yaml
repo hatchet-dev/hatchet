@@ -1,0 +1,39 @@
+version: "2"
+sql:
+  - engine: "postgresql"
+    # database:
+    #   uri: "postgres://hatchet:hatchet@localhost:5431/hatchet"
+    queries:
+      - api_tokens.sql
+      - health.sql
+      - events.sql
+      - workflow_runs.sql
+      - workflows.sql
+      - step_runs.sql
+      - get_group_key_runs.sql
+      - job_runs.sql
+      - tickers.sql
+      - dispatchers.sql
+      - workers.sql
+      - stream_event.sql
+      - logs.sql
+      - tenants.sql
+      - rate_limits.sql
+      - tenant_limits.sql
+      - security_check.sql
+      - webhook_workers.sql
+      - queue.sql
+      - lease.sql
+      - mq.sql
+    schema:
+      - ../../../../sql/schema/schema.sql
+    strict_order_by: false
+    gen:
+      go:
+        package: "dbsqlc"
+        sql_package: "pgx/v5"
+        out: "."
+        emit_exact_table_names: true
+        emit_methods_with_db_argument: true
+        emit_result_struct_pointers: true
+        emit_json_tags: true

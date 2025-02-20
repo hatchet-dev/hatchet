@@ -1,0 +1,143 @@
+[tool.poetry]
+name = "hatchet-sdk"
+version = "1.0.0"
+description = ""
+authors = ["Alexander Belanger <alexander@hatchet.run>"]
+readme = "README.md"
+include = ["hatchet_sdk/py.typed"]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+grpcio = [
+    { version = ">=1.64.1, !=1.68.*", markers = "python_version < '3.13'" },
+    { version = ">=1.69.0", markers = "python_version >= '3.13'" },
+]
+grpcio-tools = [
+    { version = ">=1.64.1, !=1.68.*", markers = "python_version < '3.13'" },
+    { version = ">=1.69.0", markers = "python_version >= '3.13'" },
+]
+python-dotenv = "^1.0.0"
+protobuf = "^5.29.1"
+pyyaml = "^6.0.1"
+pydantic = "^2.6.3"
+python-dateutil = "^2.9.0.post0"
+urllib3 = ">=1.26.20"
+aiostream = "^0.5.2"
+nest-asyncio = "^1.6.0"
+aiohttp = "^3.10.5"
+aiohttp-retry = "^2.8.3"
+tenacity = ">=8.4.1"
+cel-python = "^0.2.0"
+opentelemetry-api = { version = "^1.28.0", optional = true }
+opentelemetry-sdk = { version = "^1.28.0", optional = true }
+opentelemetry-instrumentation = { version = ">=0.49b0", optional = true }
+opentelemetry-distro = { version = ">=0.49b0", optional = true }
+opentelemetry-exporter-otlp = { version = "^1.28.0", optional = true }
+opentelemetry-exporter-otlp-proto-http = { version = "^1.28.0", optional = true }
+prometheus-client = "^0.21.1"
+pydantic-settings = "^2.7.1"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.2.2"
+pytest-asyncio = "^0.23.8"
+psutil = "^6.0.0"
+grpc-stubs = "^1.53.0.5"
+
+[tool.poetry.group.lint.dependencies]
+mypy = "^1.14.0"
+types-protobuf = "^5.28.3.20241030"
+black = "^24.10.0"
+isort = "^5.13.2"
+types-psutil = "^6.1.0.20241221"
+
+[tool.poetry.group.test.dependencies]
+pytest-timeout = "^2.3.1"
+pytest-env = "^1.1.5"
+
+[tool.poetry.extras]
+otel = [
+    "opentelemetry-api",
+    "opentelemetry-sdk",
+    "opentelemetry-instrumentation",
+    "opentelemetry-distro",
+    "opentelemetry-exporter-otlp",
+    "opentelemetry-exporter-otlp-proto-http",
+]
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+log_cli = true
+env = ["HATCHET_CLIENT_TLS_STRATEGY=none"]
+
+[tool.isort]
+profile = "black"
+known_third_party = [
+    "grpcio",
+    "grpcio_tools",
+    "loguru",
+    "protobuf",
+    "pydantic",
+    "python_dotenv",
+    "python_dateutil",
+    "pyyaml",
+    "urllib3",
+]
+extend_skip = ["hatchet_sdk/contracts/"]
+
+[tool.black]
+extend_exclude = "hatchet_sdk/contracts/"
+
+[tool.mypy]
+files = ["."]
+exclude = [
+    "hatchet_sdk/clients/rest/api/*",
+    "hatchet_sdk/clients/rest/models/*",
+    "hatchet_sdk/contracts",
+    "hatchet_sdk/clients/rest/api_client.py",
+    "hatchet_sdk/clients/rest/configuration.py",
+    "hatchet_sdk/clients/rest/exceptions.py",
+    "hatchet_sdk/clients/rest/rest.py",
+]
+strict = true
+
+[tool.ruff]
+exclude = [
+    "hatchet_sdk/clients/rest/api/*",
+    "hatchet_sdk/clients/rest/models/*",
+    "hatchet_sdk/contracts",
+    "hatchet_sdk/clients/rest/api_client.py",
+    "hatchet_sdk/clients/rest/configuration.py",
+    "hatchet_sdk/clients/rest/exceptions.py",
+    "hatchet_sdk/clients/rest/rest.py",
+]
+
+[tool.poetry.scripts]
+
+api = "examples.api.api:main"
+async = "examples.async.worker:main"
+fanout = "examples.fanout.worker:main"
+fanout_sync = "examples.fanout_sync.worker:main"
+cancellation = "examples.cancellation.worker:main"
+concurrency_limit = "examples.concurrency_limit.worker:main"
+concurrency_limit_rr = "examples.concurrency_limit_rr.worker:main"
+dag = "examples.dag.worker:main"
+delayed = "examples.delayed.worker:main"
+events = "examples.events.worker:main"
+logger = "examples.logger.worker:main"
+manual_trigger = "examples.manual_trigger.worker:main"
+on_failure = "examples.on_failure.worker:main"
+programatic_replay = "examples.programatic_replay.worker:main"
+dynamic_rate_limit = "examples.rate_limit.dynamic:main"
+rate_limit = "examples.rate_limit.worker:main"
+simple = "examples.simple.worker:main"
+timeout = "examples.timeout.worker:main"
+blocked = "examples.blocked_async.worker:main"
+existing_loop = "examples.worker_existing_loop.worker:main"
+bulk_fanout = "examples.bulk_fanout.worker:main"
+retries_with_backoff = "examples.retries_with_backoff.worker:main"
+pydantic = "examples.pydantic.worker:main"
+v2_simple = "examples.v2.simple.worker:main"
+otel = "examples.opentelemetry_instrumentation.worker:main"

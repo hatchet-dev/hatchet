@@ -1,0 +1,769 @@
+WorkflowRunOrderByField:
+  type: string
+  enum:
+    - createdAt
+    - startedAt
+    - finishedAt
+    - duration
+
+ScheduledWorkflowsOrderByField:
+  type: string
+  enum:
+    - triggerAt
+    - createdAt
+
+CronWorkflowsOrderByField:
+  type: string
+  enum:
+    - name
+    - createdAt
+
+WorkflowRunOrderByDirection:
+  type: string
+  enum:
+    - ASC
+    - DESC
+
+ReplayWorkflowRunsRequest:
+  properties:
+    workflowRunIds:
+      type: array
+      maxLength: 500
+      items:
+        type: string
+        example: bb214807-246e-43a5-a25d-41761d1cff9e
+        minLength: 36
+        maxLength: 36
+        format: uuid
+  required:
+    - workflowRunIds
+
+ReplayWorkflowRunsResponse:
+  properties:
+    workflowRuns:
+      type: array
+      items:
+        $ref: "#/WorkflowRun"
+  required:
+    - workflowRuns
+
+WorkflowRun:
+  type: object
+  properties:
+    metadata:
+      $ref: "./metadata.yaml#/APIResourceMeta"
+    tenantId:
+      type: string
+    workflowVersionId:
+      type: string
+    workflowVersion:
+      $ref: "./_index.yaml#/WorkflowVersion"
+    status:
+      $ref: "#/WorkflowRunStatus"
+    displayName:
+      type: string
+    jobRuns:
+      type: array
+      items:
+        $ref: "#/JobRun"
+    triggeredBy:
+      $ref: "#/WorkflowRunTriggeredBy"
+    input:
+      type: object
+      additionalProperties: true
+    error:
+      type: string
+    startedAt:
+      type: string
+      format: date-time
+    finishedAt:
+      type: string
+      format: date-time
+    duration:
+      type: integer
+      example: 1000
+    parentId:
+      type: string
+      example: bb214807-246e-43a5-a25d-41761d1cff9e
+      minLength: 36
+      maxLength: 36
+      format: uuid
+    parentStepRunId:
+      type: string
+      example: bb214807-246e-43a5-a25d-41761d1cff9e
+      minLength: 36
+      maxLength: 36
+      format: uuid
+    additionalMetadata:
+      type: object
+      additionalProperties: true
+  required:
+    - metadata
+    - tenantId
+    - workflowVersionId
+    - status
+    - triggeredBy
+
+WorkflowRunShape:
+  type: object
+  properties:
+    metadata:
+      $ref: "./metadata.yaml#/APIResourceMeta"
+    tenantId:
+      type: string
+    workflowId:
+      type: string
+    workflowVersionId:
+      type: string
+    workflowVersion:
+      $ref: "./_index.yaml#/WorkflowVersion"
+    status:
+      $ref: "#/WorkflowRunStatus"
+    displayName:
+      type: string
+    jobRuns:
+      type: array
+      items:
+        $ref: "#/JobRun"
+    triggeredBy:
+      $ref: "#/WorkflowRunTriggeredBy"
+    input:
+      type: object
+      additionalProperties: true
+    error:
+      type: string
+    startedAt:
+      type: string
+      format: date-time
+    finishedAt:
+      type: string
+      format: date-time
+    duration:
+      type: integer
+      example: 1000
+    parentId:
+      type: string
+      example: bb214807-246e-43a5-a25d-41761d1cff9e
+      minLength: 36
+      maxLength: 36
+      format: uuid
+    parentStepRunId:
+      type: string
+      example: bb214807-246e-43a5-a25d-41761d1cff9e
+      minLength: 36
+      maxLength: 36
+      format: uuid
+    additionalMetadata:
+      type: object
+      additionalProperties: true
+  required:
+    - metadata
+    - tenantId
+    - workflowVersionId
+    - status
+    - triggeredBy
+
+WorkflowRunList:
+  type: object
+  properties:
+    rows:
+      type: array
+      items:
+        $ref: "#/WorkflowRun"
+    pagination:
+      $ref: "./metadata.yaml#/PaginationResponse"
+
+ScheduledWorkflows:
+  type: object
+  properties:
+    metadata:
+      $ref: "./metadata.yaml#/APIResourceMeta"
+    tenantId:
+      type: string
+    workflowVersionId:
+      type: string
+    workflowId:
+      type: string
+    workflowName:
+      type: string
+    triggerAt:
+      type: string
+      format: date-time
+    input:
+      type: object
+      additionalProperties: true
+    additionalMetadata:
+      type: object
+      additionalProperties: true
+    workflowRunCreatedAt:
+      type: string
+      format: date-time
+    workflowRunName:
+      type: string
+    workflowRunStatus:
+      $ref: "#/WorkflowRunStatus"
+    workflowRunId:
+      type: string
+      example: bb214807-246e-43a5-a25d-41761d1cff9e
+      minLength: 36
+      maxLength: 36
+      format: uuid
+    method:
+      $ref: "#/ScheduledWorkflowsMethod"
+  required:
+    - metadata
+    - tenantId
+    - workflowVersionId
+    - workflowName
+    - workflowId
+    - triggerAt
+    - method
+
+
+ScheduledWorkflowsMethod:
+  type: string
+  enum:
+    - DEFAULT
+    - API
+
+ScheduledWorkflowsList:
+  type: object
+  properties:
+    rows:
+      type: array
+      items:
+        $ref: "#/ScheduledWorkflows"
+    pagination:
+      $ref: "./metadata.yaml#/PaginationResponse"
+
+CronWorkflowsMethod:
+  type: string
+  enum:
+    - DEFAULT
+    - API
+
+CronWorkflows:
+  type: object
+  properties:
+    metadata:
+      $ref: "./metadata.yaml#/APIResourceMeta"
+    tenantId:
+      type: string
+    workflowVersionId:
+      type: string
+    workflowId:
+      type: string
+    workflowName:
+      type: string
+    cron:
+      type: string
+    name:
+      type: string
+    input:
+      type: object
+      additionalProperties: true
+    additionalMetadata:
+      type: object
+      additionalProperties: true
+    enabled:
+      type: boolean
+    method:
+      $ref: "#/CronWorkflowsMethod"
+  required:
+    - metadata
+    - tenantId
+    - workflowVersionId
+    - workflowName
+    - workflowId
+    - cron
+    - enabled
+    - method
+
+CronWorkflowsList:
+  type: object
+  properties:
+    rows:
+      type: array
+      items:
+        $ref: "#/CronWorkflows"
+    pagination:
+      $ref: "./metadata.yaml#/PaginationResponse"
+
+WorkflowRunsMetricsCounts:
+  type: object
+  properties:
+    PENDING:
+      type: integer
+    RUNNING:
+      type: integer
+    SUCCEEDED:
+      type: integer
+    FAILED:
+      type: integer
+    QUEUED:
+      type: integer
+    CANCELLED:
+      type: integer
+
+WorkflowRunsMetrics:
+  type: object
+  properties:
+    counts:
+      type: object
+      $ref: "#/WorkflowRunsMetricsCounts"
+
+StepRunStatus:
+  type: string
+  enum:
+    - PENDING
+    - PENDING_ASSIGNMENT
+    - ASSIGNED
+    - RUNNING
+    - SUCCEEDED
+    - FAILED
+    - CANCELLED
+    - CANCELLING
+    - BACKOFF
+
+JobRunStatus:
+  type: string
+  enum:
+    - PENDING
+    - RUNNING
+    - SUCCEEDED
+    - FAILED
+    - CANCELLED
+    - BACKOFF
+
+WorkflowRunStatus:
+  type: string
+  enum:
+    - PENDING
+    - RUNNING
+    - SUCCEEDED
+    - FAILED
+    - CANCELLED
+    - QUEUED
+    - BACKOFF
+
+ScheduledRunStatus:
+  type: string
+  enum:
+    - PENDING
+    - RUNNING
+    - SUCCEEDED
+    - FAILED
+    - CANCELLED
+    - QUEUED
+    - SCHEDULED
+
+WorkflowKind:
+  type: string
+  enum:
+    - FUNCTION
+    - DURABLE
+    - DAG
+
+WorkflowKindList:
+  type: array
+  items:
+    $ref: "#/WorkflowKind"
+
+WorkflowRunStatusList:
+  type: array
+  items:
+    $ref: "#/WorkflowRunStatus"
+
+WorkflowRunsCancelRequest:
+  type: object
+  properties:
+    workflowRunIds:
+      type: array
+      items:
+        type: string
+        format: uuid
+        minLength: 36
+        maxLength: 36
+  required:
+    - workflowRunIds
+
+WorkflowRunTriggeredBy:
+  type: object
+  properties:
+    metadata:
+      $ref: "./metadata.yaml#/APIResourceMeta"
+    parentWorkflowRunId:
+      type: string
+    eventId:
+      type: string
+    cronParentId:
+      type: string
+    cronSchedule:
+      type: string
+  required:
+    - metadata
+
+JobRun:
+  type: object
+  properties:
+    metadata:
+      $ref: "./metadata.yaml#/APIResourceMeta"
+    tenantId:
+      type: string
+    workflowRunId:
+      type: string
+    workflowRun:
+      $ref: "#/WorkflowRun"
+    jobId:
+      type: string
+    job:
+      $ref: "./_index.yaml#/Job"
+    tickerId:
+      type: string
+    stepRuns:
+      type: array
+      items:
+        $ref: "#/StepRun"
+    status:
+      $ref: "#/JobRunStatus"
+    result:
+      type: object
+    startedAt:
+      type: string
+      format: date-time
+    finishedAt:
+      type: string
+      format: date-time
+    timeoutAt:
+      type: string
+      format: date-time
+    cancelledAt:
+      type: string
+      format: date-time
+    cancelledReason:
+      type: string
+    cancelledError:
+      type: string
+  required:
+    - metadata
+    - tenantId
+    - workflowRunId
+    - jobId
+    - status
+
+StepRun:
+  type: object
+  properties:
+    metadata:
+      $ref: "./metadata.yaml#/APIResourceMeta"
+    tenantId:
+      type: string
+    jobRunId:
+      type: string
+    jobRun:
+      $ref: "#/JobRun"
+    stepId:
+      type: string
+    step:
+      $ref: "./_index.yaml#/Step"
+    childWorkflowsCount:
+      type: integer
+    parents:
+      type: array
+      items:
+        type: string
+    childWorkflowRuns:
+      type: array
+      items:
+        type: string
+    workerId:
+      type: string
+    input:
+      type: string
+    output:
+      type: string
+    status:
+      $ref: "#/StepRunStatus"
+    requeueAfter:
+      type: string
+      format: date-time
+    result:
+      type: object
+    error:
+      type: string
+    startedAt:
+      type: string
+      format: date-time
+    startedAtEpoch:
+      type: integer
+    finishedAt:
+      type: string
+      format: date-time
+    finishedAtEpoch:
+      type: integer
+    timeoutAt:
+      type: string
+      format: date-time
+    timeoutAtEpoch:
+      type: integer
+    cancelledAt:
+      type: string
+      format: date-time
+    cancelledAtEpoch:
+      type: integer
+    cancelledReason:
+      type: string
+    cancelledError:
+      type: string
+  required:
+    - metadata
+    - tenantId
+    - jobRunId
+    - stepId
+    - status
+
+StepRunEventReason:
+  type: string
+  enum:
+    - REQUEUED_NO_WORKER
+    - REQUEUED_RATE_LIMIT
+    - SCHEDULING_TIMED_OUT
+    - ASSIGNED
+    - STARTED
+    - ACKNOWLEDGED
+    - FINISHED
+    - FAILED
+    - RETRYING
+    - CANCELLED
+    - TIMEOUT_REFRESHED
+    - REASSIGNED
+    - TIMED_OUT
+    - SLOT_RELEASED
+    - RETRIED_BY_USER
+    - WORKFLOW_RUN_GROUP_KEY_SUCCEEDED
+    - WORKFLOW_RUN_GROUP_KEY_FAILED
+
+StepRunEventSeverity:
+  type: string
+  enum:
+    - INFO
+    - WARNING
+    - CRITICAL
+
+StepRunEvent:
+  type: object
+  properties:
+    id:
+      type: integer
+    timeFirstSeen:
+      type: string
+      format: date-time
+    timeLastSeen:
+      type: string
+      format: date-time
+    stepRunId:
+      type: string
+    workflowRunId:
+      type: string
+    reason:
+      $ref: "#/StepRunEventReason"
+    severity:
+      $ref: "#/StepRunEventSeverity"
+    message:
+      type: string
+    count:
+      type: integer
+    data:
+      type: object
+  required:
+    - id
+    - timeFirstSeen
+    - timeLastSeen
+    - reason
+    - severity
+    - message
+    - count
+
+StepRunEventList:
+  properties:
+    pagination:
+      $ref: "./metadata.yaml#/PaginationResponse"
+    rows:
+      items:
+        $ref: "#/StepRunEvent"
+      type: array
+
+StepRunArchive:
+  type: object
+  properties:
+    stepRunId:
+      type: string
+    order:
+      type: integer
+    input:
+      type: string
+    output:
+      type: string
+    startedAt:
+      type: string
+      format: date-time
+    error:
+      type: string
+    retryCount:
+      type: integer
+    createdAt:
+      type: string
+      format: date-time
+    startedAtEpoch:
+      type: integer
+    finishedAt:
+      type: string
+      format: date-time
+    finishedAtEpoch:
+      type: integer
+    timeoutAt:
+      type: string
+      format: date-time
+    timeoutAtEpoch:
+      type: integer
+    cancelledAt:
+      type: string
+      format: date-time
+    cancelledAtEpoch:
+      type: integer
+    cancelledReason:
+      type: string
+    cancelledError:
+      type: string
+  required:
+    - stepRunId
+    - retryCount
+    - order
+    - createdAt
+
+StepRunArchiveList:
+  properties:
+    pagination:
+      $ref: "./metadata.yaml#/PaginationResponse"
+    rows:
+      items:
+        $ref: "#/StepRunArchive"
+      type: array
+
+RerunStepRunRequest:
+  properties:
+    input:
+      type: object
+  required:
+    - input
+
+TriggerWorkflowRunRequest:
+  properties:
+    input:
+      type: object
+    additionalMetadata:
+      type: object
+  required:
+    - input
+
+CreateCronWorkflowTriggerRequest:
+  properties:
+    input:
+      type: object
+    additionalMetadata:
+      type: object
+    cronName:
+      type: string
+    cronExpression:
+      type: string
+  required:
+    - input
+    - additionalMetadata
+    - cronName
+    - cronExpression
+
+ScheduleWorkflowRunRequest:
+  properties:
+    input:
+      type: object
+    additionalMetadata:
+      type: object
+    triggerAt:
+      type: string
+      format: date-time
+  required:
+    - input
+    - additionalMetadata
+    - triggerAt
+
+CreatePullRequestFromStepRun:
+  properties:
+    branchName:
+      type: string
+  required:
+    - branchName
+
+PullRequestState:
+  type: string
+  enum:
+    - open
+    - closed
+
+ListPullRequestsResponse:
+  properties:
+    pullRequests:
+      type: array
+      items:
+        $ref: "#/PullRequest"
+  required:
+    - pullRequests
+
+PullRequest:
+  properties:
+    repositoryOwner:
+      type: string
+    repositoryName:
+      type: string
+    pullRequestID:
+      type: integer
+    pullRequestTitle:
+      type: string
+    pullRequestNumber:
+      type: integer
+    pullRequestHeadBranch:
+      type: string
+    pullRequestBaseBranch:
+      type: string
+    pullRequestState:
+      $ref: "#/PullRequestState"
+  required:
+    - repositoryOwner
+    - repositoryName
+    - pullRequestID
+    - pullRequestTitle
+    - pullRequestNumber
+    - pullRequestHeadBranch
+    - pullRequestBaseBranch
+    - pullRequestState
+
+GetStepRunDiffResponse:
+  properties:
+    diffs:
+      type: array
+      items:
+        $ref: "#/StepRunDiff"
+  required:
+    - diffs
+
+StepRunDiff:
+  properties:
+    key:
+      type: string
+    original:
+      type: string
+    modified:
+      type: string
+  required:
+    - key
+    - original
+    - modified

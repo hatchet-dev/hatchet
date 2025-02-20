@@ -1,0 +1,176 @@
+sns:
+  post:
+    description: SNS event
+    operationId: sns:update
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The event key
+        in: path
+        name: event
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+    responses:
+      "200":
+        description: Successfully processed webhook
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "401":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Unauthorized
+      "405":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Method not allowed
+    security: []
+    summary: Github app tenant webhook
+    tags:
+      - Github
+snsIntegration:
+  get:
+    description: List SNS integrations
+    operationId: sns:list
+    x-resources: ["tenant"]
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/ListSNSIntegrations"
+        description: Successfully retrieved SNS integrations
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "401":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Unauthorized
+      "405":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Method not allowed
+    summary: List SNS integrations
+    tags:
+      - SNS
+  post:
+    description: Create SNS integration
+    operationId: sns:create
+    x-resources: ["tenant"]
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    requestBody:
+      content:
+        application/json:
+          schema:
+            $ref: "../../components/schemas/_index.yaml#/CreateSNSIntegrationRequest"
+    responses:
+      "201":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/SNSIntegration"
+        description: Successfully created SNS integration
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "401":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Unauthorized
+      "405":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Method not allowed
+    summary: Create SNS integration
+    tags:
+      - SNS
+deleteSNS:
+  delete:
+    description: Delete SNS integration
+    operationId: sns:delete
+    x-resources: ["tenant", "sns"]
+    parameters:
+      - description: The SNS integration id
+        in: path
+        name: sns
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+      "204":
+        description: Successfully deleted SNS integration
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "401":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Unauthorized
+      "405":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Method not allowed
+    summary: Delete SNS integration
+    tags:
+      - SNS

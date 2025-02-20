@@ -1,0 +1,296 @@
+Workflow:
+  properties:
+    metadata:
+      $ref: "./metadata.yaml#/APIResourceMeta"
+    name:
+      type: string
+      description: The name of the workflow.
+    description:
+      type: string
+      description: The description of the workflow.
+    isPaused:
+      type: boolean
+      description: Whether the workflow is paused.
+    versions:
+      type: array
+      items:
+        $ref: "#/WorkflowVersionMeta"
+    tags:
+      type: array
+      items:
+        $ref: "#/WorkflowTag"
+      description: The tags of the workflow.
+    jobs:
+      type: array
+      items:
+        $ref: "#/Job"
+      description: The jobs of the workflow.
+  required:
+    - metadata
+    - name
+  type: object
+
+WorkflowUpdateRequest:
+  type: object
+  properties:
+    isPaused:
+      type: boolean
+      description: Whether the workflow is paused.
+
+WorkflowTag:
+  type: object
+  properties:
+    name:
+      type: string
+      description: The name of the workflow.
+    color:
+      type: string
+      description: The description of the workflow.
+  required:
+    - name
+    - color
+
+WorkflowList:
+  type: object
+  properties:
+    metadata:
+      $ref: "./metadata.yaml#/APIResourceMeta"
+    rows:
+      type: array
+      items:
+        $ref: "#/Workflow"
+    pagination:
+      $ref: "./metadata.yaml#/PaginationResponse"
+
+WorkflowVersionMeta:
+  type: object
+  properties:
+    metadata:
+      $ref: "./metadata.yaml#/APIResourceMeta"
+    version:
+      type: string
+      description: The version of the workflow.
+    order:
+      type: integer
+      format: int32
+    workflowId:
+      type: string
+    workflow:
+      $ref: "#/Workflow"
+  required:
+    - metadata
+    - version
+    - order
+    - workflowId
+
+WorkflowVersion:
+  type: object
+  properties:
+    metadata:
+      $ref: "./metadata.yaml#/APIResourceMeta"
+    version:
+      type: string
+      description: The version of the workflow.
+    order:
+      type: integer
+      format: int32
+    workflowId:
+      type: string
+    sticky:
+      type: string
+      description: The sticky strategy of the workflow.
+    defaultPriority:
+      type: integer
+      format: int32
+      description: The default priority of the workflow.
+    workflow:
+      $ref: "#/Workflow"
+    concurrency:
+      $ref: "#/WorkflowConcurrency"
+    triggers:
+      $ref: "#/WorkflowTriggers"
+    scheduleTimeout:
+      type: string
+    jobs:
+      type: array
+      items:
+        $ref: "#/Job"
+  required:
+    - metadata
+    - version
+    - order
+    - workflowId
+
+WorkflowConcurrency:
+  type: object
+  properties:
+    maxRuns:
+      type: integer
+      format: int32
+      description: The maximum number of concurrent workflow runs.
+    limitStrategy:
+      $ref: "#/ConcurrencyLimitStrategy"
+      description: The strategy to use when the concurrency limit is reached.
+    getConcurrencyGroup:
+      type: string
+      description: An action which gets the concurrency group for the WorkflowRun.
+  required:
+    - maxRuns
+    - limitStrategy
+    - getConcurrencyGroup
+
+ConcurrencyLimitStrategy:
+  type: string
+  enum:
+    - CANCEL_IN_PROGRESS
+    - DROP_NEWEST
+    - QUEUE_NEWEST
+    - GROUP_ROUND_ROBIN
+
+WorkflowVersionDefinition:
+  type: object
+  properties:
+    rawDefinition:
+      type: string
+      description: The raw YAML definition of the workflow.
+  required:
+    - rawDefinition
+
+WorkflowTriggers:
+  type: object
+  properties:
+    metadata:
+      $ref: "./metadata.yaml#/APIResourceMeta"
+    workflow_version_id:
+      type: string
+    tenant_id:
+      type: string
+    events:
+      type: array
+      items:
+        $ref: "#/WorkflowTriggerEventRef"
+    crons:
+      type: array
+      items:
+        $ref: "#/WorkflowTriggerCronRef"
+
+WorkflowTriggerEventRef:
+  type: object
+  properties:
+    parent_id:
+      type: string
+    event_key:
+      type: string
+
+WorkflowTriggerCronRef:
+  type: object
+  properties:
+    parent_id:
+      type: string
+    cron:
+      type: string
+
+Job:
+  type: object
+  properties:
+    metadata:
+      $ref: "./metadata.yaml#/APIResourceMeta"
+    tenantId:
+      type: string
+    versionId:
+      type: string
+    name:
+      type: string
+    description:
+      type: string
+      description: The description of the job.
+    steps:
+      type: array
+      items:
+        $ref: "#/Step"
+    timeout:
+      type: string
+      description: The timeout of the job.
+  required:
+    - metadata
+    - tenantId
+    - versionId
+    - name
+    - steps
+
+Step:
+  type: object
+  properties:
+    metadata:
+      $ref: "./metadata.yaml#/APIResourceMeta"
+    readableId:
+      type: string
+      description: The readable id of the step.
+    tenantId:
+      type: string
+    jobId:
+      type: string
+    action:
+      type: string
+    timeout:
+      type: string
+      description: The timeout of the step.
+    children:
+      type: array
+      items:
+        type: string
+    parents:
+      type: array
+      items:
+        type: string
+  required:
+    - metadata
+    - readableId
+    - tenantId
+    - jobId
+    - action
+    - nextId
+LinkGithubRepositoryRequest:
+  type: object
+  properties:
+    installationId:
+      type: string
+      description: The repository name.
+      minLength: 36
+      maxLength: 36
+    gitRepoName:
+      type: string
+      description: The repository name.
+    gitRepoOwner:
+      type: string
+      description: The repository owner.
+    gitRepoBranch:
+      type: string
+      description: The repository branch.
+  required:
+    - installationId
+    - gitRepoName
+    - gitRepoOwner
+    - gitRepoBranch
+
+WorkflowMetrics:
+  type: object
+  properties:
+    groupKeyRunsCount:
+      type: integer
+      description: The number of runs for a specific group key (passed via filter)
+    groupKeyCount:
+      type: integer
+      description: The total number of concurrency group keys.
+
+WorkflowWorkersCount:
+  type: object
+  properties:
+    freeSlotCount:
+      type: integer
+    maxSlotCount:
+      type: integer
+    workflowRunId:
+      type: string
+  required:
+    - count

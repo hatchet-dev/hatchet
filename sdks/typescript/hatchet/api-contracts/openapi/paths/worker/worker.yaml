@@ -1,0 +1,118 @@
+withTenant:
+  get:
+    x-resources: ["tenant"]
+    description: Get all workers for a tenant
+    operationId: worker:list
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/WorkerList"
+        description: Successfully retrieved the workflows
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+    summary: Get workers
+    tags:
+      - Worker
+
+withWorker:
+  patch:
+    x-resources: ["tenant", "worker"]
+    description: Update a worker
+    operationId: worker:update
+    parameters:
+      - description: The worker id
+        in: path
+        name: worker
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    requestBody:
+      content:
+        application/json:
+          schema:
+            $ref: "../../components/schemas/_index.yaml#/UpdateWorkerRequest"
+      description: The worker update
+      required: true
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/Worker"
+        description: Successfully updated the worker
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+    summary: Update worker
+    tags:
+      - Worker
+  get:
+    x-resources: ["tenant", "worker"]
+    description: Get a worker
+    operationId: worker:get
+    parameters:
+      - description: The worker id
+        in: path
+        name: worker
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/Worker"
+        description: Successfully retrieved the worker
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+    summary: Get worker
+    tags:
+      - Worker

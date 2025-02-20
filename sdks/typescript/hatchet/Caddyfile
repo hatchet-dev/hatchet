@@ -1,0 +1,17 @@
+app.dev.hatchet-tools.com {
+	tls internal
+
+	handle /api/* {
+		reverse_proxy localhost:8080
+	}
+
+	handle /* {
+		reverse_proxy localhost:5173
+	}
+}
+
+grpc.dev.hatchet-tools.com {
+	tls internal
+
+    reverse_proxy h2c://127.0.0.1:7070
+}

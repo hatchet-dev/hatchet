@@ -1,0 +1,131 @@
+User:
+  properties:
+    metadata:
+      $ref: "./metadata.yaml#/APIResourceMeta"
+    name:
+      type: string
+      description: The display name of the user.
+    email:
+      type: string
+      format: email
+      description: The email address of the user.
+    emailVerified:
+      type: boolean
+      description: Whether the user has verified their email address.
+    hasPassword:
+      type: boolean
+      description: Whether the user has a password set.
+    emailHash:
+      type: string
+      description: A hash of the user's email address for use with Pylon Support Chat
+  required:
+    - metadata
+    - email
+    - emailVerified
+  type: object
+
+UserTenantPublic:
+  properties:
+    email:
+      type: string
+      format: email
+      description: The email address of the user.
+    name:
+      type: string
+      description: The display name of the user.
+  required:
+    - email
+  type: object
+
+UserLoginRequest:
+  properties:
+    email:
+      type: string
+      format: email
+      description: The email address of the user.
+      x-oapi-codegen-extra-tags:
+        validate: "required,email"
+    password:
+      type: string
+      description: The password of the user.
+      x-oapi-codegen-extra-tags:
+        validate: "required,password"
+  required:
+    - email
+    - password
+  type: object
+
+UserChangePasswordRequest:
+  properties:
+    password:
+      type: string
+      description: The password of the user.
+      x-oapi-codegen-extra-tags:
+        validate: "required,password"
+    newPassword:
+      type: string
+      description: The new password for the user.
+      x-oapi-codegen-extra-tags:
+        validate: "required,password"
+  required:
+    - password
+    - newPassword
+  type: object
+
+UserRegisterRequest:
+  properties:
+    name:
+      type: string
+      description: The name of the user.
+    email:
+      type: string
+      format: email
+      description: The email address of the user.
+      x-oapi-codegen-extra-tags:
+        validate: "required,email"
+    password:
+      type: string
+      description: The password of the user.
+      x-oapi-codegen-extra-tags:
+        validate: "required,password"
+  required:
+    - name
+    - email
+    - password
+  type: object
+
+UserTenantMembershipsList:
+  properties:
+    pagination:
+      $ref: "./metadata.yaml#/PaginationResponse"
+    rows:
+      items:
+        $ref: "./_index.yaml#/TenantMember"
+      type: array
+      x-go-name: Rows
+
+AcceptInviteRequest:
+  properties:
+    invite:
+      type: string
+      example: bb214807-246e-43a5-a25d-41761d1cff9e
+      minLength: 36
+      maxLength: 36
+      x-oapi-codegen-extra-tags:
+        validate: "required,uuid"
+  required:
+    - invite
+  type: object
+
+RejectInviteRequest:
+  properties:
+    invite:
+      type: string
+      example: bb214807-246e-43a5-a25d-41761d1cff9e
+      minLength: 36
+      maxLength: 36
+      x-oapi-codegen-extra-tags:
+        validate: "required,uuid"
+  required:
+    - invite
+  type: object

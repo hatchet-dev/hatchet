@@ -1,0 +1,29 @@
+name: "create-slack-onboarding-channel"
+version: 0.1.0
+triggers:
+  events:
+    - team:create
+jobs:
+  create-slack-channel:
+    steps:
+      - name: Create onboarding channel
+        action: slack:create-channel
+        id: createChannel
+        timeout: 60s
+        with:
+          channelName: "{{ .input.name }}-onboarding"
+      - name: Add user to channel
+        action: slack:add-users-to-channel
+        id: addUserToChannel
+        timeout: 60s
+        with:
+          channelId: "{{ .steps.createChannel.channelId }}"
+          userIds:
+            - "$SLACK_USER_ID"
+      - name: Send message to channel
+        action: slack:send-message
+        id: sendMessageToChannel
+        timeout: 60s
+        with:
+          channelId: "{{ .steps.createChannel.channelId }}"
+          message: "Welcome to your dedicated onboarding channel, {{ .input.name }}!"

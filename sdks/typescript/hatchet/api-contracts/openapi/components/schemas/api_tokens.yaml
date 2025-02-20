@@ -1,0 +1,50 @@
+APIToken:
+  type: object
+  properties:
+    metadata:
+      $ref: "./metadata.yaml#/APIResourceMeta"
+    name:
+      type: string
+      description: The name of the API token.
+      maxLength: 255
+    expiresAt:
+      type: string
+      format: date-time
+      description: When the API token expires.
+  required:
+    - metadata
+    - name
+    - expiresAt
+
+CreateAPITokenRequest:
+  type: object
+  properties:
+    name:
+      type: string
+      description: A name for the API token.
+      maxLength: 255
+    expiresIn:
+      type: string
+      description: The duration for which the token is valid.
+      x-oapi-codegen-extra-tags:
+        validate: "omitnil,duration"
+  required:
+    - name
+
+CreateAPITokenResponse:
+  type: object
+  properties:
+    token:
+      type: string
+      description: The API token.
+  required:
+    - token
+
+ListAPITokensResponse:
+  properties:
+    pagination:
+      $ref: "./metadata.yaml#/PaginationResponse"
+    rows:
+      items:
+        $ref: "#/APIToken"
+      type: array

@@ -1,0 +1,165 @@
+webhookworkers:
+  get:
+    description: Lists all webhooks
+    summary: List webhooks
+    operationId: webhook:list
+    x-resources: ["tenant"]
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/WebhookWorkerListResponse"
+        description: The list of webhook workers
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "401":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Unauthorized
+      "405":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Method not allowed
+  post:
+    description: Creates a webhook
+    summary: Create a webhook
+    operationId: webhook:create
+    x-resources: ["tenant"]
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    requestBody:
+      content:
+        application/json:
+          schema:
+            $ref: "../../components/schemas/_index.yaml#/WebhookWorkerCreateRequest"
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/WebhookWorkerCreated"
+        description: Successfully created the webhook
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "401":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Unauthorized
+      "405":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Method not allowed
+webhookworker:
+  delete:
+    description: Deletes a webhook
+    summary: Delete a webhook
+    operationId: webhook:delete
+    x-resources: ["tenant", "webhook"]
+    parameters:
+      - description: The webhook id
+        in: path
+        name: webhook
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+      "200":
+        description: Successfully deleted the webhook
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "401":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Unauthorized
+      "405":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Method not allowed
+
+webhookworkerRequests:
+  get:
+    description: Lists all requests for a webhook
+    summary: List webhook requests
+    operationId: webhook-requests:list
+    x-resources: ["tenant", "webhook"]
+    parameters:
+      - description: The webhook id
+        in: path
+        name: webhook
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/WebhookWorkerRequestListResponse"
+        description: The list of webhook requests
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "401":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Unauthorized
+      "405":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Method not allowed

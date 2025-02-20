@@ -1,0 +1,43 @@
+SNSIntegration:
+  type: object
+  properties:
+    metadata:
+      $ref: "./metadata.yaml#/APIResourceMeta"
+    tenantId:
+      type: string
+      format: uuid
+      description: The unique identifier for the tenant that the SNS integration belongs to.
+    topicArn:
+      type: string
+      description: The Amazon Resource Name (ARN) of the SNS topic.
+    ingestUrl:
+      type: string
+      description: The URL to send SNS messages to.
+  required:
+    - metadata
+    - tenantId
+    - topicArn
+
+CreateSNSIntegrationRequest:
+  properties:
+    topicArn:
+      type: string
+      description: The Amazon Resource Name (ARN) of the SNS topic.
+      x-oapi-codegen-extra-tags:
+        validate: "required,min=1,max=256"
+  required:
+    - topicArn
+  type: object
+
+ListSNSIntegrations:
+  type: object
+  properties:
+    pagination:
+      $ref: "./metadata.yaml#/PaginationResponse"
+    rows:
+      type: array
+      items:
+        $ref: "#/SNSIntegration"
+  required:
+    - pagination
+    - rows
