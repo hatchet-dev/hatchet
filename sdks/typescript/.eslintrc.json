@@ -1,0 +1,37 @@
+{
+  "env": {
+    "es6": true,
+    "node": true,
+    "jest": true
+  },
+  "extends": ["airbnb-base", "prettier", "plugin:prettier/recommended"],
+  "globals": {
+    "Atomics": "readonly",
+    "SharedArrayBuffer": "readonly"
+  },
+  "parser": "@typescript-eslint/parser",
+  "parserOptions": {
+    "ecmaVersion": 11,
+    "sourceType": "module"
+  },
+  "plugins": ["@typescript-eslint", "import", "unused-imports", "prettier", "eslint-plugin-jest"],
+  "rules": {
+    "no-void": "off",
+    "@typescript-eslint/no-shadow": "off",
+    "@typescript-eslint/no-throw-literal": "off",
+    "no-use-before-define": "off",
+    "@typescript-eslint/no-use-before-define": "off",
+    "import/extensions": "off",
+    "unused-imports/no-unused-imports": "error",
+    "no-unused-vars": "off",
+    "prettier/prettier": "error",
+    "@typescript-eslint/no-unused-vars": "warn",
+    "curly": "error",
+    "import/prefer-default-export": "off",
+    "import/no-unresolved": "off",
+    "lines-between-class-members": "off",
+    "class-methods-use-this": "off",
+    "no-await-in-loop": "off",
+    "no-restricted-syntax": "off"
+  }
+}
