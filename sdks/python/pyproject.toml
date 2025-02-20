@@ -85,10 +85,10 @@ known_third_party = [
     "pyyaml",
     "urllib3",
 ]
-extend_skip = ["hatchet_sdk/contracts/"]
+extend_skip = ["hatchet_sdk/contracts/", "hatchet_sdk/v0/contracts/"]
 
 [tool.black]
-extend_exclude = "hatchet_sdk/contracts/"
+extend_exclude = "(hatchet_sdk/contracts/|hatchet_sdk/v0/contracts/)"
 
 [tool.mypy]
 files = ["."]
@@ -100,6 +100,7 @@ exclude = [
     "hatchet_sdk/clients/rest/configuration.py",
     "hatchet_sdk/clients/rest/exceptions.py",
     "hatchet_sdk/clients/rest/rest.py",
+    "hatchet_sdk/v0/*",
 ]
 strict = true
 
@@ -112,6 +113,7 @@ exclude = [
     "hatchet_sdk/clients/rest/configuration.py",
     "hatchet_sdk/clients/rest/exceptions.py",
     "hatchet_sdk/clients/rest/rest.py",
+    "hatchet_sdk/v0/*",
 ]
 
 [tool.poetry.scripts]
