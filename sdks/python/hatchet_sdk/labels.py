@@ -1,9 +1,7 @@
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel
 
 
 class DesiredWorkerLabel(BaseModel):
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
     value: str | int
     required: bool = False
     weight: int | None = None

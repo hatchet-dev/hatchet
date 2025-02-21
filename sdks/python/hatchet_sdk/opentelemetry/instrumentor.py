@@ -1,6 +1,8 @@
 from importlib.metadata import version
 from typing import Any, Callable, Collection, Coroutine
 
+from hatchet_sdk.utils.types import JSONSerializableMapping
+
 try:
     from opentelemetry.context import Context
     from opentelemetry.instrumentation.instrumentor import (  # type: ignore[attr-defined]
@@ -66,7 +68,9 @@ def create_traceparent() -> str | None:
     return carrier.get("traceparent")
 
 
-def parse_carrier_from_metadata(metadata: dict[str, str] | None) -> Context | None:
+def parse_carrier_from_metadata(
+    metadata: JSONSerializableMapping | None,
+) -> Context | None:
     """
     Parses OpenTelemetry trace context from a metadata dictionary.
 

@@ -2,11 +2,13 @@ import asyncio
 import json
 import time
 from dataclasses import dataclass, field
-from typing import Any, AsyncGenerator, Optional, cast
+from enum import Enum
+from typing import AsyncGenerator, Optional, cast
 
 import grpc
 import grpc.aio
 from grpc._cython import cygrpc  # type: ignore[attr-defined]
+from pydantic import BaseModel, ConfigDict
 
 from hatchet_sdk.clients.event_ts import Event_ts, read_with_interrupt
 from hatchet_sdk.clients.events import proto_timestamp_now
@@ -14,8 +16,8 @@ from hatchet_sdk.clients.run_event_listener import (
     DEFAULT_ACTION_LISTENER_RETRY_INTERVAL,
 )
 from hatchet_sdk.connection import new_conn
+from hatchet_sdk.contracts.dispatcher_pb2 import ActionType as ActionTypeProto
 from hatchet_sdk.contracts.dispatcher_pb2 import (
-    ActionType,
     AssignedAction,
     HeartbeatRequest,
     WorkerLabels,
@@ -27,7 +29,7 @@ from hatchet_sdk.loader import ClientConfig
 from hatchet_sdk.logger import logger
 from hatchet_sdk.metadata import get_metadata
 from hatchet_sdk.utils.backoff import exp_backoff_sleep
-from hatchet_sdk.utils.types import JSONSerializableDict
+from hatchet_sdk.utils.types import JSONSerializableMapping
 
 DEFAULT_ACTION_TIMEOUT = 600  # seconds
 DEFAULT_ACTION_LISTENER_RETRY_COUNT = 15
@@ -53,8 +55,34 @@ class GetActionListenerRequest:
                 self.labels[key] = WorkerLabels(strValue=str(value))
 
 
-@dataclass
-class Action:
+class ActionPayload(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    input: JSONSerializableMapping
+    parents: JSONSerializableMapping
+    overrides: JSONSerializableMapping
+    user_data: JSONSerializableMapping
+    step_run_errors: dict[str, str]
+    triggered_by: str
+
+
+class ActionType(str, Enum):
+    START_STEP_RUN = "START_STEP_RUN"
+    CANCEL_STEP_RUN = "CANCEL_STEP_RUN"
+    START_GET_GROUP_KEY = "START_GET_GROUP_KEY"
+
+
+def action_type_proto_to_enum(action_type: ActionTypeProto) -> ActionType:
+    name = ActionTypeProto.Name(action_type)
+    names = [item.name for item in ActionTypeProto.DESCRIPTOR.values]
+
+    try:
+        return ActionType[name]
+    except Exception:
+        raise ValueError(f"Action type must be one of {names}. Got: {action_type}")
+
+
+class Action(BaseModel):
     worker_id: str
     tenant_id: str
     workflow_run_id: str
@@ -67,29 +95,23 @@ class Action:
     action_id: str
     action_type: ActionType
     retry_count: int
-    action_payload: JSONSerializableDict = field(default_factory=dict)
-    additional_metadata: JSONSerializableDict = field(default_factory=dict)
+    action_payload: ActionPayload
+    additional_metadata: JSONSerializableMapping = field(default_factory=dict)
 
     child_workflow_index: int | None = None
     child_workflow_key: str | None = None
     parent_workflow_run_id: str | None = None
 
-    def __post_init__(self) -> None:
-        if isinstance(self.additional_metadata, str) and self.additional_metadata != "":
-            try:
-                self.additional_metadata = json.loads(self.additional_metadata)
-            except json.JSONDecodeError:
-                # If JSON decoding fails, keep the original string
-                pass
-
-        # Ensure additional_metadata is always a dictionary
-        if not isinstance(self.additional_metadata, dict):
-            self.additional_metadata = {}
+    def _dump_payload_to_str(self) -> str:
+        try:
+            return json.dumps(self.action_payload.model_dump(), default=str)
+        except Exception:
+            return str(self.action_payload)
 
     @property
     def otel_attributes(self) -> dict[str, str | int]:
         try:
-            payload_str = json.dumps(self.action_payload, default=str)
+            payload_str = json.dumps(self.action_payload.model_dump(), default=str)
         except Exception:
             payload_str = str(self.action_payload)
 
@@ -110,6 +132,16 @@ class Action:
         }
 
         return {k: v for k, v in attrs.items() if v}
+
+
+def parse_additional_metadata(additional_metadata: str) -> JSONSerializableMapping:
+    try:
+        return cast(
+            JSONSerializableMapping,
+            json.loads(additional_metadata),
+        )
+    except json.JSONDecodeError:
+        return {}
 
 
 @dataclass
@@ -262,22 +294,11 @@ class ActionListener:
 
                     self.retries = 0
 
-                    # Process the received action
-                    action_type = assigned_action.actionType
-
                     action_payload = (
                         {}
                         if not assigned_action.actionPayload
                         else self.parse_action_payload(assigned_action.actionPayload)
                     )
-
-                    try:
-                        additional_metadata = cast(
-                            dict[str, Any],
-                            json.loads(assigned_action.additional_metadata),
-                        )
-                    except json.JSONDecodeError:
-                        additional_metadata = {}
 
                     action = Action(
                         tenant_id=assigned_action.tenantId,
@@ -290,10 +311,14 @@ class ActionListener:
                         step_id=assigned_action.stepId,
                         step_run_id=assigned_action.stepRunId,
                         action_id=assigned_action.actionId,
-                        action_payload=action_payload,
-                        action_type=action_type,
+                        action_payload=ActionPayload.model_validate(action_payload),
+                        action_type=action_type_proto_to_enum(
+                            assigned_action.actionType
+                        ),
                         retry_count=assigned_action.retryCount,
-                        additional_metadata=additional_metadata,
+                        additional_metadata=parse_additional_metadata(
+                            assigned_action.additional_metadata
+                        ),
                         child_workflow_index=assigned_action.child_workflow_index,
                         child_workflow_key=assigned_action.child_workflow_key,
                         parent_workflow_run_id=assigned_action.parent_workflow_run_id,
@@ -327,9 +352,9 @@ class ActionListener:
 
                     self.retries = self.retries + 1
 
-    def parse_action_payload(self, payload: str) -> JSONSerializableDict:
+    def parse_action_payload(self, payload: str) -> JSONSerializableMapping:
         try:
-            return cast(JSONSerializableDict, json.loads(payload))
+            return cast(JSONSerializableMapping, json.loads(payload))
         except json.JSONDecodeError as e:
             raise ValueError(f"Error decoding payload: {e}")
 

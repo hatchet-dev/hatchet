@@ -18,7 +18,7 @@ from hatchet_sdk.contracts.events_pb2 import (
 from hatchet_sdk.contracts.events_pb2_grpc import EventsServiceStub
 from hatchet_sdk.loader import ClientConfig
 from hatchet_sdk.metadata import get_metadata
-from hatchet_sdk.utils.types import JSONSerializableDict
+from hatchet_sdk.utils.types import JSONSerializableMapping
 
 
 def new_event(conn: grpc.Channel, config: ClientConfig) -> "EventClient":
@@ -37,7 +37,7 @@ def proto_timestamp_now() -> timestamp_pb2.Timestamp:
 
 
 class PushEventOptions(BaseModel):
-    additional_metadata: JSONSerializableDict = Field(default_factory=dict)
+    additional_metadata: JSONSerializableMapping = Field(default_factory=dict)
     namespace: str | None = None
 
 
@@ -48,7 +48,7 @@ class BulkPushEventOptions(BaseModel):
 class BulkPushEventWithMetadata(BaseModel):
     key: str
     payload: Any
-    additional_metadata: JSONSerializableDict = Field(default_factory=dict)
+    additional_metadata: JSONSerializableMapping = Field(default_factory=dict)
 
 
 class EventClient:

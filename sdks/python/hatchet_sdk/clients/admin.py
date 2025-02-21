@@ -1,7 +1,7 @@
 import asyncio
 import json
 from datetime import datetime
-from typing import Any, Union, cast
+from typing import Union, cast
 
 import grpc
 from google.protobuf import timestamp_pb2
@@ -26,7 +26,7 @@ from hatchet_sdk.contracts.workflows_pb2 import (
 from hatchet_sdk.contracts.workflows_pb2_grpc import WorkflowServiceStub
 from hatchet_sdk.loader import ClientConfig
 from hatchet_sdk.metadata import get_metadata
-from hatchet_sdk.utils.types import JSONSerializableDict
+from hatchet_sdk.utils.types import JSONSerializableMapping
 from hatchet_sdk.workflow_run import WorkflowRunRef
 
 
@@ -39,26 +39,26 @@ class ScheduleTriggerWorkflowOptions(BaseModel):
 
 
 class ChildTriggerWorkflowOptions(BaseModel):
-    additional_metadata: JSONSerializableDict = Field(default_factory=dict)
+    additional_metadata: JSONSerializableMapping = Field(default_factory=dict)
     sticky: bool = False
 
 
 class ChildWorkflowRunDict(BaseModel):
     workflow_name: str
-    input: JSONSerializableDict
+    input: JSONSerializableMapping
     options: ChildTriggerWorkflowOptions
     key: str | None = None
 
 
 class TriggerWorkflowOptions(ScheduleTriggerWorkflowOptions):
-    additional_metadata: JSONSerializableDict = Field(default_factory=dict)
+    additional_metadata: JSONSerializableMapping = Field(default_factory=dict)
     desired_worker_id: str | None = None
     namespace: str | None = None
 
 
 class WorkflowRunDict(BaseModel):
     workflow_name: str
-    input: JSONSerializableDict
+    input: JSONSerializableMapping
     options: TriggerWorkflowOptions
 
 
@@ -80,7 +80,10 @@ class AdminClient:
         self.pooled_workflow_listener: PooledWorkflowRunListener | None = None
 
     def _prepare_workflow_request(
-        self, workflow_name: str, input: dict[str, Any], options: TriggerWorkflowOptions
+        self,
+        workflow_name: str,
+        input: JSONSerializableMapping,
+        options: TriggerWorkflowOptions,
     ) -> TriggerWorkflowRequest:
         try:
             payload_data = json.dumps(input)
@@ -138,7 +141,7 @@ class AdminClient:
         self,
         name: str,
         schedules: list[Union[datetime, timestamp_pb2.Timestamp]],
-        input: JSONSerializableDict = {},
+        input: JSONSerializableMapping = {},
         options: ScheduleTriggerWorkflowOptions = ScheduleTriggerWorkflowOptions(),
     ) -> ScheduleWorkflowRequest:
         return ScheduleWorkflowRequest(
@@ -153,7 +156,7 @@ class AdminClient:
     async def aio_run_workflow(
         self,
         workflow_name: str,
-        input: JSONSerializableDict,
+        input: JSONSerializableMapping,
         options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
     ) -> WorkflowRunRef:
         ## IMPORTANT: The `pooled_workflow_listener` must be created 1) lazily, and not at `init` time, and 2) on the
@@ -213,7 +216,7 @@ class AdminClient:
         self,
         name: str,
         schedules: list[Union[datetime, timestamp_pb2.Timestamp]],
-        input: JSONSerializableDict = {},
+        input: JSONSerializableMapping = {},
         options: ScheduleTriggerWorkflowOptions = ScheduleTriggerWorkflowOptions(),
     ) -> WorkflowVersion:
         ## IMPORTANT: The `pooled_workflow_listener` must be created 1) lazily, and not at `init` time, and 2) on the
@@ -263,7 +266,7 @@ class AdminClient:
         self,
         name: str,
         schedules: list[Union[datetime, timestamp_pb2.Timestamp]],
-        input: JSONSerializableDict = {},
+        input: JSONSerializableMapping = {},
         options: ScheduleTriggerWorkflowOptions = ScheduleTriggerWorkflowOptions(),
     ) -> WorkflowVersion:
         try:
@@ -294,7 +297,7 @@ class AdminClient:
     def run_workflow(
         self,
         workflow_name: str,
-        input: JSONSerializableDict,
+        input: JSONSerializableMapping,
         options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
     ) -> WorkflowRunRef:
         try:
@@ -358,9 +361,12 @@ class AdminClient:
             ]
         )
 
-        resp: BulkTriggerWorkflowResponse = self.client.BulkTriggerWorkflow(
-            bulk_request,
-            metadata=get_metadata(self.token),
+        resp = cast(
+            BulkTriggerWorkflowResponse,
+            self.client.BulkTriggerWorkflow(
+                bulk_request,
+                metadata=get_metadata(self.token),
+            ),
         )
 
         return [

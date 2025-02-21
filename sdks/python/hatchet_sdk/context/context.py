@@ -3,7 +3,6 @@ import json
 import traceback
 from concurrent.futures import Future, ThreadPoolExecutor
 from typing import Any, cast
-from warnings import warn
 
 from pydantic import BaseModel, StrictStr
 
@@ -26,7 +25,7 @@ from hatchet_sdk.clients.workflow_listener import PooledWorkflowRunListener
 from hatchet_sdk.context.worker_context import WorkerContext
 from hatchet_sdk.contracts.dispatcher_pb2 import OverridesData
 from hatchet_sdk.logger import logger
-from hatchet_sdk.utils.types import JSONSerializableDict, WorkflowValidator
+from hatchet_sdk.utils.types import JSONSerializableMapping, WorkflowValidator
 from hatchet_sdk.workflow_run import WorkflowRunRef
 
 DEFAULT_WORKFLOW_POLLING_INTERVAL = 5  # Seconds
@@ -54,22 +53,11 @@ class Context:
         namespace: str = "",
         validator_registry: dict[str, WorkflowValidator] = {},
     ):
+        print(action.action_payload)
         self.worker = worker
         self.validator_registry = validator_registry
 
-        self.data: dict[str, Any]
-
-        # Check the type of action.action_payload before attempting to load it as JSON
-        if isinstance(action.action_payload, (str, bytes, bytearray)):
-            try:
-                self.data = cast(dict[str, Any], json.loads(action.action_payload))
-            except Exception as e:
-                logger.error(f"Error parsing action payload: {e}")
-                # Assign an empty dictionary if parsing fails
-                self.data: dict[str, Any] = {}  # type: ignore[no-redef]
-        else:
-            # Directly assign the payload to self.data if it's already a dict
-            self.data = action.action_payload
+        self.data = action.action_payload
 
         self.action = action
 
@@ -91,14 +79,7 @@ class Context:
         self.logger_thread_pool = ThreadPoolExecutor(max_workers=1)
         self.stream_event_thread_pool = ThreadPoolExecutor(max_workers=1)
 
-        # store each key in the overrides field in a lookup table
-        # overrides_data is a dictionary of key-value pairs
-        self.overrides_data = self.data.get("overrides", {})
-
-        if action.get_group_key_run_id != "":
-            self.input = self.data
-        else:
-            self.input = self.data.get("input", {})
+        self.input = self.data.input
 
     def _prepare_workflow_options(
         self,
@@ -128,7 +109,7 @@ class Context:
         )
 
         try:
-            parent_step_data = cast(dict[str, Any], self.data["parents"][step])
+            parent_step_data = cast(dict[str, Any], self.data.parents[step])
         except KeyError:
             raise ValueError(f"Step output for '{step}' not found")
 
@@ -139,10 +120,10 @@ class Context:
 
     @property
     def triggered_by_event(self) -> bool:
-        return cast(str, self.data.get("triggered_by", "")) == "event"
+        return self.data.triggered_by == "event"
 
     @property
-    def workflow_input(self) -> dict[str, Any]:
+    def workflow_input(self) -> JSONSerializableMapping:
         return self.input
 
     @property
@@ -158,15 +139,6 @@ class Context:
         return self.exit_flag
 
     def playground(self, name: str, default: str | None = None) -> str | None:
-        # if the key exists in the overrides_data field, return the value
-        if name in self.overrides_data:
-            warn(
-                "Use of `overrides_data` is deprecated.",
-                DeprecationWarning,
-                stacklevel=1,
-            )
-            return str(self.overrides_data[name])
-
         caller_file = get_caller_file_path()
 
         self.dispatcher_client.put_overrides_data(
@@ -246,7 +218,7 @@ class Context:
         return self.action.retry_count
 
     @property
-    def additional_metadata(self) -> dict[str, Any] | None:
+    def additional_metadata(self) -> JSONSerializableMapping | None:
         return self.action.additional_metadata
 
     @property
@@ -263,7 +235,7 @@ class Context:
 
     @property
     def step_run_errors(self) -> dict[str, str]:
-        errors = cast(dict[str, str], self.data.get("step_run_errors", {}))
+        errors = self.data.step_run_errors
 
         if not errors:
             logger.error(
@@ -294,7 +266,7 @@ class Context:
     async def aio_spawn_workflow(
         self,
         workflow_name: str,
-        input: JSONSerializableDict = {},
+        input: JSONSerializableMapping = {},
         key: str | None = None,
         options: ChildTriggerWorkflowOptions = ChildTriggerWorkflowOptions(),
     ) -> WorkflowRunRef:
@@ -333,7 +305,7 @@ class Context:
     def spawn_workflow(
         self,
         workflow_name: str,
-        input: JSONSerializableDict = {},
+        input: JSONSerializableMapping = {},
         key: str | None = None,
         options: ChildTriggerWorkflowOptions = ChildTriggerWorkflowOptions(),
     ) -> WorkflowRunRef:

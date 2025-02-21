@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 from enum import Enum
-from typing import Union
 
 from celpy import CELEvalError, Environment  # type: ignore
 
@@ -41,7 +40,6 @@ class RateLimit:
         units (int or str, default=1): The number of units or a CEL expression for dynamic unit calculation.
         limit (int or str, optional): The rate limit value or a CEL expression for dynamic limit calculation.
         duration (str, default=RateLimitDuration.MINUTE): The window duration of the rate limit.
-        key (str, optional): Deprecated. Use static_key instead.
 
     Usage:
         1. Static rate limit:
@@ -62,14 +60,12 @@ class RateLimit:
 
     Raises:
         ValueError: If invalid combinations of attributes are provided or if CEL expressions are invalid.
-        DeprecationWarning: If the deprecated 'key' attribute is used.
     """
 
-    key: Union[str, None] = None
-    static_key: Union[str, None] = None
-    dynamic_key: Union[str, None] = None
-    units: Union[int, str] = 1
-    limit: Union[int, str, None] = None
+    static_key: str | None = None
+    dynamic_key: str | None = None
+    units: str | int = 1
+    limit: int | str | None = None
     duration: RateLimitDuration = RateLimitDuration.MINUTE
 
     _req: CreateStepRateLimit | None = None
@@ -78,12 +74,6 @@ class RateLimit:
         # juggle the key and key_expr fields
         key = self.static_key
         key_expression = self.dynamic_key
-
-        if self.key is not None:
-            DeprecationWarning(
-                "key is deprecated and will be removed in a future release, please use static_key instead"
-            )
-            key = self.key
 
         if key_expression is not None:
             if key is not None:

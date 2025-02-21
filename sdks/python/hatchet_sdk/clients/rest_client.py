@@ -71,7 +71,7 @@ from hatchet_sdk.clients.rest.models.workflow_runs_cancel_request import (
     WorkflowRunsCancelRequest,
 )
 from hatchet_sdk.clients.rest.models.workflow_version import WorkflowVersion
-from hatchet_sdk.utils.types import JSONSerializableDict
+from hatchet_sdk.utils.types import JSONSerializableMapping
 
 ## Type variables to use with coroutines.
 ## See https://stackoverflow.com/questions/73240620/the-right-way-to-type-hint-a-coroutine-function
@@ -248,16 +248,16 @@ class RestApi:
     async def aio_create_workflow_run(
         self,
         workflow_id: str,
-        input: JSONSerializableDict,
+        input: JSONSerializableMapping,
         version: str | None = None,
-        additional_metadata: JSONSerializableDict = {},
+        additional_metadata: JSONSerializableMapping = {},
     ) -> WorkflowRun:
         return await self.workflow_run_api.workflow_run_create(
             workflow=workflow_id,
             version=version,
             trigger_workflow_run_request=TriggerWorkflowRunRequest(
-                input=input,
-                additionalMetadata=additional_metadata,
+                input=dict(input),
+                additionalMetadata=dict(additional_metadata),
             ),
         )
 
@@ -266,8 +266,8 @@ class RestApi:
         workflow_name: str,
         cron_name: str,
         expression: str,
-        input: JSONSerializableDict,
-        additional_metadata: JSONSerializableDict,
+        input: JSONSerializableMapping,
+        additional_metadata: JSONSerializableMapping,
     ) -> CronWorkflows:
         return await self.workflow_run_api.cron_workflow_trigger_create(
             tenant=self.tenant_id,
@@ -275,8 +275,8 @@ class RestApi:
             create_cron_workflow_trigger_request=CreateCronWorkflowTriggerRequest(
                 cronName=cron_name,
                 cronExpression=expression,
-                input=input,
-                additionalMetadata=additional_metadata,
+                input=dict(input),
+                additionalMetadata=dict(additional_metadata),
             ),
         )
 
@@ -315,16 +315,16 @@ class RestApi:
         self,
         name: str,
         trigger_at: datetime.datetime,
-        input: JSONSerializableDict,
-        additional_metadata: JSONSerializableDict,
+        input: JSONSerializableMapping,
+        additional_metadata: JSONSerializableMapping,
     ) -> ScheduledWorkflows:
         return await self.workflow_run_api.scheduled_workflow_run_create(
             tenant=self.tenant_id,
             workflow=name,
             schedule_workflow_run_request=ScheduleWorkflowRunRequest(
                 triggerAt=trigger_at,
-                input=input,
-                additionalMetadata=additional_metadata,
+                input=dict(input),
+                additionalMetadata=dict(additional_metadata),
             ),
         )
 
@@ -495,9 +495,9 @@ class RestApi:
     def workflow_run_create(
         self,
         workflow_id: str,
-        input: JSONSerializableDict,
+        input: JSONSerializableMapping,
         version: str | None = None,
-        additional_metadata: JSONSerializableDict = {},
+        additional_metadata: JSONSerializableMapping = {},
     ) -> WorkflowRun:
         return self._run_coroutine(
             self.aio_create_workflow_run(
@@ -510,8 +510,8 @@ class RestApi:
         workflow_name: str,
         cron_name: str,
         expression: str,
-        input: JSONSerializableDict,
-        additional_metadata: JSONSerializableDict,
+        input: JSONSerializableMapping,
+        additional_metadata: JSONSerializableMapping,
     ) -> CronWorkflows:
         return self._run_coroutine(
             self.aio_create_cron(
@@ -549,8 +549,8 @@ class RestApi:
         self,
         workflow_name: str,
         trigger_at: datetime.datetime,
-        input: JSONSerializableDict,
-        additional_metadata: JSONSerializableDict,
+        input: JSONSerializableMapping,
+        additional_metadata: JSONSerializableMapping,
     ) -> ScheduledWorkflows:
         return self._run_coroutine(
             self.aio_create_schedule(

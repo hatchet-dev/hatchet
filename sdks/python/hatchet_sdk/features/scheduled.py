@@ -17,10 +17,10 @@ from hatchet_sdk.clients.rest.models.scheduled_workflows_order_by_field import (
 from hatchet_sdk.clients.rest.models.workflow_run_order_by_direction import (
     WorkflowRunOrderByDirection,
 )
-from hatchet_sdk.utils.types import JSONSerializableDict
+from hatchet_sdk.utils.types import JSONSerializableMapping
 
 
-class CreateScheduledTriggerJSONSerializableDict(BaseModel):
+class CreateScheduledTriggerJSONSerializableMapping(BaseModel):
     """
     Schema for creating a scheduled workflow run.
 
@@ -30,8 +30,8 @@ class CreateScheduledTriggerJSONSerializableDict(BaseModel):
         trigger_at (Optional[datetime.datetime]): The datetime when the run should be triggered.
     """
 
-    input: JSONSerializableDict = Field(default_factory=dict)
-    additional_metadata: JSONSerializableDict = Field(default_factory=dict)
+    input: JSONSerializableMapping = Field(default_factory=dict)
+    additional_metadata: JSONSerializableMapping = Field(default_factory=dict)
     trigger_at: datetime.datetime
 
 
@@ -59,8 +59,8 @@ class ScheduledClient:
         self,
         workflow_name: str,
         trigger_at: datetime.datetime,
-        input: JSONSerializableDict,
-        additional_metadata: JSONSerializableDict,
+        input: JSONSerializableMapping,
+        additional_metadata: JSONSerializableMapping,
     ) -> ScheduledWorkflows:
         """
         Creates a new scheduled workflow run asynchronously.
@@ -75,7 +75,7 @@ class ScheduledClient:
             ScheduledWorkflows: The created scheduled workflow instance.
         """
 
-        validated_input = CreateScheduledTriggerJSONSerializableDict(
+        validated_input = CreateScheduledTriggerJSONSerializableMapping(
             trigger_at=trigger_at, input=input, additional_metadata=additional_metadata
         )
 
@@ -151,8 +151,8 @@ class ScheduledClient:
         self,
         workflow_name: str,
         trigger_at: datetime.datetime,
-        input: JSONSerializableDict,
-        additional_metadata: JSONSerializableDict,
+        input: JSONSerializableMapping,
+        additional_metadata: JSONSerializableMapping,
     ) -> ScheduledWorkflows:
         """
         Creates a new scheduled workflow run asynchronously.

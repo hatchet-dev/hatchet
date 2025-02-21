@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, cast
 
 from dotenv import load_dotenv
 from pydantic import BaseModel
@@ -59,7 +59,8 @@ class SyncFanoutChild(BaseWorkflow):
 
     @hatchet.step()
     def process(self, context: Context) -> dict[str, str]:
-        return {"status": "success " + context.workflow_input["a"]}
+        a = cast(str, context.workflow_input["a"])
+        return {"status": "success " + a}
 
 
 def main() -> None:

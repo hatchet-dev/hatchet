@@ -11,10 +11,10 @@ from hatchet_sdk.clients.rest.models.cron_workflows_order_by_field import (
 from hatchet_sdk.clients.rest.models.workflow_run_order_by_direction import (
     WorkflowRunOrderByDirection,
 )
-from hatchet_sdk.utils.types import JSONSerializableDict
+from hatchet_sdk.utils.types import JSONSerializableMapping
 
 
-class CreateCronTriggerJSONSerializableDict(BaseModel):
+class CreateCronTriggerJSONSerializableMapping(BaseModel):
     """
     Schema for creating a workflow run triggered by a cron.
 
@@ -25,8 +25,8 @@ class CreateCronTriggerJSONSerializableDict(BaseModel):
     """
 
     expression: str
-    input: JSONSerializableDict = Field(default_factory=dict)
-    additional_metadata: JSONSerializableDict = Field(default_factory=dict)
+    input: JSONSerializableMapping = Field(default_factory=dict)
+    additional_metadata: JSONSerializableMapping = Field(default_factory=dict)
 
     @field_validator("expression")
     @classmethod
@@ -87,8 +87,8 @@ class CronClient:
         workflow_name: str,
         cron_name: str,
         expression: str,
-        input: JSONSerializableDict,
-        additional_metadata: JSONSerializableDict,
+        input: JSONSerializableMapping,
+        additional_metadata: JSONSerializableMapping,
     ) -> CronWorkflows:
         """
         Creates a new workflow cron trigger.
@@ -103,7 +103,7 @@ class CronClient:
         Returns:
             CronWorkflows: The created cron workflow instance.
         """
-        validated_input = CreateCronTriggerJSONSerializableDict(
+        validated_input = CreateCronTriggerJSONSerializableMapping(
             expression=expression, input=input, additional_metadata=additional_metadata
         )
 
@@ -181,8 +181,8 @@ class CronClient:
         workflow_name: str,
         cron_name: str,
         expression: str,
-        input: JSONSerializableDict,
-        additional_metadata: JSONSerializableDict,
+        input: JSONSerializableMapping,
+        additional_metadata: JSONSerializableMapping,
     ) -> CronWorkflows:
         """
         Asynchronously creates a new workflow cron trigger.
@@ -197,7 +197,7 @@ class CronClient:
         Returns:
             CronWorkflows: The created cron workflow instance.
         """
-        validated_input = CreateCronTriggerJSONSerializableDict(
+        validated_input = CreateCronTriggerJSONSerializableMapping(
             expression=expression, input=input, additional_metadata=additional_metadata
         )
 

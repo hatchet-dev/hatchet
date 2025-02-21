@@ -358,16 +358,6 @@ class Configuration:
         cls._default = default
 
     @classmethod
-    def get_default_copy(cls) -> Self:
-        """Deprecated. Please use `get_default` instead.
-
-        Deprecated. Please use `get_default` instead.
-
-        :return: The configuration object.
-        """
-        return cls.get_default()
-
-    @classmethod
     def get_default(cls) -> Self:
         """Return the default configuration.
 
