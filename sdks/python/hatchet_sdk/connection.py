@@ -1,21 +1,20 @@
 import os
-from typing import TYPE_CHECKING, Literal, cast, overload
+from typing import Literal, cast, overload
 
 import grpc
 
-if TYPE_CHECKING:
-    from hatchet_sdk.loader import ClientConfig
+from hatchet_sdk.loader import ClientConfig
 
 
 @overload
-def new_conn(config: "ClientConfig", aio: Literal[False]) -> grpc.Channel: ...
+def new_conn(config: ClientConfig, aio: Literal[False]) -> grpc.Channel: ...
 
 
 @overload
-def new_conn(config: "ClientConfig", aio: Literal[True]) -> grpc.aio.Channel: ...
+def new_conn(config: ClientConfig, aio: Literal[True]) -> grpc.aio.Channel: ...
 
 
-def new_conn(config: "ClientConfig", aio: bool) -> grpc.Channel | grpc.aio.Channel:
+def new_conn(config: ClientConfig, aio: bool) -> grpc.Channel | grpc.aio.Channel:
     credentials: grpc.ChannelCredentials | None = None
 
     # load channel credentials

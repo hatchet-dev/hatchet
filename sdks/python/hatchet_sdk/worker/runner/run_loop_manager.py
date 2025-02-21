@@ -2,7 +2,7 @@ import asyncio
 import logging
 from dataclasses import dataclass, field
 from multiprocessing import Queue
-from typing import TYPE_CHECKING, Any, Literal, TypeVar
+from typing import Any, Literal, TypeVar
 
 from hatchet_sdk.client import Client, new_client_raw
 from hatchet_sdk.clients.dispatcher.action_listener import Action
@@ -12,9 +12,7 @@ from hatchet_sdk.utils.types import WorkflowValidator
 from hatchet_sdk.worker.action_listener_process import ActionEvent
 from hatchet_sdk.worker.runner.runner import Runner
 from hatchet_sdk.worker.runner.utils.capture_logs import capture_logs
-
-if TYPE_CHECKING:
-    from hatchet_sdk.workflow import Step
+from hatchet_sdk.workflow import Step
 
 STOP_LOOP_TYPE = Literal["STOP_LOOP"]
 STOP_LOOP: STOP_LOOP_TYPE = "STOP_LOOP"
@@ -25,7 +23,7 @@ T = TypeVar("T")
 @dataclass
 class WorkerActionRunLoopManager:
     name: str
-    action_registry: dict[str, "Step[Any]"]
+    action_registry: dict[str, Step[Any]]
     validator_registry: dict[str, WorkflowValidator]
     max_runs: int | None
     config: ClientConfig

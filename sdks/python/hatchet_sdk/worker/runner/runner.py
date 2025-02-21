@@ -8,7 +8,7 @@ from concurrent.futures import ThreadPoolExecutor
 from enum import Enum
 from multiprocessing import Queue
 from threading import Thread, current_thread
-from typing import TYPE_CHECKING, Any, Callable, Dict, TypeVar, cast
+from typing import Any, Callable, Dict, TypeVar, cast
 
 from pydantic import BaseModel
 
@@ -33,11 +33,9 @@ from hatchet_sdk.logger import logger
 from hatchet_sdk.utils.types import WorkflowValidator
 from hatchet_sdk.worker.action_listener_process import ActionEvent
 from hatchet_sdk.worker.runner.utils.capture_logs import copy_context_vars, sr, wr
+from hatchet_sdk.workflow import Step
 
 T = TypeVar("T")
-
-if TYPE_CHECKING:
-    from hatchet_sdk.workflow import Step
 
 
 class WorkerStatus(Enum):
@@ -54,7 +52,7 @@ class Runner:
         event_queue: "Queue[Any]",
         max_runs: int | None = None,
         handle_kill: bool = True,
-        action_registry: dict[str, "Step[T]"] = {},
+        action_registry: dict[str, Step[T]] = {},
         validator_registry: dict[str, WorkflowValidator] = {},
         config: ClientConfig = ClientConfig(),
         labels: dict[str, str | int] = {},
@@ -66,7 +64,7 @@ class Runner:
         self.max_runs = max_runs
         self.tasks: dict[str, asyncio.Task[Any]] = {}  # Store run ids and futures
         self.contexts: dict[str, Context] = {}  # Store run ids and contexts
-        self.action_registry: dict[str, "Step[T]"] = action_registry
+        self.action_registry: dict[str, Step[T]] = action_registry
         self.validator_registry = validator_registry
 
         self.event_queue = event_queue
@@ -197,9 +195,7 @@ class Runner:
 
         return inner_callback
 
-    def thread_action_func(
-        self, context: Context, step: "Step[T]", action: Action
-    ) -> T:
+    def thread_action_func(self, context: Context, step: Step[T], action: Action) -> T:
         if action.step_run_id is not None and action.step_run_id != "":
             self.threads[action.step_run_id] = current_thread()
         elif (
@@ -214,7 +210,7 @@ class Runner:
     async def async_wrapped_action_func(
         self,
         context: Context,
-        step: "Step[T]",
+        step: Step[T],
         action: Action,
         run_id: str,
     ) -> T:

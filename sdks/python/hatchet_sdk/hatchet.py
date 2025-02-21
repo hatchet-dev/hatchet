@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from typing import TYPE_CHECKING, Any, Callable, Type, TypeVar, cast, overload
+from typing import Any, Callable, Type, TypeVar, cast, overload
 
 from hatchet_sdk.client import Client, new_client, new_client_raw
 from hatchet_sdk.clients.admin import AdminClient
@@ -16,6 +16,7 @@ from hatchet_sdk.labels import DesiredWorkerLabel
 from hatchet_sdk.loader import ClientConfig
 from hatchet_sdk.logger import logger
 from hatchet_sdk.rate_limit import RateLimit
+from hatchet_sdk.worker.worker import Worker
 from hatchet_sdk.workflow import (
     ConcurrencyExpression,
     EmptyModel,
@@ -26,9 +27,6 @@ from hatchet_sdk.workflow import (
     WorkflowConfig,
     WorkflowDeclaration,
 )
-
-if TYPE_CHECKING:
-    from hatchet_sdk.worker.worker import Worker
 
 R = TypeVar("R")
 
@@ -186,9 +184,7 @@ class Hatchet:
 
     def worker(
         self, name: str, max_runs: int | None = None, labels: dict[str, str | int] = {}
-    ) -> "Worker":
-        from hatchet_sdk.worker.worker import Worker
-
+    ) -> Worker:
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:

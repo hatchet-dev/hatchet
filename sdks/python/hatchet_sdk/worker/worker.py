@@ -9,7 +9,7 @@ from enum import Enum
 from multiprocessing import Queue
 from multiprocessing.process import BaseProcess
 from types import FrameType
-from typing import TYPE_CHECKING, Any, TypeVar, get_type_hints
+from typing import Any, TypeVar, get_type_hints
 
 from aiohttp import web
 from aiohttp.web_request import Request
@@ -31,10 +31,7 @@ from hatchet_sdk.worker.runner.run_loop_manager import (
     STOP_LOOP_TYPE,
     WorkerActionRunLoopManager,
 )
-from hatchet_sdk.workflow import Step
-
-if TYPE_CHECKING:
-    from hatchet_sdk.workflow import BaseWorkflow
+from hatchet_sdk.workflow import BaseWorkflow, Step
 
 T = TypeVar("T")
 
