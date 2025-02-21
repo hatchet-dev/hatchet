@@ -56,7 +56,7 @@ class OnFailureWorkflowWithDetails(BaseWorkflow):
 
         # 👀 we can access the failure details here
         print(json.dumps(failures, indent=2))
-        if len(failures) == 1 and "step1 failed" in failures[0]["error"]:
+        if len(failures) == 1 and "step1 failed" in failures[0].error:
             return {"status": "success"}
 
         raise Exception("unexpected failure")

@@ -4,7 +4,7 @@ import traceback
 from concurrent.futures import Future, ThreadPoolExecutor
 from typing import Any, cast
 
-from pydantic import BaseModel, StrictStr
+from pydantic import BaseModel
 
 from hatchet_sdk.clients.admin import (
     AdminClient,
@@ -35,6 +35,12 @@ def get_caller_file_path() -> str:
     caller_frame = inspect.stack()[2]
 
     return caller_frame.filename
+
+
+class StepRunError(BaseModel):
+    step_id: str
+    step_run_action_name: str
+    error: str
 
 
 class Context:
@@ -244,18 +250,18 @@ class Context:
 
         return errors
 
-    def fetch_run_failures(self) -> list[dict[str, StrictStr]]:
+    def fetch_run_failures(self) -> list[StepRunError]:
         data = self.rest_client.workflow_run_get(self.action.workflow_run_id)
         other_job_runs = [
             run for run in (data.job_runs or []) if run.job_id != self.action.job_id
         ]
-        # TODO: Parse Step Runs using a Pydantic Model rather than a hand crafted dictionary
+
         return [
-            {
-                "step_id": step_run.step_id,
-                "step_run_action_name": step_run.step.action,
-                "error": step_run.error,
-            }
+            StepRunError(
+                step_id=step_run.step_id,
+                step_run_action_name=step_run.step.action,
+                error=step_run.error,
+            )
             for job_run in other_job_runs
             if job_run.step_runs
             for step_run in job_run.step_runs

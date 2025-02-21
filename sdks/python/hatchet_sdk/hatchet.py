@@ -88,14 +88,11 @@ class Hatchet:
             client (Optional[Client], optional): A pre-configured Client instance. Defaults to None.
             config (ClientConfig, optional): Configuration for creating a new Client. Defaults to ClientConfig().
         """
-        if client is not None:
-            self._client = client
-        else:
-            self._client = new_client(config, debug)
 
         if debug:
             logger.setLevel(logging.DEBUG)
 
+        self._client = client if client else new_client(config, debug)
         self.cron = CronClient(self._client)
         self.scheduled = ScheduledClient(self._client)
 
