@@ -9,7 +9,7 @@ from enum import Enum
 from multiprocessing import Queue
 from multiprocessing.process import BaseProcess
 from types import FrameType
-from typing import TYPE_CHECKING, Any, TypeVar, Union, get_type_hints
+from typing import TYPE_CHECKING, Any, TypeVar, get_type_hints
 
 from aiohttp import web
 from aiohttp.web_request import Request
@@ -108,7 +108,7 @@ class Worker:
             logger.error(e)
             sys.exit(1)
 
-    def register_workflow(self, workflow: Union["BaseWorkflow", Any]) -> None:
+    def register_workflow(self, workflow: BaseWorkflow) -> None:
         namespace = self.client.config.namespace
 
         try:

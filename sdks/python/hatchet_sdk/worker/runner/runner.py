@@ -411,7 +411,6 @@ class Runner:
             self.cleanup_run_id(run_id)
 
     def serialize_output(self, output: Any) -> str:
-
         if isinstance(output, BaseModel):
             return output.model_dump_json()
 
