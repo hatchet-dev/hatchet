@@ -1559,6 +1559,7 @@ step_runs_to_reassign AS (
         step_runs
     WHERE
         "internalRetryCount" < $3::int
+        AND EXTRACT(EPOCH FROM (NOW() - "stepCreatedAt")) > $4::int
 ),
 step_runs_to_fail AS (
     SELECT
@@ -1639,9 +1640,10 @@ FROM
 `
 
 type InternalRetryStepRunsParams struct {
-	Tenantid              pgtype.UUID   `json:"tenantid"`
-	Steprunids            []pgtype.UUID `json:"steprunids"`
-	Maxinternalretrycount int32         `json:"maxinternalretrycount"`
+	Tenantid                  pgtype.UUID   `json:"tenantid"`
+	Steprunids                []pgtype.UUID `json:"steprunids"`
+	Maxinternalretrycount     int32         `json:"maxinternalretrycount"`
+	Minreassignbackoffseconds int32         `json:"minreassignbackoffseconds"`
 }
 
 type InternalRetryStepRunsRow struct {
@@ -1651,7 +1653,12 @@ type InternalRetryStepRunsRow struct {
 }
 
 func (q *Queries) InternalRetryStepRuns(ctx context.Context, db DBTX, arg InternalRetryStepRunsParams) ([]*InternalRetryStepRunsRow, error) {
-	rows, err := db.Query(ctx, internalRetryStepRuns, arg.Tenantid, arg.Steprunids, arg.Maxinternalretrycount)
+	rows, err := db.Query(ctx, internalRetryStepRuns,
+		arg.Tenantid,
+		arg.Steprunids,
+		arg.Maxinternalretrycount,
+		arg.Minreassignbackoffseconds,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -2281,6 +2288,7 @@ step_runs_to_reassign AS (
         step_runs_on_inactive_workers
     WHERE
         "internalRetryCount" < $2::int
+        AND EXTRACT(EPOCH FROM (NOW() - "stepCreatedAt")) > $3::int
 ),
 step_runs_to_fail AS (
     SELECT
@@ -2365,8 +2373,9 @@ FROM
 `
 
 type ListStepRunsToReassignParams struct {
-	Tenantid              pgtype.UUID `json:"tenantid"`
-	Maxinternalretrycount int32       `json:"maxinternalretrycount"`
+	Tenantid                  pgtype.UUID `json:"tenantid"`
+	Maxinternalretrycount     int32       `json:"maxinternalretrycount"`
+	Minreassignbackoffseconds int32       `json:"minreassignbackoffseconds"`
 }
 
 type ListStepRunsToReassignRow struct {
@@ -2377,7 +2386,7 @@ type ListStepRunsToReassignRow struct {
 }
 
 func (q *Queries) ListStepRunsToReassign(ctx context.Context, db DBTX, arg ListStepRunsToReassignParams) ([]*ListStepRunsToReassignRow, error) {
-	rows, err := db.Query(ctx, listStepRunsToReassign, arg.Tenantid, arg.Maxinternalretrycount)
+	rows, err := db.Query(ctx, listStepRunsToReassign, arg.Tenantid, arg.Maxinternalretrycount, arg.Minreassignbackoffseconds)
 	if err != nil {
 		return nil, err
 	}

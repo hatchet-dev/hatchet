@@ -439,8 +439,9 @@ func (s *stepRunEngineRepository) ListStepRunsToReassign(ctx context.Context, te
 
 	// get the step run and make sure it's still in pending
 	results, err := s.queries.ListStepRunsToReassign(ctx, tx, dbsqlc.ListStepRunsToReassignParams{
-		Maxinternalretrycount: s.cf.MaxInternalRetryCount,
-		Tenantid:              pgTenantId,
+		Maxinternalretrycount:     s.cf.MaxInternalRetryCount,
+		Tenantid:                  pgTenantId,
+		MinReassignBackoffSeconds: s.cf.MinReassignBackoffSeconds,
 	})
 
 	if err != nil {
