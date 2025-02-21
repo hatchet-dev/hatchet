@@ -26,11 +26,11 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
+} from '@/components/v1/ui/table';
 
 import { DataTablePagination } from './data-table-pagination';
 import { DataTableToolbar, ToolbarFilters } from './data-table-toolbar';
-import { Skeleton } from '@/components/ui/skeleton';
+import { Skeleton } from '@/components/v1/ui/skeleton';
 import { cn } from '@/lib/utils';
 
 export interface IDGetter<T> {

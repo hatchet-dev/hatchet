@@ -4,7 +4,7 @@ import {
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
-} from '@/components/ui/accordion';
+} from '@/components/v1/ui/accordion';
 
 import { DEFAULT_COLLAPSED } from '../json-form';
 

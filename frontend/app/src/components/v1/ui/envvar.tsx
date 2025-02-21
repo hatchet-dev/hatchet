@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
-import { Input } from '@/components/ui/input';
+import { Input } from '@/components/v1/ui/input';
 import { Textarea } from './textarea';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/v1/ui/button';
 import { cn } from '@/lib/utils';
 import { TrashIcon } from '@radix-ui/react-icons';
 

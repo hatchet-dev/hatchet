@@ -15,7 +15,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+} from '@/components/v1/ui/dropdown-menu';
 import { Button } from './button';
 import { CaretSortIcon } from '@radix-ui/react-icons';
 

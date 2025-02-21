@@ -5,7 +5,7 @@ import {
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from '@/components/ui/tooltip';
+} from '@/components/v1/ui/tooltip';
 
 interface RelativeDateProps {
   date?: Date | string;

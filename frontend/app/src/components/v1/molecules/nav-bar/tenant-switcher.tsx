@@ -1,4 +1,4 @@
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/v1/ui/button';
 import { cn } from '@/lib/utils';
 import {
   BuildingOffice2Icon,
@@ -12,7 +12,7 @@ import {
   CommandItem,
   CommandList,
   CommandSeparator,
-} from '@/components/ui/command';
+} from '@/components/v1/ui/command';
 import { Link } from 'react-router-dom';
 import { Tenant, TenantMember } from '@/lib/api';
 import { CaretSortIcon, PlusCircledIcon } from '@radix-ui/react-icons';
@@ -23,7 +23,7 @@ import {
 } from '@radix-ui/react-popover';
 import React from 'react';
 import { useTenant } from '@/lib/atoms';
-import { Spinner } from '@/components/ui/loading.tsx';
+import { Spinner } from '@/components/v1/ui/loading.tsx';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 
 interface TenantSwitcherProps {

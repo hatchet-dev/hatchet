@@ -1,12 +1,12 @@
 import { Cross2Icon } from '@radix-ui/react-icons';
 import { Table } from '@tanstack/react-table';
 
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/v1/ui/button';
 import { DataTableViewOptions } from './data-table-view-options';
 
 import { DataTableFacetedFilter } from './data-table-faceted-filter';
-import { Input } from '@/components/ui/input.tsx';
-import { Spinner } from '@/components/ui/loading';
+import { Input } from '@/components/v1/ui/input.tsx';
+import { Spinner } from '@/components/v1/ui/loading';
 
 export interface FilterOption {
   label: string;

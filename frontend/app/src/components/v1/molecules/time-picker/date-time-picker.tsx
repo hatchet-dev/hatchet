@@ -1,12 +1,12 @@
 import { add, format } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
-import { Calendar } from '@/components/ui/calendar';
+import { Button } from '@/components/v1/ui/button';
+import { Calendar } from '@/components/v1/ui/calendar';
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from '@/components/ui/popover';
+} from '@/components/v1/ui/popover';
 import { TimePicker } from './time-picker';
 import { CalendarIcon } from '@radix-ui/react-icons';
 

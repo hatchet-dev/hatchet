@@ -1,4 +1,4 @@
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/v1/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -7,7 +7,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuShortcut,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+} from '@/components/v1/ui/dropdown-menu';
 
 import { useNavigate } from 'react-router-dom';
 import api, { User } from '@/lib/api';
@@ -15,7 +15,7 @@ import { useApiError } from '@/lib/hooks';
 import { useMutation } from '@tanstack/react-query';
 import hatchet from '@/assets/hatchet_logo.png';
 import hatchetDark from '@/assets/hatchet_logo_dark.png';
-import { useSidebar } from '@/components/sidebar-provider';
+import { useSidebar } from '@/components/v1/sidebar-provider';
 import {
   BiBook,
   BiCalendar,
@@ -25,7 +25,7 @@ import {
   BiSolidGraduation,
   BiUserCircle,
 } from 'react-icons/bi';
-import { useTheme } from '@/components/theme-provider';
+import { useTheme } from '@/components/v1/theme-provider';
 import { useMemo } from 'react';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import { VersionInfo } from '@/pages/main/info/components/version-info';

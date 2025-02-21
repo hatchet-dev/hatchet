@@ -1,13 +1,13 @@
 import { DotsVerticalIcon } from '@radix-ui/react-icons';
 import { Row } from '@tanstack/react-table';
 
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/v1/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+} from '@/components/v1/ui/dropdown-menu';
 
 import { IDGetter } from './data-table';
 import {
@@ -15,7 +15,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
   TooltipContent,
-} from '@/components/ui/tooltip';
+} from '@/components/v1/ui/tooltip';
 
 interface DataTableRowActionsProps<TData extends IDGetter<TData>> {
   row: Row<TData>;

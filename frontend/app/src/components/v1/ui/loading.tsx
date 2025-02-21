@@ -1,4 +1,4 @@
-import { Icons } from '@/components/ui/icons.tsx';
+import { Icons } from '@/components/v1/ui/icons.tsx';
 import { cn } from '@/lib/utils';
 
 export function Spinner() {

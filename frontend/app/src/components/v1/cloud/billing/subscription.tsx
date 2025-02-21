@@ -1,16 +1,16 @@
-import { ConfirmDialog } from '@/components/molecules/confirm-dialog';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
+import { Alert, AlertDescription, AlertTitle } from '@/components/v1/ui/alert';
+import { Badge } from '@/components/v1/ui/badge';
+import { Button } from '@/components/v1/ui/button';
 import {
   Card,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
-import { Spinner } from '@/components/ui/loading';
-import { Switch } from '@/components/ui/switch';
+} from '@/components/v1/ui/card';
+import { Label } from '@/components/v1/ui/label';
+import { Spinner } from '@/components/v1/ui/loading';
+import { Switch } from '@/components/v1/ui/switch';
 import { queries } from '@/lib/api';
 import { cloudApi } from '@/lib/api/api';
 import {
