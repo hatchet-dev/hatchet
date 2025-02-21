@@ -359,6 +359,15 @@ const routes: RouteObject[] = [
             },
           },
           {
+            path: '/v1/onboarding/get-started',
+            lazy: async () =>
+              import('./pages/onboarding/get-started').then((res) => {
+                return {
+                  Component: res.default,
+                };
+              }),
+          },
+          {
             path: '/v1/',
             lazy: async () =>
               import('./pages/main/v1').then((res) => {
