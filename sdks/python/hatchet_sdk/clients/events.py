@@ -1,7 +1,7 @@
 import asyncio
 import datetime
 import json
-from typing import Any, List, cast
+from typing import List, cast
 
 import grpc
 from google.protobuf import timestamp_pb2
@@ -47,7 +47,7 @@ class BulkPushEventOptions(BaseModel):
 
 class BulkPushEventWithMetadata(BaseModel):
     key: str
-    payload: Any
+    payload: JSONSerializableMapping = Field(default_factory=dict)
     additional_metadata: JSONSerializableMapping = Field(default_factory=dict)
 
 
@@ -60,7 +60,7 @@ class EventClient:
     async def aio_push(
         self,
         event_key: str,
-        payload: dict[str, Any],
+        payload: JSONSerializableMapping,
         options: PushEventOptions = PushEventOptions(),
     ) -> Event:
         return await asyncio.to_thread(
@@ -79,7 +79,7 @@ class EventClient:
     def push(
         self,
         event_key: str,
-        payload: dict[str, Any],
+        payload: JSONSerializableMapping,
         options: PushEventOptions = PushEventOptions(),
     ) -> Event:
         namespace = options.namespace or self.namespace
@@ -121,13 +121,13 @@ class EventClient:
             raise ValueError(f"Error encoding meta: {e}")
 
         try:
-            payload = json.dumps(payload)
+            serialized_payload = json.dumps(payload)
         except (TypeError, ValueError) as e:
-            raise ValueError(f"Error encoding payload: {e}")
+            raise ValueError(f"Error serializing payload: {e}")
 
         return PushEventRequest(
             key=event_key,
-            payload=payload,
+            payload=serialized_payload,
             eventTimestamp=proto_timestamp_now(),
             additionalMetadata=meta_str,
         )

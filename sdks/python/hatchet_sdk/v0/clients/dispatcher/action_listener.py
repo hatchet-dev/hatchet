@@ -7,7 +7,7 @@ from typing import Any, AsyncGenerator, List, Optional
 import grpc
 from grpc._cython import cygrpc
 
-from hatchet_sdk.clients.event_ts import Event_ts, read_with_interrupt
+from hatchet_sdk.clients.event_ts import ThreadSafeEvent, read_with_interrupt
 from hatchet_sdk.clients.run_event_listener import (
     DEFAULT_ACTION_LISTENER_RETRY_INTERVAL,
 )
@@ -239,7 +239,7 @@ class ActionListener:
 
             try:
                 while not self.stop_signal:
-                    self.interrupt = Event_ts()
+                    self.interrupt = ThreadSafeEvent()
                     t = asyncio.create_task(
                         read_with_interrupt(listener, self.interrupt)
                     )

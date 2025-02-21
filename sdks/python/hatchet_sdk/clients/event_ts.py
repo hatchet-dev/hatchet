@@ -5,9 +5,9 @@ import grpc.aio
 from grpc._cython import cygrpc  # type: ignore[attr-defined]
 
 
-class Event_ts(asyncio.Event):
+class ThreadSafeEvent(asyncio.Event):
     """
-    Event_ts is a subclass of asyncio.Event that allows for thread-safe setting and clearing of the event.
+    ThreadSafeEvent is a subclass of asyncio.Event that allows for thread-safe setting and clearing of the event.
     """
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
@@ -28,7 +28,7 @@ TResponse = TypeVar("TResponse")
 
 
 async def read_with_interrupt(
-    listener: grpc.aio.UnaryStreamCall[TRequest, TResponse], interrupt: Event_ts
+    listener: grpc.aio.UnaryStreamCall[TRequest, TResponse], interrupt: ThreadSafeEvent
 ) -> TResponse:
     try:
         result = await listener.read()

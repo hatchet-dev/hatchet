@@ -14,7 +14,7 @@ from pydantic import BaseModel
 
 from hatchet_sdk.client import new_client_raw
 from hatchet_sdk.clients.admin import AdminClient
-from hatchet_sdk.clients.dispatcher.action_listener import Action
+from hatchet_sdk.clients.dispatcher.action_listener import Action, ActionType
 from hatchet_sdk.clients.dispatcher.dispatcher import DispatcherClient
 from hatchet_sdk.clients.run_event_listener import RunEventListenerClient
 from hatchet_sdk.clients.workflow_listener import PooledWorkflowRunListener
@@ -27,7 +27,6 @@ from hatchet_sdk.contracts.dispatcher_pb2 import (
     STEP_EVENT_TYPE_COMPLETED,
     STEP_EVENT_TYPE_FAILED,
     STEP_EVENT_TYPE_STARTED,
-    ActionType,
 )
 from hatchet_sdk.loader import ClientConfig
 from hatchet_sdk.logger import logger

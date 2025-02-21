@@ -11,13 +11,13 @@ import grpc
 from hatchet_sdk.clients.dispatcher.action_listener import (
     Action,
     ActionListener,
+    ActionType,
     GetActionListenerRequest,
 )
 from hatchet_sdk.clients.dispatcher.dispatcher import DispatcherClient
 from hatchet_sdk.contracts.dispatcher_pb2 import (
     GROUP_KEY_EVENT_TYPE_STARTED,
     STEP_EVENT_TYPE_STARTED,
-    ActionType,
 )
 from hatchet_sdk.loader import ClientConfig
 from hatchet_sdk.logger import logger

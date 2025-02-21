@@ -2,9 +2,9 @@ import asyncio
 from typing import Any
 
 
-class Event_ts(asyncio.Event):
+class ThreadSafeEvent(asyncio.Event):
     """
-    Event_ts is a subclass of asyncio.Event that allows for thread-safe setting and clearing of the event.
+    ThreadSafeEvent is a subclass of asyncio.Event that allows for thread-safe setting and clearing of the event.
     """
 
     def __init__(self, *args, **kwargs):
@@ -20,7 +20,7 @@ class Event_ts(asyncio.Event):
         self._loop.call_soon_threadsafe(super().clear)
 
 
-async def read_with_interrupt(listener: Any, interrupt: Event_ts):
+async def read_with_interrupt(listener: Any, interrupt: ThreadSafeEvent):
     try:
         result = await listener.read()
         return result

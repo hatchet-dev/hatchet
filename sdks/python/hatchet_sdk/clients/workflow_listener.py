@@ -7,7 +7,7 @@ import grpc
 import grpc.aio
 from grpc._cython import cygrpc  # type: ignore[attr-defined]
 
-from hatchet_sdk.clients.event_ts import Event_ts, read_with_interrupt
+from hatchet_sdk.clients.event_ts import ThreadSafeEvent, read_with_interrupt
 from hatchet_sdk.connection import new_conn
 from hatchet_sdk.contracts.dispatcher_pb2 import (
     SubscribeToWorkflowRunsRequest,
@@ -116,7 +116,7 @@ class PooledWorkflowRunListener:
                         self.interrupter = asyncio.create_task(self._interrupter())
 
                         while True:
-                            self.interrupt = Event_ts()
+                            self.interrupt = ThreadSafeEvent()
                             if self.listener is None:
                                 continue
 

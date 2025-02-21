@@ -8,9 +8,9 @@ from typing import AsyncGenerator, Optional, cast
 import grpc
 import grpc.aio
 from grpc._cython import cygrpc  # type: ignore[attr-defined]
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
-from hatchet_sdk.clients.event_ts import Event_ts, read_with_interrupt
+from hatchet_sdk.clients.event_ts import ThreadSafeEvent, read_with_interrupt
 from hatchet_sdk.clients.events import proto_timestamp_now
 from hatchet_sdk.clients.run_event_listener import (
     DEFAULT_ACTION_LISTENER_RETRY_INTERVAL,
@@ -58,12 +58,12 @@ class GetActionListenerRequest:
 class ActionPayload(BaseModel):
     model_config = ConfigDict(extra="allow")
 
-    input: JSONSerializableMapping
-    parents: JSONSerializableMapping
-    overrides: JSONSerializableMapping
-    user_data: JSONSerializableMapping
-    step_run_errors: dict[str, str]
-    triggered_by: str
+    input: JSONSerializableMapping = Field(default_factory=dict)
+    parents: JSONSerializableMapping = Field(default_factory=dict)
+    overrides: JSONSerializableMapping = Field(default_factory=dict)
+    user_data: JSONSerializableMapping = Field(default_factory=dict)
+    step_run_errors: dict[str, str] = Field(default_factory=dict)
+    triggered_by: str | None = None
 
 
 class ActionType(str, Enum):
@@ -263,7 +263,7 @@ class ActionListener:
 
             try:
                 while not self.stop_signal:
-                    self.interrupt = Event_ts()
+                    self.interrupt = ThreadSafeEvent()
 
                     if listener is None:
                         continue

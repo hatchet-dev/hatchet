@@ -6,7 +6,7 @@ from typing import AsyncGenerator
 import grpc
 from grpc._cython import cygrpc
 
-from hatchet_sdk.clients.event_ts import Event_ts, read_with_interrupt
+from hatchet_sdk.clients.event_ts import ThreadSafeEvent, read_with_interrupt
 from hatchet_sdk.connection import new_conn
 from hatchet_sdk.contracts.dispatcher_pb2 import (
     SubscribeToWorkflowRunsRequest,
@@ -111,7 +111,7 @@ class PooledWorkflowRunListener:
                         self.interrupter = asyncio.create_task(self._interrupter())
 
                         while True:
-                            self.interrupt = Event_ts()
+                            self.interrupt = ThreadSafeEvent()
                             t = asyncio.create_task(
                                 read_with_interrupt(self.listener, self.interrupt)
                             )

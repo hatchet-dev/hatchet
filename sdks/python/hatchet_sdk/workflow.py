@@ -209,7 +209,7 @@ class WorkflowDeclaration(Generic[TWorkflowInput]):
         self.config = config
         self.hatchet = hatchet
 
-    def run(self, input: TWorkflowInput | None = None) -> Any:
+    def run(self, input: TWorkflowInput | None = None) -> WorkflowRunRef:
         if not self.hatchet:
             raise ValueError("Hatchet client is not initialized.")
 
