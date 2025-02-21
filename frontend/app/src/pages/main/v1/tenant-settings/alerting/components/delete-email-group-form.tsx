@@ -1,10 +1,10 @@
-import { Button } from '@/components/ui/button';
-import { Spinner } from '@/components/ui/loading.tsx';
+import { Button } from '@/components/v1/ui/button';
+import { Spinner } from '@/components/v1/ui/loading.tsx';
 import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
+} from '@/components/v1/ui/dialog';
 import { TenantAlertEmailGroup } from '@/lib/api';
 
 interface DeleteEmailGroupFormProps {

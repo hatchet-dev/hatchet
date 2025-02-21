@@ -5,13 +5,13 @@ import {
   AdditionalMetadata,
   AdditionalMetadataClick,
 } from '../../../events/components/additional-metadata';
-import RelativeDate from '@/components/molecules/relative-date';
-import { Checkbox } from '@/components/ui/checkbox';
+import RelativeDate from '@/components/v1/molecules/relative-date';
+import { Checkbox } from '@/components/v1/ui/checkbox';
 import { ListableWorkflowRun } from '../workflow-runs-table';
 import { ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/v1/ui/button';
 import { cn } from '@/lib/utils';
-import { DataTableRowActions } from '@/components/molecules/data-table/data-table-row-actions';
+import { DataTableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
 import { V2RunStatus } from '@/pages/main/workflow-runs/components/run-statuses';
 
 export const columns: (

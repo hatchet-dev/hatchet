@@ -7,7 +7,7 @@ import {
   WorkflowRunStatus,
   WorkflowRunsMetrics,
 } from '@/lib/api';
-import { Badge, badgeVariants } from '@/components/ui/badge';
+import { Badge, badgeVariants } from '@/components/v1/ui/badge';
 import { VariantProps } from 'class-variance-authority';
 
 interface WorkflowRunsMetricsProps {

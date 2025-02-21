@@ -1,20 +1,20 @@
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
+import { Button } from '@/components/v1/ui/button';
+import { Label } from '@/components/v1/ui/label';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Spinner } from '@/components/ui/loading.tsx';
+import { Spinner } from '@/components/v1/ui/loading.tsx';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
+} from '@/components/v1/ui/select';
 import { TenantAlertingSettings } from '@/lib/api';
 import { useState } from 'react';
-import { Switch } from '@/components/ui/switch';
+import { Switch } from '@/components/v1/ui/switch';
 
 const schema = z.object({
   maxAlertingFrequency: z.string(),

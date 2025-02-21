@@ -1,15 +1,20 @@
-import { Separator } from '@/components/ui/separator';
+import { Separator } from '@/components/v1/ui/separator';
 import { queries } from '@/lib/api';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import invariant from 'tiny-invariant';
 import { relativeDate } from '@/lib/utils';
 import { CpuChipIcon } from '@heroicons/react/24/outline';
-import { Loading } from '@/components/ui/loading.tsx';
+import { Loading } from '@/components/v1/ui/loading.tsx';
 import { useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ConfirmDialog } from '@/components/molecules/confirm-dialog';
+import { Button } from '@/components/v1/ui/button';
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/components/v1/ui/tabs';
+import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
 import { ManagedWorkerLogs } from './components/managed-worker-logs';
 import { ManagedWorkerMetrics } from './components/managed-worker-metrics';
 import { ManagedWorkerActivity } from './components/managed-worker-activity';

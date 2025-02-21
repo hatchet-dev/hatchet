@@ -5,7 +5,7 @@ import {
   queries,
 } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
-import { CodeEditor } from '@/components/ui/code-editor';
+import { CodeEditor } from '@/components/v1/ui/code-editor';
 
 export function StepRunLogs({ stepRun }: { stepRun: StepRun | undefined }) {
   const getLogsQuery = useQuery({

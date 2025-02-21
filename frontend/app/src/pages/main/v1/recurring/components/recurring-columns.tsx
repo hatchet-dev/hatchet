@@ -2,11 +2,11 @@ import { ColumnDef } from '@tanstack/react-table';
 import { DataTableColumnHeader } from '../../../../components/molecules/data-table/data-table-column-header';
 import { CronWorkflows } from '@/lib/api';
 import CronPrettifier from 'cronstrue';
-import RelativeDate from '@/components/molecules/relative-date';
+import RelativeDate from '@/components/v1/molecules/relative-date';
 import { Link } from 'react-router-dom';
-import { DataTableRowActions } from '@/components/molecules/data-table/data-table-row-actions';
+import { DataTableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
 import { AdditionalMetadata } from '../../events/components/additional-metadata';
-import { Badge } from '@/components/ui/badge';
+import { Badge } from '@/components/v1/ui/badge';
 
 export const columns = ({
   onDeleteClick,

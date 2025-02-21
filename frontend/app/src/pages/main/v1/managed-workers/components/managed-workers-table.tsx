@@ -4,21 +4,21 @@ import { queries } from '@/lib/api';
 import invariant from 'tiny-invariant';
 import { TenantContextType } from '@/lib/outlet';
 import { Link, useOutletContext } from 'react-router-dom';
-import { DataTable } from '@/components/molecules/data-table/data-table.tsx';
+import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
 import { columns } from './managed-worker-columns';
-import { Loading } from '@/components/ui/loading.tsx';
-import { Button } from '@/components/ui/button';
+import { Loading } from '@/components/v1/ui/loading.tsx';
+import { Button } from '@/components/v1/ui/button';
 import {
   Card,
   CardHeader,
   CardTitle,
   CardDescription,
   CardFooter,
-} from '@/components/ui/card';
+} from '@/components/v1/ui/card';
 import { ArrowPathIcon, CpuChipIcon } from '@heroicons/react/24/outline';
 import { SortingState, VisibilityState } from '@tanstack/react-table';
 import { BiCard, BiTable } from 'react-icons/bi';
-import RelativeDate from '@/components/molecules/relative-date';
+import RelativeDate from '@/components/v1/molecules/relative-date';
 import { ManagedWorker } from '@/lib/api/generated/cloud/data-contracts';
 import GithubButton from '../$managed-worker/components/github-button';
 

@@ -1,7 +1,7 @@
 import { ColumnDef } from '@tanstack/react-table';
 import { DataTableColumnHeader } from '../../../../../components/molecules/data-table/data-table-column-header';
 import { TenantResource, TenantResourceLimit } from '@/lib/api';
-import RelativeDate from '@/components/molecules/relative-date';
+import RelativeDate from '@/components/v1/molecules/relative-date';
 import { cn } from '@/lib/utils';
 
 const resources: Record<TenantResource, string> = {

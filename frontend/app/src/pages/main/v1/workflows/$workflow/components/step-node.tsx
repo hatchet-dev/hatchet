@@ -1,4 +1,4 @@
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/v1/ui/card';
 import { Step } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { memo } from 'react';

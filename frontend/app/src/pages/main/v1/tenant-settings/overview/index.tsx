@@ -1,14 +1,14 @@
-import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
+import { Button } from '@/components/v1/ui/button';
+import { Separator } from '@/components/v1/ui/separator';
 import { TenantContextType } from '@/lib/outlet';
 import { useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { useApiError } from '@/lib/hooks';
 import { useMutation } from '@tanstack/react-query';
 import api, { Tenant, UpdateTenantRequest } from '@/lib/api';
-import { Switch } from '@/components/ui/switch';
+import { Switch } from '@/components/v1/ui/switch';
 import { Label } from '@radix-ui/react-label';
-import { Spinner } from '@/components/ui/loading';
+import { Spinner } from '@/components/v1/ui/loading';
 import { capitalize } from '@/lib/utils';
 import { UpdateTenantForm } from './components/update-tenant-form';
 

@@ -1,9 +1,9 @@
 import { ColumnDef } from '@tanstack/react-table';
-import { DataTableColumnHeader } from '@/components/molecules/data-table/data-table-column-header';
+import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
 import { JobRun, StepRun } from '@/lib/api';
 import { relativeDate } from '@/lib/utils';
 import { RunStatus } from '../../components/run-statuses';
-import RelativeDate from '@/components/molecules/relative-date';
+import RelativeDate from '@/components/v1/molecules/relative-date';
 
 type JobRunRow = {
   kind: 'job';

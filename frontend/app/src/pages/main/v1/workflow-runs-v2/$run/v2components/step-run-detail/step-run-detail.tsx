@@ -8,21 +8,26 @@ import {
 } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 import invariant from 'tiny-invariant';
-import { Button } from '@/components/ui/button';
-import { Loading } from '@/components/ui/loading';
+import { Button } from '@/components/v1/ui/button';
+import { Loading } from '@/components/v1/ui/loading';
 import { ArrowPathIcon, XCircleIcon } from '@heroicons/react/24/outline';
-import { Separator } from '@/components/ui/separator';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Separator } from '@/components/v1/ui/separator';
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/components/v1/ui/tabs';
 import { StepRunEvents } from '../step-run-events-for-workflow-run';
 import { useOutletContext } from 'react-router-dom';
 import { TenantContextType } from '@/lib/outlet';
 import { TaskRunsTable as WorkflowRunsTable } from '../../../components/workflow-runs-table';
 import { useTenant } from '@/lib/atoms';
 import { V2RunIndicator } from '../../../components/run-statuses';
-import RelativeDate from '@/components/molecules/relative-date';
+import RelativeDate from '@/components/v1/molecules/relative-date';
 import { formatDuration } from '@/lib/utils';
 import { V2StepRunOutput } from './step-run-output';
-import { CodeHighlighter } from '@/components/ui/code-highlighter';
+import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 
 export enum TabOption {
   Output = 'output',

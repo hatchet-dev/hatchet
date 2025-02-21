@@ -1,4 +1,4 @@
-import { Separator } from '@/components/ui/separator';
+import { Separator } from '@/components/v1/ui/separator';
 import { TenantContextType } from '@/lib/outlet';
 import { useOutletContext } from 'react-router-dom';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -8,21 +8,21 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card.tsx';
-import { Button } from '@/components/ui/button.tsx';
+} from '@/components/v1/ui/card.tsx';
+import { Button } from '@/components/v1/ui/button.tsx';
 import { useEffect, useState } from 'react';
 import { useApiError } from '@/lib/hooks.ts';
-import { Dialog } from '@/components/ui/dialog.tsx';
+import { Dialog } from '@/components/v1/ui/dialog.tsx';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu.tsx';
+} from '@/components/v1/ui/dropdown-menu.tsx';
 import { BiDotsVertical } from 'react-icons/bi';
 import { CreateWebhookWorkerDialog } from './components/create-webhook-worker-dialog';
 import { DeleteWebhookWorkerDialog } from './components/delete-webhook-worker-dialog';
-import { Badge } from '@/components/ui/badge';
+import { Badge } from '@/components/v1/ui/badge';
 
 export default function Webhooks() {
   const { tenant } = useOutletContext<TenantContextType>();

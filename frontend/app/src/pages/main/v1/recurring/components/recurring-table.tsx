@@ -16,16 +16,16 @@ import {
 import invariant from 'tiny-invariant';
 import { useOutletContext, useSearchParams } from 'react-router-dom';
 import { TenantContextType } from '@/lib/outlet';
-import { DataTable } from '@/components/molecules/data-table/data-table';
+import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 import { columns } from './recurring-columns';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/v1/ui/button';
 import { ArrowPathIcon } from '@heroicons/react/24/outline';
 import { DeleteCron } from './delete-cron';
 import {
   FilterOption,
   ToolbarFilters,
   ToolbarType,
-} from '@/components/molecules/data-table/data-table-toolbar';
+} from '@/components/v1/molecules/data-table/data-table-toolbar';
 
 export function CronsTable() {
   const { tenant } = useOutletContext<TenantContextType>();

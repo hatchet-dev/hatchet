@@ -1,4 +1,4 @@
-import { Separator } from '@/components/ui/separator';
+import { Separator } from '@/components/v1/ui/separator';
 import { useState } from 'react';
 import { useApiError } from '@/lib/hooks';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -7,8 +7,8 @@ import api, {
   SNSIntegration,
   queries,
 } from '@/lib/api';
-import { DataTable } from '@/components/molecules/data-table/data-table';
-import { Button } from '@/components/ui/button';
+import { DataTable } from '@/components/v1/molecules/data-table/data-table';
+import { Button } from '@/components/v1/ui/button';
 import { TenantContextType } from '@/lib/outlet';
 import { Dialog } from '@radix-ui/react-dialog';
 import { useOutletContext } from 'react-router-dom';

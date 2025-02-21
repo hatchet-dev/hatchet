@@ -1,4 +1,4 @@
-import { CodeHighlighter } from '@/components/ui/code-highlighter';
+import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 
 export function WorkflowRunInputDialog({ input }: { input: object }) {
   return (

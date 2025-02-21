@@ -1,17 +1,17 @@
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
+import { Button } from '@/components/v1/ui/button';
+import { Label } from '@/components/v1/ui/label';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Spinner } from '@/components/ui/loading.tsx';
+import { Spinner } from '@/components/v1/ui/loading.tsx';
 import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { CodeEditor } from '@/components/ui/code-editor';
-import { Input } from '@/components/ui/input';
+} from '@/components/v1/ui/dialog';
+import { CodeEditor } from '@/components/v1/ui/code-editor';
+import { Input } from '@/components/v1/ui/input';
 import { useState } from 'react';
 
 const schema = z.object({

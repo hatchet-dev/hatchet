@@ -12,7 +12,7 @@ import StepRunNode, { StepRunNodeProps } from './step-run-node';
 import { StepRun, StepRunStatus, WorkflowRunShape } from '@/lib/api';
 import dagre from 'dagre';
 import invariant from 'tiny-invariant';
-import { useTheme } from '@/components/theme-provider';
+import { useTheme } from '@/components/v1/theme-provider';
 
 const initBgColorDark = '#050c1c';
 const initBgColorLight = '#ffffff';

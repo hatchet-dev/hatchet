@@ -1,5 +1,5 @@
-import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
+import { Button } from '@/components/v1/ui/button';
+import { Separator } from '@/components/v1/ui/separator';
 import { TenantContextType } from '@/lib/outlet';
 import { useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
@@ -13,8 +13,8 @@ import api, {
   UserChangePasswordRequest,
   queries,
 } from '@/lib/api';
-import { Dialog } from '@/components/ui/dialog';
-import { DataTable } from '@/components/molecules/data-table/data-table';
+import { Dialog } from '@/components/v1/ui/dialog';
+import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 import { columns } from './components/invites-columns';
 import { columns as membersColumns } from './components/members-columns';
 import { UpdateInviteForm } from './components/update-invite-form';

@@ -1,10 +1,10 @@
-import { Label } from '@/components/ui/label';
+import { Label } from '@/components/v1/ui/label';
 import { Step, StepRun, StepRunStatus } from '@/lib/api';
 import { cn, formatDuration } from '@/lib/utils';
 import { memo, useState } from 'react';
 import { Handle, Position } from 'reactflow';
 import { RunIndicator, RunStatus } from '../../components/run-statuses';
-import RelativeDate from '@/components/molecules/relative-date';
+import RelativeDate from '@/components/v1/molecules/relative-date';
 import { TabOption } from './step-run-detail/step-run-detail';
 
 export interface StepRunNodeProps {

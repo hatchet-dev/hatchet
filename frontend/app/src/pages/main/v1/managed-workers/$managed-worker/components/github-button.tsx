@@ -1,4 +1,4 @@
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/v1/ui/button';
 import { ManagedWorkerBuildConfig } from '@/lib/api/generated/cloud/data-contracts';
 import { GitHubLogoIcon } from '@radix-ui/react-icons';
 

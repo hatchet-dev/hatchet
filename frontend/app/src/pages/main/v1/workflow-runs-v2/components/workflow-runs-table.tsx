@@ -1,4 +1,4 @@
-import { DataTable } from '@/components/molecules/data-table/data-table.tsx';
+import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
 import { columns } from './v2/workflow-runs-columns';
 import { useEffect, useMemo, useState } from 'react';
 import {
@@ -22,8 +22,8 @@ import {
   FilterOption,
   ToolbarFilters,
   ToolbarType,
-} from '@/components/molecules/data-table/data-table-toolbar';
-import { Button } from '@/components/ui/button';
+} from '@/components/v1/molecules/data-table/data-table-toolbar';
+import { Button } from '@/components/v1/ui/button';
 import {
   ArrowPathIcon,
   ArrowPathRoundedSquareIcon,
@@ -39,23 +39,23 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
+} from '@/components/v1/ui/select';
 import { useAtom } from 'jotai';
 import { lastTimeRangeAtom } from '@/lib/atoms';
-import { Skeleton } from '@/components/ui/skeleton';
+import { Skeleton } from '@/components/v1/ui/skeleton';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { CodeHighlighter } from '@/components/ui/code-highlighter';
-import { Separator } from '@/components/ui/separator';
+} from '@/components/v1/ui/dialog';
+import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
+import { Separator } from '@/components/v1/ui/separator';
 import {
   DataPoint,
   ZoomableChart,
-} from '@/components/molecules/charts/zoomable';
-import { DateTimePicker } from '@/components/molecules/time-picker/date-time-picker';
+} from '@/components/v1/molecules/charts/zoomable';
+import { DateTimePicker } from '@/components/v1/molecules/time-picker/date-time-picker';
 import { AdditionalMetadataClick } from '../../events/components/additional-metadata';
 
 export interface TaskRunsTableProps {

@@ -1,23 +1,23 @@
 import { ColumnDef } from '@tanstack/react-table';
-import { Badge } from '@/components/ui/badge';
-import { Checkbox } from '@/components/ui/checkbox';
+import { Badge } from '@/components/v1/ui/badge';
+import { Checkbox } from '@/components/v1/ui/checkbox';
 import { DataTableColumnHeader } from '../../../../components/molecules/data-table/data-table-column-header';
 import { columns as workflowRunsColumns } from '../../workflow-runs/components/workflow-runs-columns';
 import { Event, queries } from '@/lib/api';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/v1/ui/button';
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from '@/components/ui/popover';
+} from '@/components/v1/ui/popover';
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import invariant from 'tiny-invariant';
-import { DataTable } from '@/components/molecules/data-table/data-table';
+import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 import { TenantContextType } from '@/lib/outlet';
 import { useOutletContext } from 'react-router-dom';
 import { AdditionalMetadata } from './additional-metadata';
-import RelativeDate from '@/components/molecules/relative-date';
+import RelativeDate from '@/components/v1/molecules/relative-date';
 
 export const columns = ({
   onRowClick,

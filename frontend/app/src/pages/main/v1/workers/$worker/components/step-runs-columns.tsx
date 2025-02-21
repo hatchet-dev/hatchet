@@ -1,10 +1,10 @@
 import { ColumnDef } from '@tanstack/react-table';
-import { DataTableColumnHeader } from '@/components/molecules/data-table/data-table-column-header';
+import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
 import { RecentStepRuns } from '@/lib/api';
 import { relativeDate } from '@/lib/utils';
 import { Link } from 'react-router-dom';
 import { RunStatus } from '@/pages/main/workflow-runs/components/run-statuses';
-import RelativeDate from '@/components/molecules/relative-date';
+import RelativeDate from '@/components/v1/molecules/relative-date';
 
 export const columns: ColumnDef<RecentStepRuns>[] = [
   {

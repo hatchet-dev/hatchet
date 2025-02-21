@@ -11,7 +11,7 @@ import 'reactflow/dist/style.css';
 import StepNode from './step-node';
 import { WorkflowVersion } from '@/lib/api';
 import dagre from 'dagre';
-import { useTheme } from '@/components/theme-provider';
+import { useTheme } from '@/components/v1/theme-provider';
 
 // import ColorSelectorNode from './ColorSelectorNode';
 

@@ -1,15 +1,15 @@
-import { Badge } from '@/components/ui/badge';
+import { Badge } from '@/components/v1/ui/badge';
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from '@/components/ui/popover';
+} from '@/components/v1/ui/popover';
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from '@/components/ui/tooltip';
+} from '@/components/v1/ui/tooltip';
 
 const MAX_METADATA_LENGTH = 2;
 

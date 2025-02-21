@@ -1,5 +1,5 @@
-import { CodeEditor } from '@/components/ui/code-editor';
-import { Loading } from '@/components/ui/loading';
+import { CodeEditor } from '@/components/v1/ui/code-editor';
+import { Loading } from '@/components/v1/ui/loading';
 
 export interface StepRunOutputProps {
   output: string;

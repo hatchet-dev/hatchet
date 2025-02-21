@@ -4,17 +4,22 @@ import { useQuery } from '@tanstack/react-query';
 import { useOutletContext, useParams } from 'react-router-dom';
 import invariant from 'tiny-invariant';
 import { WorkflowRunInputDialog } from './v2components/workflow-run-input';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/components/v1/ui/tabs';
 import { StepRunEvents } from './v2components/step-run-events-for-workflow-run';
 import { useEffect, useState } from 'react';
 import StepRunDetail, {
   TabOption,
 } from './v2components/step-run-detail/step-run-detail';
-import { Separator } from '@/components/ui/separator';
-import { CodeHighlighter } from '@/components/ui/code-highlighter';
-import { Sheet, SheetContent } from '@/components/ui/sheet';
+import { Separator } from '@/components/v1/ui/separator';
+import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
+import { Sheet, SheetContent } from '@/components/v1/ui/sheet';
 import { V2RunDetailHeader } from './v2components/header';
-import { Badge } from '@/components/ui/badge';
+import { Badge } from '@/components/v1/ui/badge';
 
 export const WORKFLOW_RUN_TERMINAL_STATUSES = [
   WorkflowRunStatus.CANCELLED,

@@ -1,4 +1,4 @@
-import { DataTable } from '@/components/molecules/data-table/data-table.tsx';
+import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
 import { useEffect, useMemo, useState } from 'react';
 import {
   ColumnFiltersState,
@@ -22,8 +22,8 @@ import {
   FilterOption,
   ToolbarFilters,
   ToolbarType,
-} from '@/components/molecules/data-table/data-table-toolbar';
-import { Button } from '@/components/ui/button';
+} from '@/components/v1/molecules/data-table/data-table-toolbar';
+import { Button } from '@/components/v1/ui/button';
 import { ArrowPathIcon } from '@heroicons/react/24/outline';
 import { columns } from './scheduled-runs-columns';
 import { DeleteScheduledRun } from './delete-scheduled-runs';

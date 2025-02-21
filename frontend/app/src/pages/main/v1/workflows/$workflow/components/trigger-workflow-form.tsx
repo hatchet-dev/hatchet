@@ -4,7 +4,7 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
+} from '@/components/v1/ui/dialog';
 import api, {
   CronWorkflows,
   queries,
@@ -13,7 +13,7 @@ import api, {
   WorkflowRun,
 } from '@/lib/api';
 import { useMemo, useState } from 'react';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/v1/ui/button';
 import invariant from 'tiny-invariant';
 import { useApiError } from '@/lib/hooks';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -21,14 +21,19 @@ import { PlusIcon } from '@heroicons/react/24/outline';
 import { cn } from '@/lib/utils';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import { TenantContextType } from '@/lib/outlet';
-import { CodeEditor } from '@/components/ui/code-editor';
-import { Input } from '@/components/ui/input';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { CodeEditor } from '@/components/v1/ui/code-editor';
+import { Input } from '@/components/v1/ui/input';
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/components/v1/ui/tabs';
 import CronPrettifier from 'cronstrue';
-import { DateTimePicker } from '@/components/molecules/time-picker/date-time-picker';
-import { ToolbarType } from '@/components/molecules/data-table/data-table-toolbar';
+import { DateTimePicker } from '@/components/v1/molecules/time-picker/date-time-picker';
+import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-toolbar';
 import { BiDownArrowCircle } from 'react-icons/bi';
-import { Combobox } from '@/components/molecules/combobox/combobox';
+import { Combobox } from '@/components/v1/molecules/combobox/combobox';
 
 type TimingOption = 'now' | 'schedule' | 'cron';
 

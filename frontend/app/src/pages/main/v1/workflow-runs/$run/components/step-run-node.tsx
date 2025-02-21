@@ -1,11 +1,11 @@
-import { Card, CardContent } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
+import { Card, CardContent } from '@/components/v1/ui/card';
+import { Label } from '@/components/v1/ui/label';
 import { StepRun, StepRunStatus } from '@/lib/api';
 import { cn, formatDuration } from '@/lib/utils';
 import { memo } from 'react';
 import { Handle, Position } from 'reactflow';
 import { RunIndicator, RunStatus } from '../../components/run-statuses';
-import RelativeDate from '@/components/molecules/relative-date';
+import RelativeDate from '@/components/v1/molecules/relative-date';
 
 export interface StepRunNodeProps {
   stepRun: StepRun;

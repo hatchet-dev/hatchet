@@ -1,5 +1,5 @@
-import { CodeEditor } from '@/components/ui/code-editor';
-import { JSONType, JsonForm } from '@/components/ui/json-form';
+import { CodeEditor } from '@/components/v1/ui/code-editor';
+import { JSONType, JsonForm } from '@/components/v1/ui/json-form';
 import { useEffect, useState } from 'react';
 
 export interface StepRunOutputProps {

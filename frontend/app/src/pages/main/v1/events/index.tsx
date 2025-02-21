@@ -1,7 +1,7 @@
 import { DataTable } from '../../../components/molecules/data-table/data-table';
 import { columns } from './components/event-columns';
 import { columns as workflowRunsColumns } from '../workflow-runs/components/workflow-runs-columns';
-import { Separator } from '@/components/ui/separator';
+import { Separator } from '@/components/v1/ui/separator';
 import { useEffect, useMemo, useState } from 'react';
 import {
   ColumnFiltersState,
@@ -24,26 +24,26 @@ import invariant from 'tiny-invariant';
 import {
   FilterOption,
   ToolbarType,
-} from '@/components/molecules/data-table/data-table-toolbar';
+} from '@/components/v1/molecules/data-table/data-table-toolbar';
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { CodeEditor } from '@/components/ui/code-editor';
+} from '@/components/v1/ui/dialog';
+import { CodeEditor } from '@/components/v1/ui/code-editor';
 import { useOutletContext, useSearchParams } from 'react-router-dom';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/v1/ui/button';
 import {
   ArrowPathIcon,
   ArrowPathRoundedSquareIcon,
   PlusCircleIcon,
 } from '@heroicons/react/24/outline';
 import { useApiError } from '@/lib/hooks';
-import { Loading } from '@/components/ui/loading.tsx';
+import { Loading } from '@/components/v1/ui/loading.tsx';
 import { TenantContextType } from '@/lib/outlet';
-import RelativeDate from '@/components/molecules/relative-date';
+import RelativeDate from '@/components/v1/molecules/relative-date';
 import { CreateEventForm } from './components/create-event-form';
 import { BiX } from 'react-icons/bi';
 

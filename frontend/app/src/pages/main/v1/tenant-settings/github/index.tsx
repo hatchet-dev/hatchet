@@ -1,10 +1,10 @@
-import { Separator } from '@/components/ui/separator';
+import { Separator } from '@/components/v1/ui/separator';
 import { useQuery } from '@tanstack/react-query';
 import { queries } from '@/lib/api';
 
 import { columns as githubInstallationsColumns } from './components/github-installations-columns';
-import { DataTable } from '@/components/molecules/data-table/data-table';
-import { Button } from '@/components/ui/button';
+import { DataTable } from '@/components/v1/molecules/data-table/data-table';
+import { Button } from '@/components/v1/ui/button';
 import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
 
 export default function Github() {

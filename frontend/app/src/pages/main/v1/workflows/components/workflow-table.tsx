@@ -4,17 +4,17 @@ import { Workflow, queries } from '@/lib/api';
 import invariant from 'tiny-invariant';
 import { TenantContextType } from '@/lib/outlet';
 import { Link, useOutletContext, useSearchParams } from 'react-router-dom';
-import { DataTable } from '@/components/molecules/data-table/data-table.tsx';
+import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
 import { columns } from './workflow-columns';
-import { Loading } from '@/components/ui/loading.tsx';
-import { Button } from '@/components/ui/button';
+import { Loading } from '@/components/v1/ui/loading.tsx';
+import { Button } from '@/components/v1/ui/button';
 import {
   Card,
   CardHeader,
   CardTitle,
   CardDescription,
   CardFooter,
-} from '@/components/ui/card';
+} from '@/components/v1/ui/card';
 import { cn } from '@/lib/utils';
 import {
   ArrowPathIcon,
@@ -26,8 +26,8 @@ import {
   VisibilityState,
 } from '@tanstack/react-table';
 import { BiCard, BiTable } from 'react-icons/bi';
-import RelativeDate from '@/components/molecules/relative-date';
-import { Badge } from '@/components/ui/badge';
+import RelativeDate from '@/components/v1/molecules/relative-date';
+import { Badge } from '@/components/v1/ui/badge';
 
 export function WorkflowTable() {
   const [searchParams, setSearchParams] = useSearchParams();

@@ -1,10 +1,10 @@
-import { Badge } from '@/components/ui/badge';
+import { Badge } from '@/components/v1/ui/badge';
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from '@/components/ui/tooltip';
+} from '@/components/v1/ui/tooltip';
 import {
   JobRunStatus,
   StepRunStatus,

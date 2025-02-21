@@ -1,11 +1,11 @@
-import { Badge } from '@/components/ui/badge';
-import { HoverCard, HoverCardTrigger } from '@/components/ui/hover-card';
+import { Badge } from '@/components/v1/ui/badge';
+import { HoverCard, HoverCardTrigger } from '@/components/v1/ui/hover-card';
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from '@/components/ui/tooltip';
+} from '@/components/v1/ui/tooltip';
 import {
   JobRunStatus,
   StepRunStatus,

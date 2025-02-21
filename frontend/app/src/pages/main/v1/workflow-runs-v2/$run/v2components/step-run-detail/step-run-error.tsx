@@ -1,4 +1,4 @@
-import LoggingComponent from '@/components/cloud/logging/logs';
+import LoggingComponent from '@/components/v1/cloud/logging/logs';
 
 export default function StepRunError({ text }: { text: string }) {
   return (

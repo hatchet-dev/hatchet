@@ -1,10 +1,10 @@
-import RelativeDate from '@/components/molecules/relative-date';
+import RelativeDate from '@/components/v1/molecules/relative-date';
 import {
   Tooltip,
   TooltipProvider,
   TooltipTrigger,
   TooltipContent,
-} from '@/components/ui/tooltip';
+} from '@/components/v1/ui/tooltip';
 import { SemaphoreSlots } from '@/lib/api';
 import { Link } from 'react-router-dom';
 

@@ -1,9 +1,9 @@
-import { Separator } from '@/components/ui/separator';
+import { Separator } from '@/components/v1/ui/separator';
 import invariant from 'tiny-invariant';
 import { Link, useOutletContext } from 'react-router-dom';
 import { TenantContextType } from '@/lib/outlet';
 import { ManagedWorkersTable } from './components/managed-workers-table';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/v1/ui/button';
 
 export default function ManagedWorkers() {
   const { tenant } = useOutletContext<TenantContextType>();

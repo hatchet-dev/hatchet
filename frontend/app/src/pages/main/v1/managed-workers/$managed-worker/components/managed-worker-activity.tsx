@@ -7,10 +7,10 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card';
-import { Spinner } from '@/components/ui/loading';
-import RelativeDate from '@/components/molecules/relative-date';
-import { Button } from '@/components/ui/button';
+} from '@/components/v1/ui/card';
+import { Spinner } from '@/components/v1/ui/loading';
+import RelativeDate from '@/components/v1/molecules/relative-date';
+import { Button } from '@/components/v1/ui/button';
 import { ArrowRightIcon, ChevronLeftIcon } from '@radix-ui/react-icons';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
@@ -19,7 +19,7 @@ import {
   ManagedWorkerEvent,
   ManagedWorkerEventStatus,
 } from '@/lib/api/generated/cloud/data-contracts';
-import { Separator } from '@/components/ui/separator';
+import { Separator } from '@/components/v1/ui/separator';
 import { ManagedWorkerBuild } from './managed-worker-build';
 import GithubButton from './github-button';
 import { ManagedWorkerIaC } from './managed-worker-iac';

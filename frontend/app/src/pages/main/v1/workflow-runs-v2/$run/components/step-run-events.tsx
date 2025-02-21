@@ -15,10 +15,10 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card';
-import { Spinner } from '@/components/ui/loading';
-import RelativeDate from '@/components/molecules/relative-date';
-import { Button } from '@/components/ui/button';
+} from '@/components/v1/ui/card';
+import { Spinner } from '@/components/v1/ui/loading';
+import RelativeDate from '@/components/v1/molecules/relative-date';
+import { Button } from '@/components/v1/ui/button';
 import { ArrowRightIcon, ChevronRightIcon } from '@radix-ui/react-icons';
 import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
@@ -29,7 +29,7 @@ import {
   columns,
   mapSemaphoreExtra,
 } from './step-runs-worker-label-columns';
-import { DataTable } from '@/components/molecules/data-table/data-table';
+import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 
 export function StepRunEvents({ stepRun }: { stepRun: StepRun | undefined }) {
   const getLogsQuery = useQuery({

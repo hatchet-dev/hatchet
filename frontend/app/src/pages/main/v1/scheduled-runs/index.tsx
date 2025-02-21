@@ -1,8 +1,8 @@
-import { Separator } from '@/components/ui/separator';
+import { Separator } from '@/components/v1/ui/separator';
 import { ScheduledRunsTable } from './components/scheduled-runs-table';
 import { TriggerWorkflowForm } from '../workflows/$workflow/components/trigger-workflow-form';
 import { useState } from 'react';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/v1/ui/button';
 
 export default function RateLimits() {
   const [triggerWorkflow, setTriggerWorkflow] = useState(false);

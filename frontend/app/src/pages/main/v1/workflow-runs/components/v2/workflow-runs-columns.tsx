@@ -6,8 +6,8 @@ import {
   AdditionalMetadata,
   AdditionalMetadataClick,
 } from '../../../events/components/additional-metadata';
-import RelativeDate from '@/components/molecules/relative-date';
-import { Checkbox } from '@/components/ui/checkbox';
+import RelativeDate from '@/components/v1/molecules/relative-date';
+import { Checkbox } from '@/components/v1/ui/checkbox';
 import { ListableWorkflowRun } from '../workflow-runs-table';
 
 export const columns: (

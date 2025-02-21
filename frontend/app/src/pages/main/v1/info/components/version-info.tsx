@@ -1,5 +1,5 @@
 import React from 'react';
-import { Spinner } from '@/components/ui/loading';
+import { Spinner } from '@/components/v1/ui/loading';
 import { queries } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 

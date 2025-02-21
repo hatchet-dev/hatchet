@@ -1,6 +1,6 @@
 import { DataTable } from '../../../components/molecules/data-table/data-table';
 import { RateLimitRow, columns } from './components/rate-limit-columns';
-import { Separator } from '@/components/ui/separator';
+import { Separator } from '@/components/v1/ui/separator';
 import { useEffect, useMemo, useState } from 'react';
 import {
   ColumnFiltersState,

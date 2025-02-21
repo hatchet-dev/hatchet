@@ -2,14 +2,14 @@ import { ColumnDef, Row } from '@tanstack/react-table';
 import { DataTableColumnHeader } from '../../../../../components/molecules/data-table/data-table-column-header';
 import api, { TenantMember, queries } from '@/lib/api';
 import { capitalize } from '@/lib/utils';
-import { DataTableRowActions } from '@/components/molecules/data-table/data-table-row-actions';
+import { DataTableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
 import { useOutletContext } from 'react-router-dom';
 import { TenantContextType, UserContextType } from '@/lib/outlet';
-import RelativeDate from '@/components/molecules/relative-date';
+import RelativeDate from '@/components/v1/molecules/relative-date';
 import { useMutation } from '@tanstack/react-query';
 import { useApiError } from '@/lib/hooks';
 import queryClient from '@/query-client';
-import { ConfirmDialog } from '@/components/molecules/confirm-dialog';
+import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
 import { useState } from 'react';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 

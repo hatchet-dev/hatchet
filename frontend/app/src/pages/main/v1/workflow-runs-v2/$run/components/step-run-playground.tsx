@@ -1,6 +1,6 @@
 import api, { StepRun, StepRunStatus, WorkflowRun, queries } from '@/lib/api';
 import { useEffect, useMemo, useState } from 'react';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/v1/ui/button';
 import invariant from 'tiny-invariant';
 import { useApiError } from '@/lib/hooks';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -10,21 +10,26 @@ import { TenantContextType } from '@/lib/outlet';
 import { PlayIcon } from '@radix-ui/react-icons';
 import { StepRunOutput } from './step-run-output';
 import { StepRunInputs } from './step-run-inputs';
-import { Loading } from '@/components/ui/loading';
+import { Loading } from '@/components/v1/ui/loading';
 import {
   TooltipProvider,
   Tooltip,
   TooltipTrigger,
   TooltipContent,
-} from '@/components/ui/tooltip';
+} from '@/components/v1/ui/tooltip';
 import { VscNote, VscJson } from 'react-icons/vsc';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/components/v1/ui/tabs';
 import { StepRunLogs } from './step-run-logs';
 import { RunStatus } from '../../components/run-statuses';
 import { QuestionMarkCircleIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { TaskRunsTable as WorkflowRunsTable } from '../../components/workflow-runs-table';
 import { StepRunEvents } from './step-run-events';
-import RelativeDate from '@/components/molecules/relative-date';
+import RelativeDate from '@/components/v1/molecules/relative-date';
 
 export function StepRunPlayground({
   stepRun,

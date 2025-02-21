@@ -1,6 +1,6 @@
-import { Separator } from '@/components/ui/separator';
+import { Separator } from '@/components/v1/ui/separator';
 import { WorkflowRunsTable } from './components/workflow-runs-table';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/v1/ui/button';
 import { TriggerWorkflowForm } from '../workflows/$workflow/components/trigger-workflow-form';
 import { useState } from 'react';
 

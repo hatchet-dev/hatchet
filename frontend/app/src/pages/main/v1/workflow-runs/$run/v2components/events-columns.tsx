@@ -1,16 +1,16 @@
 import { createColumnHelper } from '@tanstack/react-table';
 import { V2TaskEventType, V2TaskEvent, StepRunEventSeverity } from '@/lib/api';
-import RelativeDate from '@/components/molecules/relative-date';
-import { Badge } from '@/components/ui/badge';
+import RelativeDate from '@/components/v1/molecules/relative-date';
+import { Badge } from '@/components/v1/ui/badge';
 import {
   ArrowLeftEndOnRectangleIcon,
   ServerStackIcon,
   XCircleIcon,
 } from '@heroicons/react/24/outline';
-import { DataTableColumnHeader } from '@/components/molecules/data-table/data-table-column-header';
+import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
 import { cn } from '@/lib/utils';
 import { Link, useOutletContext } from 'react-router-dom';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/v1/ui/button';
 import { TenantContextType } from '@/lib/outlet';
 import invariant from 'tiny-invariant';
 import { useRef, useState } from 'react';
@@ -18,7 +18,7 @@ import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from '@/components/ui/popover';
+} from '@/components/v1/ui/popover';
 import StepRunError from './step-run-detail/step-run-error';
 
 function eventTypeToSeverity(

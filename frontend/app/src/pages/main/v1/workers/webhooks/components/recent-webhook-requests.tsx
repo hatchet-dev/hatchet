@@ -1,7 +1,7 @@
 import LoggingComponent, {
   ExtendedLogLine,
-} from '@/components/cloud/logging/logs';
-import { Badge } from '@/components/ui/badge';
+} from '@/components/v1/cloud/logging/logs';
+import { Badge } from '@/components/v1/ui/badge';
 import { queries } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 import React, { useEffect, useMemo, useState } from 'react';
