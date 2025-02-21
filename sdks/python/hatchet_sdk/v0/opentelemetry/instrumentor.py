@@ -25,20 +25,20 @@ except (RuntimeError, ImportError, ModuleNotFoundError):
     )
 
 import hatchet_sdk
-from hatchet_sdk.clients.admin import (
+from hatchet_sdk.v0.clients.admin import (
     AdminClient,
     TriggerWorkflowOptions,
     WorkflowRunDict,
 )
-from hatchet_sdk.clients.dispatcher.action_listener import Action
-from hatchet_sdk.clients.events import (
+from hatchet_sdk.v0.clients.dispatcher.action_listener import Action
+from hatchet_sdk.v0.clients.events import (
     BulkPushEventWithMetadata,
     EventClient,
     PushEventOptions,
 )
-from hatchet_sdk.contracts.events_pb2 import Event
-from hatchet_sdk.worker.runner.runner import Runner
-from hatchet_sdk.workflow_run import WorkflowRunRef
+from hatchet_sdk.v0.contracts.events_pb2 import Event
+from hatchet_sdk.v0.worker.runner.runner import Runner
+from hatchet_sdk.v0.workflow_run import WorkflowRunRef
 
 hatchet_sdk_version = version("hatchet-sdk")
 

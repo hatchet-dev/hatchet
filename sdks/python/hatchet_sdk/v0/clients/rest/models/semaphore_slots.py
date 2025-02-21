@@ -23,7 +23,7 @@ from typing import Any, ClassVar, Dict, List, Optional, Set
 from pydantic import BaseModel, ConfigDict, Field, StrictStr
 from typing_extensions import Self
 
-from hatchet_sdk.clients.rest.models.step_run_status import StepRunStatus
+from hatchet_sdk.v0.clients.rest.models.step_run_status import StepRunStatus
 
 
 class SemaphoreSlots(BaseModel):

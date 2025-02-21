@@ -5,12 +5,12 @@ from typing import Any, Callable, Dict, List, Optional, TypedDict, TypeVar, Unio
 import grpc
 from google.protobuf import timestamp_pb2
 
-from hatchet_sdk.clients.rest.models.workflow_run import WorkflowRun
-from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
-from hatchet_sdk.clients.run_event_listener import new_listener
-from hatchet_sdk.clients.workflow_listener import PooledWorkflowRunListener
-from hatchet_sdk.connection import new_conn
-from hatchet_sdk.contracts.workflows_pb2 import (
+from hatchet_sdk.v0.clients.rest.models.workflow_run import WorkflowRun
+from hatchet_sdk.v0.clients.rest.tenacity_utils import tenacity_retry
+from hatchet_sdk.v0.clients.run_event_listener import new_listener
+from hatchet_sdk.v0.clients.workflow_listener import PooledWorkflowRunListener
+from hatchet_sdk.v0.connection import new_conn
+from hatchet_sdk.v0.contracts.workflows_pb2 import (
     BulkTriggerWorkflowRequest,
     BulkTriggerWorkflowResponse,
     CreateWorkflowVersionOpts,
@@ -22,9 +22,8 @@ from hatchet_sdk.contracts.workflows_pb2 import (
     TriggerWorkflowResponse,
     WorkflowVersion,
 )
-from hatchet_sdk.contracts.workflows_pb2_grpc import WorkflowServiceStub
-from hatchet_sdk.utils.serialization import flatten
-from hatchet_sdk.workflow_run import RunRef, WorkflowRunRef
+from hatchet_sdk.v0.contracts.workflows_pb2_grpc import WorkflowServiceStub
+from hatchet_sdk.v0.workflow_run import RunRef, WorkflowRunRef
 
 from ..loader import ClientConfig
 from ..metadata import get_metadata

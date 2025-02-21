@@ -3,7 +3,7 @@ from typing import Union
 
 from celpy import CELEvalError, Environment
 
-from hatchet_sdk.contracts.workflows_pb2 import CreateStepRateLimit
+from hatchet_sdk.v0.contracts.workflows_pb2 import CreateStepRateLimit
 
 
 def validate_cel_expression(expr: str) -> bool:

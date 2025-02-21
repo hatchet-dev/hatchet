@@ -17,40 +17,42 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 from pydantic import Field, StrictFloat, StrictInt, StrictStr, validate_call
 from typing_extensions import Annotated
 
-from hatchet_sdk.clients.rest.api_client import ApiClient, RequestSerialized
-from hatchet_sdk.clients.rest.api_response import ApiResponse
-from hatchet_sdk.clients.rest.models.accept_invite_request import AcceptInviteRequest
-from hatchet_sdk.clients.rest.models.create_tenant_alert_email_group_request import (
+from hatchet_sdk.v0.clients.rest.api_client import ApiClient, RequestSerialized
+from hatchet_sdk.v0.clients.rest.api_response import ApiResponse
+from hatchet_sdk.v0.clients.rest.models.accept_invite_request import AcceptInviteRequest
+from hatchet_sdk.v0.clients.rest.models.create_tenant_alert_email_group_request import (
     CreateTenantAlertEmailGroupRequest,
 )
-from hatchet_sdk.clients.rest.models.create_tenant_invite_request import (
+from hatchet_sdk.v0.clients.rest.models.create_tenant_invite_request import (
     CreateTenantInviteRequest,
 )
-from hatchet_sdk.clients.rest.models.create_tenant_request import CreateTenantRequest
-from hatchet_sdk.clients.rest.models.reject_invite_request import RejectInviteRequest
-from hatchet_sdk.clients.rest.models.tenant import Tenant
-from hatchet_sdk.clients.rest.models.tenant_alert_email_group import (
+from hatchet_sdk.v0.clients.rest.models.create_tenant_request import CreateTenantRequest
+from hatchet_sdk.v0.clients.rest.models.reject_invite_request import RejectInviteRequest
+from hatchet_sdk.v0.clients.rest.models.tenant import Tenant
+from hatchet_sdk.v0.clients.rest.models.tenant_alert_email_group import (
     TenantAlertEmailGroup,
 )
-from hatchet_sdk.clients.rest.models.tenant_alert_email_group_list import (
+from hatchet_sdk.v0.clients.rest.models.tenant_alert_email_group_list import (
     TenantAlertEmailGroupList,
 )
-from hatchet_sdk.clients.rest.models.tenant_alerting_settings import (
+from hatchet_sdk.v0.clients.rest.models.tenant_alerting_settings import (
     TenantAlertingSettings,
 )
-from hatchet_sdk.clients.rest.models.tenant_invite import TenantInvite
-from hatchet_sdk.clients.rest.models.tenant_invite_list import TenantInviteList
-from hatchet_sdk.clients.rest.models.tenant_member import TenantMember
-from hatchet_sdk.clients.rest.models.tenant_member_list import TenantMemberList
-from hatchet_sdk.clients.rest.models.tenant_resource_policy import TenantResourcePolicy
-from hatchet_sdk.clients.rest.models.tenant_step_run_queue_metrics import (
+from hatchet_sdk.v0.clients.rest.models.tenant_invite import TenantInvite
+from hatchet_sdk.v0.clients.rest.models.tenant_invite_list import TenantInviteList
+from hatchet_sdk.v0.clients.rest.models.tenant_member import TenantMember
+from hatchet_sdk.v0.clients.rest.models.tenant_member_list import TenantMemberList
+from hatchet_sdk.v0.clients.rest.models.tenant_resource_policy import (
+    TenantResourcePolicy,
+)
+from hatchet_sdk.v0.clients.rest.models.tenant_step_run_queue_metrics import (
     TenantStepRunQueueMetrics,
 )
-from hatchet_sdk.clients.rest.models.update_tenant_alert_email_group_request import (
+from hatchet_sdk.v0.clients.rest.models.update_tenant_alert_email_group_request import (
     UpdateTenantAlertEmailGroupRequest,
 )
-from hatchet_sdk.clients.rest.models.update_tenant_request import UpdateTenantRequest
-from hatchet_sdk.clients.rest.rest import RESTResponseType
+from hatchet_sdk.v0.clients.rest.models.update_tenant_request import UpdateTenantRequest
+from hatchet_sdk.v0.clients.rest.rest import RESTResponseType
 
 
 class TenantApi:

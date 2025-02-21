@@ -23,8 +23,10 @@ from typing import Any, ClassVar, Dict, List, Optional, Set
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr
 from typing_extensions import Self
 
-from hatchet_sdk.clients.rest.models.step_run_event_reason import StepRunEventReason
-from hatchet_sdk.clients.rest.models.step_run_event_severity import StepRunEventSeverity
+from hatchet_sdk.v0.clients.rest.models.step_run_event_reason import StepRunEventReason
+from hatchet_sdk.v0.clients.rest.models.step_run_event_severity import (
+    StepRunEventSeverity,
+)
 
 
 class StepRunEvent(BaseModel):

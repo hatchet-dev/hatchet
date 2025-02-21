@@ -22,7 +22,7 @@ from typing import Any, ClassVar, Dict, List, Optional, Set
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr
 from typing_extensions import Self
 
-from hatchet_sdk.clients.rest.models.pull_request_state import PullRequestState
+from hatchet_sdk.v0.clients.rest.models.pull_request_state import PullRequestState
 
 
 class PullRequest(BaseModel):

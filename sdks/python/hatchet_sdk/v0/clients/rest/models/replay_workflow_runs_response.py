@@ -22,7 +22,7 @@ from typing import Any, ClassVar, Dict, List, Optional, Set
 from pydantic import BaseModel, ConfigDict, Field
 from typing_extensions import Self
 
-from hatchet_sdk.clients.rest.models.workflow_run import WorkflowRun
+from hatchet_sdk.v0.clients.rest.models.workflow_run import WorkflowRun
 
 
 class ReplayWorkflowRunsResponse(BaseModel):

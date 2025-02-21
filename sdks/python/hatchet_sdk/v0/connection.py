@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, Any
 import grpc
 
 if TYPE_CHECKING:
-    from hatchet_sdk.loader import ClientConfig
+    from hatchet_sdk.v0.loader import ClientConfig
 
 
 def new_conn(config: "ClientConfig", aio=False):

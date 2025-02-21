@@ -3,16 +3,16 @@ from typing import Any, Coroutine, Dict, List, Optional, Union
 
 from pydantic import BaseModel
 
-from hatchet_sdk.client import Client
-from hatchet_sdk.clients.rest.models.cron_workflows import CronWorkflows
-from hatchet_sdk.clients.rest.models.cron_workflows_order_by_field import (
+from hatchet_sdk.v0.client import Client
+from hatchet_sdk.v0.clients.rest.models.cron_workflows import CronWorkflows
+from hatchet_sdk.v0.clients.rest.models.cron_workflows_order_by_field import (
     CronWorkflowsOrderByField,
 )
-from hatchet_sdk.clients.rest.models.scheduled_workflows import ScheduledWorkflows
-from hatchet_sdk.clients.rest.models.scheduled_workflows_list import (
+from hatchet_sdk.v0.clients.rest.models.scheduled_workflows import ScheduledWorkflows
+from hatchet_sdk.v0.clients.rest.models.scheduled_workflows_list import (
     ScheduledWorkflowsList,
 )
-from hatchet_sdk.clients.rest.models.workflow_run_order_by_direction import (
+from hatchet_sdk.v0.clients.rest.models.workflow_run_order_by_direction import (
     WorkflowRunOrderByDirection,
 )
 

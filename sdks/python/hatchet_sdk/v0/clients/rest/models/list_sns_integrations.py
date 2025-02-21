@@ -22,8 +22,8 @@ from typing import Any, ClassVar, Dict, List, Optional, Set
 from pydantic import BaseModel, ConfigDict
 from typing_extensions import Self
 
-from hatchet_sdk.clients.rest.models.pagination_response import PaginationResponse
-from hatchet_sdk.clients.rest.models.sns_integration import SNSIntegration
+from hatchet_sdk.v0.clients.rest.models.pagination_response import PaginationResponse
+from hatchet_sdk.v0.clients.rest.models.sns_integration import SNSIntegration
 
 
 class ListSNSIntegrations(BaseModel):

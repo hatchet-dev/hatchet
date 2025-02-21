@@ -22,11 +22,11 @@ from typing import Any, ClassVar, Dict, List, Optional, Set
 from pydantic import BaseModel, ConfigDict, Field, StrictStr
 from typing_extensions import Self
 
-from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
-from hatchet_sdk.clients.rest.models.event_workflow_run_summary import (
+from hatchet_sdk.v0.clients.rest.models.api_resource_meta import APIResourceMeta
+from hatchet_sdk.v0.clients.rest.models.event_workflow_run_summary import (
     EventWorkflowRunSummary,
 )
-from hatchet_sdk.clients.rest.models.tenant import Tenant
+from hatchet_sdk.v0.clients.rest.models.tenant import Tenant
 
 
 class Event(BaseModel):

@@ -23,7 +23,7 @@ from typing import Any, ClassVar, Dict, List, Optional, Set
 from pydantic import BaseModel, ConfigDict, Field, StrictInt
 from typing_extensions import Self
 
-from hatchet_sdk.clients.rest.models.webhook_worker_request_method import (
+from hatchet_sdk.v0.clients.rest.models.webhook_worker_request_method import (
     WebhookWorkerRequestMethod,
 )
 

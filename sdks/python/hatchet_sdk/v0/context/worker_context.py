@@ -1,4 +1,4 @@
-from hatchet_sdk.clients.dispatcher.dispatcher import DispatcherClient
+from hatchet_sdk.v0.clients.dispatcher.dispatcher import DispatcherClient
 
 
 class WorkerContext:

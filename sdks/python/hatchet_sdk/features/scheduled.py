@@ -25,8 +25,8 @@ class CreateScheduledTriggerJSONSerializableMapping(BaseModel):
     Schema for creating a scheduled workflow run.
 
     Attributes:
-        input (Dict[str, Any]): The input data for the scheduled workflow.
-        additional_metadata (Dict[str, str]): Additional metadata associated with the future run (e.g. ["key1:value1", "key2:value2"]).
+        input (JSONSerializableMapping): The input data for the scheduled workflow.
+        additional_metadata (JSONSerializableMapping): Additional metadata associated with the future run (e.g. ["key1:value1", "key2:value2"]).
         trigger_at (Optional[datetime.datetime]): The datetime when the run should be triggered.
     """
 
@@ -68,8 +68,8 @@ class ScheduledClient:
         Args:
             workflow_name (str): The name of the scheduled workflow.
             trigger_at (datetime.datetime): The datetime when the run should be triggered.
-            input (Dict[str, Any]): The input data for the scheduled workflow.
-            additional_metadata (Dict[str, str]): Additional metadata associated with the future run as a key-value pair (e.g. {"key1": "value1", "key2": "value2"}).
+            input (JSONSerializableMapping): The input data for the scheduled workflow.
+            additional_metadata (JSONSerializableMapping): Additional metadata associated with the future run as a key-value pair (e.g. {"key1": "value1", "key2": "value2"}).
 
         Returns:
             ScheduledWorkflows: The created scheduled workflow instance.
@@ -160,8 +160,8 @@ class ScheduledClient:
         Args:
             workflow_name (str): The name of the scheduled workflow.
             trigger_at (datetime.datetime): The datetime when the run should be triggered.
-            input (Dict[str, Any]): The input data for the scheduled workflow.
-            additional_metadata (Dict[str, str]): Additional metadata associated with the future run.
+            input (JSONSerializableMapping): The input data for the scheduled workflow.
+            additional_metadata (JSONSerializableMapping): Additional metadata associated with the future run.
 
         Returns:
             ScheduledWorkflows: The created scheduled workflow instance.

@@ -17,9 +17,9 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 from pydantic import Field, StrictFloat, StrictInt, StrictStr, validate_call
 from typing_extensions import Annotated
 
-from hatchet_sdk.clients.rest.api_client import ApiClient, RequestSerialized
-from hatchet_sdk.clients.rest.api_response import ApiResponse
-from hatchet_sdk.clients.rest.rest import RESTResponseType
+from hatchet_sdk.v0.clients.rest.api_client import ApiClient, RequestSerialized
+from hatchet_sdk.v0.clients.rest.api_response import ApiResponse
+from hatchet_sdk.v0.clients.rest.rest import RESTResponseType
 
 
 class HealthcheckApi:

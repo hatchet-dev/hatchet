@@ -23,12 +23,12 @@ from typing import Any, ClassVar, Dict, List, Optional, Set
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr, field_validator
 from typing_extensions import Annotated, Self
 
-from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
-from hatchet_sdk.clients.rest.models.recent_step_runs import RecentStepRuns
-from hatchet_sdk.clients.rest.models.semaphore_slots import SemaphoreSlots
-from hatchet_sdk.clients.rest.models.worker_label import WorkerLabel
-from hatchet_sdk.clients.rest.models.worker_runtime_info import WorkerRuntimeInfo
-from hatchet_sdk.clients.rest.models.worker_type import WorkerType
+from hatchet_sdk.v0.clients.rest.models.api_resource_meta import APIResourceMeta
+from hatchet_sdk.v0.clients.rest.models.recent_step_runs import RecentStepRuns
+from hatchet_sdk.v0.clients.rest.models.semaphore_slots import SemaphoreSlots
+from hatchet_sdk.v0.clients.rest.models.worker_label import WorkerLabel
+from hatchet_sdk.v0.clients.rest.models.worker_runtime_info import WorkerRuntimeInfo
+from hatchet_sdk.v0.clients.rest.models.worker_type import WorkerType
 
 
 class Worker(BaseModel):

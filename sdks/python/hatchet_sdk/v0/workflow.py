@@ -13,8 +13,8 @@ from typing import (
 
 from pydantic import BaseModel
 
-from hatchet_sdk import ConcurrencyLimitStrategy
-from hatchet_sdk.contracts.workflows_pb2 import (
+from hatchet_sdk.v0 import ConcurrencyLimitStrategy
+from hatchet_sdk.v0.contracts.workflows_pb2 import (
     CreateWorkflowJobOpts,
     CreateWorkflowStepOpts,
     CreateWorkflowVersionOpts,
@@ -22,8 +22,8 @@ from hatchet_sdk.contracts.workflows_pb2 import (
     WorkflowConcurrencyOpts,
     WorkflowKind,
 )
-from hatchet_sdk.logger import logger
-from hatchet_sdk.utils.typing import is_basemodel_subclass
+from hatchet_sdk.v0.logger import logger
+from hatchet_sdk.v0.utils.typing import is_basemodel_subclass
 
 
 class WorkflowStepProtocol(Protocol):

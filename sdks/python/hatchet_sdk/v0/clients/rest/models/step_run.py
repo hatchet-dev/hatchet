@@ -23,9 +23,9 @@ from typing import Any, ClassVar, Dict, List, Optional, Set
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr
 from typing_extensions import Self
 
-from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
-from hatchet_sdk.clients.rest.models.step import Step
-from hatchet_sdk.clients.rest.models.step_run_status import StepRunStatus
+from hatchet_sdk.v0.clients.rest.models.api_resource_meta import APIResourceMeta
+from hatchet_sdk.v0.clients.rest.models.step import Step
+from hatchet_sdk.v0.clients.rest.models.step_run_status import StepRunStatus
 
 
 class StepRun(BaseModel):
@@ -196,7 +196,7 @@ class StepRun(BaseModel):
         return _obj
 
 
-from hatchet_sdk.clients.rest.models.job_run import JobRun
+from hatchet_sdk.v0.clients.rest.models.job_run import JobRun
 
 # TODO: Rewrite to not use raise_errors
 StepRun.model_rebuild(raise_errors=False)

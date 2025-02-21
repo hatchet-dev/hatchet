@@ -3,7 +3,7 @@ from typing import Callable, ParamSpec, TypeVar
 import grpc
 import tenacity
 
-from hatchet_sdk.logger import logger
+from hatchet_sdk.v0.logger import logger
 
 P = ParamSpec("P")
 R = TypeVar("R")

@@ -4,9 +4,9 @@ from typing import Callable
 
 import grpc
 
-from hatchet_sdk.clients.run_event_listener import RunEventListenerClient
-from hatchet_sdk.clients.workflow_listener import PooledWorkflowRunListener
-from hatchet_sdk.connection import new_conn
+from hatchet_sdk.v0.clients.run_event_listener import RunEventListenerClient
+from hatchet_sdk.v0.clients.workflow_listener import PooledWorkflowRunListener
+from hatchet_sdk.v0.connection import new_conn
 
 from .clients.admin import AdminClient, new_admin
 from .clients.dispatcher.dispatcher import DispatcherClient, new_dispatcher

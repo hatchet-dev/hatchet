@@ -22,11 +22,11 @@ from typing import Any, ClassVar, Dict, List, Optional, Set
 from pydantic import BaseModel, ConfigDict, StrictStr
 from typing_extensions import Self
 
-from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
-from hatchet_sdk.clients.rest.models.workflow_trigger_cron_ref import (
+from hatchet_sdk.v0.clients.rest.models.api_resource_meta import APIResourceMeta
+from hatchet_sdk.v0.clients.rest.models.workflow_trigger_cron_ref import (
     WorkflowTriggerCronRef,
 )
-from hatchet_sdk.clients.rest.models.workflow_trigger_event_ref import (
+from hatchet_sdk.v0.clients.rest.models.workflow_trigger_event_ref import (
     WorkflowTriggerEventRef,
 )
 

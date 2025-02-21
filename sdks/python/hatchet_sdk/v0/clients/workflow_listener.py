@@ -6,13 +6,13 @@ from typing import AsyncGenerator
 import grpc
 from grpc._cython import cygrpc
 
-from hatchet_sdk.clients.event_ts import ThreadSafeEvent, read_with_interrupt
-from hatchet_sdk.connection import new_conn
-from hatchet_sdk.contracts.dispatcher_pb2 import (
+from hatchet_sdk.v0.clients.event_ts import ThreadSafeEvent, read_with_interrupt
+from hatchet_sdk.v0.connection import new_conn
+from hatchet_sdk.v0.contracts.dispatcher_pb2 import (
     SubscribeToWorkflowRunsRequest,
     WorkflowRunEvent,
 )
-from hatchet_sdk.contracts.dispatcher_pb2_grpc import DispatcherStub
+from hatchet_sdk.v0.contracts.dispatcher_pb2_grpc import DispatcherStub
 
 from ..loader import ClientConfig
 from ..logger import logger
@@ -231,7 +231,7 @@ class PooledWorkflowRunListener:
             self.cleanup_subscription(subscription_id)
 
     async def result(self, workflow_run_id: str):
-        from hatchet_sdk.clients.admin import DedupeViolationErr
+        from hatchet_sdk.v0.clients.admin import DedupeViolationErr
 
         event = await self.subscribe(workflow_run_id)
 

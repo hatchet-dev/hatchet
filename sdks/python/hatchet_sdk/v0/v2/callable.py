@@ -11,9 +11,9 @@ from typing import (
     Union,
 )
 
-from hatchet_sdk.clients.admin import ChildTriggerWorkflowOptions
-from hatchet_sdk.context.context import Context
-from hatchet_sdk.contracts.workflows_pb2 import (  # type: ignore[attr-defined]
+from hatchet_sdk.v0.clients.admin import ChildTriggerWorkflowOptions
+from hatchet_sdk.v0.context.context import Context
+from hatchet_sdk.v0.contracts.workflows_pb2 import (  # type: ignore[attr-defined]
     CreateStepRateLimit,
     CreateWorkflowJobOpts,
     CreateWorkflowStepOpts,
@@ -23,11 +23,11 @@ from hatchet_sdk.contracts.workflows_pb2 import (  # type: ignore[attr-defined]
     WorkflowConcurrencyOpts,
     WorkflowKind,
 )
-from hatchet_sdk.labels import DesiredWorkerLabel
-from hatchet_sdk.logger import logger
-from hatchet_sdk.rate_limit import RateLimit
-from hatchet_sdk.v2.concurrency import ConcurrencyFunction
-from hatchet_sdk.workflow_run import RunRef
+from hatchet_sdk.v0.labels import DesiredWorkerLabel
+from hatchet_sdk.v0.logger import logger
+from hatchet_sdk.v0.rate_limit import RateLimit
+from hatchet_sdk.v0.v2.concurrency import ConcurrencyFunction
+from hatchet_sdk.v0.workflow_run import RunRef
 
 T = TypeVar("T")
 

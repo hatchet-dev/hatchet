@@ -27,11 +27,11 @@ from dateutil.parser import parse
 from pydantic import SecretStr
 
 import hatchet_sdk.clients.rest.models
-from hatchet_sdk.clients.rest import rest
-from hatchet_sdk.clients.rest.api_response import ApiResponse
-from hatchet_sdk.clients.rest.api_response import T as ApiResponseT
-from hatchet_sdk.clients.rest.configuration import Configuration
-from hatchet_sdk.clients.rest.exceptions import (
+from hatchet_sdk.v0.clients.rest import rest
+from hatchet_sdk.v0.clients.rest.api_response import ApiResponse
+from hatchet_sdk.v0.clients.rest.api_response import T as ApiResponseT
+from hatchet_sdk.v0.clients.rest.configuration import Configuration
+from hatchet_sdk.v0.clients.rest.exceptions import (
     ApiException,
     ApiValueError,
     BadRequestException,

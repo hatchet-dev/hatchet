@@ -5,20 +5,20 @@ from typing import Any, Callable, Optional, ParamSpec, Type, TypeVar, Union
 from pydantic import BaseModel
 from typing_extensions import deprecated
 
-from hatchet_sdk.clients.rest_client import RestApi
-from hatchet_sdk.context.context import Context
-from hatchet_sdk.contracts.workflows_pb2 import (
+from hatchet_sdk.v0.clients.rest_client import RestApi
+from hatchet_sdk.v0.context.context import Context
+from hatchet_sdk.v0.contracts.workflows_pb2 import (
     ConcurrencyLimitStrategy,
     CreateStepRateLimit,
     DesiredWorkerLabels,
     StickyStrategy,
 )
-from hatchet_sdk.features.cron import CronClient
-from hatchet_sdk.features.scheduled import ScheduledClient
-from hatchet_sdk.labels import DesiredWorkerLabel
-from hatchet_sdk.loader import ClientConfig, ConfigLoader
-from hatchet_sdk.rate_limit import RateLimit
-from hatchet_sdk.v2.callable import HatchetCallable
+from hatchet_sdk.v0.features.cron import CronClient
+from hatchet_sdk.v0.features.scheduled import ScheduledClient
+from hatchet_sdk.v0.labels import DesiredWorkerLabel
+from hatchet_sdk.v0.loader import ClientConfig, ConfigLoader
+from hatchet_sdk.v0.rate_limit import RateLimit
+from hatchet_sdk.v0.v2.callable import HatchetCallable
 
 from .client import Client, new_client, new_client_raw
 from .clients.admin import AdminClient

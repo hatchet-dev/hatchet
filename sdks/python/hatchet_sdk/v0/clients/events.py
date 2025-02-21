@@ -7,16 +7,15 @@ from uuid import uuid4
 import grpc
 from google.protobuf import timestamp_pb2
 
-from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
-from hatchet_sdk.contracts.events_pb2 import (
+from hatchet_sdk.v0.clients.rest.tenacity_utils import tenacity_retry
+from hatchet_sdk.v0.contracts.events_pb2 import (
     BulkPushEventRequest,
     Event,
     PushEventRequest,
     PutLogRequest,
     PutStreamEventRequest,
 )
-from hatchet_sdk.contracts.events_pb2_grpc import EventsServiceStub
-from hatchet_sdk.utils.serialization import flatten
+from hatchet_sdk.v0.contracts.events_pb2_grpc import EventsServiceStub
 
 from ..loader import ClientConfig
 from ..metadata import get_metadata

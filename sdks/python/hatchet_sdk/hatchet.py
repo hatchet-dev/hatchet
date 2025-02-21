@@ -134,7 +134,7 @@ class Hatchet:
         desired_worker_labels: dict[str, DesiredWorkerLabel] = {},
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
-    ) -> Callable[[Callable[[Any, Context], Any]], Step[R]]:
+    ) -> Callable[[Callable[[Any, Context], R]], Step[R]]:
         def inner(func: Callable[[Any, Context], R]) -> Step[R]:
             return Step(
                 fn=func,
@@ -164,7 +164,7 @@ class Hatchet:
         desired_worker_labels: dict[str, DesiredWorkerLabel] = {},
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
-    ) -> Callable[[Callable[[Any, Context], Any]], Step[R]]:
+    ) -> Callable[[Callable[[Any, Context], R]], Step[R]]:
         def inner(func: Callable[[Any, Context], R]) -> Step[R]:
             return Step(
                 fn=func,

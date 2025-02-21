@@ -1,5 +1,5 @@
 import asyncio
-from typing import Any, TypeVar, cast
+from typing import TypeVar, cast
 
 import grpc.aio
 from grpc._cython import cygrpc  # type: ignore[attr-defined]
@@ -10,8 +10,8 @@ class ThreadSafeEvent(asyncio.Event):
     ThreadSafeEvent is a subclass of asyncio.Event that allows for thread-safe setting and clearing of the event.
     """
 
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        super().__init__(*args, **kwargs)
+    def __init__(self) -> None:
+        super().__init__()
         if self._loop is None:  # type: ignore[has-type]
             self._loop = asyncio.get_event_loop()
 

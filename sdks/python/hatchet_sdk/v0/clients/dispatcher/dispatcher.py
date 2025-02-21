@@ -2,14 +2,14 @@ from typing import Any, cast
 
 from google.protobuf.timestamp_pb2 import Timestamp
 
-from hatchet_sdk.clients.dispatcher.action_listener import (
+from hatchet_sdk.v0.clients.dispatcher.action_listener import (
     Action,
     ActionListener,
     GetActionListenerRequest,
 )
-from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
-from hatchet_sdk.connection import new_conn
-from hatchet_sdk.contracts.dispatcher_pb2 import (
+from hatchet_sdk.v0.clients.rest.tenacity_utils import tenacity_retry
+from hatchet_sdk.v0.connection import new_conn
+from hatchet_sdk.v0.contracts.dispatcher_pb2 import (
     STEP_EVENT_TYPE_COMPLETED,
     STEP_EVENT_TYPE_FAILED,
     ActionEventResponse,
@@ -25,7 +25,7 @@ from hatchet_sdk.contracts.dispatcher_pb2 import (
     WorkerRegisterRequest,
     WorkerRegisterResponse,
 )
-from hatchet_sdk.contracts.dispatcher_pb2_grpc import DispatcherStub
+from hatchet_sdk.v0.contracts.dispatcher_pb2_grpc import DispatcherStub
 
 from ...loader import ClientConfig
 from ...metadata import get_metadata

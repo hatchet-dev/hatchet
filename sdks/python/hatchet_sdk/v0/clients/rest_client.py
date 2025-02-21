@@ -6,66 +6,68 @@ from typing import Any, Coroutine, List
 
 from pydantic import StrictInt
 
-from hatchet_sdk.clients.rest.api.event_api import EventApi
-from hatchet_sdk.clients.rest.api.log_api import LogApi
-from hatchet_sdk.clients.rest.api.step_run_api import StepRunApi
-from hatchet_sdk.clients.rest.api.workflow_api import WorkflowApi
-from hatchet_sdk.clients.rest.api.workflow_run_api import WorkflowRunApi
-from hatchet_sdk.clients.rest.api.workflow_runs_api import WorkflowRunsApi
-from hatchet_sdk.clients.rest.api_client import ApiClient
-from hatchet_sdk.clients.rest.configuration import Configuration
-from hatchet_sdk.clients.rest.models import TriggerWorkflowRunRequest
-from hatchet_sdk.clients.rest.models.create_cron_workflow_trigger_request import (
+from hatchet_sdk.v0.clients.rest.api.event_api import EventApi
+from hatchet_sdk.v0.clients.rest.api.log_api import LogApi
+from hatchet_sdk.v0.clients.rest.api.step_run_api import StepRunApi
+from hatchet_sdk.v0.clients.rest.api.workflow_api import WorkflowApi
+from hatchet_sdk.v0.clients.rest.api.workflow_run_api import WorkflowRunApi
+from hatchet_sdk.v0.clients.rest.api.workflow_runs_api import WorkflowRunsApi
+from hatchet_sdk.v0.clients.rest.api_client import ApiClient
+from hatchet_sdk.v0.clients.rest.configuration import Configuration
+from hatchet_sdk.v0.clients.rest.models import TriggerWorkflowRunRequest
+from hatchet_sdk.v0.clients.rest.models.create_cron_workflow_trigger_request import (
     CreateCronWorkflowTriggerRequest,
 )
-from hatchet_sdk.clients.rest.models.cron_workflows import CronWorkflows
-from hatchet_sdk.clients.rest.models.cron_workflows_order_by_field import (
+from hatchet_sdk.v0.clients.rest.models.cron_workflows import CronWorkflows
+from hatchet_sdk.v0.clients.rest.models.cron_workflows_order_by_field import (
     CronWorkflowsOrderByField,
 )
-from hatchet_sdk.clients.rest.models.event_list import EventList
-from hatchet_sdk.clients.rest.models.event_order_by_direction import (
+from hatchet_sdk.v0.clients.rest.models.event_list import EventList
+from hatchet_sdk.v0.clients.rest.models.event_order_by_direction import (
     EventOrderByDirection,
 )
-from hatchet_sdk.clients.rest.models.event_order_by_field import EventOrderByField
-from hatchet_sdk.clients.rest.models.log_line_level import LogLineLevel
-from hatchet_sdk.clients.rest.models.log_line_list import LogLineList
-from hatchet_sdk.clients.rest.models.log_line_order_by_direction import (
+from hatchet_sdk.v0.clients.rest.models.event_order_by_field import EventOrderByField
+from hatchet_sdk.v0.clients.rest.models.log_line_level import LogLineLevel
+from hatchet_sdk.v0.clients.rest.models.log_line_list import LogLineList
+from hatchet_sdk.v0.clients.rest.models.log_line_order_by_direction import (
     LogLineOrderByDirection,
 )
-from hatchet_sdk.clients.rest.models.log_line_order_by_field import LogLineOrderByField
-from hatchet_sdk.clients.rest.models.replay_event_request import ReplayEventRequest
-from hatchet_sdk.clients.rest.models.replay_workflow_runs_request import (
+from hatchet_sdk.v0.clients.rest.models.log_line_order_by_field import (
+    LogLineOrderByField,
+)
+from hatchet_sdk.v0.clients.rest.models.replay_event_request import ReplayEventRequest
+from hatchet_sdk.v0.clients.rest.models.replay_workflow_runs_request import (
     ReplayWorkflowRunsRequest,
 )
-from hatchet_sdk.clients.rest.models.replay_workflow_runs_response import (
+from hatchet_sdk.v0.clients.rest.models.replay_workflow_runs_response import (
     ReplayWorkflowRunsResponse,
 )
-from hatchet_sdk.clients.rest.models.schedule_workflow_run_request import (
+from hatchet_sdk.v0.clients.rest.models.schedule_workflow_run_request import (
     ScheduleWorkflowRunRequest,
 )
-from hatchet_sdk.clients.rest.models.scheduled_workflows import ScheduledWorkflows
-from hatchet_sdk.clients.rest.models.scheduled_workflows_order_by_field import (
+from hatchet_sdk.v0.clients.rest.models.scheduled_workflows import ScheduledWorkflows
+from hatchet_sdk.v0.clients.rest.models.scheduled_workflows_order_by_field import (
     ScheduledWorkflowsOrderByField,
 )
-from hatchet_sdk.clients.rest.models.workflow import Workflow
-from hatchet_sdk.clients.rest.models.workflow_kind import WorkflowKind
-from hatchet_sdk.clients.rest.models.workflow_list import WorkflowList
-from hatchet_sdk.clients.rest.models.workflow_run import WorkflowRun
-from hatchet_sdk.clients.rest.models.workflow_run_cancel200_response import (
+from hatchet_sdk.v0.clients.rest.models.workflow import Workflow
+from hatchet_sdk.v0.clients.rest.models.workflow_kind import WorkflowKind
+from hatchet_sdk.v0.clients.rest.models.workflow_list import WorkflowList
+from hatchet_sdk.v0.clients.rest.models.workflow_run import WorkflowRun
+from hatchet_sdk.v0.clients.rest.models.workflow_run_cancel200_response import (
     WorkflowRunCancel200Response,
 )
-from hatchet_sdk.clients.rest.models.workflow_run_list import WorkflowRunList
-from hatchet_sdk.clients.rest.models.workflow_run_order_by_direction import (
+from hatchet_sdk.v0.clients.rest.models.workflow_run_list import WorkflowRunList
+from hatchet_sdk.v0.clients.rest.models.workflow_run_order_by_direction import (
     WorkflowRunOrderByDirection,
 )
-from hatchet_sdk.clients.rest.models.workflow_run_order_by_field import (
+from hatchet_sdk.v0.clients.rest.models.workflow_run_order_by_field import (
     WorkflowRunOrderByField,
 )
-from hatchet_sdk.clients.rest.models.workflow_run_status import WorkflowRunStatus
-from hatchet_sdk.clients.rest.models.workflow_runs_cancel_request import (
+from hatchet_sdk.v0.clients.rest.models.workflow_run_status import WorkflowRunStatus
+from hatchet_sdk.v0.clients.rest.models.workflow_runs_cancel_request import (
     WorkflowRunsCancelRequest,
 )
-from hatchet_sdk.clients.rest.models.workflow_version import WorkflowVersion
+from hatchet_sdk.v0.clients.rest.models.workflow_version import WorkflowVersion
 
 
 class AsyncRestApi:

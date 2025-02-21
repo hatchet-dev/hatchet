@@ -21,7 +21,7 @@ from typing import Optional, Union
 import aiohttp
 import aiohttp_retry
 
-from hatchet_sdk.clients.rest.exceptions import ApiException, ApiValueError
+from hatchet_sdk.v0.clients.rest.exceptions import ApiException, ApiValueError
 
 RESTResponseType = aiohttp.ClientResponse
 

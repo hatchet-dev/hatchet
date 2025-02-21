@@ -23,11 +23,11 @@ from typing import Any, ClassVar, Dict, List, Optional, Set
 from pydantic import BaseModel, ConfigDict, Field, StrictStr
 from typing_extensions import Annotated, Self
 
-from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
-from hatchet_sdk.clients.rest.models.scheduled_workflows_method import (
+from hatchet_sdk.v0.clients.rest.models.api_resource_meta import APIResourceMeta
+from hatchet_sdk.v0.clients.rest.models.scheduled_workflows_method import (
     ScheduledWorkflowsMethod,
 )
-from hatchet_sdk.clients.rest.models.workflow_run_status import WorkflowRunStatus
+from hatchet_sdk.v0.clients.rest.models.workflow_run_status import WorkflowRunStatus
 
 
 class ScheduledWorkflows(BaseModel):

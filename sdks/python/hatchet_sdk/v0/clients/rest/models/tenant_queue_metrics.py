@@ -22,7 +22,7 @@ from typing import Any, ClassVar, Dict, List, Optional, Set
 from pydantic import BaseModel, ConfigDict, Field, StrictInt
 from typing_extensions import Self
 
-from hatchet_sdk.clients.rest.models.queue_metrics import QueueMetrics
+from hatchet_sdk.v0.clients.rest.models.queue_metrics import QueueMetrics
 
 
 class TenantQueueMetrics(BaseModel):

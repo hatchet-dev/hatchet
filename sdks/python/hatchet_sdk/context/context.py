@@ -166,7 +166,9 @@ class Context:
             # we don't want to raise an exception here, as it will kill the log thread
             return False, e
 
-    def log(self, line: Any, raise_on_error: bool = False) -> None:
+    def log(
+        self, line: str | JSONSerializableMapping, raise_on_error: bool = False
+    ) -> None:
         if self.stepRunId == "":
             return
 
