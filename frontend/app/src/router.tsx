@@ -339,45 +339,6 @@ const routes: RouteObject[] = [
       // V1 Routes - These are explicitly listed for IDE support
 
       {
-        path: '/v1/auth',
-        lazy: async () =>
-          import('./pages/auth/no-auth').then((res) => {
-            return {
-              loader: res.loader,
-            };
-          }),
-        children: [
-          {
-            path: '/v1/auth/login',
-            lazy: async () =>
-              import('./pages/auth/login').then((res) => {
-                return {
-                  Component: res.default,
-                };
-              }),
-          },
-          {
-            path: '/v1/auth/register',
-            lazy: async () =>
-              import('./pages/auth/register').then((res) => {
-                return {
-                  Component: res.default,
-                };
-              }),
-          },
-        ],
-      },
-      {
-        path: '/v1/onboarding/verify-email',
-        lazy: async () =>
-          import('./pages/onboarding/verify-email').then((res) => {
-            return {
-              loader: res.loader,
-              Component: res.default,
-            };
-          }),
-      },
-      {
         path: '/v1/',
         lazy: async () =>
           import('./pages/authenticated').then((res) => {
@@ -396,34 +357,6 @@ const routes: RouteObject[] = [
                 },
               };
             },
-          },
-          {
-            path: '/v1/onboarding/create-tenant',
-            lazy: async () =>
-              import('./pages/onboarding/create-tenant').then((res) => {
-                return {
-                  Component: res.default,
-                };
-              }),
-          },
-          {
-            path: '/v1/onboarding/get-started',
-            lazy: async () =>
-              import('./pages/onboarding/get-started').then((res) => {
-                return {
-                  Component: res.default,
-                };
-              }),
-          },
-          {
-            path: '/v1/onboarding/invites',
-            lazy: async () =>
-              import('./pages/onboarding/invites').then((res) => {
-                return {
-                  loader: res.loader,
-                  Component: res.default,
-                };
-              }),
           },
           {
             path: '/v1/',
