@@ -1,5 +1,4 @@
-from datetime import datetime
-from typing import Mapping, Sequence, Type
+from typing import Any, Mapping, Type
 
 from pydantic import BaseModel
 
@@ -9,18 +8,4 @@ class WorkflowValidator(BaseModel):
     step_output: Type[BaseModel] | None = None
 
 
-JSONSerializableMapping = Mapping[
-    str,
-    str
-    | int
-    | float
-    | bool
-    | datetime
-    | None
-    | Sequence[str]
-    | Sequence[int]
-    | Sequence[float]
-    | Sequence[bool]
-    | Sequence[datetime]
-    | Sequence[None],
-]
+JSONSerializableMapping = Mapping[str, Any]

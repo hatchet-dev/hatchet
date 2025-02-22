@@ -3,7 +3,7 @@ import json
 import time
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, AsyncGenerator, Optional, cast
+from typing import AsyncGenerator, Optional, cast
 
 import grpc
 import grpc.aio
@@ -58,10 +58,10 @@ class GetActionListenerRequest:
 class ActionPayload(BaseModel):
     model_config = ConfigDict(extra="allow")
 
-    input: dict[str, Any] = Field(default_factory=dict)
-    parents: dict[str, Any] = Field(default_factory=dict)
-    overrides: dict[str, Any] = Field(default_factory=dict)
-    user_data: dict[str, Any] = Field(default_factory=dict)
+    input: JSONSerializableMapping = Field(default_factory=dict)
+    parents: dict[str, JSONSerializableMapping] = Field(default_factory=dict)
+    overrides: JSONSerializableMapping = Field(default_factory=dict)
+    user_data: JSONSerializableMapping = Field(default_factory=dict)
     step_run_errors: dict[str, str] = Field(default_factory=dict)
     triggered_by: str | None = None
 
