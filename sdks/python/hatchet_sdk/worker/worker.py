@@ -34,6 +34,7 @@ from hatchet_sdk.worker.runner.run_loop_manager import (
 from hatchet_sdk.workflow import BaseWorkflow, Step
 
 T = TypeVar("T")
+TBaseWorkflow = TypeVar("TBaseWorkflow", bound=BaseWorkflow)
 
 
 class WorkerStatus(Enum):
@@ -105,7 +106,7 @@ class Worker:
             logger.error(e)
             sys.exit(1)
 
-    def register_workflow(self, workflow: BaseWorkflow) -> None:
+    def register_workflow(self, workflow: TBaseWorkflow) -> None:
         namespace = self.client.config.namespace
 
         try:
