@@ -59,7 +59,7 @@ class ActionPayload(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     input: JSONSerializableMapping = Field(default_factory=dict)
-    parents: JSONSerializableMapping = Field(default_factory=dict)
+    parents: dict[str, JSONSerializableMapping] = Field(default_factory=dict)
     overrides: JSONSerializableMapping = Field(default_factory=dict)
     user_data: JSONSerializableMapping = Field(default_factory=dict)
     step_run_errors: dict[str, str] = Field(default_factory=dict)
