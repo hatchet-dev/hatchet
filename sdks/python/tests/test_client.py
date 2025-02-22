@@ -1,4 +1,4 @@
-from hatchet_sdk.loader import ClientConfig
+from hatchet_sdk.config import ClientConfig
 
 
 def test_client_initialization_from_defaults() -> None:

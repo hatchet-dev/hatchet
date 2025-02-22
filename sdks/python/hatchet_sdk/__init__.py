@@ -137,7 +137,7 @@ from hatchet_sdk.contracts.workflows_pb2 import (
     WorkerLabelComparator,
 )
 from hatchet_sdk.hatchet import Hatchet
-from hatchet_sdk.loader import ClientConfig
+from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.utils.aio_utils import sync_to_async
 from hatchet_sdk.worker.worker import Worker, WorkerStartOptions, WorkerStatus
 from hatchet_sdk.workflow import (

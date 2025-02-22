@@ -24,7 +24,7 @@ from hatchet_sdk.contracts.workflows_pb2 import (
     WorkflowVersion,
 )
 from hatchet_sdk.contracts.workflows_pb2_grpc import WorkflowServiceStub
-from hatchet_sdk.loader import ClientConfig
+from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.metadata import get_metadata
 from hatchet_sdk.utils.types import JSONSerializableMapping
 from hatchet_sdk.workflow_run import WorkflowRunRef

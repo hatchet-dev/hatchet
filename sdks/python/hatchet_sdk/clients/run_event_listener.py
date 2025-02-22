@@ -15,7 +15,7 @@ from hatchet_sdk.contracts.dispatcher_pb2 import (
     WorkflowEvent,
 )
 from hatchet_sdk.contracts.dispatcher_pb2_grpc import DispatcherStub
-from hatchet_sdk.loader import ClientConfig
+from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.metadata import get_metadata
 
 DEFAULT_ACTION_LISTENER_RETRY_INTERVAL = 5  # seconds

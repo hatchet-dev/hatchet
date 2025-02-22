@@ -27,7 +27,7 @@ from hatchet_sdk.contracts.dispatcher_pb2 import (
     WorkerRegisterResponse,
 )
 from hatchet_sdk.contracts.dispatcher_pb2_grpc import DispatcherStub
-from hatchet_sdk.loader import ClientConfig
+from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.metadata import get_metadata
 
 DEFAULT_REGISTER_TIMEOUT = 30

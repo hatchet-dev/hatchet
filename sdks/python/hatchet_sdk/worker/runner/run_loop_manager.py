@@ -6,7 +6,7 @@ from typing import Any, Literal, TypeVar
 
 from hatchet_sdk.client import Client, new_client_raw
 from hatchet_sdk.clients.dispatcher.action_listener import Action
-from hatchet_sdk.loader import ClientConfig
+from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.logger import logger
 from hatchet_sdk.utils.types import WorkflowValidator
 from hatchet_sdk.worker.action_listener_process import ActionEvent

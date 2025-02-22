@@ -10,7 +10,7 @@ from hatchet_sdk.clients.rest_client import RestApi
 from hatchet_sdk.clients.run_event_listener import RunEventListenerClient
 from hatchet_sdk.clients.workflow_listener import PooledWorkflowRunListener
 from hatchet_sdk.connection import new_conn
-from hatchet_sdk.loader import ClientConfig
+from hatchet_sdk.config import ClientConfig
 
 
 class Client:

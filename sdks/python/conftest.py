@@ -11,7 +11,7 @@ import pytest
 import pytest_asyncio
 
 from hatchet_sdk import ClientConfig, Hatchet
-from hatchet_sdk.loader import ClientTLSConfig
+from hatchet_sdk.config import ClientTLSConfig
 
 
 @pytest.fixture(scope="session", autouse=True)

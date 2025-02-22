@@ -3,7 +3,7 @@ from typing import Literal, cast, overload
 
 import grpc
 
-from hatchet_sdk.loader import ClientConfig
+from hatchet_sdk.config import ClientConfig
 
 
 @overload
