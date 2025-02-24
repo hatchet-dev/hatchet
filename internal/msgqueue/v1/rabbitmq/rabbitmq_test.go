@@ -52,7 +52,7 @@ func TestMessageQueueIntegration(t *testing.T) {
 		}
 	}()
 
-	task, err := msgqueue.NewTenantMessage("test-tenant", id, false, true, map[string]interface{}{"key": "value"})
+	task, err := msgqueue.NewTenantMessage("test-tenant-v1", id, false, true, map[string]interface{}{"key": "value"})
 
 	if err != nil {
 		t.Fatalf("error creating task: %v", err)
@@ -72,7 +72,7 @@ func TestMessageQueueIntegration(t *testing.T) {
 	require.NoError(t, err, "subscribing to static queue should not error")
 
 	// Test tenant registration and queue creation
-	tenantId := "test-tenant"
+	tenantId := "test-tenant-v1"
 	err = tq.RegisterTenant(ctx, tenantId)
 	assert.NoError(t, err, "registering tenant should not error")
 
@@ -159,7 +159,7 @@ func TestBufferedSubMessageQueueIntegration(t *testing.T) {
 		t.Fatalf("error starting buffer: %v", err)
 	}
 
-	task, err := msgqueue.NewTenantMessage("test-tenant", id, false, true, &testMessagePayload{
+	task, err := msgqueue.NewTenantMessage("test-tenant-v1", id, false, true, &testMessagePayload{
 		Key: "value",
 	})
 
@@ -229,7 +229,7 @@ func TestBufferedPubMessageQueueIntegration(t *testing.T) {
 
 	pub := msgqueue.NewMQPubBuffer(tq)
 
-	task, err := msgqueue.NewTenantMessage("test-tenant", id, false, true, &testMessagePayload{
+	task, err := msgqueue.NewTenantMessage("test-tenant-v1", id, false, true, &testMessagePayload{
 		Key: "value",
 	})
 
@@ -286,7 +286,7 @@ func TestDeadLetteringSuccess(t *testing.T) {
 		}
 	}()
 
-	task, err := msgqueue.NewTenantMessage("test-tenant", id, false, true, &testMessagePayload{
+	task, err := msgqueue.NewTenantMessage("test-tenant-v1", id, false, true, &testMessagePayload{
 		Key: "value",
 	})
 
@@ -357,7 +357,7 @@ func TestDeadLetteringExceedRetriesFailure(t *testing.T) {
 		}
 	}()
 
-	task, err := msgqueue.NewTenantMessage("test-tenant", id, false, true, &testMessagePayload{
+	task, err := msgqueue.NewTenantMessage("test-tenant-v1", id, false, true, &testMessagePayload{
 		Key: "value",
 	})
 
