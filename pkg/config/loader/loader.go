@@ -41,6 +41,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
 	postgresdb "github.com/hatchet-dev/hatchet/pkg/repository/postgres"
 	v0 "github.com/hatchet-dev/hatchet/pkg/scheduling/v0"
+	v1 "github.com/hatchet-dev/hatchet/pkg/scheduling/v1"
 	"github.com/hatchet-dev/hatchet/pkg/security"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 
@@ -510,11 +511,25 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		return nil, nil, fmt.Errorf("could not create scheduling pool: %w", err)
 	}
 
+	schedulingPoolV1, cleanupSchedulingPoolV1, err := v1.NewSchedulingPool(
+		dc.V1.Scheduler(),
+		&queueLogger,
+		cf.Runtime.SingleQueueLimit,
+	)
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not create scheduling pool (v1): %w", err)
+	}
+
 	cleanup = func() error {
 		log.Printf("cleaning up server config")
 
 		if err := cleanupSchedulingPool(); err != nil {
 			return fmt.Errorf("error cleaning up scheduling pool: %w", err)
+		}
+
+		if err := cleanupSchedulingPoolV1(); err != nil {
+			return fmt.Errorf("error cleaning up scheduling pool (v1): %w", err)
 		}
 
 		if err := cleanup1(); err != nil {
@@ -559,6 +574,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		EnableDataRetention:    cf.EnableDataRetention,
 		EnableWorkerRetention:  cf.EnableWorkerRetention,
 		SchedulingPool:         schedulingPool,
+		SchedulingPoolV1:       schedulingPoolV1,
 		Version:                version,
 	}, nil
 }

@@ -34,10 +34,6 @@ type Queue interface {
 type staticQueue string
 
 const (
-	EVENT_PROCESSING_QUEUE    staticQueue = "event_processing_queue_v2"
-	JOB_PROCESSING_QUEUE      staticQueue = "job_processing_queue_v2"
-	WORKFLOW_PROCESSING_QUEUE staticQueue = "workflow_processing_queue_v2"
-
 	TASK_PROCESSING_QUEUE staticQueue = "task_processing_queue_v2"
 	OLAP_QUEUE            staticQueue = "olap_queue_v2"
 )
@@ -106,13 +102,11 @@ func QueueTypeFromTickerID(t string) consumerQueue {
 }
 
 const (
-	JobController      = "job"
-	WorkflowController = "workflow"
-	Scheduler          = "scheduler"
+	Scheduler = "scheduler"
 )
 
 func QueueTypeFromPartitionIDAndController(p, controller string) consumerQueue {
-	return consumerQueue(fmt.Sprintf("%s_%s", p, controller))
+	return consumerQueue(fmt.Sprintf("%s_%s_v1", p, controller))
 }
 
 type fanoutQueue struct {

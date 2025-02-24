@@ -134,24 +134,6 @@ func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl) {
 
 	defer poolCh.Release()
 
-	if _, err := t.initQueue(ch, msgqueue.EVENT_PROCESSING_QUEUE); err != nil {
-		t.l.Debug().Msgf("error initializing queue: %v", err)
-		cancel()
-		return nil, nil
-	}
-
-	if _, err := t.initQueue(ch, msgqueue.JOB_PROCESSING_QUEUE); err != nil {
-		t.l.Debug().Msgf("error initializing queue: %v", err)
-		cancel()
-		return nil, nil
-	}
-
-	if _, err := t.initQueue(ch, msgqueue.WORKFLOW_PROCESSING_QUEUE); err != nil {
-		t.l.Debug().Msgf("error initializing queue: %v", err)
-		cancel()
-		return nil, nil
-	}
-
 	if _, err := t.initQueue(ch, msgqueue.TASK_PROCESSING_QUEUE); err != nil {
 		t.l.Debug().Msgf("error initializing queue: %v", err)
 		cancel()
