@@ -116,6 +116,8 @@ func RunMigrations(ctx context.Context) {
 			log.Fatalf("goose: error checking atlas_schema_revisions existence: %v", err)
 		}
 
+		fmt.Printf("Does existing atlas schema exist? %v\n", atlasExists)
+
 		// 2. If it does, check for the latest migration in the atlas schema.
 		if atlasExists {
 			var version string
@@ -123,6 +125,7 @@ func RunMigrations(ctx context.Context) {
 			err = conn.QueryRowContext(ctx, atlasLatestQuery).Scan(&version)
 			if err == nil {
 				baseline = version
+				fmt.Printf("Baseline version from atlas: %s\n", baseline)
 			}
 		}
 
@@ -135,6 +138,8 @@ func RunMigrations(ctx context.Context) {
 				log.Fatalf("goose: error checking _prisma_migrations existence: %v", err)
 			}
 
+			fmt.Printf("Does existing prisma schema exist? %v\n", prismaExists)
+
 			// 4. If it does, check for the latest migration in the prisma schema.
 			if prismaExists {
 				var migrationName string
@@ -142,6 +147,7 @@ func RunMigrations(ctx context.Context) {
 				err = conn.QueryRowContext(ctx, prismaLatestQuery).Scan(&migrationName)
 				if err == nil {
 					baseline = migrationName
+					fmt.Printf("Baseline version from prisma: %s\n", baseline)
 				}
 			}
 		}
@@ -167,12 +173,13 @@ func RunMigrations(ctx context.Context) {
 					continue
 				}
 				name := entry.Name()
-				parts := strings.SplitN(name, "__", 2)
-				if len(parts) != 2 {
+				parts := strings.SplitN(name, "_", 2)
+				if len(parts) < 2 {
 					continue
 				}
 				version := parts[0]
 				if version <= baseline {
+					fmt.Printf("Including version %s from %s\n", version, name)
 					migrations = append(migrations, migration{version: version, filename: name})
 				}
 			}
