@@ -41,7 +41,7 @@ jobs:
         run: poetry run mypy --config-file=pyproject.toml
 
       - name: Run Ruff
-        run: poetry run ruff .
+        run: poetry run ruff check .
 
   test:
     runs-on: ubuntu-latest
