@@ -1648,14 +1648,6 @@ export interface WorkflowVersionDefinition {
   rawDefinition: string;
 }
 
-export enum V1TaskRunStatus {
-  PENDING = 'PENDING',
-  RUNNING = 'RUNNING',
-  COMPLETED = 'COMPLETED',
-  FAILED = 'FAILED',
-  CANCELLED = 'CANCELLED',
-}
-
 export interface CreatePullRequestFromStepRun {
   branchName: string;
 }
@@ -1692,6 +1684,14 @@ export interface ListPullRequestsResponse {
 
 export interface WebhookWorkerCreateResponse {
   worker?: WebhookWorkerCreated;
+}
+
+export enum V1TaskRunStatus {
+  PENDING = 'PENDING',
+  RUNNING = 'RUNNING',
+  COMPLETED = 'COMPLETED',
+  FAILED = 'FAILED',
+  CANCELLED = 'CANCELLED',
 }
 
 export type BulkCreateEventResponse = Events;
