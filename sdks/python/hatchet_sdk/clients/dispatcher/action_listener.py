@@ -29,6 +29,7 @@ from hatchet_sdk.contracts.dispatcher_pb2_grpc import DispatcherStub
 from hatchet_sdk.logger import logger
 from hatchet_sdk.metadata import get_metadata
 from hatchet_sdk.utils.backoff import exp_backoff_sleep
+from hatchet_sdk.utils.proto_enums import convert_proto_enum_to_python
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 DEFAULT_ACTION_TIMEOUT = 600  # seconds
@@ -70,16 +71,6 @@ class ActionType(str, Enum):
     START_STEP_RUN = "START_STEP_RUN"
     CANCEL_STEP_RUN = "CANCEL_STEP_RUN"
     START_GET_GROUP_KEY = "START_GET_GROUP_KEY"
-
-
-def action_type_proto_to_enum(action_type: ActionTypeProto) -> ActionType:
-    name = ActionTypeProto.Name(action_type)
-    names = [item.name for item in ActionTypeProto.DESCRIPTOR.values]
-
-    try:
-        return ActionType[name]
-    except Exception:
-        raise ValueError(f"Action type must be one of {names}. Got: {action_type}")
 
 
 class Action(BaseModel):
@@ -312,8 +303,10 @@ class ActionListener:
                         step_run_id=assigned_action.stepRunId,
                         action_id=assigned_action.actionId,
                         action_payload=ActionPayload.model_validate(action_payload),
-                        action_type=action_type_proto_to_enum(
-                            assigned_action.actionType
+                        action_type=convert_proto_enum_to_python(
+                            assigned_action.actionType,
+                            ActionType,
+                            ActionTypeProto,
                         ),
                         retry_count=assigned_action.retryCount,
                         additional_metadata=parse_additional_metadata(

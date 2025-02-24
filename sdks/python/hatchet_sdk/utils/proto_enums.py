@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Type, TypeVar
+from typing import Type, TypeVar, overload
 
 from google.protobuf.internal.enum_type_wrapper import EnumTypeWrapper
 
@@ -10,8 +10,11 @@ TPythonEnum = TypeVar("TPythonEnum", bound=Enum)
 
 
 def convert_python_enum_to_proto(
-    value: TPythonEnum, proto_enum: TProtoEnum
+    value: TPythonEnum | None, proto_enum: TProtoEnum
 ) -> int | None:
+    if not value:
+        return None
+
     names = [item.name for item in proto_enum.DESCRIPTOR.values]
 
     for name in names:
@@ -21,7 +24,24 @@ def convert_python_enum_to_proto(
     raise ValueError(f"Value must be one of {names}. Got: {value}")
 
 
+@overload
 def convert_proto_enum_to_python(
     value: TProtoEnumValue, python_enum_class: Type[TPythonEnum], proto_enum: TProtoEnum
-) -> TPythonEnum:
+) -> TPythonEnum: ...
+
+
+@overload
+def convert_proto_enum_to_python(
+    value: None, python_enum_class: Type[TPythonEnum], proto_enum: TProtoEnum
+) -> None: ...
+
+
+def convert_proto_enum_to_python(
+    value: TProtoEnumValue | None,
+    python_enum_class: Type[TPythonEnum],
+    proto_enum: TProtoEnum,
+) -> TPythonEnum | None:
+    if not value:
+        return None
+
     return python_enum_class[proto_enum.Name(value)]
