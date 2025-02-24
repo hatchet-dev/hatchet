@@ -1,3 +1,4 @@
+-- TMP
 -- +goose Up
 -- +goose StatementBegin
 -- Create enum type "TenantMajorEngineVersion"
