@@ -5,8 +5,8 @@ ARG HATCHET_ADMIN_IMAGE
 
 # Stage 1: copy from the existing Go built image
 FROM $HATCHET_LITE_IMAGE as lite-binary-base
-
 FROM $HATCHET_ADMIN_IMAGE as admin-binary-base
+FROM $HATCHET_MIGRATE_IMAGE as migrate-binary-base
 
 # Stage 2: build the frontend
 FROM node:18-alpine as frontend-build
@@ -30,12 +30,11 @@ RUN curl -sSf https://atlasgo.sh | sh
 
 COPY --from=lite-binary-base /hatchet/hatchet-lite ./hatchet-lite
 COPY --from=admin-binary-base /hatchet/hatchet-admin ./hatchet-admin
+COPY --from=migrate-binary-base /hatchet/hatchet-migrate ./hatchet-migrate
 COPY --from=frontend-build /app/dist ./static-assets
 
 # Copy entrypoint script
-COPY ./hack/db/atlas-apply.sh ./atlas-apply.sh
 COPY ./hack/lite/start.sh ./entrypoint.sh
-COPY ./sql/migrations ./sql/migrations
 
 ENV LITE_STATIC_ASSET_DIR=/static-assets
 ENV LITE_FRONTEND_PORT=8081
@@ -43,7 +42,6 @@ ENV LITE_RUNTIME_PORT=8888
 
 # Make entrypoint script executable
 RUN chmod +x ./entrypoint.sh
-RUN chmod +x ./atlas-apply.sh
 
 EXPOSE 8888 7070
 
