@@ -86,7 +86,7 @@ func TestLeaseManager_AcquireQueueLeases(t *testing.T) {
 		tenantId: tenantId,
 	}
 
-	mockQueues := []*sqlcv1.Queue{
+	mockQueues := []*sqlcv1.V1Queue{
 		{Name: "queue-1"},
 		{Name: "queue-2"},
 	}

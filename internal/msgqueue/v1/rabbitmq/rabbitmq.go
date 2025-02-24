@@ -485,92 +485,86 @@ func (t *MessageQueueImpl) subscribe(
 			return err
 		}
 
-	inner:
-		for {
-			select {
-			case <-ctx.Done():
-				return nil
-			case rabbitMsg, ok := <-deliveries:
-				if !ok {
-					t.l.Info().Msg("deliveries channel closed")
-					break inner
+		wg.Add(1) // we add an extra delta for the deliveries channel to be closed
+
+		for rabbitMsg := range deliveries {
+			wg.Add(1)
+
+			go func(rabbitMsg amqp.Delivery) {
+				defer wg.Done()
+
+				msg := &msgqueue.Message{}
+
+				if len(rabbitMsg.Body) == 0 {
+					t.l.Error().Msgf("empty message body for message: %s", rabbitMsg.MessageId)
+
+					// reject this message
+					if err := rabbitMsg.Reject(false); err != nil {
+						t.l.Error().Msgf("error rejecting message: %v", err)
+					}
+
+					return
 				}
 
-				wg.Add(1)
+				if err := json.Unmarshal(rabbitMsg.Body, msg); err != nil {
+					t.l.Error().Msgf("error unmarshalling message: %v", err)
 
-				go func(rabbitMsg amqp.Delivery) {
-					defer wg.Done()
+					// reject this message
+					if err := rabbitMsg.Reject(false); err != nil {
+						t.l.Error().Msgf("error rejecting message: %v", err)
+					}
 
-					msg := &msgqueue.Message{}
+					return
+				}
 
-					if len(rabbitMsg.Body) == 0 {
-						t.l.Error().Msgf("empty message body for message: %s", rabbitMsg.MessageId)
+				// determine if we've hit the max number of retries
+				xDeath, exists := rabbitMsg.Headers["x-death"].([]interface{})
 
-						// reject this message
-						if err := rabbitMsg.Reject(false); err != nil {
-							t.l.Error().Msgf("error rejecting message: %v", err)
+				if exists {
+					// message was rejected before
+					deathCount := xDeath[0].(amqp.Table)["count"].(int64)
+
+					t.l.Debug().Msgf("message has been rejected %d times", deathCount)
+
+					if deathCount > int64(msg.Retries) {
+						t.l.Debug().Msgf("message has been rejected %d times, not requeuing", deathCount)
+
+						// acknowledge so it's removed from the queue
+						if err := rabbitMsg.Ack(false); err != nil {
+							t.l.Error().Msgf("error acknowledging message: %v", err)
 						}
 
 						return
 					}
+				}
 
-					if err := json.Unmarshal(rabbitMsg.Body, msg); err != nil {
-						t.l.Error().Msgf("error unmarshalling message: %v", err)
+				t.l.Debug().Msgf("(session: %d) got msg", sessionCount)
 
-						// reject this message
-						if err := rabbitMsg.Reject(false); err != nil {
-							t.l.Error().Msgf("error rejecting message: %v", err)
-						}
+				if err := preAck(msg); err != nil {
+					t.l.Error().Msgf("error in pre-ack: %v", err)
 
-						return
+					// nack the message
+					if err := rabbitMsg.Reject(false); err != nil {
+						t.l.Error().Msgf("error rejecting message: %v", err)
 					}
 
-					// determine if we've hit the max number of retries
-					xDeath, exists := rabbitMsg.Headers["x-death"].([]interface{})
+					return
+				}
 
-					if exists {
-						// message was rejected before
-						deathCount := xDeath[0].(amqp.Table)["count"].(int64)
+				if err := sub.Ack(rabbitMsg.DeliveryTag, false); err != nil {
+					t.l.Error().Msgf("error acknowledging message: %v", err)
+					return
+				}
 
-						t.l.Debug().Msgf("message has been rejected %d times", deathCount)
-
-						if deathCount > int64(msg.Retries) {
-							t.l.Debug().Msgf("message has been rejected %d times, not requeuing", deathCount)
-
-							// acknowledge so it's removed from the queue
-							if err := rabbitMsg.Ack(false); err != nil {
-								t.l.Error().Msgf("error acknowledging message: %v", err)
-							}
-
-							return
-						}
-					}
-
-					t.l.Debug().Msgf("(session: %d) got msg", sessionCount)
-
-					if err := preAck(msg); err != nil {
-						t.l.Error().Msgf("error in pre-ack: %v", err)
-
-						// nack the message
-						if err := rabbitMsg.Reject(false); err != nil {
-							t.l.Error().Msgf("error rejecting message: %v", err)
-						}
-
-						return
-					}
-
-					if err := sub.Ack(rabbitMsg.DeliveryTag, false); err != nil {
-						t.l.Error().Msgf("error acknowledging message: %v", err)
-						return
-					}
-
-					if err := postAck(msg); err != nil {
-						t.l.Error().Msgf("error in post-ack: %v", err)
-						return
-					}
-				}(rabbitMsg)
-			}
+				if err := postAck(msg); err != nil {
+					t.l.Error().Msgf("error in post-ack: %v", err)
+					return
+				}
+			}(rabbitMsg)
 		}
+
+		wg.Done()
+		t.l.Info().Msg("deliveries channel closed")
 
 		return nil
 	}
