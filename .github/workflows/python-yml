@@ -1,5 +1,7 @@
 name: python
 on: [pull_request]
+paths:
+  - 'sdks/python/*'
 
 jobs:
   lint:
