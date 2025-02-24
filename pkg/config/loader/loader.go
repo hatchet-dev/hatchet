@@ -43,6 +43,8 @@ import (
 	v2 "github.com/hatchet-dev/hatchet/pkg/scheduling/v2"
 	"github.com/hatchet-dev/hatchet/pkg/security"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
+
+	repov1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 )
 
 // LoadDatabaseConfigFile loads the database config file via viper
@@ -219,6 +221,7 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		APIRepository:         apiRepo,
 		EngineRepository:      engineRepo,
 		EntitlementRepository: entitlementRepo,
+		V1:                    repov1.NewRepository(pool, &l),
 		Seed:                  cf.Seed,
 	}, nil
 

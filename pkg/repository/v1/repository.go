@@ -11,6 +11,7 @@ type Repository interface {
 	Tasks() TaskRepository
 	Scheduler() SchedulerRepository
 	Matches() MatchRepository
+	OLAP() OLAPRepository
 }
 
 type repositoryImpl struct {
@@ -18,6 +19,7 @@ type repositoryImpl struct {
 	tasks     TaskRepository
 	scheduler SchedulerRepository
 	matches   MatchRepository
+	olap      OLAPRepository
 }
 
 func NewRepository(pool *pgxpool.Pool, l *zerolog.Logger) Repository {
@@ -36,6 +38,7 @@ func NewRepository(pool *pgxpool.Pool, l *zerolog.Logger) Repository {
 		tasks:     newTaskRepository(shared),
 		scheduler: newSchedulerRepository(shared),
 		matches:   matchRepo,
+		olap:      newOLAPRepository(shared),
 	}
 
 	return impl
@@ -55,4 +58,8 @@ func (r *repositoryImpl) Scheduler() SchedulerRepository {
 
 func (r *repositoryImpl) Matches() MatchRepository {
 	return r.matches
+}
+
+func (r *repositoryImpl) OLAP() OLAPRepository {
+	return r.olap
 }

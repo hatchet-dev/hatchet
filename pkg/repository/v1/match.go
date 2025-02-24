@@ -30,7 +30,7 @@ type CandidateEventMatch struct {
 }
 
 type CreateMatchOpts struct {
-	Kind sqlcv1.V2MatchKind
+	Kind sqlcv1.V1MatchKind
 
 	Conditions []GroupMatchCondition
 
@@ -49,19 +49,19 @@ type CreateMatchOpts struct {
 
 type InternalEventMatchResults struct {
 	// The list of tasks which were created from the matches
-	CreatedTasks []*sqlcv1.V2Task
+	CreatedTasks []*sqlcv1.V1Task
 }
 
 type GroupMatchCondition struct {
 	GroupId string `validate:"required,uuid"`
 
-	EventType sqlcv1.V2EventType
+	EventType sqlcv1.V1EventType
 
 	EventKey string
 
 	Expression string
 
-	Action sqlcv1.V2MatchConditionAction
+	Action sqlcv1.V1MatchConditionAction
 }
 
 type MatchRepository interface {
@@ -118,7 +118,7 @@ func (m *MatchRepositoryImpl) ProcessInternalEventMatches(ctx context.Context, t
 		m.pool,
 		sqlcv1.ListMatchConditionsForEventParams{
 			Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
-			Eventtype: sqlcv1.V2EventTypeINTERNAL,
+			Eventtype: sqlcv1.V1EventTypeINTERNAL,
 			Eventkeys: eventKeys,
 		},
 	)
@@ -151,7 +151,7 @@ func (m *MatchRepositoryImpl) ProcessInternalEventMatches(ctx context.Context, t
 				continue
 			}
 
-			matchIds = append(matchIds, condition.V2MatchID)
+			matchIds = append(matchIds, condition.V1MatchID)
 			conditionIds = append(conditionIds, condition.ID)
 			datas = append(datas, event.Data)
 		}
@@ -211,7 +211,7 @@ func (m *MatchRepositoryImpl) ProcessInternalEventMatches(ctx context.Context, t
 		}
 	}
 
-	tasks := make([]*sqlcv1.V2Task, 0)
+	tasks := make([]*sqlcv1.V1Task, 0)
 
 	if len(dagIds) > 0 {
 		dagInputDatas, err := m.queries.GetDAGData(ctx, tx, sqlcv1.GetDAGDataParams{
@@ -256,13 +256,13 @@ func (m *MatchRepositoryImpl) ProcessInternalEventMatches(ctx context.Context, t
 				}
 
 				switch *action {
-				case sqlcv1.V2MatchConditionActionCREATE:
+				case sqlcv1.V1MatchConditionActionCREATE:
 					opt.Input = m.newTaskInput(input, data)
-					opt.InitialState = sqlcv1.V2TaskInitialStateQUEUED
-				case sqlcv1.V2MatchConditionActionCANCEL:
-					opt.InitialState = sqlcv1.V2TaskInitialStateCANCELLED
-				case sqlcv1.V2MatchConditionActionSKIP:
-					opt.InitialState = sqlcv1.V2TaskInitialStateSKIPPED
+					opt.InitialState = sqlcv1.V1TaskInitialStateQUEUED
+				case sqlcv1.V1MatchConditionActionCANCEL:
+					opt.InitialState = sqlcv1.V1TaskInitialStateCANCELLED
+				case sqlcv1.V1MatchConditionActionSKIP:
+					opt.InitialState = sqlcv1.V1TaskInitialStateSKIPPED
 				}
 
 				if match.TriggerDagID.Valid && match.TriggerDagInsertedAt.Valid {
@@ -280,11 +280,9 @@ func (m *MatchRepositoryImpl) ProcessInternalEventMatches(ctx context.Context, t
 		if err != nil {
 			return nil, err
 		}
-
-		for _, task := range tasks {
-			res.CreatedTasks = append(res.CreatedTasks, task)
-		}
 	}
+
+	res.CreatedTasks = tasks
 
 	if len(signalIds) > 0 {
 		// create a SIGNAL_COMPLETED event for any signal
@@ -303,7 +301,7 @@ func (m *MatchRepositoryImpl) ProcessInternalEventMatches(ctx context.Context, t
 			}
 		}
 
-		err = m.createTaskEvents(ctx, tx, tenantId, taskIds, datas, sqlcv1.V2TaskEventTypeSIGNALCOMPLETED, eventKeys)
+		err = m.createTaskEvents(ctx, tx, tenantId, taskIds, datas, sqlcv1.V1TaskEventTypeSIGNALCOMPLETED, eventKeys)
 
 		if err != nil {
 			return nil, err
@@ -362,7 +360,7 @@ func (m *MatchRepositoryImpl) processCELExpressions(ctx context.Context, events 
 		}
 
 		for conditionId, program := range programs {
-			out, _, err := program.Eval(map[string]interface{}{
+			out, _, err := program.ContextEval(ctx, map[string]interface{}{
 				"input": inputData,
 			})
 
@@ -410,7 +408,7 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 		}
 	}
 
-	var createdMatches []*sqlcv1.V2Match
+	var createdMatches []*sqlcv1.V1Match
 
 	if len(dagTenantIds) > 0 {
 		dagCreatedMatches, err := m.queries.CreateMatchesForDAGTriggers(
@@ -464,7 +462,7 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 
 		for _, condition := range match.Conditions {
 			params = append(params, sqlcv1.CreateMatchConditionsParams{
-				V2MatchID:  createdMatch.ID,
+				V1MatchID:  createdMatch.ID,
 				TenantID:   sqlchelpers.UUIDFromStr(tenantId),
 				EventType:  condition.EventType,
 				EventKey:   condition.EventKey,

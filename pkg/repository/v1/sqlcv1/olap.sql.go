@@ -24,8 +24,8 @@ type CreateDAGsOLAPParams struct {
 }
 
 const createOLAPDAGPartition = `-- name: CreateOLAPDAGPartition :exec
-SELECT create_v2_olap_partition_with_date_and_status(
-    'v2_dags_olap'::text,
+SELECT create_v1_olap_partition_with_date_and_status(
+    'v1_dags_olap'::text,
     $1::date
 )
 `
@@ -36,8 +36,8 @@ func (q *Queries) CreateOLAPDAGPartition(ctx context.Context, db DBTX, date pgty
 }
 
 const createOLAPRunsPartition = `-- name: CreateOLAPRunsPartition :exec
-SELECT create_v2_olap_partition_with_date_and_status(
-    'v2_runs_olap'::text,
+SELECT create_v1_olap_partition_with_date_and_status(
+    'v1_runs_olap'::text,
     $1::date
 )
 `
@@ -48,8 +48,8 @@ func (q *Queries) CreateOLAPRunsPartition(ctx context.Context, db DBTX, date pgt
 }
 
 const createOLAPTaskEventTmpPartitions = `-- name: CreateOLAPTaskEventTmpPartitions :exec
-SELECT create_v2_hash_partitions(
-    'v2_task_events_olap_tmp'::text,
+SELECT create_v1_hash_partitions(
+    'v1_task_events_olap_tmp'::text,
     $1::int
 )
 `
@@ -60,8 +60,8 @@ func (q *Queries) CreateOLAPTaskEventTmpPartitions(ctx context.Context, db DBTX,
 }
 
 const createOLAPTaskPartition = `-- name: CreateOLAPTaskPartition :exec
-SELECT create_v2_olap_partition_with_date_and_status(
-    'v2_tasks_olap'::text,
+SELECT create_v1_olap_partition_with_date_and_status(
+    'v1_tasks_olap'::text,
     $1::date
 )
 `
@@ -72,8 +72,8 @@ func (q *Queries) CreateOLAPTaskPartition(ctx context.Context, db DBTX, date pgt
 }
 
 const createOLAPTaskStatusUpdateTmpPartitions = `-- name: CreateOLAPTaskStatusUpdateTmpPartitions :exec
-SELECT create_v2_hash_partitions(
-    'v2_task_status_updates_tmp'::text,
+SELECT create_v1_hash_partitions(
+    'v1_task_status_updates_tmp'::text,
     $1::int
 )
 `
@@ -87,10 +87,10 @@ type CreateTaskEventsOLAPParams struct {
 	TenantID               pgtype.UUID          `json:"tenant_id"`
 	TaskID                 int64                `json:"task_id"`
 	TaskInsertedAt         pgtype.Timestamptz   `json:"task_inserted_at"`
-	EventType              V2EventTypeOlap      `json:"event_type"`
+	EventType              V1EventTypeOlap      `json:"event_type"`
 	WorkflowID             pgtype.UUID          `json:"workflow_id"`
 	EventTimestamp         pgtype.Timestamptz   `json:"event_timestamp"`
-	ReadableStatus         V2ReadableStatusOlap `json:"readable_status"`
+	ReadableStatus         V1ReadableStatusOlap `json:"readable_status"`
 	RetryCount             int32                `json:"retry_count"`
 	ErrorMessage           pgtype.Text          `json:"error_message"`
 	Output                 []byte               `json:"output"`
@@ -103,8 +103,8 @@ type CreateTaskEventsOLAPTmpParams struct {
 	TenantID       pgtype.UUID          `json:"tenant_id"`
 	TaskID         int64                `json:"task_id"`
 	TaskInsertedAt pgtype.Timestamptz   `json:"task_inserted_at"`
-	EventType      V2EventTypeOlap      `json:"event_type"`
-	ReadableStatus V2ReadableStatusOlap `json:"readable_status"`
+	EventType      V1EventTypeOlap      `json:"event_type"`
+	ReadableStatus V1ReadableStatusOlap `json:"readable_status"`
 	RetryCount     int32                `json:"retry_count"`
 	WorkerID       pgtype.UUID          `json:"worker_id"`
 }
@@ -120,7 +120,7 @@ type CreateTasksOLAPParams struct {
 	ScheduleTimeout    string               `json:"schedule_timeout"`
 	StepTimeout        pgtype.Text          `json:"step_timeout"`
 	Priority           pgtype.Int4          `json:"priority"`
-	Sticky             V2StickyStrategyOlap `json:"sticky"`
+	Sticky             V1StickyStrategyOlap `json:"sticky"`
 	DesiredWorkerID    pgtype.UUID          `json:"desired_worker_id"`
 	ExternalID         pgtype.UUID          `json:"external_id"`
 	DisplayName        string               `json:"display_name"`
@@ -140,7 +140,7 @@ SELECT
     COUNT(*) FILTER (WHERE readable_status = 'COMPLETED') AS completed_count,
     COUNT(*) FILTER (WHERE readable_status = 'FAILED') AS failed_count
 FROM
-    v2_task_events_olap
+    v1_task_events_olap
 WHERE
     tenant_id = $2::UUID
     AND task_inserted_at BETWEEN $3::TIMESTAMPTZ AND $4::TIMESTAMPTZ
@@ -200,7 +200,7 @@ SELECT
     COUNT(*) FILTER (WHERE readable_status = 'COMPLETED') AS total_completed,
     COUNT(*) FILTER (WHERE readable_status = 'CANCELLED') AS total_cancelled,
     COUNT(*) FILTER (WHERE readable_status = 'FAILED') AS total_failed
-FROM v2_statuses_olap
+FROM v1_statuses_olap
 WHERE
     tenant_id = $1::UUID
     AND inserted_at >= $2::TIMESTAMPTZ
@@ -246,7 +246,7 @@ func (q *Queries) GetTenantStatusMetrics(ctx context.Context, db DBTX, arg GetTe
 
 const getWorkflowRunIdFromDagIdInsertedAt = `-- name: GetWorkflowRunIdFromDagIdInsertedAt :one
 SELECT external_id
-FROM v2_dags_olap
+FROM v1_dags_olap
 WHERE
     id = $1::bigint
     AND inserted_at = $2::timestamptz
@@ -268,8 +268,8 @@ const listOLAPDAGPartitionsBeforeDate = `-- name: ListOLAPDAGPartitionsBeforeDat
 SELECT
     p::text AS partition_name
 FROM
-    get_v2_partitions_before_date(
-        'v2_dags_olap'::text,
+    get_v1_partitions_before_date(
+        'v1_dags_olap'::text,
         $1::date
     ) AS p
 `
@@ -298,8 +298,8 @@ const listOLAPRunsPartitionsBeforeDate = `-- name: ListOLAPRunsPartitionsBeforeD
 SELECT
     p::text AS partition_name
 FROM
-    get_v2_partitions_before_date(
-        'v2_runs_olap'::text,
+    get_v1_partitions_before_date(
+        'v1_runs_olap'::text,
         $1::date
     ) AS p
 `
@@ -328,8 +328,8 @@ const listOLAPTaskPartitionsBeforeDate = `-- name: ListOLAPTaskPartitionsBeforeD
 SELECT
     p::text AS partition_name
 FROM
-    get_v2_partitions_before_date(
-        'v2_tasks_olap'::text,
+    get_v1_partitions_before_date(
+        'v1_tasks_olap'::text,
         $1::date
     ) AS p
 `
@@ -366,7 +366,7 @@ WITH aggregated_events AS (
     MAX(event_timestamp) AS time_last_seen,
     COUNT(*) AS count,
     MIN(id) AS first_id
-  FROM v2_task_events_olap
+  FROM v1_task_events_olap
   WHERE
     tenant_id = $1::uuid
     AND task_id = $2::bigint
@@ -391,7 +391,7 @@ SELECT
   t.additional__event_data,
   t.additional__event_message
 FROM aggregated_events a
-JOIN v2_task_events_olap t
+JOIN v1_task_events_olap t
   ON t.tenant_id = a.tenant_id
   AND t.task_id = a.task_id
   AND t.task_inserted_at = a.task_inserted_at
@@ -410,13 +410,13 @@ type ListTaskEventsRow struct {
 	TaskID                 int64                `json:"task_id"`
 	TaskInsertedAt         pgtype.Timestamptz   `json:"task_inserted_at"`
 	RetryCount             int32                `json:"retry_count"`
-	EventType              V2EventTypeOlap      `json:"event_type"`
+	EventType              V1EventTypeOlap      `json:"event_type"`
 	TimeFirstSeen          interface{}          `json:"time_first_seen"`
 	TimeLastSeen           interface{}          `json:"time_last_seen"`
 	Count                  int64                `json:"count"`
 	ID                     int64                `json:"id"`
 	EventTimestamp         pgtype.Timestamptz   `json:"event_timestamp"`
-	ReadableStatus         V2ReadableStatusOlap `json:"readable_status"`
+	ReadableStatus         V1ReadableStatusOlap `json:"readable_status"`
 	ErrorMessage           pgtype.Text          `json:"error_message"`
 	Output                 []byte               `json:"output"`
 	WorkerID               pgtype.UUID          `json:"worker_id"`
@@ -464,8 +464,8 @@ func (q *Queries) ListTaskEvents(ctx context.Context, db DBTX, arg ListTaskEvent
 const listTaskEventsForWorkflowRun = `-- name: ListTaskEventsForWorkflowRun :many
 WITH tasks AS (
     SELECT dt.task_id
-    FROM v2_lookup_table lt
-    JOIN v2_dag_to_task_olap dt ON lt.dag_id = dt.dag_id
+    FROM v1_lookup_table lt
+    JOIN v1_dag_to_task_olap dt ON lt.dag_id = dt.dag_id
     WHERE
         lt.external_id = $1::uuid
         AND lt.tenant_id = $2::uuid
@@ -480,7 +480,7 @@ WITH tasks AS (
     MAX(event_timestamp)::timestamptz AS time_last_seen,
     COUNT(*) AS count,
     MIN(id) AS first_id
-  FROM v2_task_events_olap
+  FROM v1_task_events_olap
   WHERE
     tenant_id = $2::uuid
     AND task_id IN (SELECT task_id FROM tasks)
@@ -506,12 +506,12 @@ SELECT
   tsk.display_name,
   tsk.external_id AS task_external_id
 FROM aggregated_events a
-JOIN v2_task_events_olap t
+JOIN v1_task_events_olap t
   ON t.tenant_id = a.tenant_id
   AND t.task_id = a.task_id
   AND t.task_inserted_at = a.task_inserted_at
   AND t.id = a.first_id
-JOIN v2_tasks_olap tsk
+JOIN v1_tasks_olap tsk
     ON (tsk.tenant_id, tsk.id, tsk.inserted_at) = (t.tenant_id, t.task_id, t.task_inserted_at)
 ORDER BY a.time_first_seen DESC, t.event_timestamp DESC
 `
@@ -526,13 +526,13 @@ type ListTaskEventsForWorkflowRunRow struct {
 	TaskID                 int64                `json:"task_id"`
 	TaskInsertedAt         pgtype.Timestamptz   `json:"task_inserted_at"`
 	RetryCount             int32                `json:"retry_count"`
-	EventType              V2EventTypeOlap      `json:"event_type"`
+	EventType              V1EventTypeOlap      `json:"event_type"`
 	TimeFirstSeen          pgtype.Timestamptz   `json:"time_first_seen"`
 	TimeLastSeen           pgtype.Timestamptz   `json:"time_last_seen"`
 	Count                  int64                `json:"count"`
 	ID                     int64                `json:"id"`
 	EventTimestamp         pgtype.Timestamptz   `json:"event_timestamp"`
-	ReadableStatus         V2ReadableStatusOlap `json:"readable_status"`
+	ReadableStatus         V1ReadableStatusOlap `json:"readable_status"`
 	ErrorMessage           pgtype.Text          `json:"error_message"`
 	Output                 []byte               `json:"output"`
 	WorkerID               pgtype.UUID          `json:"worker_id"`
@@ -586,9 +586,9 @@ SELECT
     dt.dag_id, dt.dag_inserted_at, dt.task_id, dt.task_inserted_at,
     lt.external_id AS dag_external_id
 FROM
-    v2_lookup_table lt
+    v1_lookup_table lt
 JOIN
-    v2_dag_to_task_olap dt ON lt.dag_id = dt.dag_id
+    v1_dag_to_task_olap dt ON lt.dag_id = dt.dag_id
 WHERE
     lt.external_id = ANY($1::uuid[])
     AND tenant_id = $2::uuid
@@ -639,7 +639,7 @@ SELECT
     task_id,
     inserted_at
 FROM
-    v2_lookup_table
+    v1_lookup_table
 WHERE
     external_id = ANY($1::uuid[])
     AND tenant_id = $2::uuid
@@ -695,8 +695,8 @@ WITH input AS (
         d.input,
         d.additional_metadata,
         d.workflow_version_id
-    FROM v2_runs_olap r
-    JOIN v2_dags_olap d ON (r.tenant_id, r.external_id, r.inserted_at) = (d.tenant_id, d.external_id, d.inserted_at)
+    FROM v1_runs_olap r
+    JOIN v1_dags_olap d ON (r.tenant_id, r.external_id, r.inserted_at) = (d.tenant_id, d.external_id, d.inserted_at)
     WHERE
         (r.inserted_at, r.id) IN (SELECT inserted_at, id FROM input)
         AND r.tenant_id = $3::uuid
@@ -706,8 +706,8 @@ WITH input AS (
         r.run_id,
         e.tenant_id, e.id, e.inserted_at, e.task_id, e.task_inserted_at, e.event_type, e.workflow_id, e.event_timestamp, e.readable_status, e.retry_count, e.error_message, e.output, e.worker_id, e.additional__event_data, e.additional__event_message
     FROM runs r
-    JOIN v2_dag_to_task_olap dt ON r.dag_id = dt.dag_id  -- Do I need to join by ` + "`" + `inserted_at` + "`" + ` here too?
-    JOIN v2_task_events_olap e ON e.task_id = dt.task_id -- Do I need to join by ` + "`" + `inserted_at` + "`" + ` here too?
+    JOIN v1_dag_to_task_olap dt ON r.dag_id = dt.dag_id  -- Do I need to join by ` + "`" + `inserted_at` + "`" + ` here too?
+    JOIN v1_task_events_olap e ON e.task_id = dt.task_id -- Do I need to join by ` + "`" + `inserted_at` + "`" + ` here too?
 ), metadata AS (
     SELECT
         e.run_id,
@@ -752,8 +752,8 @@ type PopulateDAGMetadataRow struct {
 	TenantID           pgtype.UUID          `json:"tenant_id"`
 	InsertedAt         pgtype.Timestamptz   `json:"inserted_at"`
 	ExternalID         pgtype.UUID          `json:"external_id"`
-	ReadableStatus     V2ReadableStatusOlap `json:"readable_status"`
-	Kind               V2RunKind            `json:"kind"`
+	ReadableStatus     V1ReadableStatusOlap `json:"readable_status"`
+	Kind               V1RunKind            `json:"kind"`
 	WorkflowID         pgtype.UUID          `json:"workflow_id"`
 	DisplayName        string               `json:"display_name"`
 	Input              []byte               `json:"input"`
@@ -807,7 +807,7 @@ WITH latest_retry_count AS (
     SELECT
         MAX(retry_count) AS retry_count
     FROM
-        v2_task_events_olap
+        v1_task_events_olap
     WHERE
         tenant_id = $1::uuid
         AND task_id = $2::bigint
@@ -816,7 +816,7 @@ WITH latest_retry_count AS (
     SELECT
         tenant_id, id, inserted_at, task_id, task_inserted_at, event_type, workflow_id, event_timestamp, readable_status, retry_count, error_message, output, worker_id, additional__event_data, additional__event_message
     FROM
-        v2_task_events_olap
+        v1_task_events_olap
     WHERE
         tenant_id = $1::uuid
         AND task_id = $2::bigint
@@ -830,7 +830,7 @@ WITH latest_retry_count AS (
     FROM
         relevant_events
     WHERE
-        readable_status = ANY(ARRAY['COMPLETED', 'FAILED', 'CANCELLED']::v2_readable_status_olap[])
+        readable_status = ANY(ARRAY['COMPLETED', 'FAILED', 'CANCELLED']::v1_readable_status_olap[])
 ), started_at AS (
     SELECT
         MAX(event_timestamp) AS started_at
@@ -866,13 +866,13 @@ WITH latest_retry_count AS (
 )
 SELECT
     t.tenant_id, t.id, t.inserted_at, t.external_id, t.queue, t.action_id, t.step_id, t.workflow_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.display_name, t.input, t.additional_metadata, t.readable_status, t.latest_retry_count, t.latest_worker_id, t.dag_id, t.dag_inserted_at,
-    st.readable_status::v2_readable_status_olap as status,
+    st.readable_status::v1_readable_status_olap as status,
     f.finished_at::timestamptz as finished_at,
     s.started_at::timestamptz as started_at,
     o.output::jsonb as output,
     e.error_message as error_message
 FROM
-    v2_tasks_olap t
+    v1_tasks_olap t
 LEFT JOIN
     finished_at f ON true
 LEFT JOIN
@@ -905,17 +905,17 @@ type PopulateSingleTaskRunDataRow struct {
 	ScheduleTimeout    string               `json:"schedule_timeout"`
 	StepTimeout        pgtype.Text          `json:"step_timeout"`
 	Priority           pgtype.Int4          `json:"priority"`
-	Sticky             V2StickyStrategyOlap `json:"sticky"`
+	Sticky             V1StickyStrategyOlap `json:"sticky"`
 	DesiredWorkerID    pgtype.UUID          `json:"desired_worker_id"`
 	DisplayName        string               `json:"display_name"`
 	Input              []byte               `json:"input"`
 	AdditionalMetadata []byte               `json:"additional_metadata"`
-	ReadableStatus     V2ReadableStatusOlap `json:"readable_status"`
+	ReadableStatus     V1ReadableStatusOlap `json:"readable_status"`
 	LatestRetryCount   int32                `json:"latest_retry_count"`
 	LatestWorkerID     pgtype.UUID          `json:"latest_worker_id"`
 	DagID              pgtype.Int8          `json:"dag_id"`
 	DagInsertedAt      pgtype.Timestamptz   `json:"dag_inserted_at"`
-	Status             V2ReadableStatusOlap `json:"status"`
+	Status             V1ReadableStatusOlap `json:"status"`
 	FinishedAt         pgtype.Timestamptz   `json:"finished_at"`
 	StartedAt          pgtype.Timestamptz   `json:"started_at"`
 	Output             []byte               `json:"output"`
@@ -982,7 +982,7 @@ WITH input AS (
         t.additional_metadata,
         t.readable_status
     FROM
-        v2_tasks_olap t
+        v1_tasks_olap t
     JOIN
         input i ON i.id = t.id AND i.inserted_at = t.inserted_at
     WHERE
@@ -991,7 +991,7 @@ WITH input AS (
     SELECT
         e.tenant_id, e.id, e.inserted_at, e.task_id, e.task_inserted_at, e.event_type, e.workflow_id, e.event_timestamp, e.readable_status, e.retry_count, e.error_message, e.output, e.worker_id, e.additional__event_data, e.additional__event_message
     FROM
-        v2_task_events_olap e
+        v1_task_events_olap e
     JOIN
         tasks t ON t.id = e.task_id AND t.tenant_id = e.tenant_id AND t.inserted_at = e.task_inserted_at
 ), max_retry_counts AS (
@@ -1017,7 +1017,7 @@ WITH input AS (
             AND e.task_inserted_at = mrc.task_inserted_at
             AND e.retry_count = mrc.max_retry_count
     WHERE
-        e.readable_status = ANY(ARRAY['COMPLETED', 'FAILED', 'CANCELLED']::v2_readable_status_olap[])
+        e.readable_status = ANY(ARRAY['COMPLETED', 'FAILED', 'CANCELLED']::v1_readable_status_olap[])
     GROUP BY e.task_id
 ), started_ats AS (
     SELECT
@@ -1066,7 +1066,7 @@ SELECT
     t.sticky,
     t.display_name,
     t.additional_metadata,
-    t.readable_status::v2_readable_status_olap as status,
+    t.readable_status::v1_readable_status_olap as status,
     f.finished_at::timestamptz as finished_at,
     s.started_at::timestamptz as started_at,
     e.error_message as error_message
@@ -1099,10 +1099,10 @@ type PopulateTaskRunDataRow struct {
 	ScheduleTimeout    string               `json:"schedule_timeout"`
 	StepTimeout        pgtype.Text          `json:"step_timeout"`
 	Priority           pgtype.Int4          `json:"priority"`
-	Sticky             V2StickyStrategyOlap `json:"sticky"`
+	Sticky             V1StickyStrategyOlap `json:"sticky"`
 	DisplayName        string               `json:"display_name"`
 	AdditionalMetadata []byte               `json:"additional_metadata"`
-	Status             V2ReadableStatusOlap `json:"status"`
+	Status             V1ReadableStatusOlap `json:"status"`
 	FinishedAt         pgtype.Timestamptz   `json:"finished_at"`
 	StartedAt          pgtype.Timestamptz   `json:"started_at"`
 	ErrorMessage       pgtype.Text          `json:"error_message"`
@@ -1154,21 +1154,21 @@ WITH lookup_task AS (
         dag_id,
         inserted_at
     FROM
-        v2_lookup_table
+        v1_lookup_table
     WHERE
         external_id = $1::uuid
 )
 SELECT
     d.id, d.inserted_at, d.tenant_id, d.external_id, d.display_name, d.workflow_id, d.workflow_version_id, d.readable_status, d.input, d.additional_metadata
 FROM
-    v2_dags_olap d
+    v1_dags_olap d
 JOIN
     lookup_task lt ON lt.tenant_id = d.tenant_id AND lt.dag_id = d.id AND lt.inserted_at = d.inserted_at
 `
 
-func (q *Queries) ReadDAGByExternalID(ctx context.Context, db DBTX, externalid pgtype.UUID) (*V2DagsOlap, error) {
+func (q *Queries) ReadDAGByExternalID(ctx context.Context, db DBTX, externalid pgtype.UUID) (*V1DagsOlap, error) {
 	row := db.QueryRow(ctx, readDAGByExternalID, externalid)
-	var i V2DagsOlap
+	var i V1DagsOlap
 	err := row.Scan(
 		&i.ID,
 		&i.InsertedAt,
@@ -1191,7 +1191,7 @@ WITH lookup_task AS (
         task_id,
         inserted_at
     FROM
-        v2_lookup_table
+        v1_lookup_table
     WHERE
         external_id = $1::uuid
 )
@@ -1200,11 +1200,11 @@ SELECT
     e.output,
     e.error_message
 FROM
-    v2_tasks_olap t
+    v1_tasks_olap t
 JOIN
     lookup_task lt ON lt.tenant_id = t.tenant_id AND lt.task_id = t.id AND lt.inserted_at = t.inserted_at
 JOIN
-    v2_task_events_olap e ON (e.tenant_id, e.task_id, e.readable_status, e.retry_count) = (t.tenant_id, t.id, t.readable_status, t.latest_retry_count)
+    v1_task_events_olap e ON (e.tenant_id, e.task_id, e.readable_status, e.retry_count) = (t.tenant_id, t.id, t.readable_status, t.latest_retry_count)
 `
 
 type ReadTaskByExternalIDRow struct {
@@ -1219,12 +1219,12 @@ type ReadTaskByExternalIDRow struct {
 	ScheduleTimeout    string               `json:"schedule_timeout"`
 	StepTimeout        pgtype.Text          `json:"step_timeout"`
 	Priority           pgtype.Int4          `json:"priority"`
-	Sticky             V2StickyStrategyOlap `json:"sticky"`
+	Sticky             V1StickyStrategyOlap `json:"sticky"`
 	DesiredWorkerID    pgtype.UUID          `json:"desired_worker_id"`
 	DisplayName        string               `json:"display_name"`
 	Input              []byte               `json:"input"`
 	AdditionalMetadata []byte               `json:"additional_metadata"`
-	ReadableStatus     V2ReadableStatusOlap `json:"readable_status"`
+	ReadableStatus     V1ReadableStatusOlap `json:"readable_status"`
 	LatestRetryCount   int32                `json:"latest_retry_count"`
 	LatestWorkerID     pgtype.UUID          `json:"latest_worker_id"`
 	DagID              pgtype.Int8          `json:"dag_id"`
@@ -1267,8 +1267,8 @@ func (q *Queries) ReadTaskByExternalID(ctx context.Context, db DBTX, externalid 
 const readWorkflowRunByExternalId = `-- name: ReadWorkflowRunByExternalId :one
 WITH dags AS (
     SELECT d.id, d.inserted_at, d.tenant_id, d.external_id, d.display_name, d.workflow_id, d.workflow_version_id, d.readable_status, d.input, d.additional_metadata
-    FROM v2_lookup_table lt
-    JOIN v2_dags_olap d ON (lt.tenant_id, lt.dag_id, lt.inserted_at) = (d.tenant_id, d.id, d.inserted_at)
+    FROM v1_lookup_table lt
+    JOIN v1_dags_olap d ON (lt.tenant_id, lt.dag_id, lt.inserted_at) = (d.tenant_id, d.id, d.inserted_at)
     WHERE lt.external_id = $1::uuid
 ), runs AS (
     SELECT
@@ -1284,7 +1284,7 @@ WITH dags AS (
         d.input,
         d.additional_metadata,
         d.workflow_version_id
-    FROM v2_runs_olap r
+    FROM v1_runs_olap r
     JOIN dags d ON (r.tenant_id, r.external_id, r.inserted_at) = (d.tenant_id, d.external_id, d.inserted_at)
     WHERE r.kind = 'DAG'
 ), relevant_events AS (
@@ -1294,8 +1294,8 @@ WITH dags AS (
         dt.task_id AS dag_task_id,
         dt.task_inserted_at AS dag_task_inserted_at
     FROM runs r
-    JOIN v2_dag_to_task_olap dt ON r.dag_id = dt.dag_id  -- Do I need to join by ` + "`" + `inserted_at` + "`" + ` here too?
-    JOIN v2_task_events_olap e ON e.task_id = dt.task_id -- Do I need to join by ` + "`" + `inserted_at` + "`" + ` here too?
+    JOIN v1_dag_to_task_olap dt ON r.dag_id = dt.dag_id  -- Do I need to join by ` + "`" + `inserted_at` + "`" + ` here too?
+    JOIN v1_task_events_olap e ON e.task_id = dt.task_id -- Do I need to join by ` + "`" + `inserted_at` + "`" + ` here too?
 ), metadata AS (
     SELECT
         e.run_id,
@@ -1337,8 +1337,8 @@ type ReadWorkflowRunByExternalIdRow struct {
 	TenantID           pgtype.UUID          `json:"tenant_id"`
 	InsertedAt         pgtype.Timestamptz   `json:"inserted_at"`
 	ExternalID         pgtype.UUID          `json:"external_id"`
-	ReadableStatus     V2ReadableStatusOlap `json:"readable_status"`
-	Kind               V2RunKind            `json:"kind"`
+	ReadableStatus     V1ReadableStatusOlap `json:"readable_status"`
+	Kind               V1RunKind            `json:"kind"`
 	WorkflowID         pgtype.UUID          `json:"workflow_id"`
 	DisplayName        string               `json:"display_name"`
 	Input              []byte               `json:"input"`
@@ -1401,7 +1401,7 @@ WITH locked_events AS (
         d.readable_status,
         d.tenant_id
     FROM
-        v2_dags_olap d
+        v1_dags_olap d
     JOIN
         distinct_dags dd ON
             (d.tenant_id, d.id, d.inserted_at) = (dd.tenant_id, dd.dag_id, dd.dag_inserted_at)
@@ -1421,16 +1421,16 @@ WITH locked_events AS (
     FROM
         locked_dags d
     LEFT JOIN
-        v2_dag_to_task_olap dt ON
+        v1_dag_to_task_olap dt ON
             (d.id, d.inserted_at) = (dt.dag_id, dt.dag_inserted_at)
     LEFT JOIN
-        v2_tasks_olap t ON
+        v1_tasks_olap t ON
             (dt.task_id, dt.task_inserted_at) = (t.id, t.inserted_at)
     GROUP BY
         d.id, d.inserted_at
 ), updated_dags AS (
     UPDATE
-        v2_dags_olap d
+        v1_dags_olap d
     SET
         readable_status = CASE
             -- If we only have queued events, we should keep the status as is
@@ -1461,12 +1461,12 @@ WITH locked_events AS (
         d.id IS NULL
 ), deleted_events AS (
     DELETE FROM
-        v2_task_status_updates_tmp
+        v1_task_status_updates_tmp
     WHERE
         (tenant_id, requeue_after, dag_id, id) IN (SELECT tenant_id, requeue_after, dag_id, id FROM locked_events)
 ), requeued_events AS (
     INSERT INTO
-        v2_task_status_updates_tmp (
+        v1_task_status_updates_tmp (
             tenant_id,
             requeue_after,
             requeue_retries,
@@ -1564,7 +1564,7 @@ WITH locked_events AS (
         e.retry_count,
         e.max_readable_status
     FROM
-        v2_tasks_olap t
+        v1_tasks_olap t
     JOIN
         updatable_events e ON
             (t.tenant_id, t.id, t.inserted_at) = (e.tenant_id, e.task_id, e.task_inserted_at)
@@ -1573,7 +1573,7 @@ WITH locked_events AS (
     FOR UPDATE
 ), updated_tasks AS (
     UPDATE
-        v2_tasks_olap t
+        v1_tasks_olap t
     SET
         readable_status = e.max_readable_status,
         latest_retry_count = e.retry_count,
@@ -1618,12 +1618,12 @@ WITH locked_events AS (
         t.id IS NULL
 ), deleted_events AS (
     DELETE FROM
-        v2_task_events_olap_tmp
+        v1_task_events_olap_tmp
     WHERE
         (tenant_id, requeue_after, task_id, id) IN (SELECT tenant_id, requeue_after, task_id, id FROM locked_events)
 ), requeued_events AS (
     INSERT INTO
-        v2_task_events_olap_tmp (
+        v1_task_events_olap_tmp (
             tenant_id,
             requeue_after,
             requeue_retries,

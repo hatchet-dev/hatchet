@@ -33,9 +33,9 @@ type RunConcurrencyResult struct {
 
 type ConcurrencyRepository interface {
 	// Checks whether the concurrency strategy is active, and if not, sets is_active=False
-	UpdateConcurrencyStrategyIsActive(ctx context.Context, tenantId pgtype.UUID, strategy *sqlcv1.V2StepConcurrency) error
+	UpdateConcurrencyStrategyIsActive(ctx context.Context, tenantId pgtype.UUID, strategy *sqlcv1.V1StepConcurrency) error
 
-	RunConcurrencyStrategy(ctx context.Context, tenantId pgtype.UUID, strategy *sqlcv1.V2StepConcurrency) (*RunConcurrencyResult, error)
+	RunConcurrencyStrategy(ctx context.Context, tenantId pgtype.UUID, strategy *sqlcv1.V1StepConcurrency) (*RunConcurrencyResult, error)
 }
 
 type ConcurrencyRepositoryImpl struct {
@@ -51,7 +51,7 @@ func newConcurrencyRepository(s *sharedRepository) ConcurrencyRepository {
 func (c *ConcurrencyRepositoryImpl) UpdateConcurrencyStrategyIsActive(
 	ctx context.Context,
 	tenantId pgtype.UUID,
-	strategy *sqlcv1.V2StepConcurrency,
+	strategy *sqlcv1.V1StepConcurrency,
 ) error {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, c.pool, c.l, 5000)
 
@@ -97,14 +97,14 @@ func (c *ConcurrencyRepositoryImpl) UpdateConcurrencyStrategyIsActive(
 func (c *ConcurrencyRepositoryImpl) RunConcurrencyStrategy(
 	ctx context.Context,
 	tenantId pgtype.UUID,
-	strategy *sqlcv1.V2StepConcurrency,
+	strategy *sqlcv1.V1StepConcurrency,
 ) (res *RunConcurrencyResult, err error) {
 	switch strategy.Strategy {
-	case sqlcv1.V2ConcurrencyStrategyGROUPROUNDROBIN:
+	case sqlcv1.V1ConcurrencyStrategyGROUPROUNDROBIN:
 		return c.runGroupRoundRobin(ctx, tenantId, strategy)
-	case sqlcv1.V2ConcurrencyStrategyCANCELINPROGRESS:
+	case sqlcv1.V1ConcurrencyStrategyCANCELINPROGRESS:
 		return c.runCancelInProgress(ctx, tenantId, strategy)
-	case sqlcv1.V2ConcurrencyStrategyCANCELNEWEST:
+	case sqlcv1.V1ConcurrencyStrategyCANCELNEWEST:
 		return c.runCancelNewest(ctx, tenantId, strategy)
 	}
 
@@ -114,7 +114,7 @@ func (c *ConcurrencyRepositoryImpl) RunConcurrencyStrategy(
 func (c *ConcurrencyRepositoryImpl) runGroupRoundRobin(
 	ctx context.Context,
 	tenantId pgtype.UUID,
-	strategy *sqlcv1.V2StepConcurrency,
+	strategy *sqlcv1.V1StepConcurrency,
 ) (res *RunConcurrencyResult, err error) {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, c.pool, c.l, 5000)
 
@@ -182,7 +182,7 @@ func (c *ConcurrencyRepositoryImpl) runGroupRoundRobin(
 func (c *ConcurrencyRepositoryImpl) runCancelInProgress(
 	ctx context.Context,
 	tenantId pgtype.UUID,
-	strategy *sqlcv1.V2StepConcurrency,
+	strategy *sqlcv1.V1StepConcurrency,
 ) (res *RunConcurrencyResult, err error) {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, c.pool, c.l, 5000)
 
@@ -282,7 +282,7 @@ func (c *ConcurrencyRepositoryImpl) runCancelInProgress(
 func (c *ConcurrencyRepositoryImpl) runCancelNewest(
 	ctx context.Context,
 	tenantId pgtype.UUID,
-	strategy *sqlcv1.V2StepConcurrency,
+	strategy *sqlcv1.V1StepConcurrency,
 ) (res *RunConcurrencyResult, err error) {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, c.pool, c.l, 5000)
 

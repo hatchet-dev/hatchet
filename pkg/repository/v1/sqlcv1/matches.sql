@@ -6,14 +6,14 @@ WITH input AS (
         (
             SELECT
                 unnest(@tenantIds::uuid[]) AS tenant_id,
-                unnest(cast(@kinds::text[] as v2_match_kind[])) AS kind,
+                unnest(cast(@kinds::text[] as v1_match_kind[])) AS kind,
                 unnest(@triggerDagIds::bigint[]) AS trigger_dag_id,
                 unnest(@triggerDagInsertedAts::timestamptz[]) AS trigger_dag_inserted_at,
                 unnest(@triggerStepIds::uuid[]) AS trigger_step_id,
                 unnest(@triggerExternalIds::uuid[]) AS trigger_external_id
         ) AS subquery
 )
-INSERT INTO v2_match (
+INSERT INTO v1_match (
     tenant_id,
     kind,
     trigger_dag_id,
@@ -41,12 +41,12 @@ WITH input AS (
         (
             SELECT
                 unnest(@tenantIds::uuid[]) AS tenant_id,
-                unnest(cast(@kinds::text[] as v2_match_kind[])) AS kind,
+                unnest(cast(@kinds::text[] as v1_match_kind[])) AS kind,
                 unnest(@signalTargetIds::bigint[]) AS signal_target_id,
                 unnest(@signalKeys::text[]) AS signal_key
         ) AS subquery
 )
-INSERT INTO v2_match (
+INSERT INTO v1_match (
     tenant_id,
     kind,
     signal_target_id,
@@ -63,8 +63,8 @@ RETURNING
     *;
 
 -- name: CreateMatchConditions :copyfrom
-INSERT INTO v2_match_condition (
-    v2_match_id,
+INSERT INTO v1_match_condition (
+    v1_match_id,
     tenant_id,
     event_type,
     event_key,
@@ -77,23 +77,23 @@ INSERT INTO v2_match_condition (
     $3,
     $4,
     $5,
-    $6, 
+    $6,
     $7
 );
 
 -- name: ListMatchConditionsForEvent :many
 SELECT
-    v2_match_id,
+    v1_match_id,
     id,
     registered_at,
     event_type,
     event_key,
     expression
 FROM
-    v2_match_condition m
+    v1_match_condition m
 WHERE
     m.tenant_id = @tenantId::uuid
-    AND m.event_type = @eventType::v2_event_type
+    AND m.event_type = @eventType::v1_event_type
     AND m.event_key = ANY(@eventKeys::text[])
     AND NOT m.is_satisfied;
 
@@ -112,13 +112,13 @@ WITH input AS (
         ) AS subquery
 ), locked_conditions AS (
     SELECT
-        m.v2_match_id,
+        m.v1_match_id,
         m.id,
         i.data
     FROM
-        v2_match_condition m
+        v1_match_condition m
     JOIN
-        input i ON i.match_id = m.v2_match_id AND i.condition_id = m.id
+        input i ON i.match_id = m.v1_match_id AND i.condition_id = m.id
     ORDER BY
         m.id
     -- We can afford a SKIP LOCKED because a match condition can only be satisfied by 1 event
@@ -126,28 +126,28 @@ WITH input AS (
     FOR UPDATE SKIP LOCKED
 ), updated_conditions AS (
     UPDATE
-        v2_match_condition
+        v1_match_condition
     SET
         is_satisfied = TRUE,
         data = c.data
     FROM
         locked_conditions c
     WHERE
-        (v2_match_condition.v2_match_id, v2_match_condition.id) = (c.v2_match_id, c.id)
+        (v1_match_condition.v1_match_id, v1_match_condition.id) = (c.v1_match_id, c.id)
     RETURNING
-        v2_match_condition.v2_match_id, v2_match_condition.id
+        v1_match_condition.v1_match_id, v1_match_condition.id
 ), distinct_match_ids AS (
     SELECT
-        DISTINCT v2_match_id
+        DISTINCT v1_match_id
     FROM
         updated_conditions
 )
 SELECT
     m.id
 FROM
-    v2_match m
+    v1_match m
 JOIN
-    distinct_match_ids dm ON dm.v2_match_id = m.id
+    distinct_match_ids dm ON dm.v1_match_id = m.id
 ORDER BY
     m.id
 FOR UPDATE;
@@ -159,7 +159,7 @@ FOR UPDATE;
 -- that only one transaction can update these rows,so this should be concurrency-safe.
 WITH match_counts AS (
     SELECT
-        v2_match_id,
+        v1_match_id,
         COUNT(DISTINCT CASE WHEN action = 'CREATE' THEN or_group_id END) AS total_create_groups,
         COUNT(DISTINCT CASE WHEN is_satisfied AND action = 'CREATE' THEN or_group_id END) AS satisfied_create_groups,
         COUNT(DISTINCT CASE WHEN action = 'CANCEL' THEN or_group_id END) AS total_cancel_groups,
@@ -170,25 +170,25 @@ WITH match_counts AS (
                 SELECT action, jsonb_object_agg(event_key, data_array) AS aggregated_1
                 FROM (
                     SELECT action, event_key, jsonb_agg(data) AS data_array
-                    FROM v2_match_condition sub
-                    WHERE sub.v2_match_id = ANY(@matchIds::bigint[])
+                    FROM v1_match_condition sub
+                    WHERE sub.v1_match_id = ANY(@matchIds::bigint[])
                     AND is_satisfied
                     GROUP BY action, event_key
                 ) t
                 GROUP BY action
             ) s
         ) AS aggregated_data
-    FROM v2_match_condition main
-    WHERE v2_match_id = ANY(@matchIds::bigint[])
-    GROUP BY v2_match_id
+    FROM v1_match_condition main
+    WHERE v1_match_id = ANY(@matchIds::bigint[])
+    GROUP BY v1_match_id
 ), result_matches AS (
     SELECT
         m.*,
         mc.aggregated_data::jsonb as mc_aggregated_data
     FROM
-        v2_match m
+        v1_match m
     JOIN
-        match_counts mc ON m.id = mc.v2_match_id
+        match_counts mc ON m.id = mc.v1_match_id
     WHERE
         (
             mc.total_create_groups = mc.satisfied_create_groups
@@ -196,25 +196,25 @@ WITH match_counts AS (
         )
 ), deleted_matches AS (
     DELETE FROM
-        v2_match
+        v1_match
     WHERE
         id IN (SELECT id FROM result_matches)
 ), locked_conditions AS (
     SELECT
-        m.v2_match_id,
+        m.v1_match_id,
         m.id
     FROM
-        v2_match_condition m
+        v1_match_condition m
     JOIN
-        result_matches r ON r.id = m.v2_match_id
+        result_matches r ON r.id = m.v1_match_id
     ORDER BY
         m.id
     FOR UPDATE
 ), deleted_conditions AS (
     DELETE FROM
-        v2_match_condition
+        v1_match_condition
     WHERE
-        (v2_match_id, id) IN (SELECT v2_match_id, id FROM locked_conditions)
+        (v1_match_id, id) IN (SELECT v1_match_id, id FROM locked_conditions)
 )
 SELECT
     *

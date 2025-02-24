@@ -65,9 +65,9 @@ type createDAGOpts struct {
 }
 
 type TriggerRepository interface {
-	TriggerFromEvents(ctx context.Context, tenantId string, opts []EventTriggerOpts) ([]*sqlcv1.V2Task, []*DAGWithData, error)
+	TriggerFromEvents(ctx context.Context, tenantId string, opts []EventTriggerOpts) ([]*sqlcv1.V1Task, []*DAGWithData, error)
 
-	TriggerFromWorkflowNames(ctx context.Context, tenantId string, opts []WorkflowNameTriggerOpts) ([]*sqlcv1.V2Task, []*DAGWithData, error)
+	TriggerFromWorkflowNames(ctx context.Context, tenantId string, opts []WorkflowNameTriggerOpts) ([]*sqlcv1.V1Task, []*DAGWithData, error)
 }
 
 type TriggerRepositoryImpl struct {
@@ -80,7 +80,7 @@ func newTriggerRepository(s *sharedRepository) TriggerRepository {
 	}
 }
 
-func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId string, opts []EventTriggerOpts) ([]*sqlcv1.V2Task, []*DAGWithData, error) {
+func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId string, opts []EventTriggerOpts) ([]*sqlcv1.V1Task, []*DAGWithData, error) {
 	eventKeys := make([]string, 0, len(opts))
 	eventKeysToOpts := make(map[string][]EventTriggerOpts)
 	uniqueEventKeys := make(map[string]struct{})
@@ -131,7 +131,7 @@ func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId 
 	return r.triggerWorkflows(ctx, tenantId, triggerOpts)
 }
 
-func (r *TriggerRepositoryImpl) TriggerFromWorkflowNames(ctx context.Context, tenantId string, opts []WorkflowNameTriggerOpts) ([]*sqlcv1.V2Task, []*DAGWithData, error) {
+func (r *TriggerRepositoryImpl) TriggerFromWorkflowNames(ctx context.Context, tenantId string, opts []WorkflowNameTriggerOpts) ([]*sqlcv1.V1Task, []*DAGWithData, error) {
 	workflowNames := make([]string, 0, len(opts))
 	uniqueNames := make(map[string]struct{})
 	namesToOpts := make(map[string][]WorkflowNameTriggerOpts)
@@ -204,7 +204,7 @@ type triggerTuple struct {
 	childKey     *string
 }
 
-func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId string, tuples []triggerTuple) ([]*sqlcv1.V2Task, []*DAGWithData, error) {
+func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId string, tuples []triggerTuple) ([]*sqlcv1.V1Task, []*DAGWithData, error) {
 	// get unique workflow version ids
 	uniqueWorkflowVersionIds := make(map[string]struct{})
 
@@ -361,7 +361,7 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 				}
 
 				eventMatches[tuple.externalId] = append(eventMatches[tuple.externalId], CreateMatchOpts{
-					Kind:              sqlcv1.V2MatchKindTRIGGER,
+					Kind:              sqlcv1.V1MatchKindTRIGGER,
 					Conditions:        conditions,
 					TriggerExternalId: &taskExternalId,
 					TriggerStepId:     &stepId,
@@ -372,7 +372,7 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 					StepId:             sqlchelpers.UUIDToStr(step.ID),
 					Input:              r.newTaskInput(tuple.input, nil),
 					AdditionalMetadata: tuple.additionalMetadata,
-					InitialState:       sqlcv1.V2TaskInitialStateQUEUED,
+					InitialState:       sqlcv1.V1TaskInitialStateQUEUED,
 				}
 
 				if isDag {
@@ -393,7 +393,7 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 
 				// create an event match
 				eventMatches[tuple.externalId] = append(eventMatches[tuple.externalId], CreateMatchOpts{
-					Kind:              sqlcv1.V2MatchKindTRIGGER,
+					Kind:              sqlcv1.V1MatchKindTRIGGER,
 					Conditions:        conditions,
 					TriggerExternalId: &taskExternalId,
 					TriggerStepId:     &stepId,
@@ -477,7 +477,7 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 }
 
 type DAGWithData struct {
-	*sqlcv1.V2Dag
+	*sqlcv1.V1Dag
 
 	Input []byte
 
@@ -547,7 +547,7 @@ func (r *TriggerRepositoryImpl) createDAGs(ctx context.Context, tx sqlcv1.DBTX, 
 		})
 
 		res = append(res, &DAGWithData{
-			V2Dag:              dag,
+			V1Dag:              dag,
 			Input:              input,
 			AdditionalMetadata: additionalMeta,
 		})
@@ -610,7 +610,7 @@ func (r *TriggerRepositoryImpl) registerChildWorkflows(
 			Tenantid:   sqlchelpers.UUIDFromStr(tenantId),
 			Taskids:    potentialMatchTaskIds,
 			Signalkeys: potentialMatchKeys,
-			Eventtype:  sqlcv1.V2TaskEventTypeSIGNALCREATED,
+			Eventtype:  sqlcv1.V1TaskEventTypeSIGNALCREATED,
 		},
 	)
 
@@ -669,7 +669,7 @@ func (r *TriggerRepositoryImpl) registerChildWorkflows(
 			}
 
 			createMatchOpts = append(createMatchOpts, CreateMatchOpts{
-				Kind:         sqlcv1.V2MatchKindSIGNAL,
+				Kind:         sqlcv1.V1MatchKindSIGNAL,
 				Conditions:   conditions,
 				SignalTaskId: tuple.parentTaskId,
 				SignalKey:    &key,
@@ -693,7 +693,7 @@ func (r *TriggerRepositoryImpl) registerChildWorkflows(
 	}
 
 	// create the relevant events
-	err = r.createTaskEvents(ctx, tx, tenantId, taskIds, datas, sqlcv1.V2TaskEventTypeSIGNALCREATED, eventKeys)
+	err = r.createTaskEvents(ctx, tx, tenantId, taskIds, datas, sqlcv1.V1TaskEventTypeSIGNALCREATED, eventKeys)
 
 	if err != nil {
 		return nil, err
@@ -706,31 +706,31 @@ func getParentInDAGGroupMatch(cancelGroupId, parentExternalId string) []GroupMat
 	return []GroupMatchCondition{
 		{
 			GroupId:    uuid.NewString(),
-			EventType:  sqlcv1.V2EventTypeINTERNAL,
+			EventType:  sqlcv1.V1EventTypeINTERNAL,
 			EventKey:   GetTaskCompletedEventKey(parentExternalId),
 			Expression: "!has(input.skipped) || (has(input.skipped) && !input.skipped)",
-			Action:     sqlcv1.V2MatchConditionActionCREATE,
+			Action:     sqlcv1.V1MatchConditionActionCREATE,
 		},
 		{
 			GroupId:    uuid.NewString(),
-			EventType:  sqlcv1.V2EventTypeINTERNAL,
+			EventType:  sqlcv1.V1EventTypeINTERNAL,
 			EventKey:   GetTaskCompletedEventKey(parentExternalId),
 			Expression: "has(input.skipped) && input.skipped",
-			Action:     sqlcv1.V2MatchConditionActionSKIP,
+			Action:     sqlcv1.V1MatchConditionActionSKIP,
 		},
 		{
 			GroupId:    cancelGroupId,
-			EventType:  sqlcv1.V2EventTypeINTERNAL,
+			EventType:  sqlcv1.V1EventTypeINTERNAL,
 			EventKey:   GetTaskFailedEventKey(parentExternalId),
 			Expression: "true",
-			Action:     sqlcv1.V2MatchConditionActionCANCEL,
+			Action:     sqlcv1.V1MatchConditionActionCANCEL,
 		},
 		{
 			GroupId:    cancelGroupId,
-			EventType:  sqlcv1.V2EventTypeINTERNAL,
+			EventType:  sqlcv1.V1EventTypeINTERNAL,
 			EventKey:   GetTaskCancelledEventKey(parentExternalId),
 			Expression: "true",
-			Action:     sqlcv1.V2MatchConditionActionCANCEL,
+			Action:     sqlcv1.V1MatchConditionActionCANCEL,
 		},
 	}
 }
@@ -741,24 +741,24 @@ func getChildWorkflowGroupMatches(parentExternalId string) []GroupMatchCondition
 	return []GroupMatchCondition{
 		{
 			GroupId:    groupId,
-			EventType:  sqlcv1.V2EventTypeINTERNAL,
+			EventType:  sqlcv1.V1EventTypeINTERNAL,
 			EventKey:   GetTaskCompletedEventKey(parentExternalId),
 			Expression: "true",
-			Action:     sqlcv1.V2MatchConditionActionCREATE,
+			Action:     sqlcv1.V1MatchConditionActionCREATE,
 		},
 		{
 			GroupId:    groupId,
-			EventType:  sqlcv1.V2EventTypeINTERNAL,
+			EventType:  sqlcv1.V1EventTypeINTERNAL,
 			EventKey:   GetTaskFailedEventKey(parentExternalId),
 			Expression: "true",
-			Action:     sqlcv1.V2MatchConditionActionCREATE,
+			Action:     sqlcv1.V1MatchConditionActionCREATE,
 		},
 		{
 			GroupId:    groupId,
-			EventType:  sqlcv1.V2EventTypeINTERNAL,
+			EventType:  sqlcv1.V1EventTypeINTERNAL,
 			EventKey:   GetTaskCancelledEventKey(parentExternalId),
 			Expression: "true",
-			Action:     sqlcv1.V2MatchConditionActionCREATE,
+			Action:     sqlcv1.V1MatchConditionActionCREATE,
 		},
 	}
 }
@@ -769,24 +769,24 @@ func getParentOnFailureGroupMatches(createGroupId, parentExternalId string) []Gr
 	return []GroupMatchCondition{
 		{
 			GroupId:    createGroupId,
-			EventType:  sqlcv1.V2EventTypeINTERNAL,
+			EventType:  sqlcv1.V1EventTypeINTERNAL,
 			EventKey:   GetTaskFailedEventKey(parentExternalId),
 			Expression: "true",
-			Action:     sqlcv1.V2MatchConditionActionCREATE,
+			Action:     sqlcv1.V1MatchConditionActionCREATE,
 		},
 		{
 			GroupId:    cancelGroupId,
-			EventType:  sqlcv1.V2EventTypeINTERNAL,
+			EventType:  sqlcv1.V1EventTypeINTERNAL,
 			EventKey:   GetTaskCompletedEventKey(parentExternalId),
 			Expression: "true",
-			Action:     sqlcv1.V2MatchConditionActionSKIP,
+			Action:     sqlcv1.V1MatchConditionActionSKIP,
 		},
 		{
 			GroupId:    cancelGroupId,
-			EventType:  sqlcv1.V2EventTypeINTERNAL,
+			EventType:  sqlcv1.V1EventTypeINTERNAL,
 			EventKey:   GetTaskCancelledEventKey(parentExternalId),
 			Expression: "true",
-			Action:     sqlcv1.V2MatchConditionActionSKIP,
+			Action:     sqlcv1.V1MatchConditionActionSKIP,
 		},
 	}
 }

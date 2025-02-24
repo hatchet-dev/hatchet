@@ -19,8 +19,8 @@ type CreateDAGDataParams struct {
 }
 
 const createDAGPartition = `-- name: CreateDAGPartition :exec
-SELECT create_v2_range_partition(
-    'v2_dag',
+SELECT create_v1_range_partition(
+    'v1_dag',
     $1::date
 )
 `
@@ -44,7 +44,7 @@ WITH input AS (
                 unnest($5::uuid[]) AS workflow_version_id
         ) AS subquery
 )
-INSERT INTO v2_dag (
+INSERT INTO v1_dag (
     tenant_id,
     external_id,
     display_name,
@@ -71,7 +71,7 @@ type CreateDAGsParams struct {
 	Workflowversionids []pgtype.UUID `json:"workflowversionids"`
 }
 
-func (q *Queries) CreateDAGs(ctx context.Context, db DBTX, arg CreateDAGsParams) ([]*V2Dag, error) {
+func (q *Queries) CreateDAGs(ctx context.Context, db DBTX, arg CreateDAGsParams) ([]*V1Dag, error) {
 	rows, err := db.Query(ctx, createDAGs,
 		arg.Tenantids,
 		arg.Externalids,
@@ -83,9 +83,9 @@ func (q *Queries) CreateDAGs(ctx context.Context, db DBTX, arg CreateDAGsParams)
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*V2Dag
+	var items []*V1Dag
 	for rows.Next() {
-		var i V2Dag
+		var i V1Dag
 		if err := rows.Scan(
 			&i.ID,
 			&i.InsertedAt,
@@ -117,9 +117,9 @@ WITH input AS (
         ) AS subquery
 )
 SELECT
-    v2_dag_data.dag_id, v2_dag_data.dag_inserted_at, input, additional_metadata, input.dag_id, input.dag_inserted_at
+    v1_dag_data.dag_id, v1_dag_data.dag_inserted_at, input, additional_metadata, input.dag_id, input.dag_inserted_at
 FROM
-    v2_dag_data
+    v1_dag_data
 JOIN
     input USING (dag_id, dag_inserted_at)
 `
@@ -169,8 +169,8 @@ const listDAGPartitionsBeforeDate = `-- name: ListDAGPartitionsBeforeDate :many
 SELECT
     p::text AS partition_name
 FROM
-    get_v2_partitions_before_date(
-        'v2_dag',
+    get_v1_partitions_before_date(
+        'v1_dag',
         $1::date
     ) AS p
 `

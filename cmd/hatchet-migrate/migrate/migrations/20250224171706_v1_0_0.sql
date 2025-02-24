@@ -1,6 +1,6 @@
 -- +goose Up
 -- +goose StatementBegin
-CREATE OR REPLACE FUNCTION get_v2_partitions_before_date(
+CREATE OR REPLACE FUNCTION get_v1_partitions_before_date(
     targetTableName text,
     targetDate date
 ) RETURNS TABLE(partition_name text)
@@ -19,7 +19,7 @@ BEGIN
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION create_v2_range_partition(
+CREATE OR REPLACE FUNCTION create_v1_range_partition(
     targetTableName text,
     targetDate date
 ) RETURNS integer
@@ -73,23 +73,23 @@ END
 $func$;
 
 -- CreateTable
-CREATE TABLE v2_queue (
+CREATE TABLE v1_queue (
     tenant_id UUID NOT NULL,
     name TEXT NOT NULL,
     last_active TIMESTAMP(3),
 
-    CONSTRAINT v2_queue_pkey PRIMARY KEY (tenant_id, name)
+    CONSTRAINT v1_queue_pkey PRIMARY KEY (tenant_id, name)
 );
 
-CREATE TYPE v2_sticky_strategy AS ENUM ('NONE', 'SOFT', 'HARD');
+CREATE TYPE v1_sticky_strategy AS ENUM ('NONE', 'SOFT', 'HARD');
 
-CREATE TYPE v2_task_initial_state AS ENUM ('QUEUED', 'CANCELLED', 'SKIPPED', 'FAILED');
+CREATE TYPE v1_task_initial_state AS ENUM ('QUEUED', 'CANCELLED', 'SKIPPED', 'FAILED');
 
 -- We need a NONE strategy to allow for tasks which were previously using a concurrency strategy to
 -- enqueue if the strategy is removed.
-CREATE TYPE v2_concurrency_strategy AS ENUM ('NONE', 'GROUP_ROUND_ROBIN', 'CANCEL_IN_PROGRESS', 'CANCEL_NEWEST');
+CREATE TYPE v1_concurrency_strategy AS ENUM ('NONE', 'GROUP_ROUND_ROBIN', 'CANCEL_IN_PROGRESS', 'CANCEL_NEWEST');
 
-CREATE TABLE v2_step_concurrency (
+CREATE TABLE v1_step_concurrency (
     -- We need an id used for stable ordering to prevent deadlocks. We must process all concurrency
     -- strategies on a step in the same order.
     id bigint GENERATED ALWAYS AS IDENTITY,
@@ -98,14 +98,14 @@ CREATE TABLE v2_step_concurrency (
     step_id UUID NOT NULL,
     -- If the strategy is NONE and we've removed all concurrency slots, we can set is_active to false
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
-    strategy v2_concurrency_strategy NOT NULL,
+    strategy v1_concurrency_strategy NOT NULL,
     expression TEXT NOT NULL,
     tenant_id UUID NOT NULL,
     max_concurrency INTEGER NOT NULL,
-    CONSTRAINT v2_step_concurrency_pkey PRIMARY KEY (workflow_id, workflow_version_id, step_id, id)
+    CONSTRAINT v1_step_concurrency_pkey PRIMARY KEY (workflow_id, workflow_version_id, step_id, id)
 );
 
-CREATE OR REPLACE FUNCTION create_v2_step_concurrency()
+CREATE OR REPLACE FUNCTION create_v1_step_concurrency()
 RETURNS trigger AS $$
 BEGIN
   IF NEW."concurrencyGroupExpression" IS NOT NULL THEN
@@ -124,7 +124,7 @@ BEGIN
             wv."id" = NEW."workflowVersionId"
             AND j."kind" = 'DEFAULT'
     )
-    INSERT INTO v2_step_concurrency (
+    INSERT INTO v1_step_concurrency (
       workflow_id,
       workflow_version_id,
       step_id,
@@ -137,7 +137,7 @@ BEGIN
       s."workflowId",
       s."workflowVersionId",
       s."id",
-      NEW."limitStrategy"::VARCHAR::v2_concurrency_strategy,
+      NEW."limitStrategy"::VARCHAR::v1_concurrency_strategy,
       NEW."concurrencyGroupExpression",
       s."tenantId",
       NEW."maxRuns"
@@ -148,13 +148,13 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER trg_create_v2_step_concurrency
+CREATE TRIGGER trg_create_v1_step_concurrency
 AFTER INSERT ON "WorkflowConcurrency"
 FOR EACH ROW
-EXECUTE FUNCTION create_v2_step_concurrency();
+EXECUTE FUNCTION create_v1_step_concurrency();
 
 -- CreateTable
-CREATE TABLE v2_task (
+CREATE TABLE v1_task (
     id bigint GENERATED ALWAYS AS IDENTITY,
     inserted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     tenant_id UUID NOT NULL,
@@ -166,7 +166,7 @@ CREATE TABLE v2_task (
     schedule_timeout TEXT NOT NULL,
     step_timeout TEXT,
     priority INTEGER DEFAULT 1,
-    sticky v2_sticky_strategy NOT NULL,
+    sticky v1_sticky_strategy NOT NULL,
     desired_worker_id UUID,
     external_id UUID NOT NULL,
     display_name TEXT NOT NULL,
@@ -180,16 +180,16 @@ CREATE TABLE v2_task (
     parent_external_id UUID,
     child_index INTEGER,
     child_key TEXT,
-    initial_state v2_task_initial_state NOT NULL DEFAULT 'QUEUED',
+    initial_state v1_task_initial_state NOT NULL DEFAULT 'QUEUED',
     initial_state_reason TEXT,
     concurrency_strategy_ids BIGINT[],
     concurrency_keys TEXT[],
     retry_backoff_factor DOUBLE PRECISION,
     retry_max_backoff INTEGER,
-    CONSTRAINT v2_task_pkey PRIMARY KEY (id, inserted_at)
+    CONSTRAINT v1_task_pkey PRIMARY KEY (id, inserted_at)
 ) PARTITION BY RANGE(inserted_at);
 
-CREATE TYPE v2_task_event_type AS ENUM (
+CREATE TYPE v1_task_event_type AS ENUM (
     'COMPLETED',
     'FAILED',
     'CANCELLED',
@@ -198,20 +198,20 @@ CREATE TYPE v2_task_event_type AS ENUM (
 );
 
 -- CreateTable
-CREATE TABLE v2_task_event (
+CREATE TABLE v1_task_event (
     id bigint GENERATED ALWAYS AS IDENTITY,
     tenant_id UUID NOT NULL,
     task_id bigint NOT NULL,
     retry_count INTEGER NOT NULL,
-    event_type v2_task_event_type NOT NULL,
+    event_type v1_task_event_type NOT NULL,
     event_key TEXT,
     created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     data JSONB,
-    CONSTRAINT v2_task_event_pkey PRIMARY KEY (id)
+    CONSTRAINT v1_task_event_pkey PRIMARY KEY (id)
 );
 
 -- Create unique index on (tenant_id, task_id, event_key) when event_key is not null
-CREATE UNIQUE INDEX v2_task_event_event_key_unique_idx ON v2_task_event (
+CREATE UNIQUE INDEX v1_task_event_event_key_unique_idx ON v1_task_event (
     tenant_id ASC,
     task_id ASC,
     event_type ASC,
@@ -219,7 +219,7 @@ CREATE UNIQUE INDEX v2_task_event_event_key_unique_idx ON v2_task_event (
 ) WHERE event_key IS NOT NULL;
 
 -- CreateTable
-CREATE TABLE v2_queue_item (
+CREATE TABLE v1_queue_item (
     id bigint GENERATED ALWAYS AS IDENTITY,
     tenant_id UUID NOT NULL,
     queue TEXT NOT NULL,
@@ -230,13 +230,13 @@ CREATE TABLE v2_queue_item (
     schedule_timeout_at TIMESTAMP(3),
     step_timeout TEXT,
     priority INTEGER NOT NULL DEFAULT 1,
-    sticky v2_sticky_strategy NOT NULL,
+    sticky v1_sticky_strategy NOT NULL,
     desired_worker_id UUID,
     retry_count INTEGER NOT NULL DEFAULT 0,
-    CONSTRAINT v2_queue_item_pkey PRIMARY KEY (id)
+    CONSTRAINT v1_queue_item_pkey PRIMARY KEY (id)
 );
 
-alter table v2_queue_item set (
+alter table v1_queue_item set (
     autovacuum_vacuum_scale_factor = '0.1',
     autovacuum_analyze_scale_factor='0.05',
     autovacuum_vacuum_threshold='25',
@@ -245,34 +245,34 @@ alter table v2_queue_item set (
     autovacuum_vacuum_cost_limit='1000'
 );
 
-CREATE INDEX v2_queue_item_list_idx ON v2_queue_item (
+CREATE INDEX v1_queue_item_list_idx ON v1_queue_item (
     tenant_id ASC,
     queue ASC,
     priority DESC,
     id ASC
 );
 
-CREATE INDEX v2_queue_item_task_idx ON v2_queue_item (
+CREATE INDEX v1_queue_item_task_idx ON v1_queue_item (
     task_id ASC,
     retry_count ASC
 );
 
 -- CreateTable
-CREATE TABLE v2_task_runtime (
+CREATE TABLE v1_task_runtime (
     task_id bigint NOT NULL,
     retry_count INTEGER NOT NULL,
     worker_id UUID NOT NULL,
     tenant_id UUID NOT NULL,
     timeout_at TIMESTAMP(3) NOT NULL,
 
-    CONSTRAINT v2_task_runtime_pkey PRIMARY KEY (task_id, retry_count)
+    CONSTRAINT v1_task_runtime_pkey PRIMARY KEY (task_id, retry_count)
 );
 
-CREATE INDEX v2_task_runtime_tenantId_workerId_idx ON v2_task_runtime (tenant_id ASC, worker_id ASC);
+CREATE INDEX v1_task_runtime_tenantId_workerId_idx ON v1_task_runtime (tenant_id ASC, worker_id ASC);
 
-CREATE INDEX v2_task_runtime_tenantId_timeoutAt_idx ON v2_task_runtime (tenant_id ASC, timeout_at ASC);
+CREATE INDEX v1_task_runtime_tenantId_timeoutAt_idx ON v1_task_runtime (tenant_id ASC, timeout_at ASC);
 
-alter table v2_task_runtime set (
+alter table v1_task_runtime set (
     autovacuum_vacuum_scale_factor = '0.1',
     autovacuum_analyze_scale_factor='0.05',
     autovacuum_vacuum_threshold='25',
@@ -281,12 +281,12 @@ alter table v2_task_runtime set (
     autovacuum_vacuum_cost_limit='1000'
 );
 
-CREATE TYPE v2_match_kind AS ENUM ('TRIGGER', 'SIGNAL');
+CREATE TYPE v1_match_kind AS ENUM ('TRIGGER', 'SIGNAL');
 
-CREATE TABLE v2_match (
+CREATE TABLE v1_match (
     id bigint GENERATED ALWAYS AS IDENTITY,
     tenant_id UUID NOT NULL,
-    kind v2_match_kind NOT NULL,
+    kind v1_match_kind NOT NULL,
     is_satisfied BOOLEAN NOT NULL DEFAULT FALSE,
     signal_target_id bigint,
     signal_key TEXT,
@@ -297,40 +297,40 @@ CREATE TABLE v2_match (
     trigger_step_id UUID,
     -- references the external id for the new task
     trigger_external_id UUID,
-    CONSTRAINT v2_match_pkey PRIMARY KEY (id)
+    CONSTRAINT v1_match_pkey PRIMARY KEY (id)
 );
 
-CREATE TYPE v2_event_type AS ENUM ('USER', 'INTERNAL');
+CREATE TYPE v1_event_type AS ENUM ('USER', 'INTERNAL');
 
 -- Provides information to the caller about the action to take. This is used to differentiate
 -- negative conditions from positive conditions. For example, if a task is waiting for a set of
 -- tasks to fail, the success of all tasks would be a CANCEL condition, and the failure of any
 -- task would be a CREATE condition. Different actions are implicitly different groups of conditions.
-CREATE TYPE v2_match_condition_action AS ENUM ('CREATE', 'CANCEL', 'SKIP');
+CREATE TYPE v1_match_condition_action AS ENUM ('CREATE', 'CANCEL', 'SKIP');
 
-CREATE TABLE v2_match_condition (
-    v2_match_id bigint NOT NULL,
+CREATE TABLE v1_match_condition (
+    v1_match_id bigint NOT NULL,
     id bigint GENERATED ALWAYS AS IDENTITY,
     tenant_id UUID NOT NULL,
     registered_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    event_type v2_event_type NOT NULL,
+    event_type v1_event_type NOT NULL,
     event_key TEXT NOT NULL,
     is_satisfied BOOLEAN NOT NULL DEFAULT FALSE,
-    action v2_match_condition_action NOT NULL DEFAULT 'CREATE',
+    action v1_match_condition_action NOT NULL DEFAULT 'CREATE',
     or_group_id UUID NOT NULL,
     expression TEXT,
     data JSONB,
-    CONSTRAINT v2_match_condition_pkey PRIMARY KEY (v2_match_id, id)
+    CONSTRAINT v1_match_condition_pkey PRIMARY KEY (v1_match_id, id)
 );
 
-CREATE INDEX v2_match_condition_filter_idx ON v2_match_condition (
+CREATE INDEX v1_match_condition_filter_idx ON v1_match_condition (
     tenant_id ASC,
     event_type ASC,
     event_key ASC,
     is_satisfied ASC
 );
 
-CREATE TABLE v2_dag (
+CREATE TABLE v1_dag (
     id bigint GENERATED ALWAYS AS IDENTITY,
     inserted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     tenant_id UUID NOT NULL,
@@ -338,27 +338,27 @@ CREATE TABLE v2_dag (
     display_name TEXT NOT NULL,
     workflow_id UUID NOT NULL,
     workflow_version_id UUID NOT NULL,
-    CONSTRAINT v2_dag_pkey PRIMARY KEY (id, inserted_at)
+    CONSTRAINT v1_dag_pkey PRIMARY KEY (id, inserted_at)
 ) PARTITION BY RANGE(inserted_at);
 
-CREATE TABLE v2_dag_to_task (
+CREATE TABLE v1_dag_to_task (
     dag_id BIGINT NOT NULL,
     dag_inserted_at TIMESTAMPTZ NOT NULL,
     task_id BIGINT NOT NULL,
     task_inserted_at TIMESTAMPTZ NOT NULL,
-    CONSTRAINT v2_dag_to_task_pkey PRIMARY KEY (dag_id, dag_inserted_at, task_id, task_inserted_at)
+    CONSTRAINT v1_dag_to_task_pkey PRIMARY KEY (dag_id, dag_inserted_at, task_id, task_inserted_at)
 );
 
-CREATE TABLE v2_dag_data (
+CREATE TABLE v1_dag_data (
     dag_id BIGINT NOT NULL,
     dag_inserted_at TIMESTAMPTZ NOT NULL,
     input JSONB NOT NULL,
     additional_metadata JSONB,
-    CONSTRAINT v2_dag_input_pkey PRIMARY KEY (dag_id, dag_inserted_at)
+    CONSTRAINT v1_dag_input_pkey PRIMARY KEY (dag_id, dag_inserted_at)
 );
 
 -- CreateTable
-CREATE TABLE v2_concurrency_slot (
+CREATE TABLE v1_concurrency_slot (
     task_id BIGINT NOT NULL,
     task_inserted_at TIMESTAMPTZ NOT NULL,
     task_retry_count INTEGER NOT NULL,
@@ -372,12 +372,12 @@ CREATE TABLE v2_concurrency_slot (
     next_keys TEXT[],
     queue_to_notify TEXT NOT NULL,
     schedule_timeout_at TIMESTAMP(3) NOT NULL,
-    CONSTRAINT v2_concurrency_slot_pkey PRIMARY KEY (task_id, task_inserted_at, task_retry_count, strategy_id)
+    CONSTRAINT v1_concurrency_slot_pkey PRIMARY KEY (task_id, task_inserted_at, task_retry_count, strategy_id)
 ) PARTITION BY RANGE(task_inserted_at);
 
-CREATE INDEX v2_concurrency_slot_query_idx ON v2_concurrency_slot (tenant_id, strategy_id ASC, key ASC, priority DESC);
+CREATE INDEX v1_concurrency_slot_query_idx ON v1_concurrency_slot (tenant_id, strategy_id ASC, key ASC, priority DESC);
 
-CREATE OR REPLACE FUNCTION delete_concurrency_slots_on_v2_task_runtime_delete()
+CREATE OR REPLACE FUNCTION delete_concurrency_slots_on_v1_task_runtime_delete()
 RETURNS trigger AS $$
 BEGIN
   WITH slots_to_delete AS (
@@ -386,11 +386,11 @@ BEGIN
     FROM
         deleted_rows d
     JOIN
-        v2_task t ON t.id = d.task_id
-    JOIN v2_concurrency_slot cs ON cs.task_id = t.id AND cs.task_inserted_at = t.inserted_at AND cs.task_retry_count = d.retry_count
+        v1_task t ON t.id = d.task_id
+    JOIN v1_concurrency_slot cs ON cs.task_id = t.id AND cs.task_inserted_at = t.inserted_at AND cs.task_retry_count = d.retry_count
   )
   DELETE FROM
-    v2_concurrency_slot cs
+    v1_concurrency_slot cs
   WHERE
     (task_inserted_at, task_id, task_retry_count, key) IN (
         SELECT
@@ -403,25 +403,25 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER after_v2_task_runtime_delete
-AFTER DELETE ON v2_task_runtime
+CREATE TRIGGER after_v1_task_runtime_delete
+AFTER DELETE ON v1_task_runtime
 REFERENCING OLD TABLE AS deleted_rows
 FOR EACH STATEMENT
-EXECUTE FUNCTION delete_concurrency_slots_on_v2_task_runtime_delete();
+EXECUTE FUNCTION delete_concurrency_slots_on_v1_task_runtime_delete();
 
-CREATE TABLE v2_retry_queue_item (
+CREATE TABLE v1_retry_queue_item (
     task_id BIGINT NOT NULL,
     task_inserted_at TIMESTAMPTZ NOT NULL,
     task_retry_count INTEGER NOT NULL,
     retry_after TIMESTAMPTZ NOT NULL,
     tenant_id UUID NOT NULL,
 
-    CONSTRAINT v2_retry_queue_item_pkey PRIMARY KEY (task_id, task_inserted_at, task_retry_count)
+    CONSTRAINT v1_retry_queue_item_pkey PRIMARY KEY (task_id, task_inserted_at, task_retry_count)
 );
 
-CREATE INDEX v2_retry_queue_item_tenant_id_retry_after_idx ON v2_retry_queue_item (tenant_id ASC, retry_after ASC);
+CREATE INDEX v1_retry_queue_item_tenant_id_retry_after_idx ON v1_retry_queue_item (tenant_id ASC, retry_after ASC);
 
-CREATE OR REPLACE FUNCTION v2_task_insert_function()
+CREATE OR REPLACE FUNCTION v1_task_insert_function()
 RETURNS TRIGGER AS
 $$
 BEGIN
@@ -448,7 +448,7 @@ BEGIN
         FROM new_table
         WHERE initial_state = 'QUEUED' AND concurrency_strategy_ids[1] IS NOT NULL
     )
-    INSERT INTO v2_concurrency_slot (
+    INSERT INTO v1_concurrency_slot (
         task_id,
         task_inserted_at,
         task_retry_count,
@@ -477,7 +477,7 @@ BEGIN
         schedule_timeout_at
     FROM new_slot_rows;
 
-    INSERT INTO v2_queue_item (
+    INSERT INTO v1_queue_item (
         tenant_id,
         queue,
         task_id,
@@ -507,7 +507,7 @@ BEGIN
     FROM new_table
     WHERE initial_state = 'QUEUED' AND concurrency_strategy_ids[1] IS NULL;
 
-    INSERT INTO v2_dag_to_task (
+    INSERT INTO v1_dag_to_task (
         dag_id,
         dag_inserted_at,
         task_id,
@@ -526,13 +526,13 @@ END;
 $$
 LANGUAGE plpgsql;
 
-CREATE TRIGGER v2_task_insert_trigger
-AFTER INSERT ON v2_task
+CREATE TRIGGER v1_task_insert_trigger
+AFTER INSERT ON v1_task
 REFERENCING NEW TABLE AS new_table
 FOR EACH STATEMENT
-EXECUTE PROCEDURE v2_task_insert_function();
+EXECUTE PROCEDURE v1_task_insert_function();
 
-CREATE OR REPLACE FUNCTION v2_task_update_function()
+CREATE OR REPLACE FUNCTION v1_task_update_function()
 RETURNS TRIGGER AS
 $$
 BEGIN
@@ -562,7 +562,7 @@ BEGIN
             AND nt.concurrency_strategy_ids[1] IS NOT NULL
             AND ot.retry_count IS DISTINCT FROM nt.retry_count
     )
-    INSERT INTO v2_concurrency_slot (
+    INSERT INTO v1_concurrency_slot (
         task_id,
         task_inserted_at,
         task_retry_count,
@@ -591,7 +591,7 @@ BEGIN
         schedule_timeout_at
     FROM new_slot_rows;
 
-    INSERT INTO v2_queue_item (
+    INSERT INTO v1_queue_item (
         tenant_id,
         queue,
         task_id,
@@ -629,13 +629,13 @@ END;
 $$
 LANGUAGE plpgsql;
 
-CREATE TRIGGER v2_task_update_trigger
-AFTER UPDATE ON v2_task
+CREATE TRIGGER v1_task_update_trigger
+AFTER UPDATE ON v1_task
 REFERENCING NEW TABLE AS new_table OLD TABLE AS old_table
 FOR EACH STATEMENT
-EXECUTE PROCEDURE v2_task_update_function();
+EXECUTE PROCEDURE v1_task_update_function();
 
-CREATE OR REPLACE FUNCTION v2_concurrency_slot_update_function()
+CREATE OR REPLACE FUNCTION v1_concurrency_slot_update_function()
 RETURNS TRIGGER AS
 $$
 BEGIN
@@ -662,13 +662,13 @@ BEGIN
             CURRENT_TIMESTAMP + convert_duration_to_interval(t.schedule_timeout) AS schedule_timeout_at
         FROM new_table nt
         JOIN old_table ot USING (task_id, task_inserted_at, task_retry_count, key)
-        JOIN v2_task t ON t.id = nt.task_id AND t.inserted_at = nt.task_inserted_at
+        JOIN v1_task t ON t.id = nt.task_id AND t.inserted_at = nt.task_inserted_at
         WHERE
             COALESCE(array_length(nt.next_keys, 1), 0) != 0
             AND nt.is_filled = TRUE
             AND nt.is_filled IS DISTINCT FROM ot.is_filled
     )
-    INSERT INTO v2_concurrency_slot (
+    INSERT INTO v1_concurrency_slot (
         task_id,
         task_inserted_at,
         task_retry_count,
@@ -697,20 +697,20 @@ BEGIN
         queue
     FROM new_slot_rows;
 
-    -- If the concurrency slot does not have next_keys, insert an item into v2_queue_item
+    -- If the concurrency slot does not have next_keys, insert an item into v1_queue_item
     WITH tasks AS (
         SELECT
             t.*
         FROM
             new_table nt
         JOIN old_table ot USING (task_id, task_inserted_at, task_retry_count, key)
-        JOIN v2_task t ON t.id = nt.task_id AND t.inserted_at = nt.task_inserted_at
+        JOIN v1_task t ON t.id = nt.task_id AND t.inserted_at = nt.task_inserted_at
         WHERE
             COALESCE(array_length(nt.next_keys, 1), 0) = 0
             AND nt.is_filled = TRUE
             AND nt.is_filled IS DISTINCT FROM ot.is_filled
     )
-    INSERT INTO v2_queue_item (
+    INSERT INTO v1_queue_item (
         tenant_id,
         queue,
         task_id,
@@ -744,15 +744,15 @@ END;
 $$
 LANGUAGE plpgsql;
 
-CREATE TRIGGER v2_concurrency_slot_update_trigger
-AFTER UPDATE ON v2_concurrency_slot
+CREATE TRIGGER v1_concurrency_slot_update_trigger
+AFTER UPDATE ON v1_concurrency_slot
 REFERENCING NEW TABLE AS new_table OLD TABLE AS old_table
 FOR EACH STATEMENT
-EXECUTE PROCEDURE v2_concurrency_slot_update_function();
+EXECUTE PROCEDURE v1_concurrency_slot_update_function();
 
-CREATE TYPE v2_sticky_strategy_olap AS ENUM ('NONE', 'SOFT', 'HARD');
+CREATE TYPE v1_sticky_strategy_olap AS ENUM ('NONE', 'SOFT', 'HARD');
 
-CREATE TYPE v2_readable_status_olap AS ENUM (
+CREATE TYPE v1_readable_status_olap AS ENUM (
     'QUEUED',
     'RUNNING',
     'COMPLETED',
@@ -761,9 +761,9 @@ CREATE TYPE v2_readable_status_olap AS ENUM (
 );
 
 -- HELPER FUNCTIONS FOR PARTITIONED TABLES --
-CREATE OR REPLACE FUNCTION create_v2_partition_with_status(
+CREATE OR REPLACE FUNCTION create_v1_partition_with_status(
     newTableName text,
-    status v2_readable_status_olap
+    status v1_readable_status_olap
 ) RETURNS integer
     LANGUAGE plpgsql AS
 $$
@@ -794,7 +794,7 @@ BEGIN
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION create_v2_olap_partition_with_date_and_status(
+CREATE OR REPLACE FUNCTION create_v1_olap_partition_with_date_and_status(
     targetTableName text,
     targetDate date
 ) RETURNS integer
@@ -812,11 +812,11 @@ BEGIN
         EXECUTE format('CREATE TABLE %s (LIKE %s INCLUDING INDEXES) PARTITION BY LIST (readable_status)', newTableName, targetTableName);
     END IF;
 
-    PERFORM create_v2_partition_with_status(newTableName, 'QUEUED');
-    PERFORM create_v2_partition_with_status(newTableName, 'RUNNING');
-    PERFORM create_v2_partition_with_status(newTableName, 'COMPLETED');
-    PERFORM create_v2_partition_with_status(newTableName, 'CANCELLED');
-    PERFORM create_v2_partition_with_status(newTableName, 'FAILED');
+    PERFORM create_v1_partition_with_status(newTableName, 'QUEUED');
+    PERFORM create_v1_partition_with_status(newTableName, 'RUNNING');
+    PERFORM create_v1_partition_with_status(newTableName, 'COMPLETED');
+    PERFORM create_v1_partition_with_status(newTableName, 'CANCELLED');
+    PERFORM create_v1_partition_with_status(newTableName, 'FAILED');
 
     -- If it's not already attached, attach the partition
     IF NOT EXISTS (SELECT 1 FROM pg_inherits WHERE inhrelid = newTableName::regclass) THEN
@@ -827,7 +827,7 @@ BEGIN
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION get_v2_partitions_before_date(
+CREATE OR REPLACE FUNCTION get_v1_partitions_before_date(
     targetTableName text,
     targetDate date
 ) RETURNS TABLE(partition_name text)
@@ -846,7 +846,7 @@ BEGIN
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION create_v2_hash_partitions(
+CREATE OR REPLACE FUNCTION create_v1_hash_partitions(
     targetTableName text,
     num_partitions INT
 ) RETURNS integer
@@ -887,7 +887,7 @@ END;
 $$;
 
 -- TASKS DEFINITIONS --
-CREATE TABLE v2_tasks_olap (
+CREATE TABLE v1_tasks_olap (
     tenant_id UUID NOT NULL,
     id BIGINT NOT NULL,
     inserted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -899,12 +899,12 @@ CREATE TABLE v2_tasks_olap (
     schedule_timeout TEXT NOT NULL,
     step_timeout TEXT,
     priority INTEGER DEFAULT 1,
-    sticky v2_sticky_strategy_olap NOT NULL,
+    sticky v1_sticky_strategy_olap NOT NULL,
     desired_worker_id UUID,
     display_name TEXT NOT NULL,
     input JSONB NOT NULL,
     additional_metadata JSONB,
-    readable_status v2_readable_status_olap NOT NULL DEFAULT 'QUEUED',
+    readable_status v1_readable_status_olap NOT NULL DEFAULT 'QUEUED',
     latest_retry_count INT NOT NULL DEFAULT 0,
     latest_worker_id UUID,
     dag_id BIGINT,
@@ -913,14 +913,14 @@ CREATE TABLE v2_tasks_olap (
     PRIMARY KEY (inserted_at, id, readable_status)
 ) PARTITION BY RANGE(inserted_at);
 
-CREATE INDEX v2_tasks_olap_workflow_id_idx ON v2_tasks_olap (tenant_id, workflow_id);
+CREATE INDEX v1_tasks_olap_workflow_id_idx ON v1_tasks_olap (tenant_id, workflow_id);
 
-CREATE INDEX v2_tasks_olap_worker_id_idx ON v2_tasks_olap (tenant_id, latest_worker_id) WHERE latest_worker_id IS NOT NULL;
+CREATE INDEX v1_tasks_olap_worker_id_idx ON v1_tasks_olap (tenant_id, latest_worker_id) WHERE latest_worker_id IS NOT NULL;
 
-SELECT create_v2_olap_partition_with_date_and_status('v2_tasks_olap', CURRENT_DATE);
+SELECT create_v1_olap_partition_with_date_and_status('v1_tasks_olap', CURRENT_DATE);
 
 -- DAG DEFINITIONS --
-CREATE TABLE v2_dags_olap (
+CREATE TABLE v1_dags_olap (
     id BIGINT NOT NULL,
     inserted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     tenant_id UUID NOT NULL,
@@ -928,38 +928,38 @@ CREATE TABLE v2_dags_olap (
     display_name TEXT NOT NULL,
     workflow_id UUID NOT NULL,
     workflow_version_id UUID NOT NULL,
-    readable_status v2_readable_status_olap NOT NULL DEFAULT 'QUEUED',
+    readable_status v1_readable_status_olap NOT NULL DEFAULT 'QUEUED',
     input JSONB NOT NULL,
     additional_metadata JSONB,
     PRIMARY KEY (inserted_at, id, readable_status)
 ) PARTITION BY RANGE(inserted_at);
 
-CREATE INDEX v2_dags_olap_workflow_id_idx ON v2_dags_olap (tenant_id, workflow_id);
+CREATE INDEX v1_dags_olap_workflow_id_idx ON v1_dags_olap (tenant_id, workflow_id);
 
-SELECT create_v2_olap_partition_with_date_and_status('v2_dags_olap', CURRENT_DATE);
+SELECT create_v1_olap_partition_with_date_and_status('v1_dags_olap', CURRENT_DATE);
 
 -- RUN DEFINITIONS --
-CREATE TYPE v2_run_kind AS ENUM ('TASK', 'DAG');
+CREATE TYPE v1_run_kind AS ENUM ('TASK', 'DAG');
 
--- v2_runs_olap represents an invocation of a workflow. it can either refer to a DAG or a task.
+-- v1_runs_olap represents an invocation of a workflow. it can either refer to a DAG or a task.
 -- we partition this table on status to allow for efficient querying of tasks in different states.
-CREATE TABLE v2_runs_olap (
+CREATE TABLE v1_runs_olap (
     tenant_id UUID NOT NULL,
     id BIGINT NOT NULL,
     inserted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     external_id UUID NOT NULL DEFAULT gen_random_uuid(),
-    readable_status v2_readable_status_olap NOT NULL DEFAULT 'QUEUED',
-    kind v2_run_kind NOT NULL,
+    readable_status v1_readable_status_olap NOT NULL DEFAULT 'QUEUED',
+    kind v1_run_kind NOT NULL,
     workflow_id UUID NOT NULL,
     additional_metadata JSONB,
 
     PRIMARY KEY (inserted_at, id, readable_status, kind)
 ) PARTITION BY RANGE(inserted_at);
 
-SELECT create_v2_olap_partition_with_date_and_status('v2_runs_olap', CURRENT_DATE);
+SELECT create_v1_olap_partition_with_date_and_status('v1_runs_olap', CURRENT_DATE);
 
 -- LOOKUP TABLES --
-CREATE TABLE v2_lookup_table (
+CREATE TABLE v1_lookup_table (
     tenant_id UUID NOT NULL,
     external_id UUID NOT NULL,
     task_id BIGINT,
@@ -969,7 +969,7 @@ CREATE TABLE v2_lookup_table (
     PRIMARY KEY (external_id)
 );
 
-CREATE TABLE v2_dag_to_task_olap (
+CREATE TABLE v1_dag_to_task_olap (
     dag_id BIGINT NOT NULL,
     dag_inserted_at TIMESTAMPTZ NOT NULL,
     task_id BIGINT NOT NULL,
@@ -978,22 +978,22 @@ CREATE TABLE v2_dag_to_task_olap (
 );
 
 -- STATUS DEFINITION --
-CREATE TYPE v2_status_kind AS ENUM ('TASK', 'DAG');
+CREATE TYPE v1_status_kind AS ENUM ('TASK', 'DAG');
 
-CREATE TABLE v2_statuses_olap (
+CREATE TABLE v1_statuses_olap (
     external_id UUID NOT NULL,
     inserted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     tenant_id UUID NOT NULL,
     workflow_id UUID NOT NULL,
-    kind v2_run_kind NOT NULL,
-    readable_status v2_readable_status_olap NOT NULL DEFAULT 'QUEUED',
+    kind v1_run_kind NOT NULL,
+    readable_status v1_readable_status_olap NOT NULL DEFAULT 'QUEUED',
 
     PRIMARY KEY (external_id, inserted_at)
 );
 
 
 -- EVENT DEFINITIONS --
-CREATE TYPE v2_event_type_olap AS ENUM (
+CREATE TYPE v1_event_type_olap AS ENUM (
     'RETRYING',
     'REASSIGNED',
     'RETRIED_BY_USER',
@@ -1018,15 +1018,15 @@ CREATE TYPE v2_event_type_olap AS ENUM (
 
 -- this is a hash-partitioned table on the task_id, so that we can process batches of events in parallel
 -- without needing to place conflicting locks on tasks.
-CREATE TABLE v2_task_events_olap_tmp (
+CREATE TABLE v1_task_events_olap_tmp (
     tenant_id UUID NOT NULL,
     requeue_after TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     requeue_retries INT NOT NULL DEFAULT 0,
     id bigint GENERATED ALWAYS AS IDENTITY,
     task_id BIGINT NOT NULL,
     task_inserted_at TIMESTAMPTZ NOT NULL,
-    event_type v2_event_type_olap NOT NULL,
-    readable_status v2_readable_status_olap NOT NULL,
+    event_type v1_event_type_olap NOT NULL,
+    readable_status v1_readable_status_olap NOT NULL,
     retry_count INT NOT NULL DEFAULT 0,
     worker_id UUID,
 
@@ -1037,13 +1037,13 @@ CREATE OR REPLACE FUNCTION list_task_events_tmp(
     partition_number INT,
     tenant_id UUID,
     event_limit INT
-) RETURNS SETOF v2_task_events_olap_tmp
+) RETURNS SETOF v1_task_events_olap_tmp
 LANGUAGE plpgsql AS
 $$
 DECLARE
     partition_table text;
 BEGIN
-    partition_table := 'v2_task_events_olap_tmp_' || partition_number::text;
+    partition_table := 'v1_task_events_olap_tmp_' || partition_number::text;
     RETURN QUERY EXECUTE format(
         'SELECT e.*
          FROM %I e
@@ -1057,16 +1057,16 @@ BEGIN
 END;
 $$;
 
-CREATE TABLE v2_task_events_olap (
+CREATE TABLE v1_task_events_olap (
     tenant_id UUID NOT NULL,
     id bigint GENERATED ALWAYS AS IDENTITY,
     inserted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     task_id BIGINT NOT NULL,
     task_inserted_at TIMESTAMPTZ NOT NULL,
-    event_type v2_event_type_olap NOT NULL,
+    event_type v1_event_type_olap NOT NULL,
     workflow_id UUID NOT NULL,
     event_timestamp TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    readable_status v2_readable_status_olap NOT NULL,
+    readable_status v1_readable_status_olap NOT NULL,
     retry_count INT NOT NULL DEFAULT 0,
     error_message TEXT,
     output JSONB,
@@ -1077,11 +1077,11 @@ CREATE TABLE v2_task_events_olap (
     PRIMARY KEY (task_id, task_inserted_at, id)
 );
 
-CREATE INDEX v2_task_events_olap_task_id_idx ON v2_task_events_olap (task_id);
+CREATE INDEX v1_task_events_olap_task_id_idx ON v1_task_events_olap (task_id);
 
 -- this is a hash-partitioned table on the dag_id, so that we can process batches of events in parallel
 -- without needing to place conflicting locks on dags.
-CREATE TABLE v2_task_status_updates_tmp (
+CREATE TABLE v1_task_status_updates_tmp (
     tenant_id UUID NOT NULL,
     requeue_after TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     requeue_retries INT NOT NULL DEFAULT 0,
@@ -1096,13 +1096,13 @@ CREATE OR REPLACE FUNCTION list_task_status_updates_tmp(
     partition_number INT,
     tenant_id UUID,
     event_limit INT
-) RETURNS SETOF v2_task_status_updates_tmp
+) RETURNS SETOF v1_task_status_updates_tmp
 LANGUAGE plpgsql AS
 $$
 DECLARE
     partition_table text;
 BEGIN
-    partition_table := 'v2_task_status_updates_tmp_' || partition_number::text;
+    partition_table := 'v1_task_status_updates_tmp_' || partition_number::text;
     RETURN QUERY EXECUTE format(
         'SELECT e.*
          FROM %I e
@@ -1117,11 +1117,11 @@ END;
 $$;
 
 -- TRIGGERS TO LINK TASKS, DAGS AND EVENTS --
-CREATE OR REPLACE FUNCTION v2_tasks_olap_insert_function()
+CREATE OR REPLACE FUNCTION v1_tasks_olap_insert_function()
 RETURNS TRIGGER AS
 $$
 BEGIN
-    INSERT INTO v2_runs_olap (
+    INSERT INTO v1_runs_olap (
         tenant_id,
         id,
         inserted_at,
@@ -1143,7 +1143,7 @@ BEGIN
     FROM new_rows
     WHERE dag_id IS NULL;
 
-    INSERT INTO v2_lookup_table (
+    INSERT INTO v1_lookup_table (
         tenant_id,
         external_id,
         task_id,
@@ -1157,7 +1157,7 @@ BEGIN
     FROM new_rows;
 
     -- If the task has a dag_id and dag_inserted_at, insert into the lookup table
-    INSERT INTO v2_dag_to_task_olap (
+    INSERT INTO v1_dag_to_task_olap (
         dag_id,
         dag_inserted_at,
         task_id,
@@ -1176,18 +1176,18 @@ END;
 $$
 LANGUAGE plpgsql;
 
-CREATE TRIGGER v2_tasks_olap_status_insert_trigger
-AFTER INSERT ON v2_tasks_olap
+CREATE TRIGGER v1_tasks_olap_status_insert_trigger
+AFTER INSERT ON v1_tasks_olap
 REFERENCING NEW TABLE AS new_rows
 FOR EACH STATEMENT
-EXECUTE FUNCTION v2_tasks_olap_insert_function();
+EXECUTE FUNCTION v1_tasks_olap_insert_function();
 
-CREATE OR REPLACE FUNCTION v2_tasks_olap_status_update_function()
+CREATE OR REPLACE FUNCTION v1_tasks_olap_status_update_function()
 RETURNS TRIGGER AS
 $$
 BEGIN
     UPDATE
-        v2_runs_olap r
+        v1_runs_olap r
     SET
         readable_status = n.readable_status
     FROM new_rows n
@@ -1197,7 +1197,7 @@ BEGIN
         AND r.kind = 'TASK';
 
     -- insert tmp events into task status updates table if we have a dag_id
-    INSERT INTO v2_task_status_updates_tmp (
+    INSERT INTO v1_task_status_updates_tmp (
         tenant_id,
         dag_id,
         dag_inserted_at
@@ -1214,17 +1214,17 @@ END;
 $$
 LANGUAGE plpgsql;
 
-CREATE TRIGGER v2_tasks_olap_status_update_trigger
-AFTER UPDATE ON v2_tasks_olap
+CREATE TRIGGER v1_tasks_olap_status_update_trigger
+AFTER UPDATE ON v1_tasks_olap
 REFERENCING NEW TABLE AS new_rows
 FOR EACH STATEMENT
-EXECUTE FUNCTION v2_tasks_olap_status_update_function();
+EXECUTE FUNCTION v1_tasks_olap_status_update_function();
 
-CREATE OR REPLACE FUNCTION v2_dags_olap_insert_function()
+CREATE OR REPLACE FUNCTION v1_dags_olap_insert_function()
 RETURNS TRIGGER AS
 $$
 BEGIN
-    INSERT INTO v2_runs_olap (
+    INSERT INTO v1_runs_olap (
         tenant_id,
         id,
         inserted_at,
@@ -1245,7 +1245,7 @@ BEGIN
         additional_metadata
     FROM new_rows;
 
-    INSERT INTO v2_lookup_table (
+    INSERT INTO v1_lookup_table (
         tenant_id,
         external_id,
         dag_id,
@@ -1263,18 +1263,18 @@ END;
 $$
 LANGUAGE plpgsql;
 
-CREATE TRIGGER v2_dags_olap_status_insert_trigger
-AFTER INSERT ON v2_dags_olap
+CREATE TRIGGER v1_dags_olap_status_insert_trigger
+AFTER INSERT ON v1_dags_olap
 REFERENCING NEW TABLE AS new_rows
 FOR EACH STATEMENT
-EXECUTE FUNCTION v2_dags_olap_insert_function();
+EXECUTE FUNCTION v1_dags_olap_insert_function();
 
-CREATE OR REPLACE FUNCTION v2_dags_olap_status_update_function()
+CREATE OR REPLACE FUNCTION v1_dags_olap_status_update_function()
 RETURNS TRIGGER AS
 $$
 BEGIN
     UPDATE
-        v2_runs_olap r
+        v1_runs_olap r
     SET
         readable_status = n.readable_status
     FROM new_rows n
@@ -1288,17 +1288,17 @@ END;
 $$
 LANGUAGE plpgsql;
 
-CREATE TRIGGER v2_dags_olap_status_update_trigger
-AFTER UPDATE ON v2_dags_olap
+CREATE TRIGGER v1_dags_olap_status_update_trigger
+AFTER UPDATE ON v1_dags_olap
 REFERENCING NEW TABLE AS new_rows
 FOR EACH STATEMENT
-EXECUTE FUNCTION v2_dags_olap_status_update_function();
+EXECUTE FUNCTION v1_dags_olap_status_update_function();
 
-CREATE OR REPLACE FUNCTION v2_runs_olap_insert_function()
+CREATE OR REPLACE FUNCTION v1_runs_olap_insert_function()
 RETURNS TRIGGER AS
 $$
 BEGIN
-    INSERT INTO v2_statuses_olap (
+    INSERT INTO v1_statuses_olap (
         external_id,
         inserted_at,
         tenant_id,
@@ -1320,18 +1320,18 @@ END;
 $$
 LANGUAGE plpgsql;
 
-CREATE TRIGGER v2_runs_olap_status_insert_trigger
-AFTER INSERT ON v2_runs_olap
+CREATE TRIGGER v1_runs_olap_status_insert_trigger
+AFTER INSERT ON v1_runs_olap
 REFERENCING NEW TABLE AS new_rows
 FOR EACH STATEMENT
-EXECUTE FUNCTION v2_runs_olap_insert_function();
+EXECUTE FUNCTION v1_runs_olap_insert_function();
 
-CREATE OR REPLACE FUNCTION v2_runs_olap_status_update_function()
+CREATE OR REPLACE FUNCTION v1_runs_olap_status_update_function()
 RETURNS TRIGGER AS
 $$
 BEGIN
     UPDATE
-        v2_statuses_olap s
+        v1_statuses_olap s
     SET
         readable_status = n.readable_status
     FROM new_rows n
@@ -1344,13 +1344,13 @@ END;
 $$
 LANGUAGE plpgsql;
 
-CREATE TRIGGER v2_runs_olap_status_update_trigger
-AFTER UPDATE ON v2_runs_olap
+CREATE TRIGGER v1_runs_olap_status_update_trigger
+AFTER UPDATE ON v1_runs_olap
 REFERENCING NEW TABLE AS new_rows
 FOR EACH STATEMENT
-EXECUTE FUNCTION v2_runs_olap_status_update_function();
+EXECUTE FUNCTION v1_runs_olap_status_update_function();
 
-SELECT create_v2_range_partition('v2_task', DATE 'today');
-SELECT create_v2_range_partition('v2_dag', DATE 'today');
-SELECT create_v2_range_partition('v2_concurrency_slot', DATE 'today');
+SELECT create_v1_range_partition('v1_task', DATE 'today');
+SELECT create_v1_range_partition('v1_dag', DATE 'today');
+SELECT create_v1_range_partition('v1_concurrency_slot', DATE 'today');
 -- +goose StatementEnd

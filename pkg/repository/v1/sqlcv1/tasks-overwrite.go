@@ -22,14 +22,14 @@ WITH input AS (
                 unnest($7::text[]) AS schedule_timeout,
                 unnest($8::text[]) AS step_timeout,
                 unnest($9::integer[]) AS priority,
-                unnest(cast($10::text[] as v2_sticky_strategy[])) AS sticky,
+                unnest(cast($10::text[] as v1_sticky_strategy[])) AS sticky,
                 unnest($11::uuid[]) AS desired_worker_id,
                 unnest($12::uuid[]) AS external_id,
                 unnest($13::text[]) AS display_name,
                 unnest($14::jsonb[]) AS input,
                 unnest($15::integer[]) AS retry_count,
                 unnest($16::jsonb[]) AS additional_metadata,
-				unnest(cast($17::text[] as v2_task_initial_state[])) AS initial_state,
+				unnest(cast($17::text[] as v1_task_initial_state[])) AS initial_state,
                 -- NOTE: these are nullable, so sqlc doesn't support casting to a type
                 unnest($18::bigint[]) AS dag_id,
                 unnest($19::timestamptz[]) AS dag_inserted_at,
@@ -38,7 +38,7 @@ WITH input AS (
 				unnest($22::text[]) AS initial_state_reason
         ) AS subquery
 )
-INSERT INTO v2_task (
+INSERT INTO v1_task (
     tenant_id,
     queue,
     action_id,
@@ -116,7 +116,7 @@ type CreateTasksParams struct {
 	ConcurrencyKeys        [][]string           `json:"concurrencyKeys"`
 }
 
-func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParams) ([]*V2Task, error) {
+func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParams) ([]*V1Task, error) {
 	rows, err := db.Query(ctx, createTasks,
 		arg.Tenantids,
 		arg.Queues,
@@ -145,9 +145,9 @@ func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParam
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*V2Task
+	var items []*V1Task
 	for rows.Next() {
-		var i V2Task
+		var i V1Task
 		if err := rows.Scan(
 			&i.ID,
 			&i.InsertedAt,
@@ -191,7 +191,7 @@ WITH locked_tasks AS (
     SELECT
         id
     FROM
-        v2_task
+        v1_task
     WHERE
         id = ANY($2::bigint[])
         AND tenant_id = $1::uuid
@@ -207,12 +207,12 @@ WITH locked_tasks AS (
             SELECT
                 unnest($2::bigint[]) AS task_id,
                 unnest($3::integer[]) AS retry_count,
-                unnest(cast($4::text[] as v2_task_event_type[])) AS event_type,
+                unnest(cast($4::text[] as v1_task_event_type[])) AS event_type,
                 unnest($5::text[]) AS event_key,
                 unnest($6::jsonb[]) AS data
         ) AS subquery
 )
-INSERT INTO v2_task_event (
+INSERT INTO v1_task_event (
     tenant_id,
     task_id,
     retry_count,

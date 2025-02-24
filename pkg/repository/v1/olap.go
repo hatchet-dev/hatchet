@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"os"
 	"sync"
 	"time"
 
@@ -15,7 +14,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
@@ -28,7 +26,7 @@ const NUM_PARTITIONS = 4
 type ListTaskRunOpts struct {
 	CreatedAfter time.Time
 
-	Statuses []sqlcv1.V2ReadableStatusOlap
+	Statuses []sqlcv1.V1ReadableStatusOlap
 
 	WorkflowIds []uuid.UUID
 
@@ -48,7 +46,7 @@ type ListTaskRunOpts struct {
 type ListWorkflowRunOpts struct {
 	CreatedAfter time.Time
 
-	Statuses []sqlcv1.V2ReadableStatusOlap
+	Statuses []sqlcv1.V1ReadableStatusOlap
 
 	WorkflowIds []uuid.UUID
 
@@ -73,8 +71,8 @@ type WorkflowRunData struct {
 	TenantID           pgtype.UUID                 `json:"tenant_id"`
 	InsertedAt         pgtype.Timestamptz          `json:"inserted_at"`
 	ExternalID         pgtype.UUID                 `json:"external_id"`
-	ReadableStatus     sqlcv1.V2ReadableStatusOlap `json:"readable_status"`
-	Kind               sqlcv1.V2RunKind            `json:"kind"`
+	ReadableStatus     sqlcv1.V1ReadableStatusOlap `json:"readable_status"`
+	Kind               sqlcv1.V1RunKind            `json:"kind"`
 	WorkflowID         pgtype.UUID                 `json:"workflow_id"`
 	DisplayName        string                      `json:"display_name"`
 	AdditionalMetadata []byte                      `json:"additional_metadata"`
@@ -154,8 +152,8 @@ func (s ReadableTaskStatus) EnumValue() int {
 	}
 }
 
-type OLAPEventRepository interface {
-	ReadTaskRun(ctx context.Context, taskExternalId string) (*sqlcv1.V2TasksOlap, error)
+type OLAPRepository interface {
+	ReadTaskRun(ctx context.Context, taskExternalId string) (*sqlcv1.V1TasksOlap, error)
 	ReadWorkflowRun(ctx context.Context, workflowRunExternalId pgtype.UUID) (*V2WorkflowRunPopulator, error)
 	ReadTaskRunData(ctx context.Context, tenantId pgtype.UUID, taskId int64, taskInsertedAt pgtype.Timestamptz) (*sqlcv1.PopulateSingleTaskRunDataRow, *pgtype.UUID, error)
 	ListTasks(ctx context.Context, tenantId string, opts ListTaskRunOpts) ([]*sqlcv1.PopulateTaskRunDataRow, int, error)
@@ -163,48 +161,24 @@ type OLAPEventRepository interface {
 	ListTaskRunEvents(ctx context.Context, tenantId string, taskId int64, taskInsertedAt pgtype.Timestamptz, limit, offset int64) ([]*sqlcv1.ListTaskEventsRow, error)
 	ListTaskRunEventsByWorkflowRunId(ctx context.Context, tenantId string, workflowRunId pgtype.UUID) ([]*sqlcv1.ListTaskEventsForWorkflowRunRow, error)
 	ReadTaskRunMetrics(ctx context.Context, tenantId string, opts ReadTaskRunMetricsOpts) ([]TaskRunMetric, error)
-	CreateTasks(ctx context.Context, tenantId string, tasks []*sqlcv1.V2Task) error
+	CreateTasks(ctx context.Context, tenantId string, tasks []*sqlcv1.V1Task) error
 	CreateTaskEvents(ctx context.Context, tenantId string, events []sqlcv1.CreateTaskEventsOLAPParams) error
 	CreateDAGs(ctx context.Context, tenantId string, dags []*DAGWithData) error
 	GetTaskPointMetrics(ctx context.Context, tenantId string, startTimestamp *time.Time, endTimestamp *time.Time, bucketInterval time.Duration) ([]*sqlcv1.GetTaskPointMetricsRow, error)
 	UpdateTaskStatuses(ctx context.Context, tenantId string) (bool, error)
 	UpdateDAGStatuses(ctx context.Context, tenantId string) (bool, error)
-	ReadDAG(ctx context.Context, dagExternalId string) (*sqlcv1.V2DagsOlap, error)
+	ReadDAG(ctx context.Context, dagExternalId string) (*sqlcv1.V1DagsOlap, error)
 	ListTasksByDAGId(ctx context.Context, tenantId string, dagIds []pgtype.UUID) ([]*sqlcv1.PopulateTaskRunDataRow, map[int64]uuid.UUID, error)
 	ListTasksByIdAndInsertedAt(ctx context.Context, tenantId string, taskMetadata []TaskMetadata) ([]*sqlcv1.PopulateTaskRunDataRow, error)
 }
 
 type olapEventRepository struct {
-	pool *pgxpool.Pool
-	l    *zerolog.Logger
+	*sharedRepository
 
 	eventCache *lru.Cache[string, bool]
-	queries    *sqlcv1.Queries
 }
 
-func NewOLAPEventRepository(l *zerolog.Logger) OLAPEventRepository {
-	timescaleUrl := os.Getenv("TIMESCALE_URL")
-
-	if timescaleUrl == "" {
-		log.Fatal("TIMESCALE_URL is not set")
-	}
-
-	timescaleConfig, err := pgxpool.ParseConfig(timescaleUrl)
-
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	timescaleConfig.MaxConns = 150
-	timescaleConfig.MinConns = 10
-	timescaleConfig.MaxConnLifetime = 15 * 60 * time.Second
-
-	timescalePool, err := pgxpool.NewWithConfig(context.Background(), timescaleConfig)
-
-	if err != nil {
-		log.Fatalf("Unable to create connection pool: %v\n", err)
-	}
-
+func newOLAPRepository(shared *sharedRepository) OLAPRepository {
 	eventCache, err := lru.New[string, bool](100000)
 
 	if err != nil {
@@ -217,13 +191,13 @@ func NewOLAPEventRepository(l *zerolog.Logger) OLAPEventRepository {
 	partitionCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
-	err = queries.CreateOLAPTaskEventTmpPartitions(partitionCtx, timescalePool, NUM_PARTITIONS)
+	err = queries.CreateOLAPTaskEventTmpPartitions(partitionCtx, shared.pool, NUM_PARTITIONS)
 
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	err = queries.CreateOLAPTaskStatusUpdateTmpPartitions(partitionCtx, timescalePool, NUM_PARTITIONS)
+	err = queries.CreateOLAPTaskStatusUpdateTmpPartitions(partitionCtx, shared.pool, NUM_PARTITIONS)
 
 	if err != nil {
 		log.Fatal(err)
@@ -231,33 +205,31 @@ func NewOLAPEventRepository(l *zerolog.Logger) OLAPEventRepository {
 
 	setupRangePartition(
 		partitionCtx,
-		timescalePool,
+		shared.pool,
 		queries.CreateOLAPTaskPartition,
 		queries.ListOLAPTaskPartitionsBeforeDate,
-		"v2_tasks_olap",
+		"v1_tasks_olap",
 	)
 
 	setupRangePartition(
 		partitionCtx,
-		timescalePool,
+		shared.pool,
 		queries.CreateOLAPDAGPartition,
 		queries.ListOLAPDAGPartitionsBeforeDate,
-		"v2_dags_olap",
+		"v1_dags_olap",
 	)
 
 	setupRangePartition(
 		partitionCtx,
-		timescalePool,
+		shared.pool,
 		queries.CreateOLAPRunsPartition,
 		queries.ListOLAPRunsPartitionsBeforeDate,
-		"v2_runs_olap",
+		"v1_runs_olap",
 	)
 
 	return &olapEventRepository{
-		pool:       timescalePool,
-		l:          l,
-		queries:    queries,
-		eventCache: eventCache,
+		sharedRepository: shared,
+		eventCache:       eventCache,
 	}
 }
 
@@ -337,30 +309,14 @@ func StringToReadableStatus(status string) ReadableTaskStatus {
 	}
 }
 
-type getRelevantTaskEventsRow struct {
-	TaskId         uuid.UUID
-	Timestamp      time.Time
-	EventType      string
-	ReadableStatus string
-}
-
-type getTaskRow struct {
-	Id                 uuid.UUID
-	AdditionalMetadata string
-	DisplayName        string
-	TenantId           uuid.UUID
-	CreatedAt          time.Time
-	WorkflowId         uuid.UUID
-}
-
-func (r *olapEventRepository) ReadTaskRun(ctx context.Context, taskExternalId string) (*sqlcv1.V2TasksOlap, error) {
+func (r *olapEventRepository) ReadTaskRun(ctx context.Context, taskExternalId string) (*sqlcv1.V1TasksOlap, error) {
 	row, err := r.queries.ReadTaskByExternalID(ctx, r.pool, sqlchelpers.UUIDFromStr(taskExternalId))
 
 	if err != nil {
 		return nil, err
 	}
 
-	return &sqlcv1.V2TasksOlap{
+	return &sqlcv1.V1TasksOlap{
 		TenantID:           row.TenantID,
 		ID:                 row.ID,
 		InsertedAt:         row.InsertedAt,
@@ -492,11 +448,11 @@ func (r *olapEventRepository) ListTasks(ctx context.Context, tenantId string, op
 
 	if len(statuses) == 0 {
 		statuses = []string{
-			string(sqlcv1.V2ReadableStatusOlapQUEUED),
-			string(sqlcv1.V2ReadableStatusOlapRUNNING),
-			string(sqlcv1.V2ReadableStatusOlapCOMPLETED),
-			string(sqlcv1.V2ReadableStatusOlapCANCELLED),
-			string(sqlcv1.V2ReadableStatusOlapFAILED),
+			string(sqlcv1.V1ReadableStatusOlapQUEUED),
+			string(sqlcv1.V1ReadableStatusOlapRUNNING),
+			string(sqlcv1.V1ReadableStatusOlapCOMPLETED),
+			string(sqlcv1.V1ReadableStatusOlapCANCELLED),
+			string(sqlcv1.V1ReadableStatusOlapFAILED),
 		}
 	}
 
@@ -682,11 +638,11 @@ func (r *olapEventRepository) ListWorkflowRuns(ctx context.Context, tenantId str
 
 	if len(statuses) == 0 {
 		statuses = []string{
-			string(sqlcv1.V2ReadableStatusOlapQUEUED),
-			string(sqlcv1.V2ReadableStatusOlapRUNNING),
-			string(sqlcv1.V2ReadableStatusOlapCOMPLETED),
-			string(sqlcv1.V2ReadableStatusOlapCANCELLED),
-			string(sqlcv1.V2ReadableStatusOlapFAILED),
+			string(sqlcv1.V1ReadableStatusOlapQUEUED),
+			string(sqlcv1.V1ReadableStatusOlapRUNNING),
+			string(sqlcv1.V1ReadableStatusOlapCOMPLETED),
+			string(sqlcv1.V1ReadableStatusOlapCANCELLED),
+			string(sqlcv1.V1ReadableStatusOlapFAILED),
 		}
 	}
 
@@ -730,7 +686,7 @@ func (r *olapEventRepository) ListWorkflowRuns(ctx context.Context, tenantId str
 	runInsertedAtsWithTasks := make([]pgtype.Timestamptz, 0)
 
 	for _, row := range workflowRunIds {
-		if row.Kind == sqlcv1.V2RunKindDAG {
+		if row.Kind == sqlcv1.V1RunKindDAG {
 			runIdsWithDAGs = append(runIdsWithDAGs, row.ID)
 			runInsertedAtsWithDAGs = append(runInsertedAtsWithDAGs, row.InsertedAt)
 		} else {
@@ -790,7 +746,7 @@ func (r *olapEventRepository) ListWorkflowRuns(ctx context.Context, tenantId str
 	for _, row := range workflowRunIds {
 		externalId := sqlchelpers.UUIDToStr(row.ExternalID)
 
-		if row.Kind == sqlcv1.V2RunKindDAG {
+		if row.Kind == sqlcv1.V1RunKindDAG {
 			dag, ok := dagsToPopulated[externalId]
 
 			if !ok {
@@ -810,7 +766,7 @@ func (r *olapEventRepository) ListWorkflowRuns(ctx context.Context, tenantId str
 				StartedAt:          dag.StartedAt,
 				FinishedAt:         dag.FinishedAt,
 				ErrorMessage:       dag.ErrorMessage.String,
-				Kind:               sqlcv1.V2RunKindDAG,
+				Kind:               sqlcv1.V1RunKindDAG,
 				WorkflowVersionId:  dag.WorkflowVersionID,
 			})
 		} else {
@@ -833,7 +789,7 @@ func (r *olapEventRepository) ListWorkflowRuns(ctx context.Context, tenantId str
 				StartedAt:          task.StartedAt,
 				FinishedAt:         task.FinishedAt,
 				ErrorMessage:       task.ErrorMessage.String,
-				Kind:               sqlcv1.V2RunKindTASK,
+				Kind:               sqlcv1.V1RunKindTASK,
 			})
 		}
 	}
@@ -1089,7 +1045,7 @@ func (r *olapEventRepository) UpdateDAGStatuses(ctx context.Context, tenantId st
 	return isSaturated, nil
 }
 
-func (r *olapEventRepository) writeTaskBatch(ctx context.Context, tenantId string, tasks []*sqlcv1.V2Task) error {
+func (r *olapEventRepository) writeTaskBatch(ctx context.Context, tenantId string, tasks []*sqlcv1.V1Task) error {
 	params := make([]sqlcv1.CreateTasksOLAPParams, 0)
 
 	for _, task := range tasks {
@@ -1104,7 +1060,7 @@ func (r *olapEventRepository) writeTaskBatch(ctx context.Context, tenantId strin
 			ScheduleTimeout:    task.ScheduleTimeout,
 			StepTimeout:        task.StepTimeout,
 			Priority:           task.Priority,
-			Sticky:             sqlcv1.V2StickyStrategyOlap(task.Sticky),
+			Sticky:             sqlcv1.V1StickyStrategyOlap(task.Sticky),
 			DesiredWorkerID:    task.DesiredWorkerID,
 			ExternalID:         task.ExternalID,
 			DisplayName:        task.DisplayName,
@@ -1146,7 +1102,7 @@ func (r *olapEventRepository) CreateTaskEvents(ctx context.Context, tenantId str
 	return r.writeTaskEventBatch(ctx, tenantId, events)
 }
 
-func (r *olapEventRepository) CreateTasks(ctx context.Context, tenantId string, tasks []*sqlcv1.V2Task) error {
+func (r *olapEventRepository) CreateTasks(ctx context.Context, tenantId string, tasks []*sqlcv1.V1Task) error {
 	return r.writeTaskBatch(ctx, tenantId, tasks)
 }
 
@@ -1169,7 +1125,7 @@ func (r *olapEventRepository) GetTaskPointMetrics(ctx context.Context, tenantId 
 	return rows, nil
 }
 
-func (r *olapEventRepository) ReadDAG(ctx context.Context, dagExternalId string) (*sqlcv1.V2DagsOlap, error) {
+func (r *olapEventRepository) ReadDAG(ctx context.Context, dagExternalId string) (*sqlcv1.V1DagsOlap, error) {
 	return r.queries.ReadDAGByExternalID(ctx, r.pool, sqlchelpers.UUIDFromStr(dagExternalId))
 }
 

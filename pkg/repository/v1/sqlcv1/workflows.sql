@@ -54,7 +54,7 @@ JOIN
 JOIN
     "Workflow" w ON w."id" = wv."workflowId"
 LEFT JOIN
-    v2_step_concurrency sc ON sc.workflow_id = w."id" AND sc.step_id = s."id"
+    v1_step_concurrency sc ON sc.workflow_id = w."id" AND sc.step_id = s."id"
 WHERE
     s."id" = ANY(@ids::uuid[])
     AND w."tenantId" = @tenantId::uuid

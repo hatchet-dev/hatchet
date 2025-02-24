@@ -6,11 +6,11 @@ SELECT
     id,
     inserted_at
 FROM
-    v2_tasks_olap
+    v1_tasks_olap
 WHERE
     tenant_id = @tenantId::uuid
     AND inserted_at >= @since::timestamptz
-    AND readable_status = ANY(@statuses::v2_readable_status_olap[])
+    AND readable_status = ANY(@statuses::v1_readable_status_olap[])
     AND (
         sqlc.narg('until')::timestamptz IS NULL
         OR inserted_at <= sqlc.narg('until')::timestamptz
@@ -42,11 +42,11 @@ WITH filtered AS (
     SELECT
         *
     FROM
-        v2_tasks_olap
+        v1_tasks_olap
     WHERE
         tenant_id = @tenantId::uuid
         AND inserted_at >= @since::timestamptz
-        AND readable_status = ANY(@statuses::v2_readable_status_olap[])
+        AND readable_status = ANY(@statuses::v1_readable_status_olap[])
         AND (
             sqlc.narg('until')::timestamptz IS NULL
             OR inserted_at <= sqlc.narg('until')::timestamptz
@@ -79,10 +79,10 @@ FROM filtered
 
 -- name: FetchWorkflowRunIds :many
 SELECT id, inserted_at, kind, external_id
-FROM v2_runs_olap
+FROM v1_runs_olap
 WHERE
     tenant_id = @tenantId::uuid
-    AND readable_status = ANY(@statuses::v2_readable_status_olap[])
+    AND readable_status = ANY(@statuses::v1_readable_status_olap[])
     AND (
         sqlc.narg('workflowIds')::uuid[] IS NULL
         OR workflow_id = ANY(sqlc.narg('workflowIds')::uuid[])
@@ -111,10 +111,10 @@ OFFSET @listWorkflowRunsOffset::integer
 -- name: CountWorkflowRuns :one
 WITH filtered AS (
     SELECT *
-    FROM v2_runs_olap
+    FROM v1_runs_olap
     WHERE
         tenant_id = @tenantId::uuid
-        AND readable_status = ANY(@statuses::v2_readable_status_olap[])
+        AND readable_status = ANY(@statuses::v1_readable_status_olap[])
         AND (
             sqlc.narg('workflowIds')::uuid[] IS NULL
             OR workflow_id = ANY(sqlc.narg('workflowIds')::uuid[])

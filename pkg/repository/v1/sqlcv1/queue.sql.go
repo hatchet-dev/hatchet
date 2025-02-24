@@ -16,7 +16,7 @@ WITH locked_qis AS (
     SELECT
         id
     FROM
-        v2_queue_item
+        v1_queue_item
     WHERE
         id = ANY($1::bigint[])
     ORDER BY
@@ -24,7 +24,7 @@ WITH locked_qis AS (
     FOR UPDATE
 )
 DELETE FROM
-    v2_queue_item
+    v1_queue_item
 WHERE
     id = ANY($1::bigint[])
 RETURNING
@@ -65,7 +65,7 @@ WITH input AS (
     SELECT
         id
     FROM
-        v2_queue_item
+        v1_queue_item
     WHERE
         (task_id, retry_count) IN (SELECT task_id, retry_count FROM input)
     ORDER BY
@@ -73,7 +73,7 @@ WITH input AS (
     FOR UPDATE
 )
 DELETE FROM
-    v2_queue_item
+    v1_queue_item
 WHERE
     id = ANY(SELECT id FROM locked_qis)
 `
@@ -146,7 +146,7 @@ WITH priority_1 AS (
     SELECT
         id
     FROM
-        v2_queue_item
+        v1_queue_item
     WHERE
         tenant_id = $1::uuid
         AND queue = $2::text
@@ -159,7 +159,7 @@ priority_2 AS (
     SELECT
         id
     FROM
-        v2_queue_item
+        v1_queue_item
     WHERE
         tenant_id = $1::uuid
         AND queue = $2::text
@@ -172,7 +172,7 @@ priority_3 AS (
     SELECT
         id
     FROM
-        v2_queue_item
+        v1_queue_item
     WHERE
         tenant_id = $1::uuid
         AND queue = $2::text
@@ -185,7 +185,7 @@ priority_4 AS (
     SELECT
         id
     FROM
-        v2_queue_item
+        v1_queue_item
     WHERE
         tenant_id = $1::uuid
         AND queue = $2::text
@@ -224,7 +224,7 @@ SELECT
     queue,
     COUNT(*) AS count
 FROM
-    v2_queue_item qi
+    v1_queue_item qi
 WHERE
     qi.tenant_id = $1::uuid
 GROUP BY
@@ -320,7 +320,7 @@ WITH worker_max_runs AS (
         worker_id,
         COUNT(task_id) AS "filledSlots"
     FROM
-        v2_task_runtime
+        v1_task_runtime
     WHERE
         tenant_id = $1::uuid
         AND worker_id = ANY($2::uuid[])
@@ -371,7 +371,7 @@ const listQueueItemsForQueue = `-- name: ListQueueItemsForQueue :many
 SELECT
     id, tenant_id, queue, task_id, action_id, step_id, workflow_id, schedule_timeout_at, step_timeout, priority, sticky, desired_worker_id, retry_count
 FROM
-    v2_queue_item qi
+    v1_queue_item qi
 WHERE
     qi.tenant_id = $1::uuid
     AND qi.queue = $2::text
@@ -395,7 +395,7 @@ type ListQueueItemsForQueueParams struct {
 	Limit    pgtype.Int4 `json:"limit"`
 }
 
-func (q *Queries) ListQueueItemsForQueue(ctx context.Context, db DBTX, arg ListQueueItemsForQueueParams) ([]*V2QueueItem, error) {
+func (q *Queries) ListQueueItemsForQueue(ctx context.Context, db DBTX, arg ListQueueItemsForQueueParams) ([]*V1QueueItem, error) {
 	rows, err := db.Query(ctx, listQueueItemsForQueue,
 		arg.Tenantid,
 		arg.Queue,
@@ -406,9 +406,9 @@ func (q *Queries) ListQueueItemsForQueue(ctx context.Context, db DBTX, arg ListQ
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*V2QueueItem
+	var items []*V1QueueItem
 	for rows.Next() {
-		var i V2QueueItem
+		var i V1QueueItem
 		if err := rows.Scan(
 			&i.ID,
 			&i.TenantID,
@@ -438,21 +438,21 @@ const listQueues = `-- name: ListQueues :many
 SELECT
     tenant_id, name, last_active
 FROM
-    v2_queue
+    v1_queue
 WHERE
     tenant_id = $1::uuid
     AND last_active > NOW() - INTERVAL '1 day'
 `
 
-func (q *Queries) ListQueues(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]*V2Queue, error) {
+func (q *Queries) ListQueues(ctx context.Context, db DBTX, tenantid pgtype.UUID) ([]*V1Queue, error) {
 	rows, err := db.Query(ctx, listQueues, tenantid)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*V2Queue
+	var items []*V1Queue
 	for rows.Next() {
-		var i V2Queue
+		var i V1Queue
 		if err := rows.Scan(&i.TenantID, &i.Name, &i.LastActive); err != nil {
 			return nil, err
 		}
@@ -486,10 +486,10 @@ WITH input AS (
     FROM
         input
     JOIN
-        v2_task t ON t.id = input.id
+        v1_task t ON t.id = input.id
     ORDER BY t.id
 ), assigned_tasks AS (
-    INSERT INTO v2_task_runtime (
+    INSERT INTO v1_task_runtime (
         task_id,
         retry_count,
         worker_id,
@@ -552,7 +552,7 @@ WITH ordered_names AS (
     ORDER BY name
 )
 INSERT INTO
-    v2_queue (
+    v1_queue (
         tenant_id,
         name,
         last_active

@@ -1,6 +1,6 @@
 -- name: CreateDAGPartition :exec
-SELECT create_v2_range_partition(
-    'v2_dag',
+SELECT create_v1_range_partition(
+    'v1_dag',
     @date::date
 );
 
@@ -8,8 +8,8 @@ SELECT create_v2_range_partition(
 SELECT
     p::text AS partition_name
 FROM
-    get_v2_partitions_before_date(
-        'v2_dag',
+    get_v1_partitions_before_date(
+        'v1_dag',
         @date::date
     ) AS p;
 
@@ -27,7 +27,7 @@ WITH input AS (
 SELECT
     *
 FROM
-    v2_dag_data
+    v1_dag_data
 JOIN
     input USING (dag_id, dag_inserted_at);
 
@@ -45,7 +45,7 @@ WITH input AS (
                 unnest(@workflowVersionIds::uuid[]) AS workflow_version_id
         ) AS subquery
 )
-INSERT INTO v2_dag (
+INSERT INTO v1_dag (
     tenant_id,
     external_id,
     display_name,
@@ -64,7 +64,7 @@ RETURNING
     *;
 
 -- name: CreateDAGData :copyfrom
-INSERT INTO v2_dag_data (
+INSERT INTO v1_dag_data (
     dag_id,
     dag_inserted_at,
     input,

@@ -16,9 +16,9 @@ type SchedulerRepository interface {
 }
 
 type LeaseRepository interface {
-	ListQueues(ctx context.Context, tenantId pgtype.UUID) ([]*sqlcv1.V2Queue, error)
+	ListQueues(ctx context.Context, tenantId pgtype.UUID) ([]*sqlcv1.V1Queue, error)
 	ListActiveWorkers(ctx context.Context, tenantId pgtype.UUID) ([]*ListActiveWorkersResult, error)
-	ListConcurrencyStrategies(ctx context.Context, tenantId pgtype.UUID) ([]*sqlcv1.V2StepConcurrency, error)
+	ListConcurrencyStrategies(ctx context.Context, tenantId pgtype.UUID) ([]*sqlcv1.V1StepConcurrency, error)
 
 	AcquireOrExtendLeases(ctx context.Context, tenantId pgtype.UUID, kind sqlcv1.LeaseKind, resourceIds []string, existingLeases []*sqlcv1.Lease) ([]*sqlcv1.Lease, error)
 	ReleaseLeases(ctx context.Context, tenantId pgtype.UUID, leases []*sqlcv1.Lease) error
@@ -29,11 +29,11 @@ type QueueFactoryRepository interface {
 }
 
 type QueueRepository interface {
-	ListQueueItems(ctx context.Context, limit int) ([]*sqlcv1.V2QueueItem, error)
+	ListQueueItems(ctx context.Context, limit int) ([]*sqlcv1.V1QueueItem, error)
 	MarkQueueItemsProcessed(ctx context.Context, r *AssignResults) (succeeded []*AssignedItem, failed []*AssignedItem, err error)
 
 	// TODO: ADD THIS
-	// GetStepRunRateLimits(ctx context.Context, queueItems []*sqlcv1.V2QueueItem) (map[string]map[string]int32, error)
+	// GetStepRunRateLimits(ctx context.Context, queueItems []*sqlcv1.V1QueueItem) (map[string]map[string]int32, error)
 	GetDesiredLabels(ctx context.Context, stepIds []pgtype.UUID) (map[string][]*sqlcv1.GetDesiredLabelsRow, error)
 	Cleanup()
 }

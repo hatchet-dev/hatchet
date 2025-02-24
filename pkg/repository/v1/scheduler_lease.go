@@ -105,7 +105,7 @@ func (d *leaseRepository) ReleaseLeases(ctx context.Context, tenantId pgtype.UUI
 	return nil
 }
 
-func (d *leaseRepository) ListQueues(ctx context.Context, tenantId pgtype.UUID) ([]*sqlcv1.V2Queue, error) {
+func (d *leaseRepository) ListQueues(ctx context.Context, tenantId pgtype.UUID) ([]*sqlcv1.V1Queue, error) {
 	ctx, span := telemetry.NewSpan(ctx, "list-queues")
 	defer span.End()
 
@@ -160,7 +160,7 @@ func (d *leaseRepository) ListActiveWorkers(ctx context.Context, tenantId pgtype
 	return res, nil
 }
 
-func (d *leaseRepository) ListConcurrencyStrategies(ctx context.Context, tenantId pgtype.UUID) ([]*sqlcv1.V2StepConcurrency, error) {
+func (d *leaseRepository) ListConcurrencyStrategies(ctx context.Context, tenantId pgtype.UUID) ([]*sqlcv1.V1StepConcurrency, error) {
 	ctx, span := telemetry.NewSpan(ctx, "list-queues")
 	defer span.End()
 

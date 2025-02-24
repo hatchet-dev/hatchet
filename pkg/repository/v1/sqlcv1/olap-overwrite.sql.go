@@ -11,11 +11,11 @@ WITH filtered AS (
     SELECT
         tenant_id, id, inserted_at, external_id, queue, action_id, step_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, display_name, input, additional_metadata, readable_status, latest_retry_count, latest_worker_id, dag_id, dag_inserted_at
     FROM
-        v2_tasks_olap
+        v1_tasks_olap
     WHERE
         tenant_id = $1::uuid
         AND inserted_at >= $2::timestamptz
-        AND readable_status = ANY($3::v2_readable_status_olap[])
+        AND readable_status = ANY($3::v1_readable_status_olap[])
         AND (
             $4::timestamptz IS NULL
             OR inserted_at <= $4::timestamptz
@@ -76,10 +76,10 @@ func (q *Queries) CountTasks(ctx context.Context, db DBTX, arg CountTasksParams)
 const countWorkflowRuns = `-- name: CountWorkflowRuns :one
 WITH filtered AS (
     SELECT tenant_id, id, inserted_at, external_id, readable_status, kind, workflow_id, additional_metadata
-    FROM v2_runs_olap
+    FROM v1_runs_olap
     WHERE
         tenant_id = $1::uuid
-        AND readable_status = ANY($2::v2_readable_status_olap[])
+        AND readable_status = ANY($2::v1_readable_status_olap[])
         AND (
             $3::uuid[] IS NULL
             OR workflow_id = ANY($3::uuid[])
@@ -134,10 +134,10 @@ func (q *Queries) CountWorkflowRuns(ctx context.Context, db DBTX, arg CountWorkf
 
 const fetchWorkflowRunIds = `-- name: FetchWorkflowRunIds :many
 SELECT id, inserted_at, kind, external_id
-FROM v2_runs_olap
+FROM v1_runs_olap
 WHERE
     tenant_id = $1::uuid
-    AND readable_status = ANY($2::v2_readable_status_olap[])
+    AND readable_status = ANY($2::v1_readable_status_olap[])
     AND (
         $3::uuid[] IS NULL
         OR workflow_id = ANY($3::uuid[])
@@ -178,7 +178,7 @@ type FetchWorkflowRunIdsParams struct {
 type FetchWorkflowRunIdsRow struct {
 	ID         int64              `json:"id"`
 	InsertedAt pgtype.Timestamptz `json:"inserted_at"`
-	Kind       V2RunKind          `json:"kind"`
+	Kind       V1RunKind          `json:"kind"`
 	ExternalID pgtype.UUID        `json:"external_id"`
 }
 
@@ -222,11 +222,11 @@ SELECT
     id,
     inserted_at
 FROM
-    v2_tasks_olap
+    v1_tasks_olap
 WHERE
     tenant_id = $1::uuid
     AND inserted_at >= $2::timestamptz
-    AND readable_status = ANY($3::v2_readable_status_olap[])
+    AND readable_status = ANY($3::v1_readable_status_olap[])
     AND (
         $4::timestamptz IS NULL
         OR inserted_at <= $4::timestamptz

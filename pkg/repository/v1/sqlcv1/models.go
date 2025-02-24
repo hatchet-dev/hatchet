@@ -811,539 +811,539 @@ func (ns NullTenantResourceLimitAlertType) Value() (driver.Value, error) {
 	return string(ns.TenantResourceLimitAlertType), nil
 }
 
-type V2ConcurrencyStrategy string
+type V1ConcurrencyStrategy string
 
 const (
-	V2ConcurrencyStrategyNONE             V2ConcurrencyStrategy = "NONE"
-	V2ConcurrencyStrategyGROUPROUNDROBIN  V2ConcurrencyStrategy = "GROUP_ROUND_ROBIN"
-	V2ConcurrencyStrategyCANCELINPROGRESS V2ConcurrencyStrategy = "CANCEL_IN_PROGRESS"
-	V2ConcurrencyStrategyCANCELNEWEST     V2ConcurrencyStrategy = "CANCEL_NEWEST"
+	V1ConcurrencyStrategyNONE             V1ConcurrencyStrategy = "NONE"
+	V1ConcurrencyStrategyGROUPROUNDROBIN  V1ConcurrencyStrategy = "GROUP_ROUND_ROBIN"
+	V1ConcurrencyStrategyCANCELINPROGRESS V1ConcurrencyStrategy = "CANCEL_IN_PROGRESS"
+	V1ConcurrencyStrategyCANCELNEWEST     V1ConcurrencyStrategy = "CANCEL_NEWEST"
 )
 
-func (e *V2ConcurrencyStrategy) Scan(src interface{}) error {
+func (e *V1ConcurrencyStrategy) Scan(src interface{}) error {
 	switch s := src.(type) {
 	case []byte:
-		*e = V2ConcurrencyStrategy(s)
+		*e = V1ConcurrencyStrategy(s)
 	case string:
-		*e = V2ConcurrencyStrategy(s)
+		*e = V1ConcurrencyStrategy(s)
 	default:
-		return fmt.Errorf("unsupported scan type for V2ConcurrencyStrategy: %T", src)
+		return fmt.Errorf("unsupported scan type for V1ConcurrencyStrategy: %T", src)
 	}
 	return nil
 }
 
-type NullV2ConcurrencyStrategy struct {
-	V2ConcurrencyStrategy V2ConcurrencyStrategy `json:"v2_concurrency_strategy"`
-	Valid                 bool                  `json:"valid"` // Valid is true if V2ConcurrencyStrategy is not NULL
+type NullV1ConcurrencyStrategy struct {
+	V1ConcurrencyStrategy V1ConcurrencyStrategy `json:"v1_concurrency_strategy"`
+	Valid                 bool                  `json:"valid"` // Valid is true if V1ConcurrencyStrategy is not NULL
 }
 
 // Scan implements the Scanner interface.
-func (ns *NullV2ConcurrencyStrategy) Scan(value interface{}) error {
+func (ns *NullV1ConcurrencyStrategy) Scan(value interface{}) error {
 	if value == nil {
-		ns.V2ConcurrencyStrategy, ns.Valid = "", false
+		ns.V1ConcurrencyStrategy, ns.Valid = "", false
 		return nil
 	}
 	ns.Valid = true
-	return ns.V2ConcurrencyStrategy.Scan(value)
+	return ns.V1ConcurrencyStrategy.Scan(value)
 }
 
 // Value implements the driver Valuer interface.
-func (ns NullV2ConcurrencyStrategy) Value() (driver.Value, error) {
+func (ns NullV1ConcurrencyStrategy) Value() (driver.Value, error) {
 	if !ns.Valid {
 		return nil, nil
 	}
-	return string(ns.V2ConcurrencyStrategy), nil
+	return string(ns.V1ConcurrencyStrategy), nil
 }
 
-type V2EventType string
+type V1EventType string
 
 const (
-	V2EventTypeUSER     V2EventType = "USER"
-	V2EventTypeINTERNAL V2EventType = "INTERNAL"
+	V1EventTypeUSER     V1EventType = "USER"
+	V1EventTypeINTERNAL V1EventType = "INTERNAL"
 )
 
-func (e *V2EventType) Scan(src interface{}) error {
+func (e *V1EventType) Scan(src interface{}) error {
 	switch s := src.(type) {
 	case []byte:
-		*e = V2EventType(s)
+		*e = V1EventType(s)
 	case string:
-		*e = V2EventType(s)
+		*e = V1EventType(s)
 	default:
-		return fmt.Errorf("unsupported scan type for V2EventType: %T", src)
+		return fmt.Errorf("unsupported scan type for V1EventType: %T", src)
 	}
 	return nil
 }
 
-type NullV2EventType struct {
-	V2EventType V2EventType `json:"v2_event_type"`
-	Valid       bool        `json:"valid"` // Valid is true if V2EventType is not NULL
+type NullV1EventType struct {
+	V1EventType V1EventType `json:"v1_event_type"`
+	Valid       bool        `json:"valid"` // Valid is true if V1EventType is not NULL
 }
 
 // Scan implements the Scanner interface.
-func (ns *NullV2EventType) Scan(value interface{}) error {
+func (ns *NullV1EventType) Scan(value interface{}) error {
 	if value == nil {
-		ns.V2EventType, ns.Valid = "", false
+		ns.V1EventType, ns.Valid = "", false
 		return nil
 	}
 	ns.Valid = true
-	return ns.V2EventType.Scan(value)
+	return ns.V1EventType.Scan(value)
 }
 
 // Value implements the driver Valuer interface.
-func (ns NullV2EventType) Value() (driver.Value, error) {
+func (ns NullV1EventType) Value() (driver.Value, error) {
 	if !ns.Valid {
 		return nil, nil
 	}
-	return string(ns.V2EventType), nil
+	return string(ns.V1EventType), nil
 }
 
-type V2EventTypeOlap string
+type V1EventTypeOlap string
 
 const (
-	V2EventTypeOlapRETRYING           V2EventTypeOlap = "RETRYING"
-	V2EventTypeOlapREASSIGNED         V2EventTypeOlap = "REASSIGNED"
-	V2EventTypeOlapRETRIEDBYUSER      V2EventTypeOlap = "RETRIED_BY_USER"
-	V2EventTypeOlapCREATED            V2EventTypeOlap = "CREATED"
-	V2EventTypeOlapQUEUED             V2EventTypeOlap = "QUEUED"
-	V2EventTypeOlapREQUEUEDNOWORKER   V2EventTypeOlap = "REQUEUED_NO_WORKER"
-	V2EventTypeOlapREQUEUEDRATELIMIT  V2EventTypeOlap = "REQUEUED_RATE_LIMIT"
-	V2EventTypeOlapASSIGNED           V2EventTypeOlap = "ASSIGNED"
-	V2EventTypeOlapACKNOWLEDGED       V2EventTypeOlap = "ACKNOWLEDGED"
-	V2EventTypeOlapSENTTOWORKER       V2EventTypeOlap = "SENT_TO_WORKER"
-	V2EventTypeOlapSLOTRELEASED       V2EventTypeOlap = "SLOT_RELEASED"
-	V2EventTypeOlapSTARTED            V2EventTypeOlap = "STARTED"
-	V2EventTypeOlapTIMEOUTREFRESHED   V2EventTypeOlap = "TIMEOUT_REFRESHED"
-	V2EventTypeOlapSCHEDULINGTIMEDOUT V2EventTypeOlap = "SCHEDULING_TIMED_OUT"
-	V2EventTypeOlapFINISHED           V2EventTypeOlap = "FINISHED"
-	V2EventTypeOlapFAILED             V2EventTypeOlap = "FAILED"
-	V2EventTypeOlapCANCELLED          V2EventTypeOlap = "CANCELLED"
-	V2EventTypeOlapTIMEDOUT           V2EventTypeOlap = "TIMED_OUT"
-	V2EventTypeOlapRATELIMITERROR     V2EventTypeOlap = "RATE_LIMIT_ERROR"
-	V2EventTypeOlapSKIPPED            V2EventTypeOlap = "SKIPPED"
+	V1EventTypeOlapRETRYING           V1EventTypeOlap = "RETRYING"
+	V1EventTypeOlapREASSIGNED         V1EventTypeOlap = "REASSIGNED"
+	V1EventTypeOlapRETRIEDBYUSER      V1EventTypeOlap = "RETRIED_BY_USER"
+	V1EventTypeOlapCREATED            V1EventTypeOlap = "CREATED"
+	V1EventTypeOlapQUEUED             V1EventTypeOlap = "QUEUED"
+	V1EventTypeOlapREQUEUEDNOWORKER   V1EventTypeOlap = "REQUEUED_NO_WORKER"
+	V1EventTypeOlapREQUEUEDRATELIMIT  V1EventTypeOlap = "REQUEUED_RATE_LIMIT"
+	V1EventTypeOlapASSIGNED           V1EventTypeOlap = "ASSIGNED"
+	V1EventTypeOlapACKNOWLEDGED       V1EventTypeOlap = "ACKNOWLEDGED"
+	V1EventTypeOlapSENTTOWORKER       V1EventTypeOlap = "SENT_TO_WORKER"
+	V1EventTypeOlapSLOTRELEASED       V1EventTypeOlap = "SLOT_RELEASED"
+	V1EventTypeOlapSTARTED            V1EventTypeOlap = "STARTED"
+	V1EventTypeOlapTIMEOUTREFRESHED   V1EventTypeOlap = "TIMEOUT_REFRESHED"
+	V1EventTypeOlapSCHEDULINGTIMEDOUT V1EventTypeOlap = "SCHEDULING_TIMED_OUT"
+	V1EventTypeOlapFINISHED           V1EventTypeOlap = "FINISHED"
+	V1EventTypeOlapFAILED             V1EventTypeOlap = "FAILED"
+	V1EventTypeOlapCANCELLED          V1EventTypeOlap = "CANCELLED"
+	V1EventTypeOlapTIMEDOUT           V1EventTypeOlap = "TIMED_OUT"
+	V1EventTypeOlapRATELIMITERROR     V1EventTypeOlap = "RATE_LIMIT_ERROR"
+	V1EventTypeOlapSKIPPED            V1EventTypeOlap = "SKIPPED"
 )
 
-func (e *V2EventTypeOlap) Scan(src interface{}) error {
+func (e *V1EventTypeOlap) Scan(src interface{}) error {
 	switch s := src.(type) {
 	case []byte:
-		*e = V2EventTypeOlap(s)
+		*e = V1EventTypeOlap(s)
 	case string:
-		*e = V2EventTypeOlap(s)
+		*e = V1EventTypeOlap(s)
 	default:
-		return fmt.Errorf("unsupported scan type for V2EventTypeOlap: %T", src)
+		return fmt.Errorf("unsupported scan type for V1EventTypeOlap: %T", src)
 	}
 	return nil
 }
 
-type NullV2EventTypeOlap struct {
-	V2EventTypeOlap V2EventTypeOlap `json:"v2_event_type_olap"`
-	Valid           bool            `json:"valid"` // Valid is true if V2EventTypeOlap is not NULL
+type NullV1EventTypeOlap struct {
+	V1EventTypeOlap V1EventTypeOlap `json:"v1_event_type_olap"`
+	Valid           bool            `json:"valid"` // Valid is true if V1EventTypeOlap is not NULL
 }
 
 // Scan implements the Scanner interface.
-func (ns *NullV2EventTypeOlap) Scan(value interface{}) error {
+func (ns *NullV1EventTypeOlap) Scan(value interface{}) error {
 	if value == nil {
-		ns.V2EventTypeOlap, ns.Valid = "", false
+		ns.V1EventTypeOlap, ns.Valid = "", false
 		return nil
 	}
 	ns.Valid = true
-	return ns.V2EventTypeOlap.Scan(value)
+	return ns.V1EventTypeOlap.Scan(value)
 }
 
 // Value implements the driver Valuer interface.
-func (ns NullV2EventTypeOlap) Value() (driver.Value, error) {
+func (ns NullV1EventTypeOlap) Value() (driver.Value, error) {
 	if !ns.Valid {
 		return nil, nil
 	}
-	return string(ns.V2EventTypeOlap), nil
+	return string(ns.V1EventTypeOlap), nil
 }
 
-type V2MatchConditionAction string
+type V1MatchConditionAction string
 
 const (
-	V2MatchConditionActionCREATE V2MatchConditionAction = "CREATE"
-	V2MatchConditionActionCANCEL V2MatchConditionAction = "CANCEL"
-	V2MatchConditionActionSKIP   V2MatchConditionAction = "SKIP"
+	V1MatchConditionActionCREATE V1MatchConditionAction = "CREATE"
+	V1MatchConditionActionCANCEL V1MatchConditionAction = "CANCEL"
+	V1MatchConditionActionSKIP   V1MatchConditionAction = "SKIP"
 )
 
-func (e *V2MatchConditionAction) Scan(src interface{}) error {
+func (e *V1MatchConditionAction) Scan(src interface{}) error {
 	switch s := src.(type) {
 	case []byte:
-		*e = V2MatchConditionAction(s)
+		*e = V1MatchConditionAction(s)
 	case string:
-		*e = V2MatchConditionAction(s)
+		*e = V1MatchConditionAction(s)
 	default:
-		return fmt.Errorf("unsupported scan type for V2MatchConditionAction: %T", src)
+		return fmt.Errorf("unsupported scan type for V1MatchConditionAction: %T", src)
 	}
 	return nil
 }
 
-type NullV2MatchConditionAction struct {
-	V2MatchConditionAction V2MatchConditionAction `json:"v2_match_condition_action"`
-	Valid                  bool                   `json:"valid"` // Valid is true if V2MatchConditionAction is not NULL
+type NullV1MatchConditionAction struct {
+	V1MatchConditionAction V1MatchConditionAction `json:"v1_match_condition_action"`
+	Valid                  bool                   `json:"valid"` // Valid is true if V1MatchConditionAction is not NULL
 }
 
 // Scan implements the Scanner interface.
-func (ns *NullV2MatchConditionAction) Scan(value interface{}) error {
+func (ns *NullV1MatchConditionAction) Scan(value interface{}) error {
 	if value == nil {
-		ns.V2MatchConditionAction, ns.Valid = "", false
+		ns.V1MatchConditionAction, ns.Valid = "", false
 		return nil
 	}
 	ns.Valid = true
-	return ns.V2MatchConditionAction.Scan(value)
+	return ns.V1MatchConditionAction.Scan(value)
 }
 
 // Value implements the driver Valuer interface.
-func (ns NullV2MatchConditionAction) Value() (driver.Value, error) {
+func (ns NullV1MatchConditionAction) Value() (driver.Value, error) {
 	if !ns.Valid {
 		return nil, nil
 	}
-	return string(ns.V2MatchConditionAction), nil
+	return string(ns.V1MatchConditionAction), nil
 }
 
-type V2MatchKind string
+type V1MatchKind string
 
 const (
-	V2MatchKindTRIGGER V2MatchKind = "TRIGGER"
-	V2MatchKindSIGNAL  V2MatchKind = "SIGNAL"
+	V1MatchKindTRIGGER V1MatchKind = "TRIGGER"
+	V1MatchKindSIGNAL  V1MatchKind = "SIGNAL"
 )
 
-func (e *V2MatchKind) Scan(src interface{}) error {
+func (e *V1MatchKind) Scan(src interface{}) error {
 	switch s := src.(type) {
 	case []byte:
-		*e = V2MatchKind(s)
+		*e = V1MatchKind(s)
 	case string:
-		*e = V2MatchKind(s)
+		*e = V1MatchKind(s)
 	default:
-		return fmt.Errorf("unsupported scan type for V2MatchKind: %T", src)
+		return fmt.Errorf("unsupported scan type for V1MatchKind: %T", src)
 	}
 	return nil
 }
 
-type NullV2MatchKind struct {
-	V2MatchKind V2MatchKind `json:"v2_match_kind"`
-	Valid       bool        `json:"valid"` // Valid is true if V2MatchKind is not NULL
+type NullV1MatchKind struct {
+	V1MatchKind V1MatchKind `json:"v1_match_kind"`
+	Valid       bool        `json:"valid"` // Valid is true if V1MatchKind is not NULL
 }
 
 // Scan implements the Scanner interface.
-func (ns *NullV2MatchKind) Scan(value interface{}) error {
+func (ns *NullV1MatchKind) Scan(value interface{}) error {
 	if value == nil {
-		ns.V2MatchKind, ns.Valid = "", false
+		ns.V1MatchKind, ns.Valid = "", false
 		return nil
 	}
 	ns.Valid = true
-	return ns.V2MatchKind.Scan(value)
+	return ns.V1MatchKind.Scan(value)
 }
 
 // Value implements the driver Valuer interface.
-func (ns NullV2MatchKind) Value() (driver.Value, error) {
+func (ns NullV1MatchKind) Value() (driver.Value, error) {
 	if !ns.Valid {
 		return nil, nil
 	}
-	return string(ns.V2MatchKind), nil
+	return string(ns.V1MatchKind), nil
 }
 
-type V2ReadableStatusOlap string
+type V1ReadableStatusOlap string
 
 const (
-	V2ReadableStatusOlapQUEUED    V2ReadableStatusOlap = "QUEUED"
-	V2ReadableStatusOlapRUNNING   V2ReadableStatusOlap = "RUNNING"
-	V2ReadableStatusOlapCOMPLETED V2ReadableStatusOlap = "COMPLETED"
-	V2ReadableStatusOlapCANCELLED V2ReadableStatusOlap = "CANCELLED"
-	V2ReadableStatusOlapFAILED    V2ReadableStatusOlap = "FAILED"
+	V1ReadableStatusOlapQUEUED    V1ReadableStatusOlap = "QUEUED"
+	V1ReadableStatusOlapRUNNING   V1ReadableStatusOlap = "RUNNING"
+	V1ReadableStatusOlapCOMPLETED V1ReadableStatusOlap = "COMPLETED"
+	V1ReadableStatusOlapCANCELLED V1ReadableStatusOlap = "CANCELLED"
+	V1ReadableStatusOlapFAILED    V1ReadableStatusOlap = "FAILED"
 )
 
-func (e *V2ReadableStatusOlap) Scan(src interface{}) error {
+func (e *V1ReadableStatusOlap) Scan(src interface{}) error {
 	switch s := src.(type) {
 	case []byte:
-		*e = V2ReadableStatusOlap(s)
+		*e = V1ReadableStatusOlap(s)
 	case string:
-		*e = V2ReadableStatusOlap(s)
+		*e = V1ReadableStatusOlap(s)
 	default:
-		return fmt.Errorf("unsupported scan type for V2ReadableStatusOlap: %T", src)
+		return fmt.Errorf("unsupported scan type for V1ReadableStatusOlap: %T", src)
 	}
 	return nil
 }
 
-type NullV2ReadableStatusOlap struct {
-	V2ReadableStatusOlap V2ReadableStatusOlap `json:"v2_readable_status_olap"`
-	Valid                bool                 `json:"valid"` // Valid is true if V2ReadableStatusOlap is not NULL
+type NullV1ReadableStatusOlap struct {
+	V1ReadableStatusOlap V1ReadableStatusOlap `json:"v1_readable_status_olap"`
+	Valid                bool                 `json:"valid"` // Valid is true if V1ReadableStatusOlap is not NULL
 }
 
 // Scan implements the Scanner interface.
-func (ns *NullV2ReadableStatusOlap) Scan(value interface{}) error {
+func (ns *NullV1ReadableStatusOlap) Scan(value interface{}) error {
 	if value == nil {
-		ns.V2ReadableStatusOlap, ns.Valid = "", false
+		ns.V1ReadableStatusOlap, ns.Valid = "", false
 		return nil
 	}
 	ns.Valid = true
-	return ns.V2ReadableStatusOlap.Scan(value)
+	return ns.V1ReadableStatusOlap.Scan(value)
 }
 
 // Value implements the driver Valuer interface.
-func (ns NullV2ReadableStatusOlap) Value() (driver.Value, error) {
+func (ns NullV1ReadableStatusOlap) Value() (driver.Value, error) {
 	if !ns.Valid {
 		return nil, nil
 	}
-	return string(ns.V2ReadableStatusOlap), nil
+	return string(ns.V1ReadableStatusOlap), nil
 }
 
-type V2RunKind string
+type V1RunKind string
 
 const (
-	V2RunKindTASK V2RunKind = "TASK"
-	V2RunKindDAG  V2RunKind = "DAG"
+	V1RunKindTASK V1RunKind = "TASK"
+	V1RunKindDAG  V1RunKind = "DAG"
 )
 
-func (e *V2RunKind) Scan(src interface{}) error {
+func (e *V1RunKind) Scan(src interface{}) error {
 	switch s := src.(type) {
 	case []byte:
-		*e = V2RunKind(s)
+		*e = V1RunKind(s)
 	case string:
-		*e = V2RunKind(s)
+		*e = V1RunKind(s)
 	default:
-		return fmt.Errorf("unsupported scan type for V2RunKind: %T", src)
+		return fmt.Errorf("unsupported scan type for V1RunKind: %T", src)
 	}
 	return nil
 }
 
-type NullV2RunKind struct {
-	V2RunKind V2RunKind `json:"v2_run_kind"`
-	Valid     bool      `json:"valid"` // Valid is true if V2RunKind is not NULL
+type NullV1RunKind struct {
+	V1RunKind V1RunKind `json:"v1_run_kind"`
+	Valid     bool      `json:"valid"` // Valid is true if V1RunKind is not NULL
 }
 
 // Scan implements the Scanner interface.
-func (ns *NullV2RunKind) Scan(value interface{}) error {
+func (ns *NullV1RunKind) Scan(value interface{}) error {
 	if value == nil {
-		ns.V2RunKind, ns.Valid = "", false
+		ns.V1RunKind, ns.Valid = "", false
 		return nil
 	}
 	ns.Valid = true
-	return ns.V2RunKind.Scan(value)
+	return ns.V1RunKind.Scan(value)
 }
 
 // Value implements the driver Valuer interface.
-func (ns NullV2RunKind) Value() (driver.Value, error) {
+func (ns NullV1RunKind) Value() (driver.Value, error) {
 	if !ns.Valid {
 		return nil, nil
 	}
-	return string(ns.V2RunKind), nil
+	return string(ns.V1RunKind), nil
 }
 
-type V2StatusKind string
+type V1StatusKind string
 
 const (
-	V2StatusKindTASK V2StatusKind = "TASK"
-	V2StatusKindDAG  V2StatusKind = "DAG"
+	V1StatusKindTASK V1StatusKind = "TASK"
+	V1StatusKindDAG  V1StatusKind = "DAG"
 )
 
-func (e *V2StatusKind) Scan(src interface{}) error {
+func (e *V1StatusKind) Scan(src interface{}) error {
 	switch s := src.(type) {
 	case []byte:
-		*e = V2StatusKind(s)
+		*e = V1StatusKind(s)
 	case string:
-		*e = V2StatusKind(s)
+		*e = V1StatusKind(s)
 	default:
-		return fmt.Errorf("unsupported scan type for V2StatusKind: %T", src)
+		return fmt.Errorf("unsupported scan type for V1StatusKind: %T", src)
 	}
 	return nil
 }
 
-type NullV2StatusKind struct {
-	V2StatusKind V2StatusKind `json:"v2_status_kind"`
-	Valid        bool         `json:"valid"` // Valid is true if V2StatusKind is not NULL
+type NullV1StatusKind struct {
+	V1StatusKind V1StatusKind `json:"v1_status_kind"`
+	Valid        bool         `json:"valid"` // Valid is true if V1StatusKind is not NULL
 }
 
 // Scan implements the Scanner interface.
-func (ns *NullV2StatusKind) Scan(value interface{}) error {
+func (ns *NullV1StatusKind) Scan(value interface{}) error {
 	if value == nil {
-		ns.V2StatusKind, ns.Valid = "", false
+		ns.V1StatusKind, ns.Valid = "", false
 		return nil
 	}
 	ns.Valid = true
-	return ns.V2StatusKind.Scan(value)
+	return ns.V1StatusKind.Scan(value)
 }
 
 // Value implements the driver Valuer interface.
-func (ns NullV2StatusKind) Value() (driver.Value, error) {
+func (ns NullV1StatusKind) Value() (driver.Value, error) {
 	if !ns.Valid {
 		return nil, nil
 	}
-	return string(ns.V2StatusKind), nil
+	return string(ns.V1StatusKind), nil
 }
 
-type V2StickyStrategy string
+type V1StickyStrategy string
 
 const (
-	V2StickyStrategyNONE V2StickyStrategy = "NONE"
-	V2StickyStrategySOFT V2StickyStrategy = "SOFT"
-	V2StickyStrategyHARD V2StickyStrategy = "HARD"
+	V1StickyStrategyNONE V1StickyStrategy = "NONE"
+	V1StickyStrategySOFT V1StickyStrategy = "SOFT"
+	V1StickyStrategyHARD V1StickyStrategy = "HARD"
 )
 
-func (e *V2StickyStrategy) Scan(src interface{}) error {
+func (e *V1StickyStrategy) Scan(src interface{}) error {
 	switch s := src.(type) {
 	case []byte:
-		*e = V2StickyStrategy(s)
+		*e = V1StickyStrategy(s)
 	case string:
-		*e = V2StickyStrategy(s)
+		*e = V1StickyStrategy(s)
 	default:
-		return fmt.Errorf("unsupported scan type for V2StickyStrategy: %T", src)
+		return fmt.Errorf("unsupported scan type for V1StickyStrategy: %T", src)
 	}
 	return nil
 }
 
-type NullV2StickyStrategy struct {
-	V2StickyStrategy V2StickyStrategy `json:"v2_sticky_strategy"`
-	Valid            bool             `json:"valid"` // Valid is true if V2StickyStrategy is not NULL
+type NullV1StickyStrategy struct {
+	V1StickyStrategy V1StickyStrategy `json:"v1_sticky_strategy"`
+	Valid            bool             `json:"valid"` // Valid is true if V1StickyStrategy is not NULL
 }
 
 // Scan implements the Scanner interface.
-func (ns *NullV2StickyStrategy) Scan(value interface{}) error {
+func (ns *NullV1StickyStrategy) Scan(value interface{}) error {
 	if value == nil {
-		ns.V2StickyStrategy, ns.Valid = "", false
+		ns.V1StickyStrategy, ns.Valid = "", false
 		return nil
 	}
 	ns.Valid = true
-	return ns.V2StickyStrategy.Scan(value)
+	return ns.V1StickyStrategy.Scan(value)
 }
 
 // Value implements the driver Valuer interface.
-func (ns NullV2StickyStrategy) Value() (driver.Value, error) {
+func (ns NullV1StickyStrategy) Value() (driver.Value, error) {
 	if !ns.Valid {
 		return nil, nil
 	}
-	return string(ns.V2StickyStrategy), nil
+	return string(ns.V1StickyStrategy), nil
 }
 
-type V2StickyStrategyOlap string
+type V1StickyStrategyOlap string
 
 const (
-	V2StickyStrategyOlapNONE V2StickyStrategyOlap = "NONE"
-	V2StickyStrategyOlapSOFT V2StickyStrategyOlap = "SOFT"
-	V2StickyStrategyOlapHARD V2StickyStrategyOlap = "HARD"
+	V1StickyStrategyOlapNONE V1StickyStrategyOlap = "NONE"
+	V1StickyStrategyOlapSOFT V1StickyStrategyOlap = "SOFT"
+	V1StickyStrategyOlapHARD V1StickyStrategyOlap = "HARD"
 )
 
-func (e *V2StickyStrategyOlap) Scan(src interface{}) error {
+func (e *V1StickyStrategyOlap) Scan(src interface{}) error {
 	switch s := src.(type) {
 	case []byte:
-		*e = V2StickyStrategyOlap(s)
+		*e = V1StickyStrategyOlap(s)
 	case string:
-		*e = V2StickyStrategyOlap(s)
+		*e = V1StickyStrategyOlap(s)
 	default:
-		return fmt.Errorf("unsupported scan type for V2StickyStrategyOlap: %T", src)
+		return fmt.Errorf("unsupported scan type for V1StickyStrategyOlap: %T", src)
 	}
 	return nil
 }
 
-type NullV2StickyStrategyOlap struct {
-	V2StickyStrategyOlap V2StickyStrategyOlap `json:"v2_sticky_strategy_olap"`
-	Valid                bool                 `json:"valid"` // Valid is true if V2StickyStrategyOlap is not NULL
+type NullV1StickyStrategyOlap struct {
+	V1StickyStrategyOlap V1StickyStrategyOlap `json:"v1_sticky_strategy_olap"`
+	Valid                bool                 `json:"valid"` // Valid is true if V1StickyStrategyOlap is not NULL
 }
 
 // Scan implements the Scanner interface.
-func (ns *NullV2StickyStrategyOlap) Scan(value interface{}) error {
+func (ns *NullV1StickyStrategyOlap) Scan(value interface{}) error {
 	if value == nil {
-		ns.V2StickyStrategyOlap, ns.Valid = "", false
+		ns.V1StickyStrategyOlap, ns.Valid = "", false
 		return nil
 	}
 	ns.Valid = true
-	return ns.V2StickyStrategyOlap.Scan(value)
+	return ns.V1StickyStrategyOlap.Scan(value)
 }
 
 // Value implements the driver Valuer interface.
-func (ns NullV2StickyStrategyOlap) Value() (driver.Value, error) {
+func (ns NullV1StickyStrategyOlap) Value() (driver.Value, error) {
 	if !ns.Valid {
 		return nil, nil
 	}
-	return string(ns.V2StickyStrategyOlap), nil
+	return string(ns.V1StickyStrategyOlap), nil
 }
 
-type V2TaskEventType string
+type V1TaskEventType string
 
 const (
-	V2TaskEventTypeCOMPLETED       V2TaskEventType = "COMPLETED"
-	V2TaskEventTypeFAILED          V2TaskEventType = "FAILED"
-	V2TaskEventTypeCANCELLED       V2TaskEventType = "CANCELLED"
-	V2TaskEventTypeSIGNALCREATED   V2TaskEventType = "SIGNAL_CREATED"
-	V2TaskEventTypeSIGNALCOMPLETED V2TaskEventType = "SIGNAL_COMPLETED"
+	V1TaskEventTypeCOMPLETED       V1TaskEventType = "COMPLETED"
+	V1TaskEventTypeFAILED          V1TaskEventType = "FAILED"
+	V1TaskEventTypeCANCELLED       V1TaskEventType = "CANCELLED"
+	V1TaskEventTypeSIGNALCREATED   V1TaskEventType = "SIGNAL_CREATED"
+	V1TaskEventTypeSIGNALCOMPLETED V1TaskEventType = "SIGNAL_COMPLETED"
 )
 
-func (e *V2TaskEventType) Scan(src interface{}) error {
+func (e *V1TaskEventType) Scan(src interface{}) error {
 	switch s := src.(type) {
 	case []byte:
-		*e = V2TaskEventType(s)
+		*e = V1TaskEventType(s)
 	case string:
-		*e = V2TaskEventType(s)
+		*e = V1TaskEventType(s)
 	default:
-		return fmt.Errorf("unsupported scan type for V2TaskEventType: %T", src)
+		return fmt.Errorf("unsupported scan type for V1TaskEventType: %T", src)
 	}
 	return nil
 }
 
-type NullV2TaskEventType struct {
-	V2TaskEventType V2TaskEventType `json:"v2_task_event_type"`
-	Valid           bool            `json:"valid"` // Valid is true if V2TaskEventType is not NULL
+type NullV1TaskEventType struct {
+	V1TaskEventType V1TaskEventType `json:"v1_task_event_type"`
+	Valid           bool            `json:"valid"` // Valid is true if V1TaskEventType is not NULL
 }
 
 // Scan implements the Scanner interface.
-func (ns *NullV2TaskEventType) Scan(value interface{}) error {
+func (ns *NullV1TaskEventType) Scan(value interface{}) error {
 	if value == nil {
-		ns.V2TaskEventType, ns.Valid = "", false
+		ns.V1TaskEventType, ns.Valid = "", false
 		return nil
 	}
 	ns.Valid = true
-	return ns.V2TaskEventType.Scan(value)
+	return ns.V1TaskEventType.Scan(value)
 }
 
 // Value implements the driver Valuer interface.
-func (ns NullV2TaskEventType) Value() (driver.Value, error) {
+func (ns NullV1TaskEventType) Value() (driver.Value, error) {
 	if !ns.Valid {
 		return nil, nil
 	}
-	return string(ns.V2TaskEventType), nil
+	return string(ns.V1TaskEventType), nil
 }
 
-type V2TaskInitialState string
+type V1TaskInitialState string
 
 const (
-	V2TaskInitialStateQUEUED    V2TaskInitialState = "QUEUED"
-	V2TaskInitialStateCANCELLED V2TaskInitialState = "CANCELLED"
-	V2TaskInitialStateSKIPPED   V2TaskInitialState = "SKIPPED"
-	V2TaskInitialStateFAILED    V2TaskInitialState = "FAILED"
+	V1TaskInitialStateQUEUED    V1TaskInitialState = "QUEUED"
+	V1TaskInitialStateCANCELLED V1TaskInitialState = "CANCELLED"
+	V1TaskInitialStateSKIPPED   V1TaskInitialState = "SKIPPED"
+	V1TaskInitialStateFAILED    V1TaskInitialState = "FAILED"
 )
 
-func (e *V2TaskInitialState) Scan(src interface{}) error {
+func (e *V1TaskInitialState) Scan(src interface{}) error {
 	switch s := src.(type) {
 	case []byte:
-		*e = V2TaskInitialState(s)
+		*e = V1TaskInitialState(s)
 	case string:
-		*e = V2TaskInitialState(s)
+		*e = V1TaskInitialState(s)
 	default:
-		return fmt.Errorf("unsupported scan type for V2TaskInitialState: %T", src)
+		return fmt.Errorf("unsupported scan type for V1TaskInitialState: %T", src)
 	}
 	return nil
 }
 
-type NullV2TaskInitialState struct {
-	V2TaskInitialState V2TaskInitialState `json:"v2_task_initial_state"`
-	Valid              bool               `json:"valid"` // Valid is true if V2TaskInitialState is not NULL
+type NullV1TaskInitialState struct {
+	V1TaskInitialState V1TaskInitialState `json:"v1_task_initial_state"`
+	Valid              bool               `json:"valid"` // Valid is true if V1TaskInitialState is not NULL
 }
 
 // Scan implements the Scanner interface.
-func (ns *NullV2TaskInitialState) Scan(value interface{}) error {
+func (ns *NullV1TaskInitialState) Scan(value interface{}) error {
 	if value == nil {
-		ns.V2TaskInitialState, ns.Valid = "", false
+		ns.V1TaskInitialState, ns.Valid = "", false
 		return nil
 	}
 	ns.Valid = true
-	return ns.V2TaskInitialState.Scan(value)
+	return ns.V1TaskInitialState.Scan(value)
 }
 
 // Value implements the driver Valuer interface.
-func (ns NullV2TaskInitialState) Value() (driver.Value, error) {
+func (ns NullV1TaskInitialState) Value() (driver.Value, error) {
 	if !ns.Valid {
 		return nil, nil
 	}
-	return string(ns.V2TaskInitialState), nil
+	return string(ns.V1TaskInitialState), nil
 }
 
 type VcsProvider string
@@ -2296,7 +2296,7 @@ type UserSession struct {
 	ExpiresAt pgtype.Timestamp `json:"expiresAt"`
 }
 
-type V2ConcurrencySlot struct {
+type V1ConcurrencySlot struct {
 	TaskID            int64              `json:"task_id"`
 	TaskInsertedAt    pgtype.Timestamptz `json:"task_inserted_at"`
 	TaskRetryCount    int32              `json:"task_retry_count"`
@@ -2312,7 +2312,7 @@ type V2ConcurrencySlot struct {
 	ScheduleTimeoutAt pgtype.Timestamp   `json:"schedule_timeout_at"`
 }
 
-type V2Dag struct {
+type V1Dag struct {
 	ID                int64              `json:"id"`
 	InsertedAt        pgtype.Timestamptz `json:"inserted_at"`
 	TenantID          pgtype.UUID        `json:"tenant_id"`
@@ -2322,28 +2322,28 @@ type V2Dag struct {
 	WorkflowVersionID pgtype.UUID        `json:"workflow_version_id"`
 }
 
-type V2DagData struct {
+type V1DagData struct {
 	DagID              int64              `json:"dag_id"`
 	DagInsertedAt      pgtype.Timestamptz `json:"dag_inserted_at"`
 	Input              []byte             `json:"input"`
 	AdditionalMetadata []byte             `json:"additional_metadata"`
 }
 
-type V2DagToTask struct {
+type V1DagToTask struct {
 	DagID          int64              `json:"dag_id"`
 	DagInsertedAt  pgtype.Timestamptz `json:"dag_inserted_at"`
 	TaskID         int64              `json:"task_id"`
 	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
 }
 
-type V2DagToTaskOlap struct {
+type V1DagToTaskOlap struct {
 	DagID          int64              `json:"dag_id"`
 	DagInsertedAt  pgtype.Timestamptz `json:"dag_inserted_at"`
 	TaskID         int64              `json:"task_id"`
 	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
 }
 
-type V2DagsOlap struct {
+type V1DagsOlap struct {
 	ID                 int64                `json:"id"`
 	InsertedAt         pgtype.Timestamptz   `json:"inserted_at"`
 	TenantID           pgtype.UUID          `json:"tenant_id"`
@@ -2351,12 +2351,12 @@ type V2DagsOlap struct {
 	DisplayName        string               `json:"display_name"`
 	WorkflowID         pgtype.UUID          `json:"workflow_id"`
 	WorkflowVersionID  pgtype.UUID          `json:"workflow_version_id"`
-	ReadableStatus     V2ReadableStatusOlap `json:"readable_status"`
+	ReadableStatus     V1ReadableStatusOlap `json:"readable_status"`
 	Input              []byte               `json:"input"`
 	AdditionalMetadata []byte               `json:"additional_metadata"`
 }
 
-type V2LookupTable struct {
+type V1LookupTable struct {
 	TenantID   pgtype.UUID        `json:"tenant_id"`
 	ExternalID pgtype.UUID        `json:"external_id"`
 	TaskID     pgtype.Int8        `json:"task_id"`
@@ -2364,10 +2364,10 @@ type V2LookupTable struct {
 	InsertedAt pgtype.Timestamptz `json:"inserted_at"`
 }
 
-type V2Match struct {
+type V1Match struct {
 	ID                   int64              `json:"id"`
 	TenantID             pgtype.UUID        `json:"tenant_id"`
-	Kind                 V2MatchKind        `json:"kind"`
+	Kind                 V1MatchKind        `json:"kind"`
 	IsSatisfied          bool               `json:"is_satisfied"`
 	SignalTargetID       pgtype.Int8        `json:"signal_target_id"`
 	SignalKey            pgtype.Text        `json:"signal_key"`
@@ -2377,27 +2377,27 @@ type V2Match struct {
 	TriggerExternalID    pgtype.UUID        `json:"trigger_external_id"`
 }
 
-type V2MatchCondition struct {
-	V2MatchID    int64                  `json:"v2_match_id"`
+type V1MatchCondition struct {
+	V1MatchID    int64                  `json:"v1_match_id"`
 	ID           int64                  `json:"id"`
 	TenantID     pgtype.UUID            `json:"tenant_id"`
 	RegisteredAt pgtype.Timestamptz     `json:"registered_at"`
-	EventType    V2EventType            `json:"event_type"`
+	EventType    V1EventType            `json:"event_type"`
 	EventKey     string                 `json:"event_key"`
 	IsSatisfied  bool                   `json:"is_satisfied"`
-	Action       V2MatchConditionAction `json:"action"`
+	Action       V1MatchConditionAction `json:"action"`
 	OrGroupID    pgtype.UUID            `json:"or_group_id"`
 	Expression   pgtype.Text            `json:"expression"`
 	Data         []byte                 `json:"data"`
 }
 
-type V2Queue struct {
+type V1Queue struct {
 	TenantID   pgtype.UUID      `json:"tenant_id"`
 	Name       string           `json:"name"`
 	LastActive pgtype.Timestamp `json:"last_active"`
 }
 
-type V2QueueItem struct {
+type V1QueueItem struct {
 	ID                int64            `json:"id"`
 	TenantID          pgtype.UUID      `json:"tenant_id"`
 	Queue             string           `json:"queue"`
@@ -2408,12 +2408,12 @@ type V2QueueItem struct {
 	ScheduleTimeoutAt pgtype.Timestamp `json:"schedule_timeout_at"`
 	StepTimeout       pgtype.Text      `json:"step_timeout"`
 	Priority          int32            `json:"priority"`
-	Sticky            V2StickyStrategy `json:"sticky"`
+	Sticky            V1StickyStrategy `json:"sticky"`
 	DesiredWorkerID   pgtype.UUID      `json:"desired_worker_id"`
 	RetryCount        int32            `json:"retry_count"`
 }
 
-type V2RetryQueueItem struct {
+type V1RetryQueueItem struct {
 	TaskID         int64              `json:"task_id"`
 	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
 	TaskRetryCount int32              `json:"task_retry_count"`
@@ -2421,39 +2421,39 @@ type V2RetryQueueItem struct {
 	TenantID       pgtype.UUID        `json:"tenant_id"`
 }
 
-type V2RunsOlap struct {
+type V1RunsOlap struct {
 	TenantID           pgtype.UUID          `json:"tenant_id"`
 	ID                 int64                `json:"id"`
 	InsertedAt         pgtype.Timestamptz   `json:"inserted_at"`
 	ExternalID         pgtype.UUID          `json:"external_id"`
-	ReadableStatus     V2ReadableStatusOlap `json:"readable_status"`
-	Kind               V2RunKind            `json:"kind"`
+	ReadableStatus     V1ReadableStatusOlap `json:"readable_status"`
+	Kind               V1RunKind            `json:"kind"`
 	WorkflowID         pgtype.UUID          `json:"workflow_id"`
 	AdditionalMetadata []byte               `json:"additional_metadata"`
 }
 
-type V2StatusesOlap struct {
+type V1StatusesOlap struct {
 	ExternalID     pgtype.UUID          `json:"external_id"`
 	InsertedAt     pgtype.Timestamptz   `json:"inserted_at"`
 	TenantID       pgtype.UUID          `json:"tenant_id"`
 	WorkflowID     pgtype.UUID          `json:"workflow_id"`
-	Kind           V2RunKind            `json:"kind"`
-	ReadableStatus V2ReadableStatusOlap `json:"readable_status"`
+	Kind           V1RunKind            `json:"kind"`
+	ReadableStatus V1ReadableStatusOlap `json:"readable_status"`
 }
 
-type V2StepConcurrency struct {
+type V1StepConcurrency struct {
 	ID                int64                 `json:"id"`
 	WorkflowID        pgtype.UUID           `json:"workflow_id"`
 	WorkflowVersionID pgtype.UUID           `json:"workflow_version_id"`
 	StepID            pgtype.UUID           `json:"step_id"`
 	IsActive          bool                  `json:"is_active"`
-	Strategy          V2ConcurrencyStrategy `json:"strategy"`
+	Strategy          V1ConcurrencyStrategy `json:"strategy"`
 	Expression        string                `json:"expression"`
 	TenantID          pgtype.UUID           `json:"tenant_id"`
 	MaxConcurrency    int32                 `json:"max_concurrency"`
 }
 
-type V2Task struct {
+type V1Task struct {
 	ID                     int64              `json:"id"`
 	InsertedAt             pgtype.Timestamptz `json:"inserted_at"`
 	TenantID               pgtype.UUID        `json:"tenant_id"`
@@ -2465,7 +2465,7 @@ type V2Task struct {
 	ScheduleTimeout        string             `json:"schedule_timeout"`
 	StepTimeout            pgtype.Text        `json:"step_timeout"`
 	Priority               pgtype.Int4        `json:"priority"`
-	Sticky                 V2StickyStrategy   `json:"sticky"`
+	Sticky                 V1StickyStrategy   `json:"sticky"`
 	DesiredWorkerID        pgtype.UUID        `json:"desired_worker_id"`
 	ExternalID             pgtype.UUID        `json:"external_id"`
 	DisplayName            string             `json:"display_name"`
@@ -2479,7 +2479,7 @@ type V2Task struct {
 	ParentExternalID       pgtype.UUID        `json:"parent_external_id"`
 	ChildIndex             pgtype.Int4        `json:"child_index"`
 	ChildKey               pgtype.Text        `json:"child_key"`
-	InitialState           V2TaskInitialState `json:"initial_state"`
+	InitialState           V1TaskInitialState `json:"initial_state"`
 	InitialStateReason     pgtype.Text        `json:"initial_state_reason"`
 	ConcurrencyStrategyIds []int64            `json:"concurrency_strategy_ids"`
 	ConcurrencyKeys        []string           `json:"concurrency_keys"`
@@ -2487,27 +2487,27 @@ type V2Task struct {
 	RetryMaxBackoff        pgtype.Int4        `json:"retry_max_backoff"`
 }
 
-type V2TaskEvent struct {
+type V1TaskEvent struct {
 	ID         int64            `json:"id"`
 	TenantID   pgtype.UUID      `json:"tenant_id"`
 	TaskID     int64            `json:"task_id"`
 	RetryCount int32            `json:"retry_count"`
-	EventType  V2TaskEventType  `json:"event_type"`
+	EventType  V1TaskEventType  `json:"event_type"`
 	EventKey   pgtype.Text      `json:"event_key"`
 	CreatedAt  pgtype.Timestamp `json:"created_at"`
 	Data       []byte           `json:"data"`
 }
 
-type V2TaskEventsOlap struct {
+type V1TaskEventsOlap struct {
 	TenantID               pgtype.UUID          `json:"tenant_id"`
 	ID                     int64                `json:"id"`
 	InsertedAt             pgtype.Timestamptz   `json:"inserted_at"`
 	TaskID                 int64                `json:"task_id"`
 	TaskInsertedAt         pgtype.Timestamptz   `json:"task_inserted_at"`
-	EventType              V2EventTypeOlap      `json:"event_type"`
+	EventType              V1EventTypeOlap      `json:"event_type"`
 	WorkflowID             pgtype.UUID          `json:"workflow_id"`
 	EventTimestamp         pgtype.Timestamptz   `json:"event_timestamp"`
-	ReadableStatus         V2ReadableStatusOlap `json:"readable_status"`
+	ReadableStatus         V1ReadableStatusOlap `json:"readable_status"`
 	RetryCount             int32                `json:"retry_count"`
 	ErrorMessage           pgtype.Text          `json:"error_message"`
 	Output                 []byte               `json:"output"`
@@ -2516,20 +2516,20 @@ type V2TaskEventsOlap struct {
 	AdditionalEventMessage pgtype.Text          `json:"additional__event_message"`
 }
 
-type V2TaskEventsOlapTmp struct {
+type V1TaskEventsOlapTmp struct {
 	TenantID       pgtype.UUID          `json:"tenant_id"`
 	RequeueAfter   pgtype.Timestamptz   `json:"requeue_after"`
 	RequeueRetries int32                `json:"requeue_retries"`
 	ID             int64                `json:"id"`
 	TaskID         int64                `json:"task_id"`
 	TaskInsertedAt pgtype.Timestamptz   `json:"task_inserted_at"`
-	EventType      V2EventTypeOlap      `json:"event_type"`
-	ReadableStatus V2ReadableStatusOlap `json:"readable_status"`
+	EventType      V1EventTypeOlap      `json:"event_type"`
+	ReadableStatus V1ReadableStatusOlap `json:"readable_status"`
 	RetryCount     int32                `json:"retry_count"`
 	WorkerID       pgtype.UUID          `json:"worker_id"`
 }
 
-type V2TaskRuntime struct {
+type V1TaskRuntime struct {
 	TaskID     int64            `json:"task_id"`
 	RetryCount int32            `json:"retry_count"`
 	WorkerID   pgtype.UUID      `json:"worker_id"`
@@ -2537,7 +2537,7 @@ type V2TaskRuntime struct {
 	TimeoutAt  pgtype.Timestamp `json:"timeout_at"`
 }
 
-type V2TaskStatusUpdatesTmp struct {
+type V1TaskStatusUpdatesTmp struct {
 	TenantID       pgtype.UUID        `json:"tenant_id"`
 	RequeueAfter   pgtype.Timestamptz `json:"requeue_after"`
 	RequeueRetries int32              `json:"requeue_retries"`
@@ -2546,7 +2546,7 @@ type V2TaskStatusUpdatesTmp struct {
 	DagInsertedAt  pgtype.Timestamptz `json:"dag_inserted_at"`
 }
 
-type V2TasksOlap struct {
+type V1TasksOlap struct {
 	TenantID           pgtype.UUID          `json:"tenant_id"`
 	ID                 int64                `json:"id"`
 	InsertedAt         pgtype.Timestamptz   `json:"inserted_at"`
@@ -2558,12 +2558,12 @@ type V2TasksOlap struct {
 	ScheduleTimeout    string               `json:"schedule_timeout"`
 	StepTimeout        pgtype.Text          `json:"step_timeout"`
 	Priority           pgtype.Int4          `json:"priority"`
-	Sticky             V2StickyStrategyOlap `json:"sticky"`
+	Sticky             V1StickyStrategyOlap `json:"sticky"`
 	DesiredWorkerID    pgtype.UUID          `json:"desired_worker_id"`
 	DisplayName        string               `json:"display_name"`
 	Input              []byte               `json:"input"`
 	AdditionalMetadata []byte               `json:"additional_metadata"`
-	ReadableStatus     V2ReadableStatusOlap `json:"readable_status"`
+	ReadableStatus     V1ReadableStatusOlap `json:"readable_status"`
 	LatestRetryCount   int32                `json:"latest_retry_count"`
 	LatestWorkerID     pgtype.UUID          `json:"latest_worker_id"`
 	DagID              pgtype.Int8          `json:"dag_id"`

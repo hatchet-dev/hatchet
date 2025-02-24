@@ -41,7 +41,7 @@ func (r iteratorForCreateDAGData) Err() error {
 }
 
 func (q *Queries) CreateDAGData(ctx context.Context, db DBTX, arg []CreateDAGDataParams) (int64, error) {
-	return db.CopyFrom(ctx, []string{"v2_dag_data"}, []string{"dag_id", "dag_inserted_at", "input", "additional_metadata"}, &iteratorForCreateDAGData{rows: arg})
+	return db.CopyFrom(ctx, []string{"v1_dag_data"}, []string{"dag_id", "dag_inserted_at", "input", "additional_metadata"}, &iteratorForCreateDAGData{rows: arg})
 }
 
 // iteratorForCreateDAGsOLAP implements pgx.CopyFromSource.
@@ -81,7 +81,7 @@ func (r iteratorForCreateDAGsOLAP) Err() error {
 }
 
 func (q *Queries) CreateDAGsOLAP(ctx context.Context, db DBTX, arg []CreateDAGsOLAPParams) (int64, error) {
-	return db.CopyFrom(ctx, []string{"v2_dags_olap"}, []string{"tenant_id", "id", "inserted_at", "external_id", "display_name", "workflow_id", "workflow_version_id", "input", "additional_metadata"}, &iteratorForCreateDAGsOLAP{rows: arg})
+	return db.CopyFrom(ctx, []string{"v1_dags_olap"}, []string{"tenant_id", "id", "inserted_at", "external_id", "display_name", "workflow_id", "workflow_version_id", "input", "additional_metadata"}, &iteratorForCreateDAGsOLAP{rows: arg})
 }
 
 // iteratorForCreateMatchConditions implements pgx.CopyFromSource.
@@ -104,7 +104,7 @@ func (r *iteratorForCreateMatchConditions) Next() bool {
 
 func (r iteratorForCreateMatchConditions) Values() ([]interface{}, error) {
 	return []interface{}{
-		r.rows[0].V2MatchID,
+		r.rows[0].V1MatchID,
 		r.rows[0].TenantID,
 		r.rows[0].EventType,
 		r.rows[0].EventKey,
@@ -119,7 +119,7 @@ func (r iteratorForCreateMatchConditions) Err() error {
 }
 
 func (q *Queries) CreateMatchConditions(ctx context.Context, db DBTX, arg []CreateMatchConditionsParams) (int64, error) {
-	return db.CopyFrom(ctx, []string{"v2_match_condition"}, []string{"v2_match_id", "tenant_id", "event_type", "event_key", "or_group_id", "expression", "action"}, &iteratorForCreateMatchConditions{rows: arg})
+	return db.CopyFrom(ctx, []string{"v1_match_condition"}, []string{"v1_match_id", "tenant_id", "event_type", "event_key", "or_group_id", "expression", "action"}, &iteratorForCreateMatchConditions{rows: arg})
 }
 
 // iteratorForCreateTaskEventsOLAP implements pgx.CopyFromSource.
@@ -163,7 +163,7 @@ func (r iteratorForCreateTaskEventsOLAP) Err() error {
 }
 
 func (q *Queries) CreateTaskEventsOLAP(ctx context.Context, db DBTX, arg []CreateTaskEventsOLAPParams) (int64, error) {
-	return db.CopyFrom(ctx, []string{"v2_task_events_olap"}, []string{"tenant_id", "task_id", "task_inserted_at", "event_type", "workflow_id", "event_timestamp", "readable_status", "retry_count", "error_message", "output", "worker_id", "additional__event_data", "additional__event_message"}, &iteratorForCreateTaskEventsOLAP{rows: arg})
+	return db.CopyFrom(ctx, []string{"v1_task_events_olap"}, []string{"tenant_id", "task_id", "task_inserted_at", "event_type", "workflow_id", "event_timestamp", "readable_status", "retry_count", "error_message", "output", "worker_id", "additional__event_data", "additional__event_message"}, &iteratorForCreateTaskEventsOLAP{rows: arg})
 }
 
 // iteratorForCreateTaskEventsOLAPTmp implements pgx.CopyFromSource.
@@ -201,7 +201,7 @@ func (r iteratorForCreateTaskEventsOLAPTmp) Err() error {
 }
 
 func (q *Queries) CreateTaskEventsOLAPTmp(ctx context.Context, db DBTX, arg []CreateTaskEventsOLAPTmpParams) (int64, error) {
-	return db.CopyFrom(ctx, []string{"v2_task_events_olap_tmp"}, []string{"tenant_id", "task_id", "task_inserted_at", "event_type", "readable_status", "retry_count", "worker_id"}, &iteratorForCreateTaskEventsOLAPTmp{rows: arg})
+	return db.CopyFrom(ctx, []string{"v1_task_events_olap_tmp"}, []string{"tenant_id", "task_id", "task_inserted_at", "event_type", "readable_status", "retry_count", "worker_id"}, &iteratorForCreateTaskEventsOLAPTmp{rows: arg})
 }
 
 // iteratorForCreateTasksOLAP implements pgx.CopyFromSource.
@@ -250,5 +250,5 @@ func (r iteratorForCreateTasksOLAP) Err() error {
 }
 
 func (q *Queries) CreateTasksOLAP(ctx context.Context, db DBTX, arg []CreateTasksOLAPParams) (int64, error) {
-	return db.CopyFrom(ctx, []string{"v2_tasks_olap"}, []string{"tenant_id", "id", "inserted_at", "queue", "action_id", "step_id", "workflow_id", "schedule_timeout", "step_timeout", "priority", "sticky", "desired_worker_id", "external_id", "display_name", "input", "additional_metadata", "dag_id", "dag_inserted_at"}, &iteratorForCreateTasksOLAP{rows: arg})
+	return db.CopyFrom(ctx, []string{"v1_tasks_olap"}, []string{"tenant_id", "id", "inserted_at", "queue", "action_id", "step_id", "workflow_id", "schedule_timeout", "step_timeout", "priority", "sticky", "desired_worker_id", "external_id", "display_name", "input", "additional_metadata", "dag_id", "dag_inserted_at"}, &iteratorForCreateTasksOLAP{rows: arg})
 }

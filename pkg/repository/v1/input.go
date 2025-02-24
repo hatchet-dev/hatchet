@@ -26,7 +26,7 @@ type FailedData struct {
 	Error string `json:"error"`
 }
 
-func (s *sharedRepository) parseTriggerData(triggerData []byte) (*sqlcv1.V2MatchConditionAction, map[string][]map[string]interface{}, error) {
+func (s *sharedRepository) parseTriggerData(triggerData []byte) (*sqlcv1.V1MatchConditionAction, map[string][]map[string]interface{}, error) {
 	var triggerDataMap map[string]map[string][]map[string]interface{}
 
 	if len(triggerData) > 0 {
@@ -40,13 +40,13 @@ func (s *sharedRepository) parseTriggerData(triggerData []byte) (*sqlcv1.V2Match
 	for k, v := range triggerDataMap {
 		switch k {
 		case "CREATE":
-			create := sqlcv1.V2MatchConditionActionCREATE
+			create := sqlcv1.V1MatchConditionActionCREATE
 			return &create, v, nil
 		case "CANCEL":
-			cancel := sqlcv1.V2MatchConditionActionCANCEL
+			cancel := sqlcv1.V1MatchConditionActionCANCEL
 			return &cancel, v, nil
 		case "SKIP":
-			skip := sqlcv1.V2MatchConditionActionSKIP
+			skip := sqlcv1.V1MatchConditionActionSKIP
 			return &skip, v, nil
 		default:
 			s.l.Error().Str("action", k).Msg("unknown action")

@@ -24,13 +24,13 @@ type RateLimitResult struct {
 type AssignedItem struct {
 	WorkerId pgtype.UUID
 
-	QueueItem *sqlcv1.V2QueueItem
+	QueueItem *sqlcv1.V1QueueItem
 }
 
 type AssignResults struct {
 	Assigned           []*AssignedItem
-	Unassigned         []*sqlcv1.V2QueueItem
-	SchedulingTimedOut []*sqlcv1.V2QueueItem
+	Unassigned         []*sqlcv1.V1QueueItem
+	SchedulingTimedOut []*sqlcv1.V1QueueItem
 	RateLimited        []*RateLimitResult
 }
 
@@ -96,7 +96,7 @@ func (d *queueRepository) getMinId() pgtype.Int8 {
 	return val
 }
 
-func (d *queueRepository) ListQueueItems(ctx context.Context, limit int) ([]*sqlcv1.V2QueueItem, error) {
+func (d *queueRepository) ListQueueItems(ctx context.Context, limit int) ([]*sqlcv1.V1QueueItem, error) {
 	ctx, span := telemetry.NewSpan(ctx, "list-queue-items")
 	defer span.End()
 
@@ -218,7 +218,7 @@ func (d *queueRepository) MarkQueueItemsProcessed(ctx context.Context, r *Assign
 	workerIds := make([]pgtype.UUID, 0, len(r.Assigned))
 
 	// if there are any idsToUnqueue that are not in the queuedItems, this means they were
-	// deleted from the v2_queue_items table, so we should not assign them
+	// deleted from the v1_queue_items table, so we should not assign them
 	for id, assignedItem := range queueItemIdsToAssignedItem {
 		if _, ok := queuedItemsMap[id]; ok {
 			taskIds = append(taskIds, assignedItem.QueueItem.TaskID)

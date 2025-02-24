@@ -4,7 +4,7 @@ WITH ordered_names AS (
     ORDER BY name
 )
 INSERT INTO
-    v2_queue (
+    v1_queue (
         tenant_id,
         name,
         last_active
@@ -51,7 +51,7 @@ WITH worker_max_runs AS (
         worker_id,
         COUNT(task_id) AS "filledSlots"
     FROM
-        v2_task_runtime
+        v1_task_runtime
     WHERE
         tenant_id = @tenantId::uuid
         AND worker_id = ANY(@workerIds::uuid[])
@@ -71,7 +71,7 @@ LEFT JOIN
 SELECT
     *
 FROM
-    v2_queue
+    v1_queue
 WHERE
     tenant_id = @tenantId::uuid
     AND last_active > NOW() - INTERVAL '1 day';
@@ -80,7 +80,7 @@ WHERE
 SELECT
     *
 FROM
-    v2_queue_item qi
+    v1_queue_item qi
 WHERE
     qi.tenant_id = @tenantId::uuid
     AND qi.queue = @queue::text
@@ -101,7 +101,7 @@ WITH priority_1 AS (
     SELECT
         id
     FROM
-        v2_queue_item
+        v1_queue_item
     WHERE
         tenant_id = @tenantId::uuid
         AND queue = @queue::text
@@ -114,7 +114,7 @@ priority_2 AS (
     SELECT
         id
     FROM
-        v2_queue_item
+        v1_queue_item
     WHERE
         tenant_id = @tenantId::uuid
         AND queue = @queue::text
@@ -127,7 +127,7 @@ priority_3 AS (
     SELECT
         id
     FROM
-        v2_queue_item
+        v1_queue_item
     WHERE
         tenant_id = @tenantId::uuid
         AND queue = @queue::text
@@ -140,7 +140,7 @@ priority_4 AS (
     SELECT
         id
     FROM
-        v2_queue_item
+        v1_queue_item
     WHERE
         tenant_id = @tenantId::uuid
         AND queue = @queue::text
@@ -166,7 +166,7 @@ WITH locked_qis AS (
     SELECT
         id
     FROM
-        v2_queue_item
+        v1_queue_item
     WHERE
         id = ANY(@ids::bigint[])
     ORDER BY
@@ -174,7 +174,7 @@ WITH locked_qis AS (
     FOR UPDATE
 )
 DELETE FROM
-    v2_queue_item
+    v1_queue_item
 WHERE
     id = ANY(@ids::bigint[])
 RETURNING
@@ -202,10 +202,10 @@ WITH input AS (
     FROM
         input
     JOIN
-        v2_task t ON t.id = input.id
+        v1_task t ON t.id = input.id
     ORDER BY t.id
 ), assigned_tasks AS (
-    INSERT INTO v2_task_runtime (
+    INSERT INTO v1_task_runtime (
         task_id,
         retry_count,
         worker_id,
@@ -249,7 +249,7 @@ SELECT
     queue,
     COUNT(*) AS count
 FROM
-    v2_queue_item qi
+    v1_queue_item qi
 WHERE
     qi.tenant_id = @tenantId::uuid
 GROUP BY
@@ -269,7 +269,7 @@ WITH input AS (
     SELECT
         id
     FROM
-        v2_queue_item
+        v1_queue_item
     WHERE
         (task_id, retry_count) IN (SELECT task_id, retry_count FROM input)
     ORDER BY
@@ -277,6 +277,6 @@ WITH input AS (
     FOR UPDATE
 )
 DELETE FROM
-    v2_queue_item
+    v1_queue_item
 WHERE
     id = ANY(SELECT id FROM locked_qis);

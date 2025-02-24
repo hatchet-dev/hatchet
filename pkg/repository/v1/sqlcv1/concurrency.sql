@@ -7,7 +7,7 @@ WITH earliest_workflow_versions AS (
         "workflowId",
         wv."id" AS "workflowVersionId"
     FROM
-        v2_step_concurrency sc
+        v1_step_concurrency sc
     JOIN
         "WorkflowVersion" wv ON wv."id" = sc.workflow_version_id
     WHERE
@@ -19,7 +19,7 @@ WITH earliest_workflow_versions AS (
 SELECT
     sc.*
 FROM
-    v2_step_concurrency sc
+    v1_step_concurrency sc
 JOIN
     "WorkflowVersion" wv ON wv."id" = sc.workflow_version_id
 JOIN
@@ -32,16 +32,16 @@ WHERE
 SELECT
     *
 FROM
-    v2_step_concurrency
+    v1_step_concurrency
 WHERE
     tenant_id = @tenantId::uuid AND
     step_id = ANY(@stepIds::uuid[])
-ORDER BY 
+ORDER BY
     id ASC;
 
 -- name: CheckStrategyActive :one
 -- A strategy is active if the workflow is not deleted, and it is attached to the latest workflow version or it has
--- at least one concurrency slot that is not filled. 
+-- at least one concurrency slot that is not filled.
 WITH latest_workflow_version AS (
     SELECT DISTINCT ON("workflowId")
         "workflowId",
@@ -58,7 +58,7 @@ WITH latest_workflow_version AS (
     SELECT
         sc.id
     FROM
-        v2_step_concurrency sc
+        v1_step_concurrency sc
     WHERE
         sc.tenant_id = @tenantId::uuid AND
         sc.workflow_id = @workflowId::uuid AND
@@ -71,7 +71,7 @@ WITH latest_workflow_version AS (
     SELECT
         *
     FROM
-        v2_concurrency_slot
+        v1_concurrency_slot
     WHERE
         tenant_id = @tenantId::uuid AND
         strategy_id = @strategyId::bigint
@@ -83,7 +83,7 @@ WITH latest_workflow_version AS (
         EXISTS(SELECT 1 FROM latest_workflow_version) AND
         (
             -- We must match the first active strategy, otherwise we could have another concurrency strategy
-            -- that is active and has this concurrency strategy as a child. 
+            -- that is active and has this concurrency strategy as a child.
             (first_active_strategy.id != @strategyId::bigint) OR
             latest_workflow_version."workflowVersionId" = @workflowVersionId::uuid OR
             EXISTS(SELECT 1 FROM active_slot)
@@ -95,7 +95,7 @@ SELECT COALESCE((SELECT "isActive" FROM is_active), FALSE)::bool AS "isActive";
 
 -- name: SetConcurrencyStrategyInactive :exec
 UPDATE
-    v2_step_concurrency
+    v1_step_concurrency
 SET
     is_active = FALSE
 WHERE
@@ -109,7 +109,7 @@ SELECT pg_advisory_xact_lock(@key::bigint);
 
 -- name: RunGroupRoundRobin :many
 WITH slots AS (
-    SELECT 
+    SELECT
         task_id,
         task_inserted_at,
         task_retry_count,
@@ -119,8 +119,8 @@ WITH slots AS (
         is_filled,
         row_number() OVER (PARTITION BY key ORDER BY priority DESC, task_id ASC, task_inserted_at ASC) AS rn,
         row_number() OVER (ORDER BY priority DESC, task_id ASC, task_inserted_at ASC) AS seqnum
-    FROM    
-        v2_concurrency_slot
+    FROM
+        v1_concurrency_slot
     WHERE
         tenant_id = @tenantId::uuid AND
         strategy_id = @strategyId::bigint AND
@@ -132,7 +132,7 @@ WITH slots AS (
     SELECT
         *
     FROM
-        v2_concurrency_slot
+        v1_concurrency_slot
     WHERE
         tenant_id = @tenantId::uuid AND
         strategy_id = @strategyId::bigint AND
@@ -160,8 +160,8 @@ WITH slots AS (
     SELECT
         *
     FROM
-        v2_concurrency_slot
-    WHERE 
+        v1_concurrency_slot
+    WHERE
         (task_inserted_at, task_id, task_retry_count, tenant_id, strategy_id) IN (
             SELECT
                 es.task_inserted_at,
@@ -181,23 +181,23 @@ WITH slots AS (
     FOR UPDATE
 ), updated_slots AS (
     UPDATE
-        v2_concurrency_slot
+        v1_concurrency_slot
     SET
         is_filled = TRUE
     FROM
         eligible_slots
     WHERE
-        v2_concurrency_slot.task_id = eligible_slots.task_id AND
-        v2_concurrency_slot.task_inserted_at = eligible_slots.task_inserted_at AND
-        v2_concurrency_slot.task_retry_count = eligible_slots.task_retry_count AND
-        v2_concurrency_slot.tenant_id = eligible_slots.tenant_id AND
-        v2_concurrency_slot.strategy_id = eligible_slots.strategy_id AND
-        v2_concurrency_slot.key = eligible_slots.key
+        v1_concurrency_slot.task_id = eligible_slots.task_id AND
+        v1_concurrency_slot.task_inserted_at = eligible_slots.task_inserted_at AND
+        v1_concurrency_slot.task_retry_count = eligible_slots.task_retry_count AND
+        v1_concurrency_slot.tenant_id = eligible_slots.tenant_id AND
+        v1_concurrency_slot.strategy_id = eligible_slots.strategy_id AND
+        v1_concurrency_slot.key = eligible_slots.key
     RETURNING
-        v2_concurrency_slot.*
+        v1_concurrency_slot.*
 ), deleted_slots AS (
     DELETE FROM
-        v2_concurrency_slot
+        v1_concurrency_slot
     WHERE
         (task_inserted_at, task_id, task_retry_count) IN (
             SELECT
@@ -222,7 +222,7 @@ FROM
 
 -- name: RunCancelInProgress :many
 WITH slots AS (
-    SELECT 
+    SELECT
         task_id,
         task_inserted_at,
         task_retry_count,
@@ -233,8 +233,8 @@ WITH slots AS (
         -- Order slots by rn desc, seqnum desc to ensure that the most recent tasks will be run
         row_number() OVER (PARTITION BY key ORDER BY task_id DESC, task_inserted_at DESC) AS rn,
         row_number() OVER (ORDER BY task_id DESC, task_inserted_at DESC) AS seqnum
-    FROM    
-        v2_concurrency_slot
+    FROM
+        v1_concurrency_slot
     WHERE
         tenant_id = @tenantId::uuid AND
         strategy_id = @strategyId::bigint AND
@@ -246,7 +246,7 @@ WITH slots AS (
     SELECT
         *
     FROM
-        v2_concurrency_slot
+        v1_concurrency_slot
     WHERE
         tenant_id = @tenantId::uuid AND
         strategy_id = @strategyId::bigint AND
@@ -271,7 +271,7 @@ WITH slots AS (
     SELECT
         *
     FROM
-        v2_concurrency_slot
+        v1_concurrency_slot
     WHERE
         tenant_id = @tenantId::uuid AND
         strategy_id = @strategyId::bigint AND
@@ -290,8 +290,8 @@ WITH slots AS (
     SELECT
         *
     FROM
-        v2_concurrency_slot
-    WHERE 
+        v1_concurrency_slot
+    WHERE
         (task_inserted_at, task_id, task_retry_count, tenant_id, strategy_id) IN (
             SELECT
                 ers.task_inserted_at,
@@ -309,22 +309,22 @@ WITH slots AS (
     FOR UPDATE
 ), updated_slots AS (
     UPDATE
-        v2_concurrency_slot
+        v1_concurrency_slot
     SET
         is_filled = TRUE
     FROM
         slots_to_run
     WHERE
-        v2_concurrency_slot.task_id = slots_to_run.task_id AND
-        v2_concurrency_slot.task_inserted_at = slots_to_run.task_inserted_at AND
-        v2_concurrency_slot.task_retry_count = slots_to_run.task_retry_count AND
-        v2_concurrency_slot.key = slots_to_run.key AND
-        v2_concurrency_slot.is_filled = FALSE
+        v1_concurrency_slot.task_id = slots_to_run.task_id AND
+        v1_concurrency_slot.task_inserted_at = slots_to_run.task_inserted_at AND
+        v1_concurrency_slot.task_retry_count = slots_to_run.task_retry_count AND
+        v1_concurrency_slot.key = slots_to_run.key AND
+        v1_concurrency_slot.is_filled = FALSE
     RETURNING
-        v2_concurrency_slot.*
+        v1_concurrency_slot.*
 ), deleted_slots AS (
     DELETE FROM
-        v2_concurrency_slot
+        v1_concurrency_slot
     WHERE
         (task_inserted_at, task_id, task_retry_count) IN (
             SELECT
@@ -344,7 +344,7 @@ UNION ALL
 SELECT
     *,
     'CANCELLED' AS "operation"
-FROM    
+FROM
     slots_to_cancel
 WHERE
     -- not in the schedule_timeout_slots
@@ -365,7 +365,7 @@ FROM
 
 -- name: RunCancelNewest :many
 WITH slots AS (
-    SELECT 
+    SELECT
         task_id,
         task_inserted_at,
         task_retry_count,
@@ -375,8 +375,8 @@ WITH slots AS (
         is_filled,
         row_number() OVER (PARTITION BY key ORDER BY task_id ASC, task_inserted_at ASC) AS rn,
         row_number() OVER (ORDER BY task_id ASC, task_inserted_at ASC) AS seqnum
-    FROM    
-        v2_concurrency_slot
+    FROM
+        v1_concurrency_slot
     WHERE
         tenant_id = @tenantId::uuid AND
         strategy_id = @strategyId::bigint AND
@@ -388,7 +388,7 @@ WITH slots AS (
     SELECT
         *
     FROM
-        v2_concurrency_slot
+        v1_concurrency_slot
     WHERE
         tenant_id = @tenantId::uuid AND
         strategy_id = @strategyId::bigint AND
@@ -413,7 +413,7 @@ WITH slots AS (
     SELECT
         *
     FROM
-        v2_concurrency_slot
+        v1_concurrency_slot
     WHERE
         tenant_id = @tenantId::uuid AND
         strategy_id = @strategyId::bigint AND
@@ -432,8 +432,8 @@ WITH slots AS (
     SELECT
         *
     FROM
-        v2_concurrency_slot
-    WHERE 
+        v1_concurrency_slot
+    WHERE
         (task_inserted_at, task_id, task_retry_count, tenant_id, strategy_id) IN (
             SELECT
                 ers.task_inserted_at,
@@ -451,22 +451,22 @@ WITH slots AS (
     FOR UPDATE
 ), updated_slots AS (
     UPDATE
-        v2_concurrency_slot
+        v1_concurrency_slot
     SET
         is_filled = TRUE
     FROM
         slots_to_run
     WHERE
-        v2_concurrency_slot.task_id = slots_to_run.task_id AND
-        v2_concurrency_slot.task_inserted_at = slots_to_run.task_inserted_at AND
-        v2_concurrency_slot.task_retry_count = slots_to_run.task_retry_count AND
-        v2_concurrency_slot.key = slots_to_run.key AND
-        v2_concurrency_slot.is_filled = FALSE
+        v1_concurrency_slot.task_id = slots_to_run.task_id AND
+        v1_concurrency_slot.task_inserted_at = slots_to_run.task_inserted_at AND
+        v1_concurrency_slot.task_retry_count = slots_to_run.task_retry_count AND
+        v1_concurrency_slot.key = slots_to_run.key AND
+        v1_concurrency_slot.is_filled = FALSE
     RETURNING
-        v2_concurrency_slot.*
+        v1_concurrency_slot.*
 ), deleted_slots AS (
     DELETE FROM
-        v2_concurrency_slot
+        v1_concurrency_slot
     WHERE
         (task_inserted_at, task_id, task_retry_count) IN (
             SELECT
@@ -486,7 +486,7 @@ UNION ALL
 SELECT
     *,
     'CANCELLED' AS "operation"
-FROM    
+FROM
     slots_to_cancel
 WHERE
     -- not in the schedule_timeout_slots

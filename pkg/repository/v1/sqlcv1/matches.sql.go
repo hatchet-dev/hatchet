@@ -12,13 +12,13 @@ import (
 )
 
 type CreateMatchConditionsParams struct {
-	V2MatchID  int64                  `json:"v2_match_id"`
+	V1MatchID  int64                  `json:"v1_match_id"`
 	TenantID   pgtype.UUID            `json:"tenant_id"`
-	EventType  V2EventType            `json:"event_type"`
+	EventType  V1EventType            `json:"event_type"`
 	EventKey   string                 `json:"event_key"`
 	OrGroupID  pgtype.UUID            `json:"or_group_id"`
 	Expression pgtype.Text            `json:"expression"`
-	Action     V2MatchConditionAction `json:"action"`
+	Action     V1MatchConditionAction `json:"action"`
 }
 
 const createMatchesForDAGTriggers = `-- name: CreateMatchesForDAGTriggers :many
@@ -29,14 +29,14 @@ WITH input AS (
         (
             SELECT
                 unnest($1::uuid[]) AS tenant_id,
-                unnest(cast($2::text[] as v2_match_kind[])) AS kind,
+                unnest(cast($2::text[] as v1_match_kind[])) AS kind,
                 unnest($3::bigint[]) AS trigger_dag_id,
                 unnest($4::timestamptz[]) AS trigger_dag_inserted_at,
                 unnest($5::uuid[]) AS trigger_step_id,
                 unnest($6::uuid[]) AS trigger_external_id
         ) AS subquery
 )
-INSERT INTO v2_match (
+INSERT INTO v1_match (
     tenant_id,
     kind,
     trigger_dag_id,
@@ -66,7 +66,7 @@ type CreateMatchesForDAGTriggersParams struct {
 	Triggerexternalids    []pgtype.UUID        `json:"triggerexternalids"`
 }
 
-func (q *Queries) CreateMatchesForDAGTriggers(ctx context.Context, db DBTX, arg CreateMatchesForDAGTriggersParams) ([]*V2Match, error) {
+func (q *Queries) CreateMatchesForDAGTriggers(ctx context.Context, db DBTX, arg CreateMatchesForDAGTriggersParams) ([]*V1Match, error) {
 	rows, err := db.Query(ctx, createMatchesForDAGTriggers,
 		arg.Tenantids,
 		arg.Kinds,
@@ -79,9 +79,9 @@ func (q *Queries) CreateMatchesForDAGTriggers(ctx context.Context, db DBTX, arg 
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*V2Match
+	var items []*V1Match
 	for rows.Next() {
-		var i V2Match
+		var i V1Match
 		if err := rows.Scan(
 			&i.ID,
 			&i.TenantID,
@@ -112,12 +112,12 @@ WITH input AS (
         (
             SELECT
                 unnest($1::uuid[]) AS tenant_id,
-                unnest(cast($2::text[] as v2_match_kind[])) AS kind,
+                unnest(cast($2::text[] as v1_match_kind[])) AS kind,
                 unnest($3::bigint[]) AS signal_target_id,
                 unnest($4::text[]) AS signal_key
         ) AS subquery
 )
-INSERT INTO v2_match (
+INSERT INTO v1_match (
     tenant_id,
     kind,
     signal_target_id,
@@ -141,7 +141,7 @@ type CreateMatchesForSignalTriggersParams struct {
 	Signalkeys      []string      `json:"signalkeys"`
 }
 
-func (q *Queries) CreateMatchesForSignalTriggers(ctx context.Context, db DBTX, arg CreateMatchesForSignalTriggersParams) ([]*V2Match, error) {
+func (q *Queries) CreateMatchesForSignalTriggers(ctx context.Context, db DBTX, arg CreateMatchesForSignalTriggersParams) ([]*V1Match, error) {
 	rows, err := db.Query(ctx, createMatchesForSignalTriggers,
 		arg.Tenantids,
 		arg.Kinds,
@@ -152,9 +152,9 @@ func (q *Queries) CreateMatchesForSignalTriggers(ctx context.Context, db DBTX, a
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*V2Match
+	var items []*V1Match
 	for rows.Next() {
-		var i V2Match
+		var i V1Match
 		if err := rows.Scan(
 			&i.ID,
 			&i.TenantID,
@@ -190,13 +190,13 @@ WITH input AS (
         ) AS subquery
 ), locked_conditions AS (
     SELECT
-        m.v2_match_id,
+        m.v1_match_id,
         m.id,
         i.data
     FROM
-        v2_match_condition m
+        v1_match_condition m
     JOIN
-        input i ON i.match_id = m.v2_match_id AND i.condition_id = m.id
+        input i ON i.match_id = m.v1_match_id AND i.condition_id = m.id
     ORDER BY
         m.id
     -- We can afford a SKIP LOCKED because a match condition can only be satisfied by 1 event
@@ -204,28 +204,28 @@ WITH input AS (
     FOR UPDATE SKIP LOCKED
 ), updated_conditions AS (
     UPDATE
-        v2_match_condition
+        v1_match_condition
     SET
         is_satisfied = TRUE,
         data = c.data
     FROM
         locked_conditions c
     WHERE
-        (v2_match_condition.v2_match_id, v2_match_condition.id) = (c.v2_match_id, c.id)
+        (v1_match_condition.v1_match_id, v1_match_condition.id) = (c.v1_match_id, c.id)
     RETURNING
-        v2_match_condition.v2_match_id, v2_match_condition.id
+        v1_match_condition.v1_match_id, v1_match_condition.id
 ), distinct_match_ids AS (
     SELECT
-        DISTINCT v2_match_id
+        DISTINCT v1_match_id
     FROM
         updated_conditions
 )
 SELECT
     m.id
 FROM
-    v2_match m
+    v1_match m
 JOIN
-    distinct_match_ids dm ON dm.v2_match_id = m.id
+    distinct_match_ids dm ON dm.v1_match_id = m.id
 ORDER BY
     m.id
 FOR UPDATE
@@ -261,32 +261,32 @@ func (q *Queries) GetSatisfiedMatchConditions(ctx context.Context, db DBTX, arg 
 
 const listMatchConditionsForEvent = `-- name: ListMatchConditionsForEvent :many
 SELECT
-    v2_match_id,
+    v1_match_id,
     id,
     registered_at,
     event_type,
     event_key,
     expression
 FROM
-    v2_match_condition m
+    v1_match_condition m
 WHERE
     m.tenant_id = $1::uuid
-    AND m.event_type = $2::v2_event_type
+    AND m.event_type = $2::v1_event_type
     AND m.event_key = ANY($3::text[])
     AND NOT m.is_satisfied
 `
 
 type ListMatchConditionsForEventParams struct {
 	Tenantid  pgtype.UUID `json:"tenantid"`
-	Eventtype V2EventType `json:"eventtype"`
+	Eventtype V1EventType `json:"eventtype"`
 	Eventkeys []string    `json:"eventkeys"`
 }
 
 type ListMatchConditionsForEventRow struct {
-	V2MatchID    int64              `json:"v2_match_id"`
+	V1MatchID    int64              `json:"v1_match_id"`
 	ID           int64              `json:"id"`
 	RegisteredAt pgtype.Timestamptz `json:"registered_at"`
-	EventType    V2EventType        `json:"event_type"`
+	EventType    V1EventType        `json:"event_type"`
 	EventKey     string             `json:"event_key"`
 	Expression   pgtype.Text        `json:"expression"`
 }
@@ -301,7 +301,7 @@ func (q *Queries) ListMatchConditionsForEvent(ctx context.Context, db DBTX, arg 
 	for rows.Next() {
 		var i ListMatchConditionsForEventRow
 		if err := rows.Scan(
-			&i.V2MatchID,
+			&i.V1MatchID,
 			&i.ID,
 			&i.RegisteredAt,
 			&i.EventType,
@@ -321,7 +321,7 @@ func (q *Queries) ListMatchConditionsForEvent(ctx context.Context, db DBTX, arg 
 const saveSatisfiedMatchConditions = `-- name: SaveSatisfiedMatchConditions :many
 WITH match_counts AS (
     SELECT
-        v2_match_id,
+        v1_match_id,
         COUNT(DISTINCT CASE WHEN action = 'CREATE' THEN or_group_id END) AS total_create_groups,
         COUNT(DISTINCT CASE WHEN is_satisfied AND action = 'CREATE' THEN or_group_id END) AS satisfied_create_groups,
         COUNT(DISTINCT CASE WHEN action = 'CANCEL' THEN or_group_id END) AS total_cancel_groups,
@@ -332,25 +332,25 @@ WITH match_counts AS (
                 SELECT action, jsonb_object_agg(event_key, data_array) AS aggregated_1
                 FROM (
                     SELECT action, event_key, jsonb_agg(data) AS data_array
-                    FROM v2_match_condition sub
-                    WHERE sub.v2_match_id = ANY($1::bigint[])
+                    FROM v1_match_condition sub
+                    WHERE sub.v1_match_id = ANY($1::bigint[])
                     AND is_satisfied
                     GROUP BY action, event_key
                 ) t
                 GROUP BY action
             ) s
         ) AS aggregated_data
-    FROM v2_match_condition main
-    WHERE v2_match_id = ANY($1::bigint[])
-    GROUP BY v2_match_id
+    FROM v1_match_condition main
+    WHERE v1_match_id = ANY($1::bigint[])
+    GROUP BY v1_match_id
 ), result_matches AS (
     SELECT
         m.id, m.tenant_id, m.kind, m.is_satisfied, m.signal_target_id, m.signal_key, m.trigger_dag_id, m.trigger_dag_inserted_at, m.trigger_step_id, m.trigger_external_id,
         mc.aggregated_data::jsonb as mc_aggregated_data
     FROM
-        v2_match m
+        v1_match m
     JOIN
-        match_counts mc ON m.id = mc.v2_match_id
+        match_counts mc ON m.id = mc.v1_match_id
     WHERE
         (
             mc.total_create_groups = mc.satisfied_create_groups
@@ -358,25 +358,25 @@ WITH match_counts AS (
         )
 ), deleted_matches AS (
     DELETE FROM
-        v2_match
+        v1_match
     WHERE
         id IN (SELECT id FROM result_matches)
 ), locked_conditions AS (
     SELECT
-        m.v2_match_id,
+        m.v1_match_id,
         m.id
     FROM
-        v2_match_condition m
+        v1_match_condition m
     JOIN
-        result_matches r ON r.id = m.v2_match_id
+        result_matches r ON r.id = m.v1_match_id
     ORDER BY
         m.id
     FOR UPDATE
 ), deleted_conditions AS (
     DELETE FROM
-        v2_match_condition
+        v1_match_condition
     WHERE
-        (v2_match_id, id) IN (SELECT v2_match_id, id FROM locked_conditions)
+        (v1_match_id, id) IN (SELECT v1_match_id, id FROM locked_conditions)
 )
 SELECT
     id, tenant_id, kind, is_satisfied, signal_target_id, signal_key, trigger_dag_id, trigger_dag_inserted_at, trigger_step_id, trigger_external_id, mc_aggregated_data
@@ -387,7 +387,7 @@ FROM
 type SaveSatisfiedMatchConditionsRow struct {
 	ID                   int64              `json:"id"`
 	TenantID             pgtype.UUID        `json:"tenant_id"`
-	Kind                 V2MatchKind        `json:"kind"`
+	Kind                 V1MatchKind        `json:"kind"`
 	IsSatisfied          bool               `json:"is_satisfied"`
 	SignalTargetID       pgtype.Int8        `json:"signal_target_id"`
 	SignalKey            pgtype.Text        `json:"signal_key"`

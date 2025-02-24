@@ -37,7 +37,7 @@ type CreateTaskOpts struct {
 	DagInsertedAt pgtype.Timestamptz
 
 	// (required) the initial state for the task
-	InitialState sqlcv1.V2TaskInitialState
+	InitialState sqlcv1.V1TaskInitialState
 
 	// (optional) a list of concurrency keys for the task
 	ConcurrencyKeys []string
@@ -77,11 +77,11 @@ type TaskRepository interface {
 
 	FailTasks(ctx context.Context, tenantId string, tasks []FailTaskOpts) (retriedTasks []TaskIdRetryCount, queues []*sqlcv1.ReleaseTasksRow, err error)
 
-	CancelTasks(ctx context.Context, tenantId string, tasks []TaskIdRetryCount) ([]*sqlcv1.ReleaseTasksRow, []*sqlcv1.V2Task, error)
+	CancelTasks(ctx context.Context, tenantId string, tasks []TaskIdRetryCount) ([]*sqlcv1.ReleaseTasksRow, []*sqlcv1.V1Task, error)
 
-	ListTasks(ctx context.Context, tenantId string, tasks []int64) ([]*sqlcv1.V2Task, error)
+	ListTasks(ctx context.Context, tenantId string, tasks []int64) ([]*sqlcv1.V1Task, error)
 
-	ListCompletedTaskSignals(ctx context.Context, tenantId string, tasks []TaskIdEventKeyTuple) ([]*sqlcv1.V2TaskEvent, error)
+	ListCompletedTaskSignals(ctx context.Context, tenantId string, tasks []TaskIdEventKeyTuple) ([]*sqlcv1.V1TaskEvent, error)
 
 	ListTaskMetas(ctx context.Context, tenantId string, tasks []int64) ([]*sqlcv1.ListTaskMetasRow, error)
 
@@ -137,7 +137,7 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	for _, partition := range partitions {
 		_, err := r.pool.Exec(
 			ctx,
-			fmt.Sprintf("ALTER TABLE v2_task DETACH PARTITION %s CONCURRENTLY", partition),
+			fmt.Sprintf("ALTER TABLE v1_task DETACH PARTITION %s CONCURRENTLY", partition),
 		)
 
 		if err != nil {
@@ -184,7 +184,7 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	for _, partition := range dagPartitions {
 		_, err := r.pool.Exec(
 			ctx,
-			fmt.Sprintf("ALTER TABLE v2_dag DETACH PARTITION %s CONCURRENTLY", partition),
+			fmt.Sprintf("ALTER TABLE v1_dag DETACH PARTITION %s CONCURRENTLY", partition),
 		)
 
 		if err != nil {
@@ -231,7 +231,7 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	for _, partition := range concurrencyPartitions {
 		_, err := r.pool.Exec(
 			ctx,
-			fmt.Sprintf("ALTER TABLE v2_concurrency_slot DETACH PARTITION %s CONCURRENTLY", partition),
+			fmt.Sprintf("ALTER TABLE v1_concurrency_slot DETACH PARTITION %s CONCURRENTLY", partition),
 		)
 
 		if err != nil {
@@ -286,7 +286,7 @@ func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId string,
 		tenantId,
 		tasks,
 		datas,
-		sqlcv1.V2TaskEventTypeCOMPLETED,
+		sqlcv1.V1TaskEventTypeCOMPLETED,
 		make([]string, len(tasks)),
 	)
 
@@ -389,7 +389,7 @@ func (r *TaskRepositoryImpl) FailTasks(ctx context.Context, tenantId string, fai
 		tenantId,
 		tasks,
 		datas,
-		sqlcv1.V2TaskEventTypeFAILED,
+		sqlcv1.V1TaskEventTypeFAILED,
 		make([]string, len(tasks)),
 	)
 
@@ -405,7 +405,7 @@ func (r *TaskRepositoryImpl) FailTasks(ctx context.Context, tenantId string, fai
 	return retriedTasks, releasedTasks, nil
 }
 
-func (r *TaskRepositoryImpl) CancelTasks(ctx context.Context, tenantId string, tasks []TaskIdRetryCount) ([]*sqlcv1.ReleaseTasksRow, []*sqlcv1.V2Task, error) {
+func (r *TaskRepositoryImpl) CancelTasks(ctx context.Context, tenantId string, tasks []TaskIdRetryCount) ([]*sqlcv1.ReleaseTasksRow, []*sqlcv1.V1Task, error) {
 	// TODO: ADD BACK VALIDATION
 	// if err := r.v.Validate(tasks); err != nil {
 	// 	fmt.Println("FAILED VALIDATION HERE!!!")
@@ -463,7 +463,7 @@ func (r *sharedRepository) cancelTasks(ctx context.Context, dbtx sqlcv1.DBTX, te
 		tenantId,
 		tasks,
 		make([][]byte, len(tasks)),
-		sqlcv1.V2TaskEventTypeCANCELLED,
+		sqlcv1.V1TaskEventTypeCANCELLED,
 		make([]string, len(tasks)),
 	)
 
@@ -474,18 +474,18 @@ func (r *sharedRepository) cancelTasks(ctx context.Context, dbtx sqlcv1.DBTX, te
 	return releasedTasks, nil
 }
 
-func (r *TaskRepositoryImpl) ListTasks(ctx context.Context, tenantId string, tasks []int64) ([]*sqlcv1.V2Task, error) {
+func (r *TaskRepositoryImpl) ListTasks(ctx context.Context, tenantId string, tasks []int64) ([]*sqlcv1.V1Task, error) {
 	return r.listTasks(ctx, r.pool, tenantId, tasks)
 }
 
-func (r *sharedRepository) listTasks(ctx context.Context, dbtx sqlcv1.DBTX, tenantId string, tasks []int64) ([]*sqlcv1.V2Task, error) {
+func (r *sharedRepository) listTasks(ctx context.Context, dbtx sqlcv1.DBTX, tenantId string, tasks []int64) ([]*sqlcv1.V1Task, error) {
 	return r.queries.ListTasks(ctx, dbtx, sqlcv1.ListTasksParams{
 		TenantID: sqlchelpers.UUIDFromStr(tenantId),
 		Ids:      tasks,
 	})
 }
 
-func (r *TaskRepositoryImpl) ListCompletedTaskSignals(ctx context.Context, tenantId string, tasks []TaskIdEventKeyTuple) ([]*sqlcv1.V2TaskEvent, error) {
+func (r *TaskRepositoryImpl) ListCompletedTaskSignals(ctx context.Context, tenantId string, tasks []TaskIdEventKeyTuple) ([]*sqlcv1.V1TaskEvent, error) {
 	taskIds := make([]int64, len(tasks))
 	eventKeys := make([]string, len(tasks))
 
@@ -498,7 +498,7 @@ func (r *TaskRepositoryImpl) ListCompletedTaskSignals(ctx context.Context, tenan
 		Tenantid:   sqlchelpers.UUIDFromStr(tenantId),
 		Taskids:    taskIds,
 		Signalkeys: eventKeys,
-		Eventtype:  sqlcv1.V2TaskEventTypeSIGNALCOMPLETED,
+		Eventtype:  sqlcv1.V1TaskEventTypeSIGNALCOMPLETED,
 	})
 }
 
@@ -589,7 +589,7 @@ func (r *TaskRepositoryImpl) ProcessTaskReassignments(ctx context.Context, tenan
 			tenantId,
 			failedTasks,
 			failedTaskDatas,
-			sqlcv1.V2TaskEventTypeFAILED,
+			sqlcv1.V1TaskEventTypeFAILED,
 			make([]string, len(failedTasks)),
 		)
 
@@ -693,7 +693,7 @@ func (r *sharedRepository) createTasks(
 	tx sqlcv1.DBTX,
 	tenantId string,
 	tasks []CreateTaskOpts,
-) ([]*sqlcv1.V2Task, error) {
+) ([]*sqlcv1.V1Task, error) {
 	// list the steps for the tasks
 	uniqueStepIds := make(map[string]struct{})
 	stepIds := make([]pgtype.UUID, 0)
@@ -731,7 +731,7 @@ func (r *sharedRepository) insertTasks(
 	tenantId string,
 	tasks []CreateTaskOpts,
 	stepIdsToConfig map[string]*sqlcv1.ListStepsByIdsRow,
-) ([]*sqlcv1.V2Task, error) {
+) ([]*sqlcv1.V1Task, error) {
 	concurrencyStrats, err := r.getConcurrencyExpressions(ctx, tx, tenantId, stepIdsToConfig)
 
 	if err != nil {
@@ -780,7 +780,7 @@ func (r *sharedRepository) insertTasks(
 		inputs[i] = r.ToV1StepRunData(task.Input).Bytes()
 		retryCounts[i] = 0
 		priorities[i] = 1
-		stickies[i] = string(sqlcv1.V2StickyStrategyNONE)
+		stickies[i] = string(sqlcv1.V1StickyStrategyNONE)
 		desiredWorkerIds[i] = pgtype.UUID{
 			Valid: false,
 		}
@@ -802,7 +802,7 @@ func (r *sharedRepository) insertTasks(
 
 		// only check for concurrency if the task is in a queued state, otherwise we don't need to
 		// evaluate the expression (and it will likely fail if we do)
-		if task.InitialState == sqlcv1.V2TaskInitialStateQUEUED {
+		if task.InitialState == sqlcv1.V1TaskInitialStateQUEUED {
 			// if we have a step expression, evaluate the expression
 			if strats, ok := concurrencyStrats[task.StepId]; ok {
 				taskConcurrencyKeys := make([]string, 0)
@@ -849,7 +849,7 @@ func (r *sharedRepository) insertTasks(
 
 				if failTaskError != nil {
 					// place the task into a failed state
-					initialStates[i] = string(sqlcv1.V2TaskInitialStateFAILED)
+					initialStates[i] = string(sqlcv1.V1TaskInitialStateFAILED)
 
 					initialStateReasons[i] = pgtype.Text{
 						String: failTaskError.Error(),
@@ -909,7 +909,7 @@ func (r *sharedRepository) getConcurrencyExpressions(
 	tx sqlcv1.DBTX,
 	tenantId string,
 	stepIdsToConfig map[string]*sqlcv1.ListStepsByIdsRow,
-) (map[string][]*sqlcv1.V2StepConcurrency, error) {
+) (map[string][]*sqlcv1.V1StepConcurrency, error) {
 	stepIdsWithExpressions := make(map[string]struct{})
 
 	for _, step := range stepIdsToConfig {
@@ -937,13 +937,13 @@ func (r *sharedRepository) getConcurrencyExpressions(
 		return nil, err
 	}
 
-	stepIdToStrats := make(map[string][]*sqlcv1.V2StepConcurrency)
+	stepIdToStrats := make(map[string][]*sqlcv1.V1StepConcurrency)
 
 	for _, strat := range strats {
 		stepId := sqlchelpers.UUIDToStr(strat.StepID)
 
 		if _, ok := stepIdToStrats[stepId]; !ok {
-			stepIdToStrats[stepId] = make([]*sqlcv1.V2StepConcurrency, 0)
+			stepIdToStrats[stepId] = make([]*sqlcv1.V1StepConcurrency, 0)
 		}
 
 		stepIdToStrats[stepId] = append(stepIdToStrats[stepId], strat)
@@ -1002,7 +1002,7 @@ func (r *sharedRepository) createTaskEvents(
 	tenantId string,
 	tasks []TaskIdRetryCount,
 	eventDatas [][]byte,
-	eventType sqlcv1.V2TaskEventType,
+	eventType sqlcv1.V1TaskEventType,
 	eventKeys []string,
 ) error {
 	if len(tasks) != len(eventDatas) {
