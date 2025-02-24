@@ -37,6 +37,9 @@ jobs:
       - name: Run MyPy
         run: poetry run mypy --config-file=pyproject.toml
 
+      - name: Run Ruff
+        run: poetry run ruff .
+
   test:
     runs-on: ubuntu-latest
     strategy:
