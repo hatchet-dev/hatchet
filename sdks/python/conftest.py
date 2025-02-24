@@ -83,10 +83,11 @@ def worker(
         raise Exception(f"Worker failed to start with return code {proc.returncode}")
 
     time.sleep(8)
+    time.sleep(3)
 
     def log_output(pipe: BytesIO, log_func: Callable[[str], None]) -> None:
         for line in iter(pipe.readline, b""):
-            log_func(line.decode().strip())
+            print(line.decode().strip())
 
     Thread(target=log_output, args=(proc.stdout, logging.info), daemon=True).start()
     Thread(target=log_output, args=(proc.stderr, logging.error), daemon=True).start()

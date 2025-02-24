@@ -12,7 +12,7 @@ TPythonEnum = TypeVar("TPythonEnum", bound=Enum)
 def convert_python_enum_to_proto(
     value: TPythonEnum | None, proto_enum: TProtoEnum
 ) -> int | None:
-    if not value:
+    if value is None:
         return None
 
     names = [item.name for item in proto_enum.DESCRIPTOR.values]
@@ -41,7 +41,7 @@ def convert_proto_enum_to_python(
     python_enum_class: Type[TPythonEnum],
     proto_enum: TProtoEnum,
 ) -> TPythonEnum | None:
-    if not value:
+    if value is None:
         return None
 
     return python_enum_class[proto_enum.Name(value)]
