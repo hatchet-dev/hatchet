@@ -2,6 +2,7 @@ package migrate
 
 import (
 	"context"
+	"database/sql"
 	"embed"
 	"fmt"
 	"io/fs"
@@ -10,17 +11,33 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
 	"github.com/pressly/goose/v3/lock"
+	"github.com/sethvargo/go-retry"
 )
 
 //go:embed migrations/*.sql
 var embedMigrations embed.FS
 
 func RunMigrations(ctx context.Context) {
-	db, err := goose.OpenDBWithDriver("postgres", os.Getenv("DATABASE_URL"))
+	var db *sql.DB
+
+	retryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	err := retry.Do(retryCtx, retry.NewConstant(1*time.Second), func(ctx context.Context) error {
+		var err error
+		db, err = goose.OpenDBWithDriver("postgres", os.Getenv("DATABASE_URL"))
+		if err != nil {
+			log.Fatalf("goose: failed to open DB: %v", err)
+		}
+
+		return nil
+	})
+
 	if err != nil {
 		log.Fatalf("goose: failed to open DB: %v", err)
 	}
