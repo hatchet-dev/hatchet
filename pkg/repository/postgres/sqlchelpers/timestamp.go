@@ -19,3 +19,17 @@ func TimestampFromTime(t time.Time) pgtype.Timestamp {
 
 	return pgTs
 }
+
+func TimestamptzFromTime(t time.Time) pgtype.Timestamptz {
+	if t.IsZero() {
+		return pgtype.Timestamptz{}
+	}
+
+	var pgTs pgtype.Timestamptz
+
+	if err := pgTs.Scan(t); err != nil {
+		panic(err)
+	}
+
+	return pgTs
+}

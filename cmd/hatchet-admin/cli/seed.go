@@ -101,7 +101,7 @@ func runSeed(cf *loader.ConfigLoader) error {
 				return err
 			}
 
-			fmt.Println("created tenant", tenant.ID)
+			fmt.Println("created tenant", sqlchelpers.UUIDToStr(tenant.ID))
 
 			// add the user to the tenant
 			_, err = dc.APIRepository.Tenant().CreateTenantMember(context.Background(), sqlchelpers.UUIDToStr(tenant.ID), &repository.CreateTenantMemberOpts{

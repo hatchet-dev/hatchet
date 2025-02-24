@@ -43,6 +43,8 @@ import (
 	v2 "github.com/hatchet-dev/hatchet/pkg/scheduling/v2"
 	"github.com/hatchet-dev/hatchet/pkg/security"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
+
+	repov1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 )
 
 // LoadDatabaseConfigFile loads the database config file via viper
@@ -197,6 +199,8 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		opts = append(opts, postgresdb.WithLogsAPIRepository(c.RepositoryOverrides.LogsAPIRepository))
 	}
 
+	v1, cleanupV1 := repov1.NewRepository(pool, &l)
+
 	apiRepo, cleanupApiRepo, err := postgresdb.NewAPIRepository(pool, &scf.Runtime, opts...)
 
 	if err != nil {
@@ -211,6 +215,11 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 
 			ch.Stop()
 			meter.Stop()
+
+			if err := cleanupV1(); err != nil {
+				return err
+			}
+
 			return cleanupApiRepo()
 		},
 		Pool:                  pool,
@@ -219,6 +228,7 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		APIRepository:         apiRepo,
 		EngineRepository:      engineRepo,
 		EntitlementRepository: entitlementRepo,
+		V1:                    v1,
 		Seed:                  cf.Seed,
 	}, nil
 
