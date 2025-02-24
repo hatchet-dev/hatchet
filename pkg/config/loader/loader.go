@@ -40,7 +40,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
 	postgresdb "github.com/hatchet-dev/hatchet/pkg/repository/postgres"
-	v2 "github.com/hatchet-dev/hatchet/pkg/scheduling/v2"
+	v0 "github.com/hatchet-dev/hatchet/pkg/scheduling/v0"
 	"github.com/hatchet-dev/hatchet/pkg/security"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 
@@ -500,7 +500,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 
 	v := validator.NewDefaultValidator()
 
-	schedulingPool, cleanupSchedulingPool, err := v2.NewSchedulingPool(
+	schedulingPool, cleanupSchedulingPool, err := v0.NewSchedulingPool(
 		dc.EngineRepository.Scheduler(),
 		&queueLogger,
 		cf.Runtime.SingleQueueLimit,

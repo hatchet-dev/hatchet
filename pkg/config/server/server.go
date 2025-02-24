@@ -21,7 +21,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/encryption"
 	"github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/repository/buffer"
-	v2 "github.com/hatchet-dev/hatchet/pkg/scheduling/v2"
+	v0 "github.com/hatchet-dev/hatchet/pkg/scheduling/v0"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
@@ -461,7 +461,7 @@ type ServerConfig struct {
 
 	AdditionalOAuthConfigs map[string]*oauth2.Config
 
-	SchedulingPool *v2.SchedulingPool
+	SchedulingPool *v0.SchedulingPool
 
 	Version string
 }
