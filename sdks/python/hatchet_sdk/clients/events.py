@@ -8,6 +8,7 @@ from google.protobuf import timestamp_pb2
 from pydantic import BaseModel, Field
 
 from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
+from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.contracts.events_pb2 import (
     BulkPushEventRequest,
     Event,
@@ -16,7 +17,6 @@ from hatchet_sdk.contracts.events_pb2 import (
     PutStreamEventRequest,
 )
 from hatchet_sdk.contracts.events_pb2_grpc import EventsServiceStub
-from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.metadata import get_metadata
 from hatchet_sdk.utils.types import JSONSerializableMapping
 

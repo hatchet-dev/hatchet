@@ -12,7 +12,7 @@ from hatchet_sdk.clients.rest.models.job_run_status import JobRunStatus
 async def test_run_timeout(hatchet: Hatchet, worker: Worker) -> None:
     run = hatchet.admin.run_workflow("OnFailureWorkflow", {})
     try:
-        await run.result()
+        await run.aio_result()
 
         assert False, "Expected workflow to timeout"
     except Exception as e:

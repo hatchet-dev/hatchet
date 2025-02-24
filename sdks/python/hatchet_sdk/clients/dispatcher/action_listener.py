@@ -15,6 +15,7 @@ from hatchet_sdk.clients.events import proto_timestamp_now
 from hatchet_sdk.clients.run_event_listener import (
     DEFAULT_ACTION_LISTENER_RETRY_INTERVAL,
 )
+from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.connection import new_conn
 from hatchet_sdk.contracts.dispatcher_pb2 import ActionType as ActionTypeProto
 from hatchet_sdk.contracts.dispatcher_pb2 import (
@@ -25,7 +26,6 @@ from hatchet_sdk.contracts.dispatcher_pb2 import (
     WorkerUnsubscribeRequest,
 )
 from hatchet_sdk.contracts.dispatcher_pb2_grpc import DispatcherStub
-from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.logger import logger
 from hatchet_sdk.metadata import get_metadata
 from hatchet_sdk.utils.backoff import exp_backoff_sleep

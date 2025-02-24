@@ -8,13 +8,13 @@ import grpc.aio
 from grpc._cython import cygrpc  # type: ignore[attr-defined]
 
 from hatchet_sdk.clients.event_ts import ThreadSafeEvent, read_with_interrupt
+from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.connection import new_conn
 from hatchet_sdk.contracts.dispatcher_pb2 import (
     SubscribeToWorkflowRunsRequest,
     WorkflowRunEvent,
 )
 from hatchet_sdk.contracts.dispatcher_pb2_grpc import DispatcherStub
-from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.logger import logger
 from hatchet_sdk.metadata import get_metadata
 

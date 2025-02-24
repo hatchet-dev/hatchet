@@ -25,7 +25,7 @@ async def async_main() -> None:
         worker.start()
 
         ref = hatchet.admin.run_workflow("MyWorkflow", input={})
-        print(await ref.result())
+        print(await ref.aio_result())
         while True:
             await asyncio.sleep(1)
     finally:

@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 from pydantic import BaseModel
 
 from hatchet_sdk import BaseWorkflow, ChildTriggerWorkflowOptions, Context, Hatchet
+from hatchet_sdk.workflow import SpawnWorkflowInput
 
 load_dotenv()
 
@@ -36,7 +37,7 @@ class SyncFanoutParent(BaseWorkflow):
         runs = child.spawn_many(
             context,
             [
-                child.construct_spawn_workflow_input(
+                SpawnWorkflowInput(
                     input=ChildInput(a=str(i)),
                     key=f"child{i}",
                     options=ChildTriggerWorkflowOptions(
@@ -47,7 +48,7 @@ class SyncFanoutParent(BaseWorkflow):
             ],
         )
 
-        results = [r.sync_result() for r in runs]
+        results = [r.result() for r in runs]
 
         print(f"results {results}")
 

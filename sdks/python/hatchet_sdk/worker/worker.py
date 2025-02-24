@@ -18,8 +18,8 @@ from prometheus_client import Gauge, generate_latest
 
 from hatchet_sdk.client import Client, new_client_raw
 from hatchet_sdk.clients.dispatcher.action_listener import Action
-from hatchet_sdk.contracts.workflows_pb2 import CreateWorkflowVersionOpts
 from hatchet_sdk.config import ClientConfig
+from hatchet_sdk.contracts.workflows_pb2 import CreateWorkflowVersionOpts
 from hatchet_sdk.logger import logger
 from hatchet_sdk.utils.types import WorkflowValidator
 from hatchet_sdk.utils.typing import is_basemodel_subclass

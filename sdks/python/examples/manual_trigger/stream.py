@@ -44,7 +44,7 @@ async def main() -> None:
             )
             print("data: " + data + "\n\n")
 
-    result = await workflowRun.result()
+    result = await workflowRun.aio_result()
 
     print("result: " + json.dumps(result, indent=2))
 

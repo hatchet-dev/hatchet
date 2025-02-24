@@ -195,7 +195,6 @@ class Step(Generic[R]):
 
 @dataclass
 class SpawnWorkflowInput(Generic[TWorkflowInput]):
-    workflow_name: str
     input: TWorkflowInput
     key: str | None = None
     options: ChildTriggerWorkflowOptions = field(
@@ -204,7 +203,6 @@ class SpawnWorkflowInput(Generic[TWorkflowInput]):
 
 
 class WorkflowDeclaration(Generic[TWorkflowInput]):
-
     def __init__(self, config: WorkflowConfig, hatchet: Union["Hatchet", None]):
         self.config = config
         self.hatchet = hatchet
@@ -223,22 +221,12 @@ class WorkflowDeclaration(Generic[TWorkflowInput]):
             self.config.input_validator.model_validate(ctx.workflow_input),
         )
 
-    def construct_spawn_workflow_input(
-        self,
-        input: TWorkflowInput,
-        key: str | None = None,
-        options: ChildTriggerWorkflowOptions = ChildTriggerWorkflowOptions(),
-    ) -> SpawnWorkflowInput[TWorkflowInput]:
-        return SpawnWorkflowInput[TWorkflowInput](
-            workflow_name=self.config.name, input=input, key=key, options=options
-        )
-
     async def aio_spawn_many(
         self, ctx: Context, spawn_inputs: list[SpawnWorkflowInput[TWorkflowInput]]
     ) -> list[WorkflowRunRef]:
         inputs = [
             ChildWorkflowRunDict(
-                workflow_name=spawn_input.workflow_name,
+                workflow_name=self.config.name,
                 input=spawn_input.input.model_dump(),
                 key=spawn_input.key,
                 options=spawn_input.options,
@@ -266,13 +254,14 @@ class WorkflowDeclaration(Generic[TWorkflowInput]):
     ) -> list[WorkflowRunRef]:
         inputs = [
             ChildWorkflowRunDict(
-                workflow_name=spawn_input.workflow_name,
+                workflow_name=self.config.name,
                 input=spawn_input.input.model_dump(),
                 key=spawn_input.key,
                 options=spawn_input.options,
             )
             for spawn_input in spawn_inputs
         ]
+
         return ctx.spawn_workflows(inputs)
 
     def spawn_one(

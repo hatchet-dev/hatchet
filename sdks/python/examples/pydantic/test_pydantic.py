@@ -13,7 +13,7 @@ async def test_run_validation_error(hatchet: Hatchet, worker: Worker) -> None:
     )
 
     with pytest.raises(Exception, match="1 validation error for ParentInput"):
-        await run.result()
+        await run.aio_result()
 
 
 # requires scope module or higher for shared event loop
@@ -25,6 +25,6 @@ async def test_run(hatchet: Hatchet, worker: Worker) -> None:
         {"x": "foobar"},
     )
 
-    result = await run.result()
+    result = await run.aio_result()
 
     assert len(result["spawn"]) == 3

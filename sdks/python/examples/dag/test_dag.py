@@ -8,7 +8,7 @@ from hatchet_sdk import Hatchet, Worker
 @pytest.mark.parametrize("worker", ["dag"], indirect=True)
 async def test_run(hatchet: Hatchet, worker: Worker) -> None:
     run = hatchet.admin.run_workflow("DagWorkflow", {})
-    result = await run.result()
+    result = await run.aio_result()
 
     one = result["step1"]["rando"]
     two = result["step2"]["rando"]
