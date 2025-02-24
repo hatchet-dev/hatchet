@@ -1,5 +1,4 @@
 import { ColumnDef } from '@tanstack/react-table';
-import { DataTableColumnHeader } from '../../../../../components/molecules/data-table/data-table-column-header';
 import { Link } from 'react-router-dom';
 import { V2RunStatus } from '.././run-statuses';
 import {
@@ -9,6 +8,7 @@ import {
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { Checkbox } from '@/components/v1/ui/checkbox';
 import { ListableWorkflowRun } from '../workflow-runs-table';
+import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
 
 export const columns: (
   onAdditionalMetadataClick?: (click: AdditionalMetadataClick) => void,

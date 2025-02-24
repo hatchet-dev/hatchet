@@ -17,6 +17,12 @@ type WorkflowRunEventsMetrics = Parameters<
 >[1];
 type WorkflowScheduledQuery = Parameters<typeof api.workflowScheduledList>[1];
 type CronWorkflowsQuery = Parameters<typeof api.cronWorkflowList>[1];
+type V2ListWorkflowRunsQuery = Parameters<typeof api.v2WorkflowRunList>[1];
+type V2ListTaskRunsQuery = Parameters<typeof api.v2TaskList>[1];
+type V2TaskGetPointMetricsQuery = Parameters<
+  typeof api.v2TaskGetPointMetrics
+>[1];
+type GetTaskMetricsQuery = Parameters<typeof api.v2TaskListStatusMetrics>[1];
 
 export const queries = createQueryKeyStore({
   cloud: {
@@ -232,6 +238,80 @@ export const queries = createQueryKeyStore({
       queryKey: ['workflow-run:list:step-run-events', workflowRun],
       queryFn: async () =>
         (await api.workflowRunListStepRunEvents(tenantId, workflowRun)).data,
+    }),
+  },
+  v2WorkflowRuns: {
+    list: (tenant: string, query: V2ListWorkflowRunsQuery) => ({
+      queryKey: ['v2:workflow-run:list', tenant, query],
+      queryFn: async () => (await api.v2WorkflowRunList(tenant, query)).data,
+    }),
+    listTaskEvents: (workflowRunId: string) => ({
+      queryKey: ['v2:workflow-run:list-tasks', workflowRunId],
+      queryFn: async () =>
+        (await api.v2WorkflowRunTaskEventsList(workflowRunId)).data,
+    }),
+    details: (workflowRunId: string) => ({
+      queryKey: ['workflow-run-details:get', workflowRunId],
+      queryFn: async () =>
+        (await api.v2WorkflowRunGet(workflowRunId)).data,
+    }),
+  },
+  v2Tasks: {
+    list: (tenant: string, query: V2ListTaskRunsQuery) => ({
+      queryKey: ['v2-task:list', tenant, query],
+      queryFn: async () => (await api.v2TaskList(tenant, query)).data,
+    }),
+    get: (task: string) => ({
+      queryKey: ['v2-task:get', task],
+      queryFn: async () => (await api.v2TaskGet(task)).data,
+    }),
+    getByDagId: (tenant: string, dagIds: string[]) => ({
+      queryKey: ['v2-task:get-by-dag-id', dagIds],
+      queryFn: async () =>
+        (
+          await api.v2DagListTasks({
+            dag_ids: dagIds,
+            tenant,
+          })
+        ).data,
+    }),
+  },
+  v2TaskEvents: {
+    list: (
+      tenant: string,
+      query: ListWorkflowRunsQuery,
+      taskRunId?: string | undefined,
+      workflowRunId?: string | undefined,
+    ) => ({
+      queryKey: [
+        'v2:workflow-run:list',
+        tenant,
+        taskRunId,
+        workflowRunId,
+        query,
+      ],
+      queryFn: async () => {
+        if (taskRunId) {
+          return (await api.v2TaskEventList(taskRunId, query)).data;
+        } else if (workflowRunId) {
+          return (await api.v2WorkflowRunTaskEventsList(workflowRunId))
+            .data;
+        } else {
+          throw new Error('Either task or workflowRunId must be set');
+        }
+      },
+    }),
+  },
+  v2TaskRuns: {
+    metrics: (tenant: string, query: GetTaskMetricsQuery) => ({
+      queryKey: ['v2:task-run:metrics', tenant, query],
+      queryFn: async () =>
+        (await api.v2TaskListStatusMetrics(tenant, query)).data,
+    }),
+    pointMetrics: (tenant: string, query: V2TaskGetPointMetricsQuery) => ({
+      queryKey: ['v2-task:metrics', tenant, query],
+      queryFn: async () =>
+        (await api.v2TaskGetPointMetrics(tenant, query)).data,
     }),
   },
   metrics: {

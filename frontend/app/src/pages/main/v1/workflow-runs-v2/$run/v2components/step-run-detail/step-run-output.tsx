@@ -100,6 +100,7 @@ const OUTPUT_STATE_MAP: Record<StepRunStatus, React.FC<StepRunOutputProps>> = {
   [StepRunStatus.SUCCEEDED]: StepRunOutputSucceeded,
   [StepRunStatus.FAILED]: StepRunOutputFailed,
   [StepRunStatus.CANCELLING]: StepRunOutputCancelling,
+  [StepRunStatus.BACKOFF]: StepRunOutputFailed, // TODO: Remove this when we remove backoff
 };
 
 const StepRunOutput: React.FC<StepRunOutputProps> = (props) => {

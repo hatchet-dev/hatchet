@@ -63,7 +63,7 @@ const StepRunDetail: React.FC<StepRunDetailProps> = ({
   const errors: string[] = [];
 
   const eventsQuery = useQuery({
-    ...queries.v2TaskEvents.list(tenantId, taskRunId, {
+    ...queries.v2TaskEvents.list(tenantId, {
       offset: 0,
       limit: 50,
     }),
@@ -207,7 +207,6 @@ const StepRunDetail: React.FC<StepRunDetailProps> = ({
         </h3>
         {/* TODO: Real onclick callback here */}
         <StepRunEvents
-          taskRunId={taskRunId}
           onClick={() => {}}
           taskDisplayName={taskRun.displayName}
         />

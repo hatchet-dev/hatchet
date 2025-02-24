@@ -107,6 +107,7 @@ const OUTPUT_STATE_MAP: Record<StepRunStatus, React.FC<StepRunOutputProps>> = {
   [StepRunStatus.SUCCEEDED]: StepRunOutputSucceeded,
   [StepRunStatus.FAILED]: StepRunOutputFailed,
   [StepRunStatus.CANCELLING]: StepRunOutputCancelling,
+  [StepRunStatus.BACKOFF]: StepRunOutputFailed, // FIXME: Remove this when `Backoff` state is removed
 };
 
 function parseJSONOutput(output: string | undefined) {

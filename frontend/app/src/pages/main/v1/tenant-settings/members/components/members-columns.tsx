@@ -1,5 +1,5 @@
 import { ColumnDef, Row } from '@tanstack/react-table';
-import { DataTableColumnHeader } from '../../../../../components/molecules/data-table/data-table-column-header';
+import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
 import api, { TenantMember, queries } from '@/lib/api';
 import { capitalize } from '@/lib/utils';
 import { DataTableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';

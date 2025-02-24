@@ -26,8 +26,8 @@ import {
   Collapsible,
   CollapsibleContent,
 } from '@/components/v1/ui/collapsible';
-import useCloudApiMeta from '../auth/hooks/use-cloud-api-meta';
-import useCloudFeatureFlags from '../auth/hooks/use-cloud-feature-flags';
+import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
+import useCloudFeatureFlags from '@/pages/auth/hooks/use-cloud-feature-flags';
 
 function Main() {
   const ctx = useOutletContext<UserContextType & MembershipsContextType>();

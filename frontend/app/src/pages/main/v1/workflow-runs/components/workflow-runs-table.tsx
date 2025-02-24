@@ -497,6 +497,7 @@ export function WorkflowRunsTable({
       workflowName: workflowKeys?.rows?.find(
         (r) => r.metadata.id == row.workflowId,
       )?.name,
+      input: {},
     }),
   );
 

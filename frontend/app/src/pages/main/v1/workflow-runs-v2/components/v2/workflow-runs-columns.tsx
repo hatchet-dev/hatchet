@@ -1,5 +1,4 @@
 import { ColumnDef } from '@tanstack/react-table';
-import { DataTableColumnHeader } from '../../../../../components/molecules/data-table/data-table-column-header';
 import { Link } from 'react-router-dom';
 import {
   AdditionalMetadata,
@@ -12,7 +11,8 @@ import { ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 import { Button } from '@/components/v1/ui/button';
 import { cn } from '@/lib/utils';
 import { DataTableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
-import { V2RunStatus } from '@/pages/main/workflow-runs/components/run-statuses';
+import { V2RunStatus } from '../../../workflow-runs/components/run-statuses';
+import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
 
 export const columns: (
   onAdditionalMetadataClick?: (click: AdditionalMetadataClick) => void,

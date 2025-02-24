@@ -684,7 +684,9 @@ export function TaskRunsTable({
         pageCount={listTasksQuery.data?.pagination?.num_pages || 0}
         showColumnToggle={true}
         getSubRows={(row) =>
-          dagChildren.find((c) => c.dagId === row.metadata.id)?.children || []
+          dagChildren
+            .find((c) => c.dagId === row.metadata.id)
+            ?.children?.map((c) => ({ ...c, input: {} })) || []
         }
       />
     </>

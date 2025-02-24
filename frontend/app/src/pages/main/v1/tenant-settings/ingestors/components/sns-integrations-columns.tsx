@@ -1,5 +1,5 @@
 import { ColumnDef } from '@tanstack/react-table';
-import { DataTableColumnHeader } from '../../../../../components/molecules/data-table/data-table-column-header';
+import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
 import { SNSIntegration } from '@/lib/api';
 import { DataTableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
 import { Button } from '@/components/v1/ui/button';

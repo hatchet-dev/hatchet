@@ -1,4 +1,3 @@
-import { DataTable } from '../../../components/molecules/data-table/data-table';
 import { RateLimitRow, columns } from './components/rate-limit-columns';
 import { Separator } from '@/components/v1/ui/separator';
 import { useEffect, useMemo, useState } from 'react';
@@ -18,6 +17,7 @@ import {
 import invariant from 'tiny-invariant';
 import { useOutletContext, useSearchParams } from 'react-router-dom';
 import { TenantContextType } from '@/lib/outlet';
+import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 
 export default function RateLimits() {
   return (

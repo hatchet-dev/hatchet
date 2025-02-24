@@ -1,4 +1,3 @@
-import { DataTable } from '../../../components/molecules/data-table/data-table';
 import { columns } from './components/event-columns';
 import { columns as workflowRunsColumns } from '../workflow-runs/components/workflow-runs-columns';
 import { Separator } from '@/components/v1/ui/separator';
@@ -46,6 +45,7 @@ import { TenantContextType } from '@/lib/outlet';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { CreateEventForm } from './components/create-event-form';
 import { BiX } from 'react-icons/bi';
+import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 
 export default function Events() {
   return (

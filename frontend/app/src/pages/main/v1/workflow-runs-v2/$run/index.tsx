@@ -127,7 +127,6 @@ export default function ExpandedWorkflowRun() {
             <div className="h-4" />
             {
               <StepRunEvents
-                taskRunId={params.run}
                 taskDisplayName={taskRun.displayName}
                 onClick={(stepRunId) => {
                   setSidebarState(

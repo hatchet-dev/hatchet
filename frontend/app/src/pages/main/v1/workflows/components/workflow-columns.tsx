@@ -1,10 +1,10 @@
 import { ColumnDef } from '@tanstack/react-table';
-import { DataTableColumnHeader } from '../../../../components/molecules/data-table/data-table-column-header';
 import { Workflow } from '@/lib/api';
 import { Link } from 'react-router-dom';
 import { ChevronRightIcon } from '@radix-ui/react-icons';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { Badge } from '@/components/v1/ui/badge';
+import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
 
 export const columns: ColumnDef<Workflow>[] = [
   {

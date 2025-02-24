@@ -17,6 +17,7 @@ const statusColors = {
   FAILED: 'bg-red-500',
   CANCELLING: 'bg-yellow-500',
   CANCELLED: 'bg-gray-500',
+  BACKOFF: 'bg-red-300', // TODO: Remove this when we remove backoff
   UNDEFINED: 'bg-gray-300', // Default color for undefined status
 };
 
