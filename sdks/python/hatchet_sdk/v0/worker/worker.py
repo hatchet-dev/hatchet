@@ -197,7 +197,7 @@ class Worker:
 
     def start(
         self, options: WorkerStartOptions = WorkerStartOptions()
-    ) -> Future[asyncio.Task[Any] | None]:
+    ) -> Future[asyncio.Task[None]]:
         self.owned_loop = self.setup_loop(options.loop)
 
         f = asyncio.run_coroutine_threadsafe(
