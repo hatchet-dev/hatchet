@@ -35,7 +35,7 @@ func (t *EventService) EventUpdateReplay(ctx echo.Context, request gen.EventUpda
 	for i := range events {
 		event := events[i]
 
-		newEvent, err := t.config.Ingestor.IngestReplayedEvent(ctx.Request().Context(), tenantId, event)
+		newEvent, err := t.config.Ingestor.IngestReplayedEvent(ctx.Request().Context(), tenant, event)
 
 		if err == metered.ErrResourceExhausted {
 			return gen.EventUpdateReplay429JSONResponse(

@@ -94,11 +94,11 @@ func (n consumerQueue) DLX() string {
 }
 
 func QueueTypeFromDispatcherID(d string) consumerQueue {
-	return consumerQueue(d)
+	return consumerQueue(d + "_v1")
 }
 
 func QueueTypeFromTickerID(t string) consumerQueue {
-	return consumerQueue(t)
+	return consumerQueue(t + "_v1")
 }
 
 const (
@@ -121,7 +121,7 @@ func (f fanoutQueue) FanoutExchangeKey() string {
 func TenantEventConsumerQueue(t string) fanoutQueue {
 	// generate a unique queue name for the tenant
 	return fanoutQueue{
-		consumerQueue: consumerQueue(t),
+		consumerQueue: consumerQueue(t + "_v1"),
 	}
 }
 

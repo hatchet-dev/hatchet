@@ -45,7 +45,7 @@ func (m *MQPubBuffer) Pub(ctx context.Context, queue Queue, msg *Message, wait b
 
 	if !ok {
 		buf, _ = m.buffers.LoadOrStore(k, newMsgIdPubBuffer(msg.TenantID, msg.ID, func(msg *Message) error {
-			msgCtx, cancel := context.WithTimeout(ctx, PUB_TIMEOUT)
+			msgCtx, cancel := context.WithTimeout(context.Background(), PUB_TIMEOUT)
 			defer cancel()
 
 			return m.mq.SendMessage(msgCtx, queue, msg)

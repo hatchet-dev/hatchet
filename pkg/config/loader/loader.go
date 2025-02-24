@@ -347,6 +347,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 			ingestor.WithStreamEventsRepository(dc.EngineRepository.StreamEvent()),
 			ingestor.WithLogRepository(dc.EngineRepository.Log()),
 			ingestor.WithMessageQueue(mq),
+			ingestor.WithMessageQueueV1(mqv1),
 			ingestor.WithEntitlementsRepository(dc.EntitlementRepository),
 			ingestor.WithStepRunRepository(dc.EngineRepository.StepRun()),
 		)
