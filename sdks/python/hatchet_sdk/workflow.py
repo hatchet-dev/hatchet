@@ -195,7 +195,7 @@ class Step(Generic[R]):
         return self.workflow is not None
 
 
-class Function(Generic[R, TWorkflowInput]):
+class Task(Generic[R, TWorkflowInput]):
     def __init__(
         self,
         fn: Callable[[Context], R],
@@ -211,7 +211,7 @@ class Function(Generic[R, TWorkflowInput]):
         rate_limits: list[RateLimit] = [],
         desired_worker_labels: dict[str, DesiredWorkerLabel] = {},
         concurrency: ConcurrencyExpression | None = None,
-        on_failure: Union["Function[R, TWorkflowInput]", None] = None,
+        on_failure: Union["Task[R, TWorkflowInput]", None] = None,
         default_priority: int = 1,
         input_validator: Type[TWorkflowInput] | None = None,
         backoff_factor: float | None = None,

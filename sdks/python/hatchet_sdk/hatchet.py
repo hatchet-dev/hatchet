@@ -20,10 +20,10 @@ from hatchet_sdk.worker.worker import Worker
 from hatchet_sdk.workflow import (
     ConcurrencyExpression,
     EmptyModel,
-    Function,
     Step,
     StepType,
     StickyStrategy,
+    Task,
     TWorkflowInput,
     WorkflowConfig,
     WorkflowDeclaration,
@@ -183,7 +183,7 @@ class Hatchet:
 
         return inner
 
-    def function(
+    def task(
         self,
         name: str = "",
         on_events: list[str] = [],
@@ -196,14 +196,14 @@ class Hatchet:
         rate_limits: list[RateLimit] = [],
         desired_worker_labels: dict[str, DesiredWorkerLabel] = {},
         concurrency: ConcurrencyExpression | None = None,
-        on_failure: Function[Any, Any] | None = None,
+        on_failure: Task[Any, Any] | None = None,
         default_priority: int = 1,
         input_validator: Type[TWorkflowInput] | None = None,
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
-    ) -> Callable[[Callable[[Context], R]], Function[R, TWorkflowInput]]:
-        def inner(func: Callable[[Context], R]) -> Function[R, TWorkflowInput]:
-            return Function[R, TWorkflowInput](
+    ) -> Callable[[Callable[[Context], R]], Task[R, TWorkflowInput]]:
+        def inner(func: Callable[[Context], R]) -> Task[R, TWorkflowInput]:
+            return Task[R, TWorkflowInput](
                 func,
                 hatchet=self,
                 name=name,

@@ -31,7 +31,7 @@ from hatchet_sdk.worker.runner.run_loop_manager import (
     STOP_LOOP_TYPE,
     WorkerActionRunLoopManager,
 )
-from hatchet_sdk.workflow import BaseWorkflow, Function, Step, StepType
+from hatchet_sdk.workflow import BaseWorkflow, Step, StepType, Task
 
 T = TypeVar("T")
 TBaseWorkflow = TypeVar("TBaseWorkflow", bound=BaseWorkflow)
@@ -128,7 +128,7 @@ class Worker:
                 step_output=return_type if is_basemodel_subclass(return_type) else None,
             )
 
-    def register_function(self, function: Function[Any, Any]) -> None:
+    def register_function(self, function: Task[Any, Any]) -> None:
         from hatchet_sdk.workflow import BaseWorkflow
 
         declaration = function.hatchet.declare_workflow(
