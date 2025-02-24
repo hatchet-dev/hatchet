@@ -34,7 +34,6 @@ func TestMessageQueueIntegration(t *testing.T) {
 		WithURL(url),
 		WithQos(100),
 	)
-	defer cleanup() // nolint: errcheck
 
 	require.NotNil(t, tq, "task queue implementation should not be nil")
 
@@ -46,6 +45,10 @@ func TestMessageQueueIntegration(t *testing.T) {
 	defer func() {
 		if err := tq.deleteQueue(staticQueue); err != nil {
 			t.Fatalf("error deleting queue: %v", err)
+		}
+
+		if err := cleanup(); err != nil {
+			t.Fatalf("error cleaning up queue: %v", err)
 		}
 	}()
 
@@ -122,8 +125,6 @@ func TestBufferedSubMessageQueueIntegration(t *testing.T) {
 		WithQos(100),
 	)
 
-	defer cleanup() // nolint: errcheck
-
 	require.NotNil(t, tq, "task queue implementation should not be nil")
 
 	id, _ := random.Generate(8) // nolint: errcheck
@@ -134,6 +135,10 @@ func TestBufferedSubMessageQueueIntegration(t *testing.T) {
 	defer func() {
 		if err := tq.deleteQueue(staticQueue); err != nil {
 			t.Fatalf("error deleting queue: %v", err)
+		}
+
+		if err := cleanup(); err != nil {
+			t.Fatalf("error cleaning up queue: %v", err)
 		}
 	}()
 
@@ -193,8 +198,6 @@ func TestBufferedPubMessageQueueIntegration(t *testing.T) {
 		WithQos(100),
 	)
 
-	defer cleanup() // nolint: errcheck
-
 	require.NotNil(t, tq, "task queue implementation should not be nil")
 
 	id, _ := random.Generate(8) // nolint: errcheck
@@ -206,6 +209,10 @@ func TestBufferedPubMessageQueueIntegration(t *testing.T) {
 		if err := tq.deleteQueue(staticQueue); err != nil {
 			t.Fatalf("error deleting queue: %v", err)
 		}
+
+		if err := cleanup(); err != nil {
+			t.Fatalf("error cleaning up queue: %v", err)
+		}
 	}()
 
 	cleanupQueue, err := tq.Subscribe(staticQueue, func(receivedMessage *msgqueue.Message) error {
@@ -215,6 +222,10 @@ func TestBufferedPubMessageQueueIntegration(t *testing.T) {
 
 		return nil
 	}, msgqueue.NoOpHook)
+
+	if err != nil {
+		t.Fatalf("error subscribing to queue: %v", err)
+	}
 
 	pub := msgqueue.NewMQPubBuffer(tq)
 
@@ -257,7 +268,6 @@ func TestDeadLetteringSuccess(t *testing.T) {
 		WithURL(url),
 		WithQos(100),
 	)
-	defer cleanup() // nolint: errcheck
 
 	require.NotNil(t, tq, "task queue implementation should not be nil")
 
@@ -269,6 +279,10 @@ func TestDeadLetteringSuccess(t *testing.T) {
 	defer func() {
 		if err := tq.deleteQueue(staticQueue); err != nil {
 			t.Fatalf("error deleting queue: %v", err)
+		}
+
+		if err := cleanup(); err != nil {
+			t.Fatalf("error cleaning up queue: %v", err)
 		}
 	}()
 
@@ -325,7 +339,6 @@ func TestDeadLetteringExceedRetriesFailure(t *testing.T) {
 		WithURL(url),
 		WithQos(100),
 	)
-	defer cleanup() // nolint: errcheck
 
 	require.NotNil(t, tq, "task queue implementation should not be nil")
 
@@ -337,6 +350,10 @@ func TestDeadLetteringExceedRetriesFailure(t *testing.T) {
 	defer func() {
 		if err := tq.deleteQueue(staticQueue); err != nil {
 			t.Fatalf("error deleting queue: %v", err)
+		}
+
+		if err := cleanup(); err != nil {
+			t.Fatalf("error cleaning up queue: %v", err)
 		}
 	}()
 
