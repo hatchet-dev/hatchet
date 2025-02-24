@@ -50,6 +50,7 @@ black = "^24.10.0"
 isort = "^5.13.2"
 types-psutil = "^6.1.0.20241221"
 ruff = "^0.9.7"
+types-requests = "^2.32.0.20241016"
 
 [tool.poetry.group.test.dependencies]
 pytest-timeout = "^2.3.1"
@@ -71,7 +72,10 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.pytest.ini_options]
 log_cli = true
-env = ["HATCHET_CLIENT_TLS_STRATEGY=none"]
+env = [
+    "HATCHET_CLIENT_TLS_STRATEGY=none",
+    "HATCHET_CLIENT_WORKER_HEALTHCHECK_ENABLED=True",
+]
 
 [tool.isort]
 profile = "black"
