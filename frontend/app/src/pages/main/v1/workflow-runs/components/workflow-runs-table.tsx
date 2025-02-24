@@ -1,5 +1,5 @@
 import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
-import { columns } from './v2/workflow-runs-columns';
+import { columns } from './v1/workflow-runs-columns';
 import { useEffect, useMemo, useState } from 'react';
 import {
   ColumnFiltersState,

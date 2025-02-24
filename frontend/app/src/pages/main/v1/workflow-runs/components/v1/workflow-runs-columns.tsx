@@ -1,6 +1,6 @@
 import { ColumnDef } from '@tanstack/react-table';
 import { Link } from 'react-router-dom';
-import { V2RunStatus } from '.././run-statuses';
+import { V2RunStatus } from '../run-statuses';
 import {
   AdditionalMetadata,
   AdditionalMetadataClick,
