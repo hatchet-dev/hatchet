@@ -20,8 +20,9 @@ import (
 	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
-	v2 "github.com/hatchet-dev/hatchet/pkg/scheduling/v2"
+	v0 "github.com/hatchet-dev/hatchet/pkg/scheduling/v0"
 )
 
 type SchedulerOpt func(*SchedulerOpts)
@@ -34,7 +35,7 @@ type SchedulerOpts struct {
 	alerter     hatcheterrors.Alerter
 	p           *partition.Partition
 	queueLogger *zerolog.Logger
-	pool        *v2.SchedulingPool
+	pool        *v0.SchedulingPool
 }
 
 func defaultSchedulerOpts() *SchedulerOpts {
@@ -94,7 +95,7 @@ func WithDataDecoderValidator(dv datautils.DataDecoderValidator) SchedulerOpt {
 	}
 }
 
-func WithSchedulerPool(s *v2.SchedulingPool) SchedulerOpt {
+func WithSchedulerPool(s *v0.SchedulingPool) SchedulerOpt {
 	return func(opts *SchedulerOpts) {
 		opts.pool = s
 	}
@@ -112,7 +113,7 @@ type Scheduler struct {
 	// a custom queue logger
 	ql *zerolog.Logger
 
-	pool *v2.SchedulingPool
+	pool *v0.SchedulingPool
 }
 
 func New(
@@ -307,7 +308,7 @@ func (s *Scheduler) runTenantSetQueues(ctx context.Context) func() {
 		s.l.Debug().Msgf("partition: checking step run requeue")
 
 		// list all tenants
-		tenants, err := s.repo.Tenant().ListTenantsBySchedulerPartition(ctx, s.p.GetSchedulerPartitionId())
+		tenants, err := s.p.ListTenantsForScheduler(ctx, dbsqlc.TenantMajorEngineVersionV0)
 
 		if err != nil {
 			s.l.Err(err).Msg("could not list tenants")
@@ -318,7 +319,7 @@ func (s *Scheduler) runTenantSetQueues(ctx context.Context) func() {
 	}
 }
 
-func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *v2.QueueResults) error {
+func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *v0.QueueResults) error {
 	ctx, span := telemetry.NewSpan(ctx, "schedule-step-runs")
 	defer span.End()
 

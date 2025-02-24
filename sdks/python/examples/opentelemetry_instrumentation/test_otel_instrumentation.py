@@ -58,4 +58,4 @@ async def test_run_workflow(aiohatchet: Hatchet, worker: Worker) -> None:
         )
 
         with pytest.raises(Exception, match="Workflow Errors"):
-            await workflow.result()
+            await workflow.aio_result()

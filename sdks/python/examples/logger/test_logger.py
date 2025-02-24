@@ -8,5 +8,5 @@ from hatchet_sdk import Hatchet, Worker
 @pytest.mark.parametrize("worker", ["logger"], indirect=True)
 async def test_run(hatchet: Hatchet, worker: Worker) -> None:
     run = hatchet.admin.run_workflow("LoggingWorkflow", {})
-    result = await run.result()
+    result = await run.aio_result()
     assert result["step1"]["status"] == "success"

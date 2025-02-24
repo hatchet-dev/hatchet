@@ -28,10 +28,10 @@ class WorkflowRunRef:
     def stream(self) -> RunEventListener:
         return self.workflow_run_event_listener.stream(self.workflow_run_id)
 
-    def result(self) -> Coroutine[None, None, dict[str, Any]]:
+    def aio_result(self) -> Coroutine[None, None, dict[str, Any]]:
         return self.workflow_listener.result(self.workflow_run_id)
 
-    def sync_result(self) -> dict[str, Any]:
+    def result(self) -> dict[str, Any]:
         coro = self.workflow_listener.result(self.workflow_run_id)
         loop = get_active_event_loop()
 

@@ -34,7 +34,7 @@ CREATE TYPE "JobRunStatus" AS ENUM (
 );
 
 -- CreateEnum
-CREATE TYPE "LeaseKind" AS ENUM ('WORKER', 'QUEUE');
+CREATE TYPE "LeaseKind" AS ENUM ('WORKER', 'QUEUE', 'CONCURRENCY_STRATEGY');
 
 -- CreateEnum
 CREATE TYPE "LimitResource" AS ENUM (
@@ -595,7 +595,7 @@ CREATE TABLE "Tenant" (
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "deletedAt" TIMESTAMP(3),
-    "version" "TenantMajorEngineVersion" NOT NULL DEFAULT 'V1',
+    "version" "TenantMajorEngineVersion" NOT NULL DEFAULT 'V0',
     "name" TEXT NOT NULL,
     "slug" TEXT NOT NULL,
     "analyticsOptOut" BOOLEAN NOT NULL DEFAULT false,

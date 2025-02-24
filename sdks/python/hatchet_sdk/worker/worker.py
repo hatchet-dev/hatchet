@@ -18,8 +18,8 @@ from prometheus_client import Gauge, generate_latest
 
 from hatchet_sdk.client import Client, new_client_raw
 from hatchet_sdk.clients.dispatcher.action_listener import Action
-from hatchet_sdk.contracts.workflows_pb2 import CreateWorkflowVersionOpts
 from hatchet_sdk.config import ClientConfig
+from hatchet_sdk.contracts.workflows_pb2 import CreateWorkflowVersionOpts
 from hatchet_sdk.logger import logger
 from hatchet_sdk.utils.types import WorkflowValidator
 from hatchet_sdk.utils.typing import is_basemodel_subclass
@@ -31,7 +31,7 @@ from hatchet_sdk.worker.runner.run_loop_manager import (
     STOP_LOOP_TYPE,
     WorkerActionRunLoopManager,
 )
-from hatchet_sdk.workflow import BaseWorkflow, Step
+from hatchet_sdk.workflow import BaseWorkflow, Step, StepType, Task
 
 T = TypeVar("T")
 TBaseWorkflow = TypeVar("TBaseWorkflow", bound=BaseWorkflow)
@@ -127,6 +127,32 @@ class Worker:
                 workflow_input=workflow.config.input_validator,
                 step_output=return_type if is_basemodel_subclass(return_type) else None,
             )
+
+    def register_function(self, function: Task[Any, Any]) -> None:
+        from hatchet_sdk.workflow import BaseWorkflow
+
+        declaration = function.hatchet.declare_workflow(
+            **function.workflow_config.model_dump()
+        )
+
+        class Workflow(BaseWorkflow):
+            config = declaration.config
+
+            @property
+            def default_steps(self) -> list[Step[Any]]:
+                return [function.step]
+
+            @property
+            def on_failure_steps(self) -> list[Step[Any]]:
+                if not function.on_failure_step:
+                    return []
+
+                step = function.on_failure_step.step
+                step.type = StepType.ON_FAILURE
+
+                return [step]
+
+        self.register_workflow(Workflow())
 
     def status(self) -> WorkerStatus:
         return self._status

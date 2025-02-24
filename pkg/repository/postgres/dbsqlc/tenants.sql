@@ -71,23 +71,17 @@ SELECT
 FROM
     "Tenant" as tenants
 WHERE
-    "controllerPartitionId" = sqlc.arg('controllerPartitionId')::text;
+    "controllerPartitionId" = sqlc.arg('controllerPartitionId')::text
+    AND "version" = @majorVersion::"TenantMajorEngineVersion";
 
 -- name: ListTenantsByTenantWorkerPartitionId :many
-WITH update_partition AS (
-    UPDATE
-        "TenantWorkerPartition"
-    SET
-        "lastHeartbeat" = NOW()
-    WHERE
-        "id" = sqlc.arg('workerPartitionId')::text
-)
 SELECT
     *
 FROM
     "Tenant" as tenants
 WHERE
-    "workerPartitionId" = sqlc.arg('workerPartitionId')::text;
+    "workerPartitionId" = sqlc.arg('workerPartitionId')::text
+    AND "version" = @majorVersion::"TenantMajorEngineVersion";
 
 -- name: GetTenantByID :one
 SELECT
@@ -479,7 +473,8 @@ SELECT
 FROM
     "Tenant" as tenants
 WHERE
-    "schedulerPartitionId" = sqlc.arg('schedulerPartitionId')::text;
+    "schedulerPartitionId" = sqlc.arg('schedulerPartitionId')::text
+    AND "version" = @majorVersion::"TenantMajorEngineVersion";
 
 -- name: UpsertTenantAlertingSettings :one
 INSERT INTO "TenantAlertingSettings" (

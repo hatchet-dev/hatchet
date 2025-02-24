@@ -13,7 +13,7 @@ import (
 )
 
 type ListActiveWorkersResult struct {
-	ID      pgtype.UUID
+	ID      string
 	MaxRuns int
 	Labels  []*sqlcv1.ListManyWorkerLabelsRow
 }
@@ -151,7 +151,7 @@ func (d *leaseRepository) ListActiveWorkers(ctx context.Context, tenantId pgtype
 	for _, worker := range activeWorkers {
 		wId := sqlchelpers.UUIDToStr(worker.ID)
 		res = append(res, &ListActiveWorkersResult{
-			ID:      worker.ID,
+			ID:      sqlchelpers.UUIDToStr(worker.ID),
 			MaxRuns: int(worker.MaxRuns),
 			Labels:  workerIdsToLabels[wId],
 		})

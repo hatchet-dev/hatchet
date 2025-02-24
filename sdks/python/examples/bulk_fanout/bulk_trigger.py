@@ -27,7 +27,7 @@ async def main() -> None:
     )
 
     results = await asyncio.gather(
-        *[workflowRunRef.result() for workflowRunRef in workflowRunRefs],
+        *[workflowRunRef.aio_result() for workflowRunRef in workflowRunRefs],
         return_exceptions=True,
     )
 

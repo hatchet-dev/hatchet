@@ -11,6 +11,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/integrations/alerting"
 	"github.com/hatchet-dev/hatchet/internal/integrations/email"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
+	msgqueuev1 "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/auth/cookie"
@@ -20,7 +21,8 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/encryption"
 	"github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/repository/buffer"
-	v2 "github.com/hatchet-dev/hatchet/pkg/scheduling/v2"
+	v0 "github.com/hatchet-dev/hatchet/pkg/scheduling/v0"
+	v1 "github.com/hatchet-dev/hatchet/pkg/scheduling/v1"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
@@ -438,6 +440,8 @@ type ServerConfig struct {
 
 	MessageQueue msgqueue.MessageQueue
 
+	MessageQueueV1 msgqueuev1.MessageQueue
+
 	Logger *zerolog.Logger
 
 	AdditionalLoggers ConfigFileAdditionalLoggers
@@ -458,7 +462,9 @@ type ServerConfig struct {
 
 	AdditionalOAuthConfigs map[string]*oauth2.Config
 
-	SchedulingPool *v2.SchedulingPool
+	SchedulingPool *v0.SchedulingPool
+
+	SchedulingPoolV1 *v1.SchedulingPool
 
 	Version string
 }

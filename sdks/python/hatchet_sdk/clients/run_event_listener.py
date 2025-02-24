@@ -6,6 +6,7 @@ from typing import Any, AsyncGenerator, Callable, Generator, cast
 import grpc
 from pydantic import BaseModel
 
+from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.connection import new_conn
 from hatchet_sdk.contracts.dispatcher_pb2 import (
     RESOURCE_TYPE_STEP_RUN,
@@ -15,7 +16,6 @@ from hatchet_sdk.contracts.dispatcher_pb2 import (
     WorkflowEvent,
 )
 from hatchet_sdk.contracts.dispatcher_pb2_grpc import DispatcherStub
-from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.metadata import get_metadata
 
 DEFAULT_ACTION_LISTENER_RETRY_INTERVAL = 5  # seconds

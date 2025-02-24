@@ -8,7 +8,7 @@ from hatchet_sdk import Hatchet, Worker
 @pytest.mark.parametrize("worker", ["fanout"], indirect=True)
 async def test_run(hatchet: Hatchet, worker: Worker) -> None:
     run = hatchet.admin.run_workflow("Parent", {"n": 2})
-    result = await run.result()
+    result = await run.aio_result()
     assert len(result["spawn"]["results"]) == 2
 
 
@@ -17,5 +17,5 @@ async def test_run(hatchet: Hatchet, worker: Worker) -> None:
 @pytest.mark.parametrize("worker", ["fanout"], indirect=True)
 async def test_run2(hatchet: Hatchet, worker: Worker) -> None:
     run = hatchet.admin.run_workflow("Parent", {"n": 2})
-    result = await run.result()
+    result = await run.aio_result()
     assert len(result["spawn"]["results"]) == 2

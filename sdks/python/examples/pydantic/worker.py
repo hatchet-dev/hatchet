@@ -35,7 +35,7 @@ class Parent(BaseWorkflow):
             ctx=context, input=ChildInput(a=1, b=10)
         )
 
-        return cast(dict[str, str], await child.result())
+        return cast(dict[str, str], await child.aio_result())
 
 
 class StepResponse(BaseModel):

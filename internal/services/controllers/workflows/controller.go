@@ -512,7 +512,7 @@ func (wc *WorkflowsControllerImpl) runPollActiveQueues(ctx context.Context) func
 		wc.l.Debug().Msg("polling active queues")
 
 		// list all tenants
-		tenants, err := wc.repo.Tenant().ListTenantsByControllerPartition(ctx, wc.p.GetControllerPartitionId())
+		tenants, err := wc.p.ListTenantsForController(ctx, dbsqlc.TenantMajorEngineVersionV0)
 
 		if err != nil {
 			wc.l.Err(err).Msg("could not list tenants")
@@ -713,7 +713,7 @@ func (wc *WorkflowsControllerImpl) runTenantProcessWorkflowRunEvents(ctx context
 		wc.l.Debug().Msgf("partition: processing workflow run events")
 
 		// list all tenants
-		tenants, err := wc.repo.Tenant().ListTenantsByControllerPartition(ctx, wc.p.GetControllerPartitionId())
+		tenants, err := wc.p.ListTenantsForController(ctx, dbsqlc.TenantMajorEngineVersionV0)
 
 		if err != nil {
 			wc.l.Err(err).Msg("could not list tenants")
@@ -733,7 +733,7 @@ func (wc *WorkflowsControllerImpl) runTenantUnpauseWorkflowRuns(ctx context.Cont
 		wc.l.Debug().Msgf("partition: processing unpaused workflow runs")
 
 		// list all tenants
-		tenants, err := wc.repo.Tenant().ListTenantsByControllerPartition(ctx, wc.p.GetControllerPartitionId())
+		tenants, err := wc.p.ListTenantsForController(ctx, dbsqlc.TenantMajorEngineVersionV0)
 
 		if err != nil {
 			wc.l.Err(err).Msg("could not list tenants")

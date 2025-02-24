@@ -8,12 +8,12 @@ from hatchet_sdk.clients.dispatcher.dispatcher import DispatcherClient
 from hatchet_sdk.clients.events import EventClient
 from hatchet_sdk.clients.rest_client import RestApi
 from hatchet_sdk.clients.run_event_listener import RunEventListenerClient
+from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.context.context import Context
 from hatchet_sdk.contracts.workflows_pb2 import DesiredWorkerLabels
 from hatchet_sdk.features.cron import CronClient
 from hatchet_sdk.features.scheduled import ScheduledClient
 from hatchet_sdk.labels import DesiredWorkerLabel
-from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.logger import logger
 from hatchet_sdk.rate_limit import RateLimit
 from hatchet_sdk.worker.worker import Worker
@@ -23,6 +23,7 @@ from hatchet_sdk.workflow import (
     Step,
     StepType,
     StickyStrategy,
+    Task,
     TWorkflowInput,
     WorkflowConfig,
     WorkflowDeclaration,
@@ -176,6 +177,49 @@ class Hatchet:
                     key: transform_desired_worker_label(d)
                     for key, d in desired_worker_labels.items()
                 },
+                backoff_factor=backoff_factor,
+                backoff_max_seconds=backoff_max_seconds,
+            )
+
+        return inner
+
+    def task(
+        self,
+        name: str = "",
+        on_events: list[str] = [],
+        on_crons: list[str] = [],
+        version: str = "",
+        timeout: str = "60m",
+        schedule_timeout: str = "5m",
+        sticky: StickyStrategy | None = None,
+        retries: int = 0,
+        rate_limits: list[RateLimit] = [],
+        desired_worker_labels: dict[str, DesiredWorkerLabel] = {},
+        concurrency: ConcurrencyExpression | None = None,
+        on_failure: Task[Any, Any] | None = None,
+        default_priority: int = 1,
+        input_validator: Type[TWorkflowInput] | None = None,
+        backoff_factor: float | None = None,
+        backoff_max_seconds: int | None = None,
+    ) -> Callable[[Callable[[Context], R]], Task[R, TWorkflowInput]]:
+        def inner(func: Callable[[Context], R]) -> Task[R, TWorkflowInput]:
+            return Task[R, TWorkflowInput](
+                func,
+                hatchet=self,
+                name=name,
+                on_events=on_events,
+                on_crons=on_crons,
+                version=version,
+                timeout=timeout,
+                schedule_timeout=schedule_timeout,
+                sticky=sticky,
+                retries=retries,
+                rate_limits=rate_limits,
+                desired_worker_labels=desired_worker_labels,
+                concurrency=concurrency,
+                on_failure=on_failure,
+                default_priority=default_priority,
+                input_validator=input_validator,
                 backoff_factor=backoff_factor,
                 backoff_max_seconds=backoff_max_seconds,
             )

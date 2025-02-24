@@ -59,7 +59,6 @@ class Context:
         namespace: str = "",
         validator_registry: dict[str, WorkflowValidator] = {},
     ):
-        print(action.action_payload)
         self.worker = worker
         self.validator_registry = validator_registry
 

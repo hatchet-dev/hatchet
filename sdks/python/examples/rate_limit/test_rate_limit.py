@@ -18,7 +18,7 @@ async def test_run(hatchet: Hatchet, worker: Worker) -> None:
 
     start_time = time.time()
 
-    await asyncio.gather(run1.result(), run2.result(), run3.result())
+    await asyncio.gather(run1.aio_result(), run2.aio_result(), run3.aio_result())
 
     end_time = time.time()
 

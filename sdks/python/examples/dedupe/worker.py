@@ -30,7 +30,7 @@ class DedupeParent(BaseWorkflow):
                                 additional_metadata={"dedupe": "test"}
                             ),
                         )
-                    ).result()
+                    ).aio_result()
                 )
             except DedupeViolationErr as e:
                 print(f"dedupe violation {e}")

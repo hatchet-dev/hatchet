@@ -30,7 +30,7 @@ async def test_run(hatchet: Hatchet, worker: Worker) -> None:
     # Process each run individually
     for i, run in enumerate(runs, start=1):
         try:
-            result = await run.result()
+            result = await run.aio_result()
             successful_runs.append((i, result))
         except Exception as e:
             if "CANCELLED_BY_CONCURRENCY_LIMIT" in str(e):
