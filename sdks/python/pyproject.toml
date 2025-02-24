@@ -49,6 +49,7 @@ types-protobuf = "^5.28.3.20241030"
 black = "^24.10.0"
 isort = "^5.13.2"
 types-psutil = "^6.1.0.20241221"
+ruff = "^0.9.7"
 
 [tool.poetry.group.test.dependencies]
 pytest-timeout = "^2.3.1"
