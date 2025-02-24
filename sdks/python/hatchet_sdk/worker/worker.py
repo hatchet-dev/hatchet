@@ -31,7 +31,7 @@ from hatchet_sdk.worker.runner.run_loop_manager import (
     STOP_LOOP_TYPE,
     WorkerActionRunLoopManager,
 )
-from hatchet_sdk.workflow import BaseWorkflow, Step
+from hatchet_sdk.workflow import BaseWorkflow, Function, Step, StepType
 
 T = TypeVar("T")
 TBaseWorkflow = TypeVar("TBaseWorkflow", bound=BaseWorkflow)
@@ -127,6 +127,32 @@ class Worker:
                 workflow_input=workflow.config.input_validator,
                 step_output=return_type if is_basemodel_subclass(return_type) else None,
             )
+
+    def register_function(self, function: Function[Any, Any]) -> None:
+        from hatchet_sdk.workflow import BaseWorkflow
+
+        declaration = function.hatchet.declare_workflow(
+            **function.workflow_config.model_dump()
+        )
+
+        class Workflow(BaseWorkflow):
+            config = declaration.config
+
+            @property
+            def default_steps(self) -> list[Step[Any]]:
+                return [function.step]
+
+            @property
+            def on_failure_steps(self) -> list[Step[Any]]:
+                if not function.on_failure_step:
+                    return []
+
+                step = function.on_failure_step.step
+                step.type = StepType.ON_FAILURE
+
+                return [step]
+
+        self.register_workflow(Workflow())
 
     def status(self) -> WorkerStatus:
         return self._status

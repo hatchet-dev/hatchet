@@ -20,6 +20,7 @@ from hatchet_sdk.worker.worker import Worker
 from hatchet_sdk.workflow import (
     ConcurrencyExpression,
     EmptyModel,
+    Function,
     Step,
     StepType,
     StickyStrategy,
@@ -176,6 +177,49 @@ class Hatchet:
                     key: transform_desired_worker_label(d)
                     for key, d in desired_worker_labels.items()
                 },
+                backoff_factor=backoff_factor,
+                backoff_max_seconds=backoff_max_seconds,
+            )
+
+        return inner
+
+    def function(
+        self,
+        name: str = "",
+        on_events: list[str] = [],
+        on_crons: list[str] = [],
+        version: str = "",
+        timeout: str = "60m",
+        schedule_timeout: str = "5m",
+        sticky: StickyStrategy | None = None,
+        retries: int = 0,
+        rate_limits: list[RateLimit] = [],
+        desired_worker_labels: dict[str, DesiredWorkerLabel] = {},
+        concurrency: ConcurrencyExpression | None = None,
+        on_failure: Function[Any, Any] | None = None,
+        default_priority: int = 1,
+        input_validator: Type[TWorkflowInput] | None = None,
+        backoff_factor: float | None = None,
+        backoff_max_seconds: int | None = None,
+    ) -> Callable[[Callable[[Context], R]], Function[R, TWorkflowInput]]:
+        def inner(func: Callable[[Context], R]) -> Function[R, TWorkflowInput]:
+            return Function[R, TWorkflowInput](
+                func,
+                hatchet=self,
+                name=name,
+                on_events=on_events,
+                on_crons=on_crons,
+                version=version,
+                timeout=timeout,
+                schedule_timeout=schedule_timeout,
+                sticky=sticky,
+                retries=retries,
+                rate_limits=rate_limits,
+                desired_worker_labels=desired_worker_labels,
+                concurrency=concurrency,
+                on_failure=on_failure,
+                default_priority=default_priority,
+                input_validator=input_validator,
                 backoff_factor=backoff_factor,
                 backoff_max_seconds=backoff_max_seconds,
             )

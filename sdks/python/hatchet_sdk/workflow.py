@@ -41,7 +41,9 @@ from hatchet_sdk.contracts.workflows_pb2 import (
     WorkflowKind,
     WorkflowVersion,
 )
+from hatchet_sdk.labels import DesiredWorkerLabel
 from hatchet_sdk.logger import logger
+from hatchet_sdk.rate_limit import RateLimit
 from hatchet_sdk.workflow_run import WorkflowRunRef
 
 if TYPE_CHECKING:
@@ -191,6 +193,56 @@ class Step(Generic[R]):
     @property
     def is_registered(self) -> bool:
         return self.workflow is not None
+
+
+class Function(Generic[R, TWorkflowInput]):
+    def __init__(
+        self,
+        fn: Callable[[Context], R],
+        hatchet: "Hatchet",
+        name: str = "",
+        on_events: list[str] = [],
+        on_crons: list[str] = [],
+        version: str = "",
+        timeout: str = "60m",
+        schedule_timeout: str = "5m",
+        sticky: StickyStrategy | None = None,
+        retries: int = 0,
+        rate_limits: list[RateLimit] = [],
+        desired_worker_labels: dict[str, DesiredWorkerLabel] = {},
+        concurrency: ConcurrencyExpression | None = None,
+        on_failure: Union["Function[R, TWorkflowInput]", None] = None,
+        default_priority: int = 1,
+        input_validator: Type[TWorkflowInput] | None = None,
+        backoff_factor: float | None = None,
+        backoff_max_seconds: int | None = None,
+    ) -> None:
+        def func(_: Any, context: Context) -> R:
+            return fn(context)
+
+        self.hatchet = hatchet
+        self.step: Step[R] = hatchet.step(
+            name=name or fn.__name__,
+            timeout=timeout,
+            retries=retries,
+            rate_limits=rate_limits,
+            desired_worker_labels=desired_worker_labels,
+            backoff_factor=backoff_factor,
+            backoff_max_seconds=backoff_max_seconds,
+        )(func)
+        self.on_failure_step = on_failure
+        self.workflow_config = WorkflowConfig(
+            name=name or fn.__name__,
+            on_events=on_events,
+            on_crons=on_crons,
+            version=version,
+            timeout=timeout,
+            schedule_timeout=schedule_timeout,
+            sticky=sticky,
+            default_priority=default_priority,
+            concurrency=concurrency,
+            input_validator=input_validator or cast(Type[TWorkflowInput], EmptyModel),
+        )
 
 
 @dataclass
