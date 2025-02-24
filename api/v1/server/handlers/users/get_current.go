@@ -6,21 +6,24 @@ import (
 	"encoding/hex"
 	"errors"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (u *UserService) UserGetCurrent(ctx echo.Context, request gen.UserGetCurrentRequestObject) (gen.UserGetCurrentResponseObject, error) {
-	user := ctx.Get("user").(*db.UserModel)
+	user := ctx.Get("user").(*dbsqlc.User)
+	userId := sqlchelpers.UUIDToStr(user.ID)
 
 	var hasPass bool
 
-	pass, err := u.config.APIRepository.User().GetUserPassword(user.ID)
+	pass, err := u.config.APIRepository.User().GetUserPassword(ctx.Request().Context(), userId)
 
-	if err != nil && !errors.Is(err, db.ErrNotFound) {
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return nil, err
 	}
 
@@ -42,7 +45,7 @@ func (u *UserService) UserGetCurrent(ctx echo.Context, request gen.UserGetCurren
 
 	u.config.Analytics.Enqueue(
 		"user:current",
-		user.ID,
+		userId,
 		nil,
 		map[string]interface{}{
 			"email": user.Email,

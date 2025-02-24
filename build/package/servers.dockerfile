@@ -13,15 +13,11 @@ COPY go.mod go.sum ./
 
 RUN go mod download
 
-# prefetch the binaries, so that they will be cached and not downloaded on each change
-RUN go run github.com/steebchen/prisma-client-go prefetch
-
 COPY /api ./api
 COPY /api-contracts ./api-contracts
 COPY /internal ./internal
 COPY /pkg ./pkg
 COPY /hack ./hack
-COPY /prisma ./prisma
 COPY /cmd ./cmd
 
 RUN go generate ./...
@@ -31,7 +27,7 @@ RUN go generate ./...
 FROM node:18-alpine as build-openapi
 WORKDIR /openapi
 
-RUN npm install -g npm@8.1 @redocly/cli@latest prisma
+RUN npm install -g npm@8.1 @redocly/cli@latest
 
 COPY /api-contracts/openapi ./openapi
 
@@ -47,8 +43,8 @@ ARG VERSION=v0.1.0-alpha.0
 ARG SERVER_TARGET
 
 # check if the target is empty or not set to api, engine, lite, or admin
-RUN if [ -z "$SERVER_TARGET" ] || [ "$SERVER_TARGET" != "api" ] && [ "$SERVER_TARGET" != "engine" ] && [ "$SERVER_TARGET" != "admin" ] && [ "$SERVER_TARGET" != "lite" ]; then \
-    echo "SERVER_TARGET must be set to 'api', 'engine', or 'admin'"; \
+RUN if [ -z "$SERVER_TARGET" ] || [ "$SERVER_TARGET" != "api" ] && [ "$SERVER_TARGET" != "engine" ] && [ "$SERVER_TARGET" != "admin" ] && [ "$SERVER_TARGET" != "lite" ] && [ "$SERVER_TARGET" != "migrate" ]; then \
+    echo "SERVER_TARGET must be set to 'api', 'engine', 'admin', 'lite', or 'migrate'"; \
     exit 1; \
     fi
 

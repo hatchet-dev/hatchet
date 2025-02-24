@@ -5,14 +5,15 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
-
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (s *SlackAppService) SlackWebhookList(ctx echo.Context, req gen.SlackWebhookListRequestObject) (gen.SlackWebhookListResponseObject, error) {
-	tenant := ctx.Get("tenant").(*db.TenantModel)
+	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
-	webhooks, err := s.config.APIRepository.Slack().ListSlackWebhooks(tenant.ID)
+	webhooks, err := s.config.APIRepository.Slack().ListSlackWebhooks(ctx.Request().Context(), tenantId)
 
 	if err != nil {
 		return nil, err
@@ -21,7 +22,7 @@ func (s *SlackAppService) SlackWebhookList(ctx echo.Context, req gen.SlackWebhoo
 	rows := make([]gen.SlackWebhook, len(webhooks))
 
 	for i := range webhooks {
-		rows[i] = *transformers.ToSlackWebhook(&webhooks[i])
+		rows[i] = *transformers.ToSlackWebhook(webhooks[i])
 	}
 
 	return gen.SlackWebhookList200JSONResponse(

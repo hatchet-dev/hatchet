@@ -63,7 +63,7 @@ jobs:
       - name: Clone repository
         uses: actions/checkout@v4
       - name: Build migrate
-        run: docker build -f ./build/package/migrate.dockerfile .
+        run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=migrate
 
   migrate-arm:
     runs-on: hatchet-arm64-2
@@ -71,7 +71,7 @@ jobs:
       - name: Clone repository
         uses: actions/checkout@v4
       - name: Build migrate
-        run: docker build -f ./build/package/migrate.dockerfile .
+        run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=migrate
 
   lite-arm:
     runs-on: hatchet-arm64-2

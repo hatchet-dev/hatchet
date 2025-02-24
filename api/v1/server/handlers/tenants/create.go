@@ -4,18 +4,19 @@ import (
 	"context"
 	"errors"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateRequestObject) (gen.TenantCreateResponseObject, error) {
-	user := ctx.Get("user").(*db.UserModel)
+	user := ctx.Get("user").(*dbsqlc.User)
 
 	if !t.config.Runtime.AllowCreateTenant {
 		return gen.TenantCreate400JSONResponse(
@@ -31,9 +32,9 @@ func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateR
 	}
 
 	// determine if a tenant with the slug already exists
-	existingTenant, err := t.config.APIRepository.Tenant().GetTenantBySlug(request.Body.Slug)
+	existingTenant, err := t.config.APIRepository.Tenant().GetTenantBySlug(ctx.Request().Context(), request.Body.Slug)
 
-	if err != nil && !errors.Is(err, db.ErrNotFound) {
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return nil, err
 	}
 
@@ -54,7 +55,7 @@ func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateR
 	}
 
 	// write the user to the db
-	tenant, err := t.config.APIRepository.Tenant().CreateTenant(createOpts)
+	tenant, err := t.config.APIRepository.Tenant().CreateTenant(ctx.Request().Context(), createOpts)
 
 	if err != nil {
 		return nil, err
@@ -69,8 +70,8 @@ func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateR
 	}
 
 	// add the user as an owner of the tenant
-	_, err = t.config.APIRepository.Tenant().CreateTenantMember(tenantId, &repository.CreateTenantMemberOpts{
-		UserId: user.ID,
+	_, err = t.config.APIRepository.Tenant().CreateTenantMember(ctx.Request().Context(), tenantId, &repository.CreateTenantMemberOpts{
+		UserId: sqlchelpers.UUIDToStr(user.ID),
 		Role:   "OWNER",
 	})
 
@@ -85,12 +86,12 @@ func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateR
 
 	t.config.Analytics.Enqueue(
 		"tenant:create",
-		user.ID,
+		sqlchelpers.UUIDToStr(user.ID),
 		&tenantId,
 		nil,
 	)
 
 	return gen.TenantCreate200JSONResponse(
-		*transformers.ToTenantSqlc(tenant),
+		*transformers.ToTenant(tenant),
 	), nil
 }

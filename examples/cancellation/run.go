@@ -6,10 +6,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/google/uuid"
-
 	"github.com/hatchet-dev/hatchet/pkg/client"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 )
 
@@ -82,34 +79,34 @@ func run(events chan<- string) (func() error, error) {
 		//	panic(fmt.Errorf("error listing workflows: %w", err))
 		//}
 
-		client := db.NewClient()
-		if err := client.Connect(); err != nil {
-			panic(fmt.Errorf("error connecting to database: %w", err))
-		}
-		defer client.Disconnect()
+		// client := db.NewClient()
+		// if err := client.Connect(); err != nil {
+		// 	panic(fmt.Errorf("error connecting to database: %w", err))
+		// }
+		// defer client.Disconnect()
 
-		stepRuns, err := client.StepRun.FindMany(
-			db.StepRun.TenantID.Equals(c.TenantId()),
-			db.StepRun.Status.Equals(db.StepRunStatusRunning),
-		).Exec(context.Background())
-		if err != nil {
-			panic(fmt.Errorf("error finding step runs: %w", err))
-		}
+		// stepRuns, err := client.StepRun.FindMany(
+		// 	db.StepRun.TenantID.Equals(c.TenantId()),
+		// 	db.StepRun.Status.Equals(db.StepRunStatusRunning),
+		// ).Exec(context.Background())
+		// if err != nil {
+		// 	panic(fmt.Errorf("error finding step runs: %w", err))
+		// }
 
-		if len(stepRuns) == 0 {
-			panic(fmt.Errorf("no step runs to cancel"))
-		}
+		// if len(stepRuns) == 0 {
+		// 	panic(fmt.Errorf("no step runs to cancel"))
+		// }
 
-		for _, stepRun := range stepRuns {
-			stepRunID := stepRun.ID
-			log.Printf("cancelling step run id: %s", stepRunID)
-			res, err := c.API().StepRunUpdateCancelWithResponse(context.Background(), uuid.MustParse(c.TenantId()), uuid.MustParse(stepRunID))
-			if err != nil {
-				panic(fmt.Errorf("error cancelling step run: %w", err))
-			}
+		// for _, stepRun := range stepRuns {
+		// 	stepRunID := stepRun.ID
+		// 	log.Printf("cancelling step run id: %s", stepRunID)
+		// 	res, err := c.API().StepRunUpdateCancelWithResponse(context.Background(), uuid.MustParse(c.TenantId()), uuid.MustParse(stepRunID))
+		// 	if err != nil {
+		// 		panic(fmt.Errorf("error cancelling step run: %w", err))
+		// 	}
 
-			log.Printf("step run cancelled: %v", res.JSON200)
-		}
+		// 	log.Printf("step run cancelled: %v", res.JSON200)
+		// }
 	}()
 
 	cleanup, err := w.Start()
