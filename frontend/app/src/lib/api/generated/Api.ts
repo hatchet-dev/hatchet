@@ -83,6 +83,15 @@ import {
   UserLoginRequest,
   UserRegisterRequest,
   UserTenantMembershipsList,
+  V2DagChildren,
+  V2Task,
+  V2TaskEventList,
+  V2TaskPointMetrics,
+  V2TaskRunMetrics,
+  V2TaskStatus,
+  V2TaskSummaryList,
+  V2WorkflowRunDetails,
+  V2WorkflowRunList,
   WebhookWorkerCreateRequest,
   WebhookWorkerCreated,
   WebhookWorkerListResponse,
@@ -110,6 +119,307 @@ import {
 import { ContentType, HttpClient, RequestParams } from './http-client';
 
 export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType> {
+  /**
+   * @description Lists all tasks for a tenant.
+   *
+   * @tags Task
+   * @name V2TaskList
+   * @summary List tasks
+   * @request GET:/api/v2/tenants/{tenant}/tasks
+   * @secure
+   */
+  v2TaskList = (
+    tenant: string,
+    query: {
+      /**
+       * The number to skip
+       * @format int64
+       */
+      offset?: number;
+      /**
+       * The number to limit by
+       * @format int64
+       */
+      limit?: number;
+      /** A list of task statuses to filter by */
+      statuses?: V2TaskStatus[];
+      /**
+       * The earliest date to filter by
+       * @format date-time
+       */
+      since: string;
+      /**
+       * The earliest date to filter by
+       * @format date-time
+       */
+      until?: string;
+      /** Additional metadata k-v pairs to filter by */
+      additional_metadata?: string[];
+      /** The workflow ids to find runs for */
+      workflow_ids?: string[];
+      /**
+       * The worker id to filter by
+       * @format uuid
+       * @minLength 36
+       * @maxLength 36
+       */
+      worker_id?: string;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<V2TaskSummaryList, APIErrors>({
+      path: `/api/v2/tenants/${tenant}/tasks`,
+      method: 'GET',
+      query: query,
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Get a task by id
+   *
+   * @tags Task
+   * @name V2TaskGet
+   * @summary Get a task
+   * @request GET:/api/v2/tasks/{task}
+   * @secure
+   */
+  v2TaskGet = (task: string, params: RequestParams = {}) =>
+    this.request<V2Task, APIErrors>({
+      path: `/api/v2/tasks/${task}`,
+      method: 'GET',
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description List events for a task
+   *
+   * @tags Task
+   * @name V2TaskEventList
+   * @summary List events for a task
+   * @request GET:/api/v2/tasks/{task}/task-events
+   * @secure
+   */
+  v2TaskEventList = (
+    task: string,
+    query?: {
+      /**
+       * The number to skip
+       * @format int64
+       */
+      offset?: number;
+      /**
+       * The number to limit by
+       * @format int64
+       */
+      limit?: number;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<V2TaskEventList, APIErrors>({
+      path: `/api/v2/tasks/${task}/task-events`,
+      method: 'GET',
+      query: query,
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Lists all tasks that belong a specific list of dags
+   *
+   * @tags Task
+   * @name V2DagListTasks
+   * @summary List tasks
+   * @request GET:/api/v2/dags/tasks
+   * @secure
+   */
+  v2DagListTasks = (
+    query: {
+      /** The external id of the DAG */
+      dag_ids: string[];
+      /**
+       * The tenant id
+       * @format uuid
+       * @minLength 36
+       * @maxLength 36
+       */
+      tenant: string;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<V2DagChildren[], APIErrors>({
+      path: `/api/v2/dags/tasks`,
+      method: 'GET',
+      query: query,
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Lists workflow runs for a tenant.
+   *
+   * @tags Workflow Runs
+   * @name V2WorkflowRunList
+   * @summary List workflow runs
+   * @request GET:/api/v2/tenants/{tenant}/workflow-runs
+   * @secure
+   */
+  v2WorkflowRunList = (
+    tenant: string,
+    query: {
+      /**
+       * The number to skip
+       * @format int64
+       */
+      offset?: number;
+      /**
+       * The number to limit by
+       * @format int64
+       */
+      limit?: number;
+      /** A list of statuses to filter by */
+      statuses?: V2TaskStatus[];
+      /**
+       * The earliest date to filter by
+       * @format date-time
+       */
+      since: string;
+      /**
+       * The latest date to filter by
+       * @format date-time
+       */
+      until?: string;
+      /** Additional metadata k-v pairs to filter by */
+      additional_metadata?: string[];
+      /** The workflow ids to find runs for */
+      workflow_ids?: string[];
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<V2WorkflowRunList, APIErrors>({
+      path: `/api/v2/tenants/${tenant}/workflow-runs`,
+      method: 'GET',
+      query: query,
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Get a workflow run and its metadata to display on the "detail" page
+   *
+   * @tags Workflow Runs
+   * @name V2WorkflowRunGet
+   * @summary List tasks
+   * @request GET:/api/v2/workflow-runs/{v2-workflow-run}
+   * @secure
+   */
+  v2WorkflowRunGet = (v2WorkflowRun: string, params: RequestParams = {}) =>
+    this.request<V2WorkflowRunDetails, APIErrors>({
+      path: `/api/v2/workflow-runs/${v2WorkflowRun}`,
+      method: 'GET',
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description List all tasks for a workflow run
+   *
+   * @tags Workflow Runs
+   * @name V2WorkflowRunTaskEventsList
+   * @summary List tasks
+   * @request GET:/api/v2/workflow-runs/{v2-workflow-run}/task-events
+   * @secure
+   */
+  v2WorkflowRunTaskEventsList = (
+    v2WorkflowRun: string,
+    query?: {
+      /**
+       * The number to skip
+       * @format int64
+       */
+      offset?: number;
+      /**
+       * The number to limit by
+       * @format int64
+       */
+      limit?: number;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<V2TaskEventList, APIErrors>({
+      path: `/api/v2/workflow-runs/${v2WorkflowRun}/task-events`,
+      method: 'GET',
+      query: query,
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Get a summary of task run metrics for a tenant
+   *
+   * @tags Task
+   * @name V2TaskListStatusMetrics
+   * @summary Get task metrics
+   * @request GET:/api/v2/tenants/{tenant}/task-metrics
+   * @secure
+   */
+  v2TaskListStatusMetrics = (
+    tenant: string,
+    query: {
+      /**
+       * The start time to get metrics for
+       * @format date-time
+       */
+      since: string;
+      /** The workflow id to find runs for */
+      workflow_ids?: string[];
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<V2TaskRunMetrics, APIErrors>({
+      path: `/api/v2/tenants/${tenant}/task-metrics`,
+      method: 'GET',
+      query: query,
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Get a minute by minute breakdown of task metrics for a tenant
+   *
+   * @tags Task
+   * @name V2TaskGetPointMetrics
+   * @summary Get task point metrics
+   * @request GET:/api/v2/tenants/{tenant}/task-point-metrics
+   * @secure
+   */
+  v2TaskGetPointMetrics = (
+    tenant: string,
+    query?: {
+      /**
+       * The time after the task was created
+       * @format date-time
+       * @example "2021-01-01T00:00:00Z"
+       */
+      createdAfter?: string;
+      /**
+       * The time before the task was completed
+       * @format date-time
+       * @example "2021-01-01T00:00:00Z"
+       */
+      finishedBefore?: string;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<V2TaskPointMetrics, APIErrors>({
+      path: `/api/v2/tenants/${tenant}/task-point-metrics`,
+      method: 'GET',
+      query: query,
+      secure: true,
+      format: 'json',
+      ...params,
+    });
   /**
    * @description Gets the readiness status
    *

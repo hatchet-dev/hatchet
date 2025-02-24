@@ -219,7 +219,6 @@ ScheduledWorkflows:
     - triggerAt
     - method
 
-
 ScheduledWorkflowsMethod:
   type: string
   enum:
@@ -303,6 +302,7 @@ WorkflowRunsMetricsCounts:
     QUEUED:
       type: integer
     CANCELLED:
+      type: integer
 
 TaskRunMetricsCounts:
   type: object
