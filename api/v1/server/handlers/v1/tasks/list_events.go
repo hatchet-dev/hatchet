@@ -6,9 +6,9 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 )
 
-func (t *TasksService) V2TaskGetPointMetrics(ctx echo.Context, request gen.V2TaskGetPointMetricsRequestObject) (gen.V2TaskGetPointMetricsResponseObject, error) {
+func (t *TasksService) V1TaskEventList(ctx echo.Context, request gen.V1TaskEventListRequestObject) (gen.V1TaskEventListResponseObject, error) {
 	code := uint64(501)
-	return gen.V2TaskGetPointMetrics501JSONResponse(gen.APIErrors{
+	return gen.V1TaskEventList501JSONResponse(gen.APIErrors{
 		Errors: []gen.APIError{{
 			Code:        &code,
 			Description: "Not implemented",
