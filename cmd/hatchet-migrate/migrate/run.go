@@ -24,15 +24,25 @@ var embedMigrations embed.FS
 
 func RunMigrations(ctx context.Context) {
 	var db *sql.DB
+	var conn *sql.Conn
 
 	retryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	err := retry.Do(retryCtx, retry.NewConstant(1*time.Second), func(ctx context.Context) error {
 		var err error
-		db, err = goose.OpenDBWithDriver("postgres", os.Getenv("DATABASE_URL"))
+		if db == nil {
+			db, err = goose.OpenDBWithDriver("postgres", os.Getenv("DATABASE_URL"))
+
+			if err != nil {
+				return retry.RetryableError(fmt.Errorf("failed to open DB: %w", err))
+			}
+		}
+
+		conn, err = db.Conn(ctx)
+
 		if err != nil {
-			return retry.RetryableError(fmt.Errorf("failed to open DB: %w", err))
+			return retry.RetryableError(fmt.Errorf("failed to open DB connection: %w", err))
 		}
 
 		return nil
@@ -40,12 +50,6 @@ func RunMigrations(ctx context.Context) {
 
 	if err != nil {
 		log.Fatalf("goose: failed to open DB: %v", err)
-	}
-
-	conn, err := db.Conn(ctx)
-
-	if err != nil {
-		log.Fatalf("goose: failed to open DB connection: %v", err)
 	}
 
 	defer func() {
