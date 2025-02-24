@@ -10,4 +10,3 @@ async def test_run(hatchet: Hatchet, worker: Worker) -> None:
     run = hatchet.admin.run_workflow("Parent", {"n": 2})
     result = await run.aio_result()
     assert len(result["spawn"]["results"]) == 2
-
