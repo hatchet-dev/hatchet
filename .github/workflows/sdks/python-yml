@@ -2,7 +2,8 @@ name: python
 on:
   pull_request:
     paths:
-      - 'sdks/python/*'
+      - 'sdks/python/**'
+      - .github/**
 
 jobs:
   lint:
