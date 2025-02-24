@@ -1,5 +1,5 @@
 import { createColumnHelper } from '@tanstack/react-table';
-import { V2TaskEventType, V2TaskEvent, StepRunEventSeverity } from '@/lib/api';
+import { V1TaskEventType, V1TaskEvent, StepRunEventSeverity } from '@/lib/api';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { Badge } from '@/components/v1/ui/badge';
 import {
@@ -22,33 +22,33 @@ import {
 import StepRunError from './step-run-detail/step-run-error';
 
 function eventTypeToSeverity(
-  eventType: V2TaskEventType | undefined,
+  eventType: V1TaskEventType | undefined,
 ): StepRunEventSeverity {
   switch (eventType) {
-    case V2TaskEventType.FAILED:
-    case V2TaskEventType.RATE_LIMIT_ERROR:
-    case V2TaskEventType.SCHEDULING_TIMED_OUT:
-    case V2TaskEventType.TIMED_OUT:
-    case V2TaskEventType.CANCELLED:
+    case V1TaskEventType.FAILED:
+    case V1TaskEventType.RATE_LIMIT_ERROR:
+    case V1TaskEventType.SCHEDULING_TIMED_OUT:
+    case V1TaskEventType.TIMED_OUT:
+    case V1TaskEventType.CANCELLED:
       return StepRunEventSeverity.CRITICAL;
-    case V2TaskEventType.REASSIGNED:
-    case V2TaskEventType.REQUEUED_NO_WORKER:
-    case V2TaskEventType.REQUEUED_RATE_LIMIT:
-    case V2TaskEventType.RETRIED_BY_USER:
-    case V2TaskEventType.RETRYING:
+    case V1TaskEventType.REASSIGNED:
+    case V1TaskEventType.REQUEUED_NO_WORKER:
+    case V1TaskEventType.REQUEUED_RATE_LIMIT:
+    case V1TaskEventType.RETRIED_BY_USER:
+    case V1TaskEventType.RETRYING:
       return StepRunEventSeverity.WARNING;
     default:
       return StepRunEventSeverity.INFO;
   }
 }
 
-const columnHelper = createColumnHelper<V2TaskEvent>();
+const columnHelper = createColumnHelper<V1TaskEvent>();
 
 export const columns = ({
   onRowClick,
   taskDisplayName,
 }: {
-  onRowClick: (row: V2TaskEvent) => void;
+  onRowClick: (row: V1TaskEvent) => void;
   taskDisplayName: string;
 }) => {
   return [
@@ -117,7 +117,7 @@ export const columns = ({
         const items: JSX.Element[] = [];
         const event = row.original;
 
-        if (event.eventType === V2TaskEventType.FAILED) {
+        if (event.eventType === V1TaskEventType.FAILED) {
           items.push(<ErrorWithHoverCard event={row.original} />);
         }
 
@@ -153,47 +153,47 @@ export const columns = ({
   ];
 };
 
-function mapEventTypeToTitle(eventType: V2TaskEventType | undefined): string {
+function mapEventTypeToTitle(eventType: V1TaskEventType | undefined): string {
   switch (eventType) {
-    case V2TaskEventType.ASSIGNED:
+    case V1TaskEventType.ASSIGNED:
       return 'Assigned to worker';
-    case V2TaskEventType.STARTED:
+    case V1TaskEventType.STARTED:
       return 'Started';
-    case V2TaskEventType.FINISHED:
+    case V1TaskEventType.FINISHED:
       return 'Completed';
-    case V2TaskEventType.FAILED:
+    case V1TaskEventType.FAILED:
       return 'Failed';
-    case V2TaskEventType.CANCELLED:
+    case V1TaskEventType.CANCELLED:
       return 'Cancelled';
-    case V2TaskEventType.RETRYING:
+    case V1TaskEventType.RETRYING:
       return 'Retrying';
-    case V2TaskEventType.REQUEUED_NO_WORKER:
+    case V1TaskEventType.REQUEUED_NO_WORKER:
       return 'Requeuing (no worker available)';
-    case V2TaskEventType.REQUEUED_RATE_LIMIT:
+    case V1TaskEventType.REQUEUED_RATE_LIMIT:
       return 'Requeuing (rate limit)';
-    case V2TaskEventType.SCHEDULING_TIMED_OUT:
+    case V1TaskEventType.SCHEDULING_TIMED_OUT:
       return 'Scheduling timed out';
-    case V2TaskEventType.TIMEOUT_REFRESHED:
+    case V1TaskEventType.TIMEOUT_REFRESHED:
       return 'Timeout refreshed';
-    case V2TaskEventType.REASSIGNED:
+    case V1TaskEventType.REASSIGNED:
       return 'Reassigned';
-    case V2TaskEventType.TIMED_OUT:
+    case V1TaskEventType.TIMED_OUT:
       return 'Execution timed out';
-    case V2TaskEventType.SLOT_RELEASED:
+    case V1TaskEventType.SLOT_RELEASED:
       return 'Slot released';
-    case V2TaskEventType.RETRIED_BY_USER:
+    case V1TaskEventType.RETRIED_BY_USER:
       return 'Replayed by user';
-    case V2TaskEventType.ACKNOWLEDGED:
+    case V1TaskEventType.ACKNOWLEDGED:
       return 'Acknowledged by worker';
-    case V2TaskEventType.CREATED:
+    case V1TaskEventType.CREATED:
       return 'Created';
-    case V2TaskEventType.RATE_LIMIT_ERROR:
+    case V1TaskEventType.RATE_LIMIT_ERROR:
       return 'Rate limit error';
-    case V2TaskEventType.SENT_TO_WORKER:
+    case V1TaskEventType.SENT_TO_WORKER:
       return 'Sent to worker';
-    case V2TaskEventType.QUEUED:
+    case V1TaskEventType.QUEUED:
       return 'Queued';
-    case V2TaskEventType.SKIPPED:
+    case V1TaskEventType.SKIPPED:
       return 'Skipped';
     case undefined:
       return 'Unknown';
@@ -221,7 +221,7 @@ function EventIndicator({ severity }: { severity: StepRunEventSeverity }) {
   );
 }
 
-function ErrorWithHoverCard({ event }: { event: V2TaskEvent }) {
+function ErrorWithHoverCard({ event }: { event: V1TaskEvent }) {
   const { tenant } = useOutletContext<TenantContextType>();
   invariant(tenant);
   // invariant(event.taskId);
@@ -272,7 +272,7 @@ function ErrorWithHoverCard({ event }: { event: V2TaskEvent }) {
   );
 }
 
-function ErrorHoverContents({ event }: { event: V2TaskEvent }) {
+function ErrorHoverContents({ event }: { event: V1TaskEvent }) {
   // We cannot call this component without stepRun being defined.
   // invariant(event.taskId);
 

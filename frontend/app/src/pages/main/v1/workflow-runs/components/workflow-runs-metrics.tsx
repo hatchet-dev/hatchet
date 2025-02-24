@@ -1,9 +1,9 @@
 import React from 'react';
 
 import {
-  V2TaskRunMetric,
-  V2TaskRunMetrics,
-  V2TaskStatus,
+  V1TaskRunMetric,
+  V1TaskRunMetrics,
+  V1TaskStatus,
   WorkflowRunStatus,
   WorkflowRunsMetrics,
 } from '@/lib/api';
@@ -17,9 +17,9 @@ interface WorkflowRunsMetricsProps {
   showQueueMetrics?: boolean;
 }
 
-interface V2TaskRunMetricsProps {
-  metrics: V2TaskRunMetric[];
-  onClick?: (status?: V2TaskStatus) => void;
+interface V1TaskRunMetricsProps {
+  metrics: V1TaskRunMetric[];
+  onClick?: (status?: V1TaskStatus) => void;
   onViewQueueMetricsClick?: () => void;
   showQueueMetrics?: boolean;
 }
@@ -109,17 +109,17 @@ export const WorkflowRunsMetricsView: React.FC<WorkflowRunsMetricsProps> = ({
   );
 };
 
-function statusToFriendlyName(status: V2TaskStatus) {
+function statusToFriendlyName(status: V1TaskStatus) {
   switch (status) {
-    case V2TaskStatus.CANCELLED:
+    case V1TaskStatus.CANCELLED:
       return 'Cancelled';
-    case V2TaskStatus.COMPLETED:
+    case V1TaskStatus.COMPLETED:
       return 'Succeeded';
-    case V2TaskStatus.FAILED:
+    case V1TaskStatus.FAILED:
       return 'Failed';
-    case V2TaskStatus.QUEUED:
+    case V1TaskStatus.QUEUED:
       return 'Queued';
-    case V2TaskStatus.RUNNING:
+    case V1TaskStatus.RUNNING:
       return 'Running';
     default:
       // eslint-disable-next-line no-case-declarations
@@ -136,10 +136,10 @@ function MetricBadge({
   variant,
   className,
 }: {
-  metrics: V2TaskRunMetrics;
-  status: V2TaskStatus;
+  metrics: V1TaskRunMetrics;
+  status: V1TaskStatus;
   total: number;
-  onClick: (status: V2TaskStatus) => void;
+  onClick: (status: V1TaskStatus) => void;
   variant: VariantProps<typeof badgeVariants>['variant'];
   className: string;
 }) {
@@ -163,12 +163,12 @@ function MetricBadge({
   );
 }
 
-export const V2WorkflowRunsMetricsView = ({
+export const V1WorkflowRunsMetricsView = ({
   metrics,
   showQueueMetrics = false,
   onClick = () => {},
   onViewQueueMetricsClick = () => {},
-}: V2TaskRunMetricsProps) => {
+}: V1TaskRunMetricsProps) => {
   const total = metrics
     .map((m) => m.count)
     .reduce((acc, curr) => acc + curr, 0);
@@ -177,7 +177,7 @@ export const V2WorkflowRunsMetricsView = ({
     <dl className="flex flex-row justify-start gap-6">
       <MetricBadge
         metrics={metrics}
-        status={V2TaskStatus.COMPLETED}
+        status={V1TaskStatus.COMPLETED}
         total={total}
         onClick={onClick}
         variant="successful"
@@ -186,7 +186,7 @@ export const V2WorkflowRunsMetricsView = ({
 
       <MetricBadge
         metrics={metrics}
-        status={V2TaskStatus.RUNNING}
+        status={V1TaskStatus.RUNNING}
         total={total}
         onClick={onClick}
         variant="inProgress"
@@ -195,7 +195,7 @@ export const V2WorkflowRunsMetricsView = ({
 
       <MetricBadge
         metrics={metrics}
-        status={V2TaskStatus.FAILED}
+        status={V1TaskStatus.FAILED}
         total={total}
         onClick={onClick}
         variant="failed"
@@ -204,7 +204,7 @@ export const V2WorkflowRunsMetricsView = ({
 
       <MetricBadge
         metrics={metrics}
-        status={V2TaskStatus.QUEUED}
+        status={V1TaskStatus.QUEUED}
         total={total}
         onClick={onClick}
         variant="outline"

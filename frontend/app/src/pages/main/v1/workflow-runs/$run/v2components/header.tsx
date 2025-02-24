@@ -4,7 +4,7 @@ import { Link, useOutletContext } from 'react-router-dom';
 import CronPrettifier from 'cronstrue';
 
 import api, {
-  V2TaskStatus,
+  V1TaskStatus,
   WorkflowRunShape,
   WorkflowRunStatus,
   queries,
@@ -202,7 +202,7 @@ export const V2RunDetailHeader: React.FC<V2RunDetailHeaderProps> = ({
   invariant(tenant);
 
   const { isLoading: loading, data } = useQuery({
-    ...queries.v2Tasks.get(taskRunId),
+    ...queries.v1Tasks.get(taskRunId),
   });
 
   if (loading || !data) {
@@ -371,7 +371,7 @@ export const V2RunSummary = ({ taskRunId }: { taskRunId: string }) => {
   invariant(tenant);
 
   const { data } = useQuery({
-    ...queries.v2Tasks.get(taskRunId),
+    ...queries.v1Tasks.get(taskRunId),
   });
 
   const timings = [];
@@ -402,7 +402,7 @@ export const V2RunSummary = ({ taskRunId }: { taskRunId: string }) => {
     );
   }
 
-  if (data.status === V2TaskStatus.CANCELLED && data.finishedAt) {
+  if (data.status === V1TaskStatus.CANCELLED && data.finishedAt) {
     timings.push(
       <div key="finished" className="text-sm text-muted-foreground">
         {'Cancelled '}
@@ -411,7 +411,7 @@ export const V2RunSummary = ({ taskRunId }: { taskRunId: string }) => {
     );
   }
 
-  if (data.status === V2TaskStatus.FAILED && data.finishedAt) {
+  if (data.status === V1TaskStatus.FAILED && data.finishedAt) {
     timings.push(
       <div key="finished" className="text-sm text-muted-foreground">
         {'Failed '}
@@ -420,7 +420,7 @@ export const V2RunSummary = ({ taskRunId }: { taskRunId: string }) => {
     );
   }
 
-  if (data.status === V2TaskStatus.COMPLETED && data.finishedAt) {
+  if (data.status === V1TaskStatus.COMPLETED && data.finishedAt) {
     timings.push(
       <div key="finished" className="text-sm text-muted-foreground">
         {'Succeeded '}

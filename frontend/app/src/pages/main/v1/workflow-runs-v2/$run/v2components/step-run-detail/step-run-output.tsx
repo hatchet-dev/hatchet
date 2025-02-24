@@ -112,7 +112,7 @@ export const V2StepRunOutput = (props: { taskRunId: string }) => {
   const { tenantId } = useTenant();
 
   const { isLoading, data } = useQuery({
-    ...queries.v2Tasks.get(props.taskRunId),
+    ...queries.v1Tasks.get(props.taskRunId),
     enabled: !!tenantId,
   });
 

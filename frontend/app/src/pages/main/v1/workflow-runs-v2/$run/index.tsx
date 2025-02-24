@@ -1,4 +1,4 @@
-import { queries, V2TaskStatus, WorkflowRunStatus } from '@/lib/api';
+import { queries, V1TaskStatus, WorkflowRunStatus } from '@/lib/api';
 import { TenantContextType } from '@/lib/outlet';
 import { useQuery } from '@tanstack/react-query';
 import { useOutletContext, useParams } from 'react-router-dom';
@@ -33,12 +33,12 @@ interface WorkflowRunSidebarState {
   defaultOpenTab?: TabOption;
 }
 
-function statusToBadgeVariant(status: V2TaskStatus) {
+function statusToBadgeVariant(status: V1TaskStatus) {
   switch (status) {
-    case V2TaskStatus.COMPLETED:
+    case V1TaskStatus.COMPLETED:
       return 'successful';
-    case V2TaskStatus.FAILED:
-    case V2TaskStatus.CANCELLED:
+    case V1TaskStatus.FAILED:
+    case V1TaskStatus.CANCELLED:
       return 'failed';
     default:
       return 'inProgress';
@@ -65,7 +65,7 @@ export default function ExpandedWorkflowRun() {
   }, [params.run, sidebarState]);
 
   const taskRunQuery = useQuery({
-    ...queries.v2Tasks.get(params.run),
+    ...queries.v1Tasks.get(params.run),
   });
 
   if (taskRunQuery.isLoading) {

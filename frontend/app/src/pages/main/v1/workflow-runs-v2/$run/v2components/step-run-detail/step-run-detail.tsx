@@ -2,7 +2,7 @@ import React from 'react';
 import {
   StepRun,
   StepRunStatus,
-  V2TaskStatus,
+  V1TaskStatus,
   WorkflowRun,
   queries,
 } from '@/lib/api';
@@ -63,7 +63,7 @@ const StepRunDetail: React.FC<StepRunDetailProps> = ({
   const errors: string[] = [];
 
   const eventsQuery = useQuery({
-    ...queries.v2TaskEvents.list(tenantId, {
+    ...queries.v1TaskEvents.list(tenantId, {
       offset: 0,
       limit: 50,
     }),
@@ -73,7 +73,7 @@ const StepRunDetail: React.FC<StepRunDetailProps> = ({
   });
 
   const taskRunQuery = useQuery({
-    ...queries.v2Tasks.get(taskRunId),
+    ...queries.v1Tasks.get(taskRunId),
   });
 
   const events = eventsQuery.data?.rows || [];
@@ -297,7 +297,7 @@ const V2StepRunSummary = ({ taskRunId }: { taskRunId: string }) => {
   }
 
   const taskRunQuery = useQuery({
-    ...queries.v2Tasks.get(taskRunId),
+    ...queries.v1Tasks.get(taskRunId),
   });
 
   const timings = [];
@@ -323,7 +323,7 @@ const V2StepRunSummary = ({ taskRunId }: { taskRunId: string }) => {
     );
   }
 
-  if (data.status === V2TaskStatus.FAILED && data.finishedAt) {
+  if (data.status === V1TaskStatus.FAILED && data.finishedAt) {
     timings.push(
       <div key="finished" className="text-sm text-muted-foreground">
         {'Failed '}
@@ -332,7 +332,7 @@ const V2StepRunSummary = ({ taskRunId }: { taskRunId: string }) => {
     );
   }
 
-  if (data.status === V2TaskStatus.COMPLETED && data.finishedAt) {
+  if (data.status === V1TaskStatus.COMPLETED && data.finishedAt) {
     timings.push(
       <div key="finished" className="text-sm text-muted-foreground">
         {'Succeeded '}

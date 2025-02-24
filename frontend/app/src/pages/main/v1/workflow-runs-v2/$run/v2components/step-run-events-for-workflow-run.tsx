@@ -1,4 +1,4 @@
-import { queries, V2TaskEvent } from '@/lib/api';
+import { queries, V1TaskEvent } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 import { columns } from './events-columns';
@@ -19,7 +19,7 @@ export function StepRunEvents({
   }
 
   const eventsQuery = useQuery({
-    ...queries.v2TaskEvents.list(tenantId, {
+    ...queries.v1TaskEvents.list(tenantId, {
       // TODO: Pagination here
       limit: 50,
       offset: 0,
@@ -29,7 +29,7 @@ export function StepRunEvents({
     },
   });
 
-  type EventWithMetadata = V2TaskEvent & {
+  type EventWithMetadata = V1TaskEvent & {
     metadata: {
       id: string;
     };

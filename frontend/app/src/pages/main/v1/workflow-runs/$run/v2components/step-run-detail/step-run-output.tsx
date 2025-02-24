@@ -3,8 +3,8 @@ import {
   queries,
   StepRun,
   StepRunStatus,
-  V2Task,
-  V2TaskStatus,
+  V1Task,
+  V1TaskStatus,
   WorkflowRunShape,
 } from '@/lib/api';
 import React from 'react';
@@ -114,9 +114,9 @@ function parseJSONOutput(output: string | undefined) {
   return output ? JSON.stringify(JSON.parse(output), null, 2) : '{}';
 }
 
-function formatOutputData(data: V2Task) {
+function formatOutputData(data: V1Task) {
   switch (data.status) {
-    case V2TaskStatus.FAILED:
+    case V1TaskStatus.FAILED:
       return data.errorMessage || parseJSONOutput(data.output);
     default:
       return parseJSONOutput(data.output);
@@ -132,7 +132,7 @@ export const V2StepRunOutput = (props: { taskRunId: string }) => {
   const { tenantId } = useTenant();
 
   const { isLoading, data } = useQuery({
-    ...queries.v2Tasks.get(props.taskRunId),
+    ...queries.v1Tasks.get(props.taskRunId),
     enabled: !!tenantId,
   });
 

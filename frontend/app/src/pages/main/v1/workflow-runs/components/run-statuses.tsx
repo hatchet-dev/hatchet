@@ -9,7 +9,7 @@ import {
 import {
   JobRunStatus,
   StepRunStatus,
-  V2TaskStatus,
+  V1TaskStatus,
   WorkflowRunStatus,
 } from '@/lib/api';
 import { capitalize, cn } from '@/lib/utils';
@@ -53,18 +53,18 @@ export function createRunStatusVariant(
 }
 
 export function createV2RunStatusVariant(
-  status: V2TaskStatus,
+  status: V1TaskStatus,
 ): RunStatusVariant {
   switch (status) {
-    case V2TaskStatus.COMPLETED:
+    case V1TaskStatus.COMPLETED:
       return { text: 'Succeeded', variant: 'successful' };
-    case V2TaskStatus.FAILED:
+    case V1TaskStatus.FAILED:
       return { text: 'Failed', variant: 'failed' };
-    case V2TaskStatus.CANCELLED:
+    case V1TaskStatus.CANCELLED:
       return { text: 'Cancelled', variant: 'failed' };
-    case V2TaskStatus.RUNNING:
+    case V1TaskStatus.RUNNING:
       return { text: 'Running', variant: 'inProgress' };
-    case V2TaskStatus.QUEUED:
+    case V1TaskStatus.QUEUED:
       return { text: 'Queued', variant: 'outline' };
     default:
       return { text: 'Unknown', variant: 'outline' };
@@ -133,7 +133,7 @@ export function V2RunStatus({
   errorMessage,
   className,
 }: {
-  status: V2TaskStatus;
+  status: V1TaskStatus;
   errorMessage?: string;
   className?: string;
 }) {
@@ -168,15 +168,15 @@ const indicatorVariants = {
   outline: 'border-transparent rounded-full bg-muted',
 };
 
-export function createV2IndicatorVariant(eventType: V2TaskStatus | undefined) {
+export function createV2IndicatorVariant(eventType: V1TaskStatus | undefined) {
   switch (eventType) {
-    case V2TaskStatus.CANCELLED:
-    case V2TaskStatus.FAILED:
+    case V1TaskStatus.CANCELLED:
+    case V1TaskStatus.FAILED:
       return 'border-transparent rounded-full bg-red-500';
-    case V2TaskStatus.RUNNING:
-    case V2TaskStatus.QUEUED:
+    case V1TaskStatus.RUNNING:
+    case V1TaskStatus.QUEUED:
       return 'border-transparent rounded-full bg-yellow-500';
-    case V2TaskStatus.COMPLETED:
+    case V1TaskStatus.COMPLETED:
       return 'border-transparent rounded-full bg-green-500';
     default:
       return 'border-transparent rounded-full bg-muted';
@@ -198,7 +198,7 @@ export function RunIndicator({
   );
 }
 
-export function V2RunIndicator({ status }: { status: V2TaskStatus }) {
+export function V2RunIndicator({ status }: { status: V1TaskStatus }) {
   const indicator = createV2IndicatorVariant(status);
 
   return <div className={cn(indicator, 'rounded-full h-[6px] w-[6px]')} />;

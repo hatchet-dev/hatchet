@@ -13,8 +13,8 @@ import invariant from 'tiny-invariant';
 import api, {
   queries,
   ReplayWorkflowRunsRequest,
-  V2TaskStatus,
-  V2WorkflowRun,
+  V1TaskStatus,
+  V1WorkflowRun,
 } from '@/lib/api';
 import { TenantContextType } from '@/lib/outlet';
 import { useOutletContext, useSearchParams } from 'react-router-dom';
@@ -30,7 +30,7 @@ import {
   XCircleIcon,
   XMarkIcon,
 } from '@heroicons/react/24/outline';
-import { V2WorkflowRunsMetricsView } from './workflow-runs-metrics';
+import { V1WorkflowRunsMetricsView } from './workflow-runs-metrics';
 import queryClient from '@/query-client';
 import { useApiError } from '@/lib/hooks';
 import {
@@ -73,7 +73,7 @@ export interface WorkflowRunsTableProps {
 }
 
 // TODO: Clean this up
-export type ListableWorkflowRun = V2WorkflowRun & {
+export type ListableWorkflowRun = V1WorkflowRun & {
   workflowName: string | undefined;
   triggeredBy: string;
   workflowVersionId: string;
@@ -259,11 +259,11 @@ export function WorkflowRunsTable({
       return;
     }
 
-    return filter?.value as Array<V2TaskStatus>;
+    return filter?.value as Array<V1TaskStatus>;
   }, [columnFilters]);
 
   const listTasksQuery = useQuery({
-    ...queries.v2Tasks.list(tenant.metadata.id, {
+    ...queries.v1Tasks.list(tenant.metadata.id, {
       offset,
       limit: pagination.pageSize,
       statuses,
@@ -280,7 +280,7 @@ export function WorkflowRunsTable({
   });
 
   const metricsQuery = useQuery({
-    ...queries.v2TaskRuns.metrics(tenant.metadata.id, {
+    ...queries.v1TaskRuns.metrics(tenant.metadata.id, {
       since:
         createdAfter ||
         new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
@@ -366,23 +366,23 @@ export function WorkflowRunsTable({
   const workflowRunStatusFilters = useMemo((): FilterOption[] => {
     return [
       {
-        value: V2TaskStatus.COMPLETED,
+        value: V1TaskStatus.COMPLETED,
         label: 'Succeeded',
       },
       {
-        value: V2TaskStatus.FAILED,
+        value: V1TaskStatus.FAILED,
         label: 'Failed',
       },
       {
-        value: V2TaskStatus.RUNNING,
+        value: V1TaskStatus.RUNNING,
         label: 'Running',
       },
       {
-        value: V2TaskStatus.QUEUED,
+        value: V1TaskStatus.QUEUED,
         label: 'Queued',
       },
       // {
-      //   value: V2TaskStatus.CANCELLED,
+      //   value: V1TaskStatus.CANCELLED,
       //   label: 'Cancelled',
       // },
     ];
@@ -607,7 +607,7 @@ export function WorkflowRunsTable({
       {showCounts && (
         <div className="flex flex-row justify-between items-center my-4">
           {metrics.length > 0 ? (
-            <V2WorkflowRunsMetricsView
+            <V1WorkflowRunsMetricsView
               metrics={metrics}
               onViewQueueMetricsClick={() => {
                 setViewQueueMetrics(true);
@@ -685,7 +685,7 @@ const GetWorkflowChart = ({
   zoom: (startTime: string, endTime: string) => void;
 }) => {
   const workflowRunEventsMetricsQuery = useQuery({
-    ...queries.v2TaskRuns.pointMetrics(tenantId, {
+    ...queries.v1TaskRuns.pointMetrics(tenantId, {
       createdAfter,
       finishedBefore,
     }),
