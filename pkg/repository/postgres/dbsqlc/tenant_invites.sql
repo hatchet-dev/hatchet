@@ -70,10 +70,6 @@ WHERE
         -- otherwise, if expired is true, return only expired invites, and vice versa
         ELSE sqlc.narg('expired')::boolean = ("expires" < now())
         END
-    )
-    AND (
-        sqlc.narg('expired')::boolean IS NULL
-        OR "expires" < now()
     );
 
 -- name: UpdateTenantInvite :one

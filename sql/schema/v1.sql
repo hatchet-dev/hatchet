@@ -1,4 +1,3 @@
--- TMP
 CREATE OR REPLACE FUNCTION get_v2_partitions_before_date(
     targetTableName text,
     targetDate date
