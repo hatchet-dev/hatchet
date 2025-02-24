@@ -303,6 +303,19 @@ WorkflowRunsMetricsCounts:
     QUEUED:
       type: integer
     CANCELLED:
+
+TaskRunMetricsCounts:
+  type: object
+  properties:
+    PENDING:
+      type: integer
+    RUNNING:
+      type: integer
+    SUCCEEDED:
+      type: integer
+    FAILED:
+      type: integer
+    QUEUED:
       type: integer
 
 WorkflowRunsMetrics:
@@ -334,6 +347,15 @@ JobRunStatus:
     - FAILED
     - CANCELLED
     - BACKOFF
+
+V2TaskRunStatus:
+  type: string
+  enum:
+    - PENDING
+    - RUNNING
+    - COMPLETED
+    - FAILED
+    - CANCELLED
 
 WorkflowRunStatus:
   type: string

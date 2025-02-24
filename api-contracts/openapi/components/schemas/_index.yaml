@@ -186,6 +186,8 @@ WorkflowRunsCancelRequest:
   $ref: "./workflow_run.yaml#/WorkflowRunsCancelRequest"
 JobRunStatus:
   $ref: "./workflow_run.yaml#/JobRunStatus"
+V2TaskRunStatus:
+  $ref: "./workflow_run.yaml#/V2TaskRunStatus"
 StepRunStatus:
   $ref: "./workflow_run.yaml#/StepRunStatus"
 JobRun:
@@ -292,3 +294,27 @@ WebhookWorkerCreateResponse:
   $ref: "./webhook_worker.yaml#/WebhookWorkerCreateResponse"
 WebhookWorkerListResponse:
   $ref: "./webhook_worker.yaml#/WebhookWorkerListResponse"
+V2TaskSummaryList:
+  $ref: "./v2/task.yaml#/V2TaskSummaryList"
+V2TaskSummary:
+  $ref: "./v2/task.yaml#/V2TaskSummary"
+V2DagChildren:
+  $ref: "./v2/task.yaml#/V2DagChildren"
+V2Task:
+  $ref: "./v2/task.yaml#/V2Task"
+V2TaskEventList:
+  $ref: "./v2/task.yaml#/V2TaskEventList"
+V2TaskStatus:
+  $ref: "./v2/task.yaml#/V2TaskStatus"
+V2TaskRunMetrics:
+  $ref: "./v2/task.yaml#/V2TaskRunMetrics"
+V2TaskPointMetric:
+  $ref: "./v2/task.yaml#/V2TaskPointMetric"
+V2TaskPointMetrics:
+  $ref: "./v2/task.yaml#/V2TaskPointMetrics"
+V2WorkflowRun:
+  $ref: "./v2/workflow_run.yaml#/V2WorkflowRun"
+V2WorkflowRunList:
+  $ref: "./v2/workflow_run.yaml#/V2WorkflowRunList"
+V2WorkflowRunDetails:
+  $ref: "./v2/workflow_run.yaml#/V2WorkflowRunDetails"

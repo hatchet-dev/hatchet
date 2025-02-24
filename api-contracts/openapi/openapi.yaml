@@ -20,6 +20,24 @@ components:
   schemas:
     $ref: "./components/schemas/_index.yaml"
 paths:
+  /api/v2/tenants/{tenant}/tasks:
+    $ref: "./paths/v2/tasks/tasks.yaml#/listTasks"
+  /api/v2/tasks/{task}:
+    $ref: "./paths/v2/tasks/tasks.yaml#/getTask"
+  /api/v2/tasks/{task}/task-events:
+    $ref: "./paths/v2/tasks/tasks.yaml#/listTaskEvents"
+  /api/v2/dags/tasks:
+    $ref: "./paths/v2/tasks/tasks.yaml#/listTasksByDAGIds"
+  /api/v2/tenants/{tenant}/workflow-runs:
+    $ref: "./paths/v2/workflow-runs/workflow_run.yaml#/listWorkflowRuns"
+  /api/v2/workflow-runs/{v2-workflow-run}:
+    $ref: "./paths/v2/workflow-runs/workflow_run.yaml#/getWorkflowRunDetails"
+  /api/v2/workflow-runs/{v2-workflow-run}/task-events:
+    $ref: "./paths/v2/workflow-runs/workflow_run.yaml#/listTaskEventsForWorkflowRun"
+  /api/v2/tenants/{tenant}/task-metrics:
+    $ref: "./paths/v2/tasks/tasks.yaml#/getTaskStatusMetrics"
+  /api/v2/tenants/{tenant}/task-point-metrics:
+    $ref: "./paths/v2/tasks/tasks.yaml#/getTaskPointMetrics"
   /api/ready:
     $ref: "./paths/metadata/metadata.yaml#/readiness"
   /api/live:
