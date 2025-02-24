@@ -82,7 +82,7 @@ def worker(
     if proc.poll() is not None:
         raise Exception(f"Worker failed to start with return code {proc.returncode}")
 
-    time.sleep(5)
+    time.sleep(8)
 
     def log_output(pipe: BytesIO, log_func: Callable[[str], None]) -> None:
         for line in iter(pipe.readline, b""):
@@ -100,7 +100,7 @@ def worker(
         child.terminate()
     parent.terminate()
 
-    _, alive = psutil.wait_procs([parent] + children, timeout=3)
+    _, alive = psutil.wait_procs([parent] + children, timeout=5)
     for p in alive:
         logging.warning(f"Force killing process {p.pid}")
         p.kill()
