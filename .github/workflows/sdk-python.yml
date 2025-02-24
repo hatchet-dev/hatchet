@@ -4,6 +4,12 @@ on:
     paths:
       - 'sdks/python/**'
       - '.github/**'
+  push:
+    branches:
+      - main
+    paths:
+      - 'sdks/python/**'
+      - '.github/**'
 
 defaults:
   run:
