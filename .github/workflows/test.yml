@@ -1,8 +1,8 @@
 name: test
 on:
   pull_request:
-    paths:
-      - 'sdks/python/*'
+    paths-ignore:
+      - 'sdks/**'
 jobs:
   generate:
     runs-on: ubuntu-latest

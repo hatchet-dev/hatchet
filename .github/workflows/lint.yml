@@ -1,8 +1,8 @@
 name: lint all
 on:
   pull_request:
-    paths:
-      - 'sdks/python/*'
+    paths-ignore:
+      - 'sdks/**'
 jobs:
   lint:
     runs-on: ubuntu-latest
