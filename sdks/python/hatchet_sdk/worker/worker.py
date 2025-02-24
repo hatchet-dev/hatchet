@@ -21,8 +21,7 @@ from hatchet_sdk.clients.dispatcher.action_listener import Action
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.contracts.workflows_pb2 import CreateWorkflowVersionOpts
 from hatchet_sdk.logger import logger
-from hatchet_sdk.utils.types import WorkflowValidator
-from hatchet_sdk.utils.typing import is_basemodel_subclass
+from hatchet_sdk.utils.typing import WorkflowValidator, is_basemodel_subclass
 from hatchet_sdk.worker.action_listener_process import (
     ActionEvent,
     worker_action_listener_process,
