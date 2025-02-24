@@ -44,7 +44,7 @@ from hatchet_sdk.contracts.workflows_pb2 import (
 from hatchet_sdk.labels import DesiredWorkerLabel
 from hatchet_sdk.logger import logger
 from hatchet_sdk.rate_limit import RateLimit
-from hatchet_sdk.utils.proto_enums import convert_python_enum_to_proto
+from hatchet_sdk.utils.proto_enums import convert_python_enum_to_proto, maybe_int_to_str
 from hatchet_sdk.workflow_run import WorkflowRunRef
 
 if TYPE_CHECKING:
@@ -425,15 +425,11 @@ class BaseWorkflow:
             return WorkflowConcurrencyOpts(
                 action=service_name + ":" + action.name,
                 max_runs=action.concurrency__max_runs,
-                limit_strategy=(
-                    str(value)
-                    if (
-                        value := convert_python_enum_to_proto(
-                            action.concurrency__limit_strategy,
-                            ConcurrencyLimitStrategyProto,
-                        )
+                limit_strategy=maybe_int_to_str(
+                    convert_python_enum_to_proto(
+                        action.concurrency__limit_strategy,
+                        ConcurrencyLimitStrategyProto,
                     )
-                    else None
                 ),
             )
 
@@ -516,14 +512,8 @@ class BaseWorkflow:
             event_triggers=event_triggers,
             cron_triggers=self.config.on_crons,
             schedule_timeout=self.config.schedule_timeout,
-            sticky=(
-                str(value)
-                if (
-                    value := convert_python_enum_to_proto(
-                        self.config.sticky, StickyStrategyProto
-                    )
-                )
-                else None
+            sticky=maybe_int_to_str(
+                convert_python_enum_to_proto(self.config.sticky, StickyStrategyProto)
             ),
             jobs=[
                 CreateWorkflowJobOpts(

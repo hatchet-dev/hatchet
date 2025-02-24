@@ -45,3 +45,10 @@ def convert_proto_enum_to_python(
         return None
 
     return python_enum_class[proto_enum.Name(value)]
+
+
+def maybe_int_to_str(value: int | None) -> str | None:
+    if value is None:
+        return None
+
+    return str(value)

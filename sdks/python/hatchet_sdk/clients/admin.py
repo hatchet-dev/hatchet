@@ -12,20 +12,11 @@ from hatchet_sdk.clients.run_event_listener import RunEventListenerClient
 from hatchet_sdk.clients.workflow_listener import PooledWorkflowRunListener
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.connection import new_conn
-from hatchet_sdk.contracts.workflows_pb2 import (
-    BulkTriggerWorkflowRequest,
-    BulkTriggerWorkflowResponse,
-    CreateWorkflowVersionOpts,
-    PutRateLimitRequest,
-    PutWorkflowRequest,
-    RateLimitDuration,
-    ScheduleWorkflowRequest,
-    TriggerWorkflowRequest,
-    TriggerWorkflowResponse,
-    WorkflowVersion,
-)
+from hatchet_sdk.contracts import workflows_pb2 as workflow_protos
 from hatchet_sdk.contracts.workflows_pb2_grpc import WorkflowServiceStub
 from hatchet_sdk.metadata import get_metadata
+from hatchet_sdk.rate_limit import RateLimitDuration
+from hatchet_sdk.utils.proto_enums import convert_python_enum_to_proto, maybe_int_to_str
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 from hatchet_sdk.workflow_run import WorkflowRunRef
 
@@ -84,7 +75,7 @@ class AdminClient:
         workflow_name: str,
         input: JSONSerializableMapping,
         options: TriggerWorkflowOptions,
-    ) -> TriggerWorkflowRequest:
+    ) -> workflow_protos.TriggerWorkflowRequest:
         try:
             payload_data = json.dumps(input)
             _options = options.model_dump()
@@ -101,7 +92,7 @@ class AdminClient:
             except json.JSONDecodeError as e:
                 raise ValueError(f"Error encoding payload: {e}")
 
-            return TriggerWorkflowRequest(
+            return workflow_protos.TriggerWorkflowRequest(
                 name=workflow_name, input=payload_data, **_options
             )
         except json.JSONDecodeError as e:
@@ -110,15 +101,15 @@ class AdminClient:
     def _prepare_put_workflow_request(
         self,
         name: str,
-        workflow: CreateWorkflowVersionOpts,
-        overrides: CreateWorkflowVersionOpts | None = None,
-    ) -> PutWorkflowRequest:
+        workflow: workflow_protos.CreateWorkflowVersionOpts,
+        overrides: workflow_protos.CreateWorkflowVersionOpts | None = None,
+    ) -> workflow_protos.PutWorkflowRequest:
         if overrides is not None:
             workflow.MergeFrom(overrides)
 
         workflow.name = name
 
-        return PutWorkflowRequest(
+        return workflow_protos.PutWorkflowRequest(
             opts=workflow,
         )
 
@@ -143,8 +134,8 @@ class AdminClient:
         schedules: list[Union[datetime, timestamp_pb2.Timestamp]],
         input: JSONSerializableMapping = {},
         options: ScheduleTriggerWorkflowOptions = ScheduleTriggerWorkflowOptions(),
-    ) -> ScheduleWorkflowRequest:
-        return ScheduleWorkflowRequest(
+    ) -> workflow_protos.ScheduleWorkflowRequest:
+        return workflow_protos.ScheduleWorkflowRequest(
             name=name,
             schedules=[self._parse_schedule(schedule) for schedule in schedules],
             input=json.dumps(input),
@@ -185,9 +176,9 @@ class AdminClient:
     async def aio_put_workflow(
         self,
         name: str,
-        workflow: CreateWorkflowVersionOpts,
-        overrides: CreateWorkflowVersionOpts | None = None,
-    ) -> WorkflowVersion:
+        workflow: workflow_protos.CreateWorkflowVersionOpts,
+        overrides: workflow_protos.CreateWorkflowVersionOpts | None = None,
+    ) -> workflow_protos.WorkflowVersion:
         ## IMPORTANT: The `pooled_workflow_listener` must be created 1) lazily, and not at `init` time, and 2) on the
         ## main thread. If 1) is not followed, you'll get an error about something being attached to the wrong event
         ## loop. If 2) is not followed, you'll get an error about the event loop not being set up.
@@ -218,7 +209,7 @@ class AdminClient:
         schedules: list[Union[datetime, timestamp_pb2.Timestamp]],
         input: JSONSerializableMapping = {},
         options: ScheduleTriggerWorkflowOptions = ScheduleTriggerWorkflowOptions(),
-    ) -> WorkflowVersion:
+    ) -> workflow_protos.WorkflowVersion:
         ## IMPORTANT: The `pooled_workflow_listener` must be created 1) lazily, and not at `init` time, and 2) on the
         ## main thread. If 1) is not followed, you'll get an error about something being attached to the wrong event
         ## loop. If 2) is not followed, you'll get an error about the event loop not being set up.
@@ -233,12 +224,12 @@ class AdminClient:
     def put_workflow(
         self,
         name: str,
-        workflow: CreateWorkflowVersionOpts,
-        overrides: CreateWorkflowVersionOpts | None = None,
-    ) -> WorkflowVersion:
+        workflow: workflow_protos.CreateWorkflowVersionOpts,
+        overrides: workflow_protos.CreateWorkflowVersionOpts | None = None,
+    ) -> workflow_protos.WorkflowVersion:
         opts = self._prepare_put_workflow_request(name, workflow, overrides)
 
-        resp: WorkflowVersion = self.client.PutWorkflow(
+        resp: workflow_protos.WorkflowVersion = self.client.PutWorkflow(
             opts,
             metadata=get_metadata(self.token),
         )
@@ -250,13 +241,16 @@ class AdminClient:
         self,
         key: str,
         limit: int,
-        duration: Union[RateLimitDuration, str] = RateLimitDuration.SECOND,
+        duration: RateLimitDuration = RateLimitDuration.SECOND,
     ) -> None:
+        duration_proto = convert_python_enum_to_proto(
+            duration, workflow_protos.RateLimitDuration
+        )
         self.client.PutRateLimit(
-            PutRateLimitRequest(
+            workflow_protos.PutRateLimitRequest(
                 key=key,
                 limit=limit,
-                duration=duration,
+                duration=maybe_int_to_str(duration_proto),
             ),
             metadata=get_metadata(self.token),
         )
@@ -268,7 +262,7 @@ class AdminClient:
         schedules: list[Union[datetime, timestamp_pb2.Timestamp]],
         input: JSONSerializableMapping = {},
         options: ScheduleTriggerWorkflowOptions = ScheduleTriggerWorkflowOptions(),
-    ) -> WorkflowVersion:
+    ) -> workflow_protos.WorkflowVersion:
         try:
             namespace = options.namespace or self.namespace
 
@@ -280,7 +274,7 @@ class AdminClient:
             )
 
             return cast(
-                WorkflowVersion,
+                workflow_protos.WorkflowVersion,
                 self.client.ScheduleWorkflow(
                     request,
                     metadata=get_metadata(self.token),
@@ -312,7 +306,7 @@ class AdminClient:
             request = self._prepare_workflow_request(workflow_name, input, options)
 
             resp = cast(
-                TriggerWorkflowResponse,
+                workflow_protos.TriggerWorkflowResponse,
                 self.client.TriggerWorkflow(
                     request,
                     metadata=get_metadata(self.token),
@@ -332,7 +326,7 @@ class AdminClient:
 
     def _prepare_workflow_run_request(
         self, workflow: WorkflowRunDict, options: TriggerWorkflowOptions
-    ) -> TriggerWorkflowRequest:
+    ) -> workflow_protos.TriggerWorkflowRequest:
         workflow_name = workflow.workflow_name
         input_data = workflow.input
         options = workflow.options
@@ -354,7 +348,7 @@ class AdminClient:
         if not self.pooled_workflow_listener:
             self.pooled_workflow_listener = PooledWorkflowRunListener(self.config)
 
-        bulk_request = BulkTriggerWorkflowRequest(
+        bulk_request = workflow_protos.BulkTriggerWorkflowRequest(
             workflows=[
                 self._prepare_workflow_run_request(workflow, options)
                 for workflow in workflows
@@ -362,7 +356,7 @@ class AdminClient:
         )
 
         resp = cast(
-            BulkTriggerWorkflowResponse,
+            workflow_protos.BulkTriggerWorkflowResponse,
             self.client.BulkTriggerWorkflow(
                 bulk_request,
                 metadata=get_metadata(self.token),
