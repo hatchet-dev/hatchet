@@ -71,7 +71,7 @@ from hatchet_sdk.clients.rest.models.workflow_runs_cancel_request import (
     WorkflowRunsCancelRequest,
 )
 from hatchet_sdk.clients.rest.models.workflow_version import WorkflowVersion
-from hatchet_sdk.utils.types import JSONSerializableMapping
+from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 ## Type variables to use with coroutines.
 ## See https://stackoverflow.com/questions/73240620/the-right-way-to-type-hint-a-coroutine-function

@@ -25,7 +25,7 @@ from hatchet_sdk.clients.workflow_listener import PooledWorkflowRunListener
 from hatchet_sdk.context.worker_context import WorkerContext
 from hatchet_sdk.contracts.dispatcher_pb2 import OverridesData
 from hatchet_sdk.logger import logger
-from hatchet_sdk.utils.types import JSONSerializableMapping, WorkflowValidator
+from hatchet_sdk.utils.typing import JSONSerializableMapping, WorkflowValidator
 from hatchet_sdk.workflow_run import WorkflowRunRef
 
 DEFAULT_WORKFLOW_POLLING_INTERVAL = 5  # Seconds

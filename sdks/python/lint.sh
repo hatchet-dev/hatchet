@@ -8,4 +8,4 @@ echo "\nType checking with mypy"
 poetry run mypy --config-file=pyproject.toml
 
 echo "\nLinting with ruff"
-poetry run ruff . --fix
+poetry run ruff check . --fix

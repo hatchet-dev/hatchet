@@ -86,3 +86,28 @@ jobs:
         run: |
           echo "Using HATCHET_CLIENT_NAMESPACE: $HATCHET_CLIENT_NAMESPACE"
           poetry run pytest -s -vvv --maxfail=5 --timeout=120 --capture=no
+
+  publish:
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install Poetry
+        run: |
+          pipx install poetry==1.7.1
+
+      - name: Run publish.sh script
+        run: |
+          sh publish.sh
+        env:
+          POETRY_PYPI_TOKEN_PYPI: ${{ secrets.POETRY_PYPI_TOKEN_PYPI }}

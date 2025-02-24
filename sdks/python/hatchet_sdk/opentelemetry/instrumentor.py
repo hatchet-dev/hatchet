@@ -1,7 +1,7 @@
 from importlib.metadata import version
 from typing import Any, Callable, Collection, Coroutine
 
-from hatchet_sdk.utils.types import JSONSerializableMapping
+from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 try:
     from opentelemetry.context import Context

@@ -8,7 +8,7 @@ from hatchet_sdk.client import Client, new_client_raw
 from hatchet_sdk.clients.dispatcher.action_listener import Action
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.logger import logger
-from hatchet_sdk.utils.types import WorkflowValidator
+from hatchet_sdk.utils.typing import WorkflowValidator
 from hatchet_sdk.worker.action_listener_process import ActionEvent
 from hatchet_sdk.worker.runner.runner import Runner
 from hatchet_sdk.worker.runner.utils.capture_logs import capture_logs

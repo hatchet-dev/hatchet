@@ -29,7 +29,7 @@ from hatchet_sdk.contracts.dispatcher_pb2_grpc import DispatcherStub
 from hatchet_sdk.logger import logger
 from hatchet_sdk.metadata import get_metadata
 from hatchet_sdk.utils.backoff import exp_backoff_sleep
-from hatchet_sdk.utils.types import JSONSerializableMapping
+from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 DEFAULT_ACTION_TIMEOUT = 600  # seconds
 DEFAULT_ACTION_LISTENER_RETRY_COUNT = 15
