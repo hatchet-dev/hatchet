@@ -199,6 +199,8 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		opts = append(opts, postgresdb.WithLogsAPIRepository(c.RepositoryOverrides.LogsAPIRepository))
 	}
 
+	v1, cleanupV1 := repov1.NewRepository(pool, &l)
+
 	apiRepo, cleanupApiRepo, err := postgresdb.NewAPIRepository(pool, &scf.Runtime, opts...)
 
 	if err != nil {
@@ -213,6 +215,11 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 
 			ch.Stop()
 			meter.Stop()
+
+			if err := cleanupV1(); err != nil {
+				return err
+			}
+
 			return cleanupApiRepo()
 		},
 		Pool:                  pool,
@@ -221,7 +228,7 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		APIRepository:         apiRepo,
 		EngineRepository:      engineRepo,
 		EntitlementRepository: entitlementRepo,
-		V1:                    repov1.NewRepository(pool, &l),
+		V1:                    v1,
 		Seed:                  cf.Seed,
 	}, nil
 

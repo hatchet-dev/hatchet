@@ -21,18 +21,21 @@ type sharedRepository struct {
 	celParser  *cel.CELParser
 }
 
-func newSharedRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger) *sharedRepository {
+func newSharedRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger) (*sharedRepository, func() error) {
 	queries := sqlcv1.New()
 	cache := cache.New(5 * time.Minute)
 
 	celParser := cel.NewCELParser()
 
 	return &sharedRepository{
-		pool:       pool,
-		v:          v,
-		l:          l,
-		queries:    queries,
-		queueCache: cache,
-		celParser:  celParser,
-	}
+			pool:       pool,
+			v:          v,
+			l:          l,
+			queries:    queries,
+			queueCache: cache,
+			celParser:  celParser,
+		}, func() error {
+			cache.Stop()
+			return nil
+		}
 }

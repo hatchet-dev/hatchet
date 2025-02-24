@@ -22,10 +22,10 @@ type repositoryImpl struct {
 	olap      OLAPRepository
 }
 
-func NewRepository(pool *pgxpool.Pool, l *zerolog.Logger) Repository {
+func NewRepository(pool *pgxpool.Pool, l *zerolog.Logger) (Repository, func() error) {
 	v := validator.NewDefaultValidator()
 
-	shared := newSharedRepository(pool, v, l)
+	shared, cleanupShared := newSharedRepository(pool, v, l)
 
 	matchRepo, err := newMatchRepository(shared)
 
@@ -41,7 +41,9 @@ func NewRepository(pool *pgxpool.Pool, l *zerolog.Logger) Repository {
 		olap:      newOLAPRepository(shared),
 	}
 
-	return impl
+	return impl, func() error {
+		return cleanupShared()
+	}
 }
 
 func (r *repositoryImpl) Triggers() TriggerRepository {
