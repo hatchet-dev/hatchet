@@ -2,6 +2,7 @@
 # -------------------
 ARG HATCHET_LITE_IMAGE
 ARG HATCHET_ADMIN_IMAGE
+ARG HATCHET_MIGRATE_IMAGE
 
 # Stage 1: copy from the existing Go built image
 FROM $HATCHET_LITE_IMAGE as lite-binary-base
