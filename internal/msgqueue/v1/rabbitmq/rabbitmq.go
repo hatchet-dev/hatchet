@@ -407,7 +407,7 @@ func (t *MessageQueueImpl) deleteQueue(q msgqueue.Queue) error {
 
 	defer poolCh.Release()
 
-	_, err = ch.QueueDelete(q.Name(), true, true, true)
+	_, err = ch.QueueDelete(q.Name(), true, true, false)
 
 	if err != nil {
 		t.l.Error().Msgf("cannot delete queue: %q, %v", q.Name(), err)
@@ -415,7 +415,7 @@ func (t *MessageQueueImpl) deleteQueue(q msgqueue.Queue) error {
 	}
 
 	if q.DLX() != "" {
-		_, err = ch.QueueDelete(q.DLX(), true, true, true)
+		_, err = ch.QueueDelete(q.DLX(), true, true, false)
 
 		if err != nil {
 			t.l.Error().Msgf("cannot delete dead letter queue: %q, %v", q.DLX(), err)
