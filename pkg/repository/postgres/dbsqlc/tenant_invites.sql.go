@@ -167,10 +167,6 @@ WHERE
         ELSE $3::boolean = ("expires" < now())
         END
     )
-    AND (
-        $3::boolean IS NULL
-        OR "expires" < now()
-    )
 `
 
 type ListInvitesByTenantIdParams struct {
