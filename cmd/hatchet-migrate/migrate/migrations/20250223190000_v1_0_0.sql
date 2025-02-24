@@ -112,13 +112,13 @@ CREATE TABLE v2_step_concurrency (
     CONSTRAINT v2_step_concurrency_pkey PRIMARY KEY (workflow_id, workflow_version_id, step_id, id)
 );
 
-CREATE OR REPLACE FUNCTION create_v2_step_concurrency() 
+CREATE OR REPLACE FUNCTION create_v2_step_concurrency()
 RETURNS trigger AS $$
 BEGIN
   IF NEW."concurrencyGroupExpression" IS NOT NULL THEN
     WITH steps AS (
         -- Select only steps which don't have a parent according to _StepOrder
-        SELECT  
+        SELECT
             s."id",
             wf."id" AS "workflowId",
             wv."id" AS "workflowVersionId",
@@ -127,20 +127,20 @@ BEGIN
         JOIN "Job" j ON s."jobId" = j."id"
         JOIN "WorkflowVersion" wv ON j."workflowVersionId" = wv."id"
         JOIN "Workflow" wf ON wv."workflowId" = wf."id"
-        WHERE 
+        WHERE
             wv."id" = NEW."workflowVersionId"
             AND j."kind" = 'DEFAULT'
     )
     INSERT INTO v2_step_concurrency (
-      workflow_id, 
+      workflow_id,
       workflow_version_id,
-      step_id, 
-      strategy, 
-      expression, 
-      tenant_id, 
+      step_id,
+      strategy,
+      expression,
+      tenant_id,
       max_concurrency
     )
-    SELECT 
+    SELECT
       s."workflowId",
       s."workflowVersionId",
       s."id",
@@ -396,9 +396,9 @@ BEGIN
         v2_task t ON t.id = d.task_id
     JOIN v2_concurrency_slot cs ON cs.task_id = t.id AND cs.task_inserted_at = t.inserted_at AND cs.task_retry_count = d.retry_count
   )
-  DELETE FROM 
+  DELETE FROM
     v2_concurrency_slot cs
-  WHERE 
+  WHERE
     (task_inserted_at, task_id, task_retry_count, key) IN (
         SELECT
             task_inserted_at, task_id, task_retry_count, key
@@ -438,14 +438,14 @@ BEGIN
             inserted_at,
             retry_count,
             tenant_id,
-            priority, 
+            priority,
             concurrency_strategy_ids[1] AS strategy_id,
             CASE
                 WHEN array_length(concurrency_strategy_ids, 1) > 1 THEN concurrency_strategy_ids[2:array_length(concurrency_strategy_ids, 1)]
                 ELSE '{}'::bigint[]
             END AS next_strategy_ids,
             concurrency_keys[1] AS key,
-            CASE 
+            CASE
                 WHEN array_length(concurrency_keys, 1) > 1 THEN concurrency_keys[2:array_length(concurrency_keys, 1)]
                 ELSE '{}'::text[]
             END AS next_keys,
@@ -556,7 +556,7 @@ BEGIN
                 ELSE '{}'::bigint[]
             END AS next_strategy_ids,
             nt.concurrency_keys[1] AS key,
-            CASE 
+            CASE
                 WHEN array_length(nt.concurrency_keys, 1) > 1 THEN nt.concurrency_keys[2:array_length(nt.concurrency_keys, 1)]
                 ELSE '{}'::text[]
             END AS next_keys,
@@ -661,7 +661,7 @@ BEGIN
                 ELSE '{}'::bigint[]
             END AS next_strategy_ids,
             nt.next_keys[1] AS key,
-            CASE 
+            CASE
                 WHEN array_length(nt.next_keys, 1) > 1 THEN nt.next_keys[2:array_length(nt.next_keys, 1)]
                 ELSE '{}'::text[]
             END AS next_keys,
@@ -670,7 +670,7 @@ BEGIN
         FROM new_table nt
         JOIN old_table ot USING (task_id, task_inserted_at, task_retry_count, key)
         JOIN v2_task t ON t.id = nt.task_id AND t.inserted_at = nt.task_inserted_at
-        WHERE 
+        WHERE
             COALESCE(array_length(nt.next_keys, 1), 0) != 0
             AND nt.is_filled = TRUE
             AND nt.is_filled IS DISTINCT FROM ot.is_filled
@@ -708,11 +708,11 @@ BEGIN
     WITH tasks AS (
         SELECT
             t.*
-        FROM 
+        FROM
             new_table nt
         JOIN old_table ot USING (task_id, task_inserted_at, task_retry_count, key)
         JOIN v2_task t ON t.id = nt.task_id AND t.inserted_at = nt.task_inserted_at
-        WHERE 
+        WHERE
             COALESCE(array_length(nt.next_keys, 1), 0) = 0
             AND nt.is_filled = TRUE
             AND nt.is_filled IS DISTINCT FROM ot.is_filled

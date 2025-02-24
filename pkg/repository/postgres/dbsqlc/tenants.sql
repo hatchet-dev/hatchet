@@ -484,10 +484,10 @@ WHERE
 -- name: UpsertTenantAlertingSettings :one
 INSERT INTO "TenantAlertingSettings" (
     "id",
-    "tenantId", 
-    "maxFrequency", 
-    "enableExpiringTokenAlerts", 
-    "enableWorkflowRunFailureAlerts", 
+    "tenantId",
+    "maxFrequency",
+    "enableExpiringTokenAlerts",
+    "enableWorkflowRunFailureAlerts",
     "enableTenantResourceLimitAlerts"
 ) VALUES (
     gen_random_uuid(),
@@ -617,7 +617,7 @@ WHERE
 
 -- name: UpdateTenantMember :one
 UPDATE "TenantMember"
-SET 
+SET
     "role" = COALESCE(sqlc.narg('role')::"TenantMemberRole", "role")
 WHERE "id" = @id::uuid
 RETURNING *;

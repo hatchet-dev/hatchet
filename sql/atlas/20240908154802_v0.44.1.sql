@@ -1,15 +1,15 @@
 INSERT INTO "WorkerSemaphoreCount" ("workerId", "count")
-SELECT 
+SELECT
     "workerId",
     COUNT(*) as "count"
-FROM 
+FROM
     "WorkerSemaphoreSlot"
-JOIN    
+JOIN
     "Worker" w ON "WorkerSemaphoreSlot"."workerId" = w."id"
-WHERE 
+WHERE
     "stepRunId" IS NULL
     AND w."lastHeartbeatAt" > NOW() - INTERVAL '15 seconds'
-GROUP BY 
+GROUP BY
     "workerId"
-ON CONFLICT ("workerId") 
+ON CONFLICT ("workerId")
 DO UPDATE SET "count" = EXCLUDED."count";

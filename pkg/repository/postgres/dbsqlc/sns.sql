@@ -24,7 +24,7 @@ INSERT INTO "SNSIntegration" (
     gen_random_uuid(),
     @tenantId::uuid,
     @topicArn::text
-) ON CONFLICT ("tenantId", "topicArn") DO NOTHING 
+) ON CONFLICT ("tenantId", "topicArn") DO NOTHING
 RETURNING *;
 
 -- name: ListSNSIntegrations :many

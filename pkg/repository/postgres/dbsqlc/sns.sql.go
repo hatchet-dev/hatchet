@@ -20,7 +20,7 @@ INSERT INTO "SNSIntegration" (
     gen_random_uuid(),
     $1::uuid,
     $2::text
-) ON CONFLICT ("tenantId", "topicArn") DO NOTHING 
+) ON CONFLICT ("tenantId", "topicArn") DO NOTHING
 RETURNING id, "createdAt", "updatedAt", "tenantId", "topicArn"
 `
 

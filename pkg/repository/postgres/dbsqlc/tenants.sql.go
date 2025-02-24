@@ -1467,7 +1467,7 @@ func (q *Queries) UpdateTenantAlertingSettings(ctx context.Context, db DBTX, arg
 
 const updateTenantMember = `-- name: UpdateTenantMember :one
 UPDATE "TenantMember"
-SET 
+SET
     "role" = COALESCE($1::"TenantMemberRole", "role")
 WHERE "id" = $2::uuid
 RETURNING id, "createdAt", "updatedAt", "tenantId", "userId", role
@@ -1495,10 +1495,10 @@ func (q *Queries) UpdateTenantMember(ctx context.Context, db DBTX, arg UpdateTen
 const upsertTenantAlertingSettings = `-- name: UpsertTenantAlertingSettings :one
 INSERT INTO "TenantAlertingSettings" (
     "id",
-    "tenantId", 
-    "maxFrequency", 
-    "enableExpiringTokenAlerts", 
-    "enableWorkflowRunFailureAlerts", 
+    "tenantId",
+    "maxFrequency",
+    "enableExpiringTokenAlerts",
+    "enableWorkflowRunFailureAlerts",
     "enableTenantResourceLimitAlerts"
 ) VALUES (
     gen_random_uuid(),

@@ -7,15 +7,15 @@ CREATE INDEX "TimeoutQueueItem_tenantId_isQueued_timeoutAt_idx" ON "TimeoutQueue
 
 -- Migrate all running and assigned step runs to TimeoutQueueItem
 INSERT INTO "TimeoutQueueItem" ("stepRunId", "retryCount", "timeoutAt", "tenantId", "isQueued")
-SELECT 
+SELECT
     "id" AS "stepRunId",
     "retryCount",
     "timeoutAt",
     "tenantId",
     true
-FROM 
+FROM
     "StepRun"
-WHERE 
+WHERE
     "status" IN ('RUNNING', 'ASSIGNED')
     AND "timeoutAt" IS NOT NULL
 ON CONFLICT DO NOTHING;

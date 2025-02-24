@@ -9,4 +9,3 @@ CREATE SEQUENCE workflow_version_order_seq;
 ALTER TABLE "WorkflowVersion" ALTER COLUMN "order" TYPE BIGINT;
 ALTER SEQUENCE workflow_version_order_seq OWNED BY "WorkflowVersion"."order";
 ALTER TABLE "WorkflowVersion" ALTER COLUMN "order" SET DEFAULT nextval('workflow_version_order_seq'::regclass);
-

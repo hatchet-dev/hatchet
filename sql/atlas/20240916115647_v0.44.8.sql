@@ -15,6 +15,6 @@ ALTER TABLE "StepRunResultArchive" ADD COLUMN "retryCount" integer NOT NULL DEFA
 DROP INDEX CONCURRENTLY IF EXISTS "StepRun_jobRunId_status_tenantId_idx";
 
 -- Create new partial index "StepRun_jobRunId_status_tenantId_idx" on table: "StepRun"
-CREATE INDEX CONCURRENTLY IF NOT EXISTS "StepRun_jobRunId_status_tenantId_idx" 
-ON "StepRun" ("jobRunId", "status", "tenantId") 
+CREATE INDEX CONCURRENTLY IF NOT EXISTS "StepRun_jobRunId_status_tenantId_idx"
+ON "StepRun" ("jobRunId", "status", "tenantId")
 WHERE "status" = 'PENDING';

@@ -68,7 +68,7 @@ FROM
 WHERE
     sr."id" = sr2."id";
 
--- For all step runs in a pending assignment state, insert them into the queue based on their created at time. 
+-- For all step runs in a pending assignment state, insert them into the queue based on their created at time.
 -- This query is idempotent and can run multiple times.
 WITH pending_assignments AS (
     SELECT

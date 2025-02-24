@@ -57,8 +57,8 @@ DECLARE
     wss RECORD;
 BEGIN
     -- Loop over each running or assigned step run
-    FOR sr IN 
-        SELECT "id", "workerId" 
+    FOR sr IN
+        SELECT "id", "workerId"
         FROM "StepRun"
         WHERE "status" IN ('RUNNING', 'ASSIGNED')
     LOOP
@@ -68,7 +68,7 @@ BEGIN
         FROM "WorkerSemaphoreSlot"
         WHERE "workerId" = sr."workerId" AND "stepRunId" IS NULL
         LIMIT 1;
-        
+
         -- If an available slot is found, update it with the stepRunId
         IF wss.id IS NOT NULL THEN
             UPDATE "WorkerSemaphoreSlot"
@@ -78,4 +78,3 @@ BEGIN
     END LOOP;
 END $$;
 -- +goose StatementEnd
-

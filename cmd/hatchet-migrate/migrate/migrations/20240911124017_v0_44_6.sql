@@ -8,15 +8,15 @@ CREATE INDEX "SemaphoreQueueItem_tenantId_workerId_idx" ON "SemaphoreQueueItem" 
 
 -- Migrate data from "WorkerSemaphoreSlot" to "SemaphoreQueueItem"
 INSERT INTO "SemaphoreQueueItem" ("stepRunId", "workerId", "tenantId")
-SELECT 
+SELECT
     "stepRunId",
     "workerId",
     "tenantId"
-FROM 
+FROM
     "WorkerSemaphoreSlot"
-JOIN    
+JOIN
     "Worker" w ON "WorkerSemaphoreSlot"."workerId" = w."id"
-WHERE 
+WHERE
     "stepRunId" IS NOT NULL
     AND w."lastHeartbeatAt" > NOW() - INTERVAL '60 seconds'
 ON CONFLICT DO NOTHING;

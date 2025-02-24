@@ -162,7 +162,7 @@ WHERE
         OR "status" = $2::"InviteLinkStatus"
     )
     AND (
-        CASE WHEN $3::boolean IS NULL THEN TRUE 
+        CASE WHEN $3::boolean IS NULL THEN TRUE
         -- otherwise, if expired is true, return only expired invites, and vice versa
         ELSE $3::boolean = ("expires" < now())
         END

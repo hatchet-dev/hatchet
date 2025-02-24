@@ -66,7 +66,7 @@ WHERE
         OR "status" = sqlc.narg('status')::"InviteLinkStatus"
     )
     AND (
-        CASE WHEN sqlc.narg('expired')::boolean IS NULL THEN TRUE 
+        CASE WHEN sqlc.narg('expired')::boolean IS NULL THEN TRUE
         -- otherwise, if expired is true, return only expired invites, and vice versa
         ELSE sqlc.narg('expired')::boolean = ("expires" < now())
         END
