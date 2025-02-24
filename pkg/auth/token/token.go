@@ -10,7 +10,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/pkg/encryption"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 type JWTManager interface {
@@ -29,11 +29,11 @@ type TokenOpts struct {
 type jwtManagerImpl struct {
 	encryption encryption.EncryptionService
 	opts       *TokenOpts
-	tokenRepo  repository.EngineTokenRepository
+	tokenRepo  repository.APITokenRepository
 	verifier   jwt.Verifier
 }
 
-func NewJWTManager(encryptionSvc encryption.EncryptionService, tokenRepo repository.EngineTokenRepository, opts *TokenOpts) (JWTManager, error) {
+func NewJWTManager(encryptionSvc encryption.EncryptionService, tokenRepo repository.APITokenRepository, opts *TokenOpts) (JWTManager, error) {
 	verifier, err := jwt.NewVerifier(encryptionSvc.GetPublicJWTHandle())
 
 	if err != nil {

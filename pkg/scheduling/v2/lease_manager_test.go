@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/mock"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 )
 
 type mockLeaseRepo struct {

@@ -12,8 +12,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 // seedCmd seeds the database with initial data
@@ -58,11 +57,11 @@ func runSeed(cf *loader.ConfigLoader) error {
 			return err
 		}
 
-		user, err := dc.APIRepository.User().GetUserByEmail(dc.Seed.AdminEmail)
+		user, err := dc.APIRepository.User().GetUserByEmail(context.Background(), dc.Seed.AdminEmail)
 
 		if err != nil {
-			if errors.Is(err, db.ErrNotFound) {
-				user, err = dc.APIRepository.User().CreateUser(&repository.CreateUserOpts{
+			if errors.Is(err, pgx.ErrNoRows) {
+				user, err = dc.APIRepository.User().CreateUser(context.Background(), &repository.CreateUserOpts{
 					Email:         dc.Seed.AdminEmail,
 					Name:          repository.StringPtr(dc.Seed.AdminName),
 					EmailVerified: repository.BoolPtr(true),
@@ -77,16 +76,16 @@ func runSeed(cf *loader.ConfigLoader) error {
 			}
 		}
 
-		userId = user.ID
+		userId = sqlchelpers.UUIDToStr(user.ID)
 	}
 
-	tenant, err := dc.APIRepository.Tenant().GetTenantBySlug("default")
+	tenant, err := dc.APIRepository.Tenant().GetTenantBySlug(context.Background(), "default")
 
 	if err != nil {
-		if errors.Is(err, db.ErrNotFound) {
+		if errors.Is(err, pgx.ErrNoRows) {
 			// seed an example tenant
 			// initialize a tenant
-			sqlcTenant, err := dc.APIRepository.Tenant().CreateTenant(&repository.CreateTenantOpts{
+			sqlcTenant, err := dc.APIRepository.Tenant().CreateTenant(context.Background(), &repository.CreateTenantOpts{
 				ID:   &dc.Seed.DefaultTenantID,
 				Name: dc.Seed.DefaultTenantName,
 				Slug: dc.Seed.DefaultTenantSlug,
@@ -96,7 +95,7 @@ func runSeed(cf *loader.ConfigLoader) error {
 				return err
 			}
 
-			tenant, err = dc.APIRepository.Tenant().GetTenantByID(sqlchelpers.UUIDToStr(sqlcTenant.ID))
+			tenant, err = dc.APIRepository.Tenant().GetTenantByID(context.Background(), sqlchelpers.UUIDToStr(sqlcTenant.ID))
 
 			if err != nil {
 				return err
@@ -105,7 +104,7 @@ func runSeed(cf *loader.ConfigLoader) error {
 			fmt.Println("created tenant", tenant.ID)
 
 			// add the user to the tenant
-			_, err = dc.APIRepository.Tenant().CreateTenantMember(tenant.ID, &repository.CreateTenantMemberOpts{
+			_, err = dc.APIRepository.Tenant().CreateTenantMember(context.Background(), sqlchelpers.UUIDToStr(tenant.ID), &repository.CreateTenantMemberOpts{
 				Role:   "OWNER",
 				UserId: userId,
 			})
@@ -119,7 +118,7 @@ func runSeed(cf *loader.ConfigLoader) error {
 	}
 
 	if dc.Seed.IsDevelopment {
-		err = seedDev(dc.EngineRepository, tenant.ID)
+		err = seedDev(dc.EngineRepository, sqlchelpers.UUIDToStr(tenant.ID))
 
 		if err != nil {
 			return err

@@ -39,8 +39,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
+	postgresdb "github.com/hatchet-dev/hatchet/pkg/repository/postgres"
 	v2 "github.com/hatchet-dev/hatchet/pkg/scheduling/v2"
 	"github.com/hatchet-dev/hatchet/pkg/security"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
@@ -115,14 +114,7 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 			cf.PostgresSSLMode,
 		)
 
-		// FIXME: needed for Prisma client, as db.WithDatasourceURL(databaseUrl) is not working
 		_ = os.Setenv("DATABASE_URL", databaseUrl)
-	}
-
-	client := db.NewClient()
-
-	if err := client.Prisma.Connect(); err != nil {
-		return nil, err
 	}
 
 	config, err := pgxpool.ParseConfig(databaseUrl)
@@ -183,29 +175,29 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 
 	ch := cache.New(cf.CacheDuration)
 
-	entitlementRepo := prisma.NewEntitlementRepository(pool, &scf.Runtime, prisma.WithLogger(&l), prisma.WithCache(ch))
+	entitlementRepo := postgresdb.NewEntitlementRepository(pool, &scf.Runtime, postgresdb.WithLogger(&l), postgresdb.WithCache(ch))
 
 	meter := metered.NewMetered(entitlementRepo, &l)
 
-	var opts []prisma.PrismaRepositoryOpt
+	var opts []postgresdb.PostgresRepositoryOpt
 
-	opts = append(opts, prisma.WithLogger(&l), prisma.WithCache(ch), prisma.WithMetered(meter))
+	opts = append(opts, postgresdb.WithLogger(&l), postgresdb.WithCache(ch), postgresdb.WithMetered(meter))
 
 	if c.RepositoryOverrides.LogsEngineRepository != nil {
-		opts = append(opts, prisma.WithLogsEngineRepository(c.RepositoryOverrides.LogsEngineRepository))
+		opts = append(opts, postgresdb.WithLogsEngineRepository(c.RepositoryOverrides.LogsEngineRepository))
 	}
 
-	cleanupEngine, engineRepo, err := prisma.NewEngineRepository(pool, essentialPool, &scf.Runtime, opts...)
+	cleanupEngine, engineRepo, err := postgresdb.NewEngineRepository(pool, essentialPool, &scf.Runtime, opts...)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not create engine repository: %w", err)
 	}
 
 	if c.RepositoryOverrides.LogsAPIRepository != nil {
-		opts = append(opts, prisma.WithLogsAPIRepository(c.RepositoryOverrides.LogsAPIRepository))
+		opts = append(opts, postgresdb.WithLogsAPIRepository(c.RepositoryOverrides.LogsAPIRepository))
 	}
 
-	apiRepo, cleanupApiRepo, err := prisma.NewAPIRepository(client, pool, &scf.Runtime, opts...)
+	apiRepo, cleanupApiRepo, err := postgresdb.NewAPIRepository(pool, &scf.Runtime, opts...)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not create api repository: %w", err)
@@ -219,10 +211,7 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 
 			ch.Stop()
 			meter.Stop()
-			if err = cleanupApiRepo(); err != nil {
-				return err
-			}
-			return client.Prisma.Disconnect()
+			return cleanupApiRepo()
 		},
 		Pool:                  pool,
 		EssentialPool:         essentialPool,

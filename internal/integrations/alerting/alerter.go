@@ -11,9 +11,8 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/integrations/email"
 	"github.com/hatchet-dev/hatchet/pkg/encryption"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 
 	"github.com/hatchet-dev/timediff"
 )
@@ -93,8 +92,8 @@ func (t *TenantAlertManager) sendWorkflowRunAlert(ctx context.Context, tenantAle
 	}
 
 	// read in all failed workflow runs since the last alerted time, ordered by the most recent runs first
-	statuses := []db.WorkflowRunStatus{
-		db.WorkflowRunStatusFailed,
+	statuses := []dbsqlc.WorkflowRunStatus{
+		dbsqlc.WorkflowRunStatusFAILED,
 	}
 
 	limit := 5

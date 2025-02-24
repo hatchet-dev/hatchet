@@ -18,7 +18,7 @@ if [ $? -eq 124 ]; then
 fi
 
 # Run migration script
-./atlas-apply.sh
+./hatchet-migrate
 if [ $? -ne 0 ]; then
   echo "Migration script failed. Exiting..."
   exit 1

@@ -9,12 +9,13 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (u *UserService) UserUpdatePassword(ctx echo.Context, request gen.UserUpdatePasswordRequestObject) (gen.UserUpdatePasswordResponseObject, error) {
 	// determine if the user exists before attempting to write the user
-	existingUser := ctx.Get("user").(*db.UserModel)
+	existingUser := ctx.Get("user").(*dbsqlc.User)
 
 	if !u.config.Runtime.AllowChangePassword {
 		return gen.UserUpdatePassword405JSONResponse(
@@ -36,7 +37,9 @@ func (u *UserService) UserUpdatePassword(ctx echo.Context, request gen.UserUpdat
 		return gen.UserUpdatePassword400JSONResponse(*apiErrors), nil
 	}
 
-	userPass, err := u.config.APIRepository.User().GetUserPassword(existingUser.ID)
+	userId := sqlchelpers.UUIDToStr(existingUser.ID)
+
+	userPass, err := u.config.APIRepository.User().GetUserPassword(ctx.Request().Context(), userId)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not get user password: %w", err)
@@ -54,7 +57,7 @@ func (u *UserService) UserUpdatePassword(ctx echo.Context, request gen.UserUpdat
 		return nil, fmt.Errorf("could not hash user password: %w", err)
 	}
 
-	user, err := u.config.APIRepository.User().UpdateUser(existingUser.ID, &repository.UpdateUserOpts{
+	user, err := u.config.APIRepository.User().UpdateUser(ctx.Request().Context(), userId, &repository.UpdateUserOpts{
 		Password: newPass,
 	})
 

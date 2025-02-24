@@ -36,8 +36,7 @@ linters-settings:
       - "-ST1005"
 
 issues:
-  exclude-files:
-    - "pkg/repository/prisma/db/db_gen.go"
+  exclude-files: []
   exclude:
     - "by other packages, and that stutters; consider calling this"
     - "var-naming:"

@@ -5,20 +5,20 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (t *WorkflowService) WorkflowGet(ctx echo.Context, request gen.WorkflowGetRequestObject) (gen.WorkflowGetResponseObject, error) {
-	tenant := ctx.Get("tenant").(*db.TenantModel)
+	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 	workflow := ctx.Get("workflow").(*dbsqlc.GetWorkflowByIdRow)
 
 	if workflow == nil || !workflow.WorkflowVersionId.Valid {
 		return gen.WorkflowGet404JSONResponse(gen.APIErrors{}), nil
 	}
 
-	version, _, _, _, err := t.config.APIRepository.Workflow().GetWorkflowVersionById(tenant.ID, sqlchelpers.UUIDToStr(workflow.WorkflowVersionId))
+	version, _, _, _, err := t.config.APIRepository.Workflow().GetWorkflowVersionById(tenantId, sqlchelpers.UUIDToStr(workflow.WorkflowVersionId))
 
 	if err != nil {
 		return nil, err

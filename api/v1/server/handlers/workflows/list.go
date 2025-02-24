@@ -8,11 +8,13 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (t *WorkflowService) WorkflowList(ctx echo.Context, request gen.WorkflowListRequestObject) (gen.WorkflowListResponseObject, error) {
-	tenant := ctx.Get("tenant").(*db.TenantModel)
+	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	if request.Params.Limit == nil {
 		request.Params.Limit = new(int)
@@ -40,7 +42,7 @@ func (t *WorkflowService) WorkflowList(ctx echo.Context, request gen.WorkflowLis
 		Name:   &name,
 	}
 
-	listResp, err := t.config.APIRepository.Workflow().ListWorkflows(tenant.ID, listOpts)
+	listResp, err := t.config.APIRepository.Workflow().ListWorkflows(tenantId, listOpts)
 
 	if err != nil {
 		return nil, err

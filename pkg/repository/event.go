@@ -4,8 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 )
 
 type BulkCreateEventOpts struct {
@@ -38,7 +37,7 @@ type ListEventOpts struct {
 	Workflows []string
 
 	// (optional) a list of workflow run statuses to filter by
-	WorkflowRunStatus []db.WorkflowRunStatus
+	WorkflowRunStatus []dbsqlc.WorkflowRunStatus
 
 	// (optional) number of events to skip
 	Offset *int
@@ -82,10 +81,10 @@ type EventAPIRepository interface {
 	ListEventKeys(tenantId string) ([]string, error)
 
 	// GetEventById returns an event by id.
-	GetEventById(id string) (*db.EventModel, error)
+	GetEventById(ctx context.Context, id string) (*dbsqlc.Event, error)
 
 	// ListEventsById returns a list of events by id.
-	ListEventsById(tenantId string, ids []string) ([]db.EventModel, error)
+	ListEventsById(ctx context.Context, tenantId string, ids []string) ([]*dbsqlc.Event, error)
 }
 
 type EventEngineRepository interface {

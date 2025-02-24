@@ -10,7 +10,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 // tenantManager manages the scheduler and queuers for a tenant and multiplexes
