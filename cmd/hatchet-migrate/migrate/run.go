@@ -32,7 +32,7 @@ func RunMigrations(ctx context.Context) {
 		var err error
 		db, err = goose.OpenDBWithDriver("postgres", os.Getenv("DATABASE_URL"))
 		if err != nil {
-			log.Fatalf("goose: failed to open DB: %v", err)
+			return retry.RetryableError(fmt.Errorf("failed to open DB: %w", err))
 		}
 
 		return nil
