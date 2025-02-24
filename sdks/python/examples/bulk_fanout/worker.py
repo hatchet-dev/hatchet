@@ -5,6 +5,7 @@ from pydantic import BaseModel
 
 from hatchet_sdk import BaseWorkflow, Context, Hatchet
 from hatchet_sdk.clients.admin import ChildTriggerWorkflowOptions
+from hatchet_sdk.workflow import SpawnWorkflowInput
 
 hatchet = Hatchet(debug=True)
 
@@ -38,7 +39,7 @@ class BulkParent(BaseWorkflow):
         n = bulk_parent_wf.get_workflow_input(context).n
 
         child_workflow_runs = [
-            bulk_child_wf.construct_spawn_workflow_input(
+            SpawnWorkflowInput(
                 input=ChildInput(a=str(i)),
                 key=f"child{i}",
                 options=ChildTriggerWorkflowOptions(
@@ -54,7 +55,7 @@ class BulkParent(BaseWorkflow):
         spawn_results = await bulk_child_wf.aio_spawn_many(context, child_workflow_runs)
 
         results = await asyncio.gather(
-            *[workflowRunRef.result() for workflowRunRef in spawn_results],
+            *[workflowRunRef.aio_result() for workflowRunRef in spawn_results],
             return_exceptions=True,
         )
 

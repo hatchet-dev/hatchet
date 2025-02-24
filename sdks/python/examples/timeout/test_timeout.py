@@ -9,7 +9,7 @@ from hatchet_sdk import Hatchet, Worker
 async def test_run_timeout(hatchet: Hatchet, worker: Worker) -> None:
     run = hatchet.admin.run_workflow("TimeoutWorkflow", {})
     try:
-        await run.result()
+        await run.aio_result()
         assert False, "Expected workflow to timeout"
     except Exception as e:
         assert str(e) == "Workflow Errors: ['TIMED_OUT']"
@@ -19,5 +19,5 @@ async def test_run_timeout(hatchet: Hatchet, worker: Worker) -> None:
 @pytest.mark.parametrize("worker", ["timeout"], indirect=True)
 async def test_run_refresh_timeout(hatchet: Hatchet, worker: Worker) -> None:
     run = hatchet.admin.run_workflow("RefreshTimeoutWorkflow", {})
-    result = await run.result()
+    result = await run.aio_result()
     assert result["step1"]["status"] == "success"

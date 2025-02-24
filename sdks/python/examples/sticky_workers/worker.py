@@ -30,7 +30,7 @@ class StickyWorkflow(BaseWorkflow):
             "StickyChildWorkflow", {}, options=ChildTriggerWorkflowOptions(sticky=True)
         )
 
-        await ref.result()
+        await ref.aio_result()
 
         return {"worker": context.worker.id()}
 

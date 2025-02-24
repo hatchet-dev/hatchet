@@ -129,6 +129,7 @@ from hatchet_sdk.clients.run_event_listener import (
     StepRunEventType,
     WorkflowRunEventType,
 )
+from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.context.context import Context
 from hatchet_sdk.context.worker_context import WorkerContext
 from hatchet_sdk.contracts.workflows_pb2 import (
@@ -137,7 +138,6 @@ from hatchet_sdk.contracts.workflows_pb2 import (
     WorkerLabelComparator,
 )
 from hatchet_sdk.hatchet import Hatchet
-from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.utils.aio_utils import sync_to_async
 from hatchet_sdk.worker.worker import Worker, WorkerStartOptions, WorkerStatus
 from hatchet_sdk.workflow import (

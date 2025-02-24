@@ -49,7 +49,7 @@ class Parent(BaseWorkflow):
             ]
         )
 
-        result = await asyncio.gather(*[child.result() for child in children])
+        result = await asyncio.gather(*[child.aio_result() for child in children])
         print(f"results {result}")
 
         return {"results": result}
