@@ -105,11 +105,11 @@ type TenantEngineRepository interface {
 	ListTenants(ctx context.Context) ([]*dbsqlc.Tenant, error)
 
 	// ListTenantsByPartition lists all tenants in the given partition
-	ListTenantsByControllerPartition(ctx context.Context, controllerPartitionId string) ([]*dbsqlc.Tenant, error)
+	ListTenantsByControllerPartition(ctx context.Context, controllerPartitionId string, majorVersion dbsqlc.TenantMajorEngineVersion) ([]*dbsqlc.Tenant, error)
 
-	ListTenantsByWorkerPartition(ctx context.Context, workerPartitionId string) ([]*dbsqlc.Tenant, error)
+	ListTenantsByWorkerPartition(ctx context.Context, workerPartitionId string, majorVersion dbsqlc.TenantMajorEngineVersion) ([]*dbsqlc.Tenant, error)
 
-	ListTenantsBySchedulerPartition(ctx context.Context, schedulerPartitionId string) ([]*dbsqlc.Tenant, error)
+	ListTenantsBySchedulerPartition(ctx context.Context, schedulerPartitionId string, majorVersion dbsqlc.TenantMajorEngineVersion) ([]*dbsqlc.Tenant, error)
 
 	// CreateEnginePartition creates a new partition for tenants within the engine
 	CreateControllerPartition(ctx context.Context) (string, error)

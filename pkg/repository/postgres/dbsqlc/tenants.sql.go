@@ -886,10 +886,16 @@ FROM
     "Tenant" as tenants
 WHERE
     "controllerPartitionId" = $1::text
+    AND "version" = $2::"TenantMajorEngineVersion"
 `
 
-func (q *Queries) ListTenantsByControllerPartitionId(ctx context.Context, db DBTX, controllerpartitionid string) ([]*Tenant, error) {
-	rows, err := db.Query(ctx, listTenantsByControllerPartitionId, controllerpartitionid)
+type ListTenantsByControllerPartitionIdParams struct {
+	ControllerPartitionId string                   `json:"controllerPartitionId"`
+	Majorversion          TenantMajorEngineVersion `json:"majorversion"`
+}
+
+func (q *Queries) ListTenantsByControllerPartitionId(ctx context.Context, db DBTX, arg ListTenantsByControllerPartitionIdParams) ([]*Tenant, error) {
+	rows, err := db.Query(ctx, listTenantsByControllerPartitionId, arg.ControllerPartitionId, arg.Majorversion)
 	if err != nil {
 		return nil, err
 	}
@@ -929,10 +935,16 @@ FROM
     "Tenant" as tenants
 WHERE
     "schedulerPartitionId" = $1::text
+    AND "version" = $2::"TenantMajorEngineVersion"
 `
 
-func (q *Queries) ListTenantsBySchedulerPartitionId(ctx context.Context, db DBTX, schedulerpartitionid string) ([]*Tenant, error) {
-	rows, err := db.Query(ctx, listTenantsBySchedulerPartitionId, schedulerpartitionid)
+type ListTenantsBySchedulerPartitionIdParams struct {
+	SchedulerPartitionId string                   `json:"schedulerPartitionId"`
+	Majorversion         TenantMajorEngineVersion `json:"majorversion"`
+}
+
+func (q *Queries) ListTenantsBySchedulerPartitionId(ctx context.Context, db DBTX, arg ListTenantsBySchedulerPartitionIdParams) ([]*Tenant, error) {
+	rows, err := db.Query(ctx, listTenantsBySchedulerPartitionId, arg.SchedulerPartitionId, arg.Majorversion)
 	if err != nil {
 		return nil, err
 	}
@@ -966,24 +978,22 @@ func (q *Queries) ListTenantsBySchedulerPartitionId(ctx context.Context, db DBTX
 }
 
 const listTenantsByTenantWorkerPartitionId = `-- name: ListTenantsByTenantWorkerPartitionId :many
-WITH update_partition AS (
-    UPDATE
-        "TenantWorkerPartition"
-    SET
-        "lastHeartbeat" = NOW()
-    WHERE
-        "id" = $1::text
-)
 SELECT
     id, "createdAt", "updatedAt", "deletedAt", version, name, slug, "analyticsOptOut", "alertMemberEmails", "controllerPartitionId", "workerPartitionId", "dataRetentionPeriod", "schedulerPartitionId"
 FROM
     "Tenant" as tenants
 WHERE
     "workerPartitionId" = $1::text
+    AND "version" = $2::"TenantMajorEngineVersion"
 `
 
-func (q *Queries) ListTenantsByTenantWorkerPartitionId(ctx context.Context, db DBTX, workerpartitionid string) ([]*Tenant, error) {
-	rows, err := db.Query(ctx, listTenantsByTenantWorkerPartitionId, workerpartitionid)
+type ListTenantsByTenantWorkerPartitionIdParams struct {
+	WorkerPartitionId string                   `json:"workerPartitionId"`
+	Majorversion      TenantMajorEngineVersion `json:"majorversion"`
+}
+
+func (q *Queries) ListTenantsByTenantWorkerPartitionId(ctx context.Context, db DBTX, arg ListTenantsByTenantWorkerPartitionIdParams) ([]*Tenant, error) {
+	rows, err := db.Query(ctx, listTenantsByTenantWorkerPartitionId, arg.WorkerPartitionId, arg.Majorversion)
 	if err != nil {
 		return nil, err
 	}

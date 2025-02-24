@@ -34,7 +34,7 @@ CREATE TYPE "JobRunStatus" AS ENUM (
 );
 
 -- CreateEnum
-CREATE TYPE "LeaseKind" AS ENUM ('WORKER', 'QUEUE');
+CREATE TYPE "LeaseKind" AS ENUM ('WORKER', 'QUEUE', 'CONCURRENCY_STRATEGY');
 
 -- CreateEnum
 CREATE TYPE "LimitResource" AS ENUM (

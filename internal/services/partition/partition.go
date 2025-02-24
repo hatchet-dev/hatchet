@@ -168,8 +168,16 @@ func (p *Partition) StartControllerPartition(ctx context.Context) (func() error,
 	return cleanup, nil
 }
 
-func (p *Partition) ListTenantsForController(ctx context.Context) ([]*dbsqlc.Tenant, error) {
-	return p.repo.ListTenantsByControllerPartition(ctx, p.GetControllerPartitionId())
+func (p *Partition) ListTenantsForController(ctx context.Context, majorVersion dbsqlc.TenantMajorEngineVersion) ([]*dbsqlc.Tenant, error) {
+	return p.repo.ListTenantsByControllerPartition(ctx, p.GetControllerPartitionId(), majorVersion)
+}
+
+func (p *Partition) ListTenantsForScheduler(ctx context.Context, majorVersion dbsqlc.TenantMajorEngineVersion) ([]*dbsqlc.Tenant, error) {
+	return p.repo.ListTenantsBySchedulerPartition(ctx, p.GetSchedulerPartitionId(), majorVersion)
+}
+
+func (p *Partition) ListTenantsForWorkerPartition(ctx context.Context, majorVersion dbsqlc.TenantMajorEngineVersion) ([]*dbsqlc.Tenant, error) {
+	return p.repo.ListTenantsByWorkerPartition(ctx, p.GetWorkerPartitionId(), majorVersion)
 }
 
 func (p *Partition) runControllerPartitionHeartbeat(ctx context.Context) func() {

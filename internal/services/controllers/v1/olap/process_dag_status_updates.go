@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
@@ -12,7 +13,7 @@ func (o *OLAPControllerImpl) runTenantDAGStatusUpdates(ctx context.Context) func
 		o.l.Debug().Msgf("partition: running status updates for dags")
 
 		// list all tenants
-		tenants, err := o.p.ListTenantsForController(ctx)
+		tenants, err := o.p.ListTenantsForController(ctx, dbsqlc.TenantMajorEngineVersionV1)
 
 		if err != nil {
 			o.l.Error().Err(err).Msg("could not list tenants")

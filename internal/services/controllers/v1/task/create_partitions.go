@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 )
 
 func (tc *TasksControllerImpl) runTaskTablePartition(ctx context.Context) func() {
@@ -12,7 +13,7 @@ func (tc *TasksControllerImpl) runTaskTablePartition(ctx context.Context) func()
 		tc.l.Debug().Msgf("partition: running task table partition")
 
 		// list all tenants
-		tenants, err := tc.p.ListTenantsForController(ctx)
+		tenants, err := tc.p.ListTenantsForController(ctx, dbsqlc.TenantMajorEngineVersionV1)
 
 		if err != nil {
 			tc.l.Error().Err(err).Msg("could not list tenants")
