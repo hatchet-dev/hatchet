@@ -1,0 +1,78 @@
+name: python
+on: [pull_request]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: 1.5.1
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+
+      - name: Install linting tools
+        run: poetry install --all-extras
+
+      - name: Run Black
+        run: poetry run black . --check --verbose --diff --color
+
+      - name: Run Isort
+        run: poetry run isort . --check-only --diff
+
+      - name: Run MyPy
+        run: poetry run mypy --config-file=pyproject.toml
+
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Hatchet Engine
+        run: docker compose up -d
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Display Python version
+        run: python -c "import sys; print(sys.version)"
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: 1.5.1
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+      - name: Install dependencies
+        run: poetry install --no-interaction --all-extras
+
+      - name: Generate Env File
+        run: |
+          cat <<EOF > .env
+            HATCHET_CLIENT_TOKEN="$(docker compose run --no-deps setup-config /hatchet/hatchet-admin token create --config /hatchet/config --tenant-id 707d0855-80ab-4e1f-a156-f1c4546cbf52 | xargs)"
+            HATCHET_CLIENT_TLS_STRATEGY=none
+          EOF
+
+      - name: Set HATCHET_CLIENT_NAMESPACE
+        run: |
+          PYTHON_VERSION=$(python -c "import sys; print(f'py{sys.version_info.major}{sys.version_info.minor}')")
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          echo "HATCHET_CLIENT_NAMESPACE=${PYTHON_VERSION}-${SHORT_SHA}" >> $GITHUB_ENV
+      - name: Run pytest
+        run: |
+          echo "Using HATCHET_CLIENT_NAMESPACE: $HATCHET_CLIENT_NAMESPACE"
+          poetry run pytest -s -vvv --maxfail=5 --timeout=120 --capture=no
