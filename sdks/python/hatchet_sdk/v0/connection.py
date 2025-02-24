@@ -8,12 +8,11 @@ if TYPE_CHECKING:
 
 
 def new_conn(config: "ClientConfig", aio=False):
-
     credentials: grpc.ChannelCredentials | None = None
 
     # load channel credentials
     if config.tls_config.tls_strategy == "tls":
-        root: Any | None = None
+        root: bytes | None = None
 
         if config.tls_config.ca_file:
             root = open(config.tls_config.ca_file, "rb").read()
