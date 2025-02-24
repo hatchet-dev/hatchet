@@ -87,6 +87,12 @@ listWorkflowRuns:
             schema:
               $ref: "../../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
+      "501":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Not implemented
     summary: List workflow runs
     tags:
       - Workflow Runs
@@ -140,6 +146,12 @@ listTaskEventsForWorkflowRun:
             schema:
               $ref: "../../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
+      "501":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Not implemented
     summary: List tasks
     tags:
       - Workflow Runs
@@ -178,6 +190,12 @@ getWorkflowRunDetails:
             schema:
               $ref: "../../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
+      "501":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Not implemented
     summary: List tasks
     tags:
       - Workflow Runs

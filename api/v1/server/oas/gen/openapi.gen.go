@@ -8880,6 +8880,15 @@ func (response V2DagListTasks403JSONResponse) VisitV2DagListTasksResponse(w http
 	return json.NewEncoder(w).Encode(response)
 }
 
+type V2DagListTasks501JSONResponse APIErrors
+
+func (response V2DagListTasks501JSONResponse) VisitV2DagListTasksResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(501)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type V2TaskGetRequestObject struct {
 	Task openapi_types.UUID `json:"task"`
 }
@@ -8920,6 +8929,15 @@ type V2TaskGet404JSONResponse APIErrors
 func (response V2TaskGet404JSONResponse) VisitV2TaskGetResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type V2TaskGet501JSONResponse APIErrors
+
+func (response V2TaskGet501JSONResponse) VisitV2TaskGetResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(501)
 
 	return json.NewEncoder(w).Encode(response)
 }
@@ -8969,6 +8987,15 @@ func (response V2TaskEventList404JSONResponse) VisitV2TaskEventListResponse(w ht
 	return json.NewEncoder(w).Encode(response)
 }
 
+type V2TaskEventList501JSONResponse APIErrors
+
+func (response V2TaskEventList501JSONResponse) VisitV2TaskEventListResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(501)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type V2TaskListStatusMetricsRequestObject struct {
 	Tenant openapi_types.UUID `json:"tenant"`
 	Params V2TaskListStatusMetricsParams
@@ -9001,6 +9028,15 @@ type V2TaskListStatusMetrics403JSONResponse APIErrors
 func (response V2TaskListStatusMetrics403JSONResponse) VisitV2TaskListStatusMetricsResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type V2TaskListStatusMetrics501JSONResponse APIErrors
+
+func (response V2TaskListStatusMetrics501JSONResponse) VisitV2TaskListStatusMetricsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(501)
 
 	return json.NewEncoder(w).Encode(response)
 }
@@ -9041,6 +9077,15 @@ func (response V2TaskGetPointMetrics403JSONResponse) VisitV2TaskGetPointMetricsR
 	return json.NewEncoder(w).Encode(response)
 }
 
+type V2TaskGetPointMetrics501JSONResponse APIErrors
+
+func (response V2TaskGetPointMetrics501JSONResponse) VisitV2TaskGetPointMetricsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(501)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type V2TaskListRequestObject struct {
 	Tenant openapi_types.UUID `json:"tenant"`
 	Params V2TaskListParams
@@ -9073,6 +9118,15 @@ type V2TaskList403JSONResponse APIErrors
 func (response V2TaskList403JSONResponse) VisitV2TaskListResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type V2TaskList501JSONResponse APIErrors
+
+func (response V2TaskList501JSONResponse) VisitV2TaskListResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(501)
 
 	return json.NewEncoder(w).Encode(response)
 }
@@ -9113,6 +9167,15 @@ func (response V2WorkflowRunList403JSONResponse) VisitV2WorkflowRunListResponse(
 	return json.NewEncoder(w).Encode(response)
 }
 
+type V2WorkflowRunList501JSONResponse APIErrors
+
+func (response V2WorkflowRunList501JSONResponse) VisitV2WorkflowRunListResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(501)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type V2WorkflowRunGetRequestObject struct {
 	V2WorkflowRun openapi_types.UUID `json:"v2-workflow-run"`
 }
@@ -9144,6 +9207,15 @@ type V2WorkflowRunGet403JSONResponse APIErrors
 func (response V2WorkflowRunGet403JSONResponse) VisitV2WorkflowRunGetResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type V2WorkflowRunGet501JSONResponse APIErrors
+
+func (response V2WorkflowRunGet501JSONResponse) VisitV2WorkflowRunGetResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(501)
 
 	return json.NewEncoder(w).Encode(response)
 }
@@ -9180,6 +9252,15 @@ type V2WorkflowRunTaskEventsList403JSONResponse APIErrors
 func (response V2WorkflowRunTaskEventsList403JSONResponse) VisitV2WorkflowRunTaskEventsListResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type V2WorkflowRunTaskEventsList501JSONResponse APIErrors
+
+func (response V2WorkflowRunTaskEventsList501JSONResponse) VisitV2WorkflowRunTaskEventsListResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(501)
 
 	return json.NewEncoder(w).Encode(response)
 }
@@ -12347,17 +12428,18 @@ var swaggerSpec = []string{
 	"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",
-	"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",
+	"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",
+	"vwEAAP//Z+ulRW9QAgA=",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

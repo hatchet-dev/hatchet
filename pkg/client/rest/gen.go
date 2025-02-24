@@ -12287,6 +12287,7 @@ type V2DagListTasksResponse struct {
 	JSON200      *[]V2DagChildren
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON501      *APIErrors
 }
 
 // Status returns HTTPResponse.Status
@@ -12312,6 +12313,7 @@ type V2TaskGetResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON501      *APIErrors
 }
 
 // Status returns HTTPResponse.Status
@@ -12337,6 +12339,7 @@ type V2TaskEventListResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON501      *APIErrors
 }
 
 // Status returns HTTPResponse.Status
@@ -12361,6 +12364,7 @@ type V2TaskListStatusMetricsResponse struct {
 	JSON200      *V2TaskRunMetrics
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON501      *APIErrors
 }
 
 // Status returns HTTPResponse.Status
@@ -12385,6 +12389,7 @@ type V2TaskGetPointMetricsResponse struct {
 	JSON200      *V2TaskPointMetrics
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON501      *APIErrors
 }
 
 // Status returns HTTPResponse.Status
@@ -12409,6 +12414,7 @@ type V2TaskListResponse struct {
 	JSON200      *V2TaskSummaryList
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON501      *APIErrors
 }
 
 // Status returns HTTPResponse.Status
@@ -12433,6 +12439,7 @@ type V2WorkflowRunListResponse struct {
 	JSON200      *V2WorkflowRunList
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON501      *APIErrors
 }
 
 // Status returns HTTPResponse.Status
@@ -12457,6 +12464,7 @@ type V2WorkflowRunGetResponse struct {
 	JSON200      *V2WorkflowRunDetails
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON501      *APIErrors
 }
 
 // Status returns HTTPResponse.Status
@@ -12481,6 +12489,7 @@ type V2WorkflowRunTaskEventsListResponse struct {
 	JSON200      *V2TaskEventList
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON501      *APIErrors
 }
 
 // Status returns HTTPResponse.Status
@@ -17390,6 +17399,13 @@ func ParseV2DagListTasksResponse(rsp *http.Response) (*V2DagListTasksResponse, e
 		}
 		response.JSON403 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
+
 	}
 
 	return response, nil
@@ -17436,6 +17452,13 @@ func ParseV2TaskGetResponse(rsp *http.Response) (*V2TaskGetResponse, error) {
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
 
 	}
 
@@ -17484,6 +17507,13 @@ func ParseV2TaskEventListResponse(rsp *http.Response) (*V2TaskEventListResponse,
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
+
 	}
 
 	return response, nil
@@ -17523,6 +17553,13 @@ func ParseV2TaskListStatusMetricsResponse(rsp *http.Response) (*V2TaskListStatus
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
 
 	}
 
@@ -17564,6 +17601,13 @@ func ParseV2TaskGetPointMetricsResponse(rsp *http.Response) (*V2TaskGetPointMetr
 		}
 		response.JSON403 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
+
 	}
 
 	return response, nil
@@ -17603,6 +17647,13 @@ func ParseV2TaskListResponse(rsp *http.Response) (*V2TaskListResponse, error) {
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
 
 	}
 
@@ -17644,6 +17695,13 @@ func ParseV2WorkflowRunListResponse(rsp *http.Response) (*V2WorkflowRunListRespo
 		}
 		response.JSON403 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
+
 	}
 
 	return response, nil
@@ -17684,6 +17742,13 @@ func ParseV2WorkflowRunGetResponse(rsp *http.Response) (*V2WorkflowRunGetRespons
 		}
 		response.JSON403 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
+
 	}
 
 	return response, nil
@@ -17723,6 +17788,13 @@ func ParseV2WorkflowRunTaskEventsListResponse(rsp *http.Response) (*V2WorkflowRu
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
 
 	}
 

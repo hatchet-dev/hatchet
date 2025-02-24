@@ -96,6 +96,12 @@ listTasks:
             schema:
               $ref: "../../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
+      "501":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Not implemented
     summary: List tasks
     tags:
       - Task
@@ -147,6 +153,12 @@ listTasksByDAGIds:
             schema:
               $ref: "../../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
+      "501":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Not implemented
     summary: List tasks
     tags:
       - Task
@@ -191,6 +203,12 @@ getTask:
             schema:
               $ref: "../../../components/schemas/_index.yaml#/APIErrors"
         description: The task was not found
+      "501":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Not implemented
     summary: Get a task
     tags:
       - Task
@@ -249,6 +267,12 @@ listTaskEvents:
             schema:
               $ref: "../../../components/schemas/_index.yaml#/APIErrors"
         description: The task was not found
+      "501":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Not implemented
     summary: List events for a task
     tags:
       - Task
@@ -305,6 +329,12 @@ getTaskStatusMetrics:
             schema:
               $ref: "../../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
+      "501":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Not implemented
     summary: Get task metrics
     tags:
       - Task
@@ -359,6 +389,12 @@ getTaskPointMetrics:
             schema:
               $ref: "../../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
+      "501":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Not implemented
     summary: Get task point metrics
     tags:
       - Task
