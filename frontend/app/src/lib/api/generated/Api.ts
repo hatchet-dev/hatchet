@@ -83,15 +83,15 @@ import {
   UserLoginRequest,
   UserRegisterRequest,
   UserTenantMembershipsList,
-  V2DagChildren,
-  V2Task,
-  V2TaskEventList,
-  V2TaskPointMetrics,
-  V2TaskRunMetrics,
-  V2TaskStatus,
-  V2TaskSummaryList,
-  V2WorkflowRunDetails,
-  V2WorkflowRunList,
+  V1DagChildren,
+  V1Task,
+  V1TaskEventList,
+  V1TaskPointMetrics,
+  V1TaskRunMetrics,
+  V1TaskStatus,
+  V1TaskSummaryList,
+  V1WorkflowRunDetails,
+  V1WorkflowRunList,
   WebhookWorkerCreateRequest,
   WebhookWorkerCreated,
   WebhookWorkerListResponse,
@@ -123,12 +123,12 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @description Lists all tasks for a tenant.
    *
    * @tags Task
-   * @name V2TaskList
+   * @name V1TaskList
    * @summary List tasks
-   * @request GET:/api/v2/tenants/{tenant}/tasks
+   * @request GET:/api/v1/stable/tenants/{tenant}/tasks
    * @secure
    */
-  v2TaskList = (
+  v1TaskList = (
     tenant: string,
     query: {
       /**
@@ -142,7 +142,7 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
        */
       limit?: number;
       /** A list of task statuses to filter by */
-      statuses?: V2TaskStatus[];
+      statuses?: V1TaskStatus[];
       /**
        * The earliest date to filter by
        * @format date-time
@@ -167,8 +167,8 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
     },
     params: RequestParams = {},
   ) =>
-    this.request<V2TaskSummaryList, APIErrors>({
-      path: `/api/v2/tenants/${tenant}/tasks`,
+    this.request<V1TaskSummaryList, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/tasks`,
       method: 'GET',
       query: query,
       secure: true,
@@ -179,14 +179,14 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @description Get a task by id
    *
    * @tags Task
-   * @name V2TaskGet
+   * @name V1TaskGet
    * @summary Get a task
-   * @request GET:/api/v2/tasks/{task}
+   * @request GET:/api/v1/stable/tasks/{task}
    * @secure
    */
-  v2TaskGet = (task: string, params: RequestParams = {}) =>
-    this.request<V2Task, APIErrors>({
-      path: `/api/v2/tasks/${task}`,
+  v1TaskGet = (task: string, params: RequestParams = {}) =>
+    this.request<V1Task, APIErrors>({
+      path: `/api/v1/stable/tasks/${task}`,
       method: 'GET',
       secure: true,
       format: 'json',
@@ -196,12 +196,12 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @description List events for a task
    *
    * @tags Task
-   * @name V2TaskEventList
+   * @name V1TaskEventList
    * @summary List events for a task
-   * @request GET:/api/v2/tasks/{task}/task-events
+   * @request GET:/api/v1/stable/tasks/{task}/task-events
    * @secure
    */
-  v2TaskEventList = (
+  v1TaskEventList = (
     task: string,
     query?: {
       /**
@@ -217,8 +217,8 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
     },
     params: RequestParams = {},
   ) =>
-    this.request<V2TaskEventList, APIErrors>({
-      path: `/api/v2/tasks/${task}/task-events`,
+    this.request<V1TaskEventList, APIErrors>({
+      path: `/api/v1/stable/tasks/${task}/task-events`,
       method: 'GET',
       query: query,
       secure: true,
@@ -229,12 +229,12 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @description Lists all tasks that belong a specific list of dags
    *
    * @tags Task
-   * @name V2DagListTasks
+   * @name V1DagListTasks
    * @summary List tasks
-   * @request GET:/api/v2/dags/tasks
+   * @request GET:/api/v1/stable/dags/tasks
    * @secure
    */
-  v2DagListTasks = (
+  v1DagListTasks = (
     query: {
       /** The external id of the DAG */
       dag_ids: string[];
@@ -248,8 +248,8 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
     },
     params: RequestParams = {},
   ) =>
-    this.request<V2DagChildren[], APIErrors>({
-      path: `/api/v2/dags/tasks`,
+    this.request<V1DagChildren[], APIErrors>({
+      path: `/api/v1/stable/dags/tasks`,
       method: 'GET',
       query: query,
       secure: true,
@@ -260,12 +260,12 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @description Lists workflow runs for a tenant.
    *
    * @tags Workflow Runs
-   * @name V2WorkflowRunList
+   * @name V1WorkflowRunList
    * @summary List workflow runs
-   * @request GET:/api/v2/tenants/{tenant}/workflow-runs
+   * @request GET:/api/v1/stable/tenants/{tenant}/workflow-runs
    * @secure
    */
-  v2WorkflowRunList = (
+  v1WorkflowRunList = (
     tenant: string,
     query: {
       /**
@@ -279,7 +279,7 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
        */
       limit?: number;
       /** A list of statuses to filter by */
-      statuses?: V2TaskStatus[];
+      statuses?: V1TaskStatus[];
       /**
        * The earliest date to filter by
        * @format date-time
@@ -297,8 +297,8 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
     },
     params: RequestParams = {},
   ) =>
-    this.request<V2WorkflowRunList, APIErrors>({
-      path: `/api/v2/tenants/${tenant}/workflow-runs`,
+    this.request<V1WorkflowRunList, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/workflow-runs`,
       method: 'GET',
       query: query,
       secure: true,
@@ -309,14 +309,14 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @description Get a workflow run and its metadata to display on the "detail" page
    *
    * @tags Workflow Runs
-   * @name V2WorkflowRunGet
+   * @name V1WorkflowRunGet
    * @summary List tasks
-   * @request GET:/api/v2/workflow-runs/{v2-workflow-run}
+   * @request GET:/api/v1/stable/workflow-runs/{v1-workflow-run}
    * @secure
    */
-  v2WorkflowRunGet = (v2WorkflowRun: string, params: RequestParams = {}) =>
-    this.request<V2WorkflowRunDetails, APIErrors>({
-      path: `/api/v2/workflow-runs/${v2WorkflowRun}`,
+  v1WorkflowRunGet = (v1WorkflowRun: string, params: RequestParams = {}) =>
+    this.request<V1WorkflowRunDetails, APIErrors>({
+      path: `/api/v1/stable/workflow-runs/${v1WorkflowRun}`,
       method: 'GET',
       secure: true,
       format: 'json',
@@ -326,13 +326,13 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @description List all tasks for a workflow run
    *
    * @tags Workflow Runs
-   * @name V2WorkflowRunTaskEventsList
+   * @name V1WorkflowRunTaskEventsList
    * @summary List tasks
-   * @request GET:/api/v2/workflow-runs/{v2-workflow-run}/task-events
+   * @request GET:/api/v1/stable/workflow-runs/{v1-workflow-run}/task-events
    * @secure
    */
-  v2WorkflowRunTaskEventsList = (
-    v2WorkflowRun: string,
+  v1WorkflowRunTaskEventsList = (
+    v1WorkflowRun: string,
     query?: {
       /**
        * The number to skip
@@ -347,8 +347,8 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
     },
     params: RequestParams = {},
   ) =>
-    this.request<V2TaskEventList, APIErrors>({
-      path: `/api/v2/workflow-runs/${v2WorkflowRun}/task-events`,
+    this.request<V1TaskEventList, APIErrors>({
+      path: `/api/v1/stable/workflow-runs/${v1WorkflowRun}/task-events`,
       method: 'GET',
       query: query,
       secure: true,
@@ -359,12 +359,12 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @description Get a summary of task run metrics for a tenant
    *
    * @tags Task
-   * @name V2TaskListStatusMetrics
+   * @name V1TaskListStatusMetrics
    * @summary Get task metrics
-   * @request GET:/api/v2/tenants/{tenant}/task-metrics
+   * @request GET:/api/v1/stable/tenants/{tenant}/task-metrics
    * @secure
    */
-  v2TaskListStatusMetrics = (
+  v1TaskListStatusMetrics = (
     tenant: string,
     query: {
       /**
@@ -377,8 +377,8 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
     },
     params: RequestParams = {},
   ) =>
-    this.request<V2TaskRunMetrics, APIErrors>({
-      path: `/api/v2/tenants/${tenant}/task-metrics`,
+    this.request<V1TaskRunMetrics, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/task-metrics`,
       method: 'GET',
       query: query,
       secure: true,
@@ -389,12 +389,12 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @description Get a minute by minute breakdown of task metrics for a tenant
    *
    * @tags Task
-   * @name V2TaskGetPointMetrics
+   * @name V1TaskGetPointMetrics
    * @summary Get task point metrics
-   * @request GET:/api/v2/tenants/{tenant}/task-point-metrics
+   * @request GET:/api/v1/stable/tenants/{tenant}/task-point-metrics
    * @secure
    */
-  v2TaskGetPointMetrics = (
+  v1TaskGetPointMetrics = (
     tenant: string,
     query?: {
       /**
@@ -412,8 +412,8 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
     },
     params: RequestParams = {},
   ) =>
-    this.request<V2TaskPointMetrics, APIErrors>({
-      path: `/api/v2/tenants/${tenant}/task-point-metrics`,
+    this.request<V1TaskPointMetrics, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/task-point-metrics`,
       method: 'GET',
       query: query,
       secure: true,

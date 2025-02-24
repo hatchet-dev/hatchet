@@ -1,4 +1,4 @@
-V2TaskSummary:
+V1TaskSummary:
   properties:
     metadata:
       $ref: ".././metadata.yaml#/APIResourceMeta"
@@ -16,7 +16,7 @@ V2TaskSummary:
       format: date-time
       description: The timestamp the task was inserted.
     status:
-      $ref: "#/V2TaskStatus"
+      $ref: "#/V1TaskStatus"
     startedAt:
       type: string
       format: date-time
@@ -62,7 +62,7 @@ V2TaskSummary:
     - output
     - taskExternalId
 
-V2DagChildren:
+V1DagChildren:
   type: object
   properties:
     dagId:
@@ -71,9 +71,9 @@ V2DagChildren:
     children:
       type: array
       items:
-        $ref: "#/V2TaskSummary"
+        $ref: "#/V1TaskSummary"
 
-V2TaskSummaryList:
+V1TaskSummaryList:
   type: object
   properties:
     pagination:
@@ -81,13 +81,13 @@ V2TaskSummaryList:
     rows:
       type: array
       items:
-        $ref: "#/V2TaskSummary"
+        $ref: "#/V1TaskSummary"
       description: The list of tasks
   required:
     - pagination
     - rows
 
-V2Task:
+V1Task:
   properties:
     metadata:
       $ref: ".././metadata.yaml#/APIResourceMeta"
@@ -99,7 +99,7 @@ V2Task:
       format: date-time
       description: The timestamp the task was inserted.
     status:
-      $ref: "#/V2TaskStatus"
+      $ref: "#/V1TaskStatus"
     startedAt:
       type: string
       format: date-time
@@ -153,16 +153,16 @@ V2Task:
     - workflowId
     - input
 
-V2TaskEventList:
+V1TaskEventList:
   properties:
     pagination:
       $ref: ".././metadata.yaml#/PaginationResponse"
     rows:
       items:
-        $ref: "#/V2TaskEvent"
+        $ref: "#/V1TaskEvent"
       type: array
 
-V2TaskEvent:
+V1TaskEvent:
   type: object
   properties:
     id:
@@ -174,7 +174,7 @@ V2TaskEvent:
       type: string
       format: date-time
     eventType:
-      $ref: "#/V2TaskEventType"
+      $ref: "#/V1TaskEventType"
     message:
       type: string
     errorMessage:
@@ -193,7 +193,7 @@ V2TaskEvent:
     - eventType
     - message
 
-V2TaskStatus:
+V1TaskStatus:
   type: string
   enum:
     - QUEUED
@@ -202,7 +202,7 @@ V2TaskStatus:
     - CANCELLED
     - FAILED
 
-V2TaskEventType:
+V1TaskEventType:
   type: string
   enum:
     - REQUEUED_NO_WORKER
@@ -226,23 +226,23 @@ V2TaskEventType:
     - QUEUED
     - SKIPPED
 
-V2TaskRunMetrics:
+V1TaskRunMetrics:
   type: array
   items:
-    $ref: "#/V2TaskRunMetric"
+    $ref: "#/V1TaskRunMetric"
 
-V2TaskRunMetric:
+V1TaskRunMetric:
   type: object
   properties:
     status:
-      $ref: "#/V2TaskStatus"
+      $ref: "#/V1TaskStatus"
     count:
       type: integer
   required:
     - status
     - count
 
-V2TaskPointMetric:
+V1TaskPointMetric:
   type: object
   properties:
     time:
@@ -257,10 +257,10 @@ V2TaskPointMetric:
     - SUCCEEDED
     - FAILED
 
-V2TaskPointMetrics:
+V1TaskPointMetrics:
   type: object
   properties:
     results:
       type: array
       items:
-        $ref: "#/V2TaskPointMetric"
+        $ref: "#/V1TaskPointMetric"

@@ -1,9 +1,9 @@
-V2WorkflowRun:
+V1WorkflowRun:
   properties:
     metadata:
       $ref: ".././metadata.yaml#/APIResourceMeta"
     status:
-      $ref: "./task.yaml#/V2TaskStatus"
+      $ref: "./task.yaml#/V1TaskStatus"
     startedAt:
       type: string
       format: date-time
@@ -58,7 +58,7 @@ V2WorkflowRun:
     - output
     - input
 
-V2WorkflowRunList:
+V1WorkflowRunList:
   type: object
   properties:
     pagination:
@@ -66,7 +66,7 @@ V2WorkflowRunList:
     rows:
       type: array
       items:
-        $ref: "#/V2WorkflowRun"
+        $ref: "#/V1WorkflowRun"
       description: The list of workflow runs
   required:
     - pagination
@@ -99,21 +99,21 @@ WorkflowRunShapeForWorkflowRunDetails:
   items:
     $ref: "#/WorkflowRunShapeItemForWorkflowRunDetails"
 
-V2WorkflowRunDetails:
+V1WorkflowRunDetails:
   properties:
     run:
-      $ref: "#/V2WorkflowRun"
+      $ref: "#/V1WorkflowRun"
     taskEvents:
       type: array
       items:
-        $ref: "./task.yaml#/V2TaskEvent"
+        $ref: "./task.yaml#/V1TaskEvent"
       description: The list of task events for the workflow run
     shape:
       $ref: "#/WorkflowRunShapeForWorkflowRunDetails"
     tasks:
       type: array
       items:
-        $ref: "./task.yaml#/V2TaskSummary"
+        $ref: "./task.yaml#/V1TaskSummary"
   required:
     - run
     - taskEvents

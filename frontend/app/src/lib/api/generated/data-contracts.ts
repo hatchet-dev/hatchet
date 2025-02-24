@@ -9,7 +9,7 @@
  * ---------------------------------------------------------------
  */
 
-export enum V2TaskStatus {
+export enum V1TaskStatus {
   QUEUED = 'QUEUED',
   RUNNING = 'RUNNING',
   COMPLETED = 'COMPLETED',
@@ -61,7 +61,7 @@ export interface APIResourceMeta {
   updatedAt: string;
 }
 
-export interface V2TaskSummary {
+export interface V1TaskSummary {
   metadata: APIResourceMeta;
   /** The ID of the task. */
   taskId: number;
@@ -77,7 +77,7 @@ export interface V2TaskSummary {
    * @format date-time
    */
   taskInsertedAt: string;
-  status: V2TaskStatus;
+  status: V1TaskStatus;
   /**
    * The timestamp the task run started.
    * @format date-time
@@ -110,10 +110,10 @@ export interface V2TaskSummary {
   errorMessage?: string;
 }
 
-export interface V2TaskSummaryList {
+export interface V1TaskSummaryList {
   pagination: PaginationResponse;
   /** The list of tasks */
-  rows: V2TaskSummary[];
+  rows: V1TaskSummary[];
 }
 
 export interface APIError {
@@ -144,7 +144,7 @@ export interface APIErrors {
   errors: APIError[];
 }
 
-export interface V2Task {
+export interface V1Task {
   metadata: APIResourceMeta;
   /** The ID of the task. */
   taskId: number;
@@ -153,7 +153,7 @@ export interface V2Task {
    * @format date-time
    */
   taskInsertedAt: string;
-  status: V2TaskStatus;
+  status: V1TaskStatus;
   /**
    * The timestamp the task run started.
    * @format date-time
@@ -195,7 +195,7 @@ export interface V2Task {
   workflowRunExternalId?: string;
 }
 
-export enum V2TaskEventType {
+export enum V1TaskEventType {
   REQUEUED_NO_WORKER = 'REQUEUED_NO_WORKER',
   REQUEUED_RATE_LIMIT = 'REQUEUED_RATE_LIMIT',
   SCHEDULING_TIMED_OUT = 'SCHEDULING_TIMED_OUT',
@@ -218,13 +218,13 @@ export enum V2TaskEventType {
   SKIPPED = 'SKIPPED',
 }
 
-export interface V2TaskEvent {
+export interface V1TaskEvent {
   id: number;
   /** @format uuid */
   taskId: string;
   /** @format date-time */
   timestamp: string;
-  eventType: V2TaskEventType;
+  eventType: V1TaskEventType;
   message: string;
   errorMessage?: string;
   output?: string;
@@ -233,20 +233,20 @@ export interface V2TaskEvent {
   taskDisplayName?: string;
 }
 
-export interface V2TaskEventList {
+export interface V1TaskEventList {
   pagination?: PaginationResponse;
-  rows?: V2TaskEvent[];
+  rows?: V1TaskEvent[];
 }
 
-export interface V2DagChildren {
+export interface V1DagChildren {
   /** @format uuid */
   dagId?: string;
-  children?: V2TaskSummary[];
+  children?: V1TaskSummary[];
 }
 
-export interface V2WorkflowRun {
+export interface V1WorkflowRun {
   metadata: APIResourceMeta;
-  status: V2TaskStatus;
+  status: V1TaskStatus;
   /**
    * The timestamp the task run started.
    * @format date-time
@@ -291,10 +291,10 @@ export interface V2WorkflowRun {
   createdAt?: string;
 }
 
-export interface V2WorkflowRunList {
+export interface V1WorkflowRunList {
   pagination: PaginationResponse;
   /** The list of workflow runs */
-  rows: V2WorkflowRun[];
+  rows: V1WorkflowRun[];
 }
 
 export interface WorkflowRunShapeItemForWorkflowRunDetails {
@@ -310,30 +310,30 @@ export interface WorkflowRunShapeItemForWorkflowRunDetails {
 
 export type WorkflowRunShapeForWorkflowRunDetails = WorkflowRunShapeItemForWorkflowRunDetails[];
 
-export interface V2WorkflowRunDetails {
-  run: V2WorkflowRun;
+export interface V1WorkflowRunDetails {
+  run: V1WorkflowRun;
   /** The list of task events for the workflow run */
-  taskEvents: V2TaskEvent[];
+  taskEvents: V1TaskEvent[];
   shape: WorkflowRunShapeForWorkflowRunDetails;
-  tasks: V2TaskSummary[];
+  tasks: V1TaskSummary[];
 }
 
-export interface V2TaskRunMetric {
-  status: V2TaskStatus;
+export interface V1TaskRunMetric {
+  status: V1TaskStatus;
   count: number;
 }
 
-export type V2TaskRunMetrics = V2TaskRunMetric[];
+export type V1TaskRunMetrics = V1TaskRunMetric[];
 
-export interface V2TaskPointMetric {
+export interface V1TaskPointMetric {
   /** @format date-time */
   time: string;
   SUCCEEDED: number;
   FAILED: number;
 }
 
-export interface V2TaskPointMetrics {
-  results?: V2TaskPointMetric[];
+export interface V1TaskPointMetrics {
+  results?: V1TaskPointMetric[];
 }
 
 export interface APIMetaAuth {
@@ -1648,7 +1648,7 @@ export interface WorkflowVersionDefinition {
   rawDefinition: string;
 }
 
-export enum V2TaskRunStatus {
+export enum V1TaskRunStatus {
   PENDING = 'PENDING',
   RUNNING = 'RUNNING',
   COMPLETED = 'COMPLETED',

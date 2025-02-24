@@ -2,7 +2,7 @@ listTasks:
   get:
     x-resources: ["tenant"]
     description: Lists all tasks for a tenant.
-    operationId: v2-task:list
+    operationId: v1-task:list
     parameters:
       - description: The tenant id
         in: path
@@ -34,7 +34,7 @@ listTasks:
         schema:
           type: array
           items:
-            $ref: "../../../components/schemas/_index.yaml#/V2TaskStatus"
+            $ref: "../../../components/schemas/_index.yaml#/V1TaskStatus"
       - description: The earliest date to filter by
         in: query
         name: since
@@ -82,7 +82,7 @@ listTasks:
         content:
           application/json:
             schema:
-              $ref: "../../../components/schemas/_index.yaml#/V2TaskSummaryList"
+              $ref: "../../../components/schemas/_index.yaml#/V1TaskSummaryList"
         description: Successfully listed the tasks
       "400":
         content:
@@ -109,7 +109,7 @@ listTasks:
 listTasksByDAGIds:
   get:
     description: Lists all tasks that belong a specific list of dags
-    operationId: v2-dag:list:tasks
+    operationId: v1-dag:list:tasks
     parameters:
       - description: The external id of the DAG
         in: query
@@ -138,7 +138,7 @@ listTasksByDAGIds:
             schema:
               type: array
               items:
-                $ref: "../../../components/schemas/_index.yaml#/V2DagChildren"
+                $ref: "../../../components/schemas/_index.yaml#/V1DagChildren"
               description: The list of tasks
         description: Successfully listed the tasks
       "400":
@@ -167,7 +167,7 @@ getTask:
   get:
     x-resources: ["tenant", "task"]
     description: Get a task by id
-    operationId: v2-task:get
+    operationId: v1-task:get
     parameters:
       - description: The task id
         in: path
@@ -183,7 +183,7 @@ getTask:
         content:
           application/json:
             schema:
-              $ref: "../../../components/schemas/_index.yaml#/V2Task"
+              $ref: "../../../components/schemas/_index.yaml#/V1Task"
         description: Successfully retrieved the task
       "400":
         content:
@@ -217,7 +217,7 @@ listTaskEvents:
   get:
     x-resources: ["tenant", "task"]
     description: List events for a task
-    operationId: v2-task-event:list
+    operationId: v1-task-event:list
     parameters:
       - description: The task id
         in: path
@@ -247,7 +247,7 @@ listTaskEvents:
         content:
           application/json:
             schema:
-              $ref: "../../../components/schemas/_index.yaml#/V2TaskEventList"
+              $ref: "../../../components/schemas/_index.yaml#/V1TaskEventList"
         description: Successfully retrieved the events
       "400":
         content:
@@ -281,7 +281,7 @@ getTaskStatusMetrics:
   get:
     x-resources: ["tenant"]
     description: Get a summary of task run metrics for a tenant
-    operationId: v2-task:list:status-metrics
+    operationId: v1-task:list:status-metrics
     parameters:
       - description: The tenant id
         in: path
@@ -315,7 +315,7 @@ getTaskStatusMetrics:
         content:
           application/json:
             schema:
-              $ref: "../../../components/schemas/_index.yaml#/V2TaskRunMetrics"
+              $ref: "../../../components/schemas/_index.yaml#/V1TaskRunMetrics"
         description: Successfully retrieved the task run metrics
       "400":
         content:
@@ -343,7 +343,7 @@ getTaskPointMetrics:
   get:
     x-resources: ["tenant"]
     description: Get a minute by minute breakdown of task metrics for a tenant
-    operationId: v2-task:get:point-metrics
+    operationId: v1-task:get:point-metrics
     parameters:
       - description: The tenant id
         in: path
@@ -375,7 +375,7 @@ getTaskPointMetrics:
         content:
           application/json:
             schema:
-              $ref: "../../../components/schemas/_index.yaml#/V2TaskPointMetrics"
+              $ref: "../../../components/schemas/_index.yaml#/V1TaskPointMetrics"
         description: Successfully retrieved the task point metrics
       "400":
         content:

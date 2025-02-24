@@ -2,7 +2,7 @@ listWorkflowRuns:
   get:
     x-resources: ["tenant"]
     description: Lists workflow runs for a tenant.
-    operationId: v2-workflow-run:list
+    operationId: v1-workflow-run:list
     parameters:
       - description: The tenant id
         in: path
@@ -34,7 +34,7 @@ listWorkflowRuns:
         schema:
           type: array
           items:
-            $ref: "../../../components/schemas/_index.yaml#/V2TaskStatus"
+            $ref: "../../../components/schemas/_index.yaml#/V1TaskStatus"
       - description: The earliest date to filter by
         in: query
         name: since
@@ -73,7 +73,7 @@ listWorkflowRuns:
         content:
           application/json:
             schema:
-              $ref: "../../../components/schemas/_index.yaml#/V2WorkflowRunList"
+              $ref: "../../../components/schemas/_index.yaml#/V1WorkflowRunList"
         description: Successfully listed the tasks
       "400":
         content:
@@ -100,9 +100,9 @@ listWorkflowRuns:
 
 listTaskEventsForWorkflowRun:
   get:
-    x-resources: ["tenant", "v2-workflow-run"]
+    x-resources: ["tenant", "v1-workflow-run"]
     description: List all tasks for a workflow run
-    operationId: v2-workflow-run:task-events:list
+    operationId: v1-workflow-run:task-events:list
     parameters:
       - description: The number to skip
         in: query
@@ -120,7 +120,7 @@ listTaskEventsForWorkflowRun:
           format: int64
       - description: The workflow run id to find runs for
         in: path
-        name: v2-workflow-run
+        name: v1-workflow-run
         required: true
         schema:
           type: string
@@ -132,7 +132,7 @@ listTaskEventsForWorkflowRun:
         content:
           application/json:
             schema:
-              $ref: "../../../components/schemas/_index.yaml#/V2TaskEventList"
+              $ref: "../../../components/schemas/_index.yaml#/V1TaskEventList"
         description: Successfully listed the tasks
       "400":
         content:
@@ -158,13 +158,13 @@ listTaskEventsForWorkflowRun:
 
 getWorkflowRunDetails:
   get:
-    x-resources: ["tenant", "v2-workflow-run"]
+    x-resources: ["tenant", "v1-workflow-run"]
     description: Get a workflow run and its metadata to display on the "detail" page
-    operationId: v2-workflow-run:get
+    operationId: v1-workflow-run:get
     parameters:
       - description: The workflow run id to get
         in: path
-        name: v2-workflow-run
+        name: v1-workflow-run
         required: true
         schema:
           type: string
@@ -176,7 +176,7 @@ getWorkflowRunDetails:
         content:
           application/json:
             schema:
-              $ref: "../../../components/schemas/_index.yaml#/V2WorkflowRunDetails"
+              $ref: "../../../components/schemas/_index.yaml#/V1WorkflowRunDetails"
         description: Successfully listed the tasks
       "400":
         content:

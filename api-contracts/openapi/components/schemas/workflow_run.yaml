@@ -348,7 +348,7 @@ JobRunStatus:
     - CANCELLED
     - BACKOFF
 
-V2TaskRunStatus:
+V1TaskRunStatus:
   type: string
   enum:
     - PENDING
