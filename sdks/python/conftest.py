@@ -82,7 +82,6 @@ def worker(
     if proc.poll() is not None:
         raise Exception(f"Worker failed to start with return code {proc.returncode}")
 
-    time.sleep(8)
     time.sleep(3)
 
     def log_output(pipe: BytesIO, log_func: Callable[[str], None]) -> None:
