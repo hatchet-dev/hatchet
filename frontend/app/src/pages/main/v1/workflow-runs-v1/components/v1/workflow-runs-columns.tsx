@@ -11,12 +11,16 @@ import { ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 import { Button } from '@/components/v1/ui/button';
 import { cn } from '@/lib/utils';
 import { DataTableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
-import { V2RunStatus } from '../../../workflow-runs/components/run-statuses';
+import { V1RunStatus } from '../../../workflow-runs/components/run-statuses';
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
 
 export const columns: (
   onAdditionalMetadataClick?: (click: AdditionalMetadataClick) => void,
-) => ColumnDef<ListableWorkflowRun>[] = (onAdditionalMetadataClick) => [
+  onTaskRunIdClick?: (taskRunId: string) => void,
+) => ColumnDef<ListableWorkflowRun>[] = (
+  onAdditionalMetadataClick,
+  onTaskRunIdClick,
+) => [
   {
     id: 'select',
     header: ({ table }) => (
@@ -85,13 +89,30 @@ export const columns: (
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Task" />
     ),
-    cell: ({ row }) => (
-      <Link to={'/v1/workflow-runs/' + row.original.metadata.id}>
-        <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">
-          {row.original.displayName}
-        </div>
-      </Link>
-    ),
+    cell: ({ row }) => {
+      if (row.getCanExpand()) {
+        return (
+          <Link to={'/v1/workflow-runs/' + row.original.metadata.id}>
+            <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">
+              {row.original.displayName}
+            </div>
+          </Link>
+        );
+      } else {
+        return (
+          <div
+            className="cursor-pointer hover:underline min-w-fit whitespace-nowrap"
+            onClick={() =>
+              row.original.metadata.id &&
+              onTaskRunIdClick &&
+              onTaskRunIdClick(row.original.metadata.id)
+            }
+          >
+            {row.original.displayName}
+          </div>
+        );
+      }
+    },
     enableSorting: false,
     enableHiding: false,
   },
@@ -101,7 +122,7 @@ export const columns: (
       <DataTableColumnHeader column={column} title="Status" />
     ),
     cell: ({ row }) => (
-      <V2RunStatus
+      <V1RunStatus
         status={row.original.status}
         errorMessage={row.original.errorMessage}
       />

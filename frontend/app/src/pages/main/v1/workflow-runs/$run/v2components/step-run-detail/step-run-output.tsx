@@ -107,7 +107,7 @@ const OUTPUT_STATE_MAP: Record<StepRunStatus, React.FC<StepRunOutputProps>> = {
   [StepRunStatus.SUCCEEDED]: StepRunOutputSucceeded,
   [StepRunStatus.FAILED]: StepRunOutputFailed,
   [StepRunStatus.CANCELLING]: StepRunOutputCancelling,
-  [StepRunStatus.BACKOFF]: StepRunOutputFailed, // FIXME: Remove this when `Backoff` state is removed
+  [StepRunStatus.BACKOFF]: StepRunOutputPending,
 };
 
 function parseJSONOutput(output: string | undefined) {
@@ -128,7 +128,7 @@ const StepRunOutput: React.FC<StepRunOutputProps> = (props) => {
   return <Component {...props} />;
 };
 
-export const V2StepRunOutput = (props: { taskRunId: string }) => {
+export const V1StepRunOutput = (props: { taskRunId: string }) => {
   const { tenantId } = useTenant();
 
   const { isLoading, data } = useQuery({

@@ -433,7 +433,7 @@ export const routes: RouteObject[] = [
               {
                 path: '/v1/workflow-runs',
                 lazy: async () =>
-                  import('./pages/main/v1/workflow-runs').then((res) => {
+                  import('./pages/main/v1/workflow-runs-v1/index.tsx').then((res) => {
                     return {
                       Component: res.default,
                     };

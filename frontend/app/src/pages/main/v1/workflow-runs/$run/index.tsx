@@ -18,8 +18,8 @@ import StepRunDetail, {
 import { Separator } from '@/components/v1/ui/separator';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import { Sheet, SheetContent } from '@/components/v1/ui/sheet';
-import { V2RunDetailHeader } from './v2components/header';
 import { Badge } from '@/components/v1/ui/badge';
+import { V1RunDetailHeader } from '../../workflow-runs-v1/$run/v2components/header';
 
 export const WORKFLOW_RUN_TERMINAL_STATUSES = [
   WorkflowRunStatus.CANCELLED,
@@ -85,7 +85,7 @@ export default function ExpandedWorkflowRun() {
   return (
     <div className="flex-grow h-full w-full">
       <div className="mx-auto max-w-7xl pt-2 px-4 sm:px-6 lg:px-8">
-        <V2RunDetailHeader taskRunId={params.run} />
+        <V1RunDetailHeader />
         <Separator className="my-4" />
         <div className="flex flex-row gap-x-4">
           <p className="font-semibold">Status</p>
@@ -127,6 +127,7 @@ export default function ExpandedWorkflowRun() {
             <div className="h-4" />
             {
               <StepRunEvents
+                taskRunId={params.run}
                 taskDisplayName={taskRun.displayName}
                 onClick={(stepRunId) => {
                   setSidebarState(

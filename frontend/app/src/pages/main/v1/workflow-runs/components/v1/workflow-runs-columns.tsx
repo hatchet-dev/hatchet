@@ -1,6 +1,6 @@
 import { ColumnDef } from '@tanstack/react-table';
 import { Link } from 'react-router-dom';
-import { V2RunStatus } from '../run-statuses';
+import { V1RunStatus } from '../run-statuses';
 import {
   AdditionalMetadata,
   AdditionalMetadataClick,
@@ -57,7 +57,7 @@ export const columns: (
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Status" />
     ),
-    cell: ({ row }) => <V2RunStatus status={row.original.status} />,
+    cell: ({ row }) => <V1RunStatus status={row.original.status} />,
     enableSorting: false,
     enableHiding: false,
   },
