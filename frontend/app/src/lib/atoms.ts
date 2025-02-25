@@ -164,7 +164,7 @@ export const lastWorkerMetricsTimeRangeAtom = atom(
   },
 );
 
-type ViewOptions = 'graph' | 'minimap';
+export type ViewOptions = 'graph' | 'minimap';
 
 const preferredWorkflowRunViewKey = 'wrView';
 

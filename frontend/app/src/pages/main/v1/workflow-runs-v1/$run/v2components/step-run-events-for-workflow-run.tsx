@@ -5,11 +5,15 @@ import { columns } from './events-columns';
 import { useTenant } from '@/lib/atoms';
 
 export function StepRunEvents({
-  taskDisplayName,
+  taskRunId,
+  workflowRunId,
+  fallbackTaskDisplayName,
   onClick,
 }: {
-  taskDisplayName: string;
-  onClick: (stepRunId?: string) => void;
+  taskRunId?: string | undefined;
+  workflowRunId?: string | undefined;
+  fallbackTaskDisplayName: string;
+  onClick: (stepRunId: string) => void;
 }) {
   const tenant = useTenant();
   const tenantId = tenant.tenant?.metadata.id;
@@ -19,11 +23,16 @@ export function StepRunEvents({
   }
 
   const eventsQuery = useQuery({
-    ...queries.v1TaskEvents.list(tenantId, {
-      // TODO: Pagination here
-      limit: 50,
-      offset: 0,
-    }),
+    ...queries.v1TaskEvents.list(
+      tenantId,
+      {
+        // TODO: Pagination here
+        limit: 50,
+        offset: 0,
+      },
+      taskRunId,
+      workflowRunId,
+    ),
     refetchInterval: () => {
       return 5000;
     },
@@ -45,7 +54,7 @@ export function StepRunEvents({
 
   const cols = columns({
     onRowClick: (row) => onClick(`${row.taskId}`),
-    taskDisplayName,
+    fallbackTaskDisplayName,
   });
 
   return (

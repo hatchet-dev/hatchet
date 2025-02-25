@@ -1,9 +1,9 @@
 import { ColumnDef } from '@tanstack/react-table';
-import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
 import { TenantAlertEmailGroup } from '@/lib/api';
 import { DataTableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
 import { Badge } from '@/components/v1/ui/badge';
 import RelativeDate from '@/components/v1/molecules/relative-date';
+import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
 
 export const columns = ({
   alertTenantEmailsSet,
