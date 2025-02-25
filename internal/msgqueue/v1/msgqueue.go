@@ -121,8 +121,12 @@ func (f fanoutQueue) FanoutExchangeKey() string {
 func TenantEventConsumerQueue(t string) fanoutQueue {
 	// generate a unique queue name for the tenant
 	return fanoutQueue{
-		consumerQueue: consumerQueue(t + "_v1"),
+		consumerQueue: consumerQueue(GetTenantExchangeName(t)),
 	}
+}
+
+func GetTenantExchangeName(t string) string {
+	return t + "_v1"
 }
 
 type AckHook func(task *Message) error

@@ -234,7 +234,7 @@ func (t *MessageQueueImpl) pubMessage(ctx context.Context, q msgqueue.Queue, msg
 
 		t.l.Debug().Msgf("publishing tenant msg to exchange %s", msg.TenantID)
 
-		err = pub.PublishWithContext(ctx, msg.TenantID, "", false, false, amqp.Publishing{
+		err = pub.PublishWithContext(ctx, msgqueue.GetTenantExchangeName(msg.TenantID), "", false, false, amqp.Publishing{
 			Body: body,
 		})
 
@@ -301,7 +301,7 @@ func (t *MessageQueueImpl) RegisterTenant(ctx context.Context, tenantId string) 
 	// create a fanout exchange for the tenant. each consumer of the fanout exchange will get notified
 	// with the tenant events.
 	err = sub.ExchangeDeclare(
-		tenantId,
+		msgqueue.GetTenantExchangeName(tenantId),
 		"fanout",
 		true,  // durable
 		false, // auto-deleted
@@ -486,6 +486,7 @@ func (t *MessageQueueImpl) subscribe(
 		}
 
 		wg.Add(1) // we add an extra delta for the deliveries channel to be closed
+		defer wg.Done()
 
 		for rabbitMsg := range deliveries {
 			wg.Add(1)
@@ -563,7 +564,6 @@ func (t *MessageQueueImpl) subscribe(
 			}(rabbitMsg)
 		}
 
-		wg.Done()
 		t.l.Info().Msg("deliveries channel closed")
 
 		return nil
