@@ -179,9 +179,9 @@ function VersionUpgradeButton() {
   );
 
   const shouldShowVersionUpgradeButton =
-    versionedRoutes.includes(pathname) &&
-    !pathname.includes('/v1') &&
-    tenantVersion === TenantVersion.V1;
+    versionedRoutes.includes(pathname) && // It is a versioned route
+    !pathname.includes('/v1') && // The user is not already on the v1 version
+    tenantVersion === TenantVersion.V1; // The tenant is on the v1 version
 
   if (!shouldShowVersionUpgradeButton) {
     return null;
