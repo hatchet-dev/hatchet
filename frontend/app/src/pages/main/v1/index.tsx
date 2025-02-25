@@ -28,6 +28,7 @@ import {
 import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
 import useCloudFeatureFlags from '@/pages/auth/hooks/use-cloud-feature-flags';
 import { useSidebar } from '@/components/sidebar-provider';
+import invariant from 'tiny-invariant';
 
 function Main() {
   const ctx = useOutletContext<UserContextType & MembershipsContextType>();
@@ -65,6 +66,9 @@ interface SidebarProps extends React.HTMLAttributes<HTMLDivElement> {
 
 function Sidebar({ className, memberships, currTenant }: SidebarProps) {
   const { sidebarOpen, setSidebarOpen } = useSidebar();
+  const { tenant } = useTenant();
+
+  invariant(tenant);
 
   const meta = useCloudApiMeta();
   const featureFlags = useCloudFeatureFlags(currTenant.metadata.id);

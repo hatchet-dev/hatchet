@@ -25,7 +25,7 @@ export const columns = ({
       ),
       cell: ({ row }) => {
         return row.original.workflowRunId ? (
-          <Link to={`/workflow-runs/${row.original.workflowRunId}`}>
+          <Link to={`/v1/workflow-runs/${row.original.workflowRunId}`}>
             <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">
               {row.original.workflowRunName}
             </div>

@@ -131,7 +131,7 @@ export default function ExpandedWorkflowRun() {
             <ServerStackIcon className="h-6 w-6 text-foreground mt-1" />
             <Badge>{worker.type}</Badge>
             <h2 className="text-2xl font-bold leading-tight text-foreground">
-              <Link to="/workers">Workers/</Link>
+              <Link to="/v1/workers">Workers/</Link>
               {worker.webhookUrl || worker.name}
             </h2>
           </div>

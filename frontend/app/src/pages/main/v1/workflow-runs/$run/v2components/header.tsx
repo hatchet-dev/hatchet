@@ -478,7 +478,7 @@ function TriggeringParentWorkflowRunSection({
     <div className="text-sm text-gray-700 dark:text-gray-300 flex flex-row gap-1">
       Triggered by
       <Link
-        to={`/workflow-runs/${parentWorkflowRunId}`}
+        to={`/v1/workflow-runs/${parentWorkflowRunId}`}
         className="font-semibold hover:underline  text-indigo-500 dark:text-indigo-200"
       >
         {workflowRun.displayName} ➶
