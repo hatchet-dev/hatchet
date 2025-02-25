@@ -63,7 +63,7 @@ const TaskRunPermalinkOrBacklink = ({
 }) => {
   if (showViewTaskRunButton) {
     return (
-      <Link to={`/task-runs/${taskRun.metadata.id}`}>
+      <Link to={`/v1/task-runs/${taskRun.metadata.id}`}>
         <Button size={'sm'} className="px-2 py-2 gap-2" variant={'outline'}>
           <LinkIcon className="w-4 h-4" />
           View Task Run
@@ -72,7 +72,7 @@ const TaskRunPermalinkOrBacklink = ({
     );
   } else if (taskRun.workflowRunExternalId) {
     return (
-      <Link to={`/workflow-runs/${taskRun.workflowRunExternalId}`}>
+      <Link to={`/v1/workflow-runs/${taskRun.workflowRunExternalId}`}>
         <Button size={'sm'} className="px-2 py-2 gap-2" variant={'outline'}>
           <LinkIcon className="w-4 h-4" />
           View Workflow Run

@@ -444,7 +444,18 @@ export const routes: RouteObject[] = [
               {
                 path: '/v1/workflow-runs/:run',
                 lazy: async () =>
-                  import('./pages/main/v1/workflow-runs/$run').then((res) => {
+                  import('./pages/main/v1/workflow-runs-v1/$run').then(
+                    (res) => {
+                      return {
+                        Component: res.default,
+                      };
+                    },
+                  ),
+              },
+              {
+                path: '/v1/task-runs/:run',
+                lazy: async () =>
+                  import('./pages/main/v1/task-runs-v1/$run').then((res) => {
                     return {
                       Component: res.default,
                     };
