@@ -442,7 +442,7 @@ WITH latest_workflow_versions AS (
     JOIN
         "Workflow" AS workflow ON workflow."id" = versions."workflowId"
     JOIN
-        latest_workflow_versions AS latestVersions ON latestVersions."workflowId" = workflow."id" AND latestVersions."id" = versions."id"
+        latest_workflow_versions AS latestVersions ON latestVersions."workflowId" = workflow."id"
     LEFT JOIN
         "WorkflowRunTriggeredBy" AS runTriggeredBy ON runTriggeredBy."scheduledId" = scheduledWorkflow."id"
     WHERE
