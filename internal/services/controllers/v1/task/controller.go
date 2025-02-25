@@ -290,6 +290,8 @@ func (tc *TasksControllerImpl) handleBufferedMsgs(tenantId, msgId string, payloa
 		return tc.handleTaskFailed(context.Background(), tenantId, payloads)
 	case "task-cancelled":
 		return tc.handleTaskCancelled(context.Background(), tenantId, payloads)
+	case "cancel-tasks":
+		// return tc.handleCancelTasks(context.Background(), tenantId, payloads)
 	case "user-event":
 		return tc.handleProcessUserEvents(context.Background(), tenantId, payloads)
 	case "internal-event":
@@ -549,6 +551,21 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 
 	return err
 }
+
+// func (tc *TasksControllerImpl) handleCancelTasks(ctx context.Context, tenantId string, payloads [][]byte) error {
+// 	// sure would be nice if we could use our own durable execution primitives here, but that's a bootstrapping
+// 	// problem that we don't have a clean way to solve (yet)
+// 	msgs := msgqueue.JSONConvert[tasktypes.CancelTasksPayload](payloads)
+
+// 	for _, msg := range msgs {
+// 		tasksToCancel := make([]v1.TaskIdRetryCount, 0)
+
+// 		if len(msg.TaskExternalIds) > 0 {
+// 			// look up tasks by external id
+// 			tc.repov1.Tasks().ListTasks()
+// 		}
+// 	}
+// }
 
 func (tc *TasksControllerImpl) sendTaskCancellationsToDispatcher(ctx context.Context, tenantId string, releasedTasks []tasktypes.SignalTaskCancelledPayload) error {
 	workerIds := make([]string, 0)

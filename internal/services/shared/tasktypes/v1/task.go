@@ -2,6 +2,7 @@ package v1
 
 import (
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
@@ -138,4 +139,8 @@ type SignalTaskCancelledPayload struct {
 
 	// (required) the retry count
 	RetryCount int32
+}
+
+type CancelTasksPayload struct {
+	Tasks []v1.TaskIdRetryCount `json:"task_external_ids"`
 }

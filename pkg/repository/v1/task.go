@@ -732,6 +732,10 @@ func (r *sharedRepository) insertTasks(
 	tasks []CreateTaskOpts,
 	stepIdsToConfig map[string]*sqlcv1.ListStepsByIdsRow,
 ) ([]*sqlcv1.V1Task, error) {
+	if len(tasks) == 0 {
+		return nil, nil
+	}
+
 	concurrencyStrats, err := r.getConcurrencyExpressions(ctx, tx, tenantId, stepIdsToConfig)
 
 	if err != nil {
