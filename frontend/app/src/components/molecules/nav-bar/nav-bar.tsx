@@ -38,7 +38,7 @@ import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import { VersionInfo } from '@/pages/main/info/components/version-info';
 import { useTenant } from '@/lib/atoms';
 import { routes } from '@/router';
-import { TooltipContent, TooltipProvider } from '@/components/v1/ui/tooltip';
+import { TooltipContent, TooltipProvider } from '@/components/ui/tooltip';
 import { Tooltip, TooltipTrigger } from '@/components/ui/tooltip';
 
 function HelpDropdown() {
