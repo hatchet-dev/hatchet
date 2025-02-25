@@ -39,8 +39,6 @@ export function SidebarProvider({
 
   const [isWide, setIsWide] = useState(false);
 
-  console.log({ isWide, sidebarOpen });
-
   useEffect(() => {
     const handleResize = () => {
       setIsWide(window.innerWidth >= 768);

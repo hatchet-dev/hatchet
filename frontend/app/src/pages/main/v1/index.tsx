@@ -89,13 +89,13 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
     <SidebarButtonSecondary
       key={1}
       onNavLinkClick={onNavLinkClick}
-      to="/workers/all"
+      to="/v1/workers/all"
       name="All Workers"
     />,
     <SidebarButtonSecondary
       key={1}
       onNavLinkClick={onNavLinkClick}
-      to="/workers/webhook"
+      to="/v1/workers/webhook"
       name="Webhook Workers"
     />,
   ];
@@ -116,7 +116,7 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
             <SidebarButtonPrimary
               key={1}
               onNavLinkClick={onNavLinkClick}
-              to="/workflow-runs"
+              to="/v1/workflow-runs"
               name="Workflow Runs"
               icon={<PlayIcon className="mr-2 h-4 w-4" />}
             />
@@ -129,21 +129,21 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
               <SidebarButtonPrimary
                 key={3}
                 onNavLinkClick={onNavLinkClick}
-                to="/scheduled"
+                to="/v1/scheduled"
                 name="Scheduled Runs"
                 icon={<CalendarDaysIcon className="mr-2 h-4 w-4" />}
               />
               <SidebarButtonPrimary
                 key={4}
                 onNavLinkClick={onNavLinkClick}
-                to="/cron-jobs"
+                to="/v1/cron-jobs"
                 name="Cron Jobs"
                 icon={<ClockIcon className="mr-2 h-4 w-4" />}
               />
               {/* <SidebarButtonPrimary
                 key={5}
                 onNavLinkClick={onNavLinkClick}
-                to="/events"
+                to="/v1/events"
                 name="Events"
                 icon={<QueueListIcon className="mr-2 h-4 w-4" />}
               /> */}
@@ -157,14 +157,14 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
               <SidebarButtonPrimary
                 key={1}
                 onNavLinkClick={onNavLinkClick}
-                to="/workflows"
+                to="/v1/workflows"
                 name="Workflows"
                 icon={<Squares2X2Icon className="mr-2 h-4 w-4" />}
               />
               <SidebarButtonPrimary
                 key={2}
                 onNavLinkClick={onNavLinkClick}
-                to="/workers/all"
+                to="/v1/workers/all"
                 name="Workers"
                 icon={<ServerStackIcon className="mr-2 h-4 w-4" />}
                 prefix="/workers"
@@ -174,7 +174,7 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
                 <SidebarButtonPrimary
                   key={3}
                   onNavLinkClick={onNavLinkClick}
-                  to="/managed-workers"
+                  to="/v1/managed-workers"
                   name="Managed Compute"
                   icon={<CpuChipIcon className="mr-2 h-4 w-4" />}
                 />
@@ -182,7 +182,7 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
               <SidebarButtonPrimary
                 key={4}
                 onNavLinkClick={onNavLinkClick}
-                to="/rate-limits"
+                to="/v1/rate-limits"
                 name="Rate Limits"
                 icon={<ScaleIcon className="mr-2 h-4 w-4" />}
               />
