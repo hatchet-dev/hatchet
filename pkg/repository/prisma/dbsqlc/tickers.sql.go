@@ -192,6 +192,8 @@ WITH latest_workflow_versions AS (
         MAX("order") as max_order
     FROM
         "WorkflowVersion"
+    WHERE
+        "deletedAt" IS NULL
     GROUP BY "workflowId"
 ),
 active_cron_schedules AS (
@@ -417,9 +419,18 @@ func (q *Queries) PollGetGroupKeyRuns(ctx context.Context, db DBTX, tickerid pgt
 }
 
 const pollScheduledWorkflows = `-- name: PollScheduledWorkflows :many
-WITH not_run_scheduled_workflows AS (
+WITH latest_workflow_versions AS (
     SELECT
-        latestVersions."version",
+        DISTINCT ON("workflowId")
+        "workflowId",
+        "id"
+    FROM
+        "WorkflowVersion"
+    WHERE
+        "deletedAt" IS NULL
+    ORDER BY "workflowId", "order" DESC
+), not_run_scheduled_workflows AS (
+    SELECT
         scheduledWorkflow."id",
         latestVersions."id" AS "workflowVersionId",
         workflow."tenantId" AS "tenantId",
@@ -431,14 +442,7 @@ WITH not_run_scheduled_workflows AS (
     JOIN
         "Workflow" AS workflow ON workflow."id" = versions."workflowId"
     JOIN
-        (
-            -- Subquery to get the latest version per workflow
-            SELECT DISTINCT ON ("workflowId")
-                "id", "workflowId", "version"
-            FROM "WorkflowVersion"
-            WHERE "deletedAt" IS NULL
-            ORDER BY "workflowId", "version" DESC
-        ) AS latestVersions ON latestVersions."workflowId" = workflow."id"
+        latest_workflow_versions AS latestVersions ON latestVersions."workflowId" = workflow."id" AND latestVersions."id" = versions."id"
     LEFT JOIN
         "WorkflowRunTriggeredBy" AS runTriggeredBy ON runTriggeredBy."scheduledId" = scheduledWorkflow."id"
     WHERE
@@ -456,7 +460,7 @@ WITH not_run_scheduled_workflows AS (
 ),
 active_scheduled_workflows AS (
     SELECT
-        version, id, "workflowVersionId", "tenantId", "additionalMetadata"
+        id, "workflowVersionId", "tenantId", "additionalMetadata"
     FROM
         not_run_scheduled_workflows
     FOR UPDATE SKIP LOCKED
