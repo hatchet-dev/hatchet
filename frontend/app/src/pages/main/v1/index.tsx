@@ -167,7 +167,7 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
                 to="/v1/workers/all"
                 name="Workers"
                 icon={<ServerStackIcon className="mr-2 h-4 w-4" />}
-                prefix="/workers"
+                prefix="/v1/workers"
                 collapsibleChildren={workers}
               />
               {featureFlags?.data['managed-worker'] && (
@@ -196,39 +196,39 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
               <SidebarButtonPrimary
                 key={1}
                 onNavLinkClick={onNavLinkClick}
-                to="/tenant-settings/overview"
-                prefix="/tenant-settings"
+                to="/v1/tenant-settings/overview"
+                prefix="/v1/tenant-settings"
                 name="General"
                 icon={<GearIcon className="mr-2 h-4 w-4" />}
                 collapsibleChildren={[
                   <SidebarButtonSecondary
                     key={1}
                     onNavLinkClick={onNavLinkClick}
-                    to="/tenant-settings/overview"
+                    to="/v1/tenant-settings/overview"
                     name="Overview"
                   />,
                   <SidebarButtonSecondary
                     key={2}
                     onNavLinkClick={onNavLinkClick}
-                    to="/tenant-settings/api-tokens"
+                    to="/v1/tenant-settings/api-tokens"
                     name="API Tokens"
                   />,
                   <SidebarButtonSecondary
                     key={3}
                     onNavLinkClick={onNavLinkClick}
-                    to="/tenant-settings/github"
+                    to="/v1/tenant-settings/github"
                     name="Github"
                   />,
                   <SidebarButtonSecondary
                     key={5}
                     onNavLinkClick={onNavLinkClick}
-                    to="/tenant-settings/members"
+                    to="/v1/tenant-settings/members"
                     name="Members"
                   />,
                   <SidebarButtonSecondary
                     key={6}
                     onNavLinkClick={onNavLinkClick}
-                    to="/tenant-settings/billing-and-limits"
+                    to="/v1/tenant-settings/billing-and-limits"
                     name={
                       meta?.data.canBill
                         ? 'Billing & Limits'
@@ -238,13 +238,13 @@ function Sidebar({ className, memberships, currTenant }: SidebarProps) {
                   <SidebarButtonSecondary
                     key={7}
                     onNavLinkClick={onNavLinkClick}
-                    to="/tenant-settings/alerting"
+                    to="/v1/tenant-settings/alerting"
                     name="Alerting"
                   />,
                   <SidebarButtonSecondary
                     key={8}
                     onNavLinkClick={onNavLinkClick}
-                    to="/tenant-settings/ingestors"
+                    to="/v1/tenant-settings/ingestors"
                     name="Ingestors"
                   />,
                 ]}
