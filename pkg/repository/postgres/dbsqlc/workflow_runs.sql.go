@@ -2042,6 +2042,45 @@ func (q *Queries) GetWorkflowRunInput(ctx context.Context, db DBTX, workflowruni
 	return lookupdata, err
 }
 
+const getWorkflowRunShape = `-- name: GetWorkflowRunShape :many
+SELECT
+    s.id AS parentStepId,
+    s."readableId" AS stepName,
+    array_remove(ARRAY_AGG(so."B"), NULL)::uuid[] AS childrenStepIds
+FROM "WorkflowVersion" v
+JOIN "Job" j ON v."id" = j."workflowVersionId"
+JOIN "Step" s ON j."id" = s."jobId"
+LEFT JOIN "_StepOrder" so ON so."A" = s.id
+WHERE v.id = $1::uuid
+GROUP BY s.id, s."readableId"
+`
+
+type GetWorkflowRunShapeRow struct {
+	Parentstepid    pgtype.UUID   `json:"parentstepid"`
+	Stepname        pgtype.Text   `json:"stepname"`
+	Childrenstepids []pgtype.UUID `json:"childrenstepids"`
+}
+
+func (q *Queries) GetWorkflowRunShape(ctx context.Context, db DBTX, workflowversionid pgtype.UUID) ([]*GetWorkflowRunShapeRow, error) {
+	rows, err := db.Query(ctx, getWorkflowRunShape, workflowversionid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*GetWorkflowRunShapeRow
+	for rows.Next() {
+		var i GetWorkflowRunShapeRow
+		if err := rows.Scan(&i.Parentstepid, &i.Stepname, &i.Childrenstepids); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getWorkflowRunStickyStateForUpdate = `-- name: GetWorkflowRunStickyStateForUpdate :one
 SELECT
     id, "createdAt", "updatedAt", "tenantId", "workflowRunId", "desiredWorkerId", strategy

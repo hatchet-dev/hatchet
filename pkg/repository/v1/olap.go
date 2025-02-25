@@ -83,7 +83,7 @@ type WorkflowRunData struct {
 	Input              []byte                      `json:"input"`
 }
 
-type V2WorkflowRunPopulator struct {
+type V1WorkflowRunPopulator struct {
 	WorkflowRun  *WorkflowRunData
 	TaskMetadata []TaskMetadata
 }
@@ -154,7 +154,7 @@ func (s ReadableTaskStatus) EnumValue() int {
 type OLAPRepository interface {
 	UpdateTablePartitions(ctx context.Context) error
 	ReadTaskRun(ctx context.Context, taskExternalId string) (*sqlcv1.V1TasksOlap, error)
-	ReadWorkflowRun(ctx context.Context, workflowRunExternalId pgtype.UUID) (*V2WorkflowRunPopulator, error)
+	ReadWorkflowRun(ctx context.Context, workflowRunExternalId pgtype.UUID) (*V1WorkflowRunPopulator, error)
 	ReadTaskRunData(ctx context.Context, tenantId pgtype.UUID, taskId int64, taskInsertedAt pgtype.Timestamptz) (*sqlcv1.PopulateSingleTaskRunDataRow, *pgtype.UUID, error)
 	ListTasks(ctx context.Context, tenantId string, opts ListTaskRunOpts) ([]*sqlcv1.PopulateTaskRunDataRow, int, error)
 	ListWorkflowRuns(ctx context.Context, tenantId string, opts ListWorkflowRunOpts) ([]*WorkflowRunData, int, error)
@@ -363,7 +363,7 @@ func ParseTaskMetadata(jsonData []byte) ([]TaskMetadata, error) {
 	return tasks, nil
 }
 
-func (r *olapRepository) ReadWorkflowRun(ctx context.Context, workflowRunExternalId pgtype.UUID) (*V2WorkflowRunPopulator, error) {
+func (r *olapRepository) ReadWorkflowRun(ctx context.Context, workflowRunExternalId pgtype.UUID) (*V1WorkflowRunPopulator, error) {
 	row, err := r.queries.ReadWorkflowRunByExternalId(ctx, r.pool, workflowRunExternalId)
 
 	if err != nil {
@@ -376,7 +376,7 @@ func (r *olapRepository) ReadWorkflowRun(ctx context.Context, workflowRunExterna
 		return nil, err
 	}
 
-	return &V2WorkflowRunPopulator{
+	return &V1WorkflowRunPopulator{
 		WorkflowRun: &WorkflowRunData{
 			TenantID:           row.TenantID,
 			InsertedAt:         row.InsertedAt,
@@ -850,6 +850,10 @@ func (r *olapRepository) ReadTaskRunMetrics(ctx context.Context, tenantId string
 	})
 
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return []TaskRunMetric{}, nil
+		}
+
 		return nil, err
 	}
 
@@ -1127,6 +1131,10 @@ func (r *olapRepository) GetTaskPointMetrics(ctx context.Context, tenantId strin
 	})
 
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return []*sqlcv1.GetTaskPointMetricsRow{}, nil
+		}
+
 		return nil, err
 	}
 

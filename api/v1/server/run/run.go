@@ -351,6 +351,29 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		return webhookWorker, sqlchelpers.UUIDToStr(webhookWorker.TenantId), nil
 	})
 
+	populatorMW.RegisterGetter("task", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		task, err := config.V1.OLAP().ReadTaskRun(ctx, id)
+
+		if err != nil {
+			return nil, "", err
+		}
+
+		return task, sqlchelpers.UUIDToStr(task.TenantID), nil
+	})
+
+	populatorMW.RegisterGetter("v1-workflow-run", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
+		workflowRun, err := t.config.V1.OLAP().ReadWorkflowRun(context.Background(), sqlchelpers.UUIDFromStr(id))
+
+		if err != nil {
+			return nil, "", err
+		}
+
+		return workflowRun, sqlchelpers.UUIDToStr(workflowRun.WorkflowRun.TenantID), nil
+	})
+
 	authnMW := authn.NewAuthN(t.config)
 	authzMW := authz.NewAuthZ(t.config)
 
