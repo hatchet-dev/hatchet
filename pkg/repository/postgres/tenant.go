@@ -459,6 +459,18 @@ func (r *tenantEngineRepository) UpdateWorkerPartitionHeartbeat(ctx context.Cont
 	return partition.ID, nil
 }
 
+func (r *tenantEngineRepository) GetInternalTenantForController(ctx context.Context, controllerPartitionId string) (*dbsqlc.Tenant, error) {
+	tenant, err := r.queries.GetInternalTenantForController(ctx, r.pool, controllerPartitionId)
+
+	if err != nil && errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	} else if err != nil {
+		return nil, err
+	}
+
+	return tenant, nil
+}
+
 func (r *tenantEngineRepository) ListTenantsByControllerPartition(ctx context.Context, controllerPartitionId string, majorVersion dbsqlc.TenantMajorEngineVersion) ([]*dbsqlc.Tenant, error) {
 	if controllerPartitionId == "" {
 		return nil, fmt.Errorf("partitionId is required")

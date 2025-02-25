@@ -104,6 +104,10 @@ type TenantEngineRepository interface {
 	// ListTenants lists all tenants in the instance
 	ListTenants(ctx context.Context) ([]*dbsqlc.Tenant, error)
 
+	// Gets the tenant corresponding to the "internal" tenant if it's assigned to this controller.
+	// Returns nil if the tenant is not assigned to this controller.
+	GetInternalTenantForController(ctx context.Context, controllerPartitionId string) (*dbsqlc.Tenant, error)
+
 	// ListTenantsByPartition lists all tenants in the given partition
 	ListTenantsByControllerPartition(ctx context.Context, controllerPartitionId string, majorVersion dbsqlc.TenantMajorEngineVersion) ([]*dbsqlc.Tenant, error)
 

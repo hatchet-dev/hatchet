@@ -154,9 +154,29 @@ func (o *OLAPControllerImpl) Start() (func() error, error) {
 	mqBuffer := msgqueue.NewMQSubBuffer(msgqueue.OLAP_QUEUE, heavyReadMQ, o.handleBufferedMsgs)
 	wg := sync.WaitGroup{}
 
+	startupPartitionCtx, cancelStartupPartition := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancelStartupPartition()
+
+	// always create table partition on startup
+	if err := o.createTablePartition(startupPartitionCtx); err != nil {
+		return nil, fmt.Errorf("could not create table partition: %w", err)
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 
 	_, err := o.s.NewJob(
+		gocron.DurationJob(time.Minute*15),
+		gocron.NewTask(
+			o.runOLAPTablePartition(ctx),
+		),
+	)
+
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("could not schedule task table partition: %w", err)
+	}
+
+	_, err = o.s.NewJob(
 		gocron.DurationJob(time.Second*1),
 		gocron.NewTask(
 			o.runTenantTaskStatusUpdates(ctx),

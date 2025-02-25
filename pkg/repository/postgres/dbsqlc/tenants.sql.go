@@ -368,6 +368,37 @@ func (q *Queries) GetEmailGroups(ctx context.Context, db DBTX, tenantid pgtype.U
 	return items, nil
 }
 
+const getInternalTenantForController = `-- name: GetInternalTenantForController :one
+SELECT
+    id, "createdAt", "updatedAt", "deletedAt", version, name, slug, "analyticsOptOut", "alertMemberEmails", "controllerPartitionId", "workerPartitionId", "dataRetentionPeriod", "schedulerPartitionId"
+FROM
+    "Tenant" as tenants
+WHERE
+    "controllerPartitionId" = $1::text
+    AND "slug" = 'internal'
+`
+
+func (q *Queries) GetInternalTenantForController(ctx context.Context, db DBTX, controllerpartitionid string) (*Tenant, error) {
+	row := db.QueryRow(ctx, getInternalTenantForController, controllerpartitionid)
+	var i Tenant
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.Version,
+		&i.Name,
+		&i.Slug,
+		&i.AnalyticsOptOut,
+		&i.AlertMemberEmails,
+		&i.ControllerPartitionId,
+		&i.WorkerPartitionId,
+		&i.DataRetentionPeriod,
+		&i.SchedulerPartitionId,
+	)
+	return &i, err
+}
+
 const getMemberEmailGroup = `-- name: GetMemberEmailGroup :many
 SELECT u."email"
 FROM "User" u

@@ -5,31 +5,28 @@ import (
 	"fmt"
 
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 )
 
 func (tc *TasksControllerImpl) runTaskTablePartition(ctx context.Context) func() {
 	return func() {
 		tc.l.Debug().Msgf("partition: running task table partition")
 
-		// list all tenants
-		tenants, err := tc.p.ListTenantsForController(ctx, dbsqlc.TenantMajorEngineVersionV1)
+		// get internal tenant
+		tenant, err := tc.p.GetInternalTenantForController(ctx)
 
 		if err != nil {
-			tc.l.Error().Err(err).Msg("could not list tenants")
+			tc.l.Error().Err(err).Msg("could not get internal tenant")
 			return
 		}
 
-		for _, tenant := range tenants {
-			if tenant.Name != "internal" {
-				continue
-			}
+		if tenant == nil {
+			return
+		}
 
-			err := tc.createTablePartition(ctx)
+		err = tc.createTablePartition(ctx)
 
-			if err != nil {
-				tc.l.Error().Err(err).Msg("could not create table partition")
-			}
+		if err != nil {
+			tc.l.Error().Err(err).Msg("could not create table partition")
 		}
 	}
 }

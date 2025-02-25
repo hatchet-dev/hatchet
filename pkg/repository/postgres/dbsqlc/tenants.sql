@@ -65,6 +65,15 @@ WHERE
     p."id" = sqlc.arg('workerPartitionId')::text
 RETURNING *;
 
+-- name: GetInternalTenantForController :one
+SELECT
+    *
+FROM
+    "Tenant" as tenants
+WHERE
+    "controllerPartitionId" = sqlc.arg('controllerPartitionId')::text
+    AND "slug" = 'internal';
+
 -- name: ListTenantsByControllerPartitionId :many
 SELECT
     *
