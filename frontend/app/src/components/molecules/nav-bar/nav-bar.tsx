@@ -179,7 +179,9 @@ function VersionUpgradeButton() {
   );
 
   const shouldShowVersionUpgradeButton =
-    versionedRoutes.includes(pathname) && tenantVersion !== TenantVersion.V1;
+    versionedRoutes.includes(pathname) &&
+    !pathname.includes('/v1') &&
+    tenantVersion === TenantVersion.V1;
 
   if (!shouldShowVersionUpgradeButton) {
     return null;
