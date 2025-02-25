@@ -20,7 +20,6 @@ import {
 } from '@/lib/outlet';
 import { useTenant } from '@/lib/atoms';
 import { Loading } from '@/components/v1/ui/loading.tsx';
-import { useSidebar } from '@/components/v1/sidebar-provider';
 import { TenantSwitcher } from '@/components/v1/molecules/nav-bar/tenant-switcher';
 import {
   Collapsible,
@@ -28,6 +27,7 @@ import {
 } from '@/components/v1/ui/collapsible';
 import useCloudApiMeta from '@/pages/auth/hooks/use-cloud-api-meta';
 import useCloudFeatureFlags from '@/pages/auth/hooks/use-cloud-feature-flags';
+import { useSidebar } from '@/components/sidebar-provider';
 
 function Main() {
   const ctx = useOutletContext<UserContextType & MembershipsContextType>();

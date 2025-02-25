@@ -15,7 +15,7 @@ import { useApiError } from '@/lib/hooks';
 import { useMutation } from '@tanstack/react-query';
 import hatchet from '@/assets/hatchet_logo.png';
 import hatchetDark from '@/assets/hatchet_logo_dark.png';
-import { useSidebar } from '@/components/v1/sidebar-provider';
+import { useSidebar } from '@/components/sidebar-provider';
 import {
   BiBook,
   BiCalendar,
