@@ -176,6 +176,12 @@ const (
 	WORKFLOWRUN TenantResource = "WORKFLOW_RUN"
 )
 
+// Defines values for TenantVersion.
+const (
+	V0 TenantVersion = "V0"
+	V1 TenantVersion = "V1"
+)
+
 // Defines values for V1TaskEventType.
 const (
 	V1TaskEventTypeACKNOWLEDGED       V1TaskEventType = "ACKNOWLEDGED"
@@ -919,7 +925,8 @@ type Tenant struct {
 	Name string `json:"name"`
 
 	// Slug The slug of the tenant.
-	Slug string `json:"slug"`
+	Slug    string        `json:"slug"`
+	Version TenantVersion `json:"version"`
 }
 
 // TenantAlertEmailGroup defines model for TenantAlertEmailGroup.
@@ -1037,6 +1044,9 @@ type TenantResourcePolicy struct {
 type TenantStepRunQueueMetrics struct {
 	Queues *map[string]int `json:"queues,omitempty"`
 }
+
+// TenantVersion defines model for TenantVersion.
+type TenantVersion string
 
 // TriggerWorkflowRunRequest defines model for TriggerWorkflowRunRequest.
 type TriggerWorkflowRunRequest struct {

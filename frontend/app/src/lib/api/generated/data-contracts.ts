@@ -559,6 +559,11 @@ export enum TenantMemberRole {
   MEMBER = 'MEMBER',
 }
 
+export enum TenantVersion {
+  V0 = 'V0',
+  V1 = 'V1',
+}
+
 export interface Tenant {
   metadata: APIResourceMeta;
   /** The name of the tenant. */
@@ -569,6 +574,8 @@ export interface Tenant {
   analyticsOptOut?: boolean;
   /** Whether to alert tenant members. */
   alertMemberEmails?: boolean;
+  /** The version of the tenant. */
+  version: TenantVersion;
 }
 
 export interface TenantMember {

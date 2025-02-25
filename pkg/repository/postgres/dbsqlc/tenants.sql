@@ -598,7 +598,8 @@ SELECT
     t."name" as "tenantName",
     t."slug" as "tenantSlug",
     t."alertMemberEmails" as "alertMemberEmails",
-    t."analyticsOptOut" as "analyticsOptOut"
+    t."analyticsOptOut" as "analyticsOptOut",
+    t."version" as "tenantVersion"
 FROM
     "TenantMember" tm
 JOIN
