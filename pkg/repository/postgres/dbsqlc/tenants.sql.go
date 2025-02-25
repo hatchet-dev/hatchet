@@ -1410,17 +1410,19 @@ UPDATE
 SET
     "name" = COALESCE($1::text, "name"),
     "analyticsOptOut" = COALESCE($2::boolean, "analyticsOptOut"),
-    "alertMemberEmails" = COALESCE($3::boolean, "alertMemberEmails")
+    "alertMemberEmails" = COALESCE($3::boolean, "alertMemberEmails"),
+    "version" = COALESCE($4::"TenantMajorEngineVersion", "version")
 WHERE
-    "id" = $4::uuid
+    "id" = $5::uuid
 RETURNING id, "createdAt", "updatedAt", "deletedAt", version, name, slug, "analyticsOptOut", "alertMemberEmails", "controllerPartitionId", "workerPartitionId", "dataRetentionPeriod", "schedulerPartitionId"
 `
 
 type UpdateTenantParams struct {
-	Name              pgtype.Text `json:"name"`
-	AnalyticsOptOut   pgtype.Bool `json:"analyticsOptOut"`
-	AlertMemberEmails pgtype.Bool `json:"alertMemberEmails"`
-	ID                pgtype.UUID `json:"id"`
+	Name              pgtype.Text                  `json:"name"`
+	AnalyticsOptOut   pgtype.Bool                  `json:"analyticsOptOut"`
+	AlertMemberEmails pgtype.Bool                  `json:"alertMemberEmails"`
+	Version           NullTenantMajorEngineVersion `json:"version"`
+	ID                pgtype.UUID                  `json:"id"`
 }
 
 func (q *Queries) UpdateTenant(ctx context.Context, db DBTX, arg UpdateTenantParams) (*Tenant, error) {
@@ -1428,6 +1430,7 @@ func (q *Queries) UpdateTenant(ctx context.Context, db DBTX, arg UpdateTenantPar
 		arg.Name,
 		arg.AnalyticsOptOut,
 		arg.AlertMemberEmails,
+		arg.Version,
 		arg.ID,
 	)
 	var i Tenant

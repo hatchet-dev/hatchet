@@ -175,7 +175,7 @@ function VersionUpgradeButton() {
         ?.children?.find((r) => r.path === '/v1/' && r.children?.length)
         ?.children?.map((c) => c.path)
         ?.map((p) => p?.replace('/v1', '')) || [],
-    [routes],
+    [],
   );
 
   const shouldShowVersionUpgradeButton =

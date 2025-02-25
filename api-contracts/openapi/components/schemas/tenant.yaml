@@ -101,6 +101,9 @@ UpdateTenantRequest:
       description: The max frequency at which to alert.
       x-oapi-codegen-extra-tags:
         validate: "omitnil,duration"
+    version:
+      $ref: "#/TenantVersion"
+      description: The version of the tenant.
   type: object
 
 TenantResource:

@@ -4,13 +4,19 @@ import { TenantContextType } from '@/lib/outlet';
 import { useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { useApiError } from '@/lib/hooks';
-import { useMutation } from '@tanstack/react-query';
-import api, { Tenant, UpdateTenantRequest } from '@/lib/api';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import api, {
+  queries,
+  Tenant,
+  TenantVersion,
+  UpdateTenantRequest,
+} from '@/lib/api';
 import { Switch } from '@/components/v1/ui/switch';
 import { Label } from '@radix-ui/react-label';
 import { Spinner } from '@/components/v1/ui/loading';
 import { capitalize } from '@/lib/utils';
 import { UpdateTenantForm } from './components/update-tenant-form';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 
 export default function TenantSettings() {
   const { tenant } = useOutletContext<TenantContextType>();
@@ -25,10 +31,60 @@ export default function TenantSettings() {
         <UpdateTenant tenant={tenant} />
         <Separator className="my-4" />
         <AnalyticsOptOut tenant={tenant} />
+        <Separator className="my-4" />
+        <UpgradeToV1 />
       </div>
     </div>
   );
 }
+
+const UpgradeToV1 = () => {
+  const { tenant } = useOutletContext<TenantContextType>();
+  const selectedVersion = tenant.version;
+  const queryClient = useQueryClient();
+
+  const { handleApiError } = useApiError({});
+
+  const { mutate: updateTenant, isPending } = useMutation({
+    mutationKey: ['tenant:update'],
+    mutationFn: async (data: UpdateTenantRequest) => {
+      await api.tenantUpdate(tenant.metadata.id, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: queries.user.listTenantMemberships.queryKey,
+      });
+    },
+    onError: handleApiError,
+  });
+  const tenantVersions = Object.keys(TenantVersion) as Array<
+    keyof typeof TenantVersion
+  >;
+
+  return (
+    <div className="flex flex-col gap-y-2">
+      <h2 className="text-xl font-semibold leading-tight text-foreground">
+        Tenant Version
+      </h2>
+      <RadioGroup
+        disabled={isPending}
+        value={selectedVersion}
+        onValueChange={(value) => {
+          updateTenant({
+            version: value as TenantVersion,
+          });
+        }}
+      >
+        {tenantVersions.map((version) => (
+          <div key={version} className="flex items-center space-x-2">
+            <RadioGroupItem value={version} id={version.toLowerCase()} />
+            <Label htmlFor={version.toLowerCase()}>{version}</Label>
+          </div>
+        ))}
+      </RadioGroup>
+    </div>
+  );
+};
 
 const UpdateTenant: React.FC<{ tenant: Tenant }> = ({ tenant }) => {
   const [isLoading, setIsLoading] = useState(false);

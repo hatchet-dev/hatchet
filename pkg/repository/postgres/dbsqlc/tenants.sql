@@ -31,7 +31,8 @@ UPDATE
 SET
     "name" = COALESCE(sqlc.narg('name')::text, "name"),
     "analyticsOptOut" = COALESCE(sqlc.narg('analyticsOptOut')::boolean, "analyticsOptOut"),
-    "alertMemberEmails" = COALESCE(sqlc.narg('alertMemberEmails')::boolean, "alertMemberEmails")
+    "alertMemberEmails" = COALESCE(sqlc.narg('alertMemberEmails')::boolean, "alertMemberEmails"),
+    "version" = COALESCE(sqlc.narg('version')::"TenantMajorEngineVersion", "version")
 WHERE
     "id" = sqlc.arg('id')::uuid
 RETURNING *;

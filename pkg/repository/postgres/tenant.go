@@ -103,6 +103,10 @@ func (r *tenantAPIRepository) UpdateTenant(ctx context.Context, id string, opts 
 		params.AlertMemberEmails = sqlchelpers.BoolFromBoolean(*opts.AlertMemberEmails)
 	}
 
+	if opts.Version != nil && opts.Version.Valid {
+		params.Version = *opts.Version
+	}
+
 	return r.queries.UpdateTenant(
 		ctx,
 		r.pool,

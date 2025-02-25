@@ -655,6 +655,8 @@ export interface UpdateTenantRequest {
   enableTenantResourceLimitAlerts?: boolean;
   /** The max frequency at which to alert. */
   maxAlertingFrequency?: string;
+  /** The version of the tenant. */
+  version?: TenantVersion;
 }
 
 export interface TenantAlertingSettings {

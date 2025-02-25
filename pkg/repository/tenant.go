@@ -26,6 +26,8 @@ type UpdateTenantOpts struct {
 	AnalyticsOptOut *bool `validate:"omitempty"`
 
 	AlertMemberEmails *bool `validate:"omitempty"`
+
+	Version *dbsqlc.NullTenantMajorEngineVersion `validate:"omitempty"`
 }
 
 type CreateTenantMemberOpts struct {

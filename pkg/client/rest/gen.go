@@ -1086,7 +1086,8 @@ type UpdateTenantRequest struct {
 	MaxAlertingFrequency *string `json:"maxAlertingFrequency,omitempty" validate:"omitnil,duration"`
 
 	// Name The name of the tenant.
-	Name *string `json:"name,omitempty"`
+	Name    *string        `json:"name,omitempty"`
+	Version *TenantVersion `json:"version,omitempty"`
 }
 
 // UpdateWorkerRequest defines model for UpdateWorkerRequest.
