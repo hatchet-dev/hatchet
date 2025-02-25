@@ -104,6 +104,8 @@ WITH latest_workflow_versions AS (
         MAX("order") as max_order
     FROM
         "WorkflowVersion"
+    WHERE
+        "deletedAt" IS NULL
     GROUP BY "workflowId"
 ),
 active_cron_schedules AS (
@@ -151,6 +153,8 @@ WITH latest_workflow_versions AS (
         "id"
     FROM
         "WorkflowVersion"
+    WHERE
+        "deletedAt" IS NULL
     ORDER BY "workflowId", "order" DESC
 ), not_run_scheduled_workflows AS (
     SELECT
