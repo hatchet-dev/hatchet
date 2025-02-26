@@ -8,15 +8,17 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (t *WorkerService) WorkerList(ctx echo.Context, request gen.WorkerListRequestObject) (gen.WorkerListResponseObject, error) {
-	tenant := ctx.Get("tenant").(*db.TenantModel)
+	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	sixSecAgo := time.Now().Add(-24 * time.Hour)
 
-	workers, err := t.config.APIRepository.Worker().ListWorkers(tenant.ID, &repository.ListWorkersOpts{
+	workers, err := t.config.APIRepository.Worker().ListWorkers(tenantId, &repository.ListWorkersOpts{
 		LastHeartbeatAfter: &sixSecAgo,
 	})
 

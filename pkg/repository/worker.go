@@ -5,8 +5,7 @@ import (
 	"time"
 
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -54,11 +53,6 @@ type UpdateWorkerOpts struct {
 
 	// A list of actions this worker can run
 	Actions []string `validate:"dive,actionId"`
-}
-
-type WorkerWithStepCount struct {
-	Worker       *db.WorkerModel
-	StepRunCount int
 }
 
 type ListWorkersOpts struct {

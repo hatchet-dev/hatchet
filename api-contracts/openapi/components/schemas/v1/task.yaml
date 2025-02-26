@@ -1,0 +1,266 @@
+V1TaskSummary:
+  properties:
+    metadata:
+      $ref: ".././metadata.yaml#/APIResourceMeta"
+    taskId:
+      type: integer
+      description: The ID of the task.
+    taskExternalId:
+      type: string
+      description: The external ID of the task.
+      format: uuid
+      minLength: 36
+      maxLength: 36
+    taskInsertedAt:
+      type: string
+      format: date-time
+      description: The timestamp the task was inserted.
+    status:
+      $ref: "#/V1TaskStatus"
+    startedAt:
+      type: string
+      format: date-time
+      description: The timestamp the task run started.
+    finishedAt:
+      type: string
+      format: date-time
+      description: The timestamp the task run finished.
+    duration:
+      type: integer
+      description: The duration of the task run, in milliseconds.
+    tenantId:
+      type: string
+      description: The ID of the tenant.
+      example: bb214807-246e-43a5-a25d-41761d1cff9e
+      minLength: 36
+      maxLength: 36
+      format: uuid
+    additionalMetadata:
+      type: object
+      description: Additional metadata for the task run.
+    displayName:
+      type: string
+      description: The display name of the task run.
+    workflowId:
+      type: string
+      format: uuid
+    output:
+      type: object
+      description: The output of the task run (for the latest run)
+    errorMessage:
+      type: string
+      description: The error message of the task run (for the latest run)
+  required:
+    - metadata
+    - id
+    - taskId
+    - taskInsertedAt
+    - status
+    - tenantId
+    - displayName
+    - workflowId
+    - output
+    - taskExternalId
+
+V1DagChildren:
+  type: object
+  properties:
+    dagId:
+      type: string
+      format: uuid
+    children:
+      type: array
+      items:
+        $ref: "#/V1TaskSummary"
+
+V1TaskSummaryList:
+  type: object
+  properties:
+    pagination:
+      $ref: ".././metadata.yaml#/PaginationResponse"
+    rows:
+      type: array
+      items:
+        $ref: "#/V1TaskSummary"
+      description: The list of tasks
+  required:
+    - pagination
+    - rows
+
+V1Task:
+  properties:
+    metadata:
+      $ref: ".././metadata.yaml#/APIResourceMeta"
+    taskId:
+      type: integer
+      description: The ID of the task.
+    taskInsertedAt:
+      type: string
+      format: date-time
+      description: The timestamp the task was inserted.
+    status:
+      $ref: "#/V1TaskStatus"
+    startedAt:
+      type: string
+      format: date-time
+      description: The timestamp the task run started.
+    finishedAt:
+      type: string
+      format: date-time
+      description: The timestamp the task run finished.
+    duration:
+      type: integer
+      description: The duration of the task run, in milliseconds.
+    tenantId:
+      type: string
+      description: The ID of the tenant.
+      example: bb214807-246e-43a5-a25d-41761d1cff9e
+      minLength: 36
+      maxLength: 36
+      format: uuid
+    additionalMetadata:
+      type: object
+      description: Additional metadata for the task run.
+    displayName:
+      type: string
+      description: The display name of the task run.
+    workflowId:
+      type: string
+      format: uuid
+    input:
+      type: string
+      description: The input for the task run.
+    output:
+      type: string
+      description: The output of the task run (for the latest run)
+    errorMessage:
+      type: string
+      description: The error message of the task run (for the latest run)
+    workflowRunExternalId:
+      type: string
+      description: The external ID of the workflow run.
+      format: uuid
+      minLength: 36
+      maxLength: 36
+  required:
+    - metadata
+    - id
+    - taskId
+    - taskInsertedAt
+    - status
+    - tenantId
+    - displayName
+    - workflowId
+    - input
+
+V1TaskEventList:
+  properties:
+    pagination:
+      $ref: ".././metadata.yaml#/PaginationResponse"
+    rows:
+      items:
+        $ref: "#/V1TaskEvent"
+      type: array
+
+V1TaskEvent:
+  type: object
+  properties:
+    id:
+      type: integer
+    taskId:
+      type: string
+      format: uuid
+    timestamp:
+      type: string
+      format: date-time
+    eventType:
+      $ref: "#/V1TaskEventType"
+    message:
+      type: string
+    errorMessage:
+      type: string
+    output:
+      type: string
+    workerId:
+      type: string
+      format: uuid
+    taskDisplayName:
+      type: string
+  required:
+    - id
+    - taskId
+    - timestamp
+    - eventType
+    - message
+
+V1TaskStatus:
+  type: string
+  enum:
+    - QUEUED
+    - RUNNING
+    - COMPLETED
+    - CANCELLED
+    - FAILED
+
+V1TaskEventType:
+  type: string
+  enum:
+    - REQUEUED_NO_WORKER
+    - REQUEUED_RATE_LIMIT
+    - SCHEDULING_TIMED_OUT
+    - ASSIGNED
+    - STARTED
+    - FINISHED
+    - FAILED
+    - RETRYING
+    - CANCELLED
+    - TIMED_OUT
+    - REASSIGNED
+    - SLOT_RELEASED
+    - TIMEOUT_REFRESHED
+    - RETRIED_BY_USER
+    - SENT_TO_WORKER
+    - RATE_LIMIT_ERROR
+    - ACKNOWLEDGED
+    - CREATED
+    - QUEUED
+    - SKIPPED
+
+V1TaskRunMetrics:
+  type: array
+  items:
+    $ref: "#/V1TaskRunMetric"
+
+V1TaskRunMetric:
+  type: object
+  properties:
+    status:
+      $ref: "#/V1TaskStatus"
+    count:
+      type: integer
+  required:
+    - status
+    - count
+
+V1TaskPointMetric:
+  type: object
+  properties:
+    time:
+      type: string
+      format: date-time
+    SUCCEEDED:
+      type: integer
+    FAILED:
+      type: integer
+  required:
+    - time
+    - SUCCEEDED
+    - FAILED
+
+V1TaskPointMetrics:
+  type: object
+  properties:
+    results:
+      type: array
+      items:
+        $ref: "#/V1TaskPointMetric"

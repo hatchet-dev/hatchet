@@ -6,13 +6,15 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (t *TenantService) TenantInviteList(ctx echo.Context, request gen.TenantInviteListRequestObject) (gen.TenantInviteListResponseObject, error) {
-	tenant := ctx.Get("tenant").(*db.TenantModel)
+	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
-	tenantInvites, err := t.config.APIRepository.TenantInvite().ListTenantInvitesByTenantId(tenant.ID, &repository.ListTenantInvitesOpts{
+	tenantInvites, err := t.config.APIRepository.TenantInvite().ListTenantInvitesByTenantId(ctx.Request().Context(), tenantId, &repository.ListTenantInvitesOpts{
 		Expired: repository.BoolPtr(false),
 		Status:  repository.StringPtr("PENDING"),
 	})
@@ -24,7 +26,7 @@ func (t *TenantService) TenantInviteList(ctx echo.Context, request gen.TenantInv
 	rows := make([]gen.TenantInvite, len(tenantInvites))
 
 	for i := range tenantInvites {
-		rows[i] = *transformers.ToTenantInviteLink(&tenantInvites[i])
+		rows[i] = *transformers.ToTenantInviteLink(tenantInvites[i])
 	}
 
 	return gen.TenantInviteList200JSONResponse{

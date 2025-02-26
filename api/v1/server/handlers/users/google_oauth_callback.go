@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/labstack/echo/v4"
 	"golang.org/x/oauth2"
 
@@ -16,7 +17,8 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 // Note: we want all errors to redirect, otherwise the user will be greeted with raw JSON in the middle of the login flow.
@@ -37,7 +39,7 @@ func (u *UserService) UserUpdateGoogleOauthCallback(ctx echo.Context, _ gen.User
 		return nil, redirect.GetRedirectWithError(ctx, u.config.Logger, fmt.Errorf("invalid token"), "Forbidden")
 	}
 
-	user, err := u.upsertGoogleUserFromToken(u.config, token)
+	user, err := u.upsertGoogleUserFromToken(ctx.Request().Context(), u.config, token)
 
 	if err != nil {
 		if errors.Is(err, ErrNotInRestrictedDomain) {
@@ -60,7 +62,7 @@ func (u *UserService) UserUpdateGoogleOauthCallback(ctx echo.Context, _ gen.User
 	}, nil
 }
 
-func (u *UserService) upsertGoogleUserFromToken(config *server.ServerConfig, tok *oauth2.Token) (*db.UserModel, error) {
+func (u *UserService) upsertGoogleUserFromToken(ctx context.Context, config *server.ServerConfig, tok *oauth2.Token) (*dbsqlc.User, error) {
 	gInfo, err := getGoogleUserInfoFromToken(tok)
 	if err != nil {
 		return nil, err
@@ -89,15 +91,15 @@ func (u *UserService) upsertGoogleUserFromToken(config *server.ServerConfig, tok
 		Provider:       "google",
 		ProviderUserId: gInfo.Sub,
 		AccessToken:    accessTokenEncrypted,
-		RefreshToken:   &refreshTokenEncrypted,
+		RefreshToken:   refreshTokenEncrypted,
 		ExpiresAt:      &expiresAt,
 	}
 
-	user, err := u.config.APIRepository.User().GetUserByEmail(gInfo.Email)
+	user, err := u.config.APIRepository.User().GetUserByEmail(ctx, gInfo.Email)
 
 	switch err {
 	case nil:
-		user, err = u.config.APIRepository.User().UpdateUser(user.ID, &repository.UpdateUserOpts{
+		user, err = u.config.APIRepository.User().UpdateUser(ctx, sqlchelpers.UUIDToStr(user.ID), &repository.UpdateUserOpts{
 			EmailVerified: repository.BoolPtr(gInfo.EmailVerified),
 			Name:          repository.StringPtr(gInfo.Name),
 			OAuth:         oauthOpts,
@@ -106,8 +108,8 @@ func (u *UserService) upsertGoogleUserFromToken(config *server.ServerConfig, tok
 		if err != nil {
 			return nil, fmt.Errorf("failed to update user: %s", err.Error())
 		}
-	case db.ErrNotFound:
-		user, err = u.config.APIRepository.User().CreateUser(&repository.CreateUserOpts{
+	case pgx.ErrNoRows:
+		user, err = u.config.APIRepository.User().CreateUser(ctx, &repository.CreateUserOpts{
 			Email:         gInfo.Email,
 			EmailVerified: repository.BoolPtr(gInfo.EmailVerified),
 			Name:          repository.StringPtr(gInfo.Name),

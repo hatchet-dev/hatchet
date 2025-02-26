@@ -7,9 +7,9 @@ if [ -z "$MIGRATION_NAME" ]; then
   MIGRATION_NAME="temp"
 fi
 
-atlas migrate hash --dir "file://sql/migrations"
+atlas migrate hash --dir "file://sql/atlas"
 
 atlas migrate diff $MIGRATION_NAME \
-  --dir "file://sql/migrations" \
-  --to "file://sql/schema/schema.sql" \
+  --dir "file://sql/atlas" \
+  --to "file://sql/schema/v0.sql" \
   --dev-url "docker://postgres/15/dev?search_path=public"

@@ -6,11 +6,13 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (t *TenantService) TenantUpdate(ctx echo.Context, request gen.TenantUpdateRequestObject) (gen.TenantUpdateResponseObject, error) {
-	tenant := ctx.Get("tenant").(*db.TenantModel)
+	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	// validate the request
 	if apiErrors, err := t.config.Validator.ValidateAPI(request.Body); err != nil {
@@ -35,7 +37,7 @@ func (t *TenantService) TenantUpdate(ctx echo.Context, request gen.TenantUpdateR
 	}
 
 	// update the tenant
-	tenant, err := t.config.APIRepository.Tenant().UpdateTenant(tenant.ID, updateOpts)
+	tenant, err := t.config.APIRepository.Tenant().UpdateTenant(ctx.Request().Context(), tenantId, updateOpts)
 
 	if err != nil {
 		return nil, err
@@ -47,7 +49,8 @@ func (t *TenantService) TenantUpdate(ctx echo.Context, request gen.TenantUpdateR
 		request.Body.EnableWorkflowRunFailureAlerts != nil {
 
 		_, err = t.config.APIRepository.TenantAlertingSettings().UpsertTenantAlertingSettings(
-			tenant.ID,
+			ctx.Request().Context(),
+			tenantId,
 			&repository.UpsertTenantAlertingSettingsOpts{
 				MaxFrequency:                    request.Body.MaxAlertingFrequency,
 				EnableExpiringTokenAlerts:       request.Body.EnableExpiringTokenAlerts,

@@ -9,6 +9,333 @@
  * ---------------------------------------------------------------
  */
 
+export enum V1TaskStatus {
+  QUEUED = 'QUEUED',
+  RUNNING = 'RUNNING',
+  COMPLETED = 'COMPLETED',
+  CANCELLED = 'CANCELLED',
+  FAILED = 'FAILED',
+}
+
+/** @example {"next_page":3,"num_pages":10,"current_page":2} */
+export interface PaginationResponse {
+  /**
+   * the current page
+   * @format int64
+   * @example 2
+   */
+  current_page?: number;
+  /**
+   * the next page
+   * @format int64
+   * @example 3
+   */
+  next_page?: number;
+  /**
+   * the total number of pages for listing
+   * @format int64
+   * @example 10
+   */
+  num_pages?: number;
+}
+
+export interface APIResourceMeta {
+  /**
+   * the id of this resource, in UUID format
+   * @minLength 0
+   * @maxLength 36
+   * @example "bb214807-246e-43a5-a25d-41761d1cff9e"
+   */
+  id: string;
+  /**
+   * the time that this resource was created
+   * @format date-time
+   * @example "2022-12-13T15:06:48.888358-05:00"
+   */
+  createdAt: string;
+  /**
+   * the time that this resource was last updated
+   * @format date-time
+   * @example "2022-12-13T15:06:48.888358-05:00"
+   */
+  updatedAt: string;
+}
+
+export interface V1TaskSummary {
+  metadata: APIResourceMeta;
+  /** The ID of the task. */
+  taskId: number;
+  /**
+   * The external ID of the task.
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  taskExternalId: string;
+  /**
+   * The timestamp the task was inserted.
+   * @format date-time
+   */
+  taskInsertedAt: string;
+  status: V1TaskStatus;
+  /**
+   * The timestamp the task run started.
+   * @format date-time
+   */
+  startedAt?: string;
+  /**
+   * The timestamp the task run finished.
+   * @format date-time
+   */
+  finishedAt?: string;
+  /** The duration of the task run, in milliseconds. */
+  duration?: number;
+  /**
+   * The ID of the tenant.
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   * @example "bb214807-246e-43a5-a25d-41761d1cff9e"
+   */
+  tenantId: string;
+  /** Additional metadata for the task run. */
+  additionalMetadata?: object;
+  /** The display name of the task run. */
+  displayName: string;
+  /** @format uuid */
+  workflowId: string;
+  /** The output of the task run (for the latest run) */
+  output: object;
+  /** The error message of the task run (for the latest run) */
+  errorMessage?: string;
+}
+
+export interface V1TaskSummaryList {
+  pagination: PaginationResponse;
+  /** The list of tasks */
+  rows: V1TaskSummary[];
+}
+
+export interface APIError {
+  /**
+   * a custom Hatchet error code
+   * @format uint64
+   * @example 1400
+   */
+  code?: number;
+  /**
+   * the field that this error is associated with, if applicable
+   * @example "name"
+   */
+  field?: string;
+  /**
+   * a description for this error
+   * @example "A descriptive error message"
+   */
+  description: string;
+  /**
+   * a link to the documentation for this error, if it exists
+   * @example "github.com/hatchet-dev/hatchet"
+   */
+  docs_link?: string;
+}
+
+export interface APIErrors {
+  errors: APIError[];
+}
+
+export interface V1Task {
+  metadata: APIResourceMeta;
+  /** The ID of the task. */
+  taskId: number;
+  /**
+   * The timestamp the task was inserted.
+   * @format date-time
+   */
+  taskInsertedAt: string;
+  status: V1TaskStatus;
+  /**
+   * The timestamp the task run started.
+   * @format date-time
+   */
+  startedAt?: string;
+  /**
+   * The timestamp the task run finished.
+   * @format date-time
+   */
+  finishedAt?: string;
+  /** The duration of the task run, in milliseconds. */
+  duration?: number;
+  /**
+   * The ID of the tenant.
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   * @example "bb214807-246e-43a5-a25d-41761d1cff9e"
+   */
+  tenantId: string;
+  /** Additional metadata for the task run. */
+  additionalMetadata?: object;
+  /** The display name of the task run. */
+  displayName: string;
+  /** @format uuid */
+  workflowId: string;
+  /** The input for the task run. */
+  input: string;
+  /** The output of the task run (for the latest run) */
+  output?: string;
+  /** The error message of the task run (for the latest run) */
+  errorMessage?: string;
+  /**
+   * The external ID of the workflow run.
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  workflowRunExternalId?: string;
+}
+
+export enum V1TaskEventType {
+  REQUEUED_NO_WORKER = 'REQUEUED_NO_WORKER',
+  REQUEUED_RATE_LIMIT = 'REQUEUED_RATE_LIMIT',
+  SCHEDULING_TIMED_OUT = 'SCHEDULING_TIMED_OUT',
+  ASSIGNED = 'ASSIGNED',
+  STARTED = 'STARTED',
+  FINISHED = 'FINISHED',
+  FAILED = 'FAILED',
+  RETRYING = 'RETRYING',
+  CANCELLED = 'CANCELLED',
+  TIMED_OUT = 'TIMED_OUT',
+  REASSIGNED = 'REASSIGNED',
+  SLOT_RELEASED = 'SLOT_RELEASED',
+  TIMEOUT_REFRESHED = 'TIMEOUT_REFRESHED',
+  RETRIED_BY_USER = 'RETRIED_BY_USER',
+  SENT_TO_WORKER = 'SENT_TO_WORKER',
+  RATE_LIMIT_ERROR = 'RATE_LIMIT_ERROR',
+  ACKNOWLEDGED = 'ACKNOWLEDGED',
+  CREATED = 'CREATED',
+  QUEUED = 'QUEUED',
+  SKIPPED = 'SKIPPED',
+}
+
+export interface V1TaskEvent {
+  id: number;
+  /** @format uuid */
+  taskId: string;
+  /** @format date-time */
+  timestamp: string;
+  eventType: V1TaskEventType;
+  message: string;
+  errorMessage?: string;
+  output?: string;
+  /** @format uuid */
+  workerId?: string;
+  taskDisplayName?: string;
+}
+
+export interface V1TaskEventList {
+  pagination?: PaginationResponse;
+  rows?: V1TaskEvent[];
+}
+
+export interface V1DagChildren {
+  /** @format uuid */
+  dagId?: string;
+  children?: V1TaskSummary[];
+}
+
+export interface V1WorkflowRun {
+  metadata: APIResourceMeta;
+  status: V1TaskStatus;
+  /**
+   * The timestamp the task run started.
+   * @format date-time
+   */
+  startedAt?: string;
+  /**
+   * The timestamp the task run finished.
+   * @format date-time
+   */
+  finishedAt?: string;
+  /** The duration of the task run, in milliseconds. */
+  duration?: number;
+  /**
+   * The ID of the tenant.
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   * @example "bb214807-246e-43a5-a25d-41761d1cff9e"
+   */
+  tenantId: string;
+  /** Additional metadata for the task run. */
+  additionalMetadata?: object;
+  /** The display name of the task run. */
+  displayName: string;
+  /** @format uuid */
+  workflowId: string;
+  /** The output of the task run (for the latest run) */
+  output: object;
+  /** The error message of the task run (for the latest run) */
+  errorMessage?: string;
+  /**
+   * The ID of the workflow version.
+   * @format uuid
+   */
+  workflowVersionId?: string;
+  /** The input of the task run. */
+  input: object;
+  /**
+   * The timestamp the task run was created.
+   * @format date-time
+   */
+  createdAt?: string;
+}
+
+export interface V1WorkflowRunList {
+  pagination: PaginationResponse;
+  /** The list of workflow runs */
+  rows: V1WorkflowRun[];
+}
+
+export interface WorkflowRunShapeItemForWorkflowRunDetails {
+  /**
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  taskExternalId: string;
+  childrenExternalIds: string[];
+  taskName: string;
+}
+
+export type WorkflowRunShapeForWorkflowRunDetails = WorkflowRunShapeItemForWorkflowRunDetails[];
+
+export interface V1WorkflowRunDetails {
+  run: V1WorkflowRun;
+  /** The list of task events for the workflow run */
+  taskEvents: V1TaskEvent[];
+  shape: WorkflowRunShapeForWorkflowRunDetails;
+  tasks: V1TaskSummary[];
+}
+
+export interface V1TaskRunMetric {
+  status: V1TaskStatus;
+  count: number;
+}
+
+export type V1TaskRunMetrics = V1TaskRunMetric[];
+
+export interface V1TaskPointMetric {
+  /** @format date-time */
+  time: string;
+  SUCCEEDED: number;
+  FAILED: number;
+}
+
+export interface V1TaskPointMetrics {
+  results?: V1TaskPointMetric[];
+}
+
 export interface APIMetaAuth {
   /**
    * the supported types of authentication
@@ -60,34 +387,6 @@ export interface APIMeta {
   allowChangePassword?: boolean;
 }
 
-export interface APIError {
-  /**
-   * a custom Hatchet error code
-   * @format uint64
-   * @example 1400
-   */
-  code?: number;
-  /**
-   * the field that this error is associated with, if applicable
-   * @example "name"
-   */
-  field?: string;
-  /**
-   * a description for this error
-   * @example "A descriptive error message"
-   */
-  description: string;
-  /**
-   * a link to the documentation for this error, if it exists
-   * @example "github.com/hatchet-dev/hatchet"
-   */
-  docs_link?: string;
-}
-
-export interface APIErrors {
-  errors: APIError[];
-}
-
 export interface APIMetaIntegration {
   /**
    * the name of the integration
@@ -110,28 +409,6 @@ export interface UserLoginRequest {
   password: string;
 }
 
-export interface APIResourceMeta {
-  /**
-   * the id of this resource, in UUID format
-   * @minLength 0
-   * @maxLength 36
-   * @example "bb214807-246e-43a5-a25d-41761d1cff9e"
-   */
-  id: string;
-  /**
-   * the time that this resource was created
-   * @format date-time
-   * @example "2022-12-13T15:06:48.888358-05:00"
-   */
-  createdAt: string;
-  /**
-   * the time that this resource was last updated
-   * @format date-time
-   * @example "2022-12-13T15:06:48.888358-05:00"
-   */
-  updatedAt: string;
-}
-
 export interface User {
   metadata: APIResourceMeta;
   /** The display name of the user. */
@@ -147,28 +424,6 @@ export interface User {
   hasPassword?: boolean;
   /** A hash of the user's email address for use with Pylon Support Chat */
   emailHash?: string;
-}
-
-/** @example {"next_page":3,"num_pages":10,"current_page":2} */
-export interface PaginationResponse {
-  /**
-   * the current page
-   * @format int64
-   * @example 2
-   */
-  current_page?: number;
-  /**
-   * the next page
-   * @format int64
-   * @example 3
-   */
-  next_page?: number;
-  /**
-   * the total number of pages for listing
-   * @format int64
-   * @example 10
-   */
-  num_pages?: number;
 }
 
 export interface SNSIntegration {
@@ -1429,6 +1684,14 @@ export interface ListPullRequestsResponse {
 
 export interface WebhookWorkerCreateResponse {
   worker?: WebhookWorkerCreated;
+}
+
+export enum V1TaskRunStatus {
+  PENDING = 'PENDING',
+  RUNNING = 'RUNNING',
+  COMPLETED = 'COMPLETED',
+  FAILED = 'FAILED',
+  CANCELLED = 'CANCELLED',
 }
 
 export type BulkCreateEventResponse = Events;

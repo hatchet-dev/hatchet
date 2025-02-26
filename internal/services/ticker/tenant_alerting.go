@@ -6,7 +6,7 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (t *TickerImpl) runPollTenantAlerts(ctx context.Context) func() {

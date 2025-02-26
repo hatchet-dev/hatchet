@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 type WorkerStateManager struct {

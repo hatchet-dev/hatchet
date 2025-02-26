@@ -6,16 +6,17 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
-func ToSNSIntegration(sns *db.SNSIntegrationModel, serverUrl string) *gen.SNSIntegration {
-	ingestUrl := fmt.Sprintf("%s/api/v1/sns/%s/sns-event", serverUrl, sns.TenantID)
+func ToSNSIntegration(sns *dbsqlc.SNSIntegration, serverUrl string) *gen.SNSIntegration {
+	ingestUrl := fmt.Sprintf("%s/api/v1/sns/%s/sns-event", serverUrl, sqlchelpers.UUIDToStr(sns.TenantId))
 
 	return &gen.SNSIntegration{
-		Metadata:  *toAPIMetadata(sns.ID, sns.CreatedAt, sns.UpdatedAt),
+		Metadata:  *toAPIMetadata(sqlchelpers.UUIDToStr(sns.ID), sns.CreatedAt.Time, sns.UpdatedAt.Time),
 		TopicArn:  sns.TopicArn,
-		TenantId:  uuid.MustParse(sns.TenantID),
+		TenantId:  uuid.MustParse(sqlchelpers.UUIDToStr(sns.TenantId)),
 		IngestUrl: &ingestUrl,
 	}
 }

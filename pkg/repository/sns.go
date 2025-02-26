@@ -1,19 +1,23 @@
 package repository
 
-import "github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
+import (
+	"context"
+
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+)
 
 type CreateSNSIntegrationOpts struct {
 	TopicArn string `validate:"required,min=1,max=255"`
 }
 
 type SNSRepository interface {
-	GetSNSIntegration(tenantId, topicArn string) (*db.SNSIntegrationModel, error)
+	GetSNSIntegration(ctx context.Context, tenantId, topicArn string) (*dbsqlc.SNSIntegration, error)
 
-	GetSNSIntegrationById(id string) (*db.SNSIntegrationModel, error)
+	GetSNSIntegrationById(ctx context.Context, id string) (*dbsqlc.SNSIntegration, error)
 
-	CreateSNSIntegration(tenantId string, opts *CreateSNSIntegrationOpts) (*db.SNSIntegrationModel, error)
+	CreateSNSIntegration(ctx context.Context, tenantId string, opts *CreateSNSIntegrationOpts) (*dbsqlc.SNSIntegration, error)
 
-	ListSNSIntegrations(tenantId string) ([]db.SNSIntegrationModel, error)
+	ListSNSIntegrations(ctx context.Context, tenantId string) ([]*dbsqlc.SNSIntegration, error)
 
-	DeleteSNSIntegration(tenantId, id string) error
+	DeleteSNSIntegration(ctx context.Context, tenantId, id string) error
 }

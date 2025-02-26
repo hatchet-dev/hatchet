@@ -15,18 +15,19 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (t *StepRunService) StepRunUpdateRerun(ctx echo.Context, request gen.StepRunUpdateRerunRequestObject) (gen.StepRunUpdateRerunResponseObject, error) {
-	tenant := ctx.Get("tenant").(*db.TenantModel)
+	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 	stepRun := ctx.Get("step-run").(*repository.GetStepRunFull)
 
 	// preflight check to verify step run status and worker availability
 	err := t.config.EngineRepository.StepRun().PreflightCheckReplayStepRun(
 		ctx.Request().Context(),
-		tenant.ID,
+		tenantId,
 		sqlchelpers.UUIDToStr(stepRun.ID),
 	)
 
@@ -80,7 +81,7 @@ func (t *StepRunService) StepRunUpdateRerun(ctx echo.Context, request gen.StepRu
 
 	engineStepRun, err := t.config.EngineRepository.StepRun().GetStepRunForEngine(
 		ctx.Request().Context(),
-		tenant.ID,
+		tenantId,
 		sqlchelpers.UUIDToStr(stepRun.ID),
 	)
 

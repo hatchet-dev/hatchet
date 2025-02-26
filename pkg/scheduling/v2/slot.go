@@ -5,8 +5,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 // slot expiry is 1 second to account for the 1 second replenish rate, plus 500 ms of buffer

@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 )
 
 func (rc *RetentionControllerImpl) runDeleteMessageQueueItems(ctx context.Context) func() {

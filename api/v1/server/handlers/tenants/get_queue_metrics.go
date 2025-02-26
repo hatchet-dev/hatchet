@@ -9,11 +9,13 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (t *TenantService) TenantGetQueueMetrics(ctx echo.Context, request gen.TenantGetQueueMetricsRequestObject) (gen.TenantGetQueueMetricsResponseObject, error) {
-	tenant := ctx.Get("tenant").(*db.TenantModel)
+	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	opts := repository.GetQueueMetricsOpts{}
 
@@ -38,13 +40,13 @@ func (t *TenantService) TenantGetQueueMetrics(ctx echo.Context, request gen.Tena
 		opts.WorkflowIds = *request.Params.Workflows
 	}
 
-	metrics, err := t.config.APIRepository.Tenant().GetQueueMetrics(ctx.Request().Context(), tenant.ID, &opts)
+	metrics, err := t.config.APIRepository.Tenant().GetQueueMetrics(ctx.Request().Context(), tenantId, &opts)
 
 	if err != nil {
 		return nil, err
 	}
 
-	stepRunQueueCounts, err := t.config.EngineRepository.StepRun().GetQueueCounts(ctx.Request().Context(), tenant.ID)
+	stepRunQueueCounts, err := t.config.EngineRepository.StepRun().GetQueueCounts(ctx.Request().Context(), tenantId)
 
 	if err != nil {
 		return nil, err

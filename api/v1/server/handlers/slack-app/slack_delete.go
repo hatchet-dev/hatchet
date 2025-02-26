@@ -5,14 +5,16 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (i *SlackAppService) SlackWebhookDelete(ctx echo.Context, req gen.SlackWebhookDeleteRequestObject) (gen.SlackWebhookDeleteResponseObject, error) {
-	tenant := ctx.Get("tenant").(*db.TenantModel)
-	slack := ctx.Get("slack").(*db.SlackAppWebhookModel)
+	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	slack := ctx.Get("slack").(*dbsqlc.SlackAppWebhook)
 
-	err := i.config.APIRepository.Slack().DeleteSlackWebhook(tenant.ID, slack.ID)
+	err := i.config.APIRepository.Slack().DeleteSlackWebhook(ctx.Request().Context(), tenantId, sqlchelpers.UUIDToStr(slack.ID))
 
 	if err != nil {
 		return nil, err

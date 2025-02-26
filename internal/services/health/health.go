@@ -21,10 +21,10 @@ type Health struct {
 	queue      msgqueue.MessageQueue
 }
 
-func New(prisma repository.EngineRepository, queue msgqueue.MessageQueue, version string) *Health {
+func New(repo repository.EngineRepository, queue msgqueue.MessageQueue, version string) *Health {
 	return &Health{
 		version:    version,
-		repository: prisma,
+		repository: repo,
 		queue:      queue,
 	}
 }

@@ -1,12 +1,13 @@
 package repository
 
 import (
+	"context"
 	"fmt"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 )
 
 type CreateUserOpts struct {
@@ -23,7 +24,7 @@ type OAuthOpts struct {
 	Provider       string     `validate:"required,oneof=google github"`
 	ProviderUserId string     `validate:"required,min=1"`
 	AccessToken    []byte     `validate:"required,min=1"`
-	RefreshToken   *[]byte    // optional
+	RefreshToken   []byte     // optional
 	ExpiresAt      *time.Time // optional
 }
 
@@ -37,25 +38,25 @@ type UpdateUserOpts struct {
 }
 
 type UserRepository interface {
-	RegisterCreateCallback(callback UnscopedCallback[*db.UserModel])
+	RegisterCreateCallback(callback UnscopedCallback[*dbsqlc.User])
 
 	// GetUserByID returns the user with the given id
-	GetUserByID(id string) (*db.UserModel, error)
+	GetUserByID(ctx context.Context, id string) (*dbsqlc.User, error)
 
 	// GetUserByEmail returns the user with the given email
-	GetUserByEmail(email string) (*db.UserModel, error)
+	GetUserByEmail(ctx context.Context, email string) (*dbsqlc.User, error)
 
 	// GetUserPassword returns the user password with the given id
-	GetUserPassword(id string) (*db.UserPasswordModel, error)
+	GetUserPassword(ctx context.Context, id string) (*dbsqlc.UserPassword, error)
 
 	// CreateUser creates a new user with the given options
-	CreateUser(*CreateUserOpts) (*db.UserModel, error)
+	CreateUser(ctx context.Context, opts *CreateUserOpts) (*dbsqlc.User, error)
 
 	// UpdateUser updates the user with the given email
-	UpdateUser(id string, opts *UpdateUserOpts) (*db.UserModel, error)
+	UpdateUser(ctx context.Context, id string, opts *UpdateUserOpts) (*dbsqlc.User, error)
 
 	// ListTenantMemberships returns the list of tenant memberships for the given user
-	ListTenantMemberships(userId string) ([]db.TenantMemberModel, error)
+	ListTenantMemberships(ctx context.Context, userId string) ([]*dbsqlc.PopulateTenantMembersRow, error)
 }
 
 type SecurityCheckRepository interface {

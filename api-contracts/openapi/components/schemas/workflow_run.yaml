@@ -219,7 +219,6 @@ ScheduledWorkflows:
     - triggerAt
     - method
 
-
 ScheduledWorkflowsMethod:
   type: string
   enum:
@@ -305,6 +304,20 @@ WorkflowRunsMetricsCounts:
     CANCELLED:
       type: integer
 
+TaskRunMetricsCounts:
+  type: object
+  properties:
+    PENDING:
+      type: integer
+    RUNNING:
+      type: integer
+    SUCCEEDED:
+      type: integer
+    FAILED:
+      type: integer
+    QUEUED:
+      type: integer
+
 WorkflowRunsMetrics:
   type: object
   properties:
@@ -334,6 +347,15 @@ JobRunStatus:
     - FAILED
     - CANCELLED
     - BACKOFF
+
+V1TaskRunStatus:
+  type: string
+  enum:
+    - PENDING
+    - RUNNING
+    - COMPLETED
+    - FAILED
+    - CANCELLED
 
 WorkflowRunStatus:
   type: string

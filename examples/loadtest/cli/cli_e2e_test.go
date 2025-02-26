@@ -41,20 +41,20 @@ func TestLoadCLI(t *testing.T) {
 		args    args
 		wantErr bool
 	}{{
-		name: "test simple with unlimited concurrency",
-		args: args{
-			duration:        10 * time.Second,
-			eventsPerSecond: 10,
-			delay:           0 * time.Second,
-			wait:            60 * time.Second,
-			concurrency:     0,
-		},
-	}, {
 		name: "test with high step delay",
 		args: args{
 			duration:        10 * time.Second,
 			eventsPerSecond: 10,
 			delay:           10 * time.Second,
+			wait:            60 * time.Second,
+			concurrency:     0,
+		},
+	}, {
+		name: "test simple with unlimited concurrency",
+		args: args{
+			duration:        10 * time.Second,
+			eventsPerSecond: 10,
+			delay:           0 * time.Second,
 			wait:            60 * time.Second,
 			concurrency:     0,
 		},

@@ -70,14 +70,13 @@ tasks:
   migrate:
     cmds:
       - task: generate-sqlc
-      - task: atlas-compare-schema-to-migrations-dir
-      - task: atlas-apply-migrations
-  atlas-compare-schema-to-migrations-dir:
+      - task: goose-migrate
+  atlas-migrate:
     cmds:
       - sh ./hack/dev/atlas-migrate.sh {{.CLI_ARGS}}
-  atlas-apply-migrations:
+  goose-migrate:
     cmds:
-      - DATABASE_URL='postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet' sh ./hack/db/atlas-apply.sh
+      - sh ./hack/dev/migrate.sh
   seed-dev:
     cmds:
       - SEED_DEVELOPMENT=true sh ./hack/dev/run-go-with-env.sh run ./cmd/hatchet-admin seed
@@ -150,7 +149,7 @@ tasks:
       - sh ./generate.sh
   generate-sqlc:
     cmds:
-      - go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.24.0 generate --file pkg/repository/prisma/dbsqlc/sqlc.yaml
+      - go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.24.0 generate --file pkg/repository/postgres/dbsqlc/sqlc.yaml
   lint:
     cmds:
       - task: lint-go
@@ -161,9 +160,6 @@ tasks:
   lint-frontend:
     cmds:
       - cd frontend/app/ && pnpm run lint:check
-  kill-query-engines:
-    cmds:
-      - ps -A | grep 'prisma-query-engine-darwin-arm64' | grep -v grep | awk '{print $1}' | xargs kill -9 $1
   kill-apis:
     cmds:
       - ps -A | grep 'cmd/hatchet-api' | grep -v grep | awk '{print $1}' | xargs kill -9 $1

@@ -4,12 +4,11 @@ import (
 	"context"
 	"time"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 )
 
 type ListGetGroupKeyRunsOpts struct {
-	Status *db.StepRunStatus
+	Status *dbsqlc.StepRunStatus
 }
 
 type UpdateGetGroupKeyRunOpts struct {
@@ -17,7 +16,7 @@ type UpdateGetGroupKeyRunOpts struct {
 
 	ScheduleTimeoutAt *time.Time
 
-	Status *db.StepRunStatus
+	Status *dbsqlc.StepRunStatus
 
 	StartedAt *time.Time
 

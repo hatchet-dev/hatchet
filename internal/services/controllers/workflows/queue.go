@@ -16,9 +16,8 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/internal/telemetry/servertel"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (wc *WorkflowsControllerImpl) handleWorkflowRunQueued(ctx context.Context, task *msgqueue.Message) error {
@@ -349,7 +348,7 @@ func (wc *WorkflowsControllerImpl) handleWorkflowRunFinished(ctx context.Context
 
 				}
 
-			} else if jobRun.Status != dbsqlc.JobRunStatus(db.JobRunStatusCancelled) {
+			} else if jobRun.Status != dbsqlc.JobRunStatus(dbsqlc.JobRunStatusCANCELLED) {
 				// cancel the onFailure job
 				err = wc.mq.AddMessage(
 					ctx,
@@ -393,7 +392,7 @@ func (wc *WorkflowsControllerImpl) scheduleGetGroupAction(
 	workflowRunId := sqlchelpers.UUIDToStr(getGroupKeyRun.WorkflowRunId)
 
 	_, err := wc.repo.GetGroupKeyRun().UpdateGetGroupKeyRun(ctx, tenantId, getGroupKeyRunId, &repository.UpdateGetGroupKeyRunOpts{
-		Status: repository.StepRunStatusPtr(db.StepRunStatusPendingAssignment),
+		Status: repository.StepRunStatusPtr(dbsqlc.StepRunStatusPENDINGASSIGNMENT),
 	})
 
 	if err != nil {
@@ -583,7 +582,7 @@ func (ec *WorkflowsControllerImpl) runGetGroupKeyRunReassignTenant(ctx context.C
 
 			innerGetGroupKeyRun, err = ec.repo.GetGroupKeyRun().UpdateGetGroupKeyRun(ctx, tenantId, getGroupKeyRunId, &repository.UpdateGetGroupKeyRunOpts{
 				RequeueAfter: &requeueAfter,
-				Status:       repository.StepRunStatusPtr(db.StepRunStatusPendingAssignment),
+				Status:       repository.StepRunStatusPtr(dbsqlc.StepRunStatusPENDINGASSIGNMENT),
 			})
 
 			if err != nil {

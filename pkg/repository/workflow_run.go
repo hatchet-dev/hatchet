@@ -9,9 +9,8 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/pkg/random"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 type CreateWorkflowRunOpts struct {
@@ -282,7 +281,7 @@ type ListWorkflowRunsOpts struct {
 	GroupKey *string
 
 	// (optional) the status of the workflow run
-	Statuses *[]db.WorkflowRunStatus
+	Statuses *[]dbsqlc.WorkflowRunStatus
 
 	// (optional) a list of kinds to filter by
 	Kinds *[]dbsqlc.WorkflowKind
@@ -369,7 +368,7 @@ type ListWorkflowRunRoundRobinsOpts struct {
 	WorkflowVersionId *string `validate:"omitempty,uuid"`
 
 	// (optional) the status of the workflow run
-	Status *db.WorkflowRunStatus
+	Status *dbsqlc.WorkflowRunStatus
 
 	// (optional) number of events to skip
 	Offset *int
@@ -414,7 +413,7 @@ type ListScheduledWorkflowsOpts struct {
 	ParentStepRunId *string `validate:"omitempty,uuid"`
 
 	// (optional) statuses to filter by
-	Statuses *[]db.WorkflowRunStatus
+	Statuses *[]dbsqlc.WorkflowRunStatus
 
 	// (optional) include scheduled runs that are in the future
 	IncludeFuture *bool

@@ -12,12 +12,13 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (t *EventService) EventUpdateCancel(ctx echo.Context, request gen.EventUpdateCancelRequestObject) (gen.EventUpdateCancelResponseObject, error) {
-	tenant := ctx.Get("tenant").(*db.TenantModel)
+	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	eventIds := make([]string, len(request.Body.EventIds))
 
@@ -30,7 +31,7 @@ func (t *EventService) EventUpdateCancel(ctx echo.Context, request gen.EventUpda
 	for i := range eventIds {
 		eventId := eventIds[i]
 
-		runs, err := t.config.EngineRepository.WorkflowRun().ListWorkflowRuns(ctx.Request().Context(), tenant.ID, &repository.ListWorkflowRunsOpts{
+		runs, err := t.config.EngineRepository.WorkflowRun().ListWorkflowRuns(ctx.Request().Context(), tenantId, &repository.ListWorkflowRunsOpts{
 			EventId: &eventId,
 		})
 
@@ -56,7 +57,7 @@ func (t *EventService) EventUpdateCancel(ctx echo.Context, request gen.EventUpda
 			defer wg.Done()
 
 			// Lookup step runs for the workflow run
-			jobRun, err := t.config.EngineRepository.JobRun().ListJobRunsForWorkflowRun(ctx.Request().Context(), tenant.ID, runId)
+			jobRun, err := t.config.EngineRepository.JobRun().ListJobRunsForWorkflowRun(ctx.Request().Context(), tenantId, runId)
 			if err != nil {
 				returnErr = multierror.Append(err, fmt.Errorf("failed to list job runs for workflow run %s", runId))
 				return
@@ -70,7 +71,7 @@ func (t *EventService) EventUpdateCancel(ctx echo.Context, request gen.EventUpda
 				err = t.config.MessageQueue.AddMessage(
 					ctx.Request().Context(),
 					msgqueue.JOB_PROCESSING_QUEUE,
-					tasktypes.JobRunCancelledToTask(tenant.ID, jobRunId, &reason),
+					tasktypes.JobRunCancelledToTask(tenantId, jobRunId, &reason),
 				)
 				if err != nil {
 					returnErr = multierror.Append(err, fmt.Errorf("failed to send cancel task for job run %s", jobRunId))

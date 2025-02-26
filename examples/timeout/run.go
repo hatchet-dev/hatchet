@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/hatchet-dev/hatchet/pkg/client"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 )
 
@@ -56,12 +55,6 @@ func run(done chan<- string, job worker.WorkflowJob) (func() error, error) {
 		}
 
 		time.Sleep(20 * time.Second)
-
-		client := db.NewClient()
-		if err := client.Connect(); err != nil {
-			panic(fmt.Errorf("error connecting to database: %w", err))
-		}
-		defer client.Disconnect()
 
 		done <- "done"
 	}()

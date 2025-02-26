@@ -12,13 +12,13 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (t *StepRunService) StepRunUpdateCancel(ctx echo.Context, request gen.StepRunUpdateCancelRequestObject) (gen.StepRunUpdateCancelResponseObject, error) {
-	tenant := ctx.Get("tenant").(*db.TenantModel)
+	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 	stepRun := ctx.Get("step-run").(*repository.GetStepRunFull)
 
 	// check to see if the step run is in a running or pending state
@@ -36,7 +36,7 @@ func (t *StepRunService) StepRunUpdateCancel(ctx echo.Context, request gen.StepR
 
 	engineStepRun, err := t.config.EngineRepository.StepRun().GetStepRunForEngine(
 		ctx.Request().Context(),
-		tenant.ID,
+		tenantId,
 		sqlchelpers.UUIDToStr(stepRun.ID),
 	)
 

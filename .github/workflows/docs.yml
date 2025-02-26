@@ -1,5 +1,8 @@
 name: "frontend / docs"
-on: pull_request
+on:
+  pull_request:
+    paths-ignore:
+      - 'sdks/**'
 jobs:
   lint:
     runs-on: ubuntu-latest

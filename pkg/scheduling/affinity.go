@@ -3,7 +3,7 @@ package scheduling
 import (
 	"sort"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 )
 
 // WorkerWithWeight represents a worker with an associated weight

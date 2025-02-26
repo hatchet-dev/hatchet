@@ -11,11 +11,13 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (t *WorkflowService) WorkflowRunGetMetrics(ctx echo.Context, request gen.WorkflowRunGetMetricsRequestObject) (gen.WorkflowRunGetMetricsResponseObject, error) {
-	tenant := ctx.Get("tenant").(*db.TenantModel)
+	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	listOpts := &repository.WorkflowRunsMetricsOpts{}
 
@@ -67,7 +69,7 @@ func (t *WorkflowService) WorkflowRunGetMetrics(ctx echo.Context, request gen.Wo
 	dbCtx, cancel := context.WithTimeout(ctx.Request().Context(), 30*time.Second)
 	defer cancel()
 
-	workflowRunsMetricsCount, err := t.config.APIRepository.WorkflowRun().WorkflowRunMetricsCount(dbCtx, tenant.ID, listOpts)
+	workflowRunsMetricsCount, err := t.config.APIRepository.WorkflowRun().WorkflowRunMetricsCount(dbCtx, tenantId, listOpts)
 
 	if err != nil {
 		return nil, err
