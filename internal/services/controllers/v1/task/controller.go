@@ -291,7 +291,7 @@ func (tc *TasksControllerImpl) handleBufferedMsgs(tenantId, msgId string, payloa
 	case "task-cancelled":
 		return tc.handleTaskCancelled(context.Background(), tenantId, payloads)
 	case "cancel-tasks":
-		// return tc.handleCancelTasks(context.Background(), tenantId, payloads)
+		return tc.handleCancelTasks(context.Background(), tenantId, payloads)
 	case "user-event":
 		return tc.handleProcessUserEvents(context.Background(), tenantId, payloads)
 	case "internal-event":
@@ -552,20 +552,45 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 	return err
 }
 
-// func (tc *TasksControllerImpl) handleCancelTasks(ctx context.Context, tenantId string, payloads [][]byte) error {
-// 	// sure would be nice if we could use our own durable execution primitives here, but that's a bootstrapping
-// 	// problem that we don't have a clean way to solve (yet)
-// 	msgs := msgqueue.JSONConvert[tasktypes.CancelTasksPayload](payloads)
+func (tc *TasksControllerImpl) handleCancelTasks(ctx context.Context, tenantId string, payloads [][]byte) error {
+	// sure would be nice if we could use our own durable execution primitives here, but that's a bootstrapping
+	// problem that we don't have a clean way to solve (yet)
+	msgs := msgqueue.JSONConvert[tasktypes.CancelTasksPayload](payloads)
+	pubPayloads := make([]tasktypes.CancelledTaskPayload, 0)
 
-// 	for _, msg := range msgs {
-// 		tasksToCancel := make([]v1.TaskIdRetryCount, 0)
+	for _, msg := range msgs {
+		for _, task := range msg.Tasks {
+			pubPayloads = append(pubPayloads, tasktypes.CancelledTaskPayload{
+				TaskId:       task.Id,
+				RetryCount:   task.RetryCount,
+				EventType:    sqlcv1.V1EventTypeOlapCANCELLED,
+				ShouldNotify: true,
+			})
+		}
+	}
 
-// 		if len(msg.TaskExternalIds) > 0 {
-// 			// look up tasks by external id
-// 			tc.repov1.Tasks().ListTasks()
-// 		}
-// 	}
-// }
+	// Batch tasks to cancel in groups of 50 and publish to the message queue. This is a form of backpressure
+	// as we don't want to run out of RabbitMQ memory if we publish a very large number of tasks to cancel.
+	return queueutils.BatchLinear(50, pubPayloads, func(pubPayloads []tasktypes.CancelledTaskPayload) error {
+		msg, err := msgqueue.NewTenantMessage(
+			tenantId,
+			"task-cancelled",
+			false,
+			true,
+			pubPayloads...,
+		)
+
+		if err != nil {
+			return fmt.Errorf("could not create message for task cancellation: %w", err)
+		}
+
+		return tc.mq.SendMessage(
+			ctx,
+			msgqueue.TASK_PROCESSING_QUEUE,
+			msg,
+		)
+	})
+}
 
 func (tc *TasksControllerImpl) sendTaskCancellationsToDispatcher(ctx context.Context, tenantId string, releasedTasks []tasktypes.SignalTaskCancelledPayload) error {
 	workerIds := make([]string, 0)

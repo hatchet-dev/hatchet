@@ -753,9 +753,9 @@ CREATE TYPE v1_sticky_strategy_olap AS ENUM ('NONE', 'SOFT', 'HARD');
 CREATE TYPE v1_readable_status_olap AS ENUM (
     'QUEUED',
     'RUNNING',
-    'COMPLETED',
     'CANCELLED',
-    'FAILED'
+    'FAILED',
+    'COMPLETED'
 );
 
 -- HELPER FUNCTIONS FOR PARTITIONED TABLES --

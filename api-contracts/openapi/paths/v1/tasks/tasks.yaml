@@ -398,3 +398,55 @@ getTaskPointMetrics:
     summary: Get task point metrics
     tags:
       - Task
+cancelTasks:
+  post:
+    x-resources: ["tenant"]
+    description: Cancel tasks
+    operationId: v1-task:cancel
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    requestBody:
+      content:
+        application/json:
+          schema:
+            $ref: "../../../components/schemas/_index.yaml#/V1CancelTaskRequest"
+      description: The tasks to cancel
+      required: true
+    responses:
+      "200":
+        description: Successfully cancelled the tasks
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+      "404":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: The task was not found
+      "501":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Not implemented
+    summary: Cancel tasks
+    tags:
+      - Task

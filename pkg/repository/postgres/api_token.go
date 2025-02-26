@@ -57,3 +57,24 @@ func (a *apiTokenRepository) GetAPITokenById(ctx context.Context, id string) (*d
 		return a.queries.GetAPITokenById(ctx, a.pool, sqlchelpers.UUIDFromStr(id))
 	})
 }
+
+func (a *apiTokenRepository) DeleteAPIToken(ctx context.Context, tenantId, id string) error {
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, a.pool, a.l, 5000)
+
+	if err != nil {
+		return err
+	}
+
+	defer rollback()
+
+	err = a.queries.DeleteAPIToken(ctx, tx, dbsqlc.DeleteAPITokenParams{
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		ID:       sqlchelpers.UUIDFromStr(id),
+	})
+
+	if err != nil {
+		return err
+	}
+
+	return commit(ctx)
+}
