@@ -35,7 +35,6 @@ const WorkflowRunVisualizer = ({
   const { theme } = useTheme();
   const { shape, taskRuns, isLoading, isError } = useWorkflowDetails();
 
-
   const edges: Edge[] = useMemo(
     () =>
       shape.flatMap((task) =>

@@ -9,13 +9,11 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
-import { GrUpgrade } from 'react-icons/gr';
-
 import {
-  Link,
   useLocation,
   useNavigate,
   useSearchParams,
+  Navigate,
 } from 'react-router-dom';
 import api, { TenantVersion, User } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
@@ -38,8 +36,6 @@ import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import { VersionInfo } from '@/pages/main/info/components/version-info';
 import { useTenant } from '@/lib/atoms';
 import { routes } from '@/router';
-import { TooltipContent, TooltipProvider } from '@/components/ui/tooltip';
-import { Tooltip, TooltipTrigger } from '@/components/ui/tooltip';
 
 function HelpDropdown() {
   const meta = useApiMeta();
@@ -188,28 +184,12 @@ function VersionUpgradeButton() {
   }
 
   return (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger>
-          {' '}
-          <Link
-            to={{
-              pathname: '/v1' + pathname,
-              search: params.toString(),
-            }}
-          >
-            <Button
-              variant="ghost"
-              className="relative h-10 w-10 rounded-full p-1 animate-bounce"
-              aria-label="Upgrade version"
-            >
-              <GrUpgrade className="h-6 w-6 text-foreground cursor-pointer text-red-500" />
-            </Button>
-          </Link>{' '}
-        </TooltipTrigger>
-        <TooltipContent>Switch to v1</TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+    <Navigate
+      to={{
+        pathname: '/v1' + pathname,
+        search: params.toString(),
+      }}
+    />
   );
 }
 
