@@ -1048,9 +1048,9 @@ type V1ReadableStatusOlap string
 const (
 	V1ReadableStatusOlapQUEUED    V1ReadableStatusOlap = "QUEUED"
 	V1ReadableStatusOlapRUNNING   V1ReadableStatusOlap = "RUNNING"
-	V1ReadableStatusOlapCOMPLETED V1ReadableStatusOlap = "COMPLETED"
 	V1ReadableStatusOlapCANCELLED V1ReadableStatusOlap = "CANCELLED"
 	V1ReadableStatusOlapFAILED    V1ReadableStatusOlap = "FAILED"
+	V1ReadableStatusOlapCOMPLETED V1ReadableStatusOlap = "COMPLETED"
 )
 
 func (e *V1ReadableStatusOlap) Scan(src interface{}) error {

@@ -238,6 +238,22 @@ export interface V1TaskEventList {
   rows?: V1TaskEvent[];
 }
 
+export interface V1TaskFilter {
+  /** @format date-time */
+  since: string;
+  /** @format date-time */
+  until?: string;
+  statuses?: V1TaskStatus[];
+  workflowIds?: string[];
+  additionalMetadata?: string[];
+}
+
+export interface V1CancelTaskRequest {
+  /** A list of external IDs, which can refer to either task or workflow run external IDs */
+  externalIds?: string[];
+  filter?: V1TaskFilter;
+}
+
 export interface V1DagChildren {
   /** @format uuid */
   dagId?: string;

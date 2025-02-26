@@ -83,6 +83,7 @@ import {
   UserLoginRequest,
   UserRegisterRequest,
   UserTenantMembershipsList,
+  V1CancelTaskRequest,
   V1DagChildren,
   V1Task,
   V1TaskEventList,
@@ -223,6 +224,24 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       query: query,
       secure: true,
       format: 'json',
+      ...params,
+    });
+  /**
+   * @description Cancel tasks
+   *
+   * @tags Task
+   * @name V1TaskCancel
+   * @summary Cancel tasks
+   * @request POST:/api/v1/stable/tenants/{tenant}/tasks/cancel
+   * @secure
+   */
+  v1TaskCancel = (tenant: string, data: V1CancelTaskRequest, params: RequestParams = {}) =>
+    this.request<void, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/tasks/cancel`,
+      method: 'POST',
+      body: data,
+      secure: true,
+      type: ContentType.Json,
       ...params,
     });
   /**
