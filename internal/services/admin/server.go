@@ -25,6 +25,19 @@ import (
 
 func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.TriggerWorkflowRequest) (*contracts.TriggerWorkflowResponse, error) {
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
+
+	switch tenant.Version {
+	case dbsqlc.TenantMajorEngineVersionV0:
+		return a.triggerWorkflowV0(ctx, req)
+	case dbsqlc.TenantMajorEngineVersionV1:
+		return a.triggerWorkflowV1(ctx, req)
+	default:
+		return nil, status.Errorf(codes.Unimplemented, "TriggerWorkflow is not supported on major engine version %s", tenant.Version)
+	}
+}
+
+func (a *AdminServiceImpl) triggerWorkflowV0(ctx context.Context, req *contracts.TriggerWorkflowRequest) (*contracts.TriggerWorkflowResponse, error) {
+	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	createContext, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -87,6 +100,19 @@ func (a *AdminServiceImpl) TriggerWorkflow(ctx context.Context, req *contracts.T
 }
 
 func (a *AdminServiceImpl) BulkTriggerWorkflow(ctx context.Context, req *contracts.BulkTriggerWorkflowRequest) (*contracts.BulkTriggerWorkflowResponse, error) {
+	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
+
+	switch tenant.Version {
+	case dbsqlc.TenantMajorEngineVersionV0:
+		return a.bulkTriggerWorkflowV0(ctx, req)
+	case dbsqlc.TenantMajorEngineVersionV1:
+		return a.bulkTriggerWorkflowV1(ctx, req)
+	default:
+		return nil, status.Errorf(codes.Unimplemented, "TriggerWorkflow is not supported on major engine version %s", tenant.Version)
+	}
+}
+
+func (a *AdminServiceImpl) bulkTriggerWorkflowV0(ctx context.Context, req *contracts.BulkTriggerWorkflowRequest) (*contracts.BulkTriggerWorkflowResponse, error) {
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 

@@ -100,7 +100,7 @@ const OUTPUT_STATE_MAP: Record<StepRunStatus, React.FC<StepRunOutputProps>> = {
   [StepRunStatus.SUCCEEDED]: StepRunOutputSucceeded,
   [StepRunStatus.FAILED]: StepRunOutputFailed,
   [StepRunStatus.CANCELLING]: StepRunOutputCancelling,
-  [StepRunStatus.BACKOFF]: StepRunOutputFailed, // TODO: Remove this when we remove backoff
+  [StepRunStatus.BACKOFF]: StepRunOutputPending,
 };
 
 const StepRunOutput: React.FC<StepRunOutputProps> = (props) => {
@@ -108,7 +108,7 @@ const StepRunOutput: React.FC<StepRunOutputProps> = (props) => {
   return <Component {...props} />;
 };
 
-export const V2StepRunOutput = (props: { taskRunId: string }) => {
+export const V1StepRunOutput = (props: { taskRunId: string }) => {
   const { tenantId } = useTenant();
 
   const { isLoading, data } = useQuery({

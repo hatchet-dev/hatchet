@@ -207,8 +207,11 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 		return nil, fmt.Errorf("could not start message queue buffer: %w", err)
 	}
 
+	startupPartitionCtx, cancelStartupPartition := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancelStartupPartition()
+
 	// always create table partition on startup
-	if err := tc.createTablePartition(context.Background()); err != nil {
+	if err := tc.createTablePartition(startupPartitionCtx); err != nil {
 		return nil, fmt.Errorf("could not create table partition: %w", err)
 	}
 

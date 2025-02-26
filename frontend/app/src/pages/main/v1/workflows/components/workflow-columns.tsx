@@ -30,7 +30,7 @@ export const columns: ColumnDef<Workflow>[] = [
       <DataTableColumnHeader column={column} title="Name" />
     ),
     cell: ({ row }) => (
-      <Link to={`/workflows/${row.original.metadata.id}`}>
+      <Link to={`/v1/workflows/${row.original.metadata.id}`}>
         <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap text-md p-2">
           {row.original.name}
         </div>
@@ -70,7 +70,7 @@ export const columns: ColumnDef<Workflow>[] = [
     cell: ({ row }) => {
       return (
         <div className="flex gap-2 justify-end">
-          <Link to={`/workflows/${row.original.metadata.id}`}>
+          <Link to={`/v1/workflows/${row.original.metadata.id}`}>
             <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap text-md p-2">
               <ChevronRightIcon
                 className="h-5 w-5 flex-none text-gray-700 dark:text-gray-300"

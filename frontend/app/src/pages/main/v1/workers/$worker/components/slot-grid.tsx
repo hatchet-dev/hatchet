@@ -17,8 +17,8 @@ const statusColors = {
   FAILED: 'bg-red-500',
   CANCELLING: 'bg-yellow-500',
   CANCELLED: 'bg-gray-500',
-  BACKOFF: 'bg-red-300', // TODO: Remove this when we remove backoff
   UNDEFINED: 'bg-gray-300', // Default color for undefined status
+  BACKOFF: 'bg-yellow-500',
 };
 
 interface WorkerSlotGridProps {
@@ -46,7 +46,7 @@ const WorkerSlotGrid: React.FC<WorkerSlotGridProps> = ({ slots = [] }) => {
               {slot.status ? (
                 <>
                   <div>
-                    <Link to={'/workflow-runs/' + slot.workflowRunId}>
+                    <Link to={'/v1/workflow-runs/' + slot.workflowRunId}>
                       <div className="pl-0 cursor-pointer hover:underline min-w-fit whitespace-nowrap">
                         {slot.actionId}:{slot.workflowRunId?.split('-')[0]}
                       </div>

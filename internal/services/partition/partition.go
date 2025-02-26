@@ -168,6 +168,10 @@ func (p *Partition) StartControllerPartition(ctx context.Context) (func() error,
 	return cleanup, nil
 }
 
+func (p *Partition) GetInternalTenantForController(ctx context.Context) (*dbsqlc.Tenant, error) {
+	return p.repo.GetInternalTenantForController(ctx, p.GetControllerPartitionId())
+}
+
 func (p *Partition) ListTenantsForController(ctx context.Context, majorVersion dbsqlc.TenantMajorEngineVersion) ([]*dbsqlc.Tenant, error) {
 	return p.repo.ListTenantsByControllerPartition(ctx, p.GetControllerPartitionId(), majorVersion)
 }

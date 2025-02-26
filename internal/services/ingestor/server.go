@@ -22,14 +22,12 @@ import (
 func (i *IngestorImpl) Push(ctx context.Context, req *contracts.PushEventRequest) (*contracts.Event, error) {
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
 
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
-
 	var additionalMeta []byte
 
 	if req.AdditionalMetadata != nil {
 		additionalMeta = []byte(*req.AdditionalMetadata)
 	}
-	event, err := i.IngestEvent(ctx, tenantId, req.Key, []byte(req.Payload), additionalMeta)
+	event, err := i.IngestEvent(ctx, tenant, req.Key, []byte(req.Payload), additionalMeta)
 
 	if err == metered.ErrResourceExhausted {
 		return nil, status.Errorf(codes.ResourceExhausted, "resource exhausted: event limit exceeded for tenant")
@@ -93,7 +91,7 @@ func (i *IngestorImpl) BulkPush(ctx context.Context, req *contracts.BulkPushEven
 		}
 	}
 
-	createdEvents, err := i.BulkIngestEvent(ctx, tenantId, events)
+	createdEvents, err := i.BulkIngestEvent(ctx, tenant, events)
 
 	if err == metered.ErrResourceExhausted {
 		return nil, status.Errorf(codes.ResourceExhausted, "resource exhausted: event limit exceeded for tenant")
@@ -129,7 +127,7 @@ func (i *IngestorImpl) ReplaySingleEvent(ctx context.Context, req *contracts.Rep
 		return nil, err
 	}
 
-	newEvent, err := i.IngestReplayedEvent(ctx, tenantId, oldEvent)
+	newEvent, err := i.IngestReplayedEvent(ctx, tenant, oldEvent)
 
 	if err != nil {
 		return nil, err

@@ -103,6 +103,10 @@ func (r *tenantAPIRepository) UpdateTenant(ctx context.Context, id string, opts 
 		params.AlertMemberEmails = sqlchelpers.BoolFromBoolean(*opts.AlertMemberEmails)
 	}
 
+	if opts.Version != nil && opts.Version.Valid {
+		params.Version = *opts.Version
+	}
+
 	return r.queries.UpdateTenant(
 		ctx,
 		r.pool,
@@ -457,6 +461,18 @@ func (r *tenantEngineRepository) UpdateWorkerPartitionHeartbeat(ctx context.Cont
 	}
 
 	return partition.ID, nil
+}
+
+func (r *tenantEngineRepository) GetInternalTenantForController(ctx context.Context, controllerPartitionId string) (*dbsqlc.Tenant, error) {
+	tenant, err := r.queries.GetInternalTenantForController(ctx, r.pool, controllerPartitionId)
+
+	if err != nil && errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	} else if err != nil {
+		return nil, err
+	}
+
+	return tenant, nil
 }
 
 func (r *tenantEngineRepository) ListTenantsByControllerPartition(ctx context.Context, controllerPartitionId string, majorVersion dbsqlc.TenantMajorEngineVersion) ([]*dbsqlc.Tenant, error) {

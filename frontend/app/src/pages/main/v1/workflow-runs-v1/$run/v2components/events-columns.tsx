@@ -46,10 +46,10 @@ const columnHelper = createColumnHelper<V1TaskEvent>();
 
 export const columns = ({
   onRowClick,
-  taskDisplayName,
+  fallbackTaskDisplayName,
 }: {
   onRowClick: (row: V1TaskEvent) => void;
-  taskDisplayName: string;
+  fallbackTaskDisplayName: string;
 }) => {
   return [
     columnHelper.accessor((row) => row.id, {
@@ -66,7 +66,9 @@ export const columns = ({
               onClick={() => onRowClick(row.original)}
             >
               <ArrowLeftEndOnRectangleIcon className="w-4 h-4 mr-1" />
-              <div className="truncate max-w-[150px]">{taskDisplayName}</div>
+              <div className="truncate max-w-[150px]">
+                {row.original.taskDisplayName || fallbackTaskDisplayName}
+              </div>
             </Badge>
           </div>
         );
@@ -123,7 +125,7 @@ export const columns = ({
 
         if (event.workerId) {
           items.push(
-            <Link to={`/workers/${event.workerId}`}>
+            <Link to={`/v1/workers/${event.workerId}`}>
               <Button
                 variant="link"
                 size="xs"

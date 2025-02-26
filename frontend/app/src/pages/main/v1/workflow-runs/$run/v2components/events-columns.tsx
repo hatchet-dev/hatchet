@@ -123,7 +123,7 @@ export const columns = ({
 
         if (event.workerId) {
           items.push(
-            <Link to={`/workers/${event.workerId}`}>
+            <Link to={`/v1/workers/${event.workerId}`}>
               <Button
                 variant="link"
                 size="xs"

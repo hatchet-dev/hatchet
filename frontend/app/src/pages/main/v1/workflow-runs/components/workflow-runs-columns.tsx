@@ -43,7 +43,7 @@ export const columns: (
       <DataTableColumnHeader column={column} title="Run Id" />
     ),
     cell: ({ row }) => (
-      <Link to={'/workflow-runs/' + row.original.metadata.id}>
+      <Link to={'/v1/workflow-runs/' + row.original.metadata.id}>
         <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">
           {row.original.displayName || row.original.metadata.id}
         </div>

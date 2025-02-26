@@ -36,13 +36,13 @@ func (u *UserService) UserCreate(ctx echo.Context, request gen.UserCreateRequest
 	}
 
 	// determine if the user exists before attempting to write the user
-	existingUser, err := u.config.APIRepository.User().GetUserByEmail(ctx.Request().Context(), string(request.Body.Email))
+	_, err := u.config.APIRepository.User().GetUserByEmail(ctx.Request().Context(), string(request.Body.Email))
 
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return nil, err
 	}
 
-	if existingUser != nil {
+	if err == nil {
 		// just return bad request
 		return gen.UserCreate400JSONResponse(
 			apierrors.NewAPIErrors("Email is already registered."),

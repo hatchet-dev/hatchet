@@ -2,7 +2,7 @@ import CopyToClipboard from './copy-to-clipboard';
 import { cn } from '@/lib/utils';
 import Editor, { DiffEditor, Monaco } from '@monaco-editor/react';
 import 'monaco-themes/themes/Pastels on Dark.json';
-import { useTheme } from '../theme-provider';
+import { useTheme } from '@/components/theme-provider';
 
 interface CodeEditorProps {
   code: string;

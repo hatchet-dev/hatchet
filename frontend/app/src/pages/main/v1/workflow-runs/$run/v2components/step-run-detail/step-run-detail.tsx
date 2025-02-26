@@ -23,10 +23,10 @@ import { useOutletContext } from 'react-router-dom';
 import { TenantContextType } from '@/lib/outlet';
 import { WorkflowRunsTable } from '../../../components/workflow-runs-table';
 import { useTenant } from '@/lib/atoms';
-import { V2RunIndicator } from '../../../components/run-statuses';
+import { V1RunIndicator } from '../../../components/run-statuses';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { formatDuration } from '@/lib/utils';
-import { V2StepRunOutput } from './step-run-output';
+import { V1StepRunOutput } from './step-run-output';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 
 export enum TabOption {
@@ -63,10 +63,14 @@ const StepRunDetail: React.FC<StepRunDetailProps> = ({
   const errors: string[] = [];
 
   const eventsQuery = useQuery({
-    ...queries.v1TaskEvents.list(tenantId, {
-      offset: 0,
-      limit: 50,
-    }),
+    ...queries.v1TaskEvents.list(
+      tenantId,
+      {
+        offset: 0,
+        limit: 50,
+      },
+      taskRunId,
+    ),
     refetchInterval: () => {
       return 5000;
     },
@@ -92,7 +96,7 @@ const StepRunDetail: React.FC<StepRunDetailProps> = ({
       <div className="flex flex-row justify-between items-center">
         <div className="flex flex-row justify-between items-center w-full">
           <div className="flex flex-row gap-4 items-center">
-            {taskRun.status && <V2RunIndicator status={taskRun.status} />}
+            {taskRun.status && <V1RunIndicator status={taskRun.status} />}
             <h3 className="text-lg font-mono font-semibold leading-tight tracking-tight text-foreground flex flex-row gap-4 items-center">
               {taskRun.displayName || 'Step Run Detail'}
             </h3>
@@ -146,7 +150,7 @@ const StepRunDetail: React.FC<StepRunDetailProps> = ({
         </div>
       )}
       <div className="flex flex-row gap-2 items-center">
-        <V2StepRunSummary taskRunId={taskRunId} />
+        <V1StepRunSummary taskRunId={taskRunId} />
       </div>
       <Tabs defaultValue={defaultOpenTab}>
         <TabsList layout="underlined">
@@ -170,7 +174,7 @@ const StepRunDetail: React.FC<StepRunDetailProps> = ({
           </TabsTrigger>
         </TabsList>
         <TabsContent value={TabOption.Output}>
-          <V2StepRunOutput taskRunId={taskRunId} />
+          <V1StepRunOutput taskRunId={taskRunId} />
         </TabsContent>
         <TabsContent value={TabOption.ChildWorkflowRuns}>
           {/* <ChildWorkflowRuns
@@ -207,6 +211,7 @@ const StepRunDetail: React.FC<StepRunDetailProps> = ({
         </h3>
         {/* TODO: Real onclick callback here */}
         <StepRunEvents
+          taskRunId={taskRunId}
           onClick={() => {}}
           taskDisplayName={taskRun.displayName}
         />
@@ -289,7 +294,7 @@ export const StepRunSummary: React.FC<{ data: StepRun }> = ({ data }) => {
   );
 };
 
-const V2StepRunSummary = ({ taskRunId }: { taskRunId: string }) => {
+const V1StepRunSummary = ({ taskRunId }: { taskRunId: string }) => {
   const { tenantId } = useTenant();
 
   if (!tenantId) {

@@ -31,7 +31,6 @@ function Main() {
   const ctx = useOutletContext<UserContextType & MembershipsContextType>();
 
   const { user, memberships } = ctx;
-
   const { tenant: currTenant } = useTenant();
 
   const childCtx = useContextFromParent({

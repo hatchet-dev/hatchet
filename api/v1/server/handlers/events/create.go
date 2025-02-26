@@ -15,7 +15,6 @@ import (
 
 func (t *EventService) EventCreate(ctx echo.Context, request gen.EventCreateRequestObject) (gen.EventCreateResponseObject, error) {
 	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	// marshal the data object to bytes
 	dataBytes, err := json.Marshal(request.Body.Data)
@@ -34,7 +33,7 @@ func (t *EventService) EventCreate(ctx echo.Context, request gen.EventCreateRequ
 		}
 	}
 
-	newEvent, err := t.config.Ingestor.IngestEvent(ctx.Request().Context(), tenantId, request.Body.Key, dataBytes, additionalMetadata)
+	newEvent, err := t.config.Ingestor.IngestEvent(ctx.Request().Context(), tenant, request.Body.Key, dataBytes, additionalMetadata)
 
 	if err != nil {
 		if err == metered.ErrResourceExhausted {

@@ -5,9 +5,11 @@ import { columns } from './events-columns';
 import { useTenant } from '@/lib/atoms';
 
 export function StepRunEvents({
+  taskRunId,
   taskDisplayName,
   onClick,
 }: {
+  taskRunId: string;
   taskDisplayName: string;
   onClick: (stepRunId?: string) => void;
 }) {
@@ -19,11 +21,15 @@ export function StepRunEvents({
   }
 
   const eventsQuery = useQuery({
-    ...queries.v1TaskEvents.list(tenantId, {
-      // TODO: Pagination here
-      limit: 50,
-      offset: 0,
-    }),
+    ...queries.v1TaskEvents.list(
+      tenantId,
+      {
+        // TODO: Pagination here
+        limit: 50,
+        offset: 0,
+      },
+      taskRunId,
+    ),
     refetchInterval: () => {
       return 5000;
     },

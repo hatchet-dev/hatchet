@@ -264,7 +264,7 @@ function renderCardFooter(event: StepRunEvent) {
     if (data.worker_id) {
       return (
         <CardFooter>
-          <Link to={`/workers/${data.worker_id}`}>
+          <Link to={`/v1/workers/${data.worker_id}`}>
             <Button variant="link" size="xs">
               <ArrowRightIcon className="w-4 h-4 mr-1" />
               View Worker
