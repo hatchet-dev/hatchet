@@ -167,13 +167,13 @@ WITH match_counts AS (
         (
             SELECT jsonb_object_agg(action, aggregated_1)
             FROM (
-                SELECT action, jsonb_object_agg(event_key, data_array) AS aggregated_1
+                SELECT action, jsonb_object_agg(readable_data_key, data_array) AS aggregated_1
                 FROM (
-                    SELECT action, event_key, jsonb_agg(data) AS data_array
+                    SELECT action, readable_data_key, jsonb_agg(data) AS data_array
                     FROM v1_match_condition sub
                     WHERE sub.v1_match_id = ANY(@matchIds::bigint[])
                     AND is_satisfied
-                    GROUP BY action, event_key
+                    GROUP BY action, readable_data_key
                 ) t
                 GROUP BY action
             ) s

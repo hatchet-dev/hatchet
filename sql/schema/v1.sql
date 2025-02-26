@@ -313,6 +313,8 @@ CREATE TABLE v1_match_condition (
     registered_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
     event_type v1_event_type NOT NULL,
     event_key TEXT NOT NULL,
+    -- readable_data_key is used as the key when constructing the aggregated data for the v1_match
+    readable_data_key TEXT NOT NULL,
     is_satisfied BOOLEAN NOT NULL DEFAULT FALSE,
     action v1_match_condition_action NOT NULL DEFAULT 'CREATE',
     or_group_id UUID NOT NULL,

@@ -1043,3 +1043,22 @@ func (r *sharedRepository) createTaskEvents(
 		Eventkeys:   paramKeys,
 	})
 }
+
+func (r *TaskRepositoryImpl) replayTasks(ctx context.Context, tasks []TaskIdRetryCount) error {
+	// //
+	// *sqlcv1.V1Task{}
+
+	// list tasks and place a lock on the tasks, and join on steps to get the structure of the DAG
+
+	// group tasks by their dag_id, if it exists
+	// NOTE: the tasks which are passed in represent a *subtree* of the DAG.
+
+	// for any DAGs, reset all match conditions which refer to internal events within the subtree of the DAG.
+	// we do not reset other match conditions (for example, ones which refer to completed events for tasks
+	// which are outside of this subtree). otherwise, we would end up in a state where these events would
+	// never be matched.
+
+	// if we do not have a DAG, we don't need to reset any match conditions.
+
+	return nil
+}
