@@ -32,7 +32,7 @@ import {
   BiSolidGraduation,
   BiUserCircle,
 } from 'react-icons/bi';
-import { useTheme } from '@/components/v1/theme-provider';
+import { useTheme } from '@/components/theme-provider';
 import { useMemo } from 'react';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import { VersionInfo } from '@/pages/main/info/components/version-info';
