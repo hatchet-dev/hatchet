@@ -44,6 +44,8 @@ func (a *AdminServiceImpl) CancelTasks(ctx context.Context, req *contracts.Cance
 		}
 
 		for i, task := range tasks {
+			// we'd like to make sure the retry counts match so that there wasn't another replay or cancellation
+			// which occurred concurrently. if there was, this is a no-op.
 			if task.RetryCount == retryCounts[i] {
 				tasksToCancel = append(tasksToCancel, v1.TaskIdRetryCount{
 					Id:         task.ID,

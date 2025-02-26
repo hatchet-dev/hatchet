@@ -30,6 +30,8 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
+const BULK_MSG_BATCH_SIZE = 50
+
 type TasksController interface {
 	Start(ctx context.Context) error
 }
@@ -571,7 +573,7 @@ func (tc *TasksControllerImpl) handleCancelTasks(ctx context.Context, tenantId s
 
 	// Batch tasks to cancel in groups of 50 and publish to the message queue. This is a form of backpressure
 	// as we don't want to run out of RabbitMQ memory if we publish a very large number of tasks to cancel.
-	return queueutils.BatchLinear(50, pubPayloads, func(pubPayloads []tasktypes.CancelledTaskPayload) error {
+	return queueutils.BatchLinear(BULK_MSG_BATCH_SIZE, pubPayloads, func(pubPayloads []tasktypes.CancelledTaskPayload) error {
 		msg, err := msgqueue.NewTenantMessage(
 			tenantId,
 			"task-cancelled",
