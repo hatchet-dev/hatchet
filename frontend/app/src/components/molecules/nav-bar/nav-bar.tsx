@@ -174,23 +174,39 @@ function VersionUpgradeButton() {
     [],
   );
 
-  const shouldShowVersionUpgradeButton =
+  const shouldUpgradeToV1 =
     versionedRoutes.includes(pathname) && // It is a versioned route
     !pathname.includes('/v1') && // The user is not already on the v1 version
     tenantVersion === TenantVersion.V1; // The tenant is on the v1 version
 
-  if (!shouldShowVersionUpgradeButton) {
-    return null;
+  const shouldRedirectToV0 =
+    tenantVersion === TenantVersion.V0 && pathname.includes('/v1');
+
+  console.log(shouldUpgradeToV1, shouldRedirectToV0);
+
+  if (shouldRedirectToV0) {
+    return (
+      <Navigate
+        to={{
+          pathname: pathname.replace('/v1', ''),
+          search: params.toString(),
+        }}
+      />
+    );
   }
 
-  return (
-    <Navigate
-      to={{
-        pathname: '/v1' + pathname,
-        search: params.toString(),
-      }}
-    />
-  );
+  if (shouldUpgradeToV1) {
+    return (
+      <Navigate
+        to={{
+          pathname: '/v1' + pathname,
+          search: params.toString(),
+        }}
+      />
+    );
+  }
+
+  return null;
 }
 
 interface MainNavProps {
