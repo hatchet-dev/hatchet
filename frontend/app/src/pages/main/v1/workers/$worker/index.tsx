@@ -1,12 +1,11 @@
 import { Separator } from '@/components/v1/ui/separator';
 import api, { queries, UpdateWorkerRequest, Worker } from '@/lib/api';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Link, useOutletContext, useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import invariant from 'tiny-invariant';
 import { ArrowPathIcon, ServerStackIcon } from '@heroicons/react/24/outline';
 import { Button } from '@/components/v1/ui/button';
 import { Loading } from '@/components/v1/ui/loading.tsx';
-import { TenantContextType } from '@/lib/outlet';
 import { Badge, BadgeProps } from '@/components/v1/ui/badge';
 import {
   Tooltip,
