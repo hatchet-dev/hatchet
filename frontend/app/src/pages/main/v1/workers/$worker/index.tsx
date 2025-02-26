@@ -88,9 +88,6 @@ export const WorkerStatus = ({
 };
 
 export default function ExpandedWorkflowRun() {
-  const { tenant } = useOutletContext<TenantContextType>();
-  invariant(tenant);
-
   const { handleApiError } = useApiError({});
 
   const params = useParams();
