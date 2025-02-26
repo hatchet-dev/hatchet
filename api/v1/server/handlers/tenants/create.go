@@ -32,13 +32,13 @@ func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateR
 	}
 
 	// determine if a tenant with the slug already exists
-	existingTenant, err := t.config.APIRepository.Tenant().GetTenantBySlug(ctx.Request().Context(), request.Body.Slug)
+	_, err := t.config.APIRepository.Tenant().GetTenantBySlug(ctx.Request().Context(), request.Body.Slug)
 
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return nil, err
 	}
 
-	if existingTenant != nil {
+	if err == nil {
 		// just return bad request
 		return gen.TenantCreate400JSONResponse(
 			apierrors.NewAPIErrors("Tenant with the slug already exists."),

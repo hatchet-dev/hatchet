@@ -21,13 +21,13 @@ func (u *UserService) UserGetCurrent(ctx echo.Context, request gen.UserGetCurren
 
 	var hasPass bool
 
-	pass, err := u.config.APIRepository.User().GetUserPassword(ctx.Request().Context(), userId)
+	_, err := u.config.APIRepository.User().GetUserPassword(ctx.Request().Context(), userId)
 
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return nil, err
 	}
 
-	if pass != nil {
+	if err == nil {
 		hasPass = true
 	}
 
