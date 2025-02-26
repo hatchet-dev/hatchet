@@ -14,7 +14,7 @@ import (
 func (t *V1WorkflowRunsService) V1WorkflowRunTaskEventsList(ctx echo.Context, request gen.V1WorkflowRunTaskEventsListRequestObject) (gen.V1WorkflowRunTaskEventsListResponseObject, error) {
 	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
-	rawWorkflowRun := ctx.Get("v2-workflow-run").(*v1.V1WorkflowRunPopulator)
+	rawWorkflowRun := ctx.Get("v1-workflow-run").(*v1.V1WorkflowRunPopulator)
 
 	workflowRun := rawWorkflowRun.WorkflowRun
 

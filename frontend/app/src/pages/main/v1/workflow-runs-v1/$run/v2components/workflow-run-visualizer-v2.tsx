@@ -8,7 +8,7 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import dagre from 'dagre';
-import { useTheme } from '@/components/v1/theme-provider';
+import { useTheme } from '@/components/theme-provider';
 import stepRunNode, { NodeData } from './step-run-node';
 import { useWorkflowDetails } from '../../hooks';
 import invariant from 'tiny-invariant';

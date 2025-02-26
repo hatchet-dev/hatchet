@@ -43,7 +43,7 @@ export const columns: (
       <DataTableColumnHeader column={column} title="Run Id" />
     ),
     cell: ({ row }) => (
-      <Link to={'/v1/workflow-runs/' + row.original.metadata.id}>
+      <Link to={'/v1/task-runs/' + row.original.metadata.id}>
         <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">
           {row.original.displayName || row.original.metadata.id}
         </div>
@@ -73,7 +73,7 @@ export const columns: (
       return (
         <div className="min-w-fit whitespace-nowrap">
           {(workflowId && workflowName && (
-            <a href={`/workflows/${workflowId}`}>{workflowName}</a>
+            <a href={`/v1/workflows/${workflowId}`}>{workflowName}</a>
           )) ||
             'N/A'}
         </div>
