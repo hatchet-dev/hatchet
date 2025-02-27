@@ -365,7 +365,6 @@ export function TaskRunsTable({
       limit: pagination.pageSize,
       statuses,
       workflow_ids: workflow ? [workflow] : [],
-      // worker_id: workerId,
       since:
         createdAfter ||
         new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
