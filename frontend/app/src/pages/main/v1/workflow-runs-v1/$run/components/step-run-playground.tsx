@@ -391,7 +391,7 @@ export function StepRunPlayground({
                         <QuestionMarkCircleIcon
                           className={cn('h-4 w-4 mr-2')}
                         />
-                        Help: How to handle cancelation signaling
+                        Help: How to handle cancellation signaling
                       </span>
                     </Button>
                   </a>

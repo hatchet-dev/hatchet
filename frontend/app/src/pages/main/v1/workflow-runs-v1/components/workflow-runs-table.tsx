@@ -472,9 +472,27 @@ export function TaskRunsTable({
     metricsQuery.refetch();
   };
 
+  const v1TaskFilters = {
+    since:
+      createdAfter || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+    until: finishedBefore,
+    statuses: columnFilters.find((f) => f.id === 'status')
+      ?.value as V1TaskStatus[],
+    workflowIds: workflow ? [workflow] : [],
+    additionalMetadata: columnFilters.find((f) => f.id === 'Metadata')
+      ?.value as string[],
+  };
+
+  const hasRowsSelected = Object.values(rowSelection).some(
+    (selected) => !!selected,
+  );
+  const hasTaskFiltersSelected = Object.values(v1TaskFilters).some(
+    (filter) => !!filter,
+  );
+
   const actions = [
     <Button
-      disabled={!Object.values(rowSelection).some((selected) => !!selected)}
+      disabled={!(hasRowsSelected || hasTaskFiltersSelected)}
       key="cancel"
       className="h-8 px-2 lg:px-3"
       size="sm"
@@ -483,9 +501,17 @@ export function TaskRunsTable({
           .filter((run) => !!run)
           .map((run) => run?.run.metadata.id);
 
-        handleCancelTaskRun({
-          externalIds: idsToCancel,
-        });
+        if (idsToCancel.length) {
+          handleCancelTaskRun({
+            externalIds: idsToCancel,
+          });
+        }
+
+        if (Object.values(v1TaskFilters).some((filter) => !!filter)) {
+          handleCancelTaskRun({
+            filter: v1TaskFilters,
+          });
+        }
       }}
       variant={'outline'}
       aria-label="Cancel Selected Runs"
