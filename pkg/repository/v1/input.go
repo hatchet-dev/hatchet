@@ -26,9 +26,9 @@ func (s *sharedRepository) parseTriggerData(triggerData []byte) (*sqlcv1.V1Match
 
 	for k, v := range triggerDataMap {
 		switch k {
-		case "CREATE":
-			create := sqlcv1.V1MatchConditionActionCREATE
-			return &create, v, nil
+		case "QUEUE":
+			queue := sqlcv1.V1MatchConditionActionQUEUE
+			return &queue, v, nil
 		case "CANCEL":
 			cancel := sqlcv1.V1MatchConditionActionCANCEL
 			return &cancel, v, nil

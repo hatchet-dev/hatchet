@@ -40,14 +40,31 @@ type CreateTaskOpts struct {
 	// (required) the initial state for the task
 	InitialState sqlcv1.V1TaskInitialState
 
-	// (optional) a list of concurrency keys for the task
-	ConcurrencyKeys []string
-
 	// (optional) the step retry backoff factor
 	RetryBackoffFactor *float64 `validate:"omitnil,min=1,max=1000"`
 
 	// (optional) the step retry backoff max seconds (can't be greater than 86400)
 	RetryBackoffMaxSeconds *int `validate:"omitnil,min=1,max=86400"`
+}
+
+type ReplayTaskOpts struct {
+	// (required) the task id
+	TaskId int64
+
+	// (required) the external id
+	ExternalId string
+
+	// (required) the step id
+	StepId string
+
+	// (optional) the input bytes to the task, uses the existing input if not set
+	Input *TaskInput
+
+	// (required) the initial state for the task
+	InitialState sqlcv1.V1TaskInitialState
+
+	// (optional) the additional metadata for the task
+	AdditionalMetadata []byte
 }
 
 type TaskIdRetryCount struct {
@@ -101,6 +118,8 @@ type TaskRepository interface {
 	ProcessTaskReassignments(ctx context.Context, tenantId string) ([]*sqlcv1.ProcessTaskReassignmentsRow, bool, error)
 
 	GetQueueCounts(ctx context.Context, tenantId string) (map[string]int, error)
+
+	ReplayTasks(ctx context.Context, tenantId string, tasks []TaskIdRetryCount) error
 }
 
 type TaskRepositoryImpl struct {
@@ -937,6 +956,162 @@ func (r *sharedRepository) insertTasks(
 	return res, nil
 }
 
+// replayTasks updates tasks into the database. note that we're using Postgres rules to automatically insert the created
+// tasks into the queue_items table.
+func (r *sharedRepository) replayTasks(
+	ctx context.Context,
+	tx sqlcv1.DBTX,
+	tenantId string,
+	tasks []ReplayTaskOpts,
+) ([]*sqlcv1.V1Task, error) {
+	if len(tasks) == 0 {
+		return nil, nil
+	}
+
+	uniqueStepIds := make(map[string]struct{})
+	stepIds := make([]pgtype.UUID, 0)
+
+	for _, task := range tasks {
+		if _, ok := uniqueStepIds[task.StepId]; !ok {
+			uniqueStepIds[task.StepId] = struct{}{}
+			stepIds = append(stepIds, sqlchelpers.UUIDFromStr(task.StepId))
+		}
+	}
+
+	steps, err := r.queries.ListStepsByIds(ctx, tx, sqlcv1.ListStepsByIdsParams{
+		Ids:      stepIds,
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	stepIdsToConfig := make(map[string]*sqlcv1.ListStepsByIdsRow)
+
+	for _, step := range steps {
+		stepIdsToConfig[sqlchelpers.UUIDToStr(step.ID)] = step
+	}
+
+	concurrencyStrats, err := r.getConcurrencyExpressions(ctx, tx, tenantId, stepIdsToConfig)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to get step expressions: %w", err)
+	}
+
+	taskIds := make([]int64, len(tasks))
+	inputs := make([][]byte, len(tasks))
+	initialStates := make([]string, len(tasks))
+	initialStateReasons := make([]pgtype.Text, len(tasks))
+	strategyIds := make([][]int64, len(tasks))
+	concurrencyKeys := make([][]string, len(tasks))
+	additionalMetadatas := make([][]byte, len(tasks))
+	queues := make([]string, len(tasks))
+
+	for i, task := range tasks {
+		stepConfig := stepIdsToConfig[task.StepId]
+		queues[i] = stepConfig.ActionId // FIXME: make the queue name dynamic
+
+		taskIds[i] = task.TaskId
+		// TODO: case on whether this is a v1 or v2 task by looking at the step data. for now,
+		// we're assuming a v1 task.
+		if task.Input != nil {
+			inputs[i] = r.ToV1StepRunData(task.Input).Bytes()
+		}
+		initialStates[i] = string(task.InitialState)
+
+		if len(task.AdditionalMetadata) > 0 {
+			additionalMetadatas[i] = task.AdditionalMetadata
+		}
+
+		// only check for concurrency if the task is in a queued state, otherwise we don't need to
+		// evaluate the expression (and it will likely fail if we do)
+		if task.InitialState == sqlcv1.V1TaskInitialStateQUEUED {
+			// if we have a step expression, evaluate the expression
+			if strats, ok := concurrencyStrats[task.StepId]; ok {
+				taskConcurrencyKeys := make([]string, 0)
+				taskStrategyIds := make([]int64, 0)
+				var failTaskError error
+
+				for _, strat := range strats {
+					var additionalMeta map[string]interface{}
+
+					if len(additionalMetadatas[i]) > 0 {
+						if err := json.Unmarshal(additionalMetadatas[i], &additionalMeta); err != nil {
+							failTaskError = fmt.Errorf("failed to process additional metadata: not a json object")
+							break
+						}
+					}
+
+					res, err := r.celParser.ParseAndEvalStepRun(strat.Expression, cel.NewInput(
+						cel.WithInput(task.Input.Input),
+						cel.WithAdditionalMetadata(additionalMeta),
+						cel.WithWorkflowRunID(task.ExternalId),
+						cel.WithParents(task.Input.TriggerData),
+					))
+
+					if err != nil {
+						failTaskError = fmt.Errorf("failed to parse step expression (%s): %w", strat.Expression, err)
+						break
+					}
+
+					if res.String == nil {
+						prefix := "expected string output for concurrency key"
+
+						if res.Int != nil {
+							failTaskError = fmt.Errorf("failed to parse step expression (%s): %s, got int", strat.Expression, prefix)
+							break
+						}
+
+						failTaskError = fmt.Errorf("failed to parse step expression (%s): %s, got unknown type", strat.Expression, prefix)
+						break
+					}
+
+					taskConcurrencyKeys = append(taskConcurrencyKeys, *res.String)
+					taskStrategyIds = append(taskStrategyIds, strat.ID)
+				}
+
+				if failTaskError != nil {
+					// place the task into a failed state
+					initialStates[i] = string(sqlcv1.V1TaskInitialStateFAILED)
+
+					initialStateReasons[i] = pgtype.Text{
+						String: failTaskError.Error(),
+						Valid:  true,
+					}
+				} else {
+					concurrencyKeys[i] = taskConcurrencyKeys
+					strategyIds[i] = taskStrategyIds
+				}
+			}
+		}
+	}
+
+	saveQueueCache, err := r.upsertQueues(ctx, tx, tenantId, queues)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to upsert queues: %w", err)
+	}
+
+	res, err := r.queries.ReplayTasks(ctx, tx, sqlcv1.ReplayTasksParams{
+		Taskids:                taskIds,
+		Inputs:                 inputs,
+		InitialStates:          initialStates,
+		InitialStateReasons:    initialStateReasons,
+		Concurrencystrategyids: strategyIds,
+		Concurrencykeys:        concurrencyKeys,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to replay tasks: %w", err)
+	}
+
+	// TODO: this should be moved to after the transaction commits
+	saveQueueCache()
+
+	return res, nil
+}
+
 func (r *sharedRepository) getConcurrencyExpressions(
 	ctx context.Context,
 	tx sqlcv1.DBTX,
@@ -1110,8 +1285,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 	dagIds := make(map[int64]struct{}, 0)
 
 	// figure out which tasks to delete and which to increment
-	tasksToDelete := make([]int64, 0)
-	tasksToIncrementRetries := make([]int64, 0)
+	replayOpts := make([]ReplayTaskOpts, 0)
 
 	for _, task := range lockedTasks {
 		if task.DagID.Valid && len(task.Parents) > 0 {
@@ -1120,9 +1294,14 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 			}
 
 			dagIdsToChildTasks[task.DagID.Int64] = append(dagIdsToChildTasks[task.DagID.Int64], task)
-			tasksToDelete = append(tasksToDelete, task.ID)
 		} else {
-			tasksToIncrementRetries = append(tasksToIncrementRetries, task.ID)
+			replayOpts = append(replayOpts, ReplayTaskOpts{
+				TaskId:             task.ID,
+				StepId:             sqlchelpers.UUIDToStr(task.StepID),
+				ExternalId:         sqlchelpers.UUIDToStr(task.ExternalID),
+				InitialState:       sqlcv1.V1TaskInitialStateQUEUED,
+				AdditionalMetadata: task.AdditionalMetadata,
+			})
 		}
 
 		if task.DagID.Valid {
@@ -1156,23 +1335,8 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 	}
 
 	// NOTE: the tasks which are passed in represent a *subtree* of the DAG.
-	// If this is a DAG, delete all tasks and task events which are in the subtree of the DAG
-	if len(tasksToDelete) > 0 {
-		err = r.queries.DeleteTasksForReplay(ctx, tx, sqlcv1.DeleteTasksForReplayParams{
-			Taskids:  tasksToDelete,
-			Tenantid: sqlchelpers.UUIDFromStr(tenantId),
-		})
-
-		if err != nil {
-			return err
-		}
-	}
-
-	if len(tasksToIncrementRetries) > 0 {
-		err = r.queries.UpdateTasksForReplay(ctx, tx, sqlcv1.UpdateTasksForReplayParams{
-			Taskids:  tasksToIncrementRetries,
-			Tenantid: sqlchelpers.UUIDFromStr(tenantId),
-		})
+	if len(replayOpts) > 0 {
+		_, err = r.replayTasks(ctx, tx, tenantId, replayOpts)
 
 		if err != nil {
 			return err
@@ -1210,12 +1374,13 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 				}
 
 				eventMatches = append(eventMatches, CreateMatchOpts{
-					Kind:                 sqlcv1.V1MatchKindTRIGGER,
-					Conditions:           conditions,
-					TriggerExternalId:    &taskExternalId,
-					TriggerStepId:        &stepId,
-					TriggerDAGId:         &task.DagID.Int64,
-					TriggerDAGInsertedAt: task.DagInsertedAt,
+					Kind:                  sqlcv1.V1MatchKindTRIGGER,
+					Conditions:            conditions,
+					TriggerExternalId:     &taskExternalId,
+					TriggerStepId:         &stepId,
+					TriggerDAGId:          &task.DagID.Int64,
+					TriggerDAGInsertedAt:  task.DagInsertedAt,
+					TriggerExistingTaskId: &task.ID,
 				})
 			default:
 				conditions := make([]GroupMatchCondition, 0)
@@ -1236,12 +1401,13 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 
 				// create an event match
 				eventMatches = append(eventMatches, CreateMatchOpts{
-					Kind:                 sqlcv1.V1MatchKindTRIGGER,
-					Conditions:           conditions,
-					TriggerExternalId:    &taskExternalId,
-					TriggerStepId:        &stepId,
-					TriggerDAGId:         &task.DagID.Int64,
-					TriggerDAGInsertedAt: task.DagInsertedAt,
+					Kind:                  sqlcv1.V1MatchKindTRIGGER,
+					Conditions:            conditions,
+					TriggerExternalId:     &taskExternalId,
+					TriggerStepId:         &stepId,
+					TriggerDAGId:          &task.DagID.Int64,
+					TriggerDAGInsertedAt:  task.DagInsertedAt,
+					TriggerExistingTaskId: &task.ID,
 				})
 			}
 		}
@@ -1288,7 +1454,7 @@ func (r *TaskRepositoryImpl) reconstructGroupConditions(
 	// group condition as satisfied.
 	dagIds := make([]int64, 0)
 	externalIds := make([]pgtype.UUID, 0)
-	eventKeys := make([]sqlcv1.V1TaskEventType, 0)
+	eventKeys := make([]string, 0)
 
 	for _, match := range eventMatches {
 		if match.TriggerDAGId == nil {
@@ -1304,7 +1470,7 @@ func (r *TaskRepositoryImpl) reconstructGroupConditions(
 				if _, ok := subtreeExternalIds[externalId]; !ok {
 					dagIds = append(dagIds, *match.TriggerDAGId)
 					externalIds = append(externalIds, sqlchelpers.UUIDFromStr(*groupCondition.EventResourceHint))
-					eventKeys = append(eventKeys, sqlcv1.V1TaskEventType(groupCondition.EventType))
+					eventKeys = append(eventKeys, groupCondition.EventKey)
 				}
 			}
 		}
@@ -1330,7 +1496,7 @@ func (r *TaskRepositoryImpl) reconstructGroupConditions(
 	foundMatchKeys := make(map[string]*sqlcv1.ListMatchingTaskEventsRow)
 
 	for _, eventMatch := range matchedEvents {
-		key := fmt.Sprintf("%s:%s", sqlchelpers.UUIDToStr(eventMatch.TaskExternalID), eventMatch.EventKey)
+		key := fmt.Sprintf("%s:%s", sqlchelpers.UUIDToStr(eventMatch.TaskExternalID), eventMatch.EventKey.String)
 
 		foundMatchKeys[key] = eventMatch
 	}

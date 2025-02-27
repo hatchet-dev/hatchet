@@ -961,9 +961,10 @@ func (ns NullV1EventTypeOlap) Value() (driver.Value, error) {
 type V1MatchConditionAction string
 
 const (
-	V1MatchConditionActionCREATE V1MatchConditionAction = "CREATE"
+	V1MatchConditionActionQUEUE  V1MatchConditionAction = "QUEUE"
 	V1MatchConditionActionCANCEL V1MatchConditionAction = "CANCEL"
 	V1MatchConditionActionSKIP   V1MatchConditionAction = "SKIP"
+	V1MatchConditionActionREPLAY V1MatchConditionAction = "REPLAY"
 )
 
 func (e *V1MatchConditionAction) Scan(src interface{}) error {
@@ -2366,16 +2367,17 @@ type V1LookupTable struct {
 }
 
 type V1Match struct {
-	ID                   int64              `json:"id"`
-	TenantID             pgtype.UUID        `json:"tenant_id"`
-	Kind                 V1MatchKind        `json:"kind"`
-	IsSatisfied          bool               `json:"is_satisfied"`
-	SignalTargetID       pgtype.Int8        `json:"signal_target_id"`
-	SignalKey            pgtype.Text        `json:"signal_key"`
-	TriggerDagID         pgtype.Int8        `json:"trigger_dag_id"`
-	TriggerDagInsertedAt pgtype.Timestamptz `json:"trigger_dag_inserted_at"`
-	TriggerStepID        pgtype.UUID        `json:"trigger_step_id"`
-	TriggerExternalID    pgtype.UUID        `json:"trigger_external_id"`
+	ID                    int64              `json:"id"`
+	TenantID              pgtype.UUID        `json:"tenant_id"`
+	Kind                  V1MatchKind        `json:"kind"`
+	IsSatisfied           bool               `json:"is_satisfied"`
+	SignalTargetID        pgtype.Int8        `json:"signal_target_id"`
+	SignalKey             pgtype.Text        `json:"signal_key"`
+	TriggerDagID          pgtype.Int8        `json:"trigger_dag_id"`
+	TriggerDagInsertedAt  pgtype.Timestamptz `json:"trigger_dag_inserted_at"`
+	TriggerStepID         pgtype.UUID        `json:"trigger_step_id"`
+	TriggerExternalID     pgtype.UUID        `json:"trigger_external_id"`
+	TriggerExistingTaskID pgtype.Int8        `json:"trigger_existing_task_id"`
 }
 
 type V1MatchCondition struct {

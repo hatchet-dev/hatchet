@@ -142,5 +142,9 @@ type SignalTaskCancelledPayload struct {
 }
 
 type CancelTasksPayload struct {
-	Tasks []v1.TaskIdRetryCount `json:"task_external_ids"`
+	Tasks []v1.TaskIdRetryCount `json:"tasks"`
+}
+
+type ReplayTasksPayload struct {
+	Tasks []v1.TaskIdRetryCount `json:"tasks"`
 }

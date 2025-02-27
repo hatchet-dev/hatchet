@@ -30,7 +30,7 @@ SELECT
 FROM
     v1_match_condition m
 JOIN
-    input i ON (m.tenant_id, m.event_type, m.event_key, m.is_satisfied, m.event_resource_hint) = 
+    input i ON (m.tenant_id, m.event_type, m.event_key, m.is_satisfied, m.event_resource_hint) =
         ($1::uuid, $2::v1_event_type, i.event_key, FALSE, i.event_resource_hint)
 `
 
@@ -75,6 +75,95 @@ func (q *Queries) ListMatchConditionsForEvent(ctx context.Context, db DBTX, arg 
 			&i.EventResourceHint,
 			&i.ReadableDataKey,
 			&i.Expression,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const createMatchesForDAGTriggers = `-- name: CreateMatchesForDAGTriggers :many
+WITH input AS (
+    SELECT
+        tenant_id, kind, trigger_dag_id, trigger_dag_inserted_at, trigger_step_id, trigger_external_id, trigger_existing_task_id
+    FROM
+        (
+            SELECT
+                unnest($1::uuid[]) AS tenant_id,
+                unnest(cast($2::text[] as v1_match_kind[])) AS kind,
+                unnest($3::bigint[]) AS trigger_dag_id,
+                unnest($4::timestamptz[]) AS trigger_dag_inserted_at,
+                unnest($5::uuid[]) AS trigger_step_id,
+                unnest($6::uuid[]) AS trigger_external_id,
+                unnest($7::bigint[]) AS trigger_existing_task_id
+        ) AS subquery
+)
+INSERT INTO v1_match (
+    tenant_id,
+    kind,
+    trigger_dag_id,
+    trigger_dag_inserted_at,
+    trigger_step_id,
+    trigger_external_id,
+    trigger_existing_task_id
+)
+SELECT
+    i.tenant_id,
+    i.kind,
+    i.trigger_dag_id,
+    i.trigger_dag_inserted_at,
+    i.trigger_step_id,
+    i.trigger_external_id,
+    i.trigger_existing_task_id
+FROM
+    input i
+RETURNING
+    id, tenant_id, kind, is_satisfied, signal_target_id, signal_key, trigger_dag_id, trigger_dag_inserted_at, trigger_step_id, trigger_external_id, trigger_existing_task_id
+`
+
+type CreateMatchesForDAGTriggersParams struct {
+	Tenantids              []pgtype.UUID        `json:"tenantids"`
+	Kinds                  []string             `json:"kinds"`
+	Triggerdagids          []int64              `json:"triggerdagids"`
+	Triggerdaginsertedats  []pgtype.Timestamptz `json:"triggerdaginsertedats"`
+	Triggerstepids         []pgtype.UUID        `json:"triggerstepids"`
+	Triggerexternalids     []pgtype.UUID        `json:"triggerexternalids"`
+	Triggerexistingtaskids []pgtype.Int8        `json:"triggerexistingtaskids"`
+}
+
+func (q *Queries) CreateMatchesForDAGTriggers(ctx context.Context, db DBTX, arg CreateMatchesForDAGTriggersParams) ([]*V1Match, error) {
+	rows, err := db.Query(ctx, createMatchesForDAGTriggers,
+		arg.Tenantids,
+		arg.Kinds,
+		arg.Triggerdagids,
+		arg.Triggerdaginsertedats,
+		arg.Triggerstepids,
+		arg.Triggerexternalids,
+		arg.Triggerexistingtaskids,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*V1Match
+	for rows.Next() {
+		var i V1Match
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.Kind,
+			&i.IsSatisfied,
+			&i.SignalTargetID,
+			&i.SignalKey,
+			&i.TriggerDagID,
+			&i.TriggerDagInsertedAt,
+			&i.TriggerStepID,
+			&i.TriggerExternalID,
+			&i.TriggerExistingTaskID,
 		); err != nil {
 			return nil, err
 		}

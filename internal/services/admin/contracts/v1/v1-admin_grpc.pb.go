@@ -23,6 +23,7 @@ const _ = grpc.SupportPackageIsVersion7
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type AdminServiceClient interface {
 	CancelTasks(ctx context.Context, in *CancelTasksRequest, opts ...grpc.CallOption) (*CancelTasksResponse, error)
+	ReplayTasks(ctx context.Context, in *ReplayTasksRequest, opts ...grpc.CallOption) (*ReplayTasksResponse, error)
 }
 
 type adminServiceClient struct {
@@ -42,11 +43,21 @@ func (c *adminServiceClient) CancelTasks(ctx context.Context, in *CancelTasksReq
 	return out, nil
 }
 
+func (c *adminServiceClient) ReplayTasks(ctx context.Context, in *ReplayTasksRequest, opts ...grpc.CallOption) (*ReplayTasksResponse, error) {
+	out := new(ReplayTasksResponse)
+	err := c.cc.Invoke(ctx, "/AdminService/ReplayTasks", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AdminServiceServer is the server API for AdminService service.
 // All implementations must embed UnimplementedAdminServiceServer
 // for forward compatibility
 type AdminServiceServer interface {
 	CancelTasks(context.Context, *CancelTasksRequest) (*CancelTasksResponse, error)
+	ReplayTasks(context.Context, *ReplayTasksRequest) (*ReplayTasksResponse, error)
 	mustEmbedUnimplementedAdminServiceServer()
 }
 
@@ -56,6 +67,9 @@ type UnimplementedAdminServiceServer struct {
 
 func (UnimplementedAdminServiceServer) CancelTasks(context.Context, *CancelTasksRequest) (*CancelTasksResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CancelTasks not implemented")
+}
+func (UnimplementedAdminServiceServer) ReplayTasks(context.Context, *ReplayTasksRequest) (*ReplayTasksResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ReplayTasks not implemented")
 }
 func (UnimplementedAdminServiceServer) mustEmbedUnimplementedAdminServiceServer() {}
 
@@ -88,6 +102,24 @@ func _AdminService_CancelTasks_Handler(srv interface{}, ctx context.Context, dec
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AdminService_ReplayTasks_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReplayTasksRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AdminServiceServer).ReplayTasks(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/AdminService/ReplayTasks",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AdminServiceServer).ReplayTasks(ctx, req.(*ReplayTasksRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AdminService_ServiceDesc is the grpc.ServiceDesc for AdminService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -98,6 +130,10 @@ var AdminService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CancelTasks",
 			Handler:    _AdminService_CancelTasks_Handler,
+		},
+		{
+			MethodName: "ReplayTasks",
+			Handler:    _AdminService_ReplayTasks_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

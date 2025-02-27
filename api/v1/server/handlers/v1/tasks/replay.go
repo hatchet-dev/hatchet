@@ -1,25 +1,21 @@
 package tasks
 
 import (
-	"context"
-
-	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/internal/services/admin/contracts/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
-func (t *TasksService) V1TaskCancel(ctx echo.Context, request gen.V1TaskCancelRequestObject) (gen.V1TaskCancelResponseObject, error) {
+func (t *TasksService) V1TaskReplay(ctx echo.Context, request gen.V1TaskReplayRequestObject) (gen.V1TaskReplayResponseObject, error) {
 	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
 
 	var taskIdRetryCounts []*contracts.TaskIdRetryCount
 	var err error
 
-	grpcReq := &contracts.CancelTasksRequest{}
+	grpcReq := &contracts.ReplayTasksRequest{}
 
 	if request.Body.ExternalIds != nil {
 		taskIdRetryCounts, err = t.populateTasksFromExternalIds(ctx.Request().Context(), tenant, *request.Body.ExternalIds)
@@ -65,7 +61,7 @@ func (t *TasksService) V1TaskCancel(ctx echo.Context, request gen.V1TaskCancelRe
 		grpcReq.Filter = filter
 	}
 
-	_, err = t.proxyCancel.Do(
+	_, err = t.proxyReplay.Do(
 		ctx.Request().Context(),
 		tenant,
 		grpcReq,
@@ -75,34 +71,5 @@ func (t *TasksService) V1TaskCancel(ctx echo.Context, request gen.V1TaskCancelRe
 		return nil, err
 	}
 
-	return gen.V1TaskCancel200Response{}, nil
-}
-
-func (t *TasksService) populateTasksFromExternalIds(ctx context.Context, tenant *dbsqlc.Tenant, externalIds []uuid.UUID) ([]*contracts.TaskIdRetryCount, error) {
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
-
-	externalIdStrings := make([]string, len(externalIds))
-
-	for i, id := range externalIds {
-		externalIdStrings[i] = id.String()
-	}
-
-	// get the task ids from the external ids
-	tasks, err := t.config.V1.OLAP().ListTasksByExternalIds(ctx, tenantId, externalIdStrings)
-
-	if err != nil {
-		return nil, err
-	}
-
-	// construct the list of tasks to cancel
-	tasksToCancel := make([]*contracts.TaskIdRetryCount, len(tasks))
-
-	for i, task := range tasks {
-		tasksToCancel[i] = &contracts.TaskIdRetryCount{
-			TaskId:     task.ID,
-			RetryCount: task.RetryCount,
-		}
-	}
-
-	return tasksToCancel, nil
+	return gen.V1TaskReplay200Response{}, nil
 }

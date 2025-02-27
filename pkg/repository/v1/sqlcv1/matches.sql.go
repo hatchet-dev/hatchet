@@ -25,89 +25,6 @@ type CreateMatchConditionsParams struct {
 	Data              []byte                 `json:"data"`
 }
 
-const createMatchesForDAGTriggers = `-- name: CreateMatchesForDAGTriggers :many
-WITH input AS (
-    SELECT
-        tenant_id, kind, trigger_dag_id, trigger_dag_inserted_at, trigger_step_id, trigger_external_id
-    FROM
-        (
-            SELECT
-                unnest($1::uuid[]) AS tenant_id,
-                unnest(cast($2::text[] as v1_match_kind[])) AS kind,
-                unnest($3::bigint[]) AS trigger_dag_id,
-                unnest($4::timestamptz[]) AS trigger_dag_inserted_at,
-                unnest($5::uuid[]) AS trigger_step_id,
-                unnest($6::uuid[]) AS trigger_external_id
-        ) AS subquery
-)
-INSERT INTO v1_match (
-    tenant_id,
-    kind,
-    trigger_dag_id,
-    trigger_dag_inserted_at,
-    trigger_step_id,
-    trigger_external_id
-)
-SELECT
-    i.tenant_id,
-    i.kind,
-    i.trigger_dag_id,
-    i.trigger_dag_inserted_at,
-    i.trigger_step_id,
-    i.trigger_external_id
-FROM
-    input i
-RETURNING
-    id, tenant_id, kind, is_satisfied, signal_target_id, signal_key, trigger_dag_id, trigger_dag_inserted_at, trigger_step_id, trigger_external_id
-`
-
-type CreateMatchesForDAGTriggersParams struct {
-	Tenantids             []pgtype.UUID        `json:"tenantids"`
-	Kinds                 []string             `json:"kinds"`
-	Triggerdagids         []int64              `json:"triggerdagids"`
-	Triggerdaginsertedats []pgtype.Timestamptz `json:"triggerdaginsertedats"`
-	Triggerstepids        []pgtype.UUID        `json:"triggerstepids"`
-	Triggerexternalids    []pgtype.UUID        `json:"triggerexternalids"`
-}
-
-func (q *Queries) CreateMatchesForDAGTriggers(ctx context.Context, db DBTX, arg CreateMatchesForDAGTriggersParams) ([]*V1Match, error) {
-	rows, err := db.Query(ctx, createMatchesForDAGTriggers,
-		arg.Tenantids,
-		arg.Kinds,
-		arg.Triggerdagids,
-		arg.Triggerdaginsertedats,
-		arg.Triggerstepids,
-		arg.Triggerexternalids,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []*V1Match
-	for rows.Next() {
-		var i V1Match
-		if err := rows.Scan(
-			&i.ID,
-			&i.TenantID,
-			&i.Kind,
-			&i.IsSatisfied,
-			&i.SignalTargetID,
-			&i.SignalKey,
-			&i.TriggerDagID,
-			&i.TriggerDagInsertedAt,
-			&i.TriggerStepID,
-			&i.TriggerExternalID,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const createMatchesForSignalTriggers = `-- name: CreateMatchesForSignalTriggers :many
 WITH input AS (
     SELECT
@@ -135,7 +52,7 @@ SELECT
 FROM
     input i
 RETURNING
-    id, tenant_id, kind, is_satisfied, signal_target_id, signal_key, trigger_dag_id, trigger_dag_inserted_at, trigger_step_id, trigger_external_id
+    id, tenant_id, kind, is_satisfied, signal_target_id, signal_key, trigger_dag_id, trigger_dag_inserted_at, trigger_step_id, trigger_external_id, trigger_existing_task_id
 `
 
 type CreateMatchesForSignalTriggersParams struct {
@@ -170,6 +87,7 @@ func (q *Queries) CreateMatchesForSignalTriggers(ctx context.Context, db DBTX, a
 			&i.TriggerDagInsertedAt,
 			&i.TriggerStepID,
 			&i.TriggerExternalID,
+			&i.TriggerExistingTaskID,
 		); err != nil {
 			return nil, err
 		}
@@ -349,8 +267,8 @@ const saveSatisfiedMatchConditions = `-- name: SaveSatisfiedMatchConditions :man
 WITH match_counts AS (
     SELECT
         v1_match_id,
-        COUNT(DISTINCT CASE WHEN action = 'CREATE' THEN or_group_id END) AS total_create_groups,
-        COUNT(DISTINCT CASE WHEN is_satisfied AND action = 'CREATE' THEN or_group_id END) AS satisfied_create_groups,
+        COUNT(DISTINCT CASE WHEN action = 'QUEUE' THEN or_group_id END) AS total_queue_groups,
+        COUNT(DISTINCT CASE WHEN is_satisfied AND action = 'QUEUE' THEN or_group_id END) AS satisfied_queue_groups,
         COUNT(DISTINCT CASE WHEN action = 'CANCEL' THEN or_group_id END) AS total_cancel_groups,
         COUNT(DISTINCT CASE WHEN is_satisfied AND action = 'CANCEL' THEN or_group_id END) AS satisfied_cancel_groups,
         COUNT(DISTINCT CASE WHEN action = 'SKIP' THEN or_group_id END) AS total_skip_groups,
@@ -374,7 +292,7 @@ WITH match_counts AS (
     GROUP BY v1_match_id
 ), result_matches AS (
     SELECT
-        m.id, m.tenant_id, m.kind, m.is_satisfied, m.signal_target_id, m.signal_key, m.trigger_dag_id, m.trigger_dag_inserted_at, m.trigger_step_id, m.trigger_external_id,
+        m.id, m.tenant_id, m.kind, m.is_satisfied, m.signal_target_id, m.signal_key, m.trigger_dag_id, m.trigger_dag_inserted_at, m.trigger_step_id, m.trigger_external_id, m.trigger_existing_task_id,
         mc.aggregated_data::jsonb as mc_aggregated_data
     FROM
         v1_match m
@@ -382,7 +300,7 @@ WITH match_counts AS (
         match_counts mc ON m.id = mc.v1_match_id
     WHERE
         (
-            mc.total_create_groups = mc.satisfied_create_groups
+            mc.total_queue_groups = mc.satisfied_queue_groups
             OR mc.total_cancel_groups = mc.satisfied_cancel_groups
             OR mc.total_skip_groups = mc.satisfied_skip_groups
         )
@@ -409,23 +327,24 @@ WITH match_counts AS (
         (v1_match_id, id) IN (SELECT v1_match_id, id FROM locked_conditions)
 )
 SELECT
-    id, tenant_id, kind, is_satisfied, signal_target_id, signal_key, trigger_dag_id, trigger_dag_inserted_at, trigger_step_id, trigger_external_id, mc_aggregated_data
+    id, tenant_id, kind, is_satisfied, signal_target_id, signal_key, trigger_dag_id, trigger_dag_inserted_at, trigger_step_id, trigger_external_id, trigger_existing_task_id, mc_aggregated_data
 FROM
     result_matches
 `
 
 type SaveSatisfiedMatchConditionsRow struct {
-	ID                   int64              `json:"id"`
-	TenantID             pgtype.UUID        `json:"tenant_id"`
-	Kind                 V1MatchKind        `json:"kind"`
-	IsSatisfied          bool               `json:"is_satisfied"`
-	SignalTargetID       pgtype.Int8        `json:"signal_target_id"`
-	SignalKey            pgtype.Text        `json:"signal_key"`
-	TriggerDagID         pgtype.Int8        `json:"trigger_dag_id"`
-	TriggerDagInsertedAt pgtype.Timestamptz `json:"trigger_dag_inserted_at"`
-	TriggerStepID        pgtype.UUID        `json:"trigger_step_id"`
-	TriggerExternalID    pgtype.UUID        `json:"trigger_external_id"`
-	McAggregatedData     []byte             `json:"mc_aggregated_data"`
+	ID                    int64              `json:"id"`
+	TenantID              pgtype.UUID        `json:"tenant_id"`
+	Kind                  V1MatchKind        `json:"kind"`
+	IsSatisfied           bool               `json:"is_satisfied"`
+	SignalTargetID        pgtype.Int8        `json:"signal_target_id"`
+	SignalKey             pgtype.Text        `json:"signal_key"`
+	TriggerDagID          pgtype.Int8        `json:"trigger_dag_id"`
+	TriggerDagInsertedAt  pgtype.Timestamptz `json:"trigger_dag_inserted_at"`
+	TriggerStepID         pgtype.UUID        `json:"trigger_step_id"`
+	TriggerExternalID     pgtype.UUID        `json:"trigger_external_id"`
+	TriggerExistingTaskID pgtype.Int8        `json:"trigger_existing_task_id"`
+	McAggregatedData      []byte             `json:"mc_aggregated_data"`
 }
 
 // NOTE: we have to break this into a separate query because CTEs can't see modified rows
@@ -452,6 +371,7 @@ func (q *Queries) SaveSatisfiedMatchConditions(ctx context.Context, db DBTX, mat
 			&i.TriggerDagInsertedAt,
 			&i.TriggerStepID,
 			&i.TriggerExternalID,
+			&i.TriggerExistingTaskID,
 			&i.McAggregatedData,
 		); err != nil {
 			return nil, err

@@ -12,6 +12,7 @@ import (
 type TasksService struct {
 	config      *server.ServerConfig
 	proxyCancel *Proxy[admincontracts.CancelTasksRequest, admincontracts.CancelTasksResponse]
+	proxyReplay *Proxy[admincontracts.ReplayTasksRequest, admincontracts.ReplayTasksResponse]
 }
 
 func NewTasksService(config *server.ServerConfig) *TasksService {
@@ -22,8 +23,16 @@ func NewTasksService(config *server.ServerConfig) *TasksService {
 		},
 	}
 
+	proxyReplay := &Proxy[admincontracts.ReplayTasksRequest, admincontracts.ReplayTasksResponse]{
+		config: config,
+		method: func(ctx context.Context, cli *client.GRPCClient, in *admincontracts.ReplayTasksRequest) (*admincontracts.ReplayTasksResponse, error) {
+			return cli.Admin().ReplayTasks(ctx, in)
+		},
+	}
+
 	return &TasksService{
 		config:      config,
 		proxyCancel: proxyCancel,
+		proxyReplay: proxyReplay,
 	}
 }

@@ -667,15 +667,20 @@ func (q *Queries) ListTaskEventsForWorkflowRun(ctx context.Context, db DBTX, arg
 
 const listTasksByDAGIds = `-- name: ListTasksByDAGIds :many
 SELECT
+    DISTINCT ON (t.external_id)
     dt.dag_id, dt.dag_inserted_at, dt.task_id, dt.task_inserted_at,
     lt.external_id AS dag_external_id
 FROM
     v1_lookup_table lt
 JOIN
     v1_dag_to_task_olap dt ON lt.dag_id = dt.dag_id
+JOIN
+    v1_tasks_olap t ON (t.tenant_id, t.id, t.inserted_at) = (lt.tenant_id, dt.task_id, dt.task_inserted_at)
 WHERE
     lt.external_id = ANY($1::uuid[])
-    AND tenant_id = $2::uuid
+    AND lt.tenant_id = $2::uuid
+ORDER BY
+    t.external_id, t.inserted_at DESC
 `
 
 type ListTasksByDAGIdsParams struct {

@@ -346,7 +346,8 @@ WITH locked_tasks AS (
         step_readable_id,
         step_id,
         workflow_id,
-        external_id
+        external_id,
+        additional_metadata
     FROM
         v1_task
     WHERE
@@ -365,20 +366,21 @@ WITH locked_tasks AS (
     JOIN
         "Step" s ON s."id" = t.step_id
     JOIN
-        "_StepOrder" so ON so."B" = steps."id"
+        "_StepOrder" so ON so."B" = s."id"
     GROUP BY
-        so."B"
+        t.step_id
 )
 SELECT
     t.id,
     t.inserted_at,
     t.retry_count,
-    t.dag_id, 
+    t.dag_id,
     t.dag_inserted_at,
     t.step_readable_id,
-    t.step_id, 
+    t.step_id,
     t.workflow_id,
     t.external_id,
+    t.additional_metadata,
     j."kind" as "jobKind",
     COALESCE(so."parents", '{}'::uuid[]) as "parents"
 FROM
@@ -388,7 +390,7 @@ JOIN
 JOIN
     "Job" j ON j."id" = s."jobId"
 LEFT JOIN
-    step_orders so ON so."stepId" = t.step_id;
+    step_orders so ON so.step_id = t.step_id;
 
 -- name: ListAllTasksInDags :many
 SELECT
@@ -419,7 +421,7 @@ WITH input AS (
             SELECT
                 unnest(@dagIds::bigint[]) AS dag_id,
                 unnest(@taskExternalIds::uuid[]) AS task_external_id,
-                unnest(@eventKeys::v1_task_event_type[]) AS event_key
+                unnest(@eventKeys::text[]) AS event_key
         ) AS subquery
 )
 SELECT
@@ -441,30 +443,3 @@ ORDER BY
     e.task_id,
     e.event_key,
     e.retry_count DESC;
-
--- name: DeleteTasksForReplay :exec
--- NOTE: at this point, we assume we have a lock on tasks and therefor we can delete the task events
-WITH deleted_events AS (
-    DELETE FROM
-        v1_task_event
-    WHERE
-        tenant_id = @tenantId::uuid
-        AND task_id = ANY(@taskIds::bigint[])
-)
-DELETE FROM
-    v1_task
-WHERE
-    id = ANY(@taskIds::bigint[])
-    AND tenant_id = @tenantId::uuid;
-
--- name: UpdateTasksForReplay :exec
--- NOTE: at this point, we assume we have a lock on tasks and therefor we can update the tasks
-UPDATE
-    v1_task
-SET
-    retry_count = retry_count + 1,
-    app_retry_count = 0,
-    internal_retry_count = 0
-WHERE
-    id = ANY(@taskIds::bigint[])
-    AND tenant_id = @tenantId::uuid;

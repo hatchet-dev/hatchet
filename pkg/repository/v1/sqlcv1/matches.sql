@@ -1,38 +1,3 @@
--- name: CreateMatchesForDAGTriggers :many
-WITH input AS (
-    SELECT
-        *
-    FROM
-        (
-            SELECT
-                unnest(@tenantIds::uuid[]) AS tenant_id,
-                unnest(cast(@kinds::text[] as v1_match_kind[])) AS kind,
-                unnest(@triggerDagIds::bigint[]) AS trigger_dag_id,
-                unnest(@triggerDagInsertedAts::timestamptz[]) AS trigger_dag_inserted_at,
-                unnest(@triggerStepIds::uuid[]) AS trigger_step_id,
-                unnest(@triggerExternalIds::uuid[]) AS trigger_external_id
-        ) AS subquery
-)
-INSERT INTO v1_match (
-    tenant_id,
-    kind,
-    trigger_dag_id,
-    trigger_dag_inserted_at,
-    trigger_step_id,
-    trigger_external_id
-)
-SELECT
-    i.tenant_id,
-    i.kind,
-    i.trigger_dag_id,
-    i.trigger_dag_inserted_at,
-    i.trigger_step_id,
-    i.trigger_external_id
-FROM
-    input i
-RETURNING
-    *;
-
 -- name: CreateMatchesForSignalTriggers :many
 WITH input AS (
     SELECT
@@ -152,8 +117,8 @@ FOR UPDATE;
 WITH match_counts AS (
     SELECT
         v1_match_id,
-        COUNT(DISTINCT CASE WHEN action = 'CREATE' THEN or_group_id END) AS total_create_groups,
-        COUNT(DISTINCT CASE WHEN is_satisfied AND action = 'CREATE' THEN or_group_id END) AS satisfied_create_groups,
+        COUNT(DISTINCT CASE WHEN action = 'QUEUE' THEN or_group_id END) AS total_queue_groups,
+        COUNT(DISTINCT CASE WHEN is_satisfied AND action = 'QUEUE' THEN or_group_id END) AS satisfied_queue_groups,
         COUNT(DISTINCT CASE WHEN action = 'CANCEL' THEN or_group_id END) AS total_cancel_groups,
         COUNT(DISTINCT CASE WHEN is_satisfied AND action = 'CANCEL' THEN or_group_id END) AS satisfied_cancel_groups,
         COUNT(DISTINCT CASE WHEN action = 'SKIP' THEN or_group_id END) AS total_skip_groups,
@@ -185,7 +150,7 @@ WITH match_counts AS (
         match_counts mc ON m.id = mc.v1_match_id
     WHERE
         (
-            mc.total_create_groups = mc.satisfied_create_groups
+            mc.total_queue_groups = mc.satisfied_queue_groups
             OR mc.total_cancel_groups = mc.satisfied_cancel_groups
             OR mc.total_skip_groups = mc.satisfied_skip_groups
         )

@@ -721,7 +721,7 @@ func getParentInDAGGroupMatch(cancelGroupId, parentExternalId, parentReadableId 
 			ReadableDataKey:   parentReadableId,
 			EventResourceHint: &parentExternalId,
 			Expression:        "!has(input.skipped) || (has(input.skipped) && !input.skipped)",
-			Action:            sqlcv1.V1MatchConditionActionCREATE,
+			Action:            sqlcv1.V1MatchConditionActionQUEUE,
 		},
 		{
 			GroupId:           uuid.NewString(),
@@ -764,7 +764,7 @@ func getChildWorkflowGroupMatches(taskExternalId, stepReadableId string) []Group
 			ReadableDataKey:   stepReadableId,
 			EventResourceHint: &taskExternalId,
 			Expression:        "true",
-			Action:            sqlcv1.V1MatchConditionActionCREATE,
+			Action:            sqlcv1.V1MatchConditionActionQUEUE,
 		},
 		{
 			GroupId:           groupId,
@@ -773,7 +773,7 @@ func getChildWorkflowGroupMatches(taskExternalId, stepReadableId string) []Group
 			ReadableDataKey:   stepReadableId,
 			EventResourceHint: &taskExternalId,
 			Expression:        "true",
-			Action:            sqlcv1.V1MatchConditionActionCREATE,
+			Action:            sqlcv1.V1MatchConditionActionQUEUE,
 		},
 		{
 			GroupId:           groupId,
@@ -782,7 +782,7 @@ func getChildWorkflowGroupMatches(taskExternalId, stepReadableId string) []Group
 			ReadableDataKey:   stepReadableId,
 			EventResourceHint: &taskExternalId,
 			Expression:        "true",
-			Action:            sqlcv1.V1MatchConditionActionCREATE,
+			Action:            sqlcv1.V1MatchConditionActionQUEUE,
 		},
 	}
 }
@@ -798,7 +798,7 @@ func getParentOnFailureGroupMatches(createGroupId, parentExternalId, parentReada
 			ReadableDataKey:   parentReadableId,
 			EventResourceHint: &parentExternalId,
 			Expression:        "true",
-			Action:            sqlcv1.V1MatchConditionActionCREATE,
+			Action:            sqlcv1.V1MatchConditionActionQUEUE,
 		},
 		{
 			GroupId:           cancelGroupId,

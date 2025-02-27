@@ -35,32 +35,6 @@ func (q *Queries) CreateTaskPartition(ctx context.Context, db DBTX, date pgtype.
 	return err
 }
 
-const deleteTasksForReplay = `-- name: DeleteTasksForReplay :exec
-WITH deleted_events AS (
-    DELETE FROM
-        v1_task_event
-    WHERE
-        tenant_id = $2::uuid
-        AND task_id = ANY($1::bigint[])
-)
-DELETE FROM
-    v1_task
-WHERE
-    id = ANY($1::bigint[])
-    AND tenant_id = $2::uuid
-`
-
-type DeleteTasksForReplayParams struct {
-	Taskids  []int64     `json:"taskids"`
-	Tenantid pgtype.UUID `json:"tenantid"`
-}
-
-// NOTE: at this point, we assume we have a lock on tasks and therefor we can delete the task events
-func (q *Queries) DeleteTasksForReplay(ctx context.Context, db DBTX, arg DeleteTasksForReplayParams) error {
-	_, err := db.Exec(ctx, deleteTasksForReplay, arg.Taskids, arg.Tenantid)
-	return err
-}
-
 const failTaskAppFailure = `-- name: FailTaskAppFailure :many
 WITH locked_tasks AS (
     SELECT
@@ -361,7 +335,7 @@ WITH input AS (
             SELECT
                 unnest($2::bigint[]) AS dag_id,
                 unnest($3::uuid[]) AS task_external_id,
-                unnest($4::v1_task_event_type[]) AS event_key
+                unnest($4::text[]) AS event_key
         ) AS subquery
 )
 SELECT
@@ -386,10 +360,10 @@ ORDER BY
 `
 
 type ListMatchingTaskEventsParams struct {
-	Tenantid        pgtype.UUID       `json:"tenantid"`
-	Dagids          []int64           `json:"dagids"`
-	Taskexternalids []pgtype.UUID     `json:"taskexternalids"`
-	Eventkeys       []V1TaskEventType `json:"eventkeys"`
+	Tenantid        pgtype.UUID   `json:"tenantid"`
+	Dagids          []int64       `json:"dagids"`
+	Taskexternalids []pgtype.UUID `json:"taskexternalids"`
+	Eventkeys       []string      `json:"eventkeys"`
 }
 
 type ListMatchingTaskEventsRow struct {
@@ -601,7 +575,8 @@ WITH locked_tasks AS (
         step_readable_id,
         step_id,
         workflow_id,
-        external_id
+        external_id,
+        additional_metadata
     FROM
         v1_task
     WHERE
@@ -620,20 +595,21 @@ WITH locked_tasks AS (
     JOIN
         "Step" s ON s."id" = t.step_id
     JOIN
-        "_StepOrder" so ON so."B" = steps."id"
+        "_StepOrder" so ON so."B" = s."id"
     GROUP BY
-        so."B"
+        t.step_id
 )
 SELECT
     t.id,
     t.inserted_at,
     t.retry_count,
-    t.dag_id, 
+    t.dag_id,
     t.dag_inserted_at,
     t.step_readable_id,
-    t.step_id, 
+    t.step_id,
     t.workflow_id,
     t.external_id,
+    t.additional_metadata,
     j."kind" as "jobKind",
     COALESCE(so."parents", '{}'::uuid[]) as "parents"
 FROM
@@ -643,7 +619,7 @@ JOIN
 JOIN
     "Job" j ON j."id" = s."jobId"
 LEFT JOIN
-    step_orders so ON so."stepId" = t.step_id
+    step_orders so ON so.step_id = t.step_id
 `
 
 type LockTasksForReplayParams struct {
@@ -652,17 +628,18 @@ type LockTasksForReplayParams struct {
 }
 
 type LockTasksForReplayRow struct {
-	ID             int64              `json:"id"`
-	InsertedAt     pgtype.Timestamptz `json:"inserted_at"`
-	RetryCount     int32              `json:"retry_count"`
-	DagID          pgtype.Int8        `json:"dag_id"`
-	DagInsertedAt  pgtype.Timestamptz `json:"dag_inserted_at"`
-	StepReadableID string             `json:"step_readable_id"`
-	StepID         pgtype.UUID        `json:"step_id"`
-	WorkflowID     pgtype.UUID        `json:"workflow_id"`
-	ExternalID     pgtype.UUID        `json:"external_id"`
-	JobKind        JobKind            `json:"jobKind"`
-	Parents        []pgtype.UUID      `json:"parents"`
+	ID                 int64              `json:"id"`
+	InsertedAt         pgtype.Timestamptz `json:"inserted_at"`
+	RetryCount         int32              `json:"retry_count"`
+	DagID              pgtype.Int8        `json:"dag_id"`
+	DagInsertedAt      pgtype.Timestamptz `json:"dag_inserted_at"`
+	StepReadableID     string             `json:"step_readable_id"`
+	StepID             pgtype.UUID        `json:"step_id"`
+	WorkflowID         pgtype.UUID        `json:"workflow_id"`
+	ExternalID         pgtype.UUID        `json:"external_id"`
+	AdditionalMetadata []byte             `json:"additional_metadata"`
+	JobKind            JobKind            `json:"jobKind"`
+	Parents            []pgtype.UUID      `json:"parents"`
 }
 
 func (q *Queries) LockTasksForReplay(ctx context.Context, db DBTX, arg LockTasksForReplayParams) ([]*LockTasksForReplayRow, error) {
@@ -684,6 +661,7 @@ func (q *Queries) LockTasksForReplay(ctx context.Context, db DBTX, arg LockTasks
 			&i.StepID,
 			&i.WorkflowID,
 			&i.ExternalID,
+			&i.AdditionalMetadata,
 			&i.JobKind,
 			&i.Parents,
 		); err != nil {
@@ -1014,27 +992,4 @@ func (q *Queries) ReleaseTasks(ctx context.Context, db DBTX, arg ReleaseTasksPar
 		return nil, err
 	}
 	return items, nil
-}
-
-const updateTasksForReplay = `-- name: UpdateTasksForReplay :exec
-UPDATE
-    v1_task
-SET
-    retry_count = retry_count + 1,
-    app_retry_count = 0,
-    internal_retry_count = 0
-WHERE
-    id = ANY($1::bigint[])
-    AND tenant_id = $2::uuid
-`
-
-type UpdateTasksForReplayParams struct {
-	Taskids  []int64     `json:"taskids"`
-	Tenantid pgtype.UUID `json:"tenantid"`
-}
-
-// NOTE: at this point, we assume we have a lock on tasks and therefor we can update the tasks
-func (q *Queries) UpdateTasksForReplay(ctx context.Context, db DBTX, arg UpdateTasksForReplayParams) error {
-	_, err := db.Exec(ctx, updateTasksForReplay, arg.Taskids, arg.Tenantid)
-	return err
 }

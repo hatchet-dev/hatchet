@@ -44,6 +44,8 @@ type CreateMatchOpts struct {
 
 	TriggerStepId *string
 
+	TriggerExistingTaskId *int64
+
 	SignalTaskId *int64
 
 	SignalKey *string
@@ -52,6 +54,9 @@ type CreateMatchOpts struct {
 type InternalEventMatchResults struct {
 	// The list of tasks which were created from the matches
 	CreatedTasks []*sqlcv1.V1Task
+
+	// The list of tasks which were replayed from the matches
+	ReplayedTasks []*sqlcv1.V1Task
 }
 
 type GroupMatchCondition struct {
@@ -255,7 +260,8 @@ func (m *sharedRepository) processInternalEventMatches(ctx context.Context, tx s
 		}
 
 		// determine which tasks to create based on step ids
-		taskOpts := make([]CreateTaskOpts, 0, len(satisfiedMatches))
+		createTaskOpts := make([]CreateTaskOpts, 0, len(satisfiedMatches))
+		replayTaskOpts := make([]ReplayTaskOpts, 0, len(satisfiedMatches))
 
 		for _, match := range satisfiedMatches {
 			if match.TriggerStepID.Valid && match.TriggerExternalID.Valid {
@@ -266,42 +272,73 @@ func (m *sharedRepository) processInternalEventMatches(ctx context.Context, tx s
 					additionalMetadata = dagIdsToMetadata[match.TriggerDagID.Int64]
 				}
 
-				opt := CreateTaskOpts{
-					ExternalId:         sqlchelpers.UUIDToStr(match.TriggerExternalID),
-					StepId:             sqlchelpers.UUIDToStr(match.TriggerStepID),
-					AdditionalMetadata: additionalMetadata,
-				}
-
 				action, data, err := m.parseTriggerData(match.McAggregatedData)
 
 				if err != nil {
 					return nil, err
 				}
 
-				switch *action {
-				case sqlcv1.V1MatchConditionActionCREATE:
-					opt.Input = m.newTaskInput(input, data)
-					opt.InitialState = sqlcv1.V1TaskInitialStateQUEUED
-				case sqlcv1.V1MatchConditionActionCANCEL:
-					opt.InitialState = sqlcv1.V1TaskInitialStateCANCELLED
-				case sqlcv1.V1MatchConditionActionSKIP:
-					opt.InitialState = sqlcv1.V1TaskInitialStateSKIPPED
-				}
+				if match.TriggerExistingTaskID.Valid {
+					opt := ReplayTaskOpts{
+						TaskId:             match.TriggerExistingTaskID.Int64,
+						ExternalId:         sqlchelpers.UUIDToStr(match.TriggerExternalID),
+						StepId:             sqlchelpers.UUIDToStr(match.TriggerStepID),
+						AdditionalMetadata: additionalMetadata,
+					}
 
-				if match.TriggerDagID.Valid && match.TriggerDagInsertedAt.Valid {
-					opt.DagId = &match.TriggerDagID.Int64
-					opt.DagInsertedAt = match.TriggerDagInsertedAt
-				}
+					switch *action {
+					case sqlcv1.V1MatchConditionActionQUEUE:
+						opt.Input = m.newTaskInput(input, data)
+						opt.InitialState = sqlcv1.V1TaskInitialStateQUEUED
+					case sqlcv1.V1MatchConditionActionCANCEL:
+						opt.InitialState = sqlcv1.V1TaskInitialStateCANCELLED
+					case sqlcv1.V1MatchConditionActionSKIP:
+						opt.InitialState = sqlcv1.V1TaskInitialStateSKIPPED
+					}
 
-				taskOpts = append(taskOpts, opt)
+					replayTaskOpts = append(replayTaskOpts, opt)
+				} else {
+					opt := CreateTaskOpts{
+						ExternalId:         sqlchelpers.UUIDToStr(match.TriggerExternalID),
+						StepId:             sqlchelpers.UUIDToStr(match.TriggerStepID),
+						AdditionalMetadata: additionalMetadata,
+					}
+
+					switch *action {
+					case sqlcv1.V1MatchConditionActionQUEUE:
+						opt.Input = m.newTaskInput(input, data)
+						opt.InitialState = sqlcv1.V1TaskInitialStateQUEUED
+					case sqlcv1.V1MatchConditionActionCANCEL:
+						opt.InitialState = sqlcv1.V1TaskInitialStateCANCELLED
+					case sqlcv1.V1MatchConditionActionSKIP:
+						opt.InitialState = sqlcv1.V1TaskInitialStateSKIPPED
+					}
+
+					if match.TriggerDagID.Valid && match.TriggerDagInsertedAt.Valid {
+						opt.DagId = &match.TriggerDagID.Int64
+						opt.DagInsertedAt = match.TriggerDagInsertedAt
+					}
+
+					createTaskOpts = append(createTaskOpts, opt)
+				}
 			}
 		}
 
 		// create tasks
-		tasks, err = m.createTasks(ctx, tx, tenantId, taskOpts)
+		tasks, err = m.createTasks(ctx, tx, tenantId, createTaskOpts)
 
 		if err != nil {
 			return nil, err
+		}
+
+		if len(replayTaskOpts) > 0 {
+			replayedTasks, err := m.replayTasks(ctx, tx, tenantId, replayTaskOpts)
+
+			if err != nil {
+				return nil, err
+			}
+
+			res.ReplayedTasks = replayedTasks
 		}
 	}
 
@@ -403,6 +440,7 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 	triggerDagInsertedAts := make([]pgtype.Timestamptz, 0, len(eventMatches))
 	triggerStepIds := make([]pgtype.UUID, 0, len(eventMatches))
 	triggerExternalIds := make([]pgtype.UUID, 0, len(eventMatches))
+	triggerExistingTaskIds := make([]pgtype.Int8, 0, len(eventMatches))
 
 	signalTenantIds := make([]pgtype.UUID, 0, len(eventMatches))
 	signalKinds := make([]string, 0, len(eventMatches))
@@ -418,6 +456,12 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 			triggerDagInsertedAts = append(triggerDagInsertedAts, match.TriggerDAGInsertedAt)
 			triggerStepIds = append(triggerStepIds, sqlchelpers.UUIDFromStr(*match.TriggerStepId))
 			triggerExternalIds = append(triggerExternalIds, sqlchelpers.UUIDFromStr(*match.TriggerExternalId))
+
+			if match.TriggerExistingTaskId != nil {
+				triggerExistingTaskIds = append(triggerExistingTaskIds, pgtype.Int8{Int64: *match.TriggerExistingTaskId, Valid: true})
+			} else {
+				triggerExistingTaskIds = append(triggerExistingTaskIds, pgtype.Int8{})
+			}
 		} else if match.SignalTaskId != nil && match.SignalKey != nil {
 			signalTenantIds = append(signalTenantIds, sqlchelpers.UUIDFromStr(tenantId))
 			signalKinds = append(signalKinds, string(match.Kind))
@@ -433,12 +477,13 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 			ctx,
 			tx,
 			sqlcv1.CreateMatchesForDAGTriggersParams{
-				Tenantids:             dagTenantIds,
-				Kinds:                 dagKinds,
-				Triggerdagids:         triggerDagIds,
-				Triggerdaginsertedats: triggerDagInsertedAts,
-				Triggerstepids:        triggerStepIds,
-				Triggerexternalids:    triggerExternalIds,
+				Tenantids:              dagTenantIds,
+				Kinds:                  dagKinds,
+				Triggerdagids:          triggerDagIds,
+				Triggerdaginsertedats:  triggerDagInsertedAts,
+				Triggerstepids:         triggerStepIds,
+				Triggerexternalids:     triggerExternalIds,
+				Triggerexistingtaskids: triggerExistingTaskIds,
 			},
 		)
 

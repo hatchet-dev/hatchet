@@ -1173,6 +1173,13 @@ type V1DagChildren struct {
 	DagId    *openapi_types.UUID `json:"dagId,omitempty"`
 }
 
+// V1ReplayTaskRequest defines model for V1ReplayTaskRequest.
+type V1ReplayTaskRequest struct {
+	// ExternalIds A list of external IDs, which can refer to either task or workflow run external IDs
+	ExternalIds *[]openapi_types.UUID `json:"externalIds,omitempty"`
+	Filter      *V1TaskFilter         `json:"filter,omitempty"`
+}
+
 // V1Task defines model for V1Task.
 type V1Task struct {
 	// AdditionalMetadata Additional metadata for the task run.
@@ -2106,6 +2113,9 @@ type AlertEmailGroupUpdateJSONRequestBody = UpdateTenantAlertEmailGroupRequest
 // V1TaskCancelJSONRequestBody defines body for V1TaskCancel for application/json ContentType.
 type V1TaskCancelJSONRequestBody = V1CancelTaskRequest
 
+// V1TaskReplayJSONRequestBody defines body for V1TaskReplay for application/json ContentType.
+type V1TaskReplayJSONRequestBody = V1ReplayTaskRequest
+
 // TenantCreateJSONRequestBody defines body for TenantCreate for application/json ContentType.
 type TenantCreateJSONRequestBody = CreateTenantRequest
 
@@ -2320,6 +2330,11 @@ type ClientInterface interface {
 	V1TaskCancelWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	V1TaskCancel(ctx context.Context, tenant openapi_types.UUID, body V1TaskCancelJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1TaskReplayWithBody request with any body
+	V1TaskReplayWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	V1TaskReplay(ctx context.Context, tenant openapi_types.UUID, body V1TaskReplayJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// V1WorkflowRunList request
 	V1WorkflowRunList(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -2887,6 +2902,30 @@ func (c *Client) V1TaskCancelWithBody(ctx context.Context, tenant openapi_types.
 
 func (c *Client) V1TaskCancel(ctx context.Context, tenant openapi_types.UUID, body V1TaskCancelJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewV1TaskCancelRequest(c.Server, tenant, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1TaskReplayWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1TaskReplayRequestWithBody(c.Server, tenant, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1TaskReplay(ctx context.Context, tenant openapi_types.UUID, body V1TaskReplayJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1TaskReplayRequest(c.Server, tenant, body)
 	if err != nil {
 		return nil, err
 	}
@@ -5149,6 +5188,53 @@ func NewV1TaskCancelRequestWithBody(server string, tenant openapi_types.UUID, co
 	}
 
 	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/tasks/cancel", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewV1TaskReplayRequest calls the generic V1TaskReplay builder with application/json body
+func NewV1TaskReplayRequest(server string, tenant openapi_types.UUID, body V1TaskReplayJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewV1TaskReplayRequestWithBody(server, tenant, "application/json", bodyReader)
+}
+
+// NewV1TaskReplayRequestWithBody generates requests for V1TaskReplay with any type of body
+func NewV1TaskReplayRequestWithBody(server string, tenant openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/tasks/replay", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -9833,6 +9919,11 @@ type ClientWithResponsesInterface interface {
 
 	V1TaskCancelWithResponse(ctx context.Context, tenant openapi_types.UUID, body V1TaskCancelJSONRequestBody, reqEditors ...RequestEditorFn) (*V1TaskCancelResponse, error)
 
+	// V1TaskReplayWithBodyWithResponse request with any body
+	V1TaskReplayWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1TaskReplayResponse, error)
+
+	V1TaskReplayWithResponse(ctx context.Context, tenant openapi_types.UUID, body V1TaskReplayJSONRequestBody, reqEditors ...RequestEditorFn) (*V1TaskReplayResponse, error)
+
 	// V1WorkflowRunListWithResponse request
 	V1WorkflowRunListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunListParams, reqEditors ...RequestEditorFn) (*V1WorkflowRunListResponse, error)
 
@@ -10627,6 +10718,31 @@ func (r V1TaskCancelResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r V1TaskCancelResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1TaskReplayResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON404      *APIErrors
+	JSON501      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1TaskReplayResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1TaskReplayResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -12849,6 +12965,23 @@ func (c *ClientWithResponses) V1TaskCancelWithResponse(ctx context.Context, tena
 	return ParseV1TaskCancelResponse(rsp)
 }
 
+// V1TaskReplayWithBodyWithResponse request with arbitrary body returning *V1TaskReplayResponse
+func (c *ClientWithResponses) V1TaskReplayWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1TaskReplayResponse, error) {
+	rsp, err := c.V1TaskReplayWithBody(ctx, tenant, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1TaskReplayResponse(rsp)
+}
+
+func (c *ClientWithResponses) V1TaskReplayWithResponse(ctx context.Context, tenant openapi_types.UUID, body V1TaskReplayJSONRequestBody, reqEditors ...RequestEditorFn) (*V1TaskReplayResponse, error) {
+	rsp, err := c.V1TaskReplay(ctx, tenant, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1TaskReplayResponse(rsp)
+}
+
 // V1WorkflowRunListWithResponse request returning *V1WorkflowRunListResponse
 func (c *ClientWithResponses) V1WorkflowRunListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunListParams, reqEditors ...RequestEditorFn) (*V1WorkflowRunListResponse, error) {
 	rsp, err := c.V1WorkflowRunList(ctx, tenant, params, reqEditors...)
@@ -14564,6 +14697,53 @@ func ParseV1TaskCancelResponse(rsp *http.Response) (*V1TaskCancelResponse, error
 	}
 
 	response := &V1TaskCancelResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1TaskReplayResponse parses an HTTP response from a V1TaskReplayWithResponse call
+func ParseV1TaskReplayResponse(rsp *http.Response) (*V1TaskReplayResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1TaskReplayResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}

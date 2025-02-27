@@ -294,6 +294,8 @@ func (tc *TasksControllerImpl) handleBufferedMsgs(tenantId, msgId string, payloa
 		return tc.handleTaskCancelled(context.Background(), tenantId, payloads)
 	case "cancel-tasks":
 		return tc.handleCancelTasks(context.Background(), tenantId, payloads)
+	case "replay-tasks":
+		return tc.handleReplayTasks(context.Background(), tenantId, payloads)
 	case "user-event":
 		return tc.handleProcessUserEvents(context.Background(), tenantId, payloads)
 	case "internal-event":
@@ -591,6 +593,26 @@ func (tc *TasksControllerImpl) handleCancelTasks(ctx context.Context, tenantId s
 			msg,
 		)
 	})
+}
+
+func (tc *TasksControllerImpl) handleReplayTasks(ctx context.Context, tenantId string, payloads [][]byte) error {
+	// sure would be nice if we could use our own durable execution primitives here, but that's a bootstrapping
+	// problem that we don't have a clean way to solve (yet)
+	msgs := msgqueue.JSONConvert[tasktypes.ReplayTasksPayload](payloads)
+
+	taskIdRetryCounts := make([]v1.TaskIdRetryCount, 0)
+
+	for _, msg := range msgs {
+		for _, task := range msg.Tasks {
+			taskIdRetryCounts = append(taskIdRetryCounts, v1.TaskIdRetryCount{
+				Id:         task.Id,
+				RetryCount: task.RetryCount,
+			})
+		}
+	}
+
+	// TODO: USE RETURN VALUE HERE
+	return tc.repov1.Tasks().ReplayTasks(ctx, tenantId, taskIdRetryCounts)
 }
 
 func (tc *TasksControllerImpl) sendTaskCancellationsToDispatcher(ctx context.Context, tenantId string, releasedTasks []tasktypes.SignalTaskCancelledPayload) error {
