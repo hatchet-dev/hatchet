@@ -13,12 +13,22 @@ export const TASK_RUN_TERMINAL_STATUSES = [
   V1TaskStatus.COMPLETED,
 ];
 
+type TaskRunCancellationParams =
+  | {
+      filter?: never;
+      externalIds: V1CancelTaskRequest['externalIds'];
+    }
+  | {
+      filter: V1CancelTaskRequest['filter'];
+      externalIds?: never;
+    };
+
 export const CancelTaskRunButton = ({
   disabled,
-  data,
+  params,
 }: {
   disabled: boolean;
-  data: V1CancelTaskRequest;
+  params: TaskRunCancellationParams;
 }) => {
   const { tenant } = useTenant();
 
@@ -29,7 +39,7 @@ export const CancelTaskRunButton = ({
   const { mutate: cancelTaskRun } = useMutation({
     mutationKey: ['task-run:cancel'],
     mutationFn: async () => {
-      await api.v1TaskCancel(tenant.metadata.id, data);
+      await api.v1TaskCancel(tenant.metadata.id, params);
     },
     onSuccess: () => {
       console.log('Success');
