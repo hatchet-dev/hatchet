@@ -335,10 +335,6 @@ export function TaskRunsTable({
   }, [pagination]);
 
   const workflow = useMemo<string | undefined>(() => {
-    if (workflowId) {
-      return workflowId;
-    }
-
     const filter = columnFilters.find((filter) => filter.id === 'Workflow');
 
     if (!filter) {
@@ -374,7 +370,7 @@ export function TaskRunsTable({
     }),
     placeholderData: (prev) => prev,
     refetchInterval,
-    enabled: !workerId,
+    enabled: !workerId && !workflowId,
   });
 
   const workerTasksQuery = useQuery({
@@ -382,7 +378,7 @@ export function TaskRunsTable({
       offset,
       limit: pagination.pageSize,
       statuses,
-      workflow_ids: workflow ? [workflow] : [],
+      workflow_ids: workflowId ? [workflowId] : [],
       worker_id: workerId,
       since:
         createdAfter ||
@@ -392,10 +388,11 @@ export function TaskRunsTable({
     }),
     placeholderData: (prev) => prev,
     refetchInterval,
-    enabled: !!workerId,
+    enabled: !!workerId || !!workflowId,
   });
 
-  const tasks = workerId ? workerTasksQuery.data : listTasksQuery.data;
+  const tasks =
+    workerId || workflowId ? workerTasksQuery.data : listTasksQuery.data;
 
   const dagIds = tasks?.rows?.map((r) => r.metadata.id) || [];
 
