@@ -434,6 +434,25 @@ const useColumnFilters = ({
       ?.value as string[],
   };
 
+  const onAdditionalMetadataClick = ({
+    key,
+    value,
+  }: AdditionalMetadataClick) => {
+    setColumnFilters((prev) => {
+      const metadataFilter = prev.find((filter) => filter.id === 'Metadata');
+      if (metadataFilter) {
+        prev = prev.filter((filter) => filter.id !== 'Metadata');
+      }
+      return [
+        ...prev,
+        {
+          id: 'Metadata',
+          value: [`${key}:${value}`],
+        },
+      ];
+    });
+  };
+
   return {
     workflow,
     workflowKeys,
@@ -460,6 +479,7 @@ const useColumnFilters = ({
     setDefaultTimeRange,
     v1TaskFilters,
     defaultTimeRange,
+    onAdditionalMetadataClick,
   };
 };
 
@@ -794,25 +814,6 @@ export function TaskRunsTable({
 
   const isLoading = isRunsLoading || isMetricsLoading;
 
-  const onAdditionalMetadataClick = ({
-    key,
-    value,
-  }: AdditionalMetadataClick) => {
-    filters.setColumnFilters((prev) => {
-      const metadataFilter = prev.find((filter) => filter.id === 'Metadata');
-      if (metadataFilter) {
-        prev = prev.filter((filter) => filter.id !== 'Metadata');
-      }
-      return [
-        ...prev,
-        {
-          id: 'Metadata',
-          value: [`${key}:${value}`],
-        },
-      ];
-    });
-  };
-
   return (
     <>
       {showMetrics && (
@@ -983,7 +984,7 @@ export function TaskRunsTable({
         emptyState={<>No workflow runs found with the given filters.</>}
         error={isRunsError ? Error('Something went wrong') : undefined}
         isLoading={isLoading}
-        columns={columns(onAdditionalMetadataClick, onTaskRunIdClick)}
+        columns={columns(filters.onAdditionalMetadataClick, onTaskRunIdClick)}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
         data={tableRows}
