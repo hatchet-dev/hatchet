@@ -99,15 +99,11 @@ export const TaskRunDetail = ({
     refetchInterval: 5000,
   });
 
-  console.log('taskRunIdFromHere', taskRunId);
-
   const taskRun = taskRunQuery.data;
 
   if (taskRunQuery.isLoading) {
     return <Loading />;
   }
-
-  console.log(taskRun);
 
   if (!taskRun) {
     return <div>No events found</div>;
@@ -150,8 +146,7 @@ export const TaskRunDetail = ({
         </Button>
         <CancelTaskRunButton
           params={{ externalIds: [taskRunId] }}
-          // disabled={TASK_RUN_TERMINAL_STATUSES.includes(taskRun.status)}
-          disabled={false}
+          disabled={TASK_RUN_TERMINAL_STATUSES.includes(taskRun.status)}
         />
         <TaskRunPermalinkOrBacklink
           taskRun={taskRun}
