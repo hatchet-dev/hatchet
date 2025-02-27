@@ -297,6 +297,8 @@ CREATE TABLE v1_match (
     trigger_step_id UUID,
     -- references the external id for the new task
     trigger_external_id UUID,
+    -- references the existing task id, which may be set when we're replaying a task
+    trigger_existing_task_id bigint,
     CONSTRAINT v1_match_pkey PRIMARY KEY (id)
 );
 
@@ -305,8 +307,8 @@ CREATE TYPE v1_event_type AS ENUM ('USER', 'INTERNAL');
 -- Provides information to the caller about the action to take. This is used to differentiate
 -- negative conditions from positive conditions. For example, if a task is waiting for a set of
 -- tasks to fail, the success of all tasks would be a CANCEL condition, and the failure of any
--- task would be a CREATE condition. Different actions are implicitly different groups of conditions.
-CREATE TYPE v1_match_condition_action AS ENUM ('CREATE', 'CANCEL', 'SKIP');
+-- task would be a QUEUE condition. Different actions are implicitly different groups of conditions.
+CREATE TYPE v1_match_condition_action AS ENUM ('QUEUE', 'CANCEL', 'SKIP', 'REPLAY');
 
 CREATE TABLE v1_match_condition (
     v1_match_id bigint NOT NULL,
@@ -314,9 +316,13 @@ CREATE TABLE v1_match_condition (
     tenant_id UUID NOT NULL,
     registered_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
     event_type v1_event_type NOT NULL,
+    -- for INTERNAL events, this will correspond to a v1_task_event_type value
     event_key TEXT NOT NULL,
+    event_resource_hint TEXT,
+    -- readable_data_key is used as the key when constructing the aggregated data for the v1_match
+    readable_data_key TEXT NOT NULL,
     is_satisfied BOOLEAN NOT NULL DEFAULT FALSE,
-    action v1_match_condition_action NOT NULL DEFAULT 'CREATE',
+    action v1_match_condition_action NOT NULL DEFAULT 'QUEUE',
     or_group_id UUID NOT NULL,
     expression TEXT,
     data JSONB,
@@ -584,7 +590,7 @@ BEGIN
         workflow_id,
         strategy_id,
         next_strategy_ids,
-        COALESCE(priority, 1),
+        4,
         key,
         next_keys,
         queue,

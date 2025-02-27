@@ -108,9 +108,13 @@ func (r iteratorForCreateMatchConditions) Values() ([]interface{}, error) {
 		r.rows[0].TenantID,
 		r.rows[0].EventType,
 		r.rows[0].EventKey,
+		r.rows[0].EventResourceHint,
+		r.rows[0].ReadableDataKey,
 		r.rows[0].OrGroupID,
 		r.rows[0].Expression,
 		r.rows[0].Action,
+		r.rows[0].IsSatisfied,
+		r.rows[0].Data,
 	}, nil
 }
 
@@ -119,7 +123,7 @@ func (r iteratorForCreateMatchConditions) Err() error {
 }
 
 func (q *Queries) CreateMatchConditions(ctx context.Context, db DBTX, arg []CreateMatchConditionsParams) (int64, error) {
-	return db.CopyFrom(ctx, []string{"v1_match_condition"}, []string{"v1_match_id", "tenant_id", "event_type", "event_key", "or_group_id", "expression", "action"}, &iteratorForCreateMatchConditions{rows: arg})
+	return db.CopyFrom(ctx, []string{"v1_match_condition"}, []string{"v1_match_id", "tenant_id", "event_type", "event_key", "event_resource_hint", "readable_data_key", "or_group_id", "expression", "action", "is_satisfied", "data"}, &iteratorForCreateMatchConditions{rows: arg})
 }
 
 // iteratorForCreateTaskEventsOLAP implements pgx.CopyFromSource.

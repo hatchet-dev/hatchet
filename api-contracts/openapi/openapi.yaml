@@ -28,6 +28,8 @@ paths:
     $ref: "./paths/v1/tasks/tasks.yaml#/listTaskEvents"
   /api/v1/stable/tenants/{tenant}/tasks/cancel:
     $ref: "./paths/v1/tasks/tasks.yaml#/cancelTasks"
+  /api/v1/stable/tenants/{tenant}/tasks/replay:
+    $ref: "./paths/v1/tasks/tasks.yaml#/replayTasks"
   /api/v1/stable/dags/tasks:
     $ref: "./paths/v1/tasks/tasks.yaml#/listTasksByDAGIds"
   /api/v1/stable/tenants/{tenant}/workflow-runs:

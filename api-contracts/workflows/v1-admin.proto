@@ -7,14 +7,20 @@ import "google/protobuf/timestamp.proto";
 // AdminService represents a set of RPCs for admin management of tasks, workflows, etc.
 service AdminService {
     rpc CancelTasks(CancelTasksRequest) returns (CancelTasksResponse);
+    rpc ReplayTasks(ReplayTasksRequest) returns (ReplayTasksResponse);
 }
 
 message CancelTasksRequest {
     repeated TaskIdRetryCount tasks = 1;
-    optional CancelTasksRequestFilter filter = 2;
+    optional TasksFilter filter = 2;
 }
 
-message CancelTasksRequestFilter {
+message ReplayTasksRequest {
+    repeated TaskIdRetryCount tasks = 1;
+    optional TasksFilter filter = 2;
+}
+
+message TasksFilter {
     repeated string statuses = 1;
     google.protobuf.Timestamp since = 2;
     optional google.protobuf.Timestamp until = 3;
@@ -29,4 +35,8 @@ message TaskIdRetryCount {
 
 message CancelTasksResponse {
     repeated TaskIdRetryCount cancelled_tasks = 1;
+}
+
+message ReplayTasksResponse {
+    repeated TaskIdRetryCount replayed_tasks = 1;
 }

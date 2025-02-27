@@ -3,7 +3,6 @@ package v1
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
@@ -12,18 +11,6 @@ type TaskInput struct {
 	Input map[string]interface{} `json:"input"`
 
 	TriggerData map[string][]map[string]interface{} `json:"trigger_data"`
-}
-
-type CompletedData struct {
-	StepReadableId string `json:"step_readable_id"`
-
-	Output []byte `json:"output"`
-}
-
-type FailedData struct {
-	StepReadableId string `json:"step_readable_id"`
-
-	Error string `json:"error"`
 }
 
 func (s *sharedRepository) parseTriggerData(triggerData []byte) (*sqlcv1.V1MatchConditionAction, map[string][]map[string]interface{}, error) {
@@ -39,9 +26,9 @@ func (s *sharedRepository) parseTriggerData(triggerData []byte) (*sqlcv1.V1Match
 
 	for k, v := range triggerDataMap {
 		switch k {
-		case "CREATE":
-			create := sqlcv1.V1MatchConditionActionCREATE
-			return &create, v, nil
+		case "QUEUE":
+			queue := sqlcv1.V1MatchConditionActionQUEUE
+			return &queue, v, nil
 		case "CANCEL":
 			cancel := sqlcv1.V1MatchConditionActionCANCEL
 			return &cancel, v, nil
@@ -95,55 +82,28 @@ func (s *sharedRepository) ToV1StepRunData(t *TaskInput) *V1StepRunData {
 	parents := make(map[string]map[string]interface{})
 	stepRunErrors := make(map[string]string)
 
-	for k, v := range t.TriggerData {
-		if strings.HasPrefix(k, "task.completed") {
-			for _, data := range v {
-				dataBytes, err := json.Marshal(data)
+	for readableId, v := range t.TriggerData {
+		for _, data := range v {
+			// determine whether this represents an error payload or a completed payload
+			if data["error_message"] != nil && data["is_error_payload"] != nil {
+				// verify conversions
+				isErrPayload, ok := data["is_error_payload"].(bool)
 
-				if err != nil {
-					s.l.Error().Err(err).Msg("failed to marshal trigger data")
+				if ok && isErrPayload {
+					stepRunError, ok := data["error_message"].(string)
+
+					if !ok {
+						// we write an error to the user here
+						stepRunErrors[readableId] = "failed to convert error message"
+					} else {
+						stepRunErrors[readableId] = stepRunError
+					}
+
 					continue
 				}
-
-				var completedData CompletedData
-
-				err = json.Unmarshal(dataBytes, &completedData)
-
-				if err != nil {
-					s.l.Error().Err(err).Msg("failed to unmarshal completed data")
-					continue
-				}
-
-				outputMap := make(map[string]interface{})
-
-				err = json.Unmarshal(completedData.Output, &outputMap)
-
-				if err != nil {
-					s.l.Error().Err(err).Msg("failed to unmarshal output")
-				}
-
-				parents[completedData.StepReadableId] = outputMap
 			}
-		} else if strings.HasPrefix(k, "task.failed") {
-			for _, data := range v {
-				dataBytes, err := json.Marshal(data)
 
-				if err != nil {
-					s.l.Error().Err(err).Msg("failed to marshal trigger data")
-					continue
-				}
-
-				var failedData FailedData
-
-				err = json.Unmarshal(dataBytes, &failedData)
-
-				if err != nil {
-					s.l.Error().Err(err).Msg("failed to unmarshal failed data")
-					continue
-				}
-
-				stepRunErrors[failedData.StepReadableId] = failedData.Error
-			}
+			parents[readableId] = data
 		}
 	}
 

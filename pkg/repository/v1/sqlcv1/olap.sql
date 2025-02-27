@@ -206,16 +206,20 @@ WHERE
 
 -- name: ListTasksByDAGIds :many
 SELECT
+    DISTINCT ON (t.external_id)
     dt.*,
     lt.external_id AS dag_external_id
 FROM
     v1_lookup_table lt
 JOIN
     v1_dag_to_task_olap dt ON lt.dag_id = dt.dag_id
+JOIN
+    v1_tasks_olap t ON (t.tenant_id, t.id, t.inserted_at) = (lt.tenant_id, dt.task_id, dt.task_inserted_at)
 WHERE
     lt.external_id = ANY(@dagIds::uuid[])
-    AND tenant_id = @tenantId::uuid
-;
+    AND lt.tenant_id = @tenantId::uuid
+ORDER BY
+    t.external_id, t.inserted_at DESC;
 
 -- name: ReadDAGByExternalID :one
 WITH lookup_task AS (

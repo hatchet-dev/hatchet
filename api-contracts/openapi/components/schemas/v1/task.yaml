@@ -303,3 +303,17 @@ V1CancelTaskRequest:
         maxLength: 36
     filter:
       $ref: "#/V1TaskFilter"
+
+V1ReplayTaskRequest:
+  type: object
+  properties:
+    externalIds:
+      type: array
+      description: A list of external IDs, which can refer to either task or workflow run external IDs
+      items:
+        type: string
+        format: uuid
+        minLength: 36
+        maxLength: 36
+    filter:
+      $ref: "#/V1TaskFilter"

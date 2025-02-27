@@ -123,3 +123,37 @@ SELECT
 FROM
     input i
 ON CONFLICT (tenant_id, task_id, event_type, event_key) WHERE event_key IS NOT NULL DO NOTHING;
+
+-- name: ReplayTasks :many
+-- NOTE: at this point, we assume we have a lock on tasks and therefor we can update the tasks
+WITH input AS (
+    SELECT
+        *
+    FROM
+        (
+            SELECT
+                unnest(@taskIds::bigint[]) AS task_id,
+                unnest(@inputs::jsonb[]) AS input,
+                unnest(cast(@initialStates::text[] as v1_task_initial_state[])) AS initial_state,
+                unnest_nd_1d(@concurrencyStrategyIds::bigint[][]) AS concurrency_strategy_ids,
+				unnest_nd_1d(@concurrencyKeys::text[][]) AS concurrency_keys,
+				unnest(@initialStateReason::text[]) AS initial_state_reason
+        ) AS subquery
+)
+UPDATE
+    v1_task
+SET
+    retry_count = retry_count + 1,
+    app_retry_count = 0,
+    internal_retry_count = 0,
+    input = CASE WHEN i.input IS NOT NULL THEN i.input ELSE v1_task.input END,
+    initial_state = i.initial_state,
+    concurrency_strategy_ids = i.concurrency_strategy_ids,
+    concurrency_keys = i.concurrency_keys,
+    initial_state_reason = i.initial_state_reason
+FROM
+    input i
+WHERE
+    v1_task.id = i.task_id
+RETURNING
+    v1_task.*;

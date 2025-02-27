@@ -254,6 +254,12 @@ export interface V1CancelTaskRequest {
   filter?: V1TaskFilter;
 }
 
+export interface V1ReplayTaskRequest {
+  /** A list of external IDs, which can refer to either task or workflow run external IDs */
+  externalIds?: string[];
+  filter?: V1TaskFilter;
+}
+
 export interface V1DagChildren {
   /** @format uuid */
   dagId?: string;

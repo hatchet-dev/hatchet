@@ -231,11 +231,14 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 
 	// group steps by workflow version ids
 	workflowVersionToSteps := make(map[string][]*sqlcv1.ListStepsByWorkflowVersionIdsRow)
+	stepIdsToReadableIds := make(map[string]string)
 
 	for _, step := range steps {
 		workflowVersionId := sqlchelpers.UUIDToStr(step.WorkflowVersionId)
 
 		workflowVersionToSteps[workflowVersionId] = append(workflowVersionToSteps[workflowVersionId], step)
+
+		stepIdsToReadableIds[sqlchelpers.UUIDToStr(step.ID)] = step.ReadableId.String
 	}
 
 	// start constructing options for creating tasks, DAGs, and triggers. logic is as follows:
@@ -356,8 +359,9 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 					}
 
 					otherExternalId := stepsToExternalIds[i][sqlchelpers.UUIDToStr(otherStep.ID)]
+					readableId := otherStep.ReadableId.String
 
-					conditions = append(conditions, getParentOnFailureGroupMatches(groupId, otherExternalId)...)
+					conditions = append(conditions, getParentOnFailureGroupMatches(groupId, otherExternalId, readableId)...)
 				}
 
 				eventMatches[tuple.externalId] = append(eventMatches[tuple.externalId], CreateMatchOpts{
@@ -387,8 +391,9 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 
 				for _, parent := range step.Parents {
 					parentExternalId := stepsToExternalIds[i][sqlchelpers.UUIDToStr(parent)]
+					readableId := stepIdsToReadableIds[sqlchelpers.UUIDToStr(parent)]
 
-					conditions = append(conditions, getParentInDAGGroupMatch(createGroupId, parentExternalId)...)
+					conditions = append(conditions, getParentInDAGGroupMatch(createGroupId, parentExternalId, readableId)...)
 				}
 
 				// create an event match
@@ -667,9 +672,10 @@ func (r *TriggerRepositoryImpl) registerChildWorkflows(
 
 			for _, step := range steps {
 				stepId := sqlchelpers.UUIDToStr(step.ID)
+				stepReadableId := step.ReadableId.String
 				stepExternalId := stepsToExternalIds[i][stepId]
 
-				conditions = append(conditions, getChildWorkflowGroupMatches(stepExternalId)...)
+				conditions = append(conditions, getChildWorkflowGroupMatches(stepExternalId, stepReadableId)...)
 			}
 
 			createMatchOpts = append(createMatchOpts, CreateMatchOpts{
@@ -706,105 +712,113 @@ func (r *TriggerRepositoryImpl) registerChildWorkflows(
 	return tuplesToSkip, nil
 }
 
-func getParentInDAGGroupMatch(cancelGroupId, parentExternalId string) []GroupMatchCondition {
+func getParentInDAGGroupMatch(cancelGroupId, parentExternalId, parentReadableId string) []GroupMatchCondition {
 	return []GroupMatchCondition{
 		{
-			GroupId:    uuid.NewString(),
-			EventType:  sqlcv1.V1EventTypeINTERNAL,
-			EventKey:   GetTaskCompletedEventKey(parentExternalId),
-			Expression: "!has(input.skipped) || (has(input.skipped) && !input.skipped)",
-			Action:     sqlcv1.V1MatchConditionActionCREATE,
+			GroupId:           uuid.NewString(),
+			EventType:         sqlcv1.V1EventTypeINTERNAL,
+			EventKey:          string(sqlcv1.V1TaskEventTypeCOMPLETED),
+			ReadableDataKey:   parentReadableId,
+			EventResourceHint: &parentExternalId,
+			Expression:        "!has(input.skipped) || (has(input.skipped) && !input.skipped)",
+			Action:            sqlcv1.V1MatchConditionActionQUEUE,
 		},
 		{
-			GroupId:    uuid.NewString(),
-			EventType:  sqlcv1.V1EventTypeINTERNAL,
-			EventKey:   GetTaskCompletedEventKey(parentExternalId),
-			Expression: "has(input.skipped) && input.skipped",
-			Action:     sqlcv1.V1MatchConditionActionSKIP,
+			GroupId:           uuid.NewString(),
+			EventType:         sqlcv1.V1EventTypeINTERNAL,
+			EventKey:          string(sqlcv1.V1TaskEventTypeCOMPLETED),
+			ReadableDataKey:   parentReadableId,
+			EventResourceHint: &parentExternalId,
+			Expression:        "has(input.skipped) && input.skipped",
+			Action:            sqlcv1.V1MatchConditionActionSKIP,
 		},
 		{
-			GroupId:    cancelGroupId,
-			EventType:  sqlcv1.V1EventTypeINTERNAL,
-			EventKey:   GetTaskFailedEventKey(parentExternalId),
-			Expression: "true",
-			Action:     sqlcv1.V1MatchConditionActionCANCEL,
+			GroupId:           cancelGroupId,
+			EventType:         sqlcv1.V1EventTypeINTERNAL,
+			EventKey:          string(sqlcv1.V1TaskEventTypeFAILED),
+			ReadableDataKey:   parentReadableId,
+			EventResourceHint: &parentExternalId,
+			Expression:        "true",
+			Action:            sqlcv1.V1MatchConditionActionCANCEL,
 		},
 		{
-			GroupId:    cancelGroupId,
-			EventType:  sqlcv1.V1EventTypeINTERNAL,
-			EventKey:   GetTaskCancelledEventKey(parentExternalId),
-			Expression: "true",
-			Action:     sqlcv1.V1MatchConditionActionCANCEL,
+			GroupId:           cancelGroupId,
+			EventType:         sqlcv1.V1EventTypeINTERNAL,
+			EventKey:          string(sqlcv1.V1TaskEventTypeCANCELLED),
+			ReadableDataKey:   parentReadableId,
+			EventResourceHint: &parentExternalId,
+			Expression:        "true",
+			Action:            sqlcv1.V1MatchConditionActionCANCEL,
 		},
 	}
 }
 
-func getChildWorkflowGroupMatches(parentExternalId string) []GroupMatchCondition {
+func getChildWorkflowGroupMatches(taskExternalId, stepReadableId string) []GroupMatchCondition {
 	groupId := uuid.NewString()
 
 	return []GroupMatchCondition{
 		{
-			GroupId:    groupId,
-			EventType:  sqlcv1.V1EventTypeINTERNAL,
-			EventKey:   GetTaskCompletedEventKey(parentExternalId),
-			Expression: "true",
-			Action:     sqlcv1.V1MatchConditionActionCREATE,
+			GroupId:           groupId,
+			EventType:         sqlcv1.V1EventTypeINTERNAL,
+			EventKey:          string(sqlcv1.V1TaskEventTypeCOMPLETED),
+			ReadableDataKey:   stepReadableId,
+			EventResourceHint: &taskExternalId,
+			Expression:        "true",
+			Action:            sqlcv1.V1MatchConditionActionQUEUE,
 		},
 		{
-			GroupId:    groupId,
-			EventType:  sqlcv1.V1EventTypeINTERNAL,
-			EventKey:   GetTaskFailedEventKey(parentExternalId),
-			Expression: "true",
-			Action:     sqlcv1.V1MatchConditionActionCREATE,
+			GroupId:           groupId,
+			EventType:         sqlcv1.V1EventTypeINTERNAL,
+			EventKey:          string(sqlcv1.V1TaskEventTypeFAILED),
+			ReadableDataKey:   stepReadableId,
+			EventResourceHint: &taskExternalId,
+			Expression:        "true",
+			Action:            sqlcv1.V1MatchConditionActionQUEUE,
 		},
 		{
-			GroupId:    groupId,
-			EventType:  sqlcv1.V1EventTypeINTERNAL,
-			EventKey:   GetTaskCancelledEventKey(parentExternalId),
-			Expression: "true",
-			Action:     sqlcv1.V1MatchConditionActionCREATE,
+			GroupId:           groupId,
+			EventType:         sqlcv1.V1EventTypeINTERNAL,
+			EventKey:          string(sqlcv1.V1TaskEventTypeCANCELLED),
+			ReadableDataKey:   stepReadableId,
+			EventResourceHint: &taskExternalId,
+			Expression:        "true",
+			Action:            sqlcv1.V1MatchConditionActionQUEUE,
 		},
 	}
 }
 
-func getParentOnFailureGroupMatches(createGroupId, parentExternalId string) []GroupMatchCondition {
+func getParentOnFailureGroupMatches(createGroupId, parentExternalId, parentReadableId string) []GroupMatchCondition {
 	cancelGroupId := uuid.NewString()
 
 	return []GroupMatchCondition{
 		{
-			GroupId:    createGroupId,
-			EventType:  sqlcv1.V1EventTypeINTERNAL,
-			EventKey:   GetTaskFailedEventKey(parentExternalId),
-			Expression: "true",
-			Action:     sqlcv1.V1MatchConditionActionCREATE,
+			GroupId:           createGroupId,
+			EventType:         sqlcv1.V1EventTypeINTERNAL,
+			EventKey:          string(sqlcv1.V1TaskEventTypeFAILED),
+			ReadableDataKey:   parentReadableId,
+			EventResourceHint: &parentExternalId,
+			Expression:        "true",
+			Action:            sqlcv1.V1MatchConditionActionQUEUE,
 		},
 		{
-			GroupId:    cancelGroupId,
-			EventType:  sqlcv1.V1EventTypeINTERNAL,
-			EventKey:   GetTaskCompletedEventKey(parentExternalId),
-			Expression: "true",
-			Action:     sqlcv1.V1MatchConditionActionSKIP,
+			GroupId:           cancelGroupId,
+			EventType:         sqlcv1.V1EventTypeINTERNAL,
+			EventKey:          string(sqlcv1.V1TaskEventTypeCOMPLETED),
+			ReadableDataKey:   parentReadableId,
+			EventResourceHint: &parentExternalId,
+			Expression:        "true",
+			Action:            sqlcv1.V1MatchConditionActionSKIP,
 		},
 		{
-			GroupId:    cancelGroupId,
-			EventType:  sqlcv1.V1EventTypeINTERNAL,
-			EventKey:   GetTaskCancelledEventKey(parentExternalId),
-			Expression: "true",
-			Action:     sqlcv1.V1MatchConditionActionSKIP,
+			GroupId:           cancelGroupId,
+			EventType:         sqlcv1.V1EventTypeINTERNAL,
+			EventKey:          string(sqlcv1.V1TaskEventTypeFAILED),
+			ReadableDataKey:   parentReadableId,
+			EventResourceHint: &parentExternalId,
+			Expression:        "true",
+			Action:            sqlcv1.V1MatchConditionActionSKIP,
 		},
 	}
-}
-
-func GetTaskCompletedEventKey(externalId string) string {
-	return fmt.Sprintf("task.completed.%s", externalId)
-}
-
-func GetTaskFailedEventKey(externalId string) string {
-	return fmt.Sprintf("task.failed.%s", externalId)
-}
-
-func GetTaskCancelledEventKey(externalId string) string {
-	return fmt.Sprintf("task.cancelled.%s", externalId)
 }
 
 func getChildSignalEventKey(parentTaskId int64, childKey string) string {

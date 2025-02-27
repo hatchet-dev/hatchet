@@ -85,6 +85,7 @@ import {
   UserTenantMembershipsList,
   V1CancelTaskRequest,
   V1DagChildren,
+  V1ReplayTaskRequest,
   V1Task,
   V1TaskEventList,
   V1TaskPointMetrics,
@@ -238,6 +239,24 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   v1TaskCancel = (tenant: string, data: V1CancelTaskRequest, params: RequestParams = {}) =>
     this.request<void, APIErrors>({
       path: `/api/v1/stable/tenants/${tenant}/tasks/cancel`,
+      method: 'POST',
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      ...params,
+    });
+  /**
+   * @description Replay tasks
+   *
+   * @tags Task
+   * @name V1TaskReplay
+   * @summary Replay tasks
+   * @request POST:/api/v1/stable/tenants/{tenant}/tasks/replay
+   * @secure
+   */
+  v1TaskReplay = (tenant: string, data: V1ReplayTaskRequest, params: RequestParams = {}) =>
+    this.request<void, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/tasks/replay`,
       method: 'POST',
       body: data,
       secure: true,
