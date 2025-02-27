@@ -45,7 +45,7 @@ export const useCancelTaskRuns = () => {
     (params: TaskRunCancellationParams) => {
       cancelTaskRun(params);
     },
-    [],
+    [cancelTaskRun],
   );
 
   return { handleCancelTaskRun };

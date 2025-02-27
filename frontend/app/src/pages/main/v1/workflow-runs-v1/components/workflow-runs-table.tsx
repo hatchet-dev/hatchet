@@ -8,15 +8,9 @@ import {
   SortingState,
   VisibilityState,
 } from '@tanstack/react-table';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import invariant from 'tiny-invariant';
-import api, {
-  queries,
-  ReplayWorkflowRunsRequest,
-  V1DagChildren,
-  V1TaskStatus,
-  V1WorkflowRun,
-} from '@/lib/api';
+import { queries, V1DagChildren, V1TaskStatus, V1WorkflowRun } from '@/lib/api';
 import { TenantContextType } from '@/lib/outlet';
 import { useOutletContext, useSearchParams } from 'react-router-dom';
 import {
@@ -32,7 +26,6 @@ import {
   XMarkIcon,
 } from '@heroicons/react/24/outline';
 import { V1WorkflowRunsMetricsView } from './task-runs-metrics';
-import { useApiError } from '@/lib/hooks';
 import {
   Select,
   SelectContent,
@@ -409,24 +402,7 @@ export function TaskRunsTable({
 
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
-  const { handleApiError } = useApiError({});
   const { handleCancelTaskRun } = useCancelTaskRuns();
-
-  const replayWorkflowRunsMutation = useMutation({
-    mutationKey: ['workflow-run:update:replay', tenant.metadata.id],
-    mutationFn: async (data: ReplayWorkflowRunsRequest) => {
-      await api.workflowRunUpdateReplay(tenant.metadata.id, data);
-    },
-    onSuccess: () => {
-      setRowSelection({});
-
-      // bit hacky, but workflow run statuses aren't updated immediately after replay
-      setTimeout(() => {
-        listTasksQuery.refetch();
-      }, 1000);
-    },
-    onError: handleApiError,
-  });
 
   const onTaskRunIdClick = useCallback((taskRunId: string) => {
     setStepDetailSheetState({
@@ -505,7 +481,7 @@ export function TaskRunsTable({
       onClick={() => {
         const idsToCancel = selectedRuns
           .filter((run) => !!run)
-          .map((run) => run?.run.metadata.id)
+          .map((run) => run?.run.metadata.id);
 
         handleCancelTaskRun({
           externalIds: idsToCancel,
@@ -585,13 +561,16 @@ export function TaskRunsTable({
     return Object.entries(rowSelection)
       .filter(([, selected]) => !!selected)
       .map(([id]) => {
+        // `rowSelection` uses `.` as a delimiter to indicate
+        // depth in the tree. E.g. `"0"` means the first row,
+        // `"0.0"` means the first child of the first row, etc.
         const isParent = id.split('.').length === 1;
 
         if (isParent) {
           const childRow = tableRows.at(parseInt(id));
 
           if (childRow) {
-            return childRow
+            return childRow;
           }
         }
 
@@ -599,11 +578,11 @@ export function TaskRunsTable({
 
         const row = tableRows.at(parentIx)?.children?.at(childIx);
 
-        invariant(row)
+        invariant(row);
 
-        return row
+        return row;
       });
-  }, [listTasksQuery.data?.rows, rowSelection]);
+  }, [rowSelection, tableRows]);
 
   return (
     <>
