@@ -23,7 +23,6 @@ import {
   ArrowPathIcon,
   ArrowPathRoundedSquareIcon,
   XCircleIcon,
-  XMarkIcon,
 } from '@heroicons/react/24/outline';
 import { V1WorkflowRunsMetricsView } from './task-runs-metrics';
 import {
@@ -55,7 +54,10 @@ import {
   TabOption,
   TaskRunDetail,
 } from '../$run/v2components/step-run-detail/step-run-detail';
-import { useCancelTaskRuns } from '../../task-runs-v1/cancellation';
+import {
+  CancelTaskRunButton,
+  useCancelTaskRuns,
+} from '../../task-runs-v1/cancellation';
 
 export interface TaskRunsTableProps {
   createdAfter?: string;
@@ -491,12 +493,10 @@ export function TaskRunsTable({
   );
 
   const actions = [
-    <Button
-      disabled={!(hasRowsSelected || hasTaskFiltersSelected)}
+    <CancelTaskRunButton
       key="cancel"
-      className="h-8 px-2 lg:px-3"
-      size="sm"
-      onClick={() => {
+      disabled={!(hasRowsSelected || hasTaskFiltersSelected)}
+      handleCancelTaskRun={() => {
         const idsToCancel = selectedRuns
           .filter((run) => !!run)
           .map((run) => run?.run.metadata.id);
@@ -513,12 +513,7 @@ export function TaskRunsTable({
           });
         }
       }}
-      variant={'outline'}
-      aria-label="Cancel Selected Runs"
-    >
-      <XMarkIcon className={`mr-2 h-4 w-4 transition-transform`} />
-      Cancel
-    </Button>,
+    />,
     <Button
       // disabled={!Object.values(rowSelection).some((selected) => !!selected)}
       disabled

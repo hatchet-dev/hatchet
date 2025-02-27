@@ -21,7 +21,10 @@ import RelativeDate from '@/components/v1/molecules/relative-date';
 import { formatDuration } from '@/lib/utils';
 import { V1StepRunOutput } from './step-run-output';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
-import { CancelTaskRunButton } from '@/pages/main/v1/task-runs-v1/cancellation';
+import {
+  CancelTaskRunButton,
+  useCancelTaskRuns,
+} from '@/pages/main/v1/task-runs-v1/cancellation';
 
 export enum TabOption {
   Output = 'output',
@@ -87,6 +90,8 @@ export const TaskRunDetail = ({
     refetchInterval: 5000,
   });
 
+  const { handleCancelTaskRun } = useCancelTaskRuns();
+
   const taskRun = taskRunQuery.data;
 
   if (taskRunQuery.isLoading) {
@@ -133,7 +138,11 @@ export const TaskRunDetail = ({
           Replay
         </Button>
         <CancelTaskRunButton
-          externalIds={[taskRunId]}
+          handleCancelTaskRun={() => {
+            handleCancelTaskRun({
+              externalIds: [taskRunId],
+            });
+          }}
           disabled={TASK_RUN_TERMINAL_STATUSES.includes(taskRun.status)}
         />
         <TaskRunPermalinkOrBacklink
