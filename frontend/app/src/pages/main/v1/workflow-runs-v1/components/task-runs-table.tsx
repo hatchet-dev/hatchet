@@ -463,16 +463,18 @@ const useColumnFilters = ({
   };
 };
 
-export function TaskRunsTable({
+const useTaskRunRows = ({
   workflowId,
-  workerId,
+  filterVisibility,
   createdAfter: createdAfterProp,
-  initColumnVisibility = {},
-  filterVisibility = {},
-  refetchInterval = 5000,
-  showMetrics = false,
-  showCounts = true,
-}: TaskRunsTableProps) {
+  workerId,
+  refetchInterval,
+  rowSelection,
+}: UseColumnFiltersProps & {
+  workerId?: string;
+  refetchInterval: number;
+  rowSelection: RowSelectionState;
+}) => {
   const { tenant } = useOutletContext<TenantContextType>();
   invariant(tenant);
 
@@ -481,14 +483,6 @@ export function TaskRunsTable({
     filterVisibility,
     createdAfter: createdAfterProp,
   });
-
-  const { workflowKeys, workflowKeysIsLoading, workflowKeysError } =
-    useWorkflow();
-
-  const [viewQueueMetrics, setViewQueueMetrics] = useState(false);
-
-  const [columnVisibility, setColumnVisibility] =
-    useState<VisibilityState>(initColumnVisibility);
 
   const listTasksQuery = useQuery({
     ...queries.v1WorkflowRuns.list(tenant.metadata.id, {
@@ -531,11 +525,114 @@ export function TaskRunsTable({
   const tasks =
     workerId || workflowId ? workerTasksQuery.data : listTasksQuery.data;
 
+  const { workflowKeys, workflowKeysIsLoading, workflowKeysError } =
+    useWorkflow();
+
   const dagIds = tasks?.rows?.map((r) => r.metadata.id) || [];
 
-  const { data: dagChildrenRaw } = useQuery({
+  const {
+    data: dagChildrenRaw,
+    isLoading: dagChildrenLoading,
+    isFetching: dagChildrenFetching,
+    isError: dagChildrenError,
+  } = useQuery({
     ...queries.v1Tasks.getByDagId(tenant.metadata.id, dagIds),
     enabled: !!dagIds.length,
+  });
+
+  const tableRows = processWorkflowData(
+    tasks?.rows,
+    dagChildrenRaw,
+    workflowKeys,
+  );
+
+  const selectedRuns = useMemo(() => {
+    return Object.entries(rowSelection)
+      .filter(([, selected]) => !!selected)
+      .map(([id]) => {
+        // `rowSelection` uses `.` as a delimiter to indicate
+        // depth in the tree. E.g. `"0"` means the first row,
+        // `"0.0"` means the first child of the first row, etc.
+        const isParent = id.split('.').length === 1;
+
+        if (isParent) {
+          const childRow = tableRows.at(parseInt(id));
+
+          if (childRow) {
+            return childRow;
+          }
+        }
+
+        const [parentIx, childIx] = id.split('.').map(Number);
+
+        const row = tableRows.at(parentIx)?.children?.at(childIx);
+
+        invariant(row);
+
+        return row;
+      });
+  }, [rowSelection, tableRows]);
+
+  return {
+    tableRows,
+    selectedRuns,
+    refetchRuns: workerId ? workerTasksQuery.refetch : listTasksQuery.refetch,
+    isLoading:
+      listTasksQuery.isFetching ||
+      workerTasksQuery.isFetching ||
+      listTasksQuery.isLoading ||
+      workerTasksQuery.isLoading ||
+      workflowKeysIsLoading ||
+      dagChildrenLoading ||
+      dagChildrenFetching,
+    isError:
+      listTasksQuery.isError ||
+      workerTasksQuery.isError ||
+      workflowKeysError !== null ||
+      dagChildrenError,
+    numPages: tasks?.pagination.num_pages || 0,
+  };
+};
+
+export function TaskRunsTable({
+  workflowId,
+  workerId,
+  createdAfter: createdAfterProp,
+  initColumnVisibility = {},
+  filterVisibility = {},
+  refetchInterval = 5000,
+  showMetrics = false,
+  showCounts = true,
+}: TaskRunsTableProps) {
+  const { tenant } = useOutletContext<TenantContextType>();
+  invariant(tenant);
+
+  const filters = useColumnFilters({
+    workflowId,
+    filterVisibility,
+    createdAfter: createdAfterProp,
+  });
+
+  const [viewQueueMetrics, setViewQueueMetrics] = useState(false);
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+
+  const [columnVisibility, setColumnVisibility] =
+    useState<VisibilityState>(initColumnVisibility);
+
+  const {
+    tableRows,
+    selectedRuns,
+    refetchRuns,
+    isLoading: isRunsLoading,
+    isError: isRunsError,
+    numPages,
+  } = useTaskRunRows({
+    workflowId,
+    filterVisibility,
+    createdAfter: createdAfterProp,
+    workerId,
+    refetchInterval,
+    rowSelection,
   });
 
   const metricsQuery = useQuery({
@@ -556,8 +653,6 @@ export function TaskRunsTable({
     refetchInterval,
   });
 
-  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
-
   const { handleCancelTaskRun } = useCancelTaskRuns();
 
   const onTaskRunIdClick = useCallback((taskRunId: string) => {
@@ -570,8 +665,7 @@ export function TaskRunsTable({
   const [rotate, setRotate] = useState(false);
 
   const refetch = () => {
-    workerId ? workerTasksQuery.refetch() : listTasksQuery.refetch();
-
+    refetchRuns();
     tenantMetricsQuery.refetch();
     metricsQuery.refetch();
   };
@@ -639,11 +733,7 @@ export function TaskRunsTable({
     </Button>,
   ];
 
-  const isLoading =
-    listTasksQuery.isFetching ||
-    workerTasksQuery.isFetching ||
-    workflowKeysIsLoading ||
-    metricsQuery.isLoading;
+  const isLoading = isRunsLoading || metricsQuery.isLoading;
 
   const onAdditionalMetadataClick = ({
     key,
@@ -663,39 +753,6 @@ export function TaskRunsTable({
       ];
     });
   };
-
-  const tableRows = processWorkflowData(
-    tasks?.rows,
-    dagChildrenRaw,
-    workflowKeys,
-  );
-
-  const selectedRuns = useMemo(() => {
-    return Object.entries(rowSelection)
-      .filter(([, selected]) => !!selected)
-      .map(([id]) => {
-        // `rowSelection` uses `.` as a delimiter to indicate
-        // depth in the tree. E.g. `"0"` means the first row,
-        // `"0.0"` means the first child of the first row, etc.
-        const isParent = id.split('.').length === 1;
-
-        if (isParent) {
-          const childRow = tableRows.at(parseInt(id));
-
-          if (childRow) {
-            return childRow;
-          }
-        }
-
-        const [parentIx, childIx] = id.split('.').map(Number);
-
-        const row = tableRows.at(parentIx)?.children?.at(childIx);
-
-        invariant(row);
-
-        return row;
-      });
-  }, [rowSelection, tableRows]);
 
   return (
     <>
@@ -871,7 +928,7 @@ export function TaskRunsTable({
       )}
       <DataTable
         emptyState={<>No workflow runs found with the given filters.</>}
-        error={workflowKeysError}
+        error={isRunsError ? Error('Something went wrong') : undefined}
         isLoading={isLoading}
         columns={columns(onAdditionalMetadataClick, onTaskRunIdClick)}
         columnVisibility={columnVisibility}
@@ -888,7 +945,7 @@ export function TaskRunsTable({
         onSetPageSize={filters.setPageSize}
         rowSelection={rowSelection}
         setRowSelection={setRowSelection}
-        pageCount={tasks?.pagination?.num_pages || 0}
+        pageCount={numPages}
         showColumnToggle={true}
         getSubRows={(row) => row.children || []}
       />
