@@ -13,6 +13,7 @@ import invariant from 'tiny-invariant';
 import api, {
   queries,
   ReplayWorkflowRunsRequest,
+  V1DagChildren,
   V1TaskStatus,
   V1WorkflowRun,
 } from '@/lib/api';
@@ -31,7 +32,6 @@ import {
   XMarkIcon,
 } from '@heroicons/react/24/outline';
 import { V1WorkflowRunsMetricsView } from './task-runs-metrics';
-import queryClient from '@/query-client';
 import { useApiError } from '@/lib/hooks';
 import {
   Select,
@@ -62,6 +62,7 @@ import {
   TabOption,
   TaskRunDetail,
 } from '../$run/v2components/step-run-detail/step-run-detail';
+import { useCancelTaskRuns } from '../../task-runs-v1/cancellation';
 
 export interface TaskRunsTableProps {
   createdAfter?: string;
@@ -77,11 +78,90 @@ export interface TaskRunsTableProps {
   showCounts?: boolean;
 }
 
-// TODO: Clean this up
 export type ListableWorkflowRun = V1WorkflowRun & {
   workflowName: string | undefined;
   triggeredBy: string;
   workflowVersionId: string;
+};
+
+export type TableRow =
+  | {
+      run: ListableWorkflowRun;
+      type: 'dag';
+      children: TableRow[]; // everything here is a `task`
+      metadata: { id: string };
+    }
+  | {
+      run: ListableWorkflowRun;
+      type: 'task';
+      children?: never;
+      metadata: { id: string };
+    };
+
+const transformToTableRows = (
+  workflows: ListableWorkflowRun[],
+  dagChildrenMap: Map<string, ListableWorkflowRun[]>,
+): TableRow[] => {
+  return workflows.map((workflow) => {
+    const children = dagChildrenMap.get(workflow.metadata?.id || '');
+
+    if (children && children.length > 0) {
+      return {
+        run: workflow,
+        type: 'dag',
+        children: children.map((child) => ({
+          run: child,
+          type: 'task',
+          metadata: { id: child.metadata.id },
+        })),
+        metadata: { id: workflow.metadata.id },
+      };
+    } else {
+      return {
+        run: workflow,
+        type: 'task',
+        metadata: { id: workflow.metadata.id },
+      };
+    }
+  });
+};
+
+const processWorkflowData = (
+  workflowRuns: V1WorkflowRun[] = [],
+  dagChildrenRaw: V1DagChildren[] = [],
+  workflowKeys: { rows?: { metadata: { id: string }; name: string }[] } = {},
+): TableRow[] => {
+  const workflowNameMap = new Map();
+  workflowKeys.rows?.forEach((row) => {
+    workflowNameMap.set(row.metadata.id, row.name);
+  });
+
+  const processedRuns: ListableWorkflowRun[] = workflowRuns.map((row) => ({
+    ...row,
+    workflowVersionId: 'first version',
+    triggeredBy: 'manual',
+    workflowName: workflowNameMap.get(row.workflowId),
+  }));
+
+  const dagChildrenMap = new Map<string, ListableWorkflowRun[]>();
+
+  dagChildrenRaw.forEach((dag) => {
+    if (dag.dagId && dag.children) {
+      const processedChildren = dag.children.map((child) => ({
+        ...child,
+
+        // TODO: Fix these
+        workflowVersionId: 'first version',
+        triggeredBy: 'manual',
+        workflowName: workflowNameMap.get(child.workflowId),
+        input: {},
+      }));
+
+      dagChildrenMap.set(dag.dagId, processedChildren);
+    }
+  });
+
+  return transformToTableRows(processedRuns, dagChildrenMap);
 };
 
 export const getCreatedAfterFromTimeRange = (timeRange?: string) => {
@@ -329,36 +409,8 @@ export function TaskRunsTable({
 
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
-  const selectedRuns = useMemo(() => {
-    return Object.entries(rowSelection)
-      .filter(([, selected]) => !!selected)
-      .map(([id]) => (listTasksQuery.data?.rows || [])[Number(id)]);
-  }, [listTasksQuery.data?.rows, rowSelection]);
-
   const { handleApiError } = useApiError({});
-
-  const cancelWorkflowRunMutation = useMutation({
-    mutationKey: ['workflow-run:cancel', tenant.metadata.id, selectedRuns],
-    mutationFn: async () => {
-      const tenantId = tenant.metadata.id;
-      const workflowRunIds = selectedRuns.map((wr) => wr.metadata.id);
-
-      invariant(tenantId, 'has tenantId');
-      invariant(workflowRunIds, 'has runIds');
-
-      const res = await api.workflowRunCancel(tenantId, {
-        workflowRunIds,
-      });
-
-      return res.data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: queries.workflowRuns.list(tenant.metadata.id, {}).queryKey,
-      });
-    },
-    onError: handleApiError,
-  });
+  const { handleCancelTaskRun } = useCancelTaskRuns();
 
   const replayWorkflowRunsMutation = useMutation({
     mutationKey: ['workflow-run:update:replay', tenant.metadata.id],
@@ -446,13 +498,12 @@ export function TaskRunsTable({
 
   const actions = [
     <Button
-      // disabled={!Object.values(rowSelection).some((selected) => !!selected)}
-      disabled
+      disabled={!Object.values(rowSelection).some((selected) => !!selected)}
       key="cancel"
       className="h-8 px-2 lg:px-3"
       size="sm"
       onClick={() => {
-        cancelWorkflowRunMutation.mutate();
+        handleCancelTaskRun;
       }}
       variant={'outline'}
       aria-label="Cancel Selected Runs"
@@ -467,9 +518,9 @@ export function TaskRunsTable({
       className="h-8 px-2 lg:px-3"
       size="sm"
       onClick={() => {
-        replayWorkflowRunsMutation.mutate({
-          workflowRunIds: selectedRuns.map((run) => run.metadata.id),
-        });
+        // replayWorkflowRunsMutation.mutate({
+        //   workflowRunIds: selectedRuns.map((run) => run.metadata.id),
+        // });
       }}
       variant={'outline'}
       aria-label="Replay Selected Runs"
@@ -518,29 +569,29 @@ export function TaskRunsTable({
     });
   };
 
-  const data: ListableWorkflowRun[] = (listTasksQuery.data?.rows || []).map(
-    (row) => ({
-      ...row,
-      workflowVersionId: 'first version',
-      triggeredBy: 'manual',
-      workflowName: workflowKeys?.rows?.find(
-        (r) => r.metadata.id == row.workflowId,
-      )?.name,
-    }),
+  const tableRows = processWorkflowData(
+    listTasksQuery.data?.rows,
+    dagChildrenRaw,
+    workflowKeys,
   );
 
-  const dagChildren = (dagChildrenRaw || []).map((dag) => ({
-    dagId: dag.dagId,
-    children: dag.children?.map((child) => ({
-      ...child,
-      workflowVersionId: 'first version',
-      triggeredBy: 'manual',
-      workflowName: workflowKeys?.rows?.find(
-        (r2) => r2.metadata.id == child.workflowId,
-      )?.name,
-      input: {},
-    })),
-  }));
+  const selectedRuns = useMemo(() => {
+    return Object.entries(rowSelection)
+      .filter(([, selected]) => !!selected)
+      .map(([id]) => {
+        const isParent = id.split('.').length === 1;
+
+        if (isParent) {
+          return tableRows.at(parseInt(id));
+        }
+
+        const [parentIx, childIx] = id.split('.').map(Number);
+
+        return tableRows.at(parentIx)?.children?.at(childIx);
+      });
+  }, [listTasksQuery.data?.rows, rowSelection]);
+
+  console.log(selectedRuns);
 
   return (
     <>
@@ -711,7 +762,7 @@ export function TaskRunsTable({
         columns={columns(onAdditionalMetadataClick, onTaskRunIdClick)}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
-        data={data}
+        data={tableRows}
         filters={filters}
         actions={actions}
         sorting={sorting}
@@ -725,9 +776,7 @@ export function TaskRunsTable({
         setRowSelection={setRowSelection}
         pageCount={listTasksQuery.data?.pagination?.num_pages || 0}
         showColumnToggle={true}
-        getSubRows={(row) =>
-          dagChildren.find((c) => c.dagId === row.metadata.id)?.children || []
-        }
+        getSubRows={(row) => row.children || []}
       />
     </>
   );

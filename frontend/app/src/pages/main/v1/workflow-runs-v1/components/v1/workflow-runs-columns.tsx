@@ -6,7 +6,7 @@ import {
 } from '../../../events/components/additional-metadata';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { Checkbox } from '@/components/v1/ui/checkbox';
-import { ListableWorkflowRun } from '../workflow-runs-table';
+import { TableRow } from '../workflow-runs-table';
 import { ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 import { Button } from '@/components/v1/ui/button';
 import { cn } from '@/lib/utils';
@@ -17,10 +17,7 @@ import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data
 export const columns: (
   onAdditionalMetadataClick?: (click: AdditionalMetadataClick) => void,
   onTaskRunIdClick?: (taskRunId: string) => void,
-) => ColumnDef<ListableWorkflowRun>[] = (
-  onAdditionalMetadataClick,
-  onTaskRunIdClick,
-) => [
+) => ColumnDef<TableRow>[] = (onAdditionalMetadataClick, onTaskRunIdClick) => [
   {
     id: 'select',
     header: ({ table }) => (
@@ -92,9 +89,9 @@ export const columns: (
     cell: ({ row }) => {
       if (row.getCanExpand()) {
         return (
-          <Link to={'/v1/workflow-runs/' + row.original.metadata.id}>
+          <Link to={'/v1/workflow-runs/' + row.original.run.metadata.id}>
             <div className="cursor-pointer hover:underline min-w-fit whitespace-nowrap">
-              {row.original.displayName}
+              {row.original.run.displayName}
             </div>
           </Link>
         );
@@ -103,12 +100,12 @@ export const columns: (
           <div
             className="cursor-pointer hover:underline min-w-fit whitespace-nowrap"
             onClick={() =>
-              row.original.metadata.id &&
+              row.original.run.metadata.id &&
               onTaskRunIdClick &&
-              onTaskRunIdClick(row.original.metadata.id)
+              onTaskRunIdClick(row.original.run.metadata.id)
             }
           >
-            {row.original.displayName}
+            {row.original.run.displayName}
           </div>
         );
       }
@@ -123,8 +120,8 @@ export const columns: (
     ),
     cell: ({ row }) => (
       <V1RunStatus
-        status={row.original.status}
-        errorMessage={row.original.errorMessage}
+        status={row.original.run.status}
+        errorMessage={row.original.run.errorMessage}
       />
     ),
     enableSorting: false,
@@ -136,8 +133,8 @@ export const columns: (
       <DataTableColumnHeader column={column} title="Workflow" />
     ),
     cell: ({ row }) => {
-      const workflowId = row.original?.workflowId;
-      const workflowName = row.original.workflowName;
+      const workflowId = row.original?.run.workflowId;
+      const workflowName = row.original.run.workflowName;
 
       return (
         <div className="min-w-fit whitespace-nowrap">
@@ -175,8 +172,8 @@ export const columns: (
     cell: ({ row }) => {
       return (
         <div className="whitespace-nowrap">
-          {row.original.metadata.createdAt ? (
-            <RelativeDate date={row.original.metadata.createdAt} />
+          {row.original.run.metadata.createdAt ? (
+            <RelativeDate date={row.original.run.metadata.createdAt} />
           ) : (
             'N/A'
           )}
@@ -198,8 +195,8 @@ export const columns: (
     cell: ({ row }) => {
       return (
         <div className="whitespace-nowrap">
-          {row.original.startedAt ? (
-            <RelativeDate date={row.original.startedAt} />
+          {row.original.run.startedAt ? (
+            <RelativeDate date={row.original.run.startedAt} />
           ) : (
             'N/A'
           )}
@@ -219,8 +216,8 @@ export const columns: (
       />
     ),
     cell: ({ row }) => {
-      const finishedAt = row.original.finishedAt ? (
-        <RelativeDate date={row.original.finishedAt} />
+      const finishedAt = row.original.run.finishedAt ? (
+        <RelativeDate date={row.original.run.finishedAt} />
       ) : (
         'N/A'
       );
@@ -240,7 +237,9 @@ export const columns: (
       />
     ),
     cell: ({ row }) => {
-      return <div className="whitespace-nowrap">{row.original.duration}</div>;
+      return (
+        <div className="whitespace-nowrap">{row.original.run.duration}</div>
+      );
     },
     enableSorting: true,
     enableHiding: true,
@@ -251,13 +250,13 @@ export const columns: (
       <DataTableColumnHeader column={column} title="Metadata" />
     ),
     cell: ({ row }) => {
-      if (!row.original.additionalMetadata) {
+      if (!row.original.run.additionalMetadata) {
         return <div></div>;
       }
 
       return (
         <AdditionalMetadata
-          metadata={row.original.additionalMetadata}
+          metadata={row.original.run.additionalMetadata}
           onClick={onAdditionalMetadataClick}
         />
       );
@@ -274,7 +273,7 @@ export const columns: (
             {
               label: 'Copy Run Id',
               onClick: () => {
-                navigator.clipboard.writeText(row.original.metadata.id);
+                navigator.clipboard.writeText(row.original.run.metadata.id);
               },
             },
           ]}
