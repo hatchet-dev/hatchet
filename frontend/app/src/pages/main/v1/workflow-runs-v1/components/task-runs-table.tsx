@@ -15,7 +15,9 @@ import {
   V1DagChildren,
   V1TaskStatus,
   V1TaskSummary,
+  V1TaskSummaryList,
   V1WorkflowRun,
+  V1WorkflowRunList,
 } from '@/lib/api';
 import { TenantContextType } from '@/lib/outlet';
 import { useOutletContext, useSearchParams } from 'react-router-dom';
@@ -204,13 +206,11 @@ const useWorkflow = () => {
 };
 
 type UseColumnFiltersProps = {
-  workflowId: string | undefined;
   filterVisibility: { [key: string]: boolean };
   createdAfter?: string;
 };
 
 const useColumnFilters = ({
-  workflowId,
   filterVisibility,
   createdAfter: createdAfterProp,
 }: UseColumnFiltersProps) => {
@@ -235,7 +235,7 @@ const useColumnFilters = ({
 
     const vals = filter?.value as Array<string>;
     return vals[0];
-  }, [columnFilters, workflowId]);
+  }, [columnFilters]);
 
   const workflowKeyFilters = useMemo((): FilterOption[] => {
     return (
@@ -463,6 +463,22 @@ const useColumnFilters = ({
   };
 };
 
+const taskSummaryToWorkflowRunSummary = (
+  taskRunSummary: V1TaskSummaryList | undefined,
+): V1WorkflowRunList | undefined => {
+  if (!taskRunSummary) {
+    return;
+  }
+
+  return {
+    pagination: taskRunSummary.pagination,
+    rows: taskRunSummary.rows.map((t) => ({
+      ...t,
+      input: {},
+    })),
+  };
+};
+
 const useTaskRunRows = ({
   workflowId,
   filterVisibility,
@@ -472,6 +488,7 @@ const useTaskRunRows = ({
   rowSelection,
 }: UseColumnFiltersProps & {
   workerId?: string;
+  workflowId?: string;
   refetchInterval: number;
   rowSelection: RowSelectionState;
 }) => {
@@ -479,7 +496,6 @@ const useTaskRunRows = ({
   invariant(tenant);
 
   const filters = useColumnFilters({
-    workflowId,
     filterVisibility,
     createdAfter: createdAfterProp,
   });
@@ -523,7 +539,9 @@ const useTaskRunRows = ({
   });
 
   const tasks =
-    workerId || workflowId ? workerTasksQuery.data : listTasksQuery.data;
+    workerId || workflowId
+      ? taskSummaryToWorkflowRunSummary(workerTasksQuery.data)
+      : listTasksQuery.data;
 
   const { workflowKeys, workflowKeysIsLoading, workflowKeysError } =
     useWorkflow();
@@ -595,7 +613,6 @@ const useTaskRunRows = ({
 };
 
 const useMetrics = ({
-  workflowId,
   filterVisibility,
   createdAfter: createdAfterProp,
   refetchInterval,
@@ -606,7 +623,6 @@ const useMetrics = ({
   invariant(tenant);
 
   const filters = useColumnFilters({
-    workflowId,
     filterVisibility,
     createdAfter: createdAfterProp,
   });
@@ -657,7 +673,6 @@ export function TaskRunsTable({
   invariant(tenant);
 
   const filters = useColumnFilters({
-    workflowId,
     filterVisibility,
     createdAfter: createdAfterProp,
   });
@@ -688,10 +703,8 @@ export function TaskRunsTable({
     metrics,
     tenantMetrics,
     isLoading: isMetricsLoading,
-    isError: isMetricsError,
     refetch: refetchMetrics,
   } = useMetrics({
-    workflowId,
     filterVisibility,
     createdAfter: createdAfterProp,
     refetchInterval,
@@ -699,12 +712,15 @@ export function TaskRunsTable({
 
   const { handleCancelTaskRun } = useCancelTaskRuns();
 
-  const onTaskRunIdClick = useCallback((taskRunId: string) => {
-    filters.setStepDetailSheetState({
-      taskRunId,
-      isOpen: true,
-    });
-  }, []);
+  const onTaskRunIdClick = useCallback(
+    (taskRunId: string) => {
+      filters.setStepDetailSheetState({
+        taskRunId,
+        isOpen: true,
+      });
+    },
+    [filters],
+  );
 
   const [rotate, setRotate] = useState(false);
 
