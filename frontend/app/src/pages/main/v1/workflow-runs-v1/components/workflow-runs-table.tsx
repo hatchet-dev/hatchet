@@ -505,9 +505,7 @@ export function TaskRunsTable({
           handleCancelTaskRun({
             externalIds: idsToCancel,
           });
-        }
-
-        if (Object.values(v1TaskFilters).some((filter) => !!filter)) {
+        } else if (Object.values(v1TaskFilters).some((filter) => !!filter)) {
           handleCancelTaskRun({
             filter: v1TaskFilters,
           });
