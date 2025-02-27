@@ -355,7 +355,7 @@ func (t *MessageQueueImpl) initQueue(sub session, q msgqueue.Queue) (string, err
 	if q.DLX() != "" {
 		args["x-dead-letter-exchange"] = ""
 		args["x-dead-letter-routing-key"] = q.DLX()
-		args["x-consumer-timeout"] = 5000 // 5 seconds
+		args["x-consumer-timeout"] = 300000 // 5 minutes
 
 		dlqArgs := make(amqp.Table)
 
