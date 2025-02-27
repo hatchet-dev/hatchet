@@ -3,12 +3,12 @@ import json
 import time
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import AsyncGenerator, Optional, cast
+from typing import Any, AsyncGenerator, Optional, cast
 
 import grpc
 import grpc.aio
 from grpc._cython import cygrpc  # type: ignore[attr-defined]
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from hatchet_sdk.clients.event_ts import ThreadSafeEvent, read_with_interrupt
 from hatchet_sdk.clients.events import proto_timestamp_now
@@ -64,6 +64,13 @@ class ActionPayload(BaseModel):
     user_data: JSONSerializableMapping = Field(default_factory=dict)
     step_run_errors: dict[str, str] = Field(default_factory=dict)
     triggered_by: str | None = None
+
+    @field_validator(
+        "input", "parents", "overrides", "user_data", "step_run_errors", mode="before"
+    )
+    @classmethod
+    def validate_fields(cls, v: Any) -> Any:
+        return v or {}
 
 
 class ActionType(str, Enum):

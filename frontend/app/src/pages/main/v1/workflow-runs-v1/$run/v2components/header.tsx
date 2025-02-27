@@ -60,7 +60,7 @@ export const V1RunDetailHeader = () => {
           </div>
           <div className="flex flex-row gap-2 items-center">
             <a
-              href={`/workflows/${workflowRun.workflowId}`}
+              href={`/v1/workflows/${workflowRun.workflowId}`}
               target="_blank"
               rel="noreferrer"
             >

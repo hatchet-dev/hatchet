@@ -490,6 +490,10 @@ type DAGWithData struct {
 }
 
 func (r *TriggerRepositoryImpl) createDAGs(ctx context.Context, tx sqlcv1.DBTX, tenantId string, opts []createDAGOpts) ([]*DAGWithData, error) {
+	if len(opts) == 0 {
+		return nil, nil
+	}
+
 	tenantIds := make([]pgtype.UUID, 0, len(opts))
 	externalIds := make([]pgtype.UUID, 0, len(opts))
 	displayNames := make([]string, 0, len(opts))

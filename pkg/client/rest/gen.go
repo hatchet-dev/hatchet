@@ -1160,6 +1160,13 @@ type UserTenantPublic struct {
 	Name *string `json:"name,omitempty"`
 }
 
+// V1CancelTaskRequest defines model for V1CancelTaskRequest.
+type V1CancelTaskRequest struct {
+	// ExternalIds A list of external IDs, which can refer to either task or workflow run external IDs
+	ExternalIds *[]openapi_types.UUID `json:"externalIds,omitempty"`
+	Filter      *V1TaskFilter         `json:"filter,omitempty"`
+}
+
 // V1DagChildren defines model for V1DagChildren.
 type V1DagChildren struct {
 	Children *[]V1TaskSummary    `json:"children,omitempty"`
@@ -1229,6 +1236,15 @@ type V1TaskEventList struct {
 
 // V1TaskEventType defines model for V1TaskEventType.
 type V1TaskEventType string
+
+// V1TaskFilter defines model for V1TaskFilter.
+type V1TaskFilter struct {
+	AdditionalMetadata *[]string             `json:"additionalMetadata,omitempty"`
+	Since              time.Time             `json:"since"`
+	Statuses           *[]V1TaskStatus       `json:"statuses,omitempty"`
+	Until              *time.Time            `json:"until,omitempty"`
+	WorkflowIds        *[]openapi_types.UUID `json:"workflowIds,omitempty"`
+}
 
 // V1TaskPointMetric defines model for V1TaskPointMetric.
 type V1TaskPointMetric struct {
@@ -2087,6 +2103,9 @@ type WorkflowVersionGetParams struct {
 // AlertEmailGroupUpdateJSONRequestBody defines body for AlertEmailGroupUpdate for application/json ContentType.
 type AlertEmailGroupUpdateJSONRequestBody = UpdateTenantAlertEmailGroupRequest
 
+// V1TaskCancelJSONRequestBody defines body for V1TaskCancel for application/json ContentType.
+type V1TaskCancelJSONRequestBody = V1CancelTaskRequest
+
 // TenantCreateJSONRequestBody defines body for TenantCreate for application/json ContentType.
 type TenantCreateJSONRequestBody = CreateTenantRequest
 
@@ -2296,6 +2315,11 @@ type ClientInterface interface {
 
 	// V1TaskList request
 	V1TaskList(ctx context.Context, tenant openapi_types.UUID, params *V1TaskListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1TaskCancelWithBody request with any body
+	V1TaskCancelWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	V1TaskCancel(ctx context.Context, tenant openapi_types.UUID, body V1TaskCancelJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// V1WorkflowRunList request
 	V1WorkflowRunList(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -2839,6 +2863,30 @@ func (c *Client) V1TaskGetPointMetrics(ctx context.Context, tenant openapi_types
 
 func (c *Client) V1TaskList(ctx context.Context, tenant openapi_types.UUID, params *V1TaskListParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewV1TaskListRequest(c.Server, tenant, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1TaskCancelWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1TaskCancelRequestWithBody(c.Server, tenant, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1TaskCancel(ctx context.Context, tenant openapi_types.UUID, body V1TaskCancelJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1TaskCancelRequest(c.Server, tenant, body)
 	if err != nil {
 		return nil, err
 	}
@@ -5069,6 +5117,53 @@ func NewV1TaskListRequest(server string, tenant openapi_types.UUID, params *V1Ta
 	if err != nil {
 		return nil, err
 	}
+
+	return req, nil
+}
+
+// NewV1TaskCancelRequest calls the generic V1TaskCancel builder with application/json body
+func NewV1TaskCancelRequest(server string, tenant openapi_types.UUID, body V1TaskCancelJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewV1TaskCancelRequestWithBody(server, tenant, "application/json", bodyReader)
+}
+
+// NewV1TaskCancelRequestWithBody generates requests for V1TaskCancel with any type of body
+func NewV1TaskCancelRequestWithBody(server string, tenant openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/tasks/cancel", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -9733,6 +9828,11 @@ type ClientWithResponsesInterface interface {
 	// V1TaskListWithResponse request
 	V1TaskListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1TaskListParams, reqEditors ...RequestEditorFn) (*V1TaskListResponse, error)
 
+	// V1TaskCancelWithBodyWithResponse request with any body
+	V1TaskCancelWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1TaskCancelResponse, error)
+
+	V1TaskCancelWithResponse(ctx context.Context, tenant openapi_types.UUID, body V1TaskCancelJSONRequestBody, reqEditors ...RequestEditorFn) (*V1TaskCancelResponse, error)
+
 	// V1WorkflowRunListWithResponse request
 	V1WorkflowRunListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunListParams, reqEditors ...RequestEditorFn) (*V1WorkflowRunListResponse, error)
 
@@ -10502,6 +10602,31 @@ func (r V1TaskListResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r V1TaskListResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1TaskCancelResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON404      *APIErrors
+	JSON501      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1TaskCancelResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1TaskCancelResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -12707,6 +12832,23 @@ func (c *ClientWithResponses) V1TaskListWithResponse(ctx context.Context, tenant
 	return ParseV1TaskListResponse(rsp)
 }
 
+// V1TaskCancelWithBodyWithResponse request with arbitrary body returning *V1TaskCancelResponse
+func (c *ClientWithResponses) V1TaskCancelWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1TaskCancelResponse, error) {
+	rsp, err := c.V1TaskCancelWithBody(ctx, tenant, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1TaskCancelResponse(rsp)
+}
+
+func (c *ClientWithResponses) V1TaskCancelWithResponse(ctx context.Context, tenant openapi_types.UUID, body V1TaskCancelJSONRequestBody, reqEditors ...RequestEditorFn) (*V1TaskCancelResponse, error) {
+	rsp, err := c.V1TaskCancel(ctx, tenant, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1TaskCancelResponse(rsp)
+}
+
 // V1WorkflowRunListWithResponse request returning *V1WorkflowRunListResponse
 func (c *ClientWithResponses) V1WorkflowRunListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunListParams, reqEditors ...RequestEditorFn) (*V1WorkflowRunListResponse, error) {
 	rsp, err := c.V1WorkflowRunList(ctx, tenant, params, reqEditors...)
@@ -14400,6 +14542,53 @@ func ParseV1TaskListResponse(rsp *http.Response) (*V1TaskListResponse, error) {
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1TaskCancelResponse parses an HTTP response from a V1TaskCancelWithResponse call
+func ParseV1TaskCancelResponse(rsp *http.Response) (*V1TaskCancelResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1TaskCancelResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
 		var dest APIErrors

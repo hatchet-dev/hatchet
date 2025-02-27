@@ -264,3 +264,42 @@ V1TaskPointMetrics:
       type: array
       items:
         $ref: "#/V1TaskPointMetric"
+
+V1TaskFilter:
+  type: object
+  properties:
+    since:
+      type: string
+      format: date-time
+    until:
+      type: string
+      format: date-time
+    statuses:
+      type: array
+      items:
+        $ref: "#/V1TaskStatus"
+    workflowIds:
+      type: array
+      items:
+        type: string
+        format: uuid
+    additionalMetadata:
+      type: array
+      items:
+        type: string
+  required:
+    - since
+
+V1CancelTaskRequest:
+  type: object
+  properties:
+    externalIds:
+      type: array
+      description: A list of external IDs, which can refer to either task or workflow run external IDs
+      items:
+        type: string
+        format: uuid
+        minLength: 36
+        maxLength: 36
+    filter:
+      $ref: "#/V1TaskFilter"

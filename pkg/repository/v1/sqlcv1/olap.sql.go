@@ -130,6 +130,90 @@ type CreateTasksOLAPParams struct {
 	DagInsertedAt      pgtype.Timestamptz   `json:"dag_inserted_at"`
 }
 
+const flattenTasksByExternalIds = `-- name: FlattenTasksByExternalIds :many
+WITH lookups AS (
+    SELECT
+        tenant_id, external_id, task_id, dag_id, inserted_at
+    FROM
+        v1_lookup_table
+    WHERE
+        external_id = ANY($1::uuid[])
+        AND tenant_id = $2::uuid
+), tasks_from_dags AS (
+    SELECT
+        l.tenant_id,
+        dt.task_id,
+        dt.task_inserted_at
+    FROM
+        lookups l
+    JOIN
+        v1_dag_to_task_olap dt ON l.dag_id = dt.dag_id
+    WHERE
+        l.dag_id IS NOT NULL
+), unioned_tasks AS (
+    SELECT
+        l.tenant_id AS tenant_id,
+        l.task_id AS task_id,
+        l.inserted_at AS task_inserted_at
+    FROM
+        lookups l
+    UNION ALL
+    SELECT
+        t.tenant_id AS tenant_id,
+        t.task_id AS task_id,
+        t.task_inserted_at AS task_inserted_at
+    FROM
+        tasks_from_dags t
+)
+SELECT
+    t.tenant_id,
+    t.id,
+    t.inserted_at,
+    t.latest_retry_count AS retry_count
+FROM
+    v1_tasks_olap t
+JOIN
+    unioned_tasks ut ON (t.inserted_at, t.id) = (ut.task_inserted_at, ut.task_id)
+`
+
+type FlattenTasksByExternalIdsParams struct {
+	Externalids []pgtype.UUID `json:"externalids"`
+	Tenantid    pgtype.UUID   `json:"tenantid"`
+}
+
+type FlattenTasksByExternalIdsRow struct {
+	TenantID   pgtype.UUID        `json:"tenant_id"`
+	ID         int64              `json:"id"`
+	InsertedAt pgtype.Timestamptz `json:"inserted_at"`
+	RetryCount int32              `json:"retry_count"`
+}
+
+// Get retry counts for each task
+func (q *Queries) FlattenTasksByExternalIds(ctx context.Context, db DBTX, arg FlattenTasksByExternalIdsParams) ([]*FlattenTasksByExternalIdsRow, error) {
+	rows, err := db.Query(ctx, flattenTasksByExternalIds, arg.Externalids, arg.Tenantid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*FlattenTasksByExternalIdsRow
+	for rows.Next() {
+		var i FlattenTasksByExternalIdsRow
+		if err := rows.Scan(
+			&i.TenantID,
+			&i.ID,
+			&i.InsertedAt,
+			&i.RetryCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getTaskPointMetrics = `-- name: GetTaskPointMetrics :many
 SELECT
     DATE_BIN(

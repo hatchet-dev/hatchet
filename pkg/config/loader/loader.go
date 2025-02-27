@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,6 +16,7 @@ import (
 	pgxzero "github.com/jackc/pgx-zerolog"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/tracelog"
+	"github.com/rs/zerolog"
 	"golang.org/x/oauth2"
 
 	"github.com/hatchet-dev/hatchet/internal/integrations/alerting"
@@ -29,9 +31,11 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/auth/cookie"
 	"github.com/hatchet-dev/hatchet/pkg/auth/oauth"
 	"github.com/hatchet-dev/hatchet/pkg/auth/token"
+	"github.com/hatchet-dev/hatchet/pkg/config/client"
 	"github.com/hatchet-dev/hatchet/pkg/config/database"
 	"github.com/hatchet-dev/hatchet/pkg/config/loader/loaderutils"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
+	"github.com/hatchet-dev/hatchet/pkg/config/shared"
 	"github.com/hatchet-dev/hatchet/pkg/encryption"
 	"github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/errors/sentry"
@@ -48,6 +52,7 @@ import (
 	msgqueuev1 "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	pgmqv1 "github.com/hatchet-dev/hatchet/internal/msgqueue/v1/postgres"
 	rabbitmqv1 "github.com/hatchet-dev/hatchet/internal/msgqueue/v1/rabbitmq"
+	clientv1 "github.com/hatchet-dev/hatchet/pkg/client/v1"
 	repov1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 )
 
@@ -550,6 +555,12 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		cf.Runtime.Monitoring.TLSRootCAFile = cf.TLS.TLSRootCAFile
 	}
 
+	internalClientFactory, err := loadInternalClient(&l, &cf.InternalClient, cf.TLS, cf.Runtime.GRPCBroadcastAddress)
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not load internal client: %w", err)
+	}
+
 	return cleanup, &server.ServerConfig{
 		Alerter:                alerter,
 		Analytics:              analyticsEmitter,
@@ -562,6 +573,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		MessageQueue:           mq,
 		MessageQueueV1:         mqv1,
 		Services:               services,
+		InternalClientFactory:  internalClientFactory,
 		Logger:                 &l,
 		TLSConfig:              tls,
 		SessionStore:           ss,
@@ -669,4 +681,50 @@ func loadEncryptionSvc(cf *server.ServerConfigFile) (encryption.EncryptionServic
 	}
 
 	return encryptionSvc, nil
+}
+
+func loadInternalClient(l *zerolog.Logger, conf *server.InternalClientTLSConfigFile, baseServerTLS shared.TLSConfigFile, grpcBroadcastAddress string) (*clientv1.GRPCClientFactory, error) {
+	// get gRPC broadcast address
+	broadcastAddress := grpcBroadcastAddress
+
+	if conf.InternalGRPCBroadcastAddress != "" {
+		broadcastAddress = conf.InternalGRPCBroadcastAddress
+	}
+
+	tlsServerName := conf.TLSServerName
+
+	if tlsServerName == "" {
+		// parse host from broadcast address
+		host, _, err := net.SplitHostPort(broadcastAddress)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not parse host from broadcast address %s: %w", broadcastAddress, err)
+		}
+
+		tlsServerName = host
+	}
+
+	// construct TLS config
+	var base shared.TLSConfigFile
+
+	if conf.InheritBase {
+		base = baseServerTLS
+	} else {
+		base = conf.Base
+	}
+
+	tlsConfig, err := loaderutils.LoadClientTLSConfig(&client.ClientTLSConfigFile{
+		Base:          base,
+		TLSServerName: tlsServerName,
+	}, tlsServerName)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not load client TLS config: %w", err)
+	}
+
+	return clientv1.NewGRPCClientFactory(
+		clientv1.WithHostPort(broadcastAddress),
+		clientv1.WithTLS(tlsConfig),
+		clientv1.WithLogger(l),
+	), nil
 }

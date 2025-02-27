@@ -74,7 +74,7 @@ export const columns: (
       return (
         <div className="min-w-fit whitespace-nowrap">
           {(workflow && (
-            <a href={`/workflows/${workflowId}`}>{workflowName}</a>
+            <a href={`/v1/workflows/${workflowId}`}>{workflowName}</a>
           )) ||
             'N/A'}
         </div>

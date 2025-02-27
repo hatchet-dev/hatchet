@@ -986,3 +986,49 @@ WHERE
     id = @dagId::bigint
     AND inserted_at = @dagInsertedAt::timestamptz
 ;
+
+-- name: FlattenTasksByExternalIds :many
+WITH lookups AS (
+    SELECT
+        *
+    FROM
+        v1_lookup_table
+    WHERE
+        external_id = ANY(@externalIds::uuid[])
+        AND tenant_id = @tenantId::uuid
+), tasks_from_dags AS (
+    SELECT
+        l.tenant_id,
+        dt.task_id,
+        dt.task_inserted_at
+    FROM
+        lookups l
+    JOIN
+        v1_dag_to_task_olap dt ON l.dag_id = dt.dag_id
+    WHERE
+        l.dag_id IS NOT NULL
+), unioned_tasks AS (
+    SELECT
+        l.tenant_id AS tenant_id,
+        l.task_id AS task_id,
+        l.inserted_at AS task_inserted_at
+    FROM
+        lookups l
+    UNION ALL
+    SELECT
+        t.tenant_id AS tenant_id,
+        t.task_id AS task_id,
+        t.task_inserted_at AS task_inserted_at
+    FROM
+        tasks_from_dags t
+)
+-- Get retry counts for each task
+SELECT
+    t.tenant_id,
+    t.id,
+    t.inserted_at,
+    t.latest_retry_count AS retry_count
+FROM
+    v1_tasks_olap t
+JOIN
+    unioned_tasks ut ON (t.inserted_at, t.id) = (ut.task_inserted_at, ut.task_id);

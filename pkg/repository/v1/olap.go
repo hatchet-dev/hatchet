@@ -156,6 +156,7 @@ type OLAPRepository interface {
 	ReadTaskRun(ctx context.Context, taskExternalId string) (*sqlcv1.V1TasksOlap, error)
 	ReadWorkflowRun(ctx context.Context, workflowRunExternalId pgtype.UUID) (*V1WorkflowRunPopulator, error)
 	ReadTaskRunData(ctx context.Context, tenantId pgtype.UUID, taskId int64, taskInsertedAt pgtype.Timestamptz) (*sqlcv1.PopulateSingleTaskRunDataRow, *pgtype.UUID, error)
+
 	ListTasks(ctx context.Context, tenantId string, opts ListTaskRunOpts) ([]*sqlcv1.PopulateTaskRunDataRow, int, error)
 	ListWorkflowRuns(ctx context.Context, tenantId string, opts ListWorkflowRunOpts) ([]*WorkflowRunData, int, error)
 	ListTaskRunEvents(ctx context.Context, tenantId string, taskId int64, taskInsertedAt pgtype.Timestamptz, limit, offset int64) ([]*sqlcv1.ListTaskEventsRow, error)
@@ -170,6 +171,10 @@ type OLAPRepository interface {
 	ReadDAG(ctx context.Context, dagExternalId string) (*sqlcv1.V1DagsOlap, error)
 	ListTasksByDAGId(ctx context.Context, tenantId string, dagIds []pgtype.UUID) ([]*sqlcv1.PopulateTaskRunDataRow, map[int64]uuid.UUID, error)
 	ListTasksByIdAndInsertedAt(ctx context.Context, tenantId string, taskMetadata []TaskMetadata) ([]*sqlcv1.PopulateTaskRunDataRow, error)
+
+	// ListTasksByExternalIds returns a list of tasks based on their external ids or the external id of their parent DAG.
+	// In the case of a DAG, we flatten the result into the list of tasks which belong to that DAG.
+	ListTasksByExternalIds(ctx context.Context, tenantId string, externalIds []string) ([]*sqlcv1.FlattenTasksByExternalIdsRow, error)
 }
 
 type olapRepository struct {
@@ -1143,6 +1148,19 @@ func (r *olapRepository) GetTaskPointMetrics(ctx context.Context, tenantId strin
 
 func (r *olapRepository) ReadDAG(ctx context.Context, dagExternalId string) (*sqlcv1.V1DagsOlap, error) {
 	return r.queries.ReadDAGByExternalID(ctx, r.pool, sqlchelpers.UUIDFromStr(dagExternalId))
+}
+
+func (r *olapRepository) ListTasksByExternalIds(ctx context.Context, tenantId string, externalIds []string) ([]*sqlcv1.FlattenTasksByExternalIdsRow, error) {
+	externalUUIDs := make([]pgtype.UUID, 0)
+
+	for _, id := range externalIds {
+		externalUUIDs = append(externalUUIDs, sqlchelpers.UUIDFromStr(id))
+	}
+
+	return r.queries.FlattenTasksByExternalIds(ctx, r.pool, sqlcv1.FlattenTasksByExternalIdsParams{
+		Tenantid:    sqlchelpers.UUIDFromStr(tenantId),
+		Externalids: externalUUIDs,
+	})
 }
 
 func durationToPgInterval(d time.Duration) pgtype.Interval {
