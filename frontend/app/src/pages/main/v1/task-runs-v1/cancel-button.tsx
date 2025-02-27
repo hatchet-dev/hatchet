@@ -53,10 +53,10 @@ export const useCancelTaskRuns = () => {
 
 export const CancelTaskRunButton = ({
   disabled,
-  params,
+  externalIds,
 }: {
   disabled: boolean;
-  params: TaskRunCancellationParams;
+  externalIds: V1CancelTaskRequest['externalIds'];
 }) => {
   const { handleCancelTaskRun } = useCancelTaskRuns();
 
@@ -66,7 +66,11 @@ export const CancelTaskRunButton = ({
       className="px-2 py-2 gap-2"
       variant={'outline'}
       disabled={disabled}
-      onClick={() => handleCancelTaskRun(params)}
+      onClick={() =>
+        handleCancelTaskRun({
+          externalIds,
+        })
+      }
     >
       <XCircleIcon className="w-4 h-4" />
       Cancel

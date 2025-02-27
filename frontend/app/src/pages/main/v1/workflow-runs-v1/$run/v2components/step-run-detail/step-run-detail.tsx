@@ -133,7 +133,7 @@ export const TaskRunDetail = ({
           Replay
         </Button>
         <CancelTaskRunButton
-          params={{ externalIds: [taskRunId] }}
+          externalIds={[taskRunId]}
           disabled={TASK_RUN_TERMINAL_STATUSES.includes(taskRun.status)}
         />
         <TaskRunPermalinkOrBacklink
