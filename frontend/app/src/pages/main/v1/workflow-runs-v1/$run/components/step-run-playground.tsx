@@ -27,7 +27,7 @@ import {
 import { StepRunLogs } from './step-run-logs';
 import { RunStatus } from '../../components/run-statuses';
 import { QuestionMarkCircleIcon, XMarkIcon } from '@heroicons/react/24/outline';
-import { TaskRunsTable as WorkflowRunsTable } from '../../components/workflow-runs-table';
+import { TaskRunsTable as WorkflowRunsTable } from '../../components/task-runs-table';
 import { StepRunEvents } from './step-run-events';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 

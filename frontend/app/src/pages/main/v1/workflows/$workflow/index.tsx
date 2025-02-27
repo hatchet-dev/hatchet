@@ -28,7 +28,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/v1/ui/dropdown-menu';
-import { TaskRunsTable } from '../../workflow-runs-v1/components/workflow-runs-table';
+import { TaskRunsTable } from '../../workflow-runs-v1/components/task-runs-table';
 
 export default function ExpandedWorkflow() {
   const { tenant } = useTenant();

@@ -29,7 +29,7 @@ import { RunStatus } from '../../components/run-statuses';
 import { QuestionMarkCircleIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { StepRunEvents } from './step-run-events';
 import RelativeDate from '@/components/v1/molecules/relative-date';
-import { TaskRunsTable } from '../../../workflow-runs-v1/components/workflow-runs-table';
+import { TaskRunsTable } from '../../../workflow-runs-v1/components/task-runs-table';
 
 export function StepRunPlayground({
   stepRun,

@@ -6,7 +6,7 @@ import {
 } from '../../../events/components/additional-metadata';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { Checkbox } from '@/components/v1/ui/checkbox';
-import { TableRow } from '../workflow-runs-table';
+import { TableRow } from '../task-runs-table';
 import { ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 import { Button } from '@/components/v1/ui/button';
 import { cn } from '@/lib/utils';

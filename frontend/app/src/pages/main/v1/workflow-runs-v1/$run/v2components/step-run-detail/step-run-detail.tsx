@@ -14,7 +14,7 @@ import {
 import { StepRunEvents } from '../step-run-events-for-workflow-run';
 import { Link, useOutletContext } from 'react-router-dom';
 import { TenantContextType } from '@/lib/outlet';
-import { TaskRunsTable as WorkflowRunsTable } from '../../../components/workflow-runs-table';
+import { TaskRunsTable as WorkflowRunsTable } from '../../../components/task-runs-table';
 import { useTenant } from '@/lib/atoms';
 import { V1RunIndicator } from '../../../components/run-statuses';
 import RelativeDate from '@/components/v1/molecules/relative-date';
