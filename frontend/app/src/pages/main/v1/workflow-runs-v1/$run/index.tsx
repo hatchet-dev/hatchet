@@ -1,5 +1,4 @@
-import api, {
-  V1CancelTaskRequest,
+import {
   V1TaskStatus,
   WorkflowRunShapeForWorkflowRunDetails,
   WorkflowRunStatus,
@@ -26,12 +25,9 @@ import { Badge } from '@/components/v1/ui/badge';
 import { ViewToggle } from './v2components/view-toggle';
 import WorkflowRunVisualizer from './v2components/workflow-run-visualizer-v2';
 import { useAtom } from 'jotai';
-import { preferredWorkflowRunViewAtom, useTenant } from '@/lib/atoms';
+import { preferredWorkflowRunViewAtom } from '@/lib/atoms';
 import { JobMiniMap } from './v2components/mini-map';
 import { useWorkflowDetails } from '../hooks';
-import { useApiError } from '@/lib/hooks';
-import invariant from 'tiny-invariant';
-import { useMutation } from '@tanstack/react-query';
 
 export const WORKFLOW_RUN_TERMINAL_STATUSES = [
   WorkflowRunStatus.CANCELLED,

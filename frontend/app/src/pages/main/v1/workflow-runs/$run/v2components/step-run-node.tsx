@@ -5,7 +5,7 @@ import { memo, useState } from 'react';
 import { Handle, Position } from 'reactflow';
 import { RunIndicator, RunStatus } from '../../components/run-statuses';
 import RelativeDate from '@/components/v1/molecules/relative-date';
-import { TabOption } from './step-run-detail/step-run-detail';
+import { TabOption } from '../../../workflow-runs-v1/$run/v2components/step-run-detail/step-run-detail';
 
 export interface StepRunNodeProps {
   stepRun: StepRun;

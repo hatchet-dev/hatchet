@@ -1,21 +1,9 @@
-import React from 'react';
-import {
-  StepRun,
-  StepRunStatus,
-  V1Task,
-  V1TaskStatus,
-  WorkflowRun,
-  queries,
-} from '@/lib/api';
+import { StepRun, V1Task, V1TaskStatus, WorkflowRun, queries } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 import invariant from 'tiny-invariant';
 import { Button } from '@/components/v1/ui/button';
 import { Loading } from '@/components/v1/ui/loading';
-import {
-  ArrowPathIcon,
-  LinkIcon,
-  XCircleIcon,
-} from '@heroicons/react/24/outline';
+import { ArrowPathIcon, LinkIcon } from '@heroicons/react/24/outline';
 import { Separator } from '@/components/v1/ui/separator';
 import {
   Tabs,
