@@ -23,10 +23,6 @@ func (a *AdminServiceImpl) CancelTasks(ctx context.Context, req *contracts.Cance
 
 	tasksToCancel := []v1.TaskIdRetryCount{}
 
-	if len(req.Tasks) == 0 {
-		return &contracts.CancelTasksResponse{}, nil
-	}
-
 	// for tasks passed in directly, make sure the tenant id and retry counts match
 	if len(req.Tasks) > 0 {
 		taskIds := make([]int64, len(req.Tasks))
