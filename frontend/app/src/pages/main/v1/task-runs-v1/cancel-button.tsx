@@ -1,47 +1,28 @@
 import { Button } from '@/components/v1/ui/button';
-import api, { queries, V1CancelTaskRequest, V1TaskStatus } from '@/lib/api';
+import api, { V1CancelTaskRequest, V1TaskStatus } from '@/lib/api';
 import { useTenant } from '@/lib/atoms';
 import { useApiError } from '@/lib/hooks';
 import { XCircleIcon } from '@heroicons/react/24/outline';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation } from '@tanstack/react-query';
 import { useCallback } from 'react';
-import { useParams } from 'react-router-dom';
 import invariant from 'tiny-invariant';
 
-const TASK_RUN_TERMINAL_STATUSES = [
+export const TASK_RUN_TERMINAL_STATUSES = [
   V1TaskStatus.CANCELLED,
   V1TaskStatus.FAILED,
   V1TaskStatus.COMPLETED,
 ];
 
-const useTaskRun = ({ taskRunId }: { taskRunId: string }) => {
+export const CancelTaskRunButton = ({
+  disabled,
+  data,
+}: {
+  disabled: boolean;
+  data: V1CancelTaskRequest;
+}) => {
   const { tenant } = useTenant();
 
-  const tenantId = tenant?.metadata.id;
-  invariant(tenantId);
-
-  const taskRunQuery = useQuery({
-    ...queries.v1Tasks.get(taskRunId),
-    refetchInterval: 5000,
-  });
-
-  const taskRun = taskRunQuery.data;
-  invariant(taskRun);
-
-  return {
-    taskRun,
-    ...taskRunQuery,
-  };
-};
-
-export const CancelTaskRunButton = (data: V1CancelTaskRequest) => {
-  const { run: taskRunId } = useParams();
-  const { tenant } = useTenant();
-
-  invariant(taskRunId);
   invariant(tenant?.metadata.id);
-
-  const { taskRun } = useTaskRun({ taskRunId });
 
   const { handleApiError } = useApiError({});
 
@@ -65,7 +46,7 @@ export const CancelTaskRunButton = (data: V1CancelTaskRequest) => {
       size={'sm'}
       className="px-2 py-2 gap-2"
       variant={'outline'}
-      disabled={TASK_RUN_TERMINAL_STATUSES.includes(taskRun.status)}
+      disabled={disabled}
       onClick={handleCancelTaskRun}
     >
       <XCircleIcon className="w-4 h-4" />
