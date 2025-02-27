@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
@@ -57,11 +58,21 @@ type TaskIdRetryCount struct {
 	RetryCount int32
 }
 
+type CompleteTaskOpts struct {
+	*TaskIdRetryCount
+
+	// (required) the output bytes for the task
+	Output []byte
+}
+
 type FailTaskOpts struct {
 	*TaskIdRetryCount
 
 	// (required) whether this is an application-level error or an internal error on the Hatchet side
 	IsAppError bool
+
+	// (optional) the error message for the task
+	ErrorMessage string
 }
 
 type TaskIdEventKeyTuple struct {
@@ -73,7 +84,7 @@ type TaskIdEventKeyTuple struct {
 type TaskRepository interface {
 	UpdateTablePartitions(ctx context.Context) error
 
-	CompleteTasks(ctx context.Context, tenantId string, tasks []TaskIdRetryCount) ([]*sqlcv1.ReleaseTasksRow, error)
+	CompleteTasks(ctx context.Context, tenantId string, tasks []CompleteTaskOpts) ([]*sqlcv1.ReleaseTasksRow, error)
 
 	FailTasks(ctx context.Context, tenantId string, tasks []FailTaskOpts) (retriedTasks []TaskIdRetryCount, queues []*sqlcv1.ReleaseTasksRow, err error)
 
@@ -251,7 +262,7 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	return nil
 }
 
-func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId string, tasks []TaskIdRetryCount) ([]*sqlcv1.ReleaseTasksRow, error) {
+func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId string, tasks []CompleteTaskOpts) ([]*sqlcv1.ReleaseTasksRow, error) {
 	// TODO: ADD BACK VALIDATION
 	// if err := r.v.Validate(tasks); err != nil {
 	// 	fmt.Println("FAILED VALIDATION HERE!!!")
@@ -260,9 +271,11 @@ func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId string,
 	// }
 
 	datas := make([][]byte, len(tasks))
+	taskIdRetryCounts := make([]TaskIdRetryCount, len(tasks))
 
-	for i := range tasks {
-		datas[i] = nil
+	for i, task := range tasks {
+		datas[i] = task.Output
+		taskIdRetryCounts[i] = *task.TaskIdRetryCount
 	}
 
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
@@ -274,7 +287,7 @@ func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId string,
 	defer rollback()
 
 	// release queue items
-	releasedTasks, err := r.releaseTasks(ctx, tx, tenantId, tasks)
+	releasedTasks, err := r.releaseTasks(ctx, tx, tenantId, taskIdRetryCounts)
 
 	if err != nil {
 		return nil, err
@@ -284,7 +297,7 @@ func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId string,
 		ctx,
 		tx,
 		tenantId,
-		tasks,
+		taskIdRetryCounts,
 		datas,
 		sqlcv1.V1TaskEventTypeCOMPLETED,
 		make([]string, len(tasks)),
@@ -302,6 +315,14 @@ func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId string,
 	return releasedTasks, nil
 }
 
+type FailTaskData struct {
+	ErrorMessage string `json:"error_message"`
+
+	// We use this to disambiguate in event matches downstream -- if this is true, we know that
+	// this is an error payload and not a task output which happens to have an `error_message` field.
+	IsErrorPayload bool `json:"is_error_payload"`
+}
+
 func (r *TaskRepositoryImpl) FailTasks(ctx context.Context, tenantId string, failureOpts []FailTaskOpts) ([]TaskIdRetryCount, []*sqlcv1.ReleaseTasksRow, error) {
 	// TODO: ADD BACK VALIDATION
 	// if err := r.v.Validate(tasks); err != nil {
@@ -317,7 +338,15 @@ func (r *TaskRepositoryImpl) FailTasks(ctx context.Context, tenantId string, fai
 
 	for i, failureOpt := range failureOpts {
 		tasks[i] = *failureOpt.TaskIdRetryCount
-		datas[i] = nil
+
+		dataBytes, err := json.Marshal(FailTaskData{
+			ErrorMessage:   failureOpt.ErrorMessage,
+			IsErrorPayload: true,
+		})
+
+		if err == nil {
+			datas[i] = dataBytes
+		}
 
 		if failureOpt.IsAppError {
 			appFailures = append(appFailures, failureOpt.Id)
@@ -1044,21 +1073,305 @@ func (r *sharedRepository) createTaskEvents(
 	})
 }
 
-func (r *TaskRepositoryImpl) replayTasks(ctx context.Context, tasks []TaskIdRetryCount) error {
-	// //
-	// *sqlcv1.V1Task{}
+// TODO: IF A REPLAYED TASK HAS A PARENT TASK, WE NEED TO DELETE AND RE-INIT THE PARENT TASK'S SIGNAL, AND
+// THEN REPROCESS THE SIGNAL...
+func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, tasks []TaskIdRetryCount) error {
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
+
+	if err != nil {
+		return err
+	}
+
+	defer rollback()
+	defer commit(ctx)
+
+	taskIds := make([]int64, len(tasks))
+
+	for i, task := range tasks {
+		taskIds[i] = task.Id
+	}
 
 	// list tasks and place a lock on the tasks, and join on steps to get the structure of the DAG
+	lockedTasks, err := r.queries.LockTasksForReplay(ctx, tx, sqlcv1.LockTasksForReplayParams{
+		Taskids:  taskIds,
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+	})
+
+	if err != nil {
+		return err
+	}
 
 	// group tasks by their dag_id, if it exists
-	// NOTE: the tasks which are passed in represent a *subtree* of the DAG.
+	dagIdsToChildTasks := make(map[int64][]*sqlcv1.LockTasksForReplayRow)
+	dagIds := make(map[int64]struct{}, 0)
 
-	// for any DAGs, reset all match conditions which refer to internal events within the subtree of the DAG.
+	// figure out which tasks to delete and which to increment
+	tasksToDelete := make([]int64, 0)
+	tasksToIncrementRetries := make([]int64, 0)
+
+	for _, task := range lockedTasks {
+		if task.DagID.Valid && len(task.Parents) > 0 {
+			if _, ok := dagIdsToChildTasks[task.DagID.Int64]; !ok {
+				dagIdsToChildTasks[task.DagID.Int64] = make([]*sqlcv1.LockTasksForReplayRow, 0)
+			}
+
+			dagIdsToChildTasks[task.DagID.Int64] = append(dagIdsToChildTasks[task.DagID.Int64], task)
+			tasksToDelete = append(tasksToDelete, task.ID)
+		} else {
+			tasksToIncrementRetries = append(tasksToIncrementRetries, task.ID)
+		}
+
+		if task.DagID.Valid {
+			dagIds[task.DagID.Int64] = struct{}{}
+		}
+	}
+
+	dagIdsArr := make([]int64, 0, len(dagIds))
+
+	for dagId := range dagIds {
+		dagIdsArr = append(dagIdsArr, dagId)
+	}
+
+	allTasksInDAGs, err := r.queries.ListAllTasksInDags(ctx, tx, sqlcv1.ListAllTasksInDagsParams{
+		Dagids:   dagIdsArr,
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+	})
+
+	if err != nil {
+		return err
+	}
+
+	dagIdsToAllTasks := make(map[int64][]*sqlcv1.ListAllTasksInDagsRow)
+
+	for _, task := range allTasksInDAGs {
+		if _, ok := dagIdsToAllTasks[task.DagID.Int64]; !ok {
+			dagIdsToAllTasks[task.DagID.Int64] = make([]*sqlcv1.ListAllTasksInDagsRow, 0)
+		}
+
+		dagIdsToAllTasks[task.DagID.Int64] = append(dagIdsToAllTasks[task.DagID.Int64], task)
+	}
+
+	// NOTE: the tasks which are passed in represent a *subtree* of the DAG.
+	// If this is a DAG, delete all tasks and task events which are in the subtree of the DAG
+	if len(tasksToDelete) > 0 {
+		err = r.queries.DeleteTasksForReplay(ctx, tx, sqlcv1.DeleteTasksForReplayParams{
+			Taskids:  tasksToDelete,
+			Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		})
+
+		if err != nil {
+			return err
+		}
+	}
+
+	if len(tasksToIncrementRetries) > 0 {
+		err = r.queries.UpdateTasksForReplay(ctx, tx, sqlcv1.UpdateTasksForReplayParams{
+			Taskids:  tasksToIncrementRetries,
+			Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		})
+
+		if err != nil {
+			return err
+		}
+	}
+
+	// For any DAGs, reset all match conditions which refer to internal events within the subtree of the DAG.
 	// we do not reset other match conditions (for example, ones which refer to completed events for tasks
 	// which are outside of this subtree). otherwise, we would end up in a state where these events would
 	// never be matched.
+	subtreeExternalIds := make(map[string]struct{})
+	eventMatches := make([]CreateMatchOpts, 0)
 
-	// if we do not have a DAG, we don't need to reset any match conditions.
+	for dagId, tasks := range dagIdsToChildTasks {
+		allTasks := dagIdsToAllTasks[dagId]
+
+		for _, task := range tasks {
+			taskExternalId := sqlchelpers.UUIDToStr(task.ExternalID)
+			subtreeExternalIds[taskExternalId] = struct{}{}
+			stepId := sqlchelpers.UUIDToStr(task.StepID)
+			switch {
+			case task.JobKind == sqlcv1.JobKindONFAILURE:
+				conditions := make([]GroupMatchCondition, 0)
+				groupId := uuid.NewString()
+
+				for _, otherTask := range allTasks {
+					if sqlchelpers.UUIDToStr(otherTask.StepID) == stepId {
+						continue
+					}
+
+					otherExternalId := sqlchelpers.UUIDToStr(otherTask.ExternalID)
+					readableId := otherTask.StepReadableID
+
+					conditions = append(conditions, getParentOnFailureGroupMatches(groupId, otherExternalId, readableId)...)
+				}
+
+				eventMatches = append(eventMatches, CreateMatchOpts{
+					Kind:                 sqlcv1.V1MatchKindTRIGGER,
+					Conditions:           conditions,
+					TriggerExternalId:    &taskExternalId,
+					TriggerStepId:        &stepId,
+					TriggerDAGId:         &task.DagID.Int64,
+					TriggerDAGInsertedAt: task.DagInsertedAt,
+				})
+			default:
+				conditions := make([]GroupMatchCondition, 0)
+
+				createGroupId := uuid.NewString()
+
+				for _, parent := range task.Parents {
+					// FIXME: n^2 complexity here, fix it.
+					for _, otherTask := range allTasks {
+						if otherTask.StepID == parent {
+							parentExternalId := sqlchelpers.UUIDToStr(otherTask.ExternalID)
+							readableId := otherTask.StepReadableID
+
+							conditions = append(conditions, getParentInDAGGroupMatch(createGroupId, parentExternalId, readableId)...)
+						}
+					}
+				}
+
+				// create an event match
+				eventMatches = append(eventMatches, CreateMatchOpts{
+					Kind:                 sqlcv1.V1MatchKindTRIGGER,
+					Conditions:           conditions,
+					TriggerExternalId:    &taskExternalId,
+					TriggerStepId:        &stepId,
+					TriggerDAGId:         &task.DagID.Int64,
+					TriggerDAGInsertedAt: task.DagInsertedAt,
+				})
+			}
+		}
+	}
+
+	// reconstruct group conditions
+	reconstructedMatches, candidateEvents, err := r.reconstructGroupConditions(ctx, tx, tenantId, subtreeExternalIds, eventMatches)
+
+	if err != nil {
+		return err
+	}
+
+	// create the event matches
+	err = r.createEventMatches(ctx, tx, tenantId, reconstructedMatches)
+
+	if err != nil {
+		return err
+	}
+
+	// process event matches
+	// TODO: signal the event matches to the caller
+	_, err = r.processInternalEventMatches(ctx, tx, tenantId, candidateEvents)
+
+	if err != nil {
+		return err
+	}
 
 	return nil
+}
+
+func (r *TaskRepositoryImpl) reconstructGroupConditions(
+	ctx context.Context,
+	tx sqlcv1.DBTX,
+	tenantId string,
+	subtreeExternalIds map[string]struct{},
+	eventMatches []CreateMatchOpts,
+) ([]CreateMatchOpts, []CandidateEventMatch, error) {
+	// track down completed tasks and failed tasks which represent parents that aren't in the subtree
+	// of the DAG. for these tasks, we need to write the match conditions which refer to these tasks
+	// as satisfied match conditions.
+	// in other words, if the group match condition is an INTERNAL event and refers to a parentExternalId
+	// which is NOT in the subtree of what we're replaying, it represent a group condition where we'd like
+	// to query the task_events table to ensure the event has already occurred. if it has, we can mark the
+	// group condition as satisfied.
+	dagIds := make([]int64, 0)
+	externalIds := make([]pgtype.UUID, 0)
+	eventKeys := make([]sqlcv1.V1TaskEventType, 0)
+
+	for _, match := range eventMatches {
+		if match.TriggerDAGId == nil {
+			continue
+		}
+
+		for _, groupCondition := range match.Conditions {
+			if groupCondition.EventType == sqlcv1.V1EventTypeINTERNAL && groupCondition.EventResourceHint != nil {
+				externalId := *groupCondition.EventResourceHint
+
+				// if the parent task is not in the subtree, we need to query the task_events table
+				// to ensure the event has already occurred
+				if _, ok := subtreeExternalIds[externalId]; !ok {
+					dagIds = append(dagIds, *match.TriggerDAGId)
+					externalIds = append(externalIds, sqlchelpers.UUIDFromStr(*groupCondition.EventResourceHint))
+					eventKeys = append(eventKeys, sqlcv1.V1TaskEventType(groupCondition.EventType))
+				}
+			}
+		}
+	}
+
+	// for candidate group matches, track down the task events which satisfy the group match conditions.
+	// we do this by constructing arrays for dag ids, external ids and event types, and then querying
+	// by the dag_id -> v1_task (on external_id) -> v1_task_event (on event type)
+	//
+	// NOTE: at this point, we have already deleted the tasks and events that are in the subtree, so we
+	// don't have to worry about collisions with the tasks we're replaying.
+	matchedEvents, err := r.queries.ListMatchingTaskEvents(ctx, tx, sqlcv1.ListMatchingTaskEventsParams{
+		Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
+		Dagids:          dagIds,
+		Taskexternalids: externalIds,
+		Eventkeys:       eventKeys,
+	})
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	foundMatchKeys := make(map[string]*sqlcv1.ListMatchingTaskEventsRow)
+
+	for _, eventMatch := range matchedEvents {
+		key := fmt.Sprintf("%s:%s", sqlchelpers.UUIDToStr(eventMatch.TaskExternalID), eventMatch.EventKey)
+
+		foundMatchKeys[key] = eventMatch
+	}
+
+	resMatches := make([]CreateMatchOpts, 0)
+	resCandidateEvents := make([]CandidateEventMatch, 0)
+
+	// for each group condition, if we have a match, mark the group condition as satisfied and use
+	// the data from the match to update the group condition.
+	for _, match := range eventMatches {
+		if match.TriggerDAGId == nil {
+			continue
+		}
+
+		conditions := make([]GroupMatchCondition, 0)
+
+		for _, groupCondition := range match.Conditions {
+			cond := groupCondition
+
+			if groupCondition.EventType == sqlcv1.V1EventTypeINTERNAL && groupCondition.EventResourceHint != nil {
+				key := fmt.Sprintf("%s:%s", *groupCondition.EventResourceHint, string(groupCondition.EventKey))
+
+				if match, ok := foundMatchKeys[key]; ok {
+					cond.IsSatisfied = true
+					cond.Data = match.Data
+
+					taskExternalId := sqlchelpers.UUIDToStr(match.TaskExternalID)
+
+					resCandidateEvents = append(resCandidateEvents, CandidateEventMatch{
+						ID:             uuid.NewString(),
+						EventTimestamp: match.CreatedAt.Time,
+						Key:            match.EventKey.String,
+						ResourceHint:   &taskExternalId,
+						Data:           match.Data,
+					})
+				}
+			}
+
+			conditions = append(conditions, cond)
+		}
+
+		match.Conditions = conditions
+
+		resMatches = append(resMatches, match)
+	}
+
+	return resMatches, resCandidateEvents, nil
 }

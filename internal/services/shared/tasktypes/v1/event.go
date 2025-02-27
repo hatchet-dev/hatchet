@@ -14,9 +14,10 @@ type UserEventTaskPayload struct {
 }
 
 type InternalEventTaskPayload struct {
-	EventTimestamp time.Time `json:"event_timestamp" validate:"required"`
-	EventKey       string    `json:"event_key" validate:"required"`
-	EventData      []byte    `json:"event_data" validate:"required"`
+	EventTimestamp    time.Time `json:"event_timestamp" validate:"required"`
+	EventKey          string    `json:"event_key" validate:"required"`
+	EventResourceHint *string   `json:"event_resource_hint"`
+	EventData         []byte    `json:"event_data" validate:"required"`
 }
 
 func NewInternalEventMessage(tenantId string, timestamp time.Time, events ...InternalEventTaskPayload) (*msgqueue.Message, error) {

@@ -2379,17 +2379,19 @@ type V1Match struct {
 }
 
 type V1MatchCondition struct {
-	V1MatchID    int64                  `json:"v1_match_id"`
-	ID           int64                  `json:"id"`
-	TenantID     pgtype.UUID            `json:"tenant_id"`
-	RegisteredAt pgtype.Timestamptz     `json:"registered_at"`
-	EventType    V1EventType            `json:"event_type"`
-	EventKey     string                 `json:"event_key"`
-	IsSatisfied  bool                   `json:"is_satisfied"`
-	Action       V1MatchConditionAction `json:"action"`
-	OrGroupID    pgtype.UUID            `json:"or_group_id"`
-	Expression   pgtype.Text            `json:"expression"`
-	Data         []byte                 `json:"data"`
+	V1MatchID         int64                  `json:"v1_match_id"`
+	ID                int64                  `json:"id"`
+	TenantID          pgtype.UUID            `json:"tenant_id"`
+	RegisteredAt      pgtype.Timestamptz     `json:"registered_at"`
+	EventType         V1EventType            `json:"event_type"`
+	EventKey          string                 `json:"event_key"`
+	EventResourceHint pgtype.Text            `json:"event_resource_hint"`
+	ReadableDataKey   string                 `json:"readable_data_key"`
+	IsSatisfied       bool                   `json:"is_satisfied"`
+	Action            V1MatchConditionAction `json:"action"`
+	OrGroupID         pgtype.UUID            `json:"or_group_id"`
+	Expression        pgtype.Text            `json:"expression"`
+	Data              []byte                 `json:"data"`
 }
 
 type V1Queue struct {

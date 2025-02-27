@@ -12,13 +12,17 @@ import (
 )
 
 type CreateMatchConditionsParams struct {
-	V1MatchID  int64                  `json:"v1_match_id"`
-	TenantID   pgtype.UUID            `json:"tenant_id"`
-	EventType  V1EventType            `json:"event_type"`
-	EventKey   string                 `json:"event_key"`
-	OrGroupID  pgtype.UUID            `json:"or_group_id"`
-	Expression pgtype.Text            `json:"expression"`
-	Action     V1MatchConditionAction `json:"action"`
+	V1MatchID         int64                  `json:"v1_match_id"`
+	TenantID          pgtype.UUID            `json:"tenant_id"`
+	EventType         V1EventType            `json:"event_type"`
+	EventKey          string                 `json:"event_key"`
+	EventResourceHint pgtype.Text            `json:"event_resource_hint"`
+	ReadableDataKey   string                 `json:"readable_data_key"`
+	OrGroupID         pgtype.UUID            `json:"or_group_id"`
+	Expression        pgtype.Text            `json:"expression"`
+	Action            V1MatchConditionAction `json:"action"`
+	IsSatisfied       bool                   `json:"is_satisfied"`
+	Data              []byte                 `json:"data"`
 }
 
 const createMatchesForDAGTriggers = `-- name: CreateMatchesForDAGTriggers :many
@@ -259,58 +263,81 @@ func (q *Queries) GetSatisfiedMatchConditions(ctx context.Context, db DBTX, arg 
 	return items, nil
 }
 
-const listMatchConditionsForEvent = `-- name: ListMatchConditionsForEvent :many
+const resetMatchConditions = `-- name: ResetMatchConditions :many
+WITH input AS (
+    SELECT
+        match_id, condition_id, data
+    FROM
+        (
+            SELECT
+                unnest($1::bigint[]) AS match_id,
+                unnest($2::bigint[]) AS condition_id,
+                unnest($3::jsonb[]) AS data
+        ) AS subquery
+), locked_conditions AS (
+    SELECT
+        m.v1_match_id,
+        m.id,
+        i.data
+    FROM
+        v1_match_condition m
+    JOIN
+        input i ON i.match_id = m.v1_match_id AND i.condition_id = m.id
+    ORDER BY
+        m.id
+    -- We can afford a SKIP LOCKED because a match condition can only be satisfied by 1 event
+    -- at a time
+    FOR UPDATE SKIP LOCKED
+), updated_conditions AS (
+    UPDATE
+        v1_match_condition
+    SET
+        is_satisfied = TRUE,
+        data = c.data
+    FROM
+        locked_conditions c
+    WHERE
+        (v1_match_condition.v1_match_id, v1_match_condition.id) = (c.v1_match_id, c.id)
+    RETURNING
+        v1_match_condition.v1_match_id, v1_match_condition.id
+), distinct_match_ids AS (
+    SELECT
+        DISTINCT v1_match_id
+    FROM
+        updated_conditions
+)
 SELECT
-    v1_match_id,
-    id,
-    registered_at,
-    event_type,
-    event_key,
-    expression
+    m.id
 FROM
-    v1_match_condition m
-WHERE
-    m.tenant_id = $1::uuid
-    AND m.event_type = $2::v1_event_type
-    AND m.event_key = ANY($3::text[])
-    AND NOT m.is_satisfied
+    v1_match m
+JOIN
+    distinct_match_ids dm ON dm.v1_match_id = m.id
+ORDER BY
+    m.id
+FOR UPDATE
 `
 
-type ListMatchConditionsForEventParams struct {
-	Tenantid  pgtype.UUID `json:"tenantid"`
-	Eventtype V1EventType `json:"eventtype"`
-	Eventkeys []string    `json:"eventkeys"`
+type ResetMatchConditionsParams struct {
+	Matchids     []int64  `json:"matchids"`
+	Conditionids []int64  `json:"conditionids"`
+	Datas        [][]byte `json:"datas"`
 }
 
-type ListMatchConditionsForEventRow struct {
-	V1MatchID    int64              `json:"v1_match_id"`
-	ID           int64              `json:"id"`
-	RegisteredAt pgtype.Timestamptz `json:"registered_at"`
-	EventType    V1EventType        `json:"event_type"`
-	EventKey     string             `json:"event_key"`
-	Expression   pgtype.Text        `json:"expression"`
-}
-
-func (q *Queries) ListMatchConditionsForEvent(ctx context.Context, db DBTX, arg ListMatchConditionsForEventParams) ([]*ListMatchConditionsForEventRow, error) {
-	rows, err := db.Query(ctx, listMatchConditionsForEvent, arg.Tenantid, arg.Eventtype, arg.Eventkeys)
+// NOTE: we have to break this into a separate query because CTEs can't see modified rows
+// on the same target table without using RETURNING.
+func (q *Queries) ResetMatchConditions(ctx context.Context, db DBTX, arg ResetMatchConditionsParams) ([]int64, error) {
+	rows, err := db.Query(ctx, resetMatchConditions, arg.Matchids, arg.Conditionids, arg.Datas)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*ListMatchConditionsForEventRow
+	var items []int64
 	for rows.Next() {
-		var i ListMatchConditionsForEventRow
-		if err := rows.Scan(
-			&i.V1MatchID,
-			&i.ID,
-			&i.RegisteredAt,
-			&i.EventType,
-			&i.EventKey,
-			&i.Expression,
-		); err != nil {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
 			return nil, err
 		}
-		items = append(items, &i)
+		items = append(items, id)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -326,16 +353,18 @@ WITH match_counts AS (
         COUNT(DISTINCT CASE WHEN is_satisfied AND action = 'CREATE' THEN or_group_id END) AS satisfied_create_groups,
         COUNT(DISTINCT CASE WHEN action = 'CANCEL' THEN or_group_id END) AS total_cancel_groups,
         COUNT(DISTINCT CASE WHEN is_satisfied AND action = 'CANCEL' THEN or_group_id END) AS satisfied_cancel_groups,
+        COUNT(DISTINCT CASE WHEN action = 'SKIP' THEN or_group_id END) AS total_skip_groups,
+        COUNT(DISTINCT CASE WHEN is_satisfied AND action = 'SKIP' THEN or_group_id END) AS satisfied_skip_groups,
         (
             SELECT jsonb_object_agg(action, aggregated_1)
             FROM (
-                SELECT action, jsonb_object_agg(event_key, data_array) AS aggregated_1
+                SELECT action, jsonb_object_agg(readable_data_key, data_array) AS aggregated_1
                 FROM (
-                    SELECT action, event_key, jsonb_agg(data) AS data_array
+                    SELECT action, readable_data_key, jsonb_agg(data) AS data_array
                     FROM v1_match_condition sub
                     WHERE sub.v1_match_id = ANY($1::bigint[])
                     AND is_satisfied
-                    GROUP BY action, event_key
+                    GROUP BY action, readable_data_key
                 ) t
                 GROUP BY action
             ) s
@@ -355,6 +384,7 @@ WITH match_counts AS (
         (
             mc.total_create_groups = mc.satisfied_create_groups
             OR mc.total_cancel_groups = mc.satisfied_cancel_groups
+            OR mc.total_skip_groups = mc.satisfied_skip_groups
         )
 ), deleted_matches AS (
     DELETE FROM

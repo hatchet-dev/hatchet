@@ -35,6 +35,32 @@ func (q *Queries) CreateTaskPartition(ctx context.Context, db DBTX, date pgtype.
 	return err
 }
 
+const deleteTasksForReplay = `-- name: DeleteTasksForReplay :exec
+WITH deleted_events AS (
+    DELETE FROM
+        v1_task_event
+    WHERE
+        tenant_id = $2::uuid
+        AND task_id = ANY($1::bigint[])
+)
+DELETE FROM
+    v1_task
+WHERE
+    id = ANY($1::bigint[])
+    AND tenant_id = $2::uuid
+`
+
+type DeleteTasksForReplayParams struct {
+	Taskids  []int64     `json:"taskids"`
+	Tenantid pgtype.UUID `json:"tenantid"`
+}
+
+// NOTE: at this point, we assume we have a lock on tasks and therefor we can delete the task events
+func (q *Queries) DeleteTasksForReplay(ctx context.Context, db DBTX, arg DeleteTasksForReplayParams) error {
+	_, err := db.Exec(ctx, deleteTasksForReplay, arg.Taskids, arg.Tenantid)
+	return err
+}
+
 const failTaskAppFailure = `-- name: FailTaskAppFailure :many
 WITH locked_tasks AS (
     SELECT
@@ -166,6 +192,73 @@ func (q *Queries) FailTaskInternalFailure(ctx context.Context, db DBTX, arg Fail
 	return items, nil
 }
 
+const listAllTasksInDags = `-- name: ListAllTasksInDags :many
+SELECT
+    t.id,
+    t.inserted_at,
+    t.retry_count,
+    t.dag_id,
+    t.dag_inserted_at,
+    t.step_readable_id,
+    t.step_id,
+    t.workflow_id,
+    t.external_id
+FROM
+    v1_task t
+JOIN
+    v1_dag_to_task dt ON dt.task_id = t.id
+WHERE
+    t.tenant_id = $1::uuid
+    AND dt.dag_id = ANY($2::bigint[])
+`
+
+type ListAllTasksInDagsParams struct {
+	Tenantid pgtype.UUID `json:"tenantid"`
+	Dagids   []int64     `json:"dagids"`
+}
+
+type ListAllTasksInDagsRow struct {
+	ID             int64              `json:"id"`
+	InsertedAt     pgtype.Timestamptz `json:"inserted_at"`
+	RetryCount     int32              `json:"retry_count"`
+	DagID          pgtype.Int8        `json:"dag_id"`
+	DagInsertedAt  pgtype.Timestamptz `json:"dag_inserted_at"`
+	StepReadableID string             `json:"step_readable_id"`
+	StepID         pgtype.UUID        `json:"step_id"`
+	WorkflowID     pgtype.UUID        `json:"workflow_id"`
+	ExternalID     pgtype.UUID        `json:"external_id"`
+}
+
+func (q *Queries) ListAllTasksInDags(ctx context.Context, db DBTX, arg ListAllTasksInDagsParams) ([]*ListAllTasksInDagsRow, error) {
+	rows, err := db.Query(ctx, listAllTasksInDags, arg.Tenantid, arg.Dagids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListAllTasksInDagsRow
+	for rows.Next() {
+		var i ListAllTasksInDagsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.InsertedAt,
+			&i.RetryCount,
+			&i.DagID,
+			&i.DagInsertedAt,
+			&i.StepReadableID,
+			&i.StepID,
+			&i.WorkflowID,
+			&i.ExternalID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listConcurrencyPartitionsBeforeDate = `-- name: ListConcurrencyPartitionsBeforeDate :many
 SELECT
     p::text AS partition_name
@@ -248,6 +341,94 @@ func (q *Queries) ListMatchingSignalEvents(ctx context.Context, db DBTX, arg Lis
 			&i.EventKey,
 			&i.CreatedAt,
 			&i.Data,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listMatchingTaskEvents = `-- name: ListMatchingTaskEvents :many
+WITH input AS (
+    SELECT
+        dag_id, task_external_id, event_key
+    FROM
+        (
+            SELECT
+                unnest($2::bigint[]) AS dag_id,
+                unnest($3::uuid[]) AS task_external_id,
+                unnest($4::v1_task_event_type[]) AS event_key
+        ) AS subquery
+)
+SELECT
+    DISTINCT ON(e.tenant_id, e.task_id, e.event_key)
+    e.id, e.tenant_id, e.task_id, e.retry_count, e.event_type, e.event_key, e.created_at, e.data,
+    t.external_id AS task_external_id
+FROM
+    v1_dag d
+JOIN
+    input i ON i.dag_id = d.id
+JOIN
+    v1_dag_to_task dt ON dt.dag_id = d.id AND dt.dag_inserted_at = d.inserted_at
+JOIN
+    v1_task t ON t.id = dt.task_id AND t.tenant_id = d.tenant_id AND t.external_id = i.task_external_id
+JOIN
+    v1_task_event e ON e.tenant_id = $1::uuid AND e.task_id = dt.task_id AND e.event_key = i.event_key
+ORDER BY
+    e.tenant_id,
+    e.task_id,
+    e.event_key,
+    e.retry_count DESC
+`
+
+type ListMatchingTaskEventsParams struct {
+	Tenantid        pgtype.UUID       `json:"tenantid"`
+	Dagids          []int64           `json:"dagids"`
+	Taskexternalids []pgtype.UUID     `json:"taskexternalids"`
+	Eventkeys       []V1TaskEventType `json:"eventkeys"`
+}
+
+type ListMatchingTaskEventsRow struct {
+	ID             int64            `json:"id"`
+	TenantID       pgtype.UUID      `json:"tenant_id"`
+	TaskID         int64            `json:"task_id"`
+	RetryCount     int32            `json:"retry_count"`
+	EventType      V1TaskEventType  `json:"event_type"`
+	EventKey       pgtype.Text      `json:"event_key"`
+	CreatedAt      pgtype.Timestamp `json:"created_at"`
+	Data           []byte           `json:"data"`
+	TaskExternalID pgtype.UUID      `json:"task_external_id"`
+}
+
+// Lists matching task events for a set of (dag, task, event_key) tuples
+func (q *Queries) ListMatchingTaskEvents(ctx context.Context, db DBTX, arg ListMatchingTaskEventsParams) ([]*ListMatchingTaskEventsRow, error) {
+	rows, err := db.Query(ctx, listMatchingTaskEvents,
+		arg.Tenantid,
+		arg.Dagids,
+		arg.Taskexternalids,
+		arg.Eventkeys,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListMatchingTaskEventsRow
+	for rows.Next() {
+		var i ListMatchingTaskEventsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.TaskID,
+			&i.RetryCount,
+			&i.EventType,
+			&i.EventKey,
+			&i.CreatedAt,
+			&i.Data,
+			&i.TaskExternalID,
 		); err != nil {
 			return nil, err
 		}
@@ -398,6 +579,113 @@ func (q *Queries) ListTasks(ctx context.Context, db DBTX, arg ListTasksParams) (
 			&i.ConcurrencyKeys,
 			&i.RetryBackoffFactor,
 			&i.RetryMaxBackoff,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const lockTasksForReplay = `-- name: LockTasksForReplay :many
+WITH locked_tasks AS (
+    SELECT
+        id,
+        inserted_at,
+        retry_count,
+        dag_id,
+        dag_inserted_at,
+        step_readable_id,
+        step_id,
+        workflow_id,
+        external_id
+    FROM
+        v1_task
+    WHERE
+        id = ANY($1::bigint[])
+        AND tenant_id = $2::uuid
+    -- order by the task id to get a stable lock order
+    ORDER BY
+        id
+    FOR UPDATE
+), step_orders AS (
+    SELECT
+        t.step_id,
+        array_agg(so."A")::uuid[] as "parents"
+    FROM
+        locked_tasks t
+    JOIN
+        "Step" s ON s."id" = t.step_id
+    JOIN
+        "_StepOrder" so ON so."B" = steps."id"
+    GROUP BY
+        so."B"
+)
+SELECT
+    t.id,
+    t.inserted_at,
+    t.retry_count,
+    t.dag_id, 
+    t.dag_inserted_at,
+    t.step_readable_id,
+    t.step_id, 
+    t.workflow_id,
+    t.external_id,
+    j."kind" as "jobKind",
+    COALESCE(so."parents", '{}'::uuid[]) as "parents"
+FROM
+    locked_tasks t
+JOIN
+    "Step" s ON s."id" = t.step_id
+JOIN
+    "Job" j ON j."id" = s."jobId"
+LEFT JOIN
+    step_orders so ON so."stepId" = t.step_id
+`
+
+type LockTasksForReplayParams struct {
+	Taskids  []int64     `json:"taskids"`
+	Tenantid pgtype.UUID `json:"tenantid"`
+}
+
+type LockTasksForReplayRow struct {
+	ID             int64              `json:"id"`
+	InsertedAt     pgtype.Timestamptz `json:"inserted_at"`
+	RetryCount     int32              `json:"retry_count"`
+	DagID          pgtype.Int8        `json:"dag_id"`
+	DagInsertedAt  pgtype.Timestamptz `json:"dag_inserted_at"`
+	StepReadableID string             `json:"step_readable_id"`
+	StepID         pgtype.UUID        `json:"step_id"`
+	WorkflowID     pgtype.UUID        `json:"workflow_id"`
+	ExternalID     pgtype.UUID        `json:"external_id"`
+	JobKind        JobKind            `json:"jobKind"`
+	Parents        []pgtype.UUID      `json:"parents"`
+}
+
+func (q *Queries) LockTasksForReplay(ctx context.Context, db DBTX, arg LockTasksForReplayParams) ([]*LockTasksForReplayRow, error) {
+	rows, err := db.Query(ctx, lockTasksForReplay, arg.Taskids, arg.Tenantid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*LockTasksForReplayRow
+	for rows.Next() {
+		var i LockTasksForReplayRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.InsertedAt,
+			&i.RetryCount,
+			&i.DagID,
+			&i.DagInsertedAt,
+			&i.StepReadableID,
+			&i.StepID,
+			&i.WorkflowID,
+			&i.ExternalID,
+			&i.JobKind,
+			&i.Parents,
 		); err != nil {
 			return nil, err
 		}
@@ -726,4 +1014,27 @@ func (q *Queries) ReleaseTasks(ctx context.Context, db DBTX, arg ReleaseTasksPar
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateTasksForReplay = `-- name: UpdateTasksForReplay :exec
+UPDATE
+    v1_task
+SET
+    retry_count = retry_count + 1,
+    app_retry_count = 0,
+    internal_retry_count = 0
+WHERE
+    id = ANY($1::bigint[])
+    AND tenant_id = $2::uuid
+`
+
+type UpdateTasksForReplayParams struct {
+	Taskids  []int64     `json:"taskids"`
+	Tenantid pgtype.UUID `json:"tenantid"`
+}
+
+// NOTE: at this point, we assume we have a lock on tasks and therefor we can update the tasks
+func (q *Queries) UpdateTasksForReplay(ctx context.Context, db DBTX, arg UpdateTasksForReplayParams) error {
+	_, err := db.Exec(ctx, updateTasksForReplay, arg.Taskids, arg.Tenantid)
+	return err
 }

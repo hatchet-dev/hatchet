@@ -334,3 +334,137 @@ JOIN
 WHERE
     e.tenant_id = @tenantId::uuid
     AND e.event_type = @eventType::v1_task_event_type;
+
+-- name: LockTasksForReplay :many
+WITH locked_tasks AS (
+    SELECT
+        id,
+        inserted_at,
+        retry_count,
+        dag_id,
+        dag_inserted_at,
+        step_readable_id,
+        step_id,
+        workflow_id,
+        external_id
+    FROM
+        v1_task
+    WHERE
+        id = ANY(@taskIds::bigint[])
+        AND tenant_id = @tenantId::uuid
+    -- order by the task id to get a stable lock order
+    ORDER BY
+        id
+    FOR UPDATE
+), step_orders AS (
+    SELECT
+        t.step_id,
+        array_agg(so."A")::uuid[] as "parents"
+    FROM
+        locked_tasks t
+    JOIN
+        "Step" s ON s."id" = t.step_id
+    JOIN
+        "_StepOrder" so ON so."B" = steps."id"
+    GROUP BY
+        so."B"
+)
+SELECT
+    t.id,
+    t.inserted_at,
+    t.retry_count,
+    t.dag_id, 
+    t.dag_inserted_at,
+    t.step_readable_id,
+    t.step_id, 
+    t.workflow_id,
+    t.external_id,
+    j."kind" as "jobKind",
+    COALESCE(so."parents", '{}'::uuid[]) as "parents"
+FROM
+    locked_tasks t
+JOIN
+    "Step" s ON s."id" = t.step_id
+JOIN
+    "Job" j ON j."id" = s."jobId"
+LEFT JOIN
+    step_orders so ON so."stepId" = t.step_id;
+
+-- name: ListAllTasksInDags :many
+SELECT
+    t.id,
+    t.inserted_at,
+    t.retry_count,
+    t.dag_id,
+    t.dag_inserted_at,
+    t.step_readable_id,
+    t.step_id,
+    t.workflow_id,
+    t.external_id
+FROM
+    v1_task t
+JOIN
+    v1_dag_to_task dt ON dt.task_id = t.id
+WHERE
+    t.tenant_id = @tenantId::uuid
+    AND dt.dag_id = ANY(@dagIds::bigint[]);
+
+-- name: ListMatchingTaskEvents :many
+-- Lists matching task events for a set of (dag, task, event_key) tuples
+WITH input AS (
+    SELECT
+        *
+    FROM
+        (
+            SELECT
+                unnest(@dagIds::bigint[]) AS dag_id,
+                unnest(@taskExternalIds::uuid[]) AS task_external_id,
+                unnest(@eventKeys::v1_task_event_type[]) AS event_key
+        ) AS subquery
+)
+SELECT
+    DISTINCT ON(e.tenant_id, e.task_id, e.event_key)
+    e.*,
+    t.external_id AS task_external_id
+FROM
+    v1_dag d
+JOIN
+    input i ON i.dag_id = d.id
+JOIN
+    v1_dag_to_task dt ON dt.dag_id = d.id AND dt.dag_inserted_at = d.inserted_at
+JOIN
+    v1_task t ON t.id = dt.task_id AND t.tenant_id = d.tenant_id AND t.external_id = i.task_external_id
+JOIN
+    v1_task_event e ON e.tenant_id = @tenantId::uuid AND e.task_id = dt.task_id AND e.event_key = i.event_key
+ORDER BY
+    e.tenant_id,
+    e.task_id,
+    e.event_key,
+    e.retry_count DESC;
+
+-- name: DeleteTasksForReplay :exec
+-- NOTE: at this point, we assume we have a lock on tasks and therefor we can delete the task events
+WITH deleted_events AS (
+    DELETE FROM
+        v1_task_event
+    WHERE
+        tenant_id = @tenantId::uuid
+        AND task_id = ANY(@taskIds::bigint[])
+)
+DELETE FROM
+    v1_task
+WHERE
+    id = ANY(@taskIds::bigint[])
+    AND tenant_id = @tenantId::uuid;
+
+-- name: UpdateTasksForReplay :exec
+-- NOTE: at this point, we assume we have a lock on tasks and therefor we can update the tasks
+UPDATE
+    v1_task
+SET
+    retry_count = retry_count + 1,
+    app_retry_count = 0,
+    internal_retry_count = 0
+WHERE
+    id = ANY(@taskIds::bigint[])
+    AND tenant_id = @tenantId::uuid;

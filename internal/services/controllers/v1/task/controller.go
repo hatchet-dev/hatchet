@@ -302,15 +302,18 @@ func (tc *TasksControllerImpl) handleBufferedMsgs(tenantId, msgId string, payloa
 }
 
 func (tc *TasksControllerImpl) handleTaskCompleted(ctx context.Context, tenantId string, payloads [][]byte) error {
-	opts := make([]v1.TaskIdRetryCount, 0)
+	opts := make([]v1.CompleteTaskOpts, 0)
 	idsToData := make(map[int64][]byte)
 
 	msgs := msgqueue.JSONConvert[tasktypes.CompletedTaskPayload](payloads)
 
 	for _, msg := range msgs {
-		opts = append(opts, v1.TaskIdRetryCount{
-			Id:         msg.TaskId,
-			RetryCount: msg.RetryCount,
+		opts = append(opts, v1.CompleteTaskOpts{
+			TaskIdRetryCount: &v1.TaskIdRetryCount{
+				Id:         msg.TaskId,
+				RetryCount: msg.RetryCount,
+			},
+			Output: msg.Output,
 		})
 
 		idsToData[msg.TaskId] = msg.Output
@@ -327,17 +330,11 @@ func (tc *TasksControllerImpl) handleTaskCompleted(ctx context.Context, tenantId
 	for _, task := range releasedTasks {
 		taskExternalId := sqlchelpers.UUIDToStr(task.ExternalID)
 
-		data := v1.CompletedData{
-			StepReadableId: task.StepReadableID,
-			Output:         idsToData[task.ID],
-		}
-
-		dataBytes, _ := json.Marshal(data)
-
 		internalEvents = append(internalEvents, tasktypes.InternalEventTaskPayload{
-			EventTimestamp: time.Now(),
-			EventKey:       v1.GetTaskCompletedEventKey(taskExternalId),
-			EventData:      dataBytes,
+			EventTimestamp:    time.Now(),
+			EventKey:          string(sqlcv1.V1TaskEventTypeCOMPLETED),
+			EventResourceHint: &taskExternalId,
+			EventData:         idsToData[task.ID],
 		})
 	}
 
@@ -388,17 +385,18 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId st
 
 		taskExternalId := sqlchelpers.UUIDToStr(task.ExternalID)
 
-		data := v1.FailedData{
-			StepReadableId: task.StepReadableID,
-			Error:          idsToErrorMsg[task.ID],
+		data := v1.FailTaskData{
+			ErrorMessage:   idsToErrorMsg[task.ID],
+			IsErrorPayload: true,
 		}
 
 		dataBytes, _ := json.Marshal(data)
 
 		internalEvents = append(internalEvents, tasktypes.InternalEventTaskPayload{
-			EventTimestamp: time.Now(),
-			EventKey:       v1.GetTaskFailedEventKey(taskExternalId),
-			EventData:      dataBytes,
+			EventTimestamp:    time.Now(),
+			EventKey:          string(sqlcv1.V1TaskEventTypeFAILED),
+			EventResourceHint: &taskExternalId,
+			EventData:         dataBytes,
 		})
 	}
 
@@ -492,17 +490,18 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 	for _, task := range allTasks {
 		taskExternalId := sqlchelpers.UUIDToStr(task.ExternalID)
 
-		data := v1.FailedData{
-			StepReadableId: task.StepReadableID,
-			Error:          "task was cancelled",
+		data := v1.FailTaskData{
+			ErrorMessage:   "Task was cancelled",
+			IsErrorPayload: true,
 		}
 
 		dataBytes, _ := json.Marshal(data)
 
 		internalEvents = append(internalEvents, tasktypes.InternalEventTaskPayload{
-			EventTimestamp: time.Now(),
-			EventKey:       v1.GetTaskCancelledEventKey(taskExternalId),
-			EventData:      dataBytes,
+			EventTimestamp:    time.Now(),
+			EventKey:          string(sqlcv1.V1TaskEventTypeCANCELLED),
+			EventResourceHint: &taskExternalId,
+			EventData:         dataBytes,
 		})
 	}
 
@@ -764,6 +763,7 @@ func (tc *TasksControllerImpl) processInternalEvents(ctx context.Context, tenant
 			EventTimestamp: event.EventTimestamp,
 			Key:            event.EventKey,
 			Data:           event.EventData,
+			ResourceHint:   event.EventResourceHint,
 		})
 	}
 
@@ -987,17 +987,18 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndCancelled(ctx context.Contex
 	for _, task := range tasks {
 		taskExternalId := sqlchelpers.UUIDToStr(task.ExternalID)
 
-		data := v1.FailedData{
-			StepReadableId: task.StepReadableID,
-			Error:          "task was cancelled",
+		data := v1.FailTaskData{
+			ErrorMessage:   "Task was cancelled",
+			IsErrorPayload: true,
 		}
 
 		dataBytes, _ := json.Marshal(data)
 
 		internalEvents = append(internalEvents, tasktypes.InternalEventTaskPayload{
-			EventTimestamp: time.Now(),
-			EventKey:       v1.GetTaskCancelledEventKey(taskExternalId),
-			EventData:      dataBytes,
+			EventTimestamp:    time.Now(),
+			EventKey:          string(sqlcv1.V1TaskEventTypeCANCELLED),
+			EventResourceHint: &taskExternalId,
+			EventData:         dataBytes,
 		})
 	}
 
@@ -1044,17 +1045,18 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndFailed(ctx context.Context, 
 	for _, task := range tasks {
 		taskExternalId := sqlchelpers.UUIDToStr(task.ExternalID)
 
-		data := v1.FailedData{
-			StepReadableId: task.StepReadableID,
-			Error:          task.InitialStateReason.String,
+		data := v1.FailTaskData{
+			ErrorMessage:   task.InitialStateReason.String,
+			IsErrorPayload: true,
 		}
 
 		dataBytes, _ := json.Marshal(data)
 
 		internalEvents = append(internalEvents, tasktypes.InternalEventTaskPayload{
-			EventTimestamp: time.Now(),
-			EventKey:       v1.GetTaskFailedEventKey(taskExternalId),
-			EventData:      dataBytes,
+			EventTimestamp:    time.Now(),
+			EventKey:          string(sqlcv1.V1TaskEventTypeFAILED),
+			EventResourceHint: &taskExternalId,
+			EventData:         dataBytes,
 		})
 	}
 
@@ -1108,17 +1110,11 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndSkipped(ctx context.Context,
 
 		outputMapBytes, _ := json.Marshal(outputMap)
 
-		data := v1.CompletedData{
-			StepReadableId: task.StepReadableID,
-			Output:         outputMapBytes,
-		}
-
-		dataBytes, _ := json.Marshal(data)
-
 		internalEvents = append(internalEvents, tasktypes.InternalEventTaskPayload{
-			EventTimestamp: time.Now(),
-			EventKey:       v1.GetTaskCompletedEventKey(taskExternalId),
-			EventData:      dataBytes,
+			EventTimestamp:    time.Now(),
+			EventKey:          string(sqlcv1.V1TaskEventTypeCOMPLETED),
+			EventResourceHint: &taskExternalId,
+			EventData:         outputMapBytes,
 		})
 	}
 

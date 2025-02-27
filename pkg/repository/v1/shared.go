@@ -1,6 +1,7 @@
 package v1
 
 import (
+	"log"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -10,6 +11,9 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
+
+	celgo "github.com/google/cel-go/cel"
+	"github.com/google/cel-go/checker/decls"
 )
 
 type sharedRepository struct {
@@ -19,6 +23,7 @@ type sharedRepository struct {
 	queries    *sqlcv1.Queries
 	queueCache *cache.Cache
 	celParser  *cel.CELParser
+	env        *celgo.Env
 }
 
 func newSharedRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger) (*sharedRepository, func() error) {
@@ -27,6 +32,16 @@ func newSharedRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.L
 
 	celParser := cel.NewCELParser()
 
+	env, err := celgo.NewEnv(
+		celgo.Declarations(
+			decls.NewVar("input", decls.NewMapType(decls.String, decls.Dyn)),
+		),
+	)
+
+	if err != nil {
+		log.Fatalf("failed to create CEL environment: %v", err)
+	}
+
 	return &sharedRepository{
 			pool:       pool,
 			v:          v,
@@ -34,6 +49,7 @@ func newSharedRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.L
 			queries:    queries,
 			queueCache: cache,
 			celParser:  celParser,
+			env:        env,
 		}, func() error {
 			cache.Stop()
 			return nil

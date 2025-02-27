@@ -314,7 +314,11 @@ CREATE TABLE v1_match_condition (
     tenant_id UUID NOT NULL,
     registered_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
     event_type v1_event_type NOT NULL,
+    -- for INTERNAL events, this will correspond to a v1_task_event_type value
     event_key TEXT NOT NULL,
+    event_resource_hint TEXT,
+    -- readable_data_key is used as the key when constructing the aggregated data for the v1_match
+    readable_data_key TEXT NOT NULL,
     is_satisfied BOOLEAN NOT NULL DEFAULT FALSE,
     action v1_match_condition_action NOT NULL DEFAULT 'CREATE',
     or_group_id UUID NOT NULL,

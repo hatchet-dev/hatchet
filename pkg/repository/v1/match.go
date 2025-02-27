@@ -9,7 +9,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/google/cel-go/cel"
-	"github.com/google/cel-go/checker/decls"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
@@ -24,6 +23,9 @@ type CandidateEventMatch struct {
 
 	// Key for the event
 	Key string
+
+	// Resource hint for the event
+	ResourceHint *string
 
 	// Data for the event
 	Data []byte
@@ -59,9 +61,21 @@ type GroupMatchCondition struct {
 
 	EventKey string
 
+	// (optional) a hint for querying the event data
+	EventResourceHint *string
+
+	// the data key which gets inserted into the returned data from a satisfied match condition
+	ReadableDataKey string
+
 	Expression string
 
 	Action sqlcv1.V1MatchConditionAction
+
+	// (optional) whether the group match condition is already satisfied (relevant for replays)
+	IsSatisfied bool
+
+	// (optional) the data which was used to satisfy the condition (relevant for replays)
+	Data []byte
 }
 
 type MatchRepository interface {
@@ -70,34 +84,44 @@ type MatchRepository interface {
 
 type MatchRepositoryImpl struct {
 	*sharedRepository
-
-	env *cel.Env
 }
 
 func newMatchRepository(s *sharedRepository) (MatchRepository, error) {
-	env, err := cel.NewEnv(
-		cel.Declarations(
-			decls.NewVar("input", decls.NewMapType(decls.String, decls.Dyn)),
-		),
-	)
-
-	if err != nil {
-		return nil, err
-	}
-
 	return &MatchRepositoryImpl{
 		sharedRepository: s,
-		env:              env,
 	}, nil
 }
 
 // ProcessInternalEventMatches processes a list of internal events
 func (m *MatchRepositoryImpl) ProcessInternalEventMatches(ctx context.Context, tenantId string, events []CandidateEventMatch) (*InternalEventMatchResults, error) {
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, m.pool, m.l, 5000)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer rollback()
+
+	res, err := m.processInternalEventMatches(ctx, tx, tenantId, events)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if err := commit(ctx); err != nil {
+		return nil, err
+	}
+
+	return res, nil
+}
+
+func (m *sharedRepository) processInternalEventMatches(ctx context.Context, tx sqlcv1.DBTX, tenantId string, events []CandidateEventMatch) (*InternalEventMatchResults, error) {
 	start := time.Now()
 
 	res := &InternalEventMatchResults{}
 
 	eventKeys := make([]string, 0, len(events))
+	resourceHints := make([]pgtype.Text, 0, len(events))
 	uniqueEventKeys := make(map[string]struct{})
 	idsToEvents := make(map[string]CandidateEventMatch)
 
@@ -110,16 +134,23 @@ func (m *MatchRepositoryImpl) ProcessInternalEventMatches(ctx context.Context, t
 
 		eventKeys = append(eventKeys, event.Key)
 		uniqueEventKeys[event.Key] = struct{}{}
+
+		if event.ResourceHint != nil {
+			resourceHints = append(resourceHints, pgtype.Text{String: *event.ResourceHint, Valid: true})
+		} else {
+			resourceHints = append(resourceHints, pgtype.Text{})
+		}
 	}
 
 	// list all match conditions
 	matchConditions, err := m.queries.ListMatchConditionsForEvent(
 		ctx,
-		m.pool,
+		tx,
 		sqlcv1.ListMatchConditionsForEventParams{
-			Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
-			Eventtype: sqlcv1.V1EventTypeINTERNAL,
-			Eventkeys: eventKeys,
+			Tenantid:           sqlchelpers.UUIDFromStr(tenantId),
+			Eventtype:          sqlcv1.V1EventTypeINTERNAL,
+			Eventkeys:          eventKeys,
+			Eventresourcehints: resourceHints,
 		},
 	)
 
@@ -156,14 +187,6 @@ func (m *MatchRepositoryImpl) ProcessInternalEventMatches(ctx context.Context, t
 			datas = append(datas, event.Data)
 		}
 	}
-
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, m.pool, m.l, 5000)
-
-	if err != nil {
-		return nil, err
-	}
-
-	defer rollback()
 
 	// update condition rows in the database
 	satisfiedMatchIds, err := m.queries.GetSatisfiedMatchConditions(
@@ -308,11 +331,6 @@ func (m *MatchRepositoryImpl) ProcessInternalEventMatches(ctx context.Context, t
 		}
 	}
 
-	// commit
-	if err := commit(ctx); err != nil {
-		return nil, err
-	}
-
 	end := time.Now()
 
 	if end.Sub(start) > 100*time.Millisecond {
@@ -322,7 +340,7 @@ func (m *MatchRepositoryImpl) ProcessInternalEventMatches(ctx context.Context, t
 	return res, nil
 }
 
-func (m *MatchRepositoryImpl) processCELExpressions(ctx context.Context, events []CandidateEventMatch, conditions []*sqlcv1.ListMatchConditionsForEventRow) (map[string][]*sqlcv1.ListMatchConditionsForEventRow, error) {
+func (m *sharedRepository) processCELExpressions(ctx context.Context, events []CandidateEventMatch, conditions []*sqlcv1.ListMatchConditionsForEventRow) (map[string][]*sqlcv1.ListMatchConditionsForEventRow, error) {
 	// parse CEL expressions
 	programs := make(map[int64]cel.Program)
 	conditionIdsToConditions := make(map[int64]*sqlcv1.ListMatchConditionsForEventRow)
@@ -461,15 +479,24 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 		createdMatch := createdMatches[i]
 
 		for _, condition := range match.Conditions {
-			params = append(params, sqlcv1.CreateMatchConditionsParams{
-				V1MatchID:  createdMatch.ID,
-				TenantID:   sqlchelpers.UUIDFromStr(tenantId),
-				EventType:  condition.EventType,
-				EventKey:   condition.EventKey,
-				OrGroupID:  sqlchelpers.UUIDFromStr(condition.GroupId),
-				Expression: sqlchelpers.TextFromStr(condition.Expression),
-				Action:     condition.Action,
-			})
+			param := sqlcv1.CreateMatchConditionsParams{
+				V1MatchID:       createdMatch.ID,
+				TenantID:        sqlchelpers.UUIDFromStr(tenantId),
+				EventType:       condition.EventType,
+				EventKey:        condition.EventKey,
+				ReadableDataKey: condition.ReadableDataKey,
+				OrGroupID:       sqlchelpers.UUIDFromStr(condition.GroupId),
+				Expression:      sqlchelpers.TextFromStr(condition.Expression),
+				Action:          condition.Action,
+				IsSatisfied:     condition.IsSatisfied,
+				Data:            condition.Data,
+			}
+
+			if condition.EventResourceHint != nil {
+				param.EventResourceHint = sqlchelpers.TextFromStr(*condition.EventResourceHint)
+			}
+
+			params = append(params, param)
 		}
 	}
 
