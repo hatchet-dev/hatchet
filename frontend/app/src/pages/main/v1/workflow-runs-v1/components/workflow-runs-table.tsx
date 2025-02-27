@@ -58,8 +58,9 @@ import {
 import { DateTimePicker } from '@/components/v1/molecules/time-picker/date-time-picker';
 import { AdditionalMetadataClick } from '../../events/components/additional-metadata';
 import { Sheet, SheetContent } from '@/components/v1/ui/sheet';
-import StepRunDetail, {
+import {
   TabOption,
+  TaskRunDetail,
 } from '../$run/v2components/step-run-detail/step-run-detail';
 
 export interface TaskRunsTableProps {
@@ -695,7 +696,7 @@ export function TaskRunsTable({
           }
         >
           <SheetContent className="w-fit min-w-[56rem] max-w-4xl sm:max-w-2xl z-[60]">
-            <StepRunDetail
+            <TaskRunDetail
               taskRunId={stepDetailSheetState.taskRunId}
               defaultOpenTab={TabOption.Output}
               showViewTaskRunButton
