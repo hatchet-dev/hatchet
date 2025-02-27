@@ -16,10 +16,10 @@ export const TASK_RUN_TERMINAL_STATUSES = [
 type TaskRunCancellationParams =
   | {
       filter?: never;
-      externalIds: V1CancelTaskRequest['externalIds'];
+      externalIds: NonNullable<V1CancelTaskRequest['externalIds']>;
     }
   | {
-      filter: V1CancelTaskRequest['filter'];
+      filter: NonNullable<V1CancelTaskRequest['filter']>;
       externalIds?: never;
     };
 
@@ -56,7 +56,7 @@ export const CancelTaskRunButton = ({
   externalIds,
 }: {
   disabled: boolean;
-  externalIds: V1CancelTaskRequest['externalIds'];
+  externalIds: NonNullable<V1CancelTaskRequest['externalIds']>;
 }) => {
   const { handleCancelTaskRun } = useCancelTaskRuns();
 

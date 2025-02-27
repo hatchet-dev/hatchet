@@ -503,10 +503,12 @@ export function TaskRunsTable({
       className="h-8 px-2 lg:px-3"
       size="sm"
       onClick={() => {
+        const idsToCancel = selectedRuns
+          .filter((run) => !!run)
+          .map((run) => run?.run.metadata.id)
+
         handleCancelTaskRun({
-          externalIds: selectedRuns
-            .filter((run) => !!run)
-            .map((run) => run?.run.metadata.id),
+          externalIds: idsToCancel,
         });
       }}
       variant={'outline'}
@@ -586,16 +588,22 @@ export function TaskRunsTable({
         const isParent = id.split('.').length === 1;
 
         if (isParent) {
-          return tableRows.at(parseInt(id));
+          const childRow = tableRows.at(parseInt(id));
+
+          if (childRow) {
+            return childRow
+          }
         }
 
         const [parentIx, childIx] = id.split('.').map(Number);
 
-        return tableRows.at(parentIx)?.children?.at(childIx);
+        const row = tableRows.at(parentIx)?.children?.at(childIx);
+
+        invariant(row)
+
+        return row
       });
   }, [listTasksQuery.data?.rows, rowSelection]);
-
-  console.log(selectedRuns);
 
   return (
     <>
