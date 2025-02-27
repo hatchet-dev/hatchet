@@ -184,21 +184,111 @@ type StepDetailSheetState = {
   taskRunId: string | undefined;
 };
 
-export function TaskRunsTable({
-  workflowId,
-  workerId,
-  createdAfter: createdAfterProp,
-  initColumnVisibility = {},
-  filterVisibility = {},
-  refetchInterval = 5000,
-  showMetrics = false,
-  showCounts = true,
-}: TaskRunsTableProps) {
-  const [searchParams, setSearchParams] = useSearchParams();
+const useWorkflow = () => {
   const { tenant } = useOutletContext<TenantContextType>();
   invariant(tenant);
 
-  const [viewQueueMetrics, setViewQueueMetrics] = useState(false);
+  const {
+    data: workflowKeys,
+    isLoading: workflowKeysIsLoading,
+    error: workflowKeysError,
+  } = useQuery({
+    ...queries.workflows.list(tenant.metadata.id, { limit: 200 }),
+  });
+
+  return {
+    workflowKeys,
+    workflowKeysIsLoading,
+    workflowKeysError,
+  };
+};
+
+type UseColumnFiltersProps = {
+  workflowId: string | undefined;
+  filterVisibility: { [key: string]: boolean };
+  createdAfter?: string;
+};
+
+const useColumnFilters = ({
+  workflowId,
+  filterVisibility,
+  createdAfter: createdAfterProp,
+}: UseColumnFiltersProps) => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { workflowKeys, workflowKeysIsLoading, workflowKeysError } =
+    useWorkflow();
+
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>(() => {
+    const filtersParam = searchParams.get('filters');
+    if (filtersParam) {
+      return JSON.parse(filtersParam);
+    }
+    return [];
+  });
+
+  const workflow = useMemo<string | undefined>(() => {
+    const filter = columnFilters.find((filter) => filter.id === 'Workflow');
+
+    if (!filter) {
+      return;
+    }
+
+    const vals = filter?.value as Array<string>;
+    return vals[0];
+  }, [columnFilters, workflowId]);
+
+  const workflowKeyFilters = useMemo((): FilterOption[] => {
+    return (
+      workflowKeys?.rows?.map((key) => ({
+        value: key.metadata.id,
+        label: key.name,
+      })) || []
+    );
+  }, [workflowKeys]);
+
+  const workflowRunStatusFilters = useMemo((): FilterOption[] => {
+    return [
+      {
+        value: V1TaskStatus.COMPLETED,
+        label: 'Succeeded',
+      },
+      {
+        value: V1TaskStatus.FAILED,
+        label: 'Failed',
+      },
+      {
+        value: V1TaskStatus.RUNNING,
+        label: 'Running',
+      },
+      {
+        value: V1TaskStatus.QUEUED,
+        label: 'Queued',
+      },
+      // {
+      //   value: V1TaskStatus.CANCELLED,
+      //   label: 'Cancelled',
+      // },
+    ];
+  }, []);
+
+  const filters: ToolbarFilters = [
+    {
+      columnId: 'Workflow',
+      title: 'Workflow',
+      options: workflowKeyFilters,
+      type: ToolbarType.Radio,
+    },
+    {
+      columnId: 'status',
+      title: 'Status',
+      options: workflowRunStatusFilters,
+    },
+    {
+      columnId: 'Metadata',
+      title: 'Metadata',
+      type: ToolbarType.KeyValue,
+    },
+  ].filter((filter) => filterVisibility[filter.columnId] != false);
 
   const [defaultTimeRange, setDefaultTimeRange] = useAtom(lastTimeRangeAtom);
   const [stepDetailSheetState, setStepDetailSheetState] =
@@ -228,6 +318,17 @@ export function TaskRunsTable({
 
   const [finishedBefore, setFinishedBefore] = useState<string | undefined>();
 
+  const [sorting, setSorting] = useState<SortingState>(() => {
+    const sortParam = searchParams.get('sort');
+    if (sortParam) {
+      return sortParam.split(',').map((param) => {
+        const [id, desc] = param.split(':');
+        return { id, desc: desc === 'desc' };
+      });
+    }
+    return [];
+  });
+
   // create a timer which updates the createdAfter date every minute
   useEffect(() => {
     const interval = setInterval(() => {
@@ -254,28 +355,6 @@ export function TaskRunsTable({
       setFinishedBefore(undefined);
     }
   }, [defaultTimeRange, customTimeRange, setCreatedAfter]);
-
-  const [sorting, setSorting] = useState<SortingState>(() => {
-    const sortParam = searchParams.get('sort');
-    if (sortParam) {
-      return sortParam.split(',').map((param) => {
-        const [id, desc] = param.split(':');
-        return { id, desc: desc === 'desc' };
-      });
-    }
-    return [];
-  });
-
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>(() => {
-    const filtersParam = searchParams.get('filters');
-    if (filtersParam) {
-      return JSON.parse(filtersParam);
-    }
-    return [];
-  });
-
-  const [columnVisibility, setColumnVisibility] =
-    useState<VisibilityState>(initColumnVisibility);
 
   const [pagination, setPagination] = useState<PaginationState>(() => {
     const pageIndex = Number(searchParams.get('pageIndex')) || 0;
@@ -334,17 +413,6 @@ export function TaskRunsTable({
     return pagination.pageIndex * pagination.pageSize;
   }, [pagination]);
 
-  const workflow = useMemo<string | undefined>(() => {
-    const filter = columnFilters.find((filter) => filter.id === 'Workflow');
-
-    if (!filter) {
-      return;
-    }
-
-    const vals = filter?.value as Array<string>;
-    return vals[0];
-  }, [columnFilters, workflowId]);
-
   const statuses = useMemo(() => {
     const filter = columnFilters.find((filter) => filter.id === 'status');
 
@@ -355,18 +423,86 @@ export function TaskRunsTable({
     return filter?.value as Array<V1TaskStatus>;
   }, [columnFilters]);
 
+  const v1TaskFilters = {
+    since:
+      createdAfter || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+    until: finishedBefore,
+    statuses: columnFilters.find((f) => f.id === 'status')
+      ?.value as V1TaskStatus[],
+    workflowIds: workflow ? [workflow] : undefined,
+    additionalMetadata: columnFilters.find((f) => f.id === 'Metadata')
+      ?.value as string[],
+  };
+
+  return {
+    workflow,
+    workflowKeys,
+    workflowKeysIsLoading,
+    workflowKeysError,
+    columnFilters,
+    setColumnFilters,
+    filters,
+    sorting,
+    setSorting,
+    pagination,
+    setPagination,
+    offset,
+    statuses,
+    customTimeRange,
+    setCustomTimeRange,
+    createdAfter,
+    setCreatedAfter,
+    finishedBefore,
+    setFinishedBefore,
+    stepDetailSheetState,
+    setStepDetailSheetState,
+    setPageSize,
+    setDefaultTimeRange,
+    v1TaskFilters,
+    defaultTimeRange,
+  };
+};
+
+export function TaskRunsTable({
+  workflowId,
+  workerId,
+  createdAfter: createdAfterProp,
+  initColumnVisibility = {},
+  filterVisibility = {},
+  refetchInterval = 5000,
+  showMetrics = false,
+  showCounts = true,
+}: TaskRunsTableProps) {
+  const { tenant } = useOutletContext<TenantContextType>();
+  invariant(tenant);
+
+  const filters = useColumnFilters({
+    workflowId,
+    filterVisibility,
+    createdAfter: createdAfterProp,
+  });
+
+  const { workflowKeys, workflowKeysIsLoading, workflowKeysError } =
+    useWorkflow();
+
+  const [viewQueueMetrics, setViewQueueMetrics] = useState(false);
+
+  const [columnVisibility, setColumnVisibility] =
+    useState<VisibilityState>(initColumnVisibility);
+
   const listTasksQuery = useQuery({
     ...queries.v1WorkflowRuns.list(tenant.metadata.id, {
-      offset,
-      limit: pagination.pageSize,
-      statuses,
-      workflow_ids: workflow ? [workflow] : [],
+      offset: filters.offset,
+      limit: filters.pagination.pageSize,
+      statuses: filters.statuses,
+      workflow_ids: filters.workflow ? [filters.workflow] : [],
       since:
-        createdAfter ||
+        filters.createdAfter ||
         new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-      until: finishedBefore,
-      additional_metadata: columnFilters.find((f) => f.id === 'Metadata')
-        ?.value as string[],
+      until: filters.finishedBefore,
+      additional_metadata: filters.columnFilters.find(
+        (f) => f.id === 'Metadata',
+      )?.value as string[],
     }),
     placeholderData: (prev) => prev,
     refetchInterval,
@@ -375,16 +511,17 @@ export function TaskRunsTable({
 
   const workerTasksQuery = useQuery({
     ...queries.v1Tasks.list(tenant.metadata.id, {
-      offset,
-      limit: pagination.pageSize,
-      statuses,
+      offset: filters.offset,
+      limit: filters.pagination.pageSize,
+      statuses: filters.statuses,
       workflow_ids: workflowId ? [workflowId] : [],
       worker_id: workerId,
       since:
-        createdAfter ||
+        filters.createdAfter ||
         new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-      additional_metadata: columnFilters.find((f) => f.id === 'Metadata')
-        ?.value as string[],
+      additional_metadata: filters.columnFilters.find(
+        (f) => f.id === 'Metadata',
+      )?.value as string[],
     }),
     placeholderData: (prev) => prev,
     refetchInterval,
@@ -404,9 +541,9 @@ export function TaskRunsTable({
   const metricsQuery = useQuery({
     ...queries.v1TaskRuns.metrics(tenant.metadata.id, {
       since:
-        createdAfter ||
+        filters.createdAfter ||
         new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-      workflow_ids: workflow ? [workflow] : [],
+      workflow_ids: filters.workflow ? [filters.workflow] : [],
     }),
     placeholderData: (prev) => prev,
     refetchInterval,
@@ -419,77 +556,16 @@ export function TaskRunsTable({
     refetchInterval,
   });
 
-  const {
-    data: workflowKeys,
-    isLoading: workflowKeysIsLoading,
-    error: workflowKeysError,
-  } = useQuery({
-    ...queries.workflows.list(tenant.metadata.id, { limit: 200 }),
-  });
-
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
   const { handleCancelTaskRun } = useCancelTaskRuns();
 
   const onTaskRunIdClick = useCallback((taskRunId: string) => {
-    setStepDetailSheetState({
+    filters.setStepDetailSheetState({
       taskRunId,
       isOpen: true,
     });
   }, []);
-
-  const workflowKeyFilters = useMemo((): FilterOption[] => {
-    return (
-      workflowKeys?.rows?.map((key) => ({
-        value: key.metadata.id,
-        label: key.name,
-      })) || []
-    );
-  }, [workflowKeys]);
-
-  const workflowRunStatusFilters = useMemo((): FilterOption[] => {
-    return [
-      {
-        value: V1TaskStatus.COMPLETED,
-        label: 'Succeeded',
-      },
-      {
-        value: V1TaskStatus.FAILED,
-        label: 'Failed',
-      },
-      {
-        value: V1TaskStatus.RUNNING,
-        label: 'Running',
-      },
-      {
-        value: V1TaskStatus.QUEUED,
-        label: 'Queued',
-      },
-      // {
-      //   value: V1TaskStatus.CANCELLED,
-      //   label: 'Cancelled',
-      // },
-    ];
-  }, []);
-
-  const filters: ToolbarFilters = [
-    {
-      columnId: 'Workflow',
-      title: 'Workflow',
-      options: workflowKeyFilters,
-      type: ToolbarType.Radio,
-    },
-    {
-      columnId: 'status',
-      title: 'Status',
-      options: workflowRunStatusFilters,
-    },
-    {
-      columnId: 'Metadata',
-      title: 'Metadata',
-      type: ToolbarType.KeyValue,
-    },
-  ].filter((filter) => filterVisibility[filter.columnId] != false);
 
   const [rotate, setRotate] = useState(false);
 
@@ -500,21 +576,10 @@ export function TaskRunsTable({
     metricsQuery.refetch();
   };
 
-  const v1TaskFilters = {
-    since:
-      createdAfter || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-    until: finishedBefore,
-    statuses: columnFilters.find((f) => f.id === 'status')
-      ?.value as V1TaskStatus[],
-    workflowIds: workflow ? [workflow] : undefined,
-    additionalMetadata: columnFilters.find((f) => f.id === 'Metadata')
-      ?.value as string[],
-  };
-
   const hasRowsSelected = Object.values(rowSelection).some(
     (selected) => !!selected,
   );
-  const hasTaskFiltersSelected = Object.values(v1TaskFilters).some(
+  const hasTaskFiltersSelected = Object.values(filters.v1TaskFilters).some(
     (filter) => !!filter,
   );
 
@@ -531,9 +596,11 @@ export function TaskRunsTable({
           handleCancelTaskRun({
             externalIds: idsToCancel,
           });
-        } else if (Object.values(v1TaskFilters).some((filter) => !!filter)) {
+        } else if (
+          Object.values(filters.v1TaskFilters).some((filter) => !!filter)
+        ) {
           handleCancelTaskRun({
-            filter: v1TaskFilters,
+            filter: filters.v1TaskFilters,
           });
         }
       }}
@@ -582,7 +649,7 @@ export function TaskRunsTable({
     key,
     value,
   }: AdditionalMetadataClick) => {
-    setColumnFilters((prev) => {
+    filters.setColumnFilters((prev) => {
       const metadataFilter = prev.find((filter) => filter.id === 'Metadata');
       if (metadataFilter) {
         prev = prev.filter((filter) => filter.id !== 'Metadata');
@@ -664,11 +731,11 @@ export function TaskRunsTable({
       )}
       {!createdAfterProp && (
         <div className="flex flex-row justify-end items-center my-4 gap-2">
-          {customTimeRange && [
+          {filters.customTimeRange && [
             <Button
               key="clear"
               onClick={() => {
-                setCustomTimeRange(undefined);
+                filters.setCustomTimeRange(undefined);
               }}
               variant="outline"
               size="sm"
@@ -680,28 +747,38 @@ export function TaskRunsTable({
             <DateTimePicker
               key="after"
               label="After"
-              date={createdAfter ? new Date(createdAfter) : undefined}
+              date={
+                filters.createdAfter
+                  ? new Date(filters.createdAfter)
+                  : undefined
+              }
               setDate={(date) => {
-                setCreatedAfter(date?.toISOString());
+                filters.setCreatedAfter(date?.toISOString());
               }}
             />,
             <DateTimePicker
               key="before"
               label="Before"
-              date={finishedBefore ? new Date(finishedBefore) : undefined}
+              date={
+                filters.finishedBefore
+                  ? new Date(filters.finishedBefore)
+                  : undefined
+              }
               setDate={(date) => {
-                setFinishedBefore(date?.toISOString());
+                filters.setFinishedBefore(date?.toISOString());
               }}
             />,
           ]}
           <Select
-            value={customTimeRange ? 'custom' : defaultTimeRange}
+            value={
+              filters.customTimeRange ? 'custom' : filters.defaultTimeRange
+            }
             onValueChange={(value) => {
               if (value !== 'custom') {
-                setDefaultTimeRange(value);
-                setCustomTimeRange(undefined);
+                filters.setDefaultTimeRange(value);
+                filters.setCustomTimeRange(undefined);
               } else {
-                setCustomTimeRange([
+                filters.setCustomTimeRange([
                   getCreatedAfterFromTimeRange(value) ||
                     new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
                   new Date().toISOString(),
@@ -725,11 +802,11 @@ export function TaskRunsTable({
       {showMetrics && (
         <GetWorkflowChart
           tenantId={tenant.metadata.id}
-          createdAfter={createdAfter}
+          createdAfter={filters.createdAfter}
           zoom={(createdAfter, createdBefore) => {
-            setCustomTimeRange([createdAfter, createdBefore]);
+            filters.setCustomTimeRange([createdAfter, createdBefore]);
           }}
-          finishedBefore={finishedBefore}
+          finishedBefore={filters.finishedBefore}
           refetchInterval={refetchInterval}
         />
       )}
@@ -743,7 +820,7 @@ export function TaskRunsTable({
               }}
               showQueueMetrics={showMetrics}
               onClick={(status) => {
-                setColumnFilters((prev) => {
+                filters.setColumnFilters((prev) => {
                   const statusFilter = prev.find(
                     (filter) => filter.id === 'status',
                   );
@@ -773,11 +850,11 @@ export function TaskRunsTable({
           )}
         </div>
       )}
-      {stepDetailSheetState.taskRunId && (
+      {filters.stepDetailSheetState.taskRunId && (
         <Sheet
-          open={stepDetailSheetState.isOpen}
+          open={filters.stepDetailSheetState.isOpen}
           onOpenChange={(isOpen) =>
-            setStepDetailSheetState((prev) => ({
+            filters.setStepDetailSheetState((prev) => ({
               ...prev,
               isOpen,
             }))
@@ -785,7 +862,7 @@ export function TaskRunsTable({
         >
           <SheetContent className="w-fit min-w-[56rem] max-w-4xl sm:max-w-2xl z-[60]">
             <TaskRunDetail
-              taskRunId={stepDetailSheetState.taskRunId}
+              taskRunId={filters.stepDetailSheetState.taskRunId}
               defaultOpenTab={TabOption.Output}
               showViewTaskRunButton
             />
@@ -800,15 +877,15 @@ export function TaskRunsTable({
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
         data={tableRows}
-        filters={filters}
+        filters={filters.filters}
         actions={actions}
-        sorting={sorting}
-        setSorting={setSorting}
-        columnFilters={columnFilters}
-        setColumnFilters={setColumnFilters}
-        pagination={pagination}
-        setPagination={setPagination}
-        onSetPageSize={setPageSize}
+        sorting={filters.sorting}
+        setSorting={filters.setSorting}
+        columnFilters={filters.columnFilters}
+        setColumnFilters={filters.setColumnFilters}
+        pagination={filters.pagination}
+        setPagination={filters.setPagination}
+        onSetPageSize={filters.setPageSize}
         rowSelection={rowSelection}
         setRowSelection={setRowSelection}
         pageCount={tasks?.pagination?.num_pages || 0}
