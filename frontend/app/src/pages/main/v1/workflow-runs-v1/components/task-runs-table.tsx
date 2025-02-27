@@ -66,6 +66,10 @@ import {
   CancelTaskRunButton,
   useCancelTaskRuns,
 } from '../../task-runs-v1/cancellation';
+import {
+  ReplayTaskRunButton,
+  useReplayTaskRuns,
+} from '../../task-runs-v1/replays';
 
 export interface TaskRunsTableProps {
   createdAfter?: string;
@@ -731,6 +735,7 @@ export function TaskRunsTable({
   });
 
   const { handleCancelTaskRun } = useCancelTaskRuns();
+  const { handleReplayTaskRun } = useReplayTaskRuns();
 
   const onTaskRunIdClick = useCallback(
     (taskRunId: string) => {
@@ -778,23 +783,27 @@ export function TaskRunsTable({
         }
       }}
     />,
-    <Button
-      // disabled={!Object.values(rowSelection).some((selected) => !!selected)}
-      disabled
+    <ReplayTaskRunButton
       key="replay"
-      className="h-8 px-2 lg:px-3"
-      size="sm"
-      onClick={() => {
-        // replayWorkflowRunsMutation.mutate({
-        //   workflowRunIds: selectedRuns.map((run) => run.metadata.id),
-        // });
+      disabled={!(hasRowsSelected || hasTaskFiltersSelected)}
+      handleReplayTaskRun={() => {
+        const idsToReplay = selectedRuns
+          .filter((run) => !!run)
+          .map((run) => run?.run.metadata.id);
+
+        if (idsToReplay.length) {
+          handleReplayTaskRun({
+            externalIds: idsToReplay,
+          });
+        } else if (
+          Object.values(filters.v1TaskFilters).some((filter) => !!filter)
+        ) {
+          handleReplayTaskRun({
+            filter: filters.v1TaskFilters,
+          });
+        }
       }}
-      variant={'outline'}
-      aria-label="Replay Selected Runs"
-    >
-      <ArrowPathRoundedSquareIcon className="mr-2 h-4 w-4 transition-transform" />
-      Replay
-    </Button>,
+    />,
     <Button
       key="refresh"
       className="h-8 px-2 lg:px-3"

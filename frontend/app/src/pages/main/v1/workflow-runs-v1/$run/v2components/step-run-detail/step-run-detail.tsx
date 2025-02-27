@@ -25,6 +25,10 @@ import {
   CancelTaskRunButton,
   useCancelTaskRuns,
 } from '@/pages/main/v1/task-runs-v1/cancellation';
+import {
+  ReplayTaskRunButton,
+  useReplayTaskRuns,
+} from '@/pages/main/v1/task-runs-v1/replays';
 
 export enum TabOption {
   Output = 'output',
@@ -91,6 +95,7 @@ export const TaskRunDetail = ({
   });
 
   const { handleCancelTaskRun } = useCancelTaskRuns();
+  const { handleReplayTaskRun } = useReplayTaskRuns();
 
   const taskRun = taskRunQuery.data;
 
@@ -115,28 +120,14 @@ export const TaskRunDetail = ({
         </div>
       </div>
       <div className="flex flex-row gap-2 items-center">
-        <Button
-          size={'sm'}
-          className="px-2 py-2 gap-2"
-          variant={'outline'}
-          // disabled={!STEP_RUN_TERMINAL_STATUSES.includes(stepRun.status)}
-          onClick={() => {
-            // if (!stepRun.input) {
-            //   return;
-            // }
-            // let parsedInput: object;
-            // try {
-            //   parsedInput = JSON.parse(stepRun.input);
-            // } catch (e) {
-            //   return;
-            // }
-            // rerunStepMutation.mutate(parsedInput);
+        <ReplayTaskRunButton
+          handleReplayTaskRun={() => {
+            handleReplayTaskRun({
+              externalIds: [taskRunId],
+            });
           }}
-          disabled
-        >
-          <ArrowPathIcon className="w-4 h-4" />
-          Replay
-        </Button>
+          disabled={TASK_RUN_TERMINAL_STATUSES.includes(taskRun.status)}
+        />
         <CancelTaskRunButton
           handleCancelTaskRun={() => {
             handleCancelTaskRun({
