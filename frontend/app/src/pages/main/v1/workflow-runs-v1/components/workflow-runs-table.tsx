@@ -478,7 +478,7 @@ export function TaskRunsTable({
     until: finishedBefore,
     statuses: columnFilters.find((f) => f.id === 'status')
       ?.value as V1TaskStatus[],
-    workflowIds: workflow ? [workflow] : [],
+    workflowIds: workflow ? [workflow] : undefined,
     additionalMetadata: columnFilters.find((f) => f.id === 'Metadata')
       ?.value as string[],
   };
