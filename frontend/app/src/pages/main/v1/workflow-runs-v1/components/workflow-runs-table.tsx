@@ -503,7 +503,11 @@ export function TaskRunsTable({
       className="h-8 px-2 lg:px-3"
       size="sm"
       onClick={() => {
-        handleCancelTaskRun;
+        handleCancelTaskRun({
+          externalIds: selectedRuns
+            .filter((run) => !!run)
+            .map((run) => run?.run.metadata.id),
+        });
       }}
       variant={'outline'}
       aria-label="Cancel Selected Runs"
