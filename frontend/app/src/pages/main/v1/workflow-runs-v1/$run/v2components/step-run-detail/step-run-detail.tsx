@@ -21,7 +21,7 @@ import RelativeDate from '@/components/v1/molecules/relative-date';
 import { formatDuration } from '@/lib/utils';
 import { V1StepRunOutput } from './step-run-output';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
-import { CancelTaskRunButton } from '@/pages/main/v1/task-runs-v1/cancel-button';
+import { CancelTaskRunButton } from '@/pages/main/v1/task-runs-v1/cancellation';
 
 export enum TabOption {
   Output = 'output',
