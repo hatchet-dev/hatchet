@@ -594,6 +594,55 @@ const useTaskRunRows = ({
   };
 };
 
+const useMetrics = ({
+  workflowId,
+  filterVisibility,
+  createdAfter: createdAfterProp,
+  refetchInterval,
+}: UseColumnFiltersProps & {
+  refetchInterval: number;
+}) => {
+  const { tenant } = useOutletContext<TenantContextType>();
+  invariant(tenant);
+
+  const filters = useColumnFilters({
+    workflowId,
+    filterVisibility,
+    createdAfter: createdAfterProp,
+  });
+
+  const metricsQuery = useQuery({
+    ...queries.v1TaskRuns.metrics(tenant.metadata.id, {
+      since:
+        filters.createdAfter ||
+        new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+      workflow_ids: filters.workflow ? [filters.workflow] : [],
+    }),
+    placeholderData: (prev) => prev,
+    refetchInterval,
+  });
+
+  const metrics = metricsQuery.data || [];
+
+  const tenantMetricsQuery = useQuery({
+    ...queries.metrics.getStepRunQueueMetrics(tenant.metadata.id),
+    refetchInterval,
+  });
+
+  const tenantMetrics = tenantMetricsQuery.data?.queues || {};
+
+  return {
+    metrics,
+    tenantMetrics,
+    isLoading: metricsQuery.isLoading || tenantMetricsQuery.isLoading,
+    isError: metricsQuery.isError || tenantMetricsQuery.isError,
+    refetch: () => {
+      metricsQuery.refetch();
+      tenantMetricsQuery.refetch();
+    },
+  };
+};
+
 export function TaskRunsTable({
   workflowId,
   workerId,
@@ -635,21 +684,16 @@ export function TaskRunsTable({
     rowSelection,
   });
 
-  const metricsQuery = useQuery({
-    ...queries.v1TaskRuns.metrics(tenant.metadata.id, {
-      since:
-        filters.createdAfter ||
-        new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-      workflow_ids: filters.workflow ? [filters.workflow] : [],
-    }),
-    placeholderData: (prev) => prev,
-    refetchInterval,
-  });
-
-  const metrics = metricsQuery.data || [];
-
-  const tenantMetricsQuery = useQuery({
-    ...queries.metrics.getStepRunQueueMetrics(tenant.metadata.id),
+  const {
+    metrics,
+    tenantMetrics,
+    isLoading: isMetricsLoading,
+    isError: isMetricsError,
+    refetch: refetchMetrics,
+  } = useMetrics({
+    workflowId,
+    filterVisibility,
+    createdAfter: createdAfterProp,
     refetchInterval,
   });
 
@@ -666,8 +710,7 @@ export function TaskRunsTable({
 
   const refetch = () => {
     refetchRuns();
-    tenantMetricsQuery.refetch();
-    metricsQuery.refetch();
+    refetchMetrics();
   };
 
   const hasRowsSelected = Object.values(rowSelection).some(
@@ -733,7 +776,7 @@ export function TaskRunsTable({
     </Button>,
   ];
 
-  const isLoading = isRunsLoading || metricsQuery.isLoading;
+  const isLoading = isRunsLoading || isMetricsLoading;
 
   const onAdditionalMetadataClick = ({
     key,
@@ -770,19 +813,13 @@ export function TaskRunsTable({
               <DialogTitle>Queue Metrics</DialogTitle>
             </DialogHeader>
             <Separator />
-            {tenantMetricsQuery.data?.queues && (
+            {tenantMetrics && (
               <CodeHighlighter
                 language="json"
-                code={JSON.stringify(
-                  tenantMetricsQuery.data?.queues || '{}',
-                  null,
-                  2,
-                )}
+                code={JSON.stringify(tenantMetrics || '{}', null, 2)}
               />
             )}
-            {tenantMetricsQuery.isLoading && (
-              <Skeleton className="w-full h-36" />
-            )}
+            {isMetricsLoading && <Skeleton className="w-full h-36" />}
           </DialogContent>
         </Dialog>
       )}
