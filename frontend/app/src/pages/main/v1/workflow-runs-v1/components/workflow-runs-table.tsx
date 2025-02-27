@@ -10,7 +10,13 @@ import {
 } from '@tanstack/react-table';
 import { useQuery } from '@tanstack/react-query';
 import invariant from 'tiny-invariant';
-import { queries, V1DagChildren, V1TaskStatus, V1WorkflowRun } from '@/lib/api';
+import {
+  queries,
+  V1DagChildren,
+  V1TaskStatus,
+  V1TaskSummary,
+  V1WorkflowRun,
+} from '@/lib/api';
 import { TenantContextType } from '@/lib/outlet';
 import { useOutletContext, useSearchParams } from 'react-router-dom';
 import {
@@ -122,7 +128,7 @@ const transformToTableRows = (
 };
 
 const processWorkflowData = (
-  workflowRuns: V1WorkflowRun[] = [],
+  workflowRuns: V1WorkflowRun[] | V1TaskSummary[] = [],
   dagChildrenRaw: V1DagChildren[] = [],
   workflowKeys: { rows?: { metadata: { id: string }; name: string }[] } = {},
 ): TableRow[] => {
@@ -136,6 +142,7 @@ const processWorkflowData = (
     workflowVersionId: 'first version',
     triggeredBy: 'manual',
     workflowName: workflowNameMap.get(row.workflowId),
+    input: {},
   }));
 
   const dagChildrenMap = new Map<string, ListableWorkflowRun[]>();
@@ -179,6 +186,7 @@ type StepDetailSheetState = {
 
 export function TaskRunsTable({
   workflowId,
+  workerId,
   createdAfter: createdAfterProp,
   initColumnVisibility = {},
   filterVisibility = {},
@@ -367,9 +375,30 @@ export function TaskRunsTable({
     }),
     placeholderData: (prev) => prev,
     refetchInterval,
+    enabled: !workerId,
   });
 
-  const dagIds = listTasksQuery.data?.rows?.map((r) => r.metadata.id) || [];
+  const workerTasksQuery = useQuery({
+    ...queries.v1Tasks.list(tenant.metadata.id, {
+      offset,
+      limit: pagination.pageSize,
+      statuses,
+      workflow_ids: workflow ? [workflow] : [],
+      worker_id: workerId,
+      since:
+        createdAfter ||
+        new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+      additional_metadata: columnFilters.find((f) => f.id === 'Metadata')
+        ?.value as string[],
+    }),
+    placeholderData: (prev) => prev,
+    refetchInterval,
+    enabled: !!workerId,
+  });
+
+  const tasks = workerId ? workerTasksQuery.data : listTasksQuery.data;
+
+  const dagIds = tasks?.rows?.map((r) => r.metadata.id) || [];
 
   const { data: dagChildrenRaw } = useQuery({
     ...queries.v1Tasks.getByDagId(tenant.metadata.id, dagIds),
@@ -469,7 +498,8 @@ export function TaskRunsTable({
   const [rotate, setRotate] = useState(false);
 
   const refetch = () => {
-    listTasksQuery.refetch();
+    workerId ? workerTasksQuery.refetch() : listTasksQuery.refetch();
+
     tenantMetricsQuery.refetch();
     metricsQuery.refetch();
   };
@@ -548,6 +578,7 @@ export function TaskRunsTable({
 
   const isLoading =
     listTasksQuery.isFetching ||
+    workerTasksQuery.isFetching ||
     workflowKeysIsLoading ||
     metricsQuery.isLoading;
 
@@ -571,7 +602,7 @@ export function TaskRunsTable({
   };
 
   const tableRows = processWorkflowData(
-    listTasksQuery.data?.rows,
+    tasks?.rows,
     dagChildrenRaw,
     workflowKeys,
   );
@@ -784,7 +815,7 @@ export function TaskRunsTable({
         onSetPageSize={setPageSize}
         rowSelection={rowSelection}
         setRowSelection={setRowSelection}
-        pageCount={listTasksQuery.data?.pagination?.num_pages || 0}
+        pageCount={tasks?.pagination?.num_pages || 0}
         showColumnToggle={true}
         getSubRows={(row) => row.children || []}
       />
