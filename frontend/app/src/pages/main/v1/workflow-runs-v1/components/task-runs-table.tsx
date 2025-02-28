@@ -10,13 +10,7 @@ import {
 } from '@tanstack/react-table';
 import { useQuery } from '@tanstack/react-query';
 import invariant from 'tiny-invariant';
-import {
-  queries,
-  V1DagChildren,
-  V1TaskStatus,
-  V1TaskSummary,
-  V1WorkflowRun,
-} from '@/lib/api';
+import { queries, V1TaskStatus, V1TaskSummary } from '@/lib/api';
 import { TenantContextType } from '@/lib/outlet';
 import { useOutletContext, useSearchParams } from 'react-router-dom';
 import {
@@ -78,93 +72,6 @@ export interface TaskRunsTableProps {
   showMetrics?: boolean;
   showCounts?: boolean;
 }
-
-export type ListableWorkflowRun = V1WorkflowRun & {
-  workflowName: string | undefined;
-  triggeredBy: string;
-  workflowVersionId: string;
-};
-
-export type TableRow =
-  | {
-      run: ListableWorkflowRun;
-      type: 'dag';
-      children: TableRow[]; // everything here is a `task`
-      metadata: { id: string };
-    }
-  | {
-      run: ListableWorkflowRun;
-      type: 'task';
-      children?: never;
-      metadata: { id: string };
-    };
-
-const transformToTableRows = (
-  workflows: ListableWorkflowRun[],
-  dagChildrenMap: Map<string, ListableWorkflowRun[]>,
-): TableRow[] => {
-  return workflows.map((workflow) => {
-    const children = dagChildrenMap.get(workflow.metadata?.id || '');
-
-    if (children && children.length > 0) {
-      return {
-        run: workflow,
-        type: 'dag',
-        children: children.map((child) => ({
-          run: child,
-          type: 'task',
-          metadata: { id: child.metadata.id },
-        })),
-        metadata: { id: workflow.metadata.id },
-      };
-    } else {
-      return {
-        run: workflow,
-        type: 'task',
-        metadata: { id: workflow.metadata.id },
-      };
-    }
-  });
-};
-
-const processWorkflowData = (
-  workflowRuns: V1WorkflowRun[] | V1TaskSummary[] = [],
-  dagChildrenRaw: V1DagChildren[] = [],
-  workflowKeys: { rows?: { metadata: { id: string }; name: string }[] } = {},
-): TableRow[] => {
-  const workflowNameMap = new Map();
-  workflowKeys.rows?.forEach((row) => {
-    workflowNameMap.set(row.metadata.id, row.name);
-  });
-
-  const processedRuns: ListableWorkflowRun[] = workflowRuns.map((row) => ({
-    ...row,
-    workflowVersionId: 'first version',
-    triggeredBy: 'manual',
-    workflowName: workflowNameMap.get(row.workflowId),
-    input: {},
-  }));
-
-  const dagChildrenMap = new Map<string, ListableWorkflowRun[]>();
-
-  dagChildrenRaw.forEach((dag) => {
-    if (dag.dagId && dag.children) {
-      const processedChildren = dag.children.map((child) => ({
-        ...child,
-
-        // TODO: Fix these
-        workflowVersionId: 'first version',
-        triggeredBy: 'manual',
-        workflowName: workflowNameMap.get(child.workflowId),
-        input: {},
-      }));
-
-      dagChildrenMap.set(dag.dagId, processedChildren);
-    }
-  });
-
-  return transformToTableRows(processedRuns, dagChildrenMap);
-};
 
 export const getCreatedAfterFromTimeRange = (timeRange?: string) => {
   switch (timeRange) {
@@ -482,7 +389,6 @@ const useColumnFilters = ({
 };
 
 const useTaskRunRows = ({
-  workflowId,
   filterVisibility,
   createdAfter: createdAfterProp,
   workerId,
@@ -490,7 +396,6 @@ const useTaskRunRows = ({
   rowSelection,
 }: UseColumnFiltersProps & {
   workerId?: string;
-  workflowId?: string;
   refetchInterval: number;
   rowSelection: RowSelectionState;
 }) => {
@@ -515,41 +420,21 @@ const useTaskRunRows = ({
       additional_metadata: filters.columnFilters.find(
         (f) => f.id === 'Metadata',
       )?.value as string[],
+      worker_id: workerId,
       only_tasks: !!workerId,
     }),
     placeholderData: (prev) => prev,
     refetchInterval,
   });
 
-  const { workflowKeys, workflowKeysIsLoading, workflowKeysError } =
-    useWorkflow();
-
   const tasks = listTasksQuery.data;
-
-  const dagIds = tasks?.rows?.map((r) => r.metadata.id) || [];
-
-  const {
-    data: dagChildrenRaw,
-    isLoading: dagChildrenLoading,
-    isFetching: dagChildrenFetching,
-    isError: dagChildrenError,
-  } = useQuery({
-    ...queries.v1Tasks.getByDagId(tenant.metadata.id, dagIds),
-    enabled: !!dagIds.length,
-    refetchInterval,
-  });
-
-  const tableRows = processWorkflowData(
-    tasks?.rows,
-    dagChildrenRaw,
-    workflowKeys,
-  );
+  const tableRows = tasks?.rows || [];
 
   const selectedRuns = useMemo(() => {
     return Object.entries(rowSelection)
       .filter(([, selected]) => !!selected)
       .map(([id]) => {
-        const findRow = (rows: TableRow[]): TableRow | undefined => {
+        const findRow = (rows: V1TaskSummary[]): V1TaskSummary | undefined => {
           for (const row of rows) {
             if (row.metadata.id === id) {
               return row;
@@ -566,21 +451,15 @@ const useTaskRunRows = ({
 
         return findRow(tableRows);
       })
-      .filter((row) => row !== undefined) as TableRow[];
+      .filter((row) => row !== undefined) as V1TaskSummary[];
   }, [rowSelection, tableRows]);
 
   return {
     tableRows,
     selectedRuns,
     refetchRuns: listTasksQuery.refetch,
-    isLoading:
-      listTasksQuery.isFetching ||
-      listTasksQuery.isLoading ||
-      workflowKeysIsLoading ||
-      dagChildrenLoading ||
-      dagChildrenFetching,
-    isError:
-      listTasksQuery.isError || workflowKeysError !== null || dagChildrenError,
+    isLoading: listTasksQuery.isFetching || listTasksQuery.isLoading,
+    isError: listTasksQuery.isError,
     numPages: tasks?.pagination.num_pages || 0,
   };
 };
@@ -633,7 +512,6 @@ const useMetrics = ({
 };
 
 export function TaskRunsTable({
-  workflowId,
   workerId,
   createdAfter: createdAfterProp,
   initColumnVisibility = {},
@@ -664,7 +542,6 @@ export function TaskRunsTable({
     isError: isRunsError,
     numPages,
   } = useTaskRunRows({
-    workflowId,
     filterVisibility,
     createdAfter: createdAfterProp,
     workerId,
@@ -715,7 +592,7 @@ export function TaskRunsTable({
       key="cancel"
       disabled={!(hasRowsSelected || hasTaskFiltersSelected)}
       handleCancelTaskRun={() => {
-        const idsToCancel = selectedRuns.map((run) => run?.run.metadata.id);
+        const idsToCancel = selectedRuns.map((run) => run?.metadata.id);
 
         if (idsToCancel.length) {
           handleCancelTaskRun({
@@ -734,7 +611,7 @@ export function TaskRunsTable({
       key="replay"
       disabled={!(hasRowsSelected || hasTaskFiltersSelected)}
       handleReplayTaskRun={() => {
-        const idsToReplay = selectedRuns.map((run) => run?.run.metadata.id);
+        const idsToReplay = selectedRuns.map((run) => run?.metadata.id);
 
         if (idsToReplay.length) {
           handleReplayTaskRun({
@@ -768,7 +645,7 @@ export function TaskRunsTable({
 
   const isLoading = isRunsLoading || isMetricsLoading;
 
-  const getRowId = useCallback((row: TableRow) => {
+  const getRowId = useCallback((row: V1TaskSummary) => {
     return row.metadata.id;
   }, []);
 
