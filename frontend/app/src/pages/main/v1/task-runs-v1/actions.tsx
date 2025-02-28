@@ -140,19 +140,47 @@ const CancelByExternalIdsContent = ({ label, params }: ModalContentProps) => {
   );
 };
 
-const ModalContent = ({ label, params }: ModalContentProps) => {
-  switch (params.actionType) {
-    case 'cancel':
-      return <CancelByExternalIdsContent label={label} params={params} />;
-    case 'replay':
-      return (
-        <p className="text-lg">
-          You're about to {label.toLowerCase()} the following task runs:
-        </p>
-      );
+type FilterName = keyof NonNullable<V1CancelTaskRequest['filter']>;
+
+const taskFilterToLabel = (filter: FilterName) => {
+  switch (filter) {
+    case 'additionalMetadata':
+      return 'Additional metadata';
+    case 'since':
+      return 'Since';
+    case 'statuses':
+      return 'Statuses';
+    case 'until':
+      return 'Until';
+    case 'workflowIds':
+      return 'Workflow IDs';
     default:
-      const exhaustiveCheck: never = params;
-      throw new Error(`Unhandled action type: ${exhaustiveCheck}`);
+      const exhaustiveCheck: never = filter;
+      throw new Error(`Unhandled filter: ${exhaustiveCheck}`);
+  }
+};
+
+const ModalContent = ({ label, params }: ModalContentProps) => {
+  if (params.externalIds?.length) {
+    return <CancelByExternalIdsContent label={label} params={params} />;
+  } else if (params.filter) {
+    const kvs = Object.entries(params.filter).filter(([_, v]) => !!v);
+
+    return (
+      <>
+        <p className="text-lg">
+          You're about to {label.toLowerCase()} all task runs matching the
+          following filters:
+        </p>
+        <ul className="list-disc pl-4 pt-2">
+          {kvs.map(([k, v]) => (
+            <li key={k}>{`${taskFilterToLabel(k as FilterName)}: ${v}`}</li>
+          ))}
+        </ul>
+      </>
+    );
+  } else {
+    throw new Error(`Unhandled case: ${params}`);
   }
 };
 
@@ -183,19 +211,20 @@ const ConfirmActionModal = ({
             <Button
               className="mt-6 w-full sm:w-auto sm:self-end"
               onClick={() => {
+                setIsOpen(false);
+              }}
+              variant="outline"
+            >
+              Cancel
+            </Button>{' '}
+            <Button
+              className="mt-6 w-full sm:w-auto sm:self-end"
+              onClick={() => {
                 onConfirm();
                 setIsOpen(false);
               }}
             >
               Confirm
-            </Button>
-            <Button
-              className="mt-6 w-full sm:w-auto sm:self-end"
-              onClick={() => {
-                setIsOpen(false);
-              }}
-            >
-              Cancel
             </Button>
           </div>
         </div>

@@ -50,10 +50,7 @@ import {
   TabOption,
   TaskRunDetail,
 } from '../$run/v2components/step-run-detail/step-run-detail';
-import {
-  TaskRunActionButton,
-  useTaskRunActions,
-} from '../../task-runs-v1/actions';
+import { TaskRunActionButton } from '../../task-runs-v1/actions';
 
 export interface TaskRunsTableProps {
   createdAfter?: string;
