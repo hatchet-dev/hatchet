@@ -256,10 +256,6 @@ export const queries = createQueryKeyStore({
     }),
   },
   v1Tasks: {
-    list: (tenant: string, query: V2ListTaskRunsQuery) => ({
-      queryKey: ['v1-task:list', tenant, query],
-      queryFn: async () => (await api.v1TaskList(tenant, query)).data,
-    }),
     get: (task: string) => ({
       queryKey: ['v1-task:get', task],
       queryFn: async () => (await api.v1TaskGet(task)).data,
