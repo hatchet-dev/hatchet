@@ -103,10 +103,6 @@ WHERE
             ) AS u ON kv.key = u.k AND kv.value = u.v
         )
     )
-    AND (
-        sqlc.narg('workerId')::uuid IS NULL
-        OR latest_worker_id = sqlc.narg('workerId')::uuid
-    )
 ORDER BY inserted_at DESC, id DESC
 LIMIT @listWorkflowRunsLimit::integer
 OFFSET @listWorkflowRunsOffset::integer
