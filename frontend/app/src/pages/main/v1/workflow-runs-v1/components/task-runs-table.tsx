@@ -603,7 +603,7 @@ const useTaskRunRows = ({
 
         return findRow(tableRows);
       })
-      .filter(Boolean);
+      .filter((row) => row !== undefined) as TableRow[];
   }, [rowSelection, tableRows]);
 
   return {
@@ -757,9 +757,7 @@ export function TaskRunsTable({
       key="cancel"
       disabled={!(hasRowsSelected || hasTaskFiltersSelected)}
       handleCancelTaskRun={() => {
-        const idsToCancel = selectedRuns
-          .filter((run) => !!run)
-          .map((run) => run?.run.metadata.id);
+        const idsToCancel = selectedRuns.map((run) => run?.run.metadata.id);
 
         if (idsToCancel.length) {
           handleCancelTaskRun({
@@ -778,9 +776,7 @@ export function TaskRunsTable({
       key="replay"
       disabled={!(hasRowsSelected || hasTaskFiltersSelected)}
       handleReplayTaskRun={() => {
-        const idsToReplay = selectedRuns
-          .filter((run) => !!run)
-          .map((run) => run?.run.metadata.id);
+        const idsToReplay = selectedRuns.map((run) => run?.run.metadata.id);
 
         if (idsToReplay.length) {
           handleReplayTaskRun({
