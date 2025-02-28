@@ -588,27 +588,22 @@ const useTaskRunRows = ({
     return Object.entries(rowSelection)
       .filter(([, selected]) => !!selected)
       .map(([id]) => {
-        // `rowSelection` uses `.` as a delimiter to indicate
-        // depth in the tree. E.g. `"0"` means the first row,
-        // `"0.0"` means the first child of the first row, etc.
-        const isParent = id.split('.').length === 1;
-
-        if (isParent) {
-          const childRow = tableRows.at(parseInt(id));
-
-          if (childRow) {
-            return childRow;
+        const findRow = (rows: TableRow[]): TableRow | undefined => {
+          for (const row of rows) {
+            if (row.metadata.id === id) {
+              return row;
+            }
+            if (row.children) {
+              const childRow = findRow(row.children);
+              if (childRow) return childRow;
+            }
           }
-        }
+          return undefined;
+        };
 
-        const [parentIx, childIx] = id.split('.').map(Number);
-
-        const row = tableRows.at(parentIx)?.children?.at(childIx);
-
-        invariant(row);
-
-        return row;
-      });
+        return findRow(tableRows);
+      })
+      .filter(Boolean);
   }, [rowSelection, tableRows]);
 
   return {
@@ -819,6 +814,10 @@ export function TaskRunsTable({
 
   const isLoading = isRunsLoading || isMetricsLoading;
 
+  const getRowId = useCallback((row: TableRow) => {
+    return row.metadata.id;
+  }, []);
+
   return (
     <>
       {showMetrics && (
@@ -1007,6 +1006,7 @@ export function TaskRunsTable({
         pageCount={numPages}
         showColumnToggle={true}
         getSubRows={(row) => row.children || []}
+        getRowId={getRowId}
       />
     </>
   );
