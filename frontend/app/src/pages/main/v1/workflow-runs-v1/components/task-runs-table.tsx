@@ -27,11 +27,7 @@ import {
   ToolbarType,
 } from '@/components/v1/molecules/data-table/data-table-toolbar';
 import { Button } from '@/components/v1/ui/button';
-import {
-  ArrowPathIcon,
-  ArrowPathRoundedSquareIcon,
-  XCircleIcon,
-} from '@heroicons/react/24/outline';
+import { ArrowPathIcon, XCircleIcon } from '@heroicons/react/24/outline';
 import { V1WorkflowRunsMetricsView } from './task-runs-metrics';
 import {
   Select,
