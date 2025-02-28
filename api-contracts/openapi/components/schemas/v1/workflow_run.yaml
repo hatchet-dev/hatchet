@@ -58,19 +58,6 @@ V1WorkflowRun:
     - output
     - input
 
-V1WorkflowRunList:
-  type: object
-  properties:
-    pagination:
-      $ref: ".././metadata.yaml#/PaginationResponse"
-    rows:
-      type: array
-      items:
-        $ref: "#/V1WorkflowRun"
-      description: The list of workflow runs
-  required:
-    - pagination
-    - rows
 
 WorkflowRunShapeItemForWorkflowRunDetails:
   type: object

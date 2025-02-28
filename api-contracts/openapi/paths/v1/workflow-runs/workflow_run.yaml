@@ -68,12 +68,21 @@ listWorkflowRuns:
             format: uuid
             minLength: 36
             maxLength: 36
+      - description: The worker id to filter by
+        in: query
+        name: worker_id
+        required: false
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
     responses:
       "200":
         content:
           application/json:
             schema:
-              $ref: "../../../components/schemas/_index.yaml#/V1WorkflowRunList"
+              $ref: "../../../components/schemas/_index.yaml#/V1TaskSummaryList"
         description: Successfully listed the tasks
       "400":
         content:

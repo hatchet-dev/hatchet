@@ -1,3 +1,9 @@
+V1WorkflowType:
+  type: string
+  enum:
+    - DAG
+    - TASK
+
 V1TaskSummary:
   properties:
     metadata:
@@ -50,6 +56,17 @@ V1TaskSummary:
     errorMessage:
       type: string
       description: The error message of the task run (for the latest run)
+    input:
+      type: object
+      description: The input of the task run.
+    type:
+      $ref: "#/V1WorkflowType"
+      description: The type of the workflow (whether it's a DAG or a task)
+    children:
+      type: array
+      items:
+        $ref: "#/V1TaskSummary"
+      description: The list of children tasks
   required:
     - metadata
     - id

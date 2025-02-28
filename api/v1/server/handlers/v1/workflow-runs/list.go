@@ -60,6 +60,7 @@ func (t *V1WorkflowRunsService) V1WorkflowRunList(ctx echo.Context, request gen.
 		WorkflowIds:  workflowIds,
 		Limit:        limit,
 		Offset:       offset,
+		WorkerId:     request.Params.WorkerId,
 	}
 
 	additionalMetadataFilters := make(map[string]interface{})

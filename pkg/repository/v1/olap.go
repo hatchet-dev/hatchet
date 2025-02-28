@@ -49,6 +49,8 @@ type ListWorkflowRunOpts struct {
 
 	WorkflowIds []uuid.UUID
 
+	WorkerId *uuid.UUID
+
 	StartedAfter time.Time
 
 	FinishedBefore *time.Time
@@ -157,7 +159,6 @@ type OLAPRepository interface {
 	ReadWorkflowRun(ctx context.Context, workflowRunExternalId pgtype.UUID) (*V1WorkflowRunPopulator, error)
 	ReadTaskRunData(ctx context.Context, tenantId pgtype.UUID, taskId int64, taskInsertedAt pgtype.Timestamptz) (*sqlcv1.PopulateSingleTaskRunDataRow, *pgtype.UUID, error)
 
-	ListTasks(ctx context.Context, tenantId string, opts ListTaskRunOpts) ([]*sqlcv1.PopulateTaskRunDataRow, int, error)
 	ListWorkflowRuns(ctx context.Context, tenantId string, opts ListWorkflowRunOpts) ([]*WorkflowRunData, int, error)
 	ListTaskRunEvents(ctx context.Context, tenantId string, taskId int64, taskInsertedAt pgtype.Timestamptz, limit, offset int64) ([]*sqlcv1.ListTaskEventsRow, error)
 	ListTaskRunEventsByWorkflowRunId(ctx context.Context, tenantId string, workflowRunId pgtype.UUID) ([]*sqlcv1.ListTaskEventsForWorkflowRunRow, error)
@@ -430,114 +431,6 @@ func (r *olapRepository) ReadTaskRunData(ctx context.Context, tenantId pgtype.UU
 	}
 
 	return taskRun, &workflowRunId, nil
-}
-
-func (r *olapRepository) ListTasks(ctx context.Context, tenantId string, opts ListTaskRunOpts) ([]*sqlcv1.PopulateTaskRunDataRow, int, error) {
-	tx, err := r.pool.Begin(ctx)
-
-	if err != nil {
-		return nil, 0, err
-	}
-
-	defer tx.Rollback(ctx)
-
-	params := sqlcv1.ListTasksOlapParams{
-		Tenantid:   sqlchelpers.UUIDFromStr(tenantId),
-		Since:      sqlchelpers.TimestamptzFromTime(opts.CreatedAfter),
-		Tasklimit:  int32(opts.Limit),
-		Taskoffset: int32(opts.Offset),
-	}
-
-	countParams := sqlcv1.CountTasksParams{
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
-		Since:    sqlchelpers.TimestamptzFromTime(opts.CreatedAfter),
-	}
-
-	statuses := make([]string, 0)
-
-	for _, status := range opts.Statuses {
-		statuses = append(statuses, string(status))
-	}
-
-	if len(statuses) == 0 {
-		statuses = []string{
-			string(sqlcv1.V1ReadableStatusOlapQUEUED),
-			string(sqlcv1.V1ReadableStatusOlapRUNNING),
-			string(sqlcv1.V1ReadableStatusOlapCOMPLETED),
-			string(sqlcv1.V1ReadableStatusOlapCANCELLED),
-			string(sqlcv1.V1ReadableStatusOlapFAILED),
-		}
-	}
-
-	params.Statuses = statuses
-	countParams.Statuses = statuses
-
-	if len(opts.WorkflowIds) > 0 {
-		workflowIdParams := make([]pgtype.UUID, 0)
-
-		for _, id := range opts.WorkflowIds {
-			workflowIdParams = append(workflowIdParams, sqlchelpers.UUIDFromStr(id.String()))
-		}
-
-		params.WorkflowIds = workflowIdParams
-		countParams.WorkflowIds = workflowIdParams
-	}
-
-	until := opts.FinishedBefore
-
-	if until != nil {
-		params.Until = sqlchelpers.TimestamptzFromTime(*until)
-		countParams.Until = sqlchelpers.TimestamptzFromTime(*until)
-	}
-
-	workerId := opts.WorkerId
-
-	if workerId != nil {
-		params.WorkerId = sqlchelpers.UUIDFromStr(workerId.String())
-	}
-
-	for key, value := range opts.AdditionalMetadata {
-		params.Keys = append(params.Keys, key)
-		params.Values = append(params.Values, value.(string))
-		countParams.Keys = append(countParams.Keys, key)
-		countParams.Values = append(countParams.Values, value.(string))
-	}
-
-	rows, err := r.queries.ListTasksOlap(ctx, tx, params)
-
-	if err != nil {
-		return nil, 0, err
-	}
-
-	taskIds := make([]int64, 0)
-	taskInsertedAts := make([]pgtype.Timestamptz, 0)
-
-	for _, row := range rows {
-		taskIds = append(taskIds, row.ID)
-		taskInsertedAts = append(taskInsertedAts, row.InsertedAt)
-	}
-
-	tasksWithData, err := r.queries.PopulateTaskRunData(ctx, tx, sqlcv1.PopulateTaskRunDataParams{
-		Taskids:         taskIds,
-		Taskinsertedats: taskInsertedAts,
-		Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
-	})
-
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return nil, 0, err
-	}
-
-	count, err := r.queries.CountTasks(ctx, tx, countParams)
-
-	if err != nil {
-		count = int64(len(tasksWithData))
-	}
-
-	if err := tx.Commit(ctx); err != nil {
-		return nil, 0, err
-	}
-
-	return tasksWithData, int(count), nil
 }
 
 func (r *olapRepository) ListTasksByDAGId(ctx context.Context, tenantId string, dagids []pgtype.UUID) ([]*sqlcv1.PopulateTaskRunDataRow, map[int64]uuid.UUID, error) {

@@ -9,36 +9,6 @@
  * ---------------------------------------------------------------
  */
 
-export enum V1TaskStatus {
-  QUEUED = 'QUEUED',
-  RUNNING = 'RUNNING',
-  COMPLETED = 'COMPLETED',
-  CANCELLED = 'CANCELLED',
-  FAILED = 'FAILED',
-}
-
-/** @example {"next_page":3,"num_pages":10,"current_page":2} */
-export interface PaginationResponse {
-  /**
-   * the current page
-   * @format int64
-   * @example 2
-   */
-  current_page?: number;
-  /**
-   * the next page
-   * @format int64
-   * @example 3
-   */
-  next_page?: number;
-  /**
-   * the total number of pages for listing
-   * @format int64
-   * @example 10
-   */
-  num_pages?: number;
-}
-
 export interface APIResourceMeta {
   /**
    * the id of this resource, in UUID format
@@ -61,87 +31,12 @@ export interface APIResourceMeta {
   updatedAt: string;
 }
 
-export interface V1TaskSummary {
-  metadata: APIResourceMeta;
-  /** The ID of the task. */
-  taskId: number;
-  /**
-   * The external ID of the task.
-   * @format uuid
-   * @minLength 36
-   * @maxLength 36
-   */
-  taskExternalId: string;
-  /**
-   * The timestamp the task was inserted.
-   * @format date-time
-   */
-  taskInsertedAt: string;
-  status: V1TaskStatus;
-  /**
-   * The timestamp the task run started.
-   * @format date-time
-   */
-  startedAt?: string;
-  /**
-   * The timestamp the task run finished.
-   * @format date-time
-   */
-  finishedAt?: string;
-  /** The duration of the task run, in milliseconds. */
-  duration?: number;
-  /**
-   * The ID of the tenant.
-   * @format uuid
-   * @minLength 36
-   * @maxLength 36
-   * @example "bb214807-246e-43a5-a25d-41761d1cff9e"
-   */
-  tenantId: string;
-  /** Additional metadata for the task run. */
-  additionalMetadata?: object;
-  /** The display name of the task run. */
-  displayName: string;
-  /** @format uuid */
-  workflowId: string;
-  /** The output of the task run (for the latest run) */
-  output: object;
-  /** The error message of the task run (for the latest run) */
-  errorMessage?: string;
-}
-
-export interface V1TaskSummaryList {
-  pagination: PaginationResponse;
-  /** The list of tasks */
-  rows: V1TaskSummary[];
-}
-
-export interface APIError {
-  /**
-   * a custom Hatchet error code
-   * @format uint64
-   * @example 1400
-   */
-  code?: number;
-  /**
-   * the field that this error is associated with, if applicable
-   * @example "name"
-   */
-  field?: string;
-  /**
-   * a description for this error
-   * @example "A descriptive error message"
-   */
-  description: string;
-  /**
-   * a link to the documentation for this error, if it exists
-   * @example "github.com/hatchet-dev/hatchet"
-   */
-  docs_link?: string;
-}
-
-export interface APIErrors {
-  errors: APIError[];
+export enum V1TaskStatus {
+  QUEUED = 'QUEUED',
+  RUNNING = 'RUNNING',
+  COMPLETED = 'COMPLETED',
+  CANCELLED = 'CANCELLED',
+  FAILED = 'FAILED',
 }
 
 export interface V1Task {
@@ -193,6 +88,56 @@ export interface V1Task {
    * @maxLength 36
    */
   workflowRunExternalId?: string;
+}
+
+export interface APIError {
+  /**
+   * a custom Hatchet error code
+   * @format uint64
+   * @example 1400
+   */
+  code?: number;
+  /**
+   * the field that this error is associated with, if applicable
+   * @example "name"
+   */
+  field?: string;
+  /**
+   * a description for this error
+   * @example "A descriptive error message"
+   */
+  description: string;
+  /**
+   * a link to the documentation for this error, if it exists
+   * @example "github.com/hatchet-dev/hatchet"
+   */
+  docs_link?: string;
+}
+
+export interface APIErrors {
+  errors: APIError[];
+}
+
+/** @example {"next_page":3,"num_pages":10,"current_page":2} */
+export interface PaginationResponse {
+  /**
+   * the current page
+   * @format int64
+   * @example 2
+   */
+  current_page?: number;
+  /**
+   * the next page
+   * @format int64
+   * @example 3
+   */
+  next_page?: number;
+  /**
+   * the total number of pages for listing
+   * @format int64
+   * @example 10
+   */
+  num_pages?: number;
 }
 
 export enum V1TaskEventType {
@@ -260,10 +205,76 @@ export interface V1ReplayTaskRequest {
   filter?: V1TaskFilter;
 }
 
+export enum V1WorkflowType {
+  DAG = 'DAG',
+  TASK = 'TASK',
+}
+
+export interface V1TaskSummary {
+  metadata: APIResourceMeta;
+  /** The ID of the task. */
+  taskId: number;
+  /**
+   * The external ID of the task.
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  taskExternalId: string;
+  /**
+   * The timestamp the task was inserted.
+   * @format date-time
+   */
+  taskInsertedAt: string;
+  status: V1TaskStatus;
+  /**
+   * The timestamp the task run started.
+   * @format date-time
+   */
+  startedAt?: string;
+  /**
+   * The timestamp the task run finished.
+   * @format date-time
+   */
+  finishedAt?: string;
+  /** The duration of the task run, in milliseconds. */
+  duration?: number;
+  /**
+   * The ID of the tenant.
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   * @example "bb214807-246e-43a5-a25d-41761d1cff9e"
+   */
+  tenantId: string;
+  /** Additional metadata for the task run. */
+  additionalMetadata?: object;
+  /** The display name of the task run. */
+  displayName: string;
+  /** @format uuid */
+  workflowId: string;
+  /** The output of the task run (for the latest run) */
+  output: object;
+  /** The error message of the task run (for the latest run) */
+  errorMessage?: string;
+  /** The input of the task run. */
+  input?: object;
+  /** The type of the workflow (whether it's a DAG or a task) */
+  type?: V1WorkflowType;
+  /** The list of children tasks */
+  children?: V1TaskSummary[];
+}
+
 export interface V1DagChildren {
   /** @format uuid */
   dagId?: string;
   children?: V1TaskSummary[];
+}
+
+export interface V1TaskSummaryList {
+  pagination: PaginationResponse;
+  /** The list of tasks */
+  rows: V1TaskSummary[];
 }
 
 export interface V1WorkflowRun {
@@ -311,12 +322,6 @@ export interface V1WorkflowRun {
    * @format date-time
    */
   createdAt?: string;
-}
-
-export interface V1WorkflowRunList {
-  pagination: PaginationResponse;
-  /** The list of workflow runs */
-  rows: V1WorkflowRun[];
 }
 
 export interface WorkflowRunShapeItemForWorkflowRunDetails {
