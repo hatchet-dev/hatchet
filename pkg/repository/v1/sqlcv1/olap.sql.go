@@ -816,16 +816,26 @@ WITH input AS (
         e.readable_status = 'FAILED'
     ORDER BY
         e.run_id, e.retry_count DESC
+), task_output AS (
+    SELECT
+        output
+    FROM
+        relevant_events
+    WHERE
+        event_type = 'FINISHED'
 )
+
 SELECT
     r.dag_id, r.run_id, r.tenant_id, r.inserted_at, r.external_id, r.readable_status, r.kind, r.workflow_id, r.display_name, r.input, r.additional_metadata, r.workflow_version_id,
     m.created_at,
     m.started_at,
     m.finished_at,
-    e.error_message
+    e.error_message,
+    o.output
 FROM runs r
 LEFT JOIN metadata m ON r.run_id = m.run_id
 LEFT JOIN error_message e ON r.run_id = e.run_id
+LEFT JOIN task_output o ON r.run_id = o.run_id
 ORDER BY r.inserted_at DESC, r.run_id DESC
 `
 
@@ -852,6 +862,7 @@ type PopulateDAGMetadataRow struct {
 	StartedAt          pgtype.Timestamptz   `json:"started_at"`
 	FinishedAt         pgtype.Timestamptz   `json:"finished_at"`
 	ErrorMessage       pgtype.Text          `json:"error_message"`
+	Output             []byte               `json:"output"`
 }
 
 func (q *Queries) PopulateDAGMetadata(ctx context.Context, db DBTX, arg PopulateDAGMetadataParams) ([]*PopulateDAGMetadataRow, error) {
@@ -880,6 +891,7 @@ func (q *Queries) PopulateDAGMetadata(ctx context.Context, db DBTX, arg Populate
 			&i.StartedAt,
 			&i.FinishedAt,
 			&i.ErrorMessage,
+			&i.Output,
 		); err != nil {
 			return nil, err
 		}
@@ -1139,7 +1151,15 @@ WITH input AS (
         e.readable_status = 'FAILED'
     ORDER BY
         e.task_id, e.retry_count DESC
+), task_output AS (
+    SELECT
+        output
+    FROM
+        relevant_events
+    WHERE
+        readable_status = 'FINISHED'
 )
+
 SELECT
     t.tenant_id,
     t.id,
@@ -1155,10 +1175,12 @@ SELECT
     t.sticky,
     t.display_name,
     t.additional_metadata,
+    t.input,
     t.readable_status::v1_readable_status_olap as status,
     f.finished_at::timestamptz as finished_at,
     s.started_at::timestamptz as started_at,
-    e.error_message as error_message
+    e.error_message as error_message,
+    o.output::jsonb as output
 FROM
     tasks t
 LEFT JOIN
@@ -1167,6 +1189,8 @@ LEFT JOIN
     started_ats s ON s.task_id = t.id
 LEFT JOIN
     error_message e ON e.task_id = t.id
+LEFT JOIN
+    task_output o ON o.task_id = t.id
 ORDER BY t.inserted_at DESC, t.id DESC
 `
 
@@ -1191,10 +1215,12 @@ type PopulateTaskRunDataRow struct {
 	Sticky             V1StickyStrategyOlap `json:"sticky"`
 	DisplayName        string               `json:"display_name"`
 	AdditionalMetadata []byte               `json:"additional_metadata"`
+	Input              []byte               `json:"input"`
 	Status             V1ReadableStatusOlap `json:"status"`
 	FinishedAt         pgtype.Timestamptz   `json:"finished_at"`
 	StartedAt          pgtype.Timestamptz   `json:"started_at"`
 	ErrorMessage       pgtype.Text          `json:"error_message"`
+	Output             []byte               `json:"output"`
 }
 
 func (q *Queries) PopulateTaskRunData(ctx context.Context, db DBTX, arg PopulateTaskRunDataParams) ([]*PopulateTaskRunDataRow, error) {
@@ -1221,10 +1247,12 @@ func (q *Queries) PopulateTaskRunData(ctx context.Context, db DBTX, arg Populate
 			&i.Sticky,
 			&i.DisplayName,
 			&i.AdditionalMetadata,
+			&i.Input,
 			&i.Status,
 			&i.FinishedAt,
 			&i.StartedAt,
 			&i.ErrorMessage,
+			&i.Output,
 		); err != nil {
 			return nil, err
 		}

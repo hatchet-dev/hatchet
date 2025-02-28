@@ -181,83 +181,9 @@ func (t *V1WorkflowRunsService) OnlyTasks(ctx echo.Context, request gen.V1Workfl
 }
 
 func (t *V1WorkflowRunsService) V1WorkflowRunList(ctx echo.Context, request gen.V1WorkflowRunListRequestObject) (gen.V1WorkflowRunListResponseObject, error) {
-	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
-
-	var (
-		statuses = []sqlcv1.V1ReadableStatusOlap{
-			sqlcv1.V1ReadableStatusOlapQUEUED,
-			sqlcv1.V1ReadableStatusOlapRUNNING,
-			sqlcv1.V1ReadableStatusOlapFAILED,
-			sqlcv1.V1ReadableStatusOlapCOMPLETED,
-			sqlcv1.V1ReadableStatusOlapCANCELLED,
-		}
-		since             = request.Params.Since
-		workflowIds       = []uuid.UUID{}
-		limit       int64 = 50
-		offset      int64
-	)
-
-	if request.Params.Statuses != nil {
-		if len(*request.Params.Statuses) > 0 {
-			statuses = []sqlcv1.V1ReadableStatusOlap{}
-			for _, status := range *request.Params.Statuses {
-				statuses = append(statuses, sqlcv1.V1ReadableStatusOlap(status))
-			}
-		}
+	if request.Params.OnlyTasks {
+		return t.OnlyTasks(ctx, request)
+	} else {
+		return t.WithDags(ctx, request)
 	}
-
-	if request.Params.Limit != nil {
-		limit = *request.Params.Limit
-	}
-
-	if request.Params.Offset != nil {
-		offset = *request.Params.Offset
-	}
-
-	if request.Params.WorkflowIds != nil {
-		workflowIds = *request.Params.WorkflowIds
-	}
-
-	opts := v1.ListWorkflowRunOpts{
-		CreatedAfter: since,
-		Statuses:     statuses,
-		WorkflowIds:  workflowIds,
-		Limit:        limit,
-		Offset:       offset,
-	}
-
-	additionalMetadataFilters := make(map[string]interface{})
-
-	if request.Params.AdditionalMetadata != nil {
-		for _, v := range *request.Params.AdditionalMetadata {
-			kv_pairs := strings.Split(v, ":")
-			if len(kv_pairs) == 2 {
-				additionalMetadataFilters[kv_pairs[0]] = kv_pairs[1]
-			}
-		}
-
-		opts.AdditionalMetadata = additionalMetadataFilters
-	}
-
-	if request.Params.Until != nil {
-		opts.FinishedBefore = request.Params.Until
-	}
-
-	tasks, total, err := t.config.V1.OLAP().ListWorkflowRuns(
-		ctx.Request().Context(),
-		tenantId,
-		opts,
-	)
-
-	if err != nil {
-		return nil, err
-	}
-
-	result := transformers.ToWorkflowRunMany(tasks, total, limit, offset)
-
-	// Search for api errors to see how we handle errors in other cases
-	return gen.V1WorkflowRunList200JSONResponse(
-		result,
-	), nil
 }

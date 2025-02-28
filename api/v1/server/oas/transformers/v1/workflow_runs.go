@@ -35,6 +35,7 @@ func WorkflowRunDataToV1TaskSummary(task *v1.WorkflowRunData) gen.V1TaskSummary 
 	}
 
 	input := jsonToMap(task.Input)
+	output := jsonToMap(*task.Output)
 
 	workflowVersionId := uuid.MustParse(sqlchelpers.UUIDToStr(task.WorkflowVersionId))
 
@@ -44,32 +45,23 @@ func WorkflowRunDataToV1TaskSummary(task *v1.WorkflowRunData) gen.V1TaskSummary 
 			CreatedAt: task.InsertedAt.Time,
 			UpdatedAt: task.InsertedAt.Time,
 		},
-		CreatedAt:   &task.CreatedAt.Time,
-		DisplayName: task.DisplayName,
-		Duration:    durationPtr,
-		StartedAt:   startedAt,
-		FinishedAt:  finishedAt,
-
-		Input: &input,
-
-		// TODO: Implement this
-		Output:             nil,
+		CreatedAt:          &task.CreatedAt.Time,
+		DisplayName:        task.DisplayName,
+		Duration:           durationPtr,
+		StartedAt:          startedAt,
+		FinishedAt:         finishedAt,
+		Input:              &input,
+		Output:             output,
 		AdditionalMetadata: &additionalMetadata,
 		ErrorMessage:       &task.ErrorMessage,
 		Status:             gen.V1TaskStatus(task.ReadableStatus),
 		TenantId:           uuid.MustParse(sqlchelpers.UUIDToStr(task.TenantID)),
 		WorkflowId:         uuid.MustParse(sqlchelpers.UUIDToStr(task.WorkflowID)),
 		WorkflowVersionId:  &workflowVersionId,
-
-		// TODO: Implement this
-		Children:       nil,
-		TaskExternalId: uuid.MustParse(sqlchelpers.UUIDToStr(task.ExternalID)),
-
-		// TODO: Implement this
-		TaskId: 123,
-
-		TaskInsertedAt: task.InsertedAt.Time,
-		Type:           gen.V1WorkflowTypeDAG,
+		TaskExternalId:     uuid.MustParse(sqlchelpers.UUIDToStr(task.ExternalID)),
+		TaskId:             int(*task.TaskId),
+		TaskInsertedAt:     task.InsertedAt.Time,
+		Type:               gen.V1WorkflowTypeDAG,
 	}
 }
 
@@ -119,23 +111,22 @@ func PopulateTaskRunDataRowToV1TaskSummary(task *sqlcv1.PopulateTaskRunDataRow) 
 		durationPtr = &duration
 	}
 
+	input := jsonToMap(task.Input)
+	output := jsonToMap(task.Output)
+
 	return gen.V1TaskSummary{
 		Metadata: gen.APIResourceMeta{
 			Id:        sqlchelpers.UUIDToStr(task.ExternalID),
 			CreatedAt: task.InsertedAt.Time,
 			UpdatedAt: task.InsertedAt.Time,
 		},
-		CreatedAt:   &task.InsertedAt.Time,
-		DisplayName: task.DisplayName,
-		Duration:    durationPtr,
-		StartedAt:   startedAt,
-		FinishedAt:  finishedAt,
-
-		// TODO: Implement this
-		Input: nil,
-
-		// TODO: Implement this
-		Output:             nil,
+		CreatedAt:          &task.InsertedAt.Time,
+		DisplayName:        task.DisplayName,
+		Duration:           durationPtr,
+		StartedAt:          startedAt,
+		FinishedAt:         finishedAt,
+		Input:              &input,
+		Output:             output,
 		AdditionalMetadata: &additionalMetadata,
 		ErrorMessage:       &task.ErrorMessage.String,
 		Status:             gen.V1TaskStatus(task.Status),
