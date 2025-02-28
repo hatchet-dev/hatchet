@@ -1,4 +1,3 @@
-import { TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/v1/ui/button';
 import {
   DialogTitle,
@@ -7,7 +6,6 @@ import {
   DialogDescription,
   DialogHeader,
 } from '@/components/v1/ui/dialog';
-import { Tabs, TabsList, TabsTrigger } from '@/components/v1/ui/tabs';
 import api, {
   V1CancelTaskRequest,
   V1ReplayTaskRequest,
@@ -104,6 +102,7 @@ type ConfirmActionModalProps = {
   isOpen: boolean;
   setIsOpen: (isOpen: boolean) => void;
   onConfirm: () => void;
+  params: TaskRunActionsParams;
 };
 
 const actionTypeToLabel = (actionType: ActionType) => {
@@ -118,54 +117,88 @@ const actionTypeToLabel = (actionType: ActionType) => {
   }
 };
 
-type ActionModalTab = 'preview' | 'explain';
+type ModalContentProps = {
+  label: string;
+  params: TaskRunActionsParams;
+};
+
+const CancelByExternalIdsContent = ({ label, params }: ModalContentProps) => {
+  return (
+    <>
+      <p className="text-lg">
+        You're about to {label.toLowerCase()} the following task runs:
+      </p>
+      <ul className="list-disc pl-4 pt-2">
+        {params.externalIds
+          ?.slice(0, 10)
+          .map((externalId) => <li key={externalId}>{externalId}</li>)}
+        {(params.externalIds?.length || 0) > 10 && (
+          <li>{(params.externalIds?.length || 0) - 10} more</li>
+        )}
+      </ul>
+    </>
+  );
+};
+
+const ModalContent = ({ label, params }: ModalContentProps) => {
+  switch (params.actionType) {
+    case 'cancel':
+      return <CancelByExternalIdsContent label={label} params={params} />;
+    case 'replay':
+      return (
+        <p className="text-lg">
+          You're about to {label.toLowerCase()} the following task runs:
+        </p>
+      );
+    default:
+      const exhaustiveCheck: never = params;
+      throw new Error(`Unhandled action type: ${exhaustiveCheck}`);
+  }
+};
 
 const ConfirmActionModal = ({
   actionType,
   isOpen,
   setIsOpen,
   onConfirm,
+  params,
 }: ConfirmActionModalProps) => {
   const label = actionTypeToLabel(actionType);
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogContent className="sm:max-w-[625px] py-12 max-h-screen overflow-auto">
-        <Tabs defaultValue="preview" className="w-full">
-          <DialogHeader className="gap-2">
-            <div className="flex flex-row justify-between items-center w-full">
-              <DialogTitle>{label} task runs</DialogTitle>
-              <TabsList className="max-w-40">
-                <TabsTrigger value="preview">Preview</TabsTrigger>
-                <TabsTrigger value="explain">Explain</TabsTrigger>
-              </TabsList>
-            </div>
-          </DialogHeader>
+        <DialogHeader className="gap-2">
+          <div className="flex flex-row justify-between items-center w-full">
+            <DialogTitle>{label} task runs</DialogTitle>
+          </div>
+        </DialogHeader>
 
-          <div className="flex flex-col mt-4">
-            <TabsContent value="preview">
-              <DialogDescription>
-                Are you sure you want to {label.toLowerCase()} the selected task
-                runs now?
-              </DialogDescription>
-            </TabsContent>
-            <TabsContent value="explain">
-              <DialogDescription>
-                Are you sure you want to {label.toLowerCase()} the selected task
-                runs at a specific time?
-              </DialogDescription>
-            </TabsContent>
+        <div className="flex flex-col mt-4">
+          <DialogDescription>
+            <ModalContent label={label} params={params} />
+          </DialogDescription>
 
+          <div className="flex flex-row items-center flex-1 gap-x-2 justify-end">
             <Button
               className="mt-6 w-full sm:w-auto sm:self-end"
               onClick={() => {
                 onConfirm();
+                setIsOpen(false);
               }}
             >
               Confirm
             </Button>
+            <Button
+              className="mt-6 w-full sm:w-auto sm:self-end"
+              onClick={() => {
+                setIsOpen(false);
+              }}
+            >
+              Cancel
+            </Button>
           </div>
-        </Tabs>
+        </div>
       </DialogContent>
     </Dialog>
   );
@@ -186,7 +219,6 @@ const BaseActionButton = ({
   const { handleTaskRunAction } = useTaskRunActions();
 
   const handleAction = useCallback(() => {
-    console.log(params);
     if (params.externalIds?.length) {
       handleTaskRunAction({
         actionType: params.actionType,
@@ -206,10 +238,11 @@ const BaseActionButton = ({
   return (
     <>
       <ConfirmActionModal
-        actionType={'cancel'}
+        actionType={params.actionType}
         isOpen={isConfirmModalOpen}
         setIsOpen={setIsConfirmModalOpen}
         onConfirm={handleAction}
+        params={params}
       />
       <Button
         size={'sm'}
