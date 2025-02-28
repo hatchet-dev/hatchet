@@ -1819,6 +1819,9 @@ type V1WorkflowRunListParams struct {
 
 	// WorkerId The worker id to filter by
 	WorkerId *openapi_types.UUID `form:"worker_id,omitempty" json:"worker_id,omitempty"`
+
+	// OnlyTasks Whether to include DAGs or only to include tasks
+	OnlyTasks bool `form:"only_tasks" json:"only_tasks"`
 }
 
 // V1WorkflowRunTaskEventsListParams defines parameters for V1WorkflowRunTaskEventsList.
@@ -5210,6 +5213,18 @@ func NewV1WorkflowRunListRequest(server string, tenant openapi_types.UUID, param
 				}
 			}
 
+		}
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "only_tasks", runtime.ParamLocationQuery, params.OnlyTasks); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
 		}
 
 		queryURL.RawQuery = queryValues.Encode()

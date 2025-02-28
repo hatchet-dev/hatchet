@@ -282,6 +282,8 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
        * @maxLength 36
        */
       worker_id?: string;
+      /** Whether to include DAGs or only to include tasks */
+      only_tasks: boolean;
     },
     params: RequestParams = {},
   ) =>

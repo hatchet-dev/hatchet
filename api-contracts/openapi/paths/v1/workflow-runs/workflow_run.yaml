@@ -77,6 +77,12 @@ listWorkflowRuns:
           format: uuid
           minLength: 36
           maxLength: 36
+      - description: Whether to include DAGs or only to include tasks
+        in: query
+        name: only_tasks
+        required: true
+        schema:
+          type: boolean
     responses:
       "200":
         content:
