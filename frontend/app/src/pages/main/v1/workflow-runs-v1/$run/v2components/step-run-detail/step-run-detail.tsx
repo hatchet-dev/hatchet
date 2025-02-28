@@ -90,8 +90,6 @@ export const TaskRunDetail = ({
     refetchInterval: 5000,
   });
 
-  const { handleTaskRunAction } = useTaskRunActions();
-
   const taskRun = taskRunQuery.data;
 
   if (taskRunQuery.isLoading) {
@@ -117,22 +115,12 @@ export const TaskRunDetail = ({
       <div className="flex flex-row gap-2 items-center">
         <TaskRunActionButton
           actionType="replay"
-          handleAction={() => {
-            handleTaskRunAction({
-              actionType: 'replay',
-              externalIds: [taskRunId],
-            });
-          }}
+          params={{ externalIds: [taskRunId] }}
           disabled={TASK_RUN_TERMINAL_STATUSES.includes(taskRun.status)}
         />
         <TaskRunActionButton
           actionType="cancel"
-          handleAction={() => {
-            handleTaskRunAction({
-              actionType: 'cancel',
-              externalIds: [taskRunId],
-            });
-          }}
+          params={{ externalIds: [taskRunId] }}
           disabled={TASK_RUN_TERMINAL_STATUSES.includes(taskRun.status)}
         />
         <TaskRunPermalinkOrBacklink

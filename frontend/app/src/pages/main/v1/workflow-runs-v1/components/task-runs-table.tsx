@@ -346,8 +346,6 @@ export function TaskRunsTable({
 
   const tenantMetrics = tenantMetricsQuery.data?.queues || {};
 
-  const { handleTaskRunAction } = useTaskRunActions();
-
   const { workflowKeys, workflowKeysError } = useWorkflow();
 
   const onTaskRunIdClick = useCallback((taskRunId: string) => {
@@ -441,41 +439,21 @@ export function TaskRunsTable({
       key="cancel"
       actionType="cancel"
       disabled={!(hasRowsSelected || hasTaskFiltersSelected)}
-      handleAction={() => {
-        const idsToCancel = selectedRuns.map((run) => run?.metadata.id);
-
-        if (idsToCancel.length) {
-          handleTaskRunAction({
-            actionType: 'cancel',
-            externalIds: idsToCancel,
-          });
-        } else if (Object.values(v1TaskFilters).some((filter) => !!filter)) {
-          handleTaskRunAction({
-            actionType: 'cancel',
-            filter: v1TaskFilters,
-          });
-        }
-      }}
+      params={
+        selectedRuns.length > 0
+          ? { externalIds: selectedRuns.map((run) => run?.metadata.id) }
+          : { filter: v1TaskFilters }
+      }
     />,
     <TaskRunActionButton
       key="replay"
       actionType="replay"
       disabled={!(hasRowsSelected || hasTaskFiltersSelected)}
-      handleAction={() => {
-        const idsToReplay = selectedRuns.map((run) => run?.metadata.id);
-
-        if (idsToReplay.length) {
-          handleTaskRunAction({
-            actionType: 'replay',
-            externalIds: idsToReplay,
-          });
-        } else if (Object.values(v1TaskFilters).some((filter) => !!filter)) {
-          handleTaskRunAction({
-            actionType: 'replay',
-            filter: v1TaskFilters,
-          });
-        }
-      }}
+      params={
+        selectedRuns.length > 0
+          ? { externalIds: selectedRuns.map((run) => run?.metadata.id) }
+          : { filter: v1TaskFilters }
+      }
     />,
     <Button
       key="refresh"
