@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
@@ -89,23 +90,18 @@ func (t *V1WorkflowRunsService) WithDags(ctx echo.Context, request gen.V1Workflo
 		return nil, err
 	}
 
-	dagExternalIds := make([]uuid.UUID, 0)
+	dagExternalIds := make([]pgtype.UUID, 0)
 
 	for _, dag := range dags {
 		if dag.Kind == sqlcv1.V1RunKindDAG {
-			id := uuid.MustParse(sqlchelpers.UUIDToStr(dag.ExternalID))
-			dagExternalIds = append(dagExternalIds, id)
+			dagExternalIds = append(dagExternalIds, dag.ExternalID)
 		}
 	}
 
-	listTaskOpts := v1.ListTaskRunOpts{
-		WorkflowIds: dagExternalIds,
-	}
-
-	tasks, total, err := t.config.V1.OLAP().ListTasks(
+	tasks, taskIdToDagExternalId, err := t.config.V1.OLAP().ListTasksByDAGId(
 		ctx.Request().Context(),
 		tenantId,
-		listTaskOpts,
+		dagExternalIds,
 	)
 
 	if err != nil {
@@ -117,12 +113,13 @@ func (t *V1WorkflowRunsService) WithDags(ctx echo.Context, request gen.V1Workflo
 	dagChildren := make(map[uuid.UUID][]gen.V1TaskSummary)
 
 	for _, task := range parsedTasks.Rows {
-		existing, ok := dagChildren[task.WorkflowId]
+		dagExternalId := taskIdToDagExternalId[int64(task.TaskId)]
+		existing, ok := dagChildren[dagExternalId]
 
 		if ok {
-			dagChildren[task.WorkflowId] = append(existing, task)
+			dagChildren[dagExternalId] = append(existing, task)
 		} else {
-			dagChildren[task.WorkflowId] = []gen.V1TaskSummary{task}
+			dagChildren[dagExternalId] = []gen.V1TaskSummary{task}
 		}
 	}
 

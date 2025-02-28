@@ -15,9 +15,7 @@ import {
   V1DagChildren,
   V1TaskStatus,
   V1TaskSummary,
-  V1TaskSummaryList,
   V1WorkflowRun,
-  V1WorkflowRunList,
 } from '@/lib/api';
 import { TenantContextType } from '@/lib/outlet';
 import { useOutletContext, useSearchParams } from 'react-router-dom';
@@ -483,22 +481,6 @@ const useColumnFilters = ({
   };
 };
 
-const taskSummaryToWorkflowRunSummary = (
-  taskRunSummary: V1TaskSummaryList | undefined,
-): V1WorkflowRunList | undefined => {
-  if (!taskRunSummary) {
-    return;
-  }
-
-  return {
-    pagination: taskRunSummary.pagination,
-    rows: taskRunSummary.rows.map((t) => ({
-      ...t,
-      input: {},
-    })),
-  };
-};
-
 const useTaskRunRows = ({
   workflowId,
   filterVisibility,
@@ -541,6 +523,8 @@ const useTaskRunRows = ({
 
   const { workflowKeys, workflowKeysIsLoading, workflowKeysError } =
     useWorkflow();
+
+  const tasks = listTasksQuery.data;
 
   const dagIds = tasks?.rows?.map((r) => r.metadata.id) || [];
 
@@ -588,20 +572,15 @@ const useTaskRunRows = ({
   return {
     tableRows,
     selectedRuns,
-    refetchRuns: workerId ? workerTasksQuery.refetch : listTasksQuery.refetch,
+    refetchRuns: listTasksQuery.refetch,
     isLoading:
       listTasksQuery.isFetching ||
-      workerTasksQuery.isFetching ||
       listTasksQuery.isLoading ||
-      workerTasksQuery.isLoading ||
       workflowKeysIsLoading ||
       dagChildrenLoading ||
       dagChildrenFetching,
     isError:
-      listTasksQuery.isError ||
-      workerTasksQuery.isError ||
-      workflowKeysError !== null ||
-      dagChildrenError,
+      listTasksQuery.isError || workflowKeysError !== null || dagChildrenError,
     numPages: tasks?.pagination.num_pages || 0,
   };
 };

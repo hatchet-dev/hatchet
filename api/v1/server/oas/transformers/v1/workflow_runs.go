@@ -35,9 +35,19 @@ func WorkflowRunDataToV1TaskSummary(task *v1.WorkflowRunData) gen.V1TaskSummary 
 	}
 
 	input := jsonToMap(task.Input)
-	output := jsonToMap(*task.Output)
+
+	var output map[string]interface{}
+
+	if task.Output != nil {
+		output = jsonToMap(*task.Output)
+	}
 
 	workflowVersionId := uuid.MustParse(sqlchelpers.UUIDToStr(task.WorkflowVersionId))
+
+	var taskId int
+	if task.TaskId != nil {
+		taskId = int(*task.TaskId)
+	}
 
 	return gen.V1TaskSummary{
 		Metadata: gen.APIResourceMeta{
@@ -59,7 +69,7 @@ func WorkflowRunDataToV1TaskSummary(task *v1.WorkflowRunData) gen.V1TaskSummary 
 		WorkflowId:         uuid.MustParse(sqlchelpers.UUIDToStr(task.WorkflowID)),
 		WorkflowVersionId:  &workflowVersionId,
 		TaskExternalId:     uuid.MustParse(sqlchelpers.UUIDToStr(task.ExternalID)),
-		TaskId:             int(*task.TaskId),
+		TaskId:             taskId,
 		TaskInsertedAt:     task.InsertedAt.Time,
 		Type:               gen.V1WorkflowTypeDAG,
 	}

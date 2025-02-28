@@ -818,6 +818,7 @@ WITH input AS (
         e.run_id, e.retry_count DESC
 ), task_output AS (
     SELECT
+        run_id,
         output
     FROM
         relevant_events
@@ -1153,11 +1154,12 @@ WITH input AS (
         e.task_id, e.retry_count DESC
 ), task_output AS (
     SELECT
+        task_id,
         output
     FROM
         relevant_events
     WHERE
-        readable_status = 'FINISHED'
+        readable_status = 'COMPLETED'
 )
 
 SELECT
