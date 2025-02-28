@@ -67,12 +67,20 @@ func WorkflowRunDataToV1TaskSummary(task *v1.WorkflowRunData) gen.V1TaskSummary 
 
 func ToWorkflowRunMany(
 	tasks []*v1.WorkflowRunData,
+	dagExternalIdToChildren map[uuid.UUID][]gen.V1TaskSummary,
 	total int, limit, offset int64,
 ) gen.V1TaskSummaryList {
 	toReturn := make([]gen.V1TaskSummary, len(tasks))
 
 	for i, task := range tasks {
+		dagExternalId := uuid.MustParse(sqlchelpers.UUIDToStr(task.ExternalID))
 		toReturn[i] = WorkflowRunDataToV1TaskSummary(task)
+
+		children, ok := dagExternalIdToChildren[dagExternalId]
+
+		if ok {
+			toReturn[i].Children = &children
+		}
 	}
 
 	currentPage := (offset / limit) + 1

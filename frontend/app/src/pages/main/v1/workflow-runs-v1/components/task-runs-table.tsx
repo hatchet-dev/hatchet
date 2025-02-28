@@ -533,35 +533,11 @@ const useTaskRunRows = ({
       additional_metadata: filters.columnFilters.find(
         (f) => f.id === 'Metadata',
       )?.value as string[],
+      only_tasks: !!workerId,
     }),
     placeholderData: (prev) => prev,
     refetchInterval,
-    enabled: !workerId && !workflowId,
   });
-
-  const workerTasksQuery = useQuery({
-    ...queries.v1Tasks.list(tenant.metadata.id, {
-      offset: filters.offset,
-      limit: filters.pagination.pageSize,
-      statuses: filters.statuses,
-      workflow_ids: workflowId ? [workflowId] : [],
-      worker_id: workerId,
-      since:
-        filters.createdAfter ||
-        new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-      additional_metadata: filters.columnFilters.find(
-        (f) => f.id === 'Metadata',
-      )?.value as string[],
-    }),
-    placeholderData: (prev) => prev,
-    refetchInterval,
-    enabled: !!workerId || !!workflowId,
-  });
-
-  const tasks =
-    workerId || workflowId
-      ? taskSummaryToWorkflowRunSummary(workerTasksQuery.data)
-      : listTasksQuery.data;
 
   const { workflowKeys, workflowKeysIsLoading, workflowKeysError } =
     useWorkflow();

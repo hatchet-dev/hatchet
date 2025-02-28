@@ -79,7 +79,7 @@ func (t *V1WorkflowRunsService) WithDags(ctx echo.Context, request gen.V1Workflo
 		opts.FinishedBefore = request.Params.Until
 	}
 
-	tasks, total, err := t.config.V1.OLAP().ListWorkflowRuns(
+	dags, total, err := t.config.V1.OLAP().ListWorkflowRuns(
 		ctx.Request().Context(),
 		tenantId,
 		opts,
@@ -89,7 +89,44 @@ func (t *V1WorkflowRunsService) WithDags(ctx echo.Context, request gen.V1Workflo
 		return nil, err
 	}
 
-	result := transformers.ToWorkflowRunMany(tasks, total, limit, offset)
+	dagExternalIds := make([]uuid.UUID, 0)
+
+	for _, dag := range dags {
+		if dag.Kind == sqlcv1.V1RunKindDAG {
+			id := uuid.MustParse(sqlchelpers.UUIDToStr(dag.ExternalID))
+			dagExternalIds = append(dagExternalIds, id)
+		}
+	}
+
+	listTaskOpts := v1.ListTaskRunOpts{
+		WorkflowIds: dagExternalIds,
+	}
+
+	tasks, total, err := t.config.V1.OLAP().ListTasks(
+		ctx.Request().Context(),
+		tenantId,
+		listTaskOpts,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	parsedTasks := transformers.TaskRunDataRowToWorkflowRunsMany(tasks, total, limit, offset)
+
+	dagChildren := make(map[uuid.UUID][]gen.V1TaskSummary)
+
+	for _, task := range parsedTasks.Rows {
+		existing, ok := dagChildren[task.WorkflowId]
+
+		if ok {
+			dagChildren[task.WorkflowId] = append(existing, task)
+		} else {
+			dagChildren[task.WorkflowId] = []gen.V1TaskSummary{task}
+		}
+	}
+
+	result := transformers.ToWorkflowRunMany(dags, dagChildren, total, limit, offset)
 
 	// Search for api errors to see how we handle errors in other cases
 	return gen.V1WorkflowRunList200JSONResponse(
