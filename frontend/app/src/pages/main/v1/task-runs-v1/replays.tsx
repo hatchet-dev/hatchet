@@ -35,9 +35,6 @@ export const useReplayTaskRuns = () => {
     mutationFn: async (params: TaskRunReplayParams) => {
       await api.v1TaskReplay(tenant.metadata.id, params);
     },
-    onSuccess: () => {
-      console.log('Success');
-    },
     onError: handleApiError,
   });
 

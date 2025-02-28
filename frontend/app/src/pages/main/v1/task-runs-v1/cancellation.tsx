@@ -35,9 +35,6 @@ export const useCancelTaskRuns = () => {
     mutationFn: async (params: TaskRunCancellationParams) => {
       await api.v1TaskCancel(tenant.metadata.id, params);
     },
-    onSuccess: () => {
-      console.log('Success');
-    },
     onError: handleApiError,
   });
 

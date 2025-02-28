@@ -110,90 +110,20 @@ const useWorkflow = () => {
   };
 };
 
-type UseColumnFiltersProps = {
-  filterVisibility: { [key: string]: boolean };
-  createdAfter?: string;
-};
-
-const useColumnFilters = ({
-  filterVisibility,
+export function TaskRunsTable({
+  workerId,
   createdAfter: createdAfterProp,
-}: UseColumnFiltersProps) => {
+  initColumnVisibility = {},
+  filterVisibility = {},
+  refetchInterval = 5000,
+  showMetrics = false,
+  showCounts = true,
+}: TaskRunsTableProps) {
   const [searchParams, setSearchParams] = useSearchParams();
-  const { workflowKeys, workflowKeysIsLoading, workflowKeysError } =
-    useWorkflow();
+  const { tenant } = useOutletContext<TenantContextType>();
+  invariant(tenant);
 
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>(() => {
-    const filtersParam = searchParams.get('filters');
-    if (filtersParam) {
-      return JSON.parse(filtersParam);
-    }
-    return [];
-  });
-
-  const workflow = useMemo<string | undefined>(() => {
-    const filter = columnFilters.find((filter) => filter.id === 'Workflow');
-
-    if (!filter) {
-      return;
-    }
-
-    const vals = filter?.value as Array<string>;
-    return vals[0];
-  }, [columnFilters]);
-
-  const workflowKeyFilters = useMemo((): FilterOption[] => {
-    return (
-      workflowKeys?.rows?.map((key) => ({
-        value: key.metadata.id,
-        label: key.name,
-      })) || []
-    );
-  }, [workflowKeys]);
-
-  const workflowRunStatusFilters = useMemo((): FilterOption[] => {
-    return [
-      {
-        value: V1TaskStatus.COMPLETED,
-        label: 'Succeeded',
-      },
-      {
-        value: V1TaskStatus.FAILED,
-        label: 'Failed',
-      },
-      {
-        value: V1TaskStatus.RUNNING,
-        label: 'Running',
-      },
-      {
-        value: V1TaskStatus.QUEUED,
-        label: 'Queued',
-      },
-      // {
-      //   value: V1TaskStatus.CANCELLED,
-      //   label: 'Cancelled',
-      // },
-    ];
-  }, []);
-
-  const filters: ToolbarFilters = [
-    {
-      columnId: 'Workflow',
-      title: 'Workflow',
-      options: workflowKeyFilters,
-      type: ToolbarType.Radio,
-    },
-    {
-      columnId: 'status',
-      title: 'Status',
-      options: workflowRunStatusFilters,
-    },
-    {
-      columnId: 'Metadata',
-      title: 'Metadata',
-      type: ToolbarType.KeyValue,
-    },
-  ].filter((filter) => filterVisibility[filter.columnId] != false);
+  const [viewQueueMetrics, setViewQueueMetrics] = useState(false);
 
   const [defaultTimeRange, setDefaultTimeRange] = useAtom(lastTimeRangeAtom);
   const [stepDetailSheetState, setStepDetailSheetState] =
@@ -223,17 +153,6 @@ const useColumnFilters = ({
 
   const [finishedBefore, setFinishedBefore] = useState<string | undefined>();
 
-  const [sorting, setSorting] = useState<SortingState>(() => {
-    const sortParam = searchParams.get('sort');
-    if (sortParam) {
-      return sortParam.split(',').map((param) => {
-        const [id, desc] = param.split(':');
-        return { id, desc: desc === 'desc' };
-      });
-    }
-    return [];
-  });
-
   // create a timer which updates the createdAfter date every minute
   useEffect(() => {
     const interval = setInterval(() => {
@@ -260,6 +179,28 @@ const useColumnFilters = ({
       setFinishedBefore(undefined);
     }
   }, [defaultTimeRange, customTimeRange, setCreatedAfter]);
+
+  const [sorting, setSorting] = useState<SortingState>(() => {
+    const sortParam = searchParams.get('sort');
+    if (sortParam) {
+      return sortParam.split(',').map((param) => {
+        const [id, desc] = param.split(':');
+        return { id, desc: desc === 'desc' };
+      });
+    }
+    return [];
+  });
+
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>(() => {
+    const filtersParam = searchParams.get('filters');
+    if (filtersParam) {
+      return JSON.parse(filtersParam);
+    }
+    return [];
+  });
+
+  const [columnVisibility, setColumnVisibility] =
+    useState<VisibilityState>(initColumnVisibility);
 
   const [pagination, setPagination] = useState<PaginationState>(() => {
     const pageIndex = Number(searchParams.get('pageIndex')) || 0;
@@ -318,6 +259,17 @@ const useColumnFilters = ({
     return pagination.pageIndex * pagination.pageSize;
   }, [pagination]);
 
+  const workflow = useMemo<string | undefined>(() => {
+    const filter = columnFilters.find((filter) => filter.id === 'Workflow');
+
+    if (!filter) {
+      return;
+    }
+
+    const vals = filter?.value as Array<string>;
+    return vals[0];
+  }, [columnFilters]);
+
   const statuses = useMemo(() => {
     const filter = columnFilters.find((filter) => filter.id === 'status');
 
@@ -328,98 +280,20 @@ const useColumnFilters = ({
     return filter?.value as Array<V1TaskStatus>;
   }, [columnFilters]);
 
-  const v1TaskFilters = {
-    since:
-      createdAfter || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-    until: finishedBefore,
-    statuses: columnFilters.find((f) => f.id === 'status')
-      ?.value as V1TaskStatus[],
-    workflowIds: workflow ? [workflow] : undefined,
-    additionalMetadata: columnFilters.find((f) => f.id === 'Metadata')
-      ?.value as string[],
-  };
-
-  const onAdditionalMetadataClick = ({
-    key,
-    value,
-  }: AdditionalMetadataClick) => {
-    setColumnFilters((prev) => {
-      const metadataFilter = prev.find((filter) => filter.id === 'Metadata');
-      if (metadataFilter) {
-        prev = prev.filter((filter) => filter.id !== 'Metadata');
-      }
-      return [
-        ...prev,
-        {
-          id: 'Metadata',
-          value: [`${key}:${value}`],
-        },
-      ];
-    });
-  };
-
-  return {
-    workflow,
-    workflowKeys,
-    workflowKeysIsLoading,
-    workflowKeysError,
-    columnFilters,
-    setColumnFilters,
-    filters,
-    sorting,
-    setSorting,
-    pagination,
-    setPagination,
-    offset,
-    statuses,
-    customTimeRange,
-    setCustomTimeRange,
-    createdAfter,
-    setCreatedAfter,
-    finishedBefore,
-    setFinishedBefore,
-    stepDetailSheetState,
-    setStepDetailSheetState,
-    setPageSize,
-    setDefaultTimeRange,
-    v1TaskFilters,
-    defaultTimeRange,
-    onAdditionalMetadataClick,
-  };
-};
-
-const useTaskRunRows = ({
-  filterVisibility,
-  createdAfter: createdAfterProp,
-  workerId,
-  refetchInterval,
-  rowSelection,
-}: UseColumnFiltersProps & {
-  workerId?: string;
-  refetchInterval: number;
-  rowSelection: RowSelectionState;
-}) => {
-  const { tenant } = useOutletContext<TenantContextType>();
-  invariant(tenant);
-
-  const filters = useColumnFilters({
-    filterVisibility,
-    createdAfter: createdAfterProp,
-  });
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
   const listTasksQuery = useQuery({
     ...queries.v1WorkflowRuns.list(tenant.metadata.id, {
-      offset: filters.offset,
-      limit: filters.pagination.pageSize,
-      statuses: filters.statuses,
-      workflow_ids: filters.workflow ? [filters.workflow] : [],
+      offset,
+      limit: pagination.pageSize,
+      statuses,
+      workflow_ids: workflow ? [workflow] : [],
       since:
-        filters.createdAfter ||
+        createdAfter ||
         new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-      until: filters.finishedBefore,
-      additional_metadata: filters.columnFilters.find(
-        (f) => f.id === 'Metadata',
-      )?.value as string[],
+      until: finishedBefore,
+      additional_metadata: columnFilters.find((f) => f.id === 'Metadata')
+        ?.value as string[],
       worker_id: workerId,
       only_tasks: !!workerId,
     }),
@@ -428,7 +302,9 @@ const useTaskRunRows = ({
   });
 
   const tasks = listTasksQuery.data;
-  const tableRows = tasks?.rows || [];
+  const tableRows = useMemo(() => {
+    return tasks?.rows || [];
+  }, [tasks]);
 
   const selectedRuns = useMemo(() => {
     return Object.entries(rowSelection)
@@ -454,37 +330,12 @@ const useTaskRunRows = ({
       .filter((row) => row !== undefined) as V1TaskSummary[];
   }, [rowSelection, tableRows]);
 
-  return {
-    tableRows,
-    selectedRuns,
-    refetchRuns: listTasksQuery.refetch,
-    isLoading: listTasksQuery.isFetching || listTasksQuery.isLoading,
-    isError: listTasksQuery.isError,
-    numPages: tasks?.pagination.num_pages || 0,
-  };
-};
-
-const useMetrics = ({
-  filterVisibility,
-  createdAfter: createdAfterProp,
-  refetchInterval,
-}: UseColumnFiltersProps & {
-  refetchInterval: number;
-}) => {
-  const { tenant } = useOutletContext<TenantContextType>();
-  invariant(tenant);
-
-  const filters = useColumnFilters({
-    filterVisibility,
-    createdAfter: createdAfterProp,
-  });
-
   const metricsQuery = useQuery({
     ...queries.v1TaskRuns.metrics(tenant.metadata.id, {
       since:
-        filters.createdAfter ||
+        createdAfter ||
         new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-      workflow_ids: filters.workflow ? [filters.workflow] : [],
+      workflow_ids: workflow ? [workflow] : [],
     }),
     placeholderData: (prev) => prev,
     refetchInterval,
@@ -499,91 +350,94 @@ const useMetrics = ({
 
   const tenantMetrics = tenantMetricsQuery.data?.queues || {};
 
-  return {
-    metrics,
-    tenantMetrics,
-    isLoading: metricsQuery.isLoading || tenantMetricsQuery.isLoading,
-    isError: metricsQuery.isError || tenantMetricsQuery.isError,
-    refetch: () => {
-      metricsQuery.refetch();
-      tenantMetricsQuery.refetch();
-    },
-  };
-};
-
-export function TaskRunsTable({
-  workerId,
-  createdAfter: createdAfterProp,
-  initColumnVisibility = {},
-  filterVisibility = {},
-  refetchInterval = 5000,
-  showMetrics = false,
-  showCounts = true,
-}: TaskRunsTableProps) {
-  const { tenant } = useOutletContext<TenantContextType>();
-  invariant(tenant);
-
-  const filters = useColumnFilters({
-    filterVisibility,
-    createdAfter: createdAfterProp,
-  });
-
-  const [viewQueueMetrics, setViewQueueMetrics] = useState(false);
-  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
-
-  const [columnVisibility, setColumnVisibility] =
-    useState<VisibilityState>(initColumnVisibility);
-
-  const {
-    tableRows,
-    selectedRuns,
-    refetchRuns,
-    isLoading: isRunsLoading,
-    isError: isRunsError,
-    numPages,
-  } = useTaskRunRows({
-    filterVisibility,
-    createdAfter: createdAfterProp,
-    workerId,
-    refetchInterval,
-    rowSelection,
-  });
-
-  const {
-    metrics,
-    tenantMetrics,
-    isLoading: isMetricsLoading,
-    refetch: refetchMetrics,
-  } = useMetrics({
-    filterVisibility,
-    createdAfter: createdAfterProp,
-    refetchInterval,
-  });
-
   const { handleCancelTaskRun } = useCancelTaskRuns();
   const { handleReplayTaskRun } = useReplayTaskRuns();
 
-  const onTaskRunIdClick = useCallback(
-    (taskRunId: string) => {
-      filters.setStepDetailSheetState({
-        taskRunId,
-        isOpen: true,
-      });
+  const { workflowKeys, workflowKeysError } = useWorkflow();
+
+  const onTaskRunIdClick = useCallback((taskRunId: string) => {
+    setStepDetailSheetState({
+      taskRunId,
+      isOpen: true,
+    });
+  }, []);
+
+  const workflowKeyFilters = useMemo((): FilterOption[] => {
+    return (
+      workflowKeys?.rows?.map((key) => ({
+        value: key.metadata.id,
+        label: key.name,
+      })) || []
+    );
+  }, [workflowKeys]);
+
+  const workflowRunStatusFilters = useMemo((): FilterOption[] => {
+    return [
+      {
+        value: V1TaskStatus.COMPLETED,
+        label: 'Succeeded',
+      },
+      {
+        value: V1TaskStatus.FAILED,
+        label: 'Failed',
+      },
+      {
+        value: V1TaskStatus.RUNNING,
+        label: 'Running',
+      },
+      {
+        value: V1TaskStatus.QUEUED,
+        label: 'Queued',
+      },
+      // {
+      //   value: V1TaskStatus.CANCELLED,
+      //   label: 'Cancelled',
+      // },
+    ];
+  }, []);
+
+  const filters: ToolbarFilters = [
+    {
+      columnId: 'Workflow',
+      title: 'Workflow',
+      options: workflowKeyFilters,
+      type: ToolbarType.Radio,
     },
-    [filters],
-  );
+    {
+      columnId: 'status',
+      title: 'Status',
+      options: workflowRunStatusFilters,
+    },
+    {
+      columnId: 'Metadata',
+      title: 'Metadata',
+      type: ToolbarType.KeyValue,
+    },
+  ].filter((filter) => filterVisibility[filter.columnId] != false);
 
   const [rotate, setRotate] = useState(false);
 
   const refetch = () => {
-    refetchRuns();
-    refetchMetrics();
+    listTasksQuery.refetch();
+    metricsQuery.refetch();
+    tenantMetricsQuery.refetch();
+  };
+
+  const v1TaskFilters = {
+    since:
+      createdAfter || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+    until: finishedBefore,
+    statuses: columnFilters.find((f) => f.id === 'status')
+      ?.value as V1TaskStatus[],
+    workflowIds: workflow ? [workflow] : undefined,
+    additionalMetadata: columnFilters.find((f) => f.id === 'Metadata')
+      ?.value as string[],
   };
 
   const hasRowsSelected = Object.values(rowSelection).some(
     (selected) => !!selected,
   );
-  const hasTaskFiltersSelected = Object.values(filters.v1TaskFilters).some(
+  const hasTaskFiltersSelected = Object.values(v1TaskFilters).some(
     (filter) => !!filter,
   );
 
@@ -598,11 +452,9 @@ export function TaskRunsTable({
           handleCancelTaskRun({
             externalIds: idsToCancel,
           });
-        } else if (
-          Object.values(filters.v1TaskFilters).some((filter) => !!filter)
-        ) {
+        } else if (Object.values(v1TaskFilters).some((filter) => !!filter)) {
           handleCancelTaskRun({
-            filter: filters.v1TaskFilters,
+            filter: v1TaskFilters,
           });
         }
       }}
@@ -617,11 +469,9 @@ export function TaskRunsTable({
           handleReplayTaskRun({
             externalIds: idsToReplay,
           });
-        } else if (
-          Object.values(filters.v1TaskFilters).some((filter) => !!filter)
-        ) {
+        } else if (Object.values(v1TaskFilters).some((filter) => !!filter)) {
           handleReplayTaskRun({
-            filter: filters.v1TaskFilters,
+            filter: v1TaskFilters,
           });
         }
       }}
@@ -643,7 +493,32 @@ export function TaskRunsTable({
     </Button>,
   ];
 
-  const isLoading = isRunsLoading || isMetricsLoading;
+  const isLoading =
+    listTasksQuery.isLoading ||
+    metricsQuery.isLoading ||
+    tenantMetricsQuery.isLoading ||
+    listTasksQuery.isFetching ||
+    metricsQuery.isFetching ||
+    tenantMetricsQuery.isFetching;
+
+  const onAdditionalMetadataClick = ({
+    key,
+    value,
+  }: AdditionalMetadataClick) => {
+    setColumnFilters((prev) => {
+      const metadataFilter = prev.find((filter) => filter.id === 'Metadata');
+      if (metadataFilter) {
+        prev = prev.filter((filter) => filter.id !== 'Metadata');
+      }
+      return [
+        ...prev,
+        {
+          id: 'Metadata',
+          value: [`${key}:${value}`],
+        },
+      ];
+    });
+  };
 
   const getRowId = useCallback((row: V1TaskSummary) => {
     return row.metadata.id;
@@ -671,17 +546,17 @@ export function TaskRunsTable({
                 code={JSON.stringify(tenantMetrics || '{}', null, 2)}
               />
             )}
-            {isMetricsLoading && <Skeleton className="w-full h-36" />}
+            {metricsQuery.isLoading && <Skeleton className="w-full h-36" />}
           </DialogContent>
         </Dialog>
       )}
       {!createdAfterProp && (
         <div className="flex flex-row justify-end items-center my-4 gap-2">
-          {filters.customTimeRange && [
+          {customTimeRange && [
             <Button
               key="clear"
               onClick={() => {
-                filters.setCustomTimeRange(undefined);
+                setCustomTimeRange(undefined);
               }}
               variant="outline"
               size="sm"
@@ -693,38 +568,28 @@ export function TaskRunsTable({
             <DateTimePicker
               key="after"
               label="After"
-              date={
-                filters.createdAfter
-                  ? new Date(filters.createdAfter)
-                  : undefined
-              }
+              date={createdAfter ? new Date(createdAfter) : undefined}
               setDate={(date) => {
-                filters.setCreatedAfter(date?.toISOString());
+                setCreatedAfter(date?.toISOString());
               }}
             />,
             <DateTimePicker
               key="before"
               label="Before"
-              date={
-                filters.finishedBefore
-                  ? new Date(filters.finishedBefore)
-                  : undefined
-              }
+              date={finishedBefore ? new Date(finishedBefore) : undefined}
               setDate={(date) => {
-                filters.setFinishedBefore(date?.toISOString());
+                setFinishedBefore(date?.toISOString());
               }}
             />,
           ]}
           <Select
-            value={
-              filters.customTimeRange ? 'custom' : filters.defaultTimeRange
-            }
+            value={customTimeRange ? 'custom' : defaultTimeRange}
             onValueChange={(value) => {
               if (value !== 'custom') {
-                filters.setDefaultTimeRange(value);
-                filters.setCustomTimeRange(undefined);
+                setDefaultTimeRange(value);
+                setCustomTimeRange(undefined);
               } else {
-                filters.setCustomTimeRange([
+                setCustomTimeRange([
                   getCreatedAfterFromTimeRange(value) ||
                     new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
                   new Date().toISOString(),
@@ -748,11 +613,11 @@ export function TaskRunsTable({
       {showMetrics && (
         <GetWorkflowChart
           tenantId={tenant.metadata.id}
-          createdAfter={filters.createdAfter}
+          createdAfter={createdAfter}
           zoom={(createdAfter, createdBefore) => {
-            filters.setCustomTimeRange([createdAfter, createdBefore]);
+            setCustomTimeRange([createdAfter, createdBefore]);
           }}
-          finishedBefore={filters.finishedBefore}
+          finishedBefore={finishedBefore}
           refetchInterval={refetchInterval}
         />
       )}
@@ -766,7 +631,7 @@ export function TaskRunsTable({
               }}
               showQueueMetrics={showMetrics}
               onClick={(status) => {
-                filters.setColumnFilters((prev) => {
+                setColumnFilters((prev) => {
                   const statusFilter = prev.find(
                     (filter) => filter.id === 'status',
                   );
@@ -796,11 +661,11 @@ export function TaskRunsTable({
           )}
         </div>
       )}
-      {filters.stepDetailSheetState.taskRunId && (
+      {stepDetailSheetState.taskRunId && (
         <Sheet
-          open={filters.stepDetailSheetState.isOpen}
+          open={stepDetailSheetState.isOpen}
           onOpenChange={(isOpen) =>
-            filters.setStepDetailSheetState((prev) => ({
+            setStepDetailSheetState((prev) => ({
               ...prev,
               isOpen,
             }))
@@ -808,7 +673,7 @@ export function TaskRunsTable({
         >
           <SheetContent className="w-fit min-w-[56rem] max-w-4xl sm:max-w-2xl z-[60]">
             <TaskRunDetail
-              taskRunId={filters.stepDetailSheetState.taskRunId}
+              taskRunId={stepDetailSheetState.taskRunId}
               defaultOpenTab={TabOption.Output}
               showViewTaskRunButton
             />
@@ -817,24 +682,24 @@ export function TaskRunsTable({
       )}
       <DataTable
         emptyState={<>No workflow runs found with the given filters.</>}
-        error={isRunsError ? Error('Something went wrong') : undefined}
+        error={workflowKeysError}
         isLoading={isLoading}
-        columns={columns(filters.onAdditionalMetadataClick, onTaskRunIdClick)}
+        columns={columns(onAdditionalMetadataClick, onTaskRunIdClick)}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
         data={tableRows}
-        filters={filters.filters}
+        filters={filters}
         actions={actions}
-        sorting={filters.sorting}
-        setSorting={filters.setSorting}
-        columnFilters={filters.columnFilters}
-        setColumnFilters={filters.setColumnFilters}
-        pagination={filters.pagination}
-        setPagination={filters.setPagination}
-        onSetPageSize={filters.setPageSize}
+        sorting={sorting}
+        setSorting={setSorting}
+        columnFilters={columnFilters}
+        setColumnFilters={setColumnFilters}
+        pagination={pagination}
+        setPagination={setPagination}
+        onSetPageSize={setPageSize}
         rowSelection={rowSelection}
         setRowSelection={setRowSelection}
-        pageCount={numPages}
+        pageCount={tasks?.pagination.num_pages || 0}
         showColumnToggle={true}
         getSubRows={(row) => row.children || []}
         getRowId={getRowId}
