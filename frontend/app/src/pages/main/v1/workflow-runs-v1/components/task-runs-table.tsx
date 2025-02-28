@@ -576,6 +576,7 @@ const useTaskRunRows = ({
   } = useQuery({
     ...queries.v1Tasks.getByDagId(tenant.metadata.id, dagIds),
     enabled: !!dagIds.length,
+    refetchInterval,
   });
 
   const tableRows = processWorkflowData(
@@ -595,7 +596,9 @@ const useTaskRunRows = ({
             }
             if (row.children) {
               const childRow = findRow(row.children);
-              if (childRow) return childRow;
+              if (childRow) {
+                return childRow;
+              }
             }
           }
           return undefined;
