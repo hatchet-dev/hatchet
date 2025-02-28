@@ -22,13 +22,9 @@ import { formatDuration } from '@/lib/utils';
 import { V1StepRunOutput } from './step-run-output';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import {
-  CancelTaskRunButton,
-  useCancelTaskRuns,
-} from '@/pages/main/v1/task-runs-v1/cancellation';
-import {
-  ReplayTaskRunButton,
-  useReplayTaskRuns,
-} from '@/pages/main/v1/task-runs-v1/replays';
+  TaskRunActionButton,
+  useTaskRunActions,
+} from '@/pages/main/v1/task-runs-v1/actions';
 
 export enum TabOption {
   Output = 'output',
@@ -94,8 +90,7 @@ export const TaskRunDetail = ({
     refetchInterval: 5000,
   });
 
-  const { handleCancelTaskRun } = useCancelTaskRuns();
-  const { handleReplayTaskRun } = useReplayTaskRuns();
+  const { handleTaskRunAction } = useTaskRunActions();
 
   const taskRun = taskRunQuery.data;
 
@@ -120,17 +115,21 @@ export const TaskRunDetail = ({
         </div>
       </div>
       <div className="flex flex-row gap-2 items-center">
-        <ReplayTaskRunButton
-          handleReplayTaskRun={() => {
-            handleReplayTaskRun({
+        <TaskRunActionButton
+          actionType="replay"
+          handleAction={() => {
+            handleTaskRunAction({
+              actionType: 'replay',
               externalIds: [taskRunId],
             });
           }}
           disabled={TASK_RUN_TERMINAL_STATUSES.includes(taskRun.status)}
         />
-        <CancelTaskRunButton
-          handleCancelTaskRun={() => {
-            handleCancelTaskRun({
+        <TaskRunActionButton
+          actionType="cancel"
+          handleAction={() => {
+            handleTaskRunAction({
+              actionType: 'cancel',
               externalIds: [taskRunId],
             });
           }}

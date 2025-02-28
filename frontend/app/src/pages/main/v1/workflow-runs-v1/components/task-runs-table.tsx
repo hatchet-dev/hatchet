@@ -51,13 +51,9 @@ import {
   TaskRunDetail,
 } from '../$run/v2components/step-run-detail/step-run-detail';
 import {
-  CancelTaskRunButton,
-  useCancelTaskRuns,
-} from '../../task-runs-v1/cancellation';
-import {
-  ReplayTaskRunButton,
-  useReplayTaskRuns,
-} from '../../task-runs-v1/replays';
+  TaskRunActionButton,
+  useTaskRunActions,
+} from '../../task-runs-v1/actions';
 
 export interface TaskRunsTableProps {
   createdAfter?: string;
@@ -350,8 +346,7 @@ export function TaskRunsTable({
 
   const tenantMetrics = tenantMetricsQuery.data?.queues || {};
 
-  const { handleCancelTaskRun } = useCancelTaskRuns();
-  const { handleReplayTaskRun } = useReplayTaskRuns();
+  const { handleTaskRunAction } = useTaskRunActions();
 
   const { workflowKeys, workflowKeysError } = useWorkflow();
 
@@ -442,35 +437,41 @@ export function TaskRunsTable({
   );
 
   const actions = [
-    <CancelTaskRunButton
+    <TaskRunActionButton
       key="cancel"
+      actionType="cancel"
       disabled={!(hasRowsSelected || hasTaskFiltersSelected)}
-      handleCancelTaskRun={() => {
+      handleAction={() => {
         const idsToCancel = selectedRuns.map((run) => run?.metadata.id);
 
         if (idsToCancel.length) {
-          handleCancelTaskRun({
+          handleTaskRunAction({
+            actionType: 'cancel',
             externalIds: idsToCancel,
           });
         } else if (Object.values(v1TaskFilters).some((filter) => !!filter)) {
-          handleCancelTaskRun({
+          handleTaskRunAction({
+            actionType: 'cancel',
             filter: v1TaskFilters,
           });
         }
       }}
     />,
-    <ReplayTaskRunButton
+    <TaskRunActionButton
       key="replay"
+      actionType="replay"
       disabled={!(hasRowsSelected || hasTaskFiltersSelected)}
-      handleReplayTaskRun={() => {
+      handleAction={() => {
         const idsToReplay = selectedRuns.map((run) => run?.metadata.id);
 
         if (idsToReplay.length) {
-          handleReplayTaskRun({
+          handleTaskRunAction({
+            actionType: 'replay',
             externalIds: idsToReplay,
           });
         } else if (Object.values(v1TaskFilters).some((filter) => !!filter)) {
-          handleReplayTaskRun({
+          handleTaskRunAction({
+            actionType: 'replay',
             filter: v1TaskFilters,
           });
         }
