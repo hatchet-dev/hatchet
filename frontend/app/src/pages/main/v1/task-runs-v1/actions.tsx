@@ -76,10 +76,11 @@ export const useTaskRunActions = () => {
 
       switch (actionType) {
         case 'cancel':
-          return await api.v1TaskCancel(tenant.metadata.id, params);
+          return api.v1TaskCancel(tenant.metadata.id, params);
         case 'replay':
-          return await api.v1TaskReplay(tenant.metadata.id, params);
+          return api.v1TaskReplay(tenant.metadata.id, params);
         default:
+          // eslint-disable-next-line no-case-declarations
           const exhaustiveCheck: never = actionType;
           throw new Error(`Unhandled action type: ${exhaustiveCheck}`);
       }
@@ -112,6 +113,7 @@ const actionTypeToLabel = (actionType: ActionType) => {
     case 'replay':
       return 'Replay';
     default:
+      // eslint-disable-next-line no-case-declarations
       const exhaustiveCheck: never = actionType;
       throw new Error(`Unhandled action type: ${exhaustiveCheck}`);
   }
@@ -155,6 +157,7 @@ const taskFilterToLabel = (filter: FilterName) => {
     case 'workflowIds':
       return 'Workflow IDs';
     default:
+      // eslint-disable-next-line no-case-declarations
       const exhaustiveCheck: never = filter;
       throw new Error(`Unhandled filter: ${exhaustiveCheck}`);
   }
@@ -164,7 +167,7 @@ const ModalContent = ({ label, params }: ModalContentProps) => {
   if (params.externalIds?.length) {
     return <CancelByExternalIdsContent label={label} params={params} />;
   } else if (params.filter) {
-    const kvs = Object.entries(params.filter).filter(([_, v]) => !!v);
+    const kvs = Object.entries(params.filter).filter(([k, v]) => !!v && !!k);
 
     return (
       <>
@@ -318,6 +321,7 @@ export const TaskRunActionButton = ({
         />
       );
     default:
+      // eslint-disable-next-line no-case-declarations
       const exhaustiveCheck: never = actionType;
       throw new Error(`Unhandled action type: ${exhaustiveCheck}`);
   }
