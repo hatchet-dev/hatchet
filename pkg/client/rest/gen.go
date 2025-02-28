@@ -1291,6 +1291,9 @@ type V1TaskSummary struct {
 	// Children The list of children tasks
 	Children *[]V1TaskSummary `json:"children,omitempty"`
 
+	// CreatedAt The timestamp the task was created.
+	CreatedAt *time.Time `json:"createdAt,omitempty"`
+
 	// DisplayName The display name of the task run.
 	DisplayName string `json:"displayName"`
 
@@ -1325,8 +1328,11 @@ type V1TaskSummary struct {
 
 	// TenantId The ID of the tenant.
 	TenantId   openapi_types.UUID `json:"tenantId"`
-	Type       *V1WorkflowType    `json:"type,omitempty"`
+	Type       V1WorkflowType     `json:"type"`
 	WorkflowId openapi_types.UUID `json:"workflowId"`
+
+	// WorkflowVersionId The version ID of the workflow
+	WorkflowVersionId *openapi_types.UUID `json:"workflowVersionId,omitempty"`
 }
 
 // V1TaskSummaryList defines model for V1TaskSummaryList.

@@ -62,6 +62,14 @@ V1TaskSummary:
     type:
       $ref: "#/V1WorkflowType"
       description: The type of the workflow (whether it's a DAG or a task)
+    workflowVersionId:
+      type: string
+      format: uuid
+      description: The version ID of the workflow
+    createdAt:
+      type: string
+      format: date-time
+      description: The timestamp the task was created.
     children:
       type: array
       items:
@@ -78,6 +86,7 @@ V1TaskSummary:
     - workflowId
     - output
     - taskExternalId
+    - type
 
 V1DagChildren:
   type: object

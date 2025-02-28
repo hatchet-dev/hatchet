@@ -260,7 +260,17 @@ export interface V1TaskSummary {
   /** The input of the task run. */
   input?: object;
   /** The type of the workflow (whether it's a DAG or a task) */
-  type?: V1WorkflowType;
+  type: V1WorkflowType;
+  /**
+   * The version ID of the workflow
+   * @format uuid
+   */
+  workflowVersionId?: string;
+  /**
+   * The timestamp the task was created.
+   * @format date-time
+   */
+  createdAt?: string;
   /** The list of children tasks */
   children?: V1TaskSummary[];
 }

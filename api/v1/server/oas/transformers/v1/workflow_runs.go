@@ -9,9 +9,10 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
+	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
-func ToWorkflowRun(task *v1.WorkflowRunData) gen.V1WorkflowRun {
+func WorkflowRunDataToV1TaskSummary(task *v1.WorkflowRunData) gen.V1TaskSummary {
 	additionalMetadata := jsonToMap(task.AdditionalMetadata)
 
 	var finishedAt *time.Time
@@ -33,43 +34,137 @@ func ToWorkflowRun(task *v1.WorkflowRunData) gen.V1WorkflowRun {
 		durationPtr = &duration
 	}
 
+	input := jsonToMap(task.Input)
+
 	workflowVersionId := uuid.MustParse(sqlchelpers.UUIDToStr(task.WorkflowVersionId))
 
-	return gen.V1WorkflowRun{
+	return gen.V1TaskSummary{
 		Metadata: gen.APIResourceMeta{
 			Id:        sqlchelpers.UUIDToStr(task.ExternalID),
 			CreatedAt: task.InsertedAt.Time,
 			UpdatedAt: task.InsertedAt.Time,
 		},
-		CreatedAt:          &task.CreatedAt.Time,
-		DisplayName:        task.DisplayName,
-		Duration:           durationPtr,
-		StartedAt:          startedAt,
-		FinishedAt:         finishedAt,
+		CreatedAt:   &task.CreatedAt.Time,
+		DisplayName: task.DisplayName,
+		Duration:    durationPtr,
+		StartedAt:   startedAt,
+		FinishedAt:  finishedAt,
+
+		Input: &input,
+
+		// TODO: Implement this
+		Output:             nil,
 		AdditionalMetadata: &additionalMetadata,
 		ErrorMessage:       &task.ErrorMessage,
 		Status:             gen.V1TaskStatus(task.ReadableStatus),
 		TenantId:           uuid.MustParse(sqlchelpers.UUIDToStr(task.TenantID)),
 		WorkflowId:         uuid.MustParse(sqlchelpers.UUIDToStr(task.WorkflowID)),
 		WorkflowVersionId:  &workflowVersionId,
+
+		// TODO: Implement this
+		Children:       nil,
+		TaskExternalId: uuid.MustParse(sqlchelpers.UUIDToStr(task.ExternalID)),
+
+		// TODO: Implement this
+		TaskId: 123,
+
+		TaskInsertedAt: task.InsertedAt.Time,
+		Type:           gen.V1WorkflowTypeDAG,
 	}
 }
 
 func ToWorkflowRunMany(
 	tasks []*v1.WorkflowRunData,
 	total int, limit, offset int64,
-) gen.V1WorkflowRunList {
-	toReturn := make([]gen.V1WorkflowRun, len(tasks))
+) gen.V1TaskSummaryList {
+	toReturn := make([]gen.V1TaskSummary, len(tasks))
 
 	for i, task := range tasks {
-		toReturn[i] = ToWorkflowRun(task)
+		toReturn[i] = WorkflowRunDataToV1TaskSummary(task)
 	}
 
 	currentPage := (offset / limit) + 1
 	nextPage := currentPage + 1
 	numPages := int64(math.Ceil(float64(total) / float64(limit)))
 
-	return gen.V1WorkflowRunList{
+	return gen.V1TaskSummaryList{
+		Rows: toReturn,
+		Pagination: gen.PaginationResponse{
+			CurrentPage: &currentPage,
+			NextPage:    &nextPage,
+			NumPages:    &numPages,
+		},
+	}
+}
+
+func PopulateTaskRunDataRowToV1TaskSummary(task *sqlcv1.PopulateTaskRunDataRow) gen.V1TaskSummary {
+	additionalMetadata := jsonToMap(task.AdditionalMetadata)
+
+	var finishedAt *time.Time
+
+	if task.FinishedAt.Valid {
+		finishedAt = &task.FinishedAt.Time
+	}
+
+	var startedAt *time.Time
+
+	if task.StartedAt.Valid {
+		startedAt = &task.StartedAt.Time
+	}
+
+	var durationPtr *int
+
+	if task.FinishedAt.Valid && task.StartedAt.Valid {
+		duration := int(task.FinishedAt.Time.Sub(task.StartedAt.Time).Milliseconds())
+		durationPtr = &duration
+	}
+
+	return gen.V1TaskSummary{
+		Metadata: gen.APIResourceMeta{
+			Id:        sqlchelpers.UUIDToStr(task.ExternalID),
+			CreatedAt: task.InsertedAt.Time,
+			UpdatedAt: task.InsertedAt.Time,
+		},
+		CreatedAt:   &task.InsertedAt.Time,
+		DisplayName: task.DisplayName,
+		Duration:    durationPtr,
+		StartedAt:   startedAt,
+		FinishedAt:  finishedAt,
+
+		// TODO: Implement this
+		Input: nil,
+
+		// TODO: Implement this
+		Output:             nil,
+		AdditionalMetadata: &additionalMetadata,
+		ErrorMessage:       &task.ErrorMessage.String,
+		Status:             gen.V1TaskStatus(task.Status),
+		TenantId:           uuid.MustParse(sqlchelpers.UUIDToStr(task.TenantID)),
+		WorkflowId:         uuid.MustParse(sqlchelpers.UUIDToStr(task.WorkflowID)),
+		WorkflowVersionId:  nil,
+		Children:           nil,
+		TaskExternalId:     uuid.MustParse(sqlchelpers.UUIDToStr(task.ExternalID)),
+		TaskId:             int(task.ID),
+		TaskInsertedAt:     task.InsertedAt.Time,
+		Type:               gen.V1WorkflowTypeTASK,
+	}
+}
+
+func TaskRunDataRowToWorkflowRunsMany(
+	tasks []*sqlcv1.PopulateTaskRunDataRow,
+	total int, limit, offset int64,
+) gen.V1TaskSummaryList {
+	toReturn := make([]gen.V1TaskSummary, len(tasks))
+
+	for i, task := range tasks {
+		toReturn[i] = PopulateTaskRunDataRowToV1TaskSummary(task)
+	}
+
+	currentPage := (offset / limit) + 1
+	nextPage := currentPage + 1
+	numPages := int64(math.Ceil(float64(total) / float64(limit)))
+
+	return gen.V1TaskSummaryList{
 		Rows: toReturn,
 		Pagination: gen.PaginationResponse{
 			CurrentPage: &currentPage,
