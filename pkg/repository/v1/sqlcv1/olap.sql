@@ -518,11 +518,13 @@ WITH input AS (
 ), task_output AS (
     SELECT
         task_id,
-        output
+        MAX(output::TEXT)::JSONB AS output
     FROM
         relevant_events
     WHERE
         readable_status = 'COMPLETED'
+    GROUP BY
+        task_id
 )
 
 SELECT
