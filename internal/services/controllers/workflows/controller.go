@@ -164,7 +164,7 @@ func New(fs ...WorkflowsControllerOpt) (*WorkflowsControllerImpl, error) {
 
 	w.processWorkflowEventsOps = queueutils.NewOperationPool(w.l, time.Second*5, "process workflow events", w.processWorkflowEvents)
 	w.unpausedWorkflowRunsOps = queueutils.NewOperationPool(w.l, time.Second*5, "unpause workflow runs", w.unpauseWorkflowRuns)
-	w.bumpQueueOps = queueutils.NewOperationPool(w.l, time.Second*5, "bump queue", w.runPollActiveQueuesTenant)
+	w.bumpQueueOps = queueutils.NewOperationPool(w.l, time.Second*60, "bump queue", w.runPollActiveQueuesTenant)
 
 	return w, nil
 }
