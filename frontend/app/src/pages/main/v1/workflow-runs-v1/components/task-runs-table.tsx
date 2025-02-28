@@ -104,6 +104,7 @@ const useWorkflow = () => {
 };
 
 export function TaskRunsTable({
+  workflowId,
   workerId,
   createdAfter: createdAfterProp,
   initColumnVisibility = {},
@@ -253,6 +254,10 @@ export function TaskRunsTable({
   }, [pagination]);
 
   const workflow = useMemo<string | undefined>(() => {
+    if (workflowId) {
+      return workflowId;
+    }
+
     const filter = columnFilters.find((filter) => filter.id === 'Workflow');
 
     if (!filter) {
