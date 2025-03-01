@@ -116,6 +116,9 @@ export function TaskRunsTable({
   invariant(tenant);
 
   const [viewQueueMetrics, setViewQueueMetrics] = useState(false);
+  const [initialRenderTime] = useState(
+    new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+  );
 
   const cf = useColumnFilters();
 
@@ -186,7 +189,7 @@ export function TaskRunsTable({
       limit: pagination.pageSize,
       statuses: cf.filters.status ? [cf.filters.status] : undefined,
       workflow_ids: workflow ? [workflow] : [],
-      since: cf.filters.createdAfter || new Date('2025-01-01').toISOString(),
+      since: cf.filters.createdAfter || initialRenderTime,
       until: cf.filters.finishedBefore,
       additional_metadata: cf.filters.additionalMetadata,
       worker_id: workerId,
@@ -233,7 +236,7 @@ export function TaskRunsTable({
 
   const metricsQuery = useQuery({
     ...queries.v1TaskRuns.metrics(tenant.metadata.id, {
-      since: cf.filters.createdAfter || new Date('2025-01-01').toISOString(),
+      since: cf.filters.createdAfter || initialRenderTime,
       workflow_ids: workflow ? [workflow] : [],
     }),
     placeholderData: (prev) => prev,
@@ -321,9 +324,7 @@ export function TaskRunsTable({
   };
 
   const v1TaskFilters = {
-    since:
-      cf.filters.createdAfter ||
-      new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+    since: cf.filters.createdAfter || initialRenderTime,
     until: cf.filters.finishedBefore,
     statuses: cf.filters.status ? [cf.filters.status] : undefined,
     workflowIds: workflow ? [workflow] : undefined,
@@ -471,7 +472,10 @@ export function TaskRunsTable({
                 cf.setFilterValues([
                   { key: 'defaultTimeRange', value: value },
                   { key: 'isCustomTimeRange', value: undefined },
-                  { key: 'createdAfter', value: undefined },
+                  {
+                    key: 'createdAfter',
+                    value: getCreatedAfterFromTimeRange(value),
+                  },
                   { key: 'finishedBefore', value: undefined },
                 ]);
               } else {
