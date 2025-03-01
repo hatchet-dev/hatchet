@@ -21,9 +21,10 @@ export function DataTableFacetedFilter<TData, TValue>({
   type = ToolbarType.Checkbox,
   options,
 }: DataTableFacetedFilterProps<TData, TValue>) {
+  const value = column?.getFilterValue();
   return (
     <Combobox
-      values={column?.getFilterValue() as string[]}
+      values={typeof value === 'string' ? [value] : (value as string[])}
       title={title}
       type={type}
       options={options}

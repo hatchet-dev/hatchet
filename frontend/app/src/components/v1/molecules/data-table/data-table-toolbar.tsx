@@ -60,15 +60,18 @@ export function DataTableToolbar<TData>({
             className="h-8 w-[150px] lg:w-[250px]"
           />
         )}
-        {filters.map((filter) => (
-          <DataTableFacetedFilter
-            key={filter.columnId}
-            column={table.getColumn(filter.columnId)}
-            title={filter.title}
-            type={filter.type}
-            options={filter.options}
-          />
-        ))}
+        {filters.map((filter) => {
+          console.log('Filter: ', filter, table.getColumn(filter.columnId));
+          return (
+            <DataTableFacetedFilter
+              key={filter.columnId}
+              column={table.getColumn(filter.columnId)}
+              title={filter.title}
+              type={filter.type}
+              options={filter.options}
+            />
+          );
+        })}
         {isFiltered && (
           <Button
             variant="ghost"

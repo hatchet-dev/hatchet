@@ -28,8 +28,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/v1/ui/select';
-import { useAtom } from 'jotai';
-import { lastTimeRangeAtom } from '@/lib/atoms';
 import { Skeleton } from '@/components/v1/ui/skeleton';
 import {
   Dialog,
@@ -51,6 +49,7 @@ import {
   TaskRunDetail,
 } from '../$run/v2components/step-run-detail/step-run-detail';
 import { TaskRunActionButton } from '../../task-runs-v1/actions';
+import { useColumnFilters } from './use-column-filters';
 
 export interface TaskRunsTableProps {
   createdAfter?: string;
@@ -119,60 +118,29 @@ export function TaskRunsTable({
 
   const [viewQueueMetrics, setViewQueueMetrics] = useState(false);
 
-  const [defaultTimeRange, setDefaultTimeRange] = useAtom(lastTimeRangeAtom);
+  const cf = useColumnFilters();
+
   const [stepDetailSheetState, setStepDetailSheetState] =
     useState<StepDetailSheetState>({
       isOpen: false,
       taskRunId: undefined,
     });
 
-  // customTimeRange does not get set in the atom,
-  const [customTimeRange, setCustomTimeRange] = useState<string[] | undefined>(
-    () => {
-      const timeRangeParam = searchParams.get('customTimeRange');
-      if (timeRangeParam) {
-        return timeRangeParam.split(',').map((param) => {
-          return new Date(param).toISOString();
-        });
-      }
-      return undefined;
-    },
-  );
-
-  const [createdAfter, setCreatedAfter] = useState<string | undefined>(
-    createdAfterProp ||
-      getCreatedAfterFromTimeRange(defaultTimeRange) ||
-      new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-  );
-
-  const [finishedBefore, setFinishedBefore] = useState<string | undefined>();
-
   // create a timer which updates the createdAfter date every minute
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (customTimeRange) {
-        return;
-      }
+  // useEffect(() => {
+  //   const interval = setInterval(() => {
+  //     if (cf.filters.isCustomTimeRange) {
+  //       return;
+  //     }
 
-      setCreatedAfter(
-        getCreatedAfterFromTimeRange(defaultTimeRange) ||
-          new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-      );
-    }, 60 * 1000);
+  //     cf.setCreatedAfter(
+  //       getCreatedAfterFromTimeRange(cf.filters.defaultTimeRange) ||
+  //         new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+  //     );
+  //   }, 60 * 1000);
 
-    return () => clearInterval(interval);
-  }, [defaultTimeRange, customTimeRange]);
-
-  // whenever the time range changes, update the createdAfter date
-  useEffect(() => {
-    if (customTimeRange && customTimeRange.length === 2) {
-      setCreatedAfter(customTimeRange[0]);
-      setFinishedBefore(customTimeRange[1]);
-    } else if (defaultTimeRange) {
-      setCreatedAfter(getCreatedAfterFromTimeRange(defaultTimeRange));
-      setFinishedBefore(undefined);
-    }
-  }, [defaultTimeRange, customTimeRange, setCreatedAfter]);
+  //   return () => clearInterval(interval);
+  // }, [cf]);
 
   const [sorting, setSorting] = useState<SortingState>(() => {
     const sortParam = searchParams.get('sort');
@@ -209,42 +177,6 @@ export function TaskRunsTable({
     }));
   };
 
-  useEffect(() => {
-    const newSearchParams = new URLSearchParams(searchParams);
-    if (sorting.length) {
-      newSearchParams.set(
-        'orderDirection',
-        sorting.map((s) => `${s.id}:${s.desc ? 'desc' : 'asc'}`).join(','),
-      );
-    } else {
-      newSearchParams.delete('orderDirection');
-    }
-    if (columnFilters.length) {
-      newSearchParams.set('filters', JSON.stringify(columnFilters));
-    } else {
-      newSearchParams.delete('filters');
-    }
-    newSearchParams.set('pageIndex', pagination.pageIndex.toString());
-    newSearchParams.set('pageSize', pagination.pageSize.toString());
-
-    if (customTimeRange && customTimeRange.length === 2) {
-      newSearchParams.set('customTimeRange', customTimeRange?.join(','));
-    } else {
-      newSearchParams.delete('customTimeRange');
-    }
-
-    if (newSearchParams.toString() !== searchParams.toString()) {
-      setSearchParams(newSearchParams, { replace: true });
-    }
-  }, [
-    sorting,
-    columnFilters,
-    pagination,
-    customTimeRange,
-    setSearchParams,
-    searchParams,
-  ]);
-
   const offset = useMemo(() => {
     if (!pagination) {
       return;
@@ -268,29 +200,19 @@ export function TaskRunsTable({
     return vals[0];
   }, [columnFilters]);
 
-  const statuses = useMemo(() => {
-    const filter = columnFilters.find((filter) => filter.id === 'status');
-
-    if (!filter) {
-      return;
-    }
-
-    return filter?.value as Array<V1TaskStatus>;
-  }, [columnFilters]);
-
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
   const listTasksQuery = useQuery({
     ...queries.v1WorkflowRuns.list(tenant.metadata.id, {
       offset,
       limit: pagination.pageSize,
-      statuses,
+      statuses: cf.filters.status ? [cf.filters.status] : undefined,
       workflow_ids: workflow ? [workflow] : [],
       since:
-        createdAfter ||
+        cf.filters.createdAfter ||
         new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-      until: finishedBefore,
-      additional_metadata: columnFilters.find((f) => f.id === 'Metadata')
+      until: cf.filters.finishedBefore,
+      additional_metadata: columnFilters.find((f) => f.id === 'additionalMetadata')
         ?.value as string[],
       worker_id: workerId,
       only_tasks: !!workerId,
@@ -337,7 +259,7 @@ export function TaskRunsTable({
   const metricsQuery = useQuery({
     ...queries.v1TaskRuns.metrics(tenant.metadata.id, {
       since:
-        createdAfter ||
+        cf.filters.createdAfter ||
         new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
       workflow_ids: workflow ? [workflow] : [],
     }),
@@ -408,9 +330,10 @@ export function TaskRunsTable({
       columnId: 'status',
       title: 'Status',
       options: workflowRunStatusFilters,
+      type: ToolbarType.Radio,
     },
     {
-      columnId: 'Metadata',
+      columnId: 'additionalMetadata',
       title: 'Metadata',
       type: ToolbarType.KeyValue,
     },
@@ -426,13 +349,12 @@ export function TaskRunsTable({
 
   const v1TaskFilters = {
     since:
-      createdAfter || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-    until: finishedBefore,
-    statuses: columnFilters.find((f) => f.id === 'status')
-      ?.value as V1TaskStatus[],
+      cf.filters.createdAfter ||
+      new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+    until: cf.filters.finishedBefore,
+    statuses: cf.filters.status ? [cf.filters.status] : undefined,
     workflowIds: workflow ? [workflow] : undefined,
-    additionalMetadata: columnFilters.find((f) => f.id === 'Metadata')
-      ?.value as string[],
+    additionalMetadata: cf.filters.additionalMetadata,
   };
 
   const hasRowsSelected = Object.values(rowSelection).some(
@@ -492,19 +414,7 @@ export function TaskRunsTable({
     key,
     value,
   }: AdditionalMetadataClick) => {
-    setColumnFilters((prev) => {
-      const metadataFilter = prev.find((filter) => filter.id === 'Metadata');
-      if (metadataFilter) {
-        prev = prev.filter((filter) => filter.id !== 'Metadata');
-      }
-      return [
-        ...prev,
-        {
-          id: 'Metadata',
-          value: [`${key}:${value}`],
-        },
-      ];
-    });
+    cf.setAdditionalMetadata(key, value);
   };
 
   const getRowId = useCallback((row: V1TaskSummary) => {
@@ -539,11 +449,11 @@ export function TaskRunsTable({
       )}
       {!createdAfterProp && (
         <div className="flex flex-row justify-end items-center my-4 gap-2">
-          {customTimeRange && [
+          {cf.filters.isCustomTimeRange && [
             <Button
               key="clear"
               onClick={() => {
-                setCustomTimeRange(undefined);
+                cf.setCustomTimeRange(undefined);
               }}
               variant="outline"
               size="sm"
@@ -555,32 +465,49 @@ export function TaskRunsTable({
             <DateTimePicker
               key="after"
               label="After"
-              date={createdAfter ? new Date(createdAfter) : undefined}
+              date={
+                cf.filters.createdAfter
+                  ? new Date(cf.filters.createdAfter)
+                  : undefined
+              }
               setDate={(date) => {
-                setCreatedAfter(date?.toISOString());
+                cf.setCreatedAfter(date?.toISOString());
               }}
             />,
             <DateTimePicker
               key="before"
               label="Before"
-              date={finishedBefore ? new Date(finishedBefore) : undefined}
+              date={
+                cf.filters.finishedBefore
+                  ? new Date(cf.filters.finishedBefore)
+                  : undefined
+              }
               setDate={(date) => {
-                setFinishedBefore(date?.toISOString());
+                cf.setFinishedBefore(date?.toISOString());
               }}
             />,
           ]}
           <Select
-            value={customTimeRange ? 'custom' : defaultTimeRange}
+            value={
+              cf.filters.isCustomTimeRange
+                ? 'custom'
+                : cf.filters.defaultTimeRange
+            }
             onValueChange={(value) => {
               if (value !== 'custom') {
-                setDefaultTimeRange(value);
-                setCustomTimeRange(undefined);
-              } else {
-                setCustomTimeRange([
-                  getCreatedAfterFromTimeRange(value) ||
-                    new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-                  new Date().toISOString(),
+                cf.setFilterValues([
+                  { key: 'defaultTimeRange', value: value },
+                  { key: 'isCustomTimeRange', value: undefined },
+                  { key: 'createdAfter', value: undefined },
+                  { key: 'finishedBefore', value: undefined },
                 ]);
+              } else {
+                cf.setCustomTimeRange({
+                  start:
+                    getCreatedAfterFromTimeRange(value) ||
+                    new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+                  end: new Date().toISOString(),
+                });
               }
             }}
           >
@@ -600,11 +527,11 @@ export function TaskRunsTable({
       {showMetrics && (
         <GetWorkflowChart
           tenantId={tenant.metadata.id}
-          createdAfter={createdAfter}
+          createdAfter={cf.filters.createdAfter}
           zoom={(createdAfter, createdBefore) => {
-            setCustomTimeRange([createdAfter, createdBefore]);
+            cf.setCustomTimeRange({ start: createdAfter, end: createdBefore });
           }}
-          finishedBefore={finishedBefore}
+          finishedBefore={cf.filters.finishedBefore}
           refetchInterval={refetchInterval}
         />
       )}
@@ -618,29 +545,7 @@ export function TaskRunsTable({
               }}
               showQueueMetrics={showMetrics}
               onClick={(status) => {
-                setColumnFilters((prev) => {
-                  const statusFilter = prev.find(
-                    (filter) => filter.id === 'status',
-                  );
-                  if (statusFilter) {
-                    prev = prev.filter((filter) => filter.id !== 'status');
-                  }
-
-                  if (
-                    JSON.stringify(statusFilter?.value) ===
-                    JSON.stringify([status])
-                  ) {
-                    return prev;
-                  }
-
-                  return [
-                    ...prev,
-                    {
-                      id: 'status',
-                      value: [status],
-                    },
-                  ];
-                });
+                cf.setStatuses(status);
               }}
             />
           ) : (
@@ -679,8 +584,10 @@ export function TaskRunsTable({
         actions={actions}
         sorting={sorting}
         setSorting={setSorting}
-        columnFilters={columnFilters}
-        setColumnFilters={setColumnFilters}
+        columnFilters={cf.filters.columnFilters}
+        setColumnFilters={(updaterOrValue) => {
+          cf.setColumnFilters(updaterOrValue);
+        }}
         pagination={pagination}
         setPagination={setPagination}
         onSetPageSize={setPageSize}

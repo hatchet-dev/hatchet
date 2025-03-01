@@ -246,7 +246,7 @@ export const columns: (
     enableHiding: true,
   },
   {
-    accessorKey: 'Metadata',
+    accessorKey: 'additionalMetadata',
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Metadata" />
     ),
