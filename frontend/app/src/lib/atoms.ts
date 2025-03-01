@@ -52,10 +52,10 @@ export function useTenant(): TenantContext {
 
   const setTenant = useCallback(
     (tenant: Tenant) => {
-      // const newSearchParams = new URLSearchParams(searchParams);
-      // newSearchParams.set('tenant', tenant.metadata.id);
-      // setSearchParams(newSearchParams, { replace: true });
-      // setLastTenant(tenant);
+      const newSearchParams = new URLSearchParams(searchParams);
+      newSearchParams.set('tenant', tenant.metadata.id);
+      setSearchParams(newSearchParams, { replace: true });
+      setLastTenant(tenant);
     },
     [searchParams, setSearchParams, setLastTenant],
   );

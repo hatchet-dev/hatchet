@@ -1,6 +1,5 @@
 import { V1TaskStatus } from '@/lib/api';
-import { Updater } from '@tanstack/react-query';
-import { ColumnFilter, ColumnFiltersState } from '@tanstack/react-table';
+import { ColumnFilter, ColumnFiltersState, Updater } from '@tanstack/react-table';
 import { useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
@@ -110,7 +109,7 @@ export const useColumnFilters = () => {
   };
 
   const setColumnFilters = useCallback(
-    (updaterOrValue: Updater<ColumnFiltersState, any[]>) => {
+    (updaterOrValue: Updater<ColumnFiltersState>) => {
       if (typeof updaterOrValue === 'function') {
         const newVal = updaterOrValue(filters.columnFilters);
 

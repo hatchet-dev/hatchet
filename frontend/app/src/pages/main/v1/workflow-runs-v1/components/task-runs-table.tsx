@@ -2,7 +2,6 @@ import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
 import { columns } from './v1/task-runs-columns';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  PaginationState,
   RowSelectionState,
   SortingState,
   VisibilityState,
@@ -48,7 +47,8 @@ import {
   TaskRunDetail,
 } from '../$run/v2components/step-run-detail/step-run-detail';
 import { TaskRunActionButton } from '../../task-runs-v1/actions';
-import { useColumnFilters } from './use-column-filters';
+import { useColumnFilters } from '../hooks/use-column-filters';
+import { usePagination } from '../hooks/use-pagination';
 
 export interface TaskRunsTableProps {
   createdAfter?: string;
@@ -111,7 +111,7 @@ export function TaskRunsTable({
   showMetrics = false,
   showCounts = true,
 }: TaskRunsTableProps) {
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams, _] = useSearchParams();
   const { tenant } = useOutletContext<TenantContextType>();
   invariant(tenant);
 
@@ -155,18 +155,7 @@ export function TaskRunsTable({
   const [columnVisibility, setColumnVisibility] =
     useState<VisibilityState>(initColumnVisibility);
 
-  const [pagination, setPagination] = useState<PaginationState>(() => {
-    const pageIndex = Number(searchParams.get('pageIndex')) || 0;
-    const pageSize = Number(searchParams.get('pageSize')) || 50;
-    return { pageIndex, pageSize };
-  });
-
-  const setPageSize = (newPageSize: number) => {
-    setPagination((prev) => ({
-      ...prev,
-      pageSize: newPageSize,
-    }));
-  };
+  const { pagination, setPagination, setPageSize } = usePagination();
 
   const offset = useMemo(() => {
     if (!pagination) {
