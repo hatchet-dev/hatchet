@@ -1,6 +1,6 @@
 import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
 import { columns } from './v1/task-runs-columns';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   PaginationState,
   RowSelectionState,
@@ -126,20 +126,20 @@ export function TaskRunsTable({
     });
 
   // create a timer which updates the createdAfter date every minute
-  // useEffect(() => {
-  //   const interval = setInterval(() => {
-  //     if (cf.filters.isCustomTimeRange) {
-  //       return;
-  //     }
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (cf.filters.isCustomTimeRange) {
+        return;
+      }
 
-  //     cf.setCreatedAfter(
-  //       getCreatedAfterFromTimeRange(cf.filters.defaultTimeRange) ||
-  //         new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-  //     );
-  //   }, 60 * 1000);
+      cf.setCreatedAfter(
+        getCreatedAfterFromTimeRange(cf.filters.defaultTimeRange) ||
+          new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+      );
+    }, 60 * 1000);
 
-  //   return () => clearInterval(interval);
-  // }, [cf]);
+    return () => clearInterval(interval);
+  }, [cf]);
 
   const [sorting, setSorting] = useState<SortingState>(() => {
     const sortParam = searchParams.get('sort');

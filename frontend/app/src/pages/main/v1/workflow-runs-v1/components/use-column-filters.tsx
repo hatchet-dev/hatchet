@@ -129,7 +129,6 @@ export const useColumnFilters = () => {
     [],
   );
 
-  // Implementations
   const setDefaultTimeRange = useCallback(
     (timeRange: string) => {
       setFilterValues([{ key: 'defaultTimeRange', value: timeRange }]);
