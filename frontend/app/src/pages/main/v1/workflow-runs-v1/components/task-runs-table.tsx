@@ -296,7 +296,13 @@ export function TaskRunsTable({
       only_tasks: !!workerId,
     }),
     placeholderData: (prev) => prev,
-    refetchInterval,
+    refetchInterval: () => {
+      if (Object.keys(rowSelection).length > 0) {
+        return false;
+      }
+
+      return 5000;
+    },
   });
 
   const tasks = listTasksQuery.data;
