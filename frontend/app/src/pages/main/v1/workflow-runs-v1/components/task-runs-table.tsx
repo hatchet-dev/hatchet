@@ -49,6 +49,7 @@ import {
 import { TaskRunActionButton } from '../../task-runs-v1/actions';
 import { useColumnFilters } from '../hooks/use-column-filters';
 import { usePagination } from '../hooks/use-pagination';
+import { useTaskRuns } from '../hooks/use-task-runs';
 
 export interface TaskRunsTableProps {
   createdAfter?: string;
@@ -165,14 +166,6 @@ export function TaskRunsTable({
 
   const { pagination, setPagination, setPageSize } = usePagination();
 
-  const offset = useMemo(() => {
-    if (!pagination) {
-      return;
-    }
-
-    return pagination.pageIndex * pagination.pageSize;
-  }, [pagination]);
-
   const workflow = useMemo<string | undefined>(() => {
     if (workflowId) {
       return workflowId;
@@ -183,56 +176,17 @@ export function TaskRunsTable({
 
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
-  const listTasksQuery = useQuery({
-    ...queries.v1WorkflowRuns.list(tenant.metadata.id, {
-      offset,
-      limit: pagination.pageSize,
-      statuses: cf.filters.status ? [cf.filters.status] : undefined,
-      workflow_ids: workflow ? [workflow] : [],
-      since: cf.filters.createdAfter || initialRenderTime,
-      until: cf.filters.finishedBefore,
-      additional_metadata: cf.filters.additionalMetadata,
-      worker_id: workerId,
-      only_tasks: !!workerId,
-    }),
-    placeholderData: (prev) => prev,
-    refetchInterval: () => {
-      if (Object.keys(rowSelection).length > 0) {
-        return false;
-      }
-
-      return 5000;
-    },
+  const {
+    tableRows,
+    selectedRuns,
+    numPages,
+    isLoading: taskRunsIsLoading,
+    refetch: refetchTaskRuns,
+  } = useTaskRuns({
+    rowSelection,
+    workerId,
+    workflow,
   });
-
-  const tasks = listTasksQuery.data;
-  const tableRows = useMemo(() => {
-    return tasks?.rows || [];
-  }, [tasks]);
-
-  const selectedRuns = useMemo(() => {
-    return Object.entries(rowSelection)
-      .filter(([, selected]) => !!selected)
-      .map(([id]) => {
-        const findRow = (rows: V1TaskSummary[]): V1TaskSummary | undefined => {
-          for (const row of rows) {
-            if (row.metadata.id === id) {
-              return row;
-            }
-            if (row.children) {
-              const childRow = findRow(row.children);
-              if (childRow) {
-                return childRow;
-              }
-            }
-          }
-          return undefined;
-        };
-
-        return findRow(tableRows);
-      })
-      .filter((row) => row !== undefined) as V1TaskSummary[];
-  }, [rowSelection, tableRows]);
 
   const metricsQuery = useQuery({
     ...queries.v1TaskRuns.metrics(tenant.metadata.id, {
@@ -318,7 +272,7 @@ export function TaskRunsTable({
   const [rotate, setRotate] = useState(false);
 
   const refetch = () => {
-    listTasksQuery.refetch();
+    refetchTaskRuns();
     metricsQuery.refetch();
     tenantMetricsQuery.refetch();
   };
@@ -377,10 +331,9 @@ export function TaskRunsTable({
   ];
 
   const isLoading =
-    listTasksQuery.isLoading ||
+    taskRunsIsLoading ||
     metricsQuery.isLoading ||
     tenantMetricsQuery.isLoading ||
-    listTasksQuery.isFetching ||
     metricsQuery.isFetching ||
     tenantMetricsQuery.isFetching;
 
@@ -570,7 +523,7 @@ export function TaskRunsTable({
         onSetPageSize={setPageSize}
         rowSelection={rowSelection}
         setRowSelection={setRowSelection}
-        pageCount={tasks?.pagination.num_pages || 0}
+        pageCount={numPages}
         showColumnToggle={true}
         getSubRows={(row) => row.children || []}
         getRowId={getRowId}

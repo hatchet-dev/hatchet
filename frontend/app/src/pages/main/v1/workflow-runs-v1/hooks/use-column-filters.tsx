@@ -34,7 +34,7 @@ type ColumnFilterKey = 'status' | 'additionalMetadata';
 export const useColumnFilters = () => {
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const parseFiltersFromParams = (): FilterParams => {
+  const parseFiltersFromParams = useCallback((): FilterParams => {
     const defaultTimeRange = searchParams.get('defaultTimeRange') || undefined;
     const createdAfter = searchParams.get('createdAfter') || undefined;
     const finishedBefore = searchParams.get('finishedBefore') || undefined;
@@ -78,7 +78,7 @@ export const useColumnFilters = () => {
       columnFilters,
       workflowId,
     };
-  };
+  }, [searchParams]);
 
   const filters = useMemo(
     () => parseFiltersFromParams(),

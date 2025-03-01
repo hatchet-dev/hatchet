@@ -43,9 +43,18 @@ export const usePagination = () => {
     [setSearchParams],
   );
 
+  const offset = useMemo(() => {
+    if (!pagination) {
+      return;
+    }
+
+    return pagination.pageIndex * pagination.pageSize;
+  }, [pagination]);
+
   return {
     pagination,
     setPagination,
     setPageSize,
+    offset,
   };
 };
