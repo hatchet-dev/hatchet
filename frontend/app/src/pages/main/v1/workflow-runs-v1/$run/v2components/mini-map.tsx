@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { V1TaskSummary } from '@/lib/api';
 import { TabOption } from './step-run-detail/step-run-detail';
 import StepRunNode from './step-run-node';
-import { useWorkflowDetails } from '../../hooks';
+import { useWorkflowDetails } from '../../hooks/use-workflow-details';
 
 interface JobMiniMapProps {
   onClick: (stepRunId?: string, defaultOpenTab?: TabOption) => void;

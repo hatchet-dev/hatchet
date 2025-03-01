@@ -111,7 +111,7 @@ export function TaskRunsTable({
   showMetrics = false,
   showCounts = true,
 }: TaskRunsTableProps) {
-  const [searchParams, _] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const { tenant } = useOutletContext<TenantContextType>();
   invariant(tenant);
 
@@ -139,7 +139,12 @@ export function TaskRunsTable({
     }, 60 * 1000);
 
     return () => clearInterval(interval);
-  }, [cf]);
+  }, [
+    cf.filters.isCustomTimeRange,
+    cf.filters.defaultTimeRange,
+    cf.setCreatedAfter,
+    cf,
+  ]);
 
   const [sorting, setSorting] = useState<SortingState>(() => {
     const sortParam = searchParams.get('sort');
@@ -171,32 +176,30 @@ export function TaskRunsTable({
     }
 
     return cf.filters.workflowId;
-  }, [cf]);
+  }, [cf.filters.workflowId, workflowId]);
 
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
   const listTasksQuery = useQuery({
     ...queries.v1WorkflowRuns.list(tenant.metadata.id, {
       offset,
-      limit: pagination.pageSize,
-      statuses: cf.filters.status ? [cf.filters.status] : undefined,
-      workflow_ids: workflow ? [workflow] : [],
-      since:
-        cf.filters.createdAfter ||
-        new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-      until: cf.filters.finishedBefore,
-      additional_metadata: cf.filters.additionalMetadata,
+      // limit: pagination.pageSize,
+      // statuses: cf.filters.status ? [cf.filters.status] : undefined,
+      // workflow_ids: workflow ? [workflow] : [],
+      since: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+      // until: cf.filters.finishedBefore,
+      // additional_metadata: cf.filters.additionalMetadata,
       worker_id: workerId,
       only_tasks: !!workerId,
     }),
-    placeholderData: (prev) => prev,
-    refetchInterval: () => {
-      if (Object.keys(rowSelection).length > 0) {
-        return false;
-      }
+    // placeholderData: (prev) => prev,
+    // refetchInterval: () => {
+    //   if (Object.keys(rowSelection).length > 0) {
+    //     return false;
+    //   }
 
-      return 5000;
-    },
+    //   return 5000;
+    // },
   });
 
   const tasks = listTasksQuery.data;
@@ -231,12 +234,12 @@ export function TaskRunsTable({
   const metricsQuery = useQuery({
     ...queries.v1TaskRuns.metrics(tenant.metadata.id, {
       since:
-        cf.filters.createdAfter ||
+        // cf.filters.createdAfter ||
         new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-      workflow_ids: workflow ? [workflow] : [],
+      // workflow_ids: workflow ? [workflow] : [],
     }),
-    placeholderData: (prev) => prev,
-    refetchInterval,
+    // placeholderData: (prev) => prev,
+    // refetchInterval,
   });
 
   const metrics = metricsQuery.data || [];
@@ -592,7 +595,7 @@ const GetWorkflowChart = ({
       createdAfter,
       finishedBefore,
     }),
-    placeholderData: (prev) => prev,
+    // placeholderData: (prev) => prev,
     refetchInterval,
   });
 

@@ -5,7 +5,7 @@ import { useSearchParams } from 'react-router-dom';
 export const usePagination = () => {
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const pagination: PaginationState = useMemo(
+  const pagination = useMemo(
     () => ({
       pageIndex: Number(searchParams.get('pageIndex')) || 0,
       pageSize: Number(searchParams.get('pageSize')) || 50,
@@ -15,39 +15,32 @@ export const usePagination = () => {
 
   const setPagination = useCallback(
     (updaterOrValue: Updater<PaginationState>) => {
-      if (typeof updaterOrValue === 'function') {
-        const newValues = updaterOrValue(pagination);
+      const newValues =
+        typeof updaterOrValue === 'function'
+          ? updaterOrValue(pagination)
+          : updaterOrValue;
 
-        setSearchParams((prev) => {
-          const newParams = new URLSearchParams(prev);
-
-          newParams.set('pageSize', String(newValues.pageSize));
-          newParams.set('pageIndex', String(newValues.pageIndex));
-
-          return newParams;
-        });
-      } else {
-        setSearchParams((prev) => {
-          const newParams = new URLSearchParams(prev);
-
-          newParams.set('pageSize', String(updaterOrValue.pageSize));
-          newParams.set('pageIndex', String(updaterOrValue.pageIndex));
-
-          return newParams;
-        });
-      }
+      setSearchParams((prev) => {
+        const newParams = new URLSearchParams(prev);
+        newParams.set('pageSize', String(newValues.pageSize));
+        newParams.set('pageIndex', String(newValues.pageIndex));
+        return newParams;
+      });
     },
-    [setSearchParams],
+    [pagination, setSearchParams],
   );
 
   const setPageSize = useCallback(
     (newPageSize: number) => {
-      setPagination({
-        ...pagination,
-        pageSize: newPageSize,
+      setSearchParams((prev) => {
+        const newParams = new URLSearchParams(prev);
+
+        newParams.set('pageSize', String(newPageSize));
+
+        return newParams;
       });
     },
-    [setPagination],
+    [setSearchParams],
   );
 
   return {

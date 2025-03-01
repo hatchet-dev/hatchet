@@ -1,5 +1,9 @@
 import { V1TaskStatus } from '@/lib/api';
-import { ColumnFilter, ColumnFiltersState, Updater } from '@tanstack/react-table';
+import {
+  ColumnFilter,
+  ColumnFiltersState,
+  Updater,
+} from '@tanstack/react-table';
 import { useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
@@ -76,7 +80,10 @@ export const useColumnFilters = () => {
     };
   };
 
-  const filters = useMemo(() => parseFiltersFromParams(), [searchParams]);
+  const filters = useMemo(
+    () => parseFiltersFromParams(),
+    [parseFiltersFromParams],
+  );
 
   const setFilterValues = useCallback(
     (items: KVPair[]) => {
@@ -125,7 +132,7 @@ export const useColumnFilters = () => {
         setFilterValues(newFilters);
       }
     },
-    [],
+    [filters.columnFilters, setFilterValues],
   );
 
   const setDefaultTimeRange = useCallback(

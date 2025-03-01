@@ -16,7 +16,7 @@ import {
 } from '@/components/v1/ui/breadcrumb';
 import { formatDuration } from '@/lib/utils';
 import RelativeDate from '@/components/v1/molecules/relative-date';
-import { useWorkflowDetails } from '../../hooks';
+import { useWorkflowDetails } from '../../hooks/use-workflow-details';
 
 export const WORKFLOW_RUN_TERMINAL_STATUSES = [
   WorkflowRunStatus.CANCELLED,
