@@ -1,8 +1,7 @@
 import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
 import { columns } from './v1/task-runs-columns';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
-  ColumnFiltersState,
   PaginationState,
   RowSelectionState,
   SortingState,
@@ -153,14 +152,6 @@ export function TaskRunsTable({
     return [];
   });
 
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>(() => {
-    const filtersParam = searchParams.get('filters');
-    if (filtersParam) {
-      return JSON.parse(filtersParam);
-    }
-    return [];
-  });
-
   const [columnVisibility, setColumnVisibility] =
     useState<VisibilityState>(initColumnVisibility);
 
@@ -190,15 +181,8 @@ export function TaskRunsTable({
       return workflowId;
     }
 
-    const filter = columnFilters.find((filter) => filter.id === 'Workflow');
-
-    if (!filter) {
-      return;
-    }
-
-    const vals = filter?.value as Array<string>;
-    return vals[0];
-  }, [columnFilters]);
+    return cf.filters.workflowId;
+  }, [cf]);
 
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
@@ -212,8 +196,7 @@ export function TaskRunsTable({
         cf.filters.createdAfter ||
         new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
       until: cf.filters.finishedBefore,
-      additional_metadata: columnFilters.find((f) => f.id === 'additionalMetadata')
-        ?.value as string[],
+      additional_metadata: cf.filters.additionalMetadata,
       worker_id: workerId,
       only_tasks: !!workerId,
     }),
@@ -545,7 +528,7 @@ export function TaskRunsTable({
               }}
               showQueueMetrics={showMetrics}
               onClick={(status) => {
-                cf.setStatuses(status);
+                cf.setStatus(status);
               }}
             />
           ) : (

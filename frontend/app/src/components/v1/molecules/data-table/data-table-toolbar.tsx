@@ -61,7 +61,6 @@ export function DataTableToolbar<TData>({
           />
         )}
         {filters.map((filter) => {
-          console.log('Filter: ', filter, table.getColumn(filter.columnId));
           return (
             <DataTableFacetedFilter
               key={filter.columnId}

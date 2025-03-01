@@ -12,6 +12,7 @@ type FilterParams = {
   status: V1TaskStatus | undefined;
   additionalMetadata: string[] | undefined;
   columnFilters: ColumnFiltersState;
+  workflowId: string | undefined;
 };
 type FilterKey = keyof FilterParams;
 
@@ -38,8 +39,14 @@ export const useColumnFilters = () => {
       searchParams.get('isCustomTimeRange') === 'true' || undefined;
 
     const status = searchParams.get('status') as V1TaskStatus | undefined;
-    const additionalMetadata = (searchParams.get('additionalMetadata') ||
-      undefined) as string[] | undefined;
+    const additionalMetadataRaw = (searchParams.get('additionalMetadata') ||
+      undefined) as string | undefined;
+
+    const additionalMetadata = additionalMetadataRaw
+      ? additionalMetadataRaw.split(',')
+      : undefined;
+
+    const workflowId = searchParams.get('workflowId') || undefined;
 
     const statusColumnFilter = status
       ? { id: 'status', value: status }
@@ -48,9 +55,14 @@ export const useColumnFilters = () => {
       ? { id: 'additionalMetadata', value: additionalMetadata }
       : undefined;
 
+    const workflowIdColumnFilter = workflowId
+      ? { id: 'workflowId', value: workflowId }
+      : undefined;
+
     const columnFilters: ColumnFiltersState = [
       statusColumnFilter,
       additionalMetadataColumnFilter,
+      workflowIdColumnFilter,
     ].filter((f) => f !== undefined) as ColumnFiltersState;
 
     return {
@@ -61,6 +73,7 @@ export const useColumnFilters = () => {
       status,
       additionalMetadata,
       columnFilters,
+      workflowId,
     };
   };
 
@@ -90,10 +103,7 @@ export const useColumnFilters = () => {
       case 'status':
         return { key: 'status', value: f.value };
       case 'additionalMetadata':
-        const existing = filters.additionalMetadata || [];
-        console.log(f.value);
-
-        return { key: 'additionalMetadata', value: [...existing, f.value] };
+        return { key: 'additionalMetadata', value: f.value };
       default:
         return { key: f.id as ColumnFilterKey, value: f.value };
     }
@@ -104,7 +114,6 @@ export const useColumnFilters = () => {
       if (typeof updaterOrValue === 'function') {
         const newVal = updaterOrValue(filters.columnFilters);
 
-        console.log(newVal);
         const newFilters = newVal.map(parseColumnFilter);
 
         setFilterValues(newFilters);
@@ -153,9 +162,16 @@ export const useColumnFilters = () => {
     [setFilterValues],
   );
 
-  const setStatuses = useCallback(
+  const setStatus = useCallback(
     (status: V1TaskStatus | undefined) => {
       setFilterValues([{ key: 'status', value: status }]);
+    },
+    [setFilterValues],
+  );
+
+  const setWorkflowId = useCallback(
+    (workflowId: string | undefined) => {
+      setFilterValues([{ key: 'workflowId', value: workflowId }]);
     },
     [setFilterValues],
   );
@@ -165,7 +181,6 @@ export const useColumnFilters = () => {
       const existing = filters.additionalMetadata || [];
       const newMetadata = existing.filter((m) => m.split(':')[0] !== key);
 
-      console.log(existing, newMetadata);
       newMetadata.push(`${key}:${value}`);
 
       setFilterValues([{ key: 'additionalMetadata', value: newMetadata }]);
@@ -180,7 +195,8 @@ export const useColumnFilters = () => {
     setCreatedAfter,
     setFinishedBefore,
     setFilterValues,
-    setStatuses,
+    setStatus,
+    setWorkflowId,
     setColumnFilters,
     setAdditionalMetadata,
   };
