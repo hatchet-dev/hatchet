@@ -4,8 +4,10 @@ import {
   ColumnFiltersState,
   Updater,
 } from '@tanstack/react-table';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
+
+export type TimeWindow = '1h' | '6h' | '1d' | '7d';
 
 type FilterParams = {
   createdAfter: string;
@@ -15,6 +17,7 @@ type FilterParams = {
   additionalMetadata: string[] | undefined;
   columnFilters: ColumnFiltersState;
   workflowId: string | undefined;
+  timeWindow: TimeWindow | undefined;
 };
 type FilterKey = keyof FilterParams;
 
@@ -29,8 +32,6 @@ type KVPair = {
 };
 
 type ColumnFilterKey = 'status' | 'additionalMetadata';
-
-export type TimeWindow = '1h' | '6h' | '1d' | '7d';
 
 export const getCreatedAfterFromTimeRange = (timeWindow: TimeWindow) => {
   switch (timeWindow) {
@@ -51,12 +52,12 @@ export const getCreatedAfterFromTimeRange = (timeWindow: TimeWindow) => {
 
 const parseTimeRange = ({
   isCustom,
-  defaultTimeWindowStartAt,
+  timeWindow,
   createdAfter,
   finishedBefore,
 }: {
   isCustom: boolean;
-  defaultTimeWindowStartAt: string;
+  timeWindow: TimeWindow;
   createdAfter: string | null;
   finishedBefore: string | null;
 }) => {
@@ -65,13 +66,9 @@ const parseTimeRange = ({
       createdAfter,
       finishedBefore,
     };
-  } else if (isCustom) {
-    throw new Error(
-      "This state shouldn't happen - figure out how to handle this",
-    );
   } else {
     return {
-      createdAfter: defaultTimeWindowStartAt,
+      createdAfter: getCreatedAfterFromTimeRange(timeWindow),
       finishedBefore: undefined,
     };
   }
@@ -79,37 +76,21 @@ const parseTimeRange = ({
 
 export const useColumnFilters = () => {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [defaultTimeWindowStartAt, setDefaultTimeWindowStartAt] = useState(
-    new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-  );
-  const timeWindowFilter = (searchParams.get('timeWindowFilter') ||
+
+  const timeWindowFilter = (searchParams.get('timeWindow') ||
     '1d') as TimeWindow;
 
   const isCustomTimeRange =
     searchParams.get('isCustomTimeRange') === 'true' || false;
 
-  // create a timer which updates the defaultTimeWindowStartAt date every minute
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (isCustomTimeRange) {
-        return;
-      }
-
-      setDefaultTimeWindowStartAt(
-        getCreatedAfterFromTimeRange(timeWindowFilter) ||
-          new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-      );
-    }, 60 * 1000);
-
-    return () => clearInterval(interval);
-  }, [isCustomTimeRange, timeWindowFilter]);
-
-  const { createdAfter, finishedBefore } = parseTimeRange({
-    isCustom: isCustomTimeRange,
-    defaultTimeWindowStartAt,
-    createdAfter: searchParams.get('createdAfter'),
-    finishedBefore: searchParams.get('finishedBefore'),
-  });
+  const { createdAfter, finishedBefore } = useMemo(() => {
+    return parseTimeRange({
+      isCustom: isCustomTimeRange,
+      timeWindow: timeWindowFilter,
+      createdAfter: searchParams.get('createdAfter'),
+      finishedBefore: searchParams.get('finishedBefore'),
+    });
+  }, [isCustomTimeRange, timeWindowFilter, searchParams]);
 
   const status = searchParams.get('status') as V1TaskStatus | undefined;
   const additionalMetadataRaw = (searchParams.get('additionalMetadata') ||
@@ -155,6 +136,26 @@ export const useColumnFilters = () => {
     },
     [setSearchParams],
   );
+
+  // create a timer which updates the defaultTimeWindowStartAt date every minute
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (isCustomTimeRange) {
+        return;
+      }
+
+      setFilterValues([
+        {
+          key: 'createdAfter',
+          value:
+            getCreatedAfterFromTimeRange(timeWindowFilter) ||
+            new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+        },
+      ]);
+    }, 60 * 1000);
+
+    return () => clearInterval(interval);
+  }, [isCustomTimeRange, timeWindowFilter, setFilterValues]);
 
   const parseColumnFilter = (f: ColumnFilter): KVPair => {
     switch (f.id) {

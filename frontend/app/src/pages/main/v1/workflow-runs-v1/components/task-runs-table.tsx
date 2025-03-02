@@ -37,11 +37,7 @@ import {
   TaskRunDetail,
 } from '../$run/v2components/step-run-detail/step-run-detail';
 import { TaskRunActionButton } from '../../task-runs-v1/actions';
-import {
-  getCreatedAfterFromTimeRange,
-  TimeWindow,
-  useColumnFilters,
-} from '../hooks/column-filters';
+import { TimeWindow, useColumnFilters } from '../hooks/column-filters';
 import { usePagination } from '../hooks/pagination';
 import { useTaskRuns } from '../hooks/task-runs';
 import { useMetrics } from '../hooks/metrics';
@@ -73,7 +69,7 @@ export function TaskRunsTable({
   createdAfter: createdAfterProp,
   initColumnVisibility = {},
   filterVisibility = {},
-  refetchInterval = 5000,
+  refetchInterval = 100000,
   showMetrics = false,
   showCounts = true,
 }: TaskRunsTableProps) {
@@ -92,6 +88,7 @@ export function TaskRunsTable({
     });
 
   const cf = useColumnFilters();
+
   const toolbarFilters = useToolbarFilters({ filterVisibility });
   const { pagination, setPagination, setPageSize } = usePagination();
   const { sorting, setSorting } = useSorting();
@@ -218,12 +215,10 @@ export function TaskRunsTable({
               if (value !== 'custom') {
                 cf.setFilterValues([
                   { key: 'isCustomTimeRange', value: false },
-                  {
-                    key: 'createdAfter',
-                    value: getCreatedAfterFromTimeRange(value),
-                  },
-                  { key: 'finishedBefore', value: undefined },
+                  { key: 'timeWindow', value: value },
                 ]);
+              } else {
+                cf.setFilterValues([{ key: 'isCustomTimeRange', value: true }]);
               }
             }}
           >
