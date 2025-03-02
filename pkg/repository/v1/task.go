@@ -878,7 +878,7 @@ func (r *TaskRepositoryImpl) ListFinalizedWorkflowRuns(ctx context.Context, tena
 	}
 
 	if time.Since(start) > 100*time.Millisecond {
-		r.l.Error().Dur(
+		r.l.Warn().Dur(
 			"lookup_duration",
 			durLookup,
 		).Dur(
