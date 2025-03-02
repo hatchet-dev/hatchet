@@ -204,6 +204,15 @@ export const V1WorkflowRunsMetricsView = ({
 
       <MetricBadge
         metrics={metrics}
+        status={V1TaskStatus.CANCELLED}
+        total={total}
+        onClick={onClick}
+        variant="outlineDestructive"
+        className="cursor-pointer text-sm px-2 py-1 w-fit"
+      />
+
+      <MetricBadge
+        metrics={metrics}
         status={V1TaskStatus.QUEUED}
         total={total}
         onClick={onClick}
