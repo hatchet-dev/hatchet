@@ -131,6 +131,12 @@ export const useColumnFilters = () => {
           }
         });
 
+        newParams.forEach((v, k) => {
+          if (!v) {
+            newParams.delete(k);
+          }
+        });
+
         return newParams;
       });
     },
