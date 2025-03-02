@@ -515,7 +515,18 @@ WITH input AS (
         e.readable_status = 'FAILED'
     ORDER BY
         e.task_id, e.retry_count DESC
+), task_output AS (
+    SELECT
+        task_id,
+        MAX(output::TEXT)::JSONB AS output
+    FROM
+        relevant_events
+    WHERE
+        readable_status = 'COMPLETED'
+    GROUP BY
+        task_id
 )
+
 SELECT
     t.tenant_id,
     t.id,
@@ -531,10 +542,12 @@ SELECT
     t.sticky,
     t.display_name,
     t.additional_metadata,
+    t.input,
     t.readable_status::v1_readable_status_olap as status,
     f.finished_at::timestamptz as finished_at,
     s.started_at::timestamptz as started_at,
-    e.error_message as error_message
+    e.error_message as error_message,
+    o.output::jsonb as output
 FROM
     tasks t
 LEFT JOIN
@@ -543,6 +556,8 @@ LEFT JOIN
     started_ats s ON s.task_id = t.id
 LEFT JOIN
     error_message e ON e.task_id = t.id
+LEFT JOIN
+    task_output o ON o.task_id = t.id
 ORDER BY t.inserted_at DESC, t.id DESC;
 
 
@@ -862,16 +877,27 @@ WITH input AS (
         e.readable_status = 'FAILED'
     ORDER BY
         e.run_id, e.retry_count DESC
+), task_output AS (
+    SELECT
+        run_id,
+        output
+    FROM
+        relevant_events
+    WHERE
+        event_type = 'FINISHED'
 )
+
 SELECT
     r.*,
     m.created_at,
     m.started_at,
     m.finished_at,
-    e.error_message
+    e.error_message,
+    o.output
 FROM runs r
 LEFT JOIN metadata m ON r.run_id = m.run_id
 LEFT JOIN error_message e ON r.run_id = e.run_id
+LEFT JOIN task_output o ON r.run_id = o.run_id
 ORDER BY r.inserted_at DESC, r.run_id DESC;
 
 
@@ -895,13 +921,7 @@ ORDER BY bucket_2;
 
 -- name: GetTenantStatusMetrics :one
 SELECT
-    DATE_BIN(
-        '1 minute',
-        inserted_at,
-        TIMESTAMPTZ '1970-01-01 00:00:00+00'
-    ) :: TIMESTAMPTZ AS bucket,
     tenant_id,
-    workflow_id,
     COUNT(*) FILTER (WHERE readable_status = 'QUEUED') AS total_queued,
     COUNT(*) FILTER (WHERE readable_status = 'RUNNING') AS total_running,
     COUNT(*) FILTER (WHERE readable_status = 'COMPLETED') AS total_completed,
@@ -914,9 +934,9 @@ WHERE
     AND (
         sqlc.narg('workflowIds')::UUID[] IS NULL OR workflow_id = ANY(sqlc.narg('workflowIds')::UUID[])
     )
-GROUP BY tenant_id, workflow_id, bucket
-ORDER BY bucket DESC
+GROUP BY tenant_id
 ;
+
 -- name: ReadWorkflowRunByExternalId :one
 WITH dags AS (
     SELECT d.*

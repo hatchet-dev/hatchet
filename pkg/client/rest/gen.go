@@ -215,6 +215,12 @@ const (
 	V1TaskStatusRUNNING   V1TaskStatus = "RUNNING"
 )
 
+// Defines values for V1WorkflowType.
+const (
+	V1WorkflowTypeDAG  V1WorkflowType = "DAG"
+	V1WorkflowTypeTASK V1WorkflowType = "TASK"
+)
+
 // Defines values for WorkerStatus.
 const (
 	ACTIVE   WorkerStatus = "ACTIVE"
@@ -238,9 +244,9 @@ const (
 
 // Defines values for WorkflowKind.
 const (
-	DAG      WorkflowKind = "DAG"
-	DURABLE  WorkflowKind = "DURABLE"
-	FUNCTION WorkflowKind = "FUNCTION"
+	WorkflowKindDAG      WorkflowKind = "DAG"
+	WorkflowKindDURABLE  WorkflowKind = "DURABLE"
+	WorkflowKindFUNCTION WorkflowKind = "FUNCTION"
 )
 
 // Defines values for WorkflowRunOrderByDirection.
@@ -1282,6 +1288,12 @@ type V1TaskSummary struct {
 	// AdditionalMetadata Additional metadata for the task run.
 	AdditionalMetadata *map[string]interface{} `json:"additionalMetadata,omitempty"`
 
+	// Children The list of children tasks
+	Children *[]V1TaskSummary `json:"children,omitempty"`
+
+	// CreatedAt The timestamp the task was created.
+	CreatedAt *time.Time `json:"createdAt,omitempty"`
+
 	// DisplayName The display name of the task run.
 	DisplayName string `json:"displayName"`
 
@@ -1292,8 +1304,11 @@ type V1TaskSummary struct {
 	ErrorMessage *string `json:"errorMessage,omitempty"`
 
 	// FinishedAt The timestamp the task run finished.
-	FinishedAt *time.Time      `json:"finishedAt,omitempty"`
-	Metadata   APIResourceMeta `json:"metadata"`
+	FinishedAt *time.Time `json:"finishedAt,omitempty"`
+
+	// Input The input of the task run.
+	Input    *map[string]interface{} `json:"input,omitempty"`
+	Metadata APIResourceMeta         `json:"metadata"`
 
 	// Output The output of the task run (for the latest run)
 	Output map[string]interface{} `json:"output"`
@@ -1313,7 +1328,11 @@ type V1TaskSummary struct {
 
 	// TenantId The ID of the tenant.
 	TenantId   openapi_types.UUID `json:"tenantId"`
+	Type       V1WorkflowType     `json:"type"`
 	WorkflowId openapi_types.UUID `json:"workflowId"`
+
+	// WorkflowVersionId The version ID of the workflow
+	WorkflowVersionId *openapi_types.UUID `json:"workflowVersionId,omitempty"`
 }
 
 // V1TaskSummaryList defines model for V1TaskSummaryList.
@@ -1373,13 +1392,8 @@ type V1WorkflowRunDetails struct {
 	Tasks      []V1TaskSummary `json:"tasks"`
 }
 
-// V1WorkflowRunList defines model for V1WorkflowRunList.
-type V1WorkflowRunList struct {
-	Pagination PaginationResponse `json:"pagination"`
-
-	// Rows The list of workflow runs
-	Rows []V1WorkflowRun `json:"rows"`
-}
+// V1WorkflowType defines model for V1WorkflowType.
+type V1WorkflowType string
 
 // WebhookWorker defines model for WebhookWorker.
 type WebhookWorker struct {
@@ -1786,33 +1800,6 @@ type V1TaskGetPointMetricsParams struct {
 	FinishedBefore *time.Time `form:"finishedBefore,omitempty" json:"finishedBefore,omitempty"`
 }
 
-// V1TaskListParams defines parameters for V1TaskList.
-type V1TaskListParams struct {
-	// Offset The number to skip
-	Offset *int64 `form:"offset,omitempty" json:"offset,omitempty"`
-
-	// Limit The number to limit by
-	Limit *int64 `form:"limit,omitempty" json:"limit,omitempty"`
-
-	// Statuses A list of task statuses to filter by
-	Statuses *[]V1TaskStatus `form:"statuses,omitempty" json:"statuses,omitempty"`
-
-	// Since The earliest date to filter by
-	Since time.Time `form:"since" json:"since"`
-
-	// Until The earliest date to filter by
-	Until *time.Time `form:"until,omitempty" json:"until,omitempty"`
-
-	// AdditionalMetadata Additional metadata k-v pairs to filter by
-	AdditionalMetadata *[]string `form:"additional_metadata,omitempty" json:"additional_metadata,omitempty"`
-
-	// WorkflowIds The workflow ids to find runs for
-	WorkflowIds *[]openapi_types.UUID `form:"workflow_ids,omitempty" json:"workflow_ids,omitempty"`
-
-	// WorkerId The worker id to filter by
-	WorkerId *openapi_types.UUID `form:"worker_id,omitempty" json:"worker_id,omitempty"`
-}
-
 // V1WorkflowRunListParams defines parameters for V1WorkflowRunList.
 type V1WorkflowRunListParams struct {
 	// Offset The number to skip
@@ -1835,6 +1822,12 @@ type V1WorkflowRunListParams struct {
 
 	// WorkflowIds The workflow ids to find runs for
 	WorkflowIds *[]openapi_types.UUID `form:"workflow_ids,omitempty" json:"workflow_ids,omitempty"`
+
+	// WorkerId The worker id to filter by
+	WorkerId *openapi_types.UUID `form:"worker_id,omitempty" json:"worker_id,omitempty"`
+
+	// OnlyTasks Whether to include DAGs or only to include tasks
+	OnlyTasks bool `form:"only_tasks" json:"only_tasks"`
 }
 
 // V1WorkflowRunTaskEventsListParams defines parameters for V1WorkflowRunTaskEventsList.
@@ -2322,9 +2315,6 @@ type ClientInterface interface {
 
 	// V1TaskGetPointMetrics request
 	V1TaskGetPointMetrics(ctx context.Context, tenant openapi_types.UUID, params *V1TaskGetPointMetricsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// V1TaskList request
-	V1TaskList(ctx context.Context, tenant openapi_types.UUID, params *V1TaskListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// V1TaskCancelWithBody request with any body
 	V1TaskCancelWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -2866,18 +2856,6 @@ func (c *Client) V1TaskListStatusMetrics(ctx context.Context, tenant openapi_typ
 
 func (c *Client) V1TaskGetPointMetrics(ctx context.Context, tenant openapi_types.UUID, params *V1TaskGetPointMetricsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewV1TaskGetPointMetricsRequest(c.Server, tenant, params)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) V1TaskList(ctx context.Context, tenant openapi_types.UUID, params *V1TaskListParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewV1TaskListRequest(c.Server, tenant, params)
 	if err != nil {
 		return nil, err
 	}
@@ -4996,170 +4974,6 @@ func NewV1TaskGetPointMetricsRequest(server string, tenant openapi_types.UUID, p
 	return req, nil
 }
 
-// NewV1TaskListRequest generates requests for V1TaskList
-func NewV1TaskListRequest(server string, tenant openapi_types.UUID, params *V1TaskListParams) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/tasks", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	if params != nil {
-		queryValues := queryURL.Query()
-
-		if params.Offset != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "offset", runtime.ParamLocationQuery, *params.Offset); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.Limit != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.Statuses != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "statuses", runtime.ParamLocationQuery, *params.Statuses); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "since", runtime.ParamLocationQuery, params.Since); err != nil {
-			return nil, err
-		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-			return nil, err
-		} else {
-			for k, v := range parsed {
-				for _, v2 := range v {
-					queryValues.Add(k, v2)
-				}
-			}
-		}
-
-		if params.Until != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "until", runtime.ParamLocationQuery, *params.Until); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.AdditionalMetadata != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "additional_metadata", runtime.ParamLocationQuery, *params.AdditionalMetadata); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.WorkflowIds != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "workflow_ids", runtime.ParamLocationQuery, *params.WorkflowIds); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.WorkerId != nil {
-
-			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "worker_id", runtime.ParamLocationQuery, *params.WorkerId); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		queryURL.RawQuery = queryValues.Encode()
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
 // NewV1TaskCancelRequest calls the generic V1TaskCancel builder with application/json body
 func NewV1TaskCancelRequest(server string, tenant openapi_types.UUID, body V1TaskCancelJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -5389,6 +5203,34 @@ func NewV1WorkflowRunListRequest(server string, tenant openapi_types.UUID, param
 				}
 			}
 
+		}
+
+		if params.WorkerId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "worker_id", runtime.ParamLocationQuery, *params.WorkerId); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "only_tasks", runtime.ParamLocationQuery, params.OnlyTasks); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
 		}
 
 		queryURL.RawQuery = queryValues.Encode()
@@ -9911,9 +9753,6 @@ type ClientWithResponsesInterface interface {
 	// V1TaskGetPointMetricsWithResponse request
 	V1TaskGetPointMetricsWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1TaskGetPointMetricsParams, reqEditors ...RequestEditorFn) (*V1TaskGetPointMetricsResponse, error)
 
-	// V1TaskListWithResponse request
-	V1TaskListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1TaskListParams, reqEditors ...RequestEditorFn) (*V1TaskListResponse, error)
-
 	// V1TaskCancelWithBodyWithResponse request with any body
 	V1TaskCancelWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1TaskCancelResponse, error)
 
@@ -10674,31 +10513,6 @@ func (r V1TaskGetPointMetricsResponse) StatusCode() int {
 	return 0
 }
 
-type V1TaskListResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *V1TaskSummaryList
-	JSON400      *APIErrors
-	JSON403      *APIErrors
-	JSON501      *APIErrors
-}
-
-// Status returns HTTPResponse.Status
-func (r V1TaskListResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r V1TaskListResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
 type V1TaskCancelResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -10752,7 +10566,7 @@ func (r V1TaskReplayResponse) StatusCode() int {
 type V1WorkflowRunListResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *V1WorkflowRunList
+	JSON200      *V1TaskSummaryList
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON501      *APIErrors
@@ -12939,15 +12753,6 @@ func (c *ClientWithResponses) V1TaskGetPointMetricsWithResponse(ctx context.Cont
 	return ParseV1TaskGetPointMetricsResponse(rsp)
 }
 
-// V1TaskListWithResponse request returning *V1TaskListResponse
-func (c *ClientWithResponses) V1TaskListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1TaskListParams, reqEditors ...RequestEditorFn) (*V1TaskListResponse, error) {
-	rsp, err := c.V1TaskList(ctx, tenant, params, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseV1TaskListResponse(rsp)
-}
-
 // V1TaskCancelWithBodyWithResponse request with arbitrary body returning *V1TaskCancelResponse
 func (c *ClientWithResponses) V1TaskCancelWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1TaskCancelResponse, error) {
 	rsp, err := c.V1TaskCancelWithBody(ctx, tenant, contentType, body, reqEditors...)
@@ -14641,53 +14446,6 @@ func ParseV1TaskGetPointMetricsResponse(rsp *http.Response) (*V1TaskGetPointMetr
 	return response, nil
 }
 
-// ParseV1TaskListResponse parses an HTTP response from a V1TaskListWithResponse call
-func ParseV1TaskListResponse(rsp *http.Response) (*V1TaskListResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &V1TaskListResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest V1TaskSummaryList
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest APIErrors
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest APIErrors
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
-		var dest APIErrors
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON501 = &dest
-
-	}
-
-	return response, nil
-}
-
 // ParseV1TaskCancelResponse parses an HTTP response from a V1TaskCancelWithResponse call
 func ParseV1TaskCancelResponse(rsp *http.Response) (*V1TaskCancelResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -14797,7 +14555,7 @@ func ParseV1WorkflowRunListResponse(rsp *http.Response) (*V1WorkflowRunListRespo
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest V1WorkflowRunList
+		var dest V1TaskSummaryList
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
