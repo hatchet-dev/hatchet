@@ -245,6 +245,14 @@ export const useColumnFilters = () => {
     [additionalMetadata, setFilterValues],
   );
 
+  const clearColumnFilters = useCallback(() => {
+    setFilterValues([
+      { key: 'Workflow', value: undefined },
+      { key: 'additionalMetadata', value: undefined },
+      { key: 'status', value: undefined },
+    ]);
+  }, [setFilterValues]);
+
   return {
     filters: {
       createdAfter,
@@ -264,5 +272,6 @@ export const useColumnFilters = () => {
     setWorkflowId,
     setColumnFilters,
     setAdditionalMetadata,
+    clearColumnFilters,
   };
 };

@@ -344,6 +344,7 @@ export function TaskRunsTable({
         showColumnToggle={true}
         getSubRows={(row) => row.children || []}
         getRowId={getRowId}
+        onToolbarReset={cf.clearColumnFilters}
       />
     </>
   );
