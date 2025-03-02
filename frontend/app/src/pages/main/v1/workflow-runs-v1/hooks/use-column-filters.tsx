@@ -4,12 +4,11 @@ import {
   ColumnFiltersState,
   Updater,
 } from '@tanstack/react-table';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
 type FilterParams = {
-  defaultTimeRange: string | undefined;
-  createdAfter: string | undefined;
+  createdAfter: string;
   finishedBefore: string | undefined;
   isCustomTimeRange: boolean | undefined;
   status: V1TaskStatus | undefined;
@@ -31,59 +30,112 @@ type KVPair = {
 
 type ColumnFilterKey = 'status' | 'additionalMetadata';
 
-export const useColumnFilters = () => {
-  const [searchParams, setSearchParams] = useSearchParams();
+export type TimeWindow = '1h' | '6h' | '1d' | '7d';
 
-  const parseFiltersFromParams = useCallback((): FilterParams => {
-    const defaultTimeRange = searchParams.get('defaultTimeRange') || undefined;
-    const createdAfter = searchParams.get('createdAfter') || undefined;
-    const finishedBefore = searchParams.get('finishedBefore') || undefined;
-    const isCustomTimeRange =
-      searchParams.get('isCustomTimeRange') === 'true' || undefined;
+export const getCreatedAfterFromTimeRange = (timeWindow: TimeWindow) => {
+  switch (timeWindow) {
+    case '1h':
+      return new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    case '6h':
+      return new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
+    case '1d':
+      return new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    case '7d':
+      return new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    default:
+      // eslint-disable-next-line no-case-declarations
+      const exhaustiveCheck: never = timeWindow;
+      throw new Error(`Unhandled time range: ${exhaustiveCheck}`);
+  }
+};
 
-    const status = searchParams.get('status') as V1TaskStatus | undefined;
-    const additionalMetadataRaw = (searchParams.get('additionalMetadata') ||
-      undefined) as string | undefined;
-
-    const additionalMetadata = additionalMetadataRaw
-      ? additionalMetadataRaw.split(',')
-      : undefined;
-
-    const workflowId = searchParams.get('workflowId') || undefined;
-
-    const statusColumnFilter = status
-      ? { id: 'status', value: status }
-      : undefined;
-    const additionalMetadataColumnFilter = additionalMetadata
-      ? { id: 'additionalMetadata', value: additionalMetadata }
-      : undefined;
-
-    const workflowIdColumnFilter = workflowId
-      ? { id: 'workflowId', value: workflowId }
-      : undefined;
-
-    const columnFilters: ColumnFiltersState = [
-      statusColumnFilter,
-      additionalMetadataColumnFilter,
-      workflowIdColumnFilter,
-    ].filter((f) => f !== undefined) as ColumnFiltersState;
-
+const parseTimeRange = ({
+  isCustom,
+  defaultTimeWindowStartAt,
+  createdAfter,
+  finishedBefore,
+}: {
+  isCustom: boolean;
+  defaultTimeWindowStartAt: string;
+  createdAfter: string | null;
+  finishedBefore: string | null;
+}) => {
+  if (isCustom && createdAfter && finishedBefore) {
     return {
-      defaultTimeRange,
       createdAfter,
       finishedBefore,
-      isCustomTimeRange,
-      status,
-      additionalMetadata,
-      columnFilters,
-      workflowId,
     };
-  }, [searchParams]);
+  } else if (isCustom) {
+    throw new Error(
+      "This state shouldn't happen - figure out how to handle this",
+    );
+  } else {
+    return {
+      createdAfter: defaultTimeWindowStartAt,
+      finishedBefore: undefined,
+    };
+  }
+};
 
-  const filters = useMemo(
-    () => parseFiltersFromParams(),
-    [parseFiltersFromParams],
+export const useColumnFilters = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [defaultTimeWindowStartAt, setDefaultTimeWindowStartAt] = useState(
+    new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
   );
+  const timeWindowFilter = (searchParams.get('timeWindowFilter') ||
+    '1d') as TimeWindow;
+
+  const isCustomTimeRange =
+    searchParams.get('isCustomTimeRange') === 'true' || false;
+
+  // create a timer which updates the defaultTimeWindowStartAt date every minute
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (isCustomTimeRange) {
+        return;
+      }
+
+      setDefaultTimeWindowStartAt(
+        getCreatedAfterFromTimeRange(timeWindowFilter) ||
+          new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+      );
+    }, 60 * 1000);
+
+    return () => clearInterval(interval);
+  }, [isCustomTimeRange, timeWindowFilter]);
+
+  const { createdAfter, finishedBefore } = parseTimeRange({
+    isCustom: isCustomTimeRange,
+    defaultTimeWindowStartAt,
+    createdAfter: searchParams.get('createdAfter'),
+    finishedBefore: searchParams.get('finishedBefore'),
+  });
+
+  const status = searchParams.get('status') as V1TaskStatus | undefined;
+  const additionalMetadataRaw = (searchParams.get('additionalMetadata') ||
+    undefined) as string | undefined;
+
+  const additionalMetadata = additionalMetadataRaw
+    ? additionalMetadataRaw.split(',')
+    : undefined;
+
+  const workflowId = searchParams.get('workflowId') || undefined;
+
+  const statusColumnFilter = status
+    ? { id: 'status', value: status }
+    : undefined;
+  const additionalMetadataColumnFilter = additionalMetadata
+    ? { id: 'additionalMetadata', value: additionalMetadata }
+    : undefined;
+  const workflowIdColumnFilter = workflowId
+    ? { id: 'workflowId', value: workflowId }
+    : undefined;
+
+  const columnFilters: ColumnFiltersState = [
+    statusColumnFilter,
+    additionalMetadataColumnFilter,
+    workflowIdColumnFilter,
+  ].filter((f) => f !== undefined) as ColumnFiltersState;
 
   const setFilterValues = useCallback(
     (items: KVPair[]) => {
@@ -118,7 +170,7 @@ export const useColumnFilters = () => {
   const setColumnFilters = useCallback(
     (updaterOrValue: Updater<ColumnFiltersState>) => {
       if (typeof updaterOrValue === 'function') {
-        const newVal = updaterOrValue(filters.columnFilters);
+        const newVal = updaterOrValue(columnFilters);
 
         const newFilters = newVal.map(parseColumnFilter);
 
@@ -132,14 +184,7 @@ export const useColumnFilters = () => {
         setFilterValues(newFilters);
       }
     },
-    [filters.columnFilters, setFilterValues],
-  );
-
-  const setDefaultTimeRange = useCallback(
-    (timeRange: string) => {
-      setFilterValues([{ key: 'defaultTimeRange', value: timeRange }]);
-    },
-    [setFilterValues],
+    [columnFilters, setFilterValues],
   );
 
   const setCustomTimeRange = useCallback(
@@ -183,20 +228,28 @@ export const useColumnFilters = () => {
 
   const setAdditionalMetadata = useCallback(
     (key: string, value: string) => {
-      const existing = filters.additionalMetadata || [];
+      const existing = additionalMetadata || [];
       const newMetadata = existing.filter((m) => m.split(':')[0] !== key);
 
       newMetadata.push(`${key}:${value}`);
 
       setFilterValues([{ key: 'additionalMetadata', value: newMetadata }]);
     },
-    [filters.additionalMetadata, setFilterValues],
+    [additionalMetadata, setFilterValues],
   );
 
   return {
-    filters,
+    filters: {
+      createdAfter,
+      finishedBefore,
+      columnFilters,
+      additionalMetadata,
+      status,
+      workflowId,
+      isCustomTimeRange,
+      timeWindow: timeWindowFilter,
+    },
     setCustomTimeRange,
-    setDefaultTimeRange,
     setCreatedAfter,
     setFinishedBefore,
     setFilterValues,

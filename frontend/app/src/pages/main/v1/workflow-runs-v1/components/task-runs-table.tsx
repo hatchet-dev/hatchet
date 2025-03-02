@@ -1,6 +1,6 @@
 import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
 import { columns } from './v1/task-runs-columns';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   RowSelectionState,
   SortingState,
@@ -47,7 +47,11 @@ import {
   TaskRunDetail,
 } from '../$run/v2components/step-run-detail/step-run-detail';
 import { TaskRunActionButton } from '../../task-runs-v1/actions';
-import { useColumnFilters } from '../hooks/use-column-filters';
+import {
+  getCreatedAfterFromTimeRange,
+  TimeWindow,
+  useColumnFilters,
+} from '../hooks/use-column-filters';
 import { usePagination } from '../hooks/use-pagination';
 import { useTaskRuns } from '../hooks/use-task-runs';
 
@@ -64,19 +68,6 @@ export interface TaskRunsTableProps {
   showMetrics?: boolean;
   showCounts?: boolean;
 }
-
-export const getCreatedAfterFromTimeRange = (timeRange?: string) => {
-  switch (timeRange) {
-    case '1h':
-      return new Date(Date.now() - 60 * 60 * 1000).toISOString();
-    case '6h':
-      return new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
-    case '1d':
-      return new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    case '7d':
-      return new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-  }
-};
 
 type StepDetailSheetState = {
   isOpen: boolean;
@@ -128,27 +119,6 @@ export function TaskRunsTable({
       isOpen: false,
       taskRunId: undefined,
     });
-
-  // create a timer which updates the createdAfter date every minute
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (cf.filters.isCustomTimeRange) {
-        return;
-      }
-
-      cf.setCreatedAfter(
-        getCreatedAfterFromTimeRange(cf.filters.defaultTimeRange) ||
-          new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-      );
-    }, 60 * 1000);
-
-    return () => clearInterval(interval);
-  }, [
-    cf.filters.isCustomTimeRange,
-    cf.filters.defaultTimeRange,
-    cf.setCreatedAfter,
-    cf,
-  ]);
 
   const [sorting, setSorting] = useState<SortingState>(() => {
     const sortParam = searchParams.get('sort');
@@ -416,28 +386,18 @@ export function TaskRunsTable({
           ]}
           <Select
             value={
-              cf.filters.isCustomTimeRange
-                ? 'custom'
-                : cf.filters.defaultTimeRange
+              cf.filters.isCustomTimeRange ? 'custom' : cf.filters.timeWindow
             }
-            onValueChange={(value) => {
+            onValueChange={(value: TimeWindow | 'custom') => {
               if (value !== 'custom') {
                 cf.setFilterValues([
-                  { key: 'defaultTimeRange', value: value },
-                  { key: 'isCustomTimeRange', value: undefined },
+                  { key: 'isCustomTimeRange', value: false },
                   {
                     key: 'createdAfter',
                     value: getCreatedAfterFromTimeRange(value),
                   },
                   { key: 'finishedBefore', value: undefined },
                 ]);
-              } else {
-                cf.setCustomTimeRange({
-                  start:
-                    getCreatedAfterFromTimeRange(value) ||
-                    new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-                  end: new Date().toISOString(),
-                });
               }
             }}
           >
