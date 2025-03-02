@@ -17,10 +17,6 @@ export const useSorting = () => {
     });
   }, [searchParams]);
 
-  const orderDirection = useMemo(() => {
-    return sorting.map((s) => `${s.id}:${s.desc ? 'desc' : 'asc'}`).join(',');
-  }, [sorting]);
-
   const setSorting = useCallback(
     (updaterOrValue: Updater<SortingState>) => {
       const newValues =
@@ -39,7 +35,6 @@ export const useSorting = () => {
 
   return {
     sorting,
-    orderDirection,
     setSorting,
   };
 };
