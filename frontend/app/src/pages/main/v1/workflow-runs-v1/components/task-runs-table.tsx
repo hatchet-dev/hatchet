@@ -54,6 +54,7 @@ import {
 } from '../hooks/use-column-filters';
 import { usePagination } from '../hooks/use-pagination';
 import { useTaskRuns } from '../hooks/use-task-runs';
+import { useMetrics } from '../hooks/use-metrics';
 
 export interface TaskRunsTableProps {
   createdAfter?: string;
@@ -108,9 +109,6 @@ export function TaskRunsTable({
   invariant(tenant);
 
   const [viewQueueMetrics, setViewQueueMetrics] = useState(false);
-  const [initialRenderTime] = useState(
-    new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-  );
 
   const cf = useColumnFilters();
 
@@ -150,7 +148,7 @@ export function TaskRunsTable({
     tableRows,
     selectedRuns,
     numPages,
-    isLoading: taskRunsIsLoading,
+    isLoading: isTaskRunsLoading,
     refetch: refetchTaskRuns,
   } = useTaskRuns({
     rowSelection,
@@ -158,25 +156,17 @@ export function TaskRunsTable({
     workflow,
   });
 
-  const metricsQuery = useQuery({
-    ...queries.v1TaskRuns.metrics(tenant.metadata.id, {
-      since: cf.filters.createdAfter || initialRenderTime,
-      workflow_ids: workflow ? [workflow] : [],
-    }),
-    placeholderData: (prev) => prev,
-    refetchInterval,
-  });
-
-  const metrics = metricsQuery.data || [];
-
-  const tenantMetricsQuery = useQuery({
-    ...queries.metrics.getStepRunQueueMetrics(tenant.metadata.id),
-    refetchInterval,
-  });
-
-  const tenantMetrics = tenantMetricsQuery.data?.queues || {};
-
   const { workflowKeys, workflowKeysError } = useWorkflow();
+
+  const {
+    metrics,
+    tenantMetrics,
+    isLoading: isMetricsLoading,
+    refetch: refetchMetrics,
+  } = useMetrics({
+    workflow,
+    refetchInterval,
+  });
 
   const onTaskRunIdClick = useCallback((taskRunId: string) => {
     setStepDetailSheetState({
@@ -243,12 +233,11 @@ export function TaskRunsTable({
 
   const refetch = () => {
     refetchTaskRuns();
-    metricsQuery.refetch();
-    tenantMetricsQuery.refetch();
+    refetchMetrics();
   };
 
   const v1TaskFilters = {
-    since: cf.filters.createdAfter || initialRenderTime,
+    since: cf.filters.createdAfter,
     until: cf.filters.finishedBefore,
     statuses: cf.filters.status ? [cf.filters.status] : undefined,
     workflowIds: workflow ? [workflow] : undefined,
@@ -300,12 +289,7 @@ export function TaskRunsTable({
     </Button>,
   ];
 
-  const isLoading =
-    taskRunsIsLoading ||
-    metricsQuery.isLoading ||
-    tenantMetricsQuery.isLoading ||
-    metricsQuery.isFetching ||
-    tenantMetricsQuery.isFetching;
+  const isLoading = isTaskRunsLoading || isMetricsLoading;
 
   const onAdditionalMetadataClick = ({
     key,
@@ -340,7 +324,7 @@ export function TaskRunsTable({
                 code={JSON.stringify(tenantMetrics || '{}', null, 2)}
               />
             )}
-            {metricsQuery.isLoading && <Skeleton className="w-full h-36" />}
+            {isMetricsLoading && <Skeleton className="w-full h-36" />}
           </DialogContent>
         </Dialog>
       )}
