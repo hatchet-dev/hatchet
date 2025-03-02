@@ -227,7 +227,7 @@ export const useColumnFilters = () => {
   );
 
   const setAdditionalMetadata = useCallback(
-    (key: string, value: string) => {
+    ({ key, value }: { key: string; value: string }) => {
       const existing = additionalMetadata || [];
       const newMetadata = existing.filter((m) => m.split(':')[0] !== key);
 

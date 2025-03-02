@@ -2,7 +2,7 @@ import { queries } from '@/lib/api';
 import { useTenant } from '@/lib/atoms';
 import { useQuery } from '@tanstack/react-query';
 import invariant from 'tiny-invariant';
-import { useColumnFilters } from './use-column-filters';
+import { useColumnFilters } from './column-filters';
 
 export const useMetrics = ({
   workflow,
@@ -14,7 +14,7 @@ export const useMetrics = ({
   const { tenant } = useTenant();
   invariant(tenant);
 
-  const cf = useColumnFilters();
+  const cf = useColumnFilters({ workflowIdFromPage: workflow });
 
   const metricsQuery = useQuery({
     ...queries.v1TaskRuns.metrics(tenant.metadata.id, {

@@ -8,14 +8,9 @@ import {
 } from '@tanstack/react-table';
 import { useQuery } from '@tanstack/react-query';
 import invariant from 'tiny-invariant';
-import { queries, V1TaskStatus, V1TaskSummary } from '@/lib/api';
+import { queries } from '@/lib/api';
 import { TenantContextType } from '@/lib/outlet';
 import { useOutletContext, useSearchParams } from 'react-router-dom';
-import {
-  FilterOption,
-  ToolbarFilters,
-  ToolbarType,
-} from '@/components/v1/molecules/data-table/data-table-toolbar';
 import { Button } from '@/components/v1/ui/button';
 import { ArrowPathIcon, XCircleIcon } from '@heroicons/react/24/outline';
 import { V1WorkflowRunsMetricsView } from './task-runs-metrics';
@@ -40,7 +35,6 @@ import {
   ZoomableChart,
 } from '@/components/v1/molecules/charts/zoomable';
 import { DateTimePicker } from '@/components/v1/molecules/time-picker/date-time-picker';
-import { AdditionalMetadataClick } from '../../events/components/additional-metadata';
 import { Sheet, SheetContent } from '@/components/v1/ui/sheet';
 import {
   TabOption,
@@ -51,10 +45,11 @@ import {
   getCreatedAfterFromTimeRange,
   TimeWindow,
   useColumnFilters,
-} from '../hooks/use-column-filters';
-import { usePagination } from '../hooks/use-pagination';
-import { useTaskRuns } from '../hooks/use-task-runs';
-import { useMetrics } from '../hooks/use-metrics';
+} from '../hooks/column-filters';
+import { usePagination } from '../hooks/pagination';
+import { useTaskRuns } from '../hooks/task-runs';
+import { useMetrics } from '../hooks/metrics';
+import { useToolbarFilters } from '../hooks/toolbar-filters';
 
 export interface TaskRunsTableProps {
   createdAfter?: string;
@@ -75,25 +70,6 @@ type StepDetailSheetState = {
   taskRunId: string | undefined;
 };
 
-const useWorkflow = () => {
-  const { tenant } = useOutletContext<TenantContextType>();
-  invariant(tenant);
-
-  const {
-    data: workflowKeys,
-    isLoading: workflowKeysIsLoading,
-    error: workflowKeysError,
-  } = useQuery({
-    ...queries.workflows.list(tenant.metadata.id, { limit: 200 }),
-  });
-
-  return {
-    workflowKeys,
-    workflowKeysIsLoading,
-    workflowKeysError,
-  };
-};
-
 export function TaskRunsTable({
   workflowId,
   workerId,
@@ -109,15 +85,15 @@ export function TaskRunsTable({
   invariant(tenant);
 
   const [viewQueueMetrics, setViewQueueMetrics] = useState(false);
-
-  const cf = useColumnFilters();
-
+  const [rotate, setRotate] = useState(false);
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+  const [columnVisibility, setColumnVisibility] =
+    useState<VisibilityState>(initColumnVisibility);
   const [stepDetailSheetState, setStepDetailSheetState] =
     useState<StepDetailSheetState>({
       isOpen: false,
       taskRunId: undefined,
     });
-
   const [sorting, setSorting] = useState<SortingState>(() => {
     const sortParam = searchParams.get('sort');
     if (sortParam) {
@@ -129,20 +105,11 @@ export function TaskRunsTable({
     return [];
   });
 
-  const [columnVisibility, setColumnVisibility] =
-    useState<VisibilityState>(initColumnVisibility);
-
+  const cf = useColumnFilters();
+  const toolbarFilters = useToolbarFilters({ filterVisibility });
   const { pagination, setPagination, setPageSize } = usePagination();
 
-  const workflow = useMemo<string | undefined>(() => {
-    if (workflowId) {
-      return workflowId;
-    }
-
-    return cf.filters.workflowId;
-  }, [cf.filters.workflowId, workflowId]);
-
-  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+  const workflow = workflowId || cf.filters.workflowId;
 
   const {
     tableRows,
@@ -150,13 +117,12 @@ export function TaskRunsTable({
     numPages,
     isLoading: isTaskRunsLoading,
     refetch: refetchTaskRuns,
+    getRowId,
   } = useTaskRuns({
     rowSelection,
     workerId,
     workflow,
   });
-
-  const { workflowKeys, workflowKeysError } = useWorkflow();
 
   const {
     metrics,
@@ -175,67 +141,6 @@ export function TaskRunsTable({
     });
   }, []);
 
-  const workflowKeyFilters = useMemo((): FilterOption[] => {
-    return (
-      workflowKeys?.rows?.map((key) => ({
-        value: key.metadata.id,
-        label: key.name,
-      })) || []
-    );
-  }, [workflowKeys]);
-
-  const workflowRunStatusFilters = useMemo((): FilterOption[] => {
-    return [
-      {
-        value: V1TaskStatus.COMPLETED,
-        label: 'Succeeded',
-      },
-      {
-        value: V1TaskStatus.FAILED,
-        label: 'Failed',
-      },
-      {
-        value: V1TaskStatus.RUNNING,
-        label: 'Running',
-      },
-      {
-        value: V1TaskStatus.QUEUED,
-        label: 'Queued',
-      },
-      // {
-      //   value: V1TaskStatus.CANCELLED,
-      //   label: 'Cancelled',
-      // },
-    ];
-  }, []);
-
-  const filters: ToolbarFilters = [
-    {
-      columnId: 'Workflow',
-      title: 'Workflow',
-      options: workflowKeyFilters,
-      type: ToolbarType.Radio,
-    },
-    {
-      columnId: 'status',
-      title: 'Status',
-      options: workflowRunStatusFilters,
-      type: ToolbarType.Radio,
-    },
-    {
-      columnId: 'additionalMetadata',
-      title: 'Metadata',
-      type: ToolbarType.KeyValue,
-    },
-  ].filter((filter) => filterVisibility[filter.columnId] != false);
-
-  const [rotate, setRotate] = useState(false);
-
-  const refetch = () => {
-    refetchTaskRuns();
-    refetchMetrics();
-  };
-
   const v1TaskFilters = {
     since: cf.filters.createdAfter,
     until: cf.filters.finishedBefore,
@@ -250,57 +155,7 @@ export function TaskRunsTable({
   const hasTaskFiltersSelected = Object.values(v1TaskFilters).some(
     (filter) => !!filter,
   );
-
-  const actions = [
-    <TaskRunActionButton
-      key="cancel"
-      actionType="cancel"
-      disabled={!(hasRowsSelected || hasTaskFiltersSelected)}
-      params={
-        selectedRuns.length > 0
-          ? { externalIds: selectedRuns.map((run) => run?.metadata.id) }
-          : { filter: v1TaskFilters }
-      }
-    />,
-    <TaskRunActionButton
-      key="replay"
-      actionType="replay"
-      disabled={!(hasRowsSelected || hasTaskFiltersSelected)}
-      params={
-        selectedRuns.length > 0
-          ? { externalIds: selectedRuns.map((run) => run?.metadata.id) }
-          : { filter: v1TaskFilters }
-      }
-    />,
-    <Button
-      key="refresh"
-      className="h-8 px-2 lg:px-3"
-      size="sm"
-      onClick={() => {
-        refetch();
-        setRotate(!rotate);
-      }}
-      variant={'outline'}
-      aria-label="Refresh events list"
-    >
-      <ArrowPathIcon
-        className={`h-4 w-4 transition-transform ${rotate ? 'rotate-180' : ''}`}
-      />
-    </Button>,
-  ];
-
   const isLoading = isTaskRunsLoading || isMetricsLoading;
-
-  const onAdditionalMetadataClick = ({
-    key,
-    value,
-  }: AdditionalMetadataClick) => {
-    cf.setAdditionalMetadata(key, value);
-  };
-
-  const getRowId = useCallback((row: V1TaskSummary) => {
-    return row.metadata.id;
-  }, []);
 
   return (
     <>
@@ -448,14 +303,50 @@ export function TaskRunsTable({
       )}
       <DataTable
         emptyState={<>No workflow runs found with the given filters.</>}
-        error={workflowKeysError}
         isLoading={isLoading}
-        columns={columns(onAdditionalMetadataClick, onTaskRunIdClick)}
+        columns={columns(cf.setAdditionalMetadata, onTaskRunIdClick)}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
         data={tableRows}
-        filters={filters}
-        actions={actions}
+        filters={toolbarFilters}
+        actions={[
+          <TaskRunActionButton
+            key="cancel"
+            actionType="cancel"
+            disabled={!(hasRowsSelected || hasTaskFiltersSelected)}
+            params={
+              selectedRuns.length > 0
+                ? { externalIds: selectedRuns.map((run) => run?.metadata.id) }
+                : { filter: v1TaskFilters }
+            }
+          />,
+          <TaskRunActionButton
+            key="replay"
+            actionType="replay"
+            disabled={!(hasRowsSelected || hasTaskFiltersSelected)}
+            params={
+              selectedRuns.length > 0
+                ? { externalIds: selectedRuns.map((run) => run?.metadata.id) }
+                : { filter: v1TaskFilters }
+            }
+          />,
+          <Button
+            key="refresh"
+            className="h-8 px-2 lg:px-3"
+            size="sm"
+            onClick={() => {
+              refetchTaskRuns();
+              refetchMetrics();
+              setRotate(!rotate);
+            }}
+            variant={'outline'}
+            aria-label="Refresh events list"
+          >
+            <ArrowPathIcon
+              className={`h-4 w-4 transition-transform ${rotate ? 'rotate-180' : ''}`}
+            />
+          </Button>,
+        ]}
         sorting={sorting}
         setSorting={setSorting}
         columnFilters={cf.filters.columnFilters}

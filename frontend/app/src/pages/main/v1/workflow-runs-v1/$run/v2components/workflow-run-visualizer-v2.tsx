@@ -12,7 +12,7 @@ import { useTheme } from '@/components/theme-provider';
 import stepRunNode, { NodeData } from './step-run-node';
 import invariant from 'tiny-invariant';
 import { V1TaskStatus } from '@/lib/api';
-import { useWorkflowDetails } from '../../hooks/use-workflow-details';
+import { useWorkflowDetails } from '../../hooks/workflow-details';
 
 const connectionLineStyleDark = { stroke: '#fff' };
 const connectionLineStyleLight = { stroke: '#000' };

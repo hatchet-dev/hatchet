@@ -4,7 +4,7 @@ import { preferredWorkflowRunViewAtom } from '@/lib/atoms';
 import { type ViewOptions } from '@/lib/atoms';
 import { useAtom } from 'jotai';
 import { BiExitFullscreen, BiExpand } from 'react-icons/bi';
-import { useWorkflowDetails } from '../../hooks/use-workflow-details';
+import { useWorkflowDetails } from '../../hooks/workflow-details';
 
 const ToggleIcon = ({ view }: { view: ViewOptions | undefined }) => {
   switch (view) {

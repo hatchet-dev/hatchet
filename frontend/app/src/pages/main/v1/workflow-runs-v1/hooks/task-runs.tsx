@@ -1,10 +1,10 @@
 import { queries, V1TaskSummary } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
-import { useColumnFilters } from './use-column-filters';
+import { useColumnFilters } from './column-filters';
 import { useTenant } from '@/lib/atoms';
 import invariant from 'tiny-invariant';
-import { usePagination } from './use-pagination';
-import { useMemo, useState } from 'react';
+import { usePagination } from './pagination';
+import { useCallback, useMemo, useState } from 'react';
 import { RowSelectionState } from '@tanstack/react-table';
 
 type UseTaskRunProps = {
@@ -78,6 +78,10 @@ export const useTaskRuns = ({
       .filter((row) => row !== undefined) as V1TaskSummary[];
   }, [rowSelection, tableRows]);
 
+  const getRowId = useCallback((row: V1TaskSummary) => {
+    return row.metadata.id;
+  }, []);
+
   return {
     numPages: tasks?.pagination.num_pages || 0,
     tableRows,
@@ -85,5 +89,6 @@ export const useTaskRuns = ({
     refetch: listTasksQuery.refetch,
     isLoading: listTasksQuery.isLoading,
     isError: listTasksQuery.isError,
+    getRowId,
   };
 };
