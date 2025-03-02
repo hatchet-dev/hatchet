@@ -14,7 +14,7 @@ export const useMetrics = ({
   const { tenant } = useTenant();
   invariant(tenant);
 
-  const cf = useColumnFilters({ workflowIdFromPage: workflow });
+  const cf = useColumnFilters();
 
   const metricsQuery = useQuery({
     ...queries.v1TaskRuns.metrics(tenant.metadata.id, {
