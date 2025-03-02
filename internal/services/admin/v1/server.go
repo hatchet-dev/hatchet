@@ -194,15 +194,11 @@ func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.Repla
 			return nil, err
 		}
 
-		for i, task := range tasks {
-			// we'd like to make sure the retry counts match so that there wasn't another replay or cancellation
-			// which occurred concurrently. if there was, this is a no-op.
-			if task.RetryCount == retryCounts[i] {
-				tasksToReplay = append(tasksToReplay, v1.TaskIdRetryCount{
-					Id:         task.ID,
-					RetryCount: task.RetryCount,
-				})
-			}
+		for _, task := range tasks {
+			tasksToReplay = append(tasksToReplay, v1.TaskIdRetryCount{
+				Id:         task.ID,
+				RetryCount: task.RetryCount,
+			})
 		}
 	}
 
@@ -290,8 +286,6 @@ func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.Repla
 			})
 		}
 	}
-
-	// TODO: AUGMENT THE LIST OF TASKS WITH THEIR CHILD TASKS AS WELL!
 
 	// send the payload to the tasks controller, and send the list of tasks back to the client
 	toReplay := tasktypes.ReplayTasksPayload{

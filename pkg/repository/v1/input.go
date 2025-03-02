@@ -2,48 +2,15 @@ package v1
 
 import (
 	"encoding/json"
-	"fmt"
-
-	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
 type TaskInput struct {
 	Input map[string]interface{} `json:"input"`
 
-	TriggerData map[string][]map[string]interface{} `json:"trigger_data"`
+	TriggerData *MatchData `json:"trigger_datas"`
 }
 
-func (s *sharedRepository) parseTriggerData(triggerData []byte) (*sqlcv1.V1MatchConditionAction, map[string][]map[string]interface{}, error) {
-	var triggerDataMap map[string]map[string][]map[string]interface{}
-
-	if len(triggerData) > 0 {
-		err := json.Unmarshal(triggerData, &triggerDataMap)
-
-		if err != nil {
-			s.l.Error().Err(err).Msg("failed to unmarshal trigger data")
-		}
-	}
-
-	for k, v := range triggerDataMap {
-		switch k {
-		case "QUEUE":
-			queue := sqlcv1.V1MatchConditionActionQUEUE
-			return &queue, v, nil
-		case "CANCEL":
-			cancel := sqlcv1.V1MatchConditionActionCANCEL
-			return &cancel, v, nil
-		case "SKIP":
-			skip := sqlcv1.V1MatchConditionActionSKIP
-			return &skip, v, nil
-		default:
-			s.l.Error().Str("action", k).Msg("unknown action")
-		}
-	}
-
-	return nil, nil, fmt.Errorf("unknown action")
-}
-
-func (s *sharedRepository) newTaskInput(inputBytes []byte, triggerDataMap map[string][]map[string]interface{}) *TaskInput {
+func (s *sharedRepository) newTaskInput(inputBytes []byte, triggerData *MatchData) *TaskInput {
 	var input map[string]interface{}
 
 	if len(inputBytes) > 0 {
@@ -56,7 +23,7 @@ func (s *sharedRepository) newTaskInput(inputBytes []byte, triggerDataMap map[st
 
 	return &TaskInput{
 		Input:       input,
-		TriggerData: triggerDataMap,
+		TriggerData: triggerData,
 	}
 }
 
@@ -82,28 +49,25 @@ func (s *sharedRepository) ToV1StepRunData(t *TaskInput) *V1StepRunData {
 	parents := make(map[string]map[string]interface{})
 	stepRunErrors := make(map[string]string)
 
-	for readableId, v := range t.TriggerData {
-		for _, data := range v {
-			// determine whether this represents an error payload or a completed payload
-			if data["error_message"] != nil && data["is_error_payload"] != nil {
-				// verify conversions
-				isErrPayload, ok := data["is_error_payload"].(bool)
+	if t.TriggerData != nil {
+		for _, stepReadableId := range t.TriggerData.DataKeys() {
+			data := t.TriggerData.DataValueAsTaskOutputEvent(stepReadableId)
 
-				if ok && isErrPayload {
-					stepRunError, ok := data["error_message"].(string)
+			switch {
+			case data.IsCompleted():
+				dataMap := make(map[string]interface{})
 
-					if !ok {
-						// we write an error to the user here
-						stepRunErrors[readableId] = "failed to convert error message"
-					} else {
-						stepRunErrors[readableId] = stepRunError
-					}
+				err := json.Unmarshal(data.Output, &dataMap)
 
+				if err != nil {
+					s.l.Error().Err(err).Msg("failed to unmarshal output")
 					continue
 				}
-			}
 
-			parents[readableId] = data
+				parents[stepReadableId] = dataMap
+			case data.IsFailed():
+				stepRunErrors[stepReadableId] = data.ErrorMessage
+			}
 		}
 	}
 

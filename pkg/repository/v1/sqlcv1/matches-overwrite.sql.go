@@ -89,7 +89,7 @@ func (q *Queries) ListMatchConditionsForEvent(ctx context.Context, db DBTX, arg 
 const createMatchesForDAGTriggers = `-- name: CreateMatchesForDAGTriggers :many
 WITH input AS (
     SELECT
-        tenant_id, kind, trigger_dag_id, trigger_dag_inserted_at, trigger_step_id, trigger_external_id, trigger_existing_task_id
+        tenant_id, kind, trigger_dag_id, trigger_dag_inserted_at, trigger_step_id, trigger_step_index, trigger_external_id, trigger_existing_task_id, trigger_parent_task_external_id, trigger_parent_task_id, trigger_parent_task_inserted_at, trigger_child_index, trigger_child_key
     FROM
         (
             SELECT
@@ -98,8 +98,14 @@ WITH input AS (
                 unnest($3::bigint[]) AS trigger_dag_id,
                 unnest($4::timestamptz[]) AS trigger_dag_inserted_at,
                 unnest($5::uuid[]) AS trigger_step_id,
-                unnest($6::uuid[]) AS trigger_external_id,
-                unnest($7::bigint[]) AS trigger_existing_task_id
+				unnest($6::bigint[]) AS trigger_step_index,
+                unnest($7::uuid[]) AS trigger_external_id,
+                unnest($8::bigint[]) AS trigger_existing_task_id,
+				unnest($9::uuid[]) AS trigger_parent_task_external_id,
+				unnest($10::bigint[]) AS trigger_parent_task_id,
+				unnest($11::timestamptz[]) AS trigger_parent_task_inserted_at,
+				unnest($12::bigint[]) AS trigger_child_index,
+				unnest($13::text[]) AS trigger_child_key
         ) AS subquery
 )
 INSERT INTO v1_match (
@@ -108,8 +114,14 @@ INSERT INTO v1_match (
     trigger_dag_id,
     trigger_dag_inserted_at,
     trigger_step_id,
+	trigger_step_index,
     trigger_external_id,
-    trigger_existing_task_id
+    trigger_existing_task_id,
+	trigger_parent_task_external_id,
+	trigger_parent_task_id,
+	trigger_parent_task_inserted_at,
+    trigger_child_index,
+    trigger_child_key
 )
 SELECT
     i.tenant_id,
@@ -117,22 +129,34 @@ SELECT
     i.trigger_dag_id,
     i.trigger_dag_inserted_at,
     i.trigger_step_id,
+	i.trigger_step_index,
     i.trigger_external_id,
-    i.trigger_existing_task_id
+    i.trigger_existing_task_id,
+	i.trigger_parent_task_external_id,
+	i.trigger_parent_task_id,
+	i.trigger_parent_task_inserted_at,
+	i.trigger_child_index,
+	i.trigger_child_key
 FROM
     input i
 RETURNING
-    id, tenant_id, kind, is_satisfied, signal_target_id, signal_key, trigger_dag_id, trigger_dag_inserted_at, trigger_step_id, trigger_external_id, trigger_existing_task_id
+    id, tenant_id, kind, is_satisfied, signal_task_id, signal_task_inserted_at, signal_external_id, signal_key, trigger_dag_id, trigger_dag_inserted_at, trigger_step_id, trigger_step_index, trigger_external_id, trigger_existing_task_id, trigger_parent_task_external_id, trigger_parent_task_id, trigger_parent_task_inserted_at, trigger_child_index, trigger_child_key
 `
 
 type CreateMatchesForDAGTriggersParams struct {
-	Tenantids              []pgtype.UUID        `json:"tenantids"`
-	Kinds                  []string             `json:"kinds"`
-	Triggerdagids          []int64              `json:"triggerdagids"`
-	Triggerdaginsertedats  []pgtype.Timestamptz `json:"triggerdaginsertedats"`
-	Triggerstepids         []pgtype.UUID        `json:"triggerstepids"`
-	Triggerexternalids     []pgtype.UUID        `json:"triggerexternalids"`
-	Triggerexistingtaskids []pgtype.Int8        `json:"triggerexistingtaskids"`
+	Tenantids                    []pgtype.UUID        `json:"tenantids"`
+	Kinds                        []string             `json:"kinds"`
+	Triggerdagids                []int64              `json:"triggerdagids"`
+	Triggerdaginsertedats        []pgtype.Timestamptz `json:"triggerdaginsertedats"`
+	Triggerstepids               []pgtype.UUID        `json:"triggerstepids"`
+	Triggerstepindex             []int64              `json:"triggerstepindex"`
+	Triggerexternalids           []pgtype.UUID        `json:"triggerexternalids"`
+	Triggerexistingtaskids       []pgtype.Int8        `json:"triggerexistingtaskids"`
+	TriggerParentTaskExternalIds []pgtype.UUID        `json:"triggerparentTaskExternalIds"`
+	TriggerParentTaskIds         []pgtype.Int8        `json:"triggerparentTaskIds"`
+	TriggerParentTaskInsertedAt  []pgtype.Timestamptz `json:"triggerparentTaskInsertedAt"`
+	TriggerChildIndex            []pgtype.Int8        `json:"triggerchildIndex"`
+	TriggerChildKey              []pgtype.Text        `json:"triggerchildKey"`
 }
 
 func (q *Queries) CreateMatchesForDAGTriggers(ctx context.Context, db DBTX, arg CreateMatchesForDAGTriggersParams) ([]*V1Match, error) {
@@ -142,8 +166,14 @@ func (q *Queries) CreateMatchesForDAGTriggers(ctx context.Context, db DBTX, arg 
 		arg.Triggerdagids,
 		arg.Triggerdaginsertedats,
 		arg.Triggerstepids,
+		arg.Triggerstepindex,
 		arg.Triggerexternalids,
 		arg.Triggerexistingtaskids,
+		arg.TriggerParentTaskExternalIds,
+		arg.TriggerParentTaskIds,
+		arg.TriggerParentTaskInsertedAt,
+		arg.TriggerChildIndex,
+		arg.TriggerChildKey,
 	)
 	if err != nil {
 		return nil, err
@@ -157,13 +187,21 @@ func (q *Queries) CreateMatchesForDAGTriggers(ctx context.Context, db DBTX, arg 
 			&i.TenantID,
 			&i.Kind,
 			&i.IsSatisfied,
-			&i.SignalTargetID,
+			&i.SignalTaskID,
+			&i.SignalTaskInsertedAt,
+			&i.SignalExternalID,
 			&i.SignalKey,
 			&i.TriggerDagID,
 			&i.TriggerDagInsertedAt,
 			&i.TriggerStepID,
+			&i.TriggerStepIndex,
 			&i.TriggerExternalID,
 			&i.TriggerExistingTaskID,
+			&i.TriggerParentTaskExternalID,
+			&i.TriggerParentTaskID,
+			&i.TriggerParentTaskInsertedAt,
+			&i.TriggerChildIndex,
+			&i.TriggerChildKey,
 		); err != nil {
 			return nil, err
 		}

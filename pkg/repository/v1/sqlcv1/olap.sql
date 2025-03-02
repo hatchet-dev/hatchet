@@ -177,7 +177,7 @@ WITH lookup_task AS (
         task_id,
         inserted_at
     FROM
-        v1_lookup_table
+        v1_lookup_table_olap
     WHERE
         external_id = @externalId::uuid
 )
@@ -199,7 +199,7 @@ SELECT
     task_id,
     inserted_at
 FROM
-    v1_lookup_table
+    v1_lookup_table_olap
 WHERE
     external_id = ANY(@externalIds::uuid[])
     AND tenant_id = @tenantId::uuid;
@@ -210,7 +210,7 @@ SELECT
     dt.*,
     lt.external_id AS dag_external_id
 FROM
-    v1_lookup_table lt
+    v1_lookup_table_olap lt
 JOIN
     v1_dag_to_task_olap dt ON lt.dag_id = dt.dag_id
 JOIN
@@ -228,7 +228,7 @@ WITH lookup_task AS (
         dag_id,
         inserted_at
     FROM
-        v1_lookup_table
+        v1_lookup_table_olap
     WHERE
         external_id = @externalId::uuid
 )
@@ -286,7 +286,7 @@ ORDER BY a.time_first_seen DESC, t.event_timestamp DESC;
 -- name: ListTaskEventsForWorkflowRun :many
 WITH tasks AS (
     SELECT dt.task_id
-    FROM v1_lookup_table lt
+    FROM v1_lookup_table_olap lt
     JOIN v1_dag_to_task_olap dt ON lt.dag_id = dt.dag_id
     WHERE
         lt.external_id = @workflowRunId::uuid
@@ -920,7 +920,7 @@ ORDER BY bucket DESC
 -- name: ReadWorkflowRunByExternalId :one
 WITH dags AS (
     SELECT d.*
-    FROM v1_lookup_table lt
+    FROM v1_lookup_table_olap lt
     JOIN v1_dags_olap d ON (lt.tenant_id, lt.dag_id, lt.inserted_at) = (d.tenant_id, d.id, d.inserted_at)
     WHERE lt.external_id = @workflowRunExternalId::uuid
 ), runs AS (
@@ -996,7 +996,7 @@ WITH lookups AS (
     SELECT
         *
     FROM
-        v1_lookup_table
+        v1_lookup_table_olap
     WHERE
         external_id = ANY(@externalIds::uuid[])
         AND tenant_id = @tenantId::uuid

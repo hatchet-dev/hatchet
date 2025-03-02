@@ -61,15 +61,13 @@ func (worker *subscribedWorker) CancelTask(
 }
 
 func populateAssignedAction(tenantId string, task *sqlcv1.V1Task) *contracts.AssignedAction {
-	stepRunId := fmt.Sprintf("id-%d-%d", task.ID, task.RetryCount)
-
 	action := &contracts.AssignedAction{
 		TenantId:      tenantId,
 		JobId:         sqlchelpers.UUIDToStr(task.StepID), // FIXME
 		JobName:       task.StepReadableID,
 		JobRunId:      sqlchelpers.UUIDToStr(task.ExternalID), // FIXME
 		StepId:        sqlchelpers.UUIDToStr(task.StepID),
-		StepRunId:     stepRunId,
+		StepRunId:     sqlchelpers.UUIDToStr(task.ExternalID),
 		ActionId:      task.ActionID,
 		StepName:      task.StepReadableID,
 		WorkflowRunId: sqlchelpers.UUIDToStr(task.ExternalID),
@@ -81,19 +79,20 @@ func populateAssignedAction(tenantId string, task *sqlcv1.V1Task) *contracts.Ass
 		action.AdditionalMetadata = &metadataStr
 	}
 
-	// FIXME: THESE SHOULD BE POPULATED ON THE TASK
-	// if stepRun.ChildIndex.Valid {
-	// 	action.ChildWorkflowIndex = &stepRun.ChildIndex.Int32
-	// }
+	if task.ParentTaskExternalID.Valid {
+		parentId := sqlchelpers.UUIDToStr(task.ParentTaskExternalID)
+		action.ParentWorkflowRunId = &parentId
+	}
 
-	// if stepRun.ChildKey.Valid {
-	// 	action.ChildWorkflowKey = &stepRun.ChildKey.String
-	// }
+	if task.ChildIndex.Valid {
+		i := int32(task.ChildIndex.Int64) // nolint: gosec
+		action.ChildWorkflowIndex = &i
+	}
 
-	// if stepRun.ParentId.Valid {
-	// 	parentId := sqlchelpers.UUIDToStr(stepRun.ParentId)
-	// 	action.ParentWorkflowRunId = &parentId
-	// }
+	if task.ChildKey.Valid {
+		key := task.ChildKey.String
+		action.ChildWorkflowKey = &key
+	}
 
 	return action
 }

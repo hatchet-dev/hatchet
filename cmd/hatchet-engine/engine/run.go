@@ -451,6 +451,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 
 		adminSvc, err := admin.NewAdminService(
 			admin.WithRepository(sc.EngineRepository),
+			admin.WithRepositoryV1(sc.V1),
 			admin.WithMessageQueue(sc.MessageQueue),
 			admin.WithMessageQueueV1(sc.MessageQueueV1),
 			admin.WithEntitlementsRepository(sc.EntitlementRepository),
@@ -875,6 +876,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 
 		adminSvc, err := admin.NewAdminService(
 			admin.WithRepository(sc.EngineRepository),
+			admin.WithRepositoryV1(sc.V1),
 			admin.WithMessageQueue(sc.MessageQueue),
 			admin.WithMessageQueueV1(sc.MessageQueueV1),
 			admin.WithEntitlementsRepository(sc.EntitlementRepository),

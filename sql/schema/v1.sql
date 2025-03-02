@@ -172,11 +172,16 @@ CREATE TABLE v1_task (
     retry_count INTEGER NOT NULL DEFAULT 0,
     internal_retry_count INTEGER NOT NULL DEFAULT 0,
     app_retry_count INTEGER NOT NULL DEFAULT 0,
+    -- step_index is relevant for tracking down the correct SIGNAL_COMPLETED event on a
+    -- replay of a child workflow
+    step_index BIGINT NOT NULL,
     additional_metadata JSONB,
     dag_id BIGINT,
     dag_inserted_at TIMESTAMPTZ,
-    parent_external_id UUID,
-    child_index INTEGER,
+    parent_task_external_id UUID,
+    parent_task_id BIGINT,
+    parent_task_inserted_at TIMESTAMPTZ,
+    child_index BIGINT,
     child_key TEXT,
     initial_state v1_task_initial_state NOT NULL DEFAULT 'QUEUED',
     initial_state_reason TEXT,
@@ -186,6 +191,16 @@ CREATE TABLE v1_task (
     retry_max_backoff INTEGER,
     CONSTRAINT v1_task_pkey PRIMARY KEY (id, inserted_at)
 ) PARTITION BY RANGE(inserted_at);
+
+CREATE TABLE v1_lookup_table (
+    tenant_id UUID NOT NULL,
+    external_id UUID NOT NULL,
+    task_id BIGINT,
+    dag_id BIGINT,
+    inserted_at TIMESTAMPTZ NOT NULL,
+
+    PRIMARY KEY (external_id)
+);
 
 CREATE TYPE v1_task_event_type AS ENUM (
     'COMPLETED',
@@ -200,18 +215,22 @@ CREATE TABLE v1_task_event (
     id bigint GENERATED ALWAYS AS IDENTITY,
     tenant_id UUID NOT NULL,
     task_id bigint NOT NULL,
+    task_inserted_at TIMESTAMPTZ NOT NULL,
     retry_count INTEGER NOT NULL,
     event_type v1_task_event_type NOT NULL,
+    -- The event key is an optional field that can be used to uniquely identify an event. This is
+    -- used for signal events to ensure that we don't create duplicate signals.
     event_key TEXT,
     created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     data JSONB,
-    CONSTRAINT v1_task_event_pkey PRIMARY KEY (id)
-);
+    CONSTRAINT v1_task_event_pkey PRIMARY KEY (id, task_inserted_at)
+) PARTITION BY RANGE(task_inserted_at);
 
 -- Create unique index on (tenant_id, task_id, event_key) when event_key is not null
 CREATE UNIQUE INDEX v1_task_event_event_key_unique_idx ON v1_task_event (
     tenant_id ASC,
     task_id ASC,
+    task_inserted_at ASC,
     event_type ASC,
     event_key ASC
 ) WHERE event_key IS NOT NULL;
@@ -222,6 +241,7 @@ CREATE TABLE v1_queue_item (
     tenant_id UUID NOT NULL,
     queue TEXT NOT NULL,
     task_id bigint NOT NULL,
+    task_inserted_at TIMESTAMPTZ NOT NULL,
     action_id TEXT NOT NULL,
     step_id UUID NOT NULL,
     workflow_id UUID NOT NULL,
@@ -252,18 +272,20 @@ CREATE INDEX v1_queue_item_list_idx ON v1_queue_item (
 
 CREATE INDEX v1_queue_item_task_idx ON v1_queue_item (
     task_id ASC,
+    task_inserted_at ASC,
     retry_count ASC
 );
 
 -- CreateTable
 CREATE TABLE v1_task_runtime (
     task_id bigint NOT NULL,
+    task_inserted_at TIMESTAMPTZ NOT NULL,
     retry_count INTEGER NOT NULL,
     worker_id UUID NOT NULL,
     tenant_id UUID NOT NULL,
     timeout_at TIMESTAMP(3) NOT NULL,
 
-    CONSTRAINT v1_task_runtime_pkey PRIMARY KEY (task_id, retry_count)
+    CONSTRAINT v1_task_runtime_pkey PRIMARY KEY (task_id, task_inserted_at, retry_count)
 );
 
 CREATE INDEX v1_task_runtime_tenantId_workerId_idx ON v1_task_runtime (tenant_id ASC, worker_id ASC);
@@ -286,15 +308,23 @@ CREATE TABLE v1_match (
     tenant_id UUID NOT NULL,
     kind v1_match_kind NOT NULL,
     is_satisfied BOOLEAN NOT NULL DEFAULT FALSE,
-    signal_target_id bigint,
+    signal_task_id bigint,
+    signal_task_inserted_at timestamptz,
+    signal_external_id UUID,
     signal_key TEXT,
     -- references the parent DAG for the task, which we can use to get input + additional metadata
     trigger_dag_id bigint,
     trigger_dag_inserted_at timestamptz,
     -- references the step id to instantiate the task
     trigger_step_id UUID,
+    trigger_step_index BIGINT,
     -- references the external id for the new task
     trigger_external_id UUID,
+    trigger_parent_task_external_id UUID,
+    trigger_parent_task_id BIGINT,
+    trigger_parent_task_inserted_at timestamptz,
+    trigger_child_index BIGINT,
+    trigger_child_key TEXT,
     -- references the existing task id, which may be set when we're replaying a task
     trigger_existing_task_id bigint,
     CONSTRAINT v1_match_pkey PRIMARY KEY (id)
@@ -306,7 +336,7 @@ CREATE TYPE v1_event_type AS ENUM ('USER', 'INTERNAL');
 -- negative conditions from positive conditions. For example, if a task is waiting for a set of
 -- tasks to fail, the success of all tasks would be a CANCEL condition, and the failure of any
 -- task would be a QUEUE condition. Different actions are implicitly different groups of conditions.
-CREATE TYPE v1_match_condition_action AS ENUM ('QUEUE', 'CANCEL', 'SKIP', 'REPLAY');
+CREATE TYPE v1_match_condition_action AS ENUM ('CREATE', 'QUEUE', 'CANCEL', 'SKIP');
 
 CREATE TABLE v1_match_condition (
     v1_match_id bigint NOT NULL,
@@ -391,7 +421,7 @@ BEGIN
     FROM
         deleted_rows d
     JOIN
-        v1_task t ON t.id = d.task_id
+        v1_task t ON t.id = d.task_id AND t.inserted_at = d.task_inserted_at
     JOIN v1_concurrency_slot cs ON cs.task_id = t.id AND cs.task_inserted_at = t.inserted_at AND cs.task_retry_count = d.retry_count
   )
   DELETE FROM
@@ -486,6 +516,7 @@ BEGIN
         tenant_id,
         queue,
         task_id,
+        task_inserted_at,
         action_id,
         step_id,
         workflow_id,
@@ -500,6 +531,7 @@ BEGIN
         tenant_id,
         queue,
         id,
+        inserted_at,
         action_id,
         step_id,
         workflow_id,
@@ -525,6 +557,19 @@ BEGIN
         inserted_at
     FROM new_table
     WHERE dag_id IS NOT NULL AND dag_inserted_at IS NOT NULL;
+
+    INSERT INTO v1_lookup_table (
+        external_id,
+        tenant_id,
+        task_id,
+        inserted_at
+    )
+    SELECT
+        external_id,
+        tenant_id,
+        id,
+        inserted_at
+    FROM new_table;
 
     RETURN NULL;
 END;
@@ -600,6 +645,7 @@ BEGIN
         tenant_id,
         queue,
         task_id,
+        task_inserted_at,
         action_id,
         step_id,
         workflow_id,
@@ -614,6 +660,7 @@ BEGIN
         nt.tenant_id,
         nt.queue,
         nt.id,
+        nt.inserted_at,
         nt.action_id,
         nt.step_id,
         nt.workflow_id,
@@ -719,6 +766,7 @@ BEGIN
         tenant_id,
         queue,
         task_id,
+        task_inserted_at,
         action_id,
         step_id,
         workflow_id,
@@ -733,6 +781,7 @@ BEGIN
         tenant_id,
         queue,
         id,
+        inserted_at,
         action_id,
         step_id,
         workflow_id,
@@ -754,6 +803,34 @@ AFTER UPDATE ON v1_concurrency_slot
 REFERENCING NEW TABLE AS new_table OLD TABLE AS old_table
 FOR EACH STATEMENT
 EXECUTE PROCEDURE v1_concurrency_slot_update_function();
+
+CREATE OR REPLACE FUNCTION v1_dag_insert_function()
+RETURNS TRIGGER AS
+$$
+BEGIN
+    INSERT INTO v1_lookup_table (
+        external_id,
+        tenant_id,
+        dag_id,
+        inserted_at
+    )
+    SELECT
+        external_id,
+        tenant_id,
+        id,
+        inserted_at
+    FROM new_table;
+
+    RETURN NULL;
+END;
+$$
+LANGUAGE plpgsql;
+
+CREATE TRIGGER v1_dag_insert_trigger
+AFTER INSERT ON v1_dag
+REFERENCING NEW TABLE AS new_table
+FOR EACH STATEMENT
+EXECUTE PROCEDURE v1_dag_insert_function();
 
 CREATE TYPE v1_sticky_strategy_olap AS ENUM ('NONE', 'SOFT', 'HARD');
 
@@ -964,7 +1041,7 @@ CREATE TABLE v1_runs_olap (
 SELECT create_v1_olap_partition_with_date_and_status('v1_runs_olap', CURRENT_DATE);
 
 -- LOOKUP TABLES --
-CREATE TABLE v1_lookup_table (
+CREATE TABLE v1_lookup_table_olap (
     tenant_id UUID NOT NULL,
     external_id UUID NOT NULL,
     task_id BIGINT,
@@ -1148,7 +1225,7 @@ BEGIN
     FROM new_rows
     WHERE dag_id IS NULL;
 
-    INSERT INTO v1_lookup_table (
+    INSERT INTO v1_lookup_table_olap (
         tenant_id,
         external_id,
         task_id,
@@ -1250,7 +1327,7 @@ BEGIN
         additional_metadata
     FROM new_rows;
 
-    INSERT INTO v1_lookup_table (
+    INSERT INTO v1_lookup_table_olap (
         tenant_id,
         external_id,
         dag_id,

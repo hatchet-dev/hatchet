@@ -135,7 +135,7 @@ WITH lookups AS (
     SELECT
         tenant_id, external_id, task_id, dag_id, inserted_at
     FROM
-        v1_lookup_table
+        v1_lookup_table_olap
     WHERE
         external_id = ANY($1::uuid[])
         AND tenant_id = $2::uuid
@@ -548,7 +548,7 @@ func (q *Queries) ListTaskEvents(ctx context.Context, db DBTX, arg ListTaskEvent
 const listTaskEventsForWorkflowRun = `-- name: ListTaskEventsForWorkflowRun :many
 WITH tasks AS (
     SELECT dt.task_id
-    FROM v1_lookup_table lt
+    FROM v1_lookup_table_olap lt
     JOIN v1_dag_to_task_olap dt ON lt.dag_id = dt.dag_id
     WHERE
         lt.external_id = $1::uuid
@@ -671,7 +671,7 @@ SELECT
     dt.dag_id, dt.dag_inserted_at, dt.task_id, dt.task_inserted_at,
     lt.external_id AS dag_external_id
 FROM
-    v1_lookup_table lt
+    v1_lookup_table_olap lt
 JOIN
     v1_dag_to_task_olap dt ON lt.dag_id = dt.dag_id
 JOIN
@@ -728,7 +728,7 @@ SELECT
     task_id,
     inserted_at
 FROM
-    v1_lookup_table
+    v1_lookup_table_olap
 WHERE
     external_id = ANY($1::uuid[])
     AND tenant_id = $2::uuid
@@ -1243,7 +1243,7 @@ WITH lookup_task AS (
         dag_id,
         inserted_at
     FROM
-        v1_lookup_table
+        v1_lookup_table_olap
     WHERE
         external_id = $1::uuid
 )
@@ -1280,7 +1280,7 @@ WITH lookup_task AS (
         task_id,
         inserted_at
     FROM
-        v1_lookup_table
+        v1_lookup_table_olap
     WHERE
         external_id = $1::uuid
 )
@@ -1356,7 +1356,7 @@ func (q *Queries) ReadTaskByExternalID(ctx context.Context, db DBTX, externalid 
 const readWorkflowRunByExternalId = `-- name: ReadWorkflowRunByExternalId :one
 WITH dags AS (
     SELECT d.id, d.inserted_at, d.tenant_id, d.external_id, d.display_name, d.workflow_id, d.workflow_version_id, d.readable_status, d.input, d.additional_metadata
-    FROM v1_lookup_table lt
+    FROM v1_lookup_table_olap lt
     JOIN v1_dags_olap d ON (lt.tenant_id, lt.dag_id, lt.inserted_at) = (d.tenant_id, d.id, d.inserted_at)
     WHERE lt.external_id = $1::uuid
 ), runs AS (

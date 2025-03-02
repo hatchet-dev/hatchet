@@ -325,28 +325,15 @@ func (tc *TasksControllerImpl) handleTaskCompleted(ctx context.Context, tenantId
 		idsToData[msg.TaskId] = msg.Output
 	}
 
-	releasedTasks, err := tc.repov1.Tasks().CompleteTasks(ctx, tenantId, opts)
+	res, err := tc.repov1.Tasks().CompleteTasks(ctx, tenantId, opts)
 
 	if err != nil {
 		return err
 	}
 
-	internalEvents := make([]tasktypes.InternalEventTaskPayload, 0)
+	tc.notifyQueuesOnCompletion(ctx, tenantId, res.ReleasedTasks)
 
-	for _, task := range releasedTasks {
-		taskExternalId := sqlchelpers.UUIDToStr(task.ExternalID)
-
-		internalEvents = append(internalEvents, tasktypes.InternalEventTaskPayload{
-			EventTimestamp:    time.Now(),
-			EventKey:          string(sqlcv1.V1TaskEventTypeCOMPLETED),
-			EventResourceHint: &taskExternalId,
-			EventData:         idsToData[task.ID],
-		})
-	}
-
-	tc.notifyQueuesOnCompletion(ctx, tenantId, releasedTasks)
-
-	return tc.sendInternalEvents(ctx, tenantId, internalEvents)
+	return tc.sendInternalEvents(ctx, tenantId, res.InternalEvents)
 }
 
 func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId string, payloads [][]byte) error {
@@ -361,7 +348,8 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId st
 				Id:         msg.TaskId,
 				RetryCount: msg.RetryCount,
 			},
-			IsAppError: msg.IsAppError,
+			IsAppError:   msg.IsAppError,
+			ErrorMessage: msg.ErrorMsg,
 		})
 
 		if msg.ErrorMsg != "" {
@@ -369,7 +357,7 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId st
 		}
 	}
 
-	retriedTasks, failedTasks, err := tc.repov1.Tasks().FailTasks(ctx, tenantId, opts)
+	res, err := tc.repov1.Tasks().FailTasks(ctx, tenantId, opts)
 
 	if err != nil {
 		return err
@@ -377,39 +365,25 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId st
 
 	retriedTaskIds := make(map[int64]struct{})
 
-	for _, task := range retriedTasks {
+	for _, task := range res.RetriedTasks {
 		retriedTaskIds[task.Id] = struct{}{}
 	}
 
-	internalEvents := make([]tasktypes.InternalEventTaskPayload, 0)
+	internalEventsWithoutRetries := make([]v1.InternalTaskEvent, 0)
 
-	for _, task := range failedTasks {
+	for _, e := range res.InternalEvents {
 		// if the task is retried, don't send a message to the trigger queue
-		if _, ok := retriedTaskIds[task.ID]; ok {
+		if _, ok := retriedTaskIds[e.TaskID]; ok {
 			continue
 		}
 
-		taskExternalId := sqlchelpers.UUIDToStr(task.ExternalID)
-
-		data := v1.FailTaskData{
-			ErrorMessage:   idsToErrorMsg[task.ID],
-			IsErrorPayload: true,
-		}
-
-		dataBytes, _ := json.Marshal(data)
-
-		internalEvents = append(internalEvents, tasktypes.InternalEventTaskPayload{
-			EventTimestamp:    time.Now(),
-			EventKey:          string(sqlcv1.V1TaskEventTypeFAILED),
-			EventResourceHint: &taskExternalId,
-			EventData:         dataBytes,
-		})
+		internalEventsWithoutRetries = append(internalEventsWithoutRetries, e)
 	}
 
-	tc.notifyQueuesOnCompletion(ctx, tenantId, failedTasks)
+	tc.notifyQueuesOnCompletion(ctx, tenantId, res.ReleasedTasks)
 
 	// TODO: MOVE THIS TO THE DATA LAYER?
-	err = tc.sendInternalEvents(ctx, tenantId, internalEvents)
+	err = tc.sendInternalEvents(ctx, tenantId, internalEventsWithoutRetries)
 
 	if err != nil {
 		return err
@@ -418,7 +392,7 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId st
 	var outerErr error
 
 	// send retried tasks to the olap repository
-	for _, task := range retriedTasks {
+	for _, task := range res.RetriedTasks {
 		taskId := task.Id
 
 		olapMsg, err := tasktypes.MonitoringEventMessageFromInternal(
@@ -466,7 +440,7 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 		shouldTasksNotify[msg.TaskId] = msg.ShouldNotify
 	}
 
-	releasedTasks, allTasks, err := tc.repov1.Tasks().CancelTasks(ctx, tenantId, opts)
+	res, err := tc.repov1.Tasks().CancelTasks(ctx, tenantId, opts)
 
 	if err != nil {
 		return err
@@ -474,7 +448,7 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 
 	tasksToSendToDispatcher := make([]tasktypes.SignalTaskCancelledPayload, 0)
 
-	for _, task := range releasedTasks {
+	for _, task := range res.ReleasedTasks {
 		if shouldTasksNotify[task.ID] {
 			tasksToSendToDispatcher = append(tasksToSendToDispatcher, tasktypes.SignalTaskCancelledPayload{
 				TaskId:     task.ID,
@@ -491,30 +465,10 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 		return fmt.Errorf("could not send task cancellations to dispatcher: %w", err)
 	}
 
-	internalEvents := make([]tasktypes.InternalEventTaskPayload, 0)
-
-	for _, task := range allTasks {
-		taskExternalId := sqlchelpers.UUIDToStr(task.ExternalID)
-
-		data := v1.FailTaskData{
-			ErrorMessage:   "Task was cancelled",
-			IsErrorPayload: true,
-		}
-
-		dataBytes, _ := json.Marshal(data)
-
-		internalEvents = append(internalEvents, tasktypes.InternalEventTaskPayload{
-			EventTimestamp:    time.Now(),
-			EventKey:          string(sqlcv1.V1TaskEventTypeCANCELLED),
-			EventResourceHint: &taskExternalId,
-			EventData:         dataBytes,
-		})
-	}
-
-	tc.notifyQueuesOnCompletion(ctx, tenantId, releasedTasks)
+	tc.notifyQueuesOnCompletion(ctx, tenantId, res.ReleasedTasks)
 
 	// TODO: MOVE THIS TO THE DATA LAYER?
-	err = tc.sendInternalEvents(ctx, tenantId, internalEvents)
+	err = tc.sendInternalEvents(ctx, tenantId, res.InternalEvents)
 
 	if err != nil {
 		return err
@@ -759,30 +713,15 @@ func (tc *TasksControllerImpl) handleProcessUserEventMatches(ctx context.Context
 
 // handleProcessEventTrigger is responsible for inserting tasks into the database based on event triggers.
 func (tc *TasksControllerImpl) handleProcessInternalEvents(ctx context.Context, tenantId string, payloads [][]byte) error {
-	msgs := msgqueue.JSONConvert[tasktypes.InternalEventTaskPayload](payloads)
+	msgs := msgqueue.JSONConvert[v1.InternalTaskEvent](payloads)
 
 	return tc.processInternalEvents(ctx, tenantId, msgs)
 }
 
 // handleProcessEventTrigger is responsible for inserting tasks into the database based on event triggers.
 func (tc *TasksControllerImpl) handleProcessTaskTrigger(ctx context.Context, tenantId string, payloads [][]byte) error {
-	msgs := msgqueue.JSONConvert[tasktypes.TriggerTaskPayload](payloads)
-
-	opts := make([]v1.WorkflowNameTriggerOpts, 0, len(msgs))
-
-	for _, msg := range msgs {
-		opts = append(opts, v1.WorkflowNameTriggerOpts{
-			WorkflowName:       msg.WorkflowName,
-			ExternalId:         msg.TaskExternalId,
-			Data:               msg.Data,
-			AdditionalMetadata: msg.AdditionalMetadata,
-			ParentTaskId:       msg.ParentTaskId,
-			ChildIndex:         msg.ChildIndex,
-			ChildKey:           msg.ChildKey,
-		})
-	}
-
-	tasks, dags, err := tc.repov1.Triggers().TriggerFromWorkflowNames(ctx, tenantId, opts)
+	msgs := msgqueue.JSONConvert[v1.WorkflowNameTriggerOpts](payloads)
+	tasks, dags, err := tc.repov1.Triggers().TriggerFromWorkflowNames(ctx, tenantId, msgs)
 
 	if err != nil {
 		return fmt.Errorf("could not trigger workflows from names: %w", err)
@@ -801,7 +740,7 @@ func (tc *TasksControllerImpl) handleProcessTaskTrigger(ctx context.Context, ten
 	return eg.Wait()
 }
 
-func (tc *TasksControllerImpl) sendInternalEvents(ctx context.Context, tenantId string, events []tasktypes.InternalEventTaskPayload) error {
+func (tc *TasksControllerImpl) sendInternalEvents(ctx context.Context, tenantId string, events []v1.InternalTaskEvent) error {
 	if len(events) == 0 {
 		return nil
 	}
@@ -820,16 +759,17 @@ func (tc *TasksControllerImpl) sendInternalEvents(ctx context.Context, tenantId 
 }
 
 // handleProcessUserEventMatches is responsible for triggering tasks based on user event matches.
-func (tc *TasksControllerImpl) processInternalEvents(ctx context.Context, tenantId string, events []*tasktypes.InternalEventTaskPayload) error {
+func (tc *TasksControllerImpl) processInternalEvents(ctx context.Context, tenantId string, events []*v1.InternalTaskEvent) error {
 	candidateMatches := make([]v1.CandidateEventMatch, 0)
 
 	for _, event := range events {
 		candidateMatches = append(candidateMatches, v1.CandidateEventMatch{
 			ID:             uuid.NewString(),
-			EventTimestamp: event.EventTimestamp,
-			Key:            event.EventKey,
-			Data:           event.EventData,
-			ResourceHint:   event.EventResourceHint,
+			EventTimestamp: time.Now(),
+			// NOTE: the event type of the V1TaskEvent is the event key for the match condition
+			Key:          string(event.EventType),
+			Data:         event.Data,
+			ResourceHint: &event.TaskExternalID,
 		})
 	}
 
@@ -1048,23 +988,20 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndQueued(ctx context.Context, 
 }
 
 func (tc *TasksControllerImpl) signalTasksCreatedAndCancelled(ctx context.Context, tenantId string, tasks []*sqlcv1.V1Task) error {
-	internalEvents := make([]tasktypes.InternalEventTaskPayload, 0)
+	internalEvents := make([]v1.InternalTaskEvent, 0)
 
 	for _, task := range tasks {
 		taskExternalId := sqlchelpers.UUIDToStr(task.ExternalID)
 
-		data := v1.FailTaskData{
-			ErrorMessage:   "Task was cancelled",
-			IsErrorPayload: true,
-		}
+		dataBytes := v1.NewCancelledTaskOutputEventFromTask(task).Bytes()
 
-		dataBytes, _ := json.Marshal(data)
-
-		internalEvents = append(internalEvents, tasktypes.InternalEventTaskPayload{
-			EventTimestamp:    time.Now(),
-			EventKey:          string(sqlcv1.V1TaskEventTypeCANCELLED),
-			EventResourceHint: &taskExternalId,
-			EventData:         dataBytes,
+		internalEvents = append(internalEvents, v1.InternalTaskEvent{
+			TenantID:       tenantId,
+			TaskID:         task.ID,
+			TaskExternalID: taskExternalId,
+			RetryCount:     task.RetryCount,
+			EventType:      sqlcv1.V1TaskEventTypeCANCELLED,
+			Data:           dataBytes,
 		})
 	}
 
@@ -1106,23 +1043,20 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndCancelled(ctx context.Contex
 }
 
 func (tc *TasksControllerImpl) signalTasksCreatedAndFailed(ctx context.Context, tenantId string, tasks []*sqlcv1.V1Task) error {
-	internalEvents := make([]tasktypes.InternalEventTaskPayload, 0)
+	internalEvents := make([]v1.InternalTaskEvent, 0)
 
 	for _, task := range tasks {
 		taskExternalId := sqlchelpers.UUIDToStr(task.ExternalID)
 
-		data := v1.FailTaskData{
-			ErrorMessage:   task.InitialStateReason.String,
-			IsErrorPayload: true,
-		}
+		dataBytes := v1.NewFailedTaskOutputEventFromTask(task, task.InitialStateReason.String).Bytes()
 
-		dataBytes, _ := json.Marshal(data)
-
-		internalEvents = append(internalEvents, tasktypes.InternalEventTaskPayload{
-			EventTimestamp:    time.Now(),
-			EventKey:          string(sqlcv1.V1TaskEventTypeFAILED),
-			EventResourceHint: &taskExternalId,
-			EventData:         dataBytes,
+		internalEvents = append(internalEvents, v1.InternalTaskEvent{
+			TenantID:       tenantId,
+			TaskID:         task.ID,
+			TaskExternalID: taskExternalId,
+			RetryCount:     task.RetryCount,
+			EventType:      sqlcv1.V1TaskEventTypeFAILED,
+			Data:           dataBytes,
 		})
 	}
 
@@ -1165,7 +1099,7 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndFailed(ctx context.Context, 
 }
 
 func (tc *TasksControllerImpl) signalTasksCreatedAndSkipped(ctx context.Context, tenantId string, tasks []*sqlcv1.V1Task) error {
-	internalEvents := make([]tasktypes.InternalEventTaskPayload, 0)
+	internalEvents := make([]v1.InternalTaskEvent, 0)
 
 	for _, task := range tasks {
 		taskExternalId := sqlchelpers.UUIDToStr(task.ExternalID)
@@ -1174,13 +1108,17 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndSkipped(ctx context.Context,
 			"skipped": true,
 		}
 
-		outputMapBytes, _ := json.Marshal(outputMap)
+		outputMapBytes, _ := json.Marshal(outputMap) // nolint: errcheck
 
-		internalEvents = append(internalEvents, tasktypes.InternalEventTaskPayload{
-			EventTimestamp:    time.Now(),
-			EventKey:          string(sqlcv1.V1TaskEventTypeCOMPLETED),
-			EventResourceHint: &taskExternalId,
-			EventData:         outputMapBytes,
+		dataBytes := v1.NewCompletedTaskOutputEventFromTask(task, outputMapBytes).Bytes()
+
+		internalEvents = append(internalEvents, v1.InternalTaskEvent{
+			TenantID:       tenantId,
+			TaskID:         task.ID,
+			TaskExternalID: taskExternalId,
+			RetryCount:     task.RetryCount,
+			EventType:      sqlcv1.V1TaskEventTypeCOMPLETED,
+			Data:           dataBytes,
 		})
 	}
 
