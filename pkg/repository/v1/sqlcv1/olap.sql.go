@@ -272,13 +272,7 @@ func (q *Queries) GetTaskPointMetrics(ctx context.Context, db DBTX, arg GetTaskP
 
 const getTenantStatusMetrics = `-- name: GetTenantStatusMetrics :one
 SELECT
-    DATE_BIN(
-        '1 minute',
-        inserted_at,
-        TIMESTAMPTZ '1970-01-01 00:00:00+00'
-    ) :: TIMESTAMPTZ AS bucket,
     tenant_id,
-    workflow_id,
     COUNT(*) FILTER (WHERE readable_status = 'QUEUED') AS total_queued,
     COUNT(*) FILTER (WHERE readable_status = 'RUNNING') AS total_running,
     COUNT(*) FILTER (WHERE readable_status = 'COMPLETED') AS total_completed,
@@ -291,8 +285,7 @@ WHERE
     AND (
         $3::UUID[] IS NULL OR workflow_id = ANY($3::UUID[])
     )
-GROUP BY tenant_id, workflow_id, bucket
-ORDER BY bucket DESC
+GROUP BY tenant_id
 `
 
 type GetTenantStatusMetricsParams struct {
@@ -302,23 +295,19 @@ type GetTenantStatusMetricsParams struct {
 }
 
 type GetTenantStatusMetricsRow struct {
-	Bucket         pgtype.Timestamptz `json:"bucket"`
-	TenantID       pgtype.UUID        `json:"tenant_id"`
-	WorkflowID     pgtype.UUID        `json:"workflow_id"`
-	TotalQueued    int64              `json:"total_queued"`
-	TotalRunning   int64              `json:"total_running"`
-	TotalCompleted int64              `json:"total_completed"`
-	TotalCancelled int64              `json:"total_cancelled"`
-	TotalFailed    int64              `json:"total_failed"`
+	TenantID       pgtype.UUID `json:"tenant_id"`
+	TotalQueued    int64       `json:"total_queued"`
+	TotalRunning   int64       `json:"total_running"`
+	TotalCompleted int64       `json:"total_completed"`
+	TotalCancelled int64       `json:"total_cancelled"`
+	TotalFailed    int64       `json:"total_failed"`
 }
 
 func (q *Queries) GetTenantStatusMetrics(ctx context.Context, db DBTX, arg GetTenantStatusMetricsParams) (*GetTenantStatusMetricsRow, error) {
 	row := db.QueryRow(ctx, getTenantStatusMetrics, arg.Tenantid, arg.Createdafter, arg.WorkflowIds)
 	var i GetTenantStatusMetricsRow
 	err := row.Scan(
-		&i.Bucket,
 		&i.TenantID,
-		&i.WorkflowID,
 		&i.TotalQueued,
 		&i.TotalRunning,
 		&i.TotalCompleted,

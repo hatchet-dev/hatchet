@@ -921,13 +921,7 @@ ORDER BY bucket_2;
 
 -- name: GetTenantStatusMetrics :one
 SELECT
-    DATE_BIN(
-        '1 minute',
-        inserted_at,
-        TIMESTAMPTZ '1970-01-01 00:00:00+00'
-    ) :: TIMESTAMPTZ AS bucket,
     tenant_id,
-    workflow_id,
     COUNT(*) FILTER (WHERE readable_status = 'QUEUED') AS total_queued,
     COUNT(*) FILTER (WHERE readable_status = 'RUNNING') AS total_running,
     COUNT(*) FILTER (WHERE readable_status = 'COMPLETED') AS total_completed,
@@ -940,9 +934,9 @@ WHERE
     AND (
         sqlc.narg('workflowIds')::UUID[] IS NULL OR workflow_id = ANY(sqlc.narg('workflowIds')::UUID[])
     )
-GROUP BY tenant_id, workflow_id, bucket
-ORDER BY bucket DESC
+GROUP BY tenant_id
 ;
+
 -- name: ReadWorkflowRunByExternalId :one
 WITH dags AS (
     SELECT d.*
