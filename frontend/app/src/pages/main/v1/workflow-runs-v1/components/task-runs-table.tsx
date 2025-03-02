@@ -1,16 +1,12 @@
 import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
 import { columns } from './v1/task-runs-columns';
-import { useCallback, useMemo, useState } from 'react';
-import {
-  RowSelectionState,
-  SortingState,
-  VisibilityState,
-} from '@tanstack/react-table';
+import { useCallback, useState } from 'react';
+import { RowSelectionState, VisibilityState } from '@tanstack/react-table';
 import { useQuery } from '@tanstack/react-query';
 import invariant from 'tiny-invariant';
 import { queries } from '@/lib/api';
 import { TenantContextType } from '@/lib/outlet';
-import { useOutletContext, useSearchParams } from 'react-router-dom';
+import { useOutletContext } from 'react-router-dom';
 import { Button } from '@/components/v1/ui/button';
 import { ArrowPathIcon, XCircleIcon } from '@heroicons/react/24/outline';
 import { V1WorkflowRunsMetricsView } from './task-runs-metrics';
@@ -50,6 +46,7 @@ import { usePagination } from '../hooks/pagination';
 import { useTaskRuns } from '../hooks/task-runs';
 import { useMetrics } from '../hooks/metrics';
 import { useToolbarFilters } from '../hooks/toolbar-filters';
+import { useSorting } from '../hooks/sorting';
 
 export interface TaskRunsTableProps {
   createdAfter?: string;
@@ -80,7 +77,6 @@ export function TaskRunsTable({
   showMetrics = false,
   showCounts = true,
 }: TaskRunsTableProps) {
-  const [searchParams] = useSearchParams();
   const { tenant } = useOutletContext<TenantContextType>();
   invariant(tenant);
 
@@ -94,20 +90,11 @@ export function TaskRunsTable({
       isOpen: false,
       taskRunId: undefined,
     });
-  const [sorting, setSorting] = useState<SortingState>(() => {
-    const sortParam = searchParams.get('sort');
-    if (sortParam) {
-      return sortParam.split(',').map((param) => {
-        const [id, desc] = param.split(':');
-        return { id, desc: desc === 'desc' };
-      });
-    }
-    return [];
-  });
 
   const cf = useColumnFilters();
   const toolbarFilters = useToolbarFilters({ filterVisibility });
   const { pagination, setPagination, setPageSize } = usePagination();
+  const { sorting, setSorting } = useSorting();
 
   const workflow = workflowId || cf.filters.workflowId;
 
