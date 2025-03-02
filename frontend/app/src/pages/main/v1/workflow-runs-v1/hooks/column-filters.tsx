@@ -16,7 +16,7 @@ type FilterParams = {
   status: V1TaskStatus | undefined;
   additionalMetadata: string[] | undefined;
   columnFilters: ColumnFiltersState;
-  workflowId: string | undefined;
+  Workflow: string | undefined;
   timeWindow: TimeWindow | undefined;
 };
 type FilterKey = keyof FilterParams;
@@ -100,7 +100,7 @@ export const useColumnFilters = () => {
     ? additionalMetadataRaw.split(',')
     : undefined;
 
-  const workflowId = searchParams.get('workflowId') || undefined;
+  const workflowId = searchParams.get('Workflow') || undefined;
 
   const statusColumnFilter = status
     ? { id: 'status', value: status }
@@ -109,7 +109,7 @@ export const useColumnFilters = () => {
     ? { id: 'additionalMetadata', value: additionalMetadata }
     : undefined;
   const workflowIdColumnFilter = workflowId
-    ? { id: 'workflowId', value: workflowId }
+    ? { id: 'Workflow', value: workflowId }
     : undefined;
 
   const columnFilters: ColumnFiltersState = [
@@ -222,7 +222,7 @@ export const useColumnFilters = () => {
 
   const setWorkflowId = useCallback(
     (workflowId: string | undefined) => {
-      setFilterValues([{ key: 'workflowId', value: workflowId }]);
+      setFilterValues([{ key: 'Workflow', value: workflowId }]);
     },
     [setFilterValues],
   );
