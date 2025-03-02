@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { CheckIcon, CircleIcon, PlusCircledIcon } from '@radix-ui/react-icons';
+import { CheckIcon, PlusCircledIcon } from '@radix-ui/react-icons';
 import { Column } from '@tanstack/react-table';
 
 import { cn } from '@/lib/utils';
@@ -260,11 +260,7 @@ export function Combobox({
                             : 'opacity-50 [&_svg]:invisible',
                         )}
                       >
-                        {type === 'checkbox' ? (
-                          <CheckIcon className={cn('h-4 w-4')} />
-                        ) : (
-                          <CircleIcon className={cn('h-4 w-4')} />
-                        )}
+                        <CheckIcon className={cn('h-4 w-4')} />
                       </div>
                       {option.icon && (
                         <option.icon className="mr-2 h-4 w-4 text-gray-700 dark:text-gray-300" />

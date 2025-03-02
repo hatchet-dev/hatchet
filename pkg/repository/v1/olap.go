@@ -67,20 +67,24 @@ type ReadTaskRunMetricsOpts struct {
 }
 
 type WorkflowRunData struct {
-	TenantID           pgtype.UUID                 `json:"tenant_id"`
-	InsertedAt         pgtype.Timestamptz          `json:"inserted_at"`
-	ExternalID         pgtype.UUID                 `json:"external_id"`
-	ReadableStatus     sqlcv1.V1ReadableStatusOlap `json:"readable_status"`
-	Kind               sqlcv1.V1RunKind            `json:"kind"`
-	WorkflowID         pgtype.UUID                 `json:"workflow_id"`
-	DisplayName        string                      `json:"display_name"`
 	AdditionalMetadata []byte                      `json:"additional_metadata"`
 	CreatedAt          pgtype.Timestamptz          `json:"created_at"`
-	StartedAt          pgtype.Timestamptz          `json:"started_at"`
-	FinishedAt         pgtype.Timestamptz          `json:"finished_at"`
+	DisplayName        string                      `json:"display_name"`
 	ErrorMessage       string                      `json:"error_message"`
-	WorkflowVersionId  pgtype.UUID                 `json:"workflow_version_id"`
+	ExternalID         pgtype.UUID                 `json:"external_id"`
+	FinishedAt         pgtype.Timestamptz          `json:"finished_at"`
 	Input              []byte                      `json:"input"`
+	InsertedAt         pgtype.Timestamptz          `json:"inserted_at"`
+	Kind               sqlcv1.V1RunKind            `json:"kind"`
+	Output             *[]byte                     `json:"output,omitempty"`
+	ReadableStatus     sqlcv1.V1ReadableStatusOlap `json:"readable_status"`
+	StartedAt          pgtype.Timestamptz          `json:"started_at"`
+	TaskExternalId     *pgtype.UUID                `json:"task_external_id,omitempty"`
+	TaskId             *int64                      `json:"task_id,omitempty"`
+	TaskInsertedAt     *pgtype.Timestamptz         `json:"task_inserted_at,omitempty"`
+	TenantID           pgtype.UUID                 `json:"tenant_id"`
+	WorkflowID         pgtype.UUID                 `json:"workflow_id"`
+	WorkflowVersionId  pgtype.UUID                 `json:"workflow_version_id"`
 }
 
 type V1WorkflowRunPopulator struct {
@@ -781,6 +785,11 @@ func (r *olapRepository) ListWorkflowRuns(ctx context.Context, tenantId string, 
 				ErrorMessage:       dag.ErrorMessage.String,
 				Kind:               sqlcv1.V1RunKindDAG,
 				WorkflowVersionId:  dag.WorkflowVersionID,
+				TaskExternalId:     nil,
+				TaskId:             nil,
+				TaskInsertedAt:     nil,
+				Output:             &dag.Output,
+				Input:              dag.Input,
 			})
 		} else {
 			task, ok := tasksToPopulated[externalId]
@@ -803,6 +812,11 @@ func (r *olapRepository) ListWorkflowRuns(ctx context.Context, tenantId string, 
 				FinishedAt:         task.FinishedAt,
 				ErrorMessage:       task.ErrorMessage.String,
 				Kind:               sqlcv1.V1RunKindTASK,
+				TaskExternalId:     &task.ExternalID,
+				TaskId:             &task.ID,
+				TaskInsertedAt:     &task.InsertedAt,
+				Output:             &task.Output,
+				Input:              task.Input,
 			})
 		}
 	}

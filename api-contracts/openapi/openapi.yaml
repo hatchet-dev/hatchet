@@ -20,8 +20,6 @@ components:
   schemas:
     $ref: "./components/schemas/_index.yaml"
 paths:
-  /api/v1/stable/tenants/{tenant}/tasks:
-    $ref: "./paths/v1/tasks/tasks.yaml#/listTasks"
   /api/v1/stable/tasks/{task}:
     $ref: "./paths/v1/tasks/tasks.yaml#/getTask"
   /api/v1/stable/tasks/{task}/task-events:
