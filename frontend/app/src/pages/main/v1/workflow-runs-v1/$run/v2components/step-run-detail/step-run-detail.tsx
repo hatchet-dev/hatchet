@@ -1,4 +1,10 @@
-import { StepRun, V1Task, V1TaskStatus, WorkflowRun, queries } from '@/lib/api';
+import {
+  StepRun,
+  V1TaskStatus,
+  V1TaskSummary,
+  WorkflowRun,
+  queries,
+} from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 import invariant from 'tiny-invariant';
 import { Button } from '@/components/v1/ui/button';
@@ -46,7 +52,7 @@ const TaskRunPermalinkOrBacklink = ({
   taskRun,
   showViewTaskRunButton,
 }: {
-  taskRun: V1Task;
+  taskRun: V1TaskSummary;
   showViewTaskRunButton: boolean;
 }) => {
   if (showViewTaskRunButton) {
@@ -166,7 +172,7 @@ export const TaskRunDetail = ({
               maxHeight="400px"
               minHeight="400px"
               language="json"
-              code={JSON.stringify(JSON.parse(taskRun.input), null, 2)}
+              code={JSON.stringify(taskRun.input, null, 2)}
             />
           )}
         </TabsContent>

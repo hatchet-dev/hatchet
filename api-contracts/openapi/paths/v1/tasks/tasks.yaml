@@ -75,7 +75,7 @@ getTask:
         content:
           application/json:
             schema:
-              $ref: "../../../components/schemas/_index.yaml#/V1Task"
+              $ref: "../../../components/schemas/_index.yaml#/V1TaskSummary"
         description: Successfully retrieved the task
       "400":
         content:

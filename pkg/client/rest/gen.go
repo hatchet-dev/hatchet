@@ -1186,48 +1186,6 @@ type V1ReplayTaskRequest struct {
 	Filter      *V1TaskFilter         `json:"filter,omitempty"`
 }
 
-// V1Task defines model for V1Task.
-type V1Task struct {
-	// AdditionalMetadata Additional metadata for the task run.
-	AdditionalMetadata *map[string]interface{} `json:"additionalMetadata,omitempty"`
-
-	// DisplayName The display name of the task run.
-	DisplayName string `json:"displayName"`
-
-	// Duration The duration of the task run, in milliseconds.
-	Duration *int `json:"duration,omitempty"`
-
-	// ErrorMessage The error message of the task run (for the latest run)
-	ErrorMessage *string `json:"errorMessage,omitempty"`
-
-	// FinishedAt The timestamp the task run finished.
-	FinishedAt *time.Time `json:"finishedAt,omitempty"`
-
-	// Input The input for the task run.
-	Input    string          `json:"input"`
-	Metadata APIResourceMeta `json:"metadata"`
-
-	// Output The output of the task run (for the latest run)
-	Output *string `json:"output,omitempty"`
-
-	// StartedAt The timestamp the task run started.
-	StartedAt *time.Time   `json:"startedAt,omitempty"`
-	Status    V1TaskStatus `json:"status"`
-
-	// TaskId The ID of the task.
-	TaskId int `json:"taskId"`
-
-	// TaskInsertedAt The timestamp the task was inserted.
-	TaskInsertedAt time.Time `json:"taskInsertedAt"`
-
-	// TenantId The ID of the tenant.
-	TenantId   openapi_types.UUID `json:"tenantId"`
-	WorkflowId openapi_types.UUID `json:"workflowId"`
-
-	// WorkflowRunExternalId The external ID of the workflow run.
-	WorkflowRunExternalId *openapi_types.UUID `json:"workflowRunExternalId,omitempty"`
-}
-
 // V1TaskEvent defines model for V1TaskEvent.
 type V1TaskEvent struct {
 	ErrorMessage    *string             `json:"errorMessage,omitempty"`
@@ -1307,8 +1265,8 @@ type V1TaskSummary struct {
 	FinishedAt *time.Time `json:"finishedAt,omitempty"`
 
 	// Input The input of the task run.
-	Input    *map[string]interface{} `json:"input,omitempty"`
-	Metadata APIResourceMeta         `json:"metadata"`
+	Input    map[string]interface{} `json:"input"`
+	Metadata APIResourceMeta        `json:"metadata"`
 
 	// Output The output of the task run (for the latest run)
 	Output map[string]interface{} `json:"output"`
@@ -1330,6 +1288,9 @@ type V1TaskSummary struct {
 	TenantId   openapi_types.UUID `json:"tenantId"`
 	Type       V1WorkflowType     `json:"type"`
 	WorkflowId openapi_types.UUID `json:"workflowId"`
+
+	// WorkflowRunExternalId The external ID of the workflow run
+	WorkflowRunExternalId *openapi_types.UUID `json:"workflowRunExternalId,omitempty"`
 
 	// WorkflowVersionId The version ID of the workflow
 	WorkflowVersionId *openapi_types.UUID `json:"workflowVersionId,omitempty"`
@@ -10414,7 +10375,7 @@ func (r V1DagListTasksResponse) StatusCode() int {
 type V1TaskGetResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *V1Task
+	JSON200      *V1TaskSummary
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
@@ -14259,7 +14220,7 @@ func ParseV1TaskGetResponse(rsp *http.Response) (*V1TaskGetResponse, error) {
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest V1Task
+		var dest V1TaskSummary
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

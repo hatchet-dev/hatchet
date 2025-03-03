@@ -66,6 +66,10 @@ V1TaskSummary:
       type: string
       format: uuid
       description: The version ID of the workflow
+    workflowRunExternalId:
+      type: string
+      format: uuid
+      description: The external ID of the workflow run
     createdAt:
       type: string
       format: date-time
@@ -86,6 +90,7 @@ V1TaskSummary:
     - workflowId
     - output
     - taskExternalId
+    - input
     - type
 
 V1DagChildren:
@@ -112,72 +117,6 @@ V1TaskSummaryList:
   required:
     - pagination
     - rows
-
-V1Task:
-  properties:
-    metadata:
-      $ref: ".././metadata.yaml#/APIResourceMeta"
-    taskId:
-      type: integer
-      description: The ID of the task.
-    taskInsertedAt:
-      type: string
-      format: date-time
-      description: The timestamp the task was inserted.
-    status:
-      $ref: "#/V1TaskStatus"
-    startedAt:
-      type: string
-      format: date-time
-      description: The timestamp the task run started.
-    finishedAt:
-      type: string
-      format: date-time
-      description: The timestamp the task run finished.
-    duration:
-      type: integer
-      description: The duration of the task run, in milliseconds.
-    tenantId:
-      type: string
-      description: The ID of the tenant.
-      example: bb214807-246e-43a5-a25d-41761d1cff9e
-      minLength: 36
-      maxLength: 36
-      format: uuid
-    additionalMetadata:
-      type: object
-      description: Additional metadata for the task run.
-    displayName:
-      type: string
-      description: The display name of the task run.
-    workflowId:
-      type: string
-      format: uuid
-    input:
-      type: string
-      description: The input for the task run.
-    output:
-      type: string
-      description: The output of the task run (for the latest run)
-    errorMessage:
-      type: string
-      description: The error message of the task run (for the latest run)
-    workflowRunExternalId:
-      type: string
-      description: The external ID of the workflow run.
-      format: uuid
-      minLength: 36
-      maxLength: 36
-  required:
-    - metadata
-    - id
-    - taskId
-    - taskInsertedAt
-    - status
-    - tenantId
-    - displayName
-    - workflowId
-    - input
 
 V1TaskEventList:
   properties:

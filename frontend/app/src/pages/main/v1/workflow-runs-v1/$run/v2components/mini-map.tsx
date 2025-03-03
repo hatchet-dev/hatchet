@@ -1,8 +1,9 @@
 import { useMemo } from 'react';
-import { V1TaskSummary } from '@/lib/api';
+import { queries, V1TaskSummary } from '@/lib/api';
 import { TabOption } from './step-run-detail/step-run-detail';
 import StepRunNode from './step-run-node';
 import { useWorkflowDetails } from '../../hooks/workflow-details';
+import { useQuery } from '@tanstack/react-query';
 
 interface JobMiniMapProps {
   onClick: (stepRunId?: string, defaultOpenTab?: TabOption) => void;
@@ -114,6 +115,55 @@ export const JobMiniMap = ({ onClick }: JobMiniMapProps) => {
           })}
         </div>
       ))}
+    </div>
+  );
+};
+
+type UseTaskRunProps = {
+  taskRunId: string;
+};
+
+export const useTaskRun = ({ taskRunId }: UseTaskRunProps) => {
+  const taskRunQuery = useQuery({
+    ...queries.v1Tasks.get(taskRunId),
+    refetchInterval: 5000,
+  });
+
+  return {
+    taskRun: taskRunQuery.data,
+    isLoading: taskRunQuery.isLoading,
+    isError: taskRunQuery.isError,
+  };
+};
+
+export const TaskRunMiniMap = ({
+  onClick,
+  taskRunId,
+}: JobMiniMapProps & UseTaskRunProps) => {
+  const { taskRun, isLoading, isError } = useTaskRun({ taskRunId });
+
+  if (isLoading || isError || !taskRun) {
+    return null;
+  }
+
+  return (
+    <div className="flex flex-1 flex-row p-4 rounded-sm relative gap-1">
+      <div className="flex flex-col justify-start h-full min-w-fit grow">
+        return (
+        <StepRunNode
+          key={taskRun.taskExternalId}
+          data={{
+            task: taskRun,
+            graphVariant: 'none',
+            onClick: () => onClick(taskRun.metadata.id),
+            childWorkflowsCount: 0,
+            taskName:
+              shape.find((i) => i.taskExternalId === taskRun.metadata.id)
+                ?.taskName || '',
+          }}
+        />
+        );
+      </div>
     </div>
   );
 };

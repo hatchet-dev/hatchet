@@ -86,11 +86,11 @@ import {
   V1CancelTaskRequest,
   V1DagChildren,
   V1ReplayTaskRequest,
-  V1Task,
   V1TaskEventList,
   V1TaskPointMetrics,
   V1TaskRunMetrics,
   V1TaskStatus,
+  V1TaskSummary,
   V1TaskSummaryList,
   V1WorkflowRunDetails,
   WebhookWorkerCreateRequest,
@@ -130,7 +130,7 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @secure
    */
   v1TaskGet = (task: string, params: RequestParams = {}) =>
-    this.request<V1Task, APIErrors>({
+    this.request<V1TaskSummary, APIErrors>({
       path: `/api/v1/stable/tasks/${task}`,
       method: 'GET',
       secure: true,
