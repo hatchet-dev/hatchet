@@ -144,15 +144,14 @@ export const TaskRunDetail = ({
           <TabsTrigger variant="underlined" value={TabOption.Output}>
             Output
           </TabsTrigger>
-          {/* {stepRun.childWorkflowRuns &&
-            stepRun.childWorkflowRuns.length > 0 && (
-              <TabsTrigger
-                variant="underlined"
-                value={TabOption.ChildWorkflowRuns}
-              >
-                Children ({stepRun.childWorkflowRuns.length})
-              </TabsTrigger>
-            )} */}
+          {taskRun.numSpawnedChildren && (
+            <TabsTrigger
+              variant="underlined"
+              value={TabOption.ChildWorkflowRuns}
+            >
+              Children ({taskRun.numSpawnedChildren})
+            </TabsTrigger>
+          )}
           <TabsTrigger variant="underlined" value={TabOption.Input}>
             Input
           </TabsTrigger>
