@@ -13,35 +13,47 @@
 
 
 from __future__ import annotations
+
+import json
 import pprint
 import re  # noqa: F401
-import json
+from typing import Any, ClassVar, Dict, List, Optional, Set
 
 from pydantic import BaseModel, ConfigDict, StrictStr
-from typing import Any, ClassVar, Dict, List, Optional
-from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
-from hatchet_sdk.clients.rest.models.workflow_trigger_cron_ref import WorkflowTriggerCronRef
-from hatchet_sdk.clients.rest.models.workflow_trigger_event_ref import WorkflowTriggerEventRef
-from typing import Optional, Set
 from typing_extensions import Self
+
+from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
+from hatchet_sdk.clients.rest.models.workflow_trigger_cron_ref import (
+    WorkflowTriggerCronRef,
+)
+from hatchet_sdk.clients.rest.models.workflow_trigger_event_ref import (
+    WorkflowTriggerEventRef,
+)
+
 
 class WorkflowTriggers(BaseModel):
     """
     WorkflowTriggers
-    """ # noqa: E501
+    """  # noqa: E501
+
     metadata: Optional[APIResourceMeta] = None
     workflow_version_id: Optional[StrictStr] = None
     tenant_id: Optional[StrictStr] = None
     events: Optional[List[WorkflowTriggerEventRef]] = None
     crons: Optional[List[WorkflowTriggerCronRef]] = None
-    __properties: ClassVar[List[str]] = ["metadata", "workflow_version_id", "tenant_id", "events", "crons"]
+    __properties: ClassVar[List[str]] = [
+        "metadata",
+        "workflow_version_id",
+        "tenant_id",
+        "events",
+        "crons",
+    ]
 
     model_config = ConfigDict(
         populate_by_name=True,
         validate_assignment=True,
         protected_namespaces=(),
     )
-
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -67,8 +79,7 @@ class WorkflowTriggers(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([
-        ])
+        excluded_fields: Set[str] = set([])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -77,21 +88,21 @@ class WorkflowTriggers(BaseModel):
         )
         # override the default output from pydantic by calling `to_dict()` of metadata
         if self.metadata:
-            _dict['metadata'] = self.metadata.to_dict()
+            _dict["metadata"] = self.metadata.to_dict()
         # override the default output from pydantic by calling `to_dict()` of each item in events (list)
         _items = []
         if self.events:
             for _item_events in self.events:
                 if _item_events:
                     _items.append(_item_events.to_dict())
-            _dict['events'] = _items
+            _dict["events"] = _items
         # override the default output from pydantic by calling `to_dict()` of each item in crons (list)
         _items = []
         if self.crons:
             for _item_crons in self.crons:
                 if _item_crons:
                     _items.append(_item_crons.to_dict())
-            _dict['crons'] = _items
+            _dict["crons"] = _items
         return _dict
 
     @classmethod
@@ -103,13 +114,28 @@ class WorkflowTriggers(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({
-            "metadata": APIResourceMeta.from_dict(obj["metadata"]) if obj.get("metadata") is not None else None,
-            "workflow_version_id": obj.get("workflow_version_id"),
-            "tenant_id": obj.get("tenant_id"),
-            "events": [WorkflowTriggerEventRef.from_dict(_item) for _item in obj["events"]] if obj.get("events") is not None else None,
-            "crons": [WorkflowTriggerCronRef.from_dict(_item) for _item in obj["crons"]] if obj.get("crons") is not None else None
-        })
+        _obj = cls.model_validate(
+            {
+                "metadata": (
+                    APIResourceMeta.from_dict(obj["metadata"])
+                    if obj.get("metadata") is not None
+                    else None
+                ),
+                "workflow_version_id": obj.get("workflow_version_id"),
+                "tenant_id": obj.get("tenant_id"),
+                "events": (
+                    [
+                        WorkflowTriggerEventRef.from_dict(_item)
+                        for _item in obj["events"]
+                    ]
+                    if obj.get("events") is not None
+                    else None
+                ),
+                "crons": (
+                    [WorkflowTriggerCronRef.from_dict(_item) for _item in obj["crons"]]
+                    if obj.get("crons") is not None
+                    else None
+                ),
+            }
+        )
         return _obj
-
-

@@ -13,33 +13,41 @@
 
 
 from __future__ import annotations
+
+import json
 import pprint
 import re  # noqa: F401
-import json
+from typing import Any, ClassVar, Dict, List, Optional, Set
 
 from pydantic import BaseModel, ConfigDict, Field, StrictStr
-from typing import Any, ClassVar, Dict, List, Optional
-from hatchet_sdk.clients.rest.models.worker_runtime_sdks import WorkerRuntimeSDKs
-from typing import Optional, Set
 from typing_extensions import Self
+
+from hatchet_sdk.clients.rest.models.worker_runtime_sdks import WorkerRuntimeSDKs
+
 
 class WorkerRuntimeInfo(BaseModel):
     """
     WorkerRuntimeInfo
-    """ # noqa: E501
+    """  # noqa: E501
+
     sdk_version: Optional[StrictStr] = Field(default=None, alias="sdkVersion")
     language: Optional[WorkerRuntimeSDKs] = None
     language_version: Optional[StrictStr] = Field(default=None, alias="languageVersion")
     os: Optional[StrictStr] = None
     runtime_extra: Optional[StrictStr] = Field(default=None, alias="runtimeExtra")
-    __properties: ClassVar[List[str]] = ["sdkVersion", "language", "languageVersion", "os", "runtimeExtra"]
+    __properties: ClassVar[List[str]] = [
+        "sdkVersion",
+        "language",
+        "languageVersion",
+        "os",
+        "runtimeExtra",
+    ]
 
     model_config = ConfigDict(
         populate_by_name=True,
         validate_assignment=True,
         protected_namespaces=(),
     )
-
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -65,8 +73,7 @@ class WorkerRuntimeInfo(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([
-        ])
+        excluded_fields: Set[str] = set([])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -84,13 +91,13 @@ class WorkerRuntimeInfo(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({
-            "sdkVersion": obj.get("sdkVersion"),
-            "language": obj.get("language"),
-            "languageVersion": obj.get("languageVersion"),
-            "os": obj.get("os"),
-            "runtimeExtra": obj.get("runtimeExtra")
-        })
+        _obj = cls.model_validate(
+            {
+                "sdkVersion": obj.get("sdkVersion"),
+                "language": obj.get("language"),
+                "languageVersion": obj.get("languageVersion"),
+                "os": obj.get("os"),
+                "runtimeExtra": obj.get("runtimeExtra"),
+            }
+        )
         return _obj
-
-

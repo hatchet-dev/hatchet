@@ -13,22 +13,30 @@
 
 
 from __future__ import annotations
+
+import json
 import pprint
 import re  # noqa: F401
-import json
+from typing import Any, ClassVar, Dict, List, Optional, Set
 
 from pydantic import BaseModel, ConfigDict, Field
-from typing import Any, ClassVar, Dict, List, Optional
-from typing_extensions import Annotated
+from typing_extensions import Annotated, Self
+
 from hatchet_sdk.clients.rest.models.v1_task_filter import V1TaskFilter
-from typing import Optional, Set
-from typing_extensions import Self
+
 
 class V1CancelTaskRequest(BaseModel):
     """
     V1CancelTaskRequest
-    """ # noqa: E501
-    external_ids: Optional[List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]]] = Field(default=None, description="A list of external IDs, which can refer to either task or workflow run external IDs", alias="externalIds")
+    """  # noqa: E501
+
+    external_ids: Optional[
+        List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]]
+    ] = Field(
+        default=None,
+        description="A list of external IDs, which can refer to either task or workflow run external IDs",
+        alias="externalIds",
+    )
     filter: Optional[V1TaskFilter] = None
     __properties: ClassVar[List[str]] = ["externalIds", "filter"]
 
@@ -37,7 +45,6 @@ class V1CancelTaskRequest(BaseModel):
         validate_assignment=True,
         protected_namespaces=(),
     )
-
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -63,8 +70,7 @@ class V1CancelTaskRequest(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([
-        ])
+        excluded_fields: Set[str] = set([])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -73,7 +79,7 @@ class V1CancelTaskRequest(BaseModel):
         )
         # override the default output from pydantic by calling `to_dict()` of filter
         if self.filter:
-            _dict['filter'] = self.filter.to_dict()
+            _dict["filter"] = self.filter.to_dict()
         return _dict
 
     @classmethod
@@ -85,10 +91,14 @@ class V1CancelTaskRequest(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({
-            "externalIds": obj.get("externalIds"),
-            "filter": V1TaskFilter.from_dict(obj["filter"]) if obj.get("filter") is not None else None
-        })
+        _obj = cls.model_validate(
+            {
+                "externalIds": obj.get("externalIds"),
+                "filter": (
+                    V1TaskFilter.from_dict(obj["filter"])
+                    if obj.get("filter") is not None
+                    else None
+                ),
+            }
+        )
         return _obj
-
-

@@ -13,19 +13,21 @@
 
 
 from __future__ import annotations
+
+import json
 import pprint
 import re  # noqa: F401
-import json
+from typing import Any, ClassVar, Dict, List, Optional, Set
 
 from pydantic import BaseModel, ConfigDict, StrictStr
-from typing import Any, ClassVar, Dict, List, Optional
-from typing import Optional, Set
 from typing_extensions import Self
+
 
 class WorkflowTriggerEventRef(BaseModel):
     """
     WorkflowTriggerEventRef
-    """ # noqa: E501
+    """  # noqa: E501
+
     parent_id: Optional[StrictStr] = None
     event_key: Optional[StrictStr] = None
     __properties: ClassVar[List[str]] = ["parent_id", "event_key"]
@@ -35,7 +37,6 @@ class WorkflowTriggerEventRef(BaseModel):
         validate_assignment=True,
         protected_namespaces=(),
     )
-
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -61,8 +62,7 @@ class WorkflowTriggerEventRef(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([
-        ])
+        excluded_fields: Set[str] = set([])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -80,10 +80,7 @@ class WorkflowTriggerEventRef(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({
-            "parent_id": obj.get("parent_id"),
-            "event_key": obj.get("event_key")
-        })
+        _obj = cls.model_validate(
+            {"parent_id": obj.get("parent_id"), "event_key": obj.get("event_key")}
+        )
         return _obj
-
-

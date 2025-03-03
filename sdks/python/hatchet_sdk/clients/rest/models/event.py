@@ -13,36 +13,59 @@
 
 
 from __future__ import annotations
+
+import json
 import pprint
 import re  # noqa: F401
-import json
+from typing import Any, ClassVar, Dict, List, Optional, Set
 
 from pydantic import BaseModel, ConfigDict, Field, StrictStr
-from typing import Any, ClassVar, Dict, List, Optional
-from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
-from hatchet_sdk.clients.rest.models.event_workflow_run_summary import EventWorkflowRunSummary
-from hatchet_sdk.clients.rest.models.tenant import Tenant
-from typing import Optional, Set
 from typing_extensions import Self
+
+from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
+from hatchet_sdk.clients.rest.models.event_workflow_run_summary import (
+    EventWorkflowRunSummary,
+)
+from hatchet_sdk.clients.rest.models.tenant import Tenant
+
 
 class Event(BaseModel):
     """
     Event
-    """ # noqa: E501
+    """  # noqa: E501
+
     metadata: APIResourceMeta
     key: StrictStr = Field(description="The key for the event.")
-    tenant: Optional[Tenant] = Field(default=None, description="The tenant associated with this event.")
-    tenant_id: StrictStr = Field(description="The ID of the tenant associated with this event.", alias="tenantId")
-    workflow_run_summary: Optional[EventWorkflowRunSummary] = Field(default=None, description="The workflow run summary for this event.", alias="workflowRunSummary")
-    additional_metadata: Optional[Dict[str, Any]] = Field(default=None, description="Additional metadata for the event.", alias="additionalMetadata")
-    __properties: ClassVar[List[str]] = ["metadata", "key", "tenant", "tenantId", "workflowRunSummary", "additionalMetadata"]
+    tenant: Optional[Tenant] = Field(
+        default=None, description="The tenant associated with this event."
+    )
+    tenant_id: StrictStr = Field(
+        description="The ID of the tenant associated with this event.", alias="tenantId"
+    )
+    workflow_run_summary: Optional[EventWorkflowRunSummary] = Field(
+        default=None,
+        description="The workflow run summary for this event.",
+        alias="workflowRunSummary",
+    )
+    additional_metadata: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Additional metadata for the event.",
+        alias="additionalMetadata",
+    )
+    __properties: ClassVar[List[str]] = [
+        "metadata",
+        "key",
+        "tenant",
+        "tenantId",
+        "workflowRunSummary",
+        "additionalMetadata",
+    ]
 
     model_config = ConfigDict(
         populate_by_name=True,
         validate_assignment=True,
         protected_namespaces=(),
     )
-
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -68,8 +91,7 @@ class Event(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([
-        ])
+        excluded_fields: Set[str] = set([])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -78,13 +100,13 @@ class Event(BaseModel):
         )
         # override the default output from pydantic by calling `to_dict()` of metadata
         if self.metadata:
-            _dict['metadata'] = self.metadata.to_dict()
+            _dict["metadata"] = self.metadata.to_dict()
         # override the default output from pydantic by calling `to_dict()` of tenant
         if self.tenant:
-            _dict['tenant'] = self.tenant.to_dict()
+            _dict["tenant"] = self.tenant.to_dict()
         # override the default output from pydantic by calling `to_dict()` of workflow_run_summary
         if self.workflow_run_summary:
-            _dict['workflowRunSummary'] = self.workflow_run_summary.to_dict()
+            _dict["workflowRunSummary"] = self.workflow_run_summary.to_dict()
         return _dict
 
     @classmethod
@@ -96,14 +118,26 @@ class Event(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({
-            "metadata": APIResourceMeta.from_dict(obj["metadata"]) if obj.get("metadata") is not None else None,
-            "key": obj.get("key"),
-            "tenant": Tenant.from_dict(obj["tenant"]) if obj.get("tenant") is not None else None,
-            "tenantId": obj.get("tenantId"),
-            "workflowRunSummary": EventWorkflowRunSummary.from_dict(obj["workflowRunSummary"]) if obj.get("workflowRunSummary") is not None else None,
-            "additionalMetadata": obj.get("additionalMetadata")
-        })
+        _obj = cls.model_validate(
+            {
+                "metadata": (
+                    APIResourceMeta.from_dict(obj["metadata"])
+                    if obj.get("metadata") is not None
+                    else None
+                ),
+                "key": obj.get("key"),
+                "tenant": (
+                    Tenant.from_dict(obj["tenant"])
+                    if obj.get("tenant") is not None
+                    else None
+                ),
+                "tenantId": obj.get("tenantId"),
+                "workflowRunSummary": (
+                    EventWorkflowRunSummary.from_dict(obj["workflowRunSummary"])
+                    if obj.get("workflowRunSummary") is not None
+                    else None
+                ),
+                "additionalMetadata": obj.get("additionalMetadata"),
+            }
+        )
         return _obj
-
-

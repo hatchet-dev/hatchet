@@ -13,21 +13,25 @@
 
 
 from __future__ import annotations
+
+import json
 import pprint
 import re  # noqa: F401
-import json
-
 from datetime import datetime
+from typing import Any, ClassVar, Dict, List, Optional, Set
+
 from pydantic import BaseModel, ConfigDict, Field, StrictStr
-from typing import Any, ClassVar, Dict, List
-from typing import Optional, Set
 from typing_extensions import Self
+
 
 class LogLine(BaseModel):
     """
     LogLine
-    """ # noqa: E501
-    created_at: datetime = Field(description="The creation date of the log line.", alias="createdAt")
+    """  # noqa: E501
+
+    created_at: datetime = Field(
+        description="The creation date of the log line.", alias="createdAt"
+    )
     message: StrictStr = Field(description="The log message.")
     metadata: Dict[str, Any] = Field(description="The log metadata.")
     __properties: ClassVar[List[str]] = ["createdAt", "message", "metadata"]
@@ -37,7 +41,6 @@ class LogLine(BaseModel):
         validate_assignment=True,
         protected_namespaces=(),
     )
-
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -63,8 +66,7 @@ class LogLine(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([
-        ])
+        excluded_fields: Set[str] = set([])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -82,11 +84,11 @@ class LogLine(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({
-            "createdAt": obj.get("createdAt"),
-            "message": obj.get("message"),
-            "metadata": obj.get("metadata")
-        })
+        _obj = cls.model_validate(
+            {
+                "createdAt": obj.get("createdAt"),
+                "message": obj.get("message"),
+                "metadata": obj.get("metadata"),
+            }
+        )
         return _obj
-
-

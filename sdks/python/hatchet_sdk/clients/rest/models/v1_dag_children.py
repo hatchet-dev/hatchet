@@ -13,20 +13,23 @@
 
 
 from __future__ import annotations
+
+import json
 import pprint
 import re  # noqa: F401
-import json
+from typing import Any, ClassVar, Dict, List, Optional, Set
 
 from pydantic import BaseModel, ConfigDict, Field, StrictStr
-from typing import Any, ClassVar, Dict, List, Optional
-from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
-from typing import Optional, Set
 from typing_extensions import Self
+
+from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
+
 
 class V1DagChildren(BaseModel):
     """
     V1DagChildren
-    """ # noqa: E501
+    """  # noqa: E501
+
     dag_id: Optional[StrictStr] = Field(default=None, alias="dagId")
     children: Optional[List[V1TaskSummary]] = None
     __properties: ClassVar[List[str]] = ["dagId", "children"]
@@ -36,7 +39,6 @@ class V1DagChildren(BaseModel):
         validate_assignment=True,
         protected_namespaces=(),
     )
-
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -62,8 +64,7 @@ class V1DagChildren(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([
-        ])
+        excluded_fields: Set[str] = set([])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -76,7 +77,7 @@ class V1DagChildren(BaseModel):
             for _item_children in self.children:
                 if _item_children:
                     _items.append(_item_children.to_dict())
-            _dict['children'] = _items
+            _dict["children"] = _items
         return _dict
 
     @classmethod
@@ -88,10 +89,14 @@ class V1DagChildren(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({
-            "dagId": obj.get("dagId"),
-            "children": [V1TaskSummary.from_dict(_item) for _item in obj["children"]] if obj.get("children") is not None else None
-        })
+        _obj = cls.model_validate(
+            {
+                "dagId": obj.get("dagId"),
+                "children": (
+                    [V1TaskSummary.from_dict(_item) for _item in obj["children"]]
+                    if obj.get("children") is not None
+                    else None
+                ),
+            }
+        )
         return _obj
-
-

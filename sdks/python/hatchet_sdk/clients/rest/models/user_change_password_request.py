@@ -13,21 +13,25 @@
 
 
 from __future__ import annotations
+
+import json
 import pprint
 import re  # noqa: F401
-import json
+from typing import Any, ClassVar, Dict, List, Optional, Set
 
 from pydantic import BaseModel, ConfigDict, Field, StrictStr
-from typing import Any, ClassVar, Dict, List
-from typing import Optional, Set
 from typing_extensions import Self
+
 
 class UserChangePasswordRequest(BaseModel):
     """
     UserChangePasswordRequest
-    """ # noqa: E501
+    """  # noqa: E501
+
     password: StrictStr = Field(description="The password of the user.")
-    new_password: StrictStr = Field(description="The new password for the user.", alias="newPassword")
+    new_password: StrictStr = Field(
+        description="The new password for the user.", alias="newPassword"
+    )
     __properties: ClassVar[List[str]] = ["password", "newPassword"]
 
     model_config = ConfigDict(
@@ -35,7 +39,6 @@ class UserChangePasswordRequest(BaseModel):
         validate_assignment=True,
         protected_namespaces=(),
     )
-
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -61,8 +64,7 @@ class UserChangePasswordRequest(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([
-        ])
+        excluded_fields: Set[str] = set([])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -80,10 +82,7 @@ class UserChangePasswordRequest(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({
-            "password": obj.get("password"),
-            "newPassword": obj.get("newPassword")
-        })
+        _obj = cls.model_validate(
+            {"password": obj.get("password"), "newPassword": obj.get("newPassword")}
+        )
         return _obj
-
-

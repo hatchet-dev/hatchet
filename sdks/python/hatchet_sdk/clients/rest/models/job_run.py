@@ -13,23 +13,26 @@
 
 
 from __future__ import annotations
+
+import json
 import pprint
 import re  # noqa: F401
-import json
-
 from datetime import datetime
+from typing import Any, ClassVar, Dict, List, Optional, Set
+
 from pydantic import BaseModel, ConfigDict, Field, StrictStr
-from typing import Any, ClassVar, Dict, List, Optional
+from typing_extensions import Self
+
 from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
 from hatchet_sdk.clients.rest.models.job import Job
 from hatchet_sdk.clients.rest.models.job_run_status import JobRunStatus
-from typing import Optional, Set
-from typing_extensions import Self
+
 
 class JobRun(BaseModel):
     """
     JobRun
-    """ # noqa: E501
+    """  # noqa: E501
+
     metadata: APIResourceMeta
     tenant_id: StrictStr = Field(alias="tenantId")
     workflow_run_id: StrictStr = Field(alias="workflowRunId")
@@ -46,14 +49,30 @@ class JobRun(BaseModel):
     cancelled_at: Optional[datetime] = Field(default=None, alias="cancelledAt")
     cancelled_reason: Optional[StrictStr] = Field(default=None, alias="cancelledReason")
     cancelled_error: Optional[StrictStr] = Field(default=None, alias="cancelledError")
-    __properties: ClassVar[List[str]] = ["metadata", "tenantId", "workflowRunId", "workflowRun", "jobId", "job", "tickerId", "stepRuns", "status", "result", "startedAt", "finishedAt", "timeoutAt", "cancelledAt", "cancelledReason", "cancelledError"]
+    __properties: ClassVar[List[str]] = [
+        "metadata",
+        "tenantId",
+        "workflowRunId",
+        "workflowRun",
+        "jobId",
+        "job",
+        "tickerId",
+        "stepRuns",
+        "status",
+        "result",
+        "startedAt",
+        "finishedAt",
+        "timeoutAt",
+        "cancelledAt",
+        "cancelledReason",
+        "cancelledError",
+    ]
 
     model_config = ConfigDict(
         populate_by_name=True,
         validate_assignment=True,
         protected_namespaces=(),
     )
-
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -79,8 +98,7 @@ class JobRun(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([
-        ])
+        excluded_fields: Set[str] = set([])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -89,20 +107,20 @@ class JobRun(BaseModel):
         )
         # override the default output from pydantic by calling `to_dict()` of metadata
         if self.metadata:
-            _dict['metadata'] = self.metadata.to_dict()
+            _dict["metadata"] = self.metadata.to_dict()
         # override the default output from pydantic by calling `to_dict()` of workflow_run
         if self.workflow_run:
-            _dict['workflowRun'] = self.workflow_run.to_dict()
+            _dict["workflowRun"] = self.workflow_run.to_dict()
         # override the default output from pydantic by calling `to_dict()` of job
         if self.job:
-            _dict['job'] = self.job.to_dict()
+            _dict["job"] = self.job.to_dict()
         # override the default output from pydantic by calling `to_dict()` of each item in step_runs (list)
         _items = []
         if self.step_runs:
             for _item_step_runs in self.step_runs:
                 if _item_step_runs:
                     _items.append(_item_step_runs.to_dict())
-            _dict['stepRuns'] = _items
+            _dict["stepRuns"] = _items
         return _dict
 
     @classmethod
@@ -114,28 +132,45 @@ class JobRun(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({
-            "metadata": APIResourceMeta.from_dict(obj["metadata"]) if obj.get("metadata") is not None else None,
-            "tenantId": obj.get("tenantId"),
-            "workflowRunId": obj.get("workflowRunId"),
-            "workflowRun": WorkflowRun.from_dict(obj["workflowRun"]) if obj.get("workflowRun") is not None else None,
-            "jobId": obj.get("jobId"),
-            "job": Job.from_dict(obj["job"]) if obj.get("job") is not None else None,
-            "tickerId": obj.get("tickerId"),
-            "stepRuns": [StepRun.from_dict(_item) for _item in obj["stepRuns"]] if obj.get("stepRuns") is not None else None,
-            "status": obj.get("status"),
-            "result": obj.get("result"),
-            "startedAt": obj.get("startedAt"),
-            "finishedAt": obj.get("finishedAt"),
-            "timeoutAt": obj.get("timeoutAt"),
-            "cancelledAt": obj.get("cancelledAt"),
-            "cancelledReason": obj.get("cancelledReason"),
-            "cancelledError": obj.get("cancelledError")
-        })
+        _obj = cls.model_validate(
+            {
+                "metadata": (
+                    APIResourceMeta.from_dict(obj["metadata"])
+                    if obj.get("metadata") is not None
+                    else None
+                ),
+                "tenantId": obj.get("tenantId"),
+                "workflowRunId": obj.get("workflowRunId"),
+                "workflowRun": (
+                    WorkflowRun.from_dict(obj["workflowRun"])
+                    if obj.get("workflowRun") is not None
+                    else None
+                ),
+                "jobId": obj.get("jobId"),
+                "job": (
+                    Job.from_dict(obj["job"]) if obj.get("job") is not None else None
+                ),
+                "tickerId": obj.get("tickerId"),
+                "stepRuns": (
+                    [StepRun.from_dict(_item) for _item in obj["stepRuns"]]
+                    if obj.get("stepRuns") is not None
+                    else None
+                ),
+                "status": obj.get("status"),
+                "result": obj.get("result"),
+                "startedAt": obj.get("startedAt"),
+                "finishedAt": obj.get("finishedAt"),
+                "timeoutAt": obj.get("timeoutAt"),
+                "cancelledAt": obj.get("cancelledAt"),
+                "cancelledReason": obj.get("cancelledReason"),
+                "cancelledError": obj.get("cancelledError"),
+            }
+        )
         return _obj
+
 
 from hatchet_sdk.clients.rest.models.step_run import StepRun
 from hatchet_sdk.clients.rest.models.workflow_run import WorkflowRun
+
 # TODO: Rewrite to not use raise_errors
 JobRun.model_rebuild(raise_errors=False)
-

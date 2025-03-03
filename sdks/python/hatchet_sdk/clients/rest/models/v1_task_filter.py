@@ -13,34 +13,44 @@
 
 
 from __future__ import annotations
+
+import json
 import pprint
 import re  # noqa: F401
-import json
-
 from datetime import datetime
+from typing import Any, ClassVar, Dict, List, Optional, Set
+
 from pydantic import BaseModel, ConfigDict, Field, StrictStr
-from typing import Any, ClassVar, Dict, List, Optional
-from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
-from typing import Optional, Set
 from typing_extensions import Self
+
+from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
+
 
 class V1TaskFilter(BaseModel):
     """
     V1TaskFilter
-    """ # noqa: E501
+    """  # noqa: E501
+
     since: datetime
     until: Optional[datetime] = None
     statuses: Optional[List[V1TaskStatus]] = None
     workflow_ids: Optional[List[StrictStr]] = Field(default=None, alias="workflowIds")
-    additional_metadata: Optional[List[StrictStr]] = Field(default=None, alias="additionalMetadata")
-    __properties: ClassVar[List[str]] = ["since", "until", "statuses", "workflowIds", "additionalMetadata"]
+    additional_metadata: Optional[List[StrictStr]] = Field(
+        default=None, alias="additionalMetadata"
+    )
+    __properties: ClassVar[List[str]] = [
+        "since",
+        "until",
+        "statuses",
+        "workflowIds",
+        "additionalMetadata",
+    ]
 
     model_config = ConfigDict(
         populate_by_name=True,
         validate_assignment=True,
         protected_namespaces=(),
     )
-
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -66,8 +76,7 @@ class V1TaskFilter(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([
-        ])
+        excluded_fields: Set[str] = set([])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -85,13 +94,13 @@ class V1TaskFilter(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({
-            "since": obj.get("since"),
-            "until": obj.get("until"),
-            "statuses": obj.get("statuses"),
-            "workflowIds": obj.get("workflowIds"),
-            "additionalMetadata": obj.get("additionalMetadata")
-        })
+        _obj = cls.model_validate(
+            {
+                "since": obj.get("since"),
+                "until": obj.get("until"),
+                "statuses": obj.get("statuses"),
+                "workflowIds": obj.get("workflowIds"),
+                "additionalMetadata": obj.get("additionalMetadata"),
+            }
+        )
         return _obj
-
-

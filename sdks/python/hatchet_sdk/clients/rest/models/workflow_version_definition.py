@@ -13,20 +13,24 @@
 
 
 from __future__ import annotations
+
+import json
 import pprint
 import re  # noqa: F401
-import json
+from typing import Any, ClassVar, Dict, List, Optional, Set
 
 from pydantic import BaseModel, ConfigDict, Field, StrictStr
-from typing import Any, ClassVar, Dict, List
-from typing import Optional, Set
 from typing_extensions import Self
+
 
 class WorkflowVersionDefinition(BaseModel):
     """
     WorkflowVersionDefinition
-    """ # noqa: E501
-    raw_definition: StrictStr = Field(description="The raw YAML definition of the workflow.", alias="rawDefinition")
+    """  # noqa: E501
+
+    raw_definition: StrictStr = Field(
+        description="The raw YAML definition of the workflow.", alias="rawDefinition"
+    )
     __properties: ClassVar[List[str]] = ["rawDefinition"]
 
     model_config = ConfigDict(
@@ -34,7 +38,6 @@ class WorkflowVersionDefinition(BaseModel):
         validate_assignment=True,
         protected_namespaces=(),
     )
-
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -60,8 +63,7 @@ class WorkflowVersionDefinition(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([
-        ])
+        excluded_fields: Set[str] = set([])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -79,9 +81,5 @@ class WorkflowVersionDefinition(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({
-            "rawDefinition": obj.get("rawDefinition")
-        })
+        _obj = cls.model_validate({"rawDefinition": obj.get("rawDefinition")})
         return _obj
-
-

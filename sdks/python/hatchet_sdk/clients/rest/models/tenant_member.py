@@ -13,27 +13,34 @@
 
 
 from __future__ import annotations
+
+import json
 import pprint
 import re  # noqa: F401
-import json
+from typing import Any, ClassVar, Dict, List, Optional, Set
 
 from pydantic import BaseModel, ConfigDict, Field
-from typing import Any, ClassVar, Dict, List, Optional
+from typing_extensions import Self
+
 from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
 from hatchet_sdk.clients.rest.models.tenant import Tenant
 from hatchet_sdk.clients.rest.models.tenant_member_role import TenantMemberRole
 from hatchet_sdk.clients.rest.models.user_tenant_public import UserTenantPublic
-from typing import Optional, Set
-from typing_extensions import Self
+
 
 class TenantMember(BaseModel):
     """
     TenantMember
-    """ # noqa: E501
+    """  # noqa: E501
+
     metadata: APIResourceMeta
-    user: UserTenantPublic = Field(description="The user associated with this tenant member.")
+    user: UserTenantPublic = Field(
+        description="The user associated with this tenant member."
+    )
     role: TenantMemberRole = Field(description="The role of the user in the tenant.")
-    tenant: Optional[Tenant] = Field(default=None, description="The tenant associated with this tenant member.")
+    tenant: Optional[Tenant] = Field(
+        default=None, description="The tenant associated with this tenant member."
+    )
     __properties: ClassVar[List[str]] = ["metadata", "user", "role", "tenant"]
 
     model_config = ConfigDict(
@@ -41,7 +48,6 @@ class TenantMember(BaseModel):
         validate_assignment=True,
         protected_namespaces=(),
     )
-
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -67,8 +73,7 @@ class TenantMember(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([
-        ])
+        excluded_fields: Set[str] = set([])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -77,13 +82,13 @@ class TenantMember(BaseModel):
         )
         # override the default output from pydantic by calling `to_dict()` of metadata
         if self.metadata:
-            _dict['metadata'] = self.metadata.to_dict()
+            _dict["metadata"] = self.metadata.to_dict()
         # override the default output from pydantic by calling `to_dict()` of user
         if self.user:
-            _dict['user'] = self.user.to_dict()
+            _dict["user"] = self.user.to_dict()
         # override the default output from pydantic by calling `to_dict()` of tenant
         if self.tenant:
-            _dict['tenant'] = self.tenant.to_dict()
+            _dict["tenant"] = self.tenant.to_dict()
         return _dict
 
     @classmethod
@@ -95,12 +100,24 @@ class TenantMember(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({
-            "metadata": APIResourceMeta.from_dict(obj["metadata"]) if obj.get("metadata") is not None else None,
-            "user": UserTenantPublic.from_dict(obj["user"]) if obj.get("user") is not None else None,
-            "role": obj.get("role"),
-            "tenant": Tenant.from_dict(obj["tenant"]) if obj.get("tenant") is not None else None
-        })
+        _obj = cls.model_validate(
+            {
+                "metadata": (
+                    APIResourceMeta.from_dict(obj["metadata"])
+                    if obj.get("metadata") is not None
+                    else None
+                ),
+                "user": (
+                    UserTenantPublic.from_dict(obj["user"])
+                    if obj.get("user") is not None
+                    else None
+                ),
+                "role": obj.get("role"),
+                "tenant": (
+                    Tenant.from_dict(obj["tenant"])
+                    if obj.get("tenant") is not None
+                    else None
+                ),
+            }
+        )
         return _obj
-
-

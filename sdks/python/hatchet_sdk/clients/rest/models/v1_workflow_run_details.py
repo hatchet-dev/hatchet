@@ -13,25 +13,32 @@
 
 
 from __future__ import annotations
+
+import json
 import pprint
 import re  # noqa: F401
-import json
+from typing import Any, ClassVar, Dict, List, Optional, Set
 
 from pydantic import BaseModel, ConfigDict, Field
-from typing import Any, ClassVar, Dict, List
+from typing_extensions import Self
+
 from hatchet_sdk.clients.rest.models.v1_task_event import V1TaskEvent
 from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
 from hatchet_sdk.clients.rest.models.v1_workflow_run import V1WorkflowRun
-from hatchet_sdk.clients.rest.models.workflow_run_shape_item_for_workflow_run_details import WorkflowRunShapeItemForWorkflowRunDetails
-from typing import Optional, Set
-from typing_extensions import Self
+from hatchet_sdk.clients.rest.models.workflow_run_shape_item_for_workflow_run_details import (
+    WorkflowRunShapeItemForWorkflowRunDetails,
+)
+
 
 class V1WorkflowRunDetails(BaseModel):
     """
     V1WorkflowRunDetails
-    """ # noqa: E501
+    """  # noqa: E501
+
     run: V1WorkflowRun
-    task_events: List[V1TaskEvent] = Field(description="The list of task events for the workflow run", alias="taskEvents")
+    task_events: List[V1TaskEvent] = Field(
+        description="The list of task events for the workflow run", alias="taskEvents"
+    )
     shape: List[WorkflowRunShapeItemForWorkflowRunDetails]
     tasks: List[V1TaskSummary]
     __properties: ClassVar[List[str]] = ["run", "taskEvents", "shape", "tasks"]
@@ -41,7 +48,6 @@ class V1WorkflowRunDetails(BaseModel):
         validate_assignment=True,
         protected_namespaces=(),
     )
-
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -67,8 +73,7 @@ class V1WorkflowRunDetails(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([
-        ])
+        excluded_fields: Set[str] = set([])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -77,28 +82,28 @@ class V1WorkflowRunDetails(BaseModel):
         )
         # override the default output from pydantic by calling `to_dict()` of run
         if self.run:
-            _dict['run'] = self.run.to_dict()
+            _dict["run"] = self.run.to_dict()
         # override the default output from pydantic by calling `to_dict()` of each item in task_events (list)
         _items = []
         if self.task_events:
             for _item_task_events in self.task_events:
                 if _item_task_events:
                     _items.append(_item_task_events.to_dict())
-            _dict['taskEvents'] = _items
+            _dict["taskEvents"] = _items
         # override the default output from pydantic by calling `to_dict()` of each item in shape (list)
         _items = []
         if self.shape:
             for _item_shape in self.shape:
                 if _item_shape:
                     _items.append(_item_shape.to_dict())
-            _dict['shape'] = _items
+            _dict["shape"] = _items
         # override the default output from pydantic by calling `to_dict()` of each item in tasks (list)
         _items = []
         if self.tasks:
             for _item_tasks in self.tasks:
                 if _item_tasks:
                     _items.append(_item_tasks.to_dict())
-            _dict['tasks'] = _items
+            _dict["tasks"] = _items
         return _dict
 
     @classmethod
@@ -110,12 +115,31 @@ class V1WorkflowRunDetails(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({
-            "run": V1WorkflowRun.from_dict(obj["run"]) if obj.get("run") is not None else None,
-            "taskEvents": [V1TaskEvent.from_dict(_item) for _item in obj["taskEvents"]] if obj.get("taskEvents") is not None else None,
-            "shape": [WorkflowRunShapeItemForWorkflowRunDetails.from_dict(_item) for _item in obj["shape"]] if obj.get("shape") is not None else None,
-            "tasks": [V1TaskSummary.from_dict(_item) for _item in obj["tasks"]] if obj.get("tasks") is not None else None
-        })
+        _obj = cls.model_validate(
+            {
+                "run": (
+                    V1WorkflowRun.from_dict(obj["run"])
+                    if obj.get("run") is not None
+                    else None
+                ),
+                "taskEvents": (
+                    [V1TaskEvent.from_dict(_item) for _item in obj["taskEvents"]]
+                    if obj.get("taskEvents") is not None
+                    else None
+                ),
+                "shape": (
+                    [
+                        WorkflowRunShapeItemForWorkflowRunDetails.from_dict(_item)
+                        for _item in obj["shape"]
+                    ]
+                    if obj.get("shape") is not None
+                    else None
+                ),
+                "tasks": (
+                    [V1TaskSummary.from_dict(_item) for _item in obj["tasks"]]
+                    if obj.get("tasks") is not None
+                    else None
+                ),
+            }
+        )
         return _obj
-
-

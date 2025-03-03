@@ -13,36 +13,50 @@
 
 
 from __future__ import annotations
+
+import json
 import pprint
 import re  # noqa: F401
-import json
+from typing import Any, ClassVar, Dict, List, Optional, Set
 
 from pydantic import BaseModel, ConfigDict, Field, StrictStr
-from typing import Any, ClassVar, Dict, List, Optional
+from typing_extensions import Self
+
 from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
 from hatchet_sdk.clients.rest.models.step import Step
-from typing import Optional, Set
-from typing_extensions import Self
+
 
 class Job(BaseModel):
     """
     Job
-    """ # noqa: E501
+    """  # noqa: E501
+
     metadata: APIResourceMeta
     tenant_id: StrictStr = Field(alias="tenantId")
     version_id: StrictStr = Field(alias="versionId")
     name: StrictStr
-    description: Optional[StrictStr] = Field(default=None, description="The description of the job.")
+    description: Optional[StrictStr] = Field(
+        default=None, description="The description of the job."
+    )
     steps: List[Step]
-    timeout: Optional[StrictStr] = Field(default=None, description="The timeout of the job.")
-    __properties: ClassVar[List[str]] = ["metadata", "tenantId", "versionId", "name", "description", "steps", "timeout"]
+    timeout: Optional[StrictStr] = Field(
+        default=None, description="The timeout of the job."
+    )
+    __properties: ClassVar[List[str]] = [
+        "metadata",
+        "tenantId",
+        "versionId",
+        "name",
+        "description",
+        "steps",
+        "timeout",
+    ]
 
     model_config = ConfigDict(
         populate_by_name=True,
         validate_assignment=True,
         protected_namespaces=(),
     )
-
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -68,8 +82,7 @@ class Job(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([
-        ])
+        excluded_fields: Set[str] = set([])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -78,14 +91,14 @@ class Job(BaseModel):
         )
         # override the default output from pydantic by calling `to_dict()` of metadata
         if self.metadata:
-            _dict['metadata'] = self.metadata.to_dict()
+            _dict["metadata"] = self.metadata.to_dict()
         # override the default output from pydantic by calling `to_dict()` of each item in steps (list)
         _items = []
         if self.steps:
             for _item_steps in self.steps:
                 if _item_steps:
                     _items.append(_item_steps.to_dict())
-            _dict['steps'] = _items
+            _dict["steps"] = _items
         return _dict
 
     @classmethod
@@ -97,15 +110,23 @@ class Job(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({
-            "metadata": APIResourceMeta.from_dict(obj["metadata"]) if obj.get("metadata") is not None else None,
-            "tenantId": obj.get("tenantId"),
-            "versionId": obj.get("versionId"),
-            "name": obj.get("name"),
-            "description": obj.get("description"),
-            "steps": [Step.from_dict(_item) for _item in obj["steps"]] if obj.get("steps") is not None else None,
-            "timeout": obj.get("timeout")
-        })
+        _obj = cls.model_validate(
+            {
+                "metadata": (
+                    APIResourceMeta.from_dict(obj["metadata"])
+                    if obj.get("metadata") is not None
+                    else None
+                ),
+                "tenantId": obj.get("tenantId"),
+                "versionId": obj.get("versionId"),
+                "name": obj.get("name"),
+                "description": obj.get("description"),
+                "steps": (
+                    [Step.from_dict(_item) for _item in obj["steps"]]
+                    if obj.get("steps") is not None
+                    else None
+                ),
+                "timeout": obj.get("timeout"),
+            }
+        )
         return _obj
-
-

@@ -13,20 +13,22 @@
 
 
 from __future__ import annotations
+
+import json
 import pprint
 import re  # noqa: F401
-import json
-
 from datetime import datetime
+from typing import Any, ClassVar, Dict, List, Optional, Set
+
 from pydantic import BaseModel, ConfigDict, Field
-from typing import Any, ClassVar, Dict, List
-from typing import Optional, Set
 from typing_extensions import Self
+
 
 class ScheduleWorkflowRunRequest(BaseModel):
     """
     ScheduleWorkflowRunRequest
-    """ # noqa: E501
+    """  # noqa: E501
+
     input: Dict[str, Any]
     additional_metadata: Dict[str, Any] = Field(alias="additionalMetadata")
     trigger_at: datetime = Field(alias="triggerAt")
@@ -37,7 +39,6 @@ class ScheduleWorkflowRunRequest(BaseModel):
         validate_assignment=True,
         protected_namespaces=(),
     )
-
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -63,8 +64,7 @@ class ScheduleWorkflowRunRequest(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([
-        ])
+        excluded_fields: Set[str] = set([])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -82,11 +82,11 @@ class ScheduleWorkflowRunRequest(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({
-            "input": obj.get("input"),
-            "additionalMetadata": obj.get("additionalMetadata"),
-            "triggerAt": obj.get("triggerAt")
-        })
+        _obj = cls.model_validate(
+            {
+                "input": obj.get("input"),
+                "additionalMetadata": obj.get("additionalMetadata"),
+                "triggerAt": obj.get("triggerAt"),
+            }
+        )
         return _obj
-
-

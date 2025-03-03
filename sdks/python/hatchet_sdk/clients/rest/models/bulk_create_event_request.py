@@ -13,20 +13,23 @@
 
 
 from __future__ import annotations
+
+import json
 import pprint
 import re  # noqa: F401
-import json
+from typing import Any, ClassVar, Dict, List, Optional, Set
 
 from pydantic import BaseModel, ConfigDict
-from typing import Any, ClassVar, Dict, List
-from hatchet_sdk.clients.rest.models.create_event_request import CreateEventRequest
-from typing import Optional, Set
 from typing_extensions import Self
+
+from hatchet_sdk.clients.rest.models.create_event_request import CreateEventRequest
+
 
 class BulkCreateEventRequest(BaseModel):
     """
     BulkCreateEventRequest
-    """ # noqa: E501
+    """  # noqa: E501
+
     events: List[CreateEventRequest]
     __properties: ClassVar[List[str]] = ["events"]
 
@@ -35,7 +38,6 @@ class BulkCreateEventRequest(BaseModel):
         validate_assignment=True,
         protected_namespaces=(),
     )
-
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -61,8 +63,7 @@ class BulkCreateEventRequest(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([
-        ])
+        excluded_fields: Set[str] = set([])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -75,7 +76,7 @@ class BulkCreateEventRequest(BaseModel):
             for _item_events in self.events:
                 if _item_events:
                     _items.append(_item_events.to_dict())
-            _dict['events'] = _items
+            _dict["events"] = _items
         return _dict
 
     @classmethod
@@ -87,9 +88,13 @@ class BulkCreateEventRequest(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({
-            "events": [CreateEventRequest.from_dict(_item) for _item in obj["events"]] if obj.get("events") is not None else None
-        })
+        _obj = cls.model_validate(
+            {
+                "events": (
+                    [CreateEventRequest.from_dict(_item) for _item in obj["events"]]
+                    if obj.get("events") is not None
+                    else None
+                )
+            }
+        )
         return _obj
-
-

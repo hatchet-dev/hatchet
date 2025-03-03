@@ -13,8 +13,10 @@
 
 
 from __future__ import annotations
+
 import json
 from enum import Enum
+
 from typing_extensions import Self
 
 
@@ -26,13 +28,11 @@ class WorkerType(str, Enum):
     """
     allowed enum values
     """
-    SELFHOSTED = 'SELFHOSTED'
-    MANAGED = 'MANAGED'
-    WEBHOOK = 'WEBHOOK'
+    SELFHOSTED = "SELFHOSTED"
+    MANAGED = "MANAGED"
+    WEBHOOK = "WEBHOOK"
 
     @classmethod
     def from_json(cls, json_str: str) -> Self:
         """Create an instance of WorkerType from a JSON string"""
         return cls(json.loads(json_str))
-
-

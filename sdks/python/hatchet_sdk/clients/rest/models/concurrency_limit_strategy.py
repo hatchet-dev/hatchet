@@ -13,8 +13,10 @@
 
 
 from __future__ import annotations
+
 import json
 from enum import Enum
+
 from typing_extensions import Self
 
 
@@ -26,14 +28,12 @@ class ConcurrencyLimitStrategy(str, Enum):
     """
     allowed enum values
     """
-    CANCEL_IN_PROGRESS = 'CANCEL_IN_PROGRESS'
-    DROP_NEWEST = 'DROP_NEWEST'
-    QUEUE_NEWEST = 'QUEUE_NEWEST'
-    GROUP_ROUND_ROBIN = 'GROUP_ROUND_ROBIN'
+    CANCEL_IN_PROGRESS = "CANCEL_IN_PROGRESS"
+    DROP_NEWEST = "DROP_NEWEST"
+    QUEUE_NEWEST = "QUEUE_NEWEST"
+    GROUP_ROUND_ROBIN = "GROUP_ROUND_ROBIN"
 
     @classmethod
     def from_json(cls, json_str: str) -> Self:
         """Create an instance of ConcurrencyLimitStrategy from a JSON string"""
         return cls(json.loads(json_str))
-
-

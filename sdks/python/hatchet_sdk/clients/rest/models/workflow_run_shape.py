@@ -13,31 +13,37 @@
 
 
 from __future__ import annotations
+
+import json
 import pprint
 import re  # noqa: F401
-import json
-
 from datetime import datetime
+from typing import Any, ClassVar, Dict, List, Optional, Set
+
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr
-from typing import Any, ClassVar, Dict, List, Optional
-from typing_extensions import Annotated
+from typing_extensions import Annotated, Self
+
 from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
 from hatchet_sdk.clients.rest.models.job_run import JobRun
 from hatchet_sdk.clients.rest.models.workflow_run_status import WorkflowRunStatus
-from hatchet_sdk.clients.rest.models.workflow_run_triggered_by import WorkflowRunTriggeredBy
+from hatchet_sdk.clients.rest.models.workflow_run_triggered_by import (
+    WorkflowRunTriggeredBy,
+)
 from hatchet_sdk.clients.rest.models.workflow_version import WorkflowVersion
-from typing import Optional, Set
-from typing_extensions import Self
+
 
 class WorkflowRunShape(BaseModel):
     """
     WorkflowRunShape
-    """ # noqa: E501
+    """  # noqa: E501
+
     metadata: APIResourceMeta
     tenant_id: StrictStr = Field(alias="tenantId")
     workflow_id: Optional[StrictStr] = Field(default=None, alias="workflowId")
     workflow_version_id: StrictStr = Field(alias="workflowVersionId")
-    workflow_version: Optional[WorkflowVersion] = Field(default=None, alias="workflowVersion")
+    workflow_version: Optional[WorkflowVersion] = Field(
+        default=None, alias="workflowVersion"
+    )
     status: WorkflowRunStatus
     display_name: Optional[StrictStr] = Field(default=None, alias="displayName")
     job_runs: Optional[List[JobRun]] = Field(default=None, alias="jobRuns")
@@ -47,17 +53,40 @@ class WorkflowRunShape(BaseModel):
     started_at: Optional[datetime] = Field(default=None, alias="startedAt")
     finished_at: Optional[datetime] = Field(default=None, alias="finishedAt")
     duration: Optional[StrictInt] = None
-    parent_id: Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]] = Field(default=None, alias="parentId")
-    parent_step_run_id: Optional[Annotated[str, Field(min_length=36, strict=True, max_length=36)]] = Field(default=None, alias="parentStepRunId")
-    additional_metadata: Optional[Dict[str, Any]] = Field(default=None, alias="additionalMetadata")
-    __properties: ClassVar[List[str]] = ["metadata", "tenantId", "workflowId", "workflowVersionId", "workflowVersion", "status", "displayName", "jobRuns", "triggeredBy", "input", "error", "startedAt", "finishedAt", "duration", "parentId", "parentStepRunId", "additionalMetadata"]
+    parent_id: Optional[
+        Annotated[str, Field(min_length=36, strict=True, max_length=36)]
+    ] = Field(default=None, alias="parentId")
+    parent_step_run_id: Optional[
+        Annotated[str, Field(min_length=36, strict=True, max_length=36)]
+    ] = Field(default=None, alias="parentStepRunId")
+    additional_metadata: Optional[Dict[str, Any]] = Field(
+        default=None, alias="additionalMetadata"
+    )
+    __properties: ClassVar[List[str]] = [
+        "metadata",
+        "tenantId",
+        "workflowId",
+        "workflowVersionId",
+        "workflowVersion",
+        "status",
+        "displayName",
+        "jobRuns",
+        "triggeredBy",
+        "input",
+        "error",
+        "startedAt",
+        "finishedAt",
+        "duration",
+        "parentId",
+        "parentStepRunId",
+        "additionalMetadata",
+    ]
 
     model_config = ConfigDict(
         populate_by_name=True,
         validate_assignment=True,
         protected_namespaces=(),
     )
-
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -83,8 +112,7 @@ class WorkflowRunShape(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([
-        ])
+        excluded_fields: Set[str] = set([])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -93,20 +121,20 @@ class WorkflowRunShape(BaseModel):
         )
         # override the default output from pydantic by calling `to_dict()` of metadata
         if self.metadata:
-            _dict['metadata'] = self.metadata.to_dict()
+            _dict["metadata"] = self.metadata.to_dict()
         # override the default output from pydantic by calling `to_dict()` of workflow_version
         if self.workflow_version:
-            _dict['workflowVersion'] = self.workflow_version.to_dict()
+            _dict["workflowVersion"] = self.workflow_version.to_dict()
         # override the default output from pydantic by calling `to_dict()` of each item in job_runs (list)
         _items = []
         if self.job_runs:
             for _item_job_runs in self.job_runs:
                 if _item_job_runs:
                     _items.append(_item_job_runs.to_dict())
-            _dict['jobRuns'] = _items
+            _dict["jobRuns"] = _items
         # override the default output from pydantic by calling `to_dict()` of triggered_by
         if self.triggered_by:
-            _dict['triggeredBy'] = self.triggered_by.to_dict()
+            _dict["triggeredBy"] = self.triggered_by.to_dict()
         return _dict
 
     @classmethod
@@ -118,25 +146,41 @@ class WorkflowRunShape(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({
-            "metadata": APIResourceMeta.from_dict(obj["metadata"]) if obj.get("metadata") is not None else None,
-            "tenantId": obj.get("tenantId"),
-            "workflowId": obj.get("workflowId"),
-            "workflowVersionId": obj.get("workflowVersionId"),
-            "workflowVersion": WorkflowVersion.from_dict(obj["workflowVersion"]) if obj.get("workflowVersion") is not None else None,
-            "status": obj.get("status"),
-            "displayName": obj.get("displayName"),
-            "jobRuns": [JobRun.from_dict(_item) for _item in obj["jobRuns"]] if obj.get("jobRuns") is not None else None,
-            "triggeredBy": WorkflowRunTriggeredBy.from_dict(obj["triggeredBy"]) if obj.get("triggeredBy") is not None else None,
-            "input": obj.get("input"),
-            "error": obj.get("error"),
-            "startedAt": obj.get("startedAt"),
-            "finishedAt": obj.get("finishedAt"),
-            "duration": obj.get("duration"),
-            "parentId": obj.get("parentId"),
-            "parentStepRunId": obj.get("parentStepRunId"),
-            "additionalMetadata": obj.get("additionalMetadata")
-        })
+        _obj = cls.model_validate(
+            {
+                "metadata": (
+                    APIResourceMeta.from_dict(obj["metadata"])
+                    if obj.get("metadata") is not None
+                    else None
+                ),
+                "tenantId": obj.get("tenantId"),
+                "workflowId": obj.get("workflowId"),
+                "workflowVersionId": obj.get("workflowVersionId"),
+                "workflowVersion": (
+                    WorkflowVersion.from_dict(obj["workflowVersion"])
+                    if obj.get("workflowVersion") is not None
+                    else None
+                ),
+                "status": obj.get("status"),
+                "displayName": obj.get("displayName"),
+                "jobRuns": (
+                    [JobRun.from_dict(_item) for _item in obj["jobRuns"]]
+                    if obj.get("jobRuns") is not None
+                    else None
+                ),
+                "triggeredBy": (
+                    WorkflowRunTriggeredBy.from_dict(obj["triggeredBy"])
+                    if obj.get("triggeredBy") is not None
+                    else None
+                ),
+                "input": obj.get("input"),
+                "error": obj.get("error"),
+                "startedAt": obj.get("startedAt"),
+                "finishedAt": obj.get("finishedAt"),
+                "duration": obj.get("duration"),
+                "parentId": obj.get("parentId"),
+                "parentStepRunId": obj.get("parentStepRunId"),
+                "additionalMetadata": obj.get("additionalMetadata"),
+            }
+        )
         return _obj
-
-

@@ -13,21 +13,24 @@
 
 
 from __future__ import annotations
+
+import json
 import pprint
 import re  # noqa: F401
-import json
-
 from datetime import datetime
+from typing import Any, ClassVar, Dict, List, Optional, Set
+
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr
-from typing import Any, ClassVar, Dict, List, Optional
-from hatchet_sdk.clients.rest.models.v1_task_event_type import V1TaskEventType
-from typing import Optional, Set
 from typing_extensions import Self
+
+from hatchet_sdk.clients.rest.models.v1_task_event_type import V1TaskEventType
+
 
 class V1TaskEvent(BaseModel):
     """
     V1TaskEvent
-    """ # noqa: E501
+    """  # noqa: E501
+
     id: StrictInt
     task_id: StrictStr = Field(alias="taskId")
     timestamp: datetime
@@ -36,15 +39,26 @@ class V1TaskEvent(BaseModel):
     error_message: Optional[StrictStr] = Field(default=None, alias="errorMessage")
     output: Optional[StrictStr] = None
     worker_id: Optional[StrictStr] = Field(default=None, alias="workerId")
-    task_display_name: Optional[StrictStr] = Field(default=None, alias="taskDisplayName")
-    __properties: ClassVar[List[str]] = ["id", "taskId", "timestamp", "eventType", "message", "errorMessage", "output", "workerId", "taskDisplayName"]
+    task_display_name: Optional[StrictStr] = Field(
+        default=None, alias="taskDisplayName"
+    )
+    __properties: ClassVar[List[str]] = [
+        "id",
+        "taskId",
+        "timestamp",
+        "eventType",
+        "message",
+        "errorMessage",
+        "output",
+        "workerId",
+        "taskDisplayName",
+    ]
 
     model_config = ConfigDict(
         populate_by_name=True,
         validate_assignment=True,
         protected_namespaces=(),
     )
-
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -70,8 +84,7 @@ class V1TaskEvent(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([
-        ])
+        excluded_fields: Set[str] = set([])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -89,17 +102,17 @@ class V1TaskEvent(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({
-            "id": obj.get("id"),
-            "taskId": obj.get("taskId"),
-            "timestamp": obj.get("timestamp"),
-            "eventType": obj.get("eventType"),
-            "message": obj.get("message"),
-            "errorMessage": obj.get("errorMessage"),
-            "output": obj.get("output"),
-            "workerId": obj.get("workerId"),
-            "taskDisplayName": obj.get("taskDisplayName")
-        })
+        _obj = cls.model_validate(
+            {
+                "id": obj.get("id"),
+                "taskId": obj.get("taskId"),
+                "timestamp": obj.get("timestamp"),
+                "eventType": obj.get("eventType"),
+                "message": obj.get("message"),
+                "errorMessage": obj.get("errorMessage"),
+                "output": obj.get("output"),
+                "workerId": obj.get("workerId"),
+                "taskDisplayName": obj.get("taskDisplayName"),
+            }
+        )
         return _obj
-
-

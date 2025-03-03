@@ -13,37 +13,64 @@
 
 
 from __future__ import annotations
+
+import json
 import pprint
 import re  # noqa: F401
-import json
-
 from datetime import datetime
+from typing import Any, ClassVar, Dict, List, Optional, Set
+
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr
-from typing import Any, ClassVar, Dict, List, Optional
+from typing_extensions import Self
+
 from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
 from hatchet_sdk.clients.rest.models.tenant_resource import TenantResource
-from typing import Optional, Set
-from typing_extensions import Self
+
 
 class TenantResourceLimit(BaseModel):
     """
     TenantResourceLimit
-    """ # noqa: E501
+    """  # noqa: E501
+
     metadata: APIResourceMeta
-    resource: TenantResource = Field(description="The resource associated with this limit.")
-    limit_value: StrictInt = Field(description="The limit associated with this limit.", alias="limitValue")
-    alarm_value: Optional[StrictInt] = Field(default=None, description="The alarm value associated with this limit to warn of approaching limit value.", alias="alarmValue")
-    value: StrictInt = Field(description="The current value associated with this limit.")
-    window: Optional[StrictStr] = Field(default=None, description="The meter window for the limit. (i.e. 1 day, 1 week, 1 month)")
-    last_refill: Optional[datetime] = Field(default=None, description="The last time the limit was refilled.", alias="lastRefill")
-    __properties: ClassVar[List[str]] = ["metadata", "resource", "limitValue", "alarmValue", "value", "window", "lastRefill"]
+    resource: TenantResource = Field(
+        description="The resource associated with this limit."
+    )
+    limit_value: StrictInt = Field(
+        description="The limit associated with this limit.", alias="limitValue"
+    )
+    alarm_value: Optional[StrictInt] = Field(
+        default=None,
+        description="The alarm value associated with this limit to warn of approaching limit value.",
+        alias="alarmValue",
+    )
+    value: StrictInt = Field(
+        description="The current value associated with this limit."
+    )
+    window: Optional[StrictStr] = Field(
+        default=None,
+        description="The meter window for the limit. (i.e. 1 day, 1 week, 1 month)",
+    )
+    last_refill: Optional[datetime] = Field(
+        default=None,
+        description="The last time the limit was refilled.",
+        alias="lastRefill",
+    )
+    __properties: ClassVar[List[str]] = [
+        "metadata",
+        "resource",
+        "limitValue",
+        "alarmValue",
+        "value",
+        "window",
+        "lastRefill",
+    ]
 
     model_config = ConfigDict(
         populate_by_name=True,
         validate_assignment=True,
         protected_namespaces=(),
     )
-
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -69,8 +96,7 @@ class TenantResourceLimit(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([
-        ])
+        excluded_fields: Set[str] = set([])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -79,7 +105,7 @@ class TenantResourceLimit(BaseModel):
         )
         # override the default output from pydantic by calling `to_dict()` of metadata
         if self.metadata:
-            _dict['metadata'] = self.metadata.to_dict()
+            _dict["metadata"] = self.metadata.to_dict()
         return _dict
 
     @classmethod
@@ -91,15 +117,19 @@ class TenantResourceLimit(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({
-            "metadata": APIResourceMeta.from_dict(obj["metadata"]) if obj.get("metadata") is not None else None,
-            "resource": obj.get("resource"),
-            "limitValue": obj.get("limitValue"),
-            "alarmValue": obj.get("alarmValue"),
-            "value": obj.get("value"),
-            "window": obj.get("window"),
-            "lastRefill": obj.get("lastRefill")
-        })
+        _obj = cls.model_validate(
+            {
+                "metadata": (
+                    APIResourceMeta.from_dict(obj["metadata"])
+                    if obj.get("metadata") is not None
+                    else None
+                ),
+                "resource": obj.get("resource"),
+                "limitValue": obj.get("limitValue"),
+                "alarmValue": obj.get("alarmValue"),
+                "value": obj.get("value"),
+                "window": obj.get("window"),
+                "lastRefill": obj.get("lastRefill"),
+            }
+        )
         return _obj
-
-

@@ -13,8 +13,10 @@
 
 
 from __future__ import annotations
+
 import json
 from enum import Enum
+
 from typing_extensions import Self
 
 
@@ -26,15 +28,13 @@ class TenantResource(str, Enum):
     """
     allowed enum values
     """
-    WORKER = 'WORKER'
-    EVENT = 'EVENT'
-    WORKFLOW_RUN = 'WORKFLOW_RUN'
-    CRON = 'CRON'
-    SCHEDULE = 'SCHEDULE'
+    WORKER = "WORKER"
+    EVENT = "EVENT"
+    WORKFLOW_RUN = "WORKFLOW_RUN"
+    CRON = "CRON"
+    SCHEDULE = "SCHEDULE"
 
     @classmethod
     def from_json(cls, json_str: str) -> Self:
         """Create an instance of TenantResource from a JSON string"""
         return cls(json.loads(json_str))
-
-

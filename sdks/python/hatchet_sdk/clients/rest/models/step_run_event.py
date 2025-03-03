@@ -13,22 +13,25 @@
 
 
 from __future__ import annotations
+
+import json
 import pprint
 import re  # noqa: F401
-import json
-
 from datetime import datetime
+from typing import Any, ClassVar, Dict, List, Optional, Set
+
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr
-from typing import Any, ClassVar, Dict, List, Optional
+from typing_extensions import Self
+
 from hatchet_sdk.clients.rest.models.step_run_event_reason import StepRunEventReason
 from hatchet_sdk.clients.rest.models.step_run_event_severity import StepRunEventSeverity
-from typing import Optional, Set
-from typing_extensions import Self
+
 
 class StepRunEvent(BaseModel):
     """
     StepRunEvent
-    """ # noqa: E501
+    """  # noqa: E501
+
     id: StrictInt
     time_first_seen: datetime = Field(alias="timeFirstSeen")
     time_last_seen: datetime = Field(alias="timeLastSeen")
@@ -39,14 +42,24 @@ class StepRunEvent(BaseModel):
     message: StrictStr
     count: StrictInt
     data: Optional[Dict[str, Any]] = None
-    __properties: ClassVar[List[str]] = ["id", "timeFirstSeen", "timeLastSeen", "stepRunId", "workflowRunId", "reason", "severity", "message", "count", "data"]
+    __properties: ClassVar[List[str]] = [
+        "id",
+        "timeFirstSeen",
+        "timeLastSeen",
+        "stepRunId",
+        "workflowRunId",
+        "reason",
+        "severity",
+        "message",
+        "count",
+        "data",
+    ]
 
     model_config = ConfigDict(
         populate_by_name=True,
         validate_assignment=True,
         protected_namespaces=(),
     )
-
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -72,8 +85,7 @@ class StepRunEvent(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([
-        ])
+        excluded_fields: Set[str] = set([])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -91,18 +103,18 @@ class StepRunEvent(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({
-            "id": obj.get("id"),
-            "timeFirstSeen": obj.get("timeFirstSeen"),
-            "timeLastSeen": obj.get("timeLastSeen"),
-            "stepRunId": obj.get("stepRunId"),
-            "workflowRunId": obj.get("workflowRunId"),
-            "reason": obj.get("reason"),
-            "severity": obj.get("severity"),
-            "message": obj.get("message"),
-            "count": obj.get("count"),
-            "data": obj.get("data")
-        })
+        _obj = cls.model_validate(
+            {
+                "id": obj.get("id"),
+                "timeFirstSeen": obj.get("timeFirstSeen"),
+                "timeLastSeen": obj.get("timeLastSeen"),
+                "stepRunId": obj.get("stepRunId"),
+                "workflowRunId": obj.get("workflowRunId"),
+                "reason": obj.get("reason"),
+                "severity": obj.get("severity"),
+                "message": obj.get("message"),
+                "count": obj.get("count"),
+                "data": obj.get("data"),
+            }
+        )
         return _obj
-
-

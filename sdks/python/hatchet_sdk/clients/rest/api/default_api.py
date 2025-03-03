@@ -12,23 +12,30 @@
 """  # noqa: E501
 
 import warnings
-from pydantic import validate_call, Field, StrictFloat, StrictStr, StrictInt
 from typing import Any, Dict, List, Optional, Tuple, Union
-from typing_extensions import Annotated
 
-from pydantic import Field
-from typing import Optional
+from pydantic import Field, StrictFloat, StrictInt, StrictStr, validate_call
 from typing_extensions import Annotated
-from hatchet_sdk.clients.rest.models.info_get_version200_response import InfoGetVersion200Response
-from hatchet_sdk.clients.rest.models.tenant_invite import TenantInvite
-from hatchet_sdk.clients.rest.models.update_tenant_invite_request import UpdateTenantInviteRequest
-from hatchet_sdk.clients.rest.models.webhook_worker_create_request import WebhookWorkerCreateRequest
-from hatchet_sdk.clients.rest.models.webhook_worker_created import WebhookWorkerCreated
-from hatchet_sdk.clients.rest.models.webhook_worker_list_response import WebhookWorkerListResponse
-from hatchet_sdk.clients.rest.models.webhook_worker_request_list_response import WebhookWorkerRequestListResponse
 
 from hatchet_sdk.clients.rest.api_client import ApiClient, RequestSerialized
 from hatchet_sdk.clients.rest.api_response import ApiResponse
+from hatchet_sdk.clients.rest.models.info_get_version200_response import (
+    InfoGetVersion200Response,
+)
+from hatchet_sdk.clients.rest.models.tenant_invite import TenantInvite
+from hatchet_sdk.clients.rest.models.update_tenant_invite_request import (
+    UpdateTenantInviteRequest,
+)
+from hatchet_sdk.clients.rest.models.webhook_worker_create_request import (
+    WebhookWorkerCreateRequest,
+)
+from hatchet_sdk.clients.rest.models.webhook_worker_created import WebhookWorkerCreated
+from hatchet_sdk.clients.rest.models.webhook_worker_list_response import (
+    WebhookWorkerListResponse,
+)
+from hatchet_sdk.clients.rest.models.webhook_worker_request_list_response import (
+    WebhookWorkerRequestListResponse,
+)
 from hatchet_sdk.clients.rest.rest import RESTResponseType
 
 
@@ -44,7 +51,6 @@ class DefaultApi:
             api_client = ApiClient.get_default()
         self.api_client = api_client
 
-
     @validate_call
     async def info_get_version(
         self,
@@ -52,9 +58,8 @@ class DefaultApi:
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -85,28 +90,26 @@ class DefaultApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._info_get_version_serialize(
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "InfoGetVersion200Response",
+            "200": "InfoGetVersion200Response",
         }
         response_data = await self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         await response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         ).data
-
 
     @validate_call
     async def info_get_version_with_http_info(
@@ -115,9 +118,8 @@ class DefaultApi:
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -148,28 +150,26 @@ class DefaultApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._info_get_version_serialize(
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "InfoGetVersion200Response",
+            "200": "InfoGetVersion200Response",
         }
         response_data = await self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         await response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         )
-
 
     @validate_call
     async def info_get_version_without_preload_content(
@@ -178,9 +178,8 @@ class DefaultApi:
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -211,24 +210,22 @@ class DefaultApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._info_get_version_serialize(
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "InfoGetVersion200Response",
+            "200": "InfoGetVersion200Response",
         }
         response_data = await self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         return response_data.response
-
 
     def _info_get_version_serialize(
         self,
@@ -240,8 +237,7 @@ class DefaultApi:
 
         _host = None
 
-        _collection_formats: Dict[str, str] = {
-        }
+        _collection_formats: Dict[str, str] = {}
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
@@ -258,23 +254,18 @@ class DefaultApi:
         # process the form parameters
         # process the body parameter
 
-
         # set the HTTP header `Accept`
-        if 'Accept' not in _header_params:
-            _header_params['Accept'] = self.api_client.select_header_accept(
-                [
-                    'application/json'
-                ]
+        if "Accept" not in _header_params:
+            _header_params["Accept"] = self.api_client.select_header_accept(
+                ["application/json"]
             )
 
-
         # authentication setting
-        _auth_settings: List[str] = [
-        ]
+        _auth_settings: List[str] = []
 
         return self.api_client.param_serialize(
-            method='GET',
-            resource_path='/api/v1/version',
+            method="GET",
+            resource_path="/api/v1/version",
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,
@@ -284,23 +275,24 @@ class DefaultApi:
             auth_settings=_auth_settings,
             collection_formats=_collection_formats,
             _host=_host,
-            _request_auth=_request_auth
+            _request_auth=_request_auth,
         )
-
-
-
 
     @validate_call
     async def monitoring_post_run_probe(
         self,
-        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
+        tenant: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The tenant id"
+            ),
+        ],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -333,23 +325,22 @@ class DefaultApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._monitoring_post_run_probe_serialize(
             tenant=tenant,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': None,
-            '403': "APIErrors",
+            "200": None,
+            "403": "APIErrors",
         }
         response_data = await self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         await response_data.read()
         return self.api_client.response_deserialize(
@@ -357,18 +348,21 @@ class DefaultApi:
             response_types_map=_response_types_map,
         ).data
 
-
     @validate_call
     async def monitoring_post_run_probe_with_http_info(
         self,
-        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
+        tenant: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The tenant id"
+            ),
+        ],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -401,23 +395,22 @@ class DefaultApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._monitoring_post_run_probe_serialize(
             tenant=tenant,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': None,
-            '403': "APIErrors",
+            "200": None,
+            "403": "APIErrors",
         }
         response_data = await self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         await response_data.read()
         return self.api_client.response_deserialize(
@@ -425,18 +418,21 @@ class DefaultApi:
             response_types_map=_response_types_map,
         )
 
-
     @validate_call
     async def monitoring_post_run_probe_without_preload_content(
         self,
-        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
+        tenant: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The tenant id"
+            ),
+        ],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -469,26 +465,24 @@ class DefaultApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._monitoring_post_run_probe_serialize(
             tenant=tenant,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': None,
-            '403': "APIErrors",
+            "200": None,
+            "403": "APIErrors",
         }
         response_data = await self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         return response_data.response
-
 
     def _monitoring_post_run_probe_serialize(
         self,
@@ -501,8 +495,7 @@ class DefaultApi:
 
         _host = None
 
-        _collection_formats: Dict[str, str] = {
-        }
+        _collection_formats: Dict[str, str] = {}
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
@@ -515,31 +508,24 @@ class DefaultApi:
 
         # process the path parameters
         if tenant is not None:
-            _path_params['tenant'] = tenant
+            _path_params["tenant"] = tenant
         # process the query parameters
         # process the header parameters
         # process the form parameters
         # process the body parameter
 
-
         # set the HTTP header `Accept`
-        if 'Accept' not in _header_params:
-            _header_params['Accept'] = self.api_client.select_header_accept(
-                [
-                    'application/json'
-                ]
+        if "Accept" not in _header_params:
+            _header_params["Accept"] = self.api_client.select_header_accept(
+                ["application/json"]
             )
 
-
         # authentication setting
-        _auth_settings: List[str] = [
-            'cookieAuth', 
-            'bearerAuth'
-        ]
+        _auth_settings: List[str] = ["cookieAuth", "bearerAuth"]
 
         return self.api_client.param_serialize(
-            method='POST',
-            resource_path='/api/v1/monitoring/{tenant}/probe',
+            method="POST",
+            resource_path="/api/v1/monitoring/{tenant}/probe",
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,
@@ -549,24 +535,33 @@ class DefaultApi:
             auth_settings=_auth_settings,
             collection_formats=_collection_formats,
             _host=_host,
-            _request_auth=_request_auth
+            _request_auth=_request_auth,
         )
-
-
-
 
     @validate_call
     async def tenant_invite_delete(
         self,
-        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
-        tenant_invite: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant invite id")],
+        tenant: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The tenant id"
+            ),
+        ],
+        tenant_invite: Annotated[
+            str,
+            Field(
+                min_length=36,
+                strict=True,
+                max_length=36,
+                description="The tenant invite id",
+            ),
+        ],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -601,7 +596,7 @@ class DefaultApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._tenant_invite_delete_serialize(
             tenant=tenant,
@@ -609,16 +604,15 @@ class DefaultApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "TenantInvite",
-            '400': "APIErrors",
+            "200": "TenantInvite",
+            "400": "APIErrors",
         }
         response_data = await self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         await response_data.read()
         return self.api_client.response_deserialize(
@@ -626,19 +620,30 @@ class DefaultApi:
             response_types_map=_response_types_map,
         ).data
 
-
     @validate_call
     async def tenant_invite_delete_with_http_info(
         self,
-        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
-        tenant_invite: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant invite id")],
+        tenant: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The tenant id"
+            ),
+        ],
+        tenant_invite: Annotated[
+            str,
+            Field(
+                min_length=36,
+                strict=True,
+                max_length=36,
+                description="The tenant invite id",
+            ),
+        ],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -673,7 +678,7 @@ class DefaultApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._tenant_invite_delete_serialize(
             tenant=tenant,
@@ -681,16 +686,15 @@ class DefaultApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "TenantInvite",
-            '400': "APIErrors",
+            "200": "TenantInvite",
+            "400": "APIErrors",
         }
         response_data = await self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         await response_data.read()
         return self.api_client.response_deserialize(
@@ -698,19 +702,30 @@ class DefaultApi:
             response_types_map=_response_types_map,
         )
 
-
     @validate_call
     async def tenant_invite_delete_without_preload_content(
         self,
-        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
-        tenant_invite: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant invite id")],
+        tenant: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The tenant id"
+            ),
+        ],
+        tenant_invite: Annotated[
+            str,
+            Field(
+                min_length=36,
+                strict=True,
+                max_length=36,
+                description="The tenant invite id",
+            ),
+        ],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -745,7 +760,7 @@ class DefaultApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._tenant_invite_delete_serialize(
             tenant=tenant,
@@ -753,19 +768,17 @@ class DefaultApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "TenantInvite",
-            '400': "APIErrors",
+            "200": "TenantInvite",
+            "400": "APIErrors",
         }
         response_data = await self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         return response_data.response
-
 
     def _tenant_invite_delete_serialize(
         self,
@@ -779,8 +792,7 @@ class DefaultApi:
 
         _host = None
 
-        _collection_formats: Dict[str, str] = {
-        }
+        _collection_formats: Dict[str, str] = {}
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
@@ -793,33 +805,26 @@ class DefaultApi:
 
         # process the path parameters
         if tenant is not None:
-            _path_params['tenant'] = tenant
+            _path_params["tenant"] = tenant
         if tenant_invite is not None:
-            _path_params['tenant-invite'] = tenant_invite
+            _path_params["tenant-invite"] = tenant_invite
         # process the query parameters
         # process the header parameters
         # process the form parameters
         # process the body parameter
 
-
         # set the HTTP header `Accept`
-        if 'Accept' not in _header_params:
-            _header_params['Accept'] = self.api_client.select_header_accept(
-                [
-                    'application/json'
-                ]
+        if "Accept" not in _header_params:
+            _header_params["Accept"] = self.api_client.select_header_accept(
+                ["application/json"]
             )
 
-
         # authentication setting
-        _auth_settings: List[str] = [
-            'cookieAuth', 
-            'bearerAuth'
-        ]
+        _auth_settings: List[str] = ["cookieAuth", "bearerAuth"]
 
         return self.api_client.param_serialize(
-            method='DELETE',
-            resource_path='/api/v1/tenants/{tenant}/invites/{tenant-invite}',
+            method="DELETE",
+            resource_path="/api/v1/tenants/{tenant}/invites/{tenant-invite}",
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,
@@ -829,25 +834,36 @@ class DefaultApi:
             auth_settings=_auth_settings,
             collection_formats=_collection_formats,
             _host=_host,
-            _request_auth=_request_auth
+            _request_auth=_request_auth,
         )
-
-
-
 
     @validate_call
     async def tenant_invite_update(
         self,
-        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
-        tenant_invite: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant invite id")],
-        update_tenant_invite_request: Annotated[UpdateTenantInviteRequest, Field(description="The tenant invite to update")],
+        tenant: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The tenant id"
+            ),
+        ],
+        tenant_invite: Annotated[
+            str,
+            Field(
+                min_length=36,
+                strict=True,
+                max_length=36,
+                description="The tenant invite id",
+            ),
+        ],
+        update_tenant_invite_request: Annotated[
+            UpdateTenantInviteRequest, Field(description="The tenant invite to update")
+        ],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -884,7 +900,7 @@ class DefaultApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._tenant_invite_update_serialize(
             tenant=tenant,
@@ -893,16 +909,15 @@ class DefaultApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "TenantInvite",
-            '400': "APIErrors",
+            "200": "TenantInvite",
+            "400": "APIErrors",
         }
         response_data = await self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         await response_data.read()
         return self.api_client.response_deserialize(
@@ -910,20 +925,33 @@ class DefaultApi:
             response_types_map=_response_types_map,
         ).data
 
-
     @validate_call
     async def tenant_invite_update_with_http_info(
         self,
-        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
-        tenant_invite: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant invite id")],
-        update_tenant_invite_request: Annotated[UpdateTenantInviteRequest, Field(description="The tenant invite to update")],
+        tenant: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The tenant id"
+            ),
+        ],
+        tenant_invite: Annotated[
+            str,
+            Field(
+                min_length=36,
+                strict=True,
+                max_length=36,
+                description="The tenant invite id",
+            ),
+        ],
+        update_tenant_invite_request: Annotated[
+            UpdateTenantInviteRequest, Field(description="The tenant invite to update")
+        ],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -960,7 +988,7 @@ class DefaultApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._tenant_invite_update_serialize(
             tenant=tenant,
@@ -969,16 +997,15 @@ class DefaultApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "TenantInvite",
-            '400': "APIErrors",
+            "200": "TenantInvite",
+            "400": "APIErrors",
         }
         response_data = await self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         await response_data.read()
         return self.api_client.response_deserialize(
@@ -986,20 +1013,33 @@ class DefaultApi:
             response_types_map=_response_types_map,
         )
 
-
     @validate_call
     async def tenant_invite_update_without_preload_content(
         self,
-        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
-        tenant_invite: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant invite id")],
-        update_tenant_invite_request: Annotated[UpdateTenantInviteRequest, Field(description="The tenant invite to update")],
+        tenant: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The tenant id"
+            ),
+        ],
+        tenant_invite: Annotated[
+            str,
+            Field(
+                min_length=36,
+                strict=True,
+                max_length=36,
+                description="The tenant invite id",
+            ),
+        ],
+        update_tenant_invite_request: Annotated[
+            UpdateTenantInviteRequest, Field(description="The tenant invite to update")
+        ],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -1036,7 +1076,7 @@ class DefaultApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._tenant_invite_update_serialize(
             tenant=tenant,
@@ -1045,19 +1085,17 @@ class DefaultApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "TenantInvite",
-            '400': "APIErrors",
+            "200": "TenantInvite",
+            "400": "APIErrors",
         }
         response_data = await self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         return response_data.response
-
 
     def _tenant_invite_update_serialize(
         self,
@@ -1072,8 +1110,7 @@ class DefaultApi:
 
         _host = None
 
-        _collection_formats: Dict[str, str] = {
-        }
+        _collection_formats: Dict[str, str] = {}
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
@@ -1086,9 +1123,9 @@ class DefaultApi:
 
         # process the path parameters
         if tenant is not None:
-            _path_params['tenant'] = tenant
+            _path_params["tenant"] = tenant
         if tenant_invite is not None:
-            _path_params['tenant-invite'] = tenant_invite
+            _path_params["tenant-invite"] = tenant_invite
         # process the query parameters
         # process the header parameters
         # process the form parameters
@@ -1096,38 +1133,28 @@ class DefaultApi:
         if update_tenant_invite_request is not None:
             _body_params = update_tenant_invite_request
 
-
         # set the HTTP header `Accept`
-        if 'Accept' not in _header_params:
-            _header_params['Accept'] = self.api_client.select_header_accept(
-                [
-                    'application/json'
-                ]
+        if "Accept" not in _header_params:
+            _header_params["Accept"] = self.api_client.select_header_accept(
+                ["application/json"]
             )
 
         # set the HTTP header `Content-Type`
         if _content_type:
-            _header_params['Content-Type'] = _content_type
+            _header_params["Content-Type"] = _content_type
         else:
-            _default_content_type = (
-                self.api_client.select_header_content_type(
-                    [
-                        'application/json'
-                    ]
-                )
+            _default_content_type = self.api_client.select_header_content_type(
+                ["application/json"]
             )
             if _default_content_type is not None:
-                _header_params['Content-Type'] = _default_content_type
+                _header_params["Content-Type"] = _default_content_type
 
         # authentication setting
-        _auth_settings: List[str] = [
-            'cookieAuth', 
-            'bearerAuth'
-        ]
+        _auth_settings: List[str] = ["cookieAuth", "bearerAuth"]
 
         return self.api_client.param_serialize(
-            method='PATCH',
-            resource_path='/api/v1/tenants/{tenant}/invites/{tenant-invite}',
+            method="PATCH",
+            resource_path="/api/v1/tenants/{tenant}/invites/{tenant-invite}",
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,
@@ -1137,24 +1164,25 @@ class DefaultApi:
             auth_settings=_auth_settings,
             collection_formats=_collection_formats,
             _host=_host,
-            _request_auth=_request_auth
+            _request_auth=_request_auth,
         )
-
-
-
 
     @validate_call
     async def webhook_create(
         self,
-        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
+        tenant: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The tenant id"
+            ),
+        ],
         webhook_worker_create_request: Optional[WebhookWorkerCreateRequest] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -1189,7 +1217,7 @@ class DefaultApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._webhook_create_serialize(
             tenant=tenant,
@@ -1197,18 +1225,17 @@ class DefaultApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "WebhookWorkerCreated",
-            '400': "APIErrors",
-            '401': "APIErrors",
-            '405': "APIErrors",
+            "200": "WebhookWorkerCreated",
+            "400": "APIErrors",
+            "401": "APIErrors",
+            "405": "APIErrors",
         }
         response_data = await self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         await response_data.read()
         return self.api_client.response_deserialize(
@@ -1216,19 +1243,22 @@ class DefaultApi:
             response_types_map=_response_types_map,
         ).data
 
-
     @validate_call
     async def webhook_create_with_http_info(
         self,
-        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
+        tenant: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The tenant id"
+            ),
+        ],
         webhook_worker_create_request: Optional[WebhookWorkerCreateRequest] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -1263,7 +1293,7 @@ class DefaultApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._webhook_create_serialize(
             tenant=tenant,
@@ -1271,18 +1301,17 @@ class DefaultApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "WebhookWorkerCreated",
-            '400': "APIErrors",
-            '401': "APIErrors",
-            '405': "APIErrors",
+            "200": "WebhookWorkerCreated",
+            "400": "APIErrors",
+            "401": "APIErrors",
+            "405": "APIErrors",
         }
         response_data = await self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         await response_data.read()
         return self.api_client.response_deserialize(
@@ -1290,19 +1319,22 @@ class DefaultApi:
             response_types_map=_response_types_map,
         )
 
-
     @validate_call
     async def webhook_create_without_preload_content(
         self,
-        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
+        tenant: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The tenant id"
+            ),
+        ],
         webhook_worker_create_request: Optional[WebhookWorkerCreateRequest] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -1337,7 +1369,7 @@ class DefaultApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._webhook_create_serialize(
             tenant=tenant,
@@ -1345,21 +1377,19 @@ class DefaultApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "WebhookWorkerCreated",
-            '400': "APIErrors",
-            '401': "APIErrors",
-            '405': "APIErrors",
+            "200": "WebhookWorkerCreated",
+            "400": "APIErrors",
+            "401": "APIErrors",
+            "405": "APIErrors",
         }
         response_data = await self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         return response_data.response
-
 
     def _webhook_create_serialize(
         self,
@@ -1373,8 +1403,7 @@ class DefaultApi:
 
         _host = None
 
-        _collection_formats: Dict[str, str] = {
-        }
+        _collection_formats: Dict[str, str] = {}
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
@@ -1387,7 +1416,7 @@ class DefaultApi:
 
         # process the path parameters
         if tenant is not None:
-            _path_params['tenant'] = tenant
+            _path_params["tenant"] = tenant
         # process the query parameters
         # process the header parameters
         # process the form parameters
@@ -1395,38 +1424,28 @@ class DefaultApi:
         if webhook_worker_create_request is not None:
             _body_params = webhook_worker_create_request
 
-
         # set the HTTP header `Accept`
-        if 'Accept' not in _header_params:
-            _header_params['Accept'] = self.api_client.select_header_accept(
-                [
-                    'application/json'
-                ]
+        if "Accept" not in _header_params:
+            _header_params["Accept"] = self.api_client.select_header_accept(
+                ["application/json"]
             )
 
         # set the HTTP header `Content-Type`
         if _content_type:
-            _header_params['Content-Type'] = _content_type
+            _header_params["Content-Type"] = _content_type
         else:
-            _default_content_type = (
-                self.api_client.select_header_content_type(
-                    [
-                        'application/json'
-                    ]
-                )
+            _default_content_type = self.api_client.select_header_content_type(
+                ["application/json"]
             )
             if _default_content_type is not None:
-                _header_params['Content-Type'] = _default_content_type
+                _header_params["Content-Type"] = _default_content_type
 
         # authentication setting
-        _auth_settings: List[str] = [
-            'cookieAuth', 
-            'bearerAuth'
-        ]
+        _auth_settings: List[str] = ["cookieAuth", "bearerAuth"]
 
         return self.api_client.param_serialize(
-            method='POST',
-            resource_path='/api/v1/tenants/{tenant}/webhook-workers',
+            method="POST",
+            resource_path="/api/v1/tenants/{tenant}/webhook-workers",
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,
@@ -1436,23 +1455,24 @@ class DefaultApi:
             auth_settings=_auth_settings,
             collection_formats=_collection_formats,
             _host=_host,
-            _request_auth=_request_auth
+            _request_auth=_request_auth,
         )
-
-
-
 
     @validate_call
     async def webhook_delete(
         self,
-        webhook: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The webhook id")],
+        webhook: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The webhook id"
+            ),
+        ],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -1485,25 +1505,24 @@ class DefaultApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._webhook_delete_serialize(
             webhook=webhook,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': None,
-            '400': "APIErrors",
-            '401': "APIErrors",
-            '405': "APIErrors",
+            "200": None,
+            "400": "APIErrors",
+            "401": "APIErrors",
+            "405": "APIErrors",
         }
         response_data = await self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         await response_data.read()
         return self.api_client.response_deserialize(
@@ -1511,18 +1530,21 @@ class DefaultApi:
             response_types_map=_response_types_map,
         ).data
 
-
     @validate_call
     async def webhook_delete_with_http_info(
         self,
-        webhook: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The webhook id")],
+        webhook: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The webhook id"
+            ),
+        ],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -1555,25 +1577,24 @@ class DefaultApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._webhook_delete_serialize(
             webhook=webhook,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': None,
-            '400': "APIErrors",
-            '401': "APIErrors",
-            '405': "APIErrors",
+            "200": None,
+            "400": "APIErrors",
+            "401": "APIErrors",
+            "405": "APIErrors",
         }
         response_data = await self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         await response_data.read()
         return self.api_client.response_deserialize(
@@ -1581,18 +1602,21 @@ class DefaultApi:
             response_types_map=_response_types_map,
         )
 
-
     @validate_call
     async def webhook_delete_without_preload_content(
         self,
-        webhook: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The webhook id")],
+        webhook: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The webhook id"
+            ),
+        ],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -1625,28 +1649,26 @@ class DefaultApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._webhook_delete_serialize(
             webhook=webhook,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': None,
-            '400': "APIErrors",
-            '401': "APIErrors",
-            '405': "APIErrors",
+            "200": None,
+            "400": "APIErrors",
+            "401": "APIErrors",
+            "405": "APIErrors",
         }
         response_data = await self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         return response_data.response
-
 
     def _webhook_delete_serialize(
         self,
@@ -1659,8 +1681,7 @@ class DefaultApi:
 
         _host = None
 
-        _collection_formats: Dict[str, str] = {
-        }
+        _collection_formats: Dict[str, str] = {}
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
@@ -1673,31 +1694,24 @@ class DefaultApi:
 
         # process the path parameters
         if webhook is not None:
-            _path_params['webhook'] = webhook
+            _path_params["webhook"] = webhook
         # process the query parameters
         # process the header parameters
         # process the form parameters
         # process the body parameter
 
-
         # set the HTTP header `Accept`
-        if 'Accept' not in _header_params:
-            _header_params['Accept'] = self.api_client.select_header_accept(
-                [
-                    'application/json'
-                ]
+        if "Accept" not in _header_params:
+            _header_params["Accept"] = self.api_client.select_header_accept(
+                ["application/json"]
             )
 
-
         # authentication setting
-        _auth_settings: List[str] = [
-            'cookieAuth', 
-            'bearerAuth'
-        ]
+        _auth_settings: List[str] = ["cookieAuth", "bearerAuth"]
 
         return self.api_client.param_serialize(
-            method='DELETE',
-            resource_path='/api/v1/webhook-workers/{webhook}',
+            method="DELETE",
+            resource_path="/api/v1/webhook-workers/{webhook}",
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,
@@ -1707,23 +1721,24 @@ class DefaultApi:
             auth_settings=_auth_settings,
             collection_formats=_collection_formats,
             _host=_host,
-            _request_auth=_request_auth
+            _request_auth=_request_auth,
         )
-
-
-
 
     @validate_call
     async def webhook_list(
         self,
-        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
+        tenant: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The tenant id"
+            ),
+        ],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -1756,25 +1771,24 @@ class DefaultApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._webhook_list_serialize(
             tenant=tenant,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "WebhookWorkerListResponse",
-            '400': "APIErrors",
-            '401': "APIErrors",
-            '405': "APIErrors",
+            "200": "WebhookWorkerListResponse",
+            "400": "APIErrors",
+            "401": "APIErrors",
+            "405": "APIErrors",
         }
         response_data = await self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         await response_data.read()
         return self.api_client.response_deserialize(
@@ -1782,18 +1796,21 @@ class DefaultApi:
             response_types_map=_response_types_map,
         ).data
 
-
     @validate_call
     async def webhook_list_with_http_info(
         self,
-        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
+        tenant: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The tenant id"
+            ),
+        ],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -1826,25 +1843,24 @@ class DefaultApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._webhook_list_serialize(
             tenant=tenant,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "WebhookWorkerListResponse",
-            '400': "APIErrors",
-            '401': "APIErrors",
-            '405': "APIErrors",
+            "200": "WebhookWorkerListResponse",
+            "400": "APIErrors",
+            "401": "APIErrors",
+            "405": "APIErrors",
         }
         response_data = await self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         await response_data.read()
         return self.api_client.response_deserialize(
@@ -1852,18 +1868,21 @@ class DefaultApi:
             response_types_map=_response_types_map,
         )
 
-
     @validate_call
     async def webhook_list_without_preload_content(
         self,
-        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
+        tenant: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The tenant id"
+            ),
+        ],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -1896,28 +1915,26 @@ class DefaultApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._webhook_list_serialize(
             tenant=tenant,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "WebhookWorkerListResponse",
-            '400': "APIErrors",
-            '401': "APIErrors",
-            '405': "APIErrors",
+            "200": "WebhookWorkerListResponse",
+            "400": "APIErrors",
+            "401": "APIErrors",
+            "405": "APIErrors",
         }
         response_data = await self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         return response_data.response
-
 
     def _webhook_list_serialize(
         self,
@@ -1930,8 +1947,7 @@ class DefaultApi:
 
         _host = None
 
-        _collection_formats: Dict[str, str] = {
-        }
+        _collection_formats: Dict[str, str] = {}
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
@@ -1944,31 +1960,24 @@ class DefaultApi:
 
         # process the path parameters
         if tenant is not None:
-            _path_params['tenant'] = tenant
+            _path_params["tenant"] = tenant
         # process the query parameters
         # process the header parameters
         # process the form parameters
         # process the body parameter
 
-
         # set the HTTP header `Accept`
-        if 'Accept' not in _header_params:
-            _header_params['Accept'] = self.api_client.select_header_accept(
-                [
-                    'application/json'
-                ]
+        if "Accept" not in _header_params:
+            _header_params["Accept"] = self.api_client.select_header_accept(
+                ["application/json"]
             )
 
-
         # authentication setting
-        _auth_settings: List[str] = [
-            'cookieAuth', 
-            'bearerAuth'
-        ]
+        _auth_settings: List[str] = ["cookieAuth", "bearerAuth"]
 
         return self.api_client.param_serialize(
-            method='GET',
-            resource_path='/api/v1/tenants/{tenant}/webhook-workers',
+            method="GET",
+            resource_path="/api/v1/tenants/{tenant}/webhook-workers",
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,
@@ -1978,23 +1987,24 @@ class DefaultApi:
             auth_settings=_auth_settings,
             collection_formats=_collection_formats,
             _host=_host,
-            _request_auth=_request_auth
+            _request_auth=_request_auth,
         )
-
-
-
 
     @validate_call
     async def webhook_requests_list(
         self,
-        webhook: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The webhook id")],
+        webhook: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The webhook id"
+            ),
+        ],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -2027,25 +2037,24 @@ class DefaultApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._webhook_requests_list_serialize(
             webhook=webhook,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "WebhookWorkerRequestListResponse",
-            '400': "APIErrors",
-            '401': "APIErrors",
-            '405': "APIErrors",
+            "200": "WebhookWorkerRequestListResponse",
+            "400": "APIErrors",
+            "401": "APIErrors",
+            "405": "APIErrors",
         }
         response_data = await self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         await response_data.read()
         return self.api_client.response_deserialize(
@@ -2053,18 +2062,21 @@ class DefaultApi:
             response_types_map=_response_types_map,
         ).data
 
-
     @validate_call
     async def webhook_requests_list_with_http_info(
         self,
-        webhook: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The webhook id")],
+        webhook: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The webhook id"
+            ),
+        ],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -2097,25 +2109,24 @@ class DefaultApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._webhook_requests_list_serialize(
             webhook=webhook,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "WebhookWorkerRequestListResponse",
-            '400': "APIErrors",
-            '401': "APIErrors",
-            '405': "APIErrors",
+            "200": "WebhookWorkerRequestListResponse",
+            "400": "APIErrors",
+            "401": "APIErrors",
+            "405": "APIErrors",
         }
         response_data = await self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         await response_data.read()
         return self.api_client.response_deserialize(
@@ -2123,18 +2134,21 @@ class DefaultApi:
             response_types_map=_response_types_map,
         )
 
-
     @validate_call
     async def webhook_requests_list_without_preload_content(
         self,
-        webhook: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The webhook id")],
+        webhook: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The webhook id"
+            ),
+        ],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)],
-                Annotated[StrictFloat, Field(gt=0)]
-            ]
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -2167,28 +2181,26 @@ class DefaultApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """ # noqa: E501
+        """  # noqa: E501
 
         _param = self._webhook_requests_list_serialize(
             webhook=webhook,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index
+            _host_index=_host_index,
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            '200': "WebhookWorkerRequestListResponse",
-            '400': "APIErrors",
-            '401': "APIErrors",
-            '405': "APIErrors",
+            "200": "WebhookWorkerRequestListResponse",
+            "400": "APIErrors",
+            "401": "APIErrors",
+            "405": "APIErrors",
         }
         response_data = await self.api_client.call_api(
-            *_param,
-            _request_timeout=_request_timeout
+            *_param, _request_timeout=_request_timeout
         )
         return response_data.response
-
 
     def _webhook_requests_list_serialize(
         self,
@@ -2201,8 +2213,7 @@ class DefaultApi:
 
         _host = None
 
-        _collection_formats: Dict[str, str] = {
-        }
+        _collection_formats: Dict[str, str] = {}
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
@@ -2215,31 +2226,24 @@ class DefaultApi:
 
         # process the path parameters
         if webhook is not None:
-            _path_params['webhook'] = webhook
+            _path_params["webhook"] = webhook
         # process the query parameters
         # process the header parameters
         # process the form parameters
         # process the body parameter
 
-
         # set the HTTP header `Accept`
-        if 'Accept' not in _header_params:
-            _header_params['Accept'] = self.api_client.select_header_accept(
-                [
-                    'application/json'
-                ]
+        if "Accept" not in _header_params:
+            _header_params["Accept"] = self.api_client.select_header_accept(
+                ["application/json"]
             )
 
-
         # authentication setting
-        _auth_settings: List[str] = [
-            'cookieAuth', 
-            'bearerAuth'
-        ]
+        _auth_settings: List[str] = ["cookieAuth", "bearerAuth"]
 
         return self.api_client.param_serialize(
-            method='GET',
-            resource_path='/api/v1/webhook-workers/{webhook}/requests',
+            method="GET",
+            resource_path="/api/v1/webhook-workers/{webhook}/requests",
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,
@@ -2249,7 +2253,5 @@ class DefaultApi:
             auth_settings=_auth_settings,
             collection_formats=_collection_formats,
             _host=_host,
-            _request_auth=_request_auth
+            _request_auth=_request_auth,
         )
-
-

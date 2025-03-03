@@ -13,36 +13,75 @@
 
 
 from __future__ import annotations
+
+import json
 import pprint
 import re  # noqa: F401
-import json
+from typing import Any, ClassVar, Dict, List, Optional, Set
 
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictStr
-from typing import Any, ClassVar, Dict, List, Optional
-from hatchet_sdk.clients.rest.models.tenant_version import TenantVersion
-from typing import Optional, Set
 from typing_extensions import Self
+
+from hatchet_sdk.clients.rest.models.tenant_version import TenantVersion
+
 
 class UpdateTenantRequest(BaseModel):
     """
     UpdateTenantRequest
-    """ # noqa: E501
-    name: Optional[StrictStr] = Field(default=None, description="The name of the tenant.")
-    analytics_opt_out: Optional[StrictBool] = Field(default=None, description="Whether the tenant has opted out of analytics.", alias="analyticsOptOut")
-    alert_member_emails: Optional[StrictBool] = Field(default=None, description="Whether to alert tenant members.", alias="alertMemberEmails")
-    enable_workflow_run_failure_alerts: Optional[StrictBool] = Field(default=None, description="Whether to send alerts when workflow runs fail.", alias="enableWorkflowRunFailureAlerts")
-    enable_expiring_token_alerts: Optional[StrictBool] = Field(default=None, description="Whether to enable alerts when tokens are approaching expiration.", alias="enableExpiringTokenAlerts")
-    enable_tenant_resource_limit_alerts: Optional[StrictBool] = Field(default=None, description="Whether to enable alerts when tenant resources are approaching limits.", alias="enableTenantResourceLimitAlerts")
-    max_alerting_frequency: Optional[StrictStr] = Field(default=None, description="The max frequency at which to alert.", alias="maxAlertingFrequency")
-    version: Optional[TenantVersion] = Field(default=None, description="The version of the tenant.")
-    __properties: ClassVar[List[str]] = ["name", "analyticsOptOut", "alertMemberEmails", "enableWorkflowRunFailureAlerts", "enableExpiringTokenAlerts", "enableTenantResourceLimitAlerts", "maxAlertingFrequency", "version"]
+    """  # noqa: E501
+
+    name: Optional[StrictStr] = Field(
+        default=None, description="The name of the tenant."
+    )
+    analytics_opt_out: Optional[StrictBool] = Field(
+        default=None,
+        description="Whether the tenant has opted out of analytics.",
+        alias="analyticsOptOut",
+    )
+    alert_member_emails: Optional[StrictBool] = Field(
+        default=None,
+        description="Whether to alert tenant members.",
+        alias="alertMemberEmails",
+    )
+    enable_workflow_run_failure_alerts: Optional[StrictBool] = Field(
+        default=None,
+        description="Whether to send alerts when workflow runs fail.",
+        alias="enableWorkflowRunFailureAlerts",
+    )
+    enable_expiring_token_alerts: Optional[StrictBool] = Field(
+        default=None,
+        description="Whether to enable alerts when tokens are approaching expiration.",
+        alias="enableExpiringTokenAlerts",
+    )
+    enable_tenant_resource_limit_alerts: Optional[StrictBool] = Field(
+        default=None,
+        description="Whether to enable alerts when tenant resources are approaching limits.",
+        alias="enableTenantResourceLimitAlerts",
+    )
+    max_alerting_frequency: Optional[StrictStr] = Field(
+        default=None,
+        description="The max frequency at which to alert.",
+        alias="maxAlertingFrequency",
+    )
+    version: Optional[TenantVersion] = Field(
+        default=None, description="The version of the tenant."
+    )
+    __properties: ClassVar[List[str]] = [
+        "name",
+        "analyticsOptOut",
+        "alertMemberEmails",
+        "enableWorkflowRunFailureAlerts",
+        "enableExpiringTokenAlerts",
+        "enableTenantResourceLimitAlerts",
+        "maxAlertingFrequency",
+        "version",
+    ]
 
     model_config = ConfigDict(
         populate_by_name=True,
         validate_assignment=True,
         protected_namespaces=(),
     )
-
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -68,8 +107,7 @@ class UpdateTenantRequest(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([
-        ])
+        excluded_fields: Set[str] = set([])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -87,16 +125,20 @@ class UpdateTenantRequest(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({
-            "name": obj.get("name"),
-            "analyticsOptOut": obj.get("analyticsOptOut"),
-            "alertMemberEmails": obj.get("alertMemberEmails"),
-            "enableWorkflowRunFailureAlerts": obj.get("enableWorkflowRunFailureAlerts"),
-            "enableExpiringTokenAlerts": obj.get("enableExpiringTokenAlerts"),
-            "enableTenantResourceLimitAlerts": obj.get("enableTenantResourceLimitAlerts"),
-            "maxAlertingFrequency": obj.get("maxAlertingFrequency"),
-            "version": obj.get("version")
-        })
+        _obj = cls.model_validate(
+            {
+                "name": obj.get("name"),
+                "analyticsOptOut": obj.get("analyticsOptOut"),
+                "alertMemberEmails": obj.get("alertMemberEmails"),
+                "enableWorkflowRunFailureAlerts": obj.get(
+                    "enableWorkflowRunFailureAlerts"
+                ),
+                "enableExpiringTokenAlerts": obj.get("enableExpiringTokenAlerts"),
+                "enableTenantResourceLimitAlerts": obj.get(
+                    "enableTenantResourceLimitAlerts"
+                ),
+                "maxAlertingFrequency": obj.get("maxAlertingFrequency"),
+                "version": obj.get("version"),
+            }
+        )
         return _obj
-
-

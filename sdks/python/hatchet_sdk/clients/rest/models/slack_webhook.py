@@ -13,34 +13,57 @@
 
 
 from __future__ import annotations
+
+import json
 import pprint
 import re  # noqa: F401
-import json
+from typing import Any, ClassVar, Dict, List, Optional, Set
 
 from pydantic import BaseModel, ConfigDict, Field, StrictStr
-from typing import Any, ClassVar, Dict, List
-from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
-from typing import Optional, Set
 from typing_extensions import Self
+
+from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
+
 
 class SlackWebhook(BaseModel):
     """
     SlackWebhook
-    """ # noqa: E501
+    """  # noqa: E501
+
     metadata: APIResourceMeta
-    tenant_id: StrictStr = Field(description="The unique identifier for the tenant that the SNS integration belongs to.", alias="tenantId")
-    team_name: StrictStr = Field(description="The team name associated with this slack webhook.", alias="teamName")
-    team_id: StrictStr = Field(description="The team id associated with this slack webhook.", alias="teamId")
-    channel_name: StrictStr = Field(description="The channel name associated with this slack webhook.", alias="channelName")
-    channel_id: StrictStr = Field(description="The channel id associated with this slack webhook.", alias="channelId")
-    __properties: ClassVar[List[str]] = ["metadata", "tenantId", "teamName", "teamId", "channelName", "channelId"]
+    tenant_id: StrictStr = Field(
+        description="The unique identifier for the tenant that the SNS integration belongs to.",
+        alias="tenantId",
+    )
+    team_name: StrictStr = Field(
+        description="The team name associated with this slack webhook.",
+        alias="teamName",
+    )
+    team_id: StrictStr = Field(
+        description="The team id associated with this slack webhook.", alias="teamId"
+    )
+    channel_name: StrictStr = Field(
+        description="The channel name associated with this slack webhook.",
+        alias="channelName",
+    )
+    channel_id: StrictStr = Field(
+        description="The channel id associated with this slack webhook.",
+        alias="channelId",
+    )
+    __properties: ClassVar[List[str]] = [
+        "metadata",
+        "tenantId",
+        "teamName",
+        "teamId",
+        "channelName",
+        "channelId",
+    ]
 
     model_config = ConfigDict(
         populate_by_name=True,
         validate_assignment=True,
         protected_namespaces=(),
     )
-
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -66,8 +89,7 @@ class SlackWebhook(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([
-        ])
+        excluded_fields: Set[str] = set([])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -76,7 +98,7 @@ class SlackWebhook(BaseModel):
         )
         # override the default output from pydantic by calling `to_dict()` of metadata
         if self.metadata:
-            _dict['metadata'] = self.metadata.to_dict()
+            _dict["metadata"] = self.metadata.to_dict()
         return _dict
 
     @classmethod
@@ -88,14 +110,18 @@ class SlackWebhook(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({
-            "metadata": APIResourceMeta.from_dict(obj["metadata"]) if obj.get("metadata") is not None else None,
-            "tenantId": obj.get("tenantId"),
-            "teamName": obj.get("teamName"),
-            "teamId": obj.get("teamId"),
-            "channelName": obj.get("channelName"),
-            "channelId": obj.get("channelId")
-        })
+        _obj = cls.model_validate(
+            {
+                "metadata": (
+                    APIResourceMeta.from_dict(obj["metadata"])
+                    if obj.get("metadata") is not None
+                    else None
+                ),
+                "tenantId": obj.get("tenantId"),
+                "teamName": obj.get("teamName"),
+                "teamId": obj.get("teamId"),
+                "channelName": obj.get("channelName"),
+                "channelId": obj.get("channelId"),
+            }
+        )
         return _obj
-
-

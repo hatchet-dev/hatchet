@@ -13,21 +13,25 @@
 
 
 from __future__ import annotations
+
+import json
 import pprint
 import re  # noqa: F401
-import json
+from typing import Any, ClassVar, Dict, List, Optional, Set
 
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictStr
-from typing import Any, ClassVar, Dict, List
-from typing import Optional, Set
 from typing_extensions import Self
+
 
 class APIMetaIntegration(BaseModel):
     """
     APIMetaIntegration
-    """ # noqa: E501
+    """  # noqa: E501
+
     name: StrictStr = Field(description="the name of the integration")
-    enabled: StrictBool = Field(description="whether this integration is enabled on the instance")
+    enabled: StrictBool = Field(
+        description="whether this integration is enabled on the instance"
+    )
     __properties: ClassVar[List[str]] = ["name", "enabled"]
 
     model_config = ConfigDict(
@@ -35,7 +39,6 @@ class APIMetaIntegration(BaseModel):
         validate_assignment=True,
         protected_namespaces=(),
     )
-
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -61,8 +64,7 @@ class APIMetaIntegration(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([
-        ])
+        excluded_fields: Set[str] = set([])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -80,10 +82,7 @@ class APIMetaIntegration(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({
-            "name": obj.get("name"),
-            "enabled": obj.get("enabled")
-        })
+        _obj = cls.model_validate(
+            {"name": obj.get("name"), "enabled": obj.get("enabled")}
+        )
         return _obj
-
-
