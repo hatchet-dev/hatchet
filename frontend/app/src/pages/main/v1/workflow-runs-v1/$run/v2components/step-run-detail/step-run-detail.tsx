@@ -144,7 +144,7 @@ export const TaskRunDetail = ({
           <TabsTrigger variant="underlined" value={TabOption.Output}>
             Output
           </TabsTrigger>
-          {taskRun.numSpawnedChildren && (
+          {taskRun.numSpawnedChildren > 0 && (
             <TabsTrigger
               variant="underlined"
               value={TabOption.ChildWorkflowRuns}

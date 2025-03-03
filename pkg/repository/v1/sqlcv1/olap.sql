@@ -398,14 +398,24 @@ WITH latest_retry_count AS (
     ORDER BY
         event_timestamp DESC
     LIMIT 1
+), spawned_children AS (
+    SELECT COUNT(*) AS spawned_children
+    FROM v1_runs_olap
+    WHERE parent_task_external_id = (
+        SELECT external_id
+        FROM v1_tasks_olap
+        WHERE id = @taskId::bigint
+    )
 )
+
 SELECT
     t.*,
     st.readable_status::v1_readable_status_olap as status,
     f.finished_at::timestamptz as finished_at,
     s.started_at::timestamptz as started_at,
     o.output::jsonb as output,
-    e.error_message as error_message
+    e.error_message as error_message,
+    sc.spawned_children
 FROM
     v1_tasks_olap t
 LEFT JOIN
@@ -418,6 +428,8 @@ LEFT JOIN
     status st ON true
 LEFT JOIN
     error_message e ON true
+LEFT JOIN
+    spawned_children sc ON true
 WHERE
     (t.tenant_id, t.id, t.inserted_at) = (@tenantId::uuid, @taskId::bigint, @taskInsertedAt::timestamptz);
 

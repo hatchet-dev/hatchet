@@ -954,6 +954,14 @@ WITH latest_retry_count AS (
     ORDER BY
         event_timestamp DESC
     LIMIT 1
+), spawned_children AS (
+    SELECT COUNT(*) AS spawned_children
+    FROM v1_runs_olap
+    WHERE parent_task_external_id = (
+        SELECT external_id
+        FROM v1_tasks_olap
+        WHERE id = $2::bigint
+    )
 )
 SELECT
     t.tenant_id, t.id, t.inserted_at, t.external_id, t.queue, t.action_id, t.step_id, t.workflow_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.display_name, t.input, t.additional_metadata, t.readable_status, t.latest_retry_count, t.latest_worker_id, t.dag_id, t.dag_inserted_at, t.parent_task_external_id,
@@ -961,7 +969,8 @@ SELECT
     f.finished_at::timestamptz as finished_at,
     s.started_at::timestamptz as started_at,
     o.output::jsonb as output,
-    e.error_message as error_message
+    e.error_message as error_message,
+    sc.spawned_children
 FROM
     v1_tasks_olap t
 LEFT JOIN
@@ -974,6 +983,8 @@ LEFT JOIN
     status st ON true
 LEFT JOIN
     error_message e ON true
+LEFT JOIN
+    spawned_children sc ON true
 WHERE
     (t.tenant_id, t.id, t.inserted_at) = ($1::uuid, $2::bigint, $3::timestamptz)
 `
@@ -1012,6 +1023,7 @@ type PopulateSingleTaskRunDataRow struct {
 	StartedAt            pgtype.Timestamptz   `json:"started_at"`
 	Output               []byte               `json:"output"`
 	ErrorMessage         pgtype.Text          `json:"error_message"`
+	SpawnedChildren      pgtype.Int8          `json:"spawned_children"`
 }
 
 func (q *Queries) PopulateSingleTaskRunData(ctx context.Context, db DBTX, arg PopulateSingleTaskRunDataParams) (*PopulateSingleTaskRunDataRow, error) {
@@ -1045,6 +1057,7 @@ func (q *Queries) PopulateSingleTaskRunData(ctx context.Context, db DBTX, arg Po
 		&i.StartedAt,
 		&i.Output,
 		&i.ErrorMessage,
+		&i.SpawnedChildren,
 	)
 	return &i, err
 }

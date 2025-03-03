@@ -279,6 +279,7 @@ func ToTask(taskWithData *sqlcv1.PopulateSingleTaskRunDataRow, workflowRunExtern
 		WorkflowRunExternalId: parsedWorkflowRunUUID,
 		TaskExternalId:        uuid.MustParse(sqlchelpers.UUIDToStr(taskWithData.ExternalID)),
 		Type:                  gen.V1WorkflowTypeTASK,
+		NumSpawnedChildren:    int(taskWithData.SpawnedChildren.Int64),
 	}
 }
 
