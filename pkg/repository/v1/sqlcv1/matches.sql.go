@@ -58,7 +58,7 @@ SELECT
 FROM
     input i
 RETURNING
-    id, tenant_id, kind, is_satisfied, signal_task_id, signal_task_inserted_at, signal_external_id, signal_key, trigger_dag_id, trigger_dag_inserted_at, trigger_step_id, trigger_step_index, trigger_external_id, trigger_parent_task_external_id, trigger_parent_task_id, trigger_parent_task_inserted_at, trigger_child_index, trigger_child_key, trigger_existing_task_id
+    id, tenant_id, kind, is_satisfied, signal_task_id, signal_task_inserted_at, signal_external_id, signal_key, trigger_dag_id, trigger_dag_inserted_at, trigger_step_id, trigger_step_index, trigger_external_id, trigger_parent_task_external_id, trigger_parent_task_id, trigger_parent_task_inserted_at, trigger_child_index, trigger_child_key, trigger_existing_task_id, trigger_existing_task_inserted_at
 `
 
 type CreateMatchesForSignalTriggersParams struct {
@@ -106,6 +106,7 @@ func (q *Queries) CreateMatchesForSignalTriggers(ctx context.Context, db DBTX, a
 			&i.TriggerChildIndex,
 			&i.TriggerChildKey,
 			&i.TriggerExistingTaskID,
+			&i.TriggerExistingTaskInsertedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -298,7 +299,7 @@ WITH match_counts AS (
     GROUP BY v1_match_id
 ), result_matches AS (
     SELECT
-        m.id, m.tenant_id, m.kind, m.is_satisfied, m.signal_task_id, m.signal_task_inserted_at, m.signal_external_id, m.signal_key, m.trigger_dag_id, m.trigger_dag_inserted_at, m.trigger_step_id, m.trigger_step_index, m.trigger_external_id, m.trigger_parent_task_external_id, m.trigger_parent_task_id, m.trigger_parent_task_inserted_at, m.trigger_child_index, m.trigger_child_key, m.trigger_existing_task_id
+        m.id, m.tenant_id, m.kind, m.is_satisfied, m.signal_task_id, m.signal_task_inserted_at, m.signal_external_id, m.signal_key, m.trigger_dag_id, m.trigger_dag_inserted_at, m.trigger_step_id, m.trigger_step_index, m.trigger_external_id, m.trigger_parent_task_external_id, m.trigger_parent_task_id, m.trigger_parent_task_inserted_at, m.trigger_child_index, m.trigger_child_key, m.trigger_existing_task_id, m.trigger_existing_task_inserted_at
     FROM
         v1_match m
     JOIN
@@ -353,7 +354,7 @@ WITH match_counts AS (
         (v1_match_id, id) IN (SELECT v1_match_id, id FROM locked_conditions)
 )
 SELECT
-    result_matches.id, tenant_id, kind, is_satisfied, signal_task_id, signal_task_inserted_at, signal_external_id, signal_key, trigger_dag_id, trigger_dag_inserted_at, trigger_step_id, trigger_step_index, trigger_external_id, trigger_parent_task_external_id, trigger_parent_task_id, trigger_parent_task_inserted_at, trigger_child_index, trigger_child_key, trigger_existing_task_id, d.id, mc_aggregated_data,
+    result_matches.id, tenant_id, kind, is_satisfied, signal_task_id, signal_task_inserted_at, signal_external_id, signal_key, trigger_dag_id, trigger_dag_inserted_at, trigger_step_id, trigger_step_index, trigger_external_id, trigger_parent_task_external_id, trigger_parent_task_id, trigger_parent_task_inserted_at, trigger_child_index, trigger_child_key, trigger_existing_task_id, trigger_existing_task_inserted_at, d.id, mc_aggregated_data,
     d.mc_aggregated_data
 FROM
     result_matches
@@ -362,28 +363,29 @@ LEFT JOIN
 `
 
 type SaveSatisfiedMatchConditionsRow struct {
-	ID                          int64              `json:"id"`
-	TenantID                    pgtype.UUID        `json:"tenant_id"`
-	Kind                        V1MatchKind        `json:"kind"`
-	IsSatisfied                 bool               `json:"is_satisfied"`
-	SignalTaskID                pgtype.Int8        `json:"signal_task_id"`
-	SignalTaskInsertedAt        pgtype.Timestamptz `json:"signal_task_inserted_at"`
-	SignalExternalID            pgtype.UUID        `json:"signal_external_id"`
-	SignalKey                   pgtype.Text        `json:"signal_key"`
-	TriggerDagID                pgtype.Int8        `json:"trigger_dag_id"`
-	TriggerDagInsertedAt        pgtype.Timestamptz `json:"trigger_dag_inserted_at"`
-	TriggerStepID               pgtype.UUID        `json:"trigger_step_id"`
-	TriggerStepIndex            pgtype.Int8        `json:"trigger_step_index"`
-	TriggerExternalID           pgtype.UUID        `json:"trigger_external_id"`
-	TriggerParentTaskExternalID pgtype.UUID        `json:"trigger_parent_task_external_id"`
-	TriggerParentTaskID         pgtype.Int8        `json:"trigger_parent_task_id"`
-	TriggerParentTaskInsertedAt pgtype.Timestamptz `json:"trigger_parent_task_inserted_at"`
-	TriggerChildIndex           pgtype.Int8        `json:"trigger_child_index"`
-	TriggerChildKey             pgtype.Text        `json:"trigger_child_key"`
-	TriggerExistingTaskID       pgtype.Int8        `json:"trigger_existing_task_id"`
-	ID_2                        pgtype.Int8        `json:"id_2"`
-	McAggregatedData            []byte             `json:"mc_aggregated_data"`
-	McAggregatedData_2          []byte             `json:"mc_aggregated_data_2"`
+	ID                            int64              `json:"id"`
+	TenantID                      pgtype.UUID        `json:"tenant_id"`
+	Kind                          V1MatchKind        `json:"kind"`
+	IsSatisfied                   bool               `json:"is_satisfied"`
+	SignalTaskID                  pgtype.Int8        `json:"signal_task_id"`
+	SignalTaskInsertedAt          pgtype.Timestamptz `json:"signal_task_inserted_at"`
+	SignalExternalID              pgtype.UUID        `json:"signal_external_id"`
+	SignalKey                     pgtype.Text        `json:"signal_key"`
+	TriggerDagID                  pgtype.Int8        `json:"trigger_dag_id"`
+	TriggerDagInsertedAt          pgtype.Timestamptz `json:"trigger_dag_inserted_at"`
+	TriggerStepID                 pgtype.UUID        `json:"trigger_step_id"`
+	TriggerStepIndex              pgtype.Int8        `json:"trigger_step_index"`
+	TriggerExternalID             pgtype.UUID        `json:"trigger_external_id"`
+	TriggerParentTaskExternalID   pgtype.UUID        `json:"trigger_parent_task_external_id"`
+	TriggerParentTaskID           pgtype.Int8        `json:"trigger_parent_task_id"`
+	TriggerParentTaskInsertedAt   pgtype.Timestamptz `json:"trigger_parent_task_inserted_at"`
+	TriggerChildIndex             pgtype.Int8        `json:"trigger_child_index"`
+	TriggerChildKey               pgtype.Text        `json:"trigger_child_key"`
+	TriggerExistingTaskID         pgtype.Int8        `json:"trigger_existing_task_id"`
+	TriggerExistingTaskInsertedAt pgtype.Timestamptz `json:"trigger_existing_task_inserted_at"`
+	ID_2                          pgtype.Int8        `json:"id_2"`
+	McAggregatedData              []byte             `json:"mc_aggregated_data"`
+	McAggregatedData_2            []byte             `json:"mc_aggregated_data_2"`
 }
 
 // NOTE: we have to break this into a separate query because CTEs can't see modified rows
@@ -419,6 +421,7 @@ func (q *Queries) SaveSatisfiedMatchConditions(ctx context.Context, db DBTX, mat
 			&i.TriggerChildIndex,
 			&i.TriggerChildKey,
 			&i.TriggerExistingTaskID,
+			&i.TriggerExistingTaskInsertedAt,
 			&i.ID_2,
 			&i.McAggregatedData,
 			&i.McAggregatedData_2,

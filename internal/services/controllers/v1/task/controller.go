@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"sync"
 	"time"
 
@@ -51,6 +52,7 @@ type TasksControllerImpl struct {
 	celParser              *cel.CELParser
 	timeoutTaskOperations  *queueutils.OperationPool
 	reassignTaskOperations *queueutils.OperationPool
+	retryTaskOperations    *queueutils.OperationPool
 }
 
 type TasksControllerOpt func(*TasksControllerOpts)
@@ -193,6 +195,7 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 
 	t.timeoutTaskOperations = queueutils.NewOperationPool(opts.l, time.Second*5, "timeout step runs", t.processTaskTimeouts)
 	t.reassignTaskOperations = queueutils.NewOperationPool(opts.l, time.Second*5, "reassign step runs", t.processTaskReassignments)
+	t.retryTaskOperations = queueutils.NewOperationPool(opts.l, time.Second*5, "retry step runs", t.processTaskRetryQueueItems)
 
 	return t, nil
 }
@@ -235,6 +238,18 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 		gocron.DurationJob(time.Second*1),
 		gocron.NewTask(
 			tc.runTenantReassignTasks(ctx),
+		),
+	)
+
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("could not schedule step run reassignment: %w", err)
+	}
+
+	_, err = tc.s.NewJob(
+		gocron.DurationJob(time.Second*1),
+		gocron.NewTask(
+			tc.runTenantRetryQueueItems(ctx),
 		),
 	)
 
@@ -315,8 +330,9 @@ func (tc *TasksControllerImpl) handleTaskCompleted(ctx context.Context, tenantId
 
 	for _, msg := range msgs {
 		opts = append(opts, v1.CompleteTaskOpts{
-			TaskIdRetryCount: &v1.TaskIdRetryCount{
+			TaskIdInsertedAtRetryCount: &v1.TaskIdInsertedAtRetryCount{
 				Id:         msg.TaskId,
+				InsertedAt: msg.InsertedAt,
 				RetryCount: msg.RetryCount,
 			},
 			Output: msg.Output,
@@ -344,8 +360,9 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId st
 
 	for _, msg := range msgs {
 		opts = append(opts, v1.FailTaskOpts{
-			TaskIdRetryCount: &v1.TaskIdRetryCount{
+			TaskIdInsertedAtRetryCount: &v1.TaskIdInsertedAtRetryCount{
 				Id:         msg.TaskId,
+				InsertedAt: msg.InsertedAt,
 				RetryCount: msg.RetryCount,
 			},
 			IsAppError:   msg.IsAppError,
@@ -395,13 +412,28 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId st
 	for _, task := range res.RetriedTasks {
 		taskId := task.Id
 
+		retryMsg := fmt.Sprintf("This is retry number %d.", task.AppRetryCount)
+
+		if task.RetryBackoffFactor.Valid && task.RetryMaxBackoff.Valid {
+			maxBackoffSeconds := int(task.RetryMaxBackoff.Int32)
+			backoffFactor := task.RetryBackoffFactor.Float64
+
+			// compute the backoff duration
+			durationMilliseconds := 1000 * min(float64(maxBackoffSeconds), math.Pow(backoffFactor, float64(task.AppRetryCount)))
+			retryDur := time.Duration(int(durationMilliseconds)) * time.Millisecond
+			retryTime := time.Now().Add(retryDur)
+
+			retryMsg = fmt.Sprintf("%s Retrying in %s (%s).", retryMsg, retryDur.String(), retryTime.Format(time.RFC3339))
+		}
+
 		olapMsg, err := tasktypes.MonitoringEventMessageFromInternal(
 			tenantId,
 			tasktypes.CreateMonitoringEventPayload{
 				TaskId:         taskId,
 				RetryCount:     task.RetryCount,
-				EventType:      sqlcv1.V1EventTypeOlapQUEUED,
+				EventType:      sqlcv1.V1EventTypeOlapRETRYING,
 				EventTimestamp: time.Now(),
+				EventMessage:   retryMsg,
 			},
 		)
 
@@ -420,20 +452,49 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId st
 		if err != nil {
 			outerErr = multierror.Append(outerErr, fmt.Errorf("could not publish monitoring event message: %w", err))
 		}
+
+		if !task.RetryBackoffFactor.Valid {
+			olapMsg, err = tasktypes.MonitoringEventMessageFromInternal(
+				tenantId,
+				tasktypes.CreateMonitoringEventPayload{
+					TaskId:         taskId,
+					RetryCount:     task.RetryCount,
+					EventType:      sqlcv1.V1EventTypeOlapQUEUED,
+					EventTimestamp: time.Now(),
+				},
+			)
+
+			if err != nil {
+				outerErr = multierror.Append(outerErr, fmt.Errorf("could not create monitoring event message: %w", err))
+				continue
+			}
+
+			err = tc.pubBuffer.Pub(
+				ctx,
+				msgqueue.OLAP_QUEUE,
+				olapMsg,
+				false,
+			)
+
+			if err != nil {
+				outerErr = multierror.Append(outerErr, fmt.Errorf("could not publish monitoring event message: %w", err))
+			}
+		}
 	}
 
 	return outerErr
 }
 
 func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId string, payloads [][]byte) error {
-	opts := make([]v1.TaskIdRetryCount, 0)
+	opts := make([]v1.TaskIdInsertedAtRetryCount, 0)
 
 	msgs := msgqueue.JSONConvert[tasktypes.CancelledTaskPayload](payloads)
 	shouldTasksNotify := make(map[int64]bool)
 
 	for _, msg := range msgs {
-		opts = append(opts, v1.TaskIdRetryCount{
+		opts = append(opts, v1.TaskIdInsertedAtRetryCount{
 			Id:         msg.TaskId,
+			InsertedAt: msg.InsertedAt,
 			RetryCount: msg.RetryCount,
 		})
 
@@ -519,6 +580,7 @@ func (tc *TasksControllerImpl) handleCancelTasks(ctx context.Context, tenantId s
 		for _, task := range msg.Tasks {
 			pubPayloads = append(pubPayloads, tasktypes.CancelledTaskPayload{
 				TaskId:       task.Id,
+				InsertedAt:   task.InsertedAt,
 				RetryCount:   task.RetryCount,
 				EventType:    sqlcv1.V1EventTypeOlapCANCELLED,
 				ShouldNotify: true,
@@ -554,12 +616,13 @@ func (tc *TasksControllerImpl) handleReplayTasks(ctx context.Context, tenantId s
 	// problem that we don't have a clean way to solve (yet)
 	msgs := msgqueue.JSONConvert[tasktypes.ReplayTasksPayload](payloads)
 
-	taskIdRetryCounts := make([]v1.TaskIdRetryCount, 0)
+	taskIdRetryCounts := make([]v1.TaskIdInsertedAtRetryCount, 0)
 
 	for _, msg := range msgs {
 		for _, task := range msg.Tasks {
-			taskIdRetryCounts = append(taskIdRetryCounts, v1.TaskIdRetryCount{
+			taskIdRetryCounts = append(taskIdRetryCounts, v1.TaskIdInsertedAtRetryCount{
 				Id:         task.Id,
+				InsertedAt: task.InsertedAt,
 				RetryCount: task.RetryCount,
 			})
 		}

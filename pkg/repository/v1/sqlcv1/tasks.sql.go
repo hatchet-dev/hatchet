@@ -98,15 +98,25 @@ func (q *Queries) DeleteMatchingSignalEvents(ctx context.Context, db DBTX, arg D
 }
 
 const failTaskAppFailure = `-- name: FailTaskAppFailure :many
-WITH locked_tasks AS (
+WITH input AS (
+    SELECT
+        task_id, task_inserted_at
+    FROM
+        (
+            SELECT
+                unnest($1::bigint[]) AS task_id,
+                unnest($2::timestamptz[]) AS task_inserted_at
+        ) AS subquery
+), locked_tasks AS (
     SELECT
         id,
+        inserted_at,
         step_id
     FROM
         v1_task
     WHERE
-        id = ANY($1::bigint[])
-        AND tenant_id = $2::uuid
+        (id, inserted_at) IN (SELECT task_id, task_inserted_at FROM input)
+        AND tenant_id = $3::uuid
     -- order by the task id to get a stable lock order
     ORDER BY
         id
@@ -129,26 +139,35 @@ SET
 FROM
     tasks_to_steps
 WHERE
-    v1_task.id = tasks_to_steps.id
+    (v1_task.id, v1_task.inserted_at) IN (SELECT task_id, task_inserted_at FROM input)
     AND tasks_to_steps."retries" > v1_task.app_retry_count
 RETURNING
     v1_task.id,
-    v1_task.retry_count
+    v1_task.inserted_at,
+    v1_task.retry_count,
+    v1_task.app_retry_count,
+    v1_task.retry_backoff_factor,
+    v1_task.retry_max_backoff
 `
 
 type FailTaskAppFailureParams struct {
-	Taskids  []int64     `json:"taskids"`
-	Tenantid pgtype.UUID `json:"tenantid"`
+	Taskids         []int64              `json:"taskids"`
+	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
+	Tenantid        pgtype.UUID          `json:"tenantid"`
 }
 
 type FailTaskAppFailureRow struct {
-	ID         int64 `json:"id"`
-	RetryCount int32 `json:"retry_count"`
+	ID                 int64              `json:"id"`
+	InsertedAt         pgtype.Timestamptz `json:"inserted_at"`
+	RetryCount         int32              `json:"retry_count"`
+	AppRetryCount      int32              `json:"app_retry_count"`
+	RetryBackoffFactor pgtype.Float8      `json:"retry_backoff_factor"`
+	RetryMaxBackoff    pgtype.Int4        `json:"retry_max_backoff"`
 }
 
 // Fails a task due to an application-level error
 func (q *Queries) FailTaskAppFailure(ctx context.Context, db DBTX, arg FailTaskAppFailureParams) ([]*FailTaskAppFailureRow, error) {
-	rows, err := db.Query(ctx, failTaskAppFailure, arg.Taskids, arg.Tenantid)
+	rows, err := db.Query(ctx, failTaskAppFailure, arg.Taskids, arg.Taskinsertedats, arg.Tenantid)
 	if err != nil {
 		return nil, err
 	}
@@ -156,7 +175,14 @@ func (q *Queries) FailTaskAppFailure(ctx context.Context, db DBTX, arg FailTaskA
 	var items []*FailTaskAppFailureRow
 	for rows.Next() {
 		var i FailTaskAppFailureRow
-		if err := rows.Scan(&i.ID, &i.RetryCount); err != nil {
+		if err := rows.Scan(
+			&i.ID,
+			&i.InsertedAt,
+			&i.RetryCount,
+			&i.AppRetryCount,
+			&i.RetryBackoffFactor,
+			&i.RetryMaxBackoff,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)
@@ -168,14 +194,23 @@ func (q *Queries) FailTaskAppFailure(ctx context.Context, db DBTX, arg FailTaskA
 }
 
 const failTaskInternalFailure = `-- name: FailTaskInternalFailure :many
-WITH locked_tasks AS (
+WITH input AS (
+    SELECT
+        task_id, task_inserted_at
+    FROM
+        (
+            SELECT
+                unnest($2::bigint[]) AS task_id,
+                unnest($3::timestamptz[]) AS task_inserted_at
+        ) AS subquery
+), locked_tasks AS (
     SELECT
         id
     FROM
         v1_task
     WHERE
-        id = ANY($2::bigint[])
-        AND tenant_id = $3::uuid
+        (id, inserted_at) IN (SELECT task_id, task_inserted_at FROM input)
+        AND tenant_id = $4::uuid
     -- order by the task id to get a stable lock order
     ORDER BY
         id
@@ -189,27 +224,35 @@ SET
 FROM
     locked_tasks
 WHERE
-    v1_task.id = locked_tasks.id
+    (v1_task.id, v1_task.inserted_at) IN (SELECT task_id, task_inserted_at FROM input)
     AND $1::int > v1_task.internal_retry_count
 RETURNING
     v1_task.id,
+    v1_task.inserted_at,
     v1_task.retry_count
 `
 
 type FailTaskInternalFailureParams struct {
-	Maxinternalretries int32       `json:"maxinternalretries"`
-	Taskids            []int64     `json:"taskids"`
-	Tenantid           pgtype.UUID `json:"tenantid"`
+	Maxinternalretries int32                `json:"maxinternalretries"`
+	Taskids            []int64              `json:"taskids"`
+	Taskinsertedats    []pgtype.Timestamptz `json:"taskinsertedats"`
+	Tenantid           pgtype.UUID          `json:"tenantid"`
 }
 
 type FailTaskInternalFailureRow struct {
-	ID         int64 `json:"id"`
-	RetryCount int32 `json:"retry_count"`
+	ID         int64              `json:"id"`
+	InsertedAt pgtype.Timestamptz `json:"inserted_at"`
+	RetryCount int32              `json:"retry_count"`
 }
 
 // Fails a task due to an application-level error
 func (q *Queries) FailTaskInternalFailure(ctx context.Context, db DBTX, arg FailTaskInternalFailureParams) ([]*FailTaskInternalFailureRow, error) {
-	rows, err := db.Query(ctx, failTaskInternalFailure, arg.Maxinternalretries, arg.Taskids, arg.Tenantid)
+	rows, err := db.Query(ctx, failTaskInternalFailure,
+		arg.Maxinternalretries,
+		arg.Taskids,
+		arg.Taskinsertedats,
+		arg.Tenantid,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -217,7 +260,7 @@ func (q *Queries) FailTaskInternalFailure(ctx context.Context, db DBTX, arg Fail
 	var items []*FailTaskInternalFailureRow
 	for rows.Next() {
 		var i FailTaskInternalFailureRow
-		if err := rows.Scan(&i.ID, &i.RetryCount); err != nil {
+		if err := rows.Scan(&i.ID, &i.InsertedAt, &i.RetryCount); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)
@@ -775,8 +818,12 @@ WITH RECURSIVE augmented_tasks AS (
     FROM
         v1_task
     WHERE
-        id = ANY($1::bigint[])
-        AND tenant_id = $2::uuid
+        (id, inserted_at) IN (
+            SELECT
+                unnest($1::bigint[]),
+                unnest($2::timestamptz[])
+        )
+        AND tenant_id = $3::uuid
 
     UNION
 
@@ -868,8 +915,9 @@ LEFT JOIN
 `
 
 type ListTasksForReplayParams struct {
-	Taskids  []int64     `json:"taskids"`
-	Tenantid pgtype.UUID `json:"tenantid"`
+	Taskids         []int64              `json:"taskids"`
+	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
+	Tenantid        pgtype.UUID          `json:"tenantid"`
 }
 
 type ListTasksForReplayRow struct {
@@ -896,7 +944,7 @@ type ListTasksForReplayRow struct {
 // Lists tasks for replay by recursively selecting all tasks that are children of the input tasks,
 // then locks the tasks for replay.
 func (q *Queries) ListTasksForReplay(ctx context.Context, db DBTX, arg ListTasksForReplayParams) ([]*ListTasksForReplayRow, error) {
-	rows, err := db.Query(ctx, listTasksForReplay, arg.Taskids, arg.Tenantid)
+	rows, err := db.Query(ctx, listTasksForReplay, arg.Taskids, arg.Taskinsertedats, arg.Tenantid)
 	if err != nil {
 		return nil, err
 	}
@@ -1161,6 +1209,16 @@ func (q *Queries) PreflightCheckDAGsForReplay(ctx context.Context, db DBTX, arg 
 }
 
 const preflightCheckTasksForReplay = `-- name: PreflightCheckTasksForReplay :many
+WITH input AS (
+    SELECT
+        task_id, task_inserted_at
+    FROM
+        (
+            SELECT
+                unnest($2::bigint[]) AS task_id,
+                unnest($3::timestamptz[]) AS task_inserted_at
+        ) AS subquery
+)
 SELECT
     t.id,
     t.dag_id
@@ -1175,15 +1233,22 @@ LEFT JOIN
 LEFT JOIN
     v1_retry_queue_item rqi ON rqi.task_id = t.id
 WHERE
-    t.id = ANY($1::bigint[])
-    AND t.tenant_id = $2::uuid
+    (t.id, t.inserted_at) IN (
+        SELECT
+            task_id,
+            task_inserted_at
+        FROM
+            input
+    )
+    AND t.tenant_id = $1::uuid
     AND e.id IS NULL
     AND (tr.task_id IS NOT NULL OR cs.task_id IS NOT NULL OR rqi.task_id IS NOT NULL)
 `
 
 type PreflightCheckTasksForReplayParams struct {
-	Taskids  []int64     `json:"taskids"`
-	Tenantid pgtype.UUID `json:"tenantid"`
+	Tenantid        pgtype.UUID          `json:"tenantid"`
+	Taskids         []int64              `json:"taskids"`
+	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
 }
 
 type PreflightCheckTasksForReplayRow struct {
@@ -1194,7 +1259,7 @@ type PreflightCheckTasksForReplayRow struct {
 // Checks whether tasks can be replayed by ensuring that they don't have any active runtimes,
 // concurrency slots, or retry queue items. Returns the tasks which cannot be replayed.
 func (q *Queries) PreflightCheckTasksForReplay(ctx context.Context, db DBTX, arg PreflightCheckTasksForReplayParams) ([]*PreflightCheckTasksForReplayRow, error) {
-	rows, err := db.Query(ctx, preflightCheckTasksForReplay, arg.Taskids, arg.Tenantid)
+	rows, err := db.Query(ctx, preflightCheckTasksForReplay, arg.Tenantid, arg.Taskids, arg.Taskinsertedats)
 	if err != nil {
 		return nil, err
 	}
@@ -1213,10 +1278,64 @@ func (q *Queries) PreflightCheckTasksForReplay(ctx context.Context, db DBTX, arg
 	return items, nil
 }
 
+const processRetryQueueItems = `-- name: ProcessRetryQueueItems :many
+WITH rqis_to_delete AS (
+    SELECT
+        task_id, task_inserted_at, task_retry_count, retry_after, tenant_id
+    FROM
+        v1_retry_queue_item rqi
+    WHERE
+        rqi.tenant_id = $1::uuid
+        AND rqi.retry_after <= NOW()
+    ORDER BY
+        rqi.task_id, rqi.task_inserted_at, rqi.task_retry_count
+    LIMIT
+        COALESCE($2::integer, 1000)
+    FOR UPDATE SKIP LOCKED
+)
+DELETE FROM
+    v1_retry_queue_item
+WHERE
+    (task_id, task_inserted_at, task_retry_count) IN (SELECT task_id, task_inserted_at, task_retry_count FROM rqis_to_delete)
+RETURNING task_id, task_inserted_at, task_retry_count, retry_after, tenant_id
+`
+
+type ProcessRetryQueueItemsParams struct {
+	Tenantid pgtype.UUID `json:"tenantid"`
+	Limit    pgtype.Int4 `json:"limit"`
+}
+
+func (q *Queries) ProcessRetryQueueItems(ctx context.Context, db DBTX, arg ProcessRetryQueueItemsParams) ([]*V1RetryQueueItem, error) {
+	rows, err := db.Query(ctx, processRetryQueueItems, arg.Tenantid, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*V1RetryQueueItem
+	for rows.Next() {
+		var i V1RetryQueueItem
+		if err := rows.Scan(
+			&i.TaskID,
+			&i.TaskInsertedAt,
+			&i.TaskRetryCount,
+			&i.RetryAfter,
+			&i.TenantID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const processTaskReassignments = `-- name: ProcessTaskReassignments :many
 WITH tasks_on_inactive_workers AS (
     SELECT
         runtime.task_id,
+        runtime.task_inserted_at,
         runtime.retry_count,
         runtime.worker_id
     FROM
@@ -1231,12 +1350,13 @@ WITH tasks_on_inactive_workers AS (
 ), locked_runtimes AS (
     SELECT
         v1_task_runtime.task_id,
+        v1_task_runtime.task_inserted_at,
         v1_task_runtime.retry_count,
         tasks_on_inactive_workers.worker_id
     FROM
         v1_task_runtime
     JOIN
-        tasks_on_inactive_workers ON tasks_on_inactive_workers.task_id = v1_task_runtime.task_id AND tasks_on_inactive_workers.retry_count = v1_task_runtime.retry_count
+        tasks_on_inactive_workers USING (task_id, task_inserted_at, retry_count)
     ORDER BY
         task_id
     -- We do a SKIP LOCKED because a lock on v1_task_runtime means its being deleted
@@ -1244,13 +1364,14 @@ WITH tasks_on_inactive_workers AS (
 ), locked_tasks AS (
     SELECT
         v1_task.id,
+        v1_task.inserted_at,
         v1_task.retry_count,
-        locked_runtimes.worker_id
+        lrs.worker_id
     FROM
         v1_task
     JOIN
         -- NOTE: we only join when retry count matches
-        locked_runtimes ON locked_runtimes.task_id = v1_task.id AND locked_runtimes.retry_count = v1_task.retry_count
+        locked_runtimes lrs ON lrs.task_id = v1_task.id AND lrs.task_inserted_at = v1_task.inserted_at AND lrs.retry_count = v1_task.retry_count
     -- order by the task id to get a stable lock order
     ORDER BY
         id
@@ -1259,7 +1380,7 @@ WITH tasks_on_inactive_workers AS (
     DELETE FROM
         v1_task_runtime
     WHERE
-        (task_id, retry_count) IN (SELECT task_id, retry_count FROM locked_runtimes)
+        (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM locked_runtimes)
 ), update_tasks AS (
     UPDATE
         v1_task
@@ -1269,21 +1390,22 @@ WITH tasks_on_inactive_workers AS (
     FROM
         locked_tasks
     WHERE
-        v1_task.id = locked_tasks.id
+        (v1_task.id, v1_task.inserted_at) IN (SELECT id, inserted_at FROM locked_tasks)
         AND $3::int > v1_task.internal_retry_count
     RETURNING
         v1_task.id,
+        v1_task.inserted_at,
         v1_task.retry_count
 ), updated_tasks AS (
     SELECT
-        id, retry_count, worker_id
+        id, inserted_at, retry_count, worker_id
     FROM
         locked_tasks
     WHERE
         id IN (SELECT id FROM update_tasks)
 ), failed_tasks AS (
     SELECT
-        id, retry_count, worker_id
+        id, inserted_at, retry_count, worker_id
     FROM
         locked_tasks
     WHERE
@@ -1291,6 +1413,7 @@ WITH tasks_on_inactive_workers AS (
 )
 SELECT
     t1.id,
+    t1.inserted_at,
     t1.retry_count,
     t1.worker_id,
     'REASSIGNED' AS "operation"
@@ -1299,6 +1422,7 @@ FROM
 UNION ALL
 SELECT
     t2.id,
+    t2.inserted_at,
     t2.retry_count,
     t2.worker_id,
     'FAILED' AS "operation"
@@ -1313,10 +1437,11 @@ type ProcessTaskReassignmentsParams struct {
 }
 
 type ProcessTaskReassignmentsRow struct {
-	ID         int64       `json:"id"`
-	RetryCount int32       `json:"retry_count"`
-	WorkerID   pgtype.UUID `json:"worker_id"`
-	Operation  string      `json:"operation"`
+	ID         int64              `json:"id"`
+	InsertedAt pgtype.Timestamptz `json:"inserted_at"`
+	RetryCount int32              `json:"retry_count"`
+	WorkerID   pgtype.UUID        `json:"worker_id"`
+	Operation  string             `json:"operation"`
 }
 
 func (q *Queries) ProcessTaskReassignments(ctx context.Context, db DBTX, arg ProcessTaskReassignmentsParams) ([]*ProcessTaskReassignmentsRow, error) {
@@ -1330,6 +1455,7 @@ func (q *Queries) ProcessTaskReassignments(ctx context.Context, db DBTX, arg Pro
 		var i ProcessTaskReassignmentsRow
 		if err := rows.Scan(
 			&i.ID,
+			&i.InsertedAt,
 			&i.RetryCount,
 			&i.WorkerID,
 			&i.Operation,
@@ -1447,30 +1573,52 @@ func (q *Queries) ProcessTaskTimeouts(ctx context.Context, db DBTX, arg ProcessT
 const releaseTasks = `-- name: ReleaseTasks :many
 WITH input AS (
     SELECT
-        task_id, retry_count
+        task_id, task_inserted_at, retry_count
     FROM
         (
             SELECT
                 unnest($1::bigint[]) AS task_id,
-                unnest($2::integer[]) AS retry_count
+                unnest($2::timestamptz[]) AS task_inserted_at,
+                unnest($3::integer[]) AS retry_count
         ) AS subquery
 ), runtimes_to_delete AS (
     SELECT
         task_id,
+        task_inserted_at,
         retry_count,
         worker_id
     FROM
         v1_task_runtime
     WHERE
-        (task_id, retry_count) IN (SELECT task_id, retry_count FROM input)
+        (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM input)
     ORDER BY
-        task_id
+        task_id, task_inserted_at, retry_count
     FOR UPDATE
 ), deleted_runtimes AS (
     DELETE FROM
         v1_task_runtime
     WHERE
-        (task_id, retry_count) IN (SELECT task_id, retry_count FROM runtimes_to_delete)
+        (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM runtimes_to_delete)
+), retry_queue_items_to_delete AS (
+    SELECT
+        task_id, task_inserted_at, task_retry_count
+    FROM
+        v1_retry_queue_item
+    WHERE
+        (task_id, task_inserted_at, task_retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM input)
+    ORDER BY
+        task_id, task_inserted_at, task_retry_count
+    FOR UPDATE
+), deleted_rqis AS (
+    DELETE FROM
+        v1_retry_queue_item r
+    WHERE
+        (task_id, task_inserted_at, task_retry_count) IN (
+            SELECT
+                task_id, task_inserted_at, task_retry_count
+            FROM
+                retry_queue_items_to_delete
+        )
 )
 SELECT
     t.queue,
@@ -1486,12 +1634,19 @@ FROM
 LEFT JOIN
     runtimes_to_delete r ON r.task_id = t.id AND r.retry_count = t.retry_count
 WHERE
-    t.id = ANY($1::bigint[])
+    (t.id, t.inserted_at) IN (
+        SELECT
+            task_id,
+            task_inserted_at
+        FROM
+            input
+    )
 `
 
 type ReleaseTasksParams struct {
-	Taskids     []int64 `json:"taskids"`
-	Retrycounts []int32 `json:"retrycounts"`
+	Taskids         []int64              `json:"taskids"`
+	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
+	Retrycounts     []int32              `json:"retrycounts"`
 }
 
 type ReleaseTasksRow struct {
@@ -1506,7 +1661,7 @@ type ReleaseTasksRow struct {
 }
 
 func (q *Queries) ReleaseTasks(ctx context.Context, db DBTX, arg ReleaseTasksParams) ([]*ReleaseTasksRow, error) {
-	rows, err := db.Query(ctx, releaseTasks, arg.Taskids, arg.Retrycounts)
+	rows, err := db.Query(ctx, releaseTasks, arg.Taskids, arg.Taskinsertedats, arg.Retrycounts)
 	if err != nil {
 		return nil, err
 	}

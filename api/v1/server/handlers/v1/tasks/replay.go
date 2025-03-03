@@ -12,19 +12,18 @@ import (
 func (t *TasksService) V1TaskReplay(ctx echo.Context, request gen.V1TaskReplayRequestObject) (gen.V1TaskReplayResponseObject, error) {
 	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
 
-	var taskIdRetryCounts []*contracts.TaskIdRetryCount
 	var err error
 
 	grpcReq := &contracts.ReplayTasksRequest{}
 
 	if request.Body.ExternalIds != nil {
-		taskIdRetryCounts, err = t.populateTasksFromExternalIds(ctx.Request().Context(), tenant, *request.Body.ExternalIds)
+		externalIds := make([]string, 0)
 
-		if err != nil {
-			return nil, err
+		for _, id := range *request.Body.ExternalIds {
+			externalIds = append(externalIds, id.String())
 		}
 
-		grpcReq.Tasks = taskIdRetryCounts
+		grpcReq.ExternalIds = externalIds
 	}
 
 	if request.Body.Filter != nil {

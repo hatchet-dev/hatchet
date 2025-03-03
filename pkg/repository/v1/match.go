@@ -48,6 +48,8 @@ type CreateMatchOpts struct {
 
 	TriggerExistingTaskId *int64
 
+	TriggerExistingTaskInsertedAt pgtype.Timestamptz
+
 	TriggerParentTaskExternalId pgtype.UUID
 
 	TriggerParentTaskId pgtype.Int8
@@ -296,6 +298,7 @@ func (m *sharedRepository) processInternalEventMatches(ctx context.Context, tx s
 				if match.TriggerExistingTaskID.Valid {
 					opt := ReplayTaskOpts{
 						TaskId:             match.TriggerExistingTaskID.Int64,
+						InsertedAt:         match.TriggerExistingTaskInsertedAt,
 						ExternalId:         sqlchelpers.UUIDToStr(match.TriggerExternalID),
 						StepId:             sqlchelpers.UUIDToStr(match.TriggerStepID),
 						AdditionalMetadata: additionalMetadata,
@@ -384,19 +387,18 @@ func (m *sharedRepository) processInternalEventMatches(ctx context.Context, tx s
 
 	if len(signalIds) > 0 {
 		// create a SIGNAL_COMPLETED event for any signal
-		taskIds := make([]TaskIdRetryCount, 0, len(satisfiedMatches))
+		taskIds := make([]TaskIdInsertedAtRetryCount, 0, len(satisfiedMatches))
 		datas := make([][]byte, 0, len(satisfiedMatches))
 		eventKeys := make([]string, 0, len(satisfiedMatches))
-		insertedAts := make([]pgtype.Timestamptz, 0, len(satisfiedMatches))
 		externalIds := make([]string, 0, len(satisfiedMatches))
 
 		for _, match := range satisfiedMatches {
 			if match.SignalTaskID.Valid && match.SignalTaskInsertedAt.Valid {
-				taskIds = append(taskIds, TaskIdRetryCount{
+				taskIds = append(taskIds, TaskIdInsertedAtRetryCount{
 					Id:         match.SignalTaskID.Int64,
+					InsertedAt: match.SignalTaskInsertedAt,
 					RetryCount: -1,
 				})
-				insertedAts = append(insertedAts, match.SignalTaskInsertedAt)
 				externalIds = append(externalIds, sqlchelpers.UUIDToStr(match.SignalExternalID))
 				datas = append(datas, match.McAggregatedData)
 				eventKeys = append(eventKeys, match.SignalKey.String)
@@ -408,7 +410,6 @@ func (m *sharedRepository) processInternalEventMatches(ctx context.Context, tx s
 			tx,
 			tenantId,
 			taskIds,
-			insertedAts,
 			externalIds,
 			datas,
 			sqlcv1.V1TaskEventTypeSIGNALCOMPLETED,
@@ -505,6 +506,7 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 	triggerStepIndices := make([]int64, 0, len(eventMatches))
 	triggerExternalIds := make([]pgtype.UUID, 0, len(eventMatches))
 	triggerExistingTaskIds := make([]pgtype.Int8, 0, len(eventMatches))
+	triggerExistingTaskInsertedAts := make([]pgtype.Timestamptz, 0, len(eventMatches))
 	triggerParentExternalIds := make([]pgtype.UUID, 0, len(eventMatches))
 	triggerParentTaskIds := make([]pgtype.Int8, 0, len(eventMatches))
 	triggerParentTaskInsertedAts := make([]pgtype.Timestamptz, 0, len(eventMatches))
@@ -538,6 +540,8 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 			} else {
 				triggerExistingTaskIds = append(triggerExistingTaskIds, pgtype.Int8{})
 			}
+
+			triggerExistingTaskInsertedAts = append(triggerExistingTaskInsertedAts, match.TriggerExistingTaskInsertedAt)
 		} else if match.SignalTaskId != nil && match.SignalKey != nil && match.SignalTaskInsertedAt.Valid {
 			signalTenantIds = append(signalTenantIds, sqlchelpers.UUIDFromStr(tenantId))
 			signalKinds = append(signalKinds, string(match.Kind))
@@ -554,19 +558,20 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 			ctx,
 			tx,
 			sqlcv1.CreateMatchesForDAGTriggersParams{
-				Tenantids:                    dagTenantIds,
-				Kinds:                        dagKinds,
-				Triggerdagids:                triggerDagIds,
-				Triggerdaginsertedats:        triggerDagInsertedAts,
-				Triggerstepids:               triggerStepIds,
-				Triggerstepindex:             triggerStepIndices,
-				Triggerexternalids:           triggerExternalIds,
-				Triggerexistingtaskids:       triggerExistingTaskIds,
-				TriggerParentTaskExternalIds: triggerParentExternalIds,
-				TriggerParentTaskIds:         triggerParentTaskIds,
-				TriggerParentTaskInsertedAt:  triggerParentTaskInsertedAts,
-				TriggerChildIndex:            triggerChildIndices,
-				TriggerChildKey:              triggerChildKeys,
+				Tenantids:                     dagTenantIds,
+				Kinds:                         dagKinds,
+				Triggerdagids:                 triggerDagIds,
+				Triggerdaginsertedats:         triggerDagInsertedAts,
+				Triggerstepids:                triggerStepIds,
+				Triggerstepindex:              triggerStepIndices,
+				Triggerexternalids:            triggerExternalIds,
+				Triggerexistingtaskids:        triggerExistingTaskIds,
+				Triggerexistingtaskinsertedat: triggerExistingTaskInsertedAts,
+				TriggerParentTaskExternalIds:  triggerParentExternalIds,
+				TriggerParentTaskIds:          triggerParentTaskIds,
+				TriggerParentTaskInsertedAt:   triggerParentTaskInsertedAts,
+				TriggerChildIndex:             triggerChildIndices,
+				TriggerChildKey:               triggerChildKeys,
 			},
 		)
 

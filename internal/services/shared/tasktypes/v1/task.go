@@ -1,6 +1,8 @@
 package v1
 
 import (
+	"github.com/jackc/pgx/v5/pgtype"
+
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
@@ -20,6 +22,9 @@ type CompletedTaskPayload struct {
 	// (required) the task id
 	TaskId int64 `validate:"required"`
 
+	// (required) the task inserted at
+	InsertedAt pgtype.Timestamptz
+
 	// (required) the retry count
 	RetryCount int32
 
@@ -27,7 +32,7 @@ type CompletedTaskPayload struct {
 	Output []byte
 }
 
-func CompletedTaskMessage(tenantId string, taskId int64, retryCount int32, output []byte) (*msgqueue.Message, error) {
+func CompletedTaskMessage(tenantId string, taskId int64, taskInsertedAt pgtype.Timestamptz, retryCount int32, output []byte) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
 		"task-completed",
@@ -35,6 +40,7 @@ func CompletedTaskMessage(tenantId string, taskId int64, retryCount int32, outpu
 		true,
 		CompletedTaskPayload{
 			TaskId:     taskId,
+			InsertedAt: taskInsertedAt,
 			RetryCount: retryCount,
 			Output:     output,
 		},
@@ -44,6 +50,9 @@ func CompletedTaskMessage(tenantId string, taskId int64, retryCount int32, outpu
 type FailedTaskPayload struct {
 	// (required) the task id
 	TaskId int64 `validate:"required"`
+
+	// (required) the task inserted at
+	InsertedAt pgtype.Timestamptz
 
 	// (required) the retry count
 	RetryCount int32
@@ -55,7 +64,7 @@ type FailedTaskPayload struct {
 	ErrorMsg string
 }
 
-func FailedTaskMessage(tenantId string, taskId int64, retryCount int32, isAppError bool, errorMsg string) (*msgqueue.Message, error) {
+func FailedTaskMessage(tenantId string, taskId int64, insertedAt pgtype.Timestamptz, retryCount int32, isAppError bool, errorMsg string) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
 		"task-failed",
@@ -63,6 +72,7 @@ func FailedTaskMessage(tenantId string, taskId int64, retryCount int32, isAppErr
 		true,
 		FailedTaskPayload{
 			TaskId:     taskId,
+			InsertedAt: insertedAt,
 			RetryCount: retryCount,
 			IsAppError: isAppError,
 			ErrorMsg:   errorMsg,
@@ -74,6 +84,9 @@ type CancelledTaskPayload struct {
 	// (required) the task id
 	TaskId int64 `validate:"required"`
 
+	// (required) the task inserted at
+	InsertedAt pgtype.Timestamptz
+
 	// (required) the retry count
 	RetryCount int32
 
@@ -84,7 +97,7 @@ type CancelledTaskPayload struct {
 	ShouldNotify bool
 }
 
-func CancelledTaskMessage(tenantId string, taskId int64, retryCount int32, eventType sqlcv1.V1EventTypeOlap, shouldNotify bool) (*msgqueue.Message, error) {
+func CancelledTaskMessage(tenantId string, taskId int64, taskInsertedAt pgtype.Timestamptz, retryCount int32, eventType sqlcv1.V1EventTypeOlap, shouldNotify bool) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
 		"task-cancelled",
@@ -92,6 +105,7 @@ func CancelledTaskMessage(tenantId string, taskId int64, retryCount int32, event
 		true,
 		CancelledTaskPayload{
 			TaskId:       taskId,
+			InsertedAt:   taskInsertedAt,
 			RetryCount:   retryCount,
 			EventType:    eventType,
 			ShouldNotify: shouldNotify,
@@ -106,14 +120,17 @@ type SignalTaskCancelledPayload struct {
 	// (required) the task id
 	TaskId int64 `validate:"required"`
 
+	// (required) the task inserted at
+	InsertedAt pgtype.Timestamptz
+
 	// (required) the retry count
 	RetryCount int32
 }
 
 type CancelTasksPayload struct {
-	Tasks []v1.TaskIdRetryCount `json:"tasks"`
+	Tasks []v1.TaskIdInsertedAtRetryCount `json:"tasks"`
 }
 
 type ReplayTasksPayload struct {
-	Tasks []v1.TaskIdRetryCount `json:"tasks"`
+	Tasks []v1.TaskIdInsertedAtRetryCount `json:"tasks"`
 }

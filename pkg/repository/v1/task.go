@@ -57,17 +57,14 @@ type CreateTaskOpts struct {
 
 	// (optional) the child key for the task
 	ChildKey *string
-
-	// (optional) the step retry backoff factor
-	RetryBackoffFactor *float64 `validate:"omitnil,min=1,max=1000"`
-
-	// (optional) the step retry backoff max seconds (can't be greater than 86400)
-	RetryBackoffMaxSeconds *int `validate:"omitnil,min=1,max=86400"`
 }
 
 type ReplayTaskOpts struct {
 	// (required) the task id
 	TaskId int64
+
+	// (required) the inserted at time
+	InsertedAt pgtype.Timestamptz
 
 	// (required) the external id
 	ExternalId string
@@ -85,23 +82,26 @@ type ReplayTaskOpts struct {
 	AdditionalMetadata []byte
 }
 
-type TaskIdRetryCount struct {
+type TaskIdInsertedAtRetryCount struct {
 	// (required) the external id
 	Id int64 `validate:"required"`
+
+	// (required) the inserted at time
+	InsertedAt pgtype.Timestamptz
 
 	// (required) the retry count
 	RetryCount int32
 }
 
 type CompleteTaskOpts struct {
-	*TaskIdRetryCount
+	*TaskIdInsertedAtRetryCount
 
 	// (required) the output bytes for the task
 	Output []byte
 }
 
 type FailTaskOpts struct {
-	*TaskIdRetryCount
+	*TaskIdInsertedAtRetryCount
 
 	// (required) whether this is an application-level error or an internal error on the Hatchet side
 	IsAppError bool
@@ -134,10 +134,20 @@ type FinalizedTaskResponse struct {
 	InternalEvents []InternalTaskEvent
 }
 
+type RetriedTask struct {
+	*TaskIdInsertedAtRetryCount
+
+	AppRetryCount int32
+
+	RetryBackoffFactor pgtype.Float8
+
+	RetryMaxBackoff pgtype.Int4
+}
+
 type FailTasksResponse struct {
 	*FinalizedTaskResponse
 
-	RetriedTasks []TaskIdRetryCount
+	RetriedTasks []RetriedTask
 }
 
 type ListFinalizedWorkflowRunsResponse struct {
@@ -160,7 +170,7 @@ type TaskRepository interface {
 
 	FailTasks(ctx context.Context, tenantId string, tasks []FailTaskOpts) (*FailTasksResponse, error)
 
-	CancelTasks(ctx context.Context, tenantId string, tasks []TaskIdRetryCount) (*FinalizedTaskResponse, error)
+	CancelTasks(ctx context.Context, tenantId string, tasks []TaskIdInsertedAtRetryCount) (*FinalizedTaskResponse, error)
 
 	ListTasks(ctx context.Context, tenantId string, tasks []int64) ([]*sqlcv1.V1Task, error)
 
@@ -172,9 +182,11 @@ type TaskRepository interface {
 
 	ProcessTaskReassignments(ctx context.Context, tenantId string) ([]*sqlcv1.ProcessTaskReassignmentsRow, bool, error)
 
+	ProcessTaskRetryQueueItems(ctx context.Context, tenantId string) ([]*sqlcv1.V1RetryQueueItem, bool, error)
+
 	GetQueueCounts(ctx context.Context, tenantId string) (map[string]int, error)
 
-	ReplayTasks(ctx context.Context, tenantId string, tasks []TaskIdRetryCount) error
+	ReplayTasks(ctx context.Context, tenantId string, tasks []TaskIdInsertedAtRetryCount) error
 }
 
 type TaskRepositoryImpl struct {
@@ -572,10 +584,10 @@ func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId string,
 	// 	return err
 	// }
 
-	taskIdRetryCounts := make([]TaskIdRetryCount, len(tasks))
+	taskIdRetryCounts := make([]TaskIdInsertedAtRetryCount, len(tasks))
 
 	for i, task := range tasks {
-		taskIdRetryCounts[i] = *task.TaskIdRetryCount
+		taskIdRetryCounts[i] = *task.TaskIdInsertedAtRetryCount
 	}
 
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
@@ -614,7 +626,6 @@ func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId string,
 		tx,
 		tenantId,
 		taskIdRetryCounts,
-		insertedAts,
 		externalIds,
 		datas,
 		sqlcv1.V1TaskEventTypeCOMPLETED,
@@ -644,17 +655,21 @@ func (r *TaskRepositoryImpl) FailTasks(ctx context.Context, tenantId string, fai
 	// 	return err
 	// }
 
-	tasks := make([]TaskIdRetryCount, len(failureOpts))
-	appFailures := make([]int64, 0)
-	internalFailures := make([]int64, 0)
+	tasks := make([]TaskIdInsertedAtRetryCount, len(failureOpts))
+	appFailureTaskIds := make([]int64, 0)
+	appFailureTaskInsertedAts := make([]pgtype.Timestamptz, 0)
+	internalFailureTaskIds := make([]int64, 0)
+	internalFailureInsertedAts := make([]pgtype.Timestamptz, 0)
 
 	for i, failureOpt := range failureOpts {
-		tasks[i] = *failureOpt.TaskIdRetryCount
+		tasks[i] = *failureOpt.TaskIdInsertedAtRetryCount
 
 		if failureOpt.IsAppError {
-			appFailures = append(appFailures, failureOpt.Id)
+			appFailureTaskIds = append(appFailureTaskIds, failureOpt.Id)
+			appFailureTaskInsertedAts = append(appFailureTaskInsertedAts, failureOpt.InsertedAt)
 		} else {
-			internalFailures = append(internalFailures, failureOpt.Id)
+			internalFailureTaskIds = append(internalFailureTaskIds, failureOpt.Id)
+			internalFailureInsertedAts = append(internalFailureInsertedAts, failureOpt.InsertedAt)
 		}
 	}
 
@@ -678,24 +693,23 @@ func (r *TaskRepositoryImpl) FailTasks(ctx context.Context, tenantId string, fai
 	}
 
 	datas := make([][]byte, len(releasedTasks))
-	insertedAts := make([]pgtype.Timestamptz, len(releasedTasks))
 	externalIds := make([]string, len(releasedTasks))
 
 	for i, releasedTask := range releasedTasks {
 		out := NewFailedTaskOutputEvent(releasedTask, failureOpts[i].ErrorMessage)
 
 		datas[i] = out.Bytes()
-		insertedAts[i] = releasedTask.InsertedAt
 		externalIds[i] = sqlchelpers.UUIDToStr(releasedTask.ExternalID)
 	}
 
-	retriedTasks := make([]TaskIdRetryCount, 0)
+	retriedTasks := make([]RetriedTask, 0)
 
 	// write app failures
-	if len(appFailures) > 0 {
+	if len(appFailureTaskIds) > 0 {
 		appFailureRetries, err := r.queries.FailTaskAppFailure(ctx, tx, sqlcv1.FailTaskAppFailureParams{
-			Tenantid: sqlchelpers.UUIDFromStr(tenantId),
-			Taskids:  appFailures,
+			Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
+			Taskids:         appFailureTaskIds,
+			Taskinsertedats: appFailureTaskInsertedAts,
 		})
 
 		if err != nil {
@@ -703,18 +717,26 @@ func (r *TaskRepositoryImpl) FailTasks(ctx context.Context, tenantId string, fai
 		}
 
 		for _, task := range appFailureRetries {
-			retriedTasks = append(retriedTasks, TaskIdRetryCount{
-				Id:         task.ID,
-				RetryCount: task.RetryCount,
-			})
+			retriedTasks = append(retriedTasks, RetriedTask{
+				TaskIdInsertedAtRetryCount: &TaskIdInsertedAtRetryCount{
+					Id:         task.ID,
+					InsertedAt: task.InsertedAt,
+					RetryCount: task.RetryCount,
+				},
+				AppRetryCount:      task.AppRetryCount,
+				RetryBackoffFactor: task.RetryBackoffFactor,
+				RetryMaxBackoff:    task.RetryMaxBackoff,
+			},
+			)
 		}
 	}
 
 	// write internal failures
-	if len(internalFailures) > 0 {
+	if len(internalFailureTaskIds) > 0 {
 		internalFailureRetries, err := r.queries.FailTaskInternalFailure(ctx, tx, sqlcv1.FailTaskInternalFailureParams{
 			Tenantid:           sqlchelpers.UUIDFromStr(tenantId),
-			Taskids:            internalFailures,
+			Taskids:            internalFailureTaskIds,
+			Taskinsertedats:    internalFailureInsertedAts,
 			Maxinternalretries: MAX_INTERNAL_RETRIES,
 		})
 
@@ -723,9 +745,12 @@ func (r *TaskRepositoryImpl) FailTasks(ctx context.Context, tenantId string, fai
 		}
 
 		for _, task := range internalFailureRetries {
-			retriedTasks = append(retriedTasks, TaskIdRetryCount{
-				Id:         task.ID,
-				RetryCount: task.RetryCount,
+			retriedTasks = append(retriedTasks, RetriedTask{
+				TaskIdInsertedAtRetryCount: &TaskIdInsertedAtRetryCount{
+					Id:         task.ID,
+					InsertedAt: task.InsertedAt,
+					RetryCount: task.RetryCount,
+				},
 			})
 		}
 	}
@@ -736,7 +761,6 @@ func (r *TaskRepositoryImpl) FailTasks(ctx context.Context, tenantId string, fai
 		tx,
 		tenantId,
 		tasks,
-		insertedAts,
 		externalIds,
 		datas,
 		sqlcv1.V1TaskEventTypeFAILED,
@@ -893,7 +917,7 @@ func (r *TaskRepositoryImpl) ListFinalizedWorkflowRuns(ctx context.Context, tena
 	return res, nil
 }
 
-func (r *TaskRepositoryImpl) CancelTasks(ctx context.Context, tenantId string, tasks []TaskIdRetryCount) (*FinalizedTaskResponse, error) {
+func (r *TaskRepositoryImpl) CancelTasks(ctx context.Context, tenantId string, tasks []TaskIdInsertedAtRetryCount) (*FinalizedTaskResponse, error) {
 	// TODO: ADD BACK VALIDATION
 	// if err := r.v.Validate(tasks); err != nil {
 	// 	fmt.Println("FAILED VALIDATION HERE!!!")
@@ -924,7 +948,7 @@ func (r *TaskRepositoryImpl) CancelTasks(ctx context.Context, tenantId string, t
 	return res, nil
 }
 
-func (r *sharedRepository) cancelTasks(ctx context.Context, dbtx sqlcv1.DBTX, tenantId string, tasks []TaskIdRetryCount) (*FinalizedTaskResponse, error) {
+func (r *sharedRepository) cancelTasks(ctx context.Context, dbtx sqlcv1.DBTX, tenantId string, tasks []TaskIdInsertedAtRetryCount) (*FinalizedTaskResponse, error) {
 	// release queue items
 	releasedTasks, err := r.releaseTasks(ctx, dbtx, tenantId, tasks)
 
@@ -954,7 +978,6 @@ func (r *sharedRepository) cancelTasks(ctx context.Context, dbtx sqlcv1.DBTX, te
 		dbtx,
 		tenantId,
 		tasks,
-		insertedAts,
 		externalIds,
 		datas,
 		sqlcv1.V1TaskEventTypeCANCELLED,
@@ -1087,12 +1110,13 @@ func (r *TaskRepositoryImpl) ProcessTaskReassignments(ctx context.Context, tenan
 	}
 
 	// write failed tasks as task events
-	failedTasks := make([]TaskIdRetryCount, 0)
+	failedTasks := make([]TaskIdInsertedAtRetryCount, 0)
 
 	for _, task := range res {
 		if task.Operation == "FAILED" {
-			failedTasks = append(failedTasks, TaskIdRetryCount{
+			failedTasks = append(failedTasks, TaskIdInsertedAtRetryCount{
 				Id:         task.ID,
+				InsertedAt: task.InsertedAt,
 				RetryCount: task.RetryCount,
 			})
 		}
@@ -1125,6 +1149,39 @@ func (r *TaskRepositoryImpl) ProcessTaskReassignments(ctx context.Context, tenan
 	return res, len(res) == limit, nil
 }
 
+func (r *TaskRepositoryImpl) ProcessTaskRetryQueueItems(ctx context.Context, tenantId string) ([]*sqlcv1.V1RetryQueueItem, bool, error) {
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
+
+	if err != nil {
+		return nil, false, err
+	}
+
+	defer rollback()
+
+	// TODO: make limit configurable
+	limit := 10000
+
+	// get task reassignments
+	res, err := r.queries.ProcessRetryQueueItems(ctx, tx, sqlcv1.ProcessRetryQueueItemsParams{
+		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Limit: pgtype.Int4{
+			Int32: int32(limit),
+			Valid: true,
+		},
+	})
+
+	if err != nil {
+		return nil, false, err
+	}
+
+	// commit the transaction
+	if err := commit(ctx); err != nil {
+		return nil, false, err
+	}
+
+	return res, len(res) == limit, nil
+}
+
 func (r *TaskRepositoryImpl) GetQueueCounts(ctx context.Context, tenantId string) (map[string]int, error) {
 	counts, err := r.queries.GetQueuedCounts(ctx, r.pool, sqlchelpers.UUIDFromStr(tenantId))
 
@@ -1145,21 +1202,24 @@ func (r *TaskRepositoryImpl) GetQueueCounts(ctx context.Context, tenantId string
 	return res, nil
 }
 
-func (r *sharedRepository) releaseTasks(ctx context.Context, tx sqlcv1.DBTX, tenantId string, tasks []TaskIdRetryCount) ([]*sqlcv1.ReleaseTasksRow, error) {
+func (r *sharedRepository) releaseTasks(ctx context.Context, tx sqlcv1.DBTX, tenantId string, tasks []TaskIdInsertedAtRetryCount) ([]*sqlcv1.ReleaseTasksRow, error) {
 	taskIds := make([]int64, len(tasks))
+	taskInsertedAts := make([]pgtype.Timestamptz, len(tasks))
 	retryCounts := make([]int32, len(tasks))
 	orderedMap := make(map[string]int)
 
 	for i, task := range tasks {
 		taskIds[i] = task.Id
+		taskInsertedAts[i] = task.InsertedAt
 		retryCounts[i] = task.RetryCount
 
 		orderedMap[fmt.Sprintf("%d:%d", task.Id, task.RetryCount)] = i
 	}
 
 	releasedTasks, err := r.queries.ReleaseTasks(ctx, tx, sqlcv1.ReleaseTasksParams{
-		Taskids:     taskIds,
-		Retrycounts: retryCounts,
+		Taskids:         taskIds,
+		Taskinsertedats: taskInsertedAts,
+		Retrycounts:     retryCounts,
 	})
 
 	if err != nil {
@@ -1305,6 +1365,8 @@ func (r *sharedRepository) insertTasks(
 	childIndices := make([]pgtype.Int8, len(tasks))
 	childKeys := make([]pgtype.Text, len(tasks))
 	stepIndices := make([]int64, len(tasks))
+	retryBackoffFactors := make([]pgtype.Float8, len(tasks))
+	retryMaxBackoffs := make([]pgtype.Int4, len(tasks))
 
 	unix := time.Now().UnixMilli()
 
@@ -1321,6 +1383,8 @@ func (r *sharedRepository) insertTasks(
 		externalIds[i] = sqlchelpers.UUIDFromStr(task.ExternalId)
 		displayNames[i] = fmt.Sprintf("%s-%d", stepConfig.ReadableId.String, unix)
 		stepIndices[i] = int64(task.StepIndex)
+		retryBackoffFactors[i] = stepConfig.RetryBackoffFactor
+		retryMaxBackoffs[i] = stepConfig.RetryMaxBackoff
 
 		// TODO: case on whether this is a v1 or v2 task by looking at the step data. for now,
 		// we're assuming a v1 task.
@@ -1474,6 +1538,8 @@ func (r *sharedRepository) insertTasks(
 		ChildIndex:             childIndices,
 		ChildKey:               childKeys,
 		StepIndex:              stepIndices,
+		RetryBackoffFactor:     retryBackoffFactors,
+		RetryMaxBackoff:        retryMaxBackoffs,
 	})
 
 	if err != nil {
@@ -1530,6 +1596,7 @@ func (r *sharedRepository) replayTasks(
 	}
 
 	taskIds := make([]int64, len(tasks))
+	taskInsertedAts := make([]pgtype.Timestamptz, len(tasks))
 	inputs := make([][]byte, len(tasks))
 	initialStates := make([]string, len(tasks))
 	initialStateReasons := make([]pgtype.Text, len(tasks))
@@ -1543,6 +1610,8 @@ func (r *sharedRepository) replayTasks(
 		queues[i] = stepConfig.ActionId // FIXME: make the queue name dynamic
 
 		taskIds[i] = task.TaskId
+		taskInsertedAts[i] = task.InsertedAt
+
 		// TODO: case on whether this is a v1 or v2 task by looking at the step data. for now,
 		// we're assuming a v1 task.
 		if task.Input != nil {
@@ -1625,6 +1694,7 @@ func (r *sharedRepository) replayTasks(
 
 	res, err := r.queries.ReplayTasks(ctx, tx, sqlcv1.ReplayTasksParams{
 		Taskids:                taskIds,
+		Taskinsertedats:        taskInsertedAts,
 		Inputs:                 inputs,
 		InitialStates:          initialStates,
 		InitialStateReasons:    initialStateReasons,
@@ -1738,8 +1808,7 @@ func (r *sharedRepository) createTaskEvents(
 	ctx context.Context,
 	dbtx sqlcv1.DBTX,
 	tenantId string,
-	tasks []TaskIdRetryCount,
-	insertedAts []pgtype.Timestamptz,
+	tasks []TaskIdInsertedAtRetryCount,
 	taskExternalIds []string,
 	eventDatas [][]byte,
 	eventType sqlcv1.V1TaskEventType,
@@ -1760,7 +1829,7 @@ func (r *sharedRepository) createTaskEvents(
 
 	for i, task := range tasks {
 		taskIds[i] = task.Id
-		taskInsertedAts[i] = insertedAts[i]
+		taskInsertedAts[i] = task.InsertedAt
 		retryCounts[i] = task.RetryCount
 		eventTypes[i] = string(eventType)
 
@@ -1805,7 +1874,7 @@ func (r *sharedRepository) createTaskEvents(
 	return internalTaskEvents, nil
 }
 
-func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, tasks []TaskIdRetryCount) error {
+func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, tasks []TaskIdInsertedAtRetryCount) error {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
 
 	if err != nil {
@@ -1816,15 +1885,18 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 	defer commit(ctx)
 
 	taskIds := make([]int64, len(tasks))
+	taskInsertedAts := make([]pgtype.Timestamptz, len(tasks))
 
 	for i, task := range tasks {
 		taskIds[i] = task.Id
+		taskInsertedAts[i] = task.InsertedAt
 	}
 
 	// list tasks (and augment with task descendants) and locks them for update
 	lockedTasks, err := r.queries.ListTasksForReplay(ctx, tx, sqlcv1.ListTasksForReplayParams{
-		Taskids:  taskIds,
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Taskids:         taskIds,
+		Taskinsertedats: taskInsertedAts,
+		Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
 	})
 
 	if err != nil {
@@ -1958,6 +2030,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 
 		replayOpts = append(replayOpts, ReplayTaskOpts{
 			TaskId:             task.ID,
+			InsertedAt:         task.InsertedAt,
 			StepId:             sqlchelpers.UUIDToStr(task.StepID),
 			ExternalId:         sqlchelpers.UUIDToStr(task.ExternalID),
 			InitialState:       sqlcv1.V1TaskInitialStateQUEUED,
@@ -2098,7 +2171,8 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 					TriggerDAGInsertedAt: task.DagInsertedAt,
 					// NOTE: we don't need to set parent task id/child index/child key because
 					// the task already exists
-					TriggerExistingTaskId: &task.ID,
+					TriggerExistingTaskId:         &task.ID,
+					TriggerExistingTaskInsertedAt: task.InsertedAt,
 				})
 			default:
 				conditions := make([]GroupMatchCondition, 0)
@@ -2131,7 +2205,8 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 					TriggerDAGInsertedAt: task.DagInsertedAt,
 					// NOTE: we don't need to set parent task id/child index/child key because
 					// the task already exists
-					TriggerExistingTaskId: &task.ID,
+					TriggerExistingTaskId:         &task.ID,
+					TriggerExistingTaskInsertedAt: task.InsertedAt,
 				})
 			}
 		}

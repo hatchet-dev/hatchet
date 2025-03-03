@@ -11,12 +11,12 @@ service AdminService {
 }
 
 message CancelTasksRequest {
-    repeated TaskIdRetryCount tasks = 1;
+    repeated string externalIds = 1; // a list of external UUIDs
     optional TasksFilter filter = 2;
 }
 
 message ReplayTasksRequest {
-    repeated TaskIdRetryCount tasks = 1;
+    repeated string externalIds = 1; // a list of external UUIDs
     optional TasksFilter filter = 2;
 }
 
@@ -28,15 +28,10 @@ message TasksFilter {
     repeated string additional_metadata = 5;
 }
 
-message TaskIdRetryCount {
-    int64 task_id = 1;
-    int32 retry_count = 2;
-}
-
 message CancelTasksResponse {
-    repeated TaskIdRetryCount cancelled_tasks = 1;
+    repeated string cancelled_tasks = 1;
 }
 
 message ReplayTasksResponse {
-    repeated TaskIdRetryCount replayed_tasks = 1;
+    repeated string replayed_tasks = 1;
 }

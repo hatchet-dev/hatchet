@@ -180,8 +180,7 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 		opt.ShouldSkip = true
 	}
 
-	taskIds := make([]TaskIdRetryCount, 0, len(opts))
-	taskInsertedAts := make([]pgtype.Timestamptz, 0, len(opts))
+	taskIds := make([]TaskIdInsertedAtRetryCount, 0, len(opts))
 	taskExternalIds := make([]string, 0, len(opts))
 	datas := make([][]byte, 0, len(opts))
 	newEventKeys := make([]string, 0, len(opts))
@@ -204,12 +203,12 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 
 		data := newChildWorkflowSignalCreatedData(generatedId, opt)
 
-		taskIds = append(taskIds, TaskIdRetryCount{
+		taskIds = append(taskIds, TaskIdInsertedAtRetryCount{
 			Id:         lookupRow.TaskID.Int64,
+			InsertedAt: lookupRow.InsertedAt,
 			RetryCount: -1,
 		})
 
-		taskInsertedAts = append(taskInsertedAts, lookupRow.InsertedAt)
 		taskExternalIds = append(taskExternalIds, sqlchelpers.UUIDToStr(lookupRow.ExternalID))
 		datas = append(datas, data.Bytes())
 		newEventKeys = append(newEventKeys, getChildSignalEventKey(*opt.ParentExternalId, 0, *opt.ChildIndex, opt.ChildKey))
@@ -221,7 +220,6 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 		tx,
 		tenantId,
 		taskIds,
-		taskInsertedAts,
 		taskExternalIds,
 		datas,
 		sqlcv1.V1TaskEventTypeSIGNALCREATED,

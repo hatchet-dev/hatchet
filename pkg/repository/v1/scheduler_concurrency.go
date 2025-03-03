@@ -9,13 +9,13 @@ import (
 )
 
 type TaskWithQueue struct {
-	*TaskIdRetryCount
+	*TaskIdInsertedAtRetryCount
 
 	Queue string
 }
 
 type TaskWithCancelledReason struct {
-	*TaskIdRetryCount
+	*TaskIdInsertedAtRetryCount
 
 	CancelledReason string
 }
@@ -149,8 +149,9 @@ func (c *ConcurrencyRepositoryImpl) runGroupRoundRobin(
 	nextConcurrencyStrategies := make([]int64, 0, len(poppedResults))
 
 	for _, r := range poppedResults {
-		idRetryCount := &TaskIdRetryCount{
+		idRetryCount := &TaskIdInsertedAtRetryCount{
 			Id:         r.TaskID,
+			InsertedAt: r.TaskInsertedAt,
 			RetryCount: r.TaskRetryCount,
 		}
 
@@ -158,13 +159,14 @@ func (c *ConcurrencyRepositoryImpl) runGroupRoundRobin(
 			nextConcurrencyStrategies = append(nextConcurrencyStrategies, r.NextStrategyIds[0])
 		} else if r.Operation == "SCHEDULING_TIMED_OUT" {
 			cancelled = append(cancelled, TaskWithCancelledReason{
-				TaskIdRetryCount: idRetryCount,
-				CancelledReason:  "SCHEDULING_TIMED_OUT",
+				TaskIdInsertedAtRetryCount: idRetryCount,
+				CancelledReason:            "SCHEDULING_TIMED_OUT",
 			})
 		} else {
 			queued = append(queued, TaskWithQueue{
-				TaskIdRetryCount: &TaskIdRetryCount{
+				TaskIdInsertedAtRetryCount: &TaskIdInsertedAtRetryCount{
 					Id:         r.TaskID,
+					InsertedAt: r.TaskInsertedAt,
 					RetryCount: r.TaskRetryCount,
 				},
 				Queue: r.QueueToNotify,
@@ -209,12 +211,13 @@ func (c *ConcurrencyRepositoryImpl) runCancelInProgress(
 	}
 
 	// for any cancelled tasks, call cancelTasks
-	cancelledTasks := make([]TaskIdRetryCount, 0, len(poppedResults))
+	cancelledTasks := make([]TaskIdInsertedAtRetryCount, 0, len(poppedResults))
 
 	for _, r := range poppedResults {
 		if r.Operation == "CANCELLED" {
-			cancelledTasks = append(cancelledTasks, TaskIdRetryCount{
+			cancelledTasks = append(cancelledTasks, TaskIdInsertedAtRetryCount{
 				Id:         r.TaskID,
+				InsertedAt: r.TaskInsertedAt,
 				RetryCount: r.TaskRetryCount,
 			})
 		}
@@ -247,8 +250,9 @@ func (c *ConcurrencyRepositoryImpl) runCancelInProgress(
 	nextConcurrencyStrategies := make([]int64, 0, len(poppedResults))
 
 	for _, r := range poppedResults {
-		idRetryCount := &TaskIdRetryCount{
+		idRetryCount := &TaskIdInsertedAtRetryCount{
 			Id:         r.TaskID,
+			InsertedAt: r.TaskInsertedAt,
 			RetryCount: r.TaskRetryCount,
 		}
 
@@ -256,18 +260,18 @@ func (c *ConcurrencyRepositoryImpl) runCancelInProgress(
 			nextConcurrencyStrategies = append(nextConcurrencyStrategies, r.NextStrategyIds[0])
 		} else if r.Operation == "CANCELLED" {
 			cancelled = append(cancelled, TaskWithCancelledReason{
-				TaskIdRetryCount: idRetryCount,
-				CancelledReason:  "CONCURRENCY_LIMIT",
+				TaskIdInsertedAtRetryCount: idRetryCount,
+				CancelledReason:            "CONCURRENCY_LIMIT",
 			})
 		} else if r.Operation == "SCHEDULING_TIMED_OUT" {
 			cancelled = append(cancelled, TaskWithCancelledReason{
-				TaskIdRetryCount: idRetryCount,
-				CancelledReason:  "SCHEDULING_TIMED_OUT",
+				TaskIdInsertedAtRetryCount: idRetryCount,
+				CancelledReason:            "SCHEDULING_TIMED_OUT",
 			})
 		} else {
 			queued = append(queued, TaskWithQueue{
-				TaskIdRetryCount: idRetryCount,
-				Queue:            r.QueueToNotify,
+				TaskIdInsertedAtRetryCount: idRetryCount,
+				Queue:                      r.QueueToNotify,
 			})
 		}
 	}
@@ -309,12 +313,13 @@ func (c *ConcurrencyRepositoryImpl) runCancelNewest(
 	}
 
 	// for any cancelled tasks, call cancelTasks
-	cancelledTasks := make([]TaskIdRetryCount, 0, len(poppedResults))
+	cancelledTasks := make([]TaskIdInsertedAtRetryCount, 0, len(poppedResults))
 
 	for _, r := range poppedResults {
 		if r.Operation == "CANCELLED" {
-			cancelledTasks = append(cancelledTasks, TaskIdRetryCount{
+			cancelledTasks = append(cancelledTasks, TaskIdInsertedAtRetryCount{
 				Id:         r.TaskID,
+				InsertedAt: r.TaskInsertedAt,
 				RetryCount: r.TaskRetryCount,
 			})
 		}
@@ -347,8 +352,9 @@ func (c *ConcurrencyRepositoryImpl) runCancelNewest(
 	nextConcurrencyStrategies := make([]int64, 0, len(poppedResults))
 
 	for _, r := range poppedResults {
-		idRetryCount := &TaskIdRetryCount{
+		idRetryCount := &TaskIdInsertedAtRetryCount{
 			Id:         r.TaskID,
+			InsertedAt: r.TaskInsertedAt,
 			RetryCount: r.TaskRetryCount,
 		}
 
@@ -356,18 +362,18 @@ func (c *ConcurrencyRepositoryImpl) runCancelNewest(
 			nextConcurrencyStrategies = append(nextConcurrencyStrategies, r.NextStrategyIds[0])
 		} else if r.Operation == "CANCELLED" {
 			cancelled = append(cancelled, TaskWithCancelledReason{
-				TaskIdRetryCount: idRetryCount,
-				CancelledReason:  "CONCURRENCY_LIMIT",
+				TaskIdInsertedAtRetryCount: idRetryCount,
+				CancelledReason:            "CONCURRENCY_LIMIT",
 			})
 		} else if r.Operation == "SCHEDULING_TIMED_OUT" {
 			cancelled = append(cancelled, TaskWithCancelledReason{
-				TaskIdRetryCount: idRetryCount,
-				CancelledReason:  "SCHEDULING_TIMED_OUT",
+				TaskIdInsertedAtRetryCount: idRetryCount,
+				CancelledReason:            "SCHEDULING_TIMED_OUT",
 			})
 		} else {
 			queued = append(queued, TaskWithQueue{
-				TaskIdRetryCount: idRetryCount,
-				Queue:            r.QueueToNotify,
+				TaskIdInsertedAtRetryCount: idRetryCount,
+				Queue:                      r.QueueToNotify,
 			})
 		}
 	}
