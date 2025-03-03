@@ -177,7 +177,7 @@ func (m *sharedRepository) processInternalEventMatches(ctx context.Context, tx s
 	)
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to list match conditions for event: %w", err)
 	}
 
 	// pass match conditions through CEL expressions parser
@@ -222,7 +222,7 @@ func (m *sharedRepository) processInternalEventMatches(ctx context.Context, tx s
 	)
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get satisfied match conditions: %w", err)
 	}
 
 	satisfiedMatches := make([]*sqlcv1.SaveSatisfiedMatchConditionsRow, 0)
@@ -235,7 +235,7 @@ func (m *sharedRepository) processInternalEventMatches(ctx context.Context, tx s
 		)
 
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to save satisfied match conditions: %w", err)
 		}
 	}
 
@@ -265,7 +265,7 @@ func (m *sharedRepository) processInternalEventMatches(ctx context.Context, tx s
 		})
 
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to get DAG data: %w", err)
 		}
 
 		dagIdsToInput := make(map[int64][]byte)
@@ -369,14 +369,14 @@ func (m *sharedRepository) processInternalEventMatches(ctx context.Context, tx s
 		tasks, err = m.createTasks(ctx, tx, tenantId, createTaskOpts)
 
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to create tasks: %w", err)
 		}
 
 		if len(replayTaskOpts) > 0 {
 			replayedTasks, err := m.replayTasks(ctx, tx, tenantId, replayTaskOpts)
 
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("failed to replay tasks: %w", err)
 			}
 
 			res.ReplayedTasks = replayedTasks
@@ -417,7 +417,7 @@ func (m *sharedRepository) processInternalEventMatches(ctx context.Context, tx s
 		)
 
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to create signal completed events: %w", err)
 		}
 	}
 
