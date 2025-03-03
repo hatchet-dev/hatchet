@@ -5,7 +5,7 @@ OUT_DIR="./src/protoc"
 if [ -d "./hatchet" ]; then
     IN_DIR="./hatchet/api-contracts"
 else
-    IN_DIR="../oss/api-contracts"
+    IN_DIR="../../api-contracts"
 fi
 
 # Generate code
