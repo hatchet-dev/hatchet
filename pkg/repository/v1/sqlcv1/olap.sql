@@ -109,7 +109,8 @@ INSERT INTO v1_dags_olap (
     workflow_id,
     workflow_version_id,
     input,
-    additional_metadata
+    additional_metadata,
+    parent_task_external_id
 ) VALUES (
     $1,
     $2,
@@ -119,7 +120,8 @@ INSERT INTO v1_dags_olap (
     $6,
     $7,
     $8,
-    $9
+    $9,
+    $10
 );
 
 -- name: CreateTaskEventsOLAPTmp :copyfrom

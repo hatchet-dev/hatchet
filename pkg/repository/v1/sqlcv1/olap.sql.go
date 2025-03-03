@@ -12,15 +12,16 @@ import (
 )
 
 type CreateDAGsOLAPParams struct {
-	TenantID           pgtype.UUID        `json:"tenant_id"`
-	ID                 int64              `json:"id"`
-	InsertedAt         pgtype.Timestamptz `json:"inserted_at"`
-	ExternalID         pgtype.UUID        `json:"external_id"`
-	DisplayName        string             `json:"display_name"`
-	WorkflowID         pgtype.UUID        `json:"workflow_id"`
-	WorkflowVersionID  pgtype.UUID        `json:"workflow_version_id"`
-	Input              []byte             `json:"input"`
-	AdditionalMetadata []byte             `json:"additional_metadata"`
+	TenantID             pgtype.UUID        `json:"tenant_id"`
+	ID                   int64              `json:"id"`
+	InsertedAt           pgtype.Timestamptz `json:"inserted_at"`
+	ExternalID           pgtype.UUID        `json:"external_id"`
+	DisplayName          string             `json:"display_name"`
+	WorkflowID           pgtype.UUID        `json:"workflow_id"`
+	WorkflowVersionID    pgtype.UUID        `json:"workflow_version_id"`
+	Input                []byte             `json:"input"`
+	AdditionalMetadata   []byte             `json:"additional_metadata"`
+	ParentTaskExternalID pgtype.UUID        `json:"parent_task_external_id"`
 }
 
 const createOLAPDAGPartition = `-- name: CreateOLAPDAGPartition :exec

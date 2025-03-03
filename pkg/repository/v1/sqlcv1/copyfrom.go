@@ -73,6 +73,7 @@ func (r iteratorForCreateDAGsOLAP) Values() ([]interface{}, error) {
 		r.rows[0].WorkflowVersionID,
 		r.rows[0].Input,
 		r.rows[0].AdditionalMetadata,
+		r.rows[0].ParentTaskExternalID,
 	}, nil
 }
 
@@ -81,7 +82,7 @@ func (r iteratorForCreateDAGsOLAP) Err() error {
 }
 
 func (q *Queries) CreateDAGsOLAP(ctx context.Context, db DBTX, arg []CreateDAGsOLAPParams) (int64, error) {
-	return db.CopyFrom(ctx, []string{"v1_dags_olap"}, []string{"tenant_id", "id", "inserted_at", "external_id", "display_name", "workflow_id", "workflow_version_id", "input", "additional_metadata"}, &iteratorForCreateDAGsOLAP{rows: arg})
+	return db.CopyFrom(ctx, []string{"v1_dags_olap"}, []string{"tenant_id", "id", "inserted_at", "external_id", "display_name", "workflow_id", "workflow_version_id", "input", "additional_metadata", "parent_task_external_id"}, &iteratorForCreateDAGsOLAP{rows: arg})
 }
 
 // iteratorForCreateMatchConditions implements pgx.CopyFromSource.

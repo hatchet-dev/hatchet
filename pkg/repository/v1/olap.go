@@ -1122,6 +1122,9 @@ func (r *olapRepository) writeDAGBatch(ctx context.Context, tenantId string, dag
 			DisplayName:        dag.DisplayName,
 			Input:              dag.Input,
 			AdditionalMetadata: dag.AdditionalMetadata,
+
+			// FIXME: Propagate the parent external id through
+			// ParentTaskExternalID: dag.ParentExternalId,
 		})
 	}
 
