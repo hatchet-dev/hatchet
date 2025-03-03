@@ -75,6 +75,7 @@ const workflowStatusMap: Record<WorkflowRunStatus, RunEventType | undefined> = {
   [WorkflowRunStatus.PENDING]: undefined,
   [WorkflowRunStatus.RUNNING]: undefined,
   [WorkflowRunStatus.QUEUED]: undefined,
+  [WorkflowRunStatus.BACKOFF]: undefined,
 };
 
 export interface StepRunEvent {
