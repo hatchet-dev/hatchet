@@ -1,11 +1,34 @@
 import { Label } from '@/components/v1/ui/label';
-import { StepRun, StepRunStatus, V1TaskStatus, V1TaskSummary } from '@/lib/api';
+import {
+  queries,
+  StepRun,
+  StepRunStatus,
+  V1TaskStatus,
+  V1TaskSummary,
+} from '@/lib/api';
 import { cn, formatDuration } from '@/lib/utils';
-import { memo } from 'react';
+import { memo, useState } from 'react';
 import { Handle, Position } from 'reactflow';
 import { RunStatus, V1RunIndicator } from '../../components/run-statuses';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { TabOption } from './step-run-detail/step-run-detail';
+import { Sheet, SheetContent } from '@/components/v1/ui/sheet';
+import { useOutletContext } from 'react-router-dom';
+import { TenantContextType } from '@/lib/outlet';
+import invariant from 'tiny-invariant';
+import { useQuery } from '@tanstack/react-query';
+import RunDetailHeader from '@/pages/main/workflow-runs/$run/v2components/header';
+import { Separator } from '@/components/v1/ui/separator';
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/components/v1/ui/tabs';
+import { WorkflowRunInputDialog } from './workflow-run-input';
+import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
+import { StepRunEvents } from '@/pages/main/workflow-runs/$run/v2components/step-run-events-for-workflow-run';
+import { TaskRunsTable } from '../../components/task-runs-table';
 
 export type NodeData = {
   task: V1TaskSummary;
@@ -18,6 +41,8 @@ export type NodeData = {
 // eslint-disable-next-line react/display-name
 export default memo(({ data }: { data: NodeData }) => {
   const variant = data.graphVariant;
+  const [childWorkflowsSheetIsOpen, setChildWorkflowsSheetIsOpen] =
+    useState(false);
 
   const startedAtEpoch = data.task.startedAt
     ? new Date(data.task.startedAt).getTime()
@@ -27,76 +52,83 @@ export default memo(({ data }: { data: NodeData }) => {
     : 0;
 
   return (
-    <div className="flex flex-col justify-start min-w-fit grow">
-      {(variant == 'default' || variant == 'input_only') && (
-        <Handle
-          type="target"
-          position={Position.Left}
-          style={{ visibility: 'hidden' }}
-          isConnectable={false}
-        />
-      )}
-      <div
-        key={data.task.metadata.id}
-        data-step-id={data.task.metadata.id}
-        className={cn(
-          `step-run-card shadow-md rounded-sm py-3 px-2 mb-1 w-full text-xs text-[#050c1c] dark:text-[#ffffff] font-semibold font-mono`,
-          `transition-all duration-300 ease-in-out`,
-          `cursor-pointer`,
-          `flex flex-row items-center justify-between gap-4 border-2 dark:border-[1px]`,
-          `bg-[#ffffff] dark:bg-[#050c1c]`,
-          'hover:opacity-100 opacity-80',
-          'h-[30px]',
-        )}
-        onClick={() => data.onClick()}
-      >
-        {data.task.status == V1TaskStatus.RUNNING && (
-          <span className="spark mask-gradient animate-flip before:animate-rotate absolute inset-0 h-[100%] w-[100%] overflow-hidden [mask:linear-gradient(#ccc,_transparent_50%)] before:absolute before:aspect-square before:w-[200%] before:rotate-[-90deg] before:bg-[conic-gradient(from_0deg,transparent_0_340deg,#ccc_360deg)] before:content-[''] before:[inset:0_auto_auto_50%] before:[translate:-50%_-15%]" />
-        )}
-        <span className="step-run-backdrop absolute inset-[1px] bg-background transition-colors duration-200" />
-        <div className="z-10 flex flex-row items-center justify-between gap-4 w-full">
-          <div className="flex flex-row items-center justify-start gap-2 z-10">
-            <V1RunIndicator status={data.task.status} />
-            <div className="truncate flex-grow">{data.taskName}</div>
-          </div>
-          {data.task.finishedAt && data.task.startedAt && (
-            <div className="text-xs text-gray-500 dark:text-gray-400">
-              {formatDuration(finishedAtEpoch - startedAtEpoch)}
-            </div>
-          )}
-        </div>
-
-        {(variant == 'default' || variant == 'output_only') && (
+    <>
+      <div className="flex flex-col justify-start min-w-fit grow">
+        {(variant == 'default' || variant == 'input_only') && (
           <Handle
-            type="source"
-            position={Position.Right}
+            type="target"
+            position={Position.Left}
             style={{ visibility: 'hidden' }}
             isConnectable={false}
           />
         )}
-      </div>
-      {data.childWorkflowsCount ? (
         <div
-          key={`${data.task.metadata.id}-child-workflows`}
+          key={data.task.metadata.id}
+          data-step-id={data.task.metadata.id}
           className={cn(
-            `w-[calc(100%-1rem)] box-border shadow-md ml-4 rounded-sm py-3 px-2 mb-1 text-xs text-[#050c1c] dark:text-[#ffffff] font-semibold font-mono`,
+            `step-run-card shadow-md rounded-sm py-3 px-2 mb-1 w-full text-xs text-[#050c1c] dark:text-[#ffffff] font-semibold font-mono`,
             `transition-all duration-300 ease-in-out`,
             `cursor-pointer`,
-            `flex flex-row items-center justify-start border-2 dark:border-[1px]`,
+            `flex flex-row items-center justify-between gap-4 border-2 dark:border-[1px]`,
             `bg-[#ffffff] dark:bg-[#050c1c]`,
+            'hover:opacity-100 opacity-80',
             'h-[30px]',
           )}
-          // FIXME: onClick should be implemented
-          onClick={() => {
-            throw new Error('Not implemented');
-          }}
+          onClick={() => data.onClick()}
         >
-          <div className="truncate flex-grow">
-            {data.taskName}: {data.childWorkflowsCount} children
+          {data.task.status == V1TaskStatus.RUNNING && (
+            <span className="spark mask-gradient animate-flip before:animate-rotate absolute inset-0 h-[100%] w-[100%] overflow-hidden [mask:linear-gradient(#ccc,_transparent_50%)] before:absolute before:aspect-square before:w-[200%] before:rotate-[-90deg] before:bg-[conic-gradient(from_0deg,transparent_0_340deg,#ccc_360deg)] before:content-[''] before:[inset:0_auto_auto_50%] before:[translate:-50%_-15%]" />
+          )}
+          <span className="step-run-backdrop absolute inset-[1px] bg-background transition-colors duration-200" />
+          <div className="z-10 flex flex-row items-center justify-between gap-4 w-full">
+            <div className="flex flex-row items-center justify-start gap-2 z-10">
+              <V1RunIndicator status={data.task.status} />
+              <div className="truncate flex-grow">{data.taskName}</div>
+            </div>
+            {data.task.finishedAt && data.task.startedAt && (
+              <div className="text-xs text-gray-500 dark:text-gray-400">
+                {formatDuration(finishedAtEpoch - startedAtEpoch)}
+              </div>
+            )}
           </div>
+
+          {(variant == 'default' || variant == 'output_only') && (
+            <Handle
+              type="source"
+              position={Position.Right}
+              style={{ visibility: 'hidden' }}
+              isConnectable={false}
+            />
+          )}
         </div>
-      ) : null}
-    </div>
+        {data.childWorkflowsCount ? (
+          <div
+            key={`${data.task.metadata.id}-child-workflows`}
+            className={cn(
+              `w-[calc(100%-1rem)] box-border shadow-md ml-4 rounded-sm py-3 px-2 mb-1 text-xs text-[#050c1c] dark:text-[#ffffff] font-semibold font-mono`,
+              `transition-all duration-300 ease-in-out`,
+              `cursor-pointer`,
+              `flex flex-row items-center justify-start border-2 dark:border-[1px]`,
+              `bg-[#ffffff] dark:bg-[#050c1c]`,
+              'h-[30px]',
+            )}
+            onClick={() => setChildWorkflowsSheetIsOpen(true)}
+          >
+            <div className="truncate flex-grow">
+              {data.taskName}: {data.childWorkflowsCount} children
+            </div>
+          </div>
+        ) : null}
+      </div>
+      <Sheet
+        open={childWorkflowsSheetIsOpen}
+        onOpenChange={(open) => setChildWorkflowsSheetIsOpen(open)}
+      >
+        <SheetContent className="w-fit min-w-[56rem] max-w-4xl sm:max-w-2xl z-[60]">
+          <TaskRunsTable parentTaskExternalId={data.task.taskExternalId} />
+        </SheetContent>
+      </Sheet>{' '}
+    </>
   );
 });
 

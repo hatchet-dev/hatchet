@@ -284,6 +284,13 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       worker_id?: string;
       /** Whether to include DAGs or only to include tasks */
       only_tasks: boolean;
+      /**
+       * The parent task external id to filter by
+       * @format uuid
+       * @minLength 36
+       * @maxLength 36
+       */
+      parent_task_external_id?: string;
     },
     params: RequestParams = {},
   ) =>

@@ -58,6 +58,8 @@ type ListWorkflowRunOpts struct {
 	Limit int64
 
 	Offset int64
+
+	ParentTaskExternalId *pgtype.UUID
 }
 
 type ReadTaskRunMetricsOpts struct {
@@ -640,6 +642,7 @@ func (r *olapRepository) ListWorkflowRuns(ctx context.Context, tenantId string, 
 		Since:                  sqlchelpers.TimestamptzFromTime(opts.CreatedAfter),
 		Listworkflowrunslimit:  int32(opts.Limit),
 		Listworkflowrunsoffset: int32(opts.Offset),
+		ParentTaskExternalId:   pgtype.UUID{},
 	}
 
 	countParams := sqlcv1.CountWorkflowRunsParams{
@@ -690,6 +693,12 @@ func (r *olapRepository) ListWorkflowRuns(ctx context.Context, tenantId string, 
 		countParams.Keys = append(countParams.Keys, key)
 		countParams.Values = append(countParams.Values, value.(string))
 	}
+
+	if opts.ParentTaskExternalId != nil {
+		params.ParentTaskExternalId = *opts.ParentTaskExternalId
+	}
+
+	fmt.Println(params.ParentTaskExternalId, opts.ParentTaskExternalId)
 
 	workflowRunIds, err := r.queries.FetchWorkflowRunIds(ctx, tx, params)
 

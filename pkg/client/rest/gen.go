@@ -1792,6 +1792,9 @@ type V1WorkflowRunListParams struct {
 
 	// OnlyTasks Whether to include DAGs or only to include tasks
 	OnlyTasks bool `form:"only_tasks" json:"only_tasks"`
+
+	// ParentTaskExternalId The parent task external id to filter by
+	ParentTaskExternalId *openapi_types.UUID `form:"parent_task_external_id,omitempty" json:"parent_task_external_id,omitempty"`
 }
 
 // V1WorkflowRunTaskEventsListParams defines parameters for V1WorkflowRunTaskEventsList.
@@ -5195,6 +5198,22 @@ func NewV1WorkflowRunListRequest(server string, tenant openapi_types.UUID, param
 					queryValues.Add(k, v2)
 				}
 			}
+		}
+
+		if params.ParentTaskExternalId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "parent_task_external_id", runtime.ParamLocationQuery, *params.ParentTaskExternalId); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
 		}
 
 		queryURL.RawQuery = queryValues.Encode()

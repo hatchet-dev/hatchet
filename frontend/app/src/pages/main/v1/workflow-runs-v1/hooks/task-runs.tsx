@@ -11,12 +11,14 @@ type UseTaskRunProps = {
   rowSelection: RowSelectionState;
   workerId: string | undefined;
   workflow: string | undefined;
+  parentTaskExternalId: string | undefined;
 };
 
 export const useTaskRuns = ({
   rowSelection,
   workerId,
   workflow,
+  parentTaskExternalId,
 }: UseTaskRunProps) => {
   const cf = useColumnFilters();
   const { pagination, offset } = usePagination();
@@ -33,6 +35,7 @@ export const useTaskRuns = ({
       limit: pagination.pageSize,
       statuses: cf.filters.status ? [cf.filters.status] : undefined,
       workflow_ids: workflow ? [workflow] : [],
+      parent_task_external_id: parentTaskExternalId,
       since: cf.filters.createdAfter || initialRenderTime,
       until: cf.filters.finishedBefore,
       additional_metadata: cf.filters.additionalMetadata,

@@ -434,7 +434,7 @@ export function ChildWorkflowRuns({
 
   return (
     <TaskRunsTable
-      parentWorkflowRunId={workflowRun.metadata.id}
+      parentTaskExternalId={workflowRun.metadata.id}
       parentStepRunId={stepRun?.metadata.id}
       refetchInterval={refetchInterval}
       initColumnVisibility={{

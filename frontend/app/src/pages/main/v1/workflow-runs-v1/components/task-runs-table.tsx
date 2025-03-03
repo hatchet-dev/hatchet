@@ -49,7 +49,7 @@ export interface TaskRunsTableProps {
   createdBefore?: string;
   workflowId?: string;
   workerId?: string;
-  parentWorkflowRunId?: string;
+  parentTaskExternalId?: string;
   parentStepRunId?: string;
   initColumnVisibility?: VisibilityState;
   filterVisibility?: { [key: string]: boolean };
@@ -66,6 +66,7 @@ type StepDetailSheetState = {
 export function TaskRunsTable({
   workflowId,
   workerId,
+  parentTaskExternalId,
   createdAfter: createdAfterProp,
   initColumnVisibility = {},
   filterVisibility = {},
@@ -106,6 +107,7 @@ export function TaskRunsTable({
     rowSelection,
     workerId,
     workflow,
+    parentTaskExternalId,
   });
 
   const {
