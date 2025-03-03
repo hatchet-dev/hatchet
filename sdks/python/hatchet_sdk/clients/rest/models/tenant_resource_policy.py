@@ -13,26 +13,21 @@
 
 
 from __future__ import annotations
-
-import json
 import pprint
 import re  # noqa: F401
-from typing import Any, ClassVar, Dict, List, Optional, Set
+import json
 
 from pydantic import BaseModel, ConfigDict, Field
-from typing_extensions import Self
-
+from typing import Any, ClassVar, Dict, List
 from hatchet_sdk.clients.rest.models.tenant_resource_limit import TenantResourceLimit
-
+from typing import Optional, Set
+from typing_extensions import Self
 
 class TenantResourcePolicy(BaseModel):
     """
     TenantResourcePolicy
-    """  # noqa: E501
-
-    limits: List[TenantResourceLimit] = Field(
-        description="A list of resource limits for the tenant."
-    )
+    """ # noqa: E501
+    limits: List[TenantResourceLimit] = Field(description="A list of resource limits for the tenant.")
     __properties: ClassVar[List[str]] = ["limits"]
 
     model_config = ConfigDict(
@@ -40,6 +35,7 @@ class TenantResourcePolicy(BaseModel):
         validate_assignment=True,
         protected_namespaces=(),
     )
+
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -65,7 +61,8 @@ class TenantResourcePolicy(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([])
+        excluded_fields: Set[str] = set([
+        ])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -78,7 +75,7 @@ class TenantResourcePolicy(BaseModel):
             for _item_limits in self.limits:
                 if _item_limits:
                     _items.append(_item_limits.to_dict())
-            _dict["limits"] = _items
+            _dict['limits'] = _items
         return _dict
 
     @classmethod
@@ -90,13 +87,9 @@ class TenantResourcePolicy(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate(
-            {
-                "limits": (
-                    [TenantResourceLimit.from_dict(_item) for _item in obj["limits"]]
-                    if obj.get("limits") is not None
-                    else None
-                )
-            }
-        )
+        _obj = cls.model_validate({
+            "limits": [TenantResourceLimit.from_dict(_item) for _item in obj["limits"]] if obj.get("limits") is not None else None
+        })
         return _obj
+
+

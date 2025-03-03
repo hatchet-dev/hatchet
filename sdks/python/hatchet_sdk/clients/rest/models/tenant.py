@@ -13,49 +13,35 @@
 
 
 from __future__ import annotations
-
-import json
 import pprint
 import re  # noqa: F401
-from typing import Any, ClassVar, Dict, List, Optional, Set
+import json
 
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictStr
-from typing_extensions import Self
-
+from typing import Any, ClassVar, Dict, List, Optional
 from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
-
+from hatchet_sdk.clients.rest.models.tenant_version import TenantVersion
+from typing import Optional, Set
+from typing_extensions import Self
 
 class Tenant(BaseModel):
     """
     Tenant
-    """  # noqa: E501
-
+    """ # noqa: E501
     metadata: APIResourceMeta
     name: StrictStr = Field(description="The name of the tenant.")
     slug: StrictStr = Field(description="The slug of the tenant.")
-    analytics_opt_out: Optional[StrictBool] = Field(
-        default=None,
-        description="Whether the tenant has opted out of analytics.",
-        alias="analyticsOptOut",
-    )
-    alert_member_emails: Optional[StrictBool] = Field(
-        default=None,
-        description="Whether to alert tenant members.",
-        alias="alertMemberEmails",
-    )
-    __properties: ClassVar[List[str]] = [
-        "metadata",
-        "name",
-        "slug",
-        "analyticsOptOut",
-        "alertMemberEmails",
-    ]
+    analytics_opt_out: Optional[StrictBool] = Field(default=None, description="Whether the tenant has opted out of analytics.", alias="analyticsOptOut")
+    alert_member_emails: Optional[StrictBool] = Field(default=None, description="Whether to alert tenant members.", alias="alertMemberEmails")
+    version: TenantVersion = Field(description="The version of the tenant.")
+    __properties: ClassVar[List[str]] = ["metadata", "name", "slug", "analyticsOptOut", "alertMemberEmails", "version"]
 
     model_config = ConfigDict(
         populate_by_name=True,
         validate_assignment=True,
         protected_namespaces=(),
     )
+
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -81,7 +67,8 @@ class Tenant(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([])
+        excluded_fields: Set[str] = set([
+        ])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -90,7 +77,7 @@ class Tenant(BaseModel):
         )
         # override the default output from pydantic by calling `to_dict()` of metadata
         if self.metadata:
-            _dict["metadata"] = self.metadata.to_dict()
+            _dict['metadata'] = self.metadata.to_dict()
         return _dict
 
     @classmethod
@@ -102,17 +89,14 @@ class Tenant(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate(
-            {
-                "metadata": (
-                    APIResourceMeta.from_dict(obj["metadata"])
-                    if obj.get("metadata") is not None
-                    else None
-                ),
-                "name": obj.get("name"),
-                "slug": obj.get("slug"),
-                "analyticsOptOut": obj.get("analyticsOptOut"),
-                "alertMemberEmails": obj.get("alertMemberEmails"),
-            }
-        )
+        _obj = cls.model_validate({
+            "metadata": APIResourceMeta.from_dict(obj["metadata"]) if obj.get("metadata") is not None else None,
+            "name": obj.get("name"),
+            "slug": obj.get("slug"),
+            "analyticsOptOut": obj.get("analyticsOptOut"),
+            "alertMemberEmails": obj.get("alertMemberEmails"),
+            "version": obj.get("version")
+        })
         return _obj
+
+

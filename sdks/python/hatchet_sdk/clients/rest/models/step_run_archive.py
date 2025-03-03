@@ -13,22 +13,20 @@
 
 
 from __future__ import annotations
-
-import json
 import pprint
 import re  # noqa: F401
+import json
+
 from datetime import datetime
-from typing import Any, ClassVar, Dict, List, Optional, Set
-
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr
+from typing import Any, ClassVar, Dict, List, Optional
+from typing import Optional, Set
 from typing_extensions import Self
-
 
 class StepRunArchive(BaseModel):
     """
     StepRunArchive
-    """  # noqa: E501
-
+    """ # noqa: E501
     step_run_id: StrictStr = Field(alias="stepRunId")
     order: StrictInt
     input: Optional[StrictStr] = None
@@ -39,42 +37,21 @@ class StepRunArchive(BaseModel):
     created_at: datetime = Field(alias="createdAt")
     started_at_epoch: Optional[StrictInt] = Field(default=None, alias="startedAtEpoch")
     finished_at: Optional[datetime] = Field(default=None, alias="finishedAt")
-    finished_at_epoch: Optional[StrictInt] = Field(
-        default=None, alias="finishedAtEpoch"
-    )
+    finished_at_epoch: Optional[StrictInt] = Field(default=None, alias="finishedAtEpoch")
     timeout_at: Optional[datetime] = Field(default=None, alias="timeoutAt")
     timeout_at_epoch: Optional[StrictInt] = Field(default=None, alias="timeoutAtEpoch")
     cancelled_at: Optional[datetime] = Field(default=None, alias="cancelledAt")
-    cancelled_at_epoch: Optional[StrictInt] = Field(
-        default=None, alias="cancelledAtEpoch"
-    )
+    cancelled_at_epoch: Optional[StrictInt] = Field(default=None, alias="cancelledAtEpoch")
     cancelled_reason: Optional[StrictStr] = Field(default=None, alias="cancelledReason")
     cancelled_error: Optional[StrictStr] = Field(default=None, alias="cancelledError")
-    __properties: ClassVar[List[str]] = [
-        "stepRunId",
-        "order",
-        "input",
-        "output",
-        "startedAt",
-        "error",
-        "retryCount",
-        "createdAt",
-        "startedAtEpoch",
-        "finishedAt",
-        "finishedAtEpoch",
-        "timeoutAt",
-        "timeoutAtEpoch",
-        "cancelledAt",
-        "cancelledAtEpoch",
-        "cancelledReason",
-        "cancelledError",
-    ]
+    __properties: ClassVar[List[str]] = ["stepRunId", "order", "input", "output", "startedAt", "error", "retryCount", "createdAt", "startedAtEpoch", "finishedAt", "finishedAtEpoch", "timeoutAt", "timeoutAtEpoch", "cancelledAt", "cancelledAtEpoch", "cancelledReason", "cancelledError"]
 
     model_config = ConfigDict(
         populate_by_name=True,
         validate_assignment=True,
         protected_namespaces=(),
     )
+
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -100,7 +77,8 @@ class StepRunArchive(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([])
+        excluded_fields: Set[str] = set([
+        ])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -118,25 +96,25 @@ class StepRunArchive(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate(
-            {
-                "stepRunId": obj.get("stepRunId"),
-                "order": obj.get("order"),
-                "input": obj.get("input"),
-                "output": obj.get("output"),
-                "startedAt": obj.get("startedAt"),
-                "error": obj.get("error"),
-                "retryCount": obj.get("retryCount"),
-                "createdAt": obj.get("createdAt"),
-                "startedAtEpoch": obj.get("startedAtEpoch"),
-                "finishedAt": obj.get("finishedAt"),
-                "finishedAtEpoch": obj.get("finishedAtEpoch"),
-                "timeoutAt": obj.get("timeoutAt"),
-                "timeoutAtEpoch": obj.get("timeoutAtEpoch"),
-                "cancelledAt": obj.get("cancelledAt"),
-                "cancelledAtEpoch": obj.get("cancelledAtEpoch"),
-                "cancelledReason": obj.get("cancelledReason"),
-                "cancelledError": obj.get("cancelledError"),
-            }
-        )
+        _obj = cls.model_validate({
+            "stepRunId": obj.get("stepRunId"),
+            "order": obj.get("order"),
+            "input": obj.get("input"),
+            "output": obj.get("output"),
+            "startedAt": obj.get("startedAt"),
+            "error": obj.get("error"),
+            "retryCount": obj.get("retryCount"),
+            "createdAt": obj.get("createdAt"),
+            "startedAtEpoch": obj.get("startedAtEpoch"),
+            "finishedAt": obj.get("finishedAt"),
+            "finishedAtEpoch": obj.get("finishedAtEpoch"),
+            "timeoutAt": obj.get("timeoutAt"),
+            "timeoutAtEpoch": obj.get("timeoutAtEpoch"),
+            "cancelledAt": obj.get("cancelledAt"),
+            "cancelledAtEpoch": obj.get("cancelledAtEpoch"),
+            "cancelledReason": obj.get("cancelledReason"),
+            "cancelledError": obj.get("cancelledError")
+        })
         return _obj
+
+

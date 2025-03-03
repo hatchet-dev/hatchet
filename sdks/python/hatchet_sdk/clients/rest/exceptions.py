@@ -12,19 +12,16 @@
 """  # noqa: E501
 
 from typing import Any, Optional
-
 from typing_extensions import Self
-
 
 class OpenApiException(Exception):
     """The base exception class for all OpenAPIExceptions"""
 
 
 class ApiTypeError(OpenApiException, TypeError):
-    def __init__(
-        self, msg, path_to_item=None, valid_classes=None, key_type=None
-    ) -> None:
-        """Raises an exception for TypeErrors
+    def __init__(self, msg, path_to_item=None, valid_classes=None,
+                 key_type=None) -> None:
+        """ Raises an exception for TypeErrors
 
         Args:
             msg (str): the exception message
@@ -107,9 +104,9 @@ class ApiKeyError(OpenApiException, KeyError):
 class ApiException(OpenApiException):
 
     def __init__(
-        self,
-        status=None,
-        reason=None,
+        self, 
+        status=None, 
+        reason=None, 
         http_resp=None,
         *,
         body: Optional[str] = None,
@@ -128,17 +125,17 @@ class ApiException(OpenApiException):
                 self.reason = http_resp.reason
             if self.body is None:
                 try:
-                    self.body = http_resp.data.decode("utf-8")
+                    self.body = http_resp.data.decode('utf-8')
                 except Exception:
                     pass
             self.headers = http_resp.getheaders()
 
     @classmethod
     def from_response(
-        cls,
-        *,
-        http_resp,
-        body: Optional[str],
+        cls, 
+        *, 
+        http_resp, 
+        body: Optional[str], 
         data: Optional[Any],
     ) -> Self:
         if http_resp.status == 400:
@@ -153,15 +150,24 @@ class ApiException(OpenApiException):
         if http_resp.status == 404:
             raise NotFoundException(http_resp=http_resp, body=body, data=data)
 
+        # Added new conditions for 409 and 422
+        if http_resp.status == 409:
+            raise ConflictException(http_resp=http_resp, body=body, data=data)
+
+        if http_resp.status == 422:
+            raise UnprocessableEntityException(http_resp=http_resp, body=body, data=data)
+
         if 500 <= http_resp.status <= 599:
             raise ServiceException(http_resp=http_resp, body=body, data=data)
         raise ApiException(http_resp=http_resp, body=body, data=data)
 
     def __str__(self):
         """Custom error messages for exception"""
-        error_message = "({0})\n" "Reason: {1}\n".format(self.status, self.reason)
+        error_message = "({0})\n"\
+                        "Reason: {1}\n".format(self.status, self.reason)
         if self.headers:
-            error_message += "HTTP response headers: {0}\n".format(self.headers)
+            error_message += "HTTP response headers: {0}\n".format(
+                self.headers)
 
         if self.data or self.body:
             error_message += "HTTP response body: {0}\n".format(self.data or self.body)
@@ -186,6 +192,16 @@ class ForbiddenException(ApiException):
 
 
 class ServiceException(ApiException):
+    pass
+
+
+class ConflictException(ApiException):
+    """Exception for HTTP 409 Conflict."""
+    pass
+
+
+class UnprocessableEntityException(ApiException):
+    """Exception for HTTP 422 Unprocessable Entity."""
     pass
 
 

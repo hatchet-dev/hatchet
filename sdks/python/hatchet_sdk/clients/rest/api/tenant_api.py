@@ -12,44 +12,33 @@
 """  # noqa: E501
 
 import warnings
+from pydantic import validate_call, Field, StrictFloat, StrictStr, StrictInt
 from typing import Any, Dict, List, Optional, Tuple, Union
-
-from pydantic import Field, StrictFloat, StrictInt, StrictStr, validate_call
 from typing_extensions import Annotated
 
-from hatchet_sdk.clients.rest.api_client import ApiClient, RequestSerialized
-from hatchet_sdk.clients.rest.api_response import ApiResponse
+from pydantic import Field
+from typing import Optional
+from typing_extensions import Annotated
 from hatchet_sdk.clients.rest.models.accept_invite_request import AcceptInviteRequest
-from hatchet_sdk.clients.rest.models.create_tenant_alert_email_group_request import (
-    CreateTenantAlertEmailGroupRequest,
-)
-from hatchet_sdk.clients.rest.models.create_tenant_invite_request import (
-    CreateTenantInviteRequest,
-)
+from hatchet_sdk.clients.rest.models.create_tenant_alert_email_group_request import CreateTenantAlertEmailGroupRequest
+from hatchet_sdk.clients.rest.models.create_tenant_invite_request import CreateTenantInviteRequest
 from hatchet_sdk.clients.rest.models.create_tenant_request import CreateTenantRequest
 from hatchet_sdk.clients.rest.models.reject_invite_request import RejectInviteRequest
 from hatchet_sdk.clients.rest.models.tenant import Tenant
-from hatchet_sdk.clients.rest.models.tenant_alert_email_group import (
-    TenantAlertEmailGroup,
-)
-from hatchet_sdk.clients.rest.models.tenant_alert_email_group_list import (
-    TenantAlertEmailGroupList,
-)
-from hatchet_sdk.clients.rest.models.tenant_alerting_settings import (
-    TenantAlertingSettings,
-)
+from hatchet_sdk.clients.rest.models.tenant_alert_email_group import TenantAlertEmailGroup
+from hatchet_sdk.clients.rest.models.tenant_alert_email_group_list import TenantAlertEmailGroupList
+from hatchet_sdk.clients.rest.models.tenant_alerting_settings import TenantAlertingSettings
 from hatchet_sdk.clients.rest.models.tenant_invite import TenantInvite
 from hatchet_sdk.clients.rest.models.tenant_invite_list import TenantInviteList
 from hatchet_sdk.clients.rest.models.tenant_member import TenantMember
 from hatchet_sdk.clients.rest.models.tenant_member_list import TenantMemberList
 from hatchet_sdk.clients.rest.models.tenant_resource_policy import TenantResourcePolicy
-from hatchet_sdk.clients.rest.models.tenant_step_run_queue_metrics import (
-    TenantStepRunQueueMetrics,
-)
-from hatchet_sdk.clients.rest.models.update_tenant_alert_email_group_request import (
-    UpdateTenantAlertEmailGroupRequest,
-)
+from hatchet_sdk.clients.rest.models.tenant_step_run_queue_metrics import TenantStepRunQueueMetrics
+from hatchet_sdk.clients.rest.models.update_tenant_alert_email_group_request import UpdateTenantAlertEmailGroupRequest
 from hatchet_sdk.clients.rest.models.update_tenant_request import UpdateTenantRequest
+
+from hatchet_sdk.clients.rest.api_client import ApiClient, RequestSerialized
+from hatchet_sdk.clients.rest.api_response import ApiResponse
 from hatchet_sdk.clients.rest.rest import RESTResponseType
 
 
@@ -65,25 +54,19 @@ class TenantApi:
             api_client = ApiClient.get_default()
         self.api_client = api_client
 
+
     @validate_call
     async def alert_email_group_create(
         self,
-        tenant: Annotated[
-            str,
-            Field(
-                min_length=36, strict=True, max_length=36, description="The tenant id"
-            ),
-        ],
-        create_tenant_alert_email_group_request: Annotated[
-            CreateTenantAlertEmailGroupRequest,
-            Field(description="The tenant alert email group to create"),
-        ],
+        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
+        create_tenant_alert_email_group_request: Annotated[CreateTenantAlertEmailGroupRequest, Field(description="The tenant alert email group to create")],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -118,7 +101,7 @@ class TenantApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._alert_email_group_create_serialize(
             tenant=tenant,
@@ -126,16 +109,17 @@ class TenantApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "201": "TenantAlertEmailGroup",
-            "400": "APIErrors",
-            "403": "APIError",
+            '201': "TenantAlertEmailGroup",
+            '400': "APIErrors",
+            '403': "APIError",
         }
         response_data = await self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         await response_data.read()
         return self.api_client.response_deserialize(
@@ -143,25 +127,19 @@ class TenantApi:
             response_types_map=_response_types_map,
         ).data
 
+
     @validate_call
     async def alert_email_group_create_with_http_info(
         self,
-        tenant: Annotated[
-            str,
-            Field(
-                min_length=36, strict=True, max_length=36, description="The tenant id"
-            ),
-        ],
-        create_tenant_alert_email_group_request: Annotated[
-            CreateTenantAlertEmailGroupRequest,
-            Field(description="The tenant alert email group to create"),
-        ],
+        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
+        create_tenant_alert_email_group_request: Annotated[CreateTenantAlertEmailGroupRequest, Field(description="The tenant alert email group to create")],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -196,7 +174,7 @@ class TenantApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._alert_email_group_create_serialize(
             tenant=tenant,
@@ -204,16 +182,17 @@ class TenantApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "201": "TenantAlertEmailGroup",
-            "400": "APIErrors",
-            "403": "APIError",
+            '201': "TenantAlertEmailGroup",
+            '400': "APIErrors",
+            '403': "APIError",
         }
         response_data = await self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         await response_data.read()
         return self.api_client.response_deserialize(
@@ -221,25 +200,19 @@ class TenantApi:
             response_types_map=_response_types_map,
         )
 
+
     @validate_call
     async def alert_email_group_create_without_preload_content(
         self,
-        tenant: Annotated[
-            str,
-            Field(
-                min_length=36, strict=True, max_length=36, description="The tenant id"
-            ),
-        ],
-        create_tenant_alert_email_group_request: Annotated[
-            CreateTenantAlertEmailGroupRequest,
-            Field(description="The tenant alert email group to create"),
-        ],
+        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
+        create_tenant_alert_email_group_request: Annotated[CreateTenantAlertEmailGroupRequest, Field(description="The tenant alert email group to create")],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -274,7 +247,7 @@ class TenantApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._alert_email_group_create_serialize(
             tenant=tenant,
@@ -282,18 +255,20 @@ class TenantApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "201": "TenantAlertEmailGroup",
-            "400": "APIErrors",
-            "403": "APIError",
+            '201': "TenantAlertEmailGroup",
+            '400': "APIErrors",
+            '403': "APIError",
         }
         response_data = await self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         return response_data.response
+
 
     def _alert_email_group_create_serialize(
         self,
@@ -307,7 +282,8 @@ class TenantApi:
 
         _host = None
 
-        _collection_formats: Dict[str, str] = {}
+        _collection_formats: Dict[str, str] = {
+        }
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
@@ -320,7 +296,7 @@ class TenantApi:
 
         # process the path parameters
         if tenant is not None:
-            _path_params["tenant"] = tenant
+            _path_params['tenant'] = tenant
         # process the query parameters
         # process the header parameters
         # process the form parameters
@@ -328,28 +304,38 @@ class TenantApi:
         if create_tenant_alert_email_group_request is not None:
             _body_params = create_tenant_alert_email_group_request
 
+
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
-            _header_params["Accept"] = self.api_client.select_header_accept(
-                ["application/json"]
+        if 'Accept' not in _header_params:
+            _header_params['Accept'] = self.api_client.select_header_accept(
+                [
+                    'application/json'
+                ]
             )
 
         # set the HTTP header `Content-Type`
         if _content_type:
-            _header_params["Content-Type"] = _content_type
+            _header_params['Content-Type'] = _content_type
         else:
-            _default_content_type = self.api_client.select_header_content_type(
-                ["application/json"]
+            _default_content_type = (
+                self.api_client.select_header_content_type(
+                    [
+                        'application/json'
+                    ]
+                )
             )
             if _default_content_type is not None:
-                _header_params["Content-Type"] = _default_content_type
+                _header_params['Content-Type'] = _default_content_type
 
         # authentication setting
-        _auth_settings: List[str] = ["cookieAuth", "bearerAuth"]
+        _auth_settings: List[str] = [
+            'cookieAuth', 
+            'bearerAuth'
+        ]
 
         return self.api_client.param_serialize(
-            method="POST",
-            resource_path="/api/v1/tenants/{tenant}/alerting-email-groups",
+            method='POST',
+            resource_path='/api/v1/tenants/{tenant}/alerting-email-groups',
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,
@@ -359,27 +345,23 @@ class TenantApi:
             auth_settings=_auth_settings,
             collection_formats=_collection_formats,
             _host=_host,
-            _request_auth=_request_auth,
+            _request_auth=_request_auth
         )
+
+
+
 
     @validate_call
     async def alert_email_group_delete(
         self,
-        alert_email_group: Annotated[
-            str,
-            Field(
-                min_length=36,
-                strict=True,
-                max_length=36,
-                description="The tenant alert email group id",
-            ),
-        ],
+        alert_email_group: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant alert email group id")],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -412,23 +394,24 @@ class TenantApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._alert_email_group_delete_serialize(
             alert_email_group=alert_email_group,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "204": None,
-            "400": "APIErrors",
-            "403": "APIError",
+            '204': None,
+            '400': "APIErrors",
+            '403': "APIError",
         }
         response_data = await self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         await response_data.read()
         return self.api_client.response_deserialize(
@@ -436,24 +419,18 @@ class TenantApi:
             response_types_map=_response_types_map,
         ).data
 
+
     @validate_call
     async def alert_email_group_delete_with_http_info(
         self,
-        alert_email_group: Annotated[
-            str,
-            Field(
-                min_length=36,
-                strict=True,
-                max_length=36,
-                description="The tenant alert email group id",
-            ),
-        ],
+        alert_email_group: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant alert email group id")],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -486,23 +463,24 @@ class TenantApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._alert_email_group_delete_serialize(
             alert_email_group=alert_email_group,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "204": None,
-            "400": "APIErrors",
-            "403": "APIError",
+            '204': None,
+            '400': "APIErrors",
+            '403': "APIError",
         }
         response_data = await self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         await response_data.read()
         return self.api_client.response_deserialize(
@@ -510,24 +488,18 @@ class TenantApi:
             response_types_map=_response_types_map,
         )
 
+
     @validate_call
     async def alert_email_group_delete_without_preload_content(
         self,
-        alert_email_group: Annotated[
-            str,
-            Field(
-                min_length=36,
-                strict=True,
-                max_length=36,
-                description="The tenant alert email group id",
-            ),
-        ],
+        alert_email_group: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant alert email group id")],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -560,25 +532,27 @@ class TenantApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._alert_email_group_delete_serialize(
             alert_email_group=alert_email_group,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "204": None,
-            "400": "APIErrors",
-            "403": "APIError",
+            '204': None,
+            '400': "APIErrors",
+            '403': "APIError",
         }
         response_data = await self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         return response_data.response
+
 
     def _alert_email_group_delete_serialize(
         self,
@@ -591,7 +565,8 @@ class TenantApi:
 
         _host = None
 
-        _collection_formats: Dict[str, str] = {}
+        _collection_formats: Dict[str, str] = {
+        }
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
@@ -604,24 +579,31 @@ class TenantApi:
 
         # process the path parameters
         if alert_email_group is not None:
-            _path_params["alert-email-group"] = alert_email_group
+            _path_params['alert-email-group'] = alert_email_group
         # process the query parameters
         # process the header parameters
         # process the form parameters
         # process the body parameter
 
+
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
-            _header_params["Accept"] = self.api_client.select_header_accept(
-                ["application/json"]
+        if 'Accept' not in _header_params:
+            _header_params['Accept'] = self.api_client.select_header_accept(
+                [
+                    'application/json'
+                ]
             )
 
+
         # authentication setting
-        _auth_settings: List[str] = ["cookieAuth", "bearerAuth"]
+        _auth_settings: List[str] = [
+            'cookieAuth', 
+            'bearerAuth'
+        ]
 
         return self.api_client.param_serialize(
-            method="DELETE",
-            resource_path="/api/v1/alerting-email-groups/{alert-email-group}",
+            method='DELETE',
+            resource_path='/api/v1/alerting-email-groups/{alert-email-group}',
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,
@@ -631,24 +613,23 @@ class TenantApi:
             auth_settings=_auth_settings,
             collection_formats=_collection_formats,
             _host=_host,
-            _request_auth=_request_auth,
+            _request_auth=_request_auth
         )
+
+
+
 
     @validate_call
     async def alert_email_group_list(
         self,
-        tenant: Annotated[
-            str,
-            Field(
-                min_length=36, strict=True, max_length=36, description="The tenant id"
-            ),
-        ],
+        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -681,23 +662,24 @@ class TenantApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._alert_email_group_list_serialize(
             tenant=tenant,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": "TenantAlertEmailGroupList",
-            "400": "APIErrors",
-            "403": "APIError",
+            '200': "TenantAlertEmailGroupList",
+            '400': "APIErrors",
+            '403': "APIError",
         }
         response_data = await self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         await response_data.read()
         return self.api_client.response_deserialize(
@@ -705,21 +687,18 @@ class TenantApi:
             response_types_map=_response_types_map,
         ).data
 
+
     @validate_call
     async def alert_email_group_list_with_http_info(
         self,
-        tenant: Annotated[
-            str,
-            Field(
-                min_length=36, strict=True, max_length=36, description="The tenant id"
-            ),
-        ],
+        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -752,23 +731,24 @@ class TenantApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._alert_email_group_list_serialize(
             tenant=tenant,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": "TenantAlertEmailGroupList",
-            "400": "APIErrors",
-            "403": "APIError",
+            '200': "TenantAlertEmailGroupList",
+            '400': "APIErrors",
+            '403': "APIError",
         }
         response_data = await self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         await response_data.read()
         return self.api_client.response_deserialize(
@@ -776,21 +756,18 @@ class TenantApi:
             response_types_map=_response_types_map,
         )
 
+
     @validate_call
     async def alert_email_group_list_without_preload_content(
         self,
-        tenant: Annotated[
-            str,
-            Field(
-                min_length=36, strict=True, max_length=36, description="The tenant id"
-            ),
-        ],
+        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -823,25 +800,27 @@ class TenantApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._alert_email_group_list_serialize(
             tenant=tenant,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": "TenantAlertEmailGroupList",
-            "400": "APIErrors",
-            "403": "APIError",
+            '200': "TenantAlertEmailGroupList",
+            '400': "APIErrors",
+            '403': "APIError",
         }
         response_data = await self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         return response_data.response
+
 
     def _alert_email_group_list_serialize(
         self,
@@ -854,7 +833,8 @@ class TenantApi:
 
         _host = None
 
-        _collection_formats: Dict[str, str] = {}
+        _collection_formats: Dict[str, str] = {
+        }
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
@@ -867,24 +847,31 @@ class TenantApi:
 
         # process the path parameters
         if tenant is not None:
-            _path_params["tenant"] = tenant
+            _path_params['tenant'] = tenant
         # process the query parameters
         # process the header parameters
         # process the form parameters
         # process the body parameter
 
+
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
-            _header_params["Accept"] = self.api_client.select_header_accept(
-                ["application/json"]
+        if 'Accept' not in _header_params:
+            _header_params['Accept'] = self.api_client.select_header_accept(
+                [
+                    'application/json'
+                ]
             )
 
+
         # authentication setting
-        _auth_settings: List[str] = ["cookieAuth", "bearerAuth"]
+        _auth_settings: List[str] = [
+            'cookieAuth', 
+            'bearerAuth'
+        ]
 
         return self.api_client.param_serialize(
-            method="GET",
-            resource_path="/api/v1/tenants/{tenant}/alerting-email-groups",
+            method='GET',
+            resource_path='/api/v1/tenants/{tenant}/alerting-email-groups',
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,
@@ -894,31 +881,24 @@ class TenantApi:
             auth_settings=_auth_settings,
             collection_formats=_collection_formats,
             _host=_host,
-            _request_auth=_request_auth,
+            _request_auth=_request_auth
         )
+
+
+
 
     @validate_call
     async def alert_email_group_update(
         self,
-        alert_email_group: Annotated[
-            str,
-            Field(
-                min_length=36,
-                strict=True,
-                max_length=36,
-                description="The tenant alert email group id",
-            ),
-        ],
-        update_tenant_alert_email_group_request: Annotated[
-            UpdateTenantAlertEmailGroupRequest,
-            Field(description="The tenant alert email group to update"),
-        ],
+        alert_email_group: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant alert email group id")],
+        update_tenant_alert_email_group_request: Annotated[UpdateTenantAlertEmailGroupRequest, Field(description="The tenant alert email group to update")],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -953,7 +933,7 @@ class TenantApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._alert_email_group_update_serialize(
             alert_email_group=alert_email_group,
@@ -961,16 +941,17 @@ class TenantApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": "TenantAlertEmailGroup",
-            "400": "APIErrors",
-            "403": "APIError",
+            '200': "TenantAlertEmailGroup",
+            '400': "APIErrors",
+            '403': "APIError",
         }
         response_data = await self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         await response_data.read()
         return self.api_client.response_deserialize(
@@ -978,28 +959,19 @@ class TenantApi:
             response_types_map=_response_types_map,
         ).data
 
+
     @validate_call
     async def alert_email_group_update_with_http_info(
         self,
-        alert_email_group: Annotated[
-            str,
-            Field(
-                min_length=36,
-                strict=True,
-                max_length=36,
-                description="The tenant alert email group id",
-            ),
-        ],
-        update_tenant_alert_email_group_request: Annotated[
-            UpdateTenantAlertEmailGroupRequest,
-            Field(description="The tenant alert email group to update"),
-        ],
+        alert_email_group: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant alert email group id")],
+        update_tenant_alert_email_group_request: Annotated[UpdateTenantAlertEmailGroupRequest, Field(description="The tenant alert email group to update")],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -1034,7 +1006,7 @@ class TenantApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._alert_email_group_update_serialize(
             alert_email_group=alert_email_group,
@@ -1042,16 +1014,17 @@ class TenantApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": "TenantAlertEmailGroup",
-            "400": "APIErrors",
-            "403": "APIError",
+            '200': "TenantAlertEmailGroup",
+            '400': "APIErrors",
+            '403': "APIError",
         }
         response_data = await self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         await response_data.read()
         return self.api_client.response_deserialize(
@@ -1059,28 +1032,19 @@ class TenantApi:
             response_types_map=_response_types_map,
         )
 
+
     @validate_call
     async def alert_email_group_update_without_preload_content(
         self,
-        alert_email_group: Annotated[
-            str,
-            Field(
-                min_length=36,
-                strict=True,
-                max_length=36,
-                description="The tenant alert email group id",
-            ),
-        ],
-        update_tenant_alert_email_group_request: Annotated[
-            UpdateTenantAlertEmailGroupRequest,
-            Field(description="The tenant alert email group to update"),
-        ],
+        alert_email_group: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant alert email group id")],
+        update_tenant_alert_email_group_request: Annotated[UpdateTenantAlertEmailGroupRequest, Field(description="The tenant alert email group to update")],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -1115,7 +1079,7 @@ class TenantApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._alert_email_group_update_serialize(
             alert_email_group=alert_email_group,
@@ -1123,18 +1087,20 @@ class TenantApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": "TenantAlertEmailGroup",
-            "400": "APIErrors",
-            "403": "APIError",
+            '200': "TenantAlertEmailGroup",
+            '400': "APIErrors",
+            '403': "APIError",
         }
         response_data = await self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         return response_data.response
+
 
     def _alert_email_group_update_serialize(
         self,
@@ -1148,7 +1114,8 @@ class TenantApi:
 
         _host = None
 
-        _collection_formats: Dict[str, str] = {}
+        _collection_formats: Dict[str, str] = {
+        }
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
@@ -1161,7 +1128,7 @@ class TenantApi:
 
         # process the path parameters
         if alert_email_group is not None:
-            _path_params["alert-email-group"] = alert_email_group
+            _path_params['alert-email-group'] = alert_email_group
         # process the query parameters
         # process the header parameters
         # process the form parameters
@@ -1169,28 +1136,38 @@ class TenantApi:
         if update_tenant_alert_email_group_request is not None:
             _body_params = update_tenant_alert_email_group_request
 
+
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
-            _header_params["Accept"] = self.api_client.select_header_accept(
-                ["application/json"]
+        if 'Accept' not in _header_params:
+            _header_params['Accept'] = self.api_client.select_header_accept(
+                [
+                    'application/json'
+                ]
             )
 
         # set the HTTP header `Content-Type`
         if _content_type:
-            _header_params["Content-Type"] = _content_type
+            _header_params['Content-Type'] = _content_type
         else:
-            _default_content_type = self.api_client.select_header_content_type(
-                ["application/json"]
+            _default_content_type = (
+                self.api_client.select_header_content_type(
+                    [
+                        'application/json'
+                    ]
+                )
             )
             if _default_content_type is not None:
-                _header_params["Content-Type"] = _default_content_type
+                _header_params['Content-Type'] = _default_content_type
 
         # authentication setting
-        _auth_settings: List[str] = ["cookieAuth", "bearerAuth"]
+        _auth_settings: List[str] = [
+            'cookieAuth', 
+            'bearerAuth'
+        ]
 
         return self.api_client.param_serialize(
-            method="PATCH",
-            resource_path="/api/v1/alerting-email-groups/{alert-email-group}",
+            method='PATCH',
+            resource_path='/api/v1/alerting-email-groups/{alert-email-group}',
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,
@@ -1200,24 +1177,23 @@ class TenantApi:
             auth_settings=_auth_settings,
             collection_formats=_collection_formats,
             _host=_host,
-            _request_auth=_request_auth,
+            _request_auth=_request_auth
         )
+
+
+
 
     @validate_call
     async def tenant_alerting_settings_get(
         self,
-        tenant: Annotated[
-            str,
-            Field(
-                min_length=36, strict=True, max_length=36, description="The tenant id"
-            ),
-        ],
+        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -1250,23 +1226,24 @@ class TenantApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._tenant_alerting_settings_get_serialize(
             tenant=tenant,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": "TenantAlertingSettings",
-            "400": "APIErrors",
-            "403": "APIError",
+            '200': "TenantAlertingSettings",
+            '400': "APIErrors",
+            '403': "APIError",
         }
         response_data = await self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         await response_data.read()
         return self.api_client.response_deserialize(
@@ -1274,21 +1251,18 @@ class TenantApi:
             response_types_map=_response_types_map,
         ).data
 
+
     @validate_call
     async def tenant_alerting_settings_get_with_http_info(
         self,
-        tenant: Annotated[
-            str,
-            Field(
-                min_length=36, strict=True, max_length=36, description="The tenant id"
-            ),
-        ],
+        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -1321,23 +1295,24 @@ class TenantApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._tenant_alerting_settings_get_serialize(
             tenant=tenant,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": "TenantAlertingSettings",
-            "400": "APIErrors",
-            "403": "APIError",
+            '200': "TenantAlertingSettings",
+            '400': "APIErrors",
+            '403': "APIError",
         }
         response_data = await self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         await response_data.read()
         return self.api_client.response_deserialize(
@@ -1345,21 +1320,18 @@ class TenantApi:
             response_types_map=_response_types_map,
         )
 
+
     @validate_call
     async def tenant_alerting_settings_get_without_preload_content(
         self,
-        tenant: Annotated[
-            str,
-            Field(
-                min_length=36, strict=True, max_length=36, description="The tenant id"
-            ),
-        ],
+        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -1392,25 +1364,27 @@ class TenantApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._tenant_alerting_settings_get_serialize(
             tenant=tenant,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": "TenantAlertingSettings",
-            "400": "APIErrors",
-            "403": "APIError",
+            '200': "TenantAlertingSettings",
+            '400': "APIErrors",
+            '403': "APIError",
         }
         response_data = await self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         return response_data.response
+
 
     def _tenant_alerting_settings_get_serialize(
         self,
@@ -1423,7 +1397,8 @@ class TenantApi:
 
         _host = None
 
-        _collection_formats: Dict[str, str] = {}
+        _collection_formats: Dict[str, str] = {
+        }
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
@@ -1436,24 +1411,31 @@ class TenantApi:
 
         # process the path parameters
         if tenant is not None:
-            _path_params["tenant"] = tenant
+            _path_params['tenant'] = tenant
         # process the query parameters
         # process the header parameters
         # process the form parameters
         # process the body parameter
 
+
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
-            _header_params["Accept"] = self.api_client.select_header_accept(
-                ["application/json"]
+        if 'Accept' not in _header_params:
+            _header_params['Accept'] = self.api_client.select_header_accept(
+                [
+                    'application/json'
+                ]
             )
 
+
         # authentication setting
-        _auth_settings: List[str] = ["cookieAuth", "bearerAuth"]
+        _auth_settings: List[str] = [
+            'cookieAuth', 
+            'bearerAuth'
+        ]
 
         return self.api_client.param_serialize(
-            method="GET",
-            resource_path="/api/v1/tenants/{tenant}/alerting/settings",
+            method='GET',
+            resource_path='/api/v1/tenants/{tenant}/alerting/settings',
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,
@@ -1463,21 +1445,23 @@ class TenantApi:
             auth_settings=_auth_settings,
             collection_formats=_collection_formats,
             _host=_host,
-            _request_auth=_request_auth,
+            _request_auth=_request_auth
         )
+
+
+
 
     @validate_call
     async def tenant_create(
         self,
-        create_tenant_request: Annotated[
-            CreateTenantRequest, Field(description="The tenant to create")
-        ],
+        create_tenant_request: Annotated[CreateTenantRequest, Field(description="The tenant to create")],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -1510,23 +1494,24 @@ class TenantApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._tenant_create_serialize(
             create_tenant_request=create_tenant_request,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": "Tenant",
-            "400": "APIErrors",
-            "403": "APIError",
+            '200': "Tenant",
+            '400': "APIErrors",
+            '403': "APIError",
         }
         response_data = await self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         await response_data.read()
         return self.api_client.response_deserialize(
@@ -1534,18 +1519,18 @@ class TenantApi:
             response_types_map=_response_types_map,
         ).data
 
+
     @validate_call
     async def tenant_create_with_http_info(
         self,
-        create_tenant_request: Annotated[
-            CreateTenantRequest, Field(description="The tenant to create")
-        ],
+        create_tenant_request: Annotated[CreateTenantRequest, Field(description="The tenant to create")],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -1578,23 +1563,24 @@ class TenantApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._tenant_create_serialize(
             create_tenant_request=create_tenant_request,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": "Tenant",
-            "400": "APIErrors",
-            "403": "APIError",
+            '200': "Tenant",
+            '400': "APIErrors",
+            '403': "APIError",
         }
         response_data = await self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         await response_data.read()
         return self.api_client.response_deserialize(
@@ -1602,18 +1588,18 @@ class TenantApi:
             response_types_map=_response_types_map,
         )
 
+
     @validate_call
     async def tenant_create_without_preload_content(
         self,
-        create_tenant_request: Annotated[
-            CreateTenantRequest, Field(description="The tenant to create")
-        ],
+        create_tenant_request: Annotated[CreateTenantRequest, Field(description="The tenant to create")],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -1646,25 +1632,27 @@ class TenantApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._tenant_create_serialize(
             create_tenant_request=create_tenant_request,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": "Tenant",
-            "400": "APIErrors",
-            "403": "APIError",
+            '200': "Tenant",
+            '400': "APIErrors",
+            '403': "APIError",
         }
         response_data = await self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         return response_data.response
+
 
     def _tenant_create_serialize(
         self,
@@ -1677,7 +1665,8 @@ class TenantApi:
 
         _host = None
 
-        _collection_formats: Dict[str, str] = {}
+        _collection_formats: Dict[str, str] = {
+        }
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
@@ -1696,28 +1685,38 @@ class TenantApi:
         if create_tenant_request is not None:
             _body_params = create_tenant_request
 
+
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
-            _header_params["Accept"] = self.api_client.select_header_accept(
-                ["application/json"]
+        if 'Accept' not in _header_params:
+            _header_params['Accept'] = self.api_client.select_header_accept(
+                [
+                    'application/json'
+                ]
             )
 
         # set the HTTP header `Content-Type`
         if _content_type:
-            _header_params["Content-Type"] = _content_type
+            _header_params['Content-Type'] = _content_type
         else:
-            _default_content_type = self.api_client.select_header_content_type(
-                ["application/json"]
+            _default_content_type = (
+                self.api_client.select_header_content_type(
+                    [
+                        'application/json'
+                    ]
+                )
             )
             if _default_content_type is not None:
-                _header_params["Content-Type"] = _default_content_type
+                _header_params['Content-Type'] = _default_content_type
 
         # authentication setting
-        _auth_settings: List[str] = ["cookieAuth", "bearerAuth"]
+        _auth_settings: List[str] = [
+            'cookieAuth', 
+            'bearerAuth'
+        ]
 
         return self.api_client.param_serialize(
-            method="POST",
-            resource_path="/api/v1/tenants",
+            method='POST',
+            resource_path='/api/v1/tenants',
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,
@@ -1727,24 +1726,23 @@ class TenantApi:
             auth_settings=_auth_settings,
             collection_formats=_collection_formats,
             _host=_host,
-            _request_auth=_request_auth,
+            _request_auth=_request_auth
         )
+
+
+
 
     @validate_call
     async def tenant_get_step_run_queue_metrics(
         self,
-        tenant: Annotated[
-            str,
-            Field(
-                min_length=36, strict=True, max_length=36, description="The tenant id"
-            ),
-        ],
+        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -1777,24 +1775,25 @@ class TenantApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._tenant_get_step_run_queue_metrics_serialize(
             tenant=tenant,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": "TenantStepRunQueueMetrics",
-            "400": "APIErrors",
-            "403": "APIErrors",
-            "404": "APIErrors",
+            '200': "TenantStepRunQueueMetrics",
+            '400': "APIErrors",
+            '403': "APIErrors",
+            '404': "APIErrors",
         }
         response_data = await self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         await response_data.read()
         return self.api_client.response_deserialize(
@@ -1802,21 +1801,18 @@ class TenantApi:
             response_types_map=_response_types_map,
         ).data
 
+
     @validate_call
     async def tenant_get_step_run_queue_metrics_with_http_info(
         self,
-        tenant: Annotated[
-            str,
-            Field(
-                min_length=36, strict=True, max_length=36, description="The tenant id"
-            ),
-        ],
+        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -1849,24 +1845,25 @@ class TenantApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._tenant_get_step_run_queue_metrics_serialize(
             tenant=tenant,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": "TenantStepRunQueueMetrics",
-            "400": "APIErrors",
-            "403": "APIErrors",
-            "404": "APIErrors",
+            '200': "TenantStepRunQueueMetrics",
+            '400': "APIErrors",
+            '403': "APIErrors",
+            '404': "APIErrors",
         }
         response_data = await self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         await response_data.read()
         return self.api_client.response_deserialize(
@@ -1874,21 +1871,18 @@ class TenantApi:
             response_types_map=_response_types_map,
         )
 
+
     @validate_call
     async def tenant_get_step_run_queue_metrics_without_preload_content(
         self,
-        tenant: Annotated[
-            str,
-            Field(
-                min_length=36, strict=True, max_length=36, description="The tenant id"
-            ),
-        ],
+        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -1921,26 +1915,28 @@ class TenantApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._tenant_get_step_run_queue_metrics_serialize(
             tenant=tenant,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": "TenantStepRunQueueMetrics",
-            "400": "APIErrors",
-            "403": "APIErrors",
-            "404": "APIErrors",
+            '200': "TenantStepRunQueueMetrics",
+            '400': "APIErrors",
+            '403': "APIErrors",
+            '404': "APIErrors",
         }
         response_data = await self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         return response_data.response
+
 
     def _tenant_get_step_run_queue_metrics_serialize(
         self,
@@ -1953,7 +1949,8 @@ class TenantApi:
 
         _host = None
 
-        _collection_formats: Dict[str, str] = {}
+        _collection_formats: Dict[str, str] = {
+        }
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
@@ -1966,24 +1963,31 @@ class TenantApi:
 
         # process the path parameters
         if tenant is not None:
-            _path_params["tenant"] = tenant
+            _path_params['tenant'] = tenant
         # process the query parameters
         # process the header parameters
         # process the form parameters
         # process the body parameter
 
+
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
-            _header_params["Accept"] = self.api_client.select_header_accept(
-                ["application/json"]
+        if 'Accept' not in _header_params:
+            _header_params['Accept'] = self.api_client.select_header_accept(
+                [
+                    'application/json'
+                ]
             )
 
+
         # authentication setting
-        _auth_settings: List[str] = ["cookieAuth", "bearerAuth"]
+        _auth_settings: List[str] = [
+            'cookieAuth', 
+            'bearerAuth'
+        ]
 
         return self.api_client.param_serialize(
-            method="GET",
-            resource_path="/api/v1/tenants/{tenant}/step-run-queue-metrics",
+            method='GET',
+            resource_path='/api/v1/tenants/{tenant}/step-run-queue-metrics',
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,
@@ -1993,8 +1997,11 @@ class TenantApi:
             auth_settings=_auth_settings,
             collection_formats=_collection_formats,
             _host=_host,
-            _request_auth=_request_auth,
+            _request_auth=_request_auth
         )
+
+
+
 
     @validate_call
     async def tenant_invite_accept(
@@ -2004,8 +2011,9 @@ class TenantApi:
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -2038,29 +2046,31 @@ class TenantApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._tenant_invite_accept_serialize(
             accept_invite_request=accept_invite_request,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": None,
-            "400": "APIErrors",
-            "403": "APIError",
+            '200': None,
+            '400': "APIErrors",
+            '403': "APIError",
         }
         response_data = await self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         await response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         ).data
+
 
     @validate_call
     async def tenant_invite_accept_with_http_info(
@@ -2070,8 +2080,9 @@ class TenantApi:
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -2104,29 +2115,31 @@ class TenantApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._tenant_invite_accept_serialize(
             accept_invite_request=accept_invite_request,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": None,
-            "400": "APIErrors",
-            "403": "APIError",
+            '200': None,
+            '400': "APIErrors",
+            '403': "APIError",
         }
         response_data = await self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         await response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         )
+
 
     @validate_call
     async def tenant_invite_accept_without_preload_content(
@@ -2136,8 +2149,9 @@ class TenantApi:
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -2170,25 +2184,27 @@ class TenantApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._tenant_invite_accept_serialize(
             accept_invite_request=accept_invite_request,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": None,
-            "400": "APIErrors",
-            "403": "APIError",
+            '200': None,
+            '400': "APIErrors",
+            '403': "APIError",
         }
         response_data = await self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         return response_data.response
+
 
     def _tenant_invite_accept_serialize(
         self,
@@ -2201,7 +2217,8 @@ class TenantApi:
 
         _host = None
 
-        _collection_formats: Dict[str, str] = {}
+        _collection_formats: Dict[str, str] = {
+        }
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
@@ -2220,28 +2237,38 @@ class TenantApi:
         if accept_invite_request is not None:
             _body_params = accept_invite_request
 
+
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
-            _header_params["Accept"] = self.api_client.select_header_accept(
-                ["application/json"]
+        if 'Accept' not in _header_params:
+            _header_params['Accept'] = self.api_client.select_header_accept(
+                [
+                    'application/json'
+                ]
             )
 
         # set the HTTP header `Content-Type`
         if _content_type:
-            _header_params["Content-Type"] = _content_type
+            _header_params['Content-Type'] = _content_type
         else:
-            _default_content_type = self.api_client.select_header_content_type(
-                ["application/json"]
+            _default_content_type = (
+                self.api_client.select_header_content_type(
+                    [
+                        'application/json'
+                    ]
+                )
             )
             if _default_content_type is not None:
-                _header_params["Content-Type"] = _default_content_type
+                _header_params['Content-Type'] = _default_content_type
 
         # authentication setting
-        _auth_settings: List[str] = ["cookieAuth", "bearerAuth"]
+        _auth_settings: List[str] = [
+            'cookieAuth', 
+            'bearerAuth'
+        ]
 
         return self.api_client.param_serialize(
-            method="POST",
-            resource_path="/api/v1/users/invites/accept",
+            method='POST',
+            resource_path='/api/v1/users/invites/accept',
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,
@@ -2251,27 +2278,24 @@ class TenantApi:
             auth_settings=_auth_settings,
             collection_formats=_collection_formats,
             _host=_host,
-            _request_auth=_request_auth,
+            _request_auth=_request_auth
         )
+
+
+
 
     @validate_call
     async def tenant_invite_create(
         self,
-        tenant: Annotated[
-            str,
-            Field(
-                min_length=36, strict=True, max_length=36, description="The tenant id"
-            ),
-        ],
-        create_tenant_invite_request: Annotated[
-            CreateTenantInviteRequest, Field(description="The tenant invite to create")
-        ],
+        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
+        create_tenant_invite_request: Annotated[CreateTenantInviteRequest, Field(description="The tenant invite to create")],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -2306,7 +2330,7 @@ class TenantApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._tenant_invite_create_serialize(
             tenant=tenant,
@@ -2314,16 +2338,17 @@ class TenantApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "201": "TenantInvite",
-            "400": "APIErrors",
-            "403": "APIError",
+            '201': "TenantInvite",
+            '400': "APIErrors",
+            '403': "APIError",
         }
         response_data = await self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         await response_data.read()
         return self.api_client.response_deserialize(
@@ -2331,24 +2356,19 @@ class TenantApi:
             response_types_map=_response_types_map,
         ).data
 
+
     @validate_call
     async def tenant_invite_create_with_http_info(
         self,
-        tenant: Annotated[
-            str,
-            Field(
-                min_length=36, strict=True, max_length=36, description="The tenant id"
-            ),
-        ],
-        create_tenant_invite_request: Annotated[
-            CreateTenantInviteRequest, Field(description="The tenant invite to create")
-        ],
+        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
+        create_tenant_invite_request: Annotated[CreateTenantInviteRequest, Field(description="The tenant invite to create")],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -2383,7 +2403,7 @@ class TenantApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._tenant_invite_create_serialize(
             tenant=tenant,
@@ -2391,16 +2411,17 @@ class TenantApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "201": "TenantInvite",
-            "400": "APIErrors",
-            "403": "APIError",
+            '201': "TenantInvite",
+            '400': "APIErrors",
+            '403': "APIError",
         }
         response_data = await self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         await response_data.read()
         return self.api_client.response_deserialize(
@@ -2408,24 +2429,19 @@ class TenantApi:
             response_types_map=_response_types_map,
         )
 
+
     @validate_call
     async def tenant_invite_create_without_preload_content(
         self,
-        tenant: Annotated[
-            str,
-            Field(
-                min_length=36, strict=True, max_length=36, description="The tenant id"
-            ),
-        ],
-        create_tenant_invite_request: Annotated[
-            CreateTenantInviteRequest, Field(description="The tenant invite to create")
-        ],
+        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
+        create_tenant_invite_request: Annotated[CreateTenantInviteRequest, Field(description="The tenant invite to create")],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -2460,7 +2476,7 @@ class TenantApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._tenant_invite_create_serialize(
             tenant=tenant,
@@ -2468,18 +2484,20 @@ class TenantApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "201": "TenantInvite",
-            "400": "APIErrors",
-            "403": "APIError",
+            '201': "TenantInvite",
+            '400': "APIErrors",
+            '403': "APIError",
         }
         response_data = await self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         return response_data.response
+
 
     def _tenant_invite_create_serialize(
         self,
@@ -2493,7 +2511,8 @@ class TenantApi:
 
         _host = None
 
-        _collection_formats: Dict[str, str] = {}
+        _collection_formats: Dict[str, str] = {
+        }
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
@@ -2506,7 +2525,7 @@ class TenantApi:
 
         # process the path parameters
         if tenant is not None:
-            _path_params["tenant"] = tenant
+            _path_params['tenant'] = tenant
         # process the query parameters
         # process the header parameters
         # process the form parameters
@@ -2514,28 +2533,38 @@ class TenantApi:
         if create_tenant_invite_request is not None:
             _body_params = create_tenant_invite_request
 
+
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
-            _header_params["Accept"] = self.api_client.select_header_accept(
-                ["application/json"]
+        if 'Accept' not in _header_params:
+            _header_params['Accept'] = self.api_client.select_header_accept(
+                [
+                    'application/json'
+                ]
             )
 
         # set the HTTP header `Content-Type`
         if _content_type:
-            _header_params["Content-Type"] = _content_type
+            _header_params['Content-Type'] = _content_type
         else:
-            _default_content_type = self.api_client.select_header_content_type(
-                ["application/json"]
+            _default_content_type = (
+                self.api_client.select_header_content_type(
+                    [
+                        'application/json'
+                    ]
+                )
             )
             if _default_content_type is not None:
-                _header_params["Content-Type"] = _default_content_type
+                _header_params['Content-Type'] = _default_content_type
 
         # authentication setting
-        _auth_settings: List[str] = ["cookieAuth", "bearerAuth"]
+        _auth_settings: List[str] = [
+            'cookieAuth', 
+            'bearerAuth'
+        ]
 
         return self.api_client.param_serialize(
-            method="POST",
-            resource_path="/api/v1/tenants/{tenant}/invites",
+            method='POST',
+            resource_path='/api/v1/tenants/{tenant}/invites',
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,
@@ -2545,24 +2574,23 @@ class TenantApi:
             auth_settings=_auth_settings,
             collection_formats=_collection_formats,
             _host=_host,
-            _request_auth=_request_auth,
+            _request_auth=_request_auth
         )
+
+
+
 
     @validate_call
     async def tenant_invite_list(
         self,
-        tenant: Annotated[
-            str,
-            Field(
-                min_length=36, strict=True, max_length=36, description="The tenant id"
-            ),
-        ],
+        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -2595,23 +2623,24 @@ class TenantApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._tenant_invite_list_serialize(
             tenant=tenant,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": "TenantInviteList",
-            "400": "APIErrors",
-            "403": "APIError",
+            '200': "TenantInviteList",
+            '400': "APIErrors",
+            '403': "APIError",
         }
         response_data = await self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         await response_data.read()
         return self.api_client.response_deserialize(
@@ -2619,21 +2648,18 @@ class TenantApi:
             response_types_map=_response_types_map,
         ).data
 
+
     @validate_call
     async def tenant_invite_list_with_http_info(
         self,
-        tenant: Annotated[
-            str,
-            Field(
-                min_length=36, strict=True, max_length=36, description="The tenant id"
-            ),
-        ],
+        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -2666,23 +2692,24 @@ class TenantApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._tenant_invite_list_serialize(
             tenant=tenant,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": "TenantInviteList",
-            "400": "APIErrors",
-            "403": "APIError",
+            '200': "TenantInviteList",
+            '400': "APIErrors",
+            '403': "APIError",
         }
         response_data = await self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         await response_data.read()
         return self.api_client.response_deserialize(
@@ -2690,21 +2717,18 @@ class TenantApi:
             response_types_map=_response_types_map,
         )
 
+
     @validate_call
     async def tenant_invite_list_without_preload_content(
         self,
-        tenant: Annotated[
-            str,
-            Field(
-                min_length=36, strict=True, max_length=36, description="The tenant id"
-            ),
-        ],
+        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -2737,25 +2761,27 @@ class TenantApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._tenant_invite_list_serialize(
             tenant=tenant,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": "TenantInviteList",
-            "400": "APIErrors",
-            "403": "APIError",
+            '200': "TenantInviteList",
+            '400': "APIErrors",
+            '403': "APIError",
         }
         response_data = await self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         return response_data.response
+
 
     def _tenant_invite_list_serialize(
         self,
@@ -2768,7 +2794,8 @@ class TenantApi:
 
         _host = None
 
-        _collection_formats: Dict[str, str] = {}
+        _collection_formats: Dict[str, str] = {
+        }
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
@@ -2781,24 +2808,31 @@ class TenantApi:
 
         # process the path parameters
         if tenant is not None:
-            _path_params["tenant"] = tenant
+            _path_params['tenant'] = tenant
         # process the query parameters
         # process the header parameters
         # process the form parameters
         # process the body parameter
 
+
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
-            _header_params["Accept"] = self.api_client.select_header_accept(
-                ["application/json"]
+        if 'Accept' not in _header_params:
+            _header_params['Accept'] = self.api_client.select_header_accept(
+                [
+                    'application/json'
+                ]
             )
 
+
         # authentication setting
-        _auth_settings: List[str] = ["cookieAuth", "bearerAuth"]
+        _auth_settings: List[str] = [
+            'cookieAuth', 
+            'bearerAuth'
+        ]
 
         return self.api_client.param_serialize(
-            method="GET",
-            resource_path="/api/v1/tenants/{tenant}/invites",
+            method='GET',
+            resource_path='/api/v1/tenants/{tenant}/invites',
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,
@@ -2808,8 +2842,11 @@ class TenantApi:
             auth_settings=_auth_settings,
             collection_formats=_collection_formats,
             _host=_host,
-            _request_auth=_request_auth,
+            _request_auth=_request_auth
         )
+
+
+
 
     @validate_call
     async def tenant_invite_reject(
@@ -2819,8 +2856,9 @@ class TenantApi:
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -2853,29 +2891,31 @@ class TenantApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._tenant_invite_reject_serialize(
             reject_invite_request=reject_invite_request,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": None,
-            "400": "APIErrors",
-            "403": "APIError",
+            '200': None,
+            '400': "APIErrors",
+            '403': "APIError",
         }
         response_data = await self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         await response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         ).data
+
 
     @validate_call
     async def tenant_invite_reject_with_http_info(
@@ -2885,8 +2925,9 @@ class TenantApi:
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -2919,29 +2960,31 @@ class TenantApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._tenant_invite_reject_serialize(
             reject_invite_request=reject_invite_request,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": None,
-            "400": "APIErrors",
-            "403": "APIError",
+            '200': None,
+            '400': "APIErrors",
+            '403': "APIError",
         }
         response_data = await self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         await response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         )
+
 
     @validate_call
     async def tenant_invite_reject_without_preload_content(
@@ -2951,8 +2994,9 @@ class TenantApi:
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -2985,25 +3029,27 @@ class TenantApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._tenant_invite_reject_serialize(
             reject_invite_request=reject_invite_request,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": None,
-            "400": "APIErrors",
-            "403": "APIError",
+            '200': None,
+            '400': "APIErrors",
+            '403': "APIError",
         }
         response_data = await self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         return response_data.response
+
 
     def _tenant_invite_reject_serialize(
         self,
@@ -3016,7 +3062,8 @@ class TenantApi:
 
         _host = None
 
-        _collection_formats: Dict[str, str] = {}
+        _collection_formats: Dict[str, str] = {
+        }
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
@@ -3035,28 +3082,38 @@ class TenantApi:
         if reject_invite_request is not None:
             _body_params = reject_invite_request
 
+
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
-            _header_params["Accept"] = self.api_client.select_header_accept(
-                ["application/json"]
+        if 'Accept' not in _header_params:
+            _header_params['Accept'] = self.api_client.select_header_accept(
+                [
+                    'application/json'
+                ]
             )
 
         # set the HTTP header `Content-Type`
         if _content_type:
-            _header_params["Content-Type"] = _content_type
+            _header_params['Content-Type'] = _content_type
         else:
-            _default_content_type = self.api_client.select_header_content_type(
-                ["application/json"]
+            _default_content_type = (
+                self.api_client.select_header_content_type(
+                    [
+                        'application/json'
+                    ]
+                )
             )
             if _default_content_type is not None:
-                _header_params["Content-Type"] = _default_content_type
+                _header_params['Content-Type'] = _default_content_type
 
         # authentication setting
-        _auth_settings: List[str] = ["cookieAuth", "bearerAuth"]
+        _auth_settings: List[str] = [
+            'cookieAuth', 
+            'bearerAuth'
+        ]
 
         return self.api_client.param_serialize(
-            method="POST",
-            resource_path="/api/v1/users/invites/reject",
+            method='POST',
+            resource_path='/api/v1/users/invites/reject',
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,
@@ -3066,33 +3123,24 @@ class TenantApi:
             auth_settings=_auth_settings,
             collection_formats=_collection_formats,
             _host=_host,
-            _request_auth=_request_auth,
+            _request_auth=_request_auth
         )
+
+
+
 
     @validate_call
     async def tenant_member_delete(
         self,
-        tenant: Annotated[
-            str,
-            Field(
-                min_length=36, strict=True, max_length=36, description="The tenant id"
-            ),
-        ],
-        member: Annotated[
-            str,
-            Field(
-                min_length=36,
-                strict=True,
-                max_length=36,
-                description="The tenant member id",
-            ),
-        ],
+        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
+        member: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant member id")],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -3127,7 +3175,7 @@ class TenantApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._tenant_member_delete_serialize(
             tenant=tenant,
@@ -3135,17 +3183,18 @@ class TenantApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "204": "TenantMember",
-            "400": "APIErrors",
-            "403": "APIErrors",
-            "404": "APIErrors",
+            '204': "TenantMember",
+            '400': "APIErrors",
+            '403': "APIErrors",
+            '404': "APIErrors",
         }
         response_data = await self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         await response_data.read()
         return self.api_client.response_deserialize(
@@ -3153,30 +3202,19 @@ class TenantApi:
             response_types_map=_response_types_map,
         ).data
 
+
     @validate_call
     async def tenant_member_delete_with_http_info(
         self,
-        tenant: Annotated[
-            str,
-            Field(
-                min_length=36, strict=True, max_length=36, description="The tenant id"
-            ),
-        ],
-        member: Annotated[
-            str,
-            Field(
-                min_length=36,
-                strict=True,
-                max_length=36,
-                description="The tenant member id",
-            ),
-        ],
+        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
+        member: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant member id")],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -3211,7 +3249,7 @@ class TenantApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._tenant_member_delete_serialize(
             tenant=tenant,
@@ -3219,17 +3257,18 @@ class TenantApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "204": "TenantMember",
-            "400": "APIErrors",
-            "403": "APIErrors",
-            "404": "APIErrors",
+            '204': "TenantMember",
+            '400': "APIErrors",
+            '403': "APIErrors",
+            '404': "APIErrors",
         }
         response_data = await self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         await response_data.read()
         return self.api_client.response_deserialize(
@@ -3237,30 +3276,19 @@ class TenantApi:
             response_types_map=_response_types_map,
         )
 
+
     @validate_call
     async def tenant_member_delete_without_preload_content(
         self,
-        tenant: Annotated[
-            str,
-            Field(
-                min_length=36, strict=True, max_length=36, description="The tenant id"
-            ),
-        ],
-        member: Annotated[
-            str,
-            Field(
-                min_length=36,
-                strict=True,
-                max_length=36,
-                description="The tenant member id",
-            ),
-        ],
+        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
+        member: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant member id")],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -3295,7 +3323,7 @@ class TenantApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._tenant_member_delete_serialize(
             tenant=tenant,
@@ -3303,19 +3331,21 @@ class TenantApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "204": "TenantMember",
-            "400": "APIErrors",
-            "403": "APIErrors",
-            "404": "APIErrors",
+            '204': "TenantMember",
+            '400': "APIErrors",
+            '403': "APIErrors",
+            '404': "APIErrors",
         }
         response_data = await self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         return response_data.response
+
 
     def _tenant_member_delete_serialize(
         self,
@@ -3329,7 +3359,8 @@ class TenantApi:
 
         _host = None
 
-        _collection_formats: Dict[str, str] = {}
+        _collection_formats: Dict[str, str] = {
+        }
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
@@ -3342,26 +3373,33 @@ class TenantApi:
 
         # process the path parameters
         if tenant is not None:
-            _path_params["tenant"] = tenant
+            _path_params['tenant'] = tenant
         if member is not None:
-            _path_params["member"] = member
+            _path_params['member'] = member
         # process the query parameters
         # process the header parameters
         # process the form parameters
         # process the body parameter
 
+
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
-            _header_params["Accept"] = self.api_client.select_header_accept(
-                ["application/json"]
+        if 'Accept' not in _header_params:
+            _header_params['Accept'] = self.api_client.select_header_accept(
+                [
+                    'application/json'
+                ]
             )
 
+
         # authentication setting
-        _auth_settings: List[str] = ["cookieAuth", "bearerAuth"]
+        _auth_settings: List[str] = [
+            'cookieAuth', 
+            'bearerAuth'
+        ]
 
         return self.api_client.param_serialize(
-            method="DELETE",
-            resource_path="/api/v1/tenants/{tenant}/members/{member}",
+            method='DELETE',
+            resource_path='/api/v1/tenants/{tenant}/members/{member}',
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,
@@ -3371,24 +3409,23 @@ class TenantApi:
             auth_settings=_auth_settings,
             collection_formats=_collection_formats,
             _host=_host,
-            _request_auth=_request_auth,
+            _request_auth=_request_auth
         )
+
+
+
 
     @validate_call
     async def tenant_member_list(
         self,
-        tenant: Annotated[
-            str,
-            Field(
-                min_length=36, strict=True, max_length=36, description="The tenant id"
-            ),
-        ],
+        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -3421,23 +3458,24 @@ class TenantApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._tenant_member_list_serialize(
             tenant=tenant,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": "TenantMemberList",
-            "400": "APIErrors",
-            "403": "APIError",
+            '200': "TenantMemberList",
+            '400': "APIErrors",
+            '403': "APIError",
         }
         response_data = await self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         await response_data.read()
         return self.api_client.response_deserialize(
@@ -3445,21 +3483,18 @@ class TenantApi:
             response_types_map=_response_types_map,
         ).data
 
+
     @validate_call
     async def tenant_member_list_with_http_info(
         self,
-        tenant: Annotated[
-            str,
-            Field(
-                min_length=36, strict=True, max_length=36, description="The tenant id"
-            ),
-        ],
+        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -3492,23 +3527,24 @@ class TenantApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._tenant_member_list_serialize(
             tenant=tenant,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": "TenantMemberList",
-            "400": "APIErrors",
-            "403": "APIError",
+            '200': "TenantMemberList",
+            '400': "APIErrors",
+            '403': "APIError",
         }
         response_data = await self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         await response_data.read()
         return self.api_client.response_deserialize(
@@ -3516,21 +3552,18 @@ class TenantApi:
             response_types_map=_response_types_map,
         )
 
+
     @validate_call
     async def tenant_member_list_without_preload_content(
         self,
-        tenant: Annotated[
-            str,
-            Field(
-                min_length=36, strict=True, max_length=36, description="The tenant id"
-            ),
-        ],
+        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -3563,25 +3596,27 @@ class TenantApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._tenant_member_list_serialize(
             tenant=tenant,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": "TenantMemberList",
-            "400": "APIErrors",
-            "403": "APIError",
+            '200': "TenantMemberList",
+            '400': "APIErrors",
+            '403': "APIError",
         }
         response_data = await self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         return response_data.response
+
 
     def _tenant_member_list_serialize(
         self,
@@ -3594,7 +3629,8 @@ class TenantApi:
 
         _host = None
 
-        _collection_formats: Dict[str, str] = {}
+        _collection_formats: Dict[str, str] = {
+        }
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
@@ -3607,24 +3643,31 @@ class TenantApi:
 
         # process the path parameters
         if tenant is not None:
-            _path_params["tenant"] = tenant
+            _path_params['tenant'] = tenant
         # process the query parameters
         # process the header parameters
         # process the form parameters
         # process the body parameter
 
+
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
-            _header_params["Accept"] = self.api_client.select_header_accept(
-                ["application/json"]
+        if 'Accept' not in _header_params:
+            _header_params['Accept'] = self.api_client.select_header_accept(
+                [
+                    'application/json'
+                ]
             )
 
+
         # authentication setting
-        _auth_settings: List[str] = ["cookieAuth", "bearerAuth"]
+        _auth_settings: List[str] = [
+            'cookieAuth', 
+            'bearerAuth'
+        ]
 
         return self.api_client.param_serialize(
-            method="GET",
-            resource_path="/api/v1/tenants/{tenant}/members",
+            method='GET',
+            resource_path='/api/v1/tenants/{tenant}/members',
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,
@@ -3634,24 +3677,23 @@ class TenantApi:
             auth_settings=_auth_settings,
             collection_formats=_collection_formats,
             _host=_host,
-            _request_auth=_request_auth,
+            _request_auth=_request_auth
         )
+
+
+
 
     @validate_call
     async def tenant_resource_policy_get(
         self,
-        tenant: Annotated[
-            str,
-            Field(
-                min_length=36, strict=True, max_length=36, description="The tenant id"
-            ),
-        ],
+        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -3684,23 +3726,24 @@ class TenantApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._tenant_resource_policy_get_serialize(
             tenant=tenant,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": "TenantResourcePolicy",
-            "400": "APIErrors",
-            "403": "APIError",
+            '200': "TenantResourcePolicy",
+            '400': "APIErrors",
+            '403': "APIError",
         }
         response_data = await self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         await response_data.read()
         return self.api_client.response_deserialize(
@@ -3708,21 +3751,18 @@ class TenantApi:
             response_types_map=_response_types_map,
         ).data
 
+
     @validate_call
     async def tenant_resource_policy_get_with_http_info(
         self,
-        tenant: Annotated[
-            str,
-            Field(
-                min_length=36, strict=True, max_length=36, description="The tenant id"
-            ),
-        ],
+        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -3755,23 +3795,24 @@ class TenantApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._tenant_resource_policy_get_serialize(
             tenant=tenant,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": "TenantResourcePolicy",
-            "400": "APIErrors",
-            "403": "APIError",
+            '200': "TenantResourcePolicy",
+            '400': "APIErrors",
+            '403': "APIError",
         }
         response_data = await self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         await response_data.read()
         return self.api_client.response_deserialize(
@@ -3779,21 +3820,18 @@ class TenantApi:
             response_types_map=_response_types_map,
         )
 
+
     @validate_call
     async def tenant_resource_policy_get_without_preload_content(
         self,
-        tenant: Annotated[
-            str,
-            Field(
-                min_length=36, strict=True, max_length=36, description="The tenant id"
-            ),
-        ],
+        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -3826,25 +3864,27 @@ class TenantApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._tenant_resource_policy_get_serialize(
             tenant=tenant,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": "TenantResourcePolicy",
-            "400": "APIErrors",
-            "403": "APIError",
+            '200': "TenantResourcePolicy",
+            '400': "APIErrors",
+            '403': "APIError",
         }
         response_data = await self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         return response_data.response
+
 
     def _tenant_resource_policy_get_serialize(
         self,
@@ -3857,7 +3897,8 @@ class TenantApi:
 
         _host = None
 
-        _collection_formats: Dict[str, str] = {}
+        _collection_formats: Dict[str, str] = {
+        }
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
@@ -3870,24 +3911,31 @@ class TenantApi:
 
         # process the path parameters
         if tenant is not None:
-            _path_params["tenant"] = tenant
+            _path_params['tenant'] = tenant
         # process the query parameters
         # process the header parameters
         # process the form parameters
         # process the body parameter
 
+
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
-            _header_params["Accept"] = self.api_client.select_header_accept(
-                ["application/json"]
+        if 'Accept' not in _header_params:
+            _header_params['Accept'] = self.api_client.select_header_accept(
+                [
+                    'application/json'
+                ]
             )
 
+
         # authentication setting
-        _auth_settings: List[str] = ["cookieAuth", "bearerAuth"]
+        _auth_settings: List[str] = [
+            'cookieAuth', 
+            'bearerAuth'
+        ]
 
         return self.api_client.param_serialize(
-            method="GET",
-            resource_path="/api/v1/tenants/{tenant}/resource-policy",
+            method='GET',
+            resource_path='/api/v1/tenants/{tenant}/resource-policy',
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,
@@ -3897,27 +3945,24 @@ class TenantApi:
             auth_settings=_auth_settings,
             collection_formats=_collection_formats,
             _host=_host,
-            _request_auth=_request_auth,
+            _request_auth=_request_auth
         )
+
+
+
 
     @validate_call
     async def tenant_update(
         self,
-        tenant: Annotated[
-            str,
-            Field(
-                min_length=36, strict=True, max_length=36, description="The tenant id"
-            ),
-        ],
-        update_tenant_request: Annotated[
-            UpdateTenantRequest, Field(description="The tenant properties to update")
-        ],
+        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
+        update_tenant_request: Annotated[UpdateTenantRequest, Field(description="The tenant properties to update")],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -3952,7 +3997,7 @@ class TenantApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._tenant_update_serialize(
             tenant=tenant,
@@ -3960,16 +4005,17 @@ class TenantApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": "Tenant",
-            "400": "APIErrors",
-            "403": "APIError",
+            '200': "Tenant",
+            '400': "APIErrors",
+            '403': "APIError",
         }
         response_data = await self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         await response_data.read()
         return self.api_client.response_deserialize(
@@ -3977,24 +4023,19 @@ class TenantApi:
             response_types_map=_response_types_map,
         ).data
 
+
     @validate_call
     async def tenant_update_with_http_info(
         self,
-        tenant: Annotated[
-            str,
-            Field(
-                min_length=36, strict=True, max_length=36, description="The tenant id"
-            ),
-        ],
-        update_tenant_request: Annotated[
-            UpdateTenantRequest, Field(description="The tenant properties to update")
-        ],
+        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
+        update_tenant_request: Annotated[UpdateTenantRequest, Field(description="The tenant properties to update")],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -4029,7 +4070,7 @@ class TenantApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._tenant_update_serialize(
             tenant=tenant,
@@ -4037,16 +4078,17 @@ class TenantApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": "Tenant",
-            "400": "APIErrors",
-            "403": "APIError",
+            '200': "Tenant",
+            '400': "APIErrors",
+            '403': "APIError",
         }
         response_data = await self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         await response_data.read()
         return self.api_client.response_deserialize(
@@ -4054,24 +4096,19 @@ class TenantApi:
             response_types_map=_response_types_map,
         )
 
+
     @validate_call
     async def tenant_update_without_preload_content(
         self,
-        tenant: Annotated[
-            str,
-            Field(
-                min_length=36, strict=True, max_length=36, description="The tenant id"
-            ),
-        ],
-        update_tenant_request: Annotated[
-            UpdateTenantRequest, Field(description="The tenant properties to update")
-        ],
+        tenant: Annotated[str, Field(min_length=36, strict=True, max_length=36, description="The tenant id")],
+        update_tenant_request: Annotated[UpdateTenantRequest, Field(description="The tenant properties to update")],
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -4106,7 +4143,7 @@ class TenantApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._tenant_update_serialize(
             tenant=tenant,
@@ -4114,18 +4151,20 @@ class TenantApi:
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": "Tenant",
-            "400": "APIErrors",
-            "403": "APIError",
+            '200': "Tenant",
+            '400': "APIErrors",
+            '403': "APIError",
         }
         response_data = await self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         return response_data.response
+
 
     def _tenant_update_serialize(
         self,
@@ -4139,7 +4178,8 @@ class TenantApi:
 
         _host = None
 
-        _collection_formats: Dict[str, str] = {}
+        _collection_formats: Dict[str, str] = {
+        }
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
@@ -4152,7 +4192,7 @@ class TenantApi:
 
         # process the path parameters
         if tenant is not None:
-            _path_params["tenant"] = tenant
+            _path_params['tenant'] = tenant
         # process the query parameters
         # process the header parameters
         # process the form parameters
@@ -4160,28 +4200,38 @@ class TenantApi:
         if update_tenant_request is not None:
             _body_params = update_tenant_request
 
+
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
-            _header_params["Accept"] = self.api_client.select_header_accept(
-                ["application/json"]
+        if 'Accept' not in _header_params:
+            _header_params['Accept'] = self.api_client.select_header_accept(
+                [
+                    'application/json'
+                ]
             )
 
         # set the HTTP header `Content-Type`
         if _content_type:
-            _header_params["Content-Type"] = _content_type
+            _header_params['Content-Type'] = _content_type
         else:
-            _default_content_type = self.api_client.select_header_content_type(
-                ["application/json"]
+            _default_content_type = (
+                self.api_client.select_header_content_type(
+                    [
+                        'application/json'
+                    ]
+                )
             )
             if _default_content_type is not None:
-                _header_params["Content-Type"] = _default_content_type
+                _header_params['Content-Type'] = _default_content_type
 
         # authentication setting
-        _auth_settings: List[str] = ["cookieAuth", "bearerAuth"]
+        _auth_settings: List[str] = [
+            'cookieAuth', 
+            'bearerAuth'
+        ]
 
         return self.api_client.param_serialize(
-            method="PATCH",
-            resource_path="/api/v1/tenants/{tenant}",
+            method='PATCH',
+            resource_path='/api/v1/tenants/{tenant}',
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,
@@ -4191,8 +4241,11 @@ class TenantApi:
             auth_settings=_auth_settings,
             collection_formats=_collection_formats,
             _host=_host,
-            _request_auth=_request_auth,
+            _request_auth=_request_auth
         )
+
+
+
 
     @validate_call
     async def user_list_tenant_invites(
@@ -4201,8 +4254,9 @@ class TenantApi:
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -4233,28 +4287,30 @@ class TenantApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._user_list_tenant_invites_serialize(
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": "TenantInviteList",
-            "400": "APIErrors",
-            "403": "APIErrors",
+            '200': "TenantInviteList",
+            '400': "APIErrors",
+            '403': "APIErrors",
         }
         response_data = await self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         await response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         ).data
+
 
     @validate_call
     async def user_list_tenant_invites_with_http_info(
@@ -4263,8 +4319,9 @@ class TenantApi:
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -4295,28 +4352,30 @@ class TenantApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._user_list_tenant_invites_serialize(
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": "TenantInviteList",
-            "400": "APIErrors",
-            "403": "APIErrors",
+            '200': "TenantInviteList",
+            '400': "APIErrors",
+            '403': "APIErrors",
         }
         response_data = await self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         await response_data.read()
         return self.api_client.response_deserialize(
             response_data=response_data,
             response_types_map=_response_types_map,
         )
+
 
     @validate_call
     async def user_list_tenant_invites_without_preload_content(
@@ -4325,8 +4384,9 @@ class TenantApi:
             None,
             Annotated[StrictFloat, Field(gt=0)],
             Tuple[
-                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
-            ],
+                Annotated[StrictFloat, Field(gt=0)],
+                Annotated[StrictFloat, Field(gt=0)]
+            ]
         ] = None,
         _request_auth: Optional[Dict[StrictStr, Any]] = None,
         _content_type: Optional[StrictStr] = None,
@@ -4357,24 +4417,26 @@ class TenantApi:
                             in the spec for a single request.
         :type _host_index: int, optional
         :return: Returns the result object.
-        """  # noqa: E501
+        """ # noqa: E501
 
         _param = self._user_list_tenant_invites_serialize(
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
-            _host_index=_host_index,
+            _host_index=_host_index
         )
 
         _response_types_map: Dict[str, Optional[str]] = {
-            "200": "TenantInviteList",
-            "400": "APIErrors",
-            "403": "APIErrors",
+            '200': "TenantInviteList",
+            '400': "APIErrors",
+            '403': "APIErrors",
         }
         response_data = await self.api_client.call_api(
-            *_param, _request_timeout=_request_timeout
+            *_param,
+            _request_timeout=_request_timeout
         )
         return response_data.response
+
 
     def _user_list_tenant_invites_serialize(
         self,
@@ -4386,7 +4448,8 @@ class TenantApi:
 
         _host = None
 
-        _collection_formats: Dict[str, str] = {}
+        _collection_formats: Dict[str, str] = {
+        }
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
@@ -4403,18 +4466,24 @@ class TenantApi:
         # process the form parameters
         # process the body parameter
 
+
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
-            _header_params["Accept"] = self.api_client.select_header_accept(
-                ["application/json"]
+        if 'Accept' not in _header_params:
+            _header_params['Accept'] = self.api_client.select_header_accept(
+                [
+                    'application/json'
+                ]
             )
 
+
         # authentication setting
-        _auth_settings: List[str] = ["cookieAuth"]
+        _auth_settings: List[str] = [
+            'cookieAuth'
+        ]
 
         return self.api_client.param_serialize(
-            method="GET",
-            resource_path="/api/v1/users/invites",
+            method='GET',
+            resource_path='/api/v1/users/invites',
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,
@@ -4424,5 +4493,7 @@ class TenantApi:
             auth_settings=_auth_settings,
             collection_formats=_collection_formats,
             _host=_host,
-            _request_auth=_request_auth,
+            _request_auth=_request_auth
         )
+
+

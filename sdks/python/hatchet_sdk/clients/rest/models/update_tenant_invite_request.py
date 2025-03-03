@@ -13,23 +13,20 @@
 
 
 from __future__ import annotations
-
-import json
 import pprint
 import re  # noqa: F401
-from typing import Any, ClassVar, Dict, List, Optional, Set
+import json
 
 from pydantic import BaseModel, ConfigDict, Field
-from typing_extensions import Self
-
+from typing import Any, ClassVar, Dict, List
 from hatchet_sdk.clients.rest.models.tenant_member_role import TenantMemberRole
-
+from typing import Optional, Set
+from typing_extensions import Self
 
 class UpdateTenantInviteRequest(BaseModel):
     """
     UpdateTenantInviteRequest
-    """  # noqa: E501
-
+    """ # noqa: E501
     role: TenantMemberRole = Field(description="The role of the user in the tenant.")
     __properties: ClassVar[List[str]] = ["role"]
 
@@ -38,6 +35,7 @@ class UpdateTenantInviteRequest(BaseModel):
         validate_assignment=True,
         protected_namespaces=(),
     )
+
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -63,7 +61,8 @@ class UpdateTenantInviteRequest(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([])
+        excluded_fields: Set[str] = set([
+        ])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -81,5 +80,9 @@ class UpdateTenantInviteRequest(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({"role": obj.get("role")})
+        _obj = cls.model_validate({
+            "role": obj.get("role")
+        })
         return _obj
+
+

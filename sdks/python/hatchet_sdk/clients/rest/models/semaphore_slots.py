@@ -13,50 +13,35 @@
 
 
 from __future__ import annotations
-
-import json
 import pprint
 import re  # noqa: F401
+import json
+
 from datetime import datetime
-from typing import Any, ClassVar, Dict, List, Optional, Set
-
 from pydantic import BaseModel, ConfigDict, Field, StrictStr
-from typing_extensions import Self
-
+from typing import Any, ClassVar, Dict, List, Optional
 from hatchet_sdk.clients.rest.models.step_run_status import StepRunStatus
-
+from typing import Optional, Set
+from typing_extensions import Self
 
 class SemaphoreSlots(BaseModel):
     """
     SemaphoreSlots
-    """  # noqa: E501
-
+    """ # noqa: E501
     step_run_id: StrictStr = Field(description="The step run id.", alias="stepRunId")
     action_id: StrictStr = Field(description="The action id.", alias="actionId")
-    started_at: Optional[datetime] = Field(
-        default=None, description="The time this slot was started.", alias="startedAt"
-    )
-    timeout_at: Optional[datetime] = Field(
-        default=None, description="The time this slot will timeout.", alias="timeoutAt"
-    )
-    workflow_run_id: StrictStr = Field(
-        description="The workflow run id.", alias="workflowRunId"
-    )
+    started_at: Optional[datetime] = Field(default=None, description="The time this slot was started.", alias="startedAt")
+    timeout_at: Optional[datetime] = Field(default=None, description="The time this slot will timeout.", alias="timeoutAt")
+    workflow_run_id: StrictStr = Field(description="The workflow run id.", alias="workflowRunId")
     status: StepRunStatus
-    __properties: ClassVar[List[str]] = [
-        "stepRunId",
-        "actionId",
-        "startedAt",
-        "timeoutAt",
-        "workflowRunId",
-        "status",
-    ]
+    __properties: ClassVar[List[str]] = ["stepRunId", "actionId", "startedAt", "timeoutAt", "workflowRunId", "status"]
 
     model_config = ConfigDict(
         populate_by_name=True,
         validate_assignment=True,
         protected_namespaces=(),
     )
+
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -82,7 +67,8 @@ class SemaphoreSlots(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([])
+        excluded_fields: Set[str] = set([
+        ])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -100,14 +86,14 @@ class SemaphoreSlots(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate(
-            {
-                "stepRunId": obj.get("stepRunId"),
-                "actionId": obj.get("actionId"),
-                "startedAt": obj.get("startedAt"),
-                "timeoutAt": obj.get("timeoutAt"),
-                "workflowRunId": obj.get("workflowRunId"),
-                "status": obj.get("status"),
-            }
-        )
+        _obj = cls.model_validate({
+            "stepRunId": obj.get("stepRunId"),
+            "actionId": obj.get("actionId"),
+            "startedAt": obj.get("startedAt"),
+            "timeoutAt": obj.get("timeoutAt"),
+            "workflowRunId": obj.get("workflowRunId"),
+            "status": obj.get("status")
+        })
         return _obj
+
+

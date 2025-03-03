@@ -13,23 +13,20 @@
 
 
 from __future__ import annotations
-
-import json
 import pprint
 import re  # noqa: F401
-from typing import Any, ClassVar, Dict, List, Optional, Set
+import json
 
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr
-from typing_extensions import Self
-
+from typing import Any, ClassVar, Dict, List
 from hatchet_sdk.clients.rest.models.pull_request_state import PullRequestState
-
+from typing import Optional, Set
+from typing_extensions import Self
 
 class PullRequest(BaseModel):
     """
     PullRequest
-    """  # noqa: E501
-
+    """ # noqa: E501
     repository_owner: StrictStr = Field(alias="repositoryOwner")
     repository_name: StrictStr = Field(alias="repositoryName")
     pull_request_id: StrictInt = Field(alias="pullRequestID")
@@ -38,22 +35,14 @@ class PullRequest(BaseModel):
     pull_request_head_branch: StrictStr = Field(alias="pullRequestHeadBranch")
     pull_request_base_branch: StrictStr = Field(alias="pullRequestBaseBranch")
     pull_request_state: PullRequestState = Field(alias="pullRequestState")
-    __properties: ClassVar[List[str]] = [
-        "repositoryOwner",
-        "repositoryName",
-        "pullRequestID",
-        "pullRequestTitle",
-        "pullRequestNumber",
-        "pullRequestHeadBranch",
-        "pullRequestBaseBranch",
-        "pullRequestState",
-    ]
+    __properties: ClassVar[List[str]] = ["repositoryOwner", "repositoryName", "pullRequestID", "pullRequestTitle", "pullRequestNumber", "pullRequestHeadBranch", "pullRequestBaseBranch", "pullRequestState"]
 
     model_config = ConfigDict(
         populate_by_name=True,
         validate_assignment=True,
         protected_namespaces=(),
     )
+
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -79,7 +68,8 @@ class PullRequest(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([])
+        excluded_fields: Set[str] = set([
+        ])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -97,16 +87,16 @@ class PullRequest(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate(
-            {
-                "repositoryOwner": obj.get("repositoryOwner"),
-                "repositoryName": obj.get("repositoryName"),
-                "pullRequestID": obj.get("pullRequestID"),
-                "pullRequestTitle": obj.get("pullRequestTitle"),
-                "pullRequestNumber": obj.get("pullRequestNumber"),
-                "pullRequestHeadBranch": obj.get("pullRequestHeadBranch"),
-                "pullRequestBaseBranch": obj.get("pullRequestBaseBranch"),
-                "pullRequestState": obj.get("pullRequestState"),
-            }
-        )
+        _obj = cls.model_validate({
+            "repositoryOwner": obj.get("repositoryOwner"),
+            "repositoryName": obj.get("repositoryName"),
+            "pullRequestID": obj.get("pullRequestID"),
+            "pullRequestTitle": obj.get("pullRequestTitle"),
+            "pullRequestNumber": obj.get("pullRequestNumber"),
+            "pullRequestHeadBranch": obj.get("pullRequestHeadBranch"),
+            "pullRequestBaseBranch": obj.get("pullRequestBaseBranch"),
+            "pullRequestState": obj.get("pullRequestState")
+        })
         return _obj
+
+

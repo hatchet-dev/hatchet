@@ -13,27 +13,23 @@
 
 
 from __future__ import annotations
-
-import json
 import pprint
 import re  # noqa: F401
-from typing import Any, ClassVar, Dict, List, Optional, Set
+import json
 
 from pydantic import BaseModel, ConfigDict, Field, StrictStr
-from typing_extensions import Annotated, Self
-
+from typing import Any, ClassVar, Dict, List, Optional
+from typing_extensions import Annotated
+from typing import Optional, Set
+from typing_extensions import Self
 
 class WebhookWorkerCreateRequest(BaseModel):
     """
     WebhookWorkerCreateRequest
-    """  # noqa: E501
-
+    """ # noqa: E501
     name: StrictStr = Field(description="The name of the webhook worker.")
     url: StrictStr = Field(description="The webhook url.")
-    secret: Optional[Annotated[str, Field(min_length=32, strict=True)]] = Field(
-        default=None,
-        description="The secret key for validation. If not provided, a random secret will be generated.",
-    )
+    secret: Optional[Annotated[str, Field(min_length=32, strict=True)]] = Field(default=None, description="The secret key for validation. If not provided, a random secret will be generated.")
     __properties: ClassVar[List[str]] = ["name", "url", "secret"]
 
     model_config = ConfigDict(
@@ -41,6 +37,7 @@ class WebhookWorkerCreateRequest(BaseModel):
         validate_assignment=True,
         protected_namespaces=(),
     )
+
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -66,7 +63,8 @@ class WebhookWorkerCreateRequest(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([])
+        excluded_fields: Set[str] = set([
+        ])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -84,11 +82,11 @@ class WebhookWorkerCreateRequest(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate(
-            {
-                "name": obj.get("name"),
-                "url": obj.get("url"),
-                "secret": obj.get("secret"),
-            }
-        )
+        _obj = cls.model_validate({
+            "name": obj.get("name"),
+            "url": obj.get("url"),
+            "secret": obj.get("secret")
+        })
         return _obj
+
+

@@ -13,43 +13,33 @@
 
 
 from __future__ import annotations
-
-import json
 import pprint
 import re  # noqa: F401
-from typing import Any, ClassVar, Dict, List, Optional, Set
+import json
 
 from pydantic import BaseModel, ConfigDict, Field, StrictStr
-from typing_extensions import Self
-
+from typing import Any, ClassVar, Dict, List, Optional
 from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
-
+from typing import Optional, Set
+from typing_extensions import Self
 
 class WorkflowRunTriggeredBy(BaseModel):
     """
     WorkflowRunTriggeredBy
-    """  # noqa: E501
-
+    """ # noqa: E501
     metadata: APIResourceMeta
-    parent_workflow_run_id: Optional[StrictStr] = Field(
-        default=None, alias="parentWorkflowRunId"
-    )
+    parent_workflow_run_id: Optional[StrictStr] = Field(default=None, alias="parentWorkflowRunId")
     event_id: Optional[StrictStr] = Field(default=None, alias="eventId")
     cron_parent_id: Optional[StrictStr] = Field(default=None, alias="cronParentId")
     cron_schedule: Optional[StrictStr] = Field(default=None, alias="cronSchedule")
-    __properties: ClassVar[List[str]] = [
-        "metadata",
-        "parentWorkflowRunId",
-        "eventId",
-        "cronParentId",
-        "cronSchedule",
-    ]
+    __properties: ClassVar[List[str]] = ["metadata", "parentWorkflowRunId", "eventId", "cronParentId", "cronSchedule"]
 
     model_config = ConfigDict(
         populate_by_name=True,
         validate_assignment=True,
         protected_namespaces=(),
     )
+
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -75,7 +65,8 @@ class WorkflowRunTriggeredBy(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([])
+        excluded_fields: Set[str] = set([
+        ])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -84,7 +75,7 @@ class WorkflowRunTriggeredBy(BaseModel):
         )
         # override the default output from pydantic by calling `to_dict()` of metadata
         if self.metadata:
-            _dict["metadata"] = self.metadata.to_dict()
+            _dict['metadata'] = self.metadata.to_dict()
         return _dict
 
     @classmethod
@@ -96,17 +87,13 @@ class WorkflowRunTriggeredBy(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate(
-            {
-                "metadata": (
-                    APIResourceMeta.from_dict(obj["metadata"])
-                    if obj.get("metadata") is not None
-                    else None
-                ),
-                "parentWorkflowRunId": obj.get("parentWorkflowRunId"),
-                "eventId": obj.get("eventId"),
-                "cronParentId": obj.get("cronParentId"),
-                "cronSchedule": obj.get("cronSchedule"),
-            }
-        )
+        _obj = cls.model_validate({
+            "metadata": APIResourceMeta.from_dict(obj["metadata"]) if obj.get("metadata") is not None else None,
+            "parentWorkflowRunId": obj.get("parentWorkflowRunId"),
+            "eventId": obj.get("eventId"),
+            "cronParentId": obj.get("cronParentId"),
+            "cronSchedule": obj.get("cronSchedule")
+        })
         return _obj
+
+

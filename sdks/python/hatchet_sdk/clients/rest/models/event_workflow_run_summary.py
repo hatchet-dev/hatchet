@@ -13,53 +13,33 @@
 
 
 from __future__ import annotations
-
-import json
 import pprint
 import re  # noqa: F401
-from typing import Any, ClassVar, Dict, List, Optional, Set
+import json
 
 from pydantic import BaseModel, ConfigDict, Field, StrictInt
+from typing import Any, ClassVar, Dict, List, Optional
+from typing import Optional, Set
 from typing_extensions import Self
-
 
 class EventWorkflowRunSummary(BaseModel):
     """
     EventWorkflowRunSummary
-    """  # noqa: E501
-
-    pending: Optional[StrictInt] = Field(
-        default=None, description="The number of pending runs."
-    )
-    running: Optional[StrictInt] = Field(
-        default=None, description="The number of running runs."
-    )
-    queued: Optional[StrictInt] = Field(
-        default=None, description="The number of queued runs."
-    )
-    succeeded: Optional[StrictInt] = Field(
-        default=None, description="The number of succeeded runs."
-    )
-    failed: Optional[StrictInt] = Field(
-        default=None, description="The number of failed runs."
-    )
-    cancelled: Optional[StrictInt] = Field(
-        default=None, description="The number of cancelled runs."
-    )
-    __properties: ClassVar[List[str]] = [
-        "pending",
-        "running",
-        "queued",
-        "succeeded",
-        "failed",
-        "cancelled",
-    ]
+    """ # noqa: E501
+    pending: Optional[StrictInt] = Field(default=None, description="The number of pending runs.")
+    running: Optional[StrictInt] = Field(default=None, description="The number of running runs.")
+    queued: Optional[StrictInt] = Field(default=None, description="The number of queued runs.")
+    succeeded: Optional[StrictInt] = Field(default=None, description="The number of succeeded runs.")
+    failed: Optional[StrictInt] = Field(default=None, description="The number of failed runs.")
+    cancelled: Optional[StrictInt] = Field(default=None, description="The number of cancelled runs.")
+    __properties: ClassVar[List[str]] = ["pending", "running", "queued", "succeeded", "failed", "cancelled"]
 
     model_config = ConfigDict(
         populate_by_name=True,
         validate_assignment=True,
         protected_namespaces=(),
     )
+
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -85,7 +65,8 @@ class EventWorkflowRunSummary(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([])
+        excluded_fields: Set[str] = set([
+        ])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -103,14 +84,14 @@ class EventWorkflowRunSummary(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate(
-            {
-                "pending": obj.get("pending"),
-                "running": obj.get("running"),
-                "queued": obj.get("queued"),
-                "succeeded": obj.get("succeeded"),
-                "failed": obj.get("failed"),
-                "cancelled": obj.get("cancelled"),
-            }
-        )
+        _obj = cls.model_validate({
+            "pending": obj.get("pending"),
+            "running": obj.get("running"),
+            "queued": obj.get("queued"),
+            "succeeded": obj.get("succeeded"),
+            "failed": obj.get("failed"),
+            "cancelled": obj.get("cancelled")
+        })
         return _obj
+
+

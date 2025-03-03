@@ -13,46 +13,32 @@
 
 
 from __future__ import annotations
-
-import json
 import pprint
 import re  # noqa: F401
-from typing import Any, ClassVar, Dict, List, Optional, Set
+import json
 
 from pydantic import BaseModel, ConfigDict, Field, StrictStr
-from typing_extensions import Self
-
+from typing import Any, ClassVar, Dict, List, Optional
 from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
-
+from typing import Optional, Set
+from typing_extensions import Self
 
 class SNSIntegration(BaseModel):
     """
     SNSIntegration
-    """  # noqa: E501
-
+    """ # noqa: E501
     metadata: APIResourceMeta
-    tenant_id: StrictStr = Field(
-        description="The unique identifier for the tenant that the SNS integration belongs to.",
-        alias="tenantId",
-    )
-    topic_arn: StrictStr = Field(
-        description="The Amazon Resource Name (ARN) of the SNS topic.", alias="topicArn"
-    )
-    ingest_url: Optional[StrictStr] = Field(
-        default=None, description="The URL to send SNS messages to.", alias="ingestUrl"
-    )
-    __properties: ClassVar[List[str]] = [
-        "metadata",
-        "tenantId",
-        "topicArn",
-        "ingestUrl",
-    ]
+    tenant_id: StrictStr = Field(description="The unique identifier for the tenant that the SNS integration belongs to.", alias="tenantId")
+    topic_arn: StrictStr = Field(description="The Amazon Resource Name (ARN) of the SNS topic.", alias="topicArn")
+    ingest_url: Optional[StrictStr] = Field(default=None, description="The URL to send SNS messages to.", alias="ingestUrl")
+    __properties: ClassVar[List[str]] = ["metadata", "tenantId", "topicArn", "ingestUrl"]
 
     model_config = ConfigDict(
         populate_by_name=True,
         validate_assignment=True,
         protected_namespaces=(),
     )
+
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -78,7 +64,8 @@ class SNSIntegration(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([])
+        excluded_fields: Set[str] = set([
+        ])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -87,7 +74,7 @@ class SNSIntegration(BaseModel):
         )
         # override the default output from pydantic by calling `to_dict()` of metadata
         if self.metadata:
-            _dict["metadata"] = self.metadata.to_dict()
+            _dict['metadata'] = self.metadata.to_dict()
         return _dict
 
     @classmethod
@@ -99,16 +86,12 @@ class SNSIntegration(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate(
-            {
-                "metadata": (
-                    APIResourceMeta.from_dict(obj["metadata"])
-                    if obj.get("metadata") is not None
-                    else None
-                ),
-                "tenantId": obj.get("tenantId"),
-                "topicArn": obj.get("topicArn"),
-                "ingestUrl": obj.get("ingestUrl"),
-            }
-        )
+        _obj = cls.model_validate({
+            "metadata": APIResourceMeta.from_dict(obj["metadata"]) if obj.get("metadata") is not None else None,
+            "tenantId": obj.get("tenantId"),
+            "topicArn": obj.get("topicArn"),
+            "ingestUrl": obj.get("ingestUrl")
+        })
         return _obj
+
+

@@ -13,41 +13,33 @@
 
 
 from __future__ import annotations
-
-import json
 import pprint
 import re  # noqa: F401
-from typing import Any, ClassVar, Dict, List, Optional, Set
+import json
 
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr
-from typing_extensions import Self
-
+from typing import Any, ClassVar, Dict, List, Optional
 from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
-
+from typing import Optional, Set
+from typing_extensions import Self
 
 class WorkflowVersionMeta(BaseModel):
     """
     WorkflowVersionMeta
-    """  # noqa: E501
-
+    """ # noqa: E501
     metadata: APIResourceMeta
     version: StrictStr = Field(description="The version of the workflow.")
     order: StrictInt
     workflow_id: StrictStr = Field(alias="workflowId")
     workflow: Optional[Workflow] = None
-    __properties: ClassVar[List[str]] = [
-        "metadata",
-        "version",
-        "order",
-        "workflowId",
-        "workflow",
-    ]
+    __properties: ClassVar[List[str]] = ["metadata", "version", "order", "workflowId", "workflow"]
 
     model_config = ConfigDict(
         populate_by_name=True,
         validate_assignment=True,
         protected_namespaces=(),
     )
+
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -73,7 +65,8 @@ class WorkflowVersionMeta(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([])
+        excluded_fields: Set[str] = set([
+        ])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -82,10 +75,10 @@ class WorkflowVersionMeta(BaseModel):
         )
         # override the default output from pydantic by calling `to_dict()` of metadata
         if self.metadata:
-            _dict["metadata"] = self.metadata.to_dict()
+            _dict['metadata'] = self.metadata.to_dict()
         # override the default output from pydantic by calling `to_dict()` of workflow
         if self.workflow:
-            _dict["workflow"] = self.workflow.to_dict()
+            _dict['workflow'] = self.workflow.to_dict()
         return _dict
 
     @classmethod
@@ -97,27 +90,16 @@ class WorkflowVersionMeta(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate(
-            {
-                "metadata": (
-                    APIResourceMeta.from_dict(obj["metadata"])
-                    if obj.get("metadata") is not None
-                    else None
-                ),
-                "version": obj.get("version"),
-                "order": obj.get("order"),
-                "workflowId": obj.get("workflowId"),
-                "workflow": (
-                    Workflow.from_dict(obj["workflow"])
-                    if obj.get("workflow") is not None
-                    else None
-                ),
-            }
-        )
+        _obj = cls.model_validate({
+            "metadata": APIResourceMeta.from_dict(obj["metadata"]) if obj.get("metadata") is not None else None,
+            "version": obj.get("version"),
+            "order": obj.get("order"),
+            "workflowId": obj.get("workflowId"),
+            "workflow": Workflow.from_dict(obj["workflow"]) if obj.get("workflow") is not None else None
+        })
         return _obj
 
-
 from hatchet_sdk.clients.rest.models.workflow import Workflow
-
 # TODO: Rewrite to not use raise_errors
 WorkflowVersionMeta.model_rebuild(raise_errors=False)
+

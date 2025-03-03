@@ -13,21 +13,19 @@
 
 
 from __future__ import annotations
-
-import json
 import pprint
 import re  # noqa: F401
-from typing import Any, ClassVar, Dict, List, Optional, Set
+import json
 
 from pydantic import BaseModel, ConfigDict, Field, StrictStr
+from typing import Any, ClassVar, Dict, List
+from typing import Optional, Set
 from typing_extensions import Self
-
 
 class CreateTenantRequest(BaseModel):
     """
     CreateTenantRequest
-    """  # noqa: E501
-
+    """ # noqa: E501
     name: StrictStr = Field(description="The name of the tenant.")
     slug: StrictStr = Field(description="The slug of the tenant.")
     __properties: ClassVar[List[str]] = ["name", "slug"]
@@ -37,6 +35,7 @@ class CreateTenantRequest(BaseModel):
         validate_assignment=True,
         protected_namespaces=(),
     )
+
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -62,7 +61,8 @@ class CreateTenantRequest(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([])
+        excluded_fields: Set[str] = set([
+        ])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -80,5 +80,10 @@ class CreateTenantRequest(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({"name": obj.get("name"), "slug": obj.get("slug")})
+        _obj = cls.model_validate({
+            "name": obj.get("name"),
+            "slug": obj.get("slug")
+        })
         return _obj
+
+

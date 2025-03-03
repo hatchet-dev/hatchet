@@ -13,21 +13,19 @@
 
 
 from __future__ import annotations
-
-import json
 import pprint
 import re  # noqa: F401
-from typing import Any, ClassVar, Dict, List, Optional, Set
+import json
 
 from pydantic import BaseModel, ConfigDict, Field, StrictStr
+from typing import Any, ClassVar, Dict, List
+from typing import Optional, Set
 from typing_extensions import Self
-
 
 class CreateTenantAlertEmailGroupRequest(BaseModel):
     """
     CreateTenantAlertEmailGroupRequest
-    """  # noqa: E501
-
+    """ # noqa: E501
     emails: List[StrictStr] = Field(description="A list of emails for users")
     __properties: ClassVar[List[str]] = ["emails"]
 
@@ -36,6 +34,7 @@ class CreateTenantAlertEmailGroupRequest(BaseModel):
         validate_assignment=True,
         protected_namespaces=(),
     )
+
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -61,7 +60,8 @@ class CreateTenantAlertEmailGroupRequest(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([])
+        excluded_fields: Set[str] = set([
+        ])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -79,5 +79,9 @@ class CreateTenantAlertEmailGroupRequest(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate({"emails": obj.get("emails")})
+        _obj = cls.model_validate({
+            "emails": obj.get("emails")
+        })
         return _obj
+
+

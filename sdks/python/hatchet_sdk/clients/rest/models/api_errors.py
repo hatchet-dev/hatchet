@@ -13,23 +13,20 @@
 
 
 from __future__ import annotations
-
-import json
 import pprint
 import re  # noqa: F401
-from typing import Any, ClassVar, Dict, List, Optional, Set
+import json
 
 from pydantic import BaseModel, ConfigDict
-from typing_extensions import Self
-
+from typing import Any, ClassVar, Dict, List
 from hatchet_sdk.clients.rest.models.api_error import APIError
-
+from typing import Optional, Set
+from typing_extensions import Self
 
 class APIErrors(BaseModel):
     """
     APIErrors
-    """  # noqa: E501
-
+    """ # noqa: E501
     errors: List[APIError]
     __properties: ClassVar[List[str]] = ["errors"]
 
@@ -38,6 +35,7 @@ class APIErrors(BaseModel):
         validate_assignment=True,
         protected_namespaces=(),
     )
+
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -63,7 +61,8 @@ class APIErrors(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([])
+        excluded_fields: Set[str] = set([
+        ])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -76,7 +75,7 @@ class APIErrors(BaseModel):
             for _item_errors in self.errors:
                 if _item_errors:
                     _items.append(_item_errors.to_dict())
-            _dict["errors"] = _items
+            _dict['errors'] = _items
         return _dict
 
     @classmethod
@@ -88,13 +87,9 @@ class APIErrors(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate(
-            {
-                "errors": (
-                    [APIError.from_dict(_item) for _item in obj["errors"]]
-                    if obj.get("errors") is not None
-                    else None
-                )
-            }
-        )
+        _obj = cls.model_validate({
+            "errors": [APIError.from_dict(_item) for _item in obj["errors"]] if obj.get("errors") is not None else None
+        })
         return _obj
+
+

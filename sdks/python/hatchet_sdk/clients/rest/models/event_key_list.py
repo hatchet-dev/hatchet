@@ -13,23 +13,20 @@
 
 
 from __future__ import annotations
-
-import json
 import pprint
 import re  # noqa: F401
-from typing import Any, ClassVar, Dict, List, Optional, Set
+import json
 
 from pydantic import BaseModel, ConfigDict, StrictStr
-from typing_extensions import Self
-
+from typing import Any, ClassVar, Dict, List, Optional
 from hatchet_sdk.clients.rest.models.pagination_response import PaginationResponse
-
+from typing import Optional, Set
+from typing_extensions import Self
 
 class EventKeyList(BaseModel):
     """
     EventKeyList
-    """  # noqa: E501
-
+    """ # noqa: E501
     pagination: Optional[PaginationResponse] = None
     rows: Optional[List[StrictStr]] = None
     __properties: ClassVar[List[str]] = ["pagination", "rows"]
@@ -39,6 +36,7 @@ class EventKeyList(BaseModel):
         validate_assignment=True,
         protected_namespaces=(),
     )
+
 
     def to_str(self) -> str:
         """Returns the string representation of the model using alias"""
@@ -64,7 +62,8 @@ class EventKeyList(BaseModel):
           were set at model initialization. Other fields with value `None`
           are ignored.
         """
-        excluded_fields: Set[str] = set([])
+        excluded_fields: Set[str] = set([
+        ])
 
         _dict = self.model_dump(
             by_alias=True,
@@ -73,7 +72,7 @@ class EventKeyList(BaseModel):
         )
         # override the default output from pydantic by calling `to_dict()` of pagination
         if self.pagination:
-            _dict["pagination"] = self.pagination.to_dict()
+            _dict['pagination'] = self.pagination.to_dict()
         return _dict
 
     @classmethod
@@ -85,14 +84,10 @@ class EventKeyList(BaseModel):
         if not isinstance(obj, dict):
             return cls.model_validate(obj)
 
-        _obj = cls.model_validate(
-            {
-                "pagination": (
-                    PaginationResponse.from_dict(obj["pagination"])
-                    if obj.get("pagination") is not None
-                    else None
-                ),
-                "rows": obj.get("rows"),
-            }
-        )
+        _obj = cls.model_validate({
+            "pagination": PaginationResponse.from_dict(obj["pagination"]) if obj.get("pagination") is not None else None,
+            "rows": obj.get("rows")
+        })
         return _obj
+
+
