@@ -105,7 +105,7 @@ export const JobMiniMap = ({ onClick }: JobMiniMapProps) => {
                   task: taskRun,
                   graphVariant: 'none',
                   onClick: () => onClick(taskRun.metadata.id),
-                  childWorkflowsCount: 0,
+                  childWorkflowsCount: taskRun.numSpawnedChildren,
                   taskName:
                     shape.find((i) => i.taskExternalId === taskRun.metadata.id)
                       ?.taskName || '',
@@ -155,7 +155,7 @@ export const TaskRunMiniMap = ({
             task: taskRun,
             graphVariant: 'none',
             onClick: () => onClick(taskRun.metadata.id),
-            childWorkflowsCount: 0,
+            childWorkflowsCount: taskRun.numSpawnedChildren,
             taskName: taskRun.displayName,
           }}
         />

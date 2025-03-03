@@ -991,6 +991,7 @@ CREATE TABLE v1_tasks_olap (
     latest_worker_id UUID,
     dag_id BIGINT,
     dag_inserted_at TIMESTAMPTZ,
+    parent_task_external_id UUID,
 
     PRIMARY KEY (inserted_at, id, readable_status)
 ) PARTITION BY RANGE(inserted_at);
@@ -1214,7 +1215,8 @@ BEGIN
         readable_status,
         kind,
         workflow_id,
-        additional_metadata
+        additional_metadata,
+        parent_task_external_id
     )
     SELECT
         tenant_id,
@@ -1224,7 +1226,8 @@ BEGIN
         readable_status,
         'TASK',
         workflow_id,
-        additional_metadata
+        additional_metadata,
+        parent_task_external_id
     FROM new_rows
     WHERE dag_id IS NULL;
 
