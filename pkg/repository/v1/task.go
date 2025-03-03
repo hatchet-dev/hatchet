@@ -65,6 +65,14 @@ type CreateTaskOpts struct {
 	RetryBackoffMaxSeconds *int `validate:"omitnil,min=1,max=86400"`
 }
 
+type ReplayTasksResult struct {
+	ReplayedTasks []TaskIdRetryCount
+
+	QueuedTasks []*sqlcv1.V1Task
+
+	InternalEventResults *InternalEventMatchResults
+}
+
 type ReplayTaskOpts struct {
 	// (required) the task id
 	TaskId int64
@@ -174,7 +182,7 @@ type TaskRepository interface {
 
 	GetQueueCounts(ctx context.Context, tenantId string) (map[string]int, error)
 
-	ReplayTasks(ctx context.Context, tenantId string, tasks []TaskIdRetryCount) error
+	ReplayTasks(ctx context.Context, tenantId string, tasks []TaskIdRetryCount) (*ReplayTasksResult, error)
 }
 
 type TaskRepositoryImpl struct {
@@ -1805,15 +1813,14 @@ func (r *sharedRepository) createTaskEvents(
 	return internalTaskEvents, nil
 }
 
-func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, tasks []TaskIdRetryCount) error {
+func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, tasks []TaskIdRetryCount) (*ReplayTasksResult, error) {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
 
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	defer rollback()
-	defer commit(ctx)
 
 	taskIds := make([]int64, len(tasks))
 
@@ -1828,7 +1835,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 	})
 
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	lockedTaskIds := make([]int64, len(lockedTasks))
@@ -1863,7 +1870,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 	})
 
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	successfullyLockedDAGsMap := make(map[int64]bool)
@@ -1884,7 +1891,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 	})
 
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	for _, dag := range preflightDAGs {
@@ -1901,7 +1908,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 	})
 
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	for _, task := range failedPreflightChecks {
@@ -1914,6 +1921,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 
 	// figure out which tasks to replay immediately
 	replayOpts := make([]ReplayTaskOpts, 0)
+	replayedTasks := make([]TaskIdRetryCount, 0)
 
 	for _, task := range lockedTasks {
 		// check whether to discard the task
@@ -1931,6 +1939,11 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 			r.l.Warn().Int64("task_id", task.ID).Msg("discarding task, failed preflight check")
 			continue
 		}
+
+		replayedTasks = append(replayedTasks, TaskIdRetryCount{
+			Id:         task.ID,
+			RetryCount: task.RetryCount,
+		})
 
 		if task.DagID.Valid {
 			dagIds[task.DagID.Int64] = struct{}{}
@@ -1977,7 +1990,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 	})
 
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	dagIdsToAllTasks := make(map[int64][]*sqlcv1.ListAllTasksInDagsRow)
@@ -1990,12 +2003,14 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 		dagIdsToAllTasks[task.DagID.Int64] = append(dagIdsToAllTasks[task.DagID.Int64], task)
 	}
 
+	queuedTasks := make([]*sqlcv1.V1Task, 0)
+
 	// NOTE: the tasks which are passed in represent a *subtree* of the DAG.
 	if len(replayOpts) > 0 {
-		_, err = r.replayTasks(ctx, tx, tenantId, replayOpts)
+		queuedTasks, err = r.replayTasks(ctx, tx, tenantId, replayOpts)
 
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
 
@@ -2055,7 +2070,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 		})
 
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
 
@@ -2141,25 +2156,33 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId string, t
 	reconstructedMatches, candidateEvents, err := r.reconstructGroupConditions(ctx, tx, tenantId, subtreeExternalIds, eventMatches)
 
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// create the event matches
 	err = r.createEventMatches(ctx, tx, tenantId, reconstructedMatches)
 
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// process event matches
 	// TODO: signal the event matches to the caller
-	_, err = r.processInternalEventMatches(ctx, tx, tenantId, candidateEvents)
+	internalMatchResults, err := r.processInternalEventMatches(ctx, tx, tenantId, candidateEvents)
 
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return nil
+	if err := commit(ctx); err != nil {
+		return nil, err
+	}
+
+	return &ReplayTasksResult{
+		ReplayedTasks:        replayedTasks,
+		QueuedTasks:          queuedTasks,
+		InternalEventResults: internalMatchResults,
+	}, nil
 }
 
 func (r *TaskRepositoryImpl) reconstructGroupConditions(
