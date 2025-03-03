@@ -112,6 +112,8 @@ export interface V1TaskSummary {
   createdAt?: string;
   /** The list of children tasks */
   children?: V1TaskSummary[];
+  /** The number of spawned children tasks */
+  numSpawnedChildren: number;
 }
 
 export interface APIError {

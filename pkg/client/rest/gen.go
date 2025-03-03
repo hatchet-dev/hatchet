@@ -1268,6 +1268,9 @@ type V1TaskSummary struct {
 	Input    map[string]interface{} `json:"input"`
 	Metadata APIResourceMeta        `json:"metadata"`
 
+	// NumSpawnedChildren The number of spawned children tasks
+	NumSpawnedChildren int `json:"numSpawnedChildren"`
+
 	// Output The output of the task run (for the latest run)
 	Output map[string]interface{} `json:"output"`
 

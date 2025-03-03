@@ -79,6 +79,9 @@ V1TaskSummary:
       items:
         $ref: "#/V1TaskSummary"
       description: The list of children tasks
+    numSpawnedChildren:
+      type: integer
+      description: The number of spawned children tasks
   required:
     - metadata
     - id
@@ -92,6 +95,7 @@ V1TaskSummary:
     - taskExternalId
     - input
     - type
+    - numSpawnedChildren
 
 V1DagChildren:
   type: object
