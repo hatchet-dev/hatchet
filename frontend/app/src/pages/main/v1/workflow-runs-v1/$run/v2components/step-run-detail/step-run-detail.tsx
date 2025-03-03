@@ -28,6 +28,7 @@ import { formatDuration } from '@/lib/utils';
 import { V1StepRunOutput } from './step-run-output';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import { TaskRunActionButton } from '@/pages/main/v1/task-runs-v1/actions';
+import { TaskRunMiniMap } from '../mini-map';
 
 export enum TabOption {
   Output = 'output',
@@ -115,6 +116,7 @@ export const TaskRunDetail = ({
           </div>
         </div>
       </div>
+
       <div className="flex flex-row gap-2 items-center">
         <TaskRunActionButton
           actionType="replay"
@@ -133,6 +135,9 @@ export const TaskRunDetail = ({
       </div>
       <div className="flex flex-row gap-2 items-center">
         <V1StepRunSummary taskRunId={taskRunId} />
+      </div>
+      <div className="w-full h-36 flex relative bg-slate-100 dark:bg-slate-900">
+        <TaskRunMiniMap onClick={() => {}} taskRunId={taskRunId} />
       </div>
       <Tabs defaultValue={defaultOpenTab}>
         <TabsList layout="underlined">

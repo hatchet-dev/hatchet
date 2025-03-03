@@ -148,8 +148,7 @@ export const TaskRunMiniMap = ({
 
   return (
     <div className="flex flex-1 flex-row p-4 rounded-sm relative gap-1">
-      <div className="flex flex-col justify-start h-full min-w-fit grow">
-        return (
+      <div className="flex flex-col justify-start w-full h-fit grow">
         <StepRunNode
           key={taskRun.taskExternalId}
           data={{
@@ -157,12 +156,9 @@ export const TaskRunMiniMap = ({
             graphVariant: 'none',
             onClick: () => onClick(taskRun.metadata.id),
             childWorkflowsCount: 0,
-            taskName:
-              shape.find((i) => i.taskExternalId === taskRun.metadata.id)
-                ?.taskName || '',
+            taskName: taskRun.displayName,
           }}
         />
-        );
       </div>
     </div>
   );
