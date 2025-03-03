@@ -87,12 +87,13 @@ func newChannelPool(ctx context.Context, l *zerolog.Logger, url string) (*channe
 	// periodically check if the connection is still open
 	go func() {
 		retries := 0
+		ticker := time.NewTicker(1 * time.Second)
 
 		for {
 			select {
 			case <-ctx.Done():
 				return
-			default:
+			case <-ticker.C:
 			}
 
 			conn := p.getConnection()
