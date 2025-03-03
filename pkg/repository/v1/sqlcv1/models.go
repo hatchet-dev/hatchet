@@ -2575,27 +2575,28 @@ type V1TaskStatusUpdatesTmp struct {
 }
 
 type V1TasksOlap struct {
-	TenantID           pgtype.UUID          `json:"tenant_id"`
-	ID                 int64                `json:"id"`
-	InsertedAt         pgtype.Timestamptz   `json:"inserted_at"`
-	ExternalID         pgtype.UUID          `json:"external_id"`
-	Queue              string               `json:"queue"`
-	ActionID           string               `json:"action_id"`
-	StepID             pgtype.UUID          `json:"step_id"`
-	WorkflowID         pgtype.UUID          `json:"workflow_id"`
-	ScheduleTimeout    string               `json:"schedule_timeout"`
-	StepTimeout        pgtype.Text          `json:"step_timeout"`
-	Priority           pgtype.Int4          `json:"priority"`
-	Sticky             V1StickyStrategyOlap `json:"sticky"`
-	DesiredWorkerID    pgtype.UUID          `json:"desired_worker_id"`
-	DisplayName        string               `json:"display_name"`
-	Input              []byte               `json:"input"`
-	AdditionalMetadata []byte               `json:"additional_metadata"`
-	ReadableStatus     V1ReadableStatusOlap `json:"readable_status"`
-	LatestRetryCount   int32                `json:"latest_retry_count"`
-	LatestWorkerID     pgtype.UUID          `json:"latest_worker_id"`
-	DagID              pgtype.Int8          `json:"dag_id"`
-	DagInsertedAt      pgtype.Timestamptz   `json:"dag_inserted_at"`
+	TenantID             pgtype.UUID          `json:"tenant_id"`
+	ID                   int64                `json:"id"`
+	InsertedAt           pgtype.Timestamptz   `json:"inserted_at"`
+	ExternalID           pgtype.UUID          `json:"external_id"`
+	Queue                string               `json:"queue"`
+	ActionID             string               `json:"action_id"`
+	StepID               pgtype.UUID          `json:"step_id"`
+	WorkflowID           pgtype.UUID          `json:"workflow_id"`
+	ScheduleTimeout      string               `json:"schedule_timeout"`
+	StepTimeout          pgtype.Text          `json:"step_timeout"`
+	Priority             pgtype.Int4          `json:"priority"`
+	Sticky               V1StickyStrategyOlap `json:"sticky"`
+	DesiredWorkerID      pgtype.UUID          `json:"desired_worker_id"`
+	DisplayName          string               `json:"display_name"`
+	Input                []byte               `json:"input"`
+	AdditionalMetadata   []byte               `json:"additional_metadata"`
+	ReadableStatus       V1ReadableStatusOlap `json:"readable_status"`
+	LatestRetryCount     int32                `json:"latest_retry_count"`
+	LatestWorkerID       pgtype.UUID          `json:"latest_worker_id"`
+	DagID                pgtype.Int8          `json:"dag_id"`
+	DagInsertedAt        pgtype.Timestamptz   `json:"dag_inserted_at"`
+	ParentTaskExternalID pgtype.UUID          `json:"parent_task_external_id"`
 }
 
 type WebhookWorker struct {
