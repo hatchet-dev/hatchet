@@ -2444,14 +2444,15 @@ type V1RetryQueueItem struct {
 }
 
 type V1RunsOlap struct {
-	TenantID           pgtype.UUID          `json:"tenant_id"`
-	ID                 int64                `json:"id"`
-	InsertedAt         pgtype.Timestamptz   `json:"inserted_at"`
-	ExternalID         pgtype.UUID          `json:"external_id"`
-	ReadableStatus     V1ReadableStatusOlap `json:"readable_status"`
-	Kind               V1RunKind            `json:"kind"`
-	WorkflowID         pgtype.UUID          `json:"workflow_id"`
-	AdditionalMetadata []byte               `json:"additional_metadata"`
+	TenantID             pgtype.UUID          `json:"tenant_id"`
+	ID                   int64                `json:"id"`
+	InsertedAt           pgtype.Timestamptz   `json:"inserted_at"`
+	ExternalID           pgtype.UUID          `json:"external_id"`
+	ReadableStatus       V1ReadableStatusOlap `json:"readable_status"`
+	Kind                 V1RunKind            `json:"kind"`
+	WorkflowID           pgtype.UUID          `json:"workflow_id"`
+	AdditionalMetadata   []byte               `json:"additional_metadata"`
+	ParentTaskExternalID pgtype.UUID          `json:"parent_task_external_id"`
 }
 
 type V1StatusesOlap struct {
