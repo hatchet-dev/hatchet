@@ -565,12 +565,7 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 	}
 
 	for _, dag := range dags {
-		opts, ok := eventMatches[sqlchelpers.UUIDToStr(dag.ExternalID)]
-
-		if !ok {
-			r.l.Error().Msgf("could not find event matches for DAG with external id: %s", sqlchelpers.UUIDToStr(dag.ExternalID))
-			continue
-		}
+		opts := eventMatches[sqlchelpers.UUIDToStr(dag.ExternalID)]
 
 		for _, opt := range opts {
 			opt.TriggerDAGId = &dag.ID

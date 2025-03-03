@@ -110,24 +110,25 @@ type CreateTaskEventsOLAPTmpParams struct {
 }
 
 type CreateTasksOLAPParams struct {
-	TenantID           pgtype.UUID          `json:"tenant_id"`
-	ID                 int64                `json:"id"`
-	InsertedAt         pgtype.Timestamptz   `json:"inserted_at"`
-	Queue              string               `json:"queue"`
-	ActionID           string               `json:"action_id"`
-	StepID             pgtype.UUID          `json:"step_id"`
-	WorkflowID         pgtype.UUID          `json:"workflow_id"`
-	ScheduleTimeout    string               `json:"schedule_timeout"`
-	StepTimeout        pgtype.Text          `json:"step_timeout"`
-	Priority           pgtype.Int4          `json:"priority"`
-	Sticky             V1StickyStrategyOlap `json:"sticky"`
-	DesiredWorkerID    pgtype.UUID          `json:"desired_worker_id"`
-	ExternalID         pgtype.UUID          `json:"external_id"`
-	DisplayName        string               `json:"display_name"`
-	Input              []byte               `json:"input"`
-	AdditionalMetadata []byte               `json:"additional_metadata"`
-	DagID              pgtype.Int8          `json:"dag_id"`
-	DagInsertedAt      pgtype.Timestamptz   `json:"dag_inserted_at"`
+	TenantID             pgtype.UUID          `json:"tenant_id"`
+	ID                   int64                `json:"id"`
+	InsertedAt           pgtype.Timestamptz   `json:"inserted_at"`
+	Queue                string               `json:"queue"`
+	ActionID             string               `json:"action_id"`
+	StepID               pgtype.UUID          `json:"step_id"`
+	WorkflowID           pgtype.UUID          `json:"workflow_id"`
+	ScheduleTimeout      string               `json:"schedule_timeout"`
+	StepTimeout          pgtype.Text          `json:"step_timeout"`
+	Priority             pgtype.Int4          `json:"priority"`
+	Sticky               V1StickyStrategyOlap `json:"sticky"`
+	DesiredWorkerID      pgtype.UUID          `json:"desired_worker_id"`
+	ExternalID           pgtype.UUID          `json:"external_id"`
+	DisplayName          string               `json:"display_name"`
+	Input                []byte               `json:"input"`
+	AdditionalMetadata   []byte               `json:"additional_metadata"`
+	DagID                pgtype.Int8          `json:"dag_id"`
+	DagInsertedAt        pgtype.Timestamptz   `json:"dag_inserted_at"`
+	ParentTaskExternalID pgtype.UUID          `json:"parent_task_external_id"`
 }
 
 const flattenTasksByExternalIds = `-- name: FlattenTasksByExternalIds :many
@@ -963,6 +964,7 @@ WITH latest_retry_count AS (
         WHERE id = $2::bigint
     )
 )
+
 SELECT
     t.tenant_id, t.id, t.inserted_at, t.external_id, t.queue, t.action_id, t.step_id, t.workflow_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.display_name, t.input, t.additional_metadata, t.readable_status, t.latest_retry_count, t.latest_worker_id, t.dag_id, t.dag_inserted_at, t.parent_task_external_id,
     st.readable_status::v1_readable_status_olap as status,
@@ -1284,7 +1286,7 @@ WITH lookup_task AS (
         external_id = $1::uuid
 )
 SELECT
-    d.id, d.inserted_at, d.tenant_id, d.external_id, d.display_name, d.workflow_id, d.workflow_version_id, d.readable_status, d.input, d.additional_metadata
+    d.id, d.inserted_at, d.tenant_id, d.external_id, d.display_name, d.workflow_id, d.workflow_version_id, d.readable_status, d.input, d.additional_metadata, d.parent_task_external_id
 FROM
     v1_dags_olap d
 JOIN
@@ -1305,6 +1307,7 @@ func (q *Queries) ReadDAGByExternalID(ctx context.Context, db DBTX, externalid p
 		&i.ReadableStatus,
 		&i.Input,
 		&i.AdditionalMetadata,
+		&i.ParentTaskExternalID,
 	)
 	return &i, err
 }
@@ -1393,7 +1396,7 @@ func (q *Queries) ReadTaskByExternalID(ctx context.Context, db DBTX, externalid 
 
 const readWorkflowRunByExternalId = `-- name: ReadWorkflowRunByExternalId :one
 WITH dags AS (
-    SELECT d.id, d.inserted_at, d.tenant_id, d.external_id, d.display_name, d.workflow_id, d.workflow_version_id, d.readable_status, d.input, d.additional_metadata
+    SELECT d.id, d.inserted_at, d.tenant_id, d.external_id, d.display_name, d.workflow_id, d.workflow_version_id, d.readable_status, d.input, d.additional_metadata, d.parent_task_external_id
     FROM v1_lookup_table_olap lt
     JOIN v1_dags_olap d ON (lt.tenant_id, lt.dag_id, lt.inserted_at) = (d.tenant_id, d.id, d.inserted_at)
     WHERE lt.external_id = $1::uuid

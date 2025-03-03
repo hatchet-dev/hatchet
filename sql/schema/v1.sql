@@ -1014,6 +1014,7 @@ CREATE TABLE v1_dags_olap (
     readable_status v1_readable_status_olap NOT NULL DEFAULT 'QUEUED',
     input JSONB NOT NULL,
     additional_metadata JSONB,
+    parent_task_external_id UUID,
     PRIMARY KEY (inserted_at, id, readable_status)
 ) PARTITION BY RANGE(inserted_at);
 
@@ -1320,7 +1321,8 @@ BEGIN
         readable_status,
         kind,
         workflow_id,
-        additional_metadata
+        additional_metadata,
+        parent_task_external_id
     )
     SELECT
         tenant_id,
@@ -1330,7 +1332,8 @@ BEGIN
         readable_status,
         'DAG',
         workflow_id,
-        additional_metadata
+        additional_metadata,
+        parent_task_external_id
     FROM new_rows;
 
     INSERT INTO v1_lookup_table_olap (

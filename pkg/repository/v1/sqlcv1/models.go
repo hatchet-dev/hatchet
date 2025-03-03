@@ -2346,16 +2346,17 @@ type V1DagToTaskOlap struct {
 }
 
 type V1DagsOlap struct {
-	ID                 int64                `json:"id"`
-	InsertedAt         pgtype.Timestamptz   `json:"inserted_at"`
-	TenantID           pgtype.UUID          `json:"tenant_id"`
-	ExternalID         pgtype.UUID          `json:"external_id"`
-	DisplayName        string               `json:"display_name"`
-	WorkflowID         pgtype.UUID          `json:"workflow_id"`
-	WorkflowVersionID  pgtype.UUID          `json:"workflow_version_id"`
-	ReadableStatus     V1ReadableStatusOlap `json:"readable_status"`
-	Input              []byte               `json:"input"`
-	AdditionalMetadata []byte               `json:"additional_metadata"`
+	ID                   int64                `json:"id"`
+	InsertedAt           pgtype.Timestamptz   `json:"inserted_at"`
+	TenantID             pgtype.UUID          `json:"tenant_id"`
+	ExternalID           pgtype.UUID          `json:"external_id"`
+	DisplayName          string               `json:"display_name"`
+	WorkflowID           pgtype.UUID          `json:"workflow_id"`
+	WorkflowVersionID    pgtype.UUID          `json:"workflow_version_id"`
+	ReadableStatus       V1ReadableStatusOlap `json:"readable_status"`
+	Input                []byte               `json:"input"`
+	AdditionalMetadata   []byte               `json:"additional_metadata"`
+	ParentTaskExternalID pgtype.UUID          `json:"parent_task_external_id"`
 }
 
 type V1LookupTable struct {
