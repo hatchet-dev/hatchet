@@ -310,10 +310,14 @@ V1TaskPointMetric:
   $ref: "./v1/task.yaml#/V1TaskPointMetric"
 V1TaskPointMetrics:
   $ref: "./v1/task.yaml#/V1TaskPointMetrics"
+V1TaskFilter:
+  $ref: "./v1/task.yaml#/V1TaskFilter"
+V1CancelTaskRequest:
+  $ref: "./v1/task.yaml#/V1CancelTaskRequest"
+V1ReplayTaskRequest:
+  $ref: "./v1/task.yaml#/V1ReplayTaskRequest"
 V1WorkflowRun:
   $ref: "./v1/workflow_run.yaml#/V1WorkflowRun"
-V1WorkflowRunList:
-  $ref: "./v1/workflow_run.yaml#/V1WorkflowRunList"
 V1WorkflowRunDetails:
   $ref: "./v1/workflow_run.yaml#/V1WorkflowRunDetails"
 V1TaskRunStatus:

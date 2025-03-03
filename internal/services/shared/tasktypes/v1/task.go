@@ -2,47 +2,17 @@ package v1
 
 import (
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
-type TriggerTaskPayload struct {
-	// (required) the task id
-	TaskExternalId string `json:"task_external_id" validate:"required,uuid"`
-
-	// (required) the workflow name
-	WorkflowName string `json:"workflow_name" validate:"required"`
-
-	// (optional) the workflow run data
-	Data []byte `json:"data"`
-
-	// (optional) the workflow run metadata
-	AdditionalMetadata []byte `json:"additional_metadata"`
-
-	// (optional) the parent task id
-	ParentTaskId *int64 `json:"parent_task_id"`
-
-	// (optional) the child index
-	ChildIndex *int64 `json:"child_index"`
-
-	// (optional) the child key
-	ChildKey *string `json:"child_key"`
-}
-
-func TriggerTaskMessage(tenantId string, taskExternalId, name string, data []byte, additionalMetadata []byte, parentTaskId *int64, childIndex *int64, childKey *string) (*msgqueue.Message, error) {
+func TriggerTaskMessage(tenantId string, payloads ...*v1.WorkflowNameTriggerOpts) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
 		"task-trigger",
 		false,
 		true,
-		TriggerTaskPayload{
-			TaskExternalId:     taskExternalId,
-			WorkflowName:       name,
-			Data:               data,
-			AdditionalMetadata: additionalMetadata,
-			ParentTaskId:       parentTaskId,
-			ChildIndex:         childIndex,
-			ChildKey:           childKey,
-		},
+		payloads...,
 	)
 }
 
@@ -138,4 +108,12 @@ type SignalTaskCancelledPayload struct {
 
 	// (required) the retry count
 	RetryCount int32
+}
+
+type CancelTasksPayload struct {
+	Tasks []v1.TaskIdRetryCount `json:"tasks"`
+}
+
+type ReplayTasksPayload struct {
+	Tasks []v1.TaskIdRetryCount `json:"tasks"`
 }

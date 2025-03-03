@@ -25,7 +25,7 @@ import {
 } from '@/components/v1/ui/dropdown-menu';
 import { useState } from 'react';
 import { RecentWebhookRequests } from '../webhooks/components/recent-webhook-requests';
-import { WorkflowRunsTable } from '../../workflow-runs/components/workflow-runs-table';
+import { TaskRunsTable } from '../../workflow-runs-v1/components/task-runs-table';
 export const isHealthy = (worker?: Worker) => {
   const reasons = [];
 
@@ -221,7 +221,7 @@ export default function ExpandedWorkflowRun() {
             Recent Tasks
           </h3>
         </div>
-        <WorkflowRunsTable
+        <TaskRunsTable
           workerId={worker.metadata.id}
           createdAfter={worker.metadata.createdAt}
           showMetrics={false}

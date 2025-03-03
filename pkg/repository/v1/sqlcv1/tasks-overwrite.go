@@ -9,7 +9,7 @@ import (
 const createTasks = `-- name: CreateTasks :many
 WITH input AS (
     SELECT
-        tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, additional_metadata, initial_state, dag_id, dag_inserted_at, concurrency_strategy_ids, concurrency_keys, initial_state_reason
+        tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, additional_metadata, initial_state, dag_id, dag_inserted_at, concurrency_strategy_ids, concurrency_keys, initial_state_reason, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, step_index
     FROM
         (
             SELECT
@@ -35,7 +35,13 @@ WITH input AS (
                 unnest($19::timestamptz[]) AS dag_inserted_at,
 				unnest_nd_1d($20::bigint[][]) AS concurrency_strategy_ids,
 				unnest_nd_1d($21::text[][]) AS concurrency_keys,
-				unnest($22::text[]) AS initial_state_reason
+				unnest($22::text[]) AS initial_state_reason,
+				unnest($23::uuid[]) AS parent_task_external_id,
+				unnest($24::bigint[]) AS parent_task_id,
+				unnest($25::timestamptz[]) AS parent_task_inserted_at,
+				unnest($26::integer[]) AS child_index,
+				unnest($27::text[]) AS child_key,
+				unnest($28::bigint[]) AS step_index
         ) AS subquery
 )
 INSERT INTO v1_task (
@@ -60,7 +66,13 @@ INSERT INTO v1_task (
     dag_inserted_at,
 	concurrency_strategy_ids,
 	concurrency_keys,
-	initial_state_reason
+	initial_state_reason,
+	parent_task_external_id,
+	parent_task_id,
+	parent_task_inserted_at,
+	child_index,
+	child_key,
+	step_index
 )
 SELECT
     i.tenant_id,
@@ -84,11 +96,17 @@ SELECT
     i.dag_inserted_at,
 	i.concurrency_strategy_ids,
 	i.concurrency_keys,
-	i.initial_state_reason
+	i.initial_state_reason,
+	i.parent_task_external_id,
+	i.parent_task_id,
+	i.parent_task_inserted_at,
+	i.child_index,
+	i.child_key,
+	i.step_index
 FROM
     input i
 RETURNING
-    id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, additional_metadata, initial_state, dag_id, dag_inserted_at, concurrency_strategy_ids, concurrency_keys, initial_state_reason
+    id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, additional_metadata, initial_state, dag_id, dag_inserted_at, concurrency_strategy_ids, concurrency_keys, initial_state_reason, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, step_index
 `
 
 type CreateTasksParams struct {
@@ -114,6 +132,12 @@ type CreateTasksParams struct {
 	Daginsertedats         []pgtype.Timestamptz `json:"daginsertedats"`
 	ConcurrencyStrategyIds [][]int64            `json:"concurrencyStrategyIds"`
 	ConcurrencyKeys        [][]string           `json:"concurrencyKeys"`
+	ParentTaskExternalIds  []pgtype.UUID        `json:"parentTaskExternalIds"`
+	ParentTaskIds          []pgtype.Int8        `json:"parentTaskIds"`
+	ParentTaskInsertedAts  []pgtype.Timestamptz `json:"parentTaskInsertedAts"`
+	ChildIndex             []pgtype.Int8        `json:"childIndex"`
+	ChildKey               []pgtype.Text        `json:"childKey"`
+	StepIndex              []int64              `json:"stepIndex"`
 }
 
 func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParams) ([]*V1Task, error) {
@@ -140,6 +164,12 @@ func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParam
 		arg.ConcurrencyStrategyIds,
 		arg.ConcurrencyKeys,
 		arg.InitialStateReasons,
+		arg.ParentTaskExternalIds,
+		arg.ParentTaskIds,
+		arg.ParentTaskInsertedAts,
+		arg.ChildIndex,
+		arg.ChildKey,
+		arg.StepIndex,
 	)
 	if err != nil {
 		return nil, err
@@ -175,6 +205,12 @@ func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParam
 			&i.ConcurrencyStrategyIds,
 			&i.ConcurrencyKeys,
 			&i.InitialStateReason,
+			&i.ParentTaskExternalID,
+			&i.ParentTaskID,
+			&i.ParentTaskInsertedAt,
+			&i.ChildIndex,
+			&i.ChildKey,
+			&i.StepIndex,
 		); err != nil {
 			return nil, err
 		}
@@ -201,20 +237,22 @@ WITH locked_tasks AS (
     FOR UPDATE
 ), input AS (
     SELECT
-        task_id, retry_count, event_type, event_key, data
+        task_id, task_inserted_at, retry_count, event_type, event_key, data
     FROM
         (
             SELECT
                 unnest($2::bigint[]) AS task_id,
-                unnest($3::integer[]) AS retry_count,
-                unnest(cast($4::text[] as v1_task_event_type[])) AS event_type,
-                unnest($5::text[]) AS event_key,
-                unnest($6::jsonb[]) AS data
+				unnest($3::timestamptz[]) AS task_inserted_at,
+                unnest($4::integer[]) AS retry_count,
+                unnest(cast($5::text[] as v1_task_event_type[])) AS event_type,
+                unnest($6::text[]) AS event_key,
+                unnest($7::jsonb[]) AS data
         ) AS subquery
 )
 INSERT INTO v1_task_event (
     tenant_id,
     task_id,
+	task_inserted_at,
     retry_count,
     event_type,
     event_key,
@@ -223,22 +261,24 @@ INSERT INTO v1_task_event (
 SELECT
     $1::uuid,
     i.task_id,
+	i.task_inserted_at,
     i.retry_count,
     i.event_type,
     i.event_key,
     i.data
 FROM
     input i
-ON CONFLICT (tenant_id, task_id, event_type, event_key) WHERE event_key IS NOT NULL DO NOTHING
+ON CONFLICT (tenant_id, task_id, task_inserted_at, event_type, event_key) WHERE event_key IS NOT NULL DO NOTHING
 `
 
 type CreateTaskEventsParams struct {
-	Tenantid    pgtype.UUID   `json:"tenantid"`
-	Taskids     []int64       `json:"taskids"`
-	Retrycounts []int32       `json:"retrycounts"`
-	Eventtypes  []string      `json:"eventtypes"`
-	Eventkeys   []pgtype.Text `json:"eventkeys"`
-	Datas       [][]byte      `json:"datas"`
+	Tenantid        pgtype.UUID          `json:"tenantid"`
+	Taskids         []int64              `json:"taskids"`
+	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
+	Retrycounts     []int32              `json:"retrycounts"`
+	Eventtypes      []string             `json:"eventtypes"`
+	Eventkeys       []pgtype.Text        `json:"eventkeys"`
+	Datas           [][]byte             `json:"datas"`
 }
 
 // We get a FOR UPDATE lock on tasks to prevent concurrent writes to the task events
@@ -247,10 +287,114 @@ func (q *Queries) CreateTaskEvents(ctx context.Context, db DBTX, arg CreateTaskE
 	_, err := db.Exec(ctx, createTaskEvents,
 		arg.Tenantid,
 		arg.Taskids,
+		arg.Taskinsertedats,
 		arg.Retrycounts,
 		arg.Eventtypes,
 		arg.Eventkeys,
 		arg.Datas,
 	)
 	return err
+}
+
+const replayTasks = `-- name: ReplayTasks :many
+WITH input AS (
+    SELECT
+        task_id, input, initial_state, concurrency_strategy_ids, concurrency_keys, initial_state_reason
+    FROM
+        (
+            SELECT
+                unnest($1::bigint[]) AS task_id,
+                unnest($2::jsonb[]) AS input,
+                unnest(cast($3::text[] as v1_task_initial_state[])) AS initial_state,
+                unnest_nd_1d($4::bigint[][]) AS concurrency_strategy_ids,
+				unnest_nd_1d($5::text[][]) AS concurrency_keys,
+				unnest($6::text[]) AS initial_state_reason
+        ) AS subquery
+)
+UPDATE
+    v1_task
+SET
+    retry_count = retry_count + 1,
+    app_retry_count = 0,
+    internal_retry_count = 0,
+    input = CASE WHEN i.input IS NOT NULL THEN i.input ELSE v1_task.input END,
+    initial_state = i.initial_state,
+    concurrency_strategy_ids = i.concurrency_strategy_ids,
+    concurrency_keys = i.concurrency_keys,
+    initial_state_reason = i.initial_state_reason
+FROM
+    input i
+WHERE
+    v1_task.id = i.task_id
+RETURNING
+    v1_task.id, v1_task.inserted_at, v1_task.tenant_id, v1_task.queue, v1_task.action_id, v1_task.step_id, v1_task.step_readable_id, v1_task.workflow_id, v1_task.schedule_timeout, v1_task.step_timeout, v1_task.priority, v1_task.sticky, v1_task.desired_worker_id, v1_task.external_id, v1_task.display_name, v1_task.input, v1_task.retry_count, v1_task.internal_retry_count, v1_task.app_retry_count, v1_task.additional_metadata, v1_task.dag_id, v1_task.dag_inserted_at, v1_task.parent_task_id, v1_task.child_index, v1_task.child_key, v1_task.initial_state, v1_task.initial_state_reason, v1_task.concurrency_strategy_ids, v1_task.concurrency_keys, v1_task.retry_backoff_factor, v1_task.retry_max_backoff
+`
+
+type ReplayTasksParams struct {
+	Taskids                []int64       `json:"taskids"`
+	Inputs                 [][]byte      `json:"inputs"`
+	InitialStates          []string      `json:"initialstates"`
+	Concurrencystrategyids [][]int64     `json:"concurrencystrategyids"`
+	Concurrencykeys        [][]string    `json:"concurrencykeys"`
+	InitialStateReasons    []pgtype.Text `json:"initialStateReasons"`
+}
+
+// NOTE: at this point, we assume we have a lock on tasks and therefor we can update the tasks
+func (q *Queries) ReplayTasks(ctx context.Context, db DBTX, arg ReplayTasksParams) ([]*V1Task, error) {
+	rows, err := db.Query(ctx, replayTasks,
+		arg.Taskids,
+		arg.Inputs,
+		arg.InitialStates,
+		arg.Concurrencystrategyids,
+		arg.Concurrencykeys,
+		arg.InitialStateReasons,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*V1Task
+	for rows.Next() {
+		var i V1Task
+		if err := rows.Scan(
+			&i.ID,
+			&i.InsertedAt,
+			&i.TenantID,
+			&i.Queue,
+			&i.ActionID,
+			&i.StepID,
+			&i.StepReadableID,
+			&i.WorkflowID,
+			&i.ScheduleTimeout,
+			&i.StepTimeout,
+			&i.Priority,
+			&i.Sticky,
+			&i.DesiredWorkerID,
+			&i.ExternalID,
+			&i.DisplayName,
+			&i.Input,
+			&i.RetryCount,
+			&i.InternalRetryCount,
+			&i.AppRetryCount,
+			&i.AdditionalMetadata,
+			&i.DagID,
+			&i.DagInsertedAt,
+			&i.ParentTaskID,
+			&i.ChildIndex,
+			&i.ChildKey,
+			&i.InitialState,
+			&i.InitialStateReason,
+			&i.ConcurrencyStrategyIds,
+			&i.ConcurrencyKeys,
+			&i.RetryBackoffFactor,
+			&i.RetryMaxBackoff,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

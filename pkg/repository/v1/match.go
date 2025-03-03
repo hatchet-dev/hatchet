@@ -9,7 +9,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/google/cel-go/cel"
-	"github.com/google/cel-go/checker/decls"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
@@ -24,6 +23,9 @@ type CandidateEventMatch struct {
 
 	// Key for the event
 	Key string
+
+	// Resource hint for the event
+	ResourceHint *string
 
 	// Data for the event
 	Data []byte
@@ -42,7 +44,25 @@ type CreateMatchOpts struct {
 
 	TriggerStepId *string
 
+	TriggerStepIndex pgtype.Int8
+
+	TriggerExistingTaskId *int64
+
+	TriggerParentTaskExternalId pgtype.UUID
+
+	TriggerParentTaskId pgtype.Int8
+
+	TriggerParentTaskInsertedAt pgtype.Timestamptz
+
+	TriggerChildIndex pgtype.Int8
+
+	TriggerChildKey pgtype.Text
+
 	SignalTaskId *int64
+
+	SignalTaskInsertedAt pgtype.Timestamptz
+
+	SignalExternalId *string
 
 	SignalKey *string
 }
@@ -50,6 +70,9 @@ type CreateMatchOpts struct {
 type InternalEventMatchResults struct {
 	// The list of tasks which were created from the matches
 	CreatedTasks []*sqlcv1.V1Task
+
+	// The list of tasks which were replayed from the matches
+	ReplayedTasks []*sqlcv1.V1Task
 }
 
 type GroupMatchCondition struct {
@@ -59,9 +82,18 @@ type GroupMatchCondition struct {
 
 	EventKey string
 
+	// (optional) a hint for querying the event data
+	EventResourceHint *string
+
+	// the data key which gets inserted into the returned data from a satisfied match condition
+	ReadableDataKey string
+
 	Expression string
 
 	Action sqlcv1.V1MatchConditionAction
+
+	// (optional) the data which was used to satisfy the condition (relevant for replays)
+	Data []byte
 }
 
 type MatchRepository interface {
@@ -70,56 +102,75 @@ type MatchRepository interface {
 
 type MatchRepositoryImpl struct {
 	*sharedRepository
-
-	env *cel.Env
 }
 
 func newMatchRepository(s *sharedRepository) (MatchRepository, error) {
-	env, err := cel.NewEnv(
-		cel.Declarations(
-			decls.NewVar("input", decls.NewMapType(decls.String, decls.Dyn)),
-		),
-	)
-
-	if err != nil {
-		return nil, err
-	}
-
 	return &MatchRepositoryImpl{
 		sharedRepository: s,
-		env:              env,
 	}, nil
 }
 
 // ProcessInternalEventMatches processes a list of internal events
 func (m *MatchRepositoryImpl) ProcessInternalEventMatches(ctx context.Context, tenantId string, events []CandidateEventMatch) (*InternalEventMatchResults, error) {
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, m.pool, m.l, 5000)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer rollback()
+
+	res, err := m.processInternalEventMatches(ctx, tx, tenantId, events)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if err := commit(ctx); err != nil {
+		return nil, err
+	}
+
+	return res, nil
+}
+
+func (m *sharedRepository) processInternalEventMatches(ctx context.Context, tx sqlcv1.DBTX, tenantId string, events []CandidateEventMatch) (*InternalEventMatchResults, error) {
 	start := time.Now()
 
 	res := &InternalEventMatchResults{}
 
 	eventKeys := make([]string, 0, len(events))
+	resourceHints := make([]pgtype.Text, 0, len(events))
 	uniqueEventKeys := make(map[string]struct{})
 	idsToEvents := make(map[string]CandidateEventMatch)
 
 	for _, event := range events {
 		idsToEvents[event.ID] = event
 
-		if _, ok := uniqueEventKeys[event.Key]; ok {
-			continue
+		if event.ResourceHint == nil {
+			if _, ok := uniqueEventKeys[event.Key]; ok {
+				continue
+			}
 		}
 
 		eventKeys = append(eventKeys, event.Key)
 		uniqueEventKeys[event.Key] = struct{}{}
+
+		if event.ResourceHint != nil {
+			resourceHints = append(resourceHints, pgtype.Text{String: *event.ResourceHint, Valid: true})
+		} else {
+			resourceHints = append(resourceHints, pgtype.Text{})
+		}
 	}
 
 	// list all match conditions
 	matchConditions, err := m.queries.ListMatchConditionsForEvent(
 		ctx,
-		m.pool,
+		tx,
 		sqlcv1.ListMatchConditionsForEventParams{
-			Tenantid:  sqlchelpers.UUIDFromStr(tenantId),
-			Eventtype: sqlcv1.V1EventTypeINTERNAL,
-			Eventkeys: eventKeys,
+			Tenantid:           sqlchelpers.UUIDFromStr(tenantId),
+			Eventtype:          sqlcv1.V1EventTypeINTERNAL,
+			Eventkeys:          eventKeys,
+			Eventresourcehints: resourceHints,
 		},
 	)
 
@@ -156,14 +207,6 @@ func (m *MatchRepositoryImpl) ProcessInternalEventMatches(ctx context.Context, t
 			datas = append(datas, event.Data)
 		}
 	}
-
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, m.pool, m.l, 5000)
-
-	if err != nil {
-		return nil, err
-	}
-
-	defer rollback()
 
 	// update condition rows in the database
 	satisfiedMatchIds, err := m.queries.GetSatisfiedMatchConditions(
@@ -206,8 +249,8 @@ func (m *MatchRepositoryImpl) ProcessInternalEventMatches(ctx context.Context, t
 			dagInsertedAts = append(dagInsertedAts, match.TriggerDagInsertedAt)
 		}
 
-		if match.SignalTargetID.Valid {
-			signalIds = append(signalIds, match.SignalTargetID.Int64)
+		if match.SignalTaskID.Valid {
+			signalIds = append(signalIds, match.SignalTaskID.Int64)
 		}
 	}
 
@@ -232,7 +275,8 @@ func (m *MatchRepositoryImpl) ProcessInternalEventMatches(ctx context.Context, t
 		}
 
 		// determine which tasks to create based on step ids
-		taskOpts := make([]CreateTaskOpts, 0, len(satisfiedMatches))
+		createTaskOpts := make([]CreateTaskOpts, 0, len(satisfiedMatches))
+		replayTaskOpts := make([]ReplayTaskOpts, 0, len(satisfiedMatches))
 
 		for _, match := range satisfiedMatches {
 			if match.TriggerStepID.Valid && match.TriggerExternalID.Valid {
@@ -243,42 +287,96 @@ func (m *MatchRepositoryImpl) ProcessInternalEventMatches(ctx context.Context, t
 					additionalMetadata = dagIdsToMetadata[match.TriggerDagID.Int64]
 				}
 
-				opt := CreateTaskOpts{
-					ExternalId:         sqlchelpers.UUIDToStr(match.TriggerExternalID),
-					StepId:             sqlchelpers.UUIDToStr(match.TriggerStepID),
-					AdditionalMetadata: additionalMetadata,
-				}
-
-				action, data, err := m.parseTriggerData(match.McAggregatedData)
+				matchData, err := NewMatchData(match.McAggregatedData)
 
 				if err != nil {
 					return nil, err
 				}
 
-				switch *action {
-				case sqlcv1.V1MatchConditionActionCREATE:
-					opt.Input = m.newTaskInput(input, data)
-					opt.InitialState = sqlcv1.V1TaskInitialStateQUEUED
-				case sqlcv1.V1MatchConditionActionCANCEL:
-					opt.InitialState = sqlcv1.V1TaskInitialStateCANCELLED
-				case sqlcv1.V1MatchConditionActionSKIP:
-					opt.InitialState = sqlcv1.V1TaskInitialStateSKIPPED
-				}
+				if match.TriggerExistingTaskID.Valid {
+					opt := ReplayTaskOpts{
+						TaskId:             match.TriggerExistingTaskID.Int64,
+						ExternalId:         sqlchelpers.UUIDToStr(match.TriggerExternalID),
+						StepId:             sqlchelpers.UUIDToStr(match.TriggerStepID),
+						AdditionalMetadata: additionalMetadata,
+						InitialState:       sqlcv1.V1TaskInitialStateQUEUED,
+					}
 
-				if match.TriggerDagID.Valid && match.TriggerDagInsertedAt.Valid {
-					opt.DagId = &match.TriggerDagID.Int64
-					opt.DagInsertedAt = match.TriggerDagInsertedAt
-				}
+					switch matchData.Action() {
+					case sqlcv1.V1MatchConditionActionQUEUE:
+						opt.Input = m.newTaskInput(input, matchData)
+						opt.InitialState = sqlcv1.V1TaskInitialStateQUEUED
+					case sqlcv1.V1MatchConditionActionCANCEL:
+						opt.InitialState = sqlcv1.V1TaskInitialStateCANCELLED
+					case sqlcv1.V1MatchConditionActionSKIP:
+						opt.InitialState = sqlcv1.V1TaskInitialStateSKIPPED
+					}
 
-				taskOpts = append(taskOpts, opt)
+					replayTaskOpts = append(replayTaskOpts, opt)
+				} else {
+					opt := CreateTaskOpts{
+						ExternalId:         sqlchelpers.UUIDToStr(match.TriggerExternalID),
+						StepId:             sqlchelpers.UUIDToStr(match.TriggerStepID),
+						StepIndex:          int(match.TriggerStepIndex.Int64),
+						AdditionalMetadata: additionalMetadata,
+					}
+
+					switch matchData.Action() {
+					case sqlcv1.V1MatchConditionActionQUEUE:
+						opt.Input = m.newTaskInput(input, matchData)
+						opt.InitialState = sqlcv1.V1TaskInitialStateQUEUED
+					case sqlcv1.V1MatchConditionActionCANCEL:
+						opt.InitialState = sqlcv1.V1TaskInitialStateCANCELLED
+					case sqlcv1.V1MatchConditionActionSKIP:
+						opt.InitialState = sqlcv1.V1TaskInitialStateSKIPPED
+					}
+
+					if match.TriggerDagID.Valid && match.TriggerDagInsertedAt.Valid {
+						opt.DagId = &match.TriggerDagID.Int64
+						opt.DagInsertedAt = match.TriggerDagInsertedAt
+					}
+
+					if match.TriggerParentTaskExternalID.Valid {
+						externalId := sqlchelpers.UUIDToStr(match.TriggerParentTaskExternalID)
+						opt.ParentTaskExternalId = &externalId
+					}
+
+					if match.TriggerParentTaskID.Valid {
+						opt.ParentTaskId = &match.TriggerParentTaskID.Int64
+					}
+
+					if match.TriggerParentTaskInsertedAt.Valid {
+						opt.ParentTaskInsertedAt = &match.TriggerParentTaskInsertedAt.Time
+					}
+
+					if match.TriggerChildIndex.Valid {
+						opt.ChildIndex = &match.TriggerChildIndex.Int64
+					}
+
+					if match.TriggerChildKey.Valid {
+						opt.ChildKey = &match.TriggerChildKey.String
+					}
+
+					createTaskOpts = append(createTaskOpts, opt)
+				}
 			}
 		}
 
 		// create tasks
-		tasks, err = m.createTasks(ctx, tx, tenantId, taskOpts)
+		tasks, err = m.createTasks(ctx, tx, tenantId, createTaskOpts)
 
 		if err != nil {
 			return nil, err
+		}
+
+		if len(replayTaskOpts) > 0 {
+			replayedTasks, err := m.replayTasks(ctx, tx, tenantId, replayTaskOpts)
+
+			if err != nil {
+				return nil, err
+			}
+
+			res.ReplayedTasks = replayedTasks
 		}
 	}
 
@@ -289,28 +387,37 @@ func (m *MatchRepositoryImpl) ProcessInternalEventMatches(ctx context.Context, t
 		taskIds := make([]TaskIdRetryCount, 0, len(satisfiedMatches))
 		datas := make([][]byte, 0, len(satisfiedMatches))
 		eventKeys := make([]string, 0, len(satisfiedMatches))
+		insertedAts := make([]pgtype.Timestamptz, 0, len(satisfiedMatches))
+		externalIds := make([]string, 0, len(satisfiedMatches))
 
 		for _, match := range satisfiedMatches {
-			if match.SignalTargetID.Valid {
+			if match.SignalTaskID.Valid && match.SignalTaskInsertedAt.Valid {
 				taskIds = append(taskIds, TaskIdRetryCount{
-					Id:         match.SignalTargetID.Int64,
+					Id:         match.SignalTaskID.Int64,
 					RetryCount: -1,
 				})
+				insertedAts = append(insertedAts, match.SignalTaskInsertedAt)
+				externalIds = append(externalIds, sqlchelpers.UUIDToStr(match.SignalExternalID))
 				datas = append(datas, match.McAggregatedData)
 				eventKeys = append(eventKeys, match.SignalKey.String)
 			}
 		}
 
-		err = m.createTaskEvents(ctx, tx, tenantId, taskIds, datas, sqlcv1.V1TaskEventTypeSIGNALCOMPLETED, eventKeys)
+		_, err = m.createTaskEvents(
+			ctx,
+			tx,
+			tenantId,
+			taskIds,
+			insertedAts,
+			externalIds,
+			datas,
+			sqlcv1.V1TaskEventTypeSIGNALCOMPLETED,
+			eventKeys,
+		)
 
 		if err != nil {
 			return nil, err
 		}
-	}
-
-	// commit
-	if err := commit(ctx); err != nil {
-		return nil, err
 	}
 
 	end := time.Now()
@@ -322,7 +429,7 @@ func (m *MatchRepositoryImpl) ProcessInternalEventMatches(ctx context.Context, t
 	return res, nil
 }
 
-func (m *MatchRepositoryImpl) processCELExpressions(ctx context.Context, events []CandidateEventMatch, conditions []*sqlcv1.ListMatchConditionsForEventRow) (map[string][]*sqlcv1.ListMatchConditionsForEventRow, error) {
+func (m *sharedRepository) processCELExpressions(ctx context.Context, events []CandidateEventMatch, conditions []*sqlcv1.ListMatchConditionsForEventRow) (map[string][]*sqlcv1.ListMatchConditionsForEventRow, error) {
 	// parse CEL expressions
 	programs := make(map[int64]cel.Program)
 	conditionIdsToConditions := make(map[int64]*sqlcv1.ListMatchConditionsForEventRow)
@@ -360,6 +467,17 @@ func (m *MatchRepositoryImpl) processCELExpressions(ctx context.Context, events 
 		}
 
 		for conditionId, program := range programs {
+			condition := conditionIdsToConditions[conditionId]
+
+			// if we don't match the event key and resource hint, skip
+			if condition.EventKey != event.Key {
+				continue
+			}
+
+			if condition.EventResourceHint.Valid && condition.EventResourceHint.String != *event.ResourceHint {
+				continue
+			}
+
 			out, _, err := program.ContextEval(ctx, map[string]interface{}{
 				"input": inputData,
 			})
@@ -384,11 +502,19 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 	triggerDagIds := make([]int64, 0, len(eventMatches))
 	triggerDagInsertedAts := make([]pgtype.Timestamptz, 0, len(eventMatches))
 	triggerStepIds := make([]pgtype.UUID, 0, len(eventMatches))
+	triggerStepIndices := make([]int64, 0, len(eventMatches))
 	triggerExternalIds := make([]pgtype.UUID, 0, len(eventMatches))
+	triggerExistingTaskIds := make([]pgtype.Int8, 0, len(eventMatches))
+	triggerParentExternalIds := make([]pgtype.UUID, 0, len(eventMatches))
+	triggerParentTaskIds := make([]pgtype.Int8, 0, len(eventMatches))
+	triggerParentTaskInsertedAts := make([]pgtype.Timestamptz, 0, len(eventMatches))
+	triggerChildIndices := make([]pgtype.Int8, 0, len(eventMatches))
+	triggerChildKeys := make([]pgtype.Text, 0, len(eventMatches))
 
 	signalTenantIds := make([]pgtype.UUID, 0, len(eventMatches))
 	signalKinds := make([]string, 0, len(eventMatches))
-	signalTargetIds := make([]int64, 0, len(eventMatches))
+	signalTaskIds := make([]int64, 0, len(eventMatches))
+	signalTaskInsertedAts := make([]pgtype.Timestamptz, 0, len(eventMatches))
 	signalKeys := make([]string, 0, len(eventMatches))
 
 	for _, match := range eventMatches {
@@ -399,11 +525,24 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 			triggerDagIds = append(triggerDagIds, *match.TriggerDAGId)
 			triggerDagInsertedAts = append(triggerDagInsertedAts, match.TriggerDAGInsertedAt)
 			triggerStepIds = append(triggerStepIds, sqlchelpers.UUIDFromStr(*match.TriggerStepId))
+			triggerStepIndices = append(triggerStepIndices, match.TriggerStepIndex.Int64)
 			triggerExternalIds = append(triggerExternalIds, sqlchelpers.UUIDFromStr(*match.TriggerExternalId))
-		} else if match.SignalTaskId != nil && match.SignalKey != nil {
+			triggerParentExternalIds = append(triggerParentExternalIds, match.TriggerParentTaskExternalId)
+			triggerParentTaskIds = append(triggerParentTaskIds, match.TriggerParentTaskId)
+			triggerParentTaskInsertedAts = append(triggerParentTaskInsertedAts, match.TriggerParentTaskInsertedAt)
+			triggerChildIndices = append(triggerChildIndices, match.TriggerChildIndex)
+			triggerChildKeys = append(triggerChildKeys, match.TriggerChildKey)
+
+			if match.TriggerExistingTaskId != nil {
+				triggerExistingTaskIds = append(triggerExistingTaskIds, pgtype.Int8{Int64: *match.TriggerExistingTaskId, Valid: true})
+			} else {
+				triggerExistingTaskIds = append(triggerExistingTaskIds, pgtype.Int8{})
+			}
+		} else if match.SignalTaskId != nil && match.SignalKey != nil && match.SignalTaskInsertedAt.Valid {
 			signalTenantIds = append(signalTenantIds, sqlchelpers.UUIDFromStr(tenantId))
 			signalKinds = append(signalKinds, string(match.Kind))
-			signalTargetIds = append(signalTargetIds, *match.SignalTaskId)
+			signalTaskIds = append(signalTaskIds, *match.SignalTaskId)
+			signalTaskInsertedAts = append(signalTaskInsertedAts, match.SignalTaskInsertedAt)
 			signalKeys = append(signalKeys, *match.SignalKey)
 		}
 	}
@@ -415,12 +554,19 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 			ctx,
 			tx,
 			sqlcv1.CreateMatchesForDAGTriggersParams{
-				Tenantids:             dagTenantIds,
-				Kinds:                 dagKinds,
-				Triggerdagids:         triggerDagIds,
-				Triggerdaginsertedats: triggerDagInsertedAts,
-				Triggerstepids:        triggerStepIds,
-				Triggerexternalids:    triggerExternalIds,
+				Tenantids:                    dagTenantIds,
+				Kinds:                        dagKinds,
+				Triggerdagids:                triggerDagIds,
+				Triggerdaginsertedats:        triggerDagInsertedAts,
+				Triggerstepids:               triggerStepIds,
+				Triggerstepindex:             triggerStepIndices,
+				Triggerexternalids:           triggerExternalIds,
+				Triggerexistingtaskids:       triggerExistingTaskIds,
+				TriggerParentTaskExternalIds: triggerParentExternalIds,
+				TriggerParentTaskIds:         triggerParentTaskIds,
+				TriggerParentTaskInsertedAt:  triggerParentTaskInsertedAts,
+				TriggerChildIndex:            triggerChildIndices,
+				TriggerChildKey:              triggerChildKeys,
 			},
 		)
 
@@ -436,10 +582,11 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 			ctx,
 			tx,
 			sqlcv1.CreateMatchesForSignalTriggersParams{
-				Tenantids:       signalTenantIds,
-				Kinds:           signalKinds,
-				Signaltargetids: signalTargetIds,
-				Signalkeys:      signalKeys,
+				Tenantids:             signalTenantIds,
+				Kinds:                 signalKinds,
+				Signaltaskids:         signalTaskIds,
+				Signaltaskinsertedats: signalTaskInsertedAts,
+				Signalkeys:            signalKeys,
 			},
 		)
 
@@ -461,15 +608,24 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 		createdMatch := createdMatches[i]
 
 		for _, condition := range match.Conditions {
-			params = append(params, sqlcv1.CreateMatchConditionsParams{
-				V1MatchID:  createdMatch.ID,
-				TenantID:   sqlchelpers.UUIDFromStr(tenantId),
-				EventType:  condition.EventType,
-				EventKey:   condition.EventKey,
-				OrGroupID:  sqlchelpers.UUIDFromStr(condition.GroupId),
-				Expression: sqlchelpers.TextFromStr(condition.Expression),
-				Action:     condition.Action,
-			})
+			param := sqlcv1.CreateMatchConditionsParams{
+				V1MatchID:       createdMatch.ID,
+				TenantID:        sqlchelpers.UUIDFromStr(tenantId),
+				EventType:       condition.EventType,
+				EventKey:        condition.EventKey,
+				ReadableDataKey: condition.ReadableDataKey,
+				OrGroupID:       sqlchelpers.UUIDFromStr(condition.GroupId),
+				Expression:      sqlchelpers.TextFromStr(condition.Expression),
+				Action:          condition.Action,
+				IsSatisfied:     false,
+				Data:            condition.Data,
+			}
+
+			if condition.EventResourceHint != nil {
+				param.EventResourceHint = sqlchelpers.TextFromStr(*condition.EventResourceHint)
+			}
+
+			params = append(params, param)
 		}
 	}
 

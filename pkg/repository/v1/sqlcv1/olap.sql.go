@@ -130,6 +130,90 @@ type CreateTasksOLAPParams struct {
 	DagInsertedAt      pgtype.Timestamptz   `json:"dag_inserted_at"`
 }
 
+const flattenTasksByExternalIds = `-- name: FlattenTasksByExternalIds :many
+WITH lookups AS (
+    SELECT
+        tenant_id, external_id, task_id, dag_id, inserted_at
+    FROM
+        v1_lookup_table_olap
+    WHERE
+        external_id = ANY($1::uuid[])
+        AND tenant_id = $2::uuid
+), tasks_from_dags AS (
+    SELECT
+        l.tenant_id,
+        dt.task_id,
+        dt.task_inserted_at
+    FROM
+        lookups l
+    JOIN
+        v1_dag_to_task_olap dt ON l.dag_id = dt.dag_id
+    WHERE
+        l.dag_id IS NOT NULL
+), unioned_tasks AS (
+    SELECT
+        l.tenant_id AS tenant_id,
+        l.task_id AS task_id,
+        l.inserted_at AS task_inserted_at
+    FROM
+        lookups l
+    UNION ALL
+    SELECT
+        t.tenant_id AS tenant_id,
+        t.task_id AS task_id,
+        t.task_inserted_at AS task_inserted_at
+    FROM
+        tasks_from_dags t
+)
+SELECT
+    t.tenant_id,
+    t.id,
+    t.inserted_at,
+    t.latest_retry_count AS retry_count
+FROM
+    v1_tasks_olap t
+JOIN
+    unioned_tasks ut ON (t.inserted_at, t.id) = (ut.task_inserted_at, ut.task_id)
+`
+
+type FlattenTasksByExternalIdsParams struct {
+	Externalids []pgtype.UUID `json:"externalids"`
+	Tenantid    pgtype.UUID   `json:"tenantid"`
+}
+
+type FlattenTasksByExternalIdsRow struct {
+	TenantID   pgtype.UUID        `json:"tenant_id"`
+	ID         int64              `json:"id"`
+	InsertedAt pgtype.Timestamptz `json:"inserted_at"`
+	RetryCount int32              `json:"retry_count"`
+}
+
+// Get retry counts for each task
+func (q *Queries) FlattenTasksByExternalIds(ctx context.Context, db DBTX, arg FlattenTasksByExternalIdsParams) ([]*FlattenTasksByExternalIdsRow, error) {
+	rows, err := db.Query(ctx, flattenTasksByExternalIds, arg.Externalids, arg.Tenantid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*FlattenTasksByExternalIdsRow
+	for rows.Next() {
+		var i FlattenTasksByExternalIdsRow
+		if err := rows.Scan(
+			&i.TenantID,
+			&i.ID,
+			&i.InsertedAt,
+			&i.RetryCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getTaskPointMetrics = `-- name: GetTaskPointMetrics :many
 SELECT
     DATE_BIN(
@@ -188,13 +272,7 @@ func (q *Queries) GetTaskPointMetrics(ctx context.Context, db DBTX, arg GetTaskP
 
 const getTenantStatusMetrics = `-- name: GetTenantStatusMetrics :one
 SELECT
-    DATE_BIN(
-        '1 minute',
-        inserted_at,
-        TIMESTAMPTZ '1970-01-01 00:00:00+00'
-    ) :: TIMESTAMPTZ AS bucket,
     tenant_id,
-    workflow_id,
     COUNT(*) FILTER (WHERE readable_status = 'QUEUED') AS total_queued,
     COUNT(*) FILTER (WHERE readable_status = 'RUNNING') AS total_running,
     COUNT(*) FILTER (WHERE readable_status = 'COMPLETED') AS total_completed,
@@ -207,8 +285,7 @@ WHERE
     AND (
         $3::UUID[] IS NULL OR workflow_id = ANY($3::UUID[])
     )
-GROUP BY tenant_id, workflow_id, bucket
-ORDER BY bucket DESC
+GROUP BY tenant_id
 `
 
 type GetTenantStatusMetricsParams struct {
@@ -218,23 +295,19 @@ type GetTenantStatusMetricsParams struct {
 }
 
 type GetTenantStatusMetricsRow struct {
-	Bucket         pgtype.Timestamptz `json:"bucket"`
-	TenantID       pgtype.UUID        `json:"tenant_id"`
-	WorkflowID     pgtype.UUID        `json:"workflow_id"`
-	TotalQueued    int64              `json:"total_queued"`
-	TotalRunning   int64              `json:"total_running"`
-	TotalCompleted int64              `json:"total_completed"`
-	TotalCancelled int64              `json:"total_cancelled"`
-	TotalFailed    int64              `json:"total_failed"`
+	TenantID       pgtype.UUID `json:"tenant_id"`
+	TotalQueued    int64       `json:"total_queued"`
+	TotalRunning   int64       `json:"total_running"`
+	TotalCompleted int64       `json:"total_completed"`
+	TotalCancelled int64       `json:"total_cancelled"`
+	TotalFailed    int64       `json:"total_failed"`
 }
 
 func (q *Queries) GetTenantStatusMetrics(ctx context.Context, db DBTX, arg GetTenantStatusMetricsParams) (*GetTenantStatusMetricsRow, error) {
 	row := db.QueryRow(ctx, getTenantStatusMetrics, arg.Tenantid, arg.Createdafter, arg.WorkflowIds)
 	var i GetTenantStatusMetricsRow
 	err := row.Scan(
-		&i.Bucket,
 		&i.TenantID,
-		&i.WorkflowID,
 		&i.TotalQueued,
 		&i.TotalRunning,
 		&i.TotalCompleted,
@@ -464,7 +537,7 @@ func (q *Queries) ListTaskEvents(ctx context.Context, db DBTX, arg ListTaskEvent
 const listTaskEventsForWorkflowRun = `-- name: ListTaskEventsForWorkflowRun :many
 WITH tasks AS (
     SELECT dt.task_id
-    FROM v1_lookup_table lt
+    FROM v1_lookup_table_olap lt
     JOIN v1_dag_to_task_olap dt ON lt.dag_id = dt.dag_id
     WHERE
         lt.external_id = $1::uuid
@@ -583,15 +656,20 @@ func (q *Queries) ListTaskEventsForWorkflowRun(ctx context.Context, db DBTX, arg
 
 const listTasksByDAGIds = `-- name: ListTasksByDAGIds :many
 SELECT
+    DISTINCT ON (t.external_id)
     dt.dag_id, dt.dag_inserted_at, dt.task_id, dt.task_inserted_at,
     lt.external_id AS dag_external_id
 FROM
-    v1_lookup_table lt
+    v1_lookup_table_olap lt
 JOIN
     v1_dag_to_task_olap dt ON lt.dag_id = dt.dag_id
+JOIN
+    v1_tasks_olap t ON (t.tenant_id, t.id, t.inserted_at) = (lt.tenant_id, dt.task_id, dt.task_inserted_at)
 WHERE
     lt.external_id = ANY($1::uuid[])
-    AND tenant_id = $2::uuid
+    AND lt.tenant_id = $2::uuid
+ORDER BY
+    t.external_id, t.inserted_at DESC
 `
 
 type ListTasksByDAGIdsParams struct {
@@ -639,7 +717,7 @@ SELECT
     task_id,
     inserted_at
 FROM
-    v1_lookup_table
+    v1_lookup_table_olap
 WHERE
     external_id = ANY($1::uuid[])
     AND tenant_id = $2::uuid
@@ -727,16 +805,27 @@ WITH input AS (
         e.readable_status = 'FAILED'
     ORDER BY
         e.run_id, e.retry_count DESC
+), task_output AS (
+    SELECT
+        run_id,
+        output
+    FROM
+        relevant_events
+    WHERE
+        event_type = 'FINISHED'
 )
+
 SELECT
     r.dag_id, r.run_id, r.tenant_id, r.inserted_at, r.external_id, r.readable_status, r.kind, r.workflow_id, r.display_name, r.input, r.additional_metadata, r.workflow_version_id,
     m.created_at,
     m.started_at,
     m.finished_at,
-    e.error_message
+    e.error_message,
+    o.output
 FROM runs r
 LEFT JOIN metadata m ON r.run_id = m.run_id
 LEFT JOIN error_message e ON r.run_id = e.run_id
+LEFT JOIN task_output o ON r.run_id = o.run_id
 ORDER BY r.inserted_at DESC, r.run_id DESC
 `
 
@@ -763,6 +852,7 @@ type PopulateDAGMetadataRow struct {
 	StartedAt          pgtype.Timestamptz   `json:"started_at"`
 	FinishedAt         pgtype.Timestamptz   `json:"finished_at"`
 	ErrorMessage       pgtype.Text          `json:"error_message"`
+	Output             []byte               `json:"output"`
 }
 
 func (q *Queries) PopulateDAGMetadata(ctx context.Context, db DBTX, arg PopulateDAGMetadataParams) ([]*PopulateDAGMetadataRow, error) {
@@ -791,6 +881,7 @@ func (q *Queries) PopulateDAGMetadata(ctx context.Context, db DBTX, arg Populate
 			&i.StartedAt,
 			&i.FinishedAt,
 			&i.ErrorMessage,
+			&i.Output,
 		); err != nil {
 			return nil, err
 		}
@@ -1050,7 +1141,18 @@ WITH input AS (
         e.readable_status = 'FAILED'
     ORDER BY
         e.task_id, e.retry_count DESC
+), task_output AS (
+    SELECT
+        task_id,
+        MAX(output::TEXT)::JSONB AS output
+    FROM
+        relevant_events
+    WHERE
+        readable_status = 'COMPLETED'
+    GROUP BY
+        task_id
 )
+
 SELECT
     t.tenant_id,
     t.id,
@@ -1066,10 +1168,12 @@ SELECT
     t.sticky,
     t.display_name,
     t.additional_metadata,
+    t.input,
     t.readable_status::v1_readable_status_olap as status,
     f.finished_at::timestamptz as finished_at,
     s.started_at::timestamptz as started_at,
-    e.error_message as error_message
+    e.error_message as error_message,
+    o.output::jsonb as output
 FROM
     tasks t
 LEFT JOIN
@@ -1078,6 +1182,8 @@ LEFT JOIN
     started_ats s ON s.task_id = t.id
 LEFT JOIN
     error_message e ON e.task_id = t.id
+LEFT JOIN
+    task_output o ON o.task_id = t.id
 ORDER BY t.inserted_at DESC, t.id DESC
 `
 
@@ -1102,10 +1208,12 @@ type PopulateTaskRunDataRow struct {
 	Sticky             V1StickyStrategyOlap `json:"sticky"`
 	DisplayName        string               `json:"display_name"`
 	AdditionalMetadata []byte               `json:"additional_metadata"`
+	Input              []byte               `json:"input"`
 	Status             V1ReadableStatusOlap `json:"status"`
 	FinishedAt         pgtype.Timestamptz   `json:"finished_at"`
 	StartedAt          pgtype.Timestamptz   `json:"started_at"`
 	ErrorMessage       pgtype.Text          `json:"error_message"`
+	Output             []byte               `json:"output"`
 }
 
 func (q *Queries) PopulateTaskRunData(ctx context.Context, db DBTX, arg PopulateTaskRunDataParams) ([]*PopulateTaskRunDataRow, error) {
@@ -1132,10 +1240,12 @@ func (q *Queries) PopulateTaskRunData(ctx context.Context, db DBTX, arg Populate
 			&i.Sticky,
 			&i.DisplayName,
 			&i.AdditionalMetadata,
+			&i.Input,
 			&i.Status,
 			&i.FinishedAt,
 			&i.StartedAt,
 			&i.ErrorMessage,
+			&i.Output,
 		); err != nil {
 			return nil, err
 		}
@@ -1154,7 +1264,7 @@ WITH lookup_task AS (
         dag_id,
         inserted_at
     FROM
-        v1_lookup_table
+        v1_lookup_table_olap
     WHERE
         external_id = $1::uuid
 )
@@ -1191,7 +1301,7 @@ WITH lookup_task AS (
         task_id,
         inserted_at
     FROM
-        v1_lookup_table
+        v1_lookup_table_olap
     WHERE
         external_id = $1::uuid
 )
@@ -1267,7 +1377,7 @@ func (q *Queries) ReadTaskByExternalID(ctx context.Context, db DBTX, externalid 
 const readWorkflowRunByExternalId = `-- name: ReadWorkflowRunByExternalId :one
 WITH dags AS (
     SELECT d.id, d.inserted_at, d.tenant_id, d.external_id, d.display_name, d.workflow_id, d.workflow_version_id, d.readable_status, d.input, d.additional_metadata
-    FROM v1_lookup_table lt
+    FROM v1_lookup_table_olap lt
     JOIN v1_dags_olap d ON (lt.tenant_id, lt.dag_id, lt.inserted_at) = (d.tenant_id, d.id, d.inserted_at)
     WHERE lt.external_id = $1::uuid
 ), runs AS (

@@ -62,6 +62,24 @@ func (q *Queries) CreateAPIToken(ctx context.Context, db DBTX, arg CreateAPIToke
 	return &i, err
 }
 
+const deleteAPIToken = `-- name: DeleteAPIToken :exec
+DELETE FROM
+    "APIToken"
+WHERE
+    "tenantId" = $1::uuid
+    AND "id" = $2::uuid
+`
+
+type DeleteAPITokenParams struct {
+	Tenantid pgtype.UUID `json:"tenantid"`
+	ID       pgtype.UUID `json:"id"`
+}
+
+func (q *Queries) DeleteAPIToken(ctx context.Context, db DBTX, arg DeleteAPITokenParams) error {
+	_, err := db.Exec(ctx, deleteAPIToken, arg.Tenantid, arg.ID)
+	return err
+}
+
 const getAPITokenById = `-- name: GetAPITokenById :one
 SELECT
     id, "createdAt", "updatedAt", "expiresAt", revoked, name, "tenantId", "nextAlertAt", internal

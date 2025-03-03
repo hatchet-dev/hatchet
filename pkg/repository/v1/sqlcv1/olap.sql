@@ -177,7 +177,7 @@ WITH lookup_task AS (
         task_id,
         inserted_at
     FROM
-        v1_lookup_table
+        v1_lookup_table_olap
     WHERE
         external_id = @externalId::uuid
 )
@@ -199,23 +199,27 @@ SELECT
     task_id,
     inserted_at
 FROM
-    v1_lookup_table
+    v1_lookup_table_olap
 WHERE
     external_id = ANY(@externalIds::uuid[])
     AND tenant_id = @tenantId::uuid;
 
 -- name: ListTasksByDAGIds :many
 SELECT
+    DISTINCT ON (t.external_id)
     dt.*,
     lt.external_id AS dag_external_id
 FROM
-    v1_lookup_table lt
+    v1_lookup_table_olap lt
 JOIN
     v1_dag_to_task_olap dt ON lt.dag_id = dt.dag_id
+JOIN
+    v1_tasks_olap t ON (t.tenant_id, t.id, t.inserted_at) = (lt.tenant_id, dt.task_id, dt.task_inserted_at)
 WHERE
     lt.external_id = ANY(@dagIds::uuid[])
-    AND tenant_id = @tenantId::uuid
-;
+    AND lt.tenant_id = @tenantId::uuid
+ORDER BY
+    t.external_id, t.inserted_at DESC;
 
 -- name: ReadDAGByExternalID :one
 WITH lookup_task AS (
@@ -224,7 +228,7 @@ WITH lookup_task AS (
         dag_id,
         inserted_at
     FROM
-        v1_lookup_table
+        v1_lookup_table_olap
     WHERE
         external_id = @externalId::uuid
 )
@@ -282,7 +286,7 @@ ORDER BY a.time_first_seen DESC, t.event_timestamp DESC;
 -- name: ListTaskEventsForWorkflowRun :many
 WITH tasks AS (
     SELECT dt.task_id
-    FROM v1_lookup_table lt
+    FROM v1_lookup_table_olap lt
     JOIN v1_dag_to_task_olap dt ON lt.dag_id = dt.dag_id
     WHERE
         lt.external_id = @workflowRunId::uuid
@@ -511,7 +515,18 @@ WITH input AS (
         e.readable_status = 'FAILED'
     ORDER BY
         e.task_id, e.retry_count DESC
+), task_output AS (
+    SELECT
+        task_id,
+        MAX(output::TEXT)::JSONB AS output
+    FROM
+        relevant_events
+    WHERE
+        readable_status = 'COMPLETED'
+    GROUP BY
+        task_id
 )
+
 SELECT
     t.tenant_id,
     t.id,
@@ -527,10 +542,12 @@ SELECT
     t.sticky,
     t.display_name,
     t.additional_metadata,
+    t.input,
     t.readable_status::v1_readable_status_olap as status,
     f.finished_at::timestamptz as finished_at,
     s.started_at::timestamptz as started_at,
-    e.error_message as error_message
+    e.error_message as error_message,
+    o.output::jsonb as output
 FROM
     tasks t
 LEFT JOIN
@@ -539,6 +556,8 @@ LEFT JOIN
     started_ats s ON s.task_id = t.id
 LEFT JOIN
     error_message e ON e.task_id = t.id
+LEFT JOIN
+    task_output o ON o.task_id = t.id
 ORDER BY t.inserted_at DESC, t.id DESC;
 
 
@@ -858,16 +877,27 @@ WITH input AS (
         e.readable_status = 'FAILED'
     ORDER BY
         e.run_id, e.retry_count DESC
+), task_output AS (
+    SELECT
+        run_id,
+        output
+    FROM
+        relevant_events
+    WHERE
+        event_type = 'FINISHED'
 )
+
 SELECT
     r.*,
     m.created_at,
     m.started_at,
     m.finished_at,
-    e.error_message
+    e.error_message,
+    o.output
 FROM runs r
 LEFT JOIN metadata m ON r.run_id = m.run_id
 LEFT JOIN error_message e ON r.run_id = e.run_id
+LEFT JOIN task_output o ON r.run_id = o.run_id
 ORDER BY r.inserted_at DESC, r.run_id DESC;
 
 
@@ -891,13 +921,7 @@ ORDER BY bucket_2;
 
 -- name: GetTenantStatusMetrics :one
 SELECT
-    DATE_BIN(
-        '1 minute',
-        inserted_at,
-        TIMESTAMPTZ '1970-01-01 00:00:00+00'
-    ) :: TIMESTAMPTZ AS bucket,
     tenant_id,
-    workflow_id,
     COUNT(*) FILTER (WHERE readable_status = 'QUEUED') AS total_queued,
     COUNT(*) FILTER (WHERE readable_status = 'RUNNING') AS total_running,
     COUNT(*) FILTER (WHERE readable_status = 'COMPLETED') AS total_completed,
@@ -910,13 +934,13 @@ WHERE
     AND (
         sqlc.narg('workflowIds')::UUID[] IS NULL OR workflow_id = ANY(sqlc.narg('workflowIds')::UUID[])
     )
-GROUP BY tenant_id, workflow_id, bucket
-ORDER BY bucket DESC
+GROUP BY tenant_id
 ;
+
 -- name: ReadWorkflowRunByExternalId :one
 WITH dags AS (
     SELECT d.*
-    FROM v1_lookup_table lt
+    FROM v1_lookup_table_olap lt
     JOIN v1_dags_olap d ON (lt.tenant_id, lt.dag_id, lt.inserted_at) = (d.tenant_id, d.id, d.inserted_at)
     WHERE lt.external_id = @workflowRunExternalId::uuid
 ), runs AS (
@@ -986,3 +1010,49 @@ WHERE
     id = @dagId::bigint
     AND inserted_at = @dagInsertedAt::timestamptz
 ;
+
+-- name: FlattenTasksByExternalIds :many
+WITH lookups AS (
+    SELECT
+        *
+    FROM
+        v1_lookup_table_olap
+    WHERE
+        external_id = ANY(@externalIds::uuid[])
+        AND tenant_id = @tenantId::uuid
+), tasks_from_dags AS (
+    SELECT
+        l.tenant_id,
+        dt.task_id,
+        dt.task_inserted_at
+    FROM
+        lookups l
+    JOIN
+        v1_dag_to_task_olap dt ON l.dag_id = dt.dag_id
+    WHERE
+        l.dag_id IS NOT NULL
+), unioned_tasks AS (
+    SELECT
+        l.tenant_id AS tenant_id,
+        l.task_id AS task_id,
+        l.inserted_at AS task_inserted_at
+    FROM
+        lookups l
+    UNION ALL
+    SELECT
+        t.tenant_id AS tenant_id,
+        t.task_id AS task_id,
+        t.task_inserted_at AS task_inserted_at
+    FROM
+        tasks_from_dags t
+)
+-- Get retry counts for each task
+SELECT
+    t.tenant_id,
+    t.id,
+    t.inserted_at,
+    t.latest_retry_count AS retry_count
+FROM
+    v1_tasks_olap t
+JOIN
+    unioned_tasks ut ON (t.inserted_at, t.id) = (ut.task_inserted_at, ut.task_id);

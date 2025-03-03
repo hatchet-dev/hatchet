@@ -195,6 +195,7 @@ WITH input AS (
 ), updated_tasks AS (
     SELECT
         t.id,
+        t.inserted_at,
         t.retry_count,
         input.worker_id,
         t.tenant_id,
@@ -207,6 +208,7 @@ WITH input AS (
 ), assigned_tasks AS (
     INSERT INTO v1_task_runtime (
         task_id,
+        task_inserted_at,
         retry_count,
         worker_id,
         tenant_id,
@@ -214,13 +216,14 @@ WITH input AS (
     )
     SELECT
         t.id,
+        t.inserted_at,
         t.retry_count,
         t.worker_id,
         @tenantId::uuid,
         t.timeout_at
     FROM
         updated_tasks t
-    ON CONFLICT (task_id, retry_count) DO NOTHING
+    ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
     -- only return the task ids that were successfully assigned
     RETURNING task_id, worker_id
 )

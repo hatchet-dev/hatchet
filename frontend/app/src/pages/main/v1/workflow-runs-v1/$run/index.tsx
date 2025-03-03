@@ -13,8 +13,9 @@ import {
 } from '@/components/v1/ui/tabs';
 import { StepRunEvents } from './v2components/step-run-events-for-workflow-run';
 import { useCallback, useState } from 'react';
-import StepRunDetail, {
+import {
   TabOption,
+  TaskRunDetail,
 } from './v2components/step-run-detail/step-run-detail';
 import { Separator } from '@/components/v1/ui/separator';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
@@ -26,7 +27,7 @@ import WorkflowRunVisualizer from './v2components/workflow-run-visualizer-v2';
 import { useAtom } from 'jotai';
 import { preferredWorkflowRunViewAtom } from '@/lib/atoms';
 import { JobMiniMap } from './v2components/mini-map';
-import { useWorkflowDetails } from '../hooks';
+import { useWorkflowDetails } from '../hooks/workflow-details';
 
 export const WORKFLOW_RUN_TERMINAL_STATUSES = [
   WorkflowRunStatus.CANCELLED,
@@ -74,6 +75,7 @@ const GraphView = ({
 
 export default function ExpandedWorkflowRun() {
   const params = useParams();
+
   const [selectedTaskRunId, setSelectedTaskRunId] = useState<string>();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
@@ -146,7 +148,7 @@ export default function ExpandedWorkflowRun() {
       >
         <SheetContent className="w-fit min-w-[56rem] max-w-4xl sm:max-w-2xl z-[60]">
           {selectedTaskRunId && (
-            <StepRunDetail
+            <TaskRunDetail
               taskRunId={selectedTaskRunId}
               defaultOpenTab={TabOption.Output}
               showViewTaskRunButton

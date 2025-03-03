@@ -85,6 +85,7 @@ interface ExtraDataTableProps {
     containerStyle?: string;
     component: React.FC<any> | ((data: any) => JSX.Element);
   };
+  onToolbarReset?: () => void;
 }
 
 export function DataTable<TData extends IDGetter<TData>, TValue>({
@@ -116,6 +117,7 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
   manualSorting = true,
   manualFiltering = true,
   getSubRows,
+  onToolbarReset,
 }: DataTableProps<TData, TValue> & ExtraDataTableProps) {
   const [expanded, setExpanded] = React.useState<ExpandedState>({});
 
@@ -271,6 +273,7 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
           search={search}
           setSearch={setSearch}
           showColumnToggle={showColumnToggle}
+          onReset={onToolbarReset}
         />
       )}
       <div className={`rounded-md ${!card && 'border'}`}>

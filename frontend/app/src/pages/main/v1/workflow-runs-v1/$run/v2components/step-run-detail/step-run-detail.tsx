@@ -1,21 +1,9 @@
-import React from 'react';
-import {
-  StepRun,
-  StepRunStatus,
-  V1Task,
-  V1TaskStatus,
-  WorkflowRun,
-  queries,
-} from '@/lib/api';
+import { StepRun, V1Task, V1TaskStatus, WorkflowRun, queries } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 import invariant from 'tiny-invariant';
 import { Button } from '@/components/v1/ui/button';
 import { Loading } from '@/components/v1/ui/loading';
-import {
-  ArrowPathIcon,
-  LinkIcon,
-  XCircleIcon,
-} from '@heroicons/react/24/outline';
+import { LinkIcon } from '@heroicons/react/24/outline';
 import { Separator } from '@/components/v1/ui/separator';
 import {
   Tabs,
@@ -26,13 +14,14 @@ import {
 import { StepRunEvents } from '../step-run-events-for-workflow-run';
 import { Link, useOutletContext } from 'react-router-dom';
 import { TenantContextType } from '@/lib/outlet';
-import { TaskRunsTable as WorkflowRunsTable } from '../../../components/workflow-runs-table';
+import { TaskRunsTable as WorkflowRunsTable } from '../../../components/task-runs-table';
 import { useTenant } from '@/lib/atoms';
 import { V1RunIndicator } from '../../../components/run-statuses';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { formatDuration } from '@/lib/utils';
 import { V1StepRunOutput } from './step-run-output';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
+import { TaskRunActionButton } from '@/pages/main/v1/task-runs-v1/actions';
 
 export enum TabOption {
   Output = 'output',
@@ -41,17 +30,16 @@ export enum TabOption {
   Logs = 'logs',
 }
 
-interface StepRunDetailProps {
+interface TaskRunDetailProps {
   taskRunId: string;
   defaultOpenTab?: TabOption;
   showViewTaskRunButton?: boolean;
 }
 
-export const STEP_RUN_TERMINAL_STATUSES = [
-  StepRunStatus.CANCELLING,
-  StepRunStatus.CANCELLED,
-  StepRunStatus.FAILED,
-  StepRunStatus.SUCCEEDED,
+export const TASK_RUN_TERMINAL_STATUSES = [
+  V1TaskStatus.CANCELLED,
+  V1TaskStatus.FAILED,
+  V1TaskStatus.COMPLETED,
 ];
 
 const TaskRunPermalinkOrBacklink = ({
@@ -84,11 +72,11 @@ const TaskRunPermalinkOrBacklink = ({
   }
 };
 
-const StepRunDetail: React.FC<StepRunDetailProps> = ({
+export const TaskRunDetail = ({
   taskRunId,
   defaultOpenTab = TabOption.Output,
   showViewTaskRunButton,
-}) => {
+}: TaskRunDetailProps) => {
   const { tenant } = useTenant();
 
   const tenantId = tenant?.metadata.id;
@@ -122,41 +110,16 @@ const StepRunDetail: React.FC<StepRunDetailProps> = ({
         </div>
       </div>
       <div className="flex flex-row gap-2 items-center">
-        <Button
-          size={'sm'}
-          className="px-2 py-2 gap-2"
-          variant={'outline'}
-          // disabled={!STEP_RUN_TERMINAL_STATUSES.includes(stepRun.status)}
-          onClick={() => {
-            // if (!stepRun.input) {
-            //   return;
-            // }
-            // let parsedInput: object;
-            // try {
-            //   parsedInput = JSON.parse(stepRun.input);
-            // } catch (e) {
-            //   return;
-            // }
-            // rerunStepMutation.mutate(parsedInput);
-          }}
-          disabled
-        >
-          <ArrowPathIcon className="w-4 h-4" />
-          Replay
-        </Button>
-        <Button
-          size={'sm'}
-          className="px-2 py-2 gap-2"
-          variant={'outline'}
-          // disabled={STEP_RUN_TERMINAL_STATUSES.includes(stepRun.status)}
-          onClick={() => {
-            // cancelStepMutation.mutate();
-          }}
-          disabled
-        >
-          <XCircleIcon className="w-4 h-4" />
-          Cancel
-        </Button>
+        <TaskRunActionButton
+          actionType="replay"
+          params={{ externalIds: [taskRunId] }}
+          disabled={TASK_RUN_TERMINAL_STATUSES.includes(taskRun.status)}
+        />
+        <TaskRunActionButton
+          actionType="cancel"
+          params={{ externalIds: [taskRunId] }}
+          disabled={TASK_RUN_TERMINAL_STATUSES.includes(taskRun.status)}
+        />
         <TaskRunPermalinkOrBacklink
           taskRun={taskRun}
           showViewTaskRunButton={showViewTaskRunButton || false}
@@ -230,80 +193,6 @@ const StepRunDetail: React.FC<StepRunDetailProps> = ({
         />
       </div>
     </div>
-  );
-};
-
-export default StepRunDetail;
-
-export const StepRunSummary: React.FC<{ data: StepRun }> = ({ data }) => {
-  const timings = [];
-
-  if (data.startedAt) {
-    timings.push(
-      <div key="created" className="text-sm text-muted-foreground">
-        {'Started '}
-        <RelativeDate date={data.startedAt} />
-      </div>,
-    );
-  } else {
-    timings.push(
-      <div key="created" className="text-sm text-muted-foreground">
-        Running
-      </div>,
-    );
-  }
-
-  if (data.status === StepRunStatus.CANCELLED && data.cancelledAt) {
-    timings.push(
-      <div key="finished" className="text-sm text-muted-foreground">
-        {'Cancelled '}
-        <RelativeDate date={data.cancelledAt} />
-      </div>,
-    );
-  }
-
-  if (data.status === StepRunStatus.FAILED && data.finishedAt) {
-    timings.push(
-      <div key="finished" className="text-sm text-muted-foreground">
-        {'Failed '}
-        <RelativeDate date={data.finishedAt} />
-      </div>,
-    );
-  }
-
-  if (data.status === StepRunStatus.SUCCEEDED && data.finishedAt) {
-    timings.push(
-      <div key="finished" className="text-sm text-muted-foreground">
-        {'Succeeded '}
-        <RelativeDate date={data.finishedAt} />
-      </div>,
-    );
-  }
-
-  if (data.finishedAtEpoch && data.startedAtEpoch) {
-    timings.push(
-      <div key="duration" className="text-sm text-muted-foreground">
-        Run took {formatDuration(data.finishedAtEpoch - data.startedAtEpoch)}
-      </div>,
-    );
-  }
-
-  // interleave the timings with a dot
-  const interleavedTimings: JSX.Element[] = [];
-
-  timings.forEach((timing, index) => {
-    interleavedTimings.push(timing);
-    if (index < timings.length - 1) {
-      interleavedTimings.push(
-        <div key={`dot-${index}`} className="text-sm text-muted-foreground">
-          |
-        </div>,
-      );
-    }
-  });
-
-  return (
-    <div className="flex flex-row gap-4 items-center">{interleavedTimings}</div>
   );
 };
 

@@ -20,7 +20,6 @@ import {
   TabsTrigger,
 } from '@/components/v1/ui/tabs';
 import WorkflowGeneralSettings from './components/workflow-general-settings';
-import { WorkflowRunsTable } from '../../workflow-runs/components/workflow-runs-table';
 import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
 import { useTenant } from '@/lib/atoms';
 import {
@@ -29,6 +28,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/v1/ui/dropdown-menu';
+import { TaskRunsTable } from '../../workflow-runs-v1/components/task-runs-table';
 
 export default function ExpandedWorkflow() {
   const { tenant } = useTenant();
@@ -271,7 +271,7 @@ function RecentRunsList() {
   invariant(params.workflow);
 
   return (
-    <WorkflowRunsTable
+    <TaskRunsTable
       workflowId={params.workflow}
       initColumnVisibility={{ Workflow: false }}
       filterVisibility={{ Workflow: false }}

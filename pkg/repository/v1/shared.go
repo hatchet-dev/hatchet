@@ -1,8 +1,10 @@
 package v1
 
 import (
+	"log"
 	"time"
 
+	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 
@@ -10,15 +12,26 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
+
+	celgo "github.com/google/cel-go/cel"
+	"github.com/google/cel-go/checker/decls"
 )
 
+// implements comparable for the lru cache
+type taskExternalIdTenantIdTuple struct {
+	externalId string
+	tenantId   string
+}
+
 type sharedRepository struct {
-	pool       *pgxpool.Pool
-	v          validator.Validator
-	l          *zerolog.Logger
-	queries    *sqlcv1.Queries
-	queueCache *cache.Cache
-	celParser  *cel.CELParser
+	pool            *pgxpool.Pool
+	v               validator.Validator
+	l               *zerolog.Logger
+	queries         *sqlcv1.Queries
+	queueCache      *cache.Cache
+	celParser       *cel.CELParser
+	env             *celgo.Env
+	taskLookupCache *lru.Cache[taskExternalIdTenantIdTuple, *sqlcv1.FlattenExternalIdsRow]
 }
 
 func newSharedRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger) (*sharedRepository, func() error) {
@@ -27,13 +40,31 @@ func newSharedRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.L
 
 	celParser := cel.NewCELParser()
 
+	env, err := celgo.NewEnv(
+		celgo.Declarations(
+			decls.NewVar("input", decls.NewMapType(decls.String, decls.Dyn)),
+		),
+	)
+
+	if err != nil {
+		log.Fatalf("failed to create CEL environment: %v", err)
+	}
+
+	lookupCache, err := lru.New[taskExternalIdTenantIdTuple, *sqlcv1.FlattenExternalIdsRow](20000)
+
+	if err != nil {
+		log.Fatalf("failed to create LRU cache: %v", err)
+	}
+
 	return &sharedRepository{
-			pool:       pool,
-			v:          v,
-			l:          l,
-			queries:    queries,
-			queueCache: cache,
-			celParser:  celParser,
+			pool:            pool,
+			v:               v,
+			l:               l,
+			queries:         queries,
+			queueCache:      cache,
+			celParser:       celParser,
+			env:             env,
+			taskLookupCache: lookupCache,
 		}, func() error {
 			cache.Stop()
 			return nil

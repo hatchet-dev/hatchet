@@ -1,3 +1,9 @@
+V1WorkflowType:
+  type: string
+  enum:
+    - DAG
+    - TASK
+
 V1TaskSummary:
   properties:
     metadata:
@@ -50,6 +56,25 @@ V1TaskSummary:
     errorMessage:
       type: string
       description: The error message of the task run (for the latest run)
+    input:
+      type: object
+      description: The input of the task run.
+    type:
+      $ref: "#/V1WorkflowType"
+      description: The type of the workflow (whether it's a DAG or a task)
+    workflowVersionId:
+      type: string
+      format: uuid
+      description: The version ID of the workflow
+    createdAt:
+      type: string
+      format: date-time
+      description: The timestamp the task was created.
+    children:
+      type: array
+      items:
+        $ref: "#/V1TaskSummary"
+      description: The list of children tasks
   required:
     - metadata
     - id
@@ -61,6 +86,7 @@ V1TaskSummary:
     - workflowId
     - output
     - taskExternalId
+    - type
 
 V1DagChildren:
   type: object
@@ -264,3 +290,56 @@ V1TaskPointMetrics:
       type: array
       items:
         $ref: "#/V1TaskPointMetric"
+
+V1TaskFilter:
+  type: object
+  properties:
+    since:
+      type: string
+      format: date-time
+    until:
+      type: string
+      format: date-time
+    statuses:
+      type: array
+      items:
+        $ref: "#/V1TaskStatus"
+    workflowIds:
+      type: array
+      items:
+        type: string
+        format: uuid
+    additionalMetadata:
+      type: array
+      items:
+        type: string
+  required:
+    - since
+
+V1CancelTaskRequest:
+  type: object
+  properties:
+    externalIds:
+      type: array
+      description: A list of external IDs, which can refer to either task or workflow run external IDs
+      items:
+        type: string
+        format: uuid
+        minLength: 36
+        maxLength: 36
+    filter:
+      $ref: "#/V1TaskFilter"
+
+V1ReplayTaskRequest:
+  type: object
+  properties:
+    externalIds:
+      type: array
+      description: A list of external IDs, which can refer to either task or workflow run external IDs
+      items:
+        type: string
+        format: uuid
+        minLength: 36
+        maxLength: 36
+    filter:
+      $ref: "#/V1TaskFilter"

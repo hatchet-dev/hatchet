@@ -67,20 +67,24 @@ type ReadTaskRunMetricsOpts struct {
 }
 
 type WorkflowRunData struct {
-	TenantID           pgtype.UUID                 `json:"tenant_id"`
-	InsertedAt         pgtype.Timestamptz          `json:"inserted_at"`
-	ExternalID         pgtype.UUID                 `json:"external_id"`
-	ReadableStatus     sqlcv1.V1ReadableStatusOlap `json:"readable_status"`
-	Kind               sqlcv1.V1RunKind            `json:"kind"`
-	WorkflowID         pgtype.UUID                 `json:"workflow_id"`
-	DisplayName        string                      `json:"display_name"`
 	AdditionalMetadata []byte                      `json:"additional_metadata"`
 	CreatedAt          pgtype.Timestamptz          `json:"created_at"`
-	StartedAt          pgtype.Timestamptz          `json:"started_at"`
-	FinishedAt         pgtype.Timestamptz          `json:"finished_at"`
+	DisplayName        string                      `json:"display_name"`
 	ErrorMessage       string                      `json:"error_message"`
-	WorkflowVersionId  pgtype.UUID                 `json:"workflow_version_id"`
+	ExternalID         pgtype.UUID                 `json:"external_id"`
+	FinishedAt         pgtype.Timestamptz          `json:"finished_at"`
 	Input              []byte                      `json:"input"`
+	InsertedAt         pgtype.Timestamptz          `json:"inserted_at"`
+	Kind               sqlcv1.V1RunKind            `json:"kind"`
+	Output             *[]byte                     `json:"output,omitempty"`
+	ReadableStatus     sqlcv1.V1ReadableStatusOlap `json:"readable_status"`
+	StartedAt          pgtype.Timestamptz          `json:"started_at"`
+	TaskExternalId     *pgtype.UUID                `json:"task_external_id,omitempty"`
+	TaskId             *int64                      `json:"task_id,omitempty"`
+	TaskInsertedAt     *pgtype.Timestamptz         `json:"task_inserted_at,omitempty"`
+	TenantID           pgtype.UUID                 `json:"tenant_id"`
+	WorkflowID         pgtype.UUID                 `json:"workflow_id"`
+	WorkflowVersionId  pgtype.UUID                 `json:"workflow_version_id"`
 }
 
 type V1WorkflowRunPopulator struct {
@@ -156,6 +160,7 @@ type OLAPRepository interface {
 	ReadTaskRun(ctx context.Context, taskExternalId string) (*sqlcv1.V1TasksOlap, error)
 	ReadWorkflowRun(ctx context.Context, workflowRunExternalId pgtype.UUID) (*V1WorkflowRunPopulator, error)
 	ReadTaskRunData(ctx context.Context, tenantId pgtype.UUID, taskId int64, taskInsertedAt pgtype.Timestamptz) (*sqlcv1.PopulateSingleTaskRunDataRow, *pgtype.UUID, error)
+
 	ListTasks(ctx context.Context, tenantId string, opts ListTaskRunOpts) ([]*sqlcv1.PopulateTaskRunDataRow, int, error)
 	ListWorkflowRuns(ctx context.Context, tenantId string, opts ListWorkflowRunOpts) ([]*WorkflowRunData, int, error)
 	ListTaskRunEvents(ctx context.Context, tenantId string, taskId int64, taskInsertedAt pgtype.Timestamptz, limit, offset int64) ([]*sqlcv1.ListTaskEventsRow, error)
@@ -170,6 +175,10 @@ type OLAPRepository interface {
 	ReadDAG(ctx context.Context, dagExternalId string) (*sqlcv1.V1DagsOlap, error)
 	ListTasksByDAGId(ctx context.Context, tenantId string, dagIds []pgtype.UUID) ([]*sqlcv1.PopulateTaskRunDataRow, map[int64]uuid.UUID, error)
 	ListTasksByIdAndInsertedAt(ctx context.Context, tenantId string, taskMetadata []TaskMetadata) ([]*sqlcv1.PopulateTaskRunDataRow, error)
+
+	// ListTasksByExternalIds returns a list of tasks based on their external ids or the external id of their parent DAG.
+	// In the case of a DAG, we flatten the result into the list of tasks which belong to that DAG.
+	ListTasksByExternalIds(ctx context.Context, tenantId string, externalIds []string) ([]*sqlcv1.FlattenTasksByExternalIdsRow, error)
 }
 
 type olapRepository struct {
@@ -776,6 +785,11 @@ func (r *olapRepository) ListWorkflowRuns(ctx context.Context, tenantId string, 
 				ErrorMessage:       dag.ErrorMessage.String,
 				Kind:               sqlcv1.V1RunKindDAG,
 				WorkflowVersionId:  dag.WorkflowVersionID,
+				TaskExternalId:     nil,
+				TaskId:             nil,
+				TaskInsertedAt:     nil,
+				Output:             &dag.Output,
+				Input:              dag.Input,
 			})
 		} else {
 			task, ok := tasksToPopulated[externalId]
@@ -798,6 +812,11 @@ func (r *olapRepository) ListWorkflowRuns(ctx context.Context, tenantId string, 
 				FinishedAt:         task.FinishedAt,
 				ErrorMessage:       task.ErrorMessage.String,
 				Kind:               sqlcv1.V1RunKindTASK,
+				TaskExternalId:     &task.ExternalID,
+				TaskId:             &task.ID,
+				TaskInsertedAt:     &task.InsertedAt,
+				Output:             &task.Output,
+				Input:              task.Input,
 			})
 		}
 	}
@@ -1143,6 +1162,19 @@ func (r *olapRepository) GetTaskPointMetrics(ctx context.Context, tenantId strin
 
 func (r *olapRepository) ReadDAG(ctx context.Context, dagExternalId string) (*sqlcv1.V1DagsOlap, error) {
 	return r.queries.ReadDAGByExternalID(ctx, r.pool, sqlchelpers.UUIDFromStr(dagExternalId))
+}
+
+func (r *olapRepository) ListTasksByExternalIds(ctx context.Context, tenantId string, externalIds []string) ([]*sqlcv1.FlattenTasksByExternalIdsRow, error) {
+	externalUUIDs := make([]pgtype.UUID, 0)
+
+	for _, id := range externalIds {
+		externalUUIDs = append(externalUUIDs, sqlchelpers.UUIDFromStr(id))
+	}
+
+	return r.queries.FlattenTasksByExternalIds(ctx, r.pool, sqlcv1.FlattenTasksByExternalIdsParams{
+		Tenantid:    sqlchelpers.UUIDFromStr(tenantId),
+		Externalids: externalUUIDs,
+	})
 }
 
 func durationToPgInterval(d time.Duration) pgtype.Interval {

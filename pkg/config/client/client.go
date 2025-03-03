@@ -28,7 +28,7 @@ type ClientConfigFile struct {
 }
 
 type ClientTLSConfigFile struct {
-	Base shared.TLSConfigFile `mapstructure:"base" json:"tenantId,omitempty"`
+	Base shared.TLSConfigFile `mapstructure:"base" json:"base,omitempty"`
 
 	TLSServerName string `mapstructure:"tlsServerName" json:"tlsServerName,omitempty"`
 }

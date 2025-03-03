@@ -3,57 +3,34 @@ package admin
 import (
 	"context"
 	"fmt"
-	"strconv"
-	"strings"
-
-	"github.com/google/uuid"
 
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/admin/contracts"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 )
 
 func (a *AdminServiceImpl) triggerWorkflowV1(ctx context.Context, req *contracts.TriggerWorkflowRequest) (*contracts.TriggerWorkflowResponse, error) {
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
-	additionalMeta := ""
+	opt, err := a.newTriggerOpt(ctx, tenantId, req)
 
-	if req.AdditionalMetadata != nil {
-		additionalMeta = *req.AdditionalMetadata
+	if err != nil {
+		return nil, fmt.Errorf("could not create trigger opt: %w", err)
 	}
 
-	var parentTaskId *int64
+	err = a.generateExternalIds(ctx, tenantId, []*v1.WorkflowNameTriggerOpts{opt})
 
-	if req.ParentStepRunId != nil && strings.HasPrefix(*req.ParentStepRunId, "id-") {
-		taskIdStr := strings.TrimPrefix(*req.ParentStepRunId, "id-")
-		taskId, err := strconv.ParseInt(taskIdStr, 10, 64)
-
-		if err != nil {
-			return nil, fmt.Errorf("could not parse task id: %w", err)
-		}
-
-		parentTaskId = &taskId
+	if err != nil {
+		return nil, fmt.Errorf("could not generate external ids: %w", err)
 	}
 
-	var childIndex *int64
-
-	if req.ChildIndex != nil {
-		i := int64(*req.ChildIndex)
-
-		childIndex = &i
-	}
-
-	taskExternalId, err := a.ingestSingleton(
+	err = a.ingest(
 		tenantId,
-		req.Name,
-		[]byte(req.Input),
-		[]byte(additionalMeta),
-		parentTaskId,
-		childIndex,
-		req.ChildKey,
+		opt,
 	)
 
 	if err != nil {
@@ -61,7 +38,7 @@ func (a *AdminServiceImpl) triggerWorkflowV1(ctx context.Context, req *contracts
 	}
 
 	return &contracts.TriggerWorkflowResponse{
-		WorkflowRunId: taskExternalId,
+		WorkflowRunId: opt.ExternalId,
 	}, nil
 }
 
@@ -69,51 +46,37 @@ func (a *AdminServiceImpl) bulkTriggerWorkflowV1(ctx context.Context, req *contr
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
-	runIds := make([]string, len(req.Workflows))
+	opts := make([]*v1.WorkflowNameTriggerOpts, len(req.Workflows))
 
-	for _, workflow := range req.Workflows {
-		additionalMeta := ""
-
-		if workflow.AdditionalMetadata != nil {
-			additionalMeta = *workflow.AdditionalMetadata
-		}
-
-		var parentTaskId *int64
-
-		if workflow.ParentStepRunId != nil && strings.HasPrefix(*workflow.ParentStepRunId, "id-") {
-			taskIdStr := strings.TrimPrefix(*workflow.ParentStepRunId, "id-")
-			taskId, err := strconv.ParseInt(taskIdStr, 10, 64)
-
-			if err != nil {
-				return nil, fmt.Errorf("could not parse task id: %w", err)
-			}
-
-			parentTaskId = &taskId
-		}
-
-		var childIndex *int64
-
-		if workflow.ChildIndex != nil {
-			i := int64(*workflow.ChildIndex)
-
-			childIndex = &i
-		}
-
-		taskExternalId, err := a.ingestSingleton(
-			tenantId,
-			workflow.Name,
-			[]byte(workflow.Input),
-			[]byte(additionalMeta),
-			parentTaskId,
-			childIndex,
-			workflow.ChildKey,
-		)
+	for i, workflow := range req.Workflows {
+		opt, err := a.newTriggerOpt(ctx, tenantId, workflow)
 
 		if err != nil {
-			return nil, fmt.Errorf("could not trigger workflow: %w", err)
+			return nil, fmt.Errorf("could not create trigger opt: %w", err)
 		}
 
-		runIds = append(runIds, taskExternalId)
+		opts[i] = opt
+	}
+
+	err := a.generateExternalIds(ctx, tenantId, opts)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not generate external ids: %w", err)
+	}
+
+	err = a.ingest(
+		tenantId,
+		opts...,
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not trigger workflows: %w", err)
+	}
+
+	runIds := make([]string, len(req.Workflows))
+
+	for i, opt := range opts {
+		runIds[i] = opt.ExternalId
 	}
 
 	return &contracts.BulkTriggerWorkflowResponse{
@@ -121,43 +84,82 @@ func (a *AdminServiceImpl) bulkTriggerWorkflowV1(ctx context.Context, req *contr
 	}, nil
 }
 
-func (i *AdminServiceImpl) ingestSingleton(tenantId, name string, data []byte, metadata []byte, parentTaskId *int64, childIndex *int64, childKey *string) (string, error) {
-	taskExternalId := uuid.New().String()
+func (i *AdminServiceImpl) newTriggerOpt(
+	ctx context.Context,
+	tenantId string,
+	req *contracts.TriggerWorkflowRequest,
+) (*v1.WorkflowNameTriggerOpts, error) {
+	additionalMeta := ""
 
-	msg, err := tasktypes.TriggerTaskMessage(
-		tenantId,
-		taskExternalId,
-		name,
-		data,
-		metadata,
-		parentTaskId,
-		childIndex,
-		childKey,
-	)
-
-	if err != nil {
-		return "", fmt.Errorf("could not create event task: %w", err)
+	if req.AdditionalMetadata != nil {
+		additionalMeta = *req.AdditionalMetadata
 	}
 
-	var runId string
+	t := &v1.TriggerTaskData{
+		WorkflowName:       req.Name,
+		Data:               []byte(req.Input),
+		AdditionalMetadata: []byte(additionalMeta),
+	}
 
-	if parentTaskId != nil {
-		var k string
+	if req.ParentStepRunId != nil {
+		// lookup the parent external id
+		parentTask, err := i.repov1.Tasks().GetTaskByExternalId(
+			ctx,
+			tenantId,
+			*req.ParentStepRunId,
+			false,
+		)
 
-		if childKey != nil {
-			k = *childKey
-		} else {
-			k = fmt.Sprintf("%d", *childIndex)
+		if err != nil {
+			return nil, fmt.Errorf("could not find parent task: %w", err)
 		}
 
-		runId = fmt.Sprintf("id-%d-%s", *parentTaskId, k)
+		parentExternalId := sqlchelpers.UUIDToStr(parentTask.ExternalID)
+		childIndex := int64(*req.ChildIndex)
+
+		t.ParentExternalId = &parentExternalId
+		t.ParentTaskId = &parentTask.ID
+		t.ParentTaskInsertedAt = &parentTask.InsertedAt.Time
+		t.ChildIndex = &childIndex
+		t.ChildKey = req.ChildKey
 	}
 
-	err = i.mqv1.SendMessage(context.Background(), msgqueue.TASK_PROCESSING_QUEUE, msg)
+	return &v1.WorkflowNameTriggerOpts{
+		TriggerTaskData: t,
+	}, nil
+}
 
-	if err != nil {
-		return "", fmt.Errorf("could not add event to task queue: %w", err)
+func (i *AdminServiceImpl) generateExternalIds(ctx context.Context, tenantId string, opts []*v1.WorkflowNameTriggerOpts) error {
+	return i.repov1.Triggers().PopulateExternalIdsForWorkflow(ctx, tenantId, opts)
+}
+
+func (i *AdminServiceImpl) ingest(tenantId string, opts ...*v1.WorkflowNameTriggerOpts) error {
+	optsToSend := make([]*v1.WorkflowNameTriggerOpts, 0)
+
+	for _, opt := range opts {
+		if opt.ShouldSkip {
+			continue
+		}
+
+		optsToSend = append(optsToSend, opt)
 	}
 
-	return runId, nil
+	if len(optsToSend) > 0 {
+		msg, err := tasktypes.TriggerTaskMessage(
+			tenantId,
+			optsToSend...,
+		)
+
+		if err != nil {
+			return fmt.Errorf("could not create event task: %w", err)
+		}
+
+		err = i.mqv1.SendMessage(context.Background(), msgqueue.TASK_PROCESSING_QUEUE, msg)
+
+		if err != nil {
+			return fmt.Errorf("could not add event to task queue: %w", err)
+		}
+	}
+
+	return nil
 }

@@ -4,6 +4,7 @@ import (
 	"time"
 
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 )
 
 type UserEventTaskPayload struct {
@@ -13,13 +14,7 @@ type UserEventTaskPayload struct {
 	EventAdditionalMetadata []byte `json:"event_additional_metadata"`
 }
 
-type InternalEventTaskPayload struct {
-	EventTimestamp time.Time `json:"event_timestamp" validate:"required"`
-	EventKey       string    `json:"event_key" validate:"required"`
-	EventData      []byte    `json:"event_data" validate:"required"`
-}
-
-func NewInternalEventMessage(tenantId string, timestamp time.Time, events ...InternalEventTaskPayload) (*msgqueue.Message, error) {
+func NewInternalEventMessage(tenantId string, timestamp time.Time, events ...v1.InternalTaskEvent) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
 		"internal-event",

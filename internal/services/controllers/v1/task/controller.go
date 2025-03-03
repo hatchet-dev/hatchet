@@ -30,6 +30,8 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
+const BULK_MSG_BATCH_SIZE = 50
+
 type TasksController interface {
 	Start(ctx context.Context) error
 }
@@ -290,6 +292,10 @@ func (tc *TasksControllerImpl) handleBufferedMsgs(tenantId, msgId string, payloa
 		return tc.handleTaskFailed(context.Background(), tenantId, payloads)
 	case "task-cancelled":
 		return tc.handleTaskCancelled(context.Background(), tenantId, payloads)
+	case "cancel-tasks":
+		return tc.handleCancelTasks(context.Background(), tenantId, payloads)
+	case "replay-tasks":
+		return tc.handleReplayTasks(context.Background(), tenantId, payloads)
 	case "user-event":
 		return tc.handleProcessUserEvents(context.Background(), tenantId, payloads)
 	case "internal-event":
@@ -302,48 +308,32 @@ func (tc *TasksControllerImpl) handleBufferedMsgs(tenantId, msgId string, payloa
 }
 
 func (tc *TasksControllerImpl) handleTaskCompleted(ctx context.Context, tenantId string, payloads [][]byte) error {
-	opts := make([]v1.TaskIdRetryCount, 0)
+	opts := make([]v1.CompleteTaskOpts, 0)
 	idsToData := make(map[int64][]byte)
 
 	msgs := msgqueue.JSONConvert[tasktypes.CompletedTaskPayload](payloads)
 
 	for _, msg := range msgs {
-		opts = append(opts, v1.TaskIdRetryCount{
-			Id:         msg.TaskId,
-			RetryCount: msg.RetryCount,
+		opts = append(opts, v1.CompleteTaskOpts{
+			TaskIdRetryCount: &v1.TaskIdRetryCount{
+				Id:         msg.TaskId,
+				RetryCount: msg.RetryCount,
+			},
+			Output: msg.Output,
 		})
 
 		idsToData[msg.TaskId] = msg.Output
 	}
 
-	releasedTasks, err := tc.repov1.Tasks().CompleteTasks(ctx, tenantId, opts)
+	res, err := tc.repov1.Tasks().CompleteTasks(ctx, tenantId, opts)
 
 	if err != nil {
 		return err
 	}
 
-	internalEvents := make([]tasktypes.InternalEventTaskPayload, 0)
+	tc.notifyQueuesOnCompletion(ctx, tenantId, res.ReleasedTasks)
 
-	for _, task := range releasedTasks {
-		taskExternalId := sqlchelpers.UUIDToStr(task.ExternalID)
-
-		data := v1.CompletedData{
-			StepReadableId: task.StepReadableID,
-			Output:         idsToData[task.ID],
-		}
-
-		dataBytes, _ := json.Marshal(data)
-
-		internalEvents = append(internalEvents, tasktypes.InternalEventTaskPayload{
-			EventTimestamp: time.Now(),
-			EventKey:       v1.GetTaskCompletedEventKey(taskExternalId),
-			EventData:      dataBytes,
-		})
-	}
-
-	tc.notifyQueuesOnCompletion(ctx, tenantId, releasedTasks)
-
-	return tc.sendInternalEvents(ctx, tenantId, internalEvents)
+	return tc.sendInternalEvents(ctx, tenantId, res.InternalEvents)
 }
 
 func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId string, payloads [][]byte) error {
@@ -358,7 +348,8 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId st
 				Id:         msg.TaskId,
 				RetryCount: msg.RetryCount,
 			},
-			IsAppError: msg.IsAppError,
+			IsAppError:   msg.IsAppError,
+			ErrorMessage: msg.ErrorMsg,
 		})
 
 		if msg.ErrorMsg != "" {
@@ -366,7 +357,7 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId st
 		}
 	}
 
-	retriedTasks, failedTasks, err := tc.repov1.Tasks().FailTasks(ctx, tenantId, opts)
+	res, err := tc.repov1.Tasks().FailTasks(ctx, tenantId, opts)
 
 	if err != nil {
 		return err
@@ -374,38 +365,25 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId st
 
 	retriedTaskIds := make(map[int64]struct{})
 
-	for _, task := range retriedTasks {
+	for _, task := range res.RetriedTasks {
 		retriedTaskIds[task.Id] = struct{}{}
 	}
 
-	internalEvents := make([]tasktypes.InternalEventTaskPayload, 0)
+	internalEventsWithoutRetries := make([]v1.InternalTaskEvent, 0)
 
-	for _, task := range failedTasks {
+	for _, e := range res.InternalEvents {
 		// if the task is retried, don't send a message to the trigger queue
-		if _, ok := retriedTaskIds[task.ID]; ok {
+		if _, ok := retriedTaskIds[e.TaskID]; ok {
 			continue
 		}
 
-		taskExternalId := sqlchelpers.UUIDToStr(task.ExternalID)
-
-		data := v1.FailedData{
-			StepReadableId: task.StepReadableID,
-			Error:          idsToErrorMsg[task.ID],
-		}
-
-		dataBytes, _ := json.Marshal(data)
-
-		internalEvents = append(internalEvents, tasktypes.InternalEventTaskPayload{
-			EventTimestamp: time.Now(),
-			EventKey:       v1.GetTaskFailedEventKey(taskExternalId),
-			EventData:      dataBytes,
-		})
+		internalEventsWithoutRetries = append(internalEventsWithoutRetries, e)
 	}
 
-	tc.notifyQueuesOnCompletion(ctx, tenantId, failedTasks)
+	tc.notifyQueuesOnCompletion(ctx, tenantId, res.ReleasedTasks)
 
 	// TODO: MOVE THIS TO THE DATA LAYER?
-	err = tc.sendInternalEvents(ctx, tenantId, internalEvents)
+	err = tc.sendInternalEvents(ctx, tenantId, internalEventsWithoutRetries)
 
 	if err != nil {
 		return err
@@ -414,7 +392,7 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId st
 	var outerErr error
 
 	// send retried tasks to the olap repository
-	for _, task := range retriedTasks {
+	for _, task := range res.RetriedTasks {
 		taskId := task.Id
 
 		olapMsg, err := tasktypes.MonitoringEventMessageFromInternal(
@@ -462,7 +440,7 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 		shouldTasksNotify[msg.TaskId] = msg.ShouldNotify
 	}
 
-	releasedTasks, allTasks, err := tc.repov1.Tasks().CancelTasks(ctx, tenantId, opts)
+	res, err := tc.repov1.Tasks().CancelTasks(ctx, tenantId, opts)
 
 	if err != nil {
 		return err
@@ -470,7 +448,7 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 
 	tasksToSendToDispatcher := make([]tasktypes.SignalTaskCancelledPayload, 0)
 
-	for _, task := range releasedTasks {
+	for _, task := range res.ReleasedTasks {
 		if shouldTasksNotify[task.ID] {
 			tasksToSendToDispatcher = append(tasksToSendToDispatcher, tasktypes.SignalTaskCancelledPayload{
 				TaskId:     task.ID,
@@ -487,29 +465,10 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 		return fmt.Errorf("could not send task cancellations to dispatcher: %w", err)
 	}
 
-	internalEvents := make([]tasktypes.InternalEventTaskPayload, 0)
-
-	for _, task := range allTasks {
-		taskExternalId := sqlchelpers.UUIDToStr(task.ExternalID)
-
-		data := v1.FailedData{
-			StepReadableId: task.StepReadableID,
-			Error:          "task was cancelled",
-		}
-
-		dataBytes, _ := json.Marshal(data)
-
-		internalEvents = append(internalEvents, tasktypes.InternalEventTaskPayload{
-			EventTimestamp: time.Now(),
-			EventKey:       v1.GetTaskCancelledEventKey(taskExternalId),
-			EventData:      dataBytes,
-		})
-	}
-
-	tc.notifyQueuesOnCompletion(ctx, tenantId, releasedTasks)
+	tc.notifyQueuesOnCompletion(ctx, tenantId, res.ReleasedTasks)
 
 	// TODO: MOVE THIS TO THE DATA LAYER?
-	err = tc.sendInternalEvents(ctx, tenantId, internalEvents)
+	err = tc.sendInternalEvents(ctx, tenantId, res.InternalEvents)
 
 	if err != nil {
 		return err
@@ -548,6 +507,66 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 	}
 
 	return err
+}
+
+func (tc *TasksControllerImpl) handleCancelTasks(ctx context.Context, tenantId string, payloads [][]byte) error {
+	// sure would be nice if we could use our own durable execution primitives here, but that's a bootstrapping
+	// problem that we don't have a clean way to solve (yet)
+	msgs := msgqueue.JSONConvert[tasktypes.CancelTasksPayload](payloads)
+	pubPayloads := make([]tasktypes.CancelledTaskPayload, 0)
+
+	for _, msg := range msgs {
+		for _, task := range msg.Tasks {
+			pubPayloads = append(pubPayloads, tasktypes.CancelledTaskPayload{
+				TaskId:       task.Id,
+				RetryCount:   task.RetryCount,
+				EventType:    sqlcv1.V1EventTypeOlapCANCELLED,
+				ShouldNotify: true,
+			})
+		}
+	}
+
+	// Batch tasks to cancel in groups of 50 and publish to the message queue. This is a form of backpressure
+	// as we don't want to run out of RabbitMQ memory if we publish a very large number of tasks to cancel.
+	return queueutils.BatchLinear(BULK_MSG_BATCH_SIZE, pubPayloads, func(pubPayloads []tasktypes.CancelledTaskPayload) error {
+		msg, err := msgqueue.NewTenantMessage(
+			tenantId,
+			"task-cancelled",
+			false,
+			true,
+			pubPayloads...,
+		)
+
+		if err != nil {
+			return fmt.Errorf("could not create message for task cancellation: %w", err)
+		}
+
+		return tc.mq.SendMessage(
+			ctx,
+			msgqueue.TASK_PROCESSING_QUEUE,
+			msg,
+		)
+	})
+}
+
+func (tc *TasksControllerImpl) handleReplayTasks(ctx context.Context, tenantId string, payloads [][]byte) error {
+	// sure would be nice if we could use our own durable execution primitives here, but that's a bootstrapping
+	// problem that we don't have a clean way to solve (yet)
+	msgs := msgqueue.JSONConvert[tasktypes.ReplayTasksPayload](payloads)
+
+	taskIdRetryCounts := make([]v1.TaskIdRetryCount, 0)
+
+	for _, msg := range msgs {
+		for _, task := range msg.Tasks {
+			taskIdRetryCounts = append(taskIdRetryCounts, v1.TaskIdRetryCount{
+				Id:         task.Id,
+				RetryCount: task.RetryCount,
+			})
+		}
+	}
+
+	// TODO: USE RETURN VALUE HERE
+	return tc.repov1.Tasks().ReplayTasks(ctx, tenantId, taskIdRetryCounts)
 }
 
 func (tc *TasksControllerImpl) sendTaskCancellationsToDispatcher(ctx context.Context, tenantId string, releasedTasks []tasktypes.SignalTaskCancelledPayload) error {
@@ -694,30 +713,15 @@ func (tc *TasksControllerImpl) handleProcessUserEventMatches(ctx context.Context
 
 // handleProcessEventTrigger is responsible for inserting tasks into the database based on event triggers.
 func (tc *TasksControllerImpl) handleProcessInternalEvents(ctx context.Context, tenantId string, payloads [][]byte) error {
-	msgs := msgqueue.JSONConvert[tasktypes.InternalEventTaskPayload](payloads)
+	msgs := msgqueue.JSONConvert[v1.InternalTaskEvent](payloads)
 
 	return tc.processInternalEvents(ctx, tenantId, msgs)
 }
 
 // handleProcessEventTrigger is responsible for inserting tasks into the database based on event triggers.
 func (tc *TasksControllerImpl) handleProcessTaskTrigger(ctx context.Context, tenantId string, payloads [][]byte) error {
-	msgs := msgqueue.JSONConvert[tasktypes.TriggerTaskPayload](payloads)
-
-	opts := make([]v1.WorkflowNameTriggerOpts, 0, len(msgs))
-
-	for _, msg := range msgs {
-		opts = append(opts, v1.WorkflowNameTriggerOpts{
-			WorkflowName:       msg.WorkflowName,
-			ExternalId:         msg.TaskExternalId,
-			Data:               msg.Data,
-			AdditionalMetadata: msg.AdditionalMetadata,
-			ParentTaskId:       msg.ParentTaskId,
-			ChildIndex:         msg.ChildIndex,
-			ChildKey:           msg.ChildKey,
-		})
-	}
-
-	tasks, dags, err := tc.repov1.Triggers().TriggerFromWorkflowNames(ctx, tenantId, opts)
+	msgs := msgqueue.JSONConvert[v1.WorkflowNameTriggerOpts](payloads)
+	tasks, dags, err := tc.repov1.Triggers().TriggerFromWorkflowNames(ctx, tenantId, msgs)
 
 	if err != nil {
 		return fmt.Errorf("could not trigger workflows from names: %w", err)
@@ -736,7 +740,7 @@ func (tc *TasksControllerImpl) handleProcessTaskTrigger(ctx context.Context, ten
 	return eg.Wait()
 }
 
-func (tc *TasksControllerImpl) sendInternalEvents(ctx context.Context, tenantId string, events []tasktypes.InternalEventTaskPayload) error {
+func (tc *TasksControllerImpl) sendInternalEvents(ctx context.Context, tenantId string, events []v1.InternalTaskEvent) error {
 	if len(events) == 0 {
 		return nil
 	}
@@ -755,15 +759,17 @@ func (tc *TasksControllerImpl) sendInternalEvents(ctx context.Context, tenantId 
 }
 
 // handleProcessUserEventMatches is responsible for triggering tasks based on user event matches.
-func (tc *TasksControllerImpl) processInternalEvents(ctx context.Context, tenantId string, events []*tasktypes.InternalEventTaskPayload) error {
+func (tc *TasksControllerImpl) processInternalEvents(ctx context.Context, tenantId string, events []*v1.InternalTaskEvent) error {
 	candidateMatches := make([]v1.CandidateEventMatch, 0)
 
 	for _, event := range events {
 		candidateMatches = append(candidateMatches, v1.CandidateEventMatch{
 			ID:             uuid.NewString(),
-			EventTimestamp: event.EventTimestamp,
-			Key:            event.EventKey,
-			Data:           event.EventData,
+			EventTimestamp: time.Now(),
+			// NOTE: the event type of the V1TaskEvent is the event key for the match condition
+			Key:          string(event.EventType),
+			Data:         event.Data,
+			ResourceHint: &event.TaskExternalID,
 		})
 	}
 
@@ -982,22 +988,20 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndQueued(ctx context.Context, 
 }
 
 func (tc *TasksControllerImpl) signalTasksCreatedAndCancelled(ctx context.Context, tenantId string, tasks []*sqlcv1.V1Task) error {
-	internalEvents := make([]tasktypes.InternalEventTaskPayload, 0)
+	internalEvents := make([]v1.InternalTaskEvent, 0)
 
 	for _, task := range tasks {
 		taskExternalId := sqlchelpers.UUIDToStr(task.ExternalID)
 
-		data := v1.FailedData{
-			StepReadableId: task.StepReadableID,
-			Error:          "task was cancelled",
-		}
+		dataBytes := v1.NewCancelledTaskOutputEventFromTask(task).Bytes()
 
-		dataBytes, _ := json.Marshal(data)
-
-		internalEvents = append(internalEvents, tasktypes.InternalEventTaskPayload{
-			EventTimestamp: time.Now(),
-			EventKey:       v1.GetTaskCancelledEventKey(taskExternalId),
-			EventData:      dataBytes,
+		internalEvents = append(internalEvents, v1.InternalTaskEvent{
+			TenantID:       tenantId,
+			TaskID:         task.ID,
+			TaskExternalID: taskExternalId,
+			RetryCount:     task.RetryCount,
+			EventType:      sqlcv1.V1TaskEventTypeCANCELLED,
+			Data:           dataBytes,
 		})
 	}
 
@@ -1039,22 +1043,20 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndCancelled(ctx context.Contex
 }
 
 func (tc *TasksControllerImpl) signalTasksCreatedAndFailed(ctx context.Context, tenantId string, tasks []*sqlcv1.V1Task) error {
-	internalEvents := make([]tasktypes.InternalEventTaskPayload, 0)
+	internalEvents := make([]v1.InternalTaskEvent, 0)
 
 	for _, task := range tasks {
 		taskExternalId := sqlchelpers.UUIDToStr(task.ExternalID)
 
-		data := v1.FailedData{
-			StepReadableId: task.StepReadableID,
-			Error:          task.InitialStateReason.String,
-		}
+		dataBytes := v1.NewFailedTaskOutputEventFromTask(task, task.InitialStateReason.String).Bytes()
 
-		dataBytes, _ := json.Marshal(data)
-
-		internalEvents = append(internalEvents, tasktypes.InternalEventTaskPayload{
-			EventTimestamp: time.Now(),
-			EventKey:       v1.GetTaskFailedEventKey(taskExternalId),
-			EventData:      dataBytes,
+		internalEvents = append(internalEvents, v1.InternalTaskEvent{
+			TenantID:       tenantId,
+			TaskID:         task.ID,
+			TaskExternalID: taskExternalId,
+			RetryCount:     task.RetryCount,
+			EventType:      sqlcv1.V1TaskEventTypeFAILED,
+			Data:           dataBytes,
 		})
 	}
 
@@ -1097,7 +1099,7 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndFailed(ctx context.Context, 
 }
 
 func (tc *TasksControllerImpl) signalTasksCreatedAndSkipped(ctx context.Context, tenantId string, tasks []*sqlcv1.V1Task) error {
-	internalEvents := make([]tasktypes.InternalEventTaskPayload, 0)
+	internalEvents := make([]v1.InternalTaskEvent, 0)
 
 	for _, task := range tasks {
 		taskExternalId := sqlchelpers.UUIDToStr(task.ExternalID)
@@ -1106,19 +1108,17 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndSkipped(ctx context.Context,
 			"skipped": true,
 		}
 
-		outputMapBytes, _ := json.Marshal(outputMap)
+		outputMapBytes, _ := json.Marshal(outputMap) // nolint: errcheck
 
-		data := v1.CompletedData{
-			StepReadableId: task.StepReadableID,
-			Output:         outputMapBytes,
-		}
+		dataBytes := v1.NewCompletedTaskOutputEventFromTask(task, outputMapBytes).Bytes()
 
-		dataBytes, _ := json.Marshal(data)
-
-		internalEvents = append(internalEvents, tasktypes.InternalEventTaskPayload{
-			EventTimestamp: time.Now(),
-			EventKey:       v1.GetTaskCompletedEventKey(taskExternalId),
-			EventData:      dataBytes,
+		internalEvents = append(internalEvents, v1.InternalTaskEvent{
+			TenantID:       tenantId,
+			TaskID:         task.ID,
+			TaskExternalID: taskExternalId,
+			RetryCount:     task.RetryCount,
+			EventType:      sqlcv1.V1TaskEventTypeCOMPLETED,
+			Data:           dataBytes,
 		})
 	}
 

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/hatchet-dev/hatchet/internal/services/admin"
+	adminv1 "github.com/hatchet-dev/hatchet/internal/services/admin/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/events"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/jobs"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/retention"
@@ -450,6 +451,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 
 		adminSvc, err := admin.NewAdminService(
 			admin.WithRepository(sc.EngineRepository),
+			admin.WithRepositoryV1(sc.V1),
 			admin.WithMessageQueue(sc.MessageQueue),
 			admin.WithMessageQueueV1(sc.MessageQueueV1),
 			admin.WithEntitlementsRepository(sc.EntitlementRepository),
@@ -458,11 +460,21 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			return nil, fmt.Errorf("could not create admin service: %w", err)
 		}
 
+		adminv1Svc, err := adminv1.NewAdminService(
+			adminv1.WithRepository(sc.V1),
+			adminv1.WithMessageQueue(sc.MessageQueueV1),
+		)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not create admin service (v1): %w", err)
+		}
+
 		grpcOpts := []grpc.ServerOpt{
 			grpc.WithConfig(sc),
 			grpc.WithIngestor(ei),
 			grpc.WithDispatcher(d),
 			grpc.WithAdmin(adminSvc),
+			grpc.WithAdminV1(adminv1Svc),
 			grpc.WithLogger(sc.Logger),
 			grpc.WithAlerter(sc.Alerter),
 			grpc.WithTLSConfig(sc.TLSConfig),
@@ -864,6 +876,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 
 		adminSvc, err := admin.NewAdminService(
 			admin.WithRepository(sc.EngineRepository),
+			admin.WithRepositoryV1(sc.V1),
 			admin.WithMessageQueue(sc.MessageQueue),
 			admin.WithMessageQueueV1(sc.MessageQueueV1),
 			admin.WithEntitlementsRepository(sc.EntitlementRepository),
@@ -873,11 +886,21 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 			return nil, fmt.Errorf("could not create admin service: %w", err)
 		}
 
+		adminv1Svc, err := adminv1.NewAdminService(
+			adminv1.WithRepository(sc.V1),
+			adminv1.WithMessageQueue(sc.MessageQueueV1),
+		)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not create admin service (v1): %w", err)
+		}
+
 		grpcOpts := []grpc.ServerOpt{
 			grpc.WithConfig(sc),
 			grpc.WithIngestor(ei),
 			grpc.WithDispatcher(d),
 			grpc.WithAdmin(adminSvc),
+			grpc.WithAdminV1(adminv1Svc),
 			grpc.WithLogger(sc.Logger),
 			grpc.WithAlerter(sc.Alerter),
 			grpc.WithTLSConfig(sc.TLSConfig),

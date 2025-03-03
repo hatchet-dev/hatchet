@@ -962,6 +962,7 @@ type V1MatchConditionAction string
 
 const (
 	V1MatchConditionActionCREATE V1MatchConditionAction = "CREATE"
+	V1MatchConditionActionQUEUE  V1MatchConditionAction = "QUEUE"
 	V1MatchConditionActionCANCEL V1MatchConditionAction = "CANCEL"
 	V1MatchConditionActionSKIP   V1MatchConditionAction = "SKIP"
 )
@@ -1048,9 +1049,9 @@ type V1ReadableStatusOlap string
 const (
 	V1ReadableStatusOlapQUEUED    V1ReadableStatusOlap = "QUEUED"
 	V1ReadableStatusOlapRUNNING   V1ReadableStatusOlap = "RUNNING"
-	V1ReadableStatusOlapCOMPLETED V1ReadableStatusOlap = "COMPLETED"
 	V1ReadableStatusOlapCANCELLED V1ReadableStatusOlap = "CANCELLED"
 	V1ReadableStatusOlapFAILED    V1ReadableStatusOlap = "FAILED"
+	V1ReadableStatusOlapCOMPLETED V1ReadableStatusOlap = "COMPLETED"
 )
 
 func (e *V1ReadableStatusOlap) Scan(src interface{}) error {
@@ -2365,31 +2366,50 @@ type V1LookupTable struct {
 	InsertedAt pgtype.Timestamptz `json:"inserted_at"`
 }
 
+type V1LookupTableOlap struct {
+	TenantID   pgtype.UUID        `json:"tenant_id"`
+	ExternalID pgtype.UUID        `json:"external_id"`
+	TaskID     pgtype.Int8        `json:"task_id"`
+	DagID      pgtype.Int8        `json:"dag_id"`
+	InsertedAt pgtype.Timestamptz `json:"inserted_at"`
+}
+
 type V1Match struct {
-	ID                   int64              `json:"id"`
-	TenantID             pgtype.UUID        `json:"tenant_id"`
-	Kind                 V1MatchKind        `json:"kind"`
-	IsSatisfied          bool               `json:"is_satisfied"`
-	SignalTargetID       pgtype.Int8        `json:"signal_target_id"`
-	SignalKey            pgtype.Text        `json:"signal_key"`
-	TriggerDagID         pgtype.Int8        `json:"trigger_dag_id"`
-	TriggerDagInsertedAt pgtype.Timestamptz `json:"trigger_dag_inserted_at"`
-	TriggerStepID        pgtype.UUID        `json:"trigger_step_id"`
-	TriggerExternalID    pgtype.UUID        `json:"trigger_external_id"`
+	ID                          int64              `json:"id"`
+	TenantID                    pgtype.UUID        `json:"tenant_id"`
+	Kind                        V1MatchKind        `json:"kind"`
+	IsSatisfied                 bool               `json:"is_satisfied"`
+	SignalTaskID                pgtype.Int8        `json:"signal_task_id"`
+	SignalTaskInsertedAt        pgtype.Timestamptz `json:"signal_task_inserted_at"`
+	SignalExternalID            pgtype.UUID        `json:"signal_external_id"`
+	SignalKey                   pgtype.Text        `json:"signal_key"`
+	TriggerDagID                pgtype.Int8        `json:"trigger_dag_id"`
+	TriggerDagInsertedAt        pgtype.Timestamptz `json:"trigger_dag_inserted_at"`
+	TriggerStepID               pgtype.UUID        `json:"trigger_step_id"`
+	TriggerStepIndex            pgtype.Int8        `json:"trigger_step_index"`
+	TriggerExternalID           pgtype.UUID        `json:"trigger_external_id"`
+	TriggerParentTaskExternalID pgtype.UUID        `json:"trigger_parent_task_external_id"`
+	TriggerParentTaskID         pgtype.Int8        `json:"trigger_parent_task_id"`
+	TriggerParentTaskInsertedAt pgtype.Timestamptz `json:"trigger_parent_task_inserted_at"`
+	TriggerChildIndex           pgtype.Int8        `json:"trigger_child_index"`
+	TriggerChildKey             pgtype.Text        `json:"trigger_child_key"`
+	TriggerExistingTaskID       pgtype.Int8        `json:"trigger_existing_task_id"`
 }
 
 type V1MatchCondition struct {
-	V1MatchID    int64                  `json:"v1_match_id"`
-	ID           int64                  `json:"id"`
-	TenantID     pgtype.UUID            `json:"tenant_id"`
-	RegisteredAt pgtype.Timestamptz     `json:"registered_at"`
-	EventType    V1EventType            `json:"event_type"`
-	EventKey     string                 `json:"event_key"`
-	IsSatisfied  bool                   `json:"is_satisfied"`
-	Action       V1MatchConditionAction `json:"action"`
-	OrGroupID    pgtype.UUID            `json:"or_group_id"`
-	Expression   pgtype.Text            `json:"expression"`
-	Data         []byte                 `json:"data"`
+	V1MatchID         int64                  `json:"v1_match_id"`
+	ID                int64                  `json:"id"`
+	TenantID          pgtype.UUID            `json:"tenant_id"`
+	RegisteredAt      pgtype.Timestamptz     `json:"registered_at"`
+	EventType         V1EventType            `json:"event_type"`
+	EventKey          string                 `json:"event_key"`
+	EventResourceHint pgtype.Text            `json:"event_resource_hint"`
+	ReadableDataKey   string                 `json:"readable_data_key"`
+	IsSatisfied       bool                   `json:"is_satisfied"`
+	Action            V1MatchConditionAction `json:"action"`
+	OrGroupID         pgtype.UUID            `json:"or_group_id"`
+	Expression        pgtype.Text            `json:"expression"`
+	Data              []byte                 `json:"data"`
 }
 
 type V1Queue struct {
@@ -2399,19 +2419,20 @@ type V1Queue struct {
 }
 
 type V1QueueItem struct {
-	ID                int64            `json:"id"`
-	TenantID          pgtype.UUID      `json:"tenant_id"`
-	Queue             string           `json:"queue"`
-	TaskID            int64            `json:"task_id"`
-	ActionID          string           `json:"action_id"`
-	StepID            pgtype.UUID      `json:"step_id"`
-	WorkflowID        pgtype.UUID      `json:"workflow_id"`
-	ScheduleTimeoutAt pgtype.Timestamp `json:"schedule_timeout_at"`
-	StepTimeout       pgtype.Text      `json:"step_timeout"`
-	Priority          int32            `json:"priority"`
-	Sticky            V1StickyStrategy `json:"sticky"`
-	DesiredWorkerID   pgtype.UUID      `json:"desired_worker_id"`
-	RetryCount        int32            `json:"retry_count"`
+	ID                int64              `json:"id"`
+	TenantID          pgtype.UUID        `json:"tenant_id"`
+	Queue             string             `json:"queue"`
+	TaskID            int64              `json:"task_id"`
+	TaskInsertedAt    pgtype.Timestamptz `json:"task_inserted_at"`
+	ActionID          string             `json:"action_id"`
+	StepID            pgtype.UUID        `json:"step_id"`
+	WorkflowID        pgtype.UUID        `json:"workflow_id"`
+	ScheduleTimeoutAt pgtype.Timestamp   `json:"schedule_timeout_at"`
+	StepTimeout       pgtype.Text        `json:"step_timeout"`
+	Priority          int32              `json:"priority"`
+	Sticky            V1StickyStrategy   `json:"sticky"`
+	DesiredWorkerID   pgtype.UUID        `json:"desired_worker_id"`
+	RetryCount        int32              `json:"retry_count"`
 }
 
 type V1RetryQueueItem struct {
@@ -2474,11 +2495,14 @@ type V1Task struct {
 	RetryCount             int32              `json:"retry_count"`
 	InternalRetryCount     int32              `json:"internal_retry_count"`
 	AppRetryCount          int32              `json:"app_retry_count"`
+	StepIndex              int64              `json:"step_index"`
 	AdditionalMetadata     []byte             `json:"additional_metadata"`
 	DagID                  pgtype.Int8        `json:"dag_id"`
 	DagInsertedAt          pgtype.Timestamptz `json:"dag_inserted_at"`
-	ParentExternalID       pgtype.UUID        `json:"parent_external_id"`
-	ChildIndex             pgtype.Int4        `json:"child_index"`
+	ParentTaskExternalID   pgtype.UUID        `json:"parent_task_external_id"`
+	ParentTaskID           pgtype.Int8        `json:"parent_task_id"`
+	ParentTaskInsertedAt   pgtype.Timestamptz `json:"parent_task_inserted_at"`
+	ChildIndex             pgtype.Int8        `json:"child_index"`
 	ChildKey               pgtype.Text        `json:"child_key"`
 	InitialState           V1TaskInitialState `json:"initial_state"`
 	InitialStateReason     pgtype.Text        `json:"initial_state_reason"`
@@ -2489,14 +2513,15 @@ type V1Task struct {
 }
 
 type V1TaskEvent struct {
-	ID         int64            `json:"id"`
-	TenantID   pgtype.UUID      `json:"tenant_id"`
-	TaskID     int64            `json:"task_id"`
-	RetryCount int32            `json:"retry_count"`
-	EventType  V1TaskEventType  `json:"event_type"`
-	EventKey   pgtype.Text      `json:"event_key"`
-	CreatedAt  pgtype.Timestamp `json:"created_at"`
-	Data       []byte           `json:"data"`
+	ID             int64              `json:"id"`
+	TenantID       pgtype.UUID        `json:"tenant_id"`
+	TaskID         int64              `json:"task_id"`
+	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
+	RetryCount     int32              `json:"retry_count"`
+	EventType      V1TaskEventType    `json:"event_type"`
+	EventKey       pgtype.Text        `json:"event_key"`
+	CreatedAt      pgtype.Timestamp   `json:"created_at"`
+	Data           []byte             `json:"data"`
 }
 
 type V1TaskEventsOlap struct {
@@ -2531,11 +2556,12 @@ type V1TaskEventsOlapTmp struct {
 }
 
 type V1TaskRuntime struct {
-	TaskID     int64            `json:"task_id"`
-	RetryCount int32            `json:"retry_count"`
-	WorkerID   pgtype.UUID      `json:"worker_id"`
-	TenantID   pgtype.UUID      `json:"tenant_id"`
-	TimeoutAt  pgtype.Timestamp `json:"timeout_at"`
+	TaskID         int64              `json:"task_id"`
+	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
+	RetryCount     int32              `json:"retry_count"`
+	WorkerID       pgtype.UUID        `json:"worker_id"`
+	TenantID       pgtype.UUID        `json:"tenant_id"`
+	TimeoutAt      pgtype.Timestamp   `json:"timeout_at"`
 }
 
 type V1TaskStatusUpdatesTmp struct {
