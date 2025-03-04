@@ -86,11 +86,11 @@ import {
   V1CancelTaskRequest,
   V1DagChildren,
   V1ReplayTaskRequest,
-  V1Task,
   V1TaskEventList,
   V1TaskPointMetrics,
   V1TaskRunMetrics,
   V1TaskStatus,
+  V1TaskSummary,
   V1TaskSummaryList,
   V1WorkflowRunDetails,
   WebhookWorkerCreateRequest,
@@ -130,7 +130,7 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @secure
    */
   v1TaskGet = (task: string, params: RequestParams = {}) =>
-    this.request<V1Task, APIErrors>({
+    this.request<V1TaskSummary, APIErrors>({
       path: `/api/v1/stable/tasks/${task}`,
       method: 'GET',
       secure: true,
@@ -284,6 +284,13 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       worker_id?: string;
       /** Whether to include DAGs or only to include tasks */
       only_tasks: boolean;
+      /**
+       * The parent task external id to filter by
+       * @format uuid
+       * @minLength 36
+       * @maxLength 36
+       */
+      parent_task_external_id?: string;
     },
     params: RequestParams = {},
   ) =>
@@ -364,6 +371,13 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       since: string;
       /** The workflow id to find runs for */
       workflow_ids?: string[];
+      /**
+       * The parent task's external id
+       * @format uuid
+       * @minLength 36
+       * @maxLength 36
+       */
+      parent_task_external_id?: string;
     },
     params: RequestParams = {},
   ) =>

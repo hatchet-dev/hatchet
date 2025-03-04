@@ -67,47 +67,6 @@ func (q *Queries) BulkUpdateRateLimits(ctx context.Context, db DBTX, arg BulkUpd
 	return items, nil
 }
 
-const countRateLimits = `-- name: CountRateLimits :one
-WITH rate_limits AS (
-    SELECT
-        rl."key"
-    FROM
-        "RateLimit" rl
-    WHERE
-        rl."tenantId" = $1::uuid
-        AND (
-            $2::text IS NULL OR
-            rl."key" like concat('%', $2::text, '%')
-        )
-    ORDER BY
-        case when $3 = 'key ASC' THEN rl."key" END ASC,
-        case when $3 = 'key DESC' THEN rl."key" END DESC,
-        case when $3 = 'value ASC' THEN rl."value" END ASC,
-        case when $3 = 'value DESC' THEN rl."value" END DESC,
-        case when $3 = 'limitValue ASC' THEN rl."limitValue" END ASC,
-        case when $3 = 'limitValue DESC' THEN rl."limitValue" END DESC,
-        rl."key" ASC
-    LIMIT 10000
-)
-SELECT
-    count(rate_limits) AS total
-FROM
-    rate_limits
-`
-
-type CountRateLimitsParams struct {
-	Tenantid pgtype.UUID `json:"tenantid"`
-	Search   pgtype.Text `json:"search"`
-	Orderby  interface{} `json:"orderby"`
-}
-
-func (q *Queries) CountRateLimits(ctx context.Context, db DBTX, arg CountRateLimitsParams) (int64, error) {
-	row := db.QueryRow(ctx, countRateLimits, arg.Tenantid, arg.Search, arg.Orderby)
-	var total int64
-	err := row.Scan(&total)
-	return total, err
-}
-
 const listRateLimitsForSteps = `-- name: ListRateLimitsForSteps :many
 SELECT
     units, "stepId", "rateLimitKey", "tenantId", kind
@@ -176,23 +135,16 @@ WHERE
         rl."key" like concat('%', $2::text, '%')
     )
 ORDER BY
-    case when $3 = 'key ASC' THEN rl."key" END ASC,
-    case when $3 = 'key DESC' THEN rl."key" END DESC,
-    case when $3 = 'value ASC' THEN rl."value" END ASC,
-    case when $3 = 'value DESC' THEN rl."value" END DESC,
-    case when $3 = 'limitValue ASC' THEN rl."limitValue" END ASC,
-    case when $3 = 'limitValue DESC' THEN rl."limitValue" END DESC,
     rl."key" ASC
 OFFSET
-    COALESCE($4, 0)
+    COALESCE($3, 0)
 LIMIT
-    COALESCE($5, 50)
+    COALESCE($4, 50)
 `
 
 type ListRateLimitsForTenantNoMutateParams struct {
 	Tenantid pgtype.UUID `json:"tenantid"`
 	Search   pgtype.Text `json:"search"`
-	Orderby  interface{} `json:"orderby"`
 	Offset   interface{} `json:"offset"`
 	Limit    interface{} `json:"limit"`
 }
@@ -211,7 +163,6 @@ func (q *Queries) ListRateLimitsForTenantNoMutate(ctx context.Context, db DBTX, 
 	rows, err := db.Query(ctx, listRateLimitsForTenantNoMutate,
 		arg.Tenantid,
 		arg.Search,
-		arg.Orderby,
 		arg.Offset,
 		arg.Limit,
 	)
@@ -305,52 +256,6 @@ func (q *Queries) ListRateLimitsForTenantWithMutate(ctx context.Context, db DBTX
 		return nil, err
 	}
 	return items, nil
-}
-
-const upsertRateLimit = `-- name: UpsertRateLimit :one
-INSERT INTO "RateLimit" (
-    "tenantId",
-    "key",
-    "limitValue",
-    "value",
-    "window"
-) VALUES (
-    $1::uuid,
-    $2::text,
-    $3::int,
-    $3::int,
-    COALESCE($4::text, '1 minute')
-) ON CONFLICT ("tenantId", "key") DO UPDATE SET
-    "limitValue" = $3::int,
-    "window" = COALESCE($4::text, '1 minute'),
-    "value" = CASE WHEN EXCLUDED."limitValue" < "RateLimit"."value" THEN EXCLUDED."limitValue" ELSE "RateLimit"."value" END
-RETURNING "tenantId", key, "limitValue", value, "window", "lastRefill"
-`
-
-type UpsertRateLimitParams struct {
-	Tenantid pgtype.UUID `json:"tenantid"`
-	Key      string      `json:"key"`
-	Limit    int32       `json:"limit"`
-	Window   pgtype.Text `json:"window"`
-}
-
-func (q *Queries) UpsertRateLimit(ctx context.Context, db DBTX, arg UpsertRateLimitParams) (*RateLimit, error) {
-	row := db.QueryRow(ctx, upsertRateLimit,
-		arg.Tenantid,
-		arg.Key,
-		arg.Limit,
-		arg.Window,
-	)
-	var i RateLimit
-	err := row.Scan(
-		&i.TenantId,
-		&i.Key,
-		&i.LimitValue,
-		&i.Value,
-		&i.Window,
-		&i.LastRefill,
-	)
-	return &i, err
 }
 
 const upsertRateLimitsBulk = `-- name: UpsertRateLimitsBulk :exec

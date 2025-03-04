@@ -6,6 +6,7 @@ import {
   ToolbarFilters,
   ToolbarType,
 } from '@/components/v1/molecules/data-table/data-table-toolbar';
+import { TaskRunColumn } from '../components/v1/task-runs-columns';
 
 const workflowRunStatusFilters = [
   {
@@ -48,19 +49,19 @@ export const useToolbarFilters = ({
 
   const filters: ToolbarFilters = [
     {
-      columnId: 'Workflow',
+      columnId: TaskRunColumn.workflow,
       title: 'Workflow',
       options: workflowKeyFilters,
       type: ToolbarType.Radio,
     },
     {
-      columnId: 'status',
+      columnId: TaskRunColumn.status,
       title: 'Status',
       options: workflowRunStatusFilters,
       type: ToolbarType.Radio,
     },
     {
-      columnId: 'additionalMetadata',
+      columnId: TaskRunColumn.additionalMetadata,
       title: 'Metadata',
       type: ToolbarType.KeyValue,
     },

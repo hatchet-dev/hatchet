@@ -1,4 +1,4 @@
-import { StepRun, V1Task, V1TaskStatus, WorkflowRun, queries } from '@/lib/api';
+import { StepRun, V1TaskStatus, V1TaskSummary, queries } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 import invariant from 'tiny-invariant';
 import { Button } from '@/components/v1/ui/button';
@@ -22,6 +22,7 @@ import { formatDuration } from '@/lib/utils';
 import { V1StepRunOutput } from './step-run-output';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import { TaskRunActionButton } from '@/pages/main/v1/task-runs-v1/actions';
+import { TaskRunMiniMap } from '../mini-map';
 
 export enum TabOption {
   Output = 'output',
@@ -46,7 +47,7 @@ const TaskRunPermalinkOrBacklink = ({
   taskRun,
   showViewTaskRunButton,
 }: {
-  taskRun: V1Task;
+  taskRun: V1TaskSummary;
   showViewTaskRunButton: boolean;
 }) => {
   if (showViewTaskRunButton) {
@@ -109,6 +110,7 @@ export const TaskRunDetail = ({
           </div>
         </div>
       </div>
+
       <div className="flex flex-row gap-2 items-center">
         <TaskRunActionButton
           actionType="replay"
@@ -128,20 +130,22 @@ export const TaskRunDetail = ({
       <div className="flex flex-row gap-2 items-center">
         <V1StepRunSummary taskRunId={taskRunId} />
       </div>
+      <div className="w-full h-36 flex relative bg-slate-100 dark:bg-slate-900">
+        <TaskRunMiniMap onClick={() => {}} taskRunId={taskRunId} />
+      </div>
       <Tabs defaultValue={defaultOpenTab}>
         <TabsList layout="underlined">
           <TabsTrigger variant="underlined" value={TabOption.Output}>
             Output
           </TabsTrigger>
-          {/* {stepRun.childWorkflowRuns &&
-            stepRun.childWorkflowRuns.length > 0 && (
-              <TabsTrigger
-                variant="underlined"
-                value={TabOption.ChildWorkflowRuns}
-              >
-                Children ({stepRun.childWorkflowRuns.length})
-              </TabsTrigger>
-            )} */}
+          {taskRun.numSpawnedChildren > 0 && (
+            <TabsTrigger
+              variant="underlined"
+              value={TabOption.ChildWorkflowRuns}
+            >
+              Children ({taskRun.numSpawnedChildren})
+            </TabsTrigger>
+          )}
           <TabsTrigger variant="underlined" value={TabOption.Input}>
             Input
           </TabsTrigger>
@@ -166,7 +170,7 @@ export const TaskRunDetail = ({
               maxHeight="400px"
               minHeight="400px"
               language="json"
-              code={JSON.stringify(JSON.parse(taskRun.input), null, 2)}
+              code={JSON.stringify(taskRun.input, null, 2)}
             />
           )}
         </TabsContent>
@@ -277,11 +281,9 @@ const V1StepRunSummary = ({ taskRunId }: { taskRunId: string }) => {
 
 export function ChildWorkflowRuns({
   stepRun,
-  workflowRun,
   refetchInterval,
 }: {
   stepRun: StepRun | undefined;
-  workflowRun: WorkflowRun;
   refetchInterval?: number;
 }) {
   const { tenant } = useOutletContext<TenantContextType>();
@@ -289,8 +291,6 @@ export function ChildWorkflowRuns({
 
   return (
     <WorkflowRunsTable
-      parentWorkflowRunId={workflowRun.metadata.id}
-      parentStepRunId={stepRun?.metadata.id}
       refetchInterval={refetchInterval}
       initColumnVisibility={{
         'Triggered by': false,

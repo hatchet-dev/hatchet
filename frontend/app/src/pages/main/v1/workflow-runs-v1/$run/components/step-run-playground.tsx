@@ -409,8 +409,6 @@ export function StepRunPlayground({
               Child Workflow Runs
             </div>
             <ChildWorkflowRuns
-              stepRun={stepRun}
-              workflowRun={workflowRun}
               refetchInterval={workflowRun.status === 'RUNNING' ? 1000 : 5000}
             />
           </div>
@@ -421,12 +419,8 @@ export function StepRunPlayground({
 }
 
 export function ChildWorkflowRuns({
-  stepRun,
-  workflowRun,
   refetchInterval,
 }: {
-  stepRun: StepRun | undefined;
-  workflowRun: WorkflowRun;
   refetchInterval?: number;
 }) {
   const { tenant } = useOutletContext<TenantContextType>();
@@ -434,8 +428,6 @@ export function ChildWorkflowRuns({
 
   return (
     <TaskRunsTable
-      parentWorkflowRunId={workflowRun.metadata.id}
-      parentStepRunId={stepRun?.metadata.id}
       refetchInterval={refetchInterval}
       initColumnVisibility={{
         'Triggered by': false,

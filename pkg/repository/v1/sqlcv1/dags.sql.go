@@ -33,7 +33,7 @@ func (q *Queries) CreateDAGPartition(ctx context.Context, db DBTX, date pgtype.D
 const createDAGs = `-- name: CreateDAGs :many
 WITH input AS (
     SELECT
-        tenant_id, external_id, display_name, workflow_id, workflow_version_id
+        tenant_id, external_id, display_name, workflow_id, workflow_version_id, parent_task_external_id
     FROM
         (
             SELECT
@@ -41,7 +41,8 @@ WITH input AS (
                 unnest($2::uuid[]) AS external_id,
                 unnest($3::text[]) AS display_name,
                 unnest($4::uuid[]) AS workflow_id,
-                unnest($5::uuid[]) AS workflow_version_id
+                unnest($5::uuid[]) AS workflow_version_id,
+                unnest($6::uuid[]) AS parent_task_external_id
         ) AS subquery
 )
 INSERT INTO v1_dag (
@@ -49,26 +50,29 @@ INSERT INTO v1_dag (
     external_id,
     display_name,
     workflow_id,
-    workflow_version_id
+    workflow_version_id,
+    parent_task_external_id
 )
 SELECT
     i.tenant_id,
     i.external_id,
     i.display_name,
     i.workflow_id,
-    i.workflow_version_id
+    i.workflow_version_id,
+    i.parent_task_external_id
 FROM
     input i
 RETURNING
-    id, inserted_at, tenant_id, external_id, display_name, workflow_id, workflow_version_id
+    id, inserted_at, tenant_id, external_id, display_name, workflow_id, workflow_version_id, parent_task_external_id
 `
 
 type CreateDAGsParams struct {
-	Tenantids          []pgtype.UUID `json:"tenantids"`
-	Externalids        []pgtype.UUID `json:"externalids"`
-	Displaynames       []string      `json:"displaynames"`
-	Workflowids        []pgtype.UUID `json:"workflowids"`
-	Workflowversionids []pgtype.UUID `json:"workflowversionids"`
+	Tenantids             []pgtype.UUID `json:"tenantids"`
+	Externalids           []pgtype.UUID `json:"externalids"`
+	Displaynames          []string      `json:"displaynames"`
+	Workflowids           []pgtype.UUID `json:"workflowids"`
+	Workflowversionids    []pgtype.UUID `json:"workflowversionids"`
+	Parenttaskexternalids []pgtype.UUID `json:"parenttaskexternalids"`
 }
 
 func (q *Queries) CreateDAGs(ctx context.Context, db DBTX, arg CreateDAGsParams) ([]*V1Dag, error) {
@@ -78,6 +82,7 @@ func (q *Queries) CreateDAGs(ctx context.Context, db DBTX, arg CreateDAGsParams)
 		arg.Displaynames,
 		arg.Workflowids,
 		arg.Workflowversionids,
+		arg.Parenttaskexternalids,
 	)
 	if err != nil {
 		return nil, err
@@ -94,6 +99,7 @@ func (q *Queries) CreateDAGs(ctx context.Context, db DBTX, arg CreateDAGsParams)
 			&i.DisplayName,
 			&i.WorkflowID,
 			&i.WorkflowVersionID,
+			&i.ParentTaskExternalID,
 		); err != nil {
 			return nil, err
 		}

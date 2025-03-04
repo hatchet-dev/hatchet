@@ -120,9 +120,7 @@ export const V1StepRunOutput = (props: { taskRunId: string }) => {
     return null;
   }
 
-  const outputData = data.output
-    ? JSON.stringify(JSON.parse(data.output), null, 2)
-    : '{}';
+  const outputData = JSON.stringify(data.output, null, 2);
 
   return (
     <CodeHighlighter

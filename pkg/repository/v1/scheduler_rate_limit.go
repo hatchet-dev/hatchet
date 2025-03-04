@@ -8,6 +8,8 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const MAX_TENANT_RATE_LIMITS = 10000
+
 type rateLimitRepository struct {
 	*sharedRepository
 }
@@ -21,7 +23,7 @@ func newRateLimitRepository(shared *sharedRepository) *rateLimitRepository {
 func (d *rateLimitRepository) ListCandidateRateLimits(ctx context.Context, tenantId pgtype.UUID) ([]string, error) {
 	rls, err := d.queries.ListRateLimitsForTenantNoMutate(ctx, d.pool, sqlcv1.ListRateLimitsForTenantNoMutateParams{
 		Tenantid: tenantId,
-		Limit:    10000,
+		Limit:    MAX_TENANT_RATE_LIMITS,
 	})
 
 	if err != nil {
