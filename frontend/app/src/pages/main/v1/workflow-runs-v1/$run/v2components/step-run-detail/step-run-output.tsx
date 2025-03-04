@@ -3,7 +3,6 @@ import {
   queries,
   StepRun,
   StepRunStatus,
-  V1TaskRunStatus,
   V1TaskStatus,
   WorkflowRunShape,
 } from '@/lib/api';

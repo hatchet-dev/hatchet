@@ -116,11 +116,13 @@ export const TaskRunDetail = ({
           actionType="replay"
           params={{ externalIds: [taskRunId] }}
           disabled={!TASK_RUN_TERMINAL_STATUSES.includes(taskRun.status)}
+          showModal={false}
         />
         <TaskRunActionButton
           actionType="cancel"
           params={{ externalIds: [taskRunId] }}
           disabled={TASK_RUN_TERMINAL_STATUSES.includes(taskRun.status)}
+          showModal={false}
         />
         <TaskRunPermalinkOrBacklink
           taskRun={taskRun}

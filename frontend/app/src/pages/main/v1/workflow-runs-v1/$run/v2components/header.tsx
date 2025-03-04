@@ -1,10 +1,6 @@
 import { V1TaskStatus, WorkflowRunStatus } from '@/lib/api';
 import { Button } from '@/components/v1/ui/button';
-import {
-  AdjustmentsHorizontalIcon,
-  ArrowPathIcon,
-  XCircleIcon,
-} from '@heroicons/react/24/outline';
+import { AdjustmentsHorizontalIcon } from '@heroicons/react/24/outline';
 import { ArrowTopRightIcon } from '@radix-ui/react-icons';
 import {
   Breadcrumb,
@@ -77,11 +73,13 @@ export const V1RunDetailHeader = () => {
               disabled={
                 !TASK_RUN_TERMINAL_STATUSES.includes(workflowRun.status)
               }
+              showModal={false}
             />
             <TaskRunActionButton
               actionType="cancel"
               params={{ externalIds: [workflowRun.metadata.id] }}
               disabled={TASK_RUN_TERMINAL_STATUSES.includes(workflowRun.status)}
+              showModal={false}
             />
           </div>
         </div>

@@ -328,6 +328,7 @@ export function TaskRunsTable({
                 ? { externalIds: selectedRuns.map((run) => run?.metadata.id) }
                 : { filter: v1TaskFilters }
             }
+            showModal
           />,
           <TaskRunActionButton
             key="replay"
@@ -338,6 +339,7 @@ export function TaskRunsTable({
                 ? { externalIds: selectedRuns.map((run) => run?.metadata.id) }
                 : { filter: v1TaskFilters }
             }
+            showModal
           />,
           <Button
             key="refresh"

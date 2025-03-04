@@ -10,7 +10,6 @@ import 'reactflow/dist/style.css';
 import dagre from 'dagre';
 import { useTheme } from '@/components/theme-provider';
 import stepRunNode, { NodeData } from './step-run-node';
-import invariant from 'tiny-invariant';
 import { V1TaskStatus } from '@/lib/api';
 import { useWorkflowDetails } from '../../hooks/workflow-details';
 
@@ -62,7 +61,7 @@ const WorkflowRunVisualizer = ({
             };
           }),
         ) || []
-      ).filter((x) => x !== null),
+      ).filter((x) => Boolean(x)) as Edge[],
     [shape, theme, taskRuns],
   );
 
