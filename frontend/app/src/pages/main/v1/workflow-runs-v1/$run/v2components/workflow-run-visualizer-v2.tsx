@@ -37,28 +37,32 @@ const WorkflowRunVisualizer = ({
 
   const edges: Edge[] = useMemo(
     () =>
-      shape.flatMap((task) =>
-        task.childrenExternalIds.map((childId) => {
-          const child = taskRuns.find((t) => t.metadata.id === childId);
+      (
+        shape.flatMap((task) =>
+          task.childrenExternalIds.map((childId) => {
+            const child = taskRuns.find((t) => t.metadata.id === childId);
 
-          invariant(child);
+            if (!child) {
+              return null;
+            }
 
-          return {
-            id: `${task.taskExternalId}-${childId}`,
-            source: task.taskExternalId,
-            target: childId,
-            animated: child.status === V1TaskStatus.RUNNING,
-            style:
-              theme === 'dark'
-                ? connectionLineStyleDark
-                : connectionLineStyleLight,
-            markerEnd: {
-              type: MarkerType.ArrowClosed,
-            },
-            type: 'smoothstep',
-          };
-        }),
-      ) || [],
+            return {
+              id: `${task.taskExternalId}-${childId}`,
+              source: task.taskExternalId,
+              target: childId,
+              animated: child.status === V1TaskStatus.RUNNING,
+              style:
+                theme === 'dark'
+                  ? connectionLineStyleDark
+                  : connectionLineStyleLight,
+              markerEnd: {
+                type: MarkerType.ArrowClosed,
+              },
+              type: 'smoothstep',
+            };
+          }),
+        ) || []
+      ).filter((x) => x !== null),
     [shape, theme, taskRuns],
   );
 
