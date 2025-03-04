@@ -1,4 +1,4 @@
-package tasks
+package proxy
 
 import (
 	"context"
@@ -13,6 +13,13 @@ import (
 type Proxy[in, out any] struct {
 	config *server.ServerConfig
 	method func(ctx context.Context, cli *client.GRPCClient, input *in) (*out, error)
+}
+
+func NewProxy[in, out any](config *server.ServerConfig, method func(ctx context.Context, cli *client.GRPCClient, input *in) (*out, error)) *Proxy[in, out] {
+	return &Proxy[in, out]{
+		config: config,
+		method: method,
+	}
 }
 
 func (p *Proxy[in, out]) Do(ctx context.Context, tenant *dbsqlc.Tenant, input *in) (*out, error) {

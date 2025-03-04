@@ -92,6 +92,7 @@ import {
   V1TaskRunMetrics,
   V1TaskStatus,
   V1TaskSummaryList,
+  V1TriggerWorkflowRunRequest,
   V1WorkflowRunDetails,
   WebhookWorkerCreateRequest,
   WebhookWorkerCreated,
@@ -292,6 +293,25 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       method: 'GET',
       query: query,
       secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Trigger a new workflow run
+   *
+   * @tags Workflow Runs
+   * @name V1WorkflowRunCreate
+   * @summary Create workflow run
+   * @request POST:/api/v1/stable/tenants/{tenant}/workflow-runs/trigger
+   * @secure
+   */
+  v1WorkflowRunCreate = (tenant: string, data: V1TriggerWorkflowRunRequest, params: RequestParams = {}) =>
+    this.request<V1WorkflowRunDetails, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/workflow-runs/trigger`,
+      method: 'POST',
+      body: data,
+      secure: true,
+      type: ContentType.Json,
       format: 'json',
       ...params,
     });

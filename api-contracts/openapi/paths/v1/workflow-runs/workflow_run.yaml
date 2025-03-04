@@ -112,7 +112,6 @@ listWorkflowRuns:
     tags:
       - Workflow Runs
 
-
 listTaskEventsForWorkflowRun:
   get:
     x-resources: ["tenant", "v1-workflow-run"]
@@ -212,5 +211,50 @@ getWorkflowRunDetails:
               $ref: "../../../components/schemas/_index.yaml#/APIErrors"
         description: Not implemented
     summary: List tasks
+    tags:
+      - Workflow Runs
+
+trigger:
+  post:
+    x-resources: ["tenant"]
+    description: Trigger a new workflow run
+    operationId: v1-workflow-run:create
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    requestBody:
+      content:
+        application/json:
+          schema:
+            $ref: "../../../components/schemas/_index.yaml#/V1TriggerWorkflowRunRequest"
+      description: The workflow run to create
+      required: true
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/V1WorkflowRunDetails"
+        description: Successfully created the workflow run
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+    summary: Create workflow run
     tags:
       - Workflow Runs
