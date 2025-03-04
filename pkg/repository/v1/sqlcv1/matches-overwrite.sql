@@ -38,7 +38,8 @@ WITH input AS (
                 unnest(@triggerDagInsertedAts::timestamptz[]) AS trigger_dag_inserted_at,
                 unnest(@triggerStepIds::uuid[]) AS trigger_step_id,
                 unnest(@triggerExternalIds::uuid[]) AS trigger_external_id,
-                unnest(@triggerExistingTaskIds::bigint[]) AS trigger_existing_task_id
+                unnest(@triggerExistingTaskIds::bigint[]) AS trigger_existing_task_id,
+                unnest(@triggerExistingTaskInsertedAts::timestamptz[]) AS trigger_existing_task_inserted_at
         ) AS subquery
 )
 INSERT INTO v1_match (
@@ -48,7 +49,8 @@ INSERT INTO v1_match (
     trigger_dag_inserted_at,
     trigger_step_id,
     trigger_external_id,
-    trigger_existing_task_id
+    trigger_existing_task_id,
+    trigger_existing_task_inserted_at
 )
 SELECT
     i.tenant_id,
@@ -57,7 +59,8 @@ SELECT
     i.trigger_dag_inserted_at,
     i.trigger_step_id,
     i.trigger_external_id,
-    i.trigger_existing_task_id
+    i.trigger_existing_task_id,
+    i.trigger_existing_task_inserted_at
 FROM
     input i
 RETURNING

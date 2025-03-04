@@ -21,35 +21,7 @@ import (
 func (a *AdminServiceImpl) CancelTasks(ctx context.Context, req *contracts.CancelTasksRequest) (*contracts.CancelTasksResponse, error) {
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
 
-	tasksToCancel := []v1.TaskIdRetryCount{}
-
-	// for tasks passed in directly, make sure the tenant id and retry counts match
-	if len(req.Tasks) > 0 {
-		taskIds := make([]int64, len(req.Tasks))
-		retryCounts := make([]int32, len(req.Tasks))
-
-		for i, task := range req.Tasks {
-			taskIds[i] = task.TaskId
-			retryCounts[i] = task.RetryCount
-		}
-
-		tasks, err := a.repo.Tasks().ListTasks(ctx, sqlchelpers.UUIDToStr(tenant.ID), taskIds)
-
-		if err != nil {
-			return nil, err
-		}
-
-		for i, task := range tasks {
-			// we'd like to make sure the retry counts match so that there wasn't another replay or cancellation
-			// which occurred concurrently. if there was, this is a no-op.
-			if task.RetryCount == retryCounts[i] {
-				tasksToCancel = append(tasksToCancel, v1.TaskIdRetryCount{
-					Id:         task.ID,
-					RetryCount: task.RetryCount,
-				})
-			}
-		}
-	}
+	externalIds := req.ExternalIds
 
 	if req.Filter != nil {
 		var (
@@ -122,18 +94,23 @@ func (a *AdminServiceImpl) CancelTasks(ctx context.Context, req *contracts.Cance
 			runExternalIds[i] = sqlchelpers.UUIDToStr(run.ExternalID)
 		}
 
-		tasks, err := a.repo.OLAP().ListTasksByExternalIds(ctx, sqlchelpers.UUIDToStr(tenant.ID), runExternalIds)
+		externalIds = append(externalIds, runExternalIds...)
+	}
 
-		if err != nil {
-			return nil, err
-		}
+	tasks, err := a.repo.Tasks().FlattenExternalIds(ctx, sqlchelpers.UUIDToStr(tenant.ID), externalIds)
 
-		for _, task := range tasks {
-			tasksToCancel = append(tasksToCancel, v1.TaskIdRetryCount{
-				Id:         task.ID,
-				RetryCount: task.RetryCount,
-			})
-		}
+	if err != nil {
+		return nil, err
+	}
+
+	tasksToCancel := []v1.TaskIdInsertedAtRetryCount{}
+
+	for _, task := range tasks {
+		tasksToCancel = append(tasksToCancel, v1.TaskIdInsertedAtRetryCount{
+			Id:         task.ID,
+			InsertedAt: task.InsertedAt,
+			RetryCount: task.RetryCount,
+		})
 	}
 
 	// send the payload to the tasks controller, and send the list of tasks back to the client
@@ -159,48 +136,15 @@ func (a *AdminServiceImpl) CancelTasks(ctx context.Context, req *contracts.Cance
 		return nil, err
 	}
 
-	respCancelledTasks := []*contracts.TaskIdRetryCount{}
-
-	for _, task := range tasksToCancel {
-		respCancelledTasks = append(respCancelledTasks, &contracts.TaskIdRetryCount{
-			TaskId:     task.Id,
-			RetryCount: task.RetryCount,
-		})
-	}
-
 	return &contracts.CancelTasksResponse{
-		CancelledTasks: respCancelledTasks,
+		CancelledTasks: externalIds,
 	}, nil
 }
 
 func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.ReplayTasksRequest) (*contracts.ReplayTasksResponse, error) {
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
 
-	tasksToReplay := []v1.TaskIdRetryCount{}
-
-	// for tasks passed in directly, make sure the tenant id and retry counts match
-	if len(req.Tasks) > 0 {
-		taskIds := make([]int64, len(req.Tasks))
-		retryCounts := make([]int32, len(req.Tasks))
-
-		for i, task := range req.Tasks {
-			taskIds[i] = task.TaskId
-			retryCounts[i] = task.RetryCount
-		}
-
-		tasks, err := a.repo.Tasks().ListTasks(ctx, sqlchelpers.UUIDToStr(tenant.ID), taskIds)
-
-		if err != nil {
-			return nil, err
-		}
-
-		for _, task := range tasks {
-			tasksToReplay = append(tasksToReplay, v1.TaskIdRetryCount{
-				Id:         task.ID,
-				RetryCount: task.RetryCount,
-			})
-		}
-	}
+	externalIds := req.ExternalIds
 
 	if req.Filter != nil {
 		var (
@@ -273,18 +217,23 @@ func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.Repla
 			runExternalIds[i] = sqlchelpers.UUIDToStr(run.ExternalID)
 		}
 
-		tasks, err := a.repo.OLAP().ListTasksByExternalIds(ctx, sqlchelpers.UUIDToStr(tenant.ID), runExternalIds)
+		externalIds = append(externalIds, runExternalIds...)
+	}
 
-		if err != nil {
-			return nil, err
-		}
+	tasksToReplay := []v1.TaskIdInsertedAtRetryCount{}
 
-		for _, task := range tasks {
-			tasksToReplay = append(tasksToReplay, v1.TaskIdRetryCount{
-				Id:         task.ID,
-				RetryCount: task.RetryCount,
-			})
-		}
+	tasks, err := a.repo.Tasks().FlattenExternalIds(ctx, sqlchelpers.UUIDToStr(tenant.ID), externalIds)
+
+	if err != nil {
+		return nil, err
+	}
+
+	for _, task := range tasks {
+		tasksToReplay = append(tasksToReplay, v1.TaskIdInsertedAtRetryCount{
+			Id:         task.ID,
+			InsertedAt: task.InsertedAt,
+			RetryCount: task.RetryCount,
+		})
 	}
 
 	// send the payload to the tasks controller, and send the list of tasks back to the client
@@ -310,16 +259,7 @@ func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.Repla
 		return nil, err
 	}
 
-	respReplayedTasks := []*contracts.TaskIdRetryCount{}
-
-	for _, task := range tasksToReplay {
-		respReplayedTasks = append(respReplayedTasks, &contracts.TaskIdRetryCount{
-			TaskId:     task.Id,
-			RetryCount: task.RetryCount,
-		})
-	}
-
 	return &contracts.ReplayTasksResponse{
-		ReplayedTasks: respReplayedTasks,
+		ReplayedTasks: externalIds,
 	}, nil
 }

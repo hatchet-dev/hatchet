@@ -329,6 +329,7 @@ CREATE TABLE v1_match (
     trigger_child_key TEXT,
     -- references the existing task id, which may be set when we're replaying a task
     trigger_existing_task_id bigint,
+    trigger_existing_task_inserted_at timestamptz,
     CONSTRAINT v1_match_pkey PRIMARY KEY (id)
 );
 
@@ -414,27 +415,28 @@ CREATE TABLE v1_concurrency_slot (
 
 CREATE INDEX v1_concurrency_slot_query_idx ON v1_concurrency_slot (tenant_id, strategy_id ASC, key ASC, priority DESC);
 
-CREATE OR REPLACE FUNCTION delete_concurrency_slots_on_v1_task_runtime_delete()
+CREATE OR REPLACE FUNCTION after_v1_task_runtime_delete_function()
 RETURNS trigger AS $$
 BEGIN
-  WITH slots_to_delete AS (
-    SELECT
-        cs.task_inserted_at, cs.task_id, cs.task_retry_count, cs.key
-    FROM
-        deleted_rows d
-    JOIN
-        v1_task t ON t.id = d.task_id AND t.inserted_at = d.task_inserted_at
-    JOIN v1_concurrency_slot cs ON cs.task_id = t.id AND cs.task_inserted_at = t.inserted_at AND cs.task_retry_count = d.retry_count
-  )
-  DELETE FROM
-    v1_concurrency_slot cs
-  WHERE
-    (task_inserted_at, task_id, task_retry_count, key) IN (
+    WITH slots_to_delete AS (
         SELECT
-            task_inserted_at, task_id, task_retry_count, key
+            cs.task_inserted_at, cs.task_id, cs.task_retry_count, cs.key
         FROM
-            slots_to_delete
-    );
+            deleted_rows d
+        JOIN v1_concurrency_slot cs ON cs.task_id = d.task_id AND cs.task_inserted_at = d.task_inserted_at AND cs.task_retry_count = d.retry_count
+        ORDER BY
+            cs.task_id, cs.task_inserted_at, cs.task_retry_count, cs.key
+        FOR UPDATE
+    )
+    DELETE FROM
+        v1_concurrency_slot cs
+    WHERE
+        (task_inserted_at, task_id, task_retry_count, key) IN (
+            SELECT
+                task_inserted_at, task_id, task_retry_count, key
+            FROM
+                slots_to_delete
+        );
 
   RETURN NULL;
 END;
@@ -444,7 +446,7 @@ CREATE TRIGGER after_v1_task_runtime_delete
 AFTER DELETE ON v1_task_runtime
 REFERENCING OLD TABLE AS deleted_rows
 FOR EACH STATEMENT
-EXECUTE FUNCTION delete_concurrency_slots_on_v1_task_runtime_delete();
+EXECUTE FUNCTION after_v1_task_runtime_delete_function();
 
 CREATE TABLE v1_retry_queue_item (
     task_id BIGINT NOT NULL,
@@ -588,13 +590,42 @@ CREATE OR REPLACE FUNCTION v1_task_update_function()
 RETURNS TRIGGER AS
 $$
 BEGIN
+    WITH new_retry_rows AS (
+        SELECT
+            nt.id,
+            nt.inserted_at,
+            nt.retry_count,
+            nt.tenant_id,
+            -- Convert the retry_after based on min(retry_backoff_factor ^ retry_count, retry_max_backoff)
+            NOW() + (LEAST(nt.retry_max_backoff, POWER(nt.retry_backoff_factor, nt.app_retry_count)) * interval '1 second') AS retry_after
+        FROM new_table nt
+        JOIN old_table ot ON ot.id = nt.id
+        WHERE nt.initial_state = 'QUEUED'
+            AND nt.retry_backoff_factor IS NOT NULL
+            AND ot.app_retry_count IS DISTINCT FROM nt.app_retry_count
+            AND nt.app_retry_count != 0
+    )
+    INSERT INTO v1_retry_queue_item (
+        task_id,
+        task_inserted_at,
+        task_retry_count,
+        retry_after,
+        tenant_id
+    )
+    SELECT
+        id,
+        inserted_at,
+        retry_count,
+        retry_after,
+        tenant_id
+    FROM new_retry_rows;
+
     WITH new_slot_rows AS (
         SELECT
             nt.id,
             nt.inserted_at,
             nt.retry_count,
             nt.tenant_id,
-            nt.priority,
             nt.concurrency_strategy_ids[1] AS strategy_id,
             CASE
                 WHEN array_length(nt.concurrency_strategy_ids, 1) > 1 THEN nt.concurrency_strategy_ids[2:array_length(nt.concurrency_strategy_ids, 1)]
@@ -612,6 +643,7 @@ BEGIN
         JOIN old_table ot ON ot.id = nt.id
         WHERE nt.initial_state = 'QUEUED'
             AND nt.concurrency_strategy_ids[1] IS NOT NULL
+            AND (nt.retry_backoff_factor IS NULL OR ot.app_retry_count IS NOT DISTINCT FROM nt.app_retry_count OR nt.app_retry_count = 0)
             AND ot.retry_count IS DISTINCT FROM nt.retry_count
     )
     INSERT INTO v1_concurrency_slot (
@@ -676,6 +708,7 @@ BEGIN
     JOIN old_table ot ON ot.id = nt.id
     WHERE nt.initial_state = 'QUEUED'
         AND nt.concurrency_strategy_ids[1] IS NULL
+        AND (nt.retry_backoff_factor IS NULL OR ot.app_retry_count IS NOT DISTINCT FROM nt.app_retry_count OR nt.app_retry_count = 0)
         AND ot.retry_count IS DISTINCT FROM nt.retry_count;
 
     RETURN NULL;
@@ -688,6 +721,119 @@ AFTER UPDATE ON v1_task
 REFERENCING NEW TABLE AS new_table OLD TABLE AS old_table
 FOR EACH STATEMENT
 EXECUTE PROCEDURE v1_task_update_function();
+
+CREATE OR REPLACE FUNCTION v1_retry_queue_item_delete_function()
+RETURNS TRIGGER AS
+$$
+BEGIN
+    WITH new_slot_rows AS (
+        SELECT
+            t.id,
+            t.inserted_at,
+            t.retry_count,
+            t.tenant_id,
+            t.concurrency_strategy_ids[1] AS strategy_id,
+            CASE
+                WHEN array_length(t.concurrency_strategy_ids, 1) > 1 THEN t.concurrency_strategy_ids[2:array_length(t.concurrency_strategy_ids, 1)]
+                ELSE '{}'::bigint[]
+            END AS next_strategy_ids,
+            t.concurrency_keys[1] AS key,
+            CASE
+                WHEN array_length(t.concurrency_keys, 1) > 1 THEN t.concurrency_keys[2:array_length(t.concurrency_keys, 1)]
+                ELSE '{}'::text[]
+            END AS next_keys,
+            t.workflow_id,
+            t.queue,
+            CURRENT_TIMESTAMP + convert_duration_to_interval(t.schedule_timeout) AS schedule_timeout_at
+        FROM deleted_rows dr
+        JOIN
+            v1_task t ON t.id = dr.task_id AND t.inserted_at = dr.task_inserted_at
+        WHERE
+            dr.retry_after <= NOW()
+            AND t.initial_state = 'QUEUED'
+            AND t.concurrency_strategy_ids[1] IS NOT NULL
+    )
+    INSERT INTO v1_concurrency_slot (
+        task_id,
+        task_inserted_at,
+        task_retry_count,
+        tenant_id,
+        workflow_id,
+        strategy_id,
+        next_strategy_ids,
+        priority,
+        key,
+        next_keys,
+        queue_to_notify,
+        schedule_timeout_at
+    )
+    SELECT
+        id,
+        inserted_at,
+        retry_count,
+        tenant_id,
+        workflow_id,
+        strategy_id,
+        next_strategy_ids,
+        4,
+        key,
+        next_keys,
+        queue,
+        schedule_timeout_at
+    FROM new_slot_rows;
+
+    WITH tasks AS (
+        SELECT
+            t.*
+        FROM
+            deleted_rows dr
+        JOIN v1_task t ON t.id = dr.task_id AND t.inserted_at = dr.task_inserted_at
+        WHERE
+            dr.retry_after <= NOW()
+            AND t.initial_state = 'QUEUED'
+            AND t.concurrency_strategy_ids[1] IS NULL
+    )
+    INSERT INTO v1_queue_item (
+        tenant_id,
+        queue,
+        task_id,
+        task_inserted_at,
+        action_id,
+        step_id,
+        workflow_id,
+        schedule_timeout_at,
+        step_timeout,
+        priority,
+        sticky,
+        desired_worker_id,
+        retry_count
+    )
+    SELECT
+        tenant_id,
+        queue,
+        id,
+        inserted_at,
+        action_id,
+        step_id,
+        workflow_id,
+        CURRENT_TIMESTAMP + convert_duration_to_interval(schedule_timeout),
+        step_timeout,
+        4,
+        sticky,
+        desired_worker_id,
+        retry_count
+    FROM tasks;
+
+    RETURN NULL;
+END;
+$$
+LANGUAGE plpgsql;
+
+CREATE TRIGGER v1_retry_queue_item_delete_trigger
+AFTER DELETE ON v1_retry_queue_item
+REFERENCING OLD TABLE AS deleted_rows
+FOR EACH STATEMENT
+EXECUTE PROCEDURE v1_retry_queue_item_delete_function();
 
 CREATE OR REPLACE FUNCTION v1_concurrency_slot_update_function()
 RETURNS TRIGGER AS

@@ -388,15 +388,16 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		}
 
 		event := sqlcv1.CreateTaskEventsOLAPParams{
-			TenantID:       sqlchelpers.UUIDFromStr(tenantId),
-			TaskID:         taskId,
-			TaskInsertedAt: taskInsertedAts[i],
-			WorkflowID:     workflowIds[i],
-			EventType:      eventTypes[i],
-			EventTimestamp: timestamps[i],
-			ReadableStatus: readableStatuses[i],
-			RetryCount:     retryCounts[i],
-			WorkerID:       workerId,
+			TenantID:               sqlchelpers.UUIDFromStr(tenantId),
+			TaskID:                 taskId,
+			TaskInsertedAt:         taskInsertedAts[i],
+			WorkflowID:             workflowIds[i],
+			EventType:              eventTypes[i],
+			EventTimestamp:         timestamps[i],
+			ReadableStatus:         readableStatuses[i],
+			RetryCount:             retryCounts[i],
+			WorkerID:               workerId,
+			AdditionalEventMessage: sqlchelpers.TextFromStr(eventMessages[i]),
 		}
 
 		switch eventTypes[i] {

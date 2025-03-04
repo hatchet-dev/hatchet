@@ -241,7 +241,7 @@ func (s *DispatcherImpl) sendStepActionEventV1(ctx context.Context, request *con
 
 	switch request.EventType {
 	case contracts.StepActionEventType_STEP_EVENT_TYPE_STARTED:
-		return s.handleTaskStarted(ctx, task.ID, retryCount, request)
+		return s.handleTaskStarted(ctx, task, retryCount, request)
 	case contracts.StepActionEventType_STEP_EVENT_TYPE_ACKNOWLEDGED:
 		// TODO: IMPLEMENT
 		return &contracts.ActionEventResponse{
@@ -249,21 +249,21 @@ func (s *DispatcherImpl) sendStepActionEventV1(ctx context.Context, request *con
 			WorkerId: request.WorkerId,
 		}, nil
 	case contracts.StepActionEventType_STEP_EVENT_TYPE_COMPLETED:
-		return s.handleTaskCompleted(ctx, task.ID, retryCount, request)
+		return s.handleTaskCompleted(ctx, task, retryCount, request)
 	case contracts.StepActionEventType_STEP_EVENT_TYPE_FAILED:
-		return s.handleTaskFailed(ctx, task.ID, retryCount, request)
+		return s.handleTaskFailed(ctx, task, retryCount, request)
 	}
 
 	return nil, status.Errorf(codes.InvalidArgument, "invalid step run id %s", request.StepRunId)
 }
 
-func (s *DispatcherImpl) handleTaskStarted(inputCtx context.Context, taskId int64, retryCount int32, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
+func (s *DispatcherImpl) handleTaskStarted(inputCtx context.Context, task *sqlcv1.FlattenExternalIdsRow, retryCount int32, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
 	tenant := inputCtx.Value("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	msg, err := tasktypes.MonitoringEventMessageFromActionEvent(
 		tenantId,
-		taskId,
+		task.ID,
 		retryCount,
 		request,
 	)
@@ -284,7 +284,7 @@ func (s *DispatcherImpl) handleTaskStarted(inputCtx context.Context, taskId int6
 	}, nil
 }
 
-func (s *DispatcherImpl) handleTaskCompleted(inputCtx context.Context, taskId int64, retryCount int32, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
+func (s *DispatcherImpl) handleTaskCompleted(inputCtx context.Context, task *sqlcv1.FlattenExternalIdsRow, retryCount int32, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
 	tenant := inputCtx.Value("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
@@ -295,7 +295,7 @@ func (s *DispatcherImpl) handleTaskCompleted(inputCtx context.Context, taskId in
 	go func() {
 		olapMsg, err := tasktypes.MonitoringEventMessageFromActionEvent(
 			tenantId,
-			taskId,
+			task.ID,
 			retryCount,
 			request,
 		)
@@ -312,7 +312,7 @@ func (s *DispatcherImpl) handleTaskCompleted(inputCtx context.Context, taskId in
 		}
 	}()
 
-	msg, err := tasktypes.CompletedTaskMessage(tenantId, taskId, retryCount, []byte(request.EventPayload))
+	msg, err := tasktypes.CompletedTaskMessage(tenantId, task.ID, task.InsertedAt, retryCount, []byte(request.EventPayload))
 
 	if err != nil {
 		return nil, err
@@ -330,7 +330,7 @@ func (s *DispatcherImpl) handleTaskCompleted(inputCtx context.Context, taskId in
 	}, nil
 }
 
-func (s *DispatcherImpl) handleTaskFailed(inputCtx context.Context, taskId int64, retryCount int32, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
+func (s *DispatcherImpl) handleTaskFailed(inputCtx context.Context, task *sqlcv1.FlattenExternalIdsRow, retryCount int32, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
 	tenant := inputCtx.Value("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
@@ -341,7 +341,7 @@ func (s *DispatcherImpl) handleTaskFailed(inputCtx context.Context, taskId int64
 	go func() {
 		olapMsg, err := tasktypes.MonitoringEventMessageFromActionEvent(
 			tenantId,
-			taskId,
+			task.ID,
 			retryCount,
 			request,
 		)
@@ -358,7 +358,7 @@ func (s *DispatcherImpl) handleTaskFailed(inputCtx context.Context, taskId int64
 		}
 	}()
 
-	msg, err := tasktypes.FailedTaskMessage(tenantId, taskId, retryCount, true, request.EventPayload)
+	msg, err := tasktypes.FailedTaskMessage(tenantId, task.ID, task.InsertedAt, retryCount, true, request.EventPayload)
 
 	if err != nil {
 		return nil, err

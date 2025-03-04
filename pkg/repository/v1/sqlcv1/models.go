@@ -2375,25 +2375,26 @@ type V1LookupTableOlap struct {
 }
 
 type V1Match struct {
-	ID                          int64              `json:"id"`
-	TenantID                    pgtype.UUID        `json:"tenant_id"`
-	Kind                        V1MatchKind        `json:"kind"`
-	IsSatisfied                 bool               `json:"is_satisfied"`
-	SignalTaskID                pgtype.Int8        `json:"signal_task_id"`
-	SignalTaskInsertedAt        pgtype.Timestamptz `json:"signal_task_inserted_at"`
-	SignalExternalID            pgtype.UUID        `json:"signal_external_id"`
-	SignalKey                   pgtype.Text        `json:"signal_key"`
-	TriggerDagID                pgtype.Int8        `json:"trigger_dag_id"`
-	TriggerDagInsertedAt        pgtype.Timestamptz `json:"trigger_dag_inserted_at"`
-	TriggerStepID               pgtype.UUID        `json:"trigger_step_id"`
-	TriggerStepIndex            pgtype.Int8        `json:"trigger_step_index"`
-	TriggerExternalID           pgtype.UUID        `json:"trigger_external_id"`
-	TriggerParentTaskExternalID pgtype.UUID        `json:"trigger_parent_task_external_id"`
-	TriggerParentTaskID         pgtype.Int8        `json:"trigger_parent_task_id"`
-	TriggerParentTaskInsertedAt pgtype.Timestamptz `json:"trigger_parent_task_inserted_at"`
-	TriggerChildIndex           pgtype.Int8        `json:"trigger_child_index"`
-	TriggerChildKey             pgtype.Text        `json:"trigger_child_key"`
-	TriggerExistingTaskID       pgtype.Int8        `json:"trigger_existing_task_id"`
+	ID                            int64              `json:"id"`
+	TenantID                      pgtype.UUID        `json:"tenant_id"`
+	Kind                          V1MatchKind        `json:"kind"`
+	IsSatisfied                   bool               `json:"is_satisfied"`
+	SignalTaskID                  pgtype.Int8        `json:"signal_task_id"`
+	SignalTaskInsertedAt          pgtype.Timestamptz `json:"signal_task_inserted_at"`
+	SignalExternalID              pgtype.UUID        `json:"signal_external_id"`
+	SignalKey                     pgtype.Text        `json:"signal_key"`
+	TriggerDagID                  pgtype.Int8        `json:"trigger_dag_id"`
+	TriggerDagInsertedAt          pgtype.Timestamptz `json:"trigger_dag_inserted_at"`
+	TriggerStepID                 pgtype.UUID        `json:"trigger_step_id"`
+	TriggerStepIndex              pgtype.Int8        `json:"trigger_step_index"`
+	TriggerExternalID             pgtype.UUID        `json:"trigger_external_id"`
+	TriggerParentTaskExternalID   pgtype.UUID        `json:"trigger_parent_task_external_id"`
+	TriggerParentTaskID           pgtype.Int8        `json:"trigger_parent_task_id"`
+	TriggerParentTaskInsertedAt   pgtype.Timestamptz `json:"trigger_parent_task_inserted_at"`
+	TriggerChildIndex             pgtype.Int8        `json:"trigger_child_index"`
+	TriggerChildKey               pgtype.Text        `json:"trigger_child_key"`
+	TriggerExistingTaskID         pgtype.Int8        `json:"trigger_existing_task_id"`
+	TriggerExistingTaskInsertedAt pgtype.Timestamptz `json:"trigger_existing_task_inserted_at"`
 }
 
 type V1MatchCondition struct {

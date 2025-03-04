@@ -466,6 +466,7 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 			msg, err := tasktypes.CancelledTaskMessage(
 				tenantId,
 				schedulingTimedOut.TaskID,
+				schedulingTimedOut.TaskInsertedAt,
 				schedulingTimedOut.RetryCount,
 				sqlcv1.V1EventTypeOlapSCHEDULINGTIMEDOUT,
 				false,
@@ -528,6 +529,7 @@ func (s *Scheduler) internalRetry(ctx context.Context, tenantId string, assigned
 		msg, err := tasktypes.FailedTaskMessage(
 			tenantId,
 			a.QueueItem.TaskID,
+			a.QueueItem.TaskInsertedAt,
 			a.QueueItem.RetryCount,
 			false,
 			"could not assign step run to worker",
@@ -611,8 +613,9 @@ func (s *Scheduler) notifyAfterConcurrency(ctx context.Context, tenantId string,
 
 		msg, err := tasktypes.CancelledTaskMessage(
 			tenantId,
-			cancelled.TaskIdRetryCount.Id,
-			cancelled.TaskIdRetryCount.RetryCount,
+			cancelled.TaskIdInsertedAtRetryCount.Id,
+			cancelled.TaskIdInsertedAtRetryCount.InsertedAt,
+			cancelled.TaskIdInsertedAtRetryCount.RetryCount,
 			eventType,
 			shouldNotify,
 		)
