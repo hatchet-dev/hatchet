@@ -115,15 +115,11 @@ export const useColumnFilters = () => {
   const workflowIdColumnFilter = workflowId
     ? { id: 'Workflow', value: workflowId }
     : undefined;
-  const parentTaskExternalIdFilter = parentTaskExternalId
-    ? { id: 'parentTaskExternalId', value: parentTaskExternalId }
-    : undefined;
 
   const columnFilters: ColumnFiltersState = [
     statusColumnFilter,
     additionalMetadataColumnFilter,
     workflowIdColumnFilter,
-    parentTaskExternalIdFilter,
   ].filter((f) => f !== undefined) as ColumnFiltersState;
 
   const setFilterValues = useCallback(
@@ -262,6 +258,15 @@ export const useColumnFilters = () => {
     ]);
   }, [setFilterValues]);
 
+  const clearParentTaskExternalId = useCallback(() => {
+    setFilterValues([
+      {
+        key: 'parentTaskExternalId',
+        value: undefined,
+      },
+    ]);
+  }, [setFilterValues]);
+
   return {
     filters: {
       createdAfter,
@@ -283,5 +288,6 @@ export const useColumnFilters = () => {
     setColumnFilters,
     setAdditionalMetadata,
     clearColumnFilters,
+    clearParentTaskExternalId,
   };
 };

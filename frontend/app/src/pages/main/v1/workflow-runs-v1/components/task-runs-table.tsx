@@ -130,6 +130,11 @@ export function TaskRunsTable({
     });
   }, []);
 
+  const parentTaskRun = useQuery({
+    ...queries.v1Tasks.get(parentTaskExternalId || ''),
+    enabled: !!parentTaskExternalId,
+  });
+
   const v1TaskFilters = {
     since: cf.filters.createdAfter,
     until: cf.filters.finishedBefore,
@@ -148,7 +153,27 @@ export function TaskRunsTable({
 
   return (
     <>
-      {showMetrics && (
+      {parentTaskExternalId &&
+        !parentTaskRun.isLoading &&
+        parentTaskRun.data && (
+          <div className="flex flex-row items-center gap-x-2">
+            <p>Child runs of parent:</p>
+            <p className="font-semibold text-orange-300">
+              {' '}
+              {parentTaskRun.data.displayName}
+            </p>
+            <Button
+              variant="outline"
+              className="ml-4"
+              onClick={() => {
+                cf.clearParentTaskExternalId();
+              }}
+            >
+              Clear
+            </Button>
+          </div>
+        )}
+      {showMetrics && !parentTaskExternalId && (
         <Dialog
           open={viewQueueMetrics}
           onOpenChange={(open) => {
@@ -172,7 +197,7 @@ export function TaskRunsTable({
           </DialogContent>
         </Dialog>
       )}
-      {!createdAfterProp && (
+      {!createdAfterProp && !parentTaskExternalId && (
         <div className="flex flex-row justify-end items-center my-4 gap-2">
           {cf.filters.isCustomTimeRange && [
             <Button
@@ -240,7 +265,7 @@ export function TaskRunsTable({
           </Select>
         </div>
       )}
-      {showMetrics && (
+      {showMetrics && !parentTaskExternalId && (
         <GetWorkflowChart
           tenantId={tenant.metadata.id}
           createdAfter={cf.filters.createdAfter}
