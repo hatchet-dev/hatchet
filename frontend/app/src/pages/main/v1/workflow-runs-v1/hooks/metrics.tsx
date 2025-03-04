@@ -10,7 +10,7 @@ export const useMetrics = ({
   refetchInterval,
 }: {
   workflow: string | undefined;
-  parentTaskExternalId: string | undefined
+  parentTaskExternalId: string | undefined;
   refetchInterval: number;
 }) => {
   const { tenant } = useTenant();
