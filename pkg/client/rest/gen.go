@@ -1250,7 +1250,7 @@ type V1TaskSummary struct {
 	Children *[]V1TaskSummary `json:"children,omitempty"`
 
 	// CreatedAt The timestamp the task was created.
-	CreatedAt *time.Time `json:"createdAt,omitempty"`
+	CreatedAt time.Time `json:"createdAt"`
 
 	// DisplayName The display name of the task run.
 	DisplayName string `json:"displayName"`

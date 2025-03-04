@@ -8,32 +8,59 @@ V1TaskSummary:
   properties:
     metadata:
       $ref: ".././metadata.yaml#/APIResourceMeta"
-    taskId:
-      type: integer
-      description: The ID of the task.
-    taskExternalId:
-      type: string
-      description: The external ID of the task.
-      format: uuid
-      minLength: 36
-      maxLength: 36
-    taskInsertedAt:
+    additionalMetadata:
+      type: object
+      description: Additional metadata for the task run.
+    children:
+      type: array
+      items:
+        $ref: "#/V1TaskSummary"
+      description: The list of children tasks
+    createdAt:
       type: string
       format: date-time
-      description: The timestamp the task was inserted.
+      description: The timestamp the task was created.
+    displayName:
+      type: string
+      description: The display name of the task run.
+    duration:
+      type: integer
+      description: The duration of the task run, in milliseconds.
+    errorMessage:
+      type: string
+      description: The error message of the task run (for the latest run)
+    finishedAt:
+      type: string
+      format: date-time
+      description: The timestamp the task run finished.
+    input:
+      type: object
+      description: The input of the task run.
+    numSpawnedChildren:
+      type: integer
+      description: The number of spawned children tasks
+    output:
+      type: object
+      description: The output of the task run (for the latest run)
     status:
       $ref: "#/V1TaskStatus"
     startedAt:
       type: string
       format: date-time
       description: The timestamp the task run started.
-    finishedAt:
+    taskExternalId:
+      type: string
+      description: The external ID of the task.
+      format: uuid
+      minLength: 36
+      maxLength: 36
+    taskId:
+      type: integer
+      description: The ID of the task.
+    taskInsertedAt:
       type: string
       format: date-time
-      description: The timestamp the task run finished.
-    duration:
-      type: integer
-      description: The duration of the task run, in milliseconds.
+      description: The timestamp the task was inserted.
     tenantId:
       type: string
       description: The ID of the tenant.
@@ -41,61 +68,36 @@ V1TaskSummary:
       minLength: 36
       maxLength: 36
       format: uuid
-    additionalMetadata:
-      type: object
-      description: Additional metadata for the task run.
-    displayName:
-      type: string
-      description: The display name of the task run.
-    workflowId:
-      type: string
-      format: uuid
-    output:
-      type: object
-      description: The output of the task run (for the latest run)
-    errorMessage:
-      type: string
-      description: The error message of the task run (for the latest run)
-    input:
-      type: object
-      description: The input of the task run.
     type:
       $ref: "#/V1WorkflowType"
       description: The type of the workflow (whether it's a DAG or a task)
-    workflowVersionId:
+    workflowId:
       type: string
       format: uuid
-      description: The version ID of the workflow
     workflowRunExternalId:
       type: string
       format: uuid
       description: The external ID of the workflow run
-    createdAt:
+    workflowVersionId:
       type: string
-      format: date-time
-      description: The timestamp the task was created.
-    children:
-      type: array
-      items:
-        $ref: "#/V1TaskSummary"
-      description: The list of children tasks
-    numSpawnedChildren:
-      type: integer
-      description: The number of spawned children tasks
+      format: uuid
+      description: The version ID of the workflow
   required:
     - metadata
+    - createdAt
+    - displayName
     - id
+    - input
+    - numSpawnedChildren
+    - output
+    - status
+    - taskExternalId
     - taskId
     - taskInsertedAt
-    - status
     - tenantId
-    - displayName
-    - workflowId
-    - output
-    - taskExternalId
-    - input
     - type
-    - numSpawnedChildren
+    - workflowId
+
 
 V1DagChildren:
   type: object
