@@ -376,6 +376,7 @@ CREATE TABLE v1_dag (
     display_name TEXT NOT NULL,
     workflow_id UUID NOT NULL,
     workflow_version_id UUID NOT NULL,
+    parent_task_external_id UUID,
     CONSTRAINT v1_dag_pkey PRIMARY KEY (id, inserted_at)
 ) PARTITION BY RANGE(inserted_at);
 
