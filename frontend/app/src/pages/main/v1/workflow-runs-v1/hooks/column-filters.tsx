@@ -76,35 +76,49 @@ const parseTimeRange = ({
 };
 
 export const useColumnFilters = () => {
+  const queryParamNames = {
+    createdAfter: 'createdAfter',
+    finishedBefore: 'finishedBefore',
+    isCustomTimeRange: 'isCustomTimeRange',
+    status: 'status',
+    additionalMetadata: 'additionalMetadata',
+    workflow: 'Workflow',
+    parentTaskExternalId: 'parentTaskExternalId',
+    timeWindow: 'timeWindow',
+  };
+
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const timeWindowFilter = (searchParams.get('timeWindow') ||
+  const timeWindowFilter = (searchParams.get(queryParamNames.timeWindow) ||
     '1d') as TimeWindow;
 
   const isCustomTimeRange =
-    searchParams.get('isCustomTimeRange') === 'true' || false;
+    searchParams.get(queryParamNames.isCustomTimeRange) === 'true' || false;
 
   const { createdAfter, finishedBefore } = useMemo(() => {
     return parseTimeRange({
       isCustom: isCustomTimeRange,
       timeWindow: timeWindowFilter,
-      createdAfter: searchParams.get('createdAfter'),
-      finishedBefore: searchParams.get('finishedBefore'),
+      createdAfter: searchParams.get(queryParamNames.createdAfter),
+      finishedBefore: searchParams.get(queryParamNames.finishedBefore),
     });
   }, [isCustomTimeRange, timeWindowFilter, searchParams]);
 
-  const status = searchParams.get('status') as V1TaskStatus | undefined;
-  const additionalMetadataRaw = (searchParams.get('additionalMetadata') ||
-    undefined) as string | undefined;
+  const status = searchParams.get(queryParamNames.status) as
+    | V1TaskStatus
+    | undefined;
+  const additionalMetadataRaw = (searchParams.get(
+    queryParamNames.additionalMetadata,
+  ) || undefined) as string | undefined;
 
   const additionalMetadata = additionalMetadataRaw
     ? additionalMetadataRaw.split(',')
     : undefined;
 
-  const workflowId = searchParams.get('Workflow') || undefined;
+  const workflowId = searchParams.get(queryParamNames.workflow) || undefined;
 
   const parentTaskExternalId =
-    searchParams.get('parentTaskExternalId') || undefined;
+    searchParams.get(queryParamNames.parentTaskExternalId) || undefined;
 
   const statusColumnFilter = status
     ? { id: 'status', value: status }
@@ -268,6 +282,7 @@ export const useColumnFilters = () => {
   }, [setFilterValues]);
 
   return {
+    queryParamNames,
     filters: {
       createdAfter,
       finishedBefore,

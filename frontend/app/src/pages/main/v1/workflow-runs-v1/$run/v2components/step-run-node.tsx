@@ -7,6 +7,7 @@ import { RunStatus, V1RunIndicator } from '../../components/run-statuses';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { TabOption } from './step-run-detail/step-run-detail';
 import { Link } from 'react-router-dom';
+import { useColumnFilters } from '../../hooks/column-filters';
 
 export type NodeData = {
   task: V1TaskSummary;
@@ -26,6 +27,8 @@ export default memo(({ data }: { data: NodeData }) => {
   const finishedAtEpoch = data.task.finishedAt
     ? new Date(data.task.finishedAt).getTime()
     : 0;
+
+  const { queryParamNames } = useColumnFilters();
 
   return (
     <div className="flex flex-col justify-start min-w-fit grow">
@@ -82,7 +85,7 @@ export default memo(({ data }: { data: NodeData }) => {
             pathname: '/v1/workflow-runs',
             search: new URLSearchParams({
               ...Object.fromEntries(new URLSearchParams(location.search)),
-              parentTaskExternalId: data.task.metadata.id,
+              [queryParamNames.parentTaskExternalId]: data.task.metadata.id,
             }).toString(),
           }}
         >
