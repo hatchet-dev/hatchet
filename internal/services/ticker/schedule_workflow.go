@@ -120,6 +120,13 @@ func (t *TickerImpl) runScheduledWorkflow(tenantId, workflowVersionId, scheduled
 
 		t.l.Debug().Msgf("ticker: running workflow %s", workflowVersionId)
 
+		tenant, err := t.repo.Tenant().GetTenantByID(ctx, tenantId)
+
+		if err != nil {
+			t.l.Error().Err(err).Msg("could not get tenant")
+			return
+		}
+
 		workflowVersion, err := t.repo.Workflow().GetWorkflowVersionById(ctx, tenantId, workflowVersionId)
 
 		if err != nil {
@@ -127,83 +134,18 @@ func (t *TickerImpl) runScheduledWorkflow(tenantId, workflowVersionId, scheduled
 			return
 		}
 
-		fs := make([]repository.CreateWorkflowRunOpt, 0)
-
-		var additionalMetadata map[string]interface{}
-
-		if scheduled.AdditionalMetadata != nil {
-			err := json.Unmarshal(scheduled.AdditionalMetadata, &additionalMetadata)
-			if err != nil {
-				t.l.Err(err).Msg("could not unmarshal additional metadata")
-				return
-			}
-		}
-
-		if scheduled.ParentWorkflowRunId.Valid {
-			var childKey *string
-
-			if scheduled.ChildKey.Valid {
-				childKey = &scheduled.ChildKey.String
-			}
-
-			parent, err := t.repo.WorkflowRun().GetWorkflowRunById(ctx, tenantId, sqlchelpers.UUIDToStr(scheduled.ParentWorkflowRunId))
-
-			if err != nil {
-				t.l.Err(err).Msg("could not get parent workflow run")
-				return
-			}
-
-			var parentAdditionalMeta map[string]interface{}
-
-			if parent.WorkflowRun.AdditionalMetadata != nil {
-				err := json.Unmarshal(parent.WorkflowRun.AdditionalMetadata, &parentAdditionalMeta)
-				if err != nil {
-					t.l.Err(err).Msg("could not unmarshal parent additional metadata")
-					return
-				}
-			}
-
-			fs = append(fs, repository.WithParent(
-				sqlchelpers.UUIDToStr(scheduled.ParentWorkflowRunId),
-				sqlchelpers.UUIDToStr(scheduled.ParentStepRunId),
-				int(scheduled.ChildIndex.Int32),
-				childKey,
-				additionalMetadata,
-				parentAdditionalMeta,
-			))
-		}
-
-		// create a new workflow run in the database
-		createOpts, err := repository.GetCreateWorkflowRunOptsFromSchedule(
-			scheduledWorkflowId,
-			workflowVersion,
-			scheduled.Input,
-			additionalMetadata,
-			fs...,
-		)
-
-		if err != nil {
-			t.l.Err(err).Msg("could not get create workflow run opts")
+		switch tenant.Version {
+		case dbsqlc.TenantMajorEngineVersionV0:
+			err = t.runScheduledWorkflowV0(ctx, tenantId, workflowVersion, scheduledWorkflowId, scheduled)
+		case dbsqlc.TenantMajorEngineVersionV1:
+			err = t.runScheduledWorkflowV1(ctx, tenantId, workflowVersion, scheduledWorkflowId, scheduled)
+		default:
+			t.l.Error().Msgf("unsupported tenant major engine version %s", tenant.Version)
 			return
 		}
 
-		workflowRun, err := t.repo.WorkflowRun().CreateNewWorkflowRun(ctx, tenantId, createOpts)
-
 		if err != nil {
-			t.l.Err(err).Msg("could not create workflow run")
-			return
-		}
-
-		workflowRunId := sqlchelpers.UUIDToStr(workflowRun.ID)
-
-		err = t.mq.AddMessage(
-			context.Background(),
-			msgqueue.WORKFLOW_PROCESSING_QUEUE,
-			tasktypes.WorkflowRunQueuedToTask(tenantId, workflowRunId),
-		)
-
-		if err != nil {
-			t.l.Err(err).Msg("could not add workflow run queued task")
+			t.l.Error().Err(err).Msg("could not run scheduled workflow")
 			return
 		}
 
@@ -217,16 +159,96 @@ func (t *TickerImpl) runScheduledWorkflow(tenantId, workflowVersionId, scheduled
 
 		defer t.scheduledWorkflows.Delete(workflowVersionId)
 
-		scheduler := schedulerVal.(gocron.Scheduler)
+		go func() {
+			scheduler := schedulerVal.(gocron.Scheduler)
 
-		// cancel the schedule
-		err = scheduler.Shutdown()
+			// cancel the schedule
+			err = scheduler.Shutdown()
 
+			if err != nil {
+				t.l.Err(err).Msg("could not cancel scheduler")
+				return
+			}
+		}()
+	}
+}
+
+func (t *TickerImpl) runScheduledWorkflowV0(ctx context.Context, tenantId string, workflowVersion *dbsqlc.GetWorkflowVersionForEngineRow, scheduledWorkflowId string, scheduled *dbsqlc.PollScheduledWorkflowsRow) error {
+	fs := make([]repository.CreateWorkflowRunOpt, 0)
+
+	var additionalMetadata map[string]interface{}
+
+	if scheduled.AdditionalMetadata != nil {
+		err := json.Unmarshal(scheduled.AdditionalMetadata, &additionalMetadata)
 		if err != nil {
-			t.l.Err(err).Msg("could not cancel scheduler")
-			return
+			return fmt.Errorf("could not unmarshal additional metadata: %w", err)
 		}
 	}
+
+	if scheduled.ParentWorkflowRunId.Valid {
+		var childKey *string
+
+		if scheduled.ChildKey.Valid {
+			childKey = &scheduled.ChildKey.String
+		}
+
+		parent, err := t.repo.WorkflowRun().GetWorkflowRunById(ctx, tenantId, sqlchelpers.UUIDToStr(scheduled.ParentWorkflowRunId))
+
+		if err != nil {
+			return fmt.Errorf("could not get parent workflow run: %w", err)
+		}
+
+		var parentAdditionalMeta map[string]interface{}
+
+		if parent.WorkflowRun.AdditionalMetadata != nil {
+			err := json.Unmarshal(parent.WorkflowRun.AdditionalMetadata, &parentAdditionalMeta)
+			if err != nil {
+				return fmt.Errorf("could not unmarshal parent additional metadata: %w", err)
+			}
+		}
+
+		fs = append(fs, repository.WithParent(
+			sqlchelpers.UUIDToStr(scheduled.ParentWorkflowRunId),
+			sqlchelpers.UUIDToStr(scheduled.ParentStepRunId),
+			int(scheduled.ChildIndex.Int32),
+			childKey,
+			additionalMetadata,
+			parentAdditionalMeta,
+		))
+	}
+
+	// create a new workflow run in the database
+	createOpts, err := repository.GetCreateWorkflowRunOptsFromSchedule(
+		scheduledWorkflowId,
+		workflowVersion,
+		scheduled.Input,
+		additionalMetadata,
+		fs...,
+	)
+
+	if err != nil {
+		return fmt.Errorf("could not get create workflow run opts: %w", err)
+	}
+
+	workflowRun, err := t.repo.WorkflowRun().CreateNewWorkflowRun(ctx, tenantId, createOpts)
+
+	if err != nil {
+		return fmt.Errorf("could not create workflow run: %w", err)
+	}
+
+	workflowRunId := sqlchelpers.UUIDToStr(workflowRun.ID)
+
+	err = t.mq.AddMessage(
+		context.Background(),
+		msgqueue.WORKFLOW_PROCESSING_QUEUE,
+		tasktypes.WorkflowRunQueuedToTask(tenantId, workflowRunId),
+	)
+
+	if err != nil {
+		return fmt.Errorf("could not add workflow run queued task: %w", err)
+	}
+
+	return nil
 }
 
 func (t *TickerImpl) handleCancelWorkflow(ctx context.Context, key string) error {
