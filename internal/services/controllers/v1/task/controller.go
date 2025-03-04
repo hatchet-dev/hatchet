@@ -628,8 +628,51 @@ func (tc *TasksControllerImpl) handleReplayTasks(ctx context.Context, tenantId s
 		}
 	}
 
-	// TODO: USE RETURN VALUE HERE
-	return tc.repov1.Tasks().ReplayTasks(ctx, tenantId, taskIdRetryCounts)
+	replayRes, err := tc.repov1.Tasks().ReplayTasks(ctx, tenantId, taskIdRetryCounts)
+
+	if err != nil {
+		return fmt.Errorf("could not replay tasks: %w", err)
+	}
+
+	eg := &errgroup.Group{}
+
+	if len(replayRes.ReplayedTasks) > 0 {
+		eg.Go(func() error {
+			err = tc.signalTasksReplayed(ctx, tenantId, replayRes.ReplayedTasks)
+
+			if err != nil {
+				return fmt.Errorf("could not signal replayed tasks: %w", err)
+			}
+
+			return nil
+		})
+	}
+
+	if len(replayRes.QueuedTasks) > 0 {
+		eg.Go(func() error {
+			err = tc.signalTasksCreatedAndQueued(ctx, tenantId, replayRes.QueuedTasks)
+
+			if err != nil {
+				return fmt.Errorf("could not signal queued tasks: %w", err)
+			}
+
+			return nil
+		})
+	}
+
+	if len(replayRes.InternalEventResults.CreatedTasks) > 0 {
+		eg.Go(func() error {
+			err = tc.signalTasksCreated(ctx, tenantId, replayRes.InternalEventResults.CreatedTasks)
+
+			if err != nil {
+				return fmt.Errorf("could not signal created tasks: %w", err)
+			}
+
+			return nil
+		})
+	}
+
+	return eg.Wait()
 }
 
 func (tc *TasksControllerImpl) sendTaskCancellationsToDispatcher(ctx context.Context, tenantId string, releasedTasks []tasktypes.SignalTaskCancelledPayload) error {
@@ -1215,6 +1258,44 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndSkipped(ctx context.Context,
 
 		if err != nil {
 			tc.l.Err(err).Msg("could not add message to olap queue")
+			continue
+		}
+	}
+
+	return nil
+}
+
+func (tc *TasksControllerImpl) signalTasksReplayed(ctx context.Context, tenantId string, tasks []v1.TaskIdRetryCount) error {
+	// notify that tasks have been created
+	// TODO: make this transactionally safe?
+	for _, task := range tasks {
+		msg := "Task was replayed, resetting task result."
+
+		olapMsg, err := tasktypes.MonitoringEventMessageFromInternal(
+			tenantId,
+			tasktypes.CreateMonitoringEventPayload{
+				TaskId:         task.Id,
+				RetryCount:     task.RetryCount,
+				EventType:      sqlcv1.V1EventTypeOlapRETRIEDBYUSER,
+				EventTimestamp: time.Now(),
+				EventMessage:   msg,
+			},
+		)
+
+		if err != nil {
+			tc.l.Err(err).Msg("could not create monitoring event message")
+			continue
+		}
+
+		err = tc.pubBuffer.Pub(
+			ctx,
+			msgqueue.OLAP_QUEUE,
+			olapMsg,
+			false,
+		)
+
+		if err != nil {
+			tc.l.Err(err).Msg("could not add monitoring event message to olap queue")
 			continue
 		}
 	}
