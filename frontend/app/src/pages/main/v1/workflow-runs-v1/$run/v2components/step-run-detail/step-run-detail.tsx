@@ -115,7 +115,7 @@ export const TaskRunDetail = ({
         <TaskRunActionButton
           actionType="replay"
           params={{ externalIds: [taskRunId] }}
-          disabled={TASK_RUN_TERMINAL_STATUSES.includes(taskRun.status)}
+          disabled={!TASK_RUN_TERMINAL_STATUSES.includes(taskRun.status)}
         />
         <TaskRunActionButton
           actionType="cancel"
