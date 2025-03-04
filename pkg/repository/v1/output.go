@@ -18,6 +18,8 @@ type TaskOutputEvent struct {
 
 	RetryCount int32 `json:"retry_count"`
 
+	WorkerId *string `json:"worker_id"`
+
 	Output []byte `json:"output"`
 
 	ErrorMessage string `json:"error_message"`
@@ -37,10 +39,16 @@ func (e *TaskOutputEvent) IsCancelled() bool {
 	return e.EventType == sqlcv1.V1TaskEventTypeCANCELLED
 }
 
-func NewCompletedTaskOutputEventFromTask(task *sqlcv1.V1Task, output []byte) *TaskOutputEvent {
+func NewSkippedTaskOutputEventFromTask(task *sqlcv1.V1Task, output []byte) *TaskOutputEvent {
 	e := baseFromTasksRow(task)
 	e.Output = output
 	e.EventType = sqlcv1.V1TaskEventTypeCOMPLETED
+
+	if task.DesiredWorkerID.Valid {
+		workerId := sqlchelpers.UUIDToStr(task.DesiredWorkerID)
+		e.WorkerId = &workerId
+	}
+
 	return e
 }
 
@@ -49,6 +57,12 @@ func NewFailedTaskOutputEventFromTask(task *sqlcv1.V1Task, errorMsg string) *Tas
 	e.IsFailure = true
 	e.ErrorMessage = errorMsg
 	e.EventType = sqlcv1.V1TaskEventTypeFAILED
+
+	if task.DesiredWorkerID.Valid {
+		workerId := sqlchelpers.UUIDToStr(task.DesiredWorkerID)
+		e.WorkerId = &workerId
+	}
+
 	return e
 }
 
@@ -71,6 +85,12 @@ func NewCompletedTaskOutputEvent(row *sqlcv1.ReleaseTasksRow, output []byte) *Ta
 	e := baseFromReleaseTasksRow(row)
 	e.Output = output
 	e.EventType = sqlcv1.V1TaskEventTypeCOMPLETED
+
+	if row.WorkerID.Valid {
+		workerId := sqlchelpers.UUIDToStr(row.WorkerID)
+		e.WorkerId = &workerId
+	}
+
 	return e
 }
 

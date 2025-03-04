@@ -327,6 +327,7 @@ func (m *sharedRepository) processInternalEventMatches(ctx context.Context, tx s
 					switch matchData.Action() {
 					case sqlcv1.V1MatchConditionActionQUEUE:
 						opt.Input = m.newTaskInput(input, matchData)
+						opt.DesiredWorkerId = m.DesiredWorkerId(opt.Input)
 						opt.InitialState = sqlcv1.V1TaskInitialStateQUEUED
 					case sqlcv1.V1MatchConditionActionCANCEL:
 						opt.InitialState = sqlcv1.V1TaskInitialStateCANCELLED

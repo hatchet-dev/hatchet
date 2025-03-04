@@ -34,6 +34,9 @@ type CreateTaskOpts struct {
 	// (optional) the additional metadata for the task
 	AdditionalMetadata []byte
 
+	// (optional) the desired worker id
+	DesiredWorkerId *string
+
 	// (optional) the DAG id for the task
 	DagId *int64
 
@@ -1418,8 +1421,17 @@ func (r *sharedRepository) insertTasks(
 		retryCounts[i] = 0
 		priorities[i] = 1
 		stickies[i] = string(sqlcv1.V1StickyStrategyNONE)
+
+		if stepConfig.WorkflowVersionSticky.Valid {
+			stickies[i] = string(stepConfig.WorkflowVersionSticky.StickyStrategy)
+		}
+
 		desiredWorkerIds[i] = pgtype.UUID{
 			Valid: false,
+		}
+
+		if task.DesiredWorkerId != nil {
+			desiredWorkerIds[i] = sqlchelpers.UUIDFromStr(*task.DesiredWorkerId)
 		}
 
 		initialStates[i] = string(task.InitialState)
