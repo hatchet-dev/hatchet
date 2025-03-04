@@ -204,7 +204,7 @@ type TaskRepository interface {
 
 	RefreshTimeoutBy(ctx context.Context, tenantId string, opt RefreshTimeoutBy) (*sqlcv1.V1TaskRuntime, error)
 
-	ReleaseSlot(ctx context.Context, tenantId string, externalId string) (*sqlcv1.ReleaseTasksRow, error)
+	ReleaseSlot(ctx context.Context, tenantId string, externalId string) (*sqlcv1.V1TaskRuntime, error)
 }
 
 type TaskRepositoryImpl struct {
@@ -1257,7 +1257,7 @@ func (r *TaskRepositoryImpl) RefreshTimeoutBy(ctx context.Context, tenantId stri
 	return res, nil
 }
 
-func (r *TaskRepositoryImpl) ReleaseSlot(ctx context.Context, tenantId, externalId string) (*sqlcv1.ReleaseTasksRow, error) {
+func (r *TaskRepositoryImpl) ReleaseSlot(ctx context.Context, tenantId, externalId string) (*sqlcv1.V1TaskRuntime, error) {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
 
 	if err != nil {
@@ -1266,21 +1266,14 @@ func (r *TaskRepositoryImpl) ReleaseSlot(ctx context.Context, tenantId, external
 
 	defer rollback()
 
-	// get the task by its external id
-	task, err := r.GetTaskByExternalId(ctx, tenantId, externalId, true)
-
-	if err != nil {
-		return nil, err
-	}
-
-	// release the slot
-	resp, err := r.releaseTasks(ctx, tx, tenantId, []TaskIdInsertedAtRetryCount{
-		{
-			Id:         task.ID,
-			InsertedAt: task.InsertedAt,
-			RetryCount: task.RetryCount,
+	resp, err := r.queries.ManualSlotRelease(
+		ctx,
+		tx,
+		sqlcv1.ManualSlotReleaseParams{
+			Tenantid:   sqlchelpers.UUIDFromStr(tenantId),
+			Externalid: sqlchelpers.UUIDFromStr(externalId),
 		},
-	})
+	)
 
 	if err != nil {
 		return nil, err
@@ -1290,11 +1283,7 @@ func (r *TaskRepositoryImpl) ReleaseSlot(ctx context.Context, tenantId, external
 		return nil, err
 	}
 
-	if len(resp) != 1 {
-		return nil, fmt.Errorf("failed to release task")
-	}
-
-	return resp[0], nil
+	return resp, nil
 }
 
 func (r *sharedRepository) releaseTasks(ctx context.Context, tx sqlcv1.DBTX, tenantId string, tasks []TaskIdInsertedAtRetryCount) ([]*sqlcv1.ReleaseTasksRow, error) {

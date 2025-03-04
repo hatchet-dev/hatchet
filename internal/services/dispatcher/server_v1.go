@@ -433,7 +433,7 @@ func (d *DispatcherImpl) releaseSlotV1(ctx context.Context, tenant *dbsqlc.Tenan
 	msg, err := tasktypes.MonitoringEventMessageFromInternal(
 		tenantId,
 		tasktypes.CreateMonitoringEventPayload{
-			TaskId:         releasedSlot.ID,
+			TaskId:         releasedSlot.TaskID,
 			RetryCount:     releasedSlot.RetryCount,
 			WorkerId:       &workerId,
 			EventTimestamp: time.Now(),

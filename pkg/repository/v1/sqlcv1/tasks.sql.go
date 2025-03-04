@@ -1187,6 +1187,65 @@ func (q *Queries) LookupExternalIds(ctx context.Context, db DBTX, arg LookupExte
 	return items, nil
 }
 
+const manualSlotRelease = `-- name: ManualSlotRelease :one
+WITH task AS (
+    SELECT
+        t.id,
+        t.inserted_at,
+        t.retry_count,
+        t.tenant_id
+    FROM
+        v1_lookup_table lt
+    JOIN
+        v1_task t ON t.id = lt.task_id AND t.inserted_at = lt.inserted_at
+    WHERE
+        lt.external_id = $1::uuid AND
+        lt.tenant_id = $2::uuid
+), locked_runtime AS (
+    SELECT
+        tr.task_id,
+        tr.task_inserted_at,
+        tr.retry_count,
+        tr.worker_id
+    FROM
+        v1_task_runtime tr
+    WHERE
+        (tr.task_id, tr.task_inserted_at, tr.retry_count) IN (SELECT id, inserted_at, retry_count FROM task)
+    ORDER BY
+        task_id, task_inserted_at, retry_count
+    FOR UPDATE
+)
+UPDATE
+    v1_task_runtime
+SET
+    worker_id = NULL
+FROM
+    task
+WHERE
+    (v1_task_runtime.task_id, v1_task_runtime.task_inserted_at, v1_task_runtime.retry_count) IN (SELECT id, inserted_at, retry_count FROM task)
+RETURNING
+    v1_task_runtime.task_id, v1_task_runtime.task_inserted_at, v1_task_runtime.retry_count, v1_task_runtime.worker_id, v1_task_runtime.tenant_id, v1_task_runtime.timeout_at
+`
+
+type ManualSlotReleaseParams struct {
+	Externalid pgtype.UUID `json:"externalid"`
+	Tenantid   pgtype.UUID `json:"tenantid"`
+}
+
+func (q *Queries) ManualSlotRelease(ctx context.Context, db DBTX, arg ManualSlotReleaseParams) (*V1TaskRuntime, error) {
+	row := db.QueryRow(ctx, manualSlotRelease, arg.Externalid, arg.Tenantid)
+	var i V1TaskRuntime
+	err := row.Scan(
+		&i.TaskID,
+		&i.TaskInsertedAt,
+		&i.RetryCount,
+		&i.WorkerID,
+		&i.TenantID,
+		&i.TimeoutAt,
+	)
+	return &i, err
+}
+
 const preflightCheckDAGsForReplay = `-- name: PreflightCheckDAGsForReplay :many
 WITH dags_to_step_counts AS (
     SELECT
