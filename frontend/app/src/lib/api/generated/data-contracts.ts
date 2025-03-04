@@ -31,23 +31,34 @@ export interface APIResourceMeta {
   updatedAt: string;
 }
 
-export enum V1TaskStatus {
-  QUEUED = 'QUEUED',
-  RUNNING = 'RUNNING',
-  COMPLETED = 'COMPLETED',
-  CANCELLED = 'CANCELLED',
-  FAILED = 'FAILED',
-}
-
-export interface V1Task {
+export interface V1TaskSummary {
   metadata: APIResourceMeta;
-  /** The ID of the task. */
-  taskId: number;
+  /** Additional metadata for the task run. */
+  additionalMetadata?: object;
+  /** The list of children tasks */
+  children?: V1TaskSummary[];
   /**
-   * The timestamp the task was inserted.
+   * The timestamp the task was created.
    * @format date-time
    */
-  taskInsertedAt: string;
+  createdAt: string;
+  /** The display name of the task run. */
+  displayName: string;
+  /** The duration of the task run, in milliseconds. */
+  duration?: number;
+  /** The error message of the task run (for the latest run) */
+  errorMessage?: string;
+  /**
+   * The timestamp the task run finished.
+   * @format date-time
+   */
+  finishedAt?: string;
+  /** The input of the task run. */
+  input: object;
+  /** The number of spawned children tasks */
+  numSpawnedChildren: number;
+  /** The output of the task run (for the latest run) */
+  output: object;
   status: V1TaskStatus;
   /**
    * The timestamp the task run started.
@@ -55,12 +66,19 @@ export interface V1Task {
    */
   startedAt?: string;
   /**
-   * The timestamp the task run finished.
+   * The external ID of the task.
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  taskExternalId: string;
+  /** The ID of the task. */
+  taskId: number;
+  /**
+   * The timestamp the task was inserted.
    * @format date-time
    */
-  finishedAt?: string;
-  /** The duration of the task run, in milliseconds. */
-  duration?: number;
+  taskInsertedAt: string;
   /**
    * The ID of the tenant.
    * @format uuid
@@ -69,25 +87,33 @@ export interface V1Task {
    * @example "bb214807-246e-43a5-a25d-41761d1cff9e"
    */
   tenantId: string;
-  /** Additional metadata for the task run. */
-  additionalMetadata?: object;
-  /** The display name of the task run. */
-  displayName: string;
+  /** The type of the workflow (whether it's a DAG or a task) */
+  type: V1WorkflowType;
   /** @format uuid */
   workflowId: string;
-  /** The input for the task run. */
-  input: string;
-  /** The output of the task run (for the latest run) */
-  output?: string;
-  /** The error message of the task run (for the latest run) */
-  errorMessage?: string;
   /**
-   * The external ID of the workflow run.
+   * The external ID of the workflow run
    * @format uuid
-   * @minLength 36
-   * @maxLength 36
    */
   workflowRunExternalId?: string;
+  /**
+   * The version ID of the workflow
+   * @format uuid
+   */
+  workflowVersionId?: string;
+}
+
+export enum V1TaskStatus {
+  QUEUED = 'QUEUED',
+  RUNNING = 'RUNNING',
+  COMPLETED = 'COMPLETED',
+  CANCELLED = 'CANCELLED',
+  FAILED = 'FAILED',
+}
+
+export enum V1WorkflowType {
+  DAG = 'DAG',
+  TASK = 'TASK',
 }
 
 export interface APIError {
@@ -203,76 +229,6 @@ export interface V1ReplayTaskRequest {
   /** A list of external IDs, which can refer to either task or workflow run external IDs */
   externalIds?: string[];
   filter?: V1TaskFilter;
-}
-
-export enum V1WorkflowType {
-  DAG = 'DAG',
-  TASK = 'TASK',
-}
-
-export interface V1TaskSummary {
-  metadata: APIResourceMeta;
-  /** The ID of the task. */
-  taskId: number;
-  /**
-   * The external ID of the task.
-   * @format uuid
-   * @minLength 36
-   * @maxLength 36
-   */
-  taskExternalId: string;
-  /**
-   * The timestamp the task was inserted.
-   * @format date-time
-   */
-  taskInsertedAt: string;
-  status: V1TaskStatus;
-  /**
-   * The timestamp the task run started.
-   * @format date-time
-   */
-  startedAt?: string;
-  /**
-   * The timestamp the task run finished.
-   * @format date-time
-   */
-  finishedAt?: string;
-  /** The duration of the task run, in milliseconds. */
-  duration?: number;
-  /**
-   * The ID of the tenant.
-   * @format uuid
-   * @minLength 36
-   * @maxLength 36
-   * @example "bb214807-246e-43a5-a25d-41761d1cff9e"
-   */
-  tenantId: string;
-  /** Additional metadata for the task run. */
-  additionalMetadata?: object;
-  /** The display name of the task run. */
-  displayName: string;
-  /** @format uuid */
-  workflowId: string;
-  /** The output of the task run (for the latest run) */
-  output: object;
-  /** The error message of the task run (for the latest run) */
-  errorMessage?: string;
-  /** The input of the task run. */
-  input?: object;
-  /** The type of the workflow (whether it's a DAG or a task) */
-  type: V1WorkflowType;
-  /**
-   * The version ID of the workflow
-   * @format uuid
-   */
-  workflowVersionId?: string;
-  /**
-   * The timestamp the task was created.
-   * @format date-time
-   */
-  createdAt?: string;
-  /** The list of children tasks */
-  children?: V1TaskSummary[];
 }
 
 export interface V1DagChildren {

@@ -22,8 +22,6 @@ func (t *TasksService) V1TaskGetPointMetrics(ctx echo.Context, request gen.V1Tas
 	lowerBound := time.Now().UTC().Add(-24 * time.Hour).Truncate(30 * time.Minute)
 	upperBound := time.Now().UTC()
 
-	// fmt.Println(request.Params.CreatedAfter, request.Params.CreatedBefore, lowerBound, upperBound)
-
 	if request.Params.CreatedAfter != nil {
 		lowerBound = request.Params.CreatedAfter.UTC()
 	}

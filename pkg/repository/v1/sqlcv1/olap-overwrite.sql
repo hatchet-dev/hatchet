@@ -103,6 +103,10 @@ WHERE
             ) AS u ON kv.key = u.k AND kv.value = u.v
         )
     )
+    AND (
+        sqlc.narg('parentTaskExternalId')::UUID IS NULL
+        OR parent_task_external_id = sqlc.narg('parentTaskExternalId')::UUID
+    )
 ORDER BY inserted_at DESC, id DESC
 LIMIT @listWorkflowRunsLimit::integer
 OFFSET @listWorkflowRunsOffset::integer

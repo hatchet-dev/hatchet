@@ -6,6 +6,8 @@ import { Handle, Position } from 'reactflow';
 import { RunStatus, V1RunIndicator } from '../../components/run-statuses';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { TabOption } from './step-run-detail/step-run-detail';
+import { Link } from 'react-router-dom';
+import { useColumnFilters } from '../../hooks/column-filters';
 
 export type NodeData = {
   task: V1TaskSummary;
@@ -25,6 +27,8 @@ export default memo(({ data }: { data: NodeData }) => {
   const finishedAtEpoch = data.task.finishedAt
     ? new Date(data.task.finishedAt).getTime()
     : 0;
+
+  const { queryParamNames } = useColumnFilters();
 
   return (
     <div className="flex flex-col justify-start min-w-fit grow">
@@ -76,25 +80,31 @@ export default memo(({ data }: { data: NodeData }) => {
         )}
       </div>
       {data.childWorkflowsCount ? (
-        <div
-          key={`${data.task.metadata.id}-child-workflows`}
-          className={cn(
-            `w-[calc(100%-1rem)] box-border shadow-md ml-4 rounded-sm py-3 px-2 mb-1 text-xs text-[#050c1c] dark:text-[#ffffff] font-semibold font-mono`,
-            `transition-all duration-300 ease-in-out`,
-            `cursor-pointer`,
-            `flex flex-row items-center justify-start border-2 dark:border-[1px]`,
-            `bg-[#ffffff] dark:bg-[#050c1c]`,
-            'h-[30px]',
-          )}
-          // FIXME: onClick should be implemented
-          onClick={() => {
-            throw new Error('Not implemented');
+        <Link
+          to={{
+            pathname: '/v1/workflow-runs',
+            search: new URLSearchParams({
+              ...Object.fromEntries(new URLSearchParams(location.search)),
+              [queryParamNames.parentTaskExternalId]: data.task.metadata.id,
+            }).toString(),
           }}
         >
-          <div className="truncate flex-grow">
-            {data.taskName}: {data.childWorkflowsCount} children
-          </div>
-        </div>
+          <div
+            key={`${data.task.metadata.id}-child-workflows`}
+            className={cn(
+              `w-[calc(100%-1rem)] box-border shadow-md ml-4 rounded-sm py-3 px-2 mb-1 text-xs text-[#050c1c] dark:text-[#ffffff] font-semibold font-mono`,
+              `transition-all duration-300 ease-in-out`,
+              `cursor-pointer`,
+              `flex flex-row items-center justify-start border-2 dark:border-[1px]`,
+              `bg-[#ffffff] dark:bg-[#050c1c]`,
+              'h-[30px]',
+            )}
+          >
+            <div className="truncate flex-grow">
+              {data.taskName}: {data.childWorkflowsCount} children
+            </div>
+          </div>{' '}
+        </Link>
       ) : null}
     </div>
   );

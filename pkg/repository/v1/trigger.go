@@ -71,6 +71,8 @@ type createDAGOpts struct {
 
 	// (optional) the additional metadata for the DAG
 	AdditionalMetadata []byte
+
+	ParentTaskExternalID *string
 }
 
 type TriggerRepository interface {
@@ -521,13 +523,14 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 
 		if isDag {
 			dagOpts = append(dagOpts, createDAGOpts{
-				ExternalId:         tuple.externalId,
-				Input:              tuple.input,
-				TaskIds:            dagToTaskIds[tuple.externalId],
-				WorkflowId:         tuple.workflowId,
-				WorkflowVersionId:  tuple.workflowVersionId,
-				WorkflowName:       tuple.workflowName,
-				AdditionalMetadata: tuple.additionalMetadata,
+				ExternalId:           tuple.externalId,
+				Input:                tuple.input,
+				TaskIds:              dagToTaskIds[tuple.externalId],
+				WorkflowId:           tuple.workflowId,
+				WorkflowVersionId:    tuple.workflowVersionId,
+				WorkflowName:         tuple.workflowName,
+				AdditionalMetadata:   tuple.additionalMetadata,
+				ParentTaskExternalID: tuple.parentExternalId,
 			})
 		}
 	}
@@ -565,12 +568,7 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 	}
 
 	for _, dag := range dags {
-		opts, ok := eventMatches[sqlchelpers.UUIDToStr(dag.ExternalID)]
-
-		if !ok {
-			r.l.Error().Msgf("could not find event matches for DAG with external id: %s", sqlchelpers.UUIDToStr(dag.ExternalID))
-			continue
-		}
+		opts := eventMatches[sqlchelpers.UUIDToStr(dag.ExternalID)]
 
 		for _, opt := range opts {
 			opt.TriggerDAGId = &dag.ID
@@ -600,6 +598,8 @@ type DAGWithData struct {
 	Input []byte
 
 	AdditionalMetadata []byte
+
+	ParentTaskExternalID *pgtype.UUID
 }
 
 func (r *TriggerRepositoryImpl) createDAGs(ctx context.Context, tx sqlcv1.DBTX, tenantId string, opts []createDAGOpts) ([]*DAGWithData, error) {
@@ -612,6 +612,7 @@ func (r *TriggerRepositoryImpl) createDAGs(ctx context.Context, tx sqlcv1.DBTX, 
 	displayNames := make([]string, 0, len(opts))
 	workflowIds := make([]pgtype.UUID, 0, len(opts))
 	workflowVersionIds := make([]pgtype.UUID, 0, len(opts))
+	parentTaskExternalIds := make([]pgtype.UUID, 0, len(opts))
 	dagIdToOpt := make(map[string]createDAGOpts, 0)
 
 	unix := time.Now().UnixMilli()
@@ -622,15 +623,23 @@ func (r *TriggerRepositoryImpl) createDAGs(ctx context.Context, tx sqlcv1.DBTX, 
 		displayNames = append(displayNames, fmt.Sprintf("%s-%d", opt.WorkflowName, unix))
 		workflowIds = append(workflowIds, sqlchelpers.UUIDFromStr(opt.WorkflowId))
 		workflowVersionIds = append(workflowVersionIds, sqlchelpers.UUIDFromStr(opt.WorkflowVersionId))
+
+		if opt.ParentTaskExternalID == nil {
+			parentTaskExternalIds = append(parentTaskExternalIds, pgtype.UUID{})
+		} else {
+			parentTaskExternalIds = append(parentTaskExternalIds, sqlchelpers.UUIDFromStr(*opt.ParentTaskExternalID))
+		}
+
 		dagIdToOpt[opt.ExternalId] = opt
 	}
 
 	createdDAGs, err := r.queries.CreateDAGs(ctx, tx, sqlcv1.CreateDAGsParams{
-		Tenantids:          tenantIds,
-		Externalids:        externalIds,
-		Displaynames:       displayNames,
-		Workflowids:        workflowIds,
-		Workflowversionids: workflowVersionIds,
+		Tenantids:             tenantIds,
+		Externalids:           externalIds,
+		Displaynames:          displayNames,
+		Workflowids:           workflowIds,
+		Workflowversionids:    workflowVersionIds,
+		Parenttaskexternalids: parentTaskExternalIds,
 	})
 
 	if err != nil {
@@ -668,10 +677,17 @@ func (r *TriggerRepositoryImpl) createDAGs(ctx context.Context, tx sqlcv1.DBTX, 
 			AdditionalMetadata: additionalMeta,
 		})
 
+		parentTaskExternalID := pgtype.UUID{}
+
+		if opt.ParentTaskExternalID != nil {
+			parentTaskExternalID = sqlchelpers.UUIDFromStr(*opt.ParentTaskExternalID)
+		}
+
 		res = append(res, &DAGWithData{
-			V1Dag:              dag,
-			Input:              input,
-			AdditionalMetadata: additionalMeta,
+			V1Dag:                dag,
+			Input:                input,
+			AdditionalMetadata:   additionalMeta,
+			ParentTaskExternalID: &parentTaskExternalID,
 		})
 	}
 

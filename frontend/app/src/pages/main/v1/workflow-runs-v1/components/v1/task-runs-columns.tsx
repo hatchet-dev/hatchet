@@ -14,6 +14,18 @@ import { V1RunStatus } from '../../../workflow-runs/components/run-statuses';
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
 import { V1TaskSummary } from '@/lib/api';
 
+export const TaskRunColumn = {
+  taskName: 'task_name',
+  status: 'status',
+  workflow: 'Workflow',
+  parentTaskExternalId: 'parentTaskExternalId',
+  createdAt: 'Created at',
+  startedAt: 'Started at',
+  finishedAt: 'Finished at',
+  duration: 'Duration',
+  additionalMetadata: 'additionalMetadata',
+} as const;
+
 export const columns: (
   onAdditionalMetadataClick?: (click: AdditionalMetadataClick) => void,
   onTaskRunIdClick?: (taskRunId: string) => void,
@@ -85,7 +97,7 @@ export const columns: (
   //   enableHiding: true,
   // },
   {
-    accessorKey: 'task_name',
+    accessorKey: TaskRunColumn.taskName,
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Task" />
     ),
@@ -117,7 +129,7 @@ export const columns: (
     enableHiding: false,
   },
   {
-    accessorKey: 'status',
+    accessorKey: TaskRunColumn.status,
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Status" />
     ),
@@ -131,7 +143,7 @@ export const columns: (
     enableHiding: false,
   },
   {
-    accessorKey: 'Workflow',
+    accessorKey: TaskRunColumn.workflow,
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Workflow" />
     ),
@@ -152,6 +164,15 @@ export const columns: (
     enableSorting: false,
     enableHiding: true,
   },
+  {
+    accessorKey: TaskRunColumn.parentTaskExternalId,
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Parent Task External ID" />
+    ),
+    cell: () => null,
+    enableSorting: false,
+    enableHiding: true,
+  },
   // {
   //   accessorKey: 'Triggered by',
   //   header: ({ column }) => (
@@ -164,7 +185,7 @@ export const columns: (
   //   enableHiding: true,
   // },
   {
-    accessorKey: 'Created at',
+    accessorKey: TaskRunColumn.createdAt,
     header: ({ column }) => (
       <DataTableColumnHeader
         column={column}
@@ -187,7 +208,7 @@ export const columns: (
     enableHiding: true,
   },
   {
-    accessorKey: 'Started at',
+    accessorKey: TaskRunColumn.startedAt,
     header: ({ column }) => (
       <DataTableColumnHeader
         column={column}
@@ -210,7 +231,7 @@ export const columns: (
     enableHiding: true,
   },
   {
-    accessorKey: 'Finished at',
+    accessorKey: TaskRunColumn.finishedAt,
     header: ({ column }) => (
       <DataTableColumnHeader
         column={column}
@@ -231,7 +252,7 @@ export const columns: (
     enableHiding: true,
   },
   {
-    accessorKey: 'Duration',
+    accessorKey: TaskRunColumn.duration,
     header: ({ column }) => (
       <DataTableColumnHeader
         column={column}
@@ -246,7 +267,7 @@ export const columns: (
     enableHiding: true,
   },
   {
-    accessorKey: 'additionalMetadata',
+    accessorKey: TaskRunColumn.additionalMetadata,
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Metadata" />
     ),

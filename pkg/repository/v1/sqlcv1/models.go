@@ -2315,13 +2315,14 @@ type V1ConcurrencySlot struct {
 }
 
 type V1Dag struct {
-	ID                int64              `json:"id"`
-	InsertedAt        pgtype.Timestamptz `json:"inserted_at"`
-	TenantID          pgtype.UUID        `json:"tenant_id"`
-	ExternalID        pgtype.UUID        `json:"external_id"`
-	DisplayName       string             `json:"display_name"`
-	WorkflowID        pgtype.UUID        `json:"workflow_id"`
-	WorkflowVersionID pgtype.UUID        `json:"workflow_version_id"`
+	ID                   int64              `json:"id"`
+	InsertedAt           pgtype.Timestamptz `json:"inserted_at"`
+	TenantID             pgtype.UUID        `json:"tenant_id"`
+	ExternalID           pgtype.UUID        `json:"external_id"`
+	DisplayName          string             `json:"display_name"`
+	WorkflowID           pgtype.UUID        `json:"workflow_id"`
+	WorkflowVersionID    pgtype.UUID        `json:"workflow_version_id"`
+	ParentTaskExternalID pgtype.UUID        `json:"parent_task_external_id"`
 }
 
 type V1DagData struct {
@@ -2346,16 +2347,17 @@ type V1DagToTaskOlap struct {
 }
 
 type V1DagsOlap struct {
-	ID                 int64                `json:"id"`
-	InsertedAt         pgtype.Timestamptz   `json:"inserted_at"`
-	TenantID           pgtype.UUID          `json:"tenant_id"`
-	ExternalID         pgtype.UUID          `json:"external_id"`
-	DisplayName        string               `json:"display_name"`
-	WorkflowID         pgtype.UUID          `json:"workflow_id"`
-	WorkflowVersionID  pgtype.UUID          `json:"workflow_version_id"`
-	ReadableStatus     V1ReadableStatusOlap `json:"readable_status"`
-	Input              []byte               `json:"input"`
-	AdditionalMetadata []byte               `json:"additional_metadata"`
+	ID                   int64                `json:"id"`
+	InsertedAt           pgtype.Timestamptz   `json:"inserted_at"`
+	TenantID             pgtype.UUID          `json:"tenant_id"`
+	ExternalID           pgtype.UUID          `json:"external_id"`
+	DisplayName          string               `json:"display_name"`
+	WorkflowID           pgtype.UUID          `json:"workflow_id"`
+	WorkflowVersionID    pgtype.UUID          `json:"workflow_version_id"`
+	ReadableStatus       V1ReadableStatusOlap `json:"readable_status"`
+	Input                []byte               `json:"input"`
+	AdditionalMetadata   []byte               `json:"additional_metadata"`
+	ParentTaskExternalID pgtype.UUID          `json:"parent_task_external_id"`
 }
 
 type V1LookupTable struct {
@@ -2445,14 +2447,15 @@ type V1RetryQueueItem struct {
 }
 
 type V1RunsOlap struct {
-	TenantID           pgtype.UUID          `json:"tenant_id"`
-	ID                 int64                `json:"id"`
-	InsertedAt         pgtype.Timestamptz   `json:"inserted_at"`
-	ExternalID         pgtype.UUID          `json:"external_id"`
-	ReadableStatus     V1ReadableStatusOlap `json:"readable_status"`
-	Kind               V1RunKind            `json:"kind"`
-	WorkflowID         pgtype.UUID          `json:"workflow_id"`
-	AdditionalMetadata []byte               `json:"additional_metadata"`
+	TenantID             pgtype.UUID          `json:"tenant_id"`
+	ID                   int64                `json:"id"`
+	InsertedAt           pgtype.Timestamptz   `json:"inserted_at"`
+	ExternalID           pgtype.UUID          `json:"external_id"`
+	ReadableStatus       V1ReadableStatusOlap `json:"readable_status"`
+	Kind                 V1RunKind            `json:"kind"`
+	WorkflowID           pgtype.UUID          `json:"workflow_id"`
+	AdditionalMetadata   []byte               `json:"additional_metadata"`
+	ParentTaskExternalID pgtype.UUID          `json:"parent_task_external_id"`
 }
 
 type V1StatusesOlap struct {
@@ -2575,27 +2578,28 @@ type V1TaskStatusUpdatesTmp struct {
 }
 
 type V1TasksOlap struct {
-	TenantID           pgtype.UUID          `json:"tenant_id"`
-	ID                 int64                `json:"id"`
-	InsertedAt         pgtype.Timestamptz   `json:"inserted_at"`
-	ExternalID         pgtype.UUID          `json:"external_id"`
-	Queue              string               `json:"queue"`
-	ActionID           string               `json:"action_id"`
-	StepID             pgtype.UUID          `json:"step_id"`
-	WorkflowID         pgtype.UUID          `json:"workflow_id"`
-	ScheduleTimeout    string               `json:"schedule_timeout"`
-	StepTimeout        pgtype.Text          `json:"step_timeout"`
-	Priority           pgtype.Int4          `json:"priority"`
-	Sticky             V1StickyStrategyOlap `json:"sticky"`
-	DesiredWorkerID    pgtype.UUID          `json:"desired_worker_id"`
-	DisplayName        string               `json:"display_name"`
-	Input              []byte               `json:"input"`
-	AdditionalMetadata []byte               `json:"additional_metadata"`
-	ReadableStatus     V1ReadableStatusOlap `json:"readable_status"`
-	LatestRetryCount   int32                `json:"latest_retry_count"`
-	LatestWorkerID     pgtype.UUID          `json:"latest_worker_id"`
-	DagID              pgtype.Int8          `json:"dag_id"`
-	DagInsertedAt      pgtype.Timestamptz   `json:"dag_inserted_at"`
+	TenantID             pgtype.UUID          `json:"tenant_id"`
+	ID                   int64                `json:"id"`
+	InsertedAt           pgtype.Timestamptz   `json:"inserted_at"`
+	ExternalID           pgtype.UUID          `json:"external_id"`
+	Queue                string               `json:"queue"`
+	ActionID             string               `json:"action_id"`
+	StepID               pgtype.UUID          `json:"step_id"`
+	WorkflowID           pgtype.UUID          `json:"workflow_id"`
+	ScheduleTimeout      string               `json:"schedule_timeout"`
+	StepTimeout          pgtype.Text          `json:"step_timeout"`
+	Priority             pgtype.Int4          `json:"priority"`
+	Sticky               V1StickyStrategyOlap `json:"sticky"`
+	DesiredWorkerID      pgtype.UUID          `json:"desired_worker_id"`
+	DisplayName          string               `json:"display_name"`
+	Input                []byte               `json:"input"`
+	AdditionalMetadata   []byte               `json:"additional_metadata"`
+	ReadableStatus       V1ReadableStatusOlap `json:"readable_status"`
+	LatestRetryCount     int32                `json:"latest_retry_count"`
+	LatestWorkerID       pgtype.UUID          `json:"latest_worker_id"`
+	DagID                pgtype.Int8          `json:"dag_id"`
+	DagInsertedAt        pgtype.Timestamptz   `json:"dag_inserted_at"`
+	ParentTaskExternalID pgtype.UUID          `json:"parent_task_external_id"`
 }
 
 type WebhookWorker struct {

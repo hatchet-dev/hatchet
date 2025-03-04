@@ -158,6 +158,11 @@ WHERE
             ) AS u ON kv.key = u.k AND kv.value = u.v
         )
     )
+    AND (
+        $10::UUID IS NULL
+        OR parent_task_external_id = $10::UUID
+    )
+
 ORDER BY inserted_at DESC, id DESC
 LIMIT $9::integer
 OFFSET $8::integer
@@ -173,6 +178,7 @@ type FetchWorkflowRunIdsParams struct {
 	Values                 []string           `json:"values"`
 	Listworkflowrunsoffset int32              `json:"listworkflowrunsoffset"`
 	Listworkflowrunslimit  int32              `json:"listworkflowrunslimit"`
+	ParentTaskExternalId   pgtype.UUID        `json:"parentTaskExternalId"`
 }
 
 type FetchWorkflowRunIdsRow struct {
@@ -193,7 +199,9 @@ func (q *Queries) FetchWorkflowRunIds(ctx context.Context, db DBTX, arg FetchWor
 		arg.Values,
 		arg.Listworkflowrunsoffset,
 		arg.Listworkflowrunslimit,
+		arg.ParentTaskExternalId,
 	)
+
 	if err != nil {
 		return nil, err
 	}

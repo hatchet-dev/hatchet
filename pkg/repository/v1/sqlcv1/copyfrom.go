@@ -73,6 +73,7 @@ func (r iteratorForCreateDAGsOLAP) Values() ([]interface{}, error) {
 		r.rows[0].WorkflowVersionID,
 		r.rows[0].Input,
 		r.rows[0].AdditionalMetadata,
+		r.rows[0].ParentTaskExternalID,
 	}, nil
 }
 
@@ -81,7 +82,7 @@ func (r iteratorForCreateDAGsOLAP) Err() error {
 }
 
 func (q *Queries) CreateDAGsOLAP(ctx context.Context, db DBTX, arg []CreateDAGsOLAPParams) (int64, error) {
-	return db.CopyFrom(ctx, []string{"v1_dags_olap"}, []string{"tenant_id", "id", "inserted_at", "external_id", "display_name", "workflow_id", "workflow_version_id", "input", "additional_metadata"}, &iteratorForCreateDAGsOLAP{rows: arg})
+	return db.CopyFrom(ctx, []string{"v1_dags_olap"}, []string{"tenant_id", "id", "inserted_at", "external_id", "display_name", "workflow_id", "workflow_version_id", "input", "additional_metadata", "parent_task_external_id"}, &iteratorForCreateDAGsOLAP{rows: arg})
 }
 
 // iteratorForCreateMatchConditions implements pgx.CopyFromSource.
@@ -246,6 +247,7 @@ func (r iteratorForCreateTasksOLAP) Values() ([]interface{}, error) {
 		r.rows[0].AdditionalMetadata,
 		r.rows[0].DagID,
 		r.rows[0].DagInsertedAt,
+		r.rows[0].ParentTaskExternalID,
 	}, nil
 }
 
@@ -254,5 +256,5 @@ func (r iteratorForCreateTasksOLAP) Err() error {
 }
 
 func (q *Queries) CreateTasksOLAP(ctx context.Context, db DBTX, arg []CreateTasksOLAPParams) (int64, error) {
-	return db.CopyFrom(ctx, []string{"v1_tasks_olap"}, []string{"tenant_id", "id", "inserted_at", "queue", "action_id", "step_id", "workflow_id", "schedule_timeout", "step_timeout", "priority", "sticky", "desired_worker_id", "external_id", "display_name", "input", "additional_metadata", "dag_id", "dag_inserted_at"}, &iteratorForCreateTasksOLAP{rows: arg})
+	return db.CopyFrom(ctx, []string{"v1_tasks_olap"}, []string{"tenant_id", "id", "inserted_at", "queue", "action_id", "step_id", "workflow_id", "schedule_timeout", "step_timeout", "priority", "sticky", "desired_worker_id", "external_id", "display_name", "input", "additional_metadata", "dag_id", "dag_inserted_at", "parent_task_external_id"}, &iteratorForCreateTasksOLAP{rows: arg})
 }
