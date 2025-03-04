@@ -204,7 +204,7 @@ export const columns: (
         </div>
       );
     },
-    enableSorting: true,
+    enableSorting: false,
     enableHiding: true,
   },
   {
@@ -227,7 +227,7 @@ export const columns: (
         </div>
       );
     },
-    enableSorting: true,
+    enableSorting: false,
     enableHiding: true,
   },
   {
@@ -248,7 +248,7 @@ export const columns: (
 
       return <div className="whitespace-nowrap">{finishedAt}</div>;
     },
-    enableSorting: true,
+    enableSorting: false,
     enableHiding: true,
   },
   {
@@ -263,7 +263,7 @@ export const columns: (
     cell: ({ row }) => {
       return <div className="whitespace-nowrap">{row.original.duration}</div>;
     },
-    enableSorting: true,
+    enableSorting: false,
     enableHiding: true,
   },
   {
