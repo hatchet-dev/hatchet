@@ -85,7 +85,7 @@ export default function ExpandedWorkflow() {
       return res.data;
     },
     onSuccess: () => {
-      navigate('/workflows');
+      navigate('/v1/workflows');
     },
   });
 

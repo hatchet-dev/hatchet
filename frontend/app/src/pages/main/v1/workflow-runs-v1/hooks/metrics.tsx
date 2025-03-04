@@ -6,9 +6,11 @@ import { useColumnFilters } from './column-filters';
 
 export const useMetrics = ({
   workflow,
+  parentTaskExternalId,
   refetchInterval,
 }: {
   workflow: string | undefined;
+  parentTaskExternalId: string | undefined;
   refetchInterval: number;
 }) => {
   const { tenant } = useTenant();
@@ -19,6 +21,7 @@ export const useMetrics = ({
   const metricsQuery = useQuery({
     ...queries.v1TaskRuns.metrics(tenant.metadata.id, {
       since: cf.filters.createdAfter,
+      parent_task_external_id: parentTaskExternalId,
       workflow_ids: workflow ? [workflow] : [],
     }),
     placeholderData: (prev) => prev,

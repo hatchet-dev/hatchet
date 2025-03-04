@@ -42,15 +42,12 @@ import { usePagination } from '../hooks/pagination';
 import { useTaskRuns } from '../hooks/task-runs';
 import { useMetrics } from '../hooks/metrics';
 import { useToolbarFilters } from '../hooks/toolbar-filters';
-import { useSorting } from '../hooks/sorting';
 
 export interface TaskRunsTableProps {
   createdAfter?: string;
   createdBefore?: string;
   workflowId?: string;
   workerId?: string;
-  parentWorkflowRunId?: string;
-  parentStepRunId?: string;
   initColumnVisibility?: VisibilityState;
   filterVisibility?: { [key: string]: boolean };
   refetchInterval?: number;
@@ -79,8 +76,12 @@ export function TaskRunsTable({
   const [viewQueueMetrics, setViewQueueMetrics] = useState(false);
   const [rotate, setRotate] = useState(false);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
-  const [columnVisibility, setColumnVisibility] =
-    useState<VisibilityState>(initColumnVisibility);
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
+    // IMPORTANT: the parentTaskExternalId column is hidden by default and shouldn't be shown
+    // It's here for filtering
+    ...initColumnVisibility,
+    parentTaskExternalId: false,
+  });
   const [stepDetailSheetState, setStepDetailSheetState] =
     useState<StepDetailSheetState>({
       isOpen: false,
@@ -91,7 +92,6 @@ export function TaskRunsTable({
 
   const toolbarFilters = useToolbarFilters({ filterVisibility });
   const { pagination, setPagination, setPageSize } = usePagination();
-  const { sorting, setSorting } = useSorting();
 
   const workflow = workflowId || cf.filters.workflowId;
 
@@ -106,6 +106,7 @@ export function TaskRunsTable({
     rowSelection,
     workerId,
     workflow,
+    parentTaskExternalId: cf.filters.parentTaskExternalId,
   });
 
   const {
@@ -116,6 +117,7 @@ export function TaskRunsTable({
   } = useMetrics({
     workflow,
     refetchInterval,
+    parentTaskExternalId: cf.filters.parentTaskExternalId,
   });
 
   const onTaskRunIdClick = useCallback((taskRunId: string) => {
@@ -124,6 +126,11 @@ export function TaskRunsTable({
       isOpen: true,
     });
   }, []);
+
+  const parentTaskRun = useQuery({
+    ...queries.v1Tasks.get(cf.filters.parentTaskExternalId || ''),
+    enabled: !!cf.filters.parentTaskExternalId,
+  });
 
   const v1TaskFilters = {
     since: cf.filters.createdAfter,
@@ -143,7 +150,27 @@ export function TaskRunsTable({
 
   return (
     <>
-      {showMetrics && (
+      {cf.filters.parentTaskExternalId &&
+        !parentTaskRun.isLoading &&
+        parentTaskRun.data && (
+          <div className="flex flex-row items-center gap-x-2">
+            <p>Child runs of parent:</p>
+            <p className="font-semibold text-orange-300">
+              {' '}
+              {parentTaskRun.data.displayName}
+            </p>
+            <Button
+              variant="outline"
+              className="ml-4"
+              onClick={() => {
+                cf.clearParentTaskExternalId();
+              }}
+            >
+              Clear
+            </Button>
+          </div>
+        )}
+      {showMetrics && !cf.filters.parentTaskExternalId && (
         <Dialog
           open={viewQueueMetrics}
           onOpenChange={(open) => {
@@ -167,7 +194,7 @@ export function TaskRunsTable({
           </DialogContent>
         </Dialog>
       )}
-      {!createdAfterProp && (
+      {!createdAfterProp && !cf.filters.parentTaskExternalId && (
         <div className="flex flex-row justify-end items-center my-4 gap-2">
           {cf.filters.isCustomTimeRange && [
             <Button
@@ -235,7 +262,7 @@ export function TaskRunsTable({
           </Select>
         </div>
       )}
-      {showMetrics && (
+      {showMetrics && !cf.filters.parentTaskExternalId && (
         <GetWorkflowChart
           tenantId={tenant.metadata.id}
           createdAfter={cf.filters.createdAfter}
@@ -329,8 +356,6 @@ export function TaskRunsTable({
             />
           </Button>,
         ]}
-        sorting={sorting}
-        setSorting={setSorting}
         columnFilters={cf.filters.columnFilters}
         setColumnFilters={(updaterOrValue) => {
           cf.setColumnFilters(updaterOrValue);

@@ -58,12 +58,16 @@ type ListWorkflowRunOpts struct {
 	Limit int64
 
 	Offset int64
+
+	ParentTaskExternalId *pgtype.UUID
 }
 
 type ReadTaskRunMetricsOpts struct {
 	CreatedAfter time.Time
 
 	WorkflowIds []uuid.UUID
+
+	ParentTaskExternalID *pgtype.UUID
 }
 
 type WorkflowRunData struct {
@@ -640,6 +644,7 @@ func (r *olapRepository) ListWorkflowRuns(ctx context.Context, tenantId string, 
 		Since:                  sqlchelpers.TimestamptzFromTime(opts.CreatedAfter),
 		Listworkflowrunslimit:  int32(opts.Limit),
 		Listworkflowrunsoffset: int32(opts.Offset),
+		ParentTaskExternalId:   pgtype.UUID{},
 	}
 
 	countParams := sqlcv1.CountWorkflowRunsParams{
@@ -689,6 +694,10 @@ func (r *olapRepository) ListWorkflowRuns(ctx context.Context, tenantId string, 
 		params.Values = append(params.Values, value.(string))
 		countParams.Keys = append(countParams.Keys, key)
 		countParams.Values = append(countParams.Values, value.(string))
+	}
+
+	if opts.ParentTaskExternalId != nil {
+		params.ParentTaskExternalId = *opts.ParentTaskExternalId
 	}
 
 	workflowRunIds, err := r.queries.FetchWorkflowRunIds(ctx, tx, params)
@@ -862,10 +871,16 @@ func (r *olapRepository) ReadTaskRunMetrics(ctx context.Context, tenantId string
 		}
 	}
 
+	var parentTaskExternalId pgtype.UUID
+	if opts.ParentTaskExternalID != nil {
+		parentTaskExternalId = *opts.ParentTaskExternalID
+	}
+
 	res, err := r.queries.GetTenantStatusMetrics(context.Background(), r.pool, sqlcv1.GetTenantStatusMetricsParams{
-		Tenantid:     sqlchelpers.UUIDFromStr(tenantId),
-		Createdafter: sqlchelpers.TimestamptzFromTime(opts.CreatedAfter),
-		WorkflowIds:  workflowIds,
+		Tenantid:             sqlchelpers.UUIDFromStr(tenantId),
+		Createdafter:         sqlchelpers.TimestamptzFromTime(opts.CreatedAfter),
+		WorkflowIds:          workflowIds,
+		ParentTaskExternalId: parentTaskExternalId,
 	})
 
 	if err != nil {
@@ -1081,24 +1096,25 @@ func (r *olapRepository) writeTaskBatch(ctx context.Context, tenantId string, ta
 
 	for _, task := range tasks {
 		params = append(params, sqlcv1.CreateTasksOLAPParams{
-			TenantID:           task.TenantID,
-			ID:                 task.ID,
-			InsertedAt:         task.InsertedAt,
-			Queue:              task.Queue,
-			ActionID:           task.ActionID,
-			StepID:             task.StepID,
-			WorkflowID:         task.WorkflowID,
-			ScheduleTimeout:    task.ScheduleTimeout,
-			StepTimeout:        task.StepTimeout,
-			Priority:           task.Priority,
-			Sticky:             sqlcv1.V1StickyStrategyOlap(task.Sticky),
-			DesiredWorkerID:    task.DesiredWorkerID,
-			ExternalID:         task.ExternalID,
-			DisplayName:        task.DisplayName,
-			Input:              task.Input,
-			AdditionalMetadata: task.AdditionalMetadata,
-			DagID:              task.DagID,
-			DagInsertedAt:      task.DagInsertedAt,
+			TenantID:             task.TenantID,
+			ID:                   task.ID,
+			InsertedAt:           task.InsertedAt,
+			Queue:                task.Queue,
+			ActionID:             task.ActionID,
+			StepID:               task.StepID,
+			WorkflowID:           task.WorkflowID,
+			ScheduleTimeout:      task.ScheduleTimeout,
+			StepTimeout:          task.StepTimeout,
+			Priority:             task.Priority,
+			Sticky:               sqlcv1.V1StickyStrategyOlap(task.Sticky),
+			DesiredWorkerID:      task.DesiredWorkerID,
+			ExternalID:           task.ExternalID,
+			DisplayName:          task.DisplayName,
+			Input:                task.Input,
+			AdditionalMetadata:   task.AdditionalMetadata,
+			DagID:                task.DagID,
+			DagInsertedAt:        task.DagInsertedAt,
+			ParentTaskExternalID: task.ParentTaskExternalID,
 		})
 	}
 
@@ -1111,16 +1127,22 @@ func (r *olapRepository) writeDAGBatch(ctx context.Context, tenantId string, dag
 	params := make([]sqlcv1.CreateDAGsOLAPParams, 0)
 
 	for _, dag := range dags {
+		var parentTaskExternalID = pgtype.UUID{}
+		if dag.ParentTaskExternalID != nil {
+			parentTaskExternalID = *dag.ParentTaskExternalID
+		}
+
 		params = append(params, sqlcv1.CreateDAGsOLAPParams{
-			TenantID:           dag.TenantID,
-			ID:                 dag.ID,
-			InsertedAt:         dag.InsertedAt,
-			WorkflowID:         dag.WorkflowID,
-			WorkflowVersionID:  dag.WorkflowVersionID,
-			ExternalID:         dag.ExternalID,
-			DisplayName:        dag.DisplayName,
-			Input:              dag.Input,
-			AdditionalMetadata: dag.AdditionalMetadata,
+			TenantID:             dag.TenantID,
+			ID:                   dag.ID,
+			InsertedAt:           dag.InsertedAt,
+			WorkflowID:           dag.WorkflowID,
+			WorkflowVersionID:    dag.WorkflowVersionID,
+			ExternalID:           dag.ExternalID,
+			DisplayName:          dag.DisplayName,
+			Input:                dag.Input,
+			AdditionalMetadata:   dag.AdditionalMetadata,
+			ParentTaskExternalID: parentTaskExternalID,
 		})
 	}
 

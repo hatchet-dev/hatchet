@@ -75,7 +75,8 @@ INSERT INTO v1_tasks_olap (
     input,
     additional_metadata,
     dag_id,
-    dag_inserted_at
+    dag_inserted_at,
+    parent_task_external_id
 ) VALUES (
     $1,
     $2,
@@ -94,7 +95,8 @@ INSERT INTO v1_tasks_olap (
     $15,
     $16,
     $17,
-    $18
+    $18,
+    $19
 );
 
 -- name: CreateDAGsOLAP :copyfrom
@@ -107,7 +109,8 @@ INSERT INTO v1_dags_olap (
     workflow_id,
     workflow_version_id,
     input,
-    additional_metadata
+    additional_metadata,
+    parent_task_external_id
 ) VALUES (
     $1,
     $2,
@@ -117,7 +120,8 @@ INSERT INTO v1_dags_olap (
     $6,
     $7,
     $8,
-    $9
+    $9,
+    $10
 );
 
 -- name: CreateTaskEventsOLAPTmp :copyfrom
@@ -398,14 +402,24 @@ WITH latest_retry_count AS (
     ORDER BY
         event_timestamp DESC
     LIMIT 1
+), spawned_children AS (
+    SELECT COUNT(*) AS spawned_children
+    FROM v1_runs_olap
+    WHERE parent_task_external_id = (
+        SELECT external_id
+        FROM v1_tasks_olap
+        WHERE id = @taskId::bigint
+    )
 )
+
 SELECT
     t.*,
     st.readable_status::v1_readable_status_olap as status,
     f.finished_at::timestamptz as finished_at,
     s.started_at::timestamptz as started_at,
     o.output::jsonb as output,
-    e.error_message as error_message
+    e.error_message as error_message,
+    sc.spawned_children
 FROM
     v1_tasks_olap t
 LEFT JOIN
@@ -418,6 +432,8 @@ LEFT JOIN
     status st ON true
 LEFT JOIN
     error_message e ON true
+LEFT JOIN
+    spawned_children sc ON true
 WHERE
     (t.tenant_id, t.id, t.inserted_at) = (@tenantId::uuid, @taskId::bigint, @taskInsertedAt::timestamptz);
 
@@ -920,6 +936,13 @@ ORDER BY bucket_2;
 
 
 -- name: GetTenantStatusMetrics :one
+WITH task_external_ids AS (
+    SELECT external_id
+    FROM v1_runs_olap
+    WHERE (
+        sqlc.narg('parentTaskExternalId')::UUID IS NULL OR parent_task_external_id = sqlc.narg('parentTaskExternalId')::UUID
+    )
+)
 SELECT
     tenant_id,
     COUNT(*) FILTER (WHERE readable_status = 'QUEUED') AS total_queued,
@@ -933,6 +956,10 @@ WHERE
     AND inserted_at >= @createdAfter::TIMESTAMPTZ
     AND (
         sqlc.narg('workflowIds')::UUID[] IS NULL OR workflow_id = ANY(sqlc.narg('workflowIds')::UUID[])
+    )
+    AND external_id IN (
+        SELECT external_id
+        FROM task_external_ids
     )
 GROUP BY tenant_id
 ;

@@ -298,8 +298,6 @@ V1TaskSummary:
   $ref: "./v1/task.yaml#/V1TaskSummary"
 V1DagChildren:
   $ref: "./v1/task.yaml#/V1DagChildren"
-V1Task:
-  $ref: "./v1/task.yaml#/V1Task"
 V1TaskEventList:
   $ref: "./v1/task.yaml#/V1TaskEventList"
 V1TaskStatus:

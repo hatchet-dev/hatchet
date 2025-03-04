@@ -238,6 +238,18 @@ CREATE UNIQUE INDEX v1_task_event_event_key_unique_idx ON v1_task_event (
 ) WHERE event_key IS NOT NULL;
 
 -- CreateTable
+CREATE TABLE v1_task_expression_eval (
+    key TEXT NOT NULL,
+    task_id BIGINT NOT NULL,
+    task_inserted_at TIMESTAMPTZ NOT NULL,
+    value_str TEXT,
+    value_int INTEGER,
+    kind "StepExpressionKind" NOT NULL,
+
+    CONSTRAINT v1_task_expression_eval_pkey PRIMARY KEY (task_id, task_inserted_at, kind, key)
+);
+
+-- CreateTable
 CREATE TABLE v1_queue_item (
     id bigint GENERATED ALWAYS AS IDENTITY,
     tenant_id UUID NOT NULL,
@@ -376,6 +388,7 @@ CREATE TABLE v1_dag (
     display_name TEXT NOT NULL,
     workflow_id UUID NOT NULL,
     workflow_version_id UUID NOT NULL,
+    parent_task_external_id UUID,
     CONSTRAINT v1_dag_pkey PRIMARY KEY (id, inserted_at)
 ) PARTITION BY RANGE(inserted_at);
 
@@ -1139,6 +1152,7 @@ CREATE TABLE v1_tasks_olap (
     latest_worker_id UUID,
     dag_id BIGINT,
     dag_inserted_at TIMESTAMPTZ,
+    parent_task_external_id UUID,
 
     PRIMARY KEY (inserted_at, id, readable_status)
 ) PARTITION BY RANGE(inserted_at);
@@ -1161,6 +1175,7 @@ CREATE TABLE v1_dags_olap (
     readable_status v1_readable_status_olap NOT NULL DEFAULT 'QUEUED',
     input JSONB NOT NULL,
     additional_metadata JSONB,
+    parent_task_external_id UUID,
     PRIMARY KEY (inserted_at, id, readable_status)
 ) PARTITION BY RANGE(inserted_at);
 
@@ -1182,11 +1197,14 @@ CREATE TABLE v1_runs_olap (
     kind v1_run_kind NOT NULL,
     workflow_id UUID NOT NULL,
     additional_metadata JSONB,
+    parent_task_external_id UUID,
 
     PRIMARY KEY (inserted_at, id, readable_status, kind)
 ) PARTITION BY RANGE(inserted_at);
 
 SELECT create_v1_olap_partition_with_date_and_status('v1_runs_olap', CURRENT_DATE);
+
+CREATE INDEX ix_v1_runs_olap_parent_task_external_id ON v1_runs_olap (parent_task_external_id) WHERE parent_task_external_id IS NOT NULL;
 
 -- LOOKUP TABLES --
 CREATE TABLE v1_lookup_table_olap (
@@ -1359,7 +1377,8 @@ BEGIN
         readable_status,
         kind,
         workflow_id,
-        additional_metadata
+        additional_metadata,
+        parent_task_external_id
     )
     SELECT
         tenant_id,
@@ -1369,7 +1388,8 @@ BEGIN
         readable_status,
         'TASK',
         workflow_id,
-        additional_metadata
+        additional_metadata,
+        parent_task_external_id
     FROM new_rows
     WHERE dag_id IS NULL;
 
@@ -1462,7 +1482,8 @@ BEGIN
         readable_status,
         kind,
         workflow_id,
-        additional_metadata
+        additional_metadata,
+        parent_task_external_id
     )
     SELECT
         tenant_id,
@@ -1472,7 +1493,8 @@ BEGIN
         readable_status,
         'DAG',
         workflow_id,
-        additional_metadata
+        additional_metadata,
+        parent_task_external_id
     FROM new_rows;
 
     INSERT INTO v1_lookup_table_olap (

@@ -80,6 +80,12 @@ func (t *V1WorkflowRunsService) WithDags(ctx echo.Context, request gen.V1Workflo
 		opts.FinishedBefore = request.Params.Until
 	}
 
+	if request.Params.ParentTaskExternalId != nil {
+		parentTaskExternalId := request.Params.ParentTaskExternalId.String()
+		id := sqlchelpers.UUIDFromStr(parentTaskExternalId)
+		opts.ParentTaskExternalId = &id
+	}
+
 	dags, total, err := t.config.V1.OLAP().ListWorkflowRuns(
 		ctx.Request().Context(),
 		tenantId,

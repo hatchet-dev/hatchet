@@ -83,6 +83,15 @@ listWorkflowRuns:
         required: true
         schema:
           type: boolean
+      - description: The parent task external id to filter by
+        in: query
+        name: parent_task_external_id
+        required: false
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
     responses:
       "200":
         content:
