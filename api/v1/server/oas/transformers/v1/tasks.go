@@ -293,9 +293,10 @@ func ToWorkflowRunDetails(
 	workflowVersionId := uuid.MustParse(sqlchelpers.UUIDToStr(workflowRun.WorkflowVersionId))
 	duration := int(workflowRun.FinishedAt.Time.Sub(workflowRun.StartedAt.Time).Milliseconds())
 	input := jsonToMap(workflowRun.Input)
+	additionalMetadata := jsonToMap(workflowRun.AdditionalMetadata)
 
 	parsedWorkflowRun := gen.V1WorkflowRun{
-		AdditionalMetadata: &map[string]interface{}{},
+		AdditionalMetadata: &additionalMetadata,
 		CreatedAt:          &workflowRun.CreatedAt.Time,
 		DisplayName:        workflowRun.DisplayName,
 		Duration:           &duration,
