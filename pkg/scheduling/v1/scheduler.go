@@ -445,7 +445,7 @@ func (s *Scheduler) tryAssignBatch(
 	// slots concurrently.
 	ringOffset int,
 	stepIdsToLabels map[string][]*sqlcv1.GetDesiredLabelsRow,
-	stepRunIdsToRateLimits map[string]map[string]int32,
+	taskIdsToRateLimits map[int64]map[string]int32,
 ) (
 	res []*assignSingleResult, newRingOffset int, err error,
 ) {
@@ -472,34 +472,34 @@ func (s *Scheduler) tryAssignBatch(
 	// first, check rate limits for each of the queue items
 	// TODO: REVERT
 	for i := range res {
-		// r := res[i]
-		// qi := qis[i]
+		r := res[i]
+		qi := qis[i]
 
 		rateLimitAck := noop
 		rateLimitNack := noop
 
-		// rls := make(map[string]int32)
+		rls := make(map[string]int32)
 
-		// if stepRunIdsToRateLimits != nil {
-		// 	if _, ok := stepRunIdsToRateLimits[sqlchelpers.UUIDToStr(qi.StepRunId)]; ok {
-		// 		rls = stepRunIdsToRateLimits[sqlchelpers.UUIDToStr(qi.StepRunId)]
-		// 	}
-		// }
+		if taskIdsToRateLimits != nil {
+			if _, ok := taskIdsToRateLimits[qi.TaskID]; ok {
+				rls = taskIdsToRateLimits[qi.TaskID]
+			}
+		}
 
-		// // check rate limits
-		// if len(rls) > 0 {
-		// 	rlResult := s.rl.use(ctx, sqlchelpers.UUIDToStr(qi.StepRunId), rls)
+		// check rate limits
+		if len(rls) > 0 {
+			rlResult := s.rl.use(ctx, qi.TaskID, rls)
 
-		// 	if !rlResult.succeeded {
-		// 		r.rateLimitResult = &scheduleRateLimitResult{
-		// 			rateLimitResult: &rlResult,
-		// 			qi:              qi,
-		// 		}
-		// 	} else {
-		// 		rateLimitAck = rlResult.ack
-		// 		rateLimitNack = rlResult.nack
-		// 	}
-		// }
+			if !rlResult.succeeded {
+				r.rateLimitResult = &scheduleRateLimitResult{
+					rateLimitResult: &rlResult,
+					qi:              qi,
+				}
+			} else {
+				rateLimitAck = rlResult.ack
+				rateLimitNack = rlResult.nack
+			}
+		}
 
 		rlAcks[i] = rateLimitAck
 		rlNacks[i] = rateLimitNack
@@ -665,7 +665,7 @@ func (s *Scheduler) tryAssign(
 	ctx context.Context,
 	qis []*sqlcv1.V1QueueItem,
 	stepIdsToLabels map[string][]*sqlcv1.GetDesiredLabelsRow,
-	stepRunIdsToRateLimits map[string]map[string]int32,
+	taskIdsToRateLimits map[int64]map[string]int32,
 ) <-chan *assignResults {
 	ctx, span := telemetry.NewSpan(ctx, "try-assign")
 
@@ -727,7 +727,7 @@ func (s *Scheduler) tryAssign(
 
 					batchStart := time.Now()
 
-					results, newRingOffset, err := s.tryAssignBatch(ctx, actionId, batchQis, ringOffset, stepIdsToLabels, stepRunIdsToRateLimits)
+					results, newRingOffset, err := s.tryAssignBatch(ctx, actionId, batchQis, ringOffset, stepIdsToLabels, taskIdsToRateLimits)
 
 					if err != nil {
 						return err

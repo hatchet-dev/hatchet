@@ -606,6 +606,8 @@ func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId string,
 
 	defer rollback()
 
+	taskIdRetryCounts = uniqueSet(taskIdRetryCounts)
+
 	// release queue items
 	releasedTasks, err := r.releaseTasks(ctx, tx, tenantId, taskIdRetryCounts)
 
@@ -613,7 +615,7 @@ func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId string,
 		return nil, err
 	}
 
-	if len(tasks) != len(releasedTasks) {
+	if len(taskIdRetryCounts) != len(releasedTasks) {
 		return nil, fmt.Errorf("failed to release all tasks")
 	}
 
@@ -680,6 +682,8 @@ func (r *TaskRepositoryImpl) FailTasks(ctx context.Context, tenantId string, fai
 			internalFailureInsertedAts = append(internalFailureInsertedAts, failureOpt.InsertedAt)
 		}
 	}
+
+	tasks = uniqueSet(tasks)
 
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
 
@@ -957,6 +961,9 @@ func (r *TaskRepositoryImpl) CancelTasks(ctx context.Context, tenantId string, t
 }
 
 func (r *sharedRepository) cancelTasks(ctx context.Context, dbtx sqlcv1.DBTX, tenantId string, tasks []TaskIdInsertedAtRetryCount) (*FinalizedTaskResponse, error) {
+	// get a unique set of task ids and retry counts
+	tasks = uniqueSet(tasks)
+
 	// release queue items
 	releasedTasks, err := r.releaseTasks(ctx, dbtx, tenantId, tasks)
 
@@ -1234,6 +1241,10 @@ func (r *sharedRepository) releaseTasks(ctx context.Context, tx sqlcv1.DBTX, ten
 		return nil, err
 	}
 
+	if len(releasedTasks) != len(tasks) {
+		return nil, fmt.Errorf("failed to release all tasks: %d/%d", len(releasedTasks), len(tasks))
+	}
+
 	res := make([]*sqlcv1.ReleaseTasksRow, len(tasks))
 
 	for _, task := range releasedTasks {
@@ -1339,10 +1350,16 @@ func (r *sharedRepository) insertTasks(
 		return nil, nil
 	}
 
-	concurrencyStrats, err := r.getConcurrencyExpressions(ctx, tx, tenantId, stepIdsToConfig)
+	expressions, err := r.getStepExpressions(ctx, tx, stepIdsToConfig)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to get step expressions: %w", err)
+	}
+
+	concurrencyStrats, err := r.getConcurrencyExpressions(ctx, tx, tenantId, stepIdsToConfig)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to get concurrency expressions: %w", err)
 	}
 
 	tenantIds := make([]pgtype.UUID, len(tasks))
@@ -1375,6 +1392,7 @@ func (r *sharedRepository) insertTasks(
 	stepIndices := make([]int64, len(tasks))
 	retryBackoffFactors := make([]pgtype.Float8, len(tasks))
 	retryMaxBackoffs := make([]pgtype.Int4, len(tasks))
+	createExpressionOpts := make(map[string][]createTaskExpressionEvalOpt, 0)
 
 	unix := time.Now().UnixMilli()
 
@@ -1509,6 +1527,66 @@ func (r *sharedRepository) insertTasks(
 				}
 			}
 		}
+
+		// next, check for step expressions to evaluate
+		if task.InitialState == sqlcv1.V1TaskInitialStateQUEUED && stepConfig.ExprCount > 0 {
+			expressions, ok := expressions[task.StepId]
+
+			if ok {
+				var failTaskError error
+
+				opts := make([]createTaskExpressionEvalOpt, 0)
+
+				for _, expr := range expressions {
+					var additionalMeta map[string]interface{}
+
+					if len(additionalMetadatas[i]) > 0 {
+						if err := json.Unmarshal(additionalMetadatas[i], &additionalMeta); err != nil {
+							failTaskError = fmt.Errorf("failed to process additional metadata: not a json object")
+							break
+						}
+					}
+
+					res, err := r.celParser.ParseAndEvalStepRun(expr.Expression, cel.NewInput(
+						cel.WithInput(task.Input.Input),
+						cel.WithAdditionalMetadata(additionalMeta),
+						cel.WithWorkflowRunID(task.ExternalId),
+						cel.WithParents(task.Input.TriggerData),
+					))
+
+					if err != nil {
+						failTaskError = fmt.Errorf("failed to parse step expression (%s): %w", expr.Expression, err)
+						break
+					}
+
+					if err := r.celParser.CheckStepRunOutAgainstKnownV1(res, expr.Kind); err != nil {
+						failTaskError = fmt.Errorf("failed to parse step expression (%s): %w", expr.Expression, err)
+						break
+					}
+
+					opts = append(opts, createTaskExpressionEvalOpt{
+						Key:      expr.Key,
+						Kind:     expr.Kind,
+						ValueStr: res.String,
+						ValueInt: res.Int,
+					})
+				}
+
+				if failTaskError != nil {
+					// place the task into a failed state
+					initialStates[i] = string(sqlcv1.V1TaskInitialStateFAILED)
+
+					initialStateReasons[i] = pgtype.Text{
+						String: failTaskError.Error(),
+						Valid:  true,
+					}
+				} else {
+					createExpressionOpts[task.ExternalId] = opts
+				}
+			} else {
+				r.l.Warn().Msgf("no expressions found for step %s", task.StepId)
+			}
+		}
 	}
 
 	saveQueueCache, err := r.upsertQueues(ctx, tx, tenantId, queues)
@@ -1552,6 +1630,14 @@ func (r *sharedRepository) insertTasks(
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create tasks: %w", err)
+	}
+
+	if len(createExpressionOpts) > 0 {
+		err = r.createExpressionEvals(ctx, tx, res, createExpressionOpts)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to create expression evals: %w", err)
+		}
 	}
 
 	// TODO: this should be moved to after the transaction commits
@@ -1768,49 +1854,49 @@ func (r *sharedRepository) getConcurrencyExpressions(
 	return stepIdToStrats, nil
 }
 
-// func (r *sharedRepository) getStepExpressions(
-// 	ctx context.Context,
-// 	tx sqlcv1.DBTX,
-// 	stepIdsToConfig map[string]*sqlcv1.ListStepsByIdsRow,
-// ) (map[string][]*sqlcv1.StepExpression, error) {
-// 	stepIdsWithExpressions := make(map[string]struct{})
+func (r *sharedRepository) getStepExpressions(
+	ctx context.Context,
+	tx sqlcv1.DBTX,
+	stepIdsToConfig map[string]*sqlcv1.ListStepsByIdsRow,
+) (map[string][]*sqlcv1.StepExpression, error) {
+	stepIdsWithExpressions := make(map[string]struct{})
 
-// 	for _, step := range stepIdsToConfig {
-// 		if step.ExpressionCount > 0 {
-// 			stepIdsWithExpressions[sqlchelpers.UUIDToStr(step.ID)] = struct{}{}
-// 		}
-// 	}
+	for _, step := range stepIdsToConfig {
+		if step.ExprCount > 0 {
+			stepIdsWithExpressions[sqlchelpers.UUIDToStr(step.ID)] = struct{}{}
+		}
+	}
 
-// 	if len(stepIdsWithExpressions) == 0 {
-// 		return nil, nil
-// 	}
+	if len(stepIdsWithExpressions) == 0 {
+		return map[string][]*sqlcv1.StepExpression{}, nil
+	}
 
-// 	stepIds := make([]pgtype.UUID, 0, len(stepIdsWithExpressions))
+	stepIds := make([]pgtype.UUID, 0, len(stepIdsWithExpressions))
 
-// 	for stepId := range stepIdsWithExpressions {
-// 		stepIds = append(stepIds, sqlchelpers.UUIDFromStr(stepId))
-// 	}
+	for stepId := range stepIdsWithExpressions {
+		stepIds = append(stepIds, sqlchelpers.UUIDFromStr(stepId))
+	}
 
-// 	expressions, err := r.queries.ListStepExpressions(ctx, tx, stepIds)
+	expressions, err := r.queries.ListStepExpressions(ctx, tx, stepIds)
 
-// 	if err != nil {
-// 		return nil, err
-// 	}
+	if err != nil {
+		return nil, err
+	}
 
-// 	stepIdToExpressions := make(map[string][]*sqlcv1.StepExpression)
+	stepIdToExpressions := make(map[string][]*sqlcv1.StepExpression)
 
-// 	for _, expression := range expressions {
-// 		stepId := sqlchelpers.UUIDToStr(expression.StepId)
+	for _, expression := range expressions {
+		stepId := sqlchelpers.UUIDToStr(expression.StepId)
 
-// 		if _, ok := stepIdToExpressions[stepId]; !ok {
-// 			stepIdToExpressions[stepId] = make([]*sqlcv1.StepExpression, 0)
-// 		}
+		if _, ok := stepIdToExpressions[stepId]; !ok {
+			stepIdToExpressions[stepId] = make([]*sqlcv1.StepExpression, 0)
+		}
 
-// 		stepIdToExpressions[stepId] = append(stepIdToExpressions[stepId], expression)
-// 	}
+		stepIdToExpressions[stepId] = append(stepIdToExpressions[stepId], expression)
+	}
 
-// 	return stepIdToExpressions, nil
-// }
+	return stepIdToExpressions, nil
+}
 
 func (r *sharedRepository) createTaskEvents(
 	ctx context.Context,
@@ -2364,4 +2450,94 @@ func (r *TaskRepositoryImpl) reconstructGroupConditions(
 	}
 
 	return resMatches, resCandidateEvents, nil
+}
+
+type createTaskExpressionEvalOpt struct {
+	Key      string
+	ValueStr *string
+	ValueInt *int
+	Kind     sqlcv1.StepExpressionKind
+}
+
+func (r *sharedRepository) createExpressionEvals(ctx context.Context, dbtx sqlcv1.DBTX, createdTasks []*sqlcv1.V1Task, opts map[string][]createTaskExpressionEvalOpt) error {
+	if len(opts) == 0 {
+		return nil
+	}
+
+	// map tasks using their external id
+	taskExternalIds := make(map[string]*sqlcv1.V1Task)
+
+	for _, task := range createdTasks {
+		taskExternalIds[sqlchelpers.UUIDToStr(task.ExternalID)] = task
+	}
+
+	taskIds := make([]int64, 0)
+	taskInsertedAts := make([]pgtype.Timestamptz, 0)
+	keys := make([]string, 0)
+	valuesStr := make([]pgtype.Text, 0)
+	valuesInt := make([]pgtype.Int4, 0)
+	kinds := make([]string, 0)
+
+	for externalId, optList := range opts {
+		task, ok := taskExternalIds[externalId]
+
+		if !ok {
+			r.l.Warn().Str("external_id", externalId).Msg("could not find task for expression eval")
+			continue
+		}
+
+		for _, opt := range optList {
+			taskIds = append(taskIds, task.ID)
+			taskInsertedAts = append(taskInsertedAts, task.InsertedAt)
+			keys = append(keys, opt.Key)
+
+			if opt.ValueStr != nil {
+				valuesStr = append(valuesStr, pgtype.Text{
+					String: *opt.ValueStr,
+					Valid:  true,
+				})
+			} else {
+				valuesStr = append(valuesStr, pgtype.Text{})
+			}
+
+			if opt.ValueInt != nil {
+				valuesInt = append(valuesInt, pgtype.Int4{
+					Int32: int32(*opt.ValueInt),
+					Valid: true,
+				})
+			} else {
+				valuesInt = append(valuesInt, pgtype.Int4{})
+			}
+
+			kinds = append(kinds, string(opt.Kind))
+		}
+	}
+
+	return r.queries.CreateTaskExpressionEvals(
+		ctx,
+		dbtx,
+		sqlcv1.CreateTaskExpressionEvalsParams{
+			Taskids:         taskIds,
+			Taskinsertedats: taskInsertedAts,
+			Keys:            keys,
+			Valuesstr:       valuesStr,
+			Valuesint:       valuesInt,
+			Kinds:           kinds,
+		},
+	)
+}
+
+func uniqueSet(taskIdRetryCounts []TaskIdInsertedAtRetryCount) []TaskIdInsertedAtRetryCount {
+	unique := make(map[string]struct{})
+	res := make([]TaskIdInsertedAtRetryCount, 0)
+
+	for _, task := range taskIdRetryCounts {
+		k := fmt.Sprintf("%d:%d", task.Id, task.RetryCount)
+		if _, ok := unique[k]; !ok {
+			unique[k] = struct{}{}
+			res = append(res, task)
+		}
+	}
+
+	return res
 }

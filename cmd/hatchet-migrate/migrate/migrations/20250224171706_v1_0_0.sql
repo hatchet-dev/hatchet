@@ -238,6 +238,18 @@ CREATE UNIQUE INDEX v1_task_event_event_key_unique_idx ON v1_task_event (
 ) WHERE event_key IS NOT NULL;
 
 -- CreateTable
+CREATE TABLE v1_task_expression_eval (
+    key TEXT NOT NULL,
+    task_id BIGINT NOT NULL,
+    task_inserted_at TIMESTAMPTZ NOT NULL,
+    value_str TEXT,
+    value_int INTEGER,
+    kind "StepExpressionKind" NOT NULL,
+
+    CONSTRAINT v1_task_expression_eval_pkey PRIMARY KEY (task_id, task_inserted_at, kind, key)
+);
+
+-- CreateTable
 CREATE TABLE v1_queue_item (
     id bigint GENERATED ALWAYS AS IDENTITY,
     tenant_id UUID NOT NULL,

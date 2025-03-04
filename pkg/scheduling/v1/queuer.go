@@ -149,17 +149,14 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		refillTime := time.Since(checkpoint)
 		checkpoint = time.Now()
 
-		// TODO: REVERT
-		rls := make(map[string]map[string]int32)
+		rls, err := q.repo.GetTaskRateLimits(ctx, qis)
 
-		// rls, err := q.repo.GetStepRunRateLimits(ctx, qis)
+		if err != nil {
+			q.l.Error().Err(err).Msg("error getting rate limits")
 
-		// if err != nil {
-		// 	q.l.Error().Err(err).Msg("error getting rate limits")
-
-		// 	q.unackedToUnassigned(qis)
-		// 	continue
-		// }
+			q.unackedToUnassigned(qis)
+			continue
+		}
 
 		rateLimitTime := time.Since(checkpoint)
 		checkpoint = time.Now()
@@ -170,7 +167,6 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 			stepIds = append(stepIds, qi.StepID)
 		}
 
-		// TODO: REVERT
 		labels, err := q.repo.GetDesiredLabels(ctx, stepIds)
 
 		if err != nil {
@@ -403,10 +399,12 @@ func (q *Queuer) flushToDatabase(ctx context.Context, r *assignResults) int {
 
 	for _, rateLimitedItem := range r.rateLimited {
 		opts.RateLimited = append(opts.RateLimited, &v1.RateLimitResult{
-			ExceededKey:   rateLimitedItem.exceededKey,
-			ExceededUnits: rateLimitedItem.exceededUnits,
-			ExceededVal:   rateLimitedItem.exceededVal,
-			TaskId:        rateLimitedItem.qi.TaskID,
+			ExceededKey:    rateLimitedItem.exceededKey,
+			ExceededUnits:  rateLimitedItem.exceededUnits,
+			ExceededVal:    rateLimitedItem.exceededVal,
+			TaskId:         rateLimitedItem.qi.TaskID,
+			TaskInsertedAt: rateLimitedItem.qi.TaskInsertedAt,
+			RetryCount:     rateLimitedItem.qi.RetryCount,
 		})
 	}
 

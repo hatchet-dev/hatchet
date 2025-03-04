@@ -24,19 +24,21 @@ type taskExternalIdTenantIdTuple struct {
 }
 
 type sharedRepository struct {
-	pool            *pgxpool.Pool
-	v               validator.Validator
-	l               *zerolog.Logger
-	queries         *sqlcv1.Queries
-	queueCache      *cache.Cache
-	celParser       *cel.CELParser
-	env             *celgo.Env
-	taskLookupCache *lru.Cache[taskExternalIdTenantIdTuple, *sqlcv1.FlattenExternalIdsRow]
+	pool                *pgxpool.Pool
+	v                   validator.Validator
+	l                   *zerolog.Logger
+	queries             *sqlcv1.Queries
+	queueCache          *cache.Cache
+	stepExpressionCache *cache.Cache
+	celParser           *cel.CELParser
+	env                 *celgo.Env
+	taskLookupCache     *lru.Cache[taskExternalIdTenantIdTuple, *sqlcv1.FlattenExternalIdsRow]
 }
 
 func newSharedRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.Logger) (*sharedRepository, func() error) {
 	queries := sqlcv1.New()
-	cache := cache.New(5 * time.Minute)
+	queueCache := cache.New(5 * time.Minute)
+	stepExpressionCache := cache.New(5 * time.Minute)
 
 	celParser := cel.NewCELParser()
 
@@ -57,16 +59,18 @@ func newSharedRepository(pool *pgxpool.Pool, v validator.Validator, l *zerolog.L
 	}
 
 	return &sharedRepository{
-			pool:            pool,
-			v:               v,
-			l:               l,
-			queries:         queries,
-			queueCache:      cache,
-			celParser:       celParser,
-			env:             env,
-			taskLookupCache: lookupCache,
+			pool:                pool,
+			v:                   v,
+			l:                   l,
+			queries:             queries,
+			queueCache:          queueCache,
+			stepExpressionCache: stepExpressionCache,
+			celParser:           celParser,
+			env:                 env,
+			taskLookupCache:     lookupCache,
 		}, func() error {
-			cache.Stop()
+			queueCache.Stop()
+			stepExpressionCache.Stop()
 			return nil
 		}
 }
