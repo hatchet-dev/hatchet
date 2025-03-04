@@ -96,7 +96,6 @@ export function TaskRunsTable({
   const { sorting, setSorting } = useSorting();
 
   const workflow = workflowId || cf.filters.workflowId;
-  const parentTaskExternalId = cf.filters.parentTaskExternalId;
 
   const {
     tableRows,
@@ -109,7 +108,7 @@ export function TaskRunsTable({
     rowSelection,
     workerId,
     workflow,
-    parentTaskExternalId,
+    parentTaskExternalId: cf.filters.parentTaskExternalId,
   });
 
   const {
@@ -120,7 +119,7 @@ export function TaskRunsTable({
   } = useMetrics({
     workflow,
     refetchInterval,
-    parentTaskExternalId,
+    parentTaskExternalId: cf.filters.parentTaskExternalId,
   });
 
   const onTaskRunIdClick = useCallback((taskRunId: string) => {
@@ -131,8 +130,8 @@ export function TaskRunsTable({
   }, []);
 
   const parentTaskRun = useQuery({
-    ...queries.v1Tasks.get(parentTaskExternalId || ''),
-    enabled: !!parentTaskExternalId,
+    ...queries.v1Tasks.get(cf.filters.parentTaskExternalId || ''),
+    enabled: !!cf.filters.parentTaskExternalId,
   });
 
   const v1TaskFilters = {
@@ -153,7 +152,7 @@ export function TaskRunsTable({
 
   return (
     <>
-      {parentTaskExternalId &&
+      {cf.filters.parentTaskExternalId &&
         !parentTaskRun.isLoading &&
         parentTaskRun.data && (
           <div className="flex flex-row items-center gap-x-2">
@@ -173,7 +172,7 @@ export function TaskRunsTable({
             </Button>
           </div>
         )}
-      {showMetrics && !parentTaskExternalId && (
+      {showMetrics && !cf.filters.parentTaskExternalId && (
         <Dialog
           open={viewQueueMetrics}
           onOpenChange={(open) => {
@@ -197,7 +196,7 @@ export function TaskRunsTable({
           </DialogContent>
         </Dialog>
       )}
-      {!createdAfterProp && !parentTaskExternalId && (
+      {!createdAfterProp && !cf.filters.parentTaskExternalId && (
         <div className="flex flex-row justify-end items-center my-4 gap-2">
           {cf.filters.isCustomTimeRange && [
             <Button
@@ -265,7 +264,7 @@ export function TaskRunsTable({
           </Select>
         </div>
       )}
-      {showMetrics && !parentTaskExternalId && (
+      {showMetrics && !cf.filters.parentTaskExternalId && (
         <GetWorkflowChart
           tenantId={tenant.metadata.id}
           createdAfter={cf.filters.createdAfter}
