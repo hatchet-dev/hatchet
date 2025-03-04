@@ -32,13 +32,13 @@ export default function TenantSettings() {
         <Separator className="my-4" />
         <AnalyticsOptOut tenant={tenant} />
         <Separator className="my-4" />
-        <UpgradeToV1 />
+        <TenantVersionSwitcher />
       </div>
     </div>
   );
 }
 
-const UpgradeToV1 = () => {
+const TenantVersionSwitcher = () => {
   const { tenant } = useOutletContext<TenantContextType>();
   const selectedVersion = tenant.version;
   const queryClient = useQueryClient();

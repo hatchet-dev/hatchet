@@ -52,6 +52,17 @@ export const getCreatedAfterFromTimeRange = (timeWindow: TimeWindow) => {
   }
 };
 
+const queryParamNames = {
+  createdAfter: 'createdAfter',
+  finishedBefore: 'finishedBefore',
+  isCustomTimeRange: 'isCustomTimeRange',
+  status: TaskRunColumn.status,
+  additionalMetadata: TaskRunColumn.additionalMetadata,
+  workflow: TaskRunColumn.workflow,
+  parentTaskExternalId: TaskRunColumn.parentTaskExternalId,
+  timeWindow: 'timeWindow',
+};
+
 const parseTimeRange = ({
   isCustom,
   timeWindow,
@@ -77,17 +88,6 @@ const parseTimeRange = ({
 };
 
 export const useColumnFilters = () => {
-  const queryParamNames = {
-    createdAfter: 'createdAfter',
-    finishedBefore: 'finishedBefore',
-    isCustomTimeRange: 'isCustomTimeRange',
-    status: TaskRunColumn.status,
-    additionalMetadata: TaskRunColumn.additionalMetadata,
-    workflow: TaskRunColumn.workflow,
-    parentTaskExternalId: TaskRunColumn.parentTaskExternalId,
-    timeWindow: 'timeWindow',
-  };
-
   const [searchParams, setSearchParams] = useSearchParams();
 
   const timeWindowFilter = (searchParams.get(queryParamNames.timeWindow) ||
@@ -103,7 +103,7 @@ export const useColumnFilters = () => {
       createdAfter: searchParams.get(queryParamNames.createdAfter),
       finishedBefore: searchParams.get(queryParamNames.finishedBefore),
     });
-  }, [isCustomTimeRange, timeWindowFilter, searchParams, queryParamNames]);
+  }, [isCustomTimeRange, timeWindowFilter, searchParams]);
 
   const status = searchParams.get(queryParamNames.status) as
     | V1TaskStatus
