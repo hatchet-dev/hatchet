@@ -1,22 +1,3 @@
--- name: UpsertRateLimit :one
-INSERT INTO "RateLimit" (
-    "tenantId",
-    "key",
-    "limitValue",
-    "value",
-    "window"
-) VALUES (
-    @tenantId::uuid,
-    @key::text,
-    sqlc.arg('limit')::int,
-    sqlc.arg('limit')::int,
-    COALESCE(sqlc.narg('window')::text, '1 minute')
-) ON CONFLICT ("tenantId", "key") DO UPDATE SET
-    "limitValue" = sqlc.arg('limit')::int,
-    "window" = COALESCE(sqlc.narg('window')::text, '1 minute'),
-    "value" = CASE WHEN EXCLUDED."limitValue" < "RateLimit"."value" THEN EXCLUDED."limitValue" ELSE "RateLimit"."value" END
-RETURNING *;
-
 -- name: UpsertRateLimitsBulk :exec
 WITH input_values AS (
     SELECT
@@ -43,33 +24,6 @@ ON CONFLICT ("tenantId", "key") DO UPDATE SET
     "limitValue" = EXCLUDED."limitValue",
     "window" = EXCLUDED."window",
     "value" = CASE WHEN EXCLUDED."limitValue" < "RateLimit"."value" THEN EXCLUDED."limitValue" ELSE "RateLimit"."value" END;
-
--- name: CountRateLimits :one
-WITH rate_limits AS (
-    SELECT
-        rl."key"
-    FROM
-        "RateLimit" rl
-    WHERE
-        rl."tenantId" = @tenantId::uuid
-        AND (
-            sqlc.narg('search')::text IS NULL OR
-            rl."key" like concat('%', sqlc.narg('search')::text, '%')
-        )
-    ORDER BY
-        case when @orderBy = 'key ASC' THEN rl."key" END ASC,
-        case when @orderBy = 'key DESC' THEN rl."key" END DESC,
-        case when @orderBy = 'value ASC' THEN rl."value" END ASC,
-        case when @orderBy = 'value DESC' THEN rl."value" END DESC,
-        case when @orderBy = 'limitValue ASC' THEN rl."limitValue" END ASC,
-        case when @orderBy = 'limitValue DESC' THEN rl."limitValue" END DESC,
-        rl."key" ASC
-    LIMIT 10000
-)
-SELECT
-    count(rate_limits) AS total
-FROM
-    rate_limits;
 
 -- name: ListRateLimitsForTenantNoMutate :many
 -- Returns the same results as ListRateLimitsForTenantWithMutate but does not update the rate limit values
@@ -99,12 +53,6 @@ WHERE
         rl."key" like concat('%', sqlc.narg('search')::text, '%')
     )
 ORDER BY
-    case when @orderBy = 'key ASC' THEN rl."key" END ASC,
-    case when @orderBy = 'key DESC' THEN rl."key" END DESC,
-    case when @orderBy = 'value ASC' THEN rl."value" END ASC,
-    case when @orderBy = 'value DESC' THEN rl."value" END DESC,
-    case when @orderBy = 'limitValue ASC' THEN rl."limitValue" END ASC,
-    case when @orderBy = 'limitValue DESC' THEN rl."limitValue" END DESC,
     rl."key" ASC
 OFFSET
     COALESCE(sqlc.narg('offset'), 0)
