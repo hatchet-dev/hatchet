@@ -27,7 +27,8 @@ func (t *TasksService) V1TaskListStatusMetrics(ctx echo.Context, request gen.V1T
 	var parentTaskExternalId *pgtype.UUID
 
 	if request.Params.ParentTaskExternalId != nil {
-		uuidVal := sqlchelpers.UUIDFromStr(request.Params.ParentTaskExternalId.String())
+		uuidPtr := *request.Params.ParentTaskExternalId
+		uuidVal := sqlchelpers.UUIDFromStr(uuidPtr.String())
 		parentTaskExternalId = &uuidVal
 	}
 

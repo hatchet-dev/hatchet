@@ -42,7 +42,8 @@ WITH input AS (
                 unnest(@externalIds::uuid[]) AS external_id,
                 unnest(@displayNames::text[]) AS display_name,
                 unnest(@workflowIds::uuid[]) AS workflow_id,
-                unnest(@workflowVersionIds::uuid[]) AS workflow_version_id
+                unnest(@workflowVersionIds::uuid[]) AS workflow_version_id,
+                unnest(@parentTaskExternalIds::uuid[]) AS parent_task_external_id
         ) AS subquery
 )
 INSERT INTO v1_dag (
@@ -50,14 +51,16 @@ INSERT INTO v1_dag (
     external_id,
     display_name,
     workflow_id,
-    workflow_version_id
+    workflow_version_id,
+    parent_task_external_id
 )
 SELECT
     i.tenant_id,
     i.external_id,
     i.display_name,
     i.workflow_id,
-    i.workflow_version_id
+    i.workflow_version_id,
+    i.parent_task_external_id
 FROM
     input i
 RETURNING

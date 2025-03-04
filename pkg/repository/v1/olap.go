@@ -871,11 +871,16 @@ func (r *olapRepository) ReadTaskRunMetrics(ctx context.Context, tenantId string
 		}
 	}
 
+	var parentTaskExternalId pgtype.UUID
+	if opts.ParentTaskExternalID != nil {
+		parentTaskExternalId = *opts.ParentTaskExternalID
+	}
+
 	res, err := r.queries.GetTenantStatusMetrics(context.Background(), r.pool, sqlcv1.GetTenantStatusMetricsParams{
 		Tenantid:             sqlchelpers.UUIDFromStr(tenantId),
 		Createdafter:         sqlchelpers.TimestamptzFromTime(opts.CreatedAfter),
 		WorkflowIds:          workflowIds,
-		ParentTaskExternalId: *opts.ParentTaskExternalID,
+		ParentTaskExternalId: parentTaskExternalId,
 	})
 
 	if err != nil {
@@ -1122,19 +1127,22 @@ func (r *olapRepository) writeDAGBatch(ctx context.Context, tenantId string, dag
 	params := make([]sqlcv1.CreateDAGsOLAPParams, 0)
 
 	for _, dag := range dags {
-		params = append(params, sqlcv1.CreateDAGsOLAPParams{
-			TenantID:           dag.TenantID,
-			ID:                 dag.ID,
-			InsertedAt:         dag.InsertedAt,
-			WorkflowID:         dag.WorkflowID,
-			WorkflowVersionID:  dag.WorkflowVersionID,
-			ExternalID:         dag.ExternalID,
-			DisplayName:        dag.DisplayName,
-			Input:              dag.Input,
-			AdditionalMetadata: dag.AdditionalMetadata,
+		var parentTaskExternalID = pgtype.UUID{}
+		if dag.ParentTaskExternalID != nil {
+			parentTaskExternalID = sqlchelpers.UUIDFromStr(dag.ParentTaskExternalID.String())
+		}
 
-			// FIXME: Propagate the parent external id through
-			// ParentTaskExternalID: dag.ParentExternalId,
+		params = append(params, sqlcv1.CreateDAGsOLAPParams{
+			TenantID:             dag.TenantID,
+			ID:                   dag.ID,
+			InsertedAt:           dag.InsertedAt,
+			WorkflowID:           dag.WorkflowID,
+			WorkflowVersionID:    dag.WorkflowVersionID,
+			ExternalID:           dag.ExternalID,
+			DisplayName:          dag.DisplayName,
+			Input:                dag.Input,
+			AdditionalMetadata:   dag.AdditionalMetadata,
+			ParentTaskExternalID: parentTaskExternalID,
 		})
 	}
 
