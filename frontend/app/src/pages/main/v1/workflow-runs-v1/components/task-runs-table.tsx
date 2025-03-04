@@ -78,6 +78,8 @@ export function TaskRunsTable({
   const [rotate, setRotate] = useState(false);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
+    // IMPORTANT: the parentTaskExternalId column is hidden by default and shouldn't be shown
+    // It's here for filtering
     ...initColumnVisibility,
     parentTaskExternalId: false,
   });
