@@ -14,6 +14,7 @@ sql:
       - workers.sql
       - matches.sql
       - olap.sql
+      - rate_limits.sql
     schema:
       - ../../../../sql/schema/v0.sql
       - ../../../../sql/schema/v1.sql

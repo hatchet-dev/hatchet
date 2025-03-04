@@ -189,20 +189,14 @@ SELECT
     t.external_id,
     t.step_readable_id,
     r.worker_id,
-    t.retry_count,
+    i.retry_count::int AS retry_count,
     t.concurrency_strategy_ids
 FROM
     v1_task t
+JOIN
+    input i ON i.task_id = t.id AND i.task_inserted_at = t.inserted_at
 LEFT JOIN
-    runtimes_to_delete r ON r.task_id = t.id AND r.retry_count = t.retry_count
-WHERE
-    (t.id, t.inserted_at) IN (
-        SELECT
-            task_id,
-            task_inserted_at
-        FROM
-            input
-    );
+    runtimes_to_delete r ON r.task_id = t.id AND r.retry_count = t.retry_count;
 
 -- name: FailTaskAppFailure :many
 -- Fails a task due to an application-level error
@@ -803,3 +797,27 @@ JOIN
 WHERE
     t.tenant_id = @tenantId::uuid
     AND dt.dag_id = ANY(@dagIds::bigint[]);
+
+-- name: ListTaskExpressionEvals :many
+WITH input AS (
+    SELECT
+        *
+    FROM
+        (
+            SELECT
+                unnest(@taskIds::bigint[]) AS task_id,
+                unnest(@taskInsertedAts::timestamptz[]) AS task_inserted_at
+        ) AS subquery
+)
+SELECT
+    *
+FROM
+    v1_task_expression_eval te
+WHERE
+    (task_id, task_inserted_at) IN (
+        SELECT
+            task_id,
+            task_inserted_at
+        FROM
+            input
+    );

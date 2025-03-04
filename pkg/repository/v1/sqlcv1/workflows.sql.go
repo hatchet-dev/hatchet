@@ -51,6 +51,7 @@ SELECT
     wv."id" as "workflowVersionId",
     w."name" as "workflowName",
     w."id" as "workflowId",
+    COUNT(se."stepId") as "exprCount",
     COUNT(sc.id) as "concurrencyCount"
 FROM
     "Step" s
@@ -62,6 +63,8 @@ JOIN
     "Workflow" w ON w."id" = wv."workflowId"
 LEFT JOIN
     v1_step_concurrency sc ON sc.workflow_id = w."id" AND sc.step_id = s."id"
+LEFT JOIN
+    "StepExpression" se ON se."stepId" = s."id"
 WHERE
     s."id" = ANY($1::uuid[])
     AND w."tenantId" = $2::uuid
@@ -94,6 +97,7 @@ type ListStepsByIdsRow struct {
 	WorkflowVersionId  pgtype.UUID      `json:"workflowVersionId"`
 	WorkflowName       string           `json:"workflowName"`
 	WorkflowId         pgtype.UUID      `json:"workflowId"`
+	ExprCount          int64            `json:"exprCount"`
 	ConcurrencyCount   int64            `json:"concurrencyCount"`
 }
 
@@ -124,6 +128,7 @@ func (q *Queries) ListStepsByIds(ctx context.Context, db DBTX, arg ListStepsById
 			&i.WorkflowVersionId,
 			&i.WorkflowName,
 			&i.WorkflowId,
+			&i.ExprCount,
 			&i.ConcurrencyCount,
 		); err != nil {
 			return nil, err

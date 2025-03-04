@@ -654,6 +654,63 @@ func (q *Queries) ListTaskEventPartitionsBeforeDate(ctx context.Context, db DBTX
 	return items, nil
 }
 
+const listTaskExpressionEvals = `-- name: ListTaskExpressionEvals :many
+WITH input AS (
+    SELECT
+        task_id, task_inserted_at
+    FROM
+        (
+            SELECT
+                unnest($1::bigint[]) AS task_id,
+                unnest($2::timestamptz[]) AS task_inserted_at
+        ) AS subquery
+)
+SELECT
+    key, task_id, task_inserted_at, value_str, value_int, kind
+FROM
+    v1_task_expression_eval te
+WHERE
+    (task_id, task_inserted_at) IN (
+        SELECT
+            task_id,
+            task_inserted_at
+        FROM
+            input
+    )
+`
+
+type ListTaskExpressionEvalsParams struct {
+	Taskids         []int64              `json:"taskids"`
+	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
+}
+
+func (q *Queries) ListTaskExpressionEvals(ctx context.Context, db DBTX, arg ListTaskExpressionEvalsParams) ([]*V1TaskExpressionEval, error) {
+	rows, err := db.Query(ctx, listTaskExpressionEvals, arg.Taskids, arg.Taskinsertedats)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*V1TaskExpressionEval
+	for rows.Next() {
+		var i V1TaskExpressionEval
+		if err := rows.Scan(
+			&i.Key,
+			&i.TaskID,
+			&i.TaskInsertedAt,
+			&i.ValueStr,
+			&i.ValueInt,
+			&i.Kind,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTaskMetas = `-- name: ListTaskMetas :many
 SELECT
     id,
@@ -1627,20 +1684,14 @@ SELECT
     t.external_id,
     t.step_readable_id,
     r.worker_id,
-    t.retry_count,
+    i.retry_count::int AS retry_count,
     t.concurrency_strategy_ids
 FROM
     v1_task t
+JOIN
+    input i ON i.task_id = t.id AND i.task_inserted_at = t.inserted_at
 LEFT JOIN
     runtimes_to_delete r ON r.task_id = t.id AND r.retry_count = t.retry_count
-WHERE
-    (t.id, t.inserted_at) IN (
-        SELECT
-            task_id,
-            task_inserted_at
-        FROM
-            input
-    )
 `
 
 type ReleaseTasksParams struct {

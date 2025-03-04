@@ -461,6 +461,44 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 		}
 	}
 
+	if len(res.RateLimited) > 0 {
+		for _, rateLimited := range res.RateLimited {
+			message := fmt.Sprintf(
+				"Rate limit exceeded for key %s, attempting to consume %d units, but only had %d remaining",
+				rateLimited.ExceededKey,
+				rateLimited.ExceededUnits,
+				rateLimited.ExceededVal,
+			)
+
+			msg, err := tasktypes.MonitoringEventMessageFromInternal(
+				tenantId,
+				tasktypes.CreateMonitoringEventPayload{
+					TaskId:         rateLimited.TaskId,
+					RetryCount:     rateLimited.RetryCount,
+					EventType:      sqlcv1.V1EventTypeOlapREQUEUEDRATELIMIT,
+					EventTimestamp: time.Now(),
+					EventMessage:   message,
+				},
+			)
+
+			if err != nil {
+				outerErr = multierror.Append(outerErr, fmt.Errorf("could not create cancelled task: %w", err))
+				continue
+			}
+
+			err = s.pubBuffer.Pub(
+				ctx,
+				msgqueue.OLAP_QUEUE,
+				msg,
+				false,
+			)
+
+			if err != nil {
+				outerErr = multierror.Append(outerErr, fmt.Errorf("could not send cancelled task: %w", err))
+			}
+		}
+	}
+
 	if len(res.SchedulingTimedOut) > 0 {
 		for _, schedulingTimedOut := range res.SchedulingTimedOut {
 			msg, err := tasktypes.CancelledTaskMessage(

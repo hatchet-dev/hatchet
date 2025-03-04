@@ -413,3 +413,62 @@ func (q *Queries) ReplayTasks(ctx context.Context, db DBTX, arg ReplayTasksParam
 	}
 	return items, nil
 }
+
+const createTaskExpressionEvals = `-- name: CreateTaskExpressionEvals :exec
+WITH input AS (
+    SELECT
+        task_id, task_inserted_at, key, value_str, value_int, kind
+    FROM
+        (
+            SELECT
+                unnest($1::bigint[]) AS task_id,
+                unnest($2::timestamptz[]) AS task_inserted_at,
+                unnest($3::text[]) AS key,
+                unnest($4::text[]) AS value_str,
+				unnest($5::integer[]) AS value_int,
+                unnest(cast($6::text[] as "StepExpressionKind"[])) AS kind
+        ) AS subquery
+)
+INSERT INTO v1_task_expression_eval (
+    key,
+    task_id,
+    task_inserted_at,
+    value_str,
+	value_int,
+    kind
+)
+SELECT
+    i.key,
+    i.task_id,
+    i.task_inserted_at,
+    i.value_str,
+	i.value_int,
+    i.kind
+FROM
+    input i
+ON CONFLICT (task_id, task_inserted_at, kind, key) DO UPDATE
+SET
+    value_str = EXCLUDED.value_str,
+    value_int = EXCLUDED.value_int
+`
+
+type CreateTaskExpressionEvalsParams struct {
+	Taskids         []int64              `json:"taskids"`
+	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
+	Keys            []string             `json:"keys"`
+	Valuesstr       []pgtype.Text        `json:"valuesstr"`
+	Valuesint       []pgtype.Int4        `json:"valuesint"`
+	Kinds           []string             `json:"kinds"`
+}
+
+func (q *Queries) CreateTaskExpressionEvals(ctx context.Context, db DBTX, arg CreateTaskExpressionEvalsParams) error {
+	_, err := db.Exec(ctx, createTaskExpressionEvals,
+		arg.Taskids,
+		arg.Taskinsertedats,
+		arg.Keys,
+		arg.Valuesstr,
+		arg.Valuesint,
+		arg.Kinds,
+	)
+	return err
+}

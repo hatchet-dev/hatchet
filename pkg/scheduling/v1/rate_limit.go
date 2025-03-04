@@ -8,7 +8,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 )
 
 type rateLimit struct {
@@ -19,14 +19,14 @@ type rateLimit struct {
 type rateLimitSet map[string]*rateLimit
 
 type rateLimiter struct {
-	rateLimitRepo repository.RateLimitRepository
+	rateLimitRepo v1.RateLimitRepository
 
 	tenantId pgtype.UUID
 
 	l *zerolog.Logger
 
-	// unacked is a map of stepRunId to rateLimitSet
-	unacked   map[string]rateLimitSet
+	// unacked is a map of taskId to rateLimitSet
+	unacked   map[int64]rateLimitSet
 	unackedMu sync.RWMutex
 
 	unflushedMu sync.RWMutex
@@ -43,7 +43,7 @@ func newRateLimiter(conf *sharedConfig, tenantId pgtype.UUID) *rateLimiter {
 		rateLimitRepo: conf.repo.RateLimit(),
 		tenantId:      tenantId,
 		l:             conf.l,
-		unacked:       make(map[string]rateLimitSet),
+		unacked:       make(map[int64]rateLimitSet),
 		unflushed:     make(rateLimitSet),
 		dbRateLimits:  make(rateLimitSet),
 	}
@@ -79,7 +79,7 @@ func (r *rateLimiter) loopFlush(ctx context.Context) {
 
 type rateLimitResult struct {
 	succeeded bool
-	stepRunId string
+	taskId    int64
 
 	ack  func()
 	nack func()
@@ -90,8 +90,8 @@ type rateLimitResult struct {
 }
 
 // use returns true if the rate limits are not exceeded, false otherwise
-func (r *rateLimiter) use(ctx context.Context, stepRunId string, rls map[string]int32) (res rateLimitResult) {
-	res.stepRunId = stepRunId
+func (r *rateLimiter) use(ctx context.Context, taskId int64, rls map[string]int32) (res rateLimitResult) {
+	res.taskId = taskId
 
 	// start with the db rate limits as the source of truth
 	// if we don't have all rate limits in memory, check the database to determine if it exists
@@ -126,15 +126,15 @@ func (r *rateLimiter) use(ctx context.Context, stepRunId string, rls map[string]
 	}
 
 	// if we can use all the rate limits, add them to the unacked set
-	r.addToUnacked(stepRunId, rls)
+	r.addToUnacked(taskId, rls)
 
 	return rateLimitResult{
 		succeeded: true,
 		ack: func() {
-			r.ack(stepRunId)
+			r.ack(taskId)
 		},
 		nack: func() {
-			r.nack(stepRunId)
+			r.nack(taskId)
 		},
 	}
 }
@@ -197,23 +197,23 @@ func (r *rateLimiter) subtractUnflushed(candidateRls map[string]int32, currRls r
 	}
 }
 
-func (r *rateLimiter) addToUnacked(stepRunId string, rls map[string]int32) {
+func (r *rateLimiter) addToUnacked(taskId int64, rls map[string]int32) {
 	r.unackedMu.Lock()
 	defer r.unackedMu.Unlock()
 
 	for k, v := range rls {
-		if _, ok := r.unacked[stepRunId]; !ok {
-			r.unacked[stepRunId] = make(rateLimitSet)
+		if _, ok := r.unacked[taskId]; !ok {
+			r.unacked[taskId] = make(rateLimitSet)
 		}
 
-		r.unacked[stepRunId][k] = &rateLimit{
+		r.unacked[taskId][k] = &rateLimit{
 			key: k,
 			val: int(v),
 		}
 	}
 }
 
-func (r *rateLimiter) ack(stepRunId string) {
+func (r *rateLimiter) ack(taskId int64) {
 	// remove the rate limits from the unacked set and add them to the unflushed set
 	r.unackedMu.Lock()
 	defer r.unackedMu.Unlock()
@@ -221,8 +221,8 @@ func (r *rateLimiter) ack(stepRunId string) {
 	r.unflushedMu.Lock()
 	defer r.unflushedMu.Unlock()
 
-	if _, ok := r.unacked[stepRunId]; ok {
-		for k, v := range r.unacked[stepRunId] {
+	if _, ok := r.unacked[taskId]; ok {
+		for k, v := range r.unacked[taskId] {
 			if _, ok := r.unflushed[k]; !ok {
 				r.unflushed[k] = &rateLimit{
 					key: k,
@@ -233,16 +233,16 @@ func (r *rateLimiter) ack(stepRunId string) {
 			r.unflushed[k].val += v.val
 		}
 
-		delete(r.unacked, stepRunId)
+		delete(r.unacked, taskId)
 	}
 }
 
-func (r *rateLimiter) nack(stepRunId string) {
+func (r *rateLimiter) nack(taskId int64) {
 	// remove the rate limits from the unacked set
 	r.unackedMu.Lock()
 	defer r.unackedMu.Unlock()
 
-	delete(r.unacked, stepRunId)
+	delete(r.unacked, taskId)
 }
 
 // flushToDatabase involves writing the rate limits and reading new rate limits from the

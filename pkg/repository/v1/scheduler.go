@@ -32,8 +32,7 @@ type QueueRepository interface {
 	ListQueueItems(ctx context.Context, limit int) ([]*sqlcv1.V1QueueItem, error)
 	MarkQueueItemsProcessed(ctx context.Context, r *AssignResults) (succeeded []*AssignedItem, failed []*AssignedItem, err error)
 
-	// TODO: ADD THIS
-	// GetStepRunRateLimits(ctx context.Context, queueItems []*sqlcv1.V1QueueItem) (map[string]map[string]int32, error)
+	GetTaskRateLimits(ctx context.Context, queueItems []*sqlcv1.V1QueueItem) (map[int64]map[string]int32, error)
 	GetDesiredLabels(ctx context.Context, stepIds []pgtype.UUID) (map[string][]*sqlcv1.GetDesiredLabelsRow, error)
 	Cleanup()
 }
