@@ -599,7 +599,7 @@ type DAGWithData struct {
 
 	AdditionalMetadata []byte
 
-	ParentTaskExternalID *uuid.UUID
+	ParentTaskExternalID *pgtype.UUID
 }
 
 func (r *TriggerRepositoryImpl) createDAGs(ctx context.Context, tx sqlcv1.DBTX, tenantId string, opts []createDAGOpts) ([]*DAGWithData, error) {
@@ -677,18 +677,17 @@ func (r *TriggerRepositoryImpl) createDAGs(ctx context.Context, tx sqlcv1.DBTX, 
 			AdditionalMetadata: additionalMeta,
 		})
 
-		var parentTaskExternalID *uuid.UUID
+		parentTaskExternalID := pgtype.UUID{}
 
 		if opt.ParentTaskExternalID != nil {
-			externalId := uuid.MustParse(*opt.ParentTaskExternalID)
-			parentTaskExternalID = &externalId
+			parentTaskExternalID = sqlchelpers.UUIDFromStr(*opt.ParentTaskExternalID)
 		}
 
 		res = append(res, &DAGWithData{
 			V1Dag:                dag,
 			Input:                input,
 			AdditionalMetadata:   additionalMeta,
-			ParentTaskExternalID: parentTaskExternalID,
+			ParentTaskExternalID: &parentTaskExternalID,
 		})
 	}
 

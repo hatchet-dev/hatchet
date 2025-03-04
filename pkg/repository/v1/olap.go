@@ -1129,7 +1129,7 @@ func (r *olapRepository) writeDAGBatch(ctx context.Context, tenantId string, dag
 	for _, dag := range dags {
 		var parentTaskExternalID = pgtype.UUID{}
 		if dag.ParentTaskExternalID != nil {
-			parentTaskExternalID = sqlchelpers.UUIDFromStr(dag.ParentTaskExternalID.String())
+			parentTaskExternalID = *dag.ParentTaskExternalID
 		}
 
 		params = append(params, sqlcv1.CreateDAGsOLAPParams{
