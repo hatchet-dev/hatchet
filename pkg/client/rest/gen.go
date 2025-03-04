@@ -1288,9 +1288,10 @@ type V1TaskSummary struct {
 	TaskInsertedAt time.Time `json:"taskInsertedAt"`
 
 	// TenantId The ID of the tenant.
-	TenantId   openapi_types.UUID `json:"tenantId"`
-	Type       V1WorkflowType     `json:"type"`
-	WorkflowId openapi_types.UUID `json:"workflowId"`
+	TenantId     openapi_types.UUID `json:"tenantId"`
+	Type         V1WorkflowType     `json:"type"`
+	WorkflowId   openapi_types.UUID `json:"workflowId"`
+	WorkflowName *string            `json:"workflowName,omitempty"`
 
 	// WorkflowRunExternalId The external ID of the workflow run
 	WorkflowRunExternalId *openapi_types.UUID `json:"workflowRunExternalId,omitempty"`

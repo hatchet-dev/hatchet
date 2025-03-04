@@ -89,6 +89,7 @@ type WorkflowRunData struct {
 	TenantID           pgtype.UUID                 `json:"tenant_id"`
 	WorkflowID         pgtype.UUID                 `json:"workflow_id"`
 	WorkflowVersionId  pgtype.UUID                 `json:"workflow_version_id"`
+	WorkflowName       *string                     `json:"workflow_name,omitempty"`
 }
 
 type V1WorkflowRunPopulator struct {
@@ -799,6 +800,7 @@ func (r *olapRepository) ListWorkflowRuns(ctx context.Context, tenantId string, 
 				TaskInsertedAt:     nil,
 				Output:             &dag.Output,
 				Input:              dag.Input,
+				WorkflowName:       &dag.WorkflowName,
 			})
 		} else {
 			task, ok := tasksToPopulated[externalId]

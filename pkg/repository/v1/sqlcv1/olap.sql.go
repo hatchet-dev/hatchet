@@ -845,8 +845,10 @@ SELECT
     m.started_at,
     m.finished_at,
     e.error_message,
-    o.output
+    o.output,
+    w.name AS workflow_name
 FROM runs r
+JOIN "Workflow" w ON r.workflow_id = w.id
 LEFT JOIN metadata m ON r.run_id = m.run_id
 LEFT JOIN error_message e ON r.run_id = e.run_id
 LEFT JOIN task_output o ON r.run_id = o.run_id
@@ -877,6 +879,7 @@ type PopulateDAGMetadataRow struct {
 	FinishedAt         pgtype.Timestamptz   `json:"finished_at"`
 	ErrorMessage       pgtype.Text          `json:"error_message"`
 	Output             []byte               `json:"output"`
+	WorkflowName       string               `json:"workflow_name"`
 }
 
 func (q *Queries) PopulateDAGMetadata(ctx context.Context, db DBTX, arg PopulateDAGMetadataParams) ([]*PopulateDAGMetadataRow, error) {
@@ -906,6 +909,7 @@ func (q *Queries) PopulateDAGMetadata(ctx context.Context, db DBTX, arg Populate
 			&i.FinishedAt,
 			&i.ErrorMessage,
 			&i.Output,
+			&i.WorkflowName,
 		); err != nil {
 			return nil, err
 		}

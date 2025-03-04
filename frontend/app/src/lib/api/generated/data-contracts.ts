@@ -91,6 +91,7 @@ export interface V1TaskSummary {
   type: V1WorkflowType;
   /** @format uuid */
   workflowId: string;
+  workflowName?: string;
   /**
    * The external ID of the workflow run
    * @format uuid

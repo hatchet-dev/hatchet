@@ -74,6 +74,8 @@ V1TaskSummary:
     workflowId:
       type: string
       format: uuid
+    workflowName:
+      type: string
     workflowRunExternalId:
       type: string
       format: uuid

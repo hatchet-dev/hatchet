@@ -72,6 +72,7 @@ func WorkflowRunDataToV1TaskSummary(task *v1.WorkflowRunData) gen.V1TaskSummary 
 		TaskId:             taskId,
 		TaskInsertedAt:     task.InsertedAt.Time,
 		Type:               gen.V1WorkflowTypeDAG,
+		WorkflowName:       task.WorkflowName,
 	}
 }
 

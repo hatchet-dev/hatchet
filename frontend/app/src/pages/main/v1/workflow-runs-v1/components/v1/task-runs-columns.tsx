@@ -148,8 +148,8 @@ export const columns: (
       <DataTableColumnHeader column={column} title="Workflow" />
     ),
     cell: ({ row }) => {
-      const workflowId = row.original?.workflowId;
-      const workflowName = row.original.displayName;
+      const workflowId = row.original.workflowId;
+      const workflowName = row.original.workflowName;
 
       return (
         <div className="min-w-fit whitespace-nowrap">
