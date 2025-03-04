@@ -6,6 +6,7 @@ import {
 } from '@tanstack/react-table';
 import { useCallback, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { TaskRunColumn } from '../components/v1/task-runs-columns';
 
 export type TimeWindow = '1h' | '6h' | '1d' | '7d';
 
@@ -80,10 +81,10 @@ export const useColumnFilters = () => {
     createdAfter: 'createdAfter',
     finishedBefore: 'finishedBefore',
     isCustomTimeRange: 'isCustomTimeRange',
-    status: 'status',
-    additionalMetadata: 'additionalMetadata',
-    workflow: 'Workflow',
-    parentTaskExternalId: 'parentTaskExternalId',
+    status: TaskRunColumn.status,
+    additionalMetadata: TaskRunColumn.additionalMetadata,
+    workflow: TaskRunColumn.workflow,
+    parentTaskExternalId: TaskRunColumn.parentTaskExternalId,
     timeWindow: 'timeWindow',
   };
 
@@ -121,13 +122,13 @@ export const useColumnFilters = () => {
     searchParams.get(queryParamNames.parentTaskExternalId) || undefined;
 
   const statusColumnFilter = status
-    ? { id: 'status', value: status }
+    ? { id: TaskRunColumn.status, value: status }
     : undefined;
   const additionalMetadataColumnFilter = additionalMetadata
-    ? { id: 'additionalMetadata', value: additionalMetadata }
+    ? { id: TaskRunColumn.additionalMetadata, value: additionalMetadata }
     : undefined;
   const workflowIdColumnFilter = workflowId
-    ? { id: 'Workflow', value: workflowId }
+    ? { id: TaskRunColumn.workflow, value: workflowId }
     : undefined;
 
   const columnFilters: ColumnFiltersState = [
@@ -239,14 +240,14 @@ export const useColumnFilters = () => {
 
   const setStatus = useCallback(
     (status: V1TaskStatus | undefined) => {
-      setFilterValues([{ key: 'status', value: status }]);
+      setFilterValues([{ key: TaskRunColumn.status, value: status }]);
     },
     [setFilterValues],
   );
 
   const setWorkflowId = useCallback(
     (workflowId: string | undefined) => {
-      setFilterValues([{ key: 'Workflow', value: workflowId }]);
+      setFilterValues([{ key: TaskRunColumn.workflow, value: workflowId }]);
     },
     [setFilterValues],
   );
@@ -258,24 +259,26 @@ export const useColumnFilters = () => {
 
       newMetadata.push(`${key}:${value}`);
 
-      setFilterValues([{ key: 'additionalMetadata', value: newMetadata }]);
+      setFilterValues([
+        { key: TaskRunColumn.additionalMetadata, value: newMetadata },
+      ]);
     },
     [additionalMetadata, setFilterValues],
   );
 
   const clearColumnFilters = useCallback(() => {
     setFilterValues([
-      { key: 'Workflow', value: undefined },
-      { key: 'additionalMetadata', value: undefined },
-      { key: 'status', value: undefined },
-      { key: 'parentTaskExternalId', value: undefined },
+      { key: TaskRunColumn.workflow, value: undefined },
+      { key: TaskRunColumn.additionalMetadata, value: undefined },
+      { key: TaskRunColumn.status, value: undefined },
+      { key: TaskRunColumn.parentTaskExternalId, value: undefined },
     ]);
   }, [setFilterValues]);
 
   const clearParentTaskExternalId = useCallback(() => {
     setFilterValues([
       {
-        key: 'parentTaskExternalId',
+        key: TaskRunColumn.parentTaskExternalId,
         value: undefined,
       },
     ]);
