@@ -42,7 +42,6 @@ import { usePagination } from '../hooks/pagination';
 import { useTaskRuns } from '../hooks/task-runs';
 import { useMetrics } from '../hooks/metrics';
 import { useToolbarFilters } from '../hooks/toolbar-filters';
-import { useSorting } from '../hooks/sorting';
 
 export interface TaskRunsTableProps {
   createdAfter?: string;
@@ -93,7 +92,6 @@ export function TaskRunsTable({
 
   const toolbarFilters = useToolbarFilters({ filterVisibility });
   const { pagination, setPagination, setPageSize } = usePagination();
-  const { sorting, setSorting } = useSorting();
 
   const workflow = workflowId || cf.filters.workflowId;
 
@@ -358,8 +356,6 @@ export function TaskRunsTable({
             />
           </Button>,
         ]}
-        sorting={sorting}
-        setSorting={setSorting}
         columnFilters={cf.filters.columnFilters}
         setColumnFilters={(updaterOrValue) => {
           cf.setColumnFilters(updaterOrValue);
