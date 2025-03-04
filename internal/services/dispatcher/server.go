@@ -578,6 +578,18 @@ func (s *DispatcherImpl) Heartbeat(ctx context.Context, req *contracts.Heartbeat
 
 func (s *DispatcherImpl) ReleaseSlot(ctx context.Context, req *contracts.ReleaseSlotRequest) (*contracts.ReleaseSlotResponse, error) {
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
+
+	switch tenant.Version {
+	case dbsqlc.TenantMajorEngineVersionV0:
+		return s.releaseSlotV0(ctx, tenant, req)
+	case dbsqlc.TenantMajorEngineVersionV1:
+		return s.releaseSlotV1(ctx, tenant, req)
+	default:
+		return nil, status.Errorf(codes.Unimplemented, "ReleaseSlot is not implemented in engine version %s", string(tenant.Version))
+	}
+}
+
+func (s *DispatcherImpl) releaseSlotV0(ctx context.Context, tenant *dbsqlc.Tenant, req *contracts.ReleaseSlotRequest) (*contracts.ReleaseSlotResponse, error) {
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	if req.StepRunId == "" {

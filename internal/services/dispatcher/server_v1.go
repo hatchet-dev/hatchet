@@ -168,18 +168,6 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 	return nil
 }
 
-func getTaskEventKey(taskId int64, eventKey string) string {
-	return fmt.Sprintf("%d-%s", taskId, eventKey)
-}
-
-type stepResult struct {
-	Output []byte `json:"output,omitempty"`
-
-	StepReadableId string `json:"step_readable_id,omitempty"`
-
-	Error string `json:"error,omitempty"`
-}
-
 func (s *DispatcherImpl) taskEventsToWorkflowRunEvent(tenantId string, finalizedWorkflowRuns []*v1.ListFinalizedWorkflowRunsResponse) ([]*contracts.WorkflowRunEvent, error) {
 	res := make([]*contracts.WorkflowRunEvent, 0)
 
@@ -428,4 +416,40 @@ func (d *DispatcherImpl) refreshTimeoutV1(ctx context.Context, tenant *dbsqlc.Te
 	return &contracts.RefreshTimeoutResponse{
 		TimeoutAt: timestamppb.New(taskRuntime.TimeoutAt.Time),
 	}, nil
+}
+
+func (d *DispatcherImpl) releaseSlotV1(ctx context.Context, tenant *dbsqlc.Tenant, request *contracts.ReleaseSlotRequest) (*contracts.ReleaseSlotResponse, error) {
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+
+	releasedSlot, err := d.repov1.Tasks().ReleaseSlot(ctx, tenantId, request.StepRunId)
+
+	if err != nil {
+		return nil, err
+	}
+
+	workerId := sqlchelpers.UUIDToStr(releasedSlot.WorkerID)
+
+	// send to the OLAP repository
+	msg, err := tasktypes.MonitoringEventMessageFromInternal(
+		tenantId,
+		tasktypes.CreateMonitoringEventPayload{
+			TaskId:         releasedSlot.ID,
+			RetryCount:     releasedSlot.RetryCount,
+			WorkerId:       &workerId,
+			EventTimestamp: time.Now(),
+			EventType:      sqlcv1.V1EventTypeOlapSLOTRELEASED,
+		},
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	err = d.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, msg, false)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &contracts.ReleaseSlotResponse{}, nil
 }
