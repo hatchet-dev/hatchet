@@ -17,6 +17,8 @@ import {
 import { formatDuration } from '@/lib/utils';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { useWorkflowDetails } from '../../hooks/workflow-details';
+import { TaskRunActionButton } from '../../../task-runs-v1/actions';
+import { TASK_RUN_TERMINAL_STATUSES } from './step-run-detail/step-run-detail';
 
 export const WORKFLOW_RUN_TERMINAL_STATUSES = [
   WorkflowRunStatus.CANCELLED,
@@ -69,24 +71,18 @@ export const V1RunDetailHeader = () => {
                 Workflow Definition
               </Button>
             </a>
-            <Button
-              size={'sm'}
-              className="px-2 py-2 gap-2"
-              variant={'outline'}
-              disabled
-            >
-              <ArrowPathIcon className="w-4 h-4" />
-              Replay
-            </Button>
-            <Button
-              size={'sm'}
-              className="px-2 py-2 gap-2"
-              variant={'outline'}
-              disabled
-            >
-              <XCircleIcon className="w-4 h-4" />
-              Cancel
-            </Button>
+            <TaskRunActionButton
+              actionType="replay"
+              params={{ externalIds: [workflowRun.metadata.id] }}
+              disabled={
+                !TASK_RUN_TERMINAL_STATUSES.includes(workflowRun.status)
+              }
+            />
+            <TaskRunActionButton
+              actionType="cancel"
+              params={{ externalIds: [workflowRun.metadata.id] }}
+              disabled={TASK_RUN_TERMINAL_STATUSES.includes(workflowRun.status)}
+            />
           </div>
         </div>
       </div>
