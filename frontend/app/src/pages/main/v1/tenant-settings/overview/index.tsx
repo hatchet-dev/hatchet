@@ -2,7 +2,7 @@ import { Button } from '@/components/v1/ui/button';
 import { Separator } from '@/components/v1/ui/separator';
 import { TenantContextType } from '@/lib/outlet';
 import { useState } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { useLocation, useNavigate, useOutletContext } from 'react-router-dom';
 import { useApiError } from '@/lib/hooks';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import api, {
@@ -42,6 +42,8 @@ const UpgradeToV1 = () => {
   const { tenant } = useOutletContext<TenantContextType>();
   const selectedVersion = tenant.version;
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
 
   const { handleApiError } = useApiError({});
 
@@ -73,6 +75,12 @@ const UpgradeToV1 = () => {
           updateTenant({
             version: value as TenantVersion,
           });
+
+          if (value === 'V1' && !pathname.includes('v1')) {
+            navigate('/v1' + pathname);
+          } else if (value === 'V0' && pathname.includes('v1')) {
+            navigate(pathname.replace('/v1', ''));
+          }
         }}
       >
         {tenantVersions.map((version) => (

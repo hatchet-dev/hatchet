@@ -103,7 +103,7 @@ export const useColumnFilters = () => {
       createdAfter: searchParams.get(queryParamNames.createdAfter),
       finishedBefore: searchParams.get(queryParamNames.finishedBefore),
     });
-  }, [isCustomTimeRange, timeWindowFilter, searchParams]);
+  }, [isCustomTimeRange, timeWindowFilter, searchParams, queryParamNames]);
 
   const status = searchParams.get(queryParamNames.status) as
     | V1TaskStatus
