@@ -226,12 +226,6 @@ const V1StepRunSummary = ({ taskRunId }: { taskRunId: string }) => {
         <RelativeDate date={data.startedAt} />
       </div>,
     );
-  } else {
-    timings.push(
-      <div key="created" className="text-sm text-muted-foreground">
-        Running
-      </div>,
-    );
   }
 
   if (data.status === V1TaskStatus.FAILED && data.finishedAt) {
