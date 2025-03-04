@@ -546,6 +546,29 @@ func (a *adminClientImpl) getJobOpts(jobName string, job *types.WorkflowJob) (*a
 				opt.Units = &units
 			}
 
+			if rateLimit.Duration != nil {
+				var duration admincontracts.RateLimitDuration
+
+				switch *rateLimit.Duration {
+				case types.Year:
+					duration = admincontracts.RateLimitDuration_YEAR
+				case types.Month:
+					duration = admincontracts.RateLimitDuration_MONTH
+				case types.Day:
+					duration = admincontracts.RateLimitDuration_DAY
+				case types.Hour:
+					duration = admincontracts.RateLimitDuration_HOUR
+				case types.Minute:
+					duration = admincontracts.RateLimitDuration_MINUTE
+				case types.Second:
+					duration = admincontracts.RateLimitDuration_SECOND
+				default:
+					duration = admincontracts.RateLimitDuration_MINUTE
+				}
+
+				opt.Duration = &duration
+			}
+
 			stepOpt.RateLimits = append(stepOpt.RateLimits, opt)
 		}
 

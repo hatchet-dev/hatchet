@@ -337,6 +337,9 @@ type RateLimit struct {
 	Units          *int    `yaml:"units,omitempty"`
 	UnitsExpr      *string `yaml:"unitsExpr,omitempty"`
 	LimitValueExpr *string `yaml:"limitValueExpr,omitempty"`
+
+	// Duration is the duration of the rate limit
+	Duration *types.RateLimitDuration `yaml:"duration,omitempty"`
 }
 
 func Fn(f any) *WorkflowStep {
@@ -461,6 +464,7 @@ func (w *WorkflowStep) ToWorkflowStep(svcName string, index int, namespace strin
 			Units:          rateLimit.Units,
 			UnitsExpr:      rateLimit.UnitsExpr,
 			LimitValueExpr: rateLimit.LimitValueExpr,
+			Duration:       rateLimit.Duration,
 		})
 	}
 
