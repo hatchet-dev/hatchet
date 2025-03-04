@@ -936,6 +936,13 @@ ORDER BY bucket_2;
 
 
 -- name: GetTenantStatusMetrics :one
+WITH task_external_ids AS (
+    SELECT external_id
+    FROM v1_runs_olap
+    WHERE (
+        sqlc.narg('parentTaskExternalId')::UUID IS NULL OR parent_task_external_id = sqlc.narg('parentTaskExternalId')::UUID
+    )
+)
 SELECT
     tenant_id,
     COUNT(*) FILTER (WHERE readable_status = 'QUEUED') AS total_queued,
@@ -949,6 +956,10 @@ WHERE
     AND inserted_at >= @createdAfter::TIMESTAMPTZ
     AND (
         sqlc.narg('workflowIds')::UUID[] IS NULL OR workflow_id = ANY(sqlc.narg('workflowIds')::UUID[])
+    )
+    AND external_id IN (
+        SELECT external_id
+        FROM task_external_ids
     )
 GROUP BY tenant_id
 ;

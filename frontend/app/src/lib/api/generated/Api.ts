@@ -371,6 +371,13 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       since: string;
       /** The workflow id to find runs for */
       workflow_ids?: string[];
+      /**
+       * The parent task's external id
+       * @format uuid
+       * @minLength 36
+       * @maxLength 36
+       */
+      parent_task_external_id?: string;
     },
     params: RequestParams = {},
   ) =>

@@ -64,6 +64,12 @@ export const useToolbarFilters = ({
       title: 'Metadata',
       type: ToolbarType.KeyValue,
     },
+    {
+      columnId: 'parentTaskExternalId',
+      title: 'Parent Task',
+      type: ToolbarType.Radio,
+      options: workflowKeyFilters,
+    },
   ].filter((filter) => filterVisibility[filter.columnId] != false);
 
   return filters;

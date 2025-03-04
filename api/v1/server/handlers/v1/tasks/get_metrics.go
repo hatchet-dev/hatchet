@@ -2,6 +2,7 @@ package tasks
 
 import (
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
@@ -23,9 +24,17 @@ func (t *TasksService) V1TaskListStatusMetrics(ctx echo.Context, request gen.V1T
 		workflowIds = *request.Params.WorkflowIds
 	}
 
+	var parentTaskExternalId *pgtype.UUID
+
+	if request.Params.ParentTaskExternalId != nil {
+		uuidVal := sqlchelpers.UUIDFromStr(request.Params.ParentTaskExternalId.String())
+		parentTaskExternalId = &uuidVal
+	}
+
 	metrics, err := t.config.V1.OLAP().ReadTaskRunMetrics(ctx.Request().Context(), tenantId, v1.ReadTaskRunMetricsOpts{
-		CreatedAfter: request.Params.Since,
-		WorkflowIds:  workflowIds,
+		CreatedAfter:         request.Params.Since,
+		WorkflowIds:          workflowIds,
+		ParentTaskExternalID: parentTaskExternalId,
 	})
 
 	if err != nil {

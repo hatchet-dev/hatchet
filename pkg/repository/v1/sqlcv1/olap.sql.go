@@ -273,6 +273,13 @@ func (q *Queries) GetTaskPointMetrics(ctx context.Context, db DBTX, arg GetTaskP
 }
 
 const getTenantStatusMetrics = `-- name: GetTenantStatusMetrics :one
+WITH task_external_ids AS (
+    SELECT external_id
+    FROM v1_runs_olap
+    WHERE (
+        $4::UUID IS NULL OR parent_task_external_id = $4::UUID
+    )
+)
 SELECT
     tenant_id,
     COUNT(*) FILTER (WHERE readable_status = 'QUEUED') AS total_queued,
@@ -287,13 +294,18 @@ WHERE
     AND (
         $3::UUID[] IS NULL OR workflow_id = ANY($3::UUID[])
     )
+    AND external_id IN (
+        SELECT external_id
+        FROM task_external_ids
+    )
 GROUP BY tenant_id
 `
 
 type GetTenantStatusMetricsParams struct {
-	Tenantid     pgtype.UUID        `json:"tenantid"`
-	Createdafter pgtype.Timestamptz `json:"createdafter"`
-	WorkflowIds  []pgtype.UUID      `json:"workflowIds"`
+	Tenantid             pgtype.UUID        `json:"tenantid"`
+	Createdafter         pgtype.Timestamptz `json:"createdafter"`
+	WorkflowIds          []pgtype.UUID      `json:"workflowIds"`
+	ParentTaskExternalId pgtype.UUID        `json:"parentTaskExternalId"`
 }
 
 type GetTenantStatusMetricsRow struct {
@@ -306,7 +318,12 @@ type GetTenantStatusMetricsRow struct {
 }
 
 func (q *Queries) GetTenantStatusMetrics(ctx context.Context, db DBTX, arg GetTenantStatusMetricsParams) (*GetTenantStatusMetricsRow, error) {
-	row := db.QueryRow(ctx, getTenantStatusMetrics, arg.Tenantid, arg.Createdafter, arg.WorkflowIds)
+	row := db.QueryRow(ctx, getTenantStatusMetrics,
+		arg.Tenantid,
+		arg.Createdafter,
+		arg.WorkflowIds,
+		arg.ParentTaskExternalId,
+	)
 	var i GetTenantStatusMetricsRow
 	err := row.Scan(
 		&i.TenantID,

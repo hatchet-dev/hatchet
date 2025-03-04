@@ -202,6 +202,15 @@ getTaskStatusMetrics:
             format: uuid
             minLength: 36
             maxLength: 36
+      - description: The parent task's external id
+        in: query
+        name: parent_task_external_id
+        required: false
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
     responses:
       "200":
         content:

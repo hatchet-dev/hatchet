@@ -152,6 +152,15 @@ export const columns: (
     enableSorting: false,
     enableHiding: true,
   },
+  {
+    accessorKey: 'parentTaskExternalId',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Parent Workflow" />
+    ),
+    cell: () => null,
+    enableSorting: false,
+    enableHiding: true,
+  },
   // {
   //   accessorKey: 'Triggered by',
   //   header: ({ column }) => (

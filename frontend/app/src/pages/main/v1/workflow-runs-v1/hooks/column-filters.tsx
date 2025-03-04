@@ -18,6 +18,7 @@ type FilterParams = {
   columnFilters: ColumnFiltersState;
   Workflow: string | undefined;
   timeWindow: TimeWindow | undefined;
+  parentTaskExternalId: string | undefined;
 };
 type FilterKey = keyof FilterParams;
 
@@ -102,6 +103,9 @@ export const useColumnFilters = () => {
 
   const workflowId = searchParams.get('Workflow') || undefined;
 
+  const parentTaskExternalId =
+    searchParams.get('parentTaskExternalId') || undefined;
+
   const statusColumnFilter = status
     ? { id: 'status', value: status }
     : undefined;
@@ -111,11 +115,15 @@ export const useColumnFilters = () => {
   const workflowIdColumnFilter = workflowId
     ? { id: 'Workflow', value: workflowId }
     : undefined;
+  const parentTaskExternalIdFilter = parentTaskExternalId
+    ? { id: 'parentTaskExternalId', value: parentTaskExternalId }
+    : undefined;
 
   const columnFilters: ColumnFiltersState = [
     statusColumnFilter,
     additionalMetadataColumnFilter,
     workflowIdColumnFilter,
+    parentTaskExternalIdFilter,
   ].filter((f) => f !== undefined) as ColumnFiltersState;
 
   const setFilterValues = useCallback(
@@ -250,6 +258,7 @@ export const useColumnFilters = () => {
       { key: 'Workflow', value: undefined },
       { key: 'additionalMetadata', value: undefined },
       { key: 'status', value: undefined },
+      { key: 'parentTaskExternalId', value: undefined },
     ]);
   }, [setFilterValues]);
 
@@ -263,6 +272,7 @@ export const useColumnFilters = () => {
       workflowId,
       isCustomTimeRange,
       timeWindow: timeWindowFilter,
+      parentTaskExternalId,
     },
     setCustomTimeRange,
     setCreatedAfter,

@@ -49,8 +49,6 @@ export interface TaskRunsTableProps {
   createdBefore?: string;
   workflowId?: string;
   workerId?: string;
-  parentTaskExternalId?: string;
-  parentStepRunId?: string;
   initColumnVisibility?: VisibilityState;
   filterVisibility?: { [key: string]: boolean };
   refetchInterval?: number;
@@ -66,7 +64,6 @@ type StepDetailSheetState = {
 export function TaskRunsTable({
   workflowId,
   workerId,
-  parentTaskExternalId,
   createdAfter: createdAfterProp,
   initColumnVisibility = {},
   filterVisibility = {},
@@ -80,8 +77,10 @@ export function TaskRunsTable({
   const [viewQueueMetrics, setViewQueueMetrics] = useState(false);
   const [rotate, setRotate] = useState(false);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
-  const [columnVisibility, setColumnVisibility] =
-    useState<VisibilityState>(initColumnVisibility);
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
+    ...initColumnVisibility,
+    parentTaskExternalId: false,
+  });
   const [stepDetailSheetState, setStepDetailSheetState] =
     useState<StepDetailSheetState>({
       isOpen: false,
@@ -95,6 +94,7 @@ export function TaskRunsTable({
   const { sorting, setSorting } = useSorting();
 
   const workflow = workflowId || cf.filters.workflowId;
+  const parentTaskExternalId = cf.filters.parentTaskExternalId;
 
   const {
     tableRows,
@@ -118,6 +118,7 @@ export function TaskRunsTable({
   } = useMetrics({
     workflow,
     refetchInterval,
+    parentTaskExternalId,
   });
 
   const onTaskRunIdClick = useCallback((taskRunId: string) => {

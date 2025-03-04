@@ -1,10 +1,4 @@
-import {
-  StepRun,
-  V1TaskStatus,
-  V1TaskSummary,
-  WorkflowRun,
-  queries,
-} from '@/lib/api';
+import { StepRun, V1TaskStatus, V1TaskSummary, queries } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 import invariant from 'tiny-invariant';
 import { Button } from '@/components/v1/ui/button';
@@ -287,11 +281,9 @@ const V1StepRunSummary = ({ taskRunId }: { taskRunId: string }) => {
 
 export function ChildWorkflowRuns({
   stepRun,
-  workflowRun,
   refetchInterval,
 }: {
   stepRun: StepRun | undefined;
-  workflowRun: WorkflowRun;
   refetchInterval?: number;
 }) {
   const { tenant } = useOutletContext<TenantContextType>();
@@ -299,8 +291,6 @@ export function ChildWorkflowRuns({
 
   return (
     <WorkflowRunsTable
-      parentTaskExternalId={workflowRun.metadata.id}
-      parentStepRunId={stepRun?.metadata.id}
       refetchInterval={refetchInterval}
       initColumnVisibility={{
         'Triggered by': false,

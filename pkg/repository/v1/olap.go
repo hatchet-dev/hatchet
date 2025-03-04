@@ -66,6 +66,8 @@ type ReadTaskRunMetricsOpts struct {
 	CreatedAfter time.Time
 
 	WorkflowIds []uuid.UUID
+
+	ParentTaskExternalID *pgtype.UUID
 }
 
 type WorkflowRunData struct {
@@ -698,8 +700,6 @@ func (r *olapRepository) ListWorkflowRuns(ctx context.Context, tenantId string, 
 		params.ParentTaskExternalId = *opts.ParentTaskExternalId
 	}
 
-	fmt.Println(params.ParentTaskExternalId, opts.ParentTaskExternalId)
-
 	workflowRunIds, err := r.queries.FetchWorkflowRunIds(ctx, tx, params)
 
 	if err != nil {
@@ -872,9 +872,10 @@ func (r *olapRepository) ReadTaskRunMetrics(ctx context.Context, tenantId string
 	}
 
 	res, err := r.queries.GetTenantStatusMetrics(context.Background(), r.pool, sqlcv1.GetTenantStatusMetricsParams{
-		Tenantid:     sqlchelpers.UUIDFromStr(tenantId),
-		Createdafter: sqlchelpers.TimestamptzFromTime(opts.CreatedAfter),
-		WorkflowIds:  workflowIds,
+		Tenantid:             sqlchelpers.UUIDFromStr(tenantId),
+		Createdafter:         sqlchelpers.TimestamptzFromTime(opts.CreatedAfter),
+		WorkflowIds:          workflowIds,
+		ParentTaskExternalId: *opts.ParentTaskExternalID,
 	})
 
 	if err != nil {
