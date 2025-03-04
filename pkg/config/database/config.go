@@ -31,7 +31,7 @@ type ConfigFile struct {
 
 	LogQueries bool `mapstructure:"logQueries" json:"logQueries,omitempty" default:"false"`
 
-	CacheDuration time.Duration `mapstructure:"cacheDuration" json:"cacheDuration,omitempty" default:"60s"`
+	CacheDuration time.Duration `mapstructure:"cacheDuration" json:"cacheDuration,omitempty" default:"5s"`
 }
 
 type SeedConfigFile struct {

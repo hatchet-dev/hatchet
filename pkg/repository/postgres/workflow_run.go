@@ -175,7 +175,7 @@ func (w *workflowRunAPIRepository) ListScheduledWorkflows(ctx context.Context, t
 	return scheduledWorkflows, count, nil
 }
 
-func (w *workflowRunAPIRepository) DeleteScheduledWorkflow(ctx context.Context, tenantId, scheduledWorkflowId string) error {
+func (w *sharedRepository) DeleteScheduledWorkflow(ctx context.Context, tenantId, scheduledWorkflowId string) error {
 	return w.queries.DeleteScheduledWorkflow(ctx, w.pool, sqlchelpers.UUIDFromStr(scheduledWorkflowId))
 }
 
