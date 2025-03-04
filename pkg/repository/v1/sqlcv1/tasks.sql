@@ -302,7 +302,7 @@ WITH expired_runtimes AS (
         tenant_id = @tenantId::uuid
         AND timeout_at <= NOW()
     ORDER BY
-        task_id
+        task_id, task_inserted_at, retry_count
     LIMIT
         COALESCE(sqlc.narg('limit')::integer, 1000)
     FOR UPDATE SKIP LOCKED
@@ -821,3 +821,42 @@ WHERE
         FROM
             input
     );
+
+-- name: RefreshTimeoutBy :one
+WITH task AS (
+    SELECT
+        t.id,
+        t.inserted_at,
+        t.retry_count,
+        t.tenant_id
+    FROM
+        v1_lookup_table lt
+    JOIN
+        v1_task t ON t.id = lt.task_id AND t.inserted_at = lt.inserted_at
+    WHERE
+        lt.external_id = @externalId::uuid AND
+        lt.tenant_id = @tenantId::uuid
+), locked_runtime AS (
+    SELECT
+        tr.task_id,
+        tr.task_inserted_at,
+        tr.retry_count,
+        tr.worker_id
+    FROM
+        v1_task_runtime tr
+    WHERE
+        (tr.task_id, tr.task_inserted_at, tr.retry_count) IN (SELECT id, inserted_at, retry_count FROM task)
+    ORDER BY
+        task_id, task_inserted_at, retry_count
+    FOR UPDATE
+)
+UPDATE
+    v1_task_runtime
+SET
+    timeout_at = timeout_at + convert_duration_to_interval(sqlc.narg('incrementTimeoutBy')::text)
+FROM
+    task
+WHERE
+    (v1_task_runtime.task_id, v1_task_runtime.task_inserted_at, v1_task_runtime.retry_count) IN (SELECT id, inserted_at, retry_count FROM task)
+RETURNING
+    v1_task_runtime.*;
