@@ -1265,7 +1265,7 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndSkipped(ctx context.Context,
 	return nil
 }
 
-func (tc *TasksControllerImpl) signalTasksReplayed(ctx context.Context, tenantId string, tasks []v1.TaskIdRetryCount) error {
+func (tc *TasksControllerImpl) signalTasksReplayed(ctx context.Context, tenantId string, tasks []v1.TaskIdInsertedAtRetryCount) error {
 	// notify that tasks have been created
 	// TODO: make this transactionally safe?
 	for _, task := range tasks {
