@@ -2,6 +2,7 @@ package v1
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -15,10 +16,12 @@ import (
 )
 
 type RateLimitResult struct {
-	ExceededKey   string
-	ExceededUnits int32
-	ExceededVal   int32
-	TaskId        int64
+	ExceededKey    string
+	ExceededUnits  int32
+	ExceededVal    int32
+	TaskId         int64
+	TaskInsertedAt pgtype.Timestamptz
+	RetryCount     int32
 }
 
 type AssignedItem struct {
@@ -285,238 +288,234 @@ func (d *queueRepository) MarkQueueItemsProcessed(ctx context.Context, r *Assign
 	return succeeded, failed, nil
 }
 
-// TODO: ADD RATE LIMITS
-// func (d *queueRepository) GetStepRunRateLimits(ctx context.Context, queueItems []*sqlcv1.QueueItem) (map[string]map[string]int32, error) {
-// 	ctx, span := telemetry.NewSpan(ctx, "get-step-run-rate-limits")
-// 	defer span.End()
+func (d *queueRepository) GetTaskRateLimits(ctx context.Context, queueItems []*sqlcv1.V1QueueItem) (map[int64]map[string]int32, error) {
+	ctx, span := telemetry.NewSpan(ctx, "get-step-run-rate-limits")
+	defer span.End()
 
-// 	stepRunIds := make([]pgtype.UUID, 0, len(queueItems))
-// 	stepIds := make([]pgtype.UUID, 0, len(queueItems))
-// 	stepsWithRateLimits := make(map[string]bool)
+	taskIds := make([]int64, 0, len(queueItems))
+	taskInsertedAts := make([]pgtype.Timestamptz, 0, len(queueItems))
+	stepsWithRateLimits := make(map[string]bool)
+	stepIdToTasks := make(map[string][]int64)
+	taskIdToStepId := make(map[int64]string)
 
-// 	for _, item := range queueItems {
-// 		stepRunIds = append(stepRunIds, item.StepRunId)
-// 		stepIds = append(stepIds, item.StepId)
-// 	}
+	for _, item := range queueItems {
+		taskIds = append(taskIds, item.TaskID)
+		taskInsertedAts = append(taskInsertedAts, item.TaskInsertedAt)
 
-// 	stepIdToStepRuns := make(map[string][]string)
-// 	stepRunIdToStepId := make(map[string]string)
+		stepId := sqlchelpers.UUIDToStr(item.StepID)
 
-// 	for i, stepRunId := range stepRunIds {
-// 		stepId := sqlchelpers.UUIDToStr(stepIds[i])
-// 		stepRunIdStr := sqlchelpers.UUIDToStr(stepRunId)
+		stepIdToTasks[stepId] = append(stepIdToTasks[stepId], item.TaskID)
+		taskIdToStepId[item.TaskID] = stepId
+	}
 
-// 		if _, ok := stepIdToStepRuns[stepId]; !ok {
-// 			stepIdToStepRuns[stepId] = make([]string, 0)
-// 		}
+	// check if we have any rate limits for these step ids
+	skipRateLimiting := true
 
-// 		stepIdToStepRuns[stepId] = append(stepIdToStepRuns[stepId], stepRunIdStr)
-// 		stepRunIdToStepId[stepRunIdStr] = stepId
-// 	}
+	for stepIdStr := range stepIdToTasks {
+		if hasRateLimit, ok := d.cachedStepIdHasRateLimit.Get(stepIdStr); !ok || hasRateLimit.(bool) {
+			skipRateLimiting = false
+			break
+		}
+	}
 
-// 	// check if we have any rate limits for these step ids
-// 	skipRateLimiting := true
+	if skipRateLimiting {
+		return nil, nil
+	}
 
-// 	for stepIdStr := range stepIdToStepRuns {
-// 		if hasRateLimit, ok := d.cachedStepIdHasRateLimit.Get(stepIdStr); !ok || hasRateLimit.(bool) {
-// 			skipRateLimiting = false
-// 			break
-// 		}
-// 	}
+	// get all step run expression evals which correspond to rate limits, grouped by step run id
+	expressionEvals, err := d.queries.ListTaskExpressionEvals(ctx, d.pool, sqlcv1.ListTaskExpressionEvalsParams{
+		Taskids:         taskIds,
+		Taskinsertedats: taskInsertedAts,
+	})
 
-// 	if skipRateLimiting {
-// 		return nil, nil
-// 	}
+	if err != nil {
+		return nil, err
+	}
 
-// 	// get all step run expression evals which correspond to rate limits, grouped by step run id
-// 	expressionEvals, err := d.queries.ListStepRunExpressionEvals(ctx, d.pool, stepRunIds)
+	taskIdAndGlobalKeyToKey := make(map[string]string)
+	taskIdToKeys := make(map[int64][]string)
 
-// 	if err != nil {
-// 		return nil, err
-// 	}
+	for _, eval := range expressionEvals {
+		taskId := eval.TaskID
+		globalKey := eval.Key
 
-// 	stepRunAndGlobalKeyToKey := make(map[string]string)
-// 	stepRunToKeys := make(map[string][]string)
+		// Only append if this is a key expression. Note that we have a uniqueness constraint on
+		// the stepRunId, kind, and key, so we will not insert duplicate values into the array.
+		if eval.Kind == sqlcv1.StepExpressionKindDYNAMICRATELIMITKEY {
+			stepsWithRateLimits[taskIdToStepId[taskId]] = true
 
-// 	for _, eval := range expressionEvals {
-// 		stepRunId := sqlchelpers.UUIDToStr(eval.StepRunId)
-// 		globalKey := eval.Key
+			k := eval.ValueStr.String
 
-// 		// Only append if this is a key expression. Note that we have a uniqueness constraint on
-// 		// the stepRunId, kind, and key, so we will not insert duplicate values into the array.
-// 		if eval.Kind == sqlcv1.StepExpressionKindDYNAMICRATELIMITKEY {
-// 			stepsWithRateLimits[stepRunIdToStepId[stepRunId]] = true
+			if _, ok := taskIdToKeys[taskId]; !ok {
+				taskIdToKeys[taskId] = make([]string, 0)
+			}
 
-// 			k := eval.ValueStr.String
+			taskIdToKeys[taskId] = append(taskIdToKeys[taskId], k)
 
-// 			if _, ok := stepRunToKeys[stepRunId]; !ok {
-// 				stepRunToKeys[stepRunId] = make([]string, 0)
-// 			}
+			taskIdAndGlobalKey := fmt.Sprintf("%d-%s", taskId, globalKey)
 
-// 			stepRunToKeys[stepRunId] = append(stepRunToKeys[stepRunId], k)
+			taskIdAndGlobalKeyToKey[taskIdAndGlobalKey] = k
+		}
+	}
 
-// 			stepRunAndGlobalKey := fmt.Sprintf("%s-%s", stepRunId, globalKey)
+	rateLimitKeyToEvals := make(map[string][]*sqlcv1.V1TaskExpressionEval)
 
-// 			stepRunAndGlobalKeyToKey[stepRunAndGlobalKey] = k
-// 		}
-// 	}
+	for _, eval := range expressionEvals {
+		k := taskIdAndGlobalKeyToKey[fmt.Sprintf("%d-%s", eval.TaskID, eval.Key)]
 
-// 	rateLimitKeyToEvals := make(map[string][]*sqlcv1.StepRunExpressionEval)
+		if _, ok := rateLimitKeyToEvals[k]; !ok {
+			rateLimitKeyToEvals[k] = make([]*sqlcv1.V1TaskExpressionEval, 0)
+		}
 
-// 	for _, eval := range expressionEvals {
-// 		k := stepRunAndGlobalKeyToKey[fmt.Sprintf("%s-%s", sqlchelpers.UUIDToStr(eval.StepRunId), eval.Key)]
+		rateLimitKeyToEvals[k] = append(rateLimitKeyToEvals[k], eval)
+	}
 
-// 		if _, ok := rateLimitKeyToEvals[k]; !ok {
-// 			rateLimitKeyToEvals[k] = make([]*sqlcv1.StepRunExpressionEval, 0)
-// 		}
+	upsertRateLimitBulkParams := sqlcv1.UpsertRateLimitsBulkParams{
+		Tenantid: d.tenantId,
+	}
 
-// 		rateLimitKeyToEvals[k] = append(rateLimitKeyToEvals[k], eval)
-// 	}
+	taskIdToKeyToUnits := make(map[int64]map[string]int32)
 
-// 	upsertRateLimitBulkParams := sqlcv1.UpsertRateLimitsBulkParams{
-// 		Tenantid: d.tenantId,
-// 	}
+	for key, evals := range rateLimitKeyToEvals {
+		var duration string
+		var limitValue int
+		var skip bool
 
-// 	stepRunToKeyToUnits := make(map[string]map[string]int32)
+		for _, eval := range evals {
+			// add to taskIdToKeyToUnits
+			taskId := eval.TaskID
 
-// 	for key, evals := range rateLimitKeyToEvals {
-// 		var duration string
-// 		var limitValue int
-// 		var skip bool
+			// throw an error if there are multiple rate limits with the same keys, but different limit values or durations
+			if eval.Kind == sqlcv1.StepExpressionKindDYNAMICRATELIMITWINDOW {
+				if duration == "" {
+					duration = eval.ValueStr.String
+				} else if duration != eval.ValueStr.String {
+					largerDuration, err := getLargerDuration(duration, eval.ValueStr.String)
 
-// 		for _, eval := range evals {
-// 			// add to stepRunToKeyToUnits
-// 			stepRunId := sqlchelpers.UUIDToStr(eval.StepRunId)
+					if err != nil {
+						skip = true
+						break
+					}
 
-// 			// throw an error if there are multiple rate limits with the same keys, but different limit values or durations
-// 			if eval.Kind == sqlcv1.StepExpressionKindDYNAMICRATELIMITWINDOW {
-// 				if duration == "" {
-// 					duration = eval.ValueStr.String
-// 				} else if duration != eval.ValueStr.String {
-// 					largerDuration, err := getLargerDuration(duration, eval.ValueStr.String)
+					// FIXME: this is a helpful debug log, but we aren't propagating this all the way back to OLAP yet
+					// message := fmt.Sprintf("Multiple rate limits with key %s have different durations: %s vs %s. Using longer window %s.", key, duration, eval.ValueStr.String, largerDuration)
+					// timeSeen := time.Now().UTC()
+					// reason := sqlcv1.StepRunEventReasonRATELIMITERROR
+					// severity := sqlcv1.StepRunEventSeverityWARNING
+					// data := map[string]interface{}{}
 
-// 					if err != nil {
-// 						skip = true
-// 						break
-// 					}
+					// buffErr := d.bulkEventBuffer.FireForget(sqlchelpers.UUIDToStr(d.tenantId), &repository.CreateStepRunEventOpts{
+					// 	StepRunId:     sqlchelpers.UUIDToStr(eval.StepRunId),
+					// 	EventMessage:  &message,
+					// 	EventReason:   &reason,
+					// 	EventSeverity: &severity,
+					// 	Timestamp:     &timeSeen,
+					// 	EventData:     data,
+					// })
 
-// 					message := fmt.Sprintf("Multiple rate limits with key %s have different durations: %s vs %s. Using longer window %s.", key, duration, eval.ValueStr.String, largerDuration)
-// 					timeSeen := time.Now().UTC()
-// 					reason := sqlcv1.StepRunEventReasonRATELIMITERROR
-// 					severity := sqlcv1.StepRunEventSeverityWARNING
-// 					data := map[string]interface{}{}
+					// if buffErr != nil {
+					// 	d.l.Err(buffErr).Msg("could not buffer step run event")
+					// }
 
-// 					buffErr := d.bulkEventBuffer.FireForget(sqlchelpers.UUIDToStr(d.tenantId), &repository.CreateStepRunEventOpts{
-// 						StepRunId:     sqlchelpers.UUIDToStr(eval.StepRunId),
-// 						EventMessage:  &message,
-// 						EventReason:   &reason,
-// 						EventSeverity: &severity,
-// 						Timestamp:     &timeSeen,
-// 						EventData:     data,
-// 					})
+					duration = largerDuration
+				}
+			}
 
-// 					if buffErr != nil {
-// 						d.l.Err(buffErr).Msg("could not buffer step run event")
-// 					}
+			if eval.Kind == sqlcv1.StepExpressionKindDYNAMICRATELIMITVALUE {
+				if limitValue == 0 {
+					limitValue = int(eval.ValueInt.Int32)
+				} else if limitValue != int(eval.ValueInt.Int32) {
+					// FIXME: this is a helpful debug log, but we aren't propagating this all the way back to OLAP yet
+					// message := fmt.Sprintf("Multiple rate limits with key %s have different limit values: %d vs %d. Using lower value %d.", key, limitValue, eval.ValueInt.Int32, min(limitValue, int(eval.ValueInt.Int32)))
+					// timeSeen := time.Now().UTC()
+					// reason := sqlcv1.StepRunEventReasonRATELIMITERROR
+					// severity := sqlcv1.StepRunEventSeverityWARNING
+					// data := map[string]interface{}{}
 
-// 					duration = largerDuration
-// 				}
-// 			}
+					// buffErr := d.bulkEventBuffer.FireForget(sqlchelpers.UUIDToStr(d.tenantId), &repository.CreateStepRunEventOpts{
+					// 	StepRunId:     sqlchelpers.UUIDToStr(eval.StepRunId),
+					// 	EventMessage:  &message,
+					// 	EventReason:   &reason,
+					// 	EventSeverity: &severity,
+					// 	Timestamp:     &timeSeen,
+					// 	EventData:     data,
+					// })
 
-// 			if eval.Kind == sqlcv1.StepExpressionKindDYNAMICRATELIMITVALUE {
-// 				if limitValue == 0 {
-// 					limitValue = int(eval.ValueInt.Int32)
-// 				} else if limitValue != int(eval.ValueInt.Int32) {
-// 					message := fmt.Sprintf("Multiple rate limits with key %s have different limit values: %d vs %d. Using lower value %d.", key, limitValue, eval.ValueInt.Int32, min(limitValue, int(eval.ValueInt.Int32)))
-// 					timeSeen := time.Now().UTC()
-// 					reason := sqlcv1.StepRunEventReasonRATELIMITERROR
-// 					severity := sqlcv1.StepRunEventSeverityWARNING
-// 					data := map[string]interface{}{}
+					// if buffErr != nil {
+					// 	d.l.Err(buffErr).Msg("could not buffer step run event")
+					// }
 
-// 					buffErr := d.bulkEventBuffer.FireForget(sqlchelpers.UUIDToStr(d.tenantId), &repository.CreateStepRunEventOpts{
-// 						StepRunId:     sqlchelpers.UUIDToStr(eval.StepRunId),
-// 						EventMessage:  &message,
-// 						EventReason:   &reason,
-// 						EventSeverity: &severity,
-// 						Timestamp:     &timeSeen,
-// 						EventData:     data,
-// 					})
+					limitValue = min(limitValue, int(eval.ValueInt.Int32))
+				}
+			}
 
-// 					if buffErr != nil {
-// 						d.l.Err(buffErr).Msg("could not buffer step run event")
-// 					}
+			if eval.Kind == sqlcv1.StepExpressionKindDYNAMICRATELIMITUNITS {
+				if _, ok := taskIdToKeyToUnits[taskId]; !ok {
+					taskIdToKeyToUnits[taskId] = make(map[string]int32)
+				}
 
-// 					limitValue = min(limitValue, int(eval.ValueInt.Int32))
-// 				}
-// 			}
+				taskIdToKeyToUnits[taskId][key] = eval.ValueInt.Int32
+			}
+		}
 
-// 			if eval.Kind == sqlcv1.StepExpressionKindDYNAMICRATELIMITUNITS {
-// 				if _, ok := stepRunToKeyToUnits[stepRunId]; !ok {
-// 					stepRunToKeyToUnits[stepRunId] = make(map[string]int32)
-// 				}
+		if skip {
+			continue
+		}
 
-// 				stepRunToKeyToUnits[stepRunId][key] = eval.ValueInt.Int32
-// 			}
-// 		}
+		upsertRateLimitBulkParams.Keys = append(upsertRateLimitBulkParams.Keys, key)
+		upsertRateLimitBulkParams.Windows = append(upsertRateLimitBulkParams.Windows, getWindowParamFromDurString(duration))
+		upsertRateLimitBulkParams.Limitvalues = append(upsertRateLimitBulkParams.Limitvalues, int32(limitValue)) // nolint: gosec
+	}
 
-// 		if skip {
-// 			continue
-// 		}
+	var stepRateLimits []*sqlcv1.StepRateLimit
 
-// 		upsertRateLimitBulkParams.Keys = append(upsertRateLimitBulkParams.Keys, key)
-// 		upsertRateLimitBulkParams.Windows = append(upsertRateLimitBulkParams.Windows, getWindowParamFromDurString(duration))
-// 		upsertRateLimitBulkParams.Limitvalues = append(upsertRateLimitBulkParams.Limitvalues, int32(limitValue)) // nolint: gosec
-// 	}
+	if len(upsertRateLimitBulkParams.Keys) > 0 {
+		// upsert all rate limits based on the keys, limit values, and durations
+		err = d.queries.UpsertRateLimitsBulk(ctx, d.pool, upsertRateLimitBulkParams)
 
-// 	var stepRateLimits []*sqlcv1.StepRateLimit
+		if err != nil {
+			return nil, fmt.Errorf("could not bulk upsert dynamic rate limits: %w", err)
+		}
+	}
 
-// 	if len(upsertRateLimitBulkParams.Keys) > 0 {
-// 		// upsert all rate limits based on the keys, limit values, and durations
-// 		err = d.queries.UpsertRateLimitsBulk(ctx, d.pool, upsertRateLimitBulkParams)
+	// get all existing static rate limits for steps to the mapping, mapping back from step ids to step run ids
+	uniqueStepIds := make([]pgtype.UUID, 0, len(stepIdToTasks))
 
-// 		if err != nil {
-// 			return nil, fmt.Errorf("could not bulk upsert dynamic rate limits: %w", err)
-// 		}
-// 	}
+	for stepId := range stepIdToTasks {
+		uniqueStepIds = append(uniqueStepIds, sqlchelpers.UUIDFromStr(stepId))
+	}
 
-// 	// get all existing static rate limits for steps to the mapping, mapping back from step ids to step run ids
-// 	uniqueStepIds := make([]pgtype.UUID, 0, len(stepIdToStepRuns))
+	stepRateLimits, err = d.queries.ListRateLimitsForSteps(ctx, d.pool, sqlcv1.ListRateLimitsForStepsParams{
+		Tenantid: d.tenantId,
+		Stepids:  uniqueStepIds,
+	})
 
-// 	for stepId := range stepIdToStepRuns {
-// 		uniqueStepIds = append(uniqueStepIds, sqlchelpers.UUIDFromStr(stepId))
-// 	}
+	if err != nil {
+		return nil, fmt.Errorf("could not list rate limits for steps: %w", err)
+	}
 
-// 	stepRateLimits, err = d.queries.ListRateLimitsForSteps(ctx, d.pool, sqlcv1.ListRateLimitsForStepsParams{
-// 		Tenantid: d.tenantId,
-// 		Stepids:  uniqueStepIds,
-// 	})
+	for _, row := range stepRateLimits {
+		stepsWithRateLimits[sqlchelpers.UUIDToStr(row.StepId)] = true
+		stepId := sqlchelpers.UUIDToStr(row.StepId)
+		tasks := stepIdToTasks[stepId]
 
-// 	if err != nil {
-// 		return nil, fmt.Errorf("could not list rate limits for steps: %w", err)
-// 	}
+		for _, taskId := range tasks {
+			if _, ok := taskIdToKeyToUnits[taskId]; !ok {
+				taskIdToKeyToUnits[taskId] = make(map[string]int32)
+			}
 
-// 	for _, row := range stepRateLimits {
-// 		stepsWithRateLimits[sqlchelpers.UUIDToStr(row.StepId)] = true
-// 		stepId := sqlchelpers.UUIDToStr(row.StepId)
-// 		stepRuns := stepIdToStepRuns[stepId]
+			taskIdToKeyToUnits[taskId][row.RateLimitKey] = row.Units
+		}
+	}
 
-// 		for _, stepRunId := range stepRuns {
-// 			if _, ok := stepRunToKeyToUnits[stepRunId]; !ok {
-// 				stepRunToKeyToUnits[stepRunId] = make(map[string]int32)
-// 			}
+	// store all step ids in the cache, so we can skip rate limiting for steps without rate limits
+	for stepId := range stepIdToTasks {
+		hasRateLimit := stepsWithRateLimits[stepId]
+		d.cachedStepIdHasRateLimit.Set(stepId, hasRateLimit)
+	}
 
-// 			stepRunToKeyToUnits[stepRunId][row.RateLimitKey] = row.Units
-// 		}
-// 	}
-
-// 	// store all step ids in the cache, so we can skip rate limiting for steps without rate limits
-// 	for stepId := range stepIdToStepRuns {
-// 		hasRateLimit := stepsWithRateLimits[stepId]
-// 		d.cachedStepIdHasRateLimit.Set(stepId, hasRateLimit)
-// 	}
-
-// 	return stepRunToKeyToUnits, nil
-// }
+	return taskIdToKeyToUnits, nil
+}
 
 func (d *queueRepository) GetDesiredLabels(ctx context.Context, stepIds []pgtype.UUID) (map[string][]*sqlcv1.GetDesiredLabelsRow, error) {
 	ctx, span := telemetry.NewSpan(ctx, "get-desired-labels")
@@ -543,4 +542,60 @@ func (d *queueRepository) GetDesiredLabels(ctx context.Context, stepIds []pgtype
 	}
 
 	return stepIdToLabels, nil
+}
+
+func getLargerDuration(s1, s2 string) (string, error) {
+	i1, err := getDurationIndex(s1)
+	if err != nil {
+		return "", err
+	}
+
+	i2, err := getDurationIndex(s2)
+	if err != nil {
+		return "", err
+	}
+
+	if i1 > i2 {
+		return s1, nil
+	}
+
+	return s2, nil
+}
+
+var durationStrings = []string{
+	"SECOND",
+	"MINUTE",
+	"HOUR",
+	"DAY",
+	"WEEK",
+	"MONTH",
+	"YEAR",
+}
+
+func getWindowParamFromDurString(dur string) string {
+	// validate duration string
+	found := false
+
+	for _, d := range durationStrings {
+		if d == dur {
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		return "MINUTE"
+	}
+
+	return fmt.Sprintf("1 %s", dur)
+}
+
+func getDurationIndex(s string) (int, error) {
+	for i, d := range durationStrings {
+		if d == s {
+			return i, nil
+		}
+	}
+
+	return -1, fmt.Errorf("invalid duration string: %s", s)
 }

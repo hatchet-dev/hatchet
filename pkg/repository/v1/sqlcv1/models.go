@@ -2559,6 +2559,15 @@ type V1TaskEventsOlapTmp struct {
 	WorkerID       pgtype.UUID          `json:"worker_id"`
 }
 
+type V1TaskExpressionEval struct {
+	Key            string             `json:"key"`
+	TaskID         int64              `json:"task_id"`
+	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
+	ValueStr       pgtype.Text        `json:"value_str"`
+	ValueInt       pgtype.Int4        `json:"value_int"`
+	Kind           StepExpressionKind `json:"kind"`
+}
+
 type V1TaskRuntime struct {
 	TaskID         int64              `json:"task_id"`
 	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`

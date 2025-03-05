@@ -42,8 +42,10 @@ LEFT JOIN
 SELECT
     s.*,
     wv."id" as "workflowVersionId",
+    wv."sticky" as "workflowVersionSticky",
     w."name" as "workflowName",
     w."id" as "workflowId",
+    COUNT(se."stepId") as "exprCount",
     COUNT(sc.id) as "concurrencyCount"
 FROM
     "Step" s
@@ -55,13 +57,15 @@ JOIN
     "Workflow" w ON w."id" = wv."workflowId"
 LEFT JOIN
     v1_step_concurrency sc ON sc.workflow_id = w."id" AND sc.step_id = s."id"
+LEFT JOIN
+    "StepExpression" se ON se."stepId" = s."id"
 WHERE
     s."id" = ANY(@ids::uuid[])
     AND w."tenantId" = @tenantId::uuid
     AND w."deletedAt" IS NULL
     AND wv."deletedAt" IS NULL
 GROUP BY
-    s."id", wv."id", w."name", w."id";
+    s."id", wv."id", w."name", w."id", wv."sticky";
 
 -- name: ListStepExpressions :many
 SELECT

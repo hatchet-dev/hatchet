@@ -541,6 +541,8 @@ type WorkflowRunEngineRepository interface {
 	// GetWorkflowRunById returns a workflow run by id.
 	GetWorkflowRunById(ctx context.Context, tenantId, runId string) (*dbsqlc.GetWorkflowRunRow, error)
 
+	DeleteScheduledWorkflow(ctx context.Context, tenantId, scheduledWorkflowId string) error
+
 	// TODO maybe we don't need this?
 	GetWorkflowRunByIds(ctx context.Context, tenantId string, runId []string) ([]*dbsqlc.GetWorkflowRunRow, error)
 

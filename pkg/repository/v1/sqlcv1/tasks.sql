@@ -189,20 +189,14 @@ SELECT
     t.external_id,
     t.step_readable_id,
     r.worker_id,
-    t.retry_count,
+    i.retry_count::int AS retry_count,
     t.concurrency_strategy_ids
 FROM
     v1_task t
+JOIN
+    input i ON i.task_id = t.id AND i.task_inserted_at = t.inserted_at
 LEFT JOIN
-    runtimes_to_delete r ON r.task_id = t.id AND r.retry_count = t.retry_count
-WHERE
-    (t.id, t.inserted_at) IN (
-        SELECT
-            task_id,
-            task_inserted_at
-        FROM
-            input
-    );
+    runtimes_to_delete r ON r.task_id = t.id AND r.retry_count = t.retry_count;
 
 -- name: FailTaskAppFailure :many
 -- Fails a task due to an application-level error
@@ -308,7 +302,7 @@ WITH expired_runtimes AS (
         tenant_id = @tenantId::uuid
         AND timeout_at <= NOW()
     ORDER BY
-        task_id
+        task_id, task_inserted_at, retry_count
     LIMIT
         COALESCE(sqlc.narg('limit')::integer, 1000)
     FOR UPDATE SKIP LOCKED
@@ -803,3 +797,105 @@ JOIN
 WHERE
     t.tenant_id = @tenantId::uuid
     AND dt.dag_id = ANY(@dagIds::bigint[]);
+
+-- name: ListTaskExpressionEvals :many
+WITH input AS (
+    SELECT
+        *
+    FROM
+        (
+            SELECT
+                unnest(@taskIds::bigint[]) AS task_id,
+                unnest(@taskInsertedAts::timestamptz[]) AS task_inserted_at
+        ) AS subquery
+)
+SELECT
+    *
+FROM
+    v1_task_expression_eval te
+WHERE
+    (task_id, task_inserted_at) IN (
+        SELECT
+            task_id,
+            task_inserted_at
+        FROM
+            input
+    );
+
+-- name: RefreshTimeoutBy :one
+WITH task AS (
+    SELECT
+        t.id,
+        t.inserted_at,
+        t.retry_count,
+        t.tenant_id
+    FROM
+        v1_lookup_table lt
+    JOIN
+        v1_task t ON t.id = lt.task_id AND t.inserted_at = lt.inserted_at
+    WHERE
+        lt.external_id = @externalId::uuid AND
+        lt.tenant_id = @tenantId::uuid
+), locked_runtime AS (
+    SELECT
+        tr.task_id,
+        tr.task_inserted_at,
+        tr.retry_count,
+        tr.worker_id
+    FROM
+        v1_task_runtime tr
+    WHERE
+        (tr.task_id, tr.task_inserted_at, tr.retry_count) IN (SELECT id, inserted_at, retry_count FROM task)
+    ORDER BY
+        task_id, task_inserted_at, retry_count
+    FOR UPDATE
+)
+UPDATE
+    v1_task_runtime
+SET
+    timeout_at = timeout_at + convert_duration_to_interval(sqlc.narg('incrementTimeoutBy')::text)
+FROM
+    task
+WHERE
+    (v1_task_runtime.task_id, v1_task_runtime.task_inserted_at, v1_task_runtime.retry_count) IN (SELECT id, inserted_at, retry_count FROM task)
+RETURNING
+    v1_task_runtime.*;
+
+-- name: ManualSlotRelease :one
+WITH task AS (
+    SELECT
+        t.id,
+        t.inserted_at,
+        t.retry_count,
+        t.tenant_id
+    FROM
+        v1_lookup_table lt
+    JOIN
+        v1_task t ON t.id = lt.task_id AND t.inserted_at = lt.inserted_at
+    WHERE
+        lt.external_id = @externalId::uuid AND
+        lt.tenant_id = @tenantId::uuid
+), locked_runtime AS (
+    SELECT
+        tr.task_id,
+        tr.task_inserted_at,
+        tr.retry_count,
+        tr.worker_id
+    FROM
+        v1_task_runtime tr
+    WHERE
+        (tr.task_id, tr.task_inserted_at, tr.retry_count) IN (SELECT id, inserted_at, retry_count FROM task)
+    ORDER BY
+        task_id, task_inserted_at, retry_count
+    FOR UPDATE
+)
+UPDATE
+    v1_task_runtime
+SET
+    worker_id = NULL
+FROM
+    task
+WHERE
+    (v1_task_runtime.task_id, v1_task_runtime.task_inserted_at, v1_task_runtime.retry_count) IN (SELECT id, inserted_at, retry_count FROM task)
+RETURNING
+    v1_task_runtime.*;

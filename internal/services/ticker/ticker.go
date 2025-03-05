@@ -13,9 +13,10 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/integrations/alerting"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
-	"github.com/hatchet-dev/hatchet/internal/services/partition"
+	msgqueuev1 "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 )
 
 type Ticker interface {
@@ -23,14 +24,16 @@ type Ticker interface {
 }
 
 type TickerImpl struct {
-	mq msgqueue.MessageQueue
-	l  *zerolog.Logger
+	mq   msgqueue.MessageQueue
+	mqv1 msgqueuev1.MessageQueue
+	l    *zerolog.Logger
 
 	entitlements repository.EntitlementsRepository
 
-	repo repository.EngineRepository
-	s    gocron.Scheduler
-	ta   *alerting.TenantAlertManager
+	repo   repository.EngineRepository
+	repov1 v1.Repository
+	s      gocron.Scheduler
+	ta     *alerting.TenantAlertManager
 
 	crons              sync.Map
 	scheduledWorkflows sync.Map
@@ -38,24 +41,22 @@ type TickerImpl struct {
 	dv datautils.DataDecoderValidator
 
 	tickerId string
-
-	p *partition.Partition
 }
 
 type TickerOpt func(*TickerOpts)
 
 type TickerOpts struct {
-	mq msgqueue.MessageQueue
-	l  *zerolog.Logger
+	mq   msgqueue.MessageQueue
+	mqv1 msgqueuev1.MessageQueue
+	l    *zerolog.Logger
 
 	entitlements repository.EntitlementsRepository
 	repo         repository.EngineRepository
+	repov1       v1.Repository
 	tickerId     string
 	ta           *alerting.TenantAlertManager
 
 	dv datautils.DataDecoderValidator
-
-	p *partition.Partition
 }
 
 func defaultTickerOpts() *TickerOpts {
@@ -73,9 +74,21 @@ func WithMessageQueue(mq msgqueue.MessageQueue) TickerOpt {
 	}
 }
 
+func WithMessageQueueV1(mq msgqueuev1.MessageQueue) TickerOpt {
+	return func(opts *TickerOpts) {
+		opts.mqv1 = mq
+	}
+}
+
 func WithRepository(r repository.EngineRepository) TickerOpt {
 	return func(opts *TickerOpts) {
 		opts.repo = r
+	}
+}
+
+func WithRepositoryV1(r v1.Repository) TickerOpt {
+	return func(opts *TickerOpts) {
+		opts.repov1 = r
 	}
 }
 
@@ -97,12 +110,6 @@ func WithTenantAlerter(ta *alerting.TenantAlertManager) TickerOpt {
 	}
 }
 
-func WithPartition(p *partition.Partition) TickerOpt {
-	return func(opts *TickerOpts) {
-		opts.p = p
-	}
-}
-
 func New(fs ...TickerOpt) (*TickerImpl, error) {
 	opts := defaultTickerOpts()
 
@@ -114,8 +121,16 @@ func New(fs ...TickerOpt) (*TickerImpl, error) {
 		return nil, fmt.Errorf("task queue is required. use WithMessageQueue")
 	}
 
+	if opts.mqv1 == nil {
+		return nil, fmt.Errorf("task queue v1 is required. use WithMessageQueueV1")
+	}
+
 	if opts.repo == nil {
 		return nil, fmt.Errorf("repository is required. use WithRepository")
+	}
+
+	if opts.repov1 == nil {
+		return nil, fmt.Errorf("repository v1 is required. use WithRepositoryV1")
 	}
 
 	if opts.entitlements == nil {
@@ -124,10 +139,6 @@ func New(fs ...TickerOpt) (*TickerImpl, error) {
 
 	if opts.ta == nil {
 		return nil, fmt.Errorf("tenant alerter is required. use WithTenantAlerter")
-	}
-
-	if opts.p == nil {
-		return nil, fmt.Errorf("partition is required. use WithPartition")
 	}
 
 	newLogger := opts.l.With().Str("service", "ticker").Logger()
@@ -141,14 +152,15 @@ func New(fs ...TickerOpt) (*TickerImpl, error) {
 
 	return &TickerImpl{
 		mq:           opts.mq,
+		mqv1:         opts.mqv1,
 		l:            opts.l,
 		repo:         opts.repo,
+		repov1:       opts.repov1,
 		entitlements: opts.entitlements,
 		s:            s,
 		dv:           opts.dv,
 		tickerId:     opts.tickerId,
 		ta:           opts.ta,
-		p:            opts.p,
 	}, nil
 }
 

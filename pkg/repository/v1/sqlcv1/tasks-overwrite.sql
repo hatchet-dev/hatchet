@@ -157,3 +157,37 @@ WHERE
     v1_task.id = i.task_id
 RETURNING
     v1_task.*;
+
+-- name: CreateTaskExpressionEvals :exec
+WITH input AS (
+    SELECT
+        *
+    FROM
+        (
+            SELECT
+                unnest(@taskIds::bigint[]) AS task_id,
+                unnest(@taskInsertedAts::timestamptz[]) AS task_inserted_at,
+                unnest(@keys::text[]) AS key,
+                unnest(@valuesStr::text[]) AS value_str,
+                unnest(cast(@kinds::text[] as "StepExpressionKind"[])) AS kind
+        ) AS subquery
+)
+INSERT INTO v1_task_expression_eval (
+    key,
+    task_id,
+    task_inserted_at,
+    value_str,
+    kind
+)
+SELECT
+    i.key,
+    i.task_id,
+    i.task_inserted_at,
+    i.value_str,
+    i.kind
+FROM
+    input i
+ON CONFLICT (key, task_id, task_inserted_at, kind) DO UPDATE
+SET
+    value_str = EXCLUDED.value_str,
+    value_int = EXCLUDED.value_int;

@@ -34,6 +34,9 @@ type TriggerTaskData struct {
 	// (optional) the workflow run metadata
 	AdditionalMetadata []byte `json:"additional_metadata"`
 
+	// (optional) the desired worker id
+	DesiredWorkerId *string `json:"desired_worker_id"`
+
 	// (optional) the parent external id
 	ParentExternalId *string `json:"parent_external_id"`
 
@@ -188,6 +191,7 @@ func (r *TriggerRepositoryImpl) TriggerFromWorkflowNames(ctx context.Context, te
 				externalId:           opt.ExternalId,
 				input:                opt.Data,
 				additionalMetadata:   opt.AdditionalMetadata,
+				desiredWorkerId:      opt.DesiredWorkerId,
 				parentExternalId:     opt.ParentExternalId,
 				parentTaskId:         opt.ParentTaskId,
 				parentTaskInsertedAt: opt.ParentTaskInsertedAt,
@@ -212,6 +216,8 @@ type triggerTuple struct {
 	input []byte
 
 	additionalMetadata []byte
+
+	desiredWorkerId *string
 
 	// relevant parameters for child workflows
 	parentExternalId     *string
@@ -440,6 +446,7 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 					Input:                r.newTaskInput(tuple.input, nil),
 					AdditionalMetadata:   tuple.additionalMetadata,
 					InitialState:         sqlcv1.V1TaskInitialStateQUEUED,
+					DesiredWorkerId:      tuple.desiredWorkerId,
 					ParentTaskExternalId: tuple.parentExternalId,
 					ParentTaskId:         tuple.parentTaskId,
 					ParentTaskInsertedAt: tuple.parentTaskInsertedAt,

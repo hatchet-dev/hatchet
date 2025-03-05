@@ -578,6 +578,18 @@ func (s *DispatcherImpl) Heartbeat(ctx context.Context, req *contracts.Heartbeat
 
 func (s *DispatcherImpl) ReleaseSlot(ctx context.Context, req *contracts.ReleaseSlotRequest) (*contracts.ReleaseSlotResponse, error) {
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
+
+	switch tenant.Version {
+	case dbsqlc.TenantMajorEngineVersionV0:
+		return s.releaseSlotV0(ctx, tenant, req)
+	case dbsqlc.TenantMajorEngineVersionV1:
+		return s.releaseSlotV1(ctx, tenant, req)
+	default:
+		return nil, status.Errorf(codes.Unimplemented, "ReleaseSlot is not implemented in engine version %s", string(tenant.Version))
+	}
+}
+
+func (s *DispatcherImpl) releaseSlotV0(ctx context.Context, tenant *dbsqlc.Tenant, req *contracts.ReleaseSlotRequest) (*contracts.ReleaseSlotResponse, error) {
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	if req.StepRunId == "" {
@@ -1168,6 +1180,18 @@ func (s *DispatcherImpl) Unsubscribe(ctx context.Context, request *contracts.Wor
 
 func (d *DispatcherImpl) RefreshTimeout(ctx context.Context, request *contracts.RefreshTimeoutRequest) (*contracts.RefreshTimeoutResponse, error) {
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
+
+	switch tenant.Version {
+	case dbsqlc.TenantMajorEngineVersionV0:
+		return d.refreshTimeoutV0(ctx, tenant, request)
+	case dbsqlc.TenantMajorEngineVersionV1:
+		return d.refreshTimeoutV1(ctx, tenant, request)
+	default:
+		return nil, status.Errorf(codes.Unimplemented, "RefreshTimeout is not implemented in engine version %s", string(tenant.Version))
+	}
+}
+
+func (d *DispatcherImpl) refreshTimeoutV0(ctx context.Context, tenant *dbsqlc.Tenant, request *contracts.RefreshTimeoutRequest) (*contracts.RefreshTimeoutResponse, error) {
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	opts := repository.RefreshTimeoutBy{
@@ -1194,7 +1218,6 @@ func (d *DispatcherImpl) RefreshTimeout(ctx context.Context, request *contracts.
 	return &contracts.RefreshTimeoutResponse{
 		TimeoutAt: timeoutAt,
 	}, nil
-
 }
 
 func (s *DispatcherImpl) handleStepRunStarted(inputCtx context.Context, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {

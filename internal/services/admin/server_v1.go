@@ -99,6 +99,7 @@ func (i *AdminServiceImpl) newTriggerOpt(
 		WorkflowName:       req.Name,
 		Data:               []byte(req.Input),
 		AdditionalMetadata: []byte(additionalMeta),
+		DesiredWorkerId:    req.DesiredWorkerId,
 	}
 
 	if req.ParentStepRunId != nil {

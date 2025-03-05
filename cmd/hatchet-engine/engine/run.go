@@ -263,11 +263,12 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 	if sc.HasService("ticker") {
 		t, err := ticker.New(
 			ticker.WithMessageQueue(sc.MessageQueue),
+			ticker.WithMessageQueueV1(sc.MessageQueueV1),
 			ticker.WithRepository(sc.EngineRepository),
+			ticker.WithRepositoryV1(sc.V1),
 			ticker.WithLogger(sc.Logger),
 			ticker.WithTenantAlerter(sc.TenantAlerter),
 			ticker.WithEntitlementsRepository(sc.EntitlementRepository),
-			ticker.WithPartition(p),
 		)
 
 		if err != nil {
@@ -658,11 +659,12 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig) ([]Teardown, erro
 
 		t, err := ticker.New(
 			ticker.WithMessageQueue(sc.MessageQueue),
+			ticker.WithMessageQueueV1(sc.MessageQueueV1),
 			ticker.WithRepository(sc.EngineRepository),
+			ticker.WithRepositoryV1(sc.V1),
 			ticker.WithLogger(sc.Logger),
 			ticker.WithTenantAlerter(sc.TenantAlerter),
 			ticker.WithEntitlementsRepository(sc.EntitlementRepository),
-			ticker.WithPartition(p),
 		)
 
 		if err != nil {
