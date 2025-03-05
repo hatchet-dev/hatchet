@@ -100,7 +100,7 @@ export const JobMiniMap = ({ onClick }: JobMiniMapProps) => {
     }
 
     return columns;
-  }, [taskRunRelationships, tasks, shape]);
+  }, [taskRunRelationships, shape]);
 
   if (isLoading || isError) {
     return null;
