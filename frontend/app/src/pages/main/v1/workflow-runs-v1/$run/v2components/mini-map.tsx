@@ -1,9 +1,5 @@
 import { useMemo } from 'react';
-import {
-  queries,
-  V1TaskSummary,
-  WorkflowRunShapeItemForWorkflowRunDetails,
-} from '@/lib/api';
+import { queries, WorkflowRunShapeItemForWorkflowRunDetails } from '@/lib/api';
 import { TabOption } from './step-run-detail/step-run-detail';
 import StepRunNode from './step-run-node';
 import { useWorkflowDetails } from '../../hooks/workflow-details';
@@ -89,12 +85,22 @@ export const JobMiniMap = ({ onClick }: JobMiniMapProps) => {
       }
     };
 
+    let iterations = 100;
+
     while (processed.size < shape.length) {
+      if (iterations === 0) {
+        break;
+      }
+
+      // IMPORTANT: This can cause an infinite loop when rendering if
+      // nothing ever gets added to `processed`. Setting a max iterations to
+      // hopefully prevent that
       shape.forEach(processTaskRun);
+      iterations -= 1;
     }
 
     return columns;
-  }, [taskRunRelationships, tasks]);
+  }, [taskRunRelationships, tasks, shape]);
 
   if (isLoading || isError) {
     return null;

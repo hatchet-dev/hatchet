@@ -1,11 +1,5 @@
 import { Label } from '@/components/v1/ui/label';
-import {
-  StepRun,
-  StepRunStatus,
-  V1TaskStatus,
-  V1TaskSummary,
-  WorkflowRunShapeItemForWorkflowRunDetails,
-} from '@/lib/api';
+import { StepRun, StepRunStatus, V1TaskStatus, V1TaskSummary } from '@/lib/api';
 import { cn, formatDuration } from '@/lib/utils';
 import { memo } from 'react';
 import { Handle, Position } from 'reactflow';
@@ -64,9 +58,7 @@ export default memo(({ data }: { data: NodeData }) => {
         <span className="step-run-backdrop absolute inset-[1px] bg-background transition-colors duration-200" />
         <div className="z-10 flex flex-row items-center justify-between gap-4 w-full">
           <div className="flex flex-row items-center justify-start gap-2 z-10">
-            <V1RunIndicator
-              status={data.taskRun?.status}
-            />
+            <V1RunIndicator status={data.taskRun?.status} />
             <div className="truncate flex-grow">{data.taskName}</div>
           </div>
           {data.taskRun?.finishedAt && data.taskRun?.startedAt && (

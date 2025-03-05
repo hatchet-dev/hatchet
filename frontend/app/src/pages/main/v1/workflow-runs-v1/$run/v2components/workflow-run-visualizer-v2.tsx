@@ -161,7 +161,9 @@ const WorkflowRunVisualizer = ({
         onNodeClick={(_, node) => {
           const task = taskRuns.find((t) => t.stepId === node.id);
 
-          task && setSelectedTaskRunId(task.metadata.id);
+          if (task) {
+            setSelectedTaskRunId(task.metadata.id);
+          }
         }}
         maxZoom={1}
         connectionLineStyle={
