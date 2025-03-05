@@ -167,6 +167,12 @@ type ListFinalizedWorkflowRunsResponse struct {
 	OutputEvents []*TaskOutputEvent
 }
 
+type RefreshTimeoutBy struct {
+	TaskExternalId string `validate:"required,uuid"`
+
+	IncrementTimeoutBy string `validate:"required,duration"`
+}
+
 type TaskRepository interface {
 	UpdateTablePartitions(ctx context.Context) error
 
@@ -198,6 +204,8 @@ type TaskRepository interface {
 	GetQueueCounts(ctx context.Context, tenantId string) (map[string]int, error)
 
 	ReplayTasks(ctx context.Context, tenantId string, tasks []TaskIdInsertedAtRetryCount) (*ReplayTasksResult, error)
+
+	RefreshTimeoutBy(ctx context.Context, tenantId string, opt RefreshTimeoutBy) (*sqlcv1.V1TaskRuntime, error)
 }
 
 type TaskRepositoryImpl struct {
@@ -1215,6 +1223,36 @@ func (r *TaskRepositoryImpl) GetQueueCounts(ctx context.Context, tenantId string
 
 	for _, count := range counts {
 		res[count.Queue] = int(count.Count)
+	}
+
+	return res, nil
+}
+
+func (r *TaskRepositoryImpl) RefreshTimeoutBy(ctx context.Context, tenantId string, opt RefreshTimeoutBy) (*sqlcv1.V1TaskRuntime, error) {
+	if err := r.v.Validate(opt); err != nil {
+		return nil, err
+	}
+
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer rollback()
+
+	res, err := r.queries.RefreshTimeoutBy(ctx, tx, sqlcv1.RefreshTimeoutByParams{
+		Tenantid:           sqlchelpers.UUIDFromStr(tenantId),
+		Externalid:         sqlchelpers.UUIDFromStr(opt.TaskExternalId),
+		IncrementTimeoutBy: sqlchelpers.TextFromStr(opt.IncrementTimeoutBy),
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	if err := commit(ctx); err != nil {
+		return nil, err
 	}
 
 	return res, nil
