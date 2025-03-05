@@ -18,20 +18,12 @@ func getConcurrencyKey(ctx worker.HatchetContext) (string, error) {
 	return "my-key", nil
 }
 
-func run(ctx context.Context, delay time.Duration, executions chan<- time.Duration, concurrency int) (int64, int64) {
-	c, err := client.New(
-		client.WithLogLevel("warn"),
-	)
-
-	if err != nil {
-		panic(err)
-	}
+func runWorker(ctx context.Context, c client.Client, delay time.Duration, executions chan<- time.Duration, concurrency int, executedChan chan<- int64, duplicateChan chan<- int64) int64 {
 
 	w, err := worker.NewWorker(
 		worker.WithClient(
 			c,
-		),
-		worker.WithLogLevel("warn"),
+		), worker.WithLogLevel("warn"),
 		worker.WithMaxRuns(200),
 	)
 
@@ -40,23 +32,22 @@ func run(ctx context.Context, delay time.Duration, executions chan<- time.Durati
 	}
 
 	mx := sync.Mutex{}
-	var count int64
 	var uniques int64
 	var executed []int64
 
 	var concurrencyOpts *worker.WorkflowConcurrency
 	if concurrency > 0 {
-		concurrencyOpts = worker.Concurrency(getConcurrencyKey).MaxRuns(int32(concurrency))
+		concurrencyOpts = worker.Concurrency(getConcurrencyKey).MaxRuns(int32(concurrency)) //nolint:gosec
 	}
-
-	err = w.On(
-		worker.Event("load-test:event"),
+	err = w.RegisterWorkflow(
 		&worker.WorkflowJob{
+			On:          worker.Event("load-test:event"),
 			Name:        "load-test",
 			Description: "Load testing",
 			Concurrency: concurrencyOpts,
 			Steps: []*worker.WorkflowStep{
 				worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
+					l.Info().Msgf("executing %s", ctx.StepRunId())
 					var input Event
 					err = ctx.WorkflowInput(&input)
 					if err != nil {
@@ -69,25 +60,26 @@ func run(ctx context.Context, delay time.Duration, executions chan<- time.Durati
 					mx.Lock()
 					executions <- took
 					// detect duplicate in executed slice
-					var duplicate bool
 					for i := 0; i < len(executed)-1; i++ {
 						if executed[i] == input.ID {
-							duplicate = true
-							break
+
+							l.Error().Str("step-run-id", ctx.StepRunId()).Msgf("duplicate %d", input.ID)
+							duplicateChan <- input.ID
+							return nil, fmt.Errorf("duplicate %d", input.ID)
+
 						}
 					}
-					if duplicate {
-						l.Warn().Str("step-run-id", ctx.StepRunId()).Msgf("duplicate %d", input.ID)
-					}
-					if !duplicate {
-						uniques++
-					}
-					count++
+
+					uniques++
+
 					executed = append(executed, input.ID)
+					executedChan <- input.ID
 					mx.Unlock()
-
-					time.Sleep(delay)
-
+					if delay > 0 {
+						l.Info().Msgf("executed %d now delaying", input.ID)
+						time.Sleep(delay)
+						l.Info().Msgf("executed %d now done after %s", input.ID, delay)
+					}
 					return &stepOneOutput{
 						Message: "This ran at: " + time.Now().Format(time.RFC3339Nano),
 					}, nil
@@ -101,17 +93,22 @@ func run(ctx context.Context, delay time.Duration, executions chan<- time.Durati
 	}
 
 	cleanup, err := w.Start()
+
 	if err != nil {
 		panic(fmt.Errorf("error starting worker: %w", err))
 	}
+	defer func() {
+		err := cleanup()
+		if err != nil {
+			panic(fmt.Errorf("error cleaning up worker: %w", err))
+		}
+	}()
 
+	l.Info().Msg("worker started")
 	<-ctx.Done()
-
-	if err := cleanup(); err != nil {
-		panic(fmt.Errorf("error cleaning up: %w", err))
-	}
 
 	mx.Lock()
 	defer mx.Unlock()
-	return count, uniques
+	l.Info().Msg("worker finished")
+	return uniques
 }

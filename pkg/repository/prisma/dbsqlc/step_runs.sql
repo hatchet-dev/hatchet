@@ -240,6 +240,35 @@ WHERE
         sr."tenantId" = sqlc.narg('tenantId')::uuid
     );
 
+
+-- name: GetStartableStepRunsForWorkflowRuns :many
+WITH JobRuns AS (
+    SELECT
+        jr."id" AS "jobRunId"
+    FROM
+        "JobRun" jr
+    WHERE
+        jr."workflowRunId" = ANY(@workflowRunIds::uuid[])
+),
+
+InitialStepRuns AS (
+    SELECT
+        DISTINCT ON (child_run."id")
+        child_run."id" AS "stepRunId",
+        child_run."jobRunId",
+        child_run."tenantId"
+    FROM
+        "StepRun" AS child_run
+    LEFT JOIN
+        "_StepRunOrder" AS step_run_order ON step_run_order."B" = child_run."id"
+    WHERE
+        child_run."jobRunId" IN (SELECT "jobRunId" FROM JobRuns)
+        AND child_run."status" = 'PENDING'
+        AND step_run_order."A" IS NULL
+)
+
+SELECT "stepRunId", "tenantId" FROM InitialStepRuns;
+
 -- name: ListInitialStepRuns :many
 SELECT
     DISTINCT ON (child_run."id")

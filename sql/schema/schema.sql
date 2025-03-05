@@ -1273,8 +1273,7 @@ CREATE INDEX "StepRun_createdAt_idx" ON "StepRun" ("createdAt" ASC);
 -- CreateIndex
 CREATE INDEX "StepRun_deletedAt_idx" ON "StepRun" ("deletedAt" ASC);
 
--- CreateIndex
-CREATE UNIQUE INDEX "StepRun_id_key" ON "StepRun" ("id" ASC, "status" ASC);
+
 
 -- CreateIndex
 CREATE INDEX "StepRun_id_tenantId_idx" ON "StepRun" ("id" ASC, "tenantId" ASC);
@@ -1809,8 +1808,6 @@ CREATE INDEX IF NOT EXISTS "WorkflowRun_parentId_parentStepRunId_childIndex_key"
 WHERE
     "deletedAt" IS NULL;
 
-CREATE INDEX IF NOT EXISTS "StepRun_status_tenantId_idx" ON "StepRun" ("status", "tenantId");
-
 -- CreateTable
 CREATE TABLE "RetryQueueItem" (
     "id" BIGSERIAL PRIMARY KEY,
@@ -1822,3 +1819,16 @@ CREATE TABLE "RetryQueueItem" (
 
 -- CreateIndex
 CREATE INDEX "RetryQueueItem_isQueued_tenantId_retryAfter_idx" ON "RetryQueueItem" ("isQueued" ASC, "tenantId" ASC, "retryAfter" ASC);
+
+
+ALTER TABLE "LogLine" ADD CONSTRAINT "LogLine_stepRunId_fkey" FOREIGN KEY ("stepRunId") REFERENCES "StepRun"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+CREATE UNIQUE INDEX "StepRun_id_key" ON "StepRun"("id" ASC);
+ALTER TABLE "StepRun" ADD CONSTRAINT "StepRun_jobRunId_fkey" FOREIGN KEY ("jobRunId") REFERENCES "JobRun"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "StepRunResultArchive" ADD CONSTRAINT "StepRunResultArchive_stepRunId_fkey" FOREIGN KEY ("stepRunId") REFERENCES "StepRun"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "StreamEvent" ADD CONSTRAINT "StreamEvent_stepRunId_fkey" FOREIGN KEY ("stepRunId") REFERENCES "StepRun"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "WorkflowRun" ADD CONSTRAINT "WorkflowRun_parentStepRunId_fkey" FOREIGN KEY ("parentStepRunId") REFERENCES "StepRun"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "WorkflowTriggerScheduledRef" ADD CONSTRAINT "WorkflowTriggerScheduledRef_parentStepRunId_fkey" FOREIGN KEY ("parentStepRunId") REFERENCES "StepRun"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "_StepRunOrder" ADD CONSTRAINT "_StepRunOrder_A_fkey" FOREIGN KEY ("A") REFERENCES "StepRun"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "_StepRunOrder" ADD CONSTRAINT "_StepRunOrder_B_fkey" FOREIGN KEY ("B") REFERENCES "StepRun"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "StepRun" ADD CONSTRAINT "StepRun_workerId_fkey" FOREIGN KEY ("workerId") REFERENCES "Worker"("id") ON DELETE SET NULL ON UPDATE CASCADE;

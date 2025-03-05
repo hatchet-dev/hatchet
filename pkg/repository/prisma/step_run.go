@@ -261,19 +261,16 @@ type stepRunEngineRepository struct {
 	cf        *server.ConfigFileRuntime
 	callbacks []repository.TenantScopedCallback[*dbsqlc.ResolveWorkflowRunStatusRow]
 
-	queueActionTenantCache *cache.Cache
-
 	updateConcurrentFactor int
 	maxHashFactor          int
 }
 
-func NewStepRunEngineRepository(shared *sharedRepository, cf *server.ConfigFileRuntime, rlCache *cache.Cache, queueCache *cache.Cache) *stepRunEngineRepository {
+func NewStepRunEngineRepository(shared *sharedRepository, cf *server.ConfigFileRuntime) *stepRunEngineRepository {
 	return &stepRunEngineRepository{
 		sharedRepository:       shared,
 		cf:                     cf,
 		updateConcurrentFactor: cf.UpdateConcurrentFactor,
 		maxHashFactor:          cf.UpdateHashFactor,
-		queueActionTenantCache: queueCache,
 	}
 }
 
@@ -1771,7 +1768,7 @@ func (s *stepRunEngineRepository) UpdateStepRunInputSchema(ctx context.Context, 
 	return inputSchema, nil
 }
 
-func (s *stepRunEngineRepository) doCachedUpsertOfQueue(ctx context.Context, tenantId string, innerStepRun *dbsqlc.GetStepRunForEngineRow) error {
+func (s *sharedRepository) doCachedUpsertOfQueue(ctx context.Context, tenantId string, innerStepRun *dbsqlc.GetStepRunForEngineRow) error {
 	cacheKey := fmt.Sprintf("t-%s-q-%s", tenantId, innerStepRun.SRQueue)
 
 	_, err := cache.MakeCacheable(s.queueActionTenantCache, cacheKey, func() (*bool, error) {
@@ -1809,7 +1806,19 @@ func (s *stepRunEngineRepository) doCachedUpsertOfQueue(ctx context.Context, ten
 	return err
 }
 
-func (s *stepRunEngineRepository) QueueStepRun(ctx context.Context, tenantId, stepRunId string, opts *repository.QueueStepRunOpts) (*dbsqlc.GetStepRunForEngineRow, error) {
+func (s *sharedRepository) QueueStepRun(ctx context.Context, tenantId, stepRunId string, opts *repository.QueueStepRunOpts) (*dbsqlc.GetStepRunForEngineRow, error) {
+
+	cb, err := s.queueStepRunWithTx(ctx, s.pool, tenantId, stepRunId, opts)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return cb()
+
+}
+
+func (s *sharedRepository) queueStepRunWithTx(ctx context.Context, tx dbsqlc.DBTX, tenantId, stepRunId string, opts *repository.QueueStepRunOpts) (func() (*dbsqlc.GetStepRunForEngineRow, error), error) {
 	ctx, span := telemetry.NewSpan(ctx, "queue-step-run-database")
 	defer span.End()
 
@@ -1827,7 +1836,7 @@ func (s *stepRunEngineRepository) QueueStepRun(ctx context.Context, tenantId, st
 		}
 	}
 
-	innerStepRun, err := s.getStepRunForEngineTx(ctx, s.pool, tenantId, stepRunId)
+	innerStepRun, err := s.getStepRunForEngineTx(ctx, tx, tenantId, stepRunId)
 
 	if err != nil {
 		return nil, err
@@ -1851,37 +1860,48 @@ func (s *stepRunEngineRepository) QueueStepRun(ctx context.Context, tenantId, st
 		return nil, repository.ErrAlreadyQueued
 	}
 
-	if opts.IsRetry || opts.IsInternalRetry {
-		// if this is a retry, write a queue item to release the worker semaphore
-		//
-		// FIXME: there is a race condition here where we can delete a worker semaphore slot that has already been reassigned,
-		// but the step run was not in a RUNNING state. The fix for this would be to track an total retry count on the step run
-		// and use this to identify semaphore slots, but this involves a big refactor of semaphore slots.
-		err := s.releaseWorkerSemaphoreSlot(ctx, tenantId, stepRunId)
+	postCommit := func() (*dbsqlc.GetStepRunForEngineRow, error) {
 
-		if err != nil {
-			return nil, fmt.Errorf("could not release worker semaphore queue items: %w", err)
+		if opts.IsRetry || opts.IsInternalRetry {
+			// if this is a retry, write a queue item to release the worker semaphore
+			//
+			// FIXME: there is a race condition here where we can delete a worker semaphore slot that has already been reassigned,
+			// but the step run was not in a RUNNING state. The fix for this would be to track an total retry count on the step run
+			// and use this to identify semaphore slots, but this involves a big refactor of semaphore slots.
+			err := s.releaseWorkerSemaphoreSlot(ctx, tenantId, stepRunId)
+
+			if err != nil {
+				return nil, fmt.Errorf("could not release worker semaphore queue items: %w", err)
+			}
+
+			// retries get highest priority to ensure that they're run immediately
+			priority = 4
 		}
 
-		// retries get highest priority to ensure that they're run immediately
-		priority = 4
+		_, err := s.bulkQueuer.FireAndWait(ctx, tenantId, bulkQueueStepRunOpts{
+			GetStepRunForEngineRow: innerStepRun,
+			Priority:               priority,
+			IsRetry:                opts.IsRetry,
+			Input:                  opts.Input,
+		})
+
+		if err != nil {
+			return nil, err
+		}
+
+		err = s.releaseWorkerSemaphoreSlot(ctx, tenantId, stepRunId)
+
+		if err != nil {
+			return nil, err
+		}
+
+		return innerStepRun, nil
 	}
+	return postCommit, nil
 
-	_, err = s.bulkQueuer.FireAndWait(ctx, tenantId, bulkQueueStepRunOpts{
-		GetStepRunForEngineRow: innerStepRun,
-		Priority:               priority,
-		IsRetry:                opts.IsRetry,
-		Input:                  opts.Input,
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	return innerStepRun, nil
 }
 
-func (s *stepRunEngineRepository) createExpressionEvals(ctx context.Context, dbtx dbsqlc.DBTX, stepRunId string, opts []repository.CreateExpressionEvalOpt) error {
+func (s *sharedRepository) createExpressionEvals(ctx context.Context, dbtx dbsqlc.DBTX, stepRunId string, opts []repository.CreateExpressionEvalOpt) error {
 	if len(opts) == 0 {
 		return nil
 	}
@@ -1967,11 +1987,11 @@ func (s *stepRunEngineRepository) CreateStepRunEvent(ctx context.Context, tenant
 }
 
 // performant query for step run id, only returns what the engine needs
-func (s *stepRunEngineRepository) GetStepRunForEngine(ctx context.Context, tenantId, stepRunId string) (*dbsqlc.GetStepRunForEngineRow, error) {
+func (s *sharedRepository) GetStepRunForEngine(ctx context.Context, tenantId, stepRunId string) (*dbsqlc.GetStepRunForEngineRow, error) {
 	return s.getStepRunForEngineTx(ctx, s.pool, tenantId, stepRunId)
 }
 
-func (s *stepRunEngineRepository) getStepRunForEngineTx(ctx context.Context, dbtx dbsqlc.DBTX, tenantId, stepRunId string) (*dbsqlc.GetStepRunForEngineRow, error) {
+func (s *sharedRepository) getStepRunForEngineTx(ctx context.Context, dbtx dbsqlc.DBTX, tenantId, stepRunId string) (*dbsqlc.GetStepRunForEngineRow, error) {
 	res, err := s.queries.GetStepRunForEngine(ctx, dbtx, dbsqlc.GetStepRunForEngineParams{
 		Ids:      []pgtype.UUID{sqlchelpers.UUIDFromStr(stepRunId)},
 		TenantId: sqlchelpers.UUIDFromStr(tenantId),
@@ -1988,11 +2008,16 @@ func (s *stepRunEngineRepository) getStepRunForEngineTx(ctx context.Context, dbt
 	return res[0], nil
 }
 
-func (s *stepRunEngineRepository) GetStepRunDataForEngine(ctx context.Context, tenantId, stepRunId string) (*dbsqlc.GetStepRunDataForEngineRow, error) {
-	return s.queries.GetStepRunDataForEngine(ctx, s.pool, dbsqlc.GetStepRunDataForEngineParams{
+func (s *sharedRepository) GetStepRunDataForEngineTx(ctx context.Context, tx dbsqlc.DBTX, tenantId, stepRunId string) (*dbsqlc.GetStepRunDataForEngineRow, error) {
+	return s.queries.GetStepRunDataForEngine(ctx, tx, dbsqlc.GetStepRunDataForEngineParams{
 		ID:       sqlchelpers.UUIDFromStr(stepRunId),
 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
 	})
+}
+
+func (s *sharedRepository) GetStepRunDataForEngine(ctx context.Context, tenantId, stepRunId string) (*dbsqlc.GetStepRunDataForEngineRow, error) {
+
+	return s.GetStepRunDataForEngineTx(ctx, s.pool, tenantId, stepRunId)
 }
 
 func (s *stepRunEngineRepository) GetStepRunBulkDataForEngine(ctx context.Context, tenantId string, stepRunIds []string) ([]*dbsqlc.GetStepRunBulkDataForEngineRow, error) {
@@ -2169,7 +2194,7 @@ func (s *stepRunEngineRepository) ClearStepRunPayloadData(ctx context.Context, t
 	return hasMore, nil
 }
 
-func (s *stepRunEngineRepository) releaseWorkerSemaphoreSlot(ctx context.Context, tenantId, stepRunId string) error {
+func (s *sharedRepository) releaseWorkerSemaphoreSlot(ctx context.Context, tenantId, stepRunId string) error {
 	_, err := s.bulkSemaphoreReleaser.FireAndWait(ctx, tenantId, semaphoreReleaseOpts{
 		StepRunId: sqlchelpers.UUIDFromStr(stepRunId),
 		TenantId:  sqlchelpers.UUIDFromStr(tenantId),
