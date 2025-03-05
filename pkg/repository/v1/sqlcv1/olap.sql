@@ -1004,9 +1004,9 @@ WITH dags AS (
     JOIN v1_dag_to_task_olap dt ON r.dag_id = dt.dag_id  -- Do I need to join by `inserted_at` here too?
     JOIN v1_task_events_olap e ON e.task_id = dt.task_id -- Do I need to join by `inserted_at` here too?
 ), max_retry_counts AS (
-    SELECT run_id, MAX(retry_count) AS max_retry_count
+    SELECT dag_task_id, MAX(retry_count) AS max_retry_count
     FROM relevant_events
-    GROUP BY run_id
+    GROUP BY dag_task_id
 ), metadata AS (
     SELECT
         e.run_id,
@@ -1016,7 +1016,7 @@ WITH dags AS (
         JSON_AGG(JSON_BUILD_OBJECT('task_id', e.dag_task_id,'task_inserted_at', e.dag_task_inserted_at)) AS task_metadata
     FROM
         relevant_events e
-    JOIN max_retry_counts mrc ON (e.run_id, e.retry_count) = (mrc.run_id, mrc.max_retry_count)
+    JOIN max_retry_counts mrc ON (e.dag_task_id, e.retry_count) = (mrc.dag_task_id, mrc.max_retry_count)
     GROUP BY e.run_id
 ), error_message AS (
     SELECT

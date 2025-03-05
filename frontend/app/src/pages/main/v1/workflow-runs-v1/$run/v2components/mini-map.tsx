@@ -18,25 +18,27 @@ type NodeRelationship = {
 export const JobMiniMap = ({ onClick }: JobMiniMapProps) => {
   const { shape, taskRuns: tasks, isLoading, isError } = useWorkflowDetails();
 
-  const taskRunRelationships: NodeRelationship[] = useMemo(
-    () =>
-      tasks.map((item) => {
-        const node = item.taskExternalId;
-        const children =
-          shape.find((i) => i.taskExternalId === node)?.childrenExternalIds ||
-          [];
-        const parents = shape
-          .filter((i) => i.childrenExternalIds.includes(node))
-          .map((i) => i.taskExternalId);
+  const taskRunRelationships: NodeRelationship[] = useMemo(() => {
+    if (!shape || !tasks) {
+      return [];
+    }
 
-        return {
-          node,
-          children,
-          parents,
-        };
-      }) || [],
-    [shape, tasks],
-  );
+    return tasks.map((item) => {
+      const node = item.taskExternalId;
+      const shapeItem = shape.find((i) => i.taskExternalId === node);
+
+      const children = shapeItem?.childrenExternalIds || [];
+      const parents = shape
+        .filter((i) => i.childrenExternalIds.includes(node))
+        .map((i) => i.taskExternalId);
+
+      return {
+        node,
+        children,
+        parents,
+      };
+    });
+  }, [shape, tasks]);
 
   const columns = useMemo(() => {
     const columns: V1TaskSummary[][] = [];
