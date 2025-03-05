@@ -23,6 +23,7 @@ import { V1StepRunOutput } from './step-run-output';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import { TaskRunActionButton } from '@/pages/main/v1/task-runs-v1/actions';
 import { TaskRunMiniMap } from '../mini-map';
+import { ArrowTopRightIcon } from '@radix-ui/react-icons';
 
 export enum TabOption {
   Output = 'output',
@@ -128,6 +129,16 @@ export const TaskRunDetail = ({
           taskRun={taskRun}
           showViewTaskRunButton={showViewTaskRunButton || false}
         />
+        <Link
+          to={`/v1/workflows/${taskRun.workflowId}`}
+          target="_blank"
+          rel="noreferrer"
+        >
+          <Button size={'sm'} className="px-2 py-2 gap-2" variant="outline">
+            <ArrowTopRightIcon className="w-4 h-4" />
+            Workflow Definition
+          </Button>
+        </Link>
       </div>
       <div className="flex flex-row gap-2 items-center">
         <V1StepRunSummary taskRunId={taskRunId} />
