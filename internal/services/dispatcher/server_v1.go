@@ -168,18 +168,6 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 	return nil
 }
 
-func getTaskEventKey(taskId int64, eventKey string) string {
-	return fmt.Sprintf("%d-%s", taskId, eventKey)
-}
-
-type stepResult struct {
-	Output []byte `json:"output,omitempty"`
-
-	StepReadableId string `json:"step_readable_id,omitempty"`
-
-	Error string `json:"error,omitempty"`
-}
-
 func (s *DispatcherImpl) taskEventsToWorkflowRunEvent(tenantId string, finalizedWorkflowRuns []*v1.ListFinalizedWorkflowRunsResponse) ([]*contracts.WorkflowRunEvent, error) {
 	res := make([]*contracts.WorkflowRunEvent, 0)
 
@@ -378,4 +366,90 @@ func (s *DispatcherImpl) handleTaskFailed(inputCtx context.Context, task *sqlcv1
 
 func (d *DispatcherImpl) getSingleTask(ctx context.Context, tenantId, taskExternalId string, skipCache bool) (*sqlcv1.FlattenExternalIdsRow, error) {
 	return d.repov1.Tasks().GetTaskByExternalId(ctx, tenantId, taskExternalId, skipCache)
+}
+
+func (d *DispatcherImpl) refreshTimeoutV1(ctx context.Context, tenant *dbsqlc.Tenant, request *contracts.RefreshTimeoutRequest) (*contracts.RefreshTimeoutResponse, error) {
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+
+	opts := v1.RefreshTimeoutBy{
+		TaskExternalId:     request.StepRunId,
+		IncrementTimeoutBy: request.IncrementTimeoutBy,
+	}
+
+	if apiErrors, err := d.v.ValidateAPI(opts); err != nil {
+		return nil, err
+	} else if apiErrors != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "Invalid request: %s", apiErrors.String())
+	}
+
+	taskRuntime, err := d.repov1.Tasks().RefreshTimeoutBy(ctx, tenantId, opts)
+
+	if err != nil {
+		return nil, err
+	}
+
+	workerId := sqlchelpers.UUIDToStr(taskRuntime.WorkerID)
+
+	// send to the OLAP repository
+	msg, err := tasktypes.MonitoringEventMessageFromInternal(
+		tenantId,
+		tasktypes.CreateMonitoringEventPayload{
+			TaskId:         taskRuntime.TaskID,
+			RetryCount:     taskRuntime.RetryCount,
+			WorkerId:       &workerId,
+			EventTimestamp: time.Now(),
+			EventType:      sqlcv1.V1EventTypeOlapTIMEOUTREFRESHED,
+			EventMessage:   fmt.Sprintf("Timeout refreshed by %s", request.IncrementTimeoutBy),
+		},
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	err = d.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, msg, false)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &contracts.RefreshTimeoutResponse{
+		TimeoutAt: timestamppb.New(taskRuntime.TimeoutAt.Time),
+	}, nil
+}
+
+func (d *DispatcherImpl) releaseSlotV1(ctx context.Context, tenant *dbsqlc.Tenant, request *contracts.ReleaseSlotRequest) (*contracts.ReleaseSlotResponse, error) {
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+
+	releasedSlot, err := d.repov1.Tasks().ReleaseSlot(ctx, tenantId, request.StepRunId)
+
+	if err != nil {
+		return nil, err
+	}
+
+	workerId := sqlchelpers.UUIDToStr(releasedSlot.WorkerID)
+
+	// send to the OLAP repository
+	msg, err := tasktypes.MonitoringEventMessageFromInternal(
+		tenantId,
+		tasktypes.CreateMonitoringEventPayload{
+			TaskId:         releasedSlot.TaskID,
+			RetryCount:     releasedSlot.RetryCount,
+			WorkerId:       &workerId,
+			EventTimestamp: time.Now(),
+			EventType:      sqlcv1.V1EventTypeOlapSLOTRELEASED,
+		},
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	err = d.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, msg, false)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &contracts.ReleaseSlotResponse{}, nil
 }

@@ -293,14 +293,14 @@ CREATE TABLE v1_task_runtime (
     task_id bigint NOT NULL,
     task_inserted_at TIMESTAMPTZ NOT NULL,
     retry_count INTEGER NOT NULL,
-    worker_id UUID NOT NULL,
+    worker_id UUID,
     tenant_id UUID NOT NULL,
     timeout_at TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT v1_task_runtime_pkey PRIMARY KEY (task_id, task_inserted_at, retry_count)
 );
 
-CREATE INDEX v1_task_runtime_tenantId_workerId_idx ON v1_task_runtime (tenant_id ASC, worker_id ASC);
+CREATE INDEX v1_task_runtime_tenantId_workerId_idx ON v1_task_runtime (tenant_id ASC, worker_id ASC) WHERE worker_id IS NOT NULL;
 
 CREATE INDEX v1_task_runtime_tenantId_timeoutAt_idx ON v1_task_runtime (tenant_id ASC, timeout_at ASC);
 

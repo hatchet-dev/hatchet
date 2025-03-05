@@ -167,6 +167,12 @@ type ListFinalizedWorkflowRunsResponse struct {
 	OutputEvents []*TaskOutputEvent
 }
 
+type RefreshTimeoutBy struct {
+	TaskExternalId string `validate:"required,uuid"`
+
+	IncrementTimeoutBy string `validate:"required,duration"`
+}
+
 type TaskRepository interface {
 	UpdateTablePartitions(ctx context.Context) error
 
@@ -198,6 +204,10 @@ type TaskRepository interface {
 	GetQueueCounts(ctx context.Context, tenantId string) (map[string]int, error)
 
 	ReplayTasks(ctx context.Context, tenantId string, tasks []TaskIdInsertedAtRetryCount) (*ReplayTasksResult, error)
+
+	RefreshTimeoutBy(ctx context.Context, tenantId string, opt RefreshTimeoutBy) (*sqlcv1.V1TaskRuntime, error)
+
+	ReleaseSlot(ctx context.Context, tenantId string, externalId string) (*sqlcv1.V1TaskRuntime, error)
 }
 
 type TaskRepositoryImpl struct {
@@ -1218,6 +1228,65 @@ func (r *TaskRepositoryImpl) GetQueueCounts(ctx context.Context, tenantId string
 	}
 
 	return res, nil
+}
+
+func (r *TaskRepositoryImpl) RefreshTimeoutBy(ctx context.Context, tenantId string, opt RefreshTimeoutBy) (*sqlcv1.V1TaskRuntime, error) {
+	if err := r.v.Validate(opt); err != nil {
+		return nil, err
+	}
+
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer rollback()
+
+	res, err := r.queries.RefreshTimeoutBy(ctx, tx, sqlcv1.RefreshTimeoutByParams{
+		Tenantid:           sqlchelpers.UUIDFromStr(tenantId),
+		Externalid:         sqlchelpers.UUIDFromStr(opt.TaskExternalId),
+		IncrementTimeoutBy: sqlchelpers.TextFromStr(opt.IncrementTimeoutBy),
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	if err := commit(ctx); err != nil {
+		return nil, err
+	}
+
+	return res, nil
+}
+
+func (r *TaskRepositoryImpl) ReleaseSlot(ctx context.Context, tenantId, externalId string) (*sqlcv1.V1TaskRuntime, error) {
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l, 5000)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer rollback()
+
+	resp, err := r.queries.ManualSlotRelease(
+		ctx,
+		tx,
+		sqlcv1.ManualSlotReleaseParams{
+			Tenantid:   sqlchelpers.UUIDFromStr(tenantId),
+			Externalid: sqlchelpers.UUIDFromStr(externalId),
+		},
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if err := commit(ctx); err != nil {
+		return nil, err
+	}
+
+	return resp, nil
 }
 
 func (r *sharedRepository) releaseTasks(ctx context.Context, tx sqlcv1.DBTX, tenantId string, tasks []TaskIdInsertedAtRetryCount) ([]*sqlcv1.ReleaseTasksRow, error) {
