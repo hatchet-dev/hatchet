@@ -42,7 +42,7 @@ class InjectingFilter(logging.Filter):
         return True
 
 
-class CustomLogHandler(logging.StreamHandler[Any]):
+class CustomLogHandler(logging.StreamHandler):  # type: ignore[type-arg]
     def __init__(self, event_client: EventClient, stream: StringIO | None = None):
         super().__init__(stream)
         self.logger_thread_pool = ThreadPoolExecutor(max_workers=1)

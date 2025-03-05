@@ -44,6 +44,7 @@ from hatchet_sdk.contracts.workflows_pb2 import (
 from hatchet_sdk.labels import DesiredWorkerLabel
 from hatchet_sdk.logger import logger
 from hatchet_sdk.rate_limit import RateLimit
+from hatchet_sdk.utils.proto_enums import convert_python_enum_to_proto, maybe_int_to_str
 from hatchet_sdk.workflow_run import WorkflowRunRef
 
 if TYPE_CHECKING:
@@ -424,9 +425,11 @@ class BaseWorkflow:
             return WorkflowConcurrencyOpts(
                 action=service_name + ":" + action.name,
                 max_runs=action.concurrency__max_runs,
-                limit_strategy=cast(
-                    str | None,
-                    self.validate_concurrency(action.concurrency__limit_strategy),
+                limit_strategy=maybe_int_to_str(
+                    convert_python_enum_to_proto(
+                        action.concurrency__limit_strategy,
+                        ConcurrencyLimitStrategyProto,
+                    )
                 ),
             )
 
@@ -475,34 +478,6 @@ class BaseWorkflow:
 
         return validated_priority
 
-    def validate_concurrency(
-        self, concurrency: ConcurrencyLimitStrategy | None
-    ) -> int | None:
-        if not concurrency:
-            return None
-
-        names = [item.name for item in ConcurrencyLimitStrategyProto.DESCRIPTOR.values]
-
-        for name in names:
-            if name == concurrency.name:
-                return StickyStrategyProto.Value(concurrency.name)
-
-        raise ValueError(
-            f"Concurrency limit strategy must be one of {names}. Got: {concurrency}"
-        )
-
-    def validate_sticky(self, sticky: StickyStrategy | None) -> int | None:
-        if not sticky:
-            return None
-
-        names = [item.name for item in StickyStrategyProto.DESCRIPTOR.values]
-
-        for name in names:
-            if name == sticky.name:
-                return StickyStrategyProto.Value(sticky.name)
-
-        raise ValueError(f"Sticky strategy must be one of {names}. Got: {sticky}")
-
     def get_create_opts(self, namespace: str) -> CreateWorkflowVersionOpts:
         service_name = self.get_service_name(namespace)
 
@@ -537,7 +512,9 @@ class BaseWorkflow:
             event_triggers=event_triggers,
             cron_triggers=self.config.on_crons,
             schedule_timeout=self.config.schedule_timeout,
-            sticky=cast(str | None, self.validate_sticky(self.config.sticky)),
+            sticky=maybe_int_to_str(
+                convert_python_enum_to_proto(self.config.sticky, StickyStrategyProto)
+            ),
             jobs=[
                 CreateWorkflowJobOpts(
                     name=name,

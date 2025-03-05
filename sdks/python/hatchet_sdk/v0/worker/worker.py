@@ -197,11 +197,11 @@ class Worker:
 
     def start(
         self, options: WorkerStartOptions = WorkerStartOptions()
-    ) -> Future[asyncio.Task[Any] | None]:
+    ) -> Future[asyncio.Task[None]]:
         self.owned_loop = self.setup_loop(options.loop)
 
         f = asyncio.run_coroutine_threadsafe(
-            self.async_start(options, _from_start=True), self.loop
+            self._async_start(options, _from_start=True), self.loop
         )
 
         # start the loop and wait until its closed
@@ -214,11 +214,11 @@ class Worker:
         return f
 
     ## Start methods
-    async def async_start(
+    async def _async_start(
         self,
         options: WorkerStartOptions = WorkerStartOptions(),
         _from_start: bool = False,
-    ) -> Any | None:
+    ) -> asyncio.Task[None]:
         main_pid = os.getpid()
         logger.info("------------------------------------------")
         logger.info("STARTING HATCHET...")
@@ -227,10 +227,9 @@ class Worker:
         self._status = WorkerStatus.STARTING
 
         if len(self.action_registry.keys()) == 0:
-            logger.error(
+            raise ValueError(
                 "no actions registered, register workflows or actions before starting worker"
             )
-            return None
 
         # non blocking setup
         if not _from_start:

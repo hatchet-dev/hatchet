@@ -9,6 +9,7 @@ from typing import AsyncGenerator, Callable, Generator, cast
 import psutil
 import pytest
 import pytest_asyncio
+import requests
 
 from hatchet_sdk import ClientConfig, Hatchet
 from hatchet_sdk.config import ClientTLSConfig
@@ -64,6 +65,26 @@ def hatchet(token: str) -> Hatchet:
     )
 
 
+def wait_for_worker_health() -> bool:
+    worker_healthcheck_attempts = 0
+    max_healthcheck_attempts = 10
+
+    while True:
+        if worker_healthcheck_attempts > max_healthcheck_attempts:
+            raise Exception(
+                f"Worker failed to start within {max_healthcheck_attempts} seconds"
+            )
+
+        try:
+            requests.get("http://localhost:8001/health", timeout=5)
+
+            return True
+        except Exception:
+            time.sleep(1)
+
+        worker_healthcheck_attempts += 1
+
+
 @pytest.fixture()
 def worker(
     request: pytest.FixtureRequest,
@@ -82,11 +103,11 @@ def worker(
     if proc.poll() is not None:
         raise Exception(f"Worker failed to start with return code {proc.returncode}")
 
-    time.sleep(5)
+    wait_for_worker_health()
 
     def log_output(pipe: BytesIO, log_func: Callable[[str], None]) -> None:
         for line in iter(pipe.readline, b""):
-            log_func(line.decode().strip())
+            print(line.decode().strip())
 
     Thread(target=log_output, args=(proc.stdout, logging.info), daemon=True).start()
     Thread(target=log_output, args=(proc.stderr, logging.error), daemon=True).start()
@@ -100,7 +121,7 @@ def worker(
         child.terminate()
     parent.terminate()
 
-    _, alive = psutil.wait_procs([parent] + children, timeout=3)
+    _, alive = psutil.wait_procs([parent] + children, timeout=5)
     for p in alive:
         logging.warning(f"Force killing process {p.pid}")
         p.kill()
