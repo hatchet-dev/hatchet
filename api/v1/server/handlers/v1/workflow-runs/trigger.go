@@ -3,10 +3,13 @@ package workflowruns
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/labstack/echo/v4"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
@@ -55,6 +58,15 @@ func (t *V1WorkflowRunsService) V1WorkflowRunCreate(ctx echo.Context, request ge
 	)
 
 	if err != nil {
+		if e, ok := status.FromError(err); ok {
+			switch e.Code() { // nolint: gocritic
+			case codes.InvalidArgument:
+				return gen.V1WorkflowRunCreate400JSONResponse(
+					apierrors.NewAPIErrors(e.Message()),
+				), nil
+			}
+		}
+
 		return nil, err
 	}
 
@@ -81,10 +93,12 @@ func (t *V1WorkflowRunsService) V1WorkflowRunCreate(ctx echo.Context, request ge
 		break
 	}
 
-	if rawWorkflowRun == nil || rawWorkflowRun.WorkflowRun == nil || sqlchelpers.UUIDToStr(rawWorkflowRun.WorkflowRun.TenantID) != tenantId {
-		return gen.V1WorkflowRunCreate400JSONResponse(
-			apierrors.NewAPIErrors("Workflow run not found"),
-		), nil
+	if rawWorkflowRun == nil || rawWorkflowRun.WorkflowRun == nil {
+		return nil, fmt.Errorf("rawWorkflowRun not populated, we are likely seeing high latency in creating tasks")
+	}
+
+	if sqlchelpers.UUIDToStr(rawWorkflowRun.WorkflowRun.TenantID) != tenantId {
+		return nil, fmt.Errorf("tenantId mismatch in the triggered workflow run")
 	}
 
 	details, err := t.getWorkflowRunDetails(

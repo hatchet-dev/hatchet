@@ -1103,6 +1103,7 @@ func (r *olapRepository) writeTaskBatch(ctx context.Context, tenantId string, ta
 			ActionID:             task.ActionID,
 			StepID:               task.StepID,
 			WorkflowID:           task.WorkflowID,
+			WorkflowVersionID:    task.WorkflowVersionID,
 			ScheduleTimeout:      task.ScheduleTimeout,
 			StepTimeout:          task.StepTimeout,
 			Priority:             task.Priority,

@@ -9,7 +9,7 @@ import (
 const createTasks = `-- name: CreateTasks :many
 WITH input AS (
     SELECT
-        tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, additional_metadata, initial_state, dag_id, dag_inserted_at, concurrency_strategy_ids, concurrency_keys, initial_state_reason, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, step_index, retry_backoff_factor, retry_max_backoff
+        tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, additional_metadata, initial_state, dag_id, dag_inserted_at, concurrency_strategy_ids, concurrency_keys, initial_state_reason, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, step_index, retry_backoff_factor, retry_max_backoff, workflow_version_id
     FROM
         (
             SELECT
@@ -43,7 +43,8 @@ WITH input AS (
 				unnest($27::text[]) AS child_key,
 				unnest($28::bigint[]) AS step_index,
 				unnest($29::double precision[]) AS retry_backoff_factor,
-				unnest($30::integer[]) AS retry_max_backoff
+				unnest($30::integer[]) AS retry_max_backoff,
+				unnest($31::uuid[]) AS workflow_version_id
         ) AS subquery
 )
 INSERT INTO v1_task (
@@ -76,7 +77,8 @@ INSERT INTO v1_task (
 	child_key,
 	step_index,
 	retry_backoff_factor,
-	retry_max_backoff
+	retry_max_backoff,
+	workflow_version_id
 )
 SELECT
     i.tenant_id,
@@ -108,11 +110,12 @@ SELECT
 	i.child_key,
 	i.step_index,
 	i.retry_backoff_factor,
-	i.retry_max_backoff
+	i.retry_max_backoff,
+	i.workflow_version_id
 FROM
     input i
 RETURNING
-    id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, additional_metadata, initial_state, dag_id, dag_inserted_at, concurrency_strategy_ids, concurrency_keys, initial_state_reason, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, step_index, retry_backoff_factor, retry_max_backoff
+    id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, additional_metadata, initial_state, dag_id, dag_inserted_at, concurrency_strategy_ids, concurrency_keys, initial_state_reason, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, step_index, retry_backoff_factor, retry_max_backoff, workflow_version_id
 `
 
 type CreateTasksParams struct {
@@ -146,6 +149,7 @@ type CreateTasksParams struct {
 	StepIndex              []int64              `json:"stepIndex"`
 	RetryBackoffFactor     []pgtype.Float8      `json:"retryBackoffFactor"`
 	RetryMaxBackoff        []pgtype.Int4        `json:"retryMaxBackoff"`
+	WorkflowVersionIds     []pgtype.UUID        `json:"workflowVersionIds"`
 }
 
 func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParams) ([]*V1Task, error) {
@@ -180,6 +184,7 @@ func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParam
 		arg.StepIndex,
 		arg.RetryBackoffFactor,
 		arg.RetryMaxBackoff,
+		arg.WorkflowVersionIds,
 	)
 	if err != nil {
 		return nil, err
@@ -223,6 +228,7 @@ func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParam
 			&i.StepIndex,
 			&i.RetryBackoffFactor,
 			&i.RetryMaxBackoff,
+			&i.WorkflowVersionID,
 		); err != nil {
 			return nil, err
 		}

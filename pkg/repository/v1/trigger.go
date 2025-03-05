@@ -84,6 +84,8 @@ type TriggerRepository interface {
 	TriggerFromWorkflowNames(ctx context.Context, tenantId string, opts []*WorkflowNameTriggerOpts) ([]*sqlcv1.V1Task, []*DAGWithData, error)
 
 	PopulateExternalIdsForWorkflow(ctx context.Context, tenantId string, opts []*WorkflowNameTriggerOpts) error
+
+	PreflightVerifyWorkflowNameOpts(ctx context.Context, tenantId string, opts []*WorkflowNameTriggerOpts) error
 }
 
 type TriggerRepositoryImpl struct {
@@ -202,6 +204,75 @@ func (r *TriggerRepositoryImpl) TriggerFromWorkflowNames(ctx context.Context, te
 	}
 
 	return r.triggerWorkflows(ctx, tenantId, triggerOpts)
+}
+
+type ErrNamesNotFound struct {
+	Names []string
+}
+
+func (e *ErrNamesNotFound) Error() string {
+	return fmt.Sprintf("workflow names not found: %s", strings.Join(e.Names, ", "))
+}
+
+func (r *TriggerRepositoryImpl) PreflightVerifyWorkflowNameOpts(ctx context.Context, tenantId string, opts []*WorkflowNameTriggerOpts) error {
+	// get a list of workflow names
+	workflowNames := make(map[string]bool)
+
+	for _, opt := range opts {
+		workflowNames[opt.WorkflowName] = true
+	}
+
+	uniqueWorkflowNames := make([]string, 0, len(workflowNames))
+
+	for name := range workflowNames {
+		uniqueWorkflowNames = append(uniqueWorkflowNames, name)
+	}
+
+	// lookup names in the cache
+	workflowNamesToLookup := make([]string, 0)
+
+	for _, name := range uniqueWorkflowNames {
+		k := fmt.Sprintf("%s:%s", tenantId, name)
+		if _, ok := r.tenantIdWorkflowNameCache.Get(k); ok {
+			delete(workflowNames, name)
+			continue
+		}
+
+		workflowNamesToLookup = append(workflowNamesToLookup, name)
+	}
+
+	// look up the workflow versions for the workflow names
+	workflowVersions, err := r.queries.ListWorkflowsByNames(ctx, r.pool, sqlcv1.ListWorkflowsByNamesParams{
+		Tenantid:      sqlchelpers.UUIDFromStr(tenantId),
+		Workflownames: workflowNamesToLookup,
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed to list workflows by names: %w", err)
+	}
+
+	for _, workflowVersion := range workflowVersions {
+		// store in the cache
+		k := fmt.Sprintf("%s:%s", tenantId, workflowVersion.WorkflowName)
+
+		r.tenantIdWorkflowNameCache.Set(k, true)
+
+		delete(workflowNames, workflowVersion.WorkflowName)
+	}
+
+	workflowNamesNotFound := make([]string, 0)
+
+	for name := range workflowNames {
+		workflowNamesNotFound = append(workflowNamesNotFound, name)
+	}
+
+	if len(workflowNamesNotFound) > 0 {
+		return &ErrNamesNotFound{
+			Names: workflowNamesNotFound,
+		}
+	}
+
+	return nil
 }
 
 type triggerTuple struct {

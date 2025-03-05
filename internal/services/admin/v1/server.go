@@ -2,6 +2,7 @@ package v1
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -282,12 +283,13 @@ func (a *AdminServiceImpl) TriggerWorkflowRun(ctx context.Context, req *contract
 	}
 
 	err = a.ingest(
+		ctx,
 		tenantId,
 		opt,
 	)
 
 	if err != nil {
-		return nil, fmt.Errorf("could not trigger workflow: %w", err)
+		return nil, err
 	}
 
 	return &contracts.TriggerWorkflowRunResponse{
@@ -315,7 +317,7 @@ func (i *AdminServiceImpl) generateExternalIds(ctx context.Context, tenantId str
 	return i.repo.Triggers().PopulateExternalIdsForWorkflow(ctx, tenantId, opts)
 }
 
-func (i *AdminServiceImpl) ingest(tenantId string, opts ...*v1.WorkflowNameTriggerOpts) error {
+func (i *AdminServiceImpl) ingest(ctx context.Context, tenantId string, opts ...*v1.WorkflowNameTriggerOpts) error {
 	optsToSend := make([]*v1.WorkflowNameTriggerOpts, 0)
 
 	for _, opt := range opts {
@@ -327,6 +329,21 @@ func (i *AdminServiceImpl) ingest(tenantId string, opts ...*v1.WorkflowNameTrigg
 	}
 
 	if len(optsToSend) > 0 {
+		verifyErr := i.repo.Triggers().PreflightVerifyWorkflowNameOpts(ctx, tenantId, optsToSend)
+
+		if verifyErr != nil {
+			namesNotFound := &v1.ErrNamesNotFound{}
+
+			if errors.As(verifyErr, &namesNotFound) {
+				return status.Error(
+					codes.InvalidArgument,
+					verifyErr.Error(),
+				)
+			}
+
+			return fmt.Errorf("could not verify workflow name opts: %w", verifyErr)
+		}
+
 		msg, err := tasktypes.TriggerTaskMessage(
 			tenantId,
 			optsToSend...,
@@ -336,7 +353,7 @@ func (i *AdminServiceImpl) ingest(tenantId string, opts ...*v1.WorkflowNameTrigg
 			return fmt.Errorf("could not create event task: %w", err)
 		}
 
-		err = i.mq.SendMessage(context.Background(), msgqueue.TASK_PROCESSING_QUEUE, msg)
+		err = i.mq.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg)
 
 		if err != nil {
 			return fmt.Errorf("could not add event to task queue: %w", err)

@@ -163,6 +163,7 @@ CREATE TABLE v1_task (
     step_id UUID NOT NULL,
     step_readable_id TEXT NOT NULL,
     workflow_id UUID NOT NULL,
+    workflow_version_id UUID NOT NULL,
     schedule_timeout TEXT NOT NULL,
     step_timeout TEXT,
     priority INTEGER DEFAULT 1,
@@ -1139,6 +1140,7 @@ CREATE TABLE v1_tasks_olap (
     action_id TEXT NOT NULL,
     step_id UUID NOT NULL,
     workflow_id UUID NOT NULL,
+    workflow_version_id UUID NOT NULL,
     schedule_timeout TEXT NOT NULL,
     step_timeout TEXT,
     priority INTEGER DEFAULT 1,
@@ -1196,6 +1198,7 @@ CREATE TABLE v1_runs_olap (
     readable_status v1_readable_status_olap NOT NULL DEFAULT 'QUEUED',
     kind v1_run_kind NOT NULL,
     workflow_id UUID NOT NULL,
+    workflow_version_id UUID NOT NULL,
     additional_metadata JSONB,
     parent_task_external_id UUID,
 
@@ -1377,6 +1380,7 @@ BEGIN
         readable_status,
         kind,
         workflow_id,
+        workflow_version_id,
         additional_metadata,
         parent_task_external_id
     )
@@ -1388,6 +1392,7 @@ BEGIN
         readable_status,
         'TASK',
         workflow_id,
+        workflow_version_id,
         additional_metadata,
         parent_task_external_id
     FROM new_rows
@@ -1482,6 +1487,7 @@ BEGIN
         readable_status,
         kind,
         workflow_id,
+        workflow_version_id,
         additional_metadata,
         parent_task_external_id
     )
@@ -1493,6 +1499,7 @@ BEGIN
         readable_status,
         'DAG',
         workflow_id,
+        workflow_version_id,
         additional_metadata,
         parent_task_external_id
     FROM new_rows;
