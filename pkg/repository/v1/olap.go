@@ -422,7 +422,7 @@ func (r *olapRepository) ReadTaskRunData(ctx context.Context, tenantId pgtype.UU
 		return nil, nil, err
 	}
 
-	workflowRunId := taskRun.ExternalID
+	workflowRunId := pgtype.UUID{}
 
 	if taskRun.DagID.Valid {
 		dagId := taskRun.DagID.Int64
