@@ -1216,7 +1216,7 @@ func (tc *TasksControllerImpl) signalTasksCreatedAndSkipped(ctx context.Context,
 
 		outputMapBytes, _ := json.Marshal(outputMap) // nolint: errcheck
 
-		dataBytes := v1.NewCompletedTaskOutputEventFromTask(task, outputMapBytes).Bytes()
+		dataBytes := v1.NewSkippedTaskOutputEventFromTask(task, outputMapBytes).Bytes()
 
 		internalEvents = append(internalEvents, v1.InternalTaskEvent{
 			TenantID:       tenantId,

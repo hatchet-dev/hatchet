@@ -42,6 +42,7 @@ LEFT JOIN
 SELECT
     s.*,
     wv."id" as "workflowVersionId",
+    wv."sticky" as "workflowVersionSticky",
     w."name" as "workflowName",
     w."id" as "workflowId",
     COUNT(se."stepId") as "exprCount",
@@ -64,7 +65,7 @@ WHERE
     AND w."deletedAt" IS NULL
     AND wv."deletedAt" IS NULL
 GROUP BY
-    s."id", wv."id", w."name", w."id";
+    s."id", wv."id", w."name", w."id", wv."sticky";
 
 -- name: ListStepExpressions :many
 SELECT

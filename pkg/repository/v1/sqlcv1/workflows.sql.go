@@ -49,6 +49,7 @@ const listStepsByIds = `-- name: ListStepsByIds :many
 SELECT
     s.id, s."createdAt", s."updatedAt", s."deletedAt", s."readableId", s."tenantId", s."jobId", s."actionId", s.timeout, s."customUserData", s.retries, s."retryBackoffFactor", s."retryMaxBackoff", s."scheduleTimeout",
     wv."id" as "workflowVersionId",
+    wv."sticky" as "workflowVersionSticky",
     w."name" as "workflowName",
     w."id" as "workflowId",
     COUNT(se."stepId") as "exprCount",
@@ -71,7 +72,7 @@ WHERE
     AND w."deletedAt" IS NULL
     AND wv."deletedAt" IS NULL
 GROUP BY
-    s."id", wv."id", w."name", w."id"
+    s."id", wv."id", w."name", w."id", wv."sticky"
 `
 
 type ListStepsByIdsParams struct {
@@ -80,25 +81,26 @@ type ListStepsByIdsParams struct {
 }
 
 type ListStepsByIdsRow struct {
-	ID                 pgtype.UUID      `json:"id"`
-	CreatedAt          pgtype.Timestamp `json:"createdAt"`
-	UpdatedAt          pgtype.Timestamp `json:"updatedAt"`
-	DeletedAt          pgtype.Timestamp `json:"deletedAt"`
-	ReadableId         pgtype.Text      `json:"readableId"`
-	TenantId           pgtype.UUID      `json:"tenantId"`
-	JobId              pgtype.UUID      `json:"jobId"`
-	ActionId           string           `json:"actionId"`
-	Timeout            pgtype.Text      `json:"timeout"`
-	CustomUserData     []byte           `json:"customUserData"`
-	Retries            int32            `json:"retries"`
-	RetryBackoffFactor pgtype.Float8    `json:"retryBackoffFactor"`
-	RetryMaxBackoff    pgtype.Int4      `json:"retryMaxBackoff"`
-	ScheduleTimeout    string           `json:"scheduleTimeout"`
-	WorkflowVersionId  pgtype.UUID      `json:"workflowVersionId"`
-	WorkflowName       string           `json:"workflowName"`
-	WorkflowId         pgtype.UUID      `json:"workflowId"`
-	ExprCount          int64            `json:"exprCount"`
-	ConcurrencyCount   int64            `json:"concurrencyCount"`
+	ID                    pgtype.UUID        `json:"id"`
+	CreatedAt             pgtype.Timestamp   `json:"createdAt"`
+	UpdatedAt             pgtype.Timestamp   `json:"updatedAt"`
+	DeletedAt             pgtype.Timestamp   `json:"deletedAt"`
+	ReadableId            pgtype.Text        `json:"readableId"`
+	TenantId              pgtype.UUID        `json:"tenantId"`
+	JobId                 pgtype.UUID        `json:"jobId"`
+	ActionId              string             `json:"actionId"`
+	Timeout               pgtype.Text        `json:"timeout"`
+	CustomUserData        []byte             `json:"customUserData"`
+	Retries               int32              `json:"retries"`
+	RetryBackoffFactor    pgtype.Float8      `json:"retryBackoffFactor"`
+	RetryMaxBackoff       pgtype.Int4        `json:"retryMaxBackoff"`
+	ScheduleTimeout       string             `json:"scheduleTimeout"`
+	WorkflowVersionId     pgtype.UUID        `json:"workflowVersionId"`
+	WorkflowVersionSticky NullStickyStrategy `json:"workflowVersionSticky"`
+	WorkflowName          string             `json:"workflowName"`
+	WorkflowId            pgtype.UUID        `json:"workflowId"`
+	ExprCount             int64              `json:"exprCount"`
+	ConcurrencyCount      int64              `json:"concurrencyCount"`
 }
 
 func (q *Queries) ListStepsByIds(ctx context.Context, db DBTX, arg ListStepsByIdsParams) ([]*ListStepsByIdsRow, error) {
@@ -126,6 +128,7 @@ func (q *Queries) ListStepsByIds(ctx context.Context, db DBTX, arg ListStepsById
 			&i.RetryMaxBackoff,
 			&i.ScheduleTimeout,
 			&i.WorkflowVersionId,
+			&i.WorkflowVersionSticky,
 			&i.WorkflowName,
 			&i.WorkflowId,
 			&i.ExprCount,
