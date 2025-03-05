@@ -1,7 +1,5 @@
 import { V1TaskStatus, WorkflowRunStatus } from '@/lib/api';
-import { Button } from '@/components/v1/ui/button';
 import { AdjustmentsHorizontalIcon } from '@heroicons/react/24/outline';
-import { ArrowTopRightIcon } from '@radix-ui/react-icons';
 import {
   Breadcrumb,
   BreadcrumbList,

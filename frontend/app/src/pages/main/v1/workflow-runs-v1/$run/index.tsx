@@ -58,7 +58,7 @@ const GraphView = ({
 
   const showGraphView =
     view == 'graph' &&
-    shape.some((task) => task.childrenExternalIds.length > 0);
+    shape.some((task) => task.childrenStepIds.length > 0);
 
   return showGraphView ? (
     <WorkflowRunVisualizer setSelectedTaskRunId={handleTaskRunExpand} />

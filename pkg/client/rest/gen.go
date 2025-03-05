@@ -1278,6 +1278,9 @@ type V1TaskSummary struct {
 	StartedAt *time.Time   `json:"startedAt,omitempty"`
 	Status    V1TaskStatus `json:"status"`
 
+	// StepId The step ID of the task.
+	StepId *openapi_types.UUID `json:"stepId,omitempty"`
+
 	// TaskExternalId The external ID of the task.
 	TaskExternalId openapi_types.UUID `json:"taskExternalId"`
 
@@ -1614,9 +1617,10 @@ type WorkflowRunShapeForWorkflowRunDetails = []WorkflowRunShapeItemForWorkflowRu
 
 // WorkflowRunShapeItemForWorkflowRunDetails defines model for WorkflowRunShapeItemForWorkflowRunDetails.
 type WorkflowRunShapeItemForWorkflowRunDetails struct {
-	ChildrenExternalIds []openapi_types.UUID `json:"childrenExternalIds"`
-	TaskExternalId      openapi_types.UUID   `json:"taskExternalId"`
-	TaskName            string               `json:"taskName"`
+	ChildrenStepIds []openapi_types.UUID `json:"childrenStepIds"`
+	StepId          openapi_types.UUID   `json:"stepId"`
+	TaskExternalId  openapi_types.UUID   `json:"taskExternalId"`
+	TaskName        string               `json:"taskName"`
 }
 
 // WorkflowRunStatus defines model for WorkflowRunStatus.

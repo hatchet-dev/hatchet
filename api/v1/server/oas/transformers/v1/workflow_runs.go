@@ -49,6 +49,13 @@ func WorkflowRunDataToV1TaskSummary(task *v1.WorkflowRunData) gen.V1TaskSummary 
 		taskId = int(*task.TaskId)
 	}
 
+	var stepId uuid.UUID
+	if task.StepId != nil {
+		stepId = uuid.MustParse(sqlchelpers.UUIDToStr(*task.StepId))
+	} else {
+		stepId = uuid.Nil
+	}
+
 	return gen.V1TaskSummary{
 		Metadata: gen.APIResourceMeta{
 			Id:        sqlchelpers.UUIDToStr(task.ExternalID),
@@ -73,6 +80,7 @@ func WorkflowRunDataToV1TaskSummary(task *v1.WorkflowRunData) gen.V1TaskSummary 
 		TaskInsertedAt:     task.InsertedAt.Time,
 		Type:               gen.V1WorkflowTypeDAG,
 		WorkflowName:       task.WorkflowName,
+		StepId:             &stepId,
 	}
 }
 
@@ -132,6 +140,7 @@ func PopulateTaskRunDataRowToV1TaskSummary(task *sqlcv1.PopulateTaskRunDataRow, 
 
 	input := jsonToMap(task.Input)
 	output := jsonToMap(task.Output)
+	stepId := uuid.MustParse(sqlchelpers.UUIDToStr(task.StepID))
 
 	return gen.V1TaskSummary{
 		Metadata: gen.APIResourceMeta{
@@ -158,6 +167,7 @@ func PopulateTaskRunDataRowToV1TaskSummary(task *sqlcv1.PopulateTaskRunDataRow, 
 		TaskInsertedAt:     task.InsertedAt.Time,
 		Type:               gen.V1WorkflowTypeTASK,
 		WorkflowName:       workflowName,
+		StepId:             &stepId,
 	}
 }
 

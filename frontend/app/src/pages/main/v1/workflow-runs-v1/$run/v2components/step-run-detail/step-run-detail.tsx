@@ -23,7 +23,6 @@ import { V1StepRunOutput } from './step-run-output';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import { TaskRunActionButton } from '@/pages/main/v1/task-runs-v1/actions';
 import { TaskRunMiniMap } from '../mini-map';
-import { ArrowTopRightIcon } from '@radix-ui/react-icons';
 import { WorkflowDefinitionLink } from '@/pages/main/workflow-runs/$run/v2components/workflow-definition';
 
 export enum TabOption {

@@ -82,6 +82,7 @@ type WorkflowRunData struct {
 	Kind               sqlcv1.V1RunKind            `json:"kind"`
 	Output             *[]byte                     `json:"output,omitempty"`
 	ReadableStatus     sqlcv1.V1ReadableStatusOlap `json:"readable_status"`
+	StepId             *pgtype.UUID                `json:"step_id,omitempty"`
 	StartedAt          pgtype.Timestamptz          `json:"started_at"`
 	TaskExternalId     *pgtype.UUID                `json:"task_external_id,omitempty"`
 	TaskId             *int64                      `json:"task_id,omitempty"`
@@ -828,6 +829,7 @@ func (r *olapRepository) ListWorkflowRuns(ctx context.Context, tenantId string, 
 				TaskInsertedAt:     &task.InsertedAt,
 				Output:             &task.Output,
 				Input:              task.Input,
+				StepId:             &task.StepID,
 			})
 		}
 	}

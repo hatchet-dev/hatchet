@@ -67,7 +67,12 @@ WorkflowRunShapeItemForWorkflowRunDetails:
       format: uuid
       minLength: 36
       maxLength: 36
-    childrenExternalIds:
+    stepId:
+      type: string
+      format: uuid
+      minLength: 36
+      maxLength: 36
+    childrenStepIds:
       type: array
       items:
         type: string
@@ -78,7 +83,8 @@ WorkflowRunShapeItemForWorkflowRunDetails:
       type: string
   required:
     - taskExternalId
-    - childrenExternalIds
+    - stepId
+    - childrenStepIds
     - taskName
 
 WorkflowRunShapeForWorkflowRunDetails:
