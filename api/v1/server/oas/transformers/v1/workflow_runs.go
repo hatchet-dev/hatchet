@@ -108,7 +108,7 @@ func ToWorkflowRunMany(
 	}
 }
 
-func PopulateTaskRunDataRowToV1TaskSummary(task *sqlcv1.PopulateTaskRunDataRow) gen.V1TaskSummary {
+func PopulateTaskRunDataRowToV1TaskSummary(task *sqlcv1.PopulateTaskRunDataRow, workflowName *string) gen.V1TaskSummary {
 	additionalMetadata := jsonToMap(task.AdditionalMetadata)
 
 	var finishedAt *time.Time
@@ -157,17 +157,20 @@ func PopulateTaskRunDataRowToV1TaskSummary(task *sqlcv1.PopulateTaskRunDataRow) 
 		TaskId:             int(task.ID),
 		TaskInsertedAt:     task.InsertedAt.Time,
 		Type:               gen.V1WorkflowTypeTASK,
+		WorkflowName:       workflowName,
 	}
 }
 
 func TaskRunDataRowToWorkflowRunsMany(
 	tasks []*sqlcv1.PopulateTaskRunDataRow,
+	taskIdToWorkflowName map[int64]string,
 	total int, limit, offset int64,
 ) gen.V1TaskSummaryList {
 	toReturn := make([]gen.V1TaskSummary, len(tasks))
 
 	for i, task := range tasks {
-		toReturn[i] = PopulateTaskRunDataRowToV1TaskSummary(task)
+		workflowName := taskIdToWorkflowName[task.ID]
+		toReturn[i] = PopulateTaskRunDataRowToV1TaskSummary(task, &workflowName)
 	}
 
 	currentPage := (offset / limit) + 1
