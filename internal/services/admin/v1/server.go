@@ -2,6 +2,8 @@ package v1
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -262,4 +264,101 @@ func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.Repla
 	return &contracts.ReplayTasksResponse{
 		ReplayedTasks: externalIds,
 	}, nil
+}
+
+func (a *AdminServiceImpl) TriggerWorkflowRun(ctx context.Context, req *contracts.TriggerWorkflowRunRequest) (*contracts.TriggerWorkflowRunResponse, error) {
+	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+
+	opt, err := a.newTriggerOpt(ctx, tenantId, req)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not create trigger opt: %w", err)
+	}
+
+	err = a.generateExternalIds(ctx, tenantId, []*v1.WorkflowNameTriggerOpts{opt})
+
+	if err != nil {
+		return nil, fmt.Errorf("could not generate external ids: %w", err)
+	}
+
+	err = a.ingest(
+		ctx,
+		tenantId,
+		opt,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &contracts.TriggerWorkflowRunResponse{
+		ExternalId: opt.ExternalId,
+	}, nil
+}
+
+func (i *AdminServiceImpl) newTriggerOpt(
+	ctx context.Context,
+	tenantId string,
+	req *contracts.TriggerWorkflowRunRequest,
+) (*v1.WorkflowNameTriggerOpts, error) {
+	t := &v1.TriggerTaskData{
+		WorkflowName:       req.WorkflowName,
+		Data:               req.Input,
+		AdditionalMetadata: req.AdditionalMetadata,
+	}
+
+	return &v1.WorkflowNameTriggerOpts{
+		TriggerTaskData: t,
+	}, nil
+}
+
+func (i *AdminServiceImpl) generateExternalIds(ctx context.Context, tenantId string, opts []*v1.WorkflowNameTriggerOpts) error {
+	return i.repo.Triggers().PopulateExternalIdsForWorkflow(ctx, tenantId, opts)
+}
+
+func (i *AdminServiceImpl) ingest(ctx context.Context, tenantId string, opts ...*v1.WorkflowNameTriggerOpts) error {
+	optsToSend := make([]*v1.WorkflowNameTriggerOpts, 0)
+
+	for _, opt := range opts {
+		if opt.ShouldSkip {
+			continue
+		}
+
+		optsToSend = append(optsToSend, opt)
+	}
+
+	if len(optsToSend) > 0 {
+		verifyErr := i.repo.Triggers().PreflightVerifyWorkflowNameOpts(ctx, tenantId, optsToSend)
+
+		if verifyErr != nil {
+			namesNotFound := &v1.ErrNamesNotFound{}
+
+			if errors.As(verifyErr, &namesNotFound) {
+				return status.Error(
+					codes.InvalidArgument,
+					verifyErr.Error(),
+				)
+			}
+
+			return fmt.Errorf("could not verify workflow name opts: %w", verifyErr)
+		}
+
+		msg, err := tasktypes.TriggerTaskMessage(
+			tenantId,
+			optsToSend...,
+		)
+
+		if err != nil {
+			return fmt.Errorf("could not create event task: %w", err)
+		}
+
+		err = i.mq.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg)
+
+		if err != nil {
+			return fmt.Errorf("could not add event to task queue: %w", err)
+		}
+	}
+
+	return nil
 }

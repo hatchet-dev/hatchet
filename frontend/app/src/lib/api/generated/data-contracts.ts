@@ -243,6 +243,13 @@ export interface V1TaskSummaryList {
   rows: V1TaskSummary[];
 }
 
+export interface V1TriggerWorkflowRunRequest {
+  /** The name of the workflow. */
+  workflowName: string;
+  input: object;
+  additionalMetadata?: object;
+}
+
 export interface V1WorkflowRun {
   metadata: APIResourceMeta;
   status: V1TaskStatus;

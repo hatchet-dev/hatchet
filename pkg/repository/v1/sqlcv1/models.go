@@ -2454,6 +2454,7 @@ type V1RunsOlap struct {
 	ReadableStatus       V1ReadableStatusOlap `json:"readable_status"`
 	Kind                 V1RunKind            `json:"kind"`
 	WorkflowID           pgtype.UUID          `json:"workflow_id"`
+	WorkflowVersionID    pgtype.UUID          `json:"workflow_version_id"`
 	AdditionalMetadata   []byte               `json:"additional_metadata"`
 	ParentTaskExternalID pgtype.UUID          `json:"parent_task_external_id"`
 }
@@ -2488,6 +2489,7 @@ type V1Task struct {
 	StepID                 pgtype.UUID        `json:"step_id"`
 	StepReadableID         string             `json:"step_readable_id"`
 	WorkflowID             pgtype.UUID        `json:"workflow_id"`
+	WorkflowVersionID      pgtype.UUID        `json:"workflow_version_id"`
 	ScheduleTimeout        string             `json:"schedule_timeout"`
 	StepTimeout            pgtype.Text        `json:"step_timeout"`
 	Priority               pgtype.Int4        `json:"priority"`
@@ -2595,6 +2597,7 @@ type V1TasksOlap struct {
 	ActionID             string               `json:"action_id"`
 	StepID               pgtype.UUID          `json:"step_id"`
 	WorkflowID           pgtype.UUID          `json:"workflow_id"`
+	WorkflowVersionID    pgtype.UUID          `json:"workflow_version_id"`
 	ScheduleTimeout      string               `json:"schedule_timeout"`
 	StepTimeout          pgtype.Text          `json:"step_timeout"`
 	Priority             pgtype.Int4          `json:"priority"`

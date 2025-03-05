@@ -118,6 +118,7 @@ type CreateTasksOLAPParams struct {
 	ActionID             string               `json:"action_id"`
 	StepID               pgtype.UUID          `json:"step_id"`
 	WorkflowID           pgtype.UUID          `json:"workflow_id"`
+	WorkflowVersionID    pgtype.UUID          `json:"workflow_version_id"`
 	ScheduleTimeout      string               `json:"schedule_timeout"`
 	StepTimeout          pgtype.Text          `json:"step_timeout"`
 	Priority             pgtype.Int4          `json:"priority"`
@@ -984,7 +985,7 @@ WITH latest_retry_count AS (
 )
 
 SELECT
-    t.tenant_id, t.id, t.inserted_at, t.external_id, t.queue, t.action_id, t.step_id, t.workflow_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.display_name, t.input, t.additional_metadata, t.readable_status, t.latest_retry_count, t.latest_worker_id, t.dag_id, t.dag_inserted_at, t.parent_task_external_id,
+    t.tenant_id, t.id, t.inserted_at, t.external_id, t.queue, t.action_id, t.step_id, t.workflow_id, t.workflow_version_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.display_name, t.input, t.additional_metadata, t.readable_status, t.latest_retry_count, t.latest_worker_id, t.dag_id, t.dag_inserted_at, t.parent_task_external_id,
     st.readable_status::v1_readable_status_olap as status,
     f.finished_at::timestamptz as finished_at,
     s.started_at::timestamptz as started_at,
@@ -1024,6 +1025,7 @@ type PopulateSingleTaskRunDataRow struct {
 	ActionID             string               `json:"action_id"`
 	StepID               pgtype.UUID          `json:"step_id"`
 	WorkflowID           pgtype.UUID          `json:"workflow_id"`
+	WorkflowVersionID    pgtype.UUID          `json:"workflow_version_id"`
 	ScheduleTimeout      string               `json:"schedule_timeout"`
 	StepTimeout          pgtype.Text          `json:"step_timeout"`
 	Priority             pgtype.Int4          `json:"priority"`
@@ -1058,6 +1060,7 @@ func (q *Queries) PopulateSingleTaskRunData(ctx context.Context, db DBTX, arg Po
 		&i.ActionID,
 		&i.StepID,
 		&i.WorkflowID,
+		&i.WorkflowVersionID,
 		&i.ScheduleTimeout,
 		&i.StepTimeout,
 		&i.Priority,
@@ -1342,7 +1345,7 @@ WITH lookup_task AS (
         external_id = $1::uuid
 )
 SELECT
-    t.tenant_id, t.id, t.inserted_at, t.external_id, t.queue, t.action_id, t.step_id, t.workflow_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.display_name, t.input, t.additional_metadata, t.readable_status, t.latest_retry_count, t.latest_worker_id, t.dag_id, t.dag_inserted_at, t.parent_task_external_id,
+    t.tenant_id, t.id, t.inserted_at, t.external_id, t.queue, t.action_id, t.step_id, t.workflow_id, t.workflow_version_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.display_name, t.input, t.additional_metadata, t.readable_status, t.latest_retry_count, t.latest_worker_id, t.dag_id, t.dag_inserted_at, t.parent_task_external_id,
     e.output,
     e.error_message
 FROM
@@ -1362,6 +1365,7 @@ type ReadTaskByExternalIDRow struct {
 	ActionID             string               `json:"action_id"`
 	StepID               pgtype.UUID          `json:"step_id"`
 	WorkflowID           pgtype.UUID          `json:"workflow_id"`
+	WorkflowVersionID    pgtype.UUID          `json:"workflow_version_id"`
 	ScheduleTimeout      string               `json:"schedule_timeout"`
 	StepTimeout          pgtype.Text          `json:"step_timeout"`
 	Priority             pgtype.Int4          `json:"priority"`
@@ -1392,6 +1396,7 @@ func (q *Queries) ReadTaskByExternalID(ctx context.Context, db DBTX, externalid 
 		&i.ActionID,
 		&i.StepID,
 		&i.WorkflowID,
+		&i.WorkflowVersionID,
 		&i.ScheduleTimeout,
 		&i.StepTimeout,
 		&i.Priority,
@@ -1413,75 +1418,107 @@ func (q *Queries) ReadTaskByExternalID(ctx context.Context, db DBTX, externalid 
 }
 
 const readWorkflowRunByExternalId = `-- name: ReadWorkflowRunByExternalId :one
-WITH dags AS (
-    SELECT d.id, d.inserted_at, d.tenant_id, d.external_id, d.display_name, d.workflow_id, d.workflow_version_id, d.readable_status, d.input, d.additional_metadata, d.parent_task_external_id
-    FROM v1_lookup_table_olap lt
-    JOIN v1_dags_olap d ON (lt.tenant_id, lt.dag_id, lt.inserted_at) = (d.tenant_id, d.id, d.inserted_at)
-    WHERE lt.external_id = $1::uuid
-), runs AS (
+WITH runs AS (
     SELECT
-        d.id AS dag_id,
-        r.id AS run_id,
+        lt.dag_id AS dag_id,
+        lt.task_id AS task_id,
+        r.id AS id,
         r.tenant_id,
         r.inserted_at,
         r.external_id,
         r.readable_status,
         r.kind,
         r.workflow_id,
-        d.display_name,
-        d.input,
-        d.additional_metadata,
-        d.workflow_version_id
-    FROM v1_runs_olap r
-    JOIN dags d ON (r.tenant_id, r.external_id, r.inserted_at) = (d.tenant_id, d.external_id, d.inserted_at)
-    WHERE r.kind = 'DAG'
+        d.display_name AS display_name,
+        d.input AS input,
+        d.additional_metadata AS additional_metadata,
+        d.workflow_version_id AS workflow_version_id
+    FROM
+        v1_lookup_table_olap lt
+    JOIN
+        v1_runs_olap r ON r.inserted_at = lt.inserted_at AND r.id = lt.dag_id
+    JOIN
+        v1_dags_olap d ON (lt.tenant_id, lt.dag_id, lt.inserted_at) = (d.tenant_id, d.id, d.inserted_at)
+    WHERE
+        lt.external_id = $1::uuid
+        AND lt.dag_id IS NOT NULL
+
+    UNION ALL
+
+    SELECT
+        lt.dag_id AS dag_id,
+        lt.task_id AS task_id,
+        r.id AS id,
+        r.tenant_id,
+        r.inserted_at,
+        r.external_id,
+        r.readable_status,
+        r.kind,
+        r.workflow_id,
+        t.display_name AS display_name,
+        t.input AS input,
+        t.additional_metadata AS additional_metadata,
+        t.workflow_version_id AS workflow_version_id
+    FROM
+        v1_lookup_table_olap lt
+    JOIN
+        v1_runs_olap r ON r.inserted_at = lt.inserted_at AND r.id = lt.task_id
+    JOIN
+        v1_tasks_olap t ON (lt.tenant_id, lt.task_id, lt.inserted_at) = (t.tenant_id, t.id, t.inserted_at)
+    WHERE
+        lt.external_id = $1::uuid
+        AND lt.task_id IS NOT NULL
 ), relevant_events AS (
     SELECT
-        r.run_id,
-        e.tenant_id, e.id, e.inserted_at, e.task_id, e.task_inserted_at, e.event_type, e.workflow_id, e.event_timestamp, e.readable_status, e.retry_count, e.error_message, e.output, e.worker_id, e.additional__event_data, e.additional__event_message,
-        dt.task_id AS dag_task_id,
-        dt.task_inserted_at AS dag_task_inserted_at
+        e.tenant_id, e.id, e.inserted_at, e.task_id, e.task_inserted_at, e.event_type, e.workflow_id, e.event_timestamp, e.readable_status, e.retry_count, e.error_message, e.output, e.worker_id, e.additional__event_data, e.additional__event_message
     FROM runs r
-    JOIN v1_dag_to_task_olap dt ON r.dag_id = dt.dag_id  -- Do I need to join by ` + "`" + `inserted_at` + "`" + ` here too?
-    JOIN v1_task_events_olap e ON e.task_id = dt.task_id -- Do I need to join by ` + "`" + `inserted_at` + "`" + ` here too?
+    JOIN v1_dag_to_task_olap dt ON r.dag_id = dt.dag_id AND r.inserted_at = dt.dag_inserted_at
+    JOIN v1_task_events_olap e ON e.task_id = dt.task_id AND e.task_inserted_at = dt.task_inserted_at
+    WHERE r.dag_id IS NOT NULL
+
+    UNION ALL
+
+    SELECT
+        e.tenant_id, e.id, e.inserted_at, e.task_id, e.task_inserted_at, e.event_type, e.workflow_id, e.event_timestamp, e.readable_status, e.retry_count, e.error_message, e.output, e.worker_id, e.additional__event_data, e.additional__event_message
+    FROM runs r
+    JOIN v1_task_events_olap e ON e.task_id = r.task_id AND e.task_inserted_at = r.inserted_at
+    WHERE r.task_id IS NOT NULL
 ), metadata AS (
     SELECT
-        e.run_id,
         MIN(e.inserted_at)::timestamptz AS created_at,
         MIN(e.inserted_at) FILTER (WHERE e.readable_status = 'RUNNING')::timestamptz AS started_at,
         MAX(e.inserted_at) FILTER (WHERE e.readable_status IN ('COMPLETED', 'CANCELLED', 'FAILED'))::timestamptz AS finished_at,
-        JSON_AGG(JSON_BUILD_OBJECT('task_id', e.dag_task_id,'task_inserted_at', e.dag_task_inserted_at)) AS task_metadata
+        JSON_AGG(JSON_BUILD_OBJECT('task_id', e.task_id,'task_inserted_at', e.task_inserted_at)) AS task_metadata
     FROM
         relevant_events e
-    GROUP BY e.run_id
 ), error_message AS (
     SELECT
-        DISTINCT ON (e.run_id) e.run_id::bigint,
         e.error_message
     FROM
         relevant_events e
     WHERE
         e.readable_status = 'FAILED'
     ORDER BY
-        e.run_id, e.retry_count DESC
+        e.retry_count DESC
+    LIMIT 1
 )
-
 SELECT
-    r.dag_id, r.run_id, r.tenant_id, r.inserted_at, r.external_id, r.readable_status, r.kind, r.workflow_id, r.display_name, r.input, r.additional_metadata, r.workflow_version_id,
+    r.dag_id, r.task_id, r.id, r.tenant_id, r.inserted_at, r.external_id, r.readable_status, r.kind, r.workflow_id, r.display_name, r.input, r.additional_metadata, r.workflow_version_id,
     m.created_at,
     m.started_at,
     m.finished_at,
     e.error_message,
     m.task_metadata
 FROM runs r
-LEFT JOIN metadata m ON r.run_id = m.run_id
-LEFT JOIN error_message e ON r.run_id = e.run_id
-ORDER BY r.inserted_at DESC, r.run_id DESC
+LEFT JOIN metadata m ON true
+LEFT JOIN error_message e ON true
+ORDER BY r.inserted_at DESC
 `
 
 type ReadWorkflowRunByExternalIdRow struct {
-	DagID              int64                `json:"dag_id"`
-	RunID              int64                `json:"run_id"`
+	DagID              pgtype.Int8          `json:"dag_id"`
+	TaskID             pgtype.Int8          `json:"task_id"`
+	ID                 int64                `json:"id"`
 	TenantID           pgtype.UUID          `json:"tenant_id"`
 	InsertedAt         pgtype.Timestamptz   `json:"inserted_at"`
 	ExternalID         pgtype.UUID          `json:"external_id"`
@@ -1504,7 +1541,8 @@ func (q *Queries) ReadWorkflowRunByExternalId(ctx context.Context, db DBTX, work
 	var i ReadWorkflowRunByExternalIdRow
 	err := row.Scan(
 		&i.DagID,
-		&i.RunID,
+		&i.TaskID,
+		&i.ID,
 		&i.TenantID,
 		&i.InsertedAt,
 		&i.ExternalID,

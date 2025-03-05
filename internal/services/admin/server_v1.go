@@ -2,6 +2,7 @@ package admin
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
@@ -10,6 +11,9 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
+
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func (a *AdminServiceImpl) triggerWorkflowV1(ctx context.Context, req *contracts.TriggerWorkflowRequest) (*contracts.TriggerWorkflowResponse, error) {
@@ -29,6 +33,7 @@ func (a *AdminServiceImpl) triggerWorkflowV1(ctx context.Context, req *contracts
 	}
 
 	err = a.ingest(
+		ctx,
 		tenantId,
 		opt,
 	)
@@ -65,12 +70,13 @@ func (a *AdminServiceImpl) bulkTriggerWorkflowV1(ctx context.Context, req *contr
 	}
 
 	err = a.ingest(
+		ctx,
 		tenantId,
 		opts...,
 	)
 
 	if err != nil {
-		return nil, fmt.Errorf("could not trigger workflows: %w", err)
+		return nil, err
 	}
 
 	runIds := make([]string, len(req.Workflows))
@@ -134,7 +140,7 @@ func (i *AdminServiceImpl) generateExternalIds(ctx context.Context, tenantId str
 	return i.repov1.Triggers().PopulateExternalIdsForWorkflow(ctx, tenantId, opts)
 }
 
-func (i *AdminServiceImpl) ingest(tenantId string, opts ...*v1.WorkflowNameTriggerOpts) error {
+func (i *AdminServiceImpl) ingest(ctx context.Context, tenantId string, opts ...*v1.WorkflowNameTriggerOpts) error {
 	optsToSend := make([]*v1.WorkflowNameTriggerOpts, 0)
 
 	for _, opt := range opts {
@@ -146,6 +152,21 @@ func (i *AdminServiceImpl) ingest(tenantId string, opts ...*v1.WorkflowNameTrigg
 	}
 
 	if len(optsToSend) > 0 {
+		verifyErr := i.repov1.Triggers().PreflightVerifyWorkflowNameOpts(ctx, tenantId, optsToSend)
+
+		if verifyErr != nil {
+			namesNotFound := &v1.ErrNamesNotFound{}
+
+			if errors.As(verifyErr, &namesNotFound) {
+				return status.Error(
+					codes.InvalidArgument,
+					verifyErr.Error(),
+				)
+			}
+
+			return fmt.Errorf("could not verify workflow name opts: %w", verifyErr)
+		}
+
 		msg, err := tasktypes.TriggerTaskMessage(
 			tenantId,
 			optsToSend...,
@@ -155,7 +176,7 @@ func (i *AdminServiceImpl) ingest(tenantId string, opts ...*v1.WorkflowNameTrigg
 			return fmt.Errorf("could not create event task: %w", err)
 		}
 
-		err = i.mqv1.SendMessage(context.Background(), msgqueue.TASK_PROCESSING_QUEUE, msg)
+		err = i.mqv1.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg)
 
 		if err != nil {
 			return fmt.Errorf("could not add event to task queue: %w", err)
