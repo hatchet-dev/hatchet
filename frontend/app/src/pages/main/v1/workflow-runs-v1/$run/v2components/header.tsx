@@ -15,6 +15,7 @@ import RelativeDate from '@/components/v1/molecules/relative-date';
 import { useWorkflowDetails } from '../../hooks/workflow-details';
 import { TaskRunActionButton } from '../../../task-runs-v1/actions';
 import { TASK_RUN_TERMINAL_STATUSES } from './step-run-detail/step-run-detail';
+import { WorkflowDefinitionLink } from '@/pages/main/workflow-runs/$run/v2components/workflow-definition';
 
 export const WORKFLOW_RUN_TERMINAL_STATUSES = [
   WorkflowRunStatus.CANCELLED,
@@ -57,16 +58,7 @@ export const V1RunDetailHeader = () => {
             </h2>
           </div>
           <div className="flex flex-row gap-2 items-center">
-            <a
-              href={`/v1/workflows/${workflowRun.workflowId}`}
-              target="_blank"
-              rel="noreferrer"
-            >
-              <Button size={'sm'} className="px-2 py-2 gap-2" variant="outline">
-                <ArrowTopRightIcon className="w-4 h-4" />
-                Workflow Definition
-              </Button>
-            </a>
+            <WorkflowDefinitionLink workflowId={workflowRun.workflowId} />
             <TaskRunActionButton
               actionType="replay"
               params={{ externalIds: [workflowRun.metadata.id] }}
