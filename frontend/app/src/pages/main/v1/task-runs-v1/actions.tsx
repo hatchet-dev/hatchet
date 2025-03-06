@@ -182,7 +182,7 @@ const ModalContent = ({ label, params }: ModalContentProps) => {
           You're about to {label.toLowerCase()} all task runs matching the
           following filters:
         </p>
-        <div className="grid grid-cols-2 gap-x-2 items-start justify-start gap-y-4 p-6">
+        <div className="grid grid-cols-2 gap-x-2 items-start justify-start gap-y-4 px-6 mb-4">
           {statusToolbarFilter && (
             <Combobox
               values={params.filter.statuses}
@@ -245,7 +245,7 @@ const ModalContent = ({ label, params }: ModalContentProps) => {
           </Select>
         </div>
         {cf.filters.isCustomTimeRange && (
-          <div className="flex flex-row w-full flex-1 gap-x-2 items-start justify-start gap-y-4 p-6">
+          <div className="flex flex-row w-full flex-1 gap-x-2 items-start justify-start gap-y-4 px-6">
             <Button
               key="clear"
               onClick={() => {
