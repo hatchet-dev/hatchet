@@ -114,7 +114,20 @@ func (t *V1WorkflowRunsService) WithDags(ctx echo.Context, request gen.V1Workflo
 		return nil, err
 	}
 
-	parsedTasks := transformers.TaskRunDataRowToWorkflowRunsMany(tasks, total, limit, offset)
+	taskIdToWorkflowName := make(map[int64]string)
+
+	for _, task := range tasks {
+		dagId := taskIdToDagExternalId[int64(task.ID)]
+
+		for _, dag := range dags {
+			dagPgUUID := sqlchelpers.UUIDFromStr(dagId.String())
+			if dag.ExternalID == dagPgUUID && dag.WorkflowName != nil {
+				taskIdToWorkflowName[task.ID] = *dag.WorkflowName
+			}
+		}
+	}
+
+	parsedTasks := transformers.TaskRunDataRowToWorkflowRunsMany(tasks, taskIdToWorkflowName, total, limit, offset)
 
 	dagChildren := make(map[uuid.UUID][]gen.V1TaskSummary)
 
@@ -212,7 +225,9 @@ func (t *V1WorkflowRunsService) OnlyTasks(ctx echo.Context, request gen.V1Workfl
 		return nil, err
 	}
 
-	result := transformers.TaskRunDataRowToWorkflowRunsMany(tasks, total, limit, offset)
+	taskIdToWorkflowName := make(map[int64]string)
+
+	result := transformers.TaskRunDataRowToWorkflowRunsMany(tasks, taskIdToWorkflowName, total, limit, offset)
 
 	// Search for api errors to see how we handle errors in other cases
 	return gen.V1WorkflowRunList200JSONResponse(

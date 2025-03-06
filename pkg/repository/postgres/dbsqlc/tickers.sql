@@ -104,6 +104,8 @@ WITH latest_workflow_versions AS (
         MAX("order") as max_order
     FROM
         "WorkflowVersion"
+    WHERE
+        "deletedAt" IS NULL
     GROUP BY "workflowId"
 ),
 active_cron_schedules AS (
@@ -144,9 +146,18 @@ RETURNING cronSchedules.*, active_cron_schedules."workflowVersionId", active_cro
 -- name: PollScheduledWorkflows :many
 -- Finds workflows that are either past their execution time or will be in the next 5 seconds and assigns them
 -- to a ticker, or finds workflows that were assigned to a ticker that is no longer active
-WITH not_run_scheduled_workflows AS (
+WITH latest_workflow_versions AS (
     SELECT
-        latestVersions."version",
+        DISTINCT ON("workflowId")
+        "workflowId",
+        "id"
+    FROM
+        "WorkflowVersion"
+    WHERE
+        "deletedAt" IS NULL
+    ORDER BY "workflowId", "order" DESC
+), not_run_scheduled_workflows AS (
+    SELECT
         scheduledWorkflow."id",
         latestVersions."id" AS "workflowVersionId",
         workflow."tenantId" AS "tenantId",
@@ -158,14 +169,7 @@ WITH not_run_scheduled_workflows AS (
     JOIN
         "Workflow" AS workflow ON workflow."id" = versions."workflowId"
     JOIN
-        (
-            -- Subquery to get the latest version per workflow
-            SELECT DISTINCT ON ("workflowId")
-                "id", "workflowId", "version"
-            FROM "WorkflowVersion"
-            WHERE "deletedAt" IS NULL
-            ORDER BY "workflowId", "version" DESC
-        ) AS latestVersions ON latestVersions."workflowId" = workflow."id"
+        latest_workflow_versions AS latestVersions ON latestVersions."workflowId" = workflow."id"
     LEFT JOIN
         "WorkflowRunTriggeredBy" AS runTriggeredBy ON runTriggeredBy."scheduledId" = scheduledWorkflow."id"
     WHERE

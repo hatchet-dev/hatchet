@@ -241,11 +241,13 @@ const BaseActionButton = ({
   params,
   icon,
   label,
+  showModal,
 }: {
   disabled: boolean;
   params: TaskRunActionsParams;
   icon: JSX.Element;
   label: string;
+  showModal: boolean;
 }) => {
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
   const { handleTaskRunAction } = useTaskRunActions();
@@ -282,6 +284,11 @@ const BaseActionButton = ({
         variant={'outline'}
         disabled={disabled}
         onClick={() => {
+          if (!showModal) {
+            handleAction();
+            return;
+          }
+
           setIsConfirmModalOpen(true);
         }}
       >
@@ -296,10 +303,12 @@ export const TaskRunActionButton = ({
   actionType,
   disabled,
   params,
+  showModal,
 }: {
   actionType: ActionType;
   disabled: boolean;
   params: BaseTaskRunActionParams;
+  showModal: boolean;
 }) => {
   switch (actionType) {
     case 'cancel':
@@ -309,6 +318,7 @@ export const TaskRunActionButton = ({
           params={{ ...params, actionType: 'cancel' }}
           icon={<XCircleIcon className="w-4 h-4" />}
           label={'Cancel'}
+          showModal={showModal}
         />
       );
     case 'replay':
@@ -318,6 +328,7 @@ export const TaskRunActionButton = ({
           params={{ ...params, actionType: 'replay' }}
           icon={<ArrowPathIcon className="w-4 h-4" />}
           label={'Replay'}
+          showModal={showModal}
         />
       );
     default:

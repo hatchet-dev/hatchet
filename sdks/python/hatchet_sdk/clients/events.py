@@ -18,7 +18,7 @@ from hatchet_sdk.contracts.events_pb2 import (
 )
 from hatchet_sdk.contracts.events_pb2_grpc import EventsServiceStub
 from hatchet_sdk.metadata import get_metadata
-from hatchet_sdk.utils.types import JSONSerializableMapping
+from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 
 def new_event(conn: grpc.Channel, config: ClientConfig) -> "EventClient":

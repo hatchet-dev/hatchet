@@ -1,11 +1,5 @@
 import { V1TaskStatus, WorkflowRunStatus } from '@/lib/api';
-import { Button } from '@/components/v1/ui/button';
-import {
-  AdjustmentsHorizontalIcon,
-  ArrowPathIcon,
-  XCircleIcon,
-} from '@heroicons/react/24/outline';
-import { ArrowTopRightIcon } from '@radix-ui/react-icons';
+import { AdjustmentsHorizontalIcon } from '@heroicons/react/24/outline';
 import {
   Breadcrumb,
   BreadcrumbList,
@@ -17,6 +11,9 @@ import {
 import { formatDuration } from '@/lib/utils';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { useWorkflowDetails } from '../../hooks/workflow-details';
+import { TaskRunActionButton } from '../../../task-runs-v1/actions';
+import { TASK_RUN_TERMINAL_STATUSES } from './step-run-detail/step-run-detail';
+import { WorkflowDefinitionLink } from '@/pages/main/workflow-runs/$run/v2components/workflow-definition';
 
 export const WORKFLOW_RUN_TERMINAL_STATUSES = [
   WorkflowRunStatus.CANCELLED,
@@ -59,34 +56,21 @@ export const V1RunDetailHeader = () => {
             </h2>
           </div>
           <div className="flex flex-row gap-2 items-center">
-            <a
-              href={`/v1/workflows/${workflowRun.workflowId}`}
-              target="_blank"
-              rel="noreferrer"
-            >
-              <Button size={'sm'} className="px-2 py-2 gap-2" variant="outline">
-                <ArrowTopRightIcon className="w-4 h-4" />
-                Workflow Definition
-              </Button>
-            </a>
-            <Button
-              size={'sm'}
-              className="px-2 py-2 gap-2"
-              variant={'outline'}
-              disabled
-            >
-              <ArrowPathIcon className="w-4 h-4" />
-              Replay
-            </Button>
-            <Button
-              size={'sm'}
-              className="px-2 py-2 gap-2"
-              variant={'outline'}
-              disabled
-            >
-              <XCircleIcon className="w-4 h-4" />
-              Cancel
-            </Button>
+            <WorkflowDefinitionLink workflowId={workflowRun.workflowId} />
+            <TaskRunActionButton
+              actionType="replay"
+              params={{ externalIds: [workflowRun.metadata.id] }}
+              disabled={
+                !TASK_RUN_TERMINAL_STATUSES.includes(workflowRun.status)
+              }
+              showModal={false}
+            />
+            <TaskRunActionButton
+              actionType="cancel"
+              params={{ externalIds: [workflowRun.metadata.id] }}
+              disabled={TASK_RUN_TERMINAL_STATUSES.includes(workflowRun.status)}
+              showModal={false}
+            />
           </div>
         </div>
       </div>

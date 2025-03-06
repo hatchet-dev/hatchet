@@ -1,5 +1,9 @@
 name: build
-on: pull_request
+on:
+  pull_request:
+    paths-ignore:
+      - 'sdks/**'
+
 jobs:
   frontend:
     runs-on: ubuntu-latest

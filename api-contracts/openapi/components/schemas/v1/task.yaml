@@ -48,6 +48,12 @@ V1TaskSummary:
       type: string
       format: date-time
       description: The timestamp the task run started.
+    stepId:
+      type: string
+      description: The step ID of the task.
+      format: uuid
+      minLength: 36
+      maxLength: 36
     taskExternalId:
       type: string
       description: The external ID of the task.
@@ -74,6 +80,8 @@ V1TaskSummary:
     workflowId:
       type: string
       format: uuid
+    workflowName:
+      type: string
     workflowRunExternalId:
       type: string
       format: uuid

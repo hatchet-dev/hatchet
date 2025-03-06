@@ -49,6 +49,13 @@ func WorkflowRunDataToV1TaskSummary(task *v1.WorkflowRunData) gen.V1TaskSummary 
 		taskId = int(*task.TaskId)
 	}
 
+	var stepId uuid.UUID
+	if task.StepId != nil {
+		stepId = uuid.MustParse(sqlchelpers.UUIDToStr(*task.StepId))
+	} else {
+		stepId = uuid.Nil
+	}
+
 	return gen.V1TaskSummary{
 		Metadata: gen.APIResourceMeta{
 			Id:        sqlchelpers.UUIDToStr(task.ExternalID),
@@ -72,6 +79,8 @@ func WorkflowRunDataToV1TaskSummary(task *v1.WorkflowRunData) gen.V1TaskSummary 
 		TaskId:             taskId,
 		TaskInsertedAt:     task.InsertedAt.Time,
 		Type:               gen.V1WorkflowTypeDAG,
+		WorkflowName:       task.WorkflowName,
+		StepId:             &stepId,
 	}
 }
 
@@ -107,7 +116,7 @@ func ToWorkflowRunMany(
 	}
 }
 
-func PopulateTaskRunDataRowToV1TaskSummary(task *sqlcv1.PopulateTaskRunDataRow) gen.V1TaskSummary {
+func PopulateTaskRunDataRowToV1TaskSummary(task *sqlcv1.PopulateTaskRunDataRow, workflowName *string) gen.V1TaskSummary {
 	additionalMetadata := jsonToMap(task.AdditionalMetadata)
 
 	var finishedAt *time.Time
@@ -131,6 +140,7 @@ func PopulateTaskRunDataRowToV1TaskSummary(task *sqlcv1.PopulateTaskRunDataRow) 
 
 	input := jsonToMap(task.Input)
 	output := jsonToMap(task.Output)
+	stepId := uuid.MustParse(sqlchelpers.UUIDToStr(task.StepID))
 
 	return gen.V1TaskSummary{
 		Metadata: gen.APIResourceMeta{
@@ -156,17 +166,21 @@ func PopulateTaskRunDataRowToV1TaskSummary(task *sqlcv1.PopulateTaskRunDataRow) 
 		TaskId:             int(task.ID),
 		TaskInsertedAt:     task.InsertedAt.Time,
 		Type:               gen.V1WorkflowTypeTASK,
+		WorkflowName:       workflowName,
+		StepId:             &stepId,
 	}
 }
 
 func TaskRunDataRowToWorkflowRunsMany(
 	tasks []*sqlcv1.PopulateTaskRunDataRow,
+	taskIdToWorkflowName map[int64]string,
 	total int, limit, offset int64,
 ) gen.V1TaskSummaryList {
 	toReturn := make([]gen.V1TaskSummary, len(tasks))
 
 	for i, task := range tasks {
-		toReturn[i] = PopulateTaskRunDataRowToV1TaskSummary(task)
+		workflowName := taskIdToWorkflowName[task.ID]
+		toReturn[i] = PopulateTaskRunDataRowToV1TaskSummary(task, &workflowName)
 	}
 
 	currentPage := (offset / limit) + 1

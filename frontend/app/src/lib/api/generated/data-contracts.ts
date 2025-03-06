@@ -66,6 +66,13 @@ export interface V1TaskSummary {
    */
   startedAt?: string;
   /**
+   * The step ID of the task.
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  stepId?: string;
+  /**
    * The external ID of the task.
    * @format uuid
    * @minLength 36
@@ -91,6 +98,7 @@ export interface V1TaskSummary {
   type: V1WorkflowType;
   /** @format uuid */
   workflowId: string;
+  workflowName?: string;
   /**
    * The external ID of the workflow run
    * @format uuid
@@ -304,7 +312,13 @@ export interface WorkflowRunShapeItemForWorkflowRunDetails {
    * @maxLength 36
    */
   taskExternalId: string;
-  childrenExternalIds: string[];
+  /**
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  stepId: string;
+  childrenStepIds: string[];
   taskName: string;
 }
 

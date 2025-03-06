@@ -463,16 +463,14 @@ func (r *workflowEngineRepository) CreateNewWorkflow(ctx context.Context, tenant
 	}
 
 	// preflight check to ensure the workflow doesn't already exist
-	workflow, err := r.queries.GetWorkflowByName(ctx, r.pool, dbsqlc.GetWorkflowByNameParams{
+	_, err := r.queries.GetWorkflowByName(ctx, r.pool, dbsqlc.GetWorkflowByNameParams{
 		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
 		Name:     opts.Name,
 	})
 
-	if err != nil {
-		if !errors.Is(err, pgx.ErrNoRows) {
-			return nil, err
-		}
-	} else if workflow != nil {
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return nil, err
+	} else if err == nil {
 		return nil, fmt.Errorf(
 			"workflow with name '%s' already exists",
 			opts.Name,

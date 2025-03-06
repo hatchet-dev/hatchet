@@ -30,7 +30,7 @@ from hatchet_sdk.contracts.dispatcher_pb2 import (
     STEP_EVENT_TYPE_STARTED,
 )
 from hatchet_sdk.logger import logger
-from hatchet_sdk.utils.types import WorkflowValidator
+from hatchet_sdk.utils.typing import WorkflowValidator
 from hatchet_sdk.worker.action_listener_process import ActionEvent
 from hatchet_sdk.worker.runner.utils.capture_logs import copy_context_vars, sr, wr
 from hatchet_sdk.workflow import Step

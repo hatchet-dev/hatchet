@@ -82,6 +82,7 @@ type WorkflowRunData struct {
 	Kind               sqlcv1.V1RunKind            `json:"kind"`
 	Output             *[]byte                     `json:"output,omitempty"`
 	ReadableStatus     sqlcv1.V1ReadableStatusOlap `json:"readable_status"`
+	StepId             *pgtype.UUID                `json:"step_id,omitempty"`
 	StartedAt          pgtype.Timestamptz          `json:"started_at"`
 	TaskExternalId     *pgtype.UUID                `json:"task_external_id,omitempty"`
 	TaskId             *int64                      `json:"task_id,omitempty"`
@@ -89,6 +90,7 @@ type WorkflowRunData struct {
 	TenantID           pgtype.UUID                 `json:"tenant_id"`
 	WorkflowID         pgtype.UUID                 `json:"workflow_id"`
 	WorkflowVersionId  pgtype.UUID                 `json:"workflow_version_id"`
+	WorkflowName       *string                     `json:"workflow_name,omitempty"`
 }
 
 type V1WorkflowRunPopulator struct {
@@ -435,7 +437,7 @@ func (r *olapRepository) ReadTaskRunData(ctx context.Context, tenantId pgtype.UU
 		return nil, nil, err
 	}
 
-	workflowRunId := taskRun.ExternalID
+	workflowRunId := pgtype.UUID{}
 
 	if taskRun.DagID.Valid {
 		dagId := taskRun.DagID.Int64
@@ -813,6 +815,7 @@ func (r *olapRepository) ListWorkflowRuns(ctx context.Context, tenantId string, 
 				TaskInsertedAt:     nil,
 				Output:             &dag.Output,
 				Input:              dag.Input,
+				WorkflowName:       &dag.WorkflowName,
 			})
 		} else {
 			task, ok := tasksToPopulated[externalId]
@@ -840,6 +843,7 @@ func (r *olapRepository) ListWorkflowRuns(ctx context.Context, tenantId string, 
 				TaskInsertedAt:     &task.InsertedAt,
 				Output:             &task.Output,
 				Input:              task.Input,
+				StepId:             &task.StepID,
 			})
 		}
 	}
