@@ -1040,9 +1040,9 @@ WITH runs AS (
     JOIN v1_task_events_olap e ON e.task_id = r.task_id AND e.task_inserted_at = r.inserted_at
     WHERE r.task_id IS NOT NULL
 ), max_retry_counts AS (
-    SELECT dag_task_id, MAX(retry_count) AS max_retry_count
+    SELECT task_id, MAX(retry_count) AS max_retry_count
     FROM relevant_events
-    GROUP BY dag_task_id
+    GROUP BY task_id
 ), metadata AS (
     SELECT
         MIN(e.inserted_at)::timestamptz AS created_at,
@@ -1051,8 +1051,7 @@ WITH runs AS (
         JSON_AGG(JSON_BUILD_OBJECT('task_id', e.task_id,'task_inserted_at', e.task_inserted_at)) AS task_metadata
     FROM
         relevant_events e
-    JOIN max_retry_counts mrc ON (e.dag_task_id, e.retry_count) = (mrc.dag_task_id, mrc.max_retry_count)
-    GROUP BY e.run_id
+    JOIN max_retry_counts mrc ON (e.task_id, e.retry_count) = (mrc.task_id, mrc.max_retry_count)
 ), error_message AS (
     SELECT
         e.error_message
