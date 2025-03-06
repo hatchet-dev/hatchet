@@ -42,6 +42,8 @@ type CreateMatchOpts struct {
 
 	TriggerExternalId *string
 
+	TriggerWorkflowRunId *string
+
 	TriggerStepId *string
 
 	TriggerStepIndex pgtype.Int8
@@ -319,6 +321,7 @@ func (m *sharedRepository) processInternalEventMatches(ctx context.Context, tx s
 				} else {
 					opt := CreateTaskOpts{
 						ExternalId:         sqlchelpers.UUIDToStr(match.TriggerExternalID),
+						WorkflowRunId:      sqlchelpers.UUIDToStr(match.TriggerWorkflowRunID),
 						StepId:             sqlchelpers.UUIDToStr(match.TriggerStepID),
 						StepIndex:          int(match.TriggerStepIndex.Int64),
 						AdditionalMetadata: additionalMetadata,
@@ -506,6 +509,7 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 	triggerStepIds := make([]pgtype.UUID, 0, len(eventMatches))
 	triggerStepIndices := make([]int64, 0, len(eventMatches))
 	triggerExternalIds := make([]pgtype.UUID, 0, len(eventMatches))
+	triggerWorkflowRunIds := make([]pgtype.UUID, 0, len(eventMatches))
 	triggerExistingTaskIds := make([]pgtype.Int8, 0, len(eventMatches))
 	triggerExistingTaskInsertedAts := make([]pgtype.Timestamptz, 0, len(eventMatches))
 	triggerParentExternalIds := make([]pgtype.UUID, 0, len(eventMatches))
@@ -530,6 +534,7 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 			triggerStepIds = append(triggerStepIds, sqlchelpers.UUIDFromStr(*match.TriggerStepId))
 			triggerStepIndices = append(triggerStepIndices, match.TriggerStepIndex.Int64)
 			triggerExternalIds = append(triggerExternalIds, sqlchelpers.UUIDFromStr(*match.TriggerExternalId))
+			triggerWorkflowRunIds = append(triggerWorkflowRunIds, sqlchelpers.UUIDFromStr(*match.TriggerWorkflowRunId))
 			triggerParentExternalIds = append(triggerParentExternalIds, match.TriggerParentTaskExternalId)
 			triggerParentTaskIds = append(triggerParentTaskIds, match.TriggerParentTaskId)
 			triggerParentTaskInsertedAts = append(triggerParentTaskInsertedAts, match.TriggerParentTaskInsertedAt)
@@ -566,6 +571,7 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 				Triggerstepids:                triggerStepIds,
 				Triggerstepindex:              triggerStepIndices,
 				Triggerexternalids:            triggerExternalIds,
+				Triggerworkflowrunids:         triggerWorkflowRunIds,
 				Triggerexistingtaskids:        triggerExistingTaskIds,
 				Triggerexistingtaskinsertedat: triggerExistingTaskInsertedAts,
 				TriggerParentTaskExternalIds:  triggerParentExternalIds,

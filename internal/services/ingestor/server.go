@@ -145,6 +145,17 @@ func (i *IngestorImpl) ReplaySingleEvent(ctx context.Context, req *contracts.Rep
 func (i *IngestorImpl) PutStreamEvent(ctx context.Context, req *contracts.PutStreamEventRequest) (*contracts.PutStreamEventResponse, error) {
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
 
+	switch tenant.Version {
+	case dbsqlc.TenantMajorEngineVersionV0:
+		return i.putStreamEventV0(ctx, tenant, req)
+	case dbsqlc.TenantMajorEngineVersionV1:
+		return i.putStreamEventV1(ctx, tenant, req)
+	default:
+		return nil, status.Errorf(codes.Unimplemented, "RefreshTimeout is not implemented in engine version %s", string(tenant.Version))
+	}
+}
+
+func (i *IngestorImpl) putStreamEventV0(ctx context.Context, tenant *dbsqlc.Tenant, req *contracts.PutStreamEventRequest) (*contracts.PutStreamEventResponse, error) {
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	var createdAt *time.Time

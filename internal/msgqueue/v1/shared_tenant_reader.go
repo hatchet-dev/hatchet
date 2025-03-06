@@ -1,6 +1,7 @@
 package v1
 
 import (
+	"context"
 	"sync"
 
 	"github.com/hashicorp/go-multierror"
@@ -46,6 +47,12 @@ func (s *SharedTenantReader) Subscribe(tenantId string, postAck AckHook) (func()
 		t.isRunning = true
 
 		q := TenantEventConsumerQueue(tenantId)
+
+		err := s.mq.RegisterTenant(context.Background(), tenantId)
+
+		if err != nil {
+			return nil, err
+		}
 
 		cleanupSingleSub, err := s.mq.Subscribe(q, NoOpHook, func(task *Message) error {
 			var innerErr error

@@ -89,7 +89,7 @@ func (q *Queries) ListMatchConditionsForEvent(ctx context.Context, db DBTX, arg 
 const createMatchesForDAGTriggers = `-- name: CreateMatchesForDAGTriggers :many
 WITH input AS (
     SELECT
-        tenant_id, kind, trigger_dag_id, trigger_dag_inserted_at, trigger_step_id, trigger_step_index, trigger_external_id, trigger_existing_task_id, trigger_existing_task_inserted_at, trigger_parent_task_external_id, trigger_parent_task_id, trigger_parent_task_inserted_at, trigger_child_index, trigger_child_key
+        tenant_id, kind, trigger_dag_id, trigger_dag_inserted_at, trigger_step_id, trigger_step_index, trigger_external_id, trigger_workflow_run_id, trigger_existing_task_id, trigger_existing_task_inserted_at, trigger_parent_task_external_id, trigger_parent_task_id, trigger_parent_task_inserted_at, trigger_child_index, trigger_child_key
     FROM
         (
             SELECT
@@ -100,13 +100,14 @@ WITH input AS (
                 unnest($5::uuid[]) AS trigger_step_id,
 				unnest($6::bigint[]) AS trigger_step_index,
                 unnest($7::uuid[]) AS trigger_external_id,
-                unnest($8::bigint[]) AS trigger_existing_task_id,
-				unnest($9::timestamptz[]) AS trigger_existing_task_inserted_at,
-				unnest($10::uuid[]) AS trigger_parent_task_external_id,
-				unnest($11::bigint[]) AS trigger_parent_task_id,
-				unnest($12::timestamptz[]) AS trigger_parent_task_inserted_at,
-				unnest($13::bigint[]) AS trigger_child_index,
-				unnest($14::text[]) AS trigger_child_key
+				unnest($8::uuid[]) AS trigger_workflow_run_id,
+                unnest($9::bigint[]) AS trigger_existing_task_id,
+				unnest($10::timestamptz[]) AS trigger_existing_task_inserted_at,
+				unnest($11::uuid[]) AS trigger_parent_task_external_id,
+				unnest($12::bigint[]) AS trigger_parent_task_id,
+				unnest($13::timestamptz[]) AS trigger_parent_task_inserted_at,
+				unnest($14::bigint[]) AS trigger_child_index,
+				unnest($15::text[]) AS trigger_child_key
         ) AS subquery
 )
 INSERT INTO v1_match (
@@ -117,6 +118,7 @@ INSERT INTO v1_match (
     trigger_step_id,
 	trigger_step_index,
     trigger_external_id,
+	trigger_workflow_run_id,
     trigger_existing_task_id,
 	trigger_existing_task_inserted_at,
 	trigger_parent_task_external_id,
@@ -133,6 +135,7 @@ SELECT
     i.trigger_step_id,
 	i.trigger_step_index,
     i.trigger_external_id,
+	i.trigger_workflow_run_id,
     i.trigger_existing_task_id,
 	i.trigger_existing_task_inserted_at,
 	i.trigger_parent_task_external_id,
@@ -143,7 +146,7 @@ SELECT
 FROM
     input i
 RETURNING
-    id, tenant_id, kind, is_satisfied, signal_task_id, signal_task_inserted_at, signal_external_id, signal_key, trigger_dag_id, trigger_dag_inserted_at, trigger_step_id, trigger_step_index, trigger_external_id, trigger_existing_task_id, trigger_existing_task_inserted_at, trigger_parent_task_external_id, trigger_parent_task_id, trigger_parent_task_inserted_at, trigger_child_index, trigger_child_key
+    id, tenant_id, kind, is_satisfied, signal_task_id, signal_task_inserted_at, signal_external_id, signal_key, trigger_dag_id, trigger_dag_inserted_at, trigger_step_id, trigger_step_index, trigger_external_id, trigger_workflow_run_id, trigger_existing_task_id, trigger_existing_task_inserted_at, trigger_parent_task_external_id, trigger_parent_task_id, trigger_parent_task_inserted_at, trigger_child_index, trigger_child_key
 `
 
 type CreateMatchesForDAGTriggersParams struct {
@@ -154,6 +157,7 @@ type CreateMatchesForDAGTriggersParams struct {
 	Triggerstepids                []pgtype.UUID        `json:"triggerstepids"`
 	Triggerstepindex              []int64              `json:"triggerstepindex"`
 	Triggerexternalids            []pgtype.UUID        `json:"triggerexternalids"`
+	Triggerworkflowrunids         []pgtype.UUID        `json:"triggerworkflowrunids"`
 	Triggerexistingtaskids        []pgtype.Int8        `json:"triggerexistingtaskids"`
 	Triggerexistingtaskinsertedat []pgtype.Timestamptz `json:"triggerexistingtaskinsertedat"`
 	TriggerParentTaskExternalIds  []pgtype.UUID        `json:"triggerparentTaskExternalIds"`
@@ -172,6 +176,7 @@ func (q *Queries) CreateMatchesForDAGTriggers(ctx context.Context, db DBTX, arg 
 		arg.Triggerstepids,
 		arg.Triggerstepindex,
 		arg.Triggerexternalids,
+		arg.Triggerworkflowrunids,
 		arg.Triggerexistingtaskids,
 		arg.Triggerexistingtaskinsertedat,
 		arg.TriggerParentTaskExternalIds,
@@ -201,6 +206,7 @@ func (q *Queries) CreateMatchesForDAGTriggers(ctx context.Context, db DBTX, arg 
 			&i.TriggerStepID,
 			&i.TriggerStepIndex,
 			&i.TriggerExternalID,
+			&i.TriggerWorkflowRunID,
 			&i.TriggerExistingTaskID,
 			&i.TriggerExistingTaskInsertedAt,
 			&i.TriggerParentTaskExternalID,

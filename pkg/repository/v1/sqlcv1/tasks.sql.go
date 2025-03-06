@@ -286,6 +286,8 @@ WITH lookup_rows AS (
         t.inserted_at,
         t.retry_count,
         t.external_id,
+        t.workflow_run_id,
+        t.additional_metadata,
         t.dag_id,
         t.dag_inserted_at,
         t.parent_task_id,
@@ -308,6 +310,8 @@ SELECT
     t.inserted_at,
     t.retry_count,
     t.external_id,
+    t.workflow_run_id,
+    t.additional_metadata,
     t.dag_id,
     t.dag_inserted_at,
     t.parent_task_id,
@@ -324,7 +328,7 @@ WHERE
 UNION ALL
 
 SELECT
-    id, inserted_at, retry_count, external_id, dag_id, dag_inserted_at, parent_task_id, child_index, child_key, workflow_run_external_id
+    id, inserted_at, retry_count, external_id, workflow_run_id, additional_metadata, dag_id, dag_inserted_at, parent_task_id, child_index, child_key, workflow_run_external_id
 FROM
     tasks_from_dags
 `
@@ -339,6 +343,8 @@ type FlattenExternalIdsRow struct {
 	InsertedAt            pgtype.Timestamptz `json:"inserted_at"`
 	RetryCount            int32              `json:"retry_count"`
 	ExternalID            pgtype.UUID        `json:"external_id"`
+	WorkflowRunID         pgtype.UUID        `json:"workflow_run_id"`
+	AdditionalMetadata    []byte             `json:"additional_metadata"`
 	DagID                 pgtype.Int8        `json:"dag_id"`
 	DagInsertedAt         pgtype.Timestamptz `json:"dag_inserted_at"`
 	ParentTaskID          pgtype.Int8        `json:"parent_task_id"`
@@ -362,6 +368,8 @@ func (q *Queries) FlattenExternalIds(ctx context.Context, db DBTX, arg FlattenEx
 			&i.InsertedAt,
 			&i.RetryCount,
 			&i.ExternalID,
+			&i.WorkflowRunID,
+			&i.AdditionalMetadata,
 			&i.DagID,
 			&i.DagInsertedAt,
 			&i.ParentTaskID,
@@ -796,7 +804,7 @@ func (q *Queries) ListTaskPartitionsBeforeDate(ctx context.Context, db DBTX, dat
 
 const listTasks = `-- name: ListTasks :many
 SELECT
-    id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, workflow_version_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, step_index, additional_metadata, dag_id, dag_inserted_at, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, initial_state, initial_state_reason, concurrency_strategy_ids, concurrency_keys, retry_backoff_factor, retry_max_backoff
+    id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, workflow_version_id, workflow_run_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, step_index, additional_metadata, dag_id, dag_inserted_at, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, initial_state, initial_state_reason, concurrency_strategy_ids, concurrency_keys, retry_backoff_factor, retry_max_backoff
 FROM
     v1_task
 WHERE
@@ -828,6 +836,7 @@ func (q *Queries) ListTasks(ctx context.Context, db DBTX, arg ListTasksParams) (
 			&i.StepReadableID,
 			&i.WorkflowID,
 			&i.WorkflowVersionID,
+			&i.WorkflowRunID,
 			&i.ScheduleTimeout,
 			&i.StepTimeout,
 			&i.Priority,

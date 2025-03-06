@@ -16,6 +16,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/metered"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
@@ -36,6 +37,7 @@ type IngestorOpts struct {
 	stepRunRepository      repository.StepRunEngineRepository
 	mq                     msgqueue.MessageQueue
 	mqv1                   msgqueuev1.MessageQueue
+	repov1                 v1.Repository
 }
 
 func WithEventRepository(r repository.EventEngineRepository) IngestorOptFunc {
@@ -80,6 +82,12 @@ func WithStepRunRepository(r repository.StepRunEngineRepository) IngestorOptFunc
 	}
 }
 
+func WithRepositoryV1(r v1.Repository) IngestorOptFunc {
+	return func(opts *IngestorOpts) {
+		opts.repov1 = r
+	}
+}
+
 func defaultIngestorOpts() *IngestorOpts {
 	return &IngestorOpts{}
 }
@@ -94,9 +102,10 @@ type IngestorImpl struct {
 	stepRunRepository        repository.StepRunEngineRepository
 	steprunTenantLookupCache *lru.Cache[string, string]
 
-	mq   msgqueue.MessageQueue
-	mqv1 msgqueuev1.MessageQueue
-	v    validator.Validator
+	mq     msgqueue.MessageQueue
+	mqv1   msgqueuev1.MessageQueue
+	v      validator.Validator
+	repov1 v1.Repository
 }
 
 func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
@@ -126,6 +135,10 @@ func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
 		return nil, fmt.Errorf("task queue v1 is required. use WithMessageQueueV1")
 	}
 
+	if opts.repov1 == nil {
+		return nil, fmt.Errorf("repository v1 is required. use WithRepositoryV1")
+	}
+
 	if opts.stepRunRepository == nil {
 		return nil, fmt.Errorf("step run repository is required. use WithStepRunRepository")
 	}
@@ -146,6 +159,7 @@ func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
 		mq:                       opts.mq,
 		mqv1:                     opts.mqv1,
 		v:                        validator.NewDefaultValidator(),
+		repov1:                   opts.repov1,
 	}, nil
 }
 

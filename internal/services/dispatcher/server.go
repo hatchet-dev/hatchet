@@ -608,10 +608,17 @@ func (s *DispatcherImpl) releaseSlotV0(ctx context.Context, tenant *dbsqlc.Tenan
 func (s *DispatcherImpl) SubscribeToWorkflowEvents(request *contracts.SubscribeToWorkflowEventsRequest, stream contracts.Dispatcher_SubscribeToWorkflowEventsServer) error {
 	tenant := stream.Context().Value("tenant").(*dbsqlc.Tenant)
 
-	if tenant.Version == dbsqlc.TenantMajorEngineVersionV1 {
-		return status.Errorf(codes.Unimplemented, "SubscribeToWorkflowEvents is not implemented in engine version v1")
+	switch tenant.Version {
+	case dbsqlc.TenantMajorEngineVersionV0:
+		return s.subscribeToWorkflowEventsV0(request, stream)
+	case dbsqlc.TenantMajorEngineVersionV1:
+		return s.subscribeToWorkflowEventsV1(request, stream)
+	default:
+		return status.Errorf(codes.Unimplemented, "SubscribeToWorkflowEvents is not implemented in engine version %s", string(tenant.Version))
 	}
+}
 
+func (s *DispatcherImpl) subscribeToWorkflowEventsV0(request *contracts.SubscribeToWorkflowEventsRequest, stream contracts.Dispatcher_SubscribeToWorkflowEventsServer) error {
 	if request.WorkflowRunId != nil {
 		return s.subscribeToWorkflowEventsByWorkflowRunId(*request.WorkflowRunId, stream)
 	} else if request.AdditionalMetaKey != nil && request.AdditionalMetaValue != nil {

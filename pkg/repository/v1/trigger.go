@@ -417,6 +417,8 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 			continue
 		}
 
+		tupleExternalId := tuple.externalId
+
 		steps, ok := workflowVersionToSteps[tuple.workflowVersionId]
 
 		if !ok {
@@ -496,10 +498,11 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 				}
 
 				eventMatches[tuple.externalId] = append(eventMatches[tuple.externalId], CreateMatchOpts{
-					Kind:              sqlcv1.V1MatchKindTRIGGER,
-					Conditions:        conditions,
-					TriggerExternalId: &taskExternalId,
-					TriggerStepId:     &stepId,
+					Kind:                 sqlcv1.V1MatchKindTRIGGER,
+					Conditions:           conditions,
+					TriggerExternalId:    &taskExternalId,
+					TriggerWorkflowRunId: &tupleExternalId,
+					TriggerStepId:        &stepId,
 					TriggerStepIndex: pgtype.Int8{
 						Int64: int64(stepIndex),
 						Valid: true,
@@ -513,6 +516,7 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 			case len(step.Parents) == 0:
 				opt := CreateTaskOpts{
 					ExternalId:           taskExternalId,
+					WorkflowRunId:        tuple.externalId,
 					StepId:               sqlchelpers.UUIDToStr(step.ID),
 					Input:                r.newTaskInput(tuple.input, nil),
 					AdditionalMetadata:   tuple.additionalMetadata,
@@ -582,10 +586,11 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 
 				// create an event match
 				eventMatches[tuple.externalId] = append(eventMatches[tuple.externalId], CreateMatchOpts{
-					Kind:              sqlcv1.V1MatchKindTRIGGER,
-					Conditions:        conditions,
-					TriggerExternalId: &taskExternalId,
-					TriggerStepId:     &stepId,
+					Kind:                 sqlcv1.V1MatchKindTRIGGER,
+					Conditions:           conditions,
+					TriggerExternalId:    &tupleExternalId,
+					TriggerWorkflowRunId: &tupleExternalId,
+					TriggerStepId:        &stepId,
 					TriggerStepIndex: pgtype.Int8{
 						Int64: int64(stepIndex),
 						Valid: true,

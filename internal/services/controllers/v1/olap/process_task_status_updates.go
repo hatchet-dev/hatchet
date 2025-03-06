@@ -3,6 +3,8 @@ package olap
 import (
 	"context"
 
+	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
+	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
@@ -34,5 +36,43 @@ func (o *OLAPControllerImpl) updateTaskStatuses(ctx context.Context, tenantId st
 	ctx, span := telemetry.NewSpan(ctx, "update-task-statuses")
 	defer span.End()
 
-	return o.repo.OLAP().UpdateTaskStatuses(ctx, tenantId)
+	shouldContinue, rows, err := o.repo.OLAP().UpdateTaskStatuses(ctx, tenantId)
+
+	if err != nil {
+		return false, err
+	}
+
+	payloads := make([]tasktypes.NotifyFinalizedPayload, 0, len(rows))
+
+	for _, row := range rows {
+		payloads = append(payloads, tasktypes.NotifyFinalizedPayload{
+			ExternalId: sqlchelpers.UUIDToStr(row.ExternalId),
+			Status:     row.ReadableStatus,
+		})
+	}
+
+	// send to the tenant queue
+	if len(payloads) > 0 {
+		msg, err := msgqueue.NewTenantMessage(
+			tenantId,
+			"workflow-run-finished",
+			true,
+			false,
+			payloads...,
+		)
+
+		if err != nil {
+			return false, err
+		}
+
+		q := msgqueue.TenantEventConsumerQueue(tenantId)
+
+		err = o.mq.SendMessage(ctx, q, msg)
+
+		if err != nil {
+			return false, err
+		}
+	}
+
+	return shouldContinue, nil
 }
