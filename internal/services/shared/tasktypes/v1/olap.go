@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
+
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
@@ -57,10 +59,16 @@ type CreateMonitoringEventPayload struct {
 }
 
 func MonitoringEventMessageFromActionEvent(tenantId string, taskId int64, retryCount int32, request *contracts.StepActionEvent) (*msgqueue.Message, error) {
+	var workerId *string
+
+	if _, err := uuid.Parse(request.WorkerId); err == nil {
+		workerId = &request.WorkerId
+	}
+
 	payload := CreateMonitoringEventPayload{
 		TaskId:         taskId,
 		RetryCount:     retryCount,
-		WorkerId:       &request.WorkerId,
+		WorkerId:       workerId,
 		EventTimestamp: request.EventTimestamp.AsTime(),
 		EventPayload:   request.EventPayload,
 	}
