@@ -65,6 +65,7 @@ INSERT INTO v1_tasks_olap (
     action_id,
     step_id,
     workflow_id,
+    workflow_version_id,
     schedule_timeout,
     step_timeout,
     priority,
@@ -96,7 +97,8 @@ INSERT INTO v1_tasks_olap (
     $16,
     $17,
     $18,
-    $19
+    $19,
+    $20
 );
 
 -- name: CreateDAGsOLAP :copyfrom
@@ -972,64 +974,96 @@ GROUP BY tenant_id
 ;
 
 -- name: ReadWorkflowRunByExternalId :one
-WITH dags AS (
-    SELECT d.*
-    FROM v1_lookup_table_olap lt
-    JOIN v1_dags_olap d ON (lt.tenant_id, lt.dag_id, lt.inserted_at) = (d.tenant_id, d.id, d.inserted_at)
-    WHERE lt.external_id = @workflowRunExternalId::uuid
-), runs AS (
+WITH runs AS (
     SELECT
-        d.id AS dag_id,
-        r.id AS run_id,
+        lt.dag_id AS dag_id,
+        lt.task_id AS task_id,
+        r.id AS id,
         r.tenant_id,
         r.inserted_at,
         r.external_id,
         r.readable_status,
         r.kind,
         r.workflow_id,
-        d.display_name,
-        d.input,
-        d.additional_metadata,
-        d.workflow_version_id
-    FROM v1_runs_olap r
-    JOIN dags d ON (r.tenant_id, r.external_id, r.inserted_at) = (d.tenant_id, d.external_id, d.inserted_at)
-    WHERE r.kind = 'DAG'
+        d.display_name AS display_name,
+        d.input AS input,
+        d.additional_metadata AS additional_metadata,
+        d.workflow_version_id AS workflow_version_id
+    FROM
+        v1_lookup_table_olap lt
+    JOIN
+        v1_runs_olap r ON r.inserted_at = lt.inserted_at AND r.id = lt.dag_id
+    JOIN
+        v1_dags_olap d ON (lt.tenant_id, lt.dag_id, lt.inserted_at) = (d.tenant_id, d.id, d.inserted_at)
+    WHERE
+        lt.external_id = @workflowRunExternalId::uuid
+        AND lt.dag_id IS NOT NULL
+
+    UNION ALL
+
+    SELECT
+        lt.dag_id AS dag_id,
+        lt.task_id AS task_id,
+        r.id AS id,
+        r.tenant_id,
+        r.inserted_at,
+        r.external_id,
+        r.readable_status,
+        r.kind,
+        r.workflow_id,
+        t.display_name AS display_name,
+        t.input AS input,
+        t.additional_metadata AS additional_metadata,
+        t.workflow_version_id AS workflow_version_id
+    FROM
+        v1_lookup_table_olap lt
+    JOIN
+        v1_runs_olap r ON r.inserted_at = lt.inserted_at AND r.id = lt.task_id
+    JOIN
+        v1_tasks_olap t ON (lt.tenant_id, lt.task_id, lt.inserted_at) = (t.tenant_id, t.id, t.inserted_at)
+    WHERE
+        lt.external_id = @workflowRunExternalId::uuid
+        AND lt.task_id IS NOT NULL
 ), relevant_events AS (
     SELECT
-        r.run_id,
-        e.*,
-        dt.task_id AS dag_task_id,
-        dt.task_inserted_at AS dag_task_inserted_at
+        e.*
     FROM runs r
-    JOIN v1_dag_to_task_olap dt ON r.dag_id = dt.dag_id  -- Do I need to join by `inserted_at` here too?
-    JOIN v1_task_events_olap e ON e.task_id = dt.task_id -- Do I need to join by `inserted_at` here too?
+    JOIN v1_dag_to_task_olap dt ON r.dag_id = dt.dag_id AND r.inserted_at = dt.dag_inserted_at
+    JOIN v1_task_events_olap e ON e.task_id = dt.task_id AND e.task_inserted_at = dt.task_inserted_at
+    WHERE r.dag_id IS NOT NULL
+
+    UNION ALL
+
+    SELECT
+        e.*
+    FROM runs r
+    JOIN v1_task_events_olap e ON e.task_id = r.task_id AND e.task_inserted_at = r.inserted_at
+    WHERE r.task_id IS NOT NULL
 ), max_retry_counts AS (
     SELECT dag_task_id, MAX(retry_count) AS max_retry_count
     FROM relevant_events
     GROUP BY dag_task_id
 ), metadata AS (
     SELECT
-        e.run_id,
         MIN(e.inserted_at)::timestamptz AS created_at,
         MIN(e.inserted_at) FILTER (WHERE e.readable_status = 'RUNNING')::timestamptz AS started_at,
         MAX(e.inserted_at) FILTER (WHERE e.readable_status IN ('COMPLETED', 'CANCELLED', 'FAILED'))::timestamptz AS finished_at,
-        JSON_AGG(JSON_BUILD_OBJECT('task_id', e.dag_task_id,'task_inserted_at', e.dag_task_inserted_at)) AS task_metadata
+        JSON_AGG(JSON_BUILD_OBJECT('task_id', e.task_id,'task_inserted_at', e.task_inserted_at)) AS task_metadata
     FROM
         relevant_events e
     JOIN max_retry_counts mrc ON (e.dag_task_id, e.retry_count) = (mrc.dag_task_id, mrc.max_retry_count)
     GROUP BY e.run_id
 ), error_message AS (
     SELECT
-        DISTINCT ON (e.run_id) e.run_id::bigint,
         e.error_message
     FROM
         relevant_events e
     WHERE
         e.readable_status = 'FAILED'
     ORDER BY
-        e.run_id, e.retry_count DESC
+        e.retry_count DESC
+    LIMIT 1
 )
-
 SELECT
     r.*,
     m.created_at,
@@ -1038,9 +1072,9 @@ SELECT
     e.error_message,
     m.task_metadata
 FROM runs r
-LEFT JOIN metadata m ON r.run_id = m.run_id
-LEFT JOIN error_message e ON r.run_id = e.run_id
-ORDER BY r.inserted_at DESC, r.run_id DESC;
+LEFT JOIN metadata m ON true
+LEFT JOIN error_message e ON true
+ORDER BY r.inserted_at DESC;
 
 -- name: GetWorkflowRunIdFromDagIdInsertedAt :one
 SELECT external_id

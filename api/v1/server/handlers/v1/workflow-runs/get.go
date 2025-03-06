@@ -1,6 +1,8 @@
 package workflowruns
 
 import (
+	"context"
+
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/labstack/echo/v4"
@@ -18,15 +20,35 @@ func (t *V1WorkflowRunsService) V1WorkflowRunGet(ctx echo.Context, request gen.V
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 	rawWorkflowRun := ctx.Get("v1-workflow-run").(*v1.V1WorkflowRunPopulator)
 
-	workflowRun := rawWorkflowRun.WorkflowRun
-	taskMetadata := rawWorkflowRun.TaskMetadata
-
-	workflowRunId := workflowRun.ExternalID
-
 	requestContext := ctx.Request().Context()
 
-	taskRunEvents, err := t.config.V1.OLAP().ListTaskRunEventsByWorkflowRunId(
+	details, err := t.getWorkflowRunDetails(
 		requestContext,
+		tenantId,
+		rawWorkflowRun,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	// Search for api errors to see how we handle errors in other cases
+	return gen.V1WorkflowRunGet200JSONResponse(
+		*details,
+	), nil
+}
+
+func (t *V1WorkflowRunsService) getWorkflowRunDetails(
+	ctx context.Context,
+	tenantId string,
+	rawWorkflowRun *v1.V1WorkflowRunPopulator,
+) (*gen.V1WorkflowRunDetails, error) {
+	workflowRun := rawWorkflowRun.WorkflowRun
+	taskMetadata := rawWorkflowRun.TaskMetadata
+	workflowRunId := workflowRun.ExternalID
+
+	taskRunEvents, err := t.config.V1.OLAP().ListTaskRunEventsByWorkflowRunId(
+		ctx,
 		tenantId,
 		workflowRunId,
 	)
@@ -36,7 +58,7 @@ func (t *V1WorkflowRunsService) V1WorkflowRunGet(ctx echo.Context, request gen.V
 	}
 
 	tasks, err := t.config.V1.OLAP().ListTasksByIdAndInsertedAt(
-		requestContext,
+		ctx,
 		tenantId,
 		taskMetadata,
 	)
@@ -53,7 +75,7 @@ func (t *V1WorkflowRunsService) V1WorkflowRunGet(ctx echo.Context, request gen.V
 	workflowVersionId := uuid.MustParse(sqlchelpers.UUIDToStr(workflowRun.WorkflowVersionId))
 
 	shape, err := t.config.APIRepository.WorkflowRun().GetWorkflowRunShape(
-		requestContext, workflowVersionId,
+		ctx, workflowVersionId,
 	)
 
 	if err != nil {
@@ -66,8 +88,5 @@ func (t *V1WorkflowRunsService) V1WorkflowRunGet(ctx echo.Context, request gen.V
 		return nil, err
 	}
 
-	// Search for api errors to see how we handle errors in other cases
-	return gen.V1WorkflowRunGet200JSONResponse(
-		result,
-	), nil
+	return &result, nil
 }

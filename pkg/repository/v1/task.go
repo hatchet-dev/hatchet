@@ -1465,6 +1465,7 @@ func (r *sharedRepository) insertTasks(
 	retryBackoffFactors := make([]pgtype.Float8, len(tasks))
 	retryMaxBackoffs := make([]pgtype.Int4, len(tasks))
 	createExpressionOpts := make(map[string][]createTaskExpressionEvalOpt, 0)
+	workflowVersionIds := make([]pgtype.UUID, len(tasks))
 
 	unix := time.Now().UnixMilli()
 
@@ -1476,6 +1477,7 @@ func (r *sharedRepository) insertTasks(
 		stepIds[i] = sqlchelpers.UUIDFromStr(task.StepId)
 		stepReadableIds[i] = stepConfig.ReadableId.String
 		workflowIds[i] = stepConfig.WorkflowId
+		workflowVersionIds[i] = stepConfig.WorkflowVersionId
 		scheduleTimeouts[i] = stepConfig.ScheduleTimeout
 		stepTimeouts[i] = stepConfig.Timeout.String
 		externalIds[i] = sqlchelpers.UUIDFromStr(task.ExternalId)
@@ -1707,6 +1709,7 @@ func (r *sharedRepository) insertTasks(
 		StepIndex:              stepIndices,
 		RetryBackoffFactor:     retryBackoffFactors,
 		RetryMaxBackoff:        retryMaxBackoffs,
+		WorkflowVersionIds:     workflowVersionIds,
 	})
 
 	if err != nil {
