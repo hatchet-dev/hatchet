@@ -137,6 +137,7 @@ func defaultClientOpts(token *string, cf *client.ClientConfigFile) *ClientOpts {
 	}
 }
 
+// Deprecated: use WithLogger instead
 func WithLogLevel(lvl string) ClientOpt {
 	return func(opts *ClientOpts) {
 		logger := logger.NewDefaultLogger("client")
@@ -147,6 +148,12 @@ func WithLogLevel(lvl string) ClientOpt {
 		}
 
 		opts.l = &logger
+	}
+}
+
+func WithLogger(l *zerolog.Logger) ClientOpt {
+	return func(opts *ClientOpts) {
+		opts.l = l
 	}
 }
 

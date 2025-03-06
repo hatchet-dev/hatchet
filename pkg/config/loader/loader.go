@@ -247,12 +247,10 @@ type ServerConfigFileOverride func(*server.ServerConfigFile)
 
 // CreateServerFromConfig loads the server configuration and returns a server
 func (c *ConfigLoader) CreateServerFromConfig(version string, overrides ...ServerConfigFileOverride) (cleanup func() error, res *server.ServerConfig, err error) {
-
-	log.Printf("Loading server config from %s", c.directory)
 	sharedFilePath := filepath.Join(c.directory, "server.yaml")
-	log.Printf("Shared file path: %s", sharedFilePath)
 
 	configFileBytes, err := loaderutils.GetConfigBytes(sharedFilePath)
+
 	if err != nil {
 		return nil, nil, err
 	}

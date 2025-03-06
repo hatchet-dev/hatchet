@@ -9,7 +9,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
 	"github.com/rs/zerolog"
-	"golang.org/x/sync/errgroup"
 
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	"github.com/hatchet-dev/hatchet/internal/queueutils"
@@ -26,6 +25,8 @@ type PostgresMessageQueue struct {
 
 	upsertedQueues   map[string]bool
 	upsertedQueuesMu sync.RWMutex
+
+	configFs []MessageQueueImplOpt
 }
 
 type MessageQueueImplOpt func(*MessageQueueImplOpts)
@@ -63,12 +64,29 @@ func NewPostgresMQ(repo repository.MessageQueueRepository, fs ...MessageQueueImp
 		f(opts)
 	}
 
-	return &PostgresMessageQueue{
+	opts.l.Info().Msg("Creating new Postgres message queue")
+
+	p := &PostgresMessageQueue{
 		repo:           repo,
 		l:              opts.l,
 		qos:            opts.qos,
 		upsertedQueues: make(map[string]bool),
+		configFs:       fs,
 	}
+
+	err := p.upsertQueue(context.Background(), msgqueue.TASK_PROCESSING_QUEUE)
+
+	if err != nil {
+		p.l.Fatal().Msgf("error upserting queue %s", msgqueue.TASK_PROCESSING_QUEUE.Name())
+	}
+
+	err = p.upsertQueue(context.Background(), msgqueue.OLAP_QUEUE)
+
+	if err != nil {
+		p.l.Fatal().Msgf("error upserting queue %s", msgqueue.OLAP_QUEUE.Name())
+	}
+
+	return p
 }
 
 func (p *PostgresMessageQueue) cleanup() error {
@@ -76,7 +94,7 @@ func (p *PostgresMessageQueue) cleanup() error {
 }
 
 func (p *PostgresMessageQueue) Clone() (func() error, msgqueue.MessageQueue) {
-	pCp := NewPostgresMQ(p.repo)
+	pCp := NewPostgresMQ(p.repo, p.configFs...)
 
 	return pCp.cleanup, pCp
 }
@@ -111,15 +129,19 @@ func (p *PostgresMessageQueue) addMessage(ctx context.Context, queue msgqueue.Qu
 		return err
 	}
 
-	err = p.repo.AddMessage(ctx, queue.Name(), msgBytes)
+	if !queue.Durable() {
+		err = p.pubNonDurableMessages(ctx, queue.Name(), task)
+	} else {
+		err = p.repo.AddMessage(ctx, queue.Name(), msgBytes)
+	}
 
 	if err != nil {
-		p.l.Error().Err(err).Msg("error adding message")
+		p.l.Error().Err(err).Msgf("error adding message for queue %s", queue.Name())
 		return err
 	}
 
 	if task.TenantID != "" {
-		return p.addTenantExchangeMessage(ctx, task.TenantID, msgBytes)
+		return p.addTenantExchangeMessage(ctx, queue, task)
 	}
 
 	return nil
@@ -208,18 +230,14 @@ func (p *PostgresMessageQueue) Subscribe(queue msgqueue.Queue, preAck msgqueue.A
 
 		if err != nil {
 			p.l.Error().Err(err).Msg("error reading messages")
+			return false, err
 		}
 
-		var eg errgroup.Group
-
-		eg.Go(func() error {
-			return do(messages)
-		})
-
-		err = eg.Wait()
+		err = do(messages)
 
 		if err != nil {
 			p.l.Error().Err(err).Msg("error processing messages")
+			return false, err
 		}
 
 		return len(messages) == p.qos, nil
@@ -234,8 +252,8 @@ func (p *PostgresMessageQueue) Subscribe(queue msgqueue.Queue, preAck msgqueue.A
 	// start the listener
 	go func() {
 		err := p.repo.Listen(subscribeCtx, queue.Name(), func(ctx context.Context, notification *repository.PubMessage) error {
-			// if this is an exchange queue, and the message starts with JSON '{', then we process the message directly
-			if queue.FanoutExchangeKey() != "" && len(notification.Payload) >= 1 && notification.Payload[0] == '{' {
+			// if this is not a durable queue, and the message starts with JSON '{', then we process the message directly
+			if !queue.Durable() && len(notification.Payload) >= 1 && notification.Payload[0] == '{' {
 				var task msgqueue.Message
 
 				err := json.Unmarshal([]byte(notification.Payload), &task)
@@ -253,6 +271,10 @@ func (p *PostgresMessageQueue) Subscribe(queue msgqueue.Queue, preAck msgqueue.A
 		})
 
 		if err != nil {
+			if subscribeCtx.Err() != nil {
+				return
+			}
+
 			p.l.Error().Err(err).Msg("error listening for new messages")
 			return
 		}
@@ -280,7 +302,7 @@ func (p *PostgresMessageQueue) Subscribe(queue msgqueue.Queue, preAck msgqueue.A
 }
 
 func (p *PostgresMessageQueue) RegisterTenant(ctx context.Context, tenantId string) error {
-	return nil
+	return p.upsertQueue(ctx, msgqueue.TenantEventConsumerQueue(tenantId))
 }
 
 func (p *PostgresMessageQueue) IsReady() bool {
