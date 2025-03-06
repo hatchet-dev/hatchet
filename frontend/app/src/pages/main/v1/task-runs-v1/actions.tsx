@@ -17,6 +17,21 @@ import { ArrowPathIcon, XCircleIcon } from '@heroicons/react/24/outline';
 import { useMutation } from '@tanstack/react-query';
 import { useCallback, useState } from 'react';
 import invariant from 'tiny-invariant';
+import {
+  TimeWindow,
+  useColumnFilters,
+} from '../workflow-runs-v1/hooks/column-filters';
+import { useToolbarFilters } from '../workflow-runs-v1/hooks/toolbar-filters';
+import { Combobox } from '@/components/v1/molecules/combobox/combobox';
+import { TaskRunColumn } from '../workflow-runs-v1/components/v1/task-runs-columns';
+import {
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+  Select,
+} from '@/components/v1/ui/select';
+import { DateTimePicker } from '@/components/v1/molecules/time-picker/date-time-picker';
 
 export const TASK_RUN_TERMINAL_STATUSES = [
   V1TaskStatus.CANCELLED,
@@ -142,32 +157,24 @@ const CancelByExternalIdsContent = ({ label, params }: ModalContentProps) => {
   );
 };
 
-type FilterName = keyof NonNullable<V1CancelTaskRequest['filter']>;
-
-const taskFilterToLabel = (filter: FilterName) => {
-  switch (filter) {
-    case 'additionalMetadata':
-      return 'Additional metadata';
-    case 'since':
-      return 'Since';
-    case 'statuses':
-      return 'Statuses';
-    case 'until':
-      return 'Until';
-    case 'workflowIds':
-      return 'Workflow IDs';
-    default:
-      // eslint-disable-next-line no-case-declarations
-      const exhaustiveCheck: never = filter;
-      throw new Error(`Unhandled filter: ${exhaustiveCheck}`);
-  }
-};
-
 const ModalContent = ({ label, params }: ModalContentProps) => {
+  const tf = useToolbarFilters({
+    filterVisibility: {},
+  });
+  const cf = useColumnFilters();
+
   if (params.externalIds?.length) {
     return <CancelByExternalIdsContent label={label} params={params} />;
   } else if (params.filter) {
-    const kvs = Object.entries(params.filter).filter(([k, v]) => !!v && !!k);
+    const statusToolbarFilter = tf.find(
+      (f) => f.columnId === TaskRunColumn.status,
+    );
+    const additionalMetaToolbarFilter = tf.find(
+      (f) => f.columnId === TaskRunColumn.additionalMetadata,
+    );
+    const workflowToolbarFilter = tf.find(
+      (f) => f.columnId === TaskRunColumn.workflow,
+    );
 
     return (
       <>
@@ -175,11 +182,106 @@ const ModalContent = ({ label, params }: ModalContentProps) => {
           You're about to {label.toLowerCase()} all task runs matching the
           following filters:
         </p>
-        <ul className="list-disc pl-4 pt-2">
-          {kvs.map(([k, v]) => (
-            <li key={k}>{`${taskFilterToLabel(k as FilterName)}: ${v}`}</li>
-          ))}
-        </ul>
+        <div className="grid grid-cols-2 gap-x-2 items-start justify-start gap-y-4 p-6">
+          {statusToolbarFilter && (
+            <Combobox
+              values={params.filter.statuses}
+              title={statusToolbarFilter.title}
+              type={statusToolbarFilter.type}
+              options={statusToolbarFilter.options}
+              setValues={(values) => cf.setStatus(values[0] as V1TaskStatus)}
+            />
+          )}
+          {additionalMetaToolbarFilter && (
+            <Combobox
+              values={params.filter.additionalMetadata}
+              title={additionalMetaToolbarFilter.title}
+              type={additionalMetaToolbarFilter.type}
+              options={additionalMetaToolbarFilter.options}
+              setValues={(values) => {
+                const kvPairs = values.map((v) => {
+                  const [key, value] = v.split(':');
+                  return { key, value };
+                });
+
+                cf.setAllAdditionalMetadata({ kvPairs });
+              }}
+            />
+          )}
+          {workflowToolbarFilter && (
+            <Combobox
+              values={params.filter.workflowIds}
+              title={workflowToolbarFilter.title}
+              type={workflowToolbarFilter.type}
+              options={workflowToolbarFilter.options}
+              setValues={(values) => cf.setWorkflowId(values[0] as string)}
+            />
+          )}
+          {cf.filters.isCustomTimeRange && [
+            <Button
+              key="clear"
+              onClick={() => {
+                cf.setCustomTimeRange(undefined);
+              }}
+              variant="outline"
+              size="sm"
+              className="text-xs h-9 py-2"
+            >
+              <XCircleIcon className="h-[18px] w-[18px] mr-2" />
+              Clear
+            </Button>,
+            <DateTimePicker
+              key="after"
+              label="After"
+              date={
+                cf.filters.createdAfter
+                  ? new Date(cf.filters.createdAfter)
+                  : undefined
+              }
+              setDate={(date) => {
+                cf.setCreatedAfter(date?.toISOString());
+              }}
+            />,
+            <DateTimePicker
+              key="before"
+              label="Before"
+              date={
+                cf.filters.finishedBefore
+                  ? new Date(cf.filters.finishedBefore)
+                  : undefined
+              }
+              setDate={(date) => {
+                cf.setFinishedBefore(date?.toISOString());
+              }}
+            />,
+          ]}
+          <Select
+            value={
+              cf.filters.isCustomTimeRange ? 'custom' : cf.filters.timeWindow
+            }
+            onValueChange={(value: TimeWindow | 'custom') => {
+              if (value !== 'custom') {
+                cf.setFilterValues([
+                  { key: 'isCustomTimeRange', value: false },
+                  { key: 'timeWindow', value: value },
+                ]);
+              } else {
+                cf.setFilterValues([{ key: 'isCustomTimeRange', value: true }]);
+              }
+            }}
+          >
+            <SelectTrigger className="flex flex-1 h-8">
+              <SelectValue id="timerange" placeholder="Choose time range" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="1h">1 hour</SelectItem>
+              <SelectItem value="6h">6 hours</SelectItem>
+              <SelectItem value="1d">1 day</SelectItem>
+              <SelectItem value="7d">7 days</SelectItem>
+              <SelectItem value="custom">Custom</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </>
     );
   } else {

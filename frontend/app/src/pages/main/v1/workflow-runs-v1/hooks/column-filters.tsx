@@ -266,6 +266,17 @@ export const useColumnFilters = () => {
     [additionalMetadata, setFilterValues],
   );
 
+  const setAllAdditionalMetadata = useCallback(
+    ({ kvPairs }: { kvPairs: { key: string; value: string }[] }) => {
+      const newMeta = kvPairs.map(({ key, value }) => `${key}:${value}`);
+
+      setFilterValues([
+        { key: TaskRunColumn.additionalMetadata, value: newMeta },
+      ]);
+    },
+    [setFilterValues],
+  );
+
   const clearColumnFilters = useCallback(() => {
     setFilterValues([
       { key: TaskRunColumn.workflow, value: undefined },
@@ -307,5 +318,6 @@ export const useColumnFilters = () => {
     setAdditionalMetadata,
     clearColumnFilters,
     clearParentTaskExternalId,
+    setAllAdditionalMetadata,
   };
 };
