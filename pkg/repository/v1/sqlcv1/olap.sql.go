@@ -806,6 +806,10 @@ WITH input AS (
     FROM runs r
     JOIN v1_dag_to_task_olap dt ON r.dag_id = dt.dag_id  -- Do I need to join by ` + "`" + `inserted_at` + "`" + ` here too?
     JOIN v1_task_events_olap e ON e.task_id = dt.task_id -- Do I need to join by ` + "`" + `inserted_at` + "`" + ` here too?
+), max_retry_count AS (
+    SELECT run_id, MAX(retry_count) AS max_retry_count
+    FROM relevant_events
+    GROUP BY run_id
 ), metadata AS (
     SELECT
         e.run_id,
@@ -814,6 +818,7 @@ WITH input AS (
         MAX(e.inserted_at) FILTER (WHERE e.readable_status IN ('COMPLETED', 'CANCELLED', 'FAILED'))::timestamptz AS finished_at
     FROM
         relevant_events e
+    JOIN max_retry_count mrc ON (e.run_id, e.retry_count) = (mrc.run_id, mrc.max_retry_count)
     GROUP BY e.run_id
 ), error_message AS (
     SELECT
@@ -841,8 +846,10 @@ SELECT
     m.started_at,
     m.finished_at,
     e.error_message,
-    o.output
+    o.output,
+    w.name AS workflow_name
 FROM runs r
+JOIN "Workflow" w ON r.workflow_id = w.id
 LEFT JOIN metadata m ON r.run_id = m.run_id
 LEFT JOIN error_message e ON r.run_id = e.run_id
 LEFT JOIN task_output o ON r.run_id = o.run_id
@@ -873,6 +880,7 @@ type PopulateDAGMetadataRow struct {
 	FinishedAt         pgtype.Timestamptz   `json:"finished_at"`
 	ErrorMessage       pgtype.Text          `json:"error_message"`
 	Output             []byte               `json:"output"`
+	WorkflowName       string               `json:"workflow_name"`
 }
 
 func (q *Queries) PopulateDAGMetadata(ctx context.Context, db DBTX, arg PopulateDAGMetadataParams) ([]*PopulateDAGMetadataRow, error) {
@@ -902,6 +910,7 @@ func (q *Queries) PopulateDAGMetadata(ctx context.Context, db DBTX, arg Populate
 			&i.FinishedAt,
 			&i.ErrorMessage,
 			&i.Output,
+			&i.WorkflowName,
 		); err != nil {
 			return nil, err
 		}
@@ -1483,6 +1492,10 @@ WITH runs AS (
     FROM runs r
     JOIN v1_task_events_olap e ON e.task_id = r.task_id AND e.task_inserted_at = r.inserted_at
     WHERE r.task_id IS NOT NULL
+), max_retry_counts AS (
+    SELECT task_id, MAX(retry_count) AS max_retry_count
+    FROM relevant_events
+    GROUP BY task_id
 ), metadata AS (
     SELECT
         MIN(e.inserted_at)::timestamptz AS created_at,
@@ -1491,6 +1504,7 @@ WITH runs AS (
         JSON_AGG(JSON_BUILD_OBJECT('task_id', e.task_id,'task_inserted_at', e.task_inserted_at)) AS task_metadata
     FROM
         relevant_events e
+    JOIN max_retry_counts mrc ON (e.task_id, e.retry_count) = (mrc.task_id, mrc.max_retry_count)
 ), error_message AS (
     SELECT
         e.error_message

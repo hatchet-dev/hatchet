@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { queries, V1TaskSummary } from '@/lib/api';
+import { queries, WorkflowRunShapeItemForWorkflowRunDetails } from '@/lib/api';
 import { TabOption } from './step-run-detail/step-run-detail';
 import StepRunNode from './step-run-node';
 import { useWorkflowDetails } from '../../hooks/workflow-details';
@@ -18,54 +18,60 @@ type NodeRelationship = {
 export const JobMiniMap = ({ onClick }: JobMiniMapProps) => {
   const { shape, taskRuns: tasks, isLoading, isError } = useWorkflowDetails();
 
-  const taskRunRelationships: NodeRelationship[] = useMemo(
-    () =>
-      tasks.map((item) => {
-        const node = item.taskExternalId;
-        const children =
-          shape.find((i) => i.taskExternalId === node)?.childrenExternalIds ||
-          [];
-        const parents = shape
-          .filter((i) => i.childrenExternalIds.includes(node))
-          .map((i) => i.taskExternalId);
+  const taskRunRelationships: NodeRelationship[] = useMemo(() => {
+    if (!shape || !tasks) {
+      return [];
+    }
 
-        return {
-          node,
-          children,
-          parents,
-        };
-      }) || [],
-    [shape, tasks],
-  );
+    return shape.map((shapeItem) => {
+      const node = shapeItem.stepId ?? 'placeholder';
+
+      const children = shapeItem?.childrenStepIds || [];
+      const parents = shape
+        .filter((i) => node && i.childrenStepIds.includes(node))
+        .map((i) => i.stepId);
+
+      return {
+        node,
+        children,
+        parents,
+      };
+    });
+  }, [shape, tasks]);
 
   const columns = useMemo(() => {
-    const columns: V1TaskSummary[][] = [];
+    const columns: WorkflowRunShapeItemForWorkflowRunDetails[][] = [];
     const processed = new Set<string>();
 
-    const addToColumn = (taskRun: V1TaskSummary, columnIndex: number) => {
+    const addToColumn = (
+      shapeItem: WorkflowRunShapeItemForWorkflowRunDetails,
+      columnIndex: number,
+    ) => {
       if (!columns[columnIndex]) {
         columns[columnIndex] = [];
       }
 
-      columns[columnIndex].push(taskRun);
-      processed.add(taskRun.taskExternalId);
+      columns[columnIndex].push(shapeItem);
+      processed.add(shapeItem.stepId);
     };
 
-    const processTaskRun = (taskRun: V1TaskSummary) => {
-      if (processed.has(taskRun.taskExternalId)) {
+    const processTaskRun = (
+      shapeItem: WorkflowRunShapeItemForWorkflowRunDetails,
+    ) => {
+      if (processed.has(shapeItem.stepId)) {
         return;
       }
 
       const relationship = taskRunRelationships.find(
-        (r) => r.node == taskRun.taskExternalId,
+        (r) => r.node == shapeItem.stepId,
       );
 
       if (!relationship || relationship.parents.length === 0) {
-        addToColumn(taskRun, 0);
+        addToColumn(shapeItem, 0);
       } else {
         const maxParentColumn = Math.max(
           ...relationship.parents.map((parentId) => {
-            const parentStep = tasks.find((r) => r.taskExternalId === parentId);
+            const parentStep = shape.find((r) => r.stepId === parentId);
 
             return parentStep
               ? columns.findIndex((col) => col.includes(parentStep))
@@ -74,17 +80,27 @@ export const JobMiniMap = ({ onClick }: JobMiniMapProps) => {
         );
 
         if (maxParentColumn > -1) {
-          addToColumn(taskRun, maxParentColumn + 1);
+          addToColumn(shapeItem, maxParentColumn + 1);
         }
       }
     };
 
-    while (processed.size < tasks.length) {
-      tasks.forEach(processTaskRun);
+    let iterations = 100;
+
+    while (processed.size < shape.length) {
+      if (iterations === 0) {
+        break;
+      }
+
+      // IMPORTANT: This can cause an infinite loop when rendering if
+      // nothing ever gets added to `processed`. Setting a max iterations to
+      // hopefully prevent that
+      shape.forEach(processTaskRun);
+      iterations -= 1;
     }
 
     return columns;
-  }, [taskRunRelationships, tasks]);
+  }, [taskRunRelationships, shape]);
 
   if (isLoading || isError) {
     return null;
@@ -97,18 +113,19 @@ export const JobMiniMap = ({ onClick }: JobMiniMapProps) => {
           key={colIndex}
           className="flex flex-col justify-start h-full min-w-fit grow"
         >
-          {column.map((taskRun) => {
+          {column.map((shapeItem) => {
+            const taskRun = tasks.find(
+              (t) => t.metadata.id === shapeItem.taskExternalId,
+            );
             return (
               <StepRunNode
-                key={taskRun.taskExternalId}
+                key={shapeItem.stepId}
                 data={{
-                  task: taskRun,
+                  taskRun,
                   graphVariant: 'none',
-                  onClick: () => onClick(taskRun.metadata.id),
-                  childWorkflowsCount: taskRun.numSpawnedChildren,
-                  taskName:
-                    shape.find((i) => i.taskExternalId === taskRun.metadata.id)
-                      ?.taskName || '',
+                  onClick: () => onClick(taskRun?.metadata.id),
+                  childWorkflowsCount: taskRun?.numSpawnedChildren || 0,
+                  taskName: shapeItem.taskName,
                 }}
               />
             );
@@ -150,9 +167,8 @@ export const TaskRunMiniMap = ({
     <div className="flex flex-1 flex-row p-4 rounded-sm relative gap-1">
       <div className="flex flex-col justify-start w-full h-fit grow">
         <StepRunNode
-          key={taskRun.taskExternalId}
           data={{
-            task: taskRun,
+            taskRun,
             graphVariant: 'none',
             onClick: () => onClick(taskRun.metadata.id),
             childWorkflowsCount: taskRun.numSpawnedChildren,

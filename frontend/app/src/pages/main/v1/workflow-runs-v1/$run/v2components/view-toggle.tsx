@@ -32,7 +32,7 @@ export const ViewToggle = () => {
   }
 
   // only render if there are at least two dependent steps, otherwise the view toggle is not needed
-  if (!shape.some((t) => t.childrenExternalIds.length > 0)) {
+  if (!shape.some((t) => t.childrenStepIds.length > 0)) {
     return null;
   }
 

@@ -10,7 +10,6 @@ import 'reactflow/dist/style.css';
 import dagre from 'dagre';
 import { useTheme } from '@/components/theme-provider';
 import stepRunNode, { NodeData } from './step-run-node';
-import invariant from 'tiny-invariant';
 import { V1TaskStatus } from '@/lib/api';
 import { useWorkflowDetails } from '../../hooks/workflow-details';
 
@@ -25,8 +24,6 @@ const edgeTypes = {
   smoothstep: BezierEdge,
 };
 
-const createNodeId = (taskId: string) => taskId;
-
 const WorkflowRunVisualizer = ({
   setSelectedTaskRunId,
 }: {
@@ -37,61 +34,61 @@ const WorkflowRunVisualizer = ({
 
   const edges: Edge[] = useMemo(
     () =>
-      shape.flatMap((task) =>
-        task.childrenExternalIds.map((childId) => {
-          const child = taskRuns.find((t) => t.metadata.id === childId);
+      (
+        shape.flatMap((shapeItem) =>
+          shapeItem.childrenStepIds.map((childId) => {
+            const child = shape.find((t) => t.stepId === childId);
+            const childTaskRun = taskRuns.find((t) => t.stepId === childId);
 
-          invariant(child);
+            if (!child) {
+              return null;
+            }
 
-          return {
-            id: `${task.taskExternalId}-${childId}`,
-            source: task.taskExternalId,
-            target: childId,
-            animated: child.status === V1TaskStatus.RUNNING,
-            style:
-              theme === 'dark'
-                ? connectionLineStyleDark
-                : connectionLineStyleLight,
-            markerEnd: {
-              type: MarkerType.ArrowClosed,
-            },
-            type: 'smoothstep',
-          };
-        }),
-      ) || [],
+            return {
+              id: `${shapeItem.stepId}-${childId}`,
+              source: shapeItem.stepId,
+              target: childId,
+              animated: childTaskRun?.status === V1TaskStatus.RUNNING,
+              style:
+                theme === 'dark'
+                  ? connectionLineStyleDark
+                  : connectionLineStyleLight,
+              markerEnd: {
+                type: MarkerType.ArrowClosed,
+              },
+              type: 'smoothstep',
+            };
+          }),
+        ) || []
+      ).filter((x) => Boolean(x)) as Edge[],
     [shape, theme, taskRuns],
   );
 
   const nodes: Node[] = useMemo(
     () =>
-      taskRuns.map((task) => {
+      shape.map((shapeItem) => {
         const hasParent = shape.some((s) =>
-          s.childrenExternalIds.includes(task.metadata.id),
+          s.childrenStepIds.includes(shapeItem.stepId),
         );
-        const hasChild = shape.some(
-          (s) => s.taskExternalId === task.metadata.id,
-        );
+        const hasChild = shape.some((s) => s.stepId === shapeItem.stepId);
 
-        // TODO: get the actual number of children
-        const childWorkflowsCount = 0;
+        const task = taskRuns.find((t) => t.stepId === shapeItem.stepId);
 
         const data: NodeData = {
-          task,
+          taskRun: task,
           graphVariant:
             hasParent && hasChild
               ? 'default'
               : hasChild
                 ? 'output_only'
                 : 'input_only',
-          onClick: () => setSelectedTaskRunId(task.metadata.id),
-          childWorkflowsCount,
-          taskName:
-            shape.find((i) => i.taskExternalId === task.metadata.id)
-              ?.taskName || '',
+          onClick: () => task && setSelectedTaskRunId(task.metadata.id),
+          childWorkflowsCount: task?.numSpawnedChildren || 0,
+          taskName: shapeItem.taskName,
         };
 
         return {
-          id: createNodeId(task.metadata.id),
+          id: shapeItem.stepId,
           type: 'stepNode',
           position: { x: 0, y: 0 },
           data,
@@ -162,7 +159,11 @@ const WorkflowRunVisualizer = ({
           hideAttribution: true,
         }}
         onNodeClick={(_, node) => {
-          setSelectedTaskRunId(node.id);
+          const task = taskRuns.find((t) => t.stepId === node.id);
+
+          if (task) {
+            setSelectedTaskRunId(task.metadata.id);
+          }
         }}
         maxZoom={1}
         connectionLineStyle={

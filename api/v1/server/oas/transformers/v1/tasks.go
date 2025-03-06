@@ -45,6 +45,7 @@ func ToTaskSummary(task *sqlcv1.PopulateTaskRunDataRow) gen.V1TaskSummary {
 	}
 
 	taskExternalId := uuid.MustParse(sqlchelpers.UUIDToStr(task.ExternalID))
+	stepId := uuid.MustParse(sqlchelpers.UUIDToStr(task.StepID))
 
 	return gen.V1TaskSummary{
 		Metadata: gen.APIResourceMeta{
@@ -64,6 +65,7 @@ func ToTaskSummary(task *sqlcv1.PopulateTaskRunDataRow) gen.V1TaskSummary {
 		TaskId:             int(task.ID),
 		TaskInsertedAt:     task.InsertedAt.Time,
 		TaskExternalId:     taskExternalId,
+		StepId:             &stepId,
 	}
 }
 
@@ -257,6 +259,8 @@ func ToTask(taskWithData *sqlcv1.PopulateSingleTaskRunDataRow, workflowRunExtern
 		parsedWorkflowRunUUID = &id
 	}
 
+	stepId := uuid.MustParse(sqlchelpers.UUIDToStr(taskWithData.StepID))
+
 	return gen.V1TaskSummary{
 		Metadata: gen.APIResourceMeta{
 			Id:        sqlchelpers.UUIDToStr(taskWithData.ExternalID),
@@ -280,6 +284,7 @@ func ToTask(taskWithData *sqlcv1.PopulateSingleTaskRunDataRow, workflowRunExtern
 		TaskExternalId:        uuid.MustParse(sqlchelpers.UUIDToStr(taskWithData.ExternalID)),
 		Type:                  gen.V1WorkflowTypeTASK,
 		NumSpawnedChildren:    int(taskWithData.SpawnedChildren.Int64),
+		StepId:                &stepId,
 	}
 }
 
@@ -293,9 +298,10 @@ func ToWorkflowRunDetails(
 	workflowVersionId := uuid.MustParse(sqlchelpers.UUIDToStr(workflowRun.WorkflowVersionId))
 	duration := int(workflowRun.FinishedAt.Time.Sub(workflowRun.StartedAt.Time).Milliseconds())
 	input := jsonToMap(workflowRun.Input)
+	additionalMetadata := jsonToMap(workflowRun.AdditionalMetadata)
 
 	parsedWorkflowRun := gen.V1WorkflowRun{
-		AdditionalMetadata: &map[string]interface{}{},
+		AdditionalMetadata: &additionalMetadata,
 		CreatedAt:          &workflowRun.CreatedAt.Time,
 		DisplayName:        workflowRun.DisplayName,
 		Duration:           &duration,
@@ -318,17 +324,19 @@ func ToWorkflowRunDetails(
 
 	for i, shapeRow := range shape {
 		parentExternalId := uuid.MustParse(sqlchelpers.UUIDToStr(stepIdToTaskExternalId[shapeRow.Parentstepid]))
-		ChildrenExternalIds := make([]uuid.UUID, len(shapeRow.Childrenstepids))
+		ChildrenStepIds := make([]uuid.UUID, len(shapeRow.Childrenstepids))
 		taskName := shapeRow.Stepname.String
+		stepId := shapeRow.Parentstepid
 
 		for c, child := range shapeRow.Childrenstepids {
-			ChildrenExternalIds[c] = uuid.MustParse(sqlchelpers.UUIDToStr(stepIdToTaskExternalId[child]))
+			ChildrenStepIds[c] = uuid.MustParse(sqlchelpers.UUIDToStr(child))
 		}
 
 		shapeRows[i] = gen.WorkflowRunShapeItemForWorkflowRunDetails{
-			ChildrenExternalIds: ChildrenExternalIds,
-			TaskExternalId:      parentExternalId,
-			TaskName:            taskName,
+			ChildrenStepIds: ChildrenStepIds,
+			TaskExternalId:  parentExternalId,
+			TaskName:        taskName,
+			StepId:          uuid.MustParse(sqlchelpers.UUIDToStr(stepId)),
 		}
 	}
 

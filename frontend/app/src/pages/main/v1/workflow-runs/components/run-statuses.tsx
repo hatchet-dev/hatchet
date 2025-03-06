@@ -151,7 +151,7 @@ export function V1RunStatus({
 
   return (
     <HoverCard>
-      <HoverCardTrigger>
+      <HoverCardTrigger className="hover:cursor-help">
         <StatusBadge />
       </HoverCardTrigger>
       <HoverCardContent className="bg-card max-w-96 overflow-auto z-10 shadow-xl p-4 rounded-md border border-gray-600 border-opacity-50">

@@ -1,5 +1,11 @@
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
-import { queries, StepRun, StepRunStatus, WorkflowRunShape } from '@/lib/api';
+import {
+  queries,
+  StepRun,
+  StepRunStatus,
+  V1TaskStatus,
+  WorkflowRunShape,
+} from '@/lib/api';
 import React from 'react';
 import StepRunCodeText from './step-run-error';
 import LoggingComponent from '@/components/v1/cloud/logging/logs';
@@ -120,7 +126,10 @@ export const V1StepRunOutput = (props: { taskRunId: string }) => {
     return null;
   }
 
-  const outputData = JSON.stringify(data.output, null, 2);
+  const outputData =
+    (data.status === V1TaskStatus.FAILED
+      ? data.errorMessage
+      : JSON.stringify(data.output, null, 2)) || '';
 
   return (
     <CodeHighlighter

@@ -23,6 +23,7 @@ import { V1StepRunOutput } from './step-run-output';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import { TaskRunActionButton } from '@/pages/main/v1/task-runs-v1/actions';
 import { TaskRunMiniMap } from '../mini-map';
+import { WorkflowDefinitionLink } from '@/pages/main/workflow-runs/$run/v2components/workflow-definition';
 
 export enum TabOption {
   Output = 'output',
@@ -115,17 +116,20 @@ export const TaskRunDetail = ({
         <TaskRunActionButton
           actionType="replay"
           params={{ externalIds: [taskRunId] }}
-          disabled={TASK_RUN_TERMINAL_STATUSES.includes(taskRun.status)}
+          disabled={!TASK_RUN_TERMINAL_STATUSES.includes(taskRun.status)}
+          showModal={false}
         />
         <TaskRunActionButton
           actionType="cancel"
           params={{ externalIds: [taskRunId] }}
           disabled={TASK_RUN_TERMINAL_STATUSES.includes(taskRun.status)}
+          showModal={false}
         />
         <TaskRunPermalinkOrBacklink
           taskRun={taskRun}
           showViewTaskRunButton={showViewTaskRunButton || false}
         />
+        <WorkflowDefinitionLink workflowId={taskRun.workflowId} />
       </div>
       <div className="flex flex-row gap-2 items-center">
         <V1StepRunSummary taskRunId={taskRunId} />
@@ -224,12 +228,6 @@ const V1StepRunSummary = ({ taskRunId }: { taskRunId: string }) => {
       <div key="created" className="text-sm text-muted-foreground">
         {'Started '}
         <RelativeDate date={data.startedAt} />
-      </div>,
-    );
-  } else {
-    timings.push(
-      <div key="created" className="text-sm text-muted-foreground">
-        Running
       </div>,
     );
   }

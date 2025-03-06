@@ -163,7 +163,11 @@ export function RunIndicator({
   );
 }
 
-export function V1RunIndicator({ status }: { status: V1TaskStatus }) {
+export function V1RunIndicator({
+  status,
+}: {
+  status: V1TaskStatus | undefined;
+}) {
   const indicator = createV2IndicatorVariant(status);
 
   return <div className={cn(indicator, 'rounded-full h-[6px] w-[6px]')} />;
