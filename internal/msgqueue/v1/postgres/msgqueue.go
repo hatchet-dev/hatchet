@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/hashicorp/go-multierror"
 	"github.com/rs/zerolog"
+	"golang.org/x/sync/errgroup"
 
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	"github.com/hatchet-dev/hatchet/internal/queueutils"
@@ -203,26 +203,31 @@ func (p *PostgresMessageQueue) Subscribe(queue msgqueue.Queue, preAck msgqueue.A
 	}
 
 	do := func(messages []*dbsqlc.ReadMessagesRow) error {
-		var errs error
+		eg := &errgroup.Group{}
+
 		for _, message := range messages {
-			var task msgqueue.Message
+			eg.Go(func() error {
+				var task msgqueue.Message
 
-			err := json.Unmarshal(message.Payload, &task)
+				err := json.Unmarshal(message.Payload, &task)
 
-			if err != nil {
-				p.l.Error().Err(err).Msg("error unmarshalling message")
-				errs = multierror.Append(errs, err)
-			}
+				if err != nil {
+					p.l.Error().Err(err).Msg("error unmarshalling message")
+					return err
+				}
 
-			err = doTask(task, &message.ID)
+				err = doTask(task, &message.ID)
 
-			if err != nil {
-				p.l.Error().Err(err).Msg("error running task")
-				errs = multierror.Append(errs, err)
-			}
+				if err != nil {
+					p.l.Error().Err(err).Msg("error running task")
+					return err
+				}
+
+				return nil
+			})
 		}
 
-		return errs
+		return eg.Wait()
 	}
 
 	op := queueutils.NewOperationPool(p.l, 60*time.Second, "postgresmq", queueutils.OpMethod(func(ctx context.Context, id string) (bool, error) {
