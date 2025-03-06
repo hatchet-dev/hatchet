@@ -25,6 +25,12 @@ type CompletedTaskPayload struct {
 	// (required) the task inserted at
 	InsertedAt pgtype.Timestamptz
 
+	// (required) the task external id
+	ExternalId string
+
+	// (required) the workflow run id
+	WorkflowRunId string
+
 	// (required) the retry count
 	RetryCount int32
 
@@ -32,17 +38,27 @@ type CompletedTaskPayload struct {
 	Output []byte
 }
 
-func CompletedTaskMessage(tenantId string, taskId int64, taskInsertedAt pgtype.Timestamptz, retryCount int32, output []byte) (*msgqueue.Message, error) {
+func CompletedTaskMessage(
+	tenantId string,
+	taskId int64,
+	taskInsertedAt pgtype.Timestamptz,
+	taskExternalId string,
+	workflowRunId string,
+	retryCount int32,
+	output []byte,
+) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
 		"task-completed",
 		false,
 		true,
 		CompletedTaskPayload{
-			TaskId:     taskId,
-			InsertedAt: taskInsertedAt,
-			RetryCount: retryCount,
-			Output:     output,
+			TaskId:        taskId,
+			InsertedAt:    taskInsertedAt,
+			ExternalId:    taskExternalId,
+			WorkflowRunId: workflowRunId,
+			RetryCount:    retryCount,
+			Output:        output,
 		},
 	)
 }
@@ -54,6 +70,12 @@ type FailedTaskPayload struct {
 	// (required) the task inserted at
 	InsertedAt pgtype.Timestamptz
 
+	// (required) the task external id
+	ExternalId string
+
+	// (required) the workflow run id
+	WorkflowRunId string
+
 	// (required) the retry count
 	RetryCount int32
 
@@ -64,18 +86,29 @@ type FailedTaskPayload struct {
 	ErrorMsg string
 }
 
-func FailedTaskMessage(tenantId string, taskId int64, insertedAt pgtype.Timestamptz, retryCount int32, isAppError bool, errorMsg string) (*msgqueue.Message, error) {
+func FailedTaskMessage(
+	tenantId string,
+	taskId int64,
+	taskInsertedAt pgtype.Timestamptz,
+	taskExternalId string,
+	workflowRunId string,
+	retryCount int32,
+	isAppError bool,
+	errorMsg string,
+) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
 		"task-failed",
 		false,
 		true,
 		FailedTaskPayload{
-			TaskId:     taskId,
-			InsertedAt: insertedAt,
-			RetryCount: retryCount,
-			IsAppError: isAppError,
-			ErrorMsg:   errorMsg,
+			TaskId:        taskId,
+			InsertedAt:    taskInsertedAt,
+			ExternalId:    taskExternalId,
+			WorkflowRunId: workflowRunId,
+			RetryCount:    retryCount,
+			IsAppError:    isAppError,
+			ErrorMsg:      errorMsg,
 		},
 	)
 }
@@ -87,6 +120,12 @@ type CancelledTaskPayload struct {
 	// (required) the task inserted at
 	InsertedAt pgtype.Timestamptz
 
+	// (required) the task external id
+	ExternalId string
+
+	// (required) the workflow run id
+	WorkflowRunId string
+
 	// (required) the retry count
 	RetryCount int32
 
@@ -97,18 +136,29 @@ type CancelledTaskPayload struct {
 	ShouldNotify bool
 }
 
-func CancelledTaskMessage(tenantId string, taskId int64, taskInsertedAt pgtype.Timestamptz, retryCount int32, eventType sqlcv1.V1EventTypeOlap, shouldNotify bool) (*msgqueue.Message, error) {
+func CancelledTaskMessage(
+	tenantId string,
+	taskId int64,
+	taskInsertedAt pgtype.Timestamptz,
+	taskExternalId string,
+	workflowRunId string,
+	retryCount int32,
+	eventType sqlcv1.V1EventTypeOlap,
+	shouldNotify bool,
+) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
 		"task-cancelled",
 		false,
 		true,
 		CancelledTaskPayload{
-			TaskId:       taskId,
-			InsertedAt:   taskInsertedAt,
-			RetryCount:   retryCount,
-			EventType:    eventType,
-			ShouldNotify: shouldNotify,
+			TaskId:        taskId,
+			InsertedAt:    taskInsertedAt,
+			ExternalId:    taskExternalId,
+			WorkflowRunId: workflowRunId,
+			RetryCount:    retryCount,
+			EventType:     eventType,
+			ShouldNotify:  shouldNotify,
 		},
 	)
 }
@@ -133,4 +183,12 @@ type CancelTasksPayload struct {
 
 type ReplayTasksPayload struct {
 	Tasks []v1.TaskIdInsertedAtRetryCount `json:"tasks"`
+}
+
+type NotifyFinalizedPayload struct {
+	// (required) the external id (can either be a workflow run id or single task)
+	ExternalId string `validate:"required"`
+
+	// (required) the status of the task
+	Status sqlcv1.V1ReadableStatusOlap
 }

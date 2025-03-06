@@ -58,7 +58,7 @@ SELECT
 FROM
     input i
 RETURNING
-    id, tenant_id, kind, is_satisfied, signal_task_id, signal_task_inserted_at, signal_external_id, signal_key, trigger_dag_id, trigger_dag_inserted_at, trigger_step_id, trigger_step_index, trigger_external_id, trigger_parent_task_external_id, trigger_parent_task_id, trigger_parent_task_inserted_at, trigger_child_index, trigger_child_key, trigger_existing_task_id, trigger_existing_task_inserted_at
+    id, tenant_id, kind, is_satisfied, signal_task_id, signal_task_inserted_at, signal_external_id, signal_key, trigger_dag_id, trigger_dag_inserted_at, trigger_step_id, trigger_step_index, trigger_external_id, trigger_workflow_run_id, trigger_parent_task_external_id, trigger_parent_task_id, trigger_parent_task_inserted_at, trigger_child_index, trigger_child_key, trigger_existing_task_id, trigger_existing_task_inserted_at
 `
 
 type CreateMatchesForSignalTriggersParams struct {
@@ -100,6 +100,7 @@ func (q *Queries) CreateMatchesForSignalTriggers(ctx context.Context, db DBTX, a
 			&i.TriggerStepID,
 			&i.TriggerStepIndex,
 			&i.TriggerExternalID,
+			&i.TriggerWorkflowRunID,
 			&i.TriggerParentTaskExternalID,
 			&i.TriggerParentTaskID,
 			&i.TriggerParentTaskInsertedAt,
@@ -299,7 +300,7 @@ WITH match_counts AS (
     GROUP BY v1_match_id
 ), result_matches AS (
     SELECT
-        m.id, m.tenant_id, m.kind, m.is_satisfied, m.signal_task_id, m.signal_task_inserted_at, m.signal_external_id, m.signal_key, m.trigger_dag_id, m.trigger_dag_inserted_at, m.trigger_step_id, m.trigger_step_index, m.trigger_external_id, m.trigger_parent_task_external_id, m.trigger_parent_task_id, m.trigger_parent_task_inserted_at, m.trigger_child_index, m.trigger_child_key, m.trigger_existing_task_id, m.trigger_existing_task_inserted_at
+        m.id, m.tenant_id, m.kind, m.is_satisfied, m.signal_task_id, m.signal_task_inserted_at, m.signal_external_id, m.signal_key, m.trigger_dag_id, m.trigger_dag_inserted_at, m.trigger_step_id, m.trigger_step_index, m.trigger_external_id, m.trigger_workflow_run_id, m.trigger_parent_task_external_id, m.trigger_parent_task_id, m.trigger_parent_task_inserted_at, m.trigger_child_index, m.trigger_child_key, m.trigger_existing_task_id, m.trigger_existing_task_inserted_at
     FROM
         v1_match m
     JOIN
@@ -354,7 +355,7 @@ WITH match_counts AS (
         (v1_match_id, id) IN (SELECT v1_match_id, id FROM locked_conditions)
 )
 SELECT
-    result_matches.id, tenant_id, kind, is_satisfied, signal_task_id, signal_task_inserted_at, signal_external_id, signal_key, trigger_dag_id, trigger_dag_inserted_at, trigger_step_id, trigger_step_index, trigger_external_id, trigger_parent_task_external_id, trigger_parent_task_id, trigger_parent_task_inserted_at, trigger_child_index, trigger_child_key, trigger_existing_task_id, trigger_existing_task_inserted_at, d.id, mc_aggregated_data,
+    result_matches.id, tenant_id, kind, is_satisfied, signal_task_id, signal_task_inserted_at, signal_external_id, signal_key, trigger_dag_id, trigger_dag_inserted_at, trigger_step_id, trigger_step_index, trigger_external_id, trigger_workflow_run_id, trigger_parent_task_external_id, trigger_parent_task_id, trigger_parent_task_inserted_at, trigger_child_index, trigger_child_key, trigger_existing_task_id, trigger_existing_task_inserted_at, d.id, mc_aggregated_data,
     d.mc_aggregated_data
 FROM
     result_matches
@@ -376,6 +377,7 @@ type SaveSatisfiedMatchConditionsRow struct {
 	TriggerStepID                 pgtype.UUID        `json:"trigger_step_id"`
 	TriggerStepIndex              pgtype.Int8        `json:"trigger_step_index"`
 	TriggerExternalID             pgtype.UUID        `json:"trigger_external_id"`
+	TriggerWorkflowRunID          pgtype.UUID        `json:"trigger_workflow_run_id"`
 	TriggerParentTaskExternalID   pgtype.UUID        `json:"trigger_parent_task_external_id"`
 	TriggerParentTaskID           pgtype.Int8        `json:"trigger_parent_task_id"`
 	TriggerParentTaskInsertedAt   pgtype.Timestamptz `json:"trigger_parent_task_inserted_at"`
@@ -415,6 +417,7 @@ func (q *Queries) SaveSatisfiedMatchConditions(ctx context.Context, db DBTX, mat
 			&i.TriggerStepID,
 			&i.TriggerStepIndex,
 			&i.TriggerExternalID,
+			&i.TriggerWorkflowRunID,
 			&i.TriggerParentTaskExternalID,
 			&i.TriggerParentTaskID,
 			&i.TriggerParentTaskInsertedAt,

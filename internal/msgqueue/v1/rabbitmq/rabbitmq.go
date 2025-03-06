@@ -322,6 +322,7 @@ func (t *MessageQueueImpl) RegisterTenant(ctx context.Context, tenantId string) 
 
 func (t *MessageQueueImpl) initQueue(ch *amqp.Channel, q msgqueue.Queue) (string, error) {
 	args := make(amqp.Table)
+	args["x-consumer-timeout"] = 300000 // 5 minutes
 	name := q.Name()
 
 	if q.FanoutExchangeKey() != "" {
@@ -338,7 +339,6 @@ func (t *MessageQueueImpl) initQueue(ch *amqp.Channel, q msgqueue.Queue) (string
 	if q.DLX() != "" {
 		args["x-dead-letter-exchange"] = ""
 		args["x-dead-letter-routing-key"] = q.DLX()
-		args["x-consumer-timeout"] = 300000 // 5 minutes
 
 		dlqArgs := make(amqp.Table)
 

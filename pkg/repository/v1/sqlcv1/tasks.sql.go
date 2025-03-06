@@ -286,6 +286,8 @@ WITH lookup_rows AS (
         t.inserted_at,
         t.retry_count,
         t.external_id,
+        t.workflow_run_id,
+        t.additional_metadata,
         t.dag_id,
         t.dag_inserted_at,
         t.parent_task_id,
@@ -308,6 +310,8 @@ SELECT
     t.inserted_at,
     t.retry_count,
     t.external_id,
+    t.workflow_run_id,
+    t.additional_metadata,
     t.dag_id,
     t.dag_inserted_at,
     t.parent_task_id,
@@ -324,7 +328,7 @@ WHERE
 UNION ALL
 
 SELECT
-    id, inserted_at, retry_count, external_id, dag_id, dag_inserted_at, parent_task_id, child_index, child_key, workflow_run_external_id
+    id, inserted_at, retry_count, external_id, workflow_run_id, additional_metadata, dag_id, dag_inserted_at, parent_task_id, child_index, child_key, workflow_run_external_id
 FROM
     tasks_from_dags
 `
@@ -339,6 +343,8 @@ type FlattenExternalIdsRow struct {
 	InsertedAt            pgtype.Timestamptz `json:"inserted_at"`
 	RetryCount            int32              `json:"retry_count"`
 	ExternalID            pgtype.UUID        `json:"external_id"`
+	WorkflowRunID         pgtype.UUID        `json:"workflow_run_id"`
+	AdditionalMetadata    []byte             `json:"additional_metadata"`
 	DagID                 pgtype.Int8        `json:"dag_id"`
 	DagInsertedAt         pgtype.Timestamptz `json:"dag_inserted_at"`
 	ParentTaskID          pgtype.Int8        `json:"parent_task_id"`
@@ -362,6 +368,8 @@ func (q *Queries) FlattenExternalIds(ctx context.Context, db DBTX, arg FlattenEx
 			&i.InsertedAt,
 			&i.RetryCount,
 			&i.ExternalID,
+			&i.WorkflowRunID,
+			&i.AdditionalMetadata,
 			&i.DagID,
 			&i.DagInsertedAt,
 			&i.ParentTaskID,
@@ -796,7 +804,7 @@ func (q *Queries) ListTaskPartitionsBeforeDate(ctx context.Context, db DBTX, dat
 
 const listTasks = `-- name: ListTasks :many
 SELECT
-    id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, workflow_version_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, step_index, additional_metadata, dag_id, dag_inserted_at, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, initial_state, initial_state_reason, concurrency_strategy_ids, concurrency_keys, retry_backoff_factor, retry_max_backoff
+    id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, workflow_version_id, workflow_run_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, step_index, additional_metadata, dag_id, dag_inserted_at, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, initial_state, initial_state_reason, concurrency_strategy_ids, concurrency_keys, retry_backoff_factor, retry_max_backoff
 FROM
     v1_task
 WHERE
@@ -828,6 +836,7 @@ func (q *Queries) ListTasks(ctx context.Context, db DBTX, arg ListTasksParams) (
 			&i.StepReadableID,
 			&i.WorkflowID,
 			&i.WorkflowVersionID,
+			&i.WorkflowRunID,
 			&i.ScheduleTimeout,
 			&i.StepTimeout,
 			&i.Priority,
@@ -1591,6 +1600,7 @@ const processTaskTimeouts = `-- name: ProcessTaskTimeouts :many
 WITH expired_runtimes AS (
     SELECT
         task_id,
+        task_inserted_at,
         retry_count,
         worker_id
     FROM
@@ -1606,23 +1616,26 @@ WITH expired_runtimes AS (
 ), locked_tasks AS (
     SELECT
         v1_task.id,
+        v1_task.inserted_at,
         v1_task.retry_count,
         v1_task.step_id,
+        v1_task.external_id,
+        v1_task.workflow_run_id,
         expired_runtimes.worker_id
     FROM
         v1_task
     JOIN
         -- NOTE: we only join when retry count matches
-        expired_runtimes ON expired_runtimes.task_id = v1_task.id AND expired_runtimes.retry_count = v1_task.retry_count
+        expired_runtimes ON expired_runtimes.task_id = v1_task.id AND expired_runtimes.task_inserted_at = v1_task.inserted_at AND expired_runtimes.retry_count = v1_task.retry_count
     -- order by the task id to get a stable lock order
     ORDER BY
-        id
+        id, inserted_at, retry_count
     FOR UPDATE
 ), deleted_tqis AS (
     DELETE FROM
         v1_task_runtime
     WHERE
-        (task_id, retry_count) IN (SELECT task_id, retry_count FROM expired_runtimes)
+        (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM expired_runtimes)
 ), tasks_to_steps AS (
     SELECT
         t.id,
@@ -1641,11 +1654,11 @@ WITH expired_runtimes AS (
     FROM
         tasks_to_steps
     WHERE
-        v1_task.id = tasks_to_steps.id
+        (v1_task.id, v1_task.inserted_at) IN (SELECT id, inserted_at FROM locked_tasks)
         AND tasks_to_steps."retries" > v1_task.app_retry_count
 )
 SELECT
-    id, retry_count, step_id, worker_id
+    id, inserted_at, retry_count, step_id, external_id, workflow_run_id, worker_id
 FROM
     locked_tasks
 `
@@ -1656,10 +1669,13 @@ type ProcessTaskTimeoutsParams struct {
 }
 
 type ProcessTaskTimeoutsRow struct {
-	ID         int64       `json:"id"`
-	RetryCount int32       `json:"retry_count"`
-	StepID     pgtype.UUID `json:"step_id"`
-	WorkerID   pgtype.UUID `json:"worker_id"`
+	ID            int64              `json:"id"`
+	InsertedAt    pgtype.Timestamptz `json:"inserted_at"`
+	RetryCount    int32              `json:"retry_count"`
+	StepID        pgtype.UUID        `json:"step_id"`
+	ExternalID    pgtype.UUID        `json:"external_id"`
+	WorkflowRunID pgtype.UUID        `json:"workflow_run_id"`
+	WorkerID      pgtype.UUID        `json:"worker_id"`
 }
 
 func (q *Queries) ProcessTaskTimeouts(ctx context.Context, db DBTX, arg ProcessTaskTimeoutsParams) ([]*ProcessTaskTimeoutsRow, error) {
@@ -1673,8 +1689,11 @@ func (q *Queries) ProcessTaskTimeouts(ctx context.Context, db DBTX, arg ProcessT
 		var i ProcessTaskTimeoutsRow
 		if err := rows.Scan(
 			&i.ID,
+			&i.InsertedAt,
 			&i.RetryCount,
 			&i.StepID,
+			&i.ExternalID,
+			&i.WorkflowRunID,
 			&i.WorkerID,
 		); err != nil {
 			return nil, err
@@ -1796,6 +1815,21 @@ WITH input AS (
             FROM
                 retry_queue_items_to_delete
         )
+), queue_items_to_delete AS (
+    SELECT
+        task_id, task_inserted_at, retry_count
+    FROM
+        v1_queue_item
+    WHERE
+        (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM input)
+    ORDER BY
+        task_id, task_inserted_at, retry_count
+    FOR UPDATE
+), deleted_qis AS (
+    DELETE FROM
+        v1_queue_item
+    WHERE
+        (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM queue_items_to_delete)
 )
 SELECT
     t.queue,

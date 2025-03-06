@@ -3,15 +3,15 @@ package task
 import (
 	"context"
 	"fmt"
-	"time"
 
-	"github.com/hashicorp/go-multierror"
 	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/internal/telemetry"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
+
+	"golang.org/x/sync/errgroup"
 )
 
 func (tc *TasksControllerImpl) runTenantTimeoutTasks(ctx context.Context) func() {
@@ -50,39 +50,58 @@ func (tc *TasksControllerImpl) processTaskTimeouts(ctx context.Context, tenantId
 		tc.l.Info().Msgf("timed out %d step runs", num)
 	}
 
+	cancellationSignals := make([]tasktypes.SignalTaskCancelledPayload, 0, len(tasks))
+
+	cancelPayloads := make([]tasktypes.CancelledTaskPayload, 0, len(tasks))
+
 	for _, task := range tasks {
-		taskId := task.ID
+		cancellationSignals = append(cancellationSignals, tasktypes.SignalTaskCancelledPayload{
+			TaskId:     task.ID,
+			InsertedAt: task.InsertedAt,
+			RetryCount: task.RetryCount,
+			WorkerId:   sqlchelpers.UUIDToStr(task.WorkerID),
+		})
 
-		olapMsg, innerErr := tasktypes.MonitoringEventMessageFromInternal(
+		cancelPayloads = append(cancelPayloads, tasktypes.CancelledTaskPayload{
+			TaskId:        task.ID,
+			InsertedAt:    task.InsertedAt,
+			RetryCount:    task.RetryCount,
+			ExternalId:    sqlchelpers.UUIDToStr(task.ExternalID),
+			WorkflowRunId: sqlchelpers.UUIDToStr(task.WorkflowRunID),
+			EventType:     sqlcv1.V1EventTypeOlapTIMEDOUT,
+			ShouldNotify:  true,
+		})
+	}
+
+	eg := &errgroup.Group{}
+
+	eg.Go(func() error {
+		if len(cancellationSignals) == 0 {
+			return nil
+		}
+
+		return tc.sendTaskCancellationsToDispatcher(ctx, tenantId, cancellationSignals)
+	})
+
+	eg.Go(func() error {
+		if len(cancelPayloads) == 0 {
+			return nil
+		}
+
+		msg, err := msgqueue.NewTenantMessage(
 			tenantId,
-			tasktypes.CreateMonitoringEventPayload{
-				TaskId:         taskId,
-				RetryCount:     task.RetryCount,
-				EventType:      sqlcv1.V1EventTypeOlapTIMEDOUT,
-				EventTimestamp: time.Now(),
-			},
-		)
-
-		if innerErr != nil {
-			err = multierror.Append(err, fmt.Errorf("could not create monitoring event message: %w", err))
-			continue
-		}
-
-		innerErr = tc.pubBuffer.Pub(
-			ctx,
-			msgqueue.OLAP_QUEUE,
-			olapMsg,
+			"task-cancelled",
 			false,
+			true,
+			cancelPayloads...,
 		)
 
-		if innerErr != nil {
-			err = multierror.Append(err, fmt.Errorf("could not publish monitoring event message: %w", err))
+		if err != nil {
+			return fmt.Errorf("could not create cancel tasks message: %w", err)
 		}
-	}
 
-	if err != nil {
-		return false, fmt.Errorf("could not list step runs to timeout for tenant %s: %w", tenantId, err)
-	}
+		return tc.mq.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg)
+	})
 
-	return shouldContinue, nil
+	return shouldContinue, eg.Wait()
 }

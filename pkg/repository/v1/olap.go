@@ -161,6 +161,20 @@ func (s ReadableTaskStatus) EnumValue() int {
 	}
 }
 
+type UpdateTaskStatusRow struct {
+	TaskId         int64
+	TaskInsertedAt pgtype.Timestamptz
+	ReadableStatus sqlcv1.V1ReadableStatusOlap
+	ExternalId     pgtype.UUID
+}
+
+type UpdateDAGStatusRow struct {
+	DagId          int64
+	DagInsertedAt  pgtype.Timestamptz
+	ReadableStatus sqlcv1.V1ReadableStatusOlap
+	ExternalId     pgtype.UUID
+}
+
 type OLAPRepository interface {
 	UpdateTablePartitions(ctx context.Context) error
 	ReadTaskRun(ctx context.Context, taskExternalId string) (*sqlcv1.V1TasksOlap, error)
@@ -176,8 +190,8 @@ type OLAPRepository interface {
 	CreateTaskEvents(ctx context.Context, tenantId string, events []sqlcv1.CreateTaskEventsOLAPParams) error
 	CreateDAGs(ctx context.Context, tenantId string, dags []*DAGWithData) error
 	GetTaskPointMetrics(ctx context.Context, tenantId string, startTimestamp *time.Time, endTimestamp *time.Time, bucketInterval time.Duration) ([]*sqlcv1.GetTaskPointMetricsRow, error)
-	UpdateTaskStatuses(ctx context.Context, tenantId string) (bool, error)
-	UpdateDAGStatuses(ctx context.Context, tenantId string) (bool, error)
+	UpdateTaskStatuses(ctx context.Context, tenantId string) (bool, []UpdateTaskStatusRow, error)
+	UpdateDAGStatuses(ctx context.Context, tenantId string) (bool, []UpdateDAGStatusRow, error)
 	ReadDAG(ctx context.Context, dagExternalId string) (*sqlcv1.V1DagsOlap, error)
 	ListTasksByDAGId(ctx context.Context, tenantId string, dagIds []pgtype.UUID) ([]*sqlcv1.PopulateTaskRunDataRow, map[int64]uuid.UUID, error)
 	ListTasksByIdAndInsertedAt(ctx context.Context, tenantId string, taskMetadata []TaskMetadata) ([]*sqlcv1.PopulateTaskRunDataRow, error)
@@ -993,12 +1007,13 @@ func (r *olapRepository) writeTaskEventBatch(ctx context.Context, tenantId strin
 	return nil
 }
 
-func (r *olapRepository) UpdateTaskStatuses(ctx context.Context, tenantId string) (bool, error) {
+func (r *olapRepository) UpdateTaskStatuses(ctx context.Context, tenantId string) (bool, []UpdateTaskStatusRow, error) {
 	var limit int32 = 10000
 
 	// each partition gets its own goroutine
 	eg := &errgroup.Group{}
 	mu := sync.Mutex{}
+	rows := make([]UpdateTaskStatusRow, 0)
 
 	// if any of the partitions are saturated, we return true
 	isSaturated := false
@@ -1015,7 +1030,7 @@ func (r *olapRepository) UpdateTaskStatuses(ctx context.Context, tenantId string
 
 			defer rollback()
 
-			count, err := r.queries.UpdateTaskStatuses(ctx, tx, sqlcv1.UpdateTaskStatusesParams{
+			statusUpdateRes, err := r.queries.UpdateTaskStatuses(ctx, tx, sqlcv1.UpdateTaskStatusesParams{
 				Partitionnumber: int32(partitionNumber), // nolint: gosec
 				Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
 				Eventlimit:      limit,
@@ -1030,7 +1045,23 @@ func (r *olapRepository) UpdateTaskStatuses(ctx context.Context, tenantId string
 			}
 
 			mu.Lock()
-			isSaturated = isSaturated || count == int64(limit)
+			isSaturated = isSaturated || statusUpdateRes.Count == int64(limit)
+
+			if len(statusUpdateRes.TaskIds) != len(statusUpdateRes.TaskInsertedAts) ||
+				len(statusUpdateRes.TaskIds) != len(statusUpdateRes.ReadableStatuses) ||
+				len(statusUpdateRes.TaskIds) != len(statusUpdateRes.ExternalIds) {
+				return fmt.Errorf("mismatched lengths in status update response")
+			}
+
+			for i, row := range statusUpdateRes.TaskIds {
+				rows = append(rows, UpdateTaskStatusRow{
+					TaskId:         row,
+					TaskInsertedAt: statusUpdateRes.TaskInsertedAts[i],
+					ReadableStatus: sqlcv1.V1ReadableStatusOlap(statusUpdateRes.ReadableStatuses[i]),
+					ExternalId:     statusUpdateRes.ExternalIds[i],
+				})
+			}
+
 			mu.Unlock()
 
 			return nil
@@ -1038,18 +1069,19 @@ func (r *olapRepository) UpdateTaskStatuses(ctx context.Context, tenantId string
 	}
 
 	if err := eg.Wait(); err != nil {
-		return false, err
+		return false, nil, err
 	}
 
-	return isSaturated, nil
+	return isSaturated, rows, nil
 }
 
-func (r *olapRepository) UpdateDAGStatuses(ctx context.Context, tenantId string) (bool, error) {
+func (r *olapRepository) UpdateDAGStatuses(ctx context.Context, tenantId string) (bool, []UpdateDAGStatusRow, error) {
 	var limit int32 = 10000
 
 	// each partition gets its own goroutine
 	eg := &errgroup.Group{}
 	mu := sync.Mutex{}
+	rows := make([]UpdateDAGStatusRow, 0)
 
 	// if any of the partitions are saturated, we return true
 	isSaturated := false
@@ -1066,7 +1098,7 @@ func (r *olapRepository) UpdateDAGStatuses(ctx context.Context, tenantId string)
 
 			defer rollback()
 
-			count, err := r.queries.UpdateDAGStatuses(ctx, tx, sqlcv1.UpdateDAGStatusesParams{
+			statusUpdateRes, err := r.queries.UpdateDAGStatuses(ctx, tx, sqlcv1.UpdateDAGStatusesParams{
 				Partitionnumber: int32(partitionNumber), // nolint: gosec
 				Tenantid:        sqlchelpers.UUIDFromStr(tenantId),
 				Eventlimit:      limit,
@@ -1081,7 +1113,23 @@ func (r *olapRepository) UpdateDAGStatuses(ctx context.Context, tenantId string)
 			}
 
 			mu.Lock()
-			isSaturated = isSaturated || count == int64(limit)
+			isSaturated = isSaturated || statusUpdateRes.Count == int64(limit)
+
+			if len(statusUpdateRes.DagIds) != len(statusUpdateRes.DagInsertedAts) ||
+				len(statusUpdateRes.DagIds) != len(statusUpdateRes.ReadableStatuses) ||
+				len(statusUpdateRes.DagIds) != len(statusUpdateRes.ExternalIds) {
+				return fmt.Errorf("mismatched lengths in status update response")
+			}
+
+			for i, row := range statusUpdateRes.DagIds {
+				rows = append(rows, UpdateDAGStatusRow{
+					DagId:          row,
+					DagInsertedAt:  statusUpdateRes.DagInsertedAts[i],
+					ReadableStatus: sqlcv1.V1ReadableStatusOlap(statusUpdateRes.ReadableStatuses[i]),
+					ExternalId:     statusUpdateRes.ExternalIds[i],
+				})
+			}
+
 			mu.Unlock()
 
 			return nil
@@ -1089,10 +1137,10 @@ func (r *olapRepository) UpdateDAGStatuses(ctx context.Context, tenantId string)
 	}
 
 	if err := eg.Wait(); err != nil {
-		return false, err
+		return false, nil, err
 	}
 
-	return isSaturated, nil
+	return isSaturated, rows, nil
 }
 
 func (r *olapRepository) writeTaskBatch(ctx context.Context, tenantId string, tasks []*sqlcv1.V1Task) error {
@@ -1120,6 +1168,7 @@ func (r *olapRepository) writeTaskBatch(ctx context.Context, tenantId string, ta
 			DagID:                task.DagID,
 			DagInsertedAt:        task.DagInsertedAt,
 			ParentTaskExternalID: task.ParentTaskExternalID,
+			WorkflowRunID:        task.WorkflowRunID,
 		})
 	}
 

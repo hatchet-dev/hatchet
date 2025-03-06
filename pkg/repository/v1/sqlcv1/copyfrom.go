@@ -237,6 +237,7 @@ func (r iteratorForCreateTasksOLAP) Values() ([]interface{}, error) {
 		r.rows[0].StepID,
 		r.rows[0].WorkflowID,
 		r.rows[0].WorkflowVersionID,
+		r.rows[0].WorkflowRunID,
 		r.rows[0].ScheduleTimeout,
 		r.rows[0].StepTimeout,
 		r.rows[0].Priority,
@@ -257,5 +258,5 @@ func (r iteratorForCreateTasksOLAP) Err() error {
 }
 
 func (q *Queries) CreateTasksOLAP(ctx context.Context, db DBTX, arg []CreateTasksOLAPParams) (int64, error) {
-	return db.CopyFrom(ctx, []string{"v1_tasks_olap"}, []string{"tenant_id", "id", "inserted_at", "queue", "action_id", "step_id", "workflow_id", "workflow_version_id", "schedule_timeout", "step_timeout", "priority", "sticky", "desired_worker_id", "external_id", "display_name", "input", "additional_metadata", "dag_id", "dag_inserted_at", "parent_task_external_id"}, &iteratorForCreateTasksOLAP{rows: arg})
+	return db.CopyFrom(ctx, []string{"v1_tasks_olap"}, []string{"tenant_id", "id", "inserted_at", "queue", "action_id", "step_id", "workflow_id", "workflow_version_id", "workflow_run_id", "schedule_timeout", "step_timeout", "priority", "sticky", "desired_worker_id", "external_id", "display_name", "input", "additional_metadata", "dag_id", "dag_inserted_at", "parent_task_external_id"}, &iteratorForCreateTasksOLAP{rows: arg})
 }

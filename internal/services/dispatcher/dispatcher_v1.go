@@ -70,7 +70,7 @@ func populateAssignedAction(tenantId string, task *sqlcv1.V1Task) *contracts.Ass
 		StepRunId:     sqlchelpers.UUIDToStr(task.ExternalID),
 		ActionId:      task.ActionID,
 		StepName:      task.StepReadableID,
-		WorkflowRunId: sqlchelpers.UUIDToStr(task.ExternalID),
+		WorkflowRunId: sqlchelpers.UUIDToStr(task.WorkflowRunID),
 		RetryCount:    task.RetryCount,
 	}
 

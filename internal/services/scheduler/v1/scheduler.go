@@ -505,6 +505,8 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 				tenantId,
 				schedulingTimedOut.TaskID,
 				schedulingTimedOut.TaskInsertedAt,
+				sqlchelpers.UUIDToStr(schedulingTimedOut.ExternalID),
+				sqlchelpers.UUIDToStr(schedulingTimedOut.WorkflowRunID),
 				schedulingTimedOut.RetryCount,
 				sqlcv1.V1EventTypeOlapSCHEDULINGTIMEDOUT,
 				false,
@@ -568,6 +570,8 @@ func (s *Scheduler) internalRetry(ctx context.Context, tenantId string, assigned
 			tenantId,
 			a.QueueItem.TaskID,
 			a.QueueItem.TaskInsertedAt,
+			sqlchelpers.UUIDToStr(a.QueueItem.ExternalID),
+			sqlchelpers.UUIDToStr(a.QueueItem.WorkflowRunID),
 			a.QueueItem.RetryCount,
 			false,
 			"could not assign step run to worker",
@@ -590,25 +594,6 @@ func (s *Scheduler) internalRetry(ctx context.Context, tenantId string, assigned
 		}
 	}
 }
-
-// func getStepRunCancelTask(tenantId, stepRunId, reason string) *msgqueue.Message {
-// 	payload, _ := datautils.ToJSONMap(tasktypes.StepRunCancelTaskPayload{
-// 		StepRunId:           stepRunId,
-// 		CancelledReason:     reason,
-// 		PropagateToChildren: true,
-// 	})
-
-// 	metadata, _ := datautils.ToJSONMap(tasktypes.StepRunCancelTaskMetadata{
-// 		TenantId: tenantId,
-// 	})
-
-// 	return &msgqueue.Message{
-// 		ID:       "step-run-cancel",
-// 		Payload:  payload,
-// 		Metadata: metadata,
-// 		Retries:  3,
-// 	}
-// }
 
 func (s *Scheduler) notifyAfterConcurrency(ctx context.Context, tenantId string, res *v1.ConcurrencyResults) {
 	uniqueQueueNames := make(map[string]struct{}, 0)
@@ -653,6 +638,8 @@ func (s *Scheduler) notifyAfterConcurrency(ctx context.Context, tenantId string,
 			tenantId,
 			cancelled.TaskIdInsertedAtRetryCount.Id,
 			cancelled.TaskIdInsertedAtRetryCount.InsertedAt,
+			cancelled.TaskExternalId,
+			cancelled.WorkflowRunId,
 			cancelled.TaskIdInsertedAtRetryCount.RetryCount,
 			eventType,
 			shouldNotify,

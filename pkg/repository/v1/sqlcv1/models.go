@@ -2302,8 +2302,10 @@ type V1ConcurrencySlot struct {
 	TaskID            int64              `json:"task_id"`
 	TaskInsertedAt    pgtype.Timestamptz `json:"task_inserted_at"`
 	TaskRetryCount    int32              `json:"task_retry_count"`
+	ExternalID        pgtype.UUID        `json:"external_id"`
 	TenantID          pgtype.UUID        `json:"tenant_id"`
 	WorkflowID        pgtype.UUID        `json:"workflow_id"`
+	WorkflowRunID     pgtype.UUID        `json:"workflow_run_id"`
 	StrategyID        int64              `json:"strategy_id"`
 	Priority          int32              `json:"priority"`
 	Key               string             `json:"key"`
@@ -2390,6 +2392,7 @@ type V1Match struct {
 	TriggerStepID                 pgtype.UUID        `json:"trigger_step_id"`
 	TriggerStepIndex              pgtype.Int8        `json:"trigger_step_index"`
 	TriggerExternalID             pgtype.UUID        `json:"trigger_external_id"`
+	TriggerWorkflowRunID          pgtype.UUID        `json:"trigger_workflow_run_id"`
 	TriggerParentTaskExternalID   pgtype.UUID        `json:"trigger_parent_task_external_id"`
 	TriggerParentTaskID           pgtype.Int8        `json:"trigger_parent_task_id"`
 	TriggerParentTaskInsertedAt   pgtype.Timestamptz `json:"trigger_parent_task_inserted_at"`
@@ -2427,9 +2430,11 @@ type V1QueueItem struct {
 	Queue             string             `json:"queue"`
 	TaskID            int64              `json:"task_id"`
 	TaskInsertedAt    pgtype.Timestamptz `json:"task_inserted_at"`
+	ExternalID        pgtype.UUID        `json:"external_id"`
 	ActionID          string             `json:"action_id"`
 	StepID            pgtype.UUID        `json:"step_id"`
 	WorkflowID        pgtype.UUID        `json:"workflow_id"`
+	WorkflowRunID     pgtype.UUID        `json:"workflow_run_id"`
 	ScheduleTimeoutAt pgtype.Timestamp   `json:"schedule_timeout_at"`
 	StepTimeout       pgtype.Text        `json:"step_timeout"`
 	Priority          int32              `json:"priority"`
@@ -2490,6 +2495,7 @@ type V1Task struct {
 	StepReadableID         string             `json:"step_readable_id"`
 	WorkflowID             pgtype.UUID        `json:"workflow_id"`
 	WorkflowVersionID      pgtype.UUID        `json:"workflow_version_id"`
+	WorkflowRunID          pgtype.UUID        `json:"workflow_run_id"`
 	ScheduleTimeout        string             `json:"schedule_timeout"`
 	StepTimeout            pgtype.Text        `json:"step_timeout"`
 	Priority               pgtype.Int4        `json:"priority"`
@@ -2598,6 +2604,7 @@ type V1TasksOlap struct {
 	StepID               pgtype.UUID          `json:"step_id"`
 	WorkflowID           pgtype.UUID          `json:"workflow_id"`
 	WorkflowVersionID    pgtype.UUID          `json:"workflow_version_id"`
+	WorkflowRunID        pgtype.UUID          `json:"workflow_run_id"`
 	ScheduleTimeout      string               `json:"schedule_timeout"`
 	StepTimeout          pgtype.Text          `json:"step_timeout"`
 	Priority             pgtype.Int4          `json:"priority"`

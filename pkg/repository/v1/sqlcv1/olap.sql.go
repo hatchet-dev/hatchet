@@ -119,6 +119,7 @@ type CreateTasksOLAPParams struct {
 	StepID               pgtype.UUID          `json:"step_id"`
 	WorkflowID           pgtype.UUID          `json:"workflow_id"`
 	WorkflowVersionID    pgtype.UUID          `json:"workflow_version_id"`
+	WorkflowRunID        pgtype.UUID          `json:"workflow_run_id"`
 	ScheduleTimeout      string               `json:"schedule_timeout"`
 	StepTimeout          pgtype.Text          `json:"step_timeout"`
 	Priority             pgtype.Int4          `json:"priority"`
@@ -994,7 +995,7 @@ WITH latest_retry_count AS (
 )
 
 SELECT
-    t.tenant_id, t.id, t.inserted_at, t.external_id, t.queue, t.action_id, t.step_id, t.workflow_id, t.workflow_version_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.display_name, t.input, t.additional_metadata, t.readable_status, t.latest_retry_count, t.latest_worker_id, t.dag_id, t.dag_inserted_at, t.parent_task_external_id,
+    t.tenant_id, t.id, t.inserted_at, t.external_id, t.queue, t.action_id, t.step_id, t.workflow_id, t.workflow_version_id, t.workflow_run_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.display_name, t.input, t.additional_metadata, t.readable_status, t.latest_retry_count, t.latest_worker_id, t.dag_id, t.dag_inserted_at, t.parent_task_external_id,
     st.readable_status::v1_readable_status_olap as status,
     f.finished_at::timestamptz as finished_at,
     s.started_at::timestamptz as started_at,
@@ -1035,6 +1036,7 @@ type PopulateSingleTaskRunDataRow struct {
 	StepID               pgtype.UUID          `json:"step_id"`
 	WorkflowID           pgtype.UUID          `json:"workflow_id"`
 	WorkflowVersionID    pgtype.UUID          `json:"workflow_version_id"`
+	WorkflowRunID        pgtype.UUID          `json:"workflow_run_id"`
 	ScheduleTimeout      string               `json:"schedule_timeout"`
 	StepTimeout          pgtype.Text          `json:"step_timeout"`
 	Priority             pgtype.Int4          `json:"priority"`
@@ -1070,6 +1072,7 @@ func (q *Queries) PopulateSingleTaskRunData(ctx context.Context, db DBTX, arg Po
 		&i.StepID,
 		&i.WorkflowID,
 		&i.WorkflowVersionID,
+		&i.WorkflowRunID,
 		&i.ScheduleTimeout,
 		&i.StepTimeout,
 		&i.Priority,
@@ -1354,7 +1357,7 @@ WITH lookup_task AS (
         external_id = $1::uuid
 )
 SELECT
-    t.tenant_id, t.id, t.inserted_at, t.external_id, t.queue, t.action_id, t.step_id, t.workflow_id, t.workflow_version_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.display_name, t.input, t.additional_metadata, t.readable_status, t.latest_retry_count, t.latest_worker_id, t.dag_id, t.dag_inserted_at, t.parent_task_external_id,
+    t.tenant_id, t.id, t.inserted_at, t.external_id, t.queue, t.action_id, t.step_id, t.workflow_id, t.workflow_version_id, t.workflow_run_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.display_name, t.input, t.additional_metadata, t.readable_status, t.latest_retry_count, t.latest_worker_id, t.dag_id, t.dag_inserted_at, t.parent_task_external_id,
     e.output,
     e.error_message
 FROM
@@ -1375,6 +1378,7 @@ type ReadTaskByExternalIDRow struct {
 	StepID               pgtype.UUID          `json:"step_id"`
 	WorkflowID           pgtype.UUID          `json:"workflow_id"`
 	WorkflowVersionID    pgtype.UUID          `json:"workflow_version_id"`
+	WorkflowRunID        pgtype.UUID          `json:"workflow_run_id"`
 	ScheduleTimeout      string               `json:"schedule_timeout"`
 	StepTimeout          pgtype.Text          `json:"step_timeout"`
 	Priority             pgtype.Int4          `json:"priority"`
@@ -1406,6 +1410,7 @@ func (q *Queries) ReadTaskByExternalID(ctx context.Context, db DBTX, externalid 
 		&i.StepID,
 		&i.WorkflowID,
 		&i.WorkflowVersionID,
+		&i.WorkflowRunID,
 		&i.ScheduleTimeout,
 		&i.StepTimeout,
 		&i.Priority,
@@ -1646,6 +1651,8 @@ WITH locked_events AS (
         dag_task_counts dtc
     WHERE
         (d.id, d.inserted_at) = (dtc.id, dtc.inserted_at)
+    RETURNING
+        d.id, d.inserted_at, d.readable_status, d.external_id
 ), events_to_requeue AS (
     -- Get events which don't have a corresponding locked_task
     SELECT
@@ -1686,11 +1693,28 @@ WITH locked_events AS (
         requeue_retries < 10
     RETURNING
         tenant_id, requeue_after, requeue_retries, id, dag_id, dag_inserted_at
+), event_count AS (
+    SELECT
+        COUNT(*) as count
+    FROM
+        locked_events
+), rows_to_return AS (
+    SELECT
+        ARRAY_REMOVE(ARRAY_AGG(d.id), NULL)::bigint[] AS dag_ids,
+        ARRAY_REMOVE(ARRAY_AGG(d.inserted_at), NULL)::timestamptz[] AS dag_inserted_ats,
+        ARRAY_REMOVE(ARRAY_AGG(d.readable_status), NULL)::text[] AS readable_statuses,
+        ARRAY_REMOVE(ARRAY_AGG(d.external_id), NULL)::uuid[] AS external_ids
+    FROM
+        updated_dags d
 )
 SELECT
-    COUNT(*)
+    (SELECT count FROM event_count) AS count,
+    dag_ids,
+    dag_inserted_ats,
+    readable_statuses,
+    external_ids
 FROM
-    locked_events
+    rows_to_return
 `
 
 type UpdateDAGStatusesParams struct {
@@ -1699,11 +1723,25 @@ type UpdateDAGStatusesParams struct {
 	Eventlimit      int32       `json:"eventlimit"`
 }
 
-func (q *Queries) UpdateDAGStatuses(ctx context.Context, db DBTX, arg UpdateDAGStatusesParams) (int64, error) {
+type UpdateDAGStatusesRow struct {
+	Count            int64                `json:"count"`
+	DagIds           []int64              `json:"dag_ids"`
+	DagInsertedAts   []pgtype.Timestamptz `json:"dag_inserted_ats"`
+	ReadableStatuses []string             `json:"readable_statuses"`
+	ExternalIds      []pgtype.UUID        `json:"external_ids"`
+}
+
+func (q *Queries) UpdateDAGStatuses(ctx context.Context, db DBTX, arg UpdateDAGStatusesParams) (*UpdateDAGStatusesRow, error) {
 	row := db.QueryRow(ctx, updateDAGStatuses, arg.Partitionnumber, arg.Tenantid, arg.Eventlimit)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
+	var i UpdateDAGStatusesRow
+	err := row.Scan(
+		&i.Count,
+		&i.DagIds,
+		&i.DagInsertedAts,
+		&i.ReadableStatuses,
+		&i.ExternalIds,
+	)
+	return &i, err
 }
 
 const updateTaskStatuses = `-- name: UpdateTaskStatuses :one
@@ -1799,7 +1837,7 @@ WITH locked_events AS (
                 )
             )
     RETURNING
-        t.tenant_id, t.id, t.inserted_at
+        t.tenant_id, t.id, t.inserted_at, t.readable_status, t.external_id
 ), events_to_requeue AS (
     -- Get events which don't have a corresponding locked_task
     SELECT
@@ -1849,11 +1887,28 @@ WITH locked_events AS (
         requeue_retries < 10
     RETURNING
         tenant_id, requeue_after, requeue_retries, id, task_id, task_inserted_at, event_type, readable_status, retry_count, worker_id
+), event_count AS (
+    SELECT
+        COUNT(*) as count
+    FROM
+        locked_events
+), rows_to_return AS (
+    SELECT
+        ARRAY_REMOVE(ARRAY_AGG(t.id), NULL)::bigint[] AS task_ids,
+        ARRAY_REMOVE(ARRAY_AGG(t.inserted_at), NULL)::timestamptz[] AS task_inserted_ats,
+        ARRAY_REMOVE(ARRAY_AGG(t.readable_status), NULL)::text[] AS readable_statuses,
+        ARRAY_REMOVE(ARRAY_AGG(t.external_id), NULL)::uuid[] AS external_ids
+    FROM
+        updated_tasks t
 )
 SELECT
-    COUNT(*)
+    (SELECT count FROM event_count) AS count,
+    task_ids,
+    task_inserted_ats,
+    readable_statuses,
+    external_ids
 FROM
-    locked_events
+    rows_to_return
 `
 
 type UpdateTaskStatusesParams struct {
@@ -1862,9 +1917,23 @@ type UpdateTaskStatusesParams struct {
 	Eventlimit      int32       `json:"eventlimit"`
 }
 
-func (q *Queries) UpdateTaskStatuses(ctx context.Context, db DBTX, arg UpdateTaskStatusesParams) (int64, error) {
+type UpdateTaskStatusesRow struct {
+	Count            int64                `json:"count"`
+	TaskIds          []int64              `json:"task_ids"`
+	TaskInsertedAts  []pgtype.Timestamptz `json:"task_inserted_ats"`
+	ReadableStatuses []string             `json:"readable_statuses"`
+	ExternalIds      []pgtype.UUID        `json:"external_ids"`
+}
+
+func (q *Queries) UpdateTaskStatuses(ctx context.Context, db DBTX, arg UpdateTaskStatusesParams) (*UpdateTaskStatusesRow, error) {
 	row := db.QueryRow(ctx, updateTaskStatuses, arg.Partitionnumber, arg.Tenantid, arg.Eventlimit)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
+	var i UpdateTaskStatusesRow
+	err := row.Scan(
+		&i.Count,
+		&i.TaskIds,
+		&i.TaskInsertedAts,
+		&i.ReadableStatuses,
+		&i.ExternalIds,
+	)
+	return &i, err
 }

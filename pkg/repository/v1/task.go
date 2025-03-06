@@ -22,6 +22,10 @@ type CreateTaskOpts struct {
 	// (required) the external id
 	ExternalId string `validate:"required,uuid"`
 
+	// (required) the workflow run id. note this may be the same as the external id if this is a
+	// single-task workflow, otherwise it represents the external id of the DAG.
+	WorkflowRunId string `validate:"required,uuid"`
+
 	// (required) the step id
 	StepId string `validate:"required,uuid"`
 
@@ -1466,6 +1470,7 @@ func (r *sharedRepository) insertTasks(
 	retryMaxBackoffs := make([]pgtype.Int4, len(tasks))
 	createExpressionOpts := make(map[string][]createTaskExpressionEvalOpt, 0)
 	workflowVersionIds := make([]pgtype.UUID, len(tasks))
+	workflowRunIds := make([]pgtype.UUID, len(tasks))
 
 	unix := time.Now().UnixMilli()
 
@@ -1485,6 +1490,7 @@ func (r *sharedRepository) insertTasks(
 		stepIndices[i] = int64(task.StepIndex)
 		retryBackoffFactors[i] = stepConfig.RetryBackoffFactor
 		retryMaxBackoffs[i] = stepConfig.RetryMaxBackoff
+		workflowRunIds[i] = sqlchelpers.UUIDFromStr(task.WorkflowRunId)
 
 		// TODO: case on whether this is a v1 or v2 task by looking at the step data. for now,
 		// we're assuming a v1 task.
@@ -1710,6 +1716,7 @@ func (r *sharedRepository) insertTasks(
 		RetryBackoffFactor:     retryBackoffFactors,
 		RetryMaxBackoff:        retryMaxBackoffs,
 		WorkflowVersionIds:     workflowVersionIds,
+		WorkflowRunIds:         workflowRunIds,
 	})
 
 	if err != nil {

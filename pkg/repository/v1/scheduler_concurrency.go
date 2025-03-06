@@ -18,6 +18,10 @@ type TaskWithCancelledReason struct {
 	*TaskIdInsertedAtRetryCount
 
 	CancelledReason string
+
+	TaskExternalId string
+
+	WorkflowRunId string
 }
 
 type RunConcurrencyResult struct {
@@ -161,6 +165,8 @@ func (c *ConcurrencyRepositoryImpl) runGroupRoundRobin(
 			cancelled = append(cancelled, TaskWithCancelledReason{
 				TaskIdInsertedAtRetryCount: idRetryCount,
 				CancelledReason:            "SCHEDULING_TIMED_OUT",
+				TaskExternalId:             sqlchelpers.UUIDToStr(r.ExternalID),
+				WorkflowRunId:              sqlchelpers.UUIDToStr(r.WorkflowRunID),
 			})
 		} else {
 			queued = append(queued, TaskWithQueue{

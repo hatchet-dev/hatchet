@@ -58,6 +58,8 @@ WITH lookup_rows AS (
         t.inserted_at,
         t.retry_count,
         t.external_id,
+        t.workflow_run_id,
+        t.additional_metadata,
         t.dag_id,
         t.dag_inserted_at,
         t.parent_task_id,
@@ -81,6 +83,8 @@ SELECT
     t.inserted_at,
     t.retry_count,
     t.external_id,
+    t.workflow_run_id,
+    t.additional_metadata,
     t.dag_id,
     t.dag_inserted_at,
     t.parent_task_id,
@@ -181,6 +185,21 @@ WITH input AS (
             FROM
                 retry_queue_items_to_delete
         )
+), queue_items_to_delete AS (
+    SELECT
+        task_id, task_inserted_at, retry_count
+    FROM
+        v1_queue_item
+    WHERE
+        (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM input)
+    ORDER BY
+        task_id, task_inserted_at, retry_count
+    FOR UPDATE
+), deleted_qis AS (
+    DELETE FROM
+        v1_queue_item
+    WHERE
+        (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM queue_items_to_delete)
 )
 SELECT
     t.queue,
@@ -294,6 +313,7 @@ RETURNING
 WITH expired_runtimes AS (
     SELECT
         task_id,
+        task_inserted_at,
         retry_count,
         worker_id
     FROM
@@ -309,23 +329,26 @@ WITH expired_runtimes AS (
 ), locked_tasks AS (
     SELECT
         v1_task.id,
+        v1_task.inserted_at,
         v1_task.retry_count,
         v1_task.step_id,
+        v1_task.external_id,
+        v1_task.workflow_run_id,
         expired_runtimes.worker_id
     FROM
         v1_task
     JOIN
         -- NOTE: we only join when retry count matches
-        expired_runtimes ON expired_runtimes.task_id = v1_task.id AND expired_runtimes.retry_count = v1_task.retry_count
+        expired_runtimes ON expired_runtimes.task_id = v1_task.id AND expired_runtimes.task_inserted_at = v1_task.inserted_at AND expired_runtimes.retry_count = v1_task.retry_count
     -- order by the task id to get a stable lock order
     ORDER BY
-        id
+        id, inserted_at, retry_count
     FOR UPDATE
 ), deleted_tqis AS (
     DELETE FROM
         v1_task_runtime
     WHERE
-        (task_id, retry_count) IN (SELECT task_id, retry_count FROM expired_runtimes)
+        (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM expired_runtimes)
 ), tasks_to_steps AS (
     SELECT
         t.id,
@@ -344,7 +367,7 @@ WITH expired_runtimes AS (
     FROM
         tasks_to_steps
     WHERE
-        v1_task.id = tasks_to_steps.id
+        (v1_task.id, v1_task.inserted_at) IN (SELECT id, inserted_at FROM locked_tasks)
         AND tasks_to_steps."retries" > v1_task.app_retry_count
 )
 SELECT

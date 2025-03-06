@@ -66,6 +66,7 @@ INSERT INTO v1_tasks_olap (
     step_id,
     workflow_id,
     workflow_version_id,
+    workflow_run_id,
     schedule_timeout,
     step_timeout,
     priority,
@@ -98,7 +99,8 @@ INSERT INTO v1_tasks_olap (
     $17,
     $18,
     $19,
-    $20
+    $20,
+    $21
 );
 
 -- name: CreateDAGsOLAP :copyfrom
@@ -672,7 +674,7 @@ WITH locked_events AS (
                 )
             )
     RETURNING
-        t.tenant_id, t.id, t.inserted_at
+        t.tenant_id, t.id, t.inserted_at, t.readable_status, t.external_id
 ), events_to_requeue AS (
     -- Get events which don't have a corresponding locked_task
     SELECT
@@ -722,11 +724,28 @@ WITH locked_events AS (
         requeue_retries < 10
     RETURNING
         *
+), event_count AS (
+    SELECT
+        COUNT(*) as count
+    FROM
+        locked_events
+), rows_to_return AS (
+    SELECT
+        ARRAY_REMOVE(ARRAY_AGG(t.id), NULL)::bigint[] AS task_ids,
+        ARRAY_REMOVE(ARRAY_AGG(t.inserted_at), NULL)::timestamptz[] AS task_inserted_ats,
+        ARRAY_REMOVE(ARRAY_AGG(t.readable_status), NULL)::text[] AS readable_statuses,
+        ARRAY_REMOVE(ARRAY_AGG(t.external_id), NULL)::uuid[] AS external_ids
+    FROM
+        updated_tasks t
 )
 SELECT
-    COUNT(*)
+    (SELECT count FROM event_count) AS count,
+    task_ids,
+    task_inserted_ats,
+    readable_statuses,
+    external_ids
 FROM
-    locked_events;
+    rows_to_return;
 
 -- name: UpdateDAGStatuses :one
 WITH locked_events AS (
@@ -798,6 +817,8 @@ WITH locked_events AS (
         dag_task_counts dtc
     WHERE
         (d.id, d.inserted_at) = (dtc.id, dtc.inserted_at)
+    RETURNING
+        d.id, d.inserted_at, d.readable_status, d.external_id
 ), events_to_requeue AS (
     -- Get events which don't have a corresponding locked_task
     SELECT
@@ -838,11 +859,28 @@ WITH locked_events AS (
         requeue_retries < 10
     RETURNING
         *
+), event_count AS (
+    SELECT
+        COUNT(*) as count
+    FROM
+        locked_events
+), rows_to_return AS (
+    SELECT
+        ARRAY_REMOVE(ARRAY_AGG(d.id), NULL)::bigint[] AS dag_ids,
+        ARRAY_REMOVE(ARRAY_AGG(d.inserted_at), NULL)::timestamptz[] AS dag_inserted_ats,
+        ARRAY_REMOVE(ARRAY_AGG(d.readable_status), NULL)::text[] AS readable_statuses,
+        ARRAY_REMOVE(ARRAY_AGG(d.external_id), NULL)::uuid[] AS external_ids
+    FROM
+        updated_dags d
 )
 SELECT
-    COUNT(*)
+    (SELECT count FROM event_count) AS count,
+    dag_ids,
+    dag_inserted_ats,
+    readable_statuses,
+    external_ids
 FROM
-    locked_events;
+    rows_to_return;
 
 -- name: PopulateDAGMetadata :many
 WITH input AS (

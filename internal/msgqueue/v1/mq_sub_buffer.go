@@ -204,6 +204,10 @@ func (m *msgIdBuffer) flush() {
 	}
 
 	if len(payloads) == 0 {
+		for _, msg := range msgsWithResultCh {
+			close(msg.result)
+		}
+
 		return
 	}
 
