@@ -217,44 +217,6 @@ const ModalContent = ({ label, params }: ModalContentProps) => {
               setValues={(values) => cf.setWorkflowId(values[0] as string)}
             />
           )}
-          {cf.filters.isCustomTimeRange && [
-            <Button
-              key="clear"
-              onClick={() => {
-                cf.setCustomTimeRange(undefined);
-              }}
-              variant="outline"
-              size="sm"
-              className="text-xs h-9 py-2"
-            >
-              <XCircleIcon className="h-[18px] w-[18px] mr-2" />
-              Clear
-            </Button>,
-            <DateTimePicker
-              key="after"
-              label="After"
-              date={
-                cf.filters.createdAfter
-                  ? new Date(cf.filters.createdAfter)
-                  : undefined
-              }
-              setDate={(date) => {
-                cf.setCreatedAfter(date?.toISOString());
-              }}
-            />,
-            <DateTimePicker
-              key="before"
-              label="Before"
-              date={
-                cf.filters.finishedBefore
-                  ? new Date(cf.filters.finishedBefore)
-                  : undefined
-              }
-              setDate={(date) => {
-                cf.setFinishedBefore(date?.toISOString());
-              }}
-            />,
-          ]}
           <Select
             value={
               cf.filters.isCustomTimeRange ? 'custom' : cf.filters.timeWindow
@@ -282,6 +244,46 @@ const ModalContent = ({ label, params }: ModalContentProps) => {
             </SelectContent>
           </Select>
         </div>
+        {cf.filters.isCustomTimeRange && (
+          <div className="flex flex-row w-full flex-1 gap-x-2 items-start justify-start gap-y-4 p-6">
+            <Button
+              key="clear"
+              onClick={() => {
+                cf.setCustomTimeRange(undefined);
+              }}
+              variant="outline"
+              size="sm"
+              className="text-xs h-9 py-2 flex-1"
+            >
+              <XCircleIcon className="h-[18px] w-[18px] mr-2" />
+              Clear
+            </Button>
+            <DateTimePicker
+              key="after"
+              label="After"
+              date={
+                cf.filters.createdAfter
+                  ? new Date(cf.filters.createdAfter)
+                  : undefined
+              }
+              setDate={(date) => {
+                cf.setCreatedAfter(date?.toISOString());
+              }}
+            />
+            <DateTimePicker
+              key="before"
+              label="Before"
+              date={
+                cf.filters.finishedBefore
+                  ? new Date(cf.filters.finishedBefore)
+                  : undefined
+              }
+              setDate={(date) => {
+                cf.setFinishedBefore(date?.toISOString());
+              }}
+            />
+          </div>
+        )}
       </>
     );
   } else {
@@ -300,7 +302,7 @@ const ConfirmActionModal = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogContent className="sm:max-w-[625px] py-12 max-h-screen overflow-auto">
+      <DialogContent className="sm:max-w-[800px] py-12 max-h-screen overflow-auto">
         <DialogHeader className="gap-2">
           <div className="flex flex-row justify-between items-center w-full">
             <DialogTitle>{label} task runs</DialogTitle>
