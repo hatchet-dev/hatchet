@@ -448,7 +448,7 @@ func (r *TaskRepositoryImpl) GetTaskByExternalId(ctx context.Context, tenantId, 
 	}
 
 	if len(dbTasks) > 1 {
-		return nil, errors.New("found more than one task")
+		return nil, fmt.Errorf("found more than one task for %s", taskExternalId)
 	}
 
 	// set the cache

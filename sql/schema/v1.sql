@@ -601,7 +601,8 @@ BEGIN
         tenant_id,
         id,
         inserted_at
-    FROM new_table;
+    FROM new_table
+    ON CONFLICT (external_id) DO NOTHING;
 
     RETURN NULL;
 END;
@@ -1023,7 +1024,8 @@ BEGIN
         tenant_id,
         id,
         inserted_at
-    FROM new_table;
+    FROM new_table
+    ON CONFLICT (external_id) DO NOTHING;
 
     RETURN NULL;
 END;
@@ -1452,7 +1454,8 @@ BEGIN
         external_id,
         id,
         inserted_at
-    FROM new_rows;
+    FROM new_rows
+    ON CONFLICT (external_id) DO NOTHING;
 
     -- If the task has a dag_id and dag_inserted_at, insert into the lookup table
     INSERT INTO v1_dag_to_task_olap (
@@ -1558,7 +1561,8 @@ BEGIN
         external_id,
         id,
         inserted_at
-    FROM new_rows;
+    FROM new_rows
+    ON CONFLICT (external_id) DO NOTHING;
 
     RETURN NULL;
 END;

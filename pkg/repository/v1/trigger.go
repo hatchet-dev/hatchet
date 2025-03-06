@@ -588,7 +588,7 @@ func (r *TriggerRepositoryImpl) triggerWorkflows(ctx context.Context, tenantId s
 				eventMatches[tuple.externalId] = append(eventMatches[tuple.externalId], CreateMatchOpts{
 					Kind:                 sqlcv1.V1MatchKindTRIGGER,
 					Conditions:           conditions,
-					TriggerExternalId:    &tupleExternalId,
+					TriggerExternalId:    &taskExternalId,
 					TriggerWorkflowRunId: &tupleExternalId,
 					TriggerStepId:        &stepId,
 					TriggerStepIndex: pgtype.Int8{

@@ -534,7 +534,6 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 			triggerStepIds = append(triggerStepIds, sqlchelpers.UUIDFromStr(*match.TriggerStepId))
 			triggerStepIndices = append(triggerStepIndices, match.TriggerStepIndex.Int64)
 			triggerExternalIds = append(triggerExternalIds, sqlchelpers.UUIDFromStr(*match.TriggerExternalId))
-			triggerWorkflowRunIds = append(triggerWorkflowRunIds, sqlchelpers.UUIDFromStr(*match.TriggerWorkflowRunId))
 			triggerParentExternalIds = append(triggerParentExternalIds, match.TriggerParentTaskExternalId)
 			triggerParentTaskIds = append(triggerParentTaskIds, match.TriggerParentTaskId)
 			triggerParentTaskInsertedAts = append(triggerParentTaskInsertedAts, match.TriggerParentTaskInsertedAt)
@@ -545,6 +544,12 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 				triggerExistingTaskIds = append(triggerExistingTaskIds, pgtype.Int8{Int64: *match.TriggerExistingTaskId, Valid: true})
 			} else {
 				triggerExistingTaskIds = append(triggerExistingTaskIds, pgtype.Int8{})
+			}
+
+			if match.TriggerWorkflowRunId != nil {
+				triggerWorkflowRunIds = append(triggerWorkflowRunIds, sqlchelpers.UUIDFromStr(*match.TriggerWorkflowRunId))
+			} else {
+				triggerWorkflowRunIds = append(triggerWorkflowRunIds, pgtype.UUID{})
 			}
 
 			triggerExistingTaskInsertedAts = append(triggerExistingTaskInsertedAts, match.TriggerExistingTaskInsertedAt)
