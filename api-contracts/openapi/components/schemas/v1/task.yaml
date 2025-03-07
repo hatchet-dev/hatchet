@@ -106,6 +106,15 @@ V1TaskSummary:
     - type
     - workflowId
 
+V1WorkflowRunDisplayName:
+  properties:
+    metadata:
+      $ref: ".././metadata.yaml#/APIResourceMeta"
+    displayName:
+      type: string
+  required:
+    - metadata
+    - displayName
 
 V1DagChildren:
   type: object
@@ -128,6 +137,20 @@ V1TaskSummaryList:
       items:
         $ref: "#/V1TaskSummary"
       description: The list of tasks
+  required:
+    - pagination
+    - rows
+
+V1WorkflowRunDisplayNameList:
+  type: object
+  properties:
+    pagination:
+      $ref: ".././metadata.yaml#/PaginationResponse"
+    rows:
+      type: array
+      items:
+        $ref: "#/V1WorkflowRunDisplayName"
+      description: The list of display names
   required:
     - pagination
     - rows

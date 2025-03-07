@@ -32,6 +32,8 @@ paths:
     $ref: "./paths/v1/tasks/tasks.yaml#/listTasksByDAGIds"
   /api/v1/stable/tenants/{tenant}/workflow-runs:
     $ref: "./paths/v1/workflow-runs/workflow_run.yaml#/listWorkflowRuns"
+  /api/v1/stable/tenants/{tenant}/workflow-runs/display-names:
+    $ref: "./paths/v1/workflow-runs/workflow_run.yaml#/listWorkflowRunDisplayNames"
   /api/v1/stable/tenants/{tenant}/workflow-runs/trigger:
     $ref: "./paths/v1/workflow-runs/workflow_run.yaml#/trigger"
   /api/v1/stable/workflow-runs/{v1-workflow-run}:
