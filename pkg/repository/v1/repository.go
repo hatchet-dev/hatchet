@@ -14,7 +14,9 @@ type Repository interface {
 	Scheduler() SchedulerRepository
 	Matches() MatchRepository
 	OLAP() OLAPRepository
+	OverwriteOLAPRepository(o OLAPRepository)
 	Logs() LogLineRepository
+	Workers() WorkerRepository
 }
 
 type repositoryImpl struct {
@@ -24,6 +26,7 @@ type repositoryImpl struct {
 	matches   MatchRepository
 	olap      OLAPRepository
 	logs      LogLineRepository
+	workers   WorkerRepository
 }
 
 func NewRepository(pool *pgxpool.Pool, l *zerolog.Logger, taskRetentionPeriod, olapRetentionPeriod time.Duration) (Repository, func() error) {
@@ -42,8 +45,9 @@ func NewRepository(pool *pgxpool.Pool, l *zerolog.Logger, taskRetentionPeriod, o
 		tasks:     newTaskRepository(shared, taskRetentionPeriod),
 		scheduler: newSchedulerRepository(shared),
 		matches:   matchRepo,
-		olap:      newOLAPRepository(shared, olapRetentionPeriod),
+		olap:      NewOLAPRepository(shared, olapRetentionPeriod),
 		logs:      newLogLineRepository(shared),
+		workers:   newWorkerRepository(shared),
 	}
 
 	return impl, func() error {
@@ -71,6 +75,14 @@ func (r *repositoryImpl) OLAP() OLAPRepository {
 	return r.olap
 }
 
+func (r *repositoryImpl) OverwriteOLAPRepository(o OLAPRepository) {
+	r.olap = o
+}
+
 func (r *repositoryImpl) Logs() LogLineRepository {
 	return r.logs
+}
+
+func (r *repositoryImpl) Workers() WorkerRepository {
+	return r.workers
 }

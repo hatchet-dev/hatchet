@@ -83,13 +83,13 @@ func (t *WorkerService) workerGetV0(ctx echo.Context, tenant *dbsqlc.Tenant, req
 func (t *WorkerService) workerGetV1(ctx echo.Context, tenant *dbsqlc.Tenant, request gen.WorkerGetRequestObject) (gen.WorkerGetResponseObject, error) {
 	workerV0 := ctx.Get("worker").(*dbsqlc.GetWorkerByIdRow)
 
-	worker, err := t.config.V1.OLAP().GetWorkerById(sqlchelpers.UUIDToStr(workerV0.Worker.ID))
+	worker, err := t.config.V1.Workers().GetWorkerById(sqlchelpers.UUIDToStr(workerV0.Worker.ID))
 
 	if err != nil {
 		return nil, err
 	}
 
-	slotState, recent, err := t.config.V1.OLAP().ListWorkerState(
+	slotState, recent, err := t.config.V1.Workers().ListWorkerState(
 		sqlchelpers.UUIDToStr(worker.Worker.TenantId),
 		sqlchelpers.UUIDToStr(worker.Worker.ID),
 		int(worker.Worker.MaxRuns),
