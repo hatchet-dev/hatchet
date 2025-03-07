@@ -110,11 +110,17 @@ func (q *Queries) ArchiveStepRunResultFromStepRun(ctx context.Context, db DBTX, 
 
 const bulkBackoffStepRun = `-- name: BulkBackoffStepRun :exec
 UPDATE
-    "StepRun"
+    "StepRun" sr
 SET
-    "status" = 'BACKOFF'
-WHERE
-    "id" = ANY($1::uuid[])
+    sr."status" = 'BACKOFF'
+FROM (
+    SELECT "id"
+    FROM "StepRun" sr2
+    WHERE sr2."id" = ANY($1::uuid[])
+    ORDER BY  sr2."id"
+    FOR UPDATE
+) upd
+WHERE sr."id" = upd."id"
 `
 
 func (q *Queries) BulkBackoffStepRun(ctx context.Context, db DBTX, steprunids []pgtype.UUID) error {
@@ -357,11 +363,17 @@ func (q *Queries) BulkMarkStepRunsAsCancelling(ctx context.Context, db DBTX, ste
 
 const bulkRetryStepRun = `-- name: BulkRetryStepRun :exec
 UPDATE
-    "StepRun"
+    "StepRun" sr
 SET
-    "status" = 'PENDING_ASSIGNMENT'
-WHERE
-    "id" = ANY($1::uuid[])
+    sr."status" = 'PENDING_ASSIGNMENT'
+FROM (
+    SELECT "id"
+    FROM "StepRun" sr2
+    WHERE sr2."id" = ANY($1::uuid[])
+    ORDER BY  sr2."id"
+    FOR UPDATE
+) upd
+WHERE sr."id" = upd."id"
 `
 
 func (q *Queries) BulkRetryStepRun(ctx context.Context, db DBTX, steprunids []pgtype.UUID) error {
