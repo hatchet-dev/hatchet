@@ -740,6 +740,28 @@ func (r *olapRepository) ListWorkflowRuns(ctx context.Context, tenantId string, 
 		tasksToPopulated[externalId] = task
 	}
 
+	workflowIds := make([]pgtype.UUID, 0)
+
+	for _, dag := range populatedDAGs {
+		workflowIds = append(workflowIds, dag.WorkflowID)
+	}
+
+	for _, task := range populatedTasks {
+		workflowIds = append(workflowIds, task.WorkflowID)
+	}
+
+	workflowNames, err := r.queries.ListWorkflowNamesByIds(ctx, tx, workflowIds)
+
+	if err != nil {
+		return nil, 0, err
+	}
+
+	workflowIdToNameMap := make(map[pgtype.UUID]string)
+
+	for _, row := range workflowNames {
+		workflowIdToNameMap[row.ID] = row.Name
+	}
+
 	count, err := r.queries.CountWorkflowRuns(ctx, tx, countParams)
 
 	if err != nil {
@@ -764,6 +786,8 @@ func (r *olapRepository) ListWorkflowRuns(ctx context.Context, tenantId string, 
 				continue
 			}
 
+			workflowName := workflowIdToNameMap[dag.WorkflowID]
+
 			res = append(res, &WorkflowRunData{
 				TenantID:           dag.TenantID,
 				InsertedAt:         dag.InsertedAt,
@@ -783,7 +807,7 @@ func (r *olapRepository) ListWorkflowRuns(ctx context.Context, tenantId string, 
 				TaskInsertedAt:     nil,
 				Output:             &dag.Output,
 				Input:              dag.Input,
-				WorkflowName:       &dag.WorkflowName,
+				WorkflowName:       &workflowName,
 			})
 		} else {
 			task, ok := tasksToPopulated[externalId]
@@ -792,6 +816,8 @@ func (r *olapRepository) ListWorkflowRuns(ctx context.Context, tenantId string, 
 				r.l.Error().Msgf("could not find task with external id %s", externalId)
 				continue
 			}
+
+			workflowName := workflowIdToNameMap[task.WorkflowID]
 
 			res = append(res, &WorkflowRunData{
 				TenantID:           task.TenantID,
@@ -812,6 +838,7 @@ func (r *olapRepository) ListWorkflowRuns(ctx context.Context, tenantId string, 
 				Output:             &task.Output,
 				Input:              task.Input,
 				StepId:             &task.StepID,
+				WorkflowName:       &workflowName,
 			})
 		}
 	}

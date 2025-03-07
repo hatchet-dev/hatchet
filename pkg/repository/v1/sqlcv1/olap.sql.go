@@ -708,6 +708,7 @@ LEFT JOIN v1_tasks_olap t ON (lt.task_id, lt.inserted_at) = (t.id, t.inserted_at
 WHERE
     lt.external_id = ANY($1::uuid[])
     AND lt.tenant_id = $2::uuid
+LIMIT 10000
 `
 
 type ListWorkflowRunDisplayNamesParams struct {
@@ -813,10 +814,8 @@ SELECT
     m.started_at,
     m.finished_at,
     e.error_message,
-    o.output,
-    w.name AS workflow_name
+    o.output
 FROM runs r
-JOIN "Workflow" w ON r.workflow_id = w.id
 LEFT JOIN metadata m ON r.run_id = m.run_id
 LEFT JOIN error_message e ON r.run_id = e.run_id
 LEFT JOIN task_output o ON r.run_id = o.run_id
@@ -847,7 +846,6 @@ type PopulateDAGMetadataRow struct {
 	FinishedAt         pgtype.Timestamptz   `json:"finished_at"`
 	ErrorMessage       pgtype.Text          `json:"error_message"`
 	Output             []byte               `json:"output"`
-	WorkflowName       string               `json:"workflow_name"`
 }
 
 func (q *Queries) PopulateDAGMetadata(ctx context.Context, db DBTX, arg PopulateDAGMetadataParams) ([]*PopulateDAGMetadataRow, error) {
@@ -877,7 +875,6 @@ func (q *Queries) PopulateDAGMetadata(ctx context.Context, db DBTX, arg Populate
 			&i.FinishedAt,
 			&i.ErrorMessage,
 			&i.Output,
-			&i.WorkflowName,
 		); err != nil {
 			return nil, err
 		}
