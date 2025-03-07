@@ -22,7 +22,7 @@ WHERE
     l.tenant_id = @tenantId::uuid
     AND l.task_id = @taskId::bigint
     AND l.task_inserted_at = @taskInsertedAt::timestamptz
-    AND (sqlc.narg('search')::text IS NULL OR l.message LIKE concat('%', sqlc.narg('search')::text, '%'))
+    AND (sqlc.narg('search')::text IS NULL OR l.message iLIKE concat('%', sqlc.narg('search')::text, '%'))
 ORDER BY
     l.created_at ASC
 LIMIT COALESCE(sqlc.narg('limit'), 1000)

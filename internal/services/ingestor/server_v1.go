@@ -61,7 +61,6 @@ func (i *IngestorImpl) getSingleTask(ctx context.Context, tenantId, taskExternal
 func (i *IngestorImpl) putLogV1(ctx context.Context, tenant *dbsqlc.Tenant, req *contracts.PutLogRequest) (*contracts.PutLogResponse, error) {
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
-	// get single task
 	task, err := i.getSingleTask(ctx, tenantId, req.StepRunId, false)
 
 	if err != nil {

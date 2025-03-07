@@ -28,7 +28,7 @@ WHERE
     l.tenant_id = $1::uuid
     AND l.task_id = $2::bigint
     AND l.task_inserted_at = $3::timestamptz
-    AND ($4::text IS NULL OR l.message LIKE concat('%', $4::text, '%'))
+    AND ($4::text IS NULL OR l.message iLIKE concat('%', $4::text, '%'))
 ORDER BY
     l.created_at ASC
 LIMIT COALESCE($6, 1000)
