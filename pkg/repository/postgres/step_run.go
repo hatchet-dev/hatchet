@@ -1454,14 +1454,14 @@ func (s *stepRunEngineRepository) StepRunFailed(ctx context.Context, tenantId, w
 	return innerErr
 }
 
-func (s *stepRunEngineRepository) StepRunRetryBackoff(ctx context.Context, tenantId, stepRunId string, retryAfter time.Time, retryCount int) error {
+func (s *stepRunEngineRepository) StepRunRetryBackoff(ctx context.Context, tenantId, workflowRunId, stepRunId string, retryAfter time.Time, retryCount int) error {
 	ctx, span := telemetry.NewSpan(ctx, "step-run-retry-backoff-db")
 	defer span.End()
 
 	backoff := string(dbsqlc.StepRunStatusBACKOFF)
 
 	err := s.bulkStatusBuffer.FireForget(tenantId, &updateStepRunQueueData{
-		Hash:       hashToBucket(sqlchelpers.UUIDFromStr(stepRunId), s.maxHashFactor),
+		Hash:       hashToBucket(sqlchelpers.UUIDFromStr(workflowRunId), s.maxHashFactor),
 		StepRunId:  stepRunId,
 		TenantId:   tenantId,
 		RetryCount: retryCount,

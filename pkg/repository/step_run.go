@@ -185,7 +185,7 @@ type StepRunEngineRepository interface {
 
 	StepRunFailed(ctx context.Context, tenantId, workflowRunId, stepRunId string, failedAt time.Time, errStr string, retryCount int) error
 
-	StepRunRetryBackoff(ctx context.Context, tenantId, stepRunId string, retryAfter time.Time, retryCount int) error
+	StepRunRetryBackoff(ctx context.Context, tenantId, workflowRunId, stepRunId string, retryAfter time.Time, retryCount int) error
 
 	RetryStepRuns(ctx context.Context, tenantId string) (bool, error)
 
