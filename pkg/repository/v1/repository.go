@@ -17,6 +17,7 @@ type Repository interface {
 	OverwriteOLAPRepository(o OLAPRepository)
 	Logs() LogLineRepository
 	Workers() WorkerRepository
+	Workflows() WorkflowRepository
 }
 
 type repositoryImpl struct {
@@ -27,6 +28,7 @@ type repositoryImpl struct {
 	olap      OLAPRepository
 	logs      LogLineRepository
 	workers   WorkerRepository
+	workflows WorkflowRepository
 }
 
 func NewRepository(pool *pgxpool.Pool, l *zerolog.Logger, taskRetentionPeriod, olapRetentionPeriod time.Duration) (Repository, func() error) {
@@ -48,6 +50,7 @@ func NewRepository(pool *pgxpool.Pool, l *zerolog.Logger, taskRetentionPeriod, o
 		olap:      newOLAPRepository(shared, olapRetentionPeriod),
 		logs:      newLogLineRepository(shared),
 		workers:   newWorkerRepository(shared),
+		workflows: newWorkflowRepository(shared),
 	}
 
 	return impl, func() error {
@@ -85,4 +88,8 @@ func (r *repositoryImpl) Logs() LogLineRepository {
 
 func (r *repositoryImpl) Workers() WorkerRepository {
 	return r.workers
+}
+
+func (r *repositoryImpl) Workflows() WorkflowRepository {
+	return r.workflows
 }

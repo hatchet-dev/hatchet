@@ -93,7 +93,6 @@ type WorkflowRunData struct {
 	TenantID           pgtype.UUID                 `json:"tenant_id"`
 	WorkflowID         pgtype.UUID                 `json:"workflow_id"`
 	WorkflowVersionId  pgtype.UUID                 `json:"workflow_version_id"`
-	WorkflowName       *string                     `json:"workflow_name,omitempty"`
 }
 
 type V1WorkflowRunPopulator struct {
@@ -745,28 +744,6 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 		tasksToPopulated[externalId] = task
 	}
 
-	workflowIds := make([]pgtype.UUID, 0)
-
-	for _, dag := range populatedDAGs {
-		workflowIds = append(workflowIds, dag.WorkflowID)
-	}
-
-	for _, task := range populatedTasks {
-		workflowIds = append(workflowIds, task.WorkflowID)
-	}
-
-	workflowNames, err := r.queries.ListWorkflowNamesByIds(ctx, tx, workflowIds)
-
-	if err != nil {
-		return nil, 0, err
-	}
-
-	workflowIdToNameMap := make(map[pgtype.UUID]string)
-
-	for _, row := range workflowNames {
-		workflowIdToNameMap[row.ID] = row.Name
-	}
-
 	count, err := r.queries.CountWorkflowRuns(ctx, tx, countParams)
 
 	if err != nil {
@@ -791,8 +768,6 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 				continue
 			}
 
-			workflowName := workflowIdToNameMap[dag.WorkflowID]
-
 			res = append(res, &WorkflowRunData{
 				TenantID:           dag.TenantID,
 				InsertedAt:         dag.InsertedAt,
@@ -812,7 +787,6 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 				TaskInsertedAt:     nil,
 				Output:             &dag.Output,
 				Input:              dag.Input,
-				WorkflowName:       &workflowName,
 			})
 		} else {
 			task, ok := tasksToPopulated[externalId]
@@ -821,8 +795,6 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 				r.l.Error().Msgf("could not find task with external id %s", externalId)
 				continue
 			}
-
-			workflowName := workflowIdToNameMap[task.WorkflowID]
 
 			res = append(res, &WorkflowRunData{
 				TenantID:           task.TenantID,
@@ -843,7 +815,6 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId stri
 				Output:             &task.Output,
 				Input:              task.Input,
 				StepId:             &task.StepID,
-				WorkflowName:       &workflowName,
 			})
 		}
 	}

@@ -114,16 +114,27 @@ func (t *V1WorkflowRunsService) WithDags(ctx echo.Context, request gen.V1Workflo
 		return nil, err
 	}
 
+	pgWorkflowIds := make([]pgtype.UUID, 0)
+
+	for _, task := range tasks {
+		pgWorkflowIds = append(pgWorkflowIds, task.WorkflowID)
+	}
+
+	workflowNames, err := t.config.V1.Workflows().ListWorkflowNamesByIds(
+		ctx.Request().Context(),
+		tenantId,
+		pgWorkflowIds,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
 	taskIdToWorkflowName := make(map[int64]string)
 
 	for _, task := range tasks {
-		dagId := taskIdToDagExternalId[int64(task.ID)]
-
-		for _, dag := range dags {
-			dagPgUUID := sqlchelpers.UUIDFromStr(dagId.String())
-			if dag.ExternalID == dagPgUUID && dag.WorkflowName != nil {
-				taskIdToWorkflowName[task.ID] = *dag.WorkflowName
-			}
+		if name, ok := workflowNames[task.WorkflowID]; ok {
+			taskIdToWorkflowName[task.ID] = name
 		}
 	}
 
@@ -142,7 +153,7 @@ func (t *V1WorkflowRunsService) WithDags(ctx echo.Context, request gen.V1Workflo
 		}
 	}
 
-	result := transformers.ToWorkflowRunMany(dags, dagChildren, total, limit, offset)
+	result := transformers.ToWorkflowRunMany(dags, dagChildren, workflowNames, total, limit, offset)
 
 	// Search for api errors to see how we handle errors in other cases
 	return gen.V1WorkflowRunList200JSONResponse(

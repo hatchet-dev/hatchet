@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
@@ -12,7 +13,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
 )
 
-func WorkflowRunDataToV1TaskSummary(task *v1.WorkflowRunData) gen.V1TaskSummary {
+func WorkflowRunDataToV1TaskSummary(task *v1.WorkflowRunData, workflowIdsToNames map[pgtype.UUID]string) gen.V1TaskSummary {
 	additionalMetadata := jsonToMap(task.AdditionalMetadata)
 
 	var finishedAt *time.Time
@@ -56,6 +57,12 @@ func WorkflowRunDataToV1TaskSummary(task *v1.WorkflowRunData) gen.V1TaskSummary 
 		stepId = uuid.Nil
 	}
 
+	var workflowName *string
+
+	if name, ok := workflowIdsToNames[task.WorkflowID]; ok {
+		workflowName = &name
+	}
+
 	return gen.V1TaskSummary{
 		Metadata: gen.APIResourceMeta{
 			Id:        sqlchelpers.UUIDToStr(task.ExternalID),
@@ -79,7 +86,7 @@ func WorkflowRunDataToV1TaskSummary(task *v1.WorkflowRunData) gen.V1TaskSummary 
 		TaskId:             taskId,
 		TaskInsertedAt:     task.InsertedAt.Time,
 		Type:               gen.V1WorkflowTypeDAG,
-		WorkflowName:       task.WorkflowName,
+		WorkflowName:       workflowName,
 		StepId:             &stepId,
 	}
 }
@@ -87,13 +94,14 @@ func WorkflowRunDataToV1TaskSummary(task *v1.WorkflowRunData) gen.V1TaskSummary 
 func ToWorkflowRunMany(
 	tasks []*v1.WorkflowRunData,
 	dagExternalIdToChildren map[uuid.UUID][]gen.V1TaskSummary,
+	workflowIdsToNames map[pgtype.UUID]string,
 	total int, limit, offset int64,
 ) gen.V1TaskSummaryList {
 	toReturn := make([]gen.V1TaskSummary, len(tasks))
 
 	for i, task := range tasks {
 		dagExternalId := uuid.MustParse(sqlchelpers.UUIDToStr(task.ExternalID))
-		toReturn[i] = WorkflowRunDataToV1TaskSummary(task)
+		toReturn[i] = WorkflowRunDataToV1TaskSummary(task, workflowIdsToNames)
 
 		children, ok := dagExternalIdToChildren[dagExternalId]
 
