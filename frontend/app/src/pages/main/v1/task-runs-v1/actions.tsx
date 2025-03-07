@@ -140,10 +140,11 @@ type ModalContentProps = {
 };
 
 const CancelByExternalIdsContent = ({ label, params }: ModalContentProps) => {
+  
   return (
-    <>
-      <p className="text-lg">
-        You're about to {label.toLowerCase()} the following task runs:
+    <div className="flex flex-col gap-y-4">
+      <p className="text-md">
+        Confirm to {label.toLowerCase()} the following task runs:
       </p>
       <ul className="list-disc pl-4 pt-2">
         {params.externalIds
@@ -153,7 +154,7 @@ const CancelByExternalIdsContent = ({ label, params }: ModalContentProps) => {
           <li>{(params.externalIds?.length || 0) - 10} more</li>
         )}
       </ul>
-    </>
+    </div>
   );
 };
 
