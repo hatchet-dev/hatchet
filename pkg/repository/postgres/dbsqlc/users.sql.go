@@ -54,6 +54,7 @@ func (q *Queries) CreateUser(ctx context.Context, db DBTX, arg CreateUserParams)
 
 const createUserOAuth = `-- name: CreateUserOAuth :one
 INSERT INTO "UserOAuth" (
+    "id",
     "userId",
     "provider",
     "providerUserId",
@@ -61,6 +62,7 @@ INSERT INTO "UserOAuth" (
     "refreshToken",
     "expiresAt"
 ) VALUES (
+    gen_random_uuid(),
     $1::uuid,
     $2::text,
     $3::text,
@@ -397,6 +399,7 @@ func (q *Queries) UpdateUserSession(ctx context.Context, db DBTX, arg UpdateUser
 
 const upsertUserOAuth = `-- name: UpsertUserOAuth :one
 INSERT INTO "UserOAuth" (
+    "id",
     "userId",
     "provider",
     "providerUserId",
@@ -404,6 +407,7 @@ INSERT INTO "UserOAuth" (
     "refreshToken",
     "expiresAt"
 ) VALUES (
+    gen_random_uuid(),
     $1::uuid,
     $2::text,
     $3::text,

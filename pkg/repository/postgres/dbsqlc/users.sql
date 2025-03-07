@@ -22,6 +22,7 @@ INSERT INTO "UserPassword" (
 
 -- name: CreateUserOAuth :one
 INSERT INTO "UserOAuth" (
+    "id",
     "userId",
     "provider",
     "providerUserId",
@@ -29,6 +30,7 @@ INSERT INTO "UserOAuth" (
     "refreshToken",
     "expiresAt"
 ) VALUES (
+    gen_random_uuid(),
     @userId::uuid,
     @provider::text,
     @providerUserId::text,
@@ -82,6 +84,7 @@ RETURNING *;
 
 -- name: UpsertUserOAuth :one
 INSERT INTO "UserOAuth" (
+    "id",
     "userId",
     "provider",
     "providerUserId",
@@ -89,6 +92,7 @@ INSERT INTO "UserOAuth" (
     "refreshToken",
     "expiresAt"
 ) VALUES (
+    gen_random_uuid(),
     @userId::uuid,
     @provider::text,
     @providerUserId::text,
