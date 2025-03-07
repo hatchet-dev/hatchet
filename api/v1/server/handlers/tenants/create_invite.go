@@ -19,7 +19,7 @@ func (t *TenantService) TenantInviteCreate(ctx echo.Context, request gen.TenantI
 	user := ctx.Get("user").(*dbsqlc.User)
 	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
-	tenantMember := ctx.Get("tenant-member").(*dbsqlc.TenantMember)
+	tenantMember := ctx.Get("tenant-member").(*dbsqlc.PopulateTenantMembersRow)
 	if !t.config.Runtime.AllowInvites {
 		t.config.Logger.Warn().Msg("tenant invites are disabled")
 		return gen.TenantInviteCreate400JSONResponse(

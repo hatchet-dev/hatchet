@@ -12,7 +12,7 @@ import (
 )
 
 func (t *TenantService) TenantInviteUpdate(ctx echo.Context, request gen.TenantInviteUpdateRequestObject) (gen.TenantInviteUpdateResponseObject, error) {
-	tenantMember := ctx.Get("tenant-member").(*dbsqlc.TenantMember)
+	tenantMember := ctx.Get("tenant-member").(*dbsqlc.PopulateTenantMembersRow)
 	invite := ctx.Get("tenant-invite").(*dbsqlc.TenantInviteLink)
 
 	// validate the request

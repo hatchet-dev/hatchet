@@ -12,7 +12,7 @@ import (
 func (t *TenantService) TenantMemberDelete(ctx echo.Context, request gen.TenantMemberDeleteRequestObject) (gen.TenantMemberDeleteResponseObject, error) {
 	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
-	tenantMember := ctx.Get("tenant-member").(*dbsqlc.TenantMember)
+	tenantMember := ctx.Get("tenant-member").(*dbsqlc.PopulateTenantMembersRow)
 
 	if tenantMember.Role != dbsqlc.TenantMemberRoleOWNER {
 		return gen.TenantMemberDelete403JSONResponse(
