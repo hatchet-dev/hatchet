@@ -27,8 +27,11 @@ type Queue interface {
 	// exchange, and a new random queue is generated for each connection when connections are retried.
 	FanoutExchangeKey() string
 
-	// DLX returns the dead letter exchange for the queue, if it exists.
-	DLX() string
+	// DLQ returns the queue's dead letter queue, if it exists.
+	DLQ() Queue
+
+	// IsDLQ returns true if the queue is a dead letter queue.
+	IsDLQ() bool
 }
 
 type staticQueue string
@@ -58,8 +61,28 @@ func (s staticQueue) FanoutExchangeKey() string {
 	return ""
 }
 
-func (s staticQueue) DLX() string {
-	return fmt.Sprintf("%s_dlx_v2", s.Name())
+func (s staticQueue) IsDLQ() bool {
+	return false
+}
+
+type dlq struct {
+	staticQueue
+}
+
+func (d dlq) IsDLQ() bool {
+	return true
+}
+
+func (d dlq) DLQ() Queue {
+	return nil
+}
+
+func (s staticQueue) DLQ() Queue {
+	name := fmt.Sprintf("%s_dlq", s)
+
+	return dlq{
+		staticQueue: staticQueue(name),
+	}
 }
 
 func NewRandomStaticQueue() staticQueue {
@@ -89,8 +112,12 @@ func (n consumerQueue) FanoutExchangeKey() string {
 	return ""
 }
 
-func (n consumerQueue) DLX() string {
-	return ""
+func (n consumerQueue) DLQ() Queue {
+	return nil
+}
+
+func (n consumerQueue) IsDLQ() bool {
+	return false
 }
 
 func QueueTypeFromDispatcherID(d string) consumerQueue {

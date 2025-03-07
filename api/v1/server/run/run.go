@@ -157,6 +157,8 @@ func (t *APIServer) getCoreEchoService() (*echo.Echo, error) {
 	}
 
 	e := echo.New()
+	e.HideBanner = true
+	e.HidePort = true
 
 	g := e.Group("")
 

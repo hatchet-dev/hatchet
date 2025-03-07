@@ -278,6 +278,10 @@ export const queries = createQueryKeyStore({
           })
         ).data,
     }),
+    getLogs: (task: string) => ({
+      queryKey: ['v1-log-line:list', task],
+      queryFn: async () => (await api.v1LogLineList(task)).data,
+    }),
   },
   v1TaskEvents: {
     list: (

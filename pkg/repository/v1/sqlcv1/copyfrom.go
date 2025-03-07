@@ -260,3 +260,39 @@ func (r iteratorForCreateTasksOLAP) Err() error {
 func (q *Queries) CreateTasksOLAP(ctx context.Context, db DBTX, arg []CreateTasksOLAPParams) (int64, error) {
 	return db.CopyFrom(ctx, []string{"v1_tasks_olap"}, []string{"tenant_id", "id", "inserted_at", "queue", "action_id", "step_id", "workflow_id", "workflow_version_id", "workflow_run_id", "schedule_timeout", "step_timeout", "priority", "sticky", "desired_worker_id", "external_id", "display_name", "input", "additional_metadata", "dag_id", "dag_inserted_at", "parent_task_external_id"}, &iteratorForCreateTasksOLAP{rows: arg})
 }
+
+// iteratorForInsertLogLine implements pgx.CopyFromSource.
+type iteratorForInsertLogLine struct {
+	rows                 []InsertLogLineParams
+	skippedFirstNextCall bool
+}
+
+func (r *iteratorForInsertLogLine) Next() bool {
+	if len(r.rows) == 0 {
+		return false
+	}
+	if !r.skippedFirstNextCall {
+		r.skippedFirstNextCall = true
+		return true
+	}
+	r.rows = r.rows[1:]
+	return len(r.rows) > 0
+}
+
+func (r iteratorForInsertLogLine) Values() ([]interface{}, error) {
+	return []interface{}{
+		r.rows[0].TenantID,
+		r.rows[0].TaskID,
+		r.rows[0].TaskInsertedAt,
+		r.rows[0].Message,
+		r.rows[0].Metadata,
+	}, nil
+}
+
+func (r iteratorForInsertLogLine) Err() error {
+	return nil
+}
+
+func (q *Queries) InsertLogLine(ctx context.Context, db DBTX, arg []InsertLogLineParams) (int64, error) {
+	return db.CopyFrom(ctx, []string{"v1_log_line"}, []string{"tenant_id", "task_id", "task_inserted_at", "message", "metadata"}, &iteratorForInsertLogLine{rows: arg})
+}

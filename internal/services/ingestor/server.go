@@ -209,6 +209,17 @@ func (i *IngestorImpl) putStreamEventV0(ctx context.Context, tenant *dbsqlc.Tena
 func (i *IngestorImpl) PutLog(ctx context.Context, req *contracts.PutLogRequest) (*contracts.PutLogResponse, error) {
 	tenant := ctx.Value("tenant").(*dbsqlc.Tenant)
 
+	switch tenant.Version {
+	case dbsqlc.TenantMajorEngineVersionV0:
+		return i.putLogV0(ctx, tenant, req)
+	case dbsqlc.TenantMajorEngineVersionV1:
+		return i.putLogV1(ctx, tenant, req)
+	default:
+		return nil, status.Errorf(codes.Unimplemented, "PutLog is not implemented in engine version %s", string(tenant.Version))
+	}
+}
+
+func (i *IngestorImpl) putLogV0(ctx context.Context, tenant *dbsqlc.Tenant, req *contracts.PutLogRequest) (*contracts.PutLogResponse, error) {
 	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	var createdAt *time.Time

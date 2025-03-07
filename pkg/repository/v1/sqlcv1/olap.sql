@@ -1,60 +1,37 @@
--- name: CreateOLAPTaskEventTmpPartitions :exec
-SELECT create_v1_hash_partitions(
-    'v1_task_events_olap_tmp'::text,
-    @partitions::int
-);
-
--- name: CreateOLAPTaskStatusUpdateTmpPartitions :exec
-SELECT create_v1_hash_partitions(
-    'v1_task_status_updates_tmp'::text,
-    @partitions::int
-);
-
--- name: CreateOLAPTaskPartition :exec
-SELECT create_v1_olap_partition_with_date_and_status(
-    'v1_tasks_olap'::text,
-    @date::date
-);
-
--- name: ListOLAPTaskPartitionsBeforeDate :many
+-- name: CreateOLAPPartitions :exec
 SELECT
-    p::text AS partition_name
-FROM
-    get_v1_partitions_before_date(
-        'v1_tasks_olap'::text,
-        @date::date
-    ) AS p;
+    create_v1_hash_partitions('v1_task_events_olap_tmp'::text, @partitions::int),
+    create_v1_hash_partitions('v1_task_status_updates_tmp'::text, @partitions::int),
+    create_v1_olap_partition_with_date_and_status('v1_tasks_olap'::text, @date::date),
+    create_v1_olap_partition_with_date_and_status('v1_runs_olap'::text, @date::date),
+    create_v1_olap_partition_with_date_and_status('v1_dags_olap'::text, @date::date);
 
--- name: CreateOLAPDAGPartition :exec
-SELECT create_v1_olap_partition_with_date_and_status(
-    'v1_dags_olap'::text,
-    @date::date
-);
-
--- name: ListOLAPDAGPartitionsBeforeDate :many
+-- name: ListOLAPPartitionsBeforeDate :many
+WITH task_partitions AS (
+    SELECT 'v1_tasks_olap' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_tasks_olap'::text, @date::date) AS p
+), dag_partitions AS (
+    SELECT 'v1_dags_olap' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_dags_olap', @date::date) AS p
+), runs_partitions AS (
+    SELECT 'v1_runs_olap' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_runs_olap', @date::date) AS p
+)
 SELECT
-    p::text AS partition_name
+    *
 FROM
-    get_v1_partitions_before_date(
-        'v1_dags_olap'::text,
-        @date::date
-    ) AS p;
+    task_partitions
 
--- name: CreateOLAPRunsPartition :exec
-SELECT create_v1_olap_partition_with_date_and_status(
-    'v1_runs_olap'::text,
-    @date::date
-);
+UNION ALL
 
--- name: ListOLAPRunsPartitionsBeforeDate :many
 SELECT
-    p::text AS partition_name
+    *
 FROM
-    get_v1_partitions_before_date(
-        'v1_runs_olap'::text,
-        @date::date
-    ) AS p
-;
+    dag_partitions
+
+UNION ALL
+
+SELECT
+    *
+FROM
+    runs_partitions;
 
 -- name: CreateTasksOLAP :copyfrom
 INSERT INTO v1_tasks_olap (

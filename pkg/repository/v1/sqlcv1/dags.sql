@@ -1,18 +1,3 @@
--- name: CreateDAGPartition :exec
-SELECT create_v1_range_partition(
-    'v1_dag',
-    @date::date
-);
-
--- name: ListDAGPartitionsBeforeDate :many
-SELECT
-    p::text AS partition_name
-FROM
-    get_v1_partitions_before_date(
-        'v1_dag',
-        @date::date
-    ) AS p;
-
 -- name: GetDAGData :many
 WITH input AS (
     SELECT

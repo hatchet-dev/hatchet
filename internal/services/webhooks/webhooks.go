@@ -19,9 +19,12 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/webhook"
+
+	"github.com/rs/zerolog"
 )
 
 type WebhooksController struct {
+	l                   *zerolog.Logger
 	sc                  *server.ServerConfig
 	registeredWorkerIds map[string]bool
 	cleanups            map[string]func() error
@@ -30,9 +33,10 @@ type WebhooksController struct {
 	checkOps            *queueutils.OperationPool
 }
 
-func New(sc *server.ServerConfig, p *partition.Partition) *WebhooksController {
+func New(sc *server.ServerConfig, p *partition.Partition, l *zerolog.Logger) *WebhooksController {
 
 	wc := &WebhooksController{
+		l:                   l,
 		sc:                  sc,
 		registeredWorkerIds: map[string]bool{},
 		cleanups:            map[string]func() error{},
@@ -314,7 +318,9 @@ func (c *WebhooksController) run(tenantId string, webhookWorker *dbsqlc.WebhookW
 		TenantID:  tenantId,
 		Actions:   h.Actions,
 		WebhookId: sqlchelpers.UUIDToStr(webhookWorker.ID),
+		Logger:    c.l,
 	})
+
 	if err != nil {
 		return nil, fmt.Errorf("could not create webhook worker: %w", err)
 	}

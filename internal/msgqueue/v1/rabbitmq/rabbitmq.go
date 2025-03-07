@@ -40,6 +40,8 @@ type MessageQueueImpl struct {
 	tenantIdCache *lru.Cache[string, bool]
 
 	channels *channelPool
+
+	deadLetterBackoff time.Duration
 }
 
 func (t *MessageQueueImpl) IsReady() bool {
@@ -53,6 +55,7 @@ type MessageQueueImplOpts struct {
 	url                       string
 	qos                       int
 	disableTenantExchangePubs bool
+	deadLetterBackoff         time.Duration
 }
 
 func defaultMessageQueueImplOpts() *MessageQueueImplOpts {
@@ -61,6 +64,7 @@ func defaultMessageQueueImplOpts() *MessageQueueImplOpts {
 	return &MessageQueueImplOpts{
 		l:                         &l,
 		disableTenantExchangePubs: false,
+		deadLetterBackoff:         5 * time.Second,
 	}
 }
 
@@ -85,6 +89,12 @@ func WithQos(qos int) MessageQueueImplOpt {
 func WithDisableTenantExchangePubs(disable bool) MessageQueueImplOpt {
 	return func(opts *MessageQueueImplOpts) {
 		opts.disableTenantExchangePubs = disable
+	}
+}
+
+func WithDeadLetterBackoff(backoff time.Duration) MessageQueueImplOpt {
+	return func(opts *MessageQueueImplOpts) {
+		opts.deadLetterBackoff = backoff
 	}
 }
 
@@ -116,6 +126,7 @@ func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl) {
 		configFs:                  fs,
 		disableTenantExchangePubs: opts.disableTenantExchangePubs,
 		channels:                  channelPool,
+		deadLetterBackoff:         opts.deadLetterBackoff,
 	}
 
 	// create a new lru cache for tenant ids
@@ -266,6 +277,30 @@ func (t *MessageQueueImpl) Subscribe(
 		return nil, err
 	}
 
+	if q.DLQ() != nil {
+		cleanupSubDLQ, err := t.subscribe(ctx, t.identity, q.DLQ(), preAck, postAck)
+
+		if err != nil {
+			cancel()
+			return nil, err
+		}
+
+		f1 := cleanupSub
+		f2 := cleanupSubDLQ
+
+		cleanupSub = func() error {
+			if err := f1(); err != nil {
+				t.l.Error().Msgf("error cleaning up subscriber: %v", err)
+			}
+
+			if err := f2(); err != nil {
+				t.l.Error().Msgf("error cleaning up subscriber: %v", err)
+			}
+
+			return nil
+		}
+	}
+
 	return func() error {
 		cancel()
 
@@ -321,6 +356,10 @@ func (t *MessageQueueImpl) RegisterTenant(ctx context.Context, tenantId string) 
 }
 
 func (t *MessageQueueImpl) initQueue(ch *amqp.Channel, q msgqueue.Queue) (string, error) {
+	if q.IsDLQ() {
+		return q.Name(), nil
+	}
+
 	args := make(amqp.Table)
 	args["x-consumer-timeout"] = 300000 // 5 minutes
 	name := q.Name()
@@ -336,19 +375,32 @@ func (t *MessageQueueImpl) initQueue(ch *amqp.Channel, q msgqueue.Queue) (string
 		name = fmt.Sprintf("%s-%s", q.Name(), suffix)
 	}
 
-	if q.DLX() != "" {
+	if !q.IsDLQ() && q.DLQ() != nil {
+		dlx1 := getTmpDLQName(q.DLQ().Name())
+		dlx2 := getProcDLQName(q.DLQ().Name())
+
 		args["x-dead-letter-exchange"] = ""
-		args["x-dead-letter-routing-key"] = q.DLX()
+		args["x-dead-letter-routing-key"] = dlx1
 
-		dlqArgs := make(amqp.Table)
+		dlq1Args := make(amqp.Table)
 
-		dlqArgs["x-dead-letter-exchange"] = ""
-		dlqArgs["x-dead-letter-routing-key"] = name
-		dlqArgs["x-message-ttl"] = 5000 // 5 seconds
+		dlq1Args["x-dead-letter-exchange"] = ""
+		dlq1Args["x-dead-letter-routing-key"] = dlx2
+		dlq1Args["x-message-ttl"] = t.deadLetterBackoff.Milliseconds()
+
+		dlq2Args := make(amqp.Table)
+
+		dlq2Args["x-dead-letter-exchange"] = ""
+		dlq2Args["x-dead-letter-routing-key"] = dlx1
 
 		// declare the dead letter queue
-		if _, err := ch.QueueDeclare(q.DLX(), true, false, false, false, dlqArgs); err != nil {
-			t.l.Error().Msgf("cannot declare dead letter exchange/queue: %q, %v", q.DLX(), err)
+		if _, err := ch.QueueDeclare(dlx1, true, false, false, false, dlq1Args); err != nil {
+			t.l.Error().Msgf("cannot declare dead letter exchange/queue: %s, %s", dlx1, err.Error())
+			return "", err
+		}
+
+		if _, err := ch.QueueDeclare(dlx2, true, false, false, false, dlq2Args); err != nil {
+			t.l.Error().Msgf("cannot declare dead letter exchange/queue: %s, %s", dlx2, err.Error())
 			return "", err
 		}
 	}
@@ -396,11 +448,21 @@ func (t *MessageQueueImpl) deleteQueue(q msgqueue.Queue) error {
 		return err
 	}
 
-	if q.DLX() != "" {
-		_, err = ch.QueueDelete(q.DLX(), true, true, false)
+	if q.DLQ().Name() != "" {
+		dlq1 := getTmpDLQName(q.DLQ().Name())
+		dlq2 := getProcDLQName(q.DLQ().Name())
+
+		_, err = ch.QueueDelete(dlq1, true, true, false)
 
 		if err != nil {
-			t.l.Error().Msgf("cannot delete dead letter queue: %q, %v", q.DLX(), err)
+			t.l.Error().Msgf("cannot delete dead letter queue: %q, %v", dlq1, err)
+			return err
+		}
+
+		_, err = ch.QueueDelete(dlq2, true, true, false)
+
+		if err != nil {
+			t.l.Error().Msgf("cannot delete dead letter queue: %q, %v", dlq2, err)
 			return err
 		}
 	}
@@ -444,6 +506,10 @@ func (t *MessageQueueImpl) subscribe(
 		}
 
 		poolCh.Release()
+	}
+
+	if q.IsDLQ() {
+		queueName = getProcDLQName(q.Name())
 	}
 
 	innerFn := func() error {
@@ -641,4 +707,12 @@ func identity() string {
 	_, _ = fmt.Fprint(h, err)
 	_, _ = fmt.Fprint(h, os.Getpid())
 	return fmt.Sprintf("%x", h.Sum(nil))
+}
+
+func getTmpDLQName(dlxName string) string {
+	return fmt.Sprintf("%s_tmp", dlxName)
+}
+
+func getProcDLQName(dlxName string) string {
+	return fmt.Sprintf("%s_proc", dlxName)
 }

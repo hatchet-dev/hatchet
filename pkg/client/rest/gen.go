@@ -1179,6 +1179,24 @@ type V1DagChildren struct {
 	DagId    *openapi_types.UUID `json:"dagId,omitempty"`
 }
 
+// V1LogLine defines model for V1LogLine.
+type V1LogLine struct {
+	// CreatedAt The creation date of the log line.
+	CreatedAt time.Time `json:"createdAt"`
+
+	// Message The log message.
+	Message string `json:"message"`
+
+	// Metadata The log metadata.
+	Metadata map[string]interface{} `json:"metadata"`
+}
+
+// V1LogLineList defines model for V1LogLineList.
+type V1LogLineList struct {
+	Pagination *PaginationResponse `json:"pagination,omitempty"`
+	Rows       *[]V1LogLine        `json:"rows,omitempty"`
+}
+
 // V1ReplayTaskRequest defines model for V1ReplayTaskRequest.
 type V1ReplayTaskRequest struct {
 	// ExternalIds A list of external IDs, which can refer to either task or workflow run external IDs
@@ -2314,6 +2332,9 @@ type ClientInterface interface {
 	// V1TaskGet request
 	V1TaskGet(ctx context.Context, task openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// V1LogLineList request
+	V1LogLineList(ctx context.Context, task openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// V1TaskEventList request
 	V1TaskEventList(ctx context.Context, task openapi_types.UUID, params *V1TaskEventListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -2835,6 +2856,18 @@ func (c *Client) V1DagListTasks(ctx context.Context, params *V1DagListTasksParam
 
 func (c *Client) V1TaskGet(ctx context.Context, task openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewV1TaskGetRequest(c.Server, task)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1LogLineList(ctx context.Context, task openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1LogLineListRequest(c.Server, task)
 	if err != nil {
 		return nil, err
 	}
@@ -4796,6 +4829,40 @@ func NewV1TaskGetRequest(server string, task openapi_types.UUID) (*http.Request,
 	}
 
 	operationPath := fmt.Sprintf("/api/v1/stable/tasks/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewV1LogLineListRequest generates requests for V1LogLineList
+func NewV1LogLineListRequest(server string, task openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "task", runtime.ParamLocationPath, task)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/tasks/%s/logs", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -9926,6 +9993,9 @@ type ClientWithResponsesInterface interface {
 	// V1TaskGetWithResponse request
 	V1TaskGetWithResponse(ctx context.Context, task openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1TaskGetResponse, error)
 
+	// V1LogLineListWithResponse request
+	V1LogLineListWithResponse(ctx context.Context, task openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1LogLineListResponse, error)
+
 	// V1TaskEventListWithResponse request
 	V1TaskEventListWithResponse(ctx context.Context, task openapi_types.UUID, params *V1TaskEventListParams, reqEditors ...RequestEditorFn) (*V1TaskEventListResponse, error)
 
@@ -10621,6 +10691,30 @@ func (r V1TaskGetResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r V1TaskGetResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1LogLineListResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *V1LogLineList
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1LogLineListResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1LogLineListResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -12965,6 +13059,15 @@ func (c *ClientWithResponses) V1TaskGetWithResponse(ctx context.Context, task op
 	return ParseV1TaskGetResponse(rsp)
 }
 
+// V1LogLineListWithResponse request returning *V1LogLineListResponse
+func (c *ClientWithResponses) V1LogLineListWithResponse(ctx context.Context, task openapi_types.UUID, reqEditors ...RequestEditorFn) (*V1LogLineListResponse, error) {
+	rsp, err := c.V1LogLineList(ctx, task, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1LogLineListResponse(rsp)
+}
+
 // V1TaskEventListWithResponse request returning *V1TaskEventListResponse
 func (c *ClientWithResponses) V1TaskEventListWithResponse(ctx context.Context, task openapi_types.UUID, params *V1TaskEventListParams, reqEditors ...RequestEditorFn) (*V1TaskEventListResponse, error) {
 	rsp, err := c.V1TaskEventList(ctx, task, params, reqEditors...)
@@ -14557,6 +14660,46 @@ func ParseV1TaskGetResponse(rsp *http.Response) (*V1TaskGetResponse, error) {
 			return nil, err
 		}
 		response.JSON501 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1LogLineListResponse parses an HTTP response from a V1LogLineListWithResponse call
+func ParseV1LogLineListResponse(rsp *http.Response) (*V1LogLineListResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1LogLineListResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1LogLineList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
 
 	}
 

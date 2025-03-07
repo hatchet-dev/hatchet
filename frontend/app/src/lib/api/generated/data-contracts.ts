@@ -217,6 +217,23 @@ export interface V1TaskEventList {
   rows?: V1TaskEvent[];
 }
 
+export interface V1LogLine {
+  /**
+   * The creation date of the log line.
+   * @format date-time
+   */
+  createdAt: string;
+  /** The log message. */
+  message: string;
+  /** The log metadata. */
+  metadata: object;
+}
+
+export interface V1LogLineList {
+  pagination?: PaginationResponse;
+  rows?: V1LogLine[];
+}
+
 export interface V1TaskFilter {
   /** @format date-time */
   since: string;
@@ -1726,6 +1743,13 @@ export enum V1TaskRunStatus {
   COMPLETED = 'COMPLETED',
   FAILED = 'FAILED',
   CANCELLED = 'CANCELLED',
+}
+
+export enum V1LogLineLevel {
+  DEBUG = 'DEBUG',
+  INFO = 'INFO',
+  WARN = 'WARN',
+  ERROR = 'ERROR',
 }
 
 export type BulkCreateEventResponse = Events;

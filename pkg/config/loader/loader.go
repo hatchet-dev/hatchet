@@ -208,7 +208,13 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		opts = append(opts, postgresdb.WithLogsAPIRepository(c.RepositoryOverrides.LogsAPIRepository))
 	}
 
-	v1, cleanupV1 := repov1.NewRepository(pool, &l)
+	retentionPeriod, err := time.ParseDuration(scf.Runtime.Limits.DefaultTenantRetentionPeriod)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not parse retention period %s: %w", scf.Runtime.Limits.DefaultTenantRetentionPeriod, err)
+	}
+
+	v1, cleanupV1 := repov1.NewRepository(pool, &l, retentionPeriod, retentionPeriod)
 
 	apiRepo, cleanupApiRepo, err := postgresdb.NewAPIRepository(pool, &scf.Runtime, opts...)
 
@@ -247,12 +253,10 @@ type ServerConfigFileOverride func(*server.ServerConfigFile)
 
 // CreateServerFromConfig loads the server configuration and returns a server
 func (c *ConfigLoader) CreateServerFromConfig(version string, overrides ...ServerConfigFileOverride) (cleanup func() error, res *server.ServerConfig, err error) {
-
-	log.Printf("Loading server config from %s", c.directory)
 	sharedFilePath := filepath.Join(c.directory, "server.yaml")
-	log.Printf("Shared file path: %s", sharedFilePath)
 
 	configFileBytes, err := loaderutils.GetConfigBytes(sharedFilePath)
+
 	if err != nil {
 		return nil, nil, err
 	}

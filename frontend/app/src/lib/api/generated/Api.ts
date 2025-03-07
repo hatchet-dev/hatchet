@@ -85,6 +85,7 @@ import {
   UserTenantMembershipsList,
   V1CancelTaskRequest,
   V1DagChildren,
+  V1LogLineList,
   V1ReplayTaskRequest,
   V1TaskEventList,
   V1TaskPointMetrics,
@@ -168,6 +169,23 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       path: `/api/v1/stable/tasks/${task}/task-events`,
       method: 'GET',
       query: query,
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Lists log lines for a task
+   *
+   * @tags Log
+   * @name V1LogLineList
+   * @summary List log lines
+   * @request GET:/api/v1/stable/tasks/{task}/logs
+   * @secure
+   */
+  v1LogLineList = (task: string, params: RequestParams = {}) =>
+    this.request<V1LogLineList, APIErrors>({
+      path: `/api/v1/stable/tasks/${task}/logs`,
+      method: 'GET',
       secure: true,
       format: 'json',
       ...params,

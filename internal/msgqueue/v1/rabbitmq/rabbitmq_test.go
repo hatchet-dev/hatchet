@@ -33,6 +33,7 @@ func TestMessageQueueIntegration(t *testing.T) {
 	cleanup, tq := New(
 		WithURL(url),
 		WithQos(100),
+		WithDeadLetterBackoff(5*time.Second),
 	)
 
 	require.NotNil(t, tq, "task queue implementation should not be nil")
@@ -123,6 +124,7 @@ func TestBufferedSubMessageQueueIntegration(t *testing.T) {
 	cleanup, tq := New(
 		WithURL(url),
 		WithQos(100),
+		WithDeadLetterBackoff(5*time.Second),
 	)
 
 	require.NotNil(t, tq, "task queue implementation should not be nil")
@@ -196,6 +198,7 @@ func TestBufferedPubMessageQueueIntegration(t *testing.T) {
 	cleanup, tq := New(
 		WithURL(url),
 		WithQos(100),
+		WithDeadLetterBackoff(5*time.Second),
 	)
 
 	require.NotNil(t, tq, "task queue implementation should not be nil")
@@ -267,6 +270,7 @@ func TestDeadLetteringSuccess(t *testing.T) {
 	cleanup, tq := New(
 		WithURL(url),
 		WithQos(100),
+		WithDeadLetterBackoff(5*time.Second),
 	)
 
 	require.NotNil(t, tq, "task queue implementation should not be nil")
@@ -319,79 +323,6 @@ func TestDeadLetteringSuccess(t *testing.T) {
 	assert.NoError(t, err, "adding task to static queue should not error")
 
 	wg.Wait()
-
-	if err := cleanupQueue(); err != nil {
-		t.Fatalf("error cleaning up queue: %v", err)
-	}
-}
-
-func TestDeadLetteringExceedRetriesFailure(t *testing.T) {
-	// this falls under time threshold but over time in the DLQ
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	defer cancel()
-
-	var attempts int
-
-	url := "amqp://user:password@localhost:5672/"
-
-	// Initialize the task queue implementation
-	cleanup, tq := New(
-		WithURL(url),
-		WithQos(100),
-	)
-
-	require.NotNil(t, tq, "task queue implementation should not be nil")
-
-	id, _ := random.Generate(8) // nolint: errcheck
-
-	// Test adding a task to a static queue
-	staticQueue := msgqueue.NewRandomStaticQueue()
-
-	defer func() {
-		if err := tq.deleteQueue(staticQueue); err != nil {
-			t.Fatalf("error deleting queue: %v", err)
-		}
-
-		if err := cleanup(); err != nil {
-			t.Fatalf("error cleaning up queue: %v", err)
-		}
-	}()
-
-	task, err := msgqueue.NewTenantMessage("test-tenant-v1", id, false, true, &testMessagePayload{
-		Key: "value",
-	})
-
-	if err != nil {
-		t.Fatalf("error creating task: %v", err)
-	}
-
-	task.Retries = 2
-
-	preAck := func(receivedMessage *msgqueue.Message) error {
-		// only process messages which match the id
-		if receivedMessage.ID != task.ID {
-			return nil
-		}
-
-		if attempts > 2 {
-			assert.Fail(t, "message exceeded maximum retry count")
-			cancel()
-			return nil // Stop retrying as it exceeds the limit
-		}
-
-		attempts++
-
-		return fmt.Errorf("intentional error on attempt %d", attempts)
-	}
-
-	// Test subscription to the static queue
-	cleanupQueue, err := tq.Subscribe(staticQueue, preAck, msgqueue.NoOpHook)
-	require.NoError(t, err, "subscribing to static queue should not error")
-
-	err = tq.SendMessage(ctx, staticQueue, task)
-	assert.NoError(t, err, "adding task to static queue should not error")
-
-	<-ctx.Done()
 
 	if err := cleanupQueue(); err != nil {
 		t.Fatalf("error cleaning up queue: %v", err)
