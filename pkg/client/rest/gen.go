@@ -1369,6 +1369,20 @@ type V1WorkflowRunDetails struct {
 	Tasks      []V1TaskSummary `json:"tasks"`
 }
 
+// V1WorkflowRunDisplayName defines model for V1WorkflowRunDisplayName.
+type V1WorkflowRunDisplayName struct {
+	DisplayName string          `json:"displayName"`
+	Metadata    APIResourceMeta `json:"metadata"`
+}
+
+// V1WorkflowRunDisplayNameList defines model for V1WorkflowRunDisplayNameList.
+type V1WorkflowRunDisplayNameList struct {
+	Pagination PaginationResponse `json:"pagination"`
+
+	// Rows The list of display names
+	Rows []V1WorkflowRunDisplayName `json:"rows"`
+}
+
 // V1WorkflowType defines model for V1WorkflowType.
 type V1WorkflowType string
 
@@ -10767,7 +10781,7 @@ func (r V1WorkflowRunListResponse) StatusCode() int {
 type V1WorkflowRunDisplayNamesListResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *V1TaskSummaryList
+	JSON200      *V1WorkflowRunDisplayNameList
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON501      *APIErrors
@@ -14853,7 +14867,7 @@ func ParseV1WorkflowRunDisplayNamesListResponse(rsp *http.Response) (*V1Workflow
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest V1TaskSummaryList
+		var dest V1WorkflowRunDisplayNameList
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

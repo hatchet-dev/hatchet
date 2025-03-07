@@ -251,6 +251,17 @@ export interface V1TaskSummaryList {
   rows: V1TaskSummary[];
 }
 
+export interface V1WorkflowRunDisplayName {
+  metadata: APIResourceMeta;
+  displayName: string;
+}
+
+export interface V1WorkflowRunDisplayNameList {
+  pagination: PaginationResponse;
+  /** The list of display names */
+  rows: V1WorkflowRunDisplayName[];
+}
+
 export interface V1TriggerWorkflowRunRequest {
   /** The name of the workflow. */
   workflowName: string;
@@ -1707,17 +1718,6 @@ export interface ListPullRequestsResponse {
 
 export interface WebhookWorkerCreateResponse {
   worker?: WebhookWorkerCreated;
-}
-
-export interface V1WorkflowRunDisplayName {
-  metadata: APIResourceMeta;
-  displayName: string;
-}
-
-export interface V1WorkflowRunDisplayNameList {
-  pagination: PaginationResponse;
-  /** The list of display names */
-  rows: V1WorkflowRunDisplayName[];
 }
 
 export enum V1TaskRunStatus {

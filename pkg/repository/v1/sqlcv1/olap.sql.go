@@ -775,6 +775,50 @@ func (q *Queries) ListTasksByExternalIds(ctx context.Context, db DBTX, arg ListT
 	return items, nil
 }
 
+const listWorkflowRunDisplayNames = `-- name: ListWorkflowRunDisplayNames :many
+SELECT
+    lt.external_id,
+    COALESCE(t.display_name, d.display_name) AS display_name,
+    COALESCE(t.inserted_at, d.inserted_at) AS inserted_at
+FROM v1_lookup_table_olap lt
+LEFT JOIN v1_dags_olap d ON (lt.dag_id, lt.inserted_at) = (d.id, d.inserted_at)
+LEFT JOIN v1_tasks_olap t ON (lt.task_id, lt.inserted_at) = (t.id, t.inserted_at)
+WHERE
+    lt.external_id = ANY($1::uuid[])
+    AND lt.tenant_id = $2::uuid
+`
+
+type ListWorkflowRunDisplayNamesParams struct {
+	Externalids []pgtype.UUID `json:"externalids"`
+	Tenantid    pgtype.UUID   `json:"tenantid"`
+}
+
+type ListWorkflowRunDisplayNamesRow struct {
+	ExternalID  pgtype.UUID        `json:"external_id"`
+	DisplayName string             `json:"display_name"`
+	InsertedAt  pgtype.Timestamptz `json:"inserted_at"`
+}
+
+func (q *Queries) ListWorkflowRunDisplayNames(ctx context.Context, db DBTX, arg ListWorkflowRunDisplayNamesParams) ([]*ListWorkflowRunDisplayNamesRow, error) {
+	rows, err := db.Query(ctx, listWorkflowRunDisplayNames, arg.Externalids, arg.Tenantid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListWorkflowRunDisplayNamesRow
+	for rows.Next() {
+		var i ListWorkflowRunDisplayNamesRow
+		if err := rows.Scan(&i.ExternalID, &i.DisplayName, &i.InsertedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const populateDAGMetadata = `-- name: PopulateDAGMetadata :many
 WITH input AS (
     SELECT

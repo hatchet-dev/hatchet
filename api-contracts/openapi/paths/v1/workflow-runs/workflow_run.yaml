@@ -152,7 +152,7 @@ listWorkflowRunDisplayNames:
         content:
           application/json:
             schema:
-              $ref: "../../../components/schemas/_index.yaml#/V1TaskSummaryList"
+              $ref: "../../../components/schemas/_index.yaml#/V1WorkflowRunDisplayNameList"
         description: Successfully listed the tasks
       "400":
         content:

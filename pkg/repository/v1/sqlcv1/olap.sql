@@ -1166,3 +1166,17 @@ FROM
     v1_tasks_olap t
 JOIN
     unioned_tasks ut ON (t.inserted_at, t.id) = (ut.task_inserted_at, ut.task_id);
+
+
+-- name: ListWorkflowRunDisplayNames :many
+SELECT
+    lt.external_id,
+    COALESCE(t.display_name, d.display_name) AS display_name,
+    COALESCE(t.inserted_at, d.inserted_at) AS inserted_at
+FROM v1_lookup_table_olap lt
+LEFT JOIN v1_dags_olap d ON (lt.dag_id, lt.inserted_at) = (d.id, d.inserted_at)
+LEFT JOIN v1_tasks_olap t ON (lt.task_id, lt.inserted_at) = (t.id, t.inserted_at)
+WHERE
+    lt.external_id = ANY(@externalIds::uuid[])
+    AND lt.tenant_id = @tenantId::uuid
+;
