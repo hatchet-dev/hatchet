@@ -160,7 +160,7 @@ export const TaskRunDetail = ({
         <TabsContent value={TabOption.Output}>
           <V1StepRunOutput taskRunId={taskRunId} />
         </TabsContent>
-        <TabsContent value={TabOption.ChildWorkflowRuns}>
+        <TabsContent value={TabOption.ChildWorkflowRuns} className="mt-4">
           <TaskRunsTable
             parentTaskExternalId={taskRunId}
             showCounts={false}
