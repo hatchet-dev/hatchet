@@ -16,7 +16,7 @@ INSERT INTO v1_log_line (
 -- name: ListLogLines :many
 SELECT
     *
-FROM   
+FROM
     v1_log_line l
 WHERE
     l.tenant_id = @tenantId::uuid

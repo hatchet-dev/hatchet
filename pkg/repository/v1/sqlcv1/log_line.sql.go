@@ -22,7 +22,7 @@ type InsertLogLineParams struct {
 const listLogLines = `-- name: ListLogLines :many
 SELECT
     id, created_at, tenant_id, task_id, task_inserted_at, message, level, metadata
-FROM   
+FROM
     v1_log_line l
 WHERE
     l.tenant_id = $1::uuid
