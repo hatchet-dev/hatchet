@@ -185,6 +185,7 @@ type OLAPRepository interface {
 	ListWorkflowRuns(ctx context.Context, tenantId string, opts ListWorkflowRunOpts) ([]*WorkflowRunData, int, error)
 	ListTaskRunEvents(ctx context.Context, tenantId string, taskId int64, taskInsertedAt pgtype.Timestamptz, limit, offset int64) ([]*sqlcv1.ListTaskEventsRow, error)
 	ListTaskRunEventsByWorkflowRunId(ctx context.Context, tenantId string, workflowRunId pgtype.UUID) ([]*sqlcv1.ListTaskEventsForWorkflowRunRow, error)
+	ListWorkflowRunDisplayNames(ctx context.Context, tenantId pgtype.UUID, externalIds []pgtype.UUID) ([]*sqlcv1.ListWorkflowRunDisplayNamesRow, error)
 	ReadTaskRunMetrics(ctx context.Context, tenantId string, opts ReadTaskRunMetricsOpts) ([]TaskRunMetric, error)
 	CreateTasks(ctx context.Context, tenantId string, tasks []*sqlcv1.V1Task) error
 	CreateTaskEvents(ctx context.Context, tenantId string, events []sqlcv1.CreateTaskEventsOLAPParams) error
@@ -733,6 +734,28 @@ func (r *olapRepository) ListWorkflowRuns(ctx context.Context, tenantId string, 
 		tasksToPopulated[externalId] = task
 	}
 
+	workflowIds := make([]pgtype.UUID, 0)
+
+	for _, dag := range populatedDAGs {
+		workflowIds = append(workflowIds, dag.WorkflowID)
+	}
+
+	for _, task := range populatedTasks {
+		workflowIds = append(workflowIds, task.WorkflowID)
+	}
+
+	workflowNames, err := r.queries.ListWorkflowNamesByIds(ctx, tx, workflowIds)
+
+	if err != nil {
+		return nil, 0, err
+	}
+
+	workflowIdToNameMap := make(map[pgtype.UUID]string)
+
+	for _, row := range workflowNames {
+		workflowIdToNameMap[row.ID] = row.Name
+	}
+
 	count, err := r.queries.CountWorkflowRuns(ctx, tx, countParams)
 
 	if err != nil {
@@ -757,6 +780,8 @@ func (r *olapRepository) ListWorkflowRuns(ctx context.Context, tenantId string, 
 				continue
 			}
 
+			workflowName := workflowIdToNameMap[dag.WorkflowID]
+
 			res = append(res, &WorkflowRunData{
 				TenantID:           dag.TenantID,
 				InsertedAt:         dag.InsertedAt,
@@ -776,7 +801,7 @@ func (r *olapRepository) ListWorkflowRuns(ctx context.Context, tenantId string, 
 				TaskInsertedAt:     nil,
 				Output:             &dag.Output,
 				Input:              dag.Input,
-				WorkflowName:       &dag.WorkflowName,
+				WorkflowName:       &workflowName,
 			})
 		} else {
 			task, ok := tasksToPopulated[externalId]
@@ -785,6 +810,8 @@ func (r *olapRepository) ListWorkflowRuns(ctx context.Context, tenantId string, 
 				r.l.Error().Msgf("could not find task with external id %s", externalId)
 				continue
 			}
+
+			workflowName := workflowIdToNameMap[task.WorkflowID]
 
 			res = append(res, &WorkflowRunData{
 				TenantID:           task.TenantID,
@@ -805,6 +832,7 @@ func (r *olapRepository) ListWorkflowRuns(ctx context.Context, tenantId string, 
 				Output:             &task.Output,
 				Input:              task.Input,
 				StepId:             &task.StepID,
+				WorkflowName:       &workflowName,
 			})
 		}
 	}
@@ -1222,4 +1250,11 @@ func durationToPgInterval(d time.Duration) pgtype.Interval {
 		Microseconds: microseconds,
 		Valid:        true,
 	}
+}
+
+func (r *olapRepository) ListWorkflowRunDisplayNames(ctx context.Context, tenantId pgtype.UUID, externalIds []pgtype.UUID) ([]*sqlcv1.ListWorkflowRunDisplayNamesRow, error) {
+	return r.queries.ListWorkflowRunDisplayNames(ctx, r.pool, sqlcv1.ListWorkflowRunDisplayNamesParams{
+		Tenantid:    tenantId,
+		Externalids: externalIds,
+	})
 }

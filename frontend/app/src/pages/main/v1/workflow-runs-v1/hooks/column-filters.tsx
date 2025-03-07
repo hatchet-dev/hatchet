@@ -224,6 +224,18 @@ export const useColumnFilters = () => {
     [setFilterValues],
   );
 
+  const setParentTaskExternalId = useCallback(
+    (parentTaskExternalId: string | undefined) => {
+      setFilterValues([
+        {
+          key: TaskRunColumn.parentTaskExternalId,
+          value: parentTaskExternalId,
+        },
+      ]);
+    },
+    [setFilterValues],
+  );
+
   const setCreatedAfter = useCallback(
     (createdAfter: string | undefined) => {
       setFilterValues([{ key: 'createdAfter', value: createdAfter }]);
@@ -264,6 +276,17 @@ export const useColumnFilters = () => {
       ]);
     },
     [additionalMetadata, setFilterValues],
+  );
+
+  const setAllAdditionalMetadata = useCallback(
+    ({ kvPairs }: { kvPairs: { key: string; value: string }[] }) => {
+      const newMeta = kvPairs.map(({ key, value }) => `${key}:${value}`);
+
+      setFilterValues([
+        { key: TaskRunColumn.additionalMetadata, value: newMeta },
+      ]);
+    },
+    [setFilterValues],
   );
 
   const clearColumnFilters = useCallback(() => {
@@ -307,5 +330,7 @@ export const useColumnFilters = () => {
     setAdditionalMetadata,
     clearColumnFilters,
     clearParentTaskExternalId,
+    setAllAdditionalMetadata,
+    setParentTaskExternalId,
   };
 };

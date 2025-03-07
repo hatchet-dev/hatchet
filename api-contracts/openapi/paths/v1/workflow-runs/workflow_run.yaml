@@ -121,6 +121,61 @@ listWorkflowRuns:
     tags:
       - Workflow Runs
 
+listWorkflowRunDisplayNames:
+  get:
+    x-resources: ["tenant"]
+    description: Lists displayable names of workflow runs for a tenant
+    operationId: v1-workflow-run:display-names:list
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The external ids of the workflow runs to get display names for
+        in: query
+        name: external_ids
+        required: true
+        schema:
+          type: array
+          items:
+            type: string
+            format: uuid
+            minLength: 36
+            maxLength: 36
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/V1WorkflowRunDisplayNameList"
+        description: Successfully listed the tasks
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+      "501":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Not implemented
+    summary: List workflow runs
+    tags:
+      - Workflow Runs
+
 listTaskEventsForWorkflowRun:
   get:
     x-resources: ["tenant", "v1-workflow-run"]

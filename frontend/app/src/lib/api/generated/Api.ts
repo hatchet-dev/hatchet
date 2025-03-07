@@ -95,6 +95,7 @@ import {
   V1TaskSummaryList,
   V1TriggerWorkflowRunRequest,
   V1WorkflowRunDetails,
+  V1WorkflowRunDisplayNameList,
   WebhookWorkerCreateRequest,
   WebhookWorkerCreated,
   WebhookWorkerListResponse,
@@ -315,6 +316,31 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   ) =>
     this.request<V1TaskSummaryList, APIErrors>({
       path: `/api/v1/stable/tenants/${tenant}/workflow-runs`,
+      method: 'GET',
+      query: query,
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Lists displayable names of workflow runs for a tenant
+   *
+   * @tags Workflow Runs
+   * @name V1WorkflowRunDisplayNamesList
+   * @summary List workflow runs
+   * @request GET:/api/v1/stable/tenants/{tenant}/workflow-runs/display-names
+   * @secure
+   */
+  v1WorkflowRunDisplayNamesList = (
+    tenant: string,
+    query: {
+      /** The external ids of the workflow runs to get display names for */
+      external_ids: string[];
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<V1WorkflowRunDisplayNameList, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/workflow-runs/display-names`,
       method: 'GET',
       query: query,
       secure: true,

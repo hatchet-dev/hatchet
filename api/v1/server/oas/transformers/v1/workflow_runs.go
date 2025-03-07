@@ -196,3 +196,31 @@ func TaskRunDataRowToWorkflowRunsMany(
 		},
 	}
 }
+
+func ToWorkflowRunDisplayNamesList(
+	displayNames []*sqlcv1.ListWorkflowRunDisplayNamesRow,
+) gen.V1WorkflowRunDisplayNameList {
+	result := make([]gen.V1WorkflowRunDisplayName, len(displayNames))
+
+	for i, record := range displayNames {
+		result[i] = gen.V1WorkflowRunDisplayName{
+			DisplayName: record.DisplayName,
+			Metadata: gen.APIResourceMeta{
+				Id:        sqlchelpers.UUIDToStr(record.ExternalID),
+				CreatedAt: record.InsertedAt.Time,
+				UpdatedAt: record.InsertedAt.Time,
+			},
+		}
+	}
+
+	page := int64(1)
+
+	return gen.V1WorkflowRunDisplayNameList{
+		Rows: result,
+		Pagination: gen.PaginationResponse{
+			CurrentPage: &page,
+			NextPage:    nil,
+			NumPages:    &page,
+		},
+	}
+}

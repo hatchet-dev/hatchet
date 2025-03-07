@@ -31,8 +31,6 @@ class Parent(BaseWorkflow):
     async def spawn(self, context: Context) -> dict[str, Any]:
         print("spawning child")
 
-        context.put_stream("spawning...")
-
         n = parent_wf.get_workflow_input(context).n
 
         children = await asyncio.gather(
@@ -62,13 +60,11 @@ class Child(BaseWorkflow):
     def process(self, context: Context) -> dict[str, str]:
         a = child_wf.get_workflow_input(context).a
         print(f"child process {a}")
-        context.put_stream("child 1...")
         return {"status": "success " + a}
 
     @hatchet.step()
     def process2(self, context: Context) -> dict[str, str]:
         print("child process2")
-        context.put_stream("child 2...")
         return {"status2": "success"}
 
 

@@ -1387,6 +1387,20 @@ type V1WorkflowRunDetails struct {
 	Tasks      []V1TaskSummary `json:"tasks"`
 }
 
+// V1WorkflowRunDisplayName defines model for V1WorkflowRunDisplayName.
+type V1WorkflowRunDisplayName struct {
+	DisplayName string          `json:"displayName"`
+	Metadata    APIResourceMeta `json:"metadata"`
+}
+
+// V1WorkflowRunDisplayNameList defines model for V1WorkflowRunDisplayNameList.
+type V1WorkflowRunDisplayNameList struct {
+	Pagination PaginationResponse `json:"pagination"`
+
+	// Rows The list of display names
+	Rows []V1WorkflowRunDisplayName `json:"rows"`
+}
+
 // V1WorkflowType defines model for V1WorkflowType.
 type V1WorkflowType string
 
@@ -1830,6 +1844,12 @@ type V1WorkflowRunListParams struct {
 
 	// ParentTaskExternalId The parent task external id to filter by
 	ParentTaskExternalId *openapi_types.UUID `form:"parent_task_external_id,omitempty" json:"parent_task_external_id,omitempty"`
+}
+
+// V1WorkflowRunDisplayNamesListParams defines parameters for V1WorkflowRunDisplayNamesList.
+type V1WorkflowRunDisplayNamesListParams struct {
+	// ExternalIds The external ids of the workflow runs to get display names for
+	ExternalIds []openapi_types.UUID `form:"external_ids" json:"external_ids"`
 }
 
 // V1WorkflowRunTaskEventsListParams defines parameters for V1WorkflowRunTaskEventsList.
@@ -2336,6 +2356,9 @@ type ClientInterface interface {
 
 	// V1WorkflowRunList request
 	V1WorkflowRunList(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// V1WorkflowRunDisplayNamesList request
+	V1WorkflowRunDisplayNamesList(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunDisplayNamesListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// V1WorkflowRunCreateWithBody request with any body
 	V1WorkflowRunCreateWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -2941,6 +2964,18 @@ func (c *Client) V1TaskReplay(ctx context.Context, tenant openapi_types.UUID, bo
 
 func (c *Client) V1WorkflowRunList(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunListParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewV1WorkflowRunListRequest(c.Server, tenant, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1WorkflowRunDisplayNamesList(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunDisplayNamesListParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1WorkflowRunDisplayNamesListRequest(c.Server, tenant, params)
 	if err != nil {
 		return nil, err
 	}
@@ -5346,6 +5381,58 @@ func NewV1WorkflowRunListRequest(server string, tenant openapi_types.UUID, param
 				}
 			}
 
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewV1WorkflowRunDisplayNamesListRequest generates requests for V1WorkflowRunDisplayNamesList
+func NewV1WorkflowRunDisplayNamesListRequest(server string, tenant openapi_types.UUID, params *V1WorkflowRunDisplayNamesListParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/workflow-runs/display-names", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "external_ids", runtime.ParamLocationQuery, params.ExternalIds); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
 		}
 
 		queryURL.RawQuery = queryValues.Encode()
@@ -9931,6 +10018,9 @@ type ClientWithResponsesInterface interface {
 	// V1WorkflowRunListWithResponse request
 	V1WorkflowRunListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunListParams, reqEditors ...RequestEditorFn) (*V1WorkflowRunListResponse, error)
 
+	// V1WorkflowRunDisplayNamesListWithResponse request
+	V1WorkflowRunDisplayNamesListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunDisplayNamesListParams, reqEditors ...RequestEditorFn) (*V1WorkflowRunDisplayNamesListResponse, error)
+
 	// V1WorkflowRunCreateWithBodyWithResponse request with any body
 	V1WorkflowRunCreateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1WorkflowRunCreateResponse, error)
 
@@ -10776,6 +10866,31 @@ func (r V1WorkflowRunListResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r V1WorkflowRunListResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1WorkflowRunDisplayNamesListResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *V1WorkflowRunDisplayNameList
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON501      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1WorkflowRunDisplayNamesListResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1WorkflowRunDisplayNamesListResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -13023,6 +13138,15 @@ func (c *ClientWithResponses) V1WorkflowRunListWithResponse(ctx context.Context,
 	return ParseV1WorkflowRunListResponse(rsp)
 }
 
+// V1WorkflowRunDisplayNamesListWithResponse request returning *V1WorkflowRunDisplayNamesListResponse
+func (c *ClientWithResponses) V1WorkflowRunDisplayNamesListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunDisplayNamesListParams, reqEditors ...RequestEditorFn) (*V1WorkflowRunDisplayNamesListResponse, error) {
+	rsp, err := c.V1WorkflowRunDisplayNamesList(ctx, tenant, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1WorkflowRunDisplayNamesListResponse(rsp)
+}
+
 // V1WorkflowRunCreateWithBodyWithResponse request with arbitrary body returning *V1WorkflowRunCreateResponse
 func (c *ClientWithResponses) V1WorkflowRunCreateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1WorkflowRunCreateResponse, error) {
 	rsp, err := c.V1WorkflowRunCreateWithBody(ctx, tenant, contentType, body, reqEditors...)
@@ -14840,6 +14964,53 @@ func ParseV1WorkflowRunListResponse(rsp *http.Response) (*V1WorkflowRunListRespo
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest V1TaskSummaryList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1WorkflowRunDisplayNamesListResponse parses an HTTP response from a V1WorkflowRunDisplayNamesListWithResponse call
+func ParseV1WorkflowRunDisplayNamesListResponse(rsp *http.Response) (*V1WorkflowRunDisplayNamesListResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1WorkflowRunDisplayNamesListResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1WorkflowRunDisplayNameList
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

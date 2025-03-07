@@ -12,6 +12,7 @@ type UseTaskRunProps = {
   workerId: string | undefined;
   workflow: string | undefined;
   parentTaskExternalId: string | undefined;
+  disablePagination?: boolean;
 };
 
 export const useTaskRuns = ({
@@ -19,6 +20,7 @@ export const useTaskRuns = ({
   workerId,
   workflow,
   parentTaskExternalId,
+  disablePagination = false,
 }: UseTaskRunProps) => {
   const cf = useColumnFilters();
   const { pagination, offset } = usePagination();
@@ -31,8 +33,8 @@ export const useTaskRuns = ({
 
   const listTasksQuery = useQuery({
     ...queries.v1WorkflowRuns.list(tenant.metadata.id, {
-      offset,
-      limit: pagination.pageSize,
+      offset: disablePagination ? 0 : offset,
+      limit: disablePagination ? 500 : pagination.pageSize,
       statuses: cf.filters.status ? [cf.filters.status] : undefined,
       workflow_ids: workflow ? [workflow] : [],
       parent_task_external_id: parentTaskExternalId,
