@@ -13,11 +13,13 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 func (t *WorkflowService) WorkflowScheduledList(ctx echo.Context, request gen.WorkflowScheduledListRequestObject) (gen.WorkflowScheduledListResponseObject, error) {
-	tenant := ctx.Get("tenant").(*db.TenantModel)
+	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
+	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
 
 	limit := 50
 	offset := 0
@@ -57,10 +59,10 @@ func (t *WorkflowService) WorkflowScheduledList(ctx echo.Context, request gen.Wo
 	}
 
 	if request.Params.Statuses != nil {
-		statuses := make([]db.WorkflowRunStatus, len(*request.Params.Statuses))
+		statuses := make([]dbsqlc.WorkflowRunStatus, len(*request.Params.Statuses))
 
 		for i, status := range *request.Params.Statuses {
-			statuses[i] = db.WorkflowRunStatus(status)
+			statuses[i] = dbsqlc.WorkflowRunStatus(status)
 		}
 
 		listOpts.Statuses = &statuses
@@ -86,7 +88,7 @@ func (t *WorkflowService) WorkflowScheduledList(ctx echo.Context, request gen.Wo
 	dbCtx, cancel := context.WithTimeout(ctx.Request().Context(), 30*time.Second)
 	defer cancel()
 
-	scheduled, count, err := t.config.APIRepository.WorkflowRun().ListScheduledWorkflows(dbCtx, tenant.ID, listOpts)
+	scheduled, count, err := t.config.APIRepository.WorkflowRun().ListScheduledWorkflows(dbCtx, tenantId, listOpts)
 
 	if err != nil {
 		return nil, err

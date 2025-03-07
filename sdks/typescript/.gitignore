@@ -1,0 +1,17 @@
+/dist
+/certs
+
+# ignore docs for now, because we manually use the docs output to construct docs
+docs
+
+node_modules/
+
+openapi.yaml
+
+**/.env
+
+.idea
+
+.vscode
+
+/src/version.ts

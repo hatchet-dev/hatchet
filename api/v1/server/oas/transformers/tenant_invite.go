@@ -2,20 +2,17 @@ package transformers
 
 import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
-func ToTenantInviteLink(invite *db.TenantInviteLinkModel) *gen.TenantInvite {
+func ToTenantInviteLink(invite *dbsqlc.TenantInviteLink) *gen.TenantInvite {
 	res := &gen.TenantInvite{
-		Metadata: *toAPIMetadata(invite.ID, invite.CreatedAt, invite.UpdatedAt),
+		Metadata: *toAPIMetadata(sqlchelpers.UUIDToStr(invite.ID), invite.CreatedAt.Time, invite.UpdatedAt.Time),
 		Email:    invite.InviteeEmail,
-		Expires:  invite.Expires,
+		Expires:  invite.Expires.Time,
 		Role:     gen.TenantMemberRole(invite.Role),
-		TenantId: invite.TenantID,
-	}
-
-	if invite.RelationsTenantInviteLink.Tenant != nil {
-		res.TenantName = &invite.Tenant().Name
+		TenantId: sqlchelpers.UUIDToStr(invite.TenantId),
 	}
 
 	return res

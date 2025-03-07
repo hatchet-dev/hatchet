@@ -5,8 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
 
 	"github.com/jackc/pgx/v5/pgtype"
 
@@ -79,7 +78,7 @@ type UpdateStepRunOverridesDataOpts struct {
 	CallerFile  *string
 }
 
-func StepRunStatusPtr(status db.StepRunStatus) *db.StepRunStatus {
+func StepRunStatusPtr(status dbsqlc.StepRunStatus) *dbsqlc.StepRunStatus {
 	return &status
 }
 

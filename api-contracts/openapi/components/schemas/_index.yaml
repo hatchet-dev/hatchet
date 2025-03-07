@@ -292,3 +292,41 @@ WebhookWorkerCreateResponse:
   $ref: "./webhook_worker.yaml#/WebhookWorkerCreateResponse"
 WebhookWorkerListResponse:
   $ref: "./webhook_worker.yaml#/WebhookWorkerListResponse"
+V1TaskSummaryList:
+  $ref: "./v1/task.yaml#/V1TaskSummaryList"
+V1WorkflowRunDisplayNameList:
+  $ref: "./v1/task.yaml#/V1WorkflowRunDisplayNameList"
+V1TaskSummary:
+  $ref: "./v1/task.yaml#/V1TaskSummary"
+V1DagChildren:
+  $ref: "./v1/task.yaml#/V1DagChildren"
+V1TaskEventList:
+  $ref: "./v1/task.yaml#/V1TaskEventList"
+V1TaskStatus:
+  $ref: "./v1/task.yaml#/V1TaskStatus"
+V1TaskRunMetrics:
+  $ref: "./v1/task.yaml#/V1TaskRunMetrics"
+V1TaskPointMetric:
+  $ref: "./v1/task.yaml#/V1TaskPointMetric"
+V1TaskPointMetrics:
+  $ref: "./v1/task.yaml#/V1TaskPointMetrics"
+V1TaskFilter:
+  $ref: "./v1/task.yaml#/V1TaskFilter"
+V1CancelTaskRequest:
+  $ref: "./v1/task.yaml#/V1CancelTaskRequest"
+V1ReplayTaskRequest:
+  $ref: "./v1/task.yaml#/V1ReplayTaskRequest"
+V1WorkflowRun:
+  $ref: "./v1/workflow_run.yaml#/V1WorkflowRun"
+V1WorkflowRunDetails:
+  $ref: "./v1/workflow_run.yaml#/V1WorkflowRunDetails"
+V1TaskRunStatus:
+  $ref: "./workflow_run.yaml#/V1TaskRunStatus"
+V1TriggerWorkflowRunRequest:
+  $ref: "./v1/workflow_run.yaml#/V1TriggerWorkflowRunRequest"
+V1LogLine:
+  $ref: "./v1/logs.yaml#/V1LogLine"
+V1LogLineLevel:
+  $ref: "./v1/logs.yaml#/V1LogLineLevel"
+V1LogLineList:
+  $ref: "./v1/logs.yaml#/V1LogLineList"

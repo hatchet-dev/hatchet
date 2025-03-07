@@ -8,7 +8,8 @@ import (
 
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/random"
-	"github.com/hatchet-dev/hatchet/pkg/repository/prisma/db"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
 )
 
 type SessionHelpers struct {
@@ -21,7 +22,7 @@ func NewSessionHelpers(config *server.ServerConfig) *SessionHelpers {
 	}
 }
 
-func (s *SessionHelpers) SaveAuthenticated(c echo.Context, user *db.UserModel) error {
+func (s *SessionHelpers) SaveAuthenticated(c echo.Context, user *dbsqlc.User) error {
 	session, err := s.config.SessionStore.Get(c.Request(), s.config.SessionStore.GetName())
 
 	if err != nil {
@@ -29,7 +30,7 @@ func (s *SessionHelpers) SaveAuthenticated(c echo.Context, user *db.UserModel) e
 	}
 
 	session.Values["authenticated"] = true
-	session.Values["user_id"] = user.ID
+	session.Values["user_id"] = sqlchelpers.UUIDToStr(user.ID)
 
 	return session.Save(c.Request(), c.Response())
 }

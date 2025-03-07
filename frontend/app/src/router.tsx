@@ -8,7 +8,7 @@ import {
 import ErrorBoundary from './pages/error/index.tsx';
 import Root from './pages/root.tsx';
 
-const routes: RouteObject[] = [
+export const routes: RouteObject[] = [
   {
     path: '/',
     element: <Root />,
@@ -324,6 +324,285 @@ const routes: RouteObject[] = [
                 path: '/tenant-settings/ingestors',
                 lazy: async () =>
                   import('./pages/main/tenant-settings/ingestors').then(
+                    (res) => {
+                      return {
+                        Component: res.default,
+                      };
+                    },
+                  ),
+              },
+            ],
+          },
+        ],
+      },
+
+      // V1 Routes - These are explicitly listed for IDE support
+
+      {
+        path: '/v1/',
+        lazy: async () =>
+          import('./pages/authenticated').then((res) => {
+            return {
+              loader: res.loader,
+              Component: res.default,
+            };
+          }),
+        children: [
+          {
+            path: '/v1/',
+            lazy: async () => {
+              return {
+                loader: function () {
+                  return redirect('/v1/workflow-runs');
+                },
+              };
+            },
+          },
+          {
+            path: '/v1/onboarding/get-started',
+            lazy: async () =>
+              import('./pages/onboarding/get-started').then((res) => {
+                return {
+                  Component: res.default,
+                };
+              }),
+          },
+          {
+            path: '/v1/',
+            lazy: async () =>
+              import('./pages/main/v1').then((res) => {
+                return {
+                  Component: res.default,
+                };
+              }),
+            children: [
+              {
+                path: '/v1/events',
+                lazy: async () =>
+                  import('./pages/main/v1/events').then((res) => {
+                    return {
+                      Component: res.default,
+                    };
+                  }),
+              },
+              {
+                path: '/v1/rate-limits',
+                lazy: async () =>
+                  import('./pages/main/v1/rate-limits').then((res) => {
+                    return {
+                      Component: res.default,
+                    };
+                  }),
+              },
+              {
+                path: '/v1/scheduled',
+                lazy: async () =>
+                  import('./pages/main/v1/scheduled-runs').then((res) => {
+                    return {
+                      Component: res.default,
+                    };
+                  }),
+              },
+              {
+                path: '/v1/cron-jobs',
+                lazy: async () =>
+                  import('./pages/main/v1/recurring').then((res) => {
+                    return {
+                      Component: res.default,
+                    };
+                  }),
+              },
+              {
+                path: '/v1/workflows',
+                lazy: async () =>
+                  import('./pages/main/v1/workflows').then((res) => {
+                    return {
+                      Component: res.default,
+                    };
+                  }),
+              },
+              {
+                path: '/v1/workflows/:workflow',
+                lazy: async () =>
+                  import('./pages/main/v1/workflows/$workflow').then((res) => {
+                    return {
+                      Component: res.default,
+                    };
+                  }),
+              },
+              {
+                path: '/v1/workflow-runs',
+                lazy: async () =>
+                  import('./pages/main/v1/workflow-runs-v1/index.tsx').then(
+                    (res) => {
+                      return {
+                        Component: res.default,
+                      };
+                    },
+                  ),
+              },
+              {
+                path: '/v1/workflow-runs/:run',
+                lazy: async () =>
+                  import('./pages/main/v1/workflow-runs-v1/$run').then(
+                    (res) => {
+                      return {
+                        Component: res.default,
+                      };
+                    },
+                  ),
+              },
+              {
+                path: '/v1/task-runs/:run',
+                lazy: async () =>
+                  import('./pages/main/v1/task-runs-v1/$run').then((res) => {
+                    return {
+                      Component: res.default,
+                    };
+                  }),
+              },
+              {
+                path: '/v1/workers',
+                lazy: async () => {
+                  return {
+                    loader: function () {
+                      return redirect('/v1/workers/all');
+                    },
+                  };
+                },
+              },
+              {
+                path: '/v1/workers/all',
+                lazy: async () =>
+                  import('./pages/main/v1/workers').then((res) => {
+                    return {
+                      Component: res.default,
+                    };
+                  }),
+              },
+              {
+                path: '/v1/workers/webhook',
+                lazy: async () =>
+                  import('./pages/main/v1/workers/webhooks/index.tsx').then(
+                    (res) => {
+                      return {
+                        Component: res.default,
+                      };
+                    },
+                  ),
+              },
+              {
+                path: '/v1/workers/:worker',
+                lazy: async () =>
+                  import('./pages/main/v1/workers/$worker').then((res) => {
+                    return {
+                      Component: res.default,
+                    };
+                  }),
+              },
+              {
+                path: '/v1/managed-workers',
+                lazy: async () =>
+                  import('./pages/main/v1/managed-workers/index.tsx').then(
+                    (res) => {
+                      return {
+                        Component: res.default,
+                      };
+                    },
+                  ),
+              },
+              {
+                path: '/v1/managed-workers/create',
+                lazy: async () =>
+                  import(
+                    './pages/main/v1/managed-workers/create/index.tsx'
+                  ).then((res) => {
+                    return {
+                      Component: res.default,
+                    };
+                  }),
+              },
+              {
+                path: '/v1/managed-workers/:managed-worker',
+                lazy: async () =>
+                  import(
+                    './pages/main/v1/managed-workers/$managed-worker/index.tsx'
+                  ).then((res) => {
+                    return {
+                      Component: res.default,
+                    };
+                  }),
+              },
+              {
+                path: '/v1/tenant-settings/overview',
+                lazy: async () =>
+                  import('./pages/main/v1/tenant-settings/overview').then(
+                    (res) => {
+                      return {
+                        Component: res.default,
+                      };
+                    },
+                  ),
+              },
+              {
+                path: '/v1/tenant-settings/api-tokens',
+                lazy: async () =>
+                  import('./pages/main/v1/tenant-settings/api-tokens').then(
+                    (res) => {
+                      return {
+                        Component: res.default,
+                      };
+                    },
+                  ),
+              },
+              {
+                path: '/v1/tenant-settings/github',
+                lazy: async () =>
+                  import('./pages/main/v1/tenant-settings/github').then(
+                    (res) => {
+                      return {
+                        Component: res.default,
+                      };
+                    },
+                  ),
+              },
+              {
+                path: '/v1/tenant-settings/members',
+                lazy: async () =>
+                  import('./pages/main/v1/tenant-settings/members').then(
+                    (res) => {
+                      return {
+                        Component: res.default,
+                      };
+                    },
+                  ),
+              },
+              {
+                path: '/v1/tenant-settings/alerting',
+                lazy: async () =>
+                  import('./pages/main/v1/tenant-settings/alerting').then(
+                    (res) => {
+                      return {
+                        Component: res.default,
+                      };
+                    },
+                  ),
+              },
+              {
+                path: '/v1/tenant-settings/billing-and-limits',
+                lazy: async () =>
+                  import(
+                    './pages/main/v1/tenant-settings/resource-limits'
+                  ).then((res) => {
+                    return {
+                      Component: res.default,
+                    };
+                  }),
+              },
+              {
+                path: '/v1/tenant-settings/ingestors',
+                lazy: async () =>
+                  import('./pages/main/v1/tenant-settings/ingestors').then(
                     (res) => {
                       return {
                         Component: res.default,

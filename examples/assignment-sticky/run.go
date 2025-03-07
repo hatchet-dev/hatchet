@@ -31,13 +31,13 @@ func run() (func() error, error) {
 			On:             worker.Events("user:create:sticky"),
 			Name:           "sticky",
 			Description:    "sticky",
-			StickyStrategy: types.StickyStrategyPtr(types.StickyStrategy_SOFT),
+			StickyStrategy: types.StickyStrategyPtr(types.StickyStrategy_HARD),
 			Steps: []*worker.WorkflowStep{
 				worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
 
 					sticky := true
 
-					_, err = ctx.SpawnWorkflow("step-one", nil, &worker.SpawnWorkflowOpts{
+					_, err = ctx.SpawnWorkflow("sticky-child", nil, &worker.SpawnWorkflowOpts{
 						Sticky: &sticky,
 					})
 
@@ -53,15 +53,34 @@ func run() (func() error, error) {
 					return &stepOneOutput{
 						Message: ctx.Worker().ID(),
 					}, nil
-				}).SetName("step-two"),
+				}).SetName("step-two").AddParents("step-one"),
 				worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
 					return &stepOneOutput{
 						Message: ctx.Worker().ID(),
 					}, nil
-				}).SetName("step-three").AddParents("step-one", "step-two"),
+				}).SetName("step-three").AddParents("step-two"),
 			},
 		},
 	)
+	if err != nil {
+		return nil, fmt.Errorf("error registering workflow: %w", err)
+	}
+
+	err = w.RegisterWorkflow(
+		&worker.WorkflowJob{
+			On:          worker.NoTrigger(),
+			Name:        "sticky-child",
+			Description: "sticky",
+			Steps: []*worker.WorkflowStep{
+				worker.Fn(func(ctx worker.HatchetContext) (result *stepOneOutput, err error) {
+					return &stepOneOutput{
+						Message: ctx.Worker().ID(),
+					}, nil
+				}).SetName("step-one"),
+			},
+		},
+	)
+
 	if err != nil {
 		return nil, fmt.Errorf("error registering workflow: %w", err)
 	}

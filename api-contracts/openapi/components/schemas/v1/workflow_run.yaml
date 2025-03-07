@@ -1,0 +1,126 @@
+V1WorkflowRun:
+  properties:
+    metadata:
+      $ref: ".././metadata.yaml#/APIResourceMeta"
+    status:
+      $ref: "./task.yaml#/V1TaskStatus"
+    startedAt:
+      type: string
+      format: date-time
+      description: The timestamp the task run started.
+    finishedAt:
+      type: string
+      format: date-time
+      description: The timestamp the task run finished.
+    duration:
+      type: integer
+      description: The duration of the task run, in milliseconds.
+    tenantId:
+      type: string
+      description: The ID of the tenant.
+      example: bb214807-246e-43a5-a25d-41761d1cff9e
+      minLength: 36
+      maxLength: 36
+      format: uuid
+    additionalMetadata:
+      type: object
+      description: Additional metadata for the task run.
+    displayName:
+      type: string
+      description: The display name of the task run.
+    workflowId:
+      type: string
+      format: uuid
+    output:
+      type: object
+      description: The output of the task run (for the latest run)
+    errorMessage:
+      type: string
+      description: The error message of the task run (for the latest run)
+    workflowVersionId:
+      type: string
+      format: uuid
+      description: The ID of the workflow version.
+    input:
+      type: object
+      description: The input of the task run.
+    createdAt:
+      type: string
+      format: date-time
+      description: The timestamp the task run was created.
+  required:
+    - metadata
+    - id
+    - status
+    - tenantId
+    - displayName
+    - workflowId
+    - output
+    - input
+
+WorkflowRunShapeItemForWorkflowRunDetails:
+  type: object
+  properties:
+    taskExternalId:
+      type: string
+      format: uuid
+      minLength: 36
+      maxLength: 36
+    stepId:
+      type: string
+      format: uuid
+      minLength: 36
+      maxLength: 36
+    childrenStepIds:
+      type: array
+      items:
+        type: string
+        format: uuid
+        minLength: 36
+        maxLength: 36
+    taskName:
+      type: string
+  required:
+    - taskExternalId
+    - stepId
+    - childrenStepIds
+    - taskName
+
+WorkflowRunShapeForWorkflowRunDetails:
+  type: array
+  items:
+    $ref: "#/WorkflowRunShapeItemForWorkflowRunDetails"
+
+V1WorkflowRunDetails:
+  properties:
+    run:
+      $ref: "#/V1WorkflowRun"
+    taskEvents:
+      type: array
+      items:
+        $ref: "./task.yaml#/V1TaskEvent"
+      description: The list of task events for the workflow run
+    shape:
+      $ref: "#/WorkflowRunShapeForWorkflowRunDetails"
+    tasks:
+      type: array
+      items:
+        $ref: "./task.yaml#/V1TaskSummary"
+  required:
+    - run
+    - taskEvents
+    - shape
+    - tasks
+
+V1TriggerWorkflowRunRequest:
+  properties:
+    workflowName:
+      type: string
+      description: The name of the workflow.
+    input:
+      type: object
+    additionalMetadata:
+      type: object
+  required:
+    - workflowName
+    - input

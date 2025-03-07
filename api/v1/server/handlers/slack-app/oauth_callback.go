@@ -62,6 +62,7 @@ func (g *SlackAppService) UserUpdateSlackOauthCallback(ctx echo.Context, _ gen.U
 	}
 
 	_, err = g.config.APIRepository.Slack().UpsertSlackWebhook(
+		ctx.Request().Context(),
 		tenantId,
 		&repository.UpsertSlackWebhookOpts{
 			TeamId:      resp.Team.ID,
