@@ -152,13 +152,11 @@ const CancelByExternalIdsContent = ({ label, params }: ModalContentProps) => {
     enabled: !!params.externalIds,
   });
 
-  if (isLoading) {
+  if (isLoading || isError) {
     return null;
   }
 
   const displayNames = data?.rows || [];
-
-  console.log(displayNames);
 
   return (
     <div className="flex flex-col gap-y-4">
@@ -201,8 +199,8 @@ const ModalContent = ({ label, params }: ModalContentProps) => {
     return (
       <div className="gap-y-4 flex flex-col">
         <p className="text-md">
-          Confirm to {label.toLowerCase()} all workflow runs matching the following
-          filters:
+          Confirm to {label.toLowerCase()} all workflow runs matching the
+          following filters:
         </p>
         <div className="grid grid-cols-2 gap-x-2 items-start justify-start gap-y-4">
           {statusToolbarFilter && (
