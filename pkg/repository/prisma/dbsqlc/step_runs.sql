@@ -532,7 +532,7 @@ WHERE
 UPDATE
     "StepRun" sr
 SET
-    sr."status" = 'BACKOFF'
+    "status" = 'BACKOFF'
 FROM (
     SELECT "id"
     FROM "StepRun" sr2
@@ -548,7 +548,7 @@ WHERE sr."id" = upd."id";
 UPDATE
     "StepRun" sr
 SET
-    sr."status" = 'PENDING_ASSIGNMENT'
+    "status" = 'PENDING_ASSIGNMENT'
 FROM (
     SELECT "id"
     FROM "StepRun" sr2

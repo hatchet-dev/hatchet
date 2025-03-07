@@ -112,7 +112,7 @@ const bulkBackoffStepRun = `-- name: BulkBackoffStepRun :exec
 UPDATE
     "StepRun" sr
 SET
-    sr."status" = 'BACKOFF'
+    "status" = 'BACKOFF'
 FROM (
     SELECT "id"
     FROM "StepRun" sr2
@@ -365,7 +365,7 @@ const bulkRetryStepRun = `-- name: BulkRetryStepRun :exec
 UPDATE
     "StepRun" sr
 SET
-    sr."status" = 'PENDING_ASSIGNMENT'
+    "status" = 'PENDING_ASSIGNMENT'
 FROM (
     SELECT "id"
     FROM "StepRun" sr2
