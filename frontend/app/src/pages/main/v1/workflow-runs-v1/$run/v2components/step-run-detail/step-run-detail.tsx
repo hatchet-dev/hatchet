@@ -1,4 +1,4 @@
-import { StepRun, V1TaskStatus, V1TaskSummary, queries } from '@/lib/api';
+import { V1TaskStatus, V1TaskSummary, queries } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 import invariant from 'tiny-invariant';
 import { Button } from '@/components/v1/ui/button';
@@ -12,9 +12,8 @@ import {
   TabsTrigger,
 } from '@/components/v1/ui/tabs';
 import { StepRunEvents } from '../step-run-events-for-workflow-run';
-import { Link, useOutletContext } from 'react-router-dom';
-import { TenantContextType } from '@/lib/outlet';
-import { TaskRunsTable as WorkflowRunsTable } from '../../../components/task-runs-table';
+import { Link } from 'react-router-dom';
+import { TaskRunsTable } from '../../../components/task-runs-table';
 import { useTenant } from '@/lib/atoms';
 import { V1RunIndicator } from '../../../components/run-statuses';
 import RelativeDate from '@/components/v1/molecules/relative-date';
@@ -161,12 +160,13 @@ export const TaskRunDetail = ({
         <TabsContent value={TabOption.Output}>
           <V1StepRunOutput taskRunId={taskRunId} />
         </TabsContent>
-        <TabsContent value={TabOption.ChildWorkflowRuns}>
-          {/* <ChildWorkflowRuns
-            stepRun={stepRun}
-            workflowRun={workflowRun}
-            refetchInterval={5000}
-          /> */}
+        <TabsContent value={TabOption.ChildWorkflowRuns} className="mt-4">
+          <TaskRunsTable
+            parentTaskExternalId={taskRunId}
+            showCounts={false}
+            showMetrics={false}
+            disableTaskRunPagination={true}
+          />
         </TabsContent>
         <TabsContent value={TabOption.Input}>
           {taskRun.input && (
@@ -279,24 +279,3 @@ const V1StepRunSummary = ({ taskRunId }: { taskRunId: string }) => {
     <div className="flex flex-row gap-4 items-center">{interleavedTimings}</div>
   );
 };
-
-export function ChildWorkflowRuns({
-  stepRun,
-  refetchInterval,
-}: {
-  stepRun: StepRun | undefined;
-  refetchInterval?: number;
-}) {
-  const { tenant } = useOutletContext<TenantContextType>();
-  invariant(tenant);
-
-  return (
-    <WorkflowRunsTable
-      refetchInterval={refetchInterval}
-      initColumnVisibility={{
-        'Triggered by': false,
-      }}
-      createdAfter={stepRun?.metadata.createdAt}
-    />
-  );
-}

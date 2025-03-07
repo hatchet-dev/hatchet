@@ -74,3 +74,9 @@ FROM
     "StepExpression"
 WHERE
     "stepId" = ANY(@stepIds::uuid[]);
+
+-- name: ListWorkflowNamesByIds :many
+SELECT id, name
+FROM "Workflow"
+WHERE id = ANY(@ids::uuid[])
+;

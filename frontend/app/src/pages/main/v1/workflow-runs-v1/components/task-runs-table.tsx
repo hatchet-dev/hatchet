@@ -53,6 +53,8 @@ export interface TaskRunsTableProps {
   refetchInterval?: number;
   showMetrics?: boolean;
   showCounts?: boolean;
+  parentTaskExternalId?: string;
+  disableTaskRunPagination?: boolean;
 }
 
 type StepDetailSheetState = {
@@ -63,12 +65,14 @@ type StepDetailSheetState = {
 export function TaskRunsTable({
   workflowId,
   workerId,
+  parentTaskExternalId,
   createdAfter: createdAfterProp,
   initColumnVisibility = {},
   filterVisibility = {},
   refetchInterval = 100000,
   showMetrics = false,
   showCounts = true,
+  disableTaskRunPagination = false,
 }: TaskRunsTableProps) {
   const { tenant } = useOutletContext<TenantContextType>();
   invariant(tenant);
@@ -94,6 +98,8 @@ export function TaskRunsTable({
   const { pagination, setPagination, setPageSize } = usePagination();
 
   const workflow = workflowId || cf.filters.workflowId;
+  const derivedParentTaskExternalId =
+    parentTaskExternalId || cf.filters.parentTaskExternalId;
 
   const {
     tableRows,
@@ -106,7 +112,8 @@ export function TaskRunsTable({
     rowSelection,
     workerId,
     workflow,
-    parentTaskExternalId: cf.filters.parentTaskExternalId,
+    parentTaskExternalId: derivedParentTaskExternalId,
+    disablePagination: disableTaskRunPagination,
   });
 
   const {
@@ -117,7 +124,7 @@ export function TaskRunsTable({
   } = useMetrics({
     workflow,
     refetchInterval,
-    parentTaskExternalId: cf.filters.parentTaskExternalId,
+    parentTaskExternalId: derivedParentTaskExternalId,
   });
 
   const onTaskRunIdClick = useCallback((taskRunId: string) => {
@@ -128,8 +135,8 @@ export function TaskRunsTable({
   }, []);
 
   const parentTaskRun = useQuery({
-    ...queries.v1Tasks.get(cf.filters.parentTaskExternalId || ''),
-    enabled: !!cf.filters.parentTaskExternalId,
+    ...queries.v1Tasks.get(derivedParentTaskExternalId || ''),
+    enabled: !!derivedParentTaskExternalId,
   });
 
   const v1TaskFilters = {
@@ -170,7 +177,7 @@ export function TaskRunsTable({
             </Button>
           </div>
         )}
-      {showMetrics && !cf.filters.parentTaskExternalId && (
+      {showMetrics && !derivedParentTaskExternalId && (
         <Dialog
           open={viewQueueMetrics}
           onOpenChange={(open) => {
@@ -194,7 +201,7 @@ export function TaskRunsTable({
           </DialogContent>
         </Dialog>
       )}
-      {!createdAfterProp && !cf.filters.parentTaskExternalId && (
+      {!createdAfterProp && !derivedParentTaskExternalId && (
         <div className="flex flex-row justify-end items-center my-4 gap-2">
           {cf.filters.isCustomTimeRange && [
             <Button
@@ -262,7 +269,7 @@ export function TaskRunsTable({
           </Select>
         </div>
       )}
-      {showMetrics && !cf.filters.parentTaskExternalId && (
+      {showMetrics && !derivedParentTaskExternalId && (
         <GetWorkflowChart
           tenantId={tenant.metadata.id}
           createdAfter={cf.filters.createdAfter}

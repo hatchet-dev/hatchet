@@ -242,3 +242,29 @@ func (t *V1WorkflowRunsService) V1WorkflowRunList(ctx echo.Context, request gen.
 		return t.WithDags(ctx, request)
 	}
 }
+
+func (t *V1WorkflowRunsService) V1WorkflowRunDisplayNamesList(ctx echo.Context, request gen.V1WorkflowRunDisplayNamesListRequestObject) (gen.V1WorkflowRunDisplayNamesListResponseObject, error) {
+	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
+
+	externalIds := make([]pgtype.UUID, len(request.Params.ExternalIds))
+
+	for i, id := range request.Params.ExternalIds {
+		externalIds[i] = sqlchelpers.UUIDFromStr(id.String())
+	}
+
+	displayNames, err := t.config.V1.OLAP().ListWorkflowRunDisplayNames(
+		ctx.Request().Context(),
+		tenant.ID,
+		externalIds,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	result := transformers.ToWorkflowRunDisplayNamesList(displayNames)
+
+	return gen.V1WorkflowRunDisplayNamesList200JSONResponse(
+		result,
+	), nil
+}

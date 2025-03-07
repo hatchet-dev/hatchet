@@ -251,3 +251,34 @@ func (q *Queries) ListStepsByWorkflowVersionIds(ctx context.Context, db DBTX, ar
 	}
 	return items, nil
 }
+
+const listWorkflowNamesByIds = `-- name: ListWorkflowNamesByIds :many
+SELECT id, name
+FROM "Workflow"
+WHERE id = ANY($1::uuid[])
+`
+
+type ListWorkflowNamesByIdsRow struct {
+	ID   pgtype.UUID `json:"id"`
+	Name string      `json:"name"`
+}
+
+func (q *Queries) ListWorkflowNamesByIds(ctx context.Context, db DBTX, ids []pgtype.UUID) ([]*ListWorkflowNamesByIdsRow, error) {
+	rows, err := db.Query(ctx, listWorkflowNamesByIds, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListWorkflowNamesByIdsRow
+	for rows.Next() {
+		var i ListWorkflowNamesByIdsRow
+		if err := rows.Scan(&i.ID, &i.Name); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
