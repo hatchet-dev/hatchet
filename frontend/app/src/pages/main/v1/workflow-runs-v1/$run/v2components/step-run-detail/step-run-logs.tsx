@@ -1,26 +1,13 @@
-import {
-  LogLineOrderByDirection,
-  StepRun,
-  StepRunStatus,
-  queries,
-} from '@/lib/api';
+import { V1TaskStatus, V1TaskSummary, queries } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 import LoggingComponent from '@/components/v1/cloud/logging/logs';
 
-export function StepRunLogs({
-  stepRun,
-  readableId,
-}: {
-  stepRun: StepRun | undefined;
-  readableId: string;
-}) {
+export function StepRunLogs({ taskRun }: { taskRun: V1TaskSummary }) {
   const getLogsQuery = useQuery({
-    ...queries.stepRuns.getLogs(stepRun?.metadata.id || '', {
-      orderByDirection: LogLineOrderByDirection.Asc,
-    }),
-    enabled: !!stepRun,
+    ...queries.v1Tasks.getLogs(taskRun?.metadata.id || ''),
+    enabled: !!taskRun,
     refetchInterval: () => {
-      if (stepRun?.status === StepRunStatus.RUNNING) {
+      if (taskRun?.status === V1TaskStatus.RUNNING) {
         return 1000;
       }
 
@@ -35,7 +22,7 @@ export function StepRunLogs({
           getLogsQuery.data?.rows?.map((row) => ({
             timestamp: row.createdAt,
             line: row.message,
-            instance: readableId,
+            instance: taskRun.displayName,
           })) || []
         }
         onTopReached={() => {}}

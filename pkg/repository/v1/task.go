@@ -216,20 +216,23 @@ type TaskRepository interface {
 
 type TaskRepositoryImpl struct {
 	*sharedRepository
+
+	taskRetentionPeriod time.Duration
 }
 
-func newTaskRepository(s *sharedRepository) TaskRepository {
+func newTaskRepository(s *sharedRepository, taskRetentionPeriod time.Duration) TaskRepository {
 	return &TaskRepositoryImpl{
-		sharedRepository: s,
+		sharedRepository:    s,
+		taskRetentionPeriod: taskRetentionPeriod,
 	}
 }
 
 func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	today := time.Now().UTC()
 	tomorrow := today.AddDate(0, 0, 1)
-	sevenDaysAgo := today.AddDate(0, 0, -7)
+	removeBefore := today.Add(-1 * r.taskRetentionPeriod)
 
-	err := r.queries.CreateTaskPartition(ctx, r.pool, pgtype.Date{
+	err := r.queries.CreatePartitions(ctx, r.pool, pgtype.Date{
 		Time:  today,
 		Valid: true,
 	})
@@ -238,7 +241,7 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		return err
 	}
 
-	err = r.queries.CreateTaskPartition(ctx, r.pool, pgtype.Date{
+	err = r.queries.CreatePartitions(ctx, r.pool, pgtype.Date{
 		Time:  tomorrow,
 		Valid: true,
 	})
@@ -247,19 +250,25 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		return err
 	}
 
-	partitions, err := r.queries.ListTaskPartitionsBeforeDate(ctx, r.pool, pgtype.Date{
-		Time:  sevenDaysAgo,
+	partitions, err := r.queries.ListPartitionsBeforeDate(ctx, r.pool, pgtype.Date{
+		Time:  removeBefore,
 		Valid: true,
 	})
 
 	if err != nil {
 		return err
+	}
+
+	if len(partitions) > 0 {
+		r.l.Warn().Msgf("removing partitions before %s using retention period of %s", removeBefore.Format(time.RFC3339), r.taskRetentionPeriod)
 	}
 
 	for _, partition := range partitions {
+		r.l.Warn().Msgf("detaching partition %s", partition.PartitionName)
+
 		_, err := r.pool.Exec(
 			ctx,
-			fmt.Sprintf("ALTER TABLE v1_task DETACH PARTITION %s CONCURRENTLY", partition),
+			fmt.Sprintf("ALTER TABLE %s DETACH PARTITION %s CONCURRENTLY", partition.ParentTable, partition.PartitionName),
 		)
 
 		if err != nil {
@@ -268,148 +277,7 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 
 		_, err = r.pool.Exec(
 			ctx,
-			fmt.Sprintf("DROP TABLE %s", partition),
-		)
-
-		if err != nil {
-			return err
-		}
-	}
-
-	err = r.queries.CreateDAGPartition(ctx, r.pool, pgtype.Date{
-		Time:  today,
-		Valid: true,
-	})
-
-	if err != nil {
-		return err
-	}
-
-	err = r.queries.CreateDAGPartition(ctx, r.pool, pgtype.Date{
-		Time:  tomorrow,
-		Valid: true,
-	})
-
-	if err != nil {
-		return err
-	}
-
-	dagPartitions, err := r.queries.ListDAGPartitionsBeforeDate(ctx, r.pool, pgtype.Date{
-		Time:  sevenDaysAgo,
-		Valid: true,
-	})
-
-	if err != nil {
-		return err
-	}
-
-	for _, partition := range dagPartitions {
-		_, err := r.pool.Exec(
-			ctx,
-			fmt.Sprintf("ALTER TABLE v1_dag DETACH PARTITION %s CONCURRENTLY", partition),
-		)
-
-		if err != nil {
-			return err
-		}
-
-		_, err = r.pool.Exec(
-			ctx,
-			fmt.Sprintf("DROP TABLE %s", partition),
-		)
-
-		if err != nil {
-			return err
-		}
-	}
-
-	err = r.queries.CreateTaskEventPartition(ctx, r.pool, pgtype.Date{
-		Time:  today,
-		Valid: true,
-	})
-
-	if err != nil {
-		return err
-	}
-
-	err = r.queries.CreateTaskEventPartition(ctx, r.pool, pgtype.Date{
-		Time:  tomorrow,
-		Valid: true,
-	})
-
-	if err != nil {
-		return err
-	}
-
-	taskEventPartitions, err := r.queries.ListTaskEventPartitionsBeforeDate(ctx, r.pool, pgtype.Date{
-		Time:  sevenDaysAgo,
-		Valid: true,
-	})
-
-	if err != nil {
-		return err
-	}
-
-	for _, partition := range taskEventPartitions {
-		_, err := r.pool.Exec(
-			ctx,
-			fmt.Sprintf("ALTER TABLE v1_task_event DETACH PARTITION %s CONCURRENTLY", partition),
-		)
-
-		if err != nil {
-			return err
-		}
-
-		_, err = r.pool.Exec(
-			ctx,
-			fmt.Sprintf("DROP TABLE %s", partition),
-		)
-
-		if err != nil {
-			return err
-		}
-	}
-
-	err = r.queries.CreateConcurrencyPartition(ctx, r.pool, pgtype.Date{
-		Time:  today,
-		Valid: true,
-	})
-
-	if err != nil {
-		return err
-	}
-
-	err = r.queries.CreateConcurrencyPartition(ctx, r.pool, pgtype.Date{
-		Time:  tomorrow,
-		Valid: true,
-	})
-
-	if err != nil {
-		return err
-	}
-
-	concurrencyPartitions, err := r.queries.ListConcurrencyPartitionsBeforeDate(ctx, r.pool, pgtype.Date{
-		Time:  sevenDaysAgo,
-		Valid: true,
-	})
-
-	if err != nil {
-		return err
-	}
-
-	for _, partition := range concurrencyPartitions {
-		_, err := r.pool.Exec(
-			ctx,
-			fmt.Sprintf("ALTER TABLE v1_concurrency_slot DETACH PARTITION %s CONCURRENTLY", partition),
-		)
-
-		if err != nil {
-			return err
-		}
-
-		_, err = r.pool.Exec(
-			ctx,
-			fmt.Sprintf("DROP TABLE %s", partition),
+			fmt.Sprintf("DROP TABLE %s", partition.PartitionName),
 		)
 
 		if err != nil {

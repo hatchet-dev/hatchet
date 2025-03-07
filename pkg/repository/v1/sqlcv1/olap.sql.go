@@ -24,63 +24,22 @@ type CreateDAGsOLAPParams struct {
 	ParentTaskExternalID pgtype.UUID        `json:"parent_task_external_id"`
 }
 
-const createOLAPDAGPartition = `-- name: CreateOLAPDAGPartition :exec
-SELECT create_v1_olap_partition_with_date_and_status(
-    'v1_dags_olap'::text,
-    $1::date
-)
+const createOLAPPartitions = `-- name: CreateOLAPPartitions :exec
+SELECT
+    create_v1_hash_partitions('v1_task_events_olap_tmp'::text, $1::int),
+    create_v1_hash_partitions('v1_task_status_updates_tmp'::text, $1::int),
+    create_v1_olap_partition_with_date_and_status('v1_tasks_olap'::text, $2::date),
+    create_v1_olap_partition_with_date_and_status('v1_runs_olap'::text, $2::date),
+    create_v1_olap_partition_with_date_and_status('v1_dags_olap'::text, $2::date)
 `
 
-func (q *Queries) CreateOLAPDAGPartition(ctx context.Context, db DBTX, date pgtype.Date) error {
-	_, err := db.Exec(ctx, createOLAPDAGPartition, date)
-	return err
+type CreateOLAPPartitionsParams struct {
+	Partitions int32       `json:"partitions"`
+	Date       pgtype.Date `json:"date"`
 }
 
-const createOLAPRunsPartition = `-- name: CreateOLAPRunsPartition :exec
-SELECT create_v1_olap_partition_with_date_and_status(
-    'v1_runs_olap'::text,
-    $1::date
-)
-`
-
-func (q *Queries) CreateOLAPRunsPartition(ctx context.Context, db DBTX, date pgtype.Date) error {
-	_, err := db.Exec(ctx, createOLAPRunsPartition, date)
-	return err
-}
-
-const createOLAPTaskEventTmpPartitions = `-- name: CreateOLAPTaskEventTmpPartitions :exec
-SELECT create_v1_hash_partitions(
-    'v1_task_events_olap_tmp'::text,
-    $1::int
-)
-`
-
-func (q *Queries) CreateOLAPTaskEventTmpPartitions(ctx context.Context, db DBTX, partitions int32) error {
-	_, err := db.Exec(ctx, createOLAPTaskEventTmpPartitions, partitions)
-	return err
-}
-
-const createOLAPTaskPartition = `-- name: CreateOLAPTaskPartition :exec
-SELECT create_v1_olap_partition_with_date_and_status(
-    'v1_tasks_olap'::text,
-    $1::date
-)
-`
-
-func (q *Queries) CreateOLAPTaskPartition(ctx context.Context, db DBTX, date pgtype.Date) error {
-	_, err := db.Exec(ctx, createOLAPTaskPartition, date)
-	return err
-}
-
-const createOLAPTaskStatusUpdateTmpPartitions = `-- name: CreateOLAPTaskStatusUpdateTmpPartitions :exec
-SELECT create_v1_hash_partitions(
-    'v1_task_status_updates_tmp'::text,
-    $1::int
-)
-`
-
-func (q *Queries) CreateOLAPTaskStatusUpdateTmpPartitions(ctx context.Context, db DBTX, partitions int32) error {
-	_, err := db.Exec(ctx, createOLAPTaskStatusUpdateTmpPartitions, partitions)
+func (q *Queries) CreateOLAPPartitions(ctx context.Context, db DBTX, arg CreateOLAPPartitionsParams) error {
+	_, err := db.Exec(ctx, createOLAPPartitions, arg.Partitions, arg.Date)
 	return err
 }
 
@@ -358,89 +317,52 @@ func (q *Queries) GetWorkflowRunIdFromDagIdInsertedAt(ctx context.Context, db DB
 	return external_id, err
 }
 
-const listOLAPDAGPartitionsBeforeDate = `-- name: ListOLAPDAGPartitionsBeforeDate :many
+const listOLAPPartitionsBeforeDate = `-- name: ListOLAPPartitionsBeforeDate :many
+WITH task_partitions AS (
+    SELECT 'v1_tasks_olap' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_tasks_olap'::text, $1::date) AS p
+), dag_partitions AS (
+    SELECT 'v1_dags_olap' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_dags_olap', $1::date) AS p
+), runs_partitions AS (
+    SELECT 'v1_runs_olap' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_runs_olap', $1::date) AS p
+)
 SELECT
-    p::text AS partition_name
+    parent_table, partition_name
 FROM
-    get_v1_partitions_before_date(
-        'v1_dags_olap'::text,
-        $1::date
-    ) AS p
+    task_partitions
+
+UNION ALL
+
+SELECT
+    parent_table, partition_name
+FROM
+    dag_partitions
+
+UNION ALL
+
+SELECT
+    parent_table, partition_name
+FROM
+    runs_partitions
 `
 
-func (q *Queries) ListOLAPDAGPartitionsBeforeDate(ctx context.Context, db DBTX, date pgtype.Date) ([]string, error) {
-	rows, err := db.Query(ctx, listOLAPDAGPartitionsBeforeDate, date)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []string
-	for rows.Next() {
-		var partition_name string
-		if err := rows.Scan(&partition_name); err != nil {
-			return nil, err
-		}
-		items = append(items, partition_name)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
+type ListOLAPPartitionsBeforeDateRow struct {
+	ParentTable   string `json:"parent_table"`
+	PartitionName string `json:"partition_name"`
 }
 
-const listOLAPRunsPartitionsBeforeDate = `-- name: ListOLAPRunsPartitionsBeforeDate :many
-SELECT
-    p::text AS partition_name
-FROM
-    get_v1_partitions_before_date(
-        'v1_runs_olap'::text,
-        $1::date
-    ) AS p
-`
-
-func (q *Queries) ListOLAPRunsPartitionsBeforeDate(ctx context.Context, db DBTX, date pgtype.Date) ([]string, error) {
-	rows, err := db.Query(ctx, listOLAPRunsPartitionsBeforeDate, date)
+func (q *Queries) ListOLAPPartitionsBeforeDate(ctx context.Context, db DBTX, date pgtype.Date) ([]*ListOLAPPartitionsBeforeDateRow, error) {
+	rows, err := db.Query(ctx, listOLAPPartitionsBeforeDate, date)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []string
+	var items []*ListOLAPPartitionsBeforeDateRow
 	for rows.Next() {
-		var partition_name string
-		if err := rows.Scan(&partition_name); err != nil {
+		var i ListOLAPPartitionsBeforeDateRow
+		if err := rows.Scan(&i.ParentTable, &i.PartitionName); err != nil {
 			return nil, err
 		}
-		items = append(items, partition_name)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listOLAPTaskPartitionsBeforeDate = `-- name: ListOLAPTaskPartitionsBeforeDate :many
-SELECT
-    p::text AS partition_name
-FROM
-    get_v1_partitions_before_date(
-        'v1_tasks_olap'::text,
-        $1::date
-    ) AS p
-`
-
-func (q *Queries) ListOLAPTaskPartitionsBeforeDate(ctx context.Context, db DBTX, date pgtype.Date) ([]string, error) {
-	rows, err := db.Query(ctx, listOLAPTaskPartitionsBeforeDate, date)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []string
-	for rows.Next() {
-		var partition_name string
-		if err := rows.Scan(&partition_name); err != nil {
-			return nil, err
-		}
-		items = append(items, partition_name)
+		items = append(items, &i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

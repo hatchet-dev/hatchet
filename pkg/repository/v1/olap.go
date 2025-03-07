@@ -205,9 +205,11 @@ type olapRepository struct {
 	*sharedRepository
 
 	eventCache *lru.Cache[string, bool]
+
+	olapRetentionPeriod time.Duration
 }
 
-func newOLAPRepository(shared *sharedRepository) OLAPRepository {
+func newOLAPRepository(shared *sharedRepository, olapRetentionPeriod time.Duration) OLAPRepository {
 	eventCache, err := lru.New[string, bool](100000)
 
 	if err != nil {
@@ -215,72 +217,43 @@ func newOLAPRepository(shared *sharedRepository) OLAPRepository {
 	}
 
 	return &olapRepository{
-		sharedRepository: shared,
-		eventCache:       eventCache,
+		sharedRepository:    shared,
+		eventCache:          eventCache,
+		olapRetentionPeriod: olapRetentionPeriod,
 	}
 }
 
 func (o *olapRepository) UpdateTablePartitions(ctx context.Context) error {
-	err := o.queries.CreateOLAPTaskEventTmpPartitions(ctx, o.pool, NUM_PARTITIONS)
-
-	if err != nil {
-		return err
-	}
-
-	err = o.queries.CreateOLAPTaskStatusUpdateTmpPartitions(ctx, o.pool, NUM_PARTITIONS)
-
-	if err != nil {
-		return err
-	}
-
-	err = o.setupRangePartition(
-		ctx,
-		o.queries.CreateOLAPTaskPartition,
-		o.queries.ListOLAPTaskPartitionsBeforeDate,
-		"v2_tasks_olap",
-	)
-
-	if err != nil {
-		return err
-	}
-
-	err = o.setupRangePartition(
-		ctx,
-		o.queries.CreateOLAPDAGPartition,
-		o.queries.ListOLAPDAGPartitionsBeforeDate,
-		"v2_dags_olap",
-	)
-
-	if err != nil {
-		return err
-	}
-
-	err = o.setupRangePartition(
-		ctx,
-		o.queries.CreateOLAPRunsPartition,
-		o.queries.ListOLAPRunsPartitionsBeforeDate,
-		"v2_runs_olap",
-	)
-
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (o *olapRepository) setupRangePartition(
-	ctx context.Context,
-	create func(ctx context.Context, db sqlcv1.DBTX, date pgtype.Date) error,
-	listBeforeDate func(ctx context.Context, db sqlcv1.DBTX, date pgtype.Date) ([]string, error),
-	tableName string,
-) error {
 	today := time.Now().UTC()
 	tomorrow := today.AddDate(0, 0, 1)
-	sevenDaysAgo := today.AddDate(0, 0, -7)
+	removeBefore := today.Add(-1 * o.olapRetentionPeriod)
 
-	err := create(ctx, o.pool, pgtype.Date{
-		Time:  today,
+	err := o.queries.CreateOLAPPartitions(ctx, o.pool, sqlcv1.CreateOLAPPartitionsParams{
+		Date: pgtype.Date{
+			Time:  today,
+			Valid: true,
+		},
+		Partitions: NUM_PARTITIONS,
+	})
+
+	if err != nil {
+		return err
+	}
+
+	err = o.queries.CreateOLAPPartitions(ctx, o.pool, sqlcv1.CreateOLAPPartitionsParams{
+		Date: pgtype.Date{
+			Time:  tomorrow,
+			Valid: true,
+		},
+		Partitions: NUM_PARTITIONS,
+	})
+
+	if err != nil {
+		return err
+	}
+
+	partitions, err := o.queries.ListOLAPPartitionsBeforeDate(ctx, o.pool, pgtype.Date{
+		Time:  removeBefore,
 		Valid: true,
 	})
 
@@ -288,28 +261,16 @@ func (o *olapRepository) setupRangePartition(
 		return err
 	}
 
-	err = create(ctx, o.pool, pgtype.Date{
-		Time:  tomorrow,
-		Valid: true,
-	})
-
-	if err != nil {
-		return err
-	}
-
-	partitions, err := listBeforeDate(ctx, o.pool, pgtype.Date{
-		Time:  sevenDaysAgo,
-		Valid: true,
-	})
-
-	if err != nil {
-		return err
+	if len(partitions) > 0 {
+		o.l.Warn().Msgf("removing partitions before %s using retention period of %s", removeBefore.Format(time.RFC3339), o.olapRetentionPeriod)
 	}
 
 	for _, partition := range partitions {
+		o.l.Warn().Msgf("detaching partition %s", partition.PartitionName)
+
 		_, err := o.pool.Exec(
 			ctx,
-			fmt.Sprintf("ALTER TABLE %s DETACH PARTITION %s CONCURRENTLY", tableName, partition),
+			fmt.Sprintf("ALTER TABLE %s DETACH PARTITION %s CONCURRENTLY", partition.ParentTable, partition.PartitionName),
 		)
 
 		if err != nil {
@@ -318,7 +279,7 @@ func (o *olapRepository) setupRangePartition(
 
 		_, err = o.pool.Exec(
 			ctx,
-			fmt.Sprintf("DROP TABLE %s", partition),
+			fmt.Sprintf("DROP TABLE %s", partition.PartitionName),
 		)
 
 		if err != nil {

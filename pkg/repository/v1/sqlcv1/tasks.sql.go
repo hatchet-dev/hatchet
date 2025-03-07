@@ -11,39 +11,17 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const createConcurrencyPartition = `-- name: CreateConcurrencyPartition :exec
-SELECT create_v1_range_partition(
-    'v1_concurrency_slot',
-    $1::date
-)
+const createPartitions = `-- name: CreatePartitions :exec
+SELECT
+    create_v1_range_partition('v1_task', $1::date),
+    create_v1_range_partition('v1_dag', $1::date),
+    create_v1_range_partition('v1_task_event', $1::date),
+    create_v1_range_partition('v1_concurrency_slot', $1::date),
+    create_v1_range_partition('v1_log_line', $1::date)
 `
 
-func (q *Queries) CreateConcurrencyPartition(ctx context.Context, db DBTX, date pgtype.Date) error {
-	_, err := db.Exec(ctx, createConcurrencyPartition, date)
-	return err
-}
-
-const createTaskEventPartition = `-- name: CreateTaskEventPartition :exec
-SELECT create_v1_range_partition(
-    'v1_task_event',
-    $1::date
-)
-`
-
-func (q *Queries) CreateTaskEventPartition(ctx context.Context, db DBTX, date pgtype.Date) error {
-	_, err := db.Exec(ctx, createTaskEventPartition, date)
-	return err
-}
-
-const createTaskPartition = `-- name: CreateTaskPartition :exec
-SELECT create_v1_range_partition(
-    'v1_task',
-    $1::date
-)
-`
-
-func (q *Queries) CreateTaskPartition(ctx context.Context, db DBTX, date pgtype.Date) error {
-	_, err := db.Exec(ctx, createTaskPartition, date)
+func (q *Queries) CreatePartitions(ctx context.Context, db DBTX, date pgtype.Date) error {
+	_, err := db.Exec(ctx, createPartitions, date)
 	return err
 }
 
@@ -454,36 +432,6 @@ func (q *Queries) ListAllTasksInDags(ctx context.Context, db DBTX, arg ListAllTa
 	return items, nil
 }
 
-const listConcurrencyPartitionsBeforeDate = `-- name: ListConcurrencyPartitionsBeforeDate :many
-SELECT
-    p::text AS partition_name
-FROM
-    get_v1_partitions_before_date(
-        'v1_concurrency_slot',
-        $1::date
-    ) AS p
-`
-
-func (q *Queries) ListConcurrencyPartitionsBeforeDate(ctx context.Context, db DBTX, date pgtype.Date) ([]string, error) {
-	rows, err := db.Query(ctx, listConcurrencyPartitionsBeforeDate, date)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []string
-	for rows.Next() {
-		var partition_name string
-		if err := rows.Scan(&partition_name); err != nil {
-			return nil, err
-		}
-		items = append(items, partition_name)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listMatchingSignalEvents = `-- name: ListMatchingSignalEvents :many
 WITH input AS (
     SELECT
@@ -632,29 +580,70 @@ func (q *Queries) ListMatchingTaskEvents(ctx context.Context, db DBTX, arg ListM
 	return items, nil
 }
 
-const listTaskEventPartitionsBeforeDate = `-- name: ListTaskEventPartitionsBeforeDate :many
+const listPartitionsBeforeDate = `-- name: ListPartitionsBeforeDate :many
+WITH task_partitions AS (
+    SELECT 'v1_task' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_task', $1::date) AS p
+), dag_partitions AS (
+    SELECT 'v1_dag' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_dag', $1::date) AS p
+), task_event_partitions AS (
+    SELECT 'v1_task_event' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_task_event', $1::date) AS p
+), concurrency_partitions AS (
+    SELECT 'v1_concurrency_slot' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_concurrency_slot', $1::date) AS p
+), log_line_partitions AS (
+    SELECT 'v1_log_line' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_log_line', $1::date) AS p
+)
 SELECT
-    p::text AS partition_name
+    parent_table, partition_name
 FROM
-    get_v1_partitions_before_date(
-        'v1_task_event',
-        $1::date
-    ) AS p
+    task_partitions
+
+UNION ALL
+
+SELECT
+    parent_table, partition_name
+FROM
+    dag_partitions
+
+UNION ALL
+
+SELECT
+    parent_table, partition_name
+FROM
+    task_event_partitions
+
+UNION ALL
+
+SELECT
+    parent_table, partition_name
+FROM
+    concurrency_partitions
+
+UNION ALL
+
+SELECT
+    parent_table, partition_name
+FROM
+    log_line_partitions
 `
 
-func (q *Queries) ListTaskEventPartitionsBeforeDate(ctx context.Context, db DBTX, date pgtype.Date) ([]string, error) {
-	rows, err := db.Query(ctx, listTaskEventPartitionsBeforeDate, date)
+type ListPartitionsBeforeDateRow struct {
+	ParentTable   string `json:"parent_table"`
+	PartitionName string `json:"partition_name"`
+}
+
+func (q *Queries) ListPartitionsBeforeDate(ctx context.Context, db DBTX, date pgtype.Date) ([]*ListPartitionsBeforeDateRow, error) {
+	rows, err := db.Query(ctx, listPartitionsBeforeDate, date)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []string
+	var items []*ListPartitionsBeforeDateRow
 	for rows.Next() {
-		var partition_name string
-		if err := rows.Scan(&partition_name); err != nil {
+		var i ListPartitionsBeforeDateRow
+		if err := rows.Scan(&i.ParentTable, &i.PartitionName); err != nil {
 			return nil, err
 		}
-		items = append(items, partition_name)
+		items = append(items, &i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -765,36 +754,6 @@ func (q *Queries) ListTaskMetas(ctx context.Context, db DBTX, arg ListTaskMetasP
 			return nil, err
 		}
 		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listTaskPartitionsBeforeDate = `-- name: ListTaskPartitionsBeforeDate :many
-SELECT
-    p::text AS partition_name
-FROM
-    get_v1_partitions_before_date(
-        'v1_task',
-        $1::date
-    ) AS p
-`
-
-func (q *Queries) ListTaskPartitionsBeforeDate(ctx context.Context, db DBTX, date pgtype.Date) ([]string, error) {
-	rows, err := db.Query(ctx, listTaskPartitionsBeforeDate, date)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []string
-	for rows.Next() {
-		var partition_name string
-		if err := rows.Scan(&partition_name); err != nil {
-			return nil, err
-		}
-		items = append(items, partition_name)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

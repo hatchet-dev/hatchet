@@ -1,47 +1,55 @@
--- name: CreateTaskPartition :exec
-SELECT create_v1_range_partition(
-    'v1_task',
-    @date::date
-);
-
--- name: ListTaskPartitionsBeforeDate :many
+-- name: CreatePartitions :exec
 SELECT
-    p::text AS partition_name
-FROM
-    get_v1_partitions_before_date(
-        'v1_task',
-        @date::date
-    ) AS p;
+    create_v1_range_partition('v1_task', @date::date),
+    create_v1_range_partition('v1_dag', @date::date),
+    create_v1_range_partition('v1_task_event', @date::date),
+    create_v1_range_partition('v1_concurrency_slot', @date::date),
+    create_v1_range_partition('v1_log_line', @date::date);
 
--- name: CreateTaskEventPartition :exec
-SELECT create_v1_range_partition(
-    'v1_task_event',
-    @date::date
-);
-
--- name: ListTaskEventPartitionsBeforeDate :many
+-- name: ListPartitionsBeforeDate :many
+WITH task_partitions AS (
+    SELECT 'v1_task' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_task', @date::date) AS p
+), dag_partitions AS (
+    SELECT 'v1_dag' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_dag', @date::date) AS p
+), task_event_partitions AS (
+    SELECT 'v1_task_event' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_task_event', @date::date) AS p
+), concurrency_partitions AS (
+    SELECT 'v1_concurrency_slot' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_concurrency_slot', @date::date) AS p
+), log_line_partitions AS (
+    SELECT 'v1_log_line' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_log_line', @date::date) AS p
+)
 SELECT
-    p::text AS partition_name
+    *
 FROM
-    get_v1_partitions_before_date(
-        'v1_task_event',
-        @date::date
-    ) AS p;
+    task_partitions
 
--- name: CreateConcurrencyPartition :exec
-SELECT create_v1_range_partition(
-    'v1_concurrency_slot',
-    @date::date
-);
+UNION ALL
 
--- name: ListConcurrencyPartitionsBeforeDate :many
 SELECT
-    p::text AS partition_name
+    *
 FROM
-    get_v1_partitions_before_date(
-        'v1_concurrency_slot',
-        @date::date
-    ) AS p;
+    dag_partitions
+
+UNION ALL
+
+SELECT
+    *
+FROM
+    task_event_partitions
+
+UNION ALL
+
+SELECT
+    *
+FROM
+    concurrency_partitions
+
+UNION ALL
+
+SELECT
+    *
+FROM
+    log_line_partitions;
 
 -- name: FlattenExternalIds :many
 WITH lookup_rows AS (

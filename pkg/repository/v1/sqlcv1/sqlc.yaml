@@ -15,6 +15,7 @@ sql:
       - matches.sql
       - olap.sql
       - rate_limits.sql
+      - log_line.sql
     schema:
       - ../../../../sql/schema/v0.sql
       - ../../../../sql/schema/v1.sql
